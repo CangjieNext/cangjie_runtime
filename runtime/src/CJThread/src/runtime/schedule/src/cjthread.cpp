@@ -1085,6 +1085,58 @@ int CJThreadPark(ParkCallbackFunc func, TraceEvent waitReason, void *arg)
     return cjthread->result;
 }
 
+void CJThreadWait()
+{
+    CJThreadPark(NULL, TRACE_EV_CJTHREAD_BLOCK, NULL);
+}
+
+void *CJThreadMRAW(struct CJThread *parkCJThread)
+{
+    /* COPIED AND MODIFIED FROM CJThreadMpark */
+    {
+        MapleRuntime::Mutator* mutator = parkCJThread->mutator;
+        auto& context = parkCJThread->context;
+        mutator->PreparedToPark((void*)context.GetPC(), (void*)context.GetFrameAddress());
+        atomic_store_explicit(&parkCJThread->state, CJTHREAD_PENDING, std::memory_order_relaxed);
+    }
+    /* END COPY */
+
+    struct CJThread *cjthread0 = CJThreadGet();
+    struct CJThread *nextCJThread = static_cast<struct CJThread *>(cjthread0->argStart);
+
+    /* COPIED AND MODIFIED FROM ProcessorSchedule() */
+    {
+        atomic_store_explicit(&nextCJThread->state, CJTHREAD_RUNNING, std::memory_order_relaxed);
+        ProtectAddrSet((uintptr_t)nextCJThread->stack.stackGuard);
+        if (nextCJThread->boundThread != nullptr) {
+            LOG_ERROR(-1, "BOUND THREADS NOT SUPPORTED WITH EFFECTS");
+        } else {
+#ifdef YLONG_TEST
+            CJThreadExecute(nextCJThread, CJThreadAddr());
+#else
+            MapleRuntime::Mutator* mutator = nextCJThread->mutator;
+            MapleRuntime::ThreadLocalData* tlData = MapleRuntime::ThreadLocal::GetThreadLocalData();
+            tlData->mutator = mutator;
+            mutator->PreparedToRun(tlData);
+            /* ProcessorWake的执行上下文一定是在cjthread0中，
+             * 因此不需要改变当前cjthread的状态，直接切到nextCJThread */
+            CJThreadExecute(nextCJThread, (void**)&tlData->cjthread);
+#endif
+        }
+    }
+    /* END COPY */
+
+    return nullptr;
+}
+
+void CJThreadResumeAndWait(CJThreadHandle readyThread)
+{
+    struct CJThread *cjthread0 = static_cast<struct CJThread *>(ThreadGet()->cjthread0);
+    /* This is a trick to pass an extra argument to CJThreadMRAW */
+    cjthread0->argStart = readyThread;
+    CJThreadMcall(reinterpret_cast<void *>(CJThreadMRAW), CJThreadAddr());
+}
+
 void *CJThreadMresched(struct CJThread *reCJThread)
 {
     struct Schedule *schedule = reCJThread->schedule;

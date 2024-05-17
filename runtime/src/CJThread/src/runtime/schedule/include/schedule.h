@@ -640,6 +640,11 @@ CJThreadHandle CJThreadNewToDefault(const struct CJThreadAttr *attr, CJThreadFun
  */
 void CJThreadPreemptResched(void);
 
+void CJThreadReady(CJThreadHandle readyCJThread);
+
+void CJThreadWait(void);
+void CJThreadResumeAndWait(CJThreadHandle readyCJThread);
+
 /**
  * @brief Obtain the ID of the current cjthread.
  * @par Description: Obtain the ID of the current cjthread. The ID is greater than or equal
