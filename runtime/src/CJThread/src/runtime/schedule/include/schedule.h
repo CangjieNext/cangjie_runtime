@@ -642,7 +642,18 @@ void CJThreadPreemptResched(void);
 
 void CJThreadReady(CJThreadHandle readyCJThread);
 
+/**
+ * @brief Make the current thread wait
+ * @par Description: Park the current thread
+ */
 void CJThreadWait(void);
+
+/**
+ * @brief Park the current thread and schedule another one
+ * @par Description: The current thread is parked and the next thread is scheduled for execution.
+ * These operations are done one after the other.
+ * @param readyCJThread    [IN] cjthread to to be added to the running queue.
+ */
 void CJThreadResumeAndWait(CJThreadHandle readyCJThread);
 
 /**

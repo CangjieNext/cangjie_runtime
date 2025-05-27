@@ -1118,8 +1118,22 @@ void *CJThreadMRAW(struct CJThread *parkCJThread)
             MapleRuntime::ThreadLocalData* tlData = MapleRuntime::ThreadLocal::GetThreadLocalData();
             tlData->mutator = mutator;
             mutator->PreparedToRun(tlData);
-            /* ProcessorWake的执行上下文一定是在cjthread0中，
-             * 因此不需要改变当前cjthread的状态，直接切到nextCJThread */
+#ifdef CANGJIE_ASAN_SUPPORT
+            // target to next cj thread, just switch
+            MapleRuntime::Sanitizer::AsanStartSwitchThreadContext(CJThreadGet(), nextCJThread);
+            MapleRuntime::Sanitizer::AsanEndSwitchThreadContext(nextCJThread);
+#endif
+#ifdef __OHOS__
+            TRACE_START_ASYNC(TRACE_CJTHREAD_EXEC, nextCJThread->id);
+#elif defined (__HOS__)
+            TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXEC, nextCJThread->id));
+#endif
+#ifdef __OHOS__
+            if (nextCJThread->schedule->scheduleType == SCHEDULE_UI_THREAD) {
+                SingleCJThreadStoreSP();
+            }
+#endif
+
             CJThreadExecute(nextCJThread, (void**)&tlData->cjthread);
 #endif
         }
