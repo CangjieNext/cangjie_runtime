@@ -1096,7 +1096,7 @@ void CJThreadWait()
  * It does this without going through the scheduler, but deterministically choosing the next
  * cjthread to execute.
  *
- * Note: the implementation is based on CJThreadMPark and ProcessorSchedule 
+ * Note: the implementation is based on CJThreadMPark and ProcessorSchedule
  */
 void *CJThreadMRAW(struct CJThread *parkCJThread)
 {
