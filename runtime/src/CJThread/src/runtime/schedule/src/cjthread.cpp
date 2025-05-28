@@ -1090,6 +1090,14 @@ void CJThreadWait()
     CJThreadPark(NULL, TRACE_EV_CJTHREAD_BLOCK, NULL);
 }
 
+/**
+ * CJThreadMRAW Parks the given thread, and executes the next thread specified in
+ * cjthread0->argStart.
+ * It does this without going through the scheduler, but deterministically choosing the next
+ * cjthread to execute.
+ *
+ * Note: the implementation is based on CJThreadMPark and ProcessorSchedule 
+ */
 void *CJThreadMRAW(struct CJThread *parkCJThread)
 {
     /* COPIED AND MODIFIED FROM CJThreadMpark */
