@@ -1102,6 +1102,7 @@ void *CJThreadMRAW(struct CJThread *parkCJThread)
 {
     /* COPIED AND MODIFIED FROM CJThreadMpark */
     {
+        // Park parkCJThread
         MapleRuntime::Mutator* mutator = parkCJThread->mutator;
         auto& context = parkCJThread->context;
         mutator->PreparedToPark((void*)context.GetPC(), (void*)context.GetFrameAddress());
@@ -1110,6 +1111,8 @@ void *CJThreadMRAW(struct CJThread *parkCJThread)
     /* END COPY */
 
     struct CJThread *cjthread0 = CJThreadGet();
+    // Recover the next thread to run from `argStart`
+    // See the invocation from CJThreadResumeAndWait
     struct CJThread *nextCJThread = static_cast<struct CJThread *>(cjthread0->argStart);
 
     /* COPIED AND MODIFIED FROM ProcessorSchedule() */
@@ -1119,7 +1122,8 @@ void *CJThreadMRAW(struct CJThread *parkCJThread)
         if (nextCJThread->boundThread != nullptr) {
             LOG_ERROR(-1, "BOUND THREADS NOT SUPPORTED WITH EFFECTS");
         } else {
-#ifdef YLONG_TEST
+            // Execute the thread
+#ifdef MRT_TEST
             CJThreadExecute(nextCJThread, CJThreadAddr());
 #else
             MapleRuntime::Mutator* mutator = nextCJThread->mutator;
