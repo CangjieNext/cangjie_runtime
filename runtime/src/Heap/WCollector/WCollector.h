@@ -54,7 +54,7 @@ public:
 
     bool ShouldIgnoreRequest(GCRequest& request) override;
     bool MarkObject(BaseObject* obj) const override;
-    bool ResurrectObject(BaseObject* obj) override;
+    bool ResurrectObject(BaseObject* obj, size_t offset, RegionInfo* regionInfo) override;
 
     void EnumRefFieldRoot(RefField<>& ref, RootSet& rootSet) const override;
     void TraceRefField(BaseObject* obj, RefField<>& ref, WorkStack& workStack) const;
@@ -111,7 +111,11 @@ public:
     bool IsUnmovableFromObject(BaseObject* obj) const override;
 
     // this is called when caller assures from-object/from-region still exists.
-    BaseObject* GetForwardPointer(BaseObject* fromObj) { return fwdTable.RouteObject(fromObj); }
+    BaseObject* GetForwardPointer(BaseObject* fromObj, RegionInfo* region)
+    {
+        RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
+        return space.GetRegionManager().RouteObject(fromObj, region);
+    }
 
     BaseObject* FindToVersion(BaseObject* obj) const override
     {
@@ -124,7 +128,7 @@ public:
     }
 
 protected:
-    BaseObject* ForwardObjectImpl(BaseObject* obj);
+    BaseObject* ForwardObjectImpl(BaseObject* obj, RegionInfo* ghostFromRegion);
     BaseObject* ForwardObjectExclusive(BaseObject* obj) override;
 
     bool TryUntagRefField(BaseObject* obj, RefField<>& field, BaseObject*& target) const override;

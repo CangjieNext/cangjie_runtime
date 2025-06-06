@@ -174,17 +174,6 @@ public:
         RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
         return regionInfo->MarkObject(obj);
     }
-    static bool ResurrentObject(const BaseObject* obj)
-    {
-        RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
-        return regionInfo->ResurrentObject(obj);
-    }
-
-    static bool EnqueueObject(const BaseObject* obj)
-    {
-        RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
-        return regionInfo->EnqueueObject(obj);
-    }
 
     static bool IsMarkedObject(const BaseObject* obj)
     {
@@ -192,16 +181,23 @@ public:
         return regionInfo->IsMarkedObject(obj);
     }
 
+    static bool ShouldEnqueue(const BaseObject* obj)
+    {
+        RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
+        if (regionInfo->IsTraceRegion()) {
+            return false;
+        }
+        size_t offset = regionInfo->GetAddressOffset(reinterpret_cast<MAddress>(obj));
+        if (regionInfo->IsMarkedObject(offset)) {
+            return false;
+        }
+        return !regionInfo->EnqueueObject(obj, offset);
+    }
+
     static bool IsResurrectedObject(const BaseObject* obj)
     {
         RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
         return regionInfo->IsResurrectedObject(obj);
-    }
-
-    static bool IsEnqueuedObject(const BaseObject* obj)
-    {
-        RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
-        return regionInfo->IsEnqueuedObject(obj);
     }
 
     void AddRawPointerObject(BaseObject* obj) { regionManager.AddRawPointerObject(obj); }

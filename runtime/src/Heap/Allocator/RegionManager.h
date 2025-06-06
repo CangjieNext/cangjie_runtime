@@ -4,7 +4,6 @@
 //
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-
 #ifndef MRT_REGION_MANAGER_H
 #define MRT_REGION_MANAGER_H
 
@@ -134,14 +133,6 @@ public:
     uintptr_t GetInactiveZone() const { return inactiveZone; }
 
     uintptr_t GetRegionHeapStart() const { return regionHeapStart; }
-
-    RegionInfo* GetFirstRegion() const
-    {
-        if (regionHeapStart < inactiveZone) {
-            return RegionInfo::GetRegionInfoAt(regionHeapStart);
-        }
-        return nullptr;
-    }
 
     ~RegionManager() = default;
 
@@ -399,18 +390,6 @@ public:
         return oldPinnedRegionList.GetAllocatedSize() + recentPinnedRegionList.GetAllocatedSize();
     }
 
-    // valid only between forwarding phase and flipping phase.
-    inline size_t GetToSpaceSize() const { return toRegionList.GetAllocatedSize(); }
-
-    RegionInfo* GetNextNeighborRegion(RegionInfo* region) const
-    {
-        MAddress address = region->GetRegionEnd();
-        if (address < inactiveZone.load()) {
-            return RegionInfo::GetRegionInfoAt(address);
-        }
-        return nullptr;
-    }
-
     size_t GetLargeObjectThreshold() const { return largeObjectThreshold; }
 
     void ClearFreePinnedSlots() { freePinnedSlotLists.Clear(); }
@@ -449,6 +428,15 @@ public:
     }
 
     bool RouteOrCompactRegionImpl(RegionInfo* region);
+
+    BaseObject* RouteObject(BaseObject* fromObj, RegionInfo* fromRegionInfo)
+    {
+        if (RouteRegion(fromRegionInfo) || fromRegionInfo->IsCompacted()) {
+            BaseObject* toAddr = fromRegionInfo->GetRoute(fromObj);
+            return toAddr;
+        }
+        return nullptr;
+    }
 
     BaseObject* RouteObject(BaseObject* fromObj)
     {
@@ -605,10 +593,10 @@ private:
 
     // heap space not allocated yet for even once. this value should not be decreased.
     std::atomic<uintptr_t> inactiveZone = { 0 };
-    size_t maxUnitCountPerRegion = MAX_UNIT_COUNT_PER_REGION; // max units count for threadLocal buffer.
+    size_t maxUnitCountPerRegion = MAX_UNIT_COUNT_PER_REGION;   // max units count for threadLocal buffer.
     size_t maxUnitCountPerPinnedRegion = maxUnitCountPerRegion; // max units count for pinned region.
     size_t largeObjectThreshold;
-    double fromSpaceGarbageThreshold = 0.5;                   // 0.5: default garbage ratio.
+    double fromSpaceGarbageThreshold = 0.5; // 0.5: default garbage ratio.
     double exemptedRegionThreshold;
 
     std::mutex freePinnedSlotListMutex;

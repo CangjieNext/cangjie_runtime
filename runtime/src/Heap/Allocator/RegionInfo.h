@@ -4,7 +4,6 @@
 //
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-
 #ifndef MRT_REGION_INFO_H
 #define MRT_REGION_INFO_H
 
@@ -14,9 +13,9 @@
 #include <thread>
 #include <vector>
 #ifdef _WIN64
-#include <memoryapi.h>
 #include <errhandlingapi.h>
 #include <handleapi.h>
+#include <memoryapi.h>
 #else
 #include <sys/mman.h>
 #endif
@@ -309,14 +308,31 @@ public:
             }
             return true;
         }
-        U32 size = obj->GetSize();
+        U32 objSize = obj->GetSize();
         size_t offset = GetAddressOffset(reinterpret_cast<MAddress>(obj));
-        bool marked = GetOrAllocMarkBitmap()->MarkBits(offset, size, GetRegionSize());
-        DCHECK(IsMarkedObject(obj));
+        size_t regionSize = offset + GetRegionEnd() - reinterpret_cast<MAddress>(obj);
+        bool marked = GetOrAllocMarkBitmap()->MarkBits(offset, objSize, regionSize);
+        CHECK(IsMarkedObject(offset));
         return marked;
     }
 
-    bool ResurrentObject(const BaseObject* obj)
+    bool MarkObject(const BaseObject* obj, size_t objSize)
+    {
+        if (IsLargeRegion()) {
+            if (metadata.isMarked != 1) {
+                SetMarkedRegionFlag(1);
+                return false;
+            }
+            return true;
+        }
+        size_t offset = GetAddressOffset(reinterpret_cast<MAddress>(obj));
+        size_t regionSize = offset + GetRegionEnd() - reinterpret_cast<MAddress>(obj);
+        bool marked = GetOrAllocMarkBitmap()->MarkBits(offset, objSize, regionSize);
+        CHECK(IsMarkedObject(offset));
+        return marked;
+    }
+
+    bool ResurrentObject(const BaseObject* obj, size_t offset)
     {
         if (IsLargeRegion()) {
             if (metadata.isResurrected != 1) {
@@ -325,14 +341,14 @@ public:
             }
             return true;
         }
-        U32 size = obj->GetSize();
-        size_t offset = GetAddressOffset(reinterpret_cast<MAddress>(obj));
-        bool marked = GetOrAllocResurrectBitmap()->MarkBits(offset, size, GetRegionSize());
-        CHECK(IsResurrectedObject(obj));
+        U32 objSize = obj->GetSize();
+        size_t regionSize = offset + GetRegionEnd() - reinterpret_cast<MAddress>(obj);
+        bool marked = GetOrAllocResurrectBitmap()->MarkBits(offset, objSize, regionSize);
+        CHECK(IsResurrectedObject(offset));
         return marked;
     }
 
-    bool EnqueueObject(const BaseObject* obj)
+    bool EnqueueObject(const BaseObject* obj, size_t offset)
     {
         if (IsLargeRegion()) {
             if (metadata.isEnqueued != 1) {
@@ -341,10 +357,11 @@ public:
             }
             return true;
         }
-        U32 size = obj->GetSize();
-        size_t offset = GetAddressOffset(reinterpret_cast<MAddress>(obj));
-        bool marked = GetOrAllocEnqueueBitmap()->MarkBits(offset, size, GetRegionSize());
-        CHECK(IsEnqueuedObject(obj));
+        U32 objSize = obj->GetSize();
+        size_t regionSize = offset + GetRegionEnd() - reinterpret_cast<MAddress>(obj);
+        CHECK(regionSize > 0);
+        bool marked = GetOrAllocEnqueueBitmap()->MarkBits(offset, objSize, regionSize);
+        CHECK(IsEnqueuedObject(offset));
         return marked;
     }
 
@@ -361,6 +378,18 @@ public:
         return resurrectBitmap->IsMarked(offset);
     }
 
+    bool IsResurrectedObject(size_t offset)
+    {
+        if (IsLargeRegion()) {
+            return (metadata.isResurrected == 1);
+        }
+        RegionBitmap* resurrectBitmap = GetResurrectBitmap();
+        if (resurrectBitmap == nullptr) {
+            return false;
+        }
+        return resurrectBitmap->IsMarked(offset);
+    }
+
     bool IsMarkedObject(const BaseObject* obj)
     {
         if (IsLargeRegion()) {
@@ -374,16 +403,42 @@ public:
         return markBitmap->IsMarked(offset);
     }
 
-    bool IsEnqueuedObject(const BaseObject* obj)
+    bool IsMarkedObject(size_t offset)
     {
         if (IsLargeRegion()) {
-            return (metadata.isEnqueued == 1);
+            return (metadata.isMarked == 1);
         }
+        RegionBitmap* markBitmap = GetMarkBitmap();
+        if (markBitmap == nullptr) {
+            return false;
+        }
+        return markBitmap->IsMarked(offset);
+    }
+
+    bool IsSurvivedObject(size_t offset)
+    {
+        if (IsLargeRegion()) {
+            return metadata.isMarked == 1 || metadata.isResurrected == 1;
+        }
+
+        RegionBitmap* markBitmap = GetMarkBitmap();
+        if (markBitmap && markBitmap->IsMarked(offset)) {
+            return true;
+        }
+
+        RegionBitmap* resurrectBitmap = GetResurrectBitmap();
+        if (resurrectBitmap && resurrectBitmap->IsMarked(offset)) {
+            return true;
+        }
+        return false;
+    }
+
+    bool IsEnqueuedObject(size_t offset)
+    {
         RegionBitmap* enqueBitmap = GetEnqueueBitmap();
         if (enqueBitmap == nullptr) {
             return false;
         }
-        size_t offset = GetAddressOffset(reinterpret_cast<MAddress>(obj));
         return enqueBitmap->IsMarked(offset);
     }
 

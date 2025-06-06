@@ -133,18 +133,20 @@ bool RegionInfo::VisitLiveObjectsUntilFalse(const std::function<bool(BaseObject*
     if (GetLiveByteCount() == 0) {
         return true;
     }
-
-    TracingCollector& collector = reinterpret_cast<TracingCollector&>(Heap::GetHeap().GetCollector());
     if (IsLargeRegion()) {
         return func(reinterpret_cast<BaseObject*>(GetRegionStart()));
     }
     if (IsSmallRegion()) {
         uintptr_t position = GetRegionStart();
+        size_t offset = 0;
         uintptr_t allocPtr = GetRegionAllocPtr();
+
         while (position < allocPtr) {
             BaseObject* obj = reinterpret_cast<BaseObject*>(position);
-            position += RegionSpace::GetAllocSize(*obj);
-            if (collector.IsSurvivedObject(obj) && !func(obj)) { return false; }
+            size_t allocSize = RegionSpace::GetAllocSize(*obj);
+            position += allocSize;
+            if (IsSurvivedObject(offset) && !func(obj)) { return false; }
+            offset += allocSize;
         }
     }
     return true;
@@ -630,9 +632,10 @@ void RegionManager::ForwardFromRegions()
 void RegionManager::CollectFreePinnedSlots(RegionInfo* region)
 {
     // traverse pinned region to reclaim free pinned objects.
-    TracingCollector& collector = reinterpret_cast<TracingCollector&>(Heap::GetHeap().GetCollector());
-    region->VisitAllObjects([this, &collector](BaseObject* object) {
-        if (!collector.IsSurvivedObject(object)) {
+    size_t start = region->GetRegionStart();
+    region->VisitAllObjects([this, region, start](BaseObject* object) {
+        size_t offset = reinterpret_cast<MAddress>(object) - start;
+        if (!region->IsSurvivedObject(offset)) {
             DLOG(ALLOC, "reclaim pinned obj %p<%p>(%zu)", object, object->GetTypeInfo(), object->GetSize());
             std::lock_guard<std::mutex> lock(freePinnedSlotListMutex);
             ReleaseNativeResource(object);
@@ -671,12 +674,10 @@ size_t RegionManager::CollectPinnedGarbage()
 size_t RegionManager::CollectLargeGarbage()
 {
     size_t garbageSize = 0;
-    TracingCollector& collector = reinterpret_cast<TracingCollector&>(Heap::GetHeap().GetCollector());
     RegionInfo* region = oldLargeRegionList.GetHeadRegion();
     while (region != nullptr) {
-        MAddress addr = region->GetRegionStart();
-        BaseObject* obj = reinterpret_cast<BaseObject*>(addr);
-        if (!collector.IsSurvivedObject(obj)) {
+        // for large region, the offset of obj is 0
+        if (!region->IsSurvivedObject(0)) {
             DLOG(REGION, "reclaim large region %p@[0x%zx+%zu, 0x%zx) type %u", region, region->GetRegionStart(),
                  region->GetRegionAllocatedSize(), region->GetRegionEnd(), region->GetRegionType());
 
@@ -930,10 +931,11 @@ bool RegionManager::RouteOrCompactRegionImpl(RegionInfo* region)
             result = true;
         }
         buffer->SetRegion(toRegion1);
-        region->SetRouteInfo(toRegion1->GetRegionStart(), fromBytes);
+        size_t toRegion1Start = toRegion1->GetRegionStart();
+        region->SetRouteInfo(toRegion1Start, fromBytes);
         DLOG(FORWARD, "route region %p@[%#zx+%zu, %#zx) => %p@[%#zx~%#zx, %#zx)",
             region, region->GetRegionStart(), fromBytes, region->GetRegionEnd(), toRegion1,
-            toRegion1->GetRegionStart(), toRegion1->GetRegionStart() + fromBytes, toRegion1->GetRegionEnd());
+            toRegion1Start, toRegion1Start + fromBytes, toRegion1->GetRegionEnd());
         return result;
     }
 
@@ -990,17 +992,17 @@ bool RegionManager::RouteOrCompactRegionImpl(RegionInfo* region)
 
 void RegionManager::CompactRegion(RegionInfo* region)
 {
-    DLOG(REGION, "compact region %p@[%#zx+%zu, %#zx) type %u", region, region->GetRegionStart(),
-        region->GetLiveByteCount(), region->GetRegionEnd(), region->GetRegionType());
-
     MAddress regionStart = region->GetRegionStart();
+    DLOG(REGION, "compact region %p@[%#zx+%zu, %#zx) type %u", region, regionStart,
+        region->GetLiveByteCount(), region->GetRegionEnd(), region->GetRegionType());
     MAddress regionLimit = region->GetRegionAllocPtr();
     region->SetRegionAllocPtr(regionStart);
     CopyCollector& collector = reinterpret_cast<CopyCollector&>(Heap::GetHeap().GetCollector());
     for (MAddress currentPtr = regionStart; currentPtr < regionLimit;) {
         BaseObject* currentObj = reinterpret_cast<BaseObject*>(currentPtr);
         size_t size = currentObj->GetSize();
-        if (region->IsMarkedObject(currentObj) || region->IsResurrectedObject(currentObj)) {
+        size_t offset = currentPtr - regionStart;
+        if (region->IsSurvivedObject(offset)) {
             MAddress toAddress = region->Alloc(size);
             BaseObject* toObj = reinterpret_cast<BaseObject*>(toAddress);
             DLOG(FORWARD, "compact obj %p<%p>(%zu) to %p", currentObj, currentObj->GetTypeInfo(), size, toObj);
@@ -1026,15 +1028,18 @@ void RegionManager::CompactRegion(RegionInfo* region)
 
 void RegionManager::CompactRegion(RegionInfo* region, RegionInfo* toRegion1)
 {
+    MAddress regionStart = region->GetRegionStart();
     DLOG(REGION, "compact region %p@[%#zx+%zu, %#zx) type %u to region %p@%#zx:%#zx",
-        region, region->GetRegionStart(), region->GetLiveByteCount(), region->GetRegionEnd(), region->GetRegionType(),
+        region, regionStart, region->GetLiveByteCount(), region->GetRegionEnd(), region->GetRegionType(),
         toRegion1, toRegion1->GetRegionStart(), toRegion1->GetRegionAllocPtr());
-    MAddress currentPtr = region->GetRegionStart();
+    MAddress currentPtr = regionStart;
     BaseObject* currentObj = reinterpret_cast<BaseObject*>(currentPtr);
     CopyCollector& collector = reinterpret_cast<CopyCollector&>(Heap::GetHeap().GetCollector());
     while (true) {
+        CHECK(currentPtr>=regionStart);
+        size_t offset = currentPtr - regionStart;
         size_t size = currentObj->GetSize();
-        if (region->IsMarkedObject(currentObj) || region->IsResurrectedObject(currentObj)) {
+        if (region->IsSurvivedObject(offset)) {
             MAddress toAddress = toRegion1->Alloc(size);
             if (toAddress == 0) {
                 break;
@@ -1050,11 +1055,13 @@ void RegionManager::CompactRegion(RegionInfo* region, RegionInfo* toRegion1)
     };
 
     MAddress regionLimit = region->GetRegionAllocPtr();
-    region->SetRegionAllocPtr(region->GetRegionStart());
+    region->SetRegionAllocPtr(regionStart);
     while (currentPtr < regionLimit) {
+        CHECK(currentPtr >= regionStart);
+        size_t offset = currentPtr - regionStart;
         BaseObject* currentObj = reinterpret_cast<BaseObject*>(currentPtr);
         size_t size = currentObj->GetSize();
-        if (region->IsMarkedObject(currentObj) || region->IsResurrectedObject(currentObj)) {
+        if (region->IsSurvivedObject(offset)) {
             MAddress toAddress = region->Alloc(size);
             BaseObject* toObj = reinterpret_cast<BaseObject*>(toAddress);
             DLOG(FORWARD, "compact obj %p<%p>(%zu) to %p", currentObj, currentObj->GetTypeInfo(), size, toObj);

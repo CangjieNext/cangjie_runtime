@@ -61,8 +61,7 @@ public:
     StateWord GetStateWord() const { return stateWord.GetStateWord(); }
     ObjectState GetObjectState() const { return stateWord.GetObjectState(); }
 
-    bool IsForwarding() const { return GetStateWord().IsLockedWord(); }
-    bool IsForwarded() const { return GetStateWord().IsForwardedState(); }
+    bool IsForwarded() const { return GetObjectState().IsForwardedState(); }
 
     void SetClassInfo(TypeInfo* klassRef) { stateWord.SetTypeInfo(klassRef); }
     void SetStateCode(ObjectState::ObjectStateCode state) { stateWord.SetStateCode(state); }
