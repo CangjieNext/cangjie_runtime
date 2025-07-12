@@ -115,7 +115,12 @@ public:
 
     BaseObject* FindToVersion(BaseObject* obj) const override
     {
-        return const_cast<WCollector*>(this)->fwdTable.RouteObject(obj);
+        RegionInfo* fromRegionInfo = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<MAddress>(obj));
+        if (fromRegionInfo == nullptr) {
+            return nullptr;
+        }
+        RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
+        return space.GetRegionManager().RouteObject(obj);
     }
 
 protected:

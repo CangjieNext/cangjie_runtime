@@ -37,6 +37,8 @@ public:
     // size in bytes
     size_t GetSize() const;
 
+    size_t GetSize(TypeInfo* kls) const;
+
     bool CompareExchangeRefField(RefField<>& field, const RefField<> oldRef, const RefField<> newRef);
 
     template<bool isVolatile = false>

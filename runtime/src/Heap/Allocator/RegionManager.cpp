@@ -26,7 +26,6 @@
 
 namespace MapleRuntime {
 uintptr_t RegionInfo::UnitInfo::totalUnitCount = 0;
-uintptr_t RegionInfo::UnitInfo::unitInfoStart = 0;
 uintptr_t RegionInfo::UnitInfo::heapStartAddress = 0;
 
 static size_t GetPageSize() noexcept
@@ -367,7 +366,7 @@ void RegionManager::Initialize(size_t nUnit, uintptr_t regionInfoAddr)
     SetLargeObjectThreshold();
     SetGarbageThreshold();
     // propagate region heap layout
-    RegionInfo::Initialize(nUnit, regionInfoAddr, regionHeapStart);
+    RegionInfo::Initialize(nUnit, regionHeapStart);
     freeRegionManager.Initialize(nUnit);
     this->exemptedRegionThreshold = CangjieRuntime::GetHeapParam().exemptionThreshold;
 
