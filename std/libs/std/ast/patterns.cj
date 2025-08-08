@@ -213,8 +213,13 @@ public class ExceptTypePattern <: Pattern {
     public init(inputs: Tokens) {
         try {
             let tokens = Tokens()
-            tokens.append(quote(try {} catch)).append(Token(LPAREN)).append(inputs).append(Token(RPAREN)).append(
-                Token(LCURL)).append(Token(RCURL));
+            tokens
+                .append(quote(try {} catch))
+                .append(Token(LPAREN))
+                .append(inputs)
+                .append(Token(RPAREN))
+                .append(Token(LCURL))
+                .append(Token(RCURL));
             let tryExpr = (parseExpr(tokens) as TryExpr).getOrThrow().catchPatterns[0]
             var exceptTypePa = (tryExpr as ExceptTypePattern).getOrThrow()
             match (exceptTypePa as ExceptTypePattern) {
