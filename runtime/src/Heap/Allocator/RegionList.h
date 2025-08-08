@@ -90,6 +90,16 @@ public:
         return currentHead;
     }
 
+    RegionInfo* TakeHeadRegion(RegionInfo::RegionType newType)
+    {
+        std::lock_guard<std::mutex> lg(listMutex);
+        if (listHead == nullptr) { return nullptr; }
+        RegionInfo* currentHead = listHead;
+        DeleteRegionLocked(currentHead);
+        currentHead->SetRegionType(newType);
+        return currentHead;
+    }
+
     size_t GetUnitCount() const { return unitCount; }
 
     size_t GetRegionCount() const { return regionCount; }
