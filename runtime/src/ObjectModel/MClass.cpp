@@ -572,7 +572,7 @@ U32 TypeInfo::GetNumOfInstanceFieldInfos()
 
 InstanceFieldInfo* TypeInfo::GetInstanceFieldInfo(U32 index)
 {
-    if (IsGenericTypeInfo()) {
+    if ((IsGenericTypeInfo() && !GetSourceGeneric()->ReflectIsEnable()) || !ReflectIsEnable()) {
         return GetSourceGeneric()->GetReflectInfo()->GetInstanceFieldInfo(index);
     }
     return GetReflectInfo()->GetInstanceFieldInfo(index);
