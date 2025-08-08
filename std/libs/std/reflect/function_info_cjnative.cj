@@ -213,8 +213,16 @@ public class InstanceFunctionInfo <: Equatable<InstanceFunctionInfo> & Hashable 
     /**
      * Searches the instance function's annotation by incoming name.
      */
-    public func findAnnotation<T>(): Option<T> where T <: Annotation {
+    public func findAnnotation<T>(): ?T where T <: Annotation {
         findAnnotation<T>(annotations)
+   }
+
+    public func findAllAnnotations<T>(): Array<T> where T <: Annotation {
+        findAllAnnotations<T>(annotations)
+    }
+
+    public func getAllAnnotations(): Array<Annotation> {
+        annotations.toArray()
     }
 
     public operator func ==(that: InstanceFunctionInfo): Bool {
@@ -434,8 +442,16 @@ public class StaticFunctionInfo <: Equatable<StaticFunctionInfo> & Hashable & To
     /**
      * Searches the static function's annotation by incoming name.
      */
-    public func findAnnotation<T>(): Option<T> where T <: Annotation {
+    public func findAnnotation<T>(): ?T where T <: Annotation {
         findAnnotation<T>(annotations)
+   }
+
+    public func findAllAnnotations<T>(): Array<T> where T <: Annotation {
+        findAllAnnotations<T>(annotations)
+    }
+
+    public func getAllAnnotations(): Array<Annotation> {
+        annotations.toArray()
     }
 
     public operator func ==(that: StaticFunctionInfo): Bool {
@@ -608,8 +624,16 @@ public class InstancePropertyInfo <: Equatable<InstancePropertyInfo> & Hashable 
     /**
      * Searches the instance property's annotation by incoming name.
      */
-    public func findAnnotation<T>(): Option<T> where T <: Annotation {
+    public func findAnnotation<T>(): ?T where T <: Annotation {
         findAnnotation<T>(annotations)
+   }
+
+    public func findAllAnnotations<T>(): Array<T> where T <: Annotation {
+        findAllAnnotations<T>(annotations)
+    }
+
+    public func getAllAnnotations(): Array<Annotation> {
+        annotations.toArray()
     }
 
     public operator func ==(that: InstancePropertyInfo): Bool {
@@ -759,10 +783,17 @@ public class StaticPropertyInfo <: Equatable<StaticPropertyInfo> & Hashable & To
     /**
      * Searches the static property's annotation by incoming name.
      */
-    public func findAnnotation<T>(): Option<T> where T <: Annotation {
+    public func findAnnotation<T>(): ?T where T <: Annotation {
         findAnnotation<T>(annotations)
+   }
+
+    public func findAllAnnotations<T>(): Array<T> where T <: Annotation {
+        findAllAnnotations<T>(annotations)
     }
 
+    public func getAllAnnotations(): Array<Annotation> {
+        annotations.toArray()
+    }
     public operator func ==(that: StaticPropertyInfo): Bool {
         this._getterInfo.getOrThrow()._info == that._getterInfo.getOrThrow()._info
     }
@@ -880,8 +911,16 @@ public class ConstructorInfo <: Equatable<ConstructorInfo> & Hashable & ToString
     /**
      * Searches the constructor's annotation by incoming name.
      */
-    public func findAnnotation<T>(): Option<T> where T <: Annotation {
+    public func findAnnotation<T>(): ?T where T <: Annotation {
         findAnnotation<T>(annotations)
+   }
+
+    public func findAllAnnotations<T>(): Array<T> where T <: Annotation {
+        findAllAnnotations<T>(annotations)
+    }
+
+    public func getAllAnnotations(): Array<Annotation> {
+        annotations.toArray()
     }
 
     public operator func ==(that: ConstructorInfo): Bool {
@@ -1051,8 +1090,16 @@ public class GlobalFunctionInfo <: Equatable<GlobalFunctionInfo> & Hashable & To
     }
 
     // Get the annotation by name, return None if not found
-    public func findAnnotation<T>(): Option<T> where T <: Annotation {
+    public func findAnnotation<T>(): ?T where T <: Annotation {
         findAnnotation<T>(annotations)
+   }
+
+    public func findAllAnnotations<T>(): Array<T> where T <: Annotation {
+        findAllAnnotations<T>(annotations)
+    }
+
+    public func getAllAnnotations(): Array<Annotation> {
+        annotations.toArray()
     }
 
     public operator func ==(that: GlobalFunctionInfo): Bool {

@@ -110,7 +110,7 @@ public mut prop idleTimeout: Duration
 public mut prop keepaliveTime: Duration
 ```
 
-功能：检查空闲连接健康状况的间隔时间，防止它被数据库或网络基础设施超时。
+功能：检查连接健康状况的间隔时间，防止它被数据库或网络基础设施超时。
 
 类型：[Duration](../../core/core_package_api/core_package_structs.md#struct-duration)
 
