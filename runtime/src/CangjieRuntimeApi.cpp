@@ -323,21 +323,21 @@ RTErrorCode FiniCJRuntime()
         LOG(RTLOG_ERROR, "Cangjie runtime has not been initialized when executing finish.");
         return E_FAILED;
     }
-    if (g_runtimeFinished.load()) {
-        LOG(RTLOG_ERROR, "Cangjie runtime has been finished and don't support finish again.");
+    if (!g_runtimeFinished.exchange(true)) {
+        g_runtimeFinished.store(true);
+        // Ensure that sampling thread is stopped before finishing runtime.
+        MapleRuntime::CpuProfiler::GetInstance().TryStopSampling();
+
+        MapleRuntime::Mutator* mutator = MapleRuntime::Mutator::GetMutator();
+        if (mutator != nullptr) {
+            MapleRuntime::MutatorManager::Instance().TransitMutatorToExit();
+        }
+        ScheduleHandle scheduler = MapleRuntime::Runtime::Current().GetConcurrencyModel().GetThreadScheduler();
+        ScheduleStopOutside(scheduler);
+        MapleRuntime::CangjieRuntime::FiniAndDelete();
         return E_OK;
     }
-    g_runtimeFinished.store(true);
-    // Ensure that sampling thread is stopped before finishing runtime.
-    MapleRuntime::CpuProfiler::GetInstance().TryStopSampling();
-
-    MapleRuntime::Mutator* mutator = MapleRuntime::Mutator::GetMutator();
-    if (mutator != nullptr) {
-        MapleRuntime::MutatorManager::Instance().TransitMutatorToExit();
-    }
-    ScheduleHandle scheduler = MapleRuntime::Runtime::Current().GetConcurrencyModel().GetThreadScheduler();
-    ScheduleStopOutside(scheduler);
-    MapleRuntime::CangjieRuntime::FiniAndDelete();
+    LOG(RTLOG_ERROR, "Cangjie runtime has been finished and don't support finish again.");
     return E_OK;
 }
 
