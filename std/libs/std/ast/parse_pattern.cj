@@ -14,10 +14,12 @@ public func parsePattern(input: Tokens): Pattern {
     /* Get node info from flatbuffer */
     let node = unsafe {
         try {
-            parse(input, {p: CPointer<UInt8> => return CJ_AST_ParsePattern(match (MACRO_OBJECT.get()) {
-                case Some(ptr) => ptr
-                case None => CPointer<Unit>()
-            }, p, CPointer<Int64>())})
+            parse(input, {
+                p: CPointer<UInt8> => return CJ_AST_ParsePattern(match (MACRO_OBJECT.get()) {
+                    case Some(ptr) => ptr
+                    case None => CPointer<Unit>()
+                }, p, CPointer<Int64>())
+            })
         } catch (e: Exception) {
             throw ParseASTException("\n" + e.message + "parsing pattern error.")
         }
@@ -33,10 +35,13 @@ public func parsePatternFragment(input: Tokens, startFrom!: Int64 = 0): (Pattern
             parseFragment(
                 input,
                 startFrom,
-                {p: CPointer<UInt8>, sizeRef: CPointer<Int64> => return CJ_AST_ParsePattern(match (MACRO_OBJECT.get()) {
-                    case Some(ptr) => ptr
-                    case None => CPointer<Unit>()
-                }, p, sizeRef)}
+                {
+                    p: CPointer<UInt8>, sizeRef: CPointer<Int64> => return CJ_AST_ParsePattern(
+                        match (MACRO_OBJECT.get()) {
+                            case Some(ptr) => ptr
+                            case None => CPointer<Unit>()
+                        }, p, sizeRef)
+                }
             )
         } catch (e: Exception) {
             throw ParseASTException("\n" + e.message + "parsing pattern fragment error.")

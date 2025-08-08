@@ -96,10 +96,12 @@ let PATTERN_LIST: Array<String> = [
 public func parseProgram(input: Tokens): Program {
     let node = unsafe {
         try {
-            parse(input, {p: CPointer<UInt8> => return CJ_AST_ParseTopLevel(match (MACRO_OBJECT.get()) {
-                case Some(ptr) => ptr
-                case None => CPointer<Unit>()
-            }, p)})
+            parse(input, {
+                p: CPointer<UInt8> => return CJ_AST_ParseTopLevel(match (MACRO_OBJECT.get()) {
+                    case Some(ptr) => ptr
+                    case None => CPointer<Unit>()
+                }, p)
+            })
         } catch (e: Exception) {
             throw ParseASTException("\n" + e.message + "parsing program error.")
         }
@@ -291,7 +293,8 @@ func createMacroExpand(nodeInvocation: Option<NodeFormat_MacroInvocation>, isDec
     }
     var pos = invocation.GetAtPos()
     var key = Token(TokenKind.AT).addPosition(pos)
-    var packageIdentifier: Token = Token(TokenKind.IDENTIFIER, invocation.GetFullName()).addPosition(invocation.GetIdentifierPos())
+    var packageIdentifier: Token = Token(TokenKind.IDENTIFIER, invocation.GetFullName()).addPosition(
+        invocation.GetIdentifierPos())
     var identifier = Token(TokenKind.IDENTIFIER, invocation.GetIdentifier()).addPosition(invocation.GetIdentifierPos())
     var lSquare: Token = Token()
     var rSquare: Token = Token()
@@ -351,8 +354,9 @@ func createMacroExpand(nodeInvocation: Option<NodeFormat_MacroInvocation>, isDec
 
 func processCustomAnnotationLikeMacro(macroInputDecl: Option<Decl>, macroNode: Decl) {
     match (macroInputDecl) {
-        case Some(v) => v.annotations.add(createCustomAnnotation(macroNode), at: 0)
-                        return v
+        case Some(v) =>
+            v.annotations.add(createCustomAnnotation(macroNode), at: 0)
+            return v
         case None => throw ParseASTException("can't create macro extend declaration")
     }
 }
@@ -438,7 +442,7 @@ func createImportContent(content: Option<NodeFormat_ImportContent>): ImportConte
                 let asIdentPos = v.GetAsIdentifierPos()
                 importAlias.append(
                     Token(TokenKind.IDENTIFIER, v.GetAsIdentifier(), asIdentPos.fileId, asIdentPos.line,
-                    asIdentPos.column))
+                        asIdentPos.column))
             }
             var items = ArrayList<ImportContent>()
             var commas = Tokens()
@@ -563,17 +567,19 @@ func createArgumentTokens(m: Decl): Tokens {
     var argTokens = Tokens()
     argTokens.append(m.identifier)
     let isCompileTimeVisible = match (m as MacroExpandDecl) {
-        case Some(v) => argTokens.append(v.lSquare)
-                        argTokens.append(v.macroAttrs)
-                        argTokens.append(v.rSquare)
-                        v.isCompileTimeVisible_
+        case Some(v) =>
+            argTokens.append(v.lSquare)
+            argTokens.append(v.macroAttrs)
+            argTokens.append(v.rSquare)
+            v.isCompileTimeVisible_
         case None => match (m as MacroExpandParam) {
-                        case Some(v) => argTokens.append(v.lSquare)
-                                        argTokens.append(v.macroAttrs)
-                                        argTokens.append(v.rSquare)
-                                        v.isCompileTimeVisible_
-                        case None => throw ParseASTException()
-                        }
+            case Some(v) =>
+                argTokens.append(v.lSquare)
+                argTokens.append(v.macroAttrs)
+                argTokens.append(v.rSquare)
+                v.isCompileTimeVisible_
+            case None => throw ParseASTException()
+        }
     }
     let at = if (isCompileTimeVisible) {
         Token(TokenKind.AT_EXCL).addPosition(m.keyword.pos)
@@ -615,9 +621,10 @@ func createConstructorWithAt(decl: Decl): Constructor {
     var params = ArrayList<TypeNode>()
     var rParen = Token(TokenKind.RPAREN)
     var macroNode = match (decl as MacroExpandDecl) {
-        case Some(v) => annos.add(all: v.annotations)
-                        annos.add(createCustomAnnotation(v))
-                        v
+        case Some(v) =>
+            annos.add(all: v.annotations)
+            annos.add(createCustomAnnotation(v))
+            v
         case None => throw ParseASTException()
     }
     while (true) {
@@ -626,39 +633,43 @@ func createConstructorWithAt(decl: Decl): Constructor {
             break
         }
         macroNode = match (macroNode.macroInputDecl as MacroExpandDecl) {
-            case Some(v) => annos.add(createCustomAnnotation(v))
-                            v
+            case Some(v) =>
+                annos.add(createCustomAnnotation(v))
+                v
             case None => throw ParseASTException()
         }
     }
     let enumConstructor = match (macroNode.macroInputDecl as FuncDecl) {
-        case Some(v) => ident = v.identifier
-                        lParen = v.lParen
-                        for (p in v.funcParams) {
-                            params.add(p.paramType)
-                        }
-                        lParen = v.lParen
-                        annos.add(all: v.annotations)
-                        Constructor(annos, ident, lParen, params, commas, rParen)
-        case None => match (macroNode.macroInputDecl as VarDecl) {                    
-                        case Some(v) => annos.add(all: v.annotations)
-                                        Constructor(annos, v.identifier)
-                        case None => throw ParseASTException()
-                    }
+        case Some(v) =>
+            ident = v.identifier
+            lParen = v.lParen
+            for (p in v.funcParams) {
+                params.add(p.paramType)
+            }
+            lParen = v.lParen
+            annos.add(all: v.annotations)
+            Constructor(annos, ident, lParen, params, commas, rParen)
+        case None => match (macroNode.macroInputDecl as VarDecl) {
+            case Some(v) =>
+                annos.add(all: v.annotations)
+                Constructor(annos, v.identifier)
+            case None => throw ParseASTException()
+        }
     }
     return enumConstructor
 }
 
 func createConstructorWithAtExcl(decl: Decl): Constructor {
     match (decl as FuncDecl) {
-        case Some(v) => var params: ArrayList<TypeNode> = ArrayList<TypeNode>()
-                        for (p in v.funcParams) {
-                            params.add(p.paramType)
-                        }
-                        return Constructor(v.annotations, v.identifier, v.lParen, params, Tokens(), v.rParen)
-        case None => match (decl as VarDecl) {                    
-                        case Some(v) => return Constructor(v.annotations, v.identifier)
-                        case None => throw ParseASTException()
-                    }
+        case Some(v) =>
+            var params: ArrayList<TypeNode> = ArrayList<TypeNode>()
+            for (p in v.funcParams) {
+                params.add(p.paramType)
+            }
+            return Constructor(v.annotations, v.identifier, v.lParen, params, Tokens(), v.rParen)
+        case None => match (decl as VarDecl) {
+            case Some(v) => return Constructor(v.annotations, v.identifier)
+            case None => throw ParseASTException()
+        }
     }
 }

@@ -14,10 +14,12 @@ public func parseExpr(input: Tokens): Expr {
     /* Get node info from flatbuffer */
     let node = unsafe {
         try {
-            parse(input, {p: CPointer<UInt8> => return CJ_AST_ParseExpr(match (MACRO_OBJECT.get()) {
-                case Some(ptr) => ptr
-                case None => CPointer<Unit>()
-            }, p, CPointer<Int64>())})
+            parse(input, {
+                p: CPointer<UInt8> => return CJ_AST_ParseExpr(match (MACRO_OBJECT.get()) {
+                    case Some(ptr) => ptr
+                    case None => CPointer<Unit>()
+                }, p, CPointer<Int64>())
+            })
         } catch (e: Exception) {
             throw ParseASTException("\n" + e.message + "parsing expr error.")
         }
@@ -33,10 +35,13 @@ public func parseExprFragment(input: Tokens, startFrom!: Int64 = 0): (Expr, Int6
             parseFragment(
                 input,
                 startFrom,
-                {p: CPointer<UInt8>, sizeRef: CPointer<Int64> => return CJ_AST_ParseExpr(match (MACRO_OBJECT.get()) {
-                    case Some(ptr) => ptr
-                    case None => CPointer<Unit>()
-                }, p, sizeRef)}
+                {
+                    p: CPointer<UInt8>, sizeRef: CPointer<Int64> => return CJ_AST_ParseExpr(
+                        match (MACRO_OBJECT.get()) {
+                            case Some(ptr) => ptr
+                            case None => CPointer<Unit>()
+                        }, p, sizeRef)
+                }
             )
         } catch (e: Exception) {
             throw ParseASTException("\n" + e.message + "parsing expr fragment error.")
@@ -236,11 +241,12 @@ func generateRefExpr(ref: Option<NodeFormat_RefExpr>) {
         case Some(v) => match (v.GetIdentifier()) {
             case "this" => Token(TokenKind.THIS).addPosition(v.GetIdentifierPos())
             case "super" => Token(TokenKind.SUPER).addPosition(v.GetIdentifierPos())
-            case _ => if (refExpr.GetIsQuoteDollar()) {
-                Token(TokenKind.DOLLAR_IDENTIFIER, "$" + v.GetIdentifier()).addPosition(v.GetIdentifierPos())
-            } else {
-                Token(TokenKind.IDENTIFIER, v.GetIdentifier()).addPosition(v.GetIdentifierPos())
-            }
+            case _ =>
+                if (refExpr.GetIsQuoteDollar()) {
+                    Token(TokenKind.DOLLAR_IDENTIFIER, "$" + v.GetIdentifier()).addPosition(v.GetIdentifierPos())
+                } else {
+                    Token(TokenKind.IDENTIFIER, v.GetIdentifier()).addPosition(v.GetIdentifierPos())
+                }
         }
         case None => throw ParseASTException("Can not get reference from CallExpr")
     }

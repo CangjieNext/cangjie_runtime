@@ -17,22 +17,28 @@ public func parseDecl(input: Tokens, astKind!: String = ""): Decl {
             case "PrimaryCtorDecl" => unsafe {
                 parse(
                     input,
-                    {p: CPointer<UInt8> => return CJ_AST_ParsePrimaryConstructor(match (MACRO_OBJECT.get()) {
-                        case Some(ptr) => ptr
-                        case None => CPointer<Unit>()
-                    }, p)}
+                    {
+                        p: CPointer<UInt8> => return CJ_AST_ParsePrimaryConstructor(match (MACRO_OBJECT.get()) {
+                            case Some(ptr) => ptr
+                            case None => CPointer<Unit>()
+                        }, p)
+                    }
                 )
             }
-            case "PropMemberDecl" => unsafe { parse(input, {p: CPointer<UInt8> => return CJ_AST_ParsePropMemberDecl(
-                match (MACRO_OBJECT.get()) {
+            case "PropMemberDecl" => unsafe {
+                parse(input, {
+                    p: CPointer<UInt8> => return CJ_AST_ParsePropMemberDecl(match (MACRO_OBJECT.get()) {
+                        case Some(ptr) => ptr
+                        case None => CPointer<Unit>()
+                    }, p)
+                })
+            }
+            case _ => unsafe { parse(input, {
+                p: CPointer<UInt8> => return CJ_AST_ParseDecl(match (MACRO_OBJECT.get()) {
                     case Some(ptr) => ptr
                     case None => CPointer<Unit>()
-                }, p)})
-            }
-            case _ => unsafe { parse(input, {p: CPointer<UInt8> => return CJ_AST_ParseDecl(match (MACRO_OBJECT.get()) {
-                case Some(ptr) => ptr
-                case None => CPointer<Unit>()
-            }, p, CPointer<Int64>())}) }
+                }, p, CPointer<Int64>())
+            }) }
         }
     } catch (e: Exception) {
         throw ParseASTException("\n" + e.message + "parsing decl error.")
@@ -49,10 +55,13 @@ public func parseDeclFragment(input: Tokens, startFrom!: Int64 = 0): (Decl, Int6
             parseFragment(
                 input,
                 startFrom,
-                {p: CPointer<UInt8>, sizeRef: CPointer<Int64> => return CJ_AST_ParseDecl(match (MACRO_OBJECT.get()) {
-                    case Some(ptr) => ptr
-                    case None => CPointer<Unit>()
-                }, p, sizeRef)}
+                {
+                    p: CPointer<UInt8>, sizeRef: CPointer<Int64> => return CJ_AST_ParseDecl(
+                        match (MACRO_OBJECT.get()) {
+                            case Some(ptr) => ptr
+                            case None => CPointer<Unit>()
+                        }, p, sizeRef)
+                }
             )
         } catch (e: Exception) {
             throw ParseASTException("\n" + e.message + "parsing decl fragment error.")

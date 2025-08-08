@@ -294,8 +294,9 @@ public class ClassDecl <: Decl {
     }
     public func toTokens(): Tokens {
         var ret: Tokens = super.toTokens()
-        return ret.append(referenceType2Tokens(upBound_, superTypes_, superTypeBitAnds_, genericConstraint,
-            constraintCommas)).append(classbody_.toTokens())
+        return ret
+            .append(referenceType2Tokens(upBound_, superTypes_, superTypeBitAnds_, genericConstraint, constraintCommas))
+            .append(classbody_.toTokens())
     }
 
     public func traverse(v: Visitor): Unit {
@@ -388,8 +389,9 @@ public class StructDecl <: Decl {
     }
     public func toTokens(): Tokens {
         var ret: Tokens = super.toTokens()
-        return ret.append(referenceType2Tokens(upBound_, superTypes_, superTypeBitAnds_, genericConstraint,
-            constraintCommas)).append(structbody_.toTokens())
+        return ret
+            .append(referenceType2Tokens(upBound_, superTypes_, superTypeBitAnds_, genericConstraint, constraintCommas))
+            .append(structbody_.toTokens())
     }
 
     public func traverse(v: Visitor): Unit {
@@ -483,8 +485,9 @@ public class InterfaceDecl <: Decl {
 
     public func toTokens(): Tokens {
         var ret: Tokens = super.toTokens()
-        return ret.append(referenceType2Tokens(upBound_, superTypes_, superTypeBitAnds_, genericConstraint,
-            constraintCommas)).append(interfacetbody_.toTokens())
+        return ret
+            .append(referenceType2Tokens(upBound_, superTypes_, superTypeBitAnds_, genericConstraint, constraintCommas))
+            .append(interfacetbody_.toTokens())
     }
 
     public func traverse(v: Visitor): Unit {
@@ -805,8 +808,9 @@ public class ExtendDecl <: Decl {
     }
     public func toTokens(): Tokens {
         var ret: Tokens = super.toTokens().append(extendType_)
-        return ret.append(referenceType2Tokens(upBound_, superTypes_, superTypeBitAnds_, genericConstraint,
-            constraintCommas)).append(body_.toTokens())
+        return ret
+            .append(referenceType2Tokens(upBound_, superTypes_, superTypeBitAnds_, genericConstraint, constraintCommas))
+            .append(body_.toTokens())
     }
 
     public func traverse(v: Visitor): Unit {
@@ -1168,9 +1172,6 @@ public class MainDecl <: Decl {
             case Some(node) => node.traverse(v)
             case None => ()
         }
-        for (constraint in genericConstraint) {
-            constraint.traverse(v)
-        }
         block_.traverse(v)
         return
     }
@@ -1191,10 +1192,6 @@ public class MainDecl <: Decl {
                 ret += getIndent(currentIndent) + "-declType: "
                 ret += v.dump(currentIndent)
             case None => ()
-        }
-        for (i in 0..genericConstraint.size) {
-            ret += getIndent(currentIndent) + "-genericConstraint: ${i}, "
-            ret += genericConstraint[i].dump(currentIndent)
         }
         ret += getIndent(currentIndent) + "-block: "
         ret += block_.dump(currentIndent)

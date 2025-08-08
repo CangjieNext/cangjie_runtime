@@ -30,12 +30,6 @@ public open class Expr <: Node {
 }
 
 public class Block <: Expr {
-    init(lCurl: Token, nodes: ArrayList<Node>, rCurl: Token) {
-        super()
-        this.lCurl_ = lCurl
-        this.nodes_ = nodes
-        this.rCurl_ = rCurl
-    }
     init(lCurl: Token, nodes: ArrayList<Node>, rCurl: Token, unsafe_: Token) {
         super()
         this.lCurl_ = lCurl
@@ -91,7 +85,13 @@ public class Block <: Expr {
             }
         }
         if (isValidToken(rCurl_)) {
-            ret.append(rCurl_).append(Token(NL).addPosition(rCurl_.pos.fileID, rCurl_.pos.line, rCurl_.pos.column + 1))
+            var rCurlPos = rCurl_.pos
+            // if last pos of ret equal to rcurl.pos, refresh rcurl.pos, for lexer will delete rcurl when see pos equal to node.endPos
+            if (ret[ret.size - 1].pos == rCurlPos) {
+                rCurlPos = Position(rCurlPos.fileID, rCurlPos.line, rCurlPos.column + 1)
+            }
+            ret.append((rCurl_).addPosition(rCurlPos))
+            ret.append(Token(NL).addPosition(rCurlPos.fileID, rCurlPos.line, rCurlPos.column + 1))
         }
         return ret
     }
@@ -615,13 +615,15 @@ public class LitConstExpr <: Expr {
     public func toTokens(): Tokens {
         let pos = literal_.pos
         if (literal_.kind == TokenKind.UNIT_LITERAL) {
-            return Tokens().append(Token(TokenKind.LPAREN).addPosition(pos)).append(
-                Token(TokenKind.RPAREN).addPosition(pos.fileID, pos.line, pos.column + 1))
+            return Tokens()
+                .append(Token(TokenKind.LPAREN).addPosition(pos))
+                .append(Token(TokenKind.RPAREN).addPosition(pos.fileID, pos.line, pos.column + 1))
         }
         if ((literal_.kind == TokenKind.INTEGER_LITERAL || literal_.kind == TokenKind.FLOAT_LITERAL) &&
             literal_.value.size > 1 && literal_.value[0] == 45) { // 45 is r'-'
-            return Tokens().append(Token(TokenKind.SUB).addPosition(pos)).append(
-                Token(literal_.kind, literal_.value[1..]).addPosition(pos.fileID, pos.line, pos.column + 1))
+            return Tokens()
+                .append(Token(TokenKind.SUB).addPosition(pos))
+                .append(Token(literal_.kind, literal_.value[1..]).addPosition(pos.fileID, pos.line, pos.column + 1))
         }
         return Tokens().append(literal_)
     }
@@ -1407,8 +1409,12 @@ public class IfExpr <: Expr {
         }
     }
     public func toTokens(): Tokens {
-        var ret: Tokens = Tokens().append(if_).append(lParen_).append(cond_.toTokens()).append(rParen_).append(
-            ifBlock_.toTokens())
+        var ret: Tokens = Tokens()
+            .append(if_)
+            .append(lParen_)
+            .append(cond_.toTokens())
+            .append(rParen_)
+            .append(ifBlock_.toTokens())
         match (elseExpr_) {
             case Some(v) => ret.append(else_).append(v.toTokens())
             case None => ()
@@ -1666,7 +1672,10 @@ public class MatchExpr <: Expr {
             case Some(v) => ret.append(lParen_).append(v).append(rParen_)
             case None => ()
         }
-        ret.append(lCurl_).append(Token(TokenKind.NL)).append(matchCases_.toTokens()).append(rCurl_)
+        ret
+            .append(lCurl_)
+            .append(Token(TokenKind.NL).addPosition(lCurl_.pos.fileID, lCurl_.pos.line, lCurl_.pos.column + 1))
+        ret.append(matchCases_.toTokens()).append(rCurl_)
     }
 
     public func traverse(v: Visitor): Unit {
@@ -1968,7 +1977,8 @@ public class LambdaExpr <: Expr {
     public init() {
         super()
     }
-    init(lCurl: Token, params: ArrayList<FuncParam>, db_arrow: Token, nodes: ArrayList<Node>, rCurl: Token, mockSupported: Bool) {
+    init(lCurl: Token, params: ArrayList<FuncParam>, db_arrow: Token, nodes: ArrayList<Node>, rCurl: Token,
+        mockSupported: Bool) {
         lCurl_ = lCurl
         funcParams_ = params
         db_arrow_ = db_arrow
@@ -3560,10 +3570,6 @@ public class OptionalExpr <: Expr {
         baseExpr_ = baseExpr
         quest_ = quest
     }
-    init(baseExpr: Expr) {
-        super()
-        baseExpr_ = baseExpr
-    }
 
     private var baseExpr_: Expr = Expr()
     private var quest_: Token = Token(TokenKind.QUEST)
@@ -3620,9 +3626,6 @@ public class QuoteToken <: Expr {
     init(tokens: Tokens) {
         super()
         tokens_ = tokens
-    }
-    init() {
-        super()
     }
     private var tokens_: Tokens = Tokens()
     public mut prop tokens: Tokens {
@@ -3730,15 +3733,14 @@ public class QuoteExpr <: Expr {
         var ret = Tokens().append(keyword_).append(lParen_)
         for (expr in exprs_) {
             match (expr) {
-                case dollarRef: RefExpr where dollarRef.identifier.kind == TokenKind.DOLLAR_IDENTIFIER =>
-                    ret.append(dollarRef)
-                case qt: QuoteToken =>
-                    ret.append(qt)
-                case _ =>
-                    ret.append(Token(TokenKind.DOLLAR))
-                       .append(Token(TokenKind.LPAREN))
-                       .append(expr)
-                       .append(Token(TokenKind.RPAREN))
+                case dollarRef: RefExpr where dollarRef.identifier.kind == TokenKind.DOLLAR_IDENTIFIER => ret.append(
+                    dollarRef)
+                case qt: QuoteToken => ret.append(qt)
+                case _ => ret
+                    .append(Token(TokenKind.DOLLAR))
+                    .append(Token(TokenKind.LPAREN))
+                    .append(expr)
+                    .append(Token(TokenKind.RPAREN))
             }
         }
         ret.append(rParen_)
