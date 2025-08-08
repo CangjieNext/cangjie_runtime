@@ -145,7 +145,7 @@ sealed abstract class TypeInfo <: Equatable<TypeInfo> & Hashable & ToString {
     /**
      * Creates the class type info for incoming instance with 'Object' type.
      */
-    @Deprecated[message: "Use 'ClassTypeInfo.get(Object)' instead."]
+    @Deprecated[message: "Use 'ClassTypeInfo.of(Object)' instead."]
     public static func of(a: Object): ClassTypeInfo {
         (getOrCreate(getObjClass(a)) as ClassTypeInfo) ?? throw InfoNotFoundException("TypeInfo not found!")
     }
@@ -525,8 +525,16 @@ sealed abstract class TypeInfo <: Equatable<TypeInfo> & Hashable & ToString {
     /**
      * Searches the type info's annotation by incoming name.
      */
-    public func findAnnotation<T>(): Option<T> {
-        findAnnotation(annotations)
+    public func findAnnotation<T>(): ?T where T <: Annotation {
+        findAnnotation<T>(annotations)
+   }
+
+    public func findAllAnnotations<T>(): Array<T> where T <: Annotation {
+        findAllAnnotations<T>(annotations)
+    }
+
+    public func getAllAnnotations(): Array<Annotation> {
+        annotations.toArray()
     }
 
     public operator func ==(that: TypeInfo): Bool {
