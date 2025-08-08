@@ -254,7 +254,7 @@ if (ASAN_FLAG MATCHES 1)
 endif()
 
 if (HWASAN_FLAG MATCHES 1)
-    list(APPEND LINK_LIBS "-fsanitize=hwaddress -fno-emulated-tls -fno-lto -fno-sanitize=cfi")
+    list(APPEND LINK_LIBS "-shared-libsan -fsanitize=hwaddress -fno-emulated-tls -fno-lto -fno-sanitize=cfi -mllvm -hwasan-globals=0 -fno-whole-program-vtables")
 endif()
 
 if (DOPRA_FLAG MATCHES 1 AND OHOS_FLAG MATCHES 0 AND WINDOWS_FLAG MATCHES 0) # linux
