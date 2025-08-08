@@ -2156,6 +2156,11 @@ public class MacroExpandDecl <: Decl {
         }
         set(v) {
             macroInputs_ = v
+            macroInputDecl_ = try {
+                Some(parseDecl(v))
+            } catch (e: ParseASTException | ASTException) {
+                None
+            }
         }
     }
     public mut prop rParen: Token {
@@ -2176,6 +2181,7 @@ public class MacroExpandDecl <: Decl {
         }
         set(v) {
             macroInputDecl_ = Some(v)
+            macroInputs_ = v.toTokens()
         }
     }
     public func toTokens(): Tokens {
@@ -2197,7 +2203,7 @@ public class MacroExpandDecl <: Decl {
         if (isValidToken(lSquare_)) {
             ret.append(lSquare_).append(macroAttrs_).append(rSquare_)
         }
-        if (hasParenthesis_) {
+        if (isValidToken(lParen_)) {
             ret.append(lParen_).append(macroInputs_).append(rParen_).append(Token(NL))
         } else {
             match (macroInputDecl_) {
@@ -2323,6 +2329,11 @@ public class MacroExpandParam <: FuncParam {
         }
         set(v) {
             macroInputs_ = v
+            macroInputDecl_ = try {
+                Some(FuncParam(v))
+            } catch (e: ParseASTException | ASTException) {
+                None
+            }
         }
     }
     public mut prop rParen: Token {
@@ -2343,6 +2354,7 @@ public class MacroExpandParam <: FuncParam {
         }
         set(v) {
             macroInputDecl_ = Some(v)
+            macroInputs_ = v.toTokens()
         }
     }
     public func toTokens(): Tokens {
@@ -2364,7 +2376,7 @@ public class MacroExpandParam <: FuncParam {
         if (isValidToken(lSquare_)) {
             ret.append(lSquare_).append(macroAttrs_).append(rSquare_)
         }
-        if (hasParenthesis_) {
+        if (isValidToken(lParen_)) {
             ret.append(lParen_).append(macroInputs_).append(rParen_).append(Token(NL))
         } else {
             match (macroInputDecl_) {

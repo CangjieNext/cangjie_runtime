@@ -1528,7 +1528,7 @@ extend<T> ArrayList<T> <: ToTokens {
             case arguments: ArrayList<Argument> =>
                 for (i in 0..arguments.size) {
                     ret.append(arguments[i].toTokens())
-                    if (ret[ret.size - 1].kind != COMMA && i != arguments.size - 1) {
+                    if (ret.size != 0 && ret[ret.size - 1].kind != COMMA && i != arguments.size - 1) {
                         ret.append(Token(COMMA))
                     }
                 }
@@ -1539,7 +1539,7 @@ extend<T> ArrayList<T> <: ToTokens {
             case funcParams: ArrayList<FuncParam> =>
                 for (i in 0..funcParams.size) {
                     ret.append(funcParams[i].toTokens())
-                    if (ret[ret.size - 1].kind != COMMA && i != funcParams.size - 1) {
+                    if (ret.size != 0 && ret[ret.size - 1].kind != COMMA && i != funcParams.size - 1) {
                         ret.append(Token(COMMA))
                     }
                 }
