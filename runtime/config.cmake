@@ -240,7 +240,7 @@ else ()
         -fno-rtti -ffunction-sections -Wall -fstack-protector-strong -fPIC -Werror -Wunused-variable")
 endif ()
 set(ASAN_FLAGS "-fsanitize=address -fno-omit-frame-pointer")
-set(HWASAN_FLAGS "-fsanitize=hwaddress -fno-omit-frame-pointer -fno-emulated-tls -fno-lto -fno-sanitize=cfi")
+set(HWASAN_FLAGS "-shared-libsan -fsanitize=hwaddress -fno-omit-frame-pointer -fno-emulated-tls -fno-lto -fno-sanitize=cfi -mllvm -hwasan-globals=0 -fno-whole-program-vtables")
 set(CMAKE_INIT_FLAGS "${CMAKE_INIT_FLAGS} -Wfloat-equal -Wextra -Wno-unused-parameter -Wno-sign-compare")
 
 if (NOT CMAKE_AR_PATH)
