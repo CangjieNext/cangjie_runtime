@@ -94,6 +94,7 @@ def do_build(args):
 
     mode = mode.capitalize()
     macos_flag = 1 if platform.system().lower() == 'darwin' else 0
+    hwasan_flag = 1 if args.hwasan == True else 0
     # Perform different build actions based on the target_args
     if target_args == "native":
         cmake_command = [
@@ -109,7 +110,7 @@ def do_build(args):
             "-DMACOS_FLAG={}".format(macos_flag),
             "-DRUNTIME_TRACE_FLAG=1",
             "-DASAN_FLAG=0",
-            "-DHWASAN_FLAG={}".format(args.hwasan),
+            "-DHWASAN_FLAG={}".format(hwasan_flag),
             "-DSANITIZER_SUPPORT=0",
             "-DCOV=0",
             "-DDUMPADDRESS_FLAG=0",
@@ -143,7 +144,7 @@ def do_build(args):
             "-DDSU_FLAG=0",
             "-DRUNTIME_TRACE_FLAG=1",
             "-DASAN_FLAG=0",
-            "-DHWASAN_FLAG={}".format(args.hwasan),
+            "-DHWASAN_FLAG={}".format(hwasan_flag),
             "-DSANITIZER_SUPPORT=0",
             "-DCOV=0",
             "-DDUMPADDRESS_FLAG=0",
@@ -184,7 +185,7 @@ def do_build(args):
             "-DEULER_FLAG=0",
             "-DRUNTIME_TRACE_FLAG=1",
             "-DASAN_FLAG=0",
-            "-DHWASAN_FLAG={}".format(args.hwasan),
+            "-DHWASAN_FLAG={}".format(hwasan_flag),
             "-DSANITIZER_SUPPORT=0",
             "-DCOV=0",
             "-DDUMPADDRESS_FLAG=0",
@@ -266,7 +267,7 @@ if __name__ == "__main__":
         help="Specify the installation directory for the build artifacts."
     )
     b.add_argument(
-        "-hwasan",
+        "--hwasan",
         action="store_true",
         help="Enable HWASAN"
     )

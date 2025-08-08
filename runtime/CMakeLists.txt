@@ -170,7 +170,7 @@ if (MACOS_FLAG MATCHES 1)
     set(CMAKE_OSX_DEPLOYMENT_TARGET 12.0.0)
 endif()
 
-link_directories(${BOUNDSCHECK_LIBS})
+link_directories(${OHOS_LIB})
 include_directories(${BOUNDSCHECK_INCLUDE})
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src)
 add_subdirectory(third_party/third_party_bounds_checking_function)
