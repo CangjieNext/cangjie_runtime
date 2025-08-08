@@ -204,21 +204,34 @@ MAddress AllocBuffer::AllocateImpl(size_t totalSize, AllocType allocType)
         }
         return r->Alloc(totalSize);
     }
+    // AllocateThreadLocalRegion is a safepoint, in which cj thread rescheule may happen.
+    // tlRegion is bound to specific thread, so we need to forbid reschedule.
     CJThreadPreemptOffCntAdd();
     r = manager.AllocateThreadLocalRegion();
     CJThreadPreemptOffCntSub();
     if (UNLIKELY(r == nullptr)) {
         return 0;
     }
+    // tlRegion may be set in PreforwardPhase handler while allocating region.
+    // Null region means tlRegion is not set.
     if (tlRegion == RegionInfo::NullRegion()) {
         tlRegion = r;
-    } else if (!SetPreparedRegion(r)) {
-        manager.ReclaimRegion(r);
+        return r->Alloc(totalSize);
     }
-    if (LIKELY(!IsGcThread() && theAllocator.IsAsyncAllocationEnable())) {
-        theAllocator.AddHungryBuffer(*this);
-        Heap::GetHeap().GetFinalizerProcessor().NotifyToFeedAllocBuffers();
+    // tlRegion has been set in preforward phase.
+    MAddress addr = tlRegion->Alloc(totalSize);
+    if (addr != 0) {
+        if (!SetPreparedRegion(r)) {
+            // r is inserted in thread-local region list when allocated, we need to remove it from the list.
+            manager.RemoveThreadLocalRegion(r);
+            manager.ReclaimRegion(r);
+        }
+        return addr;
     }
+    // tlRegion is not enough for allocation, so we use r.
+    manager.RemoveThreadLocalRegion(tlRegion);
+    manager.EnlistFullThreadLocalRegion(tlRegion);
+    tlRegion = r;
     return r->Alloc(totalSize);
 }
 
@@ -282,6 +295,8 @@ void RegionSpace::FeedHungryBuffers()
         }
     }
     if (region != nullptr) {
+        // The region is inserted in thread-local region list when allocated, we need to remove it from the list.
+        regionManager.RemoveThreadLocalRegion(region);
         regionManager.CollectRegion(region);
     }
 }

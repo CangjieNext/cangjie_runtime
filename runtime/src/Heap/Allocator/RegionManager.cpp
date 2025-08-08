@@ -71,9 +71,8 @@ public:
     void Execute(size_t) override
     {
         while (true) {
-            RegionInfo* region = fromRegionList.TakeHeadRegion();
+            RegionInfo* region = fromRegionList.TakeHeadRegion(RegionInfo::RegionType::LONE_FROM_REGION);
             if (region == nullptr) { break; }
-            region->SetRegionType(RegionInfo::RegionType::LONE_FROM_REGION);
             regionManager.ForwardRegion(region);
         }
     }
@@ -451,6 +450,10 @@ void RegionManager::AssemblePinnedGarbageCandidates(bool collectAll)
         region = nextRegion;
     }
 }
+void RemoveRegionLocked(RegionList* regionList, RegionInfo* region)
+{
+    regionList->DeleteRegionLocked(region);
+}
 
 // forward only regions whose garbage bytes is greater than or equal to exemptedRegionThreshold.
 void RegionManager::ExemptFromRegions()
@@ -458,9 +461,9 @@ void RegionManager::ExemptFromRegions()
     size_t forwardBytes = 0;
     size_t floatingGarbage = 0;
     size_t oldFromBytes = fromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
-    RegionInfo* fromRegion = fromRegionList.GetHeadRegion();
-    while (fromRegion != nullptr) {
-        size_t threshold = static_cast<size_t>(exemptedRegionThreshold * fromRegion->GetRegionSize());
+    double exempt = exemptedRegionThreshold;
+    auto visitor = [this, exempt, &floatingGarbage](RegionInfo* fromRegion) {
+        size_t threshold = static_cast<size_t>(exempt * fromRegion->GetRegionSize());
         size_t liveBytes = fromRegion->GetLiveByteCount();
         long rawPtrCnt = fromRegion->GetRawPointerObjectCount();
         if (liveBytes > threshold) { // ignore this region
@@ -469,29 +472,22 @@ void RegionManager::ExemptFromRegions()
                 del->GetRegionStart(), del->GetRegionAllocatedSize(), del->GetRegionEnd(),
                 del->GetUnitCount(), del->GetLiveByteCount());
 
-            fromRegion = fromRegion->GetNextRegion();
-            if (fromRegionList.TryDeleteRegion(del, RegionInfo::RegionType::FROM_REGION,
-                                               RegionInfo::RegionType::UNMOVABLE_FROM_REGION)) {
-                ExemptFromRegion(del);
-            }
+            CHECK(del->IsFromRegion());
+            RemoveRegionLocked(&fromRegionList, del);
+            ExemptFromRegion(del);
             floatingGarbage += (del->GetRegionSize() - del->GetLiveByteCount());
         } else if (rawPtrCnt > 0) {
             RegionInfo* del = fromRegion;
             DLOG(REGION, "region %p @[0x%zx+%zu, 0x%zx) pinned by forwarding: %zu units, %u live bytes rawPtr cnt %u",
                 del, del->GetRegionStart(), del->GetRegionAllocatedSize(), del->GetRegionEnd(),
                 del->GetUnitCount(), del->GetLiveByteCount(), rawPtrCnt);
-
-            fromRegion = fromRegion->GetNextRegion();
-            if (fromRegionList.TryDeleteRegion(del, RegionInfo::RegionType::FROM_REGION,
-                                               RegionInfo::RegionType::RAW_POINTER_PINNED_REGION)) {
-                rawPointerPinnedRegionList.PrependRegion(del, RegionInfo::RegionType::RAW_POINTER_PINNED_REGION);
-            }
+            CHECK(del->IsFromRegion());
+            RemoveRegionLocked(&fromRegionList, del);
+            rawPointerPinnedRegionList.PrependRegion(del, RegionInfo::RegionType::RAW_POINTER_PINNED_REGION);
             floatingGarbage += (del->GetRegionSize() - del->GetLiveByteCount());
-        } else {
-            forwardBytes += fromRegion->GetLiveByteCount();
-            fromRegion = fromRegion->GetNextRegion();
         }
-    }
+    };
+    fromRegionList.VisitAllRegions(visitor);
 
     size_t newFromBytes = fromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
     size_t exemptedFromBytes = unmovableFromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
@@ -1021,7 +1017,8 @@ void RegionManager::CompactRegion(RegionInfo* region)
     }
 
     if (region->IsFromRegion()) {
-        fromRegionList.DeleteRegion(region);
+        fromRegionList.TryDeleteRegion(region, RegionInfo::RegionType::FROM_REGION,
+            RegionInfo::RegionType::THREAD_LOCAL_REGION);
     }
     tlRegionList.PrependRegion(region, RegionInfo::RegionType::THREAD_LOCAL_REGION);
 }
@@ -1080,14 +1077,16 @@ void RegionManager::CompactRegion(RegionInfo* region, RegionInfo* toRegion1)
     }
 
     if (region->IsFromRegion()) {
-        fromRegionList.DeleteRegion(region);
+        fromRegionList.TryDeleteRegion(region, RegionInfo::RegionType::FROM_REGION,
+            RegionInfo::RegionType::THREAD_LOCAL_REGION);
     }
     tlRegionList.PrependRegion(region, RegionInfo::RegionType::THREAD_LOCAL_REGION);
 }
 
 void RegionManager::ForwardRegion(RegionInfo* region)
 {
-    CHECK_DETAIL(region->IsFromRegion() || region->IsLoneFromRegion(), "region type %u", region->GetRegionType());
+    CHECK_DETAIL(region->IsFromRegion() || region->IsLoneFromRegion() || (region->IsThreadLocalRegion() &&
+        (region->IsRoutingState() || region->IsCompacted())), "region type %u", region->GetRegionType());
 
     DLOG(FORWARD, "try forward region %p @[0x%zx+%zu, 0x%zx) type %u, live bytes %u",
         region, region->GetRegionStart(), region->GetRegionAllocatedSize(), region->GetRegionEnd(),
