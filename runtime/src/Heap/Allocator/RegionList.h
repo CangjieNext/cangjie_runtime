@@ -13,7 +13,7 @@
 namespace MapleRuntime {
 class RegionList {
 public:
-
+    friend void RemoveRegionLocked(RegionList*, RegionInfo*);
     RegionList(const char* name) : listName(name) {}
 
     void PrependRegion(RegionInfo* region, RegionInfo::RegionType type);
@@ -115,8 +115,12 @@ public:
     void VisitAllRegions(const std::function<void(RegionInfo*)>& visitor)
     {
         std::lock_guard<std::mutex> lock(listMutex);
-        for (RegionInfo* node = listHead; node != nullptr; node = node->GetNextRegion()) {
+        RegionInfo* node = listHead;
+        RegionInfo* next = node;
+        while (node != nullptr) {
+            next = node->GetNextRegion();
             visitor(node);
+            node = next;
         }
     }
 
