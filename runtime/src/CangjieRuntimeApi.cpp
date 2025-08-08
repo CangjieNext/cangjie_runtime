@@ -116,17 +116,16 @@ static bool CheckInitConfig(const struct RuntimeParam& param)
         LOG(RTLOG_ERROR, "RuntimeParam.heapParam.heapUtilization must be in range (0, 1].\n");
         return false;
     }
-    // Garbage ration must be in range [0.1, 1].
-    const double minGarbageRation = 0.1;
+    // Garbage ration must be in range [0.0, 1.0], which should be consistent with the documentation.
+    const double minGarbageRation = 0.0;
     const double maxGarbageRation = 1;
-    if ((param.gcParam.garbageThreshold - 0.0 < -ERRORESTIMATE ||
-        param.gcParam.garbageThreshold - 0.0 > ERRORESTIMATE) &&
-        (param.gcParam.garbageThreshold - minGarbageRation < ERRORESTIMATE
-            || param.gcParam.garbageThreshold - maxGarbageRation > ERRORESTIMATE)) {
-        LOG(RTLOG_ERROR, "RuntimeParam.gcParam.garbageThreshold must be in range [0.1, 1].\n");
-        return false;
+    if (param.gcParam.garbageThreshold - minGarbageRation >= 0 &&
+        maxGarbageRation - param.gcParam.garbageThreshold >= 0) {
+        return true;
+    } else {
+        LOG(RTLOG_ERROR, "param.gcParam.garbageThreshold must be in range [0.0, 1.0].\n");
     }
-    return true;
+    return false;
 }
 
 RTErrorCode SetRuntimeInitFlag()

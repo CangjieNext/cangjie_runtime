@@ -233,7 +233,6 @@ MAddress AllocBuffer::AllocateRawPointerObject(size_t totalSize)
     }
     RegionManager& manager = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator()).GetRegionManager();
     size_t needUnitNum = AlignUp(totalSize, RegionInfo::UNIT_SIZE) / RegionInfo::UNIT_SIZE;
-    // region should have at least 2 unit
     if (totalSize <= manager.GetThreadLocalRegionSize()) {
         region = manager.TakeRegion(needUnitNum, RegionInfo::UnitRole::SMALL_SIZED_UNITS);
         if (region == nullptr) {
