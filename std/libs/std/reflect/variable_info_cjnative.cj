@@ -155,8 +155,16 @@ public class InstanceVariableInfo <: Equatable<InstanceVariableInfo> & Hashable 
     /**
      * Searches the instance variable's annotation by incoming name.
      */
-    public func findAnnotation<T>(): Option<T> where T <: Annotation {
+    public func findAnnotation<T>(): ?T where T <: Annotation {
         findAnnotation<T>(annotations)
+    }
+
+    public func findAllAnnotations<T>(): Array<T> where T <: Annotation {
+        findAllAnnotations<T>(annotations)
+    }
+
+    public func getAllAnnotations(): Array<Annotation> {
+        annotations.toArray()
     }
 
     public operator func ==(that: InstanceVariableInfo): Bool {
@@ -316,8 +324,16 @@ public class StaticVariableInfo <: Equatable<StaticVariableInfo> & Hashable & To
     /**
      * Searches the static variable's annotation by incoming name.
      */
-    public func findAnnotation<T>(): Option<T> where T <: Annotation {
+    public func findAnnotation<T>(): ?T where T <: Annotation {
         findAnnotation<T>(annotations)
+   }
+
+    public func findAllAnnotations<T>(): Array<T> where T <: Annotation {
+        findAllAnnotations<T>(annotations)
+    }
+
+    public func getAllAnnotations(): Array<Annotation> {
+        annotations.toArray()
     }
 
     public operator func ==(that: StaticVariableInfo): Bool {
@@ -443,8 +459,16 @@ public class GlobalVariableInfo <: Equatable<GlobalVariableInfo> & Hashable & To
     /**
      * Searches the global variable's annotation by incoming name.
      */
-    public func findAnnotation<T>(): Option<T> where T <: Annotation {
+    public func findAnnotation<T>(): ?T where T <: Annotation {
         findAnnotation<T>(annotations)
+   }
+
+    public func findAllAnnotations<T>(): Array<T> where T <: Annotation {
+        findAllAnnotations<T>(annotations)
+    }
+
+    public func getAllAnnotations(): Array<Annotation> {
+        annotations.toArray()
     }
 
     public operator func ==(that: GlobalVariableInfo): Bool {
