@@ -2082,6 +2082,7 @@ public class MacroExpandDecl <: Decl {
                     this.macroInputDecl_ = v.macroInputDecl_
                     this.hasParenthesis_ = v.hasParenthesis_
                     this.isCompileTimeVisible_ = v.isCompileTimeVisible_
+                    this.annotations = v.annotations
                 case None => throw ASTException("Cannot construct the 'MacroExpandDecl' node.")
             }
         } catch (e: ParseASTException) {
@@ -2182,7 +2183,11 @@ public class MacroExpandDecl <: Decl {
         }
     }
     public func toTokens(): Tokens {
-        var ret = Tokens().append(keyword)
+        var ret = Tokens()
+        for (i in 0..annotations.size) {
+            ret.append(annotations[i].toTokens())
+        }
+        ret.append(keyword)
         let identArray = pkgIdentifier_.value.split(".")
         let identPos = pkgIdentifier_.pos
         var identColumn = identPos.column
@@ -2216,6 +2221,9 @@ public class MacroExpandDecl <: Decl {
         if (v.needBreakTraverse()) {
             return
         }
+        for (anno in annotations) {
+            anno.traverse(v)
+        }
         match (macroInputDecl_) {
             case Some(node) => node.traverse(v)
             case None => ()
@@ -2231,6 +2239,10 @@ public class MacroExpandDecl <: Decl {
         }
         ret += getTokenIndent("-identifier", identifier, currentIndent)
 
+        for (i in 0..annotations.size) {
+            ret += getIndent(currentIndent) + "-annotations: ${i}, "
+            ret += annotations[i].dump(currentIndent)
+        }
         for (i in 0..macroAttrs_.size) {
             ret += getTokenIndent("-macroAttrs ${i}", macroAttrs[i], currentIndent)
         }
@@ -2355,7 +2367,11 @@ public class MacroExpandParam <: FuncParam {
         }
     }
     public func toTokens(): Tokens {
-        var ret = Tokens().append(keyword)
+        var ret = Tokens()
+        for (i in 0..annotations.size) {
+            ret.append(annotations[i].toTokens())
+        }
+        ret.append(keyword)
         let identArray = pkgIdentifier_.value.split(".")
         let identPos = pkgIdentifier_.pos
         var identColumn = identPos.column
@@ -2389,6 +2405,9 @@ public class MacroExpandParam <: FuncParam {
         if (v.needBreakTraverse()) {
             return
         }
+        for (anno in annotations) {
+            anno.traverse(v)
+        }
         match (macroInputDecl_) {
             case Some(node) => node.traverse(v)
             case None => ()
@@ -2404,6 +2423,10 @@ public class MacroExpandParam <: FuncParam {
         }
         ret += getTokenIndent("-identifier", identifier, currentIndent)
 
+        for (i in 0..annotations.size) {
+            ret += getIndent(currentIndent) + "-annotations: ${i}, "
+            ret += annotations[i].dump(currentIndent)
+        }
         for (i in 0..macroAttrs_.size) {
             ret += getTokenIndent("-macroAttrs ${i}", macroAttrs[i], currentIndent)
         }
