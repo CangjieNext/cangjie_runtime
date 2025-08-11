@@ -408,7 +408,6 @@ size_t RegionManager::ReleaseRegion(RegionInfo* region)
 
 void RegionManager::ReassembleFromSpace()
 {
-    fromRegionList.MergeRegionList(toRegionList, RegionInfo::RegionType::FROM_REGION);
     fromRegionList.MergeRegionList(unmovableFromRegionList, RegionInfo::RegionType::FROM_REGION);
 }
 
@@ -421,7 +420,6 @@ void RegionManager::CountLiveObject(const BaseObject* obj)
 void RegionManager::AssembleSmallGarbageCandidates()
 {
     fromRegionList.MergeRegionList(rawPointerPinnedRegionList, RegionInfo::RegionType::FROM_REGION);
-    fromRegionList.MergeRegionList(rawPointerRegionList, RegionInfo::RegionType::FROM_REGION);
     fromRegionList.MergeRegionList(recentFullRegionList, RegionInfo::RegionType::FROM_REGION);
     fromRegionList.MergeRegionList(unmovableFromRegionList, RegionInfo::RegionType::FROM_REGION);
 
@@ -738,11 +736,6 @@ void RegionManager::DumpRegionStats(const char* msg) const
     size_t exemptedFromSize = exemptedFromUnits * RegionInfo::UNIT_SIZE;
     size_t allocExemptedFromSize = unmovableFromRegionList.GetAllocatedSize();
 
-    size_t toRegions = toRegionList.GetRegionCount();
-    size_t toUnits = toRegionList.GetUnitCount();
-    size_t toSize = toUnits * RegionInfo::UNIT_SIZE;
-    size_t allocToSize = toRegionList.GetAllocatedSize();
-
     size_t recentFullRegions = recentFullRegionList.GetRegionCount();
     size_t recentFullUnits = recentFullRegionList.GetUnitCount();
     size_t recentFullSize = recentFullUnits * RegionInfo::UNIT_SIZE;
@@ -768,6 +761,11 @@ void RegionManager::DumpRegionStats(const char* msg) const
     size_t largeSize = largeUnits * RegionInfo::UNIT_SIZE;
     size_t allocLargeSize = oldLargeRegionList.GetAllocatedSize();
 
+    size_t rawPointerPinnedRegions = rawPointerPinnedRegionList.GetRegionCount();
+    size_t rawPointerPinnedUnits = rawPointerPinnedRegionList.GetUnitCount();
+    size_t rawPointerPinnedSize = rawPointerPinnedUnits * RegionInfo::UNIT_SIZE;
+    size_t allocRawPointerPinnedSize = rawPointerPinnedRegionList.GetAllocatedSize();
+
     size_t recentlargeRegions = recentLargeRegionList.GetRegionCount();
     size_t recentlargeUnits = recentLargeRegionList.GetUnitCount();
     size_t recentLargeSize = recentlargeUnits * RegionInfo::UNIT_SIZE;
@@ -776,8 +774,8 @@ void RegionManager::DumpRegionStats(const char* msg) const
     size_t usedUnits = GetUsedUnitCount();
     size_t releasedUnits = freeRegionManager.GetReleasedUnitCount();
     size_t dirtyUnits = freeRegionManager.GetDirtyUnitCount();
-    size_t listedUnits = fromUnits + exemptedFromUnits + toUnits + garbageUnits +
-        recentFullUnits + largeUnits + recentlargeUnits + pinnedUnits + recentPinnedUnits;
+    size_t listedUnits = fromUnits + exemptedFromUnits + garbageUnits + recentFullUnits
+        + largeUnits + recentlargeUnits + pinnedUnits + recentPinnedUnits;
 
     VLOG(REPORT, msg);
 
@@ -788,7 +786,6 @@ void RegionManager::DumpRegionStats(const char* msg) const
     VLOG(REPORT, "\tfrom-regions %zu: %zu units (%zu B, alloc %zu)", fromRegions,  fromUnits, fromSize, allocFromSize);
     VLOG(REPORT, "\texempted from-regions %zu: %zu units (%zu B, alloc %zu)",
          exemptedFromRegions, exemptedFromUnits, exemptedFromSize, allocExemptedFromSize);
-    VLOG(REPORT, "\tto-regions %zu: %zu units (%zu B, alloc %zu)", toRegions, toUnits, toSize, allocToSize);
     VLOG(REPORT, "\trecent-full regions %zu: %zu units (%zu B, alloc %zu)",
          recentFullRegions, recentFullUnits, recentFullSize, allocRecentFullSize);
     VLOG(REPORT, "\tgarbage regions %zu: %zu units (%zu B, alloc %zu)",
@@ -797,6 +794,8 @@ void RegionManager::DumpRegionStats(const char* msg) const
          pinnedRegions, pinnedUnits, pinnedSize, allocPinnedSize);
     VLOG(REPORT, "\trecent pinned regions %zu: %zu units (%zu B, alloc %zu)",
          recentPinnedRegions, recentPinnedUnits, recentPinnedSize, allocRecentPinnedSize);
+    VLOG(REPORT, "\trawPointer pinned regions %zu: %zu units (%zu B, alloc %zu)",
+         rawPointerPinnedRegions, rawPointerPinnedUnits, rawPointerPinnedSize, allocRawPointerPinnedSize);
     VLOG(REPORT, "\tlarge-object regions %zu: %zu units (%zu B, alloc %zu)",
          largeRegions, largeUnits, largeSize, allocLargeSize);
     VLOG(REPORT, "\trecent large-object regions %zu: %zu units (%zu B, alloc %zu)",
@@ -823,10 +822,6 @@ void RegionManager::DumpRegionStats(const char* msg) const
     OHOS_HITRACE_COUNT("CJRT_GC_exemptedFromUnits", exemptedFromUnits);
     OHOS_HITRACE_COUNT("CJRT_GC_exemptedFromSize", exemptedFromSize);
     OHOS_HITRACE_COUNT("CJRT_GC_allocExemptedFromSize", allocExemptedFromSize);
-    OHOS_HITRACE_COUNT("CJRT_GC_toRegions", toRegions);
-    OHOS_HITRACE_COUNT("CJRT_GC_toUnits", toUnits);
-    OHOS_HITRACE_COUNT("CJRT_GC_toSize", toSize);
-    OHOS_HITRACE_COUNT("CJRT_GC_allocToSize", allocToSize);
     OHOS_HITRACE_COUNT("CJRT_GC_recentFullRegions", recentFullRegions);
     OHOS_HITRACE_COUNT("CJRT_GC_recentFullUnits", recentFullUnits);
     OHOS_HITRACE_COUNT("CJRT_GC_recentFullSize", recentFullSize);
@@ -843,6 +838,10 @@ void RegionManager::DumpRegionStats(const char* msg) const
     OHOS_HITRACE_COUNT("CJRT_GC_recentPinnedUnits", recentPinnedUnits);
     OHOS_HITRACE_COUNT("CJRT_GC_recentPinnedSize", recentPinnedSize);
     OHOS_HITRACE_COUNT("CJRT_GC_allocRecentPinnedSize", allocRecentPinnedSize);
+    OHOS_HITRACE_COUNT("CJRT_GC_rawPointerPinnedRegions", rawPointerPinnedRegions);
+    OHOS_HITRACE_COUNT("CJRT_GC_rawPointerPinnedUnits", rawPointerPinnedUnits);
+    OHOS_HITRACE_COUNT("CJRT_GC_rawPointerPinnedSize", rawPointerPinnedSize);
+    OHOS_HITRACE_COUNT("CJRT_GC_allocRawPointerPinnedSize", allocRawPointerPinnedSize);
     OHOS_HITRACE_COUNT("CJRT_GC_largeRegions", largeRegions);
     OHOS_HITRACE_COUNT("CJRT_GC_largeUnits", largeUnits);
     OHOS_HITRACE_COUNT("CJRT_GC_largeSize", largeSize);

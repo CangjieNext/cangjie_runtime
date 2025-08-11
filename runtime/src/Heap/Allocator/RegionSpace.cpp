@@ -28,7 +28,7 @@ MAddress RegionSpace::TryAllocateOnce(size_t allocSize, AllocType allocType)
     return allocBuffer->Allocate(allocSize, allocType);
 }
 
-bool RegionSpace::ShouldRetryAllocation(size_t& tryTimes) const
+bool RegionSpace::ShouldRetryAllocation(size_t& tryTimes, size_t size) const
 {
     if (!IsRuntimeThread() && tryTimes <= static_cast<size_t>(TryAllocationThreshold::RESCHEDULE)) {
         CJThreadResched(); // reschedule this thread for throughput.
@@ -54,6 +54,7 @@ bool RegionSpace::ShouldRetryAllocation(size_t& tryTimes) const
         }
         return true;
     }
+    VLOG(REPORT, "Cannot allocate memory of %zu(B), throw an OutOfMemory exception", size);
     ExceptionManager::OutOfMemory();
     return false;
 }
@@ -72,7 +73,7 @@ MAddress RegionSpace::Allocate(size_t size, AllocType allocType)
         if (IsGcThread()) {
             return 0; // it means gc doesn't have enough space to move this object.
         }
-        if (!ShouldRetryAllocation(tryTimes)) {
+        if (!ShouldRetryAllocation(tryTimes, size)) {
             break;
         }
         (void)sched_yield();

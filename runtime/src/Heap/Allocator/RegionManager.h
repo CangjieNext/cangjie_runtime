@@ -104,10 +104,10 @@ public:
         : freeRegionManager(*this), tlRegionList("thread local regions"), recentFullRegionList("recent full regions"),
           fullTraceRegions("full trace regions"), fromRegionList("from regions"),
           ghostFromRegionList("ghost from regions"), unmovableFromRegionList("escaped from regions"),
-          toRegionList("to regions"), garbageRegionList("garbage regions"), rawPointerRegionList("raw pointer regions"),
-          recentPinnedRegionList("recent pinned regions"), oldPinnedRegionList("old pinned regions"),
-          rawPointerPinnedRegionList("raw pointer pinned regions"), oldLargeRegionList("old large regions"),
-          recentLargeRegionList("recent large regions"), largeTraceRegions("large trace regions")
+          garbageRegionList("garbage regions"), recentPinnedRegionList("recent pinned regions"),
+          oldPinnedRegionList("old pinned regions"), rawPointerPinnedRegionList("raw pointer pinned regions"),
+          oldLargeRegionList("old large regions"), recentLargeRegionList("recent large regions"),
+          largeTraceRegions("large trace regions")
     {}
 
     RegionManager(const RegionManager&) = delete;
@@ -339,13 +339,12 @@ public:
     size_t GetSurvivedSize() const
     {
         return fromRegionList.GetAllocatedSize() + unmovableFromRegionList.GetAllocatedSize() +
-            toRegionList.GetAllocatedSize() + oldPinnedRegionList.GetAllocatedSize() +
-            oldLargeRegionList.GetAllocatedSize();
+            oldPinnedRegionList.GetAllocatedSize() + oldLargeRegionList.GetAllocatedSize();
     }
 
     size_t GetUsedUnitCount() const
     {
-        return fromRegionList.GetUnitCount() + unmovableFromRegionList.GetUnitCount() + toRegionList.GetUnitCount() +
+        return fromRegionList.GetUnitCount() + unmovableFromRegionList.GetUnitCount() +
             recentFullRegionList.GetUnitCount() + oldLargeRegionList.GetUnitCount() +
             recentLargeRegionList.GetUnitCount() + oldPinnedRegionList.GetUnitCount() +
             recentPinnedRegionList.GetUnitCount() + rawPointerPinnedRegionList.GetUnitCount() +
@@ -376,11 +375,11 @@ public:
         Heap::GetHeap().GetAllocator().VisitAllocBuffers(visitor);
         // exclude garbageRegionList for live object set.
         return fromRegionList.GetAllocatedSize() + unmovableFromRegionList.GetAllocatedSize() +
-            toRegionList.GetAllocatedSize() + recentFullRegionList.GetAllocatedSize() +
-            oldLargeRegionList.GetAllocatedSize() + recentLargeRegionList.GetAllocatedSize() +
-            oldPinnedRegionList.GetAllocatedSize() + recentPinnedRegionList.GetAllocatedSize() +
-            rawPointerPinnedRegionList.GetAllocatedSize() + rawPointerRegionList.GetAllocatedSize() +
-            largeTraceRegions.GetAllocatedSize() + fullTraceRegions.GetAllocatedSize() + threadLocalSize;
+            recentFullRegionList.GetAllocatedSize() + oldLargeRegionList.GetAllocatedSize() +
+            recentLargeRegionList.GetAllocatedSize() + oldPinnedRegionList.GetAllocatedSize() +
+            recentPinnedRegionList.GetAllocatedSize() + rawPointerPinnedRegionList.GetAllocatedSize() +
+            largeTraceRegions.GetAllocatedSize() + fullTraceRegions.GetAllocatedSize()
+            + tlRegionList.GetAllocatedSize() + threadLocalSize;
     }
 
     inline size_t GetFromSpaceSize() const { return fromRegionList.GetAllocatedSize(); }
@@ -505,7 +504,6 @@ public:
         ClearLiveInfo(recentFullRegionList);
         ClearLiveInfo(fullTraceRegions);
         ClearLiveInfo(unmovableFromRegionList);
-        ClearLiveInfo(rawPointerRegionList);
         ClearLiveInfo(recentPinnedRegionList);
         ClearLiveInfo(oldPinnedRegionList);
         ClearLiveInfo(rawPointerPinnedRegionList);
@@ -552,15 +550,8 @@ private:
     // regions exempted by ExemptFromRegions, which will not be moved during current GC.
     RegionList unmovableFromRegionList;
 
-    // toRegionList is a list of to-space regions produced by gc threads.
-    // when a region is prepended to this list, the region is probably not full, so the statistics
-    // of this region-list are not reliable and need to be updated.
-    RegionList toRegionList;
-
     // cache for fromRegionList after forwarding.
     RegionList garbageRegionList;
-
-    RegionList rawPointerRegionList;
 
     // regions for pinned (small-sized) objects.
     // region lists for small-sized pinned objects which are not be moved during concurrent gc, but
