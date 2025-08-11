@@ -114,6 +114,14 @@ func checkArgsSizeAndType(parameters: ReadOnlyList<ParameterInfo>, args: Array<A
     }
 }
 
+
+func checkValueType(newValue: Any, typeInfo: TypeInfo): Unit {
+    let valueTypeInfo = TypeInfo.of(newValue)
+    if (!valueTypeInfo.isSubtypeOf(typeInfo)) {
+        throw IllegalTypeException("The input newValue should be \"${typeInfo}\", but now it`s \"${valueTypeInfo}\"")
+    }
+}
+
 func findAnnotation<T>(annotations: Collection<Annotation>): Option<T> {
     var ret: ?T = None<T>
     var count: Int64 = 0
