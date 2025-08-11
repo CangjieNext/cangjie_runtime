@@ -89,8 +89,6 @@ public:
 
     size_t PinnedSpaceSize() const { return regionManager.GetPinnedSpaceSize(); }
 
-    inline size_t ToSpaceSize() const { return regionManager.GetToSpaceSize(); }
-
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     bool IsHeapObject(MAddress addr) const override;
 #endif
@@ -212,7 +210,7 @@ private:
         TRIGGER_OOM = 5,
     };
     MAddress TryAllocateOnce(size_t allocSize, AllocType allocType);
-    bool ShouldRetryAllocation(size_t& tryTimes) const;
+    bool ShouldRetryAllocation(size_t& tryTimes, size_t size) const;
     MAddress reservedStart = 0;
     MAddress reservedEnd = 0;
     RegionManager regionManager;
