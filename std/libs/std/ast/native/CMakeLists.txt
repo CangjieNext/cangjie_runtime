@@ -55,7 +55,7 @@ if(DEFINED ENV{CANGJIE_HOME})
     set(CANGJIE_INC_DIR $ENV{CANGJIE_HOME}/include)
     if(NOT EXISTS "${CANGJIE_INC_DIR}/cangjie")
         # using local cangjie source
-        set(CANGJIE_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../../../include)
+        set(CANGJIE_INC_DIR ~/dev/cangjie/cangjie/include)
         if(NOT EXISTS "${CANGJIE_INC_DIR}/cangjie")
             message(FATAL_ERROR "NOT FOUND CANGJIE HEADERS")
         endif()
