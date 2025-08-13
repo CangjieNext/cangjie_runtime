@@ -201,7 +201,7 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
 
     public func close() {
         if (!isclosed.compareAndSwap(false, true)) {    // compareAndSwap return true if the value equal first parameter.
-            return 
+            return
         }
         for (_ in 0..idleEntry.size) {
             var item = idleEntry.tryDequeue()
