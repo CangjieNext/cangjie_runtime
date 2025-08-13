@@ -22,6 +22,5 @@ if(CANGJIE_CODEGEN_CJNATIVE_BACKEND)
         type_info_cjnative.cj
         utils.cj
         variable_info_cjnative.cj
-        to_any_cjnative.cj
         CACHE INTERNAL "")
 endif()
