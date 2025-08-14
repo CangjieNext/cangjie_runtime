@@ -4,8 +4,6 @@
 #
 # See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-add_subdirectory(native)
-
 if(CANGJIE_CODEGEN_CJNATIVE_BACKEND)
     set(REFLECT_SRCS
         class_type_info_cjnative.cj

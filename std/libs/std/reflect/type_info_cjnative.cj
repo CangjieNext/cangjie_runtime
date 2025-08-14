@@ -11,9 +11,7 @@ package std.reflect
 import std.collection.*
 import std.sync.*
 
-foreign func GetUUIDFromTypeInfoPointer(ptr: CPointer<Unit>): Int32
-
-// Every operation that can create TypeInfo should take this lock
+const UUID_OFFSET: Int64 = 24
 let TYPE_INFO_CREATE_LOCK = Mutex()
 
 class TypeTemplate {
@@ -263,7 +261,7 @@ sealed abstract class TypeInfo <: Equatable<TypeInfo> & Hashable & ToString {
                 return CACHE.get(qualifiedName) ?? createGenericTypeInfo(typeInfoPointer, qualifiedName)
             }
 
-            let uuid = unsafe { GetUUIDFromTypeInfoPointer(typeInfoPointer).toString() }
+            let uuid = unsafe { CPointer<Int32>(CPointer<Byte>(typeInfoPointer) + UUID_OFFSET).read().toString() }
             return if (let Some(ti) <- CACHE.get(uuid)) {
                 ti
             } else {
@@ -300,7 +298,7 @@ sealed abstract class TypeInfo <: Equatable<TypeInfo> & Hashable & ToString {
             throw ReflectException("Type \"${qualifiedName}\" is not supported.")
         }
 
-        let uuidStr = uuid ?? unsafe { GetUUIDFromTypeInfoPointer(typeInfoPointer).toString() }
+        let uuidStr = uuid ?? unsafe { CPointer<Int32>(CPointer<Byte>(typeInfoPointer) + UUID_OFFSET).read().toString() }
         typeInfo._qualifiedName = qualifiedName
         CACHE.add(qualifiedName, typeInfo)
         CACHE.add(uuidStr, typeInfo)

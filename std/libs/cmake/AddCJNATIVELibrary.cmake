@@ -159,10 +159,10 @@ if(NOT DARWIN)
         CANGJIE_STD_LIB_INDIRECT_DEPENDS
             std-math
             std-unicode
-        OBJECTS ${output_cj_object_dir}/std/reflect.o $<TARGET_OBJECTS:cangjie-std-reflectFFI-objs>)
+        OBJECTS ${output_cj_object_dir}/std/reflect.o)
 
 
-    add_library(cangjie-std-reflect STATIC ${output_cj_object_dir}/std/reflect.o $<TARGET_OBJECTS:cangjie-std-reflectFFI-objs>)
+    add_library(cangjie-std-reflect STATIC ${output_cj_object_dir}/std/reflect.o)
     set_target_properties(cangjie-std-reflect PROPERTIES LINKER_LANGUAGE C)
     install(TARGETS cangjie-std-reflect DESTINATION lib/${output_triple_name}_${CJNATIVE_BACKEND}${SANITIZER_SUBPATH})
 endif()
