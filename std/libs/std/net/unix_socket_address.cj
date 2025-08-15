@@ -10,10 +10,16 @@ package std.net
 
 import std.binary.*
 
+@When[os != "macOS" && os!= "iOS"]
+const MAX_UDS_PATH_LENGTH: Int64 = 108
+
+@When[os == "macOS" || os== "iOS"]
+const MAX_UDS_PATH_LENGTH: Int64 = 104
+
 func findLastNoneZeroIdx(path: Array<Byte>): Int64 {
     let len = path.size
-    if (len > 108) {
-        throw IllegalArgumentException("Path size(${len}) is too long, expect <= 108.")
+    if (len > MAX_UDS_PATH_LENGTH) {
+        throw IllegalArgumentException("Path size(${len}) is too long, expect <= ${MAX_UDS_PATH_LENGTH}.")
     }
     var lastNoneZeroIdx = 0
     for (i in path.size - 1..=0 : -1) {
@@ -34,8 +40,8 @@ public class UnixSocketAddress <: SocketAddress & Equatable<UnixSocketAddress> {
     }
     public init(path: String) {
         _len = path.size
-        if (_len > 108) {
-            throw IllegalArgumentException("Path size(${_len}) is too long, expect <= 108.")
+        if (_len > MAX_UDS_PATH_LENGTH) {
+            throw IllegalArgumentException("Path size(${_len}) is too long, expect <= ${MAX_UDS_PATH_LENGTH}.")
         }
         if (_len == 0) { // Unnamed socket address
             _path = ""

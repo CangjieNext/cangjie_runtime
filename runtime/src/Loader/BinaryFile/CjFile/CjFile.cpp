@@ -196,6 +196,7 @@ void CJFile::GetGlobalInitFunc(std::vector<Uptr> &globalInitFuncs) const
         offset += sizeof(void*);
         char* funcNamePtr = reinterpret_cast<char*>(globalInitPtr) + offset;
         offset += strlen(funcNamePtr) + 1; // 1: '\0\' takes one charactor length.
+        offset = AlignUp(offset, static_cast<size_t>(8)); // 8: apple xcode needs aligment.
         CString funcName(funcNamePtr);
         if (funcName.Find(globalInitFuncName.Str()) != -1) {
             Uptr globalInitFunc = *reinterpret_cast<Uptr*>(funcPtrField);

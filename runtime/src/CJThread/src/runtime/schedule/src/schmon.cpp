@@ -236,7 +236,7 @@ void SchmonCJThreadPoolClean(unsigned long long now)
     SchmonRemovelistClear(&removeList);
     // After the resource pool is cleared, the actual physical memory need to be released.
     // Only the Linux platform is supported.
-#if defined(MRT_LINUX) && !defined (OHOS)
+#if defined(MRT_LINUX) && !defined (OHOS) && !defined (__ANDROID__)
     (void)malloc_trim(0);
 #endif
 }

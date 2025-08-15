@@ -36,7 +36,7 @@ void CopyCollector::CopyObject(const BaseObject& fromObj, BaseObject& toObj, siz
 
 void CopyCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
 {
-    ScopedEntryHiTrace hiTrace("CJRT_GC_START");
+    ScopedEntryTrace trace("CJRT_GC_START");
     // prevent other threads stop-the-world during GC.
     // this may be removed in the future.
     ScopedSTWLock stwLock;
@@ -71,7 +71,7 @@ void CopyCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
 
 void CopyCollector::ForwardFromSpace()
 {
-    ScopedEntryHiTrace hiTrace("CJRT_GC_FORWARD");
+    ScopedEntryTrace trace("CJRT_GC_FORWARD");
     TransitionToGCPhase(GCPhase::GC_PHASE_FORWARD, true);
 
     RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);

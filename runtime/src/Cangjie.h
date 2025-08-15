@@ -46,7 +46,7 @@
 #endif
 
 #ifndef MRT_OPTIONAL_BRANCH_PROTECT_NONE
-#if (defined(__OHOS__) && defined(__aarch64__)) || defined(__HOS__)
+#if (defined(__OHOS__) && defined(__aarch64__)) || (defined(__ANDROID__) && defined(__aarch64__))
 #define MRT_OPTIONAL_BRANCH_PROTECT_NONE __attribute__((target("branch-protection=none")))
 #else
 #define MRT_OPTIONAL_BRANCH_PROTECT_NONE
