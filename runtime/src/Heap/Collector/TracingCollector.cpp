@@ -119,7 +119,7 @@ public:
                     if (referent != nullptr) {
                         DLOG(TRACE, "trace weakref obj %p ref@%p: 0x%zx", obj, &referent, referent);
                         collector.TraceObjectRefFields(reinterpret_cast<BaseObject*>(referent), workStack);
-                        WeakRefBuffer::Instance().Insert(obj); // record live weakref objects
+                        WeakRefBuffer::Instance().Insert(obj); // record live weakref objects, wiil be processed later
                     } // If referent is set to none, the corresponding weakref does not need to be recorded.
                 } else {
                     collector.TraceObjectRefFields(obj, workStack);
