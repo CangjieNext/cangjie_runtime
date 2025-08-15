@@ -241,6 +241,7 @@ void WCollector::TraceObjectRefFields(BaseObject* obj, WorkStack& workStack)
 
 BaseObject* WCollector::GetAndTryTagObj(BaseObject* obj, RefField<>& field)
 {
+    // get and try tag the referent field for weakref objs
     RefField<> oldField(field);
     BaseObject* latest = nullptr;
     if (IsCurrentPointer(oldField)) {
@@ -260,9 +261,9 @@ BaseObject* WCollector::GetAndTryTagObj(BaseObject* obj, RefField<>& field)
     CHECK(latest->IsValidObject());
     RefField<> newField = GetAndTryTagRefField(latest);
     if (oldField.GetFieldValue() == newField.GetFieldValue()) {
-        DLOG(TRACE, "trace obj %p ref@%p: %p<%p>(%zu)", obj, &field, latest, latest->GetTypeInfo(), latest->GetSize());
+        DLOG(TRACE, "trace weakref obj %p ref@%p: %p<%p>(%zu)", obj, &field, latest, latest->GetTypeInfo(), latest->GetSize());
     } else if (field.CompareExchange(oldField.GetFieldValue(), newField.GetFieldValue())) {
-        DLOG(TRACE, "trace obj %p ref@%p: %#zx => %#zx->%p<%p>(%zu)", obj, &field, oldField.GetFieldValue(),
+        DLOG(TRACE, "trace weakref obj %p ref@%p: %#zx => %#zx->%p<%p>(%zu)", obj, &field, oldField.GetFieldValue(),
             newField.GetFieldValue(), latest, latest->GetTypeInfo(), latest->GetSize());
     }
     return latest;
