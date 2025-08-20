@@ -1888,8 +1888,7 @@ int CJThreadSetStackGrow(bool enableStackGrow)
 
     if (enableStackGrow) {
         if (cjthread->stack.stackGrowCnt == 0) {
-            LOG_ERROR(ERRNO_SCHD_STACKGROW_CNT_INVALID, "stackGrow_cnt flip");
-            return ERRNO_SCHD_STACKGROW_CNT_INVALID;
+            return 0;
         }
         cjthread->stack.stackGrowCnt--;
     } else {
