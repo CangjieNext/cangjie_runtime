@@ -951,6 +951,7 @@ private func shouldWrapItself(node: Node, fallback: Bool): Bool {
         case _: Pattern => false
         case _: ReturnExpr => false
         case _: TypeNode => false
+        case _: PrimitiveTypeExpr => false
         case _ => fallback
     }
 }
