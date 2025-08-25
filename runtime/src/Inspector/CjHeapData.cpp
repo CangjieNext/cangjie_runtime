@@ -42,6 +42,7 @@ void CjHeapData::ProcessHeap()
 {
     ProcessRootGlobal();
     ProcessRootLocal();
+    ProcessRootConcurrencyModel();
     ProcessRootFinalizer();
     (void)LookupStringId("reserved");
     (void)LookupStringId("RefFields");
@@ -271,6 +272,22 @@ void CjHeapData::ProcessRootGlobal()
         dumpObjects.push_back(dumpObject);
     };
     Heap::GetHeap().VisitStaticRoots(visitor);
+}
+
+void CjHeapData::ProcessRootConcurrencyModel()
+{
+    RootVisitor visitor = [this](ObjectRef& objRef) {
+        BaseObject* obj = objRef.object;
+        if (obj == nullptr || !Heap::IsHeapAddress(obj)) {
+            return;
+        }
+        DumpObject dumpObject = {
+            obj, TAG_ROOT_UNKNOWN, 0, 0,
+            LookupStringId(obj->GetTypeInfo()->GetName() == nullptr ? "anonymous" : obj->GetTypeInfo()->GetName())
+        };
+        dumpObjects.push_back(dumpObject);
+    };
+    Runtime::Current().GetConcurrencyModel().VisitGCRoots(&visitor);
 }
 
 void CjHeapData::ProcessRootFinalizer()
