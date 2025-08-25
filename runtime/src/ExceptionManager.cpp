@@ -117,7 +117,8 @@ void ExceptionManager::DumpException()
             LOG(RTLOG_FATAL, "Alloca memory failed when Cangjie dump uncaught exception.");
         }
         for (auto ste : stackTrace) {
-            CHECK_DETAIL(memset_s(str, strLen, 0, strLen) == EOK, "memset_s fail");
+            const int strLen = 10;
+            char* str = static_cast<char*>(malloc(strLen * sizeof(char)));
             sprintf_s(str, strLen, "%ld", ste.lineNumber);
             exceptionStack += "\t at ";
             exceptionStack += ste.className.Str();
@@ -129,7 +130,6 @@ void ExceptionManager::DumpException()
             exceptionStack += str;
             exceptionStack += ")\n";
         }
-        NativeAllocator::NativeFree(str, strLen * sizeof(char));
         CString exeptionMsg(eWrapper.GetExceptionMessage());
         CJErrorObject errObj = {clsName.Str(), exeptionMsg.Str(), exceptionStack.Str()};
         eWrapper.ClearInfo();
