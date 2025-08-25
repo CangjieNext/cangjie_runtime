@@ -86,7 +86,6 @@ void CjHeapData::DumpHeap()
         LOG(RTLOG_ERROR, "Failed to open heap dump file, stop dumping heap info, %s", strerror(errno));
         return;
     }
-
     // step2 - write file
     ScopedStopTheWorld scopedStopTheWorld("dump heap to file");
     ProcessHeap();
@@ -98,7 +97,11 @@ void CjHeapData::DumpHeap()
         LOG(RTLOG_ERROR, "Fail to close file when dump heap data finished, %s", strerror(errno));
     }
     if (!dumpAfterOOM) {
-        ret = rename("item_data.dat.cache", "item_data.dat");
+        const int strLen = 20;
+        char* str = static_cast<char*>(NativeAllocator::NativeAlloc(strLen * sizeof(char)));
+        sprintf_s(str, strLen, "%ld", "item_data.dat.cache");
+        ret = rename(str, "item_data.dat");
+        NativeAllocator::NativeFree(str, strLen * sizeof(char));
         if (ret) {
             LOG(RTLOG_ERROR, "Fail to rename file when dump heap data finished, %s", strerror(errno));
         }
