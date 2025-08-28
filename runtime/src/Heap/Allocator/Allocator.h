@@ -38,6 +38,8 @@ public:
 
     inline void RegisterAllocBuffer(AllocBuffer& buffer) const { allocBufferManager->RegisterAllocBuffer(buffer); }
 
+    inline void RemoveAllocBuffer(AllocBuffer& buffer) const { allocBufferManager->RemoveAllocBuffer(buffer); }
+
     virtual ~Allocator() {}
     Allocator();
 

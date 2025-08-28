@@ -398,6 +398,7 @@ bool MRT_TryNewAndRunCJThread()
         ThreadLocal::SetSchedule(scheduler);
         ThreadLocal::SetProtectAddr(nullptr);
     }
+    mutator->InitForeignCJThread();
     // 1: state is SCHEDULE_RUNNING
     SetSchedulerState(1);
     OHOS_HITRACE_START_ASYNC(OHOS_HITRACE_CJTHREAD_EXEC, CJThreadGetId(cjthread));
