@@ -134,7 +134,7 @@ AllocBuffer* AllocBuffer::GetAllocBuffer() { return ThreadLocal::GetAllocBuffer(
 
 AllocBuffer::~AllocBuffer()
 {
-    if (LIKELY(tlRegion != RegionInfo::NullRegion())) {
+    if (LIKELY(tlRegion != RegionInfo::NullRegion()) && tlRegion != nullptr) {
         RegionSpace& theAllocator = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
         RegionManager& manager = theAllocator.GetRegionManager();
         manager.RemoveThreadLocalRegion(tlRegion);
@@ -149,6 +149,11 @@ void AllocBuffer::Init()
                   "need to modify the offset of this value in llvm-project at the same time");
     tlRegion = RegionInfo::NullRegion();
     Heap::GetHeap().RegisterAllocBuffer(*this);
+}
+
+void AllocBuffer::Fini()
+{
+    Heap::GetHeap().RemoveAllocBuffer(*this);
 }
 
 MAddress AllocBuffer::Allocate(size_t totalSize, AllocType allocType)

@@ -41,6 +41,15 @@ public:
         allocBufferLock.Unlock();
     }
 
+    void RemoveAllocBuffer(AllocBuffer& buffer)
+    {
+        allocBufferLock.Lock();
+        if (allocBuffers.find(&buffer) != allocBuffers.end()) {
+            allocBuffers.erase(&buffer);
+        }
+        allocBufferLock.Unlock();
+    }
+
     void VisitAllocBuffers(const AllocBufferVisitor& visitor)
     {
         allocBufferLock.Lock();

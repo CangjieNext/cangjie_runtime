@@ -2160,3 +2160,18 @@ int CJ_MRT_GetAllCJThreadInfo(void *cjthreadBufPtr, unsigned int num)
     return index;
 }
 
+void CJForeignThreadExit(CJThreadHandle foreignThread)
+{
+    auto* foreignCJThread = reinterpret_cast<CJThread*>(foreignThread);
+    Schedule* schedule = foreignCJThread->schedule;
+    if (schedule->scheduleType != SCHEDULE_FOREIGN_THREAD) {
+        LOG_FATAL(ERRNO_SCHD_WRONG_TYPE, "foreign cj thread has wrong scheduler");
+    }
+#ifndef MRT_TEST
+    MapleRuntime::Mutator* mutator = foreignCJThread->mutator;
+    if (mutator != nullptr && mutator->IsForeignThread()) {
+        mutator->SetForeignCJThreadExit();
+    }
+#endif
+}
+

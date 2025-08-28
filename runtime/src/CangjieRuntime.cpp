@@ -251,6 +251,8 @@ inline void CheckAndFini(T*& module)
 
 void CangjieRuntime::Fini()
 {
+    // To avoid foreign thread access finalized runtime.
+    ThreadLocal::ThreadLocalFini();
     // since there might be failure during initialization,
     // here we need to check and call fini.
 #ifdef _WIN64
