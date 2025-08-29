@@ -327,7 +327,10 @@ public enum TokenKind <: ToString {
         AT_EXCL
     | /*  "@!"               */
         ILLEGAL
-    |
+    | COMMON
+    | /*  "common"       */
+        PLATFORM
+    | /*  "platform"     */
         HANDLE
     | /*  "handle"           */
         PERFORM
@@ -968,6 +971,14 @@ public enum TokenKind <: ToString {
                 case AT_EXCL => true
                 case _ => false
             }
+            case COMMON => match (right) {
+                case COMMON => true
+                case _ => false
+            }
+            case PLATFORM => match (right) {
+                case PLATFORM => true
+                case _ => false
+            }
             case HANDLE => match (right) {
                 case HANDLE => true
                 case _ => false
@@ -1155,6 +1166,8 @@ public enum TokenKind <: ToString {
             case UNIT_LITERAL => return "UNIT_LITERAL"
             case DOLLAR_IDENTIFIER => return "DOLLAR_IDENTIFIER"
             case ANNOTATION => return "ANNOTATION"
+            case COMMON => return "COMMON"
+            case PLATFORM => return "PLATFORM"
             case HANDLE => return "HANDLE"
             case PERFORM => return "PERFORM"
             case RESUME => return "RESUME"
@@ -1358,6 +1371,8 @@ let PATTERNS: Array<(TokenKind, String, String)> = [
     (TokenKind.DOLLAR_IDENTIFIER, "dollar_identifier", ""),
     (TokenKind.ANNOTATION, "annotation", ""),
     (TokenKind.AT_EXCL, "at_exclamation", "@!"),
+    (TokenKind.COMMON, "common", "common"),
+    (TokenKind.PLATFORM, "platform", "platform"),
     (TokenKind.PERFORM, "perform", "perform"),
     (TokenKind.RESUME, "resume", "resume"),
     (TokenKind.THROWING, "throwing", "throwing"),
@@ -1527,11 +1542,13 @@ func getTokenID(tk: TokenKind): UInt16 {
         case TokenKind.DOLLAR_IDENTIFIER => return 153
         case TokenKind.ANNOTATION => return 154
         case TokenKind.AT_EXCL => return 155
-        case TokenKind.PERFORM => return 156
-        case TokenKind.RESUME => return 157
-        case TokenKind.THROWING => return 158
-        case TokenKind.HANDLE => return 159
-        case _ => return 160
+        case TokenKind.COMMON => return 156
+        case TokenKind.PLATFORM => return 157
+        case TokenKind.PERFORM => return 158
+        case TokenKind.RESUME => return 159
+        case TokenKind.THROWING => return 160
+        case TokenKind.HANDLE => return 161
+        case _ => return 162
     }
 }
 
