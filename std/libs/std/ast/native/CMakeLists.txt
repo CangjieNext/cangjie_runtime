@@ -10,6 +10,13 @@ get_filename_component(FILENAME ${SCHEMA_SRC} NAME_WE)
 set(FLATC_EXECUTABLE "${CMAKE_BINARY_DIR}/bin/flatc")
 set(FLATBUFFER_SRC ${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/flatbuffers)
 
+if(IOS)
+    get_directory_property(SRC_COMPILE_OPTIONS COMPILE_OPTIONS)
+    list(REMOVE_ITEM SRC_COMPILE_OPTIONS "--target=${TRIPLE}")
+    set_directory_properties(PROPERTIES COMPILE_OPTIONS "${SRC_COMPILE_OPTIONS}")
+    add_compile_options(--target=${CXX_COMPATIABLE_TRIPLE})
+endif()
+
 # Generate cangjie code for ast using flatc with cangjie backend.
 set(FLATC_CPP_OUTPUT "${CMAKE_BINARY_DIR}/include/flatbuffers/${FILENAME}_generated.h")
 add_custom_command(

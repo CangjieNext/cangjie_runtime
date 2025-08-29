@@ -92,7 +92,7 @@ static size_t InitHeapSize(size_t defaultParam)
     }
     size_t size = CString::ParseSizeFromEnv(env);
 
-#if defined(__OHOS__) || defined(__HOS__)
+#if defined(__OHOS__) || defined(__ANDROID__)
     // 64UL * KB: The minimum heap size in OHOS, measured in KB, the value is 64MB.
     size_t minSize = 64UL * KB;
 #else
@@ -221,8 +221,8 @@ static size_t InitCoStackSize()
 #elif defined(CANGJIE_SANITIZER_SUPPORT)
     // cus sanitizer calls tons of instrumentation, which use more stack memory than normal does
     size_t defaultStackSize = 2048; // default 2MB in sanitizer version, measured in KB
-#elif defined(__OHOS__) || defined(__HOS__) || defined (__APPLE__)
-    size_t defaultStackSize = 1024; // default 1MB in OHOS/HOS/MACOS, measured in KB
+#elif defined(__OHOS__) || defined(__ANDROID__) || defined (__APPLE__)
+    size_t defaultStackSize = 1024; // default 1MB in OHOS/ANDROID/MACOS, measured in KB
 #else
     size_t defaultStackSize = 128; // default 128KB, measured in KB
 #endif
@@ -291,6 +291,13 @@ void* StartMainTask(void* arg, unsigned int len)
 #ifdef CANGJIE_TSAN_SUPPORT
     MapleRuntime::Sanitizer::TsanFinalize();
 #endif
+#ifdef __OHOS__
+    TRACE_FINISH_ASYNC(TRACE_CJTHREAD_EXEC, CJThreadId());
+    TRACE_START_ASYNC(TRACE_CJTHREAD_EXIT, CJThreadId());
+#elif defined(__ANDROID__)
+    TRACE_FINISH();
+    TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXIT, CJThreadId()));
+#endif
     CpuProfiler::GetInstance().TryStopSampling();
     RTErrorCode rtCode = SetRuntimeFiniFlag();
     if (rtCode != E_OK) {
@@ -299,6 +306,11 @@ void* StartMainTask(void* arg, unsigned int len)
     MutatorManager::Instance().TransitMutatorToExit();
     ScheduleStop(scheduler);
     CangjieRuntime::FiniAndDelete();
+#ifdef __OHOS__
+    TRACE_FINISH_ASYNC(TRACE_CJTHREAD_EXIT, CJThreadId());
+#elif defined(__ANDROID__)
+    TRACE_FINISH();
+#endif
     // If the return value is 0, func may not be successful.
     // If the value of res is a wild value (cj exception), -1 is returned.
     constexpr uint8_t errRet = 255;
@@ -369,7 +381,7 @@ bool MRT_TryNewAndRunCJThread()
     if (ThreadLocal::IsCJProcessor() || ThreadLocal::GetMutator() != nullptr) {
         return false;
     }
-    OHOS_HITRACE_START("CJRT_INVOKE_CJTASK");
+    TRACE_START("CJRT_INVOKE_CJTASK");
     ScheduleHandle scheduler = nullptr;
     if (ThreadLocal::GetForeignCJThread() == nullptr) {
         auto runtime = reinterpret_cast<MapleRuntime::CangjieRuntime*>(&MapleRuntime::Runtime::Current());
@@ -401,7 +413,11 @@ bool MRT_TryNewAndRunCJThread()
     mutator->InitForeignCJThread();
     // 1: state is SCHEDULE_RUNNING
     SetSchedulerState(1);
-    OHOS_HITRACE_START_ASYNC(OHOS_HITRACE_CJTHREAD_EXEC, CJThreadGetId(cjthread));
+#ifdef __OHOS__
+    TRACE_START_ASYNC(TRACE_CJTHREAD_EXEC, CJThreadGetId(cjthread));
+#elif defined(__ANDROID__)
+    TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXEC, CJThreadGetId(cjthread)));
+#endif
     return true;
 }
 
@@ -412,14 +428,16 @@ bool MRT_EndCJThread()
     }
 #if defined(__OHOS__)
     unsigned long long cjthreadId = CJThreadGetId(ThreadLocal::GetForeignCJThread());
-    OHOS_HITRACE_FINISH_ASYNC(OHOS_HITRACE_CJTHREAD_EXEC, cjthreadId);
+    TRACE_FINISH_ASYNC(TRACE_CJTHREAD_EXEC, cjthreadId);
+#elif defined(__ANDROID__)
+    TRACE_FINISH();
 #endif
     MapleRuntime::ExceptionManager::CheckAndDumpException();
     MapleRuntime::Runtime::Current().GetMutatorManager().TransitMutatorToExit();
     ThreadLocal::SetCJThread(nullptr);
     // 0: state is SCHEDULE_INIT
     SetSchedulerState(0);
-    OHOS_HITRACE_FINISH();
+    TRACE_FINISH();
     return true;
 }
 
@@ -479,7 +497,7 @@ static RuntimeParam InitRuntimeParam()
     size_t initHeapSize = InitHeapSize(g_sysmemSize > 1 * GB ? 256 * KB : 64 * KB);
     RuntimeParam param = {
         .heapParam = {
-#if defined(__OHOS__) || defined(__HOS__)
+#if defined(__OHOS__) || defined(__ANDROID__)
             // Default region size is 1024KB.
             .regionSize = InitRegionSize(1024UL),
 #else

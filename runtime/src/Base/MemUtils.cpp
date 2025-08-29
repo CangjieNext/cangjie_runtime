@@ -43,7 +43,7 @@ void MemoryCopy(uintptr_t dest, size_t size, const uintptr_t src, size_t count)
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI) || defined(ENABLE_FORWARD_PTRAUTH_CFI)
 #if defined(__OHOS__)
 const uint64_t PAC_MASK = ((uint64_t)1 << 48) - 1;
-#elif defined(__HOS__)
+#elif defined(__ANDROID__)
 const uint64_t PAC_MASK = ((uint64_t)1 << 39) - 1;
 #endif
 

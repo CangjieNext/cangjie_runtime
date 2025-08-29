@@ -82,7 +82,11 @@ The `build` command is used to independently construct the Cangjie runtime envir
   - `native` -- refers to compiling and building from Linux/macOS to the native   platform;
   - `windows-x86_64` -- refers to cross-compiling and building from Linux to the   Windows-x86_64 platform;
   - `ohos-aarch64` -- refers to cross-compiling and building from Linux to the   ohos-aarch64 platform;
-  - `ohos-x86_64` -- refers to cross-compiling and building from Linux to the ohos-x86_64 platform.
+  - `ohos-x86_64` -- refers to cross-compiling and building from Linux to the ohos-x86_64 platform;
+  - `android-aarch64` -- refers to cross-compiling and building from Linux/macOS to the android-aarch64 platform;
+  - `android-x86_64` -- refers to cross-compiling and building from Linux/macOS to the android-x86_64 platform;
+  - `ios-aarch64` -- refers to cross-compiling and building from Linux/macOS to the ios-aarch64 platform;
+  - `ios-simulator-aarch64` -- refers to cross-compiling and building from Linux/macOS to the ios-simulator-aarch64 platform.
 - `-t, --build-type <value>` specifies the build configuration. Valid values: `release, debug, relwithdebinfo`. Default: `release`.
 - `-v, --version <value>` sets the version number for the Cangjie runtime. Default: `0.0.1`.
 - `--prefix <value>` defines the installation path for build outputs. Defaults to `runtime/output/common`. If both `build` and `install` specify paths, install takes precedence.

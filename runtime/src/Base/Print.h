@@ -22,6 +22,17 @@
 #define LOG_DOMAIN (BASE_DOMAIN + 8)
 #define LOG_TAG "CANGJIE-RUNTIME"
 #endif
+
+ 
+#if defined(__ANDROID__)
+#include "android/log.h"
+ 
+#ifdef LOG_TAG
+#undef LOG_TAG
+#endif
+#define LOG_TAG "CANGJIE-RUNTIME"
+#endif
+
 namespace MapleRuntime {
 #if defined(__OHOS__) && (__OHOS__ == 1)
 #define PRINT_INFO(...)                                           \
@@ -62,6 +73,28 @@ if (OH_LOG_IsLoggable(LOG_DOMAIN, LOG_TAG, LOG_WARN)) {       \
                 OH_LOG_ERROR(LOG_APP, __VA_ARGS__);                    \
             } \
             return retValue; \
+        } \
+    } while (0)
+
+#elif defined (__ANDROID__)
+#define PRINT_DEBUG(...)  __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
+#define PRINT_INFO(...)  __android_log_print(ANDROID_LOG_INFO, LOG_TAG, ##__VA_ARGS__)
+#define PRINT_WARN(...)  __android_log_print(ANDROID_LOG_WARN, LOG_TAG, __VA_ARGS__)
+#define PRINT_ERROR(...)  __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+#define PRINT_FATAL(...)  __android_log_print(ANDROID_LOG_FATAL, LOG_TAG, __VA_ARGS__)
+ 
+#define PRINT_ERROR_RETURN_IF(conf, retValue, ...) \
+    do { \
+        if (conf) { \
+            __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__); \
+            return retValue; \
+        } \
+    } while (0)
+ 
+#define PRINT_FATAL_IF(conf, ...) \
+    do { \
+        if (conf) { \
+            __android_log_print(ANDROID_LOG_FATAL, LOG_TAG, __VA_ARGS__); \
         } \
     } while (0)
 

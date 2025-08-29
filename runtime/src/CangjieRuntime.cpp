@@ -35,7 +35,7 @@ namespace MapleRuntime {
 StackGrowConfig CangjieRuntime::stackGrowConfig = StackGrowConfig::UNDEF;
 extern "C" MRT_EXPORT void MRT_LibraryOnLoad(uint64_t address, bool enableGC)
 {
-    ScopedEntryHiTrace hiTrace("CJRT_LOAD_LIBRARY");
+    ScopedEntryTrace trace("CJRT_LOAD_LIBRARY");
     if (address == 0) {
         return;
     }
@@ -100,7 +100,7 @@ std::atomic<bool> g_initialized = { false };
 
 void CangjieRuntime::CreateAndInit(const RuntimeParam& runtimeParam)
 {
-    ScopedEntryHiTrace hiTrace("CJRT_CreateAndInit");
+    ScopedEntryTrace trace("CJRT_CreateAndInit");
     if (runtime != nullptr) {
     }
     // need to create runtime
@@ -116,7 +116,7 @@ void CangjieRuntime::CreateAndInit(const RuntimeParam& runtimeParam)
 
 void CangjieRuntime::FiniAndDelete()
 {
-    ScopedEntryHiTrace hiTrace("CJRT_FiniAndDelete");
+    ScopedEntryTrace trace("CJRT_FiniAndDelete");
     if (Runtime::runtime == nullptr) {
         LOG(RTLOG_ERROR, "Fini called but Cangjie runtime is not running");
         return;

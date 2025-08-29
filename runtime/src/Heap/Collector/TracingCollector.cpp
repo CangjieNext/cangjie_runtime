@@ -270,7 +270,7 @@ void TracingCollector::MergeMutatorRoots(WorkStack& workStack)
 
 void TracingCollector::DoEnumeration(WorkStack& workStack)
 {
-    ScopedEntryHiTrace hiTrace("CJRT_GC_ENUM");
+    ScopedEntryTrace trace("CJRT_GC_ENUM");
     EnumAllRoots(GetThreadPool(), workStack);
 }
 
@@ -317,7 +317,7 @@ bool TracingCollector::AddConcurrentTracingWork(RootSet& rs)
 
 void TracingCollector::DoTracing(WorkStack& workStack)
 {
-    ScopedEntryHiTrace hiTrace("CJRT_GC_TRACE");
+    ScopedEntryTrace trace("CJRT_GC_TRACE");
     MRT_PHASE_TIMER("DoTracing");
     VLOG(REPORT, "roots size: %zu", workStack.size());
 
@@ -567,7 +567,7 @@ void TracingCollector::PreGarbageCollection(bool isConcurrent)
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     DumpBeforeGC();
 #endif
-    OHOS_HITRACE_COUNT("CJRT_pre_GC_HeapSize", Heap::GetHeap().GetAllocatedSize());
+    TRACE_COUNT("CJRT_pre_GC_HeapSize", Heap::GetHeap().GetAllocatedSize());
 }
 
 void TracingCollector::PostGarbageCollection(uint64_t gcIndex)
@@ -655,6 +655,6 @@ void TracingCollector::UpdateGCStats()
     g_gcRequests[GC_REASON_HEU].SetMinInterval(CangjieRuntime::GetGCParam().gcInterval);
     VLOG(REPORT, "live bytes %zu (survived %zu, recent-allocated %zu), update gc threshold %zu -> %zu", liveBytes,
          survivedBytes, recentBytes, oldThreshold, gcStats.heapThreshold);
-    OHOS_HITRACE_COUNT("CJRT_post_GC_HeapSize", Heap::GetHeap().GetAllocatedSize());
+    TRACE_COUNT("CJRT_post_GC_HeapSize", Heap::GetHeap().GetAllocatedSize());
 }
 } // namespace MapleRuntime

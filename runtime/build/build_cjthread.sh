@@ -56,7 +56,11 @@ elif [ "$1" = "-p" ];then
 
     cd "${BUILD_PATH}"
     echo "CJTHREAD BUILDING: target:$2, build type: $3, libtype: $4, building stage: $5, other definitions: $6, path: ${CJTHREAD_PATH}"
-    cmake -DTARGET="$2" -DCMAKE_BUILD_TYPE="$3" -DLIBTYPE="$4" -DBUILDING_STAGE="$5" $6 -DCMAKE_INSTALL_PREFIX="$7" -DTARGET_ARCH="$8" ${CJTHREAD_PATH}
+    if [ -n "$9" ]; then
+      cmake -DTARGET="$2" -DCMAKE_BUILD_TYPE="$3" -DLIBTYPE="$4" -DBUILDING_STAGE="$5" $6 -DCMAKE_INSTALL_PREFIX="$7" -DTARGET_ARCH="$8" -DBUILD_APPLE_STATIC="$9" ${CJTHREAD_PATH}
+    else
+      cmake -DTARGET="$2" -DCMAKE_BUILD_TYPE="$3" -DLIBTYPE="$4" -DBUILDING_STAGE="$5" $6 -DCMAKE_INSTALL_PREFIX="$7" -DTARGET_ARCH="$8" ${CJTHREAD_PATH}
+    fi
     make -j32 && make install
 fi
 

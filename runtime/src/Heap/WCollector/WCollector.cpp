@@ -354,7 +354,7 @@ void WCollector::PostTrace()
 
 void WCollector::Preforward()
 {
-    ScopedEntryHiTrace hiTrace("CJRT_GC_PREFORWARD");
+    ScopedEntryTrace trace("CJRT_GC_PREFORWARD");
     MRT_PHASE_TIMER("Preforward");
     {
         ScopedLightSync scopedLightSync("Preforward", true, GCPhase::GC_PHASE_PREFORWARD);
