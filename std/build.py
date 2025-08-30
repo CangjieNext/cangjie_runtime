@@ -105,7 +105,14 @@ def generate_cmake_defs(args):
         "-DCANGJIE_TARGET_TOOLCHAIN=" + (args.target_toolchain if args.target_toolchain else ""),
         "-DCANGJIE_ENABLE_HWASAN=" + bool_to_opt(args.hwasan),
         "-DCANGJIE_TARGET_SYSROOT=" + (args.target_sysroot if args.target_sysroot else ""),
-        "-DCANGJIE_BUILD_ARGS=" + (";".join(args.build_args) if args.build_args else "")]
+        "-DCANGJIE_BUILD_ARGS=" + (";".join(args.build_args) if args.build_args else ""),
+        "-DCANGJIE_INCLUDE=" + (";".join(args.include) if args.include else "")]
+
+    if args.target and "aarch64-linux-android" in args.target:
+        android_api_level = re.match(r'aarch64-linux-android(\d{2})?', args.target).group(1)
+        result.append("-DCMAKE_ANDROID_NDK=" + os.path.join(args.target_toolchain, "../../../../.."))
+        result.append("-DCMAKE_ANDROID_API=" + (android_api_level if android_api_level else ""))
+
     return result
 
 def build(args):
@@ -139,6 +146,9 @@ def build(args):
         # OHOS toolchain is relative to the tool path we get. Tool path normally looks like
         # ${OHOS_ROOT}/prebuilts/clang/ohos/linux-x86_64/llvm/bin/. Six /.. can bring us to the root.
         os.environ["OHOS_ROOT"] = os.path.join(args.target_toolchain, "../../../../../..")
+
+    if args.target and "aarch64-linux-android" in args.target:
+        os.environ["ANDROID_NDK_ROOT"] = os.path.join(args.target_toolchain, "../../../../..")
 
     if IS_MACOS:
         os.environ["ZERO_AR_DATE"] = "1"
@@ -384,6 +394,10 @@ def main():
     parser_build.add_argument(
         "--target-toolchain", dest="target_toolchain", type=str,
         help="use the tools under the given path to cross-compile stdlib"
+    )
+    parser_build.add_argument(
+        "--include", "-I", dest="include", type=str, action='append', default=[],
+        help="search header files in given paths"
     )
     parser_build.add_argument(
         "--target-sysroot", dest="target_sysroot", type=str,

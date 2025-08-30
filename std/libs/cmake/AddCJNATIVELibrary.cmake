@@ -498,7 +498,7 @@ install(TARGETS cangjie-std-runtime DESTINATION lib/${output_triple_name}_${CJNA
 if(CANGJIE_ENABLE_COMPILER_TSAN)
     set(STD_AST_ALLOW_UNDEFINED ALLOW_UNDEFINED)
 endif()
-if (NOT OHOS AND NOT MINGW AND NOT DARWIN)
+if (NOT OHOS AND NOT MINGW AND NOT DARWIN AND NOT ANDROID)
     set(GCC_S_FLAG -lgcc_s)
 endif()
 set(EXCLUDE_STD_AST_FFI_OPTION)
@@ -527,7 +527,7 @@ make_cangjie_lib(
         -lcangjie-ast-support
         ${STDCPP_FLAG}
         ${GCC_S_FLAG}
-        -lpthread
+        $<$<NOT:$<BOOL:${ANDROID}>>:-lpthread>
         ${EXCLUDE_STD_AST_FFI_OPTION}
         # if(NOT WIN32) then add -ldl, because there is no libdl on Windows.
         $<$<NOT:$<BOOL:${WIN32}>>:-ldl>)
