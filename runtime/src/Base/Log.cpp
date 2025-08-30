@@ -229,13 +229,17 @@ void Logger::FormatLog(RTLogLevel level, bool notInSigHandler, const char* forma
     }
     char buf[LOG_BUFFER_SIZE];
     int index;
+#if defined (__OHOS__) || defined (__HOS__)
+    index = 0;
+    (void)LOG_LEVEL[level];
+#else
     if (notInSigHandler) {
         index = sprintf_s(buf, sizeof(buf), "%s %d %c ", TimeUtil::GetTimestamp().Str(), MapleRuntime::GetTid(),
                           LOG_LEVEL[level]);
     } else {
         index = sprintf_s(buf, sizeof(buf), "%d %c ", MapleRuntime::GetTid(), LOG_LEVEL[level]);
     }
-
+#endif
     va_list args;
     va_start(args, format);
     int ret = vsprintf_s(buf + index, sizeof(buf) - index, format, args);

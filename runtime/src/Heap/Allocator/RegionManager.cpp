@@ -454,7 +454,7 @@ void RemoveRegionLocked(RegionList* regionList, RegionInfo* region)
 }
 
 // forward only regions whose garbage bytes is greater than or equal to exemptedRegionThreshold.
-void RegionManager::ExemptFromRegions()
+size_t RegionManager::ExemptFromRegions()
 {
     size_t forwardBytes = 0;
     size_t floatingGarbage = 0;
@@ -491,6 +491,7 @@ void RegionManager::ExemptFromRegions()
     size_t exemptedFromBytes = unmovableFromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
     VLOG(REPORT, "exempt from-space: %zu B - %zu B -> %zu B, %zu B floating garbage, %zu B to forward",
          oldFromBytes, exemptedFromBytes, newFromBytes, floatingGarbage, forwardBytes);
+    return newFromBytes - forwardBytes;
 }
 
 void RegionManager::ForEachObjUnsafe(const std::function<void(BaseObject*)>& visitor) const
@@ -623,19 +624,23 @@ void RegionManager::ForwardFromRegions()
     }
 }
 
-void RegionManager::CollectFreePinnedSlots(RegionInfo* region)
+size_t RegionManager::CollectFreePinnedSlots(RegionInfo* region)
 {
     // traverse pinned region to reclaim free pinned objects.
     size_t start = region->GetRegionStart();
-    region->VisitAllObjects([this, region, start](BaseObject* object) {
+    size_t garbageSize = 0;
+    region->VisitAllObjects([this, region, start, &garbageSize](BaseObject* object) {
         size_t offset = reinterpret_cast<MAddress>(object) - start;
         if (!region->IsSurvivedObject(offset)) {
-            DLOG(ALLOC, "reclaim pinned obj %p<%p>(%zu)", object, object->GetTypeInfo(), object->GetSize());
+            size_t objSize = object->GetSize();
+            DLOG(ALLOC, "reclaim pinned obj %p<%p>(%zu)", object, object->GetTypeInfo(), objSize);
+            garbageSize += objSize;
             std::lock_guard<std::mutex> lock(freePinnedSlotListMutex);
             ReleaseNativeResource(object);
             freePinnedSlotLists.PushFront(object);
         }
     });
+    return garbageSize;
 }
 
 size_t RegionManager::CollectPinnedGarbage()
@@ -658,7 +663,7 @@ size_t RegionManager::CollectPinnedGarbage()
             garbageSize += CollectRegion(del);
             continue;
         } else {
-            CollectFreePinnedSlots(region);
+            garbageSize += CollectFreePinnedSlots(region);
             region = region->GetNextRegion();
         }
     }

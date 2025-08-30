@@ -313,16 +313,14 @@ public:
     size_t CollectLargeGarbage();
 
     size_t CollectPinnedGarbage();
-    void CollectFreePinnedSlots(RegionInfo* region);
+    size_t CollectFreePinnedSlots(RegionInfo* region);
 
     // targetSize: size of memory which we do not release and keep it as cache for future allocation.
     size_t ReleaseGarbageRegions(size_t targetSize) { return freeRegionManager.ReleaseGarbageRegions(targetSize); }
 
-    // these methods are helpers for compaction. Since pinned object can not be moved during compaction,
-    // we first virtually reclaim all compactable heap memory, which are handled in cartesian tree. So far we get a map
-    // of heap memory about which region can be used for compaction.
-
-    void ExemptFromRegions();
+    // Ignore dynamic pinned regions and from regions whose garbage objects are quite few, return the garbage size that
+    // can be reclaimed.
+    size_t ExemptFromRegions();
     void ReassembleFromSpace();
 
     void ForEachObjUnsafe(const std::function<void(BaseObject*)>& visitor) const;

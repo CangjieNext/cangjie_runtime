@@ -318,6 +318,7 @@ static char* StackMemAllocInternal(size_t allocSize)
 #endif
 #if defined (__linux__) || defined(__OHOS__) || defined(__ANDROID__)
         (void)madvise(stackAddr, allocSize, MADV_NOHUGEPAGE);
+        MRT_PRCTL(stackAddr, allocSize, "cj-stack");
 #endif
         return static_cast<char*>(stackAddr);
     } else {
@@ -370,6 +371,9 @@ char *CJThreadStackMemAlloc(struct Schedule *schedule, struct CJThread *cjthread
             LOG_ERROR(errno, "mmap failed, size is %u", *totalSize);
             return nullptr;
         }
+#if defined (__linux__) || defined(__OHOS__) || defined(__HOS__)
+        MRT_PRCTL(addr, *totalSize, "cj-stack");
+#endif
 #ifdef CANGJIE_HWASAN_SUPPORT
         addr = reinterpret_cast<char*>(MapleRuntime::Sanitizer::UntagAddr(reinterpret_cast<uintptr_t>(addr)));
 #endif
