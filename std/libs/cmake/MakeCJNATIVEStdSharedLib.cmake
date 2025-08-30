@@ -48,7 +48,7 @@ function(make_cangjie_lib target_name)
         if(ANDROID)
             # we need use our lld since we have modification to make it link properly
             # otherwise it will has false alignment and finally lead to a SEGV when load std-lib.
-            list(APPEND flags_to_compile "-fuse-ld=${CMAKE_SOURCE_DIR}/build/build/third_party/llvm/bin/ld.lld")
+            list(APPEND flags_to_compile "-fuse-ld=$ENV{CANGJIE_HOME}/third_party/llvm/bin/ld.lld")
         endif()    
     endif()
 
@@ -96,12 +96,8 @@ function(make_cangjie_lib target_name)
                 list(APPEND flags_to_compile "${RUNTIME_COMMON_LIB_DIR}/section.o")
             endif()
             list(APPEND flags_to_compile "${RUNTIME_COMMON_LIB_DIR}/cjstart.o")
-            
-            set(target_system_name ${CMAKE_SYSTEM_NAME})
-            if(OHOS)
-                set(target_system_name "linux_ohos")
-            endif()
-            string(TOLOWER "${target_system_name}_${CMAKE_SYSTEM_PROCESSOR}_${CJNATIVE_BACKEND}" tmpdir)
+
+            string(TOLOWER "${target_folder_name}_${CMAKE_SYSTEM_PROCESSOR}_${CJNATIVE_BACKEND}" tmpdir)
             list(APPEND flags_to_compile "-L${RUNTIME_COMMON_LIB_DIR}/../../runtime/lib/${tmpdir}")
             set(runtime_link_option "cangjie-runtime")
             to_link_library_option(runtime_link_option)
