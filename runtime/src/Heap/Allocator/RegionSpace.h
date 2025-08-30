@@ -125,10 +125,11 @@ public:
         return true;
     }
 
-    void RefineFromSpace()
+    // Return the garbage size of from space.
+    size_t RefineFromSpace()
     {
         MRT_PHASE_TIMER("ExemptFromRegions");
-        regionManager.ExemptFromRegions();
+        return regionManager.ExemptFromRegions();
     }
 
     BaseObject* RouteObject(BaseObject* fromObj) { return regionManager.RouteObject(fromObj); }

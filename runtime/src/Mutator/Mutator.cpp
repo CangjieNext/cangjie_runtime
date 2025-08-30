@@ -95,7 +95,9 @@ extern "C" void MRT_SetStackGrow(bool enableStackScale)
     if (!CJThreadSetStackGrow(enableStackScale)) {
         return;
     } else {
+#if not defined (__OHOS__) && not defined (_WIN64)
         LOG(RTLOG_ERROR, "CJThread Set StackScale failed");
+#endif
     }
 }
 

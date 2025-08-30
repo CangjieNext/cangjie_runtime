@@ -89,7 +89,7 @@ MAddress RegionSpace::Allocate(size_t size, AllocType allocType)
 void RegionSpace::Init(const HeapParam& vmHeapParam)
 {
     MemMap::Option opt = MemMap::DEFAULT_OPTIONS;
-    opt.tag = "region_heap";
+    opt.tag = "cangjie_heap";
     size_t heapSize = vmHeapParam.heapSize * 1024;
     size_t totalSize = RegionManager::GetHeapMemorySize(heapSize);
     size_t unitNum = RegionManager::GetHeapUnitCount(heapSize);
