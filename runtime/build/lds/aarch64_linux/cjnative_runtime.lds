@@ -151,6 +151,7 @@ SECTIONS
   .got            : { *(.got) *(.igot) }
   . = DATA_SEGMENT_RELRO_END (24, .);
   .got.plt        : { *(.got.plt) *(.igot.plt) }
+  . = . + 0x1000; /* move to a new page in memory */
   .data           :
   {
     PROVIDE (__data_start = .);
