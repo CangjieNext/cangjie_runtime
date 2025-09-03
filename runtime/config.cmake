@@ -282,7 +282,7 @@ elseif (WINDOWS_FLAG MATCHES 1)
 elseif (ANDROID_FLAG MATCHES 1 OR ANDROID_FLAG MATCHES 2)
     message("android toolchain, clang version=${CLANG_VERSION_STRING}")
     set(CMAKE_INIT_FLAGS "-Wno-unused-command-line-argument -fno-omit-frame-pointer \
-        -fno-exceptions -fno-rtti -ffunction-sections -Wall \
+    -fvisibility=hidden -fno-exceptions -fno-rtti -ffunction-sections -Wall \
         -fstack-protector-strong -fPIC -Werror -Wunused-variable ${ANDROID_INCLUDE}"
     )
 elseif (IOS_SIMULATOR_FLAG MATCHES 1)
