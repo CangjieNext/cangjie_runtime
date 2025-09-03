@@ -337,7 +337,7 @@ void Logger::FormatLog(RTLogLevel level, bool notInSigHandler, const char* forma
 }
 
 #ifdef __ANDROID__
-// trace info format: "name arg1 ... cjthreadId"
+// The trace info format: "name arg1 ... cjthreadId"
 const char* TraceInfoFormat(const char* name, unsigned long long id, unsigned int argNum, ...)
 {
     if (name == nullptr || *name == '\0') {

@@ -46,7 +46,7 @@ function(make_cangjie_lib target_name)
     elseif(NOT MINGW)
         list(APPEND flags_to_compile "-Wl,-z,relro,-z,now,-z,noexecstack")
         if(ANDROID)
-            # we need use our lld since we have modification to make it link properly
+            # We need use our lld since we have modification to make it link properly,
             # otherwise it will has false alignment and finally lead to a SEGV when load std-lib.
             list(APPEND flags_to_compile "-fuse-ld=$ENV{CANGJIE_HOME}/third_party/llvm/bin/ld.lld")
         endif()    
@@ -64,11 +64,10 @@ function(make_cangjie_lib target_name)
             list(APPEND flags_to_compile -arch x86_64)
         endif()
         if(IOS)
+            list(APPEND flags_to_compile -syslibroot "${CMAKE_IOS_SDK_ROOT}")
             if(IOS_PLATFORM MATCHES "SIMULATOR")
-                list(APPEND flags_to_compile -syslibroot "${CMAKE_IOS_SDK_ROOT}")
                 list(APPEND flags_to_compile -platform_version ios-simulator 17.5.0 17.5)
             else()
-                list(APPEND flags_to_compile -syslibroot "${CMAKE_IOS_SDK_ROOT}")
                 list(APPEND flags_to_compile -platform_version ios 17.5.0 17.5)
             endif()
         else()
@@ -170,7 +169,7 @@ function(make_cangjie_lib target_name)
             # unimplemented native function in Cangjie).
             list(APPEND flags_to_compile "${LINKER_OPTION_PREFIX}--no-undefined")
         endif()
-        # undefined reference is not allow while linking MachO shared library by default. The following options
+        # The undefined reference is not allow while linking MachO shared library by default. The following options
         # could suppress ld64 from reporting undefined reference errors.
         if(DARWIN AND CANGJIE_LIBRARY_ALLOW_UNDEFINED)
             list(APPEND flags_to_compile "-undefined" "suppress" "-flat_namespace")

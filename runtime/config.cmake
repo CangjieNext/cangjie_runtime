@@ -87,20 +87,18 @@ if (GLOBAL_EXPORT_FLAG MATCHES 0)
     endif()
 endif ()
 
-# if flag is not defined, enable it on linux/ohos by default
-# if other sanitizer is enabled, disable gwpasan (see below)
+# If flag is not defined, enable it on linux/ohos by default.
+# If other sanitizer is enabled, disable gwpasan (see below).
 if (NOT DEFINED GWPASAN_SUPPORT_FLAG)
     if (WINDOWS_FLAG MATCHES 0 AND MACOS_FLAG MATCHES 0 AND
-        ANDROID_FLAG MATCHES 0 AND RTOS_FLAG MATCHES 0 AND
-        RTOS_LINUX_KERNEL_FLAG MATCHES 0 AND
-        IOS_FLAG MATCHES 0 AND IOS_SIMULATOR_FLAG MATCHES 0)
+        ANDROID_FLAG MATCHES 0 AND IOS_FLAG MATCHES 0 AND 
+        IOS_SIMULATOR_FLAG MATCHES 0)
         set(GWPASAN_SUPPORT_FLAG 1)
     else ()
         set(GWPASAN_SUPPORT_FLAG 0)
     endif ()
 else()
     if (GWPASAN_SUPPORT_FLAG AND (WINDOWS_FLAG MATCHES 1 OR MACOS_FLAG MATCHES 1 OR
-        RTOS_FLAG MATCHES 1 OR RTOS_LINUX_KERNEL_FLAG MATCHES 1 OR 
         IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1))
         message(WARNING "Runtime gwpasan support is only available on linux and ohos, gwpasan will be disabled")
         set(GWPASAN_SUPPORT_FLAG 0)
@@ -214,7 +212,7 @@ endif()
 
 set(CMAKE_SYSTEM_PROCESSOR "${CMAKE_HOST_SYSTEM_PROCESSOR}" CACHE FILEPATH "" FORCE)
 
-# cross compile
+# Cross compile
 if (OHOS_FLAG MATCHES 1 OR ANDROID_FLAG MATCHES 1)
     message("set CMAKE_SYSTEM_PROCESSOR aarch64")
     set(CMAKE_SYSTEM_PROCESSOR "aarch64" CACHE FILEPATH "" FORCE)
@@ -300,7 +298,7 @@ set(HWASAN_FLAGS "-shared-libsan -fsanitize=hwaddress -fno-omit-frame-pointer -f
 set(CMAKE_INIT_FLAGS "${CMAKE_INIT_FLAGS} -Wfloat-equal -Wextra -Wno-unused-parameter -Wno-sign-compare")
 
 if (NOT CMAKE_AR_PATH)
-    # command "which llvm-ar" to obtain ar path
+    # The command "which llvm-ar" to obtain ar path
     EXECUTE_PROCESS(COMMAND which llvm-ar OUTPUT_VARIABLE AR_PATH OUTPUT_STRIP_TRAILING_WHITESPACE)
     if (NOT AR_PATH)
         EXECUTE_PROCESS(COMMAND which ar OUTPUT_VARIABLE AR_PATH OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -311,7 +309,7 @@ else ()
 endif ()
 message(STATUS "CMAKE_AR : ${CMAKE_AR}")
 
-#Set C flags
+# Set C flags
 set(CMAKE_C_FLAGS "${CMAKE_INIT_FLAGS} ${CMAKE_C_FLAGS} -std=c99")
 set(CMAKE_C_FLAGS_DEBUG "-O0 -gdwarf-4 -DMRT_DEBUG=1")
 if (CMAKE_BUILD_TYPE MATCHES "MinSizeRel")
@@ -322,7 +320,7 @@ endif()
 set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELEASE}")
 set(CMAKE_C_FLAGS_MINSIZERELWITHDEBINFO "-Os -D_FORTIFY_SOURCE=2 -gdwarf-4")
 
-#Set CXX flags
+# Set CXX flags
 if (MACOS_FLAG MATCHES 1 OR IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1)
     set(CMAKE_CXX_FLAGS "${CMAKE_INIT_FLAGS} ${CMAKE_CXX_FLAGS} -std=c++14")
 else()
@@ -353,7 +351,7 @@ endif()
 set(CMAKE_ASM_FLAGS_RELWITHDEBINFO "${CMAKE_ASM_FLAGS_RELEASE}")
 set(CMAKE_ASM_FLAGS_MINSIZERELWITHDEBINFO "-Os -D_FORTIFY_SOURCE=2 -gdwarf-4")
 
-#Set Asan flags
+# Set Asan flags
 if (ASAN_FLAG MATCHES 1)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${ASAN_FLAGS}")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${ASAN_FLAGS}")
@@ -364,12 +362,12 @@ if (HWASAN_FLAG MATCHES 1)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${HWASAN_FLAGS}")
 endif ()
 
-#Limit the size of a single frame.
+# Limit the size of a single frame.
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wframe-larger-than=10240")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wframe-larger-than=10240")
 
 
-#Set cjthread path.
+# Set cjthread path.
 set(OUTPUT_TEMP_PATH ${CMAKE_CURRENT_SOURCE_DIR}/output/temp CACHE FILEPATH "" FORCE)
 message(STATUS "OUTPUT_TEMP_PATH : ${OUTPUT_TEMP_PATH}")
 set(DOPRA_INCLUDE ${OUTPUT_TEMP_PATH}/include)
@@ -394,10 +392,10 @@ elseif (OHOS_FLAG MATCHES 2)
 endif ()
 include_directories(${BOUNDSCHECK_INCLUDE})
 
-#Set coverage compilation flags.
+# Set coverage compilation flags.
 set(CMAKE_COV_FLAGS "-fprofile-arcs -ftest-coverage -Xclang -coverage-cfg-checksum -Xclang -coverage-no-function-names-in-data -Xclang -coverage-version=A75\\*")
 
-#Set compilation option of each module.
+# Set compilation option of each module.
 option(BUILD_CJTHREAD "Build cjthread module" ON)
 option(BUILD_RUNTIME   "Build runtime module"   ON)
 option(BUILD_DEMANGLE  "Build demangle module"  OFF)

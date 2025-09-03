@@ -17,7 +17,7 @@
 #define StubFrameContextSize      (8 * 14)
 #define StubCalleeSaveAreaSize (8 * 4)
 
-// the frame layout of stack(growing downwards) after MCC_C2NStub frame is built looks like:
+// The frame layout of stack(growing downwards) after MCC_C2NStub frame is built looks like:
 
 // caller sp  -->  | arg7         |
 // callee saved    | avalid null  |
@@ -49,7 +49,7 @@
     mov  x29, sp
     cfi_def_cfa_register (sp)
 
-    // save all used callee-saved registers.
+    // Save all used callee-saved registers.
     stp  x19, x20, [sp, #StubCalleeSaveAreaSize]
     cfi_rel_offset (x19, StubCalleeSaveAreaSize)
     cfi_rel_offset (x20, StubCalleeSaveAreaSize+8)
@@ -76,7 +76,7 @@
     bl   _MRT_GetThreadLocalData
     mov  x28, x0
 
-    // restore all used callee-saved registers.
+    // Restore all used callee-saved registers.
     ldp  x19, x20, [sp, #StubCalleeSaveAreaSize]
     cfi_restore (x19)
     cfi_restore (x20)
@@ -113,7 +113,7 @@
     mov  x29, sp
     cfi_def_cfa_register (sp)
 
-    // save all used callee-saved registers.
+    // Save all used callee-saved registers.
     stp  x19, x20, [sp, #StubCalleeSaveAreaSize]
     cfi_rel_offset (x19, StubCalleeSaveAreaSize)
     cfi_rel_offset (x20, StubCalleeSaveAreaSize+8)
@@ -140,7 +140,7 @@
     bl   _MRT_GetThreadLocalData
     mov  x28, x0
 
-    // restore all used callee-saved registers.
+    // Restore all used callee-saved registers.
     ldp  x19, x20, [sp, #StubCalleeSaveAreaSize]
     cfi_restore (x19)
     cfi_restore (x20)

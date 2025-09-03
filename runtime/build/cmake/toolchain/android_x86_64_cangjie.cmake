@@ -4,7 +4,7 @@
 #
 # See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-# toolchain
+# Toolchain
 set(CMAKE_SYSTEM_NAME Linux)
 string(TOLOWER "${CMAKE_HOST_SYSTEM_NAME}" cmake_host_system_name)
 set(ANDROID_ROOT "$ENV{ANDROID_ROOT}")
@@ -21,7 +21,7 @@ set(OS "linux")
 set(CPU_FAMILY "x86")
 set(CPU_CORE "x86_64")
 set(PLATFORM_NAME "ANDROID_x86_64_cangjie")
-# compile flags for common
+# The compile flags for common
 set(CMAKE_C_FLAGS
     "-Wall \
     -Wextra \
@@ -88,7 +88,7 @@ add_compile_definitions(
     "__ANDROID__"
 )
 
-# link flags
+# The link flags
 set(CMAKE_SHARED_LINKER_FLAGS
     "-rdynamic \
     -Wl,-z,noexecstack \
@@ -96,5 +96,5 @@ set(CMAKE_SHARED_LINKER_FLAGS
     -Wl,-z,now"
 )
 
-# ar flags
+# The ar flags
 set(CMAKE_C_CREATE_STATIC_LIBRARY "<CMAKE_AR> rcD <TARGET> <OBJECTS>")
