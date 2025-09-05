@@ -6,10 +6,10 @@
 
 # toolchain for linux12_x86_64
 
-# platform
+# Platform
 set(PLATFORM_NAME "ios_simulator_cangjie")
 
-# environment info
+# Environment info
 set(OS "ios")
 
 set(CPU_CORE "arm64")
@@ -23,11 +23,11 @@ set(FWD_PLATFORM "MCCA")
 set(CMAKE_ASM_COMPILER_WORKS 1)
 set(CMAKE_ASM_ABI_COMPILED 1)
 
-# build tools
+# The build tools
 set(CMAKE_C_COMPILER "clang")
 set(CMAKE_CXX_COMPILER "clang++")
 
-# compile flags for common
+# The compile flags for common
 set(CMAKE_C_FLAGS
     "-Wall \
     -Wextra \
@@ -78,7 +78,7 @@ if("${DEBUG_INFO}" STREQUAL "INFO")
     set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -g")
 endif()
 
-# if building stage is publish, add CMAKE_C_FLAGS
+# If building stage is publish, add CMAKE_C_FLAGS
 if("${BUILDING_STAGE}" STREQUAL "publish")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-strong")
     set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-strong")
@@ -90,7 +90,7 @@ else()
     set(APPLE_STATIC_BUILD "false")
 endif()
 
-# compile flags for debug version only
+# The compile flags for debug version only
 if("${BUILDING_STAGE}" STREQUAL "asan")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address -fsanitize-recover=address")
     set(CMAKE_C_FLAGS_DEBUG "-g")
@@ -101,29 +101,29 @@ else()
     set(CMAKE_CXX_FLAGS_DEBUG "-g -Wframe-larger-than=2048 -gdwarf-4")
 endif()
 
-# compile flags for release version only
+# The compile flags for release version only
 set(CMAKE_C_FLAGS_RELEASE "-D_FORTIFY_SOURCE=2 -O2 -target arm64-apple-ios11-simulator")
 set(CMAKE_CXX_FLAGS_RELEASE "-D_FORTIFY_SOURCE=2 -O2 -target arm64-apple-ios11-simulator")
 
 set(CMAKE_C_FLAGS_RELWITHDEBINFO "-g -D_FORTIFY_SOURCE=2 -O2 -target arm64-apple-ios11-simulator")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -D_FORTIFY_SOURCE=2 -O2 -target arm64-apple-ios11-simulator")
 
-# assemble flags
+# The assemble flags
 set(CMAKE_ASM_FLAGS
     "${CMAKE_C_FLAGS}"
 )
 
-# Attention we need to clear CMAKE_ASM_FLAGS_DEBUG and CMAKE_ASM_FLAGS_RELEASE
-# otherwise cmake will add some default compile option which we may not want
+# Attention we need to clear CMAKE_ASM_FLAGS_DEBUG and CMAKE_ASM_FLAGS_RELEASE,
+# otherwise cmake will add some default compile option which we may not want.
 
-# assemble flags for debug version only
+# The assemble flags for debug version only
 set(CMAKE_ASM_FLAGS_DEBUG "-target arm64-apple-ios11-simulator")
 
-# assemble flags for release version only
+# The assemble flags for release version only
 set(CMAKE_ASM_FLAGS_RELEASE "-target arm64-apple-ios11-simulator")
 set(CMAKE_ASM_FLAGS_RELWITHDEBINFO "-target arm64-apple-ios11-simulator")
 
-# compile definitions
+# The compile definitions
 add_compile_definitions(
    "_LARGEFILE_SOURCE"
    "_FILE_OFFSET_BITS=64"
@@ -143,7 +143,7 @@ add_compile_definitions(
    "_DARWIN_C_SOURCE"
 )
 
-# link flags
+# The link flags
 set(CMAKE_SHARED_LINKER_FLAGS
     "-m64 \
     -rdynamic \
@@ -152,15 +152,13 @@ set(CMAKE_SHARED_LINKER_FLAGS
     -lpthread"
 )
 
-# ar flags
+# The ar flags
 set(CMAKE_C_CREATE_STATIC_LIBRARY "<CMAKE_AR> rcD <TARGET> <OBJECTS>")
-
-# macos minimum version
-set(CMAKE_OSX_DEPLOYMENT_TARGET "")
 
 set(IOS_PLATFORM "SIMULATOR")
 set(IOS_PLATFORM_LOCATION "iPhoneSimulator.platform")
 set(CMAKE_IOS_DEVELOPER_ROOT "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer")
 set(CMAKE_IOS_SDK_ROOT "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator17.5.sdk")
 set(CMAKE_OSX_SYSROOT "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator17.5.sdk")
+# The macos minimum version
 set(CMAKE_OSX_DEPLOYMENT_TARGET "")

@@ -104,7 +104,7 @@ _CJ_MCC_C2NStub:
     mov  x29, sp
     cfi_def_cfa_register (x29)
 
-    // save all used callee-saved registers.
+    // Save all used callee-saved registers.
     stp  x19, x20, [sp, #StubCalleeSaveAreaSize]
     cfi_rel_offset (x19, StubCalleeSaveAreaSize)
     cfi_rel_offset (x20, StubCalleeSaveAreaSize+8)
@@ -170,7 +170,7 @@ _CJ_MCC_C2NStub:
     // x19 <- previous sp + cpStackSize
     add  x19, x28, x19
 
-    // save last managed context
+    // Save last managed context
     mov  x1, x29
     adr  x0, #4
     .global _unwindPCForC2NStub
@@ -203,7 +203,7 @@ _unwindPCForC2NStub:
     cfi_restore (q6)
     cfi_restore (q7)
 
-    // copy arg8, arg9, arg10, ... (if existed)
+    // Copy arg8, arg9, arg10, ... (if existed)
 .L_copy:
     cmp x19, x28
     ble .L_copy_end
@@ -213,7 +213,7 @@ _unwindPCForC2NStub:
     b .L_copy
 .L_copy_end:
 
-    // prepare arguments for invoking target method
+    // Prepare arguments for invoking target method
     mov  x0, x20
     mov  x1, x21
     mov  x2, x22
@@ -224,14 +224,14 @@ _unwindPCForC2NStub:
     mov  x7, x27
     blr  x9
 
-    /* keep potential return value */
+    /* Keep potential return value */
     mov  x21, x0
     mov  x22, x1
     mov  x23, x2
     mov  x24, x3
     mov  x25, x8
 
-    // restoring the SP Value. the stack which extended for invoking c method is useless now.
+    // Restoring the SP Value. the stack which extended for invoking c method is useless now.
     mov  sp,  x29
     cfi_def_cfa_register (sp)
 
@@ -255,7 +255,7 @@ _unwindPCForC2NStub:
     mov x0, #0
     bl  _MRT_ThrowPendingException
 
-    /* set potential return value */
+    /* Set potential return value */
     mov  x0, x21
     mov  x1, x22
     mov  x2, x23
@@ -271,7 +271,7 @@ _unwindPCForC2NStub:
     cfi_restore (d3)
 
 .L_stack_restore:
-    // restore all used callee-saved registers.
+    // Restore all used callee-saved registers.
     ldp  x19, x20, [sp, #StubCalleeSaveAreaSize]
     cfi_restore (x19)
     cfi_restore (x20)

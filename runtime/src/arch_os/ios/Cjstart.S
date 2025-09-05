@@ -5,10 +5,9 @@
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
     .text
-    .p2align        2               // -- Begin function __CJ_Init_Start
-__CJ_Init_Start:                        // @__CJ_Init_Start
+    .p2align        2               // Begin function __CJ_Init_Start
+__CJ_Init_Start:                    // @__CJ_Init_Start
     .cfi_startproc
-// %bb.0:
     str     x30, [sp, #-16]!        // 8-byte Folded Spill
     .cfi_def_cfa_offset 16
     .cfi_offset w30, -16
@@ -23,8 +22,8 @@ __CJ_Init_Start:                        // @__CJ_Init_Start
     .cfi_endproc
 
     .text
-    .p2align        2               // -- Begin function __CJ_Fini_End
-__CJ_Fini_End:                        // @__CJ_Fini_End
+    .p2align        2               // Begin function __CJ_Fini_End
+__CJ_Fini_End:                      // @__CJ_Fini_End
     .cfi_startproc
 // %bb.0:
     str     x30, [sp, #-16]!        // 8-byte Folded Spill

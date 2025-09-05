@@ -101,7 +101,7 @@ func initLocal(): TimeZone {
     initLocalDefault()
 }
 
-// get timezone which name is UTC+Offset
+// Get timezone which name is UTC+Offset
 func initLocalDefault(): TimeZone {
     let offset: Int64 = unsafe { CJ_TIME_GetLocalTimeOffset() }
     if (offset == 0) {
@@ -114,7 +114,7 @@ func initLocalDefault(): TimeZone {
     let name = if (cname.isNull()) {
         "UTC${hour.format("+.2")}:${minute.format(".2")}"
     } else {
-        let str = cname.toString() // always valid utf8 sequence
+        let str = cname.toString() // Always valid utf8 sequence
         unsafe { LibC.free(cname) }
         str
     }

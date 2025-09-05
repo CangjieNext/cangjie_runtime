@@ -17,7 +17,7 @@ add_subdirectory(std)
 add_subdirectory(dynamicLoader)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/")
-# cj codes are used only when building libs(.so, .a, .cjo etc.),
+# The cj codes are used only when building libs(.so, .a, .cjo etc.),
 # so it should be controlled by CANGJIE_BUILD_STDLIB.
 if(CANGJIE_CODEGEN_CJNATIVE_BACKEND)
     include(MakeCJNATIVEStdSharedLib)

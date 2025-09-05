@@ -22,7 +22,7 @@ char* CJ_TIME_GetLocalTimeZoneProperty()
     if (fgets(buf, sizeof(buf), fp)) {
         pclose(fp);
         buf[strcspn(buf, "\n")] = '\0';
-        return strdup(buf); // need to free
+        return strdup(buf); // Need to free
     }
     pclose(fp);
 #endif

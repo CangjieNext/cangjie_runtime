@@ -73,13 +73,13 @@
 `build` 用于独立构建仓颉运行时，有多个可配置项：
 
 - `--target <value>` 用于指定构建目标。`value` 默认值为 `native`。`value` 的所有可选项为：
-  - `natvie` -- 指 Linux/macOS 平台到 native 平台编译构建；
-  - `windows-x86_64` -- 指 Linux 平台到 Windows-x86_64 平台的交叉编译构建；
-  - `ohos-aarch64` -- 指 Linux 平台到 ohos-aarch64 平台的交叉编译构建；
-  - `ohos-x86_64` -- 指 Linux 平台到 ohos-x86_64 平台的交叉编译构建；
-  - `android-aarch64` -- 指 Linux/macOS 平台到 android-aarch64 平台的交叉编译构建；
-  - `android-x86_64` -- 指 Linux/macOS 平台到 android-x86_64 平台的交叉编译构建；
-  - `ios-aarch64` -- 指 Linux/macOS 平台到 ios-aarch64 平台的交叉编译构建；
+  - `natvie` -- 指 Linux/macOS 平台到 native 平台编译构建。
+  - `windows-x86_64` -- 指 Linux 平台到 Windows-x86_64 平台的交叉编译构建。
+  - `ohos-aarch64` -- 指 Linux 平台到 ohos-aarch64 平台的交叉编译构建。
+  - `ohos-x86_64` -- 指 Linux 平台到 ohos-x86_64 平台的交叉编译构建。
+  - `android-aarch64` -- 指 Linux/macOS 平台到 android-aarch64 平台的交叉编译构建。
+  - `android-x86_64` -- 指 Linux/macOS 平台到 android-x86_64 平台的交叉编译构建。
+  - `ios-aarch64` -- 指 Linux/macOS 平台到 ios-aarch64 平台的交叉编译构建。
   - `ios-simulator-aarch64` -- 指 Linux/macOS 平台到 ios-simulator-aarch64 平台的交叉编译构建。
 - `-t, --build-type <value>` 用于指定构建模式。`value` 的取值包括：`release、debug、relwithdebinfo`，区分大小写，默认值为 `release`。
 - `-v, --version <value>` 用于指定仓颉运行时的版本，`value` 默认值为 `0.0.1`

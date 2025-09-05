@@ -9,7 +9,7 @@ if [ ${platform} == "macos_cangjie" ] || [ ${platform} == "mac_x86_64_cangjie" ]
   for param in "$@"; do
     IFS=';' read -ra target_objects <<< "$param"
     for obj in "${target_objects[@]}"; do
-      # no_eh_labels: tell ld64 not to produces .eh labels on all FDEs,
+      # The no_eh_labels: tell ld64 not to produces .eh labels on all FDEs,
       # as it will lead to incompatibility with ld64.lld. 
       $c_compiler \
         -isysroot ${mac_sdk_path} \

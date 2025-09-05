@@ -314,7 +314,7 @@ void StackManager::InitAddressScope()
     InitAddressInfoOnDarwin("/" LIBCANGJIE_RUNTIME ".dylib", StackManager::rtStartAddr, StackManager::rtEndAddr);
 #endif
 // For iOS, use `dladdr` to obtain the dylib name and perform string comparison.
-#elif defined(__OHOS__) || defined(__ANDROID__) || defined(__RTOS__) // OHOS, ANDROID, RTOS
+#elif defined(__OHOS__) || defined(__ANDROID__) // OHOS, ANDROID
     std::vector<CString> rtSoNameVec = { LIBCANGJIE_RUNTIME ".so\n" };
     GetEachSoAddrScope(rtSoNameVec);
 #else                                                            // Linux
@@ -332,7 +332,7 @@ void StackManager::InitAddressScope()
 #endif
 
 // Init cjc address info.
-#if defined(__linux__) // Linux, ANDROID, OHOS, RTOS
+#if defined(__linux__) // Linux, ANDROID, OHOS
     std::vector<CString> cjcSoNameVec = { "cjc\n" };
     GetEachSoAddrScope(cjcSoNameVec);
 #elif defined(_WIN64)                         // Windows
@@ -408,7 +408,7 @@ bool StackManager::IsRuntimeFrame(Uptr pc)
     }
     return false;
 #else // Otherwise.
-    // For platforms that do not support macro expansion, such as iOS and ANDROID, the second condition will always be true
+    // For platforms that do not support macro expansion, such as iOS and ANDROID, the second condition will always be true,
     // because there is no display setting for the address info of cjc. The same logic applies to cjthread-trace.
     return (pc > rtStartAddr && pc < rtEndAddr) || (pc > cjcSoStartAddr && pc < cjcSoEndAddr) ||
         (pc > traceSoStartAddr && pc < traceSoEndAddr);
