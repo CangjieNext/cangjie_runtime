@@ -2495,7 +2495,7 @@ public static func checkUtf8Encoding(data: Array<UInt8>): Bool
 
 返回值：
 
-- [Bool](core_package_intrinsics.md#bool) - 如果 Byte 数组符合 UTF-8 编码返回 true，否则返回 false。
+- [Bool](core_package_intrinsics.md#bool) - 如果 Byte 数组符合 UTF-8 编码，返回 true，否则返回 false。
 
 ### static func fromUtf8(Array\<UInt8>)
 
@@ -2525,7 +2525,7 @@ public unsafe static  func fromUtf8Unchecked(utf8Data: Array<UInt8>): String
 
 功能：根据字节数组构造一个字符串。
 
-相较于 [fromUtf8](core_package_structs.md#static-func-fromutf8arrayuint8) 函数，它并没有针对于字节数组进行 UTF-8 相关规则的检查，所以它所构建的字符串并不一定保证是合法的，甚至出现非预期的异常，如果不是某些场景下的性能考虑，请优先使用安全的 fromUtf8 函数。
+相较于 [fromUtf8](core_package_structs.md#static-func-fromutf8arrayuint8) 函数，fromUtf8Unchecked 并没有针对于字节数组进行 UTF-8 相关规则的检查，所以它所构建的字符串并不一定保证是合法的，甚至出现非预期的异常，如果不是某些场景下的性能考虑，请优先使用安全的 fromUtf8 函数。
 
 参数：
 
@@ -2585,7 +2585,7 @@ public static unsafe func withRawData(rawData: Array<UInt8>): String
 
 功能：根据字节数组构造一个字符串。
 
-相较于 [fromUtf8Unchecked](core_package_structs.md#static-func-fromutf8uncheckedarrayuint8) 函数，它没有做数组的拷贝，直接用传入的数组构造了字符串。
+相较于 [fromUtf8Unchecked](core_package_structs.md#static-func-fromutf8uncheckedarrayuint8) 函数，withRawData 没有做数组的拷贝，直接用传入的数组构造了字符串。
 
 > **注意：**
 >
@@ -2595,6 +2595,7 @@ public static unsafe func withRawData(rawData: Array<UInt8>): String
 > 2. rawData 符合 UTF-8 编码。
 >
 > 否则程序行为是未定义的。
+>
 > 如果不是某些场景下的性能考虑，请优先使用安全的 fromUtf8 函数。
 
 参数：
