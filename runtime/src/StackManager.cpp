@@ -398,7 +398,7 @@ bool StackManager::IsRuntimeFrame(Uptr pc)
 #ifdef CANGJIE_HWASAN_SUPPORT
     pc = Sanitizer::UntagAddr(pc);
 #endif
-#if defined(__IOS__) && defined(COMPILE_DYNAMIC) // iOS dynamic cangjie-runtime.
+#if defined(__IOS__) && defined(COMPILE_DYNAMIC) // The iOS dynamic cangjie-runtime.
     Dl_info info;
     const void* addr = reinterpret_cast<const void*>(pc);
     if (dladdr(addr, &info) &&

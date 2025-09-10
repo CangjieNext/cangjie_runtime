@@ -25,7 +25,6 @@ __CJ_Init_Start:                    // @__CJ_Init_Start
     .p2align        2               // Begin function __CJ_Fini_End
 __CJ_Fini_End:                      // @__CJ_Fini_End
     .cfi_startproc
-// %bb.0:
     str     x30, [sp, #-16]!        // 8-byte Folded Spill
     .cfi_def_cfa_offset 16
     .cfi_offset w30, -16
