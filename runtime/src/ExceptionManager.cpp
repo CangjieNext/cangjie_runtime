@@ -24,8 +24,8 @@ void ExceptionManager::OutOfMemory()
         eWrapper.SetThrowingOOME(true);
         eWrapper.SetFatalException(false);
         eWrapper.SetExceptionType(ExceptionWrapper::ExceptionType::OUT_OF_MEMORY);
-        // HeapDump before throwing OOM
         {
+            // HeapDump before throwing OOM
             const char* env = std::getenv("cjHeapDumpOnOOM");
             CString s = CString(env).RemoveBlankSpace();
             env = s.Str();
@@ -136,12 +136,22 @@ void ExceptionManager::DumpException()
         Runtime::Current().GetExceptionManager().GetUncaughtExceptionHandler().uncaughtTask(summary, errObj);
 #endif
     } else {
+#ifdef __APPLE__
+        PRINT_INFO("%s", clsName.Str());
+#endif
         LOG(RTLOG_INFO, clsName.Str());
         if (eWrapper.GetExceptionMessage() != nullptr && eWrapper.GetExceptionMessageLength() != 0) {
             const char* linkStr = ": ";
+#ifdef __APPLE__
+            PRINT_INFO("%s", linkStr);
+            PRINT_INFO("%s", eWrapper.GetExceptionMessage());
+#endif
             LOG(RTLOG_ERROR, linkStr);
             LOG(RTLOG_ERROR, eWrapper.GetExceptionMessage());
         }
+#ifdef __APPLE__
+        PRINT_INFO("\n");
+#endif
         LOG(RTLOG_INFO, "\n");
         constexpr int32_t frameInfoPairLen = 3; // function PC and startpc form one pair in liteFrameInfos
         // When some frames are folded, arraySize is an odd number and the last frame is invalid.
@@ -153,6 +163,9 @@ void ExceptionManager::DumpException()
         }
 
         if (sofFoldedFlag == SofStackFlag::TOP_FOLDED) {
+#ifdef __APPLE__
+            PRINT_INFO("\t ... Some frames are not displayed ...\n");
+#endif
             LOG(RTLOG_INFO, "\t ... Some frames are not displayed ...\n");
         }
         for (auto ste : stackTrace) {
@@ -164,6 +177,9 @@ void ExceptionManager::DumpException()
                 ste.methodName.Str(), ste.fileName.Str(), ste.lineNumber);
         }
         if (sofFoldedFlag == SofStackFlag::BOTTOM_FOLDED) {
+#ifdef __APPLE__
+            PRINT_INFO("\t ... Some frames are not displayed ...\n");
+#endif
             LOG(RTLOG_INFO, "\t ... Some frames are not displayed ...\n");
         }
     }

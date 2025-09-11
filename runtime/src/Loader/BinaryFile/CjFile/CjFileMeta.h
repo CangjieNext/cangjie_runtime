@@ -41,12 +41,11 @@ using TableDesc = struct {
 #else
 using TableDesc = struct {
 #if defined(_WIN64)
-    U64 *tableAddr;
-    U32 *tableSize;
+    U64 tableAddr;
 #else
     U32 tableOffset;
-    U32 tableSize;
 #endif
+    U32 tableSize;
 };
 #endif
 #pragma pack()
@@ -64,9 +63,9 @@ using CJFileHeader = struct {
 using CJFileHeader = struct {
     U32 magic;
     U32 version;
-    U64 checkSum;
-    U32 *cJFileSize;
-    U64 *cJSDKVersionPtr;
+    U32 checkSum;
+    U32 cJFileSize;
+    U64 cJSDKVersionPtr;
     TableDesc tables[C_FILE_MAX];
 };
 #else

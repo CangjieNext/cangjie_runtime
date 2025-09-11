@@ -1,0 +1,326 @@
+# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+# This source file is part of the Cangjie project, licensed under Apache-2.0
+# with Runtime Library Exception.
+#
+# See https://cangjie-lang.cn/pages/LICENSE for license information.
+
+config("cjthread_flags") {
+  cflags_c -= ["-Wframe-larger-than=10240",]
+  cflags_cc -= ["-Wframe-larger-than=10240",]
+  asmflags -= ["-Wframe-larger-than=10240",]
+
+  # cjthread compile options
+  cjthread_options = [
+    "-Wformat=2",
+    "-Wpointer-arith",
+    "-Wdate-time",
+    "-Wswitch-default",
+    "-Wshadow",
+    "-Wvla",
+    "-Wunused",
+    "-Wundef",
+    "-m64",
+    "-fno-strict-aliasing",
+    "-fsigned-char",
+    "-fno-common",
+  ]
+
+  cflags_c += cjthread_options
+  cflags_cc += cjthread_options
+  asmflags += cjthread_options
+
+  cflags_c += ["-fgnu89-inline",]
+
+  # cjthread definitions
+  defines = []
+  defines += [
+    "_LARGEFILE_SOURCE",
+    "_FILE_OFFSET_BITS=64",
+    "VOS_WORDSIZE=64",
+    "VOS_BYTE_ORDER=VOS_LITTLE_ENDIAN",
+    "USE___THREAD",
+    "TLS_COMMON_DYNAMIC",
+    "CANGJIE",
+    "COMPILE_DYNAMIC",
+  ]
+  if (OHOS_FLAG == 2) {
+    defines += [
+      "OPENSSL_X86_64_PLATFORM",
+    ]
+  }
+
+  if (TARGET_ARCH == "x86_64" && WINDOWS_FLAG == 0 && MACOS_FLAG == 0 && OHOS_FLAG == 0) {
+    # linux x86
+    defines += [
+      "VOS_HARDWARE_PLATFORM=VOS_X86",
+      "MRT_HARDWARE_PLATFORM=MRT_X86",
+      "VOS_CPU_TYPE=VOS_X86",
+      "TRACE_FOLDER_PREFIX=\"linux_x86_64\"",
+      "VOS_OS_VER=VOS_LINUX",
+      "MRT_LINUX",
+    ]
+  } else if (TARGET_ARCH == "aarch64" && WINDOWS_FLAG == 0 && MACOS_FLAG == 0 && OHOS_FLAG == 0){
+    # linux aarch64
+    defines += [
+      "VOS_HARDWARE_PLATFORM=VOS_ARM",
+      "MRT_HARDWARE_PLATFORM=MRT_ARM",
+      "VOS_CPU_TYPE=VOS_CORTEXA72",
+      "TRACE_FOLDER_PREFIX=\"linux_aarch64\"",
+      "VOS_OS_VER=VOS_LINUX",
+      "MRT_LINUX",
+    ]
+  } else if (TARGET_ARCH == "x86_64" && WINDOWS_FLAG == 1 && MACOS_FLAG == 0 && OHOS_FLAG == 0){
+    # windows x86
+    defines += [
+      "VOS_HARDWARE_PLATFORM=VOS_X86",
+      "MRT_HARDWARE_PLATFORM=MRT_WINDOWS_X86",
+      "VOS_CPU_TYPE=VOS_X86",
+      "TRACE_FOLDER_PREFIX=\"windows_x86_64\"",
+      "VOS_OS_VER=VOS_LINUX",
+      "MRT_WINDOWS",
+    ]
+  } else if (TARGET_ARCH == "x86_64" && WINDOWS_FLAG == 0 && MACOS_FLAG == 1 && OHOS_FLAG == 0){
+    # macos x86
+    defines += [
+      "VOS_HARDWARE_PLATFORM=VOS_X86",
+      "MRT_HARDWARE_PLATFORM=MRT_X86",
+      "VOS_CPU_TYPE=VOS_X86",
+      "TRACE_FOLDER_PREFIX=\"macos_x86_64\"",
+      "VOS_OS_VER=VOS_LINUX",
+      "MRT_MACOS",
+    ]
+  } else if (TARGET_ARCH == "aarch64" && WINDOWS_FLAG == 0 && MACOS_FLAG == 1 && OHOS_FLAG == 0){
+    # macos aarch64
+    defines += [
+      "VOS_HARDWARE_PLATFORM=VOS_ARM",
+      "MRT_HARDWARE_PLATFORM=MRT_ARM",
+      "VOS_CPU_TYPE=VOS_CORTEXA72",
+      "TRACE_FOLDER_PREFIX=\"macos_aarch64\"",
+      "VOS_OS_VER=VOS_LINUX",
+      "MRT_MACOS",
+    ]
+  } else if (TARGET_ARCH == "x86_64" && WINDOWS_FLAG == 0 && MACOS_FLAG == 0 && OHOS_FLAG == 1){
+    # ohos x86
+    defines += [
+      "VOS_HARDWARE_PLATFORM=VOS_X86",
+      "MRT_HARDWARE_PLATFORM=MRT_X86",
+      "VOS_CPU_TYPE=VOS_X86",
+      "TRACE_FOLDER_PREFIX=\"linux_ohos_x86_64\"",
+      "VOS_OS_VER=VOS_LINUX",
+      "MRT_LINUX",
+    ]
+  } else if (TARGET_ARCH == "aarch64" && WINDOWS_FLAG == 0 && MACOS_FLAG == 0 && OHOS_FLAG == 1){
+    # ohos aarch64
+    defines += [
+      "VOS_HARDWARE_PLATFORM=VOS_ARM",
+      "MRT_HARDWARE_PLATFORM=MRT_ARM",
+      "VOS_CPU_TYPE=VOS_ARM",
+      "TRACE_FOLDER_PREFIX=\"linux_ohos_aarch64\"",
+      "VOS_OS_VER=VOS_LINUX",
+      "MRT_LINUX",
+    ]
+  }
+
+  if (GN_BUILD_TYPE == "Debug") {
+    defines += [
+      "VOS_BUILD_DEBUG=1",
+    ]
+  } else {
+    defines += [
+      "VOS_BUILD_RELEASE=1",
+    ]
+  }
+
+  if (OHOS_FLAG != 0) {
+    defines += [
+      "OHOS"
+    ]
+    include_dirs += [
+      "${CHART_ROOT}/third_party/openssl/include",
+    ]
+  }
+  if (OHOS_FLAG != 0) {
+    include_dirs += [
+      "${CHART_ROOT}/out/${OHOS_INCLUDE_PATH}/obj/third_party/openssl/build_all_generated/linux-${TARGET_ARCH}/include",
+      " -idirafter${CHART_ROOT}/out/${OHOS_INCLUDE_PATH}/obj/third_party/musl/usr/include/${TARGET_ARCH}-linux-ohos",
+    ]
+  }
+
+  defines += ptrauth_cfi_defines
+
+  if (GN_BUILD_TYPE == "Debug") {
+    cflags_c += ["-Wframe-larger-than=2048",]
+    cflags_cc += ["-Wframe-larger-than=2048",]
+    defines += [
+      "CJTHREAD_DEBUG=1",
+    ]
+  }
+}
+
+if (TARGET_ARCH == "aarch64") {
+  CPU_FAMILY="arm"
+  CPU_CORE="arm64"
+} else {
+  CPU_FAMILY="x86"
+  CPU_CORE="x86_64"
+}
+
+action("cjthread_include_install") {
+  script = "${CHART_ROOT}/build/scripts/cjthread_cp_include.py"
+  args = [
+    "${CHART_ROOT}/src/CJThread/include_list.txt",
+    "$target_out_dir/include",
+    CPU_FAMILY,
+    CPU_CORE,
+  ]
+  outputs = [ "$target_gen_dir/", ]
+}
+
+static_library("libcangjie-thread") {
+  cflags_c = []
+  cflags_cc = []
+  asmflags = []
+  defines = []
+  include_dirs = []
+  configs = [":cjthread_flags"]
+
+  datadeps = [
+    ":libcangjie-aio(//build/toolchain:cjthread_clang)",
+  ]
+  deps = [
+    ":cjthread_include_install",
+  ]
+
+  sources = [
+    "src/runtime/schedule/src/gas/" + CPU_FAMILY + "/" + CPU_CORE + "/cjthread_context.S",
+    "src/runtime/schedule/src/schedule.cpp",
+    "src/runtime/schedule/src/processor.cpp",
+    "src/runtime/schedule/src/cjthread_key.cpp",
+    "src/runtime/schedule/src/thread.cpp",
+    "src/runtime/schedule/src/schdpoll.cpp",
+    "src/runtime/schedule/src/schmon.cpp",
+    "src/runtime/schedule/src/cjthread.cpp",
+    "src/base/log/src/log.cpp",
+    "src/base/external/src/external.cpp",
+    "src/runtime/netpoll/src/${OS_FLAG}/netpoll.cpp",
+    "src/runtime/netpoll/src/netpoll_common.cpp",
+    "src/runtime/util/basetime/src/basetime.cpp",
+    "src/runtime/timer/src/timer.cpp",
+    "src/syscall/src/syscall_common.cpp",
+    "src/syscall/src/syscall_impl.cpp",
+    "src/syscall/src/${OS_FLAG}/syscall_${OS_FLAG}.cpp",
+    "src/runtime/waitqueue/src/waitqueue.cpp",
+    "src/sync/sema/src/sema.cpp",
+  ]
+
+  include_dirs += [
+    "src/runtime/schedule/include",
+    "src/runtime/schedule/include/inner",
+    "src/runtime/schedule/include/${OS_FLAG}",
+    "src/runtime/schedule/include/inner/gas/" + CPU_FAMILY + "/" + CPU_CORE,
+    "src/runtime/schedule/include/inner/gas",
+    "src/base/log/include",
+    "src/base/mid/include",
+    "src/base/external/include",
+    "src/runtime/netpoll/include",
+    "src/runtime/netpoll/include/inner",
+    "src/runtime/netpoll/include/${OS_FLAG}/inner",
+    "src/runtime/util/basetime/include",
+    "src/runtime/util/queue/include",
+    "src/runtime/util/list/include",
+    "src/runtime/timer/include",
+    "src/runtime/timer/include/inner",
+    "src/syscall/include",
+    "src/syscall/include/inner",
+    "src/syscall/include/${OS_FLAG}",
+    "src/runtime/waitqueue/include",
+    "src/runtime/waitqueue/include/inner",
+    "src/sync/sema/include",
+    "src/sync/sema/include/inner",
+  ]
+}
+
+shared_library("libcangjie-trace") {
+  cflags_c = []
+  cflags_cc = []
+  asmflags = []
+  defines = []
+  configs = [":cjthread_flags"]
+
+  deps = [
+    ":cjthread_include_install",
+  ]
+  sources = [
+    "src/trace/src/trace.cpp",
+  ]
+
+  include_dirs += [
+    "src/trace/include/inner",
+    "src/runtime/schedule/include",
+    "src/runtime/schedule/include/inner",
+    "src/runtime/schedule/include/${OS_FLAG}",
+    "src/runtime/schedule/include/inner/gas/" + CPU_FAMILY + "/" + CPU_CORE,
+    "src/runtime/schedule/include/inner/gas",
+    "src/base/log/include",
+    "src/base/mid/include",
+    "src/base/external/include",
+    "src/runtime/netpoll/include",
+    "src/runtime/netpoll/include/inner",
+    "src/runtime/netpoll/include/${OS_FLAG}/inner",
+    "src/runtime/util/basetime/include",
+    "src/runtime/util/queue/include",
+    "src/runtime/util/list/include",
+    "src/runtime/timer/include",
+    "src/runtime/timer/include/inner",
+    "src/syscall/include",
+    "src/syscall/include/inner",
+    "src/syscall/include/${OS_FLAG}",
+    "src/runtime/waitqueue/include",
+    "src/runtime/waitqueue/include/inner",
+    "src/sync/sema/include",
+    "src/sync/sema/include/inner",
+  ]
+}
+
+static_library("libcangjie-aio") {
+  cflags_c = []
+  cflags_cc = []
+  asmflags = []
+  defines = []
+  configs = [":cjthread_flags"]
+
+  deps = [
+    ":cjthread_include_install",
+  ]
+  sources = [
+    "src/aio/schdfd/src/schdfd.cpp",
+    "src/aio/sock/src/sock.cpp",
+    "src/aio/tcpsock/src/${OS_FLAG}/tcpsock.cpp",
+    "src/aio/tcpsock/src/tcpsock_common.cpp",
+    "src/aio/domainsock/src/${OS_FLAG}/domainsock.cpp",
+    "src/aio/udpsock/src/${OS_FLAG}/udpsock.cpp",
+    "src/aio/udpsock/src/udpsock_common.cpp",
+    "src/aio/rawsock/src/rawsock_common.cpp",
+    "src/aio/rawsock/src/${OS_FLAG}/rawsock.cpp",
+  ]
+
+  include_dirs += [
+    "src/aio/domainsock/include/inner",
+    "src/aio/rawsock/include/inner",
+    "src/aio/schdfd/include/inner",
+    "src/aio/sock/include",
+    "src/aio/sock/include/inner",
+    "src/aio/tcpsock/include/inner",
+    "src/aio/udpsock/include/inner",
+    "src/runtime/netpoll/include/${OS_FLAG}/inner",
+    "src/runtime/schedule/include/inner/gas/arm/arm64",
+    "src/syscall/include/${OS_FLAG}",
+    "src/runtime/schedule/include/inner",
+    "src/runtime/netpoll/include/inner",
+    "src/base/mid/include",
+    "src/runtime/util/queue/include",
+    "src/runtime/util/list/include",
+    "src/runtime/timer/include/inner",
+    "src/base/external/include",
+  ]
+}

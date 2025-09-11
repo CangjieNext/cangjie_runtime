@@ -1,0 +1,42 @@
+# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+# This source file is part of the Cangjie project, licensed under Apache-2.0
+# with Runtime Library Exception.
+#
+# See https://cangjie-lang.cn/pages/LICENSE for license information.
+
+static_library("demangler") {
+  sources = [
+    "Demangler.cpp",
+    "DeCompression.cpp",
+    "../Base/CString.cpp",
+    "../Base/FixedCString.cpp",
+  ]
+}
+
+static_library("libcangjie-demangle") {
+  cflags_c += ["-DBUILD_LIB_CANGJIE_DEMANGLE"]
+  cflags_cc += ["-DBUILD_LIB_CANGJIE_DEMANGLE"]
+  sources = [
+    "Demangler.cpp",
+    "DeCompression.cpp",
+    "CangjieDemangle.cpp",
+  ]
+}
+
+executable("cjfilt") {
+  cflags_c += ["-DBUILD_LIB_CANGJIE_DEMANGLE"]
+  cflags_cc += ["-DBUILD_LIB_CANGJIE_DEMANGLE"]
+  sources = [
+    "DeCompression.cpp",
+    "Demangler.cpp",
+    "Cjfilt.cpp",
+  ]
+  deps = [
+    ":demangler"
+  ]
+
+  ldflags += [
+    "-fPIE",
+    "-pie",
+  ]
+}

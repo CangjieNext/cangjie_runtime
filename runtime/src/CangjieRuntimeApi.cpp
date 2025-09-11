@@ -323,7 +323,6 @@ RTErrorCode FiniCJRuntime()
         return E_FAILED;
     }
     if (!g_runtimeFinished.exchange(true)) {
-        g_runtimeFinished.store(true);
         // Ensure that sampling thread is stopped before finishing runtime.
         MapleRuntime::CpuProfiler::GetInstance().TryStopSampling();
 

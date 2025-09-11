@@ -25,7 +25,7 @@ _CJ_MCC_HandleSafepoint:
    mov  x29, sp
    cfi_def_cfa_register (x29)
 
-   // Save all callee registers
+   // save all callee registers
    stp  x0, x1, [sp, #0x10]
    cfi_rel_offset (x0, 0x10)
    cfi_rel_offset (x1, 0x18)
@@ -108,11 +108,11 @@ _CJ_MCC_HandleSafepoint:
 
    mov  x1, x29
    mov  x2, #3
-   adr  x0, #20 // The x0 is addr of unwindPCForSafepointHandlerStub
+   adr  x0, #20 // x0 is addr of unwindPCForSafepointHandlerStub
    mov  x3, x28
    bl _MRT_UpdateUwContext
 
-   // Call safepoint handler
+   // call safepoint handler
    mov  x0, x28
    bl _HandleSafepoint
    .global _unwindPCForSafepointHandlerStub
@@ -121,7 +121,7 @@ _unwindPCForSafepointHandlerStub:
    str  x0, [sp, #0xf0]
    bl _MRT_DeleteC2NContext
 
-   // Restore callee registers
+   // restore callee registers
 .L_noexception:
    ldp   q0,  q1, [sp, #0x110]
    ldp   q2,  q3, [sp, #0x130]

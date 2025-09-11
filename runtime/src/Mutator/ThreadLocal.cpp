@@ -32,7 +32,6 @@ ThreadLocalData::~ThreadLocalData()
 MRT_EXPORT thread_local ThreadLocalData threadLocalData;
 
 ThreadLocalData* ThreadLocal::GetThreadLocalData() { return &threadLocalData; }
-
 extern "C" void MCC_CheckThreadLocalDataOffset()
 {
     static_assert(offsetof(ThreadLocalData, buffer) == 0,
