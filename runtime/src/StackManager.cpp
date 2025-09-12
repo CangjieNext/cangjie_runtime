@@ -398,7 +398,7 @@ bool StackManager::IsRuntimeFrame(Uptr pc)
 #ifdef CANGJIE_HWASAN_SUPPORT
     pc = Sanitizer::UntagAddr(pc);
 #endif
-#if defined(__IOS__) && defined(COMPILE_DYNAMIC) // The iOS dynamic cangjie-runtime.
+#if defined(__IOS__) && defined(COMPILE_DYNAMIC) // iOS dynamic cangjie-runtime.
     Dl_info info;
     const void* addr = reinterpret_cast<const void*>(pc);
     if (dladdr(addr, &info) &&
@@ -408,7 +408,7 @@ bool StackManager::IsRuntimeFrame(Uptr pc)
     }
     return false;
 #else // Otherwise.
-    // For platforms that do not support macro expansion, such as iOS and ANDROID, the second condition will always be true,
+    // For platforms that do not support macro expansion, such as iOS and HOS, the second condition will always be true
     // because there is no display setting for the address info of cjc. The same logic applies to cjthread-trace.
     return (pc > rtStartAddr && pc < rtEndAddr) || (pc > cjcSoStartAddr && pc < cjcSoEndAddr) ||
         (pc > traceSoStartAddr && pc < traceSoEndAddr);

@@ -98,6 +98,7 @@ struct SignalArgs {
 
 void SignalStack::Handler(int signal, siginfo_t* siginfo, void* ucontextRaw)
 {
+    FLOG(RTLOG_ERROR, "CJNatvie Handle signal: %d.", signal);
     SignalArgs* args = new SignalArgs{signal, siginfo, ucontextRaw};
     switch (signal) {
         case SIGSEGV:
@@ -122,7 +123,7 @@ void SignalStack::HandlerImpl(void* args)
     siginfo_t* siginfo = signalArgs->siginfo;
     void* ucontextRaw = signalArgs->ucontextRaw;
     ScopedEntryTrace trace("CJRT_SIGNAL_HANDLER");
-    // Check if we are already handling a signal.
+    // Check if we are already handling a signal
     if (!GetHandlingSignal()) {
         std::vector<SignalAction>& handlerStack = SignalStack::stacks[signal].handlerStack;
         for (auto it = handlerStack.rbegin(); it != handlerStack.rend(); ++it) {

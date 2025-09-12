@@ -114,7 +114,24 @@ public:
             return regionManager.ReleaseGarbageRegions(targetCachedSize);
         }
     }
-
+#if defined(__EULER__)
+    void TryReclaimGarbageMemory() override
+    {
+        double cachedRatio = regionManager.GetCacheRatio();
+        if (cachedRatio == 1.0) { // 1.0 is the default value
+            return;
+        }
+        {
+            MRT_PHASE_TIMER("TryReclaimGarbageRegions");
+            regionManager.ReclaimGarbageRegions();
+        }
+        MRT_PHASE_TIMER("TryReleaseGarbageMemory");
+        size_t size = regionManager.GetAllocatedSize();
+        size_t targetCachedSize = static_cast<size_t>(size * cachedRatio);
+        regionManager.ReleaseGarbageRegions(targetCachedSize);
+        return;
+    }
+#endif
     bool ForEachObj(const std::function<void(BaseObject*)>& visitor, bool safe) const override
     {
         if (UNLIKELY(safe)) {

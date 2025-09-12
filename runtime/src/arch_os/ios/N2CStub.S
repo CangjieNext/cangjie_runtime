@@ -108,7 +108,7 @@ _CJ_MCC_N2CStub:
     cfi_rel_offset (x29, 0)
     cfi_rel_offset (x30, 8)
 
-    // Save all used callee-saved registers.
+    // save all used callee-saved registers.
     stp  x19, x20, [sp, #StubCalleeSaveAreaSize]
     cfi_rel_offset (x19, StubCalleeSaveAreaSize)
     cfi_rel_offset (x20, StubCalleeSaveAreaSize+8)
@@ -149,7 +149,7 @@ _CJ_MCC_N2CStub:
     cfi_rel_offset (q6, StubCalleeSaveAreaSize+0xc0)
     cfi_rel_offset (q7, StubCalleeSaveAreaSize+0xd0)
 
-    mov  x20, x0 // The entry point of method
+    mov  x20, x0 // the entry point of method
     mov  x21, x1
     mov  x22, x2
     mov  x23, x3
@@ -170,11 +170,11 @@ _CJ_MCC_N2CStub:
     bl _MRT_TryNewAndRunCJThread
     str  x0, [sp, #SafeStateOffset+0x8]
   
-    // Mutator mustn't be in safe region before setting context.
+    // mutator mustn't be in safe region before setting context.
     bl _MRT_LeaveSaferegion
     str  x0, [sp, #SafeStateOffset]
 
-    // The frame info: tls -> stub
+    // frame info: tls -> stub
     mov  x0, x29
     bl _MRT_SaveTopManagedContextToN2CStub
     mov  x0, #0x0
@@ -203,7 +203,7 @@ _CJ_MCC_N2CStub:
     cfi_restore (q7)
 
     sub  x10, x19, x28
-    // Copy arg8, arg9, arg10, ... (if existed)
+    // copy arg8, arg9, arg10, ... (if existed)
 .L_copy:
     cmp x19, x28
     ble .L_copy_end
@@ -215,7 +215,7 @@ _CJ_MCC_N2CStub:
     mov  x19, x10
     mov  x28, x0
 
-    // Prepare arguments for invoking target method
+    // prepare arguments for invoking target method
     mov  x0, x20
     mov  x1, x21
     mov  x2, x22
@@ -231,7 +231,7 @@ _unwindPCForN2CStub:
     // Restore the value od rsp before copy arg8, arg9, arg10...
     add  sp, sp, x19
 
-    // Keep potential return value
+    // keep potential return value
     mov  x21, x0
     mov  x22, x1
     mov  x23, x2
@@ -248,7 +248,7 @@ _unwindPCForN2CStub:
     mov  x0, #0x1
     bl   _MRT_SetStackGrow
 
-    /* Restore last_java_frame */
+    /* restore last_java_frame */
     mov  x0, x29
     bl _MRT_RestoreTopManagedContextFromN2CStub
     ldr x0, [x29, #SafeStateOffset+0x8]
@@ -265,7 +265,7 @@ _unwindPCForN2CStub:
     bl _MRT_EnterSaferegion
 .L_none_enter:
 
-    /* Set potential return value */
+    /* set potential return value */
     mov  x0, x21
     mov  x1, x22
     mov  x2, x23
@@ -283,7 +283,7 @@ _unwindPCForN2CStub:
     mov  sp, x29
     cfi_def_cfa_register (sp)
 
-    // Restore all used callee-saved registers.
+    // restore all used callee-saved registers.
     ldp  x19, x20, [sp, #StubCalleeSaveAreaSize]
     cfi_restore (x19)
     cfi_restore (x20)
@@ -336,7 +336,7 @@ _ApplyCangjieMethodStubFloat64:
     cfi_rel_offset (x29, 0)
     cfi_rel_offset (x30, 8)
 
-    // Save all used callee-saved registers.
+    // save all used callee-saved registers.
     stp  x19, x20, [sp, #StubCalleeSaveAreaSize]
     cfi_rel_offset (x19, StubCalleeSaveAreaSize)
     cfi_rel_offset (x20, StubCalleeSaveAreaSize+8)
@@ -380,11 +380,11 @@ _ApplyCangjieMethodStubFloat64:
     mov  x29, sp
     cfi_def_cfa_register (x29)
 
-    mov  x20, x0 // Save args
-    mov  x21, x1 // The stackSize
-    mov  x22, x2 // Save func
-    mov  x23, x3 // The threadData
-    mov  x8,  x4 // The sret
+    mov  x20, x0 // save args
+    mov  x21, x1 // stackSize
+    mov  x22, x2 // save func
+    mov  x23, x3 // threadData
+    mov  x8,  x4 // sret
 
     // x28 <- previous sp
     add  x28, sp, #StubFrameContextSize
@@ -392,7 +392,7 @@ _ApplyCangjieMethodStubFloat64:
     // x19 <- previous sp + cpStackSize
     add  x19, x28, x10
 
-    // Copy parameter to stack,
+    // copy parameter to stack
     // size align to 16 byte.
     add  x21, x21, #(16 - 1)
     and  x21, x21, #0xFFFFFFFFFFFFFFF0
@@ -415,7 +415,7 @@ _ApplyCangjieMethodStubFloat64:
 .L_copy_args_end:
 
     // mov dst, src
-    // Prepare arguments for invoking target method
+    // prepare arguments for invoking target method
     ldp x0, x1, [x20]
     ldp x2, x3, [x20, #16]
     ldp x4, x5, [x20, #32]
@@ -428,11 +428,11 @@ _ApplyCangjieMethodStubFloat64:
     ldp d6, d7, [x20, #48]
 
     mov x28, x23
-    // The threadData
+    // threadData
     blr x22
 
 
-    // Keep potential return value
+    // keep potential return value
     mov  x21, x0
     mov  x22, x1
     mov  x23, x2
@@ -446,7 +446,7 @@ _ApplyCangjieMethodStubFloat64:
     cfi_rel_offset (d2, StubCalleeSaveAreaSize+0x70)
     cfi_rel_offset (d3, StubCalleeSaveAreaSize+0x78)
 
-    /* Set potential return value */
+    /* set potential return value */
     mov  x0, x21
     mov  x1, x22
     mov  x2, x23
@@ -461,11 +461,11 @@ _ApplyCangjieMethodStubFloat64:
     cfi_restore (d2)
     cfi_restore (d3)
 
-    // Restoring the SP Value. the stack which extended for invoking c method is useless now.
+    // restoring the SP Value. the stack which extended for invoking c method is useless now.
     mov  sp,  x29
     cfi_def_cfa_register (sp)
 
-    // Restore all used callee-saved registers.
+    // restore all used callee-saved registers.
     ldp  x19, x20, [sp, #StubCalleeSaveAreaSize]
     cfi_restore (x19)
     cfi_restore (x20)

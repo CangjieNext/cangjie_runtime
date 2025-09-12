@@ -20,7 +20,7 @@ __CJ_Init_Start:                        # @__CJ_Init_Start
 .Lfunc_end:
     .size __CJ_Init_Start, .Lfunc_end-__CJ_Init_Start
     .cfi_endproc
-                                        # -- End function
+                                            # -- End function
     .section  .init_array.0,"aw",@init_array
     .p2align  3
     .quad __CJ_Init_Start
@@ -40,7 +40,7 @@ __CJ_Fini_End:                        # @__CJ_Fini_End
 .Lfunc_fini_end:
     .size __CJ_Fini_End, .Lfunc_fini_end-__CJ_Fini_End
     .cfi_endproc
-                                      # -- End function
+                                            # -- End function
     .section  .fini_array.0,"aw",@fini_array
     .p2align  3
     .quad __CJ_Fini_End

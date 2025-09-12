@@ -29,7 +29,7 @@ _CJ_MCC_StackGrowStub:
     mov  x29, sp
     cfi_def_cfa_register (x29)
 
-    // Save all non callee-saved registers which may be contaminated by calling
+    // save all non callee-saved registers which may be contaminated by calling
     // the real signal handler.
     stp  x0, x1, [sp, #0x10]
     cfi_rel_offset (x0, 0x10)
@@ -113,13 +113,13 @@ _CJ_MCC_StackGrowStub:
 
     mov  x1, x29
     mov  x2, #1
-    adr  x0, #32        // The x0 is addr of unwindPCForSignalHandlerStub
+    adr  x0, #32 // x0 is addr of unwindPCForSignalHandlerStub
     mov  x3, x28
     bl _MRT_UpdateUwContext
 
     mov x0, x29
     ldr x1, [sp]
-    ldur x1, [sp, #0x58] // Get adjustedSize
+    ldur x1, [sp, #0x58] // get adjustedSize
     ldr x2, [sp, #0x8]
     bl  _MRT_StackGrow
     .global _unwindPCForStackGrowStub

@@ -317,11 +317,11 @@ void RegionManager::SetMaxUnitCountForPinnedRegion()
     size_t size = CString::ParseSizeFromEnv(env);
     // The minimum region size is system page size, measured in KB.
     size_t minSize = MapleRuntime::MRT_PAGE_SIZE / KB;
-    if (size >= minSize && size <= maxUnitCountPerRegion) {
-        maxUnitCountPerPinnedRegion = size;
+    if (size >= minSize && size <= CangjieRuntime::GetHeapParam().regionSize) {
+        maxUnitCountPerPinnedRegion = size * KB / RegionInfo::UNIT_SIZE;
     } else {
         LOG(RTLOG_ERROR, "Unsupported cjPinnedRegionSize parameter. Valid cjPinnedRegionSize"
-            "range is [%zuKB, %zuKB].\n", minSize, maxUnitCountPerRegion);
+            "range is [%zuKB, %zuKB].\n", minSize, CangjieRuntime::GetHeapParam().regionSize);
     }
 }
 
@@ -352,6 +352,26 @@ void RegionManager::SetGarbageThreshold()
     fromSpaceGarbageThreshold = CangjieRuntime::GetGCParam().garbageThreshold;
 }
 
+#if defined(__EULER__)
+void RegionManager::SetCacheRatio(double minSize, double maxSize, double defaultParam)
+{
+    auto env = std::getenv("cjCacheRatio");
+    if (env == nullptr) {
+        cacheRatio = defaultParam;
+        return;
+    }
+    double size = CString::ParsePosDecFromEnv(env);
+    if (size - minSize >= 0 && maxSize - size >= 0) {
+        cacheRatio = size;
+        return;
+    } else {
+        LOG(RTLOG_ERROR, "Unsupported cjCacheRatio parameter.Valid cjCacheRatio range is [%f, %f].\n",
+            minSize, maxSize);
+    }
+    cacheRatio = defaultParam;
+}
+#endif
+
 void RegionManager::Initialize(size_t nUnit, uintptr_t regionInfoAddr)
 {
     size_t metadataSize = GetMetadataSize(nUnit);
@@ -366,11 +386,13 @@ void RegionManager::Initialize(size_t nUnit, uintptr_t regionInfoAddr)
     SetMaxUnitCountForPinnedRegion();
     SetLargeObjectThreshold();
     SetGarbageThreshold();
+#if defined(__EULER__)
+    SetCacheRatio(0.0, 1.0, 1.0);
+#endif
     // propagate region heap layout
     RegionInfo::Initialize(nUnit, regionHeapStart);
     freeRegionManager.Initialize(nUnit);
     this->exemptedRegionThreshold = CangjieRuntime::GetHeapParam().exemptionThreshold;
-
     DLOG(REPORT, "region info @0x%zx+%zu, heap [0x%zx, 0x%zx), unit count %zu", regionInfoAddr, metadataSize,
          regionHeapStart, regionHeapEnd, nUnit);
 }
@@ -736,11 +758,6 @@ void RegionManager::DumpRegionStats(const char* msg) const
     size_t fromSize = fromUnits * RegionInfo::UNIT_SIZE;
     size_t allocFromSize = fromRegionList.GetAllocatedSize();
 
-    size_t exemptedFromRegions = unmovableFromRegionList.GetRegionCount();
-    size_t exemptedFromUnits = unmovableFromRegionList.GetUnitCount();
-    size_t exemptedFromSize = exemptedFromUnits * RegionInfo::UNIT_SIZE;
-    size_t allocExemptedFromSize = unmovableFromRegionList.GetAllocatedSize();
-
     size_t recentFullRegions = recentFullRegionList.GetRegionCount();
     size_t recentFullUnits = recentFullRegionList.GetUnitCount();
     size_t recentFullSize = recentFullUnits * RegionInfo::UNIT_SIZE;
@@ -761,15 +778,15 @@ void RegionManager::DumpRegionStats(const char* msg) const
     size_t recentPinnedSize = recentPinnedUnits * RegionInfo::UNIT_SIZE;
     size_t allocRecentPinnedSize = recentPinnedRegionList.GetAllocatedSize();
 
-    size_t largeRegions = oldLargeRegionList.GetRegionCount();
-    size_t largeUnits = oldLargeRegionList.GetUnitCount();
-    size_t largeSize = largeUnits * RegionInfo::UNIT_SIZE;
-    size_t allocLargeSize = oldLargeRegionList.GetAllocatedSize();
-
     size_t rawPointerPinnedRegions = rawPointerPinnedRegionList.GetRegionCount();
     size_t rawPointerPinnedUnits = rawPointerPinnedRegionList.GetUnitCount();
     size_t rawPointerPinnedSize = rawPointerPinnedUnits * RegionInfo::UNIT_SIZE;
     size_t allocRawPointerPinnedSize = rawPointerPinnedRegionList.GetAllocatedSize();
+
+    size_t largeRegions = oldLargeRegionList.GetRegionCount();
+    size_t largeUnits = oldLargeRegionList.GetUnitCount();
+    size_t largeSize = largeUnits * RegionInfo::UNIT_SIZE;
+    size_t allocLargeSize = oldLargeRegionList.GetAllocatedSize();
 
     size_t recentlargeRegions = recentLargeRegionList.GetRegionCount();
     size_t recentlargeUnits = recentLargeRegionList.GetUnitCount();
@@ -779,8 +796,8 @@ void RegionManager::DumpRegionStats(const char* msg) const
     size_t usedUnits = GetUsedUnitCount();
     size_t releasedUnits = freeRegionManager.GetReleasedUnitCount();
     size_t dirtyUnits = freeRegionManager.GetDirtyUnitCount();
-    size_t listedUnits = fromUnits + exemptedFromUnits + garbageUnits + recentFullUnits
-        + largeUnits + recentlargeUnits + pinnedUnits + recentPinnedUnits;
+    size_t listedUnits = fromUnits + garbageUnits + recentFullUnits + tlRegions +
+        rawPointerPinnedRegions + largeUnits + recentlargeUnits + pinnedUnits + recentPinnedUnits;
 
     VLOG(REPORT, msg);
 
@@ -789,8 +806,6 @@ void RegionManager::DumpRegionStats(const char* msg) const
 
     VLOG(REPORT, "\ttl-regions %zu: %zu units (%zu B, alloc %zu)", tlRegions,  tlUnits, tlSize, allocTLSize);
     VLOG(REPORT, "\tfrom-regions %zu: %zu units (%zu B, alloc %zu)", fromRegions,  fromUnits, fromSize, allocFromSize);
-    VLOG(REPORT, "\texempted from-regions %zu: %zu units (%zu B, alloc %zu)",
-         exemptedFromRegions, exemptedFromUnits, exemptedFromSize, allocExemptedFromSize);
     VLOG(REPORT, "\trecent-full regions %zu: %zu units (%zu B, alloc %zu)",
          recentFullRegions, recentFullUnits, recentFullSize, allocRecentFullSize);
     VLOG(REPORT, "\tgarbage regions %zu: %zu units (%zu B, alloc %zu)",
@@ -823,10 +838,6 @@ void RegionManager::DumpRegionStats(const char* msg) const
     TRACE_COUNT("CJRT_GC_fromUnits", fromUnits);
     TRACE_COUNT("CJRT_GC_fromSize", fromSize);
     TRACE_COUNT("CJRT_GC_allocFromSize", allocFromSize);
-    TRACE_COUNT("CJRT_GC_exemptedFromRegions", exemptedFromRegions);
-    TRACE_COUNT("CJRT_GC_exemptedFromUnits", exemptedFromUnits);
-    TRACE_COUNT("CJRT_GC_exemptedFromSize", exemptedFromSize);
-    TRACE_COUNT("CJRT_GC_allocExemptedFromSize", allocExemptedFromSize);
     TRACE_COUNT("CJRT_GC_recentFullRegions", recentFullRegions);
     TRACE_COUNT("CJRT_GC_recentFullUnits", recentFullUnits);
     TRACE_COUNT("CJRT_GC_recentFullSize", recentFullSize);

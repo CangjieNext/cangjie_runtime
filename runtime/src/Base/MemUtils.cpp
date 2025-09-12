@@ -78,5 +78,4 @@ __attribute__((always_inline)) uintptr_t PtrauthSignWithInstAkey(uintptr_t ptr, 
     return ptr;
 }
 #endif
-
 } // namespace MapleRuntime

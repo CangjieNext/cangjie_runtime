@@ -52,13 +52,13 @@ namespace MapleRuntime {
     #define TRACE_FINISH()                       OH_HiTrace_FinishTrace()
     #define TRACE_START_ASYNC(name, taskId)      OH_HiTrace_StartAsyncTrace(name, static_cast<int32_t>(taskId))
     #define TRACE_FINISH_ASYNC(name, taskId)     OH_HiTrace_FinishAsyncTrace(name, static_cast<int32_t>(taskId))
-    #define TRACE_COUNT(name, count)             OH_HiTrace_CountTrace(name, count)
+    #define TRACE_COUNT(name, count)             OH_HiTrace_CountTrace(name, static_cast<int64_t>(count))
 #elif defined(__ANDROID__)
-    #define TRACE_START(name)                           ATrace_beginSection(name)
-    #define TRACE_FINISH()                              ATrace_endSection()
-    #define TRACE_START_ASYNC(name, taskId)             ATrace_beginAsyncSection(name, static_cast<int32_t>(taskId))
-    #define TRACE_FINISH_ASYNC(name, taskId)            ATrace_endAsyncSection(name, static_cast<int32_t>(taskId))
-    #define TRACE_COUNT(name, count)                    ATrace_setCounter(name, static_cast<int64_t>(count))
+    #define TRACE_START(name)                    ATrace_beginSection(name)
+    #define TRACE_FINISH()                       ATrace_endSection()
+    #define TRACE_START_ASYNC(name, taskId)      ATrace_beginAsyncSection(name, static_cast<int32_t>(taskId))
+    #define TRACE_FINISH_ASYNC(name, taskId)     ATrace_endAsyncSection(name, static_cast<int32_t>(taskId))
+    #define TRACE_COUNT(name, count)             ATrace_setCounter(name, static_cast<int64_t>(count))
 #else
     #define TRACE_START(name)
     #define TRACE_FINISH()
@@ -73,7 +73,9 @@ namespace MapleRuntime {
 #define TRACE_CJTHREAD_EXIT                          "CJTHREAD_CJThreadExit IDLE"
 #define TRACE_CJTHREAD_SETNAME                       "CJTHREAD_CJThreadSetName"
 
+#ifdef __ANDROID__
 const char* TraceInfoFormat(const char* name, unsigned long long id, unsigned int argNum = 0, ...);
+#endif
 
 class ScopedEntryTrace {
 public:

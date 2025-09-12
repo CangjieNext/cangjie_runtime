@@ -371,7 +371,7 @@ char *CJThreadStackMemAlloc(struct Schedule *schedule, struct CJThread *cjthread
             LOG_ERROR(errno, "mmap failed, size is %u", *totalSize);
             return nullptr;
         }
-#if defined (__linux__) || defined(__OHOS__) || defined(__HOS__)
+#if defined (__linux__) || defined(__OHOS__) || defined(__ANDROID__)
         MRT_PRCTL(addr, *totalSize, "cj-stack");
 #endif
 #ifdef CANGJIE_HWASAN_SUPPORT
@@ -484,8 +484,8 @@ struct CJThread *CJThreadAlloc(struct Schedule *schedule, struct ArgAttr *argAtt
 void *CJThreadMexit(struct CJThread *delCJThread)
 {
 #ifdef __OHOS__
-    TRACE_FINISH_ASYNC(OHOS_HITRACE_CJTHREAD_EXEC, delCJThread->id);
-    TRACE_START_ASYNC(OHOS_HITRACE_CJTHREAD_EXIT, delCJThread->id);
+    TRACE_FINISH_ASYNC(TRACE_CJTHREAD_EXEC, delCJThread->id);
+    TRACE_START_ASYNC(TRACE_CJTHREAD_EXIT, delCJThread->id);
 #elif defined (__ANDROID__)
     TRACE_FINISH();
     TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXIT, delCJThread->id));
@@ -505,6 +505,7 @@ void *CJThreadMexit(struct CJThread *delCJThread)
     if (schedule->scheduleType != SCHEDULE_DEFAULT) {
         atomic_fetch_sub(&scheduleCJThread->cjthreadNum, 1ULL);
     }
+    
 #ifdef __OHOS__
     TRACE_FINISH_ASYNC(TRACE_CJTHREAD_EXIT, delCJThread->id);
 #elif defined (__ANDROID__)

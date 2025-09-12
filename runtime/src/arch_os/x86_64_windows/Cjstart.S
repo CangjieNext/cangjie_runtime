@@ -13,7 +13,6 @@ __CJ_Init_Start:                        # @__CJ_Init_Start
     .seh_stackalloc 40
     .seh_endprologue
     leaq  __CJMetadataStart(%rip), %rcx
-    movq (%rcx), %rcx
     movl  $1, %edx
     callq MRT_LibraryOnLoad
     addq  $40, %rsp
@@ -33,7 +32,6 @@ __CJ_Fini_End:                        # @__CJ_Fini_End
     .seh_stackalloc 40
     .seh_endprologue
     leaq  __CJMetadataStart(%rip), %rcx
-    movq (%rcx), %rcx
     callq MRT_LibraryUnLoad
     addq  $40, %rsp
     retq
@@ -43,46 +41,46 @@ __CJ_Fini_End:                        # @__CJ_Fini_End
     .p2align  3
     .quad __CJ_Fini_End
 
-    .section  .header
+    .section  .cjmetadata.rw.header
     .p2align  4
     .long 0x12345678
     .long 0x80000000
-    .quad 0
-    .quad __CJMetadataSize
+    .long 0
+    .long __CJMetadataSize
     .quad __CJSDKVersion
     .quad __CJMethodInfo
-    .quad __CJMethodInfoSize
+    .long __CJMethodInfoSize
     .quad __CJGlobalInitFunc
-    .quad __CJGlobalInitFuncSize
+    .long __CJGlobalInitFuncSize
     .quad __CJStringPoolDict
-    .quad __CJStringPoolDictSize
+    .long __CJStringPoolDictSize
     .quad __CJStringPool
-    .quad __CJStringPoolSize
+    .long __CJStringPoolSize
     .quad __CJStackMap
-    .quad __CJStackMapSize
+    .long __CJStackMapSize
     .quad __CJGCTib
-    .quad __CJGCTibSize
+    .long __CJGCTibSize
     .quad __CJGCRoots
-    .quad __CJGCRootsSize
+    .long __CJGCRootsSize
     .quad __CJTypeTemplate
-    .quad __CJTypeTemplateSize
+    .long __CJTypeTemplateSize
     .quad __CJTypeInfo
-    .quad __CJTypeInfoSize
+    .long __CJTypeInfoSize
     .quad __CJTypeFields
-    .quad __CJTypeFieldsSize
+    .long __CJTypeFieldsSize
     .quad __CJMTable
-    .quad __CJMTableSize
+    .long __CJMTableSize
     .quad __CJInnerTypeExtensions
-    .quad __CJInnerTypeExtensionsSize
+    .long __CJInnerTypeExtensionsSize
     .quad __CJOuterTypeExtensions
-    .quad __CJOuterTypeExtensionsSize
+    .long __CJOuterTypeExtensionsSize
     .quad __CJStaticGITable
-    .quad __CJStaticGITableSize
+    .long __CJStaticGITableSize
     .quad __CJGCFlags
-    .quad __CJGCFlagsSize
+    .long __CJGCFlagsSize
     .quad __CJReflectPkgInfo
-    .quad __CJGCReflectPkgInfoSize
+    .long __CJGCReflectPkgInfoSize
     .quad __CJReflectGV
-    .quad __CJReflectGVSize
+    .long __CJReflectGVSize
     .quad __CJReflectGI
-    .quad __CJReflectGISize
+    .long __CJReflectGISize

@@ -172,6 +172,8 @@ elseif (ANDROID_FLAG MATCHES 1 OR ANDROID_FLAG MATCHES 2)
     endif()
     add_definitions(-D__ANDROID__)
     # add_definition for future
+elseif (EULER_FLAG MATCHES 1)
+    add_definitions(-D__EULER__)
 elseif (WINDOWS_FLAG MATCHES 1)
     message("Building runtime in Windows.")
     if (CMAKE_HOST_SYSTEM_NAME MATCHES "Windows")

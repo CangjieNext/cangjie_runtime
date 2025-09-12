@@ -99,7 +99,7 @@ void CjHeapData::DumpHeap()
     if (!dumpAfterOOM) {
         const int strLen = 20;
         char* str = static_cast<char*>(NativeAllocator::NativeAlloc(strLen * sizeof(char)));
-        sprintf_s(str, strLen, "%ld", "item_data.dat.cache");
+        sprintf_s(str, strLen, "%s", "item_data.dat.cache");
         ret = rename(str, "item_data.dat");
         NativeAllocator::NativeFree(str, strLen * sizeof(char));
         if (ret) {
@@ -539,7 +539,6 @@ void CjHeapData::WritePrimitiveArray(BaseObject*& obj, const u1 tag)
 {
     MSize componentSize = obj->GetTypeInfo()->GetComponentSize();
     if (componentSize == 0) {
-        LOG(RTLOG_ERROR, "%s write failed, componentSize is 0.", obj->GetComponentTypeInfo()->GetName());
         return;
     }
     AddU1(tag);

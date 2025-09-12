@@ -210,7 +210,6 @@ struct HeapParam {
      * It will be set to default value if assigned with 0.
      */
     double heapUtilization;
-
     /*
      * The ratio to expand heap after each GC.
      * GC is probably triggered more often if this value is set to an improperly small number.

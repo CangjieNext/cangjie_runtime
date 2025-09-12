@@ -59,6 +59,6 @@ _RestoreContextForEH:
     ldr     x1,       [sp, #160]
     mov     sp,  x1
 
-    // Jump to landingpad.
+    // jump to landingpad.
     br      x0
     .cfi_endproc

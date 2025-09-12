@@ -229,7 +229,7 @@ void Logger::FormatLog(RTLogLevel level, bool notInSigHandler, const char* forma
     }
     char buf[LOG_BUFFER_SIZE];
     int index;
-#if defined (__OHOS__) || defined (__HOS__)
+#if defined (__OHOS__) || defined (__ANDROID__)
     index = 0;
     (void)LOG_LEVEL[level];
 #else

@@ -69,6 +69,10 @@ public:
         std::lock_guard<std::mutex> lg(hungryBuffersLock);
         hungryBuffers.swap(getBufferSet);
     }
+    size_t GetAllocBufersCount()
+    {
+        return allocBuffers.size();
+    }
 
 private:
     AllocBuffersSet allocBuffers;

@@ -128,21 +128,18 @@ static size_t InitRegionSize(size_t defaultParam)
     return defaultParam;
 }
 
-static double InitGarbageRatio(double defaultParam)
+static double InitPercentParameterIncl(const char* name, double minSize, double maxSize, double defaultParam)
 {
-    auto env = std::getenv("cjGarbageThreshold");
+    auto env = std::getenv(name);
     if (env == nullptr) {
         return defaultParam;
     }
-    // 10: The minimum garbage ratio, measured in percent, the value is 0%.
-    double minSize = 0.0;
-    // 100: The maximum garbage ratio, measured in percent, the value is 100%.
-    double maxSize = 1;
     double size = CString::ParseValidFromEnv(env);
     if (size - minSize >= 0 && maxSize - size >= 0) {
         return size;
     } else {
-        LOG(RTLOG_ERROR, "Unsupported cjGarbageThreshold parameter. Valid cjGarbageThreshold range is [0.1, 1].\n");
+        LOG(RTLOG_ERROR, "Unsupported %s parameter.Valid %s range is [%f, %f].\n",
+            name, name, minSize, maxSize);
     }
     return defaultParam;
 }
@@ -155,7 +152,7 @@ static double InitPercentParameter(const char* name, double minSize, double maxS
         if (parameter - minSize > 0 && maxSize - parameter >= 0) {
             return parameter;
         } else {
-            LOG(RTLOG_ERROR, "Unsupported %s parameter.Valid %s range is [%f, %f].\n",
+            LOG(RTLOG_ERROR, "Unsupported %s parameter.Valid %s range is (%f, %f].\n",
                 name, name, minSize, maxSize);
         }
     }
@@ -527,7 +524,7 @@ static RuntimeParam InitRuntimeParam()
             // Default gc threshold is heapSize.
             .gcThreshold = InitSizeParameter("cjGCThreshold", 0, initHeapSize) * KB,
             // Default garbage ration is 50% of from space.
-            .garbageThreshold = InitGarbageRatio(0.5),
+            .garbageThreshold = InitPercentParameterIncl("cjGarbageThreshold", 0.0, 1.0, 0.5),
             // Default GC interval is 150ms.
             .gcInterval = static_cast<uint64_t>(InitTimeParameter("cjGCInterval", 0,
                 150 * MILLI_SECOND_TO_NANO_SECOND)),
@@ -693,6 +690,15 @@ int8_t MRT_StopSubScheduler(void* schedule)
         return 1;
     }
     return 0;
+}
+
+static void ResolveCycleRefImpl()
+{
+    Heap::GetHeap().GetCollector().ResolveCycleRef();
+}
+extern "C" void CJ_MRT_RolveCycleRef()
+{
+    RunResolveCycle(reinterpret_cast<void*>(&ResolveCycleRefImpl));
 }
 
 const void* MRT_RuntimeNewSubScheduler()
