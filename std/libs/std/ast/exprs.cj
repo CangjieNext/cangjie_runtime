@@ -4002,6 +4002,9 @@ public class QuoteExpr <: Expr {
                 case dollarRef: RefExpr where dollarRef.identifier.kind == TokenKind.DOLLAR_IDENTIFIER => ret.append(
                     dollarRef)
                 case qt: QuoteToken => ret.append(qt)
+                case parenExpr: ParenExpr =>
+                    ret.append(Token(TokenKind.DOLLAR))
+                       .append(expr)
                 case _ => ret
                     .append(Token(TokenKind.DOLLAR))
                     .append(Token(TokenKind.LPAREN))
