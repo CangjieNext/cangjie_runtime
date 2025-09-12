@@ -6888,7 +6888,7 @@ public open func append(tokens: Tokens): Tokens
 public func concat(tokens: Tokens): Tokens
 ```
 
-功能：将当前的 [Tokens](ast_package_classes.md#class-tokens) 与传入的 [Tokens](ast_package_classes.md#class-tokens) 进行拼接。
+功能：将当前的 [Tokens](ast_package_classes.md#class-tokens) 与传入的 [Tokens](ast_package_classes.md#class-tokens) 进行拼接，返回新的 [Tokens](ast_package_classes.md#class-tokens) 实例。
 
 参数：
 
@@ -6984,7 +6984,7 @@ public func toString(): String
 public operator func +(r: Token): Tokens
 ```
 
-功能：使用当前 [Tokens](ast_package_classes.md#class-tokens) 与另一个 [Token](ast_package_structs.md#struct-token) 相加以获取新的 [Tokens](ast_package_classes.md#class-tokens)。
+功能：使用当前 [Tokens](ast_package_classes.md#class-tokens) 与另一个 [Token](ast_package_structs.md#struct-token) 相加以获取新的 [Tokens](ast_package_classes.md#class-tokens) 实例。
 
 参数：
 
@@ -7000,7 +7000,7 @@ public operator func +(r: Token): Tokens
 public operator func +(r: Tokens): Tokens
 ```
 
-功能：使用当前 [Tokens](ast_package_classes.md#class-tokens) 与 [Tokens](ast_package_classes.md#class-tokens) 相加以获取新的 [Tokens](ast_package_classes.md#class-tokens) 类型。
+功能：使用当前 [Tokens](ast_package_classes.md#class-tokens) 与 [Tokens](ast_package_classes.md#class-tokens) 相加以获取新的 [Tokens](ast_package_classes.md#class-tokens) 实例。
 
 参数：
 
