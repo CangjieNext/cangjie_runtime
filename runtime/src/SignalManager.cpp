@@ -45,12 +45,7 @@ void SignalManager::Fini()
 
 void SignalManager::PrepareSigStack()
 {
-#if defined(CANGJIE_SANITIZER_SUPPORT)
-    // The asan version uses additional stack space when handling signals.
     constexpr int stackSizeMultiples = 4;
-#else
-    constexpr int stackSizeMultiples = 1;
-#endif
     signalStack.ss_sp = malloc(SIGSTKSZ * stackSizeMultiples);
     if (signalStack.ss_sp == nullptr) {
         LOG(RTLOG_FATAL, "Alloca signal stack failed.");
