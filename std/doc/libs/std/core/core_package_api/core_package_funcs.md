@@ -1539,6 +1539,23 @@ true
 false
 ```
 
+## func refEq\<A, R>((A)->R, (A)->R)
+
+```cangjie
+public func refEq<A, R>(a: (A)->R, b: (A)->R): Bool
+```
+
+功能：判断两个函数实例的内存地址是否相同， 函数参数数量为 1。
+
+参数：
+
+- a: (A)->R - 一个函数实例。
+- b: (A)->R - 另一个函数实例。
+
+返回值：
+
+- [Bool](core_package_intrinsics.md#bool) - 如果两个函数实例的内存地址相同，返回 true，否则返回 false。
+
 ## func releaseArrayRawData\<T>(CPointerHandle\<T>) where T <: CType
 
 ```cangjie
