@@ -49,9 +49,9 @@ add_custom_target(FLATC_OUTPUTS ALL DEPENDS ${FLATC_CJ_OUTPUT} ${FLATC_CPP_OUTPU
 file(GLOB ast_ffi_src
     ./ast_api.cpp)
 set(libname cangjie-std-astFFI) 
-add_library(${libname} STATIC ${ast_ffi_src})
-set_target_properties(${libname} PROPERTIES COMPILE_FLAGS "-fPIC")
-add_dependencies(${libname} FLATC_OUTPUTS)
+add_library(${libname}-objs OBJECT ${ast_ffi_src})
+set_target_properties(${libname}-objs PROPERTIES COMPILE_FLAGS "-fPIC")
+add_dependencies(${libname}-objs FLATC_OUTPUTS)
 
 set(CANGJIE_INC_DIR)
 set(AST_SUPPORT_LIB_DIR)
@@ -71,12 +71,39 @@ else()
     message(FATAL_ERROR "NOT FOUND CJC")
 endif()
 
-target_compile_options(${libname} PRIVATE ${CMAKE_C_COVERAGE_FLAGS})
+target_compile_options(${libname}-objs PRIVATE ${CMAKE_C_COVERAGE_FLAGS})
 if(CANGJIE_BUILD_STDLIB_WITH_COVERAGE)
-    target_compile_options(${libname} PUBLIC "-fno-exceptions")
-    target_compile_definitions(${libname} PRIVATE CANGJIE_ENABLE_GCOV)
+    target_compile_options(${libname}-objs PUBLIC "-fno-exceptions")
+    target_compile_definitions(${libname}-objs PRIVATE CANGJIE_ENABLE_GCOV)
 endif()
-target_include_directories(${libname} PRIVATE ${CANGJIE_INC_DIR} ${CMAKE_BINARY_DIR}/include)
+target_include_directories(${libname}-objs PRIVATE ${CANGJIE_INC_DIR} ${CMAKE_BINARY_DIR}/include)
 
-# install for dynamic and static lib
-install_cangjie_library_ffi(${libname})
+set(TARGET_AR ar)
+if(MINGW OR DARWIN)
+    set(TARGET_AR ${CMAKE_AR})
+elseif(CMAKE_CROSSCOMPILING)
+    if(IOS)
+        set(TARGET_AR ${CANGJIE_TARGET_TOOLCHAIN}/ar)
+    elseif(${CMAKE_C_COMPILER_ID} STREQUAL "Clang")
+        set(TARGET_AR ${CANGJIE_TARGET_TOOLCHAIN}/llvm-ar)
+    else()
+        set(TARGET_AR ${CANGJIE_TARGET_TOOLCHAIN}/${TRIPLE}-ar)
+    endif()
+endif()
+
+set(AST_FFI_LIB ${CMAKE_BINARY_DIR}/lib${libname}.a)
+
+# add ast_api.obj to ast-support.a, because the same-named files will be overwritten when decompressing ast-suppor.a.
+add_custom_command(
+    OUTPUT ${AST_FFI_LIB}
+    COMMAND ${CMAKE_COMMAND} -E copy 
+        $ENV{CANGJIE_HOME}/lib/${output_cj_lib_dir}/libcangjie-ast-support.a
+        ${AST_FFI_LIB}
+    COMMAND ${TARGET_AR} q ${AST_FFI_LIB} $<TARGET_OBJECTS:${libname}-objs>
+    DEPENDS ${libname}-objs
+)
+
+add_custom_target(AST_SUPPORT ALL DEPENDS ${AST_FFI_LIB})
+
+# install for static lib
+install_ast_library_ffi(${AST_FFI_LIB})
