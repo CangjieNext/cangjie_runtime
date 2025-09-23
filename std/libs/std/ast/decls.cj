@@ -2108,9 +2108,25 @@ public class MacroExpandDecl <: Decl {
         }
         set(v) {
             pkgIdentifier_ = v
+            if (let Some(index) <- v.value.lastIndexOf(".")) {
+                identifier_ = Token(TokenKind.IDENTIFIER, v.value.split(".", removeEmpty: true).last.getOrThrow())
+                .addPosition(v.pos.fileID, v.pos.line, v.pos.column + Int32(index) + 1)
+            } else {
+                identifier_ = v
+            }
         }
     }
-
+    public override mut prop identifier: Token {
+        get() {
+            identifier_
+        }
+        set(v) {
+            let prefix = pkgIdentifier_.value.removeSuffix(identifier_.value)
+            identifier_ = v
+            let pos = pkgIdentifier_.pos
+            pkgIdentifier_ = Token(TokenKind.IDENTIFIER, prefix + v.value).addPosition(pos)
+        }
+    }
     public mut prop lSquare: Token {
         get() {
             lSquare_
@@ -2292,9 +2308,25 @@ public class MacroExpandParam <: FuncParam {
         }
         set(v) {
             pkgIdentifier_ = v
+            if (let Some(index) <- v.value.lastIndexOf(".")) {
+                identifier_ = Token(TokenKind.IDENTIFIER, v.value.split(".", removeEmpty: true).last.getOrThrow())
+                .addPosition(v.pos.fileID, v.pos.line, v.pos.column + Int32(index) + 1)
+            } else {
+                identifier_ = v
+            }
         }
     }
-
+    public override mut prop identifier: Token {
+        get() {
+            identifier_
+        }
+        set(v) {
+            let prefix = pkgIdentifier_.value.removeSuffix(identifier_.value)
+            identifier_ = v
+            let pos = pkgIdentifier_.pos
+            pkgIdentifier_ = Token(TokenKind.IDENTIFIER, prefix + v.value).addPosition(pos)
+        }
+    }
     public mut prop lSquare: Token {
         get() {
             lSquare_
