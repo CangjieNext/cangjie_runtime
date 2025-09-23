@@ -3731,7 +3731,7 @@ public class MacroExpandParam <: FuncParam {
 
 功能：表示宏调用节点。
 
-一个 [MacroExpandDecl](ast_package_classes.md#class-macroexpanddecl) 节点： `func foo (@M a: Int64)` 中的 `@M a: Int64`。
+一个 [MacroExpandParam](ast_package_classes.md#class-macroexpandparam) 节点： `func foo (@M a: Int64)` 中的 `@M a: Int64`。
 
 父类型：
 
@@ -4478,7 +4478,7 @@ public class Modifier <: Node {
 
 - [Node](#class-node)
 
-### prop keyword(Token)
+### prop keyword
 
 ```cangjie
 public mut prop keyword: Token
