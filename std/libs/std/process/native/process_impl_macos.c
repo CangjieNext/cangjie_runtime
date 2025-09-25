@@ -272,20 +272,17 @@ char** GetCommandline(char* argv, size_t len, size_t argc, char** envStartAddr)
     for (char* start = cp; argumentCount < argc && cp < argv + len; ++cp) {
         if (*cp == '\0') {
             size_t argNLen = cp - start;
-            if (argNLen <= 0) {
-                break;
-            }
-
-            char* argN = (char*)malloc(argNLen + 1);
+            char* argN = (char*)calloc(argNLen + 1, sizeof(char));
             if (argN == NULL) {
                 break;
             }
 
-            if (memcpy_s(argN, argNLen + 1, start, argNLen) != EOK) {
-                free(argN);
-                break;
+            if (argNLen > 0) {
+                if (memcpy_s(argN, argNLen + 1, start, argNLen) != EOK) {
+                    free(argN);
+                    break;
+                }
             }
-            argN[argNLen] = '\0';
 
             arguments[argumentCount++] = argN;
             start = cp + 1;
