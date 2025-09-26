@@ -3462,7 +3462,17 @@ public class MacroExpandDecl <: Decl {
 public mut prop fullIdentifier: Token
 ```
 
-功能：获取或设置宏调用节点的完整标识符。
+功能：获取或设置宏调用节点的完整标识符，如 `@pkg.m class a{}` 中的 `pkg.m`。
+
+类型：[Token](ast_package_structs.md#struct-token)
+
+### prop identifier
+
+```cangjie
+public override mut prop identifier: Token
+```
+
+功能：该属性继承自 [Decl](ast_package_classes.md#class-decl) 节点，表示宏调用节点的标识符，如 `@pkg.m class a{}` 中的 `m`。
 
 类型：[Token](ast_package_structs.md#struct-token)
 
@@ -3743,7 +3753,17 @@ public class MacroExpandParam <: FuncParam {
 public mut prop fullIdentifier: Token
 ```
 
-功能：获取或设置宏调用节点的完整标识符。
+功能：获取或设置宏调用节点的完整标识符，如 `func bar (@pkg.m a: Int64)` 中的 `pkg.m`。
+
+类型：[Token](ast_package_structs.md#struct-token)
+
+### prop identifier
+
+```cangjie
+public override mut prop identifier: Token
+```
+
+功能：该属性继承自 [Decl](ast_package_classes.md#class-decl) 节点，表示宏调用节点的标识符，如 `func bar (@pkg.m a: Int64)` 中的 `m`。
 
 类型：[Token](ast_package_structs.md#struct-token)
 
