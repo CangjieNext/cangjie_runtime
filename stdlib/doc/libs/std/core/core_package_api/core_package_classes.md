@@ -26,6 +26,25 @@ public init(data: Array<T>)
 
 - data: [Array](core_package_structs.md#struct-arrayt)\<T> - 数组实例。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    var arr: Array<Int64> = [1, 2, 3]
+    // 初始化迭代器
+    ArrayIterator(arr)
+    println("迭代器初始化成功")
+    return 0
+}
+```
+
+运行结果：
+
+```text
+迭代器初始化成功
+```
+
 ### func next()
 
 ```cangjie
@@ -48,10 +67,11 @@ main() {
     var num: Option<Int64>
     while (true) {
         num = arrIterator.next()
-        if (num.isNone()) {
+        if (let Some(element) <- num) {
+            println(element)
+        } else {
             break
         }
-        println(num.getOrDefault({=> -1}))
     }
 }
 ```
@@ -88,6 +108,29 @@ public var value: T
 
 类型：T
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    var box: Box<Int64> = Box<Int64>(42)
+    
+    // 获取被包装的值
+    println("Box contains: ${box.value}")
+    
+    // 修改被包装的值
+    box.value = 100
+    println("Box now contains: ${box.value}")
+}
+```
+
+运行结果：
+
+```text
+Box contains: 42
+Box now contains: 100
+```
+
 ### init(T)
 
 ```cangjie
@@ -99,6 +142,28 @@ public init(v: T)
 参数：
 
 - v: T - 任意类型实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    // 使用整数创建Box实例
+    var intBox: Box<Int64> = Box<Int64>(42)
+    println("Integer box contains: ${intBox.value}")
+    
+    // 使用字符串创建Box实例
+    var stringBox: Box<String> = Box<String>("Hello, Box!")
+    println("String box contains: ${stringBox.value}")
+}
+```
+
+运行结果：
+
+```text
+Integer box contains: 42
+String box contains: Hello, Box!
+```
 
 ### extend\<T> Box\<T> <: Comparable\<Box\<T>> where T <: Comparable\<T>
 
@@ -185,6 +250,30 @@ public operator func !=(other: Box<T>): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 当前 [Box](core_package_classes.md#class-boxt) 对象不等于参数 [Box](core_package_classes.md#class-boxt) 对象返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    var box1: Box<Int64> = Box<Int64>(42)
+    var box2: Box<Int64> = Box<Int64>(42)
+    var box3: Box<Int64> = Box<Int64>(100)
+    
+    // 比较相等的Box对象
+    println("box1 != box2: ${box1 != box2}")
+    
+    // 比较不相等的Box对象
+    println("box1 != box3: ${box1 != box3}")
+}
+```
+
+运行结果：
+
+```text
+box1 != box2: false
+box1 != box3: true
+```
+
 #### operator func <(Box\<T>)
 
 ```cangjie
@@ -200,6 +289,29 @@ public operator func <(other: Box<T>): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 当前 [Box](core_package_classes.md#class-boxt) 对象小于参数 [Box](core_package_classes.md#class-boxt) 对象返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    var box1: Box<Int64> = Box<Int64>(42)
+    var box2: Box<Int64> = Box<Int64>(100)
+    
+    // 比较Box对象的大小
+    println("box1 < box2: ${box1 < box2}")
+    println("box2 < box1: ${box2 < box1}")
+    println("box1 < box1: ${box1 < box1}")
+}
+```
+
+运行结果：
+
+```text
+box1 < box2: true
+box2 < box1: false
+box1 < box1: false
+```
 
 #### operator func <=(Box\<T>)
 
@@ -217,6 +329,30 @@ public operator func <=(other: Box<T>): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 当前 [Box](core_package_classes.md#class-boxt) 对象小于等于参数 [Box](core_package_classes.md#class-boxt) 对象返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    var box1: Box<Int64> = Box<Int64>(42)
+    var box2: Box<Int64> = Box<Int64>(100)
+    var box3: Box<Int64> = Box<Int64>(42)
+    
+    // 比较Box对象的大小
+    println("box1 <= box2: ${box1 <= box2}")
+    println("box2 <= box1: ${box2 <= box1}")
+    println("box1 <= box3: ${box1 <= box3}")
+}
+```
+
+运行结果：
+
+```text
+box1 <= box2: true
+box2 <= box1: false
+box1 <= box3: true
+```
+
 #### operator func ==(Box\<T>)
 
 ```cangjie
@@ -232,6 +368,30 @@ public operator func ==(other: Box<T>): Bool
 返回值：
 
 - [Bool](core_package_intrinsics.md#bool) - 当前 [Box](core_package_classes.md#class-boxt) 对象等于参数 [Box](core_package_classes.md#class-boxt) 对象返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    var box1: Box<Int64> = Box<Int64>(42)
+    var box2: Box<Int64> = Box<Int64>(42)
+    var box3: Box<Int64> = Box<Int64>(100)
+    
+    // 比较相等的Box对象
+    println("box1 == box2: ${box1 == box2}")
+    
+    // 比较不相等的Box对象
+    println("box1 == box3: ${box1 == box3}")
+}
+```
+
+运行结果：
+
+```text
+box1 == box2: true
+box1 == box3: false
+```
 
 #### operator func >(Box\<T>)
 
@@ -249,6 +409,29 @@ public operator func >(other: Box<T>): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 当前 [Box](core_package_classes.md#class-boxt) 对象大于参数 [Box](core_package_classes.md#class-boxt) 对象返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    var box1: Box<Int64> = Box<Int64>(42)
+    var box2: Box<Int64> = Box<Int64>(100)
+    
+    // 比较Box对象的大小
+    println("box1 > box2: ${box1 > box2}")
+    println("box2 > box1: ${box2 > box1}")
+    println("box1 > box1: ${box1 > box1}")
+}
+```
+
+运行结果：
+
+```text
+box1 > box2: false
+box2 > box1: true
+box1 > box1: false
+```
+
 #### operator func >=(Box\<T>)
 
 ```cangjie
@@ -265,13 +448,37 @@ public operator func >=(other: Box<T>): Bool
 
 - [Bool](core_package_intrinsics.md#bool) - 当前 [Box](core_package_classes.md#class-boxt) 对象大于等于参数 [Box](core_package_classes.md#class-boxt) 对象返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    var box1: Box<Int64> = Box<Int64>(42)
+    var box2: Box<Int64> = Box<Int64>(100)
+    var box3: Box<Int64> = Box<Int64>(42)
+    
+    // 比较Box对象的大小
+    println("box1 >= box2: ${box1 >= box2}")
+    println("box2 >= box1: ${box2 >= box1}")
+    println("box1 >= box3: ${box1 >= box3}")
+}
+```
+
+运行结果：
+
+```text
+box1 >= box2: false
+box2 >= box1: true
+box1 >= box3: true
+```
+
 ### extend\<T> Box\<T> <: Hashable where T <: Hashable
 
 ```cangjie
 extend<T> Box<T> <: Hashable where T <: Hashable
 ```
 
-功能：为 [Box](core_package_classes.md#class-boxt)\<T> 类扩展 [Hashable](core_package_interfaces.md#interface-hashable) 接口，提供比较大小的能力。
+功能：为 [Box](core_package_classes.md#class-boxt)\<T> 类扩展 [Hashable](core_package_interfaces.md#interface-hashable) 接口，支持计算哈希值。
 
 父类型：
 
@@ -290,6 +497,34 @@ public func hashCode(): Int64
 返回值：
 
 - [Int64](core_package_intrinsics.md#int64) - 当前 [Box](core_package_classes.md#class-boxt) 对象的哈希值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    var box1: Box<Int64> = Box<Int64>(42)
+    var box2: Box<Int64> = Box<Int64>(42)
+    var box3: Box<Int64> = Box<Int64>(100)
+    
+    // 获取Box对象的哈希值
+    println("box1 hashCode: ${box1.hashCode()}")
+    println("box2 hashCode: ${box2.hashCode()}")
+    println("box3 hashCode: ${box3.hashCode()}")
+    
+    // 相同值的Box对象具有相同的哈希值
+    println("box1 and box2 have same hashCode: ${box1.hashCode() == box2.hashCode()}")
+}
+```
+
+运行结果：
+
+```text
+box1 hashCode: 42
+box2 hashCode: 42
+box3 hashCode: 100
+box1 and box2 have same hashCode: true
+```
 
 ### extend\<T> Box\<T> <: ToString where T <: ToString
 
@@ -315,6 +550,30 @@ public func toString(): String
 
 - [String](core_package_structs.md#struct-string) - 转换后的字符串。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    var intBox: Box<Int64> = Box<Int64>(42)
+    var stringBox: Box<String> = Box<String>("Hello")
+    var boolBox: Box<Bool> = Box<Bool>(true)
+    
+    // 获取Box对象的字符串表示
+    println("intBox as string: ${intBox.toString()}")
+    println("stringBox as string: ${stringBox.toString()}")
+    println("boolBox as string: ${boolBox.toString()}")
+}
+```
+
+运行结果：
+
+```text
+intBox as string: 42
+stringBox as string: Hello
+boolBox as string: true
+```
+
 ## class Future\<T>
 
 ```cangjie
@@ -334,6 +593,35 @@ public prop thread: Thread
 功能：获得对应仓颉线程的 [Thread](core_package_classes.md#class-thread) 实例。
 
 类型：[Thread](core_package_classes.md#class-thread)
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    let future: Future<Int64> = spawn {
+        =>
+        return 42
+    }
+    
+    // 获取Future对应的线程实例
+    let thread: Thread = future.thread
+    println("Thread id: ${thread.id}")
+    
+    // 等待线程完成
+    let result: Int64 = future.get()
+    println("Result: ${result}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Thread id: 2
+Result: 42
+```
 
 ### func cancel()
 
@@ -512,6 +800,31 @@ public init()
 
 功能：构造一个默认的 [Iterator](core_package_classes.md#class-iteratort)\<T> 对象。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 抽象类 Iterator 本身无法初始化
+    MyIterator<Int64>()
+    println("抽象的子类完成了初始化")
+    return 0
+}
+
+public class MyIterator<T> <: Iterator<T> {
+    public init() {}
+    public func next(): ?T {
+        return None<T>
+    }
+}
+```
+
+运行结果：
+
+```text
+抽象的子类完成了初始化
+```
+
 ### func iterator()
 
 ```cangjie
@@ -523,6 +836,41 @@ public func iterator(): Iterator<T>
 返回值：
 
 - [Iterator](core_package_classes.md#class-iteratort)\<T> - 迭代器自身。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个数组并获取其迭代器
+    var arr: Array<Int64> = [10, 20, 30]
+    var iter: Iterator<Int64> = arr.iterator()
+    
+    // 调用iterator()方法获取迭代器自身
+    var iter2: Iterator<Int64> = iter.iterator()
+    
+    // 验证两个迭代器是同一个对象
+    println("Iterators are the same object")
+    
+    // 使用两个迭代器遍历元素
+    println("打印迭代器 iter 的第一个元素: ${iter.next()}")
+    println("打印迭代器 iter2 的第二个元素: ${iter2.next()}")
+    println("打印迭代器 iter 的第三个元素: ${iter.next()}")
+    println("打印迭代器 iter2 的第四个元素: ${iter2.next()}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Iterators are the same object
+打印迭代器 iter 的第一个元素: Some(10)
+打印迭代器 iter2 的第二个元素: Some(20)
+打印迭代器 iter 的第三个元素: Some(30)
+打印迭代器 iter2 的第四个元素: None
+```
 
 ### func next()
 
@@ -1736,6 +2084,16 @@ public const init()
 
 功能：构造一个 `object` 实例。
 
+示例：
+
+<!-- run -->
+```cangjie
+main(): Int64 {
+    Object()
+    return 0
+}
+```
+
 ## class RangeIterator\<T> <: Iterator\<T> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>
 
 ```cangjie
@@ -1759,6 +2117,39 @@ public func next(): Option<T>
 返回值：
 
 - [Option](core_package_enums.md#enum-optiont)\<T> - [Range](core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) 迭代器中的下一个成员，用 [Option](core_package_enums.md#enum-optiont) 封装，迭代到末尾时返回 `None`。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个Range并获取其迭代器
+    let range: Range<Int64> = 1..=5
+    var iter = range.iterator()
+    
+    // 使用迭代器遍历Range中的所有值
+    println("Iterating through range 1..=5:")
+    while (true) {
+        match (iter.next()) {
+            case Some(value) => println(value)
+            case None => break
+        }
+    }
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Iterating through range 1..=5:
+1
+2
+3
+4
+5
+```
 
 ## class StackTraceElement
 
@@ -1788,6 +2179,33 @@ public let declaringClass: String
 
 类型：[String](core_package_structs.md#struct-string)
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StackTraceElement实例
+    let stackTraceElement = StackTraceElement(
+        "MyClass", 
+        "myMethod", 
+        "MyClass.cj", 
+        42
+    )
+    
+    // 获取并打印类名
+    let className: String = stackTraceElement.declaringClass
+    println("Class name: ${className}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Class name: MyClass
+```
+
 ### let fileName
 
 ```cangjie
@@ -1797,6 +2215,33 @@ public let fileName: String
 功能：获取异常发生的文件名。
 
 类型：[String](core_package_structs.md#struct-string)
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StackTraceElement实例
+    let stackTraceElement = StackTraceElement(
+        "MyClass", 
+        "myMethod", 
+        "MyClass.cj", 
+        42
+    )
+    
+    // 获取并打印文件名
+    let fileName: String = stackTraceElement.fileName
+    println("File name: ${fileName}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+File name: MyClass.cj
+```
 
 ### let lineNumber
 
@@ -1808,6 +2253,33 @@ public let lineNumber: Int64
 
 类型：[Int64](core_package_intrinsics.md#int64)
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StackTraceElement实例
+    let stackTraceElement = StackTraceElement(
+        "MyClass", 
+        "myMethod", 
+        "MyClass.cj", 
+        42
+    )
+    
+    // 获取并打印行号
+    let lineNum: Int64 = stackTraceElement.lineNumber
+    println("Line number: ${lineNum}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Line number: 42
+```
+
 ### let methodName
 
 ```cangjie
@@ -1817,6 +2289,33 @@ public let methodName: String
 功能：获取异常发生的函数名。
 
 类型：[String](core_package_structs.md#struct-string)
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StackTraceElement实例
+    let stackTraceElement = StackTraceElement(
+        "MyClass", 
+        "myMethod", 
+        "MyClass.cj", 
+        42
+    )
+    
+    // 获取并打印函数名
+    let methodName: String = stackTraceElement.methodName
+    println("Method name: ${methodName}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Method name: myMethod
+```
 
 ### init(String, String, String, Int64)
 
@@ -1833,6 +2332,38 @@ public init(declaringClass: String, methodName: String, fileName: String, lineNu
 - fileName: [String](core_package_structs.md#struct-string) - 文件名。
 - lineNumber: [Int64](core_package_intrinsics.md#int64) - 行号。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StackTraceElement实例
+    let stackTraceElement = StackTraceElement(
+        "MyClass", 
+        "myMethod", 
+        "MyClass.cj", 
+        42
+    )
+    
+    // 打印堆栈跟踪元素的信息
+    println("Class: ${stackTraceElement.declaringClass}")
+    println("Method: ${stackTraceElement.methodName}")
+    println("File: ${stackTraceElement.fileName}")
+    println("Line: ${stackTraceElement.lineNumber}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Class: MyClass
+Method: myMethod
+File: MyClass.cj
+Line: 42
+```
+
 ### func  toString()
 
 ```cangjie
@@ -1844,6 +2375,31 @@ public func toString(): String
 返回值：
 
 - [String](core_package_structs.md#struct-string) - 转换后的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StackTraceElement实例
+    let stackTraceElement = StackTraceElement(
+        "MyClass", 
+        "myMethod", 
+        "MyClass.cj", 
+        42
+    )
+    
+    // 直接打印
+    println(stackTraceElement)
+    return 0
+}
+```
+
+运行结果：
+
+```text
+MyClass.myMethod(MyClass.cj:42)
+```
 
 ## class StringBuilder
 
@@ -1882,6 +2438,36 @@ public prop capacity: Int64
 
 类型：[Int64](core_package_intrinsics.md#int64)
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder()
+    
+    // 获取初始容量
+    let initialCapacity: Int64 = sb.capacity
+    println("Initial capacity: ${initialCapacity}")
+    
+    // 添加一些内容
+    sb.append("Hello, World!")
+    
+    // 获取添加内容后的容量
+    let currentCapacity: Int64 = sb.capacity
+    println("Current capacity: ${currentCapacity}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Initial capacity: 32
+Current capacity: 32
+```
+
 ### prop size
 
 ```cangjie
@@ -1892,6 +2478,36 @@ public prop size: Int64
 
 类型：[Int64](core_package_intrinsics.md#int64)
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder()
+    
+    // 获取初始大小
+    let initialSize: Int64 = sb.size
+    println("Initial size: ${initialSize}")
+    
+    // 添加一些内容
+    sb.append("Hello")
+    
+    // 获取添加内容后的大小
+    let currentSize: Int64 = sb.size
+    println("Current size: ${currentSize}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Initial size: 0
+Current size: 5
+```
+
 ### init()
 
 ```cangjie
@@ -1899,6 +2515,31 @@ public init()
 ```
 
 功能：构造一个初始容量为 32 的空 [StringBuilder](core_package_classes.md#class-stringbuilder) 实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 使用默认构造函数创建一个StringBuilder实例
+    var sb = StringBuilder()
+    
+    // 验证初始状态
+    println("Initial capacity: ${sb.capacity}")
+    println("Initial size: ${sb.size}")
+    println("Initial content: '${sb}'")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Initial capacity: 32
+Initial size: 0
+Initial content: ''
+```
 
 ### init(Array\<Rune>)
 
@@ -1911,6 +2552,34 @@ public init(value: Array<Rune>)
 参数：
 
 - value: [Array](core_package_structs.md#struct-arrayt)\<Rune> - 初始化 [StringBuilder](core_package_classes.md#class-stringbuilder) 实例的字符数组。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个Rune数组
+    let runes: Array<Rune> = [r'H', r'e', r'l', r'l', r'o']
+    
+    // 使用Rune数组创建StringBuilder实例
+    var sb = StringBuilder(runes)
+    
+    // 验证初始化结果
+    println("Capacity: ${sb.capacity}")
+    println("Size: ${sb.size}")
+    println("Content: '${sb}'")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Capacity: 37
+Size: 5
+Content: 'Hello'
+```
 
 ### init(Int64)
 
@@ -1927,6 +2596,38 @@ public init(capacity: Int64)
 异常：
 
 - [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当参数 `capacity` 的值小于等于 0 时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 使用指定容量创建一个StringBuilder实例
+    var sb = StringBuilder(100)
+    
+    // 验证初始化结果
+    println("Capacity: ${sb.capacity}")
+    println("Size: ${sb.size}")
+    println("Content: '${sb}'")
+    
+    // 添加内容
+    sb.append("Hello, World!")
+    println("After append - Size: ${sb.size}")
+    println("After append - Content: '${sb}'")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Capacity: 100
+Size: 0
+Content: ''
+After append - Size: 13
+After append - Content: 'Hello, World!'
+```
 
 ### init(Rune, Int64)
 
@@ -1945,6 +2646,38 @@ public init(r: Rune, n: Int64)
 
 - [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当参数 `n` 小于 0 时，抛出异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 使用5个'*'字符创建一个StringBuilder实例
+    var sb = StringBuilder(r'*', 5)
+    
+    // 验证初始化结果
+    println("Capacity: ${sb.capacity}")
+    println("Size: ${sb.size}")
+    println("Content: '${sb}'")
+    
+    // 添加更多内容
+    sb.append("Hello")
+    println("After append - Size: ${sb.size}")
+    println("After append - Content: '${sb}'")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Capacity: 37
+Size: 5
+Content: '*****'
+After append - Size: 10
+After append - Content: '*****Hello'
+```
+
 ### init(String)
 
 ```cangjie
@@ -1956,6 +2689,38 @@ public init(str: String)
 参数：
 
 - str: [String](core_package_structs.md#struct-string) - 初始化 [StringBuilder](core_package_classes.md#class-stringbuilder) 实例的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 使用初始字符串创建一个StringBuilder实例
+    var sb = StringBuilder("Hello, World!")
+    
+    // 验证初始化结果
+    println("Capacity: ${sb.capacity}")
+    println("Size: ${sb.size}")
+    println("Content: '${sb}'")
+    
+    // 添加更多内容
+    sb.append(" Welcome!")
+    println("After append - Size: ${sb.size}")
+    println("After append - Content: '${sb}'")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Capacity: 45
+Size: 13
+Content: 'Hello, World!'
+After append - Size: 22
+After append - Content: 'Hello, World! Welcome!'
+```
 
 ### func append(Array\<Rune>)
 
@@ -1969,6 +2734,35 @@ public func append(runeArr: Array<Rune>): Unit
 
 - runeArr: [Array](core_package_structs.md#struct-arrayt)\<Rune> - 插入的 `Rune` 数组。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("Hello")
+    
+    // 创建一个Rune数组
+    let runes: Array<Rune> = [r' ', r'W', r'o', r'r', r'l', r'd']
+    
+    // 将Rune数组追加到StringBuilder
+    sb.append(runes)
+    
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'Hello World'
+Size: 11
+```
+
 ### func append\<T>(Array\<T>) where T <: ToString
 
 ```cangjie
@@ -1980,6 +2774,35 @@ public func append<T>(val: Array<T>): Unit where T <: ToString
 参数：
 
 - val: [Array](core_package_structs.md#struct-arrayt)\<T> - 插入的 [Array](core_package_structs.md#struct-arrayt)\<T> 类型实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("Numbers: ")
+    
+    // 创建一个整数数组
+    let numbers: Array<Int64> = [1, 2, 3, 4, 5]
+    
+    // 将整数数组追加到StringBuilder
+    sb.append(numbers)
+    
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'Numbers: 12345'
+Size: 14
+```
 
 ### func append(Bool)
 
@@ -1993,6 +2816,34 @@ public func append(b: Bool): Unit
 
 - b: [Bool](core_package_intrinsics.md#bool) - 插入的 [Bool](core_package_intrinsics.md#bool) 类型的值。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("Boolean values: ")
+    
+    // 追加布尔值
+    sb.append(true)
+    sb.append(" and ")
+    sb.append(false)
+    
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'Boolean values: true and false'
+Size: 30
+```
+
 ### func append(CString)
 
 ```cangjie
@@ -2004,6 +2855,36 @@ public func append(cstr: CString): Unit
 参数：
 
 - cstr: [CString](core_package_intrinsics.md#cstring) - 插入的 [CString](core_package_intrinsics.md#cstring)。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("Message: ")
+    
+    // 创建一个CString
+    let cstr: CString = unsafe { LibC.mallocCString("Hello from C string") }
+    
+    // 追加CString
+    sb.append(cstr)
+    
+    unsafe { LibC.free(cstr) }
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'Message: Hello from C string'
+Size: 28
+```
 
 ### func append(Float16)
 
@@ -2017,6 +2898,32 @@ public func append(n: Float16): Unit
 
 - n: [Float16](core_package_intrinsics.md#float16) - 插入的 [Float16](core_package_intrinsics.md#float16) 类型的值。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("Float16 value: ")
+    
+    // 追加Float16值
+    sb.append(3.14f16)
+    
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'Float16 value: 3.140625'
+Size: 23
+```
+
 ### func append(Float32)
 
 ```cangjie
@@ -2028,6 +2935,32 @@ public func append(n: Float32): Unit
 参数：
 
 - n: [Float32](core_package_intrinsics.md#float32) - 插入的 [Float32](core_package_intrinsics.md#float32) 类型的值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("Float32 value: ")
+    
+    // 追加Float32值
+    sb.append(3.14159f32)
+    
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'Float32 value: 3.141590'
+Size: 23
+```
 
 ### func append(Float64)
 
@@ -2041,6 +2974,32 @@ public func append(n: Float64): Unit
 
 - n: [Float64](core_package_intrinsics.md#float64) - 插入的 [Float64](core_package_intrinsics.md#float64) 类型的值。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("Float64 value: ")
+    
+    // 追加Float64值
+    sb.append(3.141592653589793)
+    
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'Float64 value: 3.141593'
+Size: 23
+```
+
 ### func append(Int16)
 
 ```cangjie
@@ -2052,6 +3011,32 @@ public func append(n: Int16): Unit
 参数：
 
 - n: [Int16](core_package_intrinsics.md#int16) - 插入的 [Int16](core_package_intrinsics.md#int16) 类型的值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("Int16 value: ")
+    
+    // 追加Int16值
+    sb.append(12345i16)
+    
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'Int16 value: 12345'
+Size: 18
+```
 
 ### func append(Int32)
 
@@ -2065,6 +3050,32 @@ public func append(n: Int32): Unit
 
 - n: [Int32](core_package_intrinsics.md#int32) - 插入的 [Int32](core_package_intrinsics.md#int32) 类型的值。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("Int32 value: ")
+    
+    // 追加Int32值
+    sb.append(1234567890i32)
+    
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'Int32 value: 1234567890'
+Size: 23
+```
+
 ### func append(Int64)
 
 ```cangjie
@@ -2076,6 +3087,32 @@ public func append(n: Int64): Unit
 参数：
 
 - n: [Int64](core_package_intrinsics.md#int64) - 插入的 [Int64](core_package_intrinsics.md#int64) 类型的值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("Int64 value: ")
+    
+    // 追加Int64值
+    sb.append(123456789012345)
+    
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'Int64 value: 123456789012345'
+Size: 28
+```
 
 ### func append(Int8)
 
@@ -2089,6 +3126,32 @@ public func append(n: Int8): Unit
 
 - n: [Int8](core_package_intrinsics.md#int8) - 插入的 [Int8](core_package_intrinsics.md#int8) 类型的值。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("Int8 value: ")
+    
+    // 追加Int8值
+    sb.append(123i8)
+    
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'Int8 value: 123'
+Size: 15
+```
+
 ### func append(Rune)
 
 ```cangjie
@@ -2100,6 +3163,32 @@ public func append(r: Rune): Unit
 参数：
 
 - r: Rune - 插入的字符。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("Hello")
+    
+    // 追加一个字符
+    sb.append(r'!')
+    
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'Hello!'
+Size: 6
+```
 
 ### func append(String)
 
@@ -2113,6 +3202,32 @@ public func append(str: String): Unit
 
 - str: [String](core_package_structs.md#struct-string) - 插入的字符串。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("Hello")
+    
+    // 追加一个字符串
+    sb.append(", World!")
+    
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'Hello, World!'
+Size: 13
+```
+
 ### func append(StringBuilder)
 
 ```cangjie
@@ -2124,6 +3239,33 @@ public func append(sb: StringBuilder): Unit
 参数：
 
 - sb: [StringBuilder](core_package_classes.md#class-stringbuilder) - 插入的 [StringBuilder](core_package_classes.md#class-stringbuilder) 实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建两个StringBuilder实例
+    var sb1 = StringBuilder("Hello")
+    var sb2 = StringBuilder(", World!")
+    
+    // 将sb2的内容追加到sb1
+    sb1.append(sb2)
+    
+    // 验证结果
+    println("Content: '${sb1}'")
+    println("Size: ${sb1.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'Hello, World!'
+Size: 13
+```
 
 ### func append\<T>(T) where T <: ToString
 
@@ -2137,6 +3279,32 @@ public func append<T>(v: T): Unit where T <: ToString
 
 - v: T - 插入的 `T` 类型实例。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("The answer is: ")
+    
+    // 追加一个整数（实现了ToString接口）
+    sb.append(42)
+    
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'The answer is: 42'
+Size: 17
+```
+
 ### func append(UInt16)
 
 ```cangjie
@@ -2148,6 +3316,32 @@ public func append(n: UInt16): Unit
 参数：
 
 - n: [UInt16](core_package_intrinsics.md#uint16) - 插入的 [UInt16](core_package_intrinsics.md#uint16) 类型的值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("UInt16 value: ")
+    
+    // 追加UInt16值
+    sb.append(12345u16)
+    
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'UInt16 value: 12345'
+Size: 19
+```
 
 ### func append(UInt32)
 
@@ -2161,6 +3355,32 @@ public func append(n: UInt32): Unit
 
 - n: [UInt32](core_package_intrinsics.md#uint32) - 插入的 [UInt32](core_package_intrinsics.md#uint32) 类型的值。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("UInt32 value: ")
+    
+    // 追加UInt32值
+    sb.append(1234567890u32)
+    
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'UInt32 value: 1234567890'
+Size: 24
+```
+
 ### func append(UInt64)
 
 ```cangjie
@@ -2173,6 +3393,32 @@ public func append(n: UInt64): Unit
 
 - n: [UInt64](core_package_intrinsics.md#uint64) - 插入的 [UInt64](core_package_intrinsics.md#uint64) 类型的值。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("UInt64 value: ")
+    
+    // 追加UInt64值
+    sb.append(123456789012345u64)
+    
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'UInt64 value: 123456789012345'
+Size: 29
+```
+
 ### func append(UInt8)
 
 ```cangjie
@@ -2184,6 +3430,32 @@ public func append(n: UInt8): Unit
 参数：
 
 - n: [UInt8](core_package_intrinsics.md#uint8) - 插入的 [UInt8](core_package_intrinsics.md#uint8) 类型的值。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("UInt8 value: ")
+    
+    // 追加UInt8值
+    sb.append(123u8)
+    
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'UInt8 value: 123'
+Size: 16
+```
 
 ### func appendFromUtf8(Array\<Byte>)
 
@@ -2203,6 +3475,35 @@ public func appendFromUtf8(arr: Array<Byte>): Unit
 
 - [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当字节数组不符合 utf8 编码规则时，抛出异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("Hello, ")
+    
+    // 创建一个UTF-8编码的字节数组（"World"的UTF-8编码）
+    let utf8Bytes: Array<Byte> = [87, 111, 114, 108, 100] // "World"的ASCII码
+    
+    // 追加UTF-8字节数组
+    sb.appendFromUtf8(utf8Bytes)
+    
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'Hello, World'
+Size: 12
+```
+
 ### func appendFromUtf8Unchecked(Array\<Byte>)
 
 ```cangjie
@@ -2217,6 +3518,35 @@ public unsafe func appendFromUtf8Unchecked(arr: Array<Byte>): Unit
 
 - arr: [Array](core_package_structs.md#struct-arrayt)\<[Byte](core_package_types.md#type-byte)> - 插入的字节数组。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("Hello, ")
+    
+    // 创建一个字节数组（"World"的ASCII码）
+    let bytes: Array<Byte> = [87, 111, 114, 108, 100] // "World"的ASCII码
+    
+    // 追加字节数组（不检查UTF-8编码）
+    unsafe { sb.appendFromUtf8Unchecked(bytes) }
+    
+    // 验证结果
+    println("Content: '${sb}'")
+    println("Size: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'Hello, World'
+Size: 12
+```
+
 ### func reserve(Int64)
 
 ```cangjie
@@ -2230,6 +3560,38 @@ public func reserve(additional: Int64): Unit
 参数：
 
 - additional: [Int64](core_package_intrinsics.md#int64) - 指定 [StringBuilder](core_package_classes.md#class-stringbuilder) 的扩容大小。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例
+    var sb = StringBuilder("Hello")
+    
+    // 查看初始容量和大小
+    println("Initial capacity: ${sb.capacity}")
+    println("Initial size: ${sb.size}")
+    
+    // 预留额外空间
+    sb.reserve(100)
+    
+    // 查看扩容后的容量
+    println("Capacity after reserve: ${sb.capacity}")
+    println("Size after reserve: ${sb.size}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Initial capacity: 37
+Initial size: 5
+Capacity after reserve: 105
+Size after reserve: 5
+```
 
 ### func reset(Option\<Int64>)
 
@@ -2247,6 +3609,40 @@ public func reset(capacity!: Option<Int64> = None): Unit
 
 - [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当参数 `capacity` 的值小于等于 0 时，抛出异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例并添加一些内容
+    var sb = StringBuilder("Hello, World!")
+    println("Before reset - Content: '${sb}', Size: ${sb.size}, Capacity: ${sb.capacity}")
+    
+    // 重置StringBuilder，使用默认容量
+    sb.reset()
+    println("After reset - Content: '${sb}', Size: ${sb.size}, Capacity: ${sb.capacity}")
+    
+    // 添加新内容
+    sb.append("New content")
+    println("After append - Content: '${sb}', Size: ${sb.size}")
+    
+    // 使用指定容量重置
+    sb.reset(capacity: Some(50))
+    println("After reset with capacity - Content: '${sb}', Size: ${sb.size}, Capacity: ${sb.capacity}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Before reset - Content: 'Hello, World!', Size: 13, Capacity: 45
+After reset - Content: '', Size: 0, Capacity: 32
+After append - Content: 'New content', Size: 11
+After reset with capacity - Content: '', Size: 0, Capacity: 50
+```
+
 ### func toString()
 
 ```cangjie
@@ -2262,6 +3658,35 @@ public func toString(): String
 返回值：
 
 - [String](core_package_structs.md#struct-string) - [StringBuilder](core_package_classes.md#class-stringbuilder) 实例中的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 创建一个StringBuilder实例并添加一些内容
+    var sb = StringBuilder("Hello")
+    sb.append(", World!")
+    
+    // 获取字符串表示
+    let result: String = sb.toString()
+    println("Content: '${result}'")
+    println("Size: ${sb.size}")
+    
+    // 验证返回的是String类型
+    println("Type check: ${result is String}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Content: 'Hello, World!'
+Size: 13
+Type check: true
+```
 
 ## class Thread
 
@@ -2283,15 +3708,75 @@ public static prop currentThread: Thread
 
 类型：[Thread](core_package_classes.md#class-thread)
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 获取当前线程
+    let currentThread = Thread.currentThread
+    
+    // 打印线程信息
+    println("Current thread ID: ${currentThread.id}")
+    println("Current thread name: '${currentThread.name}'")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Current thread ID: 1
+Current thread name: ''
+```
+
 ### prop hasPendingCancellation
 
 ```cangjie
 public prop hasPendingCancellation: Bool
 ```
 
-功能：线程是否存在取消请求，即是否通过 future.cancel() 发送过取消请求，常见使用方为 [Thread](core_package_classes.md#class-thread).currentThread.hasPendingCancellation。
+功能：判断当前线程是否接收过取消请求，即其他线程是否通过 future.cancel() 发送过取消请求，常见使用方为 [Thread](core_package_classes.md#class-thread).currentThread.hasPendingCancellation。
 
 类型：[Bool](core_package_intrinsics.md#bool)
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 获取当前线程
+    let currentThread = Thread.currentThread
+    
+    // 检查是否有取消请求
+    let hasPendingCancellation: Bool = currentThread.hasPendingCancellation
+    
+    println("Has pending cancellation: ${hasPendingCancellation}")
+    
+    let future = spawn {
+        while (true) {
+            if (Thread.currentThread.hasPendingCancellation) {
+                println("Has pending cancellation: ${Thread.currentThread.hasPendingCancellation}")
+                return 0
+            }
+        }
+        return 1
+    }
+    /* 向线程发送取消请求 */
+    future.cancel()
+    /* 等待线程结果 */
+    future.get()
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Has pending cancellation: false
+Has pending cancellation: true
+```
 
 ### prop id
 
@@ -2303,6 +3788,29 @@ public prop id: Int64
 
 类型：[Int64](core_package_intrinsics.md#int64)
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 获取当前线程
+    let currentThread = Thread.currentThread
+    
+    // 获取线程ID
+    let threadId: Int64 = currentThread.id
+    
+    println("Current thread ID: ${threadId}")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Current thread ID: 1
+```
+
 ### prop name
 
 ```cangjie
@@ -2313,6 +3821,36 @@ public mut prop name: String
 
 类型：[String](core_package_structs.md#struct-string)
 
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 获取当前线程
+    let currentThread = Thread.currentThread
+    
+    // 获取当前线程名称
+    let originalName: String = currentThread.name
+    println("Original thread name: '${originalName}'")
+    
+    // 设置线程名称
+    currentThread.name = "MyCustomThread"
+    
+    // 获取更新后的线程名称
+    let newName: String = currentThread.name
+    println("New thread name: '${newName}'")
+    
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Original thread name: ''
+New thread name: 'MyCustomThread'
+```
+
 ### prop state
 
 ```cangjie
@@ -2322,6 +3860,27 @@ public prop state: ThreadState
 功能：获取线程的状态。
 
 类型：[ThreadState](core_package_enums.md#enum-threadstate)
+
+示例：
+
+<!-- verify -->
+```cangjie
+main(): Int64 {
+    // 获取当前线程
+    let currentThread = Thread.currentThread
+    
+    // 获取当前线程状态
+    let state = currentThread.state
+    println("Current thread state: '${state}'")
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Current thread state: 'Running'
+```
 
 ### static func handleUncaughtExceptionBy((Thread, Exception) -> Unit)
 
@@ -2342,6 +3901,42 @@ public static func handleUncaughtExceptionBy(exHandler: (Thread, Exception) -> U
 参数：
 
 - exHandler: ([Thread](core_package_classes.md#class-thread), [Exception](core_package_exceptions.md#class-exception)) -> [Unit](core_package_intrinsics.md#unit) - 注册的处理函数。
+
+示例：
+
+<!-- verify -->
+```cangjie
+// 定义异常处理函数
+func handleException(thread: Thread, exception: Exception): Unit {
+    println("Unhandled exception in thread ${thread.name}: ${exception.message}")
+}
+
+main(): Int64 {
+    // 注册未处理异常处理函数
+    Thread.handleUncaughtExceptionBy(handleException)
+    
+    // 创建一个会抛出异常的线程
+    // 注意：在这个简单的示例中，我们直接在线程中抛出异常
+    let future = spawn {
+        throw Exception("This is a thread exception.")
+    }
+
+    try {
+        // 等待线程结果
+        future.get()
+    } catch (e: Exception) {
+        println("Caught exception: ${e.message}")
+    }
+    return 0
+}
+```
+
+运行结果：
+
+```text
+Unhandled exception in thread : This is a thread exception.
+Caught exception: This is a thread exception.
+```
 
 ## class ThreadLocal\<T>
 
@@ -2365,6 +3960,61 @@ public func get(): ?T
 
 - ?T - 如果当前线程局部变量不为空值，返回该值，如果为空值，返回 `None`。
 
+示例：
+
+<!-- run -->
+```cangjie
+
+let local = ThreadLocal<Int64>()
+
+func printUserID(): Unit {
+    println("获知用户ID: ${local.get() ?? 0}")
+}
+
+func setUserID(id: Int64): Unit {
+    local.set(Some(id))
+}
+
+main() {
+    let future = spawn {
+        // 模拟获取用户id
+        var id = 1001
+        setUserID(id)
+
+        // 通过 ThreadLocal 可以不用传参就得到用户ID
+        printUserID()
+    }
+    let future1 = spawn {
+        // 模拟获取用户id
+        var id = 1002
+        setUserID(id)
+
+        // 通过 ThreadLocal 可以不用传参就得到用户ID
+        printUserID()
+    }
+    let future2 = spawn {
+        // 模拟获取用户id
+        var id = 1003
+        setUserID(id)
+
+        // 通过 ThreadLocal 可以不用传参就得到用户ID
+        printUserID()
+    }
+    future.get()
+    future1.get()
+    future2.get()
+    return 0
+}
+```
+
+可能的运行结果：
+
+```text
+获知用户ID: 1003
+获知用户ID: 1001
+获知用户ID: 1002
+```
+
 ### func set(?T)
 
 ```cangjie
@@ -2376,6 +4026,61 @@ public func set(value: ?T): Unit
 参数：
 
 - value: ?T - 需要设置的局部变量的值。
+
+示例：
+
+<!-- run -->
+```cangjie
+
+let local = ThreadLocal<Int64>()
+
+func printUserID(): Unit {
+    println("获知用户ID: ${local.get() ?? 0}")
+}
+
+func setUserID(id: Int64): Unit {
+    local.set(Some(id))
+}
+
+main() {
+    let future = spawn {
+        // 模拟获取用户id
+        var id = 1001
+        setUserID(id)
+
+        // 通过 ThreadLocal 可以不用传参就得到用户ID
+        printUserID()
+    }
+    let future1 = spawn {
+        // 模拟获取用户id
+        var id = 1002
+        setUserID(id)
+
+        // 通过 ThreadLocal 可以不用传参就得到用户ID
+        printUserID()
+    }
+    let future2 = spawn {
+        // 模拟获取用户id
+        var id = 1003
+        setUserID(id)
+
+        // 通过 ThreadLocal 可以不用传参就得到用户ID
+        printUserID()
+    }
+    future.get()
+    future1.get()
+    future2.get()
+    return 0
+}
+```
+
+可能的运行结果：
+
+```text
+获知用户ID: 1003
+获知用户ID: 1001
+获知用户ID: 1002
+```
 
 ## class ThreadSnapshot
 
