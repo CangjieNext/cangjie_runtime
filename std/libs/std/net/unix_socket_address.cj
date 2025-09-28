@@ -17,10 +17,6 @@ const MAX_UDS_PATH_LENGTH: Int64 = 108
 const MAX_UDS_PATH_LENGTH: Int64 = 104
 
 func findLastNoneZeroIdx(path: Array<Byte>): Int64 {
-    let len = path.size
-    if (len > MAX_UDS_PATH_LENGTH) {
-        throw IllegalArgumentException("Path size(${len}) is too long, expect <= ${MAX_UDS_PATH_LENGTH}.")
-    }
     var lastNoneZeroIdx = 0
     for (i in path.size - 1..=0 : -1) {
         if (path[i] != 0) {
