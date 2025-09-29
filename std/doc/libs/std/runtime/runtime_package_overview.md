@@ -12,7 +12,7 @@ Cangjie 语言使用自动垃圾回收机制来管理内存，runtime 包提供�
 
 | 类型别名                                                       | 功能                          |
 | ------------------------------------------------------------ | ----------------------------- |
-| [SignalHandlerFunc](./runtime_package_api/runtime_package_types.md#type-signalhandlerfunc--int32---bool) | LinkedBlockingQueue 的别名。 |
+| [SignalHandlerFunc](./runtime_package_api/runtime_package_types.md#type-signalhandlerfunc--int32---bool) | 信号处理函数的别名。 |
 
 ### 函数
 

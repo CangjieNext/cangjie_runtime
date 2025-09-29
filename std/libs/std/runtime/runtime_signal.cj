@@ -19,8 +19,8 @@ private let mtx = Mutex()
 
 @When[os != "Windows"]
 class SignalManager {
-    static const MAX_SIG_NUM = 32
-    static let sigSlot = Array<ArrayList<SignalHandlerFunc>>(MAX_SIG_NUM, { _ => ArrayList<SignalHandlerFunc>()})
+    static const MAX_SIG_NUM: Int32 = 32
+    static let sigSlot = Array<ArrayList<SignalHandlerFunc>>(Int64(MAX_SIG_NUM), { _ => ArrayList<SignalHandlerFunc>()})
     // This memory allocation is globally unique and will only be released along with the program upon termination.
     static let ptrAction = LibC.malloc<SignalAction>(count: 1)
     static init() {
@@ -37,8 +37,8 @@ class SignalManager {
  */
 @When[os != "Windows"]
 public func registerSignalHandler(sig: Signal, handler: SignalHandlerFunc) {
-    if (Int64(sig.value) >= SignalManager.MAX_SIG_NUM) {
-        throw IllegalArgumentException("Signal value must < ${SignalManager.MAX_SIG_NUM}")
+    if (sig.value <= 0 || sig.value >= SignalManager.MAX_SIG_NUM) {
+        throw IllegalArgumentException("Signal value must > 0 and < ${SignalManager.MAX_SIG_NUM}.")
     }
     let slot = SignalManager.sigSlot[Int64(sig.value)]
     synchronized(mtx) {
@@ -61,8 +61,8 @@ public func registerSignalHandler(sig: Signal, handler: SignalHandlerFunc) {
  */
 @When[os != "Windows"]
 public func unregisterSignalHandler(sig: Signal, handler: SignalHandlerFunc) {
-    if (Int64(sig.value) >= SignalManager.MAX_SIG_NUM) {
-        throw IllegalArgumentException("Signal value must < ${SignalManager.MAX_SIG_NUM}.")
+    if (sig.value <= 0 || sig.value >= SignalManager.MAX_SIG_NUM) {
+        throw IllegalArgumentException("Signal value must > 0 and < ${SignalManager.MAX_SIG_NUM}.")
     }
     let slot = SignalManager.sigSlot[Int64(sig.value)]
     synchronized(mtx) {
@@ -89,7 +89,7 @@ public func resetSignalHandler(sigs: Array<Signal>): Unit {
             }
         } else {
             for (sig in sigs) {
-                if (Int64(sig.value) >= SignalManager.MAX_SIG_NUM) {
+                if (sig.value >= SignalManager.MAX_SIG_NUM) {
                     throw IllegalArgumentException("Signal value must < ${SignalManager.MAX_SIG_NUM}.")
                 }
                 SignalManager.sigSlot[Int64(sig.value)].clear()
@@ -102,7 +102,7 @@ public func resetSignalHandler(sigs: Array<Signal>): Unit {
 @When[os != "Windows"]
 @C
 func signalHandler(sig: Int32, _: CPointer<Unit>, _: CPointer<Unit>): Bool {
-    if (Int64(sig) >= SignalManager.MAX_SIG_NUM) {
+    if (sig >= SignalManager.MAX_SIG_NUM) {
         return false
     }
     let slot = SignalManager.sigSlot[Int64(sig)]
