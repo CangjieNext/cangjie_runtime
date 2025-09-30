@@ -89,8 +89,8 @@ public func resetSignalHandler(sigs: Array<Signal>): Unit {
             }
         } else {
             for (sig in sigs) {
-                if (sig.value >= SignalManager.MAX_SIG_NUM) {
-                    throw IllegalArgumentException("Signal value must < ${SignalManager.MAX_SIG_NUM}.")
+                if (sig.value <= 0 || sig.value >= SignalManager.MAX_SIG_NUM) {
+                    throw IllegalArgumentException("Signal value must > 0 and < ${SignalManager.MAX_SIG_NUM}.")
                 }
                 SignalManager.sigSlot[Int64(sig.value)].clear()
                 unregSigChain(sig)
@@ -102,7 +102,7 @@ public func resetSignalHandler(sigs: Array<Signal>): Unit {
 @When[os != "Windows"]
 @C
 func signalHandler(sig: Int32, _: CPointer<Unit>, _: CPointer<Unit>): Bool {
-    if (sig >= SignalManager.MAX_SIG_NUM) {
+    if (sig <= 0 || sig >= SignalManager.MAX_SIG_NUM) {
         return false
     }
     let slot = SignalManager.sigSlot[Int64(sig)]
