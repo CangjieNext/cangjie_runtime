@@ -1007,6 +1007,16 @@ public open class Decl <: Node
 
 - [Node](#class-node)
 
+### var annotations_
+
+```cangjie
+protected var annotations_: ArrayList<Annotation>
+```
+
+功能：获取或设置作用于 [Decl](ast_package_classes.md#class-decl) 节点的注解列表。
+
+类型：[ArrayList](../../collection/collection_package_api/collection_package_class.md#class-arraylistt)\<[Annotation](ast_package_classes.md#class-annotation)>
+
 ### prop annotations
 
 ```cangjie
