@@ -30,11 +30,11 @@ User(name: id0, id: 0)
 
 收集到的字段用于 Deriving 时，其类型需要实现目标接口，以便将字段结果组合在一起。例如，当处理 `ToString` 时，生成的代码将在所有收集到的字段上调用 `toString` ，然后将结果与对应的字段名称连接成一个字符串。如果其中一个字段的类型不支持 `ToString` ，则会抛出编译错误并且 Deriving 无法完成。
 
-> **注意**
-> 
-> 标记为派生的类应该是最终的：它不应该是开放的、抽象的或 `sealed` 的。
+> **注意：**
+>
+> 标记为派生的类应该是不可继承的：它不应该是开放的、抽象的或 `sealed` 的。
 
-有些字段可能具有特殊含义，它们的值没有多大意义，则可通过在这些字段上应用 `@DeriveExclude` 来排除这些字段：
+有些字段可能具有特殊含义，不需处理它的值，则可通过在这些字段上应用 `@DeriveExclude` 来排除这些字段：
 
 <!-- compile -->
 ```cangjie
@@ -47,7 +47,6 @@ class User {
     @DeriveExclude
     let lazyHashCode = 0 // it will not be printed because it's excluded
 }
-main(){}
 ```
 
 默认情况 Deriving 仅使能字段，对于属性则需要通过 `@DeriveInclude` 来显式使能：
@@ -129,7 +128,6 @@ struct Order {
     let price = 100
     let quantity = 200
 }
-main(){}
 ```
 
 当 Deriving 多个相交的接口时，例如，`Comparable` 还包括 `Equatable` ，则允许两者同时存在，等同于仅有范围最广的一个：
@@ -162,7 +160,6 @@ struct S {
     @DeriveExclude
     let key: String
 }
-main(){}
 ```
 
 默认情况下不处理属性，需要通过 `@DeriveInclude` 包含属性。
@@ -182,13 +179,12 @@ struct S {
         }
     }
 }
-main(){}
 ```
 
-被 Deriving 的字段和属性都不能是 `private` 的。因此，`private` 的字段或者属性应被除外或者使其为包内可见属性。
+被 Deriving 的字段和属性及其被赋的值都不能是 `private` 的。因此，`private` 的或其值为private类型的字段或者属性应被除外或者使其为包内可见属性。
 
-> **注意**
-> 
+> **注意：**
+>
 > 静态的字段和属性始终会被忽略，因此它们都不能被 `@DeriveInclude` 和 `@DeriveExclude` 修饰。
 
 ## 支持的接口
@@ -241,9 +237,9 @@ Floor(level: 2, building: 1)
 Floor(level: 3, building: 2)
 ```
 
-但是当我实现 `Comparable` 时，不同的顺序将影响结果。
+但是当实现 `Comparable` 时，不同的顺序将影响结果。
 
-<!-- verify -->
+<!-- compile -->
 ```cangjie
 import std.deriving.*
 import std.sort.*
@@ -286,7 +282,6 @@ Floor(building: 2, level: 3)
 class Cell<T> {
     Cell(let value: T) {}
 }
-main(){}
 ```
 
 此时可能希望仅当单元格的值可打印时才能够打印该单元格。为了实现它，编写一个带有约束的扩展：
@@ -302,7 +297,6 @@ extend<T> Cell<T> <: ToString where T <: ToString {
         "Cell(value = ${value})"
     }
 }
-main(){}
 ```
 
 当使用 Deriving 时，它会默认尝试对所有泛型参数应用约束，因此以下内容与上面的扩展相同：
@@ -315,7 +309,6 @@ import std.deriving.*
 class Cell<T> {
     Cell(let value: T) {}
 }
-main(){}
 ```
 
 然而在某些情况下，默认行为并不符合期望。此时，可使用 `@Derive` 内部的 `where` 来覆盖默认约束：
@@ -328,7 +321,6 @@ interface PrintableCellValue <: ToString { /*...*/ }
 
 @Derive[ToString where T <: PrintableCellValue]
 class Cell<T> {}
-main(){}
 ```
 
 请注意，在上面的示例中，自定义约束仅适用于 `ToString` ，因此如果需要对所有接口进行约束，则应单独为每个接口重复此动作。
@@ -342,7 +334,6 @@ interface PrintableCellValue <: ToString { /*...*/ }
 @Derive[ToString where T <: PrintableCellValue]
 @Derive[Hashable where T <: PrintableCellValue & Hashable]
 class Cell<T> {}
-main(){}
 ```
 
 ## 性能说明

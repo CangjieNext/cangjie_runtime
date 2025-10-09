@@ -2,7 +2,7 @@
 
 ## `@Derive` 宏
 
-功能：`Derive` 是一个核心宏，其仅可修饰结构体、类或枚举等声明，对被修饰的声明[自动扩展接口](../deriving_samples/deriving_user_guide.md)。
+功能：`Derive` 是一个核心宏，其仅可修饰结构体、类或枚举声明，对被修饰的声明[自动扩展接口](../deriving_samples/deriving_user_guide.md)。
 
 ## `@DeriveExclude` 宏
 
