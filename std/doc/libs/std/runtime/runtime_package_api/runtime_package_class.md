@@ -3,7 +3,7 @@
 ## class Signal
 
 ```cangjie
-public class Signal <: ToString {
+public class Signal {
     public static const SIGHUP = Signal(0x1, "hangup")
     public static const SIGINT = Signal(0x2, "interrupt")
     public static const SIGQUIT = Signal(0x3, "quit")
@@ -15,10 +15,6 @@ public class Signal <: ToString {
 ```
 
 功能：信号类，用于向操作系统、其他进程或进程自身传递事件的通知。
-
-父类型：
-
-- [ToString](core_package_interfaces.md#interface-tostring)
 
 > **注意：**
 >
