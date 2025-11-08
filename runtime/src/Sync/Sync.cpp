@@ -174,7 +174,7 @@ static void UnsetSpinning(int64_t& state) { state &= ~SPINNING; }
 static void IncWaiters(int64_t& state) { state += WAITER_UNIT; }
 
 #if defined(__linux__) || defined(hongmeng) || defined(__APPLE__)
-#if defined(__aarch64__)
+#if defined(__aarch64__) || defined (__arm__)
 #define YIELD_PROCESSOR __asm__ __volatile__("yield")
 #elif defined(__x86_64__)
 #define YIELD_PROCESSOR __asm__ __volatile__("pause")
@@ -667,6 +667,17 @@ int64_t MRT_GetCJThreadId(void* handle)
     unsigned long long ret = CJThreadGetId(handle);
     // It's safe to cast the return value as int64
     return static_cast<int64_t>(ret);
+}
+
+int64_t MRT_GetCJThreadState(void* handle)
+{
+    int state = CJThreadGetState(handle);
+    if (state == 0) {  // 0: IDLE
+        return -1;
+    }
+    // 4: syscall which we treat as 2: running
+    state = state == 4 ? 2 : state;
+    return static_cast<int64_t>(state);
 }
 
 void* MRT_GetCurrentCJThread()
