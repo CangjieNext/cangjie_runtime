@@ -65,6 +65,7 @@ extern "C" size_t MCC_GetNativeThreadNumber();
 extern "C" size_t MCC_GetGCCount();
 extern "C" uint64_t MCC_GetGCTimeUs();
 extern "C" size_t MCC_GetGCFreedSize();
+extern "C" bool MCC_IsGCRunning();
 
 extern "C" bool MCC_StartCpuProfiling();
 extern "C" bool MCC_StopCpuProfiling(int fd);
@@ -92,6 +93,11 @@ extern "C" void MCC_ThrowStackOverflowError(uint32_t size);
 extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const ArrayRef excepMsg);
 extern "C" StackTraceData MCC_DecodeStackTraceImpl(const uint64_t ip, const uint64_t pc, const uint64_t fa,
                                                    const TypeInfo* charArray);
+extern "C" MRT_EXPORT ArrayRef MCC_GetAllThreadSnapshotImpl(const TypeInfo* arraySnapshot,
+                                                            const TypeInfo* arrayStackTrace,
+                                                            const TypeInfo* charArray);
+extern "C" MRT_EXPORT ThreadSnapshot MCC_GetCurrentThreadSnapshotImpl(const TypeInfo* arrayStackTrace,
+                                                                      const TypeInfo* charArray);
 
 enum ReleaseMode : int {
     SYNC = 0, // copy back the content and then free the buffer
@@ -108,6 +114,11 @@ extern "C" MRT_EXPORT void CJ_MCC_C2NStub(...);
 extern "C" MRT_EXPORT void CJ_MCC_N2CStub(...);
 extern "C" MRT_EXPORT ArrayRef CJ_MCC_DecodeStackTrace(const ArrayRef pcArray, const TypeInfo* steObjInfo,
                                                        const TypeInfo* steArrayInfo, const TypeInfo* charArrayInfo);
+extern "C" MRT_EXPORT ArrayRef CJ_MCC_GetAllThreadSnapshot(const TypeInfo* arraySnapshot,
+                                                           const TypeInfo* arrayStackTrace,
+                                                           const TypeInfo* charArray);
+extern "C" MRT_EXPORT ThreadSnapshot CJ_MCC_GetCurrentThreadSnapshot(const TypeInfo* arrayStackTrace,
+                                                                     const TypeInfo* charArray);
 extern "C" MRT_EXPORT void CJ_MCC_HandleSafepoint(...);
 
 #ifdef _WIN64

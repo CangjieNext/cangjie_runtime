@@ -67,6 +67,9 @@ extern "C" void MRT_SetGrowFlag(bool flag)
 
 extern "C" intptr_t MRT_StackGrow(intptr_t frameBase, uint32_t adjustedSize, void* ip)
 {
+#ifdef __arm__
+    LOG(RTLOG_FAIL, "Unsupported stack grow for arm32");
+#endif
     Mutator* mutator = Mutator::GetMutator();
     if (mutator == nullptr) {
         return false;
@@ -150,6 +153,13 @@ void Mutator::HandleSuspensionRequest()
             }
         }
         SetInSaferegion(SAFE_REGION_FALSE);
+        if (MutatorManager::Instance().SyncTriggered()) {
+            // entering this branch means a second request has been broadcasted, we need to reset this flag to avoid
+            // missing the request. And this must be after the behaviour that set saferegion state to false, because
+            // we need to make sure that the mutator can always perceive the gc request when the mutator is not in
+            // safe region.
+            SetSuspensionFlag(SUSPENSION_FOR_SYNC);
+        }
         // Leave saferegion if current mutator has no suspend request, otherwise try again
         if (LIKELY(!HasAnySuspensionRequest() && !HasObserver())) {
             return;
@@ -173,13 +183,6 @@ void Mutator::SuspendForSync()
         // and it also won't be frozen since gc thread also modifies the value at countAddr before its waking option.
         (void)Futex(countAddr, FUTEX_WAIT, curCount);
 #endif
-    }
-    if (MutatorManager::Instance().SyncTriggered()) {
-        // entering this branch means a second request has been broadcasted, we need to reset this flag to avoid
-        // missing the request. And this must be after the behaviour that set saferegion state to false, because
-        // we need to make sure that the mutator can always perceive the gc request when the mutator is not in
-        // safe region.
-        SetSuspensionFlag(SUSPENSION_FOR_SYNC);
     }
 }
 
@@ -412,6 +415,8 @@ intptr_t Mutator::FixExtendedStack(intptr_t frameBase, uint32_t adjustedSize __a
             // 8 is the slot length of returnaddr.
             uint64_t callerSp = *reinterpret_cast<intptr_t*>(frameBase) - frameSize + 8;
 #elif defined(__aarch64__)
+            uint64_t callerSp = *reinterpret_cast<intptr_t*>(frameBase) - frameSize;
+#elif defined(__arm__)
             uint64_t callerSp = *reinterpret_cast<intptr_t*>(frameBase) - frameSize;
 #endif
             size_t newSize = stackSize + stackSize;

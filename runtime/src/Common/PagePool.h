@@ -104,7 +104,13 @@ public:
 #elif defined(__APPLE__)
         MapleRuntime::MemorySet(reinterpret_cast<uintptr_t>(page), num * MapleRuntime::MRT_PAGE_SIZE, 0,
                                 num * MapleRuntime::MRT_PAGE_SIZE);
-        (void)madvise(page, num * MapleRuntime::MRT_PAGE_SIZE, MADV_DONTNEED);
+        void* ret =mmap(page, num * MapleRuntime::MRT_PAGE_SIZE,
+                      PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1 ,0);
+        if (ret == MAP_FAILED) {
+            LOG(RTLOG_ERROR, "page pool mmap fixed failed");
+        } else if (ret != reinterpret_cast<void*>(page)) {
+            LOG(RTLOG_ERROR, "mmap fixed at wrong addr %p->%p", page, ret);
+        }
 #else
         (void)madvise(page, num * MapleRuntime::MRT_PAGE_SIZE, MADV_DONTNEED);
 #endif
@@ -116,7 +122,7 @@ public:
     // return unused pages to os
     void Trim() const {}
 
-    MRT_EXPORT static PagePool& Instance();
+    MRT_EXPORT static PagePool& Instance() noexcept;
 
 protected:
     uint8_t* MapMemory(size_t size, const char* memName, bool isCommit = false) const

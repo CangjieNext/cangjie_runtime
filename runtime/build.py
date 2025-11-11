@@ -78,7 +78,7 @@ def do_build(args):
 
     if target_args in ('native'):
         target_arch = host_arch
-    elif target_args in ('ohos-x86_64', 'ohos-aarch64', 'windows-x86_64', 'android-x86_64', 'android-aarch64',
+    elif target_args in ('ohos-x86_64', 'ohos-aarch64', 'ohos-arm', 'windows-x86_64', 'android-x86_64', 'android-aarch64',
                          'android26-aarch64', 'android31-aarch64', 'ios-aarch64', 'ios-simulator-aarch64'):
         target_arch = target_args.rsplit('-', 1)[1]
     else:
@@ -87,6 +87,8 @@ def do_build(args):
     target_arch = target_arch.lower()
     if target_arch == "arm64":
         target_arch = "aarch64"
+    elif target_arch == "arm32":
+        target_arch = "arm"
     elif target_arch == "amd64":
         target_arch = "x86_64"
 
@@ -104,6 +106,8 @@ def do_build(args):
 
     mode = mode.capitalize()
     macos_flag = 1 if platform.system().lower() == 'darwin' else 0
+    if macos_flag:
+        os.environ["ZERO_AR_DATE"] = "1"
     hwasan_flag = 1 if args.hwasan == True else 0
     # Perform different build actions based on the target_args
     if target_args == "native":
@@ -171,13 +175,20 @@ def do_build(args):
         ]
         build_target(cmake_command)
 
-    elif target_args in ["ohos-aarch64", "ohos-x86_64"]:
+    elif target_args in ["ohos-aarch64", "ohos-arm", "ohos-x86_64"]:
         if args.target_toolchain == None:
             print("Please configure ohos toolchain, for example '/root/workspace/ohos_dep_files/'")
             sys.exit(1)
-        ohos_flag = "1" if target_args == "ohos-aarch64" else "2"
+        if target_args == "ohos-aarch64":
+            ohos_flag = "1"
+        elif target_args == "ohos-x86_64":
+            ohos_flag = "2"
+        elif target_args == "ohos-arm":
+            ohos_flag = "3"
         if target_args == "ohos-aarch64":
             target_arch = "aarch64"
+        elif target_args == "ohos-arm":
+            target_arch = "arm"
         elif target_args == "ohos-x86_64":
             target_arch = "x86_64"
         ptrauth_flags = [
@@ -196,7 +207,7 @@ def do_build(args):
             "-DIOS_FLAG=0",
             "-DIOS_SIMULATOR_FLAG=0",
             "-DEULER_FLAG=0",
-            "-DRUNTIME_TRACE_FLAG=1",
+            "-DRUNTIME_TRACE_FLAG=0",
             "-DASAN_FLAG=0",
             "-DHWASAN_FLAG={}".format(hwasan_flag),
             "-DSANITIZER_SUPPORT=0",
@@ -218,7 +229,7 @@ def do_build(args):
             target_arch = "aarch64"
         elif target_args == "android-x86_64":
             target_arch = "x86_64"
-        android_api_level = re.match(r'android(\d{2})?', target_args).group(1)
+        android_api_level = re.match(r"android(\d{2})?", target_args).group(1)
         cmake_command = [
             "cmake",
             "-DCMAKE_INSTALL_PREFIX={}_{}".format(install_prefix, target_arch),
@@ -231,7 +242,7 @@ def do_build(args):
             "-DIOS_FLAG=0",
             "-DIOS_SIMULATOR_FLAG=0",
             "-DEULER_FLAG=0",
-            "-DRUNTIME_TRACE_FLAG=1",
+            "-DRUNTIME_TRACE_FLAG=0",
             "-DASAN_FLAG=0",
             "-DHWASAN_FLAG={}".format(hwasan_flag),
             "-DSANITIZER_SUPPORT=0",
@@ -239,7 +250,7 @@ def do_build(args):
             "-DDUMPADDRESS_FLAG=0",
             "-DCJ_SDK_VERSION={}".format(version),
             "-DDISABLE_VERSION_CHECK=1",
-            "-DCMAKE_ANDROID_API={}".format(android_api_level if android_api_level else '31'),
+            "-DCMAKE_ANDROID_API={}".format(android_api_level if android_api_level else "31"),
             "-S", ".", "-B", "CMakebuild"
         ]
         build_target(cmake_command)
@@ -262,7 +273,7 @@ def do_build(args):
             "-DIOS_FLAG={}".format(ios_flag),
             "-DIOS_SIMULATOR_FLAG={}".format(ios_simulator_flag),
             "-DEULER_FLAG=0",
-            "-DRUNTIME_TRACE_FLAG=1",
+            "-DRUNTIME_TRACE_FLAG=0",
             "-DASAN_FLAG=0",
             "-DHWASAN_FLAG={}".format(hwasan_flag),
             "-DSANITIZER_SUPPORT=0",
@@ -276,7 +287,7 @@ def do_build(args):
 
     else:
         print("Invalid build target, build targets include: native, windows-x86_64, ohos-aarch64, ohos-x86_64, \
-               android-aarch64, android26-aarch64, android31-aarch64, android-x86_64, ios-aarch64, ios-simulator-aarch64")
+               ohos-arm, android-aarch64, android26-aarch64, android31-aarch64, android-x86_64, ios-aarch64, ios-simulator-aarch64")
         sys.exit(1)
 
 def build_target(cmake_command):
@@ -330,6 +341,7 @@ if __name__ == "__main__":
             "windows-x86_64",
             "ohos-aarch64",
             "ohos-x86_64",
+            "ohos-arm",
             "ios-simulator-aarch64",
             "ios-aarch64",
             "android-aarch64",
@@ -339,7 +351,7 @@ if __name__ == "__main__":
         ],
         metavar="TARGET",
         default="native",
-        help="Target platform: native, windows-x86_64, ohos-aarch64, ohos-x86_64"
+        help="Target platform: native, windows-x86_64, ohos-aarch64, ohos-arm, ohos-x86_64"
     )
     b.add_argument(
         "-t", "--build-type",
