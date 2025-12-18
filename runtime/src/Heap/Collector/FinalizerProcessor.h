@@ -98,6 +98,9 @@ public:
     }
 
 private:
+    // Finalizer thread itself starts early, but its CJThread/scheduler context is created lazily
+    // right before the first finalize task actually runs.
+    void InitFinalizerCJThread();
     void NotifyStarted();
     void Wait(U32 timeoutMilliSeconds);
     void ProcessFinalizables();
@@ -138,6 +141,8 @@ private:
     uint32_t tid = 0;
     pthread_t threadHandle = 0; // thread handle to thread
     Mutator* fpMutator = nullptr;
+    // Tracks whether the current finalizer OS thread has already been bound to a CJThread.
+    bool finalizerCJThreadInitialized = false;
 };
 } // namespace MapleRuntime
 #endif // MRT_FINALIZER_PROCESSOR_H
