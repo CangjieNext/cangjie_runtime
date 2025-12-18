@@ -1224,6 +1224,19 @@ int ScheduleStopOutside(ScheduleHandle scheduleHandle)
     return 0;
 }
 
+int FinalizerScheduleFree(ScheduleHandle scheduleHandle)
+{
+    struct Schedule *schedule = reinterpret_cast<Schedule *>(scheduleHandle);
+    if (schedule == nullptr) {
+        LOG_ERROR(ERRNO_SCHD_INVALID, "schedule is null in FinalizerScheduleFree");
+        return ERRNO_SCHD_INVALID;
+    }
+
+    schedule->state = SCHEDULE_EXITED;
+    ScheduleNonDefaultFree(schedule);
+    return 0;
+}
+
 /* It is invoked in a cjthread to exit the scheduling framework and each worker thread. */
 int ScheduleTryExit(void)
 {
@@ -1463,7 +1476,7 @@ void ScheduleAllThreadListAdd(struct Thread *thread, struct Schedule *schedule)
     pthread_mutex_unlock(&(schedule->schdThread.allthreadMutex));
 }
 
-int ScheduleAllCJThreadListAdd(struct CJThread *cjthread)
+int ScheduleAllCJThreadListAdd(struct CJThread *cjthread, CJThreadCreateSource createSource)
 {
     ScheduleState scheduleState = cjthread->schedule->state.load();
     if (scheduleState != SCHEDULE_RUNNING &&
@@ -1476,6 +1489,11 @@ int ScheduleAllCJThreadListAdd(struct CJThread *cjthread)
     }
     cjthread->mutator = MapleRuntime::Mutator::NewMutator();
     cjthread->mutator->MapleRuntime::Mutator::SetCjthreadPtr(static_cast<void*>(cjthread));
+    // Finalizer cjthread is not added to the list to avoid accessing the finalizer mutator twice in
+    // VisitAllMutators, and to prevent cjthread dfx from counting the cjthread of the finalizer
+    if (UNLIKELY(createSource == CJTHREAD_CREATE_SOURCE_FINALIZER)) {
+        return 0;
+    }
     pthread_mutex_lock(&g_scheduleManager.allCJThreadListLock);
     DulinkAdd(&(cjthread->allCJThreadDulink), &(g_scheduleManager.allCJThreadList));
     pthread_mutex_unlock(&g_scheduleManager.allCJThreadListLock);
@@ -2207,9 +2225,8 @@ int CJ_MRT_GetAllCJThreadStackTrace(void *cjStackTraceBufPtr, unsigned int num)
 {
     unsigned int recordCnt = 0;
     char *cjStackTraceBuffer = reinterpret_cast<char*>(cjStackTraceBufPtr);
-    MapleRuntime::MutatorManager::Instance().VisitAllMutators(
+    MapleRuntime::MutatorManager::Instance().VisitAllMutatorsExceptFinalizer(
         [&recordCnt, num, cjStackTraceBuffer](MapleRuntime::Mutator &mutator) {
-            // skip finalizer
             if (!mutator.IsVaildCJThread() || recordCnt == num ||
                 !IsPendingThread(mutator.GetCjthreadPtr())) {
                 return;
