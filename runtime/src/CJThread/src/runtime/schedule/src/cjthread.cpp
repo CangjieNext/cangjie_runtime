@@ -1174,14 +1174,6 @@ int CJThreadPark(ParkCallbackFunc func, TraceEvent waitReason, void *arg)
     struct CJThread *cjthread;
 
     cjthread = CJThreadGet();
-    if (UNLIKELY(cjthread == nullptr)) {
-        MapleRuntime::ThreadType threadType = MapleRuntime::ThreadLocal::GetThreadType();
-        const char* threadTypeInfo = threadType == MapleRuntime::ThreadType::FP_THREAD ?
-                                                  "finalizer thread" :
-                                                  "normal thread";
-        HILOG_FATAL(ERRNO_SCHD_CJTHREAD_PARK_FAILED,
-                    "cjthread park failed because of null cjthread and current thread is %s", threadTypeInfo);
-    }
     cjthread->result = 0;
 
 #ifdef __OHOS__
