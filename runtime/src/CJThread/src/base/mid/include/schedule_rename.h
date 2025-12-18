@@ -412,6 +412,7 @@
 #define ScheduleGetTraceReader                  CJ_ScheduleGetTraceReader
 #define ScheduleTraceEventOrigin                CJ_ScheduleTraceEventOrigin
 #define ScheduleTraceEvent                      CJ_ScheduleTraceEvent
+#define FinalizerScheduleFree                   CJ_FinalizerScheduleFree
 
 /* windows global value */
 #define g_localTlsOffset                        CJ_GLocalTlsOffset

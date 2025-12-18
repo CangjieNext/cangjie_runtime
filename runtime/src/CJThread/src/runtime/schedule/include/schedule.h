@@ -1460,6 +1460,12 @@ void RunResolveCycle(void* funcPtr);
  * @brief handle some foreign-cj thread when a foreign os thread exit.
  */
 void CJForeignThreadExit(CJThreadHandle foreignCJThread);
+
+/**
+ * @brief finalizer schedule free.
+ */
+int FinalizerScheduleFree(ScheduleHandle scheduleHandle);
+
 #ifdef __cplusplus
 #if __cplusplus
 }
