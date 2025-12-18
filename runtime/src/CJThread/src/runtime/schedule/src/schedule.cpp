@@ -1242,6 +1242,19 @@ int ScheduleStopOutside(ScheduleHandle scheduleHandle)
     return 0;
 }
 
+int FinalizerScheduleFree(ScheduleHandle scheduleHandle)
+{
+    struct Schedule *schedule = reinterpret_cast<Schedule *>(scheduleHandle);
+    if (schedule == nullptr) {
+        LOG_ERROR(ERRNO_SCHD_INVALID, "schedule is null in FinalizerScheduleStop");
+        return ERRNO_SCHD_INVALID;
+    }
+
+    schedule->state = SCHEDULE_EXITED;
+    ScheduleNonDefaultFree(schedule);
+    return 0;
+}
+
 /* It is invoked in a cjthread to exit the scheduling framework and each worker thread. */
 int ScheduleTryExit(void)
 {

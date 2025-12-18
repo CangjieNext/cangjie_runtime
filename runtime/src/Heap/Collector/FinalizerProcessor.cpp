@@ -12,6 +12,7 @@
 #include "ExceptionManager.inline.h"
 #include "Mutator/Mutator.h"
 #include "ObjectModel/MObject.h"
+#include "CjScheduler.h"
 
 namespace MapleRuntime {
 constexpr U32 DEFAULT_FINALIZER_TIMEOUT_MS = 2000;
@@ -113,10 +114,10 @@ void FinalizerProcessor::Run()
 
 void FinalizerProcessor::Init()
 {
-    Mutator* mutator = MutatorManager::Instance().CreateRuntimeMutator(ThreadType::FP_THREAD);
+    NewFinalizerCJThread();
+    Mutator* mutator = ThreadLocal::GetMutator();
     (void)mutator->EnterSaferegion(true);
     tid = mutator->GetTid();
-    ThreadLocal::SetProtectAddr(reinterpret_cast<uint8_t*>(0));
     running = true;
     timeProcessorBegin = TimeUtil::MicroSeconds();
     timeProcessUsed = 0;
@@ -131,7 +132,7 @@ void FinalizerProcessor::Fini()
     MutatorManager::Instance().MutatorManagementRLock();
     fpMutator = nullptr;
     MutatorManager::Instance().MutatorManagementRUnlock();
-    MutatorManager::Instance().DestroyRuntimeMutator(ThreadType::FP_THREAD);
+    EndFinalizerCJThread();
     LOG(RTLOG_INFO, "FinalizerProcessor thread stopped");
 }
 
