@@ -375,7 +375,7 @@ void* MCC_NewCJThread(void* execute, void* future, void* scheduler)
     return handle;
 }
 
-bool MRT_TryNewAndRunCJThread()
+bool MRT_NewForeignCJThread()
 {
     if (ThreadLocal::IsCJProcessor() || ThreadLocal::GetMutator() != nullptr) {
         return false;
@@ -420,7 +420,7 @@ bool MRT_TryNewAndRunCJThread()
     return true;
 }
 
-bool MRT_EndCJThread()
+bool MRT_EndForeignCJThread()
 {
     if (ThreadLocal::IsCJProcessor()) {
         return false;
@@ -472,6 +472,63 @@ void* MCC_NewExclusiveCJThread(void* executeClosure, void* closurePtr, void* fut
     RefField<>* objRootField = reinterpret_cast<RefField<>*>(&data.execute);
     Heap::GetBarrier().WriteStaticRef(*objRootField, reinterpret_cast<BaseObject*>(executeClosure));
     return ExclusiveCJThreadNew(WrapperExclusiveClosure, &data, sizeof(LWTData));
+}
+
+void* NewFinalizerCJThread()
+{
+    // prepare foreign scheduler
+    ScheduleHandle scheduler = nullptr;
+    auto runtime = reinterpret_cast<MapleRuntime::CangjieRuntime*>(&MapleRuntime::Runtime::Current());
+    scheduler = runtime->CreateSubSchedulerAndInit(SCHEDULE_FOREIGN_THREAD);
+    CJThreadAttr attr;
+    CJThreadAttrInit(&attr);
+    CJThreadAttrNameSet(&attr, "cangjie");
+    LWTData data = {};
+    // prepare foreign cjthread
+    CJThreadHandle cjthread = CJThreadNewToSchedule(scheduler, (const struct CJThreadAttr*)(&attr),
+                                                    WrapperTask, &data, sizeof(LWTData));
+    ThreadLocal::SetCJThread(cjthread);
+    MutatorManager::Instance().SetMainThreadHandle(cjthread);
+    CJThreadPreemptOffCntAdd();
+    RebindCJThread(cjthread);
+    ThreadLocal::SetForeignCJThread(cjthread);
+    ThreadLocal::SetSchedule(scheduler);
+    ThreadLocal::SetProtectAddr(reinterpret_cast<uint8_t*>(0));
+    ScheduleNetpollInit(); // Initializes netpool only on the first execution.
+    // set mutator
+    Mutator* mutator = reinterpret_cast<Mutator*>(CJThreadGetMutator());
+    CHECK_DETAIL(mutator != nullptr, "create is null when create finalizer cjthread");
+    MutatorManager::Instance().MutatorManagementRLock();
+    mutator->InitTid();
+    mutator->InitProtectStackAddr();
+    mutator->SetManagedContext(false);
+    MutatorManager::Instance().BindMutator(*mutator);
+    ThreadLocal::SetMutator(mutator);
+    ThreadLocal::SetThreadType(ThreadType::FP_THREAD);
+    ThreadLocal::SetCJProcessorFlag(true);
+    ThreadLocalData* threadData = reinterpret_cast<ThreadLocalData*>(MRT_GetThreadLocalData());
+    MRT_PreRunManagedCode(mutator, 2, threadData); // 2 layers
+    MutatorManager::Instance().MutatorManagementRUnlock();
+
+    SetSchedulerState(1);
+    return cjthread;
+}
+
+void EndFinalizerCJThread()
+{
+    ThreadLocal::SetCJThread(nullptr);
+    Mutator* mutator = ThreadLocal::GetMutator();
+    CHECK_DETAIL(mutator != nullptr, "EndFinalizerCJThread with null mutator");
+
+    MutatorManager::Instance().MutatorManagementRLock();
+    (void)mutator->LeaveSaferegion();
+    mutator->ResetMutator();
+    ThreadLocal::SetAllocBuffer(nullptr);
+    ThreadLocal::SetMutator(nullptr);
+    ThreadLocal::SetCJProcessorFlag(false);
+    MutatoManager::Instance().MutatorManagementRUnlock();
+
+    SetSchedulerState(0);
 }
 
 /**
