@@ -8,8 +8,6 @@
 
 package std.net
 
-import std.sync.*
-
 /*
  * This API supplies users with the basic functionality to create and use sockets of different domains and types.
  * For example, based on this API user should be able to create sockets in following domains: AF_PACKET, AF_NETLINK,
