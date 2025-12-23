@@ -41,7 +41,7 @@ const defaultCapacity: Int64 = 32
  */
 @Deprecated[message: "This class migrate to the std.env."]
 public class ConsoleReader <: InputStream {
-    private static let mutex: ReentrantMutex = ReentrantMutex()
+    private static let mutex: Mutex = Mutex()
     private var buffer: Array<Byte> = Array<Byte>(defaultCapacity, repeat: 0) /* stdin read buffer */
     private var endIndex: Int64 = 0
     private var startIndex: Int64 = 0

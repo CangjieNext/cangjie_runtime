@@ -11,10 +11,6 @@
  */
 package std.fs
 
-import std.collection.*
-import std.io.*
-import std.time.*
-
 const NULL_BYTE = "\0"
 const DOT_CHAR = r'.'
 const CURRENT_PATH_STRING = "."
@@ -406,25 +402,6 @@ func callNativeFunc(
 }
 
 extend Array<Byte> {
-    func equalsIgnoreCaseAndSlash(that: String): Bool {
-        // size is the same, and not 0
-        var (b1, b2): (Byte, Byte)
-        for (i in 0..this.size) {
-            b1 = this[i]
-            b2 = that[i]
-            if (isSlash(b1)) {
-                if (!isSlash(b2)) {
-                    return false
-                }
-                continue
-            }
-            if (!byteEqualsIgnoreAsciiCase(b1, b2)) {
-                return false
-            }
-        }
-        return true
-    }
-
     func byteEqualsIgnoreAsciiCase(b1: Byte, b2: Byte): Bool {
         if (b1 == b2) {
             return true
