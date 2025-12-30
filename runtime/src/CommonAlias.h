@@ -9,6 +9,10 @@
 #define COMMON_ALIAS_SRC
 
 extern "C" MRT_EXPORT ObjRef CJ_MCC_OnFinalizerCreated(ObjRef ref) __attribute__((alias("MCC_OnFinalizerCreated")));
+extern "C" MRT_EXPORT void CJ_MCC_AddLocalFinalizer(ObjectPtr obj)
+    __attribute__((alias("MCC_AddLocalFinalizer")));
+extern "C" MRT_EXPORT void CJ_MCC_RemoveLocalFinalizer(ObjectPtr obj)
+    __attribute__((alias("MCC_RemoveLocalFinalizer")));
 extern "C" MRT_EXPORT void CJ_MCC_WriteRefField(const ObjectPtr ref, const ObjectPtr obj, RefField<false>* field)
     __attribute__((alias("MCC_WriteRefField")));
 
@@ -20,6 +24,17 @@ extern "C" MRT_EXPORT void CJ_MCC_WriteStaticRef(const ObjectPtr ref, RefField<f
     __attribute__((alias("MCC_WriteStaticRef")));
 extern "C" MRT_EXPORT void CJ_MCC_WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, size_t srcLen,
                                                     const GCTib gcTib) __attribute__((alias("MCC_WriteStaticStruct")));
+extern "C" MRT_EXPORT void CJ_MCC_MaybeLocalWriteRef(const ObjectPtr obj, RefField<false>* field,
+                                                     const ObjectPtr value)
+    __attribute__((alias("MCC_MaybeLocalWriteRef")));
+extern "C" MRT_EXPORT void CJ_MCC_MaybeLocalWriteStruct(const ObjectPtr obj, MAddress dst, size_t dstLen,
+                                                        MAddress src, size_t srcLen, GCTib gctib)
+    __attribute__((alias("MCC_MaybeLocalWriteStruct")));
+extern "C" MRT_EXPORT void CJ_MCC_MaybeLocalWriteGeneric(const ObjectPtr obj, void* fieldPtr,
+                                                          const ObjectPtr src, size_t size)
+    __attribute__((alias("MCC_MaybeLocalWriteGeneric")));
+extern "C" MRT_EXPORT void CJ_MCC_DemodeWriteRef(const ObjectPtr obj, RefField<false>* field, const ObjectPtr value)
+    __attribute__((alias("MCC_DemodeWriteRef")));
 extern "C" MRT_EXPORT void CJ_MCC_AtomicWriteReference(const ObjectPtr ref, const ObjectPtr obj, RefField<true>* field,
                                                        MemoryOrder order)
     __attribute__((alias("MCC_AtomicWriteReference")));

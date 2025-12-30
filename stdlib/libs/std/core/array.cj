@@ -33,12 +33,39 @@ public struct Array<T> {
     }
 
     @Frozen
+    public const init(this @local!) {
+        exclave {
+            this.start = 0
+            this.rawptr = rawArrayAllocate2<T>(0)
+            this.len = 0
+        }
+    }
+    
+    @Frozen
+    public const exclave init(this @local?) {
+        this.start = 0
+        this.rawptr = rawArrayAllocate3<T>(0)
+        this.len = 0
+    }
+
+    @Frozen
     public init(size: Int64, repeat!: T) {
         this.start = 0
         let raw = rawArrayAllocate<T>(size)
         rawArrayInitByValue(raw, size, repeat)
         this.rawptr = raw
         this.len = size
+    }
+
+    @Frozen
+    public init(this @local!, size: Int64, repeat!: T @local!) {
+        exclave {
+            this.start = 0
+            let raw = rawArrayAllocate2<T>(size)
+            rawArrayInitByValue2(raw, size, repeat)
+            this.rawptr = raw
+            this.len = size
+        }
     }
 
     @Frozen
@@ -61,6 +88,20 @@ public struct Array<T> {
 
     @Frozen
     init(data: RawArray<T>, start: Int64, len: Int64) {
+        this.rawptr = data
+        this.start = start
+        this.len = len
+    }
+
+    @Frozen
+    exclave init(this @local!, data: RawArray<T> @local!, start: Int64, len: Int64) {
+        this.rawptr = data
+        this.start = start
+        this.len = len
+    }
+    
+    @Frozen
+    exclave init(this @local?, data: RawArray<T> @local?, start: Int64, len: Int64) {
         this.rawptr = data
         this.start = start
         this.len = len
@@ -99,6 +140,16 @@ public struct Array<T> {
         return Array(this.rawptr, this.start + start, len)
     }
 
+    @Frozen
+    public func slice(this @local!, start: Int64, len: Int64): Array<T> @local! {
+        if (start < 0 || len < 0 || (start + len) > this.len) {
+            throw IndexOutOfBoundsException(arraySliceOutOfBoundsExceptionMessage(this.len, start, len))
+        }
+        exclave {
+            Array(this.rawptr, this.start + start, len)
+        }
+    }
+
     @OverflowWrapping
     @Frozen
     public func get(index: Int64): Option<T> {
@@ -106,6 +157,17 @@ public struct Array<T> {
             return None<T>
         }
         return Some<T>(arrayGetUnchecked(this.rawptr, start + index))
+    }
+
+    @OverflowWrapping
+    @Frozen
+    public func get(this @local!, index: Int64): Option<T> @local! {
+        exclave {
+            if (UInt64(index) >= UInt64(this.len)) {
+                return None<T>
+            }
+            Some<T>(arrayGetUnchecked2<T>(this.rawptr, start + index))
+        }
     }
 
     /**
@@ -125,6 +187,19 @@ public struct Array<T> {
         return arrayGetUnchecked(this.rawptr, start + index)
     }
 
+    @Frozen
+    @OverflowWrapping
+    public operator func [](this @local!, index: Int64): T @local! {
+        // Using type conversion to replace typical bounds checking,
+        // if (index < 0 || index >= this.len), to a single comparison.
+        // The negative value of index will be converted to a large positive number
+        // when `index` and `this.len` are interpreted as UInt64 and will trigger the exception.
+        if (UInt64(index) >= UInt64(this.len)) {
+            throw IndexOutOfBoundsException(arrayIndexOutOfBoundsExceptionMessage(this.len, index))
+        }
+        exclave { arrayGetUnchecked2<T>(this.rawptr, start + index) }
+    }
+
     /**
      * @throws IndexOutOfBoundsException if `index` is negative or
      *         greater than or equal to the size of array.
@@ -138,6 +213,15 @@ public struct Array<T> {
         return arraySetUnchecked(this.rawptr, start + index, value)
     }
 
+    @Frozen
+    @OverflowWrapping
+    public operator func [](this @local!, index: Int64, value!: T @local!): Unit {
+        if (UInt64(index) >= UInt64(this.len)) {
+            throw IndexOutOfBoundsException(arrayIndexOutOfBoundsExceptionMessage(this.len, index))
+        }
+        exclave { arraySet2<T>(this.rawptr, start + index, value) }
+    }
+
     /**
      * @throws IllegalArgumentException if the `step` of `range` is not equal to 1.
      * @throws IndexOutOfBoundsException if the `range` is invalid for this array.
@@ -145,6 +229,18 @@ public struct Array<T> {
     @Frozen
     public operator func [](range: Range<Int64>): Array<T> {
         return rangeSlice(range, this.len)
+    }
+
+    @Frozen
+    public operator func [](this @local!, range: Range<Int64>): Array<T> @local! {
+        exclave {
+            rangeSlice(range, this.len)
+        }
+    }
+
+    @Frozen
+    public operator func [](this @local?, range: Range<Int64>): Array<T> @local? {
+        rangeSlice(range, this.len)
     }
 
     @Frozen
@@ -176,6 +272,24 @@ public struct Array<T> {
         }
 
         intrinsicBuiltInCopyTo<T>(value.rawptr, this.rawptr, value.start, this.start + start_, rangeSize)
+    }
+
+    @Frozen
+    public operator func [](this @local!, range: Range<Int64>, value!: Array<T> @local!): Unit {
+        if (range.step != 1) {
+            throw IllegalArgumentException(arrayInvalidRangeStepExceptionMessage(range.step))
+        }
+        let (start_, end_): (Int64, Int64) = normalize(range)
+        if (!isLegal(start_, end_)) {
+            throw IndexOutOfBoundsException(arrayRangeOutOfBoundsExceptionMessage(this.len, range.start, range.end, range.step, range.hasStart, range.hasEnd, range.isClosed))
+        }
+        let rangeSize = end_ - start_
+        if (rangeSize != value.size) {
+            throw IllegalArgumentException(arrayInvalidRangeSizeExceptionMessage(value.size, rangeSize))
+        }
+        exclave {
+            intrinsicBuiltInCopyTo2<T>(value.rawptr, this.rawptr, value.start, this.start + start_, rangeSize)
+        }
     }
 
     /** Reverse array elements in place. */
@@ -225,9 +339,42 @@ public struct Array<T> {
         return Array<T>(this.rawptr, this.start + start_, end_ - start_)
     }
 
+    @Frozen
+    private func rangeSlice(this @local!, range: Range<Int64>, _: Int64): Array<T> @local! {
+        if (range.step != 1) {
+            throw IllegalArgumentException(arrayInvalidRangeStepExceptionMessage(range.step))
+        }
+        let (start_, end_): (Int64, Int64) = normalize(range)
+        if (!isLegal(start_, end_)) {
+            throw IndexOutOfBoundsException(arrayRangeOutOfBoundsExceptionMessage(
+                this.len, range.start, range.end, range.step, range.hasStart, range.hasEnd, range.isClosed))
+        }
+        exclave {
+            Array<T>(this.rawptr, this.start + start_, end_ - start_)
+        }
+    }
+
+    @Frozen
+    private func rangeSlice(this @local?, range: Range<Int64>, _: Int64): Array<T> @local? {
+        if (range.step != 1) {
+            throw IllegalArgumentException(arrayInvalidRangeStepExceptionMessage(range.step))
+        }
+        let (start_, end_): (Int64, Int64) = normalize(range)
+        if (!isLegal(start_, end_)) {
+            throw IndexOutOfBoundsException(arrayRangeOutOfBoundsExceptionMessage(
+                this.len, range.start, range.end, range.step, range.hasStart, range.hasEnd, range.isClosed))
+        }
+        Array<T>(this.rawptr, this.start + start_, end_ - start_)
+    }
+
     // The parameters represents a half-open range [start_, end_)
     @Frozen
     private const func isLegal(start_: Int64, end_: Int64): Bool {
+        0 <= start_ && start_ <= end_ && end_ <= this.len
+    }
+
+    @Frozen
+    const func isLegal(this @local?, start_: Int64, end_: Int64): Bool {
         0 <= start_ && start_ <= end_ && end_ <= this.len
     }
 
@@ -235,6 +382,29 @@ public struct Array<T> {
     @Frozen
     @OverflowWrapping
     private const func normalize(range: Range<Int64>): (Int64, Int64) {
+        var start = if (range.hasStart) {
+            range.start
+        } else {
+            0
+        }
+        var end = if (range.hasEnd) {
+            range.end
+        } else {
+            this.len
+        }
+        if (range.isClosed && range.hasEnd) {
+            end += if (range.step > 0) {
+                1
+            } else {
+                -1
+            }
+        }
+        return (start, end)
+    }
+
+    @Frozen
+    @OverflowWrapping
+    const func normalize(this @local?, range: Range<Int64>): (Int64, Int64) {
         var start = if (range.hasStart) {
             range.start
         } else {
@@ -275,6 +445,25 @@ public struct Array<T> {
         }
     }
 
+    private const func rangeToString(this @local?, range: Range<Int64>): String {
+        let start = if (range.hasStart) {
+            range.start
+        } else {
+            0
+        }
+        let end = if (range.hasEnd) {
+            range.end
+        } else {
+            this.len
+        }
+        match ((range.step > 0, range.isClosed)) {
+            case (true, true) => "[${start}, ${end}]"
+            case (true, false) => "[${start}, ${end})"
+            case (false, true) => "[${end}, ${start}]"
+            case (false, false) => "(${end}, ${start}]"
+        }
+    }
+
     /** Dummy function, used for function overloading check. */
     @Frozen
     public func clone(): Array<T> {
@@ -285,6 +474,17 @@ public struct Array<T> {
         rawArrayInitByValue(newRawPtr, len, unsafe { zeroValue<T>() })
         intrinsicBuiltInCopyTo<T>(this.rawptr, newRawPtr, this.start, 0, len)
         return Array<T>(newRawPtr, 0, len)
+    }
+
+    public exclave func clone(this @local!): Array<T> @local! {
+        if (len == 0) {
+            Array<T>()
+        } else {
+            let newRawPtr = rawArrayAllocate2<T>(len)
+            rawArrayInitByValue2(newRawPtr, len, unsafe { zeroValue2<T>() })
+            intrinsicBuiltInCopyTo2<T>(this.rawptr, newRawPtr, this.start, 0, len)
+            Array<T>(newRawPtr, 0, len)
+        }
     }
 
     /*
@@ -343,6 +543,31 @@ public struct Array<T> {
         }
         intrinsicBuiltInCopyTo<T>(this.rawptr, dst.rawptr, this.start + srcStart, dst.start + dstStart, copyLen)
     }
+    
+    @Frozen
+    public func copyTo(this @local!, dst: Array<T> @local!, srcStart: Int64, dstStart: Int64, copyLen: Int64): Unit {
+        exclave {
+        if (copyLen == 0) {
+            return
+        }
+        if (copyLen < 0) {
+            throw IllegalArgumentException("Negative copy length.")
+        }
+        if (srcStart < 0 || dstStart < 0) {
+            throw IndexOutOfBoundsException("Array negative index access.")
+        }
+        if (srcStart >= this.len) {
+            throw IndexOutOfBoundsException("SrcStart is greater than or equal to the size of this array.")
+        }
+        if (dstStart >= dst.size) {
+            throw IndexOutOfBoundsException("DstStart is greater than or equal to the size of the target array.")
+        }
+        if (copyLen > this.len - srcStart || copyLen > dst.size - dstStart) {
+            throw IndexOutOfBoundsException("Copy length out of bounds.")
+        }
+        intrinsicBuiltInCopyTo2<T>(this.rawptr, dst.rawptr, this.start + srcStart, dst.start + dstStart, copyLen)
+        }
+    }
 
     @Frozen
     public func copyTo(dst: Array<T>): Unit {
@@ -353,6 +578,19 @@ public struct Array<T> {
             throw IllegalArgumentException("Dst size is less than the size of this array.")
         }
         intrinsicBuiltInCopyTo<T>(this.rawptr, dst.rawptr, this.start, dst.start, this.len)
+    }
+    
+    @Frozen
+    public func copyTo(this @local!, dst: Array<T> @local!): Unit {
+        exclave {
+        if (this.len == 0) {
+            return
+        }
+        if (dst.size < this.len) {
+            throw IllegalArgumentException("Dst size is less than the size of this array.")
+        }
+        intrinsicBuiltInCopyTo2<T>(this.rawptr, dst.rawptr, this.start, dst.start, this.len)
+        }
     }
 
     /*
@@ -382,6 +620,12 @@ public struct Array<T> {
     @OverflowWrapping
     protected unsafe func getUnchecked(index: Int64): T {
         return arrayGetUnchecked(this.rawptr, start + index)
+    }
+
+    @Frozen
+    @OverflowWrapping
+    protected unsafe func getUnchecked(this @local!, index: Int64): T @local! {
+        exclave { arrayGetUnchecked2<T>(this.rawptr, start + index) }
     }
 
     @Frozen
@@ -802,4 +1046,112 @@ private func arrayInvalidRangeSizeExceptionMessage(arraySize: Int64, rangeSize: 
 
 private func arrayInvalidRangeStepExceptionMessage(rangeStep: Int64): String {
     "Illegal step ${rangeStep}, step should be 1."
+}
+
+sealed interface Copyable {}
+
+extend<T> Array<T> where T <: Copyable {
+    public func cloneToNotLocal(this @local?): Array<T> {
+        if (len == 0) {
+            return Array<T>()
+        }
+        let newRawPtr = rawArrayAllocate<T>(len)
+        rawArrayInitByValue(newRawPtr, len, unsafe { zeroValue<T>() })
+        intrinsicBuiltInCopyTo3<T>(this.rawptr, newRawPtr, this.start, 0, len)
+        return Array<T>(newRawPtr, 0, len)
+    }
+    
+    @Frozen
+    @OverflowWrapping
+    public func getRange(this @local?, index: Int64, value!: T @local?): Unit {
+        if (UInt64(index) >= UInt64(this.len)) {
+            throw IndexOutOfBoundsException(arrayIndexOutOfBoundsExceptionMessage(this.len, index))
+        }
+        arraySet3<T>(this.rawptr, start + index, value)
+    }
+
+    @Frozen
+    @OverflowWrapping
+    public operator func [](this @local?, index: Int64): T @local? {
+        // Using type conversion to replace typical bounds checking,
+        // if (index < 0 || index >= this.len), to a single comparison.
+        // The negative value of index will be converted to a large positive number
+        // when `index` and `this.len` are interpreted as UInt64 and will trigger the exception.
+        if (UInt64(index) >= UInt64(this.len)) {
+            throw IndexOutOfBoundsException(arrayIndexOutOfBoundsExceptionMessage(this.len, index))
+        }
+        arrayGetUnchecked3<T>(this.rawptr, start + index)
+    }
+
+    @Frozen
+    @OverflowWrapping
+    public exclave operator func [](this @local?, index: Int64, value!: T @local?): Unit {
+        // Using type conversion to replace typical bounds checking,
+        // if (index < 0 || index >= this.len), to a single comparison.
+        // The negative value of index will be converted to a large positive number
+        // when `index` and `this.len` are interpreted as UInt64 and will trigger the exception.
+        if (UInt64(index) >= UInt64(this.len)) {
+            throw IndexOutOfBoundsException(arrayIndexOutOfBoundsExceptionMessage(this.len, index))
+        }
+        arraySetUnchecked3<T>(this.rawptr, start + index, value)
+    }
+    
+    @Frozen
+    public func copyTo(this @local?, dst: Array<T> @local?): Unit {
+        if (this.len == 0) {
+            return
+        }
+        if (dst.size < this.len) {
+            throw IllegalArgumentException("Dst size is less than the size of this array.")
+        }
+        intrinsicBuiltInCopyTo3<T>(this.rawptr, dst.rawptr, this.start, dst.start, this.len)
+    }
+    
+    @Frozen
+    public func copyTo(this @local?, dst: Array<T> @local?, srcStart: Int64, dstStart: Int64, copyLen: Int64): Unit {
+        if (copyLen == 0) {
+            return
+        }
+        if (copyLen < 0) {
+            throw IllegalArgumentException("Negative copy length.")
+        }
+        if (srcStart < 0 || dstStart < 0) {
+            throw IndexOutOfBoundsException("Array negative index access.")
+        }
+        if (srcStart >= this.len) {
+            throw IndexOutOfBoundsException("SrcStart is greater than or equal to the size of this array.")
+        }
+        if (dstStart >= dst.size) {
+            throw IndexOutOfBoundsException("DstStart is greater than or equal to the size of the target array.")
+        }
+        if (copyLen > this.len - srcStart || copyLen > dst.size - dstStart) {
+            throw IndexOutOfBoundsException("Copy length out of bounds.")
+        }
+        intrinsicBuiltInCopyTo3<T>(this.rawptr, dst.rawptr, this.start + srcStart, dst.start + dstStart, copyLen)
+    }
+
+    public func clone3(this @local?): Array<T> @local? {
+        if (len == 0) {
+            Array<T>()@local?
+        } else {
+            let newRawPtr = rawArrayAllocate3<T>(len)
+            rawArrayInitByValue3(newRawPtr, len, unsafe { zeroValue<T>() })
+            intrinsicBuiltInCopyTo3<T>(this.rawptr, newRawPtr, this.start, 0, len)
+            let arr: Array<T> @local? = Array<T>(newRawPtr, 0, len)
+            arr
+        }
+    }
+
+    public func clone3Full(this @local?): Array<T> @local! {
+        exclave {
+            if (len == 0) {
+                Array<T>()
+            } else {
+                let newRawPtr = rawArrayAllocate2<T>(len)
+                rawArrayInitByValue2(newRawPtr, len, unsafe { zeroValue2<T>() })
+                intrinsicBuiltInCopyTo3<T>(this.rawptr, newRawPtr, this.start, 0, len)
+                Array<T>(newRawPtr, 0, len)
+            }
+        }
+    }
 }

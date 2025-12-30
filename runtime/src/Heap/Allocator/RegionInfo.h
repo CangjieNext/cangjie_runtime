@@ -487,6 +487,8 @@ public:
         RECENT_LARGE_REGION,
 
         GARBAGE_REGION,
+
+        LOCAL_MODE_REGION,
     };
 
     static void Initialize(size_t nUnit, uintptr_t heapAddress)
@@ -883,6 +885,11 @@ public:
             (static_cast<RegionType>(metadata.regionType) == RegionType::RECENT_PINNED_REGION);
     }
 
+    bool IsLocalModeRegion() const
+    {
+        return static_cast<RegionType>(metadata.regionType) == RegionType::LOCAL_MODE_REGION;
+    }
+
     RegionInfo* GetPrevRegion() const
     {
         if (UNLIKELY(metadata.prevRegionIdx == NULLPTR_IDX)) {
@@ -1176,6 +1183,8 @@ private:
     private:
         UnitMetadata metadata;
     };
+
+    static_assert(sizeof(RegionInfo::UnitInfo) == sizeof(UnitMetadata), "unexpected UnitInfo size");
 
     void InitRegionInfo(size_t nUnit, UnitRole uClass)
     {

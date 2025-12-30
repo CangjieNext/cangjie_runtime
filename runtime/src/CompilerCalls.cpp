@@ -27,6 +27,8 @@
 #endif
 #include "Common/ScopedObjectAccess.h"
 #include "ExceptionManager.inline.h"
+#include "Heap/Allocator/LocalObjectUtil.h"
+#include "Heap/Allocator/RegionSpace.h"
 #include "Heap/Barrier/Barrier.h"
 #include "Heap/Collector/CollectorResources.h"
 #include "Heap/Heap.h"
@@ -63,6 +65,7 @@ static bool IsGlobalStruct(const ObjectPtr basePtr, MAddress field)
     return (reinterpret_cast<uintptr_t>(basePtr) & globalFlag) != 0;
 #endif
 }
+
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 // These interfaces are used to detect whether the acquireArrayRawData is released in time.
 class PinnedArrayRecorder {
@@ -315,6 +318,13 @@ extern "C" void MCC_WriteStructField(ObjectPtr obj, MAddress dst, size_t dstLen,
         Heap::GetBarrier().WriteStaticStruct(dst, dstLen, src, srcLen, gctib);
         return;
     }
+    // todo 对于 heap 对象性能无影响， 但是对于 stack struct，generic 临时对象有影响
+    // 但是已有的性能用例没有 local region，所以影响也较小【但是当前实现，没有全局的region 索引，需要遍历每一个mutator， 增加一个全局变量用来快速判断吧】
+    // todo 这种属于健壮性代码，不影响业务逻辑， 或者可以直接删除？
+    // todo del
+    if (UNLIKELY(IsLocalObject(obj))) {
+        LOG(RTLOG_FATAL, "MCC_WriteStructField does not support local object: obj %p", obj);
+    }
     if (UNLIKELY(!Heap::IsHeapAddress(obj))) {
         CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), dstLen, reinterpret_cast<void*>(src), srcLen) == EOK,
                      "memcpy_s failed");
@@ -332,6 +342,135 @@ extern "C" void MCC_WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src,
 {
     CHECK_DETAIL((dst != 0u && src != 0u), "MCC_WriteStaticStruct wrong parameter, dst: %p src: %p", dst, src);
     Heap::GetBarrier().WriteStaticStruct(dst, dstLen, src, srcLen, gcTib);
+}
+
+static void AddLocalRootForHeapRef(ObjectPtr obj, ObjectPtr value, bool objIsLocal, bool valueIsLocal)
+{
+    if (obj == nullptr || value == nullptr || !objIsLocal || valueIsLocal) {
+        return;
+    }
+    if (Heap::IsHeapAddress(value)) {
+        // Keep the local object as a root source while it contains references to heap objects.
+        Mutator::GetMutator()->AddLocalRoot(obj);
+    }
+}
+
+extern "C" void MCC_MaybeLocalWriteRef(const ObjectPtr obj, RefField<false>* field, const ObjectPtr value)
+{
+    CHECK_DETAIL(field != nullptr, "invalid MaybeLocalWriteRef field");
+    Mutator* mutator = Mutator::GetMutator();
+    if (obj == nullptr) {
+        field->SetTargetObject(value);
+        return;
+    }
+    bool objIsHeap = Heap::IsHeapAddress(obj);
+    bool objIsLocal = !objIsHeap && IsLocalObject(obj, mutator);
+    if (!objIsHeap && !objIsLocal) {
+        // Value-like owners such as Array<T> records can live on the stack. Their
+        // backing RawArray may still be local, but the record itself is not a
+        // managed object and therefore needs only a direct RefField update.
+        field->SetTargetObject(value);
+        return;
+    }
+    bool valueIsLocal = IsLocalObject(value, mutator);
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+    if (!valueIsLocal && IsLocalObject(value)) {
+        LOG(RTLOG_FATAL, "field must not reference another mutator's local object");
+    }
+#endif
+    if (UNLIKELY(!objIsLocal && valueIsLocal)) {
+        LOG(RTLOG_FATAL, "heap object must not reference local object");
+    }
+
+    if (objIsLocal && (value == nullptr || valueIsLocal)) {
+        field->SetTargetObject(value);
+        return;
+    }
+
+    if (UNLIKELY(value != nullptr && !valueIsLocal && !Heap::IsHeapAddress(value))) {
+        LOG(RTLOG_FATAL, "field must reference heap object, current local object or null");
+    }
+
+    AddLocalRootForHeapRef(obj, value, objIsLocal, valueIsLocal);
+    Heap::GetBarrier().WriteReference(obj, *field, value);
+}
+
+extern "C" void MCC_MaybeLocalWriteStruct(const ObjectPtr obj, MAddress dst, size_t dstLen, MAddress src,
+                                           size_t srcLen, GCTib gctib)
+{
+    CHECK_DETAIL(dst != 0u && src != 0u, "MCC_MaybeLocalWriteStruct wrong parameter, dst: %p src: %p", dst, src);
+    CHECK_DETAIL(srcLen <= dstLen, "MCC_MaybeLocalWriteStruct source is larger than destination: %zu > %zu", srcLen,
+                 dstLen);
+
+    auto copyRange = [=](size_t begin, size_t end) {
+        if (begin == end) {
+            return;
+        }
+        CHECK_DETAIL(begin < end && end <= dstLen,
+                     "invalid MaybeLocalWriteStruct copy range [%zu, %zu), dstLen: %zu", begin, end, dstLen);
+        CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst + begin), dstLen - begin,
+                              reinterpret_cast<void*>(src + begin), end - begin) == EOK,
+                     "MCC_MaybeLocalWriteStruct memcpy_s failed");
+    };
+    size_t copiedUntil = 0;
+    gctib.ForEachBitmapWordInRange(dst,
+        [=, &copyRange, &copiedUntil](RefField<>& dstField) {
+            size_t offset = reinterpret_cast<MAddress>(&dstField) - dst;
+            CHECK_DETAIL(offset >= copiedUntil && offset + sizeof(RefField<>) <= srcLen,
+                         "invalid MaybeLocalWriteStruct reference offset: %zu, copiedUntil: %zu, srcLen: %zu", offset,
+                         copiedUntil, srcLen);
+            copyRange(copiedUntil, offset);
+
+            auto* srcField = reinterpret_cast<RefField<>*>(src + offset);
+            RefField<> srcSnapshot(srcField->GetFieldValue());
+            ObjectPtr value = Heap::GetBarrier().ReadReference(nullptr, srcSnapshot);
+            MCC_MaybeLocalWriteRef(obj, &dstField, value);
+            copiedUntil = offset + sizeof(RefField<>);
+        },
+        dst, dst + srcLen);
+    copyRange(copiedUntil, srcLen);
+}
+
+extern "C" void MCC_MaybeLocalWriteGeneric(const ObjectPtr obj, void* fieldPtr, const ObjectPtr src, size_t size)
+{
+    if (src == nullptr || size == 0) {
+        return;
+    }
+    CHECK_DETAIL(fieldPtr != nullptr, "invalid MaybeLocalWriteGeneric field");
+    MAddress srcPayload = reinterpret_cast<MAddress>(src) + TYPEINFO_PTR_SIZE;
+    if (!src->HasRefField()) {
+        CHECK_DETAIL(memcpy_s(fieldPtr, size, reinterpret_cast<void*>(srcPayload), size) == EOK,
+                     "MCC_MaybeLocalWriteGeneric memcpy_s failed");
+        return;
+    }
+    MCC_MaybeLocalWriteStruct(
+        obj, reinterpret_cast<MAddress>(fieldPtr), size, srcPayload, size, src->GetGCTib());
+}
+
+extern "C" void MCC_DemodeWriteRef(const ObjectPtr obj, RefField<false>* field, const ObjectPtr value)
+{
+    CHECK_DETAIL(field != nullptr, "invalid DemodeWriteRef field");
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+    if (UNLIKELY(IsLocalObject(value))) {
+        LOG(RTLOG_FATAL, "demode field must not reference local object");
+    }
+#endif
+    if (UNLIKELY(value != nullptr && !Heap::IsHeapAddress(value))) {
+        LOG(RTLOG_FATAL, "demode field must reference heap object or null");
+    }
+    // A value-type owner has no managed base object. Codegen passes a null base pointer
+    // for this case, while field still points to the reference slot in the value itself.
+    if (obj == nullptr) {
+        field->SetTargetObject(value);
+        return;
+    }
+
+    Mutator* mutator = Mutator::GetMutator();
+    bool objIsHeap = Heap::IsHeapAddress(obj);
+    bool objIsLocal = !objIsHeap && IsLocalObject(obj, mutator);
+    CHECK_DETAIL(objIsHeap || objIsLocal, "DemodeWriteRef obj must be managed object");
+    AddLocalRootForHeapRef(obj, value, objIsLocal, false);
+    Heap::GetBarrier().WriteReference(obj, *field, value);
 }
 
 extern "C" TypeInfo* MCC_GetObjClass(const ObjectPtr obj)
@@ -1680,7 +1819,7 @@ static bool IsTupleTypeOf(ObjectPtr obj, TypeInfo* typeInfo, TypeInfo* targetTyp
             if (!fieldTypeInfo->IsClass() && !fieldTypeInfo->IsInterface()) {
                 return false;
             }
-            if (Heap::IsHeapAddress(obj)) {
+            if (IsManagedObject(obj)) {
                 curObj = Heap::GetBarrier().ReadReference(obj, obj->GetRefField(offset));
             } else {
                 curObj = obj->GetRefField(offset).GetTargetObject();
@@ -2047,4 +2186,222 @@ extern "C" void CJ_MRT_RegisterExceptionCallback(void(*callback)())
     ExceptionManager::RegisterExceptionCallback(callback);
 }
 #endif
+
+extern "C" bool MCC_StartLocalRegion()
+{
+    return MCC_StartLocalRegionWithFrame(nullptr);
+}
+
+extern "C" bool MCC_StartLocalRegionWithFrame(FrameAddress* ownerFA)
+{
+    return Mutator::GetMutator()->StartLocalObjectRegion(ownerFA);
+}
+
+extern "C" void MCC_EndLocalRegion()
+{
+    MCC_EndLocalRegionWithFrame(nullptr);
+}
+
+extern "C" void MCC_EndLocalRegionWithFrame(FrameAddress* ownerFA)
+{
+    Mutator::GetMutator()->EndLocalObjectRegion(ownerFA);
+}
+
+extern "C" void MCC_AddLocalFinalizer(ObjectPtr obj)
+{
+    Mutator::GetMutator()->AddLocalFinalizer(obj);
+}
+
+extern "C" void MCC_RemoveLocalFinalizer(ObjectPtr obj)
+{
+    Mutator::GetMutator()->RemoveLocalFinalizer(obj);
+}
+
+extern "C" ObjRef MCC_NewLocalObject(const TypeInfo* klass, MSize size)
+{
+    DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
+    ObjRef obj = ObjectManager::NewObject(klass, size, AllocType::LOCAL_OBJECT);
+    if (obj == nullptr) {
+        VLOG(REPORT, "Allocating local object %s (%zu B) failed and throw OutOfMemoryError", klass->GetName(), size);
+        ExceptionManager::CheckAndThrowPendingException("ObjectManager::MCC_NewLocalObject return nullptr");
+    }
+    return obj;
+}
+
+extern "C" ObjRef MCC_NewLocalFinalizer(const TypeInfo* klass, MSize size)
+{
+    DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
+    // A local finalizer is owned and executed by LocalObjectRootRegistry. Do not
+    // call MObject::NewFinalizer here: that path allocates from the tracing heap
+    // and registers the object with the global FinalizerProcessor.
+    ObjRef obj = ObjectManager::NewObject(klass, size, AllocType::LOCAL_OBJECT);
+    if (obj == nullptr) {
+        VLOG(REPORT, "Allocating local object with ~init %s (%zu B) failed and throw OutOfMemoryError",
+             klass->GetName(), size);
+        ExceptionManager::CheckAndThrowPendingException("ObjectManager::MCC_NewLocalFinalizer return nullptr");
+    }
+    return obj;
+}
+
+extern "C" ArrayRef MCC_NewLocalArray(const TypeInfo* arrayInfo, MIndex nElems)
+{
+    ArrayRef array = ObjectManager::NewArray(static_cast<MIndex>(nElems), arrayInfo, AllocType::LOCAL_OBJECT);
+    if (array == nullptr) {
+        VLOG(REPORT, "Allocating local array %s length %zu failed and throw OutOfMemoryError",
+             arrayInfo->GetName(), nElems);
+        ExceptionManager::CheckAndThrowPendingException("ObjectManager::MCC_NewLocalArray return nullptr");
+    }
+    return array;
+}
+
+extern "C" ArrayRef MCC_NewLocalObjArray(const TypeInfo* arrayInfo, MIndex nElems)
+{
+    ArrayRef array = ObjectManager::NewObjArray(nElems, arrayInfo, AllocType::LOCAL_OBJECT);
+    if (array == nullptr) {
+        VLOG(REPORT, "Allocating local array %s length %zu failed and throw OutOfMemoryError",
+             arrayInfo->GetName(), nElems);
+        ExceptionManager::CheckAndThrowPendingException("ObjectManager::MCC_NewLocalObjArray return nullptr");
+    }
+    return array;
+}
+
+extern "C" ArrayRef MCC_NewLocalArray8(const TypeInfo* arrayInfo, MIndex nElems)
+{
+    ArrayRef array = ObjectManager::NewKnownWidthArray(
+        nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_8B, AllocType::LOCAL_OBJECT);
+    if (array == nullptr) {
+        VLOG(REPORT, "Allocating local array %s length %zu failed and throw OutOfMemoryError",
+             arrayInfo->GetName(), nElems);
+        ExceptionManager::CheckAndThrowPendingException("ObjectManager::MCC_NewLocalArray(8B) return nullptr");
+    }
+    return array;
+}
+
+extern "C" ArrayRef MCC_NewLocalArray16(const TypeInfo* arrayInfo, MIndex nElems)
+{
+    ArrayRef array = ObjectManager::NewKnownWidthArray(
+        nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_16B, AllocType::LOCAL_OBJECT);
+    if (array == nullptr) {
+        VLOG(REPORT, "Allocating local array %s length %zu failed and throw OutOfMemoryError",
+             arrayInfo->GetName(), nElems);
+        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray(16B) return nullptr");
+    }
+    return array;
+}
+
+extern "C" ArrayRef MCC_NewLocalArray32(const TypeInfo* arrayInfo, MIndex nElems)
+{
+    ArrayRef array = ObjectManager::NewKnownWidthArray(
+        nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_32B, AllocType::LOCAL_OBJECT);
+    if (array == nullptr) {
+        VLOG(REPORT, "Allocating local array %s length %zu failed and throw OutOfMemoryError",
+             arrayInfo->GetName(), nElems);
+        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray(32B) return nullptr");
+    }
+    return array;
+}
+
+extern "C" ArrayRef MCC_NewLocalArray64(const TypeInfo* arrayInfo, MIndex nElems)
+{
+    ArrayRef array = ObjectManager::NewKnownWidthArray(
+        nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_64B, AllocType::LOCAL_OBJECT);
+    if (array == nullptr) {
+        VLOG(REPORT, "Allocating local array %s length %zu failed and throw OutOfMemoryError",
+             arrayInfo->GetName(), nElems);
+        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray(64B) return nullptr");
+    }
+    return array;
+}
+
+extern "C" ObjRef MCC_NewLocalGenericObject(const TypeInfo* klass, MSize size)
+{
+    ObjRef obj = ObjectManager::NewObject(klass, size, AllocType::LOCAL_OBJECT);
+    if (obj == nullptr) {
+        VLOG(REPORT, "Allocation local generic object %s (%zu B) failed and throw OutOfMemoryError",
+             klass->GetName(), size);
+        ExceptionManager::CheckAndThrowPendingException("ObjectManager::MCC_NewLocalGenericObject return nullptr");
+    }
+    return obj;
+}
+
+extern "C" ArrayRef MCC_NewLocalGenericArray(const TypeInfo* arrayInfo, MIndex nElems)
+{
+    ArrayRef array = nullptr;
+    if (!arrayInfo->IsArrayType()) {
+        return array;
+    }
+    TypeInfo* componentTypeInfo = arrayInfo->GetComponentTypeInfo();
+    I8 type = componentTypeInfo->GetType();
+    switch (type) {
+        case TypeKind::TYPE_KIND_CLASS:
+        case TypeKind::TYPE_KIND_EXPORTED_REF:
+        case TypeKind::TYPE_KIND_FOREIGN_PROXY:
+        case TypeKind::TYPE_KIND_WEAKREF_CLASS:
+        case TypeKind::TYPE_KIND_INTERFACE:
+        case TypeKind::TYPE_KIND_TEMP_ENUM:
+        case TypeKind::TYPE_KIND_RAWARRAY:
+        case TypeKind::TYPE_KIND_FUNC: {
+            array = ObjectManager::NewObjArray(nElems, arrayInfo, AllocType::LOCAL_OBJECT);
+            break;
+        }
+        case TypeKind::TYPE_KIND_UNIT:
+        case TypeKind::TYPE_KIND_NOTHING:
+        case TypeKind::TYPE_KIND_VARRAY:
+        case TypeKind::TYPE_KIND_TUPLE:
+        case TypeKind::TYPE_KIND_STRUCT:
+        case TypeKind::TYPE_KIND_ENUM: {
+            array = ObjectManager::NewArray(nElems, arrayInfo, AllocType::LOCAL_OBJECT);
+            break;
+        }
+        case TypeKind::TYPE_KIND_BOOL:
+        case TypeKind::TYPE_KIND_UINT8:
+        case TypeKind::TYPE_KIND_INT8: {
+            array = ObjectManager::NewKnownWidthArray(
+                nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_8B, AllocType::LOCAL_OBJECT);
+            break;
+        }
+        case TypeKind::TYPE_KIND_UINT16:
+        case TypeKind::TYPE_KIND_INT16:
+        case TypeKind::TYPE_KIND_FLOAT16: {
+            array = ObjectManager::NewKnownWidthArray(
+                nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_16B, AllocType::LOCAL_OBJECT);
+            break;
+        }
+        case TypeKind::TYPE_KIND_UINT32:
+        case TypeKind::TYPE_KIND_INT32:
+        case TypeKind::TYPE_KIND_RUNE:
+        case TypeKind::TYPE_KIND_FLOAT32: {
+            array = ObjectManager::NewKnownWidthArray(
+                nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_32B, AllocType::LOCAL_OBJECT);
+            break;
+        }
+        case TypeKind::TYPE_KIND_INT_NATIVE:
+        case TypeKind::TYPE_KIND_UINT_NATIVE:
+        case TypeKind::TYPE_KIND_UINT64:
+        case TypeKind::TYPE_KIND_INT64:
+        case TypeKind::TYPE_KIND_FLOAT64:
+        case TypeKind::TYPE_KIND_CSTRING:
+        case TypeKind::TYPE_KIND_CPOINTER:
+        case TypeKind::TYPE_KIND_CFUNC: {
+            array = ObjectManager::NewKnownWidthArray(
+                nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_64B, AllocType::LOCAL_OBJECT);
+            break;
+        }
+        default:
+            break;
+    }
+    if (array == nullptr) {
+        VLOG(REPORT, "Allocation local generic array %s length %zu failed and throw OutOfMemoryError",
+             arrayInfo->GetName(), nElems);
+        ExceptionManager::CheckAndThrowPendingException("NewLocalGenericArray return nullptr");
+    }
+    return array;
+}
+
+// wakRefObject unsupported local mode temporary
+extern "C" ObjRef MCC_NewLocalWeakRefObject(const TypeInfo* klass, MSize size)
+{
+    return MCC_NewWeakRefObject(klass, size);
+}
+
 } // namespace MapleRuntime

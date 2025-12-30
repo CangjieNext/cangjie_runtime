@@ -6,6 +6,7 @@
 
 
 #include "Barrier.inline.h"
+#include "Allocator/LocalObjectUtil.h"
 #include "Heap/Collector/Collector.h"
 #include "Heap/Heap.h"
 #include "ObjectModel/Field.inline.h"
@@ -208,6 +209,10 @@ void Barrier::ReadStaticStruct(MAddress dst, MAddress src, size_t size, const GC
 
 void Barrier::WriteGeneric(const ObjectPtr obj, void* fieldPtr, const ObjectPtr src, size_t size) const
 {
+    // todo del 
+    if (UNLIKELY(IsLocalObject(obj) || IsLocalObject(src))) {
+        LOG(RTLOG_FATAL, "Barrier::WriteGeneric does not support local object: obj %p, src %p", obj, src);
+    }
     if ((obj != nullptr && !obj->HasRefField()) || (!Heap::IsHeapAddress(obj) && !Heap::IsHeapAddress(src))) {
         CHECK_DETAIL(memcpy_s(fieldPtr, size,
                               reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(src) + TYPEINFO_PTR_SIZE),
@@ -235,6 +240,9 @@ void Barrier::WriteGeneric(const ObjectPtr obj, void* fieldPtr, const ObjectPtr 
 }
 void Barrier::ReadGeneric(const ObjectPtr dstObj, ObjectPtr obj, void* fieldPtr, size_t size) const
 {
+    if (UNLIKELY(IsLocalObject(dstObj) || IsLocalObject(obj))) {
+        LOG(RTLOG_FATAL, "Barrier::ReadGeneric does not support local object: dstObj %p, obj %p", dstObj, obj);
+    }
     if (!Heap::IsHeapAddress(dstObj) && !Heap::IsHeapAddress(obj)) {
         CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(dstObj) + TYPEINFO_PTR_SIZE),
                               size, fieldPtr, size) == EOK,

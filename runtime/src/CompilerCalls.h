@@ -37,6 +37,13 @@ extern "C" void MCC_WriteStructField(const ObjectPtr obj, MAddress dst, size_t d
                                      GCTib gctib);
 extern "C" void MCC_WriteStaticRef(const ObjectPtr ref, RefField<false>* field);
 extern "C" void MCC_WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, size_t srcLen, const GCTib gcTib);
+extern "C" MRT_EXPORT void MCC_MaybeLocalWriteRef(const ObjectPtr obj, RefField<false>* field,
+                                                  const ObjectPtr value);
+extern "C" MRT_EXPORT void MCC_MaybeLocalWriteStruct(const ObjectPtr obj, MAddress dst, size_t dstLen,
+                                                     MAddress src, size_t srcLen, GCTib gctib);
+extern "C" MRT_EXPORT void MCC_MaybeLocalWriteGeneric(const ObjectPtr obj, void* fieldPtr,
+                                                       const ObjectPtr src, size_t size);
+extern "C" MRT_EXPORT void MCC_DemodeWriteRef(const ObjectPtr obj, RefField<false>* field, const ObjectPtr value);
 extern "C" void MCC_AtomicWriteReference(const ObjectPtr ref, const ObjectPtr obj, RefField<true>* field,
                                          MemoryOrder order);
 extern "C" ObjectPtr MCC_AtomicReadReference(const ObjectPtr obj, RefField<true>* field, MemoryOrder order);
@@ -183,6 +190,31 @@ extern "C" MRT_EXPORT void CJ_MRT_RolveCycleRef();
 extern "C" void* CJ_MRT_ARKTS_CreateEngine();
 extern "C" void CJ_MRT_RegisterExceptionCallback(void(*callback)());
 #endif
+
+// local region
+// start region when enter a cj func
+extern "C" MRT_EXPORT bool MCC_StartLocalRegion();
+extern "C" MRT_EXPORT bool MCC_StartLocalRegionWithFrame(FrameAddress* ownerFA);
+// end region when finish a cj func or exclave
+extern "C" MRT_EXPORT void MCC_EndLocalRegion();
+extern "C" MRT_EXPORT void MCC_EndLocalRegionWithFrame(FrameAddress* ownerFA);
+extern "C" MRT_EXPORT void MCC_AddLocalFinalizer(ObjectPtr obj);
+extern "C" MRT_EXPORT void MCC_RemoveLocalFinalizer(ObjectPtr obj);
+// alloc local region object
+extern "C" ObjRef MCC_NewLocalObject(const TypeInfo* classInfo, MSize size);
+extern "C" ObjRef MCC_NewLocalFinalizer(const TypeInfo* classInfo, MSize size);
+
+extern "C" ArrayRef MCC_NewLocalArray(const TypeInfo* arrayInfo, MIndex nElems);
+extern "C" ArrayRef MCC_NewLocalObjArray(const TypeInfo* arrayInfo, MIndex nElems);
+extern "C" ArrayRef MCC_NewLocalArray8(const TypeInfo* classInfo, MIndex nElems);
+extern "C" ArrayRef MCC_NewLocalArray16(const TypeInfo* classInfo, MIndex nElems);
+extern "C" ArrayRef MCC_NewLocalArray32(const TypeInfo* classInfo, MIndex nElems);
+extern "C" ArrayRef MCC_NewLocalArray64(const TypeInfo* classInfo, MIndex nElems);
+
+extern "C" ObjRef MCC_NewLocalGenericObject(const TypeInfo* klass, MSize size);
+extern "C" ArrayRef MCC_NewLocalGenericArray(const TypeInfo* arrayInfo, MIndex nElems);
+
+extern "C" ObjRef MCC_NewLocalWeakRefObject(const TypeInfo* klass, MSize size);
 
 #ifdef __APPLE__
 #include "MacAlias.h"

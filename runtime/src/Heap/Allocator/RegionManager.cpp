@@ -60,8 +60,10 @@ const size_t RegionInfo::LARGE_OBJECT_DEFAULT_THRESHOLD = MapleRuntime::MRT_PAGE
 // max size of per region is 128KB.
 const size_t RegionManager::MAX_UNIT_COUNT_PER_REGION = (128 * KB) / MapleRuntime::MRT_PAGE_SIZE;
 // size of huge page is 2048KB.
-const size_t RegionManager::HUGE_PAGE = (2048 * KB) / MapleRuntime::MRT_PAGE_SIZE;;
-
+const size_t RegionManager::HUGE_PAGE = (2048 * KB) / MapleRuntime::MRT_PAGE_SIZE;
+// size of origin local mode region is page size.
+const size_t LOCAL_MODE_REGION_DEFAULT_SIZE = MRT_PAGE_SIZE;
+ 
 class ForwardTask : public HeapWork {
 public:
     ForwardTask(RegionManager& manager, RegionList& fromSpace)
@@ -728,6 +730,12 @@ size_t RegionManager::CollectLargeGarbage()
     return garbageSize;
 }
 
+void RegionManager::ReclaimLocalModeRegion(RegionInfo* region)
+{
+    CHECK(region->IsLocalModeRegion() || region->IsFreeRegion());
+    CollectRegion(region);
+}
+
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
 void RegionManager::DumpRegionInfo() const
 {
@@ -799,7 +807,7 @@ void RegionManager::DumpRegionStats(const char* msg, bool dumpToError) const
     size_t allHeapSize = regionHeapEnd - regionHeapStart;
     size_t allUnits = allHeapSize / RegionInfo::UNIT_SIZE;
     size_t inactiveUnits = (regionHeapEnd - inactiveZone) / RegionInfo::UNIT_SIZE;
-    
+
     size_t usedUnitCount = GetUsedUnitCount();
     size_t usedObjSize = GetAllocatedSize();
     size_t releasedUnits = freeRegionManager.GetReleasedUnitCount();
@@ -956,7 +964,16 @@ void RegionManager::RequestForRegion(size_t size)
 
     Heap& heap = Heap::GetHeap();
     GCStats& gcstats = heap.GetCollector().GetGCStats();
-    size_t allocatedBytes = GetAllocatedSize() - gcstats.liveBytesAfterGC;
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(heap.GetAllocator());
+    size_t tracingHeapBytes = GetAllocatedSize();
+    size_t localHeapBytes = space.GetLocalObjectAllocator().GetHeapAllocatedBytes();
+    size_t currentHeapBytes = tracingHeapBytes + localHeapBytes;
+    // liveBytesAfterGC deliberately contains tracing-heap bytes only. Local
+    // objects can disappear when their scope ends, so use a saturating delta.
+    size_t allocatedBytes = 0;
+    if (currentHeapBytes > gcstats.liveBytesAfterGC) {
+        allocatedBytes = currentHeapBytes - gcstats.liveBytesAfterGC;
+    }
     constexpr double pi = 3.14;
     size_t availableBytesAfterGC = heap.GetMaxCapacity() - gcstats.liveBytesAfterGC;
     double heuAllocRate = std::cos((pi / 2.0) * allocatedBytes / availableBytesAfterGC) * gcstats.collectionRate;
@@ -1205,5 +1222,26 @@ uintptr_t RegionManager::AllocPinnedFromFreeList(size_t size)
     BaseObject* object = reinterpret_cast<BaseObject*>(allocPtr);
     (reinterpret_cast<CopyCollector*>(&Heap::GetHeap().GetCollector()))->MarkObject(object);
     return allocPtr;
+}
+
+RegionInfo* RegionManager::AllocateLocalModeRegion(bool expectPhysicalMem)
+{
+    return AllocateLocalModeRegion(LOCAL_MODE_REGION_DEFAULT_SIZE, expectPhysicalMem);
+}
+
+RegionInfo* RegionManager::AllocateLocalModeRegion(size_t size, bool expectPhysicalMem)
+{
+    size = std::max(size, LOCAL_MODE_REGION_DEFAULT_SIZE);
+    size_t needUnitNum = AlignUp(size, RegionInfo::UNIT_SIZE) / RegionInfo::UNIT_SIZE;
+    RegionInfo::UnitRole unitRole = needUnitNum <= maxUnitCountPerRegion ?
+                                    RegionInfo::UnitRole::SMALL_SIZED_UNITS :
+                                    RegionInfo::UnitRole::LARGE_SIZED_UNITS;
+    RegionInfo* region = TakeRegion(needUnitNum, unitRole, expectPhysicalMem);
+    if (region == nullptr) {
+        VLOG(LOCAL_REGION, "cannot take a local mode region from heap");
+        return nullptr;
+    }
+    region->SetRegionType(RegionInfo::RegionType::LOCAL_MODE_REGION);
+    return region;
 }
 } // namespace MapleRuntime

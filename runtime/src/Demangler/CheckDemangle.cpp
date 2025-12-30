@@ -177,6 +177,11 @@ static std::vector<std::pair<std::string, std::string>> checkList = {
       "default.array_funcTest_1(RawArray<core/core.String>[][][])" },
     { "_CN7default16array_funcTest_2EA1_CN7default9classTestIlEE",
       "default.array_funcTest_2(RawArray<default.classTest<Int64>>[])" },
+    // Local modal on function decls (this param and return / func modal suffix).
+    { "_CN18stdx.encoding.json9parseJsonHCNY_15JsonParserLocalE!",
+      "stdx.encoding.json.parseJson(stdx.encoding.json.JsonParserLocal) @local!" },
+    { "_CN18stdx.encoding.json14JsonArrayLocal3add!HCN18stdx.encoding.json14JsonValueLocalE!",
+      "stdx.encoding.json.JsonArrayLocal.add(this @local!, stdx.encoding.json.JsonValueLocal) @local!" },
 };
 
 static std::vector<std::pair<std::string, std::string>> checkListForTypes = {
@@ -188,6 +193,10 @@ static std::vector<std::pair<std::string, std::string>> checkListForTypes = {
     { "defaultLambda", "defaultLambda" },
     { "Dh", "Float16" },
     { "DhfaultLambda", "DhfaultLambda" },
+    { "i!", "Int32 @local!" },
+    { "i?", "Int32 @local?" },
+    { "l!", "Int64 @local!" },
+    { "CN7default1AE!", "default.A @local!" },
 };
 
 std::string AssembleDemangledName(const std::string& pkgName, const std::string& fullName, bool isFunctionLike)
