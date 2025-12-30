@@ -327,6 +327,8 @@ public:
     size_t CollectPinnedGarbage();
     size_t CollectFreePinnedSlots(RegionInfo* region);
 
+    void CollectLocalGarbage();
+
     // targetSize: size of memory which we do not release and keep it as cache for future allocation.
     size_t ReleaseGarbageRegions(size_t targetSize) { return freeRegionManager.ReleaseGarbageRegions(targetSize); }
 
@@ -523,6 +525,10 @@ public:
         ClearLiveInfo(recentLargeRegionList);
         ClearLiveInfo(largeTraceRegions);
     }
+
+    uintptr_t AllocLocalMode(size_t size);
+
+    RegionInfo* AllocateLocalModeRegion(bool expectPhysicalMem = false);
 
 private:
     static const size_t MAX_UNIT_COUNT_PER_REGION;

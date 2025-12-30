@@ -487,6 +487,8 @@ public:
         RECENT_LARGE_REGION,
 
         GARBAGE_REGION,
+
+        LOCAL_MODE_REGION,
     };
 
     static void Initialize(size_t nUnit, uintptr_t heapAddress)
@@ -883,6 +885,11 @@ public:
             (static_cast<RegionType>(metadata.regionType) == RegionType::RECENT_PINNED_REGION);
     }
 
+    bool IsLocalModeRegion() const
+    {
+        return static_cast<RegionType>(metadata.regionType) == RegionType::LOCAL_MODE_REGION;
+    }
+
     RegionInfo* GetPrevRegion() const
     {
         if (UNLIKELY(metadata.prevRegionIdx == NULLPTR_IDX)) {
@@ -975,6 +982,14 @@ public:
         this->SetNextRegion(nullptr);
         this->SetPrevRegion(nullptr);
     }
+
+    bool IsFirstRegionOfFunc() const { return localRegionInfo.isFirstRegionOfFunc; }
+
+    void SetFirstRegionTag(bool val) { localRegionInfo.isFirstRegionOfFunc = val; }
+
+    RegionInfo* GetPrevLocalRegion() const { return localRegionInfo.prev; }
+
+    void SetPrevLocalRegion(RegionInfo* region) { localRegionInfo.prev = region; }
 
 private:
     static constexpr int32_t MAX_RAW_POINTER_COUNT = std::numeric_limits<int32_t>::max();
@@ -1209,6 +1224,11 @@ private:
 
     static constexpr uint32_t NULLPTR_IDX = UnitInfo::INVALID_IDX;
     UnitMetadata metadata;
+
+    struct LocalRegionInfo {
+        bool isFirstRegionOfFunc = false;
+        RegionInfo* prev = nullptr;
+    }localRegionInfo;
 };
 } // namespace MapleRuntime
 #endif // MRT_REGION_INFO_H
