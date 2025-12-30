@@ -18,7 +18,7 @@ public struct Token <: ToBytes {
     public var delimiterNum: UInt16 = 1 // Delimiter r'#' number for raw string.
     private var isSingleQuote_ = false
 
-    public mut prop isSingleQuote: Bool {
+    protected mut prop isSingleQuote: Bool {
         get() {
             isSingleQuote_
         }
