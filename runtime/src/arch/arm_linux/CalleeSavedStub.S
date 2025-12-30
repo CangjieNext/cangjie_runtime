@@ -250,5 +250,17 @@ unwindPCForC2RStubStart:
     CalleeSavedRegistersStub MCC_ThrowException CJ_MCC_ThrowException
     CalleeSavedRegistersStub MCC_ThrowStackOverflowError CJ_MCC_ThrowStackOverflowError
 #endif
+    CalleeSavedRegistersStub MCC_StartLocalRegion CJ_MCC_StartLocalRegion
+    CalleeSavedRegistersStub MCC_EndLocalRegion CJ_MCC_EndLocalRegion
+    CalleeSavedRegistersStub MCC_NewLocalObject CJ_MCC_NewLocalObject
+    CalleeSavedRegistersStub MCC_NewLocalArray CJ_MCC_NewLocalArray
+    CalleeSavedRegistersStub MCC_NewLocalObjArray CJ_MCC_NewLocalObjArray
+    CalleeSavedRegistersStub MCC_NewLocalArray8 CJ_MCC_NewLocalArray8
+    CalleeSavedRegistersStub MCC_NewLocalArray16 CJ_MCC_NewLocalArray16
+    CalleeSavedRegistersStub MCC_NewLocalArray32 CJ_MCC_NewLocalArray32
+    CalleeSavedRegistersStub MCC_NewLocalArray64 CJ_MCC_NewLocalArray64
+    CalleeSavedRegistersStub MCC_NewLocalGenericObject CJ_MCC_NewLocalGenericObject
+    CalleeSavedRegistersStub MCC_NewLocalGenericArray CJ_MCC_NewLocalGenericArray
+    CalleeSavedRegistersStub MCC_NewLocalWeakRefObject CJ_MCC_NewLocalWeakRefObject
     .global unwindPCForC2RStubEnd
 unwindPCForC2RStubEnd:

@@ -18,6 +18,9 @@
 namespace MapleRuntime {
 MAddress RegionSpace::TryAllocateOnce(size_t allocSize, AllocType allocType)
 {
+    if (UNLIKELY(allocType == AllocType::LOCAL_OBJECT)) {
+        return regionManager.AllocLocalMode(allocSize);
+    }
     if (UNLIKELY(allocType == AllocType::PINNED_OBJECT)) {
         return regionManager.AllocPinned(allocSize);
     }
