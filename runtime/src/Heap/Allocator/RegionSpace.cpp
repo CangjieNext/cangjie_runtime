@@ -18,6 +18,15 @@
 namespace MapleRuntime {
 MAddress RegionSpace::TryAllocateOnce(size_t allocSize, AllocType allocType)
 {
+    if (UNLIKELY(allocType == AllocType::LOCAL_OBJECT)) {
+        Mutator* mutator = Mutator::GetMutator();
+        if (UNLIKELY(mutator == nullptr)) {
+            LOG(RTLOG_ERROR, "alloc local object failed because mutator is null");
+            return 0;
+        }
+        CHECK_DETAIL(localObjectAllocator != nullptr, "local object allocator is not initialized");
+        return localObjectAllocator->Allocate(*mutator, allocSize);
+    }
     if (UNLIKELY(allocType == AllocType::PINNED_OBJECT)) {
         return regionManager.AllocPinned(allocSize);
     }
@@ -118,6 +127,7 @@ void RegionSpace::Init(const HeapParam& vmHeapParam)
 #endif
     Heap::OnHeapCreated(reservedStart);
     Heap::OnHeapExtended(reservedEnd);
+    localObjectAllocator = LocalObjectAllocator::InitLocalObjectAllocator(regionManager);
 }
 
 AllocBuffer* AllocBuffer::GetOrCreateAllocBuffer()

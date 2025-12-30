@@ -57,6 +57,8 @@ enum LogType {
     SANITIZER,
 #endif
 
+    LOCAL_REGION,
+
     LOG_TYPE_NUMBER
 };
 

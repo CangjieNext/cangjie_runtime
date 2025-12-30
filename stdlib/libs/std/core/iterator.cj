@@ -14,6 +14,13 @@ package std.core
 public interface Iterable<E> {
     /* Returns an iterator over elements of type E. */
     func iterator(): Iterator<E>
+
+    func iterator(this @local!): Iterator<E> @local! {
+        throw Exception()
+    }
+    func iterator(this @local?): Iterator<E> @local? {
+        throw Exception()
+    }
 }
 
 /**
@@ -21,9 +28,19 @@ public interface Iterable<E> {
  */
 public abstract class Iterator<T> <: Iterable<T> {
     public func next(): Option<T>
+    public open func next(this @local!): ?T @local! {
+        throw Exception()
+    }
+    public open func next(this @local?): ?T @local? {
+        throw Exception()
+    }
 
     @Frozen
     public init() {}
+    @Frozen
+    public exclave init(this @local!) {}
+    @Frozen
+    public exclave init(this @local?) {}
 
     /*
      * Iterator.
@@ -32,6 +49,10 @@ public abstract class Iterator<T> <: Iterable<T> {
      */
     @Frozen
     public func iterator(): Iterator<T> { this }
+    @Frozen
+    public func iterator(this @local!): Iterator<T> @local! { this }
+    @Frozen
+    public func iterator(this @local?): Iterator<T> @local? { this }
 }
 
 class FilterIterator<T> <: Iterator<T> {

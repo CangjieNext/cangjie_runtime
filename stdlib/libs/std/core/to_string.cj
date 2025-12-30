@@ -16,6 +16,16 @@ package std.core
  */
 public interface ToString {
     func toString(): String
+
+    /**
+     * Returns a String @local! bound to the caller's region.
+     * Default implementation throws; concrete types bound to `local!`
+     * (e.g. via `append<T>(this @local!, v: T @local?)`) should override
+     * this to return a real `local!` String.
+     */
+    func toString(this @local?): String @local! {
+        throw Exception("ToString.toString(this @local?) not implemented")
+    }
 }
 
 extend Int64 <: ToString {
