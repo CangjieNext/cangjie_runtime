@@ -180,6 +180,26 @@ extern "C" MRT_EXPORT void CJ_MRT_RolveCycleRef();
 extern "C" void* CJ_MRT_ARKTS_CreateEngine();
 #endif
 
+// local region
+// start region when enter a cj func
+extern "C" MRT_EXPORT bool MCC_StartLocalRegion();
+// end region when finish a cj func or exclave
+extern "C" MRT_EXPORT void MCC_EndLocalRegion();
+// alloc local region object
+extern "C" ObjRef MCC_NewLocalObject(const TypeInfo* classInfo, MSize size);
+
+extern "C" ArrayRef MCC_NewLocalArray(const TypeInfo* arrayInfo, MIndex nElems);
+extern "C" ArrayRef MCC_NewLocalObjArray(const TypeInfo* arrayInfo, MIndex nElems);
+extern "C" ArrayRef MCC_NewLocalArray8(const TypeInfo* classInfo, MIndex nElems);
+extern "C" ArrayRef MCC_NewLocalArray16(const TypeInfo* classInfo, MIndex nElems);
+extern "C" ArrayRef MCC_NewLocalArray32(const TypeInfo* classInfo, MIndex nElems);
+extern "C" ArrayRef MCC_NewLocalArray64(const TypeInfo* classInfo, MIndex nElems);
+
+extern "C" ObjRef MCC_NewLocalGenericObject(const TypeInfo* klass, MSize size);
+extern "C" ArrayRef MCC_NewLocalGenericArray(const TypeInfo* arrayInfo, MIndex nElems);
+
+extern "C" ObjRef MCC_NewLocalWeakRefObject(const TypeInfo* klass, MSize size);
+
 #ifdef __APPLE__
 #include "MacAlias.h"
 #else

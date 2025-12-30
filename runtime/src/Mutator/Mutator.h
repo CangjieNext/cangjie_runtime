@@ -481,6 +481,16 @@ public:
 
     void ReleaseForeignThread();
 
+    void PushLocalRegoinStack(RegionInfo* region);
+
+    RegionInfo* PopLocalRegionStack();
+
+    RegionInfo* GetLocalRegionStackTop() { return localRegionInfo.stackTop; }
+
+    bool AllocFuncFirstLocalRegion();
+
+    void FreeFuncLocalRegion();
+
 protected:
     // for managed stack
     void VisitStackRoots(const RootVisitor& func);
@@ -553,6 +563,11 @@ private:
         AllocBuffer* allocBuffer = { nullptr };
         ScheduleHandle schedule = { nullptr };
     } foreignThreadInfo;
+    
+    // link to local region list
+    struct LocalRegionInfo {
+        RegionInfo* stackTop = { nullptr };
+    } localRegionInfo;
 };
 
 // This function is mainly used to initialize the context of mutator.

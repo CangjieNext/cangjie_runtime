@@ -44,6 +44,9 @@ public:
     virtual bool IsGCEnabled() const = 0;
     virtual void EnableGC(bool val) = 0;
 
+    virtual bool IsLocalRegionEnabled() const = 0;
+    virtual void EnableLocalRegion(bool val) = 0;
+
     virtual MAddress Allocate(size_t size, AllocType allocType) = 0;
 
     virtual Collector& GetCollector() = 0;

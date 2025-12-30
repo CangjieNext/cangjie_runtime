@@ -51,6 +51,28 @@ static bool InitEnabledGCParam()
     return true;
 }
 
+static bool InitLocalRegionParam()
+{
+    auto enableLocalRegion = std::getenv("cjEnableLocalRegion");
+    if (enableLocalRegion == nullptr) {
+        return false;
+    }
+    if (strlen(enableLocalRegion) != 1) {
+        LOG(RTLOG_ERROR, "Unsupported cjEnableLocalRegion, cjEnableLocalRegion should be 0 or 1.\n");
+        return false;
+    }
+
+    switch (enableLocalRegion[0]) {
+        case '0':
+            return false;
+        case '1':
+            return true;
+        default:
+            LOG(RTLOG_ERROR, "Unsupported cjEnableLocalRegion, cjEnableLocalRegion should be 0 or 1.\n");
+    }
+    return false;
+}
+
 class HeapImpl : public Heap {
 public:
     HeapImpl()
@@ -81,6 +103,9 @@ public:
     bool IsGCEnabled() const override { return isGCEnabled.load(); }
 
     void EnableGC(bool val) override { return isGCEnabled.store(val); }
+
+    bool IsLocalRegionEnabled() const override { return isLocalRegionEnabled.load(std::memory_order_relaxed); };
+    void EnableLocalRegion(bool val) override { return isLocalRegionEnabled.store(val); };
 
     MAddress Allocate(size_t size, AllocType allocType) override;
 
@@ -153,6 +178,8 @@ private:
     StaticRootTable staticRootTable;
 
     std::atomic<bool> isGCEnabled = { true };
+
+    std::atomic<bool> isLocalRegionEnabled = { false };
 }; // end class HeapImpl
 
 static ImmortalWrapper<HeapImpl> g_heapInstance;
@@ -168,6 +195,7 @@ void HeapImpl::Init(const HeapParam& param)
 {
     theSpace->Init(param);
     Heap::GetHeap().EnableGC(InitEnabledGCParam());
+    Heap::GetHeap().EnableLocalRegion(InitLocalRegionParam());
     collectorProxy.Init();
     collectorResources.Init();
 }

@@ -312,5 +312,77 @@ _CJ_MCC_NewAndInitEnumTupleObject:
 _CJ_MCC_GetAssociatedValues:
     CalleeSavedRegistersStub MCC_GetAssociatedValues
 
+    .text
+    .align 2
+    .global _CJ_MCC_StartLocalRegion
+_CJ_MCC_StartLocalRegion:
+    CalleeSavedRegistersStub MCC_StartLocalRegion
+
+    .text
+    .align 2
+    .global _CJ_MCC_EndLocalRegion
+_CJ_MCC_EndLocalRegion:
+    CalleeSavedRegistersStub MCC_EndLocalRegion
+
+    .text
+    .align 2
+    .global _CJ_MCC_NewLocalObject
+_CJ_MCC_NewLocalObject:
+    CalleeSavedRegistersStub MCC_NewLocalObject
+
+    .text
+    .align 2
+    .global _CJ_MCC_NewLocalArray
+_CJ_MCC_NewLocalArray:
+    CalleeSavedRegistersStub MCC_NewLocalArray
+
+    .text
+    .align 2
+    .global _CJ_MCC_NewLocalObjArray
+_CJ_MCC_NewLocalObjArray:
+    CalleeSavedRegistersStub MCC_NewLocalObjArray
+
+    .text
+    .align 2
+    .global _CJ_MCC_NewLocalArray8
+_CJ_MCC_NewLocalArray8:
+    CalleeSavedRegistersStub MCC_NewLocalArray8
+
+    .text
+    .align 2
+    .global _CJ_MCC_NewLocalArray16
+_CJ_MCC_NewLocalArray16:
+    CalleeSavedRegistersStub MCC_NewLocalArray16
+
+    .text
+    .align 2
+    .global _CJ_MCC_NewLocalArray32
+_CJ_MCC_NewLocalArray32:
+    CalleeSavedRegistersStub MCC_NewLocalArray32
+
+    .text
+    .align 2
+    .global _CJ_MCC_NewLocalArray64
+_CJ_MCC_NewLocalArray64:
+    CalleeSavedRegistersStub MCC_NewLocalArray64
+
+    .text
+    .align 2
+    .global _CJ_MCC_NewLocalGenericObject
+_CJ_MCC_NewLocalGenericObject:
+    CalleeSavedRegistersStub MCC_NewLocalGenericObject
+
+    .text
+    .align 2
+    .global _CJ_MCC_NewLocalGenericArray
+_CJ_MCC_NewLocalGenericArray:
+    CalleeSavedRegistersStub MCC_NewLocalGenericArray
+
+    .text
+    .align 2
+    .global _CJ_MCC_NewLocalWeakRefObject
+_CJ_MCC_NewLocalWeakRefObject:
+    CalleeSavedRegistersStub MCC_NewLocalWeakRefObject
+
 .global _unwindPCForC2RStubEnd
 _unwindPCForC2RStubEnd:

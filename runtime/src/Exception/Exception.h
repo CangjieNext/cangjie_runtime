@@ -170,38 +170,7 @@ public:
         topManagedPC = 0;
     }
 
-    void RestoreContext(CalleeSavedRegisterContext& context)
-    {
-#ifdef GENERAL_ASAN_SUPPORT_INTERFACE
-#if defined(__x86_64__)
-        auto oldRsp = context.rsp;
-#elif defined(__aarch64__)
-        auto oldRsp = context.sp;
-#elif defined(__arm__)
-        auto oldRsp = context.sp;
-#endif
-#endif
-        for (auto frameItor = ehFrameInfos.begin(); frameItor != ehFrameInfos.end(); ++frameItor) {
-            if (frameItor->IsCatchException()) {
-                break;
-            }
-            if (frameItor->mFrame.GetIP() == throwingSOFFramePc) {
-                frameItor->RestoreToCallerContext(context, adjustedSize);
-                adjustedSize = 0;
-            } else {
-                frameItor->RestoreToCallerContext(context);
-            }
-        }
-#ifdef GENERAL_ASAN_SUPPORT_INTERFACE
-#if defined(__x86_64__)
-        Sanitizer::HandleNoReturn(oldRsp, context.rsp);
-#elif defined(__aarch64__)
-        Sanitizer::HandleNoReturn(oldRsp, context.sp);
-#elif defined(__arm__)
-        Sanitizer::HandleNoReturn(oldRsp, context.sp);
-#endif
-#endif
-    }
+    void RestoreContext(CalleeSavedRegisterContext& context);
 
 private:
     ExceptionRef exceptionRef;

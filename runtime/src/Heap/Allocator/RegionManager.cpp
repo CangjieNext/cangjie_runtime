@@ -59,7 +59,9 @@ const size_t RegionInfo::LARGE_OBJECT_DEFAULT_THRESHOLD = MapleRuntime::MRT_PAGE
 // max size of per region is 128KB.
 const size_t RegionManager::MAX_UNIT_COUNT_PER_REGION = (128 * KB) / MapleRuntime::MRT_PAGE_SIZE;
 // size of huge page is 2048KB.
-const size_t RegionManager::HUGE_PAGE = (2048 * KB) / MapleRuntime::MRT_PAGE_SIZE;;
+const size_t RegionManager::HUGE_PAGE = (2048 * KB) / MapleRuntime::MRT_PAGE_SIZE;
+// size of origin local mode region is page size.
+const size_t LOCAL_MODE_REGION_DEFAULT_SIZE = MRT_PAGE_SIZE;
 
 class ForwardTask : public HeapWork {
 public:
@@ -725,6 +727,19 @@ size_t RegionManager::CollectLargeGarbage()
     return garbageSize;
 }
 
+void RegionManager::CollectLocalGarbage()
+{
+    Mutator* mutator = Mutator::GetMutator();
+    RegionInfo* headRegion = mutator->PopLocalRegionStack();
+    while (headRegion != nullptr) {
+        RegionInfo* del = headRegion;
+        headRegion = headRegion->GetPrevLocalRegion();
+        del->SetPrevLocalRegion(nullptr);
+        VLOG(LOCAL_REGION, "CollectLocalGarbage: region %p", del);
+        CollectRegion(del);
+    }
+}
+
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
 void RegionManager::DumpRegionInfo() const
 {
@@ -1150,5 +1165,58 @@ uintptr_t RegionManager::AllocPinnedFromFreeList(size_t size)
     BaseObject* object = reinterpret_cast<BaseObject*>(allocPtr);
     (reinterpret_cast<CopyCollector*>(&Heap::GetHeap().GetCollector()))->MarkObject(object);
     return allocPtr;
+}
+
+// Alloc object from local region. Its allocation and release follow the function stack.
+uintptr_t RegionManager::AllocLocalMode(size_t size)
+{
+    Mutator* mutator = Mutator::GetMutator();
+    if (UNLIKELY(mutator == nullptr)) {
+        LOG(RTLOG_ERROR, "alloc local object failed because mutator is null");
+        return 0;
+    }
+    MAddress addr = 0;
+    RegionInfo* region = reinterpret_cast<RegionInfo*>(mutator->GetLocalRegionStackTop());
+    if (region != nullptr) {
+        addr = region->Alloc(size);
+        if (addr != 0) {
+            VLOG(LOCAL_REGION, "AllocLocalMode in old region: mutator %p, regoin %p(isFirst %d), size %zu, stackTop %p, obj %p, objSize %zu",
+                 Mutator::GetMutator(), region, region->IsFirstRegionOfFunc(), region->GetRegionSize(),
+                 Mutator::GetMutator()->GetLocalRegionStackTop(), addr, size);
+            return addr;
+        }
+    }
+
+    size_t needUnitNum = AlignUp(size, RegionInfo::UNIT_SIZE) / RegionInfo::UNIT_SIZE;
+    RegionInfo::UnitRole unitRole = needUnitNum <= maxUnitCountPerRegion ?
+                                    RegionInfo::UnitRole::SMALL_SIZED_UNITS :
+                                    RegionInfo::UnitRole::LARGE_SIZED_UNITS;
+    region = TakeRegion(needUnitNum, unitRole);
+    if (region == nullptr) {
+        DLOG(REGION, "cannot take a local mode region from heap");
+        return 0;
+    }
+    region->SetRegionType(RegionInfo::RegionType::LOCAL_MODE_REGION);
+    mutator->PushLocalRegoinStack(region);
+    addr = region->Alloc(size);
+    VLOG(LOCAL_REGION, "AllocLocalMode in new region: mutator %p, regoin %p(isFirst %d), size %zu, stackTop %p, obj %p, objSize %zu",
+         Mutator::GetMutator(), region, region->IsFirstRegionOfFunc(), region->GetRegionSize(),
+         Mutator::GetMutator()->GetLocalRegionStackTop(), addr, size);
+    CHECK_DETAIL(addr != 0, "alloc local object failed");
+    return addr;
+}
+
+RegionInfo* RegionManager::AllocateLocalModeRegion(bool expectPhysicalMem)
+{
+    size_t needSpace = LOCAL_MODE_REGION_DEFAULT_SIZE;
+    RegionInfo* region = TakeRegion(needSpace, RegionInfo::UnitRole::SMALL_SIZED_UNITS, expectPhysicalMem);
+    if (region == nullptr) {
+        VLOG(LOCAL_REGION, "cannot take a local mode region from heap");
+        return nullptr;
+    }
+    region->SetRegionType(RegionInfo::RegionType::LOCAL_MODE_REGION);
+    region->SetFirstRegionTag(false);
+    region->SetPrevLocalRegion(nullptr);
+    return region;
 }
 } // namespace MapleRuntime

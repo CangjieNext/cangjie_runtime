@@ -611,4 +611,51 @@ void Mutator::ReleaseForeignThread()
     }
     // We can remove foreign thread c-heap resource here.
 }
+
+// local region related functions
+bool Mutator::AllocFuncFirstLocalRegion()
+{
+    RegionSpace& theAllocator = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+    RegionManager& manager = theAllocator.GetRegionManager();
+    RegionInfo* region = manager.AllocateLocalModeRegion();
+    if (region == nullptr) {
+        // todo gc or oom
+        VLOG(LOCAL_REGION, "AllocFuncFirstLocalRegion failed, region is null");
+        return false;
+    }
+    region->SetFirstRegionTag(true);
+    PushLocalRegoinStack(region); 
+    VLOG(LOCAL_REGION, "StartLocalRegoin: mutator %p, regoin %p, size %zu, stackTop %p",
+         this, region, region->GetRegionSize(), localRegionInfo.stackTop);
+    return true;
+}
+
+void Mutator::FreeFuncLocalRegion()
+{
+    reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator()).GetRegionManager().CollectLocalGarbage();
+}
+
+void Mutator::PushLocalRegoinStack(RegionInfo* newRegion)
+{
+    newRegion->SetPrevLocalRegion(localRegionInfo.stackTop);
+    localRegionInfo.stackTop = newRegion;
+}
+
+RegionInfo* Mutator::PopLocalRegionStack()
+{
+    RegionInfo* curr = localRegionInfo.stackTop;
+    RegionInfo* ret = localRegionInfo.stackTop;
+    while (curr != nullptr) {
+        curr->SetRegionType(RegionInfo::RegionType::FREE_REGION);
+        RegionInfo* prev = curr->GetPrevLocalRegion();
+        if (curr->IsFirstRegionOfFunc()) {
+            curr->SetFirstRegionTag(false);
+            curr->SetPrevLocalRegion(nullptr);
+            localRegionInfo.stackTop = prev;
+            break;
+        }
+        curr = prev;
+    }
+    return ret;
+}
 } // namespace MapleRuntime
