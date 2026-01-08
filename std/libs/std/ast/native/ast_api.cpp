@@ -72,6 +72,28 @@ std::string ParseWithError(
     return outStr;
 }
 
+std::string LexWithError(void* fptr, const std::string code)
+{
+    DiagnosticEngine diag;
+    diag.EnableCheckRangeErrorCodeRatherICE();
+    SourceManager sm;
+    auto fileID = sm.AddSource("generate by tokens", code);
+    diag.SetSourceManager(&sm);
+    diag.SetDiagnoseStatus(true);
+
+    diag.SetDisableWarning(true);
+    Lexer lex(fileID, code, diag, sm, false);
+    auto tokens = lex.GetTokens();
+
+    std::string outStr;
+    auto ret = diag.GetCategoryDiagnosticsString(DiagCategory::LEX, outStr);
+    if (ret != DiagEngineErrorCode::NO_ERRORS) {
+        diag.DisableCheckRangeErrorCodeRatherICE();
+        return "DiagnEngineError occurs";
+    }
+    return outStr;
+}
+
 static char* CloneString(const std::string s, const size_t size)
 {
     auto ret = (char*)malloc(size * sizeof(char));
@@ -103,7 +125,7 @@ void TryCombineDoubleArrow(MacroCall* macCall, std::vector<Token> inputTokens, s
 } // namespace
 
 extern "C" {
-uint8_t* CJ_AST_Lex(void* fptr, const char* code)
+ParseRes* CJ_AST_Lex(void* fptr, const char* code)
 {
     Cangjie::ICE::TriggerPointSetter iceSetter(CompileStage::PARSE);
     DiagnosticEngine diag;
@@ -141,7 +163,20 @@ uint8_t* CJ_AST_Lex(void* fptr, const char* code)
         }
     }
 
-    return TokenSerialization::GetTokensBytesWithHead(tokens);
+    ParseRes* result = (ParseRes*)malloc(sizeof(ParseRes));
+    if (result == nullptr) {
+        return nullptr;
+    }
+    if (diag.GetErrorCount()) {
+        std::string errMsg;
+        result->node = nullptr;
+        errMsg = LexWithError(fptr, cangjieCode);
+        result->eMsg = CloneString(errMsg, errMsg.size() + 1);
+        return result;
+    }
+    result->node = TokenSerialization::GetTokensBytesWithHead(tokens);
+    result->eMsg = nullptr;
+    return result;
 }
 
 ParseRes* CJ_AST_ParseExpr(void* fptr, const uint8_t* tokensBytes, int64_t* tokenCounter)
