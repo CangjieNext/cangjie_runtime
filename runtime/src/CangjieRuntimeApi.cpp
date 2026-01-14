@@ -837,6 +837,6 @@ void CJ_MRT_DumpHeapSnapshot(int fd)
     cjHeapData.DumpHeap(fd);
 }
 
-void CJ_MRT_ForceFullGC() { MapleRuntime::HeapManager::RequestGC(MapleRuntime::GC_REASON_USER, false); }
+void CJ_MRT_ForceFullGC() { MapleRuntime::HeapManager::RequestGC(MapleRuntime::GC_REASON_USER_SYNC, false); }
 
 CANGJIE_RT_API_DECLS_END

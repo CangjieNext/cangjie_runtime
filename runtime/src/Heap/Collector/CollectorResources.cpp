@@ -214,6 +214,27 @@ void CollectorResources::WaitForGCFinish()
     VLOG(REPORT, "WaitForGCFinish cost %zu us", diffTime);
 }
 
+void CollectorResources::WaitUntilUserGCFinished()
+{
+    
+    std::unique_lock<std::mutex> lock(gcFinishedCondMutex);
+    if (!IsGcStarted()) {
+        return;
+    }
+
+    if (collectorProxy.GetCurrentCollector().GetGCReason() != GC_REASON_USER_SYNC) {
+        return;
+    }
+    
+    ScopedEnterSaferegion enterSaferegion(false);
+    uint64_t curWaitGcIndex = finishedGcIndex.load();
+    std::function<bool()> pred = [this, curWaitGcIndex] {
+        return (!IsGcStarted() || (curWaitGcIndex != finishedGcIndex) ||
+                (finishedGcIndex == GCTask::TASK_INDEX_FOR_EXIT));
+    };
+    gcFinishedCondVar.wait(lock, pred);
+}
+
 void CollectorResources::StartGCThreads()
 {
     bool expected = false;
@@ -222,7 +243,7 @@ void CollectorResources::StartGCThreads()
     }
     // starts the thread pool.
     if (gcThreadPool == nullptr) {
-        int32_t helperThreads = 1;
+        int32_t helperThreads = 0;
         gcThreadCount = helperThreads + 1;
         VLOG(REPORT, "total gc thread count %d, helper thread count %d", gcThreadCount, helperThreads);
         gcThreadPool = new (std::nothrow) GCThreadPool("gc", helperThreads, GCPoolThread::GC_THREAD_PRIORITY);

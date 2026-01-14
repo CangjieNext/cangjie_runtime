@@ -40,6 +40,7 @@ public:
 
     virtual bool IsGcStarted() const = 0;
     virtual void WaitForGCFinish() = 0;
+    virtual void WaitUntilUserGCFinished() = 0;
 
     virtual bool IsGCEnabled() const = 0;
     virtual void EnableGC(bool val) = 0;

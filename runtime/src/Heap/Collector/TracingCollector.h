@@ -295,6 +295,8 @@ public:
 
     void RunGarbageCollection(uint64_t, GCReason) override = 0;
 
+    GCReason GetGCReason() const { return gcReason; }
+
     void TransitionToGCPhase(const GCPhase phase, const bool)
     {
         MutatorManager::Instance().TransitionAllMutatorsToGCPhase(phase);
@@ -321,7 +323,7 @@ protected:
     U32 snapshotFinalizerNum = 0;
 
     // reason for current GC.
-    GCReason gcReason = GC_REASON_USER;
+    GCReason gcReason = GC_REASON_USER_ASYNC;
 
     // indicate whether to fix references (including global roots and reference fields).
     // this member field is useful for optimizing concurrent copying gc.

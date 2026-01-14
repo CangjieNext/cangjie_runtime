@@ -228,7 +228,8 @@ extern "C" bool MCC_AtomicCompareSwapReference(const ObjectPtr oldRef, const Obj
     return Heap::GetBarrier().CompareAndSwapReference(obj, *field, oldRef, newRef, succOrder, failOrder);
 }
 
-extern "C" void MCC_InvokeGCImpl(bool sync) { HeapManager::RequestGC(GC_REASON_USER, !sync); }
+extern "C" void MCC_InvokeGCImpl(bool sync) { 
+    HeapManager::RequestGC(sync ? GC_REASON_USER_SYNC : GC_REASON_USER_ASYNC, !sync); }
 
 extern "C" ssize_t MCC_GetRealHeapSize() { return Heap::GetHeap().GetHeapPhysicalMemorySize(); }
 
@@ -244,6 +245,12 @@ extern "C" bool MCC_DumpCJHeapData(int fd)
     bool result = cjHeapData->DumpHeap(fd);
     delete cjHeapData;
     return result;
+}
+
+extern "C" uint64_t MCC_WaitForGCFinish()
+{
+    // Heap::GetHeap().WaitUntilUserGCFinished();
+    return 114514;
 }
 
 extern "C" size_t MCC_GetCJThreadNumber() { return ScheduleCJThreadCountPublic(CJTHREAD_PSTATE_ALL); }

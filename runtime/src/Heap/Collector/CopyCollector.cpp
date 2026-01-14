@@ -52,7 +52,7 @@ void CopyCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
 
     DoGarbageCollection();
 
-    if (reason == GC_REASON_OOM) {
+    if (reason == GC_REASON_OOM  || reason == GC_REASON_USER_SYNC) {
         Heap::GetHeap().GetAllocator().ReclaimGarbageMemory(true);
     }
 

@@ -108,6 +108,8 @@ public:
             }
             // get next object from work stack.
             BaseObject* obj = workStack.back();
+            TypeInfo* objType = obj->GetTypeInfo();
+            (void)objType; // suppress unused variable warning in release build
             workStack.pop_back();
 
             // skip dangling object (such as: object already released).

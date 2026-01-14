@@ -13,6 +13,10 @@ func invokeGC(heavy: Bool): Unit
 
 @When[backend == "cjnative"]
 @Intrinsic
+func waitForGC(): UIntNative
+
+@When[backend == "cjnative"]
+@Intrinsic
 func getCjGCCount(): UIntNative
 
 @When[backend == "cjnative"]
@@ -63,4 +67,9 @@ public func getGCTime(): Int64 {
 @When[backend == "cjnative"]
 public func getGCFreedSize(): Int64 {
     return Int64(getCjGCFreedSize())
+}
+
+@When[backend == "cjnative"]
+public func waitUntilGCFinished(): Int64 {
+    unsafe{ return Int64(waitForGC()) }
 }

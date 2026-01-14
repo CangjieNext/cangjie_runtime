@@ -33,6 +33,7 @@ public:
     void StopGCWork();
     void RequestGC(GCReason reason, bool async);
     void WaitForGCFinish();
+    void WaitUntilUserGCFinished();
     // gc main loop
     void RunTaskLoop();
     // Notify that GC has finished.

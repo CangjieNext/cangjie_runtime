@@ -55,6 +55,7 @@ extern "C" ssize_t MCC_GetRealHeapSize();
 extern "C" size_t MCC_GetAllocatedHeapSize();
 extern "C" size_t MCC_GetMaxHeapSize();
 extern "C" bool MCC_DumpCJHeapData(int fd);
+extern "C" uint64_t MCC_WaitForGCFinish();
 
 extern "C" size_t MCC_GetCJThreadNumber();
 extern "C" size_t MCC_GetBlockingCJThreadNumber();
