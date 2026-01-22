@@ -36,12 +36,12 @@ void PrintStackInfo::FillInStackTrace()
 
 void PrintStackInfo::PrintStackTrace() const
 {
-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+// #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     size_t frameSize = stack.size();
     for (size_t i = 0; i < frameSize; ++i) {
         stack[i].PrintFrameInfo(i);
     }
-#endif
+// #endif
 }
 
 #if defined(__IOS__)

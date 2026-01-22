@@ -69,6 +69,40 @@ public:
 
     size_t heapThreshold;
 };
+
+// Structure to track GC event details
+struct GCEvent {
+    uint64_t timestamp; // Time when GC completed
+    size_t liveBytesBefore;
+    size_t liveBytesAfter;
+    size_t collectedBytes;
+    GCReason reason;
+    uint64_t durationNs; // GC duration in nanoseconds
+};
+
+// Class to track the last N GC events
+class GCEventHistory {
+public:
+    static constexpr size_t MAX_EVENTS = 5;
+
+    static GCEventHistory& GetInstance() {
+        static GCEventHistory instance;
+        return instance;
+    }
+
+    void AddEvent(const GCEvent& event);
+    void DumpEvents() const;
+
+private:
+    GCEventHistory() = default;
+    ~GCEventHistory() = default;
+
+    std::array<GCEvent, MAX_EVENTS> events;
+    size_t count = 0;
+    size_t nextIndex = 0;
+    mutable std::mutex mutex;
+};
+
 extern size_t g_gcCount;
 extern uint64_t g_gcTotalTimeUs;
 extern size_t g_gcCollectedTotalBytes;

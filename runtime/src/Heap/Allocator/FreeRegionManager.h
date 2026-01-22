@@ -114,14 +114,28 @@ public:
         size_t count6To8 = 0; // Number of nodes with 6 or more but less than 8 units
         size_t count8To16 = 0; // Number of nodes with 8 or more but less than 16 units
         size_t count16To32 = 0; // Number of nodes with 16 or more but less than or equal to 32 units
-        size_t countGreater32 = 0; // Number of nodes with more than 32 units
+        size_t count32To64 = 0; // Number of nodes with 32 or more but less than 64 units
+        size_t count64To128 = 0; // Number of nodes with 64 or more but less than 128 units
+        size_t count128To256 = 0; // Number of nodes with 128 or more but less than 256 units
+        size_t count256To512 = 0; // Number of nodes with 256 or more but less than 512 units
+        size_t count512To1024 = 0; // Number of nodes with 512 or more but less than 1024 units
+        size_t count1024To2048 = 0; // Number of nodes with 1024 or more but less than 2048 units
+        size_t count2048To2560 = 0; // Number of nodes with 2048 or more but less than or equal to 2560 units
+        size_t countGreater2560 = 0; // Number of nodes with more than 2560 units
         size_t totalSizeLess2 = 0; // Total size of nodes with less than 2 units
         size_t totalSize2To4 = 0; // Total size of nodes with 2 or more but less than 4 units
         size_t totalSize4To6 = 0; // Total size of nodes with 4 or more but less than 6 units
         size_t totalSize6To8 = 0; // Total size of nodes with 6 or more but less than 8 units
         size_t totalSize8To16 = 0; // Total size of nodes with 8 or more but less than 16 units
         size_t totalSize16To32 = 0; // Total size of nodes with 16 or more but less than or equal to 32 units
-        size_t totalSizeGreater32 = 0; // Total size of nodes with more than 32 units
+        size_t totalSize32To64 = 0; // Total size of nodes with 32 or more but less than 64 units
+        size_t totalSize64To128 = 0; // Total size of nodes with 64 or more but less than 128 units
+        size_t totalSize128To256 = 0; // Total size of nodes with 128 or more but less than 256 units
+        size_t totalSize256To512 = 0; // Total size of nodes with 256 or more but less than 512 units
+        size_t totalSize512To1024 = 0; // Total size of nodes with 512 or more but less than 1024 units
+        size_t totalSize1024To2048 = 0; // Total size of nodes with 1024 or more but less than 2048 units
+        size_t totalSize2048To2560 = 0; // Total size of nodes with 2048 or more but less than or equal to 2560 units
+        size_t totalSizeGreater2560 = 0; // Total size of nodes with more than 2560 units
     };
     SizeDistribution GetDirtyTreeSizeDistribution() const;
     SizeDistribution GetReleasedTreeSizeDistribution() const;

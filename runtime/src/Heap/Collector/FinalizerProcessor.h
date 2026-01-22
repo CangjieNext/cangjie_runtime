@@ -90,6 +90,15 @@ public:
 
     Mutator* GetMutator() const { return fpMutator; }
 
+    // Get sizes of the three lists for OOM logging
+    void GetListSizes(size_t& finalizersSize, size_t& finalizablesSize, size_t& workingFinalizablesSize)
+    {
+        std::lock_guard<std::mutex> l(listLock);
+        finalizersSize = finalizers.size();
+        finalizablesSize = finalizables.size();
+        workingFinalizablesSize = workingFinalizables.size();
+    }
+
     void NotifyToReclaimGarbage() { shouldReclaimHeapGarbage.store(true); }
     void NotifyToFeedAllocBuffers()
     {

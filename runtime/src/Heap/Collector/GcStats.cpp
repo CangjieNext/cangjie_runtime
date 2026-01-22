@@ -8,15 +8,10 @@
 #include "GcStats.h"
 
 #include "Base/LogFile.h"
+#include "Collector/TracingCollector.h"
 #include "Heap/Heap.h"
 
 namespace MapleRuntime {
-size_t g_gcCount = 0;
-uint64_t g_gcTotalTimeUs = 0;
-size_t g_gcCollectedTotalBytes = 0;
-
-uint64_t GCStats::prevGcStartTime = TimeUtil::NanoSeconds() - LONG_MIN_HEU_GC_INTERVAL_NS;
-uint64_t GCStats::prevGcFinishTime = TimeUtil::NanoSeconds() - LONG_MIN_HEU_GC_INTERVAL_NS;
 
 void GCStats::Init()
 {
@@ -71,4 +66,47 @@ void GCStats::Dump() const
     VLOG(REPORT, "allocated size: %s, heap size: %s, heap utilization: %.2f%%", Pretty(liveSize).Str(),
          Pretty(heapSize).Str(), utilization);
 }
+
+// GCEventHistory implementation
+void GCEventHistory::AddEvent(const GCEvent& event)
+{
+    std::lock_guard<std::mutex> lock(mutex);
+    events[nextIndex] = event;
+    nextIndex = (nextIndex + 1) % MAX_EVENTS;
+    if (count < MAX_EVENTS) {
+        count++;
+    }
+}
+
+void GCEventHistory::DumpEvents() const
+{
+    std::lock_guard<std::mutex> lock(mutex);
+    if (count == 0) {
+        LOG(RTLOG_ERROR, "\tNo GC events recorded");
+        return;
+    }
+
+    LOG(RTLOG_ERROR, "\tLast %zu GC events:", count);
+    for (size_t i = 0; i < count; i++) {
+        // Calculate the index of the i-th most recent event
+        size_t index = (nextIndex - 1 - i + MAX_EVENTS) % MAX_EVENTS;
+        const GCEvent& event = events[index];
+        LOG(RTLOG_ERROR, "\tEvent %zu: time=%s, before=%zu B, after=%zu B, collected=%zu B, reason=%s, duration=%zu us",
+            i + 1,
+            PrettyOrderMathNano(event.timestamp, "s").Str(),
+            event.liveBytesBefore,
+            event.liveBytesAfter,
+            event.collectedBytes,
+            g_gcRequests[event.reason].name,
+            event.durationNs / NS_PER_US);
+    }
+}
+
+// Static members initialization
+uint64_t GCStats::prevGcStartTime = TimeUtil::NanoSeconds() - LONG_MIN_HEU_GC_INTERVAL_NS;
+uint64_t GCStats::prevGcFinishTime = TimeUtil::NanoSeconds() - LONG_MIN_HEU_GC_INTERVAL_NS;
+size_t g_gcCount = 0;
+uint64_t g_gcTotalTimeUs = 0;
+size_t g_gcCollectedTotalBytes = 0;
+
 } // namespace MapleRuntime

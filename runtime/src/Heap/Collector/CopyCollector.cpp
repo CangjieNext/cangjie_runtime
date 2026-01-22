@@ -9,6 +9,7 @@
 
 #include "Allocator/RegionSpace.h"
 #include "Common/Runtime.h"
+#include "Collector/GcStats.h"
 #include "Mutator/MutatorManager.h"
 #include "Mutator/SatbBuffer.h"
 #include "ObjectModel/RefField.inline.h"
@@ -67,6 +68,16 @@ void CopyCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
     g_gcTotalTimeUs += (gcTimeNs / NS_PER_US);
     g_gcCollectedTotalBytes += gcStats.collectedBytes;
     gcStats.collectionRate = rate;
+
+    // Record this GC event
+    GCEvent event;
+    event.timestamp = gcStats.gcEndTime;
+    event.liveBytesBefore = gcStats.liveBytesBeforeGC;
+    event.liveBytesAfter = gcStats.liveBytesAfterGC;
+    event.collectedBytes = gcStats.collectedBytes;
+    event.reason = reason;
+    event.durationNs = gcTimeNs;
+    GCEventHistory::GetInstance().AddEvent(event);
 }
 
 void CopyCollector::ForwardFromSpace()

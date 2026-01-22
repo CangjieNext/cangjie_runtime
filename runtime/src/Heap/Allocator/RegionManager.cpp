@@ -14,6 +14,7 @@
 #include "Base/CString.h"
 #include "Collector/Collector.h"
 #include "Collector/CopyCollector.h"
+#include "Collector/GcStats.h"
 #include "Common/ScopedObjectAccess.h"
 #include "Heap.h"
 #include "Mutator/Mutator.inline.h"
@@ -23,10 +24,26 @@
 #include "Sanitizer/SanitizerInterface.h"
 #endif
 #include "Sync/Sync.h"
+#include "CJThread/src/runtime/schedule/include/schedule.h"
 
 namespace MapleRuntime {
 uintptr_t RegionInfo::UnitInfo::totalUnitCount = 0;
 uintptr_t RegionInfo::UnitInfo::heapStartAddress = 0;
+
+// Static function to visit thread names for OOM logging
+static void ThreadNameVisitor(void* cjthreadPtr, void* handle) {
+    struct ThreadNameContext {
+        size_t count;
+    };
+    ThreadNameContext* ctx = static_cast<ThreadNameContext*>(handle);
+    char* name = CJThreadGetName(cjthreadPtr);
+    if (name && name[0] != '\0') {
+        LOG(RTLOG_ERROR, "\t\tThread %zu: %s", ctx->count + 1, name);
+    } else {
+        LOG(RTLOG_ERROR, "\t\tThread %zu: <unnamed>", ctx->count + 1);
+    }
+    ctx->count++;
+}
 
 static size_t GetPageSize() noexcept
 {
@@ -331,9 +348,30 @@ FreeRegionManager::SizeDistribution FreeRegionManager::GetDirtyTreeSizeDistribut
         } else if (count <= 32) {
             distribution.count16To32++;
             distribution.totalSize16To32 += count;
+        } else if (count < 64) {
+            distribution.count32To64++;
+            distribution.totalSize32To64 += count;
+        } else if (count < 128) {
+            distribution.count64To128++;
+            distribution.totalSize64To128 += count;
+        } else if (count < 256) {
+            distribution.count128To256++;
+            distribution.totalSize128To256 += count;
+        } else if (count < 512) {
+            distribution.count256To512++;
+            distribution.totalSize256To512 += count;
+        } else if (count < 1024) {
+            distribution.count512To1024++;
+            distribution.totalSize512To1024 += count;
+        } else if (count < 2048) {
+            distribution.count1024To2048++;
+            distribution.totalSize1024To2048 += count;
+        } else if (count <= 2560) {
+            distribution.count2048To2560++;
+            distribution.totalSize2048To2560 += count;
         } else {
-            distribution.countGreater32++;
-            distribution.totalSizeGreater32 += count;
+            distribution.countGreater2560++;
+            distribution.totalSizeGreater2560 += count;
         }
         node = it.Next();
     }
@@ -369,9 +407,30 @@ FreeRegionManager::SizeDistribution FreeRegionManager::GetReleasedTreeSizeDistri
         } else if (count <= 32) {
             distribution.count16To32++;
             distribution.totalSize16To32 += count;
+        } else if (count < 64) {
+            distribution.count32To64++;
+            distribution.totalSize32To64 += count;
+        } else if (count < 128) {
+            distribution.count64To128++;
+            distribution.totalSize64To128 += count;
+        } else if (count < 256) {
+            distribution.count128To256++;
+            distribution.totalSize128To256 += count;
+        } else if (count < 512) {
+            distribution.count256To512++;
+            distribution.totalSize256To512 += count;
+        } else if (count < 1024) {
+            distribution.count512To1024++;
+            distribution.totalSize512To1024 += count;
+        } else if (count < 2048) {
+            distribution.count1024To2048++;
+            distribution.totalSize1024To2048 += count;
+        } else if (count <= 2560) {
+            distribution.count2048To2560++;
+            distribution.totalSize2048To2560 += count;
         } else {
-            distribution.countGreater32++;
-            distribution.totalSizeGreater32 += count;
+            distribution.countGreater2560++;
+            distribution.totalSizeGreater2560 += count;
         }
         node = it.Next();
     }
@@ -869,11 +928,17 @@ void RegionManager::DumpRegionStats(const char* msg, bool triggerOOM) const
     size_t recentLargeSize = recentlargeUnits * RegionInfo::UNIT_SIZE;
     size_t allocRecentLargeSize = recentLargeRegionList.GetAllocatedSize();
 
+    size_t unmovableFromRegions = unmovableFromRegionList.GetRegionCount();
+    size_t unmovableFromUnits = unmovableFromRegionList.GetUnitCount();
+    size_t unmovableFromSize = unmovableFromUnits * RegionInfo::UNIT_SIZE;
+    size_t allocUnmovableFromSize = unmovableFromRegionList.GetAllocatedSize();
+
     size_t usedUnits = GetUsedUnitCount();
     size_t releasedUnits = freeRegionManager.GetReleasedUnitCount();
     size_t dirtyUnits = freeRegionManager.GetDirtyUnitCount();
     size_t listedUnits = fromUnits + garbageUnits + recentFullUnits + tlRegions +
-        rawPointerPinnedRegions + largeUnits + recentlargeUnits + pinnedUnits + recentPinnedUnits;
+        rawPointerPinnedRegions + largeUnits + recentlargeUnits + pinnedUnits + recentPinnedUnits +
+        unmovableFromUnits;
     if (triggerOOM) {
         LOG(RTLOG_ERROR, msg);
 
@@ -896,6 +961,8 @@ void RegionManager::DumpRegionStats(const char* msg, bool triggerOOM) const
              largeRegions, largeUnits, largeSize, allocLargeSize);
         LOG(RTLOG_ERROR, "\trecent large-object regions %zu: %zu units (%zu B, alloc %zu)",
              recentlargeRegions, recentlargeUnits, recentLargeSize, allocRecentLargeSize);
+        LOG(RTLOG_ERROR, "\tunmovable-from regions %zu: %zu units (%zu B, alloc %zu)",
+             unmovableFromRegions, unmovableFromUnits, unmovableFromSize, allocUnmovableFromSize);
 
         LOG(RTLOG_ERROR, "\tlisted units: %zu (%zu B)", listedUnits, listedUnits * RegionInfo::UNIT_SIZE);
         LOG(RTLOG_ERROR, "\tused units: %zu (%zu B)", usedUnits, usedUnits * RegionInfo::UNIT_SIZE);
@@ -911,7 +978,14 @@ void RegionManager::DumpRegionStats(const char* msg, bool triggerOOM) const
         LOG(RTLOG_ERROR, "\t\t6-8 units: %zu (total size: %zu units)", dist.count6To8, dist.totalSize6To8);
         LOG(RTLOG_ERROR, "\t\t8-16 units: %zu (total size: %zu units)", dist.count8To16, dist.totalSize8To16);
         LOG(RTLOG_ERROR, "\t\t16-32 units: %zu (total size: %zu units)", dist.count16To32, dist.totalSize16To32);
-        LOG(RTLOG_ERROR, "\t\t> 32 units: %zu (total size: %zu units)", dist.countGreater32, dist.totalSizeGreater32);
+        LOG(RTLOG_ERROR, "\t\t32-64 units: %zu (total size: %zu units)", dist.count32To64, dist.totalSize32To64);
+        LOG(RTLOG_ERROR, "\t\t64-128 units: %zu (total size: %zu units)", dist.count64To128, dist.totalSize64To128);
+        LOG(RTLOG_ERROR, "\t\t128-256 units: %zu (total size: %zu units)", dist.count128To256, dist.totalSize128To256);
+        LOG(RTLOG_ERROR, "\t\t256-512 units: %zu (total size: %zu units)", dist.count256To512, dist.totalSize256To512);
+        LOG(RTLOG_ERROR, "\t\t512-1024 units: %zu (total size: %zu units)", dist.count512To1024, dist.totalSize512To1024);
+        LOG(RTLOG_ERROR, "\t\t1024-2048 units: %zu (total size: %zu units)", dist.count1024To2048, dist.totalSize1024To2048);
+        LOG(RTLOG_ERROR, "\t\t2048-2560 units: %zu (total size: %zu units)", dist.count2048To2560, dist.totalSize2048To2560);
+        LOG(RTLOG_ERROR, "\t\t> 2560 units: %zu (total size: %zu units)", dist.countGreater2560, dist.totalSizeGreater2560);
 
         // Print releasedTree size distribution information
         FreeRegionManager::SizeDistribution releasedDist = freeRegionManager.GetReleasedTreeSizeDistribution();
@@ -922,7 +996,14 @@ void RegionManager::DumpRegionStats(const char* msg, bool triggerOOM) const
         LOG(RTLOG_ERROR, "\t\t6-8 units: %zu (total size: %zu units)", releasedDist.count6To8, releasedDist.totalSize6To8);
         LOG(RTLOG_ERROR, "\t\t8-16 units: %zu (total size: %zu units)", releasedDist.count8To16, releasedDist.totalSize8To16);
         LOG(RTLOG_ERROR, "\t\t16-32 units: %zu (total size: %zu units)", releasedDist.count16To32, releasedDist.totalSize16To32);
-        LOG(RTLOG_ERROR, "\t\t> 32 units: %zu (total size: %zu units)", releasedDist.countGreater32, releasedDist.totalSizeGreater32);
+        LOG(RTLOG_ERROR, "\t\t32-64 units: %zu (total size: %zu units)", releasedDist.count32To64, releasedDist.totalSize32To64);
+        LOG(RTLOG_ERROR, "\t\t64-128 units: %zu (total size: %zu units)", releasedDist.count64To128, releasedDist.totalSize64To128);
+        LOG(RTLOG_ERROR, "\t\t128-256 units: %zu (total size: %zu units)", releasedDist.count128To256, releasedDist.totalSize128To256);
+        LOG(RTLOG_ERROR, "\t\t256-512 units: %zu (total size: %zu units)", releasedDist.count256To512, releasedDist.totalSize256To512);
+        LOG(RTLOG_ERROR, "\t\t512-1024 units: %zu (total size: %zu units)", releasedDist.count512To1024, releasedDist.totalSize512To1024);
+        LOG(RTLOG_ERROR, "\t\t1024-2048 units: %zu (total size: %zu units)", releasedDist.count1024To2048, releasedDist.totalSize1024To2048);
+        LOG(RTLOG_ERROR, "\t\t2048-2560 units: %zu (total size: %zu units)", releasedDist.count2048To2560, releasedDist.totalSize2048To2560);
+        LOG(RTLOG_ERROR, "\t\t> 2560 units: %zu (total size: %zu units)", releasedDist.countGreater2560, releasedDist.totalSizeGreater2560);
 
         // Print garbageRegionList size distribution information
         FreeRegionManager::SizeDistribution garbageDist = {0};
@@ -949,9 +1030,30 @@ void RegionManager::DumpRegionStats(const char* msg, bool triggerOOM) const
                 } else if (unitCount <= 32) {
                     garbageDist.count16To32++;
                     garbageDist.totalSize16To32 += unitCount;
+                } else if (unitCount < 64) {
+                    garbageDist.count32To64++;
+                    garbageDist.totalSize32To64 += unitCount;
+                } else if (unitCount < 128) {
+                    garbageDist.count64To128++;
+                    garbageDist.totalSize64To128 += unitCount;
+                } else if (unitCount < 256) {
+                    garbageDist.count128To256++;
+                    garbageDist.totalSize128To256 += unitCount;
+                } else if (unitCount < 512) {
+                    garbageDist.count256To512++;
+                    garbageDist.totalSize256To512 += unitCount;
+                } else if (unitCount < 1024) {
+                    garbageDist.count512To1024++;
+                    garbageDist.totalSize512To1024 += unitCount;
+                } else if (unitCount < 2048) {
+                    garbageDist.count1024To2048++;
+                    garbageDist.totalSize1024To2048 += unitCount;
+                } else if (unitCount <= 2560) {
+                    garbageDist.count2048To2560++;
+                    garbageDist.totalSize2048To2560 += unitCount;
                 } else {
-                    garbageDist.countGreater32++;
-                    garbageDist.totalSizeGreater32 += unitCount;
+                    garbageDist.countGreater2560++;
+                    garbageDist.totalSizeGreater2560 += unitCount;
                 }
                 region = region->GetNextRegion();
             }
@@ -963,7 +1065,40 @@ void RegionManager::DumpRegionStats(const char* msg, bool triggerOOM) const
         LOG(RTLOG_ERROR, "\t\t6-8 units: %zu (total size: %zu units)", garbageDist.count6To8, garbageDist.totalSize6To8);
         LOG(RTLOG_ERROR, "\t\t8-16 units: %zu (total size: %zu units)", garbageDist.count8To16, garbageDist.totalSize8To16);
         LOG(RTLOG_ERROR, "\t\t16-32 units: %zu (total size: %zu units)", garbageDist.count16To32, garbageDist.totalSize16To32);
-        LOG(RTLOG_ERROR, "\t\t> 32 units: %zu (total size: %zu units)", garbageDist.countGreater32, garbageDist.totalSizeGreater32);
+        LOG(RTLOG_ERROR, "\t\t32-64 units: %zu (total size: %zu units)", garbageDist.count32To64, garbageDist.totalSize32To64);
+        LOG(RTLOG_ERROR, "\t\t64-128 units: %zu (total size: %zu units)", garbageDist.count64To128, garbageDist.totalSize64To128);
+        LOG(RTLOG_ERROR, "\t\t128-256 units: %zu (total size: %zu units)", garbageDist.count128To256, garbageDist.totalSize128To256);
+        LOG(RTLOG_ERROR, "\t\t256-512 units: %zu (total size: %zu units)", garbageDist.count256To512, garbageDist.totalSize256To512);
+        LOG(RTLOG_ERROR, "\t\t512-1024 units: %zu (total size: %zu units)", garbageDist.count512To1024, garbageDist.totalSize512To1024);
+        LOG(RTLOG_ERROR, "\t\t1024-2048 units: %zu (total size: %zu units)", garbageDist.count1024To2048, garbageDist.totalSize1024To2048);
+        LOG(RTLOG_ERROR, "\t\t2048-2560 units: %zu (total size: %zu units)", garbageDist.count2048To2560, garbageDist.totalSize2048To2560);
+        LOG(RTLOG_ERROR, "\t\t> 2560 units: %zu (total size: %zu units)", garbageDist.countGreater2560, garbageDist.totalSizeGreater2560);
+
+        // Print last GC events
+        LOG(RTLOG_ERROR, "\tGC event history:");
+        GCEventHistory::GetInstance().DumpEvents();
+
+        // Print FinalizerProcessor data structures sizes
+        FinalizerProcessor& finalizerProcessor = Heap::GetHeap().GetFinalizerProcessor();
+        size_t finalizersSize, finalizablesSize, workingFinalizablesSize;
+        finalizerProcessor.GetListSizes(finalizersSize, finalizablesSize, workingFinalizablesSize);
+        LOG(RTLOG_ERROR, "\tFinalizerProcessor data structures:");
+        LOG(RTLOG_ERROR, "\t\tfinalizers size: %zu", finalizersSize);
+        LOG(RTLOG_ERROR, "\t\tfinalizables size: %zu", finalizablesSize);
+        LOG(RTLOG_ERROR, "\t\tworkingFinalizables size: %zu", workingFinalizablesSize);
+
+        // Print current OS thread count
+        unsigned int osThreadCount = ScheduleRunningOSThreadCount();
+        LOG(RTLOG_ERROR, "\tCurrent OS thread count: %u", osThreadCount);
+
+        // Print all thread names
+        LOG(RTLOG_ERROR, "\tAll thread names:");
+        // Define a struct to hold thread names
+        struct ThreadNameContext {
+            size_t count;
+        } context = {0};
+        // Visit all threads
+        ScheduleAllCJThreadVisit(ThreadNameVisitor, &context);
     } else {
 
         VLOG(REPORT, msg);
@@ -987,6 +1122,8 @@ void RegionManager::DumpRegionStats(const char* msg, bool triggerOOM) const
              largeRegions, largeUnits, largeSize, allocLargeSize);
         VLOG(REPORT, "\trecent large-object regions %zu: %zu units (%zu B, alloc %zu)",
              recentlargeRegions, recentlargeUnits, recentLargeSize, allocRecentLargeSize);
+        VLOG(REPORT, "\tunmovable-from regions %zu: %zu units (%zu B, alloc %zu)",
+             unmovableFromRegions, unmovableFromUnits, unmovableFromSize, allocUnmovableFromSize);
 
         VLOG(REPORT, "\tlisted units: %zu (%zu B)", listedUnits, listedUnits * RegionInfo::UNIT_SIZE);
         VLOG(REPORT, "\tused units: %zu (%zu B)", usedUnits, usedUnits * RegionInfo::UNIT_SIZE);
@@ -1033,6 +1170,10 @@ void RegionManager::DumpRegionStats(const char* msg, bool triggerOOM) const
         TRACE_COUNT("CJRT_GC_recentlargeUnits", recentlargeUnits);
         TRACE_COUNT("CJRT_GC_recentLargeSize", recentLargeSize);
         TRACE_COUNT("CJRT_GC_allocRecentLargeSize", allocRecentLargeSize);
+        TRACE_COUNT("CJRT_GC_unmovableFromRegions", unmovableFromRegions);
+        TRACE_COUNT("CJRT_GC_unmovableFromUnits", unmovableFromUnits);
+        TRACE_COUNT("CJRT_GC_unmovableFromSize", unmovableFromSize);
+        TRACE_COUNT("CJRT_GC_allocUnmovableFromSize", allocUnmovableFromSize);
         TRACE_COUNT("CJRT_GC_usedUnits", usedUnits);
         TRACE_COUNT("CJRT_GC_releasedUnits", releasedUnits);
         TRACE_COUNT("CJRT_GC_dirtyUnits", dirtyUnits);
