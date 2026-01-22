@@ -304,6 +304,12 @@ class SocketCommon<NS> <: Resource & ToString where NS <: PlatformSocket<NS> {
         mayBeAlreadyConnected!: Bool = false
     ): Unit {
         timeout?.throwIfNegative("Timeout")
+        let beforeState = holder.state
+        let beforeNativeState = holderStateToString(beforeState.nativeState)
+        println(
+            "[SocketCommon.connect] begin timeout=${timeout} bound=${beforeState.bound} " +
+            "connected=${beforeState.connected} native=${beforeNativeState}"
+        )
         holder.write<Unit> {
             socket, state =>
             if (state.failed) {
@@ -320,12 +326,19 @@ class SocketCommon<NS> <: Resource & ToString where NS <: PlatformSocket<NS> {
             try {
                 connectImpl(socket, state, timeout)
             } catch (e: Exception) {
+                println("[SocketCommon.connect] failed error=${e}")
                 holder.markFailed()
                 throw e
             } finally {
                 addressLock.writeMutex.unlock()
             }
         } ?? SocketException.throwClosedException()
+        let afterState = holder.state
+        let afterNativeState = holderStateToString(afterState.nativeState)
+        println(
+            "[SocketCommon.connect] end bound=${afterState.bound} connected=${afterState.connected} " +
+            "native=${afterNativeState}"
+        )
     }
 
     // should be only invoked under addressLock
@@ -341,7 +354,12 @@ class SocketCommon<NS> <: Resource & ToString where NS <: PlatformSocket<NS> {
             applyBindToDevice()
             localAddress_.directValue |> unwrapOption
         }
+        println(
+            "[SocketCommon.connectImpl] connecting local=${bindAddress} remote=${address} " +
+            "timeout=${timeout} stateBound=${state.bound}"
+        )
         socket.connect(bindAddress, address, timeout)
+        println("[SocketCommon.connectImpl] connected local=${bindAddress} remote=${address}")
 
         if (!state.bound) {
             // even if we didn't do bind() explicitly in the if-block before
@@ -578,6 +596,7 @@ class SocketCommon<NS> <: Resource & ToString where NS <: PlatformSocket<NS> {
 
         unsafe {
             let bindToDevice = bindToDevice_ ?? return ()
+            println("[SocketCommon.applyBindToDevice] device=${bindToDevice}")
             try (s = LibC.mallocCString(bindToDevice).asResource()) {
                 if (s.value.isNull()) {
                     throw SocketException("MallocCString failed.")
@@ -589,6 +608,15 @@ class SocketCommon<NS> <: Resource & ToString where NS <: PlatformSocket<NS> {
                     UIntNative(s.value.size())
                 )
             }
+        }
+    }
+
+    private static func holderStateToString(state: HolderState): String {
+        match (state) {
+            case SocketNotCreated => "SocketNotCreated"
+            case SocketPrepared => "SocketPrepared"
+            case SocketClosing => "SocketClosing"
+            case SocketDisposed => "SocketDisposed"
         }
     }
 }
