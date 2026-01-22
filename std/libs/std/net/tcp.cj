@@ -344,7 +344,9 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public func connect(timeout!: ?Duration = None): Unit {
+        println("[TcpSocket.connect] begin id=${id} timeout=${timeout} state=${impl.toString()}")
         impl.connect(timeout?.throwIfNegative("Timeout"))
+        println("[TcpSocket.connect] end id=${id} state=${impl.toString()}")
     }
 
     /**
@@ -460,7 +462,9 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
      * This function is reentrant.
      **/
     public func close(): Unit {
+        println("[TcpSocket.close] begin id=${id} state=${impl.toString()}")
         impl.close()
+        println("[TcpSocket.close] end id=${id} state=${impl.toString()}")
     }
 
     /**
