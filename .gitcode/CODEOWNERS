@@ -39,6 +39,8 @@ OAT.xml @xuanjz
 /stdlib/libs/std/objectpool/ @ChaosJohn
 /stdlib/libs/std/regex/ @ChaosJohn
 
+/stdlib/libs/std/ast/ @chuckchen521
+
 #stdlib docs
 /stdlib/doc @luojianing
 
@@ -74,3 +76,5 @@ OAT.xml @xuanjz
 
 /stdlib/doc/libs/std/objectpool/ @ChaosJohn @luojianing
 /stdlib/doc/libs/std/regex/ @ChaosJohn @luojianing
+
+/stdlib/doc/libs/std/ast/ @chuckchen521 @luojianing
