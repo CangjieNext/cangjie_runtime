@@ -22,6 +22,7 @@ if [ "${platform}" == "macos_cangjie" ] || [ "${platform}" == "mac_x86_64_cangji
       $c_compiler \
         -isysroot ${mac_sdk_path} \
         -Wl,-r,-rename_section,__TEXT,__text,__TEXT,__cjrt_text \
+        -Wl,-no_eh_labels \
         $obj \
         -o $obj;
     done
