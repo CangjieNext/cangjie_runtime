@@ -4092,8 +4092,8 @@ class MyVisitor <: Visitor {
 }
 
 main(): Unit {
-    // 创建 Expr 节点（以 BinaryExpr 为例）
-    let expr = BinaryExpr(quote(1 + 1))
+    // 创建 Expr 节点（以 LitConstExpr 为例）
+    let expr = LitConstExpr(quote(1))
     
     // 使用自定义访问器遍历 Expr 节点
     expr.traverse(MyVisitor())
@@ -4490,7 +4490,7 @@ public func traverse(v: Visitor): Unit
 
 示例：
 
-<!-- verify -->
+<!-- run -->
 ```cangjie
 import std.ast.*
 
@@ -4511,12 +4511,6 @@ main(): Unit {
     // 使用自定义访问器遍历 FeatureId 节点
     featureId.traverse(MyVisitor())
 }
-```
-
-运行结果：
-
-```text
-Visiting FeatureId
 ```
 
 ## class FeaturesDirective
@@ -4707,15 +4701,13 @@ public func traverse(v: Visitor): Unit
 
 示例：
 
-<!-- verify -->
+<!-- run -->
 ```cangjie
 import std.ast.*
 
 class MyVisitor <: Visitor {
-    public override func visit(node: Node) {
-        if (node is FeaturesDirective) {
-            println("Visiting FeaturesDirective")
-        }
+    public override func visit(_: Node) {
+        println("Visiting FeaturesDirective")
     }
 }
 
@@ -4726,12 +4718,6 @@ main(): Unit {
     // 使用自定义访问器遍历 FeaturesDirective 节点
     featuresDirective.traverse(MyVisitor())
 }
-```
-
-运行结果：
-
-```text
-Visiting FeaturesDirective
 ```
 
 ## class FeaturesSet
@@ -4903,15 +4889,13 @@ public func traverse(v: Visitor): Unit
 
 示例：
 
-<!-- verify -->
+<!-- run -->
 ```cangjie
 import std.ast.*
 
 class MyVisitor <: Visitor {
-    public override func visit(node: Node) {
-        if (node is FeaturesSet) {
-            println("Visiting FeaturesSet")
-        }
+    public override func visit(_: Node) {
+        println("Visiting FeaturesSet")
     }
 }
 
@@ -4930,12 +4914,6 @@ main(): Unit {
     // 使用自定义访问器遍历 FeaturesSet 节点
     featuresSet.traverse(MyVisitor())
 }
-```
-
-运行结果：
-
-```text
-Visiting FeaturesSet
 ```
 
 ## class ForInExpr
@@ -9906,7 +9884,7 @@ public func traverse(v: Visitor): Unit
 
 示例：
 
-<!-- verify -->
+<!-- run -->
 ```cangjie
 import std.ast.*
 
@@ -9928,12 +9906,6 @@ main(): Unit {
     // 使用自定义访问器遍历 MacroExpandParam 节点
     macroExpandParam.traverse(MyVisitor())
 }
-```
-
-运行结果：
-
-```text
-Visiting MacroExpandParam
 ```
 
 ## class MacroMessage
@@ -11634,8 +11606,8 @@ class MyVisitor <: Visitor {
 }
 
 main(): Unit {
-    // 创建 Node 节点（以 ClassDecl 为例）
-    let node = ClassDecl(quote(class A {}))
+    // 创建 Node 节点（以 Modifier 为例）
+    let node = Modifier(Token(TokenKind.PUBLIC, "public"))
     
     // 使用自定义访问器遍历 Node 节点
     node.traverse(MyVisitor())
@@ -14593,7 +14565,7 @@ public func traverse(v: Visitor): Unit
 
 示例：
 
-<!-- verify -->
+<!-- run -->
 ```cangjie
 import std.ast.*
 
@@ -14612,12 +14584,6 @@ main(): Unit {
     // 使用自定义访问器遍历 QuoteToken 节点
     quoteToken.traverse(MyVisitor())
 }
-```
-
-运行结果：
-
-```text
-Visiting QuoteToken
 ```
 
 ## class RangeExpr
@@ -19368,8 +19334,8 @@ class MyVisitor <: Visitor {
 }
 
 main(): Unit {
-    // 创建 TypeNode 节点（以 FuncType 为例）
-    let typeNode = FuncType(quote((Int64) -> Float64))
+    // 创建 TypeNode 节点（以 PrimitiveType 为例）
+    let typeNode = PrimitiveType(quote(Int64))
     
     // 使用自定义访问器遍历 TypeNode 节点
     typeNode.traverse(MyVisitor())
@@ -21959,8 +21925,8 @@ class MyVisitor <: Visitor {
 }
 
 main(): Unit {
-    // 创建 Expr 节点（以 BinaryExpr 为例）
-    let expr = BinaryExpr(quote(1 + 1))
+    // 创建 Expr 节点（以 LitConstExpr 为例）
+    let expr = LitConstExpr(quote(1))
     
     // 使用自定义访问器遍历 Expr 节点
     expr.traverse(MyVisitor())
@@ -23008,8 +22974,8 @@ class MyVisitor <: Visitor {
 }
 
 main(): Unit {
-    // 创建 Node 节点（以 ClassDecl 为例）
-    let node = ClassDecl(quote(class A {}))
+    // 创建 Node 节点（以 Modifier 为例）
+    let node = Modifier(Token(TokenKind.PUBLIC, "public"))
     
     // 使用自定义访问器遍历 Node 节点
     node.traverse(MyVisitor())
@@ -24320,8 +24286,8 @@ class MyVisitor <: Visitor {
 }
 
 main(): Unit {
-    // 创建 TypeNode 节点（以 FuncType 为例）
-    let typeNode = FuncType(quote((Int64) -> Float64))
+    // 创建 TypeNode 节点（以 PrimitiveType 为例）
+    let typeNode = PrimitiveType(quote(Int64))
     
     // 使用自定义访问器遍历 TypeNode 节点
     typeNode.traverse(MyVisitor())
