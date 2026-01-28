@@ -19,6 +19,9 @@ public open class Pattern <: Node {
     }
     public open func traverse(v: Visitor): Unit {
         v.visit(this)
+        if (v.needBreakTraverse()) {
+            return
+        }
         super.traverse(v)
     }
     protected open func dump(_: UInt16): String {

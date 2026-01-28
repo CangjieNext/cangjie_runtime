@@ -1089,6 +1089,10 @@ public class FeaturesSet <: Node {
 
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        if (v.needBreakTraverse()) {
+            return
+        }
+        super.traverse(v)
         for (ftrId in content_) {
             ftrId.traverse(v)
         }
@@ -1185,6 +1189,9 @@ public class FeaturesDirective <: Node {
 
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        if (v.needBreakTraverse()) {
+            return
+        }
         super.traverse(v)
         featuresSet_.traverse(v)
         return

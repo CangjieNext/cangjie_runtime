@@ -47,6 +47,9 @@ public open class TypeNode <: Node {
     }
     public open func traverse(v: Visitor): Unit {
         v.visit(this)
+        if (v.needBreakTraverse()) {
+            return
+        }
         super.traverse(v)
         return
     }

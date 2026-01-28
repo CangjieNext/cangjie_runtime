@@ -2117,10 +2117,6 @@ main(): Unit {
 commandTypePattern.toTokens(): e: MyEffect
 ```
 
-> **注意:**
->
-> 编译时需要添加 `--experimental` 和 `--enable-eh` 编译选项以支持 `Effect Handlers` 特性。
-
 ### func toTokens()
 
 ```cangjie
@@ -2897,6 +2893,7 @@ import std.ast.*
 
 class MyVisitor <: Visitor {
     public override func visit(_: Decl) {
+        breakTraverse()
         println("Visiting Decl")
     }
 }
@@ -4087,6 +4084,7 @@ import std.ast.*
 
 class MyVisitor <: Visitor {
     public override func visit(_: Expr) {
+        breakTraverse()
         println("Visiting Expr")
     }
 }
@@ -4495,7 +4493,7 @@ public func traverse(v: Visitor): Unit
 import std.ast.*
 
 class MyVisitor <: Visitor {
-    public override func visit(_: Node) {
+    public override func visit(_: FeatureId) {
         println("Visiting FeatureId")
     }
 }
@@ -4712,10 +4710,8 @@ public func traverse(v: Visitor): Unit
 import std.ast.*
 
 class MyVisitor <: Visitor {
-    public override func visit(node: Node) {
-        if (node is FeaturesDirective) {
-            println("Visiting FeaturesDirective")
-        }
+    public override func visit(_: FeaturesDirective) {
+        println("Visiting FeaturesDirective")
     }
 }
 
@@ -4908,10 +4904,8 @@ public func traverse(v: Visitor): Unit
 import std.ast.*
 
 class MyVisitor <: Visitor {
-    public override func visit(node: Node) {
-        if (node is FeaturesSet) {
-            println("Visiting FeaturesSet")
-        }
+    public override func visit(_: FeaturesSet) {
+        println("Visiting FeaturesSet")
     }
 }
 
@@ -9911,7 +9905,7 @@ public func traverse(v: Visitor): Unit
 import std.ast.*
 
 class MyVisitor <: Visitor {
-    public override func visit(_: FuncParam) {
+    public override func visit(_: MacroExpandParam) {
         println("Visiting MacroExpandParam")
     }
 }
@@ -11629,6 +11623,7 @@ import std.ast.*
 
 class MyVisitor <: Visitor {
     public override func visit(_: Node) {
+        breakTraverse()
         println("Visiting Node")
     }
 }
@@ -12606,6 +12601,7 @@ import std.ast.*
 
 class MyVisitor <: Visitor {
     public override func visit(_: Pattern) {
+        breakTraverse()
         println("Visiting Pattern")
     }
 }
@@ -14598,7 +14594,7 @@ public func traverse(v: Visitor): Unit
 import std.ast.*
 
 class MyVisitor <: Visitor {
-    public override func visit(_: Expr) {
+    public override func visit(_: QuoteToken) {
         println("Visiting QuoteToken")
     }
 }
@@ -15430,6 +15426,10 @@ main(): Unit {
 resumeExpr.toTokens(): resume throwing Exception("Error from effect")
 ```
 
+> **注意:**
+>
+> 编译时需要添加 `--experimental` 和 `--enable-eh` 编译选项以支持 `Effect Handlers` 特性。
+
 ### func toTokens()
 
 ```cangjie
@@ -15462,6 +15462,10 @@ main(): Unit {
 ```text
 resumeExpr.toTokens(): resume throwing Exception()
 ```
+
+> **注意:**
+>
+> 编译时需要添加 `--experimental` 和 `--enable-eh` 编译选项以支持 `Effect Handlers` 特性。
 
 ### func traverse(Visitor)
 
@@ -15500,6 +15504,10 @@ main(): Unit {
 ```text
 Visiting ResumeExpr
 ```
+
+> **注意:**
+>
+> 编译时需要添加 `--experimental` 和 `--enable-eh` 编译选项以支持 `Effect Handlers` 特性。
 
 ## class ReturnExpr
 
@@ -19363,6 +19371,7 @@ import std.ast.*
 
 class MyVisitor <: Visitor {
     public override func visit(_: TypeNode) {
+        breakTraverse()
         println("Visiting TypeNode")
     }
 }
@@ -21763,6 +21772,7 @@ import std.ast.*
 
 class MyVisitor <: Visitor {
     public override func visit(_: Decl) {
+        breakTraverse()
         println("Visiting Decl")
     }
 }
@@ -21954,6 +21964,7 @@ import std.ast.*
 
 class MyVisitor <: Visitor {
     public override func visit(_: Expr) {
+        breakTraverse()
         println("Visiting Expr")
     }
 }
@@ -22009,6 +22020,135 @@ main(): Unit {
 
 ```text
 Visiting ExtendDecl
+```
+
+### func visit(FeatureId)
+
+```cangjie
+protected open func visit(_: FeatureId): Unit
+```
+
+功能：定义访问节点时的操作，需要重写。
+
+参数：
+
+- _: [FeatureId](ast_package_classes.md#class-featureid) - [FeatureId](ast_package_classes.md#class-featureid) 类型的被遍历节点。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.ast.*
+
+class MyVisitor <: Visitor {
+    public override func visit(_: FeatureId) {
+        println("Visiting FeatureId")
+    }
+}
+
+main(): Unit {
+    // 构造一个默认的 FeatureId 对象
+    let featureId = FeatureId()
+
+    // 设置 FeatureId 的属性
+    featureId.identifiers = quote(a b c)
+    featureId.dots = quote(. .)
+    
+    // 使用自定义访问器遍历 FeatureId 节点
+    featureId.traverse(MyVisitor())
+}
+```
+
+运行结果：
+
+```text
+Visiting FeatureId
+```
+
+### func visit(FeaturesDirective)
+
+```cangjie
+protected open func visit(_: FeaturesDirective): Unit
+```
+
+功能：定义访问节点时的操作，需要重写。
+
+参数：
+
+- _: [FeaturesDirective](ast_package_classes.md#class-featuresdirective) - [FeaturesDirective](ast_package_classes.md#class-featuresdirective) 类型的被遍历节点。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.ast.*
+
+class MyVisitor <: Visitor {
+    public override func visit(_: FeaturesDirective) {
+        println("Visiting FeaturesDirective")
+    }
+}
+
+main(): Unit {
+    // 用 Tokens 创建一个 FeaturesDirective 对象
+    let featuresDirective = FeaturesDirective(quote(features {a, b.c}))
+    
+    // 使用自定义访问器遍历 FeaturesDirective 节点
+    featuresDirective.traverse(MyVisitor())
+}
+```
+
+运行结果：
+
+```text
+Visiting FeaturesDirective
+```
+
+### func visit(FeaturesSet)
+
+```cangjie
+protected open func visit(_: FeaturesSet): Unit
+```
+
+功能：定义访问节点时的操作，需要重写。
+
+参数：
+
+- _: [FeaturesSet](ast_package_classes.md#class-featuresset) - [FeaturesSet](ast_package_classes.md#class-featuresset) 类型的被遍历节点。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.ast.*
+
+class MyVisitor <: Visitor {
+    public override func visit(_: FeaturesSet) {
+        println("Visiting FeaturesSet")
+    }
+}
+
+main(): Unit {
+    // 构造一个默认的 FeaturesSet 对象
+    let featuresSet = FeaturesSet()
+
+    // 设置 FeaturesSet 的属性
+    let featureId = FeatureId()
+    featureId.identifiers = quote(a b c)
+    featureId.dots = quote(. .)
+    featuresSet.content = ArrayList<FeatureId>([featureId])
+    featuresSet.lCurl = Token(TokenKind.LCURL, "{")
+    featuresSet.rCurl = Token(TokenKind.RCURL, "}")
+    
+    // 使用自定义访问器遍历 FeaturesSet 节点
+    featuresSet.traverse(MyVisitor())
+}
+```
+
+运行结果：
+
+```text
+Visiting FeaturesSet
 ```
 
 ### func visit(ForInExpr)
@@ -22764,6 +22904,50 @@ main(): Unit {
 Visiting MacroExpandExpr
 ```
 
+### func visit(MacroExpandParam)
+
+```cangjie
+protected open func visit(_: MacroExpandParam): Unit
+```
+
+功能：定义访问节点时的操作，需要重写。
+
+参数：
+
+- _: [MacroExpandParam](ast_package_classes.md#class-macroexpandparam) - [MacroExpandParam](ast_package_classes.md#class-macroexpandparam) 类型的被遍历节点。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.ast.*
+
+class MyVisitor <: Visitor {
+    public override func visit(_: MacroExpandParam) {
+        println("Visiting MacroExpandParam")
+    }
+}
+
+main(): Unit {
+    // 构造一个默认的 MacroExpandParam 对象
+    let macroExpandParam = MacroExpandParam()
+    
+    // 设置 MacroExpandParam 的属性
+    macroExpandParam.keyword = Token(TokenKind.AT, "@")
+    macroExpandParam.identifier = Token(TokenKind.IDENTIFIER, "M")
+    macroExpandParam.macroInputs = quote(any)
+    
+    // 使用自定义访问器遍历 MacroExpandParam 节点
+    macroExpandParam.traverse(MyVisitor())
+}
+```
+
+运行结果：
+
+```text
+Visiting MacroExpandParam
+```
+
 ### func visit(MainDecl)
 
 ```cangjie
@@ -23003,6 +23187,7 @@ import std.ast.*
 
 class MyVisitor <: Visitor {
     public override func visit(_: Node) {
+        breakTraverse()
         println("Visiting Node")
     }
 }
@@ -23210,6 +23395,7 @@ import std.ast.*
 
 class MyVisitor <: Visitor {
     public override func visit(_: Pattern) {
+        breakTraverse()
         println("Visiting Pattern")
     }
 }
@@ -23270,6 +23456,10 @@ main(): Unit {
 ```text
 Visiting PerformExpr
 ```
+
+> **注意:**
+>
+> 编译时需要添加 `--experimental` 和 `--enable-eh` 编译选项以支持 `Effect Handlers` 特性。
 
 ### func visit(PrefixType)
 
@@ -23607,6 +23797,47 @@ main(): Unit {
 Visiting QuoteExpr
 ```
 
+### func visit(QuoteToken)
+
+```cangjie
+protected open func visit(_: QuoteToken): Unit
+```
+
+功能：定义访问节点时的操作，需要重写。
+
+参数：
+
+- _: [QuoteToken](ast_package_classes.md#class-quotetoken) - [QuoteToken](ast_package_classes.md#class-quotetoken) 类型的被遍历节点。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.ast.*
+
+class MyVisitor <: Visitor {
+    public override func visit(_: QuoteToken) {
+        println("Visiting QuoteToken")
+    }
+}
+
+main(): Unit {
+    // 创建一个 QuoteToken 对象
+    let tokens = quote(quote(x + 1))
+    let quoteExpr = QuoteExpr(tokens)
+    let quoteToken = quoteExpr.exprs[0]
+
+    // 使用自定义访问器遍历 QuoteToken 节点
+    quoteToken.traverse(MyVisitor())
+}
+```
+
+运行结果：
+
+```text
+Visiting QuoteToken
+```
+
 ### func visit(RangeExpr)
 
 ```cangjie
@@ -23758,6 +23989,10 @@ main(): Unit {
 ```text
 Visiting ResumeExpr
 ```
+
+> **注意:**
+>
+> 编译时需要添加 `--experimental` 和 `--enable-eh` 编译选项以支持 `Effect Handlers` 特性。
 
 ### func visit(ReturnExpr)
 
@@ -24315,6 +24550,7 @@ import std.ast.*
 
 class MyVisitor <: Visitor {
     public override func visit(_: TypeNode) {
+        breakTraverse()
         println("Visiting TypeNode")
     }
 }

@@ -11100,6 +11100,43 @@ Parameters:
 
 - _: [ExtendDecl](ast_package_classes.md#class-extenddecl) - The node being traversed of type [ExtendDecl](ast_package_classes.md#class-extenddecl).
 
+
+### func visit(FeatureId)
+
+```cangjie
+protected open func visit(_: FeatureId): Unit
+```
+
+Function: Defines the operation when visiting a node, requires override.
+
+Parameters:
+
+- _: [FeatureId](ast_package_classes.md#class-featureid) - The node being traversed of type [FeatureId](ast_package_classes.md#class-featureid).
+
+### func visit(FeaturesDirective)
+
+```cangjie
+protected open func visit(_: FeaturesDirective): Unit
+```
+
+Function: Defines the operation when visiting a node, requires override.
+
+Parameters:
+
+- _: [FeaturesDirective](ast_package_classes.md#class-featuresdirective) - The node being traversed of type [FeaturesDirective](ast_package_classes.md#class-featuresdirective).
+
+### func visit(FeaturesSet)
+
+```cangjie
+protected open func visit(_: FeaturesSet): Unit
+```
+
+Function: Defines the operation when visiting a node, requires override.
+
+Parameters:
+
+- _: [FeaturesSet](ast_package_classes.md#class-featuresset) - The node being traversed of type [FeaturesSet](ast_package_classes.md#class-featuresset).
+
 ### func visit(ForInExpr)
 
 ```cangjie
@@ -11327,6 +11364,18 @@ Function: Defines the operation when visiting a node, requires override.
 Parameters:
 
 - _: [MacroExpandExpr](ast_package_classes.md#class-macroexpandexpr) - The node being traversed of type [MacroExpandExpr](ast_package_classes.md#class-macroexpandexpr).
+
+### func visit(MacroExpandParam)
+
+```cangjie
+protected open func visit(_: MacroExpandParam): Unit
+```
+
+Function: Defines the operation when visiting a node, requires override.
+
+Parameters:
+
+- _: [MacroExpandParam](ast_package_classes.md#class-macroexpandparam) - The node being traversed of type [MacroExpandParam](ast_package_classes.md#class-macroexpandparam).
 
 ### func visit(MainDecl)
 
@@ -11567,6 +11616,18 @@ Purpose: Defines the operation when visiting a node, requires override.
 Parameters:
 
 - _: [QuoteExpr](ast_package_classes.md#class-quoteexpr) - The node being traversed of type [QuoteExpr](ast_package_classes.md#class-quoteexpr).
+
+### func visit(QuoteToken)
+
+```cangjie
+protected open func visit(_: QuoteToken): Unit
+```
+
+Function: Defines the operation when visiting a node, requires override.
+
+Parameters:
+
+- _: [QuoteToken](ast_package_classes.md#class-quotetoken) - The node being traversed of type [QuoteToken](ast_package_classes.md#class-quotetoken).
 
 ### func visit(RangeExpr)
 
