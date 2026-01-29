@@ -59,7 +59,7 @@ public func toString(): String
 public operator func ==(that: ArgumentMode): Bool
 ```
 
-功能：比较参数模式是否相同。
+功能：判断参数模式是否相同。
 
 参数：
 

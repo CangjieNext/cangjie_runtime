@@ -6,7 +6,7 @@
 public func parseArguments(args: Array<String>, specs: Array<ArgumentSpec>): ParsedArguments
 ```
 
-功能：根据提供的参数规范 `specs` 解析命令行参数 `args`，返回一个结构化的对象，包含解析后的选项和非选项参数。
+功能：根据提供的参数规范 `specs` 解析命令行参数 `args`，返回一个结构化的对象 `ParsedArguments`，包含解析后的选项和非选项参数。
 
 该函数将 `args` 中的每个参数与 `specs` 中定义的选项进行匹配。对于匹配成功的选项，它会将选项名称和对应的值加入到 [options](./argopt_package_struct.md#prop-options) 中，未匹配的参数会被当作非选项参数处理，并添加到 [nonOptions](./argopt_package_struct.md#prop-nonoptions) 中。此外，当解析到 `--` 时，将提前终止选项扫描，其后的所有参数都将被视作`非选项`。
 
