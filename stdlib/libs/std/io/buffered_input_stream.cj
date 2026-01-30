@@ -33,6 +33,14 @@ public class BufferedInputStream<T> <: InputStream where T <: InputStream {
         this(input, DEFAULT_BUFFER_CAPACITY)
     }
 
+    public init(input: T, buffer: Array<Byte>) {
+        if (buffer.size == 0) {
+            throw IllegalArgumentException("The buffer cannot be empty.")
+        }
+        inputStream = input
+        inBuf = buffer
+    }
+
     /**
      * Constructor
      *
@@ -47,14 +55,6 @@ public class BufferedInputStream<T> <: InputStream where T <: InputStream {
         }
         inputStream = input
         inBuf = Array<Byte>(capacity, repeat: 0)
-    }
-
-    public init(input: T, buffer: Array<Byte>) {
-        if (buffer.size == 0) {
-            throw IllegalArgumentException("The buffer cannot be empty.")
-        }
-        inputStream = input
-        inBuf = buffer
     }
 
     /**

@@ -20,14 +20,6 @@ package std.database.sql
  * @since 0.32.3
  */
 public interface Datasource <: Resource {
-
-    /**
-     * setting database driver connection options, common keys are predefined in SqlOption.
-     *
-     * @since 0.40.1
-     */
-    func setOption(key: String, value: String): Unit
-
     /**
      * Returns an available connection.
      *
@@ -36,4 +28,11 @@ public interface Datasource <: Resource {
      * @since 0.32.3
      */
     func connect(): Connection
+
+    /**
+     * setting database driver connection options, common keys are predefined in SqlOption.
+     *
+     * @since 0.40.1
+     */
+    func setOption(key: String, value: String): Unit
 }

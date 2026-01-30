@@ -19,6 +19,12 @@ package std.database.sql
  * @since 0.32.3
  */
 public interface UpdateResult {
+    /**
+     * This is the last ROW ID automatically generated after the Insert statement is executed. 0 if not supported.
+     *
+     * @since 0.32.3
+     */
+    prop lastInsertId: Int64
 
     /**
      * Number of rows affected by the Insert, Update, and Delete statements.
@@ -26,11 +32,4 @@ public interface UpdateResult {
      * @since 0.32.3
      */
     prop rowCount: Int64
-
-    /**
-     * This is the last ROW ID automatically generated after the Insert statement is executed. 0 if not supported.
-     *
-     * @since 0.32.3
-     */
-    prop lastInsertId: Int64
 }

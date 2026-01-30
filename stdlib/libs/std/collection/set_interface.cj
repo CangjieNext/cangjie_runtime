@@ -93,8 +93,8 @@ public interface Set<T> <: ReadOnlySet<T> {
 public interface OrderedSet<T> <: Set<T> {
     prop first: ?T
     prop last: ?T
-    func removeFirst(): ?T
-    func removeLast(): ?T
     func backward(mark: T, inclusive!: Bool): Iterator<T>
     func forward(mark: T, inclusive!: Bool): Iterator<T>
+    func removeFirst(): ?T
+    func removeLast(): ?T
 }

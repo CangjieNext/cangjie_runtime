@@ -37,15 +37,15 @@ func wrappingNeg<T>(x: T): T
 
 public interface WrappingOp<T> {
     func wrappingAdd(y: T): T
-    func wrappingSub(y: T): T
-    func wrappingMul(y: T): T
-    func wrappingDiv(y: T): T
-    func wrappingMod(y: T): T
-    func wrappingInc(): T
     func wrappingDec(): T
+    func wrappingDiv(y: T): T
+    func wrappingInc(): T
+    func wrappingMod(y: T): T
+    func wrappingMul(y: T): T
     func wrappingNeg(): T
     func wrappingShl(y: UInt64): T
     func wrappingShr(y: UInt64): T
+    func wrappingSub(y: T): T
 }
 
 public interface WrappingPow {

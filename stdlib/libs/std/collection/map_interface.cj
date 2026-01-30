@@ -36,16 +36,6 @@ public interface ReadOnlyMap<K, V> <: Collection<(K, V)> {
  */
 public interface Map<K, V> <: ReadOnlyMap<K, V> {
     /**
-     * Add a new key value to the map. If the key already exists,
-     * the value will be overwritten and the overwritten value will be returned.
-     *
-     * @return @p value If the key does exist, Return the old value. Otherwise, none is returned.
-     *
-     * @since 0.18.4
-     */
-    func add(key: K, value: V): ?V
-
-    /**
      * Transfer specified elements for traversal and assign values in sequence.
      * If you map a mapping that previously contained a key, the old value is replaced.
      *
@@ -56,51 +46,14 @@ public interface Map<K, V> <: ReadOnlyMap<K, V> {
     func add(all!: Collection<(K, V)>): Unit
 
     /**
-     * Removes the key-value pair corresponding to the key based on the specified key from this mapping, if one exists.
+     * Add a new key value to the map. If the key already exists,
+     * the value will be overwritten and the overwritten value will be returned.
      *
-     * @param key pass in the key to be deleted.
-     * @return removed element
-     *
-     * @since 0.18.4
-     */
-    func remove(key: K): Option<V>
-
-    /**
-     * Traverse the set of transferred keys and delete them based on the traversal result.
-     *
-     * @param keys pass in the collection to traverse.
+     * @return @p value If the key does exist, Return the old value. Otherwise, none is returned.
      *
      * @since 0.18.4
      */
-    func remove(all!: Collection<K>): Unit
-
-    /**
-     * Transfer a lambda expression and delete the corresponding key value if the condition is met.
-     *
-     * @param predicate transfer a lambda expression for judgment.
-     *
-     * @since 0.18.4
-     */
-    func removeIf(predicate: (K, V) -> Bool): Unit
-
-    /**
-     * Clear all key-value pairs.
-     *
-     * @since 0.18.4
-     */
-    func clear(): Unit
-
-    /**
-     * The operator overloads the set. If the key does not exist, an exception is reported.
-     *
-     * @param key transfer the value for judgment.
-     * @param value transfer the value to be set.
-     *
-     * @since 0.18.4
-     */
-    operator func [](key: K, value!: V): Unit
-
-    func entryView(k: K): MapEntryView<K, V>
+    func add(key: K, value: V): ?V
 
     /**
      * Associates the specified @p value with the specified @p key in this map if the key is absent.
@@ -126,6 +79,43 @@ public interface Map<K, V> <: ReadOnlyMap<K, V> {
     }
 
     /**
+     * Clear all key-value pairs.
+     *
+     * @since 0.18.4
+     */
+    func clear(): Unit
+
+    func entryView(k: K): MapEntryView<K, V>
+
+    /**
+     * Traverse the set of transferred keys and delete them based on the traversal result.
+     *
+     * @param keys pass in the collection to traverse.
+     *
+     * @since 0.18.4
+     */
+    func remove(all!: Collection<K>): Unit
+
+    /**
+     * Removes the key-value pair corresponding to the key based on the specified key from this mapping, if one exists.
+     *
+     * @param key pass in the key to be deleted.
+     * @return removed element
+     *
+     * @since 0.18.4
+     */
+    func remove(key: K): Option<V>
+
+    /**
+     * Transfer a lambda expression and delete the corresponding key value if the condition is met.
+     *
+     * @param predicate transfer a lambda expression for judgment.
+     *
+     * @since 0.18.4
+     */
+    func removeIf(predicate: (K, V) -> Bool): Unit
+
+    /**
      * Replaces the value associated with @p key to @p value,
      * if there exists a pair of @p key and some value v in the map.
      * Otherwise, just returns 'None' and does nothing.
@@ -149,6 +139,16 @@ public interface Map<K, V> <: ReadOnlyMap<K, V> {
             case _ => None
         }
     }
+
+    /**
+     * The operator overloads the set. If the key does not exist, an exception is reported.
+     *
+     * @param key transfer the value for judgment.
+     * @param value transfer the value to be set.
+     *
+     * @since 0.18.4
+     */
+    operator func [](key: K, value!: V): Unit
 }
 
 /**
@@ -181,9 +181,8 @@ public interface EquatableCollection<T> <: Collection<T> {
 public interface OrderedMap<K, V> <: Map<K, V> {
     prop first: ?(K, V)
     prop last: ?(K, V)
-    func removeFirst(): ?(K, V)
-    func removeLast(): ?(K, V)
-
     func backward(mark: K, inclusive!: Bool): Iterator<(K, V)>
     func forward(mark: K, inclusive!: Bool): Iterator<(K, V)>
+    func removeFirst(): ?(K, V)
+    func removeLast(): ?(K, V)
 }

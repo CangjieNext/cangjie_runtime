@@ -425,8 +425,8 @@ public class ArrayIterator<T> <: Iterator<T> {
 }
 
 public struct CPointerHandle<T> where T <: CType {
-    public let pointer: CPointer<T>
     public let array: Array<T>
+    public let pointer: CPointer<T>
 
     @Deprecated[message: "Use global function `public unsafe func acquireArrayRawData<T>(arr: Array<T>): CPointerHandle<T> where T <: CType` instead."]
     public init() {

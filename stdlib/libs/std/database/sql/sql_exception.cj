@@ -72,6 +72,17 @@ public open class SqlException <: Exception {
      * Parameter constructor.
      *
      * @param message : predefined message.
+     *
+     * @since 0.32.3
+     */
+    public init(message: String) {
+        super(message)
+    }
+
+    /**
+     * Parameter constructor.
+     *
+     * @param message : predefined message.
      * @param sqlState : a five-character string where IDMS returns the status of the last SQL statement executed.
      * @param errorCode : an integer error code that is specific to each vendor.
      *
@@ -81,17 +92,6 @@ public open class SqlException <: Exception {
         super(message)
         this._sqlState = sqlState
         this._errorCode = errorCode
-    }
-
-    /**
-     * Parameter constructor.
-     *
-     * @param message : predefined message.
-     *
-     * @since 0.32.3
-     */
-    public init(message: String) {
-        super(message)
     }
 
     protected override func getClassName(): String {

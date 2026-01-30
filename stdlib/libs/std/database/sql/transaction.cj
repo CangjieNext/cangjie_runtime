@@ -18,22 +18,22 @@ package std.database.sql
  * Transaction isolation defines when and how the results of an operation in a transaction are visible to other concurrent transaction operations in a database system.
  */
 public enum TransactionIsoLevel <: ToString & Hashable & Equatable<TransactionIsoLevel> {
-    // unspecified transaction isolation level, the behavior depends on a specific database server.
-    | Unspecified
+    // The pending changes from more highly isolated transactions cannot be overwritten.
+    | Chaos
+    // Linearizability is relevant when you are looking at a subset of operations on a single object (i.e. a db row or a nosql record).
+    | Linearizable
     // The transaction waits until rows write-locked by other transactions are unlocked; this prevents it from reading any "dirty" data.
     | ReadCommitted
     // Transactions are not isolated from each other. 
     | ReadUncommitted
     // The transaction waits until rows write-locked by other transactions are unlocked; this prevents it from reading any "dirty" data.
     | RepeatableRead
-    // Snapshot isolation avoids most locking and blocking by using row versioning. 
-    | Snapshot
     // The transaction waits until rows write-locked by other transactions are unlocked; this prevents it from reading any "dirty" data.
     | Serializable
-    // Linearizability is relevant when you are looking at a subset of operations on a single object (i.e. a db row or a nosql record).
-    | Linearizable
-    // The pending changes from more highly isolated transactions cannot be overwritten.
-    | Chaos
+    // Snapshot isolation avoids most locking and blocking by using row versioning. 
+    | Snapshot
+    // unspecified transaction isolation level, the behavior depends on a specific database server.
+    | Unspecified
 
     public func toString(): String {
         match (this) {
@@ -75,12 +75,12 @@ public enum TransactionIsoLevel <: ToString & Hashable & Equatable<TransactionIs
  * Transactional read/write mode.
  */
 public enum TransactionAccessMode <: ToString & Hashable & Equatable<TransactionAccessMode> {
-    // unspecified transaction access mode, the behavior depends on a specific database server.
-    | Unspecified
-    // read-write mode
-    | ReadWrite
     // readonly mode
     | ReadOnly
+    // read-write mode
+    | ReadWrite
+    // unspecified transaction access mode, the behavior depends on a specific database server.
+    | Unspecified
 
     public func toString(): String {
         match (this) {
@@ -112,12 +112,12 @@ public enum TransactionAccessMode <: ToString & Hashable & Equatable<Transaction
  * Deferred Mode for Transactions.
  */
 public enum TransactionDeferrableMode <: ToString & Hashable & Equatable<TransactionDeferrableMode> {
-    // Unspecified transaction defer mode, the behavior depends on a specific database server.
-    | Unspecified
     // DEFERRABLE
     | Deferrable
     // NOT_DEFERRABLE
     | NotDeferrable
+    // Unspecified transaction defer mode, the behavior depends on a specific database server.
+    | Unspecified
 
     public func toString(): String {
         match (this) {
@@ -150,11 +150,6 @@ public enum TransactionDeferrableMode <: ToString & Hashable & Equatable<Transac
  */
 public interface Transaction {
     /**
-     * Transaction isolation.
-     */
-    mut prop isoLevel: TransactionIsoLevel
-
-    /**
      * Transactional read/write mode.
      */
     mut prop accessMode: TransactionAccessMode
@@ -163,6 +158,11 @@ public interface Transaction {
      * Deferred Mode for Transactions.
      */
     mut prop deferrableMode: TransactionDeferrableMode
+
+    /**
+     * Transaction isolation.
+     */
+    mut prop isoLevel: TransactionIsoLevel
 
     /**
      * Starts a database transaction.
@@ -175,6 +175,12 @@ public interface Transaction {
      * SqlException - An error occurred while trying to commit the transaction.
      */
     func commit(): Unit
+
+    /**
+     * Destroys a savepoint previously defined in the current transaction. This allows the system to reclaim some resources before the transaction ends.
+     * SqlException - An error occurred while trying to release the savepoint.
+     */
+    func release(savePointName: String): Unit
 
     /**
      * Rolls back a transaction from a pending state.
@@ -193,10 +199,4 @@ public interface Transaction {
      * SqlException - An error occurred while trying to create the savepoint.
      */
     func save(savePointName: String): Unit
-
-    /**
-     * Destroys a savepoint previously defined in the current transaction. This allows the system to reclaim some resources before the transaction ends.
-     * SqlException - An error occurred while trying to release the savepoint.
-     */
-    func release(savePointName: String): Unit
 }

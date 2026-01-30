@@ -18,15 +18,15 @@ let isNative64 = if (UInt64(!UIntNative(0)) == UInt64.Max) {
 
 public interface CheckedOp<T> {
     func checkedAdd(y: T): ?T
-    func checkedSub(y: T): ?T
-    func checkedMul(y: T): ?T
-    func checkedDiv(y: T): ?T
-    func checkedMod(y: T): ?T
-    func checkedInc(): ?T
     func checkedDec(): ?T
+    func checkedDiv(y: T): ?T
+    func checkedInc(): ?T
+    func checkedMod(y: T): ?T
+    func checkedMul(y: T): ?T
     func checkedNeg(): ?T
     func checkedShl(y: UInt64): ?T
     func checkedShr(y: UInt64): ?T
+    func checkedSub(y: T): ?T
 }
 
 public interface CheckedPow {

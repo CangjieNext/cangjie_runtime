@@ -383,14 +383,14 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     /**
-     * Initializes a HashMap with an incoming iterator for initialization.
+     * Initializes a HashMap with an incoming list for initialization.
      *
-     * @param elements an incoming iterator is initialized.
+     * @param elements an incoming list is initialized.
      *
      * @since 0.18.4
      */
     @Frozen
-    public init(elements: Collection<(K, V)>) {
+    public init(elements: Array<(K, V)>) {
         let bucketSize: Int64 = elements.size + (elements.size >> 1)
         buckets = Array<Int64>(tableSizeFor(bucketSize), repeat: -1)
         entries = Array<HashMapEntry<K, V>>(elements.size, repeat: HashMapEntry<K, V>())
@@ -400,14 +400,14 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     /**
-     * Initializes a hashmap with an incoming list for initialization.
+     * Initializes a HashMap with an incoming iterator for initialization.
      *
-     * @param elements an incoming list is initialized.
+     * @param elements an incoming iterator is initialized.
      *
      * @since 0.18.4
      */
     @Frozen
-    public init(elements: Array<(K, V)>) {
+    public init(elements: Collection<(K, V)>) {
         let bucketSize: Int64 = elements.size + (elements.size >> 1)
         buckets = Array<Int64>(tableSizeFor(bucketSize), repeat: -1)
         entries = Array<HashMapEntry<K, V>>(elements.size, repeat: HashMapEntry<K, V>())
@@ -436,7 +436,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     /**
-     * Initializes a hash map with an incoming size and an initial element for initialization.
+     * Initializes a HashMap with an incoming size and an initial element for initialization.
      *
      * @param size the size of the incoming initial element.
      * @param initElement an incoming initElement is initialized.
@@ -828,7 +828,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
 
     /**
      * @description Performs mapping on this HashMap and returns a new HashMap.
-     * 
+     *
      * @param transform the given mapping function.
      * @returns a new HashMap.
      */
@@ -845,7 +845,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
 
     /**
      * @description Performs mapping on this HashMap and returns a new HashMap.
-     * 
+     *
      * @param transform the given mapping function.
      * @returns a new HashMap.
      */
@@ -862,7 +862,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
 
     /**
      * @description Returns a new HashMap<K, V> containing key-value pairs that satisfy the filtering condition.
-     * 
+     *
      * @param predicate the given condition.
      * @returns a new collection of key-value pairs that satisfy the filtering condition.
      */
@@ -879,7 +879,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
 
     /**
      * @description Iterates over all key-value pairs and performs the given operation.
-     * 
+     *
      * @param action the given operation function.
      */
     public func forEach(action: (K, V) -> Unit): Unit {
@@ -893,7 +893,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
 
     /**
      * @description Determine whether all key-value pairs in the HashMap satisfy the condition.
-     * 
+     *
      * @param predicate the given condition.
      * @returns true if all key-value pairs in the HashMap satisfy the condition, otherwise returns false.
      */
@@ -909,7 +909,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
 
     /**
      * @description Determine whether there is any key-value pair in the HashMap that satisfies the condition.
-     * 
+     *
      * @param predicate the given condition.
      * @returns Whether there is any key-value pair that satisfies the condition.
      */
@@ -925,7 +925,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
 
     /**
      * @description Determine whether all key-value pairs in the HashMap do not satisfy the condition.
-     * 
+     *
      * @param predicate the given condition.
      * @returns Whether all key-value pairs in the current HashMap do not satisfy the condition.
      */
@@ -941,7 +941,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
 
     /**
      * @description Computes from left to right using the specified initial value.
-     * 
+     *
      * @param initial the given initial value of type R.
      * @param operation the given computation function.
      * @returns the final computed value.
@@ -959,7 +959,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
 
     /**
      * @description Compute from left to right using the first value as the initial value.
-     * 
+     *
      * @param operation the given computation function.
      * @returns the final computed value.
      */

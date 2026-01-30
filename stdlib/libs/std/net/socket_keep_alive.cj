@@ -13,6 +13,11 @@ package std.net
  */
 public struct SocketKeepAliveConfig <: ToString & Equatable<SocketKeepAliveConfig> {
     /**
+     * Number of probe packets are sent before the connection is considered invalid.
+     */
+    public let count: UInt32
+
+    /**
      * If no data is exchanged within the `idle` period, the probe is performed.
      */
     public let idle: Duration
@@ -23,22 +28,13 @@ public struct SocketKeepAliveConfig <: ToString & Equatable<SocketKeepAliveConfi
     public let interval: Duration
 
     /**
-     * Number of probe packets are sent before the connection is considered invalid.
-     */
-    public let count: UInt32
-
-    /**
      * Creates a socket keep alive config instance.
      * Please note that the actual time granularity could be different depending on the operating system
      * so could be bumped or rounded if needed correspondingly.
      *
      * @throws IllegalArgumentException if the specified idle or interval duration is negative.
      */
-    public init(
-        idle!: Duration = Duration.second * 45,
-        interval!: Duration = Duration.second * 5,
-        count!: UInt32 = 5
-    ) {
+    public init(idle!: Duration = Duration.second * 45, interval!: Duration = Duration.second * 5, count!: UInt32 = 5) {
         this.idle = idle.throwIfNegative("Idle")
         this.interval = interval.throwIfNegative("Interval")
         this.count = count

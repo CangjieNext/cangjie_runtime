@@ -27,6 +27,15 @@ public class UdpSocket <: DatagramSocket {
     private let impl: SocketCommon<ActualPlatformSocket>
 
     /**
+     * Creates an unbound UDP socket ready to bind at the specified interface/port
+     */
+    public init(bindAt!: SocketAddress) {
+        checkAddress(bindAt, "bindAt")
+        impl = SocketCommon(SocketNet.UDP, bindAt.family, DatagramMode)
+        impl.localAddress = bindAt
+    }
+
+    /**
      * Creates an unbound UDP socket ready to bind at the specified port
      *
      * The default address is 0.0.0.0 what means every IP address of current machine,
@@ -42,15 +51,6 @@ public class UdpSocket <: DatagramSocket {
      */
     public init(bindAt!: UInt16) {
         this(bindAt: IPSocketAddress(IPv4Address.unspecified, bindAt))
-    }
-
-    /**
-     * Creates an unbound UDP socket ready to bind at the specified interface/port
-     */
-    public init(bindAt!: SocketAddress) {
-        checkAddress(bindAt, "bindAt")
-        impl = SocketCommon(SocketNet.UDP, bindAt.family, DatagramMode)
-        impl.localAddress = bindAt
     }
 
     /**
@@ -154,8 +154,7 @@ public class UdpSocket <: DatagramSocket {
 
         if (remote.family != localAddress.family) {
             throw IllegalArgumentException(
-                "remote address kind (${remote.family}) should have the same address family as local (${localAddress.family})"
-            )
+                "remote address kind (${remote.family}) should have the same address family as local (${localAddress.family})")
         }
 
         impl.remoteAddress = remote

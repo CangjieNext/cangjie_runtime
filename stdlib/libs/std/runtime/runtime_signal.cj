@@ -13,13 +13,13 @@ import std.collection.*
 
 @When[backend == "cjnative"]
 @Intrinsic
-func intrinsicRefEqFunc<A,R>(a: (A)->R, b: (A)->R): Bool
+func intrinsicRefEqFunc<A, R>(a: (A) -> R, b: (A) -> R): Bool
 
 /**
  * Check Whether two functions are the same
  */
 @When[backend == "cjnative"]
-func refEq<A,R>(a: (A)->R, b: (A)->R): Bool {
+func refEq<A, R>(a: (A) -> R, b: (A) -> R): Bool {
     return intrinsicRefEqFunc(a, b)
 }
 
@@ -32,7 +32,7 @@ private let mtx = Mutex()
 @When[os != "Windows"]
 class SignalManager {
     static const MAX_SIG_NUM: Int32 = 32
-    static let sigSlot = Array<ArrayList<SignalHandlerFunc>>(Int64(MAX_SIG_NUM), { _ => ArrayList<SignalHandlerFunc>()})
+    static let sigSlot = Array<ArrayList<SignalHandlerFunc>>(Int64(MAX_SIG_NUM), {_ => ArrayList<SignalHandlerFunc>()})
     // This memory allocation is globally unique and will only be released along with the program upon termination.
     static let ptrAction = LibC.malloc<SignalAction>(count: 1)
     static init() {
@@ -45,10 +45,10 @@ class SignalManager {
 
 /**
  * Provides a way to register signal handlers in Cangjie.
- * It uses a mutex to ensure thread safety when accessing the signal slots. 
+ * It uses a mutex to ensure thread safety when accessing the signal slots.
  */
 @When[os != "Windows"]
-public func registerSignalHandler(sig: Signal, handler: SignalHandlerFunc) {
+public func registerSignalHandler(sig: Signal, handler: SignalHandlerFunc): Unit {
     if (sig.value <= 0 || sig.value >= SignalManager.MAX_SIG_NUM) {
         throw IllegalArgumentException("Signal value must > 0 and < ${SignalManager.MAX_SIG_NUM}.")
     }
@@ -68,10 +68,10 @@ public func registerSignalHandler(sig: Signal, handler: SignalHandlerFunc) {
 
 /**
  * Provides a way to unregister signal handlers in Cangjie.
- * It uses a mutex to ensure thread safety when accessing the signal slots. 
+ * It uses a mutex to ensure thread safety when accessing the signal slots.
  */
 @When[os != "Windows"]
-public func unregisterSignalHandler(sig: Signal, handler: SignalHandlerFunc) {
+public func unregisterSignalHandler(sig: Signal, handler: SignalHandlerFunc): Unit {
     if (sig.value <= 0 || sig.value >= SignalManager.MAX_SIG_NUM) {
         throw IllegalArgumentException("Signal value must > 0 and < ${SignalManager.MAX_SIG_NUM}.")
     }
@@ -86,7 +86,7 @@ public func unregisterSignalHandler(sig: Signal, handler: SignalHandlerFunc) {
 
 /**
  * Provides a way to reset signal handlers in Cangjie.
- * It uses a mutex to ensure thread safety when accessing the signal slots. 
+ * It uses a mutex to ensure thread safety when accessing the signal slots.
  */
 @When[os != "Windows"]
 public func resetSignalHandler(sigs: Array<Signal>): Unit {

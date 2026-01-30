@@ -37,23 +37,15 @@ func saturatingDec<T>(x: T): T
 
 public interface SaturatingOp<T> {
     func saturatingAdd(y: T): T
-
-    func saturatingSub(y: T): T
-
-    func saturatingMul(y: T): T
-
-    func saturatingDiv(y: T): T
-
-    func saturatingMod(y: T): T
-
-    func saturatingInc(): T
-
     func saturatingDec(): T
-
+    func saturatingDiv(y: T): T
+    func saturatingInc(): T
+    func saturatingMod(y: T): T
+    func saturatingMul(y: T): T
     func saturatingNeg(): T
-
     func saturatingShl(y: UInt64): T
     func saturatingShr(y: UInt64): T
+    func saturatingSub(y: T): T
 }
 
 public interface SaturatingPow {

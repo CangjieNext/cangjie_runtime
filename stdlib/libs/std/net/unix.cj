@@ -38,18 +38,6 @@ public class UnixSocket <: StreamingSocket {
 
     /**
      * Create an unconnected Unix domain socket ready to connect to the specified socket path
-     *
-     * @param path to connect to
-     */
-    public init(path: String, localPath!: ?String = None) {
-        this(UnixSocketAddress(path))
-        if (let Some(_localPath) <- localPath) {
-            setLocalAddress(UnixSocketAddress(_localPath))
-        }
-    }
-
-    /**
-     * Create an unconnected Unix domain socket ready to connect to the specified socket path
      * @param address to connect to
      */
     public init(address: SocketAddress, localAddress!: ?SocketAddress = None) {
@@ -58,6 +46,18 @@ public class UnixSocket <: StreamingSocket {
         impl.remoteAddress = address
         if (let Some(_localAddress) <- localAddress) {
             setLocalAddress(_localAddress)
+        }
+    }
+
+    /**
+     * Create an unconnected Unix domain socket ready to connect to the specified socket path
+     *
+     * @param path to connect to
+     */
+    public init(path: String, localPath!: ?String = None) {
+        this(UnixSocketAddress(path))
+        if (let Some(_localPath) <- localPath) {
+            setLocalAddress(UnixSocketAddress(_localPath))
         }
     }
 
@@ -333,18 +333,6 @@ public class UnixSocket <: StreamingSocket {
 
     /**
      * Create an unconnected Unix domain socket ready to connect to the specified socket path
-     *
-     * @param path to connect to
-     */
-    public init(path: String, localPath!: ?String = None) {
-        this(UnixSocketAddress(path))
-        if (let Some(_localPath) <- localPath) {
-            setLocalAddress(UnixSocketAddress(_localPath))
-        }
-    }
-
-    /**
-     * Create an unconnected Unix domain socket ready to connect to the specified socket path
      * @param address to connect to
      */
     public init(address: SocketAddress, localAddress!: ?SocketAddress = None) {
@@ -353,6 +341,18 @@ public class UnixSocket <: StreamingSocket {
         impl.remoteAddress = address
         if (let Some(_localAddress) <- localAddress) {
             setLocalAddress(_localAddress)
+        }
+    }
+
+    /**
+     * Create an unconnected Unix domain socket ready to connect to the specified socket path
+     *
+     * @param path to connect to
+     */
+    public init(path: String, localPath!: ?String = None) {
+        this(UnixSocketAddress(path))
+        if (let Some(_localPath) <- localPath) {
+            setLocalAddress(UnixSocketAddress(_localPath))
         }
     }
 

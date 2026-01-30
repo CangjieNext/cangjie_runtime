@@ -161,14 +161,6 @@ public interface ServerSocket <: Resource & ToString {
     prop localAddress: SocketAddress
 
     /**
-     * Bind a streaming socket. Depending on reuse flags and environment state,
-     * it may fail if the local port/address/path is already occupied
-     * or when there are connections remaining from the previously bound socket.
-     * This function also does listen just after binding creating an incoming connections queue that could be accessed via "accept()" function.
-     */
-    func bind(): Unit
-
-    /**
      * Accept a client socket, waiting for one if there are no pending connection requests.
      *
      * The OS implementation usually provides an incoming connection requests queue,
@@ -190,4 +182,12 @@ public interface ServerSocket <: Resource & ToString {
     func accept(): StreamingSocket {
         accept(timeout: None)
     }
+
+    /**
+     * Bind a streaming socket. Depending on reuse flags and environment state,
+     * it may fail if the local port/address/path is already occupied
+     * or when there are connections remaining from the previously bound socket.
+     * This function also does listen just after binding creating an incoming connections queue that could be accessed via "accept()" function.
+     */
+    func bind(): Unit
 }

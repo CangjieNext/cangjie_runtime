@@ -6,10 +6,10 @@
 public interface FloatingPoint<T> <: Number<T> {
     static func getE(): T
     static func getInf(): T
-    static func getPI(): T
     static func getMinDenormal(): T
     static func getMinNormal(): T
     static func getNaN(): T
+    static func getPI(): T
     func isInf(): Bool
     func isNaN(): Bool
     func isNormal(): Bool

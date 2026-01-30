@@ -31,6 +31,14 @@ public interface Connection <: Resource {
     prop state: ConnectionState
 
     /**
+     * create a transaction instance
+     * SqlException - Parallel transactions are not supported.
+     *
+     * @since 0.40.1
+     */
+    func createTransaction(): Transaction
+
+    /**
      * Retrieves metadata about the database, common keys are predefined in SqlOption.
      *
      * @since 0.40.1
@@ -48,12 +56,4 @@ public interface Connection <: Resource {
      * @since 0.40.1
      */
     func prepareStatement(sql: String): Statement
-
-    /**
-     * create a transaction instance
-     * SqlException - Parallel transactions are not supported.
-     *
-     * @since 0.40.1
-     */
-    func createTransaction(): Transaction
 }

@@ -63,6 +63,11 @@ public open class Exception <: ToString {
         pcArray = fillInStackTrace(RawArray<UInt64>(1, repeat: 0), detailMessage.toArray().rawptr)
     }
 
+    public init(causedBy: Exception) {
+        innerCause = causedBy
+        pcArray = fillInStackTrace(RawArray<UInt64>(1, repeat: 0), detailMessage.toArray().rawptr)
+    }
+
     public init(message: String) {
         detailMessage = message
         pcArray = fillInStackTrace(RawArray<UInt64>(1, repeat: 0), detailMessage.toArray().rawptr)
@@ -70,11 +75,6 @@ public open class Exception <: ToString {
 
     public init(message: String, causedBy: Exception) {
         detailMessage = message
-        innerCause = causedBy
-        pcArray = fillInStackTrace(RawArray<UInt64>(1, repeat: 0), detailMessage.toArray().rawptr)
-    }
-
-    public init(causedBy: Exception) {
         innerCause = causedBy
         pcArray = fillInStackTrace(RawArray<UInt64>(1, repeat: 0), detailMessage.toArray().rawptr)
     }
@@ -112,7 +112,7 @@ public open class Exception <: ToString {
     }
 
     /*
-     * Print the stack trace of this exception with a caption and enclosing trace. 
+     * Print the stack trace of this exception with a caption and enclosing trace.
      *
      * @param caption the caption to print before the stack trace
      * @param enclosingTrace the enclosing stack trace if present (that is the stack trace of `causedBy`)
@@ -122,7 +122,8 @@ public open class Exception <: ToString {
         let trace = getStackTrace()
         var ourSize = trace.size - 1
         var enclosingSize = enclosingTrace.size - 1
-        while (ourSize >= 0 && enclosingSize >= 0 && trace[ourSize].fileName == enclosingTrace[enclosingSize].fileName && trace[ourSize].lineNumber == enclosingTrace[enclosingSize].lineNumber) {
+        while (ourSize >= 0 && enclosingSize >= 0 && trace[ourSize].fileName == enclosingTrace[enclosingSize].fileName &&
+                trace[ourSize].lineNumber == enclosingTrace[enclosingSize].lineNumber) {
             ourSize--
             enclosingSize--
         }
@@ -152,4 +153,3 @@ public open class Exception <: ToString {
         getStackTraceImpl(pcArray)
     }
 }
-

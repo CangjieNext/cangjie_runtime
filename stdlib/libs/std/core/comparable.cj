@@ -229,13 +229,6 @@ public interface GreaterOrEqual<T> {
 public interface Comparable<T> <: Equatable<T> & Less<T> & Greater<T> & LessOrEqual<T> & GreaterOrEqual<T> {
     func compare(other: T): Ordering
 
-    operator func ==(other: T): Bool {
-        return match (this.compare(other)) {
-            case EQ => true
-            case _ => false
-        }
-    }
-
     operator func <(other: T): Bool {
         return match (this.compare(other)) {
             case LT => true
@@ -243,16 +236,23 @@ public interface Comparable<T> <: Equatable<T> & Less<T> & Greater<T> & LessOrEq
         }
     }
 
-    operator func >(other: T): Bool {
+    operator func <=(other: T): Bool {
         return match (this.compare(other)) {
-            case GT => true
+            case LT | EQ => true
             case _ => false
         }
     }
 
-    operator func <=(other: T): Bool {
+    operator func ==(other: T): Bool {
         return match (this.compare(other)) {
-            case LT | EQ => true
+            case EQ => true
+            case _ => false
+        }
+    }
+
+    operator func >(other: T): Bool {
+        return match (this.compare(other)) {
+            case GT => true
             case _ => false
         }
     }

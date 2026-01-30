@@ -64,13 +64,19 @@ public interface IOStream <: InputStream & OutputStream {}
  */
 public interface Seekable {
     /**
-     * Seek to an offset, in bytes, in a stream.
-     *
-     * @params sp - Start position of the offset and size of the offset.
-     *
-     * @return the number of bytes in the stream from the beginning of the data to the cursor position.
+     * @return the number of bytes from the file header to the file trailer.
      */
-    func seek(sp: SeekPosition): Int64
+    prop length: Int64 {
+        get() {
+            let oldPos = this.seek(Current(0))
+            let length = this.seek(End(0))
+            if (length != oldPos) {
+                this.seek(Begin(oldPos))
+            }
+
+            length
+        }
+    }
 
     /**
      * @return the position of the current cursor in the stream.
@@ -97,17 +103,11 @@ public interface Seekable {
     }
 
     /**
-     * @return the number of bytes from the file header to the file trailer.
+     * Seek to an offset, in bytes, in a stream.
+     *
+     * @params sp - Start position of the offset and size of the offset.
+     *
+     * @return the number of bytes in the stream from the beginning of the data to the cursor position.
      */
-    prop length: Int64 {
-        get() {
-            let oldPos = this.seek(Current(0))
-            let length = this.seek(End(0))
-            if (length != oldPos) {
-                this.seek(Begin(oldPos))
-            }
-
-            length
-        }
-    }
+    func seek(sp: SeekPosition): Int64
 }
