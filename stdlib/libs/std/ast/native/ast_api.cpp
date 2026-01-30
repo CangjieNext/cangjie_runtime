@@ -13,7 +13,6 @@
 #include "cangjie/Basic/DiagnosticEmitter.h"
 #include "cangjie/Basic/Print.h"
 #include "cangjie/Basic/SourceManager.h"
-#include "cangjie/Frontend/CompilerInstance.h"
 #include "cangjie/Macro/MacroCommon.h"
 #include "cangjie/Macro/NodeSerialization.h"
 #include "cangjie/Macro/TokenSerialization.h"
