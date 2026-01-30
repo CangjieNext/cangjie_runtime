@@ -1253,6 +1253,16 @@ extern "C" EnumCtorInfo* MCC_GetEnumConstructorInfoFromAny(ObjRef obj) {
     return enumInfo->GetEnumCtor(tag);
 }
 
+extern "C" bool MCC_IsBox(TypeInfo* ti)
+{
+    return ti->IsBoxClass();
+}
+
+extern "C" TypeInfo* MCC_GetTypeArg(TypeInfo* ti)
+{
+    return ti->GetTypeArgs()[0];
+}
+
 // reflect support function
 extern "C" U32 MCC_GetNumOfFunctionSignatureTypes(TypeInfo* funcTi)
 {
