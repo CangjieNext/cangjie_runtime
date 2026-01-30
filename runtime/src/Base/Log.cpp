@@ -336,6 +336,7 @@ static inline void WriteLogOnIOS(RTLogLevel level, const char* buf)
 
 void Logger::FormatLog(RTLogLevel level, bool notInSigHandler, const char* format, ...) noexcept
 {
+
     if (!CheckLogLevel(level)) {
         return;
     }
