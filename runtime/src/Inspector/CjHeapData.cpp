@@ -240,7 +240,11 @@ void CjHeapData::ProcessRootLocal()
         } else {
             threadName = CString(mutator.GetCJThreadName());
         }
-        RecordStackInfo* recordStackInfo = new RecordStackInfo(&(mutator.GetUnwindContext()), threadId, threadName);
+        RecordStackInfo* recordStackInfo = new (std::nothrow) RecordStackInfo(&(mutator.GetUnwindContext()), threadId, threadName);
+        if (recordStackInfo == nullptr) {
+            LOG(RTLOG_ERROR, "new RecordStackInfo failed");
+            return;
+        }
         recordStackInfo->FillInStackTrace();
 
         ProcessStacktrace(recordStackInfo);

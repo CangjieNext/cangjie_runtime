@@ -21,7 +21,8 @@ static CjAllocData* g_allocInfo;
 CjAllocData* CjAllocData::GetCjAllocData()
 {
     if (g_allocInfo == nullptr) {
-        g_allocInfo = new CjAllocData();
+        g_allocInfo = new (std::nothrow) CjAllocData();
+        CHECK_DETAIL(g_allocInfo != nullptr, "InitAllocParam failed");
     }
     return g_allocInfo;
 }
@@ -159,7 +160,7 @@ void CjAllocData::SerializeSamples()
     writer->WriteChar(']');
 }
 void CjAllocData::InitRoot() {
-    TraceNodeField* traceNode = new TraceNodeField();
+    TraceNodeField* traceNode = new (std::nothrow) TraceNodeField();
     if (traceNode == nullptr) {
         LOG(RTLOG_ERROR, "init traceNode failed");
         return;
@@ -168,7 +169,7 @@ void CjAllocData::InitRoot() {
     traceNode->functionInfoIndex = 0;
     traceNode->selfSize = 0;
     traceNodeHead = traceNode;
-    TraceFunctionInfo* traceFunction = new TraceFunctionInfo();
+    TraceFunctionInfo* traceFunction = new (std::nothrow) TraceFunctionInfo();
     if (traceFunction == nullptr) {
         LOG(RTLOG_ERROR, "init traceFunction failed");
         return;
@@ -183,7 +184,8 @@ void CjAllocData::InitAllocParam() {
     sampSize = 1 * 1024 ; // default 1 * 1024 b
     InitRoot();
     HeapProfilerStream* stream = &MapleRuntime::HeapProfilerStream::GetInstance();
-    writer = new StreamWriter(stream);
+    writer = new (std::nothrow) StreamWriter(stream);
+    CHECK_DETAIL(writer != nullptr, "InitAllocParam failed");
 }
 
 void CjAllocData::SerializeStats()
@@ -211,7 +213,11 @@ void CjAllocData::RecordAllocNodes(const TypeInfo* ti, MSize size)
     if (allocSize < sampSize) {
         return;
     } else {
-        AllocStackInfo* allocStackInfo  = new AllocStackInfo();
+        AllocStackInfo* allocStackInfo  = new (std::nothrow) AllocStackInfo();
+        if (allocStackInfo == nullptr) {
+            LOG(RTLOG_ERROR, "allocStackInfo failed");
+            return;
+        }
         allocStackInfo->ProcessStackTrace(ti, size);
         delete allocStackInfo;
         allocSize = 0;
@@ -224,7 +230,11 @@ int32_t AllocStackInfo::ProcessTraceInfo(FrameInfo &frame)
     if (frame.GetFrameType() == FrameType::NATIVE) {
         return -1;
     }
-    TraceFunctionInfo* traceFunction = new TraceFunctionInfo();
+    TraceFunctionInfo* traceFunction = new (std::nothrow) TraceFunctionInfo();
+    if (traceFunction == nullptr) {
+        LOG(RTLOG_ERROR, "process traceInfo failed");
+        return -1;
+    }
     if (frame.GetFrameType() == FrameType::MANAGED) {
         StackMetadataHelper stackMetadataHelper(frame);
         traceFunction->scriptName = frame.GetFileName();
@@ -252,7 +262,11 @@ void AllocStackInfo::ProcessTraceNode(TraceNodeField* head, const TypeInfo* ti, 
     while (!frames.empty()) {
         FrameInfo* f = frames.top();
         frames.pop();
-        TraceNodeField* traceNode = new TraceNodeField();
+        TraceNodeField* traceNode = new (std::nothrow) TraceNodeField();
+        if (traceNode == nullptr) {
+            LOG(RTLOG_ERROR, "new traceNode failed");
+            return;
+        }
         traceNode->id = CjAllocData::GetCjAllocData()->SetNodeID();
         traceNode->functionInfoIndex = ProcessTraceInfo(*f);
         traceNode->type = ti->GetType();
@@ -281,7 +295,11 @@ void AllocStackInfo::ProcessStackTrace(const TypeInfo* ti, MSize size)
     CheckTopUnwindContextAndInit(uwContext);
     while (!uwContext.frameInfo.mFrame.IsAnchorFrame(anchorFA)) {
         AnalyseAndSetFrameType(uwContext);
-        FrameInfo* f = new FrameInfo(uwContext.frameInfo);
+        FrameInfo* f = new (std::nothrow) FrameInfo(uwContext.frameInfo);
+        if (f == nullptr) {
+            LOG(RTLOG_ERROR, "new FrameInfo failed");
+            return;
+        }
         // 1. If the node has been recorded, add the content in the stack to the end of the node.
         FrameAddress* FA = f->mFrame.GetFA();
         TraceNodeField* node = CjAllocData::GetCjAllocData()->FindNode(FA, f->GetFuncName().Str());
@@ -306,7 +324,11 @@ void AllocStackInfo::ProcessStackTrace(const TypeInfo* ti, MSize size)
     ProcessTraceNode(CjAllocData::GetCjAllocData()->traceNodeHead, ti, size);
 
     // 3. Record the samples at this time.
-    Sample* sample = new Sample();
+    Sample* sample = new (std::nothrow) Sample();
+    if (sample == nullptr) {
+        LOG(RTLOG_ERROR, "new Sample failed");
+        return;
+    }
     sample->size = size;
     sample->nodeId = CjAllocData::GetCjAllocData()->traceFunctionInfo.size();
     auto now = std::chrono::system_clock::now();

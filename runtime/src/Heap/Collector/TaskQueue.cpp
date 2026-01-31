@@ -38,7 +38,7 @@ bool GCExecutor::Execute(void* owner)
             break;
         }
         case GCTask::TaskType::TASK_TYPE_DUMP_HEAP: {
-            CjHeapData* cjHeapData = new CjHeapData();
+            CjHeapData* cjHeapData = new (std::nothrow) CjHeapData();
             if (cjHeapData != nullptr) {
                 cjHeapData->DumpHeap();
                 delete cjHeapData;
@@ -64,7 +64,7 @@ bool GCExecutor::Execute(void* owner)
         }
 
         case GCTask::TaskType::TASK_TYPE_DUMP_HEAP_OOM: {
-            CjHeapData* cjHeapData = new CjHeapData(true);
+            CjHeapData* cjHeapData = new (std::nothrow) CjHeapData(true);
             if (cjHeapData != nullptr) {
                 cjHeapData->DumpHeap();
                 delete cjHeapData;

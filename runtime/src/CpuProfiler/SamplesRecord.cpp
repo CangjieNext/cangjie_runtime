@@ -28,7 +28,7 @@ SamplesRecord::~SamplesRecord()
 
 void SamplesRecord::InitProfileInfo()
 {
-    profileInfo = new ProfileInfo();
+    profileInfo = new (std::nothrow) ProfileInfo();
     CHECK_DETAIL(profileInfo != nullptr, "new profileInfo fail");
     NodeInit();
 }

@@ -106,7 +106,7 @@ void OnHeapAllocated(void* addr, size_t size)
     g_aliasOffset = reinterpret_cast<intptr_t>(alias) - reinterpret_cast<intptr_t>(addr);
 
     // 2. allocate reference counter for array
-    g_counter = new ArrayReferenceCounter<bool>(alias, size);
+    g_counter = new (std::nothrow) ArrayReferenceCounter<bool>(alias, size);
     CHECK_DETAIL(g_counter != nullptr, "Array Reference Counter allocation failed.");
 
     // 3. all checks are performed on alias

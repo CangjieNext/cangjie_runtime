@@ -100,7 +100,7 @@ struct SignalArgs {
 void SignalStack::Handler(int signal, siginfo_t* siginfo, void* ucontextRaw)
 {
     FLOG(RTLOG_ERROR, "CJNatvie Handle signal: %d.", signal);
-    SignalArgs* args = new SignalArgs{signal, siginfo, ucontextRaw, false};
+    SignalArgs* args = new (std::nothrow) SignalArgs{signal, siginfo, ucontextRaw, false};
     if (args == nullptr) {
         FLOG(RTLOG_ERROR, "Signal Handler fail: failed to new SignalArgs");
         return;

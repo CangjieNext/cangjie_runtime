@@ -85,7 +85,7 @@ static void TagMemory(volatile void* addr, uint8_t tag, uintptr_t size)
 void OnHeapAllocated(void* addr, size_t size)
 {
     // 1. allocate reference counter for array
-    g_counter = new ArrayReferenceCounter<pair<uint64_t, uint8_t>>(UntagPtr(addr), size);
+    g_counter = new (std::nothrow) ArrayReferenceCounter<pair<uint64_t, uint8_t>>(UntagPtr(addr), size);
     CHECK_DETAIL(g_counter != nullptr, "Array Reference Counter allocation failed.");
 
     // 2. register hook in hwasan
