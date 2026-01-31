@@ -18,12 +18,11 @@ public class Signal <: ToString {
 
 父类型：
 
-- [ToString](core_package_interfaces.md#interface-tostring)
+- [ToString](../../core/core_package_api/core_package_interfaces.md#interface-tostring)
 
 > **注意：**
 >
 > 目前不支持 Windows 平台。
-
 
 ### static const SIGHUP
 
