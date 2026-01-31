@@ -49,11 +49,15 @@ public:
     RuntimeParam GetRuntimeParam() const override { return param; }
     void SetCommandLinesArgs(int argc, const char* argv[])
     {
-        commandLineArgs = new const char* [argc + 1]();
+        commandLineArgs = new (std::nothrow) const char* [argc + 1]();
+        CHECK_DETAIL(commandLineArgs != nullptr, "new commandLineArgs failed");
         size_t cstrLen = 0;
         for (int i = 0; i < argc; ++i) {
             cstrLen = strlen(argv[i]) + 1;
-            commandLineArgs[i] = new const char[cstrLen]();
+            commandLineArgs[i] = new (std::nothrow) const char[cstrLen]();
+            if (commandLineArgs[i] == nullptr) {
+                CHECK_DETAIL(commandLineArgs[i] != nullptr, "new commandLineArg failed");
+            }
             CHECK_E(memcpy_s(const_cast<char*>(commandLineArgs[i]), cstrLen, argv[i], cstrLen) != EOK, "memcpy_s fail");
         }
     }
