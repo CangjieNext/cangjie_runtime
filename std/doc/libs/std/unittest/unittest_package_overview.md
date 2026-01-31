@@ -99,8 +99,8 @@ unittest 包用于编写仓颉项目单元测试代码，提供包括代码编�
 | [CsvReporter](./unittest_package_api/unittest_package_classes.md#class-csvreporter) | 打印性能测试用例结果数据到 CSV 文件上。 |
 | [CsvRawReporter](./unittest_package_api/unittest_package_classes.md#class-csvrawreporter) | 打印性能测试用例结果数据，该数据只有批次的原始测量值，到 CSV 文件上。 |
 |[DataStrategyProcessor\<T>](./unittest_package_api/unittest_package_classes.md#class-datastrategyprocessort)| 所有 [DataStrategy](../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategy) 组件的基类。该类的实例由 [@Strategy](../unittest_testmacro/unittest_testmacro_package_api/unittest_testmacro_package_macros.md#strategy-宏) 宏或成员函数创建。|
-|[FlatMapProcessor\<T,R>](./unittest_package_api/unittest_package_classes.md#class-flatmapprocessortr)| 对参数数据进行 [FlatMap](../collection/collection_package_api/collection_package_function.md#func-flatmapt-r-t---iterabler) 的处理器。 |
-|[FlatMapStrategyProcessor\<T,R>](./unittest_package_api/unittest_package_classes.md#class-flatmapstrategyprocessortr)| 对参数数据进行 [FlatMap](../collection/collection_package_api/collection_package_function.md#func-flatmapt-r-t---iterabler) 的处理器。 |
+|[FlatMapProcessor\<T,R>](./unittest_package_api/unittest_package_classes.md#class-flatmapprocessortr)| 对参数数据进行 [FlatMap](../collection/collection_package_api/collection_package_function.md#func-flatmapt-rt---iterabler) 的处理器。 |
+|[FlatMapStrategyProcessor\<T,R>](./unittest_package_api/unittest_package_classes.md#class-flatmapstrategyprocessortr)| 对参数数据进行 [FlatMap](../collection/collection_package_api/collection_package_function.md#func-flatmapt-rt---iterabler) 的处理器。 |
 | [InputParameter](./unittest_package_api/unittest_package_classes.md#class-inputparameter) | 入参对象类型。 |
 | [LazyCyclicNode](./unittest_package_api/unittest_package_classes.md#class-lazycyclicnode) | 用于在一个循环中一个接一个地推进类型擦除的内部惰性迭代器。 |
 | [MapProcessor\<T,R>](./unittest_package_api/unittest_package_classes.md#class-mapprocessortr) | 对参数数据进行 [Map](../collection/collection_package_api/collection_package_function.md#func-mapt-rt---r) 的处理器。 |
@@ -141,8 +141,7 @@ unittest 包用于编写仓颉项目单元测试代码，提供包括代码编�
 | [KeyCaptureOutput](./unittest_package_api/unittest_package_structs.md#struct-KeyCaptureOutput) | 作为在配置信息中配置值的键值。 |
 | [KeyCoverageGuided](./unittest_package_api/unittest_package_structs.md#struct-KeyCoverageGuided) | 作为在配置信息中配置值的键值。 |
 | [KeyCoverageGuidedBaselineScore](./unittest_package_api/unittest_package_structs.md#struct-KeyCoverageGuidedBaselineScore) | 作为在配置信息中配置值的键值。 |
-| [KeyCoverageGuidedInitialSeeds](./unittest_package_api/unittest_package_structs.md#struct-| [KeyCoverageGuidedInitialSeeds](./unittest_package_api/unittest_package_structs.md#struct-keytimeouthandler) | 作为在配置信息中配置值的键值。 |
-) | 作为在配置信息中配置值的键值。 |
+| [KeyCoverageGuidedInitialSeeds](./unittest_package_api/unittest_package_structs.md#struct-keycoverageguidedinitialseeds) | 作为在配置信息中配置值的键值。 |
 | [KeyCoverageGuidedMaxCandidates](./unittest_package_api/unittest_package_structs.md#struct-KeyCoverageGuidedMaxCandidates) | 作为在配置信息中配置值的键值。 |
 | [KeyCoverageGuidedNewCoverageBonus](./unittest_package_api/unittest_package_structs.md#struct-KeyCoverageGuidedNewCoverageBonus) | 作为在配置信息中配置值的键值。 |
 | [KeyCoverageGuidedNewCoverageScore](./unittest_package_api/unittest_package_structs.md#struct-KeyCoverageGuidedNewCoverageScore) | 作为在配置信息中配置值的键值。 |
@@ -155,7 +154,7 @@ unittest 包用于编写仓颉项目单元测试代码，提供包括代码编�
 | [KeyGenerationSteps](./unittest_package_api/unittest_package_structs.md#struct-KeyGenerationSteps) | 作为在配置信息中配置值的键值。 |
 | [KeyHelp](./unittest_package_api/unittest_package_structs.md#struct-KeyHelp) | 作为在配置信息中配置值的键值。 |
 | [KeyIncludeTags](./unittest_package_api/unittest_package_structs.md#struct-KeyIncludeTags) | 作为在配置信息中配置值的键值。 |
-| [KeyInternalTestrunnerInputPath](./unittest_package_api/unittest_package_structs.md#struct-keytimeouthandKeyInternalTestrunnerInputPather) | 作为在配置信息中配置值的键值。 |
+| [KeyInternalTestrunnerInputPath](./unittest_package_api/unittest_package_structs.md#struct-keyinternaltestrunnerinputpath) | 作为在配置信息中配置值的键值。 |
 | [KeyMeasurement](./unittest_package_api/unittest_package_structs.md#struct-KeyMeasurement) | 作为在配置信息中配置值的键值。 |
 | [KeyMeasurementInfo](./unittest_package_api/unittest_package_structs.md#struct-KeyMeasurementInfo) | 作为在配置信息中配置值的键值。 |
 | [KeyMinBatches](./unittest_package_api/unittest_package_structs.md#struct-KeyMinBatches) | 作为在配置信息中配置值的键值。 |
@@ -190,4 +189,3 @@ unittest 包用于编写仓颉项目单元测试代码，提供包括代码编�
 | [AssertIntermediateException](./unittest_package_api/unittest_package_exceptions.md#class-assertintermediateexception) |[@PowerAssert](../unittest_testmacro/unittest_testmacro_package_api/unittest_testmacro_package_macros.md#powerassert-宏) 检查失败时所抛出的异常。 |
 | [UnittestCliOptionsFormatException](./unittest_package_api/unittest_package_exceptions.md#class-unittestclioptionsformatexception) | 控制台选项格式错误抛出的异常。 |
 | [UnittestException](./unittest_package_api/unittest_package_exceptions.md#class-unittestexception) | 框架通用异常。 |
-| [UnittestTimeoutException](./unittest_package_api/unittest_package_exceptions.md#class-unittesttimeoutexception) | 此异常用于在超时时中止测试用例的执行。不建议用户直接使用。 |
