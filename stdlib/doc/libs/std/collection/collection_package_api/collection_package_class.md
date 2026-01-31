@@ -493,6 +493,7 @@ public func clone(): ArrayList<T>
 
 <!--Del-->
 ### func filter((T) -> Bool)
+
 ```cangjie
 public func filter(predicate: (T) -> Bool): ArrayList<T>
 ```
@@ -868,6 +869,7 @@ public func slice(range: Range<Int64>): ArrayList<T>
 
 <!--Del-->
 ### func skip(Int64)
+
 ```cangjie
 public func skip(count: Int64): ArrayList<T>
 ```
@@ -878,7 +880,7 @@ public func skip(count: Int64): ArrayList<T>
 
 参数：
 
-- count: [Int64](core_package_intrinsics.md#int64) - 要跳过的个数。
+- count: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 要跳过的个数。
 
 返回值：
 
@@ -932,6 +934,7 @@ public func sortBy(stable!: Bool, comparator!: (T, T) -> Ordering): Unit
 
 <!--Del-->
 ### func step(Int64)
+
 ```cangjie
 public func step(count: Int64): ArrayList<T>
 ```
@@ -942,7 +945,7 @@ public func step(count: Int64): ArrayList<T>
 
 参数：
 
-- count: [Int64](core_package_intrinsics.md#int64) - 选取的间隔
+- count: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 选取的间隔
 
 返回值：
 
@@ -959,6 +962,7 @@ public func step(count: Int64): ArrayList<T>
 
 <!--Del-->
 ### func take(Int64)
+
 ```cangjie
 public func take(count: Int64): ArrayList<T>
 ```
@@ -969,7 +973,7 @@ public func take(count: Int64): ArrayList<T>
 
 参数：
 
-- count: [Int64](core_package_intrinsics.md#int64) - 要取出的个数。
+- count: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 要取出的个数。
 
 返回值：
 
@@ -1968,6 +1972,7 @@ public func entryView(key: K): MapEntryView<K, V>
 
 <!--Del-->
 ### func filter((K, V) -> Bool)
+
 ```cangjie
 public func filter(predicate: (K, V) -> Bool): HashMap<K, V>
 ```
@@ -2612,6 +2617,7 @@ public func contains(all!: Collection<T>): Bool
 
 <!--Del-->
 ### func filter((T) -> Bool)
+
 ```cangjie
 public func filter(predicate: (T) -> Bool): HashSet<T>
 ```
@@ -3334,6 +3340,7 @@ public func clear(): Unit
 
 <!--Del-->
 ### func filter((T) -> Bool)
+
 ```cangjie
 public func filter(predicate: (T) -> Bool): LinkedList<T>
 ```
@@ -3658,6 +3665,7 @@ public func reverse(): Unit
 
 <!--Del-->
 ### func skip(Int64)
+
 ```cangjie
 public func skip(count: Int64): LinkedList<T>
 ```
@@ -3668,7 +3676,7 @@ public func skip(count: Int64): LinkedList<T>
 
 参数：
 
-- count: [Int64](core_package_intrinsics.md#int64) - 要跳过的个数。
+- count: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 要跳过的个数。
 
 返回值：
 
@@ -3705,6 +3713,7 @@ public func splitOff(node: LinkedListNode<T>): LinkedList<T>
 
 <!--Del-->
 ### func step(Int64)
+
 ```cangjie
 public func step(count: Int64): LinkedList<T>
 ```
@@ -3715,7 +3724,7 @@ public func step(count: Int64): LinkedList<T>
 
 参数：
 
-- count: [Int64](core_package_intrinsics.md#int64) - 选取的间隔
+- count: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 选取的间隔
 
 返回值：
 
@@ -3732,6 +3741,7 @@ public func step(count: Int64): LinkedList<T>
 
 <!--Del-->
 ### func take(Int64)
+
 ```cangjie
 public func take(count: Int64): LinkedList<T>
 ```
@@ -3742,7 +3752,7 @@ public func take(count: Int64): LinkedList<T>
 
 参数：
 
-- count: [Int64](core_package_intrinsics.md#int64) - 要取出的个数。
+- count: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 要取出的个数。
 
 返回值：
 
@@ -4152,6 +4162,7 @@ public func entryView(k: K): MapEntryView<K, V>
 
 <!--Del-->
 ### func filter((K, V) -> Bool)
+
 ```cangjie
 public func filter(predicate: (K, V) -> Bool): TreeMap<K, V>
 ```
@@ -4319,6 +4330,7 @@ public func mapValues<R>(transform: (V) -> R): TreeMap<K, R>
 返回值：
 
 - [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek)\<K, R> - 返回一个新的 [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek)\<K, R>。
+
 > **注意：**
 >
 > 不支持平台：OpenHarmony
@@ -4807,6 +4819,7 @@ public func contains(all!: Collection<T>): Bool
 
 <!--Del-->
 ### func filter((T) -> Bool)
+
 ```cangjie
 public func filter(predicate: (T) -> Bool): TreeSet<T>
 ```

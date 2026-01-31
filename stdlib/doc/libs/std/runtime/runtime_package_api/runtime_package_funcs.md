@@ -212,7 +212,6 @@ public func resetSignalHandler(sigs: Array<Signal>): Unit
 
 功能：清空注册的信号处理函数，如果输入信号为空，则清空所有信号的注册函数。
 
-
 参数：
 
 - sigs: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Signal](./runtime_package_class.md#class-signal)> - 需要被重置的信号列表。
@@ -226,7 +225,6 @@ public func resetSignalHandler(sigs: Array<Signal>): Unit
 > - 目前不支持 Windows 平台。
 > - 仅支持前 31 个可被捕获的非实时信号。
 > - 暂不支持 SIGBUS、SIGFPE、SIGSEGV 等中断信号。
-
 
 ## func SetGCThreshold(UInt64) <sup>(deprecated)</sup>
 
@@ -314,7 +312,7 @@ public func stopCPUProfiling(path: Path): Unit
 
 异常：
 
-- ProfilingInfoException - 若没有调用了[startCPUProfiling](./runtime_package_funcs.md/#func-startcpuprofiling)，直接调用[stopCPUProfiling(Path)](./runtime_package_funcs.md#func-stopcpuprofilingpath)则抛出异常。
+- ProfilingInfoException - 若没有调用了[startCPUProfiling](./runtime_package_funcs.md#func-startcpuprofiling)，直接调用[stopCPUProfiling(Path)](./runtime_package_funcs.md#func-stopcpuprofilingpath)则抛出异常。
 
 ## func unregisterSignalHandler(Signal, SignalHandlerFunc)
 
@@ -323,7 +321,6 @@ public func unregisterSignalHandler(sig: Signal, handler: SignalHandlerFunc): Un
 ```
 
 功能：取消注册信号的处理函数。
-
 
 参数：
 
