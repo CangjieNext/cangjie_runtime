@@ -60,7 +60,11 @@ void SetEnd(const std::string &message, MapleRuntime::MsgType type)
 {
     MapleRuntime::HeapProfilerStream* stream = &MapleRuntime::HeapProfilerStream::GetInstance();
     stream->SetContext(type);
-    MapleRuntime::StreamWriter* writer = new MapleRuntime::StreamWriter(stream);
+    MapleRuntime::StreamWriter* writer = new (std::nothrow) MapleRuntime::StreamWriter(stream);
+    if (writer == nullptr) {
+        LOG(RTLOG_ERROR, "new StreamWriter failed");
+        return;
+    }
     writer->WriteString("{\"id\":");
     writer->WriteString(MapleRuntime::HeapProfilerStream::GetInstance().GetMessageID());
     writer->WriteString(",\"result\":{}");
@@ -104,7 +108,11 @@ void GetHeapUsage(const std::string &message, SendMsgCB sendMsg)
     stream->SetHandler(sendMsg);
     stream->SetMessageID(message);
     stream->SetContext(MapleRuntime::MsgType::HEAPUSAGE);
-    MapleRuntime::StreamWriter* writer = new MapleRuntime::StreamWriter(stream);
+    MapleRuntime::StreamWriter* writer = new (std::nothrow) MapleRuntime::StreamWriter(stream);
+    if (writer == nullptr) {
+        LOG(RTLOG_ERROR, "new StreamWriter failed");
+        return;
+    }
     writer->WriteString("{\"id\":");
     writer->WriteString(stream->GetMessageID());
     writer->WriteString(",\"result\":{\"usedSize\":");

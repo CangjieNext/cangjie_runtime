@@ -253,7 +253,7 @@ extern "C" size_t MCC_GetMaxHeapSize() { return Heap::GetHeap().GetMaxCapacity()
 extern "C" bool MCC_DumpCJHeapData(int fd)
 {
     ScopedEnterSaferegion enterSaferegion(false);
-    CjHeapData* cjHeapData = new CjHeapData();
+    CjHeapData* cjHeapData = new (std::nothrow) CjHeapData();
     CHECK_DETAIL(cjHeapData != nullptr, "new cjHeapData fail");
     bool result = cjHeapData->DumpHeap(fd);
     delete cjHeapData;

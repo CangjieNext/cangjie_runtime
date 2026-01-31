@@ -25,7 +25,11 @@ bool CjHeapDataForIDE::Serialize()
     ProcessHeap();
     HeapProfilerStream* stream = &MapleRuntime::HeapProfilerStream::GetInstance();
     stream->SetContext(DUMPHEAPSNAPSHOT);
-    writer = new StreamWriter(stream);
+    writer = new (std::nothrow) StreamWriter(stream);
+    if (writer == nullptr) {
+        LOG(RTLOG_ERROR, "new StreamWriter failed");
+        return false;
+    }
     writer->WriteChar('{');
     SerializeFixedHeader();
     SerializeString();

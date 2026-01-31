@@ -455,7 +455,7 @@ CJThreadHandle RunCJTaskImpl(const CJTaskFunc func, void* args, int num = 0, CJT
     if (scheduler == nullptr) {
         return nullptr;
     }
-    auto fi = new FutureImpl(args, func);
+    auto fi = new (std::nothrow) FutureImpl(args, func);
     if (UNLIKELY(fi == nullptr)) {
         LOG(RTLOG_ERROR, "new future failed.\n");
         return nullptr;
@@ -545,7 +545,7 @@ SemiCJThreadHandle CreateCJThread(const CJTaskFunc func, void *arg, struct CJThr
     if (scheduler == nullptr) {
         return nullptr;
     }
-    auto fi = new FutureImpl(arg, func);
+    auto fi = new (std::nothrow) FutureImpl(arg, func);
     if (UNLIKELY(fi == nullptr)) {
         LOG(RTLOG_ERROR, "new future failed.\n");
         return nullptr;

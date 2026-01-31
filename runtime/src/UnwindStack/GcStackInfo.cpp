@@ -100,7 +100,11 @@ void RecordStackInfo::FillInStackTrace()
     CheckTopUnwindContextAndInit(uwContext);
     while (!uwContext.frameInfo.mFrame.IsAnchorFrame(anchorFA)) {
         AnalyseAndSetFrameType(uwContext);
-        FrameInfo* f = new FrameInfo(uwContext.frameInfo);
+        FrameInfo* f = new (std::nothrow) FrameInfo(uwContext.frameInfo);
+        if (f == nullptr) {
+            LOG(RTLOG_ERROR, "new FrameInfo failed");
+            return;
+        }
         stacks.emplace_back(f);
         UnwindContext caller;
         lastFrameType = uwContext.frameInfo.GetFrameType();

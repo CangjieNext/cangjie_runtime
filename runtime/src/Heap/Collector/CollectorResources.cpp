@@ -56,7 +56,8 @@ void* CollectorResources::GCMainThreadEntry(void* arg)
 
 void CollectorResources::Init()
 {
-    taskQueue = new TaskQueue<GCExecutor>;
+    taskQueue = new (std::nothrow) TaskQueue<GCExecutor>;
+    CHECK_DETAIL(taskQueue != nullptr, "new GC TaskQueue failed");
     taskQueue->Init();
     finishedGcIndex = GCTask::SYNC_TASK_MIN_INDEX;
     StartGCThreads();
