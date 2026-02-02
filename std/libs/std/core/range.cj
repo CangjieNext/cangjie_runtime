@@ -10,12 +10,12 @@ package std.core
 
 @ConstSafe
 public struct Range<T> <: Iterable<T> where T <: Countable<T> & Comparable<T> & Equatable<T> {
-    public let start: T
     public let end: T
-    public let step: Int64
-    public let hasStart: Bool
     public let hasEnd: Bool
+    public let hasStart: Bool
     public let isClosed: Bool
+    public let start: T
+    public let step: Int64
 
     /*
      * @throws IllegalArgumentException if the value of the step is equal to zero

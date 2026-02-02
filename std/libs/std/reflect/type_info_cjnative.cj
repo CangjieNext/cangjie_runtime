@@ -54,12 +54,12 @@ class TypeTemplateParser {
             }
             let genericParams = ArrayList<CPointer<Unit>>(data[i].size) {
                 j =>
-                let typeStr = data[i][j]
-                if (typeStr.contains("<")) {
-                    map.get(typeStr) ?? throw InfoNotFoundException("TypeInfo `${typeStr}` not found.")
-                } else {
-                    TypeInfo.get(typeStr)._info
-                }
+                    let typeStr = data[i][j]
+                    if (typeStr.contains("<")) {
+                        map.get(typeStr) ?? throw InfoNotFoundException("TypeInfo `${typeStr}` not found.")
+                    } else {
+                        TypeInfo.get(typeStr)._info
+                    }
             }
             let info = getOrCreateTypeInfoForReflect(template.info, genericParams.toArray())
             if (info.isNull()) {
@@ -285,8 +285,7 @@ sealed abstract class TypeInfo <: Equatable<TypeInfo> & Hashable & ToString {
             throw ReflectException("Unexpected empty qualifiedName.")
         }
 
-
-        let typeInfo = if(isPrimitive(typeInfoPointer)) {
+        let typeInfo = if (isPrimitive(typeInfoPointer)) {
             PrimitiveTypeInfo(typeInfoPointer, qualifiedName)
         } else if (isInterface(typeInfoPointer)) {
             InterfaceTypeInfo(typeInfoPointer)
@@ -541,7 +540,7 @@ sealed abstract class TypeInfo <: Equatable<TypeInfo> & Hashable & ToString {
      */
     public func findAnnotation<T>(): Option<T> {
         findAnnotation<T>(annotations)
-   }
+    }
 
     public operator func ==(that: TypeInfo): Bool {
         this.qualifiedName == that.qualifiedName

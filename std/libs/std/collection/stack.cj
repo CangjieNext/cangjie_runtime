@@ -18,6 +18,12 @@ package std.collection
  * @param <T> Generic parameter
  */
 public interface Stack<T> <: Collection<T> {
+    /**
+     * Push an element onto the top of the stack
+     * @param element The element to be pushed
+     * @return No return value
+     */
+    func add(element: T): Unit
 
     /**
      * Peek at the top element without removing it
@@ -30,11 +36,4 @@ public interface Stack<T> <: Collection<T> {
      * @return The removed element, or None if the stack is empty
      */
     func remove(): ?T
-
-    /**
-     * Push an element onto the top of the stack
-     * @param element The element to be pushed
-     * @return No return value
-     */
-    func add(element: T): Unit
 }

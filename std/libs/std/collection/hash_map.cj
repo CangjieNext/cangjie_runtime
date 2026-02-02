@@ -383,14 +383,14 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     /**
-     * Initializes a HashMap with an incoming iterator for initialization.
+     * Initializes a hashmap with an incoming list for initialization.
      *
-     * @param elements an incoming iterator is initialized.
+     * @param elements an incoming list is initialized.
      *
      * @since 0.18.4
      */
     @Frozen
-    public init(elements: Collection<(K, V)>) {
+    public init(elements: Array<(K, V)>) {
         let bucketSize: Int64 = elements.size + (elements.size >> 1)
         buckets = Array<Int64>(tableSizeFor(bucketSize), repeat: -1)
         entries = Array<HashMapEntry<K, V>>(elements.size, repeat: HashMapEntry<K, V>())
@@ -400,14 +400,14 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     /**
-     * Initializes a hashmap with an incoming list for initialization.
+     * Initializes a HashMap with an incoming iterator for initialization.
      *
-     * @param elements an incoming list is initialized.
+     * @param elements an incoming iterator is initialized.
      *
      * @since 0.18.4
      */
     @Frozen
-    public init(elements: Array<(K, V)>) {
+    public init(elements: Collection<(K, V)>) {
         let bucketSize: Int64 = elements.size + (elements.size >> 1)
         buckets = Array<Int64>(tableSizeFor(bucketSize), repeat: -1)
         entries = Array<HashMapEntry<K, V>>(elements.size, repeat: HashMapEntry<K, V>())

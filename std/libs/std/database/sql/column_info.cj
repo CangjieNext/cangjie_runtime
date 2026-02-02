@@ -12,19 +12,12 @@ package std.database.sql
  * ColumnInfo, contain the name, type, length of a column.
  */
 public interface ColumnInfo {
-
     /**
-     * column name.
-     * @since 0.40.1
-     */
-    prop name: String
-
-    /**
-     * column type name, same with SqlDbType.name.
+     * column's normal maximum width in characters.
      *
      * @since 0.40.1
      */
-    prop typeName: String
+    prop displaySize: Int64
 
     /**
      * column length.
@@ -38,12 +31,10 @@ public interface ColumnInfo {
     prop length: Int64
 
     /**
-     * the scale size of a decimal type.
-     * If not applicable or if not supported return 0.
-     *
+     * column name.
      * @since 0.40.1
      */
-    prop scale: Int64
+    prop name: String
 
     /**
      * whether the column may be null.
@@ -53,9 +44,17 @@ public interface ColumnInfo {
     prop nullable: Bool
 
     /**
-     * column's normal maximum width in characters.
+     * the scale size of a decimal type.
+     * If not applicable or if not supported return 0.
      *
      * @since 0.40.1
      */
-    prop displaySize: Int64
+    prop scale: Int64
+
+    /**
+     * column type name, same with SqlDbType.name.
+     *
+     * @since 0.40.1
+     */
+    prop typeName: String
 }

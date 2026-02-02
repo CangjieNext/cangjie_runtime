@@ -12,12 +12,13 @@ import std.binary.*
 
 // ref https://www.rfc-editor.org/rfc/rfc791.html
 public class IPv4Address <: IPAddress & ToString & Equatable<IPv4Address> & LessOrEqual<IPv4Address> {
+    // An IPv4 address representing the broadcast address: `255.255.255.255`
+    public static let broadcast: IPv4Address = IPv4Address(0xFF, 0xFF, 0xFF, 0xFF)
     // An IPv4 address with the address pointing to localhost: `127.0.0.1`
     public static let localhost: IPv4Address = IPv4Address(0x7F, 0, 0, 0x01)
     // An IPv4 address representing an unspecified address: `0.0.0.0`
     public static let unspecified: IPv4Address = IPv4Address(0, 0, 0, 0)
-    // An IPv4 address representing the broadcast address: `255.255.255.255`
-    public static let broadcast: IPv4Address = IPv4Address(0xFF, 0xFF, 0xFF, 0xFF)
+    
 
     var _octets = Array<Byte>(4, repeat: 0)
 

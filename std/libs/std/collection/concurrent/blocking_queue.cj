@@ -26,6 +26,10 @@ public class LinkedBlockingQueue<E> {
     private let front: AtomicReference<Block<E>> // head of BlockingQueue.
     private let rear: AtomicReference<Block<E>> // tail of BlockingQueue.
 
+    public init() {
+        this(0x7FFF_FFFF_FFFF_FFFF) // Int64.Max
+    }
+
     public init(capacity: Int64) {
         if (capacity <= 0) {
             throw IllegalArgumentException("Invalid size of BlockingQueue: ${capacity}.")
@@ -35,10 +39,6 @@ public class LinkedBlockingQueue<E> {
         let block = Block<E>(0)
         front = AtomicReference<Block<E>>(block)
         rear = AtomicReference<Block<E>>(block)
-    }
-
-    public init() {
-        this(0x7FFF_FFFF_FFFF_FFFF) // Int64.Max
     }
 
     @Deprecated[message: "Use the other version of `init` instead."]
@@ -95,7 +95,8 @@ public class LinkedBlockingQueue<E> {
             let tailBlock = rear.load()
             let (headBlockVersion, headBlockReserved) = headBlock.getReserved()
             let (tailBlockVersion, tailBlockAllocated) = tailBlock.getAllocated()
-            return (tailBlockAllocated - headBlockReserved) + (Int64(tailBlockVersion - headBlockVersion) << BUF_SIZE_BITS)
+            return (tailBlockAllocated - headBlockReserved) + (Int64(tailBlockVersion - headBlockVersion) <<
+                BUF_SIZE_BITS)
         }
     }
 

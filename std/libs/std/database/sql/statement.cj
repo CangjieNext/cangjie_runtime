@@ -27,21 +27,7 @@ public interface Statement <: Resource {
      */
     prop parameterColumnInfos: Array<ColumnInfo>
 
-    /**
-     * setOption sets a string option on this statement
-     *
-     */
-    func setOption(key: String, value: String): Unit
-
-    /**
-     * executes a prepared statement with the given arguments and returns a UpdateResult summarizing the effect of the statement.
-     *
-     * @return a update result
-     *
-     * SqlException - An exception occurs during the execution, for example, the network is interrupted, the server times out, or the number of parameters is incorrect.
-     */
-    @Deprecated[message: "Use memeber funcation `func update(): UpdateResult` instead."]
-    func update(params: Array<SqlDbType>): UpdateResult
+    func query(): QueryResult
 
     /**
      * executes a prepared query statement with the given arguments and
@@ -57,7 +43,21 @@ public interface Statement <: Resource {
 
     func setNull(index: Int64): Unit
 
+    /**
+     * setOption sets a string option on this statement
+     *
+     */
+    func setOption(key: String, value: String): Unit
+
     func update(): UpdateResult
 
-    func query(): QueryResult
+    /**
+     * executes a prepared statement with the given arguments and returns a UpdateResult summarizing the effect of the statement.
+     *
+     * @return a update result
+     *
+     * SqlException - An exception occurs during the execution, for example, the network is interrupted, the server times out, or the number of parameters is incorrect.
+     */
+    @Deprecated[message: "Use memeber funcation `func update(): UpdateResult` instead."]
+    func update(params: Array<SqlDbType>): UpdateResult
 }

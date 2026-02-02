@@ -13,29 +13,9 @@ package std.database.sql
  */
 public class SqlOption {
     /**
-     * URL, which is usually used for database connection strings in SQL api.
+     * ConnectionTimeout, timeout interval of the connect operation, in milliseconds.
      */
-    public static const URL: String = "url"
-
-    /**
-     * Host, host name or IP address of the database server
-     */
-    public static const Host: String = "host"
-
-    /**
-     * Username, user name for connecting to the database
-     */
-    public static const Username: String = "username"
-
-    /**
-     * Password, password for connecting to the database
-     */
-    public static const Password: String = "password"
-
-    /**
-     * Driver, database driver name, for example, postgres and opengauss.
-     */
-    public static const Driver: String = "driver"
+    public static const ConnectionTimeout: String = "connection_timeout"
 
     /**
      * Database, database Name
@@ -43,24 +23,14 @@ public class SqlOption {
     public static const Database: String = "database"
 
     /**
+     * Driver, database driver name, for example, postgres and opengauss.
+     */
+    public static const Driver: String = "driver"
+
+    /**
      * Encoding, encoding type of the database character set.
      */
     public static const Encoding: String = "encoding"
-
-    /**
-     * ConnectionTimeout, timeout interval of the connect operation, in milliseconds.
-     */
-    public static const ConnectionTimeout: String = "connection_timeout"
-
-    /**
-     * UpdateTimeout, timeout interval of the update operation, in milliseconds.
-     */
-    public static const UpdateTimeout: String = "update_timeout"
-
-    /**
-     * QueryTimeout, Timeout interval of the query operation, in milliseconds.
-     */
-    public static const QueryTimeout: String = "query_timeout"
 
     /**
      * FetchRows, Specifies the number of rows to fetch from the database when additional rows need to be fetched
@@ -68,29 +38,19 @@ public class SqlOption {
     public static const FetchRows: String = "fetch_rows"
 
     /**
-     * SSLMode, transport layer encryption mode
+     * Host, host name or IP address of the database server
      */
-    public static const SSLMode: String = "ssl.mode"
+    public static const Host: String = "host"
+
     /**
-     * SSLModePreferred, value for SSLMode, first try an SSL connection; if that fails, try a non-SSL connection.
+     * Password, password for connecting to the database
      */
-    public static const SSLModePreferred: String = "ssl.mode.preferred"
+    public static const Password: String = "password"
+
     /**
-     * SSLModeDisabled, value for SSLMode, Establish an unencrypted connection.
+     * QueryTimeout, Timeout interval of the query operation, in milliseconds.
      */
-    public static const SSLModeDisabled: String = "ssl.mode.disabled"
-    /**
-     * SSLModeRequired, value for SSLMode, only try an SSL connection. If a root CA file is present, verify the certificate in the same way as if verify-ca was specified.
-     */
-    public static const SSLModeRequired: String = "ssl.mode.required"
-    /**
-     * SSLModeVerifyCA, value for SSLMode, only try an SSL connection, and verify that the server certificate is issued by a trusted certificate authority (CA).
-     */
-    public static const SSLModeVerifyCA: String = "ssl.mode.verify_ca"
-    /**
-     * SSLModeVerifyFull, value for SSLMode, only try an SSL connection, verify that the server certificate is issued by a trusted CA and that the requested server host name matches that in the certificate.
-     */
-    public static const SSLModeVerifyFull: String = "ssl.mode.verify_full"
+    public static const QueryTimeout: String = "query_timeout"
 
     /**
      * SSLCA, specifies the name of a file containing SSL certificate authority (CA) certificate(s).
@@ -111,6 +71,36 @@ public class SqlOption {
      * SSLKeyPassword, the password for the secret key specified in SSLKey
      */
     public static const SSLKeyPassword: String = "ssl.key.password"
+
+    /**
+     * SSLMode, transport layer encryption mode
+     */
+    public static const SSLMode: String = "ssl.mode"
+
+    /**
+     * SSLModeDisabled, value for SSLMode, Establish an unencrypted connection.
+     */
+    public static const SSLModeDisabled: String = "ssl.mode.disabled"
+
+    /**
+     * SSLModePreferred, value for SSLMode, first try an SSL connection; if that fails, try a non-SSL connection.
+     */
+    public static const SSLModePreferred: String = "ssl.mode.preferred"
+
+    /**
+     * SSLModeRequired, value for SSLMode, only try an SSL connection. If a root CA file is present, verify the certificate in the same way as if verify-ca was specified.
+     */
+    public static const SSLModeRequired: String = "ssl.mode.required"
+
+    /**
+     * SSLModeVerifyCA, value for SSLMode, only try an SSL connection, and verify that the server certificate is issued by a trusted certificate authority (CA).
+     */
+    public static const SSLModeVerifyCA: String = "ssl.mode.verify_ca"
+
+    /**
+     * SSLModeVerifyFull, value for SSLMode, only try an SSL connection, verify that the server certificate is issued by a trusted CA and that the requested server host name matches that in the certificate.
+     */
+    public static const SSLModeVerifyFull: String = "ssl.mode.verify_full"
 
     /**
      * SSLSni, setting the value "Server Name Indication" (SNI) on SSL-enabled connections, in Bool type
@@ -137,4 +127,19 @@ public class SqlOption {
      * For example:"TLSv1.2,TLSv1.3"
      */
     public static const TlsVersion: String = "tls.version"
+
+    /**
+     * UpdateTimeout, timeout interval of the update operation, in milliseconds.
+     */
+    public static const UpdateTimeout: String = "update_timeout"
+
+    /**
+     * URL, which is usually used for database connection strings in SQL api.
+     */
+    public static const URL: String = "url"
+
+    /**
+     * Username, user name for connecting to the database
+     */
+    public static const Username: String = "username"
 }

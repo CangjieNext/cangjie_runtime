@@ -28,15 +28,6 @@ public class UnixDatagramSocket <: DatagramSocket {
     private let impl: SocketCommon<ActualPlatformSocket>
 
     /**
-     * Creates an unbound Unix datagram socket ready to bind at the specified path
-     *
-     * @param bindAt local path (should be a non-existing path that will be created during bind)
-     */
-    public init(bindAt!: String) {
-        this(bindAt: UnixSocketAddress(bindAt))
-    }
-
-    /**
      * Creates an unbound Unix datagram socket ready to bind at the specified address
      *
      * @param bindAt local path (should be a non-existing path that will be created during bind)
@@ -46,6 +37,15 @@ public class UnixDatagramSocket <: DatagramSocket {
 
         impl = SocketCommon(SocketNet.UNIX, bindAt.family, DatagramMode)
         impl.localAddress = bindAt
+    }
+
+    /**
+     * Creates an unbound Unix datagram socket ready to bind at the specified path
+     *
+     * @param bindAt local path (should be a non-existing path that will be created during bind)
+     */
+    public init(bindAt!: String) {
+        this(bindAt: UnixSocketAddress(bindAt))
     }
 
     /**

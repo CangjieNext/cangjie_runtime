@@ -14,8 +14,14 @@ package std.regex
 const UNCAPTURED_GROUP_INDEX: Int64 = -1
 
 public struct Position {
+    public let end: Int64
+    public let start: Int64
     static let empty = Position(0, 0)
-    Position(public let start: Int64, public let end: Int64) {}
+
+    init(start: Int64, end: Int64) {
+        this.start = start
+        this.end = end
+    }
 
     @OverflowWrapping
     init(start: UIntNative, end: UIntNative) {

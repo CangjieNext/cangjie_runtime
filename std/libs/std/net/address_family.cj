@@ -9,16 +9,9 @@
 package std.net
 
 public struct AddressFamily <: ToString & Equatable<AddressFamily> {
-
-    // UNSPEC
-    public static const UNSPEC: AddressFamily = AddressFamily("UNSPEC", 0)
-
-    // UNIX
-    public static const UNIX: AddressFamily = AddressFamily("UNIX", 1)
-
     // INET
     public static const INET: AddressFamily = AddressFamily("INET", 2)
-
+    
     // INET6
     @When[os != "Windows" && os != "macOS"]
     public static const INET6: AddressFamily = AddressFamily("INET6", 10)
@@ -32,6 +25,12 @@ public struct AddressFamily <: ToString & Equatable<AddressFamily> {
     // NETLINK
     @When[os != "Windows" && os != "macOS"]
     public static const NETLINK: AddressFamily = AddressFamily("NETLINK", 16)
+
+    // UNIX
+    public static const UNIX: AddressFamily = AddressFamily("UNIX", 1)
+
+    // UNSPEC
+    public static const UNSPEC: AddressFamily = AddressFamily("UNSPEC", 0)
 
     // name
     public let name: String

@@ -15,16 +15,9 @@ import std.collection.MapEntryView
  * It declares the methods in a concurrent map that need to be atomic.
  */
 public interface ConcurrentMap<K, V> {
-    /**
-     * Returns the value associated with @p key in ConcurrentMap
-     *
-     * @param key: transfer key to obtain the value
-     *
-     * @return:
-     * - Some(v): if @p key associates with v;
-     * - None: if @p key does not exist.
-     */
-    func get(key: K): ?V
+    func add(key: K, value: V): ?V
+
+    func addIfAbsent(key: K, value: V): ?V
 
     /**
      * Checks whether the mapping relationship corresponding to the specified key exists in this mapping.
@@ -36,6 +29,30 @@ public interface ConcurrentMap<K, V> {
      * - false: if @p key does not exist.
      */
     func contains(key: K): Bool
+
+    /**
+     * Get the entryView according to @p key and process it according to @p fn,
+     * return the value associated with @p key after processing.
+     *
+     * @param key: the key of the key-value pair, whose value needs to be process.
+     * @param fn: the process function.
+     *
+     * @return:
+     * - Some(v): v is the value associated with @p key after processing.
+     * - None: the @p key does not exist in map after processing.
+     */
+    func entryView(key: K, fn: (MapEntryView<K, V>) -> Unit): ?V
+
+    /**
+     * Returns the value associated with @p key in ConcurrentMap
+     *
+     * @param key: transfer key to obtain the value
+     *
+     * @return:
+     * - Some(v): if @p key associates with v;
+     * - None: if @p key does not exist.
+     */
+    func get(key: K): ?V
 
     /**
      * Add a new key value to the map. If the key already exists,
@@ -50,7 +67,6 @@ public interface ConcurrentMap<K, V> {
      */
     @Deprecated[message: "Use member function `func add(key: K, value: V): ?V` instead."]
     func put(key: K, value: V): ?V
-    func add(key: K, value: V): ?V
 
     /**
      * Associates the specified @p value with the specified @p key in this concurrent map,
@@ -68,7 +84,6 @@ public interface ConcurrentMap<K, V> {
      */
     @Deprecated[message: "Use member function `func addIfAbsent(key: K, value: V): ?V` instead."]
     func putIfAbsent(key: K, value: V): ?V
-    func addIfAbsent(key: K, value: V): ?V
 
     /**
      * Removes the key-value pair corresponding to @p key from this mapping, if one exists.
@@ -97,20 +112,21 @@ public interface ConcurrentMap<K, V> {
     func remove(key: K, predicate: (V) -> Bool): ?V
 
     /**
-     * Replaces the value associated with @p key to @p value,
-     * if there exists a pair of @p key and some value v in the concurrent hashmap.
-     * Otherwise, just returns 'Option<V>.None' and does nothing.
+     * Replaces the value associated with @p key to eval(v),
+     * if the pair of @p key and v in the concurrent map, and @p predicate(v) holds.
      *
      * Such method is atomic (linearizable) in concurrency.
      *
      * @param key: the key of the key-value pair, whose value needs to be replaced.
-     * @param value: the value to be replaced.
+     * @param predicate: the function justifies whether @p key-v pair in the concurrent map should be replaced.
+     * @param eval: the function evaluates the new value to replace the old value.
      *
      * @return:
-     * - Some(v): if the pair of @p key and v exists in concurrent map before invoking this method.
-     * - None: if @p key is not in the concurrent map.
+     * - Some(v): if the pair of @p key and v exists in concurrent map before replacing;
+     * - None: if @p key does not exist in concurrent map.
      */
-    func replace(key: K, value: V): ?V
+    @Deprecated[message: "Use member function `func entryView(key: K, fn: (MapEntryView<K, V>)->Unit): ?V` instead."]
+    func replace(key: K, predicate: (V) -> Bool, eval: (V) -> V): ?V
 
     /**
      * Replaces the value associated with @p key to eval(v),
@@ -131,34 +147,20 @@ public interface ConcurrentMap<K, V> {
     func replace(key: K, eval: (V) -> V): ?V
 
     /**
-     * Replaces the value associated with @p key to eval(v),
-     * if the pair of @p key and v in the concurrent map, and @p predicate(v) holds.
+     * Replaces the value associated with @p key to @p value,
+     * if there exists a pair of @p key and some value v in the concurrent hashmap.
+     * Otherwise, just returns 'Option<V>.None' and does nothing.
      *
      * Such method is atomic (linearizable) in concurrency.
      *
      * @param key: the key of the key-value pair, whose value needs to be replaced.
-     * @param predicate: the function justifies whether @p key-v pair in the concurrent map should be replaced.
-     * @param eval: the function evaluates the new value to replace the old value.
+     * @param value: the value to be replaced.
      *
      * @return:
-     * - Some(v): if the pair of @p key and v exists in concurrent map before replacing;
-     * - None: if @p key does not exist in concurrent map.
+     * - Some(v): if the pair of @p key and v exists in concurrent map before invoking this method.
+     * - None: if @p key is not in the concurrent map.
      */
-    @Deprecated[message: "Use member function `func entryView(key: K, fn: (MapEntryView<K, V>)->Unit): ?V` instead."]
-    func replace(key: K, predicate: (V) -> Bool, eval: (V) -> V): ?V
-
-    /**
-     * Get the entryView according to @p key and process it according to @p fn,
-     * return the value associated with @p key after processing.
-     *
-     * @param key: the key of the key-value pair, whose value needs to be process.
-     * @param fn: the process function.
-     *
-     * @return:
-     * - Some(v): v is the value associated with @p key after processing.
-     * - None: the @p key does not exist in map after processing.
-     */
-    func entryView(key: K, fn: (MapEntryView<K, V>) -> Unit): ?V
+    func replace(key: K, value: V): ?V
 
     /**
      * Returns the value associated with @p key in ConcurrentMap

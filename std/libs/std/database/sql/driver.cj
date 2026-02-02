@@ -28,19 +28,19 @@ public interface Driver {
     prop name: String
 
     /**
-     * driver version
-     *
-     * @since 0.40.1
-     */
-    prop version: String
-
-    /**
      * Indicates whether the driver is preferred work with the connection pool.
      * If not, the connection pool is not recommended.
      *
      * @since 0.40.1
      */
     prop preferredPooling: Bool
+
+    /**
+     * driver version
+     *
+     * @since 0.40.1
+     */
+    prop version: String
 
     /**
      * Use the connectionString and opts to obtain the datasource instance.

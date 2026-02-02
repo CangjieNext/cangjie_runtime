@@ -54,6 +54,18 @@ public interface UniqueLock <: Lock {
  */
 public interface Condition {
     /**
+     * @brief Wake up a single thread waiting on this mutex (no particular admission policy implied).
+     * @throws IllegalSynchronizationStateException if current thread does not hold this mutex
+     */
+    func notify(): Unit
+
+    /**
+     * @brief Wake up all threads waiting on this mutex (no particular admission policy implied).
+     * @throws IllegalSynchronizationStateException if current thread does not hold this mutex
+     */
+    func notifyAll(): Unit
+
+    /**
      * @brief Block until paired `notify` is invoked.
      * @throws IllegalSynchronizationStateException if current thread does not hold this mutex
      */
@@ -79,16 +91,4 @@ public interface Condition {
      * @throws IllegalSynchronizationStateException if current thread does not hold this mutex
      */
     func waitUntil(predicate: () -> Bool, timeout!: Duration): Bool
-
-    /**
-     * @brief Wake up a single thread waiting on this mutex (no particular admission policy implied).
-     * @throws IllegalSynchronizationStateException if current thread does not hold this mutex
-     */
-    func notify(): Unit
-
-    /**
-     * @brief Wake up all threads waiting on this mutex (no particular admission policy implied).
-     * @throws IllegalSynchronizationStateException if current thread does not hold this mutex
-     */
-    func notifyAll(): Unit
 }

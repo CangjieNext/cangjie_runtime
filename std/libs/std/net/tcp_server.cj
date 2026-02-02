@@ -36,14 +36,6 @@ public class TcpServerSocket <: ServerSocket {
     }
 
     /**
-     * Creates a TCP server socket that is not yet bound so client can't connects until we do bind()
-     * bindAt specifies the local port to bind at or zero to bind at a random free local port
-     */
-    public init(bindAt!: UInt16) {
-        this(bindAt: IPSocketAddress(IPv4Address.unspecified, bindAt))
-    }
-
-    /**
      * Creates a TCP server socket that is not yet bound so clients can't connect until we do bind()
      * bindAt specifies the local address to bind at, possibly with zero port to bind at a random free local port
      */
@@ -54,6 +46,14 @@ public class TcpServerSocket <: ServerSocket {
         impl.localAddress = bindAt
 
         setSocketOptionBool(SOL_SOCKET, SOCK_REUSEADDR, true)
+    }
+
+    /**
+     * Creates a TCP server socket that is not yet bound so client can't connects until we do bind()
+     * bindAt specifies the local port to bind at or zero to bind at a random free local port
+     */
+    public init(bindAt!: UInt16) {
+        this(bindAt: IPSocketAddress(IPv4Address.unspecified, bindAt))
     }
 
     /**

@@ -22,8 +22,8 @@ foreign func CJ_IO_IsBigEndian(): Bool
  * SeekPosition  is the position of the cursor in the file.
  */
 public enum SeekPosition {
-    | Current(Int64) /* < current position. */
     | Begin(Int64) /* < begin position of the file. */
+    | Current(Int64) /* < current position. */
     | End(Int64) /* < end position of the file. */
 }
 
