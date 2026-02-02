@@ -1484,7 +1484,7 @@ Function: A structure for storing measurement information.
 ### prop conversionTable
 
 ```cangjie
-prop conversionTable: MeasurementUnitTable
+public prop conversionTable: MeasurementUnitTable
 ```
 
 Function: Used to construct representations of measured values in performance test reports.
@@ -1498,7 +1498,7 @@ Type: [MeasurementUnitTable](../unittest_package_api/unittest_package_types.md#t
 ### prop name
 
 ```cangjie
-prop name: String
+public prop name: String
 ```
 
 Function: The unique display name for the current `Measurement` type.
@@ -1510,7 +1510,7 @@ Type: [String](../../core/core_package_api/core_package_structs.md#struct-string
 ### prop textDescription
 
 ```cangjie
-prop textDescription: String
+public prop textDescription: String
 ```
 
 Function: A simple text description of this measurement that will be displayed in certain reports.

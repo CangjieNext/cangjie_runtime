@@ -253,11 +253,11 @@ Purpose: This interface enables detection of `BenchInputProvider<T>` when `T` is
 
 ```cangjie
 public interface Measurement {
+    func setup(): Unit
+    func measure(): Float64
     prop conversionTable: MeasurementUnitTable
     prop name: String
     prop textDescription: String
-    func setup(): Unit
-    func measure(): Float64
     prop info: MeasurementInfo
 }
 ```

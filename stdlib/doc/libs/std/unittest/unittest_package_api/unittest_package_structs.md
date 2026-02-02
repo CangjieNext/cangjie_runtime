@@ -1487,7 +1487,7 @@ public struct MeasurementInfo {
 ### prop conversionTable
 
 ```cangjie
-prop conversionTable: MeasurementUnitTable
+public prop conversionTable: MeasurementUnitTable
 ```
 
 功能：用于在性能测试报告中构建测量值的表示。
@@ -1501,7 +1501,7 @@ prop conversionTable: MeasurementUnitTable
 ### prop name
 
 ```cangjie
-prop name: String
+public prop name: String
 ```
 
 功能：当前 `Measurement` 类型的唯一显示名称。
@@ -1513,7 +1513,7 @@ prop name: String
 ### prop textDescription
 
 ```cangjie
-prop textDescription: String
+public prop textDescription: String
 ```
 
 功能：描述此测量的简单文本将显示在某些报告中。

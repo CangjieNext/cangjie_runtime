@@ -254,11 +254,11 @@ public interface BenchmarkInputMarker
 
 ```cangjie
 public interface Measurement {
+    func setup(): Unit
+    func measure(): Float64
     prop conversionTable: MeasurementUnitTable
     prop name: String
     prop textDescription: String
-    func setup(): Unit
-    func measure(): Float64
     prop info: MeasurementInfo
 }
 ```
