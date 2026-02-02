@@ -534,7 +534,10 @@ func findLastTopLevelDot(name: String): Int64 {
     var idx: Int64 = name.size - 1
     while (idx >= 0) {
         match (name[idx]) {
-            case '>' => angle++
+            case '>' =>
+                if (idx > 0 && name[idx-1] != b'-') { // skip '->'
+                    angle++
+                }
             case '<' => angle--
             case '.' =>
                 if (angle == 0) {
