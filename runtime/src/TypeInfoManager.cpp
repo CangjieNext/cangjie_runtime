@@ -149,11 +149,11 @@ void TypeInfoManager::Init()
 void TypeInfoManager::Fini()
 {
     // release resources
-    for (auto mTable : mTableList) {
+    for (const auto& mTable : mTableList) {
         delete mTable.second;
-        mTable.second = nullptr;
     }
-    for (auto m : mmapList) {
+    mTableList.clear();
+    for (const auto& m : mmapList) {
         FreeMMap(m.first, m.second);
     }
     mmapList.clear();
@@ -265,7 +265,7 @@ void TypeInfoManager::AddTypeInfo(TypeInfo* ti)
         }
         return;
     }
-    nonGenericTypeInfos[ti->GetName()] = ti;
+    nonGenericTypeInfos[typeInfoName] = ti;
     ti->SetUUID(tiUUID.fetch_add(1));
 }
 
