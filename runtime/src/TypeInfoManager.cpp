@@ -80,20 +80,21 @@ CString TypeGCInfo::GetGCTibStr(TypeInfo* ti)
 
 U32 TypeInfoManager::GenericTiDesc::computeHash()
 {
+    TypeInfoManager& mgr = TypeInfoManager::GetTypeInfoManager();
     U32 H = 1;
     auto update = [&H](U32 val) {
         H = 31 * H + val;
     };
     U32 ttUUID = tt->GetUUID();
     if (tt->GetUUID() == 0) {
-        ttUUID = TypeInfoManager::GetTypeInfoManager().GetTypeTemplateUUID(tt);
+        ttUUID = mgr.GetTypeTemplateUUID(tt);
     }
     update(ttUUID);
 
     for (U32 idx = 0; idx < argSize; idx++) {
         TypeInfo* ti = args[idx];
         if (ti->IsInitialUUID()) {
-            TypeInfoManager::GetTypeInfoManager().AddTypeInfo(ti);
+            mgr.AddTypeInfo(ti);
         }
         CHECK(!ti->IsInitialUUID());
         update(ti->uuid);
@@ -107,15 +108,16 @@ bool TypeInfoManager::GenericTiDesc::operator==(const GenericTiDesc &other) cons
         return false;
     }
 
+    TypeInfoManager& mgr = TypeInfoManager::GetTypeInfoManager();
     U16 ttUUID = tt->GetUUID();
     U16 otherTtUUID = other.tt->GetUUID();
 
     if (ttUUID == 0) {
-        ttUUID = TypeInfoManager::GetTypeInfoManager().GetTypeTemplateUUID(tt);
+        ttUUID = mgr.GetTypeTemplateUUID(tt);
     }
 
     if (otherTtUUID == 0) {
-        otherTtUUID = TypeInfoManager::GetTypeInfoManager().GetTypeTemplateUUID(other.tt);
+        otherTtUUID = mgr.GetTypeTemplateUUID(other.tt);
     }
     if (ttUUID != otherTtUUID) {
         return false;
@@ -130,13 +132,13 @@ bool TypeInfoManager::GenericTiDesc::operator==(const GenericTiDesc &other) cons
         TypeInfo* otherTi = other.args[idx];
         U32 tiUUID = ti->GetUUID();
         if (ti->IsInitialUUID()) {
-            TypeInfoManager::GetTypeInfoManager().AddTypeInfo(ti);
+            mgr.AddTypeInfo(ti);
             tiUUID = ti->GetUUID();
         }
 
         U32 otherTiUUID = otherTi->GetUUID();
         if (otherTi->IsInitialUUID()) {
-            TypeInfoManager::GetTypeInfoManager().AddTypeInfo(otherTi);
+            mgr.AddTypeInfo(otherTi);
             otherTiUUID = otherTi->GetUUID();
         }
         if (tiUUID != otherTiUUID) {

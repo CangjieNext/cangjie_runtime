@@ -146,7 +146,7 @@ void CJFileLoader::VisitExtensionData(
         return;
     }
     size_t cnt = 0;
-    for (auto baseFile : mtDesc->waitedExtensionDatas) {
+    for (const auto& baseFile : mtDesc->waitedExtensionDatas) {
         ++cnt;
         auto it1 = extensionDatas.find(baseFile);
         if (it1 == extensionDatas.end()) {
@@ -179,7 +179,7 @@ void CJFileLoader::VisitExtensionData(
 void CJFileLoader::VisitExtensionData(const std::function<void(BaseFile*)>& f) const
 {
     CHECK(loadedFiles.size() >= extensionDatas.size());
-    for (auto baseFile : loadedFiles) {
+    for (const auto& baseFile : loadedFiles) {
         f(baseFile);
     }
 }
@@ -189,8 +189,9 @@ void CJFileLoader::ParseEnumCtor(TypeInfo* ti)
 #ifdef __arm__
     return;
 #endif
+    TypeInfoManager& typeInfoMgr = TypeInfoManager::GetTypeInfoManager();
     if (ti->IsGenericTypeInfo()) {
-        return TypeInfoManager::GetTypeInfoManager().ParseEnumInfo(
+        return typeInfoMgr.ParseEnumInfo(
             ti->GetSourceGeneric(), ti->GetTypeArgNum(), ti->GetTypeArgs(), ti);
     }
     EnumInfo* ei = ti->GetEnumInfo();
@@ -226,6 +227,7 @@ void CJFileLoader::RegisterTypeExt(BaseFile* baseFile)
 
 void CJFileLoader::RegisterTypeInfoCreatedByFE(BaseFile* baseFile)
 {
+    TypeInfoManager& typeInfoMgr = TypeInfoManager::GetTypeInfoManager();
     Uptr typeInfoBase = baseFile->GetTypeInfoBase();
     Uptr typeInfoEnd = typeInfoBase + baseFile->GetTypeInfoTotalSize();
     while (typeInfoBase < typeInfoEnd) {
@@ -237,12 +239,12 @@ void CJFileLoader::RegisterTypeInfoCreatedByFE(BaseFile* baseFile)
         if (tt != nullptr) {
             ti->SetvExtensionDataStart(tt->GetvExtensionDataStart());
         }
-        TypeInfoManager::GetTypeInfoManager().AddTypeInfo(ti);
+        typeInfoMgr.AddTypeInfo(ti);
         if (ti->IsEnum() || ti->IsTempEnum()) {
             ParseEnumCtor(ti);
         }
     }
-    TypeInfoManager::GetTypeInfoManager().InitAnyAndObjectType();
+    typeInfoMgr.InitAnyAndObjectType();
 
     Uptr staticGIBase = baseFile->GetStaticGIBase();
     Uptr staticGIEnd = staticGIBase + baseFile->GetStaticGISize();
@@ -259,7 +261,7 @@ void CJFileLoader::RegisterTypeInfoCreatedByFE(BaseFile* baseFile)
         if (ti->IsEnum() || ti->IsTempEnum()) {
             continue;
         } else if (ti->IsGenericTypeInfo() && ti->ReflectInfoIsNull() && !ti->GetSourceGeneric()->ReflectInfoIsNull()) {
-            TypeInfoManager::GetTypeInfoManager().FillReflectInfo(ti->GetSourceGeneric(), ti);
+            typeInfoMgr.FillReflectInfo(ti->GetSourceGeneric(), ti);
         }
     }
 }
@@ -267,7 +269,8 @@ void CJFileLoader::RegisterTypeInfoCreatedByFE(BaseFile* baseFile)
 void CJFileLoader::RegisterOuterTypeExtensions(BaseFile* baseFile)
 {
     lastIsFinished = false;
-    for (auto mtDesc : TypeInfoManager::GetTypeInfoManager().mTableList) {
+    TypeInfoManager& typeInfoMgr = TypeInfoManager::GetTypeInfoManager();
+    for (const auto& mtDesc : typeInfoMgr.mTableList) {
         mtDesc.second->waitedExtensionDatas.emplace_back(baseFile);
     }
     Uptr extensionDataRefBase = baseFile->GetOuterTypeExtensionsBase();
@@ -285,9 +288,9 @@ void CJFileLoader::RegisterOuterTypeExtensions(BaseFile* baseFile)
         // need to be collected in `extensionDatas`.
         if (extensionData->TargetIsTypeInfo()) {
             TypeInfo* itf = extensionData->GetInterfaceTypeInfo();
-            TypeInfoManager::GetTypeInfoManager().AddTypeInfo(itf);
+            typeInfoMgr.AddTypeInfo(itf);
             TypeInfo* ti = reinterpret_cast<TypeInfo*>(extensionData->GetTargetType());
-            TypeInfoManager::GetTypeInfoManager().AddTypeInfo(ti);
+            typeInfoMgr.AddTypeInfo(ti);
             ti->AddMTable(itf, extensionData);
             continue;
         }
@@ -312,7 +315,7 @@ void CJFileLoader::RemovePackageInfo(const char* path)
     CString baseName = Os::Path::GetBaseName(path);
     auto fileIt = filePackageMap.find(baseName.Str());
     if (fileIt != filePackageMap.end()) {
-        for (auto pkgInfo : fileIt->second) {
+        for (const auto& pkgInfo : fileIt->second) {
             packageInfos.erase(pkgInfo->GetPackageName());
         }
         filePackageMap.erase(baseName.Str());
@@ -342,7 +345,7 @@ void CJFileLoader::RemoveLoadedFiles(BaseFile* baseFile)
 
 void CJFileLoader::VisitBaseFile(const std::function<bool(BaseFile*)>& f) const
 {
-    for (auto file : loadedFiles) {
+    for (const auto& file : loadedFiles) {
         if (f(file)) {
             return;
         }

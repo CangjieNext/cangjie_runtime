@@ -652,7 +652,7 @@ static ArrayRef CreateStackTrace(const TypeInfo* arrayStackTrace, const TypeInfo
 {
     // fix size after discard native frame
     MSize size = 0;
-    for (auto frame : srcSracks) {
+    for (const auto& frame : srcSracks) {
         // skip native frame
         if (frame->GetFrameType() == FrameType::NATIVE) {
             continue;
@@ -665,7 +665,7 @@ static ArrayRef CreateStackTrace(const TypeInfo* arrayStackTrace, const TypeInfo
         ExceptionManager::CheckAndThrowPendingException("CreateStackTrace: nullptr array");
     }
     int stackIndex = 0;
-    for (auto frame : srcSracks) {
+    for (const auto& frame : srcSracks) {
         // skip native frame
         if (frame->GetFrameType() == FrameType::NATIVE) {
             continue;
