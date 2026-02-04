@@ -86,7 +86,7 @@ U32 TypeInfoManager::GenericTiDesc::computeHash()
         H = 31 * H + val;
     };
     U32 ttUUID = tt->GetUUID();
-    if (tt->GetUUID() == 0) {
+    if (ttUUID == 0) {
         ttUUID = mgr.GetTypeTemplateUUID(tt);
     }
     update(ttUUID);
@@ -108,39 +108,36 @@ bool TypeInfoManager::GenericTiDesc::operator==(const GenericTiDesc &other) cons
         return false;
     }
 
-    TypeInfoManager& mgr = TypeInfoManager::GetTypeInfoManager();
-    U16 ttUUID = tt->GetUUID();
-    U16 otherTtUUID = other.tt->GetUUID();
-
-    if (ttUUID == 0) {
-        ttUUID = mgr.GetTypeTemplateUUID(tt);
-    }
-
-    if (otherTtUUID == 0) {
-        otherTtUUID = mgr.GetTypeTemplateUUID(other.tt);
-    }
-    if (ttUUID != otherTtUUID) {
-        return false;
-    }
-
     if (argSize != other.argSize) {
         return false;
+    }
+
+    TypeInfoManager& mgr = TypeInfoManager::GetTypeInfoManager();
+    if (tt != other.tt) {
+        U16 ttUUID = tt->GetUUID();
+        U16 otherTtUUID = other.tt->GetUUID();
+        if (ttUUID == 0) {
+            ttUUID = mgr.GetTypeTemplateUUID(tt);
+        }
+        if (otherTtUUID == 0) {
+            otherTtUUID = mgr.GetTypeTemplateUUID(other.tt);
+        }
+        if (ttUUID != otherTtUUID) {
+            return false;
+        }
     }
 
     for (U32 idx = 0; idx < argSize; idx++) {
         TypeInfo* ti = argsVector[idx];
         TypeInfo* otherTi = other.args[idx];
-        U32 tiUUID = ti->GetUUID();
         if (ti->IsInitialUUID()) {
             mgr.AddTypeInfo(ti);
-            tiUUID = ti->GetUUID();
         }
-
-        U32 otherTiUUID = otherTi->GetUUID();
+        U32 tiUUID = ti->GetUUID();
         if (otherTi->IsInitialUUID()) {
             mgr.AddTypeInfo(otherTi);
-            otherTiUUID = otherTi->GetUUID();
         }
+        U32 otherTiUUID = otherTi->GetUUID();
         if (tiUUID != otherTiUUID) {
             return false;
         }
@@ -318,10 +315,11 @@ TypeInfoManager::GenericTiDesc* TypeInfoManager::GetGenericTiDesc(GenericTiDesc&
 
 TypeInfoManager::GenericTiDesc* TypeInfoManager::GenericTiDescHashMap::GetGenericTiDesc(GenericTiDesc &desc)
 {
-    size_t bucketIdx = desc.GetHash() % buckets.size();
+    const U32 h = desc.GetHash();
+    const size_t bucketIdx = h % buckets.size();
     auto &bucket = buckets[bucketIdx];
     bucket.rwLock.LockRead();
-    auto it = bucket.maps.find(desc.GetHash());
+    auto it = bucket.maps.find(h);
     if (it != bucket.maps.end()) {
         for (auto descIt = it->second.begin(); descIt != it->second.end(); ++descIt) {
             if (**descIt == desc) {
@@ -336,10 +334,11 @@ TypeInfoManager::GenericTiDesc* TypeInfoManager::GenericTiDescHashMap::GetGeneri
 
 TypeInfoManager::GenericTiDesc* TypeInfoManager::GenericTiDescHashMap::InsertGenericTiDesc(GenericTiDesc &desc)
 {
-    size_t bucketIdx = desc.GetHash() % buckets.size();
+    const U32 h = desc.GetHash();
+    const size_t bucketIdx = h % buckets.size();
     auto &bucket = buckets[bucketIdx];
     bucket.rwLock.LockWrite();
-    auto it = bucket.maps.find(desc.GetHash());
+    auto it = bucket.maps.find(h);
     if (it != bucket.maps.end()) {
         for (auto descIt = it->second.begin(); descIt != it->second.end(); ++descIt) {
             if (**descIt == desc) {
@@ -350,7 +349,7 @@ TypeInfoManager::GenericTiDesc* TypeInfoManager::GenericTiDescHashMap::InsertGen
     }
     GenericTiDesc* tiDesc = new (std::nothrow) GenericTiDesc(desc);
     CHECK_DETAIL(tiDesc != nullptr, "fail to allocate GenericTiDesc");
-    bucket.maps[desc.GetHash()].push_back(tiDesc);
+    bucket.maps[h].push_back(tiDesc);
     bucket.rwLock.UnlockWrite();
     return tiDesc;
 }
@@ -368,17 +367,19 @@ TypeInfoManager::GenericTiDesc* TypeInfoManager::GetTypeInfo(TypeTemplate* tt, U
 TypeInfo* TypeInfoManager::GetOrCreateTypeInfo(TypeTemplate* tt, U32 argSize, TypeInfo* args[])
 {
     auto typeInfoDesc = GetTypeInfo(tt, argSize, args);
+    if (typeInfoDesc->IsInited()) {
+        return typeInfoDesc->typeInfo;
+    }
+    const U32 currentTid = GetTid();
     do {
-        if (typeInfoDesc->IsNotCreated() && typeInfoDesc->tid.load() == GetTid()) {
-            CreatedTypeInfo(typeInfoDesc, tt, argSize, args);
-        }
-
-        if (typeInfoDesc->IsIniting() && typeInfoDesc->tid.load() == GetTid()) {
-            return typeInfoDesc->typeInfo;
-        }
-
         if (typeInfoDesc->IsInited()) {
             return typeInfoDesc->typeInfo;
+        }
+        if (typeInfoDesc->IsIniting() && typeInfoDesc->tid.load() == currentTid) {
+            return typeInfoDesc->typeInfo;
+        }
+        if (typeInfoDesc->IsNotCreated() && typeInfoDesc->tid.load() == currentTid) {
+            CreatedTypeInfo(typeInfoDesc, tt, argSize, args);
         }
     } while (true);
 }
