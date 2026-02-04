@@ -503,7 +503,7 @@ void WCollector::ResolveCycleRef()
         }
         auto externObjs = it->second;
         void* returnUnit = nullptr;
-        for (auto externObj : externObjs) {
+        for (const auto& externObj : externObjs) {
             auto resolveHook = GetCrossRefHandler(externObj);
             ResolveCycleRefStub(resolveHook, exportObj, externObj, &returnUnit);
         }

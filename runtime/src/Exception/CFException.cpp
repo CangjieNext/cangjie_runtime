@@ -75,7 +75,7 @@ void CFException::WriteBacktraceToBuffer(ExceptionWrapper& eWrapper, char* buffe
     --remainingBytes;
 
     uint32_t count = 0;
-    for (auto frameInfo : liteFrameInfos) {
+    for (const auto& frameInfo : liteFrameInfos) {
         if (count % 3 == 0) {
             int bytes = snprintf(bufferPointer, remainingBytes, "0x%" PRIxPTR " ", static_cast<uintptr_t>(frameInfo));
 

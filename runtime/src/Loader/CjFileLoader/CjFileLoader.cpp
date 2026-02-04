@@ -146,7 +146,7 @@ void CJFileLoader::VisitExtensionData(
         return;
     }
     size_t cnt = 0;
-    for (auto baseFile : mtDesc->waitedExtensionDatas) {
+    for (const auto& baseFile : mtDesc->waitedExtensionDatas) {
         ++cnt;
         auto it1 = extensionDatas.find(baseFile);
         if (it1 == extensionDatas.end()) {
@@ -179,7 +179,7 @@ void CJFileLoader::VisitExtensionData(
 void CJFileLoader::VisitExtensionData(const std::function<void(BaseFile*)>& f) const
 {
     CHECK(loadedFiles.size() >= extensionDatas.size());
-    for (auto baseFile : loadedFiles) {
+    for (const auto& baseFile : loadedFiles) {
         f(baseFile);
     }
 }
@@ -267,7 +267,8 @@ void CJFileLoader::RegisterTypeInfoCreatedByFE(BaseFile* baseFile)
 void CJFileLoader::RegisterOuterTypeExtensions(BaseFile* baseFile)
 {
     lastIsFinished = false;
-    for (auto mtDesc : TypeInfoManager::GetTypeInfoManager().mTableList) {
+    TypeInfoManager& typeInfoMgr = TypeInfoManager::GetTypeInfoManager();
+    for (const auto& mtDesc : typeInfoMgr.mTableList) {
         mtDesc.second->waitedExtensionDatas.emplace_back(baseFile);
     }
     Uptr extensionDataRefBase = baseFile->GetOuterTypeExtensionsBase();
@@ -312,7 +313,7 @@ void CJFileLoader::RemovePackageInfo(const char* path)
     CString baseName = Os::Path::GetBaseName(path);
     auto fileIt = filePackageMap.find(baseName.Str());
     if (fileIt != filePackageMap.end()) {
-        for (auto pkgInfo : fileIt->second) {
+        for (const auto& pkgInfo : fileIt->second) {
             packageInfos.erase(pkgInfo->GetPackageName());
         }
         filePackageMap.erase(baseName.Str());
@@ -342,7 +343,7 @@ void CJFileLoader::RemoveLoadedFiles(BaseFile* baseFile)
 
 void CJFileLoader::VisitBaseFile(const std::function<bool(BaseFile*)>& f) const
 {
-    for (auto file : loadedFiles) {
+    for (const auto& file : loadedFiles) {
         if (f(file)) {
             return;
         }
