@@ -514,7 +514,7 @@ DECLARE_TYPE_TEMPLATE(Tuple_tt,
 
 DECLARE_TYPE_TEMPLATE(Box_tt,
     ((TypeTemplate){.name = "Box",
-        .typeKind = UG_CLASS,
+        .typeKind = UG_BOX_REF,
         .flag = 0,
         .fieldsNum = 0,
         .typeArgsNum = 0,
