@@ -42,6 +42,9 @@ static size_t GetPageSize() noexcept
 #elif defined(__APPLE__)
     // default page size is 16KB in MacOS
     return 16 * KB;
+#elif defined(__ANDROID__)
+    // default page size is 16KB in Android
+    return 16 * KB;
 #else
     return getpagesize();
 #endif
