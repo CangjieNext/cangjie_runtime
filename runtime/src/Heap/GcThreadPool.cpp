@@ -163,7 +163,7 @@ void GCThreadPool::Exit()
 GCThreadPool::~GCThreadPool()
 {
     // wait until threads exit
-    for (auto thread : threads) {
+    for (const auto& thread : threads) {
         delete thread;
     }
     threads.clear();
@@ -173,7 +173,7 @@ GCThreadPool::~GCThreadPool()
 #if defined(__linux__) || defined(hongmeng)
 void GCThreadPool::SetPriority(int32_t prior) const
 {
-    for (auto thread : threads) {
+    for (const auto& thread : threads) {
         thread->SetPriority(prior);
     }
 }
@@ -302,7 +302,7 @@ ScopedCpuTime::ScopedCpuTime(GCThreadPool& threadPool, LogType type) : logType(t
         pthread_getcpuclockid(pthread_self(), &cid[0]);
         clock_gettime(cid[0], &workerStart[0]);
         size_t index = 1;
-        for (auto worker : threadPool.GetThreads()) {
+        for (const auto& worker : threadPool.GetThreads()) {
             pthread_t thread = worker->GetThread();
             pthread_getcpuclockid(thread, &cid[index]);
             clock_gettime(cid[index], &workerStart[index]);

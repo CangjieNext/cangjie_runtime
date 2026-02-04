@@ -505,7 +505,9 @@ ExtensionData* TypeInfo::FindExtensionDataRecursively(TypeInfo* itf)
 
 ExtensionData* TypeInfo::FindExtensionData(TypeInfo* itf, bool searchRecursively)
 {
-    TryInitMTable();
+    if (IsMTableDescUnInitialized()) {
+        TryInitMTable();
+    }
     auto itfUUID = itf->GetUUID();
     if (!mTableDesc->IsFullyHandled()) {
         std::lock_guard<std::recursive_mutex> lock(mTableDesc->mTableMutex);
@@ -546,21 +548,33 @@ FuncPtr* TypeInfo::GetMTable(TypeInfo* itf)
     if (UNLIKELY(IsTempEnum() && GetSuperTypeInfo())) {
         return GetSuperTypeInfo()->GetMTable(itf);
     }
+    // Fast path: mTable ready and entry found with func table already updated
+    if (LIKELY(!IsMTableDescUnInitialized() && mTableDesc->IsFullyHandled())) {
+        const U32 itfUUID = itf->GetUUID();
+        auto it = mTableDesc->mTable.find(itfUUID);
+        if (it != mTableDesc->mTable.end()) {
+            ExtensionData* ed = it->second.GetExtensionData();
+            if (LIKELY(ed->IsFuncTableUpdated())) {
+                return ed->GetFuncTable();
+            }
+        }
+    }
     auto extensionData = FindExtensionData(itf, true);
-	if (UNLIKELY(extensionData == nullptr)) {
+    if (UNLIKELY(extensionData == nullptr)) {
         LOG(RTLOG_FATAL, "funcTable is nullptr, ti: %s, itf: %s", GetName(), itf->GetName());
     }
     if (UNLIKELY(!extensionData->IsFuncTableUpdated())) {
         TryUpdateExtensionData(itf, extensionData);
     }
-	FuncPtr* funcTable = extensionData->GetFuncTable();
-	CHECK(funcTable);
+    FuncPtr* funcTable = extensionData->GetFuncTable();
+    CHECK(funcTable);
     return funcTable;
 }
 
 TypeInfo* TypeInfo::GetMethodOuterTI(TypeInfo* itf, U64 index)
 {
-	if (this == itf || this->GetUUID() == itf->GetUUID()) {
+	U32 itfUUID = itf->GetUUID();
+	if (this == itf || this->GetUUID() == itfUUID) {
 		return this;
 	}
 	TypeInfo* superTi = GetSuperTypeInfo();
@@ -571,7 +585,7 @@ TypeInfo* TypeInfo::GetMethodOuterTI(TypeInfo* itf, U64 index)
 		(void)FindExtensionData(itf, true);
 	}
 	auto& mTable = mTableDesc->mTable;
-	auto it = mTable.find(itf->GetUUID());
+	auto it = mTable.find(itfUUID);
 	if (it == mTable.end()) {
 		LOG(RTLOG_FATAL, "expected interface %s is not in class %s", itf->GetName(), GetName());
 		return nullptr;
