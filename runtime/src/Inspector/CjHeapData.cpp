@@ -208,9 +208,7 @@ void CjHeapData::ProcessStructClass(TypeInfo* klass)
 void CjHeapData::ProcessStacktrace(RecordStackInfo* recordStackInfo)
 {
     std::vector<FrameInfo*> framesInStack = recordStackInfo->stacks;
-    if (stacktraces.find(recordStackInfo) == stacktraces.end()) {
-        stacktraces.insert(
-            std::pair<RecordStackInfo*, CjHeapDataStackTraceSerialNumber>(recordStackInfo, traceSerialNum++));
+    if (stacktraces.emplace(recordStackInfo, traceSerialNum++).second) {
         CString threadIdx = CString(threadId);
         LookupStringId(threadName);
         for (size_t i = 0; i < framesInStack.size(); ++i) {
@@ -344,21 +342,21 @@ void CjHeapData::WriteStartThread()
 
 void CjHeapData::WriteAllClass()
 {
-    for (auto klassInfo : dumpClassMap) {
+    for (const auto& klassInfo : dumpClassMap) {
         WriteClass(klassInfo.first, klassInfo.second, TAG_CLASS_DUMP);
     }
 }
 
 void CjHeapData::WriteAllStructClass()
 {
-    for (auto klassInfo : dumpStructClassMap) {
+    for (const auto& klassInfo : dumpStructClassMap) {
         WriteStructClass(klassInfo.first, klassInfo.second, TAG_CLASS_DUMP);
     }
 }
 
 void CjHeapData::WriteAllObjects()
 {
-    for (auto objectInfo : dumpObjects) {
+    for (auto& objectInfo : dumpObjects) {
         switch (objectInfo.tag) {
             case TAG_ROOT_THREAD_OBJECT:
                 WriteThreadObjectRoot(objectInfo.obj, objectInfo.tag, objectInfo.threadId, 0);
@@ -648,7 +646,7 @@ void CjHeapData::WriteInstance(BaseObject*& obj, const u1 tag)
  */
 void CjHeapData::WriteString()
 {
-    for (auto string : strings) {
+    for (const auto& string : strings) {
         WriteRecordHeader(TAG_STRING_IN_UTF8, kCjHeapDataTime);
         CjHeapDataStringId id = string.second;
         AddStringId(id);
@@ -855,14 +853,14 @@ void CjHeapData::WriteFixedHeader()
 }
 void CjHeapData::WriteAllClassLoad()
 {
-    for (auto klassInfo : dumpClassMap) {
+    for (const auto& klassInfo : dumpClassMap) {
         WriteClassLoad(klassInfo.first, klassInfo.second, TAG_CLASS_LOAD);
     }
 }
 
 void CjHeapData::WriteAllStructClassLoad()
 {
-    for (auto klassInfo : dumpStructClassMap) {
+    for (const auto& klassInfo : dumpStructClassMap) {
         WriteClassLoad(klassInfo.first, klassInfo.second, TAG_CLASS_LOAD);
     }
 }
@@ -899,12 +897,10 @@ void CjHeapData::ModifyLength()
 
 CjHeapData::CjHeapDataStringId CjHeapData::LookupStringId(const CString& string)
 {
-    auto it = strings.find(string);
-    if (it != strings.end()) {
-        return it->second;
+    auto res = strings.insert(std::pair<CString, CjHeapDataStringId>(string, stringId));
+    if (res.second) {
+        stringId++;
     }
-    CjHeapData::CjHeapDataStringId id = stringId++;
-    strings.insert(std::pair<CString, CjHeapDataStringId>(string, id));
-    return id;
+    return res.first->second;
 }
 } // namespace MapleRuntime
