@@ -153,11 +153,11 @@ void CJFileLoader::VisitExtensionData(
             continue;
         }
         auto& extensions = it1->second;
-        if (extensions.find(tt) == extensions.end()) {
+        auto range = extensions.equal_range(tt);
+        if (range.first == range.second) {
             continue;
         }
         bool found = false;
-        auto range = extensions.equal_range(tt);
         for (auto it2 = range.first; it2 != range.second; ++it2) {
             auto res = f(it2->second);
             found |= res;

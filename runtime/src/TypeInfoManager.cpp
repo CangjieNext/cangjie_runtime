@@ -210,6 +210,20 @@ void TypeInfoManager::AddTypeInfo(TypeInfo* ti)
     if (!ti->IsInitialUUID()) {
         return;
     }
+    // Let tiDesc/typeInfoName before lock to reduce tiMutex hold time.
+    const bool isGeneric = ti->IsGenericTypeInfo() && !ti->IsVArray();
+    GenericTiDesc* tiDesc = nullptr;
+    const char* typeInfoName = nullptr;
+    if (isGeneric) {
+        if (ti->IsRawArray() || ti->IsCPointer()) {
+            TypeInfo* args[] = { ti->GetComponentTypeInfo() };
+            tiDesc = GetTypeInfo(ti->GetSourceGeneric(), 1, args);
+        } else {
+            tiDesc = GetTypeInfo(ti->GetSourceGeneric(), ti->GetTypeArgNum(), ti->GetTypeArgs());
+        }
+    } else {
+        typeInfoName = ti->GetName();
+    }
     std::lock_guard<std::recursive_mutex> lock(tiMutex);
     if (!ti->IsInitialUUID()) {
         return;
@@ -220,14 +234,7 @@ void TypeInfoManager::AddTypeInfo(TypeInfo* ti)
         // 15: The most significant bit indicates whether the mTable is initialized.
         ti->validInheritNum |= 1 << 15;
     }
-    if (ti->IsGenericTypeInfo() && !ti->IsVArray()) {
-        GenericTiDesc* tiDesc;
-        if (ti->IsRawArray() || ti->IsCPointer()) {
-            TypeInfo* args[] = { ti->GetComponentTypeInfo() };
-            tiDesc = GetTypeInfo(ti->GetSourceGeneric(), 1, args);
-        } else {
-            tiDesc = GetTypeInfo(ti->GetSourceGeneric(), ti->GetTypeArgNum(), ti->GetTypeArgs());
-        }
+    if (isGeneric) {
         bool hasExisted = false;
         if (tiDesc->typeInfo != nullptr && !tiDesc->typeInfo->IsInitialUUID()) {
             ti->SetUUID(tiDesc->typeInfo->uuid);
@@ -259,43 +266,46 @@ void TypeInfoManager::AddTypeInfo(TypeInfo* ti)
                 CalculateGCTib(ti);
             }
         }
-        return;
-    }
-    const char* typeInfoName = ti->GetName();
-    auto it = nonGenericTypeInfos.find(typeInfoName);
-    if (it != nonGenericTypeInfos.end()) {
-        TypeInfo* createdTi = it->second;
-        // To avoid repeated hashmap overhead, set mTable in advance.
-        if (createdTi != ti) {
-            CHECK(createdTi->uuid != 0);
-            ti->SetUUID(createdTi->uuid);
-            createdTi->TryInitMTableNoLock();
-            MTableDesc* mTableDesc = createdTi->GetMTableDesc();
-            ti->SetMTableDesc(mTableDesc);
+    } else {
+        auto it = nonGenericTypeInfos.find(typeInfoName);
+        if (it != nonGenericTypeInfos.end()) {
+            TypeInfo* createdTi = it->second;
+            // To avoid repeated hashmap overhead, set mTable in advance.
+            if (createdTi != ti) {
+                CHECK(createdTi->uuid != 0);
+                ti->SetUUID(createdTi->uuid);
+                createdTi->TryInitMTableNoLock();
+                MTableDesc* mTableDesc = createdTi->GetMTableDesc();
+                ti->SetMTableDesc(mTableDesc);
+            }
+            return;
         }
-        return;
+        nonGenericTypeInfos[typeInfoName] = ti;
+        ti->SetUUID(tiUUID.fetch_add(1));
     }
-    nonGenericTypeInfos[typeInfoName] = ti;
-    ti->SetUUID(tiUUID.fetch_add(1));
 }
 
 U16 TypeInfoManager::GetTypeTemplateUUID(TypeTemplate* tt)
 {
-    if (tt->GetUUID() != 0) {
-        return tt->GetUUID();
+    U16 cached = tt->GetUUID();
+    if (cached != 0) {
+        return cached;
     }
     std::lock_guard<std::mutex> lock(ttMutex);
-    if (tt->GetUUID() != 0) {
-        return tt->GetUUID();
+    cached = tt->GetUUID();
+    if (cached != 0) {
+        return cached;
     }
     auto it = typeTemplates.find(tt->GetName());
     if (it != typeTemplates.end()) {
-        tt->SetUUID(it->second->GetUUID());
-        return tt->GetUUID();
+        cached = it->second->GetUUID();
+        tt->SetUUID(cached);
+        return cached;
     }
     typeTemplates.emplace(tt->GetName(), tt);
-    tt->SetUUID(ttUUID.fetch_add(1));
-    return tt->GetUUID();
+    cached = ttUUID.fetch_add(1);
+    tt->SetUUID(cached);
+    return cached;
 }
 TypeInfoManager::GenericTiDesc* TypeInfoManager::InsertGenericTiDesc(GenericTiDesc& desc)
 {
