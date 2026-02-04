@@ -206,9 +206,7 @@ void CjHeapData::ProcessStructClass(TypeInfo* klass)
 void CjHeapData::ProcessStacktrace(RecordStackInfo* recordStackInfo)
 {
     std::vector<FrameInfo*> framesInStack = recordStackInfo->stacks;
-    if (stacktraces.find(recordStackInfo) == stacktraces.end()) {
-        stacktraces.insert(
-            std::pair<RecordStackInfo*, CjHeapDataStackTraceSerialNumber>(recordStackInfo, traceSerialNum++));
+    if (stacktraces.emplace(recordStackInfo, traceSerialNum++).second) {
         CString threadIdx = CString(threadId);
         LookupStringId(threadName);
         for (size_t i = 0; i < framesInStack.size(); ++i) {
@@ -897,12 +895,10 @@ void CjHeapData::ModifyLength()
 
 CjHeapData::CjHeapDataStringId CjHeapData::LookupStringId(const CString& string)
 {
-    auto it = strings.find(string);
-    if (it != strings.end()) {
-        return it->second;
+    auto res = strings.insert(std::pair<CString, CjHeapDataStringId>(string, stringId));
+    if (res.second) {
+        stringId++;
     }
-    CjHeapData::CjHeapDataStringId id = stringId++;
-    strings.insert(std::pair<CString, CjHeapDataStringId>(string, id));
-    return id;
+    return res.first->second;
 }
 } // namespace MapleRuntime

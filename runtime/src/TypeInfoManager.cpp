@@ -80,20 +80,21 @@ CString TypeGCInfo::GetGCTibStr(TypeInfo* ti)
 
 U32 TypeInfoManager::GenericTiDesc::computeHash()
 {
+    TypeInfoManager& mgr = TypeInfoManager::GetTypeInfoManager();
     U32 H = 1;
     auto update = [&H](U32 val) {
         H = 31 * H + val;
     };
     U32 ttUUID = tt->GetUUID();
     if (tt->GetUUID() == 0) {
-        ttUUID = TypeInfoManager::GetTypeInfoManager().GetTypeTemplateUUID(tt);
+        ttUUID = mgr.GetTypeTemplateUUID(tt);
     }
     update(ttUUID);
 
     for (U32 idx = 0; idx < argSize; idx++) {
         TypeInfo* ti = args[idx];
         if (ti->IsInitialUUID()) {
-            TypeInfoManager::GetTypeInfoManager().AddTypeInfo(ti);
+            mgr.AddTypeInfo(ti);
         }
         CHECK(!ti->IsInitialUUID());
         update(ti->uuid);
@@ -107,15 +108,16 @@ bool TypeInfoManager::GenericTiDesc::operator==(const GenericTiDesc &other) cons
         return false;
     }
 
+    TypeInfoManager& mgr = TypeInfoManager::GetTypeInfoManager();
     U16 ttUUID = tt->GetUUID();
     U16 otherTtUUID = other.tt->GetUUID();
 
     if (ttUUID == 0) {
-        ttUUID = TypeInfoManager::GetTypeInfoManager().GetTypeTemplateUUID(tt);
+        ttUUID = mgr.GetTypeTemplateUUID(tt);
     }
 
     if (otherTtUUID == 0) {
-        otherTtUUID = TypeInfoManager::GetTypeInfoManager().GetTypeTemplateUUID(other.tt);
+        otherTtUUID = mgr.GetTypeTemplateUUID(other.tt);
     }
     if (ttUUID != otherTtUUID) {
         return false;
@@ -130,13 +132,13 @@ bool TypeInfoManager::GenericTiDesc::operator==(const GenericTiDesc &other) cons
         TypeInfo* otherTi = other.args[idx];
         U32 tiUUID = ti->GetUUID();
         if (ti->IsInitialUUID()) {
-            TypeInfoManager::GetTypeInfoManager().AddTypeInfo(ti);
+            mgr.AddTypeInfo(ti);
             tiUUID = ti->GetUUID();
         }
 
         U32 otherTiUUID = otherTi->GetUUID();
         if (otherTi->IsInitialUUID()) {
-            TypeInfoManager::GetTypeInfoManager().AddTypeInfo(otherTi);
+            mgr.AddTypeInfo(otherTi);
             otherTiUUID = otherTi->GetUUID();
         }
         if (tiUUID != otherTiUUID) {
@@ -208,6 +210,20 @@ void TypeInfoManager::AddTypeInfo(TypeInfo* ti)
     if (!ti->IsInitialUUID()) {
         return;
     }
+    // Let tiDesc/typeInfoName before lock to reduce tiMutex hold time.
+    const bool isGeneric = ti->IsGenericTypeInfo() && !ti->IsVArray();
+    GenericTiDesc* tiDesc = nullptr;
+    const char* typeInfoName = nullptr;
+    if (isGeneric) {
+        if (ti->IsRawArray() || ti->IsCPointer()) {
+            TypeInfo* args[] = { ti->GetComponentTypeInfo() };
+            tiDesc = GetTypeInfo(ti->GetSourceGeneric(), 1, args);
+        } else {
+            tiDesc = GetTypeInfo(ti->GetSourceGeneric(), ti->GetTypeArgNum(), ti->GetTypeArgs());
+        }
+    } else {
+        typeInfoName = ti->GetName();
+    }
     std::lock_guard<std::recursive_mutex> lock(tiMutex);
     if (!ti->IsInitialUUID()) {
         return;
@@ -218,14 +234,7 @@ void TypeInfoManager::AddTypeInfo(TypeInfo* ti)
         // 15: The most significant bit indicates whether the mTable is initialized.
         ti->validInheritNum |= 1 << 15;
     }
-    if (ti->IsGenericTypeInfo() && !ti->IsVArray()) {
-        GenericTiDesc* tiDesc;
-        if (ti->IsRawArray() || ti->IsCPointer()) {
-            TypeInfo* args[] = { ti->GetComponentTypeInfo() };
-            tiDesc = GetTypeInfo(ti->GetSourceGeneric(), 1, args);
-        } else {
-            tiDesc = GetTypeInfo(ti->GetSourceGeneric(), ti->GetTypeArgNum(), ti->GetTypeArgs());
-        }
+    if (isGeneric) {
         bool hasExisted = false;
         if (tiDesc->typeInfo != nullptr && !tiDesc->typeInfo->IsInitialUUID()) {
             ti->SetUUID(tiDesc->typeInfo->uuid);
@@ -257,43 +266,46 @@ void TypeInfoManager::AddTypeInfo(TypeInfo* ti)
                 CalculateGCTib(ti);
             }
         }
-        return;
-    }
-    const char* typeInfoName = ti->GetName();
-    auto it = nonGenericTypeInfos.find(typeInfoName);
-    if (it != nonGenericTypeInfos.end()) {
-        TypeInfo* createdTi = it->second;
-        // To avoid repeated hashmap overhead, set mTable in advance.
-        if (createdTi != ti) {
-            CHECK(createdTi->uuid != 0);
-            ti->SetUUID(createdTi->uuid);
-            createdTi->TryInitMTableNoLock();
-            MTableDesc* mTableDesc = createdTi->GetMTableDesc();
-            ti->SetMTableDesc(mTableDesc);
+    } else {
+        auto it = nonGenericTypeInfos.find(typeInfoName);
+        if (it != nonGenericTypeInfos.end()) {
+            TypeInfo* createdTi = it->second;
+            // To avoid repeated hashmap overhead, set mTable in advance.
+            if (createdTi != ti) {
+                CHECK(createdTi->uuid != 0);
+                ti->SetUUID(createdTi->uuid);
+                createdTi->TryInitMTableNoLock();
+                MTableDesc* mTableDesc = createdTi->GetMTableDesc();
+                ti->SetMTableDesc(mTableDesc);
+            }
+            return;
         }
-        return;
+        nonGenericTypeInfos[typeInfoName] = ti;
+        ti->SetUUID(tiUUID.fetch_add(1));
     }
-    nonGenericTypeInfos[typeInfoName] = ti;
-    ti->SetUUID(tiUUID.fetch_add(1));
 }
 
 U16 TypeInfoManager::GetTypeTemplateUUID(TypeTemplate* tt)
 {
-    if (tt->GetUUID() != 0) {
-        return tt->GetUUID();
+    U16 cached = tt->GetUUID();
+    if (cached != 0) {
+        return cached;
     }
     std::lock_guard<std::mutex> lock(ttMutex);
-    if (tt->GetUUID() != 0) {
-        return tt->GetUUID();
+    cached = tt->GetUUID();
+    if (cached != 0) {
+        return cached;
     }
     auto it = typeTemplates.find(tt->GetName());
     if (it != typeTemplates.end()) {
-        tt->SetUUID(it->second->GetUUID());
-        return tt->GetUUID();
+        cached = it->second->GetUUID();
+        tt->SetUUID(cached);
+        return cached;
     }
     typeTemplates.emplace(tt->GetName(), tt);
-    tt->SetUUID(ttUUID.fetch_add(1));
-    return tt->GetUUID();
+    cached = ttUUID.fetch_add(1);
+    tt->SetUUID(cached);
+    return cached;
 }
 TypeInfoManager::GenericTiDesc* TypeInfoManager::InsertGenericTiDesc(GenericTiDesc& desc)
 {
