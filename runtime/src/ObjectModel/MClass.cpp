@@ -548,15 +548,26 @@ FuncPtr* TypeInfo::GetMTable(TypeInfo* itf)
     if (UNLIKELY(IsTempEnum() && GetSuperTypeInfo())) {
         return GetSuperTypeInfo()->GetMTable(itf);
     }
+    // Fast path: mTable ready and entry found with func table already updated
+    if (LIKELY(!IsMTableDescUnInitialized() && mTableDesc->IsFullyHandled())) {
+        const U32 itfUUID = itf->GetUUID();
+        auto it = mTableDesc->mTable.find(itfUUID);
+        if (it != mTableDesc->mTable.end()) {
+            ExtensionData* ed = it->second.GetExtensionData();
+            if (LIKELY(ed->IsFuncTableUpdated())) {
+                return ed->GetFuncTable();
+            }
+        }
+    }
     auto extensionData = FindExtensionData(itf, true);
-	if (UNLIKELY(extensionData == nullptr)) {
+    if (UNLIKELY(extensionData == nullptr)) {
         LOG(RTLOG_FATAL, "funcTable is nullptr, ti: %s, itf: %s", GetName(), itf->GetName());
     }
     if (UNLIKELY(!extensionData->IsFuncTableUpdated())) {
         TryUpdateExtensionData(itf, extensionData);
     }
-	FuncPtr* funcTable = extensionData->GetFuncTable();
-	CHECK(funcTable);
+    FuncPtr* funcTable = extensionData->GetFuncTable();
+    CHECK(funcTable);
     return funcTable;
 }
 
