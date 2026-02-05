@@ -87,7 +87,7 @@ public struct Array<T> {
     @Frozen
     public func slice(start: Int64, len: Int64): Array<T> {
         if (start < 0 || len < 0 || (start + len) > this.len) {
-            throw IndexOutOfBoundsException(arraySliceOutOfBoundsExceptionMessage(this.len, start, len))
+            throw arraySliceOutOfBoundsExceptionMessage(this.len, start, len)
         }
         return Array(this.rawptr, this.start + start, len)
     }
@@ -113,7 +113,7 @@ public struct Array<T> {
         // The negative value of index will be converted to a large positive number
         // when `index` and `this.len` are interpreted as UInt64 and will trigger the exception.
         if (UInt64(index) >= UInt64(this.len)) {
-            throw IndexOutOfBoundsException(arrayIndexOutOfBoundsExceptionMessage(this.len, index))
+            throw arrayIndexOutOfBoundsExceptionMessage(this.len, index)
         }
         return arrayGetUnchecked(this.rawptr, start + index)
     }
@@ -126,7 +126,7 @@ public struct Array<T> {
     @OverflowWrapping
     public operator func [](index: Int64, value!: T): Unit {
         if (UInt64(index) >= UInt64(this.len)) {
-            throw IndexOutOfBoundsException(arrayIndexOutOfBoundsExceptionMessage(this.len, index))
+            throw arrayIndexOutOfBoundsExceptionMessage(this.len, index)
         }
         return arraySetUnchecked(this.rawptr, start + index, value)
     }
@@ -155,17 +155,17 @@ public struct Array<T> {
     @Frozen
     public operator func [](range: Range<Int64>, value!: Array<T>): Unit {
         if (range.step != 1) {
-            throw IllegalArgumentException(arrayInvalidRangeStepExceptionMessage(range.step))
+            throw arrayInvalidRangeStepExceptionMessage(range.step)
         }
 
         let (start_, end_): (Int64, Int64) = normalize(range)
         if (!isLegal(start_, end_)) {
-            throw IndexOutOfBoundsException(arrayRangeOutOfBoundsExceptionMessage(
-                this.len, range.start, range.end, range.step, range.hasStart, range.hasEnd, range.isClosed))
+            throw arrayRangeOutOfBoundsExceptionMessage(
+                this.len, range.start, range.end, range.step, range.hasStart, range.hasEnd, range.isClosed)
         }
         let rangeSize = end_ - start_
         if (rangeSize != value.size) {
-            throw IllegalArgumentException(arrayInvalidRangeSizeExceptionMessage(value.size, rangeSize))
+            throw arrayInvalidRangeSizeExceptionMessage(value.size, rangeSize)
         }
 
         intrinsicBuiltInCopyTo<T>(value.rawptr, this.rawptr, value.start, this.start + start_, rangeSize)
@@ -207,13 +207,13 @@ public struct Array<T> {
     @Frozen
     private func rangeSlice(range: Range<Int64>, _: Int64): Array<T> {
         if (range.step != 1) {
-            throw IllegalArgumentException(arrayInvalidRangeStepExceptionMessage(range.step))
+            throw arrayInvalidRangeStepExceptionMessage(range.step)
         }
 
         let (start_, end_): (Int64, Int64) = normalize(range)
         if (!isLegal(start_, end_)) {
-            throw IndexOutOfBoundsException(arrayRangeOutOfBoundsExceptionMessage(
-                this.len, range.start, range.end, range.step, range.hasStart, range.hasEnd, range.isClosed))
+            throw arrayRangeOutOfBoundsExceptionMessage(
+                this.len, range.start, range.end, range.step, range.hasStart, range.hasEnd, range.isClosed)
         }
         return Array<T>(this.rawptr, this.start + start_, end_ - start_)
     }
@@ -288,8 +288,8 @@ public struct Array<T> {
         let (start_, end_): (Int64, Int64) = normalize(range)
         let step = range.step
         if ((step > 0 && !isLegal(start_, end_)) || (step < 0 && !isLegal(end_ + 1, start_ + 1))) {
-            throw IndexOutOfBoundsException(arrayRangeOutOfBoundsExceptionMessage(
-                this.len, range.start, range.end, range.step, range.hasStart, range.hasEnd, range.isClosed))
+            throw arrayRangeOutOfBoundsExceptionMessage(
+                this.len, range.start, range.end, range.step, range.hasStart, range.hasEnd, range.isClosed)
         }
 
         let arr: Array<T> = this
@@ -749,24 +749,29 @@ private func rangeToString(arraySize: Int64, start: Int64, end: Int64,
     }
 }
 
-private func arraySliceOutOfBoundsExceptionMessage(arraySize: Int64, sliceStart: Int64, sliceLength: Int64): String {
-    "The size of Array is ${arraySize}, start is ${sliceStart}, length is ${sliceLength}."
+private func arraySliceOutOfBoundsExceptionMessage(arraySize: Int64, sliceStart: Int64, sliceLength: Int64): Exception {
+    let msg: String = "The size of Array is ${arraySize}, start is ${sliceStart}, length is ${sliceLength}."
+    return IndexOutOfBoundsException(msg)
 }
 
-private func arrayIndexOutOfBoundsExceptionMessage(arraySize: Int64, index: Int64): String {
-    "The length of the array is ${arraySize}, but the index is ${index}."
+private func arrayIndexOutOfBoundsExceptionMessage(arraySize: Int64, index: Int64): Exception {
+    let msg: String = "The length of the array is ${arraySize}, but the index is ${index}."
+    return IndexOutOfBoundsException(msg)
 }
 
 private func arrayRangeOutOfBoundsExceptionMessage(
-    arraySize: Int64, start: Int64, end: Int64, step: Int64, hasStart: Bool, hasEnd: Bool, isClosed: Bool): String {
-    "The length of the array is ${arraySize}, " +
+    arraySize: Int64, start: Int64, end: Int64, step: Int64, hasStart: Bool, hasEnd: Bool, isClosed: Bool): Exception {
+    let msg: String = "The length of the array is ${arraySize}, " +
         "but the actual range is ${rangeToString(arraySize, start, end, step, hasStart, hasEnd, isClosed)}."
+    return IndexOutOfBoundsException(msg)
 }
 
-private func arrayInvalidRangeSizeExceptionMessage(arraySize: Int64, rangeSize: Int64): String {
-    "The length of the value array is ${arraySize}, which does not match the range length of ${rangeSize}."
+private func arrayInvalidRangeSizeExceptionMessage(arraySize: Int64, rangeSize: Int64): Exception {
+    let msg: String = "The length of the value array is ${arraySize}, which does not match the range length of ${rangeSize}."
+    return IllegalArgumentException(msg)
 }
 
-private func arrayInvalidRangeStepExceptionMessage(rangeStep: Int64): String {
-    "Illegal step ${rangeStep}, step should be 1."
+private func arrayInvalidRangeStepExceptionMessage(rangeStep: Int64): Exception {
+    let msg: String = "Illegal step ${rangeStep}, step should be 1."
+    return IllegalArgumentException(msg)
 }
