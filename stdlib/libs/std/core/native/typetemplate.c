@@ -17,11 +17,11 @@
 #elif defined(_WIN32) && defined(__MINGW64__)
 #define TYPE_INFO_SECTION ".cjti"
 #define TYPE_TEMPLATE_SECTION ".cjtt"
-#define REFLECT_INFO_SECTION "" // TODO: implement reflect section for Windows
+#define REFLECT_INFO_SECTION ".cjrflv"
 #elif defined(__APPLE__)
 #define TYPE_INFO_SECTION "__CJ_METADATA,__cjtypeinfo"
 #define TYPE_TEMPLATE_SECTION "__CJ_METADATA,__cjtemplate"
-#define REFLECT_INFO_SECTION "" // TODO: implement reflect section for macOS
+#define REFLECT_INFO_SECTION "__CJ_METADATA,__cjref_gv"
 #else
 #define TYPE_INFO_SECTION ""
 #define TYPE_TEMPLATE_SECTION ""
@@ -44,31 +44,40 @@
 
 typedef struct TypeInfo* (*FnPtrType)(int32_t, struct TypeInfo**);
 
-#define MODIFIER_DEFAULT           (0x1 << 0)
-#define MODIFIER_PRIVATE           (0x1 << 1)
-#define MODIFIER_PROTECTED         (0x1 << 2)
-#define MODIFIER_PUBLIC            (0x1 << 3)
-#define MODIFIER_IMMUTABLE         (0x1 << 4)
-#define MODIFIER_BOXCLASS          (0x1 << 5)
-#define MODIFIER_OPEN              (0x1 << 6)
-#define MODIFIER_OVERRIDE          (0x1 << 7)
-#define MODIFIER_REDEF             (0x1 << 8)
-#define MODIFIER_ABSTRACT          (0x1 << 9)
-#define MODIFIER_SEALED            (0x1 << 10)
-#define MODIFIER_MUT               (0x1 << 11)
-#define MODIFIER_STATIC            (0x1 << 12)
-#define MODIFIER_ENUM_KIND0        (0x1 << 13)
-#define MODIFIER_ENUM_KIND1        (0x1 << 14)
-#define MODIFIER_ENUM_KIND2        (0x1 << 15)
-#define MODIFIER_ENUM_KIND3        (0x1 << 16)
-#define MODIFIER_HAS_SRET0         (0x1 << 17) // has sret but it is'not generic'
-#define MODIFIER_HAS_SRET1         (0x1 << 18) // has sret and it is 'T'
-#define MODIFIER_HAS_SRET2         (0x1 << 19) // has sret and it is 'known struct T'
-#define MODIFIER_HAS_SRET3         (0x1 << 20) // has sret and it is 'unknow struct T'
-#define MODIFIER_ENUM_CTOR         (0x1 << 21)
-#define MODIFIER_REFLECT_VER_BIT1  (0x1 << 28)
-#define MODIFIER_REFLECT_VER_BIT2  (0x1 << 29)
-#define MODIFIER_REFLECT_VER_BIT3  (0x1 << 30)
+const uint32_t MODIFIER_DEFAULT           = 0x1 << 0;
+const uint32_t MODIFIER_PRIVATE           = 0x1 << 1;
+const uint32_t MODIFIER_PROTECTED         = 0x1 << 2;
+const uint32_t MODIFIER_PUBLIC            = 0x1 << 3;
+const uint32_t MODIFIER_IMMUTABLE         = 0x1 << 4;
+const uint32_t MODIFIER_BOXCLASS          = 0x1 << 5;
+const uint32_t MODIFIER_OPEN              = 0x1 << 6;
+const uint32_t MODIFIER_OVERRIDE          = 0x1 << 7;
+const uint32_t MODIFIER_REDEF             = 0x1 << 8;
+const uint32_t MODIFIER_ABSTRACT          = 0x1 << 9;
+const uint32_t MODIFIER_SEALED            = 0x1 << 10;
+const uint32_t MODIFIER_MUT               = 0x1 << 11;
+const uint32_t MODIFIER_STATIC            = 0x1 << 12;
+const uint32_t MODIFIER_ENUM_KIND0        = 0x1 << 13;
+const uint32_t MODIFIER_ENUM_KIND1        = 0x1 << 14;
+const uint32_t MODIFIER_ENUM_KIND2        = 0x1 << 15;
+const uint32_t MODIFIER_ENUM_KIND3        = 0x1 << 16;
+const uint32_t MODIFIER_HAS_SRET0         = 0x1 << 17; // has sret but it's not generic
+const uint32_t MODIFIER_HAS_SRET1         = 0x1 << 18; // has sret and it is 'T'
+const uint32_t MODIFIER_HAS_SRET2         = 0x1 << 19; // has sret and it is 'known struct T'
+const uint32_t MODIFIER_HAS_SRET3         = 0x1 << 20; // has sret and it is 'unknown struct T'
+const uint32_t MODIFIER_ENUM_CTOR         = 0x1 << 21;
+const uint32_t MODIFIER_REFLECT_VER_BIT1  = 0x1 << 28;
+const uint32_t MODIFIER_REFLECT_VER_BIT2  = 0x1 << 29;
+const uint32_t MODIFIER_REFLECT_VER_BIT3  = 0x1 << 30;
+
+const uint32_t FLAG_HAS_REF_FIELD     = 0x1 << 0;
+const uint32_t FLAG_HAS_FINALIZER     = 0x1 << 1;
+const uint32_t FLAG_FUTURE_CLASS      = 0x1 << 2;
+const uint32_t FLAG_MUTEX_CLASS       = 0x1 << 3;
+const uint32_t FLAG_MONITOR_CLASS     = 0x1 << 4;
+const uint32_t FLAG_WAIT_QUEUE_CLASS  = 0x1 << 5;
+const uint32_t FLAG_REFLECTION        = 0x1 << 6;
+const uint32_t FLAG_HAS_EXT_PART      = 0x1 << 7;
 
 #pragma pack(push, 8)
 typedef struct TypeTemplate {
@@ -559,6 +568,13 @@ DECLARE_TYPE_TEMPLATE(Tuple_tt,
         .inheritedClassNum = 0,
     }))
 
+static TypeInfo* BoxTTField0Fn(int32_t argNum, TypeInfo** typeArgs)
+{
+    return typeArgs[0];
+}
+
+static FnPtrType g_boxTTFieldFns[] = { BoxTTField0Fn };
+
 DECLARE_REFLECT_INFO(Box_tt_reflect,
     ((ReflectInfo){
         .fieldNamesOffset = 0,
@@ -574,10 +590,10 @@ DECLARE_REFLECT_INFO(Box_tt_reflect,
 DECLARE_TYPE_TEMPLATE(Box_tt,
     ((TypeTemplate){.name = "Box",
         .typeKind = UG_CLASS,
-        .flag = 0,
-        .fieldsNum = 0,
-        .typeArgsNum = 0,
-        .fieldsFns = NULL,
+        .flag = FLAG_REFLECTION,
+        .fieldsNum = 1,
+        .typeArgsNum = 1,
+        .fieldsFns = g_boxTTFieldFns,
         .superFn = NULL,
         .finalizer = NULL,
         .reflection = &Box_tt_reflect}))
