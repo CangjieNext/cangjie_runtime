@@ -25,25 +25,14 @@ public:
     void Init();
     void Fini() const;
 
-#ifdef __arm__
-    static uint32_t rtStartAddr;
-    static uint32_t rtEndAddr;
-    static uint32_t coreSoStartAddr;
-    static uint32_t coreSoEndAddr;
-    static uint32_t cjcSoStartAddr;
-    static uint32_t cjcSoEndAddr;
-    static uint32_t traceSoStartAddr;
-    static uint32_t traceSoEndAddr;
-#else
-    static uint64_t rtStartAddr;
-    static uint64_t rtEndAddr;
-    static uint64_t coreSoStartAddr;
-    static uint64_t coreSoEndAddr;
-    static uint64_t cjcSoStartAddr;
-    static uint64_t cjcSoEndAddr;
-    static uint64_t traceSoStartAddr;
-    static uint64_t traceSoEndAddr;
-#endif
+    static Uptr rtStartAddr;
+    static Uptr rtEndAddr;
+    static Uptr coreSoStartAddr;
+    static Uptr coreSoEndAddr;
+    static Uptr cjcSoStartAddr;
+    static Uptr cjcSoEndAddr;
+    static Uptr traceSoStartAddr;
+    static Uptr traceSoEndAddr;
 
     // debug interface for runtime to get all stack trace.
     static void PrintStackTrace(UnwindContext* unContext = nullptr);
