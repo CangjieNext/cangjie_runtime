@@ -13,15 +13,19 @@
 #if defined(__linux__)
 #define TYPE_INFO_SECTION ".cjmetadata.typeinfo"
 #define TYPE_TEMPLATE_SECTION ".cjmetadata.typetemplate"
+#define REFLECT_INFO_SECTION ".cjmetadata.reflect.gv"
 #elif defined(_WIN32) && defined(__MINGW64__)
 #define TYPE_INFO_SECTION ".cjti"
 #define TYPE_TEMPLATE_SECTION ".cjtt"
+#define REFLECT_INFO_SECTION "" // TODO: implement reflect section for Windows
 #elif defined(__APPLE__)
 #define TYPE_INFO_SECTION "__CJ_METADATA,__cjtypeinfo"
 #define TYPE_TEMPLATE_SECTION "__CJ_METADATA,__cjtemplate"
+#define REFLECT_INFO_SECTION "" // TODO: implement reflect section for macOS
 #else
 #define TYPE_INFO_SECTION ""
 #define TYPE_TEMPLATE_SECTION ""
+#define REFLECT_INFO_SECTION ""
 #error "Unknown OS，TYPE_INFO_SECTION is empty"
 #endif
 
@@ -34,7 +38,37 @@
     TypeTemplate name __attribute__((section(TYPE_TEMPLATE_SECTION))) __attribute__((aligned(16))) SANITIZE_ATTR =     \
         initializer;
 
+#define DECLARE_REFLECT_INFO(name, initializer)                                                                        \
+    ReflectInfo name __attribute__((section(REFLECT_INFO_SECTION))) __attribute__((aligned(16))) SANITIZE_ATTR =       \
+        initializer;
+
 typedef struct TypeInfo* (*FnPtrType)(int32_t, struct TypeInfo**);
+
+#define MODIFIER_DEFAULT           (0x1 << 0)
+#define MODIFIER_PRIVATE           (0x1 << 1)
+#define MODIFIER_PROTECTED         (0x1 << 2)
+#define MODIFIER_PUBLIC            (0x1 << 3)
+#define MODIFIER_IMMUTABLE         (0x1 << 4)
+#define MODIFIER_BOXCLASS          (0x1 << 5)
+#define MODIFIER_OPEN              (0x1 << 6)
+#define MODIFIER_OVERRIDE          (0x1 << 7)
+#define MODIFIER_REDEF             (0x1 << 8)
+#define MODIFIER_ABSTRACT          (0x1 << 9)
+#define MODIFIER_SEALED            (0x1 << 10)
+#define MODIFIER_MUT               (0x1 << 11)
+#define MODIFIER_STATIC            (0x1 << 12)
+#define MODIFIER_ENUM_KIND0        (0x1 << 13)
+#define MODIFIER_ENUM_KIND1        (0x1 << 14)
+#define MODIFIER_ENUM_KIND2        (0x1 << 15)
+#define MODIFIER_ENUM_KIND3        (0x1 << 16)
+#define MODIFIER_HAS_SRET0         (0x1 << 17) // has sret but it is'not generic'
+#define MODIFIER_HAS_SRET1         (0x1 << 18) // has sret and it is 'T'
+#define MODIFIER_HAS_SRET2         (0x1 << 19) // has sret and it is 'known struct T'
+#define MODIFIER_HAS_SRET3         (0x1 << 20) // has sret and it is 'unknow struct T'
+#define MODIFIER_ENUM_CTOR         (0x1 << 21)
+#define MODIFIER_REFLECT_VER_BIT1  (0x1 << 28)
+#define MODIFIER_REFLECT_VER_BIT2  (0x1 << 29)
+#define MODIFIER_REFLECT_VER_BIT3  (0x1 << 30)
 
 #pragma pack(push, 8)
 typedef struct TypeTemplate {
@@ -84,6 +118,19 @@ typedef struct TypeInfo {
     // Reflection metadata information is controlled by the reflection compilation switch.
     void* reflection;
 } TypeInfo;
+#pragma pack(pop)
+
+#pragma pack(push, 8)
+typedef struct ReflectInfo {
+    int64_t fieldNamesOffset;
+    uint32_t modifier;
+    uint16_t instanceFieldInfoCnt;
+    uint16_t staticFieldInfoCnt;
+    uint32_t instanceMethodCnt;
+    uint32_t staticMethodCnt;
+    void* annotationMethod;
+    void* genericTypeInfo;
+} ReflectInfo;
 #pragma pack(pop)
 
 // GlobalVarible for TypeInfo defined in core package
@@ -512,6 +559,18 @@ DECLARE_TYPE_TEMPLATE(Tuple_tt,
         .inheritedClassNum = 0,
     }))
 
+DECLARE_REFLECT_INFO(Box_tt_reflect,
+    ((ReflectInfo){
+        .fieldNamesOffset = 0,
+        .modifier = MODIFIER_BOXCLASS | MODIFIER_REFLECT_VER_BIT1,
+        .instanceFieldInfoCnt = 0,
+        .staticFieldInfoCnt = 0,
+        .instanceMethodCnt = 0,
+        .staticMethodCnt = 0,
+        .annotationMethod = NULL,
+        .genericTypeInfo = NULL,
+    }))
+
 DECLARE_TYPE_TEMPLATE(Box_tt,
     ((TypeTemplate){.name = "Box",
         .typeKind = UG_CLASS,
@@ -521,7 +580,7 @@ DECLARE_TYPE_TEMPLATE(Box_tt,
         .fieldsFns = NULL,
         .superFn = NULL,
         .finalizer = NULL,
-        .reflection = NULL}))
+        .reflection = &Box_tt_reflect}))
 
 DECLARE_TYPE_TEMPLATE(VArray_tt,
     ((TypeTemplate){
