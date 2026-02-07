@@ -166,6 +166,8 @@ inline bool TypeInfo::IsFloat64() const { return type == TypeKind::TYPE_KIND_FLO
 
 inline bool TypeInfo::IsCFunc() const { return type == TypeKind::TYPE_KIND_CFUNC; }
 
+inline bool TypeInfo::IsUnknownSize() const { return static_cast<bool>(flag & MODIFIER_UNKNOWN_SIZE); }
+
 inline bool TypeInfo::IsGenericTypeInfo() const
 {
     return (typeArgsNum > 0) || IsRawArray() || IsVArray() || IsCPointer();

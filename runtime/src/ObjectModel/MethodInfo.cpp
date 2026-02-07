@@ -522,7 +522,9 @@ void* MethodInfo::ApplyCJMethod(ObjRef instanceObj, void* genericArgs, void* act
         PrepareSRet(&argValues, sret, retType);
     }
     if (instanceObj != nullptr) {
-        if ((!declaringTi->IsGenericTypeInfo() && declaringTi->IsStruct()) || ((declaringTi->IsEnum() ||
+        // When a struct is passed as 'this' parameter and its size is unknown at compile time,
+        // the passed 'this' is the struct object itself
+        if ((declaringTi->IsStruct() && declaringTi->IsUnknownSize()) || ((declaringTi->IsEnum() ||
             declaringTi->IsTempEnum()) && !declaringTi->IsEnumKind1())) {
             argValues.AddInt64(reinterpret_cast<I64>(instanceObj) + TYPEINFO_PTR_SIZE);
         } else {
