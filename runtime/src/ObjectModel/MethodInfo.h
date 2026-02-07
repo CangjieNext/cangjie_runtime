@@ -97,6 +97,7 @@ private:
     bool HasSRetWithGeneric() { return static_cast<bool>(modifier & MODIFIER_HAS_SRET1); }
     bool HasSRetWithKnowGenericStruct() { return static_cast<bool>(modifier & MODIFIER_HAS_SRET2); }
     bool HasSRetWithUnknowGenericStruct() { return static_cast<bool>(modifier & MODIFIER_HAS_SRET3); }
+    bool IsUnknownSize() { return static_cast<bool>(modifier & MODIFIER_UNKNOWN_SIZE); }
     void* RetValueToAny(Value ret, void* sret, TypeInfo* retType);
     bool IsInitializer() { return CString(GetMethodName()) == "init"; }
     bool CheckGenericConstraint(GenericTypeInfo* genericTi, TypeInfo* ti, void* genericArgsArray);
