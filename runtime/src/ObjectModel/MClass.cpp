@@ -836,7 +836,7 @@ bool TypeTemplate::IsEnumCtor() const
     if (!IsEnum() && !IsTempEnum()) {
         return false;
     }
-    return enumInfo->GetModifier() & MODIFIER_ENUM_CTOR;
+    return enumInfo ? (enumInfo->GetModifier() & MODIFIER_ENUM_CTOR) : false;
 }
 
 void* ReflectInfo::GetAnnotations(TypeInfo* arrayTi)
@@ -850,9 +850,10 @@ U32 TypeInfo::GetModifier()
         return MODIFIER_INVALID;
     }
     if (IsEnum()) {
-        return enumInfo->GetModifier();
+        return enumInfo ? enumInfo->GetModifier() : MODIFIER_INVALID;
     } else {
-        return GetReflectInfo()->GetModifier();
+        ReflectInfo* reflectInfo = GetReflectInfo();
+        return reflectInfo ? reflectInfo->GetModifier() : MODIFIER_INVALID;
     }
 }
 bool TypeInfo::IsEnumCtor() const
@@ -860,7 +861,7 @@ bool TypeInfo::IsEnumCtor() const
     if (!IsEnum() && !IsTempEnum()) {
         return false;
     }
-    return enumInfo->GetModifier() & MODIFIER_ENUM_CTOR;
+    return enumInfo ? (enumInfo->GetModifier() & MODIFIER_ENUM_CTOR) : false;
 }
 
 bool TypeInfo::IsOptionLikeRefEnum()
