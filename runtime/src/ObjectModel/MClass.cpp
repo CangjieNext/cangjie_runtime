@@ -78,7 +78,7 @@ void* TypeTemplate::ExecuteGenericFunc(void* genericFunc, U32 argSize, TypeInfo*
     return ((GenericiFn)genericFunc)(argSize, args);
 }
 
-ReflectInfo* TypeInfo::GetReflectInfo()
+ReflectInfo* TypeInfo::GetReflectInfo() const
 {
     return reflectInfo;
 }
@@ -844,7 +844,7 @@ void* ReflectInfo::GetAnnotations(TypeInfo* arrayTi)
     return MapleRuntime::GetAnnotations(annotationMethod, arrayTi);
 }
 
-U32 TypeInfo::GetModifier()
+U32 TypeInfo::GetModifier() const
 {
     if ((IsGenericTypeInfo() && !GetSourceGeneric()->ReflectIsEnable()) || !ReflectIsEnable()) {
         return MODIFIER_INVALID;

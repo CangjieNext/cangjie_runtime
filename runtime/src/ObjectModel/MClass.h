@@ -629,8 +629,8 @@ public:
     inline bool IsMutexClass() const;
     inline bool IsWaitQueueClass() const;
     inline bool HasExtPart() const;
-    inline bool IsBoxClass();
-    U32 GetModifier();
+    inline bool IsBoxClass() const;
+    U32 GetModifier() const;
     bool IsEnumCtor() const;
     bool IsOptionLikeRefEnum();
     bool IsZeroSizedEnum();
@@ -639,7 +639,7 @@ public:
     bool ReflectIsEnable() const;
     bool ReflectInfoIsNull() const;
     inline EnumCtorReflectInfo* GetEnumCtorReflectInfo();
-    ReflectInfo* GetReflectInfo();
+    ReflectInfo* GetReflectInfo() const;
 
     inline const char* GetName() const;
     FuncRef GetFinalizeMethod() const;
