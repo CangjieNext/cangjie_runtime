@@ -844,7 +844,7 @@ void* ReflectInfo::GetAnnotations(TypeInfo* arrayTi)
     return MapleRuntime::GetAnnotations(annotationMethod, arrayTi);
 }
 
-U32 TypeInfo::GetModifier()
+U32 TypeInfo::GetModifier() const
 {
     if ((IsGenericTypeInfo() && !GetSourceGeneric()->ReflectIsEnable()) || !ReflectIsEnable()) {
         return MODIFIER_INVALID;
