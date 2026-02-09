@@ -253,7 +253,13 @@ inline bool TypeInfo::IsMonitorClass() const { return static_cast<bool>(flag & F
 inline bool TypeInfo::IsMutexClass() const { return static_cast<bool>(flag & FLAG_MONITOR_CLASS); }
 inline bool TypeInfo::IsWaitQueueClass() const { return static_cast<bool>(flag & FLAG_WAIT_QUEUE_CLASS); }
 inline bool TypeInfo::HasExtPart() const { return static_cast<bool>(flag & FLAG_HAS_EXT_PART); }
-inline bool TypeInfo::IsBoxClass() { return static_cast<bool>(GetModifier() & MODIFIER_BOXCLASS); }
+inline bool TypeInfo::IsBoxClass() const
+{
+    if (ReflectIsEnable() && reflectInfo != nullptr) {
+        return static_cast<bool>(reflectInfo->GetModifier() & MODIFIER_BOXCLASS);
+    }
+    return false;
+}
 
 inline bool TypeInfo::ReflectInfoIsNull() const { return reflectInfo == nullptr; }
 
