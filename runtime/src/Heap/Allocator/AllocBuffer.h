@@ -24,6 +24,7 @@ public:
     void Fini();
     static AllocBuffer* GetOrCreateAllocBuffer();
     static AllocBuffer* GetAllocBuffer();
+    uint32_t GetTid() { return tid; }
 
     MAddress Allocate(size_t size, AllocType allocType);
     RegionInfo* GetRegion() { return tlRegion; }
@@ -81,6 +82,7 @@ private:
     RegionList tlLargeRawPointerRegions;
     // Record stack roots in concurrent enum phase, waiting for GC to merge these roots
     std::list<BaseObject*> stackRoots;
+    uint32_t tid{0};
 };
 } // namespace MapleRuntime
 #endif // MRT_ALLOC_BUFFER_H

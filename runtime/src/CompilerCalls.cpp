@@ -1457,4 +1457,16 @@ extern "C" void* CJ_MRT_ARKTS_CreateEngine()
     return res;
 }
 #endif
+
+void MRT_DumpThreadLocalBuffer()
+{
+    Heap::GetHeap().GetAllocator().VisitAllocBuffers([](AllocBuffer& buffer) {
+        RegionInfo* tlRegion = buffer.GetRegion();
+        RegionInfo* preparedRegion = buffer.GetPreparedRegion();
+        if ((tlRegion != nullptr || tlRegion != RegionInfo::NullRegion()) &&
+            (preparedRegion != nullptr || preparedRegion != RegionInfo::NullRegion())) {
+            LOG(RTLOG_ERROR, "thread %u may cost long liveness memory", buffer.GetTid());
+        }
+    });
+}
 } // namespace MapleRuntime

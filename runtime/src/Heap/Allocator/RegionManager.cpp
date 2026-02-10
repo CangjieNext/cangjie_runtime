@@ -30,21 +30,6 @@ namespace MapleRuntime {
 uintptr_t RegionInfo::UnitInfo::totalUnitCount = 0;
 uintptr_t RegionInfo::UnitInfo::heapStartAddress = 0;
 
-// Static function to visit thread names for OOM logging
-static void ThreadNameVisitor(void* cjthreadPtr, void* handle) {
-    struct ThreadNameContext {
-        size_t count;
-    };
-    ThreadNameContext* ctx = static_cast<ThreadNameContext*>(handle);
-    char* name = CJThreadGetName(cjthreadPtr);
-    if (name && name[0] != '\0') {
-        LOG(RTLOG_ERROR, "\t\tThread %zu: %s", ctx->count + 1, name);
-    } else {
-        LOG(RTLOG_ERROR, "\t\tThread %zu: <unnamed>", ctx->count + 1);
-    }
-    ctx->count++;
-}
-
 static size_t GetPageSize() noexcept
 {
 #if defined(_WIN64)
@@ -1087,18 +1072,17 @@ void RegionManager::DumpRegionStats(const char* msg, bool triggerOOM) const
         LOG(RTLOG_ERROR, "\t\tfinalizables size: %zu", finalizablesSize);
         LOG(RTLOG_ERROR, "\t\tworkingFinalizables size: %zu", workingFinalizablesSize);
 
-        // Print current OS thread count
-        unsigned int osThreadCount = ScheduleRunningOSThreadCount();
-        LOG(RTLOG_ERROR, "\tCurrent OS thread count: %u", osThreadCount);
-
-        // Print all thread names
-        LOG(RTLOG_ERROR, "\tAll thread names:");
-        // Define a struct to hold thread names
-        struct ThreadNameContext {
-            size_t count;
-        } context = {0};
         // Visit all threads
-        ScheduleAllCJThreadVisit(ThreadNameVisitor, &context);
+        // ScheduleAllCJThreadVisit(ThreadNameVisitor, &context);
+        // MRT_DumpThreadLocalBuffer();
+        Heap::GetHeap().GetAllocator().VisitAllocBuffers([](AllocBuffer& buffer) {
+            RegionInfo* tlRegion = buffer.GetRegion();
+            RegionInfo* preparedRegion = buffer.GetPreparedRegion();
+            if ((tlRegion != nullptr || tlRegion != RegionInfo::NullRegion()) &&
+                (preparedRegion != nullptr || preparedRegion != RegionInfo::NullRegion())) {
+                LOG(RTLOG_ERROR, "thread %u may cost long liveness memory", buffer.GetTid());
+            }
+        });
     } else {
 
         VLOG(REPORT, msg);
