@@ -268,8 +268,8 @@ inline U16 TypeInfo::GetFieldNum() const { return fieldNum; }
 
 inline U32* TypeInfo::GetFieldOffsets() const
 {
-    CHECK(fieldOffsets != nullptr);
-    return fieldOffsets;
+    // CHECK(fieldOffsets != nullptr);
+    return fieldOffsets.GetDataRef();
 }
 
 inline U16 TypeInfo::GetValidInheritNum() const { return validInheritNum & ((1ULL << 15) - 1); }

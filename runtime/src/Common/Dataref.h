@@ -10,6 +10,7 @@
 
 #include <cstdlib>
 
+#include "Common/Dataref.h"
 #include "Base/Log.h"
 #include "Base/Types.h"
 namespace MapleRuntime {
@@ -30,6 +31,16 @@ struct DataRefOffset32 {
             dataRef = reinterpret_cast<T*>(static_cast<Uptr>(ref));
         }
         return dataRef;
+    }
+
+    inline void SetDataRef(T *ref)
+    {
+        refOffset = reinterpret_cast<Sptr>(ref) - reinterpret_cast<Sptr>(this);
+    }
+
+    inline void SetDataRef(Sptr ref)
+    {
+        refOffset = ref - reinterpret_cast<Sptr>(this);
     }
 };
 
