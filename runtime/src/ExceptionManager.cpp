@@ -9,6 +9,7 @@
 #include "Base/LogFile.h"
 #include "Common/Runtime.h"
 #include "Exception/ExceptionCApi.h"
+#include <string>
 #ifdef __APPLE__
 #include "Exception/CFException.h"
 #endif
@@ -18,6 +19,7 @@
 #include "UnwindStack/MangleNameHelper.h"
 #include "Heap/Collector/CollectorResources.h"
 #include "Heap/Collector/GcRequest.h"
+#include <iostream>
 namespace MapleRuntime {
 std::mutex ExceptionManager::gUncaughtExceptionHandlerMtx;
 void ExceptionManager::OutOfMemory()
@@ -291,6 +293,7 @@ void* ExceptionManager::BeginCatch(ExceptionWrapper* mExceptionWrapper __attribu
     eWrapper.SetExceptionType(ExceptionWrapper::ExceptionType::UNKNOWN);
     ExceptionRef thrown = eWrapper.GetExceptionRef();
     eWrapper.SetExceptionRef(nullptr);
+    std::cout << "ExceptionManager::BeginCatch thrown = " << static_cast<void*>(thrown)<< std::endl;
     return thrown;
 }
 } // namespace MapleRuntime

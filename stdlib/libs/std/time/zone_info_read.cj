@@ -48,6 +48,7 @@ func loadTZifData(name: String, source: String): Array<UInt8> {
 
 func loadTZifData(path: String): Array<UInt8> {
     unsafe {
+        println(path)
         let cPath: CPointerHandle<UInt8> = acquireArrayRawData(path.rawData())
         let pathLen: Int64 = path.size
         let fileSize = CJ_TIME_GetFileSize(cPath.pointer, pathLen)

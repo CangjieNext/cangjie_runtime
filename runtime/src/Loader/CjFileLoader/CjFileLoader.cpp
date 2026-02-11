@@ -10,6 +10,8 @@
 #include "ExceptionManager.inline.h"
 #include "ObjectManager.inline.h"
 #include "TypeInfoManager.h"
+#include <iostream>
+#include <string>
 namespace MapleRuntime {
 
 void CJFileLoader::Fini()
@@ -230,10 +232,13 @@ void CJFileLoader::RegisterTypeInfoCreatedByFE(BaseFile* baseFile)
     TypeInfoManager& typeInfoMgr = TypeInfoManager::GetTypeInfoManager();
     Uptr typeInfoBase = baseFile->GetTypeInfoBase();
     Uptr typeInfoEnd = typeInfoBase + baseFile->GetTypeInfoTotalSize();
+    std::cout << "sizeof(TypeInfo) = " << std::to_string(sizeof(TypeInfo)) << std::endl;
     while (typeInfoBase < typeInfoEnd) {
         TypeInfo* ti = reinterpret_cast<TypeInfo*>(typeInfoBase);
+        // std::cout << "CJFileLoader::RegisterTypeInfoCreatedByFE " << std::string(ti->GetName()) << std::endl;
         constexpr uint32_t typeInfoAlign = 16u;
         constexpr uint32_t sizeAlign = MRT_ALIGN(sizeof(TypeInfo), typeInfoAlign);
+        // std::cout << "sizeof(sizeAlign) = " << std::to_string(sizeAlign) << std::endl;
         typeInfoBase += sizeAlign;
         auto tt = ti->GetSourceGeneric();
         if (tt != nullptr) {
