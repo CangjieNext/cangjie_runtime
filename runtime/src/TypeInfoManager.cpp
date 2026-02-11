@@ -11,6 +11,7 @@
 #include "ObjectModel/MClass.h"
 #include "ObjectManager.inline.h"
 #include "Sync/Sync.h"
+#include <iostream>
 
 namespace MapleRuntime {
 void TypeGCInfo::FillTypeGCInfo(TypeInfo* ti, CString &gcTibStr, U32 &curSize)
@@ -257,7 +258,9 @@ void TypeInfoManager::AddTypeInfo(TypeInfo* ti)
                 U16 fieldNum = tt->GetFieldNum();
                 ti->SetFieldNum(fieldNum);
                 U32* offsets = reinterpret_cast<U32*>(Allocate(fieldNum * sizeof(U32)));
+                std::cout << std::string(ti->GetName()) << " SetOffsets begin" << std::endl;
                 ti->SetOffsets(offsets);
+                std::cout << std::string(ti->GetName()) << " SetOffsets end" << std::endl;
                 ti->SetFieldAddr(reinterpret_cast<TypeInfo**>(Allocate(fieldNum * TYPEINFO_PTR_SIZE)));
                 FillOffsets(ti, tt, ti->GetTypeArgNum(), ti->GetTypeArgs());
                 CalculateGCTib(ti);

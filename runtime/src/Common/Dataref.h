@@ -12,6 +12,8 @@
 
 #include "Base/Log.h"
 #include "Base/Types.h"
+#include <iostream>
+#include <string>
 namespace MapleRuntime {
 // DataRefOffset aims to represent a reference to data in maple file, which is already an offset.
 // DataRefOffset is meant to have pointer size.
@@ -31,6 +33,17 @@ struct DataRefOffset32 {
         }
         return dataRef;
     }
+
+    inline void SetDataRef(T *ref)
+    {
+        refOffset = reinterpret_cast<Sptr>(ref) - reinterpret_cast<Sptr>(this);
+    }
+
+    inline void SetDataRef(Sptr ref)
+    {
+        refOffset = ref - reinterpret_cast<Sptr>(this);
+        std::cout << "DataRefOffset32 SetDataRef: "  << ref  << " sub " << this  << std::to_string(refOffset) << std::endl;
+    }
 };
 
 template<typename T>
@@ -46,6 +59,17 @@ struct DataRefOffset64 {
             dataRef = reinterpret_cast<T*>(static_cast<Uptr>(ref));
         }
         return dataRef;
+    }
+
+    inline void SetDataRef(T *ref)
+    {
+        refOffset = reinterpret_cast<Sptr>(ref) - reinterpret_cast<Sptr>(this);
+    }
+
+    inline void SetDataRef(Sptr ref)
+    {
+        refOffset = ref - reinterpret_cast<Sptr>(this);
+        std::cout << "DataRefOffset32 SetDataRef: "  << ref  << " sub " << this  << std::to_string(refOffset) << std::endl;
     }
 };
 } // namespace MapleRuntime

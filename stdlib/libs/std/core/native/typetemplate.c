@@ -55,8 +55,12 @@ typedef struct TypeTemplate {
 } TypeTemplate;
 #pragma pack(pop)
 
+#ifdef __arm__
 #pragma pack(push, 8)
 typedef struct TypeInfo {
+#else
+typedef struct __attribute__((packed)) TypeInfo {
+#endif
     const char* name;
     int8_t type;  // Type, unit, bool, int, float, struct, class, interface, array, function, varray use enum values
     uint8_t flag; // Mark, hasRefField, hasFinalize, monitor, waitQueue, use bits 0-3
@@ -67,7 +71,7 @@ typedef struct TypeInfo {
     uint8_t align;      // Align
     uint8_t typeArgNum; // Number of generic parameters
     uint16_t inheritedClassNum;
-    uint32_t* offsets;
+    uint32_t offsets;
     union {
         // If `typeArgNum` is greater than 0, it indicates `sourceGeneric`. Otherwise, it indicates `finalizer`.
         const TypeTemplate* sourceGeneric; // Original generic template
@@ -84,7 +88,9 @@ typedef struct TypeInfo {
     // Reflection metadata information is controlled by the reflection compilation switch.
     void* reflection;
 } TypeInfo;
+#ifdef __arm__
 #pragma pack(pop)
+#endif
 
 // GlobalVarible for TypeInfo defined in core package
 DECLARE_TYPE_INFO(Int64_ti,
@@ -99,7 +105,7 @@ DECLARE_TYPE_INFO(Int64_ti,
         .align = 8,
         .typeArgNum = 0,
         .inheritedClassNum = 0,
-        .offsets = NULL,
+        .offsets = 0,
         .finalizer = NULL,
         .typeArgs = NULL,
         .fields = NULL,
@@ -121,7 +127,7 @@ DECLARE_TYPE_INFO(Nothing_ti,
         .align = 1,
         .typeArgNum = 0,
         .inheritedClassNum = 0,
-        .offsets = NULL,
+        .offsets = 0,
         .finalizer = NULL,
         .typeArgs = NULL,
         .fields = NULL,
@@ -143,7 +149,7 @@ DECLARE_TYPE_INFO(Unit_ti,
         .align = 1,
         .typeArgNum = 0,
         .inheritedClassNum = 0,
-        .offsets = NULL,
+        .offsets = 0,
         .finalizer = NULL,
         .typeArgs = NULL,
         .fields = NULL,
@@ -165,7 +171,7 @@ DECLARE_TYPE_INFO(Bool_ti,
         .align = 1,
         .typeArgNum = 0,
         .inheritedClassNum = 0,
-        .offsets = NULL,
+        .offsets = 0,
         .finalizer = NULL,
         .typeArgs = NULL,
         .fields = NULL,
@@ -187,7 +193,7 @@ DECLARE_TYPE_INFO(Rune_ti,
         .align = 4,
         .typeArgNum = 0,
         .inheritedClassNum = 0,
-        .offsets = NULL,
+        .offsets = 0,
         .finalizer = NULL,
         .typeArgs = NULL,
         .fields = NULL,
@@ -209,7 +215,7 @@ DECLARE_TYPE_INFO(UInt8_ti,
         .align = 1,
         .typeArgNum = 0,
         .inheritedClassNum = 0,
-        .offsets = NULL,
+        .offsets = 0,
         .finalizer = NULL,
         .typeArgs = NULL,
         .fields = NULL,
@@ -231,7 +237,7 @@ DECLARE_TYPE_INFO(UInt16_ti,
         .align = 2,
         .typeArgNum = 0,
         .inheritedClassNum = 0,
-        .offsets = NULL,
+        .offsets = 0,
         .finalizer = NULL,
         .typeArgs = NULL,
         .fields = NULL,
@@ -253,7 +259,7 @@ DECLARE_TYPE_INFO(UInt32_ti,
         .align = 4,
         .typeArgNum = 0,
         .inheritedClassNum = 0,
-        .offsets = NULL,
+        .offsets = 0,
         .finalizer = NULL,
         .typeArgs = NULL,
         .fields = NULL,
@@ -275,7 +281,7 @@ DECLARE_TYPE_INFO(UInt64_ti,
         .align = 8,
         .typeArgNum = 0,
         .inheritedClassNum = 0,
-        .offsets = NULL,
+        .offsets = 0,
         .finalizer = NULL,
         .typeArgs = NULL,
         .fields = NULL,
@@ -298,7 +304,7 @@ DECLARE_TYPE_INFO(UIntNative_ti, ((TypeInfo) {
 #else
     .align = 4U,
 #endif
-    .typeArgNum = 0, .inheritedClassNum = 0, .offsets = NULL, .finalizer = NULL, .typeArgs = NULL, .fields = NULL,
+    .typeArgNum = 0, .inheritedClassNum = 0, .offsets = 0, .finalizer = NULL, .typeArgs = NULL, .fields = NULL,
     .super = NULL, .extensionDefPtr = NULL, .mtable = NULL, .reflection = NULL,
 }))
 
@@ -314,7 +320,7 @@ DECLARE_TYPE_INFO(Int8_ti,
         .align = 1,
         .typeArgNum = 0,
         .inheritedClassNum = 0,
-        .offsets = NULL,
+        .offsets = 0,
         .finalizer = NULL,
         .typeArgs = NULL,
         .fields = NULL,
@@ -336,7 +342,7 @@ DECLARE_TYPE_INFO(Int16_ti,
         .align = 2,
         .typeArgNum = 0,
         .inheritedClassNum = 0,
-        .offsets = NULL,
+        .offsets = 0,
         .finalizer = NULL,
         .typeArgs = NULL,
         .fields = NULL,
@@ -358,7 +364,7 @@ DECLARE_TYPE_INFO(Int32_ti,
         .align = 4,
         .typeArgNum = 0,
         .inheritedClassNum = 0,
-        .offsets = NULL,
+        .offsets = 0,
         .finalizer = NULL,
         .typeArgs = NULL,
         .fields = NULL,
@@ -381,7 +387,7 @@ DECLARE_TYPE_INFO(IntNative_ti, ((TypeInfo) {
 #else
     .align = 4U,
 #endif
-    .typeArgNum = 0, .inheritedClassNum = 0, .offsets = NULL, .finalizer = NULL, .typeArgs = NULL, .fields = NULL,
+    .typeArgNum = 0, .inheritedClassNum = 0, .offsets = 0, .finalizer = NULL, .typeArgs = NULL, .fields = NULL,
     .super = NULL, .extensionDefPtr = NULL, .mtable = NULL, .reflection = NULL,
 }))
 
@@ -397,7 +403,7 @@ DECLARE_TYPE_INFO(Float16_ti,
         .align = 2,
         .typeArgNum = 0,
         .inheritedClassNum = 0,
-        .offsets = NULL,
+        .offsets = 0,
         .finalizer = NULL,
         .typeArgs = NULL,
         .fields = NULL,
@@ -419,7 +425,7 @@ DECLARE_TYPE_INFO(Float32_ti,
         .align = 4,
         .typeArgNum = 0,
         .inheritedClassNum = 0,
-        .offsets = NULL,
+        .offsets = 0,
         .finalizer = NULL,
         .typeArgs = NULL,
         .fields = NULL,
@@ -441,7 +447,7 @@ DECLARE_TYPE_INFO(Float64_ti,
         .align = 8,
         .typeArgNum = 0,
         .inheritedClassNum = 0,
-        .offsets = NULL,
+        .offsets = 0,
         .finalizer = NULL,
         .typeArgs = NULL,
         .fields = NULL,
@@ -464,7 +470,7 @@ DECLARE_TYPE_INFO(CString_ti,
         .align = 4,
         .typeArgNum = 0,
         .inheritedClassNum = 0,
-        .offsets = NULL,
+        .offsets = 0,
         .finalizer = NULL,
         .typeArgs = NULL,
         .fields = NULL,
@@ -486,7 +492,7 @@ DECLARE_TYPE_INFO(CString_ti,
         .align = 8,
         .typeArgNum = 0,
         .inheritedClassNum = 0,
-        .offsets = NULL,
+        .offsets = 0,
         .finalizer = NULL,
         .typeArgs = NULL,
         .fields = NULL,
