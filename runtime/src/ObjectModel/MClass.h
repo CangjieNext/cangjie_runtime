@@ -620,7 +620,8 @@ public:
     inline TypeInfo* GetFieldType(U16 idx) const;
     inline TypeInfo* GetComponentTypeInfo() const;
     inline U16 GetTypeArgNum() const { return typeArgsNum; }
-    inline U32 GetFieldOffset(U16 idx) const { return fieldOffsets[idx]; }
+    inline U32 GetFieldOffset(U16 idx) const { return GetFieldOffsets()[idx]; }
+    inline TypeInfo* GetFieldTypeInfo(U16 idx) const { return fields[idx]; }
     inline TypeInfo** GetTypeArgs() const { return typeArgs; }
     inline TypeTemplate* GetSourceGeneric() const;
     inline ExtensionData** GetvExtensionDataStart() const;
@@ -676,7 +677,7 @@ public:
     void SetFieldAddr(TypeInfo** types) { this->fields = types; }
     void SetFieldType(U16 idx, TypeInfo* fieldType) { this->fields[idx] = fieldType; }
     void SetSuperTypeInfo(TypeInfo* super) { this->superTypeInfo = super; }
-    void SetOffsets(U32* offsets) { this->fieldOffsets = offsets; }
+    void SetOffsets(U32* offsets) { this->fieldOffsets.SetDataRef(reinterpret_cast<Sptr>(offsets)); }
     void SetSourceGeneric(TypeTemplate* tt) { this->sourceGeneric = tt; }
     void SetAlign(U8 alignment) { this->align = alignment; }
     void SetInstanceSize(U32 size) { this->instanceSize = size; }
@@ -749,7 +750,7 @@ private:
     // updated to calculate the start position of the interface extensiondef search.
     // INVALID_INHERIT_NUM: invalid value.
     U16 validInheritNum;
-    U32* fieldOffsets;
+    DataRefOffset32<U32> fieldOffsets;
     union {
         TypeTemplate* sourceGeneric;
         FuncRef finalizerMethod;
