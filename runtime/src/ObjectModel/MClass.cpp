@@ -277,7 +277,7 @@ void TypeInfo::TryUpdateExtensionData(TypeInfo* itf, ExtensionData* extensionDat
                 break;
             }
         }
-        mTable.find(itfUUID)->second.ResetAtomicInfoArray(itfFtSize);
+        // mTable.find(itfUUID)->second.ResetAtomicInfoArray(itfFtSize);
         extensionData->SetFuncTableUpdated();
     } while (true);
 }
@@ -591,15 +591,15 @@ TypeInfo* TypeInfo::GetMethodOuterTI(TypeInfo* itf, U64 index)
 		LOG(RTLOG_FATAL, "expected interface %s is not in class %s", itf->GetName(), GetName());
 		return nullptr;
 	}
-	auto* outerTi = it->second.GetCachedTypeInfo(index);
-	if (LIKELY(outerTi != nullptr)) {
-		return outerTi;
-	}
+	// auto* outerTi = it->second.GetCachedTypeInfo(index);
+	// if (LIKELY(outerTi != nullptr)) {
+	// 	return outerTi;
+	// }
 	auto* ed = it->second.GetExtensionData();
 	CHECK(ed != nullptr);
-	outerTi = ed->GetOuterTi(this, index);
+	auto outerTi = ed->GetOuterTi(this, index);
 	if (outerTi != nullptr) {
-		it->second.SetCachedTypeInfo(index, outerTi);
+		// it->second.SetCachedTypeInfo(index, outerTi);
 		return outerTi;
 	}
 	// Cache miss and GetOuterTi returned null: resolve by walking supers.
@@ -624,14 +624,14 @@ TypeInfo* TypeInfo::GetMethodOuterTI(TypeInfo* itf, U64 index)
 		}
 		if (funcPtrInSuper == funcPtr) {
 			TypeInfo* res = superTi->GetMethodOuterTI(itf, index);
-			it->second.SetCachedTypeInfo(index, res);
+			// it->second.SetCachedTypeInfo(index, res);
 			return res;
 		}
 		if (thisEdSuper->IsDirect()) {
 			break;
 		}
 	}
-	it->second.SetCachedTypeInfo(index, this);
+	// it->second.SetCachedTypeInfo(index, this);
 	return this;
 }
 

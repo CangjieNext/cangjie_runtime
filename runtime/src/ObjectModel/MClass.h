@@ -77,14 +77,13 @@ public:
     InheritFuncTable() = delete;
     InheritFuncTable(const InheritFuncTable& other)
         : superExtensionData(other.superExtensionData),
-          superTypeInfo(other.superTypeInfo),
-          cachedTypeInfos(other.cachedTypeInfos)
+          superTypeInfo(other.superTypeInfo)//, cachedTypeInfos(other.cachedTypeInfos)
     {}
     InheritFuncTable& operator=(const InheritFuncTable& other)
     {
         superExtensionData = other.superExtensionData;
         superTypeInfo = other.superTypeInfo;
-        cachedTypeInfos = other.cachedTypeInfos;
+        // cachedTypeInfos = other.cachedTypeInfos;
         return *this;
     }
 
@@ -92,21 +91,21 @@ public:
     {
         superExtensionData = other.superExtensionData;
         superTypeInfo = other.superTypeInfo;
-        cachedTypeInfos = std::move(other.cachedTypeInfos);
+        // cachedTypeInfos = std::move(other.cachedTypeInfos);
     }
     InheritFuncTable& operator=(InheritFuncTable&& other)
     {
         superExtensionData = other.superExtensionData;
         superTypeInfo = other.superTypeInfo;
-        cachedTypeInfos = std::move(other.cachedTypeInfos);
+        // cachedTypeInfos = std::move(other.cachedTypeInfos);
         return *this;
     }
-    InheritFuncTable(ExtensionData* ed, TypeInfo* super, size_t sz) : superExtensionData(ed), superTypeInfo(super), cachedTypeInfos(sz) {}
+    InheritFuncTable(ExtensionData* ed, TypeInfo* super, size_t sz) : superExtensionData(ed), superTypeInfo(super)/* , cachedTypeInfos(sz) */ {}
     ExtensionData* GetExtensionData() const { return superExtensionData; }
     TypeInfo* GetSuperTi() const { return superTypeInfo; }
-    void ResetAtomicInfoArray(size_t size) { cachedTypeInfos.Reset(size); }
-    TypeInfo* GetCachedTypeInfo(size_t index) const { return cachedTypeInfos.Get(index); }
-    void SetCachedTypeInfo(size_t index, TypeInfo* ti) { cachedTypeInfos.Set(index, ti); }
+    // void ResetAtomicInfoArray(size_t size) { cachedTypeInfos.Reset(size); }
+    // TypeInfo* GetCachedTypeInfo(size_t index) const { return cachedTypeInfos.Get(index); }
+    // void SetCachedTypeInfo(size_t index, TypeInfo* ti) { cachedTypeInfos.Set(index, ti); }
 private:
     class AtomicTypeInfoArray {
     public:
@@ -226,7 +225,7 @@ private:
     TypeInfo* superTypeInfo { nullptr };
     // The size of this array is the same as the virtual function size of virtual function count in this extenstion
     // data.
-    AtomicTypeInfoArray cachedTypeInfos;
+    // AtomicTypeInfoArray cachedTypeInfos;
 };
 struct MTableDesc {
     std::unordered_map<U32, InheritFuncTable> mTable;
