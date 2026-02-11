@@ -402,7 +402,7 @@ prop name: String
 ## interface SqlNullableDbType <sup>(deprecated)</sup>
 
 ```cangjie
-public interface SqlNullableDbType <: SqlDbType
+public interface SqlNullableDbType <: SqlDbType {}
 ```
 
 功能：允许 `null` 值的 sql 数据类型父类。
@@ -422,13 +422,13 @@ public interface SqlNullableDbType <: SqlDbType
 ```cangjie
 public interface Statement <: Resource {
     prop parameterColumnInfos: Array<ColumnInfo>
+    func query(): QueryResult
     func query(params: Array<SqlDbType>): QueryResult
-    func setOption(key: String, value: String): Unit
-    func update(params: Array<SqlDbType>): UpdateResult
     func set<T>(index: Int64, value: T): Unit
     func setNull(index: Int64): Unit
+    func setOption(key: String, value: String): Unit
     func update(): UpdateResult
-    func query(): QueryResult
+    func update(params: Array<SqlDbType>): UpdateResult
 }
 ```
 
