@@ -62,6 +62,10 @@ extend<T> CPointer<T> {
     }
 
     public unsafe operator func +(offset: Int64): CPointer<T> {
+    //    println("CPointer operator func + start")
+    //    println(this)
+     //   println("CPointer operator func + end")
+        println("CPointer operator func + be called")
         return addPointer<T>(this, offset)
     }
 
