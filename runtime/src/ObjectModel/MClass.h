@@ -445,10 +445,18 @@ private:
     };
 };
 
-class EnumInfo {
+struct EnumDebugInfo {
+    DataRefOffset64<EnumCtorInfo> enumCtorInfos;
+    U32 modifier;
+    U32 enumCtorInfoCnt;
+    EnumCtorInfo* GetEnumCtor(U32 idx) const;
+    void SetEnumCtors(void* ctors);
+};
+
+struct EnumInfo {
 public:
-    inline U32 GetModifier() const { return modifier; }
-    inline U32 GetNumOfEnumCtor() const { return enumCtorInfoCnt; }
+    inline U32 GetModifier() const { return enumDebugInfo.modifier; }
+    inline U32 GetNumOfEnumCtor() const { return enumDebugInfo.enumCtorInfoCnt; }
     inline U32 GetNumOfInstanceMethodInfos() const { return instanceMethodCnt; }
     inline U32 GetNumOfStaticMethodInfos() const { return staticMethodCnt; }
     EnumCtorInfo* GetEnumCtor(U32 idx) const;
@@ -460,21 +468,20 @@ public:
     void SetStaticMethodInfo(U32 idx, MethodInfo* methodInfo);
 
     void SetEnumCtors(void* ctors);
-    void SetCtorInfoNum(U32 num) { enumCtorInfoCnt = num; }
-    void SetParsed() { modifier |= MODIFIER_ENUM_PARSED; }
-    bool IsParsed() const { return (modifier & MODIFIER_ENUM_PARSED) != 0; }
-    bool IsEnumKind0() const { return (modifier & MODIFIER_ENUM_KIND0) != 0; }
-    bool IsEnumKind1() const { return (modifier & MODIFIER_ENUM_KIND1) != 0; }
-    bool IsEnumKind2() const { return (modifier & MODIFIER_ENUM_KIND2) != 0; }
-    bool IsEnumCtor() const { return (modifier & MODIFIER_ENUM_CTOR) != 0; }
+    void SetCtorInfoNum(U32 num) { enumDebugInfo.enumCtorInfoCnt = num; }
+    void SetParsed() { enumDebugInfo.modifier |= MODIFIER_ENUM_PARSED; }
+    bool IsParsed() const { return (enumDebugInfo.modifier & MODIFIER_ENUM_PARSED) != 0; }
+    bool IsEnumKind0() const { return (enumDebugInfo.modifier & MODIFIER_ENUM_KIND0) != 0; }
+    bool IsEnumKind1() const { return (enumDebugInfo.modifier & MODIFIER_ENUM_KIND1) != 0; }
+    bool IsEnumKind2() const { return (enumDebugInfo.modifier & MODIFIER_ENUM_KIND2) != 0; }
+    bool IsEnumCtor() const { return (enumDebugInfo.modifier & MODIFIER_ENUM_CTOR) != 0; }
+    EnumDebugInfo* GetEnumDebugInfo() { return &enumDebugInfo; }
     void* GetDeclaringGenericTypeInfo() { return genericTypeInfo; }
     void SetDeclaringGenericTypeInfo(GenericTypeInfo* ti) { genericTypeInfo = ti; }
     U8 GetReflectVersion() const;
 private:
     Uptr GetBaseAddr() const { return reinterpret_cast<Uptr>(base); }
-    DataRefOffset64<EnumCtorInfo> enumCtorInfos;
-    U32 modifier;
-    U32 enumCtorInfoCnt;
+    EnumDebugInfo enumDebugInfo;
     U32 instanceMethodCnt;
     U32 staticMethodCnt;
     Uptr annotationMethod;
@@ -525,6 +532,7 @@ public:
     inline U16 GetUUID() const { return uuid.load(); }
     inline void SetUUID(U16 id);
     inline EnumInfo* GetEnumInfo();
+    inline EnumDebugInfo* GetEnumDebugInfo();
     inline EnumCtorReflectInfo* GetEnumCtorReflectInfo();
     inline bool ReflectInfoIsNull() const;
     bool ReflectIsEnable() const;
@@ -688,6 +696,7 @@ public:
     void SetReflectInfo(ReflectInfo* info) { this->reflectInfo = info; }
     void SetvExtensionDataStart(ExtensionData **ptr) { this->vExtensionDataStart = ptr; }
     void SetEnumInfo(EnumInfo* ei) { this->enumInfo = ei; }
+    void SetEnumDebugInfo(EnumDebugInfo* enumDebugInfo);
     void SetEnumCtorReflectInfo(EnumCtorReflectInfo* enumCtorInfo) { this->enumCtorReflectInfo = enumCtorInfo; }
     MTableDesc* GetMTableDesc() const { return mTableDesc; }
     void AddMTable(TypeInfo* ti, ExtensionData* extensionData);
@@ -765,6 +774,7 @@ private:
     union {
         ReflectInfo* reflectInfo;
         EnumInfo* enumInfo;
+        EnumDebugInfo* enumDebugInfo;
         EnumCtorReflectInfo* enumCtorReflectInfo;
     };
 };

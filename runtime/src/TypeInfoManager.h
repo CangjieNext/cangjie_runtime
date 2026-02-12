@@ -68,6 +68,13 @@ private:
     void CopyParameterInfos(MethodInfo* ttMethodInfo, MethodInfo* tiMethodInfo);
     void CopyMethodInfo(MethodInfo* ttMethodInfo, MethodInfo* tiMethodInfo, TypeInfo* ti);
 
+    bool ShouldSkipEnumParsing(TypeTemplate* tt, TypeInfo* ti, EnumInfo* ttEi);
+    void HandleEnumCtorReflectInfo(TypeTemplate* tt, TypeInfo* ti);
+    EnumInfo* AllocateEnumInfo(EnumInfo* ttEnumInfo);
+    EnumDebugInfo* AllocateEnumDebugInfo(EnumInfo* ttEnumInfo);
+    void SetupEnumConstructors(EnumDebugInfo* enumDebugInfo, EnumInfo* ttEnumInfo, U32 argSize, TypeInfo* args[]);
+    void SetupEnumMethods(EnumInfo* enumInfo, EnumInfo* ttEnumInfo, TypeInfo* ti);
+
     enum TypeInfoStatus : uint8_t {
         TYPEINFO_NOT_CREATED = 0,
         TYPEINFO_INITING,
