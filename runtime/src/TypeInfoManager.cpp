@@ -603,6 +603,39 @@ EnumInfo* TypeInfoManager::AllocateEnumInfo(EnumInfo* ttEnumInfo)
     return reinterpret_cast<EnumInfo*>(enumInfoAddr);
 }
 
+EnumDebugInfo* TypeInfoManager::AllocateEnumDebugInfo(EnumInfo* ttEnumInfo)
+{
+    U32 enumCtorNum = ttEnumInfo->GetNumOfEnumCtor();
+    size_t enumDebugInfoSize = sizeof(EnumDebugInfo);
+    
+    if (enumCtorNum > 0) {
+        size_t enumCtorsSize = enumCtorNum * sizeof(EnumCtorInfo);
+        enumDebugInfoSize += enumCtorsSize;
+    }
+    
+    uintptr_t enumDebugInfoAddr = Allocate(enumDebugInfoSize);
+    EnumDebugInfo* newEnumDebugInfo = reinterpret_cast<EnumDebugInfo*>(enumDebugInfoAddr);
+    
+    // Copy modifier and enumCtorInfoCnt
+    newEnumDebugInfo->modifier = ttEnumInfo->GetModifier();
+    newEnumDebugInfo->enumCtorInfoCnt = ttEnumInfo->GetNumOfEnumCtor();
+    
+    // Copy enumCtorInfos if they exist
+    if (enumCtorNum > 0) {
+        EnumCtorInfo* ttEnumCtorInfo = ttEnumInfo->GetEnumCtor(0);
+        size_t enumCtorsSize = enumCtorNum * sizeof(EnumCtorInfo);
+        uintptr_t enumCtorsAddr = enumDebugInfoAddr + sizeof(EnumDebugInfo);
+        
+        MapleRuntime::MemoryCopy(enumCtorsAddr, enumCtorsSize,
+            reinterpret_cast<uintptr_t>(ttEnumCtorInfo), enumCtorsSize);
+        
+        // Set the enumCtorInfos DataRefOffset64 to point to the allocated ctors
+        newEnumDebugInfo->enumCtorInfos.refOffset = enumCtorsAddr - reinterpret_cast<uintptr_t>(newEnumDebugInfo);
+    }
+    
+    return newEnumDebugInfo;
+}
+
 void TypeInfoManager::SetupEnumConstructors(EnumInfo* enumInfo, EnumInfo* ttEnumInfo, U32 argSize, TypeInfo* args[])
 {
     U32 enumCtorNum = ttEnumInfo->GetNumOfEnumCtor();
