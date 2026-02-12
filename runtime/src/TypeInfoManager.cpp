@@ -648,16 +648,15 @@ void TypeInfoManager::ParseEnumInfo(TypeTemplate* tt, U32 argSize, TypeInfo* arg
 #ifdef __arm__
     return;
 #endif
-    EnumInfo* ttEi = tt->GetEnumInfo();
-    if (ShouldSkipEnumParsing(tt, ti, ttEi)) {
+    EnumInfo* ttEnumInfo = tt->GetEnumInfo();
+    if (ttEnumInfo == nullptr || ShouldSkipEnumParsing(tt, ti, ttEnumInfo)) {
         return;
     }
     if (tt->IsEnumCtor() && ti->GetReflectInfo() == nullptr) {
         HandleEnumCtorReflectInfo(tt, ti);
         return;
     }
-    EnumInfo* ttEnumInfo = tt->GetEnumInfo();
-    if (!tt->ReflectIsEnable() || ttEnumInfo == nullptr) {
+    if (!tt->ReflectIsEnable()) {
         ti->SetEnumInfo(ttEnumInfo);
         return;
     }

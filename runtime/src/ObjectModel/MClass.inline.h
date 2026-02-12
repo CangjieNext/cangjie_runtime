@@ -263,7 +263,7 @@ inline bool TypeInfo::IsBoxClass() const
     if (IsGeneric()) {
         return false;
     }
-    return GetModifier() & MODIFIER_BOXCLASS;
+    return static_cast<bool>(GetModifier() & MODIFIER_BOXCLASS);
 }
 
 inline bool TypeInfo::ReflectInfoIsNull() const { return reflectInfo == nullptr; }

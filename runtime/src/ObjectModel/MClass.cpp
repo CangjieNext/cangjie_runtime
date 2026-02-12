@@ -1096,7 +1096,7 @@ bool TypeInfo::NeedRefresh()
 EnumCtorInfo* EnumInfo::GetEnumCtor(U32 idx) const
 {
     CHECK(idx < GetNumOfEnumCtor());
-    EnumCtorInfo* enumCtorInfo = enumCtorInfos.GetDataRef();
+    EnumCtorInfo* enumCtorInfo = enumDebugInfo.enumCtorInfos.GetDataRef();
     return enumCtorInfo + idx;
 }
 
@@ -1109,7 +1109,7 @@ TypeInfo* EnumInfo::GetCtorTypeInfo(U32 idx) const
 
 void EnumInfo::SetEnumCtors(void* ctors)
 {
-    enumCtorInfos.refOffset = reinterpret_cast<Uptr>(ctors) - reinterpret_cast<Uptr>(this);
+    enumDebugInfo.enumCtorInfos.refOffset = reinterpret_cast<Uptr>(ctors) - reinterpret_cast<Uptr>(this);
 }
 
 void* EnumInfo::GetAnnotations(TypeInfo* arrayTi)
