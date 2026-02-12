@@ -117,6 +117,7 @@ class KVList<K, V> where K <: Equatable<K> {
             copyList.myData[i] = copyList.myData[i + 1]
             i++
         }
+        copyList.myData[copyList.mySize - 1] = unsafe { zeroValue<KeyValue<K, V>>() }
         copyList.mySize--
         return copyList
     }
@@ -331,6 +332,17 @@ struct Bucket<K, V> where K <: Equatable<K> {
     func refList(): ?KVList<K, V> {
         return atomic_ref_entries.load()
     }
+
+    /**
+     * Ensures the bucket is initialized (not None).
+     * Stores an empty KVList if the bucket has not been initialized yet.
+     * This prevents repeated migration attempts and duplicate ref-count decrements.
+     */
+    func ensureInitialized(): Unit {
+        if (!refList().isSome()) {
+            atomic_ref_entries.store(KVList<K, V>())
+        }
+    }
 }
 
 /**
@@ -377,6 +389,14 @@ class HNode<K, V> where K <: Hashable & Equatable<K> {
      */
     let pre: AtomicOptionReference<HNode<K, V>>
 
+    /**
+     * Tracks the number of new-table buckets that still have pending data to migrate
+     * from old-table. Only counts new buckets that actually contain data from the old table.
+     * Computed precisely during construction by scanning the old table.
+     * When this reaches 0, all old data has been migrated, and pre can be safely set to None.
+     */
+    let pendingMigrations: AtomicInt64
+
     init(capacity: Int64, refPre: ?HNode<K, V>, lockG: MutexLockGroup, version: Int64) {
         let zero = unsafe { zeroValue<Bucket<K, V>>() }
         buckets = Array<Bucket<K, V>>(capacity, repeat: zero)
@@ -387,6 +407,34 @@ class HNode<K, V> where K <: Hashable & Equatable<K> {
         this.lockG = lockG
         this.version = version
         this.pre = AtomicOptionReference(refPre)
+        if (let Some(preHT) <- refPre) {
+            // Scan old table to precisely count how many new buckets actually have data
+            // from each old bucket. For doubling resize, each old bucket #i maps to
+            // new bucket #i (low) and #(i + oldSize) (high). An element goes to low if
+            // hash & (newSize-1) == i, otherwise to high.
+            let oldSize = preHT.buckets.size
+            let newMask = capacity - 1
+            var pending: Int64 = 0
+            for (idx in 0..oldSize) {
+                if (let Some(entries) <- preHT.buckets[idx].refList()) {
+                    var hasLow = false
+                    var hasHigh = false
+                    for (j in 0..entries.size) {
+                        if ((entries[j][0] & newMask) == idx) {
+                            hasLow = true
+                        } else {
+                            hasHigh = true
+                        }
+                        if (hasLow && hasHigh) { break }
+                    }
+                    if (hasLow) { pending++ }
+                    if (hasHigh) { pending++ }
+                }
+            }
+            this.pendingMigrations = AtomicInt64(pending)
+        } else {
+            this.pendingMigrations = AtomicInt64(0)
+        }
     }
 
     func freeze(index: Int64) {
@@ -421,7 +469,13 @@ class HNode<K, V> where K <: Hashable & Equatable<K> {
                         case _ => None<V>
                     }
                 }
-                return None<V>
+                // pre was cleared after all old data migrated to current table.
+                // Re-check current bucket: data may have been migrated between
+                // our first find() and pre being cleared (narrow race window).
+                return match (buckets[index].find(hash, key)) {
+                    case FIND(v) => Some(v)
+                    case _ => None<V>
+                }
         }
     }
 
@@ -459,6 +513,19 @@ class HNode<K, V> where K <: Hashable & Equatable<K> {
             let preIndex = index & (preHT.buckets.size - 1) // Index of bucket remains to be migrated
             preHT.freeze(preIndex)
             buckets[index].migrate(preHT.buckets[preIndex].refList(), buckets.size - 1, index)
+            // Check if migration actually produced data (before ensureInitialized fills empty bucket).
+            var hasMigratedData = false
+            if (let Some(list) <- buckets[index].refList()) {
+                hasMigratedData = list.size > 0
+            }
+            // Ensure bucket is not None even if old bucket was empty,
+            // to prevent repeated migration attempts.
+            buckets[index].ensureInitialized()
+            // Only decrement when actual data was migrated from old bucket to this new bucket.
+            // When pendingMigrations reaches 0, all old data is in current table, safe to clear pre.
+            if (hasMigratedData && pendingMigrations.fetchSub(1) == 1) {
+                pre.store(None<HNode<K, V>>)
+            }
         }
 
         return true
