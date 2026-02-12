@@ -873,7 +873,7 @@ bool TypeInfo::IsOptionLikeRefEnum()
     if (IsEnumCtor()) {
         enumInfo = GetSuperTypeInfo()->GetEnumInfo();
     }
-    if (!enumInfo->IsEnumKind2()) {
+    if (enumInfo == nullptr || !enumInfo->IsEnumKind2()) {
         return false;
     }
     if (!GetFieldType(0)->IsBool()) {
@@ -891,7 +891,7 @@ bool TypeInfo::IsZeroSizedEnum()
         return GetInstanceSize() == 0;
     }
     EnumInfo* enumInfo = GetEnumInfo();
-    if (!enumInfo->IsEnumKind0()) {
+    if (enumInfo == nullptr || !enumInfo->IsEnumKind0()) {
         return false;
     }
     U32 ctorNum = enumInfo->GetNumOfEnumCtor();
@@ -911,14 +911,18 @@ bool TypeInfo::IsOptionLikeUnassociatedCtor()
         return false;
     }
     EnumInfo* enumInfo = GetSuperTypeInfo()->GetEnumInfo();
-    if (!enumInfo->IsEnumKind2()) {
+    if (enumInfo == nullptr || !enumInfo->IsEnumKind2()) {
         return false;
     }
     U32 num = enumInfo->GetNumOfEnumCtor();
     for (U32 idx = 0; idx < num; idx++) {
         TypeInfo* ctorTi = enumInfo->GetCtorTypeInfo(idx);
         if (ctorTi->GetUUID() == GetUUID()) {
-            CString ctorName = CString(enumInfo->GetEnumCtor(idx)->GetName());
+            EnumCtorInfo* enumCtorInfo = enumInfo->GetEnumCtor(idx);
+            if (enumCtorInfo == nullptr) {
+                continue;
+            }
+            CString ctorName = CString(enumCtorInfo->GetName());
             return ctorName.StartWith("N$_");
         }
     }
@@ -1029,13 +1033,21 @@ U32 TypeInfo::GetNumOfEnumCtor()
     if ((IsGenericTypeInfo() && !GetSourceGeneric()->ReflectIsEnable()) || !ReflectIsEnable()) {
         return 0;
     }
-    return GetEnumInfo()->GetNumOfEnumCtor();
+    EnumInfo* enumInfo = GetEnumInfo();
+    if (enumInfo == nullptr) {
+        return 0;
+    }
+    return enumInfo->GetNumOfEnumCtor();
 }
 
 EnumCtorInfo* TypeInfo::GetEnumCtor(U32 idx)
 {
     CHECK_DETAIL(IsEnum() || IsTempEnum(), "To get the Enum's constructor, but the type is not Enum.");
-    return GetEnumInfo()->GetEnumCtor(idx);
+    EnumInfo* enumInfo = GetEnumInfo();
+    if (enumInfo == nullptr) {
+        return nullptr;
+    }
+    return enumInfo->GetEnumCtor(idx);
 }
 
 void* TypeInfo::GetAnnotations(TypeInfo* arrayTi)
@@ -1104,6 +1116,9 @@ TypeInfo* EnumInfo::GetCtorTypeInfo(U32 idx) const
 {
     CHECK(idx < GetNumOfEnumCtor());
     EnumCtorInfo* enumCtorInfo = GetEnumCtor(idx);
+    if (enumCtorInfo == nullptr) {
+        return nullptr;
+    }
     return enumCtorInfo->GetTypeInfo();
 }
 

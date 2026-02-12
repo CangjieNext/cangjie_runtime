@@ -1249,6 +1249,7 @@ extern "C" EnumCtorInfo* MCC_GetEnumConstructorInfoFromAny(ObjRef obj) {
     if (ti->IsEnumCtor()) {
         enumInfo = ti->GetSuperTypeInfo()->GetEnumInfo();
     }
+    CHECK_DETAIL(enumInfo != nullptr, "MCC_GetEnumConstructorInfoFromAny: enumInfo is nullptr");
 
     I32 tag = FieldInitializer::GetEnumTag(obj, ti);
     return enumInfo->GetEnumCtor(tag);
@@ -1383,6 +1384,7 @@ extern "C" ObjRef MCC_GetAssociatedValues(ObjRef obj, TypeInfo* arrayTi)
             // The object's TypeInfo(ti) is the enum's TypeInfo.
             // Read the tag, and get constructor's TypeInfo based on the tag.
             EnumInfo* enumInfo = ti->GetEnumInfo();
+            CHECK_DETAIL(enumInfo != nullptr, "MCC_GetAssociatedValues: enumInfo is nullptr");
             I32 tag = FieldInitializer::GetEnumTag(obj, ti);
             ti = enumInfo->GetCtorTypeInfo(tag);
             fieldNum = ti->GetFieldNum();

@@ -370,7 +370,7 @@ TypeInfo* TypeInfoManager::GetOrCreateTypeInfo(TypeTemplate* tt, U32 argSize, Ty
     if (typeInfoDesc->IsInited()) {
         return typeInfoDesc->typeInfo;
     }
-    const U32 currentTid = GetTid();
+    const U32 currentTid = static_cast<U32>(GetTid());
     do {
         if (typeInfoDesc->IsInited()) {
             return typeInfoDesc->typeInfo;
@@ -493,6 +493,7 @@ void TypeInfoManager::CopyParameterInfos(MethodInfo* ttMethodInfo, MethodInfo* t
 // Helper method to copy method information
 void TypeInfoManager::CopyMethodInfo(MethodInfo* ttMethodInfo, MethodInfo* tiMethodInfo, TypeInfo* ti)
 {
+    CHECK_DETAIL(ttMethodInfo != nullptr, "ttMethodInfo is nullptr");
     MapleRuntime::MemoryCopy(reinterpret_cast<uintptr_t>(tiMethodInfo), sizeof(MethodInfo),
         reinterpret_cast<uintptr_t>(ttMethodInfo), sizeof(MethodInfo));
     tiMethodInfo->SetDeclaringTypeInfo(ti);
