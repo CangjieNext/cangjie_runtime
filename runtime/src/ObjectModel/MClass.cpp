@@ -121,6 +121,11 @@ void TypeInfo::SetMTableDesc(MTableDesc* desc)
     validInheritNum = validInheritNum & ((1ULL << 15) - 1);
 }
 
+void TypeInfo::SetEnumDebugInfo(EnumDebugInfo* enumDebugInfo)
+{
+    this->enumDebugInfo = enumDebugInfo;
+}
+
 void TypeInfo::TryInitMTable()
 {
     if (IsMTableDescUnInitialized()) {
@@ -1110,6 +1115,18 @@ TypeInfo* EnumInfo::GetCtorTypeInfo(U32 idx) const
 void EnumInfo::SetEnumCtors(void* ctors)
 {
     enumDebugInfo.enumCtorInfos.refOffset = reinterpret_cast<Uptr>(ctors) - reinterpret_cast<Uptr>(this);
+}
+
+EnumCtorInfo* EnumDebugInfo::GetEnumCtor(U32 idx) const
+{
+    CHECK(idx < enumCtorInfoCnt);
+    EnumCtorInfo* enumCtorInfo = enumCtorInfos.GetDataRef();
+    return enumCtorInfo + idx;
+}
+
+void EnumDebugInfo::SetEnumCtors(void* ctors)
+{
+    enumCtorInfos.refOffset = reinterpret_cast<Uptr>(ctors) - reinterpret_cast<Uptr>(this);
 }
 
 void* EnumInfo::GetAnnotations(TypeInfo* arrayTi)

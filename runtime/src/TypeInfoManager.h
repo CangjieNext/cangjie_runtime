@@ -72,7 +72,7 @@ private:
     void HandleEnumCtorReflectInfo(TypeTemplate* tt, TypeInfo* ti);
     EnumInfo* AllocateEnumInfo(EnumInfo* ttEnumInfo);
     EnumDebugInfo* AllocateEnumDebugInfo(EnumInfo* ttEnumInfo);
-    void SetupEnumConstructors(EnumInfo* enumInfo, EnumInfo* ttEnumInfo, U32 argSize, TypeInfo* args[]);
+    void SetupEnumConstructors(EnumDebugInfo* enumDebugInfo, EnumInfo* ttEnumInfo, U32 argSize, TypeInfo* args[]);
     void SetupEnumMethods(EnumInfo* enumInfo, EnumInfo* ttEnumInfo, TypeInfo* ti);
 
     enum TypeInfoStatus : uint8_t {

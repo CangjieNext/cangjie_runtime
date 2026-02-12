@@ -449,6 +449,8 @@ struct EnumDebugInfo {
     DataRefOffset64<EnumCtorInfo> enumCtorInfos;
     U32 modifier;
     U32 enumCtorInfoCnt;
+    EnumCtorInfo* GetEnumCtor(U32 idx) const;
+    void SetEnumCtors(void* ctors);
 };
 
 struct EnumInfo {
@@ -473,6 +475,7 @@ public:
     bool IsEnumKind1() const { return (enumDebugInfo.modifier & MODIFIER_ENUM_KIND1) != 0; }
     bool IsEnumKind2() const { return (enumDebugInfo.modifier & MODIFIER_ENUM_KIND2) != 0; }
     bool IsEnumCtor() const { return (enumDebugInfo.modifier & MODIFIER_ENUM_CTOR) != 0; }
+    EnumDebugInfo* GetEnumDebugInfo() { return &enumDebugInfo; }
     void* GetDeclaringGenericTypeInfo() { return genericTypeInfo; }
     void SetDeclaringGenericTypeInfo(GenericTypeInfo* ti) { genericTypeInfo = ti; }
     U8 GetReflectVersion() const;
@@ -529,6 +532,7 @@ public:
     inline U16 GetUUID() const { return uuid.load(); }
     inline void SetUUID(U16 id);
     inline EnumInfo* GetEnumInfo();
+    inline EnumDebugInfo* GetEnumDebugInfo();
     inline EnumCtorReflectInfo* GetEnumCtorReflectInfo();
     inline bool ReflectInfoIsNull() const;
     bool ReflectIsEnable() const;
@@ -692,6 +696,7 @@ public:
     void SetReflectInfo(ReflectInfo* info) { this->reflectInfo = info; }
     void SetvExtensionDataStart(ExtensionData **ptr) { this->vExtensionDataStart = ptr; }
     void SetEnumInfo(EnumInfo* ei) { this->enumInfo = ei; }
+    void SetEnumDebugInfo(EnumDebugInfo* enumDebugInfo);
     void SetEnumCtorReflectInfo(EnumCtorReflectInfo* enumCtorInfo) { this->enumCtorReflectInfo = enumCtorInfo; }
     MTableDesc* GetMTableDesc() const { return mTableDesc; }
     void AddMTable(TypeInfo* ti, ExtensionData* extensionData);
@@ -769,6 +774,7 @@ private:
     union {
         ReflectInfo* reflectInfo;
         EnumInfo* enumInfo;
+        EnumDebugInfo* enumDebugInfo;
         EnumCtorReflectInfo* enumCtorReflectInfo;
     };
 };
