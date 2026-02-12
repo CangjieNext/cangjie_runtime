@@ -72,6 +72,14 @@ inline EnumInfo* TypeTemplate::GetEnumInfo()
     return nullptr;
 }
 
+inline EnumDebugInfo* TypeTemplate::GetEnumDebugInfo()
+{
+    if (IsEnum() || IsTempEnum()) {
+        return enumInfo->GetEnumDebugInfo();
+    }
+    return nullptr;
+}
+
 inline EnumCtorReflectInfo* TypeTemplate::GetEnumCtorReflectInfo()
 {
     if (IsEnumCtor()) {
