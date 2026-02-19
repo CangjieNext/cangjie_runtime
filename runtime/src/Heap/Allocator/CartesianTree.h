@@ -45,8 +45,11 @@ public:
     CartesianTree() = default;
     ~CartesianTree() = default;
 
-    void Init(size_t memoryBlockCount)
+    // @param base: global unit index offset. Tree-local index + base = global RegionInfo index.
+    //   For MAIN space, base = 0. For LOS space, base = losUnitStart.
+    void Init(size_t memoryBlockCount, Index base = 0)
     {
+        baseIndex = base;
         // at most we need this many nodes
         size_t nodeCount = (memoryBlockCount >> 1) + 1;
         // calculate how much we need for native allocation
@@ -58,6 +61,8 @@ public:
         sud.Init(ALLOCUTIL_PAGE_RND_UP(dequeSize));
         traversalSud.Init(sud.GetMemMap());
     }
+
+    Index GetBaseIndex() const { return baseIndex; }
 
     void Fini() noexcept
     {
@@ -99,7 +104,7 @@ public:
     bool MergeInsert(Index idx, Count num, bool refreshRegionInfo)
     {
         if (root == nullptr) {
-            root = new (nodeAllocator.Allocate()) Node(idx, num, refreshRegionInfo);
+            root = new (nodeAllocator.Allocate()) Node(idx, num, refreshRegionInfo, baseIndex);
             CTREE_ASSERT(root != nullptr, "failed to allocate a new node");
             IncTotalCount(num);
             return true;
@@ -123,10 +128,12 @@ public:
     }
 
     struct Node {
-        Node(Index idx, Count num, bool refreshRegionInfo) : l(nullptr), r(nullptr), index(idx), count(num)
+        // @param base: global unit index offset for RegionInfo operations.
+        Node(Index idx, Count num, bool refreshRegionInfo, Index base = 0)
+            : l(nullptr), r(nullptr), index(idx), count(num)
         {
             if (refreshRegionInfo) {
-                RefreshFreeRegionInfo();
+                RefreshFreeRegionInfo(base);
             }
         }
 
@@ -140,24 +147,24 @@ public:
 
         inline Count GetCount() const { return count; }
 
-        inline void IncCount(Count num, bool refreshRegionInfo)
+        inline void IncCount(Count num, bool refreshRegionInfo, Index base = 0)
         {
             count += num;
             if (refreshRegionInfo && count > 0) {
-                RefreshFreeRegionInfo();
+                RefreshFreeRegionInfo(base);
             }
         }
 
         inline void ClearCount() { count = 0; }
 
-        inline void UpdateNode(Index idx, Count cnt, bool refreshRegionInfo)
+        inline void UpdateNode(Index idx, Count cnt, bool refreshRegionInfo, Index base = 0)
         {
             index = idx;
             count = cnt;
             if (refreshRegionInfo && cnt > 0) {
                 // GetNextNeighborRegion in compact gc expects free-region metadata is always up-to-date.
                 // otherwise we can ignore refreshRegionInfo.
-                RefreshFreeRegionInfo();
+                RefreshFreeRegionInfo(base);
             }
         }
 
@@ -168,8 +175,10 @@ public:
             return (count >= leftCount && count >= rightCount);
         }
 
-        void RefreshFreeRegionInfo();
-        void ReleaseMemory();
+        // @param base: global unit index offset. Node stores local index;
+        //   RegionInfo is accessed with (localIndex + base).
+        void RefreshFreeRegionInfo(Index base = 0);
+        void ReleaseMemory(Index base = 0);
 
         Node* l;
         Node* r;
@@ -254,7 +263,7 @@ public:
     // root node records the largest block of memory.
     void ReleaseRootNode()
     {
-        root->ReleaseMemory();
+        root->ReleaseMemory(baseIndex);
         RemoveNode(root);
     }
 
@@ -266,6 +275,7 @@ public:
 
 private:
     Count totalCount = 0u; // sum of all node counts.
+    Index baseIndex = 0;     // global unit index offset for RegionInfo (0 for MAIN, losUnitStart for LOS)
     Node* root = nullptr;
     SingleUseDeque<Node**> sud;
     SingleUseDeque<Node*> traversalSud;
@@ -326,11 +336,11 @@ private:
             }
         }
 
-        n.IncCount(num, refreshRegionInfo);
+        n.IncCount(num, refreshRegionInfo, baseIndex);
         IncTotalCount(num);
 
         if (nearest != nullptr) {
-            n.IncCount(nearest->GetCount(), refreshRegionInfo);
+            n.IncCount(nearest->GetCount(), refreshRegionInfo, baseIndex);
 
             // now the node doesn't have left child, so we can fast remove it.
             if (parent == &n) {
@@ -366,7 +376,7 @@ private:
             }
         }
 
-        n.UpdateNode(startIdx, n.GetCount() + num, refreshRegionInfo);
+        n.UpdateNode(startIdx, n.GetCount() + num, refreshRegionInfo, baseIndex);
         IncTotalCount(num);
 
         if (nearest != nullptr) {
@@ -376,7 +386,7 @@ private:
             } else {
                 parent->r = nearest->l;
             }
-            n.UpdateNode(nearest->GetIndex(), n.GetCount() + nearest->GetCount(), refreshRegionInfo);
+            n.UpdateNode(nearest->GetIndex(), n.GetCount() + nearest->GetCount(), refreshRegionInfo, baseIndex);
             nodeAllocator.Deallocate(nearest);
         }
         CTREE_CHECK_PARENT_AND_LCHILD(&n);
@@ -430,7 +440,7 @@ private:
         idx = node->GetIndex();
         auto count = node->GetCount();
 
-        node->UpdateNode(idx + num, count - num, refershRegionInfo);
+        node->UpdateNode(idx + num, count - num, refershRegionInfo, baseIndex);
         DecTotalCount(num);
 
         if (node->GetCount() == 0) {
@@ -455,7 +465,7 @@ private:
         index = node->GetIndex();
         DLOG(REGION, "c-tree %p v-alloc %u units from [%u+%u, %u)", this, count, index, nodeCount, index + nodeCount);
 
-        node->UpdateNode(index + count, nodeCount - count, false);
+        node->UpdateNode(index + count, nodeCount - count, false, baseIndex);
         DecTotalCount(count);
         if (node->GetCount() == 0) {
             RemoveZeroNode(node);

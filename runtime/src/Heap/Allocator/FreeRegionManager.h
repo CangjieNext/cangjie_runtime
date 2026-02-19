@@ -21,7 +21,10 @@ class FreeRegionManager {
     using UnitCount = CartesianTree::Count;
 
 public:
-    explicit FreeRegionManager(RegionManager& manager) : regionManager(manager) {}
+    // @param baseUnitIndex: global unit index of the first unit managed by this instance.
+    //   For MAIN space, baseUnitIndex = 0. For LOS space, baseUnitIndex = losUnitStart.
+    explicit FreeRegionManager(RegionManager& manager, UnitIndex baseUnitIndex = 0)
+        : regionManager(manager), baseUnit(baseUnitIndex) {}
 
     virtual ~FreeRegionManager()
     {
@@ -31,9 +34,11 @@ public:
 
     void Initialize(UnitCount regionCnt)
     {
-        releasedUnitTree.Init(regionCnt);
-        dirtyUnitTree.Init(regionCnt);
+        releasedUnitTree.Init(regionCnt, baseUnit);
+        dirtyUnitTree.Init(regionCnt, baseUnit);
     }
+
+    UnitIndex GetBaseUnit() const { return baseUnit; }
 
     RegionInfo* TakeRegion(size_t num, RegionInfo::UnitRole uclass, bool expectPhysicalMem)
     {
@@ -46,13 +51,15 @@ public:
             // first try to get a dirty region.
             if (tryDirtyTree && dirtyUnitTreeMutex.try_lock()) {
                 if (dirtyUnitTree.TakeUnits(num, idx)) {
+                    UnitIndex globalIdx = idx + baseUnit;
                     DLOG(REGION, "c-tree %p alloc dirty units[%u+%u, %u) @[0x%zx, 0x%zx), %u dirty-units left",
-                        &dirtyUnitTree, idx, num, idx + num, RegionInfo::GetUnitAddress(idx),
-                        RegionInfo::GetUnitAddress(idx + num), dirtyUnitTree.GetTotalCount());
+                        &dirtyUnitTree, globalIdx, num, globalIdx + num,
+                        RegionInfo::GetUnitAddress(globalIdx),
+                        RegionInfo::GetUnitAddress(globalIdx + num), dirtyUnitTree.GetTotalCount());
 
                     // it makes sense to slow down allocation by clearing region memory.
-                    RegionInfo::ClearUnits(idx, num);
-                    RegionInfo* region = RegionInfo::InitRegion(idx, num, uclass);
+                    RegionInfo::ClearUnits(globalIdx, num);
+                    RegionInfo* region = RegionInfo::InitRegion(globalIdx, num, uclass);
                     dirtyUnitTreeMutex.unlock();
                     return region;
                 }
@@ -63,16 +70,19 @@ public:
             // then try to get a released region.
             if (tryReleasedTree && releasedUnitTreeMutex.try_lock()) {
                 if (releasedUnitTree.TakeUnits(num, idx)) {
+                    UnitIndex globalIdx = idx + baseUnit;
 #ifdef _WIN64
                     MemMap::CommitMemory(
-                        reinterpret_cast<void*>(RegionInfo::GetUnitAddress(idx)), num * RegionInfo::UNIT_SIZE);
+                        reinterpret_cast<void*>(RegionInfo::GetUnitAddress(globalIdx)),
+                        num * RegionInfo::UNIT_SIZE);
 #endif
                     DLOG(REGION, "c-tree %p alloc released units[%u+%u, %u) @[0x%zx, 0x%zx), %u released-units left",
-                        &releasedUnitTree, idx, num, idx + num, RegionInfo::GetUnitAddress(idx),
-                        RegionInfo::GetUnitAddress(idx + num), releasedUnitTree.GetTotalCount());
-                    RegionInfo* region = RegionInfo::InitRegion(idx, num, uclass);
+                        &releasedUnitTree, globalIdx, num, globalIdx + num,
+                        RegionInfo::GetUnitAddress(globalIdx),
+                        RegionInfo::GetUnitAddress(globalIdx + num), releasedUnitTree.GetTotalCount());
+                    RegionInfo* region = RegionInfo::InitRegion(globalIdx, num, uclass);
                     releasedUnitTreeMutex.unlock();
-                    PrehandleReleasedUnit(expectPhysicalMem, idx, num);
+                    PrehandleReleasedUnit(expectPhysicalMem, globalIdx, num);
                     return region;
                 }
                 tryReleasedTree = false; // once we fail to take units, stop trying.
@@ -84,21 +94,23 @@ public:
         return nullptr;
     }
 
-    // add units [idx, idx + num)
+    // add units [idx, idx + num), idx is global unit index
     void AddGarbageUnits(UnitIndex idx, UnitCount num)
     {
+        UnitIndex localIdx = idx - baseUnit;
         ScopedEnterSaferegion enterSaferegion(true);
         std::lock_guard<std::mutex> lg(dirtyUnitTreeMutex);
-        if (UNLIKELY(!dirtyUnitTree.MergeInsert(idx, num, true))) {
+        if (UNLIKELY(!dirtyUnitTree.MergeInsert(localIdx, num, true))) {
             LOG(RTLOG_FATAL, "tid %d: failed to add dirty units [%u+%u, %u)", GetTid(), idx, num, idx + num);
         }
     }
 
     void AddReleaseUnits(UnitIndex idx, UnitCount num)
     {
+        UnitIndex localIdx = idx - baseUnit;
         ScopedEnterSaferegion enterSaferegion(true);
         std::lock_guard<std::mutex> lg(releasedUnitTreeMutex);
-        if (UNLIKELY(!releasedUnitTree.MergeInsert(idx, num, true))) {
+        if (UNLIKELY(!releasedUnitTree.MergeInsert(localIdx, num, true))) {
             LOG(RTLOG_FATAL, "tid %d: failed to add release units [%u+%u, %u)", GetTid(), idx, num, idx + num);
         }
     }
@@ -122,6 +134,7 @@ private:
         }
     }
     RegionManager& regionManager;
+    UnitIndex baseUnit = 0; // global unit index offset (0 for MAIN, losUnitStart for LOS)
 
     // physical pages of released units are probably released and they are prepared for allocation.
     std::mutex releasedUnitTreeMutex;

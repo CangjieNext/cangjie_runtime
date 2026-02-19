@@ -436,10 +436,11 @@ void RegionManager::Initialize(size_t nUnit, uintptr_t regionInfoAddr)
 
     // Initialize LOS manager if losRatio > 0
     if (losRatio > 0 && losUnitCount > 0) {
-        losManager = new (std::nothrow) LOSManager(reserveManager);
+        size_t losUnitStart = mainUnitCount + reserveUnitCount;
+        size_t losUnitEnd = nUnit;
+        losManager = new (std::nothrow) LOSManager(
+            *this, static_cast<CartesianTree::Index>(losUnitStart), reserveManager);
         if (losManager != nullptr) {
-            size_t losUnitStart = mainUnitCount + reserveUnitCount;
-            size_t losUnitEnd = nUnit;
             losManager->Initialize(losStart, losEnd, losUnitStart, losUnitEnd);
         }
     }

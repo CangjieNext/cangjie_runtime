@@ -337,11 +337,102 @@ regionHeapStart                                                       regionHeap
 
 ---
 
-## 7. 后续工作（M2）
+## 7. M1 重构：LOSManager 复用 FreeRegionManager
+
+**重构日期**：2026年2月
+
+### 7.1 重构动机
+
+M1 初始实现中，LOSManager 内部直接持有两棵原始 `CartesianTree` 及对应的 `std::mutex`，与 RegionManager 中已有的 `FreeRegionManager` 功能重复。为了在 M2 阶段复用 `FreeRegionManager` 的 `TakeRegion()` / `AddGarbageUnits()` / `AddReleaseUnits()` / `ReleaseGarbageRegions()` 等方法，需要将 LOSManager 的树管理替换为独立的 `FreeRegionManager` 实例。
+
+**核心挑战**：`CartesianTree::Node` 内部存储的是局部索引 `[0, unitCount)`，但 `RefreshFreeRegionInfo()` 和 `ReleaseMemory()` 调用 `RegionInfo` 时需要全局索引。对于 MAIN 空间（base=0）这是透明的，但 LOS 空间（base=losUnitStart>0）需要偏移量。
+
+### 7.2 修改文件
+
+#### CartesianTree.h / CartesianTree.cpp
+
+- 新增 `baseIndex` 成员变量（默认 0，MAIN 不变；LOS 设为 losUnitStart）
+- `Init(count, base=0)` 保存 baseIndex
+- `Node` 构造、`IncCount`、`UpdateNode`、`RefreshFreeRegionInfo`、`ReleaseMemory` 方法均增加 `base` 参数（默认 0，保持向后兼容）
+- 所有内部方法（`MergeInsert`、`MergeToRight`、`MergeToLeft`、`TakeUnitsImpl`、`AllocateLowestAddressFromNode`、`ReleaseRootNode`）自动传递 `baseIndex`
+- `RefreshFreeRegionInfo(base)` → `RegionInfo::InitFreeRegion(localIdx + base, cnt)`
+- `ReleaseMemory(base)` → `RegionInfo::ReleaseUnits(localIdx + base, cnt)`
+
+#### FreeRegionManager.h
+
+- 新增 `baseUnit` 成员变量（构造函数参数，默认 0）
+- `Initialize(regionCnt)` 传递 baseUnit 给 `CartesianTree::Init(cnt, baseUnit)`
+- `TakeRegion()` 中 `idx` 由树返回的局部索引转换为 `globalIdx = idx + baseUnit` 用于 RegionInfo 操作
+- `AddGarbageUnits(idx, num)` / `AddReleaseUnits(idx, num)` 接收全局索引，转换为 `localIdx = idx - baseUnit` 用于树操作
+- 新增 `GetBaseUnit()` 访问器
+
+#### LOSManager.h
+
+- **移除**：`releasedUnitTreeMutex`、`releasedUnitTree`、`dirtyUnitTreeMutex`、`dirtyUnitTree` 四个原始成员
+- **新增**：`FreeRegionManager losFreeMgr` 成员（baseUnit = losUnitStart）
+- 构造函数改为 `LOSManager(RegionManager& manager, UnitCount baseUnitIndex, ReserveManager*)`
+- 析构函数改为 `= default`（FreeRegionManager 自行管理树的清理）
+- 新增 `GetFreeRegionManager()` / `GetUnitStart()` / `GetUnitEnd()` 访问器
+
+#### LOSManager.cpp
+
+- `Initialize()` 使用 `losFreeMgr.Initialize(losUnitCount)` 替代原始树的 `Init()`
+
+#### RegionManager.cpp
+
+- LOSManager 构造函数调用更新为 `new LOSManager(*this, losUnitStart, reserveManager)`
+
+### 7.3 更新后的 LOSManager 核心成员
+
+```cpp
+class LOSManager {
+    FreeRegionManager losFreeMgr;          // 独立的 FreeRegionManager (baseUnit = losUnitStart)
+    ReserveManager* reserveManager;        // RESERVE 管理器
+
+    uintptr_t losStart;                    // LOS 空间起始地址
+    uintptr_t losEnd;                      // LOS 空间结束地址
+    std::atomic<uintptr_t> losInactiveZone;
+
+    UnitCount losUnitStart;                // 全局 unit 起始索引
+    UnitCount losUnitEnd;                  // 全局 unit 结束索引
+
+    RegionList losOldLargeRegionList;
+    RegionList losRecentLargeRegionList;
+
+    size_t losAllocCount;
+    size_t losAllocFailCount;
+    size_t losFallbackCount;
+};
+```
+
+### 7.4 索引转换示意
+
+```
+全局 RegionInfo 索引:  [0 ......... mainUnitCount-1][reserveUnits][losUnitStart ... nUnit-1]
+                        |<--- MAIN (base=0) --->|                |<--- LOS (base=losUnitStart) --->|
+
+MAIN FreeRegionManager:  baseUnit=0,  树内局部索引=[0, mainUnitCount)
+LOS  FreeRegionManager:  baseUnit=losUnitStart, 树内局部索引=[0, losUnitCount)
+
+转换规则:
+  globalIdx = localIdx + baseUnit
+  localIdx  = globalIdx - baseUnit
+```
+
+### 7.5 验收
+
+- [x] 编译通过 (native debug)
+- [x] 无新增错误或警告
+- [x] 所有默认参数 base=0 确保 MAIN 路径完全不变（向后兼容）
+- [x] LOS FreeRegionManager 的 baseUnit 偏移确保 RegionInfo 访问使用正确的全局索引
+
+---
+
+## 8. 后续工作（M2）
 
 M2 将实现大对象分配分流：
 
-1. `LOSManager::AllocLarge()` 实现完整分配逻辑
+1. `LOSManager::AllocLarge()` 实现完整分配逻辑——直接调用 `losFreeMgr.TakeRegion()`
 2. `RegionManager::AllocLarge()` 增加 LOS 优先判断
 3. RESERVE 借用触发机制
 4. 降级到 MAIN 的统计和日志

@@ -29,7 +29,7 @@ bool CartesianTree::MergeInsertInternal(Index idx, Count num, bool refreshRegion
     // this loop insert the new node (idx, num) at the proper place
     do {
         if (n == nullptr) {
-            n = new (nodeAllocator.Allocate()) Node(idx, num, refreshRegionInfo);
+            n = new (nodeAllocator.Allocate()) Node(idx, num, refreshRegionInfo, baseIndex);
             CTREE_ASSERT(n != nullptr, "failed to allocate a new node");
             *pn = n;
             IncTotalCount(num);
@@ -121,16 +121,16 @@ void CartesianTree::DumpTree(const char* msg) const
 }
 #endif
 
-void CartesianTree::Node::RefreshFreeRegionInfo()
+void CartesianTree::Node::RefreshFreeRegionInfo(Index base)
 {
-    Index idx = GetIndex();
+    Index idx = GetIndex() + base;
     Count cnt = GetCount();
     RegionInfo::InitFreeRegion(idx, cnt);
 }
 
-void CartesianTree::Node::ReleaseMemory()
+void CartesianTree::Node::ReleaseMemory(Index base)
 {
-    Index idx = GetIndex();
+    Index idx = GetIndex() + base;
     Count cnt = GetCount();
     RegionInfo::ReleaseUnits(idx, cnt);
 }
