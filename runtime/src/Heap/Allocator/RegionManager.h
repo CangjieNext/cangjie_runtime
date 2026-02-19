@@ -18,7 +18,9 @@
 #include "Common/RunType.h"
 #include "FreeRegionManager.h"
 #include "Heap/GcThreadPool.h"
+#include "LOSManager.h"
 #include "RegionList.h"
+#include "ReserveManager.h"
 #include "securec.h"
 #include "SlotList.h"
 #include "Sync/Sync.h"
@@ -26,8 +28,6 @@
 namespace MapleRuntime {
 class CopyCollector;
 class CompactCollector;
-class LOSManager;
-class ReserveManager;
 
 struct FreePinnedSlotLists {
     static constexpr size_t ATOMIC_OBJECT_SIZE = 16;
@@ -150,6 +150,8 @@ public:
     bool IsLOSEnabled() const { return losManager != nullptr; }
     bool IsReserveEnabled() const { return reserveManager != nullptr; }
 
+    size_t GetMainReserveBorrowCount() const { return mainReserveBorrowCount; }
+
     ~RegionManager() = default;
 
     // take a region with *num* units for allocation
@@ -207,15 +209,58 @@ public:
     // note: AllocSmall() is always performed by region owned by mutator thread
     // thus no need to do in RegionManager
     // caller assures size is truely large (> region size)
+    //
+    // M2: Route large object allocation through LOS first, then fall back to MAIN.
+    // Flow: LOS AllocLarge → (fail) → MAIN AllocLargeInMain → (fail) → return 0
     uintptr_t AllocLarge(size_t size)
+    {
+        // Step 1-2: Try LOS allocation (losFreeMgr + inactiveZone)
+        if (losManager != nullptr) {
+            uintptr_t addr = losManager->AllocLarge(size);
+            if (addr != 0) {
+                return addr;
+            }
+            // LOS allocation failed — fall through to MAIN
+            // TODO(M4): Signal async compaction if LOS is fragmented
+        }
+
+        // Step 4: Fall back to MAIN space (original allocation path)
+        uintptr_t addr = AllocLargeInMain(size);
+        if (addr != 0 && losManager != nullptr) {
+            losManager->IncrementFallbackCount();
+            DLOG(REGION, "LOS alloc fallback to MAIN: size %zu", size);
+        }
+        return addr;
+    }
+
+    // Original MAIN-space large object allocation (extracted from pre-M2 AllocLarge).
+    // Allocates from MAIN's freeRegionManager + inactiveZone.
+    uintptr_t AllocLargeInMain(size_t size)
     {
         size_t regionCount = (size + RegionInfo::UNIT_SIZE - 1) / RegionInfo::UNIT_SIZE;
         RegionInfo* region = TakeRegion(regionCount, RegionInfo::UnitRole::LARGE_SIZED_UNITS);
         if (region == nullptr) {
-            return 0;
+            // Step 4c: Try RESERVE borrowing for MAIN (chunk strategy handled by ReserveManager)
+            if (reserveManager != nullptr) {
+                size_t regionSize = regionCount * RegionInfo::UNIT_SIZE;
+                uintptr_t borrowedAddr = reserveManager->BorrowForMain(regionSize);
+                if (borrowedAddr != 0) {
+                    region = RegionInfo::InitRegionAt(borrowedAddr, regionCount,
+                                                      RegionInfo::UnitRole::LARGE_SIZED_UNITS);
+                    DLOG(REGION, "MAIN alloc large from RESERVE: "
+                         "region @[0x%zx+%zu, 0x%zx) size %zu",
+                         region->GetRegionStart(), region->GetRegionSize(),
+                         region->GetRegionEnd(), size);
+                    mainReserveBorrowCount++;
+                }
+            }
+            if (region == nullptr) {
+                return 0;
+            }
         }
-        DLOG(REGION, "alloc large region @[0x%zx+%zu, 0x%zx) unit idx %zu type %u", region->GetRegionStart(),
-             region->GetRegionSize(), region->GetRegionEnd(), region->GetUnitIdx(), region->GetRegionType());
+        DLOG(REGION, "alloc large region (MAIN) @[0x%zx+%zu, 0x%zx) unit idx %zu type %u",
+             region->GetRegionStart(), region->GetRegionSize(), region->GetRegionEnd(),
+             region->GetUnitIdx(), region->GetRegionType());
         uintptr_t addr = region->Alloc(size);
 
         GCPhase phase = Heap::GetHeap().GetCollector().GetGCPhase();
@@ -609,6 +654,9 @@ private:
     size_t largeObjectThreshold;
     double fromSpaceGarbageThreshold = 0.5; // 0.5: default garbage ratio.
     double exemptedRegionThreshold;
+
+    // Statistics: MAIN large objects allocated via RESERVE borrowing
+    size_t mainReserveBorrowCount = 0;
 #if defined(__EULER__)
     double cacheRatio;
 #endif

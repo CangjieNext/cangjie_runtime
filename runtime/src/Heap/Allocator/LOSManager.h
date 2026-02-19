@@ -14,6 +14,7 @@
 #include "FreeRegionManager.h"
 #include "RegionInfo.h"
 #include "RegionList.h"
+#include "Base/LogFile.h"
 
 namespace MapleRuntime {
 
@@ -50,7 +51,8 @@ public:
         : losFreeMgr(manager, baseUnitIndex),
           reserveManager(reserveMgr),
           losOldLargeRegionList("LOS old large regions"),
-          losRecentLargeRegionList("LOS recent large regions")
+          losRecentLargeRegionList("LOS recent large regions"),
+          losLargeTraceRegions("LOS large trace regions")
     {}
 
     ~LOSManager() = default;
@@ -69,6 +71,35 @@ public:
      * @param unitEnd   Global unit index for LOS end
      */
     void Initialize(uintptr_t start, uintptr_t end, UnitCount unitStart, UnitCount unitEnd);
+
+    // ===== M2: Large object allocation in LOS =====
+
+    /**
+     * Allocate a large object in LOS space.
+     *
+     * Allocation flow (steps 1-2 in M2 plan):
+     *   1. Try losFreeMgr (dirtyTree → releaseTree) for recycled regions
+     *   2. Expand losInactiveZone toward low address for fresh regions
+     *
+     * Steps 3+ (RESERVE borrowing, compaction) are TODO stubs for later milestones.
+     *
+     * @param size  Allocation size in bytes (must be >= largeObjectThreshold)
+     * @return      Allocated address, or 0 on failure (caller should fall back to MAIN)
+     */
+    uintptr_t AllocLarge(size_t size);
+
+    /**
+     * Enlist a newly allocated LOS large region into the appropriate region list.
+     * Handles GC trace-phase awareness (analogous to RegionManager::AllocLarge region list logic).
+     *
+     * @param region  The newly allocated region
+     */
+    void EnlistLargeRegion(RegionInfo* region);
+
+    /**
+     * Get the LOS trace-region cache (for GC phase management)
+     */
+    RegionCache& GetLargeTraceRegions() { return losLargeTraceRegions; }
 
     /**
      * Get LOS space boundaries
@@ -95,8 +126,10 @@ public:
     size_t GetAllocCount() const { return losAllocCount; }
     size_t GetAllocFailCount() const { return losAllocFailCount; }
     size_t GetFallbackCount() const { return losFallbackCount; }
+    size_t GetReserveBorrowCount() const { return losReserveBorrowCount; }
 
     // Increment statistics (called by RegionManager when fallback occurs)
+    void IncrementAllocCount() { losAllocCount++; }
     void IncrementAllocFailCount() { losAllocFailCount++; }
     void IncrementFallbackCount() { losFallbackCount++; }
 
@@ -119,6 +152,13 @@ public:
     UnitCount GetUnitEnd() const { return losUnitEnd; }
 
 private:
+    /**
+     * Try to allocate from LOS inactive zone (expand toward low address).
+     * @param unitCount Number of units needed
+     * @return Allocated RegionInfo, or nullptr on failure
+     */
+    RegionInfo* AllocFromInactiveZone(size_t unitCount);
+
     // Independent FreeRegionManager for LOS space (baseUnit = losUnitStart).
     // Has its own dirtyTree + releaseTree, separate from MAIN's FreeRegionManager.
     // When expanding/shrinking LOS, this manager's capacity should be adjusted accordingly.
@@ -141,11 +181,13 @@ private:
     // Region lists for LOS large objects
     RegionList losOldLargeRegionList;
     RegionList losRecentLargeRegionList;
+    RegionCache losLargeTraceRegions;  // trace-phase region cache (analogous to RegionManager::largeTraceRegions)
 
     // Statistics
     size_t losAllocCount = 0;
     size_t losAllocFailCount = 0;
     size_t losFallbackCount = 0;
+    size_t losReserveBorrowCount = 0;    // number of RESERVE-borrowed LOS allocations
 };
 
 } // namespace MapleRuntime
