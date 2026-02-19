@@ -10,7 +10,9 @@
 #include <cmath>
 #include <unistd.h>
 
+#include "Allocator/LOSManager.h"
 #include "Allocator/RegionSpace.h"
+#include "Allocator/ReserveManager.h"
 #include "Base/CString.h"
 #include "Collector/Collector.h"
 #include "Collector/CopyCollector.h"
@@ -372,6 +374,19 @@ void RegionManager::SetCacheRatio(double minSize, double maxSize, double default
 }
 #endif
 
+// Helper function to get space ratio from environment variable
+static int GetSpaceRatio(const char* envName, int defaultValue)
+{
+    auto env = std::getenv(envName);
+    if (env != nullptr) {
+        int value = std::atoi(env);
+        if (value >= 0) {
+            return value;
+        }
+    }
+    return defaultValue;
+}
+
 void RegionManager::Initialize(size_t nUnit, uintptr_t regionInfoAddr)
 {
     size_t metadataSize = GetMetadataSize(nUnit);
@@ -381,7 +396,54 @@ void RegionManager::Initialize(size_t nUnit, uintptr_t regionInfoAddr)
     this->regionInfoStart = regionInfoAddr;
     this->regionHeapStart = regionInfoAddr + metadataSize;
     this->regionHeapEnd = regionHeapStart + nUnit * RegionInfo::UNIT_SIZE;
+
+    // Read space ratios from environment variables (default 6:3:1 for MAIN:RESERVE:LOS)
+    int mainRatio = GetSpaceRatio("cjMainRatio", 6);
+    int reserveRatio = GetSpaceRatio("cjReserveRatio", 3);
+    int losRatio = GetSpaceRatio("cjLOSRatio", 1);
+    int totalRatio = mainRatio + reserveRatio + losRatio;
+
+    // Calculate unit counts for each space
+    size_t mainUnitCount = nUnit;
+    size_t reserveUnitCount = 0;
+    size_t losUnitCount = 0;
+
+    if (totalRatio > 0 && (reserveRatio > 0 || losRatio > 0)) {
+        // Calculate based on ratios
+        losUnitCount = (nUnit * losRatio) / totalRatio;
+        reserveUnitCount = (nUnit * reserveRatio) / totalRatio;
+        mainUnitCount = nUnit - losUnitCount - reserveUnitCount;
+    }
+
+    // Calculate boundaries
+    uintptr_t mainEnd = regionHeapStart + mainUnitCount * RegionInfo::UNIT_SIZE;
+    uintptr_t reserveStart = mainEnd;
+    uintptr_t reserveEnd = reserveStart + reserveUnitCount * RegionInfo::UNIT_SIZE;
+    uintptr_t losStart = reserveEnd;
+    uintptr_t losEnd = regionHeapEnd;
+
+    // For MAIN space, update regionHeapEnd to exclude RESERVE and LOS
+    // Note: We keep regionHeapEnd as the full end for now, but inactiveZone controls MAIN allocation
     this->inactiveZone = regionHeapStart;
+
+    // Initialize RESERVE manager if reserveRatio > 0
+    if (reserveRatio > 0 && reserveUnitCount > 0) {
+        reserveManager = new (std::nothrow) ReserveManager();
+        if (reserveManager != nullptr) {
+            reserveManager->Initialize(reserveStart, reserveEnd, RegionInfo::UNIT_SIZE);
+        }
+    }
+
+    // Initialize LOS manager if losRatio > 0
+    if (losRatio > 0 && losUnitCount > 0) {
+        losManager = new (std::nothrow) LOSManager(reserveManager);
+        if (losManager != nullptr) {
+            size_t losUnitStart = mainUnitCount + reserveUnitCount;
+            size_t losUnitEnd = nUnit;
+            losManager->Initialize(losStart, losEnd, losUnitStart, losUnitEnd);
+        }
+    }
+
     SetMaxUnitCountForRegion();
     SetMaxUnitCountForPinnedRegion();
     SetLargeObjectThreshold();
@@ -389,12 +451,23 @@ void RegionManager::Initialize(size_t nUnit, uintptr_t regionInfoAddr)
 #if defined(__EULER__)
     SetCacheRatio(0.0, 1.0, 1.0);
 #endif
-    // propagate region heap layout
+    // propagate region heap layout - only for MAIN space units
     RegionInfo::Initialize(nUnit, regionHeapStart);
-    freeRegionManager.Initialize(nUnit);
+    // FreeRegionManager only manages MAIN space units
+    freeRegionManager.Initialize(mainUnitCount);
     this->exemptedRegionThreshold = CangjieRuntime::GetHeapParam().exemptionThreshold;
+
+    // Log space partitioning
     DLOG(REPORT, "region info @0x%zx+%zu, heap [0x%zx, 0x%zx), unit count %zu", regionInfoAddr, metadataSize,
          regionHeapStart, regionHeapEnd, nUnit);
+    DLOG(REPORT, "Space partition ratio %d:%d:%d (MAIN:RESERVE:LOS)", mainRatio, reserveRatio, losRatio);
+    DLOG(REPORT, "  MAIN:    [0x%zx, 0x%zx) %zu units", regionHeapStart, mainEnd, mainUnitCount);
+    if (reserveManager != nullptr) {
+        DLOG(REPORT, "  RESERVE: [0x%zx, 0x%zx) %zu units", reserveStart, reserveEnd, reserveUnitCount);
+    }
+    if (losManager != nullptr) {
+        DLOG(REPORT, "  LOS:     [0x%zx, 0x%zx) %zu units", losStart, losEnd, losUnitCount);
+    }
 }
 
 void RegionManager::ReclaimRegion(RegionInfo* region)

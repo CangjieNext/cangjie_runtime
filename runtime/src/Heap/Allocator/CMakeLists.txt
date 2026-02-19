@@ -10,6 +10,8 @@ set(SRC_LIST
     "RegionSpace.cpp"
     "RegionManager.cpp"
     "CartesianTree.cpp"
+    "LOSManager.cpp"
+    "ReserveManager.cpp"
 )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../)

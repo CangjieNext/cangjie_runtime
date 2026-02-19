@@ -26,6 +26,8 @@
 namespace MapleRuntime {
 class CopyCollector;
 class CompactCollector;
+class LOSManager;
+class ReserveManager;
 
 struct FreePinnedSlotLists {
     static constexpr size_t ATOMIC_OBJECT_SIZE = 16;
@@ -139,6 +141,14 @@ public:
 #endif
 
     uintptr_t GetRegionHeapStart() const { return regionHeapStart; }
+
+    uintptr_t GetRegionHeapEnd() const { return regionHeapEnd; }
+
+    // LOS and RESERVE manager accessors
+    LOSManager* GetLOSManager() const { return losManager; }
+    ReserveManager* GetReserveManager() const { return reserveManager; }
+    bool IsLOSEnabled() const { return losManager != nullptr; }
+    bool IsReserveEnabled() const { return reserveManager != nullptr; }
 
     ~RegionManager() = default;
 
@@ -583,6 +593,11 @@ private:
 
     uintptr_t regionHeapStart = 0; // the address of first region to allocate object
     uintptr_t regionHeapEnd = 0;
+
+    // LOS (Large Object Space) manager - nullptr when cjLOSRatio=0
+    LOSManager* losManager = nullptr;
+    // RESERVE zone manager - nullptr when cjReserveRatio=0
+    ReserveManager* reserveManager = nullptr;
 
     // the time when previous region was allocated, which is assigned with returned value by timeutil::NanoSeconds().
     std::atomic<uint64_t> prevRegionAllocTime = { 0 };
