@@ -130,6 +130,58 @@ public:
      */
     bool HasPendingMigrations() const { return !migrationMap.empty(); }
 
+    // ===== M4a: LOS Sliding Compaction =====
+
+    /**
+     * M4a: Check if LOS compaction is needed.
+     * Triggers when:
+     *   - Fragmentation ratio > threshold (free units / active units > 30%)
+     *   - LOS allocation failures occurred since last compaction
+     * @return true if compaction should be performed
+     */
+    bool NeedsCompaction() const;
+
+    /**
+     * M4a: Perform sliding compaction on LOS space.
+     * Objects slide toward losEnd (high address). Pinned objects (rawPointerCount > 0)
+     * act as barriers — only compact above highest pinned object (Strategy A).
+     *
+     * Phases:
+     *   1. Collect: separate movable vs pinned regions from both region lists
+     *   2. Compute: calculate target addresses from losEnd toward low address
+     *   3. Reference update: build forwarding map, scan heap + roots
+     *   4. Move: memmove_s objects to new locations (high-to-low order)
+     *   5. Metadata: rebuild region lists, rebuild losFreeMgr, update losInactiveZone
+     *   6. Shrink: return freed low-address space to RESERVE
+     *
+     * Must be called during STW. Populates migrationMap for merged ref update with M3.
+     * @return bytes freed by compaction
+     */
+    size_t CompactLOS();
+
+    /**
+     * M4a: Get current LOS fragmentation ratio.
+     * = (free units in losFreeMgr) / (total active units)
+     */
+    double GetFragmentationRatio() const;
+
+    /**
+     * M4a: Compaction statistics
+     */
+    size_t GetCompactCount() const { return losCompactCount; }
+    size_t GetCompactMovedBytes() const { return losCompactMovedBytes; }
+    size_t GetCompactFreedBytes() const { return losCompactFreedBytes; }
+    size_t GetCompactShrunkBytes() const { return losCompactShrunkBytes; }
+
+    // Fragmentation threshold: compact when free units / active units > this ratio
+    static constexpr double LOS_COMPACTION_FRAG_THRESHOLD = 0.3;
+
+    // M4a-async: Compaction coordination accessors
+    bool IsCompacting() const { return isCompacting.load(std::memory_order_acquire); }
+    void SetCompacting(bool v) { isCompacting.store(v, std::memory_order_release); }
+    bool IsCompactionRequested() const { return compactionRequested.load(std::memory_order_acquire); }
+    void SetCompactionRequested(bool v) { compactionRequested.store(v, std::memory_order_release); }
+
     /**
      * M3 statistics
      */
@@ -262,9 +314,33 @@ private:
     size_t losMigrateInCount = 0;        // objects migrated from MAIN to LOS
     size_t losMigrateInBytes = 0;        // bytes migrated from MAIN to LOS
 
-    // M3: Migration forwarding map (old MAIN address → new LOS address)
-    // Used during STW reference update. Cleared after migration completes.
+    // M3/M4a: Migration forwarding map (old address → new address)
+    // Used by both M3 migration and M4a compaction during STW reference update.
+    // When both compaction and migration happen in the same GC cycle,
+    // compaction entries are added first, then migration entries are appended.
+    // Cleared after all reference updates complete.
     std::vector<std::pair<uintptr_t, uintptr_t>> migrationMap;
+
+    // M4a: Compaction statistics
+    size_t losCompactCount = 0;          // number of compactions performed
+    size_t losCompactMovedBytes = 0;     // bytes moved in last compaction
+    size_t losCompactFreedBytes = 0;     // bytes freed in last compaction
+    size_t losCompactShrunkBytes = 0;    // bytes returned to RESERVE in last compaction
+    size_t lastCompactAllocFailCount = 0; // losAllocFailCount at last compaction
+
+    // M4a-async: Compaction coordination flags
+    // isCompacting: true while compaction is in progress (sync or async).
+    //   When true, AllocLarge() returns 0 immediately → forces MAIN fallback.
+    std::atomic<bool> isCompacting{false};
+    // compactionRequested: set by allocation path when LOS alloc fails and MAIN succeeds.
+    //   Checked by FinalizerProcessor (async) and CompactLOSIfNeeded (sync).
+    std::atomic<bool> compactionRequested{false};
+
+    // M4a: Rebuild losFreeMgr trees after compaction, inserting gaps between live regions
+    void RebuildFreeRegionManager(const std::vector<RegionInfo*>& allLiveRegions);
+
+    // M4a: Return freed low-address space to RESERVE after compaction
+    size_t ShrinkToReserve(size_t freedBytes);
 };
 
 } // namespace MapleRuntime

@@ -7,9 +7,14 @@
 
 #include "Collector/FinalizerProcessor.h"
 
+#include "Allocator/LOSManager.h"
+#include "Allocator/RegionManager.h"
+#include "Allocator/RegionSpace.h"
 #include "Base/Macros.h"
+#include "Collector/GcRequest.h"
 #include "Common/ScopedObjectAccess.h"
 #include "ExceptionManager.inline.h"
+#include "Heap.h"
 #include "Mutator/Mutator.h"
 #include "ObjectModel/MObject.h"
 
@@ -74,6 +79,7 @@ FinalizerProcessor::FinalizerProcessor()
     hasFinalizableJob.store(false, std::memory_order_relaxed);
     shouldReclaimHeapGarbage.store(false, std::memory_order_relaxed);
     shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
+    shouldCompactLOS.store(false, std::memory_order_relaxed);
 }
 
 void FinalizerProcessor::Run()
@@ -96,13 +102,19 @@ void FinalizerProcessor::Run()
             ReclaimHeapGarbage();
         }
 
+        // M4a-async: Check if async LOS compaction was requested
+        if (shouldCompactLOS.load(std::memory_order_relaxed)) {
+            PerformLOSCompaction();
+        }
+
         {
             MRT_PHASE_TIMER("finalizerProcessor waitting time", FINALIZE);
             while (running) {
                 Wait(iterationWaitTime);
                 if (hasFinalizableJob.load(std::memory_order_relaxed) ||
                     shouldReclaimHeapGarbage.load(std::memory_order_relaxed) ||
-                    shouldFeedHungryBuffers.load(std::memory_order_relaxed)) {
+                    shouldFeedHungryBuffers.load(std::memory_order_relaxed) ||
+                    shouldCompactLOS.load(std::memory_order_relaxed)) {
                     break;
                 }
             }
@@ -291,4 +303,59 @@ void FinalizerProcessor::FeedHungryBuffers()
     Heap::GetHeap().GetAllocator().FeedHungryBuffers();
     shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
 }
+
+// M4a-async: Perform async LOS compaction.
+//
+// Flow:
+//   1. Get LOSManager; bail if unavailable or no compaction needed
+//   2. Set isCompacting=true → blocks all LOS allocations (forces MAIN fallback)
+//   3. Request a synchronous GC (GC_REASON_HEU_SYNC) → blocks until GC completes
+//      During STW, PostTrace → CompactLOSIfNeeded() will see compactionRequested=true
+//      and perform the actual compaction via CompactLOS()
+//   4. Clear isCompacting → resumes LOS allocations
+//   5. Clear shouldCompactLOS → ready for next signal
+//
+// FinalizerProcessor thread is already in saferegion (Init calls EnterSaferegion),
+// so requesting sync GC is safe — the GC thread can proceed to STW immediately.
+void FinalizerProcessor::PerformLOSCompaction()
+{
+    ScopedEntryTrace trace("CJRT_LOS_COMPACT_ASYNC");
+
+    // Access LOSManager through the allocator chain
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+    LOSManager* losMgr = space.GetRegionManager().GetLOSManager();
+    if (losMgr == nullptr) {
+        shouldCompactLOS.store(false, std::memory_order_relaxed);
+        return;
+    }
+
+    // Check if compaction is actually needed (may have been resolved by concurrent sync GC)
+    if (!losMgr->IsCompactionRequested() && !losMgr->NeedsCompaction()) {
+        shouldCompactLOS.store(false, std::memory_order_relaxed);
+        return;
+    }
+
+    LOG(RTLOG_INFO, "Async LOS compaction: starting (fragRatio=%.2f, allocFail=%zu)",
+        losMgr->GetFragmentationRatio(), losMgr->GetAllocFailCount());
+
+    // Step 1: Block LOS allocations — all large objects route to MAIN during compaction
+    losMgr->SetCompacting(true);
+
+    // Step 2: Request synchronous GC — blocks until GC cycle completes.
+    // During PostTrace (STW), CompactLOSIfNeeded() will detect compactionRequested=true
+    // and execute CompactLOS(). This is safe because:
+    //   - FinalizerProcessor is in saferegion → GC can proceed to STW
+    //   - RequestGC(GC_REASON_HEU_SYNC, false) → RequestGCAndWait → blocks until GC finishes
+    Heap::GetHeap().GetCollector().RequestGC(GC_REASON_HEU_SYNC, false);
+
+    // Step 3: GC completed — compaction ran during PostTrace. Resume LOS allocations.
+    losMgr->SetCompacting(false);
+
+    LOG(RTLOG_INFO, "Async LOS compaction: done (compactCount=%zu, movedBytes=%zu, freedBytes=%zu, shrunkBytes=%zu)",
+        losMgr->GetCompactCount(), losMgr->GetCompactMovedBytes(),
+        losMgr->GetCompactFreedBytes(), losMgr->GetCompactShrunkBytes());
+
+    shouldCompactLOS.store(false, std::memory_order_relaxed);
+}
+
 } // namespace MapleRuntime

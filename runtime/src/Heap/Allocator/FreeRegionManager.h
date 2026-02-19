@@ -118,6 +118,19 @@ public:
     UnitCount GetDirtyUnitCount() const { return dirtyUnitTree.GetTotalCount(); }
     UnitCount GetReleasedUnitCount() const { return releasedUnitTree.GetTotalCount(); }
 
+    // Clear both trees (used by LOS compaction to rebuild free region tracking)
+    void ClearTrees()
+    {
+        {
+            std::lock_guard<std::mutex> lg(dirtyUnitTreeMutex);
+            dirtyUnitTree.ClearTree();
+        }
+        {
+            std::lock_guard<std::mutex> lg(releasedUnitTreeMutex);
+            releasedUnitTree.ClearTree();
+        }
+    }
+
 #if defined(MRT_DEBUG)
     void DumpReleasedUnitTree() const { releasedUnitTree.DumpTree("released-unit tree"); }
     void DumpDirtyUnitTree() const { dirtyUnitTree.DumpTree("dirty-unit tree"); }

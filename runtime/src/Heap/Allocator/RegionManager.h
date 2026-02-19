@@ -215,23 +215,28 @@ public:
     // caller assures size is truely large (> region size)
     //
     // M2: Route large object allocation through LOS first, then fall back to MAIN.
-    // Flow: LOS AllocLarge → (fail) → MAIN AllocLargeInMain → (fail) → return 0
+    // M4a-async: Skip LOS when compacting; signal async compaction when LOS fails.
+    // Flow: LOS AllocLarge → (fail/compacting) → MAIN AllocLargeInMain → signal → (fail) → return 0
     uintptr_t AllocLarge(size_t size)
     {
         // Step 1-2: Try LOS allocation (losFreeMgr + inactiveZone)
-        if (losManager != nullptr) {
+        // Skip LOS entirely when compaction is in progress
+        if (losManager != nullptr && !losManager->IsCompacting()) {
             uintptr_t addr = losManager->AllocLarge(size);
             if (addr != 0) {
                 return addr;
             }
             // LOS allocation failed — fall through to MAIN
-            // TODO(M4): Signal async compaction if LOS is fragmented
         }
 
         // Step 4: Fall back to MAIN space (original allocation path)
         uintptr_t addr = AllocLargeInMain(size);
         if (addr != 0 && losManager != nullptr) {
             losManager->IncrementFallbackCount();
+            // M4a-async: Signal compaction if not already in progress or requested
+            if (!losManager->IsCompacting() && !losManager->IsCompactionRequested()) {
+                SignalLOSCompaction();
+            }
             DLOG(REGION, "LOS alloc fallback to MAIN: size %zu", size);
         }
         return addr;
@@ -592,6 +597,10 @@ private:
     inline void CheckRegionWhetherCreatedInFixPhase(RegionInfo* region);
     inline void TagHugePage(RegionInfo* region, size_t num) const;
     inline void UntagHugePage(RegionInfo* region, size_t num) const;
+
+    // M4a-async: Set compactionRequested on LOSManager and notify FinalizerProcessor.
+    // Defined in RegionManager.cpp to avoid including Heap.h in header.
+    void SignalLOSCompaction();
 
     void ClearLiveInfo(RegionList& list)
     {

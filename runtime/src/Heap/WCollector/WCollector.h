@@ -174,6 +174,9 @@ protected:
         stats.collectedBytes += stats.largeGarbageSize;
     }
 
+    // M4a: Compact LOS if fragmentation exceeds threshold
+    void CompactLOSIfNeeded();
+
     // M3: Migrate surviving MAIN large objects into LOS after sweep
     void MigrateLargeObjectsToLOS();
 

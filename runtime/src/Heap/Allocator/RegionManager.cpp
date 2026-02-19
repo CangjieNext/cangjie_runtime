@@ -16,6 +16,7 @@
 #include "Base/CString.h"
 #include "Collector/Collector.h"
 #include "Collector/CopyCollector.h"
+#include "Collector/FinalizerProcessor.h"
 #include "Common/ScopedObjectAccess.h"
 #include "Heap.h"
 #include "Mutator/Mutator.inline.h"
@@ -1225,4 +1226,20 @@ uintptr_t RegionManager::AllocPinnedFromFreeList(size_t size)
     (reinterpret_cast<CopyCollector*>(&Heap::GetHeap().GetCollector()))->MarkObject(object);
     return allocPtr;
 }
+
+// M4a-async: Signal FinalizerProcessor to perform async LOS compaction.
+// Called from AllocLarge() when LOS allocation fails and MAIN fallback succeeds.
+void RegionManager::SignalLOSCompaction()
+{
+    if (losManager == nullptr) {
+        return;
+    }
+    losManager->SetCompactionRequested(true);
+    if (Heap::GetHeap().IsGCEnabled()) {
+        Heap::GetHeap().GetFinalizerProcessor().NotifyToCompactLOS();
+    }
+    DLOG(REGION, "LOS compaction signaled: allocFail=%zu, fragRatio=%.2f",
+         losManager->GetAllocFailCount(), losManager->GetFragmentationRatio());
+}
+
 } // namespace MapleRuntime

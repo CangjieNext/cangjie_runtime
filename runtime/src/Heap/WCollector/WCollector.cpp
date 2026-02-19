@@ -405,10 +405,43 @@ void WCollector::PostTrace()
     // reclaim large objects immediately after tracing is done.
     PrepareCycleRef();
     CollectLargeGarbage();
+    CompactLOSIfNeeded();
     MigrateLargeObjectsToLOS();
     CollectPinnedGarbage();
     RefineFromSpace();
     fwdTable.PrepareForwardTable();
+}
+
+void WCollector::CompactLOSIfNeeded()
+{
+    MRT_PHASE_TIMER("CompactLOSIfNeeded");
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
+    LOSManager* losMgr = space.GetRegionManager().GetLOSManager();
+    if (losMgr == nullptr) {
+        return;
+    }
+
+    // M4a-async: Check both heuristic trigger and async compaction request.
+    // compactionRequested is set by FinalizerProcessor (async path) or allocation path.
+    bool needsCompact = losMgr->NeedsCompaction() || losMgr->IsCompactionRequested();
+    if (!needsCompact) {
+        return;
+    }
+
+    // Set isCompacting during sync compaction for consistency.
+    // During STW, allocations don't happen, but this ensures any
+    // concurrent check (e.g., from FinalizerProcessor) sees the correct state.
+    losMgr->SetCompacting(true);
+
+    // CompactLOS populates migrationMap with compaction forwarding entries
+    // and calls UpdateMigratedReferences() internally.
+    // Do NOT clear migrationMap here — M3 migration will append to it.
+    size_t freedBytes = losMgr->CompactLOS();
+    (void)freedBytes;
+
+    // Clear the async request flag after compaction completes
+    losMgr->SetCompactionRequested(false);
+    losMgr->SetCompacting(false);
 }
 
 void WCollector::MigrateLargeObjectsToLOS()
@@ -420,12 +453,15 @@ void WCollector::MigrateLargeObjectsToLOS()
         return;
     }
     RegionManager& rm = space.GetRegionManager();
+    // MigrateLargeObjectsFromMain appends to migrationMap (may contain compaction entries).
     size_t migratedCount = losMgr->MigrateLargeObjectsFromMain(
         rm.GetOldLargeRegionList(), rm.GetGarbageRegionList());
     if (migratedCount > 0) {
+        // Update references for both compaction + migration entries in one scan.
         losMgr->UpdateMigratedReferences();
-        losMgr->ClearMigrationState();
     }
+    // Clear all forwarding entries (compaction + migration) after everything is done.
+    losMgr->ClearMigrationState();
 }
 
 void WCollector::Preforward()
