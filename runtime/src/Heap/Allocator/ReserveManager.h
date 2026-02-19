@@ -11,6 +11,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
+#include <algorithm>
 
 namespace MapleRuntime {
 
@@ -88,18 +89,55 @@ public:
     uintptr_t BorrowForLOS(size_t size);
 
     /**
-     * Return borrowed space from MAIN
+     * Return borrowed space from MAIN.
+     * Currently only accepts returns from the top of mainWatermark (LIFO).
      * @param addr Start address of region to return
      * @param size Size in bytes to return
+     * @return true if the return was accepted (at watermark top), false otherwise
      */
-    void ReturnFromMain(uintptr_t addr, size_t size);
+    bool ReturnFromMain(uintptr_t addr, size_t size);
 
     /**
-     * Return borrowed space from LOS
+     * Return borrowed space from LOS.
+     * Currently only accepts returns from the bottom of losWatermark (LIFO).
      * @param addr Start address of region to return
      * @param size Size in bytes to return
+     * @return true if the return was accepted (at watermark bottom), false otherwise
      */
-    void ReturnFromLOS(uintptr_t addr, size_t size);
+    bool ReturnFromLOS(uintptr_t addr, size_t size);
+
+    /**
+     * M5: Notify ReserveManager that a GC cycle has completed.
+     * Used for cooldown tracking.
+     */
+    void NotifyGCCycle() { gcCycleCount++; }
+    size_t GetGCCycleCount() const { return gcCycleCount; }
+
+    /**
+     * M5: Check if borrow/return operations are in cooldown.
+     * After a return, borrowing is suppressed for BORROW_COOLDOWN_CYCLES.
+     * After a borrow, returning is suppressed for RETURN_COOLDOWN_CYCLES.
+     * Note: emergency operations (during allocation failure) bypass cooldown.
+     */
+    bool IsMainBorrowInCooldown() const {
+        return (gcCycleCount - lastMainReturnCycle) < BORROW_COOLDOWN_CYCLES;
+    }
+    bool IsLOSBorrowInCooldown() const {
+        return (gcCycleCount - lastLOSReturnCycle) < BORROW_COOLDOWN_CYCLES;
+    }
+    bool IsMainReturnInCooldown() const {
+        return (gcCycleCount - lastMainBorrowCycle) < RETURN_COOLDOWN_CYCLES;
+    }
+    bool IsLOSReturnInCooldown() const {
+        return (gcCycleCount - lastLOSBorrowCycle) < RETURN_COOLDOWN_CYCLES;
+    }
+
+    /**
+     * Get MAIN watermark (current high-water of MAIN's borrowed area).
+     * Addresses in [reserveStart, mainWatermark) are MAIN-borrowed.
+     */
+    uintptr_t GetMainWatermark() const { return mainWatermark.load(std::memory_order_relaxed); }
+    uintptr_t GetLOSWatermark() const { return losWatermark.load(std::memory_order_relaxed); }
 
     /**
      * Statistics
@@ -110,6 +148,9 @@ public:
     size_t GetLOSChunkBorrowCount() const { return losChunkBorrowCount; }
     size_t GetMainBorrowBytes() const { return mainBorrowBytes; }
     size_t GetLOSBorrowBytes() const { return losBorrowBytes; }
+    size_t GetMainReturnBytes() const { return mainReturnBytes; }
+    size_t GetLOSReturnBytes() const { return losReturnBytes; }
+    size_t GetCooldownSkipCount() const { return cooldownSkipCount; }
 
     // Borrow strategy constants
     // Minimum chunk: 16 units (e.g., 256KB on 16KB-page, 64KB on 4KB-page systems)
@@ -118,6 +159,16 @@ public:
     static constexpr size_t BORROW_CHUNK_ALIGN_UNITS = 16;
     // Proportional ratio divisor: borrow available/10 = 10% of remaining RESERVE
     static constexpr size_t BORROW_RATIO_DIVISOR = 10;
+
+    // M5: Cooldown constants (in GC cycles)
+    static constexpr size_t BORROW_COOLDOWN_CYCLES = 2;  // after return, wait before borrow
+    static constexpr size_t RETURN_COOLDOWN_CYCLES = 2;  // after borrow, wait before return
+
+    // M5: Hysteresis thresholds for proactive RESERVE returns
+    // Only return borrowed space if usage ratio < this (e.g., MAIN using < 60% of capacity)
+    static constexpr double RETURN_USAGE_THRESHOLD = 0.6;
+    // Only borrow if usage ratio > this
+    static constexpr double BORROW_USAGE_THRESHOLD = 0.8;
 
 private:
     /**
@@ -172,6 +223,16 @@ private:
     size_t losChunkBorrowCount = 0;    // actual watermark commits for LOS
     size_t mainBorrowBytes = 0;        // total bytes committed for MAIN
     size_t losBorrowBytes = 0;         // total bytes committed for LOS
+    size_t mainReturnBytes = 0;        // total bytes returned from MAIN
+    size_t losReturnBytes = 0;         // total bytes returned from LOS
+    size_t cooldownSkipCount = 0;      // times cooldown prevented an operation
+
+    // M5: GC cycle counter and cooldown tracking
+    size_t gcCycleCount = 0;           // incremented by NotifyGCCycle()
+    size_t lastMainBorrowCycle = 0;    // cycle when MAIN last borrowed
+    size_t lastLOSBorrowCycle = 0;     // cycle when LOS last borrowed
+    size_t lastMainReturnCycle = 0;    // cycle when MAIN last returned
+    size_t lastLOSReturnCycle = 0;     // cycle when LOS last returned
 };
 
 } // namespace MapleRuntime

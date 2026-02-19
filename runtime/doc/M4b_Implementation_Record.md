@@ -140,7 +140,48 @@ size_t ShrinkInactiveZone();
 
 ---
 
-## 6. 构建验证
+## 6. 大对象 Region 对齐
+
+### 6.1 问题
+
+`AllocLargeInMain()` 分配大对象时，原始 `regionCount` 由对象大小向上取整得出：
+
+```cpp
+size_t regionCount = (size + RegionInfo::UNIT_SIZE - 1) / RegionInfo::UNIT_SIZE;
+```
+
+这可能产生非标准大小的 region（如 3 个 unit、5 个 unit），释放后进入 `freeRegionManager` 形成不规则空闲块。这些不规则空闲块难以被后续标准大小（`maxUnitCountPerRegion`）的分配请求复用，导致碎片化累积。
+
+### 6.2 解决方案
+
+在 `AllocLargeInMain()` 中将 `regionCount` 向上对齐到 `maxUnitCountPerRegion` 的整数倍：
+
+```cpp
+// M4b: Round up to nearest multiple of maxUnitCountPerRegion (standard region size).
+// This ensures that when the large object is freed, the released units form
+// whole standard regions, preventing irregular fragmentation in freeRegionManager.
+regionCount = ((regionCount + maxUnitCountPerRegion - 1) / maxUnitCountPerRegion) * maxUnitCountPerRegion;
+```
+
+### 6.3 效果
+
+| 对齐前 | 对齐后 | 说明 |
+|--------|--------|------|
+| 需要 3 个 unit | 分配 `maxUnitCountPerRegion` 个 unit | 内部碎片可接受（大对象本身就大，尾部浪费占比低） |
+| 需要 17 个 unit | 分配 `2 × maxUnitCountPerRegion` 个 unit | 释放后形成 2 个完整标准 region |
+| 需要恰好 `maxUnitCountPerRegion` | 不变 | 已对齐，无额外开销 |
+
+- **释放后可复用**：整对齐的空闲块可被 `TakeRegion` 直接复用为标准 thread-local region
+- **利于低地址紧凑**：整对齐的空闲块更容易参与 `ShrinkInactiveZone` 回收
+- **LOS 不受影响**：此对齐仅应用于 `AllocLargeInMain`（MAIN 空间降级路径），LOS 空间的 `AllocLarge` 使用 losFreeMgr 自身的分配策略
+
+### 6.4 代码位置
+
+[RegionManager.h](../src/Heap/Allocator/RegionManager.h) `AllocLargeInMain()` 方法，对齐逻辑紧跟在 `regionCount` 初始化之后。
+
+---
+
+## 7. 构建验证
 
 ```bash
 python3 build.py build --target native --build-type release -v 0.0.1

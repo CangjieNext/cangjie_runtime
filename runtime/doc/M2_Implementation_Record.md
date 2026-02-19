@@ -340,25 +340,28 @@ LOS 有独立的 region list，与 MAIN 的 region list 分离：
 
 ---
 
-## 8. TODO（待后续里程碑完善）
+## 8. TODO（待后续里程碑完善）— 完成状态
 
 ### 需着重处理的部分
 
-1. **LOS 与 MAIN 空间的边界交互**：
+1. **LOS 与 MAIN 空间的边界交互**：✅ **M3 已完成**
    - LOS 分配失败降级到 MAIN 后，MAIN 空间的 region list 与 LOS 的 region list 如何在 GC 时统一遍历
-   - `CollectLargeGarbage()` 需要同时处理 MAIN 和 LOS 的大对象回收（M3）
+   - `CollectLargeGarbage()` 需要同时处理 MAIN 和 LOS 的大对象回收
+   - *实现*：M3 的 `CollectLOSGarbage()` + `MigrateLargeObjectsFromMain()` 解决了统一遍历和回收
 
-2. **RESERVE 归还与缩容**：
+2. **RESERVE 归还与缩容**：✅ **M3-M5 已完成**
    - 当前 `ReturnFromMain` / `ReturnFromLOS` 仅支持栈式归还（从水位线边缘）
-   - GC 回收后批量归还 RESERVE 借用空间的完整流程（M3-M4）
-   - 缓冲区失效化策略的完善（归还时如何高效处理不连续释放）
+   - GC 回收后批量归还 RESERVE 借用空间的完整流程
+   - 缓冲区失效化策略的完善
+   - *实现*：M5 的 `pendingReserveReturns` 批量归还 + cooldown/hysteresis 控制抖动
 
-3. **整理与缩容**（步骤 5-6）：
+3. **整理与缩容**（步骤 5-6）：✅ **M4a/M4b 已完成**
    - `LOSManager::CompactLOS()` STW 整理
    - `LOSManager::ShrinkToReserve()` 缩容归还
    - 整理期间分配直接走 MAIN（`IsCompacting()` 标志）
+   - *实现*：M4a 的 7 阶段滑动整理 + 异步整理；M4b 的 MAIN 低地址优先 + ShrinkInactiveZone
 
-4. **GC 集成**（M3）：
+4. **GC 集成**（M3）：✅ **M3 已完成**
    - LOS region 的标记-清扫回收
    - `AssembleLOSGarbageCandidates()` recent → old 合并
    - 回收后 region 归还 `losFreeMgr`
@@ -366,11 +369,11 @@ LOS 有独立的 region list，与 MAIN 的 region list 分离：
 
 ---
 
-## 9. 后续工作（M3）
+## 9. 后续工作（M3）— ✅ 已完成
 
-M3 将实现 LOS 回收（标记-清扫）：
+M3 已实现 LOS 回收（标记-清扫），详见 `M3_Implementation_Record.md`：
 
-1. `LOSManager::AssembleLOSGarbageCandidates()` — GC 前准备回收候选
-2. `LOSManager::CollectLOSGarbage()` — 遍历 oldLargeRegionList 回收未标记对象
-3. `LOSManager::ReclaimLOSGarbageRegions()` — 释放到 losFreeMgr
-4. `WCollector::PostTrace()` 调用 LOS 回收链路
+1. ✅ `LOSManager::CollectLOSGarbage()` — 遍历 losOldLargeRegionList 回收未标记对象
+2. ✅ `LOSManager::MigrateLargeObjectsFromMain()` — GC 后将 MAIN 大对象迁入 LOS
+3. ✅ 引用更新 — migrationMap + `UpdateMigratedReferences()` 全堆扫描
+4. ✅ `WCollector::PostTrace()` 调用 LOS 回收链路

@@ -11,6 +11,7 @@
 #include <map>
 #include <set>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "AllocBuffer.h"
@@ -165,6 +166,18 @@ public:
     // Returns the number of bytes reclaimed (now available to RESERVE/inactiveZone).
     size_t ShrinkInactiveZone();
 
+    // M5: Return RESERVE-borrowed free MAIN regions to RESERVE.
+    // Dead RESERVE-borrowed regions are collected into pendingReserveReturns during
+    // ReclaimRegion/ReleaseRegion. This method processes them:
+    //   - Sort by address descending (return from watermark tip first)
+    //   - Try ReturnFromMain; on failure, add to freeRegionManager for reuse
+    // Called from WCollector after ShrinkInactiveZone.
+    // @return Bytes returned to RESERVE
+    size_t ReturnBorrowedToReserve();
+
+    // M5: Check if address is in RESERVE-borrowed territory (above MAIN's own space)
+    bool IsInReserveTerritory(uintptr_t addr) const { return mainEnd > 0 && addr >= mainEnd; }
+
     ~RegionManager() = default;
 
     // take a region with *num* units for allocation
@@ -256,6 +269,10 @@ public:
     uintptr_t AllocLargeInMain(size_t size)
     {
         size_t regionCount = (size + RegionInfo::UNIT_SIZE - 1) / RegionInfo::UNIT_SIZE;
+        // M4b: Round up to nearest multiple of maxUnitCountPerRegion (standard region size).
+        // This ensures that when the large object is freed, the released units form
+        // whole standard regions, preventing irregular fragmentation in freeRegionManager.
+        regionCount = ((regionCount + maxUnitCountPerRegion - 1) / maxUnitCountPerRegion) * maxUnitCountPerRegion;
         RegionInfo* region = TakeRegion(regionCount, RegionInfo::UnitRole::LARGE_SIZED_UNITS);
         if (region == nullptr) {
             // Step 4c: Try RESERVE borrowing for MAIN (chunk strategy handled by ReserveManager)
@@ -690,6 +707,10 @@ private:
 
     // Statistics: MAIN large objects allocated via RESERVE borrowing
     size_t mainReserveBorrowCount = 0;
+
+    // M5: Pending RESERVE returns — RESERVE-borrowed dead regions held until explicit ReturnBorrowedToReserve()
+    // <unitIdx, unitCount> pairs collected during ReclaimRegion/ReleaseRegion
+    std::vector<std::pair<size_t, size_t>> pendingReserveReturns;
 #if defined(__EULER__)
     double cacheRatio;
 #endif

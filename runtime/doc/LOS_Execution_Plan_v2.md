@@ -987,3 +987,35 @@ std::atomic<bool> mainCompactionPending_{false};  // MAIN 整理是否在排队
 - LOSManager / ReserveManager 的骨架必须先存在，M2 才能调用；
 - 对现有行为影响最小（`cjLOSRatio=0 cjReserveRatio=0` 时零开销）；
 - 可以最早验证三段划分的正确性和可回退性。
+
+---
+
+## 7. 实现状态跟踪
+
+> 更新时间：2026年2月
+
+### 各里程碑完成情况
+
+| 里程碑 | 状态 | 实现内容 | 文档 |
+|--------|------|----------|------|
+| **M1** | ✅ 完成 | 三段空间划分（6:3:1 比例）；LOSManager / ReserveManager 骨架；CartesianTree baseIndex 重构；环境变量 `cjMainRatio` / `cjReserveRatio` / `cjLOSRatio` | `M1_Implementation_Record.md` |
+| **M2** | ✅ 完成 | LOS 优先分配分流；RESERVE A 类（LOS）+ B 类（MAIN）借用；MAIN 降级路径；`AllocLarge` 4 步路由 | `M2_Implementation_Record.md` |
+| **M3** | ✅ 完成 | LOS 标记-清扫回收；MAIN→LOS 大对象迁移；引用更新（migrationMap + 全堆扫描）；RESERVE 自动归还 | `M3_Implementation_Record.md` |
+| **M4a-sync** | ✅ 完成 | LOS 7 阶段滑动整理（向高地址紧凑）；pinned 屏障；losFreeMgr 重建；归还 RESERVE | `M4a_Implementation_Record.md` §1-5 |
+| **M4a-async** | ✅ 完成 | FinalizerProcessor 异步触发整理；`isCompacting` / `compactionRequested` 状态标志；`SignalLOSCompaction()` | `M4a_Implementation_Record.md` §6 |
+| **M4b-core** | ✅ 完成 | CartesianTree 低地址优先分配；`ShrinkInactiveZone()`；`mainEnd` 边界修复 | `M4b_Implementation_Record.md` §1-5 |
+| **M4b-alignment** | ✅ 完成 | `AllocLargeInMain()` region 对齐（向上取整到 `maxUnitCountPerRegion`） | `M4b_Implementation_Record.md` §6 |
+| **M5 #1** | ✅ 完成 | `pendingReserveReturns` — GC 后批量归还 RESERVE-borrowed region | `M5_Implementation_Record.md` §4.1 |
+| **M5 #2** | ✅ 完成 | Cooldown（冷却机制）— RESERVE 借出后设定保护期，避免即借即还抖动 | `M5_Implementation_Record.md` §4.2 |
+| **M5 #3** | ✅ 完成 | Hysteresis（迟滞机制）— RESERVE 可用低于阈值时才暂停借出 | `M5_Implementation_Record.md` §4.3 |
+| **M5 #4** | ✅ 完成 | `DumpRegionStats` 增强 — RESERVE / LOS 统计输出 | `M5_Implementation_Record.md` §4.4 |
+| **M5 #5** | ⏸ 暂缓 | 灵活非 LIFO 归还（允许非栈式归还 RESERVE 中间段），需进一步评估必要性 | — |
+| **M5 #6** | ✅ 完成 | 环境变量开关（`cjReserveCooldownGCs`, `cjReserveHysteresisRatio`） | `M5_Implementation_Record.md` §4.5 |
+
+### 计划与实际偏差
+
+| 计划内容 | 实际偏差 | 原因 |
+|----------|----------|------|
+| M4 同步 + 异步整理合为一个步骤 | 拆分为 M4a（sync+async）和 M4b（MAIN defrag） | MAIN 碎片整理（低地址优先 + ShrinkInactiveZone）独立性强，同 LOS 整理解耦 |
+| M5 完整扩缩容 | 灵活非 LIFO 归还（#5）暂缓 | 当前 cooldown + hysteresis 已能有效控制抖动，非 LIFO 归还引入额外复杂度 |
+| M4b 大对象 region 对齐未在原计划中 | 实现中发现碎片问题，追加 | MAIN 降级大对象释放后形成不规则空闲块，需要对齐到标准 region 大小 |

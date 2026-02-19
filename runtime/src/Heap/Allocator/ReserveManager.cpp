@@ -136,6 +136,7 @@ uintptr_t ReserveManager::BorrowForMain(size_t size)
     mainBufCeiling = chunkAddr + chunkSize;
     mainChunkBorrowCount++;
     mainBorrowBytes += chunkSize;
+    lastMainBorrowCycle = gcCycleCount;  // M5: cooldown tracking
 
     // Allocate from new buffer
     uintptr_t addr = mainBufCursor;
@@ -171,6 +172,7 @@ uintptr_t ReserveManager::BorrowForLOS(size_t size)
     losBufCursor = chunkAddr + chunkSize;
     losChunkBorrowCount++;
     losBorrowBytes += chunkSize;
+    lastLOSBorrowCycle = gcCycleCount;  // M5: cooldown tracking
 
     // Allocate from new buffer (high→low)
     uintptr_t addr = losBufCursor - size;
@@ -181,7 +183,7 @@ uintptr_t ReserveManager::BorrowForLOS(size_t size)
     return addr;
 }
 
-void ReserveManager::ReturnFromMain(uintptr_t addr, size_t size)
+bool ReserveManager::ReturnFromMain(uintptr_t addr, size_t size)
 {
     std::lock_guard<std::mutex> lock(borrowMutex);
 
@@ -195,14 +197,19 @@ void ReserveManager::ReturnFromMain(uintptr_t addr, size_t size)
             mainBufCursor = 0;
             mainBufCeiling = 0;
         }
-        DLOG(REGION, "ReserveManager: ReturnFromMain %zu bytes @0x%zx", size, addr);
+        mainReturnBytes += size;
+        lastMainReturnCycle = gcCycleCount;  // M5: cooldown tracking
+        DLOG(REGION, "ReserveManager: ReturnFromMain %zu bytes @0x%zx, watermark now 0x%zx",
+             size, addr, addr);
+        return true;
     } else {
         DLOG(REGION, "ReserveManager: ReturnFromMain skipped (not at top), addr 0x%zx, size %zu, current 0x%zx",
              addr, size, currentMain);
+        return false;
     }
 }
 
-void ReserveManager::ReturnFromLOS(uintptr_t addr, size_t size)
+bool ReserveManager::ReturnFromLOS(uintptr_t addr, size_t size)
 {
     std::lock_guard<std::mutex> lock(borrowMutex);
 
@@ -216,10 +223,15 @@ void ReserveManager::ReturnFromLOS(uintptr_t addr, size_t size)
             losBufFloor = 0;
             losBufCursor = 0;
         }
-        DLOG(REGION, "ReserveManager: ReturnFromLOS %zu bytes @0x%zx", size, addr);
+        losReturnBytes += size;
+        lastLOSReturnCycle = gcCycleCount;  // M5: cooldown tracking
+        DLOG(REGION, "ReserveManager: ReturnFromLOS %zu bytes @0x%zx, watermark now 0x%zx",
+             size, addr, addr + size);
+        return true;
     } else {
         DLOG(REGION, "ReserveManager: ReturnFromLOS skipped (not at bottom), addr 0x%zx, size %zu, current 0x%zx",
              addr, size, currentLOS);
+        return false;
     }
 }
 

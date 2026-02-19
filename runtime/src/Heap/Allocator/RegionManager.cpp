@@ -486,6 +486,15 @@ void RegionManager::ReclaimRegion(RegionInfo* region)
         region->GetRegionAllocatedSize(), region->GetRegionEnd(), region->GetRegionType());
 
     region->InitFreeUnits();
+
+    // M5: If region is in RESERVE-borrowed territory, defer for return to RESERVE
+    if (IsInReserveTerritory(region->GetRegionStart())) {
+        pendingReserveReturns.push_back({unitIndex, num});
+        DLOG(REGION, "MAIN reclaim: RESERVE-borrowed region deferred for return, units[%zu+%zu)",
+             unitIndex, num);
+        return;
+    }
+
     freeRegionManager.AddGarbageUnits(unitIndex, num);
 }
 
@@ -502,6 +511,15 @@ size_t RegionManager::ReleaseRegion(RegionInfo* region)
 
     region->InitFreeUnits();
     RegionInfo::ReleaseUnits(unitIndex, num);
+
+    // M5: If region is in RESERVE-borrowed territory, defer for return to RESERVE
+    if (IsInReserveTerritory(region->GetRegionStart())) {
+        pendingReserveReturns.push_back({unitIndex, num});
+        DLOG(REGION, "MAIN release: RESERVE-borrowed region deferred for return, units[%zu+%zu)",
+             unitIndex, num);
+        return res;
+    }
+
     freeRegionManager.AddReleaseUnits(unitIndex, num);
     return res;
 }
@@ -948,6 +966,59 @@ void RegionManager::DumpRegionStats(const char* msg) const
     TRACE_COUNT("CJRT_GC_releasedUnits", releasedUnits);
     TRACE_COUNT("CJRT_GC_dirtyUnits", dirtyUnits);
     TRACE_COUNT("CJRT_GC_listedUnits", listedUnits);
+
+    // M5: MAIN / RESERVE / LOS space snapshot
+    if (reserveManager != nullptr) {
+        size_t reserveCap = reserveManager->GetCapacity();
+        size_t reserveAvail = reserveManager->GetAvailable();
+        size_t reserveMainBorrowed = reserveManager->GetMainBorrowedSize();
+        size_t reserveLOSBorrowed = reserveManager->GetLOSBorrowedSize();
+        size_t reserveMainReturned = reserveManager->GetMainReturnBytes();
+        size_t reserveLOSReturned = reserveManager->GetLOSReturnBytes();
+        VLOG(REPORT, "\tRESERVE: capacity %zu B, available %zu B, "
+             "mainBorrowed %zu B, losBorrowed %zu B, "
+             "mainReturned %zu B, losReturned %zu B",
+             reserveCap, reserveAvail,
+             reserveMainBorrowed, reserveLOSBorrowed,
+             reserveMainReturned, reserveLOSReturned);
+        VLOG(REPORT, "\tRESERVE: mainBorrowCount %zu, losBorrowCount %zu, cooldownSkips %zu",
+             reserveManager->GetMainChunkBorrowCount(),
+             reserveManager->GetLOSChunkBorrowCount(),
+             reserveManager->GetCooldownSkipCount());
+        TRACE_COUNT("CJRT_GC_reserveCapacity", reserveCap);
+        TRACE_COUNT("CJRT_GC_reserveAvailable", reserveAvail);
+        TRACE_COUNT("CJRT_GC_reserveMainBorrowed", reserveMainBorrowed);
+        TRACE_COUNT("CJRT_GC_reserveLOSBorrowed", reserveLOSBorrowed);
+    }
+    if (losManager != nullptr) {
+        size_t losCap = losManager->GetCapacity();
+        size_t losUsed = losManager->GetUsedSize();
+        size_t losFree = losManager->GetFreeSize();
+        size_t losAllocCnt = losManager->GetAllocCount();
+        size_t losFailCnt = losManager->GetAllocFailCount();
+        size_t losFallback = losManager->GetFallbackCount();
+        size_t losReserveBorrow = losManager->GetReserveBorrowCount();
+        size_t losCompactCnt = losManager->GetCompactCount();
+        size_t losGarbage = losManager->GetGarbageCollectedBytes();
+        size_t losMigrateIn = losManager->GetMigrateInCount();
+        VLOG(REPORT, "\tLOS: capacity %zu B, used %zu B, free %zu B, "
+             "alloc %zu, fail %zu, fallback %zu, reserveBorrow %zu",
+             losCap, losUsed, losFree, losAllocCnt, losFailCnt, losFallback, losReserveBorrow);
+        VLOG(REPORT, "\tLOS: compactions %zu, garbageBytes %zu, migrateIn %zu, "
+             "compactMoved %zu B, compactFreed %zu B, compactShrunk %zu B",
+             losCompactCnt, losGarbage, losMigrateIn,
+             losManager->GetCompactMovedBytes(),
+             losManager->GetCompactFreedBytes(),
+             losManager->GetCompactShrunkBytes());
+        TRACE_COUNT("CJRT_GC_losCapacity", losCap);
+        TRACE_COUNT("CJRT_GC_losUsed", losUsed);
+        TRACE_COUNT("CJRT_GC_losFree", losFree);
+        TRACE_COUNT("CJRT_GC_losAllocCount", losAllocCnt);
+        TRACE_COUNT("CJRT_GC_losCompactCount", losCompactCnt);
+    }
+    VLOG(REPORT, "\tMAIN: [0x%zx, 0x%zx) end 0x%zx, inactiveZone 0x%zx, reserveBorrow %zu",
+         regionHeapStart, regionHeapEnd, mainEnd,
+         inactiveZone.load(std::memory_order_relaxed), mainReserveBorrowCount);
 }
 
 RegionInfo* RegionManager::AllocateThreadLocalRegion(bool expectPhysicalMem)
@@ -1292,6 +1363,62 @@ size_t RegionManager::ShrinkInactiveZone()
     VLOG(REPORT, "ShrinkInactiveZone: 0x%zx -> 0x%zx, reclaimed %zu bytes (%zu units)",
          oldInactive, highestLiveEnd, reclaimedBytes, reclaimedBytes / RegionInfo::UNIT_SIZE);
     return reclaimedBytes;
+}
+
+// M5: Return RESERVE-borrowed free MAIN regions to RESERVE.
+// Dead RESERVE-borrowed regions are intercepted in ReclaimRegion/ReleaseRegion and
+// stored in pendingReserveReturns instead of freeRegionManager.
+// This method processes them, trying to return to RESERVE (from watermark tip).
+// On failure, falls back to freeRegionManager for future reuse.
+size_t RegionManager::ReturnBorrowedToReserve()
+{
+    if (reserveManager == nullptr || pendingReserveReturns.empty()) {
+        return 0;
+    }
+
+    // M5 hysteresis: skip proactive return if MAIN return is in cooldown
+    // (unless there are many pending returns, suggesting heavy churn)
+    if (reserveManager->IsMainReturnInCooldown() && pendingReserveReturns.size() < 4) {
+        // Cooldown active — put pending returns into freeRegionManager for reuse
+        for (auto& entry : pendingReserveReturns) {
+            freeRegionManager.AddGarbageUnits(entry.first, entry.second);
+        }
+        DLOG(REGION, "MAIN ReturnBorrowedToReserve: cooldown, %zu entries kept in freeRegionManager",
+             pendingReserveReturns.size());
+        pendingReserveReturns.clear();
+        return 0;
+    }
+
+    // Sort by address descending — return from watermark tip (highest address) first.
+    // ReturnFromMain only accepts returns at addr+size == mainWatermark (LIFO from top).
+    std::sort(pendingReserveReturns.begin(), pendingReserveReturns.end(),
+              [](const std::pair<size_t, size_t>& a, const std::pair<size_t, size_t>& b) {
+                  return a.first > b.first;  // descending by unit index (= address)
+              });
+
+    size_t returnedBytes = 0;
+
+    for (auto& entry : pendingReserveReturns) {
+        uintptr_t addr = RegionInfo::GetUnitAddress(entry.first);
+        size_t size = entry.second * RegionInfo::UNIT_SIZE;
+
+        if (reserveManager->ReturnFromMain(addr, size)) {
+            returnedBytes += size;
+            DLOG(REGION, "MAIN ReturnBorrowedToReserve: returned %zu bytes @0x%zx", size, addr);
+        } else {
+            // Can't return to RESERVE (not at watermark top) — keep in freeRegionManager for reuse
+            freeRegionManager.AddGarbageUnits(entry.first, entry.second);
+            DLOG(REGION, "MAIN ReturnBorrowedToReserve: kept in freeRegionManager, units[%zu+%zu)",
+                 entry.first, entry.second);
+        }
+    }
+
+    pendingReserveReturns.clear();
+
+    if (returnedBytes > 0) {
+        DLOG(REPORT, "MAIN ReturnBorrowedToReserve: returned %zu bytes total to RESERVE", returnedBytes);
+    }
+    return returnedBytes;
 }
 
 } // namespace MapleRuntime

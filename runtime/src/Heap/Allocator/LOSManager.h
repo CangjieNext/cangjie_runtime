@@ -10,6 +10,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 #include "FreeRegionManager.h"
@@ -176,6 +177,9 @@ public:
     // Fragmentation threshold: compact when free units / active units > this ratio
     static constexpr double LOS_COMPACTION_FRAG_THRESHOLD = 0.3;
 
+    // M5: Hysteresis — only return borrowed RESERVE space if LOS free ratio > this
+    static constexpr double LOS_RESERVE_RETURN_THRESHOLD = 0.4;
+
     // M4a-async: Compaction coordination accessors
     bool IsCompacting() const { return isCompacting.load(std::memory_order_acquire); }
     void SetCompacting(bool v) { isCompacting.store(v, std::memory_order_release); }
@@ -247,6 +251,22 @@ public:
     void IncrementAllocCount() { losAllocCount++; }
     void IncrementAllocFailCount() { losAllocFailCount++; }
     void IncrementFallbackCount() { losFallbackCount++; }
+
+    /**
+     * M5: Return RESERVE-borrowed free LOS regions to RESERVE.
+     * During GC, dead RESERVE-borrowed regions are collected into pendingReserveReturns
+     * instead of losFreeMgr. After GC, this method processes them:
+     *   - Sort by address descending (return from watermark edge first)
+     *   - Try ReturnFromLOS for each; on failure, add to losFreeMgr for reuse
+     * Called from WCollector::DoGarbageCollection after CompactLOS.
+     * @return Bytes returned to RESERVE
+     */
+    size_t ReturnBorrowedToReserve();
+
+    /**
+     * M5: Check if an address is in RESERVE-borrowed territory (below losStart).
+     */
+    bool IsInReserveTerritory(uintptr_t addr) const { return addr < losStart; }
 
     /**
      * Get region lists for GC
@@ -341,6 +361,10 @@ private:
 
     // M4a: Return freed low-address space to RESERVE after compaction
     size_t ShrinkToReserve(size_t freedBytes);
+
+    // M5: Pending RESERVE returns — RESERVE-borrowed dead regions held until explicit ReturnBorrowedToReserve()
+    // <unitIdx, unitCount> pairs collected during CollectLOSGarbage
+    std::vector<std::pair<size_t, size_t>> pendingReserveReturns;
 };
 
 } // namespace MapleRuntime

@@ -602,6 +602,23 @@ void WCollector::DoGarbageCollection()
     // leaving free regions at high addresses. Shrink inactiveZone to reclaim them.
     reinterpret_cast<RegionSpace&>(theAllocator).GetRegionManager().ShrinkInactiveZone();
 
+    // M5: Return RESERVE-borrowed space after GC.
+    // MAIN: dead borrowed regions (intercepted in ReclaimRegion/ReleaseRegion) are returned.
+    // LOS: dead borrowed regions (intercepted in ReclaimLOSRegion/ReleaseLOSRegion) are returned.
+    // Also notify RESERVE about GC cycle completion for cooldown tracking.
+    {
+        RegionManager& rm = reinterpret_cast<RegionSpace&>(theAllocator).GetRegionManager();
+        rm.ReturnBorrowedToReserve();
+        LOSManager* losMgr = rm.GetLOSManager();
+        if (losMgr != nullptr) {
+            losMgr->ReturnBorrowedToReserve();
+        }
+        ReserveManager* resMgr = rm.GetReserveManager();
+        if (resMgr != nullptr) {
+            resMgr->NotifyGCCycle();
+        }
+    }
+
     reinterpret_cast<RegionSpace&>(theAllocator).DumpRegionStats("region statistics when gc ends");
 }
 

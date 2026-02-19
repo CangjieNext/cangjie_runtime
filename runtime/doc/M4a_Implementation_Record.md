@@ -165,7 +165,101 @@ losStart      newLosInactiveZone                                   losEnd
 | `losCompactShrunkBytes` | 上次整理归还 RESERVE 字节数 |
 | `lastCompactAllocFailCount` | 上次整理时的 allocFailCount（冷却计数） |
 
-## 6. 编译验证
+## 6. 异步整理（Async Compaction）
+
+### 6.1 动机
+
+同步整理（上述 7 阶段 `CompactLOS()`）需要在 STW 期间由 GC 线程触发。然而，在某些场景下 LOS 碎片化严重但常规 GC 未被触发（例如堆阈值未达到），此时 LOS 分配频繁失败并降级到 MAIN，导致 MAIN 空间压力增大。
+
+**异步整理**通过 `FinalizerProcessor` 线程（gc-helper）检测到 LOS 碎片化后主动请求一次同步 GC，在该 GC 的 STW PostTrace 阶段执行整理。
+
+### 6.2 触发路径
+
+```
+AllocLarge()                        // RegionManager.h
+  → losManager->AllocLarge() 失败
+  → AllocLargeInMain() 成功（MAIN 降级）
+  → if (!IsCompacting() && !IsCompactionRequested())
+      → SignalLOSCompaction()       // RegionManager.cpp
+          → losManager->SetCompactionRequested(true)
+          → FinalizerProcessor::NotifyToCompactLOS()
+              → shouldCompactLOS = true
+              → Notify() 唤醒 FP 线程
+```
+
+### 6.3 FinalizerProcessor 主循环集成
+
+`FinalizerProcessor::Run()` 主循环新增检查：
+
+```cpp
+// M4a-async: Check if async LOS compaction was requested
+if (shouldCompactLOS.load(std::memory_order_relaxed)) {
+    PerformLOSCompaction();
+}
+```
+
+等待条件也包含 `shouldCompactLOS`，确保信号能唤醒休眠的 FP 线程。
+
+### 6.4 PerformLOSCompaction() 流程
+
+```
+FinalizerProcessor::PerformLOSCompaction()
+  │
+  ├─ 获取 LOSManager（通过 RegionSpace → RegionManager）
+  ├─ 双重检查：IsCompactionRequested() || NeedsCompaction()
+  │   └─ 如果都不满足 → 清除 shouldCompactLOS, return
+  │
+  ├─ Step 1: losMgr->SetCompacting(true)
+  │   └─ 阻止所有 LOS 新分配（强制走 MAIN 降级）
+  │
+  ├─ Step 2: Collector::RequestGC(GC_REASON_HEU_SYNC, false)
+  │   └─ 阻塞等待 GC 完成
+  │   └─ 在 STW PostTrace 中：
+  │       CompactLOSIfNeeded()
+  │         → losManager->NeedsCompaction() || IsCompactionRequested()
+  │         → SetCompacting(true)  // 同步路径的 guard
+  │         → CompactLOS()          // 执行 7 阶段滑动整理
+  │         → SetCompactionRequested(false)
+  │         → SetCompacting(false)
+  │
+  ├─ Step 3: losMgr->SetCompacting(false)
+  │   └─ 恢复 LOS 分配
+  │
+  └─ shouldCompactLOS = false
+```
+
+**关键安全性**：FinalizerProcessor 线程在 `Init()` 中调用了 `EnterSaferegion()`，因此请求同步 GC 是安全的——GC 线程可以立即进入 STW，不会因等待 FP 线程到达安全点而死锁。
+
+### 6.5 状态标志说明
+
+| 标志 | 位置 | 含义 |
+|------|------|------|
+| `LOSManager::isCompacting` | `std::atomic<bool>` | 整理进行中（同步或异步），阻止所有 LOS 新分配 |
+| `LOSManager::compactionRequested` | `std::atomic<bool>` | 分配路径设置，PostTrace 中 `CompactLOSIfNeeded()` 检查 |
+| `FinalizerProcessor::shouldCompactLOS` | `std::atomic<bool>` | FP 线程内部信号，控制是否执行 `PerformLOSCompaction()` |
+
+### 6.6 同步 vs 异步整理对比
+
+| 维度 | 同步整理 | 异步整理 |
+|------|----------|----------|
+| 触发方 | GC 线程（PostTrace 中 `NeedsCompaction()` 返回 true） | 分配线程（LOS 分配失败 → `SignalLOSCompaction()`） |
+| 执行位置 | 当前 GC 周期的 PostTrace | 下一次 GC（由 FP 请求的 sync GC）的 PostTrace |
+| 实际整理代码 | 相同：`CompactLOSIfNeeded()` → `CompactLOS()` | 相同 |
+| 前置条件 | 碎片率>30% 或有新分配失败 | `compactionRequested=true`（分配失败降级时设置） |
+| 分配阻塞 | STW 期间自然阻塞 | `isCompacting=true` 显式阻塞 LOS 分配 |
+
+### 6.7 修改文件清单（异步部分）
+
+| 文件 | 改动类型 | 说明 |
+|------|----------|------|
+| `src/Heap/Allocator/LOSManager.h` | 新增字段 | `isCompacting`, `compactionRequested` 原子标志 + accessor |
+| `src/Heap/Allocator/RegionManager.h` | 修改 `AllocLarge()` | 添加 `IsCompacting()` 检查跳过 LOS + `IsCompactionRequested()` 防重复信号 |
+| `src/Heap/Allocator/RegionManager.cpp` | 新增 `SignalLOSCompaction()` | 设置 `compactionRequested` + 通知 FP |
+| `src/Heap/Collector/FinalizerProcessor.h` | 新增字段+方法 | `shouldCompactLOS` 原子标志, `NotifyToCompactLOS()`, `PerformLOSCompaction()` 声明 |
+| `src/Heap/Collector/FinalizerProcessor.cpp` | 新增实现+修改 `Run()` | `PerformLOSCompaction()` 实现, 主循环+等待条件添加检查 |
+| `src/Heap/WCollector/WCollector.cpp` | 修改 `CompactLOSIfNeeded()` | 检查 `IsCompactionRequested()` 作为触发条件 + 整理后清除标志 |
+
+## 7. 编译验证
 
 ```
 Build and preinstall completed successfully.

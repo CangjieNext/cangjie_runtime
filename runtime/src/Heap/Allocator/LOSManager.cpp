@@ -219,6 +219,15 @@ size_t LOSManager::ReclaimLOSRegion(RegionInfo* region)
          unitIndex, unitCount);
 
     region->InitFreeUnits();
+
+    // M5: If region is in RESERVE-borrowed territory (below losStart), defer for return to RESERVE
+    if (IsInReserveTerritory(region->GetRegionStart())) {
+        pendingReserveReturns.push_back({unitIndex, unitCount});
+        DLOG(REGION, "LOS reclaim: RESERVE-borrowed region deferred for return, units[%zu+%zu)",
+             unitIndex, unitCount);
+        return regionSize;
+    }
+
     losFreeMgr.AddGarbageUnits(unitIndex, unitCount);
     return regionSize;
 }
@@ -236,6 +245,15 @@ size_t LOSManager::ReleaseLOSRegion(RegionInfo* region)
 
     region->InitFreeUnits();
     RegionInfo::ReleaseUnits(unitIndex, unitCount);
+
+    // M5: If region is in RESERVE-borrowed territory (below losStart), defer for return to RESERVE
+    if (IsInReserveTerritory(region->GetRegionStart())) {
+        pendingReserveReturns.push_back({unitIndex, unitCount});
+        DLOG(REGION, "LOS release: RESERVE-borrowed region deferred for return, units[%zu+%zu)",
+             unitIndex, unitCount);
+        return regionSize;
+    }
+
     losFreeMgr.AddReleaseUnits(unitIndex, unitCount);
     return regionSize;
 }
@@ -686,6 +704,68 @@ size_t LOSManager::ShrinkToReserve(size_t freedBytes)
 
     DLOG(REPORT, "LOS ShrinkToReserve: returned %zu bytes @0x%zx to RESERVE", returnSize, returnAddr);
     return returnSize;
+}
+
+// ===== M5: Return RESERVE-borrowed free LOS regions to RESERVE =====
+
+size_t LOSManager::ReturnBorrowedToReserve()
+{
+    if (reserveManager == nullptr || pendingReserveReturns.empty()) {
+        return 0;
+    }
+
+    // M5 hysteresis: skip proactive return if LOS return is in cooldown
+    // (unless there are many pending returns, indicating heavy return pressure)
+    if (reserveManager->IsLOSReturnInCooldown() && pendingReserveReturns.size() < 4) {
+        // Still in cooldown — put pending returns into losFreeMgr for reuse instead
+        for (auto& entry : pendingReserveReturns) {
+            losFreeMgr.AddGarbageUnits(entry.first, entry.second);
+        }
+        DLOG(REGION, "LOS ReturnBorrowedToReserve: cooldown, %zu entries kept in losFreeMgr",
+             pendingReserveReturns.size());
+        pendingReserveReturns.clear();
+        return 0;
+    }
+
+    // Sort by unit index descending — try to return from watermark edge (highest addr) first
+    // Note: for LOS-borrowed RESERVE, the addresses are below losStart, and
+    // RESERVE's losWatermark grows downward. ReturnFromLOS expects addr == losWatermark.
+    // So we sort ascending (lowest address first) since the LOS watermark is at the bottom.
+    std::sort(pendingReserveReturns.begin(), pendingReserveReturns.end(),
+              [](const std::pair<size_t, size_t>& a, const std::pair<size_t, size_t>& b) {
+                  return a.first < b.first;
+              });
+
+    size_t returnedBytes = 0;
+    std::vector<std::pair<size_t, size_t>> unreturned;
+
+    for (auto& entry : pendingReserveReturns) {
+        uintptr_t addr = RegionInfo::GetUnitAddress(entry.first);
+        size_t size = entry.second * RegionInfo::UNIT_SIZE;
+
+        if (reserveManager->ReturnFromLOS(addr, size)) {
+            returnedBytes += size;
+            DLOG(REGION, "LOS ReturnBorrowedToReserve: returned %zu bytes @0x%zx", size, addr);
+        } else {
+            // Can't return to RESERVE (not at watermark edge) — keep in losFreeMgr for reuse
+            unreturned.push_back(entry);
+        }
+    }
+
+    // Add unreturned regions to losFreeMgr so they're not lost
+    for (auto& entry : unreturned) {
+        losFreeMgr.AddGarbageUnits(entry.first, entry.second);
+        DLOG(REGION, "LOS ReturnBorrowedToReserve: kept in losFreeMgr, units[%zu+%zu)",
+             entry.first, entry.second);
+    }
+
+    pendingReserveReturns.clear();
+
+    if (returnedBytes > 0) {
+        DLOG(REPORT, "LOS ReturnBorrowedToReserve: returned %zu bytes total, %zu entries unreturned",
+             returnedBytes, unreturned.size());
+    }
+    return returnedBytes;
 }
 
 } // namespace MapleRuntime
