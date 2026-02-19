@@ -156,6 +156,15 @@ public:
     RegionList& GetOldLargeRegionList() { return oldLargeRegionList; }
     RegionList& GetGarbageRegionList() { return garbageRegionList; }
 
+    // M4b: MAIN end boundary (excludes RESERVE and LOS)
+    uintptr_t GetMainEnd() const { return mainEnd; }
+
+    // M4b: Shrink inactiveZone after GC to return free high-end space to RESERVE.
+    // Scans the active zone, finds the highest live region, rebuilds freeRegionManager
+    // with only regions below that point, and lowers inactiveZone.
+    // Returns the number of bytes reclaimed (now available to RESERVE/inactiveZone).
+    size_t ShrinkInactiveZone();
+
     ~RegionManager() = default;
 
     // take a region with *num* units for allocation
@@ -422,7 +431,7 @@ public:
 
     size_t GetDirtyUnitCount() const { return freeRegionManager.GetDirtyUnitCount(); }
 
-    size_t GetInactiveUnitCount() const { return (regionHeapEnd - inactiveZone) / RegionInfo::UNIT_SIZE; }
+    size_t GetInactiveUnitCount() const { return (mainEnd - inactiveZone) / RegionInfo::UNIT_SIZE; }
 
     size_t GetActiveUnitCount() const { return (inactiveZone - regionHeapStart) / RegionInfo::UNIT_SIZE; }
 
@@ -661,6 +670,7 @@ private:
 
     uintptr_t regionHeapStart = 0; // the address of first region to allocate object
     uintptr_t regionHeapEnd = 0;
+    uintptr_t mainEnd = 0; // M4b: MAIN space upper boundary (excludes RESERVE/LOS)
 
     // LOS (Large Object Space) manager - nullptr when cjLOSRatio=0
     LOSManager* losManager = nullptr;

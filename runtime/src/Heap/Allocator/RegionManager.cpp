@@ -426,6 +426,7 @@ void RegionManager::Initialize(size_t nUnit, uintptr_t regionInfoAddr)
     // For MAIN space, update regionHeapEnd to exclude RESERVE and LOS
     // Note: We keep regionHeapEnd as the full end for now, but inactiveZone controls MAIN allocation
     this->inactiveZone = regionHeapStart;
+    this->mainEnd = mainEnd;  // M4b: store MAIN upper boundary
 
     // Initialize RESERVE manager if reserveRatio > 0
     if (reserveRatio > 0 && reserveUnitCount > 0) {
@@ -457,6 +458,8 @@ void RegionManager::Initialize(size_t nUnit, uintptr_t regionInfoAddr)
     RegionInfo::Initialize(nUnit, regionHeapStart);
     // FreeRegionManager only manages MAIN space units
     freeRegionManager.Initialize(mainUnitCount);
+    // M4b: enable low-address-first allocation for MAIN defragmentation
+    freeRegionManager.SetLowAddressFirst(true);
     this->exemptedRegionThreshold = CangjieRuntime::GetHeapParam().exemptionThreshold;
 
     // Log space partitioning
@@ -652,7 +655,7 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
     // when free regions are not enough for allocation
     if (num <= GetInactiveUnitCount()) {
         uintptr_t addr = inactiveZone.fetch_add(size);
-        if (addr < regionHeapEnd - size) {
+        if (addr < mainEnd - size) {  // M4b: use mainEnd instead of regionHeapEnd
             region = RegionInfo::InitRegionAt(addr, num, type);
             size_t idx = region->GetUnitIdx();
 #ifdef _WIN64
@@ -1240,6 +1243,55 @@ void RegionManager::SignalLOSCompaction()
     }
     DLOG(REGION, "LOS compaction signaled: allocFail=%zu, fragRatio=%.2f",
          losManager->GetAllocFailCount(), losManager->GetFragmentationRatio());
+}
+
+// M4b: Shrink inactiveZone to reclaim free space at the high end of MAIN.
+// After GC with low-address-first allocation, live regions cluster near regionHeapStart,
+// and free regions accumulate near inactiveZone. This function:
+//   1. Scans the active zone to find the highest live region end.
+//   2. Rebuilds freeRegionManager with only chunks below that boundary.
+//   3. Lowers inactiveZone to release high-end free space.
+// Called during STW after every GC's CollectSmallSpace.
+size_t RegionManager::ShrinkInactiveZone()
+{
+    uintptr_t oldInactive = inactiveZone.load();
+    if (oldInactive <= regionHeapStart) {
+        return 0;
+    }
+
+    // Pass 1: Scan active zone to find highest live region end.
+    uintptr_t highestLiveEnd = regionHeapStart;
+    for (uintptr_t addr = regionHeapStart; addr < oldInactive;) {
+        RegionInfo* region = RegionInfo::GetRegionInfoAt(addr);
+        uintptr_t end = region->GetRegionEnd();
+        if (region->IsValidRegion() && !region->IsFreeRegion() && !region->IsGarbageRegion()) {
+            highestLiveEnd = end;
+        }
+        addr = end;
+    }
+
+    if (highestLiveEnd >= oldInactive) {
+        return 0; // No free space at high end
+    }
+
+    // Pass 2: Rebuild freeRegionManager with only free chunks below highestLiveEnd.
+    freeRegionManager.ClearTrees();
+    for (uintptr_t addr = regionHeapStart; addr < highestLiveEnd;) {
+        RegionInfo* region = RegionInfo::GetRegionInfoAt(addr);
+        uintptr_t end = region->GetRegionEnd();
+        if (region->IsFreeRegion()) {
+            freeRegionManager.AddGarbageUnits(region->GetUnitIdx(), region->GetUnitCount());
+        }
+        addr = end;
+    }
+
+    // Shrink inactiveZone.
+    inactiveZone.store(highestLiveEnd, std::memory_order_release);
+
+    size_t reclaimedBytes = oldInactive - highestLiveEnd;
+    VLOG(REPORT, "ShrinkInactiveZone: 0x%zx -> 0x%zx, reclaimed %zu bytes (%zu units)",
+         oldInactive, highestLiveEnd, reclaimedBytes, reclaimedBytes / RegionInfo::UNIT_SIZE);
+    return reclaimedBytes;
 }
 
 } // namespace MapleRuntime

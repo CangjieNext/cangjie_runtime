@@ -127,6 +127,16 @@ public:
         return TakeUnitsImpl(num, idx, refreshRegionInfo);
     }
 
+    // find the lowest-address node with at least 'num' units (for MAIN defragmentation)
+    bool TakeUnitsLowAddr(Count num, Index& idx, bool refreshRegionInfo = true)
+    {
+        if (root == nullptr || num == 0) {
+            return false;
+        }
+
+        return TakeUnitsLowAddrImpl(num, idx, refreshRegionInfo);
+    }
+
     struct Node {
         // @param base: global unit index offset for RegionInfo operations.
         Node(Index idx, Count num, bool refreshRegionInfo, Index base = 0)
@@ -451,6 +461,48 @@ private:
 
         CTREE_CHECK_PARENT_AND_LCHILD(*nodePtr);
         CTREE_CHECK_PARENT_AND_RCHILD(*nodePtr);
+
+        return true;
+    }
+
+    // Find the lowest-address (leftmost BST) node whose count >= num.
+    // Leverages both BST-on-index (left = lower addr) and max-heap-on-count
+    // (if node->count < num, no descendant can satisfy either) for O(log n).
+    Node* FindLowestSuitable(Node* node, Count num) const
+    {
+        if (node == nullptr || node->GetCount() < num) {
+            return nullptr;
+        }
+        // Left subtree has strictly lower indices (addresses).
+        Node* left = FindLowestSuitable(node->l, num);
+        if (left != nullptr) {
+            return left;
+        }
+        // No suitable node in left subtree; current node is the lowest suitable.
+        return node;
+    }
+
+    // Like TakeUnitsImpl but always allocates from the lowest-address suitable node.
+    // Used by MAIN's FreeRegionManager to pack live regions toward low addresses.
+    bool TakeUnitsLowAddrImpl(Count num, Index& idx, bool refreshRegionInfo)
+    {
+        Node* node = FindLowestSuitable(root, num);
+        if (node == nullptr) {
+            DLOG(REGION, "c-tree %p fail to take %u free units (low-addr)", this, num);
+            return false;
+        }
+
+        idx = node->GetIndex();
+        auto count = node->GetCount();
+
+        node->UpdateNode(idx + num, count - num, refreshRegionInfo, baseIndex);
+        DecTotalCount(num);
+
+        if (node->GetCount() == 0) {
+            RemoveZeroNode(node);
+        } else {
+            LowerNonZeroNode(node);
+        }
 
         return true;
     }

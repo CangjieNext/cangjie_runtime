@@ -597,6 +597,11 @@ void WCollector::DoGarbageCollection()
     CollectSmallSpace();
     ForwardDataManager::GetForwardDataManager().UnbindPreviousLiveInfo();
 
+    // M4b: After every GC, try to shrink MAIN's active zone.
+    // Low-address-first allocation packs live regions toward regionHeapStart,
+    // leaving free regions at high addresses. Shrink inactiveZone to reclaim them.
+    reinterpret_cast<RegionSpace&>(theAllocator).GetRegionManager().ShrinkInactiveZone();
+
     reinterpret_cast<RegionSpace&>(theAllocator).DumpRegionStats("region statistics when gc ends");
 }
 
