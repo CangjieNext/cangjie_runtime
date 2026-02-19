@@ -174,6 +174,9 @@ protected:
         stats.collectedBytes += stats.largeGarbageSize;
     }
 
+    // M3: Migrate surviving MAIN large objects into LOS after sweep
+    void MigrateLargeObjectsToLOS();
+
     void CollectPinnedGarbage()
     {
         RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);

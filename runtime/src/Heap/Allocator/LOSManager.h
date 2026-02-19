@@ -10,6 +10,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 #include "FreeRegionManager.h"
 #include "RegionInfo.h"
@@ -73,6 +74,68 @@ public:
     void Initialize(uintptr_t start, uintptr_t end, UnitCount unitStart, UnitCount unitEnd);
 
     // ===== M2: Large object allocation in LOS =====
+    // ===== M3: LOS GC sweep + MAIN→LOS migration =====
+
+    /**
+     * M3: Assemble LOS garbage candidates before GC mark phase.
+     * Merges recent → old list and clears live info (analogous to RegionManager::AssembleLargeGarbageCandidates).
+     */
+    void AssembleLOSGarbageCandidates();
+
+    /**
+     * M3: Collect LOS garbage after mark phase.
+     * Sweeps oldLargeRegionList — dead regions go to losFreeMgr (not MAIN's freeRegionManager).
+     * Surviving regions get their mark bits reset.
+     * @return Total garbage bytes reclaimed
+     */
+    size_t CollectLOSGarbage();
+
+    /**
+     * M3: Handle LOS trace regions after tracing completes.
+     * Deactivates losLargeTraceRegions cache and merges into losRecentLargeRegionList.
+     */
+    void HandleLOSTraceRegions();
+
+    /**
+     * M3: Migrate surviving large objects from MAIN space into LOS.
+     * Called during PostTrace (STW) after CollectLargeGarbage.
+     *
+     * For each surviving region in MAIN's oldLargeRegionList:
+     *   - Skip if pinned (rawPointerCount > 0)
+     *   - Try to allocate equivalent space in LOS
+     *   - Copy object data
+     *   - Record old→new address mapping for reference update
+     *   - Reclaim old MAIN region
+     *
+     * @param mainOldList  MAIN's oldLargeRegionList (will be modified: migrated regions removed)
+     * @param mainGarbageList  MAIN's garbageRegionList (migrated MAIN regions go here for reclaim)
+     * @return Number of objects migrated
+     */
+    size_t MigrateLargeObjectsFromMain(RegionList& mainOldList, RegionList& mainGarbageList);
+
+    /**
+     * M3: Update all references across the heap to reflect migrated objects.
+     * Scans roots and all heap objects, replacing old addresses with new ones.
+     * Must be called during STW.
+     */
+    void UpdateMigratedReferences();
+
+    /**
+     * M3: Clear the migration forwarding table (called after migration is complete).
+     */
+    void ClearMigrationState() { migrationMap.clear(); }
+
+    /**
+     * M3: Check if there are pending migrations to process.
+     */
+    bool HasPendingMigrations() const { return !migrationMap.empty(); }
+
+    /**
+     * M3 statistics
+     */
+    size_t GetGarbageCollectedBytes() const { return losGarbageCollectedBytes; }
+    size_t GetMigrateInCount() const { return losMigrateInCount; }
+    size_t GetMigrateInBytes() const { return losMigrateInBytes; }
 
     /**
      * Allocate a large object in LOS space.
@@ -183,11 +246,25 @@ private:
     RegionList losRecentLargeRegionList;
     RegionCache losLargeTraceRegions;  // trace-phase region cache (analogous to RegionManager::largeTraceRegions)
 
+    // M3: Reclaim a dead LOS region — return units to losFreeMgr
+    // (NOT to MAIN's freeRegionManager). Mirrors RegionManager::CollectRegion/ReleaseRegion.
+    size_t ReclaimLOSRegion(RegionInfo* region);
+    size_t ReleaseLOSRegion(RegionInfo* region);
+
     // Statistics
     size_t losAllocCount = 0;
     size_t losAllocFailCount = 0;
     size_t losFallbackCount = 0;
     size_t losReserveBorrowCount = 0;    // number of RESERVE-borrowed LOS allocations
+
+    // M3: GC statistics
+    size_t losGarbageCollectedBytes = 0; // bytes reclaimed in last GC
+    size_t losMigrateInCount = 0;        // objects migrated from MAIN to LOS
+    size_t losMigrateInBytes = 0;        // bytes migrated from MAIN to LOS
+
+    // M3: Migration forwarding map (old MAIN address → new LOS address)
+    // Used during STW reference update. Cleared after migration completes.
+    std::vector<std::pair<uintptr_t, uintptr_t>> migrationMap;
 };
 
 } // namespace MapleRuntime

@@ -152,6 +152,10 @@ public:
 
     size_t GetMainReserveBorrowCount() const { return mainReserveBorrowCount; }
 
+    // M3: expose region lists for migration
+    RegionList& GetOldLargeRegionList() { return oldLargeRegionList; }
+    RegionList& GetGarbageRegionList() { return garbageRegionList; }
+
     ~RegionManager() = default;
 
     // take a region with *num* units for allocation
@@ -475,6 +479,11 @@ public:
         largeTraceRegions.DeactivateRegionCache();
         recentLargeRegionList.MergeRegionList(largeTraceRegions, RegionInfo::RegionType::RECENT_LARGE_REGION);
 
+        // M3: Handle LOS trace regions
+        if (losManager != nullptr) {
+            losManager->HandleLOSTraceRegions();
+        }
+
         tlRegionList.ClearTraceRegionFlag();
         recentPinnedRegionList.ClearTraceRegionFlag();
         oldPinnedRegionList.ClearTraceRegionFlag();
@@ -484,6 +493,11 @@ public:
     {
         fullTraceRegions.ActivateRegionCache();
         largeTraceRegions.ActivateRegionCache();
+
+        // M3: Activate LOS trace cache
+        if (losManager != nullptr) {
+            losManager->GetLargeTraceRegions().ActivateRegionCache();
+        }
     }
 
     bool RouteOrCompactRegionImpl(RegionInfo* region);

@@ -8,6 +8,7 @@
 #include "WCollector.h"
 
 #include "Concurrency/Concurrency.h"
+#include "Heap/Allocator/LOSManager.h"
 #include "Mutator/MutatorManager.h"
 
 namespace MapleRuntime {
@@ -404,9 +405,27 @@ void WCollector::PostTrace()
     // reclaim large objects immediately after tracing is done.
     PrepareCycleRef();
     CollectLargeGarbage();
+    MigrateLargeObjectsToLOS();
     CollectPinnedGarbage();
     RefineFromSpace();
     fwdTable.PrepareForwardTable();
+}
+
+void WCollector::MigrateLargeObjectsToLOS()
+{
+    MRT_PHASE_TIMER("MigrateLargeObjectsToLOS");
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
+    LOSManager* losMgr = space.GetRegionManager().GetLOSManager();
+    if (losMgr == nullptr) {
+        return;
+    }
+    RegionManager& rm = space.GetRegionManager();
+    size_t migratedCount = losMgr->MigrateLargeObjectsFromMain(
+        rm.GetOldLargeRegionList(), rm.GetGarbageRegionList());
+    if (migratedCount > 0) {
+        losMgr->UpdateMigratedReferences();
+        losMgr->ClearMigrationState();
+    }
 }
 
 void WCollector::Preforward()

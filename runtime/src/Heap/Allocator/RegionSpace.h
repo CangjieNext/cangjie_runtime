@@ -161,7 +161,16 @@ public:
         regionManager.ForwardFromRegions(threadPool);
     }
 
-    size_t CollectLargeGarbage() { return regionManager.CollectLargeGarbage(); }
+    size_t CollectLargeGarbage()
+    {
+        size_t mainGarbage = regionManager.CollectLargeGarbage();
+        // M3: Collect LOS garbage — sweep dead LOS regions to losFreeMgr
+        LOSManager* losMgr = regionManager.GetLOSManager();
+        if (losMgr != nullptr) {
+            mainGarbage += losMgr->CollectLOSGarbage();
+        }
+        return mainGarbage;
+    }
 
     size_t CollectPinnedGarbage() { return regionManager.CollectPinnedGarbage(); }
 
@@ -176,13 +185,21 @@ public:
         regionManager.AssembleSmallGarbageCandidates();
         regionManager.AssemblePinnedGarbageCandidates(collectAll);
         regionManager.AssembleLargeGarbageCandidates();
+        // M3: Assemble LOS large garbage candidates
+        LOSManager* losMgr = regionManager.GetLOSManager();
+        if (losMgr != nullptr) {
+            losMgr->AssembleLOSGarbageCandidates();
+        }
     }
 
     void DumpRegionStats(const char* msg) const { regionManager.DumpRegionStats(msg); }
 
     void CountLiveObject(const BaseObject* obj) { regionManager.CountLiveObject(obj); }
 
-    void PrepareTrace() { regionManager.PrepareTrace(); }
+    void PrepareTrace()
+    {
+        regionManager.PrepareTrace();
+    }
     void FeedHungryBuffers() override;
 
     static bool MarkObject(const BaseObject* obj)
