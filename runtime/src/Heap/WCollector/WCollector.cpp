@@ -433,8 +433,8 @@ void WCollector::CompactLOSIfNeeded()
     // concurrent check (e.g., from FinalizerProcessor) sees the correct state.
     losMgr->SetCompacting(true);
 
-    // CompactLOS populates migrationMap with compaction forwarding entries
-    // and calls UpdateMigratedReferences() internally.
+    // CompactLOS populates migrationMap with compaction forwarding entries.
+    // Reference update is deferred to MigrateLargeObjectsToLOS() for a single unified scan.
     // Do NOT clear migrationMap here — M3 migration will append to it.
     size_t freedBytes = losMgr->CompactLOS();
     (void)freedBytes;
@@ -456,8 +456,10 @@ void WCollector::MigrateLargeObjectsToLOS()
     // MigrateLargeObjectsFromMain appends to migrationMap (may contain compaction entries).
     size_t migratedCount = losMgr->MigrateLargeObjectsFromMain(
         rm.GetOldLargeRegionList(), rm.GetGarbageRegionList());
-    if (migratedCount > 0) {
-        // Update references for both compaction + migration entries in one scan.
+    (void)migratedCount;
+    // Single unified reference update: covers both compaction + migration entries.
+    // CompactLOS() only builds forwarding entries without scanning; we scan once here.
+    if (losMgr->HasPendingMigrations()) {
         losMgr->UpdateMigratedReferences();
     }
     // Clear all forwarding entries (compaction + migration) after everything is done.

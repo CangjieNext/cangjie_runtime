@@ -7,6 +7,7 @@
 #include "Allocator/LOSManager.h"
 
 #include <algorithm>
+#include <unordered_set>
 
 #include "Allocator/RegionManager.h"
 #include "Allocator/RegionSpace.h"
@@ -47,32 +48,32 @@ uintptr_t LOSManager::AllocLarge(size_t size)
 {
     // M4a-async: During compaction, reject all LOS allocations → forces MAIN fallback
     if (isCompacting.load(std::memory_order_acquire)) {
-        losAllocFailCount++;
+        losAllocFailCount.fetch_add(1, std::memory_order_relaxed);
         return 0;
     }
 
     size_t unitCount = (size + RegionInfo::UNIT_SIZE - 1) / RegionInfo::UNIT_SIZE;
 
+    // Helper: common post-allocation steps for all successful paths
+    auto finishAllocation = [this, size](RegionInfo* region, const char* source) -> uintptr_t {
+        uintptr_t addr = region->Alloc(size);
+        DLOG(REGION, "LOS alloc large from %s: region @[0x%zx+%zu, 0x%zx) size %zu",
+             source, region->GetRegionStart(), region->GetRegionSize(), region->GetRegionEnd(), size);
+        EnlistLargeRegion(region);
+        losAllocCount.fetch_add(1, std::memory_order_relaxed);
+        return addr;
+    };
+
     // Step 1: Try losFreeMgr (recycled regions from dirtyTree / releaseTree)
     RegionInfo* region = losFreeMgr.TakeRegion(unitCount, RegionInfo::UnitRole::LARGE_SIZED_UNITS, false);
     if (region != nullptr) {
-        uintptr_t addr = region->Alloc(size);
-        DLOG(REGION, "LOS alloc large from freeMgr: region @[0x%zx+%zu, 0x%zx) size %zu",
-             region->GetRegionStart(), region->GetRegionSize(), region->GetRegionEnd(), size);
-        EnlistLargeRegion(region);
-        losAllocCount++;
-        return addr;
+        return finishAllocation(region, "freeMgr");
     }
 
     // Step 2: Expand losInactiveZone toward low address
     region = AllocFromInactiveZone(unitCount);
     if (region != nullptr) {
-        uintptr_t addr = region->Alloc(size);
-        DLOG(REGION, "LOS alloc large from inactiveZone: region @[0x%zx+%zu, 0x%zx) size %zu",
-             region->GetRegionStart(), region->GetRegionSize(), region->GetRegionEnd(), size);
-        EnlistLargeRegion(region);
-        losAllocCount++;
-        return addr;
+        return finishAllocation(region, "inactiveZone");
     }
 
     // Step 3: Borrow space from RESERVE zone (chunk strategy handled internally by ReserveManager)
@@ -82,13 +83,8 @@ uintptr_t LOSManager::AllocLarge(size_t size)
         if (borrowedAddr != 0) {
             region = RegionInfo::InitRegionAt(borrowedAddr, unitCount,
                                               RegionInfo::UnitRole::LARGE_SIZED_UNITS);
-            uintptr_t addr = region->Alloc(size);
-            DLOG(REGION, "LOS alloc large from RESERVE: region @[0x%zx+%zu, 0x%zx) size %zu",
-                 region->GetRegionStart(), region->GetRegionSize(), region->GetRegionEnd(), size);
-            EnlistLargeRegion(region);
-            losAllocCount++;
-            losReserveBorrowCount++;
-            return addr;
+            losReserveBorrowCount.fetch_add(1, std::memory_order_relaxed);
+            return finishAllocation(region, "RESERVE");
         }
     }
 
@@ -98,7 +94,7 @@ uintptr_t LOSManager::AllocLarge(size_t size)
          losFreeMgr.GetDirtyUnitCount(), losFreeMgr.GetReleasedUnitCount(),
          losInactiveZone.load(std::memory_order_relaxed), losStart);
 
-    losAllocFailCount++;
+    losAllocFailCount.fetch_add(1, std::memory_order_relaxed);
     return 0;
 }
 
@@ -291,11 +287,14 @@ size_t LOSManager::MigrateLargeObjectsFromMain(RegionList& mainOldList, RegionLi
             break;
         }
 
-        // Copy object data from MAIN region to LOS region
+        // Copy object data from MAIN region to LOS region.
+        // AllocLarge returns region->Alloc(size), which starts at regionStart + HEADER_SIZE.
+        // Since HEADER_SIZE == 0, Alloc() returns regionStart directly.
+        // oldObjAddr likewise = regionStart + HEADER_SIZE = regionStart.
+        static_assert(RegionSpace::HEADER_SIZE == 0,
+                      "If HEADER_SIZE becomes non-zero, migration address calculation must be revisited");
         uintptr_t oldObjAddr = region->GetRegionStart() + RegionSpace::HEADER_SIZE;
-        uintptr_t newObjAddr = newAddr;  // AllocLarge returns the object address (after header)
-        // Actually AllocLarge returns result of region->Alloc(size) which includes HEADER_SIZE offset
-        // So newAddr already points to the object start
+        uintptr_t newObjAddr = newAddr;
 
         CHECK_E(memmove_s(reinterpret_cast<void*>(newObjAddr), allocSize,
                           reinterpret_cast<void*>(oldObjAddr), allocSize) != EOK,
@@ -305,7 +304,7 @@ size_t LOSManager::MigrateLargeObjectsFromMain(RegionList& mainOldList, RegionLi
              obj, allocSize, oldObjAddr, newObjAddr);
 
         // Record old → new mapping for reference update
-        migrationMap.push_back({oldObjAddr, newObjAddr});
+        migrationMap[oldObjAddr] = newObjAddr;
 
         // Remove old MAIN region from old list and put it into garbage for reclaim
         mainOldList.DeleteRegion(region);
@@ -339,15 +338,13 @@ void LOSManager::UpdateMigratedReferences()
         if (addr == 0) {
             return;
         }
-        // Check if this reference points to any migrated object
-        for (const auto& mapping : migrationMap) {
-            if (addr == mapping.first) {
-                // Update reference to point to new LOS location
-                BaseObject* newObj = reinterpret_cast<BaseObject*>(mapping.second);
-                field.SetTargetObject(newObj);
-                DLOG(REGION, "LOS migration: updated ref 0x%zx -> 0x%zx", mapping.first, mapping.second);
-                break;
-            }
+        // O(1) lookup in unordered_map
+        auto it = migrationMap.find(addr);
+        if (it != migrationMap.end()) {
+            // Update reference to point to new LOS location
+            BaseObject* newObj = reinterpret_cast<BaseObject*>(it->second);
+            field.SetTargetObject(newObj);
+            DLOG(REGION, "LOS migration: updated ref 0x%zx -> 0x%zx", it->first, it->second);
         }
     };
 
@@ -393,7 +390,7 @@ bool LOSManager::NeedsCompaction() const
     }
 
     // Condition 2: LOS allocation failures since last compaction
-    if (losAllocFailCount > lastCompactAllocFailCount) {
+    if (losAllocFailCount.load(std::memory_order_relaxed) > lastCompactAllocFailCount) {
         return true;
     }
 
@@ -434,7 +431,7 @@ size_t LOSManager::CompactLOS()
     if (movableRegions.empty()) {
         DLOG(REPORT, "LOS CompactLOS: no movable regions, skipping");
         losCompactCount++;
-        lastCompactAllocFailCount = losAllocFailCount;
+        lastCompactAllocFailCount = losAllocFailCount.load(std::memory_order_relaxed);
         return 0;
     }
 
@@ -480,24 +477,25 @@ size_t LOSManager::CompactLOS()
     if (compactPlan.empty()) {
         DLOG(REPORT, "LOS CompactLOS: no regions need to move (already compact)");
         losCompactCount++;
-        lastCompactAllocFailCount = losAllocFailCount;
+        lastCompactAllocFailCount = losAllocFailCount.load(std::memory_order_relaxed);
         return 0;
     }
 
     // Phase 3: Build forwarding map for reference update.
     // Object address = region start + HEADER_SIZE (large region has one object).
+    migrationMap.reserve(migrationMap.size() + compactPlan.size());
     for (const auto& entry : compactPlan) {
         uintptr_t oldObjAddr = entry.oldStart + RegionSpace::HEADER_SIZE;
         uintptr_t newObjAddr = entry.newStart + RegionSpace::HEADER_SIZE;
-        migrationMap.push_back({oldObjAddr, newObjAddr});
+        migrationMap[oldObjAddr] = newObjAddr;
         DLOG(REGION, "LOS compact: plan move obj @0x%zx → @0x%zx (%zu bytes)",
              oldObjAddr, newObjAddr, entry.regionSize);
     }
 
-    // Phase 4: Update all references (covers compaction forwarding).
-    // Note: migrationMap may later also contain M3 migration entries.
-    // We update references now for compaction; M3 migration will append and update again if needed.
-    UpdateMigratedReferences();
+    // Phase 4: Reference update is DEFERRED to WCollector.
+    // CompactLOS only builds the forwarding map; WCollector calls
+    // UpdateMigratedReferences() once after both compaction and migration
+    // entries are collected, saving a full heap scan.
 
     // Phase 5: Move objects (iterate compactPlan in order: highest target first).
     // compactPlan is already ordered high-to-low (since movableRegions was sorted descending
@@ -516,6 +514,14 @@ size_t LOSManager::CompactLOS()
 
     for (const auto& entry : compactPlan) {
         if (entry.newStart != entry.oldStart) {
+            // Overlap defense: memmove_s handles overlaps correctly, but assert
+            // our sliding compaction invariant — objects slide toward high address,
+            // so newStart > oldStart (no backward moves in Strategy A).
+            CHECK_E(entry.newStart <= entry.oldStart,
+                    "LOS compact: unexpected backward move @0x%zx → 0x%zx (size %zu). "
+                    "Sliding compaction should only move toward high address.",
+                    entry.oldStart, entry.newStart, entry.regionSize);
+
             int ret = memmove_s(reinterpret_cast<void*>(entry.newStart), entry.regionSize,
                                 reinterpret_cast<void*>(entry.oldStart), entry.regionSize);
             CHECK_E(ret != EOK, "LOS compact: memmove_s failed for region @0x%zx → 0x%zx (%zu bytes)",
@@ -547,15 +553,14 @@ size_t LOSManager::CompactLOS()
     }
 
     // Movable regions that weren't in compactPlan (below pinned barrier, couldn't move)
+    // Build a set for O(1) lookup instead of O(n²) nested loop.
+    std::unordered_set<RegionInfo*> compactPlanSet;
+    compactPlanSet.reserve(compactPlan.size());
+    for (const auto& entry : compactPlan) {
+        compactPlanSet.insert(entry.region);
+    }
     for (RegionInfo* r : movableRegions) {
-        bool inPlan = false;
-        for (const auto& entry : compactPlan) {
-            if (entry.region == r) {
-                inPlan = true;
-                break;
-            }
-        }
-        if (!inPlan) {
+        if (compactPlanSet.count(r) == 0) {
             allLiveRegions.push_back(r);
             losOldLargeRegionList.PrependRegion(r, RegionInfo::RegionType::LARGE_REGION);
         }
@@ -598,7 +603,7 @@ size_t LOSManager::CompactLOS()
     losCompactMovedBytes = movedBytes;
     losCompactFreedBytes = freedBytes;
     losCompactShrunkBytes = shrunkBytes;
-    lastCompactAllocFailCount = losAllocFailCount;
+    lastCompactAllocFailCount = losAllocFailCount.load(std::memory_order_relaxed);
 
     DLOG(REPORT, "LOS CompactLOS done: moved %zu bytes (%zu regions), freed %zu bytes, "
          "shrunk %zu bytes to RESERVE, newInactiveZone=0x%zx, live regions=%zu",
@@ -695,13 +700,10 @@ size_t LOSManager::ShrinkToReserve(size_t freedBytes)
     }
 
     // Return the freed low-address region to RESERVE.
-    // The address range [inactiveZone, inactiveZone + freedBytes) is now idle.
-    // Actually we return from the old boundary: the space that was between
-    // old losInactiveZone and the new one is now unused LOS space.
+    // The space between old and new losInactiveZone is now unused LOS space.
+    // With hole bitmap, ReturnFromLOS always succeeds (marks bitmap + coalesces watermark).
     uintptr_t returnAddr = inactiveZone;  // new losInactiveZone (= lowest live object)
-    // The space below losInactiveZone is already inactive; we're just informing RESERVE.
     reserveManager->ReturnFromLOS(returnAddr, returnSize);
-
     DLOG(REPORT, "LOS ShrinkToReserve: returned %zu bytes @0x%zx to RESERVE", returnSize, returnAddr);
     return returnSize;
 }
@@ -727,43 +729,21 @@ size_t LOSManager::ReturnBorrowedToReserve()
         return 0;
     }
 
-    // Sort by unit index descending — try to return from watermark edge (highest addr) first
-    // Note: for LOS-borrowed RESERVE, the addresses are below losStart, and
-    // RESERVE's losWatermark grows downward. ReturnFromLOS expects addr == losWatermark.
-    // So we sort ascending (lowest address first) since the LOS watermark is at the bottom.
-    std::sort(pendingReserveReturns.begin(), pendingReserveReturns.end(),
-              [](const std::pair<size_t, size_t>& a, const std::pair<size_t, size_t>& b) {
-                  return a.first < b.first;
-              });
-
+    // With hole bitmap, no sorting needed — ReturnFromLOS accepts any position.
+    // Bitmap records the return; watermark coalesces automatically when contiguous.
     size_t returnedBytes = 0;
-    std::vector<std::pair<size_t, size_t>> unreturned;
-
     for (auto& entry : pendingReserveReturns) {
         uintptr_t addr = RegionInfo::GetUnitAddress(entry.first);
         size_t size = entry.second * RegionInfo::UNIT_SIZE;
-
-        if (reserveManager->ReturnFromLOS(addr, size)) {
-            returnedBytes += size;
-            DLOG(REGION, "LOS ReturnBorrowedToReserve: returned %zu bytes @0x%zx", size, addr);
-        } else {
-            // Can't return to RESERVE (not at watermark edge) — keep in losFreeMgr for reuse
-            unreturned.push_back(entry);
-        }
-    }
-
-    // Add unreturned regions to losFreeMgr so they're not lost
-    for (auto& entry : unreturned) {
-        losFreeMgr.AddGarbageUnits(entry.first, entry.second);
-        DLOG(REGION, "LOS ReturnBorrowedToReserve: kept in losFreeMgr, units[%zu+%zu)",
-             entry.first, entry.second);
+        reserveManager->ReturnFromLOS(addr, size);
+        returnedBytes += size;
+        DLOG(REGION, "LOS ReturnBorrowedToReserve: returned %zu bytes @0x%zx", size, addr);
     }
 
     pendingReserveReturns.clear();
 
     if (returnedBytes > 0) {
-        DLOG(REPORT, "LOS ReturnBorrowedToReserve: returned %zu bytes total, %zu entries unreturned",
-             returnedBytes, unreturned.size());
+        DLOG(REPORT, "LOS ReturnBorrowedToReserve: returned %zu bytes total", returnedBytes);
     }
     return returnedBytes;
 }

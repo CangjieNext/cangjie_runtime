@@ -10,8 +10,10 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <mutex>
 #include <algorithm>
+#include <vector>
 
 namespace MapleRuntime {
 
@@ -90,19 +92,23 @@ public:
 
     /**
      * Return borrowed space from MAIN.
-     * Currently only accepts returns from the top of mainWatermark (LIFO).
+     * Uses hole bitmap: marks returned units, then scans from watermark to
+     * find contiguous returned region and pushes watermark back.
+     * Accepts returns at any position (not just LIFO).
      * @param addr Start address of region to return
      * @param size Size in bytes to return
-     * @return true if the return was accepted (at watermark top), false otherwise
+     * @return true (always succeeds — bitmap records the return)
      */
     bool ReturnFromMain(uintptr_t addr, size_t size);
 
     /**
      * Return borrowed space from LOS.
-     * Currently only accepts returns from the bottom of losWatermark (LIFO).
+     * Uses hole bitmap: marks returned units, then scans from watermark to
+     * find contiguous returned region and pushes watermark back.
+     * Accepts returns at any position (not just LIFO).
      * @param addr Start address of region to return
      * @param size Size in bytes to return
-     * @return true if the return was accepted (at watermark bottom), false otherwise
+     * @return true (always succeeds — bitmap records the return)
      */
     bool ReturnFromLOS(uintptr_t addr, size_t size);
 
@@ -192,12 +198,32 @@ private:
      */
     uintptr_t CommitChunkForLOS(size_t chunkSize);
 
+    // --- Hole bitmap for non-LIFO return support ---
+    // Each bit represents one RESERVE unit. 1 = logically returned but watermark
+    // hasn't receded past it yet. When contiguous returned bits reach the
+    // watermark edge, the watermark is pushed back in bulk.
+    // Memory: totalReserveUnits / 8 bytes (e.g., 512 bytes for 64MB RESERVE @ 16KB units).
+    size_t AddrToUnitIndex(uintptr_t addr) const { return (addr - reserveStart) / unitSize; }
+    uintptr_t UnitIndexToAddr(size_t idx) const { return reserveStart + idx * unitSize; }
+    void SetBitmapRange(size_t startIdx, size_t count);
+    void ClearBitmapRange(size_t startIdx, size_t count);
+    bool IsBitSet(size_t idx) const { return (returnBitmap[idx / 8] >> (idx % 8)) & 1; }
+
+    // Scan from mainWatermark downward, reclaim contiguous returned units.
+    // Caller must hold borrowMutex.
+    void CoalesceMainWatermark();
+    // Scan from losWatermark upward, reclaim contiguous returned units.
+    // Caller must hold borrowMutex.
+    void CoalesceLOSWatermark();
+
     // RESERVE zone boundaries
     uintptr_t reserveStart = 0;
     uintptr_t reserveEnd = 0;
 
     // Unit size (page size)
     size_t unitSize = 0;
+    size_t totalReserveUnits = 0;  // (reserveEnd - reserveStart) / unitSize
+    std::vector<uint8_t> returnBitmap;  // hole bitmap, 1 bit per RESERVE unit
 
     // Watermarks: committed boundaries (only move outward, protected by borrowMutex)
     // MAIN commits from reserveStart upward

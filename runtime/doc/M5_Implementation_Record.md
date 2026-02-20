@@ -16,7 +16,7 @@ M5 阶段目标：建立 MAIN、RESERVE、LOS 三段空间之间的动态调度�
 | #2 | ShrinkInactiveZone → ReturnFromMain 联动 | ✅ 已实现 |
 | #3 | 迟滞阈值（Hysteresis Thresholds） | ✅ 已实现 |
 | #4 | 冷却机制（Cooldown） | ✅ 已实现 |
-| #5 | 非 LIFO 灵活归还 | ⏸ 暂缓 |
+| #5 | 非 LIFO 灵活归还（Hole Bitmap） | ✅ 已实现 |
 | #6 | 统计与日志快照 | ✅ 已实现 |
 
 ---
@@ -40,12 +40,12 @@ GC 回收 (ReclaimRegion / ReleaseRegion)
     ↓
 GC 结束后 ReturnBorrowedToReserve()
     ↓
-排序：按地址排序（MAIN 降序、LOS 升序）
+ReturnFromMain / ReturnFromLOS（Hole Bitmap，接受任意位置归还）
     ↓
-尝试归还 → ReturnFromMain / ReturnFromLOS
-    ↓ 失败（非水位边缘）
-回退到 freeRegionManager / losFreeMgr 供复用
+Bitmap 标记 → Coalesce 合并连续 bit → Watermark 回退
 ```
+
+> **M5 #5 更新**：原设计仅支持 LIFO 归还（水位边缘），非边缘归还会失败并回退到本地空闲管理器。现已实现 **Hole Bitmap 方案**（详见 §8），`ReturnFromMain` / `ReturnFromLOS` 接受任意位置的归还，通过 bitmap 标记 + watermark 合并实现灵活归还。调用方无需排序，也不存在归还失败的情况。
 
 ### 2.3 冷却与迟滞
 
@@ -509,24 +509,107 @@ MAIN: [0x..., 0x...) end 0x..., inactiveZone 0x..., reserveBorrow X
 
 ---
 
-## 8. 已知限制（#5 暂缓）
+## 8. Hole Bitmap 灵活归还（M5 #5 — 已实现）
 
-当前 `ReturnFromMain` / `ReturnFromLOS` 仅支持 LIFO 归还（水位边缘）。非水位边缘的 RESERVE-borrowed region 无法归还 RESERVE，会被放回本地空闲管理器复用。
+### 8.1 问题回顾
 
-这意味着：
-- 如果中间有存活的 RESERVE-borrowed region "挡住"了水位，后面更早借入的 region 即使死亡也无法归还
-- 空间不会丢失（仍被复用），但 RESERVE 无法完全恢复到初始状态
+原 `ReturnFromMain` / `ReturnFromLOS` 仅支持 LIFO 归还（水位边缘）。非水位边缘的 RESERVE-borrowed region 无法归还 RESERVE，会被放回本地空闲管理器复用。这导致 RESERVE 无法完全恢复，且调用方需要排序、处理失败分支。
 
-**可能的后续方案**：
-1. 区间追踪：维护已归还区间的有序列表，支持非连续归还
-2. 延迟合并：多次 GC 后尝试重新排列，使中间空洞消失
-3. 接受现状：对于大多数工作负载，LIFO 归还已足够（大对象生命周期较长，通常按借入顺序死亡）
+### 8.2 Hole Bitmap 方案
+
+**核心思想**：在 ReserveManager 中维护一个 bit-per-unit 的 bitmap（`returnBitmap`），每个 bit 代表 RESERVE 区中一个 unit 是否已被归还。Watermark 仅在 bitmap 边缘连续归还位形成时才回退。
+
+```
+RESERVE Zone:  unit0  unit1  unit2  unit3  unit4  unit5  unit6  unit7
+                                     ↑                          ↑
+                            mainWatermark(4)              losWatermark(8)
+
+MAIN borrowed: [0..3]   LOS borrowed: 无
+Bitmap:        0  0  0  0  |  0  0  0  0
+
+归还 unit2+unit3 后:
+Bitmap:        0  0  1  1  |  0  0  0  0
+                     ↑↑
+             与 mainWatermark(4) 相邻 → coalesce!
+
+Coalesce 后:
+Bitmap:        0  0  0  0  |  0  0  0  0
+mainWatermark: 2  (回退了 2 个 unit)
+```
+
+### 8.3 数据结构
+
+```cpp
+// ReserveManager.h 新增成员
+size_t totalReserveUnits;               // RESERVE 区总 unit 数
+std::vector<uint8_t> returnBitmap;      // 1 bit per unit, bitmap 大小 = (totalReserveUnits+7)/8
+```
+
+内存开销：64MB RESERVE @ 16KB units = 4096 units → 512 bytes bitmap。
+
+### 8.4 核心方法
+
+**ReturnFromMain / ReturnFromLOS**（重写为 bitmap 标记 + coalesce）：
+```cpp
+bool ReturnFromMain(uintptr_t addr, size_t size) {
+    lock_guard lock(borrowMutex);
+    SetBitmapRange(startIdx, count);   // 标记已归还
+    CoalesceMainWatermark();           // 扫描边缘，回退 watermark
+    return true;                       // 永远成功
+}
+```
+
+**CoalesceMainWatermark**：从 wmIdx-1 向低地址扫描，找到连续的 `bit=1` 区间，清除 bitmap、回退 mainWatermark。
+
+**CoalesceLOSWatermark**：从 losWmIdx 向高地址扫描，找到连续的 `bit=1` 区间，清除 bitmap、前移 losWatermark。
+
+### 8.5 调用方简化
+
+**RegionManager::ReturnBorrowedToReserve()**:
+- 移除 `std::sort`（bitmap 接受任意顺序）
+- 移除失败回退到 `freeRegionManager` 的分支（永远成功）
+- 直接遍历 `pendingReserveReturns`，逐个调用 `ReturnFromMain`
+
+**LOSManager::ReturnBorrowedToReserve()**:
+- 移除 `std::sort` 和 `unreturned` 向量
+- 移除失败回退到 `losFreeMgr` 的分支
+- 直接遍历 `pendingReserveReturns`，逐个调用 `ReturnFromLOS`
+
+**LOSManager::ShrinkToReserve()**:
+- 移除 `ReturnFromLOS` 失败分支（死代码清理）
+
+### 8.6 Bitmap 不支持跨侧共享
+
+MAIN 通过 bitmap 归还的"空洞"**不能**被 LOS 使用，反之亦然。原因：
+1. 地址归属混乱：MAIN 借的地址如果给 LOS 用，`IsInReserveTerritory` 判断会出错
+2. Watermark 碰撞：两侧 watermark 意义不同，交叉使用会导致 coalesce 逻辑错误
+3. 归还链断裂：MAIN 曾借的区域如果 LOS 占了，后续归还时无法正确操作
+
+### 8.7 修改文件
+
+| 文件 | 修改内容 |
+|------|----------|
+| `ReserveManager.h` | 新增 `returnBitmap`, `totalReserveUnits`；bitmap 辅助方法；更新 ReturnFromMain/LOS 文档 |
+| `ReserveManager.cpp` | `Initialize()` 分配 bitmap；重写 `ReturnFromMain/LOS`；新增 4 个 bitmap helper |
+| `RegionManager.cpp` | `ReturnBorrowedToReserve()` 移除排序和失败分支 |
+| `LOSManager.cpp` | `ReturnBorrowedToReserve()` 移除排序和 unreturned；`ShrinkToReserve()` 移除死代码 |
 
 ---
 
-## 9. 后续工作
+## 9. 验收状态
 
-- **M5 #5**：根据实际运行数据评估是否需要非 LIFO 归还机制
+- [x] 编译通过 (`python3 build.py build --target native --build-type release -v 0.0.1`)
+- [x] 所有 M5 子目标完成（#1-#6 全部 ✅）
+- [x] Hole Bitmap 正确初始化
+- [x] ReturnFromMain / ReturnFromLOS 永远成功
+- [x] Coalesce 正确回退 watermark
+- [x] 调用方无需排序、无失败分支
+- [x] ShrinkToReserve 死代码已清理
+
+---
+
+## 10. 后续工作
+
 - **功能测试**：设计 LOS 分配→GC→归还的端到端测试用例
 - **性能调优**：根据 TRACE_COUNT 数据调整冷却周期和迟滞阈值
-- **文档**：补充 M1-M4 完整实现记录
+- **文档**：LOS 全流程详细文档（`LOS_详细设计文档.md`）

@@ -178,7 +178,13 @@ public:
     // M5: Check if address is in RESERVE-borrowed territory (above MAIN's own space)
     bool IsInReserveTerritory(uintptr_t addr) const { return mainEnd > 0 && addr >= mainEnd; }
 
-    ~RegionManager() = default;
+    ~RegionManager()
+    {
+        delete losManager;
+        losManager = nullptr;
+        delete reserveManager;
+        reserveManager = nullptr;
+    }
 
     // take a region with *num* units for allocation
     RegionInfo* TakeRegion(size_t num, RegionInfo::UnitRole, bool expectPhysicalMem = false);
@@ -426,24 +432,38 @@ public:
 
     size_t GetRecentAllocatedSize() const
     {
-        return recentFullRegionList.GetAllocatedSize() + recentLargeRegionList.GetAllocatedSize() +
+        size_t size = recentFullRegionList.GetAllocatedSize() + recentLargeRegionList.GetAllocatedSize() +
             recentPinnedRegionList.GetAllocatedSize();
+        if (losManager != nullptr) {
+            size += losManager->GetRecentLargeRegionList().GetAllocatedSize();
+        }
+        return size;
     }
 
     size_t GetSurvivedSize() const
     {
-        return fromRegionList.GetAllocatedSize() + oldPinnedRegionList.GetAllocatedSize() +
+        size_t size = fromRegionList.GetAllocatedSize() + oldPinnedRegionList.GetAllocatedSize() +
             oldLargeRegionList.GetAllocatedSize();
+        if (losManager != nullptr) {
+            size += losManager->GetOldLargeRegionList().GetAllocatedSize();
+        }
+        return size;
     }
 
     size_t GetUsedUnitCount() const
     {
-        return fromRegionList.GetUnitCount() + unmovableFromRegionList.GetUnitCount() +
+        size_t count = fromRegionList.GetUnitCount() + unmovableFromRegionList.GetUnitCount() +
             recentFullRegionList.GetUnitCount() + oldLargeRegionList.GetUnitCount() +
             recentLargeRegionList.GetUnitCount() + oldPinnedRegionList.GetUnitCount() +
             recentPinnedRegionList.GetUnitCount() + rawPointerPinnedRegionList.GetUnitCount() +
             largeTraceRegions.GetUnitCount() + fullTraceRegions.GetUnitCount() +
             Heap::GetHeap().GetAllocator().GetAllocBufersCount() + tlRegionList.GetUnitCount();
+        if (losManager != nullptr) {
+            count += losManager->GetOldLargeRegionList().GetUnitCount() +
+                     losManager->GetRecentLargeRegionList().GetUnitCount() +
+                     losManager->GetLargeTraceRegions().GetUnitCount();
+        }
+        return count;
     }
 
     size_t GetDirtyUnitCount() const { return freeRegionManager.GetDirtyUnitCount(); }
@@ -454,7 +474,12 @@ public:
 
     inline size_t GetLargeObjectSize() const
     {
-        return oldLargeRegionList.GetAllocatedSize() + recentLargeRegionList.GetAllocatedSize();
+        size_t size = oldLargeRegionList.GetAllocatedSize() + recentLargeRegionList.GetAllocatedSize();
+        if (losManager != nullptr) {
+            size += losManager->GetOldLargeRegionList().GetAllocatedSize() +
+                    losManager->GetRecentLargeRegionList().GetAllocatedSize();
+        }
+        return size;
     }
 
     size_t GetAllocatedSize() const
@@ -469,12 +494,18 @@ public:
         };
         Heap::GetHeap().GetAllocator().VisitAllocBuffers(visitor);
         // exclude garbageRegionList for live object set.
-        return fromRegionList.GetAllocatedSize() + unmovableFromRegionList.GetAllocatedSize() +
+        size_t size = fromRegionList.GetAllocatedSize() + unmovableFromRegionList.GetAllocatedSize() +
             recentFullRegionList.GetAllocatedSize() + oldLargeRegionList.GetAllocatedSize() +
             recentLargeRegionList.GetAllocatedSize() + oldPinnedRegionList.GetAllocatedSize() +
             recentPinnedRegionList.GetAllocatedSize() + rawPointerPinnedRegionList.GetAllocatedSize() +
             largeTraceRegions.GetAllocatedSize() + fullTraceRegions.GetAllocatedSize() +
             tlRegionList.GetAllocatedSize() + threadLocalSize;
+        if (losManager != nullptr) {
+            size += losManager->GetOldLargeRegionList().GetAllocatedSize() +
+                    losManager->GetRecentLargeRegionList().GetAllocatedSize() +
+                    losManager->GetLargeTraceRegions().GetAllocatedSize();
+        }
+        return size;
     }
 
     inline size_t GetFromSpaceSize() const { return fromRegionList.GetAllocatedSize(); }
@@ -615,6 +646,11 @@ public:
         ClearLiveInfo(oldLargeRegionList);
         ClearLiveInfo(recentLargeRegionList);
         ClearLiveInfo(largeTraceRegions);
+        // Also clear LOS region lists for consistency
+        if (losManager != nullptr) {
+            ClearLiveInfo(losManager->GetOldLargeRegionList());
+            ClearLiveInfo(losManager->GetRecentLargeRegionList());
+        }
     }
 
 private:

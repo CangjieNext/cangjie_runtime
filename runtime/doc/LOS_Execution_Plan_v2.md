@@ -1009,7 +1009,7 @@ std::atomic<bool> mainCompactionPending_{false};  // MAIN 整理是否在排队
 | **M5 #2** | ✅ 完成 | Cooldown（冷却机制）— RESERVE 借出后设定保护期，避免即借即还抖动 | `M5_Implementation_Record.md` §4.2 |
 | **M5 #3** | ✅ 完成 | Hysteresis（迟滞机制）— RESERVE 可用低于阈值时才暂停借出 | `M5_Implementation_Record.md` §4.3 |
 | **M5 #4** | ✅ 完成 | `DumpRegionStats` 增强 — RESERVE / LOS 统计输出 | `M5_Implementation_Record.md` §4.4 |
-| **M5 #5** | ⏸ 暂缓 | 灵活非 LIFO 归还（允许非栈式归还 RESERVE 中间段），需进一步评估必要性 | — |
+| **M5 #5** | ✅ 完成 | Hole Bitmap 灵活归还（`returnBitmap` + coalesce），接受任意位置归还，无需排序，无失败分支 | `M5_Implementation_Record.md` §8 |
 | **M5 #6** | ✅ 完成 | 环境变量开关（`cjReserveCooldownGCs`, `cjReserveHysteresisRatio`） | `M5_Implementation_Record.md` §4.5 |
 
 ### 计划与实际偏差
@@ -1017,5 +1017,5 @@ std::atomic<bool> mainCompactionPending_{false};  // MAIN 整理是否在排队
 | 计划内容 | 实际偏差 | 原因 |
 |----------|----------|------|
 | M4 同步 + 异步整理合为一个步骤 | 拆分为 M4a（sync+async）和 M4b（MAIN defrag） | MAIN 碎片整理（低地址优先 + ShrinkInactiveZone）独立性强，同 LOS 整理解耦 |
-| M5 完整扩缩容 | 灵活非 LIFO 归还（#5）暂缓 | 当前 cooldown + hysteresis 已能有效控制抖动，非 LIFO 归还引入额外复杂度 |
+| M5 完整扩缩容 | M5 #5 Hole Bitmap 已实现 | 方案 B（Hole Bitmap）在复杂度和完备性之间取得最佳平衡 |
 | M4b 大对象 region 对齐未在原计划中 | 实现中发现碎片问题，追加 | MAIN 降级大对象释放后形成不规则空闲块，需要对齐到标准 region 大小 |

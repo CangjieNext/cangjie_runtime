@@ -26,8 +26,13 @@ void ReserveManager::Initialize(uintptr_t start, uintptr_t end, size_t unitSz)
     losBufFloor = 0;
     losBufCursor = 0;
 
-    DLOG(REPORT, "ReserveManager initialized: zone [0x%zx, 0x%zx), capacity %zu bytes",
-         reserveStart, reserveEnd, GetCapacity());
+    // Initialize hole bitmap (1 bit per RESERVE unit, all zero)
+    totalReserveUnits = (reserveEnd - reserveStart) / unitSize;
+    returnBitmap.assign((totalReserveUnits + 7) / 8, 0);
+
+    DLOG(REPORT, "ReserveManager initialized: zone [0x%zx, 0x%zx), capacity %zu bytes, "
+         "%zu units, bitmap %zu bytes",
+         reserveStart, reserveEnd, GetCapacity(), totalReserveUnits, returnBitmap.size());
 }
 
 size_t ReserveManager::GetAvailable() const
@@ -187,51 +192,119 @@ bool ReserveManager::ReturnFromMain(uintptr_t addr, size_t size)
 {
     std::lock_guard<std::mutex> lock(borrowMutex);
 
-    uintptr_t currentMain = mainWatermark.load(std::memory_order_relaxed);
+    // Mark the returned units in the hole bitmap
+    size_t startIdx = AddrToUnitIndex(addr);
+    size_t count = size / unitSize;
+    SetBitmapRange(startIdx, count);
 
-    // Simple implementation: only allow returning from the top
-    if (addr + size == currentMain) {
-        mainWatermark.store(addr, std::memory_order_relaxed);
-        // Invalidate buffer if it overlaps the returned region
-        if (mainBufCeiling > addr) {
-            mainBufCursor = 0;
-            mainBufCeiling = 0;
-        }
-        mainReturnBytes += size;
-        lastMainReturnCycle = gcCycleCount;  // M5: cooldown tracking
-        DLOG(REGION, "ReserveManager: ReturnFromMain %zu bytes @0x%zx, watermark now 0x%zx",
-             size, addr, addr);
-        return true;
-    } else {
-        DLOG(REGION, "ReserveManager: ReturnFromMain skipped (not at top), addr 0x%zx, size %zu, current 0x%zx",
-             addr, size, currentMain);
-        return false;
-    }
+    DLOG(REGION, "ReserveManager: ReturnFromMain marked bitmap [%zu, %zu) (%zu bytes @0x%zx)",
+         startIdx, startIdx + count, size, addr);
+
+    // Try to push mainWatermark back by scanning contiguous returned bits
+    CoalesceMainWatermark();
+
+    return true;  // always succeeds — bitmap records the return
 }
 
 bool ReserveManager::ReturnFromLOS(uintptr_t addr, size_t size)
 {
     std::lock_guard<std::mutex> lock(borrowMutex);
 
-    uintptr_t currentLOS = losWatermark.load(std::memory_order_relaxed);
+    // Mark the returned units in the hole bitmap
+    size_t startIdx = AddrToUnitIndex(addr);
+    size_t count = size / unitSize;
+    SetBitmapRange(startIdx, count);
 
-    // Simple implementation: only allow returning from the bottom
-    if (addr == currentLOS) {
-        losWatermark.store(addr + size, std::memory_order_relaxed);
-        // Invalidate buffer if it overlaps the returned region
-        if (losBufFloor < addr + size) {
+    DLOG(REGION, "ReserveManager: ReturnFromLOS marked bitmap [%zu, %zu) (%zu bytes @0x%zx)",
+         startIdx, startIdx + count, size, addr);
+
+    // Try to push losWatermark forward by scanning contiguous returned bits
+    CoalesceLOSWatermark();
+
+    return true;  // always succeeds — bitmap records the return
+}
+
+// ===== Hole bitmap helpers =====
+
+void ReserveManager::SetBitmapRange(size_t startIdx, size_t count)
+{
+    for (size_t i = startIdx; i < startIdx + count && i < totalReserveUnits; ++i) {
+        returnBitmap[i / 8] |= static_cast<uint8_t>(1u << (i % 8));
+    }
+}
+
+void ReserveManager::ClearBitmapRange(size_t startIdx, size_t count)
+{
+    for (size_t i = startIdx; i < startIdx + count && i < totalReserveUnits; ++i) {
+        returnBitmap[i / 8] &= static_cast<uint8_t>(~(1u << (i % 8)));
+    }
+}
+
+void ReserveManager::CoalesceMainWatermark()
+{
+    // MAIN borrowed area: [reserveStart, mainWatermark) = units [0, wmIdx)
+    // Scan from wmIdx-1 downward: find contiguous returned (bit=1) units.
+    uintptr_t currentMain = mainWatermark.load(std::memory_order_relaxed);
+    size_t wmIdx = AddrToUnitIndex(currentMain);
+
+    size_t newWmIdx = wmIdx;
+    while (newWmIdx > 0 && IsBitSet(newWmIdx - 1)) {
+        newWmIdx--;
+    }
+
+    if (newWmIdx < wmIdx) {
+        // Reclaim contiguous returned units: clear their bits, move watermark
+        ClearBitmapRange(newWmIdx, wmIdx - newWmIdx);
+        uintptr_t newWatermark = UnitIndexToAddr(newWmIdx);
+        mainWatermark.store(newWatermark, std::memory_order_relaxed);
+
+        // Invalidate MAIN buffer if it overlaps the reclaimed region
+        if (mainBufCeiling > newWatermark) {
+            mainBufCursor = 0;
+            mainBufCeiling = 0;
+        }
+
+        size_t reclaimedBytes = (wmIdx - newWmIdx) * unitSize;
+        mainReturnBytes += reclaimedBytes;
+        lastMainReturnCycle = gcCycleCount;
+
+        DLOG(REGION, "ReserveManager: CoalesceMainWatermark reclaimed %zu units [%zu, %zu), "
+             "watermark 0x%zx \u2192 0x%zx",
+             wmIdx - newWmIdx, newWmIdx, wmIdx, currentMain, newWatermark);
+    }
+}
+
+void ReserveManager::CoalesceLOSWatermark()
+{
+    // LOS borrowed area: [losWatermark, reserveEnd) = units [losWmIdx, totalReserveUnits)
+    // Scan from losWmIdx upward: find contiguous returned (bit=1) units.
+    uintptr_t currentLOS = losWatermark.load(std::memory_order_relaxed);
+    size_t losWmIdx = AddrToUnitIndex(currentLOS);
+
+    size_t newLosWmIdx = losWmIdx;
+    while (newLosWmIdx < totalReserveUnits && IsBitSet(newLosWmIdx)) {
+        newLosWmIdx++;
+    }
+
+    if (newLosWmIdx > losWmIdx) {
+        // Reclaim contiguous returned units: clear their bits, move watermark
+        ClearBitmapRange(losWmIdx, newLosWmIdx - losWmIdx);
+        uintptr_t newWatermark = UnitIndexToAddr(newLosWmIdx);
+        losWatermark.store(newWatermark, std::memory_order_relaxed);
+
+        // Invalidate LOS buffer if it overlaps the reclaimed region
+        if (losBufFloor < newWatermark) {
             losBufFloor = 0;
             losBufCursor = 0;
         }
-        losReturnBytes += size;
-        lastLOSReturnCycle = gcCycleCount;  // M5: cooldown tracking
-        DLOG(REGION, "ReserveManager: ReturnFromLOS %zu bytes @0x%zx, watermark now 0x%zx",
-             size, addr, addr + size);
-        return true;
-    } else {
-        DLOG(REGION, "ReserveManager: ReturnFromLOS skipped (not at bottom), addr 0x%zx, size %zu, current 0x%zx",
-             addr, size, currentLOS);
-        return false;
+
+        size_t reclaimedBytes = (newLosWmIdx - losWmIdx) * unitSize;
+        losReturnBytes += reclaimedBytes;
+        lastLOSReturnCycle = gcCycleCount;
+
+        DLOG(REGION, "ReserveManager: CoalesceLOSWatermark reclaimed %zu units [%zu, %zu), "
+             "watermark 0x%zx \u2192 0x%zx",
+             newLosWmIdx - losWmIdx, losWmIdx, newLosWmIdx, currentLOS, newWatermark);
     }
 }
 

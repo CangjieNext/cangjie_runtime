@@ -622,6 +622,17 @@ void RegionManager::ForEachObjUnsafe(const std::function<void(BaseObject*)>& vis
         }
         region->VisitAllObjects([&visitor](BaseObject* object) { visitor(object); });
     }
+
+    // Also traverse LOS regions (they live outside [regionHeapStart, inactiveZone))
+    if (losManager != nullptr) {
+        auto visitList = [&visitor](RegionList& list) {
+            for (RegionInfo* r = list.GetHeadRegion(); r != nullptr; r = r->GetNextRegion()) {
+                r->VisitAllObjects([&visitor](BaseObject* object) { visitor(object); });
+            }
+        };
+        visitList(losManager->GetOldLargeRegionList());
+        visitList(losManager->GetRecentLargeRegionList());
+    }
 }
 
 void RegionManager::ForEachObjSafe(const std::function<void(BaseObject*)>& visitor) const
@@ -1368,8 +1379,7 @@ size_t RegionManager::ShrinkInactiveZone()
 // M5: Return RESERVE-borrowed free MAIN regions to RESERVE.
 // Dead RESERVE-borrowed regions are intercepted in ReclaimRegion/ReleaseRegion and
 // stored in pendingReserveReturns instead of freeRegionManager.
-// This method processes them, trying to return to RESERVE (from watermark tip).
-// On failure, falls back to freeRegionManager for future reuse.
+// With hole bitmap, ReturnFromMain always succeeds (marks bitmap + coalesces watermark).
 size_t RegionManager::ReturnBorrowedToReserve()
 {
     if (reserveManager == nullptr || pendingReserveReturns.empty()) {
@@ -1389,28 +1399,15 @@ size_t RegionManager::ReturnBorrowedToReserve()
         return 0;
     }
 
-    // Sort by address descending — return from watermark tip (highest address) first.
-    // ReturnFromMain only accepts returns at addr+size == mainWatermark (LIFO from top).
-    std::sort(pendingReserveReturns.begin(), pendingReserveReturns.end(),
-              [](const std::pair<size_t, size_t>& a, const std::pair<size_t, size_t>& b) {
-                  return a.first > b.first;  // descending by unit index (= address)
-              });
-
+    // With hole bitmap, no sorting needed — ReturnFromMain accepts any position.
+    // Bitmap records the return; watermark coalesces automatically when contiguous.
     size_t returnedBytes = 0;
-
     for (auto& entry : pendingReserveReturns) {
         uintptr_t addr = RegionInfo::GetUnitAddress(entry.first);
         size_t size = entry.second * RegionInfo::UNIT_SIZE;
-
-        if (reserveManager->ReturnFromMain(addr, size)) {
-            returnedBytes += size;
-            DLOG(REGION, "MAIN ReturnBorrowedToReserve: returned %zu bytes @0x%zx", size, addr);
-        } else {
-            // Can't return to RESERVE (not at watermark top) — keep in freeRegionManager for reuse
-            freeRegionManager.AddGarbageUnits(entry.first, entry.second);
-            DLOG(REGION, "MAIN ReturnBorrowedToReserve: kept in freeRegionManager, units[%zu+%zu)",
-                 entry.first, entry.second);
-        }
+        reserveManager->ReturnFromMain(addr, size);
+        returnedBytes += size;
+        DLOG(REGION, "MAIN ReturnBorrowedToReserve: returned %zu bytes @0x%zx", size, addr);
     }
 
     pendingReserveReturns.clear();

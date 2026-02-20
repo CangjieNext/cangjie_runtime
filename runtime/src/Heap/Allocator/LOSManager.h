@@ -10,6 +10,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -242,15 +243,15 @@ public:
     /**
      * Statistics
      */
-    size_t GetAllocCount() const { return losAllocCount; }
-    size_t GetAllocFailCount() const { return losAllocFailCount; }
-    size_t GetFallbackCount() const { return losFallbackCount; }
-    size_t GetReserveBorrowCount() const { return losReserveBorrowCount; }
+    size_t GetAllocCount() const { return losAllocCount.load(std::memory_order_relaxed); }
+    size_t GetAllocFailCount() const { return losAllocFailCount.load(std::memory_order_relaxed); }
+    size_t GetFallbackCount() const { return losFallbackCount.load(std::memory_order_relaxed); }
+    size_t GetReserveBorrowCount() const { return losReserveBorrowCount.load(std::memory_order_relaxed); }
 
     // Increment statistics (called by RegionManager when fallback occurs)
-    void IncrementAllocCount() { losAllocCount++; }
-    void IncrementAllocFailCount() { losAllocFailCount++; }
-    void IncrementFallbackCount() { losFallbackCount++; }
+    void IncrementAllocCount() { losAllocCount.fetch_add(1, std::memory_order_relaxed); }
+    void IncrementAllocFailCount() { losAllocFailCount.fetch_add(1, std::memory_order_relaxed); }
+    void IncrementFallbackCount() { losFallbackCount.fetch_add(1, std::memory_order_relaxed); }
 
     /**
      * M5: Return RESERVE-borrowed free LOS regions to RESERVE.
@@ -323,11 +324,11 @@ private:
     size_t ReclaimLOSRegion(RegionInfo* region);
     size_t ReleaseLOSRegion(RegionInfo* region);
 
-    // Statistics
-    size_t losAllocCount = 0;
-    size_t losAllocFailCount = 0;
-    size_t losFallbackCount = 0;
-    size_t losReserveBorrowCount = 0;    // number of RESERVE-borrowed LOS allocations
+    // Statistics (atomic: incremented by concurrent mutator threads in AllocLarge)
+    std::atomic<size_t> losAllocCount{0};
+    std::atomic<size_t> losAllocFailCount{0};
+    std::atomic<size_t> losFallbackCount{0};
+    std::atomic<size_t> losReserveBorrowCount{0};    // number of RESERVE-borrowed LOS allocations
 
     // M3: GC statistics
     size_t losGarbageCollectedBytes = 0; // bytes reclaimed in last GC
@@ -339,7 +340,8 @@ private:
     // When both compaction and migration happen in the same GC cycle,
     // compaction entries are added first, then migration entries are appended.
     // Cleared after all reference updates complete.
-    std::vector<std::pair<uintptr_t, uintptr_t>> migrationMap;
+    // Uses unordered_map for O(1) lookup in UpdateMigratedReferences().
+    std::unordered_map<uintptr_t, uintptr_t> migrationMap;
 
     // M4a: Compaction statistics
     size_t losCompactCount = 0;          // number of compactions performed
