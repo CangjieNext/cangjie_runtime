@@ -134,6 +134,7 @@ public:
 #endif
 
     void DumpRegionStats(const char* msg) const;
+    void DumpMemoryMap() const;
 
     uintptr_t GetInactiveZone() const { return inactiveZone; }
 
@@ -265,7 +266,6 @@ public:
             if (!losManager->IsCompacting() && !losManager->IsCompactionRequested()) {
                 SignalLOSCompaction();
             }
-            DLOG(REGION, "LOS alloc fallback to MAIN: size %zu", size);
         }
         return addr;
     }
@@ -468,7 +468,11 @@ public:
 
     size_t GetDirtyUnitCount() const { return freeRegionManager.GetDirtyUnitCount(); }
 
-    size_t GetInactiveUnitCount() const { return (mainEnd - inactiveZone) / RegionInfo::UNIT_SIZE; }
+    size_t GetInactiveUnitCount() const { 
+        uintptr_t zone = inactiveZone.load(std::memory_order_relaxed);
+        // Guard against underflow if inactiveZone transiently exceeds mainEnd
+        return (zone < mainEnd) ? (mainEnd - zone) / RegionInfo::UNIT_SIZE : 0;
+    }
 
     size_t GetActiveUnitCount() const { return (inactiveZone - regionHeapStart) / RegionInfo::UNIT_SIZE; }
 
@@ -745,7 +749,11 @@ private:
     size_t mainReserveBorrowCount = 0;
 
     // M5: Pending RESERVE returns — RESERVE-borrowed dead regions held until explicit ReturnBorrowedToReserve()
-    // <unitIdx, unitCount> pairs collected during ReclaimRegion/ReleaseRegion
+    // <unitIdx, unitCount> pairs collected during ReclaimRegion/ReleaseRegion.
+    // Protected by pendingReserveReturnsMutex because push_back happens from mutator threads
+    // (AllocateInNewRegion → ReclaimRegion), GC thread (CollectSmallSpace → ReclaimRegion),
+    // and FP thread (ReclaimGarbageRegions → ReclaimRegion) concurrently.
+    std::mutex pendingReserveReturnsMutex;
     std::vector<std::pair<size_t, size_t>> pendingReserveReturns;
 #if defined(__EULER__)
     double cacheRatio;

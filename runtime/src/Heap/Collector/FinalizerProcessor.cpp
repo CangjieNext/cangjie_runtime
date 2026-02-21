@@ -293,6 +293,9 @@ void FinalizerProcessor::RegisterFinalizer(BaseObject* obj)
 
 void FinalizerProcessor::ReclaimHeapGarbage()
 {
+    // Acquire the mutex shared with SuppressGarbageReclaim to guarantee mutual exclusion
+    // with GC PostTrace operations that concurrently modify garbageRegionList/region metadata.
+    std::lock_guard<std::mutex> lock(gcReclaimMutex);
     ScopedEntryTrace trace("CJRT_GC_RECLAIM");
     Heap::GetHeap().GetAllocator().ReclaimGarbageMemory(false);
     shouldReclaimHeapGarbage.store(false, std::memory_order_relaxed);

@@ -193,6 +193,7 @@ public:
     }
 
     void DumpRegionStats(const char* msg) const { regionManager.DumpRegionStats(msg); }
+    void DumpMemoryMap() const { regionManager.DumpMemoryMap(); }
 
     void CountLiveObject(const BaseObject* obj) { regionManager.CountLiveObject(obj); }
 

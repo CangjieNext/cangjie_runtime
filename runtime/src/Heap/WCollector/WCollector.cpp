@@ -415,6 +415,11 @@ void WCollector::PostTrace()
 void WCollector::CompactLOSIfNeeded()
 {
     MRT_PHASE_TIMER("CompactLOSIfNeeded");
+    // DISABLED: CompactLOS moves live objects via memmove_s and rebuilds region lists.
+    // WCollector is a concurrent collector (no STW during PostTrace), so mutators
+    // are concurrently reading/writing LOS objects. Moving them causes SIGSEGV.
+    // TODO: Re-enable with ScopedStopTheWorld wrapping the compaction + ref update.
+    return;
     RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
     LOSManager* losMgr = space.GetRegionManager().GetLOSManager();
     if (losMgr == nullptr) {
@@ -447,6 +452,11 @@ void WCollector::CompactLOSIfNeeded()
 void WCollector::MigrateLargeObjectsToLOS()
 {
     MRT_PHASE_TIMER("MigrateLargeObjectsToLOS");
+    // DISABLED: MigrateLargeObjectsFromMain copies objects from MAIN to LOS and
+    // UpdateMigratedReferences scans the entire heap to update references.
+    // Without STW, mutators concurrently read stale references → SIGSEGV.
+    // TODO: Re-enable with ScopedStopTheWorld.
+    return;
     RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
     LOSManager* losMgr = space.GetRegionManager().GetLOSManager();
     if (losMgr == nullptr) {
@@ -590,6 +600,16 @@ void WCollector::DoGarbageCollection()
 
     ForwardFromSpace();
 
+    // M4b: ShrinkInactiveZone is DISABLED.
+    // The WCollector is a concurrent collector (no STW — ScopedStopTheWorld is commented out
+    // in CopyCollector::RunGarbageCollection). Mutators run concurrently during the entire
+    // GC cycle. ShrinkInactiveZone does ClearTrees + re-scan, which races with mutator's
+    // TakeRegion → ReclaimRegion (InitFreeUnits then AddGarbageUnits). A mutator can call
+    // InitFreeUnits (marking region as free) before AddGarbageUnits; concurrently the
+    // re-scan sees the region as free and also adds it → double-insert into CartesianTree.
+    // TODO(M4b): Re-enable with ScopedStopTheWorld if shrinking is needed.
+    // reinterpret_cast<RegionSpace&>(theAllocator).GetRegionManager().ShrinkInactiveZone();
+
     TransitionToGCPhase(GCPhase::GC_PHASE_IDLE, true);
     MergeResurrectExportObjects();
     PostResolveCycleTask();
@@ -599,15 +619,10 @@ void WCollector::DoGarbageCollection()
     CollectSmallSpace();
     ForwardDataManager::GetForwardDataManager().UnbindPreviousLiveInfo();
 
-    // M4b: After every GC, try to shrink MAIN's active zone.
-    // Low-address-first allocation packs live regions toward regionHeapStart,
-    // leaving free regions at high addresses. Shrink inactiveZone to reclaim them.
-    reinterpret_cast<RegionSpace&>(theAllocator).GetRegionManager().ShrinkInactiveZone();
-
     // M5: Return RESERVE-borrowed space after GC.
     // MAIN: dead borrowed regions (intercepted in ReclaimRegion/ReleaseRegion) are returned.
     // LOS: dead borrowed regions (intercepted in ReclaimLOSRegion/ReleaseLOSRegion) are returned.
-    // Also notify RESERVE about GC cycle completion for cooldown tracking.
+    // pendingReserveReturns is protected by pendingReserveReturnsMutex.
     {
         RegionManager& rm = reinterpret_cast<RegionSpace&>(theAllocator).GetRegionManager();
         rm.ReturnBorrowedToReserve();

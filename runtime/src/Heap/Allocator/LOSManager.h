@@ -280,6 +280,7 @@ public:
      * M2+ will use this for allocation and reclamation.
      */
     FreeRegionManager& GetFreeRegionManager() { return losFreeMgr; }
+    const FreeRegionManager& GetFreeRegionManager() const { return losFreeMgr; }
 
     /**
      * Get unit index range (global indices)

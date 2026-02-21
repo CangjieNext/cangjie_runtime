@@ -86,6 +86,27 @@ public:
 
     Count GetTotalCount() const { return totalCount; }
 
+    // Return the largest contiguous free block count.
+    // The tree is a max-heap on count, so the root holds the maximum.
+    Count GetMaxContiguousCount() const
+    {
+        return root != nullptr ? root->GetCount() : 0;
+    }
+
+    // Return the number of disjoint free chunks (tree nodes).
+    // Typically small (10-100), safe to call during GC dump.
+    Count GetFragmentCount() const
+    {
+        return CountNodes(root);
+    }
+
+    // Mark all free block units in stateArray with given value.
+    // Uses global unit indices (localIndex + baseIndex).
+    void MarkFreeBlockUnits(uint8_t* stateArray, size_t arraySize, uint8_t value) const
+    {
+        MarkBlockUnits(root, baseIndex, stateArray, arraySize, value);
+    }
+
     void IncTotalCount(Count cnt) { totalCount += cnt; }
 
     void DecTotalCount(Count cnt)
@@ -284,6 +305,30 @@ public:
 #endif
 
 private:
+    static Count CountNodes(const Node* n)
+    {
+        if (n == nullptr) {
+            return 0;
+        }
+        return 1 + CountNodes(n->l) + CountNodes(n->r);
+    }
+
+    // Mark all free block units in a state array.
+    // For each free block [idx, idx+count), sets stateArray[globalIdx] = value.
+    static void MarkBlockUnits(const Node* n, Index base, uint8_t* stateArray, size_t arraySize, uint8_t value)
+    {
+        if (n == nullptr) {
+            return;
+        }
+        size_t start = static_cast<size_t>(n->GetIndex()) + base;
+        size_t count = static_cast<size_t>(n->GetCount());
+        for (size_t i = start; i < start + count && i < arraySize; i++) {
+            stateArray[i] = value;
+        }
+        MarkBlockUnits(n->l, base, stateArray, arraySize, value);
+        MarkBlockUnits(n->r, base, stateArray, arraySize, value);
+    }
+
     Count totalCount = 0u; // sum of all node counts.
     Index baseIndex = 0;     // global unit index offset for RegionInfo (0 for MAIN, losUnitStart for LOS)
     Node* root = nullptr;
@@ -465,33 +510,35 @@ private:
         return true;
     }
 
-    // Find the lowest-address (leftmost BST) node whose count >= num.
+    // Find the Node** (tree-internal pointer) to the lowest-address node whose count >= num.
     // Leverages both BST-on-index (left = lower addr) and max-heap-on-count
     // (if node->count < num, no descendant can satisfy either) for O(log n).
-    Node* FindLowestSuitable(Node* node, Count num) const
+    // Returns nullptr if no suitable node exists.
+    Node** FindLowestSuitablePtr(Node** nodePtr, Count num) const
     {
-        if (node == nullptr || node->GetCount() < num) {
+        if (nodePtr == nullptr || *nodePtr == nullptr || (*nodePtr)->GetCount() < num) {
             return nullptr;
         }
         // Left subtree has strictly lower indices (addresses).
-        Node* left = FindLowestSuitable(node->l, num);
+        Node** left = FindLowestSuitablePtr(&((*nodePtr)->l), num);
         if (left != nullptr) {
             return left;
         }
         // No suitable node in left subtree; current node is the lowest suitable.
-        return node;
+        return nodePtr;
     }
 
     // Like TakeUnitsImpl but always allocates from the lowest-address suitable node.
     // Used by MAIN's FreeRegionManager to pack live regions toward low addresses.
     bool TakeUnitsLowAddrImpl(Count num, Index& idx, bool refreshRegionInfo)
     {
-        Node* node = FindLowestSuitable(root, num);
-        if (node == nullptr) {
+        Node** nodePtr = FindLowestSuitablePtr(&root, num);
+        if (nodePtr == nullptr) {
             DLOG(REGION, "c-tree %p fail to take %u free units (low-addr)", this, num);
             return false;
         }
 
+        Node* node = *nodePtr;
         idx = node->GetIndex();
         auto count = node->GetCount();
 
@@ -499,9 +546,9 @@ private:
         DecTotalCount(num);
 
         if (node->GetCount() == 0) {
-            RemoveZeroNode(node);
+            RemoveZeroNode(*nodePtr);
         } else {
-            LowerNonZeroNode(node);
+            LowerNonZeroNode(*nodePtr);
         }
 
         return true;

@@ -128,6 +128,29 @@ public:
     UnitCount GetDirtyUnitCount() const { return dirtyUnitTree.GetTotalCount(); }
     UnitCount GetReleasedUnitCount() const { return releasedUnitTree.GetTotalCount(); }
 
+    // Largest contiguous free block (units) across both trees.
+    UnitCount GetMaxContiguousFreeUnits() const
+    {
+        UnitCount dirtyMax = dirtyUnitTree.GetMaxContiguousCount();
+        UnitCount releasedMax = releasedUnitTree.GetMaxContiguousCount();
+        return dirtyMax > releasedMax ? dirtyMax : releasedMax;
+    }
+
+    // Total number of disjoint free chunks (fragments) across both trees.
+    size_t GetFreeFragmentCount() const
+    {
+        return static_cast<size_t>(dirtyUnitTree.GetFragmentCount()) +
+               static_cast<size_t>(releasedUnitTree.GetFragmentCount());
+    }
+
+    // Mark all free units in stateArray: dirty tree units → dirtyVal, released tree units → releasedVal.
+    // Uses global unit indices (tree-local + baseUnit offset handled inside CartesianTree).
+    void MarkFreeUnits(uint8_t* stateArray, size_t arraySize, uint8_t dirtyVal, uint8_t releasedVal) const
+    {
+        dirtyUnitTree.MarkFreeBlockUnits(stateArray, arraySize, dirtyVal);
+        releasedUnitTree.MarkFreeBlockUnits(stateArray, arraySize, releasedVal);
+    }
+
     // Clear both trees (used by LOS compaction to rebuild free region tracking)
     void ClearTrees()
     {

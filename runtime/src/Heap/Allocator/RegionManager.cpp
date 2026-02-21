@@ -7,6 +7,7 @@
 
 #include "Allocator/RegionManager.h"
 
+#include <algorithm>
 #include <cmath>
 #include <unistd.h>
 
@@ -458,8 +459,8 @@ void RegionManager::Initialize(size_t nUnit, uintptr_t regionInfoAddr)
     RegionInfo::Initialize(nUnit, regionHeapStart);
     // FreeRegionManager only manages MAIN space units
     freeRegionManager.Initialize(mainUnitCount);
-    // M4b: enable low-address-first allocation for MAIN defragmentation
-    freeRegionManager.SetLowAddressFirst(true);
+    // [BISECT] lowAddressFirst disabled
+    freeRegionManager.SetLowAddressFirst(false);
     this->exemptedRegionThreshold = CangjieRuntime::GetHeapParam().exemptionThreshold;
 
     // Log space partitioning
@@ -487,8 +488,10 @@ void RegionManager::ReclaimRegion(RegionInfo* region)
 
     region->InitFreeUnits();
 
-    // M5: If region is in RESERVE-borrowed territory, defer for return to RESERVE
+    // M5: If region is in RESERVE-borrowed territory, defer for return to RESERVE.
+    // Protected by pendingReserveReturnsMutex (push_back from mutator/GC/FP threads concurrently).
     if (IsInReserveTerritory(region->GetRegionStart())) {
+        std::lock_guard<std::mutex> lock(pendingReserveReturnsMutex);
         pendingReserveReturns.push_back({unitIndex, num});
         DLOG(REGION, "MAIN reclaim: RESERVE-borrowed region deferred for return, units[%zu+%zu)",
              unitIndex, num);
@@ -512,8 +515,9 @@ size_t RegionManager::ReleaseRegion(RegionInfo* region)
     region->InitFreeUnits();
     RegionInfo::ReleaseUnits(unitIndex, num);
 
-    // M5: If region is in RESERVE-borrowed territory, defer for return to RESERVE
+    // M5: If region is in RESERVE-borrowed territory, defer for return to RESERVE.
     if (IsInReserveTerritory(region->GetRegionStart())) {
+        std::lock_guard<std::mutex> lock(pendingReserveReturnsMutex);
         pendingReserveReturns.push_back({unitIndex, num});
         DLOG(REGION, "MAIN release: RESERVE-borrowed region deferred for return, units[%zu+%zu)",
              unitIndex, num);
@@ -978,6 +982,61 @@ void RegionManager::DumpRegionStats(const char* msg) const
     TRACE_COUNT("CJRT_GC_dirtyUnits", dirtyUnits);
     TRACE_COUNT("CJRT_GC_listedUnits", listedUnits);
 
+    // === Fragmentation Statistics ===
+    // External fragmentation: free-space distribution in MAIN
+    size_t totalFreeUnits = releasedUnits + dirtyUnits;
+    size_t maxContigFreeUnits = freeRegionManager.GetMaxContiguousFreeUnits();
+    size_t maxContigFreeBytes = maxContigFreeUnits * RegionInfo::UNIT_SIZE;
+    float extFragIndex = (totalFreeUnits > 0)
+        ? 1.0f - static_cast<float>(maxContigFreeUnits) / static_cast<float>(totalFreeUnits)
+        : 0.0f;
+    size_t freeFragCount = freeRegionManager.GetFreeFragmentCount();
+
+    // Internal fragmentation: actual bump-pointer allocated vs region capacity
+    size_t actualAllocBytes =
+        tlRegionList.GetAllocatedSize(true) +
+        fromRegionList.GetAllocatedSize(true) +
+        recentFullRegionList.GetAllocatedSize(true) +
+        oldPinnedRegionList.GetAllocatedSize(true) +
+        recentPinnedRegionList.GetAllocatedSize(true) +
+        rawPointerPinnedRegionList.GetAllocatedSize(true) +
+        oldLargeRegionList.GetAllocatedSize(true) +
+        recentLargeRegionList.GetAllocatedSize(true);
+    size_t regionCapacityBytes = usedUnits * RegionInfo::UNIT_SIZE;
+    size_t internalWaste = (regionCapacityBytes > actualAllocBytes)
+        ? regionCapacityBytes - actualAllocBytes : 0;
+    float heapUtilization = (activeSize > 0)
+        ? static_cast<float>(actualAllocBytes) / static_cast<float>(activeSize) : 0.0f;
+
+    // Large-in-MAIN impact (key LOS comparison metric)
+    float largeInMainRatio = (activeUnits > 0)
+        ? static_cast<float>(largeUnits + recentlargeUnits) / static_cast<float>(activeUnits)
+        : 0.0f;
+
+    VLOG(REPORT, "\tFRAG-EXT: index %.4f, maxContiguousFree %zu units (%zu B), "
+         "freeFragments %zu, totalFree %zu units",
+         extFragIndex, maxContigFreeUnits, maxContigFreeBytes,
+         freeFragCount, totalFreeUnits);
+    VLOG(REPORT, "\tFRAG-INT: internalWaste %zu B, actualAlloc %zu B, "
+         "regionCapacity %zu B, heapUtil %.2f%%",
+         internalWaste, actualAllocBytes, regionCapacityBytes,
+         heapUtilization * 100);
+    VLOG(REPORT, "\tFRAG-LARGE: largeInMainRatio %.2f%%, "
+         "largeRegions %zu (%zu units), recentLargeRegions %zu (%zu units)",
+         largeInMainRatio * 100,
+         largeRegions, largeUnits, recentlargeRegions, recentlargeUnits);
+
+    TRACE_COUNT("CJRT_GC_extFragIndex_x10000",
+                static_cast<size_t>(extFragIndex * 10000));
+    TRACE_COUNT("CJRT_GC_maxContigFreeUnits", maxContigFreeUnits);
+    TRACE_COUNT("CJRT_GC_freeFragCount", freeFragCount);
+    TRACE_COUNT("CJRT_GC_internalWaste", internalWaste);
+    TRACE_COUNT("CJRT_GC_actualAllocBytes", actualAllocBytes);
+    TRACE_COUNT("CJRT_GC_heapUtilization_x100",
+                static_cast<size_t>(heapUtilization * 100));
+    TRACE_COUNT("CJRT_GC_largeInMainRatio_x100",
+                static_cast<size_t>(largeInMainRatio * 100));
+
     // M5: MAIN / RESERVE / LOS space snapshot
     if (reserveManager != nullptr) {
         size_t reserveCap = reserveManager->GetCapacity();
@@ -1030,6 +1089,311 @@ void RegionManager::DumpRegionStats(const char* msg) const
     VLOG(REPORT, "\tMAIN: [0x%zx, 0x%zx) end 0x%zx, inactiveZone 0x%zx, reserveBorrow %zu",
          regionHeapStart, regionHeapEnd, mainEnd,
          inactiveZone.load(std::memory_order_relaxed), mainReserveBorrowCount);
+}
+
+// Map RegionType to a single display character for the memory map visualization.
+static char RegionTypeToChar(RegionInfo::RegionType type, bool hasRawPtr)
+{
+    if (hasRawPtr) {
+        return 'X';
+    }
+    switch (type) {
+        case RegionInfo::RegionType::FREE_REGION:                return '.';
+        case RegionInfo::RegionType::THREAD_LOCAL_REGION:        return 'T';
+        case RegionInfo::RegionType::RECENT_FULL_REGION:         return 'R';
+        case RegionInfo::RegionType::FROM_REGION:                return 'F';
+        case RegionInfo::RegionType::LONE_FROM_REGION:           return 'f';
+        case RegionInfo::RegionType::UNMOVABLE_FROM_REGION:      return 'U';
+        case RegionInfo::RegionType::TO_REGION:                  return 'O';
+        case RegionInfo::RegionType::FULL_PINNED_REGION:         return 'P';
+        case RegionInfo::RegionType::RECENT_PINNED_REGION:       return 'p';
+        case RegionInfo::RegionType::RAW_POINTER_PINNED_REGION:  return 'X';
+        case RegionInfo::RegionType::TL_RAW_POINTER_REGION:      return 'x';
+        case RegionInfo::RegionType::TL_LARGE_RAW_POINTER_REGION:return 'x';
+        case RegionInfo::RegionType::LARGE_REGION:               return 'L';
+        case RegionInfo::RegionType::RECENT_LARGE_REGION:        return 'l';
+        case RegionInfo::RegionType::GARBAGE_REGION:             return 'G';
+        default:                                                 return '?';
+    }
+}
+
+void RegionManager::DumpMemoryMap() const
+{
+    // === Heap Memory Layout ===
+    // [regionHeapStart .. mainEnd][reserveStart .. reserveEnd][losStart .. losEnd=regionHeapEnd]
+    // |<------ MAIN ----------->||<------- RESERVE -------->||<----------- LOS -------------->|
+    //
+    // MAIN:    grows low→high, inactiveZone = frontier, units above are inactive.
+    // LOS:     grows high→low, losInactiveZone = frontier, units below are inactive.
+    // RESERVE: [mainWatermark, losWatermark) is unborrowed free space.
+    //
+    // This function builds a per-unit state array and outputs a consolidated block table
+    // showing each contiguous block's unit range, size, type char, and status description.
+
+    size_t totalUnits = (regionHeapEnd - regionHeapStart) / RegionInfo::UNIT_SIZE;
+    if (totalUnits == 0) {
+        VLOG(REPORT, "MEMORY-MAP: no heap units");
+        return;
+    }
+
+    // --- Compute space boundaries (unit indices) ---
+    size_t mainUnitEnd = (mainEnd - regionHeapStart) / RegionInfo::UNIT_SIZE;
+
+    size_t reserveUnitStart = mainUnitEnd;
+    size_t reserveUnitEnd = mainUnitEnd;
+    uintptr_t mainWm = 0;
+    uintptr_t losWm = 0;
+    if (reserveManager != nullptr) {
+        reserveUnitStart = (reserveManager->GetReserveStart() - regionHeapStart) / RegionInfo::UNIT_SIZE;
+        reserveUnitEnd = (reserveManager->GetReserveEnd() - regionHeapStart) / RegionInfo::UNIT_SIZE;
+        mainWm = reserveManager->GetMainWatermark();
+        losWm = reserveManager->GetLOSWatermark();
+    }
+
+    size_t losUnitStart = totalUnits;
+    size_t losUnitEnd = totalUnits;
+    uintptr_t losInactive = 0;
+    if (losManager != nullptr) {
+        losUnitStart = losManager->GetUnitStart();
+        losUnitEnd = losManager->GetUnitEnd();
+        losInactive = losManager->GetInactiveZone();
+    }
+
+    uintptr_t mainInactive = inactiveZone.load(std::memory_order_relaxed);
+    size_t mainInactiveUnit = (mainInactive > regionHeapStart)
+        ? (mainInactive - regionHeapStart) / RegionInfo::UNIT_SIZE : 0;
+    size_t losInactiveUnit = (losManager != nullptr && losInactive >= regionHeapStart)
+        ? (losInactive - regionHeapStart) / RegionInfo::UNIT_SIZE : losUnitEnd;
+
+    // --- State encoding ---
+    // 0          = INACTIVE  (beyond active zone, never used)
+    // 1          = FREE_DIRTY  (in FreeRegionManager dirty tree)
+    // 2          = FREE_RELEASED  (in FreeRegionManager released tree)
+    // 3          = FREE_UNKNOWN  (free head unit in active zone, not in either tree)
+    // 4          = RESERVE_FREE  (unborrowed RESERVE space)
+    // 16..31     = S_USED_BASE + RegionType  (used region)
+    // 0x40 flag  = region has raw pointer objects
+    static constexpr uint8_t S_INACTIVE      = 0;
+    static constexpr uint8_t S_FREE_DIRTY    = 1;
+    static constexpr uint8_t S_FREE_RELEASED = 2;
+    static constexpr uint8_t S_FREE_UNKNOWN  = 3;
+    static constexpr uint8_t S_RESERVE_FREE  = 4;
+    static constexpr uint8_t S_USED_BASE     = 16;
+    static constexpr uint8_t S_RAW_PTR_FLAG  = 0x40;
+
+    // --- Allocate state array ---
+    uint8_t* state = static_cast<uint8_t*>(calloc(totalUnits, 1)); // all INACTIVE
+    if (state == nullptr) {
+        VLOG(REPORT, "MEMORY-MAP: failed to allocate state array (%zu bytes)", totalUnits);
+        return;
+    }
+
+    // --- Step 1: Mark dirty/released free blocks from FreeRegionManager trees ---
+    // This uses the MarkFreeBlockUnits helper that recursively traverses the CartesianTree.
+    freeRegionManager.MarkFreeUnits(state, totalUnits, S_FREE_DIRTY, S_FREE_RELEASED);
+    if (losManager != nullptr) {
+        losManager->GetFreeRegionManager().MarkFreeUnits(state, totalUnits, S_FREE_DIRTY, S_FREE_RELEASED);
+    }
+
+    // --- Step 2: Walk all units and mark used regions ---
+    // For each head unit (SMALL_SIZED_UNITS or LARGE_SIZED_UNITS), mark its entire
+    // unit range with the region's type. This overwrites any stale tree marking.
+    for (size_t i = 0; i < totalUnits; ) {
+        RegionInfo* region = RegionInfo::GetRegionInfo(static_cast<uint32_t>(i));
+        auto role = region->GetUnitRole();
+
+        if ((role == RegionInfo::UnitRole::SMALL_SIZED_UNITS ||
+             role == RegionInfo::UnitRole::LARGE_SIZED_UNITS) &&
+            region->GetUnitIdx() == i) {
+            // This is a head unit — mark the entire region
+            size_t nUnits = region->GetUnitCount();
+            uint8_t val = S_USED_BASE + static_cast<uint8_t>(region->GetRegionType());
+            if (region->GetRawPointerObjectCount() > 0) {
+                val |= S_RAW_PTR_FLAG;
+            }
+            for (size_t j = 0; j < nUnits && (i + j) < totalUnits; j++) {
+                state[i + j] = val;
+            }
+            i += nUnits;
+        } else {
+            // FREE_UNITS or SUBORDINATE_UNIT: advance one at a time.
+            // (Free units were already marked by step 1; subordinates are handled
+            //  as part of their head unit's block.)
+            i++;
+        }
+    }
+
+    // --- Step 3: Classify remaining INACTIVE units ---
+    // Units still S_INACTIVE are either truly inactive (beyond the active frontier)
+    // or are in an active zone but weren't in any tree (shouldn't normally happen).
+    // Also mark unborrowed RESERVE space.
+    for (size_t i = 0; i < totalUnits; i++) {
+        if (state[i] != S_INACTIVE) {
+            continue;
+        }
+
+        uintptr_t addr = RegionInfo::GetUnitAddress(i);
+
+        // RESERVE zone: unborrowed space between watermarks
+        if (i >= reserveUnitStart && i < reserveUnitEnd) {
+            bool isFreeReserve = false;
+            if (mainWm > 0 && losWm > 0) {
+                isFreeReserve = (addr >= mainWm && addr < losWm);
+            } else if (mainWm == 0 && losWm == 0) {
+                isFreeReserve = true; // never borrowed
+            } else if (mainWm > 0) {
+                isFreeReserve = (addr >= mainWm);
+            } else {
+                isFreeReserve = (addr < losWm);
+            }
+            if (isFreeReserve) {
+                state[i] = S_RESERVE_FREE;
+            }
+            continue;
+        }
+
+        // MAIN zone: below inactiveZone = active, should have been in a tree
+        if (i < mainUnitEnd && addr < mainInactive) {
+            state[i] = S_FREE_UNKNOWN;
+            continue;
+        }
+
+        // LOS zone: above losInactiveZone = active
+        if (losManager != nullptr && i >= losUnitStart && i < losUnitEnd && addr >= losInactive) {
+            state[i] = S_FREE_UNKNOWN;
+            continue;
+        }
+
+        // Else: truly inactive, stays S_INACTIVE
+    }
+
+    // ======== Output ========
+
+    VLOG(REPORT, "=== HEAP MEMORY MAP ===");
+
+    // Header: total size, unit size
+    size_t totalBytes = totalUnits * RegionInfo::UNIT_SIZE;
+    VLOG(REPORT, "MEMORY-MAP: %zu units (%zu.%zu MB), UNIT_SIZE=%zu B",
+         totalUnits, totalBytes / (1024 * 1024), (totalBytes * 10 / (1024 * 1024)) % 10,
+         RegionInfo::UNIT_SIZE);
+
+    // Space boundaries
+    VLOG(REPORT, "MEMORY-MAP: MAIN [0, %zu)  RESERVE [%zu, %zu)  LOS [%zu, %zu)",
+         mainUnitEnd, reserveUnitStart, reserveUnitEnd, losUnitStart, losUnitEnd);
+
+    // Active zone watermarks
+    VLOG(REPORT, "MEMORY-MAP: MAIN active=[0, %zu)  LOS active=[%zu, %zu)",
+         mainInactiveUnit, losInactiveUnit, losUnitEnd);
+    if (reserveManager != nullptr) {
+        size_t mwUnit = (mainWm >= regionHeapStart)
+            ? (mainWm - regionHeapStart) / RegionInfo::UNIT_SIZE : reserveUnitStart;
+        size_t lwUnit = (losWm >= regionHeapStart)
+            ? (losWm - regionHeapStart) / RegionInfo::UNIT_SIZE : reserveUnitEnd;
+        VLOG(REPORT, "MEMORY-MAP: RESERVE main_watermark=%zu  los_watermark=%zu", mwUnit, lwUnit);
+    }
+
+    VLOG(REPORT, "MEMORY-MAP: legend: T=ThreadLocal R=RecentFull F=From f=LoneFrom U=Unmovable "
+         "O=To P=Pinned p=RecentPin X=RawPtr L=Large l=RecentLarge G=Garbage "
+         "d=FreeDirty r=FreeReleased ?=FreeUnknown ==ReserveFree _=Inactive");
+    VLOG(REPORT, "MEMORY-MAP: cell format [units x type_char], 10 blocks per row");
+
+    // --- Walk state array per space, consolidate consecutive same-state into blocks ---
+    // Output 10 compact block cells per line: [  8 T] [  8 R] [128 _] ...
+    struct SpaceRange {
+        const char* name;
+        size_t start;
+        size_t end;
+    };
+    SpaceRange spaces[3];
+    size_t nSpaces = 0;
+    spaces[nSpaces++] = {"MAIN", 0, mainUnitEnd};
+    if (reserveUnitStart < reserveUnitEnd) {
+        spaces[nSpaces++] = {"RESERVE", reserveUnitStart, reserveUnitEnd};
+    }
+    if (losUnitStart < losUnitEnd) {
+        spaces[nSpaces++] = {"LOS", losUnitStart, losUnitEnd};
+    }
+
+    // Helper: decode state byte into a type character
+    auto stateToChar = [&](uint8_t st) -> char {
+        if (st == S_INACTIVE)       return '_';
+        if (st == S_FREE_DIRTY)     return 'd';
+        if (st == S_FREE_RELEASED)  return 'r';
+        if (st == S_FREE_UNKNOWN)   return '?';
+        if (st == S_RESERVE_FREE)   return '=';
+        uint8_t base = st & static_cast<uint8_t>(~S_RAW_PTR_FLAG);
+        bool rawPtr = (st & S_RAW_PTR_FLAG) != 0;
+        auto rtype = static_cast<RegionInfo::RegionType>(base - S_USED_BASE);
+        return RegionTypeToChar(rtype, rawPtr);
+    };
+
+    // Line buffer: accumulate up to 10 cells per line.
+    // Each cell: "[%4zu %c] " = max 9 chars, 10 cells + padding + null < 128.
+    static constexpr size_t CELLS_PER_LINE = 10;
+    char lineBuf[256];
+    size_t linePos = 0;
+    size_t cellCount = 0;
+
+    // Lambda to flush the current line buffer.
+    auto flushLine = [&]() {
+        if (linePos > 0) {
+            lineBuf[linePos] = '\0';
+            VLOG(REPORT, "  %s", lineBuf);
+            linePos = 0;
+            cellCount = 0;
+        }
+    };
+
+    // Lambda to append one block cell to the line buffer.
+    auto appendCell = [&](size_t unitStart, size_t unitCount, char typeChar) {
+        // Format: [startIdx +count char]   e.g. [  120 +    8 T]
+        int n = snprintf(lineBuf + linePos, sizeof(lineBuf) - linePos,
+                         "[%5zu +%4zu %c] ", unitStart, unitCount, typeChar);
+        if (n > 0) {
+            linePos += static_cast<size_t>(n);
+        }
+        cellCount++;
+        if (cellCount >= CELLS_PER_LINE) {
+            flushLine();
+        }
+    };
+
+    for (size_t s = 0; s < nSpaces; s++) {
+        size_t sStart = spaces[s].start;
+        size_t sEnd = spaces[s].end;
+        if (sStart >= sEnd) {
+            continue;
+        }
+
+        // Flush any pending cells from previous space before printing separator
+        flushLine();
+        VLOG(REPORT, "--- %s (units %zu - %zu) ---", spaces[s].name, sStart, sEnd - 1);
+
+        size_t blockStart = sStart;
+        uint8_t blockState = state[sStart];
+
+        for (size_t i = sStart + 1; i <= sEnd; i++) {
+            uint8_t curState = (i < sEnd) ? state[i] : 0xFF; // sentinel to flush last block
+            if (curState == blockState && i < sEnd) {
+                continue;
+            }
+
+            // Emit block [blockStart, i)
+            size_t blockCount = i - blockStart;
+            char typeChar = stateToChar(blockState);
+            appendCell(blockStart, blockCount, typeChar);
+
+            blockStart = i;
+            blockState = curState;
+        }
+    }
+
+    // Flush any remaining cells
+    flushLine();
+
+    VLOG(REPORT, "=== END MEMORY MAP ===");
+
+    free(state);
 }
 
 RegionInfo* RegionManager::AllocateThreadLocalRegion(bool expectPhysicalMem)
@@ -1382,6 +1746,9 @@ size_t RegionManager::ShrinkInactiveZone()
 // With hole bitmap, ReturnFromMain always succeeds (marks bitmap + coalesces watermark).
 size_t RegionManager::ReturnBorrowedToReserve()
 {
+    // Lock to safely read/clear pendingReserveReturns; producers (ReclaimRegion/ReleaseRegion)
+    // may push_back concurrently from mutator or FP threads.
+    std::lock_guard<std::mutex> lock(pendingReserveReturnsMutex);
     if (reserveManager == nullptr || pendingReserveReturns.empty()) {
         return 0;
     }

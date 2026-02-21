@@ -91,6 +91,20 @@ public:
     Mutator* GetMutator() const { return fpMutator; }
 
     void NotifyToReclaimGarbage() { shouldReclaimHeapGarbage.store(true); }
+
+    // Suppress garbage reclaim on FinalizerProcessor thread to avoid racing with GC.
+    // Called by the collector at the beginning of a GC cycle and cleared at the end.
+    // Uses a mutex to guarantee mutual exclusion (Dekker with acquire/release fails on ARM).
+    void SuppressGarbageReclaim()
+    {
+        gcReclaimMutex.lock();
+        // Now we hold the mutex; FP cannot enter ReclaimHeapGarbage.
+    }
+    void UnsuppressGarbageReclaim()
+    {
+        gcReclaimMutex.unlock();
+    }
+
     void NotifyToFeedAllocBuffers()
     {
         shouldFeedHungryBuffers.store(true, std::memory_order_release);
@@ -139,6 +153,7 @@ private:
     std::atomic<bool> shouldReclaimHeapGarbage;
     std::atomic<bool> shouldFeedHungryBuffers;
     std::atomic<bool> shouldCompactLOS;  // M4a-async: signal for LOS compaction
+    std::mutex gcReclaimMutex;  // mutual exclusion between GC cycle and FP garbage reclaim
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     // stats
     void LogAfterProcess();
