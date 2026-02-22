@@ -115,8 +115,9 @@ public:
     // Called from RegionManager::SignalLOSCompaction() when LOS alloc fails + MAIN succeeds.
     void NotifyToCompactLOS()
     {
-        shouldCompactLOS.store(true, std::memory_order_release);
-        Notify();
+        // M6 policy: keep gc-helper concurrent LOS compaction implementation in code,
+        // but disable this path for now.
+        shouldCompactLOS.store(false, std::memory_order_release);
     }
 
 private:

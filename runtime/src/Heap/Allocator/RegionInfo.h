@@ -525,10 +525,23 @@ public:
         if (unit->GetMetadata().inGhostFromRegion == 0) {
             return nullptr;
         }
+        RegionInfo* ghostRegion = nullptr;
         if (static_cast<UnitRole>(unit->GetMetadata().unitRole0) == UnitRole::SUBORDINATE_UNIT) {
-            return unit->GetMetadata().ownerRegion0;
+            ghostRegion = unit->GetMetadata().ownerRegion0;
+        } else {
+            ghostRegion = reinterpret_cast<RegionInfo*>(unit);
         }
-        return reinterpret_cast<RegionInfo*>(unit);
+
+        if (ghostRegion == nullptr) {
+            return nullptr;
+        }
+
+        // Guard against stale ghost bits left by interrupted/abnormal cleanup.
+        // A valid ghost from-region must be in non-NORMAL routing lifecycle.
+        if (ghostRegion->GetRouteState() == RouteState::NORMAL) {
+            return nullptr;
+        }
+        return ghostRegion;
     }
 
     static void InitFreeRegion(size_t unitIdx, size_t nUnit)
@@ -647,17 +660,56 @@ public:
 
     BaseObject* GetRoute(BaseObject* fromObj)
     {
+        if (static_cast<UnitRole>(metadata.unitRole0) == UnitRole::LARGE_SIZED_UNITS ||
+            static_cast<UnitRole>(metadata.unitRole) == UnitRole::LARGE_SIZED_UNITS) {
+            MAddress toAddr = metadata.routeInfo.GetRoute(0);
+            return reinterpret_cast<BaseObject*>(toAddr);
+        }
         MAddress fromAddress = reinterpret_cast<MAddress>(fromObj);
         uint64_t preLiveBytes = GetPreLiveBytesInGhostRegion(fromAddress);
         MAddress toAddr = metadata.routeInfo.GetRoute(preLiveBytes);
         return reinterpret_cast<BaseObject*>(toAddr);
     }
 
+    void PrepareForwardableLargeRegion(uintptr_t toObjAddr)
+    {
+        CHECK(static_cast<UnitRole>(metadata.unitRole) == UnitRole::LARGE_SIZED_UNITS);
+        if (metadata.inGhostFromRegion != 0) {
+            SetInGhostRegion(0);
+        }
+
+        metadata.routeState = ROUTED;
+        SetUnitRole0(static_cast<UnitRole>(metadata.unitRole));
+        metadata.regionEnd0 = metadata.regionEnd;
+        metadata.routeInfo.SetRouteInfo(toObjAddr, static_cast<uint32_t>(GetRegionAllocatedSize()));
+        metadata.nextRegionIdx0 = metadata.nextRegionIdx;
+
+        size_t nUnit = GetUnitCount();
+        UnitInfo* unit = reinterpret_cast<UnitInfo*>(this);
+        UnitInfo::UnitInfoArray array = UnitInfo::UnitInfoArray(unit, nUnit);
+
+        array[0].SetInGhostRegion(1);
+        for (size_t i = 1; i < nUnit; i++) {
+            UnitMetadata& mdata = array[i].GetMetadata();
+            CHECK(static_cast<UnitRole>(mdata.unitRole) == UnitRole::SUBORDINATE_UNIT);
+            CHECK(mdata.ownerRegion == this);
+            if (mdata.inGhostFromRegion != 0) {
+                array[i].SetInGhostRegion(0);
+            }
+
+            array[i].SetUnitRole0(UnitRole::SUBORDINATE_UNIT);
+            mdata.ownerRegion0 = this;
+            array[i].SetInGhostRegion(1);
+        }
+    }
+
     void PrepareForwardableRegion()
     {
         CHECK(IsFromRegion());
         CHECK(static_cast<UnitRole>(metadata.unitRole) == UnitRole::SMALL_SIZED_UNITS);
-        CHECK(metadata.inGhostFromRegion == 0);
+        if (metadata.inGhostFromRegion != 0) {
+            SetInGhostRegion(0);
+        }
         metadata.routeState = FORWARDABLE;
         SetUnitRole0(static_cast<UnitRole>(metadata.unitRole));
         metadata.liveInfo0 = metadata.liveInfo;
@@ -677,7 +729,9 @@ public:
             UnitMetadata& mdata = array[i].GetMetadata();
             CHECK(static_cast<UnitRole>(mdata.unitRole) == UnitRole::SUBORDINATE_UNIT);
             CHECK(mdata.ownerRegion == this);
-            CHECK(mdata.inGhostFromRegion == 0);
+            if (mdata.inGhostFromRegion != 0) {
+                array[i].SetInGhostRegion(0);
+            }
 
             array[i].SetUnitRole0(UnitRole::SUBORDINATE_UNIT);
             mdata.ownerRegion0 = this;
@@ -705,7 +759,12 @@ public:
     void DispelGhostFromRegion()
     {
         metadata.routeState = NORMAL;
-        size_t nUnit = GetGhostRegionUnitCount();
+        // regionEnd0 may be stale in abnormal paths; keep cleanup bounded.
+        size_t nUnit = GetUnitCount();
+        MAddress regionStart = GetRegionStart();
+        if (metadata.regionEnd0 > regionStart && metadata.regionEnd0 <= GetRegionEnd()) {
+            nUnit = (metadata.regionEnd0 - regionStart) / UNIT_SIZE;
+        }
         UnitInfo* unit = reinterpret_cast<UnitInfo*>(this);
         UnitInfo::UnitInfoArray array = UnitInfo::UnitInfoArray(unit, nUnit);
         for (size_t i = 0; i < nUnit; i++) {
@@ -741,7 +800,7 @@ public:
     bool TryLockReadFromRegion()
     {
         if (metadata.rwLock.TryLockRead()) {
-            if (IsFromRegion() || IsLoneFromRegion()) {
+            if (IsFromRegion() || IsLoneFromRegion() || IsGhostFromRegion()) {
                 return true;
             } else {
                 metadata.rwLock.UnlockRead();

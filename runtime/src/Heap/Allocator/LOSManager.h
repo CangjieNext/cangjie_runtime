@@ -10,7 +10,9 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <mutex>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -44,6 +46,13 @@ class LOSManager {
 public:
     using UnitIndex = CartesianTree::Index;
     using UnitCount = CartesianTree::Count;
+
+    struct CompactEntry {
+        uintptr_t oldStart = 0;
+        uintptr_t newStart = 0;
+        size_t regionSize = 0;
+        size_t unitCount = 0;
+    };
 
     /**
      * @param manager       The parent RegionManager (needed by FreeRegionManager)
@@ -116,6 +125,24 @@ public:
     size_t MigrateLargeObjectsFromMain(RegionList& mainOldList, RegionList& mainGarbageList);
 
     /**
+     * M6: Migrate only fallback-recorded MAIN large objects into LOS.
+     * Called in OOM GC STW path.
+     */
+    size_t MigrateFallbackLargeObjectsFromMain(const std::vector<uintptr_t>& sourceObjAddrs,
+                                               RegionList& mainOldList,
+                                               RegionList& mainGarbageList);
+
+    // Post-GC concurrent migration (no dedicated background thread):
+    // 1) keep fallback candidates across GCs,
+    // 2) install routes when possible,
+    // 3) finalize reclaimed MAIN regions after forwarding converges.
+    void AddPostGcMigrationCandidates(const std::vector<uintptr_t>& sourceObjAddrs);
+    size_t InstallPostGcMainMigrationRoutes(RegionList& mainOldList, RegionList& mainGarbageList);
+    size_t FinalizePostGcMainMigrations(RegionList& mainOldList, RegionList& mainGarbageList);
+    bool HasPendingPostGcMainMigrations() const;
+    size_t GetPendingPostGcMainMigrationCount() const;
+
+    /**
      * M3: Update all references across the heap to reflect migrated objects.
      * Scans roots and all heap objects, replacing old addresses with new ones.
      * Must be called during STW.
@@ -131,6 +158,51 @@ public:
      * M3: Check if there are pending migrations to process.
      */
     bool HasPendingMigrations() const { return !migrationMap.empty(); }
+
+    // Pending compaction plan produced in PostTrace and consumed in forward/finalize phase.
+    bool HasPendingCompactionPlan() const
+    {
+        std::lock_guard<std::mutex> lock(compactionPlanMutex);
+        return !pendingCompactionPlan.empty();
+    }
+
+    size_t GetPendingCompactionPlanSize() const
+    {
+        std::lock_guard<std::mutex> lock(compactionPlanMutex);
+        return pendingCompactionPlan.size();
+    }
+
+    void SetPendingCompactionPlan(std::vector<CompactEntry> plan)
+    {
+        std::lock_guard<std::mutex> lock(compactionPlanMutex);
+        pendingCompactionPlan = std::move(plan);
+    }
+
+    std::vector<CompactEntry> GetPendingCompactionPlanSnapshot() const
+    {
+        std::lock_guard<std::mutex> lock(compactionPlanMutex);
+        return pendingCompactionPlan;
+    }
+
+    void ClearPendingCompactionPlan()
+    {
+        std::lock_guard<std::mutex> lock(compactionPlanMutex);
+        pendingCompactionPlan.clear();
+    }
+
+    /**
+     * Get a snapshot of pending migration source object addresses.
+     * Used by GC主动收敛逻辑 to force-forward objects not touched by mutators.
+     */
+    std::vector<uintptr_t> GetPendingMigrationSourceAddresses() const
+    {
+        std::vector<uintptr_t> addrs;
+        addrs.reserve(migrationMap.size());
+        for (const auto& kv : migrationMap) {
+            addrs.push_back(kv.first);
+        }
+        return addrs;
+    }
 
     // ===== M4a: LOS Sliding Compaction =====
 
@@ -162,6 +234,27 @@ public:
     size_t CompactLOS();
 
     /**
+     * A-step2: Build compaction plan only (no memmove / no tree rebuild).
+     * Produces old->new region mapping for later execution stage.
+     * @param outPlan Planned movable regions (old/new/size/unitCount)
+     * @return true if there are movable regions to compact
+     */
+    bool BuildCompactionPlan(std::vector<CompactEntry>& outPlan);
+
+    // Install pending compaction plan into forwarding metadata in one shot.
+    // This stage does not rebuild region lists; finalization happens after forward convergence.
+    bool InstallPendingCompactionForForwarding();
+
+    // Ensure the compaction route for a LOS object address is installed.
+    // Used by read-barrier assist path to push predecessor entries first.
+    bool EnsureCompactionRouteForObject(uintptr_t objAddr);
+
+    // Finalize pending compaction entries that have already been forwarded.
+    // Unfinished entries are retained for the next GC convergence round.
+    // Returns number of finalized entries.
+    size_t FinalizePendingCompaction();
+
+    /**
      * M4a: Get current LOS fragmentation ratio.
      * = (free units in losFreeMgr) / (total active units)
      */
@@ -186,6 +279,12 @@ public:
     void SetCompacting(bool v) { isCompacting.store(v, std::memory_order_release); }
     bool IsCompactionRequested() const { return compactionRequested.load(std::memory_order_acquire); }
     void SetCompactionRequested(bool v) { compactionRequested.store(v, std::memory_order_release); }
+
+    // A-STEP1: Freeze LOS writes during compaction window.
+    // When frozen, AllocLarge() fails fast and caller falls back to MAIN.
+    bool IsCompactionFrozen() const { return losCompactionFreeze.load(std::memory_order_acquire); }
+    void FreezeForCompaction() { losCompactionFreeze.store(true, std::memory_order_release); }
+    void UnfreezeAfterCompaction() { losCompactionFreeze.store(false, std::memory_order_release); }
 
     /**
      * M3 statistics
@@ -344,6 +443,17 @@ private:
     // Uses unordered_map for O(1) lookup in UpdateMigratedReferences().
     std::unordered_map<uintptr_t, uintptr_t> migrationMap;
 
+    // Post-GC no-STW migration tracking (MAIN -> LOS)
+    // pending candidates: old object addresses waiting for route install.
+    std::unordered_set<uintptr_t> postGcPendingCandidates;
+    // active installed routes for MAIN migration: old object -> new object
+    std::unordered_map<uintptr_t, uintptr_t> postGcInstalledRoutes;
+    // installed old MAIN region starts waiting for FORWARDED + reclaim
+    std::unordered_set<uintptr_t> postGcInstalledOldRegionStarts;
+    // Delay finalize by one GC cycle after route installation to tolerate transient stale tagged refs.
+    bool postGcFinalizeReady = false;
+    mutable std::mutex postGcMigrationMutex;
+
     // M4a: Compaction statistics
     size_t losCompactCount = 0;          // number of compactions performed
     size_t losCompactMovedBytes = 0;     // bytes moved in last compaction
@@ -359,11 +469,29 @@ private:
     //   Checked by FinalizerProcessor (async) and CompactLOSIfNeeded (sync).
     std::atomic<bool> compactionRequested{false};
 
+    // A-STEP1: true means LOS accepts reads/reclaims but rejects new large allocations.
+    std::atomic<bool> losCompactionFreeze{false};
+
     // M4a: Rebuild losFreeMgr trees after compaction, inserting gaps between live regions
     void RebuildFreeRegionManager(const std::vector<RegionInfo*>& allLiveRegions);
 
     // M4a: Return freed low-address space to RESERVE after compaction
     size_t ShrinkToReserve(size_t freedBytes);
+
+    // A-step2: saved compaction plan between PostTrace and forward/finalize stages.
+    std::vector<CompactEntry> pendingCompactionPlan;
+    mutable std::mutex compactionPlanMutex;
+
+    static bool RangesOverlap(uintptr_t aStart, uintptr_t aEnd, uintptr_t bStart, uintptr_t bEnd)
+    {
+        return aStart < bEnd && bStart < aEnd;
+    }
+
+    bool IsCompactionEntryInstalledLocked(const CompactEntry& entry) const;
+    bool IsCompactionEntryResolvedLocked(const CompactEntry& entry) const;
+    bool InstallCompactionEntryLocked(const CompactEntry& entry);
+    bool InstallCompactionEntryWithPredecessorsLocked(const CompactEntry& entry,
+                                                      std::unordered_set<uintptr_t>& visiting);
 
     // M5: Pending RESERVE returns — RESERVE-borrowed dead regions held until explicit ReturnBorrowedToReserve()
     // <unitIdx, unitCount> pairs collected during CollectLOSGarbage

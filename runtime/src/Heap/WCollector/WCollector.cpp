@@ -61,6 +61,30 @@ bool WCollector::TryUpdateRefFieldImpl(BaseObject* obj, RefField<>& field, BaseO
     RefField<> oldRef(field);
     if (oldRef.IsTagged()) {
         fromObj = oldRef.GetTargetObject();
+        CHECK_DETAIL(fromObj != nullptr, "tagged ref has null target: field@%p value=%#zx", &field,
+                     oldRef.GetFieldValue());
+
+        bool isOldTagged = IsOldPointer(oldRef);
+        if (isOldTagged && Heap::IsHeapAddress(fromObj) && !fromObj->IsValidObject()) {
+            toObj = FindToVersion(fromObj);
+            CHECK_DETAIL(toObj != nullptr,
+                         "invalid old-tag target object: field@%p from=%p value=%#zx", &field, fromObj,
+                         oldRef.GetFieldValue());
+
+            RefField<> tmpField(toObj);
+            if (field.CompareExchange(oldRef.GetFieldValue(), tmpField.GetFieldValue())) {
+                if (obj != nullptr) {
+                    DLOG(TRACE, "update(old-nonobj) obj %p<%p>+%zu ref-field@%p: %#zx -> %#zx", obj,
+                         obj->GetTypeInfo(), BaseObject::FieldOffset(obj, &field), &field,
+                         oldRef.GetFieldValue(), tmpField.GetFieldValue());
+                } else {
+                    DLOG(TRACE, "update(old-nonobj) ref@%p: %#zx -> %#zx", &field,
+                         oldRef.GetFieldValue(), tmpField.GetFieldValue());
+                }
+            }
+            return true;
+        }
+
         if (forward) {
             toObj = const_cast<WCollector*>(this)->TryForwardObject(fromObj);
         } else {
@@ -72,8 +96,8 @@ bool WCollector::TryUpdateRefFieldImpl(BaseObject* obj, RefField<>& field, BaseO
         RefField<> tmpField(toObj);
         if (field.CompareExchange(oldRef.GetFieldValue(), tmpField.GetFieldValue())) {
             if (obj != nullptr) {
-                DLOG(TRACE, "update obj %p<%p>(%zu)+%zu ref-field@%p: %#zx -> %#zx", obj, obj->GetTypeInfo(),
-                     obj->GetSize(), BaseObject::FieldOffset(obj, &field), &field, oldRef.GetFieldValue(),
+                DLOG(TRACE, "update obj %p<%p>+%zu ref-field@%p: %#zx -> %#zx", obj, obj->GetTypeInfo(),
+                     BaseObject::FieldOffset(obj, &field), &field, oldRef.GetFieldValue(),
                      tmpField.GetFieldValue());
             } else {
                 DLOG(TRACE, "update ref@%p: 0x%zx -> %p", &field, oldRef.GetFieldValue(), toObj);
@@ -81,10 +105,9 @@ bool WCollector::TryUpdateRefFieldImpl(BaseObject* obj, RefField<>& field, BaseO
             return true;
         } else {
             if (obj != nullptr) {
-                DLOG(TRACE,
-                     "update obj %p<%p>(%zu)+%zu but cas failed ref-field@%p: %#zx(%#zx) -> %#zx but cas failed ", obj,
-                     obj->GetTypeInfo(), obj->GetSize(), BaseObject::FieldOffset(obj, &field), &field,
-                     oldRef.GetFieldValue(), field.GetFieldValue(), tmpField.GetFieldValue());
+                DLOG(TRACE, "update obj %p<%p>+%zu but cas failed ref-field@%p: %#zx(%#zx) -> %#zx", obj,
+                     obj->GetTypeInfo(), BaseObject::FieldOffset(obj, &field), &field, oldRef.GetFieldValue(),
+                     field.GetFieldValue(), tmpField.GetFieldValue());
             } else {
                 DLOG(TRACE, "update but cas failed ref@%p: 0x%zx(%zx) -> %p", &field, oldRef.GetFieldValue(),
                      field.GetFieldValue(), toObj);
@@ -155,14 +178,14 @@ void WCollector::EnumRefFieldRoot(RefField<>& field, RootSet& rootSet) const
     CHECK_DETAIL(latest->IsValidObject(), "Enum static root %p(%p) encounters invalid object", latest, &field);
     RefField<> newField = GetAndTryTagRefField(latest);
     if (oldField.GetFieldValue() == newField.GetFieldValue()) {
-        DLOG(ENUM, "enum static ref@%p: %#zx -> %p<%p>(%zu)", &field, oldField.GetFieldValue(), latest,
-             latest->GetTypeInfo(), latest->GetSize());
+           DLOG(ENUM, "enum static ref@%p: %#zx -> %p<%p>", &field, oldField.GetFieldValue(), latest,
+               latest->GetTypeInfo());
     } else if (field.CompareExchange(oldField.GetFieldValue(), newField.GetFieldValue())) {
-        DLOG(ENUM, "enum static ref@%p: %#zx=>%#zx -> %p<%p>(%zu)", &field, oldField.GetFieldValue(),
-             newField.GetFieldValue(), latest, latest->GetTypeInfo(), latest->GetSize());
+           DLOG(ENUM, "enum static ref@%p: %#zx=>%#zx -> %p<%p>", &field, oldField.GetFieldValue(),
+               newField.GetFieldValue(), latest, latest->GetTypeInfo());
     } else {
-        DLOG(ENUM, "enum static ref@%p: %#zx -> %p<%p>(%zu)", &field, oldField.GetFieldValue(), latest,
-             latest->GetTypeInfo(), latest->GetSize());
+           DLOG(ENUM, "enum static ref@%p: %#zx -> %p<%p>", &field, oldField.GetFieldValue(), latest,
+               latest->GetTypeInfo());
     }
     rootSet.push_back(latest);
 }
@@ -181,13 +204,13 @@ void WCollector::EnumAndTagRawRoot(ObjectRef& ref, RootSet& rootSet) const
         CHECK_DETAIL(root->IsValidObject(), "Enum and tag runtime root %p(%p) encounters invalid object", root, &ref);
         RefField<> newField = GetAndTryTagRefField(root);
         if (oldField.GetFieldValue() == newField.GetFieldValue()) {
-            DLOG(ENUM, "enum raw root @%p: %p(%zu)", &ref, root, root->GetSize());
+            DLOG(ENUM, "enum raw root @%p: %p", &ref, root);
         } else if (refField.CompareExchange(oldField.GetFieldValue(), newField.GetFieldValue())) {
-            DLOG(ENUM, "enum static ref@%p: %#zx=>%#zx -> %p<%p>(%zu)", &refField, oldField.GetFieldValue(),
-                 newField.GetFieldValue(), root, root->GetTypeInfo(), root->GetSize());
+              DLOG(ENUM, "enum static ref@%p: %#zx=>%#zx -> %p<%p>", &refField, oldField.GetFieldValue(),
+                  newField.GetFieldValue(), root, root->GetTypeInfo());
         } else {
-            DLOG(ENUM, "enum static ref@%p: %#zx -> %p<%p>(%zu)", &refField, oldField.GetFieldValue(), root,
-                 root->GetTypeInfo(), root->GetSize());
+              DLOG(ENUM, "enum static ref@%p: %#zx -> %p<%p>", &refField, oldField.GetFieldValue(), root,
+                  root->GetTypeInfo());
         }
         rootSet.push_back(root);
     }
@@ -221,10 +244,10 @@ void WCollector::TraceRefField(BaseObject* obj, RefField<>& field, WorkStack& wo
                  obj, obj->GetTypeInfo()->GetName(), BaseObject::FieldOffset(obj, &field));
     RefField<> newField = GetAndTryTagRefField(latest);
     if (oldField.GetFieldValue() == newField.GetFieldValue()) {
-        DLOG(TRACE, "trace obj %p ref@%p: %p<%p>(%zu)", obj, &field, latest, latest->GetTypeInfo(), latest->GetSize());
+        DLOG(TRACE, "trace obj %p ref@%p: %p<%p>", obj, &field, latest, latest->GetTypeInfo());
     } else if (field.CompareExchange(oldField.GetFieldValue(), newField.GetFieldValue())) {
-        DLOG(TRACE, "trace obj %p ref@%p: %#zx => %#zx->%p<%p>(%zu)", obj, &field, oldField.GetFieldValue(),
-             newField.GetFieldValue(), latest, latest->GetTypeInfo(), latest->GetSize());
+           DLOG(TRACE, "trace obj %p ref@%p: %#zx => %#zx->%p<%p>", obj, &field, oldField.GetFieldValue(),
+               newField.GetFieldValue(), latest, latest->GetTypeInfo());
     }
 
     if (!IsMarkedObject(latest)) {
@@ -261,10 +284,10 @@ BaseObject* WCollector::GetAndTryTagObj(BaseObject* obj, RefField<>& field)
                  latest, obj, obj->GetTypeInfo()->GetName(), BaseObject::FieldOffset(obj, &field));
     RefField<> newField = GetAndTryTagRefField(latest);
     if (oldField.GetFieldValue() == newField.GetFieldValue()) {
-        DLOG(TRACE, "trace obj %p ref@%p: %p<%p>(%zu)", obj, &field, latest, latest->GetTypeInfo(), latest->GetSize());
+        DLOG(TRACE, "trace obj %p ref@%p: %p<%p>", obj, &field, latest, latest->GetTypeInfo());
     } else if (field.CompareExchange(oldField.GetFieldValue(), newField.GetFieldValue())) {
-        DLOG(TRACE, "trace obj %p ref@%p: %#zx => %#zx->%p<%p>(%zu)", obj, &field, oldField.GetFieldValue(),
-            newField.GetFieldValue(), latest, latest->GetTypeInfo(), latest->GetSize());
+        DLOG(TRACE, "trace obj %p ref@%p: %#zx => %#zx->%p<%p>", obj, &field, oldField.GetFieldValue(),
+            newField.GetFieldValue(), latest, latest->GetTypeInfo());
     }
     return latest;
 }
@@ -406,7 +429,6 @@ void WCollector::PostTrace()
     PrepareCycleRef();
     CollectLargeGarbage();
     CompactLOSIfNeeded();
-    MigrateLargeObjectsToLOS();
     CollectPinnedGarbage();
     RefineFromSpace();
     fwdTable.PrepareForwardTable();
@@ -415,38 +437,78 @@ void WCollector::PostTrace()
 void WCollector::CompactLOSIfNeeded()
 {
     MRT_PHASE_TIMER("CompactLOSIfNeeded");
-    // DISABLED: CompactLOS moves live objects via memmove_s and rebuilds region lists.
-    // WCollector is a concurrent collector (no STW during PostTrace), so mutators
-    // are concurrently reading/writing LOS objects. Moving them causes SIGSEGV.
-    // TODO: Re-enable with ScopedStopTheWorld wrapping the compaction + ref update.
-    return;
+
+    // Safety gate: keep compaction execution opt-in until non-STW path is fully stabilized.
+    const char* compactEnabled = std::getenv("cjEnableLOSCompact");
+    if (compactEnabled == nullptr || compactEnabled[0] != '1') {
+        return;
+    }
+
     RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
     LOSManager* losMgr = space.GetRegionManager().GetLOSManager();
     if (losMgr == nullptr) {
         return;
     }
 
-    // M4a-async: Check both heuristic trigger and async compaction request.
-    // compactionRequested is set by FinalizerProcessor (async path) or allocation path.
-    bool needsCompact = losMgr->NeedsCompaction() || losMgr->IsCompactionRequested();
+    RegionManager& rm = space.GetRegionManager();
+    std::vector<uintptr_t> fallbackObjs = rm.ConsumeLOSFallbackLargeObjects();
+    losMgr->AddPostGcMigrationCandidates(fallbackObjs);
+
+    bool hasPendingPlan = losMgr->HasPendingCompactionPlan();
+    CompactLOSOnOOMIfNeeded(*losMgr, rm, hasPendingPlan);
+    InstallLOSMigrationRoutesIfNeeded(*losMgr, rm);
+}
+
+void WCollector::CompactLOSOnOOMIfNeeded(LOSManager& losMgr, RegionManager& rm, bool hasPendingPlan)
+{
+    (void)rm;
+    bool needsCompact = (gcReason == GC_REASON_OOM) && (hasPendingPlan || losMgr.NeedsCompaction());
     if (!needsCompact) {
         return;
     }
 
-    // Set isCompacting during sync compaction for consistency.
-    // During STW, allocations don't happen, but this ensures any
-    // concurrent check (e.g., from FinalizerProcessor) sees the correct state.
-    losMgr->SetCompacting(true);
+    ScopedStopTheWorld stw("OOM LOS compact", true, GCPhase::GC_PHASE_POST_TRACE);
+    losMgr.SetCompacting(true);
+    losMgr.FreezeForCompaction();
 
-    // CompactLOS populates migrationMap with compaction forwarding entries.
-    // Reference update is deferred to MigrateLargeObjectsToLOS() for a single unified scan.
-    // Do NOT clear migrationMap here — M3 migration will append to it.
-    size_t freedBytes = losMgr->CompactLOS();
-    (void)freedBytes;
+    if (hasPendingPlan) {
+        losMgr.ClearPendingCompactionPlan();
+    }
+    size_t freedBytes = losMgr.CompactLOS();
+    DLOG(REPORT, "OOM LOS compact done in STW: freed=%zu", freedBytes);
 
-    // Clear the async request flag after compaction completes
-    losMgr->SetCompactionRequested(false);
-    losMgr->SetCompacting(false);
+    losMgr.UnfreezeAfterCompaction();
+    losMgr.SetCompacting(false);
+    losMgr.SetCompactionRequested(false);
+}
+
+void WCollector::InstallLOSMigrationRoutesIfNeeded(LOSManager& losMgr, RegionManager& rm)
+{
+    // Safety gate for MAIN large-object route migration.
+    // Keep disabled by default until metadata/list interaction is fully stabilized.
+    const char* routeEnabled = std::getenv("cjEnableLOSRouteMigration");
+    if (routeEnabled == nullptr || routeEnabled[0] != '1') {
+        return;
+    }
+
+    // Route installation is currently limited to OOM cycle for stability.
+    if (gcReason != GC_REASON_OOM) {
+        return;
+    }
+
+    // No dedicated background migration thread in Phase 1:
+    // Install route metadata in a short STW window for list/metadata safety,
+    // then rely on barrier + next-GC force-forward convergence for concurrent move/access.
+    size_t installed = 0;
+    {
+        ScopedStopTheWorld stw("Install LOS migration routes", true, GCPhase::GC_PHASE_POST_TRACE);
+        installed = losMgr.InstallPostGcMainMigrationRoutes(
+            rm.GetOldLargeRegionList(), rm.GetGarbageRegionList());
+    }
+    if (installed > 0 || losMgr.HasPendingPostGcMainMigrations()) {
+        DLOG(REPORT, "LOS post-gc migration: installed=%zu pending=%zu",
+             installed, losMgr.GetPendingPostGcMainMigrationCount());
+    }
 }
 
 void WCollector::MigrateLargeObjectsToLOS()
@@ -599,6 +661,8 @@ void WCollector::DoGarbageCollection()
     Preforward();
 
     ForwardFromSpace();
+    ForceForwardPendingLOSObjects();
+    FinalizeLOSCompactionIfNeeded();
 
     // M4b: ShrinkInactiveZone is DISABLED.
     // The WCollector is a concurrent collector (no STW — ScopedStopTheWorld is commented out
@@ -639,6 +703,101 @@ void WCollector::DoGarbageCollection()
     reinterpret_cast<RegionSpace&>(theAllocator).DumpRegionStats("region statistics when gc ends");
 }
 
+void WCollector::ForceForwardPendingLOSObjects()
+{
+    // GC主动收敛：ReadBarrier是按访问触发，不能保证覆盖所有LOS对象。
+    // 若存在待迁移/待压缩的forwarding条目，GC线程在Forward阶段后主动遍历一次，
+    // 确保未被mutator触达的对象也完成forward，后续才能安全回收旧region并重建树。
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
+    LOSManager* losMgr = space.GetRegionManager().GetLOSManager();
+    if (losMgr == nullptr) {
+        return;
+    }
+
+    constexpr size_t MAX_CONVERGE_ROUNDS = 4;
+    size_t totalForcedCount = 0;
+
+    for (size_t round = 0; round < MAX_CONVERGE_ROUNDS; ++round) {
+        std::vector<uintptr_t> oldObjAddrs;
+        if (losMgr->HasPendingMigrations()) {
+            oldObjAddrs = losMgr->GetPendingMigrationSourceAddresses();
+        }
+        if (losMgr->HasPendingCompactionPlan()) {
+            auto plan = losMgr->GetPendingCompactionPlanSnapshot();
+            oldObjAddrs.reserve(oldObjAddrs.size() + plan.size());
+            for (const auto& entry : plan) {
+                RegionInfo* oldRegion = RegionInfo::GetRegionInfoAt(entry.oldStart);
+                if (oldRegion == nullptr || !oldRegion->IsGhostFromRegion()) {
+                    continue;
+                }
+                oldObjAddrs.push_back(entry.oldStart + RegionSpace::HEADER_SIZE);
+            }
+        }
+        if (oldObjAddrs.empty()) {
+            break;
+        }
+
+        size_t forcedCount = 0;
+        for (uintptr_t addr : oldObjAddrs) {
+            if (!Heap::IsHeapAddress(reinterpret_cast<BaseObject*>(addr))) {
+                continue;
+            }
+            BaseObject* oldObj = reinterpret_cast<BaseObject*>(addr);
+            BaseObject* latest = TryForwardObject(oldObj);
+            if (latest != nullptr) {
+                ++forcedCount;
+            }
+        }
+
+        totalForcedCount += forcedCount;
+        if (forcedCount == 0) {
+            break;
+        }
+    }
+
+    DLOG(REPORT, "LOS force-forward pending objects done: forced=%zu", totalForcedCount);
+}
+
+void WCollector::FinalizeLOSCompactionIfNeeded()
+{
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
+    RegionManager& rm = space.GetRegionManager();
+    LOSManager* losMgr = space.GetRegionManager().GetLOSManager();
+    if (losMgr == nullptr) {
+        return;
+    }
+
+    if (losMgr->HasPendingPostGcMainMigrations()) {
+        size_t reclaimed = 0;
+        {
+            ScopedStopTheWorld stw("Finalize LOS migration routes", true, GCPhase::GC_PHASE_FORWARD);
+            reclaimed = losMgr->FinalizePostGcMainMigrations(
+                rm.GetOldLargeRegionList(), rm.GetGarbageRegionList());
+        }
+        DLOG(REPORT, "LOS post-gc migration finalize: reclaimed=%zu pending=%zu",
+             reclaimed, losMgr->GetPendingPostGcMainMigrationCount());
+    }
+
+    if (!losMgr->IsCompactionFrozen() && !losMgr->IsCompacting()) {
+        return;
+    }
+
+    if (losMgr->HasPendingCompactionPlan()) {
+        size_t finalized = losMgr->FinalizePendingCompaction();
+        DLOG(REPORT, "LOS finalize: finalized=%zu, remaining=%zu",
+             finalized, losMgr->GetPendingCompactionPlanSize());
+    }
+
+    if (losMgr->HasPendingCompactionPlan()) {
+        // Keep compaction window open until all pending entries converge.
+        return;
+    }
+
+    losMgr->UnfreezeAfterCompaction();
+    losMgr->SetCompacting(false);
+    losMgr->SetCompactionRequested(false);
+}
+
 void WCollector::MarkNewObject(BaseObject* obj)
 {
     GCPhase mutatorPhase = Mutator::GetMutator()->GetMutatorPhase();
@@ -664,8 +823,20 @@ BaseObject* WCollector::ForwardObject(BaseObject* obj)
 
 BaseObject* WCollector::TryForwardObject(BaseObject* obj)
 {
+    CHECK_DETAIL(Heap::IsHeapAddress(obj), "TryForwardObject got non-heap pointer %p", obj);
+
     RegionInfo* region = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<MAddress>(obj));
     if (region == nullptr) {
+            RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
+            LOSManager* losMgr = space.GetRegionManager().GetLOSManager();
+            if (losMgr != nullptr && losMgr->IsCompacting() && losMgr->HasPendingCompactionPlan()) {
+                if (losMgr->EnsureCompactionRouteForObject(reinterpret_cast<uintptr_t>(obj))) {
+                    region = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<MAddress>(obj));
+                }
+            }
+        }
+
+        if (region == nullptr) {
         return nullptr;
     }
 
@@ -692,7 +863,12 @@ BaseObject* WCollector::ForwardObjectImpl(BaseObject* obj, RegionInfo* ghostFrom
         // 1. object has already been forwarded
         if (obj->IsForwarded()) {
             auto toObj = GetForwardPointer(obj, ghostFromRegion);
-            DLOG(FORWARD, "skip forwarded obj %p -> %p<%p>(%zu)", obj, toObj, toObj->GetTypeInfo(), toObj->GetSize());
+            if (toObj == nullptr || !Heap::IsHeapAddress(toObj)) {
+                LOG(RTLOG_ERROR, "invalid forwarding target for obj %p in ghost region %p: to=%p",
+                    obj, ghostFromRegion, toObj);
+                return nullptr;
+            }
+            DLOG(FORWARD, "skip forwarded obj %p -> %p<%p>", obj, toObj, toObj->GetTypeInfo());
             return toObj;
         }
 

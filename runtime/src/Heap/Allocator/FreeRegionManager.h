@@ -111,6 +111,18 @@ public:
         ScopedEnterSaferegion enterSaferegion(true);
         std::lock_guard<std::mutex> lg(dirtyUnitTreeMutex);
         if (UNLIKELY(!dirtyUnitTree.MergeInsert(localIdx, num, true))) {
+            bool allFree = true;
+            for (UnitCount i = 0; i < num; ++i) {
+                RegionInfo* unitInfo = RegionInfo::GetRegionInfo(idx + i);
+                if (unitInfo == nullptr || !unitInfo->IsFreeRegion()) {
+                    allFree = false;
+                    break;
+                }
+            }
+            if (allFree) {
+                DLOG(REGION, "skip duplicate dirty units insertion [%u+%u, %u)", idx, num, idx + num);
+                return;
+            }
             LOG(RTLOG_FATAL, "tid %d: failed to add dirty units [%u+%u, %u)", GetTid(), idx, num, idx + num);
         }
     }
@@ -121,6 +133,18 @@ public:
         ScopedEnterSaferegion enterSaferegion(true);
         std::lock_guard<std::mutex> lg(releasedUnitTreeMutex);
         if (UNLIKELY(!releasedUnitTree.MergeInsert(localIdx, num, true))) {
+            bool allFree = true;
+            for (UnitCount i = 0; i < num; ++i) {
+                RegionInfo* unitInfo = RegionInfo::GetRegionInfo(idx + i);
+                if (unitInfo == nullptr || !unitInfo->IsFreeRegion()) {
+                    allFree = false;
+                    break;
+                }
+            }
+            if (allFree) {
+                DLOG(REGION, "skip duplicate release units insertion [%u+%u, %u)", idx, num, idx + num);
+                return;
+            }
             LOG(RTLOG_FATAL, "tid %d: failed to add release units [%u+%u, %u)", GetTid(), idx, num, idx + num);
         }
     }

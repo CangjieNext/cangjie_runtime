@@ -131,7 +131,23 @@ public:
     BaseObject* GetForwardPointer(BaseObject* fromObj, RegionInfo* region)
     {
         RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
-        return space.GetRegionManager().RouteObject(fromObj, region);
+        BaseObject* toObj = space.GetRegionManager().RouteObject(fromObj, region);
+        CHECK_DETAIL(toObj != nullptr, "invalid route: from=%p region=%p route=null", fromObj, region);
+        CHECK_DETAIL(Heap::IsHeapAddress(toObj), "invalid route: from=%p region=%p to=%p not heap", fromObj, region,
+                     toObj);
+
+        RegionInfo* toRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(toObj));
+        CHECK_DETAIL(toRegion != nullptr, "invalid route region: from=%p to=%p region=null", fromObj, toObj);
+        CHECK_DETAIL(!toRegion->IsFreeRegion() && !toRegion->IsGarbageRegion(),
+                     "invalid route region: from=%p to=%p regionType=%u", fromObj, toObj, toRegion->GetRegionType());
+
+                if (toRegion->IsLargeRegion()) {
+                        MAddress toAddr = reinterpret_cast<MAddress>(toObj);
+                        CHECK_DETAIL(toAddr >= toRegion->GetRegionStart() && toAddr < toRegion->GetRegionEnd(),
+                                                 "invalid large route: from=%p to=%p region=[%#zx,%#zx)", fromObj, toObj,
+                                                 toRegion->GetRegionStart(), toRegion->GetRegionEnd());
+                }
+        return toObj;
     }
 
     BaseObject* FindToVersion(BaseObject* obj) const override
@@ -141,7 +157,22 @@ public:
             return nullptr;
         }
         RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
-        return space.GetRegionManager().RouteObject(obj);
+        BaseObject* toObj = space.GetRegionManager().RouteObject(obj);
+        CHECK_DETAIL(toObj != nullptr, "invalid route: from=%p route=null", obj);
+        CHECK_DETAIL(Heap::IsHeapAddress(toObj), "invalid route: from=%p to=%p not heap", obj, toObj);
+
+        RegionInfo* toRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(toObj));
+        CHECK_DETAIL(toRegion != nullptr, "invalid route region: from=%p to=%p region=null", obj, toObj);
+        CHECK_DETAIL(!toRegion->IsFreeRegion() && !toRegion->IsGarbageRegion(),
+                     "invalid route region: from=%p to=%p regionType=%u", obj, toObj, toRegion->GetRegionType());
+
+                if (toRegion->IsLargeRegion()) {
+                        MAddress toAddr = reinterpret_cast<MAddress>(toObj);
+                        CHECK_DETAIL(toAddr >= toRegion->GetRegionStart() && toAddr < toRegion->GetRegionEnd(),
+                                                 "invalid large route: from=%p to=%p region=[%#zx,%#zx)", obj, toObj,
+                                                 toRegion->GetRegionStart(), toRegion->GetRegionEnd());
+                }
+        return toObj;
     }
 
 protected:
@@ -198,6 +229,10 @@ protected:
 private:
     template<bool forward>
     bool TryUpdateRefFieldImpl(BaseObject* obj, RefField<>& ref, BaseObject*& oldRef, BaseObject*& newRef) const;
+    void CompactLOSOnOOMIfNeeded(LOSManager& losMgr, RegionManager& rm, bool hasPendingPlan);
+    void InstallLOSMigrationRoutesIfNeeded(LOSManager& losMgr, RegionManager& rm);
+    void ForceForwardPendingLOSObjects();
+    void FinalizeLOSCompactionIfNeeded();
     void TraceHeap();
     void PreforwardConcurrencyModelRoots();
     void PostTrace();

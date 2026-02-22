@@ -248,6 +248,7 @@ public:
     // Flow: LOS AllocLarge → (fail/compacting) → MAIN AllocLargeInMain → signal → (fail) → return 0
     uintptr_t AllocLarge(size_t size)
     {
+        bool losAllocFailed = false;
         // Step 1-2: Try LOS allocation (losFreeMgr + inactiveZone)
         // Skip LOS entirely when compaction is in progress
         if (losManager != nullptr && !losManager->IsCompacting()) {
@@ -256,18 +257,30 @@ public:
                 return addr;
             }
             // LOS allocation failed — fall through to MAIN
+            losAllocFailed = true;
         }
 
         // Step 4: Fall back to MAIN space (original allocation path)
         uintptr_t addr = AllocLargeInMain(size);
         if (addr != 0 && losManager != nullptr) {
-            losManager->IncrementFallbackCount();
-            // M4a-async: Signal compaction if not already in progress or requested
-            if (!losManager->IsCompacting() && !losManager->IsCompactionRequested()) {
-                SignalLOSCompaction();
+            if (losAllocFailed) {
+                losManager->IncrementFallbackCount();
+                RecordLOSFallbackLargeObject(addr);
             }
         }
         return addr;
+    }
+
+    std::vector<uintptr_t> ConsumeLOSFallbackLargeObjects()
+    {
+        std::lock_guard<std::mutex> lock(losFallbackLargeObjectsMutex);
+        std::vector<uintptr_t> addrs;
+        addrs.reserve(losFallbackLargeObjects.size());
+        for (uintptr_t addr : losFallbackLargeObjects) {
+            addrs.push_back(addr);
+        }
+        losFallbackLargeObjects.clear();
+        return addrs;
     }
 
     // Original MAIN-space large object allocation (extracted from pre-M2 AllocLarge).
@@ -668,6 +681,12 @@ private:
     // Defined in RegionManager.cpp to avoid including Heap.h in header.
     void SignalLOSCompaction();
 
+    void RecordLOSFallbackLargeObject(uintptr_t addr)
+    {
+        std::lock_guard<std::mutex> lock(losFallbackLargeObjectsMutex);
+        losFallbackLargeObjects.insert(addr);
+    }
+
     void ClearLiveInfo(RegionList& list)
     {
         RegionList tmp("temp region list");
@@ -755,6 +774,9 @@ private:
     // and FP thread (ReclaimGarbageRegions → ReclaimRegion) concurrently.
     std::mutex pendingReserveReturnsMutex;
     std::vector<std::pair<size_t, size_t>> pendingReserveReturns;
+
+    std::mutex losFallbackLargeObjectsMutex;
+    std::set<uintptr_t> losFallbackLargeObjects;
 #if defined(__EULER__)
     double cacheRatio;
 #endif

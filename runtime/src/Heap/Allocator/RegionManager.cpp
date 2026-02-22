@@ -208,10 +208,29 @@ void RegionList::PrependRegionLocked(RegionInfo* region, RegionInfo::RegionType 
 
 void RegionList::DeleteRegionLocked(RegionInfo* del)
 {
-    MRT_ASSERT(listHead != nullptr && listTail != nullptr, "illegal region list");
+    if (del == nullptr) {
+        return;
+    }
+    if (listHead == nullptr || listTail == nullptr) {
+        DLOG(REGION, "list %p delete skip: empty list for region %p", this, del);
+        return;
+    }
 
-    RegionInfo* pre = del->GetPrevRegion();
-    RegionInfo* next = del->GetNextRegion();
+    // Safety guard: locate `del` within this list and use traversal neighbors
+    // instead of relying on del->prev/next (may be stale if region was wrongly
+    // linked by another list path).
+    RegionInfo* pre = nullptr;
+    RegionInfo* cur = listHead;
+    while (cur != nullptr && cur != del) {
+        pre = cur;
+        cur = cur->GetNextRegion();
+    }
+    if (cur == nullptr) {
+        DLOG(REGION, "list %p delete skip: region %p not in list", this, del);
+        return;
+    }
+
+    RegionInfo* next = cur->GetNextRegion();
 
     del->SetNextRegion(nullptr);
     del->SetPrevRegion(nullptr);
@@ -222,19 +241,18 @@ void RegionList::DeleteRegionLocked(RegionInfo* del)
 
     DecCounts(1, del->GetUnitCount());
 
-    if (listHead == del) { // delete head
-        MRT_ASSERT(pre == nullptr, "Delete Region pre is not null");
+    if (pre == nullptr) { // delete head
         listHead = next;
         if (listHead == nullptr) { // now empty
             listTail = nullptr;
             return;
         }
+        listHead->SetPrevRegion(nullptr);
     } else {
         pre->SetNextRegion(next);
     }
 
-    if (listTail == del) { // delete tail
-        MRT_ASSERT(next == nullptr, "Delete Region next is not null");
+    if (next == nullptr) { // delete tail
         listTail = pre;
         if (listTail == nullptr) { // now empty
             listHead = nullptr;
@@ -1683,11 +1701,8 @@ void RegionManager::SignalLOSCompaction()
     if (losManager == nullptr) {
         return;
     }
-    losManager->SetCompactionRequested(true);
-    if (Heap::GetHeap().IsGCEnabled()) {
-        Heap::GetHeap().GetFinalizerProcessor().NotifyToCompactLOS();
-    }
-    DLOG(REGION, "LOS compaction signaled: allocFail=%zu, fragRatio=%.2f",
+    // M6 policy: async gc-helper compaction path is retained but currently disabled.
+    DLOG(REGION, "LOS compaction signal ignored (gc-helper path disabled): allocFail=%zu, fragRatio=%.2f",
          losManager->GetAllocFailCount(), losManager->GetFragmentationRatio());
 }
 

@@ -35,6 +35,8 @@ WCollector 是并发垃圾收集器 — `ScopedStopTheWorld` 在 `CopyCollector:
 | **恢复方案** | 用 `ScopedStopTheWorld` 包裹 `MigrateLargeObjectsFromMain()` + `UpdateMigratedReferences()` |
 | **优先级** | 高 — 与 CompactLOS 共享 `migrationMap` 和 `UpdateMigratedReferences()`，建议一起恢复 |
 
+> 2026-02-22 新策略记录（非 STW，Post-GC 并发迁移）: `doc/LOS_PostGC_Concurrent_Migration_Strategy_2026-02-22.md`
+
 ### 3. ShrinkInactiveZone (MAIN 空闲区缩减)
 
 | 项目 | 详情 |
