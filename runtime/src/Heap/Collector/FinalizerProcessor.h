@@ -111,15 +111,6 @@ public:
         Notify();
     }
 
-    // M4a-async: Signal gc-helper thread to perform async LOS compaction.
-    // Called from RegionManager::SignalLOSCompaction() when LOS alloc fails + MAIN succeeds.
-    void NotifyToCompactLOS()
-    {
-        // M6 policy: keep gc-helper concurrent LOS compaction implementation in code,
-        // but disable this path for now.
-        shouldCompactLOS.store(false, std::memory_order_release);
-    }
-
 private:
     void NotifyStarted();
     void Wait(U32 timeoutMilliSeconds);
@@ -127,8 +118,6 @@ private:
     void ProcessFinalizableList();
     void ReclaimHeapGarbage();
     void FeedHungryBuffers();
-    // M4a-async: Perform async LOS compaction (set isCompacting, request sync GC, clear isCompacting)
-    void PerformLOSCompaction();
 
     std::mutex wakeLock;
     std::condition_variable wakeCondition; // notify finalizer processing continue
@@ -153,7 +142,6 @@ private:
     std::atomic<bool> hasFinalizableJob;
     std::atomic<bool> shouldReclaimHeapGarbage;
     std::atomic<bool> shouldFeedHungryBuffers;
-    std::atomic<bool> shouldCompactLOS;  // M4a-async: signal for LOS compaction
     std::mutex gcReclaimMutex;  // mutual exclusion between GC cycle and FP garbage reclaim
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     // stats

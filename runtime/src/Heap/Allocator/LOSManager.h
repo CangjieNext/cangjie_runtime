@@ -107,58 +107,6 @@ public:
      */
     void HandleLOSTraceRegions();
 
-    /**
-     * M3: Migrate surviving large objects from MAIN space into LOS.
-     * Called during PostTrace (STW) after CollectLargeGarbage.
-     *
-     * For each surviving region in MAIN's oldLargeRegionList:
-     *   - Skip if pinned (rawPointerCount > 0)
-     *   - Try to allocate equivalent space in LOS
-     *   - Copy object data
-     *   - Record old→new address mapping for reference update
-     *   - Reclaim old MAIN region
-     *
-     * @param mainOldList  MAIN's oldLargeRegionList (will be modified: migrated regions removed)
-     * @param mainGarbageList  MAIN's garbageRegionList (migrated MAIN regions go here for reclaim)
-     * @return Number of objects migrated
-     */
-    size_t MigrateLargeObjectsFromMain(RegionList& mainOldList, RegionList& mainGarbageList);
-
-    /**
-     * M6: Migrate only fallback-recorded MAIN large objects into LOS.
-     * Called in OOM GC STW path.
-     */
-    size_t MigrateFallbackLargeObjectsFromMain(const std::vector<uintptr_t>& sourceObjAddrs,
-                                               RegionList& mainOldList,
-                                               RegionList& mainGarbageList);
-
-    // Post-GC concurrent migration (no dedicated background thread):
-    // 1) keep fallback candidates across GCs,
-    // 2) install routes when possible,
-    // 3) finalize reclaimed MAIN regions after forwarding converges.
-    void AddPostGcMigrationCandidates(const std::vector<uintptr_t>& sourceObjAddrs);
-    size_t InstallPostGcMainMigrationRoutes(RegionList& mainOldList, RegionList& mainGarbageList);
-    size_t FinalizePostGcMainMigrations(RegionList& mainOldList, RegionList& mainGarbageList);
-    bool HasPendingPostGcMainMigrations() const;
-    size_t GetPendingPostGcMainMigrationCount() const;
-
-    /**
-     * M3: Update all references across the heap to reflect migrated objects.
-     * Scans roots and all heap objects, replacing old addresses with new ones.
-     * Must be called during STW.
-     */
-    void UpdateMigratedReferences();
-
-    /**
-     * M3: Clear the migration forwarding table (called after migration is complete).
-     */
-    void ClearMigrationState() { migrationMap.clear(); }
-
-    /**
-     * M3: Check if there are pending migrations to process.
-     */
-    bool HasPendingMigrations() const { return !migrationMap.empty(); }
-
     // Pending compaction plan produced in PostTrace and consumed in forward/finalize phase.
     bool HasPendingCompactionPlan() const
     {
@@ -188,20 +136,6 @@ public:
     {
         std::lock_guard<std::mutex> lock(compactionPlanMutex);
         pendingCompactionPlan.clear();
-    }
-
-    /**
-     * Get a snapshot of pending migration source object addresses.
-     * Used by GC主动收敛逻辑 to force-forward objects not touched by mutators.
-     */
-    std::vector<uintptr_t> GetPendingMigrationSourceAddresses() const
-    {
-        std::vector<uintptr_t> addrs;
-        addrs.reserve(migrationMap.size());
-        for (const auto& kv : migrationMap) {
-            addrs.push_back(kv.first);
-        }
-        return addrs;
     }
 
     // ===== M4a: LOS Sliding Compaction =====
@@ -290,8 +224,6 @@ public:
      * M3 statistics
      */
     size_t GetGarbageCollectedBytes() const { return losGarbageCollectedBytes; }
-    size_t GetMigrateInCount() const { return losMigrateInCount; }
-    size_t GetMigrateInBytes() const { return losMigrateInBytes; }
 
     /**
      * Allocate a large object in LOS space.
@@ -369,6 +301,13 @@ public:
     bool IsInReserveTerritory(uintptr_t addr) const { return addr < losStart; }
 
     /**
+     * Get the compaction migration map (old address → new address).
+     * Used by STW reference update after CompactLOS memmove.
+     */
+    const std::unordered_map<uintptr_t, uintptr_t>& GetMigrationMap() const { return migrationMap; }
+    void ClearMigrationMap() { migrationMap.clear(); }
+
+    /**
      * Get region lists for GC
      */
     RegionList& GetOldLargeRegionList() { return losOldLargeRegionList; }
@@ -432,27 +371,11 @@ private:
 
     // M3: GC statistics
     size_t losGarbageCollectedBytes = 0; // bytes reclaimed in last GC
-    size_t losMigrateInCount = 0;        // objects migrated from MAIN to LOS
-    size_t losMigrateInBytes = 0;        // bytes migrated from MAIN to LOS
 
-    // M3/M4a: Migration forwarding map (old address → new address)
-    // Used by both M3 migration and M4a compaction during STW reference update.
-    // When both compaction and migration happen in the same GC cycle,
-    // compaction entries are added first, then migration entries are appended.
+    // M4a: Compaction forwarding map (old address → new address)
+    // Used by compaction during STW reference update.
     // Cleared after all reference updates complete.
-    // Uses unordered_map for O(1) lookup in UpdateMigratedReferences().
     std::unordered_map<uintptr_t, uintptr_t> migrationMap;
-
-    // Post-GC no-STW migration tracking (MAIN -> LOS)
-    // pending candidates: old object addresses waiting for route install.
-    std::unordered_set<uintptr_t> postGcPendingCandidates;
-    // active installed routes for MAIN migration: old object -> new object
-    std::unordered_map<uintptr_t, uintptr_t> postGcInstalledRoutes;
-    // installed old MAIN region starts waiting for FORWARDED + reclaim
-    std::unordered_set<uintptr_t> postGcInstalledOldRegionStarts;
-    // Delay finalize by one GC cycle after route installation to tolerate transient stale tagged refs.
-    bool postGcFinalizeReady = false;
-    mutable std::mutex postGcMigrationMutex;
 
     // M4a: Compaction statistics
     size_t losCompactCount = 0;          // number of compactions performed

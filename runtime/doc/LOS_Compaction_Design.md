@@ -547,3 +547,101 @@ if (fwdTable.RouteRegion(region)) {       // → ROUTED, 直接 true
 - STW 边界：`LOS compact + MAIN→LOS 迁移` 在同一段 STW 内完成；
 - 并发逻辑：gc-helper 并发整理路径保留实现，但当前硬禁用、不暴露开关；
 - 迁移范围：仅迁移“LOS 插入失败后 fallback 到 MAIN”的记录对象。
+---
+
+## 8. STW CompactLOS 全堆引用更新（2026-02-22 实现）
+
+### 8.1 问题发现
+
+在完成所有迁移代码和 gc-helper 并发整理代码的回退后，仅保留了最基础的 STW `CompactLOS()` 路径。测试发现：
+
+- `cjEnableLOSCompact=1 cjHeapSize=64mb` 下 gc.cj 在 **Test 6 HashMap Churn** SIGSEGV 崩溃
+- `cjEnableLOSCompact=0` 下同样测试通过 10+ tests
+- `cjEnableLOSCompact=1 cjHeapSize=128mb` 下在 **testSwissCheese** 中 `WriteGeneric` 屏障崩溃
+
+**根本原因**：`CompactLOS()` 通过 `memmove` 物理移动 LOS 对象并构建 `migrationMap`（旧地址→新地址），但 **从未更新堆中的引用**。STW 结束后，所有引用仍指向已释放的旧地址 → SIGSEGV。
+
+### 8.2 修复方案：STW 下全堆引用扫描
+
+在 `CompactLOS()` 的 `memmove` 完成后、STW 结束前，扫描整个堆和所有 GC roots，将指向旧 LOS 地址的引用更新为新地址。
+
+#### 执行时序
+
+```
+CompactLOSOnOOMIfNeeded()
+  │
+  ├── ScopedStopTheWorld  ← 所有 mutator 已暂停
+  │     │
+  │     ├── FreezeForCompaction()
+  │     ├── CompactLOS()           ← memmove + 构建 migrationMap
+  │     │
+  │     ├── UpdateCompactedLOSReferences()  ← [NEW] 全堆引用更新
+  │     │     │
+  │     │     ├── A. 遍历所有堆对象 (MAIN + LOS)
+  │     │     │     ForEachObjUnsafe → ForEachRefField → 查 migrationMap → 更新
+  │     │     │
+  │     │     ├── B1. 静态根 (VisitStaticRoots)
+  │     │     ├── B2. 线程栈根 (VisitAllMutators → VisitMutatorRoots)
+  │     │     ├── B3. Finalizer 根 (VisitRawPointers)
+  │     │     ├── B4. Export 根 (VisitAllExportRoots)
+  │     │     └── B5. 并发模型根 (ConcurrencyModel::VisitGCRoots)
+  │     │
+  │     ├── ClearMigrationMap()
+  │     ├── UnfreezeAfterCompaction()
+  │     └── SetCompacting(false)
+  │
+  └── STW 结束，mutator 恢复 ← 此时所有引用已指向新地址
+```
+
+#### 引用更新逻辑
+
+**RefField 更新**（堆对象引用字段 + 静态根）：
+```cpp
+auto updateRefField = [&migMap](RefField<>& field) {
+    BaseObject* target = field.GetTargetObject();  // 提取低 48 位地址
+    auto it = migMap.find(reinterpret_cast<uintptr_t>(target));
+    if (it != migMap.end()) {
+        field.SetTargetObject(reinterpret_cast<BaseObject*>(it->second));
+        // SetTargetObject 在 STW 下安全：清除 tag bits，只设地址
+    }
+};
+```
+
+**Root 更新**（线程栈、Finalizer、Export、并发模型）：
+```cpp
+auto updateRoot = [&migMap](ObjectRef& ref) {
+    auto it = migMap.find(reinterpret_cast<uintptr_t>(ref.object));
+    if (it != migMap.end()) {
+        ref.object = reinterpret_cast<BaseObject*>(it->second);
+    }
+};
+```
+
+### 8.3 代码变更
+
+| 文件 | 变更 |
+|------|------|
+| `LOSManager.h` | 新增 `GetMigrationMap()` / `ClearMigrationMap()` 公开接口 |
+| `WCollector.h` | 声明 `UpdateCompactedLOSReferences()` |
+| `WCollector.cpp` | 实现 `UpdateCompactedLOSReferences()`；在 `CompactLOSOnOOMIfNeeded` 中调用 |
+
+### 8.4 安全性分析
+
+- **STW 保护**：所有操作在 `ScopedStopTheWorld` 内完成，mutator 已暂停，无并发竞态
+- **RefField::SetTargetObject** 在 STW 下安全：直接设置地址，无需 CAS
+- **ForEachObjUnsafe** 遍历 MAIN 线性扫描 + LOS region 列表，覆盖所有堆对象
+- **5 类 GC roots 全覆盖**：静态根、线程栈根、Finalizer 根、Export 根、并发模型根
+
+### 8.5 测试结果
+
+| 测试 | 配置 | 结果 |
+|------|------|------|
+| gc_minimal | `cjEnableLOSCompact=0 cjHeapSize=64mb` | ALL PASSED |
+| gc_minimal | `cjEnableLOSCompact=1 cjHeapSize=64mb` | ALL PASSED |
+| gc_quick | `cjEnableLOSCompact=1 cjHeapSize=64mb` | ALL PASSED |
+| gc.cj Tests 1-10 | `cjEnableLOSCompact=1 cjHeapSize=64mb` | Tests 1-9 PASS, Test 10 SIGABRT (OOM) |
+| gc.cj Tests 1-10 | `cjEnableLOSCompact=1 cjHeapSize=128mb` | ALL PASS (1-10) |
+| gc.cj Tests 1-10 | `cjEnableLOSCompact=1 cjHeapSize=256mb` | ALL PASS (1-10) |
+| gc.cj Test 11 (OOM) | `cjHeapSize=256mb` (compact=0/1) | 均 SIGSEGV（测试设计如此，故意耗尽堆） |
+
+> **关键修复验证**：Test 6 HashMap Churn 之前在 `cjEnableLOSCompact=1 cjHeapSize=64mb` 下必定 SIGSEGV，修复后稳定通过。

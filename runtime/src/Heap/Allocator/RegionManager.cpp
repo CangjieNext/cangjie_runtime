@@ -1088,13 +1088,12 @@ void RegionManager::DumpRegionStats(const char* msg) const
         size_t losReserveBorrow = losManager->GetReserveBorrowCount();
         size_t losCompactCnt = losManager->GetCompactCount();
         size_t losGarbage = losManager->GetGarbageCollectedBytes();
-        size_t losMigrateIn = losManager->GetMigrateInCount();
         VLOG(REPORT, "\tLOS: capacity %zu B, used %zu B, free %zu B, "
              "alloc %zu, fail %zu, fallback %zu, reserveBorrow %zu",
              losCap, losUsed, losFree, losAllocCnt, losFailCnt, losFallback, losReserveBorrow);
-        VLOG(REPORT, "\tLOS: compactions %zu, garbageBytes %zu, migrateIn %zu, "
+        VLOG(REPORT, "\tLOS: compactions %zu, garbageBytes %zu, "
              "compactMoved %zu B, compactFreed %zu B, compactShrunk %zu B",
-             losCompactCnt, losGarbage, losMigrateIn,
+             losCompactCnt, losGarbage,
              losManager->GetCompactMovedBytes(),
              losManager->GetCompactFreedBytes(),
              losManager->GetCompactShrunkBytes());
@@ -1692,18 +1691,6 @@ uintptr_t RegionManager::AllocPinnedFromFreeList(size_t size)
     BaseObject* object = reinterpret_cast<BaseObject*>(allocPtr);
     (reinterpret_cast<CopyCollector*>(&Heap::GetHeap().GetCollector()))->MarkObject(object);
     return allocPtr;
-}
-
-// M4a-async: Signal FinalizerProcessor to perform async LOS compaction.
-// Called from AllocLarge() when LOS allocation fails and MAIN fallback succeeds.
-void RegionManager::SignalLOSCompaction()
-{
-    if (losManager == nullptr) {
-        return;
-    }
-    // M6 policy: async gc-helper compaction path is retained but currently disabled.
-    DLOG(REGION, "LOS compaction signal ignored (gc-helper path disabled): allocFail=%zu, fragRatio=%.2f",
-         losManager->GetAllocFailCount(), losManager->GetFragmentationRatio());
 }
 
 // M4b: Shrink inactiveZone to reclaim free space at the high end of MAIN.

@@ -208,9 +208,6 @@ protected:
     // M4a: Compact LOS if fragmentation exceeds threshold
     void CompactLOSIfNeeded();
 
-    // M3: Migrate surviving MAIN large objects into LOS after sweep
-    void MigrateLargeObjectsToLOS();
-
     void CollectPinnedGarbage()
     {
         RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
@@ -230,8 +227,7 @@ private:
     template<bool forward>
     bool TryUpdateRefFieldImpl(BaseObject* obj, RefField<>& ref, BaseObject*& oldRef, BaseObject*& newRef) const;
     void CompactLOSOnOOMIfNeeded(LOSManager& losMgr, RegionManager& rm, bool hasPendingPlan);
-    void InstallLOSMigrationRoutesIfNeeded(LOSManager& losMgr, RegionManager& rm);
-    void ForceForwardPendingLOSObjects();
+    void UpdateCompactedLOSReferences(LOSManager& losMgr, RegionManager& rm);
     void FinalizeLOSCompactionIfNeeded();
     void TraceHeap();
     void PreforwardConcurrencyModelRoots();

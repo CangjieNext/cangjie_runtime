@@ -10,6 +10,7 @@
 #include "Concurrency/Concurrency.h"
 #include "Heap/Allocator/LOSManager.h"
 #include "Mutator/MutatorManager.h"
+#include "ObjectModel/RefField.inline.h"
 
 namespace MapleRuntime {
 bool WCollector::IsUnmovableFromObject(BaseObject* obj) const
@@ -451,17 +452,12 @@ void WCollector::CompactLOSIfNeeded()
     }
 
     RegionManager& rm = space.GetRegionManager();
-    std::vector<uintptr_t> fallbackObjs = rm.ConsumeLOSFallbackLargeObjects();
-    losMgr->AddPostGcMigrationCandidates(fallbackObjs);
-
     bool hasPendingPlan = losMgr->HasPendingCompactionPlan();
     CompactLOSOnOOMIfNeeded(*losMgr, rm, hasPendingPlan);
-    InstallLOSMigrationRoutesIfNeeded(*losMgr, rm);
 }
 
 void WCollector::CompactLOSOnOOMIfNeeded(LOSManager& losMgr, RegionManager& rm, bool hasPendingPlan)
 {
-    (void)rm;
     bool needsCompact = (gcReason == GC_REASON_OOM) && (hasPendingPlan || losMgr.NeedsCompaction());
     if (!needsCompact) {
         return;
@@ -477,65 +473,83 @@ void WCollector::CompactLOSOnOOMIfNeeded(LOSManager& losMgr, RegionManager& rm, 
     size_t freedBytes = losMgr.CompactLOS();
     DLOG(REPORT, "OOM LOS compact done in STW: freed=%zu", freedBytes);
 
+    // After memmove, update all heap references that point to old LOS addresses.
+    // This must complete before STW ends, otherwise mutators would use stale pointers.
+    UpdateCompactedLOSReferences(losMgr, rm);
+
+    losMgr.ClearMigrationMap();
     losMgr.UnfreezeAfterCompaction();
     losMgr.SetCompacting(false);
     losMgr.SetCompactionRequested(false);
 }
 
-void WCollector::InstallLOSMigrationRoutesIfNeeded(LOSManager& losMgr, RegionManager& rm)
+void WCollector::UpdateCompactedLOSReferences(LOSManager& losMgr, RegionManager& rm)
 {
-    // Safety gate for MAIN large-object route migration.
-    // Keep disabled by default until metadata/list interaction is fully stabilized.
-    const char* routeEnabled = std::getenv("cjEnableLOSRouteMigration");
-    if (routeEnabled == nullptr || routeEnabled[0] != '1') {
+    const auto& migMap = losMgr.GetMigrationMap();
+    if (migMap.empty()) {
         return;
     }
 
-    // Route installation is currently limited to OOM cycle for stability.
-    if (gcReason != GC_REASON_OOM) {
-        return;
-    }
+    size_t updatedFieldCount = 0;
+    size_t updatedRootCount = 0;
+    size_t scannedObjectCount = 0;
 
-    // No dedicated background migration thread in Phase 1:
-    // Install route metadata in a short STW window for list/metadata safety,
-    // then rely on barrier + next-GC force-forward convergence for concurrent move/access.
-    size_t installed = 0;
-    {
-        ScopedStopTheWorld stw("Install LOS migration routes", true, GCPhase::GC_PHASE_POST_TRACE);
-        installed = losMgr.InstallPostGcMainMigrationRoutes(
-            rm.GetOldLargeRegionList(), rm.GetGarbageRegionList());
-    }
-    if (installed > 0 || losMgr.HasPendingPostGcMainMigrations()) {
-        DLOG(REPORT, "LOS post-gc migration: installed=%zu pending=%zu",
-             installed, losMgr.GetPendingPostGcMainMigrationCount());
-    }
-}
+    // --- Helper: update a RefField if it points to a moved LOS object ---
+    auto updateRefField = [&migMap, &updatedFieldCount](RefField<>& field) {
+        BaseObject* target = field.GetTargetObject();
+        if (target == nullptr) {
+            return;
+        }
+        auto it = migMap.find(reinterpret_cast<uintptr_t>(target));
+        if (it != migMap.end()) {
+            field.SetTargetObject(reinterpret_cast<BaseObject*>(it->second));
+            ++updatedFieldCount;
+        }
+    };
 
-void WCollector::MigrateLargeObjectsToLOS()
-{
-    MRT_PHASE_TIMER("MigrateLargeObjectsToLOS");
-    // DISABLED: MigrateLargeObjectsFromMain copies objects from MAIN to LOS and
-    // UpdateMigratedReferences scans the entire heap to update references.
-    // Without STW, mutators concurrently read stale references → SIGSEGV.
-    // TODO: Re-enable with ScopedStopTheWorld.
-    return;
-    RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
-    LOSManager* losMgr = space.GetRegionManager().GetLOSManager();
-    if (losMgr == nullptr) {
-        return;
-    }
-    RegionManager& rm = space.GetRegionManager();
-    // MigrateLargeObjectsFromMain appends to migrationMap (may contain compaction entries).
-    size_t migratedCount = losMgr->MigrateLargeObjectsFromMain(
-        rm.GetOldLargeRegionList(), rm.GetGarbageRegionList());
-    (void)migratedCount;
-    // Single unified reference update: covers both compaction + migration entries.
-    // CompactLOS() only builds forwarding entries without scanning; we scan once here.
-    if (losMgr->HasPendingMigrations()) {
-        losMgr->UpdateMigratedReferences();
-    }
-    // Clear all forwarding entries (compaction + migration) after everything is done.
-    losMgr->ClearMigrationState();
+    // --- Helper: update a root (ObjectRef) if it points to a moved LOS object ---
+    auto updateRoot = [&migMap, &updatedRootCount](ObjectRef& ref) {
+        if (ref.object == nullptr) {
+            return;
+        }
+        auto it = migMap.find(reinterpret_cast<uintptr_t>(ref.object));
+        if (it != migMap.end()) {
+            ref.object = reinterpret_cast<BaseObject*>(it->second);
+            ++updatedRootCount;
+        }
+    };
+
+    // === A. Scan ALL heap objects (MAIN + LOS) and update their reference fields ===
+    // ForEachObjUnsafe iterates [regionHeapStart, inactiveZone) for MAIN
+    // plus LOS old/recent region lists. Safe to call in STW without extra lock.
+    auto objVisitor = [&updateRefField, &scannedObjectCount](BaseObject* obj) {
+        obj->ForEachRefField(updateRefField);
+        ++scannedObjectCount;
+    };
+    rm.ForEachObjUnsafe(objVisitor);
+
+    // === B. Scan ALL GC roots ===
+
+    // B1. Static roots (global RefField<> registered via StaticRootTable)
+    Heap::GetHeap().VisitStaticRoots(updateRefField);
+
+    // B2. Thread stack roots (mutators are stopped in STW)
+    MutatorManager::Instance().VisitAllMutators([&updateRoot](Mutator& mutator) {
+        mutator.VisitMutatorRoots(updateRoot);
+    });
+
+    // B3. Finalizer roots (finalizer queue + working finalizables)
+    collectorResources.GetFinalizerProcessor().VisitRawPointers(updateRoot);
+
+    // B4. Export roots (cross-language exported objects)
+    Heap::GetHeap().VisitAllExportRoots(updateRoot);
+
+    // B5. Concurrency model roots (Future, coroutine handles, etc.)
+    RootVisitor rootVisitor = updateRoot;
+    Runtime::Current().GetConcurrencyModel().VisitGCRoots(&rootVisitor);
+
+    DLOG(REPORT, "LOS compact ref update: scanned %zu objects, updated %zu fields + %zu roots",
+         scannedObjectCount, updatedFieldCount, updatedRootCount);
 }
 
 void WCollector::Preforward()
@@ -661,7 +675,6 @@ void WCollector::DoGarbageCollection()
     Preforward();
 
     ForwardFromSpace();
-    ForceForwardPendingLOSObjects();
     FinalizeLOSCompactionIfNeeded();
 
     // M4b: ShrinkInactiveZone is DISABLED.
@@ -703,61 +716,6 @@ void WCollector::DoGarbageCollection()
     reinterpret_cast<RegionSpace&>(theAllocator).DumpRegionStats("region statistics when gc ends");
 }
 
-void WCollector::ForceForwardPendingLOSObjects()
-{
-    // GC主动收敛：ReadBarrier是按访问触发，不能保证覆盖所有LOS对象。
-    // 若存在待迁移/待压缩的forwarding条目，GC线程在Forward阶段后主动遍历一次，
-    // 确保未被mutator触达的对象也完成forward，后续才能安全回收旧region并重建树。
-    RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
-    LOSManager* losMgr = space.GetRegionManager().GetLOSManager();
-    if (losMgr == nullptr) {
-        return;
-    }
-
-    constexpr size_t MAX_CONVERGE_ROUNDS = 4;
-    size_t totalForcedCount = 0;
-
-    for (size_t round = 0; round < MAX_CONVERGE_ROUNDS; ++round) {
-        std::vector<uintptr_t> oldObjAddrs;
-        if (losMgr->HasPendingMigrations()) {
-            oldObjAddrs = losMgr->GetPendingMigrationSourceAddresses();
-        }
-        if (losMgr->HasPendingCompactionPlan()) {
-            auto plan = losMgr->GetPendingCompactionPlanSnapshot();
-            oldObjAddrs.reserve(oldObjAddrs.size() + plan.size());
-            for (const auto& entry : plan) {
-                RegionInfo* oldRegion = RegionInfo::GetRegionInfoAt(entry.oldStart);
-                if (oldRegion == nullptr || !oldRegion->IsGhostFromRegion()) {
-                    continue;
-                }
-                oldObjAddrs.push_back(entry.oldStart + RegionSpace::HEADER_SIZE);
-            }
-        }
-        if (oldObjAddrs.empty()) {
-            break;
-        }
-
-        size_t forcedCount = 0;
-        for (uintptr_t addr : oldObjAddrs) {
-            if (!Heap::IsHeapAddress(reinterpret_cast<BaseObject*>(addr))) {
-                continue;
-            }
-            BaseObject* oldObj = reinterpret_cast<BaseObject*>(addr);
-            BaseObject* latest = TryForwardObject(oldObj);
-            if (latest != nullptr) {
-                ++forcedCount;
-            }
-        }
-
-        totalForcedCount += forcedCount;
-        if (forcedCount == 0) {
-            break;
-        }
-    }
-
-    DLOG(REPORT, "LOS force-forward pending objects done: forced=%zu", totalForcedCount);
-}
-
 void WCollector::FinalizeLOSCompactionIfNeeded()
 {
     RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
@@ -767,16 +725,7 @@ void WCollector::FinalizeLOSCompactionIfNeeded()
         return;
     }
 
-    if (losMgr->HasPendingPostGcMainMigrations()) {
-        size_t reclaimed = 0;
-        {
-            ScopedStopTheWorld stw("Finalize LOS migration routes", true, GCPhase::GC_PHASE_FORWARD);
-            reclaimed = losMgr->FinalizePostGcMainMigrations(
-                rm.GetOldLargeRegionList(), rm.GetGarbageRegionList());
-        }
-        DLOG(REPORT, "LOS post-gc migration finalize: reclaimed=%zu pending=%zu",
-             reclaimed, losMgr->GetPendingPostGcMainMigrationCount());
-    }
+    (void)rm;
 
     if (!losMgr->IsCompactionFrozen() && !losMgr->IsCompacting()) {
         return;

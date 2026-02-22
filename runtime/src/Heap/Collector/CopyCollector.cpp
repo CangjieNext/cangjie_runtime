@@ -51,7 +51,7 @@ void CopyCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
     gcStats.gcStartTime = TimeUtil::NanoSeconds();
 
     // Suppress FinalizerProcessor's async ReclaimGarbageRegions during the GC cycle
-    // to prevent racing with PostTrace operations (CollectLargeGarbage, MigrateLargeObjectsToLOS, etc.)
+    // to prevent racing with PostTrace operations (CollectLargeGarbage, etc.)
     // that concurrently modify garbageRegionList and region metadata.
     VLOG(REPORT, "[GC-DEBUG] Before SuppressGarbageReclaim");
     collectorResources.GetFinalizerProcessor().SuppressGarbageReclaim();
