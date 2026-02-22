@@ -182,6 +182,10 @@ public:
 
     void AssembleGarbageCandidates(bool collectAll = false)
     {
+        // M3-fix: Select migration candidates BEFORE merge so they get FROM_REGION type
+        // and references are tagged during Enum/Trace.
+        regionManager.AssembleMigrationCandidates();
+
         regionManager.AssembleSmallGarbageCandidates();
         regionManager.AssemblePinnedGarbageCandidates(collectAll);
         regionManager.AssembleLargeGarbageCandidates();

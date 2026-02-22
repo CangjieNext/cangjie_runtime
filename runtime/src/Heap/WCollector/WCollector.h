@@ -229,6 +229,9 @@ private:
     void CompactLOSOnOOMIfNeeded(LOSManager& losMgr, RegionManager& rm, bool hasPendingPlan);
     void UpdateCompactedLOSReferences(LOSManager& losMgr, RegionManager& rm);
     void FinalizeLOSCompactionIfNeeded();
+    // M3: Build forwarding routes for migrating MAIN large objects to LOS.
+    // Called in PostTrace() after PrepareForwardTable().
+    void BuildLargeObjectMigrationRoutes();
     void TraceHeap();
     void PreforwardConcurrencyModelRoots();
     void PostTrace();

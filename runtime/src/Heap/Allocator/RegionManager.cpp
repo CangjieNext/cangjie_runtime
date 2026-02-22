@@ -588,6 +588,57 @@ void RegionManager::AssemblePinnedGarbageCandidates(bool collectAll)
         region = nextRegion;
     }
 }
+
+// M3-fix: Select MAIN large-object migration candidates BEFORE trace.
+// Candidates are moved from oldLargeRegionList to migrationCandidateList with
+// FROM_REGION type so that GetAndTryTagRefField/IsFromObject tags incoming
+// references during Enum/Trace.  This must run BEFORE AssembleLargeGarbageCandidates
+// (which merges recentLargeRegionList into oldLargeRegionList).
+void RegionManager::AssembleMigrationCandidates()
+{
+    // Safety gate: opt-in via environment variable.
+    const char* migrateEnabled = std::getenv("cjEnableLOSMigration");
+    if (migrateEnabled == nullptr || migrateEnabled[0] != '1') {
+        return;
+    }
+    if (losManager == nullptr) {
+        return;
+    }
+    if (losManager->IsCompacting() || losManager->IsCompactionFrozen()) {
+        return;
+    }
+
+    RegionInfo* region = oldLargeRegionList.GetHeadRegion();
+    while (region != nullptr) {
+        RegionInfo* next = region->GetNextRegion();
+
+        // Cannot move raw-pointer objects (future, monitor).
+        if (region->GetRawPointerObjectCount() != 0) {
+            region = next;
+            continue;
+        }
+        // Only migrate from MAIN space proper (skip RESERVE-borrowed regions).
+        if (mainEnd > 0 && region->GetRegionStart() >= mainEnd) {
+            region = next;
+            continue;
+        }
+
+        // Move to migrationCandidateList with FROM_REGION type → IsFromObject() = true
+        // during Enum/Trace, so references to this object will be tagged.
+        oldLargeRegionList.DeleteRegion(region);
+        migrationCandidateList.PrependRegion(region, RegionInfo::RegionType::FROM_REGION);
+        region->ClearLiveInfo();
+        region->ResetMarkBit();  // M3-fix: reset isMarked so trace re-marks and counts live bytes
+
+        region = next;
+    }
+}
+
+// M3-fix: After forward/collect, move any unmigrated candidates back to oldLargeRegionList.
+void RegionManager::CleanupMigrationCandidates()
+{
+    oldLargeRegionList.MergeRegionList(migrationCandidateList, RegionInfo::RegionType::LARGE_REGION);
+}
 void RemoveRegionLocked(RegionList* regionList, RegionInfo* region)
 {
     regionList->DeleteRegionLocked(region);

@@ -433,6 +433,79 @@ void WCollector::PostTrace()
     CollectPinnedGarbage();
     RefineFromSpace();
     fwdTable.PrepareForwardTable();
+    // M3: Build forwarding routes to migrate surviving MAIN large objects to LOS.
+    // Must run AFTER PrepareForwardTable (which calls DispelGhostFromRegion for previous ghosts).
+    // Candidates were pre-selected in AssembleMigrationCandidates (before trace) so that
+    // references to them are properly tagged during Enum/Trace.
+    BuildLargeObjectMigrationRoutes();
+}
+
+void WCollector::BuildLargeObjectMigrationRoutes()
+{
+    MRT_PHASE_TIMER("BuildLargeObjectMigrationRoutes");
+
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
+    RegionManager& rm = space.GetRegionManager();
+    RegionList& migrationList = rm.GetMigrationCandidateList();
+
+    if (migrationList.GetRegionCount() == 0) {
+        return;
+    }
+
+    LOSManager* losMgr = rm.GetLOSManager();
+    RegionList& fromList = rm.GetFromRegionList();
+
+    // Snapshot candidates into a vector (we'll modify the list during iteration).
+    std::vector<RegionInfo*> candidates;
+    migrationList.VisitAllRegions([&](RegionInfo* region) {
+        candidates.push_back(region);
+    });
+
+    size_t migratedCount = 0;
+    size_t deadCount = 0;
+    size_t losFullCount = 0;
+
+    for (RegionInfo* region : candidates) {
+        // Dead after trace: collect immediately.
+        if (region->GetLiveByteCount() == 0) {
+            migrationList.DeleteRegion(region);
+            rm.CollectRegion(region);
+            deadCount++;
+            continue;
+        }
+
+        // Try to allocate LOS target space.
+        size_t objSize = region->GetRegionAllocatedSize();
+        uintptr_t toAddr = (losMgr != nullptr) ? losMgr->AllocLarge(objSize) : 0;
+        if (toAddr == 0) {
+            // LOS full: mark as UNMOVABLE_FROM_REGION so the ForwardBarrier
+            // untags the reference (IsUnmovableFromObject → true) without needing
+            // ghost routing.  The region stays in migrationCandidateList and is
+            // moved back to oldLargeRegionList by CleanupMigrationCandidates().
+            region->SetRegionType(RegionInfo::RegionType::UNMOVABLE_FROM_REGION);
+            losFullCount++;
+            continue;
+        }
+
+        // Success: move to fromRegionList and set up ghost route.
+        migrationList.DeleteRegion(region);
+        fromList.PrependRegion(region, RegionInfo::RegionType::FROM_REGION);
+        region->PrepareForwardableLargeRegion(toAddr);
+
+        ++migratedCount;
+        VLOG(REPORT, "LOS migration: region %p @[0x%zx, 0x%zx) size=%zu -> LOS 0x%zx",
+             region, region->GetRegionStart(), region->GetRegionEnd(), objSize, toAddr);
+    }
+
+    if (migratedCount > 0) {
+        // Rebuild ghostFromRegionList to include migration regions.
+        // Ghost traversal uses nextRegionIdx0 (saved by PrepareForwardableLargeRegion),
+        // forming a valid chain: migration_regions -> small_from_regions.
+        fromList.CopyListTo(rm.GetGhostFromRegionList());
+    }
+
+    VLOG(REPORT, "LOS migration: %zu scheduled, %zu dead, %zu LOS-full",
+         migratedCount, deadCount, losFullCount);
 }
 
 void WCollector::CompactLOSIfNeeded()
@@ -695,6 +768,10 @@ void WCollector::DoGarbageCollection()
 
     CollectSmallSpace();
     ForwardDataManager::GetForwardDataManager().UnbindPreviousLiveInfo();
+
+    // M3-fix: Move any unmigrated candidates (LOS-full, marked UNMOVABLE_FROM_REGION)
+    // back to oldLargeRegionList with LARGE_REGION type.
+    reinterpret_cast<RegionSpace&>(theAllocator).GetRegionManager().CleanupMigrationCandidates();
 
     // M5: Return RESERVE-borrowed space after GC.
     // MAIN: dead borrowed regions (intercepted in ReclaimRegion/ReleaseRegion) are returned.

@@ -110,6 +110,7 @@ public:
           ghostFromRegionList("ghost from regions"), unmovableFromRegionList("escaped from regions"),
           garbageRegionList("garbage regions"), recentPinnedRegionList("recent pinned regions"),
           oldPinnedRegionList("old pinned regions"), rawPointerPinnedRegionList("raw pointer pinned regions"),
+          migrationCandidateList("migration candidates"),
           oldLargeRegionList("old large regions"), recentLargeRegionList("recent large regions"),
           largeTraceRegions("large trace regions")
     {}
@@ -156,6 +157,8 @@ public:
     // M3: expose region lists for migration
     RegionList& GetOldLargeRegionList() { return oldLargeRegionList; }
     RegionList& GetGarbageRegionList() { return garbageRegionList; }
+    RegionList& GetFromRegionList() { return fromRegionList; }
+    RegionList& GetGhostFromRegionList() { return ghostFromRegionList; }
 
     // M4b: MAIN end boundary (excludes RESERVE and LOS)
     uintptr_t GetMainEnd() const { return mainEnd; }
@@ -257,6 +260,10 @@ public:
 
         // Step 4: Fall back to MAIN space (original allocation path)
         uintptr_t addr = AllocLargeInMain(size);
+        if (addr != 0 && losManager != nullptr) {
+            losManager->IncrementFallbackCount();
+            VLOG(REPORT, "AllocLarge MAIN fallback: size=%zu addr=0x%zx (LOS full)", size, addr);
+        }
         return addr;
     }
 
@@ -335,6 +342,17 @@ public:
     void AssembleSmallGarbageCandidates();
     void AssembleLargeGarbageCandidates();
     void AssemblePinnedGarbageCandidates(bool collectAll);
+
+    // M3-fix: Select MAIN large-object migration candidates BEFORE trace so references
+    // get tagged during Enum/Trace.  Called from AssembleGarbageCandidates, before
+    // AssembleLargeGarbageCandidates (which merges recent into old).
+    void AssembleMigrationCandidates();
+
+    // M3-fix: After GC cycle completes, move any unmigrated candidates back to
+    // oldLargeRegionList.  Called from DoGarbageCollection after CollectSmallSpace.
+    void CleanupMigrationCandidates();
+
+    RegionList& GetMigrationCandidateList() { return migrationCandidateList; }
 
     void MergeRawPointerPinnedRegions()
     {
@@ -697,6 +715,11 @@ private:
     // region lists for small-sized raw-pointer objects (i.e. future, monitor)
     // which can not be moved ever (even during compaction).
     RegionList rawPointerPinnedRegionList;
+
+    // M3-fix: Migration candidates selected before trace (FROM_REGION type for tagging).
+    // After PostTrace, alive candidates are either migrated (moved to fromRegionList)
+    // or marked UNMOVABLE_FROM_REGION.  Cleaned up after the GC cycle.
+    RegionList migrationCandidateList;
 
     // regions for large-sized objects.
     // large region is recorded here after large object is allocated.
