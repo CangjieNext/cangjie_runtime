@@ -28,7 +28,7 @@ MAddress RegionSpace::TryAllocateOnce(size_t allocSize, AllocType allocType)
     return allocBuffer->Allocate(allocSize, allocType);
 }
 
-bool RegionSpace::ShouldRetryAllocation(size_t& tryTimes, size_t size) const
+bool RegionSpace::ShouldRetryAllocation(size_t& tryTimes, size_t size)
 {
     if (!IsRuntimeThread() && tryTimes <= static_cast<size_t>(TryAllocationThreshold::RESCHEDULE)) {
         CJThreadResched(); // reschedule this thread for throughput.
@@ -45,7 +45,8 @@ bool RegionSpace::ShouldRetryAllocation(size_t& tryTimes, size_t size) const
     }
     if (tryTimes == static_cast<size_t>(TryAllocationThreshold::TRIGGER_OOM)) {
         if (!Heap::GetHeap().IsGcStarted()) {
-            VLOG(REPORT, "gc is triggered for OOM");
+            bool isLargeObj = size >= regionManager.GetLargeObjectThreshold();
+            VLOG(REPORT, "P5: OOM GC triggered: allocSize=%zu, isLargeObject=%d", size, isLargeObj);
             Heap::GetHeap().GetCollector().RequestGC(GC_REASON_OOM, false);
         } else {
             ScopedEnterSaferegion enterSaferegion(false);
@@ -54,9 +55,55 @@ bool RegionSpace::ShouldRetryAllocation(size_t& tryTimes, size_t size) const
         }
         return true;
     }
+    // P5: After OOM GC + retry still fails, try RESERVE borrowing before giving up.
+    if (tryTimes == static_cast<size_t>(TryAllocationThreshold::TRIGGER_RESERVE_BORROW)) {
+        TryBorrowFromReserveIfNeeded(size);
+        return true;
+    }
     VLOG(REPORT, "Cannot allocate memory of %zu(B), throw an OutOfMemory exception", size);
     ExceptionManager::OutOfMemory();
     return false;
+}
+
+// P5: After OOM GC, check if the corresponding space's inactiveZone runway
+// can accommodate the requested allocation.  If not, borrow from RESERVE to
+// extend the runway, then let the retry loop call TryAllocateOnce once more.
+void RegionSpace::TryBorrowFromReserveIfNeeded(size_t allocSize)
+{
+    ReserveManager* reserveManager = regionManager.GetReserveManager();
+    if (reserveManager == nullptr) {
+        return; // No RESERVE space configured — nothing to borrow from.
+    }
+
+    bool isLargeObject = allocSize >= regionManager.GetLargeObjectThreshold();
+    LOSManager* losManager = regionManager.GetLOSManager();
+
+    if (isLargeObject && losManager != nullptr) {
+        // Large object → check LOS runway first (primary path).
+        // LOS runway = losInactiveZone − effectiveLOSStart
+        size_t losRunway = losManager->GetFreeSize();
+        if (losRunway < allocSize) {
+            size_t borrowed = reserveManager->BorrowForLOS(allocSize);
+            VLOG(REPORT, "P5: LOS runway=%zu < allocSize=%zu, borrowed %zu bytes for LOS",
+                 losRunway, allocSize, borrowed);
+        } else {
+            VLOG(REPORT, "P5: LOS runway=%zu >= allocSize=%zu, no LOS borrow needed",
+                 losRunway, allocSize);
+        }
+    }
+
+    // Check MAIN runway: effectiveMainEnd − inactiveZone
+    // For small objects this is the only path; for large objects this is the
+    // MAIN-fallback path (AllocLarge tries MAIN after LOS fails).
+    size_t mainRunway = regionManager.GetInactiveUnitCount() * RegionInfo::UNIT_SIZE;
+    if (mainRunway < allocSize) {
+        size_t borrowed = reserveManager->BorrowForMain(allocSize);
+        VLOG(REPORT, "P5: MAIN runway=%zu < allocSize=%zu, borrowed %zu bytes for MAIN",
+             mainRunway, allocSize, borrowed);
+    } else {
+        VLOG(REPORT, "P5: MAIN runway=%zu >= allocSize=%zu, no MAIN borrow needed",
+             mainRunway, allocSize);
+    }
 }
 
 MAddress RegionSpace::Allocate(size_t size, AllocType allocType)

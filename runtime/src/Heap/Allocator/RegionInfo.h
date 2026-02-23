@@ -498,8 +498,17 @@ public:
     static RegionInfo* GetRegionInfo(uint32_t idx)
     {
         UnitInfo* unit = RegionInfo::UnitInfo::GetUnitInfo(idx);
-        if (static_cast<UnitRole>(unit->GetMetadata().unitRole) == UnitRole::SUBORDINATE_UNIT) {
-            return unit->GetMetadata().ownerRegion;
+        // Use atomic acquire load on unitRole to pair with InitSubordinateUnit's
+        // release-store (SetUnitRole via CAS ACQ_REL). On ARM64, plain reads of
+        // the bitfield can be reordered with the subsequent ownerRegion load,
+        // causing a null dereference when ownerRegion is still being written.
+        uint8_t role = unit->GetMetadata().unitRoleBitField.GetAtomicValue(0, BIT_LENGTH);
+        if (static_cast<UnitRole>(role) == UnitRole::SUBORDINATE_UNIT) {
+            RegionInfo* owner = unit->GetMetadata().ownerRegion;
+            // ownerRegion may be transiently null during InitFreeUnits (clear
+            // liveInfo/ownerRegion before SetUnitRole(FREE_UNITS)).  In that
+            // window the unit is being freed; treat it as its own primary.
+            return (owner != nullptr) ? owner : reinterpret_cast<RegionInfo*>(unit);
         }
         return reinterpret_cast<RegionInfo*>(unit);
     }
@@ -507,8 +516,10 @@ public:
     static RegionInfo* GetRegionInfoAt(uintptr_t allocAddr)
     {
         UnitInfo* unit = RegionInfo::UnitInfo::GetUnitInfoAt(allocAddr);
-        if (static_cast<UnitRole>(unit->GetMetadata().unitRole) == UnitRole::SUBORDINATE_UNIT) {
-            return unit->GetMetadata().ownerRegion;
+        uint8_t role = unit->GetMetadata().unitRoleBitField.GetAtomicValue(0, BIT_LENGTH);
+        if (static_cast<UnitRole>(role) == UnitRole::SUBORDINATE_UNIT) {
+            RegionInfo* owner = unit->GetMetadata().ownerRegion;
+            return (owner != nullptr) ? owner : reinterpret_cast<RegionInfo*>(unit);
         }
         return reinterpret_cast<RegionInfo*>(unit);
     }
@@ -1199,8 +1210,15 @@ private:
 
         void InitSubordinateUnit(RegionInfo* owner)
         {
-            SetUnitRole(UnitRole::SUBORDINATE_UNIT);
+            // Write ownerRegion BEFORE marking as SUBORDINATE_UNIT.
+            // SetUnitRole uses atomic CAS with acq_rel, which acts as a release
+            // barrier — guaranteeing the ownerRegion store is visible to any
+            // thread that later observes unitRole == SUBORDINATE_UNIT via an
+            // acquire load.  The previous order (unitRole first) caused a race
+            // where GetRegionInfoAt could see SUBORDINATE_UNIT but read a stale
+            // null ownerRegion, leading to SIGSEGV in IsFromObject.
             metadata.ownerRegion = owner;
+            SetUnitRole(UnitRole::SUBORDINATE_UNIT);
         }
 
         void ToFreeRegion() { InitFreeRegion(GetUnitIdx(this), 1); }

@@ -210,18 +210,27 @@ public:
     static bool MarkObject(const BaseObject* obj)
     {
         RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
+        if (UNLIKELY(regionInfo == nullptr)) {
+            return false;
+        }
         return regionInfo->MarkObject(obj);
     }
 
     static bool IsMarkedObject(const BaseObject* obj)
     {
         RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
+        if (UNLIKELY(regionInfo == nullptr)) {
+            return false;
+        }
         return regionInfo->IsMarkedObject(obj);
     }
 
     static bool ShouldEnqueue(const BaseObject* obj)
     {
         RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
+        if (UNLIKELY(regionInfo == nullptr)) {
+            return false;
+        }
         if (regionInfo->IsTraceRegion()) {
             return false;
         }
@@ -235,6 +244,9 @@ public:
     static bool IsResurrectedObject(const BaseObject* obj)
     {
         RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
+        if (UNLIKELY(regionInfo == nullptr)) {
+            return false;
+        }
         return regionInfo->IsResurrectedObject(obj);
     }
 
@@ -248,9 +260,15 @@ private:
     enum class TryAllocationThreshold {
         RESCHEDULE = 3,
         TRIGGER_OOM = 5,
+        // P5: After OOM GC, try RESERVE borrowing before final OOM exception
+        TRIGGER_RESERVE_BORROW = 6,
     };
     MAddress TryAllocateOnce(size_t allocSize, AllocType allocType);
-    bool ShouldRetryAllocation(size_t& tryTimes, size_t size) const;
+    bool ShouldRetryAllocation(size_t& tryTimes, size_t size);
+
+    // P5: After OOM GC retry still fails, check if MAIN/LOS need RESERVE
+    // borrowing and extend the corresponding runway.
+    void TryBorrowFromReserveIfNeeded(size_t allocSize);
     MAddress reservedStart = 0;
     MAddress reservedEnd = 0;
     RegionManager regionManager;

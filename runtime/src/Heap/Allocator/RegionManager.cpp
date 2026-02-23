@@ -459,10 +459,13 @@ void RegionManager::Initialize(size_t nUnit, uintptr_t regionInfoAddr)
     if (losRatio > 0 && losUnitCount > 0) {
         size_t losUnitStart = mainUnitCount + reserveUnitCount;
         size_t losUnitEnd = nUnit;
+        // P4: LOS baseUnit = mainUnitCount (start of RESERVE) so that losFreeMgr can handle
+        // RESERVE-borrowed regions. Capacity = reserveUnitCount + losUnitCount to cover both
+        // the RESERVE extension area and the native LOS space.
         losManager = new (std::nothrow) LOSManager(
-            *this, static_cast<CartesianTree::Index>(losUnitStart), reserveManager);
+            *this, static_cast<CartesianTree::Index>(mainUnitCount), reserveManager);
         if (losManager != nullptr) {
-            losManager->Initialize(losStart, losEnd, losUnitStart, losUnitEnd);
+            losManager->Initialize(losStart, losEnd, losUnitStart, losUnitEnd, reserveUnitCount);
         }
     }
 
@@ -475,10 +478,13 @@ void RegionManager::Initialize(size_t nUnit, uintptr_t regionInfoAddr)
 #endif
     // propagate region heap layout - only for MAIN space units
     RegionInfo::Initialize(nUnit, regionHeapStart);
-    // FreeRegionManager only manages MAIN space units
-    freeRegionManager.Initialize(mainUnitCount);
-    // [BISECT] lowAddressFirst disabled
-    freeRegionManager.SetLowAddressFirst(false);
+    // FreeRegionManager manages MAIN + RESERVE units (RESERVE-borrowed dead regions
+    // go into the tree directly; ShrinkInactiveZone ClearTrees+rebuild ensures no
+    // nodes beyond the watermark after return).
+    freeRegionManager.Initialize(mainUnitCount + reserveUnitCount);
+    // M4b: Enable lowAddressFirst — allocate from low address to pack live regions at low end,
+    // maximizing the contiguous free zone at the high end for ShrinkInactiveZone.
+    freeRegionManager.SetLowAddressFirst(true);
     this->exemptedRegionThreshold = CangjieRuntime::GetHeapParam().exemptionThreshold;
 
     // Log space partitioning
@@ -506,16 +512,8 @@ void RegionManager::ReclaimRegion(RegionInfo* region)
 
     region->InitFreeUnits();
 
-    // M5: If region is in RESERVE-borrowed territory, defer for return to RESERVE.
-    // Protected by pendingReserveReturnsMutex (push_back from mutator/GC/FP threads concurrently).
-    if (IsInReserveTerritory(region->GetRegionStart())) {
-        std::lock_guard<std::mutex> lock(pendingReserveReturnsMutex);
-        pendingReserveReturns.push_back({unitIndex, num});
-        DLOG(REGION, "MAIN reclaim: RESERVE-borrowed region deferred for return, units[%zu+%zu)",
-             unitIndex, num);
-        return;
-    }
-
+    // P3: RESERVE-borrowed dead regions go directly into freeRegionManager.
+    // ShrinkInactiveZone ClearTrees+rebuild ensures no nodes beyond watermark after return.
     freeRegionManager.AddGarbageUnits(unitIndex, num);
 }
 
@@ -533,15 +531,7 @@ size_t RegionManager::ReleaseRegion(RegionInfo* region)
     region->InitFreeUnits();
     RegionInfo::ReleaseUnits(unitIndex, num);
 
-    // M5: If region is in RESERVE-borrowed territory, defer for return to RESERVE.
-    if (IsInReserveTerritory(region->GetRegionStart())) {
-        std::lock_guard<std::mutex> lock(pendingReserveReturnsMutex);
-        pendingReserveReturns.push_back({unitIndex, num});
-        DLOG(REGION, "MAIN release: RESERVE-borrowed region deferred for return, units[%zu+%zu)",
-             unitIndex, num);
-        return res;
-    }
-
+    // P3: RESERVE-borrowed dead regions go directly into freeRegionManager.
     freeRegionManager.AddReleaseUnits(unitIndex, num);
     return res;
 }
@@ -754,10 +744,14 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
         return region;
     }
 
-    // when free regions are not enough for allocation
+    // when free regions are not enough for allocation — try inactiveZone
+    // P5: RESERVE borrowing removed from here. If inactiveZone is insufficient,
+    // TakeRegion returns nullptr. The caller's retry loop triggers OOM GC, then
+    // borrows from RESERVE at the RegionSpace level before retrying.
     if (num <= GetInactiveUnitCount()) {
+        uintptr_t effectiveEnd = GetEffectiveMainEnd();
         uintptr_t addr = inactiveZone.fetch_add(size);
-        if (addr < mainEnd - size) {  // M4b: use mainEnd instead of regionHeapEnd
+        if (addr + size <= effectiveEnd) {
             region = RegionInfo::InitRegionAt(addr, num, type);
             size_t idx = region->GetUnitIdx();
 #ifdef _WIN64
@@ -1120,10 +1114,9 @@ void RegionManager::DumpRegionStats(const char* msg) const
              reserveCap, reserveAvail,
              reserveMainBorrowed, reserveLOSBorrowed,
              reserveMainReturned, reserveLOSReturned);
-        VLOG(REPORT, "\tRESERVE: mainBorrowCount %zu, losBorrowCount %zu, cooldownSkips %zu",
+        VLOG(REPORT, "\tRESERVE: mainBorrowCount %zu, losBorrowCount %zu",
              reserveManager->GetMainChunkBorrowCount(),
-             reserveManager->GetLOSChunkBorrowCount(),
-             reserveManager->GetCooldownSkipCount());
+             reserveManager->GetLOSChunkBorrowCount());
         TRACE_COUNT("CJRT_GC_reserveCapacity", reserveCap);
         TRACE_COUNT("CJRT_GC_reserveAvailable", reserveAvail);
         TRACE_COUNT("CJRT_GC_reserveMainBorrowed", reserveMainBorrowed);
@@ -1525,6 +1518,16 @@ bool RegionManager::RouteOrCompactRegionImpl(RegionInfo* region)
     bool result;
     if (toRegion1 == RegionInfo::NullRegion()) {
         toRegion1 = AllocateThreadLocalRegion();
+        // If MAIN is full, try borrowing from RESERVE to extend the runway
+        // before falling back to in-place compaction.  This allows the GC's
+        // forwarding pass to proceed with copying instead of compacting,
+        // which greatly reduces the risk of corrupted object iteration.
+        if (toRegion1 == nullptr && reserveManager != nullptr) {
+            size_t needed = maxUnitCountPerRegion * RegionInfo::UNIT_SIZE;
+            if (reserveManager->BorrowForMain(needed) > 0) {
+                toRegion1 = AllocateThreadLocalRegion();
+            }
+        }
         if (toRegion1 == nullptr) {
             CompactRegion(region);
             toRegion1 = region;
@@ -1573,6 +1576,13 @@ bool RegionManager::RouteOrCompactRegionImpl(RegionInfo* region)
     }
 
     RegionInfo* toRegion2 = AllocateThreadLocalRegion();
+    // Same RESERVE borrow logic as toRegion1 above.
+    if (toRegion2 == nullptr && reserveManager != nullptr) {
+        size_t needed = maxUnitCountPerRegion * RegionInfo::UNIT_SIZE;
+        if (reserveManager->BorrowForMain(needed) > 0) {
+            toRegion2 = AllocateThreadLocalRegion();
+        }
+    }
     CHECK(region != toRegion2);
     if (toRegion2 != nullptr) {
         toRegion1->Alloc(usedBytes1);
@@ -1745,37 +1755,82 @@ uintptr_t RegionManager::AllocPinnedFromFreeList(size_t size)
 }
 
 // M4b: Shrink inactiveZone to reclaim free space at the high end of MAIN.
-// After GC with low-address-first allocation, live regions cluster near regionHeapStart,
-// and free regions accumulate near inactiveZone. This function:
-//   1. Scans the active zone to find the highest live region end.
-//   2. Rebuilds freeRegionManager with only chunks below that boundary.
-//   3. Lowers inactiveZone to release high-end free space.
-// Called during STW after every GC's CollectSmallSpace.
+// P3: ShrinkInactiveZone — two-phase shrink for MAIN + RESERVE-borrowed space.
+// Only called during OOM GC under STW — non-OOM GC skips this entirely.
+// Phase A: Shrink MAIN's own inactiveZone.
+// Phase B: Scan RESERVE-borrowed space [mainEnd, mainWatermark), find highest live
+//          borrowed region, keep free chunks below it in tree, push watermark back.
+// Called during STW — no concurrent tree/watermark access.
 size_t RegionManager::ShrinkInactiveZone()
 {
     uintptr_t oldInactive = inactiveZone.load();
-    if (oldInactive <= regionHeapStart) {
-        return 0;
-    }
+    size_t totalReclaimed = 0;
 
-    // Pass 1: Scan active zone to find highest live region end.
+    // ===== Phase A: Shrink MAIN's inactiveZone =====
+    // P6-fix: Cap scan range to MAIN's own space [regionHeapStart, mainEnd).
+    // If inactiveZone was pushed past mainEnd (into borrowed RESERVE territory),
+    // those borrowed regions are handled by Phase B — avoid overlap.
+    uintptr_t mainScanEnd = std::min(oldInactive, mainEnd);
     uintptr_t highestLiveEnd = regionHeapStart;
-    for (uintptr_t addr = regionHeapStart; addr < oldInactive;) {
-        RegionInfo* region = RegionInfo::GetRegionInfoAt(addr);
-        uintptr_t end = region->GetRegionEnd();
-        if (region->IsValidRegion() && !region->IsFreeRegion() && !region->IsGarbageRegion()) {
-            highestLiveEnd = end;
+    if (mainScanEnd > regionHeapStart) {
+        for (uintptr_t addr = regionHeapStart; addr < mainScanEnd;) {
+            RegionInfo* region = RegionInfo::GetRegionInfoAt(addr);
+            uintptr_t end = region->GetRegionEnd();
+            if (region->IsValidRegion() && !region->IsFreeRegion() && !region->IsGarbageRegion()) {
+                // P7-fix: Cap at mainEnd when a large region straddles the MAIN-RESERVE
+                // boundary.  Phase B handles the borrowed portion; if we let highestLiveEnd
+                // exceed mainEnd, newInactive would be set past mainEnd, the tree-rebuild
+                // loops would overlap, and mainReclaimed could underflow.
+                highestLiveEnd = std::min(end, mainEnd);
+            }
+            addr = end;
         }
-        addr = end;
     }
 
-    if (highestLiveEnd >= oldInactive) {
-        return 0; // No free space at high end
+    // ===== Phase B: Scan RESERVE-borrowed space =====
+    uintptr_t highestLiveBorrowedEnd = 0; // 0 means no live borrowed regions
+    uintptr_t mainWm = 0;
+    bool hasBorrowed = false;
+    bool borrowedShrunk = false;
+    if (reserveManager != nullptr) {
+        mainWm = reserveManager->GetMainWatermark();
+        hasBorrowed = (mainWm > mainEnd);
+        if (hasBorrowed) {
+            // P7-fix: Only scan initialized regions [mainEnd, min(oldInactive, mainWm)).
+            // Regions in [oldInactive, mainWm) were never touched by TakeRegion, so their
+            // RegionInfo metadata (including regionEnd) is zero-initialized.  Scanning them
+            // would read regionEnd = 0, setting addr = 0 and causing out-of-bounds access.
+            // If oldInactive <= mainEnd, no allocation entered borrowed territory — skip scan
+            // and reclaim the entire borrowed chunk.
+            uintptr_t borrowedScanEnd = std::min(oldInactive, mainWm);
+            if (borrowedScanEnd > mainEnd) {
+                for (uintptr_t addr = mainEnd; addr < borrowedScanEnd;) {
+                    RegionInfo* region = RegionInfo::GetRegionInfoAt(addr);
+                    uintptr_t end = region->GetRegionEnd();
+                    if (region->IsValidRegion() && !region->IsFreeRegion() && !region->IsGarbageRegion()) {
+                        highestLiveBorrowedEnd = end;
+                    }
+                    addr = end;
+                }
+            }
+        }
+        borrowedShrunk = hasBorrowed && (highestLiveBorrowedEnd < mainWm);
     }
 
-    // Pass 2: Rebuild freeRegionManager with only free chunks below highestLiveEnd.
+    // Decide new inactiveZone: only shrink if there's free space at the high end of MAIN
+    uintptr_t newInactive = (highestLiveEnd > regionHeapStart) ? highestLiveEnd : regionHeapStart;
+    bool mainShrunk = (oldInactive > regionHeapStart && newInactive < oldInactive);
+
+    if (!mainShrunk && !borrowedShrunk) {
+        return 0; // Nothing to reclaim
+    }
+
+    // ===== Rebuild freeRegionManager =====
+    // ClearTrees atomically removes all nodes. We then re-add only in-bounds free chunks.
     freeRegionManager.ClearTrees();
-    for (uintptr_t addr = regionHeapStart; addr < highestLiveEnd;) {
+
+    // Re-add MAIN free chunks below newInactive
+    for (uintptr_t addr = regionHeapStart; addr < newInactive;) {
         RegionInfo* region = RegionInfo::GetRegionInfoAt(addr);
         uintptr_t end = region->GetRegionEnd();
         if (region->IsFreeRegion()) {
@@ -1784,58 +1839,92 @@ size_t RegionManager::ShrinkInactiveZone()
         addr = end;
     }
 
-    // Shrink inactiveZone.
-    inactiveZone.store(highestLiveEnd, std::memory_order_release);
-
-    size_t reclaimedBytes = oldInactive - highestLiveEnd;
-    VLOG(REPORT, "ShrinkInactiveZone: 0x%zx -> 0x%zx, reclaimed %zu bytes (%zu units)",
-         oldInactive, highestLiveEnd, reclaimedBytes, reclaimedBytes / RegionInfo::UNIT_SIZE);
-    return reclaimedBytes;
-}
-
-// M5: Return RESERVE-borrowed free MAIN regions to RESERVE.
-// Dead RESERVE-borrowed regions are intercepted in ReclaimRegion/ReleaseRegion and
-// stored in pendingReserveReturns instead of freeRegionManager.
-// With hole bitmap, ReturnFromMain always succeeds (marks bitmap + coalesces watermark).
-size_t RegionManager::ReturnBorrowedToReserve()
-{
-    // Lock to safely read/clear pendingReserveReturns; producers (ReclaimRegion/ReleaseRegion)
-    // may push_back concurrently from mutator or FP threads.
-    std::lock_guard<std::mutex> lock(pendingReserveReturnsMutex);
-    if (reserveManager == nullptr || pendingReserveReturns.empty()) {
-        return 0;
-    }
-
-    // M5 hysteresis: skip proactive return if MAIN return is in cooldown
-    // (unless there are many pending returns, suggesting heavy churn)
-    if (reserveManager->IsMainReturnInCooldown() && pendingReserveReturns.size() < 4) {
-        // Cooldown active — put pending returns into freeRegionManager for reuse
-        for (auto& entry : pendingReserveReturns) {
-            freeRegionManager.AddGarbageUnits(entry.first, entry.second);
+    // Re-add RESERVE-borrowed free chunks below highestLiveBorrowedEnd
+    if (highestLiveBorrowedEnd > mainEnd) {
+        for (uintptr_t addr = mainEnd; addr < highestLiveBorrowedEnd;) {
+            RegionInfo* region = RegionInfo::GetRegionInfoAt(addr);
+            uintptr_t end = region->GetRegionEnd();
+            if (region->IsFreeRegion()) {
+                freeRegionManager.AddGarbageUnits(region->GetUnitIdx(), region->GetUnitCount());
+            }
+            addr = end;
         }
-        DLOG(REGION, "MAIN ReturnBorrowedToReserve: cooldown, %zu entries kept in freeRegionManager",
-             pendingReserveReturns.size());
-        pendingReserveReturns.clear();
-        return 0;
     }
 
-    // With hole bitmap, no sorting needed — ReturnFromMain accepts any position.
-    // Bitmap records the return; watermark coalesces automatically when contiguous.
-    size_t returnedBytes = 0;
-    for (auto& entry : pendingReserveReturns) {
-        uintptr_t addr = RegionInfo::GetUnitAddress(entry.first);
-        size_t size = entry.second * RegionInfo::UNIT_SIZE;
-        reserveManager->ReturnFromMain(addr, size);
-        returnedBytes += size;
-        DLOG(REGION, "MAIN ReturnBorrowedToReserve: returned %zu bytes @0x%zx", size, addr);
+    // ===== Phase A commit: shrink inactiveZone =====
+    if (mainShrunk) {
+        inactiveZone.store(newInactive, std::memory_order_release);
+
+        // Drain garbageRegionList: discard garbage regions above newInactive
+        {
+            RegionInfo* g = garbageRegionList.GetHeadRegion();
+            while (g != nullptr) {
+                RegionInfo* next = g->GetNextRegion();
+                uintptr_t gStart = g->GetRegionStart();
+                // P6-fix: Only purge MAIN zone garbage here.
+                // Borrowed-zone garbage is purged by Phase B exclusively.
+                if (gStart >= newInactive && gStart < mainEnd) {
+                    garbageRegionList.DeleteRegion(g);
+                    DLOG(REGION, "ShrinkInactiveZone: purged garbage region %p@[%#zx, %#zx)",
+                         g, g->GetRegionStart(), g->GetRegionEnd());
+                }
+                g = next;
+            }
+        }
+
+        // P6-fix: Only count MAIN's own space as reclaimed.
+        // Borrowed territory [mainEnd, oldInactive) is returned via Phase B.
+        size_t mainReclaimed = std::min(oldInactive, mainEnd) - newInactive;
+        totalReclaimed += mainReclaimed;
+
+        // Release physical pages in [newInactive, min(oldInactive, mainEnd))
+        size_t releaseStartIdx = (newInactive - regionHeapStart) / RegionInfo::UNIT_SIZE;
+        size_t releaseCount = mainReclaimed / RegionInfo::UNIT_SIZE;
+        if (releaseCount > 0) {
+            RegionInfo::ReleaseUnits(releaseStartIdx, releaseCount);
+        }
+
+        VLOG(REPORT, "ShrinkInactiveZone Phase A: 0x%zx -> 0x%zx, reclaimed %zu bytes",
+             oldInactive, newInactive, mainReclaimed);
     }
 
-    pendingReserveReturns.clear();
+    // ===== Phase B commit: push mainWatermark back =====
+    if (borrowedShrunk && reserveManager != nullptr) {
+        // New watermark = highestLiveBorrowedEnd, or mainEnd (reserveStart) if no live borrowed
+        uintptr_t newWatermark = (highestLiveBorrowedEnd > mainEnd) ? highestLiveBorrowedEnd : mainEnd;
+        // ReclaimMainBorrowed: pushes watermark, invalidates buffer, updates stats
+        size_t borrowedReclaimed = reserveManager->ReclaimMainBorrowed(newWatermark);
+        totalReclaimed += borrowedReclaimed;
 
-    if (returnedBytes > 0) {
-        DLOG(REPORT, "MAIN ReturnBorrowedToReserve: returned %zu bytes total to RESERVE", returnedBytes);
+        // Also purge garbage regions in the reclaimed borrowed zone
+        {
+            RegionInfo* g = garbageRegionList.GetHeadRegion();
+            while (g != nullptr) {
+                RegionInfo* next = g->GetNextRegion();
+                if (g->GetRegionStart() >= newWatermark && g->GetRegionStart() < mainWm) {
+                    garbageRegionList.DeleteRegion(g);
+                    DLOG(REGION, "ShrinkInactiveZone Phase B: purged garbage region %p@[%#zx, %#zx)",
+                         g, g->GetRegionStart(), g->GetRegionEnd());
+                }
+                g = next;
+            }
+        }
+
+        // Release physical pages in reclaimed borrowed zone [newWatermark, oldMainWm)
+        if (borrowedReclaimed > 0) {
+            size_t releaseStartIdx = (newWatermark - regionHeapStart) / RegionInfo::UNIT_SIZE;
+            size_t releaseCount = borrowedReclaimed / RegionInfo::UNIT_SIZE;
+            RegionInfo::ReleaseUnits(releaseStartIdx, releaseCount);
+        }
+
+        VLOG(REPORT, "ShrinkInactiveZone Phase B: watermark 0x%zx -> 0x%zx, returned %zu bytes to RESERVE",
+             mainWm, newWatermark, borrowedReclaimed);
     }
-    return returnedBytes;
+
+    if (totalReclaimed > 0) {
+        VLOG(REPORT, "ShrinkInactiveZone: total reclaimed %zu bytes", totalReclaimed);
+    }
+    return totalReclaimed;
 }
 
 } // namespace MapleRuntime

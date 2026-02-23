@@ -19,7 +19,8 @@
 
 namespace MapleRuntime {
 
-void LOSManager::Initialize(uintptr_t start, uintptr_t end, UnitCount unitStart, UnitCount unitEnd)
+void LOSManager::Initialize(uintptr_t start, uintptr_t end, UnitCount unitStart, UnitCount unitEnd,
+                            UnitCount reserveUnitCount)
 {
     losStart = start;
     losEnd = end;
@@ -30,16 +31,16 @@ void LOSManager::Initialize(uintptr_t start, uintptr_t end, UnitCount unitStart,
     losInactiveZone.store(losEnd, std::memory_order_relaxed);
 
     // Initialize FreeRegionManager for LOS space.
-    // The FreeRegionManager's baseUnit was set to losUnitStart in constructor via
-    // RegionManager::Initialize(). Here we just initialize the CartesianTrees
-    // with the LOS unit count. The trees use local indices [0, losUnitCount),
-    // and baseUnit offset is applied transparently when accessing RegionInfo.
+    // P4: baseUnit = mainUnitCount (set in constructor) so the tree covers RESERVE
+    // extension area + native LOS space. Capacity = reserveUnitCount + losUnitCount.
+    // This allows RESERVE-borrowed dead regions to be recycled normally.
     UnitCount losUnitCount = unitEnd - unitStart;
-    losFreeMgr.Initialize(losUnitCount);
+    losFreeMgr.Initialize(reserveUnitCount + losUnitCount);
 
     DLOG(REPORT, "LOSManager initialized: space [0x%zx, 0x%zx), units [%u, %u), capacity %zu bytes, "
-         "FreeRegionManager baseUnit=%u",
-         losStart, losEnd, losUnitStart, losUnitEnd, GetCapacity(), losFreeMgr.GetBaseUnit());
+         "FreeRegionManager baseUnit=%u, treeCapacity=%u (reserve=%u + los=%u)",
+         losStart, losEnd, losUnitStart, losUnitEnd, GetCapacity(), losFreeMgr.GetBaseUnit(),
+         reserveUnitCount + losUnitCount, reserveUnitCount, losUnitCount);
 }
 
 // ===== M2: Large object allocation =====
@@ -77,22 +78,10 @@ uintptr_t LOSManager::AllocLarge(size_t size)
         return finishAllocation(region, "freeMgr");
     }
 
-    // Step 2: Expand losInactiveZone toward low address
+    // Step 2: Expand losInactiveZone toward low address (with borrow-on-demand inside)
     region = AllocFromInactiveZone(unitCount);
     if (region != nullptr) {
         return finishAllocation(region, "inactiveZone");
-    }
-
-    // Step 3: Borrow space from RESERVE zone (chunk strategy handled internally by ReserveManager)
-    if (reserveManager != nullptr) {
-        size_t regionSize = unitCount * RegionInfo::UNIT_SIZE;
-        uintptr_t borrowedAddr = reserveManager->BorrowForLOS(regionSize);
-        if (borrowedAddr != 0) {
-            region = RegionInfo::InitRegionAt(borrowedAddr, unitCount,
-                                              RegionInfo::UnitRole::LARGE_SIZED_UNITS);
-            losReserveBorrowCount.fetch_add(1, std::memory_order_relaxed);
-            return finishAllocation(region, "RESERVE");
-        }
     }
 
     DLOG(REGION, "LOS alloc large failed: size %zu (%zu units), "
@@ -108,10 +97,13 @@ uintptr_t LOSManager::AllocLarge(size_t size)
 RegionInfo* LOSManager::AllocFromInactiveZone(size_t unitCount)
 {
     size_t regionSize = unitCount * RegionInfo::UNIT_SIZE;
+    uintptr_t effectiveStart = GetEffectiveLOSStart();
     uintptr_t currentZone = losInactiveZone.load(std::memory_order_relaxed);
 
-    // LOS grows from losEnd toward losStart (high → low address)
-    if (currentZone < losStart + regionSize) {
+    // P5: RESERVE borrowing removed from here. If inactiveZone is insufficient,
+    // returns nullptr. The caller's retry loop triggers OOM GC, then borrows
+    // from RESERVE at the RegionSpace level before retrying.
+    if (currentZone < effectiveStart + regionSize) {
         return nullptr;  // not enough space
     }
 
@@ -119,7 +111,7 @@ RegionInfo* LOSManager::AllocFromInactiveZone(size_t unitCount)
     uintptr_t newZone = currentZone - regionSize;
     while (!losInactiveZone.compare_exchange_weak(currentZone, newZone,
             std::memory_order_relaxed, std::memory_order_relaxed)) {
-        if (currentZone < losStart + regionSize) {
+        if (currentZone < effectiveStart + regionSize) {
             return nullptr;
         }
         newZone = currentZone - regionSize;
@@ -243,14 +235,6 @@ size_t LOSManager::ReclaimLOSRegion(RegionInfo* region)
 
     region->InitFreeUnits();
 
-    // M5: If region is in RESERVE-borrowed territory (below losStart), defer for return to RESERVE
-    if (IsInReserveTerritory(region->GetRegionStart())) {
-        pendingReserveReturns.push_back({unitIndex, unitCount});
-        DLOG(REGION, "LOS reclaim: RESERVE-borrowed region deferred for return, units[%zu+%zu)",
-             unitIndex, unitCount);
-        return regionSize;
-    }
-
     losFreeMgr.AddGarbageUnits(unitIndex, unitCount);
     return regionSize;
 }
@@ -273,14 +257,6 @@ size_t LOSManager::ReleaseLOSRegion(RegionInfo* region)
 
     region->InitFreeUnits();
     RegionInfo::ReleaseUnits(unitIndex, unitCount);
-
-    // M5: If region is in RESERVE-borrowed territory (below losStart), defer for return to RESERVE
-    if (IsInReserveTerritory(region->GetRegionStart())) {
-        pendingReserveReturns.push_back({unitIndex, unitCount});
-        DLOG(REGION, "LOS release: RESERVE-borrowed region deferred for return, units[%zu+%zu)",
-             unitIndex, unitCount);
-        return regionSize;
-    }
 
     losFreeMgr.AddReleaseUnits(unitIndex, unitCount);
     return regionSize;
@@ -778,9 +754,18 @@ size_t LOSManager::CompactLOS()
     // Rebuild losFreeMgr: clear trees, then insert gaps between live regions
     RebuildFreeRegionManager(allLiveRegions);
 
-    // Phase 7: Shrink to RESERVE — return freed space at low address end.
+    // Phase 7: Return RESERVE-borrowed space.
+    // After compaction, all live objects are packed toward losEnd.
+    // losInactiveZone (= lowestLiveStart) includes pinned objects.
+    // Safe return boundary: min(losInactiveZone, losStart).
+    //   - losInactiveZone >= losStart → all objects in native LOS → return entire borrow.
+    //   - losInactiveZone <  losStart → pinned object(s) remain in RESERVE → partial return.
     size_t freedBytes = lowestLiveStart - oldInactiveZone;
-    size_t shrunkBytes = ShrinkToReserve(freedBytes);
+    size_t shrunkBytes = 0;
+    if (reserveManager != nullptr) {
+        uintptr_t newLosWatermark = std::min(lowestLiveStart, losStart);
+        shrunkBytes = reserveManager->ReclaimLOSBorrowed(newLosWatermark);
+    }
 
     // Update statistics
     losCompactCount++;
@@ -849,91 +834,6 @@ void LOSManager::RebuildFreeRegionManager(const std::vector<RegionInfo*>& allLiv
 
     DLOG(REPORT, "LOS rebuild freeMgr: dirty=%u, released=%u",
          losFreeMgr.GetDirtyUnitCount(), losFreeMgr.GetReleasedUnitCount());
-}
-
-size_t LOSManager::ShrinkToReserve(size_t freedBytes)
-{
-    if (freedBytes == 0 || reserveManager == nullptr) {
-        return 0;
-    }
-
-    // The freed space is at the low-address end of LOS: [old losInactiveZone, new losInactiveZone).
-    // But losInactiveZone has already been updated. The freed region is:
-    //   [losInactiveZone - freedBytes ... is no longer correct]
-    // Actually: losInactiveZone was moved from oldInactiveZone to lowestLiveStart.
-    // The freed bytes = lowestLiveStart - oldInactiveZone.
-    // The freed address range was [oldInactiveZone, lowestLiveStart).
-    // But after compaction, losInactiveZone = lowestLiveStart and the space below
-    // [oldInactiveZone, lowestLiveStart) is now unused.
-    // However, we cannot directly "return" LOS address space to RESERVE because
-    // the LOS boundary (losStart) is fixed. Instead, we shrink LOS by moving
-    // losStart upward, effectively returning the low-end to RESERVE.
-    //
-    // For now: return the freed bytes as a ReturnFromLOS call, which adjusts RESERVE
-    // watermarks. The actual LOS range [losStart, losEnd) doesn't change, but
-    // the inactive zone has moved up, so the effective capacity decreased.
-    //
-    // Let RESERVE know about the freed space:
-    uintptr_t inactiveZone = losInactiveZone.load(std::memory_order_relaxed);
-    size_t returnSize = freedBytes;
-
-    // Align return size to unit boundaries
-    returnSize = (returnSize / RegionInfo::UNIT_SIZE) * RegionInfo::UNIT_SIZE;
-    if (returnSize == 0) {
-        return 0;
-    }
-
-    // Return the freed low-address region to RESERVE.
-    // The space between old and new losInactiveZone is now unused LOS space.
-    // With hole bitmap, ReturnFromLOS always succeeds (marks bitmap + coalesces watermark).
-    uintptr_t returnAddr = inactiveZone;  // new losInactiveZone (= lowest live object)
-    reserveManager->ReturnFromLOS(returnAddr, returnSize);
-    DLOG(REPORT, "LOS ShrinkToReserve: returned %zu bytes @0x%zx to RESERVE", returnSize, returnAddr);
-    return returnSize;
-}
-
-// ===== M5: Return RESERVE-borrowed free LOS regions to RESERVE =====
-
-size_t LOSManager::ReturnBorrowedToReserve()
-{
-    if (reserveManager == nullptr || pendingReserveReturns.empty()) {
-        return 0;
-    }
-
-    std::sort(pendingReserveReturns.begin(), pendingReserveReturns.end());
-    pendingReserveReturns.erase(std::unique(pendingReserveReturns.begin(), pendingReserveReturns.end()),
-                               pendingReserveReturns.end());
-
-    // M5 hysteresis: skip proactive return if LOS return is in cooldown
-    // (unless there are many pending returns, indicating heavy return pressure)
-    if (reserveManager->IsLOSReturnInCooldown() && pendingReserveReturns.size() < 4) {
-        // Still in cooldown — put pending returns into losFreeMgr for reuse instead
-        for (auto& entry : pendingReserveReturns) {
-            losFreeMgr.AddGarbageUnits(entry.first, entry.second);
-        }
-        DLOG(REGION, "LOS ReturnBorrowedToReserve: cooldown, %zu entries kept in losFreeMgr",
-             pendingReserveReturns.size());
-        pendingReserveReturns.clear();
-        return 0;
-    }
-
-    // With hole bitmap, no sorting needed — ReturnFromLOS accepts any position.
-    // Bitmap records the return; watermark coalesces automatically when contiguous.
-    size_t returnedBytes = 0;
-    for (auto& entry : pendingReserveReturns) {
-        uintptr_t addr = RegionInfo::GetUnitAddress(entry.first);
-        size_t size = entry.second * RegionInfo::UNIT_SIZE;
-        reserveManager->ReturnFromLOS(addr, size);
-        returnedBytes += size;
-        DLOG(REGION, "LOS ReturnBorrowedToReserve: returned %zu bytes @0x%zx", size, addr);
-    }
-
-    pendingReserveReturns.clear();
-
-    if (returnedBytes > 0) {
-        DLOG(REPORT, "LOS ReturnBorrowedToReserve: returned %zu bytes total", returnedBytes);
-    }
-    return returnedBytes;
 }
 
 } // namespace MapleRuntime

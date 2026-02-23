@@ -28,14 +28,14 @@ namespace MapleRuntime {
  *               ^             ^
  *        reserveStart    reserveEnd
  *
- * Borrowing strategy (A+B hybrid chunk):
- *   On each borrow call, we first try the internal buffer zone.
- *   If the buffer has insufficient space, we borrow a chunk from RESERVE:
+ * Borrowing strategy (runway extension with A+B hybrid chunk):
+ *   On each borrow call, we commit a chunk from the RESERVE watermark to extend
+ *   the caller's inactiveZone runway. The caller's normal allocation (fetch_add)
+ *   then uses the extended space.
  *     chunkSize = align_up(max(requestSize, max(minChunk, available * 10%)), alignment)
- *   The excess is kept in the buffer for subsequent calls.
  *
- *   - MAIN borrows from low address (reserveStart) upward
- *   - LOS borrows from high address (reserveEnd) downward
+ *   - MAIN borrows from low address (reserveStart) upward → extends mainWatermark
+ *   - LOS borrows from high address (reserveEnd) downward → extends losWatermark
  */
 class ReserveManager {
 public:
@@ -75,68 +75,46 @@ public:
     bool IsInReserve(uintptr_t addr) const { return addr >= reserveStart && addr < reserveEnd; }
 
     /**
-     * Borrow space for MAIN (grows from low address upward).
-     * Internally buffers a chunk; caller just requests exact size needed.
-     * @param size Size in bytes to borrow (must be unit-aligned)
-     * @return Start address of borrowed region, or 0 if failed
+     * Extend MAIN runway by borrowing from RESERVE (grows upward).
+     * Commits a chunk from mainWatermark, extending the effective MAIN boundary.
+     * Caller's inactiveZone can then expand into the borrowed space normally.
+     * @param size Minimum bytes needed (chunk may be larger for amortization)
+     * @return Bytes actually committed (>0 on success, 0 on failure)
      */
-    uintptr_t BorrowForMain(size_t size);
+    size_t BorrowForMain(size_t size);
 
     /**
-     * Borrow space for LOS (grows from high address downward).
-     * Internally buffers a chunk; caller just requests exact size needed.
-     * @param size Size in bytes to borrow (must be unit-aligned)
-     * @return Start address of borrowed region, or 0 if failed
+     * Extend LOS runway by borrowing from RESERVE (grows downward).
+     * Commits a chunk from losWatermark, extending the effective LOS boundary.
+     * Caller's losInactiveZone can then expand into the borrowed space normally.
+     * @param size Minimum bytes needed (chunk may be larger for amortization)
+     * @return Bytes actually committed (>0 on success, 0 on failure)
      */
-    uintptr_t BorrowForLOS(size_t size);
+    size_t BorrowForLOS(size_t size);
 
     /**
-     * Return borrowed space from MAIN.
-     * Uses hole bitmap: marks returned units, then scans from watermark to
-     * find contiguous returned region and pushes watermark back.
-     * Accepts returns at any position (not just LIFO).
-     * @param addr Start address of region to return
-     * @param size Size in bytes to return
-     * @return true (always succeeds — bitmap records the return)
+     * Bulk reclaim MAIN-borrowed RESERVE space after ShrinkInactiveZone Phase B.
+     * Directly pushes mainWatermark to newWatermark without bitmap.
+     * @param newWatermark New mainWatermark value (must be <= current mainWatermark
+     *                     and >= reserveStart). Excess MAIN buffer is invalidated.
+     * @return Bytes reclaimed (oldWatermark - newWatermark)
      */
-    bool ReturnFromMain(uintptr_t addr, size_t size);
+    size_t ReclaimMainBorrowed(uintptr_t newWatermark);
 
     /**
-     * Return borrowed space from LOS.
-     * Uses hole bitmap: marks returned units, then scans from watermark to
-     * find contiguous returned region and pushes watermark back.
-     * Accepts returns at any position (not just LIFO).
-     * @param addr Start address of region to return
-     * @param size Size in bytes to return
-     * @return true (always succeeds — bitmap records the return)
+     * Bulk reclaim LOS-borrowed RESERVE space after CompactLOS.
+     * Directly pushes losWatermark to newWatermark without bitmap.
+     * @param newWatermark New losWatermark value (must be >= current losWatermark
+     *                     and <= reserveEnd). Excess LOS buffer is invalidated.
+     * @return Bytes reclaimed (newWatermark - oldWatermark)
      */
-    bool ReturnFromLOS(uintptr_t addr, size_t size);
+    size_t ReclaimLOSBorrowed(uintptr_t newWatermark);
 
     /**
      * M5: Notify ReserveManager that a GC cycle has completed.
-     * Used for cooldown tracking.
      */
     void NotifyGCCycle() { gcCycleCount++; }
     size_t GetGCCycleCount() const { return gcCycleCount; }
-
-    /**
-     * M5: Check if borrow/return operations are in cooldown.
-     * After a return, borrowing is suppressed for BORROW_COOLDOWN_CYCLES.
-     * After a borrow, returning is suppressed for RETURN_COOLDOWN_CYCLES.
-     * Note: emergency operations (during allocation failure) bypass cooldown.
-     */
-    bool IsMainBorrowInCooldown() const {
-        return (gcCycleCount - lastMainReturnCycle) < BORROW_COOLDOWN_CYCLES;
-    }
-    bool IsLOSBorrowInCooldown() const {
-        return (gcCycleCount - lastLOSReturnCycle) < BORROW_COOLDOWN_CYCLES;
-    }
-    bool IsMainReturnInCooldown() const {
-        return (gcCycleCount - lastMainBorrowCycle) < RETURN_COOLDOWN_CYCLES;
-    }
-    bool IsLOSReturnInCooldown() const {
-        return (gcCycleCount - lastLOSBorrowCycle) < RETURN_COOLDOWN_CYCLES;
-    }
 
     /**
      * Get MAIN watermark (current high-water of MAIN's borrowed area).
@@ -156,7 +134,6 @@ public:
     size_t GetLOSBorrowBytes() const { return losBorrowBytes; }
     size_t GetMainReturnBytes() const { return mainReturnBytes; }
     size_t GetLOSReturnBytes() const { return losReturnBytes; }
-    size_t GetCooldownSkipCount() const { return cooldownSkipCount; }
 
     // Borrow strategy constants
     // Minimum chunk: 16 units (e.g., 256KB on 16KB-page, 64KB on 4KB-page systems)
@@ -166,15 +143,9 @@ public:
     // Proportional ratio divisor: borrow available/10 = 10% of remaining RESERVE
     static constexpr size_t BORROW_RATIO_DIVISOR = 10;
 
-    // M5: Cooldown constants (in GC cycles)
-    static constexpr size_t BORROW_COOLDOWN_CYCLES = 2;  // after return, wait before borrow
-    static constexpr size_t RETURN_COOLDOWN_CYCLES = 2;  // after borrow, wait before return
-
-    // M5: Hysteresis thresholds for proactive RESERVE returns
-    // Only return borrowed space if usage ratio < this (e.g., MAIN using < 60% of capacity)
-    static constexpr double RETURN_USAGE_THRESHOLD = 0.6;
-    // Only borrow if usage ratio > this
-    static constexpr double BORROW_USAGE_THRESHOLD = 0.8;
+    // M5: Cooldown constants (in GC cycles) — reserved for future use
+    static constexpr size_t BORROW_COOLDOWN_CYCLES = 2;
+    static constexpr size_t RETURN_COOLDOWN_CYCLES = 2;
 
 private:
     /**
@@ -198,24 +169,6 @@ private:
      */
     uintptr_t CommitChunkForLOS(size_t chunkSize);
 
-    // --- Hole bitmap for non-LIFO return support ---
-    // Each bit represents one RESERVE unit. 1 = logically returned but watermark
-    // hasn't receded past it yet. When contiguous returned bits reach the
-    // watermark edge, the watermark is pushed back in bulk.
-    // Memory: totalReserveUnits / 8 bytes (e.g., 512 bytes for 64MB RESERVE @ 16KB units).
-    size_t AddrToUnitIndex(uintptr_t addr) const { return (addr - reserveStart) / unitSize; }
-    uintptr_t UnitIndexToAddr(size_t idx) const { return reserveStart + idx * unitSize; }
-    void SetBitmapRange(size_t startIdx, size_t count);
-    void ClearBitmapRange(size_t startIdx, size_t count);
-    bool IsBitSet(size_t idx) const { return (returnBitmap[idx / 8] >> (idx % 8)) & 1; }
-
-    // Scan from mainWatermark downward, reclaim contiguous returned units.
-    // Caller must hold borrowMutex.
-    void CoalesceMainWatermark();
-    // Scan from losWatermark upward, reclaim contiguous returned units.
-    // Caller must hold borrowMutex.
-    void CoalesceLOSWatermark();
-
     // RESERVE zone boundaries
     uintptr_t reserveStart = 0;
     uintptr_t reserveEnd = 0;
@@ -223,7 +176,6 @@ private:
     // Unit size (page size)
     size_t unitSize = 0;
     size_t totalReserveUnits = 0;  // (reserveEnd - reserveStart) / unitSize
-    std::vector<uint8_t> returnBitmap;  // hole bitmap, 1 bit per RESERVE unit
 
     // Watermarks: committed boundaries (only move outward, protected by borrowMutex)
     // MAIN commits from reserveStart upward
@@ -231,18 +183,8 @@ private:
     // LOS commits from reserveEnd downward
     std::atomic<uintptr_t> losWatermark{0};
 
-    // Mutex for watermark updates and buffer allocation
+    // Mutex for watermark updates
     std::mutex borrowMutex;
-
-    // --- MAIN buffer zone (grows low→high) ---
-    //   [mainBufCursor ... mainBufCeiling)  = available buffer
-    uintptr_t mainBufCursor = 0;
-    uintptr_t mainBufCeiling = 0;
-
-    // --- LOS buffer zone (grows high→low) ---
-    //   [losBufFloor ... losBufCursor)  = available buffer
-    uintptr_t losBufFloor = 0;
-    uintptr_t losBufCursor = 0;
 
     // Statistics
     size_t mainChunkBorrowCount = 0;   // actual watermark commits for MAIN
@@ -251,14 +193,9 @@ private:
     size_t losBorrowBytes = 0;         // total bytes committed for LOS
     size_t mainReturnBytes = 0;        // total bytes returned from MAIN
     size_t losReturnBytes = 0;         // total bytes returned from LOS
-    size_t cooldownSkipCount = 0;      // times cooldown prevented an operation
 
-    // M5: GC cycle counter and cooldown tracking
+    // M5: GC cycle counter
     size_t gcCycleCount = 0;           // incremented by NotifyGCCycle()
-    size_t lastMainBorrowCycle = 0;    // cycle when MAIN last borrowed
-    size_t lastLOSBorrowCycle = 0;     // cycle when LOS last borrowed
-    size_t lastMainReturnCycle = 0;    // cycle when MAIN last returned
-    size_t lastLOSReturnCycle = 0;     // cycle when LOS last returned
 };
 
 } // namespace MapleRuntime

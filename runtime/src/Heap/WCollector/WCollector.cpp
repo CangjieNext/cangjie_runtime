@@ -26,12 +26,17 @@ bool WCollector::IsUnmovableFromObject(BaseObject* obj) const
     } else {
         regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<uintptr_t>(obj));
     }
-    return regionInfo->IsUnmovableFromRegion();
+    // Defense-in-depth: regionInfo can be nullptr if metadata is in a
+    // transient state (concurrent region init/free).  Treat as non-unmovable.
+    return regionInfo != nullptr && regionInfo->IsUnmovableFromRegion();
 }
 
 bool WCollector::MarkObject(BaseObject* obj) const
 {
     RegionInfo* region = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
+    if (UNLIKELY(region == nullptr)) {
+        return true; // treat as already marked — skip tracing
+    }
     size_t objectSize = obj->GetSize();
     bool marked = region->MarkObject(obj, objectSize);
     if (!marked) {
@@ -750,15 +755,20 @@ void WCollector::DoGarbageCollection()
     ForwardFromSpace();
     FinalizeLOSCompactionIfNeeded();
 
-    // M4b: ShrinkInactiveZone is DISABLED.
-    // The WCollector is a concurrent collector (no STW — ScopedStopTheWorld is commented out
-    // in CopyCollector::RunGarbageCollection). Mutators run concurrently during the entire
-    // GC cycle. ShrinkInactiveZone does ClearTrees + re-scan, which races with mutator's
-    // TakeRegion → ReclaimRegion (InitFreeUnits then AddGarbageUnits). A mutator can call
-    // InitFreeUnits (marking region as free) before AddGarbageUnits; concurrently the
-    // re-scan sees the region as free and also adds it → double-insert into CartesianTree.
-    // TODO(M4b): Re-enable with ScopedStopTheWorld if shrinking is needed.
-    // reinterpret_cast<RegionSpace&>(theAllocator).GetRegionManager().ShrinkInactiveZone();
+    // P3: ShrinkInactiveZone under STW — OOM GC only.
+    // Phase A shrinks MAIN inactiveZone; Phase B pushes mainWatermark back
+    // to return RESERVE-borrowed space.  Only triggered during OOM GC because:
+    //   - Non-OOM GC: MAIN space will be re-consumed quickly, shrinking and
+    //     re-growing is wasted STW + ClearTrees + rebuild overhead.
+    //   - OOM GC: memory is under pressure, reclaim everything possible and
+    //     return borrowed RESERVE space.
+    // STW eliminates all race conditions (ClearTrees vs ReclaimRegion,
+    // inactiveZone.store vs fetch_add, garbageRegionList residual).
+    if (gcReason == GC_REASON_OOM) {
+        RegionManager& rm = reinterpret_cast<RegionSpace&>(theAllocator).GetRegionManager();
+        ScopedStopTheWorld stw("shrink inactive", false);
+        rm.ShrinkInactiveZone();
+    }
 
     TransitionToGCPhase(GCPhase::GC_PHASE_IDLE, true);
     MergeResurrectExportObjects();
@@ -773,17 +783,9 @@ void WCollector::DoGarbageCollection()
     // back to oldLargeRegionList with LARGE_REGION type.
     reinterpret_cast<RegionSpace&>(theAllocator).GetRegionManager().CleanupMigrationCandidates();
 
-    // M5: Return RESERVE-borrowed space after GC.
-    // MAIN: dead borrowed regions (intercepted in ReclaimRegion/ReleaseRegion) are returned.
-    // LOS: dead borrowed regions (intercepted in ReclaimLOSRegion/ReleaseLOSRegion) are returned.
-    // pendingReserveReturns is protected by pendingReserveReturnsMutex.
+    // Notify RESERVE manager of GC cycle (for cooldown tracking).
     {
         RegionManager& rm = reinterpret_cast<RegionSpace&>(theAllocator).GetRegionManager();
-        rm.ReturnBorrowedToReserve();
-        LOSManager* losMgr = rm.GetLOSManager();
-        if (losMgr != nullptr) {
-            losMgr->ReturnBorrowedToReserve();
-        }
         ReserveManager* resMgr = rm.GetReserveManager();
         if (resMgr != nullptr) {
             resMgr->NotifyGCCycle();
@@ -850,6 +852,19 @@ BaseObject* WCollector::ForwardObject(BaseObject* obj)
 BaseObject* WCollector::TryForwardObject(BaseObject* obj)
 {
     CHECK_DETAIL(Heap::IsHeapAddress(obj), "TryForwardObject got non-heap pointer %p", obj);
+
+    // A mutator barrier can race with the GC phase transition.  If we are no
+    // longer in a forward-capable phase, the GC thread has already completed
+    // ForwardFromSpace and all from-objects are forwarded.  Instead of calling
+    // ForwardObjectImpl (which CHECK-aborts outside the forward phase), resolve
+    // any already-forwarded object via FindToVersion.  If the object wasn't in
+    // a ghost-from region (i.e., wasn't forwarded), FindToVersion returns nullptr
+    // and ForwardObject falls back to the original object — which is correct
+    // since there is nothing to forward.
+    GCPhase phase = GetGCPhase();
+    if (phase != GCPhase::GC_PHASE_PREFORWARD && phase != GCPhase::GC_PHASE_FORWARD) {
+        return FindToVersion(obj);
+    }
 
     RegionInfo* region = RegionInfo::GetGhostFromRegionAt(reinterpret_cast<MAddress>(obj));
     if (region == nullptr) {

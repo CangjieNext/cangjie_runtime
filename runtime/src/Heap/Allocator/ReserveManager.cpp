@@ -20,19 +20,12 @@ void ReserveManager::Initialize(uintptr_t start, uintptr_t end, size_t unitSz)
     mainWatermark.store(reserveStart, std::memory_order_relaxed);
     losWatermark.store(reserveEnd, std::memory_order_relaxed);
 
-    // Buffer zones start empty
-    mainBufCursor = 0;
-    mainBufCeiling = 0;
-    losBufFloor = 0;
-    losBufCursor = 0;
-
     // Initialize hole bitmap (1 bit per RESERVE unit, all zero)
     totalReserveUnits = (reserveEnd - reserveStart) / unitSize;
-    returnBitmap.assign((totalReserveUnits + 7) / 8, 0);
 
     DLOG(REPORT, "ReserveManager initialized: zone [0x%zx, 0x%zx), capacity %zu bytes, "
-         "%zu units, bitmap %zu bytes",
-         reserveStart, reserveEnd, GetCapacity(), totalReserveUnits, returnBitmap.size());
+         "%zu units",
+         reserveStart, reserveEnd, GetCapacity(), totalReserveUnits);
 }
 
 size_t ReserveManager::GetAvailable() const
@@ -114,198 +107,102 @@ uintptr_t ReserveManager::CommitChunkForLOS(size_t chunkSize)
     return newLOS;
 }
 
-// ===== Public borrow API (with internal buffer zone management) =====
+// ===== Public borrow API (runway extension) =====
 
-uintptr_t ReserveManager::BorrowForMain(size_t size)
+size_t ReserveManager::BorrowForMain(size_t size)
 {
     std::lock_guard<std::mutex> lock(borrowMutex);
 
-    // Try existing buffer first
-    if (mainBufCursor + size <= mainBufCeiling) {
-        uintptr_t addr = mainBufCursor;
-        mainBufCursor += size;
-        DLOG(REGION, "ReserveManager: BorrowForMain (buffer hit) %zu bytes @0x%zx, buffer remaining %zu",
-             size, addr, mainBufCeiling - mainBufCursor);
-        return addr;
-    }
-
-    // Buffer insufficient — compute chunk and commit from watermark
     size_t chunkSize = ComputeBorrowChunk(size);
     uintptr_t chunkAddr = CommitChunkForMain(chunkSize);
     if (chunkAddr == 0) {
         return 0;
     }
 
-    // Set up new buffer zone
-    mainBufCursor = chunkAddr;
-    mainBufCeiling = chunkAddr + chunkSize;
     mainChunkBorrowCount++;
     mainBorrowBytes += chunkSize;
-    lastMainBorrowCycle = gcCycleCount;  // M5: cooldown tracking
 
-    // Allocate from new buffer
-    uintptr_t addr = mainBufCursor;
-    mainBufCursor += size;
-    DLOG(REGION, "ReserveManager: BorrowForMain (new chunk [0x%zx, 0x%zx) = %zu) %zu bytes @0x%zx, "
-         "buffer remaining %zu",
-         chunkAddr, chunkAddr + chunkSize, chunkSize, size, addr, mainBufCeiling - mainBufCursor);
-    return addr;
+    DLOG(REGION, "ReserveManager: BorrowForMain extended runway by %zu bytes, "
+         "watermark now 0x%zx",
+         chunkSize, mainWatermark.load(std::memory_order_relaxed));
+    return chunkSize;
 }
 
-uintptr_t ReserveManager::BorrowForLOS(size_t size)
+size_t ReserveManager::BorrowForLOS(size_t size)
 {
     std::lock_guard<std::mutex> lock(borrowMutex);
 
-    // Try existing buffer first (LOS grows high→low)
-    if (losBufCursor >= losBufFloor + size) {
-        uintptr_t addr = losBufCursor - size;
-        losBufCursor = addr;
-        DLOG(REGION, "ReserveManager: BorrowForLOS (buffer hit) %zu bytes @0x%zx, buffer remaining %zu",
-             size, addr, losBufCursor - losBufFloor);
-        return addr;
-    }
-
-    // Buffer insufficient — compute chunk and commit from watermark
     size_t chunkSize = ComputeBorrowChunk(size);
     uintptr_t chunkAddr = CommitChunkForLOS(chunkSize);
     if (chunkAddr == 0) {
         return 0;
     }
 
-    // Set up new buffer zone: chunk is [chunkAddr, chunkAddr + chunkSize)
-    losBufFloor = chunkAddr;
-    losBufCursor = chunkAddr + chunkSize;
     losChunkBorrowCount++;
     losBorrowBytes += chunkSize;
-    lastLOSBorrowCycle = gcCycleCount;  // M5: cooldown tracking
 
-    // Allocate from new buffer (high→low)
-    uintptr_t addr = losBufCursor - size;
-    losBufCursor = addr;
-    DLOG(REGION, "ReserveManager: BorrowForLOS (new chunk [0x%zx, 0x%zx) = %zu) %zu bytes @0x%zx, "
-         "buffer remaining %zu",
-         chunkAddr, chunkAddr + chunkSize, chunkSize, size, addr, losBufCursor - losBufFloor);
-    return addr;
+    DLOG(REGION, "ReserveManager: BorrowForLOS extended runway by %zu bytes, "
+         "watermark now 0x%zx",
+         chunkSize, losWatermark.load(std::memory_order_relaxed));
+    return chunkSize;
 }
 
-bool ReserveManager::ReturnFromMain(uintptr_t addr, size_t size)
+// ===== P3: Bulk reclaim — direct watermark push (no bitmap) =====
+
+size_t ReserveManager::ReclaimMainBorrowed(uintptr_t newWatermark)
 {
     std::lock_guard<std::mutex> lock(borrowMutex);
 
-    // Mark the returned units in the hole bitmap
-    size_t startIdx = AddrToUnitIndex(addr);
-    size_t count = size / unitSize;
-    SetBitmapRange(startIdx, count);
-
-    DLOG(REGION, "ReserveManager: ReturnFromMain marked bitmap [%zu, %zu) (%zu bytes @0x%zx)",
-         startIdx, startIdx + count, size, addr);
-
-    // Try to push mainWatermark back by scanning contiguous returned bits
-    CoalesceMainWatermark();
-
-    return true;  // always succeeds — bitmap records the return
-}
-
-bool ReserveManager::ReturnFromLOS(uintptr_t addr, size_t size)
-{
-    std::lock_guard<std::mutex> lock(borrowMutex);
-
-    // Mark the returned units in the hole bitmap
-    size_t startIdx = AddrToUnitIndex(addr);
-    size_t count = size / unitSize;
-    SetBitmapRange(startIdx, count);
-
-    DLOG(REGION, "ReserveManager: ReturnFromLOS marked bitmap [%zu, %zu) (%zu bytes @0x%zx)",
-         startIdx, startIdx + count, size, addr);
-
-    // Try to push losWatermark forward by scanning contiguous returned bits
-    CoalesceLOSWatermark();
-
-    return true;  // always succeeds — bitmap records the return
-}
-
-// ===== Hole bitmap helpers =====
-
-void ReserveManager::SetBitmapRange(size_t startIdx, size_t count)
-{
-    for (size_t i = startIdx; i < startIdx + count && i < totalReserveUnits; ++i) {
-        returnBitmap[i / 8] |= static_cast<uint8_t>(1u << (i % 8));
-    }
-}
-
-void ReserveManager::ClearBitmapRange(size_t startIdx, size_t count)
-{
-    for (size_t i = startIdx; i < startIdx + count && i < totalReserveUnits; ++i) {
-        returnBitmap[i / 8] &= static_cast<uint8_t>(~(1u << (i % 8)));
-    }
-}
-
-void ReserveManager::CoalesceMainWatermark()
-{
-    // MAIN borrowed area: [reserveStart, mainWatermark) = units [0, wmIdx)
-    // Scan from wmIdx-1 downward: find contiguous returned (bit=1) units.
     uintptr_t currentMain = mainWatermark.load(std::memory_order_relaxed);
-    size_t wmIdx = AddrToUnitIndex(currentMain);
 
-    size_t newWmIdx = wmIdx;
-    while (newWmIdx > 0 && IsBitSet(newWmIdx - 1)) {
-        newWmIdx--;
+    // Sanity checks
+    if (newWatermark >= currentMain) {
+        return 0;  // nothing to reclaim (or invalid — newWatermark should be lower)
+    }
+    if (newWatermark < reserveStart) {
+        newWatermark = reserveStart;  // cap at RESERVE boundary
     }
 
-    if (newWmIdx < wmIdx) {
-        // Reclaim contiguous returned units: clear their bits, move watermark
-        ClearBitmapRange(newWmIdx, wmIdx - newWmIdx);
-        uintptr_t newWatermark = UnitIndexToAddr(newWmIdx);
-        mainWatermark.store(newWatermark, std::memory_order_relaxed);
+    size_t reclaimedBytes = currentMain - newWatermark;
 
-        // Invalidate MAIN buffer if it overlaps the reclaimed region
-        if (mainBufCeiling > newWatermark) {
-            mainBufCursor = 0;
-            mainBufCeiling = 0;
-        }
+    // Push watermark back (toward reserveStart)
+    mainWatermark.store(newWatermark, std::memory_order_relaxed);
 
-        size_t reclaimedBytes = (wmIdx - newWmIdx) * unitSize;
-        mainReturnBytes += reclaimedBytes;
-        lastMainReturnCycle = gcCycleCount;
+    // Update statistics
+    mainReturnBytes += reclaimedBytes;
 
-        DLOG(REGION, "ReserveManager: CoalesceMainWatermark reclaimed %zu units [%zu, %zu), "
-             "watermark 0x%zx \u2192 0x%zx",
-             wmIdx - newWmIdx, newWmIdx, wmIdx, currentMain, newWatermark);
-    }
+    DLOG(REPORT, "ReserveManager: ReclaimMainBorrowed %zu bytes, watermark 0x%zx -> 0x%zx",
+         reclaimedBytes, currentMain, newWatermark);
+
+    return reclaimedBytes;
 }
 
-void ReserveManager::CoalesceLOSWatermark()
+size_t ReserveManager::ReclaimLOSBorrowed(uintptr_t newWatermark)
 {
-    // LOS borrowed area: [losWatermark, reserveEnd) = units [losWmIdx, totalReserveUnits)
-    // Scan from losWmIdx upward: find contiguous returned (bit=1) units.
+    std::lock_guard<std::mutex> lock(borrowMutex);
+
     uintptr_t currentLOS = losWatermark.load(std::memory_order_relaxed);
-    size_t losWmIdx = AddrToUnitIndex(currentLOS);
 
-    size_t newLosWmIdx = losWmIdx;
-    while (newLosWmIdx < totalReserveUnits && IsBitSet(newLosWmIdx)) {
-        newLosWmIdx++;
+    // Sanity checks
+    if (newWatermark <= currentLOS) {
+        return 0;  // nothing to reclaim (or invalid)
+    }
+    if (newWatermark > reserveEnd) {
+        newWatermark = reserveEnd;  // cap at RESERVE boundary
     }
 
-    if (newLosWmIdx > losWmIdx) {
-        // Reclaim contiguous returned units: clear their bits, move watermark
-        ClearBitmapRange(losWmIdx, newLosWmIdx - losWmIdx);
-        uintptr_t newWatermark = UnitIndexToAddr(newLosWmIdx);
-        losWatermark.store(newWatermark, std::memory_order_relaxed);
+    size_t reclaimedBytes = newWatermark - currentLOS;
 
-        // Invalidate LOS buffer if it overlaps the reclaimed region
-        if (losBufFloor < newWatermark) {
-            losBufFloor = 0;
-            losBufCursor = 0;
-        }
+    // Push watermark
+    losWatermark.store(newWatermark, std::memory_order_relaxed);
 
-        size_t reclaimedBytes = (newLosWmIdx - losWmIdx) * unitSize;
-        losReturnBytes += reclaimedBytes;
-        lastLOSReturnCycle = gcCycleCount;
+    // Update statistics
+    losReturnBytes += reclaimedBytes;
 
-        DLOG(REGION, "ReserveManager: CoalesceLOSWatermark reclaimed %zu units [%zu, %zu), "
-             "watermark 0x%zx \u2192 0x%zx",
-             newLosWmIdx - losWmIdx, losWmIdx, newLosWmIdx, currentLOS, newWatermark);
-    }
+    DLOG(REPORT, "ReserveManager: ReclaimLOSBorrowed %zu bytes, watermark 0x%zx -> 0x%zx",
+         reclaimedBytes, currentLOS, newWatermark);
+
+    return reclaimedBytes;
 }
 
 size_t ReserveManager::GetMainBorrowedSize() const

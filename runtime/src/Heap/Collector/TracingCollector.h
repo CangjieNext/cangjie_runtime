@@ -255,7 +255,9 @@ public:
     virtual bool MarkObject(BaseObject* obj) const
     {
         RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
-        
+        if (UNLIKELY(regionInfo == nullptr)) {
+            return true; // treat as already marked — skip tracing
+        }
         bool marked = regionInfo->MarkObject(obj);
         if (!marked) {
             size_t objSize = obj->GetSize();

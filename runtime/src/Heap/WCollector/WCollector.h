@@ -109,7 +109,10 @@ public:
         // filter const string object.
         if (Heap::IsHeapAddress(obj)) {
             auto regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<uintptr_t>(obj));
-            return regionInfo->IsFromRegion();
+            // Defense-in-depth: regionInfo can be nullptr if a concurrent
+            // InitSubordinateUnit has set unitRole but ownerRegion is not
+            // yet visible (memory-ordering race).  Treat as non-from.
+            return regionInfo != nullptr && regionInfo->IsFromRegion();
         }
 
         return false;

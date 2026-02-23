@@ -19,12 +19,12 @@
 #include "FreeRegionManager.h"
 #include "RegionInfo.h"
 #include "RegionList.h"
+#include "ReserveManager.h"
 #include "Base/LogFile.h"
 
 namespace MapleRuntime {
 
 class RegionManager;
-class ReserveManager;
 
 /**
  * LOSManager - Large Object Space Manager
@@ -38,8 +38,10 @@ class ReserveManager;
  *   LOS grows from high address toward low address.
  *
  * Index convention:
- *   - FreeRegionManager internally uses local indices [0, losUnitCount).
- *   - baseUnit offset (= losUnitStart) is applied automatically when accessing RegionInfo.
+ *   - FreeRegionManager internally uses local indices [0, reserveUnitCount + losUnitCount).
+ *   - baseUnit offset (= mainUnitCount) is applied automatically when accessing RegionInfo.
+ *   - This covers both the RESERVE extension area and the native LOS space,
+ *     allowing RESERVE-borrowed dead regions to be recycled through losFreeMgr normally.
  *   - External callers (RegionManager, WCollector) use global unit indices.
  */
 class LOSManager {
@@ -56,7 +58,8 @@ public:
 
     /**
      * @param manager       The parent RegionManager (needed by FreeRegionManager)
-     * @param baseUnitIndex Global unit index of the first LOS unit (for FreeRegionManager offset)
+     * @param baseUnitIndex Global unit index of first RESERVE unit (= mainUnitCount).
+     *                      Covers RESERVE extension area + native LOS.
      * @param reserveMgr    The RESERVE zone manager (may be nullptr)
      */
     LOSManager(RegionManager& manager, UnitCount baseUnitIndex = 0, ReserveManager* reserveMgr = nullptr)
@@ -74,15 +77,18 @@ public:
 
     /**
      * Initialize LOS space with given boundaries.
-     * Creates the FreeRegionManager with baseUnit = unitStart so that
+     * Creates the FreeRegionManager with baseUnit = mainUnitCount so that
      * local tree indices map correctly to global RegionInfo indices.
+     * Capacity covers RESERVE extension area + native LOS space.
      *
-     * @param start     Start address of LOS space (low address boundary)
-     * @param end       End address of LOS space (high address boundary)
-     * @param unitStart Global unit index for LOS start
-     * @param unitEnd   Global unit index for LOS end
+     * @param start            Start address of LOS space (low address boundary)
+     * @param end              End address of LOS space (high address boundary)
+     * @param unitStart        Global unit index for LOS start
+     * @param unitEnd          Global unit index for LOS end
+     * @param reserveUnitCount Number of RESERVE units (for FreeRegionManager capacity)
      */
-    void Initialize(uintptr_t start, uintptr_t end, UnitCount unitStart, UnitCount unitEnd);
+    void Initialize(uintptr_t start, uintptr_t end, UnitCount unitStart, UnitCount unitEnd,
+                    UnitCount reserveUnitCount = 0);
 
     // ===== M2: Large object allocation in LOS =====
     // ===== M3: LOS GC sweep + MAIN→LOS migration =====
@@ -260,6 +266,19 @@ public:
     uintptr_t GetInactiveZone() const { return losInactiveZone.load(std::memory_order_relaxed); }
 
     /**
+     * P4: Effective LOS lower boundary — includes RESERVE-borrowed runway.
+     * When RESERVE borrowing is active, losWatermark < losStart and the
+     * losInactiveZone can expand below losStart into the borrowed area.
+     */
+    uintptr_t GetEffectiveLOSStart() const
+    {
+        if (reserveManager != nullptr) {
+            return reserveManager->GetLOSWatermark();
+        }
+        return losStart;
+    }
+
+    /**
      * Check if address is within LOS space
      */
     bool IsInLOS(uintptr_t addr) const { return addr >= losStart && addr < losEnd; }
@@ -269,7 +288,11 @@ public:
      */
     size_t GetCapacity() const { return losEnd - losStart; }
     size_t GetUsedSize() const { return losEnd - losInactiveZone.load(std::memory_order_relaxed); }
-    size_t GetFreeSize() const { return losInactiveZone.load(std::memory_order_relaxed) - losStart; }
+    size_t GetFreeSize() const {
+        uintptr_t iz = losInactiveZone.load(std::memory_order_relaxed);
+        uintptr_t effectiveStart = GetEffectiveLOSStart();
+        return (iz > effectiveStart) ? (iz - effectiveStart) : 0;
+    }
 
     /**
      * Statistics
@@ -283,17 +306,6 @@ public:
     void IncrementAllocCount() { losAllocCount.fetch_add(1, std::memory_order_relaxed); }
     void IncrementAllocFailCount() { losAllocFailCount.fetch_add(1, std::memory_order_relaxed); }
     void IncrementFallbackCount() { losFallbackCount.fetch_add(1, std::memory_order_relaxed); }
-
-    /**
-     * M5: Return RESERVE-borrowed free LOS regions to RESERVE.
-     * During GC, dead RESERVE-borrowed regions are collected into pendingReserveReturns
-     * instead of losFreeMgr. After GC, this method processes them:
-     *   - Sort by address descending (return from watermark edge first)
-     *   - Try ReturnFromLOS for each; on failure, add to losFreeMgr for reuse
-     * Called from WCollector::DoGarbageCollection after CompactLOS.
-     * @return Bytes returned to RESERVE
-     */
-    size_t ReturnBorrowedToReserve();
 
     /**
      * M5: Check if an address is in RESERVE-borrowed territory (below losStart).
@@ -334,9 +346,9 @@ private:
      */
     RegionInfo* AllocFromInactiveZone(size_t unitCount);
 
-    // Independent FreeRegionManager for LOS space (baseUnit = losUnitStart).
+    // Independent FreeRegionManager for LOS space (baseUnit = mainUnitCount).
     // Has its own dirtyTree + releaseTree, separate from MAIN's FreeRegionManager.
-    // When expanding/shrinking LOS, this manager's capacity should be adjusted accordingly.
+    // Capacity covers RESERVE extension area + native LOS space.
     FreeRegionManager losFreeMgr;
 
     // Reserve manager for borrowing space (may be nullptr if RESERVE ratio is 0)
@@ -398,8 +410,7 @@ private:
     // M4a: Rebuild losFreeMgr trees after compaction, inserting gaps between live regions
     void RebuildFreeRegionManager(const std::vector<RegionInfo*>& allLiveRegions);
 
-    // M4a: Return freed low-address space to RESERVE after compaction
-    size_t ShrinkToReserve(size_t freedBytes);
+    // (removed: ShrinkToReserve — replaced by direct ReclaimLOSBorrowed in CompactLOS Phase 7)
 
     // A-step2: saved compaction plan between PostTrace and forward/finalize stages.
     std::vector<CompactEntry> pendingCompactionPlan;
@@ -415,10 +426,6 @@ private:
     bool InstallCompactionEntryLocked(const CompactEntry& entry);
     bool InstallCompactionEntryWithPredecessorsLocked(const CompactEntry& entry,
                                                       std::unordered_set<uintptr_t>& visiting);
-
-    // M5: Pending RESERVE returns — RESERVE-borrowed dead regions held until explicit ReturnBorrowedToReserve()
-    // <unitIdx, unitCount> pairs collected during CollectLOSGarbage
-    std::vector<std::pair<size_t, size_t>> pendingReserveReturns;
 };
 
 } // namespace MapleRuntime

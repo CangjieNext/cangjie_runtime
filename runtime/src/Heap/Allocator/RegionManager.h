@@ -163,23 +163,27 @@ public:
     // M4b: MAIN end boundary (excludes RESERVE and LOS)
     uintptr_t GetMainEnd() const { return mainEnd; }
 
-    // M4b: Shrink inactiveZone after GC to return free high-end space to RESERVE.
-    // Scans the active zone, finds the highest live region, rebuilds freeRegionManager
-    // with only regions below that point, and lowers inactiveZone.
-    // Returns the number of bytes reclaimed (now available to RESERVE/inactiveZone).
+    // P4: Effective MAIN upper boundary — includes RESERVE-borrowed runway.
+    // When RESERVE borrowing is active, mainWatermark > mainEnd and the
+    // inactiveZone can expand into the borrowed area.
+    uintptr_t GetEffectiveMainEnd() const
+    {
+        if (reserveManager != nullptr) {
+            return reserveManager->GetMainWatermark();
+        }
+        return mainEnd;
+    }
+
+    // P3: Shrink inactiveZone and return RESERVE-borrowed space after OOM GC.
+    // Only called during OOM GC under STW — non-OOM GC skips this entirely
+    // because the reclaimed space would be re-consumed quickly (wasted overhead).
+    // Phase A: Scans MAIN active zone, finds highest live region, rebuilds freeRegionManager
+    //          with only regions below that point, and lowers inactiveZone.
+    // Phase B: Scans RESERVE-borrowed space [mainEnd, mainWatermark), finds highest live
+    //          borrowed region, keeps free chunks below it in tree, pushes watermark back
+    //          via ReclaimMainBorrowed.
+    // Returns the total number of bytes reclaimed (MAIN inactive + RESERVE return).
     size_t ShrinkInactiveZone();
-
-    // M5: Return RESERVE-borrowed free MAIN regions to RESERVE.
-    // Dead RESERVE-borrowed regions are collected into pendingReserveReturns during
-    // ReclaimRegion/ReleaseRegion. This method processes them:
-    //   - Sort by address descending (return from watermark tip first)
-    //   - Try ReturnFromMain; on failure, add to freeRegionManager for reuse
-    // Called from WCollector after ShrinkInactiveZone.
-    // @return Bytes returned to RESERVE
-    size_t ReturnBorrowedToReserve();
-
-    // M5: Check if address is in RESERVE-borrowed territory (above MAIN's own space)
-    bool IsInReserveTerritory(uintptr_t addr) const { return mainEnd > 0 && addr >= mainEnd; }
 
     ~RegionManager()
     {
@@ -278,23 +282,7 @@ public:
         regionCount = ((regionCount + maxUnitCountPerRegion - 1) / maxUnitCountPerRegion) * maxUnitCountPerRegion;
         RegionInfo* region = TakeRegion(regionCount, RegionInfo::UnitRole::LARGE_SIZED_UNITS);
         if (region == nullptr) {
-            // Step 4c: Try RESERVE borrowing for MAIN (chunk strategy handled by ReserveManager)
-            if (reserveManager != nullptr) {
-                size_t regionSize = regionCount * RegionInfo::UNIT_SIZE;
-                uintptr_t borrowedAddr = reserveManager->BorrowForMain(regionSize);
-                if (borrowedAddr != 0) {
-                    region = RegionInfo::InitRegionAt(borrowedAddr, regionCount,
-                                                      RegionInfo::UnitRole::LARGE_SIZED_UNITS);
-                    DLOG(REGION, "MAIN alloc large from RESERVE: "
-                         "region @[0x%zx+%zu, 0x%zx) size %zu",
-                         region->GetRegionStart(), region->GetRegionSize(),
-                         region->GetRegionEnd(), size);
-                    mainReserveBorrowCount++;
-                }
-            }
-            if (region == nullptr) {
-                return 0;
-            }
+            return 0;
         }
         DLOG(REGION, "alloc large region (MAIN) @[0x%zx+%zu, 0x%zx) unit idx %zu type %u",
              region->GetRegionStart(), region->GetRegionSize(), region->GetRegionEnd(),
@@ -478,8 +466,9 @@ public:
 
     size_t GetInactiveUnitCount() const { 
         uintptr_t zone = inactiveZone.load(std::memory_order_relaxed);
-        // Guard against underflow if inactiveZone transiently exceeds mainEnd
-        return (zone < mainEnd) ? (mainEnd - zone) / RegionInfo::UNIT_SIZE : 0;
+        uintptr_t effectiveEnd = GetEffectiveMainEnd();
+        // Guard against underflow if inactiveZone transiently exceeds effectiveEnd
+        return (zone < effectiveEnd) ? (effectiveEnd - zone) / RegionInfo::UNIT_SIZE : 0;
     }
 
     size_t GetActiveUnitCount() const { return (inactiveZone - regionHeapStart) / RegionInfo::UNIT_SIZE; }
@@ -756,14 +745,6 @@ private:
 
     // Statistics: MAIN large objects allocated via RESERVE borrowing
     size_t mainReserveBorrowCount = 0;
-
-    // M5: Pending RESERVE returns — RESERVE-borrowed dead regions held until explicit ReturnBorrowedToReserve()
-    // <unitIdx, unitCount> pairs collected during ReclaimRegion/ReleaseRegion.
-    // Protected by pendingReserveReturnsMutex because push_back happens from mutator threads
-    // (AllocateInNewRegion → ReclaimRegion), GC thread (CollectSmallSpace → ReclaimRegion),
-    // and FP thread (ReclaimGarbageRegions → ReclaimRegion) concurrently.
-    std::mutex pendingReserveReturnsMutex;
-    std::vector<std::pair<size_t, size_t>> pendingReserveReturns;
 
 #if defined(__EULER__)
     double cacheRatio;
