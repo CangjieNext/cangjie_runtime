@@ -1,5 +1,5 @@
 name: "缺陷反馈 | Bug"
-description: "当您发现了一个缺陷，需要向社区反馈时，请使用此模板。 | Please use this template when you find a bug and want to report it to the community."
+description: "当您发现了一个缺陷，需要向社区反馈时，请使用此模板。 &#124; Please use this template when you find a bug and want to report it to the community."
 title: "[Bug]: "
 labels: ["bug"]
 body:
