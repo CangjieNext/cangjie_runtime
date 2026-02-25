@@ -43,6 +43,7 @@ public prop bitLen: Int64
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -81,6 +82,7 @@ public prop sign: Int64
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -527,6 +529,25 @@ IntegerString : (SignString)? ValueString
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 如果字符串 `s` 不符合上述规则，或 `base` 表示的进制不在 [2, 36] 区间内，抛此异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main(): Unit {
+    /* 通过字符串和进制构建一个 BigInt 结构体 */
+    let bigInt = BigInt("1010", base: 2)
+    println(bigInt)
+}
+```
+
+运行结果：
+
+```text
+10
+```
+
 ### init(UInt16)
 
 ```cangjie
@@ -707,6 +728,7 @@ public static func randomProbablePrime(bitLen: Int64, certainty: UInt64, rand!: 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 如果指定的 bit 长度小于等于 1，则抛此异常。
 
 示例：
+
 <!-- run -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -738,6 +760,7 @@ public func clearBit(index: Int64): BigInt
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 如果入参 `index` 小于 0，则抛此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -772,6 +795,7 @@ public func compare(other: BigInt): Ordering
 - [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering) - 返回此 [BigInt](math_numeric_package_structs.md#struct-bigint) 与另一个 [BigInt](math_numeric_package_structs.md#struct-bigint) 的大小关系。如果等于，返回 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).EQ；如果小于，返回 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).LT；如果大于，返回 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).GT。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -824,6 +848,7 @@ public func divAndMod(other: BigInt): (BigInt, BigInt)
 - [ArithmeticException](../../core/core_package_api/core_package_exceptions.md#class-arithmeticexception) - 除数为 0 抛此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -865,6 +890,7 @@ public func flipBit(index: Int64): BigInt
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 如果入参 `index` 小于 0，则抛此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -895,6 +921,7 @@ public func hashCode(): Int64
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 返回此 [BigInt](math_numeric_package_structs.md#struct-bigint) 的哈希值。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -933,6 +960,7 @@ public func isProbablePrime(certainty: UInt64): Bool
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果使用此函数测定了一个数为素数，则返回 true；不为素数，则返回 false。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -967,6 +995,7 @@ public func lowestOneBit(): Int64
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 返回为 1 的最低位的 bit 的位置。如果 bit 全为 0，则返回 -1。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1007,6 +1036,7 @@ public func modInverse(other: BigInt): BigInt
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当底数与模数不互质、或模数为 0 时抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1050,6 +1080,7 @@ public func modPow(n: BigInt, m!: ?BigInt = None): BigInt
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 指数为负数时抛此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1095,6 +1126,7 @@ public func quo(other: BigInt): BigInt
 - [ArithmeticException](../../core/core_package_api/core_package_exceptions.md#class-arithmeticexception) - 除数为 0 抛此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1140,6 +1172,7 @@ public func quoAndRem(other: BigInt): (BigInt, BigInt)
 - [ArithmeticException](../../core/core_package_api/core_package_exceptions.md#class-arithmeticexception) - 除数为 0 抛此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1187,6 +1220,7 @@ public func rem(other: BigInt): BigInt
 - [ArithmeticException](../../core/core_package_api/core_package_exceptions.md#class-arithmeticexception) - 除数为 0 抛此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1226,6 +1260,7 @@ public func setBit(index: Int64): BigInt
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 如果入参 `index` 小于 0，则抛此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1264,6 +1299,7 @@ public func testBit(index: Int64): Bool
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 如果入参 `index` 小于 0，则抛此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1296,6 +1332,7 @@ public func toBytes(): Array<Byte>
 - [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> - 返回此 [BigInt](math_numeric_package_structs.md#struct-bigint) 的大端补码字节数组。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1326,6 +1363,7 @@ public func toFloat16(): Float16
 - [Float16](../../core/core_package_api/core_package_intrinsics.md#float16) - 转换后的 [Float16](../../core/core_package_api/core_package_intrinsics.md#float16) 值，溢出时，当前值为正数，返回 `inf`，当前值为负数，返回 `-inf`。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1356,6 +1394,7 @@ public func toFloat32(): Float32
 - [Float32](../../core/core_package_api/core_package_intrinsics.md#float32) - 转换后的 [Float32](../../core/core_package_api/core_package_intrinsics.md#float32) 值，溢出时，当前值为正数，返回 `inf`，当前值为负数，返回 `-inf`。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1386,6 +1425,7 @@ public func toFloat64(): Float64
 - [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) - 转换后的 [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) 值，溢出时，当前值为正数，返回 `inf`，当前值为负数，返回 `-inf`。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1424,6 +1464,7 @@ public func toInt16(overflowHandling!: OverflowStrategy = Throwing): Int16
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1463,6 +1504,7 @@ public func toInt32(overflowHandling!: OverflowStrategy = Throwing): Int32
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1502,6 +1544,7 @@ public func toInt64(overflowHandling!: OverflowStrategy = Throwing): Int64
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1541,6 +1584,7 @@ public func toInt8(overflowHandling!: OverflowStrategy = Throwing): Int8
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1580,6 +1624,7 @@ public func toIntNative(overflowHandling!: OverflowStrategy = Throwing): IntNati
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1611,6 +1656,7 @@ public func toString(): String
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - 返回此 [BigInt](math_numeric_package_structs.md#struct-bigint) 的十进制字符串。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1649,6 +1695,7 @@ public func toUInt16(overflowHandling!: OverflowStrategy = Throwing): UInt16
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1688,6 +1735,7 @@ public func toUInt32(overflowHandling!: OverflowStrategy = Throwing): UInt32
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1727,6 +1775,7 @@ public func toUInt64(overflowHandling!: OverflowStrategy = Throwing): UInt64
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1766,6 +1815,7 @@ public func toUInt8(overflowHandling!: OverflowStrategy = Throwing): UInt8
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1809,6 +1859,7 @@ public func toUIntNative(overflowHandling!: OverflowStrategy = Throwing): UIntNa
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1840,6 +1891,7 @@ public operator func !(): BigInt
 - [BigInt](math_numeric_package_structs.md#struct-bigint) - 返回此 [BigInt](math_numeric_package_structs.md#struct-bigint) 按位非的结果。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1874,6 +1926,7 @@ public operator func !=(other: BigInt): Bool
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 判不等的结果。不等返回 true，相等返回 false。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1914,6 +1967,7 @@ public operator func %(other: BigInt): BigInt
 - [ArithmeticException](../../core/core_package_api/core_package_exceptions.md#class-arithmeticexception) - 除数为 0 抛此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1949,6 +2003,7 @@ public operator func &(other: BigInt): BigInt
 - [BigInt](math_numeric_package_structs.md#struct-bigint) - 返回与另一个 [BigInt](math_numeric_package_structs.md#struct-bigint) 的按位与的结果。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -1984,6 +2039,7 @@ public operator func *(other: BigInt): BigInt
 - [BigInt](math_numeric_package_structs.md#struct-bigint) - 一个新 [BigInt](math_numeric_package_structs.md#struct-bigint)，它是此 [BigInt](math_numeric_package_structs.md#struct-bigint) 与另外一个 [BigInt](math_numeric_package_structs.md#struct-bigint) 相乘后的结果。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -2019,6 +2075,7 @@ public operator func **(n: UInt64): BigInt
 - [BigInt](math_numeric_package_structs.md#struct-bigint) - 幂运算结果。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -2053,6 +2110,7 @@ public operator func +(other: BigInt): BigInt
 - [BigInt](math_numeric_package_structs.md#struct-bigint) - 一个新 [BigInt](math_numeric_package_structs.md#struct-bigint)，它是此 [BigInt](math_numeric_package_structs.md#struct-bigint) 与另外一个 [BigInt](math_numeric_package_structs.md#struct-bigint) 相加后的结果。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -2084,6 +2142,7 @@ public operator func -(): BigInt
 - [BigInt](math_numeric_package_structs.md#struct-bigint) - 返回此 [BigInt](math_numeric_package_structs.md#struct-bigint) 的相反数。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -2118,6 +2177,7 @@ public operator func -(other: BigInt): BigInt
 - [BigInt](math_numeric_package_structs.md#struct-bigint) - 一个新 [BigInt](math_numeric_package_structs.md#struct-bigint)，它是此 [BigInt](math_numeric_package_structs.md#struct-bigint) 与另外一个 [BigInt](math_numeric_package_structs.md#struct-bigint) 相减后的结果。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -2153,6 +2213,7 @@ public operator func <(other: BigInt): Bool
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 比较的结果。小于返回 true，否则返回 false。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -2191,6 +2252,7 @@ public operator func <<(n: Int64): BigInt
 - [ArithmeticException](../../core/core_package_api/core_package_exceptions.md#class-arithmeticexception) - 入参小于 0 时抛此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -2225,6 +2287,7 @@ public operator func <=(other: BigInt): Bool
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 比较的结果。小于等于返回 true，否则返回 false。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -2259,6 +2322,7 @@ public operator func ==(other: BigInt): Bool
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 判等的结果。相等返回 true，不等返回 false。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -2293,6 +2357,7 @@ public operator func >(other: BigInt): Bool
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 比较的结果。大于返回 true，否则返回 false。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -2327,6 +2392,7 @@ public operator func >=(other: BigInt): Bool
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 比较的结果。大于等于返回 true，否则返回 false。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -2365,6 +2431,7 @@ public operator func >>(n: Int64): BigInt
 - [ArithmeticException](../../core/core_package_api/core_package_exceptions.md#class-arithmeticexception) - 入参小于 0 时抛此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -2405,6 +2472,7 @@ public operator func /(other: BigInt): BigInt
 - [ArithmeticException](../../core/core_package_api/core_package_exceptions.md#class-arithmeticexception) - 除数为 0 抛此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -2440,6 +2508,7 @@ public operator func ^(other: BigInt): BigInt
 - [BigInt](math_numeric_package_structs.md#struct-bigint) - 返回与另一个 [BigInt](math_numeric_package_structs.md#struct-bigint) 的按位异或的结果。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -2475,6 +2544,7 @@ public operator func |(other: BigInt): BigInt
 - [BigInt](math_numeric_package_structs.md#struct-bigint) - 返回与另一个 [BigInt](math_numeric_package_structs.md#struct-bigint) 的按位或的结果。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -2517,6 +2587,25 @@ public static func isSigned(): Bool
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 总是返回 `true`。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    /* 判断 BigInt 类型是否是有符号类型 */
+    let signed = BigInt.isSigned()
+    println(signed)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
 ### extend BigInt <: Formattable
 
 ```cangjie
@@ -2548,6 +2637,26 @@ public func format(fmt: String): String
 异常：
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 fmt 不合法时抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    /* 根据格式化参数将 BigInt 实例格式化为对应格式的字符串 */
+    let bigInt = BigInt(12345)
+    let formatted = bigInt.format("x")
+    println(formatted)
+}
+```
+
+运行结果：
+
+```text
+3039
+```
 
 ### extend BigInt <: Number\<BigInt>
 
@@ -2615,6 +2724,30 @@ IntegerString : SignString? BaseString? ValueString
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 如果字符串 `value` 不符合上述规则，抛此异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    /* 将字符串解析成一个 BigInt 结构体 */
+    let bigInt = BigInt.parse("12345")
+    println(bigInt)
+    
+    /* 使用十六进制前缀解析 */
+    let hexBigInt = BigInt.parse("0x1000")
+    println(hexBigInt)
+}
+```
+
+运行结果：
+
+```text
+12345
+4096
+```
+
 #### static func tryParse(String)
 
 ```cangjie
@@ -2652,6 +2785,30 @@ IntegerString : SignString? BaseString? ValueString
 返回值：
 
 - ?[BigInt](math_numeric_package_structs.md#struct-bigint) - 解析出的 [BigInt](math_numeric_package_structs.md#struct-bigint) 结构体，解析失败则返回 `None`。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    /* 尝试将字符串解析成一个 BigInt 结构体 */
+    let bigInt = BigInt.tryParse("12345")
+    println(bigInt)
+    
+    /* 尝试解析无效字符串 */
+    let invalid = BigInt.tryParse("invalid")
+    println(invalid)
+}
+```
+
+运行结果：
+
+```text
+Some(12345)
+None
+```
 
 ### extend BigInt <: RadixConvertible\<BigInt>
 
@@ -2704,6 +2861,25 @@ IntegerString : SignString? ValueString
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 如果字符串 `value` 不符合上述规则，或 `radix` 表示的进制不在 [2, 36] 区间内，抛此异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    /* 根据指定进制将字符串解析成一个 BigInt 结构体 */
+    let bigInt = BigInt.parse("1010", radix: 2)
+    println(bigInt)
+}
+```
+
+运行结果：
+
+```text
+10
+```
+
 #### static func tryParse(String, Int64)
 
 ```cangjie
@@ -2739,6 +2915,30 @@ IntegerString : SignString? ValueString
 
 - ?[BigInt](math_numeric_package_structs.md#struct-bigint) - 解析出的 [BigInt](math_numeric_package_structs.md#struct-bigint) 结构体，解析失败时返回 `None`。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    /* 尝试根据指定进制将字符串解析成一个 BigInt 结构体 */
+    let bigInt = BigInt.tryParse("1010", radix: 2)
+    println(bigInt)
+    
+    /* 尝试解析无效字符串 */
+    let invalid = BigInt.tryParse("invalid", radix: 2)
+    println(invalid)
+}
+```
+
+运行结果：
+
+```text
+Some(10)
+None
+```
+
 #### func toString(Int64)
 
 ```cangjie
@@ -2760,6 +2960,7 @@ public func toString(radix!: Int64): String
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当入参 radix 不在 [2, 36] 范围内时，抛出异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -2818,6 +3019,26 @@ public prop precision: Int64
 
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    /* 创建一个 Decimal 对象并获取其精度值 */
+    let decimal = Decimal(123.456)
+    let precision = decimal.precision
+    println(precision)
+}
+```
+
+运行结果：
+
+```text
+49
+```
+
 ### prop scale
 
 ```cangjie
@@ -2827,6 +3048,26 @@ public prop scale: Int32
 功能：获取 [Decimal](math_numeric_package_structs.md#struct-decimal) 标度值。
 
 类型：[Int32](../../core/core_package_api/core_package_intrinsics.md#int32)
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    /* 创建一个 Decimal 对象并获取其标度值 */
+    let decimal = Decimal(123.456)
+    let scale = decimal.scale
+    println(scale)
+}
+```
+
+运行结果：
+
+```text
+46
+```
 
 ### prop sign
 
@@ -2842,6 +3083,38 @@ public prop sign: Int64
 
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    /* 创建一个正数 Decimal 对象并获取其符号值 */
+    let positiveDecimal = Decimal(123.456)
+    let positiveSign = positiveDecimal.sign
+    println(positiveSign)
+    
+    /* 创建一个负数 Decimal 对象并获取其符号值 */
+    let negativeDecimal = Decimal(-123.456)
+    let negativeSign = negativeDecimal.sign
+    println(negativeSign)
+    
+    /* 创建一个零 Decimal 对象并获取其符号值 */
+    let zeroDecimal = Decimal(0)
+    let zeroSign = zeroDecimal.sign
+    println(zeroSign)
+}
+```
+
+运行结果：
+
+```text
+1
+-1
+0
+```
+
 ### prop value
 
 ```cangjie
@@ -2851,6 +3124,26 @@ public prop value: BigInt
 功能：获取 [Decimal](math_numeric_package_structs.md#struct-decimal) 无标度整数值，[BigInt](math_numeric_package_structs.md#struct-bigint) 承载。
 
 类型：[BigInt](math_numeric_package_structs.md#struct-bigint)
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    /* 创建一个 Decimal 对象并获取其无标度整数值 */
+    let decimal = Decimal(123.456)
+    let value = decimal.value
+    println(value)
+}
+```
+
+运行结果：
+
+```text
+1234560000000000030695446184836328029632568359375
+```
 
 ### init(BigInt)
 
@@ -2865,6 +3158,7 @@ public init(val: BigInt)
 - val: [BigInt](math_numeric_package_structs.md#struct-bigint) - 有符号大整数值。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -2897,6 +3191,7 @@ public init(val: BigInt, scale: Int32)
 - scale: [Int32](../../core/core_package_api/core_package_intrinsics.md#int32) - 标度值。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.BigInt
@@ -2936,6 +3231,7 @@ public init(val: Float16)
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当入参为 `inf`、`-inf` 或 `nan` 时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -2974,6 +3270,7 @@ public init(val: Float32)
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当入参为 `inf`、`-inf` 或 `nan` 时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3012,6 +3309,7 @@ public init(val: Float64)
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当入参为 `inf`、`-inf` 或 `nan` 时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3042,6 +3340,7 @@ public init(val: Int16)
 - val: [Int16](../../core/core_package_api/core_package_intrinsics.md#int16) - 16 位有符号整数。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3072,6 +3371,7 @@ public init(val: Int32)
 - val: [Int32](../../core/core_package_api/core_package_intrinsics.md#int32) - 32 位有符号整数。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3102,6 +3402,7 @@ public init(val: Int64)
 - val: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 64 位有符号整数。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3132,6 +3433,7 @@ public init(val: Int8)
 - val: [Int8](../../core/core_package_api/core_package_intrinsics.md#int8) - 8 位有符号整数。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3162,6 +3464,7 @@ public init(val: IntNative)
 - val: [IntNative](../../core/core_package_api/core_package_intrinsics.md#intnative) - 32 位或 64 位有符号整数。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3218,6 +3521,25 @@ public init(val: String)
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当入参字符串不满足规定格式时，抛此异常。
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当构建值标度溢出时，抛此异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    /* 使用字符串构造函数创建 Decimal 对象 */
+    let decimal = Decimal("-123.456e2")
+    println(decimal)
+}
+```
+
+运行结果：
+
+```text
+-12345.6
+```
+
 ### init(UInt16)
 
 ```cangjie
@@ -3231,6 +3553,7 @@ public init(val: UInt16)
 - val: [UInt16](../../core/core_package_api/core_package_intrinsics.md#uint16) - 16 位无符号整数。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3261,6 +3584,7 @@ public init(val: UInt32)
 - val: [UInt32](../../core/core_package_api/core_package_intrinsics.md#uint32) - 32 位无符号整数。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3291,6 +3615,7 @@ public init(val: UInt64)
 - val: [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) - 64 位无符号整数。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3321,6 +3646,7 @@ public init(val: UInt8)
 - val: [UInt8](../../core/core_package_api/core_package_intrinsics.md#uint8) - 8 位无符号整数。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3351,6 +3677,7 @@ public init(val: UIntNative)
 - val: [UIntNative](../../core/core_package_api/core_package_intrinsics.md#uintnative) - 32 位或 64 位无符号整数。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3385,6 +3712,7 @@ public func compare(d: Decimal): Ordering
 - [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering) - 返回比较结果，当前对象小于入参时，返回 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).LT，大于入参时，返回 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).GT，否则返回 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).EQ。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3428,6 +3756,7 @@ public func divWithPrecision(d: Decimal, precision: Int64, roundingMode!: Roundi
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当除法结果值范围超过 [-(maxValue(precision) * (10 <sup>[Int32](../../core/core_package_api/core_package_intrinsics.md#int32).MAX</sup>)), maxValue(precision) * (10 <sup>[Int32](../../core/core_package_api/core_package_intrinsics.md#int32).MAX</sup>)] 时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3471,6 +3800,26 @@ public func divAndRem(d: Decimal): (BigInt, Decimal)
 - [ArithmeticException](../../core/core_package_api/core_package_exceptions.md#class-arithmeticexception) - 当除数为 0 时，抛出此异常。
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当除法结果值范围超过 [-(maxValue(precision) * (10 <sup>[Int32](../../core/core_package_api/core_package_intrinsics.md#int32).MAX</sup>)), maxValue(precision) * (10 <sup>[Int32](../../core/core_package_api/core_package_intrinsics.md#int32).MAX</sup>)] 时，抛出此异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main(): Unit {
+    let A = Decimal(10)
+    let B = Decimal(3)
+    let result = A.divAndRem(B)
+    println("商: ${result[0]}, 余数: ${result[1]}")
+}
+```
+
+运行结果：
+
+```text
+商: 3, 余数: 1
+```
+
 ### func divAndMod(Decimal)
 
 ```cangjie
@@ -3492,6 +3841,26 @@ public func divAndMod(d: Decimal): (BigInt, Decimal)
 - [ArithmeticException](../../core/core_package_api/core_package_exceptions.md#class-arithmeticexception) - 当除数为 0 时，抛出此异常。
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当除法结果值范围超过 [-(maxValue(precision) * (10 <sup>[Int32](../../core/core_package_api/core_package_intrinsics.md#int32).MAX</sup>)), maxValue(precision) * (10 <sup>[Int32](../../core/core_package_api/core_package_intrinsics.md#int32).MAX</sup>)] 时，抛出此异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main(): Unit {
+    let A = Decimal(10)
+    let B = Decimal(3)
+    let result = A.divAndMod(B)
+    println("商: ${result[0]}, 余数: ${result[1]}")
+}
+```
+
+运行结果：
+
+```text
+商: 3, 余数: 1
+```
+
 ### func hashCode()
 
 ```cangjie
@@ -3505,6 +3874,7 @@ public func hashCode(): Int64
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 返回当前对象哈希值。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3535,6 +3905,7 @@ public func isInteger(): Bool
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 返回当前对象是否为整数判断结果。当前对象为整数时返回 true，否则返回 false。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3574,6 +3945,7 @@ public func powWithPrecision(n: Int64, precision: Int64, roundingMode!: Rounding
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当乘方运算结果标度值溢出时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.*
@@ -3609,6 +3981,7 @@ public func reScale(newScale: Int32, roundingMode!: RoundingMode = HalfEven): De
 - [Decimal](math_numeric_package_structs.md#struct-decimal) - 新的标度值的 [Decimal](math_numeric_package_structs.md#struct-decimal) 对象。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3638,6 +4011,7 @@ public func removeTrailingZeros(): Decimal
 - [Decimal](math_numeric_package_structs.md#struct-decimal) - 新的无尾部零的 [Decimal](math_numeric_package_structs.md#struct-decimal) 对象。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3676,6 +4050,7 @@ public func roundWithPrecision(precision: Int64, roundingMode!: RoundingMode = R
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当舍入操作结果标度值溢出时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3709,6 +4084,7 @@ public func scaleUnit(): Decimal
 - [Decimal](math_numeric_package_structs.md#struct-decimal) - 标度单位 [Decimal](math_numeric_package_structs.md#struct-decimal) 对象。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3742,6 +4118,7 @@ public func shiftPoint(n: Int32): Decimal
 - [Decimal](math_numeric_package_structs.md#struct-decimal) - 对当前对象小数点移动指定位数后生成新的 [Decimal](math_numeric_package_structs.md#struct-decimal) 对象。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3781,6 +4158,7 @@ public func sqrtWithPrecision(precision: Int64, roundingMode!: RoundingMode = Ro
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当计算平方根操作结果标度值溢出时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.*
@@ -3810,6 +4188,25 @@ public func toBigInt(): BigInt
 
 - [BigInt](math_numeric_package_structs.md#struct-bigint) - 转换后的 [BigInt](math_numeric_package_structs.md#struct-bigint) 值。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal = Decimal(123.456)
+    let bigInt = decimal.toBigInt()
+    println(bigInt)
+}
+```
+
+运行结果：
+
+```text
+123
+```
+
 ### func toEngString()
 
 ```cangjie
@@ -3821,6 +4218,25 @@ public func toEngString(): String
 返回值：
 
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - 工程计数法形式的 [Decimal](math_numeric_package_structs.md#struct-decimal) 字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal = Decimal(123456.789)
+    let engString = decimal.toEngString()
+    println(engString)
+}
+```
+
+运行结果：
+
+```text
+123.456789000000004307366907596588134765625E3
+```
 
 ### func toSciString()
 
@@ -3835,6 +4251,7 @@ public func toSciString(): String
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - 科学计数法形式的 [Decimal](math_numeric_package_structs.md#struct-decimal) 字符串。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -3873,6 +4290,25 @@ public func toFloat16(): Float16
 
 - [Float16](../../core/core_package_api/core_package_intrinsics.md#float16) - 转换后的 [Float16](../../core/core_package_api/core_package_intrinsics.md#float16) 值，溢出时，当前值为正数，返回 `inf`，当前值为负数，返回 `-inf`。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal = Decimal(3.14159)
+    let float16 = decimal.toFloat16()
+    println(float16)
+}
+```
+
+运行结果：
+
+```text
+3.140625
+```
+
 ### func toFloat32()
 
 ```cangjie
@@ -3885,6 +4321,25 @@ public func toFloat32(): Float32
 
 - [Float32](../../core/core_package_api/core_package_intrinsics.md#float32) - 转换后的 [Float32](../../core/core_package_api/core_package_intrinsics.md#float32) 值，溢出时，当前值为正数，返回 `inf`，当前值为负数，返回 `-inf`。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal = Decimal(3.141592653589793)
+    let float32 = decimal.toFloat32()
+    println(float32)
+}
+```
+
+运行结果：
+
+```text
+3.141593
+```
+
 ### func toFloat64()
 
 ```cangjie
@@ -3896,6 +4351,25 @@ public func toFloat64(): Float64
 返回值：
 
 - [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) - 转换后的 [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) 值，溢出时，当前值为正数，返回 `inf`，当前值为负数，返回 `-inf`。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal = Decimal(3.141592653589793)
+    let float64 = decimal.toFloat64()
+    println(float64)
+}
+```
+
+运行结果：
+
+```text
+3.141593
+```
 
 ### func toInt16(OverflowStrategy)
 
@@ -3917,6 +4391,25 @@ public func toInt16(overflowHandling!: OverflowStrategy = Throwing): Int16
 
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal = Decimal(123.456)
+    let int16Value = decimal.toInt16(overflowHandling: Saturating)
+    println(int16Value)
+}
+```
+
+运行结果：
+
+```text
+123
+```
+
 ### func toInt32(OverflowStrategy)
 
 ```cangjie
@@ -3936,6 +4429,25 @@ public func toInt32(overflowHandling!: OverflowStrategy = Throwing): Int32
 异常：
 
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal = Decimal(123456.789)
+    let int32Value = decimal.toInt32(overflowHandling: Saturating)
+    println(int32Value)
+}
+```
+
+运行结果：
+
+```text
+123456
+```
 
 ### func toInt64(OverflowStrategy)
 
@@ -3957,6 +4469,25 @@ public func toInt64(overflowHandling!: OverflowStrategy = Throwing): Int64
 
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal = Decimal(123456789.987)
+    let int64Value = decimal.toInt64(overflowHandling: Wrapping)
+    println(int64Value)
+}
+```
+
+运行结果：
+
+```text
+123456789
+```
+
 ### func toInt8(OverflowStrategy)
 
 ```cangjie
@@ -3976,6 +4507,25 @@ public func toInt8(overflowHandling!: OverflowStrategy = Throwing): Int8
 异常：
 
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal = Decimal(123.456)
+    let int8Value = decimal.toInt8(overflowHandling: Throwing)
+    println(int8Value)
+}
+```
+
+运行结果：
+
+```text
+123
+```
 
 ### func toIntNative(OverflowStrategy)
 
@@ -3998,6 +4548,26 @@ public func toIntNative(overflowHandling!: OverflowStrategy = Throwing): IntNati
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
 
 示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal = Decimal(12345.6789)
+    let intNativeValue = decimal.toIntNative(overflowHandling: Saturating)
+    println(intNativeValue)
+}
+```
+
+运行结果：
+
+```text
+12345
+```
+
+示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -4035,6 +4605,7 @@ public func toString(): String
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - 不带指数形式的 [Decimal](math_numeric_package_structs.md#struct-decimal) 字符串。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -4075,6 +4646,25 @@ public func toUInt16(overflowHandling!: OverflowStrategy = Throwing): UInt16
 
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal = Decimal(12345.6789)
+    let uint16Value = decimal.toUInt16(overflowHandling: Saturating)
+    println(uint16Value)
+}
+```
+
+运行结果：
+
+```text
+12345
+```
+
 ### func toUInt32(OverflowStrategy)
 
 ```cangjie
@@ -4094,6 +4684,25 @@ public func toUInt32(overflowHandling!: OverflowStrategy = Throwing): UInt32
 异常：
 
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal = Decimal(123456789.987)
+    let uint32Value = decimal.toUInt32(overflowHandling: Wrapping)
+    println(uint32Value)
+}
+```
+
+运行结果：
+
+```text
+123456789
+```
 
 ### func toUInt64(OverflowStrategy)
 
@@ -4115,6 +4724,25 @@ public func toUInt64(overflowHandling!: OverflowStrategy = Throwing): UInt64
 
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal = Decimal(123456789012345.6789)
+    let uint64Value = decimal.toUInt64(overflowHandling: Throwing)
+    println(uint64Value)
+}
+```
+
+运行结果：
+
+```text
+123456789012345
+```
+
 ### func toUInt8(OverflowStrategy)
 
 ```cangjie
@@ -4134,6 +4762,25 @@ public func toUInt8(overflowHandling!: OverflowStrategy = Throwing): UInt8
 异常：
 
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal = Decimal(123.456)
+    let uint8Value = decimal.toUInt8(overflowHandling: Saturating)
+    println(uint8Value)
+}
+```
+
+运行结果：
+
+```text
+123
+```
 
 ### func toUIntNative(OverflowStrategy)
 
@@ -4156,28 +4803,22 @@ public func toUIntNative(overflowHandling!: OverflowStrategy = Throwing): UIntNa
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当不指定溢出策略或溢出策略为 `throwing` 转换溢出时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
-import std.math.numeric.Decimal
+import std.math.numeric.*
 
-main(): Unit {
-    let A = Decimal(6.25)
-    println("A.toUInt8() = ${A.toUInt8()}")
-    println("A.toUInt16() = ${A.toUInt16()}")
-    println("A.toUInt32() = ${A.toUInt32()}")
-    println("A.toUInt64() = ${A.toUInt64()}")
-    println("A.toUIntNative() = ${A.toUIntNative()}")
+main() {
+    let decimal = Decimal(12345.6789)
+    let uintNativeValue = decimal.toUIntNative(overflowHandling: Wrapping)
+    println(uintNativeValue)
 }
 ```
 
 运行结果：
 
 ```text
-A.toUInt8() = 6
-A.toUInt16() = 6
-A.toUInt32() = 6
-A.toUInt64() = 6
-A.toUIntNative() = 6
+12345
 ```
 
 ### operator func !=(Decimal)
@@ -4197,6 +4838,7 @@ public operator func !=(d: Decimal): Bool
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 返回不等比较运算结果。当前对象不等于入参时，返回 true，否则返回 false。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -4240,6 +4882,7 @@ public operator func *(d: Decimal): Decimal
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当两个乘数标度值相加溢出时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -4283,6 +4926,7 @@ public operator func **(n: Int64): Decimal
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当乘方运算结果标度值溢出时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -4320,6 +4964,7 @@ public operator func +(d: Decimal): Decimal
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当两个加数标度值相减溢出时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -4350,6 +4995,25 @@ public operator func -(): Decimal
 
 - [Decimal](math_numeric_package_structs.md#struct-decimal) - 生成一个新的 [Decimal](math_numeric_package_structs.md#struct-decimal) 对象，用于存储取反结果值。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal = Decimal(123.456)
+    let negated = -decimal
+    println(negated)
+}
+```
+
+运行结果：
+
+```text
+-123.4560000000000030695446184836328029632568359375
+```
+
 ### operator func -(Decimal)
 
 ```cangjie
@@ -4371,6 +5035,7 @@ public operator func -(d: Decimal): Decimal
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当被减数与减数标度值相减溢出时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -4405,6 +5070,26 @@ public operator func <(d: Decimal): Bool
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 返回小于比较运算结果。当前对象小于入参时，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal1 = Decimal(123.456)
+    let decimal2 = Decimal(789.123)
+    let result = decimal1 < decimal2
+    println(result)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
 ### operator func <=(Decimal)
 
 ```cangjie
@@ -4420,6 +5105,26 @@ public operator func <=(d: Decimal): Bool
 返回值：
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 返回小于等于比较运算结果。当前对象小于等于入参时，返回 true，否则返回 false
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal1 = Decimal(123.456)
+    let decimal2 = Decimal(123.456)
+    let result = decimal1 <= decimal2
+    println(result)
+}
+```
+
+运行结果：
+
+```text
+true
+```
 
 ### operator func ==(Decimal)
 
@@ -4437,6 +5142,26 @@ public operator func ==(d: Decimal): Bool
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 返回等于比较运算结果。当前对象等于入参时，返回 true，否则返回 false。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal1 = Decimal(123.456)
+    let decimal2 = Decimal(123.456)
+    let result = decimal1 == decimal2
+    println(result)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
 ### operator func >(Decimal)
 
 ```cangjie
@@ -4453,6 +5178,26 @@ public operator func >(d: Decimal): Bool
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 返回大于比较运算结果。当前对象大于入参时，返回 true，否则返回 false
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal1 = Decimal(789.123)
+    let decimal2 = Decimal(123.456)
+    let result = decimal1 > decimal2
+    println(result)
+}
+```
+
+运行结果：
+
+```text
+true
+```
+
 ### operator func >=(Decimal)
 
 ```cangjie
@@ -4468,6 +5213,26 @@ public operator func >=(d: Decimal): Bool
 返回值：
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 返回大于等于比较运算结果。当前对象大于等于入参时，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal1 = Decimal(789.123)
+    let decimal2 = Decimal(789.123)
+    let result = decimal1 >= decimal2
+    println(result)
+}
+```
+
+运行结果：
+
+```text
+true
+```
 
 ### operator func \/(Decimal)
 
@@ -4495,6 +5260,7 @@ public operator func /(d: Decimal): Decimal
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当除法结果值范围超过 [-(maxValue(precision) * (10 <sup>[Int32](../../core/core_package_api/core_package_intrinsics.md#int32).MAX</sup>)), maxValue(precision) * (10 <sup>[Int32](../../core/core_package_api/core_package_intrinsics.md#int32).MAX</sup>)] 时，抛出此异常。
 
 示例：
+
 <!-- verify -->
 ```cangjie
 import std.math.numeric.Decimal
@@ -4544,6 +5310,26 @@ public func format(fmt: String): String
 异常：
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 fmt 不合法时抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimal = Decimal(123.456)
+    // 使用 format 函数格式化 Decimal
+    let formatted = decimal.format("e")
+    println(formatted)
+}
+```
+
+运行结果：
+
+```text
+1.234560e+02
+```
 
 ### extend Decimal <: Number\<Decimal>
 
@@ -4608,6 +5394,25 @@ public static func parse(value: String): Decimal
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当入参字符串不满足规定格式时，抛此异常。
 - [OverflowException](../../core/core_package_api/core_package_exceptions.md#class-overflowexception) - 当构建值标度溢出时，抛此异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimalString = "123.456e2"
+    let decimal = Decimal.parse(decimalString)
+    println(decimal)
+}
+```
+
+运行结果：
+
+```text
+12345.6
+```
+
 #### static func tryParse(String)
 
 ```cangjie
@@ -4641,3 +5446,25 @@ public static func tryParse(value: String): ?Decimal
 返回值：
 
 - ?[Decimal](math_numeric_package_structs.md#struct-decimal) - 解析出的 [Decimal](math_numeric_package_structs.md#struct-decimal) 结构体，解析失败则返回 `None`。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.numeric.*
+
+main() {
+    let decimalString = "123.456e2"
+    let decimal = Decimal.tryParse(decimalString)
+    match (decimal) {
+        case Some(d) => println(d)
+        case None => println("Failed to parse the string")
+    }
+}
+```
+
+运行结果：
+
+```text
+12345.6
+```
