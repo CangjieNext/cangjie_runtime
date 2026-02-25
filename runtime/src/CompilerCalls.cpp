@@ -1457,4 +1457,10 @@ extern "C" void* CJ_MRT_ARKTS_CreateEngine()
     return res;
 }
 #endif
+
+// Get cjthread stack top address (without stack reserved size).
+extern "C" MRT_EXPORT void* CJ_MRT_CJThreadstackGuardGet() { return CJThreadStackGuardGet(); }
+// Get cjthread stack base address.
+extern "C" MRT_EXPORT void* CJ_MRT_CJThreadStackBaseAddrGet() { return CJThreadStackBaseAddrGet(); }
+
 } // namespace MapleRuntime

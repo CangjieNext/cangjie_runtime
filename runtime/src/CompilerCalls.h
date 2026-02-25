@@ -164,6 +164,9 @@ extern "C" MRT_EXPORT void CJ_MRT_RolveCycleRef();
 extern "C" void* CJ_MRT_ARKTS_CreateEngine();
 #endif
 
+extern "C" MRT_EXPORT void* CJ_MRT_CJThreadstackGuardGet();
+extern "C" MRT_EXPORT void* CJ_MRT_CJThreadStackBaseAddrGet();
+
 #ifdef __APPLE__
 #include "MacAlias.h"
 #else
