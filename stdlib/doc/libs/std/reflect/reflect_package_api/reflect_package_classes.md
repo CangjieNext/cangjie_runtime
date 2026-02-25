@@ -7784,50 +7784,6 @@ public class PackageInfo <: Equatable<PackageInfo> & Hashable & ToString {}
 - [Hashable](../../core/core_package_api/core_package_interfaces.md#interface-hashable)
 - [ToString](../../core/core_package_api/core_package_interfaces.md#interface-tostring)
 
-### prop variables
-
-```cangjie
-public prop variables: Collection<GlobalVariableInfo>
-```
-
-功能：获取该 [PackageInfo](reflect_package_classes.md#class-packageinfo) 对应的包中所有 `public` 全局变量的信息所组成的列表。
-
-> **注意：**
->
-> 不支持平台：macOS、iOS。
-
-类型：[Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont)\<[GlobalVariableInfo](reflect_package_classes.md#class-globalvariableinfo)>
-
-示例：
-
-<!-- verify -->
-```cangjie
-package abc.test
-
-import std.reflect.*
-
-// 定义一些公开全局变量用于演示
-public var testVariable1: Int64 = 42
-public var testVariable2: String = "Hello"
-
-main(): Unit {
-    // 获取当前包的信息
-    let packageInfo = PackageInfo.get("abc.test")
-
-    // 获取包中的全局变量信息
-    let variables = packageInfo.variables
-    println("全局变量数量: ${variables.size}")
-
-    return
-}
-```
-
-运行结果：
-
-```text
-全局变量数量: 2
-```
-
 ### prop functions
 
 ```cangjie
@@ -8169,6 +8125,50 @@ main(): Unit {
 
 ```text
 类型数量: 3
+```
+
+### prop variables
+
+```cangjie
+public prop variables: Collection<GlobalVariableInfo>
+```
+
+功能：获取该 [PackageInfo](reflect_package_classes.md#class-packageinfo) 对应的包中所有 `public` 全局变量的信息所组成的列表。
+
+> **注意：**
+>
+> 不支持平台：macOS、iOS。
+
+类型：[Collection](../../core/core_package_api/core_package_interfaces.md#interface-collectiont)\<[GlobalVariableInfo](reflect_package_classes.md#class-globalvariableinfo)>
+
+示例：
+
+<!-- verify -->
+```cangjie
+package abc.test
+
+import std.reflect.*
+
+// 定义一些公开全局变量用于演示
+public var testVariable1: Int64 = 42
+public var testVariable2: String = "Hello"
+
+main(): Unit {
+    // 获取当前包的信息
+    let packageInfo = PackageInfo.get("abc.test")
+
+    // 获取包中的全局变量信息
+    let variables = packageInfo.variables
+    println("全局变量数量: ${variables.size}")
+
+    return
+}
+```
+
+运行结果：
+
+```text
+全局变量数量: 2
 ```
 
 ### prop version
