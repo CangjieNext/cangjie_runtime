@@ -49,6 +49,11 @@
 #endif
 
 namespace MapleRuntime {
+
+static bool IsGlobalStruct(const ObjectPtr basePtr)
+{
+    return (reinterpret_cast<MAddress>(basePtr) & 0x1) == 1;
+}
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 // These interfaces are used to detect whether the acquireArrayRawData is released in time.
 class PinnedArrayRecorder {
@@ -281,6 +286,11 @@ extern "C" ArrayRef MCC_NewArray64(const TypeInfo* arrayInfo, MIndex nElems)
 
 extern "C" void MCC_WriteRefField(const ObjectPtr ref, const ObjectPtr obj, RefField<false>* field)
 {
+    if (IsGlobalStruct(obj)) {
+        VLOG(REPORT, "found and writing a global struct ref field");
+        Heap::GetBarrier().WriteStaticRef(*field, ref);
+        return;
+    }
     if (!Heap::IsHeapAddress(obj)) {
         field->SetTargetObject(ref);
         return;
@@ -288,9 +298,14 @@ extern "C" void MCC_WriteRefField(const ObjectPtr ref, const ObjectPtr obj, RefF
     Heap::GetBarrier().WriteReference(obj, *field, ref);
 }
 
-extern "C" void MCC_WriteStructField(ObjectPtr obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen)
+extern "C" void MCC_WriteStructField(ObjectPtr obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen,
+                                     GCTib gctib)
 {
     CHECK_DETAIL((dst != 0u && src != 0u), "MCC_WriteStructField wrong parameter, dst: %p src: %p", dst, src);
+    if (IsGlobalStruct(obj)) {
+        Heap::GetBarrier().WriteStaticStruct(dst, dstLen, src, srcLen, gctib);
+        return;
+    }
     if (UNLIKELY(!Heap::IsHeapAddress(obj))) {
         CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), dstLen, reinterpret_cast<void*>(src), srcLen) == EOK,
                      "memcpy_s failed");
@@ -1556,7 +1571,7 @@ extern "C" ObjectPtr CJ_MCC_ReadWeakRef(const ObjectPtr obj, RefField<false>* fi
 {
     return Heap::GetHeap().GetBarrier().ReadWeakRef(obj, *field);
 }
-extern "C" void CJ_MCC_ReadStructField(MAddress dstPtr, ObjectPtr obj, MAddress srcField, size_t size)
+extern "C" void CJ_MCC_ReadStructField(MAddress dstPtr, ObjectPtr obj, MAddress srcField, size_t size, GCTib gctib)
 {
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     if (Heap::IsHeapAddress((void*)dstPtr)) {
@@ -1564,6 +1579,10 @@ extern "C" void CJ_MCC_ReadStructField(MAddress dstPtr, ObjectPtr obj, MAddress 
     }
 #endif
     if (size == 0) {
+        return;
+    }
+    if (IsGlobalStruct(obj)) {
+        Heap::GetBarrier().ReadStaticStruct(dstPtr, srcField, size, gctib);
         return;
     }
     Heap::GetHeap().GetBarrier().ReadStruct(dstPtr, obj, srcField, size);
