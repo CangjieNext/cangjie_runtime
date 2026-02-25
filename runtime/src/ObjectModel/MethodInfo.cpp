@@ -10,6 +10,29 @@
 #include "ExceptionManager.inline.h"
 
 namespace MapleRuntime {
+
+// Check if it's new version (reflectionVersion > 0)
+// Used for backward compatibility with old binaries: old version does not check IsUnknownSize()
+static bool IsNewReflectionVersion(TypeInfo* ti)
+{
+    if (!ti->ReflectIsEnable()) {
+        return false;
+    }
+    U8 reflectVersion = 0;
+    if (ti->IsEnum() || ti->IsTempEnum()) {
+        EnumInfo* enumInfo = ti->GetEnumInfo();
+        if (enumInfo != nullptr) {
+            reflectVersion = enumInfo->GetReflectVersion();
+        }
+    } else {
+        ReflectInfo* reflectInfo = ti->GetReflectInfo();
+        if (reflectInfo != nullptr) {
+            reflectVersion = reflectInfo->GetReflectVersion();
+        }
+    }
+    return reflectVersion > 0;
+}
+
 ScopedAllocBuffer::~ScopedAllocBuffer()
 {
     AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
@@ -523,16 +546,24 @@ void* MethodInfo::ApplyCJMethod(ObjRef instanceObj, void* genericArgs, void* act
     }
     if (instanceObj != nullptr) {
         // When a struct is passed as 'this' parameter and its size is unknown at compile time,
-        // the passed 'this' is the struct object itself
-        if ((declaringTi->IsStruct() && !declaringTi->IsUnknownSize()) || ((declaringTi->IsEnum() ||
-            declaringTi->IsTempEnum()) && !declaringTi->IsEnumKind1())) {
+        // passed 'this' is the struct object itself
+        bool isNewVersion = declaringTi->IsStruct() && IsNewReflectionVersion(declaringTi);
+        if ((declaringTi->IsStruct() && !isNewVersion) ||
+            (declaringTi->IsStruct() && isNewVersion && !declaringTi->IsUnknownSize()) ||
+            ((declaringTi->IsEnum() || declaringTi->IsTempEnum()) && !declaringTi->IsEnumKind1())) {
             argValues.AddInt64(reinterpret_cast<I64>(instanceObj) + TYPEINFO_PTR_SIZE);
         } else {
             argValues.AddReference(instanceObj);
         }
     } else {
         TypeInfo* ti = declaringTi;
-        if (IsInitializer() && (ti->IsClass() || (ti->IsStruct() && ti->IsUnknownSize()))) {
+        bool isNewVersion = ti->IsStruct() && IsNewReflectionVersion(ti);
+        if (IsInitializer() && ti->IsClass()) {
+            U32 size = ti->GetInstanceSize();
+            MSize objSize = MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+            instanceObj = ObjectManager::NewObject(declaringTi, objSize, AllocType::RAW_POINTER_OBJECT);
+            argValues.AddReference(instanceObj);
+        } else if (IsInitializer() && ti->IsStruct() && isNewVersion && ti->IsUnknownSize()) {
             U32 size = ti->GetInstanceSize();
             MSize objSize = MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
             instanceObj = ObjectManager::NewObject(declaringTi, objSize, AllocType::RAW_POINTER_OBJECT);
@@ -570,7 +601,10 @@ void* MethodInfo::ApplyCJMethod(ObjRef instanceObj, void* genericArgs, void* act
     if (HasSRetWithUnknowGenericStruct()) {
         return ret.ref;
     }
-    if (IsInitializer() && (declaringTi->IsClass() || (declaringTi->IsStruct() && declaringTi->IsUnknownSize()))) {
+    bool isNewVersion = declaringTi->IsStruct() && IsNewReflectionVersion(declaringTi);
+    if (IsInitializer() && declaringTi->IsClass()) {
+        return instanceObj;
+    } else if (IsInitializer() && declaringTi->IsStruct() && isNewVersion && declaringTi->IsUnknownSize()) {
         return instanceObj;
     } else if (IsInitializer() && declaringTi->IsStruct()) {
         ret.ref = instanceObj;
