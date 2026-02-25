@@ -795,6 +795,7 @@ Return Value:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns `true` if this constructor information is equal to `that`; otherwise, returns `false`.
 
+<!--Del-->
 ## class EnumConstructorInfo
 
 ```cangjie
@@ -1965,6 +1966,7 @@ Execution Result:
 String
 Bool
 ```
+<!--DelEnd-->
 
 ## class GenericTypeInfo
 
@@ -5230,6 +5232,7 @@ Execution result:
 default.Rectangular
 ```
 
+<!--Del-->
 ## class TupleTypeInfo
 
 ```cangjie
@@ -5505,6 +5508,7 @@ Some(1)
 Some(0)
 Some(1)
 ```
+<!--DelEnd-->
 
 ## class TypeInfo
 

@@ -14,6 +14,7 @@ import std.collection.*
  *
  * This class exposes constructors, construction, and deconstruction helpers for enums.
  */
+@When[env != "ohos"]
 public class EnumTypeInfo <: TypeInfo {
     var _constructors: Option<Collection<EnumConstructorInfo>> = None
     var _constructorsByTypeInfo: Option<HashMap<UIntNative, EnumConstructorInfo>> = None
@@ -210,6 +211,7 @@ public class EnumTypeInfo <: TypeInfo {
  *
  * Provides constructor signature data, annotations, and invocation helpers.
  */
+@When[env != "ohos"]
 public class EnumConstructorInfo <: Equatable<EnumConstructorInfo> & Hashable & ToString {
     let _info: CPointer<Unit>
     let _enumTypeInfoPointer: CPointer<Unit>
