@@ -792,16 +792,6 @@ int UnloadCJLibrary(const char* libName)
     return E_ARGS;
 }
 
-void RegisterStackInfoCallbacks(UpdateStackInfoFunc uFunc)
-{
-    CJRegisterStackInfoCallbacks(uFunc);
-}
-
-void RegisterArkVMInRuntime(unsigned long long vm)
-{
-    CJRegisterArkVMInRuntime(vm);
-}
-
 int CJThreadKeyCreate(CJThreadKey* key, DestructorFunc destructor)
 {
 #if defined(GENERAL_ASAN_SUPPORT_INTERFACE)

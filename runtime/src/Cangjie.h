@@ -115,9 +115,6 @@ typedef bool (*PostTaskFunc)(void*);
 
 /* Check for higher priority tasks in event handler system. */
 typedef bool (*HasHigherPriorityTaskFunc)(void);
-
-/* Update designate stackInfo */
-typedef void (*UpdateStackInfoFunc)(unsigned long long, void*, unsigned int);
 #endif
 
 /*
@@ -341,15 +338,6 @@ CANGJIE_RT_API_DECLS_BEGIN
  * @retval Return 0 if OK. Otherwise, return an error code.
  */
 MRT_EXPORT enum RTErrorCode InitCJRuntime(const struct RuntimeParam* param);
-
-/*
- * @brief register arkVM in Runtime
- * @par This API will record a external VM.
- * @attention
- * @param  param  [IN] arkVM address
- * @retval
- */
-MRT_EXPORT void RegisterArkVMInRuntime(unsigned long long vm);
 
 /*
  * @brief Create and init a Cangjie UI scheduler.
@@ -627,13 +615,6 @@ MRT_EXPORT void* CJThreadGetspecific(CJThreadKey key);
  * @param  hFunc  [IN]  HasHigherPriorityTask function that defined by user.
  */
 MRT_EXPORT void RegisterEventHandlerCallbacks(PostTaskFunc pFunc, HasHigherPriorityTaskFunc hFunc);
-
-/*
- * @brief Register UpdateStackInfo Func to global scheduler manager.
- * UpdateStackInfo is used for update arkts stack info when single model cjthread stack changed.\
- * @param  uFunc  [IN]  UpdateStackInfo function that defined by user.
- */
-MRT_EXPORT void RegisterStackInfoCallbacks(UpdateStackInfoFunc uFunc);
 
 /* ============= Interfaces to manage Cangjie dynamic libraries. ============= */
 

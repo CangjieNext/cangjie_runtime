@@ -176,9 +176,6 @@ extern "C" MRT_EXPORT U64 CJ_MCC_CreateExportHandle(BaseObject* obj);
 extern "C" MRT_EXPORT BaseObject* CJ_MCC_GetExportedRef(U64 id);
 extern "C" MRT_EXPORT void CJ_MCC_RemoveExportedRef(U64 id);
 extern "C" MRT_EXPORT void CJ_MRT_RolveCycleRef();
-#ifdef __OHOS__
-extern "C" void* CJ_MRT_ARKTS_CreateEngine();
-#endif
 
 #ifdef __APPLE__
 #include "MacAlias.h"
