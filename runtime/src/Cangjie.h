@@ -343,12 +343,12 @@ CANGJIE_RT_API_DECLS_BEGIN
 MRT_EXPORT enum RTErrorCode InitCJRuntime(const struct RuntimeParam* param);
 
 /*
- * @brief register arkVM in Runtime
- * @par This API will record a external VM.
- * @attention
- * @param  param  [IN] arkVM address
- * @retval
- */
+* @brief register arkVM in Runtime
+* @par This API will record a external VM.
+* @attention
+* @param  param  [IN] arkVM address
+* @retval
+*/
 MRT_EXPORT void RegisterArkVMInRuntime(unsigned long long vm);
 
 /*
@@ -629,10 +629,10 @@ MRT_EXPORT void* CJThreadGetspecific(CJThreadKey key);
 MRT_EXPORT void RegisterEventHandlerCallbacks(PostTaskFunc pFunc, HasHigherPriorityTaskFunc hFunc);
 
 /*
- * @brief Register UpdateStackInfo Func to global scheduler manager.
- * UpdateStackInfo is used for update arkts stack info when single model cjthread stack changed.\
- * @param  uFunc  [IN]  UpdateStackInfo function that defined by user.
- */
+* @brief Register UpdateStackInfo Func to global scheduler manager.
+* UpdateStackInfo is used for update arkts stack info when single model cjthread stack changed.\
+* @param  uFunc  [IN]  UpdateStackInfo function that defined by user.
+*/
 MRT_EXPORT void RegisterStackInfoCallbacks(UpdateStackInfoFunc uFunc);
 
 /* ============= Interfaces to manage Cangjie dynamic libraries. ============= */
