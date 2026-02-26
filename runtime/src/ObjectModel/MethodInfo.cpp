@@ -545,57 +545,28 @@ void* MethodInfo::ApplyCJMethod(ObjRef instanceObj, void* genericArgs, void* act
     }
     if (instanceObj != nullptr) {
         // When a struct is passed as 'this' parameter and its size is unknown at compile time,
-        // passed 'this' is the struct object itself
+        // passed 'this' is a struct object itself
         U8 reflectVersion = GetReflectionVersion(declaringTi);
-        if (reflectVersion == 0) {
-            // Old version: use IsGenericTypeInfo() logic
-            if ((!declaringTi->IsGenericTypeInfo() && declaringTi->IsStruct()) ||
-                ((declaringTi->IsEnum() || declaringTi->IsTempEnum()) && !declaringTi->IsEnumKind1())) {
-                argValues.AddInt64(reinterpret_cast<I64>(instanceObj) + TYPEINFO_PTR_SIZE);
-            } else {
-                argValues.AddReference(instanceObj);
-            }
+        if ((declaringTi->IsStruct() &&
+            ((reflectVersion == 0) ? !declaringTi->IsGenericTypeInfo() : !declaringTi->IsUnknownSize())) ||
+            ((declaringTi->IsEnum() || declaringTi->IsTempEnum()) && !declaringTi->IsEnumKind1())) {
+            argValues.AddInt64(reinterpret_cast<I64>(instanceObj) + TYPEINFO_PTR_SIZE);
         } else {
-            // New version: use IsUnknownSize() logic
-            if ((declaringTi->IsStruct() && !declaringTi->IsUnknownSize()) ||
-                ((declaringTi->IsEnum() || declaringTi->IsTempEnum()) && !declaringTi->IsEnumKind1())) {
-                argValues.AddInt64(reinterpret_cast<I64>(instanceObj) + TYPEINFO_PTR_SIZE);
-            } else {
-                argValues.AddReference(instanceObj);
-            }
+            argValues.AddReference(instanceObj);
         }
     } else {
         TypeInfo* ti = declaringTi;
         U8 reflectVersion = GetReflectionVersion(ti);
-        if (reflectVersion == 0) {
-            // Old version: use IsGenericTypeInfo() logic
-            if (IsInitializer() && (ti->IsClass() || (ti->IsStruct() && ti->IsGenericTypeInfo()))) {
-                U32 size = ti->GetInstanceSize();
-                MSize objSize = MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
-                instanceObj = ObjectManager::NewObject(declaringTi, objSize, AllocType::RAW_POINTER_OBJECT);
-                argValues.AddReference(instanceObj);
-            } else if (IsInitializer() && ti->IsStruct()) {
-                instanceObj = reinterpret_cast<ObjRef>(MemoryAlloc(1, ti->GetInstanceSize()));
-                argValues.AddInt64(reinterpret_cast<Uptr>(instanceObj));
-                argValues.AddReference(nullptr); // add bp
-            }
-        } else {
-            // New version: use IsIsUnknownSize() logic
-            if (IsInitializer() && ti->IsClass()) {
-                U32 size = ti->GetInstanceSize();
-                MSize objSize = MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
-                instanceObj = ObjectManager::NewObject(declaringTi, objSize, AllocType::RAW_POINTER_OBJECT);
-                argValues.AddReference(instanceObj);
-            } else if (IsInitializer() && ti->IsStruct() && ti->IsUnknownSize()) {
-                U32 size = ti->GetInstanceSize();
-                MSize objSize = MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
-                instanceObj = ObjectManager::NewObject(declaringTi, objSize, AllocType::RAW_POINTER_OBJECT);
-                argValues.AddReference(instanceObj);
-            } else if (IsInitializer() && ti->IsStruct()) {
-                instanceObj = reinterpret_cast<ObjRef>(MemoryAlloc(1, ti->GetInstanceSize()));
-                argValues.AddInt64(reinterpret_cast<Uptr>(instanceObj));
-                argValues.AddReference(nullptr); // add bp
-            }
+        if (IsInitializer() && (ti->IsClass() || (ti->IsStruct() &&
+            ((reflectVersion == 0) ? ti->IsGenericTypeInfo() : ti->IsUnknownSize())))) {
+            U32 size = ti->GetInstanceSize();
+            MSize objSize = MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+            instanceObj = ObjectManager::NewObject(declaringTi, objSize, AllocType::RAW_POINTER_OBJECT);
+            argValues.AddReference(instanceObj);
+        } else if (IsInitializer() && ti->IsStruct()) {
+            instanceObj = reinterpret_cast<ObjRef>(MemoryAlloc(1, ti->GetInstanceSize()));
+            argValues.AddInt64(reinterpret_cast<Uptr>(instanceObj));
+            argValues.AddReference(nullptr); // add bp
         }
     }
 
@@ -626,30 +597,15 @@ void* MethodInfo::ApplyCJMethod(ObjRef instanceObj, void* genericArgs, void* act
         return ret.ref;
     }
     U8 reflectVersion = GetReflectionVersion(declaringTi);
-    if (reflectVersion == 0) {
-        // Old version: use IsGenericTypeInfo() logic
-        if (IsInitializer() && (declaringTi->IsClass() || (declaringTi->IsStruct() && declaringTi->IsGenericTypeInfo()))) {
-            return instanceObj;
-        } else if (IsInitializer() && declaringTi->IsStruct()) {
-            ret.ref = instanceObj;
-            void* any = RetValueToAny(ret, sret, declaringTi);
-            MemoryFree(instanceObj);
-            MemoryFree(sret);
-            return any;
-        }
-    } else {
-        // New version: use IsUnknownSize() logic
-        if (IsInitializer() && declaringTi->IsClass()) {
-            return instanceObj;
-        } else if (IsInitializer() && declaringTi->IsStruct() && declaringTi->IsUnknownSize()) {
-            return instanceObj;
-        } else if (IsInitializer() && declaringTi->IsStruct()) {
-            ret.ref = instanceObj;
-            void* any = RetValueToAny(ret, sret, declaringTi);
-            MemoryFree(instanceObj);
-            MemoryFree(sret);
-            return any;
-        }
+    if (IsInitializer() && (declaringTi->IsClass() || (declaringTi->IsStruct() &&
+        ((reflectVersion == 0) ? declaringTi->IsGenericTypeInfo() : declaringTi->IsUnknownSize())))) {
+        return instanceObj;
+    } else if (IsInitializer() && declaringTi->IsStruct()) {
+        ret.ref = instanceObj;
+        void* any = RetValueToAny(ret, sret, declaringTi);
+        MemoryFree(instanceObj);
+        MemoryFree(sret);
+        return any;
     }
     void* any = RetValueToAny(ret, sret, retType);
     MemoryFree(sret);
