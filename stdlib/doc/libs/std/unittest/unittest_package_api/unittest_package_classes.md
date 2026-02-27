@@ -350,7 +350,7 @@ public func reportTo<T>(reporter: Reporter<BenchReport, T>): T
 
 参数：
 
-- reporter: [Reporter](../unittest_package_api/unittest_package_interfaces.md#interface-reporter)\<[BenchReport](#class-benchreport), T> - 性能用例结果报告。
+- reporter: [Reporter](../unittest_package_api/unittest_package_interfaces.md#interface-reportertreport-treturn)\<[BenchReport](#class-benchreport), T> - 性能用例结果报告。
 
 返回值：
 
@@ -1648,7 +1648,7 @@ public func reportTo<T>(reporter: Reporter<TestReport, T>): T
 
 参数：
 
-- reporter: [Reporter](#class-report)\<[TestReport](#class-testreport), T> - 单元测试报告打印器。
+- reporter: [Reporter](../unittest_package_api/unittest_package_interfaces.md#interface-reportertreport-treturn)\<[TestReport](#class-testreport), T> - 单元测试报告打印器。
 
 返回值：
 
