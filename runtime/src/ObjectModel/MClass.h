@@ -654,6 +654,7 @@ public:
     bool ReflectInfoIsNull() const;
     inline EnumCtorReflectInfo* GetEnumCtorReflectInfo();
     ReflectInfo* GetReflectInfo() const;
+    U8 GetReflectionVersion() const;
 
     inline const char* GetName() const;
     FuncRef GetFinalizeMethod() const;
