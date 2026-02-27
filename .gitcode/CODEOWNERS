@@ -81,3 +81,18 @@ OAT.xml @xuanjz
 /stdlib/doc/libs/std/regex/ @ChaosJohn @luojianing
 
 /stdlib/doc/libs/std/ast/ @mini-tang @luojianing
+
+# runtime
+
+/runtime/ @DawnJee @L_lipo
+
+/runtime/src/CpuProfiler/ @Jesse-WuJie
+/runtime/src/Loader/ @leeguo
+/runtime/src/ObjectModel/ @leeguo @lrb
+/runtime/src/CJThread/ @xiaohan_1
+
+/runtime/build/ @lrb
+/runtime/build.py @lrb
+/runtime/CMakeLists.txt @lrb
+/runtime/config.cmake @lrb
+/runtime/src/CMakeLists.txt @lrb
