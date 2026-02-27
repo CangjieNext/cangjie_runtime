@@ -4124,14 +4124,14 @@ Received message: Hello, cangjie server.
 public mut prop writeTimeout: ?Duration
 ```
 
-功能：获取或设置当前 [RawSocket](net_package_classes.md#class-rawsocket) 实例的写超时时间。
+功能：获取或设置当前 [RawSocket](net_package_classes.md#class-rawsocket) 实例的写入超时时间。
 
 类型：?[Duration](../../core/core_package_api/core_package_structs.md#struct-duration)
 
 异常：
 
 - [SocketException](net_package_exceptions.md#class-socketexception) - 当前 [RawSocket](net_package_classes.md#class-rawsocket) 实例已经关闭时，抛出异常。
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当设置的写超时时间为负时，抛出异常。
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当设置的写入超时时间为负时，抛出异常。
 
 示例：
 <!-- run -->
@@ -4410,7 +4410,7 @@ public func connect(addr: RawAddress, timeout!: ?Duration = None): Unit
 
 异常：
 
-- [SocketException](net_package_exceptions.md#class-socketexception) - 当前 [RawSocket](net_package_classes.md#class-rawsocket) 实例已经关闭，或接收失败时，抛出异常。
+- [SocketException](net_package_exceptions.md#class-socketexception) - 当前实例已经关闭，或连接失败时，抛出异常。
 - [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当等待超时时，抛出异常。
 
 示例：
@@ -4641,8 +4641,8 @@ public func receive(buffer: Array<Byte>, flags: Int32): Int64
 
 异常：
 
-- [SocketException](net_package_exceptions.md#class-socketexception) - 当前 [RawSocket](net_package_classes.md#class-rawsocket) 实例已经关闭，或接收数据失败时，抛出异常。
-- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当超过指定的读超时时间时，抛出异常。
+- [SocketException](net_package_exceptions.md#class-socketexception) - 当前实例已经关闭，或接收数据失败时，抛出异常。
+- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当超过指定的读取超时时间时，抛出异常。
 
 示例：
 <!-- verify -->
@@ -4720,8 +4720,8 @@ public func receiveFrom(buffer: Array<Byte>, flags: Int32): (RawAddress, Int64)
 
 异常：
 
-- [SocketException](net_package_exceptions.md#class-socketexception) - 当前 [RawSocket](net_package_classes.md#class-rawsocket) 实例已经关闭，或接收数据失败时，抛出异常。
-- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当超过指定的读超时时间时，抛出异常。
+- [SocketException](net_package_exceptions.md#class-socketexception) - 当前实例已经关闭，或接收数据失败时，抛出异常。
+- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当超过指定的读取超时时间时，抛出异常。
 
 示例：
 <!-- verify -->
@@ -4780,8 +4780,8 @@ public func send(buffer: Array<Byte>, flags: Int32): Unit
 
 异常：
 
-- [SocketException](net_package_exceptions.md#class-socketexception) - 当前 [RawSocket](net_package_classes.md#class-rawsocket) 实例已经关闭，或发送数据失败时，抛出异常。
-- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当超过指定的写超时时间时，抛出异常。
+- [SocketException](net_package_exceptions.md#class-socketexception) - 当前实例已经关闭，或发送数据失败时，抛出异常。
+- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当超过指定的写入超时时间时，抛出异常。
 
 示例：
 <!-- verify -->
@@ -4856,8 +4856,8 @@ public func sendTo(addr: RawAddress, buffer: Array<Byte>, flags: Int32): Unit
 
 异常：
 
-- [SocketException](net_package_exceptions.md#class-socketexception) - 当前 [RawSocket](net_package_classes.md#class-rawsocket) 实例已经关闭、发送数据失败或者 macOS 平台下 `connect` 被调用后调用 `sendTo` 时，抛出异常。
-- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当超过指定的写超时时间时，抛出异常。
+- [SocketException](net_package_exceptions.md#class-socketexception) - 当前实例已经关闭、发送数据失败或者 macOS 平台下 `connect` 被调用后调用 `sendTo` 时，抛出异常。
+- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当超过指定的写入超时时间时，抛出异常。
 
 示例：
 <!-- verify -->
@@ -7173,6 +7173,7 @@ public override func read(buffer: Array<Byte>): Int64
 异常：
 
 - [SocketException](net_package_exceptions.md#class-socketexception) - 当 `buffer` 大小为 0 或者因系统原因读取失败时，抛出异常。
+- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当读取超时时，抛出异常。
 
 示例：
 
@@ -8547,6 +8548,11 @@ public func receive(buffer: Array<Byte>): Int64
 
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 收取到的报文大小。
 
+异常：
+
+- [SocketException](net_package_exceptions.md#class-socketexception) - 当前实例已经关闭，或接收数据失败时，抛出异常。
+- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当超过指定的读取超时时间时，抛出异常。
+
 示例：
 
 <!-- verify -->
@@ -8638,8 +8644,8 @@ public override func receiveFrom(buffer: Array<Byte>): (SocketAddress, Int64)
 
 异常：
 
-- [SocketException](net_package_exceptions.md#class-socketexception) - 当本机缓存过小无法读取报文时，抛出异常。
-- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当读取超时时，抛出异常。
+- [SocketException](net_package_exceptions.md#class-socketexception) - 当前实例已经关闭，或接收数据失败时，抛出异常。
+- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当超过指定的读取超时时间时，抛出异常。
 
 示例：
 
@@ -8724,6 +8730,7 @@ public func send(payload: Array<Byte>): Unit
 异常：
 
 - [SocketException](net_package_exceptions.md#class-socketexception) - 当 `payload` 的大小超出系统限制或者系统发送失败（例如：当 `connect` 被调用，并且收到异常 ICMP 报文时，发送失败）时，抛出异常。
+- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当超过指定的写入超时时间时，抛出异常。
 
 示例：
 
@@ -8814,6 +8821,7 @@ public override func sendTo(recipient: SocketAddress, payload: Array<Byte>): Uni
 异常：
 
 - [SocketException](net_package_exceptions.md#class-socketexception) - 当 `payload` 的大小超出系统限制、系统发送失败（例如：当 `connect` 被调用，并且收到异常 ICMP 报文时，发送失败）、Windows 平台下远端地址为全零地址或者 macOS 平台下 `connect` 被调用后调用 `sendTo` 时，抛出异常。
+- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当超过指定的写入超时时间时，抛出异常。
 
 示例：
 
@@ -10149,6 +10157,11 @@ public func receive(buffer: Array<Byte>): Int64
 
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 收取到的报文大小。
 
+异常：
+
+- [SocketException](net_package_exceptions.md#class-socketexception) - 当前实例已经关闭，或接收数据失败时，抛出异常。
+- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当超过指定的读取超时时间时，抛出异常。
+
 示例：
 
 <!-- verify -->
@@ -10252,8 +10265,8 @@ public override func receiveFrom(buffer: Array<Byte>): (SocketAddress, Int64)
 
 异常：
 
-- [SocketException](net_package_exceptions.md#class-socketexception) - 本机缓存过小无法读取报文时，抛出异常。
-- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当读取超时时，抛出异常。
+- [SocketException](net_package_exceptions.md#class-socketexception) - 当前实例已经关闭，或接收数据失败时，抛出异常。
+- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当超过指定的读取超时时间时，抛出异常。
 
 示例：
 
@@ -10350,6 +10363,7 @@ public func send(payload: Array<Byte>): Unit
 异常：
 
 - [SocketException](net_package_exceptions.md#class-socketexception) - 当 `payload` 的大小超出系统限制或者系统发送失败时，抛出异常。
+- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当超过指定的写入超时时间时，抛出异常。
 
 示例：
 
@@ -10436,6 +10450,7 @@ public override func sendTo(recipient: SocketAddress, payload: Array<Byte>): Uni
 异常：
 
 - [SocketException](net_package_exceptions.md#class-socketexception) - 当 `payload` 的大小超出系统限制、系统发送失败（例如：当 `connect` 被调用，并且收到异常 ICMP 报文时，发送将失败）或者 macOS 平台下 `connect` 被调用后调用 `sendTo` 时，抛出异常。
+- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当超过指定的写入超时时间时，抛出异常。
 
 示例：
 
@@ -12739,6 +12754,7 @@ public override func read(buffer: Array<Byte>): Int64
 异常：
 
 - [SocketException](net_package_exceptions.md#class-socketexception) - 当 `buffer` 大小为 0 或者因系统原因读取失败时，抛出异常。
+- [SocketTimeoutException](net_package_exceptions.md#class-sockettimeoutexception) - 当读取超时时，抛出异常。
 
 示例：
 
