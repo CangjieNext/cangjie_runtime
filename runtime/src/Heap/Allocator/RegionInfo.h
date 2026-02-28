@@ -682,6 +682,12 @@ public:
         return reinterpret_cast<BaseObject*>(toAddr);
     }
 
+    // --- Diagnostic accessors for ghost routing analysis ---
+    const RouteInfo& GetRouteInfoRef() const { return metadata.routeInfo; }
+    LiveInfo* GetLiveInfo0() const { return metadata.liveInfo0; }
+    MAddress GetGhostRegionEnd0() const { return metadata.regionEnd0; }
+    UnitRole GetUnitRole0() const { return static_cast<UnitRole>(metadata.unitRole0); }
+
     void PrepareForwardableLargeRegion(uintptr_t toObjAddr)
     {
         CHECK(static_cast<UnitRole>(metadata.unitRole) == UnitRole::LARGE_SIZED_UNITS);

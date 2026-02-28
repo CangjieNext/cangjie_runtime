@@ -188,6 +188,25 @@ public:
         }
     }
 
+    // Remove all free blocks at or above the given global unit index threshold.
+    // Blocks straddling the threshold are truncated (only the portion below kept).
+    // Returns the total unit count removed from both trees.
+    // Called under STW — mutex acquired for safety but no real contention.
+    UnitCount RemoveAboveIndex(UnitIndex globalThreshold)
+    {
+        UnitIndex localThreshold = globalThreshold - baseUnit;
+        UnitCount removed = 0;
+        {
+            std::lock_guard<std::mutex> lg(dirtyUnitTreeMutex);
+            removed += dirtyUnitTree.RemoveAboveIndex(localThreshold);
+        }
+        {
+            std::lock_guard<std::mutex> lg(releasedUnitTreeMutex);
+            removed += releasedUnitTree.RemoveAboveIndex(localThreshold);
+        }
+        return removed;
+    }
+
 #if defined(MRT_DEBUG)
     void DumpReleasedUnitTree() const { releasedUnitTree.DumpTree("released-unit tree"); }
     void DumpDirtyUnitTree() const { dirtyUnitTree.DumpTree("dirty-unit tree"); }

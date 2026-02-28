@@ -60,6 +60,9 @@ void CopyCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
     DoGarbageCollection();
     VLOG(REPORT, "[GC-DEBUG] After DoGarbageCollection");
 
+    // P6 geometric borrowing deleted: RESERVE borrowing is now done on-demand
+    // at allocation time (RegionManager::TakeRegion / LOSManager::AllocLarge).
+
     if (reason == GC_REASON_OOM) {
         Heap::GetHeap().GetAllocator().ReclaimGarbageMemory(true);
     }

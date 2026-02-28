@@ -208,11 +208,24 @@ public:
     size_t GetCompactFreedBytes() const { return losCompactFreedBytes; }
     size_t GetCompactShrunkBytes() const { return losCompactShrunkBytes; }
 
+    /**
+     * #10A: Check whether LOS has enough contiguous free space to satisfy
+     * the last failed allocation, after normal GC has reclaimed dead regions.
+     * Used by CompactLOSOnOOMIfNeeded to skip expensive compaction when
+     * the freed space is sufficient.
+     * @return true if losFreeMgr or inactive zone runway can satisfy the demand
+     */
+    bool CanAllocLargeAfterGC() const;
+
     // Fragmentation threshold: compact when free units / active units > this ratio
     static constexpr double LOS_COMPACTION_FRAG_THRESHOLD = 0.3;
 
     // M5: Hysteresis — only return borrowed RESERVE space if LOS free ratio > this
     static constexpr double LOS_RESERVE_RETURN_THRESHOLD = 0.4;
+
+    // #10A: Delayed RESERVE return — keep 1/N of borrowed space as buffer.
+    // N=4 means retain 25% to prevent borrow-return ping-pong in small heaps.
+    static constexpr size_t LOS_RESERVE_RETURN_KEEP_RATIO = 4;
 
     // M4a-async: Compaction coordination accessors
     bool IsCompacting() const { return isCompacting.load(std::memory_order_acquire); }
@@ -396,6 +409,10 @@ private:
     size_t losCompactShrunkBytes = 0;    // bytes returned to RESERVE in last compaction
     size_t lastCompactAllocFailCount = 0; // losAllocFailCount at last compaction
 
+    // #10A: Last failed allocation size (bytes). Used to decide whether to skip
+    // CompactLOS after normal GC has freed enough space.
+    std::atomic<size_t> losLastFailedAllocSize{0};
+
     // M4a-async: Compaction coordination flags
     // isCompacting: true while compaction is in progress (sync or async).
     //   When true, AllocLarge() returns 0 immediately → forces MAIN fallback.
@@ -411,6 +428,12 @@ private:
     void RebuildFreeRegionManager(const std::vector<RegionInfo*>& allLiveRegions);
 
     // (removed: ShrinkToReserve — replaced by direct ReclaimLOSBorrowed in CompactLOS Phase 7)
+
+    // P2-opt: Pre-allocated containers for CompactLOS, reused across compaction cycles.
+    // clear() preserves capacity, avoiding repeated malloc/free in STW.
+    std::vector<RegionInfo*> compactMovableRegions_;
+    std::vector<RegionInfo*> compactPinnedRegions_;
+    std::vector<RegionInfo*> compactAllLiveRegions_;
 
     // A-step2: saved compaction plan between PostTrace and forward/finalize stages.
     std::vector<CompactEntry> pendingCompactionPlan;

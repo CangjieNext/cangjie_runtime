@@ -108,7 +108,8 @@ public:
         : freeRegionManager(*this), tlRegionList("thread local regions"), recentFullRegionList("recent full regions"),
           fullTraceRegions("full trace regions"), fromRegionList("from regions"),
           ghostFromRegionList("ghost from regions"), unmovableFromRegionList("escaped from regions"),
-          garbageRegionList("garbage regions"), recentPinnedRegionList("recent pinned regions"),
+          garbageRegionList("garbage regions"), pendingGhostGarbageList("pending ghost garbage"),
+          recentPinnedRegionList("recent pinned regions"),
           oldPinnedRegionList("old pinned regions"), rawPointerPinnedRegionList("raw pointer pinned regions"),
           migrationCandidateList("migration candidates"),
           oldLargeRegionList("old large regions"), recentLargeRegionList("recent large regions"),
@@ -254,8 +255,8 @@ public:
     uintptr_t AllocLarge(size_t size)
     {
         // Step 1-2: Try LOS allocation (losFreeMgr + inactiveZone)
-        // Skip LOS entirely when compaction is in progress
-        if (losManager != nullptr && !losManager->IsCompacting()) {
+        // CompactLOS runs in STW so no mutator can reach here during compaction.
+        if (losManager != nullptr) {
             uintptr_t addr = losManager->AllocLarge(size);
             if (addr != 0) {
                 return addr;
@@ -363,7 +364,14 @@ public:
              region->GetLiveByteCount(), region->GetRegionEnd(), region->GetRegionType());
 
         region->LockWriteRegion();
-        garbageRegionList.PrependRegion(region, RegionInfo::RegionType::GARBAGE_REGION);
+        // Defensive: Ghost-from regions must NOT enter garbageRegionList where TakeRegion
+        // could reuse them with stale inGhostFromRegion/routeState flags, causing
+        // semantic confusion. Keep in pendingGhostGarbageList until ghost is dispelled.
+        if (region->IsGhostFromRegion()) {
+            pendingGhostGarbageList.PrependRegion(region, RegionInfo::RegionType::GARBAGE_REGION);
+        } else {
+            garbageRegionList.PrependRegion(region, RegionInfo::RegionType::GARBAGE_REGION);
+        }
         region->UnlockWriteRegion();
 
         if (region->IsLargeRegion()) {
@@ -463,6 +471,28 @@ public:
     }
 
     size_t GetDirtyUnitCount() const { return freeRegionManager.GetDirtyUnitCount(); }
+    size_t GetReleasedUnitCount() const { return freeRegionManager.GetReleasedUnitCount(); }
+
+    // MAIN fragmentation ratio: fraction of MAIN territory (own + borrowed) that is free/garbage.
+    // numerator = free tree units (dirty + released) + garbage list units
+    // denominator = total MAIN territory units = (effectiveMainEnd - regionHeapStart) / UNIT_SIZE
+    // where effectiveMainEnd = max(mainEnd, mainWatermark) to include borrowed RESERVE space.
+    // Returns 0.0 if denominator is 0.
+    double GetMainFragmentationRatio() const
+    {
+        uintptr_t effectiveEnd = GetEffectiveMainEnd();
+        if (effectiveEnd <= regionHeapStart) {
+            return 0.0;
+        }
+        size_t totalUnits = (effectiveEnd - regionHeapStart) / RegionInfo::UNIT_SIZE;
+        if (totalUnits == 0) {
+            return 0.0;
+        }
+        size_t freeUnits = freeRegionManager.GetDirtyUnitCount() +
+                           freeRegionManager.GetReleasedUnitCount() +
+                           garbageRegionList.GetUnitCount();
+        return static_cast<double>(freeUnits) / static_cast<double>(totalUnits);
+    }
 
     size_t GetInactiveUnitCount() const { 
         uintptr_t zone = inactiveZone.load(std::memory_order_relaxed);
@@ -620,19 +650,29 @@ public:
 
     void PrepareFromRegionList()
     {
-        ghostFromRegionList.VisitAllGhostRegions([](RegionInfo* region) {
+        size_t dispelCount = 0;
+        ghostFromRegionList.VisitAllGhostRegions([&dispelCount](RegionInfo* region) {
             DLOG(REGION, "visit ghost from region %p@[%#zx, %#zx)", region, region->GetRegionStart(),
                  region->GetRegionEnd());
             region->DispelGhostFromRegion();
+            ++dispelCount;
         });
 
-        fromRegionList.VisitAllRegions([](RegionInfo* region) {
+        // After ghosts are dispelled, their regions can safely enter garbageRegionList
+        // where TakeRegion can reclaim them (inGhostFromRegion is now cleared).
+        garbageRegionList.MergeRegionList(pendingGhostGarbageList, RegionInfo::RegionType::GARBAGE_REGION);
+
+        size_t newFromCount = 0;
+        fromRegionList.VisitAllRegions([&newFromCount](RegionInfo* region) {
             DLOG(REGION, "visit from region %p@[%#zx+%zu, %#zx)", region, region->GetRegionStart(),
                  region->GetLiveByteCount(), region->GetRegionEnd());
             region->PrepareForwardableRegion();
+            ++newFromCount;
         });
 
         fromRegionList.CopyListTo(ghostFromRegionList);
+        VLOG(REPORT, "PrepareFromRegionList: dispelled %zu ghosts, prepared %zu new from-regions",
+             dispelCount, newFromCount);
     }
 
     void ClearAllLiveInfo()
@@ -694,6 +734,11 @@ private:
 
     // cache for fromRegionList after forwarding.
     RegionList garbageRegionList;
+
+    // Defensive: Ghost-from garbage regions held here until ghosts are dispelled.
+    // Prevents TakeRegion from reusing regions that still carry inGhostFromRegion=1
+    // and non-NORMAL routeState, which would cause semantic confusion.
+    RegionList pendingGhostGarbageList;
 
     // regions for pinned (small-sized) objects.
     // region lists for small-sized pinned objects which are not be moved during concurrent gc, but

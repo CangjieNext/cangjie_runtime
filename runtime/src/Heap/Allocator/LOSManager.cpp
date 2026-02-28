@@ -47,18 +47,9 @@ void LOSManager::Initialize(uintptr_t start, uintptr_t end, UnitCount unitStart,
 
 uintptr_t LOSManager::AllocLarge(size_t size)
 {
-    // M4a-async: During compaction, reject all LOS allocations → forces MAIN fallback
-    if (isCompacting.load(std::memory_order_acquire)) {
-        losAllocFailCount.fetch_add(1, std::memory_order_relaxed);
-        return 0;
-    }
-
-    // A-STEP1: During compaction freeze window, LOS is read/reclaim only.
-    // New large allocations are redirected to MAIN by returning failure here.
-    if (losCompactionFreeze.load(std::memory_order_acquire)) {
-        losAllocFailCount.fetch_add(1, std::memory_order_relaxed);
-        return 0;
-    }
+    // NOTE: No need to check isCompacting / losCompactionFreeze here.
+    // CompactLOS always runs inside ScopedStopTheWorld, so all mutators
+    // are paused and cannot reach AllocLarge() during compaction.
 
     size_t unitCount = (size + RegionInfo::UNIT_SIZE - 1) / RegionInfo::UNIT_SIZE;
 
@@ -78,10 +69,23 @@ uintptr_t LOSManager::AllocLarge(size_t size)
         return finishAllocation(region, "freeMgr");
     }
 
-    // Step 2: Expand losInactiveZone toward low address (with borrow-on-demand inside)
+    // Step 2: Expand losInactiveZone toward low address
     region = AllocFromInactiveZone(unitCount);
     if (region != nullptr) {
         return finishAllocation(region, "inactiveZone");
+    }
+
+    // Step 3: Borrow-on-demand from RESERVE, then retry AllocFromInactiveZone.
+    // ComputeBorrowChunk inside BorrowForLOS computes max(requestSize, 10% of available).
+    if (reserveManager != nullptr) {
+        size_t neededSize = unitCount * RegionInfo::UNIT_SIZE;
+        size_t borrowed = reserveManager->BorrowForLOS(neededSize);
+        if (borrowed > 0) {
+            region = AllocFromInactiveZone(unitCount);
+            if (region != nullptr) {
+                return finishAllocation(region, "reserveBorrow");
+            }
+        }
     }
 
     DLOG(REGION, "LOS alloc large failed: size %zu (%zu units), "
@@ -90,6 +94,10 @@ uintptr_t LOSManager::AllocLarge(size_t size)
          losFreeMgr.GetDirtyUnitCount(), losFreeMgr.GetReleasedUnitCount(),
          losInactiveZone.load(std::memory_order_relaxed), losStart);
 
+    // Track failed allocation size for CompactLOS skip heuristic (#10A).
+    // After GC reclaims dead regions, if the free space can satisfy this size,
+    // we skip the expensive CompactLOS.
+    losLastFailedAllocSize.store(size, std::memory_order_relaxed);
     losAllocFailCount.fetch_add(1, std::memory_order_relaxed);
     return 0;
 }
@@ -164,18 +172,30 @@ size_t LOSManager::CollectLOSGarbage()
     size_t garbageSize = 0;
     losGarbageCollectedBytes = 0;
 
-    std::unordered_set<uintptr_t> protectedTargetRegionStarts;
+    // P2-opt: Use inline array + linear scan instead of unordered_set.
+    // pendingCompactionPlan is typically 0-10 entries; linear scan is faster than hash table.
+    static constexpr size_t INLINE_PROTECTED_SIZE = 32;
+    uintptr_t protectedStarts[INLINE_PROTECTED_SIZE];
+    size_t protectedCount = 0;
     {
         std::lock_guard<std::mutex> lock(compactionPlanMutex);
-        protectedTargetRegionStarts.reserve(pendingCompactionPlan.size());
         for (const auto& entry : pendingCompactionPlan) {
-            protectedTargetRegionStarts.insert(entry.newStart);
+            if (protectedCount < INLINE_PROTECTED_SIZE) {
+                protectedStarts[protectedCount++] = entry.newStart;
+            }
         }
     }
 
+    auto isProtected = [&](uintptr_t start) -> bool {
+        for (size_t i = 0; i < protectedCount; i++) {
+            if (protectedStarts[i] == start) return true;
+        }
+        return false;
+    };
+
     RegionInfo* region = losOldLargeRegionList.GetHeadRegion();
     while (region != nullptr) {
-        if (protectedTargetRegionStarts.find(region->GetRegionStart()) != protectedTargetRegionStarts.end()) {
+        if (isProtected(region->GetRegionStart())) {
             region->ResetMarkBit();
             region = region->GetNextRegion();
             continue;
@@ -193,11 +213,9 @@ size_t LOSManager::CollectLOSGarbage()
             region = region->GetNextRegion();
             losOldLargeRegionList.DeleteRegion(del);
 
-            if (del->GetRegionSize() > RegionInfo::LARGE_OBJECT_RELEASE_THRESHOLD) {
-                garbageSize += ReleaseLOSRegion(del);
-            } else {
-                garbageSize += ReclaimLOSRegion(del);
-            }
+            // P0-opt: Always release (madvise/mmap) and route to releasedTree,
+            // so TakeRegion avoids ClearUnits memset on the allocation hot path.
+            garbageSize += ReleaseLOSRegion(del);
         } else {
             // Survived — reset mark bit for next GC cycle
             region->ResetMarkBit();
@@ -294,6 +312,37 @@ bool LOSManager::NeedsCompaction() const
 
     // Condition 2: LOS allocation failures since last compaction
     if (losAllocFailCount.load(std::memory_order_relaxed) > lastCompactAllocFailCount) {
+        return true;
+    }
+
+    return false;
+}
+
+bool LOSManager::CanAllocLargeAfterGC() const
+{
+    // #10A: Check if LOS has enough free space to satisfy the last failed allocation.
+    // Called after CollectLargeGarbage() has reclaimed dead regions, before CompactLOS.
+    size_t neededSize = losLastFailedAllocSize.load(std::memory_order_relaxed);
+    if (neededSize == 0) {
+        return true;  // no recent failure — no need to compact
+    }
+
+    size_t unitCount = (neededSize + RegionInfo::UNIT_SIZE - 1) / RegionInfo::UNIT_SIZE;
+
+    // Check 1: losFreeMgr has a contiguous free block large enough
+    if (losFreeMgr.GetMaxContiguousFreeUnits() >= unitCount) {
+        DLOG(REPORT, "CanAllocLargeAfterGC: freeMgr has %u contiguous units >= needed %zu",
+             losFreeMgr.GetMaxContiguousFreeUnits(), unitCount);
+        return true;
+    }
+
+    // Check 2: inactive zone runway is large enough
+    uintptr_t iz = losInactiveZone.load(std::memory_order_relaxed);
+    uintptr_t effectiveStart = GetEffectiveLOSStart();
+    size_t runway = (iz > effectiveStart) ? (iz - effectiveStart) : 0;
+    if (runway >= neededSize) {
+        DLOG(REPORT, "CanAllocLargeAfterGC: inactiveZone runway %zu >= needed %zu",
+             runway, neededSize);
         return true;
     }
 
@@ -429,13 +478,14 @@ size_t LOSManager::FinalizePendingCompaction()
         (void)newRegion->Alloc(entry.regionSize - RegionSpace::HEADER_SIZE);
         newRegions.push_back(newRegion);
 
-        // Reclaim old region to LOS free manager.
+        // P0-opt: Release old region (madvise/mmap → releasedTree) to avoid
+        // ClearUnits memset when the region is reused by TakeRegion.
         oldRegion->DispelGhostFromRegion();
         if (oldRegion->IsFreeRegion()) {
             DLOG(REPORT, "LOS finalize skip reclaim: region already free [%zu+%zu)",
                  oldRegion->GetUnitIdx(), oldRegion->GetUnitCount());
         } else {
-            (void)ReclaimLOSRegion(oldRegion);
+            (void)ReleaseLOSRegion(oldRegion);
         }
 
         migrationMap.erase(entry.oldStart + RegionSpace::HEADER_SIZE);
@@ -568,8 +618,11 @@ size_t LOSManager::CompactLOS()
 
     // Phase 1: Collect all live regions from both old and recent lists.
     // Separate into movable (rawPointerCount == 0) and pinned.
-    std::vector<RegionInfo*> movableRegions;
-    std::vector<RegionInfo*> pinnedRegions;
+    // P2-opt: Reuse pre-allocated member vectors (clear preserves capacity).
+    compactMovableRegions_.clear();
+    compactPinnedRegions_.clear();
+    auto& movableRegions = compactMovableRegions_;
+    auto& pinnedRegions = compactPinnedRegions_;
     uintptr_t highestPinnedEnd = losInactiveZone.load(std::memory_order_relaxed);  // default: no barrier
 
     auto collectRegions = [&](RegionList& list) {
@@ -703,7 +756,9 @@ size_t LOSManager::CompactLOS()
 
     // Phase 5b: Rebuild region lists.
     // Collect all live regions (moved + pinned + unmoved movable) and re-insert into old list.
-    std::vector<RegionInfo*> allLiveRegions;
+    // P2-opt: Reuse pre-allocated member vector.
+    compactAllLiveRegions_.clear();
+    auto& allLiveRegions = compactAllLiveRegions_;
 
     // Compacted regions (at new addresses)
     for (const auto& entry : compactPlan) {
@@ -712,15 +767,18 @@ size_t LOSManager::CompactLOS()
         losOldLargeRegionList.PrependRegion(newRegion, RegionInfo::RegionType::LARGE_REGION);
     }
 
-    // Movable regions that weren't in compactPlan (below pinned barrier, couldn't move)
-    // Build a set for O(1) lookup instead of O(n²) nested loop.
-    std::unordered_set<RegionInfo*> compactPlanSet;
-    compactPlanSet.reserve(compactPlan.size());
-    for (const auto& entry : compactPlan) {
-        compactPlanSet.insert(entry.region);
-    }
+    // Movable regions that weren't in compactPlan (below pinned barrier, couldn't move).
+    // P2-opt: Linear scan instead of unordered_set — compactPlan is typically < 20 entries,
+    // so O(n*k) with small k is faster than hash table allocation + hashing.
     for (RegionInfo* r : movableRegions) {
-        if (compactPlanSet.count(r) == 0) {
+        bool inPlan = false;
+        for (const auto& entry : compactPlan) {
+            if (entry.region == r) {
+                inPlan = true;
+                break;
+            }
+        }
+        if (!inPlan) {
             allLiveRegions.push_back(r);
             losOldLargeRegionList.PrependRegion(r, RegionInfo::RegionType::LARGE_REGION);
         }
@@ -754,17 +812,23 @@ size_t LOSManager::CompactLOS()
     // Rebuild losFreeMgr: clear trees, then insert gaps between live regions
     RebuildFreeRegionManager(allLiveRegions);
 
-    // Phase 7: Return RESERVE-borrowed space.
+    // Phase 7: Return RESERVE-borrowed space (with delayed return buffer).
     // After compaction, all live objects are packed toward losEnd.
     // losInactiveZone (= lowestLiveStart) includes pinned objects.
     // Safe return boundary: min(losInactiveZone, losStart).
     //   - losInactiveZone >= losStart → all objects in native LOS → return entire borrow.
     //   - losInactiveZone <  losStart → pinned object(s) remain in RESERVE → partial return.
+    //
+    // Return RESERVE-borrowed space fully up to the watermark.
+    // No keep buffer — ShrinkInactiveZone and CompactLOS now run every GC,
+    // so borrow-return ping-pong is mitigated by the fragmentation gate.
     size_t freedBytes = lowestLiveStart - oldInactiveZone;
     size_t shrunkBytes = 0;
     if (reserveManager != nullptr) {
-        uintptr_t newLosWatermark = std::min(lowestLiveStart, losStart);
-        shrunkBytes = reserveManager->ReclaimLOSBorrowed(newLosWatermark);
+        uintptr_t fullReturnWatermark = std::min(lowestLiveStart, losStart);
+        shrunkBytes = reserveManager->ReclaimLOSBorrowed(fullReturnWatermark);
+        DLOG(REPORT, "LOS RESERVE return: watermark → 0x%zx, returned %zu bytes",
+             fullReturnWatermark, shrunkBytes);
     }
 
     // Update statistics
@@ -801,14 +865,16 @@ void LOSManager::RebuildFreeRegionManager(const std::vector<RegionInfo*>& allLiv
             size_t gapSize = rStart - gapStart;
             size_t gapUnits = gapSize / RegionInfo::UNIT_SIZE;
             if (gapUnits > 0) {
-                // Initialize the gap units as free
+                // P0-opt: Release gap pages (madvise/mmap) and route to releasedTree
+                // so TakeRegion avoids ClearUnits memset on the allocation hot path.
                 RegionInfo* gapRegion = RegionInfo::InitRegionAt(gapStart, gapUnits,
                                                                  RegionInfo::UnitRole::LARGE_SIZED_UNITS);
                 gapRegion->InitFreeUnits();
                 size_t gapUnitIdx = gapRegion->GetUnitIdx();
-                losFreeMgr.AddGarbageUnits(static_cast<CartesianTree::Index>(gapUnitIdx),
+                RegionInfo::ReleaseUnits(gapUnitIdx, gapUnits);
+                losFreeMgr.AddReleaseUnits(static_cast<CartesianTree::Index>(gapUnitIdx),
                                            static_cast<CartesianTree::Count>(gapUnits));
-                DLOG(REGION, "LOS rebuild freeMgr: gap [0x%zx, 0x%zx) = %zu units",
+                DLOG(REGION, "LOS rebuild freeMgr: gap [0x%zx, 0x%zx) = %zu units (released)",
                      gapStart, rStart, gapUnits);
             }
         }
@@ -825,9 +891,10 @@ void LOSManager::RebuildFreeRegionManager(const std::vector<RegionInfo*>& allLiv
                                                              RegionInfo::UnitRole::LARGE_SIZED_UNITS);
             gapRegion->InitFreeUnits();
             size_t gapUnitIdx = gapRegion->GetUnitIdx();
-            losFreeMgr.AddGarbageUnits(static_cast<CartesianTree::Index>(gapUnitIdx),
+            RegionInfo::ReleaseUnits(gapUnitIdx, gapUnits);
+            losFreeMgr.AddReleaseUnits(static_cast<CartesianTree::Index>(gapUnitIdx),
                                        static_cast<CartesianTree::Count>(gapUnits));
-            DLOG(REGION, "LOS rebuild freeMgr: trailing gap [0x%zx, 0x%zx) = %zu units",
+            DLOG(REGION, "LOS rebuild freeMgr: trailing gap [0x%zx, 0x%zx) = %zu units (released)",
                      gapStart, losEnd, gapUnits);
         }
     }

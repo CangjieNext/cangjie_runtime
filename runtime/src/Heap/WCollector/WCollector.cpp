@@ -13,6 +13,9 @@
 #include "ObjectModel/RefField.inline.h"
 
 namespace MapleRuntime {
+
+std::atomic<uint32_t> g_gcCycleNum{0};
+
 bool WCollector::IsUnmovableFromObject(BaseObject* obj) const
 {
     // filter const string object.
@@ -170,8 +173,10 @@ void WCollector::EnumRefFieldRoot(RefField<>& field, RootSet& rootSet) const
     }
 
     BaseObject* latest = nullptr;
+    BaseObject* diagTargetObj = nullptr;
     if (IsOldPointer(oldField)) {
         BaseObject* targetObj = oldField.GetTargetObject();
+        diagTargetObj = targetObj;
         latest = FindLatestVersion(targetObj);
     } else {
         latest = field.GetTargetObject();
@@ -181,7 +186,84 @@ void WCollector::EnumRefFieldRoot(RefField<>& field, RootSet& rootSet) const
     if (!Heap::IsHeapAddress(latest)) {
         return;
     }
-    CHECK_DETAIL(latest->IsValidObject(), "Enum static root %p(%p) encounters invalid object", latest, &field);
+    if (UNLIKELY(!latest->IsValidObject())) {
+        uint32_t crashCycleNum = g_gcCycleNum.load();
+        RegionInfo* diagRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(latest));
+        MAddress fieldVal = oldField.GetFieldValue();
+        uint16_t fIsTagged = oldField.IsTagged() ? 1 : 0;
+        uint16_t fTagID = oldField.GetTagID();
+        unsigned rType = diagRegion ? static_cast<unsigned>(diagRegion->GetRegionType()) : 0u;
+
+        // Also get from-version region info
+        RegionInfo* fromRegion = diagTargetObj ?
+            RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(diagTargetObj)) : nullptr;
+        unsigned fromRType = fromRegion ? static_cast<unsigned>(fromRegion->GetRegionType()) : 0u;
+        RegionInfo* ghostFrom = diagTargetObj ?
+            RegionInfo::GetGhostFromRegionAt(reinterpret_cast<MAddress>(diagTargetObj)) : nullptr;
+
+        LOG(RTLOG_ERROR, "[cycle=%u] Enum static root latest=%p targetObj=%p(@field=%p fieldVal=%#zx tagged=%u tagID=%u) "
+            "invalid object. "
+            "toRegion=%p toRegionType=%u toIsFree=%d toIsGarbage=%d toIsGhostFrom=%d "
+            "toRegionStart=%#zx toRegionEnd=%#zx toAllocPtr=%#zx "
+            "fromRegion=%p fromRegionType=%u fromIsFree=%d fromIsGarbage=%d fromIsGhostFrom=%d "
+            "fromGhostRegion=%p "
+            "fromRegionStart=%#zx fromRegionEnd=%#zx fromLiveBytes=%u "
+            "curTagID=%u prevTagID=%u gcReason=%d",
+            crashCycleNum,
+            latest, diagTargetObj, &field, fieldVal, fIsTagged, fTagID,
+            diagRegion, rType,
+            diagRegion ? (int)diagRegion->IsFreeRegion() : -1,
+            diagRegion ? (int)diagRegion->IsGarbageRegion() : -1,
+            diagRegion ? (int)diagRegion->IsGhostFromRegion() : -1,
+            diagRegion ? diagRegion->GetRegionStart() : 0,
+            diagRegion ? diagRegion->GetRegionEnd() : 0,
+            diagRegion ? diagRegion->GetRegionAllocPtr() : 0,
+            fromRegion, fromRType,
+            fromRegion ? (int)fromRegion->IsFreeRegion() : -1,
+            fromRegion ? (int)fromRegion->IsGarbageRegion() : -1,
+            fromRegion ? (int)fromRegion->IsGhostFromRegion() : -1,
+            ghostFrom,
+            fromRegion ? fromRegion->GetRegionStart() : 0,
+            fromRegion ? fromRegion->GetRegionEnd() : 0,
+            fromRegion ? fromRegion->GetLiveByteCount() : 0,
+            (unsigned)currentTagID, (unsigned)(currentTagID ^ 1), gcReason);
+
+        // Dump ghost routing details if available
+        if (ghostFrom != nullptr) {
+            auto& rInfo = ghostFrom->GetRouteInfoRef();
+            LiveInfo* li0 = ghostFrom->GetLiveInfo0();
+            uint64_t preLive = 0;
+            if (li0 != nullptr && diagTargetObj != nullptr) {
+                size_t offset = reinterpret_cast<MAddress>(diagTargetObj) - ghostFrom->GetRegionStart();
+                preLive = li0->GetPreLiveBytes(offset, ghostFrom->GetGhostRegionSize());
+            }
+            LOG(RTLOG_ERROR, "  ghostRoute: routeState=%u liveInfo0=%p "
+                "routeInfo.to1Start=%#zx routeInfo.to1Used=%u routeInfo.to2Idx=%u "
+                "preLiveBytes=%llu ghostRegionSize=%zu ghostRegionEnd0=%#zx "
+                "ghostUnitRole0=%u",
+                (unsigned)ghostFrom->GetRouteState(), li0,
+                rInfo.toRegion1StartAddress, rInfo.toRegion1UsedBytes, rInfo.toRegion2Idx,
+                (unsigned long long)preLive, ghostFrom->GetGhostRegionSize(),
+                ghostFrom->GetGhostRegionEnd0(),
+                (unsigned)ghostFrom->GetUnitRole0());
+        }
+
+        // Dump raw memory at 'latest' (to-version) — first 32 bytes
+        {
+            const uint64_t* mem = reinterpret_cast<const uint64_t*>(latest);
+            LOG(RTLOG_ERROR, "  toMem @%p: [0]=%#zx [1]=%#zx [2]=%#zx [3]=%#zx",
+                latest, mem[0], mem[1], mem[2], mem[3]);
+        }
+
+        // Also check from-version data
+        if (diagTargetObj != nullptr) {
+            const uint64_t* fromMem = reinterpret_cast<const uint64_t*>(diagTargetObj);
+            LOG(RTLOG_ERROR, "  fromMem @%p: [0]=%#zx [1]=%#zx [2]=%#zx [3]=%#zx",
+                diagTargetObj, fromMem[0], fromMem[1], fromMem[2], fromMem[3]);
+        }
+
+        std::abort();
+    }
     RefField<> newField = GetAndTryTagRefField(latest);
     if (oldField.GetFieldValue() == newField.GetFieldValue()) {
            DLOG(ENUM, "enum static ref@%p: %#zx -> %p<%p>", &field, oldField.GetFieldValue(), latest,
@@ -246,8 +328,75 @@ void WCollector::TraceRefField(BaseObject* obj, RefField<>& field, WorkStack& wo
     if (!Heap::IsHeapAddress(latest)) {
         return;
     }
-    CHECK_DETAIL(latest->IsValidObject(), "Invalid object %p is referenced by object %p: %s and offset %zd", latest,
-                 obj, obj->GetTypeInfo()->GetName(), BaseObject::FieldOffset(obj, &field));
+    if (UNLIKELY(!latest->IsValidObject())) {
+        RegionInfo* diagRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(latest));
+        MAddress fieldVal = oldField.GetFieldValue();
+        unsigned rType2 = diagRegion ? static_cast<unsigned>(diagRegion->GetRegionType()) : 0u;
+        BaseObject* traceTargetObj = IsOldPointer(oldField) ? oldField.GetTargetObject() : nullptr;
+        RegionInfo* traceFromRegion = traceTargetObj ?
+            RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(traceTargetObj)) : nullptr;
+        RegionInfo* traceGhostFrom = traceTargetObj ?
+            RegionInfo::GetGhostFromRegionAt(reinterpret_cast<MAddress>(traceTargetObj)) : nullptr;
+
+        LOG(RTLOG_ERROR, "Trace ref invalid: latest=%p obj=%p objType=%s offset=%zd "
+            "fieldVal=%#zx tagged=%u tagID=%u "
+            "toRegion=%p toRegionType=%u toIsFree=%d toIsGarbage=%d toIsGhostFrom=%d "
+            "toRegionStart=%#zx toRegionEnd=%#zx toAllocPtr=%#zx "
+            "fromObj=%p fromRegion=%p fromRegionType=%u fromIsGhostFrom=%d "
+            "fromGhostRegion=%p fromLiveBytes=%u "
+            "curTagID=%u prevTagID=%u gcReason=%d",
+            latest, obj, obj->GetTypeInfo()->GetName(),
+            BaseObject::FieldOffset(obj, &field),
+            fieldVal,
+            oldField.IsTagged() ? 1u : 0u, (unsigned)oldField.GetTagID(),
+            diagRegion, rType2,
+            diagRegion ? (int)diagRegion->IsFreeRegion() : -1,
+            diagRegion ? (int)diagRegion->IsGarbageRegion() : -1,
+            diagRegion ? (int)diagRegion->IsGhostFromRegion() : -1,
+            diagRegion ? diagRegion->GetRegionStart() : 0,
+            diagRegion ? diagRegion->GetRegionEnd() : 0,
+            diagRegion ? diagRegion->GetRegionAllocPtr() : 0,
+            traceTargetObj,
+            traceFromRegion, traceFromRegion ? static_cast<unsigned>(traceFromRegion->GetRegionType()) : 0u,
+            traceFromRegion ? (int)traceFromRegion->IsGhostFromRegion() : -1,
+            traceGhostFrom,
+            traceFromRegion ? traceFromRegion->GetLiveByteCount() : 0,
+            (unsigned)currentTagID, (unsigned)(currentTagID ^ 1), gcReason);
+
+        // Dump ghost routing details if available
+        if (traceGhostFrom != nullptr) {
+            auto& rInfo = traceGhostFrom->GetRouteInfoRef();
+            LiveInfo* li0 = traceGhostFrom->GetLiveInfo0();
+            uint64_t preLive = 0;
+            if (li0 != nullptr && traceTargetObj != nullptr) {
+                size_t offset = reinterpret_cast<MAddress>(traceTargetObj) - traceGhostFrom->GetRegionStart();
+                preLive = li0->GetPreLiveBytes(offset, traceGhostFrom->GetGhostRegionSize());
+            }
+            LOG(RTLOG_ERROR, "  ghostRoute: routeState=%u liveInfo0=%p "
+                "routeInfo.to1Start=%#zx routeInfo.to1Used=%u routeInfo.to2Idx=%u "
+                "preLiveBytes=%llu ghostRegionSize=%zu ghostRegionEnd0=%#zx",
+                (unsigned)traceGhostFrom->GetRouteState(), li0,
+                rInfo.toRegion1StartAddress, rInfo.toRegion1UsedBytes, rInfo.toRegion2Idx,
+                (unsigned long long)preLive, traceGhostFrom->GetGhostRegionSize(),
+                traceGhostFrom->GetGhostRegionEnd0());
+        }
+
+        // Dump raw memory at 'latest' (to-version)
+        {
+            const uint64_t* mem = reinterpret_cast<const uint64_t*>(latest);
+            LOG(RTLOG_ERROR, "  toMem @%p: [0]=%#zx [1]=%#zx [2]=%#zx [3]=%#zx",
+                latest, mem[0], mem[1], mem[2], mem[3]);
+        }
+
+        // Also dump from-version memory
+        if (traceTargetObj != nullptr) {
+            const uint64_t* fromMem = reinterpret_cast<const uint64_t*>(traceTargetObj);
+            LOG(RTLOG_ERROR, "  fromMem @%p: [0]=%#zx [1]=%#zx [2]=%#zx [3]=%#zx",
+                traceTargetObj, fromMem[0], fromMem[1], fromMem[2], fromMem[3]);
+        }
+
+        std::abort();
+    }
     RefField<> newField = GetAndTryTagRefField(latest);
     if (oldField.GetFieldValue() == newField.GetFieldValue()) {
         DLOG(TRACE, "trace obj %p ref@%p: %p<%p>", obj, &field, latest, latest->GetTypeInfo());
@@ -399,6 +548,7 @@ void WCollector::PreforwardAllResurrectExportFromObjects()
 }
 void WCollector::TraceHeap()
 {
+    VLOG(REPORT, "GC TraceHeap: tagID=%u reason=%d", (unsigned)currentTagID, gcReason);
     WorkStack workStack = NewWorkStack();
     WorkStack foreignStack = NewWorkStack();
     // assemble garbage candidates for tracing.
@@ -424,6 +574,7 @@ void WCollector::TraceHeap()
 void WCollector::PostTrace()
 {
     MRT_PHASE_TIMER("PostTrace");
+    VLOG(REPORT, "GC PostTrace: tagID=%u reason=%d", (unsigned)currentTagID, gcReason);
     TransitionToGCPhase(GC_PHASE_POST_TRACE, true);
     RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
     space.GetRegionManager().HandleTraceRegions();
@@ -434,7 +585,8 @@ void WCollector::PostTrace()
     // reclaim large objects immediately after tracing is done.
     PrepareCycleRef();
     CollectLargeGarbage();
-    CompactLOSIfNeeded();
+    // CompactLOS moved to post-GC phase (alongside ShrinkInactiveZone),
+    // gated by LOS fragmentation > 30% instead of OOM-only.
     CollectPinnedGarbage();
     RefineFromSpace();
     fwdTable.PrepareForwardTable();
@@ -482,11 +634,25 @@ void WCollector::BuildLargeObjectMigrationRoutes()
         // Try to allocate LOS target space.
         size_t objSize = region->GetRegionAllocatedSize();
         uintptr_t toAddr = (losMgr != nullptr) ? losMgr->AllocLarge(objSize) : 0;
+        if (toAddr == 0 && losMgr != nullptr) {
+            // LOS full: try borrowing from RESERVE to extend LOS runway,
+            // then retry allocation.  This keeps migration fully concurrent
+            // (no STW needed) by reusing the ghost-routing path.
+            ReserveManager* resMgr = rm.GetReserveManager();
+            if (resMgr != nullptr) {
+                size_t borrowed = resMgr->BorrowForLOS(objSize);
+                if (borrowed > 0) {
+                    toAddr = losMgr->AllocLarge(objSize);
+                    VLOG(REPORT, "LOS migration: borrowed %zu from RESERVE for region %p, "
+                         "retry alloc %s", borrowed, region, toAddr ? "OK" : "FAILED");
+                }
+            }
+        }
         if (toAddr == 0) {
-            // LOS full: mark as UNMOVABLE_FROM_REGION so the ForwardBarrier
-            // untags the reference (IsUnmovableFromObject → true) without needing
-            // ghost routing.  The region stays in migrationCandidateList and is
-            // moved back to oldLargeRegionList by CleanupMigrationCandidates().
+            // LOS + RESERVE both exhausted: mark as UNMOVABLE_FROM_REGION so
+            // the ForwardBarrier untags the reference without ghost routing.
+            // The region stays in migrationCandidateList and is moved back to
+            // oldLargeRegionList by CleanupMigrationCandidates().
             region->SetRegionType(RegionInfo::RegionType::UNMOVABLE_FROM_REGION);
             losFullCount++;
             continue;
@@ -517,12 +683,6 @@ void WCollector::CompactLOSIfNeeded()
 {
     MRT_PHASE_TIMER("CompactLOSIfNeeded");
 
-    // Safety gate: keep compaction execution opt-in until non-STW path is fully stabilized.
-    const char* compactEnabled = std::getenv("cjEnableLOSCompact");
-    if (compactEnabled == nullptr || compactEnabled[0] != '1') {
-        return;
-    }
-
     RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
     LOSManager* losMgr = space.GetRegionManager().GetLOSManager();
     if (losMgr == nullptr) {
@@ -538,6 +698,16 @@ void WCollector::CompactLOSOnOOMIfNeeded(LOSManager& losMgr, RegionManager& rm, 
 {
     bool needsCompact = (gcReason == GC_REASON_OOM) && (hasPendingPlan || losMgr.NeedsCompaction());
     if (!needsCompact) {
+        return;
+    }
+
+    // #10A: After CollectLargeGarbage() has reclaimed dead regions, check if LOS
+    // now has enough free space to satisfy the allocation that triggered OOM.
+    // If so, skip the expensive CompactLOS (STW + memmove + ref scan + rebuild).
+    // This avoids frequent compaction in small-heap scenarios where normal GC
+    // can free enough space.
+    if (!hasPendingPlan && losMgr.CanAllocLargeAfterGC()) {
+        DLOG(REPORT, "Skip CompactLOS: GC freed enough LOS space for allocation");
         return;
     }
 
@@ -571,26 +741,59 @@ void WCollector::UpdateCompactedLOSReferences(LOSManager& losMgr, RegionManager&
     size_t updatedFieldCount = 0;
     size_t updatedRootCount = 0;
     size_t scannedObjectCount = 0;
+    size_t tagStrippedCount = 0;
+    size_t rangeSkippedCount = 0;
+
+    // Pre-compute address range of moved LOS objects for fast rejection.
+    // Most heap references point to MAIN space, far outside this range,
+    // so the range check avoids >99% of hash lookups in migMap.
+    uintptr_t minOldAddr = UINTPTR_MAX;
+    uintptr_t maxOldAddr = 0;
+    for (const auto& entry : migMap) {
+        if (entry.first < minOldAddr) {
+            minOldAddr = entry.first;
+        }
+        if (entry.first > maxOldAddr) {
+            maxOldAddr = entry.first;
+        }
+    }
 
     // --- Helper: update a RefField if it points to a moved LOS object ---
-    auto updateRefField = [&migMap, &updatedFieldCount](RefField<>& field) {
+    auto updateRefField = [&](RefField<>& field) {
         BaseObject* target = field.GetTargetObject();
         if (target == nullptr) {
             return;
         }
-        auto it = migMap.find(reinterpret_cast<uintptr_t>(target));
+        uintptr_t addr = reinterpret_cast<uintptr_t>(target);
+        // Fast range check: skip hash lookup if address is outside moved LOS region range
+        if (LIKELY(addr < minOldAddr || addr > maxOldAddr)) {
+            ++rangeSkippedCount;
+            return;
+        }
+        auto it = migMap.find(addr);
         if (it != migMap.end()) {
+            bool wasTagged = field.IsTagged();
             field.SetTargetObject(reinterpret_cast<BaseObject*>(it->second));
+            if (wasTagged) {
+                ++tagStrippedCount;
+                VLOG(REPORT, "LOS compact: tag-stripped field @%p: old=%p(tagged) -> new=%p(untagged)",
+                     &field, target, reinterpret_cast<BaseObject*>(it->second));
+            }
             ++updatedFieldCount;
         }
     };
 
     // --- Helper: update a root (ObjectRef) if it points to a moved LOS object ---
-    auto updateRoot = [&migMap, &updatedRootCount](ObjectRef& ref) {
+    auto updateRoot = [&](ObjectRef& ref) {
         if (ref.object == nullptr) {
             return;
         }
-        auto it = migMap.find(reinterpret_cast<uintptr_t>(ref.object));
+        uintptr_t addr = reinterpret_cast<uintptr_t>(ref.object);
+        // Fast range check: skip hash lookup if address is outside moved LOS region range
+        if (LIKELY(addr < minOldAddr || addr > maxOldAddr)) {
+            return;
+        }
+        auto it = migMap.find(addr);
         if (it != migMap.end()) {
             ref.object = reinterpret_cast<BaseObject*>(it->second);
             ++updatedRootCount;
@@ -626,8 +829,10 @@ void WCollector::UpdateCompactedLOSReferences(LOSManager& losMgr, RegionManager&
     RootVisitor rootVisitor = updateRoot;
     Runtime::Current().GetConcurrencyModel().VisitGCRoots(&rootVisitor);
 
-    DLOG(REPORT, "LOS compact ref update: scanned %zu objects, updated %zu fields + %zu roots",
-         scannedObjectCount, updatedFieldCount, updatedRootCount);
+    VLOG(REPORT, "LOS compact ref update: scanned %zu objects, updated %zu fields + %zu roots, "
+         "tagStripped %zu, rangeSkipped %zu (migMap range [%p, %p])",
+         scannedObjectCount, updatedFieldCount, updatedRootCount, tagStrippedCount,
+         rangeSkippedCount, reinterpret_cast<void*>(minOldAddr), reinterpret_cast<void*>(maxOldAddr));
 }
 
 void WCollector::Preforward()
@@ -747,6 +952,9 @@ void WCollector::PostResolveCycleTask()
 }
 void WCollector::DoGarbageCollection()
 {
+    uint32_t cycleNum = g_gcCycleNum.fetch_add(1);
+    VLOG(REPORT, "=== GC START cycle=%u === tagID=%u reason=%d", cycleNum, (unsigned)currentTagID, gcReason);
+
     TraceHeap();
     PostTrace();
 
@@ -755,20 +963,56 @@ void WCollector::DoGarbageCollection()
     ForwardFromSpace();
     FinalizeLOSCompactionIfNeeded();
 
-    // P3: ShrinkInactiveZone under STW — OOM GC only.
-    // Phase A shrinks MAIN inactiveZone; Phase B pushes mainWatermark back
-    // to return RESERVE-borrowed space.  Only triggered during OOM GC because:
-    //   - Non-OOM GC: MAIN space will be re-consumed quickly, shrinking and
-    //     re-growing is wasted STW + ClearTrees + rebuild overhead.
-    //   - OOM GC: memory is under pressure, reclaim everything possible and
-    //     return borrowed RESERVE space.
-    // STW eliminates all race conditions (ClearTrees vs ReclaimRegion,
-    // inactiveZone.store vs fetch_add, garbageRegionList residual).
-    if (gcReason == GC_REASON_OOM) {
+    // P3: ShrinkInactiveZone — every GC, gated by MAIN fragmentation ratio.
+    // Uses tree pruning (RemoveAboveIndex) instead of ClearTrees+rebuild,
+    // which avoids the metadata consistency crash with borrow-on-demand.
+    // Gate: only enter STW + shrink when MAIN fragmentation > 30%.
+    // The reclaimable >= 10% RESERVE check is done inside ShrinkInactiveZone
+    // (the live-scan determines actual reclaimable amount; early-exit if nothing).
+    {
         RegionManager& rm = reinterpret_cast<RegionSpace&>(theAllocator).GetRegionManager();
-        ScopedStopTheWorld stw("shrink inactive", false);
-        rm.ShrinkInactiveZone();
+        double fragRatio = rm.GetMainFragmentationRatio();
+        if (fragRatio > 0.30) {
+            ScopedStopTheWorld stw("shrink inactive", false);
+            size_t reclaimed = rm.ShrinkInactiveZone();
+            if (reclaimed > 0) {
+                VLOG(REPORT, "WCollector: ShrinkInactiveZone reclaimed %zu bytes (frag=%.1f%%)",
+                     reclaimed, fragRatio * 100.0);
+            }
+        }
     }
+
+    // CompactLOS — every GC, gated by LOS fragmentation ratio > 30%.
+    // Moved from PostTrace (OOM-only) to post-GC phase for consistent reclamation.
+    // RESERVE borrowed space is returned fully to the watermark (no keep buffer).
+    {
+        RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
+        LOSManager* losMgr = space.GetRegionManager().GetLOSManager();
+        if (losMgr != nullptr) {
+            double losFragRatio = losMgr->GetFragmentationRatio();
+            if (losFragRatio > 0.30) {
+                RegionManager& rm = space.GetRegionManager();
+                ScopedStopTheWorld stw("LOS compact", true, GCPhase::GC_PHASE_POST_TRACE);
+                losMgr->SetCompacting(true);
+                losMgr->FreezeForCompaction();
+                size_t freedBytes = losMgr->CompactLOS();
+                UpdateCompactedLOSReferences(*losMgr, rm);
+                losMgr->ClearMigrationMap();
+                losMgr->UnfreezeAfterCompaction();
+                losMgr->SetCompacting(false);
+                losMgr->SetCompactionRequested(false);
+                if (freedBytes > 0) {
+                    VLOG(REPORT, "WCollector: CompactLOS freed %zu bytes (frag=%.1f%%)",
+                         freedBytes, losFragRatio * 100.0);
+                }
+            }
+        }
+    }
+
+    // Return unmigrated M3 candidates (UNMOVABLE_FROM_REGION) to oldLargeRegionList.
+    // These are regions that could not be migrated because LOS + RESERVE were both
+    // exhausted in BuildLargeObjectMigrationRoutes.
+    reinterpret_cast<RegionSpace&>(theAllocator).GetRegionManager().CleanupMigrationCandidates();
 
     TransitionToGCPhase(GCPhase::GC_PHASE_IDLE, true);
     MergeResurrectExportObjects();
@@ -778,10 +1022,6 @@ void WCollector::DoGarbageCollection()
 
     CollectSmallSpace();
     ForwardDataManager::GetForwardDataManager().UnbindPreviousLiveInfo();
-
-    // M3-fix: Move any unmigrated candidates (LOS-full, marked UNMOVABLE_FROM_REGION)
-    // back to oldLargeRegionList with LARGE_REGION type.
-    reinterpret_cast<RegionSpace&>(theAllocator).GetRegionManager().CleanupMigrationCandidates();
 
     // Notify RESERVE manager of GC cycle (for cooldown tracking).
     {
@@ -934,7 +1174,32 @@ BaseObject* WCollector::ForwardObjectExclusive(BaseObject* obj)
     BaseObject* toObj = fwdTable.RouteObject(obj);
     CHECK_DETAIL(toObj != nullptr, "invalid object route");
     DLOG(FORWARD, "forward obj %p<%p>(%zu) to %p", obj, obj->GetTypeInfo(), size, toObj);
+
+    // --- Pre-copy diagnostic: verify from-version has valid typeInfo ---
+    TypeInfo* fromTypeInfo = obj->GetTypeInfo();
+    if (UNLIKELY(fromTypeInfo == nullptr)) {
+        LOG(RTLOG_ERROR, "ForwardObjectExclusive: from obj %p has null typeInfo before copy! size=%zu toObj=%p",
+            obj, size, toObj);
+    }
+
     CopyObject(*obj, *toObj, size);
+
+    // --- Post-copy diagnostic: verify to-version has valid data ---
+    size_t* toRaw = reinterpret_cast<size_t*>(toObj);
+    if (UNLIKELY(toRaw[0] == 0 && toRaw[1] == 0)) {
+        size_t* fromRaw = reinterpret_cast<size_t*>(obj);
+        RegionInfo* fromRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
+        RegionInfo* toRegion = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(toObj));
+        LOG(RTLOG_ERROR, "ForwardObjectExclusive: COPY FAILED! from=%p to=%p size=%zu "
+            "fromRaw=[%#zx,%#zx] toRaw=[%#zx,%#zx] "
+            "fromRegion=%p type=%u [%#zx,%#zx) toRegion=%p type=%u [%#zx,%#zx) allocPtr=%#zx",
+            obj, toObj, size,
+            fromRaw[0], fromRaw[1], toRaw[0], toRaw[1],
+            fromRegion, fromRegion->GetRegionType(), fromRegion->GetRegionStart(), fromRegion->GetRegionEnd(),
+            toRegion, toRegion->GetRegionType(), toRegion->GetRegionStart(), toRegion->GetRegionEnd(),
+            toRegion->GetRegionAllocPtr());
+    }
+
     toObj->SetStateCode(ObjectState::NORMAL);
     std::atomic_thread_fence(std::memory_order_release);
     obj->UnlockObject(ObjectState::FORWARDED);

@@ -25,6 +25,14 @@
 #endif
 
 namespace MapleRuntime {
+
+// Identifies which allocation side triggered an OOM GC.
+enum class OOMSource : uint8_t {
+    NONE = 0,
+    MAIN = 1,  // Small-object allocation (MAIN space)
+    LOS  = 2,  // Large-object allocation (LOS space)
+};
+
 // RegionSpace aims to be the API for other components of runtime
 // the complication of implementation is delegated to RegionManager
 // allocator should not depend on any assumptions on the details of RegionManager
@@ -254,25 +262,32 @@ public:
 
     void RemoveRawPointerObject(BaseObject* obj) { regionManager.RemoveRawPointerObject(obj); }
 
+    // OOM-source accessors — set by allocator thread, read by GC thread.
+    OOMSource GetOOMSource() const { return oomSource_.load(std::memory_order_acquire); }
+    size_t    GetOOMAllocSize() const { return oomAllocSize_.load(std::memory_order_acquire); }
+    void SetOOMSource(OOMSource src, size_t allocSize = 0)
+    {
+        oomAllocSize_.store(allocSize, std::memory_order_release);
+        oomSource_.store(src, std::memory_order_release);
+    }
+
     friend class Allocator;
 
 private:
     enum class TryAllocationThreshold {
         RESCHEDULE = 3,
         TRIGGER_OOM = 5,
-        // P5: After OOM GC, try RESERVE borrowing before final OOM exception
-        TRIGGER_RESERVE_BORROW = 6,
     };
     MAddress TryAllocateOnce(size_t allocSize, AllocType allocType);
     bool ShouldRetryAllocation(size_t& tryTimes, size_t size);
-
-    // P5: After OOM GC retry still fails, check if MAIN/LOS need RESERVE
-    // borrowing and extend the corresponding runway.
-    void TryBorrowFromReserveIfNeeded(size_t allocSize);
     MAddress reservedStart = 0;
     MAddress reservedEnd = 0;
     RegionManager regionManager;
     MemMap* map{ nullptr };
+
+    // Tracks which side (MAIN/LOS) triggered the most recent OOM GC.
+    std::atomic<OOMSource> oomSource_{OOMSource::NONE};
+    std::atomic<size_t>    oomAllocSize_{0};
 };
 } // namespace MapleRuntime
 #endif // MRT_REGION_SPACE_H

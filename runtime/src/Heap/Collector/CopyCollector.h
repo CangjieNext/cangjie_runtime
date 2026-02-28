@@ -32,7 +32,6 @@ protected:
 
     virtual void DoGarbageCollection() = 0;
 
-private:
 };
 } // namespace MapleRuntime
 #endif // MRT_COPY_COLLECTOR_H

@@ -117,6 +117,18 @@ public:
         totalCount -= cnt;
     }
 
+    // Remove all free blocks whose local index >= threshold.
+    // Blocks that straddle the threshold are truncated: only the portion below threshold kept.
+    // Returns the total unit count removed.  Uses BST-on-index property for efficient pruning.
+    // Caller must hold the tree mutex.
+    Count RemoveAboveIndex(Index threshold)
+    {
+        Count removed = 0;
+        RemoveAboveImpl(root, threshold, removed);
+        totalCount -= removed;
+        return removed;
+    }
+
     // insert a node to the tree, if we find connecting nodes, we merge them
     // (the non-merging insertion is not allowed)
     // true when insertion succeeded, false otherwise
@@ -342,6 +354,63 @@ private:
             return;
         }
         nodeAllocator.Deallocate(n);
+    }
+
+    // Recursively deallocate all nodes in a subtree. Returns total unit count.
+    Count DeleteSubtree(Node* n)
+    {
+        if (n == nullptr) {
+            return 0;
+        }
+        Count removed = n->GetCount();
+        removed += DeleteSubtree(n->l);
+        removed += DeleteSubtree(n->r);
+        nodeAllocator.Deallocate(n);
+        return removed;
+    }
+
+    // Recursive implementation of RemoveAboveIndex.
+    // BST property: left child has lower index, right child has higher index.
+    // Max-heap on count: parent count >= child count.
+    void RemoveAboveImpl(Node*& n, Index threshold, Count& removed)
+    {
+        if (n == nullptr) {
+            return;
+        }
+
+        Index nodeIdx = n->GetIndex();
+        Index nodeEnd = nodeIdx + n->GetCount();
+
+        if (nodeIdx >= threshold) {
+            // Entire node is at or above threshold.
+            // Right subtree has even higher indices — delete it entirely.
+            // Left subtree may have nodes below threshold — must check.
+            Node* leftChild = n->l;
+            removed += n->GetCount();
+            removed += DeleteSubtree(n->r);
+            nodeAllocator.Deallocate(n);
+            n = leftChild;
+            // Continue pruning the (now-promoted) left subtree
+            RemoveAboveImpl(n, threshold, removed);
+        } else if (nodeEnd > threshold) {
+            // Node straddles threshold: truncate to [nodeIdx, threshold)
+            Count oldCount = n->GetCount();
+            Count newCount = threshold - nodeIdx;
+            removed += (oldCount - newCount);
+            // Right subtree: all indices > nodeIdx, and since nodeEnd > threshold,
+            // some or all right nodes are above threshold too. Delete right subtree entirely
+            // because any right node's index >= nodeEnd > threshold would be above,
+            // and nodes in [nodeIdx+count_old.. ] are above threshold.
+            // Actually right children have index > nodeIdx+count, which > threshold. Delete all.
+            removed += DeleteSubtree(n->r);
+            n->r = nullptr;
+            n->UpdateNode(nodeIdx, newCount, true, baseIndex);
+            // Count decreased — may violate max-heap. Fix heap property.
+            MaintainHeapPropertyForNonZeroNode(n);
+        } else {
+            // Entire node is below threshold. Only right subtree may contain above-threshold nodes.
+            RemoveAboveImpl(n->r, threshold, removed);
+        }
     }
 
     // the following function tries to merge new node (idx, num) with n
