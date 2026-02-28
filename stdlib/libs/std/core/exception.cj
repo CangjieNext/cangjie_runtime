@@ -103,6 +103,6 @@ public open class Exception <: ToString {
     }
 
     public func getStackTrace(): Array<StackTraceElement> {
-        getStackTraceImpl(pcArray)
+        return []
     }
 }
