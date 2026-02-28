@@ -194,7 +194,7 @@ class IPv6Prefix <: IPPrefix & Equatable<IPv6Prefix> & Hashable & ToString {
 
     init(ip: IPv6Address, prefixLength: UInt8) {
         if (prefixLength > 128) {
-            throw IllegalFormatException("IPv6 prefix length must be >= 0 and <= 128.")
+            throw IllegalArgumentException("IPv6 prefix length must be >= 0 and <= 128.")
         }
         _ip = ip
         _prefixLength = prefixLength
