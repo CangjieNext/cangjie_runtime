@@ -312,7 +312,7 @@ void TypeInfo::AddMTable(TypeInfo* itf, ExtensionData* extensionData)
     auto& mTable = GetMTableDesc()->mTable;
     auto it = mTable.find(itfUUID);
     if (it == mTable.end()) {
-        mTable.emplace(itfUUID, InheritFuncTable(extensionData, itf, extensionData->GetFuncTableSize()));
+        mTable.emplace(itfUUID, InheritFuncTable(extensionData, itf, 0U)); // create func table with empty cache  
     }
 }
 
@@ -520,7 +520,7 @@ ExtensionData* TypeInfo::FindExtensionDataRecursively(TypeInfo* itf)
         auto found = super->FindExtensionData(itf, true);
         if (found) {
             // This won't cause the issue of iterator invalidation since the function will exit immediately.
-            mTableDesc->mTable.emplace(itf->GetUUID(), InheritFuncTable(found, itf, found->GetFuncTableSize()));
+            mTableDesc->mTable.emplace(itf->GetUUID(), InheritFuncTable(found, itf, 0U)); // create func table with empty cache  
             return found;
         }
     }
@@ -612,12 +612,18 @@ TypeInfo* TypeInfo::GetMethodOuterTI(TypeInfo* itf, U64 index)
         LOG(RTLOG_FATAL, "expected interface %s is not in class %s", itf->GetName(), GetName());
         return nullptr;
     }
-    auto* outerTi = it->second.GetCachedTypeInfo(index);
-    if (LIKELY(outerTi != nullptr)) {
-        return outerTi;
+
+    if (LIKELY(it->second.IsCachedTypeInfoInited())) {
+        auto* outerTi = it->second.GetCachedTypeInfo(index);
+        if (LIKELY(outerTi != nullptr)) {
+            return outerTi;
+        }
     }
+
     auto* ed = it->second.GetExtensionData();
     CHECK(ed != nullptr);
+    // Initialize the cache for the first time.
+    it->second.ResetAtomicInfoArray(ed->GetFuncTableSize());
     outerTi = ed->GetOuterTi(this, index);
     if (outerTi != nullptr) {
         it->second.SetCachedTypeInfo(index, outerTi);
