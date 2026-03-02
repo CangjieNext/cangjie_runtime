@@ -457,7 +457,6 @@ void TypeInfoManager::FillRemainingField(GenericTiDesc* &tiDesc, TypeTemplate* t
     TypeInfo* super = tt->GetSuperTypeInfo(argSize, args);
     newTypeInfo->SetSuperTypeInfo(super);
     AddTypeInfo(newTypeInfo);
-    AddMTable(tt, newTypeInfo, argSize, args);
     if (tt->ReflectInfoIsNull()) {
         tiDesc->SetTypeInfoStatus(TypeInfoStatus::TYPEINFO_INITED);
         return;
