@@ -662,7 +662,8 @@ MRT_STATIC_INLINE void CJThreadMake(const struct CJThreadAttrInner *attr,
     (void)memset_s(&newCJThread->context, sizeof(struct CJThreadContext), 0, sizeof(struct CJThreadContext));
 
     // foreign thread schedule do not create new stack and not need to init cjthread context.
-    if (newCJThread->schedule->scheduleType == SCHEDULE_FOREIGN_THREAD || newCJThread->schedule->scheduleType == SCHEDULE_EXCLUSIVE) {
+    if (newCJThread->schedule->scheduleType == SCHEDULE_FOREIGN_THREAD ||
+        newCJThread->schedule->scheduleType == SCHEDULE_EXCLUSIVE) {
         return;
     }
     if (attr != nullptr && attr->cjFromC) {
@@ -911,7 +912,8 @@ void ExclusiveExecutor(struct Thread* thread, struct CJThread* newCJThread)
 }
 
 // ExclusiveRestore restore from exclusive cjthread
-void ExclusiveRestore(struct CJThread* oldCJThread, struct Thread* thread, struct CJThread* newCJThread, struct Processor* oldProcessor)
+void ExclusiveRestore(struct CJThread* oldCJThread, struct Thread* thread,
+                      struct CJThread* newCJThread, struct Processor* oldProcessor)
 {
     struct Schedule* oldSchedule = oldCJThread->schedule;
     struct Schedule* newSchedule = newCJThread->schedule;
@@ -945,7 +947,7 @@ void ExclusiveRestore(struct CJThread* oldCJThread, struct Thread* thread, struc
 }
 
 CJThreadHandle ExclusiveCJThreadNew(CJThreadFunc func,
-                           const void *argStart, unsigned int argSize)
+                                    const void *argStart, unsigned int argSize)
 {
     struct StackAttr stackAttr;
     stackAttr.stackGrow = false;
@@ -972,7 +974,6 @@ CJThreadHandle ExclusiveCJThreadNew(CJThreadFunc func,
     }
     return newCJThread;
 }
-
 
 /* Create a cjthread in the cjthread context. */
 CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *attrUser, CJThreadFunc func,
@@ -1379,7 +1380,8 @@ __attribute__((noinline)) int CJThreadResched(void)
 {
     // If cjthread is in foreign or exclusive thread schedule, do not reschedule.
     struct CJThread *cjthread = CJThreadGet();
-    if (cjthread->schedule->scheduleType == SCHEDULE_FOREIGN_THREAD || cjthread->schedule->scheduleType == SCHEDULE_EXCLUSIVE) {
+    if (cjthread->schedule->scheduleType == SCHEDULE_FOREIGN_THREAD ||
+        cjthread->schedule->scheduleType == SCHEDULE_EXCLUSIVE) {
         return 0;
     }
 #ifdef CANGJIE_ASAN_SUPPORT
