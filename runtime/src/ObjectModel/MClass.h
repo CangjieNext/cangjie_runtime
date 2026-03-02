@@ -115,9 +115,13 @@ public:
         : superExtensionData(ed), superTypeInfo(super), cachedTypeInfos(sz) {}
     ExtensionData* GetExtensionData() const { return superExtensionData; }
     TypeInfo* GetSuperTi() const { return superTypeInfo; }
-    void ResetAtomicInfoArray(size_t size) { cachedTypeInfos = AtomicTypeInfoArray(size); }
+    void ResetAtomicInfoArray(size_t size) {
+        std::lock_guard<std::mutex> lock(cacheInitMutex);
+        cachedTypeInfos = AtomicTypeInfoArray(size); 
+    }
     TypeInfo* GetCachedTypeInfo(size_t index) const { return cachedTypeInfos.Get(index); }
     void SetCachedTypeInfo(size_t index, TypeInfo* ti) { cachedTypeInfos.Set(index, ti); }
+    inline bool IsCachedTypeInfoInited() const { return cachedTypeInfos.IsInited(); }
 private:
     class AtomicTypeInfoArray {
     public:
@@ -208,9 +212,12 @@ private:
         {
             typeInfos[index].store(ti, std::memory_order_release);
         }
+        inline bool IsInited() const { return cacheSize != 0; }
+
     private:
         size_t cacheSize{ 0 };
         std::atomic<TypeInfo*>* typeInfos{ nullptr };
+        std::mutex cacheInitMutex;
     };
 
     ExtensionData* superExtensionData { nullptr };
