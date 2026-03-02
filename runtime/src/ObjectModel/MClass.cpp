@@ -860,6 +860,9 @@ bool TypeTemplate::IsEnumCtor() const
     if (!IsEnum() && !IsTempEnum()) {
         return false;
     }
+    // When enumInfo is empty, it indicates an enum constructor.
+    // However, earlier versions existed where enumInfo of constructors was not empty.
+    // To ensure compatibility, further judgment is required based on the modifiers in enumInfo.
     if (enumInfo == nullptr) {
         return true;
     }
@@ -888,6 +891,9 @@ bool TypeInfo::IsEnumCtor() const
     if (!IsEnum() && !IsTempEnum()) {
         return false;
     }
+    // When enumInfo is empty, it indicates an enum constructor.
+    // However, earlier versions existed where enumInfo of constructors was not empty.
+    // To ensure compatibility, further judgment is required based on the modifiers in enumInfo.
     if (enumInfo == nullptr) {
         return true;
     }
