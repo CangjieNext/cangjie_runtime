@@ -245,7 +245,8 @@ void TypeInfoManager::AddTypeInfo(TypeInfo* ti)
             ti->TryInitMTableNoLock();
             LoaderManager::GetInstance()->RecordTypeInfo(ti);
         }
-        bool needRefresh = ti->NeedRefresh() && !tiDesc->IsIniting();
+
+        bool needRefresh = (ti->GetType() == TypeKind::TYPE_KIND_CLASS) && (ti->GetTypeArgNum() != 0) && (ti->GetFieldNum() != ti->GetSourceGeneric()->GetFieldNum()) && !tiDesc->IsIniting();
         tiDesc->SetTypeInfoStatus(TypeInfoStatus::TYPEINFO_INITED);
         if (UNLIKELY(needRefresh)) {
             CHECK(ti->IsObjectType());
@@ -457,7 +458,6 @@ void TypeInfoManager::FillRemainingField(GenericTiDesc* &tiDesc, TypeTemplate* t
     TypeInfo* super = tt->GetSuperTypeInfo(argSize, args);
     newTypeInfo->SetSuperTypeInfo(super);
     AddTypeInfo(newTypeInfo);
-    AddMTable(tt, newTypeInfo, argSize, args);
     if (tt->ReflectInfoIsNull()) {
         tiDesc->SetTypeInfoStatus(TypeInfoStatus::TYPEINFO_INITED);
         return;
@@ -681,27 +681,6 @@ void TypeInfoManager::ParseEnumInfo(TypeTemplate* tt, U32 argSize, TypeInfo* arg
     SetMethodInfos(enumInfo, ttEnumInfo, ti);
     enumInfo->SetParsed();
     ti->SetEnumInfo(enumInfo);
-}
-
-void TypeInfoManager::AddMTable(TypeTemplate* tt, TypeInfo* newTypeInfo, U32 argSize, TypeInfo* args[])
-{
-    LoaderManager::GetInstance()->GetLoader()->VisitExtensionData(newTypeInfo,
-        [argSize, args, newTypeInfo, this](ExtensionData* extensionData) {
-        void* whereCondFn = reinterpret_cast<void*>(extensionData->GetWhereCondFn());
-        uintptr_t matched = false;
-        if (whereCondFn == nullptr) {
-            matched = true;
-        } else {
-            // &0x1: The compiler returns the lower byte of rax, but the runtime must accept it using 64 bits.
-            matched = reinterpret_cast<uintptr_t>(TypeTemplate::ExecuteGenericFunc(whereCondFn, argSize, args)) & 0x1;
-        }
-        if (matched) {
-            TypeInfo* itf = extensionData->GetInterfaceTypeInfo(argSize, args);
-            AddTypeInfo(itf);
-            newTypeInfo->AddMTable(itf, extensionData);
-        }
-        return false;
-        }, tt);
 }
 
 #ifdef __arm__

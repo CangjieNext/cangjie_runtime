@@ -313,7 +313,6 @@ void TypeInfo::AddMTable(TypeInfo* itf, ExtensionData* extensionData)
     auto it = mTable.find(itfUUID);
     if (it == mTable.end()) {
         mTable.emplace(itfUUID, InheritFuncTable(extensionData, itf, extensionData->GetFuncTableSize()));
-    }
 }
 
 static bool ResolveExtensionData(
@@ -416,7 +415,7 @@ static void ResolveInnerExtensionDefs(
     } else {
         vExtensionPtr += initIndex;
     }
-    MTableBitmap& bitmap = resolveTi->GetMTableDesc()->mTableBitmap;
+    MTableBitmap& bitmap = resolveTi->1()->mTableBitmap;
     if (bitmap.tag != 0) {
         bitmap.ForEachBit(
             [ti, resolveTi, getInterface](ExtensionData* extensionData) {
@@ -608,18 +607,20 @@ TypeInfo* TypeInfo::GetMethodOuterTI(TypeInfo* itf, U64 index)
     }
     auto& mTable = mTableDesc->mTable;
     auto it = mTable.find(itfUUID);
-    if (it == mTable.end()) {
+    if (UNLIKELY(it == mTable.end())) {
         LOG(RTLOG_FATAL, "expected interface %s is not in class %s", itf->GetName(), GetName());
         return nullptr;
     }
+    
     auto* outerTi = it->second.GetCachedTypeInfo(index);
     if (LIKELY(outerTi != nullptr)) {
         return outerTi;
     }
+
     auto* ed = it->second.GetExtensionData();
     CHECK(ed != nullptr);
     outerTi = ed->GetOuterTi(this, index);
-    if (outerTi != nullptr) {
+    if (LIKELY(outerTi != nullptr)) {
         it->second.SetCachedTypeInfo(index, outerTi);
         return outerTi;
     }
@@ -1093,28 +1094,9 @@ bool TypeInfo::NeedRefresh()
         return false;
     }
 
-    // For class:
-    // 1) if this TypeInfo has the same number of fields with its TypeTemplate, it means no
-    // need to be refreshed.
-    if (GetFieldNum() == GetSourceGeneric()->GetFieldNum()) {
-        return false;
-    }
-    // 2) if its TypeInfo does not set extension part bit, it may be compiled by previous SDK,
-    // so always refresh the TypeInfo for correctness.
-    if (!HasExtPart()) {
-        return true;
-    }
-    // 3) if this TypeInfo does not have extension part, refresh the TypeInfo.
-    auto typeExt = LoaderManager::GetInstance()->GetLoader()->GetTypeExt(this);
-    if (typeExt == nullptr) {
-        return true;
-    }
-    // 4) if its TypeInfo has extension part, but the first byte of content is `0`, it means the
-    // TypeInfo needs to be refreshed.
-    if (*reinterpret_cast<uint8_t*>(typeExt->content) == 0) {
-        return true;
-    }
-    return false;
+    // If this TypeInfo has different number of fields with its TypeTemplate, it means the TypeInfo
+    // needs to be refreshed.
+    return GetFieldNum() != GetSourceGeneric()->GetFieldNum();
 }
 
 EnumCtorInfo* EnumInfo::GetEnumCtor(U32 idx) const
