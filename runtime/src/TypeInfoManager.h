@@ -63,7 +63,6 @@ public:
 private:
     uintptr_t Allocate(size_t size);
     CString GetGCTibStr(TypeInfo* typeInfo);
-    void AddMTable(TypeTemplate* tt, TypeInfo* newTypeInfo, U32 argSize, TypeInfo* args[]);
     // Helper methods for copying method and parameter information
     void CopyParameterInfos(MethodInfo* ttMethodInfo, MethodInfo* tiMethodInfo);
     void CopyMethodInfo(MethodInfo* ttMethodInfo, MethodInfo* tiMethodInfo, TypeInfo* ti);
