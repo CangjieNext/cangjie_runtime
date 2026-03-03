@@ -107,6 +107,7 @@ public:
     void ResetAtomicInfoArray(size_t size) { cachedTypeInfos.Reset(size); }
     TypeInfo* GetCachedTypeInfo(size_t index) const { return cachedTypeInfos.Get(index); }
     void SetCachedTypeInfo(size_t index, TypeInfo* ti) { cachedTypeInfos.Set(index, ti); }
+    inline bool IsCachedTypeInfoInited() const { return cachedTypeInfos.IsInited(); }
 private:
     class AtomicTypeInfoArray {
     public:
@@ -197,6 +198,7 @@ private:
         {
             typeInfos[index].store(ti, std::memory_order_release);
         }
+        inline bool IsInited() const { return cacheSize != 0; }
         void Reset(size_t size)
         {
             CHECK_DETAIL(size > cacheSize, "update func table with wrong size %zu->%zu", cacheSize, size);
