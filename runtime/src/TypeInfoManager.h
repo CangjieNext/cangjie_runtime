@@ -63,7 +63,6 @@ public:
 private:
     uintptr_t Allocate(size_t size);
     CString GetGCTibStr(TypeInfo* typeInfo);
-    void AddMTable(TypeTemplate* tt, TypeInfo* newTypeInfo, U32 argSize, TypeInfo* args[]);
 
     enum TypeInfoStatus : uint8_t {
         TYPEINFO_NOT_CREATED = 0,
