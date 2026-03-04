@@ -140,6 +140,7 @@ AllocBuffer::~AllocBuffer()
         manager.RemoveThreadLocalRegion(tlRegion);
         manager.EnlistFullThreadLocalRegion(tlRegion);
         tlRegion = RegionInfo::NullRegion();
+        LOG(RTLOG_REPORT, "CJ Thread Local Region Released.");
     }
 }
 
@@ -148,6 +149,7 @@ void AllocBuffer::Init()
     static_assert(offsetof(AllocBuffer, tlRegion) == 0,
                   "need to modify the offset of this value in llvm-project at the same time");
     tlRegion = RegionInfo::NullRegion();
+    ThreadLocal::InitializeCleaner();
     Heap::GetHeap().RegisterAllocBuffer(*this);
 }
 
