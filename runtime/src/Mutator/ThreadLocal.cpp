@@ -21,6 +21,17 @@ ThreadLocalData* ThreadLocal::GetThreadLocalData()
     return reinterpret_cast<ThreadLocalData*>(threadLocalData);
 }
 
+void ThreadLocal::InitializeCleaner()
+{
+    (void)cleaner;
+}
+
+CleanThreadLocalData::CleanThreadLocalData()
+{
+    // Add a side effect to make sure the constructor wont be optimized out.
+    asm volatile("" ::: "memory");
+}
+
 CleanThreadLocalData::~CleanThreadLocalData()
 {
     if (!ThreadLocal::TryGetRdLock()) {
