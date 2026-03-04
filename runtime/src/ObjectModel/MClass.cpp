@@ -526,7 +526,7 @@ ExtensionData* TypeInfo::FindExtensionData(TypeInfo* itf, bool searchRecursively
                 if (it != mTableDesc->mTable.end()) {
                     return it->second.GetExtensionData();
                 } else {
-                    return itf->IsInterface() && searchRecursively ? FindExtensionDataRecursively(itf) : nullptr;
+                    return nullptr;
                 }
             }
             TraverseInnerExtensionDefs();
@@ -538,7 +538,7 @@ ExtensionData* TypeInfo::FindExtensionData(TypeInfo* itf, bool searchRecursively
     if (it != mTable.end()) {
         return it->second.GetExtensionData();
     }
-    return itf->IsInterface() && searchRecursively ? FindExtensionDataRecursively(itf) : nullptr;
+    return nullptr;
 }
 
 FuncPtr* TypeInfo::GetMTable(TypeInfo* itf)
