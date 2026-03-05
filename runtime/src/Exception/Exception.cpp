@@ -62,6 +62,7 @@ void ExceptionHandling::BuildEHFrameInfo()
     }
 #endif
     std::vector<EHFrameInfo>& ehFrameInfos = eWrapper->GetEHFrameInfos();
+    ehFrameInfos.reserve(stackInfo.size());
     for (const auto& frame : stackInfo) {
         if (frame.GetFrameType() == FrameType::MANAGED) {
             EHFrameInfo ehFrameInfo(frame, *eWrapper);
