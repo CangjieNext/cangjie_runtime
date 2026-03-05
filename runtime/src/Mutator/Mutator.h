@@ -304,6 +304,7 @@ public:
     inline void GcPhaseEnum(GCPhase newPhase);
     inline void GCPhasePreForward(GCPhase newPhase);
     inline void HandleGCPhase(GCPhase newPhase);
+    inline void HandleGCPhaseIDLE();
 
     inline void HandleCpuProfile();
 
