@@ -571,9 +571,11 @@ inline void Mutator::HandleGCPhase(GCPhase newPhase)
             ReleaseForeignThread();
         } else {
 #if defined(__OHOS__) && (__OHOS__ == 1)
-            if (foreignThreadInfo.allocBuffer != nullptr &&
-                GetUnwindContext().GetUnwindContextStatus() == UnwindContextStatus::RISKY) {
-                foreignThreadInfo.allocBuffer->FlushRegion();
+            if (foreignThreadInfo.allocBuffer != nullptr) {
+                auto status = GetUnwindContext().GetUnwindContextStatus();
+                if (status == UnwindContextStatus::RISKY || status == UnwindContextStatus::UNKNOWN) {
+                    foreignThreadInfo.allocBuffer->FlushRegion();
+                }
             }
 #endif
         }
