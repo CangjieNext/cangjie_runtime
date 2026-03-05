@@ -8,6 +8,12 @@ set(SRC_LIST
     "Barrier.cpp"
 )
 
+# Mark-Sweep barrier sources (Step 3 will add MSIdleBarrier.cpp, MSWriteBarrier.cpp here)
+if (MARKSWEEP_FLAG MATCHES 1)
+    # list(APPEND SRC_LIST "MSIdleBarrier.cpp")
+    # list(APPEND SRC_LIST "MSWriteBarrier.cpp")
+endif()
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../)
 add_library(Barrier STATIC ${SRC_LIST})
 

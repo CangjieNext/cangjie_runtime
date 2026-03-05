@@ -118,11 +118,13 @@ public:
 
     RegionInfo* AllocateThreadLocalRegion(bool expectPhysicalMem = false);
 
+#ifndef MRT_USE_MARK_SWEEP
     void ForwardFromRegions(GCThreadPool* threadPool);
     void ForwardFromRegions();
     void ForwardRegion(RegionInfo* region);
     void CompactRegion(RegionInfo* region);
     void CompactRegion(RegionInfo* region, RegionInfo* toRegion1);
+#endif
 
     void ExemptFromRegion(RegionInfo* region);
 
@@ -431,6 +433,7 @@ public:
         largeTraceRegions.ActivateRegionCache();
     }
 
+#ifndef MRT_USE_MARK_SWEEP
     bool RouteOrCompactRegionImpl(RegionInfo* region);
 
     BaseObject* RouteObject(BaseObject* fromObj, RegionInfo* fromRegionInfo)
@@ -485,6 +488,11 @@ public:
             }
         } while (true);
     }
+#else
+    // MS mode stubs: forwarding/compaction is not used
+    BaseObject* RouteObject(BaseObject*, RegionInfo*) { return nullptr; }
+    BaseObject* RouteObject(BaseObject*) { return nullptr; }
+#endif // !MRT_USE_MARK_SWEEP
 
     void PrepareFromRegionList()
     {

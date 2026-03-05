@@ -109,13 +109,19 @@ def do_build(args):
     if macos_flag:
         os.environ["ZERO_AR_DATE"] = "1"
     hwasan_flag = 1 if args.hwasan == True else 0
+    # GC mode flags: copygc and marksweep are mutually exclusive
+    gc_flags = {
+        "copygc":    ["-DCOPYGC_FLAG=1", "-DMARKSWEEP_FLAG=0"],
+        "marksweep": ["-DCOPYGC_FLAG=0", "-DMARKSWEEP_FLAG=1"],
+    }
+    gc_mode_flags = gc_flags[args.gc_mode]
     # Perform different build actions based on the target_args
     if target_args == "native":
         cmake_command = [
             "cmake",
             "-DCMAKE_INSTALL_PREFIX={}_{}".format(install_prefix, target_arch),
             "-DCMAKE_BUILD_TYPE={}".format(mode),
-            "-DCOPYGC_FLAG=1",
+            *gc_mode_flags,
             "-DDOPRA_FLAG=1",
             "-DOHOS_FLAG=0",
             "-DANDROID_FLAG=0",
@@ -152,7 +158,7 @@ def do_build(args):
             "cmake",
             "-DCMAKE_INSTALL_PREFIX={}_{}".format(install_prefix, target_arch),
             "-DCMAKE_BUILD_TYPE={}".format(mode),
-            "-DCOPYGC_FLAG=1",
+            *gc_mode_flags,
             "-DDOPRA_FLAG=1",
             "-DOHOS_FLAG=0",
             "-DANDROID_FLAG=0",
@@ -202,7 +208,7 @@ def do_build(args):
             "cmake",
             "-DCMAKE_INSTALL_PREFIX={}_{}".format(install_prefix, target_arch),
             "-DCMAKE_BUILD_TYPE={}".format(mode),
-            "-DCOPYGC_FLAG=1",
+            *gc_mode_flags,
             "-DDOPRA_FLAG=1",
             "-DOHOS_FLAG={}".format(ohos_flag),
             "-DOHOS_ROOT={}".format(args.target_toolchain),
@@ -237,7 +243,7 @@ def do_build(args):
             "cmake",
             "-DCMAKE_INSTALL_PREFIX={}_{}".format(install_prefix, target_arch),
             "-DCMAKE_BUILD_TYPE={}".format(mode),
-            "-DCOPYGC_FLAG=1",
+            *gc_mode_flags,
             "-DDOPRA_FLAG=1",
             "-DOHOS_FLAG=0",
             "-DANDROID_FLAG={}".format(android_flag),
@@ -278,7 +284,7 @@ def do_build(args):
             "cmake",
             "-DCMAKE_INSTALL_PREFIX={}_{}".format(install_prefix, target_arch),
             "-DCMAKE_BUILD_TYPE={}".format(mode),
-            "-DCOPYGC_FLAG=1",
+            *gc_mode_flags,
             "-DDOPRA_FLAG=1",
             "-DOHOS_FLAG=0",
             "-DANDROID_FLAG=0",
@@ -398,6 +404,12 @@ if __name__ == "__main__":
     b.add_argument(
         "--target-sysroot",
         help="The sysroot required for cross-compilation depends on the specific build target; please specify the appropriate sysroot according to each build-target."
+    )
+    b.add_argument(
+        "--gc-mode",
+        choices=["copygc", "marksweep"],
+        default="copygc",
+        help="Select GC algorithm: copygc (default, Regional-Copying) or marksweep (Go-style)"
     )
     b.add_argument(
         "--cjlib-sanitizer-support",

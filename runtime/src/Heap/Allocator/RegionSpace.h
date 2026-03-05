@@ -155,11 +155,13 @@ public:
 
     void ClearAllLiveInfo() { regionManager.ClearAllLiveInfo(); }
 
+#ifndef MRT_USE_MARK_SWEEP
     void ForwardFromSpace(GCThreadPool* threadPool)
     {
         MRT_PHASE_TIMER("ForwardFromRegions");
         regionManager.ForwardFromRegions(threadPool);
     }
+#endif
 
     size_t CollectLargeGarbage() { return regionManager.CollectLargeGarbage(); }
 

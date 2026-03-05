@@ -9,12 +9,14 @@
 
 #include "Collector/CollectorProxy.h"
 #include "Collector/CollectorResources.h"
+#ifndef MRT_USE_MARK_SWEEP
 #include "WCollector/IdleBarrier.h"
 #include "WCollector/EnumBarrier.h"
 #include "WCollector/TraceBarrier.h"
 #include "WCollector/PostTraceBarrier.h"
 #include "WCollector/PreforwardBarrier.h"
 #include "WCollector/ForwardBarrier.h"
+#endif
 #include "Mutator/MutatorManager.h"
 #if defined(_WIN64)
 #include <windows.h>
@@ -56,8 +58,12 @@ public:
     HeapImpl()
         : theSpace(Allocator::NewAllocator()), collectorResources(collectorProxy),
           collectorProxy(*theSpace, collectorResources), stwBarrier(collectorProxy),
+#ifdef MRT_USE_MARK_SWEEP
+        msIdleBarrier(collectorProxy), msMarkBarrier(collectorProxy)
+#else
         idleBarrier(collectorProxy), enumBarrier(collectorProxy), traceBarrier(collectorProxy),
         postTraceBarrier(collectorProxy), preforwardBarrier(collectorProxy), forwardBarrier(collectorProxy)
+#endif
     {
         currentBarrier = &stwBarrier;
         stwBarrierPtr = &stwBarrier;
@@ -141,12 +147,18 @@ private:
 
     ExportRootTable exportRootsTable;
     Barrier stwBarrier;
+#ifdef MRT_USE_MARK_SWEEP
+    // MS mode: idle barrier + mark barrier (Step 3 will replace with real MSBarrier subclasses)
+    Barrier msIdleBarrier;
+    Barrier msMarkBarrier;
+#else
     IdleBarrier idleBarrier;
     EnumBarrier enumBarrier;
     TraceBarrier traceBarrier;
     PostTraceBarrier postTraceBarrier;
     PreforwardBarrier preforwardBarrier;
     ForwardBarrier forwardBarrier;
+#endif
     Barrier* currentBarrier = nullptr;
 
     // manage gc roots entry
@@ -188,6 +200,23 @@ Allocator& HeapImpl::GetAllocator() { return *theSpace; }
 
 void HeapImpl::InstallBarrier(const GCPhase phase)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    switch (phase) {
+        case GCPhase::GC_PHASE_IDLE:
+        case GCPhase::GC_PHASE_MS_SWEEP:
+            currentBarrier = &msIdleBarrier;
+            break;
+        case GCPhase::GC_PHASE_MS_MARK_SETUP:
+        case GCPhase::GC_PHASE_MS_CONCURRENT_MARK:
+        case GCPhase::GC_PHASE_MS_MARK_TERMINATION:
+            currentBarrier = &msMarkBarrier;
+            break;
+        default:
+            // fallback to STW barrier for unknown phases
+            currentBarrier = &stwBarrier;
+            break;
+    }
+#else
     if (phase == GCPhase::GC_PHASE_ENUM) {
         currentBarrier = &enumBarrier;
     } else if (phase == GCPhase::GC_PHASE_TRACE || phase == GCPhase::GC_PHASE_CLEAR_SATB_BUFFER) {
@@ -201,6 +230,7 @@ void HeapImpl::InstallBarrier(const GCPhase phase)
     } else if (phase == GCPhase::GC_PHASE_POST_TRACE) {
         currentBarrier = &postTraceBarrier;
     }
+#endif
     DLOG(GCPHASE, "install barrier for gc phase %u", phase);
 }
 

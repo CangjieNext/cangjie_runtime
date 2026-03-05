@@ -10,20 +10,33 @@
 namespace MapleRuntime {
 void CollectorProxy::Init()
 {
+#ifdef MRT_USE_MARK_SWEEP
+    msCollector.Init();
+    if (currentCollector == nullptr) {
+        currentCollector = &msCollector;
+    }
+#else
     wCollector.Init();
-
     if (currentCollector == nullptr) {
         currentCollector = &wCollector;
     }
+#endif
 }
 
 void CollectorProxy::Fini()
 {
+#ifdef MRT_USE_MARK_SWEEP
+    msCollector.Fini();
+#else
     wCollector.Fini();
+#endif
 }
 
 void CollectorProxy::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    currentCollector = &msCollector;
+#else
     switch (reason) {
         case GC_REASON_HEU:
         case GC_REASON_BACKUP:
@@ -37,6 +50,7 @@ void CollectorProxy::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
             currentCollector = &wCollector;
             break;
     }
+#endif
     currentCollector->SetGcStarted(true);
     currentCollector->RunGarbageCollection(gcIndex, reason);
 }

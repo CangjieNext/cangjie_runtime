@@ -207,6 +207,10 @@ endif ()
 
 if (COPYGC_FLAG MATCHES 1)
     add_definitions(-DMRT_USE_COPYGC)
+    message(STATUS "GC Mode: CopyGC (Regional-Copying)")
+elseif (MARKSWEEP_FLAG MATCHES 1)
+    add_definitions(-DMRT_USE_MARK_SWEEP)
+    message(STATUS "GC Mode: MarkSweep (Go-style)")
 endif ()
 
 if (DUMPADDRESS_FLAG MATCHES 1)
@@ -327,10 +331,17 @@ endif ()
 # Signal processing use sigaction() as signal-catching function currently, it`s linux related, which can get context when signal was triggered. In Windows, signal() is the only function we can use, but there is no context.
 if (WINDOWS_FLAG MATCHES 1)
     list(APPEND LINK_LIBS "boundscheck" "Base" "Common" "Concurrency" "Loader" "Inspector" "Exception" "Heap" "Mutator" "ObjectModel" "UnwindStack"
-    "Allocator" "Barrier" "Collector" "WCollector" "BinaryFile" "CjFile" "CjFileLoader" "CjSemanticVersion" "Sync" "dbghelp" "ws2_32" "shlwapi" "CpuProfiler" ${SANITIZER_LIB})
+    "Allocator" "Barrier" "Collector" "BinaryFile" "CjFile" "CjFileLoader" "CjSemanticVersion" "Sync" "dbghelp" "ws2_32" "shlwapi" "CpuProfiler" ${SANITIZER_LIB})
 elseif (WINDOWS_FLAG MATCHES 0)
     list(APPEND LINK_LIBS "boundscheck" "Base" "Common" "Concurrency" "Loader" "Inspector" "Exception" "Heap" "Mutator" "ObjectModel" "UnwindStack" "Signal"
-    "Allocator" "Barrier" "Collector" "WCollector" "BinaryFile" "CjFile" "CjFileLoader" "CjSemanticVersion" "Sync" "CpuProfiler" ${SANITIZER_LIB})
+    "Allocator" "Barrier" "Collector" "BinaryFile" "CjFile" "CjFileLoader" "CjSemanticVersion" "Sync" "CpuProfiler" ${SANITIZER_LIB})
+endif()
+
+# GC mode conditional linking
+if (MARKSWEEP_FLAG MATCHES 1)
+    # MS mode: no WCollector needed; MS barriers are built within Barrier/
+else()
+    list(APPEND LINK_LIBS "WCollector")
 endif()
 
 if (DOPRA_FLAG MATCHES 1)
@@ -569,7 +580,6 @@ if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MAT
             $<TARGET_OBJECTS:CjFileLoader>
             $<TARGET_OBJECTS:UnwindStack>
             $<TARGET_OBJECTS:Sync>
-            $<TARGET_OBJECTS:WCollector>
             $<TARGET_OBJECTS:cjthreadmodel>
             $<TARGET_OBJECTS:CjSemanticVersion>
             $<TARGET_OBJECTS:CpuProfiler>
@@ -596,12 +606,17 @@ if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MAT
             $<TARGET_OBJECTS:CjFileLoader>
             $<TARGET_OBJECTS:UnwindStack>
             $<TARGET_OBJECTS:Sync>
-            $<TARGET_OBJECTS:WCollector>
             $<TARGET_OBJECTS:cjthreadmodel>
             $<TARGET_OBJECTS:CjSemanticVersion>
             $<TARGET_OBJECTS:CpuProfiler>
             ${SANITIZER_LIB_STATIC}
         )
+    endif()
+    # GC mode conditional static objects
+    if (MARKSWEEP_FLAG MATCHES 1)
+        # MS mode: no WCollector objects; MS barriers are built within Barrier/
+    else()
+        target_sources(cangjie-runtime-static PRIVATE $<TARGET_OBJECTS:WCollector>)
     endif()
     if (IOS_FLAG MATCHES 1)
         add_custom_command(TARGET cangjie-runtime-static POST_BUILD
@@ -643,10 +658,7 @@ if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MAT
         set(RENAME_PLATFORM "empty")
     endif()
     if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 2 OR MACOS_FLAG MATCHES 1)
-        add_custom_command(TARGET cangjie-runtime-static PRE_BUILD
-            COMMAND sh ${CMAKE_SOURCE_DIR}/build/apple_rename_section.sh
-                "${RENAME_PLATFORM}"
-                "${CMAKE_C_COMPILER}"
+        set(APPLE_RENAME_OBJECTS
                 "$<TARGET_OBJECTS:runtime>"
                 "$<TARGET_OBJECTS:Base>"
                 "$<TARGET_OBJECTS:CjFile>"
@@ -666,11 +678,20 @@ if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MAT
                 "$<TARGET_OBJECTS:CjFileLoader>"
                 "$<TARGET_OBJECTS:UnwindStack>"
                 "$<TARGET_OBJECTS:Sync>"
-                "$<TARGET_OBJECTS:WCollector>"
                 "$<TARGET_OBJECTS:cjthreadmodel>"
                 "$<TARGET_OBJECTS:CjSemanticVersion>"
                 "$<TARGET_OBJECTS:CpuProfiler>"
                 "${SANITIZER_LIB_STATIC}"
+        )
+        # GC mode conditional: add WCollector objects only in CopyGC mode
+        if (NOT MARKSWEEP_FLAG MATCHES 1)
+            list(APPEND APPLE_RENAME_OBJECTS "$<TARGET_OBJECTS:WCollector>")
+        endif()
+        add_custom_command(TARGET cangjie-runtime-static PRE_BUILD
+            COMMAND sh ${CMAKE_SOURCE_DIR}/build/apple_rename_section.sh
+                "${RENAME_PLATFORM}"
+                "${CMAKE_C_COMPILER}"
+                ${APPLE_RENAME_OBJECTS}
             VERBATIM
         )
     endif()

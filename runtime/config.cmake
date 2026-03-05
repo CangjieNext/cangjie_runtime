@@ -11,6 +11,7 @@
 #	MRT_USE_CJTHREAD : Indicates whether to use CJThread.
 #	MRT_USE_CJTHREAD_RENAME ：Indicates whether to use CJThread Rename.
 #	MRT_USE_COPYGC ： Indicates whether to use copyGC.
+#	MRT_USE_MARK_SWEEP : Indicates whether to use Mark-Sweep GC (Go-style).
 #	MRT_DUMP_ADDRESS ：Indicates whether the runtime dumps the address in the log.
 #	COV_SIGNALHANDLE : Indicates whether to perform a coverage test.
 
@@ -24,6 +25,29 @@ set(CMAKE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/output/temp)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_OUTPUT_DIRECTORY}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_OUTPUT_DIRECTORY}/ar)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY  ${CMAKE_OUTPUT_DIRECTORY}/bin)
+
+# GC mode flags: COPYGC_FLAG and MARKSWEEP_FLAG are mutually exclusive
+if (NOT DEFINED COPYGC_FLAG)
+    set(COPYGC_FLAG 1 CACHE STRING "copygc default is true" FORCE)
+endif()
+
+if (NOT DEFINED MARKSWEEP_FLAG)
+    set(MARKSWEEP_FLAG 0 CACHE STRING "marksweep default is false" FORCE)
+endif()
+message(STATUS "COPYGC_FLAG : ${COPYGC_FLAG}")
+message(STATUS "MARKSWEEP_FLAG : ${MARKSWEEP_FLAG}")
+
+# Mutual exclusion check
+if (COPYGC_FLAG MATCHES 1 AND MARKSWEEP_FLAG MATCHES 1)
+    message(FATAL_ERROR
+        "COPYGC_FLAG and MARKSWEEP_FLAG are mutually exclusive. "
+        "Please set only one of them to 1.")
+endif()
+
+if (NOT COPYGC_FLAG MATCHES 1 AND NOT MARKSWEEP_FLAG MATCHES 1)
+    message(FATAL_ERROR
+        "Either COPYGC_FLAG or MARKSWEEP_FLAG must be set to 1.")
+endif()
 
 if (NOT DOPRA_FLAG)
     set(DOPRA_FLAG 1 CACHE STRING "dopra default is true" FORCE)

@@ -11,7 +11,12 @@
 #include "Base/Macros.h"
 #include "Collector.h"
 #include "CollectorResources.h"
+
+#ifdef MRT_USE_MARK_SWEEP
+#include "MarkSweepCollector.h"
+#else
 #include "WCollector/WCollector.h"
+#endif
 
 namespace MapleRuntime {
 // CollectorProxy is a special kind of collector, it is derived from Base class Collector, thus behaves like a real
@@ -20,10 +25,18 @@ namespace MapleRuntime {
 // CollectorProxy should inherit collector interfaces, but no datas
 class CollectorProxy : public Collector {
 public:
+#ifdef MRT_USE_MARK_SWEEP
+    explicit CollectorProxy(Allocator& allocator, CollectorResources& resources)
+        : msCollector(allocator, resources)
+    {
+        collectorType = CollectorType::PROXY_COLLECTOR;
+    }
+#else
     explicit CollectorProxy(Allocator& allocator, CollectorResources& resources) : wCollector(allocator, resources)
     {
         collectorType = CollectorType::PROXY_COLLECTOR;
     }
+#endif
 
     ~CollectorProxy() override = default;
 
@@ -77,7 +90,11 @@ public:
 private:
     // supported collector set
     TracingCollector* currentCollector = nullptr;
+#ifdef MRT_USE_MARK_SWEEP
+    MarkSweepCollector msCollector;
+#else
     WCollector wCollector;
+#endif
 };
 } // namespace MapleRuntime
 

@@ -13,10 +13,15 @@ set(SRC_LIST
     "TracingCollector.cpp"
     "TaskQueue.cpp"
     "FinalizerProcessor.cpp"
-    "CopyCollector.cpp"
     "LiveInfo.cpp"
     "ForwardDataManager.cpp"
 )
+
+if (MARKSWEEP_FLAG MATCHES 1)
+    list(APPEND SRC_LIST "MarkSweepCollector.cpp")
+else()
+    list(APPEND SRC_LIST "CopyCollector.cpp")
+endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../)
 add_library(Collector STATIC ${SRC_LIST})

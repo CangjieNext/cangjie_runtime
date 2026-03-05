@@ -34,6 +34,12 @@ enum GCPhase : uint8_t {
     GC_PHASE_POST_TRACE = 12,
     GC_PHASE_PREFORWARD = 13,
     GC_PHASE_FORWARD = 14,
+
+    // Mark-Sweep GC phases (values >= 20 to avoid conflict with CopyGC phases)
+    GC_PHASE_MS_MARK_SETUP       = 20,  // STW: enable write barrier, scan roots
+    GC_PHASE_MS_CONCURRENT_MARK  = 21,  // Concurrent marking
+    GC_PHASE_MS_MARK_TERMINATION = 22,  // STW: finish marking, disable write barrier
+    GC_PHASE_MS_SWEEP            = 23,  // Concurrent sweep
 };
 
 enum CollectorType {
@@ -41,6 +47,7 @@ enum CollectorType {
     PROXY_COLLECTOR,  // Proxy of Collector
     COPY_COLLECTOR,   // Regional-Copying GC
     SMOOTH_COLLECTOR, // wgc
+    MARK_SWEEP_COLLECTOR, // Mark-Sweep GC (Go-style)
     COLLECTOR_TYPE_COUNT,
 };
 
