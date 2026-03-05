@@ -20,6 +20,7 @@ LoaderManager* LoaderManager::GetInstance()
 
 LoaderManager::LoaderManager() noexcept
 {
+    LOG(RTLOG_INFO, "build time " __DATE__ " " __TIME__ "\n");
     isReleased = false;
     loader = ILoader::CreateLoader();
     loader->Init();
