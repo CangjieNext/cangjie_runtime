@@ -892,7 +892,10 @@ bool TypeInfo::IsEnumCtor() const
     if (!IsEnum() && !IsTempEnum()) {
         return false;
     }
-    return enumInfo != nullptr ? (enumInfo->GetModifier() & MODIFIER_ENUM_CTOR) : false;
+    if (enumInfo == nullptr) {
+        return true;
+    }
+    return false;
 }
 
 bool TypeInfo::IsOptionLikeRefEnum()
