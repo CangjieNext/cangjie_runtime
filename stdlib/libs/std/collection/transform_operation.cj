@@ -34,7 +34,9 @@ public func collectString<T>(delimiter!: String = ""): (Iterable<T>) -> String w
             match (iter.next()) {
                 case Some(item) =>
                     builder.append(delimiter)
+                    println(10001)
                     builder.append(item.toString())
+                    println(10002)
                 case None => break
             }
         }
