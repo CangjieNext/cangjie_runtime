@@ -80,7 +80,7 @@ prop scale: Int64
 prop typeName: String
 ```
 
-功能：获取列类型名称，如果在仓颉中有对应数据类型的定义，返回对应类型的 `toString` 函数的返回值；如果在仓颉中无对应数据类型的定义，由数据库驱动定义。
+功能：获取数据库列对应的类型名称。返回值与 SqlDbType 接口内 [name](#prop-name-2) 属性一致（例如 SqlVarchar 类属性 name 对应返回 "SqlVarchar"）。
 
 类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)
 
