@@ -663,7 +663,7 @@ public func seek(sp: SeekPosition): Int64
 >
 > - 指定的位置不能位于流中数据头部之前。
 > - 指定位置可以超过流中数据末尾。
-> - 调用该函数会先清空缓存区，再移动光标的位置。
+> - 调用该函数会先清空缓存区，再移动光标的位置，符合 [Seekable](io_package_interfaces.md#interface-seekable) 接口关于「seek 前须同步自身缓冲区」的约定，若内层流也实现 Seekable，其 [seek](./io_package_interfaces.md#func-seekseekposition) 会负责同步内层缓冲。
 
 参数：
 

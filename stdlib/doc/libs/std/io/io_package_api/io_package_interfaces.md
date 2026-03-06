@@ -121,6 +121,10 @@ func seek(sp: SeekPosition): Int64
 
 功能：移动光标到指定的位置。
 
+> **说明：**
+>
+> - 带有内部缓冲区的实现（例如缓冲流），在移动逻辑位置之前，必须先同步自身缓冲区（例如：输出流将未写入数据 flush 到底层流；输入流丢弃或使读缓冲区与目标位置一致）。这样，包装类（如 [BufferedInputStream](io_package_classes.md#class-bufferedinputstreamt-where-t--inputstream)）在调用内层流的 [seek](./io_package_interfaces.md#func-seekseekposition) 时，可依赖内层已同步其缓冲，无需再显式调用内层的 [flush](./io_package_interfaces.md#func-flush) 等方法。
+
 参数：
 
 - sp: [SeekPosition](io_package_enums.md#enum-seekposition) - 指定光标移动后的位置。
