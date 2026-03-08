@@ -8,7 +8,7 @@
 
 package std.sort
 
-import std.math.*
+import std.math.log2
 
 /*
  * Stable ascending sort

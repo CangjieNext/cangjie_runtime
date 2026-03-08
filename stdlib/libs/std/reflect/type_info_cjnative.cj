@@ -8,8 +8,8 @@
 
 package std.reflect
 
-import std.collection.*
-import std.sync.*
+import std.collection.{ArrayList, HashMap}
+import std.sync.Mutex
 
 const UUID_OFFSET: Int64 = 24
 let TYPE_INFO_CREATE_LOCK = Mutex()

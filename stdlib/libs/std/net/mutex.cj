@@ -8,7 +8,7 @@
 
 package std.net
 
-import std.sync.*
+import std.sync.{IReentrantMutex, Mutex, Lock, Condition, AtomicInt64}
 
 /**
  * Custom non-reentrant read-write mutex.

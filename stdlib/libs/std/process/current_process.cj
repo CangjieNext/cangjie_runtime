@@ -8,10 +8,10 @@
 
 package std.process
 
-import std.collection.*
-import std.fs.*
-import std.io.*
-import std.sync.*
+import std.collection.Map
+import std.fs.Path
+import std.io.{InputStream, OutputStream}
+import std.sync.Mutex
 
 const RTN_CODE_MIN_VAL: Int64 = -0x0000_0000_8000_0000 //-2147483648
 const RTN_CODE_MAX_VAL: Int64 = 0x0000_0000_7fff_ffff //2147483647

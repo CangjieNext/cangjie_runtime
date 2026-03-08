@@ -8,7 +8,7 @@
 
 package std.net
 
-import std.convert.*
+import std.convert.Formattable
 import std.binary.{SwapEndianOrder, BigEndianOrder, LittleEndianOrder}
 
 // ref https://www.rfc-editor.org/rfc/rfc4291.html

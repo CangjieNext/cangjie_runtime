@@ -8,7 +8,7 @@
 
 package std.net
 
-import std.sync.*
+import std.sync.AtomicInt64
 
 /*
  * Represents a TCP streaming socket.

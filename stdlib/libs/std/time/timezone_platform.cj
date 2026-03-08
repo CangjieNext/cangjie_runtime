@@ -16,7 +16,7 @@
 
 package std.time
 
-import std.convert.*
+import std.convert.Formattable
 import std.collection.ArrayList
 
 @FastNative

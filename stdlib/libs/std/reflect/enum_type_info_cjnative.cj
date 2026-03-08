@@ -7,7 +7,7 @@
  */
 package std.reflect
 
-import std.collection.*
+import std.collection.{ArrayList, HashMap, ReadOnlyList}
 
 /**
  * Reflective information about an enum type.

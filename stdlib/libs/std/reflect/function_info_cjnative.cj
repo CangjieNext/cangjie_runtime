@@ -8,7 +8,7 @@
 
 package std.reflect
 
-import std.collection.*
+import std.collection.{ArrayList, ReadOnlyList}
 
 public class GenericTypeInfo <: TypeInfo & Equatable<GenericTypeInfo> {
     public operator func ==(other: GenericTypeInfo): Bool {

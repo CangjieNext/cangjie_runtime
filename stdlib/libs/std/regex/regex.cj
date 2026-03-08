@@ -11,8 +11,8 @@
  */
 package std.regex
 
-import std.collection.*
-import std.sync.*
+import std.collection.{ArrayList, HashMap, Map}
+import std.sync.AtomicReference
 
 func release(cString: CString) {
     unsafe {

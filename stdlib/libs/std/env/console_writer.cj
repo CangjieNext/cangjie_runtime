@@ -15,7 +15,7 @@
 package std.env
 
 import std.io.OutputStream
-import std.sync.*
+import std.sync.Mutex
 
 foreign func CJ_CONSOLE_Flush(fd: Int32): Unit
 

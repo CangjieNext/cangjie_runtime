@@ -13,7 +13,7 @@
  */
 package std.collection
 
-import std.math.*
+import std.math.{sqrt, log2}
 
 /**
  * ArrayList-based Iterator.

@@ -8,7 +8,7 @@
 
 package std.collection.concurrent
 
-import std.sync.*
+import std.sync.{AtomicInt64, AtomicBool, AtomicReference, AtomicOptionReference}
 import std.collection.ArrayList
 
 /**

@@ -8,7 +8,7 @@
 
 package std.process
 
-import std.io.*
+import std.io.IOException
 /**
  * ProcessException
  *

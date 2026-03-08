@@ -8,8 +8,8 @@
 
 package std.collection.concurrent
 
-import std.sync.*
-import std.time.*
+import std.sync.{AtomicUInt64, Monitor}
+import std.time.MonoTime
 
 /**
  * In ArrayBlockingQueue, 'state' array is defined as a C array.

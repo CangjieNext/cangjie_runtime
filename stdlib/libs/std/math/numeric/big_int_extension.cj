@@ -8,8 +8,8 @@
 
 package std.math.numeric
 
-import std.convert.*
-import std.math.*
+import std.convert.{Parsable, RadixConvertible, Formattable, Flags, Verify, parseFormat}
+import std.math.leadingZeros
 
 extend BigInt <: Parsable<BigInt> {
     /**

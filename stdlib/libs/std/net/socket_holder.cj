@@ -8,7 +8,7 @@
 
 package std.net
 
-import std.sync.*
+import std.sync.AtomicUInt32
 
 enum InternalHolderState<NS> {
     | NotCreated(() -> NS)
