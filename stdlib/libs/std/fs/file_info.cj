@@ -13,7 +13,7 @@
  */
 package std.fs
 
-import std.time.*
+import std.time.DateTime
 
 public struct FileInfo <: Equatable<FileInfo> {
     var _path: Path

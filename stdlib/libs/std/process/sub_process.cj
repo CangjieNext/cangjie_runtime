@@ -8,9 +8,9 @@
 
 package std.process
 
-import std.collection.*
-import std.fs.*
-import std.io.*
+import std.collection.{Map}
+import std.fs.Path
+import std.io.{InputStream, OutputStream, readToEnd, ByteBuffer}
 
 /**
  * SubProcess

@@ -15,7 +15,7 @@
 package std.console
 
 import std.io.OutputStream
-import std.sync.*
+import std.sync.ReentrantMutex
 
 foreign func CJ_CONSOLE_Write(fd: Int32, c: CPointer<UInt8>, len: Int64, newLine: Bool): Unit
 

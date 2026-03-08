@@ -8,7 +8,7 @@
 
 package std.net
 
-import std.binary.*
+import std.binary.BigEndianOrder
 
 // ref https://www.rfc-editor.org/rfc/rfc791.html
 public class IPv4Address <: IPAddress & ToString & Equatable<IPv4Address> & LessOrEqual<IPv4Address> {

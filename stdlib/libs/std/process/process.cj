@@ -8,10 +8,13 @@
 
 package std.process
 
-import std.fs.*
-import std.collection.*
-import std.io.*
-import std.time.*
+import std.fs.{File, Path, FileInfo, FSException, exists}
+import std.collection.{Map, ArrayList, HashMap, map}
+import std.io.{InputStream, OutputStream}
+import std.time.DateTime
+
+@When[os == "Windows"]
+import std.collection.{collectArray, forEach}
 
 const MAX_TIMEOUT_NS: Int64 = 0x7FFF_FFFF_FFFF_FFFF
 const PROCESS_STATUS_ALIVE: Int8 = 0

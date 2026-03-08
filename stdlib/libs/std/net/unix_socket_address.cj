@@ -8,7 +8,7 @@
 
 package std.net
 
-import std.binary.*
+import std.binary.{BigEndianOrder, LittleEndianOrder}
 
 @When[os != "macOS" && os!= "iOS"]
 const MAX_UDS_PATH_LENGTH: Int64 = 108

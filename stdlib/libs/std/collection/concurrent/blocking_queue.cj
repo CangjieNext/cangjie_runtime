@@ -8,8 +8,8 @@
 
 package std.collection.concurrent
 
-import std.sync.*
-import std.time.*
+import std.sync.{AtomicInt64, AtomicReference, Monitor}
+import std.time.MonoTime
 
 @Deprecated[message: "Use LinkedBlockingQueue instead."]
 public type BlockingQueue<E> = LinkedBlockingQueue<E>

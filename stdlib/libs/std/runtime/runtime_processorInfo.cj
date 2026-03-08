@@ -9,7 +9,7 @@
 package std.runtime
 
 @When[backend == "cjnative"]
-import std.fs.*
+import std.fs.{Path, File, OpenMode}
 
 @When[backend == "cjnative"]
 @Intrinsic

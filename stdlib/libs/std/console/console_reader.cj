@@ -15,7 +15,7 @@
 package std.console
 
 import std.io.InputStream
-import std.sync.*
+import std.sync.Mutex
 
 @C
 struct StructureString {

@@ -8,8 +8,8 @@
 
 package std.net
 
-import std.binary.*
-import std.convert.*
+import std.binary.BigEndianOrder
+import std.convert.Parsable
 
 const IPV4_ADDRESS_LEN: Int64 = 4
 const IPV6_ADDRESS_LEN: Int64 = 16

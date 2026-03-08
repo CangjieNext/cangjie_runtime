@@ -12,7 +12,7 @@
 
 package std.net
 
-import std.io.*
+import std.io.IOException
 
 /**
  * The SocketException class is used to handle exceptions related to socket connection errors.

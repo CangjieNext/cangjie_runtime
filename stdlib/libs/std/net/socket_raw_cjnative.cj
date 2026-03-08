@@ -8,7 +8,8 @@
 
 package std.net
 
-import std.sync.*
+@When[os == "Windows" && backend == "cjnative"]
+import std.sync.AtomicBool
 
 /*
  * This API supplies users with the basic functionality to create and use sockets of different domains and types.

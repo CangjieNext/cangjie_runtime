@@ -8,7 +8,7 @@
 
 package std.net
 
-import std.io.*
+import std.io.IOStream
 
 /**
  * Represents a socket that works in streaming mode. It is a duplex stream having both read and write operations.

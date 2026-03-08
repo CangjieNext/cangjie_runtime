@@ -13,7 +13,7 @@
  */
 package std.fs
 
-import std.io.*
+import std.io.{IOStream, Seekable, SeekPosition, copy, readToEnd}
 
 const SEEK_SET: Int32 = 0 /* Seek from beginning of file.  */
 const SEEK_CUR: Int32 = 1 /* Seek from current position.  */

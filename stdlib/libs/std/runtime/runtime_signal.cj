@@ -8,8 +8,8 @@
 
 package std.runtime
 
-import std.sync.*
-import std.collection.*
+import std.sync.Mutex
+import std.collection.ArrayList
 
 @When[backend == "cjnative"]
 @Intrinsic
