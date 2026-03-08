@@ -8,7 +8,7 @@
 
 package std.unicode
 
-import std.collection.*
+import std.collection.{HashMap, ArrayList}
 
 struct CaseRange {
     CaseRange(

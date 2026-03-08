@@ -15,7 +15,7 @@
 package std.env
 
 import std.io.InputStream
-import std.sync.*
+import std.sync.Mutex
 
 const defaultCapacity: Int64 = 32
 

@@ -8,7 +8,7 @@
 
 package std.sort
 
-import std.math.*
+import std.math.sqrt
 
 extend<T> Array<T> where T <: Comparable<T> {
     func compareSwap3(i1: Int64, i2: Int64, i3: Int64) {

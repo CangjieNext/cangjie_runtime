@@ -9,7 +9,7 @@
 package std.runtime
 
 @When[backend == "cjnative"]
-import {std.io.*, std.process.*, std.fs.*, std.env.*, std.sync.Mutex}
+import {std.fs.File, std.env.getVariable, std.sync.Mutex}
 
 const TRACE_TYPE_SCHEDULE_VALUE: UInt16 = 0x0100
 const TRACE_TYPE_RUNTIME_VALUE: UInt16 = 0x0200

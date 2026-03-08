@@ -8,8 +8,8 @@
 
 package std.math.numeric
 
-import std.convert.*
-import std.math.*
+import std.convert.Parsable
+import std.math.{Number, RoundingMode, abs, sqrt, ceil, log10}
 
 let UINT64_TENTH_POWER_ARRAY: Array<UInt64> = [
     1,

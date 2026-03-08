@@ -8,9 +8,9 @@
 
 package std.env
 
-import std.collection.*
-import std.fs.*
-import std.sync.*
+import std.collection.ArrayList
+import std.fs.Path
+import std.sync.Mutex
 
 const STDIN_FD: IntNative = 0
 const STDOUT_FD: IntNative = 1

@@ -14,8 +14,8 @@
 
 package std.time
 
-import std.binary.*
-import std.io.*
+import std.binary.BigEndianOrder
+import std.io.{ByteBuffer, SeekPosition}
 
 // -1: failed, (>= 0): file size
 foreign func CJ_TIME_GetFileSize(path: CPointer<Byte>, pathLen: Int64): Int64

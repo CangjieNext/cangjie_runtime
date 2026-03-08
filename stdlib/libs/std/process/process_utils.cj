@@ -8,9 +8,9 @@
 
 package std.process
 
-import std.collection.*
-import std.fs.*
-import std.io.*
+import std.collection.{ArrayList, HashMap, Map}
+import std.fs.{File, OpenMode, FSException}
+import std.io.{ByteBuffer, InputStream}
 
 const STDIN_FD: IntNative = 0
 const STDOUT_FD: IntNative = 1

@@ -13,7 +13,7 @@
  */
 package std.argopt
 
-import std.collection.*
+import std.collection.{ArrayList, HashMap, ReadOnlyMap, HashSet, forEach, enumerate}
 
 /**
  * This is a library for ArgOpt class.

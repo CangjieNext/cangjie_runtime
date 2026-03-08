@@ -8,7 +8,7 @@
 
 package std.random
 
-import std.math.*
+import std.math.{sqrt, log, cos, sin, FloatingPoint}
 
 @FastNative
 foreign func CJ_RANDOM_NanoNow(): Int64

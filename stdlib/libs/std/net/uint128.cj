@@ -8,9 +8,9 @@
 
 package std.net
 
-import std.binary.*
-import std.convert.*
-import std.overflow.*
+import std.binary.{BigEndianOrder, LittleEndianOrder, SwapEndianOrder}
+import std.convert.Formattable
+import std.overflow.WrappingOp
 
 @C
 struct UInt128 {

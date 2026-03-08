@@ -8,7 +8,7 @@
 
 package std.sort
 
-import std.collection.*
+import std.collection.{List, ArrayList}
 
 /**
  * Sorting element T.

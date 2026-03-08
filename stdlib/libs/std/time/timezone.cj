@@ -14,7 +14,7 @@
 
 package std.time
 
-import std.convert.*
+import std.convert.Parsable
 
 
 @When[os == "Windows"]

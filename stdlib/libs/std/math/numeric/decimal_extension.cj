@@ -8,7 +8,7 @@
 
 package std.math.numeric
 
-import std.convert.*
+import std.convert.{Parsable, Formattable}
 
 extend Decimal <: Parsable<Decimal> {
     public static func parse(value: String): Decimal {

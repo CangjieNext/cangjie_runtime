@@ -8,7 +8,7 @@
 
 package std.reflect
 
-import std.collection.*
+import std.collection.{ArrayList, ReadOnlyList}
 
 /**
  * Contains the reflective information about annotations.

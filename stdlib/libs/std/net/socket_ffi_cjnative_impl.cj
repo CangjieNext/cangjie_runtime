@@ -8,7 +8,7 @@
 
 package std.net
 
-import std.sync.*
+import std.sync.AtomicInt64
 
 @When[backend == "cjnative"]
 type ActualPlatformSocket = DopraOtherSocketImpl

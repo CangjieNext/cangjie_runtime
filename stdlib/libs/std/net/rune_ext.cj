@@ -8,7 +8,7 @@
 
 package std.net
 
-import std.overflow.*
+import std.overflow.{WrappingOp, SaturatingOp}
 
 extend Byte {
     func toDigit(radix: UInt32): ?UInt32 {

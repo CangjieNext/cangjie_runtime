@@ -8,8 +8,8 @@
 
 package std.math.numeric
 
-import std.math.*
-import std.random.*
+import std.math.{leadingZeros, trailingZeros, gcd, Number, Integer}
+import std.random.Random
 
 const DIGIT_DIFF: UInt8 = 0x30
 const LETTER_UPPER_DIFF: UInt8 = 0x41 - 0x0A

@@ -14,7 +14,7 @@
 
 package std.time
 
-import std.convert.*
+import std.convert.{Formattable, Parsable}
 
 @C
 struct NativeClock {

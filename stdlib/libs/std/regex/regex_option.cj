@@ -11,7 +11,7 @@
  */
 package std.regex
 
-import std.collection.*
+import std.collection.ArrayList
 
 const REGEX_NORMAL = 0x00000000u32
 const REGEX_IGNORECASE = 0x00000008u32

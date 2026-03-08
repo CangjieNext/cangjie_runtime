@@ -8,9 +8,9 @@
 
 package std.reflect
 
-import std.collection.*
-import std.fs.*
-import std.sync.*
+import std.collection.{ArrayList, HashMap, HashSet}
+import std.fs.{canonicalize, FSException}
+import std.sync.Mutex
 
 const PACKAGE_LOAD_FAIL: UIntNative = 0
 const MULTI_PACKAGE_INFO: UIntNative = 1

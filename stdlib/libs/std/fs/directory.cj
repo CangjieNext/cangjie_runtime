@@ -13,7 +13,7 @@
  */
 package std.fs
 
-import std.collection.*
+import std.collection.ArrayList
 
 public class Directory {
     /*
