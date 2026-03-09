@@ -10,12 +10,17 @@
 
 #include <Common/BaseObject.h>
 #include <Common/StackType.h>
+#include <cstdint>
 #include <map>
 #include <set>
 #include <stack>
 #include <sys/time.h>
 #include "Base/CString.h"
 #include "UnwindStack/GcStackInfo.h"
+#if !defined(_WIN64)
+#include <sys/types.h>
+#include <unistd.h>
+#endif
 namespace MapleRuntime {
 class CjHeapData {
 public:
@@ -104,6 +109,8 @@ public:
 
     void DumpHeap();
     bool DumpHeap(int fd);
+    bool DumpHeapAsync(int fd);
+    bool WaitDumpComplete(uint32_t timeoutMs = 0);
     void WriteHeap();
     void ProcessHeap();
 
@@ -166,6 +173,7 @@ public:
     void WriteClassLoad(TypeInfo* klass, CjHeapDataStringId klassId, const u1 tag);
     void GetFrameInfo(FrameInfo frame, const u1 tag);
     void EndRecord();
+    void DumpHeapInChild(int fd);
 
     std::vector<uint8_t> buffer; // buffer 8byte vector
     uint64_t length = 0;
@@ -184,6 +192,11 @@ public:
     CjHeapDataStackFrameId threadNameId = 0;
     u4 threadId = 0;
     CjHeapDataStackTraceSerialNumber traceSerialNum = kCjHeapDataNullStackTrace + 1;
+
+#if !defined(_WIN64)
+    pid_t childPid = -1;
+    int resultPipeFd[2] = {-1, -1};
+#endif
 };
 } // namespace MapleRuntime
 #endif

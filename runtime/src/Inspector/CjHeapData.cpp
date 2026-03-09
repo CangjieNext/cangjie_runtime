@@ -13,6 +13,10 @@
 #include <Heap/Collector/TaskQueue.h>
 #include <Heap/Collector/TracingCollector.h>
 #include <sys/time.h>
+#if !defined(_WIN64)
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 
 #include "ObjectModel/MArray.inline.h"
 #include "Common/BaseObject.h"
@@ -126,9 +130,6 @@ bool CjHeapData::DumpHeap(int fd)
     ProcessHeap();
     WriteHeap();
 
-    // fclose will close fd
-    // if fclose success, no need to close fd.
-    // if fclose failed, close fd to prevent resource leakage.
     int ret = fclose(fp);
     fp = nullptr;
     if (ret) {
@@ -138,6 +139,133 @@ bool CjHeapData::DumpHeap(int fd)
     }
     return true;
 }
+
+#if !defined(_WIN64)
+bool CjHeapData::DumpHeapAsync(int fd)
+{
+    if (pipe(resultPipeFd) == -1) {
+        LOG(RTLOG_ERROR, "Failed to create pipe for async heap dump: %s", strerror(errno));
+        return false;
+    }
+
+    int copyfd = dup(fd);
+    if (copyfd == -1) {
+        LOG(RTLOG_ERROR, "Failed to dup fd for async heap dump: %s", strerror(errno));
+        close(resultPipeFd[0]);
+        close(resultPipeFd[1]);
+        resultPipeFd[0] = -1;
+        resultPipeFd[1] = -1;
+        return false;
+    }
+
+    {
+        ScopedStopTheWorld stw("fork for async heap dump");
+        childPid = fork();
+    }
+
+    if (childPid == -1) {
+        LOG(RTLOG_ERROR, "Failed to fork for async heap dump: %s", strerror(errno));
+        close(copyfd);
+        close(resultPipeFd[0]);
+        close(resultPipeFd[1]);
+        resultPipeFd[0] = -1;
+        resultPipeFd[1] = -1;
+        return false;
+    }
+
+    if (childPid == 0) {
+        close(resultPipeFd[0]);
+        DumpHeapInChild(copyfd);
+        _exit(0);
+    }
+
+    close(copyfd);
+    close(resultPipeFd[1]);
+    resultPipeFd[1] = -1;
+    LOG(RTLOG_INFO, "Async heap dump started in child process %d", childPid);
+    return true;
+}
+
+void CjHeapData::DumpHeapInChild(int fd)
+{
+    fp = fdopen(fd, "wb");
+    if (fp == nullptr) {
+        close(fd);
+        close(resultPipeFd[1]);
+        _exit(1);
+    }
+
+    ProcessHeap();
+    WriteHeap();
+
+    bool success = true;
+    int ret = fclose(fp);
+    fp = nullptr;
+    if (ret) {
+        close(fd);
+        success = false;
+    }
+
+    ssize_t writeRet = write(resultPipeFd[1], &success, sizeof(success));
+    (void)writeRet;
+    close(resultPipeFd[1]);
+    _exit(success ? 0 : 1);
+}
+
+bool CjHeapData::WaitDumpComplete(uint32_t timeoutMs)
+{
+    (void)timeoutMs;
+    if (childPid <= 0) {
+        return false;
+    }
+
+    int status;
+    pid_t result = waitpid(childPid, &status, 0);
+
+    if (result == -1) {
+        LOG(RTLOG_ERROR, "waitpid failed for async heap dump: %s", strerror(errno));
+        childPid = -1;
+        if (resultPipeFd[0] != -1) {
+            close(resultPipeFd[0]);
+            resultPipeFd[0] = -1;
+        }
+        return false;
+    }
+
+    childPid = -1;
+    if (resultPipeFd[0] != -1) {
+        close(resultPipeFd[0]);
+        resultPipeFd[0] = -1;
+    }
+
+    bool exitedNormally = WIFEXITED(status);
+    int exitCode = WEXITSTATUS(status);
+    if (!exitedNormally || exitCode != 0) {
+        LOG(RTLOG_ERROR, "Async heap dump child process failed: exited=%d, exitCode=%d",
+            exitedNormally, exitCode);
+        return false;
+    }
+
+    LOG(RTLOG_INFO, "Async heap dump completed successfully");
+    return true;
+}
+#else
+bool CjHeapData::DumpHeapAsync(int fd)
+{
+    return DumpHeap(fd);
+}
+
+bool CjHeapData::WaitDumpComplete(uint32_t timeoutMs)
+{
+    (void)timeoutMs;
+    return true;
+}
+
+void CjHeapData::DumpHeapInChild(int fd)
+{
+    (void)fd;
+}
+#endif
 
 void CjHeapData::ProcessHeapObject(BaseObject* obj)
 {

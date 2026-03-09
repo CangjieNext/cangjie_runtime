@@ -389,7 +389,10 @@ extern "C" bool MCC_DumpCJHeapData(int fd)
     ScopedEnterSaferegion enterSaferegion(false);
     CjHeapData* cjHeapData = new CjHeapData();
     CHECK_DETAIL(cjHeapData != nullptr, "new cjHeapData fail");
-    bool result = cjHeapData->DumpHeap(fd);
+    bool result = false;
+    if (cjHeapData->DumpHeapAsync(fd)) {
+        result = cjHeapData->WaitDumpComplete();
+    }
     delete cjHeapData;
     return result;
 }
