@@ -109,7 +109,7 @@ public:
           garbageRegionList("garbage regions"), recentPinnedRegionList("recent pinned regions"),
           oldPinnedRegionList("old pinned regions"), rawPointerPinnedRegionList("raw pointer pinned regions"),
           oldLargeRegionList("old large regions"), recentLargeRegionList("recent large regions"),
-          largeTraceRegions("large trace regions")
+          largeTraceRegions("large trace regions"), localModeRegionList("local mode regions")
     {}
 
     RegionManager(const RegionManager&) = delete;
@@ -380,13 +380,16 @@ public:
             threadLocalSize += region->GetRegionAllocatedSize();
         };
         Heap::GetHeap().GetAllocator().VisitAllocBuffers(visitor);
+        size_t localRegionSize = localRegionTotalSize.load();
         // exclude garbageRegionList for live object set.
-        return fromRegionList.GetAllocatedSize() + unmovableFromRegionList.GetAllocatedSize() +
+        size_t totalSize = fromRegionList.GetAllocatedSize() + unmovableFromRegionList.GetAllocatedSize() +
             recentFullRegionList.GetAllocatedSize() + oldLargeRegionList.GetAllocatedSize() +
             recentLargeRegionList.GetAllocatedSize() + oldPinnedRegionList.GetAllocatedSize() +
             recentPinnedRegionList.GetAllocatedSize() + rawPointerPinnedRegionList.GetAllocatedSize() +
             largeTraceRegions.GetAllocatedSize() + fullTraceRegions.GetAllocatedSize()
-            + tlRegionList.GetAllocatedSize() + threadLocalSize;
+            + tlRegionList.GetAllocatedSize() + threadLocalSize + localRegionSize;
+        VLOG(LOCAL_REGION, "GetAllocatedSize total: %zu, local region: %zu", totalSize, localRegionSize);
+        return totalSize;
     }
 
     inline size_t GetFromSpaceSize() const { return fromRegionList.GetAllocatedSize(); }
@@ -605,6 +608,10 @@ private:
 #endif
     std::mutex freePinnedSlotListMutex;
     FreePinnedSlotLists freePinnedSlotLists;
+
+    RegionList localModeRegionList;
+
+    std::atomic<uint64_t> localRegionTotalSize = { 0 };
 };
 } // namespace MapleRuntime
 #endif // MRT_REGION_MANAGER_H
