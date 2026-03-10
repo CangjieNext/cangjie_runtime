@@ -56,6 +56,11 @@ extern "C" MRT_EXPORT void* CJ_MCC_PostThrowException(ExceptionWrapper* mExcepti
 extern "C" MRT_EXPORT MRT_OPTIONAL_BRANCH_PROTECT_NONE
 void CJ_MCC_ThrowException(ExceptionRef exception) __attribute__((alias("MCC_ThrowException")));
 #endif
+extern "C" MRT_EXPORT MRT_OPTIONAL_DISABLE_TAIL_CALL
+void CJ_MCC_ThrowExceptionByCtor0(const TypeInfo* ti, void* ctor) __attribute__((alias("MCC_ThrowExceptionByCtor0")));
+extern "C" MRT_EXPORT MRT_OPTIONAL_DISABLE_TAIL_CALL
+void CJ_MCC_ThrowExceptionByCtorString(const TypeInfo* ti, void* ctor, void* msg)
+    __attribute__((alias("MCC_ThrowExceptionByCtorString")));
 
 extern "C" MRT_EXPORT void CJ_MCC_RegisterImplicitExceptionRaisers(void* raiser)
     __attribute__((alias("MCC_RegisterImplicitExceptionRaisers")));

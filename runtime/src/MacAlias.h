@@ -74,6 +74,11 @@ extern "C" MRT_EXPORT void* CJ_MCC_PostThrowException(ExceptionWrapper* mExcepti
 __asm__(".global _CJ_MCC_PostThrowException\n\t.set _CJ_MCC_PostThrowException, _MCC_PostThrowException");
 extern "C" MRT_EXPORT void CJ_MCC_ThrowException(ExceptionRef exception);
 __asm__(".global _CJ_MCC_ThrowException\n\t.set _CJ_MCC_ThrowException, _MCC_ThrowException");
+extern "C" MRT_EXPORT void CJ_MCC_ThrowExceptionByCtor0(const TypeInfo* ti, void* ctor);
+__asm__(".global _CJ_MCC_ThrowExceptionByCtor0\n\t.set _CJ_MCC_ThrowExceptionByCtor0, _MCC_ThrowExceptionByCtor0");
+extern "C" MRT_EXPORT void CJ_MCC_ThrowExceptionByCtorString(const TypeInfo* ti, void* ctor, void* msg);
+__asm__(".global _CJ_MCC_ThrowExceptionByCtorString\n\t.set _CJ_MCC_ThrowExceptionByCtorString, "
+        "_MCC_ThrowExceptionByCtorString");
 extern "C" MRT_EXPORT void CJ_MCC_RegisterImplicitExceptionRaisers(void* raiser);
 __asm__(
     ".global _CJ_MCC_RegisterImplicitExceptionRaisers\n\t.set _CJ_MCC_RegisterImplicitExceptionRaisers, "

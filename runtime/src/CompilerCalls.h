@@ -83,6 +83,9 @@ extern "C" ArrayRef MCC_NewArray64(const TypeInfo* classInfo, MIndex nElems);
 
 extern "C" void* MCC_PostThrowException(ExceptionWrapper* mExceptionWrapper);
 extern "C" void MCC_ThrowException(ExceptionRef exception);
+extern "C" MRT_EXPORT MRT_OPTIONAL_DISABLE_TAIL_CALL void MCC_ThrowExceptionByCtor0(const TypeInfo* ti, void* ctor);
+extern "C" MRT_EXPORT MRT_OPTIONAL_DISABLE_TAIL_CALL
+void MCC_ThrowExceptionByCtorString(const TypeInfo* ti, void* ctor, void* msg);
 extern "C" void MCC_RegisterImplicitExceptionRaisers(void* raiser);
 extern "C" void* MCC_GetExceptionWrapper();
 extern "C" uint32_t MCC_GetExceptionTypeID();
@@ -121,6 +124,10 @@ extern "C" MRT_EXPORT ArrayRef CJ_MCC_GetAllThreadSnapshot(const TypeInfo* array
 extern "C" MRT_EXPORT ThreadSnapshot CJ_MCC_GetCurrentThreadSnapshot(const TypeInfo* arrayStackTrace,
                                                                      const TypeInfo* charArray);
 extern "C" MRT_EXPORT void CJ_MCC_HandleSafepoint(...);
+extern "C" MRT_EXPORT MRT_OPTIONAL_DISABLE_TAIL_CALL void CJ_MCC_ThrowExceptionByCtor0(const TypeInfo* ti,
+                                                                                        void* ctor);
+extern "C" MRT_EXPORT MRT_OPTIONAL_DISABLE_TAIL_CALL
+void CJ_MCC_ThrowExceptionByCtorString(const TypeInfo* ti, void* ctor, void* msg);
 
 #ifdef _WIN64
 extern "C" MRT_EXPORT void CJ_MCC_ThrowStackOverflowError();

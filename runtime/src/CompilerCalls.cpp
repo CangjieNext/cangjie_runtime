@@ -32,6 +32,7 @@
 #include "Heap/Heap.h"
 #include "HeapManager.inline.h"
 #include "LoaderManager.h"
+#include "RuntimeConfig.h"
 #include "TypeInfoManager.h"
 #include "ObjectModel/Field.inline.h"
 #include "ObjectModel/RefField.inline.h"
@@ -424,6 +425,33 @@ extern "C" void* MCC_PostThrowException(ExceptionWrapper* mExceptionWrapper)
 }
 
 extern "C" void MCC_ThrowException(ExceptionRef exception) { ExceptionManager::ThrowException(exception); }
+
+extern "C" MRT_OPTIONAL_DISABLE_TAIL_CALL void MCC_ThrowExceptionByCtor0(const TypeInfo* ti, void* ctor)
+{
+    MSize size = static_cast<MSize>(AlignUp<size_t>(ti->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE);
+    ObjRef exception = MCC_NewPinnedObject(ti, size, false);
+    uintptr_t threadData = MRT_GetThreadLocalData();
+    ExecuteCangjieStub(exception, const_cast<TypeInfo*>(ti), 0, ctor, reinterpret_cast<void*>(threadData), 0);
+    if (ExceptionManager::HasPendingException()) {
+        ExceptionManager::ThrowPendingException();
+    }
+    ExceptionManager::ThrowException(reinterpret_cast<ExceptionRef>(exception));
+    BUILTIN_UNREACHABLE();
+}
+
+extern "C" MRT_OPTIONAL_DISABLE_TAIL_CALL
+void MCC_ThrowExceptionByCtorString(const TypeInfo* ti, void* ctor, void* msg)
+{
+    MSize size = static_cast<MSize>(AlignUp<size_t>(ti->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE);
+    ObjRef exception = MCC_NewPinnedObject(ti, size, false);
+    uintptr_t threadData = MRT_GetThreadLocalData();
+    ExecuteCangjieStub(exception, msg, const_cast<TypeInfo*>(ti), ctor, reinterpret_cast<void*>(threadData), 0);
+    if (ExceptionManager::HasPendingException()) {
+        ExceptionManager::ThrowPendingException();
+    }
+    ExceptionManager::ThrowException(reinterpret_cast<ExceptionRef>(exception));
+    BUILTIN_UNREACHABLE();
+}
 
 extern "C" void MCC_RegisterImplicitExceptionRaisers(void* raiser)
 {
