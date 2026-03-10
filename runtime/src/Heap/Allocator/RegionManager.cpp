@@ -1222,7 +1222,7 @@ uintptr_t RegionManager::AllocLocalMode(size_t size)
 
 RegionInfo* RegionManager::AllocateLocalModeRegion(bool expectPhysicalMem)
 {
-    size_t needNum = LOCAL_MODE_REGION_DEFAULT_NUM;
+    size_t needNum = AlignUp(LOCAL_MODE_REGION_DEFAULT_SIZE, RegionInfo::UNIT_SIZE) / RegionInfo::UNIT_SIZE;
     RegionInfo* region = TakeRegion(needNum, RegionInfo::UnitRole::SMALL_SIZED_UNITS, expectPhysicalMem);
     if (region == nullptr) {
         VLOG(LOCAL_REGION, "cannot take a local mode region from heap");
