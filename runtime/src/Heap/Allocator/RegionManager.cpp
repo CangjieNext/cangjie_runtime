@@ -735,6 +735,7 @@ void RegionManager::CollectLocalGarbage()
         RegionInfo* del = headRegion;
         headRegion = headRegion->GetPrevLocalRegion();
         del->SetPrevLocalRegion(nullptr);
+        localModeRegionList.DeleteRegion(del);
         VLOG(LOCAL_REGION, "CollectLocalGarbage: region %p", del);
         CollectRegion(del);
     }
@@ -808,11 +809,16 @@ void RegionManager::DumpRegionStats(const char* msg) const
     size_t recentLargeSize = recentlargeUnits * RegionInfo::UNIT_SIZE;
     size_t allocRecentLargeSize = recentLargeRegionList.GetAllocatedSize();
 
+    size_t localModeRegions = localModeRegionList.GetRegionCount();
+    size_t localModeUnits = localModeRegionList.GetUnitCount();
+    size_t localModeSize = localModeUnits * RegionInfo::UNIT_SIZE;
+    size_t allocLocalModeSize = localModeRegionList.GetAllocatedSize();
+
     size_t usedUnits = GetUsedUnitCount();
     size_t releasedUnits = freeRegionManager.GetReleasedUnitCount();
     size_t dirtyUnits = freeRegionManager.GetDirtyUnitCount();
     size_t listedUnits = fromUnits + garbageUnits + recentFullUnits + tlRegions +
-        rawPointerPinnedRegions + largeUnits + recentlargeUnits + pinnedUnits + recentPinnedUnits;
+        rawPointerPinnedRegions + largeUnits + recentlargeUnits + pinnedUnits + recentPinnedUnits + localModeUnits;
 
     VLOG(REPORT, msg);
 
@@ -835,6 +841,8 @@ void RegionManager::DumpRegionStats(const char* msg) const
          largeRegions, largeUnits, largeSize, allocLargeSize);
     VLOG(REPORT, "\trecent large-object regions %zu: %zu units (%zu B, alloc %zu)",
          recentlargeRegions, recentlargeUnits, recentLargeSize, allocRecentLargeSize);
+    VLOG(REPORT, "\tlocal mode regions %zu: %zu units (%zu B, alloc %zu)",
+         localModeRegions, localModeUnits, localModeSize, allocLocalModeSize);
 
     VLOG(REPORT, "\tlisted units: %zu (%zu B)", listedUnits, listedUnits * RegionInfo::UNIT_SIZE);
     VLOG(REPORT, "\tused units: %zu (%zu B)", usedUnits, usedUnits * RegionInfo::UNIT_SIZE);
@@ -885,6 +893,10 @@ void RegionManager::DumpRegionStats(const char* msg) const
     TRACE_COUNT("CJRT_GC_releasedUnits", releasedUnits);
     TRACE_COUNT("CJRT_GC_dirtyUnits", dirtyUnits);
     TRACE_COUNT("CJRT_GC_listedUnits", listedUnits);
+    TRACE_COUNT("CJRT_GC_localModeRegions", localModeRegions);
+    TRACE_COUNT("CJRT_GC_localModeUnits", localModeUnits);
+    TRACE_COUNT("CJRT_GC_localModeSize", localModeSize);
+    TRACE_COUNT("CJRT_GC_allocLocalModeSize", allocLocalModeSize);
 }
 
 RegionInfo* RegionManager::AllocateThreadLocalRegion(bool expectPhysicalMem)
@@ -1196,6 +1208,7 @@ uintptr_t RegionManager::AllocLocalMode(size_t size)
         DLOG(REGION, "cannot take a local mode region from heap");
         return 0;
     }
+    localModeRegionList.PrependRegion(region, RegionInfo::RegionType::LOCAL_MODE_REGION);
     region->SetRegionType(RegionInfo::RegionType::LOCAL_MODE_REGION);
     mutator->PushLocalRegoinStack(region);
     addr = region->Alloc(size);
@@ -1214,6 +1227,7 @@ RegionInfo* RegionManager::AllocateLocalModeRegion(bool expectPhysicalMem)
         VLOG(LOCAL_REGION, "cannot take a local mode region from heap");
         return nullptr;
     }
+    localModeRegionList.PrependRegion(region, RegionInfo::RegionType::LOCAL_MODE_REGION);
     region->SetRegionType(RegionInfo::RegionType::LOCAL_MODE_REGION);
     region->SetFirstRegionTag(false);
     region->SetPrevLocalRegion(nullptr);

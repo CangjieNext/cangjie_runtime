@@ -109,7 +109,7 @@ public:
           garbageRegionList("garbage regions"), recentPinnedRegionList("recent pinned regions"),
           oldPinnedRegionList("old pinned regions"), rawPointerPinnedRegionList("raw pointer pinned regions"),
           oldLargeRegionList("old large regions"), recentLargeRegionList("recent large regions"),
-          largeTraceRegions("large trace regions")
+          largeTraceRegions("large trace regions"), localModeRegionList("local mode regions")
     {}
 
     RegionManager(const RegionManager&) = delete;
@@ -355,7 +355,8 @@ public:
             recentLargeRegionList.GetUnitCount() + oldPinnedRegionList.GetUnitCount() +
             recentPinnedRegionList.GetUnitCount() + rawPointerPinnedRegionList.GetUnitCount() +
             largeTraceRegions.GetUnitCount() + fullTraceRegions.GetUnitCount() +
-            Heap::GetHeap().GetAllocator().GetAllocBufersCount() + tlRegionList.GetUnitCount();
+            Heap::GetHeap().GetAllocator().GetAllocBufersCount() + tlRegionList.GetUnitCount() +
+            localModeRegionList.GetUnitCount();
     }
 
     size_t GetDirtyUnitCount() const { return freeRegionManager.GetDirtyUnitCount(); }
@@ -386,7 +387,7 @@ public:
             recentLargeRegionList.GetAllocatedSize() + oldPinnedRegionList.GetAllocatedSize() +
             recentPinnedRegionList.GetAllocatedSize() + rawPointerPinnedRegionList.GetAllocatedSize() +
             largeTraceRegions.GetAllocatedSize() + fullTraceRegions.GetAllocatedSize()
-            + tlRegionList.GetAllocatedSize() + threadLocalSize;
+            + tlRegionList.GetAllocatedSize() + threadLocalSize + localModeRegionList.GetAllocatedSize();
     }
 
     inline size_t GetFromSpaceSize() const { return fromRegionList.GetAllocatedSize(); }
@@ -517,6 +518,7 @@ public:
         ClearLiveInfo(oldLargeRegionList);
         ClearLiveInfo(recentLargeRegionList);
         ClearLiveInfo(largeTraceRegions);
+        ClearLiveInfo(localModeRegionList);
     }
 
     uintptr_t AllocLocalMode(size_t size);
@@ -605,6 +607,8 @@ private:
 #endif
     std::mutex freePinnedSlotListMutex;
     FreePinnedSlotLists freePinnedSlotLists;
+
+    RegionList localModeRegionList;
 };
 } // namespace MapleRuntime
 #endif // MRT_REGION_MANAGER_H
