@@ -983,13 +983,13 @@ public:
         this->SetPrevRegion(nullptr);
     }
 
-    bool IsFirstRegionOfFunc() const { return localRegionInfo.isFirstRegionOfFunc; }
+    bool IsFirstRegionOfFunc() const { return metadata.localIsFirstRegionOfFunc; }
 
-    void SetFirstRegionTag(bool val) { localRegionInfo.isFirstRegionOfFunc = val; }
+    void SetFirstRegionTag(bool val) { metadata.localIsFirstRegionOfFunc = val; }
 
-    RegionInfo* GetPrevLocalRegion() const { return localRegionInfo.prev; }
+    RegionInfo* GetPrevLocalRegion() const { return metadata.localPrevRegion; }
+    void SetPrevLocalRegion(RegionInfo* region) { metadata.localPrevRegion = region; }
 
-    void SetPrevLocalRegion(RegionInfo* region) { localRegionInfo.prev = region; }
 
 private:
     static constexpr int32_t MAX_RAW_POINTER_COUNT = std::numeric_limits<int32_t>::max();
@@ -1064,6 +1064,9 @@ private:
             };
             BitField<uint16_t> regionStateBitField;
         };
+        bool localIsFirstRegionOfFunc = false;
+        RegionInfo* localPrevRegion = nullptr;
+
         RouteState routeState; // todo: put in RouteInfo
         RwLock rwLock;
     };
@@ -1192,6 +1195,8 @@ private:
         UnitMetadata metadata;
     };
 
+    static_assert(sizeof(RegionInfo::UnitInfo) == sizeof(UnitMetadata), "unexpected UnitInfo size");
+
     void InitRegionInfo(size_t nUnit, UnitRole uClass)
     {
         metadata.allocPtr = GetRegionStart();
@@ -1207,6 +1212,8 @@ private:
         SetEnqueuedRegionFlag(0);
         SetResurrectedRegionFlag(0);
         __atomic_store_n(&metadata.rawPointerObjectCount, 0, __ATOMIC_SEQ_CST);
+        metadata.localIsFirstRegionOfFunc = false;
+        metadata.localPrevRegion = nullptr;
     }
 
     void InitRegion(size_t nUnit, UnitRole uClass)
@@ -1225,10 +1232,6 @@ private:
     static constexpr uint32_t NULLPTR_IDX = UnitInfo::INVALID_IDX;
     UnitMetadata metadata;
 
-    struct LocalRegionInfo {
-        bool isFirstRegionOfFunc = false;
-        RegionInfo* prev = nullptr;
-    }localRegionInfo;
 };
 } // namespace MapleRuntime
 #endif // MRT_REGION_INFO_H
