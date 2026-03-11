@@ -99,6 +99,7 @@ public:
 
     size_t ReclaimGarbageMemory(bool releaseAll) override
     {
+        size_t size = regionManager.GetAllocatedSize();
         {
             MRT_PHASE_TIMER("ReclaimGarbageRegions");
             regionManager.ReclaimGarbageRegions();
@@ -108,9 +109,17 @@ public:
         if (releaseAll) {
             return regionManager.ReleaseGarbageRegions(0);
         } else {
-            size_t size = regionManager.GetAllocatedSize();
-            double cachedRatio = 1 - CangjieRuntime::GetHeapParam().heapUtilization;
-            size_t targetCachedSize = static_cast<size_t>(size * cachedRatio);
+            size_t sizeAfter = regionManager.GetAllocatedSize();
+            double cachedRatio = 1.0 / CangjieRuntime::GetHeapParam().heapUtilization - 1.0;
+
+            // The target cached garbage size is proportional to the allocated size *before* GC.
+            // Which is important for avoiding the case where before GC we request more memory from os
+            // then GC happens and releases memory, and then we need to request memory from os again.
+            // For allocation heavy code this cycle repeats over and over, 
+            // and can cause noticeable performance and latency regressions.
+            // If heap size changes persist, then heap utilization still eventually converges to heapUtilization value
+            // size_t targetCachedSize = static_cast<size_t>(sizeAfter * cachedRatio);
+            size_t targetCachedSize = std::max<size_t>(size - sizeAfter, sizeAfter * cachedRatio);
             return regionManager.ReleaseGarbageRegions(targetCachedSize);
         }
     }
