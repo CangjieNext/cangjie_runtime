@@ -61,8 +61,8 @@ const size_t RegionManager::MAX_UNIT_COUNT_PER_REGION = (128 * KB) / MapleRuntim
 // size of huge page is 2048KB.
 const size_t RegionManager::HUGE_PAGE = (2048 * KB) / MapleRuntime::MRT_PAGE_SIZE;
 // size of origin local mode region is page size.
-const size_t LOCAL_MODE_REGION_DEFAULT_NUM = 4;
-
+const size_t LOCAL_MODE_REGION_DEFAULT_SIZE = MRT_PAGE_SIZE;
+ 
 class ForwardTask : public HeapWork {
 public:
     ForwardTask(RegionManager& manager, RegionList& fromSpace)
@@ -1222,7 +1222,7 @@ uintptr_t RegionManager::AllocLocalMode(size_t size)
 
 RegionInfo* RegionManager::AllocateLocalModeRegion(bool expectPhysicalMem)
 {
-    size_t needNum = LOCAL_MODE_REGION_DEFAULT_NUM;
+    size_t needNum = AlignUp(LOCAL_MODE_REGION_DEFAULT_SIZE, RegionInfo::UNIT_SIZE) / RegionInfo::UNIT_SIZE;
     RegionInfo* region = TakeRegion(needNum, RegionInfo::UnitRole::SMALL_SIZED_UNITS, expectPhysicalMem);
     if (region == nullptr) {
         VLOG(LOCAL_REGION, "cannot take a local mode region from heap");
