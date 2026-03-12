@@ -18,6 +18,8 @@
 #include "UnwindStack/MangleNameHelper.h"
 #include "Heap/Collector/CollectorResources.h"
 #include "Heap/Collector/GcRequest.h"
+#include "Interpreter/Options.h"
+
 namespace MapleRuntime {
 std::mutex ExceptionManager::gUncaughtExceptionHandlerMtx;
 void ExceptionManager::OutOfMemory()
@@ -218,7 +220,7 @@ void ExceptionManager::ThrowImplicitException(ImplicitExceptionType type)
     MRT_SetStackGrow(false);
     ExceptionWrapper& eWrapper = Mutator::GetMutator()->GetExceptionWrapper();
     eWrapper.SetExceptionMessage(nullptr, 0);
-    ExceptionRaiser func = Runtime::Current().GetExceptionManager().GetExceptionRaiser();
+    ExceptionRaiser func = Runtime::Current().GetExceptionManager().GetExceptionRaiser(); // libs\std\core\runtime_call_throw_exception.cj throwImplicitException
     if (func == nullptr) {
         LOG(RTLOG_FATAL, "Cangjie initialization failed, implicit exception is nullptr.");
     }
@@ -253,7 +255,7 @@ void ExceptionManager::ThrowException(const ExceptionRef& exception)
     MRT_SetStackGrow(true);
     ExceptionWrapper& mExceptionWrapper = Mutator::GetMutator()->GetExceptionWrapper();
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-    DLOG(EXCEPTION, "start throw exception");
+    DLOG(EXCEPTION, "\nExceptionManager::ThrowException");
     DLOG(EXCEPTION, "Struct ExceptionWrapper");
     DLOG(EXCEPTION, "  ExceptionRef\t:\t%p", mExceptionWrapper.GetExceptionRef());
     DLOG(EXCEPTION, "  isCaught\t:\t%d", mExceptionWrapper.IsCaught());
@@ -293,4 +295,18 @@ void* ExceptionManager::BeginCatch(ExceptionWrapper* mExceptionWrapper __attribu
     eWrapper.SetExceptionRef(nullptr);
     return thrown;
 }
+
+#ifdef INTERPRETER_ENABLED
+void ExceptionManager::SetPendingException(const ExceptionRef& exception) {
+    ExceptionWrapper& mExceptionWrapper = Mutator::GetMutator()->GetExceptionWrapper();
+    mExceptionWrapper.Reset();
+
+    if (mExceptionWrapper.GetExceptionRef() != nullptr) {
+        LOG(RTLOG_FATAL, "SetPendingException fail, abort.");
+    }
+
+    mExceptionWrapper.SetExceptionRef(exception);
+}
+#endif
+
 } // namespace MapleRuntime

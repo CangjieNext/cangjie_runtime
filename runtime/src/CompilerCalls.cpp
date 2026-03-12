@@ -536,7 +536,7 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
         if (arraySize % frameInfoPairLen == 1) {
             --arraySize;
         }
-        DLOG(EXCEPTION, "fill in stack info");
+        DLOG(EXCEPTION, "\nMCC_FillInStackTraceImpl:");
         DLOG(EXCEPTION, "layer\tframePC\t\tframeFuncStart\tsize : %zu", (arraySize / frameInfoPairLen));
         for (int i = 0; i < arraySize; ++i) {
             uint64_t framePC = liteFrameInfos[i];

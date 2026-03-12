@@ -23,6 +23,9 @@
 #include "WinModuleManager.h"
 #endif
 #include "CpuProfiler/CpuProfiler.h"
+#include "Base/LogFile.h"
+#include "Interpreter/InterpreterSpecific.h"
+#include "Interpreter/Options.h"
 
 namespace MapleRuntime {
 extern "C" uintptr_t MRT_GetThreadLocalData()
@@ -103,6 +106,28 @@ extern "C" void MRT_SetStackGrow(bool enableStackScale)
 #endif
     }
 }
+
+#ifdef INTERPRETER_ENABLED
+void Mutator::InitInterpreterPart()
+{
+    if (isRuntimeMutator) {
+        return;
+    }
+
+    DLOG_INTERPRETER(DEBUG, "[CJThread] init interpreter part for fiber %p\n", this);
+    InterpreterFiberStart(&(this->interpreterFiberData));
+}
+
+void Mutator::DestroyInterpreterPart()
+{
+    if (isRuntimeMutator) {
+        return;
+    }
+
+    DLOG_INTERPRETER(DEBUG, "[Mutator] destruct interpreter part for fiber %p\n", this);
+    InterpreterFiberDestroy(&(this->interpreterFiberData));
+}
+#endif
 
 void Mutator::InitProtectStackAddr()
 {
@@ -375,6 +400,13 @@ void Mutator::RecordStackPtrs(std::set<BaseObject**>& resSet)
             obj->ForEachRefField(refVisitor);
         }
     }
+
+#ifdef INTERPRETER_ENABLED
+    // Fix pointers inside slots that are in stack memory itself. 
+    if (!isRuntimeMutator) {
+        VisitInterpreterStackPtrs(&fixPtrVisitor, interpreterFiberData, OnStack);
+    }
+#endif
 }
 
 intptr_t Mutator::FixExtendedStack(intptr_t frameBase, uint32_t adjustedSize __attribute__((unused)), void* ip)
@@ -393,6 +425,26 @@ intptr_t Mutator::FixExtendedStack(intptr_t frameBase, uint32_t adjustedSize __a
             if (stackOffset == 0 || stackOffset == -1) {
                 return 0;
             }
+        } else if (IsC2IVirtualExecutorAddr(reinterpret_cast<uintptr_t>(ip))) {
+                // in this context, adjustedSize is the size required for c2i stub and interpreter frames 
+                DLOG_INTERPRETER(DEBUG, "[Interpreter] Stack overflow happened in C2I, stack size: %zu", stackSize);
+#if defined(__x86_64__)
+                // 8 is the slot length of returnaddr.
+                uint64_t callerSp = *reinterpret_cast<intptr_t*>(frameBase) - 64 + 8;
+#elif defined(__aarch64__)
+                uint64_t callerSp = *reinterpret_cast<intptr_t*>(frameBase) - 64;
+#endif
+                size_t newSize = stackSize + stackSize;
+                while (stackBaseAddr - callerSp + adjustedSize > newSize - CJThreadStackReversedGet()) {
+                    newSize += newSize;
+                }
+                DLOG_INTERPRETER(DEBUG, "[Interpreter]    try to grow stack size: %zu -> %zu", stackSize, newSize);
+                stackOffset = CJThreadStackGrow(newSize);
+                if (stackOffset == -1 || stackOffset == 0) {
+                    DLOG_INTERPRETER(DEBUG, "[Interpreter]        stack overflow at %p", ip);
+                    ExceptionManager::StackOverflow(adjustedSize, ip);
+                    return 0;
+                }
         } else {
             UnwindContext& stackGrowContext = Mutator::GetMutator()->GetUnwindContext();
             UnwindContext caller;
@@ -442,6 +494,15 @@ intptr_t Mutator::FixExtendedStack(intptr_t frameBase, uint32_t adjustedSize __a
             *newStackAddr += stackOffset;
         }
 
+#ifdef INTERPRETER_ENABLED
+    StackPtrVisitor fixPtrVisitor = [stackOffset](ObjectRef& _slotAddr) {
+        intptr_t* slotAddr = (intptr_t*) &_slotAddr;
+        *slotAddr += stackOffset;
+    };
+
+    VisitInterpreterStackPtrs(&fixPtrVisitor, interpreterFiberData, OutOfStack);
+#endif
+
         uwContext.anchorFA = reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(uwContext.anchorFA) + stackOffset);
 
         return stackOffset;
@@ -487,6 +548,13 @@ inline void Mutator::GcPhaseEnum(GCPhase newPhase)
         }
     };
     VisitMutatorRoots(visitor);
+
+#ifdef INTERPRETER_ENABLED
+    // Mark roots in interpreter fiber storages
+    if (!isRuntimeMutator) {
+        VisitInterpreterFiberRoots(&visitor, interpreterFiberData);
+    }
+#endif
 }
 
 inline void Mutator::GCPhasePreForward(GCPhase newPhase)
@@ -541,6 +609,13 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
         }
     };
     VisitHeapReferences(visitor, derivedPtrVisitor);
+
+#ifdef INTERPRETER_ENABLED
+    // Adjust roots in interpreter fiber storages
+    if (!isRuntimeMutator) {
+        VisitInterpreterFiberRoots(&visitor, interpreterFiberData);
+    }
+#endif
 }
 
 inline void Mutator::HandleGCPhase(GCPhase newPhase)

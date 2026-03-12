@@ -11,6 +11,8 @@
 
 #include "Collector/TracingCollector.h"
 #include "Common/StackType.h"
+#include "Interpreter/Options.h"
+#include "Interpreter/InterpreterSpecific.h"
 
 namespace MapleRuntime {
 void GCStackInfo::FillInStackTrace()
@@ -44,6 +46,12 @@ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) con
                 TracingCollector::VisitStackRoots(func, regSlotsMap, frame, mutator);
                 break;
             }
+#ifdef INTERPRETER_ENABLED
+            case FrameType::INTERPRETER: {
+                VisitInterpreterFrameRoots(&func, frame);
+                break;
+            }
+#endif
             case FrameType::SAFEPOINT:
             case FrameType::STACKGROW:
 #ifdef __arm__
@@ -55,6 +63,7 @@ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) con
             case FrameType::C2R_STUB:
             case FrameType::C2N_STUB:
             case FrameType::EXSLUSIVE:
+            case FrameType::INTERPRETER_C2I:
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
                 break;
             default: {
@@ -75,9 +84,16 @@ void GCStackInfo::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, con
                                                              mutator);
                 break;
             }
+#ifdef INTERPRETER_ENABLED
+            case FrameType::INTERPRETER: {
+                VisitInterpreterFrameRoots(&rootVisitor, frame);
+                break;
+            }
+#endif
             case FrameType::C2R_STUB:
             case FrameType::C2N_STUB:
             case FrameType::EXSLUSIVE:
+            case FrameType::INTERPRETER_C2I:
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
                 break;
             case FrameType::SAFEPOINT:
@@ -128,6 +144,12 @@ void RecordStackInfo::VisitStackRoots(const RootVisitor &func, Mutator &mutator)
                 TracingCollector::VisitStackRoots(func, regSlotsMap, ref, mutator);
                 break;
             }
+#ifdef INTERPRETER_ENABLED
+            case FrameType::INTERPRETER: {
+                VisitInterpreterFrameRoots(&func, ref);
+                break;
+            }
+#endif
             case FrameType::SAFEPOINT:
             case FrameType::STACKGROW:
 #ifdef __arm__
@@ -139,6 +161,7 @@ void RecordStackInfo::VisitStackRoots(const RootVisitor &func, Mutator &mutator)
             case FrameType::C2R_STUB:
             case FrameType::C2N_STUB:
             case FrameType::EXSLUSIVE:
+            case FrameType::INTERPRETER_C2I:
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame->mFrame.GetFA()));
                 break;
             default: {

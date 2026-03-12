@@ -24,6 +24,9 @@
 #endif
 #endif
 
+#include "Base/CString.h"
+#include "Interpreter/Options.h"
+
 /* C++ needs to know that types and declarations are C, not C++. */
 #ifdef __cplusplus
 #define CANGJIE_RT_API_DECLS_BEGIN extern "C" {
@@ -317,6 +320,18 @@ struct ConcurrencyParam {
     uint32_t processorNum;
 };
 
+#ifdef INTERPRETER_ENABLED
+struct InterpreterParam {
+    const MapleRuntime::FixedCString interpreterLibName;
+    const bool interpreterEnabled = false;
+
+    explicit InterpreterParam(bool enabled, MapleRuntime::FixedCString interpreterLibName) 
+        : interpreterLibName(interpreterLibName), interpreterEnabled(enabled) {}
+
+    InterpreterParam(): interpreterLibName() {}
+};
+#endif
+
 /*
  * @struct RuntimeParam
  * @brief Data structure for Cangjie runtime parameters,\n
@@ -327,6 +342,9 @@ struct RuntimeParam {
     struct GCParam gcParam;
     struct LogParam logParam;
     struct ConcurrencyParam coParam;
+#ifdef INTERPRETER_ENABLED
+    struct InterpreterParam interpreterParam;
+#endif
 };
 
 CANGJIE_RT_API_DECLS_BEGIN

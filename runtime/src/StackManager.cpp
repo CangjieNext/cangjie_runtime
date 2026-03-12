@@ -34,6 +34,8 @@
 #include "StackMap/StackMap.h"
 #endif
 #include "CpuProfiler/CpuProfiler.h"
+#include "Interpreter/Options.h"
+#include "Interpreter/InterpreterSpecific.h"
 
 #define LIBCANGJIE_RUNTIME "libcangjie-runtime"
 #define LIBCANGJIE_STD_CORE "libcangjie-std-core"
@@ -51,6 +53,9 @@ Uptr StackManager::cjcSoStartAddr = STACK_ADDR_MAX;
 Uptr StackManager::cjcSoEndAddr = 0;
 Uptr StackManager::traceSoStartAddr = STACK_ADDR_MAX;
 Uptr StackManager::traceSoEndAddr = 0;
+Uptr StackManager::interpreterSoStartAddr = ULLONG_MAX;
+Uptr StackManager::interpreterSoEndAddr = 0;
+
 
 #if defined (COMPILE_DYNAMIC)
 #if !defined (__APPLE__)
@@ -123,6 +128,7 @@ void StackManager::RecordLiteFrameInfos(std::vector<uint64_t>& liteFrameInfos, s
     PrintStackInfo printStackInfo;
     printStackInfo.FillInStackTrace();
     printStackInfo.ExtractLiteFrameInfoFromStack(liteFrameInfos, steps);
+    DLOG(UNWIND, "\n");
 }
 
 void StackManager::GetStackTraceByLiteFrameInfos(const std::vector<uint64_t>& liteFrameInfos,
@@ -253,6 +259,10 @@ static void GetEachSoAddrScope(std::vector<CString>& soNameVec)
                 GetSoAddrScope(lineStr, StackManager::rtStartAddr, StackManager::rtEndAddr);
             } else if  (strcmp(baseName, "cjc\n") == 0) {
                 GetSoAddrScope(lineStr, StackManager::cjcSoStartAddr, StackManager::cjcSoEndAddr);
+#ifdef INTERPRETER_ENABLED
+            } else if  (strcmp(baseName, CString(Runtime::Current().GetRuntimeParam().interpreterParam.interpreterLibName).Combine("\n").Str()) == 0) {
+                GetSoAddrScope(lineStr, StackManager::interpreterSoStartAddr, StackManager::interpreterSoEndAddr);
+#endif
             }
         }
     }
@@ -345,6 +355,17 @@ void StackManager::InitAddressScope()
 #elif defined(__APPLE__) && !defined(__IOS__) // MacOS
     InitAddressInfoOnDarwin("/cjc", StackManager::cjcSoStartAddr, StackManager::cjcSoEndAddr);
 #endif
+
+// Init interpreter address info.
+#ifdef INTERPRETER_ENABLED
+#if defined(__linux__)
+    std::vector<CString> interpreterSoName = { CString(Runtime::Current().GetRuntimeParam().interpreterParam.interpreterLibName).Combine("\n").Str() };
+    GetEachSoAddrScope(interpreterSoName);
+#else
+    LOG(RTLOG_FATAL, "can not find interpreter so");
+#endif
+#endif
+
 }
 
 void InitAddressScopeForCJthreadTrace()
@@ -419,4 +440,12 @@ bool StackManager::IsRuntimeFrame(Uptr pc)
         (pc > traceSoStartAddr && pc < traceSoEndAddr);
 #endif
 }
+
+#ifdef INTERPRETER_ENABLED
+bool StackManager::IsInterpreterCodeAddr(Uptr addr)
+{
+    return interpreterSoStartAddr <= addr && addr < interpreterSoEndAddr;
+}
+#endif
+
 } // namespace MapleRuntime

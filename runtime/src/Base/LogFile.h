@@ -14,6 +14,7 @@
 #include "Base/Macros.h"
 #include "Base/TimeUtils.h"
 #include "Cangjie.h"
+#include "Interpreter/Options.h"
 
 namespace MapleRuntime {
 enum LogType {
@@ -193,6 +194,12 @@ void WriteLog(bool addPrefix, LogType type, const char* format, ...) noexcept;
 #define DLOG(type, format...) VLOG(type, format)
 #else
 #define DLOG(type, format...) (void)(0)
+#endif
+
+#ifdef INTERPRETER_ENABLED
+#define DLOG_INTERPRETER(type, format...) DLOG(type, format)
+#else
+#define DLOG_INTERPRETER(type, format...) (void)(0)
 #endif
 
 // Macro for cjthread log and use it after ENABLE_LOG for judgment.

@@ -16,6 +16,7 @@
 #include "sys/sysinfo.h"
 #endif
 
+#include "Base/LogFile.h"
 #include "Base/CString.h"
 #include "Sync/Sync.h"
 #include "Base/Panic.h"
@@ -29,6 +30,7 @@
 #include "ExceptionManager.inline.h"
 #include "Mutator/Mutator.inline.h"
 #include "schedule.h"
+#include "Interpreter/InterpreterSpecific.h"
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
 #endif
@@ -273,6 +275,26 @@ static uint32_t InitProcessorNum()
     return defaultProcs;
 }
 
+#ifdef INTERPRETER_ENABLED
+static FixedCString InitInterpreterLibName()
+{
+    auto env = std::getenv("INTERPRETER_LIB_NAME");
+    if (env == nullptr) {
+        return FixedCString();
+    }
+    return FixedCString(env);
+}
+
+static bool InitInterpreterEnabled()
+{
+    auto env = std::getenv("INTERPRETER_ENABLED");
+    if (env == nullptr) {
+        return false;
+    }
+    return std::strcmp(env, "true") == 0;
+}
+#endif
+
 void* StartMainTask(void* arg, unsigned int len)
 {
     ScheduleHandle scheduler = MapleRuntime::Runtime::Current().GetConcurrencyModel().GetThreadScheduler();
@@ -283,8 +305,10 @@ void* StartMainTask(void* arg, unsigned int len)
     uintptr_t threadData = MRT_GetThreadLocalData();
     MRT_PreRunManagedCode(mutator, 0, reinterpret_cast<ThreadLocalData*>(threadData));
     reinterpret_cast<ThreadLocalData*>(threadData)->isCJProcessor = true;
+    
     int32_t res = static_cast<int32_t>(
         reinterpret_cast<uintptr_t>(ExecuteCangjieStub(0, 0, 0, execute, reinterpret_cast<void*>(threadData), 0)));
+
 #ifdef CANGJIE_TSAN_SUPPORT
     MapleRuntime::Sanitizer::TsanFinalize();
 #endif
@@ -578,7 +602,10 @@ static RuntimeParam InitRuntimeParam()
             .thStackSize = 1 * KB,
             .coStackSize = InitCoStackSize(),
             .processorNum = InitProcessorNum(),
-        }
+        },
+#ifdef INTERPRETER_ENABLED
+        .interpreterParam = InterpreterParam(InitInterpreterEnabled(), InitInterpreterLibName()),
+#endif
     };
     return param;
 }
@@ -586,11 +613,22 @@ static RuntimeParam InitRuntimeParam()
 void MRT_CjRuntimeInit()
 {
     RuntimeParam param = InitRuntimeParam();
+#ifdef INTERPRETER_ENABLED
+    if (param.interpreterParam.interpreterEnabled) {
+        InitInterpreter(param);
+    }
+#endif
     CangjieRuntime::CreateAndInit(param);
     RTErrorCode rtCode = SetRuntimeInitFlag();
     if (rtCode != E_OK) {
         LOG(RTLOG_FATAL, "Init cj runtime failed for %d\n", rtCode);
     }
+
+#ifdef TEST
+    if (param.interpreterParam.interpreterEnabled) {
+        initTestVirtualFuncs(param.interpreterParam.interpreterLibName.Str());
+    }
+#endif
 }
 
 void MRT_SetCommandLineArgs(int argc, const char* argv[])

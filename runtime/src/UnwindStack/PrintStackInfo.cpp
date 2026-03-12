@@ -17,7 +17,9 @@ void PrintStackInfo::FillInStackTrace()
     CheckTopUnwindContextAndInit(uwContext);
     while (!uwContext.frameInfo.mFrame.IsAnchorFrame(anchorFA)) {
         AnalyseAndSetFrameType(uwContext);
-        if (uwContext.frameInfo.GetFrameType() == FrameType::MANAGED) {
+
+        FrameType currentFrameType = uwContext.frameInfo.GetFrameType();
+        if (currentFrameType == FrameType::MANAGED || currentFrameType == FrameType::INTERPRETER_I2I || currentFrameType == FrameType::INTERPRETER_C2I) {
             stack.emplace_back(uwContext.frameInfo);
         }
 

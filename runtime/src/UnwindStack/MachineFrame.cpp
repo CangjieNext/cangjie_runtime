@@ -10,6 +10,8 @@
 #include "Common/StackType.h"
 #include "StackManager.h"
 #include "securec.h"
+#include "Interpreter/Options.h"
+#include "Interpreter/InterpreterSpecific.h"
 #ifdef _WIN64
 #include "Common/Runtime.h"
 #include "UnwindWin.h"
@@ -56,6 +58,24 @@ bool MachineFrame::IsExclusiveStubFrame() const
 }
 
 bool MachineFrame::IsRuntimeFrame() const { return StackManager::IsRuntimeFrame(reinterpret_cast<uintptr_t>(ip)); }
+
+#ifdef INTERPRETER_ENABLED
+bool MachineFrame::IsInterpreterFrame() const {
+    return StackManager::IsInterpreterCodeAddr(reinterpret_cast<uintptr_t>(ip));
+}
+
+bool MachineFrame::IsInterpreterEntryPointFrame() const {
+    return IsManagedEntrypointAddr(ip);
+}
+
+bool MachineFrame::IsC2IStubFrame() const {
+    return IsC2IVirtualExecutorAddr(reinterpret_cast<uintptr_t>(ip));
+}
+
+bool MachineFrame::IsI2IFrame() const {
+    return IsI2IFunctionAddr(reinterpret_cast<uintptr_t>(ip));
+}
+#endif
 
 bool MachineFrame::IsC2NStubFrame() const
 {
