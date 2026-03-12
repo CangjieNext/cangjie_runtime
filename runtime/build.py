@@ -145,6 +145,7 @@ def do_build(args):
             "-DCMAKE_AR_PATH=ar",
             "-DCMAKE_SHARED_LINKER_FLAGS={}".format(shared_linker_flags),
             "-DCMAKE_EXE_LINKER_FLAGS={}".format(exe_linker_flags),
+            "-DGLOBAL_EXPORT_FLAG=0",
             "-S", ".", "-B", "CMakebuild"
         ]
         build_target(cmake_command)
@@ -227,6 +228,7 @@ def do_build(args):
             "-DDUMPADDRESS_FLAG=0",
             "-DCJ_SDK_VERSION={}".format(version),
             "-DDISABLE_VERSION_CHECK=1",
+            "-DGLOBAL_EXPORT_FLAG=0",
             "-S", ".", "-B", "CMakebuild"
         ] + ptrauth_flags
         build_target(cmake_command)
