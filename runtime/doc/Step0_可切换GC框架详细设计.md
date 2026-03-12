@@ -1689,10 +1689,10 @@ python3 build.py build
 
 # 2. 替换 SDK 中的 dylib
 cp output/common/darwin_release_aarch64/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib \
-   /Users/lipeisheng/code/cangjie/cangjie-pkg/dev/20260220/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
+   /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
 
 # 3. 运行测试
-source /Users/lipeisheng/code/cangjie/cangjie-pkg/dev/20260220/cangjie/envsetup.sh
+source /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/envsetup.sh
 cd gc && cjc gc.cj && ./main
 
 # 4. 验证产物一致性（可选：对比符号表）
@@ -1719,9 +1719,9 @@ nm -gU output/common/darwin_release_aarch64/runtime/lib/darwin_aarch64_cjnative/
 
 # 3. 替换并运行简单程序
 cp output/common/darwin_release_aarch64/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib \
-   /Users/lipeisheng/code/cangjie/cangjie-pkg/dev/20260220/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
+   /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
 
-source /Users/lipeisheng/code/cangjie/cangjie-pkg/dev/20260220/cangjie/envsetup.sh
+source /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/envsetup.sh
 
 # 使用简单的 Hello World 验证初始化
 cat > /tmp/test_ms_init.cj << 'EOF'

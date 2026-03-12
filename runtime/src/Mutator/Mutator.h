@@ -17,6 +17,7 @@
 #include "Mutator/ThreadLocal.h"
 #include "SatbBuffer.h"
 #include "schedule.h"
+#include "Heap/Barrier/WriteBarrierBuffer.h"
 #ifdef _WIN64
 #include "UnwindWin.h"
 #endif
@@ -394,6 +395,8 @@ public:
         satbNode->Clear();
     }
 
+    WriteBarrierBuffer& GetWriteBarrierBuffer() { return wbBuf_; }
+
     inline uintptr_t GetStackTopAddr() { return stackTopAddr; }
     inline void SetStackTopAddr(uintptr_t sta) { stackTopAddr = sta; }
     inline uintptr_t GetStackSize() { return stackSize; }
@@ -533,6 +536,7 @@ private:
     ObjectRef rawObject{ nullptr };
 
     SatbBuffer::Node* satbNode = nullptr;
+    WriteBarrierBuffer wbBuf_;  // Always present to keep Mutator layout consistent across CJThread and runtime
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
     GCInfos gcInfos;
 #endif

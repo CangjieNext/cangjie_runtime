@@ -15,9 +15,74 @@
 #include "Common/ScopedObjectAccess.h"
 #include "Heap.h"
 
+#ifdef MRT_USE_MARK_SWEEP
+#include "Allocator/AllocBufferMS.h"
+#include "Allocator/CentralRegionPool.h"
+#include "Allocator/MSRegionInfo.h"
+#include "Allocator/MSRegionManager.h"
+#include "Allocator/SizeClass.h"
+#include "Allocator/LargeObjectSpace.h"
+#include "Mutator/ThreadLocal.h"
+#endif
+
 namespace MapleRuntime {
+
+#ifdef MRT_USE_MARK_SWEEP
+// Mark-Sweep allocation path — handles all object sizes:
+//   Tier 2 (huge, >4MB):  independent mmap via LargeObjectSpace
+//   Tier 1 (large):       MSRegionManager units + MSRegionInfo registration
+//   Normal (small/medium): per-thread AllocBufferMS → CentralRegionPool
+// In MS mode, PINNED_OBJECT is equivalent to MOVEABLE (nothing moves),
+// so allocType is not needed here.
+MAddress RegionSpace::TryAllocateOnceMS(size_t allocSize)
+{
+    // Large / huge object path
+    if (UNLIKELY(allocSize >= msRegionManager_->GetLargeObjectThreshold())) {
+        // Tier 2: huge objects (>4MB) go to independent mmap
+        if (allocSize > kHugeObjectThreshold && msLargeObjectSpace_ != nullptr) {
+            return msLargeObjectSpace_->Allocate(allocSize);
+        }
+        // Tier 1: large objects — allocate via MSRegionManager directly.
+        // One-level: MSRegionManager returns MSRegionInfo* + regionStart.
+        size_t unitCount = (allocSize + RegionInfo::UNIT_SIZE - 1) / RegionInfo::UNIT_SIZE;
+        uintptr_t regionStart = 0;
+        MSRegionInfo* baseInfo = msRegionManager_->TakeRegionForLarge(unitCount, regionStart);
+        if (baseInfo == nullptr && msCentralPool_ != nullptr) {
+            // No free physical pages.  Force-sweep all CentralRegionPool small
+            // regions so that completely-empty regions return their pages to
+            // MSRegionManager.  This handles the case where only large objects are
+            // being allocated and lazy sweep never runs.
+            msCentralPool_->ForceFinishSweep();
+            baseInfo = msRegionManager_->TakeRegionForLarge(unitCount, regionStart);
+        }
+        if (baseInfo == nullptr) {
+            return 0;
+        }
+        // Alloc from the raw region memory
+        size_t regionBytes = unitCount * RegionInfo::UNIT_SIZE;
+        MAddress addr = static_cast<MAddress>(regionStart);
+        RegisterLargeObjectMS(addr, regionBytes);
+        return addr;
+    }
+
+    // Normal (small/medium) object path: per-thread AllocBufferMS
+    AllocBufferMS* msBuffer = GetOrCreateAllocBufferMS();
+    if (msBuffer != nullptr) {
+        MAddress addr = msBuffer->Allocate(allocSize);
+        if (LIKELY(addr != 0)) {
+            return addr;
+        }
+    }
+    // Allocation failed, let retry logic handle GC/OOM
+    return 0;
+}
+#endif
+
 MAddress RegionSpace::TryAllocateOnce(size_t allocSize, AllocType allocType)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    return TryAllocateOnceMS(allocSize);
+#else
     if (UNLIKELY(allocType == AllocType::PINNED_OBJECT)) {
         return regionManager.AllocPinned(allocSize);
     }
@@ -26,6 +91,7 @@ MAddress RegionSpace::TryAllocateOnce(size_t allocSize, AllocType allocType)
     }
     AllocBuffer* allocBuffer = AllocBuffer::GetOrCreateAllocBuffer();
     return allocBuffer->Allocate(allocSize, allocType);
+#endif
 }
 
 bool RegionSpace::ShouldRetryAllocation(size_t& tryTimes, size_t size) const
@@ -86,12 +152,60 @@ MAddress RegionSpace::Allocate(size_t size, AllocType allocType)
 #endif
     return internalAddr + HEADER_SIZE;
 }
+
+size_t RegionSpace::AllocatedBytes() const
+{
+#ifdef MRT_USE_MARK_SWEEP
+    if (msCentralPool_ != nullptr) {
+        return msCentralPool_->GetTotalMSRegionBytes();
+    }
+#endif
+    return regionManager.GetAllocatedSize();
+}
+
+bool RegionSpace::IsMarkedObject(const BaseObject* obj)
+{
+#ifdef MRT_USE_MARK_SWEEP
+    uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
+    if (MSRegionInfoArray::IsHeapAddress(addr)) {
+        MSRegionInfo* msInfo = MSRegionInfoArray::GetRegionInfoValidated(addr);
+        if (msInfo != nullptr) {
+            // Large objects: check isMarked on base entry
+            if (msInfo->regionType == MSRegionType::MS_REGION_LARGE) {
+                MSRegionInfo* base = MSRegionInfoArray::GetRegionInfoByIdx(
+                    static_cast<size_t>(msInfo->reserved));
+                return base->isMarked != 0;
+            }
+            // Small/medium: check mark bitmap
+            if (msInfo->markBitmap != nullptr && msInfo->totalSlotCount > 0) {
+                return msInfo->GetMarkBit(addr);
+            }
+        }
+    }
+    // In MS mode, if not found in MSRegionInfoArray, treat as unmarked.
+    // Do NOT fall through to CopyGC RegionInfo — UnitInfo mirror is not
+    // initialized in MS mode.
+    return false;
+#else
+    // Fall back to CopyGC RegionInfo (handles LOS large regions via isMarked flag)
+    RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
+    return regionInfo->IsMarkedObject(obj);
+#endif
+}
+
 void RegionSpace::Init(const HeapParam& vmHeapParam)
 {
     MemMap::Option opt = MemMap::DEFAULT_OPTIONS;
     opt.tag = "cangjie_heap";
     size_t heapSize = vmHeapParam.heapSize * 1024;
+
+#ifdef MRT_USE_MARK_SWEEP
+    // MS mode: use MSRegionManager's layout (MSRegionInfo[] at mmap front).
+    size_t totalSize = MSRegionManager::GetHeapMemorySize(heapSize);
+#else
     size_t totalSize = RegionManager::GetHeapMemorySize(heapSize);
+#endif
+
     size_t unitNum = RegionManager::GetHeapUnitCount(heapSize);
 #if defined(CANGJIE_ASAN_SUPPORT)
     // asan's memory alias technique needs a shareable page
@@ -107,16 +221,151 @@ void RegionSpace::Init(const HeapParam& vmHeapParam)
 
     Logger::GetLogger().SetMinimumLogLevel(CangjieRuntime::GetLogParam().logLevel);
     MAddress metadata = reinterpret_cast<MAddress>(map->GetBaseAddr());
+
+#ifdef MRT_USE_MARK_SWEEP
+    // MS mode: initialize MSRegionManager which owns the MSRegionInfo[] at mmap front.
+    msRegionManager_ = new (std::nothrow) MSRegionManager();
+    CHECK_DETAIL(msRegionManager_ != nullptr, "failed to create MSRegionManager");
+    msRegionManager_->Initialize(heapSize, metadata);
+
+    reservedStart = msRegionManager_->GetHeapStart();
+    reservedEnd = msRegionManager_->GetHeapEnd();
+
+    // Set RegionInfo static members (UNIT_SIZE, heapStartAddress, totalUnitCount)
+    // so that legacy global lookups don't crash. We do NOT call
+    // regionManager.Initialize() because the CopyGC UnitInfo mirror layout
+    // would overlap with MSRegionInfo[] at the mmap front.
+    RegionInfo::Initialize(msRegionManager_->GetMaxUnitCount(), reservedStart);
+#else
     regionManager.Initialize(unitNum, metadata);
     reservedStart = regionManager.GetRegionHeapStart();
     reservedEnd = reinterpret_cast<MAddress>(map->GetMappedEndAddr());
+#endif
+
 #if defined(MRT_DUMP_ADDRESS)
     VLOG(REPORT, "region metadata@%zx, heap @[0x%zx+%zu, 0x%zx)", metadata, reservedStart, reservedEnd - reservedStart,
          reservedEnd);
 #endif
     Heap::OnHeapCreated(reservedStart);
     Heap::OnHeapExtended(reservedEnd);
+
+#ifdef MRT_USE_MARK_SWEEP
+    // Initialize the Mark-Sweep allocation subsystem
+    // 0. SizeClassInfo lookup tables (must be first — needed by all MS allocators)
+    SizeClassInfo::Init();
+
+    // 1. MSRegionInfoArray: use the mmap-front array from MSRegionManager (no malloc).
+    size_t heapBytes = reservedEnd - reservedStart;
+    size_t maxMSRegionCount = heapBytes / MS_REGION_SIZE;
+    MSRegionInfoArray::Init(reservedStart, maxMSRegionCount, msRegionManager_->GetArrayBase());
+
+    // 2. CentralRegionPool: per-size-class Region pools (now uses MSRegionManager*)
+    msCentralPool_ = new (std::nothrow) CentralRegionPool(msRegionManager_);
+    CHECK_DETAIL(msCentralPool_ != nullptr, "failed to create CentralRegionPool");
+
+    // 3. AllocBufferMS is now per-thread (lazily created via GetOrCreateAllocBufferMS).
+    //    No global instance needed.
+
+    // 4. LargeObjectSpace: independent mmap for huge objects (>4MB)
+    msLargeObjectSpace_ = new (std::nothrow) LargeObjectSpace();
+    CHECK_DETAIL(msLargeObjectSpace_ != nullptr, "failed to create LargeObjectSpace");
+
+    VLOG(REPORT, "[MS-GC] MS subsystem initialized: maxRegions=%zu, heapRange=[0x%zx, 0x%zx)",
+         maxMSRegionCount, reservedStart, reservedEnd);
+#endif
 }
+
+#ifdef MRT_USE_MARK_SWEEP
+// MS-mode MarkObject: uses MSRegionInfo mark bitmap / isMarked flag
+// Returns true if the object was ALREADY marked, false if NEWLY marked.
+bool RegionSpace::MarkObject(const BaseObject* obj)
+{
+    MAddress addr = reinterpret_cast<MAddress>(obj);
+
+    // Non-heap addresses (e.g., static data) → treat as already marked
+    if (!MSRegionInfoArray::IsHeapAddress(addr)) {
+        return true;
+    }
+
+    MSRegionInfo* msInfo = MSRegionInfoArray::GetRegionInfoValidated(addr);
+    if (msInfo == nullptr) {
+        return true;
+    }
+
+    // Large region: use isMarked flag on base MSRegionInfo
+    if (msInfo->regionType == MSRegionType::MS_REGION_LARGE) {
+        // Resolve to base MSRegionInfo (handles interior pointers across spans)
+        MSRegionInfo* base = MSRegionInfoArray::GetRegionInfoByIdx(
+            static_cast<size_t>(msInfo->reserved));
+        if (base->isMarked) {
+            return true;  // already marked
+        }
+        base->isMarked = 1;
+        return false;  // newly marked
+    }
+
+    // Small/medium region: use mark bitmap
+    if (msInfo->markBitmap != nullptr && msInfo->totalSlotCount > 0) {
+        return msInfo->TestAndSetMarkBit(addr);  // true = already set
+    }
+
+    // MSRegionInfo not yet initialized (edge case) → treat as already marked
+    return true;
+}
+
+void RegionSpace::RegisterLargeObjectMS(MAddress addr, size_t regionBytes)
+{
+    uintptr_t start = static_cast<uintptr_t>(addr);
+    uintptr_t end = start + regionBytes;
+
+    // Initialize the base MSRegionInfo at the object's start address
+    MSRegionInfo* baseInfo = MSRegionInfoArray::GetRegionInfo(start);
+    baseInfo->InitForLargeObject(start, end);
+    size_t baseIdx = MSRegionInfoArray::GetRegionIdx(baseInfo);
+    // Base points to itself
+    baseInfo->reserved = static_cast<uint64_t>(baseIdx);
+
+    // Initialize ALL spanning MSRegionInfo entries for interior pointer safety
+    size_t spanCount = (regionBytes + MS_REGION_SIZE - 1) / MS_REGION_SIZE;
+    for (size_t i = 1; i < spanCount; i++) {
+        MSRegionInfo* spanInfo = MSRegionInfoArray::GetRegionInfoByIdx(baseIdx + i);
+        spanInfo->regionType = MSRegionType::MS_REGION_LARGE;
+        spanInfo->markBitmap = nullptr;
+        spanInfo->allocBitmap = nullptr;
+        spanInfo->totalSlotCount = 0;
+        spanInfo->freeSlotCount = 0;
+        spanInfo->isMarked = 0;
+        // Back-pointer to base MSRegionInfo index
+        spanInfo->reserved = static_cast<uint64_t>(baseIdx);
+    }
+
+    // If GC is currently marking, conservatively mark the object as live
+    GCPhase phase = Heap::GetHeap().GetCollector().GetGCPhase();
+    if (phase == GCPhase::GC_PHASE_MS_MARK_SETUP ||
+        phase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK ||
+        phase == GCPhase::GC_PHASE_MS_MARK_TERMINATION) {
+        baseInfo->isMarked = 1;
+    }
+
+    // Track in CentralRegionPool for GC sweep iteration and byte accounting
+    if (msCentralPool_ != nullptr) {
+        msCentralPool_->RegisterLargeRegion(baseInfo);
+        msCentralPool_->AddLargeRegionBytes(regionBytes);
+    }
+}
+
+AllocBufferMS* RegionSpace::GetOrCreateAllocBufferMS()
+{
+    AllocBufferMS* buffer = ThreadLocal::GetAllocBufferMS();
+    if (buffer == nullptr) {
+        buffer = new (std::nothrow) AllocBufferMS();
+        CHECK_DETAIL(buffer != nullptr, "new MS alloc buffer fail");
+        buffer->Init(msCentralPool_);
+        ThreadLocal::SetAllocBufferMS(buffer);
+    }
+    return buffer;
+}
+#endif
 
 AllocBuffer* AllocBuffer::GetOrCreateAllocBuffer()
 {
@@ -286,6 +535,10 @@ bool RegionSpace::IsHeapObject(MAddress addr) const
 #endif
 void RegionSpace::FeedHungryBuffers()
 {
+#ifdef MRT_USE_MARK_SWEEP
+    // MS mode uses AllocBufferMS + CentralRegionPool, not AllocBuffer + RegionManager.
+    return;
+#else
     ScopedObjectAccess soa;
     AllocBufferManager::HungryBuffers hungryBuffers;
     allocBufferManager->SwapHungryBuffers(hungryBuffers);
@@ -305,5 +558,6 @@ void RegionSpace::FeedHungryBuffers()
         regionManager.RemoveThreadLocalRegion(region);
         regionManager.CollectRegion(region);
     }
+#endif
 }
 } // namespace MapleRuntime

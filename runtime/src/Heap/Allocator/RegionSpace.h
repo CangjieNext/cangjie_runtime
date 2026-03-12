@@ -24,6 +24,13 @@
 #include "Sanitizer/SanitizerInterface.h"
 #endif
 
+#ifdef MRT_USE_MARK_SWEEP
+#include "MSRegionManager.h"
+#include "CentralRegionPool.h"
+#include "LargeObjectSpace.h"
+#include "AllocBufferMS.h"
+#endif
+
 namespace MapleRuntime {
 // RegionSpace aims to be the API for other components of runtime
 // the complication of implementation is delegated to RegionManager
@@ -65,15 +72,47 @@ public:
 
     MAddress GetSpaceEndAddress() const override { return reservedEnd; }
 
-    size_t GetCurrentCapacity() const override { return regionManager.GetInactiveZone() - reservedStart; }
+    size_t GetCurrentCapacity() const override
+    {
+#ifdef MRT_USE_MARK_SWEEP
+        if (msRegionManager_ != nullptr) {
+            return msRegionManager_->GetInactiveZone() - reservedStart;
+        }
+#endif
+        return regionManager.GetInactiveZone() - reservedStart;
+    }
     size_t GetMaxCapacity() const override { return reservedEnd - reservedStart; }
 
-    inline size_t GetRecentAllocatedSize() const { return regionManager.GetRecentAllocatedSize(); }
+    inline size_t GetRecentAllocatedSize() const
+    {
+#ifdef MRT_USE_MARK_SWEEP
+        return 0; // MS mode: CentralRegionPool manages regions, not RegionManager lists
+#else
+        return regionManager.GetRecentAllocatedSize();
+#endif
+    }
 
     // size of objects survived in previous gc.
-    inline size_t GetSurvivedSize() const { return regionManager.GetSurvivedSize(); }
+    inline size_t GetSurvivedSize() const
+    {
+#ifdef MRT_USE_MARK_SWEEP
+        return 0; // MS mode: no from-space / pinned concepts
+#else
+        return regionManager.GetSurvivedSize();
+#endif
+    }
 
-    size_t GetUsedPageSize() const override { return regionManager.GetUsedRegionSize(); }
+    size_t GetUsedPageSize() const override
+    {
+#ifdef MRT_USE_MARK_SWEEP
+        if (msCentralPool_ != nullptr) {
+            return msCentralPool_->GetTotalMSRegionBytes();
+        }
+        return 0;
+#else
+        return regionManager.GetUsedRegionSize();
+#endif
+    }
 
     inline size_t GetTargetSize() const
     {
@@ -81,13 +120,34 @@ public:
         return static_cast<size_t>(GetUsedPageSize() / heapUtilization);
     }
 
-    size_t AllocatedBytes() const override { return regionManager.GetAllocatedSize(); }
+    size_t AllocatedBytes() const override;
 
-    size_t LargeObjectBytes() const override { return regionManager.GetLargeObjectSize(); }
+    size_t LargeObjectBytes() const override
+    {
+#ifdef MRT_USE_MARK_SWEEP
+        return 0; // MS mode: large objects tracked via CentralRegionPool
+#else
+        return regionManager.GetLargeObjectSize();
+#endif
+    }
 
-    size_t FromSpaceSize() const { return regionManager.GetFromSpaceSize(); }
+    size_t FromSpaceSize() const
+    {
+#ifdef MRT_USE_MARK_SWEEP
+        return 0;
+#else
+        return regionManager.GetFromSpaceSize();
+#endif
+    }
 
-    size_t PinnedSpaceSize() const { return regionManager.GetPinnedSpaceSize(); }
+    size_t PinnedSpaceSize() const
+    {
+#ifdef MRT_USE_MARK_SWEEP
+        return 0;
+#else
+        return regionManager.GetPinnedSpaceSize();
+#endif
+    }
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     bool IsHeapObject(MAddress addr) const override;
@@ -99,6 +159,11 @@ public:
 
     size_t ReclaimGarbageMemory(bool releaseAll) override
     {
+#ifdef MRT_USE_MARK_SWEEP
+        // In MS mode, garbage is reclaimed via CentralRegionPool sweep, not RegionManager.
+        (void)releaseAll;
+        return 0;
+#else
         {
             MRT_PHASE_TIMER("ReclaimGarbageRegions");
             regionManager.ReclaimGarbageRegions();
@@ -113,6 +178,7 @@ public:
             size_t targetCachedSize = static_cast<size_t>(size * cachedRatio);
             return regionManager.ReleaseGarbageRegions(targetCachedSize);
         }
+#endif
     }
 #if defined(__EULER__)
     void TryReclaimGarbageMemory() override
@@ -134,15 +200,24 @@ public:
 #endif
     bool ForEachObj(const std::function<void(BaseObject*)>& visitor, bool safe) const override
     {
+#ifdef MRT_USE_MARK_SWEEP
+        // In MS mode, RegionManager region lists are not populated.
+        // Object iteration would go through CentralRegionPool if needed.
+        (void)visitor;
+        (void)safe;
+        return true;
+#else
         if (UNLIKELY(safe)) {
             regionManager.ForEachObjSafe(visitor);
         } else {
             regionManager.ForEachObjUnsafe(visitor);
         }
         return true;
+#endif
     }
 
     // Return the garbage size of from space.
+#ifndef MRT_USE_MARK_SWEEP
     size_t RefineFromSpace()
     {
         MRT_PHASE_TIMER("ExemptFromRegions");
@@ -155,13 +230,11 @@ public:
 
     void ClearAllLiveInfo() { regionManager.ClearAllLiveInfo(); }
 
-#ifndef MRT_USE_MARK_SWEEP
     void ForwardFromSpace(GCThreadPool* threadPool)
     {
         MRT_PHASE_TIMER("ForwardFromRegions");
         regionManager.ForwardFromRegions(threadPool);
     }
-#endif
 
     size_t CollectLargeGarbage() { return regionManager.CollectLargeGarbage(); }
 
@@ -179,28 +252,45 @@ public:
         regionManager.AssemblePinnedGarbageCandidates(collectAll);
         regionManager.AssembleLargeGarbageCandidates();
     }
+#endif // !MRT_USE_MARK_SWEEP
 
+#ifdef MRT_USE_MARK_SWEEP
+    void MSExemptLiveRegions()
+    {
+        // In the new MSRegionManager design, region lists are not used.
+        // Live region exemption is a no-op.
+    }
+#endif
+
+#ifndef MRT_USE_MARK_SWEEP
     void DumpRegionStats(const char* msg) const { regionManager.DumpRegionStats(msg); }
 
     void CountLiveObject(const BaseObject* obj) { regionManager.CountLiveObject(obj); }
 
     void PrepareTrace() { regionManager.PrepareTrace(); }
+#endif
     void FeedHungryBuffers() override;
 
+#ifdef MRT_USE_MARK_SWEEP
+    static bool MarkObject(const BaseObject* obj); // defined in RegionSpace.cpp
+#else
     static bool MarkObject(const BaseObject* obj)
     {
         RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
         return regionInfo->MarkObject(obj);
     }
+#endif
 
-    static bool IsMarkedObject(const BaseObject* obj)
-    {
-        RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
-        return regionInfo->IsMarkedObject(obj);
-    }
+    static bool IsMarkedObject(const BaseObject* obj);
 
     static bool ShouldEnqueue(const BaseObject* obj)
     {
+#ifdef MRT_USE_MARK_SWEEP
+        // MS mode: always enqueue old value into SATB buffer (pure SATB approach).
+        // The marker will skip already-marked objects.
+        (void)obj;
+        return true;
+#else
         RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
         if (regionInfo->IsTraceRegion()) {
             return false;
@@ -210,21 +300,43 @@ public:
             return false;
         }
         return !regionInfo->EnqueueObject(obj, offset);
+#endif
     }
 
-    static bool IsResurrectedObject(const BaseObject* obj)
+    static bool IsResurrectedObject([[maybe_unused]] const BaseObject* obj)
     {
+#ifdef MRT_USE_MARK_SWEEP
+        // MS mode: no object resurrection (no copying/forwarding).
+        return false;
+#else
         RegionInfo* regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
         return regionInfo->IsResurrectedObject(obj);
+#endif
     }
 
+#ifndef MRT_USE_MARK_SWEEP
     void AddRawPointerObject(BaseObject* obj) { regionManager.AddRawPointerObject(obj); }
 
     void RemoveRawPointerObject(BaseObject* obj) { regionManager.RemoveRawPointerObject(obj); }
+#endif
+
+#ifdef MRT_USE_MARK_SWEEP
+    CentralRegionPool* GetCentralPool() const { return msCentralPool_; }
+    LargeObjectSpace* GetLargeObjectSpace() const { return msLargeObjectSpace_; }
+    MSRegionManager* GetMSRegionManager() const { return msRegionManager_; }
+    AllocBufferMS* GetOrCreateAllocBufferMS();
+#endif
 
     friend class Allocator;
 
 private:
+#ifdef MRT_USE_MARK_SWEEP
+    // Mark-Sweep allocation entry point: handles large/huge/small objects via MS subsystem.
+    MAddress TryAllocateOnceMS(size_t allocSize);
+    // Register a large object (allocated via RegionManager::TakeRegion) in MSRegionInfo
+    // so that MS GC can mark/sweep it. Called from TryAllocateOnceMS.
+    void RegisterLargeObjectMS(MAddress addr, size_t regionBytes);
+#endif
     enum class TryAllocationThreshold {
         RESCHEDULE = 3,
         TRIGGER_OOM = 5,
@@ -235,6 +347,15 @@ private:
     MAddress reservedEnd = 0;
     RegionManager regionManager;
     MemMap* map{ nullptr };
+
+#ifdef MRT_USE_MARK_SWEEP
+    // Mark-Sweep allocation subsystem (initialized in Init when MS mode is active)
+    // Per-thread AllocBufferMS instances are managed via TLS and registered
+    // in CentralRegionPool for GC FlushAll.
+    CentralRegionPool* msCentralPool_ = nullptr;
+    LargeObjectSpace* msLargeObjectSpace_ = nullptr;
+    MSRegionManager* msRegionManager_ = nullptr;  // Owns MSRegionInfo[] at mmap front
+#endif
 };
 } // namespace MapleRuntime
 #endif // MRT_REGION_SPACE_H

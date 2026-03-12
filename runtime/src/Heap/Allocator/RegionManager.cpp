@@ -9,6 +9,7 @@
 
 #include <cmath>
 #include <unistd.h>
+#include <cstdio>
 
 #include "Allocator/RegionSpace.h"
 #include "Base/CString.h"
@@ -635,6 +636,20 @@ void RegionManager::ExemptFromRegion(RegionInfo* region)
 {
     unmovableFromRegionList.PrependRegion(region, RegionInfo::RegionType::UNMOVABLE_FROM_REGION);
 }
+
+#ifdef MRT_USE_MARK_SWEEP
+void RegionManager::MSExemptLiveRegions()
+{
+    auto visitor = [this](RegionInfo* region) {
+        if (region->GetLiveByteCount() > 0 || region->GetRawPointerObjectCount() > 0) {
+            CHECK(region->IsFromRegion());
+            RemoveRegionLocked(&fromRegionList, region);
+            ExemptFromRegion(region);
+        }
+    };
+    fromRegionList.VisitAllRegions(visitor);
+}
+#endif // MRT_USE_MARK_SWEEP
 
 #ifndef MRT_USE_MARK_SWEEP
 void RegionManager::ForwardFromRegions()

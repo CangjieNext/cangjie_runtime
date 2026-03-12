@@ -96,6 +96,11 @@ public:
         shouldFeedHungryBuffers.store(true, std::memory_order_release);
         Notify();
     }
+    void NotifyToSweep()
+    {
+        shouldBackgroundSweep_.store(true, std::memory_order_release);
+        Notify();
+    }
 
 private:
     void NotifyStarted();
@@ -104,6 +109,7 @@ private:
     void ProcessFinalizableList();
     void ReclaimHeapGarbage();
     void FeedHungryBuffers();
+    void BackgroundSweepLoop();
 
     std::mutex wakeLock;
     std::condition_variable wakeCondition; // notify finalizer processing continue
@@ -128,6 +134,7 @@ private:
     std::atomic<bool> hasFinalizableJob;
     std::atomic<bool> shouldReclaimHeapGarbage;
     std::atomic<bool> shouldFeedHungryBuffers;
+    std::atomic<bool> shouldBackgroundSweep_;
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     // stats
     void LogAfterProcess();

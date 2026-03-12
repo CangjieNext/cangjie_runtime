@@ -378,6 +378,9 @@ protected:
 
     void FindUselessExternObjects();
 
+protected:
+    void VisitFinalizerRoots(const RootVisitor& visitor) const;
+
 private:
     void ConcurrentReMark(WorkStack& remarkStack, bool parallel);
     void EnumMutatorRoot(ObjectPtr& obj, RootSet& rootSet) const;
@@ -387,7 +390,6 @@ private:
     void EnumAllSurrectedExportRoots(RootSet& rootSet);
 
     void VisitStaticRoots(const RefFieldVisitor& visitor) const;
-    void VisitFinalizerRoots(const RootVisitor& visitor) const;
 };
 } // namespace MapleRuntime
 #endif // MRT_COLLECTOR_TRACING_H

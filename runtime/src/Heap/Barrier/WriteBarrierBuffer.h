@@ -1,0 +1,100 @@
+// Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+// This source file is part of the Cangjie project, licensed under Apache-2.0
+// with Runtime Library Exception.
+//
+// See https://cangjie-lang.cn/pages/LICENSE for license information.
+
+#ifndef MRT_WRITE_BARRIER_BUFFER_H
+#define MRT_WRITE_BARRIER_BUFFER_H
+
+#include <cstddef>
+#include <cstdint>
+#include <atomic>
+#include <vector>
+
+#include "Common/BaseObject.h"
+#include "Base/Macros.h"
+
+namespace MapleRuntime {
+
+// Forward declarations
+class WorkStack;
+
+// WriteBarrierBuffer — Per-Mutator buffer for hybrid write barrier
+//
+// During concurrent marking, the write barrier shades (marks) old and new
+// reference targets. Newly-grey objects are buffered here to avoid contention
+// on the GC thread's central work stack.
+//
+// Layout: fixed-size inline array (256 entries = 2 KB on 64-bit).
+//   - Push is O(1) lock-free (single writer per Mutator).
+//   - When full, Flush drains to a caller-provided WorkStack.
+//   - At MarkTermination STW, each Mutator flushes its buffer.
+//
+// Thread-safety:
+//   - Push: called only from the owning Mutator's thread (single writer).
+//   - Flush/Clear: called under STW or by the owning Mutator.
+//   - No lock needed.
+
+class WriteBarrierBuffer {
+public:
+    static constexpr size_t kCapacity = 256;
+
+    WriteBarrierBuffer() : count_(0)
+    {
+        for (size_t i = 0; i < kCapacity; ++i) {
+            buf_[i] = nullptr;
+        }
+    }
+
+    ~WriteBarrierBuffer() = default;
+
+    // Push a grey object into the buffer.
+    // If the buffer is full, objects are silently dropped (they remain marked
+    // and will be discovered by the GC thread's bitmap scan at MarkTermination).
+    // In practice, MarkTermination STW flushes all buffers before final drain.
+    inline void Push(BaseObject* obj)
+    {
+        size_t idx = count_;
+        if (LIKELY(idx < kCapacity)) {
+            buf_[idx] = obj;
+            count_ = idx + 1;
+        }
+        // If full, the object is already marked; the GC thread will find it
+        // during MarkTermination re-scan. No data loss — only a potential
+        // latency increase in draining.
+    }
+
+    // Flush all buffered objects into the given container, then reset.
+    // Container must support push_back(BaseObject*).
+    // Called under STW (MarkTermination) or by the owning Mutator.
+    template<typename Container>
+    inline void Flush(Container& workStack)
+    {
+        size_t n = count_;
+        for (size_t i = 0; i < n; ++i) {
+            if (buf_[i] != nullptr) {
+                workStack.push_back(buf_[i]);
+            }
+        }
+        count_ = 0;
+    }
+
+    // Clear the buffer without flushing (e.g., at GC cycle end).
+    inline void Clear()
+    {
+        count_ = 0;
+    }
+
+    // Query
+    size_t Count() const { return count_; }
+    bool IsEmpty() const { return count_ == 0; }
+
+private:
+    BaseObject* buf_[kCapacity];
+    size_t count_;
+};
+
+} // namespace MapleRuntime
+
+#endif // MRT_WRITE_BARRIER_BUFFER_H

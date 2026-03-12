@@ -17,6 +17,9 @@
 #include "Mutator.inline.h"
 #include "schedule.h"
 #include "CpuProfiler/CpuProfiler.h"
+#ifdef MRT_USE_MARK_SWEEP
+#include "Heap/Allocator/AllocBufferMS.h"
+#endif
 
 namespace MapleRuntime {
 extern "C" uintptr_t MRT_GetSafepointProtectedPage()
@@ -188,6 +191,14 @@ void MutatorManager::DestroyRuntimeMutator(ThreadType threadType)
         mutator->ResetMutator();
     }
     ThreadLocal::SetAllocBuffer(nullptr);
+#ifdef MRT_USE_MARK_SWEEP
+    // Clean up per-thread MS alloc buffer
+    AllocBufferMS* msBuffer = ThreadLocal::GetAllocBufferMS();
+    if (msBuffer != nullptr) {
+        delete msBuffer;  // ~AllocBufferMS calls Fini() which unregisters from CentralRegionPool
+        ThreadLocal::SetAllocBufferMS(nullptr);
+    }
+#endif
     ThreadLocal::SetMutator(nullptr);
     ThreadLocal::SetCJProcessorFlag(false);
     MutatorManagementRUnlock();

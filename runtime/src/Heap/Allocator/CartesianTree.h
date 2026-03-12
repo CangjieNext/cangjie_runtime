@@ -122,6 +122,47 @@ public:
         return TakeUnitsImpl(num, idx, refreshRegionInfo);
     }
 
+#ifdef MRT_USE_MARK_SWEEP
+    // Low-address-first allocation: find the node with Count >= num that has
+    // the smallest Index (lowest address). Exploits the BST property on Index
+    // and the max-heap property on Count for pruning.
+    //
+    // Complexity: O(log N) expected for balanced Treap.
+    bool TakeUnitsLowestAddr(Count num, Index& idx, bool refreshRegionInfo = true)
+    {
+        if (root == nullptr || num == 0) {
+            return false;
+        }
+
+        // If root's count < num, no node in the tree can satisfy (heap property)
+        if (root->GetCount() < num) {
+            return false;
+        }
+
+        Node** bestPtr = nullptr;
+        FindLowestAddr(&root, num, bestPtr);
+
+        if (bestPtr == nullptr) {
+            return false;
+        }
+
+        Node* best = *bestPtr;
+        idx = best->GetIndex();
+        auto count = best->GetCount();
+
+        best->UpdateNode(idx + num, count - num, refreshRegionInfo);
+        DecTotalCount(num);
+
+        if (best->GetCount() == 0) {
+            RemoveZeroNode(*bestPtr);
+        } else {
+            LowerNonZeroNode(*bestPtr);
+        }
+
+        return true;
+    }
+#endif // MRT_USE_MARK_SWEEP
+
     struct Node {
         Node(Index idx, Count num, bool refreshRegionInfo) : l(nullptr), r(nullptr), index(idx), count(num)
         {
@@ -562,6 +603,37 @@ private:
 
     // move node n down in the tree to maintain the heap property
     void LowerNonZeroNode(Node*& n) const { MaintainHeapPropertyForNonZeroNode(n); }
+
+#ifdef MRT_USE_MARK_SWEEP
+    // Recursive helper: find the node** with Count >= num that has the lowest Index.
+    // BST property: left subtree has lower Index than current node.
+    // Max-heap property: if node->Count < num, all descendants also have Count < num → prune.
+    void FindLowestAddr(Node** nodePtr, Count num, Node**& bestPtr) const
+    {
+        if (nodePtr == nullptr || *nodePtr == nullptr) {
+            return;
+        }
+
+        Node* node = *nodePtr;
+
+        // Heap property prune: this node (and all descendants) have Count < num
+        if (node->GetCount() < num) {
+            return;
+        }
+
+        // This node satisfies. Try left subtree first for lower address.
+        // Left subtree may have a node with even lower Index and still Count >= num.
+        if (node->l != nullptr && node->l->GetCount() >= num) {
+            FindLowestAddr(&(node->l), num, bestPtr);
+        }
+
+        // If no candidate found in left subtree, current node is lowest satisfying node.
+        if (bestPtr == nullptr) {
+            bestPtr = nodePtr;
+        }
+        // No need to search right subtree — it has higher Index (address) than current.
+    }
+#endif // MRT_USE_MARK_SWEEP
 
 #ifdef DEBUG_CARTESIAN_TREE
     inline void CheckParentAndLeftChild(const Node* n) const

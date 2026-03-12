@@ -13,6 +13,7 @@
 
 namespace MapleRuntime {
 class AllocBuffer;
+class AllocBufferMS;
 class Mutator;
 
 enum class ThreadType { CJ_PROCESSOR = 0, GC_THREAD, FP_THREAD, HOT_UPDATE_THREAD };
@@ -34,6 +35,7 @@ struct ThreadLocalData {
     ThreadType threadType;
     bool isCJProcessor;
     void* threadCache;
+    AllocBufferMS* msAllocBuffer;
 };
 
 struct CleanThreadLocalData {
@@ -51,6 +53,10 @@ public:
     static AllocBuffer* GetAllocBuffer() { return GetThreadLocalData()->buffer; }
 
     static void SetAllocBuffer(AllocBuffer* buffer) { GetThreadLocalData()->buffer = buffer; }
+
+    static AllocBufferMS* GetAllocBufferMS() { return GetThreadLocalData()->msAllocBuffer; }
+
+    static void SetAllocBufferMS(AllocBufferMS* buffer) { GetThreadLocalData()->msAllocBuffer = buffer; }
 
     static uint8_t* GetPreemptFlag() { return GetThreadLocalData()->preemptFlag; }
 

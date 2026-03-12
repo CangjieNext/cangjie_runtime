@@ -9,7 +9,11 @@
 
 #include "Collector/CollectorProxy.h"
 #include "Collector/CollectorResources.h"
-#ifndef MRT_USE_MARK_SWEEP
+#include "ObjectModel/RefField.inline.h"
+#ifdef MRT_USE_MARK_SWEEP
+#include "Barrier/MSIdleBarrier.h"
+#include "Barrier/MSWriteBarrier.h"
+#else
 #include "WCollector/IdleBarrier.h"
 #include "WCollector/EnumBarrier.h"
 #include "WCollector/TraceBarrier.h"
@@ -59,13 +63,17 @@ public:
         : theSpace(Allocator::NewAllocator()), collectorResources(collectorProxy),
           collectorProxy(*theSpace, collectorResources), stwBarrier(collectorProxy),
 #ifdef MRT_USE_MARK_SWEEP
-        msIdleBarrier(collectorProxy), msMarkBarrier(collectorProxy)
+        msIdleBarrier(collectorProxy), msWriteBarrier(collectorProxy)
 #else
         idleBarrier(collectorProxy), enumBarrier(collectorProxy), traceBarrier(collectorProxy),
         postTraceBarrier(collectorProxy), preforwardBarrier(collectorProxy), forwardBarrier(collectorProxy)
 #endif
     {
+#ifdef MRT_USE_MARK_SWEEP
+        currentBarrier = &msIdleBarrier;   // MS-GC: start with zero-overhead idle barrier
+#else
         currentBarrier = &stwBarrier;
+#endif
         stwBarrierPtr = &stwBarrier;
         Heap::currentBarrierPtr = &currentBarrier;
         RunType::InitRunTypeMap();
@@ -148,9 +156,9 @@ private:
     ExportRootTable exportRootsTable;
     Barrier stwBarrier;
 #ifdef MRT_USE_MARK_SWEEP
-    // MS mode: idle barrier + mark barrier (Step 3 will replace with real MSBarrier subclasses)
-    Barrier msIdleBarrier;
-    Barrier msMarkBarrier;
+    // MS mode: zero-overhead idle barrier + hybrid write barrier
+    MSIdleBarrier msIdleBarrier;
+    MSWriteBarrier msWriteBarrier;
 #else
     IdleBarrier idleBarrier;
     EnumBarrier enumBarrier;
@@ -209,7 +217,7 @@ void HeapImpl::InstallBarrier(const GCPhase phase)
         case GCPhase::GC_PHASE_MS_MARK_SETUP:
         case GCPhase::GC_PHASE_MS_CONCURRENT_MARK:
         case GCPhase::GC_PHASE_MS_MARK_TERMINATION:
-            currentBarrier = &msMarkBarrier;
+            currentBarrier = &msWriteBarrier;
             break;
         default:
             // fallback to STW barrier for unknown phases

@@ -13,6 +13,11 @@
 #include "Mutator/Mutator.h"
 #include "ObjectModel/MObject.h"
 
+#ifdef MRT_USE_MARK_SWEEP
+#include "Allocator/RegionSpace.h"
+#include "Allocator/CentralRegionPool.h"
+#endif
+
 namespace MapleRuntime {
 constexpr U32 DEFAULT_FINALIZER_TIMEOUT_MS = 2000;
 
@@ -74,6 +79,7 @@ FinalizerProcessor::FinalizerProcessor()
     hasFinalizableJob.store(false, std::memory_order_relaxed);
     shouldReclaimHeapGarbage.store(false, std::memory_order_relaxed);
     shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
+    shouldBackgroundSweep_.store(false, std::memory_order_relaxed);
 }
 
 void FinalizerProcessor::Run()
@@ -86,6 +92,12 @@ void FinalizerProcessor::Run()
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
             LogAfterProcess();
 #endif
+        }
+
+        // Background sweep must run AFTER ProcessFinalizables to ensure
+        // finalizer execution before memory reclamation (ordering constraint).
+        if (shouldBackgroundSweep_.load(std::memory_order_relaxed)) {
+            BackgroundSweepLoop();
         }
 
         if (shouldFeedHungryBuffers.load(std::memory_order_relaxed)) {
@@ -102,7 +114,8 @@ void FinalizerProcessor::Run()
                 Wait(iterationWaitTime);
                 if (hasFinalizableJob.load(std::memory_order_relaxed) ||
                     shouldReclaimHeapGarbage.load(std::memory_order_relaxed) ||
-                    shouldFeedHungryBuffers.load(std::memory_order_relaxed)) {
+                    shouldFeedHungryBuffers.load(std::memory_order_relaxed) ||
+                    shouldBackgroundSweep_.load(std::memory_order_relaxed)) {
                     break;
                 }
             }
@@ -291,4 +304,17 @@ void FinalizerProcessor::FeedHungryBuffers()
     Heap::GetHeap().GetAllocator().FeedHungryBuffers();
     shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
 }
+
+void FinalizerProcessor::BackgroundSweepLoop()
+{
+#ifdef MRT_USE_MARK_SWEEP
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    if (centralPool != nullptr) {
+        centralPool->BackgroundSweep();
+    }
+#endif
+    shouldBackgroundSweep_.store(false, std::memory_order_relaxed);
+}
+
 } // namespace MapleRuntime

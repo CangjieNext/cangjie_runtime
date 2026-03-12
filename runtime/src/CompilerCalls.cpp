@@ -887,8 +887,8 @@ extern "C" void MCC_ReleaseRawData(ArrayRef array, void* rawPtr)
     StackManager::RecordLiteFrameInfos(frame, 4); // record 4 frames
     pinnedArrayRecorder.RemoveBtInfo(rawPtr, Mutator::GetMutator(), frame);
 #endif
-    auto regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<uintptr_t>(rawPtr));
-    (void)regionInfo->DecRawPointerObjectCount();
+    // Route through collector so MS-GC can make this a no-op (no object movement).
+    Heap::GetHeap().GetCollector().RemoveRawPointerObject(reinterpret_cast<BaseObject*>(array));
     (void)CJThreadPreemptOffCntSub();
 }
 

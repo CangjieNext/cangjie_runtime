@@ -83,21 +83,35 @@
 ### 2.2 迁移路线图
 
 ```
-Step 0: 构建可切换 GC 框架         ← 基础设施
+Step 0: 构建可切换 GC 框架            ← 基础设施
     │
-Step 1: 改造分配器（free-list模式）  ← 为非移动式 GC 做准备
+Step 1: 改造分配器（bitmap 模式）       ← 为非移动式 GC 做准备
+    │   ├─ Step1.1: MSRegionInfo 元数据 (64B)
+    │   ├─ Step1.2: SizeClass + AllocBufferMS + CentralRegionPool
+    │   └─ Step1.3: 大对象分配 + 堆增长
     │
-Step 2: 实现三色标记 + Sweep          ← 核心算法替换
+Step 2: 实现三色标记                    ← 核心算法替换
+    │   ├─ Step2.1: MarkSetup (Handshake)
+    │   ├─ Step2.2: ConcurrentMark (复用 DoTracing)
+    │   ├─ Step2.3: MarkTermination (STW 收敛)
+    │   └─ Step2.4: PostMarkTermination (非 STW 清理)
     │
-Step 3: 实现 Go 风格混合写屏障      ← 屏障替换
+Step 3: 实现 Go 风格混合写屏障         ← 屏障替换
+    │   ├─ Step3.1: MSBarrier (2 套替代 6 套)
+    │   ├─ Step3.2: WriteBarrierBuffer (per-thread WBBuf)
+    │   ├─ Step3.3: 读屏障 + TaggedPointer 移除
+    │   └─ Step3.4: 对 Step2 各子阶段的改造
     │
-Step 4: 实现并发清扫                   ← 并行回收
+Step 4: 实现并发清扫                    ← 并行回收
+    │   ├─ Step4.1: SweepRegion (bitmap NOT 算法)
+    │   ├─ Step4.2: Sweep 调度 + CentralRegionPool 集成
+    │   └─ Step4.3: 后台 Sweep + FinalizerProcessor 集成
     │
-Step 5: 实现 GC Pacer                   ← 智能触发控制
+Step 5: 实现 GC Pacer                  ← 智能触发控制
     │
-Step 6: 移除 Forward 相关代码        ← 清理旧路径
+Step 6: 移除 Forward 相关代码           ← 清理旧路径
     │
-Step 7: 性能调优与压力验证           ← 收尾
+Step 7: 性能调优与压力验证              ← 收尾
 ```
 
 ### 2.3 关键文件变更范围预估
@@ -105,12 +119,14 @@ Step 7: 性能调优与压力验证           ← 收尾
 | 模块 | 变更类型 | 关键文件 |
 |------|----------|----------|
 | Collector 框架 | 新增 | `src/Heap/Collector/MarkSweepCollector.h/cpp` |
-| Barrier | 新增 + 改造 | `src/Heap/MSBarrier/` 目录（新建） |
-| Allocator | 改造 | `src/Heap/Allocator/RegionSpace.cpp`, `RegionManager.cpp` |
-| Heap 入口 | 改造 | `src/Heap/Heap.cpp`, `src/Heap/Heap.h` |
-| CompilerCalls | 改造 | `src/CompilerCalls.cpp`（写屏障入口） |
-| TypeDef | 改造 | `src/Heap/TypeDef.h`（新增 Phase 枚举） |
-| CMake | 改造 | `CMakeLists.txt`, `config.cmake` |
+| Barrier | 新增 | `src/Heap/MSBarrier/MSIdleBarrier.h/cpp`、`MSWriteBarrier.h/cpp`、`WriteBarrierBuffer.h` |
+| Allocator | 新增 + 改造 | `src/Heap/Allocator/MSRegionInfo.h`、`AllocBufferMS.h/cpp`、`CentralRegionPool.h/cpp`、`SizeClass.h` |
+| 大对象 | 新增 | `src/Heap/Allocator/LargeObjectSpace.h/cpp` |
+| Heap 入口 | 改造 | `src/Heap/Heap.cpp`、`src/Heap/Heap.h` |
+| CompilerCalls | 改造 | `src/CompilerCalls.cpp`（写屏障入口，读屏障降级为直接 load） |
+| FinalizerProcessor | 改造 | `src/Heap/FinalizerProcessor.cpp`（新增 `RunMS()` 后台 Sweep 循环） |
+| TypeDef | 改造 | `src/Heap/TypeDef.h`（新增 `MS_PHASE_*` 枚举 20-24） |
+| CMake | 改造 | `CMakeLists.txt`、`config.cmake` |
 
 ### 2.4 兼容性承诺
 
@@ -223,731 +239,519 @@ void CollectorProxy::Initialize() {
 - `MRT_USE_MARK_SWEEP=1` 时，可编译通过（骨架代码，GC 暂不执行实际回收）
 - 现有全部测试用例通过
 
-### Step 1：改造分配器——从 bump-pointer 到 free-list 混合模式
+### Step 1：改造分配器——从 bump-pointer 到 bitmap 分配模式
+
+> **详细设计**：[Step1_分配器改造详细设计.md](Step1_分配器改造详细设计.md)
+> **子文档**：[Step1.1 MSRegionInfo 元数据](Step1.1_MS_RegionInfo元数据改造设计.md) · [Step1.2 SizeClass 与线程本地分配](Step1.2_SizeClass与线程本地分配设计.md) · [Step1.3 大对象与堆增长](Step1.3_大对象分配与堆增长设计.md)
 
 #### 目标
-在非移动式 GC 下，对象分配后不再搬迁。需要改造 Region 内部分配策略，支持对象原地回收后空间复用。
 
-#### 1.1 设计思路：Go 的 TCMalloc vs Cangjie 的 Region
+在非移动式 GC 下，对象分配后不再搬迁。改造 Region 内部分配策略，用 **bitmap + CTZ** 替代 bump-pointer，支持对象原地回收后空间复用。
 
-Go 使用 TCMalloc 风格的 size-class 分配器（67 个 size class，8B ~ 32KB）。直接引入 TCMalloc 改动过大。我们采用折中方案：
+#### 1.1 核心设计：Bitmap 分配（非 free-list）
 
-**保留 Region 框架 + Region 内部引入 free-list**
+**不采用 free-list**（需触碰死对象内存，cache 不友好），改用 bitmap 位图管理空闲 slot：
 
 ```
-┌─ Region (128KB) ──────────────────────────────┐
-│ [obj1][obj2][free][obj3][free][free][obj4]...  │  ← Mark-Sweep 后有空洞
-│         ↓                                       │
-│ free-list: free→free→free                      │  ← 串联空闲块
-└────────────────────────────────────────────────┘
+Region (32KB)
+├── allocBitmap[8 × uint64_t]   ← 1 = 空闲，0 = 已占用
+├── markBitmap[8 × uint64_t]    ← GC 标记结果
+└── object slots (512 × 64B)    ← 以 sizeClass=64B 为例
 ```
 
-#### 1.2 Size Class 引入
+- **分配**：`idx = CTZ(allocBitmap[word])` — O(1) 找到第一个空闲 slot
+- **Sweep**：`allocBitmap[i] = ~markBitmap[i]` — 1 条 NOT 指令 = 64 slot 的清扫
 
-参考 Go 的做法，将小对象按 size class 分类（简化版）：
+#### 1.2 Size Class（36 级，8B ~ 16KB）
 
 ```cpp
 // 新增文件: src/Heap/Allocator/SizeClass.h
-static constexpr size_t kNumSizeClasses = 32;
-static constexpr size_t kSizeClasses[] = {
-    8, 16, 24, 32, 48, 64, 80, 96,
-    112, 128, 160, 192, 224, 256, 320, 384,
-    448, 512, 640, 768, 896, 1024, 1280, 1536,
-    1792, 2048, 2560, 3072, 3584, 4096, 5120, 6144,
-    // > 6144 走 Large 路径（与现有大对象路径合并）
-};
+static constexpr size_t kNumSizeClasses = 36;
+// 8, 16, 24, 32, 48, 64, 80, 96, 112, 128,
+// 160, 192, 224, 256, 320, 384, 448, 512,
+// 640, 768, 896, 1024, 1280, 1536, 1792, 2048,
+// 2560, 3072, 3584, 4096, 5120, 6144, 8192, 10240,
+// 12288, 16384
 
-// 对象大小 → size class 映射（查表 O(1)）
+// O(1) 查表映射
 inline uint8_t SizeToClass(size_t size);
-// size class → 对象大小
 inline size_t ClassToSize(uint8_t cls);
 ```
 
-#### 1.3 Region 内部 free-list
-
-当前 Region 使用 bump-pointer 分配（`RegionInfo::Alloc` 仅递增 `allocPosition`）。Mark-Sweep 后需要回收 Region 内部空洞。
-
-**改造 `RegionInfo`**：
+#### 1.3 MSRegionInfo（64 字节，替代现有 ~120B 元数据）
 
 ```cpp
-class RegionInfo {
-    // 现有字段保留
-    std::atomic<uintptr_t> allocPosition;  // bump-pointer 顶端
-    
-    // 新增: Mark-Sweep 模式下的 free-list
-#ifdef MRT_USE_MARK_SWEEP
-    FreeSlot* freeList_;       // 已回收空间的链表头
-    size_t    freeBytes_;      // 当前 Region 可用空闲字节数
-    uint8_t   sizeClass_;      // 此 Region 服务的 size class
-#endif
-};
-
-struct FreeSlot {
-    FreeSlot* next;  // 利用死亡对象的前 8 字节存储链表指针
+struct MSRegionInfo {  // 64 bytes, cache-line 对齐
+    uint64_t*   allocBitmap_;    // 空闲位图（1=可分配）
+    uint64_t*   markBitmap_;     // GC 标记位图
+    uintptr_t   dataStart_;      // 数据区起始地址
+    uint16_t    totalSlotCount_; // 总 slot 数
+    uint16_t    liveSlotCount_;  // 存活 slot 数
+    uint16_t    freeSlotCount_;  // 空闲 slot 数
+    uint8_t     sizeClass_;      // 所属 size class
+    uint8_t     sweepState_;     // UNSWEPT(0)/SWEEPING(1)/SWEPT(2)
+    uint32_t    sweepGen_;       // 清扫代数（与全局 +2/GC 对比）
+    // ... 链表指针等
 };
 ```
 
-#### 1.4 分配路径改造
+**关键改动**：删除 CopyGC 专有字段（routeInfo、Ghost 备份、rwLock 约 56B），新增 bitmap 指针和 sweep 状态。
 
-```
-TryAllocateOnce(size):
-  ├── PINNED_OBJECT → AllocPinned (不变)
-  ├── size >= largeObjectThreshold → AllocLarge (不变)
-  └── MOVEABLE_OBJECT:
-      ├── [Copy GC] AllocBuffer::Allocate → bump-pointer (现有路径)
-      └── [Mark-Sweep] AllocBuffer::AllocateMS:
-            1. cls = SizeToClass(size)
-            2. region = tlRegionPerClass_[cls]  // 每 size class 一个本地 Region
-            3. if (region && region->freeList_):
-                   从 free-list 摘取一个 slot → 返回
-            4. elif (region && region->allocPosition 有空间):
-                   bump-pointer 分配 → 返回
-            5. else:
-                   获取新 Region (现有 TakeRegion 逻辑) → 设定 sizeClass
-                   bump-pointer 分配 → 返回
-```
-
-#### 1.5 线程本地缓存（对应 Go 的 mcache）
+#### 1.4 AllocBufferMS（线程本地缓存，对应 Go mcache）
 
 ```cpp
 class AllocBufferMS {
     // 每个 size class 维护一个当前活跃 Region
-    RegionInfo* tlRegionPerClass_[kNumSizeClasses];
-    
-    // 分配入口
-    uintptr_t Allocate(size_t size);
-    
-    // Sweep 后将 Region 归还到全局 central 池
-    void ReturnFullRegions();
+    MSRegionInfo* activeRegions_[kNumSizeClasses];  // 36 个槽位
+
+    // 快速路径（内联）
+    uintptr_t FastAlloc(uint8_t cls) {
+        auto* r = activeRegions_[cls];
+        if (r && r->freeSlotCount_ > 0) {
+            return r->AllocFromBitmap();  // CTZ 找空闲 slot
+        }
+        return SlowAlloc(cls);  // 从 CentralRegionPool 补充
+    }
 };
 ```
 
-#### 1.6 Central 池（对应 Go 的 mcentral）
+**编译器约束兼容**：`AllocBuffer::tlRegion` 偏移 0、`allocPtr` 偏移 0（JIT 硬编码依赖）。
+
+#### 1.5 CentralRegionPool（全局池，对应 Go mcentral）
+
+每个 size class 维护 **4 条链表**（非旧版的 2 条）：
 
 ```cpp
-class CentralRegionPool {
-    // 每个 size class 两个列表:
-    //   - partial: 有空闲 slot 的 Region（sweep 后可复用）
-    //   - full:    已满的 Region（等待下次 sweep）
-    struct SizeClassBucket {
-        MutexLock lock;
-        RegionList partialRegions;  // 含空闲 slot
-        RegionList fullRegions;     // 已满
-    };
-    
-    SizeClassBucket buckets_[kNumSizeClasses];
-    
-    // 线程本地 Region 用完时，从 partial 取；没有则从 RegionManager 新建
-    RegionInfo* GetRegion(uint8_t cls);
-    // 线程归还 Region
-    void ReturnRegion(RegionInfo* region, uint8_t cls);
+struct PerClassBucket {
+    MutexLock lock;
+    RegionList partialSwept;     // 已 sweep、有空闲 → 最优先
+    RegionList fullSwept;        // 已 sweep、全满
+    RegionList partialUnswept;   // 未 sweep、有空闲
+    RegionList fullUnswept;      // 未 sweep、全满
 };
+CentralRegionPool::buckets_[kNumSizeClasses];  // 36 桶
 ```
+
+分配优先级：`partialSwept → partialUnswept(原地sweep) → fullUnswept(原地sweep) → 新建 Region`。
+
+#### 1.6 大对象分级（≥ 16KB）
+
+| 分级 | 范围 | 策略 |
+|------|------|------|
+| Tier 0 | ≤ 16KB | bitmap 分配（走 size class） |
+| Tier 1 | 16KB ~ 4MB | `LargeObjectSpace` + CartesianTree 低地址优先 |
+| Tier 2 | > 4MB | 独立 `mmap/munmap`，不进 Region 体系 |
 
 #### 1.7 关键设计决策
 
 | 决策 | 选择 | 理由 |
 |------|------|------|
-| size class 数量 | 32 | 平衡内部碎片（≤12.5%）与复杂度 |
-| 大对象阈值 | 保持现有（默认 32KB） | 与现有大对象路径兼容 |
-| Region 大小 | 保持 128KB | 不改变底层内存管理 |
-| Pinned 对象 | 保持不变 | Mark-Sweep 下所有对象都不移动，pinned 语义自然满足 |
+| 空间复用方式 | allocBitmap + markBitmap（1 bit/slot） | 比 free-list 快，不触碰死对象内存 |
+| Size class 数量 | 36 级 | 覆盖 8B~16KB，内部碎片 ≤ 25% |
+| Region 大小 | **32KB**（非 128KB） | 减少内碎片，加速 sweep |
+| 大对象阈值 | **16KB**（非 32KB） | 与 32KB Region 匹配 |
+| 新 Region 分配 | 仍用 bump-pointer | sweep 后才切换 bitmap |
+| 堆镜像 | 保留，粒度改为 per-Region(32KB) | O(1) 查找 |
+| Pinned 对象 | 保持不变 | MS 下所有对象都不移动 |
 
 #### 1.8 验证标准
 
-- Mark-Sweep 模式下对象分配路径正确（包括小对象、大对象、Pinned）
-- 分配性能基准：单线程分配吞吐 ≥ 现有 Copy GC 的 90%
-- free-list 回收后再分配功能正确（本步暂用手动标记测试）
+| 指标 | 合格标准 |
+|------|---------|
+| 单线程分配吞吐 | ≥ Copy GC 90% |
+| 多线程(8)分配吞吐 | ≥ Copy GC 85% |
+| bitmap 分配 P99 | ≤ 200ns |
+| sweep 后 Region 复用率 | 新增 Region 减少 ≥ 40% |
 
-### Step 2：实现三色标记——替换 Forward 为 Sweep
+
+### Step 2：实现三色标记——替换 Forward 为 Mark-Sweep
+
+> **详细设计**：[Step2_三色标记与Sweep详细设计.md](Step2_三色标记与Sweep详细设计.md)
+> **子文档**：[Step2.1 MarkSetup](Step2.1_MarkSetup_STW详细设计.md) · [Step2.2 ConcurrentMark](Step2.2_ConcurrentMark_详细设计.md) · [Step2.3 MarkTermination](Step2.3_MarkTermination_STW详细设计.md) · [Step2.4 PostMarkTermination](Step2.4_PostMarkTermination_详细设计.md)
 
 #### 目标
-实现 Go 风格的并发三色标记算法，用 Sweep 替代 Forward 阶段完成内存回收。
 
-#### 2.1 三色抽象
+实现 `MarkSweepCollector`（继承 `TracingCollector`），用 Go 风格并发三色标记替换 Trace + Forward（复制式）回收。Sweep 设计见 Step 4。
+
+#### 2.1 三色抽象与 Bitmap 映射
+
+| 颜色 | 实现 |
+|------|------|
+| 白色 (White) | `RegionBitmap::IsMarked(offset) == false` |
+| 灰色 (Gray) | bitmap=1 **且** 在 WorkStack 中 |
+| 黑色 (Black) | bitmap=1 **且** 已出队处理完毕 |
+
+bitmap 使用现有 `RegionBitmap`：1 bit = 8 bytes，`atomic<uint64_t> markWords[]`，CAS 并发标记。
+
+#### 2.2 GC Phase 状态机（5 状态，枚举值 20-24）
 
 ```
-白色 (White): 未访问，GC 结束后视为垃圾
-灰色 (Gray):  已发现但子引用未全部扫描（在工作队列中）
-黑色 (Black): 本身及直接子引用都已处理
+MS_PHASE_IDLE (20)
+  → MS_PHASE_MARK_SETUP (21)
+  → MS_PHASE_MARK (22)
+  → MS_PHASE_MARK_TERMINATION (23)
+  → MS_PHASE_POST_MARK (24)
+  → MS_PHASE_IDLE (20)
 ```
 
-在实现层面，颜色映射到 Region bitmap：
+**注意**：不使用 Go 的 mark bit flip 技巧。每轮 GC 通过 `ClearAllMarkBitmaps()` 清零，更简单可靠。
 
-```cpp
-// 复用现有 RegionInfo 的 mark bitmap
-// 未标记 = 白色
-// 已标记 + 在 workStack 中 = 灰色
-// 已标记 + 不在 workStack 中 = 黑色
-```
-
-#### 2.2 GC 主流程（替换 `DoGarbageCollection`）
+#### 2.3 四阶段核心流程
 
 ```cpp
 void MarkSweepCollector::DoGarbageCollection() {
-    // ============ Phase 1: Mark Setup (STW) ============
+    // Phase 1: MarkSetup (Handshake, 非全量 STW)
     MarkSetup();
-    
-    // ============ Phase 2: Concurrent Mark ============
+    // Phase 2: Concurrent Mark (并发)
     ConcurrentMark();
-    
-    // ============ Phase 3: Mark Termination (STW) ============
+    // Phase 3: MarkTermination (STW)
     MarkTermination();
-    
-    // ============ Phase 4: Concurrent Sweep ============
-    ConcurrentSweep();
-    
-    // ============ 更新 GC 触发阈值 ============
-    UpdateGCTrigger();
+    // Phase 4: PostMarkTermination (非 STW)
+    PostMarkTermination();
+    // Sweep 由 Step4 的三路协作异步完成
 }
 ```
 
-#### 2.3 Mark Setup（STW，目标 < 100μs）
+#### 2.4 Phase 1: MarkSetup（Handshake 方式，目标 < 100μs）
 
-```cpp
-void MarkSweepCollector::MarkSetup() {
-    // 1. 进入 STW
-    ScopedStopTheWorld stw;
-    
-    // 2. 切换 Phase
-    TransitionToGCPhase(MS_PHASE_MARK_SETUP);
-    
-    // 3. 安装混合写屏障（详见 Step 3）
-    InstallWriteBarrier();
-    
-    // 4. 清除上一轮的 mark bitmap
-    //    不需要全部清零，使用 "mark bit flip" 技巧：
-    //    每轮 GC 使用不同的 mark bit 值（0/1 交替），
-    //    这样无需清除 bitmap，只需翻转期望值
-    FlipMarkBit();
-    
-    // 5. 扫描所有 Goroutine/CJThread 的栈（收集根）
-    //    这是 STW 的主要耗时。Go 通过预编译 stack map 加速。
-    //    复用现有 EnumAllCommonRoots 逻辑
-    EnumRoots();
-    
-    // 6. 根入队到全局 workStack（灰色队列）
-    //    所有根引用的对象标为灰色
-    
-    // 7. 退出 STW，进入并发标记
-    TransitionToGCPhase(MS_PHASE_MARK);
-}
+```
+MarkSetup():
+  ① ForceFinishSweep()          // 确保上轮 sweep 全部完成
+  ② RetireAllTLRegions()        // 刷回线程本地 Region
+  ③ ClearAllMarkBitmaps()       // 两阶段清零（先小对象 Region，再大对象）
+  ④ InstallWriteBarrier()       // SATB 删除屏障（Step2 初版）/ 混合屏障（Step3 后）
+  ⑤ EnumAndMarkRoots()          // 复用 EnumAllCommonRoots
+  ⑥ EnableMarkNewObject()       // Mark 期间新分配对象直接标黑
+  ⑦ sweepGen += 2; gcEpoch++    // 推进代数
 ```
 
-**关键复用**：
-- 根扫描直接复用 `TracingCollector::EnumAllCommonRoots()`
-- 栈扫描复用现有 safepoint + `GcPhaseEnum` 机制
-- bitmap 使用现有 `RegionInfo::MarkObject()` 基础设施
+**关键复用**：根扫描复用 `TracingCollector::EnumAllCommonRoots()`，safepoint + `GcPhaseEnum` 机制不变。
 
-#### 2.4 Concurrent Mark（并发，复用现有标记框架）
+#### 2.5 Phase 2: ConcurrentMark（并发标记）
 
-```cpp
-void MarkSweepCollector::ConcurrentMark() {
-    // 复用现有并行标记框架
-    // TracingImpl() 已经是并行工作窃取式标记
-    
-    // 1. GC 线程 + GCThreadPool 并行从 workStack 取对象
-    // 2. 对每个灰色对象:
-    //    a. 遍历其 ref 字段
-    //    b. 若目标对象未标记(白色) → 标记(灰→黑) + 入队
-    // 3. workStack 为空 → 标记完成
-    
-    DoTracing();  // 复用现有 TracingImpl
-    
-    // 处理 SATB/写屏障 buffer（由混合写屏障产生）
-    ProcessWriteBarrierBuffer();
-}
+复用现有 `ConcurrentMarkingWork::Execute` 主循环：`pop → MarkObject → TraceRefFields → TryForkTask`。
+
+新增特性：
+- **Mark Assist**：分配债务驱动 mutator 辅助标记
+- **新分配对象标黑**：Mark 期间 Allocate 路径中 `MarkObject(addr)`
+- **收敛判定**：全局 + 局部队列空，连续 N 轮稳定
+
+#### 2.6 Phase 3: MarkTermination（STW）
+
+```
+MarkTermination():
+  ① 收集 SATB/Extern/Finalizer → 主队列
+  ② Execute 同构循环补标（排空残留灰色对象）
+  ③ TransitionToGCPhase(MS_PHASE_POST_MARK)
 ```
 
-**与现有 Trace 阶段的关键区别**：
-- 不需要标记新分配对象（Go 策略：Mark 期间新分配的对象默认标记为黑色）
-- 写屏障产生的 buffer 处理逻辑不同（详见 Step 3）
+#### 2.7 Phase 4: PostMarkTermination（非 STW）
 
-#### 2.5 Mark Termination（STW，目标 < 100μs）
-
-```cpp
-void MarkSweepCollector::MarkTermination() {
-    // 1. 进入 STW
-    ScopedStopTheWorld stw;
-    
-    TransitionToGCPhase(MS_PHASE_MARK_TERMINATION);
-    
-    // 2. 排空写屏障 buffer（re-scan 残留灰色对象）
-    DrainWriteBarrierBuffer();
-    
-    // 3. 处理弱引用
-    //    复用现有 WeakRefBuffer::ClearWeakRefBuffer()
-    ClearWeakRefs();
-    
-    // 4. 处理 Finalizer
-    //    复用现有 DoResurrection() + FinalizerProcessor
-    ProcessFinalizers();
-    
-    // 5. 关闭写屏障
-    UninstallWriteBarrier();
-    
-    // 6. 退出 STW，进入并发清扫
-    TransitionToGCPhase(MS_PHASE_SWEEP);
-}
+```
+PostMarkTermination():
+  ① ClearWeakRefBuffer()        // 弱引用清理
+  ② ClearSatbBuffer()           // 清空写屏障 buffer
+  ③ ProcessFinalizers()         // 析构器处理
+  ④ PrepareCycleRef() [OHOS]    // 循环引用（仅 OHOS）
+  ⑤ CollectLargeGarbage()       // 大对象 Eager Sweep
+  ⑥ PrepareForSweep() + NotifyToSweep()  // 启动 Step4 并发清扫
 ```
 
-#### 2.6 Sweep 实现（本步先实现 STW Sweep，Step 4 改为并发）
+#### 2.8 仅需 Override 3 个方法
 
-```cpp
-void MarkSweepCollector::SweepRegion(RegionInfo* region) {
-    uint8_t cls = region->sizeClass_;
-    size_t  slotSize = ClassToSize(cls);
-    
-    uintptr_t cursor = region->GetDataStart();
-    uintptr_t end    = region->GetAllocPosition();
-    
-    FreeSlot* newFreeList = nullptr;
-    size_t freeBytes = 0;
-    size_t liveBytes = 0;
-    
-    while (cursor < end) {
-        if (region->IsMarked(cursor)) {
-            // 存活对象: 什么都不做
-            liveBytes += slotSize;
-        } else {
-            // 死亡对象: 加入 free-list
-            FreeSlot* slot = reinterpret_cast<FreeSlot*>(cursor);
-            slot->next = newFreeList;
-            newFreeList = slot;
-            freeBytes += slotSize;
-        }
-        cursor += slotSize;
-    }
-    
-    region->freeList_ = newFreeList;
-    region->freeBytes_ = freeBytes;
-    
-    if (liveBytes == 0) {
-        // 整个 Region 无存活 → 回收为空 Region
-        ReturnToGarbageRegionList(region);
-    } else {
-        // 有存活 + 有空闲 → 放入 central partial list
-        centralPool_->ReturnRegion(region, cls);
-    }
-}
-```
+| 方法 | WCollector 行数 | MS 简化后 | 核心变化 |
+|------|----------------|-----------|---------|
+| `EnumRefFieldRoot` | ~50 行 | ~5 行 | 去除 tag/forward/CAS |
+| `EnumAndTagRawRoot` | ~40 行 | ~5 行 | 去除 tag/CAS |
+| `TraceRefField` | ~40 行 | ~5 行 | 去除 tag/Forward/CAS |
 
-#### 2.7 大对象回收
+#### 2.9 废弃组件（由 `#ifdef MRT_USE_MARK_SWEEP` 排除）
 
-大对象（> largeObjectThreshold）独占 Region，sweep 逻辑更简单：
+`ForwardObject`、`ForwardDataManager`、`TagID`/`FlipTagID`、`RefineFromSpace`、
+`Preforward*`、`GhostFromRegion`、`RouteInfo`/`RouteState`、`CopyCollector` 基类
 
-```cpp
-void MarkSweepCollector::SweepLargeRegions() {
-    // 遍历 oldLargeRegionList
-    for (auto* region : oldLargeRegionList) {
-        if (region->IsLargeObjectMarked()) {
-            // 存活 → 保留
-            recentLargeRegionList.Add(region);
-        } else {
-            // 死亡 → 整个 Region 回收
-            ReturnToGarbageRegionList(region);
-        }
-    }
-}
-```
+#### 2.10 关键设计决策
 
-这与现有 `CollectLargeGarbage` 逻辑高度一致，可直接复用。
+| 决策 | 选择 | 理由 |
+|------|------|------|
+| 类继承 | `MarkSweepCollector : TracingCollector` | 复用标记框架，不需 Forward/Copy |
+| 写屏障（Step2 初版） | SATB 删除屏障 + 新分配标黑 | 简单可靠，与 Step3 分步迁移 |
+| Mark Bit 机制 | 每轮 ClearBitmap（非 bit flip） | 更简单，不引入 Go 指针高位 flip |
+| 根枚举 | Handshake 方式 | 保守方案，后续可优化 |
+| ConcurrentMarkingWork | 直接复用 | 内部通过 virtual 注入差异 |
 
-#### 2.8 标记阶段新分配对象策略
+#### 2.11 验证标准
 
-Go 的策略：**Mark 期间新分配的对象直接标记为黑色**（不会被回收）。
+| 级别 | 内容 |
+|------|------|
+| L1 单元 | ClearAllMarkBitmaps / MSTraceBarrier / MarkNewObject / WorkStack split |
+| L2 集成 | gc_minimal.cj / gc_large.cj / gc_mixed.cj / WeakRef / Finalizer |
+| L3 压力 | 16 协程 × 100000 次分配，长期引用不误回收 |
+| L4 对比 | MS STW < WCollector 总 STW；堆占用 ↓50%（无 to-space） |
+| L5 Sanitizer | ASAN + TSAN 零错误 |
 
-这比当前 `MarkNewObject` 策略更简洁：
-
-```cpp
-// 在 Mark-Sweep 模式下，Allocate 路径中:
-uintptr_t RegionSpace::Allocate(size_t size, ...) {
-    uintptr_t addr = TryAllocateOnce(size, ...);
-    if (addr && IsInMarkPhase()) {
-        MarkObject(addr);  // 新对象直接标为黑色
-    }
-    return addr;
-}
-```
-
-#### 2.9 此步骤涉及的源码变更清单
-
-| 文件 | 变更说明 |
-|------|----------|
-| `src/Heap/Collector/MarkSweepCollector.h/cpp` | 新建：完整 GC 主流程 |
-| `src/Heap/Allocator/RegionInfo.h` | 改造：新增 `freeList_`、`freeBytes_`、`sizeClass_` |
-| `src/Heap/Allocator/SizeClass.h` | 新建：size class 定义和映射 |
-| `src/Heap/Allocator/RegionSpace.cpp` | 改造：Mark 期间新分配对象标黑 |
-| `src/Heap/Collector/TracingCollector.cpp` | 条件编译复用（标记主循环） |
-
-#### 2.10 验证标准
-
-- 基础 GC 正确性：分配 → 标记 → 清扫 → 再分配，无泄漏无误回收
-- 弱引用和 Finalizer 行为正确
-- 大对象回收正确
-- 现有 `gc/gc.cj` 测试通过（切换到 Mark-Sweep 模式下）
 
 ### Step 3：实现 Go 风格混合写屏障
 
+> **详细设计**：[Step3_混合写屏障详细设计.md](Step3_混合写屏障详细设计.md)
+> **子文档**：[Step3.1 MSBarrier 实现](Step3.1_MSBarrier详细实现.md) · [Step3.2 WBBuf 设计](Step3.2_WriteBarrierBuffer详细设计.md) · [Step3.3 读屏障移除](Step3.3_读屏障与TaggedPointer移除.md) · [Step3.4 对 Step2 子阶段改造](Step3.4_对Step2子阶段的改造.md)
+
 #### 目标
-用 Go 的混合写屏障（Hybrid Write Barrier）替换当前的 SATB 写屏障 + 读屏障体系，实现**无读屏障**的并发标记。
 
-#### 3.1 Go 混合写屏障原理
+用 2 套 Barrier（MSIdleBarrier + MSWriteBarrier）替代现有 6 套屏障体系，实现**零读屏障**并发标记，彻底移除 Tagged Pointer。
 
-Go 1.8 引入的混合写屏障结合了两种经典屏障：
+#### 3.1 现有屏障体系（6 套，被替换）
+
+| 类 | Phase | 读屏障 | 写屏障 |
+|----|-------|--------|--------|
+| IdleBarrier | IDLE | tag 检查 + CAS | 直接写 |
+| EnumBarrier | ENUM | tag + forward | SATB 记旧+新值 |
+| TraceBarrier | TRACE | tag + forward | SATB 仅记旧值 |
+| PostTraceBarrier | POST_TRACE | tag + forward | SATB + tag |
+| PreforwardBarrier | PREFORWARD | forward + tag | forward 旧值 |
+| ForwardBarrier | FORWARD | **循环 TryForwardRefField** | 直接写 |
+
+#### 3.2 新 Barrier 体系（2 套替代 6 套）
+
+| 类 | Phase | 读 | 写 |
+|----|-------|-----|-----|
+| **MSIdleBarrier** | IDLE / POST_MARK / SWEEP | 直接 load（零开销） | 直接 store |
+| **MSWriteBarrier** | MARK_SETUP / MARK / MARK_TERMINATION | 直接 load（零开销） | shade(old) + shade(new) → fence → store |
+
+#### 3.3 混合写屏障核心算法
 
 ```
-writePointer(slot, ptr):
-    shade(*slot)    // Yuasa 删除屏障: 旧值标灰（防止漏标已断开的引用）
-    if current goroutine's stack has been scanned:
-        shade(ptr)  // Dijkstra 插入屏障: 新值也标灰
-    *slot = ptr     // 实际写入
+writePointer(slot, ptr):       // 仅对堆上的写
+    shade(*slot)                // Yuasa 删除屏障：旧值标灰
+    shade(ptr)                  // Dijkstra 插入屏障：新值标灰（无条件）
+    *slot = ptr
 ```
 
-关键优势：**栈上写操作不需要屏障**。因为：
-- 栈在 Mark Setup 阶段已被完整扫描
-- 栈上新写入的指针要么来自堆（堆写有屏障保护），要么来自栈（栈对象在本轮 GC 前已扫描）
+**与旧版的关键修正**：`shade(new)` 是**无条件**的（非"仅当已扫描栈"），避免 per-thread 扫描状态判断。
 
-#### 3.2 与当前 Cangjie 屏障系统的对比
+**栈不需要屏障**的原因：
+1. MarkSetup STW 扫描所有栈（根全部标灰）
+2. 堆上每次赋值 old+new 都 shade
+3. 新分配对象直接标黑
 
-| 维度 | 当前 Cangjie | Go 混合写屏障 | 变化 |
-|------|-------------|-------------|------|
-| 写屏障 | SATB（仅记录旧值） | 混合（旧值 + 条件新值） | 改造 |
-| 读屏障 | 有（Forward 自愈） | 无 | **完全删除** |
-| 屏障数量 | 6 套 | 2 套（Off + On） | 大幅简化 |
-| 栈写操作 | 需要屏障 | 不需要 | **编译器可优化** |
-| 编译器配合 | `llvm.cj.gcwrite/gcread.*` | 仅 `llvm.cj.gcwrite.*`（保留），`gcread.*` 降级为普通 load | 减少 intrinsic |
-
-#### 3.3 实现方案
-
-**新建文件**: `src/Heap/MSBarrier/MSWriteBarrier.h/cpp`
-
-```cpp
-class MSWriteBarrier : public Barrier {
-public:
-    // ==== 写屏障 ====
-    
-    // 对象字段 ref 写入
-    void WriteReference(uintptr_t obj, uintptr_t* slot, uintptr_t newVal) override {
-        uintptr_t oldVal = *slot;
-        
-        // 1. shade(oldVal) — 旧值标灰
-        if (oldVal != 0 && !IsMarked(oldVal)) {
-            MarkAndPush(oldVal);  // 标记 + 入 workStack
-        }
-        
-        // 2. shade(newVal) — 新值标灰（仅当写入来自已扫描的栈/堆）
-        //    简化处理: 对堆上写一律对新值也标灰
-        //    （Go 对栈写跳过，但栈写本身不走此路径）
-        if (newVal != 0 && !IsMarked(newVal)) {
-            MarkAndPush(newVal);
-        }
-        
-        // 3. 实际写入
-        *slot = newVal;
-    }
-    
-    // 对象字段 struct 写入
-    void WriteStruct(uintptr_t dst, uintptr_t src, size_t size,
-                     const RefFieldOffsets* offsets) override {
-        // 先对 dst 中旧 ref 字段执行 shade(old)
-        for (auto offset : *offsets) {
-            uintptr_t oldRef = *(uintptr_t*)(dst + offset);
-            if (oldRef != 0 && !IsMarked(oldRef)) {
-                MarkAndPush(oldRef);
-            }
-        }
-        // 执行 memcpy
-        memmove_s(dst, size, src, size);
-        // 对新 ref 字段执行 shade(new)
-        for (auto offset : *offsets) {
-            uintptr_t newRef = *(uintptr_t*)(dst + offset);
-            if (newRef != 0 && !IsMarked(newRef)) {
-                MarkAndPush(newRef);
-            }
-        }
-    }
-    
-    // ==== 读屏障: 完全去除 ====
-    
-    uintptr_t ReadReference(uintptr_t obj, uintptr_t* slot) override {
-        return *slot;  // 直接返回，零开销！
-    }
-    
-    uintptr_t ReadStruct(uintptr_t dst, uintptr_t src, size_t size) override {
-        memmove_s(dst, size, src, size);  // 直接 memcpy
-        return dst;
-    }
-    
-private:
-    // 标记对象并推入工作栈
-    void MarkAndPush(uintptr_t objAddr);
-};
-
-class MSIdleBarrier : public Barrier {
-    // GC 不活跃时的屏障: 所有操作都是直接读写，零开销
-    void WriteReference(uintptr_t obj, uintptr_t* slot, uintptr_t newVal) override {
-        *slot = newVal;
-    }
-    uintptr_t ReadReference(uintptr_t obj, uintptr_t* slot) override {
-        return *slot;
-    }
-    // ... 其他方法同理
-};
-```
-
-#### 3.4 写屏障 Buffer 优化
-
-Go 使用 per-P（per-Processor）的写屏障 buffer 来批量处理，避免每次写操作都竞争全局 workStack：
+#### 3.4 WriteBarrierBuffer（per-thread，256 entries / 2KB）
 
 ```cpp
 class WriteBarrierBuffer {
     static constexpr size_t kBufferSize = 256;
-    
-    uintptr_t buf_[kBufferSize];
-    size_t    pos_ = 0;
-    
-    void Push(uintptr_t obj) {
+    uintptr_t buf_[kBufferSize];  // 内嵌 Mutator，无动态分配
+    size_t pos_ = 0;
+
+    void Push(uintptr_t obj) {    // ~2 条指令（无锁）
         buf_[pos_++] = obj;
-        if (pos_ >= kBufferSize) {
-            Flush();  // 批量转移到全局 workStack
-        }
+        if (pos_ >= kBufferSize) Flush();
     }
-    
-    void Flush();
+    void Flush();  // 批量转移到 per-P localWorkBuf
 };
-
-// 每个 CJThread/Mutator 持有一个 WriteBarrierBuffer
-thread_local WriteBarrierBuffer* tlWriteBarrierBuffer;
 ```
 
-#### 3.5 CompilerCalls 改造
+替代现有 `SatbBuffer::Node`（~512B，全局 arena，retire 链表）。
 
-**文件**: `src/CompilerCalls.cpp`
+#### 3.5 MSWriteBarrier 各方法行为
+
+| 方法 | 行为 |
+|------|------|
+| `WriteReference` | shade(old) + shade(new) → release fence → store |
+| `WriteStaticRef` | 同上（修正旧 TraceBarrier 不对静态引用记 SATB 的遗漏） |
+| `WriteStruct` | 遍历 old refs shade → memcpy → 遍历 new refs shade |
+| `CopyRefArray` | 逐元素 shade(old) + shade(new) → bulk memcpy |
+| `AtomicSwapReference` | shade(new) → exchange → shade(old) |
+| `CompareAndSwapReference` | shade(old) + shade(new)（无论 CAS 结果） |
+| **所有 Read\*** | 直接返回 `field.GetTargetObject()`，**零开销** |
+
+#### 3.6 读屏障 + Tagged Pointer 移除
+
+- **7 个 CompilerCalls 读入口**（`CJ_MCC_ReadRefField` 等）降级为直接 load
+- **`RefField`** 简化为裸指针：`GetTargetObject()` = 直接 load
+- **清理**：`FlipTagID`、`IsOldPointer`、`IsCurrentPointer`、`TryUpdateRefField`
+- **约束**：所有 `extern "C"` 函数签名完全不变
 
 ```cpp
-// Mark-Sweep 模式下，读操作不需要屏障
 #ifdef MRT_USE_MARK_SWEEP
-
-uintptr_t CJ_MCC_ReadRefField(uintptr_t obj, uintptr_t* slot) {
-    return *slot;  // 直接返回，无屏障
-}
-
-uintptr_t CJ_MCC_ReadStaticRef(uintptr_t* slot) {
-    return *slot;  // 直接返回，无屏障
-}
-
-#endif
-```
-
-写操作保持走屏障路径，但简化为只需一套实现（Mark On/Off）。
-
-#### 3.6 屏障安装/卸载
-
-```cpp
-void HeapImpl::InstallBarrierMS(MSGCPhase phase) {
-    switch (phase) {
-    case MSGCPhase::MARK:
-    case MSGCPhase::MARK_SETUP:
-    case MSGCPhase::MARK_TERMINATION:
-        currentBarrier_ = &msWriteBarrier_;  // 混合写屏障
-        break;
-    default:
-        currentBarrier_ = &msIdleBarrier_;   // 无屏障
-        break;
-    }
-}
-```
-
-对比现有 6 套屏障切换，大幅简化为 2 套（On/Off）。
-
-#### 3.7 Tagged Pointer 移除
-
-Mark-Sweep 下不需要 tagged pointer：
-- 删除 `FlipTagID()` 调用
-- 删除 `RefField::IsTagged()` / `GetTagID()` 检查
-- `ReadReference` 不需要 `TryUpdateRefField` / `TryUntagRefField`
-- `ForwardObjectImpl` 完全删除
-
-```cpp
-// 条件编译: Mark-Sweep 模式下跳过所有 tag 相关逻辑
-#ifdef MRT_USE_MARK_SWEEP
-    // 指针就是原始地址，不含任何 tag
     #define REF_TO_ADDR(ref) (ref)
     #define ADDR_TO_REF(addr) (addr)
 #else
     // 现有 Copy GC 的 tag 逻辑保留
-    #define REF_TO_ADDR(ref) RemoveTag(ref)
-    #define ADDR_TO_REF(addr) AddTag(addr)
 #endif
 ```
 
-#### 3.8 验证标准
+#### 3.7 对 Step2 子阶段的改造影响
 
-- 并发标记期间写屏障正确：不遗漏活跃对象
-- 读操作零额外开销（直接 load）
-- 写屏障 buffer 批量刷新无 race condition
-- 多线程压力测试通过（高并发分配 + 写 + GC）
+| 子阶段 | 影响级别 | 关键变更 |
+|--------|---------|---------|
+| Step2.1 MarkSetup | 中 | Barrier 从 MSTraceBarrier → MSWriteBarrier |
+| Step2.2 ConcurrentMark | **高** | WBBuf flush 实时写入 per-P localWorkBuf |
+| Step2.3 MarkTermination | 中 | CollectSatbCandidates → FlushAllWriteBarrierBuffers |
+| Step2.4 PostMarkTermination | 低 | ClearSatbBuffer → ClearWriteBarrierBuffers |
+
+#### 3.8 性能预估
+
+| 维度 | 预估 |
+|------|------|
+| 读操作吞吐 | 提升 **15-30%**（零额外指令 vs tag 检查） |
+| 写操作 | 持平或略降（多 shade(new) 但省 tag + seq_cst fence） |
+| 浮动垃圾 | 增加 5-15% |
+| 代码净减少 | **~1150 行**（删 ~1950 行旧 Barrier，新增 ~800 行） |
+
+#### 3.9 关键设计决策
+
+| 决策 | 选择 | 理由 |
+|------|------|------|
+| 屏障套数 | 2 套 (Off/On) | 替代 6 套，简化维护 |
+| 栈屏障 | 不需要 | MarkSetup STW 扫描所有栈 + 堆混合屏障 |
+| shade(new) | **无条件** | 避免 per-thread 扫描状态判断 |
+| seq_cst fence | 不需要 | relaxed/release 即可 |
+| Sweep 阶段屏障 | 不需要 | phase 已切 IDLE |
+
+#### 3.10 验证标准
+
+| 测试 | 关键点 |
+|------|--------|
+| TestMSWriteBarrier_ShadeOldAndNew | old+new 均被标灰 |
+| TestWBBuf_FlushOnFull | 256 entries 满时自动 flush |
+| TestRefField_MSMode_NoTag | MS 模式 RefField 为纯裸指针 |
+| TestConcurrentWriteBarrier_Stress | 8 Mutator + 1 GC，10 秒无 use-after-free |
+| TestMS_HybridBarrier_FullGC | 10000 对象 + 5000 次修改，漏标率=0% |
+
 
 ### Step 4：实现并发清扫（Concurrent Sweep）
 
+> **详细设计**：[Step4_并发清扫详细设计.md](Step4_并发清扫详细设计.md)
+> **子文档**：[Step4.1 SweepRegion 实现](Step4.1_SweepRegion详细实现.md) · [Step4.2 Sweep 调度与 CentralRegionPool](Step4.2_Sweep调度与CentralRegionPool集成.md) · [Step4.3 后台 Sweep 与 FinalizerProcessor](Step4.3_后台Sweep与FinalizerProcessor集成.md)
+
 #### 目标
-将 Step 2 中的 STW Sweep 改为并发执行，Sweep 工作由后台线程 + 分配时 lazy sweep 协同完成，进一步降低停顿。
 
-#### 4.1 Go 的 Sweep 策略
+将 markBitmap 翻转为 allocBitmap（`allocBitmap[i] = ~markBitmap[i]`），实现零 STW 并发清扫。**不新增独立 Sweeper 类**，由三路协作完成。
 
-Go 的 sweep 是完全并发的，采用两种机制协同：
-1. **Background Sweep**：后台 goroutine 在 GC 结束后异步清扫
-2. **Lazy Sweep**：分配时如果需要新 span，先清扫一个 span 再使用
+#### 4.1 核心等式
 
-这保证了：
-- Sweep 不会造成任何 STW
-- 分配不会被 sweep 阻塞太久（一次只 sweep 一个 span/region）
+```
+allocBitmap[i] = ~markBitmap[i]    // 1 条 NOT 指令 = 64 slots 的清扫
+```
 
-#### 4.2 实现方案
+不使用 free-list 遍历（不触碰死对象内存），严格对齐 Step1 的 bitmap 设计。
+
+#### 4.2 三路协作模型
+
+| 路径 | 名称 | 触发方 | 行为 |
+|------|------|--------|------|
+| A | **后台 Sweep** | gc-helper 线程 `BackgroundSweepLoop()` | 主动遍历 36 个 sizeClass 的 Unswept 链表 |
+| B | **Lazy Sweep** | 分配线程 `CentralRegionPool::GetRegion(cls)` | partialSwept 为空时从 Unswept 取出原地 sweep |
+| C | **ForceFinishSweep** | 下轮 GC MarkSetup | 强制 sweep 所有残余，确保 markBitmap 全清零 |
+
+#### 4.3 SweepRegion 核心算法
 
 ```cpp
-class ConcurrentSweeper {
-public:
-    // ====== 后台 Sweep ======
-    
-    // GC Mark 完成后启动后台 sweep
-    void StartBackgroundSweep() {
-        sweepDone_.store(false, std::memory_order_release);
-        // 将所有需要 sweep 的 Region 加入 sweepQueue
-        CollectSweepableRegions();
-        // 唤醒后台 sweep 线程
-        NotifySweepThread();
+void MSRegionInfo::SweepRegion() {
+    size_t wordCount = (totalSlotCount + 63) / 64;
+    uint16_t live = 0;
+    for (size_t i = 0; i < wordCount; i++) {
+        allocBitmap[i] = ~markBitmap[i];              // 1 NOT = 64 slots
+        live += __builtin_popcountll(markBitmap[i]);
     }
-    
-    // 后台线程主循环
-    void BackgroundSweepLoop() {
-        while (true) {
-            WaitForSweepRequest();
-            
-            RegionInfo* region;
-            while ((region = TakeSweepRegion()) != nullptr) {
-                SweepOneRegion(region);  // sweep 一个 Region
-            }
-            
-            sweepDone_.store(true, std::memory_order_release);
-        }
-    }
-    
-    // ====== Lazy Sweep（分配时触发） ======
-    
-    // 分配器需要新 Region 时调用
-    RegionInfo* SweepAndGetRegion(uint8_t sizeClass) {
-        // 从 sweepQueue 中取一个同 sizeClass 的 Region
-        RegionInfo* region = TakeSweepRegionForClass(sizeClass);
-        if (region == nullptr) return nullptr;
-        
-        // 原地 sweep
-        SweepOneRegion(region);
-        
-        // 若有空闲 slot，直接返回给分配器
-        if (region->freeBytes_ > 0) {
-            return region;
-        }
-        // 全部存活 → 放入 full list，继续找下一个
-        centralPool_->ReturnFullRegion(region, sizeClass);
-        return nullptr;
-    }
-    
-    // ====== 单 Region Sweep ======
-    
-    void SweepOneRegion(RegionInfo* region) {
-        uint8_t cls = region->sizeClass_;
-        size_t slotSize = ClassToSize(cls);
-        
-        uintptr_t cursor = region->GetDataStart();
-        uintptr_t end    = region->GetAllocPosition();
-        
-        FreeSlot* freeHead = nullptr;
-        size_t freeBytes = 0;
-        size_t liveCount = 0;
-        
-        while (cursor < end) {
-            if (IsMarkedForCurrentCycle(cursor)) {
-                // 存活
-                liveCount++;
-            } else {
-                // 死亡 → 串入 free-list
-                // 可选: 调用析构函数（如果有 finalizer，应已在 Mark Termination 处理）
-                FreeSlot* slot = reinterpret_cast<FreeSlot*>(cursor);
-                slot->next = freeHead;
-                freeHead = slot;
-                freeBytes += slotSize;
-            }
-            cursor += slotSize;
-        }
-        
-        region->freeList_ = freeHead;
-        region->freeBytes_ = freeBytes;
-        
-        if (liveCount == 0) {
-            // 整个 Region 空 → 归还到 garbageRegionList
-            ReturnEmptyRegion(region);
-        }
-    }
-    
-    bool IsSweepDone() const {
-        return sweepDone_.load(std::memory_order_acquire);
-    }
-
-private:
-    std::atomic<bool> sweepDone_{true};
-    
-    // 无锁队列: 待 sweep 的 Region
-    // 使用 atomic TakeHead 保证后台线程和分配线程不冲突
-    AtomicRegionQueue sweepQueue_;
-    
-    // 按 sizeClass 分桶的 sweep 队列（用于 lazy sweep 快速匹配）
-    AtomicRegionQueue sweepQueuePerClass_[kNumSizeClasses];
-    
-    void CollectSweepableRegions() {
-        // 将 recentFullRegionList、fullRegionList 等中的 Region
-        // 按 sizeClass 放入对应 sweepQueuePerClass
-    }
-};
+    memset(markBitmap, 0, wordCount * sizeof(uint64_t));
+    liveSlotCount = live;
+    freeSlotCount = totalSlotCount - live;
+    sweepState = MS_SWEEP_STATE_SWEPT;
+}
 ```
 
-#### 4.3 分配路径与 Sweep 的集成
+复杂度：**O(N/64)**，N = slot 总数。
+
+#### 4.4 sweepGen 机制（对标 Go `mheap.sweepgen`）
 
 ```
-AllocateMS(size):
-  cls = SizeToClass(size)
-  1. 尝试 tlRegionPerClass_[cls] 的 free-list
-  2. 尝试 tlRegionPerClass_[cls] 的 bump-pointer
-  3. 从 CentralRegionPool::GetRegion(cls):
-     3a. 先查 partialRegions（已 sweep 有空闲）
-     3b. 若无 → sweeper.SweepAndGetRegion(cls)  // lazy sweep
-     3c. 若无 → RegionManager::TakeRegion()       // 新建
-  4. 若仍失败 → 触发同步 GC
+region.sweepGen == sg - 2  →  未 sweep
+region.sweepGen == sg - 1  →  正在被某线程 sweep（CAS 中间态）
+region.sweepGen == sg      →  已 sweep
 ```
 
-#### 4.4 与现有后台回收的兼容
+`globalSweepGen_` 为 `std::atomic<uint32_t>`，每轮 GC **+2**（非 +1）。代际翻转 O(1)，无需移动链表节点。
 
-当前 `FinalizerProcessor` 负责后台回收（`ReclaimGarbageMemory`）。在 Mark-Sweep 模式下：
+CAS 失败 → 跳过（不等待），对标 Go `mcentral.cacheSpan`。
+
+#### 4.5 CentralRegionPool 四链表 + Lazy Sweep 优先级
 
 ```
-FinalizerProcessor::Run():
-  1. 执行 Finalizer（不变）
-  2. 若 GC 刚完成 → 启动 BackgroundSweep（替代 ReclaimGarbageMemory）
-  3. Sweep 产生的空 Region → garbageRegionList → dirtyUnitTree → releasedUnitTree
-     （复用现有三层回收逻辑）
+GetRegion(cls):
+  ① partialSwept     → pop → 直接用（最快，无 sweep）
+  ② partialUnswept   → pop → CAS sweep → 用
+  ③ fullUnswept      → pop → CAS sweep → 全死Release/有空洞用/仍满放回
+  ④ 全空             → GetFreshRegion → FreeRegionManager
 ```
 
-#### 4.5 大对象的并发 Sweep
+#### 4.6 Region 命运判定
 
-大对象独占 Region，sweep 更简单（检查一个 mark bit 即可），可嵌入后台 sweep 流程中。
+| 条件 | 去向 |
+|------|------|
+| `freeSlotCount == totalSlotCount` | `ReleaseRegion()` → FreeRegionManager（回收物理页） |
+| `0 < freeSlotCount < totalSlotCount` | `partialSwept` 链表 |
+| `freeSlotCount == 0` | `fullSwept` 链表 |
 
-#### 4.6 验证标准
+#### 4.7 gc-helper 线程集成（FinalizerProcessor 扩展）
 
-- 后台 sweep 和 lazy sweep 并行执行无 data race
-- 分配不被 sweep 长时间阻塞（每次 lazy sweep 仅处理一个 Region）
-- 内存及时释放：sweep 后空 Region 正确归还
-- 多线程分配 + 并发 GC 无泄漏无误回收
+```
+FinalizerProcessor::RunMS() 主循环:
+  ① ProcessFinalizables()       // 最优先（resurrected 对象先执行 finalizer）
+  ② BackgroundSweepLoop()       // 新增：逐 sizeClass sweep
+  ③ FeedHungryBuffers()
+  ④ ReclaimHeapGarbage()
+  → Wait()
+```
+
+**关键约束**：Finalizer **必须在 Sweep 之前**执行（resurrected 对象需先 finalize 再判定存活）。
+
+#### 4.8 大对象策略
+
+大对象 Eager Sweep 由 Step2.4 `PostMarkTermination::CollectLargeGarbage()` 完成（检查 mark bit → 存活保留 / 死亡回收）。**Step4 仅处理小对象 Region**（36 个 size class）。
+
+#### 4.9 Phase 联动
+
+- Sweep 发生在 `MS_PHASE_IDLE`，Barrier 为 MSIdleBarrier（零开销）
+- `PrepareForSweep()` 在 PostMarkTermination 中调用（`sweepGen += 2`）
+- `ForceFinishSweep()` 在下轮 MarkSetup 中调用
+
+#### 4.10 关键设计决策
+
+| 决策 | 选择 | 理由 |
+|------|------|------|
+| Sweep 方式 | bitmap NOT（非 free-list） | 不触碰死对象内存，O(N/64) |
+| 独立 Sweeper 类 | **不新增** | 集成到 CentralRegionPool + FinalizerProcessor |
+| sweepGen | +2/GC（非 +1） | 对标 Go，支持三态判定 |
+| 队列结构 | CentralRegionPool 四链表（非 AtomicRegionQueue） | 复用 Step1 设计 |
+| 大对象 Sweep | 由 Step2.4 Eager 完成 | 不在 Step4 重复实现 |
+| CAS 失败策略 | 跳过不等待 | 对标 Go mcentral，减少竞争 |
+
+#### 4.11 修改清单（不新增独立文件）
+
+| 文件 | 修改 |
+|------|------|
+| `FinalizerProcessor.h/cpp` | 新增 `RunMS()`、`BackgroundSweepLoop()`、`NotifyToSweep()` |
+| `MarkSweepCollector.cpp` | PostMarkTermination 调用 `PrepareForSweep()` + `NotifyToSweep()` |
+| `HeapManager.cpp` | GC 启动前调用 `ForceFinishSweep()` |
+| `CMakeLists.txt` | 无新增文件 |
+
+#### 4.12 验证标准
+
+| 测试 | 关键点 |
+|------|--------|
+| TestSweepRegion_BitmapNOT | 512 slot, 标记 60 存活, freeSlotCount=452 |
+| TestSweepGenCAS_8Threads | 8 线程 100 Region, 每 Region 恰 sweep 1 次 |
+| TestForceFinishSweep_DrainAll | 36×10=360 Region 全部清空 |
+| TestBackgroundAndLazy_Concurrent | 1 gc-helper + 4 Mutator, 200 Region 协作完成 |
+| TestMS_MultiCycle_100Rounds | 100 轮 GC, sweepGen 单调 +2, 堆稳定 |
+
+| 性能指标 | 目标 |
+|----------|------|
+| STW 时间 | 不含 sweep |
+| 分配延迟 P99 | ≤ 10μs |
+| Lazy sweep 触发比例 | < 20% |
+
 
 ### Step 5：实现 GC Pacer（触发控制器）
 
@@ -1332,28 +1136,38 @@ gc/test_los_perf.cj         — LOS 性能测试
 |---------|-------------|------|
 | goroutine | CJThread | 轻量级线程 |
 | P (Processor) | Processor/Monitor | 调度实体 |
-| span | Region | 内存管理单元 |
-| arena | 堆虚拟空间 | mmap 的大块地址 |
-| mcache | AllocBuffer/AllocBufferMS | 线程本地缓存 |
-| mcentral | CentralRegionPool | 全局按 size class 分发 |
-| mheap | RegionManager | 顶层堆管理 |
+| mspan | MSRegionInfo（64B） | Region 元数据，含 allocBitmap/markBitmap/sweepGen/sweepState |
+| span.allocBits | allocBitmap_ | 空闲 slot 位图（1=可分配），CTZ 分配 |
+| span.gcmarkBits | markBitmap_ | GC 标记位图 |
+| arena | 堆虚拟空间（64GB 预留） | mmap MAP_NORESERVE + 256MB Segment 提交 |
+| mcache | AllocBufferMS | 线程本地缓存，per-class activeRegions_[36] |
+| mcentral | CentralRegionPool | 全局按 size class 分发，**4 条链表/class** |
+| mcentral.partial | partialSwept / partialUnswept | 有空闲 slot 的 Region（已/未 sweep） |
+| mcentral.full | fullSwept / fullUnswept | 全满 Region（已/未 sweep） |
+| mheap | RegionManager + FreeRegionManager | 顶层堆管理 |
+| mheap.sweepgen | globalSweepGen_（uint32_t） | 每轮 GC +2，三态判定 |
+| sizeclasses | SizeClassInfo（36 级，8B~16KB） | O(1) 查表映射 |
+| largeSpan | LargeObjectSpace | Tier1: CartesianTree; Tier2(>4MB): mmap |
 | GOGC | CJ_GC_PERCENT | GC 触发比例 |
 | GOMEMLIMIT | CJ_MEM_LIMIT | 内存上限 |
-| write barrier buffer | WriteBarrierBuffer | 写屏障缓冲 |
-| mark bit | RegionInfo mark bitmap | 标记位 |
-| gcWork | WorkStack | 灰色对象工作队列 |
-| mark assist | DoMarkAssist | 分配时辅助标记 |
+| wbBuf | WriteBarrierBuffer（256 entries/2KB） | per-thread 写屏障缓冲，内嵌 Mutator |
+| mark bit | RegionBitmap markWords[] | CAS 并发标记，1 bit = 8 bytes |
+| gcWork | WorkStack（MarkStackBuf 64 元素/段） | 灰色对象工作队列 |
+| mark assist | Mark Assist（分配债务驱动） | mutator 辅助标记 |
+| gcphase | MS_PHASE_*（20-24） | IDLE/MARK_SETUP/MARK/MARK_TERMINATION/POST_MARK |
+| writeBarrier (off) | MSIdleBarrier | GC 不活跃时，读写均零开销 |
+| writeBarrier (on) | MSWriteBarrier | shade(old)+shade(new)，读零开销 |
 
 ### D. 预估工作量
 
-| 步骤 | 预估工期 | 复杂度 |
-|------|---------|--------|
-| Step 0: GC 框架 | 1 周 | 低 |
-| Step 1: 分配器改造 | 2-3 周 | 中 |
-| Step 2: 三色标记 + Sweep | 3-4 周 | 高 |
-| Step 3: 混合写屏障 | 2-3 周 | 高 |
-| Step 4: 并发 Sweep | 2 周 | 中 |
-| Step 5: GC Pacer | 1-2 周 | 中 |
-| Step 6: 清理旧代码 | 1 周 | 低 |
-| Step 7: 性能调优 | 2-3 周 | 中 |
-| **总计** | **14-19 周** | |
+| 步骤 | 核心内容 | 预估工期 | 复杂度 |
+|------|---------|---------|--------|
+| Step 0: GC 框架 | 条件编译 + MarkSweepCollector 空壳 | 1 周 | 低 |
+| Step 1: 分配器改造 | MSRegionInfo(64B) + bitmap(CTZ) + SizeClass(36) + AllocBufferMS + CentralRegionPool(4 链表) + LargeObjectSpace | 3-4 周 | **高** |
+| Step 2: 三色标记 | MarkSweepCollector:TracingCollector + 4 Phase(20-24) + Handshake MarkSetup + ClearBitmap + PostMarkTermination | 3-4 周 | 高 |
+| Step 3: 混合写屏障 | 2 套 Barrier(MSIdleBarrier+MSWriteBarrier) + WBBuf(256) + 读屏障移除 + TaggedPointer 移除 | 2-3 周 | 高 |
+| Step 4: 并发 Sweep | bitmap NOT + sweepGen(+2/GC) + 三路协作 + FinalizerProcessor 集成（不新增类） | 1-2 周 | 中 |
+| Step 5: GC Pacer | HeapGoalController + Mark Assist + CPU 预算 | 1-2 周 | 中 |
+| Step 6: 清理旧代码 | 删除 Forward/Copy/Tag 全路径 | 1 周 | 低 |
+| Step 7: 性能调优 | 碎片分析 + STW 优化 + 压力测试 | 2-3 周 | 中 |
+| **总计** | | **14-20 周** | |

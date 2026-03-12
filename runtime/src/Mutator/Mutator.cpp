@@ -563,6 +563,28 @@ inline void Mutator::HandleGCPhase(GCPhase newPhase)
     } else if (newPhase == GCPhase::GC_PHASE_IDLE && IsForeignThreadExit()) {
         ReleaseForeignThread();
     }
+#ifdef MRT_USE_MARK_SWEEP
+    else if (newPhase == GCPhase::GC_PHASE_MS_MARK_SETUP) {
+        // MS-GC MarkSetup handshake: each Mutator scans its own stack roots.
+        // TL Region flush is done BEFORE this handshake under a brief STW
+        // (see MarkSweepCollector::MarkSetup Phase B), because AllocBufferMS
+        // is per-OS-thread TLS — cannot be safely flushed per-Mutator.
+        GcPhaseEnum(newPhase);
+    }
+    else if (newPhase == GCPhase::GC_PHASE_MS_MARK_TERMINATION) {
+        // MarkTermination STW: flush write barrier buffer so GC thread can drain all grey objects.
+        // The GC thread will call FlushAllWriteBarrierBuffers() to collect them.
+        // No action needed here — flush is done centrally by the collector under STW.
+    }
+    else if (newPhase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK) {
+        // Transition to concurrent mark: no special Mutator action needed.
+        // SATB write barrier is already installed by barrier switch.
+    }
+    else if (newPhase == GCPhase::GC_PHASE_MS_SWEEP) {
+        // Transition to sweep: no special Mutator action needed.
+        // Barrier switched to idle by InstallBarrier.
+    }
+#endif // MRT_USE_MARK_SWEEP
 }
 
 void Mutator::TransitionToGCPhaseExclusive(GCPhase newPhase)

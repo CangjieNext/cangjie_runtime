@@ -128,6 +128,12 @@ public:
 
     void ExemptFromRegion(RegionInfo* region);
 
+#ifdef MRT_USE_MARK_SWEEP
+    // After MS-GC marking, exempt all regions with live objects from fromRegionList.
+    // Dead regions (liveByteCount == 0) remain in fromRegionList for garbage collection.
+    void MSExemptLiveRegions();
+#endif
+
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
     void DumpRegionInfo() const;
 #endif

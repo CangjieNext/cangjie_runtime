@@ -1,0 +1,81 @@
+{
+  "timestamp": "2026-03-09T19:06:23.627341",
+  "runtime": "CopyGC (current)",
+  "bench": {
+    "functional": {
+      "F1_TreeIntegrity": {
+        "status": "PASS",
+        "time_ms": 102
+      },
+      "F2_Generational": {
+        "status": "PASS",
+        "time_ms": 191
+      },
+      "F3_LargeObject": {
+        "status": "PASS",
+        "time_ms": 797
+      },
+      "F4_LinkedList": {
+        "status": "PASS",
+        "time_ms": 110
+      },
+      "F5_HashMap": {
+        "status": "PASS",
+        "time_ms": 81
+      }
+    },
+    "performance": {
+      "P1_SmallAlloc": {
+        "time_ms": 156,
+        "total_nodes": 6553550,
+        "throughput_nodes_per_ms": 42009
+      },
+      "P2_LargeAlloc": {
+        "time_ms": 457,
+        "total_mb": 50,
+        "throughput_mb_per_s": 112
+      },
+      "P3_MixedWorkload": {
+        "time_ms": 284,
+        "rounds": 30
+      },
+      "P4_LongLivedChurn": {
+        "time_ms": 289,
+        "persistent_intact": "20/20"
+      },
+      "P5_Fragmentation": {
+        "time_ms": 343,
+        "rounds": 15
+      }
+    },
+    "summary": {
+      "functional_passed": 5,
+      "functional_total": 5,
+      "P1_SmallAlloc": 156,
+      "P2_LargeAlloc": 457,
+      "P3_MixedWorkload": 284,
+      "P4_LongLivedChurn": 289,
+      "P5_Fragmentation": 343,
+      "total_wall_time_ms": 2815
+    }
+  },
+  "gc": {
+    "gc_count": 20,
+    "gc_reasons": {
+      "heuristic": 15,
+      "oom": 5
+    },
+    "last_heap_util_pct": 100.51,
+    "last_frag_ext_index": null,
+    "last_frag_int_waste_bytes": null,
+    "last_active_units": 16383,
+    "last_large_regions": 0,
+    "gc_total_time_us": 203655,
+    "gc_avg_time_us": 10182,
+    "gc_max_time_us": 37023,
+    "gc_min_time_us": 1867,
+    "gc_p50_time_us": 3795,
+    "gc_p99_time_us": 37023,
+    "avg_collection_rate_mbs": 50090.8
+  }
+}

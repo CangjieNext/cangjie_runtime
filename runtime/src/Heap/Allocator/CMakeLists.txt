@@ -12,5 +12,16 @@ set(SRC_LIST
     "CartesianTree.cpp"
 )
 
+if (MARKSWEEP_FLAG MATCHES 1)
+    list(APPEND SRC_LIST
+        "SizeClass.cpp"
+        "MSRegionInfo.cpp"
+        "MSRegionManager.cpp"
+        "CentralRegionPool.cpp"
+        "AllocBufferMS.cpp"
+        "LargeObjectSpace.cpp"
+    )
+endif()
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../)
 add_library(Allocator STATIC ${SRC_LIST})
