@@ -481,11 +481,13 @@ void* NewFinalizerCJThread()
     auto runtime = reinterpret_cast<MapleRuntime::CangjieRuntime*>(&MapleRuntime::Runtime::Current());
     scheduler = runtime->CreateSubSchedulerAndInit(SCHEDULE_FOREIGN_THREAD);
 
+    ThreadLocal::SetThreadType(ThreadType::FP_THREAD);
+    ThreadLocal::SetCJProcessorFlag(true);
+    // prepare foreign cjthread
     CJThreadAttr attr;
     CJThreadAttrInit(&attr);
     CJThreadAttrNameSet(&attr, "cangjie");
     LWTData data = {};
-    // prepare foreign cjthread
     CJThreadHandle cjthread = CJThreadNewToSchedule(scheduler, (const struct CJThreadAttr*)(&attr),
                                                     WrapperTask, &data, sizeof(LWTData));
     ThreadLocal::SetCJThread(cjthread);
@@ -495,7 +497,7 @@ void* NewFinalizerCJThread()
     ThreadLocal::SetSchedule(scheduler);
     ThreadLocal::SetProtectAddr(reinterpret_cast<uint8_t*>(0));
     ScheduleNetpollInit(); // Initializes netpool only on the first execution.
-    // set mutator
+    // prepare finalizer mutator
     Mutator* mutator = reinterpret_cast<Mutator*>(CJThreadGetMutator());
     CHECK_DETAIL(mutator != nullptr, "create is null when create finalizer cjthread");
     MutatorManager::Instance().MutatorManagementRLock();
@@ -503,8 +505,6 @@ void* NewFinalizerCJThread()
     mutator->SetManagedContext(false);
     MutatorManager::Instance().BindMutator(*mutator);
     ThreadLocal::SetMutator(mutator);
-    ThreadLocal::SetThreadType(ThreadType::FP_THREAD);
-    ThreadLocal::SetCJProcessorFlag(true);
     ThreadLocalData* threadData = reinterpret_cast<ThreadLocalData*>(MRT_GetThreadLocalData());
     MRT_PreRunManagedCode(mutator, 2, threadData); // 2 layers
     MutatorManager::Instance().MutatorManagementRUnlock();

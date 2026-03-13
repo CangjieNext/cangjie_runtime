@@ -401,6 +401,15 @@ struct CJThreadSpecificDataInner {
 };
 
 /**
+ * @brief Create cjthread reason
+ */
+enum CJThreadCreateSource {
+    CJTHREAD_CREATE_SOURCE_DEFAULT = 0,     /* create cjthread from general use scenarios */
+    CJTHREAD_CREATE_SOURCE_SIGNAL = 1,      /* create cjthread from signal */
+    CJTHREAD_CREATE_SOURCE_FINALIZER = 2,      /* create cjthread from finalizer */
+};
+
+/**
  * @brief Lua cjthread state
  */
 enum LuaCJThreadState {
@@ -597,8 +606,9 @@ CJThreadHandle ExclusiveCJThreadNew(CJThreadFunc func,
  * @retval If the operation is successful, the handle of the cjthread is returned.
  * NULL indicates that the cjthread fails to be created.
  */
-CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *attrUser, CJThreadFunc func,
-                           const void *argStart, unsigned int argSize, bool isSignal = false);
+CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *attrUser,
+                           CJThreadFunc func, const void *argStart, unsigned int argSize,
+                           CJThreadCreateSource createSource = CJTHREAD_CREATE_SOURCE_DEFAULT);
 
 /**
  * @brief Create a cjthread from outside the scheduling framework to the scheduler.
@@ -620,7 +630,7 @@ CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *a
  */
 CJThreadHandle CJThreadNewToSchedule(ScheduleHandle schedule, const struct CJThreadAttr *attr,
                                      CJThreadFunc func, const void *argStart, unsigned int argSize,
-                                     bool isSignal = false);
+                                     CJThreadCreateSource createSource = CJTHREAD_CREATE_SOURCE_DEFAULT);
 
 /**
  * @brief Creates a cjthread to the default scheduler. This interface can be invoked from
