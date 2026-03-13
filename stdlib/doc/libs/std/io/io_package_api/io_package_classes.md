@@ -542,7 +542,7 @@ public class BufferedOutputStream<T> <: OutputStream where T <: OutputStream {
 
 功能：提供带缓冲区的输出流。
 
-可将其他 [OutputStream](io_package_interfaces.md#interface-outputstream) 类型的输入流（如 [ByteBuffer](io_package_classes.md#class-bytebuffer)）绑定到 [BufferedOutputStream](io_package_classes.md#class-bufferedoutputstreamt-where-t--outputstream) 实例，从该实例写入数据时，先把数据写入缓冲区暂存，再从缓冲区写入数据到流中。
+可将其他 [OutputStream](io_package_interfaces.md#interface-outputstream) 类型的输出流（如 [ByteBuffer](io_package_classes.md#class-bytebuffer)）绑定到 [BufferedOutputStream](io_package_classes.md#class-bufferedoutputstreamt-where-t--outputstream) 实例，从该实例写入数据时，先把数据写入缓冲区暂存，再从缓冲区写入数据到流中。
 
 父类型：
 
