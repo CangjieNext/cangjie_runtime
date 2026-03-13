@@ -13,6 +13,8 @@
 #include <Heap/Collector/TaskQueue.h>
 #include <Heap/Collector/TracingCollector.h>
 #include <sys/time.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include "ObjectModel/MArray.inline.h"
 #include "Common/BaseObject.h"
@@ -36,6 +38,7 @@ void CjHeapData::WriteHeap()
     WriteStackTrace();
     WriteStartThread();
     WriteHeapDump();
+    LOG(RTLOG_ERROR, "WriteHeap done");
 }
 
 void CjHeapData::ProcessHeap()
@@ -51,31 +54,98 @@ void CjHeapData::ProcessHeap()
     auto dumpVisitor = [this](BaseObject* obj) { ProcessHeapObject(obj); };
     bool ret = Heap::GetHeap().ForEachObj(dumpVisitor, false);
     CHECK_E(UNLIKELY(!ret), "theAllocator.ForEachObj() in DumpHeap() return false.");
+    LOG(RTLOG_ERROR, "ProcessHeap done");
 }
 
 void CjHeapData::DumpHeap()
 {
+    pid_t pid = fork();
+    if (pid < 0) {
+        LOG(RTLOG_ERROR, "Failed to fork process for heap dump, %s", strerror(errno));
+        return;
+    }
+
+    if (pid == 0) {
+        DumpHeapImpl();
+        _exit(0);
+    }
+
+    LOG(RTLOG_ERROR, "DumpHeap exit");
+}
+
+void CjHeapData::DumpHeapImpl()
+{
+    LOG(RTLOG_ERROR, "Start dump heap");
+
+    // Call registered CJ heap report function if available
+    auto cjHeapReportFunc = Runtime::Current().GetExceptionManager().GetCJHeapReport();
+    if (cjHeapReportFunc) {
+        LOG(RTLOG_ERROR, "Calling registered CJ heap report function");
+        cjHeapReportFunc();
+    }
+
+    // Default behavior when no file descriptor is provided
     // step1 - open file
     CString specifiedPath;
     if (dumpAfterOOM && !g_oomIsTrigged) {
         g_oomIsTrigged = true;
+
+        // First try to use cjHeapDumpLog if set
         Logger::GetLogger().GetLogPath("cjHeapDumpLog", specifiedPath);
-        auto pid = MapleRuntime::GetPid();
-        CString dumpFile = CString("cj_OOM_pid") + CString(pid) + CString(".dat");
+        if (!specifiedPath.IsEmpty()) {
+            LOG(RTLOG_ERROR, "Dump heap log path: %s", specifiedPath.Str());
+            auto pid = MapleRuntime::GetPid();
+            CString dumpFile = CString("cj_OOM_pid") + CString(pid) + CString(".dat");
 #if defined(_WIN64)
-        const char* separator = "\\";
+            const char* separator = "\\";
 #else
-        const char* separator = "/";
+            const char* separator = "/";
 #endif
-        if (specifiedPath.IsEmpty()) {
-            // dump to current path
-            fp = fopen(dumpFile.Str(), "wb");
-            PRINT_INFO("Heap dump log is writing into .%s%s ...\n", separator, dumpFile.Str());
-        } else {
             // dump to specified path
             dumpFile = specifiedPath + separator + dumpFile;
             fp = fopen(dumpFile.Str(), "wb");
             PRINT_INFO("Heap dump log is writing into %s ...\n", dumpFile.Str());
+        } else {
+            // If cjHeapDumpLog is not set, try to use GetRequestFileDescriptor
+            LOG(RTLOG_ERROR, "before GetRequestFileDescriptor");
+            auto requestFdFunc = Runtime::Current().GetExceptionManager().GetRequestFileDescriptor();
+            LOG(RTLOG_ERROR, "after GetRequestFileDescriptor");
+            if (requestFdFunc) {
+                int fd = requestFdFunc();
+                if (fd != -1) {
+                    // Use the provided file descriptor
+                    int copyfd = dup(fd);
+                    if (copyfd != -1) {
+                        fp = fdopen(copyfd, "wb");
+                        if (fp != nullptr) {
+                            // Continue with the current function logic
+                            LOG(RTLOG_ERROR, "Using provided file descriptor for heap dump");
+                        } else {
+                            close(copyfd);
+                            LOG(RTLOG_WARNING, "Failed to convert fd to fp, falling back to default file");
+                        }
+                    } else {
+                        LOG(RTLOG_WARNING, "Failed to duplicate fd, falling back to default file");
+                    }
+                } else {
+                    LOG(RTLOG_WARNING, "RequestFileDescriptor returned invalid fd, falling back to default file");
+                }
+            }
+            LOG(RTLOG_ERROR, "convert GetRequestFileDescriptor to fp");
+        }
+
+        // If fp is not set yet, fall back to default current path
+        if (!fp) {
+            auto pid = MapleRuntime::GetPid();
+            CString dumpFile = CString("cj_OOM_pid") + CString(pid) + CString(".dat");
+#if defined(_WIN64)
+            const char* separator = "\\";
+#else
+            const char* separator = "/";
+#endif
+            // dump to current path
+            fp = fopen(dumpFile.Str(), "wb");
+            PRINT_INFO("Heap dump log is writing into .%s%s ...\n", separator, dumpFile.Str());
         }
     } else {
         // dump for cjprof
@@ -87,9 +157,13 @@ void CjHeapData::DumpHeap()
         return;
     }
     // step2 - write file
-    ScopedStopTheWorld scopedStopTheWorld("dump heap to file");
+    // LOG(RTLOG_ERROR, "Stop the world");
+    // ScopedStopTheWorld scopedStopTheWorld("dump heap to file");
+    // LOG(RTLOG_ERROR, "Resume the world");
+    LOG(RTLOG_ERROR, "Start dump heap, ProcessHeap");
     ProcessHeap();
     WriteHeap();
+    LOG(RTLOG_ERROR, "ProcessHeap and WriteHeap done");
 
     // step3 - close file
     int ret = fclose(fp);
@@ -106,6 +180,7 @@ void CjHeapData::DumpHeap()
             LOG(RTLOG_ERROR, "Fail to rename file when dump heap data finished, %s", strerror(errno));
         }
     }
+    LOG(RTLOG_ERROR, "Finish dump heap");
 }
 
 bool CjHeapData::DumpHeap(int fd)
@@ -231,6 +306,7 @@ void CjHeapData::ProcessRootLocal()
 {
     MutatorManager::Instance().VisitAllMutators([this](Mutator &mutator) {
         // skip finalizer
+        LOG(RTLOG_ERROR, "IsVaildCJThread = %d", mutator.IsVaildCJThread());
         if (!mutator.IsVaildCJThread()) {
             return;
         }

@@ -8,6 +8,8 @@
 #include "MutatorManager.h"
 
 #include <thread>
+#include <dirent.h>
+#include <cstring>
 #include "Base/TimeUtils.h"
 #include "Common/Runtime.h"
 #include "Concurrency/ConcurrencyModel.h"
@@ -272,6 +274,8 @@ void MutatorManager::StopTheWorld(bool syncGCPhase, GCPhase phase)
 #endif
 
     size_t mutatorCount = GetMutatorCount();
+    LOG(RTLOG_ERROR, "StopTheWorld: mutatorCount = %zu", mutatorCount);
+
     if (UNLIKELY(mutatorCount == 0)) {
         worldStopped.store(true, std::memory_order_release);
         if (syncGCPhase) { TransitionAllMutatorsToGCPhase(phase); }

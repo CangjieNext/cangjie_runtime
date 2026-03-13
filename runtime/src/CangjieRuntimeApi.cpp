@@ -840,3 +840,29 @@ void CJ_MRT_DumpHeapSnapshot(int fd)
 void CJ_MRT_ForceFullGC() { MapleRuntime::HeapManager::RequestGC(MapleRuntime::GC_REASON_USER, false); }
 
 CANGJIE_RT_API_DECLS_END
+
+/*
+ * @brief Register request file descriptor handler for heap dump.
+ * @param  func  [IN]  The function to be registered for requesting file descriptor.
+ * @retval.
+ */
+void RegisterRequestFileDescriptor(int (*func)())
+{
+    MapleRuntime::ExceptionManager& exceptionManager = MapleRuntime::Runtime::Current().GetExceptionManager();
+    LOG(RTLOG_ERROR, "Before RegisterRequestFileDescriptor");
+    exceptionManager.RegisterRequestFileDescriptor(func);
+    LOG(RTLOG_ERROR, "After RegisterRequestFileDescriptor");
+}
+
+/*
+ * @brief Register CJ heap report handler for heap dump.
+ * @param  func  [IN]  The function to be registered for CJ heap report.
+ * @retval.
+ */
+void RegisterCJHeapReport(void (*func)())
+{
+    MapleRuntime::ExceptionManager& exceptionManager = MapleRuntime::Runtime::Current().GetExceptionManager();
+    LOG(RTLOG_ERROR, "Before RegisterCJHeapReport");
+    exceptionManager.RegisterCJHeapReport(func);
+    LOG(RTLOG_ERROR, "After RegisterCJHeapReport");
+}

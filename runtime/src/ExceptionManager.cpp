@@ -17,6 +17,8 @@
 #include "Heap/Collector/GcRequest.h"
 namespace MapleRuntime {
 std::mutex ExceptionManager::gUncaughtExceptionHandlerMtx;
+std::mutex ExceptionManager::gRequestFileDescriptorMtx;
+std::mutex ExceptionManager::gCJHeapReportMtx;
 void ExceptionManager::OutOfMemory()
 {
     ExceptionWrapper& eWrapper = Mutator::GetMutator()->GetExceptionWrapper();
@@ -39,6 +41,9 @@ void ExceptionManager::OutOfMemory()
                     std::this_thread::sleep_for(std::chrono::seconds(2)); // 2: waiting dumping heap work for 2 seconds.
                 }
 #endif
+                LOG(RTLOG_ERROR, "Before sleep 3");
+                std::this_thread::sleep_for(std::chrono::seconds(5));
+                LOG(RTLOG_ERROR, "After sleep 3");
             }
         }
         ThrowImplicitException(OOM);
@@ -100,6 +105,38 @@ void ExceptionManager::RegisterUncaughtExceptionHandler(const CJUncaughtExceptio
     uncaughtExceptionHandler = handler;
 }
 #endif
+
+// Implementation of RegisterRequestFileDescriptor
+void ExceptionManager::RegisterRequestFileDescriptor(RequestFileDescriptorFunc func)
+{
+    std::lock_guard<std::mutex> lock(gRequestFileDescriptorMtx);
+    LOG(RTLOG_ERROR, "Before assign requestFileDescriptorFunc");
+    requestFileDescriptorFunc = func;
+    LOG(RTLOG_ERROR, "After assign requestFileDescriptorFunc");
+}
+
+// Implementation of GetRequestFileDescriptor
+RequestFileDescriptorFunc ExceptionManager::GetRequestFileDescriptor() const
+{
+    std::lock_guard<std::mutex> lock(gRequestFileDescriptorMtx);
+    return requestFileDescriptorFunc;
+}
+
+// Implementation of RegisterCJHeapReport
+void ExceptionManager::RegisterCJHeapReport(CJHeapReportFunc func)
+{
+    std::lock_guard<std::mutex> lock(gCJHeapReportMtx);
+    LOG(RTLOG_ERROR, "Before assign cjHeapReportFunc");
+    cjHeapReportFunc = func;
+    LOG(RTLOG_ERROR, "After assign cjHeapReportFunc");
+}
+
+// Implementation of GetCJHeapReport
+CJHeapReportFunc ExceptionManager::GetCJHeapReport() const
+{
+    std::lock_guard<std::mutex> lock(gCJHeapReportMtx);
+    return cjHeapReportFunc;
+}
 
 void ExceptionManager::DumpException()
 {

@@ -9,6 +9,8 @@
 #define MRT_EXCEPTION_MANAGER_H
 
 #include <vector>
+#include <functional>
+#include <mutex>
 
 #include "Cangjie.h"
 #include "Base/CString.h"
@@ -17,6 +19,11 @@
 
 namespace MapleRuntime {
 using ExceptionRaiser = void (*)(int, void*);
+// Define the function type for file descriptor request
+using RequestFileDescriptorFunc = int (*)();
+// Define the function type for CJ heap report
+using CJHeapReportFunc = void (*)();
+
 class ExceptionManager {
 public:
     ExceptionManager() {}
@@ -74,6 +81,14 @@ public:
         return uncaughtExceptionHandler;
     }
 
+    // Register and get file descriptor request function
+    void RegisterRequestFileDescriptor(RequestFileDescriptorFunc func);
+    RequestFileDescriptorFunc GetRequestFileDescriptor() const;
+
+    // Register and get CJ heap report function
+    void RegisterCJHeapReport(CJHeapReportFunc func);
+    CJHeapReportFunc GetCJHeapReport() const;
+
 private:
 #if defined(_WIN64)
     static constexpr uint32_t COMPENSATE_SIZE = 16;
@@ -83,6 +98,14 @@ private:
     ExceptionRaiser exceptionRaiser = nullptr;
     static std::mutex gUncaughtExceptionHandlerMtx;
     CJUncaughtExceptionInfo uncaughtExceptionHandler;
+
+    // File descriptor request function and mutex
+    static std::mutex gRequestFileDescriptorMtx;
+    RequestFileDescriptorFunc requestFileDescriptorFunc;
+
+    // CJ heap report function and mutex
+    static std::mutex gCJHeapReportMtx;
+    CJHeapReportFunc cjHeapReportFunc;
 };
 } // namespace MapleRuntime
 

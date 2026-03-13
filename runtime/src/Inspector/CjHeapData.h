@@ -103,6 +103,7 @@ public:
     std::map<CString, CjHeapDataStringId> strings;
 
     void DumpHeap();
+    void DumpHeapImpl();
     bool DumpHeap(int fd);
     void WriteHeap();
     void ProcessHeap();

@@ -752,6 +752,24 @@ MRT_EXPORT void RegisterUncaughtExceptionHandler(const CJUncaughtExceptionInfo& 
 #endif
 
 /*
+ * @brief Register request file descriptor handler for heap dump.
+ * @param  func  [IN]  The function to be registered for requesting file descriptor.
+ * @retval.
+ */
+#ifdef __cplusplus
+MRT_EXPORT void RegisterRequestFileDescriptor(int (*func)());
+#endif
+
+/*
+ * @brief Register CJ heap report handler for heap dump.
+ * @param  func  [IN]  The function to be registered for CJ heap report.
+ * @retval.
+ */
+#ifdef __cplusplus
+MRT_EXPORT void RegisterCJHeapReport(void (*func)());
+#endif
+
+/*
  * @brief Parse a mangel symbol into a demangle symbol.
  * @param  functionName  [IN]  mangle symbol.
  * @retval Return demangled name.
@@ -772,5 +790,6 @@ MRT_EXPORT void CJ_MRT_DumpHeapSnapshot(int fd);
 MRT_EXPORT void CJ_MRT_ForceFullGC();
 
 CANGJIE_RT_API_DECLS_END
+
 
 #endif // CANGJIE_H
