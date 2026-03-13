@@ -676,7 +676,7 @@ public func intoBenchmark(
 
 - [Benchmark](#class-benchmark) - 性能测试用例对象。
 
-## func intoBenchmark(String, Configuration, Measurement, (T, Int64, Int64, Int64, Measurement) -> Float64)
+### func intoBenchmark(String, Configuration, Measurement, (T, Int64, Int64, Int64, Measurement) -> Float64)
 
 ```cangjie
 public func intoBenchmark(
