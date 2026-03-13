@@ -299,7 +299,7 @@ Summary: TOTAL: 4
 public interface DataStrategy<T> {
     func provider(configuration: Configuration): DataProvider<T>
     func shrinker(configuration: Configuration): DataShrinker<T>
-    prop isInfinite: Bool
+    prop isInfinite
 }
 ```
 
