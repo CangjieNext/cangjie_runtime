@@ -1476,7 +1476,7 @@ void ScheduleAllThreadListAdd(struct Thread *thread, struct Schedule *schedule)
     pthread_mutex_unlock(&(schedule->schdThread.allthreadMutex));
 }
 
-int ScheduleAllCJThreadListAdd(struct CJThread *cjthread)
+int ScheduleAllCJThreadListAdd(struct CJThread *cjthread, CJThreadCreateSource createSource)
 {
     ScheduleState scheduleState = cjthread->schedule->state.load();
     if (scheduleState != SCHEDULE_RUNNING &&
@@ -1489,6 +1489,9 @@ int ScheduleAllCJThreadListAdd(struct CJThread *cjthread)
     }
     cjthread->mutator = MapleRuntime::Mutator::NewMutator();
     cjthread->mutator->MapleRuntime::Mutator::SetCjthreadPtr(static_cast<void*>(cjthread));
+    if (UNLIKELY(createSource == CJTHREAD_CREATE_SOURCE_SIGNAL)) {
+        return 0;
+    }
     pthread_mutex_lock(&g_scheduleManager.allCJThreadListLock);
     DulinkAdd(&(cjthread->allCJThreadDulink), &(g_scheduleManager.allCJThreadList));
     pthread_mutex_unlock(&g_scheduleManager.allCJThreadListLock);
