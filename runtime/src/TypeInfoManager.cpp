@@ -579,21 +579,14 @@ bool TypeInfoManager::IsEnumInfoReady(TypeTemplate* tt, TypeInfo* ti)
     return false;
 }
 
-void TypeInfoManager::HandleEnumCtorReflectInfo(TypeTemplate* tt, TypeInfo* ti)
-{
-    EnumCtorReflectInfo* ttEnumCtorInfo = tt->GetEnumCtorReflectInfo();
-    EnumCtorReflectInfo* enumCtorInfo =
-        reinterpret_cast<EnumCtorReflectInfo*>(Allocate(sizeof(EnumCtorReflectInfo)));
-    MapleRuntime::MemoryCopy(reinterpret_cast<Uptr>(enumCtorInfo), sizeof(EnumCtorReflectInfo),
-        reinterpret_cast<uintptr_t>(ttEnumCtorInfo), sizeof(EnumCtorReflectInfo));
-    ti->SetEnumCtorReflectInfo(enumCtorInfo);
-}
-
 EnumInfo* TypeInfoManager::AllocateEnumInfo(EnumInfo* ttEnumInfo)
 {
     size_t enumInfoSize = sizeof(EnumInfo);
     enumInfoSize += ttEnumInfo->GetNumOfInstanceMethodInfos() * sizeof(DataRefOffset64<MethodInfo>);
     enumInfoSize += ttEnumInfo->GetNumOfStaticMethodInfos() * sizeof(DataRefOffset64<MethodInfo>);
+    if (ttEnumInfo->GetReflectVersion() == 2) {
+        enumInfoSize += ttEnumInfo->GetNumOfEnumCtor() * sizeof(Uptr);
+    }
     uintptr_t enumInfoAddr = Allocate(enumInfoSize);
     MapleRuntime::MemoryCopy(enumInfoAddr, enumInfoSize,
         reinterpret_cast<uintptr_t>(ttEnumInfo), enumInfoSize);
@@ -657,10 +650,6 @@ void TypeInfoManager::ParseEnumInfo(TypeTemplate* tt, U32 argSize, TypeInfo* arg
 #endif
     EnumInfo* ttEnumInfo = tt->GetEnumInfo();
     if (ttEnumInfo == nullptr || IsEnumInfoReady(tt, ti)) {
-        return;
-    }
-    if (tt->IsEnumCtor() && ti->GetReflectInfo() == nullptr) {
-        HandleEnumCtorReflectInfo(tt, ti);
         return;
     }
     if (!tt->ReflectIsEnable()) {
