@@ -455,8 +455,10 @@ public:
     EnumCtorInfo* GetEnumCtor(U32 idx) const;
     TypeInfo* GetCtorTypeInfo(U32 idx) const;
     void* GetAnnotations(TypeInfo* arrayTi);
+    void* GetCtorAnnotations(U32 idx, TypeInfo* arrayTi);
     MethodInfo* GetInstanceMethodInfo(U32 index) const;
     MethodInfo* GetStaticMethodInfo(U32 index);
+    Uptr GetCtorAnnotationMethod(U32 index) const;
     void SetInstanceMethodInfo(U32 idx, MethodInfo* methodInfo);
     void SetStaticMethodInfo(U32 idx, MethodInfo* methodInfo);
 
@@ -479,16 +481,6 @@ private:
     Uptr annotationMethod;
     void* genericTypeInfo;
     Uptr base[0];
-};
-
-class EnumCtorReflectInfo {
-public:
-    void* GetAnnotations(TypeInfo* arrayTi);
-    bool IsEnumCtor() const { return (modifier & MODIFIER_ENUM_CTOR) != 0; }
-    U32 GetModifier() const { return modifier; }
-private:
-    Uptr annotationMethod;
-    U32 modifier;
 };
 
 class TypeTemplate {
@@ -525,7 +517,6 @@ public:
     inline void SetUUID(U16 id);
     inline EnumInfo* GetEnumInfo();
     inline EnumDebugInfo* GetEnumDebugInfo();
-    inline EnumCtorReflectInfo* GetEnumCtorReflectInfo();
     inline bool ReflectInfoIsNull() const;
     bool ReflectIsEnable() const;
     bool IsEnumCtor() const;
@@ -555,12 +546,10 @@ private:
     // - For non-enum types: uses reflectInfo
     // - For enum types with reflection enabled: uses enumInfo
     // - For enum types with reflection disabled: uses enumDebugInfo
-    // - For enum constructors: uses enumCtorReflectInfo
     union {
         ReflectInfo* reflectInfo;
         EnumInfo* enumInfo;
         EnumDebugInfo* enumDebugInfo;
-        EnumCtorReflectInfo* enumCtorReflectInfo;
     };
     ExtensionData **vExtensionDataStart;
     U16 validInheritNum;
@@ -645,7 +634,6 @@ public:
     bool IsEnumKind1();
     bool ReflectIsEnable() const;
     bool ReflectInfoIsNull() const;
-    inline EnumCtorReflectInfo* GetEnumCtorReflectInfo() const;
     ReflectInfo* GetReflectInfo() const;
     U8 GetReflectionVersion() const;
 
@@ -696,7 +684,6 @@ public:
     void SetvExtensionDataStart(ExtensionData **ptr) { this->vExtensionDataStart = ptr; }
     void SetEnumInfo(EnumInfo* ei) { this->enumInfo = ei; }
     void SetEnumDebugInfo(EnumDebugInfo* enumDebugInfo);
-    void SetEnumCtorReflectInfo(EnumCtorReflectInfo* enumCtorInfo) { this->enumCtorReflectInfo = enumCtorInfo; }
     MTableDesc* GetMTableDesc() const { return mTableDesc; }
     void AddMTable(TypeInfo* ti, ExtensionData* extensionData);
     FuncPtr* GetMTable(TypeInfo* itf);
@@ -774,12 +761,10 @@ private:
     // - For non-enum types: uses reflectInfo
     // - For enum types with reflection enabled: uses enumInfo
     // - For enum types with reflection disabled: uses enumDebugInfo
-    // - For enum constructors: uses enumCtorReflectInfo
     union {
         ReflectInfo* reflectInfo;
         EnumInfo* enumInfo;
         EnumDebugInfo* enumDebugInfo;
-        EnumCtorReflectInfo* enumCtorReflectInfo;
     };
 };
 
