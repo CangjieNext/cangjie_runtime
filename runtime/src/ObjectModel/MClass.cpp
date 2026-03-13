@@ -861,7 +861,13 @@ bool TypeTemplate::IsEnumCtor() const
     if (!IsEnum() && !IsTempEnum()) {
         return false;
     }
-    return enumInfo != nullptr ? (enumInfo->GetModifier() & MODIFIER_ENUM_CTOR) : false;
+    // When enumInfo is empty, it indicates an enum constructor.
+    // However, earlier versions existed where enumInfo of constructors was not empty.
+    // To ensure compatibility, further judgment is required based on the modifiers in enumInfo.
+    if (enumInfo == nullptr) {
+        return true;
+    }
+    return enumInfo->IsEnumCtor();
 }
 
 void* ReflectInfo::GetAnnotations(TypeInfo* arrayTi)
@@ -886,7 +892,13 @@ bool TypeInfo::IsEnumCtor() const
     if (!IsEnum() && !IsTempEnum()) {
         return false;
     }
-    return enumInfo != nullptr ? (enumInfo->GetModifier() & MODIFIER_ENUM_CTOR) : false;
+    // When enumInfo is empty, it indicates an enum constructor.
+    // However, earlier versions existed where enumInfo of constructors was not empty.
+    // To ensure compatibility, further judgment is required based on the modifiers in enumInfo.
+    if (enumInfo == nullptr) {
+        return true;
+    }
+    return enumInfo->IsEnumCtor();
 }
 
 bool TypeInfo::IsOptionLikeRefEnum()
@@ -1070,10 +1082,20 @@ void* TypeInfo::GetAnnotations(TypeInfo* arrayTi)
         return MapleRuntime::GetAnnotations(0, arrayTi);
     }
     if (IsEnum() || IsTempEnum()) {
-        if (IsEnumCtor()) {
-            return GetEnumCtorReflectInfo()->GetAnnotations(arrayTi);
+        if (!IsEnumCtor()) {
+            return GetEnumInfo()->GetAnnotations(arrayTi);
         }
-        return GetEnumInfo()->GetAnnotations(arrayTi);
+        EnumInfo* ei = GetSuperTypeInfo()->GetEnumInfo();
+        if (ei->GetReflectVersion() < 2) {
+            // Earlier versions does not support getting enum constructor's annotations.
+            return MapleRuntime::GetAnnotations(0, arrayTi);
+        }
+        U32 num = ei->GetNumOfEnumCtor();
+        for (U32 idx = 0; idx < num; idx++) {
+            if (ei->GetCtorTypeInfo(idx)->GetUUID() == GetUUID()) {
+                return ei->GetCtorAnnotations(idx, arrayTi);
+            }
+        }
     }
     return GetReflectInfo()->GetAnnotations(arrayTi);
 }
@@ -1149,6 +1171,11 @@ void* EnumInfo::GetAnnotations(TypeInfo* arrayTi)
     return MapleRuntime::GetAnnotations(annotationMethod, arrayTi);
 }
 
+void* EnumInfo::GetCtorAnnotations(U32 idx, TypeInfo* arrayTi)
+{
+    return MapleRuntime::GetAnnotations(GetCtorAnnotationMethod(idx), arrayTi);
+}
+
 MethodInfo* EnumInfo::GetInstanceMethodInfo(U32 index) const
 {
     Uptr baseAddr = GetBaseAddr();
@@ -1161,6 +1188,15 @@ MethodInfo* EnumInfo::GetStaticMethodInfo(U32 index)
     baseAddr += instanceMethodCnt * sizeof(DataRefOffset64<MethodInfo>);
     baseAddr += index * sizeof(DataRefOffset64<MethodInfo>);
     return reinterpret_cast<DataRefOffset64<MethodInfo>*>(baseAddr)->GetDataRef();
+}
+
+Uptr EnumInfo::GetCtorAnnotationMethod(U32 index) const
+{
+    Uptr baseAddr = GetBaseAddr();
+    baseAddr += instanceMethodCnt * sizeof(DataRefOffset64<MethodInfo>);
+    baseAddr += staticMethodCnt * sizeof(DataRefOffset64<MethodInfo>);
+    baseAddr += index * sizeof(Uptr);
+    return *reinterpret_cast<Uptr*>(baseAddr);
 }
 
 void EnumInfo::SetInstanceMethodInfo(U32 idx, MethodInfo* methodInfo)
@@ -1179,13 +1215,9 @@ void EnumInfo::SetStaticMethodInfo(U32 idx, MethodInfo* methodInfo)
     I64* addr = reinterpret_cast<I64*>(baseAddr);
     *addr = reinterpret_cast<Uptr>(methodInfo) - reinterpret_cast<Uptr>(addr);
 }
+
 void EnumCtorInfo::SetName(const char* pName)
 {
     name.refOffset = reinterpret_cast<Uptr>(pName) - reinterpret_cast<Uptr>(this);
-}
-
-void* EnumCtorReflectInfo::GetAnnotations(TypeInfo* arrayTi)
-{
-    return MapleRuntime::GetAnnotations(annotationMethod, arrayTi);
 }
 } // namespace MapleRuntime
