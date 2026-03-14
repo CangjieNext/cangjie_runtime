@@ -710,8 +710,13 @@ if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MAT
                 COMPONENT cangjie-runtime)
     endif()
     if(CMAKE_BUILD_TYPE MATCHES "Release" OR CMAKE_BUILD_TYPE MATCHES "MinSizeRel")
-        install(CODE "execute_process(COMMAND ${STRIP_PROGRAM} --strip-unneeded ${CMAKE_INSTALL_PREFIX}/lib${SANITIZER_SUBPATH}/libcangjie-runtime.a)"
-            COMPONENT cangjie-runtime)
+        if(APPLE)
+            install(CODE "execute_process(COMMAND ${STRIP_PROGRAM} -x ${CMAKE_INSTALL_PREFIX}/lib${SANITIZER_SUBPATH}/libcangjie-runtime.a)"
+                COMPONENT cangjie-runtime)
+        else()
+            install(CODE "execute_process(COMMAND ${STRIP_PROGRAM} --strip-unneeded ${CMAKE_INSTALL_PREFIX}/lib${SANITIZER_SUBPATH}/libcangjie-runtime.a)"
+                COMPONENT cangjie-runtime)
+        endif()
     endif()
 endif()
 

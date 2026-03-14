@@ -175,7 +175,7 @@ _unwindPCForC2RStubStart:
     .align 2
     .global _CJ_MCC_NewObject
 _CJ_MCC_NewObject:
-    CalleeSavedRegistersStubNew MCC_NewObject
+    CalleeSavedRegistersStub MCC_NewObject
 
     .text
     .align 2
@@ -187,7 +187,7 @@ _CJ_MCC_NewWeakRefObject:
     .align 2
     .global _CJ_MCC_NewFinalizer
 _CJ_MCC_NewFinalizer:
-    CalleeSavedRegistersStubNew MCC_NewFinalizer
+    CalleeSavedRegistersStub MCC_NewFinalizer
 
     .text
     .align 2

@@ -476,12 +476,15 @@ SDK 路径：
 ```bash
 cp /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/output/temp/lib/aarch64_Release/libcangjie-runtime.dylib \
    /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
+# macOS arm64: cp 后必须重签名，否则 SIGKILL
+codesign -f -s - /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
 ```
 
 回退到原始版本：
 ```bash
 cp /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib.origin \
    /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
+codesign -f -s - /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
 ```
 
 ### 3. 编译并运行测试用例
@@ -518,6 +521,7 @@ cd /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime && \
 python3 build.py build && \
 cp output/temp/lib/aarch64_Release/libcangjie-runtime.dylib \
    /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib && \
+codesign -f -s - /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib && \
 source /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/envsetup.sh && \
 cd gc && cjc gc.cj && ./main
 ```

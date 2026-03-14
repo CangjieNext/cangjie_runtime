@@ -92,8 +92,13 @@ install(CODE "execute_process(COMMAND ${OBJCOPY_PROGRAM} -D --rename-section .te
             ${CMAKE_INSTALL_PREFIX}/lib/${TARGET_ARCH}${SANITIZER_SUBPATH}/libcangjie-thread.a)"
         COMPONENT cangjie-thread)
 if(CMAKE_BUILD_TYPE MATCHES "Release" OR CMAKE_BUILD_TYPE MATCHES "MinSizeRel")
-    install(CODE "execute_process(COMMAND ${STRIP_PROGRAM} --strip-unneeded ${CMAKE_INSTALL_PREFIX}/lib/libcangjie-thread.a)"
-        COMPONENT cangjie-thread)
+    if(APPLE)
+        install(CODE "execute_process(COMMAND ${STRIP_PROGRAM} -x ${CMAKE_INSTALL_PREFIX}/lib/libcangjie-thread.a)"
+            COMPONENT cangjie-thread)
+    else()
+        install(CODE "execute_process(COMMAND ${STRIP_PROGRAM} --strip-unneeded ${CMAKE_INSTALL_PREFIX}/lib/libcangjie-thread.a)"
+            COMPONENT cangjie-thread)
+    endif()
 endif()
 endif()
 
