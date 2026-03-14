@@ -136,9 +136,6 @@ void TypeInfo::TryInitMTable()
 MTableDesc::MTableDesc(BIT_TYPE bitmap_)
 {
     mTableBitmap.tag = bitmap_;
-    LoaderManager::GetInstance()->GetLoader()->VisitExtensionData(
-        [this](BaseFile* baseFile) { waitedExtensionDatas.emplace_back(baseFile); }
-    );
 }
 
 void TypeInfo::TryInitMTableNoLock()
@@ -277,7 +274,6 @@ void TypeInfo::TryUpdateExtensionData(TypeInfo* itf, ExtensionData* extensionDat
                 break;
             }
         }
-        mTable.find(itfUUID)->second.ResetAtomicInfoArray(itfFtSize);
         extensionData->SetFuncTableUpdated();
     } while (true);
 }
@@ -291,7 +287,7 @@ void TypeInfo::AddMTable(TypeInfo* itf, ExtensionData* extensionData)
     auto& mTable = GetMTableDesc()->mTable;
     auto it = mTable.find(itfUUID);
     if (it == mTable.end()) {
-        mTable.emplace(itfUUID, InheritFuncTable(extensionData, itf, 0U)); // create func table with empty cache
+        mTable.emplace(itfUUID, InheritFuncTable(extensionData, itf)); // create func table with empty cache
     }
 }
 
@@ -499,7 +495,7 @@ ExtensionData* TypeInfo::FindExtensionDataRecursively(TypeInfo* itf)
         auto found = super->FindExtensionData(itf, true);
         if (found) {
             // This won't cause the issue of iterator invalidation since the function will exit immediately.
-            mTableDesc->mTable.emplace(itf->GetUUID(), InheritFuncTable(found, itf, 0U)); // create func table with empty cache
+            mTableDesc->mTable.emplace(itf->GetUUID(), InheritFuncTable(found, itf)); // create func table with empty cache
             return found;
         }
     }
@@ -591,21 +587,10 @@ TypeInfo* TypeInfo::GetMethodOuterTI(TypeInfo* itf, U64 index)
 		LOG(RTLOG_FATAL, "expected interface %s is not in class %s", itf->GetName(), GetName());
 		return nullptr;
 	}
-	if (LIKELY(it->second.IsCachedTypeInfoInited())) {
-		auto* outerTi = it->second.GetCachedTypeInfo(index);
-		if (LIKELY(outerTi != nullptr)) {
-			return outerTi;
-		}
-	}
 	auto* ed = it->second.GetExtensionData();
 	CHECK(ed != nullptr);
-	if (UNLIKELY(!it->second.IsCachedTypeInfoInited())) {
-		// Initialize the cache for the first time.
-		it->second.ResetAtomicInfoArray(ed->GetFuncTableSize());
-	}
 	auto* outerTi = ed->GetOuterTi(this, index);
 	if (LIKELY(outerTi != nullptr)) {
-		it->second.SetCachedTypeInfo(index, outerTi);
 		return outerTi;
 	}
 	// Cache miss and GetOuterTi returned null: resolve by walking supers.
@@ -630,14 +615,12 @@ TypeInfo* TypeInfo::GetMethodOuterTI(TypeInfo* itf, U64 index)
 		}
 		if (funcPtrInSuper == funcPtr) {
 			TypeInfo* res = superTi->GetMethodOuterTI(itf, index);
-			it->second.SetCachedTypeInfo(index, res);
 			return res;
 		}
 		if (thisEdSuper->IsDirect()) {
 			break;
 		}
 	}
-	it->second.SetCachedTypeInfo(index, this);
 	return this;
 }
 
