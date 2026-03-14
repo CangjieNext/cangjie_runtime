@@ -28,6 +28,7 @@ void CJFileLoader::RegisterLoadFile(Uptr fileMetaAddr)
 #ifndef __arm__
     AddPackageInfos(file);
 #endif
+    RegisterTypeExt(file);
     RegisterTypeInfoCreatedByFE(file);
     RegisterOuterTypeExtensions(file);
 }
@@ -134,16 +135,52 @@ void CJFileLoader::GetSubPackages(PackageInfo* packageInfo, std::vector<PackageI
     }
 }
 
-void CJFileLoader::VisitExtenionData(const std::function<bool(ExtensionData* ed)>& f, TypeTemplate* tt) const
+// Traverse outer extension data grouped by BaseFile
+void CJFileLoader::VisitExtensionData(
+    TypeInfo* ti, const std::function<bool(ExtensionData* ed)>& f, TypeTemplate* tt) const
 {
-    if (extensionDatas.find(tt) == extensionDatas.end()) {
+    ti->TryInitMTable();
+    auto mtDesc = ti->GetMTableDesc();
+    std::lock_guard<std::recursive_mutex> lock(mtDesc->mTableMutex);
+    if (mtDesc->waitedExtensionDatas.empty()) {
         return;
     }
-    auto range = extensionDatas.equal_range(tt);
-    for (auto it = range.first; it != range.second; ++it) {
-        if (f(it->second)) {
-            return;
+    size_t cnt = 0;
+    for (auto baseFile : mtDesc->waitedExtensionDatas) {
+        ++cnt;
+        auto it1 = extensionDatas.find(baseFile);
+        if (it1 == extensionDatas.end()) {
+            continue;
         }
+        auto& extensions = it1->second;
+        auto range = extensions.equal_range(tt);
+        if (range.first == range.second) {
+            continue;
+        }
+        bool found = false;
+        for (auto it2 = range.first; it2 != range.second; ++it2) {
+            auto res = f(it2->second);
+            found |= res;
+        }
+        if (found) {
+            break;
+        }
+    }
+    if (!lastIsFinished && cnt == mtDesc->waitedExtensionDatas.size()) {
+        auto last = mtDesc->waitedExtensionDatas.back();
+        mtDesc->waitedExtensionDatas.clear();
+        mtDesc->waitedExtensionDatas.emplace_back(last);
+    } else {
+        auto beginIt = mtDesc->waitedExtensionDatas.begin();
+        mtDesc->waitedExtensionDatas.erase(beginIt, beginIt + cnt);
+    }
+}
+
+void CJFileLoader::VisitExtensionData(const std::function<void(BaseFile*)>& f) const
+{
+    CHECK(loadedFiles.size() >= extensionDatas.size());
+    for (auto baseFile : loadedFiles) {
+        f(baseFile);
     }
 }
 
@@ -152,8 +189,9 @@ void CJFileLoader::ParseEnumCtor(TypeInfo* ti)
 #ifdef __arm__
     return;
 #endif
+    TypeInfoManager& typeInfoMgr = TypeInfoManager::GetTypeInfoManager();
     if (ti->IsGenericTypeInfo()) {
-        return TypeInfoManager::GetTypeInfoManager().ParseEnumInfo(
+        return typeInfoMgr.ParseEnumInfo(
             ti->GetSourceGeneric(), ti->GetTypeArgNum(), ti->GetTypeArgs(), ti);
     }
     EnumInfo* ei = ti->GetEnumInfo();
@@ -174,8 +212,22 @@ void CJFileLoader::ParseEnumCtor(TypeInfo* ti)
     ei->SetParsed();
 }
 
+void CJFileLoader::RegisterTypeExt(BaseFile* baseFile)
+{
+    Uptr typeExtBase = baseFile->GetTypeExtBase();
+    Uptr typeExtEnd = typeExtBase + baseFile->GetTypeExtTotalSize();
+    while (typeExtBase < typeExtEnd) {
+        TypeExt* typeExt = reinterpret_cast<TypeExt*>(typeExtBase);
+        constexpr uint32_t typeExtAlign = 16u;
+        uint32_t sizeAlign = MRT_ALIGN(typeExt->size, typeExtAlign);
+        typeExtBase += sizeAlign;
+        typeExts.emplace(reinterpret_cast<void*>(typeExt->ti), typeExt);
+    }
+}
+
 void CJFileLoader::RegisterTypeInfoCreatedByFE(BaseFile* baseFile)
 {
+    TypeInfoManager& typeInfoMgr = TypeInfoManager::GetTypeInfoManager();
     Uptr typeInfoBase = baseFile->GetTypeInfoBase();
     Uptr typeInfoEnd = typeInfoBase + baseFile->GetTypeInfoTotalSize();
     while (typeInfoBase < typeInfoEnd) {
@@ -183,12 +235,16 @@ void CJFileLoader::RegisterTypeInfoCreatedByFE(BaseFile* baseFile)
         constexpr uint32_t typeInfoAlign = 16u;
         constexpr uint32_t sizeAlign = MRT_ALIGN(sizeof(TypeInfo), typeInfoAlign);
         typeInfoBase += sizeAlign;
-        TypeInfoManager::GetTypeInfoManager().AddTypeInfo(ti);
+        auto tt = ti->GetSourceGeneric();
+        if (tt != nullptr) {
+            ti->SetvExtensionDataStart(tt->GetvExtensionDataStart());
+        }
+        typeInfoMgr.AddTypeInfo(ti);
         if (ti->IsEnum() || ti->IsTempEnum()) {
             ParseEnumCtor(ti);
         }
     }
-    TypeInfoManager::GetTypeInfoManager().InitAnyAndObjectType();
+    typeInfoMgr.InitAnyAndObjectType();
 
     Uptr staticGIBase = baseFile->GetStaticGIBase();
     Uptr staticGIEnd = staticGIBase + baseFile->GetStaticGISize();
@@ -205,13 +261,18 @@ void CJFileLoader::RegisterTypeInfoCreatedByFE(BaseFile* baseFile)
         if (ti->IsEnum() || ti->IsTempEnum()) {
             continue;
         } else if (ti->IsGenericTypeInfo() && ti->ReflectInfoIsNull() && !ti->GetSourceGeneric()->ReflectInfoIsNull()) {
-            TypeInfoManager::GetTypeInfoManager().FillReflectInfo(ti->GetSourceGeneric(), ti);
+            typeInfoMgr.FillReflectInfo(ti->GetSourceGeneric(), ti);
         }
     }
 }
 
 void CJFileLoader::RegisterOuterTypeExtensions(BaseFile* baseFile)
 {
+    lastIsFinished = false;
+    TypeInfoManager& typeInfoMgr = TypeInfoManager::GetTypeInfoManager();
+    for (const auto& mtDesc : typeInfoMgr.mTableList) {
+        mtDesc.second->waitedExtensionDatas.emplace_back(baseFile);
+    }
     Uptr extensionDataRefBase = baseFile->GetOuterTypeExtensionsBase();
     Uptr extensionDataRefEnd = extensionDataRefBase + baseFile->GetOuterTypeExtensionsSize();
     while (extensionDataRefBase < extensionDataRefEnd) {
@@ -227,29 +288,16 @@ void CJFileLoader::RegisterOuterTypeExtensions(BaseFile* baseFile)
         // need to be collected in `extensionDatas`.
         if (extensionData->TargetIsTypeInfo()) {
             TypeInfo* itf = extensionData->GetInterfaceTypeInfo();
-            TypeInfoManager::GetTypeInfoManager().AddTypeInfo(itf);
+            typeInfoMgr.AddTypeInfo(itf);
             TypeInfo* ti = reinterpret_cast<TypeInfo*>(extensionData->GetTargetType());
-            TypeInfoManager::GetTypeInfoManager().AddTypeInfo(ti);
-            ti->AddMTable(itf, extensionData->GetFuncTable());
+            typeInfoMgr.AddTypeInfo(ti);
+            ti->AddMTable(itf, extensionData);
             continue;
         }
         TypeTemplate* tt = reinterpret_cast<TypeTemplate*>(extensionData->GetTargetType());
-        extensionDatas.insert({ tt, extensionData });
+        extensionDatas[baseFile].emplace(tt, extensionData);
     }
-}
-
-void CJFileLoader::GenerateMTableForStaticGI()
-{
-    ScopedEntryTrace trace("CJRT_GenerateMTableForStaticGI");
-    for (auto ti : staticGIs) {
-        U32 tiUUID = ti->GetUUID();
-        TypeTemplate* tt = ti->GetSourceGeneric();
-        if (tt == nullptr) {
-            continue;
-        }
-        lazyInitStaticGIs.insert(tiUUID);
-        ti->SetvExtensionDataStart(tt->GetvExtensionDataStart());
-    }
+    lastIsFinished = true;
 }
 
 PackageInfo* CJFileLoader::GetPackageInfoByPath(const char* path)
@@ -527,21 +575,6 @@ void CJFileLoader::TryThrowException(Uptr fileMetaAddr)
 #endif
 }
 
-bool CJFileLoader::IsLazyStaticGI(U32 uuid)
-{
-    if (lazyInitStaticGIs.empty()) {
-        return false;
-    }
-    std::lock_guard<std::mutex> lock(lazyStaticGIMutex);
-    return lazyInitStaticGIs.count(uuid);
-}
-
-void CJFileLoader::EraseLazyStaticGI(U32 uuid)
-{
-    std::lock_guard<std::mutex> lock(lazyStaticGIMutex);
-    lazyInitStaticGIs.erase(uuid);
-}
-
 U32 CJFileLoader::GetNumOfInterface(TypeInfo* ti)
 {
     std::vector<TypeInfo*> itfs;
@@ -557,5 +590,11 @@ TypeInfo* CJFileLoader::GetInterface(TypeInfo* ti, U32 idx)
         return nullptr;
     }
     return itfs[idx];
+}
+
+TypeExt* CJFileLoader::GetTypeExt(void* type)
+{
+    auto it = typeExts.find(type);
+    return it == typeExts.end() ? nullptr : it->second;
 }
 } // namespace MapleRuntime
