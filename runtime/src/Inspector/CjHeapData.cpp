@@ -372,31 +372,62 @@ void CjHeapData::WriteAllStructClass()
 void CjHeapData::WriteAllObjects()
 {
     for (auto& objectInfo : dumpObjects) {
-        switch (objectInfo.tag) {
+        u1 tag = objectInfo.tag;
+        switch (tag) {
             case TAG_ROOT_THREAD_OBJECT:
-                WriteThreadObjectRoot(objectInfo.obj, objectInfo.tag, objectInfo.threadId, 0);
+                WriteThreadObjectRoot(objectInfo.obj, tag, objectInfo.threadId, 0);
                 break;
             case TAG_ROOT_LOCAL:
-                WriteLocalRoot(objectInfo.obj, objectInfo.tag, objectInfo.threadId, objectInfo.frameNum);
+                WriteLocalRoot(objectInfo.obj, tag, objectInfo.threadId, objectInfo.frameNum);
                 break;
             case TAG_ROOT_GLOBAL:
-                WriteGlobalRoot(objectInfo.obj, objectInfo.tag);
+                WriteGlobalRoot(objectInfo.obj, tag);
                 break;
             case TAG_ROOT_UNKNOWN:
-                WriteUnknownRoot(objectInfo.obj, objectInfo.tag);
+                WriteUnknownRoot(objectInfo.obj, tag);
                 break;
-            case TAG_OBJECT_ARRAY_DUMP:
-                WriteObjectArray(objectInfo.obj, objectInfo.tag);
+            case TAG_OBJECT_ARRAY_DUMP: {
+                auto regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(objectInfo.obj));
+                if (regionInfo->IsLargeRegion()) {
+                    tag = TAG_LARGE_OBJECT_ARRAY_DUMP;
+                } else if (regionInfo->IsUnmovableFromRegion()) {
+                    tag = TAG_UNMOVABLE_OBJECT_ARRAY_DUMP;
+                }
+                WriteObjectArray(objectInfo.obj, tag);
                 break;
-            case TAG_STRUCT_ARRAY_DUMP:
-                WriteStructArray(objectInfo.obj, objectInfo.tag);
+            }
+            case TAG_STRUCT_ARRAY_DUMP: {
+                auto regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(objectInfo.obj));
+                if (regionInfo->IsLargeRegion()) {
+                    tag = TAG_LARGE_STRUCT_ARRAY_DUMP;
+                } else if (regionInfo->IsUnmovableFromRegion()) {
+                    tag = TAG_UNMOVABLE_STRUCT_ARRAY_DUMP;
+                }
+                WriteStructArray(objectInfo.obj, tag);
                 break;
-            case TAG_PRIMITIVE_ARRAY_DUMP:
-                WritePrimitiveArray(objectInfo.obj, objectInfo.tag);
+            }
+            case TAG_PRIMITIVE_ARRAY_DUMP: {
+                auto regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(objectInfo.obj));
+                if (regionInfo->IsLargeRegion()) {
+                    tag = TAG_LARGE_PRIMITIVE_ARRAY_DUMP;
+                } else if (regionInfo->IsUnmovableFromRegion()) {
+                    tag = TAG_UNMOVABLE_PRIMITIVE_ARRAY_DUMP;
+                }
+                WritePrimitiveArray(objectInfo.obj, tag);
                 break;
-            case TAG_INSTANCE_DUMP:
-                WriteInstance(objectInfo.obj, objectInfo.tag);
+            }
+            case TAG_INSTANCE_DUMP: {
+                auto regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(objectInfo.obj));
+                if (regionInfo->IsPinnedRegion()) {
+                    tag = TAG_PINNED_INSTANCE_DUMP;
+                } else if (regionInfo->IsLargeRegion()) {
+                    tag = TAG_LARGE_INSTANCE_DUMP;
+                } else if (regionInfo->IsUnmovableFromRegion()) {
+                    tag = TAG_UNMOVABLE_INSTANCE_DUMP;
+                }
+                WriteInstance(objectInfo.obj, tag);
                 break;
+            }
             default:
                 break;
         }
@@ -473,6 +504,7 @@ void CjHeapData::WriteThreadObjectRoot(BaseObject*& obj, const u1 tag, const u4 
 void CjHeapData::WriteObjectArray(BaseObject*& obj, const u1 tag)
 {
     AddU1(tag);
+
     CjHeapDataID objId = (reinterpret_cast<CjHeapDataID>(obj));
     AddStringId(objId);
     // take array length and content.
@@ -503,6 +535,7 @@ void CjHeapData::WriteObjectArray(BaseObject*& obj, const u1 tag)
  void CjHeapData::WriteStructArray(BaseObject*& obj, const u1 tag)
 {
     AddU1(tag);
+
     CjHeapDataID objId = (reinterpret_cast<CjHeapDataID>(obj));
     AddStringId(objId);
     u4 num = 0;
@@ -544,7 +577,9 @@ void CjHeapData::WritePrimitiveArray(BaseObject*& obj, const u1 tag)
     if (componentSize == 0) {
         return;
     }
+
     AddU1(tag);
+
     CjHeapDataID objId = (reinterpret_cast<CjHeapDataID>(obj));
     AddStringId(objId);
     MArray* mArray = reinterpret_cast<MArray*>(obj);
@@ -618,6 +653,7 @@ void CjHeapData::WriteClass(TypeInfo* klass, CjHeapDataStringId klassId, const u
 void CjHeapData::WriteInstance(BaseObject*& obj, const u1 tag)
 {
     AddU1(tag);
+
     CjHeapDataID objId = (reinterpret_cast<CjHeapDataID>(obj));
     AddStringId(objId);
     AddStringId(reinterpret_cast<CjHeapDataID>(obj->GetTypeInfo()));
