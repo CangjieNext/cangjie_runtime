@@ -503,12 +503,12 @@ cjc gc.cj
 ./main
 ```
 
-### 4. 完整一键流程
+### 4. 完整一键流程（CopyGC）
 
 ```bash
 # 推荐方式：使用 run.sh 一键流程
 cd /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/gc
-bash run.sh          # all: 编译 + 替换 + 测试
+bash run.sh          # all: 编译(CopyGC) + 替换 + 测试
 bash run.sh test     # 仅编译测试 + 运行（需已替换）
 bash run.sh replace  # 仅替换 SDK dylib
 bash run.sh restore  # 恢复原始 runtime
@@ -525,3 +525,44 @@ codesign -f -s - /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangj
 source /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/envsetup.sh && \
 cd gc && cjc gc.cj && ./main
 ```
+
+### 5. MarkSweep GC 编译替换验证
+
+`build.py` 通过 `--gc-mode` 参数选择 GC 算法，`copygc` 和 `marksweep` 互斥：
+- `--gc-mode copygc`（默认）→ `-DCOPYGC_FLAG=1 -DMARKSWEEP_FLAG=0`
+- `--gc-mode marksweep` → `-DCOPYGC_FLAG=0 -DMARKSWEEP_FLAG=1`
+
+编译宏 `MRT_USE_MARK_SWEEP` 在 CMakeLists.txt 中由 `MARKSWEEP_FLAG=1` 触发。
+
+#### 一键流程（推荐）
+
+```bash
+cd /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/gc
+bash run.sh ms-all     # 编译(MS) + 替换 + hello 测试
+bash run.sh ms-build   # 仅编译 runtime (MarkSweep)
+bash run.sh ms-replace # 编译(MS) + 替换 SDK dylib
+bash run.sh ms-test    # 仅运行 hello 测试（需已替换）
+bash run.sh restore    # 恢复原始 runtime
+```
+
+#### 手动流程
+
+```bash
+# 编译 MarkSweep runtime
+cd /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime
+python3 build.py build --gc-mode marksweep
+
+# 替换 + 重签名
+cp output/temp/lib/aarch64_Release/libcangjie-runtime.dylib \
+   /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
+codesign -f -s - /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
+
+# 编译测试 + 运行
+source /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/envsetup.sh
+cd gc && cjc gc_hello.cj -o main_hello && ./main_hello
+```
+
+#### 注意事项
+- MS runtime 使用 `gc_hello.cj` 做基础冒烟测试（而非 CopyGC 专用的 `gc.cj`）
+- `gc.cj` 中可能包含 CopyGC 特定的内存布局假设，不适合直接用于 MS 验证
+- 切换 GC 模式后务必 `restore` 再测另一种模式，避免 dylib 版本混淆
