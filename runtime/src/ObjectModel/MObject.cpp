@@ -8,11 +8,18 @@
 #include "Base/Log.h"
 #include "MObject.inline.h"
 #include "Inspector/CjAllocData.h"
+#include "Heap/Heap.h"
 namespace MapleRuntime {
 MObject* MObject::NewObject(TypeInfo* ti, MSize size, AllocType allocType)
 {
     auto addr = HeapManager::Allocate(size, allocType);
     if (LIKELY(addr != NULL_ADDRESS)) {
+        // Debug: validate allocated address is in heap range
+        if (UNLIKELY(!Heap::IsHeapAddress(addr))) {
+            LOG(RTLOG_FATAL, "[MS-GC] NewObject: Allocate returned non-heap addr=0x%zx, "
+                "size=%u, allocType=%d, ti=%p",
+                addr, size, (int)allocType, (void*)ti);
+        }
         (void)SetClassInfo(addr, ti);
     } else {
         return nullptr;

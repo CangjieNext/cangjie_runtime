@@ -108,9 +108,44 @@ struct MSRegionInfo {
     void Reset();
 
     // === Allocation ===
-    // Unified entry: bump-pointer for BUMP state, bitmap for SWEPT state
+    // Bump-pointer allocation for fresh BUMP regions (inline for performance).
+    inline uintptr_t AllocBump()
+    {
+        size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
+        if (LIKELY(allocPtr + slotSize <= regionEnd)) {
+            uintptr_t addr = allocPtr;
+            allocPtr += slotSize;
+            freeSlotCount--;
+            return addr;
+        }
+        return 0;  // Region full
+    }
+
+    // Bitmap-based allocation for swept regions (inline fast path).
+    // searchHint (lower 32 bits of 'reserved') skips fully-allocated words.
+    inline uintptr_t AllocFromBitmapFast()
+    {
+        size_t hint = static_cast<size_t>(reserved & 0xFFFFFFFF);
+        size_t wordCount = SizeClassInfo::BitmapWordsPerRegion(sizeClass);
+        for (size_t i = hint; i < wordCount; i++) {
+            uint64_t word = allocBitmap[i];
+            if (word != 0) {
+                int bit = __builtin_ctzll(word);
+                allocBitmap[i] = word & ~(1ULL << bit);
+                freeSlotCount--;
+                reserved = (reserved & 0xFFFFFFFF00000000ULL) | static_cast<uint64_t>(i);
+                size_t slotIndex = i * 64 + static_cast<size_t>(bit);
+                return RegionStart() + slotIndex * SizeClassInfo::ClassToSize(sizeClass);
+            }
+        }
+        return AllocFromBitmapSlow(hint);  // wrap-around search
+    }
+
+    // Slow path: wrap-around search from word 0 to hint (defined in .cpp)
+    uintptr_t AllocFromBitmapSlow(size_t hint);
+
+    // Legacy entry points (redirect to inline versions)
     uintptr_t Alloc();
-    // Bitmap-only allocation (for swept Regions)
     uintptr_t AllocFromBitmap();
 
     // === Sweep ===

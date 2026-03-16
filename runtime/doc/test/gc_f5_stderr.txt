@@ -1,0 +1,375 @@
+2026-03-14 21:11:09.852492 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=0, force=0, released=0
+2026-03-14 21:11:09.858734 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=633, fullUnswept=0
+2026-03-14 21:11:09.858741 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=633
+2026-03-14 21:11:09.860067 35460069 E [MS-GC] ForceFinishSweep: swept=645, casFail=0, sg=4
+2026-03-14 21:11:09.860073 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=1, force=645, released=511
+2026-03-14 21:11:09.865673 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=122, fullUnswept=0
+2026-03-14 21:11:09.865684 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=122
+2026-03-14 21:11:10.066073 35460069 E [MS-GC] ForceFinishSweep: swept=11, casFail=0, sg=6
+2026-03-14 21:11:10.066081 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=124, force=11, released=0
+2026-03-14 21:11:10.090738 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=3419, fullUnswept=0
+2026-03-14 21:11:10.090751 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=3419
+2026-03-14 21:11:10.096236 35460069 E [MS-GC] ForceFinishSweep: swept=3432, casFail=0, sg=8
+2026-03-14 21:11:10.096271 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=1, force=3432, released=2878
+2026-03-14 21:11:10.120912 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=16, partialUnswept=0, fullSwept=539, fullUnswept=0
+2026-03-14 21:11:10.120932 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=16, fullSwept=0, fullUnswept=539
+2026-03-14 21:11:10.321267 35460069 E [MS-GC] ForceFinishSweep: swept=12, casFail=0, sg=10
+2026-03-14 21:11:10.321280 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=543, force=12, released=0
+2026-03-14 21:11:10.346684 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=4410, fullUnswept=0
+2026-03-14 21:11:10.346693 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=4410
+2026-03-14 21:11:10.353460 35460069 E [MS-GC] ForceFinishSweep: swept=4422, casFail=0, sg=12
+2026-03-14 21:11:10.353498 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=1, force=4422, released=3869
+2026-03-14 21:11:10.376964 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=16, partialUnswept=0, fullSwept=538, fullUnswept=0
+2026-03-14 21:11:10.376976 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=16, fullSwept=0, fullUnswept=538
+2026-03-14 21:11:10.577383 35460069 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=14
+2026-03-14 21:11:10.577396 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=545, force=9, released=0
+2026-03-14 21:11:10.579140 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=3737, fullUnswept=0
+2026-03-14 21:11:10.579146 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=3737
+2026-03-14 21:11:10.779554 35460069 E [MS-GC] ForceFinishSweep: swept=10, casFail=0, sg=16
+2026-03-14 21:11:10.779567 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=3741, force=10, released=3737
+2026-03-14 21:11:10.780589 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=11, partialUnswept=0, fullSwept=2802, fullUnswept=0
+2026-03-14 21:11:10.780593 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=11, fullSwept=0, fullUnswept=2802
+2026-03-14 21:11:10.980977 35460069 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=18
+2026-03-14 21:11:10.980991 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=2806, force=9, released=2800
+2026-03-14 21:11:10.982427 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=2812, fullUnswept=0
+2026-03-14 21:11:10.982435 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=2812
+2026-03-14 21:11:11.182804 35460069 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=20
+2026-03-14 21:11:11.182810 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=2816, force=9, released=2811
+2026-03-14 21:11:11.184161 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=2832, fullUnswept=0
+2026-03-14 21:11:11.184165 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=2832
+2026-03-14 21:11:11.384559 35460069 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=22
+2026-03-14 21:11:11.384565 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=2836, force=9, released=2831
+2026-03-14 21:11:11.386292 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=2810, fullUnswept=0
+2026-03-14 21:11:11.386295 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=2810
+2026-03-14 21:11:11.586701 35460069 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=24
+2026-03-14 21:11:11.586708 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=2814, force=9, released=2808
+2026-03-14 21:11:11.588284 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=2821, fullUnswept=0
+2026-03-14 21:11:11.588287 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=2821
+2026-03-14 21:11:11.788739 35460069 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=26
+2026-03-14 21:11:11.788750 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=2825, force=9, released=2819
+2026-03-14 21:11:11.790577 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=11, partialUnswept=0, fullSwept=2838, fullUnswept=0
+2026-03-14 21:11:11.790583 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=11, fullSwept=0, fullUnswept=2838
+2026-03-14 21:11:11.990943 35460069 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=28
+2026-03-14 21:11:11.990955 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=2842, force=9, released=2837
+2026-03-14 21:11:11.992356 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=11, partialUnswept=0, fullSwept=2829, fullUnswept=0
+2026-03-14 21:11:11.992368 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=11, fullSwept=0, fullUnswept=2829
+2026-03-14 21:11:12.192698 35460069 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=30
+2026-03-14 21:11:12.192710 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=2833, force=9, released=2827
+2026-03-14 21:11:12.194133 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=11, partialUnswept=0, fullSwept=2834, fullUnswept=0
+2026-03-14 21:11:12.194137 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=11, fullSwept=0, fullUnswept=2834
+2026-03-14 21:11:12.394515 35460069 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=32
+2026-03-14 21:11:12.394528 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=2838, force=9, released=2832
+2026-03-14 21:11:12.395795 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=2817, fullUnswept=0
+2026-03-14 21:11:12.395800 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=2817
+2026-03-14 21:11:12.596137 35460069 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=34
+2026-03-14 21:11:12.596155 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=2821, force=9, released=2815
+2026-03-14 21:11:12.597675 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=2830, fullUnswept=0
+2026-03-14 21:11:12.597685 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=2830
+2026-03-14 21:11:12.798220 35460069 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=36
+2026-03-14 21:11:12.798233 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=2834, force=9, released=2828
+2026-03-14 21:11:12.800126 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=3976, fullUnswept=0
+2026-03-14 21:11:12.800133 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=3976
+2026-03-14 21:11:12.807216 35460069 E [MS-GC] ForceFinishSweep: swept=3988, casFail=0, sg=38
+2026-03-14 21:11:12.807227 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=1, force=3988, released=3974
+2026-03-14 21:11:12.807531 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=14, partialUnswept=2, fullSwept=1, fullUnswept=0
+2026-03-14 21:11:12.807537 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=2, partialUnswept=14, fullSwept=0, fullUnswept=1
+2026-03-14 21:11:13.007978 35460069 E [MS-GC] ForceFinishSweep: swept=8, casFail=0, sg=40
+2026-03-14 21:11:13.007985 35460069 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=7, force=8, released=0
+2026-03-14 21:11:13.010092 35460069 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=19, partialUnswept=0, fullSwept=5529, fullUnswept=0
+2026-03-14 21:11:13.010095 35460069 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=19, fullSwept=0, fullUnswept=5529
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c5464, addr: 0xff9
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from runtime frame. signal pc: 0x1005f8e8c, addr: 0x18
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from runtime frame. signal pc: 0x1005f8e8c, addr: 0x18
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from runtime frame. signal pc: 0x1005f8e8c, addr: 0x18
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from runtime frame. signal pc: 0x1005f8e8c, addr: 0x18
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from runtime frame. signal pc: 0x1005f8e8c, addr: 0x18
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from runtime frame. signal pc: 0x1005f8e8c, addr: 0x18
+35460065 E   #0  0x1005f8e8c in _ZN12MapleRuntime9FrameInfo15ResolveProcInfoEv from /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
+35460065 E   #1  0x1005bd2b0 in _ZN12MapleRuntime12StackManager21PrintSignalStackTraceEPNS_13UnwindContextEmm from /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
+35460065 E   #2  0x1005c12dc in _ZN12MapleRuntime23PrintSignalHandlerStackEiPK9__siginfoPv from /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
+35460065 E   #3  0x1005c1470 in _ZN12MapleRuntime13SignalManager22HandleUnexpectedSignalEiP9__siginfoPv from /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
+35460065 E   #4  0x100607a7c in _ZN12MapleRuntime11SignalStack11HandlerImplEPv from /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260313/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.
+35460065 E Thread "" catched unhandled SIGSEGV (Segmentation fault: 11) from managed frame. signal pc: 0x19e8c2a44, addr: 0x15030ab60
+35460065 E CJNatvie Handle signal: 11.

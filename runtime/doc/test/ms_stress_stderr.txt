@@ -1,0 +1,7 @@
+2026-03-15 21:04:19.199010 37150648 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=0, force=0, released=0, largeFreed=2949120
+2026-03-15 21:04:19.200735 37150648 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=19, partialUnswept=0, fullSwept=548, fullUnswept=0
+2026-03-15 21:04:19.200754 37150648 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=19, fullSwept=0, fullUnswept=548
+2026-03-15 21:04:19.200998 37150648 F [MS-GC] MSRegionManager: failed to reclaim units [1156+2, 1158)
+37150648 E CJNatvie Handle signal: 6.
+37150648 E Thread "gc-main-thread" catched unhandled SIGABRT (Abort trap: 6) from native frame. signal pc: 0x19e852388
+37150648 E   #0  0x19e852388 in __pthread_kill from /usr/lib/system/libsystem_kernel.dylib

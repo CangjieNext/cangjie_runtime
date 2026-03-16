@@ -77,9 +77,6 @@ private:
     // Back-pointer to global CentralRegionPool
     CentralRegionPool* central_ = nullptr;
 
-    // Allocation counter for periodic trace logging
-    size_t allocCount_ = 0;
-
     // Mutator assist: accumulated allocation debt (bytes).
     // When debt exceeds kGCAssistTriggerBytes, triggers MSMarkAssist().
     static constexpr size_t kGCAssistTriggerBytes = 65536;  // 64KB

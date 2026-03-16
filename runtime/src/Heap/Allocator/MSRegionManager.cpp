@@ -102,8 +102,10 @@ bool MSRegionManager::TakeUnitsInternal(UnitCount num, UnitIndex& idx)
 
     while (tryDirtyTree || tryReleasedTree) {
         // 1. Try dirty tree first (data in memory, fastest).
+        //    refreshRegionInfo=false: CopyGC's UnitInfo mirror is not used in MS
+        //    mode; calling RefreshFreeRegionInfo would write into MSRegionInfo array.
         if (tryDirtyTree && dirtyTreeMutex_.try_lock()) {
-            if (dirtyTree_.TakeUnits(num, idx)) {
+            if (dirtyTree_.TakeUnitsLowestAddr(num, idx, false)) {
                 dirtyTreeMutex_.unlock();
                 ClearUnits(idx, num);
                 return true;
@@ -114,7 +116,7 @@ bool MSRegionManager::TakeUnitsInternal(UnitCount num, UnitIndex& idx)
 
         // 2. Try released tree (pages may be zeroed by OS).
         if (tryReleasedTree && releasedTreeMutex_.try_lock()) {
-            if (releasedTree_.TakeUnits(num, idx)) {
+            if (releasedTree_.TakeUnitsLowestAddr(num, idx, false)) {
                 releasedTreeMutex_.unlock();
                 return true;
             }
@@ -175,8 +177,9 @@ bool MSRegionManager::TakeUnitsAligned(UnitCount num, UnitCount alignment, UnitI
     bool needClear = false;
 
     while (tryDirtyTree || tryReleasedTree) {
+        // refreshRegionInfo=false: see TakeUnitsInternal comment.
         if (tryDirtyTree && dirtyTreeMutex_.try_lock()) {
-            if (dirtyTree_.TakeUnits(totalNeeded, rawIdx)) {
+            if (dirtyTree_.TakeUnitsLowestAddr(totalNeeded, rawIdx, false)) {
                 dirtyTreeMutex_.unlock();
                 needClear = true;
                 goto align_and_return;
@@ -185,7 +188,7 @@ bool MSRegionManager::TakeUnitsAligned(UnitCount num, UnitCount alignment, UnitI
             dirtyTreeMutex_.unlock();
         }
         if (tryReleasedTree && releasedTreeMutex_.try_lock()) {
-            if (releasedTree_.TakeUnits(totalNeeded, rawIdx)) {
+            if (releasedTree_.TakeUnitsLowestAddr(totalNeeded, rawIdx, false)) {
                 releasedTreeMutex_.unlock();
                 needClear = false;
                 goto align_and_return;
@@ -272,7 +275,20 @@ MSRegionInfo* MSRegionManager::TakeRegion()
     MRT_ASSERT(regionIdx < maxRegionCount_, "region index out of bounds");
 
     MSRegionInfo* info = &array_[regionIdx];
-    // info is already zero'd from Initialize or previous Reset.
+    // Debug: exhaustive check on every TakeRegion return
+    if (UNLIKELY(info->regionType != MSRegionType::MS_REGION_FREE)) {
+        LOG(RTLOG_FATAL, "[MS-GC] TakeRegion: array_[%zu] NOT FREE! "
+            "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, "
+            "sizeClass=%u, sweepState=%d, sweepGen=%u, "
+            "nextIdx=%d, prevIdx=%d, reserved=0x%llx, "
+            "unitIdx=%u, array_=%p, info=%p",
+            regionIdx, (int)info->regionType, info->allocPtr, info->regionEnd,
+            (void*)info->allocBitmap, (unsigned)info->sizeClass,
+            (int)info->sweepState, info->sweepGen,
+            info->nextRegionIdx, info->prevRegionIdx,
+            (unsigned long long)info->reserved,
+            idx, (void*)array_, (void*)info);
+    }
     return info;
 }
 
@@ -293,7 +309,15 @@ MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& r
     }
 
     UnitIndex idx = 0;
-    if (!TakeUnitsInternal(static_cast<UnitCount>(unitCount), idx)) {
+    // Large objects must be both start-aligned AND size-aligned to MS Region
+    // boundaries (unitsPerMSRegion_).  Otherwise:
+    //   - Unaligned start: regionIdx = idx/unitsPerMSRegion_ maps to wrong entry.
+    //   - Unaligned size:  trailing partial region is not covered by spanCount,
+    //     leaving MSRegionInfo entries un-initialized → heap metadata corruption.
+    UnitCount alignment = static_cast<UnitCount>(unitsPerMSRegion_);
+    UnitCount alignedUnitCount = static_cast<UnitCount>(
+        ((unitCount + unitsPerMSRegion_ - 1) / unitsPerMSRegion_) * unitsPerMSRegion_);
+    if (!TakeUnitsAligned(alignedUnitCount, alignment, idx)) {
         regionStart = 0;
         return nullptr;
     }
@@ -316,6 +340,16 @@ void MSRegionManager::ReclaimRegion(MSRegionInfo* region)
     size_t regionIdx = static_cast<size_t>(region - array_);
     UnitIndex unitIdx = static_cast<UnitIndex>(regionIdx * unitsPerMSRegion_);
     UnitCount unitCount = static_cast<UnitCount>(unitsPerMSRegion_);
+
+    // Debug: verify MSRegionInfo was properly Reset BEFORE returning units
+    if (UNLIKELY(region->regionType != MSRegionType::MS_REGION_FREE)) {
+        LOG(RTLOG_FATAL, "[MS-GC] ReclaimRegion: region NOT FREE before reclaim! "
+            "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, "
+            "sizeClass=%u, sweepGen=%u, regionIdx=%zu, unitIdx=%u",
+            (int)region->regionType, region->allocPtr, region->regionEnd,
+            (void*)region->allocBitmap, (unsigned)region->sizeClass,
+            region->sweepGen, regionIdx, unitIdx);
+    }
 
     DLOG(REGION, "[MS-GC] ReclaimRegion: regionIdx=%zu, unitIdx=%u, unitCount=%u",
          regionIdx, unitIdx, unitCount);

@@ -1,0 +1,79 @@
+========================================
+  GC Stress Test — Pinned + Large Alloc
+  Duration: 60 seconds
+  cjHeapSize=256mb recommended
+========================================
+
+[SETUP] Creating pinned base objects ...
+[SETUP] Done: 200 pinned holders
+
+[STRESS] Starting 60-second stress loop ...
+[HEARTBEAT] sec=1  rounds=41  allocMB=64  pinnedOps=41  spawned=64
+[HEARTBEAT] sec=2  rounds=91  allocMB=144  pinnedOps=91  spawned=144
+[HEARTBEAT] sec=3  rounds=143  allocMB=227  pinnedOps=143  spawned=224
+[HEARTBEAT] sec=4  rounds=194  allocMB=307  pinnedOps=194  spawned=304
+[HEARTBEAT] sec=5  rounds=242  allocMB=383  pinnedOps=242  spawned=384
+[HEARTBEAT] sec=6  rounds=286  allocMB=453  pinnedOps=286  spawned=456
+[HEARTBEAT] sec=7  rounds=338  allocMB=536  pinnedOps=338  spawned=536
+[HEARTBEAT] sec=8  rounds=387  allocMB=614  pinnedOps=387  spawned=616
+[HEARTBEAT] sec=9  rounds=438  allocMB=694  pinnedOps=438  spawned=696
+[HEARTBEAT] sec=10  rounds=490  allocMB=777  pinnedOps=490  spawned=784
+[HEARTBEAT] sec=11  rounds=542  allocMB=860  pinnedOps=542  spawned=864
+[HEARTBEAT] sec=12  rounds=593  allocMB=940  pinnedOps=593  spawned=944
+[HEARTBEAT] sec=13  rounds=642  allocMB=1018  pinnedOps=642  spawned=1024
+[HEARTBEAT] sec=14  rounds=691  allocMB=1097  pinnedOps=691  spawned=1104
+[HEARTBEAT] sec=16  rounds=732  allocMB=1161  pinnedOps=732  spawned=1168
+[HEARTBEAT] sec=17  rounds=771  allocMB=1224  pinnedOps=771  spawned=1232
+[HEARTBEAT] sec=18  rounds=819  allocMB=1300  pinnedOps=819  spawned=1304
+[HEARTBEAT] sec=19  rounds=871  allocMB=1382  pinnedOps=871  spawned=1392
+[HEARTBEAT] sec=20  rounds=923  allocMB=1465  pinnedOps=923  spawned=1472
+[HEARTBEAT] sec=21  rounds=974  allocMB=1545  pinnedOps=974  spawned=1552
+[HEARTBEAT] sec=22  rounds=1027  allocMB=1630  pinnedOps=1027  spawned=1640
+[HEARTBEAT] sec=23  rounds=1079  allocMB=1712  pinnedOps=1079  spawned=1720
+[HEARTBEAT] sec=24  rounds=1122  allocMB=1780  pinnedOps=1122  spawned=1792
+[HEARTBEAT] sec=25  rounds=1136  allocMB=1802  pinnedOps=1136  spawned=1816
+[HEARTBEAT] sec=26  rounds=1147  allocMB=1820  pinnedOps=1147  spawned=1832
+[HEARTBEAT] sec=28  rounds=1151  allocMB=1827  pinnedOps=1151  spawned=1840
+[HEARTBEAT] sec=29  rounds=1160  allocMB=1840  pinnedOps=1160  spawned=1856
+[HEARTBEAT] sec=30  rounds=1201  allocMB=1905  pinnedOps=1201  spawned=1920
+[HEARTBEAT] sec=31  rounds=1251  allocMB=1985  pinnedOps=1251  spawned=2000
+[HEARTBEAT] sec=32  rounds=1302  allocMB=2066  pinnedOps=1302  spawned=2080
+[HEARTBEAT] sec=33  rounds=1351  allocMB=2144  pinnedOps=1351  spawned=2160
+[HEARTBEAT] sec=34  rounds=1403  allocMB=2226  pinnedOps=1403  spawned=2240
+[HEARTBEAT] sec=35  rounds=1453  allocMB=2305  pinnedOps=1453  spawned=2320
+[HEARTBEAT] sec=36  rounds=1503  allocMB=2385  pinnedOps=1503  spawned=2400
+[HEARTBEAT] sec=37  rounds=1555  allocMB=2468  pinnedOps=1555  spawned=2488
+[HEARTBEAT] sec=38  rounds=1605  allocMB=2546  pinnedOps=1605  spawned=2568
+[HEARTBEAT] sec=39  rounds=1658  allocMB=2630  pinnedOps=1658  spawned=2648
+[HEARTBEAT] sec=40  rounds=1712  allocMB=2716  pinnedOps=1712  spawned=2736
+[HEARTBEAT] sec=41  rounds=1766  allocMB=2802  pinnedOps=1766  spawned=2824
+[HEARTBEAT] sec=42  rounds=1814  allocMB=2878  pinnedOps=1814  spawned=2896
+[HEARTBEAT] sec=43  rounds=1866  allocMB=2960  pinnedOps=1866  spawned=2984
+[HEARTBEAT] sec=44  rounds=1911  allocMB=3033  pinnedOps=1911  spawned=3056
+[HEARTBEAT] sec=46  rounds=1914  allocMB=3037  pinnedOps=1914  spawned=3056
+[HEARTBEAT] sec=47  rounds=1959  allocMB=3109  pinnedOps=1959  spawned=3128
+[HEARTBEAT] sec=48  rounds=2010  allocMB=3189  pinnedOps=2010  spawned=3216
+[HEARTBEAT] sec=49  rounds=2063  allocMB=3274  pinnedOps=2063  spawned=3296
+[HEARTBEAT] sec=50  rounds=2115  allocMB=3356  pinnedOps=2115  spawned=3384
+[HEARTBEAT] sec=51  rounds=2168  allocMB=3440  pinnedOps=2168  spawned=3464
+[HEARTBEAT] sec=52  rounds=2219  allocMB=3521  pinnedOps=2219  spawned=3544
+[HEARTBEAT] sec=53  rounds=2273  allocMB=3606  pinnedOps=2273  spawned=3632
+[HEARTBEAT] sec=54  rounds=2327  allocMB=3693  pinnedOps=2327  spawned=3720
+[HEARTBEAT] sec=55  rounds=2383  allocMB=3782  pinnedOps=2383  spawned=3808
+[HEARTBEAT] sec=56  rounds=2425  allocMB=3847  pinnedOps=2425  spawned=3880
+[HEARTBEAT] sec=57  rounds=2475  allocMB=3927  pinnedOps=2475  spawned=3960
+[HEARTBEAT] sec=58  rounds=2529  allocMB=4012  pinnedOps=2529  spawned=4040
+[HEARTBEAT] sec=59  rounds=2582  allocMB=4097  pinnedOps=2582  spawned=4128
+
+[SUMMARY]
+  duration:     60009 ms
+  rounds:       2624
+  alloc_total:  4163 MB
+  pinned_ops:   2624
+  spawned:      4192
+  cache_intact: 10/10
+  pinned_intact:200/200
+  result:       PASS
+
+Total wall time: 60010 ms
+EXIT=0

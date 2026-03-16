@@ -8,16 +8,45 @@
 
 #include "MSWriteBarrier.h"
 #include "Barrier.inline.h"
+#include "Heap/Allocator/LargeObjectSpace.h"
 #include "Heap/Allocator/RegionSpace.h"
 #include "Heap/Heap.h"
 #include "Mutator/Mutator.h"
 #include "ObjectModel/Field.inline.h"
 #include "ObjectModel/RefField.inline.h"
+#include "Base/Log.h"
 #if defined(CANGJIE_TSAN_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
 #endif
 
 namespace MapleRuntime {
+
+// Diagnostic counters for write barrier
+static std::atomic<uint64_t> wbCallCount{0};
+static std::atomic<uint64_t> wbNullOrNonHeap{0};
+static std::atomic<uint64_t> wbPhaseSkip{0};
+static std::atomic<uint64_t> wbAlreadyMarked{0};
+static std::atomic<uint64_t> wbEnqueued{0};
+
+extern "C" void MSWriteBarrier_DumpStats()
+{
+    LOG(RTLOG_ERROR, "[MS-WB-DIAG] MarkAndEnqueue calls: %llu, nullOrNonHeap: %llu, "
+        "phaseSkip: %llu, alreadyMarked: %llu, enqueued: %llu",
+        (unsigned long long)wbCallCount.load(),
+        (unsigned long long)wbNullOrNonHeap.load(),
+        (unsigned long long)wbPhaseSkip.load(),
+        (unsigned long long)wbAlreadyMarked.load(),
+        (unsigned long long)wbEnqueued.load());
+}
+
+extern "C" void MSWriteBarrier_ResetStats()
+{
+    wbCallCount.store(0);
+    wbNullOrNonHeap.store(0);
+    wbPhaseSkip.store(0);
+    wbAlreadyMarked.store(0);
+    wbEnqueued.store(0);
+}
 
 // ============================================================================
 // Core: MarkAndEnqueue (the "shade" operation)
@@ -25,8 +54,16 @@ namespace MapleRuntime {
 
 void MSWriteBarrier::MarkAndEnqueue(BaseObject* obj, WriteBarrierBuffer& wbBuf)
 {
-    if (obj == nullptr || !Heap::IsHeapAddress(obj)) {
+    if (obj == nullptr) {
         return;
+    }
+    // Check both contiguous heap AND LOS (mmap'd huge objects).
+    if (!Heap::IsHeapAddress(obj)) {
+        RegionSpace& space = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+        LargeObjectSpace* los = space.GetLargeObjectSpace();
+        if (los == nullptr || !los->Contains(reinterpret_cast<uintptr_t>(obj))) {
+            return;
+        }
     }
     // Only shade during active marking phases (SATB barrier).
     // Between GC cycles (MS_SWEEP phase), the barrier is a no-op to avoid

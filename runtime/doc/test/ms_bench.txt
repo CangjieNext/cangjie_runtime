@@ -1,0 +1,1193 @@
+2026-03-15 20:26:29.933681 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=0, force=0, released=0, largeFreed=0
+2026-03-15 20:26:29.934191 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4280, markBit=0, slotIdx=5, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934199 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4200, markBit=0, slotIdx=4, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934204 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c240, markBit=0, slotIdx=9, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934207 36771314 E [MS-DIAG] PRE-MARK root=0x112b6c2a0, markBit=0, slotIdx=3, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934211 36771314 E [MS-DIAG] PRE-MARK root=0x112b6c1c0, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934214 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4080, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934218 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934221 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4180, markBit=0, slotIdx=3, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934224 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4100, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934228 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c200, markBit=0, slotIdx=8, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934231 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c1c0, markBit=0, slotIdx=7, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934234 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c180, markBit=0, slotIdx=6, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934237 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c140, markBit=0, slotIdx=5, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934240 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c100, markBit=0, slotIdx=4, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934243 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c0c0, markBit=0, slotIdx=3, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934247 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c080, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934250 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c040, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934253 36771314 E [MS-DIAG] PRE-MARK root=0x112b8c140, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934256 36771314 E [MS-DIAG] PRE-MARK root=0x112b94000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934259 36771314 E [MS-DIAG] PRE-MARK root=0x112b85400, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934262 36771314 E [MS-DIAG] PRE-MARK root=0x112b8c000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934265 36771314 E [MS-DIAG] PRE-MARK root=0x112b84a00, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934268 36771314 E [MS-DIAG] PRE-MARK root=0x112b84000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934271 36771314 E [MS-DIAG] PRE-MARK root=0x112b64020, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934274 36771314 E [MS-DIAG] PRE-MARK root=0x112b64020, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934277 36771314 E [MS-DIAG] PRE-MARK root=0x112b64010, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934280 36771314 E [MS-DIAG] PRE-MARK root=0x112b64010, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934283 36771314 E [MS-DIAG] PRE-MARK root=0x112b64020, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934295 36771314 E [MS-DIAG] PRE-MARK root=0x112b64010, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934298 36771314 E [MS-DIAG] PRE-MARK root=0x112b64000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934300 36771314 E [MS-DIAG] PRE-MARK root=0x112b64060, markBit=0, slotIdx=6, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934302 36771314 E [MS-DIAG] PRE-MARK root=0x112b64030, markBit=0, slotIdx=3, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934304 36771314 E [MS-DIAG] PRE-MARK root=0x112b640c0, markBit=0, slotIdx=12, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934307 36771314 E [MS-DIAG] PRE-MARK root=0x112b640b0, markBit=0, slotIdx=11, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934309 36771314 E [MS-DIAG] PRE-MARK root=0x112b640a0, markBit=0, slotIdx=10, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934311 36771314 E [MS-DIAG] PRE-MARK root=0x112b64090, markBit=0, slotIdx=9, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934313 36771314 E [MS-DIAG] PRE-MARK root=0x112b6c000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934316 36771314 E [MS-DIAG] PRE-MARK root=0x112b74000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934318 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934320 36771314 E [MS-DIAG] PRE-MARK root=0x112b640f0, markBit=0, slotIdx=15, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934322 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4280, markBit=0, slotIdx=5, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934325 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4280, markBit=0, slotIdx=5, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934327 36771314 E [MS-DIAG] PRE-MARK root=0x113bc4000, markBit=0, slotIdx=0, word=0x0, regionType=3, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934329 36771314 E [MS-DIAG] PRE-MARK root=0x113dc4000, markBit=0, slotIdx=0, word=0x0, regionType=3, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934332 36771314 E [MS-DIAG] PRE-MARK root=0x113ec4000, markBit=0, slotIdx=0, word=0x0, regionType=3, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934334 36771314 E [MS-DIAG] PRE-MARK root=0x113f44000, markBit=0, slotIdx=0, word=0x0, regionType=3, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934336 36771314 E [MS-DIAG] PRE-MARK root=0x113f84000, markBit=0, slotIdx=0, word=0x0, regionType=3, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934338 36771314 E [MS-DIAG] PRE-MARK root=0x113f84020, markBit=0, slotIdx=1, word=0x0, regionType=3, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934341 36771314 E [MS-DIAG] PRE-MARK root=0x113f94020, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934343 36771314 E [MS-DIAG] PRE-MARK root=0x113f94040, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934345 36771314 E [MS-DIAG] PRE-MARK root=0x113f94060, markBit=0, slotIdx=3, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934347 36771314 E [MS-DIAG] PRE-MARK root=0x113f96060, markBit=0, slotIdx=259, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934350 36771314 E [MS-DIAG] PRE-MARK root=0x113f97060, markBit=0, slotIdx=387, word=0x0, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934352 36771314 E [MS-DIAG] PRE-MARK root=0x113f97860, markBit=0, slotIdx=451, word=0xfffffffffffffe00, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934354 36771314 E [MS-DIAG] PRE-MARK root=0x113f97880, markBit=0, slotIdx=452, word=0xfffffffffffffe00, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934356 36771314 E [MS-DIAG] PRE-MARK root=0x113f978a0, markBit=0, slotIdx=453, word=0xfffffffffffffe00, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934362 36771314 E [MS-DIAG] PRE-MARK root=0x113f978c0, markBit=0, slotIdx=454, word=0xfffffffffffffe00, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934365 36771314 E [MS-DIAG] PRE-MARK root=0x113f978e0, markBit=0, slotIdx=455, word=0xfffffffffffffe00, regionType=2, sweepState=0, sweepGen=2
+2026-03-15 20:26:29.934367 36771314 E [MS-DIAG] PRE-MARK cycle 1: 0/70 roots already have markBit set
+2026-03-15 20:26:29.934371 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 70 raw, globalSweepGen=2
+2026-03-15 20:26:29.934373 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.934376 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.934378 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.934380 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.934383 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.934385 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.934387 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.934390 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.934392 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.934394 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.934396 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.934399 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.934401 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.934403 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.934405 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.934407 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.934410 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.934412 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.934414 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.934416 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=0
+2026-03-15 20:26:29.939790 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 1701, nullOrNonHeap: 1701, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:29.939831 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=634, fullUnswept=0
+2026-03-15 20:26:29.939834 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=634
+2026-03-15 20:26:29.941087 36771314 E [MS-GC] ForceFinishSweep: swept=646, casFail=0, sg=4
+2026-03-15 20:26:29.941097 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=1, force=646, released=511, largeFreed=0
+2026-03-15 20:26:29.941208 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4280, markBit=0, slotIdx=5, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941214 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4200, markBit=0, slotIdx=4, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941217 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c240, markBit=0, slotIdx=9, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941220 36771314 E [MS-DIAG] PRE-MARK root=0x112b6c2a0, markBit=0, slotIdx=3, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941222 36771314 E [MS-DIAG] PRE-MARK root=0x112b6c1c0, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941224 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4080, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941227 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941229 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4180, markBit=0, slotIdx=3, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941231 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4100, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941251 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c200, markBit=0, slotIdx=8, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941256 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c1c0, markBit=0, slotIdx=7, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941279 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c180, markBit=0, slotIdx=6, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941291 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c140, markBit=0, slotIdx=5, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941295 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c100, markBit=0, slotIdx=4, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941298 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c0c0, markBit=0, slotIdx=3, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941309 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c080, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941320 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c040, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941323 36771314 E [MS-DIAG] PRE-MARK root=0x112b8c140, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941326 36771314 E [MS-DIAG] PRE-MARK root=0x112b94000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941328 36771314 E [MS-DIAG] PRE-MARK root=0x112b85400, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941330 36771314 E [MS-DIAG] PRE-MARK root=0x112b8c000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941333 36771314 E [MS-DIAG] PRE-MARK root=0x112b84a00, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941335 36771314 E [MS-DIAG] PRE-MARK root=0x112b84000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941337 36771314 E [MS-DIAG] PRE-MARK root=0x112b64020, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941340 36771314 E [MS-DIAG] PRE-MARK root=0x112b64020, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941342 36771314 E [MS-DIAG] PRE-MARK root=0x112b64010, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941344 36771314 E [MS-DIAG] PRE-MARK root=0x112b64010, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941359 36771314 E [MS-DIAG] PRE-MARK root=0x112b64020, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941362 36771314 E [MS-DIAG] PRE-MARK root=0x112b64010, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941364 36771314 E [MS-DIAG] PRE-MARK root=0x112b64000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941366 36771314 E [MS-DIAG] PRE-MARK root=0x112b64060, markBit=0, slotIdx=6, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941369 36771314 E [MS-DIAG] PRE-MARK root=0x112b64030, markBit=0, slotIdx=3, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941371 36771314 E [MS-DIAG] PRE-MARK root=0x112b640c0, markBit=0, slotIdx=12, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941373 36771314 E [MS-DIAG] PRE-MARK root=0x112b640b0, markBit=0, slotIdx=11, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941376 36771314 E [MS-DIAG] PRE-MARK root=0x112b640a0, markBit=0, slotIdx=10, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941378 36771314 E [MS-DIAG] PRE-MARK root=0x112b64090, markBit=0, slotIdx=9, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941380 36771314 E [MS-DIAG] PRE-MARK root=0x112b6c000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941415 36771314 E [MS-DIAG] PRE-MARK root=0x112b74000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941425 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941428 36771314 E [MS-DIAG] PRE-MARK root=0x112b640f0, markBit=0, slotIdx=15, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941431 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4280, markBit=0, slotIdx=5, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941433 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4280, markBit=0, slotIdx=5, word=0x0, regionType=2, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941435 36771314 E [MS-DIAG] PRE-MARK root=0x113bc4000, markBit=0, slotIdx=0, word=0x0, regionType=3, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941438 36771314 E [MS-DIAG] PRE-MARK root=0x113dc4000, markBit=0, slotIdx=0, word=0x0, regionType=3, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941440 36771314 E [MS-DIAG] PRE-MARK root=0x113ec4000, markBit=0, slotIdx=0, word=0x0, regionType=3, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941443 36771314 E [MS-DIAG] PRE-MARK root=0x113f44000, markBit=0, slotIdx=0, word=0x0, regionType=3, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941445 36771314 E [MS-DIAG] PRE-MARK root=0x113f84000, markBit=0, slotIdx=0, word=0x0, regionType=3, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941448 36771314 E [MS-DIAG] PRE-MARK root=0x113f84020, markBit=0, slotIdx=1, word=0x0, regionType=3, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941450 36771314 E [MS-DIAG] PRE-MARK root=0x113f94020, markBit=0, slotIdx=1, word=0x0, regionType=3, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941453 36771314 E [MS-DIAG] PRE-MARK root=0x113f94040, markBit=0, slotIdx=2, word=0x0, regionType=3, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941455 36771314 E [MS-DIAG] PRE-MARK root=0x113f98040, markBit=0, slotIdx=514, word=0x0, regionType=3, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941457 36771314 E [MS-DIAG] PRE-MARK root=0x113f9a040, markBit=0, slotIdx=770, word=0x0, regionType=3, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941460 36771314 E [MS-DIAG] PRE-MARK root=0x113f9b040, markBit=0, slotIdx=898, word=0x0, regionType=3, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941462 36771314 E [MS-DIAG] PRE-MARK root=0x113f9b840, markBit=0, slotIdx=962, word=0x0, regionType=3, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941464 36771314 E [MS-DIAG] PRE-MARK root=0x113f9bc40, markBit=0, slotIdx=994, word=0x0, regionType=3, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941474 36771314 E [MS-DIAG] PRE-MARK root=0x113f9be40, markBit=0, slotIdx=1010, word=0x0, regionType=3, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941476 36771314 E [MS-DIAG] PRE-MARK root=0x113f9bf40, markBit=0, slotIdx=1018, word=0x0, regionType=3, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941479 36771314 E [MS-DIAG] PRE-MARK root=0x113f9bfc0, markBit=0, slotIdx=1022, word=0x0, regionType=3, sweepState=2, sweepGen=4
+2026-03-15 20:26:29.941481 36771314 E [MS-DIAG] PRE-MARK cycle 2: 0/70 roots already have markBit set
+2026-03-15 20:26:29.941485 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 70 raw, globalSweepGen=4
+2026-03-15 20:26:29.941487 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.941490 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.941492 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.941494 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.941497 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.941499 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.941501 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.941504 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.941506 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.941508 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.941511 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.941513 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.941515 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.941517 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.941520 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.941522 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.941524 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.941526 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.941529 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.941531 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:29.947145 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:29.947228 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=123, fullUnswept=0
+2026-03-15 20:26:29.947233 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=123
+2026-03-15 20:26:30.099717 36771314 E [MS-GC] ForceFinishSweep: swept=11, casFail=0, sg=6
+2026-03-15 20:26:30.099747 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=125, force=11, released=0, largeFreed=0
+2026-03-15 20:26:30.100856 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4280, markBit=0, slotIdx=5, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100861 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4200, markBit=0, slotIdx=4, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100864 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c240, markBit=0, slotIdx=9, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100867 36771314 E [MS-DIAG] PRE-MARK root=0x112b6c2a0, markBit=0, slotIdx=3, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100869 36771314 E [MS-DIAG] PRE-MARK root=0x112b6c1c0, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100872 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4080, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100874 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100876 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4180, markBit=0, slotIdx=3, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100879 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4100, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100881 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c200, markBit=0, slotIdx=8, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100884 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c1c0, markBit=0, slotIdx=7, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100886 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c180, markBit=0, slotIdx=6, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100889 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c140, markBit=0, slotIdx=5, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100891 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c100, markBit=0, slotIdx=4, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100894 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c0c0, markBit=0, slotIdx=3, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100896 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c080, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100898 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c040, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100900 36771314 E [MS-DIAG] PRE-MARK root=0x112b8c140, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100902 36771314 E [MS-DIAG] PRE-MARK root=0x112b94000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100905 36771314 E [MS-DIAG] PRE-MARK root=0x112b85400, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100907 36771314 E [MS-DIAG] PRE-MARK root=0x112b8c000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100909 36771314 E [MS-DIAG] PRE-MARK root=0x112b84a00, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100911 36771314 E [MS-DIAG] PRE-MARK root=0x112b84000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100914 36771314 E [MS-DIAG] PRE-MARK root=0x112b64020, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100916 36771314 E [MS-DIAG] PRE-MARK root=0x112b64020, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100918 36771314 E [MS-DIAG] PRE-MARK root=0x112b64010, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100921 36771314 E [MS-DIAG] PRE-MARK root=0x112b64010, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100934 36771314 E [MS-DIAG] PRE-MARK root=0x112b64020, markBit=0, slotIdx=2, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100936 36771314 E [MS-DIAG] PRE-MARK root=0x112b64010, markBit=0, slotIdx=1, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100938 36771314 E [MS-DIAG] PRE-MARK root=0x112b64000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100941 36771314 E [MS-DIAG] PRE-MARK root=0x112b64060, markBit=0, slotIdx=6, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100943 36771314 E [MS-DIAG] PRE-MARK root=0x112b64030, markBit=0, slotIdx=3, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100945 36771314 E [MS-DIAG] PRE-MARK root=0x112b640c0, markBit=0, slotIdx=12, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100947 36771314 E [MS-DIAG] PRE-MARK root=0x112b640b0, markBit=0, slotIdx=11, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100949 36771314 E [MS-DIAG] PRE-MARK root=0x112b640a0, markBit=0, slotIdx=10, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100952 36771314 E [MS-DIAG] PRE-MARK root=0x112b64090, markBit=0, slotIdx=9, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100954 36771314 E [MS-DIAG] PRE-MARK root=0x112b6c000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100956 36771314 E [MS-DIAG] PRE-MARK root=0x112b74000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100958 36771314 E [MS-DIAG] PRE-MARK root=0x112b7c000, markBit=0, slotIdx=0, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100961 36771314 E [MS-DIAG] PRE-MARK root=0x112b640f0, markBit=0, slotIdx=15, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100963 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4280, markBit=0, slotIdx=5, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100965 36771314 E [MS-DIAG] PRE-MARK root=0x117bbbe80, markBit=0, slotIdx=1012, word=0x0, regionType=3, sweepState=0, sweepGen=6
+2026-03-15 20:26:30.100967 36771314 E [MS-DIAG] PRE-MARK root=0x112ba4280, markBit=0, slotIdx=5, word=0x0, regionType=2, sweepState=2, sweepGen=6
+2026-03-15 20:26:30.100970 36771314 E [MS-DIAG] PRE-MARK root=0x118bc3e60, markBit=0, slotIdx=1011, word=0x0, regionType=3, sweepState=0, sweepGen=6
+2026-03-15 20:26:30.100972 36771314 E [MS-DIAG] PRE-MARK root=0x118bc3e80, markBit=0, slotIdx=1012, word=0x0, regionType=3, sweepState=0, sweepGen=6
+2026-03-15 20:26:30.100974 36771314 E [MS-DIAG] PRE-MARK root=0x118bc3ea0, markBit=0, slotIdx=1013, word=0x0, regionType=3, sweepState=0, sweepGen=6
+2026-03-15 20:26:30.100976 36771314 E [MS-DIAG] PRE-MARK root=0x118be3ea0, markBit=0, slotIdx=1013, word=0x0, regionType=3, sweepState=0, sweepGen=6
+2026-03-15 20:26:30.100978 36771314 E [MS-DIAG] PRE-MARK root=0x118bf3ea0, markBit=0, slotIdx=1013, word=0x0, regionType=3, sweepState=0, sweepGen=6
+2026-03-15 20:26:30.100982 36771314 E [MS-DIAG] PRE-MARK root=0x118bfbea0, markBit=0, slotIdx=1013, word=0x0, regionType=3, sweepState=0, sweepGen=6
+2026-03-15 20:26:30.100984 36771314 E [MS-DIAG] PRE-MARK root=0x118bffea0, markBit=0, slotIdx=501, word=0x0, regionType=2, sweepState=0, sweepGen=6
+2026-03-15 20:26:30.100986 36771314 E [MS-DIAG] PRE-MARK root=0x118c01ea0, markBit=0, slotIdx=757, word=0x0, regionType=2, sweepState=0, sweepGen=6
+2026-03-15 20:26:30.100988 36771314 E [MS-DIAG] PRE-MARK cycle 3: 0/63 roots already have markBit set
+2026-03-15 20:26:30.100992 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 63 raw, globalSweepGen=6
+2026-03-15 20:26:30.100994 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.100997 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.101005 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.101007 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.101010 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.101012 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.101014 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.101016 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.101019 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.101021 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.101023 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.101025 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.101027 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.101030 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.101032 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.101034 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.101036 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.101038 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.101040 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.101043 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.123501 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 411, nullOrNonHeap: 411, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:30.123540 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=2567, fullUnswept=0
+2026-03-15 20:26:30.123543 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=2567
+2026-03-15 20:26:30.127799 36771314 E [MS-GC] ForceFinishSweep: swept=2580, casFail=0, sg=8
+2026-03-15 20:26:30.127823 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=1, force=2580, released=2047, largeFreed=0
+2026-03-15 20:26:30.128105 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 69 raw, globalSweepGen=8
+2026-03-15 20:26:30.128109 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.128111 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.128114 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.128117 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.128119 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.128132 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.128135 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.128137 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.128140 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.128142 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.128144 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.128146 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.128149 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.128151 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.128153 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.128155 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.128157 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.128160 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.128162 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.128164 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.151474 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:30.151507 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=14, partialUnswept=0, fullSwept=520, fullUnswept=0
+2026-03-15 20:26:30.151510 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=14, fullSwept=0, fullUnswept=520
+2026-03-15 20:26:30.301883 36771314 E [MS-GC] ForceFinishSweep: swept=12, casFail=0, sg=10
+2026-03-15 20:26:30.301893 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=522, force=12, released=0, largeFreed=0
+2026-03-15 20:26:30.303479 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 67 raw, globalSweepGen=10
+2026-03-15 20:26:30.303482 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.303485 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.303488 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.303490 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.303492 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.303495 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.303497 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.303506 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.303509 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.303511 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.303514 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.303516 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.303518 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.303521 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.303523 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.303526 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.303528 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.303530 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.303533 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.303535 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.326554 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 2218, nullOrNonHeap: 2218, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:30.326594 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=3470, fullUnswept=0
+2026-03-15 20:26:30.326597 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=3470
+2026-03-15 20:26:30.331555 36771314 E [MS-GC] ForceFinishSweep: swept=3482, casFail=0, sg=12
+2026-03-15 20:26:30.331560 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=1, force=3482, released=2941, largeFreed=0
+2026-03-15 20:26:30.331629 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 69 raw, globalSweepGen=12
+2026-03-15 20:26:30.331632 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.331635 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.331637 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.331640 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.331642 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.331645 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.331647 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.331650 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.331652 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.331659 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.331662 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.331664 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.331666 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.331668 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.331671 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.331673 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.331675 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.331677 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.331679 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.331682 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.354506 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:30.354540 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=16, partialUnswept=0, fullSwept=526, fullUnswept=0
+2026-03-15 20:26:30.354543 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=16, fullSwept=0, fullUnswept=526
+2026-03-15 20:26:30.504894 36771314 E [MS-GC] ForceFinishSweep: swept=12, casFail=0, sg=14
+2026-03-15 20:26:30.504900 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=530, force=12, released=0, largeFreed=0
+2026-03-15 20:26:30.505930 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 69 raw, globalSweepGen=14
+2026-03-15 20:26:30.505935 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.505938 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.505941 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.505944 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.505947 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.505949 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.505952 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.505955 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.505957 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.505960 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.505962 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.505964 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.505976 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.505979 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.505981 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.505984 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.505986 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.505988 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.505990 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.505993 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.528532 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 2928, nullOrNonHeap: 2928, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:30.528565 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=3527, fullUnswept=0
+2026-03-15 20:26:30.528568 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=3527
+2026-03-15 20:26:30.534966 36771314 E [MS-GC] ForceFinishSweep: swept=3539, casFail=0, sg=16
+2026-03-15 20:26:30.535003 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=1, force=3539, released=3005, largeFreed=0
+2026-03-15 20:26:30.535080 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 69 raw, globalSweepGen=16
+2026-03-15 20:26:30.535083 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.535086 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.535089 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.535092 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.535094 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.535097 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.535099 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.535101 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.535103 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.535106 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.535108 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.535110 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.535112 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.535115 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.535134 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.535137 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.535139 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.535141 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.535143 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.535145 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.557686 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:30.557722 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=16, partialUnswept=0, fullSwept=519, fullUnswept=0
+2026-03-15 20:26:30.557728 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=16, fullSwept=0, fullUnswept=519
+2026-03-15 20:26:30.708318 36771314 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=18
+2026-03-15 20:26:30.708331 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=526, force=9, released=0, largeFreed=6094848
+2026-03-15 20:26:30.708895 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 57 raw, globalSweepGen=18
+2026-03-15 20:26:30.708899 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.708902 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.708904 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.708906 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.708909 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.708911 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.708916 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.708919 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.708921 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.708924 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.708926 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.708928 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.708930 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.708933 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.708935 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.708937 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.708940 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.708958 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.708960 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.708963 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.709195 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:30.709235 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=2785, fullUnswept=0
+2026-03-15 20:26:30.709238 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=2785
+2026-03-15 20:26:30.909664 36771314 E [MS-GC] ForceFinishSweep: swept=10, casFail=0, sg=20
+2026-03-15 20:26:30.909677 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=2789, force=10, released=2784, largeFreed=9076736
+2026-03-15 20:26:30.910691 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 57 raw, globalSweepGen=20
+2026-03-15 20:26:30.910697 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910701 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910704 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910707 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910710 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910712 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910714 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910717 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910719 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910721 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910724 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910726 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910728 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910730 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910733 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910735 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910737 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910739 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910741 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910758 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:30.910947 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:30.910997 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=11, partialUnswept=0, fullSwept=2901, fullUnswept=0
+2026-03-15 20:26:30.911000 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=11, fullSwept=0, fullUnswept=2901
+2026-03-15 20:26:31.130303 36771314 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=22
+2026-03-15 20:26:31.130320 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=2905, force=9, released=2899, largeFreed=11239424
+2026-03-15 20:26:31.131765 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 60 raw, globalSweepGen=22
+2026-03-15 20:26:31.131770 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131773 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131776 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131779 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131781 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131784 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131787 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131789 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131791 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131794 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131797 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131799 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131801 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131803 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131805 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131808 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131810 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131812 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131814 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131817 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.131985 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:31.132037 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=3217, fullUnswept=0
+2026-03-15 20:26:31.132040 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=3217
+2026-03-15 20:26:31.376492 36771314 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=24
+2026-03-15 20:26:31.376508 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=3221, force=9, released=3216, largeFreed=10551296
+2026-03-15 20:26:31.378111 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 63 raw, globalSweepGen=24
+2026-03-15 20:26:31.378118 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378122 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378125 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378128 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378130 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378133 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378135 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378138 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378140 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378142 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378145 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378147 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378150 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378152 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378155 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378157 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378160 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378162 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378165 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378167 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.378358 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:31.378405 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=3594, fullUnswept=0
+2026-03-15 20:26:31.378408 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=3594
+2026-03-15 20:26:31.649882 36771314 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=26
+2026-03-15 20:26:31.649912 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=3598, force=9, released=3593, largeFreed=12746752
+2026-03-15 20:26:31.652107 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 57 raw, globalSweepGen=26
+2026-03-15 20:26:31.652112 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652115 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652119 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652122 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652124 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652127 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652129 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652131 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652134 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652136 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652139 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652141 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652143 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652146 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652148 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652150 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652153 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652155 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652157 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652160 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.652323 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:31.652366 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=11, partialUnswept=0, fullSwept=3977, fullUnswept=0
+2026-03-15 20:26:31.652369 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=11, fullSwept=0, fullUnswept=3977
+2026-03-15 20:26:31.951563 36771314 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=28
+2026-03-15 20:26:31.951580 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=3981, force=9, released=3975, largeFreed=14221312
+2026-03-15 20:26:31.953007 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 60 raw, globalSweepGen=28
+2026-03-15 20:26:31.953013 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953016 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953018 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953021 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953024 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953026 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953028 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953031 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953033 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953035 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953037 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953040 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953042 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953044 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953047 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953049 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953051 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953053 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953056 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953058 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:31.953221 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:31.953248 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=4401, fullUnswept=0
+2026-03-15 20:26:31.953251 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=4401
+2026-03-15 20:26:32.283590 36771314 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=30
+2026-03-15 20:26:32.283608 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=4405, force=9, released=4400, largeFreed=15302656
+2026-03-15 20:26:32.285183 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 57 raw, globalSweepGen=30
+2026-03-15 20:26:32.285189 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285193 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285196 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285200 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285203 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285205 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285208 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285211 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285214 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285216 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285219 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285222 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285224 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285227 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285230 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285232 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285235 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285237 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285240 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285243 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.285415 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:32.285445 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=11, partialUnswept=0, fullSwept=4884, fullUnswept=0
+2026-03-15 20:26:32.285449 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=11, fullSwept=0, fullUnswept=4884
+2026-03-15 20:26:32.651833 36771314 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=32
+2026-03-15 20:26:32.651852 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=4888, force=9, released=4882, largeFreed=17203200
+2026-03-15 20:26:32.653804 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 57 raw, globalSweepGen=32
+2026-03-15 20:26:32.653807 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.653810 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.653813 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.653815 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.653818 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.653820 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.653825 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.653828 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.653830 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.653832 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.653834 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.653837 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.653839 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.653841 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.653843 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.653846 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.653848 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.653850 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.653852 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.653854 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.654018 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:32.654046 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=11, partialUnswept=0, fullSwept=5408, fullUnswept=0
+2026-03-15 20:26:32.654049 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=11, fullSwept=0, fullUnswept=5408
+2026-03-15 20:26:32.889773 36771314 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=34
+2026-03-15 20:26:32.889784 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=5412, force=9, released=5406, largeFreed=5144576
+2026-03-15 20:26:32.892249 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 61 raw, globalSweepGen=34
+2026-03-15 20:26:32.892254 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892257 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892261 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892264 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892266 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892269 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892271 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892274 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892276 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892278 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892281 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892283 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892285 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892287 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892290 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892292 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892294 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892296 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892298 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892301 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.892483 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 9, nullOrNonHeap: 9, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:32.892517 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=6419, fullUnswept=0
+2026-03-15 20:26:32.892520 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=6419
+2026-03-15 20:26:32.906219 36771314 E [MS-GC] ForceFinishSweep: swept=6431, casFail=0, sg=36
+2026-03-15 20:26:32.906240 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=1, force=6431, released=6379, largeFreed=0
+2026-03-15 20:26:32.906306 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 60 raw, globalSweepGen=36
+2026-03-15 20:26:32.906309 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906312 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906314 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906317 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906319 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906322 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906324 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906327 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906329 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906331 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906333 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906335 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906338 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906340 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906342 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906344 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906347 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906349 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906351 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906353 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:32.906522 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:32.906549 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=14, partialUnswept=2, fullSwept=39, fullUnswept=0
+2026-03-15 20:26:32.906552 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=2, partialUnswept=14, fullSwept=0, fullUnswept=39
+2026-03-15 20:26:33.056920 36771314 E [MS-GC] ForceFinishSweep: swept=8, casFail=0, sg=38
+2026-03-15 20:26:33.056980 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=45, force=8, released=0, largeFreed=28016640
+2026-03-15 20:26:33.057926 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 58 raw, globalSweepGen=38
+2026-03-15 20:26:33.057932 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.057936 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.057939 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.057942 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.057945 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.057947 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.057949 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.057952 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.057954 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.057956 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.057959 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.057961 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.057963 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.057965 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.057968 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.057970 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.057972 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.057975 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.057977 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.057979 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=3, sweepState=2
+2026-03-15 20:26:33.058769 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 210, nullOrNonHeap: 210, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:33.058802 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=22, partialUnswept=0, fullSwept=3226, fullUnswept=0
+2026-03-15 20:26:33.058805 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=22, fullSwept=0, fullUnswept=3226
+2026-03-15 20:26:33.228728 36771314 E [MS-GC] ForceFinishSweep: swept=7, casFail=0, sg=40
+2026-03-15 20:26:33.228741 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=3242, force=7, released=3150, largeFreed=1474560
+2026-03-15 20:26:33.229765 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 70 raw, globalSweepGen=40
+2026-03-15 20:26:33.229772 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.229776 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.229779 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.229782 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.229785 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.229788 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.229790 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.229793 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.229795 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.229797 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.229799 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.229802 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.229804 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.229806 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.229808 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.229816 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.229818 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.229820 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.229823 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.229825 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.234708 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 1362, nullOrNonHeap: 1362, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:33.234746 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=23, partialUnswept=0, fullSwept=3539, fullUnswept=0
+2026-03-15 20:26:33.234749 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=23, fullSwept=0, fullUnswept=3539
+2026-03-15 20:26:33.241286 36771314 E [MS-GC] ForceFinishSweep: swept=3562, casFail=0, sg=42
+2026-03-15 20:26:33.241293 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=1, force=3562, released=3437, largeFreed=0
+2026-03-15 20:26:33.241362 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 70 raw, globalSweepGen=42
+2026-03-15 20:26:33.241366 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.241368 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.241371 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.241374 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.241376 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.241378 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.241380 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.241383 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.241385 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.241387 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.241389 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.241391 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.241394 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.241396 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.241398 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.241400 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.241402 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.241405 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.241407 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.241409 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.246335 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:33.246371 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=14, partialUnswept=0, fullSwept=112, fullUnswept=0
+2026-03-15 20:26:33.246374 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=14, fullSwept=0, fullUnswept=112
+2026-03-15 20:26:33.396734 36771314 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=44
+2026-03-15 20:26:33.396741 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=117, force=9, released=0, largeFreed=294912
+2026-03-15 20:26:33.397659 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 56 raw, globalSweepGen=44
+2026-03-15 20:26:33.397665 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397668 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397671 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397673 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397676 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397679 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397681 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397684 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397686 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397689 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397691 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397693 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397696 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397698 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397700 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397703 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397705 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397707 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397709 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397712 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.397901 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:33.397935 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=3249, fullUnswept=0
+2026-03-15 20:26:33.397937 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=3249
+2026-03-15 20:26:33.616419 36771314 E [MS-GC] ForceFinishSweep: swept=10, casFail=0, sg=46
+2026-03-15 20:26:33.616438 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=3253, force=10, released=3248, largeFreed=10911744
+2026-03-15 20:26:33.617411 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 62 raw, globalSweepGen=46
+2026-03-15 20:26:33.617416 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617419 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617422 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617426 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617428 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617430 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617433 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617435 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617438 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617440 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617442 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617444 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617447 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617449 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617451 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617454 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617456 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617458 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617461 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617463 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.617625 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:33.617673 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=3211, fullUnswept=0
+2026-03-15 20:26:33.617678 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=3211
+2026-03-15 20:26:33.858411 36771314 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=48
+2026-03-15 20:26:33.858462 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=3215, force=9, released=3209, largeFreed=11796480
+2026-03-15 20:26:33.859606 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 62 raw, globalSweepGen=48
+2026-03-15 20:26:33.859609 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859612 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859615 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859618 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859620 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859623 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859625 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859628 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859630 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859632 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859634 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859637 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859639 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859641 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859643 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859645 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859648 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859650 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859652 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859654 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:33.859819 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:33.859849 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=3555, fullUnswept=0
+2026-03-15 20:26:33.859852 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=3555
+2026-03-15 20:26:34.126135 36771314 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=50
+2026-03-15 20:26:34.126154 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=3559, force=9, released=3553, largeFreed=13271040
+2026-03-15 20:26:34.127330 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 62 raw, globalSweepGen=50
+2026-03-15 20:26:34.127339 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127342 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127344 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127347 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127349 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127351 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127353 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127356 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127358 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127360 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127362 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127365 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127367 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127369 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127371 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127374 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127376 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127378 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127380 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127383 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.127548 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:34.127575 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=3926, fullUnswept=0
+2026-03-15 20:26:34.127578 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=3926
+2026-03-15 20:26:34.421515 36771314 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=52
+2026-03-15 20:26:34.421539 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=3930, force=9, released=3924, largeFreed=14450688
+2026-03-15 20:26:34.423730 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 62 raw, globalSweepGen=52
+2026-03-15 20:26:34.423739 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423743 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423746 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423749 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423751 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423754 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423757 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423759 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423761 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423764 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423766 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423768 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423770 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423773 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423775 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423777 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423779 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423781 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423783 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423786 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.423980 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:34.424015 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=4335, fullUnswept=0
+2026-03-15 20:26:34.424018 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=4335
+2026-03-15 20:26:34.733211 36771314 E [MS-GC] ForceFinishSweep: swept=6, casFail=0, sg=54
+2026-03-15 20:26:34.733254 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=4342, force=6, released=4333, largeFreed=18317312
+2026-03-15 20:26:34.735557 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 62 raw, globalSweepGen=54
+2026-03-15 20:26:34.735560 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735563 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735566 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735568 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735571 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735573 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735575 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735577 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735580 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735582 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735584 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735586 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735589 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735591 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735593 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735595 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735598 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735600 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735602 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735604 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:34.735772 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:34.735802 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=22, partialUnswept=0, fullSwept=4703, fullUnswept=0
+2026-03-15 20:26:34.735805 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=22, fullSwept=0, fullUnswept=4703
+2026-03-15 20:26:35.054779 36771314 E [MS-GC] ForceFinishSweep: swept=6, casFail=0, sg=56
+2026-03-15 20:26:35.054828 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=4720, force=6, released=4710, largeFreed=23953408
+2026-03-15 20:26:35.056708 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 55 raw, globalSweepGen=56
+2026-03-15 20:26:35.056711 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.056714 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.056716 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.056719 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.056721 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.056723 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.056726 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.056728 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.056730 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.056733 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.056735 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.056737 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.056739 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.056742 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.056744 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.056746 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.056748 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.056750 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.056753 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.056755 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=3, sweepState=2
+2026-03-15 20:26:35.056931 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:35.056961 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=20, partialUnswept=0, fullSwept=5005, fullUnswept=0
+2026-03-15 20:26:35.056964 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=20, fullSwept=0, fullUnswept=5005
+2026-03-15 20:26:35.388781 36771314 E [MS-GC] ForceFinishSweep: swept=6, casFail=0, sg=58
+2026-03-15 20:26:35.388832 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=5022, force=6, released=5011, largeFreed=27721728
+2026-03-15 20:26:35.390548 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 63 raw, globalSweepGen=58
+2026-03-15 20:26:35.390551 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.390554 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.390556 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.390559 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.390561 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.390564 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.390566 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.390569 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.390571 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.390573 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.390581 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.390584 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.390586 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.390588 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.390590 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.390592 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.390595 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.390597 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.390599 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.390601 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=3, sweepState=2
+2026-03-15 20:26:35.390785 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:35.390820 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=23, partialUnswept=0, fullSwept=5272, fullUnswept=0
+2026-03-15 20:26:35.390823 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=23, fullSwept=0, fullUnswept=5272
+2026-03-15 20:26:35.581476 36771314 E [MS-GC] ForceFinishSweep: swept=909, casFail=0, sg=60
+2026-03-15 20:26:35.581563 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=4387, force=909, released=5279, largeFreed=46104576
+2026-03-15 20:26:35.583913 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 59 raw, globalSweepGen=60
+2026-03-15 20:26:35.583918 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.583922 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.583925 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.583927 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.583930 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.583932 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.583935 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.583937 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.583939 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.583942 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.583944 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.583946 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.583963 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.583965 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.583967 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.583970 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.583972 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.583974 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.583976 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.583979 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=3, sweepState=2
+2026-03-15 20:26:35.583999 36771314 E DrainSlice: obj=0x11cabc000 has invalid TypeInfo=0x3ffe (raw stateword=0x3ffe), msRegion: type=-1, sizeClass=0, allocPtr=0x0, regionEnd=0x0, sweepState=0, sweepGen=0, markBitmap=(nil), totalSlots=0, freeSlots=0
+2026-03-15 20:26:35.584180 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:35.584214 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=20, partialUnswept=0, fullSwept=4234, fullUnswept=0
+2026-03-15 20:26:35.584217 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=20, fullSwept=0, fullUnswept=4234
+2026-03-15 20:26:35.746508 36771314 E [MS-GC] ForceFinishSweep: swept=6, casFail=0, sg=62
+2026-03-15 20:26:35.746606 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=4249, force=6, released=4228, largeFreed=48365568
+2026-03-15 20:26:35.747752 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 64 raw, globalSweepGen=62
+2026-03-15 20:26:35.747757 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.747763 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.747767 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.747769 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.747772 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.747774 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.747777 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.747779 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.747782 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.747784 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.747786 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.747788 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.747791 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.747793 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.747795 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.747797 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.747800 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.747802 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.747804 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.747806 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=3, sweepState=2
+2026-03-15 20:26:35.747827 36771314 E DrainSlice: obj=0x114bc4000 has invalid TypeInfo=0x3ffe (raw stateword=0x3ffe), msRegion: type=-1, sizeClass=0, allocPtr=0x0, regionEnd=0x0, sweepState=0, sweepGen=0, markBitmap=(nil), totalSlots=0, freeSlots=0
+2026-03-15 20:26:35.747831 36771314 E DrainSlice: obj=0x113dd4000 has invalid TypeInfo=0x6ffe (raw stateword=0x6ffe), msRegion: type=-1, sizeClass=0, allocPtr=0x0, regionEnd=0x0, sweepState=0, sweepGen=0, markBitmap=(nil), totalSlots=0, freeSlots=0
+2026-03-15 20:26:35.747835 36771314 E DrainSlice: obj=0x11cabc000 has invalid TypeInfo=0xffe (raw stateword=0xffe), msRegion: type=-1, sizeClass=0, allocPtr=0x0, regionEnd=0x0, sweepState=0, sweepGen=0, markBitmap=(nil), totalSlots=0, freeSlots=0
+2026-03-15 20:26:35.748033 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 1416, nullOrNonHeap: 1416, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:35.748063 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=17, partialUnswept=0, fullSwept=3937, fullUnswept=0
+2026-03-15 20:26:35.748066 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=17, fullSwept=0, fullUnswept=3937
+2026-03-15 20:26:35.754683 36771314 E [MS-GC] ForceFinishSweep: swept=3954, casFail=0, sg=64
+2026-03-15 20:26:35.754697 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=1, force=3954, released=3922, largeFreed=0
+2026-03-15 20:26:35.754749 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 58 raw, globalSweepGen=64
+2026-03-15 20:26:35.754752 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.754755 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.754757 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.754759 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.754762 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.754764 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.754767 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.754769 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.754772 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.754774 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.754776 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.754778 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.754780 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.754783 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.754785 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.754787 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.754789 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.754791 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.754793 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.754796 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=3, sweepState=2
+2026-03-15 20:26:35.754813 36771314 E DrainSlice: obj=0x114bc4000 has invalid TypeInfo=0x3ffe (raw stateword=0x3ffe), msRegion: type=-1, sizeClass=0, allocPtr=0x0, regionEnd=0x0, sweepState=0, sweepGen=0, markBitmap=(nil), totalSlots=0, freeSlots=0
+2026-03-15 20:26:35.754816 36771314 E DrainSlice: obj=0x113dd4000 has invalid TypeInfo=0x6ffe (raw stateword=0x6ffe), msRegion: type=-1, sizeClass=0, allocPtr=0x0, regionEnd=0x0, sweepState=0, sweepGen=0, markBitmap=(nil), totalSlots=0, freeSlots=0
+2026-03-15 20:26:35.754819 36771314 E DrainSlice: obj=0x11cabc000 has invalid TypeInfo=0xffe (raw stateword=0xffe), msRegion: type=-1, sizeClass=0, allocPtr=0x0, regionEnd=0x0, sweepState=0, sweepGen=0, markBitmap=(nil), totalSlots=0, freeSlots=0
+2026-03-15 20:26:35.755033 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:35.755061 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=32, partialUnswept=0, fullSwept=1, fullUnswept=0
+2026-03-15 20:26:35.755063 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=32, fullSwept=0, fullUnswept=1
+2026-03-15 20:26:35.905367 36771314 E [MS-GC] ForceFinishSweep: swept=6, casFail=0, sg=66
+2026-03-15 20:26:35.905461 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=27, force=6, released=0, largeFreed=45481984
+2026-03-15 20:26:35.906482 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 63 raw, globalSweepGen=66
+2026-03-15 20:26:35.906488 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.906491 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.906494 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.906497 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.906500 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.906503 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.906506 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.906512 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.906515 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.906517 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.906519 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.906521 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.906523 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.906525 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.906528 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.906530 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.906532 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.906534 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.906536 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:35.906539 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=3, sweepState=2
+2026-03-15 20:26:35.906732 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:35.906770 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=20, partialUnswept=0, fullSwept=3766, fullUnswept=0
+2026-03-15 20:26:35.906773 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=20, fullSwept=0, fullUnswept=3766
+2026-03-15 20:26:36.059414 36771314 E [MS-GC] ForceFinishSweep: swept=1165, casFail=0, sg=68
+2026-03-15 20:26:36.059464 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=2622, force=1165, released=3770, largeFreed=16187392
+2026-03-15 20:26:36.060764 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 63 raw, globalSweepGen=68
+2026-03-15 20:26:36.060771 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.060774 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.060777 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.060780 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.060783 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.060785 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.060788 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.060790 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.060792 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.060795 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.060797 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.060800 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.060802 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.060804 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.060809 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.060812 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.060814 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.060817 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.060819 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.060821 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=3, sweepState=2
+2026-03-15 20:26:36.060997 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:36.061037 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=14, partialUnswept=0, fullSwept=2570, fullUnswept=0
+2026-03-15 20:26:36.061040 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=14, fullSwept=0, fullUnswept=2570
+2026-03-15 20:26:36.222282 36771314 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=70
+2026-03-15 20:26:36.222318 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=2576, force=9, released=2568, largeFreed=17563648
+2026-03-15 20:26:36.223325 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 63 raw, globalSweepGen=70
+2026-03-15 20:26:36.223328 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.223331 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.223334 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.223336 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.223339 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.223341 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.223343 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.223346 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.223348 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.223350 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.223352 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.223355 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.223357 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.223359 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.223361 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.223363 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.223366 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.223368 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.223370 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.223372 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=3, sweepState=2
+2026-03-15 20:26:36.223566 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:36.223595 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=14, partialUnswept=0, fullSwept=2775, fullUnswept=0
+2026-03-15 20:26:36.223597 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=14, fullSwept=0, fullUnswept=2775
+2026-03-15 20:26:36.392205 36771314 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=72
+2026-03-15 20:26:36.392256 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=2781, force=9, released=2765, largeFreed=17825792
+2026-03-15 20:26:36.393843 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 63 raw, globalSweepGen=72
+2026-03-15 20:26:36.393849 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.393853 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.393856 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.393859 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.393862 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.393864 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.393867 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.393869 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.393871 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.393874 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.393876 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.393878 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.393880 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.393882 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.393885 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.393887 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.393889 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.393891 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.393893 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.393895 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=3, sweepState=2
+2026-03-15 20:26:36.394088 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:36.394125 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=14, partialUnswept=0, fullSwept=2913, fullUnswept=0
+2026-03-15 20:26:36.394128 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=14, fullSwept=0, fullUnswept=2913
+2026-03-15 20:26:36.571424 36771314 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=74
+2026-03-15 20:26:36.571459 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=2919, force=9, released=2910, largeFreed=19431424
+2026-03-15 20:26:36.572481 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 63 raw, globalSweepGen=74
+2026-03-15 20:26:36.572486 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.572489 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.572493 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.572496 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.572499 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.572502 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.572504 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.572506 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.572509 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.572512 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.572514 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.572517 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.572519 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.572522 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.572524 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.572526 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.572529 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.572537 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.572539 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.572542 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=3, sweepState=2
+2026-03-15 20:26:36.572715 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:36.572749 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=14, partialUnswept=0, fullSwept=3037, fullUnswept=0
+2026-03-15 20:26:36.572752 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=14, fullSwept=0, fullUnswept=3037
+2026-03-15 20:26:36.756981 36771314 E [MS-GC] ForceFinishSweep: swept=9, casFail=0, sg=76
+2026-03-15 20:26:36.757019 36771314 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=3043, force=9, released=3030, largeFreed=19726336
+2026-03-15 20:26:36.758015 36771314 E [MS-DIAG] EnumAndMarkRoots: 1 marked roots from 63 raw, globalSweepGen=76
+2026-03-15 20:26:36.758018 36771314 E [MS-DIAG] root[0]=0x112ba4280, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.758021 36771314 E [MS-DIAG] root[1]=0x112ba4200, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.758023 36771314 E [MS-DIAG] root[2]=0x112b7c240, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.758026 36771314 E [MS-DIAG] root[3]=0x112b6c2a0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.758028 36771314 E [MS-DIAG] root[4]=0x112b6c1c0, inMS=1, msInfo=0x112ae4040, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.758031 36771314 E [MS-DIAG] root[5]=0x112ba4080, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.758033 36771314 E [MS-DIAG] root[6]=0x112ba4000, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.758035 36771314 E [MS-DIAG] root[7]=0x112ba4180, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.758038 36771314 E [MS-DIAG] root[8]=0x112ba4100, inMS=1, msInfo=0x112ae4200, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.758040 36771314 E [MS-DIAG] root[9]=0x112b7c200, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.758042 36771314 E [MS-DIAG] root[10]=0x112b7c1c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.758045 36771314 E [MS-DIAG] root[11]=0x112b7c180, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.758047 36771314 E [MS-DIAG] root[12]=0x112b7c140, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.758049 36771314 E [MS-DIAG] root[13]=0x112b7c100, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.758051 36771314 E [MS-DIAG] root[14]=0x112b7c0c0, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.758053 36771314 E [MS-DIAG] root[15]=0x112b7c080, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.758055 36771314 E [MS-DIAG] root[16]=0x112b7c040, inMS=1, msInfo=0x112ae40c0, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.758058 36771314 E [MS-DIAG] root[17]=0x112b8c140, inMS=1, msInfo=0x112ae4140, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.758060 36771314 E [MS-DIAG] root[18]=0x112b94000, inMS=1, msInfo=0x112ae4180, markResult=1(1=already), regionType=2, sweepState=2
+2026-03-15 20:26:36.758062 36771314 E [MS-DIAG] root[19]=0x112b85400, inMS=1, msInfo=0x112ae4100, markResult=1(1=already), regionType=3, sweepState=2
+2026-03-15 20:26:36.758228 36771314 E [MS-WB-DIAG] MarkAndEnqueue calls: 0, nullOrNonHeap: 0, phaseSkip: 0, alreadyMarked: 0, enqueued: 0
+2026-03-15 20:26:36.758257 36771314 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=14, partialUnswept=0, fullSwept=3184, fullUnswept=0
+2026-03-15 20:26:36.758260 36771314 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=14, fullSwept=0, fullUnswept=3184
+========================================
+  Cangjie GC Benchmark Suite
+  Tip: MRT_REPORT=./gc_bench.log cjHeapSize=256mb ./gc_benchmark
+========================================
+
+--- Functional Tests ---
+[BENCH] F1_TreeIntegrity         PASS  174 ms
+[BENCH] F2_Generational          PASS  512 ms
+[BENCH] F3_LargeObject           PASS  2189 ms
+[BENCH] F4_LinkedList            PASS  138 ms
+[BENCH] F5_HashMap               PASS  159 ms
+
+--- Performance Tests ---
+[BENCH] P1_SmallAlloc            320 ms  6553550 nodes  20479 nodes/ms
+[BENCH] P2_LargeAlloc            1204 ms  50 MB  42 MB/s
+[BENCH] P3_MixedWorkload         729 ms  30 rounds
+[BENCH] P4_LongLivedChurn        568 ms  persistent_intact=20/20
+[BENCH] P5_Fragmentation         1027 ms  15 rounds
+
+========================================
+[BENCH] SUMMARY
+[BENCH] Functional: 5/5 passed
+[BENCH] P1_SmallAlloc:      320 ms
+[BENCH] P2_LargeAlloc:      1204 ms
+[BENCH] P3_MixedWorkload:   729 ms
+[BENCH] P4_LongLivedChurn:  568 ms
+[BENCH] P5_Fragmentation:   1027 ms
+[BENCH] Total wall time:    7023 ms
+========================================

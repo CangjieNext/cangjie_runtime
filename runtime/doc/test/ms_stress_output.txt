@@ -1,0 +1,12 @@
+========================================
+  GC Stress Test — Pinned + Large Alloc
+  Duration: 60 seconds
+  cjHeapSize=256mb recommended
+========================================
+
+[SETUP] Creating pinned base objects ...
+[SETUP] Done: 200 pinned holders
+
+[STRESS] Starting 60-second stress loop ...
+[HEARTBEAT] sec=1  rounds=36  allocMB=56  pinnedOps=36  spawned=56
+[HEARTBEAT] sec=2  rounds=73  allocMB=115  pinnedOps=73  spawned=112

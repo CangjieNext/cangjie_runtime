@@ -104,6 +104,17 @@ public:
     // Total unit count for the heap.
     size_t GetMaxUnitCount() const { return maxUnitCount_; }
 
+    // Free unit count across both trees + unallocated zone.
+    uint32_t GetFreeUnitCount() const
+    {
+        uint32_t dirty = dirtyTree_.GetTotalCount();
+        uint32_t released = releasedTree_.GetTotalCount();
+        uint32_t inactive = (heapEnd_ > inactiveZone_.load(std::memory_order_relaxed))
+            ? static_cast<uint32_t>((heapEnd_ - inactiveZone_.load(std::memory_order_relaxed)) / unitSize_)
+            : 0;
+        return dirty + released + inactive;
+    }
+
 private:
     // Try to take units from dirty tree, then released tree, then extend inactiveZone.
     // Returns unit index via 'idx'. Returns true on success.

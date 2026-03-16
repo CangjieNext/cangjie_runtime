@@ -37,7 +37,12 @@ namespace MapleRuntime {
 MAddress RegionSpace::TryAllocateOnceMS(size_t allocSize)
 {
     // Large / huge object path
-    if (UNLIKELY(allocSize >= msRegionManager_->GetLargeObjectThreshold())) {
+    // Use kLargeObjectThreshold (16KB, max size class) as the cutoff, NOT
+    // MS_REGION_SIZE (32KB).  Objects between 16KB and 32KB fall into a gap:
+    // SizeToClass() overflows its lookup table, AllocBufferMS::Allocate()
+    // rejects them (cls >= kNumSizeClasses → return 0), and they never reach
+    // the large object path — causing infinite retry → OOM.
+    if (UNLIKELY(allocSize >= kLargeObjectThreshold)) {
         // Tier 2: huge objects (>4MB) go to independent mmap
         if (allocSize > kHugeObjectThreshold && msLargeObjectSpace_ != nullptr) {
             return msLargeObjectSpace_->Allocate(allocSize);
@@ -52,14 +57,46 @@ MAddress RegionSpace::TryAllocateOnceMS(size_t allocSize)
             // regions so that completely-empty regions return their pages to
             // MSRegionManager.  This handles the case where only large objects are
             // being allocated and lazy sweep never runs.
+            size_t beforeBytes = msCentralPool_->GetTotalMSRegionBytes();
             msCentralPool_->ForceFinishSweep();
+            size_t afterBytes = msCentralPool_->GetTotalMSRegionBytes();
+            LOG(RTLOG_ERROR, "[MS-GC] TryAllocateOnceMS large fallback: "
+                "allocSize=%zu, unitCount=%zu, "
+                "totalMSRegionBytes before=%zu after=%zu (freed=%zd), "
+                "msRegionManager freeUnits=%u",
+                allocSize, unitCount,
+                beforeBytes, afterBytes, (ssize_t)(beforeBytes - afterBytes),
+                msRegionManager_->GetFreeUnitCount());
             baseInfo = msRegionManager_->TakeRegionForLarge(unitCount, regionStart);
         }
         if (baseInfo == nullptr) {
+            // ForceFinishSweep was not enough.  Request a full GC to mark+sweep
+            // all garbage (including large objects), then retry once.
+            if (!Heap::GetHeap().IsGcStarted()) {
+                Heap::GetHeap().GetCollector().RequestGC(GC_REASON_OOM, false);
+            }
+            {
+                ScopedEnterSaferegion enterSaferegion(false);
+                Heap::GetHeap().GetCollectorResources().WaitForGCFinish();
+            }
+            baseInfo = msRegionManager_->TakeRegionForLarge(unitCount, regionStart);
+        }
+        if (baseInfo == nullptr) {
+            LOG(RTLOG_ERROR, "[MS-GC] TryAllocateOnceMS LARGE ALLOC FAILED after GC: "
+                "allocSize=%zu, unitCount=%zu, totalMSRegionBytes=%zu, "
+                "msRegionManager freeUnits=%u",
+                allocSize, unitCount,
+                msCentralPool_ ? msCentralPool_->GetTotalMSRegionBytes() : 0,
+                msRegionManager_->GetFreeUnitCount());
             return 0;
         }
-        // Alloc from the raw region memory
-        size_t regionBytes = unitCount * RegionInfo::UNIT_SIZE;
+        // Alloc from the raw region memory.
+        // regionBytes must be rounded up to MS_REGION_SIZE to match the
+        // aligned allocation inside TakeRegionForLarge — otherwise
+        // InitForLargeObject records a smaller regionEnd, spanCount is
+        // under-counted, and trailing MSRegionInfo entries stay un-initialized.
+        size_t regionBytes = ((unitCount * RegionInfo::UNIT_SIZE) + MS_REGION_SIZE - 1)
+                             / MS_REGION_SIZE * MS_REGION_SIZE;
         MAddress addr = static_cast<MAddress>(regionStart);
         RegisterLargeObjectMS(addr, regionBytes);
         return addr;
@@ -282,9 +319,15 @@ bool RegionSpace::MarkObject(const BaseObject* obj)
 {
     MAddress addr = reinterpret_cast<MAddress>(obj);
 
-    // Non-heap addresses (e.g., static data) → treat as already marked
+    // Non-heap addresses: check LOS (Tier 2 huge objects) before rejecting
     if (!MSRegionInfoArray::IsHeapAddress(addr)) {
-        return true;
+        // Try LOS — these objects are mmap'd outside the contiguous heap
+        RegionSpace& space = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+        LargeObjectSpace* los = space.GetLargeObjectSpace();
+        if (los != nullptr && los->MarkObject(static_cast<uintptr_t>(addr))) {
+            return false;  // newly marked in LOS
+        }
+        return true;  // not managed — treat as already marked
     }
 
     MSRegionInfo* msInfo = MSRegionInfoArray::GetRegionInfoValidated(addr);
@@ -320,13 +363,35 @@ void RegionSpace::RegisterLargeObjectMS(MAddress addr, size_t regionBytes)
 
     // Initialize the base MSRegionInfo at the object's start address
     MSRegionInfo* baseInfo = MSRegionInfoArray::GetRegionInfo(start);
-    baseInfo->InitForLargeObject(start, end);
     size_t baseIdx = MSRegionInfoArray::GetRegionIdx(baseInfo);
+
+    // Debug: check ALL span entries BEFORE overwriting — detect if any are in active use
+    size_t spanCount = (regionBytes + MS_REGION_SIZE - 1) / MS_REGION_SIZE;
+    for (size_t i = 0; i < spanCount; i++) {
+        MSRegionInfo* entry = MSRegionInfoArray::GetRegionInfoByIdx(baseIdx + i);
+        if (entry->regionType != MSRegionType::MS_REGION_FREE &&
+            entry->regionType != MSRegionType::MS_REGION_LARGE) {
+            LOG(RTLOG_FATAL, "[MS-GC] RegisterLargeObjectMS: span[%zu/%zu] (idx=%zu) has "
+                "non-free regionType=%d! allocPtr=0x%zx, regionEnd=0x%zx, "
+                "allocBitmap=%p, sizeClass=%u, freeSlots=%u, totalSlots=%u, "
+                "sweepState=%d, sweepGen=%u, nextIdx=%d, prevIdx=%d, reserved=0x%llx. "
+                "Large: start=0x%zx, end=0x%zx, regionBytes=%zu",
+                i, spanCount, baseIdx + i,
+                (int)entry->regionType, entry->allocPtr, entry->regionEnd,
+                (void*)entry->allocBitmap, (unsigned)entry->sizeClass,
+                (unsigned)entry->freeSlotCount, (unsigned)entry->totalSlotCount,
+                (int)entry->sweepState, entry->sweepGen,
+                entry->nextRegionIdx, entry->prevRegionIdx,
+                (unsigned long long)entry->reserved,
+                start, end, regionBytes);
+        }
+    }
+
+    baseInfo->InitForLargeObject(start, end);
     // Base points to itself
     baseInfo->reserved = static_cast<uint64_t>(baseIdx);
 
     // Initialize ALL spanning MSRegionInfo entries for interior pointer safety
-    size_t spanCount = (regionBytes + MS_REGION_SIZE - 1) / MS_REGION_SIZE;
     for (size_t i = 1; i < spanCount; i++) {
         MSRegionInfo* spanInfo = MSRegionInfoArray::GetRegionInfoByIdx(baseIdx + i);
         spanInfo->regionType = MSRegionType::MS_REGION_LARGE;
@@ -339,13 +404,13 @@ void RegionSpace::RegisterLargeObjectMS(MAddress addr, size_t regionBytes)
         spanInfo->reserved = static_cast<uint64_t>(baseIdx);
     }
 
-    // If GC is currently marking, conservatively mark the object as live
-    GCPhase phase = Heap::GetHeap().GetCollector().GetGCPhase();
-    if (phase == GCPhase::GC_PHASE_MS_MARK_SETUP ||
-        phase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK ||
-        phase == GCPhase::GC_PHASE_MS_MARK_TERMINATION) {
-        baseInfo->isMarked = 1;
-    }
+    // Always mark newly allocated large objects as live.
+    // ClearLargeMarks() will reset isMarked=0 at the start of each GC cycle
+    // (inside STW), and the mark phase will re-mark live objects.
+    // Previously this was conditional on GC phase, causing large objects
+    // allocated during IDLE to have isMarked=0 — ForceFinishSweep's
+    // SweepLargeRegions would then incorrectly free them as "dead".
+    baseInfo->isMarked = 1;
 
     // Track in CentralRegionPool for GC sweep iteration and byte accounting
     if (msCentralPool_ != nullptr) {

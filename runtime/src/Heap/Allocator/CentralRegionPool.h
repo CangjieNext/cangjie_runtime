@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <vector>
 #include <algorithm>
+#include <thread>
 
 #include "MSRegionInfo.h"
 #include "SizeClass.h"
@@ -224,6 +225,16 @@ public:
     // Called after MarkTerminate / in PostMarkTermination.
     size_t SweepLargeRegions();
 
+    // Wait for all sweep (background + lazy) to finish.
+    // Called in MarkSetup before ForceFinishSweep to prevent data race:
+    // bg sweep's SweepRegion (memset markBitmap 0) vs next cycle's ConcurrentMark.
+    void WaitForSweepDone()
+    {
+        while (!sweepDone_.load(std::memory_order_acquire)) {
+            std::this_thread::yield();
+        }
+    }
+
     // Adjust totalMSRegionBytes_ for large region tracking.
     void AddLargeRegionBytes(size_t bytes)
     {
@@ -249,6 +260,7 @@ private:
 
     static std::atomic<uint32_t> globalSweepGen_;
     std::atomic<bool> sweepDone_{true};
+    std::atomic<bool> bgSweepRunning_{false};
     MSSweepStats sweepStats_;
 
     // Total bytes of MS regions currently in use (GetFreshRegion +, ReleaseRegion -)

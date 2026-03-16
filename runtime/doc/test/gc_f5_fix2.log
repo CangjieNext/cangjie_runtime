@@ -1,0 +1,853 @@
+2026-03-14 21:11:09.816127 35460065 [MS-GC] MS subsystem initialized: maxRegions=8192, heapRange=[0x110948000, 0x120948000)
+2026-03-14 21:11:09.816566 35460065 total gc thread count 2, helper thread count 1
+2026-03-14 21:11:09.817008 35460065 Runtime parameter:
+	Heap size: 262144(KB)
+	Region size: 64(KB)
+	Exemption threshold: 0.80
+	Heap utilization: 0.80
+	Heap growth: 1.15
+	Allocation rate: 10240.00(MB/s)
+	Allocation wait time: 1000ns
+	GC Threshold: 262144(KB)
+	Garbage threshold: 0.50
+	GC interval: 150ms
+	Backup GC interval: 240s
+	Log level: 5
+	Thread stack size: 1024(KB)
+	Cangjie stack size: 1024(KB)
+	Processor number: 8
+2026-03-14 21:11:09.852316 35460069 [MS-GC] === GC START cycle=1 === sweepGen=2 reason=3(heuristic)
+2026-03-14 21:11:09.852355 35460069 [MS-GC] allocated 21,037,056 B, threshold 20,971,520 B, gcIndex=18446744073709551615
+2026-03-14 21:11:09.852361 35460069 Begin GC log. GCReason: heuristic, Current allocated 21,037,056, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:09.852485 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:09.852520 35460069 [MS-GC] ForceFinishSweep: 30us
+2026-03-14 21:11:09.852673 35460069 [MS-GC] ClearMarkBitmaps: 646 regions, 140us
+2026-03-14 21:11:09.852748 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:09.852788 35460069 MS EnumAndMarkRoots time: 81us
+2026-03-14 21:11:09.852794 35460069 [MS-GC] MarkSetup total: 309us, roots=1
+2026-03-14 21:11:09.852800 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:09.852803 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:09.858654 35460069 [MS-GC] ConcurrentMark time: 5,851us, marked 124695 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:09.858684 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:09.858693 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 1us
+2026-03-14 21:11:09.858698 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 0us
+2026-03-14 21:11:09.858702 35460069 [MS-GC] MarkTermination total: 9us, total marked 124695
+2026-03-14 21:11:09.858706 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:09.858710 35460069 [MS-GC] ProcessWeakRefs: 0us
+2026-03-14 21:11:09.858718 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 5us
+2026-03-14 21:11:09.858722 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (0 B), 0us
+2026-03-14 21:11:09.858727 35460069 [MS-GC] PostMark total: 20us
+2026-03-14 21:11:09.858730 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:09.858747 35460069 [MS-GC] PrepareForSweep (gen flip): 14us
+2026-03-14 21:11:09.858751 35460069 [MS-GC] ConcurrentSweep total: 21us
+2026-03-14 21:11:09.858782 35460069 [MS-GC] region statistics when gc ends (sweepGen=4)
+2026-03-14 21:11:09.858788 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:09.858798 35460069 [MS-GC]   used pages: 21,168,128 B, allocated: 21,168,128 B
+2026-03-14 21:11:09.858787 35460065 WaitForGCFinish cost 6061 us
+2026-03-14 21:11:09.858802 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:09.858843 35460069 [MS-GC]     partialSwept: 0 regions  fullSwept: 0 regions
+2026-03-14 21:11:09.858849 35460069 [MS-GC]     partialUnswept: 12 regions  fullUnswept: 633 regions
+2026-03-14 21:11:09.858853 35460069 [MS-GC]     total small: 645 regions
+2026-03-14 21:11:09.858857 35460069 [MS-GC]     large regions: 0
+2026-03-14 21:11:09.858861 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:09.858834 35460065 gc is triggered for OOM
+2026-03-14 21:11:09.858867 35460069 [MS-GC] allocated size: 21,168,128, heap size: 21,168,128, heap utilization: 100.00%
+2026-03-14 21:11:09.858892 35460069 [MS-GC] live bytes 21,168,128, marked 124695 objects
+2026-03-14 21:11:09.858897 35460069 [MS-GC] total gc time: 6,466 us (MarkSetup 309 + ConcMark 5,851 + MarkTerm 9 + PostMark 20), sweep pending
+2026-03-14 21:11:09.858908 35460069 [MS-GC] === GC START cycle=2 === sweepGen=4 reason=1(oom)
+2026-03-14 21:11:09.858913 35460069 [MS-GC] allocated 21,168,128 B, threshold 20,971,520 B, gcIndex=3
+2026-03-14 21:11:09.858936 35460069 [MS-GC] --- Sweep Summary (since cycle=1) ---
+2026-03-14 21:11:09.858939 35460069 [MS-GC] swept small: 0 regions, freed 0 B (bitmap CTZ sweep)
+2026-03-14 21:11:09.858942 35460069 [MS-GC] swept large: 0 objects, freed 0 B
+2026-03-14 21:11:09.858944 35460069 [MS-GC] released regions: 0 (returned to OS)
+2026-03-14 21:11:09.858946 35460069 [MS-GC] sweep breakdown: no regions swept
+2026-03-14 21:11:09.858949 35460069 Begin GC log. GCReason: oom, Current allocated 21,168,128, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:09.859102 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:09.860077 35460069 [MS-GC] ForceFinishSweep: 972us
+2026-03-14 21:11:09.860083 35460069 [MS-GC] ClearMarkBitmaps: 135 regions, 2us
+2026-03-14 21:11:09.860138 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:09.860145 35460069 MS EnumAndMarkRoots time: 35us
+2026-03-14 21:11:09.860148 35460069 [MS-GC] MarkSetup total: 1,046us, roots=1
+2026-03-14 21:11:09.860151 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:09.860154 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:09.865618 35460069 [MS-GC] ConcurrentMark time: 5,465us, marked 125029 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:09.865639 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:09.865646 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 1us
+2026-03-14 21:11:09.865649 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 0us
+2026-03-14 21:11:09.865652 35460069 [MS-GC] MarkTermination total: 7us, total marked 125029
+2026-03-14 21:11:09.865655 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:09.865658 35460069 [MS-GC] ProcessWeakRefs: 0us
+2026-03-14 21:11:09.865662 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 2us
+2026-03-14 21:11:09.865665 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (0 B), 1us
+2026-03-14 21:11:09.865668 35460069 [MS-GC] PostMark total: 13us
+2026-03-14 21:11:09.865670 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:09.865689 35460069 [MS-GC] PrepareForSweep (gen flip): 17us
+2026-03-14 21:11:09.865692 35460069 [MS-GC] ConcurrentSweep total: 22us
+2026-03-14 21:11:09.865740 35460069 [MS-GC] region statistics when gc ends (sweepGen=6)
+2026-03-14 21:11:09.865748 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:09.865751 35460069 [MS-GC]   used pages: 4,423,680 B, allocated: 4,423,680 B
+2026-03-14 21:11:09.865754 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:09.865756 35460069 [MS-GC]     partialSwept: 0 regions  fullSwept: 0 regions
+2026-03-14 21:11:09.865759 35460069 [MS-GC]     partialUnswept: 13 regions  fullUnswept: 122 regions
+2026-03-14 21:11:09.865761 35460069 [MS-GC]     total small: 135 regions
+2026-03-14 21:11:09.865763 35460069 [MS-GC]     large regions: 0
+2026-03-14 21:11:09.865765 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:09.865768 35460069 [MS-GC] allocated size: 4,423,680, heap size: 4,423,680, heap utilization: 100.00%
+2026-03-14 21:11:09.865786 35460069 [MS-GC] live bytes 4,423,680, marked 125029 objects
+2026-03-14 21:11:09.865789 35460069 [MS-GC] total gc time: 6,832 us (MarkSetup 1,046 + ConcMark 5,465 + MarkTerm 7 + PostMark 13), sweep pending
+2026-03-14 21:11:10.065860 35460069 [MS-GC] === GC START cycle=3 === sweepGen=6 reason=3(heuristic)
+2026-03-14 21:11:10.065905 35460069 [MS-GC] allocated 112,328,704 B, threshold 20,971,520 B, gcIndex=18446744073709551615
+2026-03-14 21:11:10.065910 35460069 [MS-GC] --- Sweep Summary (since cycle=2) ---
+2026-03-14 21:11:10.065914 35460069 [MS-GC] swept small: 0 regions, freed 0 B (bitmap CTZ sweep)
+2026-03-14 21:11:10.065917 35460069 [MS-GC] swept large: 0 objects, freed 0 B
+2026-03-14 21:11:10.065920 35460069 [MS-GC] released regions: 0 (returned to OS)
+2026-03-14 21:11:10.065922 35460069 [MS-GC] sweep breakdown: no regions swept
+2026-03-14 21:11:10.065925 35460069 Begin GC log. GCReason: heuristic, Current allocated 112,361,472, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:10.066065 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:10.066085 35460069 [MS-GC] ForceFinishSweep: 15us
+2026-03-14 21:11:10.067502 35460069 [MS-GC] ClearMarkBitmaps: 3433 regions, 1,403us
+2026-03-14 21:11:10.067569 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:10.067578 35460069 MS EnumAndMarkRoots time: 33us
+2026-03-14 21:11:10.067582 35460069 [MS-GC] MarkSetup total: 1,517us, roots=1
+2026-03-14 21:11:10.067586 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:10.067589 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:10.090670 35460069 [MS-GC] ConcurrentMark time: 23,080us, marked 552332 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:10.090703 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:10.090710 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 0us
+2026-03-14 21:11:10.090714 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 1us
+2026-03-14 21:11:10.090716 35460069 [MS-GC] MarkTermination total: 7us, total marked 552332
+2026-03-14 21:11:10.090719 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:10.090722 35460069 [MS-GC] ProcessWeakRefs: 0us
+2026-03-14 21:11:10.090727 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 2us
+2026-03-14 21:11:10.090731 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (0 B), 0us
+2026-03-14 21:11:10.090733 35460069 [MS-GC] PostMark total: 14us
+2026-03-14 21:11:10.090735 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:10.090765 35460069 [MS-GC] PrepareForSweep (gen flip): 28us
+2026-03-14 21:11:10.090768 35460069 [MS-GC] ConcurrentSweep total: 33us
+2026-03-14 21:11:10.090800 35460069 [MS-GC] region statistics when gc ends (sweepGen=8)
+2026-03-14 21:11:10.090804 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:10.090807 35460069 [MS-GC]   used pages: 112,492,544 B, allocated: 112,492,544 B
+2026-03-14 21:11:10.090809 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:10.090812 35460069 [MS-GC]     partialSwept: 0 regions  fullSwept: 0 regions
+2026-03-14 21:11:10.090819 35460069 [MS-GC]     partialUnswept: 13 regions  fullUnswept: 3419 regions
+2026-03-14 21:11:10.090822 35460069 [MS-GC]     total small: 3432 regions
+2026-03-14 21:11:10.090824 35460069 [MS-GC]     large regions: 0
+2026-03-14 21:11:10.090827 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:10.090830 35460069 [MS-GC] allocated size: 112,492,544, heap size: 112,492,544, heap utilization: 100.00%
+2026-03-14 21:11:10.090837 35460069 [MS-GC] live bytes 112,492,544, marked 552332 objects
+2026-03-14 21:11:10.090840 35460069 [MS-GC] total gc time: 24,939 us (MarkSetup 1,517 + ConcMark 23,080 + MarkTerm 7 + PostMark 14), sweep pending
+2026-03-14 21:11:10.090811 35460065 WaitForGCFinish cost 23160 us
+2026-03-14 21:11:10.090860 35460065 gc is triggered for OOM
+2026-03-14 21:11:10.090878 35460069 [MS-GC] === GC START cycle=4 === sweepGen=8 reason=1(oom)
+2026-03-14 21:11:10.090884 35460069 [MS-GC] allocated 112,492,544 B, threshold 20,971,520 B, gcIndex=4
+2026-03-14 21:11:10.090888 35460069 [MS-GC] --- Sweep Summary (since cycle=3) ---
+2026-03-14 21:11:10.090893 35460069 [MS-GC] swept small: 0 regions, freed 0 B (bitmap CTZ sweep)
+2026-03-14 21:11:10.090896 35460069 [MS-GC] swept large: 0 objects, freed 0 B
+2026-03-14 21:11:10.090899 35460069 [MS-GC] released regions: 0 (returned to OS)
+2026-03-14 21:11:10.090901 35460069 [MS-GC] sweep breakdown: no regions swept
+2026-03-14 21:11:10.090904 35460069 Begin GC log. GCReason: oom, Current allocated 112,492,544, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:10.091081 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:10.096276 35460069 [MS-GC] ForceFinishSweep: 5,192us
+2026-03-14 21:11:10.096309 35460069 [MS-GC] ClearMarkBitmaps: 555 regions, 19us
+2026-03-14 21:11:10.096370 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:10.096386 35460069 MS EnumAndMarkRoots time: 53us
+2026-03-14 21:11:10.096389 35460069 [MS-GC] MarkSetup total: 5,308us, roots=1
+2026-03-14 21:11:10.096403 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:10.096406 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:10.120843 35460069 [MS-GC] ConcurrentMark time: 24,437us, marked 553099 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:10.120877 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:10.120885 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 0us
+2026-03-14 21:11:10.120888 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 0us
+2026-03-14 21:11:10.120890 35460069 [MS-GC] MarkTermination total: 8us, total marked 553099
+2026-03-14 21:11:10.120893 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:10.120896 35460069 [MS-GC] ProcessWeakRefs: 0us
+2026-03-14 21:11:10.120901 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 1us
+2026-03-14 21:11:10.120904 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (0 B), 1us
+2026-03-14 21:11:10.120907 35460069 [MS-GC] PostMark total: 14us
+2026-03-14 21:11:10.120909 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:10.120949 35460069 [MS-GC] PrepareForSweep (gen flip): 38us
+2026-03-14 21:11:10.120954 35460069 [MS-GC] ConcurrentSweep total: 45us
+2026-03-14 21:11:10.121012 35460069 [MS-GC] region statistics when gc ends (sweepGen=10)
+2026-03-14 21:11:10.121017 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:10.121020 35460069 [MS-GC]   used pages: 18,186,240 B, allocated: 18,186,240 B
+2026-03-14 21:11:10.121023 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:10.121026 35460069 [MS-GC]     partialSwept: 0 regions  fullSwept: 0 regions
+2026-03-14 21:11:10.121028 35460069 [MS-GC]     partialUnswept: 16 regions  fullUnswept: 539 regions
+2026-03-14 21:11:10.121030 35460069 [MS-GC]     total small: 555 regions
+2026-03-14 21:11:10.121032 35460069 [MS-GC]     large regions: 0
+2026-03-14 21:11:10.121035 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:10.121038 35460069 [MS-GC] allocated size: 18,186,240, heap size: 18,186,240, heap utilization: 100.00%
+2026-03-14 21:11:10.121042 35460069 [MS-GC] live bytes 18,186,240, marked 553099 objects
+2026-03-14 21:11:10.121045 35460069 [MS-GC] total gc time: 30,134 us (MarkSetup 5,308 + ConcMark 24,437 + MarkTerm 8 + PostMark 14), sweep pending
+2026-03-14 21:11:10.321098 35460069 [MS-GC] === GC START cycle=5 === sweepGen=10 reason=3(heuristic)
+2026-03-14 21:11:10.321134 35460069 [MS-GC] allocated 144,801,792 B, threshold 20,971,520 B, gcIndex=18446744073709551615
+2026-03-14 21:11:10.321139 35460069 [MS-GC] --- Sweep Summary (since cycle=4) ---
+2026-03-14 21:11:10.321143 35460069 [MS-GC] swept small: 0 regions, freed 0 B (bitmap CTZ sweep)
+2026-03-14 21:11:10.321146 35460069 [MS-GC] swept large: 0 objects, freed 0 B
+2026-03-14 21:11:10.321148 35460069 [MS-GC] released regions: 0 (returned to OS)
+2026-03-14 21:11:10.321151 35460069 [MS-GC] sweep breakdown: no regions swept
+2026-03-14 21:11:10.321153 35460069 Begin GC log. GCReason: heuristic, Current allocated 144,801,792, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:10.321261 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:10.321284 35460069 [MS-GC] ForceFinishSweep: 19us
+2026-03-14 21:11:10.323327 35460069 [MS-GC] ClearMarkBitmaps: 4423 regions, 2,031us
+2026-03-14 21:11:10.323429 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:10.323437 35460069 MS EnumAndMarkRoots time: 33us
+2026-03-14 21:11:10.323441 35460069 [MS-GC] MarkSetup total: 2,179us, roots=1
+2026-03-14 21:11:10.323444 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:10.323447 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:10.346593 35460069 [MS-GC] ConcurrentMark time: 23,146us, marked 551472 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:10.346625 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:10.346634 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 0us
+2026-03-14 21:11:10.346657 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 1us
+2026-03-14 21:11:10.346661 35460069 [MS-GC] MarkTermination total: 9us, total marked 551472
+2026-03-14 21:11:10.346664 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:10.346666 35460069 [MS-GC] ProcessWeakRefs: 0us
+2026-03-14 21:11:10.346672 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 3us
+2026-03-14 21:11:10.346675 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (0 B), 0us
+2026-03-14 21:11:10.346679 35460069 [MS-GC] PostMark total: 15us
+2026-03-14 21:11:10.346681 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:10.346711 35460069 [MS-GC] PrepareForSweep (gen flip): 28us
+2026-03-14 21:11:10.346714 35460069 [MS-GC] ConcurrentSweep total: 33us
+2026-03-14 21:11:10.346759 35460069 [MS-GC] region statistics when gc ends (sweepGen=12)
+2026-03-14 21:11:10.346763 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:10.346766 35460069 [MS-GC]   used pages: 144,932,864 B, allocated: 144,932,864 B
+2026-03-14 21:11:10.346768 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:10.346771 35460069 [MS-GC]     partialSwept: 0 regions  fullSwept: 0 regions
+2026-03-14 21:11:10.346773 35460069 [MS-GC]     partialUnswept: 12 regions  fullUnswept: 4410 regions
+2026-03-14 21:11:10.346775 35460069 [MS-GC]     total small: 4422 regions
+2026-03-14 21:11:10.346777 35460069 [MS-GC]     large regions: 0
+2026-03-14 21:11:10.346780 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:10.346782 35460069 [MS-GC] allocated size: 144,932,864, heap size: 144,932,864, heap utilization: 100.00%
+2026-03-14 21:11:10.346787 35460069 [MS-GC] live bytes 144,932,864, marked 551472 objects
+2026-03-14 21:11:10.346786 35460065 WaitForGCFinish cost 23344 us
+2026-03-14 21:11:10.346791 35460069 [MS-GC] total gc time: 25,660 us (MarkSetup 2,179 + ConcMark 23,146 + MarkTerm 9 + PostMark 15), sweep pending
+2026-03-14 21:11:10.346818 35460065 gc is triggered for OOM
+2026-03-14 21:11:10.346838 35460069 [MS-GC] === GC START cycle=6 === sweepGen=12 reason=1(oom)
+2026-03-14 21:11:10.346844 35460069 [MS-GC] allocated 144,932,864 B, threshold 20,971,520 B, gcIndex=5
+2026-03-14 21:11:10.346847 35460069 [MS-GC] --- Sweep Summary (since cycle=5) ---
+2026-03-14 21:11:10.346849 35460069 [MS-GC] swept small: 0 regions, freed 0 B (bitmap CTZ sweep)
+2026-03-14 21:11:10.346853 35460069 [MS-GC] swept large: 0 objects, freed 0 B
+2026-03-14 21:11:10.346856 35460069 [MS-GC] released regions: 0 (returned to OS)
+2026-03-14 21:11:10.346858 35460069 [MS-GC] sweep breakdown: no regions swept
+2026-03-14 21:11:10.346861 35460069 Begin GC log. GCReason: oom, Current allocated 144,932,864, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:10.346960 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:10.353507 35460069 [MS-GC] ForceFinishSweep: 6,543us
+2026-03-14 21:11:10.353526 35460069 [MS-GC] ClearMarkBitmaps: 554 regions, 10us
+2026-03-14 21:11:10.353580 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:10.353623 35460069 MS EnumAndMarkRoots time: 73us
+2026-03-14 21:11:10.353628 35460069 [MS-GC] MarkSetup total: 6,668us, roots=1
+2026-03-14 21:11:10.353633 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:10.353636 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:10.376862 35460069 [MS-GC] ConcurrentMark time: 23,226us, marked 552154 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:10.376907 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:10.376915 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 0us
+2026-03-14 21:11:10.376918 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 0us
+2026-03-14 21:11:10.376921 35460069 [MS-GC] MarkTermination total: 8us, total marked 552154
+2026-03-14 21:11:10.376925 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:10.376928 35460069 [MS-GC] ProcessWeakRefs: 0us
+2026-03-14 21:11:10.376935 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 5us
+2026-03-14 21:11:10.376956 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (0 B), 1us
+2026-03-14 21:11:10.376959 35460069 [MS-GC] PostMark total: 34us
+2026-03-14 21:11:10.376961 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:10.376983 35460069 [MS-GC] PrepareForSweep (gen flip): 18us
+2026-03-14 21:11:10.376985 35460069 [MS-GC] ConcurrentSweep total: 24us
+2026-03-14 21:11:10.377037 35460069 [MS-GC] region statistics when gc ends (sweepGen=14)
+2026-03-14 21:11:10.377042 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:10.377045 35460069 [MS-GC]   used pages: 18,153,472 B, allocated: 18,153,472 B
+2026-03-14 21:11:10.377047 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:10.377050 35460069 [MS-GC]     partialSwept: 0 regions  fullSwept: 0 regions
+2026-03-14 21:11:10.377052 35460069 [MS-GC]     partialUnswept: 16 regions  fullUnswept: 538 regions
+2026-03-14 21:11:10.377054 35460069 [MS-GC]     total small: 554 regions
+2026-03-14 21:11:10.377057 35460069 [MS-GC]     large regions: 0
+2026-03-14 21:11:10.377059 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:10.377062 35460069 [MS-GC] allocated size: 18,153,472, heap size: 18,153,472, heap utilization: 100.00%
+2026-03-14 21:11:10.377066 35460069 [MS-GC] live bytes 18,153,472, marked 552154 objects
+2026-03-14 21:11:10.377069 35460069 [MS-GC] total gc time: 30,199 us (MarkSetup 6,668 + ConcMark 23,226 + MarkTerm 8 + PostMark 34), sweep pending
+2026-03-14 21:11:10.577191 35460069 [MS-GC] === GC START cycle=7 === sweepGen=14 reason=3(heuristic)
+2026-03-14 21:11:10.577235 35460069 [MS-GC] allocated 127,860,736 B, threshold 20,971,520 B, gcIndex=18446744073709551615
+2026-03-14 21:11:10.577240 35460069 [MS-GC] --- Sweep Summary (since cycle=6) ---
+2026-03-14 21:11:10.577244 35460069 [MS-GC] swept small: 0 regions, freed 0 B (bitmap CTZ sweep)
+2026-03-14 21:11:10.577246 35460069 [MS-GC] swept large: 0 objects, freed 0 B
+2026-03-14 21:11:10.577249 35460069 [MS-GC] released regions: 0 (returned to OS)
+2026-03-14 21:11:10.577252 35460069 [MS-GC] sweep breakdown: no regions swept
+2026-03-14 21:11:10.577255 35460069 Begin GC log. GCReason: heuristic, Current allocated 127,860,736, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:10.577377 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:10.577400 35460069 [MS-GC] ForceFinishSweep: 20us
+2026-03-14 21:11:10.578839 35460069 [MS-GC] ClearMarkBitmaps: 3751 regions, 1,429us
+2026-03-14 21:11:10.578902 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:10.578917 35460069 MS EnumAndMarkRoots time: 41us
+2026-03-14 21:11:10.578921 35460069 [MS-GC] MarkSetup total: 1,543us, roots=1
+2026-03-14 21:11:10.578924 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:10.578926 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:10.579097 35460069 [MS-GC] ConcurrentMark time: 172us, marked 106 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:10.579107 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:10.579111 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 1us
+2026-03-14 21:11:10.579113 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 0us
+2026-03-14 21:11:10.579116 35460069 [MS-GC] MarkTermination total: 4us, total marked 106
+2026-03-14 21:11:10.579118 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:10.579121 35460069 [MS-GC] ProcessWeakRefs: 0us
+2026-03-14 21:11:10.579126 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 3us
+2026-03-14 21:11:10.579132 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (4,456,448 B), 4us
+2026-03-14 21:11:10.579135 35460069 [MS-GC] PostMark total: 17us
+2026-03-14 21:11:10.579137 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:10.579162 35460069 [MS-GC] PrepareForSweep (gen flip): 23us
+2026-03-14 21:11:10.579164 35460069 [MS-GC] ConcurrentSweep total: 27us
+2026-03-14 21:11:10.579197 35460069 [MS-GC] region statistics when gc ends (sweepGen=16)
+2026-03-14 21:11:10.579201 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:10.579213 35460069 [MS-GC]   used pages: 123,469,824 B, allocated: 123,469,824 B
+2026-03-14 21:11:10.579216 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:10.579218 35460069 [MS-GC]     partialSwept: 0 regions  fullSwept: 0 regions
+2026-03-14 21:11:10.579221 35460069 [MS-GC]     partialUnswept: 12 regions  fullUnswept: 3737 regions
+2026-03-14 21:11:10.579223 35460069 [MS-GC]     total small: 3749 regions
+2026-03-14 21:11:10.579228 35460069 [MS-GC]     large regions: 1
+2026-03-14 21:11:10.579231 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:10.579222 35460065 WaitForGCFinish cost 1138 us
+2026-03-14 21:11:10.579236 35460069 [MS-GC] allocated size: 123,469,824, heap size: 123,469,824, heap utilization: 100.00%
+2026-03-14 21:11:10.579257 35460069 [MS-GC] live bytes 123,469,824, marked 106 objects
+2026-03-14 21:11:10.579262 35460069 [MS-GC] total gc time: 2,006 us (MarkSetup 1,543 + ConcMark 172 + MarkTerm 4 + PostMark 17), sweep pending
+2026-03-14 21:11:10.779383 35460069 [MS-GC] === GC START cycle=8 === sweepGen=16 reason=3(heuristic)
+2026-03-14 21:11:10.779417 35460069 [MS-GC] allocated 101,974,016 B, threshold 20,971,520 B, gcIndex=18446744073709551615
+2026-03-14 21:11:10.779421 35460069 [MS-GC] --- Sweep Summary (since cycle=7) ---
+2026-03-14 21:11:10.779424 35460069 [MS-GC] swept small: 0 regions, freed 0 B (bitmap CTZ sweep)
+2026-03-14 21:11:10.779427 35460069 [MS-GC] swept large: 0 objects, freed 0 B
+2026-03-14 21:11:10.779430 35460069 [MS-GC] released regions: 0 (returned to OS)
+2026-03-14 21:11:10.779433 35460069 [MS-GC] sweep breakdown: no regions swept
+2026-03-14 21:11:10.779436 35460069 Begin GC log. GCReason: heuristic, Current allocated 101,974,016, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:10.779545 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:10.779571 35460069 [MS-GC] ForceFinishSweep: 23us
+2026-03-14 21:11:10.780314 35460069 [MS-GC] ClearMarkBitmaps: 2815 regions, 734us
+2026-03-14 21:11:10.780363 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:10.780370 35460069 MS EnumAndMarkRoots time: 30us
+2026-03-14 21:11:10.780373 35460069 [MS-GC] MarkSetup total: 828us, roots=1
+2026-03-14 21:11:10.780376 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:10.780378 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:10.780550 35460069 [MS-GC] ConcurrentMark time: 174us, marked 105 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:10.780557 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:10.780561 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 1us
+2026-03-14 21:11:10.780563 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 0us
+2026-03-14 21:11:10.780566 35460069 [MS-GC] MarkTermination total: 4us, total marked 105
+2026-03-14 21:11:10.780568 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:10.780570 35460069 [MS-GC] ProcessWeakRefs: 0us
+2026-03-14 21:11:10.780575 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 2us
+2026-03-14 21:11:10.780582 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (8,683,520 B), 4us
+2026-03-14 21:11:10.780584 35460069 [MS-GC] PostMark total: 16us
+2026-03-14 21:11:10.780586 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:10.780606 35460069 [MS-GC] PrepareForSweep (gen flip): 17us
+2026-03-14 21:11:10.780608 35460069 [MS-GC] ConcurrentSweep total: 22us
+2026-03-14 21:11:10.780625 35460069 [MS-GC] region statistics when gc ends (sweepGen=18)
+2026-03-14 21:11:10.780629 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:10.780632 35460069 [MS-GC]   used pages: 93,323,264 B, allocated: 93,323,264 B
+2026-03-14 21:11:10.780634 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:10.780636 35460069 [MS-GC]     partialSwept: 0 regions  fullSwept: 0 regions
+2026-03-14 21:11:10.780639 35460069 [MS-GC]     partialUnswept: 11 regions  fullUnswept: 2802 regions
+2026-03-14 21:11:10.780652 35460069 [MS-GC]     total small: 2813 regions
+2026-03-14 21:11:10.780655 35460069 [MS-GC]     large regions: 1
+2026-03-14 21:11:10.780657 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:10.780660 35460069 [MS-GC] allocated size: 93,323,264, heap size: 93,323,264, heap utilization: 100.00%
+2026-03-14 21:11:10.780664 35460069 [MS-GC] live bytes 93,323,264, marked 105 objects
+2026-03-14 21:11:10.780667 35460069 [MS-GC] total gc time: 1,242 us (MarkSetup 828 + ConcMark 174 + MarkTerm 4 + PostMark 16), sweep pending
+2026-03-14 21:11:10.780639 35460065 WaitForGCFinish cost 225 us
+2026-03-14 21:11:10.980746 35460069 [MS-GC] === GC START cycle=9 === sweepGen=18 reason=3(heuristic)
+2026-03-14 21:11:10.980790 35460069 [MS-GC] allocated 102,662,144 B, threshold 20,971,520 B, gcIndex=18446744073709551615
+2026-03-14 21:11:10.980794 35460069 [MS-GC] --- Sweep Summary (since cycle=8) ---
+2026-03-14 21:11:10.980798 35460069 [MS-GC] swept small: 0 regions, freed 0 B (bitmap CTZ sweep)
+2026-03-14 21:11:10.980801 35460069 [MS-GC] swept large: 0 objects, freed 0 B
+2026-03-14 21:11:10.980803 35460069 [MS-GC] released regions: 0 (returned to OS)
+2026-03-14 21:11:10.980806 35460069 [MS-GC] sweep breakdown: no regions swept
+2026-03-14 21:11:10.980809 35460069 Begin GC log. GCReason: heuristic, Current allocated 102,662,144, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:10.980962 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:10.980996 35460069 [MS-GC] ForceFinishSweep: 22us
+2026-03-14 21:11:10.981986 35460069 [MS-GC] ClearMarkBitmaps: 2825 regions, 954us
+2026-03-14 21:11:10.982075 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:10.982095 35460069 MS EnumAndMarkRoots time: 62us
+2026-03-14 21:11:10.982099 35460069 [MS-GC] MarkSetup total: 1,136us, roots=1
+2026-03-14 21:11:10.982103 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:10.982105 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:10.982345 35460069 [MS-GC] ConcurrentMark time: 241us, marked 107 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:10.982356 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:10.982362 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 0us
+2026-03-14 21:11:10.982366 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 1us
+2026-03-14 21:11:10.982369 35460069 [MS-GC] MarkTermination total: 6us, total marked 107
+2026-03-14 21:11:10.982372 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:10.982375 35460069 [MS-GC] ProcessWeakRefs: 0us
+2026-03-14 21:11:10.982380 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 2us
+2026-03-14 21:11:10.982392 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (9,601,024 B), 9us
+2026-03-14 21:11:10.982411 35460069 [MS-GC] PostMark total: 39us
+2026-03-14 21:11:10.982413 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:10.982468 35460069 [MS-GC] PrepareForSweep (gen flip): 42us
+2026-03-14 21:11:10.982471 35460069 [MS-GC] ConcurrentSweep total: 58us
+2026-03-14 21:11:10.982497 35460069 [MS-GC] region statistics when gc ends (sweepGen=20)
+2026-03-14 21:11:10.982502 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:10.982505 35460069 [MS-GC]   used pages: 93,126,656 B, allocated: 93,126,656 B
+2026-03-14 21:11:10.982507 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:10.982510 35460069 [MS-GC]     partialSwept: 0 regions  fullSwept: 0 regions
+2026-03-14 21:11:10.982512 35460069 [MS-GC]     partialUnswept: 12 regions  fullUnswept: 2812 regions
+2026-03-14 21:11:10.982516 35460069 [MS-GC]     total small: 2824 regions
+2026-03-14 21:11:10.982520 35460069 [MS-GC]     large regions: 1
+2026-03-14 21:11:10.982523 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:10.982511 35460065 WaitForGCFinish cost 757 us
+2026-03-14 21:11:10.982527 35460069 [MS-GC] allocated size: 93,126,656, heap size: 93,126,656, heap utilization: 100.00%
+2026-03-14 21:11:10.982540 35460069 [MS-GC] live bytes 93,126,656, marked 107 objects
+2026-03-14 21:11:10.982552 35460069 [MS-GC] total gc time: 1,751 us (MarkSetup 1,136 + ConcMark 241 + MarkTerm 6 + PostMark 39), sweep pending
+2026-03-14 21:11:11.182618 35460069 [MS-GC] === GC START cycle=10 === sweepGen=20 reason=3(heuristic)
+2026-03-14 21:11:11.182655 35460069 [MS-GC] allocated 102,891,520 B, threshold 20,971,520 B, gcIndex=18446744073709551615
+2026-03-14 21:11:11.182659 35460069 [MS-GC] --- Sweep Summary (since cycle=9) ---
+2026-03-14 21:11:11.182663 35460069 [MS-GC] swept small: 0 regions, freed 0 B (bitmap CTZ sweep)
+2026-03-14 21:11:11.182666 35460069 [MS-GC] swept large: 0 objects, freed 0 B
+2026-03-14 21:11:11.182669 35460069 [MS-GC] released regions: 0 (returned to OS)
+2026-03-14 21:11:11.182671 35460069 [MS-GC] sweep breakdown: no regions swept
+2026-03-14 21:11:11.182675 35460069 Begin GC log. GCReason: heuristic, Current allocated 102,924,288, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:11.182796 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:11.182813 35460069 [MS-GC] ForceFinishSweep: 12us
+2026-03-14 21:11:11.183882 35460069 [MS-GC] ClearMarkBitmaps: 2845 regions, 1,060us
+2026-03-14 21:11:11.183925 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:11.183939 35460069 MS EnumAndMarkRoots time: 39us
+2026-03-14 21:11:11.183944 35460069 [MS-GC] MarkSetup total: 1,147us, roots=1
+2026-03-14 21:11:11.183948 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:11.183951 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:11.184119 35460069 [MS-GC] ConcurrentMark time: 170us, marked 107 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:11.184125 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:11.184129 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 0us
+2026-03-14 21:11:11.184132 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 0us
+2026-03-14 21:11:11.184135 35460069 [MS-GC] MarkTermination total: 4us, total marked 107
+2026-03-14 21:11:11.184138 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:11.184140 35460069 [MS-GC] ProcessWeakRefs: 0us
+2026-03-14 21:11:11.184145 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 2us
+2026-03-14 21:11:11.184153 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (8,683,520 B), 5us
+2026-03-14 21:11:11.184156 35460069 [MS-GC] PostMark total: 18us
+2026-03-14 21:11:11.184158 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:11.184176 35460069 [MS-GC] PrepareForSweep (gen flip): 15us
+2026-03-14 21:11:11.184178 35460069 [MS-GC] ConcurrentSweep total: 20us
+2026-03-14 21:11:11.184197 35460069 [MS-GC] region statistics when gc ends (sweepGen=22)
+2026-03-14 21:11:11.184200 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:11.184203 35460069 [MS-GC]   used pages: 94,306,304 B, allocated: 94,306,304 B
+2026-03-14 21:11:11.184206 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:11.184208 35460069 [MS-GC]     partialSwept: 0 regions  fullSwept: 0 regions
+2026-03-14 21:11:11.184211 35460069 [MS-GC]     partialUnswept: 12 regions  fullUnswept: 2832 regions
+2026-03-14 21:11:11.184215 35460069 [MS-GC]     total small: 2844 regions
+2026-03-14 21:11:11.184218 35460069 [MS-GC]     large regions: 1
+2026-03-14 21:11:11.184222 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:11.184210 35460065 WaitForGCFinish cost 516 us
+2026-03-14 21:11:11.184227 35460069 [MS-GC] allocated size: 94,306,304, heap size: 94,306,304, heap utilization: 100.00%
+2026-03-14 21:11:11.184239 35460069 [MS-GC] live bytes 94,306,304, marked 107 objects
+2026-03-14 21:11:11.184242 35460069 [MS-GC] total gc time: 1,578 us (MarkSetup 1,147 + ConcMark 170 + MarkTerm 4 + PostMark 18), sweep pending
+2026-03-14 21:11:11.384288 35460069 [MS-GC] === GC START cycle=11 === sweepGen=22 reason=3(heuristic)
+2026-03-14 21:11:11.384325 35460069 [MS-GC] allocated 102,006,784 B, threshold 20,971,520 B, gcIndex=18446744073709551615
+2026-03-14 21:11:11.384329 35460069 [MS-GC] --- Sweep Summary (since cycle=10) ---
+2026-03-14 21:11:11.384346 35460069 [MS-GC] swept small: 0 regions, freed 0 B (bitmap CTZ sweep)
+2026-03-14 21:11:11.384349 35460069 [MS-GC] swept large: 0 objects, freed 0 B
+2026-03-14 21:11:11.384352 35460069 [MS-GC] released regions: 0 (returned to OS)
+2026-03-14 21:11:11.384354 35460069 [MS-GC] sweep breakdown: no regions swept
+2026-03-14 21:11:11.384357 35460069 Begin GC log. GCReason: heuristic, Current allocated 102,039,552, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:11.384553 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:11.384568 35460069 [MS-GC] ForceFinishSweep: 11us
+2026-03-14 21:11:11.386012 35460069 [MS-GC] ClearMarkBitmaps: 2823 regions, 1,435us
+2026-03-14 21:11:11.386059 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:11.386066 35460069 MS EnumAndMarkRoots time: 33us
+2026-03-14 21:11:11.386069 35460069 [MS-GC] MarkSetup total: 1,516us, roots=1
+2026-03-14 21:11:11.386072 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:11.386074 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:11.386244 35460069 [MS-GC] ConcurrentMark time: 171us, marked 107 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:11.386250 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:11.386254 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 1us
+2026-03-14 21:11:11.386257 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 0us
+2026-03-14 21:11:11.386259 35460069 [MS-GC] MarkTermination total: 4us, total marked 107
+2026-03-14 21:11:11.386262 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:11.386264 35460069 [MS-GC] ProcessWeakRefs: 0us
+2026-03-14 21:11:11.386269 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 2us
+2026-03-14 21:11:11.386277 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (9,306,112 B), 5us
+2026-03-14 21:11:11.386280 35460069 [MS-GC] PostMark total: 18us
+2026-03-14 21:11:11.386282 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:11.386311 35460069 [MS-GC] PrepareForSweep (gen flip): 18us
+2026-03-14 21:11:11.386313 35460069 [MS-GC] ConcurrentSweep total: 31us
+2026-03-14 21:11:11.386335 35460069 [MS-GC] region statistics when gc ends (sweepGen=24)
+2026-03-14 21:11:11.386339 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:11.386342 35460069 [MS-GC]   used pages: 92,798,976 B, allocated: 92,798,976 B
+2026-03-14 21:11:11.386345 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:11.386347 35460069 [MS-GC]     partialSwept: 0 regions  fullSwept: 0 regions
+2026-03-14 21:11:11.386350 35460069 [MS-GC]     partialUnswept: 12 regions  fullUnswept: 2810 regions
+2026-03-14 21:11:11.386352 35460069 [MS-GC]     total small: 2822 regions
+2026-03-14 21:11:11.386354 35460069 [MS-GC]     large regions: 1
+2026-03-14 21:11:11.386357 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:11.386359 35460069 [MS-GC] allocated size: 92,798,976, heap size: 92,798,976, heap utilization: 100.00%
+2026-03-14 21:11:11.386361 35460065 WaitForGCFinish cost 717 us
+2026-03-14 21:11:11.386364 35460069 [MS-GC] live bytes 92,798,976, marked 107 objects
+2026-03-14 21:11:11.386388 35460069 [MS-GC] total gc time: 2,047 us (MarkSetup 1,516 + ConcMark 171 + MarkTerm 4 + PostMark 18), sweep pending
+2026-03-14 21:11:11.586484 35460069 [MS-GC] === GC START cycle=12 === sweepGen=24 reason=3(heuristic)
+2026-03-14 21:11:11.586533 35460069 [MS-GC] allocated 102,825,984 B, threshold 20,971,520 B, gcIndex=18446744073709551615
+2026-03-14 21:11:11.586537 35460069 [MS-GC] --- Sweep Summary (since cycle=11) ---
+2026-03-14 21:11:11.586541 35460069 [MS-GC] swept small: 0 regions, freed 0 B (bitmap CTZ sweep)
+2026-03-14 21:11:11.586544 35460069 [MS-GC] swept large: 0 objects, freed 0 B
+2026-03-14 21:11:11.586547 35460069 [MS-GC] released regions: 0 (returned to OS)
+2026-03-14 21:11:11.586549 35460069 [MS-GC] sweep breakdown: no regions swept
+2026-03-14 21:11:11.586553 35460069 Begin GC log. GCReason: heuristic, Current allocated 102,825,984, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:11.586695 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:11.586710 35460069 [MS-GC] ForceFinishSweep: 11us
+2026-03-14 21:11:11.587923 35460069 [MS-GC] ClearMarkBitmaps: 2834 regions, 1,201us
+2026-03-14 21:11:11.587989 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:11.588000 35460069 MS EnumAndMarkRoots time: 34us
+2026-03-14 21:11:11.588004 35460069 [MS-GC] MarkSetup total: 1,309us, roots=1
+2026-03-14 21:11:11.588008 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:11.588013 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:11.588215 35460069 [MS-GC] ConcurrentMark time: 206us, marked 108 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:11.588232 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:11.588243 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 0us
+2026-03-14 21:11:11.588246 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 1us
+2026-03-14 21:11:11.588249 35460069 [MS-GC] MarkTermination total: 10us, total marked 108
+2026-03-14 21:11:11.588253 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:11.588256 35460069 [MS-GC] ProcessWeakRefs: 0us
+2026-03-14 21:11:11.588262 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 3us
+2026-03-14 21:11:11.588274 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (8,978,432 B), 8us
+2026-03-14 21:11:11.588277 35460069 [MS-GC] PostMark total: 24us
+2026-03-14 21:11:11.588280 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:11.588299 35460069 [MS-GC] PrepareForSweep (gen flip): 16us
+2026-03-14 21:11:11.588302 35460069 [MS-GC] ConcurrentSweep total: 22us
+2026-03-14 21:11:11.588333 35460069 [MS-GC] region statistics when gc ends (sweepGen=26)
+2026-03-14 21:11:11.588337 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:11.588340 35460069 [MS-GC]   used pages: 93,945,856 B, allocated: 93,945,856 B
+2026-03-14 21:11:11.588343 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:11.588351 35460069 [MS-GC]     partialSwept: 0 regions  fullSwept: 0 regions
+2026-03-14 21:11:11.588357 35460069 [MS-GC]     partialUnswept: 12 regions  fullUnswept: 2821 regions
+2026-03-14 21:11:11.588360 35460069 [MS-GC]     total small: 2833 regions
+2026-03-14 21:11:11.588362 35460069 [MS-GC]     large regions: 1
+2026-03-14 21:11:11.588364 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:11.588342 35460065 WaitForGCFinish cost 641 us
+2026-03-14 21:11:11.588371 35460069 [MS-GC] allocated size: 93,945,856, heap size: 93,945,856, heap utilization: 100.00%
+2026-03-14 21:11:11.588434 35460069 [MS-GC] live bytes 93,945,856, marked 108 objects
+2026-03-14 21:11:11.588438 35460069 [MS-GC] total gc time: 1,849 us (MarkSetup 1,309 + ConcMark 206 + MarkTerm 10 + PostMark 24), sweep pending
+2026-03-14 21:11:11.788545 35460069 [MS-GC] === GC START cycle=13 === sweepGen=26 reason=3(heuristic)
+2026-03-14 21:11:11.788599 35460069 [MS-GC] allocated 102,596,608 B, threshold 20,971,520 B, gcIndex=18446744073709551615
+2026-03-14 21:11:11.788606 35460069 [MS-GC] --- Sweep Summary (since cycle=12) ---
+2026-03-14 21:11:11.788611 35460069 [MS-GC] swept small: 0 regions, freed 0 B (bitmap CTZ sweep)
+2026-03-14 21:11:11.788616 35460069 [MS-GC] swept large: 0 objects, freed 0 B
+2026-03-14 21:11:11.788620 35460069 [MS-GC] released regions: 0 (returned to OS)
+2026-03-14 21:11:11.788624 35460069 [MS-GC] sweep breakdown: no regions swept
+2026-03-14 21:11:11.788629 35460069 Begin GC log. GCReason: heuristic, Current allocated 102,596,608, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:11.788731 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:11.788755 35460069 [MS-GC] ForceFinishSweep: 18us
+2026-03-14 21:11:11.790208 35460069 [MS-GC] ClearMarkBitmaps: 2851 regions, 1,442us
+2026-03-14 21:11:11.790295 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:11.790326 35460069 MS EnumAndMarkRoots time: 72us
+2026-03-14 21:11:11.790347 35460069 [MS-GC] MarkSetup total: 1,615us, roots=1
+2026-03-14 21:11:11.790352 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:11.790355 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:11.790524 35460069 [MS-GC] ConcurrentMark time: 171us, marked 106 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:11.790531 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:11.790536 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 0us
+2026-03-14 21:11:11.790540 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 0us
+2026-03-14 21:11:11.790543 35460069 [MS-GC] MarkTermination total: 5us, total marked 106
+2026-03-14 21:11:11.790546 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:11.790550 35460069 [MS-GC] ProcessWeakRefs: 0us
+2026-03-14 21:11:11.790555 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 2us
+2026-03-14 21:11:11.790566 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (8,126,464 B), 7us
+2026-03-14 21:11:11.790570 35460069 [MS-GC] PostMark total: 24us
+2026-03-14 21:11:11.790573 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:11.790600 35460069 [MS-GC] PrepareForSweep (gen flip): 24us
+2026-03-14 21:11:11.790603 35460069 [MS-GC] ConcurrentSweep total: 30us
+2026-03-14 21:11:11.790629 35460069 [MS-GC] region statistics when gc ends (sweepGen=28)
+2026-03-14 21:11:11.790634 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:11.790637 35460069 [MS-GC]   used pages: 94,502,912 B, allocated: 94,502,912 B
+2026-03-14 21:11:11.790641 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:11.790644 35460069 [MS-GC]     partialSwept: 0 regions  fullSwept: 0 regions
+2026-03-14 21:11:11.790648 35460069 [MS-GC]     partialUnswept: 11 regions  fullUnswept: 2838 regions
+2026-03-14 21:11:11.790652 35460069 [MS-GC]     total small: 2849 regions
+2026-03-14 21:11:11.790655 35460069 [MS-GC]     large regions: 1
+2026-03-14 21:11:11.790658 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:11.790661 35460069 [MS-GC] allocated size: 94,502,912, heap size: 94,502,912, heap utilization: 100.00%
+2026-03-14 21:11:11.790666 35460069 [MS-GC] live bytes 94,502,912, marked 106 objects
+2026-03-14 21:11:11.790671 35460069 [MS-GC] total gc time: 2,085 us (MarkSetup 1,615 + ConcMark 171 + MarkTerm 5 + PostMark 24), sweep pending
+2026-03-14 21:11:11.790643 35460065 WaitForGCFinish cost 403 us
+2026-03-14 21:11:11.990782 35460069 [MS-GC] === GC START cycle=14 === sweepGen=28 reason=3(heuristic)
+2026-03-14 21:11:11.990819 35460069 [MS-GC] allocated 103,251,968 B, threshold 20,971,520 B, gcIndex=18446744073709551615
+2026-03-14 21:11:11.990823 35460069 [MS-GC] --- Sweep Summary (since cycle=13) ---
+2026-03-14 21:11:11.990826 35460069 [MS-GC] swept small: 0 regions, freed 0 B (bitmap CTZ sweep)
+2026-03-14 21:11:11.990830 35460069 [MS-GC] swept large: 0 objects, freed 0 B
+2026-03-14 21:11:11.990832 35460069 [MS-GC] released regions: 0 (returned to OS)
+2026-03-14 21:11:11.990835 35460069 [MS-GC] sweep breakdown: no regions swept
+2026-03-14 21:11:11.990837 35460069 Begin GC log. GCReason: heuristic, Current allocated 103,251,968, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:11.990937 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:11.990959 35460069 [MS-GC] ForceFinishSweep: 19us
+2026-03-14 21:11:11.991998 35460069 [MS-GC] ClearMarkBitmaps: 2842 regions, 1,030us
+2026-03-14 21:11:11.992043 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:11.992050 35460069 MS EnumAndMarkRoots time: 29us
+2026-03-14 21:11:11.992053 35460069 [MS-GC] MarkSetup total: 1,116us, roots=1
+2026-03-14 21:11:11.992057 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:11.992059 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:11.992231 35460069 [MS-GC] ConcurrentMark time: 174us, marked 105 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:11.992237 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:11.992253 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 0us
+2026-03-14 21:11:11.992256 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 0us
+2026-03-14 21:11:11.992259 35460069 [MS-GC] MarkTermination total: 16us, total marked 105
+2026-03-14 21:11:11.992261 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:11.992264 35460069 [MS-GC] ProcessWeakRefs: 0us
+2026-03-14 21:11:11.992289 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 17us
+2026-03-14 21:11:11.992344 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (9,601,024 B), 10us
+2026-03-14 21:11:11.992349 35460069 [MS-GC] PostMark total: 88us
+2026-03-14 21:11:11.992352 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:11.992387 35460069 [MS-GC] PrepareForSweep (gen flip): 32us
+2026-03-14 21:11:11.992389 35460069 [MS-GC] ConcurrentSweep total: 37us
+2026-03-14 21:11:11.992437 35460069 [MS-GC] region statistics when gc ends (sweepGen=30)
+2026-03-14 21:11:11.992440 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:11.992443 35460069 [MS-GC]   used pages: 93,683,712 B, allocated: 93,683,712 B
+2026-03-14 21:11:11.992446 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:11.992454 35460069 [MS-GC]     partialSwept: 0 regions  fullSwept: 0 regions
+2026-03-14 21:11:11.992457 35460069 [MS-GC]     partialUnswept: 11 regions  fullUnswept: 2829 regions
+2026-03-14 21:11:11.992460 35460069 [MS-GC]     total small: 2840 regions
+2026-03-14 21:11:11.992462 35460069 [MS-GC]     large regions: 1
+2026-03-14 21:11:11.992469 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:11.992472 35460069 [MS-GC] allocated size: 93,683,712, heap size: 93,683,712, heap utilization: 100.00%
+2026-03-14 21:11:11.992476 35460069 [MS-GC] live bytes 93,683,712, marked 105 objects
+2026-03-14 21:11:11.992483 35460069 [MS-GC] total gc time: 1,654 us (MarkSetup 1,116 + ConcMark 174 + MarkTerm 16 + PostMark 88), sweep pending
+2026-03-14 21:11:11.992446 35460065 WaitForGCFinish cost 374 us
+2026-03-14 21:11:12.192526 35460069 [MS-GC] === GC START cycle=15 === sweepGen=30 reason=3(heuristic)
+2026-03-14 21:11:12.192564 35460069 [MS-GC] allocated 102,989,824 B, threshold 20,971,520 B, gcIndex=18446744073709551615
+2026-03-14 21:11:12.192568 35460069 [MS-GC] --- Sweep Summary (since cycle=14) ---
+2026-03-14 21:11:12.192572 35460069 [MS-GC] swept small: 0 regions, freed 0 B (bitmap CTZ sweep)
+2026-03-14 21:11:12.192575 35460069 [MS-GC] swept large: 0 objects, freed 0 B
+2026-03-14 21:11:12.192577 35460069 [MS-GC] released regions: 0 (returned to OS)
+2026-03-14 21:11:12.192580 35460069 [MS-GC] sweep breakdown: no regions swept
+2026-03-14 21:11:12.192583 35460069 Begin GC log. GCReason: heuristic, Current allocated 102,989,824, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:12.192692 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:12.192714 35460069 [MS-GC] ForceFinishSweep: 18us
+2026-03-14 21:11:12.193822 35460069 [MS-GC] ClearMarkBitmaps: 2847 regions, 1,099us
+2026-03-14 21:11:12.193891 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:12.193898 35460069 MS EnumAndMarkRoots time: 36us
+2026-03-14 21:11:12.193900 35460069 [MS-GC] MarkSetup total: 1,208us, roots=1
+2026-03-14 21:11:12.193903 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:12.193906 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:12.194076 35460069 [MS-GC] ConcurrentMark time: 173us, marked 105 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:12.194083 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:12.194087 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 0us
+2026-03-14 21:11:12.194089 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 0us
+2026-03-14 21:11:12.194091 35460069 [MS-GC] MarkTermination total: 4us, total marked 105
+2026-03-14 21:11:12.194094 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:12.194097 35460069 [MS-GC] ProcessWeakRefs: 1us
+2026-03-14 21:11:12.194102 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 3us
+2026-03-14 21:11:12.194122 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (8,683,520 B), 6us
+2026-03-14 21:11:12.194125 35460069 [MS-GC] PostMark total: 31us
+2026-03-14 21:11:12.194127 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:12.194153 35460069 [MS-GC] PrepareForSweep (gen flip): 21us
+2026-03-14 21:11:12.194156 35460069 [MS-GC] ConcurrentSweep total: 29us
+2026-03-14 21:11:12.194178 35460069 [MS-GC] region statistics when gc ends (sweepGen=32)
+2026-03-14 21:11:12.194182 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:12.194185 35460069 [MS-GC]   used pages: 94,371,840 B, allocated: 94,371,840 B
+2026-03-14 21:11:12.194187 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:12.194190 35460069 [MS-GC]     partialSwept: 0 regions  fullSwept: 0 regions
+2026-03-14 21:11:12.194192 35460069 [MS-GC]     partialUnswept: 11 regions  fullUnswept: 2834 regions
+2026-03-14 21:11:12.194194 35460069 [MS-GC]     total small: 2845 regions
+2026-03-14 21:11:12.194197 35460069 [MS-GC]     large regions: 1
+2026-03-14 21:11:12.194199 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:12.194201 35460069 [MS-GC] allocated size: 94,371,840, heap size: 94,371,840, heap utilization: 100.00%
+2026-03-14 21:11:12.194204 35460065 WaitForGCFinish cost 268 us
+2026-03-14 21:11:12.194206 35460069 [MS-GC] live bytes 94,371,840, marked 105 objects
+2026-03-14 21:11:12.194229 35460069 [MS-GC] total gc time: 1,653 us (MarkSetup 1,208 + ConcMark 173 + MarkTerm 4 + PostMark 31), sweep pending
+2026-03-14 21:11:12.394329 35460069 [MS-GC] === GC START cycle=16 === sweepGen=32 reason=3(heuristic)
+2026-03-14 21:11:12.394375 35460069 [MS-GC] allocated 102,825,984 B, threshold 20,971,520 B, gcIndex=18446744073709551615
+2026-03-14 21:11:12.394380 35460069 [MS-GC] --- Sweep Summary (since cycle=15) ---
+2026-03-14 21:11:12.394384 35460069 [MS-GC] swept small: 0 regions, freed 0 B (bitmap CTZ sweep)
+2026-03-14 21:11:12.394387 35460069 [MS-GC] swept large: 0 objects, freed 0 B
+2026-03-14 21:11:12.394390 35460069 [MS-GC] released regions: 0 (returned to OS)
+2026-03-14 21:11:12.394392 35460069 [MS-GC] sweep breakdown: no regions swept
+2026-03-14 21:11:12.394395 35460069 Begin GC log. GCReason: heuristic, Current allocated 102,825,984, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:12.394510 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:12.394532 35460069 [MS-GC] ForceFinishSweep: 19us
+2026-03-14 21:11:12.395525 35460069 [MS-GC] ClearMarkBitmaps: 2830 regions, 984us
+2026-03-14 21:11:12.395569 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:12.395576 35460069 MS EnumAndMarkRoots time: 32us
+2026-03-14 21:11:12.395579 35460069 [MS-GC] MarkSetup total: 1,069us, roots=1
+2026-03-14 21:11:12.395582 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:12.395584 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:12.395753 35460069 [MS-GC] ConcurrentMark time: 171us, marked 108 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:12.395760 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:12.395764 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 1us
+2026-03-14 21:11:12.395767 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 0us
+2026-03-14 21:11:12.395769 35460069 [MS-GC] MarkTermination total: 4us, total marked 108
+2026-03-14 21:11:12.395772 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:12.395774 35460069 [MS-GC] ProcessWeakRefs: 0us
+2026-03-14 21:11:12.395779 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 2us
+2026-03-14 21:11:12.395787 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (9,601,024 B), 5us
+2026-03-14 21:11:12.395790 35460069 [MS-GC] PostMark total: 18us
+2026-03-14 21:11:12.395793 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:12.395814 35460069 [MS-GC] PrepareForSweep (gen flip): 19us
+2026-03-14 21:11:12.395816 35460069 [MS-GC] ConcurrentSweep total: 24us
+2026-03-14 21:11:12.395838 35460069 [MS-GC] region statistics when gc ends (sweepGen=34)
+2026-03-14 21:11:12.395851 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:12.395854 35460069 [MS-GC]   used pages: 93,290,496 B, allocated: 93,290,496 B
+2026-03-14 21:11:12.395857 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:12.395859 35460069 [MS-GC]     partialSwept: 0 regions  fullSwept: 0 regions
+2026-03-14 21:11:12.395862 35460069 [MS-GC]     partialUnswept: 12 regions  fullUnswept: 2817 regions
+2026-03-14 21:11:12.395864 35460069 [MS-GC]     total small: 2829 regions
+2026-03-14 21:11:12.395866 35460069 [MS-GC]     large regions: 1
+2026-03-14 21:11:12.395870 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:12.395865 35460065 WaitForGCFinish cost 576 us
+2026-03-14 21:11:12.395875 35460069 [MS-GC] allocated size: 93,290,496, heap size: 93,290,496, heap utilization: 100.00%
+2026-03-14 21:11:12.395893 35460069 [MS-GC] live bytes 93,290,496, marked 108 objects
+2026-03-14 21:11:12.395898 35460069 [MS-GC] total gc time: 1,510 us (MarkSetup 1,069 + ConcMark 171 + MarkTerm 4 + PostMark 18), sweep pending
+2026-03-14 21:11:12.595940 35460069 [MS-GC] === GC START cycle=17 === sweepGen=34 reason=3(heuristic)
+2026-03-14 21:11:12.595987 35460069 [MS-GC] allocated 102,858,752 B, threshold 20,971,520 B, gcIndex=18446744073709551615
+2026-03-14 21:11:12.595992 35460069 [MS-GC] --- Sweep Summary (since cycle=16) ---
+2026-03-14 21:11:12.595996 35460069 [MS-GC] swept small: 0 regions, freed 0 B (bitmap CTZ sweep)
+2026-03-14 21:11:12.596002 35460069 [MS-GC] swept large: 0 objects, freed 0 B
+2026-03-14 21:11:12.596005 35460069 [MS-GC] released regions: 0 (returned to OS)
+2026-03-14 21:11:12.596007 35460069 [MS-GC] sweep breakdown: no regions swept
+2026-03-14 21:11:12.596010 35460069 Begin GC log. GCReason: heuristic, Current allocated 102,858,752, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:12.596127 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:12.596159 35460069 [MS-GC] ForceFinishSweep: 25us
+2026-03-14 21:11:12.597370 35460069 [MS-GC] ClearMarkBitmaps: 2843 regions, 1,199us
+2026-03-14 21:11:12.597435 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:12.597442 35460069 MS EnumAndMarkRoots time: 29us
+2026-03-14 21:11:12.597446 35460069 [MS-GC] MarkSetup total: 1,319us, roots=1
+2026-03-14 21:11:12.597450 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:12.597452 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:12.597631 35460069 [MS-GC] ConcurrentMark time: 180us, marked 107 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:12.597638 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:12.597642 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 0us
+2026-03-14 21:11:12.597644 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 0us
+2026-03-14 21:11:12.597647 35460069 [MS-GC] MarkTermination total: 5us, total marked 107
+2026-03-14 21:11:12.597650 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:12.597652 35460069 [MS-GC] ProcessWeakRefs: 0us
+2026-03-14 21:11:12.597657 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 2us
+2026-03-14 21:11:12.597667 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (8,683,520 B), 7us
+2026-03-14 21:11:12.597670 35460069 [MS-GC] PostMark total: 20us
+2026-03-14 21:11:12.597672 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:12.597710 35460069 [MS-GC] PrepareForSweep (gen flip): 33us
+2026-03-14 21:11:12.597731 35460069 [MS-GC] ConcurrentSweep total: 59us
+2026-03-14 21:11:12.597790 35460069 [MS-GC] region statistics when gc ends (sweepGen=36)
+2026-03-14 21:11:12.597820 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:12.597828 35460069 [MS-GC]   used pages: 94,240,768 B, allocated: 94,240,768 B
+2026-03-14 21:11:12.597831 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:12.597835 35460069 [MS-GC]     partialSwept: 0 regions  fullSwept: 0 regions
+2026-03-14 21:11:12.597838 35460069 [MS-GC]     partialUnswept: 12 regions  fullUnswept: 2830 regions
+2026-03-14 21:11:12.597859 35460069 [MS-GC]     total small: 2842 regions
+2026-03-14 21:11:12.597864 35460069 [MS-GC]     large regions: 1
+2026-03-14 21:11:12.597867 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:12.597870 35460069 [MS-GC] allocated size: 94,240,768, heap size: 94,240,768, heap utilization: 100.00%
+2026-03-14 21:11:12.597877 35460069 [MS-GC] live bytes 94,240,768, marked 107 objects
+2026-03-14 21:11:12.597915 35460069 [MS-GC] total gc time: 1,850 us (MarkSetup 1,319 + ConcMark 180 + MarkTerm 5 + PostMark 20), sweep pending
+2026-03-14 21:11:12.597798 35460065 WaitForGCFinish cost 696 us
+2026-03-14 21:11:12.798048 35460069 [MS-GC] === GC START cycle=18 === sweepGen=36 reason=3(heuristic)
+2026-03-14 21:11:12.798091 35460069 [MS-GC] allocated 137,789,440 B, threshold 20,971,520 B, gcIndex=18446744073709551615
+2026-03-14 21:11:12.798096 35460069 [MS-GC] --- Sweep Summary (since cycle=17) ---
+2026-03-14 21:11:12.798099 35460069 [MS-GC] swept small: 0 regions, freed 0 B (bitmap CTZ sweep)
+2026-03-14 21:11:12.798103 35460069 [MS-GC] swept large: 0 objects, freed 0 B
+2026-03-14 21:11:12.798106 35460069 [MS-GC] released regions: 0 (returned to OS)
+2026-03-14 21:11:12.798108 35460069 [MS-GC] sweep breakdown: no regions swept
+2026-03-14 21:11:12.798111 35460069 Begin GC log. GCReason: heuristic, Current allocated 137,822,208, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:12.798215 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:12.798252 35460069 [MS-GC] ForceFinishSweep: 34us
+2026-03-14 21:11:12.799809 35460069 [MS-GC] ClearMarkBitmaps: 3989 regions, 1,546us
+2026-03-14 21:11:12.799870 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:12.799902 35460069 MS EnumAndMarkRoots time: 75us
+2026-03-14 21:11:12.799907 35460069 [MS-GC] MarkSetup total: 1,692us, roots=1
+2026-03-14 21:11:12.799912 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:12.799914 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:12.800082 35460069 [MS-GC] ConcurrentMark time: 170us, marked 113 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:12.800089 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:12.800093 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 0us
+2026-03-14 21:11:12.800096 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 1us
+2026-03-14 21:11:12.800099 35460069 [MS-GC] MarkTermination total: 4us, total marked 113
+2026-03-14 21:11:12.800101 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:12.800104 35460069 [MS-GC] ProcessWeakRefs: 0us
+2026-03-14 21:11:12.800109 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 2us
+2026-03-14 21:11:12.800118 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (7,176,192 B), 7us
+2026-03-14 21:11:12.800121 35460069 [MS-GC] PostMark total: 20us
+2026-03-14 21:11:12.800123 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:12.800152 35460069 [MS-GC] PrepareForSweep (gen flip): 27us
+2026-03-14 21:11:12.800154 35460069 [MS-GC] ConcurrentSweep total: 31us
+2026-03-14 21:11:12.800200 35460069 [MS-GC] region statistics when gc ends (sweepGen=38)
+2026-03-14 21:11:12.800203 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:12.800206 35460069 [MS-GC]   used pages: 130,777,088 B, allocated: 130,777,088 B
+2026-03-14 21:11:12.800208 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:12.800211 35460069 [MS-GC]     partialSwept: 0 regions  fullSwept: 0 regions
+2026-03-14 21:11:12.800213 35460069 [MS-GC]     partialUnswept: 12 regions  fullUnswept: 3976 regions
+2026-03-14 21:11:12.800215 35460069 [MS-GC]     total small: 3988 regions
+2026-03-14 21:11:12.800219 35460069 [MS-GC]     large regions: 0
+2026-03-14 21:11:12.800223 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:12.800226 35460069 [MS-GC] allocated size: 130,777,088, heap size: 130,777,088, heap utilization: 100.00%
+2026-03-14 21:11:12.800246 35460069 [MS-GC] live bytes 130,777,088, marked 113 objects
+2026-03-14 21:11:12.800250 35460069 [MS-GC] total gc time: 2,151 us (MarkSetup 1,692 + ConcMark 170 + MarkTerm 4 + PostMark 20), sweep pending
+2026-03-14 21:11:12.800213 35460065 WaitForGCFinish cost 1047 us
+2026-03-14 21:11:12.800259 35460065 gc is triggered for OOM
+2026-03-14 21:11:12.800271 35460069 [MS-GC] === GC START cycle=19 === sweepGen=38 reason=1(oom)
+2026-03-14 21:11:12.800275 35460069 [MS-GC] allocated 130,777,088 B, threshold 20,971,520 B, gcIndex=6
+2026-03-14 21:11:12.800278 35460069 [MS-GC] --- Sweep Summary (since cycle=18) ---
+2026-03-14 21:11:12.800280 35460069 [MS-GC] swept small: 0 regions, freed 0 B (bitmap CTZ sweep)
+2026-03-14 21:11:12.800282 35460069 [MS-GC] swept large: 0 objects, freed 0 B
+2026-03-14 21:11:12.800285 35460069 [MS-GC] released regions: 0 (returned to OS)
+2026-03-14 21:11:12.800287 35460069 [MS-GC] sweep breakdown: no regions swept
+2026-03-14 21:11:12.800289 35460069 Begin GC log. GCReason: oom, Current allocated 130,777,088, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:12.800386 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:12.807231 35460069 [MS-GC] ForceFinishSweep: 6,842us
+2026-03-14 21:11:12.807238 35460069 [MS-GC] ClearMarkBitmaps: 17 regions, 1us
+2026-03-14 21:11:12.807280 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:12.807314 35460069 MS EnumAndMarkRoots time: 65us
+2026-03-14 21:11:12.807319 35460069 [MS-GC] MarkSetup total: 6,933us, roots=1
+2026-03-14 21:11:12.807324 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:12.807326 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:12.807495 35460069 [MS-GC] ConcurrentMark time: 171us, marked 113 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:12.807502 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:12.807506 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 0us
+2026-03-14 21:11:12.807509 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 1us
+2026-03-14 21:11:12.807511 35460069 [MS-GC] MarkTermination total: 4us, total marked 113
+2026-03-14 21:11:12.807514 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:12.807516 35460069 [MS-GC] ProcessWeakRefs: 0us
+2026-03-14 21:11:12.807521 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 1us
+2026-03-14 21:11:12.807524 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (0 B), 1us
+2026-03-14 21:11:12.807527 35460069 [MS-GC] PostMark total: 12us
+2026-03-14 21:11:12.807529 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:12.807540 35460069 [MS-GC] PrepareForSweep (gen flip): 9us
+2026-03-14 21:11:12.807543 35460069 [MS-GC] ConcurrentSweep total: 14us
+2026-03-14 21:11:12.807574 35460069 [MS-GC] region statistics when gc ends (sweepGen=40)
+2026-03-14 21:11:12.807578 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:12.807581 35460069 [MS-GC]   used pages: 557,056 B, allocated: 557,056 B
+2026-03-14 21:11:12.807583 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:12.807585 35460069 [MS-GC]     partialSwept: 2 regions  fullSwept: 0 regions
+2026-03-14 21:11:12.807588 35460069 [MS-GC]     partialUnswept: 14 regions  fullUnswept: 1 regions
+2026-03-14 21:11:12.807590 35460069 [MS-GC]     total small: 17 regions
+2026-03-14 21:11:12.807592 35460069 [MS-GC]     large regions: 0
+2026-03-14 21:11:12.807594 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:12.807597 35460069 [MS-GC] allocated size: 557,056, heap size: 557,056, heap utilization: 100.00%
+2026-03-14 21:11:12.807601 35460069 [MS-GC] live bytes 557,056, marked 113 objects
+2026-03-14 21:11:12.807604 35460069 [MS-GC] total gc time: 7,303 us (MarkSetup 6,933 + ConcMark 171 + MarkTerm 4 + PostMark 12), sweep pending
+2026-03-14 21:11:13.007696 35460069 [MS-GC] === GC START cycle=20 === sweepGen=40 reason=3(heuristic)
+2026-03-14 21:11:13.007740 35460069 [MS-GC] allocated 204,636,160 B, threshold 20,971,520 B, gcIndex=18446744073709551615
+2026-03-14 21:11:13.007760 35460069 [MS-GC] --- Sweep Summary (since cycle=19) ---
+2026-03-14 21:11:13.007774 35460069 [MS-GC] swept small: 0 regions, freed 0 B (bitmap CTZ sweep)
+2026-03-14 21:11:13.007777 35460069 [MS-GC] swept large: 0 objects, freed 0 B
+2026-03-14 21:11:13.007780 35460069 [MS-GC] released regions: 0 (returned to OS)
+2026-03-14 21:11:13.007783 35460069 [MS-GC] sweep breakdown: no regions swept
+2026-03-14 21:11:13.007786 35460069 Begin GC log. GCReason: heuristic, Current allocated 204,734,464, Current threshold 20,971,520, current tag 0
+2026-03-14 21:11:13.007965 35460069 [MS-GC] --- MarkSetup ---
+2026-03-14 21:11:13.007988 35460069 [MS-GC] ForceFinishSweep: 12us
+2026-03-14 21:11:13.009543 35460069 [MS-GC] ClearMarkBitmaps: 5551 regions, 1,544us
+2026-03-14 21:11:13.009593 35460069 Total roots: 2(exclude stack roots)
+2026-03-14 21:11:13.009601 35460069 MS EnumAndMarkRoots time: 34us
+2026-03-14 21:11:13.009604 35460069 [MS-GC] MarkSetup total: 1,639us, roots=1
+2026-03-14 21:11:13.009608 35460069 [MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---
+2026-03-14 21:11:13.009610 35460069 [MS-GC] ConcurrentMark initial workStack bufs: 1
+2026-03-14 21:11:13.010025 35460069 [MS-GC] ConcurrentMark time: 417us, marked 7616 objects (assist: 0 calls, 0 marked)
+2026-03-14 21:11:13.010031 35460069 [MS-GC] --- MarkTermination (STW) ---
+2026-03-14 21:11:13.010036 35460069 [MS-GC] DrainMarkQueue: drained 0 grey objects, 0us
+2026-03-14 21:11:13.010038 35460069 [MS-GC] FlushWriteBarrierBuffers (final): 0 entries, 0us
+2026-03-14 21:11:13.010041 35460069 [MS-GC] MarkTermination total: 4us, total marked 7616
+2026-03-14 21:11:13.010044 35460069 [MS-GC] --- PostMark ---
+2026-03-14 21:11:13.010046 35460069 [MS-GC] ProcessWeakRefs: 0us
+2026-03-14 21:11:13.010051 35460069 [MS-GC] EnqueueFinalizers: enqueued 0 objects, 2us
+2026-03-14 21:11:13.010085 35460069 [MS-GC] CollectLargeGarbage: freed 0 large objects (22,577,152 B), 31us
+2026-03-14 21:11:13.010087 35460069 [MS-GC] PostMark total: 43us
+2026-03-14 21:11:13.010090 35460069 [MS-GC] --- ConcurrentSweep ---
+2026-03-14 21:11:13.010141 35460069 [MS-GC] PrepareForSweep (gen flip): 49us
+2026-03-14 21:11:13.010144 35460069 [MS-GC] ConcurrentSweep total: 54us
+2026-03-14 21:11:13.010162 35460069 [MS-GC] region statistics when gc ends (sweepGen=42)
+2026-03-14 21:11:13.010166 35460069 [MS-GC]   total capacity: 268,435,456 B
+2026-03-14 21:11:13.010169 35460069 [MS-GC]   used pages: 182,222,848 B, allocated: 182,222,848 B
+2026-03-14 21:11:13.010171 35460069 [MS-GC]   CentralPool small (36 classes aggregated):
+2026-03-14 21:11:13.010173 35460069 [MS-GC]     partialSwept: 0 regions  fullSwept: 0 regions
+2026-03-14 21:11:13.010175 35460069 [MS-GC]     partialUnswept: 19 regions  fullUnswept: 5529 regions
+2026-03-14 21:11:13.010176 35460065 WaitForGCFinish cost 1531 us
+2026-03-14 21:11:13.010179 35460069 [MS-GC]     total small: 5548 regions
+2026-03-14 21:11:13.010191 35460069 [MS-GC]     large regions: 2
+2026-03-14 21:11:13.010193 35460069 [MS-GC]   large-object regions: 0 objects, 0 B mapped
+2026-03-14 21:11:13.010197 35460069 [MS-GC] allocated size: 182,222,848, heap size: 182,222,848, heap utilization: 100.00%
+2026-03-14 21:11:13.010202 35460069 [MS-GC] live bytes 182,222,848, marked 7616 objects
+2026-03-14 21:11:13.010205 35460069 [MS-GC] total gc time: 2,466 us (MarkSetup 1,639 + ConcMark 417 + MarkTerm 4 + PostMark 43), sweep pending

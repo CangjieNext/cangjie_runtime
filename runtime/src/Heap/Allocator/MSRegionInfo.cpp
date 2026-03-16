@@ -149,63 +149,42 @@ uintptr_t MSRegionInfo::Alloc()
 {
     // Phase 2: after sweep, use bitmap allocation
     if (sweepState == MSSweepState::SWEPT) {
-        return AllocFromBitmap();
+        return AllocFromBitmapFast();
     }
 
     // Phase 1: bump-pointer for fresh Region (BUMP state)
-    size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
-    if (allocPtr + slotSize <= regionEnd) {
-        uintptr_t addr = allocPtr;
-        allocPtr += slotSize;
-        freeSlotCount--;
-
-        // Sync allocBitmap: mark slot as allocated (clear bit)
-        uintptr_t start = RegionStart();
-        size_t slotIdx = (addr - start) / slotSize;
-        allocBitmap[slotIdx / 64] &= ~(1ULL << (slotIdx % 64));
-
-        return addr;
+#ifdef MRT_DEBUG
+    if (UNLIKELY(regionType == MSRegionType::MS_REGION_LARGE ||
+                 regionType == MSRegionType::MS_REGION_FREE)) {
+        LOG(RTLOG_FATAL, "[MS-GC] Alloc() on bad regionType=%d, allocPtr=0x%zx, "
+            "regionEnd=0x%zx, sizeClass=%u, allocBitmap=%p, this=%p",
+            (int)regionType, allocPtr, regionEnd, (unsigned)sizeClass,
+            (void*)allocBitmap, (void*)this);
     }
+#endif
 
-    return 0;  // Region full
+    return AllocBump();
 }
 
 uintptr_t MSRegionInfo::AllocFromBitmap()
 {
-    size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
-    size_t wordCount = (totalSlotCount + 63) / 64;
+    return AllocFromBitmapFast();
+}
 
-    // Use searchHint (stored in 'reserved' field, lower 32 bits) to skip empty words
-    size_t hint = static_cast<size_t>(reserved & 0xFFFFFFFF);
-    for (size_t i = hint; i < wordCount; i++) {
-        if (allocBitmap[i] != 0) {
-            int bit = __builtin_ctzll(allocBitmap[i]);
-            allocBitmap[i] &= ~(1ULL << bit);  // Clear bit = mark as allocated
-            freeSlotCount--;
-
-            // Update searchHint
-            reserved = (reserved & 0xFFFFFFFF00000000ULL) | static_cast<uint64_t>(i);
-
-            size_t slotIndex = i * 64 + static_cast<size_t>(bit);
-            uintptr_t addr = RegionStart() + slotIndex * slotSize;
-            return addr;
-        }
-    }
-
-    // Wrap around: search from 0 to hint
+uintptr_t MSRegionInfo::AllocFromBitmapSlow(size_t hint)
+{
+    // Wrap around: search from word 0 to hint
     for (size_t i = 0; i < hint; i++) {
-        if (allocBitmap[i] != 0) {
-            int bit = __builtin_ctzll(allocBitmap[i]);
-            allocBitmap[i] &= ~(1ULL << bit);
+        uint64_t word = allocBitmap[i];
+        if (word != 0) {
+            int bit = __builtin_ctzll(word);
+            allocBitmap[i] = word & ~(1ULL << bit);
             freeSlotCount--;
-
             reserved = (reserved & 0xFFFFFFFF00000000ULL) | static_cast<uint64_t>(i);
-
             size_t slotIndex = i * 64 + static_cast<size_t>(bit);
-            return RegionStart() + slotIndex * slotSize;
+            return RegionStart() + slotIndex * SizeClassInfo::ClassToSize(sizeClass);
         }
     }
-
     return 0;  // Region completely full
 }
 

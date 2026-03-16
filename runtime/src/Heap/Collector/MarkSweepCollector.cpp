@@ -14,6 +14,7 @@
 #include "Heap/Allocator/MSRegionInfo.h"
 #include "Heap/Allocator/RegionSpace.h"
 #include "Heap/Barrier/WriteBarrierBuffer.h"
+#include "Heap/Collector/FinalizerProcessor.h"
 #include "Heap/Collector/ForwardDataManager.h"
 #include "Heap/Heap.h"
 #include "Mutator/MutatorManager.h"
@@ -23,6 +24,21 @@
 #endif
 
 namespace MapleRuntime {
+
+// Helper: check if an address belongs to any managed memory pool (main heap or LOS).
+// Used in GC tracing paths to replace Heap::IsHeapAddress() which misses LOS objects.
+static inline bool IsManagedAddress(MAddress addr)
+{
+    if (Heap::IsHeapAddress(addr)) {
+        return true;
+    }
+    // Fallback: check LOS (Tier 2 huge objects allocated via mmap).
+    // LOS::Contains acquires a mutex+linear scan, but this path is only
+    // reached for addresses outside the contiguous heap — rare during tracing.
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+    LargeObjectSpace* los = space.GetLargeObjectSpace();
+    return los != nullptr && los->Contains(addr);
+}
 
 // Static member definition
 std::atomic<MarkSweepCollector*> MarkSweepCollector::activeCollector_{nullptr};
@@ -66,6 +82,7 @@ void MarkSweepCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
 
     PreGarbageCollection(/* isConcurrent */ true);
     DoGarbageCollection(gcIndex);
+    UpdateGCStats();
     PostGarbageCollection(gcIndex);
 
     gcStats.gcEndTime = TimeUtil::NanoSeconds();
@@ -117,6 +134,7 @@ void MarkSweepCollector::MarkSetup()
     {
         uint64_t t0 = TimeUtil::MicroSeconds();
         if (centralPool != nullptr) {
+            // [P0-1 OFF] centralPool->WaitForSweepDone();
             centralPool->ForceFinishSweep();
         }
         cycleStats_.forceFinishSweepUs = TimeUtil::MicroSeconds() - t0;
@@ -124,66 +142,76 @@ void MarkSweepCollector::MarkSetup()
              Pretty(cycleStats_.forceFinishSweepUs).Str());
     }
 
-    // ── Phase B: Brief STW — Flush TL Regions only ──
+    // ── Phase B: Brief STW — Flush TL Regions + Clear mark bitmaps ──
     //    Why STW:  AllocBufferMS is per-OS-thread (TLS), shared by N coroutines
     //    on the same Processor. Handshake is per-Mutator (per-coroutine), so
     //    we cannot safely flush from HandleGCPhase (wrong TLS for parked coroutines,
     //    and Mutators resume immediately after handshake — concurrent allocation).
     //    A brief STW ensures no Mutator is allocating during flush.
-    //    Corresponds to Go's forEachP(prepareForSweep) under STW.
+    //    ClearMarkBitmaps MUST be inside STW: after FlushAllAllocBuffers returns
+    //    ALL regions to central pool, VisitAllRegions can then clear every region.
+    //    If done outside STW, mutators may take regions before the clear, leaving
+    //    stale mark bits that prevent root re-tracing in subsequent cycles.
     {
-        ScopedStopTheWorld stw("MS FlushTLRegions");
+        ScopedStopTheWorld stw("MS FlushTLRegions + ClearBitmaps");
 
         // Flush all per-Processor AllocBufferMS Regions back to CentralRegionPool.
         // After this, ALL small-object Regions are in the central pool.
         if (centralPool != nullptr) {
             centralPool->FlushAllAllocBuffers();
         }
-    } // ~ScopedStopTheWorld → StartTheWorld, Mutators resume
 
-    // ── Phase B2: Clear all mark bitmaps (no STW needed) ──
-    //    After flush, all Regions are in central pool. Mutators may resume and
-    //    allocate new Regions from the pool, but allocation (bump-pointer / FreeList)
-    //    does NOT read markBitmap — bitmaps are only used during GC marking/sweeping.
-    //    Marking has not started yet, so clearing is safe without STW.
-
-    // Clear all MSRegionInfo markBitmaps (small objects)
-    {
-        uint64_t t0 = TimeUtil::MicroSeconds();
-        size_t clearedRegions = 0;
-        if (centralPool != nullptr) {
-            centralPool->VisitAllRegions([&clearedRegions](MSRegionInfo* region) {
-                size_t wordCount = (region->totalSlotCount + 63) / 64;
-                if (region->markBitmap != nullptr && wordCount > 0) {
-                    memset(region->markBitmap, 0, wordCount * sizeof(uint64_t));
-                }
-                clearedRegions++;
-            });
+        // Clear all MSRegionInfo markBitmaps (small objects)
+        // Must be done while ALL regions are in central pool (i.e., during STW).
+        {
+            uint64_t t0 = TimeUtil::MicroSeconds();
+            size_t clearedRegions = 0;
+            if (centralPool != nullptr) {
+                centralPool->VisitAllRegions([&clearedRegions](MSRegionInfo* region) {
+                    size_t wordCount = (region->totalSlotCount + 63) / 64;
+                    if (region->markBitmap != nullptr && wordCount > 0) {
+                        memset(region->markBitmap, 0, wordCount * sizeof(uint64_t));
+                    }
+                    clearedRegions++;
+                });
+            }
+            cycleStats_.clearBitmapUs = TimeUtil::MicroSeconds() - t0;
+            cycleStats_.clearBitmapRegions = clearedRegions;
+            VLOG(REPORT, "[MS-GC] ClearMarkBitmaps: %zu regions, %sus",
+                 clearedRegions, Pretty(cycleStats_.clearBitmapUs).Str());
         }
-        cycleStats_.clearBitmapUs = TimeUtil::MicroSeconds() - t0;
-        cycleStats_.clearBitmapRegions = clearedRegions;
-        VLOG(REPORT, "[MS-GC] ClearMarkBitmaps: %zu regions, %sus",
-             clearedRegions, Pretty(cycleStats_.clearBitmapUs).Str());
-    }
 
-    // Clear LOS marks (Tier 2: large objects use region-level isMarked flag)
-    LargeObjectSpace* los = space.GetLargeObjectSpace();
-    if (los != nullptr) {
-        los->ClearAllMarks();
-    }
+        // Clear LOS marks (Tier 2: large objects use region-level isMarked flag)
+        LargeObjectSpace* los = space.GetLargeObjectSpace();
+        if (los != nullptr) {
+            los->ClearAllMarks();
+        }
 
-    // Clear Tier 1 in-heap large region marks
-    if (centralPool != nullptr) {
-        centralPool->ClearLargeMarks();
-    }
+        // Clear Tier 1 in-heap large region marks
+        if (centralPool != nullptr) {
+            centralPool->ClearLargeMarks();
+        }
 
-    // Reset marked object counter
-    markedObjectCount.store(0, std::memory_order_relaxed);
+        // Reset marked object counter (before root scanning below)
+        markedObjectCount.store(0, std::memory_order_relaxed);
 
-    // ── Phase C: Handshake — each Mutator scans its own stack roots ──
-    //    HandleGCPhase(MS_MARK_SETUP) only does GcPhaseEnum (stack root scan).
-    //    Also installs SATB write barrier and activates MarkNewObject.
-    TransitionToGCPhase(GCPhase::GC_PHASE_MS_MARK_SETUP, true);
+        // ── Phase C: Transition to MS_MARK_SETUP while world is stopped ──
+        //    This MUST happen inside STW so that when mutators resume, they go
+        //    through HandleSafepointStub.S → MRT_GetThreadLocalData(), which
+        //    encodes GCPhase (20) into x28's high 8 bits. The compiler's write
+        //    barrier fast path checks x28>>56 > 8 to decide whether to call the
+        //    barrier slow path. If the transition happens OUTSIDE STW (as a
+        //    separate handshake), mutators can resume from STW with x28 still
+        //    encoding the old phase (≤8), causing the fast path to skip the
+        //    barrier entirely during concurrent marking.
+        //
+        //    HandleGCPhase(MS_MARK_SETUP) → GcPhaseEnum: the GC thread scans
+        //    each stopped mutator's stack roots on their behalf. This is safe
+        //    because all mutators are frozen during STW.
+        TransitionToGCPhase(GCPhase::GC_PHASE_MS_MARK_SETUP, true);
+    } // ~ScopedStopTheWorld → StartTheWorld
+      // Mutators resume through HandleSafepointStub.S → MRT_GetThreadLocalData()
+      // → x28 high 8 bits = 20 (MS_MARK_SETUP) → barrier fast path fires
 
     // ── Phase D: GC thread enumerates global roots + marks root set ──
     markWorkStack_.clear();
@@ -253,9 +281,9 @@ bool MarkSweepCollector::MarkObject(BaseObject* obj) const
         return false;  // newly marked in LOS
     }
 
-    // In MS mode, all in-heap objects are covered by MSRegionInfo.
-    // If we reach here, the address is external or invalid — treat as newly marked.
-    return false;
+    // Not managed by MS heap or LOS — external/invalid address.
+    // Return true ("already marked") so callers do NOT push it to workStack.
+    return true;
 }
 
 
@@ -276,13 +304,16 @@ void MarkSweepCollector::EnumAndMarkRoots(WorkStack& workStack, WorkStack& forei
         roots.push_back(workStack.back());
         workStack.pop_back();
     }
+
     for (BaseObject* obj : roots) {
-        if (obj != nullptr && Heap::IsHeapAddress(reinterpret_cast<MAddress>(obj))) {
-            // MarkObject returns false when newly marked, true when already marked
-            if (!MarkObject(obj)) {
+        if (obj != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(obj))) {
+            // Always mark and always push — ensure all roots are traced
+            // even if MarkObject reports them as already marked (ROOT CAUSE #4 investigation)
+            bool alreadyMarked = MarkObject(obj);
+            if (!alreadyMarked) {
                 markedObjectCount.fetch_add(1, std::memory_order_relaxed);
-                workStack.push_back(obj);
             }
+            workStack.push_back(obj);
         }
     }
 
@@ -293,7 +324,7 @@ void MarkSweepCollector::EnumAndMarkRoots(WorkStack& workStack, WorkStack& forei
         foreignStack.pop_back();
     }
     for (BaseObject* obj : fRoots) {
-        if (obj != nullptr && Heap::IsHeapAddress(reinterpret_cast<MAddress>(obj))) {
+        if (obj != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(obj))) {
             if (!MarkObject(obj)) {
                 markedObjectCount.fetch_add(1, std::memory_order_relaxed);
                 foreignStack.push_back(obj);
@@ -394,12 +425,40 @@ void MarkSweepCollector::RunCollectorDrainSlice(WorkStack& workStack, size_t max
         BaseObject* obj = workStack.back();
         workStack.pop_back();
 
-        if (obj == nullptr || !Heap::IsHeapAddress(reinterpret_cast<MAddress>(obj))) {
+        if (obj == nullptr || !IsManagedAddress(reinterpret_cast<MAddress>(obj))) {
             continue;
         }
 
         // Object is grey (marked but not yet traced). Trace its children.
         processed++;
+
+        // DEBUG: validate TypeInfo before touching it
+        {
+            TypeInfo* ti = obj->GetTypeInfo();
+            uintptr_t tiAddr = reinterpret_cast<uintptr_t>(ti);
+            if (ti == nullptr || tiAddr < 0x100000000ULL) {
+                uintptr_t objAddr = reinterpret_cast<uintptr_t>(obj);
+                // Read raw stateWord to understand corruption
+                uint64_t rawSW = *reinterpret_cast<uint64_t*>(obj);
+                MSRegionInfo* msInfo = MSRegionInfoArray::GetRegionInfoValidated(objAddr);
+                LOG(RTLOG_ERROR,
+                    "DrainSlice: obj=%p has invalid TypeInfo=%p (raw stateword=0x%llx), "
+                    "msRegion: type=%d, sizeClass=%u, allocPtr=0x%zx, regionEnd=0x%zx, "
+                    "sweepState=%u, sweepGen=%u, markBitmap=%p, totalSlots=%u, freeSlots=%u",
+                    (void*)obj, (void*)ti,
+                    (unsigned long long)rawSW,
+                    msInfo ? (int)msInfo->regionType : -1,
+                    msInfo ? (unsigned)msInfo->sizeClass : 0,
+                    msInfo ? msInfo->allocPtr : 0,
+                    msInfo ? msInfo->regionEnd : 0,
+                    msInfo ? (unsigned)msInfo->sweepState : 0,
+                    msInfo ? (unsigned)msInfo->sweepGen : 0,
+                    msInfo ? (void*)msInfo->markBitmap : nullptr,
+                    msInfo ? (unsigned)msInfo->totalSlotCount : 0,
+                    msInfo ? (unsigned)msInfo->freeSlotCount : 0);
+                continue;
+            }
+        }
 
         if (!obj->HasRefField()) {
             continue;
@@ -410,7 +469,7 @@ void MarkSweepCollector::RunCollectorDrainSlice(WorkStack& workStack, size_t max
             RefField<>* referentField =
                 reinterpret_cast<RefField<>*>(reinterpret_cast<uintptr_t>(obj) + sizeof(uintptr_t));
             BaseObject* referent = GetAndTryTagObj(obj, *referentField);
-            if (referent != nullptr && Heap::IsHeapAddress(reinterpret_cast<MAddress>(referent))) {
+            if (referent != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(referent))) {
                 // Don't mark referent — add to WeakRefBuffer for later processing
                 WeakRefBuffer::Instance().Insert(obj);
             }
@@ -427,7 +486,7 @@ void MarkSweepCollector::TraceRefField(
 {
     (void)obj; // obj is the parent, not needed for MS (no tag/CAS)
     BaseObject* target = field.GetTargetObject();
-    if (target == nullptr || !Heap::IsHeapAddress(reinterpret_cast<MAddress>(target))) {
+    if (target == nullptr || !IsManagedAddress(reinterpret_cast<MAddress>(target))) {
         return;
     }
     // Mark child: if newly marked (returns false), push as grey
@@ -512,7 +571,7 @@ void MarkSweepCollector::MSMarkAssist()
         BaseObject* obj = localWork.back();
         localWork.pop_back();
 
-        if (obj == nullptr || !Heap::IsHeapAddress(reinterpret_cast<MAddress>(obj))) {
+        if (obj == nullptr || !IsManagedAddress(reinterpret_cast<MAddress>(obj))) {
             continue;
         }
 
@@ -655,7 +714,7 @@ void MarkSweepCollector::ExecuteLikeDrainMainQueue(WorkStack& mainQueue)
         BaseObject* obj = mainQueue.back();
         mainQueue.pop_back();
 
-        if (obj == nullptr || !Heap::IsHeapAddress(reinterpret_cast<MAddress>(obj))) {
+        if (obj == nullptr || !IsManagedAddress(reinterpret_cast<MAddress>(obj))) {
             continue;
         }
 
@@ -675,7 +734,7 @@ void MarkSweepCollector::ExecuteLikeDrainMainQueue(WorkStack& mainQueue)
             RefField<>* referentField =
                 reinterpret_cast<RefField<>*>(reinterpret_cast<uintptr_t>(obj) + sizeof(uintptr_t));
             BaseObject* referent = GetAndTryTagObj(obj, *referentField);
-            if (referent != nullptr && Heap::IsHeapAddress(reinterpret_cast<MAddress>(referent))) {
+            if (referent != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(referent))) {
                 TraceObjectRefFields(referent, mainQueue);
                 WeakRefBuffer::Instance().Insert(obj);
             }
@@ -802,6 +861,10 @@ void MarkSweepCollector::ConcurrentSweep()
         centralPool->PrepareForSweep();
         uint64_t prepUs = TimeUtil::MicroSeconds() - t0;
         VLOG(REPORT, "[MS-GC] PrepareForSweep (gen flip): %sus", Pretty(prepUs).Str());
+
+        // [P0-1 OFF] Notify gc-helper thread to start background sweep.
+        // FinalizerProcessor& fp = Heap::GetHeap().GetFinalizerProcessor();
+        // fp.NotifyToSweep();
     }
 
     uint64_t sweepUs = TimeUtil::MicroSeconds() - phaseStart;
@@ -838,7 +901,7 @@ void MarkSweepCollector::EnumAndTagRawRoot(ObjectRef& root, RootSet& rootSet) co
 {
     // MS version: no tag/CAS, just push heap objects into root set
     BaseObject* obj = root.object;
-    if (obj != nullptr && Heap::IsHeapAddress(reinterpret_cast<MAddress>(obj))) {
+    if (obj != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(obj))) {
         rootSet.push_back(obj);
     }
 }
@@ -856,7 +919,7 @@ BaseObject* MarkSweepCollector::GetAndTryTagObj(BaseObject* obj, RefField<>& fie
     // No tagging in Mark-Sweep
     (void)obj;
     BaseObject* target = field.GetTargetObject();
-    if (target == nullptr || !Heap::IsHeapAddress(reinterpret_cast<MAddress>(target))) {
+    if (target == nullptr || !IsManagedAddress(reinterpret_cast<MAddress>(target))) {
         return nullptr;
     }
     return target;

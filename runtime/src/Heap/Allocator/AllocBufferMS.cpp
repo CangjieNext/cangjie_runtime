@@ -16,15 +16,6 @@
 
 namespace MapleRuntime {
 
-// Helper: check if the mutator is in a GC marking phase
-static bool IsInMarkingPhase()
-{
-    GCPhase phase = Mutator::GetMutator()->GetMutatorPhase();
-    return phase == GCPhase::GC_PHASE_MS_MARK_SETUP ||
-           phase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK ||
-           phase == GCPhase::GC_PHASE_MS_MARK_TERMINATION;
-}
-
 AllocBufferMS::~AllocBufferMS()
 {
     Fini();
@@ -58,32 +49,28 @@ void AllocBufferMS::Fini()
 MAddress AllocBufferMS::Allocate(size_t size)
 {
     uint8_t cls = SizeClassInfo::SizeToClass(size);
-    allocCount_++;
     if (UNLIKELY(cls >= kNumSizeClasses)) {
         return 0;  // Large object — caller should route to LargeObjectSpace
     }
     MAddress addr = FastAlloc(cls);
 
-    // Mark-at-alloc: during GC marking phases, newly allocated objects are
-    // colored black (marked) so they survive the current GC cycle.
-    // This is equivalent to Go's gcmarknewobject() in mallocgc().
-    if (UNLIKELY(addr != 0 && IsInMarkingPhase())) {
-        RegionSpace::MarkObject(reinterpret_cast<const BaseObject*>(addr));
-    }
-
-    // Mutator assist: accumulate debt and trigger marking assist.
-    // Only during GC_PHASE_MS_CONCURRENT_MARK — not setup (marking not started)
-    // or termination (STW, no Mutator allocation).
+    // Mark-at-alloc + mutator assist: single phase read covers both checks.
+    // During GC marking phases, newly allocated objects are colored black
+    // (marked) so they survive the current GC cycle.
     if (UNLIKELY(addr != 0)) {
         GCPhase phase = Mutator::GetMutator()->GetMutatorPhase();
-        if (phase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK) {
-            gcAssistBytes_ += (size >> 2);  // ~25% of allocated size
-            if (gcAssistBytes_ >= kGCAssistTriggerBytes) {
-                MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
-                if (collector != nullptr) {
-                    collector->MSMarkAssist();
+        if (UNLIKELY(phase >= GCPhase::GC_PHASE_MS_MARK_SETUP &&
+                     phase <= GCPhase::GC_PHASE_MS_MARK_TERMINATION)) {
+            RegionSpace::MarkObject(reinterpret_cast<const BaseObject*>(addr));
+            if (phase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK) {
+                gcAssistBytes_ += (size >> 2);  // ~25% of allocated size
+                if (gcAssistBytes_ >= kGCAssistTriggerBytes) {
+                    MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
+                    if (collector != nullptr) {
+                        collector->MSMarkAssist();
+                    }
+                    gcAssistBytes_ = 0;
                 }
-                gcAssistBytes_ = 0;
             }
         }
     }
@@ -98,14 +85,21 @@ MAddress AllocBufferMS::FastAlloc(uint8_t cls)
 {
     MSRegionInfo* region = activeRegions_[cls];
     if (LIKELY(region != nullptr)) {
+#ifdef MRT_DEBUG
+        if (UNLIKELY(region->regionType == MSRegionType::MS_REGION_LARGE ||
+                     region->regionType == MSRegionType::MS_REGION_FREE)) {
+            LOG(RTLOG_FATAL, "[MS-GC] FastAlloc: activeRegion has bad type=%d, cls=%u, "
+                "region=%p, allocPtr=0x%zx, regionEnd=0x%zx",
+                (int)region->regionType, (unsigned)cls, (void*)region,
+                region->allocPtr, region->regionEnd);
+        }
+#endif
+
         uintptr_t addr;
         if (region->regionType == MSRegionType::MS_REGION_BUMP) {
-            // Fresh (BUMP) Region: use bump-pointer allocation.
-            // Alloc() advances allocPtr and syncs the allocBitmap bookkeeping.
-            addr = region->Alloc();
+            addr = region->AllocBump();
         } else {
-            // Swept Region: use bitmap-based allocation (CTZ scan).
-            addr = region->AllocFromBitmap();
+            addr = region->AllocFromBitmapFast();
         }
         if (LIKELY(addr != 0)) {
             return static_cast<MAddress>(addr);
@@ -132,15 +126,50 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
         return 0;  // OOM or GC needed — caller handles
     }
 
+    // Debug: validate newly-acquired region
+#ifdef MRT_DEBUG
+    {
+        size_t span = newRegion->regionEnd - newRegion->allocPtr;
+        size_t ridx = MSRegionInfoArray::GetRegionIdx(newRegion);
+        uintptr_t expectedEnd = MSRegionInfoArray::GetRegionAddress(ridx) + MS_REGION_SIZE;
+        if (UNLIKELY(newRegion->regionEnd != expectedEnd)) {
+            LOG(RTLOG_FATAL, "[MS-GC] SlowAlloc: region has wrong regionEnd! "
+                "regionEnd=0x%zx, expected=0x%zx, allocPtr=0x%zx, "
+                "cls=%u, regionType=%d, sweepState=%d, sizeClass=%u, "
+                "allocBitmap=%p, markBitmap=%p, "
+                "totalSlots=%u, freeSlots=%u, "
+                "nextRegionIdx=%d, prevRegionIdx=%d, "
+                "sweepGen=%u, reserved=0x%llx, "
+                "this=%p (idx=%zu)",
+                newRegion->regionEnd, expectedEnd, newRegion->allocPtr,
+                (unsigned)cls, (int)newRegion->regionType, (int)newRegion->sweepState,
+                (unsigned)newRegion->sizeClass,
+                (void*)newRegion->allocBitmap, (void*)newRegion->markBitmap,
+                (unsigned)newRegion->totalSlotCount, (unsigned)newRegion->freeSlotCount,
+                newRegion->nextRegionIdx, newRegion->prevRegionIdx,
+                newRegion->sweepGen, (unsigned long long)newRegion->reserved,
+                (void*)newRegion, ridx);
+        }
+        if (UNLIKELY(newRegion->allocBitmap == nullptr)) {
+            LOG(RTLOG_FATAL, "[MS-GC] SlowAlloc: region has allocBitmap=nullptr, "
+                "cls=%u, regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, "
+                "this=%p (idx=%zu)",
+                (unsigned)cls, (int)newRegion->regionType,
+                newRegion->allocPtr, newRegion->regionEnd,
+                (void*)newRegion, ridx);
+        }
+    }
+#endif
+
     // Step 3: Set as active Region
     activeRegions_[cls] = newRegion;
 
     // Step 4: Allocate from the new Region (respect region type)
     uintptr_t addr;
     if (newRegion->regionType == MSRegionType::MS_REGION_BUMP) {
-        addr = newRegion->Alloc();
+        addr = newRegion->AllocBump();
     } else {
-        addr = newRegion->AllocFromBitmap();
+        addr = newRegion->AllocFromBitmapFast();
     }
     return static_cast<MAddress>(addr);
 }
