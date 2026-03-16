@@ -9,7 +9,7 @@ class StrLiteralMock : public Mock {
         StrLiteralMock(int a1, int a2, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
 
     private:
-        static int  doOnEntrypoint(char* func_name);
+        static void init();
 
         static void produceLiteralSlow1();
         static void produceLiteralSlow2();

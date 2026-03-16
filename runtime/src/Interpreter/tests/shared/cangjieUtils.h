@@ -1,8 +1,6 @@
 #ifndef CANGJIE_UTILS_H
 #define CANGJIE_UTILS_H
 
-#include <RTInterface.h>
-
 // Mirror of Cangjie RawArray<T>
 struct RawArray {
     void*    typeInfo;

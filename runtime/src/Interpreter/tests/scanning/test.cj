@@ -41,6 +41,8 @@ func subTest2() {
 main() {
 	// forbid functions elimination by DCE
 	blackBox(test)
+	
+	c2i.invoke8() // init
 
 	println("[AOT] --- Subtest 1: GC roots ---")
 	subTest1()

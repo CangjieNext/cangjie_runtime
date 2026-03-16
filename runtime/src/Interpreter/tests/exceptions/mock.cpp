@@ -18,7 +18,6 @@ ExceptionsMock::ExceptionsMock(int a1, int a2, interpreter_interface_t* interpre
     : Mock(a1, a2, interpreter_interf, cjnative_interf) 
 {
     interpreter_interf->visit_frame_roots = &visitFrameRoots;
-    interpreter_interf->interpretNoParams = &doOnEntrypoint;
 
     interpreter_interf->frame_info_provider = &getInterpretedFrameInfo;
 
@@ -31,6 +30,10 @@ ExceptionsMock::ExceptionsMock(int a1, int a2, interpreter_interface_t* interpre
     registerC2I(6, reinterpret_cast<uintptr_t>(testOutOfMemoryError));
     registerC2I(7, reinterpret_cast<uintptr_t>(testStackOverflowPrepare));
     registerC2I(8, reinterpret_cast<uintptr_t>(testStackOverflow));
+
+    for (int i = 0; i < FRAME_ROOTS_N; i++) {
+        frameRoots[i] = nullptr;
+    }
 }
 
 void scanRefArray(root_visitor_t visitor, Ref* roots, int size, std::function<void(root_visitor_t, Ref*)> visit) {
@@ -48,14 +51,6 @@ void ExceptionsMock::visitFrameRoots(root_visitor_t visitor, frame_desc_t desc) 
             mockInstance.cjNativeInterface.visit_frame_root_from_interpreter(visitor, ph);
         });
     log("[Mock] finished frame roots scanning");
-}
-
-int ExceptionsMock::doOnEntrypoint(char* func_name) {
-    for (int i = 0; i < FRAME_ROOTS_N; i++) {
-        frameRoots[i] = nullptr;
-    }
-
-    return 0;
 }
 
 void throwCatchableException() {

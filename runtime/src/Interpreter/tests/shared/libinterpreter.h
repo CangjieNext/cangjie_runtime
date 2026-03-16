@@ -9,6 +9,10 @@
 #include "RTInterface.h"
 #include "log.h"
 
+#ifdef __cplusplus
+using namespace MRTExport;
+#endif
+
 #define PUBLIC  extern "C"
 #define TRAMPOLINE_SIZE 16 // in bytes
 #define VIRTUAL_FUNCS_N 10

@@ -4,6 +4,9 @@
 #include "log.h"
 #include <dlfcn.h>
 
+#ifdef __cplusplus
+using namespace MRTExport;
+#endif
 
 #ifndef MOCK_IMPLEMENTATION
 #define MOCK_IMPLEMENTATION Mock
@@ -33,20 +36,14 @@ Mock::Mock(int a1, int a2, interpreter_interface_t* interpreter_interf, cjnative
     interpreter_interf->iterator_size = 0;
     g_InterpreterStackReserveSize = INTERPRETER_FRAMES_SIZE;
 
-    interpreter_interf->c2iVirtualExecutorAddr = (uintptr_t) C2I_Stub;
-    interpreter_interf->c2iVirtualExecutorEndAddr = (uintptr_t) C2I_Stub_End;
+    interpreter_interf->c2iStubStartAddr = (uintptr_t) C2I_Stub;
+    interpreter_interf->c2iStubEndAddr = (uintptr_t) C2I_Stub_End;
 
-    interpreter_interf->i2iFunctionAddr = (uintptr_t) I2I_Stub;
-    interpreter_interf->i2iFunctionEndAddr = (uintptr_t) I2I_Stub_End;
+    interpreter_interf->i2iAdapterStartAddr = (uintptr_t) I2I_Stub;
+    interpreter_interf->i2iAdapterEndAddr = (uintptr_t) I2I_Stub_End;
 
     interpreter_interf->landing_pad = &LandingPadWrapper;
 
-    interpreter_interf->entrypointStartAddr = 0;
-    interpreter_interf->entrypointEndAddr = 0;
-
-    interpreter_interf->interpretNoParams = (interpret_cbc_f)+[]() {
-        log("[Mock] dummy interpretNoParams called!\n"); return 0;
-    };
     interpreter_interf->visit_global_roots = (visit_global_roots_f)+[]() {
         log("[Mock] dummy visit_global_roots called!\n"); return 0;
     };

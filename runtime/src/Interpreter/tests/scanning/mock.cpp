@@ -22,12 +22,12 @@ ScanningMock::ScanningMock(int a1, int a2, interpreter_interface_t* interpreter_
     interpreter_interf->visit_fiber_roots = &visitFiberRoots;
     interpreter_interf->visit_frame_roots = &visitFrameRoots;
     interpreter_interf->visit_stack_ptrs = &visitStackPtrs;
-    interpreter_interf->interpretNoParams = &doOnEntrypoint;
     interpreter_interf->fiber_start = &doOnFiberStart;
 
     registerC2I(0, reinterpret_cast<uintptr_t>(intermidiateFrames));
     registerC2I(1, reinterpret_cast<uintptr_t>(saveSomePointerToStack));
     registerC2I(2, reinterpret_cast<uintptr_t>(checkIsPointerAdjusted));
+    registerC2I(8, reinterpret_cast<uintptr_t>(init));
 }
 
 ////////////////// GC ROOTS SCANNING SUB-TEST LOGIC //////////////////
@@ -80,7 +80,7 @@ void ScanningMock::doOnFiberStart(fiber_specific_data_t* data) {
     *data = static_cast<fiber_specific_data_t>(roots);
 }
 
-int ScanningMock::doOnEntrypoint(char* func_name) {
+void ScanningMock::init() {
     auto interface = mockInstance.cjNativeInterface;
     auto ti = interface.type_info("std.core:Object");
     check(ti != nullptr, "typeinfo wasn't provided");
@@ -92,8 +92,6 @@ int ScanningMock::doOnEntrypoint(char* func_name) {
     for (int i = 0; i < FRAME_ROOTS_N; i++) {
         frameRoots[i] = interface.object_alloc(ti);
     }
-
-    return 0;
 }
 
 void ScanningMock::intermidiateFrames() {

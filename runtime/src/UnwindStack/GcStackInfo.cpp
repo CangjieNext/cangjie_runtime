@@ -11,7 +11,6 @@
 
 #include "Collector/TracingCollector.h"
 #include "Common/StackType.h"
-#include "Interpreter/Options.h"
 #include "Interpreter/InterpreterSpecific.h"
 
 namespace MapleRuntime {
@@ -63,7 +62,9 @@ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) con
             case FrameType::C2R_STUB:
             case FrameType::C2N_STUB:
             case FrameType::EXSLUSIVE:
+#ifdef INTERPRETER_ENABLED
             case FrameType::INTERPRETER_C2I:
+#endif
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
                 break;
             default: {
@@ -93,7 +94,9 @@ void GCStackInfo::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, con
             case FrameType::C2R_STUB:
             case FrameType::C2N_STUB:
             case FrameType::EXSLUSIVE:
+#ifdef INTERPRETER_ENABLED
             case FrameType::INTERPRETER_C2I:
+#endif
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
                 break;
             case FrameType::SAFEPOINT:
@@ -161,7 +164,9 @@ void RecordStackInfo::VisitStackRoots(const RootVisitor &func, Mutator &mutator)
             case FrameType::C2R_STUB:
             case FrameType::C2N_STUB:
             case FrameType::EXSLUSIVE:
+#ifdef INTERPRETER_ENABLED
             case FrameType::INTERPRETER_C2I:
+#endif
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame->mFrame.GetFA()));
                 break;
             default: {

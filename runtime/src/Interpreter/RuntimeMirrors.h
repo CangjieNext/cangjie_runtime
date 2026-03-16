@@ -1,13 +1,13 @@
 
+#ifndef RT_MIRRORS_H
+#define RT_MIRRORS_H
+
 #include <stdint.h>
-#include <cstddef>
+#include <stddef.h>
 #include <atomic>
 #include <mutex>
 #include <memory>
 #include <vector>
-
-#ifndef RT_MIRRORS_H
-#define RT_MIRRORS_H
 
 enum class ThreadTypeMirror { CJ_PROCESSOR = 0, GC_THREAD, FP_THREAD, HOT_UPDATE_THREAD };
 

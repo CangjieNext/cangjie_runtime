@@ -2,16 +2,6 @@
 #define TEST_SUPPORT_H
 #include "Options.h"
 #ifdef TEST
-#include "RTInterface.h"
-#include "InterpreterSpecific.h"
-#include "ObjectModel/ExtensionData.h"
-#include "ObjectModel/MClass.h"
-#include "TypeInfoManager.h"
-#include "Base/LogFile.h"
-#include "LoaderManager.h"
-
-#include <stdio.h>
-#include <dlfcn.h>
 
 #define VIRTUAL_FUNCS_N 10
 
@@ -21,5 +11,5 @@ void initTestVirtualFuncs(const char* interpreterLibName);
 
 }
 
-#endif
-#endif
+#endif // TEST
+#endif // TEST_SUPPORT_H

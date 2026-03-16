@@ -14,12 +14,11 @@ uint8_t literalsStorage[sizeof(RawArray) + CONTENT_SIZE];
 StrLiteralMock::StrLiteralMock(int a1, int a2, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
     : Mock(a1, a2, interpreter_interf, cjnative_interf) 
 {
-    interpreter_interf->interpretNoParams = &doOnEntrypoint;
- 
     registerC2I(0, reinterpret_cast<uintptr_t>(produceLiteralSlow1));
     registerC2I(1, reinterpret_cast<uintptr_t>(produceLiteralSlow2));
     registerC2I(2, reinterpret_cast<uintptr_t>(produceLiteralFast1));
     registerC2I(3, reinterpret_cast<uintptr_t>(produceLiteralFast2));
+    registerC2I(8, reinterpret_cast<uintptr_t>(init));
 }
 
 void* getUtf8ArrayTI() {
@@ -47,7 +46,7 @@ void replaceStringField(RawArray* array, uint32_t start, uint32_t len) {
     log("[Mock] string field content is modified");
 }
 
-int StrLiteralMock::doOnEntrypoint(char* func_name) {
+void StrLiteralMock::init() {
     log("[Mock] start initialization");
 
     RawArray* array = (RawArray*) literalsStorage;
@@ -58,7 +57,6 @@ int StrLiteralMock::doOnEntrypoint(char* func_name) {
     }
 
     log("[Mock] initialization finished");
-    return 0;
 }
 
 /**

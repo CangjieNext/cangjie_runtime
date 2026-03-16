@@ -1,4 +1,3 @@
-#include "RTInterface.h"
 #include "mock.h"
 #include "cangjieUtils.h"
 #include <dlfcn.h>

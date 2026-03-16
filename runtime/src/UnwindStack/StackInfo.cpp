@@ -9,8 +9,6 @@
 
 #include <cstdint>
 
-#include "Interpreter/Options.h"
-#include "Interpreter/InterpreterSpecific.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "Collector/TracingCollector.h"
@@ -206,6 +204,7 @@ void StackInfo::ExtractLiteFrameInfoFromStack(std::vector<uint64_t>& liteFrameIn
                 liteFrameInfos.push_back(reinterpret_cast<uint64_t>(funcDesc));
                 break;
             }
+#ifdef INTERPRETER_ENABLED
             case FrameType::INTERPRETER_C2I: 
             case FrameType::INTERPRETER_I2I: {
                 liteFrameInfos.push_back(reinterpret_cast<uint64_t>(frameInfo.mFrame.GetIP())); // consumed by interpreter frame info provider
@@ -213,6 +212,7 @@ void StackInfo::ExtractLiteFrameInfoFromStack(std::vector<uint64_t>& liteFrameIn
                 liteFrameInfos.push_back(INTERPRETED_FRAME_FDESC);                              // marks this triple as "non-cjnative"
                 break;
             }
+#endif
             default: {
                 LOG(RTLOG_FATAL, "Unknown type of method in lite frame info.");
                 break;
@@ -244,6 +244,7 @@ void StackInfo::GetStackTraceByLiteFrameInfos(const std::vector<uint64_t>& liteF
 void StackInfo::GetStackTraceByLiteFrameInfo(const uint64_t v1, const uint64_t v2, const uint64_t v3,
                                              StackTraceElement& ste)
 {
+#ifdef INTERPRETER_ENABLED
     if (v3 == INTERPRETED_FRAME_FDESC) {
         // handle interpreter frame
         interpreted_frame_info_t info;
@@ -258,6 +259,7 @@ void StackInfo::GetStackTraceByLiteFrameInfo(const uint64_t v1, const uint64_t v
         ste.fileName = info.file_name;
         return;
     }
+#endif
 
     StackMetadataHelper stackMetadataHelper(reinterpret_cast<uint32_t*>(v1), reinterpret_cast<uint32_t*>(v2),
                                             reinterpret_cast<uint64_t*>(v3));

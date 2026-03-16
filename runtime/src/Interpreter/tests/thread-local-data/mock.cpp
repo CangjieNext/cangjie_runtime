@@ -33,12 +33,12 @@ ThreadLocalDataTestMock::ThreadLocalDataTestMock(int a1, int a2, interpreter_int
 {
     interpreter_interf->visit_global_roots = &visitGlobalRoots;
     interpreter_interf->visit_frame_roots = &visitFrameRoots;
-    interpreter_interf->interpretNoParams = &doOnEntrypoint;
     interpreter_interf->fiber_start = &doOnFiberStart;
     interpreter_interf->visit_fiber_roots = &visitFiberRoots;
 
     registerC2I(0, reinterpret_cast<uintptr_t>(testThreadLocalData));
-    registerC2I(1, reinterpret_cast<uintptr_t>(stop));
+    registerC2I(8, reinterpret_cast<uintptr_t>(init));
+    registerC2I(9, reinterpret_cast<uintptr_t>(stop));
 }
 
 void scanRefArray(root_visitor_t visitor, Ref* roots, int size, std::function<void(root_visitor_t, Ref*)> visit) {
@@ -88,7 +88,7 @@ void ThreadLocalDataTestMock::doOnFiberStart(fiber_specific_data_t* data) {
     printf("[Mock] doOnFiberStart: fiber id = %ld\n", fiberId);
 }
 
-int ThreadLocalDataTestMock::doOnEntrypoint(char* func_name) {
+void ThreadLocalDataTestMock::init() {
     auto interface = mockInstance.cjNativeInterface;
     auto ti = interface.type_info("std.core:Object");
 
@@ -99,8 +99,6 @@ int ThreadLocalDataTestMock::doOnEntrypoint(char* func_name) {
     for (int i = 0; i < FRAME_ROOTS_N; i++) {
         frameRoots[i] = interface.object_alloc(ti);
     }
-
-    return 0;
 }
 
 void readAndCheckRecField() {

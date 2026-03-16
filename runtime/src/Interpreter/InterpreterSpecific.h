@@ -21,6 +21,10 @@
 #include "TestSupport.h"
 #endif
 
+#ifdef __cplusplus
+using namespace MRTExport;
+#endif
+
 namespace MapleRuntime { // TODO introduce separate namespace for interpreter-related functions  
 
 void VisitInterpreterStackPtrs(root_visitor_t visitor, fiber_specific_data_t interpreterFiberData, stack_ptr_slot_type_t slotType);
@@ -31,8 +35,6 @@ void VisitInterpreterFrameRoots(root_visitor_t visitor, FrameInfo frameInfo);
 void InterpreterFiberStart(fiber_specific_data_t* mutator);
 void InterpreterFiberDestroy(fiber_specific_data_t* mutator);
 
-bool IsManagedEntrypointAddr(const uint32_t* addr);
-
 void ProvideInterpretedFrameInfo(uint64_t fp, uint64_t ip, interpreted_frame_info_t* fInfo);
 
 type_info_t TypeInfoProvider(char * sig);
@@ -41,32 +43,14 @@ obj_ref_t ObjectAllocate(type_info_t tpe);
 
 void SafePoint();
 
-void StackCheck();
-
-void ThrowImplicitException(implicit_exception_type_t type);
 obj_ref_t GetPendingException();
 obj_ref_t GetAndClearPendingException();
-void SetPendingException(obj_ref_t ref);
 bool InstanceOf(obj_ref_t ref, type_info_t ti);
-
-void Dummy();
-
-void* ForeignWrapper(foreign_func f, void* p1, void* p2, void* p3, void* p4, void* p5);
 
 void InitInterpreter(const RuntimeParam& runtimeParam);
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-void MRT_InterpretCBCNoArgs(); // TODO: delete
-
-#ifdef __cplusplus
-};
-#endif
-
-bool IsC2IVirtualExecutorAddr(const uintptr_t addr);
-bool IsI2IFunctionAddr(const uintptr_t addr);
+bool IsC2IStubAddr(const uintptr_t addr);
+bool Isi2iAdapterStartAddr(const uintptr_t addr);
 
 uintptr_t GetCommonInterpreterLandingPad();
 

@@ -12,7 +12,7 @@ class ScanningMock : public Mock {
         static void visitGlobalRoots(root_visitor_t visitor);
         static void visitFiberRoots(root_visitor_t visitor, fiber_specific_data_t data);
         static void visitFrameRoots(root_visitor_t visitor, frame_desc_t desc);
-        static int  doOnEntrypoint(char* func_name);
+        static void init();
         static void doOnFiberStart(fiber_specific_data_t* data);
         static void intermidiateFrames();
 

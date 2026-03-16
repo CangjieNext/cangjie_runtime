@@ -64,10 +64,6 @@ public:
     static inline uint32_t GetExceptionTypeID();
     static inline void EndCatch();
 
-#ifdef INTERPRETER_ENABLED
-    static void SetPendingException(const ExceptionRef& exception);
-#endif
-
     static void ThrowImplicitException(ImplicitExceptionType type);
     void RegisterExceptionRaiser(void* raiser)
     {

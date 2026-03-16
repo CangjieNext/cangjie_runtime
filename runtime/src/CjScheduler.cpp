@@ -305,10 +305,8 @@ void* StartMainTask(void* arg, unsigned int len)
     uintptr_t threadData = MRT_GetThreadLocalData();
     MRT_PreRunManagedCode(mutator, 0, reinterpret_cast<ThreadLocalData*>(threadData));
     reinterpret_cast<ThreadLocalData*>(threadData)->isCJProcessor = true;
-    
     int32_t res = static_cast<int32_t>(
         reinterpret_cast<uintptr_t>(ExecuteCangjieStub(0, 0, 0, execute, reinterpret_cast<void*>(threadData), 0)));
-
 #ifdef CANGJIE_TSAN_SUPPORT
     MapleRuntime::Sanitizer::TsanFinalize();
 #endif

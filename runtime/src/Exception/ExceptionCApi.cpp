@@ -27,7 +27,7 @@ extern "C" void MRT_ThrowPendingException(void* sigContext)
     }
     ExceptionWrapper& mExceptionWrapper = mutator->GetExceptionWrapper();
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-    DLOG(EXCEPTION, "MRT_ThrowPendingException:");
+    DLOG(EXCEPTION, "throw pending exception");
     DLOG(EXCEPTION, "Struct ExceptionWrapper");
     DLOG(EXCEPTION, "  ExceptionRef\t:\t%p", mExceptionWrapper.GetExceptionRef());
     DLOG(EXCEPTION, "  isCaught\t:\t%d", mExceptionWrapper.IsCaught());

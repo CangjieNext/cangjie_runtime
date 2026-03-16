@@ -25,7 +25,6 @@
 #include "CpuProfiler/CpuProfiler.h"
 #include "Base/LogFile.h"
 #include "Interpreter/InterpreterSpecific.h"
-#include "Interpreter/Options.h"
 
 namespace MapleRuntime {
 extern "C" uintptr_t MRT_GetThreadLocalData()
@@ -114,7 +113,7 @@ void Mutator::InitInterpreterPart()
         return;
     }
 
-    DLOG_INTERPRETER(DEBUG, "[CJThread] init interpreter part for fiber %p\n", this);
+    DLOG_INTERPRETER(DEBUG, "[Mutator] init interpreter part for fiber %p\n", this);
     InterpreterFiberStart(&(this->interpreterFiberData));
 }
 
@@ -425,7 +424,8 @@ intptr_t Mutator::FixExtendedStack(intptr_t frameBase, uint32_t adjustedSize __a
             if (stackOffset == 0 || stackOffset == -1) {
                 return 0;
             }
-        } else if (IsC2IVirtualExecutorAddr(reinterpret_cast<uintptr_t>(ip))) {
+#ifdef INTERPRETER_ENABLED
+        } else if (IsC2IStubAddr(reinterpret_cast<uintptr_t>(ip))) {
                 // in this context, adjustedSize is the size required for c2i stub and interpreter frames 
                 DLOG_INTERPRETER(DEBUG, "[Interpreter] Stack overflow happened in C2I, stack size: %zu", stackSize);
 #if defined(__x86_64__)
@@ -445,6 +445,7 @@ intptr_t Mutator::FixExtendedStack(intptr_t frameBase, uint32_t adjustedSize __a
                     ExceptionManager::StackOverflow(adjustedSize, ip);
                     return 0;
                 }
+#endif // INTERPRETER_ENABLED
         } else {
             UnwindContext& stackGrowContext = Mutator::GetMutator()->GetUnwindContext();
             UnwindContext caller;

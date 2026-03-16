@@ -51,6 +51,7 @@ main() {
     }
 
 	let futureInterpreter = spawn {
+		c2i.invoke8() // init
 		println("[AOT] Calling testBarriers")
 		c2i.invoke0()
 		println("[AOT] test finished\n\n")
@@ -58,7 +59,7 @@ main() {
 		println("[AOT] Calling testBarriersFastPath")
 		c2i.invoke1()
 		println("[AOT] test finished\n\n")
-		c2i.invoke2()
+		c2i.invoke9() // stop
     }
 
 	let timer = spawn { // timer for total test execution, because continueAllocation flag is not volatile

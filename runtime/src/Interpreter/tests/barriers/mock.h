@@ -15,6 +15,7 @@ class BarriersMock : public Mock {
         static void doOnFiberStart(fiber_specific_data_t* data);
         static void testBarriers();
         static void testBarriersFastPath();
+        static void init();
         static void stop();
 };
 
