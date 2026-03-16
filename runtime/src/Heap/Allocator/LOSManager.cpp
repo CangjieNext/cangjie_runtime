@@ -26,21 +26,21 @@ void LOSManager::Initialize(uintptr_t start, uintptr_t end, UnitCount unitStart,
     losEnd = end;
     losUnitStart = unitStart;
     losUnitEnd = unitEnd;
+    // Compute regionHeapStart from known address-unitIndex relationship:
+    // losStart (address) corresponds to losUnitStart (unit index)
+    regionHeapStart = start - static_cast<uintptr_t>(unitStart) * RegionInfo::UNIT_SIZE;
 
     // Initialize inactive zone at the end (LOS grows toward low address)
     losInactiveZone.store(losEnd, std::memory_order_relaxed);
 
-    // Initialize FreeRegionManager for LOS space.
-    // P4: baseUnit = mainUnitCount (set in constructor) so the tree covers RESERVE
-    // extension area + native LOS space. Capacity = reserveUnitCount + losUnitCount.
-    // This allows RESERVE-borrowed dead regions to be recycled normally.
-    UnitCount losUnitCount = unitEnd - unitStart;
-    losFreeMgr.Initialize(reserveUnitCount + losUnitCount);
+    // Unified FreeRegionManager is already initialized by RegionManager.
+    // No separate tree initialization needed — LOS uses bounded allocation
+    // within [losInactiveZone, losEnd) on the shared trees.
+    (void)reserveUnitCount; // unused in unified design
 
     DLOG(REPORT, "LOSManager initialized: space [0x%zx, 0x%zx), units [%u, %u), capacity %zu bytes, "
-         "FreeRegionManager baseUnit=%u, treeCapacity=%u (reserve=%u + los=%u)",
-         losStart, losEnd, losUnitStart, losUnitEnd, GetCapacity(), losFreeMgr.GetBaseUnit(),
-         reserveUnitCount + losUnitCount, reserveUnitCount, losUnitCount);
+         "using unified FreeRegionManager",
+         losStart, losEnd, losUnitStart, losUnitEnd, GetCapacity());
 }
 
 // ===== M2: Large object allocation =====
@@ -54,25 +54,33 @@ uintptr_t LOSManager::AllocLarge(size_t size)
     size_t unitCount = (size + RegionInfo::UNIT_SIZE - 1) / RegionInfo::UNIT_SIZE;
 
     // Helper: common post-allocation steps for all successful paths
-    auto finishAllocation = [this, size](RegionInfo* region, const char* source) -> uintptr_t {
+    auto finishAllocation = [this, size](RegionInfo* region, const char* source,
+                                         bool fromFreeMgr, size_t units) -> uintptr_t {
         uintptr_t addr = region->Alloc(size);
         DLOG(REGION, "LOS alloc large from %s: region @[0x%zx+%zu, 0x%zx) size %zu",
              source, region->GetRegionStart(), region->GetRegionSize(), region->GetRegionEnd(), size);
         EnlistLargeRegion(region);
         losAllocCount.fetch_add(1, std::memory_order_relaxed);
+        if (fromFreeMgr) {
+            losFreeUnitCount.fetch_sub(units, std::memory_order_relaxed);
+        }
         return addr;
     };
 
-    // Step 1: Try losFreeMgr (recycled regions from dirtyTree / releaseTree)
-    RegionInfo* region = losFreeMgr.TakeRegion(unitCount, RegionInfo::UnitRole::LARGE_SIZED_UNITS, false);
+    // Step 1: Try shared FreeRegionManager with high-addr bounded allocation.
+    // Allocates from the highest available address above losInactiveZone.
+    UnitIndex losInactiveUnit = AddrToUnitIdx(
+        losInactiveZone.load(std::memory_order_relaxed));
+    RegionInfo* region = sharedFreeMgr.TakeRegionHighAddrBounded(
+        unitCount, RegionInfo::UnitRole::LARGE_SIZED_UNITS, false, losInactiveUnit);
     if (region != nullptr) {
-        return finishAllocation(region, "freeMgr");
+        return finishAllocation(region, "freeMgr", true, unitCount);
     }
 
     // Step 2: Expand losInactiveZone toward low address
     region = AllocFromInactiveZone(unitCount);
     if (region != nullptr) {
-        return finishAllocation(region, "inactiveZone");
+        return finishAllocation(region, "inactiveZone", false, 0);
     }
 
     // Step 3: Borrow-on-demand from RESERVE, then retry AllocFromInactiveZone.
@@ -83,15 +91,14 @@ uintptr_t LOSManager::AllocLarge(size_t size)
         if (borrowed > 0) {
             region = AllocFromInactiveZone(unitCount);
             if (region != nullptr) {
-                return finishAllocation(region, "reserveBorrow");
+                return finishAllocation(region, "reserveBorrow", false, 0);
             }
         }
     }
 
     DLOG(REGION, "LOS alloc large failed: size %zu (%zu units), "
-         "freeMgr dirty=%u released=%u, inactiveZone=0x%zx, losStart=0x%zx",
+         "inactiveZone=0x%zx, losStart=0x%zx",
          size, unitCount,
-         losFreeMgr.GetDirtyUnitCount(), losFreeMgr.GetReleasedUnitCount(),
          losInactiveZone.load(std::memory_order_relaxed), losStart);
 
     // Track failed allocation size for CompactLOS skip heuristic (#10A).
@@ -203,7 +210,7 @@ size_t LOSManager::CollectLOSGarbage()
 
         // Large region has one object at offset 0
         if (!region->IsSurvivedObject(0)) {
-            // Dead — reclaim to LOS's losFreeMgr (NOT MAIN's freeRegionManager)
+            // Dead — reclaim to shared FreeRegionManager
             DLOG(REGION, "LOS reclaim dead region %p@[0x%zx+%zu, 0x%zx) type %u",
                  region, region->GetRegionStart(),
                  region->GetRegionAllocatedSize(), region->GetRegionEnd(),
@@ -237,7 +244,7 @@ size_t LOSManager::CollectLOSGarbage()
 
 size_t LOSManager::ReclaimLOSRegion(RegionInfo* region)
 {
-    // Mirror RegionManager::CollectRegion but route to losFreeMgr
+    // Route to shared FreeRegionManager (same trees as MAIN)
     size_t regionSize = region->GetRegionSize();
     size_t unitCount = region->GetUnitCount();
     size_t unitIndex = region->GetUnitIdx();
@@ -253,13 +260,14 @@ size_t LOSManager::ReclaimLOSRegion(RegionInfo* region)
 
     region->InitFreeUnits();
 
-    losFreeMgr.AddGarbageUnits(unitIndex, unitCount);
+    sharedFreeMgr.AddGarbageUnits(unitIndex, unitCount);
+    losFreeUnitCount.fetch_add(unitCount, std::memory_order_relaxed);
     return regionSize;
 }
 
 size_t LOSManager::ReleaseLOSRegion(RegionInfo* region)
 {
-    // Mirror RegionManager::ReleaseRegion but route to losFreeMgr
+    // Route to shared FreeRegionManager (same trees as MAIN)
     size_t regionSize = region->GetRegionSize();
     size_t unitCount = region->GetUnitCount();
     size_t unitIndex = region->GetUnitIdx();
@@ -276,7 +284,8 @@ size_t LOSManager::ReleaseLOSRegion(RegionInfo* region)
     region->InitFreeUnits();
     RegionInfo::ReleaseUnits(unitIndex, unitCount);
 
-    losFreeMgr.AddReleaseUnits(unitIndex, unitCount);
+    sharedFreeMgr.AddReleaseUnits(unitIndex, unitCount);
+    losFreeUnitCount.fetch_add(unitCount, std::memory_order_relaxed);
     return regionSize;
 }
 
@@ -289,7 +298,7 @@ double LOSManager::GetFragmentationRatio() const
     if (activeSize == 0) {
         return 0.0;
     }
-    size_t freeUnits = losFreeMgr.GetDirtyUnitCount() + losFreeMgr.GetReleasedUnitCount();
+    size_t freeUnits = losFreeUnitCount.load(std::memory_order_relaxed);
     size_t totalActiveUnits = activeSize / RegionInfo::UNIT_SIZE;
     if (totalActiveUnits == 0) {
         return 0.0;
@@ -329,10 +338,11 @@ bool LOSManager::CanAllocLargeAfterGC() const
 
     size_t unitCount = (neededSize + RegionInfo::UNIT_SIZE - 1) / RegionInfo::UNIT_SIZE;
 
-    // Check 1: losFreeMgr has a contiguous free block large enough
-    if (losFreeMgr.GetMaxContiguousFreeUnits() >= unitCount) {
-        DLOG(REPORT, "CanAllocLargeAfterGC: freeMgr has %u contiguous units >= needed %zu",
-             losFreeMgr.GetMaxContiguousFreeUnits(), unitCount);
+    // Check 1: sharedFreeMgr has a suitable high-addr block for LOS above losInactiveZone
+    UnitIndex losInactiveUnit = AddrToUnitIdx(
+        losInactiveZone.load(std::memory_order_relaxed));
+    if (sharedFreeMgr.HasSuitableRegionHighAddr(unitCount, losInactiveUnit)) {
+        DLOG(REPORT, "CanAllocLargeAfterGC: sharedFreeMgr has suitable high-addr block >= needed %zu", unitCount);
         return true;
     }
 
@@ -610,10 +620,10 @@ bool LOSManager::InstallCompactionEntryWithPredecessorsLocked(const CompactEntry
 
 size_t LOSManager::CompactLOS()
 {
-    DLOG(REPORT, "LOS CompactLOS: starting, fragRatio=%.2f, freeUnits(dirty=%u, released=%u), "
+    DLOG(REPORT, "LOS CompactLOS: starting, fragRatio=%.2f, losFreeUnits=%zu, "
          "inactiveZone=0x%zx, losEnd=0x%zx",
          GetFragmentationRatio(),
-         losFreeMgr.GetDirtyUnitCount(), losFreeMgr.GetReleasedUnitCount(),
+         losFreeUnitCount.load(std::memory_order_relaxed),
          losInactiveZone.load(std::memory_order_relaxed), losEnd);
 
     // Phase 1: Collect all live regions from both old and recent lists.
@@ -809,7 +819,7 @@ size_t LOSManager::CompactLOS()
                   return a->GetRegionStart() < b->GetRegionStart();
               });
 
-    // Rebuild losFreeMgr: clear trees, then insert gaps between live regions
+    // Rebuild LOS portion of shared FreeRegionManager: remove old LOS blocks, then reinsert gaps
     RebuildFreeRegionManager(allLiveRegions);
 
     // Phase 7: Return RESERVE-borrowed space (with delayed return buffer).
@@ -848,14 +858,19 @@ size_t LOSManager::CompactLOS()
 
 void LOSManager::RebuildFreeRegionManager(const std::vector<RegionInfo*>& allLiveRegions)
 {
-    // Clear both trees
-    losFreeMgr.ClearTrees();
-
+    // Remove all existing free blocks in the LOS active range from the shared trees.
+    // Unlike ClearTrees(), this preserves MAIN's free blocks in the same trees.
     uintptr_t activeStart = losInactiveZone.load(std::memory_order_relaxed);
+    UnitIndex rangeLoUnit = AddrToUnitIdx(activeStart);
+    UnitIndex rangeHiUnit = AddrToUnitIdx(losEnd);
+    sharedFreeMgr.RemoveInRange(rangeLoUnit, rangeHiUnit);
+
+    // Reset LOS free unit counter — will be rebuilt by gap insertion below
+    losFreeUnitCount.store(0, std::memory_order_relaxed);
 
     // Iterate through sorted live regions and identify gaps between them.
     // Active LOS range: [activeStart, losEnd)
-    // Gaps between live regions within this range should be added to losFreeMgr as dirty units.
+    // Gaps between live regions within this range should be added to sharedFreeMgr.
     uintptr_t gapStart = activeStart;
 
     for (RegionInfo* r : allLiveRegions) {
@@ -872,8 +887,9 @@ void LOSManager::RebuildFreeRegionManager(const std::vector<RegionInfo*>& allLiv
                 gapRegion->InitFreeUnits();
                 size_t gapUnitIdx = gapRegion->GetUnitIdx();
                 RegionInfo::ReleaseUnits(gapUnitIdx, gapUnits);
-                losFreeMgr.AddReleaseUnits(static_cast<CartesianTree::Index>(gapUnitIdx),
-                                           static_cast<CartesianTree::Count>(gapUnits));
+                sharedFreeMgr.AddReleaseUnits(static_cast<CartesianTree::Index>(gapUnitIdx),
+                                              static_cast<CartesianTree::Count>(gapUnits));
+                losFreeUnitCount.fetch_add(gapUnits, std::memory_order_relaxed);
                 DLOG(REGION, "LOS rebuild freeMgr: gap [0x%zx, 0x%zx) = %zu units (released)",
                      gapStart, rStart, gapUnits);
             }
@@ -892,15 +908,16 @@ void LOSManager::RebuildFreeRegionManager(const std::vector<RegionInfo*>& allLiv
             gapRegion->InitFreeUnits();
             size_t gapUnitIdx = gapRegion->GetUnitIdx();
             RegionInfo::ReleaseUnits(gapUnitIdx, gapUnits);
-            losFreeMgr.AddReleaseUnits(static_cast<CartesianTree::Index>(gapUnitIdx),
-                                       static_cast<CartesianTree::Count>(gapUnits));
+            sharedFreeMgr.AddReleaseUnits(static_cast<CartesianTree::Index>(gapUnitIdx),
+                                          static_cast<CartesianTree::Count>(gapUnits));
+            losFreeUnitCount.fetch_add(gapUnits, std::memory_order_relaxed);
             DLOG(REGION, "LOS rebuild freeMgr: trailing gap [0x%zx, 0x%zx) = %zu units (released)",
                      gapStart, losEnd, gapUnits);
         }
     }
 
-    DLOG(REPORT, "LOS rebuild freeMgr: dirty=%u, released=%u",
-         losFreeMgr.GetDirtyUnitCount(), losFreeMgr.GetReleasedUnitCount());
+    DLOG(REPORT, "LOS rebuild freeMgr: losFreeUnits=%zu",
+         losFreeUnitCount.load(std::memory_order_relaxed));
 }
 
 } // namespace MapleRuntime

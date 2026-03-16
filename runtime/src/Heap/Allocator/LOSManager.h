@@ -30,19 +30,18 @@ class RegionManager;
  * LOSManager - Large Object Space Manager
  *
  * Manages a dedicated space for large objects (> 32KB).
- * Uses its own FreeRegionManager instance (with independent dirtyTree + releaseTree),
- * separate from RegionManager's FreeRegionManager for MAIN space.
+ * Uses the unified FreeRegionManager shared with MAIN space (owned by RegionManager).
+ * LOS allocates from high addresses with a lower bound (losInactiveZone),
+ * while MAIN allocates from low addresses with an upper bound (inactiveZone).
  *
  * Memory layout:
  *   [MAIN Space][RESERVE Zone][LOS Space]
  *   LOS grows from high address toward low address.
  *
  * Index convention:
- *   - FreeRegionManager internally uses local indices [0, reserveUnitCount + losUnitCount).
- *   - baseUnit offset (= mainUnitCount) is applied automatically when accessing RegionInfo.
- *   - This covers both the RESERVE extension area and the native LOS space,
- *     allowing RESERVE-borrowed dead regions to be recycled through losFreeMgr normally.
- *   - External callers (RegionManager, WCollector) use global unit indices.
+ *   - The unified FreeRegionManager uses global unit indices for the entire heap.
+ *   - LOS-specific operations (AllocLarge, ReclaimLOSRegion) use bounded allocation
+ *     within [losInactiveZone, losEnd).
  */
 class LOSManager {
 public:
@@ -57,13 +56,12 @@ public:
     };
 
     /**
-     * @param manager       The parent RegionManager (needed by FreeRegionManager)
-     * @param baseUnitIndex Global unit index of first RESERVE unit (= mainUnitCount).
-     *                      Covers RESERVE extension area + native LOS.
+     * @param manager       The parent RegionManager
+     * @param sharedFRM     Unified FreeRegionManager shared between MAIN and LOS
      * @param reserveMgr    The RESERVE zone manager (may be nullptr)
      */
-    LOSManager(RegionManager& manager, UnitCount baseUnitIndex = 0, ReserveManager* reserveMgr = nullptr)
-        : losFreeMgr(manager, baseUnitIndex),
+    LOSManager(RegionManager& manager, FreeRegionManager& sharedFRM, ReserveManager* reserveMgr = nullptr)
+        : sharedFreeMgr(sharedFRM),
           reserveManager(reserveMgr),
           losOldLargeRegionList("LOS old large regions"),
           losRecentLargeRegionList("LOS recent large regions"),
@@ -77,15 +75,13 @@ public:
 
     /**
      * Initialize LOS space with given boundaries.
-     * Creates the FreeRegionManager with baseUnit = mainUnitCount so that
-     * local tree indices map correctly to global RegionInfo indices.
-     * Capacity covers RESERVE extension area + native LOS space.
+     * The shared FreeRegionManager is already initialized by RegionManager.
      *
      * @param start            Start address of LOS space (low address boundary)
      * @param end              End address of LOS space (high address boundary)
      * @param unitStart        Global unit index for LOS start
      * @param unitEnd          Global unit index for LOS end
-     * @param reserveUnitCount Number of RESERVE units (for FreeRegionManager capacity)
+     * @param reserveUnitCount Number of RESERVE units (unused, kept for API compatibility)
      */
     void Initialize(uintptr_t start, uintptr_t end, UnitCount unitStart, UnitCount unitEnd,
                     UnitCount reserveUnitCount = 0);
@@ -101,7 +97,7 @@ public:
 
     /**
      * M3: Collect LOS garbage after mark phase.
-     * Sweeps oldLargeRegionList — dead regions go to losFreeMgr (not MAIN's freeRegionManager).
+     * Sweeps oldLargeRegionList — dead regions go to shared FreeRegionManager.
      * Surviving regions get their mark bits reset.
      * @return Total garbage bytes reclaimed
      */
@@ -165,7 +161,7 @@ public:
      *   2. Compute: calculate target addresses from losEnd toward low address
      *   3. Reference update: build forwarding map, scan heap + roots
      *   4. Move: memmove_s objects to new locations (high-to-low order)
-     *   5. Metadata: rebuild region lists, rebuild losFreeMgr, update losInactiveZone
+     *   5. Metadata: rebuild region lists, rebuild LOS portion of shared FreeRegionManager, update losInactiveZone
      *   6. Shrink: return freed low-address space to RESERVE
      *
      * Must be called during STW. Populates migrationMap for merged ref update with M3.
@@ -196,7 +192,7 @@ public:
 
     /**
      * M4a: Get current LOS fragmentation ratio.
-     * = (free units in losFreeMgr) / (total active units)
+     * = (LOS free units) / (total active units)
      */
     double GetFragmentationRatio() const;
 
@@ -213,7 +209,7 @@ public:
      * the last failed allocation, after normal GC has reclaimed dead regions.
      * Used by CompactLOSOnOOMIfNeeded to skip expensive compaction when
      * the freed space is sufficient.
-     * @return true if losFreeMgr or inactive zone runway can satisfy the demand
+     * @return true if shared FreeRegionManager or inactive zone runway can satisfy the demand
      */
     bool CanAllocLargeAfterGC() const;
 
@@ -248,7 +244,7 @@ public:
      * Allocate a large object in LOS space.
      *
      * Allocation flow (steps 1-2 in M2 plan):
-     *   1. Try losFreeMgr (dirtyTree → releaseTree) for recycled regions
+     *   1. Try shared FreeRegionManager (high-addr bounded allocation) for recycled regions
      *   2. Expand losInactiveZone toward low address for fresh regions
      *
      * Steps 3+ (RESERVE borrowing, compaction) are TODO stubs for later milestones.
@@ -339,11 +335,10 @@ public:
     RegionList& GetRecentLargeRegionList() { return losRecentLargeRegionList; }
 
     /**
-     * Get FreeRegionManager for LOS space.
-     * M2+ will use this for allocation and reclamation.
+     * Get FreeRegionManager (unified, shared with MAIN space).
      */
-    FreeRegionManager& GetFreeRegionManager() { return losFreeMgr; }
-    const FreeRegionManager& GetFreeRegionManager() const { return losFreeMgr; }
+    FreeRegionManager& GetFreeRegionManager() { return sharedFreeMgr; }
+    const FreeRegionManager& GetFreeRegionManager() const { return sharedFreeMgr; }
 
     /**
      * Get unit index range (global indices)
@@ -359,10 +354,15 @@ private:
      */
     RegionInfo* AllocFromInactiveZone(size_t unitCount);
 
-    // Independent FreeRegionManager for LOS space (baseUnit = mainUnitCount).
-    // Has its own dirtyTree + releaseTree, separate from MAIN's FreeRegionManager.
-    // Capacity covers RESERVE extension area + native LOS space.
-    FreeRegionManager losFreeMgr;
+    // Convert a heap address to a global unit index.
+    UnitIndex AddrToUnitIdx(uintptr_t addr) const
+    {
+        return static_cast<UnitIndex>((addr - regionHeapStart) / RegionInfo::UNIT_SIZE);
+    }
+
+    // Unified FreeRegionManager shared with MAIN space (managed by RegionManager).
+    // LOS uses high-addr bounded allocation, MAIN uses low-addr bounded allocation.
+    FreeRegionManager& sharedFreeMgr;
 
     // Reserve manager for borrowing space (may be nullptr if RESERVE ratio is 0)
     ReserveManager* reserveManager;
@@ -370,6 +370,7 @@ private:
     // LOS space boundaries
     uintptr_t losStart = 0;   // Low address boundary
     uintptr_t losEnd = 0;     // High address boundary
+    uintptr_t regionHeapStart = 0; // Heap start address (for address-to-unit-index conversions)
 
     // LOS inactive zone - allocation grows from losEnd toward losStart
     std::atomic<uintptr_t> losInactiveZone{0};
@@ -383,8 +384,8 @@ private:
     RegionList losRecentLargeRegionList;
     RegionCache losLargeTraceRegions;  // trace-phase region cache (analogous to RegionManager::largeTraceRegions)
 
-    // M3: Reclaim a dead LOS region — return units to losFreeMgr
-    // (NOT to MAIN's freeRegionManager). Mirrors RegionManager::CollectRegion/ReleaseRegion.
+    // M3: Reclaim a dead LOS region — return units to shared freeRegionManager.
+    // Mirrors RegionManager::CollectRegion/ReleaseRegion.
     size_t ReclaimLOSRegion(RegionInfo* region);
     size_t ReleaseLOSRegion(RegionInfo* region);
 
@@ -396,6 +397,11 @@ private:
 
     // M3: GC statistics
     size_t losGarbageCollectedBytes = 0; // bytes reclaimed in last GC
+
+    // Unified FRM: LOS-specific free unit counter, updated incrementally.
+    // Tracks units returned to sharedFreeMgr by LOS reclaim/release operations.
+    // Used for LOS fragmentation ratio calculation.
+    std::atomic<size_t> losFreeUnitCount{0};
 
     // M4a: Compaction forwarding map (old address → new address)
     // Used by compaction during STW reference update.
@@ -424,7 +430,7 @@ private:
     // A-STEP1: true means LOS accepts reads/reclaims but rejects new large allocations.
     std::atomic<bool> losCompactionFreeze{false};
 
-    // M4a: Rebuild losFreeMgr trees after compaction, inserting gaps between live regions
+    // M4a: Rebuild LOS portion of shared FreeRegionManager after compaction, inserting gaps
     void RebuildFreeRegionManager(const std::vector<RegionInfo*>& allLiveRegions);
 
     // (removed: ShrinkToReserve — replaced by direct ReclaimLOSBorrowed in CompactLOS Phase 7)

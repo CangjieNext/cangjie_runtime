@@ -104,6 +104,142 @@ public:
         return nullptr;
     }
 
+    // Take a region from the lowest available address, with allocation end below upperBound (global unit index).
+    // Used by MAIN space in the unified FreeRegionManager to respect inactiveZone boundary.
+    RegionInfo* TakeRegionBounded(size_t num, RegionInfo::UnitRole uclass, bool expectPhysicalMem,
+                                  UnitIndex upperBound)
+    {
+        UnitIndex localUpperBound = upperBound - baseUnit;
+        UnitIndex idx = 0;
+        bool tryDirtyTree = true;
+        bool tryReleasedTree = true;
+
+        while (tryDirtyTree || tryReleasedTree) {
+            if (tryDirtyTree && dirtyUnitTreeMutex.try_lock()) {
+                bool dirtyOk = dirtyUnitTree.TakeUnitsLowAddrBounded(num, idx, localUpperBound);
+                if (dirtyOk) {
+                    UnitIndex globalIdx = idx + baseUnit;
+                    DLOG(REGION, "c-tree %p alloc dirty units (bounded)[%u+%zu, %u) @[0x%zx, 0x%zx)",
+                        &dirtyUnitTree, globalIdx, num, static_cast<UnitIndex>(globalIdx + num),
+                        RegionInfo::GetUnitAddress(globalIdx),
+                        RegionInfo::GetUnitAddress(globalIdx + num));
+                    RegionInfo::ClearUnits(globalIdx, num);
+                    RegionInfo* region = RegionInfo::InitRegion(globalIdx, num, uclass);
+                    dirtyUnitTreeMutex.unlock();
+                    return region;
+                }
+                tryDirtyTree = false;
+                dirtyUnitTreeMutex.unlock();
+            }
+
+            if (tryReleasedTree && releasedUnitTreeMutex.try_lock()) {
+                bool releasedOk = releasedUnitTree.TakeUnitsLowAddrBounded(num, idx, localUpperBound);
+                if (releasedOk) {
+                    UnitIndex globalIdx = idx + baseUnit;
+#ifdef _WIN64
+                    MemMap::CommitMemory(
+                        reinterpret_cast<void*>(RegionInfo::GetUnitAddress(globalIdx)),
+                        num * RegionInfo::UNIT_SIZE);
+#endif
+                    DLOG(REGION, "c-tree %p alloc released units (bounded)[%u+%zu, %u) @[0x%zx, 0x%zx)",
+                        &releasedUnitTree, globalIdx, num, static_cast<UnitIndex>(globalIdx + num),
+                        RegionInfo::GetUnitAddress(globalIdx),
+                        RegionInfo::GetUnitAddress(globalIdx + num));
+                    RegionInfo* region = RegionInfo::InitRegion(globalIdx, num, uclass);
+                    releasedUnitTreeMutex.unlock();
+                    PrehandleReleasedUnit(expectPhysicalMem, globalIdx, num);
+                    return region;
+                }
+                tryReleasedTree = false;
+                releasedUnitTreeMutex.unlock();
+            }
+            ScopedEnterSaferegion enterSaferegion(true);
+        }
+        return nullptr;
+    }
+
+    // Take a region from the highest available address, with high-end allocation start >= lowerBound.
+    // Allocates from the HIGH end of the chosen block.
+    // Used by LOS space in the unified FreeRegionManager to respect losInactiveZone boundary.
+    RegionInfo* TakeRegionHighAddrBounded(size_t num, RegionInfo::UnitRole uclass, bool expectPhysicalMem,
+                                          UnitIndex lowerBound)
+    {
+        UnitIndex localLowerBound = lowerBound - baseUnit;
+        UnitIndex idx = 0;
+        bool tryDirtyTree = true;
+        bool tryReleasedTree = true;
+
+        while (tryDirtyTree || tryReleasedTree) {
+            if (tryDirtyTree && dirtyUnitTreeMutex.try_lock()) {
+                bool dirtyOk = dirtyUnitTree.TakeUnitsHighAddrBounded(num, idx, localLowerBound);
+                if (dirtyOk) {
+                    UnitIndex globalIdx = idx + baseUnit;
+                    DLOG(REGION, "c-tree %p alloc dirty units (high-bounded)[%u+%zu, %u) @[0x%zx, 0x%zx)",
+                        &dirtyUnitTree, globalIdx, num, static_cast<UnitIndex>(globalIdx + num),
+                        RegionInfo::GetUnitAddress(globalIdx),
+                        RegionInfo::GetUnitAddress(globalIdx + num));
+                    RegionInfo::ClearUnits(globalIdx, num);
+                    RegionInfo* region = RegionInfo::InitRegion(globalIdx, num, uclass);
+                    dirtyUnitTreeMutex.unlock();
+                    return region;
+                }
+                tryDirtyTree = false;
+                dirtyUnitTreeMutex.unlock();
+            }
+
+            if (tryReleasedTree && releasedUnitTreeMutex.try_lock()) {
+                bool releasedOk = releasedUnitTree.TakeUnitsHighAddrBounded(num, idx, localLowerBound);
+                if (releasedOk) {
+                    UnitIndex globalIdx = idx + baseUnit;
+#ifdef _WIN64
+                    MemMap::CommitMemory(
+                        reinterpret_cast<void*>(RegionInfo::GetUnitAddress(globalIdx)),
+                        num * RegionInfo::UNIT_SIZE);
+#endif
+                    DLOG(REGION, "c-tree %p alloc released units (high-bounded)[%u+%zu, %u) @[0x%zx, 0x%zx)",
+                        &releasedUnitTree, globalIdx, num, static_cast<UnitIndex>(globalIdx + num),
+                        RegionInfo::GetUnitAddress(globalIdx),
+                        RegionInfo::GetUnitAddress(globalIdx + num));
+                    RegionInfo* region = RegionInfo::InitRegion(globalIdx, num, uclass);
+                    releasedUnitTreeMutex.unlock();
+                    PrehandleReleasedUnit(expectPhysicalMem, globalIdx, num);
+                    return region;
+                }
+                tryReleasedTree = false;
+                releasedUnitTreeMutex.unlock();
+            }
+            ScopedEnterSaferegion enterSaferegion(true);
+        }
+        return nullptr;
+    }
+
+    // Check if a high-address bounded allocation of 'num' units would succeed.
+    // Used by LOSManager::CanAllocLargeAfterGC to check if compaction is needed.
+    bool HasSuitableRegionHighAddr(size_t num, UnitIndex lowerBound) const
+    {
+        UnitIndex localLower = lowerBound - baseUnit;
+        return dirtyUnitTree.HasSuitableHighAddr(num, localLower) ||
+               releasedUnitTree.HasSuitableHighAddr(num, localLower);
+    }
+
+    // Remove all free blocks in [globalLo, globalHi) from both trees.
+    // Used by CompactLOS to clear LOS-range blocks before rebuilding.
+    UnitCount RemoveInRange(UnitIndex globalLo, UnitIndex globalHi)
+    {
+        UnitIndex localLo = globalLo - baseUnit;
+        UnitIndex localHi = globalHi - baseUnit;
+        UnitCount removed = 0;
+        {
+            std::lock_guard<std::mutex> lg(dirtyUnitTreeMutex);
+            removed += dirtyUnitTree.RemoveInRange(localLo, localHi);
+        }
+        {
+            std::lock_guard<std::mutex> lg(releasedUnitTreeMutex);
+            removed += releasedUnitTree.RemoveInRange(localLo, localHi);
+        }
+        return removed;
+    }
+
     // add units [idx, idx + num), idx is global unit index
     void AddGarbageUnits(UnitIndex idx, UnitCount num)
     {

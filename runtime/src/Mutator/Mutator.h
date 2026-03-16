@@ -494,6 +494,11 @@ private:
     void RememberObjectImpl(const BaseObject* obj)
     {
         if (LIKELY(Heap::IsHeapAddress(obj))) {
+            // Guard against stale pointers to recycled regions.
+            // IsLikelyValidObject checks TypeInfo is non-null, non-heap, and above 0x10000.
+            if (UNLIKELY(!obj->IsLikelyValidObject())) {
+                return;
+            }
             if (SatbBuffer::Instance().ShouldEnqueue(obj)) {
                 SatbBuffer::Instance().EnsureGoodNode(satbNode);
                 satbNode->Push(obj);

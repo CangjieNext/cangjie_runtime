@@ -254,7 +254,7 @@ public:
     // Flow: LOS AllocLarge → (fail/compacting) → MAIN AllocLargeInMain → return 0
     uintptr_t AllocLarge(size_t size)
     {
-        // Step 1-2: Try LOS allocation (losFreeMgr + inactiveZone)
+        // Step 1-2: Try LOS allocation (shared FreeRegionManager + inactiveZone)
         // CompactLOS runs in STW so no mutator can reach here during compaction.
         if (losManager != nullptr) {
             uintptr_t addr = losManager->AllocLarge(size);

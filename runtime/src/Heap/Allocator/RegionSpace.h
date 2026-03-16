@@ -239,6 +239,11 @@ public:
         if (UNLIKELY(regionInfo == nullptr)) {
             return false;
         }
+        // Skip objects in freed/garbage regions — their memory may be
+        // zeroed or reused, making GetSize() in EnqueueObject unsafe.
+        if (UNLIKELY(regionInfo->IsFreeRegion() || regionInfo->IsGarbageRegion())) {
+            return false;
+        }
         if (regionInfo->IsTraceRegion()) {
             return false;
         }

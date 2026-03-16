@@ -106,16 +106,32 @@ size_t ShrinkInactiveZone();
 - inactiveZone 扩展检查改用 `mainEnd` 而非 `regionHeapEnd`
 
 **新增 `ShrinkInactiveZone()`**：
-- **Pass 1**：扫描 `[regionHeapStart, inactiveZone)` 找到最高活跃 region 末尾（`highestLiveEnd`）
-- **Pass 2**：调用 `freeRegionManager.ClearTrees()` 重建，只保留 `highestLiveEnd` 以下的空闲块
-- 将 `inactiveZone` 缩回到 `highestLiveEnd`
-- 返回回收的字节数
+
+算法分两个 Phase：
+
+**Phase A（MAIN 自有空间）**：
+- 扫描 `[regionHeapStart, inactiveZone)` 找到最高活跃 region 末尾（`highestLiveEnd`）
+
+**Phase B（RESERVE 借用空间）**：
+- 扫描 `[mainEnd, mainWm)` 找到最高活跃 borrowed region 末尾（`highestLiveBorrowedEnd`）
+
+**Ghost 路由保护**：
+- 遍历 `ghostFromRegionList` 和 `pendingGhostGarbageList`，提取 toRegion1/toRegion2 目标地址
+- 如果 ghost route 的目标地址在当前扫描范围内，更新高水位标记，避免将 ghost 目标 region 错误回收
+
+**树修剪**：
+- 调用 `freeRegionManager.RemoveAboveIndex(thresholdUnitIdx)` 截断阈值以上的所有空闲块
+- 跨越阈值的块被截断（保留阈值以下部分）
+
+**提交**：
+- Phase A：更新 `inactiveZone`，purge 垃圾 region，释放 units
+- Phase B：调用 `ReclaimMainBorrowed()` 归还借用空间，purge 垃圾 region
 
 ### 3.5 WCollector.cpp
 
 **修改 `DoGarbageCollection()`**：
-- 在 `CollectSmallSpace()` 之后调用 `ShrinkInactiveZone()`
-- 每次 GC 都执行（不仅限于 OOM GC）
+- 在 `ForwardFromSpace()` + `FinalizeLOSCompactionIfNeeded()` 之后，STW 下调用 `ShrinkInactiveZone()`
+- 由碎片率门控：仅当 `GetMainFragmentationRatio() > 0.30` 时执行
 
 ---
 
@@ -123,9 +139,9 @@ size_t ShrinkInactiveZone();
 
 | 决策 | 选择 | 理由 |
 |------|------|------|
-| 低地址优先的适用范围 | 所有 MAIN 分配（包括 mutator 和 GC） | 持续保持低地址紧凑，每次 GC 都有回收机会 |
-| ShrinkInactiveZone 触发时机 | 每次 GC 后 | 用户要求：每次 GC 完都要试图归还空间 |
-| freeRegionManager 重建方式 | ClearTrees + 重新扫描 | 简单正确，O(n) 但只执行一次/GC |
+| 低地址优先的适用范围 | 所有 MAIN 分配（包括 mutator 和 GC） | 持续保持低址址紧凑，每次 GC 都有回收机会 |
+| ShrinkInactiveZone 触发时机 | 碎片率 > 30% 时，STW 下执行 | 避免每次 GC 都做昂贵的扫描和树修剪 |
+| freeRegionManager 重建方式 | RemoveAboveIndex 树修剪 | O(log n) 截断阈值以上空闲块，跨越阈值的块截断保留 |
 | LOS 分配策略 | 不变（使用原有 TakeUnits） | LOS 需要不同的分配方向 |
 | mainEnd 存储 | RegionManager 新增成员 | 修复原有 bug：inactiveZone 不应超过 MAIN 边界 |
 

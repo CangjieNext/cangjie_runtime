@@ -7,6 +7,7 @@
 #include "BaseObject.h"
 #include "Heap/Allocator/RegionInfo.h"
 #include "Heap/Collector/FinalizerProcessor.h"
+#include "Heap/Heap.h"
 #include "ObjectModel/MArray.h"
 #include "ObjectModel/MArray.inline.h"
 #include "ObjectModel/MObject.h"
@@ -14,6 +15,30 @@
 
 namespace MapleRuntime {
 TypeInfo* BaseObject::GetTypeInfo() const { return stateWord.GetTypeInfo(); }
+
+bool BaseObject::IsLikelyValidObject() const
+{
+    TypeInfo* typeInfo = GetTypeInfo();
+    if (typeInfo == nullptr) {
+        return false;
+    }
+    uintptr_t addr = reinterpret_cast<uintptr_t>(typeInfo);
+    // TypeInfo must be 4-byte aligned (ATTR_PACKED(4))
+    if ((addr & 0x3) != 0) {
+        return false;
+    }
+    // Valid TypeInfo is in .rodata/.text segment, never at very low unmapped addresses.
+    // On aarch64 macOS, the executable image is loaded around 0x100000000;
+    // any TypeInfo pointer below 1MB is certainly garbage from a recycled region.
+    if (addr < 0x100000) {
+        return false;
+    }
+    // TypeInfo should not point into the GC heap (would mean garbage data from recycled region)
+    if (Heap::IsHeapAddress(reinterpret_cast<MAddress>(typeInfo))) {
+        return false;
+    }
+    return true;
+}
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
 void BaseObject::DumpObject(int logtype, bool isSimple) const

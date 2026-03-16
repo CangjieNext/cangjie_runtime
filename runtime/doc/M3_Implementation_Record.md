@@ -11,7 +11,7 @@ M3 阶段目标：在现有 GC 策略基础上，实现 LOS 空间的独立回�
 - LOS 空间的死亡对象直接回收到 `losFreeMgr`（LOS 自己的 FreeRegionManager），而非 MAIN 的 freeRegionManager
 - GC 标记阶段感知 LOS region（AssembleGarbageCandidates、PrepareTrace、HandleTraceRegions）
 - 回收后将 MAIN 空间中存活的大对象迁移到 LOS 空间
-- 迁移后遍历全堆更新引用（STW 下直接写方式）
+- 迁移使用两阶段设计 + ghost route 机制，引用通过 ForwardBarrier 自动转发
 
 ### 实现范围
 
@@ -20,9 +20,10 @@ M3 阶段目标：在现有 GC 策略基础上，实现 LOS 空间的独立回�
 | LOS 垃圾候选装配 | ✅ 已实现 | `AssembleLOSGarbageCandidates()` |
 | LOS trace region 管理 | ✅ 已实现 | `HandleLOSTraceRegions()` + `PrepareTrace` 集成 |
 | LOS 死亡对象清扫 | ✅ 已实现 | `CollectLOSGarbage()` → `losFreeMgr` |
-| MAIN→LOS 迁移 | ✅ 已实现 | `MigrateLargeObjectsFromMain()` |
-| 引用更新 | ✅ 已实现 | `UpdateMigratedReferences()` |
-| WCollector 集成 | ✅ 已实现 | `MigrateLargeObjectsToLOS()` |
+| 迁移候选预选（Trace 前） | ✅ 已实现 | `AssembleMigrationCandidates()` — 两阶段设计 |
+| 迁移路由构建（PostTrace 后） | ✅ 已实现 | `BuildLargeObjectMigrationRoutes()` — ghost route 机制 |
+| 未迁移候选清理 | ✅ 已实现 | `CleanupMigrationCandidates()` |
+| isMarked 残留 Bug 修复 | ✅ 已实现 | `ResetMarkBit()` 在 `AssembleMigrationCandidates` 中调用 |
 
 ---
 
@@ -42,20 +43,8 @@ void HandleLOSTraceRegions();
 // GC 回收：遍历 losOldLargeRegionList 清扫死亡 region 到 losFreeMgr
 size_t CollectLOSGarbage();
 
-// MAIN→LOS 迁移：将 MAIN oldLargeRegionList 中存活大对象拷贝到 LOS
-size_t MigrateLargeObjectsFromMain(RegionList& mainOldList, RegionList& mainGarbageList);
-
-// 更新全堆引用：扫描堆对象 + 静态根
-void UpdateMigratedReferences();
-
-// 迁移状态管理
-void ClearMigrationState();
-bool HasPendingMigrations() const;
-
 // M3 统计
 size_t GetGarbageCollectedBytes() const;
-size_t GetMigrateInCount() const;
-size_t GetMigrateInBytes() const;
 ```
 
 **新增 M3 私有方法**：
@@ -72,22 +61,43 @@ size_t ReleaseLOSRegion(RegionInfo* region);
 
 ```cpp
 size_t losGarbageCollectedBytes = 0;     // 当轮 GC 回收字节数
-size_t losMigrateInCount = 0;            // 累计迁入对象数
-size_t losMigrateInBytes = 0;            // 累计迁入字节数
-std::vector<std::pair<uintptr_t, uintptr_t>> migrationMap;  // old→new 地址映射
+// migrationMap 由 M4a CompactLOS 使用（unordered_map<uintptr_t, uintptr_t>）
 ```
+
+### 2.2 RegionManager.h / RegionManager.cpp
+
+**新增 M3 迁移相关**：
+
+```cpp
+// M3 两阶段迁移：Trace 前选候选
+void AssembleMigrationCandidates();
+
+// M3 GC 结束后：未迁移候选归还 oldLargeRegionList
+void CleanupMigrationCandidates();
+
+// 迁移候选列表
+RegionList migrationCandidateList;
+```
+
+`AssembleMigrationCandidates()` 关键逻辑：
+1. 遍历 `oldLargeRegionList`，过滤 rawPointer 和 RESERVE 借用 region
+2. 移入 `migrationCandidateList`，类型设为 `FROM_REGION`
+3. 调用 `ClearLiveInfo()` + `ResetMarkBit()` — 确保 trace 重新标记并正确计算 liveByteCount
+
+> **isMarked 残留 Bug**：大对象的标记使用 `isMarked` 标志而非 bitmap。`ClearLiveInfo()` 不清除 `isMarked`。从 `oldLargeRegionList` 移出的候选不再被 `CollectLargeGarbage` 的 `ResetMarkBit()` 覆盖，导致 `isMarked` 残留为 1 → trace 跳过 `AddLiveByteCount` → 活对象误判为死对象。修复：在移入候选列表时立即调用 `ResetMarkBit()`。
 
 ---
 
-### 2.2 RegionSpace.h
+### 2.3 RegionSpace.h
 
 **修改 `AssembleGarbageCandidates()`**：
 
-增加 LOS 垃圾候选装配：
+增加迁移候选预选和 LOS 垃圾候选装配：
 
 ```cpp
 void AssembleGarbageCandidates(bool collectAll = false)
 {
+    regionManager.AssembleMigrationCandidates();    // M3: 迁移候选预选（必须在 Trace 前）
     regionManager.AssembleSmallGarbageCandidates();
     regionManager.AssemblePinnedGarbageCandidates(collectAll);
     regionManager.AssembleLargeGarbageCandidates();
@@ -122,7 +132,7 @@ size_t CollectLargeGarbage()
 
 ---
 
-### 2.3 RegionManager.h
+### 2.4 RegionManager.h
 
 **修改 `HandleTraceRegions()`**：
 
@@ -169,32 +179,41 @@ RegionList& GetGarbageRegionList() { return garbageRegionList; }
 
 ---
 
-### 2.4 WCollector.h / WCollector.cpp
+### 2.5 WCollector.h / WCollector.cpp
 
-**新增 `MigrateLargeObjectsToLOS()` 方法（WCollector.h 声明）**：
+**新增 `BuildLargeObjectMigrationRoutes()` 方法（WCollector.h 声明）**：
 
 ```cpp
-// M3: Migrate surviving MAIN large objects into LOS after sweep
-void MigrateLargeObjectsToLOS();
+// M3: Build forwarding routes to migrate surviving MAIN large objects to LOS
+void BuildLargeObjectMigrationRoutes();
 ```
 
 **实现（WCollector.cpp）**：
 
+迁移使用 ghost route 机制（`PrepareForwardableLargeRegion`），引用通过 ForwardBarrier 自动转发：
+
 ```cpp
-void WCollector::MigrateLargeObjectsToLOS()
+void WCollector::BuildLargeObjectMigrationRoutes()
 {
-    MRT_PHASE_TIMER("MigrateLargeObjectsToLOS");
-    RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
-    LOSManager* losMgr = space.GetRegionManager().GetLOSManager();
-    if (losMgr == nullptr) {
-        return;
-    }
-    RegionManager& rm = space.GetRegionManager();
-    size_t migratedCount = losMgr->MigrateLargeObjectsFromMain(
-        rm.GetOldLargeRegionList(), rm.GetGarbageRegionList());
-    if (migratedCount > 0) {
-        losMgr->UpdateMigratedReferences();
-        losMgr->ClearMigrationState();
+    // 遍历 migrationCandidateList 中的候选
+    for (RegionInfo* region : candidates) {
+        if (region->GetLiveByteCount() == 0) {
+            // 死对象：直接回收
+            migrationList.DeleteRegion(region);
+            rm.CollectRegion(region);
+            continue;
+        }
+        // 尝试在 LOS 分配空间（含 RESERVE 借用重试）
+        uintptr_t toAddr = losMgr->AllocLarge(objSize);
+        if (toAddr == 0) {
+            // LOS+RESERVE 均满：标记 UNMOVABLE_FROM_REGION，ForwardBarrier 仅 untag
+            region->SetRegionType(RegionInfo::RegionType::UNMOVABLE_FROM_REGION);
+            continue;
+        }
+        // 成功：设置 ghost route，移入 fromRegionList
+        migrationList.DeleteRegion(region);
+        fromList.PrependRegion(region, RegionInfo::RegionType::FROM_REGION);
+        region->PrepareForwardableLargeRegion(toAddr);
     }
 }
 ```
@@ -208,11 +227,13 @@ PostTrace()
   → ClearBuffer()
   → PrepareCycleRef()
   → CollectLargeGarbage()         // MAIN + LOS 死亡 region 清扫
-  → MigrateLargeObjectsToLOS()    // ← M3 新增：MAIN→LOS 迁移 + 引用更新
   → CollectPinnedGarbage()
   → RefineFromSpace()
-  → PrepareForwardTable()
+  → PrepareForwardTable()         // 清理旧 ghost route
+  → BuildLargeObjectMigrationRoutes()  // ← M3：构建迁移路由（必须在 PrepareForwardTable 之后）
 ```
+
+> **注**：`BuildLargeObjectMigrationRoutes` 必须在 `PrepareForwardTable` 之后执行，因为后者会清理上一轮的 ghost route（`DispelGhostFromRegion`）。
 
 ---
 
@@ -228,29 +249,36 @@ LOS 死亡 region 回收到 `losFreeMgr`，而不是 MAIN 的 `freeRegionManager
 
 阈值常量 `LARGE_OBJECT_RELEASE_THRESHOLD = 4096 * KB = 4MB`，与 MAIN 空间一致。
 
-### 3.2 迁移策略
+### 3.2 迁移策略（两阶段设计）
 
-迁移在 STW（PostTrace）阶段执行，位于 `CollectLargeGarbage()` 之后、`CollectPinnedGarbage()` 之前。
+**阶段一（Trace 前）：`AssembleMigrationCandidates()`**
 
-迁移流程：
+在 `AssembleGarbageCandidates()` 最前面执行：
 1. 遍历 MAIN 的 `oldLargeRegionList`
-2. 跳过 pinned 对象（`rawPointerCount > 0`）
-3. 在 LOS 中分配等大空间（`LOSManager::AllocLarge`）
-4. `memmove_s` 拷贝对象数据
-5. 记录 old→new 地址到 `migrationMap`
-6. 将 MAIN 旧 region 移入 `garbageRegionList` 等待回收
-7. LOS 分配失败时提前终止（本轮迁移部分完成）
+2. 跳过 pinned 对象（`rawPointerCount > 0`）和 RESERVE 借用 region
+3. 移入 `migrationCandidateList`，类型设为 `FROM_REGION`
+4. 调用 `ClearLiveInfo()` + `ResetMarkBit()` — 确保 trace 重新标记
+5. 候选的 `IsFromRegion() == true` → Enum/Trace 阶段引用会被 tagged
+
+**阶段二（PostTrace 后）：`BuildLargeObjectMigrationRoutes()`**
+
+在 `PrepareForwardTable()` 之后执行（需先清理旧 ghost route）：
+1. **死对象**（`liveByteCount == 0`）→ 直接 `CollectRegion` 回收
+2. **活对象 + LOS 可分配** → `AllocLarge` + `PrepareForwardableLargeRegion` 设置 ghost route，移入 `fromRegionList`
+3. **活对象 + LOS+RESERVE 均满** → 设置 `UNMOVABLE_FROM_REGION`，ForwardBarrier 仅 untag 不转发
+
+**GC 结束后：`CleanupMigrationCandidates()`**
+- 将未迁移的候选（`UNMOVABLE_FROM_REGION`）merge 回 `oldLargeRegionList`，类型恢复为 `LARGE_REGION`
 
 ### 3.3 引用更新
 
-使用简单向量 `migrationMap` 而非复杂的 forwarding 机制：
+迁移使用 ghost route 机制，引用通过 GC 的 ForwardBarrier 自动转发：
 
-- STW 阶段无并发修改，直接写安全
-- 每轮迁移对象数量有限（受 LOS 容量约束），线性扫描 map 可接受
-- 扫描范围：
-  1. **堆对象**：`Heap::GetHeap().ForEachObj()` + `obj->ForEachRefField()`
-  2. **静态根**：`Heap::GetHeap().VisitStaticRoots()`
-- 更新方式：`RefField::SetTargetObject()` 直接替换目标地址
+| 引用目标状态 | `IsFromRegion()` | `IsUnmovableFromRegion()` | ForwardBarrier 行为 |
+|-------------|-------------------|---------------------------|---------------------|
+| 已迁移到 LOS | true | false | → `TryForwardRefField` → 通过 ghost route 转发到 LOS 新地址 |
+| LOS 满未迁移 | false | true | → `TryUntagRefField` → 去掉 tag bit，返回原地址 |
+| 未参与迁移 | false | false | → 引用未 tagged，快速路径直接返回 |
 
 ### 3.4 GC 标记集成
 
@@ -269,7 +297,12 @@ LOS region 参与 GC 标记流程，与 MAIN 大对象使用相同的 region 级
 DoGarbageCollection()
   │
   ├─ TraceHeap()
-  │    ├─ AssembleGarbageCandidates()       ← M3: + AssembleLOSGarbageCandidates()
+  │    ├─ AssembleGarbageCandidates()
+  │    │    ├─ AssembleMigrationCandidates()     ← M3: 选迁移候选（FROM_REGION + ResetMarkBit）
+  │    │    ├─ AssembleSmallGarbageCandidates()
+  │    │    ├─ AssemblePinnedGarbageCandidates()
+  │    │    ├─ AssembleLargeGarbageCandidates()
+  │    │    └─ AssembleLOSGarbageCandidates()    ← M3: LOS recent→old
   │    ├─ DoEnumeration()
   │    ├─ PrepareTrace()                    ← M3: + LOS trace cache 激活
   │    ├─ DoTracing()
@@ -281,16 +314,15 @@ DoGarbageCollection()
   │    ├─ ClearBuffer()
   │    ├─ PrepareCycleRef()
   │    ├─ CollectLargeGarbage()             ← M3: + CollectLOSGarbage() → losFreeMgr
-  │    ├─ MigrateLargeObjectsToLOS()        ← M3 新增
-  │    │    ├─ MigrateLargeObjectsFromMain()   拷贝 MAIN 大对象到 LOS
-  │    │    ├─ UpdateMigratedReferences()      全堆引用更新
-  │    │    └─ ClearMigrationState()           清除映射表
   │    ├─ CollectPinnedGarbage()
   │    ├─ RefineFromSpace()
-  │    └─ PrepareForwardTable()
+  │    ├─ PrepareForwardTable()             // 清理旧 ghost route
+  │    └─ BuildLargeObjectMigrationRoutes() ← M3: 构建 ghost route 迁移路由
   │
   ├─ Preforward()
   ├─ ForwardFromSpace()
+  ├─ ...
+  ├─ CleanupMigrationCandidates()          ← M3: 未迁移候选归还 oldLargeRegionList
   ├─ FlipTagID()
   └─ CollectSmallSpace()
 ```
@@ -301,12 +333,13 @@ DoGarbageCollection()
 
 | 文件 | 修改类型 | 说明 |
 |------|----------|------|
-| `src/Heap/Allocator/LOSManager.h` | 修改 | 新增 M3 GC 回收 + 迁移方法声明、统计字段、migrationMap |
-| `src/Heap/Allocator/LOSManager.cpp` | 修改 | 实现 6 个 M3 方法 + 2 个私有回收方法 |
+| `src/Heap/Allocator/LOSManager.h` | 修改 | 新增 M3 GC 回收方法声明、统计字段 |
+| `src/Heap/Allocator/LOSManager.cpp` | 修改 | 实现 3 个 M3 GC 方法 + 2 个私有回收方法 |
 | `src/Heap/Allocator/RegionSpace.h` | 修改 | `AssembleGarbageCandidates` / `CollectLargeGarbage` / `PrepareTrace` 集成 LOS |
-| `src/Heap/Allocator/RegionManager.h` | 修改 | `HandleTraceRegions` / `PrepareTrace` 集成 LOS + getter 方法 |
-| `src/Heap/WCollector/WCollector.h` | 修改 | 新增 `MigrateLargeObjectsToLOS()` 声明 |
-| `src/Heap/WCollector/WCollector.cpp` | 修改 | 新增 `MigrateLargeObjectsToLOS()` 实现 + `PostTrace` 调用链 + `LOSManager.h` include |
+| `src/Heap/Allocator/RegionManager.h` | 修改 | `HandleTraceRegions` / `PrepareTrace` 集成 LOS + 新增 `AssembleMigrationCandidates` / `CleanupMigrationCandidates` / `migrationCandidateList` |
+| `src/Heap/Allocator/RegionManager.cpp` | 修改 | 实现 `AssembleMigrationCandidates`（含 `ResetMarkBit` 修复） + `CleanupMigrationCandidates` |
+| `src/Heap/WCollector/WCollector.h` | 修改 | 新增 `BuildLargeObjectMigrationRoutes()` 声明 |
+| `src/Heap/WCollector/WCollector.cpp` | 修改 | 新增 `BuildLargeObjectMigrationRoutes()` 实现 + `PostTrace` 调用链 |
 
 ---
 

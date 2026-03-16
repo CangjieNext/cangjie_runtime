@@ -170,6 +170,57 @@ public:
         return TakeUnitsLowAddrImpl(num, idx, refreshRegionInfo);
     }
 
+    // Find the lowest-address node with at least 'num' units, whose allocation end <= upperBound.
+    // Used by MAIN space in unified FreeRegionManager to respect inactiveZone boundary.
+    bool TakeUnitsLowAddrBounded(Count num, Index& idx, Index upperBound, bool refreshRegionInfo = true)
+    {
+        if (root == nullptr || num == 0 || upperBound < num) {
+            return false;
+        }
+        return TakeUnitsLowAddrBoundedImpl(num, idx, upperBound, refreshRegionInfo);
+    }
+
+    // Find the highest-address node with at least 'num' units, whose high-end allocation start >= lowerBound.
+    // Allocates from the HIGH end of the chosen block.
+    // Used by LOS space in unified FreeRegionManager to respect losInactiveZone boundary.
+    bool TakeUnitsHighAddrBounded(Count num, Index& idx, Index lowerBound, bool refreshRegionInfo = true)
+    {
+        if (root == nullptr || num == 0) {
+            return false;
+        }
+        return TakeUnitsHighAddrBoundedImpl(num, idx, lowerBound, refreshRegionInfo);
+    }
+
+    // Check if a high-address bounded allocation of 'num' units would succeed,
+    // without actually performing the allocation.
+    bool HasSuitableHighAddr(Count num, Index lowerBound) const
+    {
+        if (root == nullptr || num == 0) {
+            return false;
+        }
+        return FindHighestSuitableBoundedPtr(const_cast<Node**>(&root), num, lowerBound) != nullptr;
+    }
+
+    // Remove all free blocks whose [index, index+count) overlaps with [lo, hi).
+    // Blocks fully inside the range are deleted. Blocks straddling boundaries are truncated.
+    // Returns total unit count removed. Used by CompactLOS rebuild.
+    Count RemoveInRange(Index lo, Index hi)
+    {
+        if (lo >= hi) {
+            return 0;
+        }
+        Count removed = 0;
+        Index deferredIdx = 0;
+        Count deferredCount = 0;
+        bool hasDeferred = false;
+        RemoveInRangeImpl(root, lo, hi, removed, deferredIdx, deferredCount, hasDeferred);
+        totalCount -= removed;
+        if (hasDeferred) {
+            MergeInsert(deferredIdx, deferredCount, true);
+        }
+        return removed;
+    }
+
     struct Node {
         // @param base: global unit index offset for RegionInfo operations.
         Node(Index idx, Count num, bool refreshRegionInfo, Index base = 0)
@@ -621,6 +672,173 @@ private:
         }
 
         return true;
+    }
+
+    // Like FindLowestSuitablePtr but with an upper bound: allocation end must be <= upperBound.
+    // Skips nodes whose index + num > upperBound, but still checks left subtree (lower addresses).
+    Node** FindLowestSuitableBoundedPtr(Node** nodePtr, Count num, Index upperBound) const
+    {
+        if (nodePtr == nullptr || *nodePtr == nullptr || (*nodePtr)->GetCount() < num) {
+            return nullptr;
+        }
+        if ((*nodePtr)->GetIndex() + num > upperBound) {
+            // This node is too high; only left subtree can have lower-address candidates
+            return FindLowestSuitableBoundedPtr(&((*nodePtr)->l), num, upperBound);
+        }
+        // Left subtree has lower indices — try it first
+        Node** left = FindLowestSuitableBoundedPtr(&((*nodePtr)->l), num, upperBound);
+        if (left != nullptr) {
+            return left;
+        }
+        // Current node satisfies: count >= num && index + num <= upperBound
+        return nodePtr;
+    }
+
+    // Low-addr bounded allocation: like TakeUnitsLowAddrImpl but skips blocks above upperBound.
+    bool TakeUnitsLowAddrBoundedImpl(Count num, Index& idx, Index upperBound, bool refreshRegionInfo)
+    {
+        Node** nodePtr = FindLowestSuitableBoundedPtr(&root, num, upperBound);
+        if (nodePtr == nullptr) {
+            DLOG(REGION, "c-tree %p fail to take %u free units (low-addr-bounded, upper=%u)", this, num, upperBound);
+            return false;
+        }
+
+        Node* node = *nodePtr;
+        idx = node->GetIndex();
+        auto count = node->GetCount();
+
+        // Allocate from low end: [idx, idx+num), remainder at [idx+num, idx+count)
+        node->UpdateNode(idx + num, count - num, refreshRegionInfo, baseIndex);
+        DecTotalCount(num);
+
+        if (node->GetCount() == 0) {
+            RemoveZeroNode(*nodePtr);
+        } else {
+            LowerNonZeroNode(*nodePtr);
+        }
+        return true;
+    }
+
+    // Find the highest-address node that can satisfy a high-end allocation of 'num' units
+    // with allocStart = (index + count - num) >= lowerBound.
+    // Leverages BST (right = higher addr) and max-heap (count) for O(log n).
+    // Proof that left subtree can be skipped when current node fails:
+    //   - BST: left.index + left.count <= node.index
+    //   - Heap: left.count <= node.count
+    //   - If node.index + node.count < lowerBound + num, then
+    //     left.index + left.count <= node.index < lowerBound + num, so left also fails.
+    Node** FindHighestSuitableBoundedPtr(Node** nodePtr, Count num, Index lowerBound) const
+    {
+        if (nodePtr == nullptr || *nodePtr == nullptr || (*nodePtr)->GetCount() < num) {
+            return nullptr;
+        }
+        Node* node = *nodePtr;
+        // Right subtree has higher indices — try it first for highest address
+        Node** right = FindHighestSuitableBoundedPtr(&(node->r), num, lowerBound);
+        if (right != nullptr) {
+            return right;
+        }
+        // Check current node: high-end allocation start = index + count - num >= lowerBound
+        if (node->GetIndex() + node->GetCount() >= lowerBound + num) {
+            return nodePtr;
+        }
+        // Left subtree can't satisfy (proven in comment above)
+        return nullptr;
+    }
+
+    // High-addr bounded allocation: takes from the HIGH end of the chosen block.
+    // allocStart = index + count - num. Remainder = [index, count - num).
+    bool TakeUnitsHighAddrBoundedImpl(Count num, Index& idx, Index lowerBound, bool refreshRegionInfo)
+    {
+        Node** nodePtr = FindHighestSuitableBoundedPtr(&root, num, lowerBound);
+        if (nodePtr == nullptr) {
+            DLOG(REGION, "c-tree %p fail to take %u free units (high-addr-bounded, lower=%u)", this, num, lowerBound);
+            return false;
+        }
+
+        Node* node = *nodePtr;
+        auto count = node->GetCount();
+        // Allocate from high end: [index+count-num, index+count), remainder [index, count-num)
+        idx = node->GetIndex() + count - num;
+        node->UpdateNode(node->GetIndex(), count - num, refreshRegionInfo, baseIndex);
+        DecTotalCount(num);
+
+        if (node->GetCount() == 0) {
+            RemoveZeroNode(*nodePtr);
+        } else {
+            LowerNonZeroNode(*nodePtr);
+        }
+        return true;
+    }
+
+    // Recursive implementation of RemoveInRange.
+    // Removes (or truncates) all nodes whose range overlaps [lo, hi).
+    // Uses deferred insertion for the rare split case (node spanning entire range).
+    void RemoveInRangeImpl(Node*& n, Index lo, Index hi, Count& removed,
+                           Index& deferredIdx, Count& deferredCount, bool& hasDeferred)
+    {
+        if (n == nullptr) {
+            return;
+        }
+
+        Index nodeIdx = n->GetIndex();
+        Index nodeEnd = nodeIdx + n->GetCount();
+
+        if (nodeEnd <= lo) {
+            // Entirely below range — only right subtree may overlap
+            RemoveInRangeImpl(n->r, lo, hi, removed, deferredIdx, deferredCount, hasDeferred);
+            return;
+        }
+
+        if (nodeIdx >= hi) {
+            // Entirely above range — only left subtree may overlap
+            RemoveInRangeImpl(n->l, lo, hi, removed, deferredIdx, deferredCount, hasDeferred);
+            return;
+        }
+
+        // Node overlaps [lo, hi)
+        if (nodeIdx >= lo && nodeEnd <= hi) {
+            // Fully in range: remove node
+            removed += n->GetCount();
+            n->ClearCount();
+            Node*& leafRef = MaintainHeapPropertyForZeroNode(n);
+            nodeAllocator.Deallocate(leafRef);
+            leafRef = nullptr;
+            // Re-enter: tree restructured, new node may be at position n
+            RemoveInRangeImpl(n, lo, hi, removed, deferredIdx, deferredCount, hasDeferred);
+            return;
+        }
+
+        if (nodeIdx < lo && nodeEnd > hi) {
+            // Spans entire range: split into [nodeIdx, lo) and [hi, nodeEnd)
+            // No other nodes can overlap [lo, hi) (BST: left < nodeIdx < lo, right > nodeEnd > hi)
+            Count rightPieceCount = nodeEnd - hi;
+            removed += (nodeEnd - lo); // accounts for both removed middle and right piece move
+            n->UpdateNode(nodeIdx, lo - nodeIdx, true, baseIndex);
+            MaintainHeapPropertyForNonZeroNode(n);
+            // Defer right piece insertion to caller (avoids modifying tree from inside recursion)
+            deferredIdx = hi;
+            deferredCount = rightPieceCount;
+            hasDeferred = true;
+            return;
+        }
+
+        if (nodeIdx < lo) {
+            // Straddles lo boundary: keep [nodeIdx, lo), lose [lo, nodeEnd)
+            removed += (nodeEnd - lo);
+            n->UpdateNode(nodeIdx, lo - nodeIdx, true, baseIndex);
+            MaintainHeapPropertyForNonZeroNode(n);
+            // Re-enter: right subtree nodes (with higher index) may still be in range
+            RemoveInRangeImpl(n, lo, hi, removed, deferredIdx, deferredCount, hasDeferred);
+            return;
+        }
+
+        // Straddles hi boundary: nodeIdx >= lo, nodeEnd > hi. Keep [hi, nodeEnd).
+        removed += (hi - nodeIdx);
+        n->UpdateNode(hi, nodeEnd - hi, true, baseIndex);
+        MaintainHeapPropertyForNonZeroNode(n);
+        // Re-enter: left subtree nodes (with lower index) may still be in range
+        RemoveInRangeImpl(n, lo, hi, removed, deferredIdx, deferredCount, hasDeferred);
     }
 
     bool AllocateLowestAddressFromNode(Node*& node, Count count, Index& index)

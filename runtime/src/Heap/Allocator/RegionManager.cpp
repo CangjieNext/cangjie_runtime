@@ -461,11 +461,10 @@ void RegionManager::Initialize(size_t nUnit, uintptr_t regionInfoAddr)
     if (losRatio > 0 && losUnitCount > 0) {
         size_t losUnitStart = mainUnitCount + reserveUnitCount;
         size_t losUnitEnd = nUnit;
-        // P4: LOS baseUnit = mainUnitCount (start of RESERVE) so that losFreeMgr can handle
-        // RESERVE-borrowed regions. Capacity = reserveUnitCount + losUnitCount to cover both
-        // the RESERVE extension area and the native LOS space.
+        // Unified FreeRegionManager: LOSManager shares freeRegionManager with MAIN.
+        // No separate losFreeMgr — LOS uses high-addr bounded allocation on shared trees.
         losManager = new (std::nothrow) LOSManager(
-            *this, static_cast<CartesianTree::Index>(mainUnitCount), reserveManager);
+            *this, freeRegionManager, reserveManager);
         if (losManager != nullptr) {
             losManager->Initialize(losStart, losEnd, losUnitStart, losUnitEnd, reserveUnitCount);
         }
@@ -480,12 +479,12 @@ void RegionManager::Initialize(size_t nUnit, uintptr_t regionInfoAddr)
 #endif
     // propagate region heap layout - only for MAIN space units
     RegionInfo::Initialize(nUnit, regionHeapStart);
-    // FreeRegionManager manages MAIN + RESERVE units (RESERVE-borrowed dead regions
-    // go into the tree directly; ShrinkInactiveZone ClearTrees+rebuild ensures no
-    // nodes beyond the watermark after return).
-    freeRegionManager.Initialize(mainUnitCount + reserveUnitCount);
-    // M4b: Enable lowAddressFirst — allocate from low address to pack live regions at low end,
-    // maximizing the contiguous free zone at the high end for ShrinkInactiveZone.
+    // Unified FreeRegionManager covers entire heap (MAIN + RESERVE + LOS).
+    // MAIN uses low-addr bounded allocation (upper bound = inactiveZone).
+    // LOS uses high-addr bounded allocation (lower bound = losInactiveZone).
+    // Free blocks in the inactive gap between them are naturally unused.
+    freeRegionManager.Initialize(nUnit);
+    // M4b: Enable lowAddressFirst for the default TakeRegion path
     freeRegionManager.SetLowAddressFirst(true);
     this->exemptedRegionThreshold = CangjieRuntime::GetHeapParam().exemptionThreshold;
 
@@ -514,8 +513,8 @@ void RegionManager::ReclaimRegion(RegionInfo* region)
 
     region->InitFreeUnits();
 
-    // P3: RESERVE-borrowed dead regions go directly into freeRegionManager.
-    // ShrinkInactiveZone ClearTrees+rebuild ensures no nodes beyond watermark after return.
+    // P3: All dead regions go into the unified freeRegionManager.
+    // Bounded allocation naturally ignores blocks outside each space's active zone.
     freeRegionManager.AddGarbageUnits(unitIndex, num);
 }
 
@@ -533,7 +532,7 @@ size_t RegionManager::ReleaseRegion(RegionInfo* region)
     region->InitFreeUnits();
     RegionInfo::ReleaseUnits(unitIndex, num);
 
-    // P3: RESERVE-borrowed dead regions go directly into freeRegionManager.
+    // P3: All dead regions go into the unified freeRegionManager.
     freeRegionManager.AddReleaseUnits(unitIndex, num);
     return res;
 }
@@ -733,7 +732,11 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
         }
     }
 
-    RegionInfo* region = freeRegionManager.TakeRegion(num, type, expectPhysicalMem);
+    // Unified FRM: use bounded allocation to stay below inactiveZone.
+    // Free blocks above inactiveZone are ignored (they belong to LOS or the inactive gap).
+    uint32_t upperBoundUnit = static_cast<uint32_t>(
+        (inactiveZone.load(std::memory_order_relaxed) - regionHeapStart) / RegionInfo::UNIT_SIZE);
+    RegionInfo* region = freeRegionManager.TakeRegionBounded(num, type, expectPhysicalMem, upperBoundUnit);
     if (region != nullptr) {
         if (num >= HUGE_PAGE) {
             TagHugePage(region, num);
@@ -1796,8 +1799,7 @@ uintptr_t RegionManager::AllocPinnedFromFreeList(size_t size)
 // Phase A: Shrink MAIN's own inactiveZone.
 // Phase B: Scan RESERVE-borrowed space [mainEnd, mainWatermark), find highest live
 //          borrowed region, push watermark back via ReclaimMainBorrowed.
-// NEW: Uses tree pruning (RemoveAboveIndex) instead of ClearTrees+rebuild to avoid
-//      scanning region metadata in shrunk territory (prevents metadata consistency crashes).
+// Unified FRM: No tree pruning needed — bounded allocation ignores blocks above inactiveZone.
 size_t RegionManager::ShrinkInactiveZone()
 {
     uintptr_t oldInactive = inactiveZone.load();
@@ -1932,10 +1934,8 @@ size_t RegionManager::ShrinkInactiveZone()
         return 0;
     }
 
-    // ===== Tree pruning: remove nodes above the effective threshold =====
-    uint32_t thresholdUnitIdx = static_cast<uint32_t>(
-        (newInactive - regionHeapStart) / RegionInfo::UNIT_SIZE);
-    freeRegionManager.RemoveAboveIndex(thresholdUnitIdx);
+    // Unified FRM: No tree pruning needed. Bounded allocation naturally ignores
+    // free blocks above the new inactiveZone. LOS can use them if it needs to.
 
     // ===== Update inactiveZone if it actually decreased =====
     if (newInactive < oldInactive) {

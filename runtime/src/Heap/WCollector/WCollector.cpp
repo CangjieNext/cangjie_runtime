@@ -964,8 +964,7 @@ void WCollector::DoGarbageCollection()
     FinalizeLOSCompactionIfNeeded();
 
     // P3: ShrinkInactiveZone — every GC, gated by MAIN fragmentation ratio.
-    // Uses tree pruning (RemoveAboveIndex) instead of ClearTrees+rebuild,
-    // which avoids the metadata consistency crash with borrow-on-demand.
+    // Unified FRM: no tree pruning needed — bounded allocation ignores blocks above inactiveZone.
     // Gate: only enter STW + shrink when MAIN fragmentation > 30%.
     // The reclaimable >= 10% RESERVE check is done inside ShrinkInactiveZone
     // (the live-scan determines actual reclaimable amount; early-exit if nothing).

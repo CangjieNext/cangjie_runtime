@@ -14,31 +14,26 @@
 | 文件 | 改动类型 | 说明 |
 |------|----------|------|
 | `src/Heap/Allocator/FreeRegionManager.h` | 新增方法 | `ClearTrees()` — 清空 dirtyTree + releasedTree |
-| `src/Heap/Allocator/LOSManager.h` | 新增声明 | `CompactLOS()`, `NeedsCompaction()`, `GetFragmentationRatio()`, compaction 统计字段, `RebuildFreeRegionManager()`, `ShrinkToReserve()` |
-| `src/Heap/Allocator/LOSManager.cpp` | 新增实现 | 5 个 M4a 函数实现 + 修改 `MigrateLargeObjectsFromMain` 为追加模式 |
-| `src/Heap/WCollector/WCollector.h` | 新增声明 | `CompactLOSIfNeeded()` |
-| `src/Heap/WCollector/WCollector.cpp` | 新增实现 | `CompactLOSIfNeeded()` 实现 + PostTrace 流程插入 + 修改 `MigrateLargeObjectsToLOS` 处理合并转发表 |
+| `src/Heap/Allocator/LOSManager.h` | 新增声明 | `CompactLOS()`, `NeedsCompaction()`, `GetFragmentationRatio()`, compaction 统计字段, `RebuildFreeRegionManager()`, `isCompacting`/`compactionRequested`/`losCompactionFreeze` 原子标志 |
+| `src/Heap/Allocator/LOSManager.cpp` | 新增实现 | CompactLOS 7 阶段实现 + RebuildFreeRegionManager |
+| `src/Heap/WCollector/WCollector.h` | 新增声明 | `CompactLOSIfNeeded()`, `CompactLOSOnOOMIfNeeded()`, `UpdateCompactedLOSReferences()` |
+| `src/Heap/WCollector/WCollector.cpp` | 新增实现 | CompactLOS 集成 + 引用更新 + OOM 门控 |
 
 ## 3. 设计决策
 
 ### 3.1 插入位置
 
-PostTrace 中的执行顺序：
+CompactLOS 在两个位置执行：
 
-```
-PostTrace()
-  → HandleTraceRegions()
-  → ClearWeakRefBuffer / ClearBuffer
-  → PrepareCycleRef()
-  → CollectLargeGarbage()         // 清扫 MAIN + LOS 死对象
-  → CompactLOSIfNeeded()          // ★ M4a: 条件性 LOS 整理
-  → MigrateLargeObjectsToLOS()    // M3: MAIN → LOS 迁移
-  → CollectPinnedGarbage()
-  → RefineFromSpace()
-  → PrepareForwardTable()
-```
+**1、每次 GC 后（`DoGarbageCollection` 中，`ForwardFromSpace` 之后）：**
 
-**理由**：清扫后碎片信息最准确；整理后 LOS 有更大连续空间，利于后续迁移。
+当 LOS 碎片率 > 30% 时，在 STW 下执行。
+
+**2、OOM GC 的 PostTrace 中（`CompactLOSOnOOMIfNeeded`）：**
+
+当 `gcReason == GC_REASON_OOM` 且 `NeedsCompaction()` 返回 true 时执行。带 #10A 优化：如果常规 GC 已释放足够 LOS 空间（`CanAllocLargeAfterGC()`），则跳过昂贵的 CompactLOS。
+
+**理由**：清扫后碎片信息最准确；整理后 LOS 有更大连续空间，利于后续分配。
 
 ### 3.2 触发条件
 
@@ -57,13 +52,15 @@ PostTrace()
 - 只整理屏障以上的可移动对象
 - 从 losEnd 向低地址分配目标位置，对象紧凑排列
 
-### 3.4 Forwarding Map 合并
+### 3.4 Forwarding Map 与引用更新
 
-M4a compaction 和 M3 migration 共享同一个 `migrationMap`：
+M4a compaction 使用 `migrationMap`（`unordered_map<uintptr_t, uintptr_t>`）存储 old→new 地址映射。
 
-- `CompactLOS()` 先执行，添加 compaction 转发条目并立即更新引用
-- `MigrateLargeObjectsFromMain()` 追加 migration 条目（不再清空 map）
-- `MigrateLargeObjectsToLOS()` 最后统一调用 `UpdateMigratedReferences()` + `ClearMigrationState()`
+CompactLOS 完成后，WCollector 调用 `UpdateCompactedLOSReferences()` 扫描全堆更新引用：
+- 预计算 moved 对象的地址范围 `[minOldAddr, maxOldAddr]` 做快速拒绝
+- 扫描所有堆对象的 RefField + 静态根
+- 通过 `migrationMap` 哈希查找替换旧地址为新地址
+- 更新完成后调用 `ClearMigrationMap()` 清除映射表
 
 ### 3.5 losFreeMgr 重建
 
@@ -71,11 +68,13 @@ M4a compaction 和 M3 migration 共享同一个 `migrationMap`：
 
 1. 调用 `ClearTrees()` 清空 dirtyTree + releasedTree
 2. 遍历排序后的存活 region 列表，计算相邻间隙
-3. 对每个间隙：`InitRegionAt` + `InitFreeUnits` + `AddGarbageUnits`
+3. 对每个间隙：`InitRegionAt` + `InitFreeUnits` + `ReleaseUnits`（物理释放）+ `AddReleaseUnits`（进入 releasedTree）
+
+> **P0-opt 优化**：间隙页先经 madvise 释放物理页（`ReleaseUnits`）再加入 releasedTree，新分配时 `TakeRegion` 无需 memset 清零。
 
 ### 3.6 RESERVE 归还
 
-整理释放的低地址空间立即通过 `ReserveManager::ReturnFromLOS()` 归还。
+整理释放的低地址空间直接通过 `ReserveManager::ReclaimLOSBorrowed()` 归还，无保留缓冲区（No keep buffer）。防振荡由碎片率门控（>30%）间接实现。
 
 ## 4. GC 流程中的 LOS 整理
 
@@ -98,12 +97,11 @@ M4a compaction 和 M3 migration 共享同一个 `migrationMap`：
    ├──────────────────┤
    │ Phase1: 收集     │  分离 movable / pinned
    │ Phase2: 计算     │  从 losEnd 向下分配目标地址
-   │ Phase3: 转发表   │  构建 forwarding map
-   │ Phase4: 引用更新 │  UpdateMigratedReferences()
+   │ Phase3: 转发表   │  构建 migrationMap
    │ Phase5: 移动     │  memmove_s + 重建 RegionInfo
    │ Phase5b: 重建列表│  clear + prepend all live regions
-   │ Phase6: 重建FRM  │  ClearTrees + insert gaps
-   │ Phase7: 归还     │  ShrinkToReserve()
+   │ Phase6: 重建FRM  │  ClearTrees + insert gaps (releasedTree)
+   │ Phase7: 归还     │  ReclaimLOSBorrowed()
    └──────────────────┘
               │
               ▼
@@ -138,10 +136,10 @@ losStart      newLosInactiveZone                                   losEnd
 | 方法 | 说明 |
 |------|------|
 | `NeedsCompaction()` | 检查是否需要整理：碎片率 > 30% 或有新的分配失败 |
-| `CompactLOS()` | 执行 7 阶段滑动整理算法，返回释放字节数 |
+| `CompactLOS()` | 执行滑动整理算法（Phase 1/2/3/5/5b/6/7），返回释放字节数 |
 | `GetFragmentationRatio()` | 计算碎片率 = freeUnits / activeUnits |
-| `RebuildFreeRegionManager()` | 清空并重建 losFreeMgr 的两棵树 |
-| `ShrinkToReserve()` | 归还低地址空闲空间给 RESERVE |
+| `RebuildFreeRegionManager()` | 清空并重建 losFreeMgr 的两棵树（间隙进 releasedTree） |
+| `CanAllocLargeAfterGC()` | #10A: 检查 GC 后是否已有足够空间，跳过昂贵整理 |
 
 ### FreeRegionManager
 
@@ -153,7 +151,9 @@ losStart      newLosInactiveZone                                   losEnd
 
 | 方法 | 说明 |
 |------|------|
-| `CompactLOSIfNeeded()` | PostTrace 中调用，条件性执行 LOS 整理 |
+| `CompactLOSIfNeeded()` | PostTrace 中调用（OOM GC 时），条件性执行 LOS 整理 |
+| `CompactLOSOnOOMIfNeeded()` | OOM 门控 + #10A skip 逻辑 |
+| `UpdateCompactedLOSReferences()` | STW 下扫描全堆更新 compaction 引用 |
 
 ### 统计字段（LOSManager 新增）
 
@@ -165,99 +165,31 @@ losStart      newLosInactiveZone                                   losEnd
 | `losCompactShrunkBytes` | 上次整理归还 RESERVE 字节数 |
 | `lastCompactAllocFailCount` | 上次整理时的 allocFailCount（冷却计数） |
 
-## 6. 异步整理（Async Compaction）
+## 6. 异步整理（Async Compaction）— 设计已完成，代码未实现
 
-### 6.1 动机
+> **注意**：以下为设计方案，实际代码中 `SignalLOSCompaction`、`NotifyToCompactLOS`、`PerformLOSCompaction`、`shouldCompactLOS` 等 API 均未实现。FinalizerProcessor 中仅有 `#include "LOSManager.h"`，无异步整理相关逻辑。
+>
+> 当前 CompactLOS 仅通过两条同步路径触发：
+> 1. `DoGarbageCollection` 中 `ForwardFromSpace` 之后（碎片率 > 30%）
+> 2. OOM GC 的 PostTrace 中（`CompactLOSOnOOMIfNeeded`）
 
-同步整理（上述 7 阶段 `CompactLOS()`）需要在 STW 期间由 GC 线程触发。然而，在某些场景下 LOS 碎片化严重但常规 GC 未被触发（例如堆阈值未达到），此时 LOS 分配频繁失败并降级到 MAIN，导致 MAIN 空间压力增大。
+### 6.1 设计动机
 
-**异步整理**通过 `FinalizerProcessor` 线程（gc-helper）检测到 LOS 碎片化后主动请求一次同步 GC，在该 GC 的 STW PostTrace 阶段执行整理。
+同步整理需要在 STW 期间由 GC 线程触发。某些场景下 LOS 碎片化严重但常规 GC 未被触发，LOS 分配频繁失败并降级到 MAIN。设计方案是通过 FinalizerProcessor 线程检测碎片化后主动请求 sync GC 来执行整理。
 
-### 6.2 触发路径
+### 6.2 设计方案概要（未实现）
 
-```
-AllocLarge()                        // RegionManager.h
-  → losManager->AllocLarge() 失败
-  → AllocLargeInMain() 成功（MAIN 降级）
-  → if (!IsCompacting() && !IsCompactionRequested())
-      → SignalLOSCompaction()       // RegionManager.cpp
-          → losManager->SetCompactionRequested(true)
-          → FinalizerProcessor::NotifyToCompactLOS()
-              → shouldCompactLOS = true
-              → Notify() 唤醒 FP 线程
-```
+- 分配路径 LOS 分配失败时调用 `SignalLOSCompaction()` 设置 `compactionRequested` 并唤醒 FP 线程
+- FP 线程主循环检查 `shouldCompactLOS`，调用 `PerformLOSCompaction()` 请求 sync GC
+- 在该 GC 的 STW 阶段执行 `CompactLOS()`
 
-### 6.3 FinalizerProcessor 主循环集成
-
-`FinalizerProcessor::Run()` 主循环新增检查：
-
-```cpp
-// M4a-async: Check if async LOS compaction was requested
-if (shouldCompactLOS.load(std::memory_order_relaxed)) {
-    PerformLOSCompaction();
-}
-```
-
-等待条件也包含 `shouldCompactLOS`，确保信号能唤醒休眠的 FP 线程。
-
-### 6.4 PerformLOSCompaction() 流程
-
-```
-FinalizerProcessor::PerformLOSCompaction()
-  │
-  ├─ 获取 LOSManager（通过 RegionSpace → RegionManager）
-  ├─ 双重检查：IsCompactionRequested() || NeedsCompaction()
-  │   └─ 如果都不满足 → 清除 shouldCompactLOS, return
-  │
-  ├─ Step 1: losMgr->SetCompacting(true)
-  │   └─ 阻止所有 LOS 新分配（强制走 MAIN 降级）
-  │
-  ├─ Step 2: Collector::RequestGC(GC_REASON_HEU_SYNC, false)
-  │   └─ 阻塞等待 GC 完成
-  │   └─ 在 STW PostTrace 中：
-  │       CompactLOSIfNeeded()
-  │         → losManager->NeedsCompaction() || IsCompactionRequested()
-  │         → SetCompacting(true)  // 同步路径的 guard
-  │         → CompactLOS()          // 执行 7 阶段滑动整理
-  │         → SetCompactionRequested(false)
-  │         → SetCompacting(false)
-  │
-  ├─ Step 3: losMgr->SetCompacting(false)
-  │   └─ 恢复 LOS 分配
-  │
-  └─ shouldCompactLOS = false
-```
-
-**关键安全性**：FinalizerProcessor 线程在 `Init()` 中调用了 `EnterSaferegion()`，因此请求同步 GC 是安全的——GC 线程可以立即进入 STW，不会因等待 FP 线程到达安全点而死锁。
-
-### 6.5 状态标志说明
+### 6.3 已实现的状态标志
 
 | 标志 | 位置 | 含义 |
 |------|------|------|
-| `LOSManager::isCompacting` | `std::atomic<bool>` | 整理进行中（同步或异步），阻止所有 LOS 新分配 |
-| `LOSManager::compactionRequested` | `std::atomic<bool>` | 分配路径设置，PostTrace 中 `CompactLOSIfNeeded()` 检查 |
-| `FinalizerProcessor::shouldCompactLOS` | `std::atomic<bool>` | FP 线程内部信号，控制是否执行 `PerformLOSCompaction()` |
-
-### 6.6 同步 vs 异步整理对比
-
-| 维度 | 同步整理 | 异步整理 |
-|------|----------|----------|
-| 触发方 | GC 线程（PostTrace 中 `NeedsCompaction()` 返回 true） | 分配线程（LOS 分配失败 → `SignalLOSCompaction()`） |
-| 执行位置 | 当前 GC 周期的 PostTrace | 下一次 GC（由 FP 请求的 sync GC）的 PostTrace |
-| 实际整理代码 | 相同：`CompactLOSIfNeeded()` → `CompactLOS()` | 相同 |
-| 前置条件 | 碎片率>30% 或有新分配失败 | `compactionRequested=true`（分配失败降级时设置） |
-| 分配阻塞 | STW 期间自然阻塞 | `isCompacting=true` 显式阻塞 LOS 分配 |
-
-### 6.7 修改文件清单（异步部分）
-
-| 文件 | 改动类型 | 说明 |
-|------|----------|------|
-| `src/Heap/Allocator/LOSManager.h` | 新增字段 | `isCompacting`, `compactionRequested` 原子标志 + accessor |
-| `src/Heap/Allocator/RegionManager.h` | 修改 `AllocLarge()` | 添加 `IsCompacting()` 检查跳过 LOS + `IsCompactionRequested()` 防重复信号 |
-| `src/Heap/Allocator/RegionManager.cpp` | 新增 `SignalLOSCompaction()` | 设置 `compactionRequested` + 通知 FP |
-| `src/Heap/Collector/FinalizerProcessor.h` | 新增字段+方法 | `shouldCompactLOS` 原子标志, `NotifyToCompactLOS()`, `PerformLOSCompaction()` 声明 |
-| `src/Heap/Collector/FinalizerProcessor.cpp` | 新增实现+修改 `Run()` | `PerformLOSCompaction()` 实现, 主循环+等待条件添加检查 |
-| `src/Heap/WCollector/WCollector.cpp` | 修改 `CompactLOSIfNeeded()` | 检查 `IsCompactionRequested()` 作为触发条件 + 整理后清除标志 |
+| `LOSManager::isCompacting` | `std::atomic<bool>` | 整理进行中，阻止所有 LOS 新分配 |
+| `LOSManager::compactionRequested` | `std::atomic<bool>` | 分配路径设置，用于触发 compaction |
+| `LOSManager::losCompactionFreeze` | `std::atomic<bool>` | 冻结标志，暂停 compaction |
 
 ## 7. 编译验证
 

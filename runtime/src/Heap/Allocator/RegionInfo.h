@@ -357,6 +357,10 @@ public:
             }
             return true;
         }
+        // Guard: skip stale objects whose TypeInfo is null, garbage, or heap-internal.
+        if (UNLIKELY(!obj->IsLikelyValidObject())) {
+            return true; // pretend already enqueued
+        }
         U32 objSize = obj->GetSize();
         size_t regionSize = offset + GetRegionEnd() - reinterpret_cast<MAddress>(obj);
         CHECK(regionSize > 0);
@@ -505,10 +509,13 @@ public:
         uint8_t role = unit->GetMetadata().unitRoleBitField.GetAtomicValue(0, BIT_LENGTH);
         if (static_cast<UnitRole>(role) == UnitRole::SUBORDINATE_UNIT) {
             RegionInfo* owner = unit->GetMetadata().ownerRegion;
-            // ownerRegion may be transiently null during InitFreeUnits (clear
-            // liveInfo/ownerRegion before SetUnitRole(FREE_UNITS)).  In that
-            // window the unit is being freed; treat it as its own primary.
-            return (owner != nullptr) ? owner : reinterpret_cast<RegionInfo*>(unit);
+            // ownerRegion may be transiently null during InitFreeUnits
+            // (InitRegionInfo clears liveInfo/ownerRegion before SetUnitRole(FREE_UNITS)).
+            // Returning the subordinate unit itself is unsafe: its stale metadata
+            // (e.g. null liveInfo → null markBitmap) causes ShouldEnqueue to
+            // proceed into EnqueueObject→GetSize() on freed/zeroed memory → SIGSEGV.
+            // Return nullptr instead — all concurrent callers already handle it.
+            return (owner != nullptr) ? owner : nullptr;
         }
         return reinterpret_cast<RegionInfo*>(unit);
     }
@@ -519,7 +526,8 @@ public:
         uint8_t role = unit->GetMetadata().unitRoleBitField.GetAtomicValue(0, BIT_LENGTH);
         if (static_cast<UnitRole>(role) == UnitRole::SUBORDINATE_UNIT) {
             RegionInfo* owner = unit->GetMetadata().ownerRegion;
-            return (owner != nullptr) ? owner : reinterpret_cast<RegionInfo*>(unit);
+            // See GetRegionInfo() comment: return nullptr for transient null ownerRegion.
+            return (owner != nullptr) ? owner : nullptr;
         }
         return reinterpret_cast<RegionInfo*>(unit);
     }

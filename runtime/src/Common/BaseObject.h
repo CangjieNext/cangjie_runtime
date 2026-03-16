@@ -25,6 +25,10 @@ public:
 
     inline bool IsValidObject() const { return stateWord.IsValidStateWord(); }
 
+    // Stronger validation: TypeInfo must be non-null and not point into GC heap
+    // (valid TypeInfo lives in .rodata/.text). Catches stale objects in recycled regions.
+    bool IsLikelyValidObject() const;
+
     inline bool IsRawArray() const { return GetTypeInfo()->IsRawArray(); }
 
     inline TypeInfo* GetComponentTypeInfo() const { return GetTypeInfo()->GetComponentTypeInfo(); }
