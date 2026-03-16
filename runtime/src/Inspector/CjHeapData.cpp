@@ -472,7 +472,15 @@ void CjHeapData::WriteThreadObjectRoot(BaseObject*& obj, const u1 tag, const u4 
  */
 void CjHeapData::WriteObjectArray(BaseObject*& obj, const u1 tag)
 {
-    AddU1(tag);
+    u1 newTag = tag;
+    auto regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
+    if (regionInfo->IsLargeRegion()) {
+        newTag = TAG_LARGE_OBJECT_ARRAY_DUMP;
+    } else if (regionInfo->IsUnmovableFromRegion()) {
+        newTag = TAG_UNMOVABLE_OBJECT_ARRAY_DUMP;
+    }
+    AddU1(newTag);
+
     CjHeapDataID objId = (reinterpret_cast<CjHeapDataID>(obj));
     AddStringId(objId);
     // take array length and content.
@@ -502,7 +510,15 @@ void CjHeapData::WriteObjectArray(BaseObject*& obj, const u1 tag)
 
  void CjHeapData::WriteStructArray(BaseObject*& obj, const u1 tag)
 {
-    AddU1(tag);
+    u1 newTag = tag;
+    auto regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
+    if (regionInfo->IsLargeRegion()) {
+        newTag = TAG_LARGE_STRUCT_ARRAY_DUMP;
+    } else if (regionInfo->IsUnmovableFromRegion()) {
+        newTag = TAG_UNMOVABLE_STRUCT_ARRAY_DUMP;
+    }
+    AddU1(newTag);
+
     CjHeapDataID objId = (reinterpret_cast<CjHeapDataID>(obj));
     AddStringId(objId);
     u4 num = 0;
@@ -544,7 +560,16 @@ void CjHeapData::WritePrimitiveArray(BaseObject*& obj, const u1 tag)
     if (componentSize == 0) {
         return;
     }
-    AddU1(tag);
+
+    u1 newTag = tag;
+    auto regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
+    if (regionInfo->IsLargeRegion()) {
+        newTag = TAG_LARGE_PRIMITIVE_ARRAY_DUMP;
+    } else if (regionInfo->IsUnmovableFromRegion()) {
+        newTag = TAG_UNMOVABLE_PRIMITIVE_ARRAY_DUMP;
+    }
+    AddU1(newTag);
+
     CjHeapDataID objId = (reinterpret_cast<CjHeapDataID>(obj));
     AddStringId(objId);
     MArray* mArray = reinterpret_cast<MArray*>(obj);
@@ -617,7 +642,17 @@ void CjHeapData::WriteClass(TypeInfo* klass, CjHeapDataStringId klassId, const u
  */
 void CjHeapData::WriteInstance(BaseObject*& obj, const u1 tag)
 {
-    AddU1(tag);
+    u1 newTag = tag;
+    auto regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
+    if (regionInfo->IsPinnedRegion()) {
+        newTag = TAG_PINNED_INSTANCE_DUMP;
+    } else if (regionInfo->IsLargeRegion()) {
+        newTag = TAG_LARGE_INSTANCE_DUMP;
+    } else if (regionInfo->IsUnmovableFromRegion()) {
+        newTag = TAG_UNMOVABLE_INSTANCE_DUMP;
+    }
+    AddU1(newTag);
+
     CjHeapDataID objId = (reinterpret_cast<CjHeapDataID>(obj));
     AddStringId(objId);
     AddStringId(reinterpret_cast<CjHeapDataID>(obj->GetTypeInfo()));
