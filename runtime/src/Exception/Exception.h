@@ -91,10 +91,11 @@ public:
 
     uintptr_t GetTopManagedPC() const { return topManagedPC; }
 
+#ifdef INTERPRETER_ENABLED
     void SetCurrentCatchFunctionPC(const uintptr_t ptr) { currentCatchFunctionPC = ptr; }
 
     uintptr_t GetCurrentCatchFunctionPC() const { return currentCatchFunctionPC; }
-
+#endif
     void SetIsCaught(bool caught) { isCaught = caught; }
 
     bool IsCaught() const { return isCaught; }

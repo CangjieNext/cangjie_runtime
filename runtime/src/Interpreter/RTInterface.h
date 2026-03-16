@@ -4,13 +4,19 @@
 //
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-#include <stdint.h>
-#include <cstddef>
-
-#include "RuntimeMirrors.h"
-
 #ifndef RT_INTERFACE_H
 #define RT_INTERFACE_H
+
+#include <stdint.h>
+#include <stddef.h>
+
+#include "Options.h"
+#include "RuntimeMirrors.h"
+
+#ifdef __cplusplus
+extern "C" {
+namespace MRTExport {
+#endif // __cplusplus
 
 ////////////////////////////////////////////////////////////////////////////////////
 // region Types
@@ -152,7 +158,7 @@ typedef int (*init_rt)(size_t, char **, struct interpreter_interface_t *, struct
 //       - CJNative passes pointer to fiber-specific data on special register (e.g. r15 on x86_64). See `fiber_specific_data_t`.
 //       - interpreter presumes special register (r15 on x86_64) and does not spoil it.
 //       - interpreter guarantees to regularly poll safe points while interpreting CBC bytecode. See `safe_point_f`.
-//       - When interpreter needs to execute "long running" system code (e.g. sleep, fseek, pthread_mutex_lock etc.) it uses `foreign_call_f` wrapper, see below.
+//       - When interpreter needs to execute "long running" system code (e.g. sleep, fseek, pthread_mutex_lock etc.) it uses I2N_Stub.
 //       - When interpreter needs to access fiber-specific data, it derefences special register at `offset_to_fiber_specific_memory_f` offset. See `fiber_specific_data_t`.
 //       - When CJNative needs to trigger Garbage collection, it enables safe points. When corresponding fiber is stopped, CJNative should use
 //            - `local_roots_iterator_init_f`, `local_roots_iterator_iterate_f`
@@ -225,7 +231,7 @@ typedef void (*fiber_destroy_f)(fiber_specific_data_t*);
 // This method could be called by any thread (e.g. auxiliary stack dumper thread) to query information about interpreter frames.
 //
 // Important: this function may invoke "long-running" tasks (fseek, pthread_mutex_lock) so CJNative runtime
-//            should treat this method as "foreign" code. See also `foreign_call_f`.
+//            should treat this method as "foreign" code.
 //
 // params:
 // - Frame pointer. Must be provided by CJNative runtime.
@@ -402,40 +408,8 @@ typedef obj_ref_t (*get_pending_exception_f)();
 //
 typedef obj_ref_t (*get_and_clear_pending_exception_f)();
 
-// Sets given Cangjie Exception object as pending.
-//
-// Notes:
-//  This method will be invoked by interpreter as a part of interpretation loop.
-//  CCall calling convention is used.
-//
-typedef void (*set_pending_exception_f)(obj_ref_t);
-
 // Typedef for foreign function. See below for explanation.
 typedef void *(*foreign_func)(void*, void*, void*, void*, void*);
-
-// Wrapper for foreign function invocation. Calls a function `foreign_func` with arguments provided.
-//
-// This wrapper will be used by interpreter inside interpretation loop to call "long-running" OS functions (e.g. sleep, fseek, pthread_mutex_lock):
-//
-//   interpretation_loop() {
-//     ...
-//     // now interpreter needs to do something really long-running without safe points (e.g. do the syscall)
-//     cjnative_interface.foreign_call_f(
-//          param1, param2, param3, param4, param5,
-//          &long_running_function,
-//     )
-//     // continue normal execution with frequent safe points
-//
-// We expect that CJNative will insert "before_call" and "after_call" callbacks that will change CJNative GC state for current fiber
-// from "executes normal Cangjie code" to "executes long-running foreign native code" and vice versa.
-//
-// Notes:
-//  This wrapper allows passing not more than 5 additional parameters, it is intentional decision to simplify ABI and wrappers written in assembly.
-//  This method will be invoked by interpreter as a part of interpretation loop.
-//  ManagedCall calling convention is used.
-//
-typedef void *(*foreign_call_f)(
-    void*, void*, void*, void*, void*, foreign_func);
 
 // Check that given object is an instance of given type.
 //
@@ -740,16 +714,11 @@ struct interpreter_interface_t {
     size_t fiber_specific_data_size;
     size_t iterator_size;
 
-    size_t entrypointStartAddr;
-    size_t entrypointEndAddr;
+    uintptr_t c2iStubStartAddr;
+    uintptr_t c2iStubEndAddr;
 
-    uintptr_t c2iVirtualExecutorAddr;
-    uintptr_t c2iVirtualExecutorEndAddr;
-
-    uintptr_t i2iFunctionAddr;
-    uintptr_t i2iFunctionEndAddr;
-
-    interpret_cbc_f interpretNoParams;
+    uintptr_t i2iAdapterStartAddr;
+    uintptr_t i2iAdapterEndAddr;
 
     visit_global_roots_f visit_global_roots;
     visit_fiber_roots_f visit_fiber_roots;
@@ -781,14 +750,11 @@ struct cjnative_interface_t {
 
     throw_exception_f throw_exception;
     throw_OOM_f throw_OOM;
-    set_pending_exception_f set_pending_exception;
     get_pending_exception_f get_pending_exception;
     get_and_clear_pending_exception_f get_and_clear_pending_exception;
     get_exception_wrapper_f get_exception_wrapper;
     post_throw_exception_f post_throw_exception;
     get_current_catch_function_PC_f get_current_catch_function_PC;
-
-    foreign_call_f foreign_call;
 
     instance_of_f instance_of;
     is_sub_type_f is_sub_type;
@@ -820,6 +786,11 @@ struct cjnative_interface_t {
     is_valid_object_f is_valid_object;
     get_thread_local_data_f get_thread_local_data;
 };
+
+#ifdef __cplusplus
+} // namespace MRTExport
+} // extern "C"
+#endif // __cplusplus
 
 // endregion Interfaces
 #endif

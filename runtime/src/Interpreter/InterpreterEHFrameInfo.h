@@ -1,6 +1,8 @@
 #ifndef MRT_INTERPRETER_EH_FRAMEINFO_H
 #define MRT_INTERPRETER_EH_FRAMEINFO_H
 
+#ifdef INTERPRETER_ENABLED
+
 #include "Exception/EhFrameInfo.h"
 #include "Common/StackType.h"
 
@@ -34,7 +36,6 @@ public:
     void RestoreToCallerContext(CalleeSavedRegisterContext& context, uint32_t adjustedSize = 0) const override {
         // this method should not be called because interpreted frame always catches exception
         LOG(RTLOG_FATAL, "IntepreterEHFrameInfo::RestoreToCallerContext should not be called\n");
-        DLOG_INTERPRETER(DEBUG, "IntepreterEHFrameInfo::RestoreToCallerContext should not be called\n");
     }
 
     const uint32_t* GetIP() const override {
@@ -57,4 +58,6 @@ private:
 };
 
 } // namespace MapleRuntime
+
+#endif // INTERPRETER_ENABLED
 #endif // MRT_INTERPRETER_EH_FRAMEINFO_H

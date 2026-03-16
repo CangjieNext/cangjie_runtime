@@ -128,7 +128,6 @@ void StackManager::RecordLiteFrameInfos(std::vector<uint64_t>& liteFrameInfos, s
     PrintStackInfo printStackInfo;
     printStackInfo.FillInStackTrace();
     printStackInfo.ExtractLiteFrameInfoFromStack(liteFrameInfos, steps);
-    DLOG(UNWIND, "\n");
 }
 
 void StackManager::GetStackTraceByLiteFrameInfos(const std::vector<uint64_t>& liteFrameInfos,

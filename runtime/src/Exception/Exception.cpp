@@ -93,11 +93,11 @@ void ExceptionHandling::BuildEHFrameInfo()
     std::vector<FrameInfo>& stackInfo = ehStackInfo.GetStack();
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     if (UNLIKELY(ENABLE_LOG(EXCEPTION))) {
-        DLOG(EXCEPTION, "\nExceptionHandling::BuildEHFrameInfo");
+        DLOG(EXCEPTION, "build eh stack");
         DLOG(EXCEPTION, "FrameInfos\tsize : %zu", stackInfo.size());
         DLOG(EXCEPTION, "layer\tFrameType\tFA\t\tIP\t\tStartProc\tLSDAStart\t");
         for (int i = 0; i < stackInfo.size(); ++i) {
-            DLOG(EXCEPTION, "#%x\t%x\t\t%p\t%p\t%p\t%p", i, stackInfo[i].GetFrameType(),
+            DLOG(EXCEPTION, "#%x\t%x\t\t%x\t%x\t0x%x\t0x%x", i, stackInfo[i].GetFrameType(),
                  stackInfo[i].mFrame.GetFA(), stackInfo[i].mFrame.GetIP(),
                  reinterpret_cast<uintptr_t>(stackInfo[i].GetStartProc()),
                  reinterpret_cast<uintptr_t>(stackInfo[i].GetLsdaProc()));
@@ -107,7 +107,6 @@ void ExceptionHandling::BuildEHFrameInfo()
     std::vector<std::unique_ptr<IEHFrameInfo>>& ehFrameInfos = eWrapper->GetEHFrameInfos();
     for (const auto& frame : stackInfo) {
         if (frame.GetFrameType() == FrameType::MANAGED) {
-            DLOG_INTERPRETER(DEBUG, "[BuildEHFrameInfo]: managed");
             ehFrameInfos.push_back(std::make_unique<EHFrameInfo>(frame, *eWrapper));
             if (ehFrameInfos.back()->IsCatchException()) {
                 eWrapper->SetIsCaught(true);
@@ -117,7 +116,6 @@ void ExceptionHandling::BuildEHFrameInfo()
             }
 #ifdef INTERPRETER_ENABLED
         } else if (frame.GetFrameType() == FrameType::INTERPRETER || frame.GetFrameType() == FrameType::INTERPRETER_C2I) {
-            DLOG_INTERPRETER(DEBUG, "[BuildEHFrameInfo]: interpreter");
             ehFrameInfos.push_back(std::make_unique<InterpreterEHFrameInfo>(frame, GetCommonInterpreterLandingPad()));
             eWrapper->SetIsCaught(true);
             eWrapper->SetTypeIndex(0);
@@ -125,7 +123,6 @@ void ExceptionHandling::BuildEHFrameInfo()
             break;
 #endif
         } else {
-            DLOG_INTERPRETER(DEBUG, "[BuildEHFrameInfo]: other, %d", frame.GetFrameType());
             lastRuntimeFrame = frame;
         }
     }

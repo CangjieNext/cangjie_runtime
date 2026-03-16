@@ -19,10 +19,10 @@
 #include "TypeInfoManager.h"
 #include "ObjectModel/MArray.h"
 #include "ObjectModel/MClass.h"
-#include "Options.h"
 
 #include "InterpreterSpecific.h"
 
+using namespace MRTExport;
 namespace MapleRuntime {
 
 struct {
@@ -47,21 +47,6 @@ struct {
     }
 
 } interpreterInterfaceInstance;
-
-bool IsManagedEntrypointAddr(const uint32_t* addr)
-{
-    if (!interpreterInterfaceInstance) {
-        return false;
-    }
-
-    size_t address = reinterpret_cast<size_t>(addr);
-
-    DLOG_INTERPRETER(DEBUG, "[Interpreter] Checking MEP borders: is %p in (%p, %p)?", addr,
-        interpreterInterfaceInstance->entrypointStartAddr,
-        interpreterInterfaceInstance->entrypointEndAddr);
-
-    return interpreterInterfaceInstance->entrypointStartAddr <= address && address < interpreterInterfaceInstance->entrypointEndAddr;
-}
 
 void ProvideInterpretedFrameInfo(uint64_t fp, uint64_t ip, interpreted_frame_info_t* fInfo)
 {
@@ -216,47 +201,16 @@ obj_ref_t ArrayAllocate(type_info_t tpe, uint64_t size)
 
 void SafePoint() 
 {
-    DLOG_INTERPRETER(DEBUG, "[C impl] safe point");
+    DLOG_INTERPRETER(DEBUG, "[Interpreter] safe point");
 
     // TODO: reduce gc-point overhead
     ScopedEnterSaferegion gcpoint(true);
-}
-
-void StackCheck() 
-{
-    DLOG_INTERPRETER(DEBUG, "[Interpreter] stack check");
 }
 
 void ThrowException(obj_ref_t exception) 
 {
     DLOG_INTERPRETER(DEBUG, "[Interpreter] ThrowException %p", exception);
     ExceptionManager::ThrowException(static_cast<ExceptionRef>(exception));
-}
-
-void ThrowImplicitException(implicit_exception_type_t type) 
-{
-    DLOG_INTERPRETER(DEBUG, "[Interpreter] throwing implicit exception");
-    
-    switch (type)
-    {
-        case StackOverflowException:
-            ExceptionManager::StackOverflow(0, nullptr);
-        case NullPointerException:
-            // TODO support other types of implicit exceptions in stdlib
-        case ArithmeticException:
-            // TODO support other types of implicit exceptions in stdlib
-        case OutOfBoundsException:
-            // TODO support other types of implicit exceptions in stdlib
-        case OutOfMemoryException:
-            ExceptionManager::OutOfMemory();
-            break;
-        default:
-            LOG(RTLOG_FATAL, "Unknown implicit exception type");
-    }
-    
-
-    DLOG_INTERPRETER(DEBUG, "[Interpreter] implicit exception is pending");
-    // Here we simply return to caller (interpreter frame), it should manually process pending exception.
 }
 
 void ThrowOutOfMemoryError() 
@@ -282,14 +236,6 @@ obj_ref_t GetAndClearPendingException()
     DLOG_INTERPRETER(DEBUG, "[Interpreter] cleared pending exception: %p", ref);
 
     return ref;
-}
-
-void SetPendingException(obj_ref_t ref) 
-{
-    DLOG_INTERPRETER(DEBUG, "[Interpreter] SetPendingException %p", ref);
-
-    auto exRef = static_cast<ExceptionRef>(ref); 
-    ExceptionManager::SetPendingException(exRef);
 }
 
 bool InstanceOf(obj_ref_t ref, type_info_t ti) 
@@ -318,16 +264,6 @@ bool IsSubType(type_info_t type_info, type_info_t super_type_info)
     TypeInfo* tInfo = static_cast<TypeInfo*>(type_info);
     TypeInfo* sInfo = static_cast<TypeInfo*>(super_type_info);
     return tInfo->IsSubType(sInfo);
-}
-
-void Dummy() 
-{
-    DLOG_INTERPRETER(DEBUG, "[Interpreter] Dummy");
-}
-
-void* ForeignWrapper(foreign_func f, void* p1, void* p2, void* p3, void* p4, void* p5) 
-{
-    return NULL;
 }
 
 obj_ref_t ReadStaticField(field_ref_t source) 
@@ -464,9 +400,7 @@ void WriteGenericField(obj_ref_t dstObj, uintptr_t dstField, obj_ref_t src, size
 bool IsValidObject(obj_ref_t object) 
 {
     DLOG_INTERPRETER(DEBUG, "[Interpreter] IsValidObject %p", object);
-    auto raw_address = reinterpret_cast<MAddress>(object);
-    RefField<> refField(raw_address);
-    BaseObject* obj = refField.GetTargetObject();
+    BaseObject* obj = reinterpret_cast<BaseObject*>(object);
     if (obj == nullptr) {
         return false; 
     }
@@ -535,13 +469,11 @@ void InitInterpreter(const RuntimeParam& runtimeParam)
         .leave_safe_region = &MRT_LeaveSaferegion,
         .throw_exception = &ThrowException,
         .throw_OOM = &ThrowOutOfMemoryError,
-        .set_pending_exception = &SetPendingException,
         .get_pending_exception = &GetPendingException,
         .get_and_clear_pending_exception = &GetAndClearPendingException,
         .get_exception_wrapper = &GetExceptionWrapper,
         .post_throw_exception = &PostThrowException,
         .get_current_catch_function_PC = &GetCurrentCatchFunctionPC,
-        .foreign_call = (foreign_call_f)&ForeignWrapper,
         .instance_of = &InstanceOf,
         .is_sub_type = &IsSubType,
         .visit_fiber_root_from_interpreter = &VisitLocalRootFromInterpreter,
@@ -573,73 +505,21 @@ void InitInterpreter(const RuntimeParam& runtimeParam)
     interpreterInterfaceInstance.initialize(interpreterInterface);
 }
 
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-// Maybe be called from Cangjie code to simulate interpreted
-// package initialization after stdlib initialization,
-// but before actual main.
-//
-// Example:
-//
-//     foreign func MRT_InterpretCBCNoArgs(): Unit
-//
-//     main() {
-//         unsafe { MRT_InterpretCBCNoArgs() }
-//         ...
-//     }
-//
-// !!! WARNING !!!
-// In general such invocation of interpretation as foreign function is incorrect
-// and may lead to missed references during GC and other severe problems with stack iteration.
-//
-// FE should support this function as @Intrinsic and call as any other runtime function,
-// not as foreign C function.
-//
-void MRT_InterpretCBCNoArgs()
+bool IsC2IStubAddr(const uintptr_t address)
 {
-    if (!interpreterInterfaceInstance) return;
-
-    DLOG_INTERPRETER(DEBUG, "[Interpreter] MRT_InterpretCBCNoArgs was called");
-
-    uintptr_t threadData = MRT_GetThreadLocalData();
-    void* execute = reinterpret_cast<void*>(interpreterInterfaceInstance->interpretNoParams);
-
-    DLOG_INTERPRETER(DEBUG, "TLS:     %p",   ((ThreadLocalData*)threadData));
-    DLOG_INTERPRETER(DEBUG, "Mutator: %p\n", ((ThreadLocalData*)threadData)->mutator);
-
-    // run interpreter through ExecuteCangjieStub to set up thread local data to r15 before interpretation
-    int32_t cbcRes = static_cast<int32_t>(
-        reinterpret_cast<uintptr_t>(ExecuteCangjieStub(0, 0, 0, execute, reinterpret_cast<void*>(threadData), 0)));
-
-    if (cbcRes != 0) {
-        LOG(RTLOG_FATAL, "Interpreter failed with error code %d\n", cbcRes);
-    }
-}
-
-MRT_EXPORT void CJ_MRT_InterpretCBCNoArgs() __attribute__((alias("MRT_InterpretCBCNoArgs")));
-
-#ifdef __cplusplus
-};
-#endif
-
-bool IsC2IVirtualExecutorAddr(const uintptr_t address)
-{
-    bool res = interpreterInterfaceInstance->c2iVirtualExecutorAddr <= address && address < interpreterInterfaceInstance->c2iVirtualExecutorEndAddr;
+    bool res = interpreterInterfaceInstance->c2iStubStartAddr <= address && address < interpreterInterfaceInstance->c2iStubEndAddr;
     DLOG_INTERPRETER(DEBUG, "[Interpreter] Checking c2i virtual executor borders: is %p in [%p, %p)? -- %s", address,
-        interpreterInterfaceInstance->c2iVirtualExecutorAddr,
-        interpreterInterfaceInstance->c2iVirtualExecutorEndAddr, res ? "true" : "false");
+        interpreterInterfaceInstance->c2iStubStartAddr,
+        interpreterInterfaceInstance->c2iStubEndAddr, res ? "true" : "false");
     return res;
 }
 
-bool IsI2IFunctionAddr(const uintptr_t address)
+bool Isi2iAdapterStartAddr(const uintptr_t address)
 {
-    bool res = interpreterInterfaceInstance->i2iFunctionAddr <= address && address < interpreterInterfaceInstance->i2iFunctionEndAddr;
+    bool res = interpreterInterfaceInstance->i2iAdapterStartAddr <= address && address < interpreterInterfaceInstance->i2iAdapterEndAddr;
     DLOG_INTERPRETER(DEBUG, "[Interpreter] Checking i2i function borders: is %p in [%p, %p)? -- %s", address,
-        interpreterInterfaceInstance->i2iFunctionAddr,
-        interpreterInterfaceInstance->i2iFunctionEndAddr, res ? "true" : "false");
+        interpreterInterfaceInstance->i2iAdapterStartAddr,
+        interpreterInterfaceInstance->i2iAdapterEndAddr, res ? "true" : "false");
     return res;
 }
 

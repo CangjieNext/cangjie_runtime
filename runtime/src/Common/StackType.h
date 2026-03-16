@@ -167,8 +167,6 @@ public:
 #ifdef INTERPRETER_ENABLED
     bool IsInterpreterFrame() const;
 
-    bool IsInterpreterEntryPointFrame() const;
-
     bool IsC2IStubFrame() const;
 
     bool IsI2IFrame() const;

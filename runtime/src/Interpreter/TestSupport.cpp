@@ -1,5 +1,12 @@
 #include "TestSupport.h"
 #ifdef TEST
+#include "ObjectModel/ExtensionData.h"
+#include "ObjectModel/MClass.h"
+#include "TypeInfoManager.h"
+#include "Base/LogFile.h"
+#include "LoaderManager.h"
+
+#include <dlfcn.h>
 
 
 namespace MapleRuntime {

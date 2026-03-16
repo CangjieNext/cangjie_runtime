@@ -80,7 +80,9 @@ public:
 #endif
 
     static bool IsRuntimeFrame(Uptr pc);
+#ifdef INTERPRETER_ENABLED
     static bool IsInterpreterCodeAddr(Uptr pc);
+#endif
     friend class MachineFrame;
 
 private:

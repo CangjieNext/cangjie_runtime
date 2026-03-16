@@ -10,7 +10,6 @@
 #include "Common/StackType.h"
 #include "StackManager.h"
 #include "securec.h"
-#include "Interpreter/Options.h"
 #include "Interpreter/InterpreterSpecific.h"
 #ifdef _WIN64
 #include "Common/Runtime.h"
@@ -64,16 +63,12 @@ bool MachineFrame::IsInterpreterFrame() const {
     return StackManager::IsInterpreterCodeAddr(reinterpret_cast<uintptr_t>(ip));
 }
 
-bool MachineFrame::IsInterpreterEntryPointFrame() const {
-    return IsManagedEntrypointAddr(ip);
-}
-
 bool MachineFrame::IsC2IStubFrame() const {
-    return IsC2IVirtualExecutorAddr(reinterpret_cast<uintptr_t>(ip));
+    return IsC2IStubAddr(reinterpret_cast<uintptr_t>(ip));
 }
 
 bool MachineFrame::IsI2IFrame() const {
-    return IsI2IFunctionAddr(reinterpret_cast<uintptr_t>(ip));
+    return Isi2iAdapterStartAddr(reinterpret_cast<uintptr_t>(ip));
 }
 #endif
 

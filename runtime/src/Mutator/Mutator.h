@@ -21,7 +21,6 @@
 #include "UnwindWin.h"
 #endif
 #include "Interpreter/RTInterface.h"
-#include "Interpreter/Options.h"
 
 
 namespace MapleRuntime {
@@ -511,7 +510,6 @@ private:
             }
         }
     }
-
     // Indicate the current mutator phase and use which barrier in concurrent gc
     // ATTENTION: THE LAYOUT FOR GCPHASE MUST NOT BE CHANGED!
     std::atomic<GCPhase> mutatorPhase = { GCPhase::GC_PHASE_UNDEF };
@@ -572,10 +570,10 @@ public:
     void DestroyInterpreterPart();
 
     // Pointer to data used during hotfix interpreter execution
-    fiber_specific_data_t interpreterFiberData;
+    MRTExport::fiber_specific_data_t interpreterFiberData;
     bool isRuntimeMutator = false;
 
-    void setRuntimeMutator() {
+    void markAsRuntimeMutator() {
         isRuntimeMutator = true;
     }
 #endif
