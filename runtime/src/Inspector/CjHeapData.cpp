@@ -180,23 +180,53 @@ void CjHeapData::ProcessHeapObject(BaseObject* obj)
         MArray* mArray = reinterpret_cast<MArray*>(obj);
         TypeInfo* componentTypeInfo = mArray->GetComponentTypeInfo();
         if (componentTypeInfo->IsPrimitiveType()) {
-            DumpObject dumpObject = { obj, TAG_PRIMITIVE_ARRAY_DUMP, 0, 0 };
+            u1 tag = TAG_PRIMITIVE_ARRAY_DUMP;
+            auto regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
+            if (regionInfo->IsLargeRegion()) {
+                tag = TAG_LARGE_PRIMITIVE_ARRAY_DUMP;
+            } else if (regionInfo->IsUnmovableFromRegion()) {
+                tag = TAG_UNMOVABLE_PRIMITIVE_ARRAY_DUMP;
+            }
+            DumpObject dumpObject = { obj, tag, 0, 0 };
             dumpObjects.push_back(dumpObject);
         } else if (componentTypeInfo->IsStructType()) {
-            DumpObject dumpObject = { obj, TAG_STRUCT_ARRAY_DUMP, 0, 0 };
+            u1 tag = TAG_STRUCT_ARRAY_DUMP;
+            auto regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
+            if (regionInfo->IsLargeRegion()) {
+                tag = TAG_LARGE_STRUCT_ARRAY_DUMP;
+            } else if (regionInfo->IsUnmovableFromRegion()) {
+                tag = TAG_UNMOVABLE_STRUCT_ARRAY_DUMP;
+            }
+            DumpObject dumpObject = { obj, tag, 0, 0 };
             dumpObjects.push_back(dumpObject);
             ProcessStructClass(obj->GetTypeInfo());
             return;
         } else if (componentTypeInfo->IsObjectType() ||
                    componentTypeInfo->IsArrayType() ||
                    componentTypeInfo->IsInterface()) {
-            DumpObject dumpObject = { obj, TAG_OBJECT_ARRAY_DUMP, 0, 0 };
+                u1 tag = TAG_OBJECT_ARRAY_DUMP;
+                auto regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
+                if (regionInfo->IsLargeRegion()) {
+                    tag = TAG_LARGE_OBJECT_ARRAY_DUMP;
+                } else if (regionInfo->IsUnmovableFromRegion()) {
+                    tag = TAG_UNMOVABLE_OBJECT_ARRAY_DUMP;
+                }
+            DumpObject dumpObject = { obj, tag, 0, 0 };
             dumpObjects.push_back(dumpObject);
         } else {
             LOG(RTLOG_ERROR, "array object %p has wrong component type", mArray);
         }
     } else if (obj->GetTypeInfo()->IsVaildType()) {
-        DumpObject dumpObject = { obj, TAG_INSTANCE_DUMP, 0, 0 };
+        u1 tag = TAG_INSTANCE_DUMP;
+        auto regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
+        if (regionInfo->IsPinnedRegion()) {
+            tag = TAG_PINNED_INSTANCE_DUMP;
+        } else if (regionInfo->IsLargeRegion()) {
+            tag = TAG_LARGE_INSTANCE_DUMP;
+        } else if (regionInfo->IsUnmovableFromRegion()) {
+            tag = TAG_UNMOVABLE_INSTANCE_DUMP;
+        }
+        DumpObject dumpObject = { obj, tag, 0, 0 };
         dumpObjects.push_back(dumpObject);
     } else {
         LOG(RTLOG_ERROR, "object %p has wrong component type", obj);
