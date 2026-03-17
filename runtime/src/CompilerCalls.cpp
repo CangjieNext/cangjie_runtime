@@ -386,12 +386,15 @@ extern "C" bool MCC_IsGCRunning() { return Heap::GetHeap().IsGcStarted(); }
 
 extern "C" bool MCC_DumpCJHeapData(int fd)
 {
-    ScopedEnterSaferegion enterSaferegion(false);
-    CjHeapData* cjHeapData = new CjHeapData();
-    CHECK_DETAIL(cjHeapData != nullptr, "new cjHeapData fail");
-    bool result = cjHeapData->DumpHeap(fd);
-    delete cjHeapData;
-    return result;
+    // Fork child process to perform heap dump asynchronously
+    // Parent process does not wait, returns immediately
+    LOG(RTLOG_ERROR, "start child process for heap dump from compiler calls");
+    pid_t childPid = CjHeapData::ForkAndDumpHeap(fd, false);
+    if (childPid < 0) {
+        LOG(RTLOG_ERROR, "Failed to start child process for heap dump from compiler calls");
+        return false;
+    }
+    return true;
 }
 
 extern "C" size_t MCC_GetCJThreadNumber() { return ScheduleCJThreadCountPublic(CJTHREAD_PSTATE_ALL); }
