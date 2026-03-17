@@ -24,6 +24,8 @@
 #include "UnwindStack/PrintStackInfo.h"
 #include "UnwindStack/StackInfo.h"
 #include "UnwindStack/StackMetadataHelper.h"
+#include <Mutator/MutatorManager.h>
+
 namespace MapleRuntime {
 static bool g_oomIsTrigged = false;
 
@@ -53,11 +55,12 @@ void CjHeapData::ProcessHeap()
     CHECK_E(UNLIKELY(!ret), "theAllocator.ForEachObj() in DumpHeap() return false.");
 }
 
-void CjHeapData::DumpHeap()
+void CjHeapData::DumpHeap(bool needStopTheWorld)
 {
     // step1 - open file
     CString specifiedPath;
     if (dumpAfterOOM && !g_oomIsTrigged) {
+        LOG(RTLOG_ERROR, "OOM DumpHeap dumpafteroom");
         g_oomIsTrigged = true;
         Logger::GetLogger().GetLogPath("cjHeapDumpLog", specifiedPath);
         auto pid = MapleRuntime::GetPid();
@@ -67,6 +70,11 @@ void CjHeapData::DumpHeap()
 #else
         const char* separator = "/";
 #endif
+#if defined(__OHOS__) && (__OHOS__ == 1)
+        dumpFile = CString("/data/storage/el2/base/haps/entry/files/dump.hprof");
+        fp = fopen(dumpFile.Str(), "wb");
+        LOG(RTLOG_ERROR, "OOM DumpHeap write into dump.hprof");
+#else
         if (specifiedPath.IsEmpty()) {
             // dump to current path
             fp = fopen(dumpFile.Str(), "wb");
@@ -77,9 +85,15 @@ void CjHeapData::DumpHeap()
             fp = fopen(dumpFile.Str(), "wb");
             PRINT_INFO("Heap dump log is writing into %s ...\n", dumpFile.Str());
         }
+#endif
     } else {
         // dump for cjprof
+#if defined(__OHOS__) && (__OHOS__ == 1)
+        fp = fopen("/data/storage/el2/base/haps/entry/files/dump.hprof", "wb");
+        LOG(RTLOG_ERROR, "OOM DumpHeap dump for cjprof write into dump.hprof");
+#else
         fp = fopen("item_data.dat.cache", "wb");
+#endif
     }
 
     if (!fp) {
@@ -87,13 +101,22 @@ void CjHeapData::DumpHeap()
         return;
     }
     // step2 - write file
-    ScopedStopTheWorld scopedStopTheWorld("dump heap to file");
-    size_t allocatedSize = Heap::GetHeap().GetAllocatedSize();
-    // 40: Statistical ratio of heap size to object count, used to estimate container capacity
-    const size_t estimateSize = 40;
-    dumpObjects.reserve(allocatedSize / estimateSize);
-    ProcessHeap();
-    WriteHeap();
+    if (needStopTheWorld) {
+        ScopedStopTheWorld scopedStopTheWorld("dump heap to file");
+        size_t allocatedSize = Heap::GetHeap().GetAllocatedSize();
+        // 40: Statistical ratio of heap size to object count, used to estimate container capacity
+        const size_t estimateSize = 40;
+        dumpObjects.reserve(allocatedSize / estimateSize);
+        ProcessHeap();
+        WriteHeap();
+    } else {
+        size_t allocatedSize = Heap::GetHeap().GetAllocatedSize();
+        // 40: Statistical ratio of heap size to object count, used to estimate container capacity
+        const size_t estimateSize = 40;
+        dumpObjects.reserve(allocatedSize / estimateSize);
+        ProcessHeap();
+        WriteHeap();
+    }
 
     // step3 - close file
     int ret = fclose(fp);
@@ -113,7 +136,7 @@ void CjHeapData::DumpHeap()
     }
 }
 
-bool CjHeapData::DumpHeap(int fd)
+bool CjHeapData::DumpHeap(int fd, bool needStopTheWorld)
 {
     int copyfd = dup(fd);
     if (copyfd == -1) {
@@ -126,13 +149,22 @@ bool CjHeapData::DumpHeap(int fd)
         return false;
     }
 
-    ScopedStopTheWorld scopedStopTheWorld("dump heap to fd");
-    size_t allocatedSize = Heap::GetHeap().GetAllocatedSize();
-    // 40: Statistical ratio of heap size to object count, used to estimate container capacity
-    const size_t estimateSize = 40;
-    dumpObjects.reserve(allocatedSize / estimateSize);
-    ProcessHeap();
-    WriteHeap();
+    if (needStopTheWorld) {
+        ScopedStopTheWorld scopedStopTheWorld("dump heap to fd");
+        size_t allocatedSize = Heap::GetHeap().GetAllocatedSize();
+        // 40: Statistical ratio of heap size to object count, used to estimate container capacity
+        const size_t estimateSize = 40;
+        dumpObjects.reserve(allocatedSize / estimateSize);
+        ProcessHeap();
+        WriteHeap();
+    } else {
+        size_t allocatedSize = Heap::GetHeap().GetAllocatedSize();
+        // 40: Statistical ratio of heap size to object count, used to estimate container capacity
+        const size_t estimateSize = 40;
+        dumpObjects.reserve(allocatedSize / estimateSize);
+        ProcessHeap();
+        WriteHeap();
+    }
 
     // fclose will close fd
     // if fclose success, no need to close fd.
@@ -889,5 +921,37 @@ CjHeapData::CjHeapDataStringId CjHeapData::LookupStringId(const CString& string)
         stringId++;
     }
     return res.first->second;
+}
+
+pid_t CjHeapData::ForkAndDumpHeap(int fd, bool fromOOM)
+{
+    LOG(RTLOG_INFO, "enter ForkAndDumpHeap start to fork the child process");
+    pid_t childPid = fork();
+    if (childPid < 0) {
+        // Fork failed
+        LOG(RTLOG_ERROR, "Failed to fork child process for heap dump: %s", strerror(errno));
+        return -1;
+    } else if (childPid == 0) {
+        // Child process - execute heap dump
+        LOG(RTLOG_ERROR, "Child process started for heap dump, pid: %d", getpid());
+        CjHeapData* cjHeapData = new CjHeapData(fromOOM);
+        if (cjHeapData != nullptr) {
+            if (fd >= 0) {
+                cjHeapData->DumpHeap(fd, false);
+            } else {
+                cjHeapData->DumpHeap(false);
+            }
+            LOG(RTLOG_ERROR, "Child process completed heap dump successfully");
+            delete cjHeapData;
+        } else {
+            LOG(RTLOG_ERROR, "Failed to allocate CjHeapData in child process");
+        }
+        
+        // Exit child process
+        _exit(0);
+    }
+    // Parent process - return child pid immediately without waiting
+    LOG(RTLOG_INFO, "Forked child process %d for heap dump, parent process continues", childPid);
+    return childPid;
 }
 } // namespace MapleRuntime
