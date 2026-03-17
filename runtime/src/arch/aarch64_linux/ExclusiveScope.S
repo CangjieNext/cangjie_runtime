@@ -176,6 +176,7 @@ unwindPCForExclusiveStub:
     // Switch to OS thread
     add     x27, x23, #THREAD_CONTEXT_OFFSET
     ldr     x0, [x27, #CONTEXT_SP]
+    cbz     x0, .L_exc_skip_stack_switch
     mov     sp, x0
     ldr     w0, [x27, #CONTEXT_FPCR]
     msr     fpcr, x0
