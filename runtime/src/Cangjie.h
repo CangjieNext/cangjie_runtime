@@ -323,10 +323,9 @@ struct ConcurrencyParam {
 #ifdef INTERPRETER_ENABLED
 struct InterpreterParam {
     const MapleRuntime::FixedCString interpreterLibName;
-    const bool interpreterEnabled = false;
 
-    explicit InterpreterParam(bool enabled, MapleRuntime::FixedCString interpreterLibName) 
-        : interpreterLibName(interpreterLibName), interpreterEnabled(enabled) {}
+    explicit InterpreterParam(MapleRuntime::FixedCString interpreterLibName) 
+        : interpreterLibName(interpreterLibName) {}
 
     InterpreterParam(): interpreterLibName() {}
 };
