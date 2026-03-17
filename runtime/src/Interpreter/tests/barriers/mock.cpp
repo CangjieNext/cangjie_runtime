@@ -346,7 +346,7 @@ void BarriersMock::testBarriers() {
     int saveEveryNth = 100;
     for (int i = 0; i < SAVED_ROOTS_N * saveEveryNth; i++) {
         if (i % saveEveryNth == 0) {
-            adjustableRoots[i / saveEveryNth] = interface.object_alloc(tiObject);
+            interface.write_static_field(&adjustableRoots[i / saveEveryNth], interface.object_alloc(tiObject));
         } else {
             interface.object_alloc(tiObject); // allocate junk so adjustable roots can be compacted
         }
@@ -450,7 +450,7 @@ void BarriersMock::testBarriers() {
     bool isSomethingWasMoved = false;
     for (int i = 0; i < SAVED_ROOTS_N; i++) {
         auto old_real_address = getUntaggedAddress(savedRoots[i]);
-        auto new_real_address = getUntaggedAddress(adjustableRoots[i]);
+        auto new_real_address = getUntaggedAddress(interface.read_static_field(&adjustableRoots[i]));
         if (new_real_address != old_real_address) {
             isSomethingWasMoved = true;
             log("[Mock] adjustable root %d was moved: old address = %p, new address = %p\n", 
@@ -489,9 +489,7 @@ void staticReadBarrierFast(obj_ref_t* static_object_placeholder) {
  */
 void staticWriteBarrierFast(obj_ref_t* static_object_placeholder) {
     auto interface = mockInstance.cjNativeInterface;
-    auto thread_local_data = reinterpret_cast<ThreadLocalDataMirror*>(interface.get_thread_local_data());
-    MutatorMirror* mutator = thread_local_data->mutator;
-    if (mutator->GetMutatorPhase() >= GCPhaseMirror::GC_PHASE_ENUM) {
+    if (interface.is_active_gc_phase(interface.get_thread_local_data())) {
         // slow path
         interface.write_static_field(static_object_placeholder, frameRoots[0]);
     } else {
@@ -506,9 +504,7 @@ void staticWriteBarrierFast(obj_ref_t* static_object_placeholder) {
  */
 void instanceWriteBarrierRecordFast(obj_ref_t object, uintptr_t dst, uintptr_t src, size_t size) {
     auto interface = mockInstance.cjNativeInterface;
-    auto thread_local_data = reinterpret_cast<ThreadLocalDataMirror*>(interface.get_thread_local_data());
-    MutatorMirror* mutator = thread_local_data->mutator;
-    if (mutator->GetMutatorPhase() >= GCPhaseMirror::GC_PHASE_ENUM) {
+    if (interface.is_active_gc_phase(interface.get_thread_local_data())) {
         // slow path
         interface.write_struct_field(object, dst, src, size);
     } else {

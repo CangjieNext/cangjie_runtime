@@ -14,7 +14,7 @@ class ThreadLocalDataTestMock : public Mock {
         static void visitFrameRoots(root_visitor_t visitor, frame_desc_t desc);
         static int  doOnEntrypoint(char* func_name);
         static void doOnFiberStart(fiber_specific_data_t* data);
-        static void testThreadLocalData(ThreadLocalDataMirror* thread_local_data_arg);
+        static void testThreadLocalData(thread_local_data_t thread_local_data_arg);
         static void init();
         static void stop();
 };

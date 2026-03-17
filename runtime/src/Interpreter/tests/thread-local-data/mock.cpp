@@ -142,10 +142,9 @@ void staticReadBarrierFast(obj_ref_t* static_object_placeholder) {
  * Writes a referense from frameRoots[0] to provided static field.
  * Simulates a write barrier with fast path.
  */
-void staticWriteBarrierFast(obj_ref_t* static_object_placeholder, ThreadLocalDataMirror* thread_local_data) {
+void staticWriteBarrierFast(obj_ref_t* static_object_placeholder, thread_local_data_t thread_local_data) {
     auto interface = mockInstance.cjNativeInterface;
-    MutatorMirror* mutator = thread_local_data->mutator;
-    if (mutator->GetMutatorPhase() >= GCPhaseMirror::GC_PHASE_ENUM) {
+    if (interface.is_active_gc_phase(thread_local_data)) {
         // slow path
         interface.write_static_field(static_object_placeholder, frameRoots[0]);
     } else {
@@ -158,10 +157,9 @@ void staticWriteBarrierFast(obj_ref_t* static_object_placeholder, ThreadLocalDat
  * Writes a record from src to dst field of object.
  * Simulates a write barrier with fast path.
  */
-void instanceWriteBarrierRecordFast(obj_ref_t object, uintptr_t dst, uintptr_t src, size_t size, ThreadLocalDataMirror* thread_local_data) {
+void instanceWriteBarrierRecordFast(obj_ref_t object, uintptr_t dst, uintptr_t src, size_t size, thread_local_data_t thread_local_data) {
     auto interface = mockInstance.cjNativeInterface;
-    MutatorMirror* mutator = thread_local_data->mutator;
-    if (mutator->GetMutatorPhase() >= GCPhaseMirror::GC_PHASE_ENUM) {
+    if (interface.is_active_gc_phase(thread_local_data)) {
         // slow path
         interface.write_struct_field(object, dst, src, size);
     } else {
@@ -174,7 +172,7 @@ void instanceWriteBarrierRecordFast(obj_ref_t object, uintptr_t dst, uintptr_t s
  * Allocates an object of given type and updates thread local data, which is possibly changed due to GC-points in allocators.
  * Allocated object is placed in frameRoots[0] to be traceble by GC.
  */
-void allocateObjectAndUpdateTLD(const char* tiName, ThreadLocalDataMirror*& thread_local_data_ref) {
+void allocateObjectAndUpdateTLD(const char* tiName, thread_local_data_t& thread_local_data_ref) {
     auto interface = mockInstance.cjNativeInterface;
     auto ti = interface.type_info(tiName);
     if (!ti) {
@@ -186,10 +184,10 @@ void allocateObjectAndUpdateTLD(const char* tiName, ThreadLocalDataMirror*& thre
         printf("[Mock] error: failed to allocate %s in allocateObjectAndUpdateTLD\n", tiName);
         return;
     }
-    thread_local_data_ref = reinterpret_cast<ThreadLocalDataMirror*>(interface.get_thread_local_data());
+    thread_local_data_ref = interface.get_thread_local_data();
 }
 
-void writeAndCheckRecFieldFast(ThreadLocalDataMirror*& thread_local_data) {
+void writeAndCheckRecFieldFast(thread_local_data_t& thread_local_data) {
     auto interface = mockInstance.cjNativeInterface;
     auto tiObject = interface.type_info("std.core:Object");
     if (!tiObject) {
@@ -228,16 +226,16 @@ void writeAndCheckRecFieldFast(ThreadLocalDataMirror*& thread_local_data) {
     instanceWriteBarrierRecordFast(frameRoots[0], fieldAddr, reinterpret_cast<uintptr_t>(&record_to_write), sizeof(RecFieldMirror), thread_local_data);
 }
 
-void pollSafepointAndUpdateTLD(ThreadLocalDataMirror*& thread_local_data_ref) {
+void pollSafepointAndUpdateTLD(thread_local_data_t& thread_local_data_ref) {
     auto interface = mockInstance.cjNativeInterface;
     interface.safe_point();
-    thread_local_data_ref = reinterpret_cast<ThreadLocalDataMirror*>(interface.get_thread_local_data());
+    thread_local_data_ref = interface.get_thread_local_data();
 }
 
-void ThreadLocalDataTestMock::testThreadLocalData(ThreadLocalDataMirror* thread_local_data_arg) {
+void ThreadLocalDataTestMock::testThreadLocalData(thread_local_data_t thread_local_data_arg) {
     printf("[Mock] testThreadLocalData\n");
     auto interface = mockInstance.cjNativeInterface;
-    ThreadLocalDataMirror* thread_local_data = thread_local_data_arg;
+    thread_local_data_t thread_local_data = thread_local_data_arg;
     auto tiObject = interface.type_info("std.core:Object");
     
     if (!tiObject) {

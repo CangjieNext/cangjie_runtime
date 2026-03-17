@@ -19,6 +19,7 @@
 #include "TypeInfoManager.h"
 #include "ObjectModel/MArray.h"
 #include "ObjectModel/MClass.h"
+#include "Heap/Collector/Collector.h"
 
 #include "InterpreterSpecific.h"
 
@@ -407,6 +408,17 @@ bool IsValidObject(obj_ref_t object)
     return obj->IsValidObject();
 }
 
+thread_local_data_t GetThreadLocalData()
+{
+    return reinterpret_cast<thread_local_data_t>(MRT_GetThreadLocalData());
+}
+
+bool IsActiveGCPhase(thread_local_data_t tld) {
+    ThreadLocalData* threadLocalData = static_cast<ThreadLocalData*>(tld);
+    Mutator* mutator = threadLocalData->mutator;
+    return mutator->GetMutatorPhase() >= GCPhase::GC_PHASE_ENUM;
+}
+
 exception_wrapper_t GetExceptionWrapper() 
 {
     DLOG_INTERPRETER(DEBUG, "[Interpreter] GetExceptionWrapper");
@@ -495,7 +507,8 @@ void InitInterpreter(const RuntimeParam& runtimeParam)
         .get_array_ref_element = &GetArrayElement,
         .set_array_ref_element = &SetArrayElement,
         .is_valid_object = &IsValidObject,
-        .get_thread_local_data = &MRT_GetThreadLocalData,
+        .get_thread_local_data = &GetThreadLocalData,
+        .is_active_gc_phase = &IsActiveGCPhase,
     };
 
     interpreter_interface_t interpreterInterface;

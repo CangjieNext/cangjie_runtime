@@ -55,7 +55,7 @@ void ForeignTestMock::visitGlobalRoots(root_visitor_t visitor) {
 void ForeignTestMock::testForeignCall() {
     printf("[Mock] #0 testForeignCall: do foreign call from interpreter\n");
     auto interface = mockInstance.cjNativeInterface;
-    ThreadLocalDataMirror* thread_local_data = reinterpret_cast<ThreadLocalDataMirror*>(interface.get_thread_local_data());
+    thread_local_data_t thread_local_data = interface.get_thread_local_data();
     mockInstance.invokeI2N(0, 0, 0, 0, "foreignCanBeCalled", thread_local_data);
     printf("[Mock] #0 testForeignCall: finished\n");
 }
@@ -70,7 +70,7 @@ void ForeignTestMock::testGCDuringForeignCall() {
     int saveEveryNth = 100;
     for (int i = 0; i < SAVED_ROOTS_N * saveEveryNth; i++) {
         if (i % saveEveryNth == 0) {
-            adjustableRoots[i / saveEveryNth] = interface.object_alloc(ti);
+            interface.write_static_field(&adjustableRoots[i / saveEveryNth], interface.object_alloc(ti));
         } else {
             interface.object_alloc(ti); // allocate junk so adjustable roots can be compacted
         }
@@ -81,7 +81,7 @@ void ForeignTestMock::testGCDuringForeignCall() {
 
     printf("[Mock] making foreign call\n");
 
-    ThreadLocalDataMirror* thread_local_data = reinterpret_cast<ThreadLocalDataMirror*>(interface.get_thread_local_data());
+    thread_local_data_t thread_local_data = interface.get_thread_local_data();
     mockInstance.invokeI2N(0, 0, 0, 0, "longRunningForeignCall", thread_local_data);
 
     printf("[Mock] returned from foreign call\n");
@@ -89,13 +89,13 @@ void ForeignTestMock::testGCDuringForeignCall() {
     bool isSomethingWasMoved = false;
     for (int i = 0; i < SAVED_ROOTS_N; i++) {
         auto old_real_address = getUntaggedAddress(savedRoots[i]);
-        auto new_real_address = getUntaggedAddress(adjustableRoots[i]);
+        auto new_real_address = getUntaggedAddress(interface.read_static_field(&adjustableRoots[i]));
         if (new_real_address != old_real_address) {
             isSomethingWasMoved = true;
             log("[Mock] adjustable root %d was moved: old address = %p, new address = %p\n", 
                 i, (void*)old_real_address, (void*)new_real_address);
             }
-            if (!interface.is_valid_object(adjustableRoots[i])) {
+            if (!interface.is_valid_object(interface.read_static_field(&adjustableRoots[i]))) {
                 printf("[Mock] error: adjustable root %d is invalid after compaction\n", i);
                 return;
             }
@@ -113,7 +113,7 @@ void ForeignTestMock::testGCDuringForeignCall() {
     void ForeignTestMock::testCangjieCallback() {
         printf("[Mock] #2 testCangjieCallback: do foreign call which calls compiled @C callback\n");
         auto interface = mockInstance.cjNativeInterface;
-        ThreadLocalDataMirror* thread_local_data = reinterpret_cast<ThreadLocalDataMirror*>(interface.get_thread_local_data());
+        thread_local_data_t thread_local_data = interface.get_thread_local_data();
         mockInstance.invokeI2N(1234, 0, 0, 0, "call_callback", thread_local_data);
         printf("[Mock] #2 testCangjieCallback: finished\n");
     }
@@ -122,7 +122,7 @@ void ForeignTestMock::testGCDuringForeignCall() {
     void ForeignTestMock::testCangjieCallbackThrowingException() {
         printf("[Mock] #3 testCangjieCallbackThrowingException: do foreign call which calls compiled @C callback which throws an exception\n");
         auto interface = mockInstance.cjNativeInterface;
-        ThreadLocalDataMirror* thread_local_data = reinterpret_cast<ThreadLocalDataMirror*>(interface.get_thread_local_data());
+        thread_local_data_t thread_local_data = interface.get_thread_local_data();
         mockInstance.invokeI2N(-1, 0, 0, 0, "call_callback", thread_local_data);
         printf("[Mock] #3 testCangjieCallbackThrowingException: error\n");
     }

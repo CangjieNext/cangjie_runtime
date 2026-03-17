@@ -39,8 +39,8 @@ extern "C" {
     extern void C2I_Stub_End();           // defined in C2I_Stub.s
     extern struct VirtFuncContainer virtualFuncs;
     
-    extern uintptr_t I2C_Stub(uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, void* funcAddr, uintptr_t threadLocalData); // defined in I2C_Stub.s
-    extern uintptr_t I2N_Stub(uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, void* funcAddr, uintptr_t threadLocalData); // defined in I2N_Stub.s
+    extern uintptr_t I2C_Stub(uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, void* funcAddr, thread_local_data_t threadLocalData); // defined in I2C_Stub.s
+    extern uintptr_t I2N_Stub(uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, void* funcAddr, thread_local_data_t threadLocalData); // defined in I2N_Stub.s
 
     extern void I2I_Stub(uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, void* funcAddr); // defined in I2I_Stub.s
     extern void I2I_Stub_End();           // defined in I2I_Stub.s
@@ -74,29 +74,28 @@ class Mock {
             return I2C_Stub(arg1, arg2, arg3, arg4, symAddr, cjNativeInterface.get_thread_local_data());
         }
 
-        void invokeI2C(const char* funcName, ThreadLocalDataMirror*& thread_local_data) {
+        void invokeI2C(const char* funcName, thread_local_data_t& thread_local_data) {
             invokeI2C(0, 0, 0, 0, funcName, thread_local_data);
         }
 
-        uintptr_t invokeI2C(uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, const char* funcName, ThreadLocalDataMirror*& thread_local_data) {
+        uintptr_t invokeI2C(uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, const char* funcName, thread_local_data_t& thread_local_data) {
             void* symAddr = get_symbol_address(funcName);
             assert(symAddr != nullptr);
-            uintptr_t res = I2C_Stub(arg1, arg2, arg3, arg4, symAddr, reinterpret_cast<uintptr_t>(thread_local_data));
+            uintptr_t res = I2C_Stub(arg1, arg2, arg3, arg4, symAddr, thread_local_data);
 
             // update thread local data after returning from compiled code
-            thread_local_data = reinterpret_cast<ThreadLocalDataMirror*>(cjNativeInterface.get_thread_local_data());
+            thread_local_data = cjNativeInterface.get_thread_local_data();
 
             return res;
         }
 
-        uintptr_t invokeI2N(uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, const char* funcName, ThreadLocalDataMirror*& thread_local_data) {
+        uintptr_t invokeI2N(uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, const char* funcName, thread_local_data_t& thread_local_data) {
             void* symAddr = get_symbol_address(funcName);
             assert(symAddr != nullptr);
-            ThreadLocalDataMirror* tldptr = thread_local_data;
-            uintptr_t res = I2N_Stub(arg1, arg2, arg3, arg4, symAddr, reinterpret_cast<uintptr_t>(tldptr));
+            uintptr_t res = I2N_Stub(arg1, arg2, arg3, arg4, symAddr, thread_local_data);
 
             // update thread local data
-            thread_local_data = reinterpret_cast<ThreadLocalDataMirror*>(cjNativeInterface.get_thread_local_data());
+            thread_local_data = cjNativeInterface.get_thread_local_data();
 
             return res;
         }
