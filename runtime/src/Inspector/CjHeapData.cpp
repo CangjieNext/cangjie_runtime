@@ -110,7 +110,7 @@ void CjHeapData::DumpHeap()
         return;
     }
     // step2 - write file
-    ScopedStopTheWorld scopedStopTheWorld("dump heap to file");
+    //ScopedStopTheWorld scopedStopTheWorld("dump heap to file");
     size_t allocatedSize = Heap::GetHeap().GetAllocatedSize();
     // 40: Statistical ratio of heap size to object count, used to estimate container capacity
     const size_t estimateSize = 40;
@@ -149,7 +149,7 @@ bool CjHeapData::DumpHeap(int fd)
         return false;
     }
 
-    ScopedStopTheWorld scopedStopTheWorld("dump heap to fd");
+    //ScopedStopTheWorld scopedStopTheWorld("dump heap to fd");
     size_t allocatedSize = Heap::GetHeap().GetAllocatedSize();
     // 40: Statistical ratio of heap size to object count, used to estimate container capacity
     const size_t estimateSize = 40;
