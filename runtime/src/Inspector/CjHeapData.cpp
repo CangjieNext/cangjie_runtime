@@ -24,6 +24,8 @@
 #include "UnwindStack/PrintStackInfo.h"
 #include "UnwindStack/StackInfo.h"
 #include "UnwindStack/StackMetadataHelper.h"
+#include <Mutator/MutatorManager.h>
+
 namespace MapleRuntime {
 static bool g_oomIsTrigged = false;
 
@@ -67,6 +69,20 @@ void CjHeapData::DumpHeap()
 #else
         const char* separator = "/";
 #endif
+#if defined(__OHOS__) && (__OHOS__ == 1)
+        // OHOS platform: add /ohos directory to the original path
+        CString ohosPath = CString("/ohos");
+        if (specifiedPath.IsEmpty()) {
+            // dump to /ohos/cj_OOM_pid<pid>.dat
+            dumpFile = ohosPath + separator + dumpFile;
+        } else {
+            // dump to <specifiedPath>/ohos/cj_OOM_pid<pid>.dat
+            dumpFile = specifiedPath + separator + ohosPath + separator + dumpFile;
+        }
+        fp = fopen(dumpFile.Str(), "wb");
+        PRINT_INFO("Heap dump log is writing into %s ...\n", dumpFile.Str());
+#else
+        // Other platforms: keep original path logic
         if (specifiedPath.IsEmpty()) {
             // dump to current path
             fp = fopen(dumpFile.Str(), "wb");
@@ -77,9 +93,16 @@ void CjHeapData::DumpHeap()
             fp = fopen(dumpFile.Str(), "wb");
             PRINT_INFO("Heap dump log is writing into %s ...\n", dumpFile.Str());
         }
+#endif
     } else {
         // dump for cjprof
+#if defined(__OHOS__) && (__OHOS__ == 1)
+        // OHOS platform: add /ohos directory to the original path
+        fp = fopen("/ohos/item_data.dat.cache", "wb");
+#else
+        // Other platforms: keep original path logic
         fp = fopen("item_data.dat.cache", "wb");
+#endif
     }
 
     if (!fp) {
@@ -889,5 +912,45 @@ CjHeapData::CjHeapDataStringId CjHeapData::LookupStringId(const CString& string)
         stringId++;
     }
     return res.first->second;
+}
+
+pid_t CjHeapData::ForkAndDumpHeap(int fd, bool fromOOM)
+{
+    // Stop the world before fork to ensure consistent heap state
+    MutatorManager::Instance().StopTheWorld();
+    
+    // Flush all output streams before fork to ensure child process can output logs
+    fflush(nullptr);
+
+    pid_t childPid = fork();
+    if (childPid < 0) {
+        // Fork failed
+        LOG(RTLOG_ERROR, "Failed to fork child process for heap dump: %s", strerror(errno));
+        return -1;
+    } else if (childPid == 0) {
+        // Child process - execute heap dump
+        LOG(RTLOG_INFO, "Child process started for heap dump, pid: %d", getpid());
+        
+        CjHeapData* cjHeapData = new CjHeapData(fromOOM);
+        if (cjHeapData != nullptr) {
+            if (fd >= 0) {
+                cjHeapData->DumpHeap(fd);
+            } else {
+                cjHeapData->DumpHeap();
+            }
+            LOG(RTLOG_INFO, "Child process completed heap dump successfully");
+            delete cjHeapData;
+        } else {
+            LOG(RTLOG_ERROR, "Failed to allocate CjHeapData in child process");
+        }
+        
+        // Exit child process
+        _exit(0);
+    }
+    // Parent process - start the world immediately after fork
+    MutatorManager::Instance().StartTheWorld();
+    // Parent process - return child pid immediately without waiting
+    LOG(RTLOG_INFO, "Forked child process %d for heap dump, parent process continues", childPid);
+    return childPid;
 }
 } // namespace MapleRuntime
