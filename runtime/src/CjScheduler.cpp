@@ -621,12 +621,6 @@ void MRT_CjRuntimeInit()
     if (rtCode != E_OK) {
         LOG(RTLOG_FATAL, "Init cj runtime failed for %d\n", rtCode);
     }
-
-#ifdef TEST
-    if (param.interpreterParam.interpreterEnabled) {
-        initTestVirtualFuncs(param.interpreterParam.interpreterLibName.Str());
-    }
-#endif
 }
 
 void MRT_SetCommandLineArgs(int argc, const char* argv[])

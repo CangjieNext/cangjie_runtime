@@ -17,9 +17,6 @@
 #include "Mutator/Mutator.h"
 #include "Common/StackType.h"
 
-#ifdef TEST
-#include "TestSupport.h"
-#endif
 
 #ifdef __cplusplus
 using namespace MRTExport;
