@@ -11,7 +11,6 @@
 #include <stddef.h>
 
 #include "Options.h"
-#include "RuntimeMirrors.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,9 +36,12 @@ typedef void *type_info_t;
 // Pointer to TypeTemplate. Binary layout of this structure is defined by CJNative runtime.
 typedef void *type_template_t;
 
+// Pointer to ThreadLocalData structure.
+typedef void* thread_local_data_t;
+
 // Pointer to fiber specific data that is used by interpreter during execution.
 // This pointer is stored in fiber specific storage.
-typedef void *fiber_specific_data_t;
+typedef void* fiber_specific_data_t;
 
 // This is alias for frame pointer. CJNative runtime should pass this pointer to `frame_info_provider_f` function.
 // Interpreter would return description of corresponding frame (e.g. file_name, line_number).
@@ -646,7 +648,13 @@ typedef bool (*is_valid_object_f)(obj_ref_t object);
 //
 // Get ThreadLocalData.
 //
-typedef uintptr_t (*get_thread_local_data_f)();
+typedef thread_local_data_t (*get_thread_local_data_f)();
+
+//
+// Returns true if the GC is in an "active" phase.
+// In active phase fast-path write barriers can`t be used.
+//
+typedef bool (*is_active_gc_phase_f)(thread_local_data_t);
 
 //
 // Stub for stack growth.
@@ -785,6 +793,7 @@ struct cjnative_interface_t {
 
     is_valid_object_f is_valid_object;
     get_thread_local_data_f get_thread_local_data;
+    is_active_gc_phase_f is_active_gc_phase;
 };
 
 #ifdef __cplusplus
