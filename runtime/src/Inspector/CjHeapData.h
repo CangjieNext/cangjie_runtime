@@ -33,6 +33,11 @@ public:
         }
     }
 
+    // Fork a child process to perform heap dump asynchronously
+    // Returns child process pid, or -1 on failure
+    // Parent process does not wait, returns immediately
+    static pid_t ForkAndDumpHeap(int fd = -1, bool fromOOM = false);
+
     using u1 = uint8_t;
     using u2 = uint16_t;
     using u4 = uint32_t;
