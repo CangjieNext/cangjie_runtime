@@ -6,41 +6,15 @@
 #
 # See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-get_sections() {
-    local file="$1"
-    if command -v objdump >/dev/null 2>&1; then
-        objdump -h "$file" 2>/dev/null | \
-            awk '/^ +[0-9]+ / {print $2}' | \
-            grep -E '^\.text' || true
-        return $?
-    fi
-}
+set -e
 
-process_file() {
-  local input_file="$1"
-  local output_file="$1"
+# Rename .text section to .text_rt in object files
+# This should be done before linking object files into static library
+# Usage: windows_rename_section.sh <obj_file1> <obj_file2> ...
 
-  sections=$(get_sections "$input_file")
-  local rename_args=()
-  while IFS= read -r section; do
-      if [[ -n "$section" ]]; then
-          suffix="${section#.text}"
-          new_section=".text_rt${suffix}"
-          rename_args+=("--rename-section" "$section=$new_section")
-      fi
-  done <<< "$sections"
-
-  if [ "${#rename_args[@]}" -eq 0 ]; then
-    return 0
-  fi
-    
-  if objcopy "${rename_args[@]}" "$input_file" "$output_file" 2>/dev/null; then
-    return 0
-  else
-    return 1
-  fi
-}
-
-input_file=$1
-echo "rename section, input: ${input_file}, output: ${input_file}"
-process_file "$input_file" "$output_file"
+for obj in "$@"; do
+	if [ -f "$obj" ]; then
+		echo "Renaming section in $obj"
+		objcopy --rename-section .text=.text_rt "$obj" "$obj"
+	fi
+done

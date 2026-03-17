@@ -675,6 +675,34 @@ if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MAT
                 "${SANITIZER_LIB_STATIC}"
             VERBATIM
         )
+    elseif (WINDOWS_FLAG MATCHES 1)
+        add_custom_command(TARGET cangjie-runtime-static PRE_BUILD
+            COMMAND bash ${CMAKE_SOURCE_DIR}/build/windows_rename_section.sh
+                "$<TARGET_OBJECTS:runtime>"
+                "$<TARGET_OBJECTS:Base>"
+                "$<TARGET_OBJECTS:CjFile>"
+                "$<TARGET_OBJECTS:Concurrency>"
+                "$<TARGET_OBJECTS:Common>"
+                "$<TARGET_OBJECTS:Exception>"
+                "$<TARGET_OBJECTS:Heap>"
+                "$<TARGET_OBJECTS:Allocator>"
+                "$<TARGET_OBJECTS:Barrier>"
+                "$<TARGET_OBJECTS:Collector>"
+                "$<TARGET_OBJECTS:Loader>"
+                "$<TARGET_OBJECTS:Inspector>"
+                "$<TARGET_OBJECTS:Mutator>"
+                "$<TARGET_OBJECTS:ObjectModel>"
+                "$<TARGET_OBJECTS:BinaryFile>"
+                "$<TARGET_OBJECTS:CjFileLoader>"
+                "$<TARGET_OBJECTS:UnwindStack>"
+                "$<TARGET_OBJECTS:Sync>"
+                "$<TARGET_OBJECTS:WCollector>"
+                "$<TARGET_OBJECTS:cjthreadmodel>"
+                "$<TARGET_OBJECTS:CjSemanticVersion>"
+                "$<TARGET_OBJECTS:CpuProfiler>"
+                "${SANITIZER_LIB_STATIC}"
+            VERBATIM
+        )
     endif()
     install(TARGETS cangjie-runtime-static ARCHIVE DESTINATION lib/${TARGET_ARCH}${SANITIZER_SUBPATH})
     set_target_properties(cangjie-runtime-static PROPERTIES OUTPUT_NAME "cangjie-runtime")
@@ -682,16 +710,13 @@ if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MAT
     set(OBJCOPY_PROGRAM objcopy)
     set(STRIP_PROGRAM strip)
     if (WINDOWS_FLAG MATCHES 1)
-        install(CODE "execute_process(COMMAND bash ${CMAKE_SOURCE_DIR}/build/windows_rename_section.sh \
-                ${CMAKE_INSTALL_PREFIX}/lib/${TARGET_ARCH}${SANITIZER_SUBPATH}/libcangjie-runtime.a)"
-            COMPONENT cangjie-runtime)
     else()
         install(CODE "execute_process(COMMAND ${OBJCOPY_PROGRAM} -D --rename-section .text=.text_runtime \
                     ${CMAKE_INSTALL_PREFIX}/lib/${TARGET_ARCH}${SANITIZER_SUBPATH}/libcangjie-runtime.a)"
                 COMPONENT cangjie-runtime)
     endif()
     if(CMAKE_BUILD_TYPE MATCHES "Release" OR CMAKE_BUILD_TYPE MATCHES "MinSizeRel")
-        install(CODE "execute_process(COMMAND ${STRIP_PROGRAM} -D --strip-unneeded ${CMAKE_INSTALL_PREFIX}/lib${SANITIZER_SUBPATH}/libcangjie-runtime.a)"
+        install(CODE "execute_process(COMMAND ${STRIP_PROGRAM} -D --strip-unneeded ${CMAKE_INSTALL_PREFIX}/lib/${TARGET_ARCH}${SANITIZER_SUBPATH}/libcangjie-runtime.a)"
             COMPONENT cangjie-runtime)
     endif()
 endif()
