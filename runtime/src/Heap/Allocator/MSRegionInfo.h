@@ -93,7 +93,7 @@ struct MSRegionInfo {
     uint32_t    sweepGen;           // +52  sweep generation for lazy sweep (4B)
 
     // ========== Reserved for future ==========
-    uint64_t    reserved;           // +56  future extension / searchHint (8B)
+    uint64_t    reserved;           // +56  summary word (PARTIAL: bit[i]=1 if allocBitmap[i] has free) / large obj base idx (8B)
 
     // === Constants ===
     static constexpr int32_t INVALID_IDX = static_cast<int32_t>(0xFFFFFFFF);
@@ -106,6 +106,9 @@ struct MSRegionInfo {
     void InitForLargeObject(uintptr_t start, uintptr_t end);
     void ReleaseBitmaps();
     void Reset();
+    // Reset a completely-free region back to BUMP for fast reuse (O3).
+    // Preserves bitmap memory, avoids munmap/mmap cycle.
+    void ResetToBump();
 
     // === Allocation ===
     // Bump-pointer allocation for fresh BUMP regions (inline for performance).
@@ -122,26 +125,31 @@ struct MSRegionInfo {
     }
 
     // Bitmap-based allocation for swept regions (inline fast path).
-    // searchHint (lower 32 bits of 'reserved') skips fully-allocated words.
+    // Uses summary word (reserved) for O(1) lookup: bit[i]=1 means allocBitmap[i] has free slots.
     inline uintptr_t AllocFromBitmapFast()
     {
-        size_t hint = static_cast<size_t>(reserved & 0xFFFFFFFF);
-        size_t wordCount = SizeClassInfo::BitmapWordsPerRegion(sizeClass);
-        for (size_t i = hint; i < wordCount; i++) {
-            uint64_t word = allocBitmap[i];
-            if (word != 0) {
+        uint64_t summary = reserved;
+        while (summary != 0) {
+            size_t wordIdx = static_cast<size_t>(__builtin_ctzll(summary));
+            uint64_t word = allocBitmap[wordIdx];
+            if (LIKELY(word != 0)) {
                 int bit = __builtin_ctzll(word);
-                allocBitmap[i] = word & ~(1ULL << bit);
+                allocBitmap[wordIdx] = word & ~(1ULL << bit);
                 freeSlotCount--;
-                reserved = (reserved & 0xFFFFFFFF00000000ULL) | static_cast<uint64_t>(i);
-                size_t slotIndex = i * 64 + static_cast<size_t>(bit);
+                if (allocBitmap[wordIdx] == 0) {
+                    reserved = reserved & ~(1ULL << wordIdx);
+                }
+                size_t slotIndex = wordIdx * 64 + static_cast<size_t>(bit);
                 return RegionStart() + slotIndex * SizeClassInfo::ClassToSize(sizeClass);
             }
+            // Summary was stale for this word, self-correct and try next
+            summary &= ~(1ULL << wordIdx);
+            reserved = reserved & ~(1ULL << wordIdx);
         }
-        return AllocFromBitmapSlow(hint);  // wrap-around search
+        return 0;  // Region full
     }
 
-    // Slow path: wrap-around search from word 0 to hint (defined in .cpp)
+    // Slow path: wrap-around search (legacy, kept for Alloc() backward compat)
     uintptr_t AllocFromBitmapSlow(size_t hint);
 
     // Legacy entry points (redirect to inline versions)

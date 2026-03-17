@@ -120,8 +120,14 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
         ReturnRegion(cls);
     }
 
-    // Step 2: Get a new Region from CentralRegionPool
-    MSRegionInfo* newRegion = RefillFromCentral(cls);
+    // O2: Check thread-local cache before going to CentralRegionPool
+    MSRegionInfo* newRegion = cachedRegion_[cls];
+    if (newRegion != nullptr) {
+        cachedRegion_[cls] = nullptr;
+    } else {
+        // Step 2: Get a new Region from CentralRegionPool
+        newRegion = RefillFromCentral(cls);
+    }
     if (UNLIKELY(newRegion == nullptr)) {
         return 0;  // OOM or GC needed — caller handles
     }
@@ -164,6 +170,11 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
     // Step 3: Set as active Region
     activeRegions_[cls] = newRegion;
 
+    // O2: Prefetch one backup region into cache for next SlowAlloc
+    if (cachedRegion_[cls] == nullptr && central_ != nullptr) {
+        cachedRegion_[cls] = central_->GetRegion(cls);
+    }
+
     // Step 4: Allocate from the new Region (respect region type)
     uintptr_t addr;
     if (newRegion->regionType == MSRegionType::MS_REGION_BUMP) {
@@ -188,8 +199,9 @@ void AllocBufferMS::ReturnRegion(uint8_t cls)
     bool hasSpace = region->HasFreeSpace();
 
     if (isFree) {
-        // Entirely free → release back to FreeRegionManager
-        central_->ReleaseRegion(region, cls);
+        // O3: Reset to BUMP for fast reuse, keep in CentralRegionPool
+        region->ResetToBump();
+        central_->ReturnPartialRegion(region, cls);
     } else if (hasSpace) {
         // Has free slots → partial list
         central_->ReturnPartialRegion(region, cls);
@@ -227,6 +239,19 @@ MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls)
 void AllocBufferMS::FlushAll()
 {
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
+        // O2: Return cached backup regions first
+        if (cachedRegion_[cls] != nullptr) {
+            MSRegionInfo* cached = cachedRegion_[cls];
+            cachedRegion_[cls] = nullptr;
+            if (cached->IsCompletelyFree()) {
+                cached->ResetToBump();
+                central_->ReturnPartialRegion(cached, cls);
+            } else if (cached->HasFreeSpace()) {
+                central_->ReturnPartialRegion(cached, cls);
+            } else {
+                central_->ReturnFullRegion(cached, cls);
+            }
+        }
         ReturnRegion(cls);
     }
 }

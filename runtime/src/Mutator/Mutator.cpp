@@ -29,12 +29,20 @@ extern "C" uintptr_t MRT_GetThreadLocalData()
 {
     uintptr_t tlDataAddr = reinterpret_cast<uintptr_t>(ThreadLocal::GetThreadLocalData());
 #if defined(__aarch64__)
-    if (Heap::GetHeap().IsGcStarted()) {
-        // Since the TBI(top bit ignore) feature in Aarch64,
-        // set gc phase to high 8-bit of ThreadLocalData Address for gc barrier fast path.
-        // 56: make gcphase value shift left 56 bit to set the high 8-bit
-        tlDataAddr = tlDataAddr | (static_cast<uint64_t>(Heap::GetHeap().GetGCPhase()) << 56);
-    }
+    // Always encode GCPhase into x28's high 8 bits (via TBI — Top Byte Ignore).
+    // The compiler's write-barrier fast path checks (x28 >> 56) > 8 to decide
+    // whether to call the barrier slow path.
+    //
+    // Previously gated by IsGcStarted(): when GC was idle, high bits were 0,
+    // causing stale x28 values after CJThread context switches or between GC
+    // cycles — the fast path would permanently skip the barrier.
+    //
+    // With unconditional encoding:
+    //   - GC idle:    phase = IDLE(1) / RECLAIM_SATB_NODE(3) → ≤ 8 → skip barrier ✓
+    //   - GC marking: phase = MS_MARK_SETUP(20) / CONCURRENT_MARK(21) /
+    //                 MARK_TERMINATION(22) → > 8 → call barrier ✓
+    //   - CopyGC:     ENUM(9)..FORWARD(14) → > 8 → call barrier ✓
+    tlDataAddr = tlDataAddr | (static_cast<uint64_t>(Heap::GetHeap().GetGCPhase()) << 56);
 #endif
     return tlDataAddr;
 }

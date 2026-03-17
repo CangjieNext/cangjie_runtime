@@ -32,10 +32,9 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
     SizeClassBucket& bucket = buckets_[cls];
     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
 
-    // ---- Priority 1: partialSwept — already swept, has free slots (fastest) ----
+    // ---- Priority 1: partialSwept — lock-free CAS pop (O1, fastest) ----
     {
-        std::lock_guard<std::mutex> lg(bucket.lock);
-        MSRegionInfo* region = bucket.partialSwept.TakeHead();
+        MSRegionInfo* region = bucket.partialSwept.Pop();
         if (region != nullptr) {
             // Debug: validate region before returning
             size_t ridx = MSRegionInfoArray::GetRegionIdx(region);
@@ -48,7 +47,7 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
                     (unsigned)cls, (unsigned)region->sizeClass,
                     (void*)region->allocBitmap, (void*)region, ridx);
             }
-            region->regionType = MSRegionType::MS_REGION_PARTIAL;
+            // O3: preserve region type (BUMP from ResetToBump, or PARTIAL from sweep)
             return region;
         }
     }
@@ -71,9 +70,10 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
             sweepStats_.lazySweptRegions.fetch_add(1, std::memory_order_relaxed);
 
             if (region->IsCompletelyFree()) {
-                sweepStats_.releasedRegions.fetch_add(1, std::memory_order_relaxed);
-                ReleaseRegionInternal(region);
-                continue;  // All dead — release and try next
+                // O3: Reset to BUMP for fast reuse instead of releasing
+                region->ResetToBump();
+                bucket.partialSwept.Push(region);  // O1: lock-free
+                continue;
             }
             region->regionType = MSRegionType::MS_REGION_PARTIAL;
             return region;
@@ -99,8 +99,9 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
                 sweepStats_.lazySweptRegions.fetch_add(1, std::memory_order_relaxed);
 
                 if (region->IsCompletelyFree()) {
-                    sweepStats_.releasedRegions.fetch_add(1, std::memory_order_relaxed);
-                    ReleaseRegionInternal(region);
+                    // O3: Reset to BUMP for fast reuse instead of releasing
+                    region->ResetToBump();
+                    bucket.partialSwept.Push(region);  // O1: lock-free
                     continue;
                 }
                 if (region->HasFreeSpace()) {
@@ -184,12 +185,12 @@ MSRegionInfo* CentralRegionPool::GetFreshRegion(uint8_t cls)
 void CentralRegionPool::ReturnPartialRegion(MSRegionInfo* region, uint8_t cls)
 {
     SizeClassBucket& bucket = buckets_[cls];
-    std::lock_guard<std::mutex> lg(bucket.lock);
-    region->regionType = MSRegionType::MS_REGION_PARTIAL;
+    // O3: preserve region type (BUMP or PARTIAL) — don't force PARTIAL
     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
     if (region->GetSweepGen() == sg) {
-        bucket.partialSwept.Prepend(region);
+        bucket.partialSwept.Push(region);  // O1: lock-free
     } else {
+        std::lock_guard<std::mutex> lg(bucket.lock);
         bucket.partialUnswept.Prepend(region);
     }
 }
@@ -256,12 +257,14 @@ void CentralRegionPool::ForceFinishSweep()
                 sweepStats_.forceSweptRegions.fetch_add(1, std::memory_order_relaxed);
 
                 if (region->IsCompletelyFree()) {
-                    sweepStats_.releasedRegions.fetch_add(1, std::memory_order_relaxed);
-                    ReleaseRegionInternal(region);
+                    // O3: Reset to BUMP for fast reuse instead of releasing
+                    region->ResetToBump();
+                    bucket.partialSwept.Push(region);  // O1: lock-free
                 } else if (region->HasFreeSpace()) {
-                    std::lock_guard<std::mutex> lg(bucket.lock);
-                    bucket.partialSwept.Prepend(region);
+                    region->regionType = MSRegionType::MS_REGION_PARTIAL;
+                    bucket.partialSwept.Push(region);  // O1: lock-free
                 } else {
+                    region->regionType = MSRegionType::MS_REGION_FULL;
                     std::lock_guard<std::mutex> lg(bucket.lock);
                     bucket.fullSwept.Prepend(region);
                 }
@@ -270,8 +273,7 @@ void CentralRegionPool::ForceFinishSweep()
                 LOG(RTLOG_ERROR, "[MS-GC] ForceFinishSweep CAS FAIL: region sweepGen=%u, expected=%u (sg=%u), cls=%u",
                     regionSG, sg - 2, sg, (unsigned)cls);
                 // Put it back — don't lose the region
-                std::lock_guard<std::mutex> lg(bucket.lock);
-                bucket.partialSwept.Prepend(region);
+                bucket.partialSwept.Push(region);  // O1: lock-free
             }
         }
 
@@ -293,12 +295,14 @@ void CentralRegionPool::ForceFinishSweep()
                 sweepStats_.forceSweptRegions.fetch_add(1, std::memory_order_relaxed);
 
                 if (region->IsCompletelyFree()) {
-                    sweepStats_.releasedRegions.fetch_add(1, std::memory_order_relaxed);
-                    ReleaseRegionInternal(region);
+                    // O3: Reset to BUMP for fast reuse instead of releasing
+                    region->ResetToBump();
+                    bucket.partialSwept.Push(region);  // O1: lock-free
                 } else if (region->HasFreeSpace()) {
-                    std::lock_guard<std::mutex> lg(bucket.lock);
-                    bucket.partialSwept.Prepend(region);
+                    region->regionType = MSRegionType::MS_REGION_PARTIAL;
+                    bucket.partialSwept.Push(region);  // O1: lock-free
                 } else {
+                    region->regionType = MSRegionType::MS_REGION_FULL;
                     std::lock_guard<std::mutex> lg(bucket.lock);
                     bucket.fullSwept.Prepend(region);
                 }
@@ -345,12 +349,14 @@ void CentralRegionPool::SweepAndClassify(MSRegionInfo* region, uint32_t sg, Size
     sweepStats_.forceSweptRegions.fetch_add(1, std::memory_order_relaxed);
 
     if (region->IsCompletelyFree()) {
-        sweepStats_.releasedRegions.fetch_add(1, std::memory_order_relaxed);
-        ReleaseRegionInternal(region);
+        // O3: Reset to BUMP for fast reuse instead of releasing
+        region->ResetToBump();
+        bucket.partialSwept.Push(region);  // O1: lock-free
     } else if (region->HasFreeSpace()) {
-        std::lock_guard<std::mutex> lg(bucket.lock);
-        bucket.partialSwept.Prepend(region);
+        region->regionType = MSRegionType::MS_REGION_PARTIAL;
+        bucket.partialSwept.Push(region);  // O1: lock-free
     } else {
+        region->regionType = MSRegionType::MS_REGION_FULL;
         std::lock_guard<std::mutex> lg(bucket.lock);
         bucket.fullSwept.Prepend(region);
     }
@@ -366,9 +372,9 @@ void CentralRegionPool::PrepareForSweep()
     size_t totalPartialSwept = 0, totalPartialUnswept = 0;
     size_t totalFullSwept = 0, totalFullUnswept = 0;
 
-    // O(1) generation flip: swap swept ↔ unswept lists, then bump sweepGen.
-    // ForceFinishSweep guarantees unswept lists are empty before this call,
-    // so swap is safe and equivalent to Go mcentral partial/full index flip.
+    // O(1) generation flip: drain lock-free partialSwept → partialUnswept, swap full lists.
+    // ForceFinishSweep guarantees unswept lists are empty before this call.
+    // PrepareForSweep runs during STW, so no concurrent Push/Pop on partialSwept.
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
         SizeClassBucket& bucket = buckets_[cls];
         std::lock_guard<std::mutex> lg(bucket.lock);
@@ -378,7 +384,8 @@ void CentralRegionPool::PrepareForSweep()
         totalFullSwept += bucket.fullSwept.Count();
         totalFullUnswept += bucket.fullUnswept.Count();
 
-        bucket.partialSwept.Swap(bucket.partialUnswept);
+        // O1: partialSwept is LockFreeRegionStack — drain into partialUnswept (MSRegionList)
+        bucket.partialSwept.DrainTo(bucket.partialUnswept);
         bucket.fullSwept.Swap(bucket.fullUnswept);
     }
 
@@ -467,12 +474,14 @@ void CentralRegionPool::SweepUnsweptList(SizeClassBucket& bucket, MSRegionList& 
             sweepStats_.bgSweptRegions.fetch_add(1, std::memory_order_relaxed);
 
             if (region->IsCompletelyFree()) {
-                sweepStats_.releasedRegions.fetch_add(1, std::memory_order_relaxed);
-                ReleaseRegionInternal(region);
+                // O3: Reset to BUMP for fast reuse instead of releasing
+                region->ResetToBump();
+                bucket.partialSwept.Push(region);  // O1: lock-free
             } else if (region->HasFreeSpace()) {
-                std::lock_guard<std::mutex> lg(bucket.lock);
-                bucket.partialSwept.Prepend(region);
+                region->regionType = MSRegionType::MS_REGION_PARTIAL;
+                bucket.partialSwept.Push(region);  // O1: lock-free
             } else {
+                region->regionType = MSRegionType::MS_REGION_FULL;
                 std::lock_guard<std::mutex> lg(bucket.lock);
                 bucket.fullSwept.Prepend(region);
             }

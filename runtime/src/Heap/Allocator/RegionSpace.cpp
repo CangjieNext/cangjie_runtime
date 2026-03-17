@@ -29,25 +29,20 @@ namespace MapleRuntime {
 
 #ifdef MRT_USE_MARK_SWEEP
 // Mark-Sweep allocation path — handles all object sizes:
-//   Tier 2 (huge, >4MB):  independent mmap via LargeObjectSpace
-//   Tier 1 (large):       MSRegionManager units + MSRegionInfo registration
+//   Large (>=16KB):       MSRegionManager units + MSRegionInfo registration
 //   Normal (small/medium): per-thread AllocBufferMS → CentralRegionPool
 // In MS mode, PINNED_OBJECT is equivalent to MOVEABLE (nothing moves),
 // so allocType is not needed here.
 MAddress RegionSpace::TryAllocateOnceMS(size_t allocSize)
 {
-    // Large / huge object path
+    // Large object path (>=16KB)
     // Use kLargeObjectThreshold (16KB, max size class) as the cutoff, NOT
     // MS_REGION_SIZE (32KB).  Objects between 16KB and 32KB fall into a gap:
     // SizeToClass() overflows its lookup table, AllocBufferMS::Allocate()
     // rejects them (cls >= kNumSizeClasses → return 0), and they never reach
     // the large object path — causing infinite retry → OOM.
     if (UNLIKELY(allocSize >= kLargeObjectThreshold)) {
-        // Tier 2: huge objects (>4MB) go to independent mmap
-        if (allocSize > kHugeObjectThreshold && msLargeObjectSpace_ != nullptr) {
-            return msLargeObjectSpace_->Allocate(allocSize);
-        }
-        // Tier 1: large objects — allocate via MSRegionManager directly.
+        // All large objects (>=16KB) go via MSRegionManager directly.
         // One-level: MSRegionManager returns MSRegionInfo* + regionStart.
         size_t unitCount = (allocSize + RegionInfo::UNIT_SIZE - 1) / RegionInfo::UNIT_SIZE;
         uintptr_t regionStart = 0;

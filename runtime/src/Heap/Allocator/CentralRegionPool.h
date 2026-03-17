@@ -135,6 +135,84 @@ private:
 };
 
 // ============================================================================
+// LockFreeRegionStack: CAS-based lock-free stack for partialSwept (O1)
+// ============================================================================
+// Single-linked stack using MSRegionInfo::nextRegionIdx.
+// No ABA risk: a region is exclusively owned by one thread after Pop,
+// so the same region cannot be concurrently Pushed by another thread.
+//
+class LockFreeRegionStack {
+public:
+    LockFreeRegionStack() = default;
+
+    void Push(MSRegionInfo* region)
+    {
+        int32_t idx = static_cast<int32_t>(MSRegionInfoArray::GetRegionIdx(region));
+        int32_t oldHead = head_.load(std::memory_order_relaxed);
+        do {
+            region->nextRegionIdx = oldHead;
+        } while (!head_.compare_exchange_weak(oldHead, idx,
+                     std::memory_order_release, std::memory_order_relaxed));
+        count_.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    MSRegionInfo* Pop()
+    {
+        int32_t oldHead = head_.load(std::memory_order_acquire);
+        MSRegionInfo* headRegion;
+        do {
+            if (oldHead == MSRegionInfo::INVALID_IDX) {
+                return nullptr;
+            }
+            headRegion = MSRegionInfoArray::GetRegionInfoByIdx(oldHead);
+        } while (!head_.compare_exchange_weak(oldHead, headRegion->nextRegionIdx,
+                     std::memory_order_release, std::memory_order_relaxed));
+        headRegion->nextRegionIdx = MSRegionInfo::INVALID_IDX;
+        headRegion->prevRegionIdx = MSRegionInfo::INVALID_IDX;
+        count_.fetch_sub(1, std::memory_order_relaxed);
+        return headRegion;
+    }
+
+    bool IsEmpty() const { return head_.load(std::memory_order_acquire) == MSRegionInfo::INVALID_IDX; }
+    size_t Count() const { return count_.load(std::memory_order_relaxed); }
+
+    // Drain all elements into an MSRegionList (under external synchronization, e.g. STW).
+    // Used by PrepareForSweep to swap partialSwept into partialUnswept.
+    void DrainTo(MSRegionList& dest)
+    {
+        int32_t idx = head_.exchange(MSRegionInfo::INVALID_IDX, std::memory_order_acquire);
+        size_t drained = 0;
+        while (idx != MSRegionInfo::INVALID_IDX) {
+            MSRegionInfo* region = MSRegionInfoArray::GetRegionInfoByIdx(idx);
+            int32_t next = region->nextRegionIdx;
+            region->nextRegionIdx = MSRegionInfo::INVALID_IDX;
+            region->prevRegionIdx = MSRegionInfo::INVALID_IDX;
+            dest.Prepend(region);
+            idx = next;
+            drained++;
+        }
+        count_.fetch_sub(drained, std::memory_order_relaxed);
+    }
+
+    // Unsafe iteration for GC (STW only). Visitor must NOT modify the stack.
+    template<typename Visitor>
+    void ForEachUnsafe(Visitor&& visitor) const
+    {
+        int32_t idx = head_.load(std::memory_order_acquire);
+        while (idx != MSRegionInfo::INVALID_IDX) {
+            MSRegionInfo* info = MSRegionInfoArray::GetRegionInfoByIdx(idx);
+            int32_t next = info->nextRegionIdx;
+            visitor(info);
+            idx = next;
+        }
+    }
+
+private:
+    std::atomic<int32_t> head_{MSRegionInfo::INVALID_IDX};
+    std::atomic<size_t>  count_{0};
+};
+
+// ============================================================================
 // CentralRegionPool: Go mcentral-equivalent per-size-class Region pool
 // ============================================================================
 //
@@ -247,8 +325,8 @@ public:
 
 private:
     struct SizeClassBucket {
-        std::mutex lock;
-        MSRegionList partialSwept;
+        std::mutex lock;              // protects fullSwept, partialUnswept, fullUnswept only
+        LockFreeRegionStack partialSwept;  // O1: lock-free CAS stack for P1 hot path
         MSRegionList fullSwept;
         MSRegionList partialUnswept;
         MSRegionList fullUnswept;
@@ -293,8 +371,9 @@ void CentralRegionPool::VisitAllRegions(Visitor&& visitor)
 {
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
         SizeClassBucket& bucket = buckets_[cls];
+        // partialSwept is lock-free; ForEachUnsafe is safe during STW
+        bucket.partialSwept.ForEachUnsafe(visitor);
         std::lock_guard<std::mutex> lg(bucket.lock);
-        bucket.partialSwept.ForEach(visitor);
         bucket.fullSwept.ForEach(visitor);
         bucket.partialUnswept.ForEach(visitor);
         bucket.fullUnswept.ForEach(visitor);

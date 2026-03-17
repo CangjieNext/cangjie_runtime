@@ -74,6 +74,9 @@ private:
     // Per-size-class active Region (nullptr = no active Region for this class)
     MSRegionInfo* activeRegions_[kNumSizeClasses] = {};
 
+    // O2: Per-size-class cached backup Region (prefetched in SlowAlloc)
+    MSRegionInfo* cachedRegion_[kNumSizeClasses] = {};
+
     // Back-pointer to global CentralRegionPool
     CentralRegionPool* central_ = nullptr;
 
