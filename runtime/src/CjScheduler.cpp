@@ -284,15 +284,6 @@ static FixedCString InitInterpreterLibName()
     }
     return FixedCString(env);
 }
-
-static bool InitInterpreterEnabled()
-{
-    auto env = std::getenv("INTERPRETER_ENABLED");
-    if (env == nullptr) {
-        return false;
-    }
-    return std::strcmp(env, "true") == 0;
-}
 #endif
 
 void* StartMainTask(void* arg, unsigned int len)
@@ -602,7 +593,7 @@ static RuntimeParam InitRuntimeParam()
             .processorNum = InitProcessorNum(),
         },
 #ifdef INTERPRETER_ENABLED
-        .interpreterParam = InterpreterParam(InitInterpreterEnabled(), InitInterpreterLibName()),
+        .interpreterParam = InterpreterParam(InitInterpreterLibName()),
 #endif
     };
     return param;
@@ -612,9 +603,7 @@ void MRT_CjRuntimeInit()
 {
     RuntimeParam param = InitRuntimeParam();
 #ifdef INTERPRETER_ENABLED
-    if (param.interpreterParam.interpreterEnabled) {
-        InitInterpreter(param);
-    }
+    InitInterpreter(param); // TODO move to shared part
 #endif
     CangjieRuntime::CreateAndInit(param);
     RTErrorCode rtCode = SetRuntimeInitFlag();
