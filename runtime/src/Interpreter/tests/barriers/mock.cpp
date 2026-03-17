@@ -90,7 +90,7 @@ void BarriersMock::init() {
     auto ti = interface.type_info("std.core:Object");
     
     for (int i = 0; i < GLOBAL_ROOTS_N; i++) {
-        globalRoots[i] = interface.object_alloc(ti);
+        interface.write_static_field(&globalRoots[i], interface.object_alloc(ti));
     }
     
     for (int i = 0; i < FRAME_ROOTS_N; i++) {
@@ -442,7 +442,7 @@ void BarriersMock::testBarriers() {
     printf("[Mock] finished generic field barriers testing\n");
 
     for (int i = 0; i < GLOBAL_ROOTS_N; i++) {
-        globalRoots[i] = interface.object_alloc(tiObject);
+        interface.write_static_field(&globalRoots[i], interface.object_alloc(tiObject));
     }
 
     printf("[Mock] finished barriers testing\n");
@@ -456,7 +456,7 @@ void BarriersMock::testBarriers() {
             log("[Mock] adjustable root %d was moved: old address = %p, new address = %p\n", 
                 i, (void*)old_real_address, (void*)new_real_address);
         }
-        if (!interface.is_valid_object(adjustableRoots[i])) {
+        if (!interface.is_valid_object(interface.read_static_field(&adjustableRoots[i]))) {
             printf("[Mock] error: adjustable root %d is invalid after compaction\n", i);
             return;
         }
