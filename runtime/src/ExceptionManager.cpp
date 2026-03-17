@@ -18,6 +18,7 @@
 #include "UnwindStack/MangleNameHelper.h"
 #include "Heap/Collector/CollectorResources.h"
 #include "Heap/Collector/GcRequest.h"
+#include "Inspector/CjHeapData.h"
 namespace MapleRuntime {
 std::mutex ExceptionManager::gUncaughtExceptionHandlerMtx;
 void ExceptionManager::OutOfMemory()
@@ -27,15 +28,20 @@ void ExceptionManager::OutOfMemory()
         eWrapper.SetThrowingOOME(true);
         eWrapper.SetFatalException(false);
         eWrapper.SetExceptionType(ExceptionWrapper::ExceptionType::OUT_OF_MEMORY);
-        {
-            // HeapDump before throwing OOM
-            const char* env = std::getenv("cjHeapDumpOnOOM");
-            CString s = CString(env).RemoveBlankSpace();
-            env = s.Str();
-            if (env && !strcmp(env, "on")) { // env variable: cjHeapDumpOnOOM=on/off
-                Heap::GetHeap().GetCollectorResources().RequestHeapDump(GCTask::TaskType::TASK_TYPE_DUMP_HEAP_OOM);
+        
+        // Fork child process to perform heap dump asynchronously
+        const char* env = std::getenv("cjHeapDumpOnOOM");
+        CString s = CString(env).RemoveBlankSpace();
+        env = s.Str();
+        if (env && !strcmp(env, "on")) { // env variable: cjHeapDumpOnOOM=on/off
+            // Fork child process without waiting
+            pid_t childPid = CjHeapData::ForkAndDumpHeap(-1, true);
+            if (childPid < 0) {
+                LOG(RTLOG_ERROR, "Failed to start child process for OOM heap dump");
             }
+                // Parent process continues immediately without waiting
         }
+        
         ThrowImplicitException(OOM);
     } else {
         std::vector<uint64_t>& liteFrameInfos = eWrapper.GetLiteFrameInfos();
@@ -45,7 +51,6 @@ void ExceptionManager::OutOfMemory()
     }
     eWrapper.SetThrowingOOME(false);
 }
-
 MRT_OPTIONAL_DISABLE_TAIL_CALL
 void ExceptionManager::StackOverflow(uint32_t adjustedSize __attribute__((unused)), void* ip)
 {

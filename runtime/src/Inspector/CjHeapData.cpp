@@ -24,6 +24,8 @@
 #include "UnwindStack/PrintStackInfo.h"
 #include "UnwindStack/StackInfo.h"
 #include "UnwindStack/StackMetadataHelper.h"
+#include <Mutator/MutatorManager.h>
+
 namespace MapleRuntime {
 static bool g_oomIsTrigged = false;
 
@@ -889,5 +891,38 @@ CjHeapData::CjHeapDataStringId CjHeapData::LookupStringId(const CString& string)
         stringId++;
     }
     return res.first->second;
+}
+
+pid_t CjHeapData::ForkAndDumpHeap(int fd, bool fromOOM)
+{
+    pid_t childPid = fork();
+    if (childPid < 0) {
+        // Fork failed
+        LOG(RTLOG_ERROR, "Failed to fork child process for heap dump: %s", strerror(errno));
+        return -1;
+    } else if (childPid == 0) {
+        // Child process - execute heap dump
+        LOG(RTLOG_INFO, "Child process started for heap dump, pid: %d", getpid());
+        
+        CjHeapData* cjHeapData = new CjHeapData(fromOOM);
+        if (cjHeapData != nullptr) {
+            if (fd >= 0) {
+                cjHeapData->DumpHeap(fd);
+            } else {
+                cjHeapData->DumpHeap();
+            }
+            LOG(RTLOG_INFO, "Child process completed heap dump successfully");
+            delete cjHeapData;
+        } else {
+            LOG(RTLOG_ERROR, "Failed to allocate CjHeapData in child process");
+        }
+        
+        // Exit child process
+        _exit(0);
+    }
+    
+    // Parent process - return child pid immediately without waiting
+    LOG(RTLOG_INFO, "Forked child process %d for heap dump, parent process continues", childPid);
+    return childPid;
 }
 } // namespace MapleRuntime
