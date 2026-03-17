@@ -838,9 +838,13 @@ void* CJThreadGetspecific(CJThreadKey key) { return CJThreadGetspecificInner(key
 
 void CJ_MRT_DumpHeapSnapshot(int fd)
 {
-    MapleRuntime::ScopedEnterSaferegion enterSaferegion(false);
-    MapleRuntime::CjHeapData cjHeapData;
-    cjHeapData.DumpHeap(fd);
+    // Fork child process to perform heap dump asynchronously
+    // Parent process does not wait, returns immediately
+    pid_t childPid = MapleRuntime::CjHeapData::ForkAndDumpHeap(fd, false);
+    if (childPid < 0) {
+        LOG(RTLOG_ERROR, "Failed to start child process for heap dump");
+    }
+    // Parent process continues immediately without waiting
 }
 
 void CJ_MRT_ForceFullGC() { MapleRuntime::HeapManager::RequestGC(MapleRuntime::GC_REASON_USER, false); }
