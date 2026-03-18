@@ -81,6 +81,7 @@ public:
 
     static bool IsRuntimeFrame(Uptr pc);
 #ifdef INTERPRETER_ENABLED
+    static void InitAddressScopeForInterpreter(const char* libName);
     static bool IsInterpreterCodeAddr(Uptr pc);
 #endif
     friend class MachineFrame;

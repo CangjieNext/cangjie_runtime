@@ -19,7 +19,14 @@ namespace MapleRuntime {
 extern "C" {
 #endif
 
+enum LibraryKind {
+    SYSTEM,
+    SDK,
+    APP,
+};
+
 struct BinLoadApi {
+    void* (*binLoadLib)(LibraryKind, const char*);
     void* (*binLoad)(const char*);
     int (*binUnload)(void*);
     int (*getBinaryInfoFromAddress)(const void*, Os::Loader::BinaryInfo*);
