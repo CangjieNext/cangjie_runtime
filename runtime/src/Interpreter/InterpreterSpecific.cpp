@@ -440,6 +440,11 @@ void* PostThrowException(exception_wrapper_t exception_wrapper)
     return ExceptionManager::BeginCatch(wrapper);
 }
 
+void NativeLogger(int logLevel, char* tag, char* message)
+{
+    VLOG(static_cast<LogType>(logLevel), "[%s] %s", tag, message);
+}
+
 size_t ComputeFiberDataOffset()
 {
     union MutatorTmpContainer {
@@ -521,6 +526,7 @@ void InitInterpreter(const RuntimeParam& runtimeParam)
         .is_valid_object = &IsValidObject,
         .get_thread_local_data = &GetThreadLocalData,
         .is_active_gc_phase = &IsActiveGCPhase,
+        .native_logger = &NativeLogger,
     };
 
     interpreter_interface_t interpreterInterface;

@@ -707,6 +707,18 @@ typedef uintptr_t (*get_current_catch_function_PC_f)();
 //
 typedef obj_ref_t (*post_throw_exception_f)(exception_wrapper_t exception_wrapper);
 
+//
+// Native logger function. E.g. hilog can be used to log events in interpreter on OHOS devices.
+//
+// params:
+// - tag - log tag
+// - message - log message
+//
+// Notes:
+// CCall calling convention is used.
+//
+typedef void (*native_logger_f)(int log_level, char* tag, char* message);
+
 
 ////////////////////////////////////////////////////////////////////////////////////
 // endregion CJNative interface
@@ -794,6 +806,8 @@ struct cjnative_interface_t {
     is_valid_object_f is_valid_object;
     get_thread_local_data_f get_thread_local_data;
     is_active_gc_phase_f is_active_gc_phase;
+
+    native_logger_f native_logger;
 };
 
 #ifdef __cplusplus
