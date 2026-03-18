@@ -9,6 +9,11 @@
 #include "Common/Runtime.h"
 #include "Concurrency/Concurrency.h"
 #include "Heap/Allocator/AllocBuffer.h"
+#ifdef MRT_USE_MARK_SWEEP
+#include "Heap/Allocator/AllocBufferMS.h"
+#include "Heap/Allocator/CentralRegionPool.h"
+#include "Heap/Allocator/RegionSpace.h"
+#endif
 #include "ObjectModel/RefField.inline.h"
 
 namespace MapleRuntime {
@@ -294,7 +299,15 @@ void TracingCollector::MergeMutatorRoots(WorkStack& workStack)
     MutatorManager& mutatorManager = MutatorManager::Instance();
     // hold mutator list lock to freeze mutator liveness, otherwise may access dead mutator fatally
     mutatorManager.MutatorManagementWLock();
+#ifdef MRT_USE_MARK_SWEEP
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    if (centralPool != nullptr) {
+        centralPool->VisitAllocBufferMS([&workStack](AllocBufferMS& buffer) { buffer.MergeRoots(workStack); });
+    }
+#else
     theAllocator.VisitAllocBuffers([&workStack](AllocBuffer& buffer) { buffer.MergeRoots(workStack); });
+#endif
     mutatorManager.MutatorManagementWUnlock();
 }
 

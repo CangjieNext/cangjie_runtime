@@ -12,6 +12,8 @@
 #include "MSRegionInfo.h"
 #include "SizeClass.h"
 #include "Common/TypeDef.h"
+#include "Common/MarkWorkStack.h"
+#include <vector>
 
 namespace MapleRuntime {
 
@@ -49,6 +51,22 @@ public:
     // GC STW: flush all thread-local Regions back to CentralRegionPool
     void FlushAll();
 
+    // Record stack root (called from Mutator::GcPhaseEnum during root enumeration)
+    void PushRoot(BaseObject* root) { stackRoots_.emplace_back(root); }
+
+    // Move buffered stack roots into GC work stack (called from MergeMutatorRoots)
+    template<class WorkStack>
+    inline void MergeRoots(WorkStack& workStack)
+    {
+        if (stackRoots_.empty()) {
+            return;
+        }
+        for (BaseObject* obj : stackRoots_) {
+            workStack.push_back(obj);
+        }
+        stackRoots_.clear();
+    }
+
     // Get active Region for a given size class (for GC iteration)
     MSRegionInfo* GetActiveRegion(uint8_t cls) const
     {
@@ -79,6 +97,9 @@ private:
 
     // Back-pointer to global CentralRegionPool
     CentralRegionPool* central_ = nullptr;
+
+    // Per-thread stack roots buffer (populated by Mutator::GcPhaseEnum)
+    std::vector<BaseObject*> stackRoots_;
 
     // Mutator assist: accumulated allocation debt (bytes).
     // When debt exceeds kGCAssistTriggerBytes, triggers MSMarkAssist().

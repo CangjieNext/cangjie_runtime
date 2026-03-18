@@ -141,9 +141,10 @@ void MSWriteBarrier::ReadStaticStruct(MAddress dst, MAddress src, size_t size, c
 }
 
 // ============================================================================
-// Writes: pure SATB deletion barrier — shade(old) + store
-// New references are NOT shaded here; newly allocated objects are marked
-// at allocation time (mark-at-alloc) during GC marking phases.
+// Writes: hybrid barrier — shade(old) + store + shade(new)
+// shade(old): SATB deletion barrier — preserves snapshot-at-the-beginning
+// shade(new): Dijkstra insertion barrier — ensures newly-assigned references
+// are traced, preventing mark-at-alloc objects from hiding white descendants
 // ============================================================================
 
 void MSWriteBarrier::WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref) const
@@ -157,6 +158,11 @@ void MSWriteBarrier::WriteReference(BaseObject* obj, RefField<false>& field, Bas
 
     // store
     field.SetTargetObject(ref);
+
+    // shade(new): Dijkstra insertion barrier — for mark-at-alloc objects this
+    // is a no-op (already marked, survive via mark-bit); for pre-existing white
+    // objects this ensures they become grey and get traced.
+    MarkAndEnqueue(ref, wbBuf);
 }
 
 void MSWriteBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) const
@@ -169,13 +175,17 @@ void MSWriteBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) con
 
     // store
     field.SetTargetObject(ref);
+
+    // shade(new): Dijkstra insertion barrier
+    MarkAndEnqueue(ref, wbBuf);
 }
 
 void MSWriteBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen) const
 {
+    WriteBarrierBuffer& wbBuf = GetWBBuf();
+
     // shade(old): mark all existing reference fields in the destination struct
     if (obj != nullptr) {
-        WriteBarrierBuffer& wbBuf = GetWBBuf();
         obj->ForEachRefInStruct(
             [&wbBuf](RefField<false>& refField) {
                 BaseObject* oldRef = refField.GetTargetObject();
@@ -194,21 +204,27 @@ void MSWriteBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, M
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(src), srcLen);
 #endif
 
-    // No shade(new) for struct writes: SATB deletion barrier only.
-    // New references will be traced by the GC thread's marking pass.
+    // shade(new): mark newly-written reference fields (Dijkstra insertion barrier)
+    if (obj != nullptr) {
+        obj->ForEachRefInStruct(
+            [&wbBuf](RefField<false>& refField) {
+                BaseObject* newRef = refField.GetTargetObject();
+                MarkAndEnqueue(newRef, wbBuf);
+            },
+            dst, dst + dstLen);
+    }
 }
 
 void MSWriteBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, size_t srcLen,
                                        const GCTib gctib) const
 {
+    WriteBarrierBuffer& wbBuf = GetWBBuf();
+
     // shade(old): mark all existing reference fields via GCTib bitmap
-    {
-        WriteBarrierBuffer& wbBuf = GetWBBuf();
-        gctib.ForEachBitmapWord(dst, [&wbBuf](RefField<>& refField) {
-            BaseObject* oldRef = refField.GetTargetObject();
-            MarkAndEnqueue(oldRef, wbBuf);
-        });
-    }
+    gctib.ForEachBitmapWord(dst, [&wbBuf](RefField<>& refField) {
+        BaseObject* oldRef = refField.GetTargetObject();
+        MarkAndEnqueue(oldRef, wbBuf);
+    });
 
     // memcpy
     CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), dstLen,
@@ -220,7 +236,11 @@ void MSWriteBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(src), copyLen);
 #endif
 
-    // No shade(new) for static struct writes: SATB deletion barrier only.
+    // shade(new): mark newly-written reference fields (Dijkstra insertion barrier)
+    gctib.ForEachBitmapWord(dst, [&wbBuf](RefField<>& refField) {
+        BaseObject* newRef = refField.GetTargetObject();
+        MarkAndEnqueue(newRef, wbBuf);
+    });
 }
 
 // ============================================================================
@@ -233,15 +253,14 @@ void MSWriteBarrier::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex 
     (void)dstObj;
     (void)srcObj;
 
+    WriteBarrierBuffer& wbBuf = GetWBBuf();
+    size_t refCount = dstSize / sizeof(MAddress);
+    RefField<false>* dstRefs = reinterpret_cast<RefField<false>*>(dstField);
+
     // shade(old): mark all existing references in the destination range
-    {
-        WriteBarrierBuffer& wbBuf = GetWBBuf();
-        size_t refCount = dstSize / sizeof(MAddress);
-        RefField<false>* dstRefs = reinterpret_cast<RefField<false>*>(dstField);
-        for (size_t i = 0; i < refCount; ++i) {
-            BaseObject* oldRef = dstRefs[i].GetTargetObject();
-            MarkAndEnqueue(oldRef, wbBuf);
-        }
+    for (size_t i = 0; i < refCount; ++i) {
+        BaseObject* oldRef = dstRefs[i].GetTargetObject();
+        MarkAndEnqueue(oldRef, wbBuf);
     }
 
     // memmove
@@ -254,7 +273,11 @@ void MSWriteBarrier::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex 
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(srcField), copyLen);
 #endif
 
-    // No shade(new) for array copy: SATB deletion barrier only.
+    // shade(new): mark newly-written references (Dijkstra insertion barrier)
+    for (size_t i = 0; i < refCount; ++i) {
+        BaseObject* newRef = dstRefs[i].GetTargetObject();
+        MarkAndEnqueue(newRef, wbBuf);
+    }
 }
 
 void MSWriteBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
@@ -262,12 +285,13 @@ void MSWriteBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MInd
 {
     (void)srcObj;
 
+    WriteBarrierBuffer& wbBuf = GetWBBuf();
+
     // shade(old): mark all existing reference fields in the destination range
     // before overwriting them (SATB deletion barrier requirement).
     // Without this, old references in struct array elements are silently
     // overwritten, breaking the snapshot-at-the-beginning invariant.
     if (dstObj != nullptr) {
-        WriteBarrierBuffer& wbBuf = GetWBBuf();
         dstObj->ForEachRefInStruct(
             [&wbBuf](RefField<false>& refField) {
                 BaseObject* oldRef = refField.GetTargetObject();
@@ -285,6 +309,16 @@ void MSWriteBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MInd
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dstField), copyLen);
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(srcField), copyLen);
 #endif
+
+    // shade(new): mark newly-written reference fields (Dijkstra insertion barrier)
+    if (dstObj != nullptr) {
+        dstObj->ForEachRefInStruct(
+            [&wbBuf](RefField<false>& refField) {
+                BaseObject* newRef = refField.GetTargetObject();
+                MarkAndEnqueue(newRef, wbBuf);
+            },
+            dstField, dstField + dstSize);
+    }
 }
 
 // ============================================================================
@@ -313,6 +347,9 @@ void MSWriteBarrier::AtomicWriteReference(BaseObject* obj, RefField<true>& field
 
     // atomic store
     field.SetTargetObject(ref, order);
+
+    // shade(new): Dijkstra insertion barrier
+    MarkAndEnqueue(ref, wbBuf);
 }
 
 BaseObject* MSWriteBarrier::AtomicSwapReference(BaseObject* obj, RefField<true>& field,
@@ -329,6 +366,9 @@ BaseObject* MSWriteBarrier::AtomicSwapReference(BaseObject* obj, RefField<true>&
     // shade(old) — the swapped-out reference (SATB deletion barrier)
     MarkAndEnqueue(oldRef, wbBuf);
 
+    // shade(new): Dijkstra insertion barrier
+    MarkAndEnqueue(newRef, wbBuf);
+
     return oldRef;
 }
 
@@ -343,6 +383,8 @@ bool MSWriteBarrier::CompareAndSwapReference(BaseObject* obj, RefField<true>& fi
     if (success) {
         // CAS succeeded: shade old ref (SATB deletion barrier)
         MarkAndEnqueue(oldRef, wbBuf);
+        // shade(new): Dijkstra insertion barrier
+        MarkAndEnqueue(newRef, wbBuf);
     }
     // If CAS failed, no write happened — no barrier needed
     return success;

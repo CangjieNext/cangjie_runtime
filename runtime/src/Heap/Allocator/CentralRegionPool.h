@@ -363,6 +363,18 @@ public:
     void RegisterAllocBufferMS(AllocBufferMS* buffer);
     void RemoveAllocBufferMS(AllocBufferMS* buffer);
     void FlushAllAllocBuffers();
+
+    // Visit all registered AllocBufferMS instances (under lock)
+    template<typename Visitor>
+    void VisitAllocBufferMS(Visitor&& visitor)
+    {
+        std::lock_guard<std::mutex> lg(msAllocBufferLock_);
+        for (AllocBufferMS* buffer : msAllocBuffers_) {
+            if (buffer != nullptr) {
+                visitor(*buffer);
+            }
+        }
+    }
 private:
     std::mutex msAllocBufferLock_;
     std::vector<AllocBufferMS*> msAllocBuffers_;

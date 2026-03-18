@@ -305,40 +305,17 @@ bool RegionSpace::MarkObject(const BaseObject* obj)
 {
     MAddress addr = reinterpret_cast<MAddress>(obj);
 
-    // Non-heap addresses: check LOS (Tier 2 huge objects) before rejecting
-    if (!MSRegionInfoArray::IsHeapAddress(addr)) {
-        // Try LOS — these objects are mmap'd outside the contiguous heap
-        RegionSpace& space = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
-        LargeObjectSpace* los = space.GetLargeObjectSpace();
-        if (los != nullptr && los->MarkObject(static_cast<uintptr_t>(addr))) {
-            return false;  // newly marked in LOS
-        }
-        return true;  // not managed — treat as already marked
+    if (MSRegionInfoArray::IsHeapAddress(addr)) {
+        return MSRegionInfoArray::MarkObjectInHeap(static_cast<uintptr_t>(addr));
     }
 
-    MSRegionInfo* msInfo = MSRegionInfoArray::GetRegionInfoValidated(addr);
-    if (msInfo == nullptr) {
-        return true;
+    // Outside heap range: LOS Tier 2 (>4MB mmap objects) or external.
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+    LargeObjectSpace* los = space.GetLargeObjectSpace();
+    if (los != nullptr && los->MarkObject(static_cast<uintptr_t>(addr))) {
+        return false;  // newly marked in LOS
     }
 
-    // Large region: use isMarked flag on base MSRegionInfo
-    if (msInfo->regionType == MSRegionType::MS_REGION_LARGE) {
-        // Resolve to base MSRegionInfo (handles interior pointers across spans)
-        MSRegionInfo* base = MSRegionInfoArray::GetRegionInfoByIdx(
-            static_cast<size_t>(msInfo->reserved));
-        if (base->isMarked) {
-            return true;  // already marked
-        }
-        base->isMarked = 1;
-        return false;  // newly marked
-    }
-
-    // Small/medium region: use mark bitmap
-    if (msInfo->markBitmap != nullptr && msInfo->totalSlotCount > 0) {
-        return msInfo->TestAndSetMarkBit(addr);  // true = already set
-    }
-
-    // MSRegionInfo not yet initialized (edge case) → treat as already marked
     return true;
 }
 

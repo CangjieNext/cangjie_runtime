@@ -280,6 +280,34 @@ public:
         return addr >= heapStartAddress_ && addr < heapEndAddress_;
     }
 
+    // Shared MarkObject implementation for heap-internal addresses.
+    // Precondition: IsHeapAddress(addr) == true.
+    // Returns true = already marked (skip), false = newly marked (enqueue).
+    static inline bool MarkObjectInHeap(uintptr_t addr)
+    {
+        MSRegionInfo* msInfo = GetRegionInfoValidated(addr);
+        if (msInfo == nullptr) {
+            return true;  // released region — treat as already marked
+        }
+        if (msInfo->regionType == MSRegionType::MS_REGION_LARGE) {
+            MSRegionInfo* base = GetRegionInfoByIdx(
+                static_cast<size_t>(msInfo->reserved));
+            // Guard: base entry already Reset (stale large region)
+            if (base->allocPtr == 0 && base->regionEnd == 0) {
+                return true;
+            }
+            if (base->isMarked) {
+                return true;
+            }
+            base->isMarked = 1;
+            return false;  // newly marked
+        }
+        if (msInfo->markBitmap != nullptr && msInfo->totalSlotCount > 0) {
+            return msInfo->TestAndSetMarkBit(addr);
+        }
+        return true;  // uninitialized region — treat as already marked
+    }
+
     static size_t GetMaxRegionCount() { return maxRegionCount_; }
     static uintptr_t GetHeapStartAddress() { return heapStartAddress_; }
     static void Cleanup();

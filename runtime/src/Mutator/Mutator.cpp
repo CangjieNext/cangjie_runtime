@@ -19,6 +19,10 @@
 #include "StackManager.h"
 #include "ExceptionManager.h"
 #include "schedule.h"
+#ifdef MRT_USE_MARK_SWEEP
+#include "Heap/Allocator/AllocBufferMS.h"
+#include "Heap/Allocator/RegionSpace.h"
+#endif
 #ifdef _WIN64
 #include "WinModuleManager.h"
 #endif
@@ -460,22 +464,34 @@ inline void Mutator::GcPhaseEnum(GCPhase newPhase)
 {
     std::set<BaseObject*> rootSet;
     std::stack<BaseObject*> rootStack;
-    RefFieldVisitor refVisitor = [&rootSet, &rootStack, this](RefField<>& refFieldAddr) {
+#ifdef MRT_USE_MARK_SWEEP
+    auto pushRoot = [](BaseObject* obj) {
+        RegionSpace& space = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+        AllocBufferMS* buffer = space.GetOrCreateAllocBufferMS();
+        if (buffer != nullptr) {
+            buffer->PushRoot(obj);
+        }
+    };
+#else
+    auto pushRoot = [](BaseObject* obj) {
+        AllocBuffer* buffer = AllocBuffer::GetOrCreateAllocBuffer();
+        buffer->PushRoot(obj);
+    };
+#endif
+    RefFieldVisitor refVisitor = [&rootSet, &rootStack, this, &pushRoot](RefField<>& refFieldAddr) {
         BaseObject* obj = refFieldAddr.GetTargetObject();
         if (Heap::IsHeapAddress(obj)) {
-            AllocBuffer* buffer = AllocBuffer::GetOrCreateAllocBuffer();
-            buffer->PushRoot(obj);
+            pushRoot(obj);
             DLOG(ENUM, "enum stack root RefField @%p: %p", &refFieldAddr, obj);
         } else if (IsStackAddr(reinterpret_cast<uintptr_t>(obj))) {
             CheckAndPush(obj, rootSet, rootStack);
         }
     };
 
-    RootVisitor visitor = [&rootSet, &rootStack, this, &refVisitor](ObjectRef& root) {
+    RootVisitor visitor = [&rootSet, &rootStack, this, &refVisitor, &pushRoot](ObjectRef& root) {
         BaseObject* obj = root.object;
         if (Heap::IsHeapAddress(obj)) {
-            AllocBuffer* buffer = AllocBuffer::GetOrCreateAllocBuffer();
-            buffer->PushRoot(obj);
+            pushRoot(obj);
             DLOG(ENUM, "enum stack root @%p: %p", &root, obj);
         } else if (IsStackAddr(reinterpret_cast<uintptr_t>(obj))) {
             CheckAndPush(obj, rootSet, rootStack);

@@ -54,25 +54,21 @@ MAddress AllocBufferMS::Allocate(size_t size)
     }
     MAddress addr = FastAlloc(cls);
 
-    // Mark-at-alloc + mutator assist: single phase read covers both checks.
-    // During GC marking phases, newly allocated objects are colored black
-    // (marked) so they survive the current GC cycle.
+    // Mark-at-alloc: during ALL MS-GC phases (MARK_SETUP through SWEEP),
+    // newly allocated objects must be colored black (marked) so they survive
+    // the current GC cycle's sweep.
+    //
+    // Critical: objects allocated during MS_SWEEP phase are placed in free
+    // slots of already-swept regions (using old allocBitmap). Their markBitmap
+    // bits are 0 (cleared at MarkSetup). When PrepareForSweep flips the
+    // generation and the region is lazily swept again, allocBitmap = ~markBitmap
+    // would incorrectly free these live objects. Setting the mark bit here
+    // prevents that.
     if (UNLIKELY(addr != 0)) {
         GCPhase phase = Mutator::GetMutator()->GetMutatorPhase();
         if (UNLIKELY(phase >= GCPhase::GC_PHASE_MS_MARK_SETUP &&
-                     phase <= GCPhase::GC_PHASE_MS_MARK_TERMINATION)) {
+                     phase <= GCPhase::GC_PHASE_MS_SWEEP)) {
             RegionSpace::MarkObject(reinterpret_cast<const BaseObject*>(addr));
-            if (phase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK) {
-                // TODO(O5): Re-enable mark assist after sweep debt is decoupled
-                // gcAssistBytes_ += (size >> 2);  // ~25% of allocated size
-                // if (gcAssistBytes_ >= kGCAssistTriggerBytes) {
-                //     MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
-                //     if (collector != nullptr) {
-                //         collector->MSMarkAssist();
-                //     }
-                //     gcAssistBytes_ = 0;
-                // }
-            }
         }
     }
 

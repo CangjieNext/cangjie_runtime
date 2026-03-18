@@ -127,6 +127,11 @@ void MarkSweepCollector::MarkSetup()
     uint64_t phaseStart = TimeUtil::MicroSeconds();
     VLOG(REPORT, "[MS-GC] --- MarkSetup ---");
 
+    // Set activeCollector_ early so that write barrier overflow handling
+    // (MarkAndEnqueue → FlushWriteBarrierOverflow) can reach the global work
+    // queue as soon as mutators resume with MARK_SETUP phase after STW.
+    activeCollector_.store(this, std::memory_order_release);
+
     RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
 
@@ -136,7 +141,7 @@ void MarkSweepCollector::MarkSetup()
     {
         uint64_t t0 = TimeUtil::MicroSeconds();
         if (centralPool != nullptr) {
-            // [P0-1 OFF] centralPool->WaitForSweepDone();
+            centralPool->WaitForSweepDone();
             centralPool->ForceFinishSweep();
         }
         cycleStats_.forceFinishSweepUs = TimeUtil::MicroSeconds() - t0;
@@ -251,40 +256,17 @@ bool MarkSweepCollector::MarkObject(BaseObject* obj) const
 {
     uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
 
-    // All MS objects (small, medium, large) are tracked via MSRegionInfo.
     if (MSRegionInfoArray::IsHeapAddress(addr)) {
-        MSRegionInfo* msInfo = MSRegionInfoArray::GetRegionInfoValidated(addr);
-        if (msInfo != nullptr) {
-            // Large objects (MS_REGION_LARGE): resolve base via reserved back-pointer
-            if (msInfo->regionType == MSRegionType::MS_REGION_LARGE) {
-                MSRegionInfo* base = MSRegionInfoArray::GetRegionInfoByIdx(
-                    static_cast<size_t>(msInfo->reserved));
-                if (base->isMarked == 0) {
-                    base->isMarked = 1;
-                    return false;  // newly marked
-                }
-                return true;  // already marked
-            }
-            // Small/medium objects: use bitmap
-            if (msInfo->markBitmap != nullptr && msInfo->totalSlotCount > 0) {
-                return msInfo->TestAndSetMarkBit(addr);
-            }
-        }
-        // MSRegionInfo not initialized — should not happen after routing fix
-        return false;  // treat as newly marked to avoid losing it
+        return MSRegionInfoArray::MarkObjectInHeap(addr);
     }
 
     // Outside heap range: LOS Tier 2 (>4MB mmap objects) or external.
-    // Query LargeObjectSpace first — these objects are independently mmap'd
-    // and have no MSRegionInfo or RegionInfo metadata.
     RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
     LargeObjectSpace* los = space.GetLargeObjectSpace();
     if (los != nullptr && los->MarkObject(addr)) {
         return false;  // newly marked in LOS
     }
 
-    // Not managed by MS heap or LOS — external/invalid address.
-    // Return true ("already marked") so callers do NOT push it to workStack.
     return true;
 }
 
@@ -341,10 +323,7 @@ void MarkSweepCollector::EnumAndMarkRoots(WorkStack& workStack, WorkStack& forei
 
 void MarkSweepCollector::ConcurrentMark()
 {
-    // Set activeCollector_ BEFORE phase transition so that write barrier
-    // overflow handling (MarkAndEnqueue → EnqueueGreyObject) can reach the
-    // global work queue as soon as mutators resume with CONCURRENT_MARK phase.
-    activeCollector_.store(this, std::memory_order_release);
+    // activeCollector_ was already set in MarkSetup (before STW).
 
     // 8. Transition to concurrent marking phase
     TransitionToGCPhase(GCPhase::GC_PHASE_MS_CONCURRENT_MARK, true);
@@ -649,12 +628,26 @@ void MarkSweepCollector::MarkTermination()
 
     WorkStack mainQueue = NewWorkStack();
 
-    // 1. Flush all write barrier buffers
+    // 1. Flush all write barrier buffers (per-mutator)
     {
         uint64_t t0 = TimeUtil::MicroSeconds();
         FlushAllWriteBarrierBuffers(mainQueue);
         cycleStats_.wbBufFlushUs = TimeUtil::MicroSeconds() - t0;
         cycleStats_.wbBufEntriesTotal = mainQueue.size();
+    }
+
+    // 1b. Drain global work queue — objects pushed via WB overflow flush
+    //     (FlushWriteBarrierOverflow) go directly to globalWorkQueue_ and are
+    //     NOT in per-mutator WB buffers. Must drain them here under STW.
+    {
+        std::lock_guard<std::mutex> lock(globalWorkMutex_);
+        while (!globalWorkQueue_.empty()) {
+            BaseObject* obj = globalWorkQueue_.back();
+            globalWorkQueue_.pop_back();
+            if (obj != nullptr) {
+                mainQueue.push_back(obj);
+            }
+        }
     }
 
     // 2. Collect other remaining unmarked objects to main queue
@@ -682,6 +675,15 @@ void MarkSweepCollector::MarkTermination()
     VLOG(REPORT, "[MS-GC] MarkTermination total: %sus, total marked %zu",
          Pretty(cycleStats_.markTerminationUs).Str(),
          markedObjectCount.load(std::memory_order_relaxed));
+
+    // Transition to MS_SWEEP INSIDE STW so that when mutators resume,
+    // the phase is MS_SWEEP (idle barrier). This eliminates a gap where
+    // mutators could trigger the SATB barrier after MarkTermination drain
+    // but before PostMarkTermination switches the phase — objects shaded
+    // in that gap would never be traced because PostMarkTermination's
+    // ClearAllWriteBarrierBuffers discards them without tracing.
+    TransitionToGCPhase(GCPhase::GC_PHASE_MS_SWEEP, false);
+    ClearAllWriteBarrierBuffers();
 
     // 3. Transition to MS_SWEEP (uninstalls mark barrier, installs idle barrier)
     //    Note: ScopedStopTheWorld destructor will call StartTheWorld()
@@ -749,13 +751,14 @@ void MarkSweepCollector::ExecuteLikeDrainMainQueue(WorkStack& mainQueue)
             continue;
         }
 
-        // MarkObject returns false when newly marked, true when already marked
+        // Try to mark. If newly marked, count it.
+        // But ALWAYS trace children — objects from the write barrier buffer
+        // are already marked by MarkAndEnqueue; skipping them would leave
+        // their children untraced and subject to incorrect sweeping.
         bool alreadyMarked = MarkObject(obj);
-        if (alreadyMarked) {
-            continue; // already marked — skip
+        if (!alreadyMarked) {
+            markedObjectCount.fetch_add(1, std::memory_order_relaxed);
         }
-
-        markedObjectCount.fetch_add(1, std::memory_order_relaxed);
 
         if (!obj->HasRefField()) {
             continue;
@@ -785,8 +788,8 @@ void MarkSweepCollector::PostMarkTermination()
     uint64_t phaseStart = TimeUtil::MicroSeconds();
     VLOG(REPORT, "[MS-GC] --- PostMark ---");
 
-    // Transition to sweep phase (disables mark barrier, enables idle barrier)
-    TransitionToGCPhase(GCPhase::GC_PHASE_MS_SWEEP, true);
+    // Phase transition and WB clear already done in MarkTermination (inside STW).
+    // No need to transition again or clear WB buffers here.
 
     // 1. Weak reference cleanup: referent not marked → set to null
     {
@@ -796,10 +799,7 @@ void MarkSweepCollector::PostMarkTermination()
         VLOG(REPORT, "[MS-GC] ProcessWeakRefs: %sus", Pretty(weakRefUs).Str());
     }
 
-    // 2. Clear write barrier buffers (GC cycle complete, no more shading needed)
-    ClearAllWriteBarrierBuffers();
-
-    // 3. Finalizer processing: enqueue unreachable finalizer objects
+    // 2. Finalizer processing: enqueue unreachable finalizer objects
     {
         uint64_t t0 = TimeUtil::MicroSeconds();
         ProcessFinalizers();
@@ -893,17 +893,25 @@ void MarkSweepCollector::ConcurrentSweep()
     // globalSweepGen_ by 2.  Actual per-region sweeping happens lazily on the
     // allocation path (SweepAndClassify) or eagerly via BackgroundSweep.
     if (centralPool != nullptr) {
-        uint64_t t0 = TimeUtil::MicroSeconds();
-        centralPool->PrepareForSweep();
-        uint64_t prepUs = TimeUtil::MicroSeconds() - t0;
-        VLOG(REPORT, "[MS-GC] PrepareForSweep (gen flip): %sus", Pretty(prepUs).Str());
+        // STW: Flush all per-thread AllocBufferMS regions to central pool AND
+        // perform the generation flip (PrepareForSweep) atomically.
+        // Without the flush, mutator-cached regions survive the gen flip.
+        // Without STW around both, mutators can take regions from the pool
+        // between flush and PrepareForSweep, causing those regions to miss
+        // the gen flip entirely.
+        {
+            ScopedStopTheWorld stwFlush("MS FlushAndPrepSweep");
+            centralPool->FlushAllAllocBuffers();
+            centralPool->PrepareForSweep();
+        }
+        VLOG(REPORT, "[MS-GC] FlushAllAllocBuffers + PrepareForSweep (gen flip) done");
 
-        // [P0-1 OFF] Notify gc-helper thread to start background sweep.
-        // FinalizerProcessor& fp = Heap::GetHeap().GetFinalizerProcessor();
-        // fp.NotifyToSweep();
+        // Notify gc-helper thread to start background sweep.
+        FinalizerProcessor& fp = Heap::GetHeap().GetFinalizerProcessor();
+        fp.NotifyToSweep();
 
         // Notify gc-helper thread to release dirty pages to OS.
-        Heap::GetHeap().GetFinalizerProcessor().NotifyToReclaimGarbage();
+        fp.NotifyToReclaimGarbage();
     }
 
     uint64_t sweepUs = TimeUtil::MicroSeconds() - phaseStart;
