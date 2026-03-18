@@ -355,17 +355,21 @@ void StackManager::InitAddressScope()
     InitAddressInfoOnDarwin("/cjc", StackManager::cjcSoStartAddr, StackManager::cjcSoEndAddr);
 #endif
 
-// Init interpreter address info.
-#ifdef INTERPRETER_ENABLED
-#if defined(__linux__)
-    std::vector<CString> interpreterSoName = { CString(Runtime::Current().GetRuntimeParam().interpreterParam.interpreterLibName).Combine("\n").Str() };
-    GetEachSoAddrScope(interpreterSoName);
-#else
-    LOG(RTLOG_FATAL, "can not find interpreter so");
-#endif
-#endif
-
 }
+
+#ifdef INTERPRETER_ENABLED
+void StackManager::InitAddressScopeForInterpreter(const char* libName)
+{
+#if defined(__linux__) // Linux, ANDROID, OHOS
+    std::vector<CString> interpreterSoName = { CString(libName).Combine("\n").Str() };
+    GetEachSoAddrScope(interpreterSoName);
+#elif defined(__APPLE__) && !defined(__IOS__) // MacOS
+    InitAddressInfoOnDarwin(CString(libName).Str(), StackManager::interpreterSoStartAddr, StackManager::interpreterSoEndAddr);
+#else
+    LOG(RTLOG_FATAL, "Unsupported platform for interpreter");
+#endif
+}
+#endif
 
 void InitAddressScopeForCJthreadTrace()
 {

@@ -602,9 +602,6 @@ static RuntimeParam InitRuntimeParam()
 void MRT_CjRuntimeInit()
 {
     RuntimeParam param = InitRuntimeParam();
-#ifdef INTERPRETER_ENABLED
-    InitInterpreter(param); // TODO move to shared part
-#endif
     CangjieRuntime::CreateAndInit(param);
     RTErrorCode rtCode = SetRuntimeInitFlag();
     if (rtCode != E_OK) {

@@ -20,6 +20,8 @@
 #include "ObjectModel/MArray.h"
 #include "ObjectModel/MClass.h"
 #include "Heap/Collector/Collector.h"
+#include "StackManager.h"
+#include "LoaderManager.h"
 
 #include "InterpreterSpecific.h"
 
@@ -419,7 +421,7 @@ bool IsActiveGCPhase(thread_local_data_t tld) {
     return mutator->GetMutatorPhase() >= GCPhase::GC_PHASE_ENUM;
 }
 
-exception_wrapper_t GetExceptionWrapper() 
+exception_wrapper_t GetExceptionWrapper()
 {
     DLOG_INTERPRETER(DEBUG, "[Interpreter] GetExceptionWrapper");
     return static_cast<exception_wrapper_t>(ExceptionManager::GetExceptionWrapper());
@@ -451,19 +453,29 @@ size_t ComputeFiberDataOffset()
 void InitInterpreter(const RuntimeParam& runtimeParam) 
 {
     if (runtimeParam.interpreterParam.interpreterLibName.IsEmpty()) {
-        LOG(RTLOG_FATAL, "[Interpreter] Interpreter library name is empty");
+        DLOG_INTERPRETER(DEBUG, "[Interpreter] interpreter library name is empty");
         return;
     }
-    void *handle = dlopen(runtimeParam.interpreterParam.interpreterLibName.Str(), RTLD_LAZY);
+
+    const char* libName = runtimeParam.interpreterParam.interpreterLibName.Str();
+    DLOG_INTERPRETER(DEBUG, "[Interpreter] initializing interpreter with library: %s", libName);
+
+#if defined(__OHOS__)
+    void* handle = LoaderManager::GetInstance()->LoadInterpreter(libName);
+#else
+    void* handle = dlopen(libName, RTLD_LAZY);
+#endif
     if (handle == 0) {
-        LOG(RTLOG_FATAL, "[Interpreter] dlopen failed: %s", dlerror());
+        DLOG_INTERPRETER(DEBUG, "[Interpreter] interpreter library could not be loaded: %s", dlerror());
         return;
     }
+
+    StackManager::InitAddressScopeForInterpreter(libName);
 
     void *sym = dlsym(handle, "interpreter_bridge_init");
     init_rt init = (init_rt)sym;
     if (sym == 0) {
-        LOG(RTLOG_FATAL, "[Interpreter] dlsym failed: %s", dlerror());
+        DLOG_INTERPRETER(DEBUG, "[Interpreter] dlsym failed: %s", dlerror());
         return;
     }
 

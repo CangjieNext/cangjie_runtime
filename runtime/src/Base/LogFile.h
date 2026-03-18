@@ -176,7 +176,7 @@ void WriteLog(bool addPrefix, LogType type, const char* format, ...) noexcept;
 
 #define ENABLE_LOG(type) LogFile::LogIsEnabled(type)
 
-#if defined (__OHOS__)
+#if defined (__OHOS__) || defined (__ANDROID__)
 #define VLOG(type, format...) \
     if (type == LogType::REPORT) { \
         LOG(RTLOG_INFO, format); \
@@ -197,7 +197,11 @@ void WriteLog(bool addPrefix, LogType type, const char* format, ...) noexcept;
 #endif
 
 #ifdef INTERPRETER_ENABLED
+#if defined (__OHOS__)
+#define DLOG_INTERPRETER(type, format...) VLOG(REPORT, format) // use hilog
+#else
 #define DLOG_INTERPRETER(type, format...) DLOG(type, format)
+#endif
 #else
 #define DLOG_INTERPRETER(type, format...) (void)(0)
 #endif
