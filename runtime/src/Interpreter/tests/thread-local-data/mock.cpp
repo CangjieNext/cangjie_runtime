@@ -28,8 +28,8 @@ public:
     }
 };
 
-ThreadLocalDataTestMock::ThreadLocalDataTestMock(int a1, int a2, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
-    : Mock(a1, a2, interpreter_interf, cjnative_interf) 
+ThreadLocalDataTestMock::ThreadLocalDataTestMock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
+    : Mock(a1, interpreter_interf, cjnative_interf) 
 {
     interpreter_interf->visit_global_roots = &visitGlobalRoots;
     interpreter_interf->visit_frame_roots = &visitFrameRoots;

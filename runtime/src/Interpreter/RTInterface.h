@@ -36,7 +36,7 @@ typedef void *type_info_t;
 // Pointer to TypeTemplate. Binary layout of this structure is defined by CJNative runtime.
 typedef void *type_template_t;
 
-// Pointer to ThreadLocalData structure.
+// Pointer to ThreadLocalData that is currently executing current fiber.
 typedef void* thread_local_data_t;
 
 // Pointer to fiber specific data that is used by interpreter during execution.
@@ -129,7 +129,6 @@ struct cjnative_interface_t;
 //
 // params:
 // - Number of interpreter options.
-// - List of LWRT options or `null`.
 // - Pointer to `interpreter_interface_t` which will be filled.
 // - Pointer to `cjnative_interface_t`. The content will be copied.
 // return: 0 on success.
@@ -137,42 +136,10 @@ struct cjnative_interface_t;
 // Notes:
 //  CCall calling convention is used.
 //
-typedef int (*init_rt)(size_t, char **, struct interpreter_interface_t *, struct cjnative_interface_t *);
-
-
-// TODO: discuss and explain better.
-//
-//  Interprets given CBC function.
-//
-//  params:
-//    - func_name - name of the function to interpret
-//    TODO: path to cbc, parameters of function
-//
-//  return:
-//    TODO: ret value and ABI
-//
-//  Notes:
-//  ManagedCall calling convention is used. This method will be invoked by CJNative runtime via special wrapper that "adapts" calling conventions (transfer from CJNative-compiled Cangjie code to interpreted CBC bytecode).
-//
-//  Main requirements:
-//       - CJNative saves all callee-save registers before calling this function and restores them on return
-//       - CJNative runtime treats this method as "filled with manual safe-points", no need to change execution into "foreign" mode.
-//       - CJNative passes pointer to fiber-specific data on special register (e.g. r15 on x86_64). See `fiber_specific_data_t`.
-//       - interpreter presumes special register (r15 on x86_64) and does not spoil it.
-//       - interpreter guarantees to regularly poll safe points while interpreting CBC bytecode. See `safe_point_f`.
-//       - When interpreter needs to execute "long running" system code (e.g. sleep, fseek, pthread_mutex_lock etc.) it uses I2N_Stub.
-//       - When interpreter needs to access fiber-specific data, it derefences special register at `offset_to_fiber_specific_memory_f` offset. See `fiber_specific_data_t`.
-//       - When CJNative needs to trigger Garbage collection, it enables safe points. When corresponding fiber is stopped, CJNative should use
-//            - `local_roots_iterator_init_f`, `local_roots_iterator_iterate_f`
-//            - `global_roots_iterator_init_f`, `global_roots_iterator_iterate_f`
-//         to collect root set
-//
-typedef int (*interpret_cbc_f)(char* func_name);
-
+typedef int (*init_rt)(size_t, struct interpreter_interface_t *, struct cjnative_interface_t *);
 
 // TODO doc
 typedef void (*visit_global_roots_f)(root_visitor_t visitor);
-
 
 // TODO doc
 typedef void (*visit_frame_roots_f)(root_visitor_t visitor, frame_desc_t frame_desc);
@@ -458,21 +425,6 @@ typedef void (*visit_fiber_root_from_interpreter_f)(root_visitor_t visitor, plac
 // CCall calling convention is used.
 //
 typedef void (*visit_stack_ptr_from_interpreter_f)(stack_ptr_visitor_t visitor, placeholder_t placeholder);
-
-// Get RefField* from object.
-// Used for subsequent access to reference field.
-//
-// params:
-// - object - object from which to get the reference field
-// - offset - offset of the reference field from start of object (before header)
-//
-// Example:
-//   class A {
-//      let x: Object; // offset = 8
-//      let y: Object; // offset = 16
-//   }
-//
-typedef field_ref_t (*get_ref_field_f)(obj_ref_t object, uint32_t offset);
 
 // Read reference from static field.
 //
@@ -783,8 +735,6 @@ struct cjnative_interface_t {
     visit_global_root_from_interpreter_f visit_global_root_from_interpreter;
     visit_frame_root_from_interpreter_f visit_frame_root_from_interpreter; 
     visit_stack_ptr_from_interpreter_f visit_stack_ptr_from_interpreter;
-
-    get_ref_field_f get_ref_field;
 
     read_static_field_f read_static_field;
     write_static_field_f write_static_field;

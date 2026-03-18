@@ -11,8 +11,8 @@ extern MOCK_IMPLEMENTATION mockInstance;
 
 uint8_t literalsStorage[sizeof(RawArray) + CONTENT_SIZE];
 
-StrLiteralMock::StrLiteralMock(int a1, int a2, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
-    : Mock(a1, a2, interpreter_interf, cjnative_interf) 
+StrLiteralMock::StrLiteralMock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
+    : Mock(a1, interpreter_interf, cjnative_interf) 
 {
     registerC2I(0, reinterpret_cast<uintptr_t>(produceLiteralSlow1));
     registerC2I(1, reinterpret_cast<uintptr_t>(produceLiteralSlow2));

@@ -32,8 +32,8 @@ public:
     }
 };
 
-BarriersMock::BarriersMock(int a1, int a2, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
-    : Mock(a1, a2, interpreter_interf, cjnative_interf) 
+BarriersMock::BarriersMock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
+    : Mock(a1, interpreter_interf, cjnative_interf) 
 {
     interpreter_interf->visit_global_roots = &visitGlobalRoots;
     interpreter_interf->visit_frame_roots = &visitFrameRoots;
@@ -393,9 +393,11 @@ void BarriersMock::testBarriers() {
     for (int i = 0; i < ITERATIONS; i++) {
         if (i % 2 == 0) {
             obj_ref_t obj_in_container = interface.object_alloc(tiObject);
-            interface.write_instance_field(frameRoots[0], interface.get_ref_field(frameRoots[0], 0 + sizeof(type_info_t)), obj_in_container);
+            field_ref_t field = getRefField(frameRoots[0], sizeof(type_info_t));
+            interface.write_instance_field(frameRoots[0], field, obj_in_container);
         } else {
-            obj_ref_t obj_in_container = interface.read_instance_field(frameRoots[0], interface.get_ref_field(frameRoots[0], 0 + sizeof(type_info_t)));
+            field_ref_t field = getRefField(frameRoots[0], sizeof(type_info_t));
+            obj_ref_t obj_in_container = interface.read_instance_field(frameRoots[0], field);
             if (!obj_in_container) {
                 printf("[Mock] error: read null from instance field\n");
                 return;

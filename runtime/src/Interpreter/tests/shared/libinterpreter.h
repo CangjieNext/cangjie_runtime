@@ -54,7 +54,7 @@ extern "C" {
 class Mock {
     public:
         Mock() = default;
-        Mock(int a1, int a2, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
+        Mock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
 
         cjnative_interface_t cjNativeInterface;
 
@@ -121,6 +121,10 @@ template <typename T>
 inline uintptr_t getUntaggedAddress(T* ptr) {
     constexpr uintptr_t LOWER_48_BIT_MASK = 0x0000FFFFFFFFFFFFULL;
     return reinterpret_cast<uintptr_t>(ptr) & LOWER_48_BIT_MASK;
+}
+
+inline field_ref_t getRefField(obj_ref_t object, uint32_t offset) {
+    return reinterpret_cast<field_ref_t>(reinterpret_cast<uintptr_t>(object) + offset);
 }
 
 #endif

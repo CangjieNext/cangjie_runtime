@@ -6,8 +6,8 @@
 
 extern MOCK_IMPLEMENTATION mockInstance;
 
-AllocationMock::AllocationMock(int a1, int a2, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
-: Mock(a1, a2, interpreter_interf, cjnative_interf) {
+AllocationMock::AllocationMock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
+: Mock(a1, interpreter_interf, cjnative_interf) {
     registerC2I(0, reinterpret_cast<uintptr_t>(allocationTest));
     printf("[Mock] AllocationMock created\n");
 }

@@ -15,8 +15,8 @@ using Ref = void*;
 Ref frameRoots[FRAME_ROOTS_N];
 Ref globalRoots[GLOBAL_ROOTS_N];
 
-ScanningMock::ScanningMock(int a1, int a2, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
-    : Mock(a1, a2, interpreter_interf, cjnative_interf) 
+ScanningMock::ScanningMock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
+    : Mock(a1, interpreter_interf, cjnative_interf) 
 {
     interpreter_interf->visit_global_roots = &visitGlobalRoots;
     interpreter_interf->visit_fiber_roots = &visitFiberRoots;
