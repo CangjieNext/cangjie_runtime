@@ -284,13 +284,6 @@ void WriteStaticField(field_ref_t destination, obj_ref_t new_value)
     Heap::GetBarrier().WriteStaticRef(*static_cast<RefField<false>*>(destination), static_cast<BaseObject*>(new_value));
 }
 
-field_ref_t GetRefField(obj_ref_t object, U32 offset) 
-{
-    DLOG_INTERPRETER(DEBUG, "[Interpreter] GetRefField %p %u", object, offset);
-    auto obj = static_cast<BaseObject*>(object);
-    return static_cast<field_ref_t>(&(obj->GetRefField(offset)));
-}
-
 obj_ref_t ReadInstanceField(obj_ref_t source, field_ref_t field) 
 {
     DLOG_INTERPRETER(DEBUG, "[Interpreter] ReadInstanceField %p %p", source, field);
@@ -509,7 +502,6 @@ void InitInterpreter(const RuntimeParam& runtimeParam)
         .visit_global_root_from_interpreter = &VisitGlobalRootFromInterpreter,
         .visit_frame_root_from_interpreter = &VisitFrameRootFromInterpreter,
         .visit_stack_ptr_from_interpreter = &VisitStackPtrFromInterpreter,
-        .get_ref_field = &GetRefField,
         .read_static_field = &ReadStaticField,
         .write_static_field = &WriteStaticField,
         .read_instance_field = &ReadInstanceField,
@@ -532,7 +524,7 @@ void InitInterpreter(const RuntimeParam& runtimeParam)
     interpreter_interface_t interpreterInterface;
     interpreterInterface.version = 1;
 
-    int code = init(0, 0, &interpreterInterface, &cjnativeInterface);
+    int code = init(0, &interpreterInterface, &cjnativeInterface);
     interpreterInterfaceInstance.initialize(interpreterInterface);
 }
 
