@@ -70,9 +70,9 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
             sweepStats_.lazySweptRegions.fetch_add(1, std::memory_order_relaxed);
 
             if (region->IsCompletelyFree()) {
-                // O3: Reset to BUMP for fast reuse instead of releasing
-                region->ResetToBump();
-                bucket.partialSwept.Push(region);  // O1: lock-free
+                // P0: empty Region — return to MSRegionManager dirtyTree
+                ReleaseRegionInternal(region);
+                sweepStats_.releasedRegions.fetch_add(1, std::memory_order_relaxed);
                 continue;
             }
             region->regionType = MSRegionType::MS_REGION_PARTIAL;
@@ -99,9 +99,9 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
                 sweepStats_.lazySweptRegions.fetch_add(1, std::memory_order_relaxed);
 
                 if (region->IsCompletelyFree()) {
-                    // O3: Reset to BUMP for fast reuse instead of releasing
-                    region->ResetToBump();
-                    bucket.partialSwept.Push(region);  // O1: lock-free
+                    // P0: empty Region — return to MSRegionManager dirtyTree
+                    ReleaseRegionInternal(region);
+                    sweepStats_.releasedRegions.fetch_add(1, std::memory_order_relaxed);
                     continue;
                 }
                 if (region->HasFreeSpace()) {
@@ -257,9 +257,9 @@ void CentralRegionPool::ForceFinishSweep()
                 sweepStats_.forceSweptRegions.fetch_add(1, std::memory_order_relaxed);
 
                 if (region->IsCompletelyFree()) {
-                    // O3: Reset to BUMP for fast reuse instead of releasing
-                    region->ResetToBump();
-                    bucket.partialSwept.Push(region);  // O1: lock-free
+                    // P0: empty Region — return to MSRegionManager dirtyTree
+                    ReleaseRegionInternal(region);
+                    sweepStats_.releasedRegions.fetch_add(1, std::memory_order_relaxed);
                 } else if (region->HasFreeSpace()) {
                     region->regionType = MSRegionType::MS_REGION_PARTIAL;
                     bucket.partialSwept.Push(region);  // O1: lock-free
@@ -295,9 +295,9 @@ void CentralRegionPool::ForceFinishSweep()
                 sweepStats_.forceSweptRegions.fetch_add(1, std::memory_order_relaxed);
 
                 if (region->IsCompletelyFree()) {
-                    // O3: Reset to BUMP for fast reuse instead of releasing
-                    region->ResetToBump();
-                    bucket.partialSwept.Push(region);  // O1: lock-free
+                    // P0: empty Region — return to MSRegionManager dirtyTree
+                    ReleaseRegionInternal(region);
+                    sweepStats_.releasedRegions.fetch_add(1, std::memory_order_relaxed);
                 } else if (region->HasFreeSpace()) {
                     region->regionType = MSRegionType::MS_REGION_PARTIAL;
                     bucket.partialSwept.Push(region);  // O1: lock-free
@@ -349,9 +349,10 @@ void CentralRegionPool::SweepAndClassify(MSRegionInfo* region, uint32_t sg, Size
     sweepStats_.forceSweptRegions.fetch_add(1, std::memory_order_relaxed);
 
     if (region->IsCompletelyFree()) {
-        // O3: Reset to BUMP for fast reuse instead of releasing
-        region->ResetToBump();
-        bucket.partialSwept.Push(region);  // O1: lock-free
+        // P0: empty Region — return to MSRegionManager dirtyTree
+        ReleaseRegionInternal(region);
+        sweepStats_.releasedRegions.fetch_add(1, std::memory_order_relaxed);
+        return;
     } else if (region->HasFreeSpace()) {
         region->regionType = MSRegionType::MS_REGION_PARTIAL;
         bucket.partialSwept.Push(region);  // O1: lock-free
@@ -474,9 +475,9 @@ void CentralRegionPool::SweepUnsweptList(SizeClassBucket& bucket, MSRegionList& 
             sweepStats_.bgSweptRegions.fetch_add(1, std::memory_order_relaxed);
 
             if (region->IsCompletelyFree()) {
-                // O3: Reset to BUMP for fast reuse instead of releasing
-                region->ResetToBump();
-                bucket.partialSwept.Push(region);  // O1: lock-free
+                // P0: empty Region — return to MSRegionManager dirtyTree
+                ReleaseRegionInternal(region);
+                sweepStats_.releasedRegions.fetch_add(1, std::memory_order_relaxed);
             } else if (region->HasFreeSpace()) {
                 region->regionType = MSRegionType::MS_REGION_PARTIAL;
                 bucket.partialSwept.Push(region);  // O1: lock-free
@@ -634,6 +635,81 @@ void CentralRegionPool::FlushAllAllocBuffers()
             buffer->FlushAll();
         }
     }
+}
+
+// ============================================================================
+// ComputeMarkedBytes: walk markBitmaps to count true live bytes
+// ============================================================================
+// Called after marking completes, before PrepareForSweep (gen flip).
+// At this point markBitmaps are stable: marking is done, no sweep has started.
+//
+size_t CentralRegionPool::ComputeMarkedBytes() const
+{
+    size_t totalLive = 0;
+
+    // 1. Walk all small regions in CentralPool (all 4 lists × 36 classes)
+    for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
+        const SizeClassBucket& bucket = buckets_[cls];
+        size_t slotSize = SizeClassInfo::ClassToSize(cls);
+
+        auto countRegion = [slotSize, &totalLive](MSRegionInfo* region) {
+            if (region->markBitmap == nullptr || region->totalSlotCount == 0) {
+                return;
+            }
+            size_t wordCount = (region->totalSlotCount + 63) / 64;
+            int marked = 0;
+            for (size_t i = 0; i < wordCount; i++) {
+                marked += __builtin_popcountll(region->markBitmap[i]);
+            }
+            totalLive += static_cast<size_t>(marked) * slotSize;
+        };
+
+        bucket.partialSwept.ForEachUnsafe(countRegion);
+        // fullSwept, partialUnswept, fullUnswept require bucket lock,
+        // but we are called from GC thread after marking with no concurrent sweep.
+        // Use const_cast to take lock (ForEach is const-safe for reading).
+        const_cast<SizeClassBucket&>(bucket).lock.lock();
+        bucket.fullSwept.ForEach(countRegion);
+        bucket.partialUnswept.ForEach(countRegion);
+        bucket.fullUnswept.ForEach(countRegion);
+        const_cast<SizeClassBucket&>(bucket).lock.unlock();
+    }
+
+    // 2. Walk thread-local AllocBufferMS active regions (not in central pool)
+    {
+        std::lock_guard<std::mutex> lg(const_cast<std::mutex&>(msAllocBufferLock_));
+        for (AllocBufferMS* buffer : msAllocBuffers_) {
+            if (buffer == nullptr) {
+                continue;
+            }
+            for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
+                MSRegionInfo* region = buffer->GetActiveRegion(cls);
+                if (region == nullptr || region->markBitmap == nullptr ||
+                    region->totalSlotCount == 0) {
+                    continue;
+                }
+                size_t slotSize = SizeClassInfo::ClassToSize(cls);
+                size_t wordCount = (region->totalSlotCount + 63) / 64;
+                int marked = 0;
+                for (size_t i = 0; i < wordCount; i++) {
+                    marked += __builtin_popcountll(region->markBitmap[i]);
+                }
+                totalLive += static_cast<size_t>(marked) * slotSize;
+            }
+        }
+    }
+
+    // 3. Live large regions (isMarked == 1 after CollectLargeGarbage)
+    {
+        std::lock_guard<std::mutex> lg(const_cast<std::mutex&>(largeLock_));
+        largeRegionList_.ForEach([&totalLive](MSRegionInfo* region) {
+            if (region->isMarked) {
+                totalLive += region->regionEnd - region->RegionStart();
+            }
+        });
+    }
+
+    return totalLive;
 }
 
 } // namespace MapleRuntime

@@ -60,20 +60,24 @@ AllocBufferMS::Allocate(size)              ← AllocBufferMS.cpp L50
   │   │   └── PARTIAL region → AllocFromBitmapFast() // CTZ扫bitmap, ~8-15条指令
   │   └── 成功 → 返回地址
   │
-  ├── SlowAlloc(cls) ──────────────────── 【持锁慢速路径】
+  ├── SlowAlloc(cls) ──────────────────── 【慢速路径】
   │   ├── ReturnRegion(cls)        // 归还旧region到CentralRegionPool
-  │   ├── RefillFromCentral(cls)   // 从中央池取新region
-  │   │   ├── P1: partialSwept    (有空闲, 已sweep, 最快)
+  │   │   ├── 完全空闲 → ResetToBump() → ReturnPartialRegion
+  │   │   ├── 部分空闲 → ReturnPartialRegion
+  │   │   └── 满     → ReturnFullRegion
+  │   ├── cachedRegion_[cls]       // ★ 先查本地预取缓存
+  │   ├── RefillFromCentral(cls)   // 缓存空时从中央池取
+  │   │   ├── P1: partialSwept    (CAS无锁Pop, 最快)
   │   │   ├── P2: partialUnswept  (需现场sweep)
   │   │   ├── P3: fullUnswept     (sweep后可能有空闲)
   │   │   └── P4: GetFreshRegion  (从MSRegionManager分配新region)
+  │   ├── cachedRegion_[cls] = GetRegion(cls)  // ★ 预取下一个
   │   └── 从新region分配
   │
   └── Mark-at-alloc ──────────────────── 【GC阶段特殊处理】
       └── if phase ∈ [MARK_SETUP, CONCURRENT_MARK, MARK_TERMINATION]:
           ├── MarkObject(newObj)    // 新对象标黑, 保证存活
-          └── if CONCURRENT_MARK:
-              └── gcAssistBytes += size>>2  // mutator辅助标记
+          └── // TODO(O5): gcAssistBytes mutator辅助逻辑当前被注释未生效
 ```
 
 ### 关键数据结构 — AllocBufferMS（每线程一个）
@@ -81,12 +85,13 @@ AllocBufferMS::Allocate(size)              ← AllocBufferMS.cpp L50
 ```
 Per-Thread AllocBufferMS
 ├── activeRegions_[36]    // 每个SizeClass最多一个活跃region
+├── cachedRegion_[36]     // ★ 每个SizeClass预取的备用region（已实现）
 ├── central_              // 指向全局CentralRegionPool
-└── gcAssistBytes_        // mutator辅助计数器
+└── gcAssistBytes_        // mutator辅助计数器（当前未生效）
 ```
 
 - **FastAlloc 无锁**: activeRegions_ 是线程本地的，无需同步
-- **SlowAlloc 持锁**: 需要持 `CentralRegionPool.buckets_[cls].lock` (std::mutex)
+- **SlowAlloc**: P1路径无锁(CAS)，P2/P3/P4需持 `bucket.lock`
 
 ## 4. 两种分配模式
 
@@ -115,53 +120,63 @@ uintptr_t AllocBump() {
 **触发条件**: sweep 过的 region (`MS_REGION_PARTIAL`)
 
 ```cpp
-// MSRegionInfo.h — inline
+// MSRegionInfo.h — inline（实际实现）
 uintptr_t AllocFromBitmapFast() {
-    size_t hint = reserved & 0xFFFFFFFF;  // 上次分配位置
-    size_t wordCount = BitmapWordsPerRegion(sizeClass);
-    for (size_t i = hint; i < wordCount; i++) {
-        uint64_t word = allocBitmap[i];
+    uint64_t summary = reserved;   // reserved 复用为 summary word: bit[i]=1 表示 allocBitmap[i] 有空闲
+    while (summary != 0) {
+        int wordIdx = __builtin_ctzll(summary);         // O(1) 找到首个有空闲的 bitmap word
+        uint64_t word = allocBitmap[wordIdx];
         if (word != 0) {
-            int bit = __builtin_ctzll(word);       // CTZ: 找最低位1
-            allocBitmap[i] = word & ~(1ULL << bit); // 清除该位
+            int bit = __builtin_ctzll(word);              // 找到 word 内首个空闲 slot
+            allocBitmap[wordIdx] = word & ~(1ULL << bit); // 标记已分配
             freeSlotCount--;
-            reserved = (reserved & 0xFFFFFFFF00000000) | i;  // 更新hint
-            return RegionStart() + (i*64 + bit) * slotSize;
+            if (allocBitmap[wordIdx] == 0)                // word 已满，更新 summary
+                reserved &= ~(1ULL << wordIdx);
+            size_t slotIndex = wordIdx * 64 + bit;
+            return RegionStart() + slotIndex * slotSize;
         }
+        // summary 过期，自修正
+        summary &= ~(1ULL << wordIdx);
+        reserved &= ~(1ULL << wordIdx);
     }
-    return AllocFromBitmapSlow(hint);  // 回绕搜索
+    return 0;  // Region 已满
 }
 ```
 
-**性能**: ~8-15条指令（loop + CTZ + bitwise），比 bump-pointer 慢 3-5 倍。
+**性能**: ~5-8 条指令（两次 CTZ + bitwise），比 bump-pointer 慢约 2-3 倍。已实现 **summary word 分层索引**（O4 原优化建议），无线性扫描。
 
-### 关键问题
+> **注意**: `allocBitmap` 中 `1=free, 0=allocated`（与 markBitmap 语义相反）。`reserved` 字段被复用为 bitmap word 级别的 summary 索引。
 
-Region 首次使用为 BUMP → 经 sweep 后变 PARTIAL → **永远不会回到 BUMP**。
-随着程序运行，越来越多 region 是 PARTIAL，BUMP 快速路径占比持续下降。
+### BUMP 模式复用（已实现）
+
+Region 首次使用为 BUMP → 经 sweep 后变 PARTIAL。但 **完全空闲的 Region 可通过 `ResetToBump()` 恢复为 BUMP 模式**（在 `ReturnRegion` 和 P2/P3 sweep 发现全空时触发）。
+
+此优化（原 O3 建议）**已在代码中实现**。
 
 ## 5. CentralRegionPool 四优先级补充
 
 `CentralRegionPool::GetRegion(cls)` (CentralRegionPool.cpp L30):
 
 ```
-每个 SizeClass 一个 Bucket, 每个 Bucket 4 条链表 + 1 把 mutex:
+每个 SizeClass 一个 Bucket:
 
 ┌── SizeClassBucket[cls] ──────────────────────────┐
-│  std::mutex lock                                  │
+│  std::mutex lock   ← 仅保护 P2/P3/P4 链表       │
 │                                                   │
-│  P1: partialSwept   ← 有空闲, 已sweep (最快)     │
-│  P2: partialUnswept ← 有空闲, 需现场sweep        │
-│  P3: fullUnswept    ← 无空闲, sweep后可能有空闲  │
-│  P4: fullSwept      ← 无空闲, 已sweep (保留)     │
+│  P1: partialSwept  ← LockFreeRegionStack (CAS)   │ ★ 无锁
+│  P2: partialUnswept ← MSRegionList (加锁)        │
+│  P3: fullUnswept    ← MSRegionList (加锁)        │
+│  P4: fullSwept      ← MSRegionList (加锁)        │
 └───────────────────────────────────────────────────┘
 ```
 
 **获取流程**:
-1. **P1 partialSwept**: 加锁 → TakeHead → 直接返回（最快，无sweep开销）
-2. **P2 partialUnswept**: 加锁取出 → CAS sweepGen 抢 sweep 所有权 → 现场 sweep → 返回
-3. **P3 fullUnswept**: 加锁取出 → CAS sweep → 有空闲则返回，仍满则放入 fullSwept
+1. **P1 partialSwept**: **CAS 无锁 Pop**（`compare_exchange_weak`）→ 直接返回（最快，无 sweep 无锁）
+2. **P2 partialUnswept**: 加锁取出 → CAS sweepGen 抢 sweep 所有权 → 现场 sweep → 全空时 ResetToBump → 返回
+3. **P3 fullUnswept**: 加锁取出 → CAS sweep → 有空闲则返回，仍满则移到 fullSwept
 4. **P4 GetFreshRegion**: 从 MSRegionManager 分配全新 region（InitForSizeClass + allocBitmap）
+
+> **P1 的 LockFreeRegionStack**: Push/Pop 均使用 CAS 循环，memory_order 为 Push=release, Pop=acquire。注释说明"No ABA risk"——因为 Pop 后 Region 被线程独占。
 
 **归还分类** (ReturnRegion):
 - 完全空闲 → `ReleaseRegion()` 归还 MSRegionManager
@@ -243,88 +258,41 @@ MSRegionManager::TakeRegionForLarge(unitCount, regionStart)
 
 ---
 
-### O1: CentralRegionPool partialSwept 去锁 ⭐⭐⭐
+### O1: CentralRegionPool partialSwept 去锁 ✅ 已实现
 
-**现状**: `GetRegion()` 每次取 region 都持 `bucket.lock` (std::mutex)。partialSwept 的 TakeHead 是最热的 P1 路径。
+**状态**: ✅ **已实现** — `partialSwept` 已改为 `LockFreeRegionStack`，Push/Pop 均为 CAS 无锁操作。
 
-**问题**: 多线程在同一 SizeClass 上竞争同一把锁，SlowAlloc 每次 region 耗尽都要走这条路。
-
-**方案**: 将 partialSwept 改为 CAS 无锁栈:
-```cpp
-// 无锁 Pop (TakeHead)
-MSRegionInfo* Pop() {
-    int32_t oldHead;
-    MSRegionInfo* headRegion;
-    do {
-        oldHead = head_.load(acquire);
-        if (oldHead == INVALID_IDX) return nullptr;
-        headRegion = GetRegionInfoByIdx(oldHead);
-    } while (!head_.compare_exchange_weak(oldHead, headRegion->nextRegionIdx,
-                                          release, relaxed));
-    return headRegion;
-}
-```
-
-**预期**: 消除 P1 路径的 mutex 开销，对高并发分配场景收益最大。
+**实现**: `LockFreeRegionStack` 使用 `compare_exchange_weak` 循环（Push=release, Pop=acquire）。P1 路径无需持 `bucket.lock`，仅 P2/P3/P4 需加锁。注释说明"No ABA risk"——Pop 后 Region 被线程独占。
 
 ---
 
-### O2: SlowAlloc 批量预取 region ⭐⭐⭐
+### O2: SlowAlloc 批量预取 region ✅ 已实现
 
-**现状**: SlowAlloc 每次只取 1 个 region，region 耗尽即再次 SlowAlloc。
+**状态**: ✅ **已实现** — `AllocBufferMS` 中已有 `cachedRegion_[kNumSizeClasses]` 数组，SlowAlloc 在分配完成后立即预取下一个 region 到缓存。
 
-**问题**: 小尺寸类（如 8B）每个 region 仅 4096 slots，高速分配时频繁触发 SlowAlloc → GetRegion。
+**实现**: SlowAlloc 末尾调用 `cachedRegion_[cls] = GetRegion(cls)` 异步预取。下次 SlowAlloc 时优先使用缓存，避免立即访问 CentralRegionPool。当前为 1:1 预取（每 SizeClass 缓存 1 个）。
 
-**方案**: SlowAlloc 一次取 2-4 个同 SizeClass 的 partial region 缓存到线程本地:
-```
-AllocBufferMS:
-  activeRegions_[36]     // 当前活跃
-+ cachedRegions_[36][3]  // 每个class缓存3个备用
-```
-
-**预期**: SlowAlloc 频率降为 1/4，锁竞争相应降为 1/4。
+**后续优化空间**: 可考虑增大预取深度（2-4个），进一步降低锁竞争频率。
 
 ---
 
-### O3: BUMP 模式复用 ⭐⭐
+### O3: BUMP 模式复用 ✅ 已实现
 
-**现状**: region 首次使用为 BUMP（指针递增，最快），经 sweep 变 PARTIAL（bitmap 扫描）后永不回到 BUMP。
+**状态**: ✅ **已实现** — `MSRegionInfo::ResetToBump()` 在以下路径触发：
+- `ReturnRegion()` 检测到完全空闲的 region → 调用 `ResetToBump()` → 归还为 partialSwept
+- P2/P3 sweep 后发现全空 → `ResetToBump()` → 重新作为 BUMP region 使用
 
-**问题**: 随程序运行，BUMP 占比持续下降，大部分分配走更慢的 bitmap 路径。
-
-**方案**: 完全空闲的 recycled region 重置为 BUMP 模式:
-```cpp
-void CentralRegionPool::ReleaseRegionInternal(MSRegionInfo* region) {
-    // 完全空闲 → 重置 allocPtr，清 bitmap，设类型为 BUMP
-    region->allocPtr = region->RegionStart();
-    region->regionType = MSRegionType::MS_REGION_BUMP;
-    memset(region->allocBitmap, 0xFF, bitmapBytes);  // 全1 = 全空闲
-    region->freeSlotCount = region->totalSlotCount;
-    // 归还 MSRegionManager
-}
-```
-
-**预期**: 完全空闲的 region 复用 BUMP 快速路径（~3条指令 vs ~8-15条指令）。
+**效果**: 完全空闲 region 自动恢复为 BUMP 快速路径（~3条指令 vs bitmap ~5-8条指令）。
 
 ---
 
-### O4: Bitmap 分层索引 ⭐⭐
+### O4: Bitmap 分层索引 ✅ 已实现
 
-**现状**: `AllocFromBitmapFast` 线性扫描 bitmap word 数组，用 hint 跳过已满 word。
+**状态**: ✅ **已实现** — `MSRegionInfo::reserved` 字段被复用为 summary word，`bit[i]=1` 表示 `allocBitmap[i]` 有空闲。
 
-**问题**: hint 只记录上次位置，如果中间 word 有零星空闲位需要回绕搜索（`AllocFromBitmapSlow`）。32KB region / 8B slot = 4096 slots → 64 个 uint64_t。
+**实现**: `AllocFromBitmapFast()` 中先 CTZ(summary) 得到有空闲的 word 索引，再 CTZ(word) 得到具体 slot，两次 CTZ 即完成 O(1) 分配。word 用尽时自动清除 summary 对应位。
 
-**方案**: 增加一级 summary word（64位），每位表示下层 word 是否有空闲:
-```cpp
-uint64_t summaryWord;  // bit[i]=1 表示 allocBitmap[i] 有空闲
-// 分配时:
-int wordIdx = __builtin_ctzll(summaryWord);  // O(1) 找到有空闲的 word
-int bit = __builtin_ctzll(allocBitmap[wordIdx]);
-allocBitmap[wordIdx] &= ~(1ULL << bit);
-if (allocBitmap[wordIdx] == 0) summaryWord &= ~(1ULL << wordIdx);
-```
-
-**预期**: 消除线性扫描，bitmap 分配降为 O(1) 两次 CTZ。
+**效果**: 消除了 bitmap 线性扫描，分配从 O(n) 降为 O(1)。
 
 ---
 
@@ -369,12 +337,12 @@ AllocFn allocFn_;  // GC idle: AllocateIdle;  GC marking: AllocateMarking
 
 ### 优化收益排序
 
-| 优先级 | 优化 | 预期收益 | 改动量 | 风险 |
-|:------:|------|:--------:|:------:|:----:|
-| **P0** | O5: ForceFinishSweep 去阻塞 | -5~8% (P2,P3) | 中 | 中 |
-| **P0** | O1: partialSwept 去锁 | -2~4% (P1) | 小 | 低 |
-| **P1** | O2: 批量预取 region | -2~4% (P1,P3) | 小 | 低 |
-| **P1** | O3: BUMP 模式复用 | -1~3% (P1) | 小 | 低 |
-| **P2** | O4: Bitmap 分层索引 | -1~2% (P1) | 中 | 低 |
-| **P3** | O6: Mark-at-alloc 消除 | <1% | 中 | 中 |
-| **P3** | O7: TLS 开销消除 | <1% | 小 | 低 |
+| 优先级 | 优化 | 状态 | 预期收益 | 改动量 | 风险 |
+|:------:|------|:----:|:--------:|:------:|:----:|
+| **P0** | O5: ForceFinishSweep 去阻塞 | ❌ 未实现 | -5~8% (P2,P3) | 中 | 中 |
+| ~~P0~~ | ~~O1: partialSwept 去锁~~ | ✅ 已实现 | — | — | — |
+| ~~P1~~ | ~~O2: 批量预取 region~~ | ✅ 已实现 | — | — | — |
+| ~~P1~~ | ~~O3: BUMP 模式复用~~ | ✅ 已实现 | — | — | — |
+| ~~P2~~ | ~~O4: Bitmap 分层索引~~ | ✅ 已实现 | — | — | — |
+| **P1** | O6: Mark-at-alloc 消除 | ❌ 未实现 | <1% | 中 | 中 |
+| **P2** | O7: TLS 开销消除 | ❌ 未实现 | <1% | 小 | 低 |

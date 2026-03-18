@@ -19,6 +19,7 @@ namespace MapleRuntime {
 
 class CentralRegionPool;
 class LargeObjectSpace;
+class WriteBarrierBuffer;
 struct MSRegionInfo;
 
 // Per-GC-cycle timing and statistics for DFX logging (Step 5).
@@ -65,6 +66,9 @@ struct MSGCCycleStats {
     size_t assistCallCount = 0;
     size_t assistMarkedObjects = 0;
 
+    // ── True live bytes (computed from markBitmaps after marking) ──
+    size_t trueLiveBytes = 0;
+
     void Reset() { *this = MSGCCycleStats{}; }
 };
 
@@ -99,6 +103,14 @@ public:
     {
         return activeCollector_.load(std::memory_order_acquire);
     }
+
+    // Called from MSWriteBarrier when WriteBarrierBuffer overflows.
+    // Pushes a single grey object to the global work queue for tracing.
+    void EnqueueGreyObject(BaseObject* obj);
+
+    // Flush an overflowed WriteBarrierBuffer to the global work queue.
+    // Takes one mutex lock for the entire batch. Clears the buffer afterwards.
+    void FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf);
 
     // ── CopyGC-specific overrides: safe no-ops ──
     BaseObject* ForwardObject(BaseObject*) override { return nullptr; }
@@ -140,6 +152,7 @@ public:
     void ProcessFinalizers() override;
 
     bool ShouldIgnoreRequest(GCRequest& request) override { return request.ShouldBeIgnored(); }
+    void UpdateGCStats() override;
 
 private:
     // ── MS GC phases ──

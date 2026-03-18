@@ -47,26 +47,10 @@ MAddress RegionSpace::TryAllocateOnceMS(size_t allocSize)
         size_t unitCount = (allocSize + RegionInfo::UNIT_SIZE - 1) / RegionInfo::UNIT_SIZE;
         uintptr_t regionStart = 0;
         MSRegionInfo* baseInfo = msRegionManager_->TakeRegionForLarge(unitCount, regionStart);
-        if (baseInfo == nullptr && msCentralPool_ != nullptr) {
-            // No free physical pages.  Force-sweep all CentralRegionPool small
-            // regions so that completely-empty regions return their pages to
-            // MSRegionManager.  This handles the case where only large objects are
-            // being allocated and lazy sweep never runs.
-            size_t beforeBytes = msCentralPool_->GetTotalMSRegionBytes();
-            msCentralPool_->ForceFinishSweep();
-            size_t afterBytes = msCentralPool_->GetTotalMSRegionBytes();
-            LOG(RTLOG_ERROR, "[MS-GC] TryAllocateOnceMS large fallback: "
-                "allocSize=%zu, unitCount=%zu, "
-                "totalMSRegionBytes before=%zu after=%zu (freed=%zd), "
-                "msRegionManager freeUnits=%u",
-                allocSize, unitCount,
-                beforeBytes, afterBytes, (ssize_t)(beforeBytes - afterBytes),
-                msRegionManager_->GetFreeUnitCount());
-            baseInfo = msRegionManager_->TakeRegionForLarge(unitCount, regionStart);
-        }
         if (baseInfo == nullptr) {
-            // ForceFinishSweep was not enough.  Request a full GC to mark+sweep
-            // all garbage (including large objects), then retry once.
+            // No free pages — skip synchronous ForceFinishSweep (O5 optimization).
+            // Request a full GC to mark+sweep all garbage (including large objects),
+            // then retry once.
             if (!Heap::GetHeap().IsGcStarted()) {
                 Heap::GetHeap().GetCollector().RequestGC(GC_REASON_OOM, false);
             }
@@ -232,8 +216,13 @@ void RegionSpace::Init(const HeapParam& vmHeapParam)
     size_t heapSize = vmHeapParam.heapSize * 1024;
 
 #ifdef MRT_USE_MARK_SWEEP
-    // MS mode: use MSRegionManager's layout (MSRegionInfo[] at mmap front).
-    size_t totalSize = MSRegionManager::GetHeapMemorySize(heapSize);
+    // MS mode: large virtual reservation.
+    // Compute max virtual heap size (capped at 4GB) and total mmap size.
+    size_t maxVirtualHeapSize = MSRegionManager::ComputeMaxVirtualHeapSize(heapSize);
+    size_t totalSize = MSRegionManager::GetVirtualReserveSize(maxVirtualHeapSize);
+    // Use protAll=true so the entire virtual space is PROT_READ|PROT_WRITE.
+    // Physical pages are lazily committed by the OS (macOS/Linux MAP_NORESERVE).
+    opt.protAll = true;
 #else
     size_t totalSize = RegionManager::GetHeapMemorySize(heapSize);
 #endif
@@ -255,19 +244,19 @@ void RegionSpace::Init(const HeapParam& vmHeapParam)
     MAddress metadata = reinterpret_cast<MAddress>(map->GetBaseAddr());
 
 #ifdef MRT_USE_MARK_SWEEP
-    // MS mode: initialize MSRegionManager which owns the MSRegionInfo[] at mmap front.
+    // MS mode: initialize MSRegionManager with virtual reservation.
     msRegionManager_ = new (std::nothrow) MSRegionManager();
     CHECK_DETAIL(msRegionManager_ != nullptr, "failed to create MSRegionManager");
-    msRegionManager_->Initialize(heapSize, metadata);
+    msRegionManager_->Initialize(heapSize, metadata, maxVirtualHeapSize);
 
     reservedStart = msRegionManager_->GetHeapStart();
+    // reservedEnd tracks the committed heap end (grows on GrowOneSegment).
     reservedEnd = msRegionManager_->GetHeapEnd();
 
     // Set RegionInfo static members (UNIT_SIZE, heapStartAddress, totalUnitCount)
-    // so that legacy global lookups don't crash. We do NOT call
-    // regionManager.Initialize() because the CopyGC UnitInfo mirror layout
-    // would overlap with MSRegionInfo[] at the mmap front.
-    RegionInfo::Initialize(msRegionManager_->GetMaxUnitCount(), reservedStart);
+    // so that legacy global lookups don't crash. Use MAX VIRTUAL unit count
+    // so that future growth doesn't exceed totalUnitCount bounds.
+    RegionInfo::Initialize(msRegionManager_->GetMaxVirtualUnitCount(), reservedStart);
 #else
     regionManager.Initialize(unitNum, metadata);
     reservedStart = regionManager.GetRegionHeapStart();
@@ -287,9 +276,9 @@ void RegionSpace::Init(const HeapParam& vmHeapParam)
     SizeClassInfo::Init();
 
     // 1. MSRegionInfoArray: use the mmap-front array from MSRegionManager (no malloc).
-    size_t heapBytes = reservedEnd - reservedStart;
-    size_t maxMSRegionCount = heapBytes / MS_REGION_SIZE;
-    MSRegionInfoArray::Init(reservedStart, maxMSRegionCount, msRegionManager_->GetArrayBase());
+    //    Pass maxVirtualRegionCount so lookups for future grown regions work.
+    size_t maxVirtualRegionCount = msRegionManager_->GetMaxVirtualRegionCount();
+    MSRegionInfoArray::Init(reservedStart, maxVirtualRegionCount, msRegionManager_->GetArrayBase());
 
     // 2. CentralRegionPool: per-size-class Region pools (now uses MSRegionManager*)
     msCentralPool_ = new (std::nothrow) CentralRegionPool(msRegionManager_);
@@ -302,8 +291,10 @@ void RegionSpace::Init(const HeapParam& vmHeapParam)
     msLargeObjectSpace_ = new (std::nothrow) LargeObjectSpace();
     CHECK_DETAIL(msLargeObjectSpace_ != nullptr, "failed to create LargeObjectSpace");
 
-    VLOG(REPORT, "[MS-GC] MS subsystem initialized: maxRegions=%zu, heapRange=[0x%zx, 0x%zx)",
-         maxMSRegionCount, reservedStart, reservedEnd);
+    VLOG(REPORT, "[MS-GC] MS subsystem initialized: committedRegions=%zu, maxVirtualRegions=%zu, "
+         "heapRange=[0x%zx, 0x%zx), maxHeapEnd=0x%zx",
+         msRegionManager_->GetMaxRegionCount(), maxVirtualRegionCount,
+         reservedStart, reservedEnd, msRegionManager_->GetMaxHeapEnd());
 #endif
 }
 

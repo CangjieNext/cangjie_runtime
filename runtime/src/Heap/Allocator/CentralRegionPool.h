@@ -291,6 +291,10 @@ public:
         return totalMSRegionBytes_.load(std::memory_order_relaxed);
     }
 
+    // Compute true live bytes by walking markBitmaps of all regions.
+    // Must be called after marking completes and BEFORE PrepareForSweep.
+    size_t ComputeMarkedBytes() const;
+
     // ===== Large region management (Tier 1: in-heap large objects) =====
 
     // Register a large MSRegionInfo (MS_REGION_LARGE) for GC tracking.

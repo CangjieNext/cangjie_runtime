@@ -10,6 +10,7 @@
 #include "Barrier.inline.h"
 #include "Heap/Allocator/LargeObjectSpace.h"
 #include "Heap/Allocator/RegionSpace.h"
+#include "Heap/Collector/MarkSweepCollector.h"
 #include "Heap/Heap.h"
 #include "Mutator/Mutator.h"
 #include "ObjectModel/Field.inline.h"
@@ -76,7 +77,23 @@ void MSWriteBarrier::MarkAndEnqueue(BaseObject* obj, WriteBarrierBuffer& wbBuf)
     }
     // RegionSpace::MarkObject returns true if ALREADY marked, false if NEWLY marked.
     if (!RegionSpace::MarkObject(obj)) {
-        // Newly marked → push to per-Mutator write barrier buffer
+        // Newly marked → push to per-Mutator write barrier buffer.
+        // If buffer is full, flush the ENTIRE buffer to the collector's global
+        // work queue (one mutex acquisition for all items), then push the new
+        // item into the now-empty buffer.  This prevents:
+        //   a) silent overflow (grey objects never traced → children swept)
+        //   b) per-item global pushes (expensive repeated mutex locks)
+        if (UNLIKELY(wbBuf.IsFull())) {
+            MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
+            if (collector != nullptr) {
+                collector->FlushWriteBarrierOverflow(wbBuf);
+            } else {
+                // Fallback: should not happen during active marking because
+                // activeCollector_ is now set before phase transition.
+                // But as safety net, just clear the buffer.
+                wbBuf.Clear();
+            }
+        }
         wbBuf.Push(obj);
     }
 }
@@ -243,11 +260,23 @@ void MSWriteBarrier::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex 
 void MSWriteBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
                                      BaseObject* srcObj, MAddress srcField, MIndex srcSize) const
 {
-    // Struct arrays may contain reference fields but we don't have per-element GCTib here.
-    // Conservatively do a plain copy — struct array refs will be discovered by the GC
-    // thread's trace phase. This matches the base Barrier behavior.
-    (void)dstObj;
     (void)srcObj;
+
+    // shade(old): mark all existing reference fields in the destination range
+    // before overwriting them (SATB deletion barrier requirement).
+    // Without this, old references in struct array elements are silently
+    // overwritten, breaking the snapshot-at-the-beginning invariant.
+    if (dstObj != nullptr) {
+        WriteBarrierBuffer& wbBuf = GetWBBuf();
+        dstObj->ForEachRefInStruct(
+            [&wbBuf](RefField<false>& refField) {
+                BaseObject* oldRef = refField.GetTargetObject();
+                MarkAndEnqueue(oldRef, wbBuf);
+            },
+            dstField, dstField + dstSize);
+    }
+
+    // memmove
     CHECK_DETAIL(memmove_s(reinterpret_cast<void*>(dstField), dstSize,
                            reinterpret_cast<void*>(srcField), srcSize) == EOK,
                  "MSWriteBarrier CopyStructArray memmove_s failed");

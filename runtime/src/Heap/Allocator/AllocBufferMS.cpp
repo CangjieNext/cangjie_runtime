@@ -63,14 +63,15 @@ MAddress AllocBufferMS::Allocate(size_t size)
                      phase <= GCPhase::GC_PHASE_MS_MARK_TERMINATION)) {
             RegionSpace::MarkObject(reinterpret_cast<const BaseObject*>(addr));
             if (phase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK) {
-                gcAssistBytes_ += (size >> 2);  // ~25% of allocated size
-                if (gcAssistBytes_ >= kGCAssistTriggerBytes) {
-                    MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
-                    if (collector != nullptr) {
-                        collector->MSMarkAssist();
-                    }
-                    gcAssistBytes_ = 0;
-                }
+                // TODO(O5): Re-enable mark assist after sweep debt is decoupled
+                // gcAssistBytes_ += (size >> 2);  // ~25% of allocated size
+                // if (gcAssistBytes_ >= kGCAssistTriggerBytes) {
+                //     MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
+                //     if (collector != nullptr) {
+                //         collector->MSMarkAssist();
+                //     }
+                //     gcAssistBytes_ = 0;
+                // }
             }
         }
     }

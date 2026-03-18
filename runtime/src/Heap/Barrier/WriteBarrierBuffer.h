@@ -50,9 +50,8 @@ public:
     ~WriteBarrierBuffer() = default;
 
     // Push a grey object into the buffer.
-    // If the buffer is full, objects are silently dropped (they remain marked
-    // and will be discovered by the GC thread's bitmap scan at MarkTermination).
-    // In practice, MarkTermination STW flushes all buffers before final drain.
+    // Caller MUST check IsFull() before calling if overflow handling is needed
+    // (see MSWriteBarrier::MarkAndEnqueue for the overflow-to-global-queue path).
     inline void Push(BaseObject* obj)
     {
         size_t idx = count_;
@@ -60,9 +59,6 @@ public:
             buf_[idx] = obj;
             count_ = idx + 1;
         }
-        // If full, the object is already marked; the GC thread will find it
-        // during MarkTermination re-scan. No data loss — only a potential
-        // latency increase in draining.
     }
 
     // Flush all buffered objects into the given container, then reset.
@@ -89,6 +85,8 @@ public:
     // Query
     size_t Count() const { return count_; }
     bool IsEmpty() const { return count_ == 0; }
+    bool IsFull() const { return count_ >= kCapacity; }
+    BaseObject** Data() { return buf_; }
 
 private:
     BaseObject* buf_[kCapacity];

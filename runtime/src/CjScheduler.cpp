@@ -551,8 +551,8 @@ static RuntimeParam InitRuntimeParam()
              * the maximum is 100% of heap, default to 80% of heap.
              */
             .heapUtilization = InitPercentParameter("cjHeapUtilization", 0.0, 1.0, 0.8),
-            // Default heap growth is (1 + 0.15) = 1.15.
-            .heapGrowth = InitDecParameter("cjHeapGrowth", 0.0, 0.15),
+            // Default heap growth is (1 + 0.5) = 1.5 (Go-style: allow 50% growth before next GC).
+            .heapGrowth = InitDecParameter("cjHeapGrowth", 0.0, 0.5),
             // Default allocation rate is 10240MB/s.
             .allocationRate = InitDecParameter("cjAllocationRate", 0.0, 10240),
             // Default allocation wait time is 1000ns.

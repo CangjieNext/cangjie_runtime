@@ -299,6 +299,43 @@ public:
         RemoveNode(root);
     }
 
+    // Remove root node without releasing physical pages.
+    // Caller is responsible for page release (used by MSRegionManager).
+    bool RemoveRootNode(Index& idx, Count& num)
+    {
+        if (root == nullptr) {
+            return false;
+        }
+        idx = root->GetIndex();
+        num = root->GetCount();
+        RemoveNode(root);
+        return true;
+    }
+
+#ifdef MRT_USE_MARK_SWEEP
+    // Remove the rightmost (highest-index) node if its range end (index + count)
+    // equals targetEnd.  Used by ShrinkHeap to reclaim trailing free units
+    // contiguous with inactiveZone_.
+    bool TakeRightmostIfEndEquals(Index targetEnd, Index& outIdx, Count& outNum)
+    {
+        if (root == nullptr) {
+            return false;
+        }
+        Node** pp = &root;
+        while ((*pp)->r != nullptr) {
+            pp = &((*pp)->r);
+        }
+        Node* rightmost = *pp;
+        if (rightmost->GetIndex() + rightmost->GetCount() != targetEnd) {
+            return false;
+        }
+        outIdx = rightmost->GetIndex();
+        outNum = rightmost->GetCount();
+        RemoveNode(*pp);
+        return true;
+    }
+#endif
+
     using RTAllocator = RTAllocatorT<sizeof(Node), alignof(Node)>;
 
 #ifdef DEBUG_CARTESIAN_TREE

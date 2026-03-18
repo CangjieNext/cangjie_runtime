@@ -9,6 +9,7 @@
 #include "MarkSweepCollector.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
+#include "CangjieRuntime.h"
 #include "Heap/Allocator/CentralRegionPool.h"
 #include "Heap/Allocator/LargeObjectSpace.h"
 #include "Heap/Allocator/MSRegionInfo.h"
@@ -78,6 +79,7 @@ void MarkSweepCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
     LogGCEntry(gcIndex, reason);
 
     // Block ④: Sweep summary from PREVIOUS cycle (output at start of new cycle)
+    SnapshotPreviousCycleSweepStats();
     LogSweepSummary();
 
     PreGarbageCollection(/* isConcurrent */ true);
@@ -339,6 +341,11 @@ void MarkSweepCollector::EnumAndMarkRoots(WorkStack& workStack, WorkStack& forei
 
 void MarkSweepCollector::ConcurrentMark()
 {
+    // Set activeCollector_ BEFORE phase transition so that write barrier
+    // overflow handling (MarkAndEnqueue → EnqueueGreyObject) can reach the
+    // global work queue as soon as mutators resume with CONCURRENT_MARK phase.
+    activeCollector_.store(this, std::memory_order_release);
+
     // 8. Transition to concurrent marking phase
     TransitionToGCPhase(GCPhase::GC_PHASE_MS_CONCURRENT_MARK, true);
 
@@ -352,15 +359,15 @@ void MarkSweepCollector::ConcurrentMark()
     // 10. Enable Mutator assist
     assistMarkedCount_.store(0, std::memory_order_relaxed);
     assistCallTotal_.store(0, std::memory_order_relaxed);
-    activeCollector_.store(this, std::memory_order_release);
     assistEnabled_.store(true, std::memory_order_release);
 
     // 11. Run concurrent marking loop (GC thread + Mutator assist)
     RunConcurrentMarkLoop(markWorkStack_);
 
-    // 12. Disable Mutator assist
+    // 12. Disable Mutator assist (but keep activeCollector_ alive —
+    //     it will be cleared in MarkTermination under STW to avoid
+    //     a window where mutators can't flush WB overflow to global queue).
     assistEnabled_.store(false, std::memory_order_release);
-    activeCollector_.store(nullptr, std::memory_order_release);
 }
 
 void MarkSweepCollector::RunConcurrentMarkLoop(WorkStack& workStack)
@@ -516,6 +523,24 @@ void MarkSweepCollector::PushSingleToGlobal(BaseObject* obj)
     globalWorkQueue_.push_back(obj);
 }
 
+void MarkSweepCollector::EnqueueGreyObject(BaseObject* obj)
+{
+    PushSingleToGlobal(obj);
+}
+
+void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
+{
+    std::lock_guard<std::mutex> lock(globalWorkMutex_);
+    BaseObject** data = wbBuf.Data();
+    size_t n = wbBuf.Count();
+    for (size_t i = 0; i < n; ++i) {
+        if (data[i] != nullptr) {
+            globalWorkQueue_.push_back(data[i]);
+        }
+    }
+    wbBuf.Clear();
+}
+
 void MarkSweepCollector::PopFromGlobal(WorkStack& dest, size_t maxBufs)
 {
     std::lock_guard<std::mutex> lock(globalWorkMutex_);
@@ -615,6 +640,12 @@ void MarkSweepCollector::MarkTermination()
 
     // STW: freeze all mutators
     ScopedStopTheWorld stw("MS MarkTermination", true, GCPhase::GC_PHASE_MS_MARK_TERMINATION);
+
+    // Now that all mutators are frozen, clear activeCollector_.
+    // This is safe because no mutator code (including write barriers) can run during STW.
+    // We kept it alive through the ConcurrentMark→MarkTermination gap to ensure
+    // write barrier overflow could always reach the global work queue.
+    activeCollector_.store(nullptr, std::memory_order_release);
 
     WorkStack mainQueue = NewWorkStack();
 
@@ -851,11 +882,16 @@ void MarkSweepCollector::ConcurrentSweep()
 
     RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
 
+    // Compute true live bytes from markBitmaps BEFORE gen flip (bitmaps are stable here).
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    if (centralPool != nullptr) {
+        cycleStats_.trueLiveBytes = centralPool->ComputeMarkedBytes();
+    }
+
     // Mark-Sweep: generation flip via CentralRegionPool::PrepareForSweep().
     // This swaps swept↔unswept lists for all 36 size-class buckets and bumps
     // globalSweepGen_ by 2.  Actual per-region sweeping happens lazily on the
     // allocation path (SweepAndClassify) or eagerly via BackgroundSweep.
-    CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool != nullptr) {
         uint64_t t0 = TimeUtil::MicroSeconds();
         centralPool->PrepareForSweep();
@@ -865,6 +901,9 @@ void MarkSweepCollector::ConcurrentSweep()
         // [P0-1 OFF] Notify gc-helper thread to start background sweep.
         // FinalizerProcessor& fp = Heap::GetHeap().GetFinalizerProcessor();
         // fp.NotifyToSweep();
+
+        // Notify gc-helper thread to release dirty pages to OS.
+        Heap::GetHeap().GetFinalizerProcessor().NotifyToReclaimGarbage();
     }
 
     uint64_t sweepUs = TimeUtil::MicroSeconds() - phaseStart;
@@ -1029,14 +1068,15 @@ void MarkSweepCollector::DumpRegionStatsMS()
 // Block ⑥: GC Summary — 3 lines
 void MarkSweepCollector::LogGCSummary(uint64_t gcTimeUs)
 {
-    size_t liveSize = Heap::GetHeap().GetAllocatedSize();
+    size_t committedSize = Heap::GetHeap().GetAllocatedSize();
+    size_t trueLive = cycleStats_.trueLiveBytes;
     size_t heapSize = Heap::GetHeap().GetUsedPageSize();
-    double utilization = (heapSize == 0) ? 0 : (static_cast<double>(liveSize) / heapSize) * 100;
+    double utilization = (committedSize == 0) ? 0 : (static_cast<double>(trueLive) / committedSize) * 100;
 
     VLOG(REPORT, "[MS-GC] allocated size: %s, heap size: %s, heap utilization: %.2f%%",
-         Pretty(liveSize).Str(), Pretty(heapSize).Str(), utilization);
+         Pretty(committedSize).Str(), Pretty(heapSize).Str(), utilization);
     VLOG(REPORT, "[MS-GC] live bytes %s, marked %zu objects",
-         Pretty(liveSize).Str(), markedObjectCount.load(std::memory_order_relaxed));
+         Pretty(trueLive).Str(), markedObjectCount.load(std::memory_order_relaxed));
     VLOG(REPORT, "[MS-GC] total gc time: %s us (MarkSetup %s + ConcMark %s + MarkTerm %s + PostMark %s), sweep pending",
          Pretty(gcTimeUs).Str(),
          Pretty(cycleStats_.markSetupUs).Str(),
@@ -1050,8 +1090,49 @@ void MarkSweepCollector::LogGCSummary(uint64_t gcTimeUs)
         static_cast<unsigned long long>(gcCycle_),
         markedObjectCount.load(std::memory_order_relaxed),
         utilization,
-        Pretty(liveSize).Str(), Pretty(heapSize).Str(),
+        Pretty(trueLive).Str(), Pretty(heapSize).Str(),
         Pretty(gcTimeUs).Str());
+}
+
+// ============================================================================
+// MS-GC specific UpdateGCStats: simplified Go-style threshold
+// ============================================================================
+void MarkSweepCollector::UpdateGCStats()
+{
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
+    GCStats& gcStats = GetGCStats();
+    gcStats.Dump();
+
+    size_t oldThreshold = gcStats.heapThreshold;
+    // Use true live bytes (computed from markBitmaps) instead of AllocatedBytes()
+    // which returns totalMSRegionBytes_ (committed region bytes, only increases).
+    size_t liveBytes = cycleStats_.trueLiveBytes;
+    size_t committedBytes = space.AllocatedBytes();
+    size_t heapSize = space.GetMaxCapacity();
+    size_t recentBytes = space.GetRecentAllocatedSize();
+
+    // 2 / 3: when committed bytes is over 2/3 heap size, the async allocation need to be closed.
+    if (committedBytes > heapSize * 2 / 3) {
+        space.EnableAsyncAllocation(false);
+    } else {
+        space.EnableAsyncAllocation(true);
+    }
+
+    // Simplified Go-style threshold: next GC triggers at liveBytes * (1 + heapGrowth).
+    double heapGrowth = 1 + (CangjieRuntime::GetHeapParam().heapGrowth);
+    size_t newThreshold = static_cast<size_t>(liveBytes * heapGrowth);
+    uint64_t gcInterval = CangjieRuntime::GetGCParam().gcInterval;
+
+    // 0.98: make sure new threshold does not exceed reasonable limit.
+    newThreshold = std::min(newThreshold, static_cast<size_t>(heapSize * 0.98));
+    gcStats.heapThreshold = std::min(newThreshold, CangjieRuntime::GetGCParam().gcThreshold);
+    g_gcRequests[GC_REASON_HEU].SetMinInterval(gcInterval);
+    VLOG(REPORT, "[MS-GC] live bytes %zu (survived %zu, recent-allocated %zu), update gc threshold %zu -> %zu",
+         liveBytes, liveBytes - recentBytes, recentBytes, oldThreshold, gcStats.heapThreshold);
+    VLOG(REPORT, "[MS-GC]   committed %s B, true live %s B (%.1f%% utilization)",
+         Pretty(committedBytes).Str(), Pretty(liveBytes).Str(),
+         (committedBytes == 0) ? 0.0 : (static_cast<double>(liveBytes) / committedBytes) * 100);
+    TRACE_COUNT("CJRT_post_GC_HeapSize", Heap::GetHeap().GetAllocatedSize());
 }
 
 } // namespace MapleRuntime

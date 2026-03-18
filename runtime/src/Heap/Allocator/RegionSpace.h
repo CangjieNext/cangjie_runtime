@@ -70,7 +70,16 @@ public:
 
     MAddress GetSpaceStartAddress() const override { return reservedStart; }
 
-    MAddress GetSpaceEndAddress() const override { return reservedEnd; }
+    MAddress GetSpaceEndAddress() const override
+    {
+#ifdef MRT_USE_MARK_SWEEP
+        // In MS mode, committed end may grow dynamically.
+        if (msRegionManager_ != nullptr) {
+            return msRegionManager_->GetHeapEnd();
+        }
+#endif
+        return reservedEnd;
+    }
 
     size_t GetCurrentCapacity() const override
     {
@@ -81,7 +90,16 @@ public:
 #endif
         return regionManager.GetInactiveZone() - reservedStart;
     }
-    size_t GetMaxCapacity() const override { return reservedEnd - reservedStart; }
+    size_t GetMaxCapacity() const override
+    {
+#ifdef MRT_USE_MARK_SWEEP
+        // Max capacity = full virtual reservation.
+        if (msRegionManager_ != nullptr) {
+            return msRegionManager_->GetMaxHeapEnd() - reservedStart;
+        }
+#endif
+        return reservedEnd - reservedStart;
+    }
 
     inline size_t GetRecentAllocatedSize() const
     {
@@ -160,9 +178,21 @@ public:
     size_t ReclaimGarbageMemory(bool releaseAll) override
     {
 #ifdef MRT_USE_MARK_SWEEP
-        // In MS mode, garbage is reclaimed via CentralRegionPool sweep, not RegionManager.
-        (void)releaseAll;
-        return 0;
+        if (msRegionManager_ == nullptr) {
+            return 0;
+        }
+        if (releaseAll) {
+            return msRegionManager_->ReleaseGarbageRegions(0);
+        } else {
+            size_t dirtyBytes = static_cast<size_t>(msRegionManager_->GetFreeUnitCount()) *
+                                msRegionManager_->GetUnitsPerMSRegion() * MS_REGION_SIZE /
+                                msRegionManager_->GetUnitsPerMSRegion();
+            double cachedRatio = 1 - CangjieRuntime::GetHeapParam().heapUtilization;
+            size_t targetCachedSize = static_cast<size_t>(AllocatedBytes() * cachedRatio);
+            size_t released = msRegionManager_->ReleaseGarbageRegions(targetCachedSize);
+            msRegionManager_->ShrinkHeap();
+            return released;
+        }
 #else
         {
             MRT_PHASE_TIMER("ReclaimGarbageRegions");
