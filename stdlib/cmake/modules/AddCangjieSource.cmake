@@ -233,7 +233,7 @@ function(add_cangjie_library target_name)
     endif()
 
     if(CANGJIE_CODEGEN_CJNATIVE_BACKEND)
-        if(TRIPLE STREQUAL "arm-linux-ohos")
+        if(TRIPLE STREQUAL "arm-linux-ohos" OR TRIPLE STREQUAL "arm-linux-android23")
             list(APPEND COMPILE_CMD "$<IF:$<CONFIG:MinSizeRel>,-Os,-O0>")
             # .bc files is for LTO mode and LTO mode does not support -Os and -Oz.
             list(APPEND COMPILE_BC_CMD "-O0")
