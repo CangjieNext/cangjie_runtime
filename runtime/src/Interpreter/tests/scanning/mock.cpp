@@ -86,7 +86,7 @@ void ScanningMock::init() {
     check(ti != nullptr, "typeinfo wasn't provided");
 
     for (int i = 0; i < GLOBAL_ROOTS_N; i++) {
-        globalRoots[i] = interface.object_alloc(ti);
+        interface.write_static_field(&globalRoots[i], interface.object_alloc(ti));
     }
 
     for (int i = 0; i < FRAME_ROOTS_N; i++) {

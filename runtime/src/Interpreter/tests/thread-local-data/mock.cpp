@@ -93,7 +93,7 @@ void ThreadLocalDataTestMock::init() {
     auto ti = interface.type_info("std.core:Object");
 
     for (int i = 0; i < GLOBAL_ROOTS_N; i++) {
-        globalRoots[i] = interface.object_alloc(ti);
+        interface.write_static_field(&globalRoots[i], interface.object_alloc(ti));
     }
 
     for (int i = 0; i < FRAME_ROOTS_N; i++) {
