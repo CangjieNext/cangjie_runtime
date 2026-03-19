@@ -11,6 +11,7 @@
 #include <stddef.h>
 
 #include "Interpreter/Options.h"
+#include "Interpreter/RuntimeTypes.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,9 +30,6 @@ typedef void *field_ref_t;
 
 // Pointer to the place that contains traceable object reference.
 typedef void *placeholder_t;
-
-// Pointer to TypeInfo. Binary layout of this structure is defined by CJNative runtime.
-typedef void *type_info_t;
 
 // Pointer to TypeTemplate. Binary layout of this structure is defined by CJNative runtime.
 typedef void *type_template_t;
@@ -219,7 +217,7 @@ typedef void (*landing_pad_f)();
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef obj_ref_t (*obj_alloc_f)(type_info_t);
+typedef obj_ref_t (*obj_alloc_f)(struct type_info_t*);
 
 // Allocate new array.
 // params:
@@ -231,7 +229,7 @@ typedef obj_ref_t (*obj_alloc_f)(type_info_t);
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef obj_ref_t (*array_alloc_f)(type_info_t array_type, uint64_t size);
+typedef obj_ref_t (*array_alloc_f)(struct type_info_t* array_type, uint64_t size);
 
 // Poll a safe point.
 //
@@ -273,7 +271,7 @@ typedef void *(*foreign_func)(void*, void*, void*, void*, void*);
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef type_info_t (*type_info_provider_f)(const char *);
+typedef struct type_info_t* (*type_info_provider_f)(const char *);
 
 // Provide a TypeTemplate for type with given signature.
 //
@@ -299,7 +297,7 @@ typedef type_template_t (*type_template_f)(const char *);
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef type_info_t (*get_or_create_type_info_f)(type_template_t typeTemplate, uint32_t argSize, type_info_t* typeArgs);
+typedef struct type_info_t* (*get_or_create_type_info_f)(type_template_t typeTemplate, uint32_t argSize, struct type_info_t** typeArgs);
 
 // Get the instance size of a type from its TypeInfo.
 //
@@ -311,7 +309,7 @@ typedef type_info_t (*get_or_create_type_info_f)(type_template_t typeTemplate, u
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef uint32_t (*get_instance_size_f)(type_info_t typeInfo);
+typedef uint32_t (*get_instance_size_f)(struct type_info_t* typeInfo);
 
 
 // Throw OutOfMemoryError exception.
@@ -363,7 +361,7 @@ typedef obj_ref_t (*get_and_clear_pending_exception_f)();
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef bool (*instance_of_f)(obj_ref_t obj, type_info_t ti);
+typedef bool (*instance_of_f)(obj_ref_t obj, struct type_info_t* ti);
 
 // Check that typeInfo is a subtype of superTypeInfo.
 //
@@ -375,7 +373,7 @@ typedef bool (*instance_of_f)(obj_ref_t obj, type_info_t ti);
 //
 // Notes:
 //
-typedef bool (*is_sub_type_f)(type_info_t type_info, type_info_t super_type_info);
+typedef bool (*is_sub_type_f)(struct type_info_t* type_info, struct type_info_t* super_type_info);
 
 
 // Apply global root visitor to reference placeholder.
