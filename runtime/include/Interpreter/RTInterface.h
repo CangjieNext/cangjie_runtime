@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "Options.h"
+#include "Interpreter/Options.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -590,6 +590,7 @@ typedef thread_local_data_t (*get_thread_local_data_f)();
 //
 typedef bool (*is_active_gc_phase_f)(thread_local_data_t);
 
+//
 // Stub for stack growth.
 //
 typedef void* (*stack_grow_stub_f)();
@@ -719,3 +720,4 @@ struct cjnative_interface_t {
 
 // endregion Interfaces
 #endif
+

@@ -12,7 +12,7 @@
 
 #include <stdio.h>
 #include <cstdlib>
-#include "RTInterface.h"
+#include "Interpreter/RTInterface.h"
 #include "Options.h"
 #include "Mutator/Mutator.h"
 #include "Common/StackType.h"

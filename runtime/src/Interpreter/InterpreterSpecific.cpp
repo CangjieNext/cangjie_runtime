@@ -6,7 +6,7 @@
 
 #include "dlfcn.h"
 #include <stdint.h>
-#include "RTInterface.h"
+#include "Interpreter/RTInterface.h"
 #include "ObjectManager.inline.h"
 #include "ExceptionManager.inline.h"
 #include "Mutator/Mutator.h"

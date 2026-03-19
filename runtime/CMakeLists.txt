@@ -184,6 +184,7 @@ endif() # BUILD_CJTHREAD
 
 if (BUILD_RUNTIME)
 include_directories(${DOPRA_INCLUDE})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 if (DOPRA_FLAG MATCHES 1)
     add_definitions(-DMRT_USE_CJTHREAD)
@@ -411,6 +412,7 @@ install(TARGETS cangjie-runtime DESTINATION runtime/lib/${TARGET_ARCH}${SANITIZE
 
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeConfig.h
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Cangjie.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/Interpreter/RTInterface.h
         DESTINATION include)
 
 if (EULER_FLAG MATCHES 1)
