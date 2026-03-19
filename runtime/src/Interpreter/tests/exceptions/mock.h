@@ -6,7 +6,7 @@
 class ExceptionsMock : public Mock {
     public:
         ExceptionsMock() = default;
-        ExceptionsMock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
+        ExceptionsMock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
 
     private:
         static void visitGlobalRoots(root_visitor_t visitor);

@@ -15,8 +15,8 @@ public:
     }
 };
 
-GCPointMock::GCPointMock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
-    : Mock(a1, interpreter_interf, cjnative_interf) 
+GCPointMock::GCPointMock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
+    : Mock(interpreter_interf, cjnative_interf)
 {
     interpreter_interf->visit_fiber_roots = &visitFiberRoots;
     interpreter_interf->fiber_start = &doOnFiberStart;

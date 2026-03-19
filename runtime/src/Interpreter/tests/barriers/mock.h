@@ -6,7 +6,7 @@
 class BarriersMock : public Mock {
     public:
         BarriersMock() = default;
-        BarriersMock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
+        BarriersMock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
 
     private:
         static void visitGlobalRoots(root_visitor_t visitor);

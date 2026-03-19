@@ -6,7 +6,7 @@
 class GCPointMock : public Mock {
     public:
         GCPointMock() = default;
-        GCPointMock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
+        GCPointMock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
 
     private:
         static void visitFiberRoots(root_visitor_t visitor, fiber_specific_data_t data);

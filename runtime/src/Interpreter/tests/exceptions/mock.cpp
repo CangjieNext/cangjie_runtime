@@ -14,8 +14,8 @@ extern MOCK_IMPLEMENTATION mockInstance;
 using Ref = void*;
 Ref frameRoots[FRAME_ROOTS_N];
 
-ExceptionsMock::ExceptionsMock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
-    : Mock(a1, interpreter_interf, cjnative_interf) 
+ExceptionsMock::ExceptionsMock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
+    : Mock(interpreter_interf, cjnative_interf)
 {
     interpreter_interf->visit_frame_roots = &visitFrameRoots;
 

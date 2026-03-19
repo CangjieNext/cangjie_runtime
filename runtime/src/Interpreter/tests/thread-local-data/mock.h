@@ -6,7 +6,7 @@
 class ThreadLocalDataTestMock : public Mock {
     public:
         ThreadLocalDataTestMock() = default;
-        ThreadLocalDataTestMock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
+        ThreadLocalDataTestMock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
 
     private:
         static void visitGlobalRoots(root_visitor_t visitor);

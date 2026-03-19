@@ -30,7 +30,7 @@ extern "C" {
     size_t g_InterpreterStackReserveSize = 0;
 }
 
-Mock::Mock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf): cjNativeInterface(*cjnative_interf) {
+Mock::Mock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf): cjNativeInterface(*cjnative_interf) {
     interpreter_interf->version = 1;
     interpreter_interf->fiber_specific_data_size = 16;
     interpreter_interf->iterator_size = 0;
@@ -77,11 +77,11 @@ Mock::Mock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interfa
 
 // Public library API
 
-PUBLIC int interpreter_bridge_init(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf) {
+PUBLIC int interpreter_bridge_init(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf) {
         initLogs();
         log("[Interpreter] Start interfaces exchange");
 
-        mockInstance = MOCK_IMPLEMENTATION(a1, interpreter_interf, cjnative_interf);
+        mockInstance = MOCK_IMPLEMENTATION(interpreter_interf, cjnative_interf);
 
         log("[Interpreter] End of interfaces exchange");
         return 0;

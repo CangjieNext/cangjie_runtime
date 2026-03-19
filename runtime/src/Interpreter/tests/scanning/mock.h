@@ -6,7 +6,7 @@
 class ScanningMock : public Mock {
     public:
         ScanningMock() = default;
-        ScanningMock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
+        ScanningMock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
 
     private:
         static void visitGlobalRoots(root_visitor_t visitor);

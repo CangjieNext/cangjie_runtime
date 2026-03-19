@@ -6,7 +6,7 @@
 class StrLiteralMock : public Mock {
     public:
         StrLiteralMock() = default;
-        StrLiteralMock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
+        StrLiteralMock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
 
     private:
         static void init();

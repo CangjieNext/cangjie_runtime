@@ -6,15 +6,17 @@
 
 extern MOCK_IMPLEMENTATION mockInstance;
 
-AllocationMock::AllocationMock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
-: Mock(a1, interpreter_interf, cjnative_interf) {
+AllocationMock::AllocationMock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
+    : Mock(interpreter_interf, cjnative_interf)
+{
     registerC2I(0, reinterpret_cast<uintptr_t>(allocationTest));
     printf("[Mock] AllocationMock created\n");
 }
 
-int AllocationMock::allocationTest() {
+int AllocationMock::allocationTest()
+{
     printf("[Mock] allocationTest\n");
-    
+
     auto interface = mockInstance.cjNativeInterface;
     auto ti = interface.type_info("std.core:Object");
     printf("[Mock] type info = %p\n", static_cast<void*>(ti));
@@ -71,7 +73,7 @@ int AllocationMock::allocationTest() {
         printf("[Mock] error: symbol _CN7default17placeholder_arrayE not found\n");
         return 1;
     }
-    interface.write_static_field((obj_ref_t) array_placeholder, arr); // array_placeholder->rawptr = arr
+    interface.write_static_field((obj_ref_t)array_placeholder, arr); // array_placeholder->rawptr = arr
     array_placeholder->start = 0;
     array_placeholder->len = 10;
     printf("[Mock] wrote object to static field: %p\n", static_cast<void*>(array_placeholder));
@@ -80,5 +82,4 @@ int AllocationMock::allocationTest() {
 
     return 0;
 }
-
 

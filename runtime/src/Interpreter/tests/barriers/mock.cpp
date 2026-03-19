@@ -32,8 +32,8 @@ public:
     }
 };
 
-BarriersMock::BarriersMock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
-    : Mock(a1, interpreter_interf, cjnative_interf) 
+BarriersMock::BarriersMock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
+    : Mock(interpreter_interf, cjnative_interf)
 {
     interpreter_interf->visit_global_roots = &visitGlobalRoots;
     interpreter_interf->visit_frame_roots = &visitFrameRoots;

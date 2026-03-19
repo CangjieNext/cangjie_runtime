@@ -54,7 +54,7 @@ extern "C" {
 class Mock {
     public:
         Mock() = default;
-        Mock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
+        Mock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
 
         cjnative_interface_t cjNativeInterface;
 

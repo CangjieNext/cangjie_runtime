@@ -6,7 +6,7 @@
 class ForeignTestMock : public Mock {
     public:
         ForeignTestMock() = default;
-        ForeignTestMock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
+        ForeignTestMock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
 
     private:
         static void visitGlobalRoots(root_visitor_t visitor);

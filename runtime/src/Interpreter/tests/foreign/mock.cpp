@@ -28,8 +28,8 @@ void scanRefArray(root_visitor_t visitor, Ref* roots, int size, std::function<vo
     }
 }
 
-ForeignTestMock::ForeignTestMock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
-    : Mock(a1, interpreter_interf, cjnative_interf) 
+ForeignTestMock::ForeignTestMock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
+    : Mock(interpreter_interf, cjnative_interf)
 {
     interpreter_interf->visit_global_roots = &visitGlobalRoots;
 

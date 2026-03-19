@@ -7,7 +7,7 @@
 class AllocationMock : Mock {
     public:
         AllocationMock() = default;
-        AllocationMock(int a1, interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
+        AllocationMock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
 
 
     private:
