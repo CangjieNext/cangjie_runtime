@@ -36,7 +36,7 @@ nasm -f elf64 $ASM_DIR/I2N_Stub.s -o $LIB/I2N_Stub.o
 nasm -f elf64 $ASM_DIR/ExceptionHandling.s -o $LIB/ExceptionHandling.o
 
 CJTHREAD_INCLUDES=$(find ../../../src/CJThread/src -type d -name "include" | sed 's/^/-I/' | tr '\n' ' ')
-export INCLUDE_DIRS="-I../.. -I.. -I$TEST_NAME -Ishared -Ishared/third_party $CJTHREAD_INCLUDES -I../../../src/CJThread/src/runtime/schedule/include/inner/gas/x86/x86_64/"
+export INCLUDE_DIRS="-I../.. -I.. -I../../.. -I$TEST_NAME -Ishared -Ishared/third_party -I../../../include $CJTHREAD_INCLUDES -I../../../src/CJThread/src/runtime/schedule/include/inner/gas/x86/x86_64/"
 
 for file in shared/*.cpp;
 do

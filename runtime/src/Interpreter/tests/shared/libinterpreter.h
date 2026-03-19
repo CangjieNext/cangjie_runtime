@@ -6,7 +6,7 @@
 #include <cassert>
 #include <functional>
 
-#include "RTInterface.h"
+#include "Interpreter/RTInterface.h"
 #include "log.h"
 
 #ifdef __cplusplus
