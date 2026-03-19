@@ -30,6 +30,9 @@ typedef void *field_ref_t;
 // Pointer to the place that contains traceable object reference.
 typedef void *placeholder_t;
 
+// State that's passed during visiting stack frames.
+typedef void *visiting_state_t;
+
 // Pointer to TypeTemplate. Binary layout of this structure is defined by CJNative runtime.
 typedef void *type_template_t;
 
@@ -48,13 +51,13 @@ typedef const void *frame_pointer_t;
 // Interpreter would return description of corresponding frame (e.g. file_name, line_number).
 typedef const void *instruction_pointer_t; 
 
-// Visitor of placeholders that contain object references.
+// Visitor of interpreter pointer placeholders.
 // Interpreter cannot use this data directly but should pass it to the callbacks defined in `cjnative_interface_t`.
 typedef const void *root_visitor_t;
 
-// Visitor of placeholders that containt pointers to stack slots.
+// Visitor of placeholders that contain derived pointers (intrapointers).
 // Interpreter cannot use this data directly but should pass it to the callbacks defined in `cjnative_interface_t`.
-typedef const void *stack_ptr_visitor_t;
+typedef const void *derived_ptr_visitor_t;
 
 // Pointer to ExceptionWrapper.
 typedef void *exception_wrapper_t;
@@ -73,12 +76,6 @@ struct interpreted_frame_info_t {
     char*  file_name;
 };
 
-// Pointer on stack can point to stack itself or not.
-enum stack_ptr_slot_type_t {
-    OnStack,
-    OutOfStack
-};
-
 ////////////////////////////////////////////////////////////////////////////////////
 // endregion Types
 ////////////////////////////////////////////////////////////////////////////////////
@@ -88,7 +85,7 @@ enum stack_ptr_slot_type_t {
 ////////////////////////////////////////////////////////////////////////////////////
 
 // C Calling convention (CCall)
-//   This is default calling convention used by any C/C++ code. 
+//   This is default calling convention used by any C/C++ code.
 //   Provided callbacks use this calling convention to simplify interoperability of CJNative and interpreter.
 //
 
@@ -123,41 +120,21 @@ struct cjnative_interface_t;
 //
 typedef int (*init_rt)(struct interpreter_interface_t *, struct cjnative_interface_t *);
 
+// TODO doc
+typedef void (*iterate_frames_with_state_f)(fiber_specific_data_t fiberData, void (*callback)(visiting_state_t, void*), void* ctx);
+
+// TODO doc
+typedef void (*visit_frame_roots_expansion_f)(visiting_state_t state, frame_desc_t frameDesc, root_visitor_t stackPtrVisitor, derived_ptr_visitor_t derivedPtrVisitor);
+
+// TODO doc
+typedef void (*visit_frame_roots_marking_f)(visiting_state_t state, frame_desc_t frameDesc, root_visitor_t rootVisitor);
+
+// TODO doc
+typedef void (*visit_frame_roots_adjusting_f)(visiting_state_t state, frame_desc_t frameDesc, root_visitor_t rootVisitor, derived_ptr_visitor_t derivedPtrVisitor);
 
 // Visit static roots (global variables) of interpreted code with some visitor.
 // Can be used to add interpreted roots for GC root-set.
 typedef void (*visit_global_roots_f)(root_visitor_t visitor);
-
-// Visit local roots (local variables) of interpreted function with some visitor.
-// Can be used to add interpreted roots for GC root-set.
-// 
-// params:
-// - visitor: CJNative visitor of reference placeholders
-// - frame_desc: description of interpreted frame to visit
-//
-typedef void (*visit_frame_roots_f)(root_visitor_t visitor, frame_desc_t frame_desc);
-
-// Visits interpreter fiber specific storages and invokes given visitor for each placeholder that contains object reference.
-// This method could be called by any thread (e.g. auxiliary GC thread) not necessarily from the thread that
-// invoked `safe_point` or allocator function.
-// This function should be invoked after fiber that owns given `fiber_specific_data_t` has reached safe point and is stopped.
-//
-// params:
-// - CJNative visitor of reference placeholders
-// - Pointer to fiber-specific data
-//
-typedef void (*visit_fiber_roots_f)(root_visitor_t visitor, fiber_specific_data_t interp_fiber_data);
-
-// Visits interpreter fiber specific storages and invokes given visitor for each placeholder that contains pointer to CJ stack.
-// This function should be invoked when fiber that owns given `fiber_specific_data_t` tries to extend its stack.
-//
-// params:
-// - CJNative visitor of stack pointer placeholders
-// - Pointer to fiber-specific data
-// - Determines if on-stack or out-of-stack placeholders should be visited: there can be separate visitors for each
-//   kind of placeholders because they (not only pointed value) can be moved or not depending on their place.
-//
-typedef void (*visit_stack_ptrs_f)(stack_ptr_visitor_t visitor, fiber_specific_data_t interp_fiber_data, stack_ptr_slot_type_t slot_type);
 
 
 // Registers newly created fiber in interpreter. This method could be called by any thread (e.g. auxiliary scheduler thread) to notify interpreter about creation of new fiber.
@@ -374,48 +351,11 @@ typedef bool (*instance_of_f)(obj_ref_t obj, struct type_info_t* ti);
 //
 typedef bool (*is_sub_type_f)(struct type_info_t* type_info, struct type_info_t* super_type_info);
 
+// TODO doc
+typedef void (*visit_root_from_interpreter_f)(root_visitor_t visitor, placeholder_t placeholder);
 
-// Apply global root visitor to reference placeholder.
-//
-// params:
-// - visitor: CJNative visitor of reference placeholders
-// - placeholder: pointer to the place that contains traceable object reference
-//
-// Notes:
-// This method will be invoked by interpreter as a part of root set visiting started by CJNative runtime.
-//
-typedef void (*visit_global_root_from_interpreter_f)(root_visitor_t visitor, placeholder_t placeholder);
-
-// Apply local root visitor to reference placeholder.
-//
-// Notes:
-// This method will be invoked by interpreter as a part of root set visiting started by CJNative runtime.
-//
-typedef void (*visit_frame_root_from_interpreter_f)(root_visitor_t visitor, placeholder_t placeholder);
-
-// Applies given visitor to given placeholder.
-// This method will be used by interpreter to visit local roots stored in interpreter fiber-specific storage.
-//
-// params:
-// - CJNative visitor of reference placeholders
-// - placeholder from interpreter fiber-specific storage
-//
-// Notes:
-// This method will be invoked by interpreter as a part of root set visiting started by CJNative runtime.
-//
-typedef void (*visit_fiber_root_from_interpreter_f)(root_visitor_t visitor, placeholder_t placeholder);
-
-// Applies given visitor to given placeholder that contains pointer to stack.
-// This method will be used by interpreter to visit local roots stored in interpreter fiber-specific storage.
-//
-// params:
-// - CJNative visitor of stack pointer placeholders
-// - placeholder from interpreter fiber-specific storage
-//
-// Notes:
-// This method will be invoked by interpreter as a part of stack pointers adjusting started by CJNative runtime.
-//
-typedef void (*visit_stack_ptr_from_interpreter_f)(stack_ptr_visitor_t visitor, placeholder_t placeholder);
+// TODO doc
+typedef void (*visit_derived_ptr_from_interpreter_f)(derived_ptr_visitor_t visitor, placeholder_t basePtrHolder, placeholder_t derivedPtrHolder);
 
 // Read reference from static field.
 //
@@ -642,10 +582,11 @@ struct interpreter_interface_t {
     uintptr_t i2iAdapterStartAddr;
     uintptr_t i2iAdapterEndAddr;
 
+    iterate_frames_with_state_f iterate_frames_with_state;
+    visit_frame_roots_expansion_f visit_frame_roots_expansion;
+    visit_frame_roots_marking_f visit_frame_roots_marking;
+    visit_frame_roots_adjusting_f visit_frame_roots_adjusting;
     visit_global_roots_f visit_global_roots;
-    visit_fiber_roots_f visit_fiber_roots;
-    visit_frame_roots_f visit_frame_roots;
-    visit_stack_ptrs_f visit_stack_ptrs;
 
     fiber_start_f fiber_start;
     fiber_destroy_f fiber_destroy;
@@ -681,10 +622,8 @@ struct cjnative_interface_t {
     instance_of_f instance_of;
     is_sub_type_f is_sub_type;
 
-    visit_fiber_root_from_interpreter_f visit_fiber_root_from_interpreter;
-    visit_global_root_from_interpreter_f visit_global_root_from_interpreter;
-    visit_frame_root_from_interpreter_f visit_frame_root_from_interpreter; 
-    visit_stack_ptr_from_interpreter_f visit_stack_ptr_from_interpreter;
+    visit_root_from_interpreter_f visit_root_from_interpreter;
+    visit_derived_ptr_from_interpreter_f visit_derived_ptr_from_interpreter;
 
     read_static_field_f read_static_field;
     write_static_field_f write_static_field;
