@@ -399,13 +399,6 @@ void Mutator::RecordStackPtrs(std::set<BaseObject**>& resSet)
             obj->ForEachRefField(refVisitor);
         }
     }
-
-#ifdef INTERPRETER_ENABLED
-    // Fix pointers inside slots that are in stack memory itself. 
-    if (!isRuntimeMutator) {
-        VisitInterpreterStackPtrs(&fixPtrVisitor, interpreterFiberData, OnStack);
-    }
-#endif
 }
 
 intptr_t Mutator::FixExtendedStack(intptr_t frameBase, uint32_t adjustedSize __attribute__((unused)), void* ip)
@@ -495,15 +488,6 @@ intptr_t Mutator::FixExtendedStack(intptr_t frameBase, uint32_t adjustedSize __a
             *newStackAddr += stackOffset;
         }
 
-#ifdef INTERPRETER_ENABLED
-    StackPtrVisitor fixPtrVisitor = [stackOffset](ObjectRef& _slotAddr) {
-        intptr_t* slotAddr = (intptr_t*) &_slotAddr;
-        *slotAddr += stackOffset;
-    };
-
-    VisitInterpreterStackPtrs(&fixPtrVisitor, interpreterFiberData, OutOfStack);
-#endif
-
         uwContext.anchorFA = reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(uwContext.anchorFA) + stackOffset);
 
         return stackOffset;
@@ -549,13 +533,6 @@ inline void Mutator::GcPhaseEnum(GCPhase newPhase)
         }
     };
     VisitMutatorRoots(visitor);
-
-#ifdef INTERPRETER_ENABLED
-    // Mark roots in interpreter fiber storages
-    if (!isRuntimeMutator) {
-        VisitInterpreterFiberRoots(&visitor, interpreterFiberData);
-    }
-#endif
 }
 
 inline void Mutator::GCPhasePreForward(GCPhase newPhase)
@@ -610,13 +587,6 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
         }
     };
     VisitHeapReferences(visitor, derivedPtrVisitor);
-
-#ifdef INTERPRETER_ENABLED
-    // Adjust roots in interpreter fiber storages
-    if (!isRuntimeMutator) {
-        VisitInterpreterFiberRoots(&visitor, interpreterFiberData);
-    }
-#endif
 }
 
 inline void Mutator::HandleGCPhase(GCPhase newPhase)

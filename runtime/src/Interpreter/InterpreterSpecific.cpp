@@ -63,16 +63,42 @@ void ProvideInterpretedFrameInfo(uint64_t fp, uint64_t ip, interpreted_frame_inf
     }
 }
 
-void VisitInterpreterStackPtrs(root_visitor_t visitor, fiber_specific_data_t interpreterFiberData, stack_ptr_slot_type_t slotType) {
+void IterateFramesWithState(fiber_specific_data_t fiberData, void (*callback)(visiting_state_t, void*), void* ctx) 
+{
     if (interpreterInterfaceInstance) {
-        interpreterInterfaceInstance->visit_stack_ptrs(visitor, interpreterFiberData, slotType);
+        interpreterInterfaceInstance->iterate_frames_with_state(fiberData, callback, ctx);
     }
 }
 
-void VisitInterpreterFiberRoots(root_visitor_t visitor, fiber_specific_data_t interpreterFiberData)
+frame_desc_t toFrameDesc(FrameInfo frameInfo)
+{
+    return {
+        .fp = frameInfo.GetMachineFrame().GetFA(),
+        .ip = frameInfo.GetMachineFrame().GetIP(),
+    };
+}
+
+void VisitInterpreterFrameRootsExpansion(visiting_state_t state, FrameInfo frameDesc, root_visitor_t stackPtrVisitor, derived_ptr_visitor_t derivedPtrVisitor)
 {
     if (interpreterInterfaceInstance) {
-        interpreterInterfaceInstance->visit_fiber_roots(visitor, interpreterFiberData);
+        frame_desc_t fd = toFrameDesc(frameDesc);
+        interpreterInterfaceInstance->visit_frame_roots_expansion(state, fd, stackPtrVisitor, derivedPtrVisitor);
+    }
+}
+
+void VisitInterpreterFrameRootsMarking(visiting_state_t state, FrameInfo frameDesc, root_visitor_t rootVisitor)
+{
+    if (interpreterInterfaceInstance) {
+        frame_desc_t fd = toFrameDesc(frameDesc);
+        interpreterInterfaceInstance->visit_frame_roots_marking(state, fd, rootVisitor);
+    }
+}
+
+void VisitInterpreterFrameRootsAdjusting(visiting_state_t state, FrameInfo frameDesc, root_visitor_t rootVisitor, derived_ptr_visitor_t derivedPtrVisitor)
+{
+    if (interpreterInterfaceInstance) {
+        frame_desc_t fd = toFrameDesc(frameDesc);
+        interpreterInterfaceInstance->visit_frame_roots_adjusting(state, fd, rootVisitor, derivedPtrVisitor);
     }
 }
 
@@ -80,16 +106,6 @@ void VisitInterpreterGlobalRoots(root_visitor_t visitor)
 {
     if (interpreterInterfaceInstance) {
         interpreterInterfaceInstance->visit_global_roots(visitor);
-    }
-}
-
-void VisitInterpreterFrameRoots(root_visitor_t visitor, FrameInfo frameInfo) {
-    if (interpreterInterfaceInstance) {
-        frame_desc_t fd = {
-            .fp = frameInfo.GetMachineFrame().GetFA(),
-            .ip = frameInfo.GetMachineFrame().GetIP(),
-        };
-        interpreterInterfaceInstance->visit_frame_roots(visitor, fd);
     }
 }
 
@@ -107,7 +123,7 @@ void InterpreterFiberDestroy(fiber_specific_data_t* dataField)
     }
 }
 
-void VisitLocalRootFromInterpreter(root_visitor_t _visitor, placeholder_t _placeholder)
+void VisitRootFromInterpreter(root_visitor_t _visitor, placeholder_t _placeholder)
 {
     const RootVisitor* visitor = static_cast<const RootVisitor*>(_visitor);
     ObjectRef* placeholder = static_cast<ObjectRef*>(_placeholder);
@@ -117,31 +133,15 @@ void VisitLocalRootFromInterpreter(root_visitor_t _visitor, placeholder_t _place
     (*visitor)(*placeholder);
 }
 
-void VisitGlobalRootFromInterpreter(root_visitor_t _visitor, placeholder_t _placeholder) {
-    const RefFieldVisitor* visitor = static_cast<const RefFieldVisitor*>(_visitor);
-    RefField<>* placeholder = static_cast<RefField<>*>(_placeholder);
+void VisitDerivedPtrFromInterpreter(derived_ptr_visitor_t _visitor, placeholder_t _basePtrHolder, placeholder_t _derivedPtrHolder)
+{
+    const DerivedPtrVisitor* visitor = static_cast<const DerivedPtrVisitor*>(_visitor);
+    BasePtrType* basePtrLocation = static_cast<BasePtrType*>(_basePtrHolder);
+    DerivedPtrType* derivedPtrLocation = static_cast<DerivedPtrType*>(_derivedPtrHolder);
 
-    DLOG_INTERPRETER(DEBUG, "[Interpreter] global root: visitor=[%p], placeholder=[%p]", (void*)visitor, (void*)placeholder);
+    DLOG_INTERPRETER(DEBUG, "[Interpreter] fiber derived ptr: visitor=[%p], placeholder=[%p]", (void*)visitor, (void*) derivedPtrLocation);
 
-    (*visitor)(*placeholder);
-}
-
-void VisitFrameRootFromInterpreter(root_visitor_t _visitor, placeholder_t _placeholder) {
-    const RootVisitor* visitor = static_cast<const RootVisitor*>(_visitor);
-    ObjectRef* placeholder = static_cast<ObjectRef*>(_placeholder);
-
-    DLOG_INTERPRETER(DEBUG, "[Interpreter] fiber root: visitor=[%p], placeholder=[%p]", (void*)visitor, (void*)placeholder);
-
-    (*visitor)(*placeholder);
-}
-
-void VisitStackPtrFromInterpreter(stack_ptr_visitor_t _visitor, placeholder_t _placeholder) {
-    const StackPtrVisitor* visitor = static_cast<const StackPtrVisitor*>(_visitor);
-    ObjectRef* placeholder = static_cast<ObjectRef*>(_placeholder); // it's not a placeholder of object ref but it is what it is :/
-
-    DLOG_INTERPRETER(DEBUG, "[Interpreter] stack ptr: visitor=[%p], placeholder=[%p]", (void*)visitor, (void*)placeholder);
-
-    (*visitor)(*placeholder);
+    (*visitor)(*basePtrLocation, *derivedPtrLocation);
 }
 
 struct type_info_t* TypeInfoProvider(const char * sig)
@@ -498,10 +498,8 @@ void InitInterpreter(const RuntimeParam& runtimeParam)
         .get_current_catch_function_PC = &GetCurrentCatchFunctionPC,
         .instance_of = &InstanceOf,
         .is_sub_type = &IsSubType,
-        .visit_fiber_root_from_interpreter = &VisitLocalRootFromInterpreter,
-        .visit_global_root_from_interpreter = &VisitGlobalRootFromInterpreter,
-        .visit_frame_root_from_interpreter = &VisitFrameRootFromInterpreter,
-        .visit_stack_ptr_from_interpreter = &VisitStackPtrFromInterpreter,
+        .visit_root_from_interpreter = &VisitRootFromInterpreter,
+        .visit_derived_ptr_from_interpreter = &VisitDerivedPtrFromInterpreter,
         .read_static_field = &ReadStaticField,
         .write_static_field = &WriteStaticField,
         .read_instance_field = &ReadInstanceField,

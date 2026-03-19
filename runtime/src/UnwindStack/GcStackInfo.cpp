@@ -45,12 +45,6 @@ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) con
                 TracingCollector::VisitStackRoots(func, regSlotsMap, frame, mutator);
                 break;
             }
-#ifdef INTERPRETER_ENABLED
-            case FrameType::INTERPRETER: {
-                VisitInterpreterFrameRoots(&func, frame);
-                break;
-            }
-#endif
             case FrameType::SAFEPOINT:
             case FrameType::STACKGROW:
 #ifdef __arm__
@@ -72,6 +66,23 @@ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) con
             }
         }
     }
+
+#ifdef INTERPRETER_ENABLED
+    auto markingStackVisitor = [this, &func](visiting_state_t state) {
+        for (const auto& frame : stack) {
+            switch (frame.GetFrameType()) {
+                case FrameType::INTERPRETER:
+                    VisitInterpreterFrameRootsMarking(state, frame, &func);
+                    break;
+            }
+        }
+    };
+
+    IterateFramesWithState(mutator.interpreterFiberData, [](visiting_state_t state, void* ctx) {
+        auto closure = reinterpret_cast<decltype(markingStackVisitor)*>(ctx);
+        (*closure)(state);
+    }, &markingStackVisitor);
+#endif
 }
 
 void GCStackInfo::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, const DerivedPtrVisitor& derivedPtrVisitor,
@@ -85,12 +96,6 @@ void GCStackInfo::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, con
                                                              mutator);
                 break;
             }
-#ifdef INTERPRETER_ENABLED
-            case FrameType::INTERPRETER: {
-                VisitInterpreterFrameRoots(&rootVisitor, frame);
-                break;
-            }
-#endif
             case FrameType::C2R_STUB:
             case FrameType::C2N_STUB:
             case FrameType::EXSLUSIVE:
@@ -112,6 +117,23 @@ void GCStackInfo::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, con
             }
         }
     }
+
+#ifdef INTERPRETER_ENABLED
+    auto adjustingStackVisitor = [this, &rootVisitor, &derivedPtrVisitor](visiting_state_t state) {
+        for (const auto& frame : stack) {
+            switch (frame.GetFrameType()) {
+                case FrameType::INTERPRETER:
+                    VisitInterpreterFrameRootsAdjusting(state, frame, &rootVisitor, &derivedPtrVisitor);
+                    break;
+            }
+        }
+    };
+
+    IterateFramesWithState(mutator.interpreterFiberData, [](visiting_state_t state, void* ctx) {
+        auto closure = reinterpret_cast<decltype(adjustingStackVisitor)*>(ctx);
+        (*closure)(state);
+    }, &adjustingStackVisitor);
+#endif
 }
 
 void RecordStackInfo::FillInStackTrace()
@@ -147,12 +169,6 @@ void RecordStackInfo::VisitStackRoots(const RootVisitor &func, Mutator &mutator)
                 TracingCollector::VisitStackRoots(func, regSlotsMap, ref, mutator);
                 break;
             }
-#ifdef INTERPRETER_ENABLED
-            case FrameType::INTERPRETER: {
-                VisitInterpreterFrameRoots(&func, ref);
-                break;
-            }
-#endif
             case FrameType::SAFEPOINT:
             case FrameType::STACKGROW:
 #ifdef __arm__
@@ -164,9 +180,6 @@ void RecordStackInfo::VisitStackRoots(const RootVisitor &func, Mutator &mutator)
             case FrameType::C2R_STUB:
             case FrameType::C2N_STUB:
             case FrameType::EXSLUSIVE:
-#ifdef INTERPRETER_ENABLED
-            case FrameType::INTERPRETER_C2I:
-#endif
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame->mFrame.GetFA()));
                 break;
             default: {
