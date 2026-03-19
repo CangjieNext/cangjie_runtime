@@ -109,7 +109,7 @@ void readAndCheckRecField() {
         return;
     }
     auto static_obj = interface.read_static_field(static_object_placeholder);
-    uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(static_obj) + sizeof(type_info_t); // start of record inside object
+    uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(static_obj) + sizeof(type_info_t*); // start of record inside object
     RecFieldMirror record;
     interface.read_struct_field(reinterpret_cast<uintptr_t>(&record), static_obj, fieldAddr, sizeof(RecFieldMirror));
 
@@ -222,7 +222,7 @@ void writeAndCheckRecFieldFast(thread_local_data_t& thread_local_data) {
         return;
     }
 
-    uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(frameRoots[0]) + sizeof(type_info_t); // start of record inside object
+    uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(frameRoots[0]) + sizeof(type_info_t*); // start of record inside object
     instanceWriteBarrierRecordFast(frameRoots[0], fieldAddr, reinterpret_cast<uintptr_t>(&record_to_write), sizeof(RecFieldMirror), thread_local_data);
 }
 

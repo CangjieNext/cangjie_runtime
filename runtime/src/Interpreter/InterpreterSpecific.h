@@ -37,15 +37,15 @@ void InterpreterFiberDestroy(fiber_specific_data_t* mutator);
 
 void ProvideInterpretedFrameInfo(uint64_t fp, uint64_t ip, interpreted_frame_info_t* fInfo);
 
-type_info_t TypeInfoProvider(char * sig);
+struct type_info_t* TypeInfoProvider(char * sig);
 
-obj_ref_t ObjectAllocate(type_info_t tpe);
+obj_ref_t ObjectAllocate(struct type_info_t* tpe);
 
 void SafePoint();
 
 obj_ref_t GetPendingException();
 obj_ref_t GetAndClearPendingException();
-bool InstanceOf(obj_ref_t ref, type_info_t ti);
+bool InstanceOf(obj_ref_t ref, struct type_info_t* ti);
 
 void InitInterpreter(const RuntimeParam& runtimeParam);
 

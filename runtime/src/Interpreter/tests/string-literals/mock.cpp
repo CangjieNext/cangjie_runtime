@@ -21,8 +21,8 @@ StrLiteralMock::StrLiteralMock(interpreter_interface_t* interpreter_interf, cjna
     registerC2I(8, reinterpret_cast<uintptr_t>(init));
 }
 
-void* getUtf8ArrayTI() {
-    void* ti = mockInstance.cjNativeInterface.type_info("RawArray<UInt8>");
+struct type_info_t* getUtf8ArrayTI() {
+    struct type_info_t* ti = mockInstance.cjNativeInterface.type_info("RawArray<UInt8>");
     check(ti != nullptr, "[Mock] couldn't find type info for RawArray<UInt8>");
     return ti;
 }

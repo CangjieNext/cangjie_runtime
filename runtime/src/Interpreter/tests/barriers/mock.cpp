@@ -106,7 +106,7 @@ void readAndCheckRecField() {
         return;
     }
     auto static_obj = interface.read_static_field(static_object_placeholder);
-    uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(static_obj) + sizeof(type_info_t); // start of record inside object
+    uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(static_obj) + sizeof(type_info_t*); // start of record inside object
     RecFieldMirror record;
     interface.read_struct_field(reinterpret_cast<uintptr_t>(&record), static_obj, fieldAddr, sizeof(RecFieldMirror));
 
@@ -150,7 +150,7 @@ void writeAndCheckRecField() {
         return;
     }
 
-    uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(static_obj) + sizeof(type_info_t); // start of record inside object
+    uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(static_obj) + sizeof(type_info_t*); // start of record inside object
     interface.write_struct_field(static_obj, fieldAddr, reinterpret_cast<uintptr_t>(&record_to_write), sizeof(RecFieldMirror));
 }
 
@@ -234,7 +234,7 @@ bool readAndCheckGenericField() {
         return false;
     }
 
-    uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(frameRoots[0]) + sizeof(type_info_t); 
+    uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(frameRoots[0]) + sizeof(type_info_t*); 
 
     type_template_t wrapperTemplate = interface.type_template("default:GenericWrapper");
     if (!wrapperTemplate) {
@@ -259,7 +259,7 @@ bool readAndCheckGenericField() {
     }
     interface.read_generic_field(frameRoots[1], frameRoots[0], fieldAddr, sizeof(RecFieldMirror));
 
-    uintptr_t fieldAddr2 = reinterpret_cast<uintptr_t>(frameRoots[1]) + sizeof(type_info_t); // start of record inside box
+    uintptr_t fieldAddr2 = reinterpret_cast<uintptr_t>(frameRoots[1]) + sizeof(type_info_t*); // start of record inside box
     RecFieldMirror record;
     interface.read_struct_field(reinterpret_cast<uintptr_t>(&record), frameRoots[1], fieldAddr2, sizeof(RecFieldMirror));
 
@@ -290,7 +290,7 @@ bool writeAndCheckGenericField() {
         return false;
     }
 
-    uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(frameRoots[0]) + sizeof(type_info_t); 
+    uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(frameRoots[0]) + sizeof(type_info_t*); 
 
     auto tiRecField = interface.type_info("default:RecField");
     if (!tiRecField) {        
@@ -322,7 +322,7 @@ bool writeAndCheckGenericField() {
     }
 
     // Initialize the source box with the record data
-    uintptr_t boxFieldAddr = reinterpret_cast<uintptr_t>(frameRoots[1]) + sizeof(type_info_t);
+    uintptr_t boxFieldAddr = reinterpret_cast<uintptr_t>(frameRoots[1]) + sizeof(void*);
     interface.write_struct_field(frameRoots[1], boxFieldAddr, reinterpret_cast<uintptr_t>(&record_to_write), sizeof(RecFieldMirror));
 
     // Perform the generic field write: copy from box (frameRoots[1]) to wrapper (frameRoots[0])
@@ -393,10 +393,10 @@ void BarriersMock::testBarriers() {
     for (int i = 0; i < ITERATIONS; i++) {
         if (i % 2 == 0) {
             obj_ref_t obj_in_container = interface.object_alloc(tiObject);
-            field_ref_t field = getRefField(frameRoots[0], sizeof(type_info_t));
+            field_ref_t field = getRefField(frameRoots[0], sizeof(void*));
             interface.write_instance_field(frameRoots[0], field, obj_in_container);
         } else {
-            field_ref_t field = getRefField(frameRoots[0], sizeof(type_info_t));
+            field_ref_t field = getRefField(frameRoots[0], sizeof(void*));
             obj_ref_t obj_in_container = interface.read_instance_field(frameRoots[0], field);
             if (!obj_in_container) {
                 printf("[Mock] error: read null from instance field\n");
@@ -546,7 +546,7 @@ void writeAndCheckRecFieldFast() {
         return;
     }
 
-    uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(frameRoots[0]) + sizeof(type_info_t); // start of record inside object
+    uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(frameRoots[0]) + sizeof(type_info_t*); // start of record inside object
     instanceWriteBarrierRecordFast(frameRoots[0], fieldAddr, reinterpret_cast<uintptr_t>(&record_to_write), sizeof(RecFieldMirror));
 }
 

@@ -144,10 +144,10 @@ void VisitStackPtrFromInterpreter(stack_ptr_visitor_t _visitor, placeholder_t _p
     (*visitor)(*placeholder);
 }
 
-type_info_t TypeInfoProvider(const char * sig)
+struct type_info_t* TypeInfoProvider(const char * sig)
 {
     DLOG_INTERPRETER(DEBUG, "[Interpreter] type info for %s", sig);
-    type_info_t result = LoaderManager::GetInstance()->FindTypeInfoFromLoadedFiles(sig);
+    auto *result = reinterpret_cast<struct type_info_t*>(LoaderManager::GetInstance()->FindTypeInfoFromLoadedFiles(sig));
     DLOG_INTERPRETER(DEBUG, "[Interpreter] FindTypeInfoFromLoadedFiles(%s) return %p", sig, result);
 
     return result;
@@ -162,27 +162,27 @@ type_template_t FindTypeTemplate(const char* mangledName)
     return result;
 }
 
-type_info_t GetOrCreateTypeInfo(type_template_t typeTemplate, uint32_t typeArgsCount, type_info_t* typeArgs)
+struct type_info_t* GetOrCreateTypeInfo(type_template_t typeTemplate, uint32_t typeArgsCount, struct type_info_t** typeArgs)
 {
     DLOG_INTERPRETER(DEBUG, "[Interpreter] GetOrCreateTypeInfo template=%p size=%u", typeTemplate, typeArgsCount);
 
-    return TypeInfoManager::GetTypeInfoManager().GetOrCreateTypeInfo(
+    return reinterpret_cast<struct type_info_t*>(TypeInfoManager::GetTypeInfoManager().GetOrCreateTypeInfo(
         static_cast<TypeTemplate*>(typeTemplate), 
         typeArgsCount, 
         reinterpret_cast<TypeInfo**>(typeArgs)
-    );
+    ));
 }
 
-uint32_t GetInstanceSize(type_info_t typeInfoPtr)
+uint32_t GetInstanceSize(struct type_info_t* typeInfoPtr)
 {
-    TypeInfo* ti = static_cast<TypeInfo*>(typeInfoPtr);   
+    TypeInfo* ti = reinterpret_cast<TypeInfo*>(typeInfoPtr);
     DLOG_INTERPRETER(DEBUG, "[Interpreter] GetInstanceSize for %s", ti->GetName());
     return ti->GetInstanceSize();
 }
 
-obj_ref_t ObjectAllocate(type_info_t tpe) 
+obj_ref_t ObjectAllocate(struct type_info_t* tpe) 
 {
-    TypeInfo* typeInfo = (TypeInfo*)tpe;
+    TypeInfo* typeInfo = reinterpret_cast<TypeInfo*>(tpe);
     MSize size = AlignUp<MSize>(typeInfo->GetInstanceSize(), 8) + sizeof(TypeInfo*);
 
     ObjRef obj = ObjectManager::NewObject(typeInfo, size);
@@ -192,9 +192,9 @@ obj_ref_t ObjectAllocate(type_info_t tpe)
     return (obj_ref_t)obj;
 }
 
-obj_ref_t ArrayAllocate(type_info_t tpe, uint64_t size) 
+obj_ref_t ArrayAllocate(struct type_info_t* tpe, uint64_t size) 
 {
-    TypeInfo* typeInfo = (TypeInfo*)tpe;
+    TypeInfo* typeInfo = reinterpret_cast<TypeInfo*>(tpe);
 
     ArrayRef arr = ObjectManager::NewArray(size, typeInfo);
     DLOG_INTERPRETER(DEBUG, "[Interpreter] alloc array of type %p, addr = %p, size = %u", tpe, arr, size);
@@ -241,12 +241,12 @@ obj_ref_t GetAndClearPendingException()
     return ref;
 }
 
-bool InstanceOf(obj_ref_t ref, type_info_t ti) 
+bool InstanceOf(obj_ref_t ref, struct type_info_t* ti) 
 {
     DLOG_INTERPRETER(DEBUG, "[Interpreter] check instance of: obj=%p, sti=%p", ref, ti);
 
     MObject* obj    = static_cast<MObject*>(ref);
-    TypeInfo* tinfo = static_cast<TypeInfo*>(ti);
+    TypeInfo* tinfo = reinterpret_cast<TypeInfo*>(ti);
 
     DLOG_INTERPRETER(DEBUG, "[Interpreter] obj type = %s", obj->GetTypeInfo()->GetName());
     DLOG_INTERPRETER(DEBUG, "[Interpreter] type to check = %s", tinfo->GetName());
@@ -254,7 +254,7 @@ bool InstanceOf(obj_ref_t ref, type_info_t ti)
     return obj->IsSubType(*tinfo);
 }
 
-bool IsSubType(type_info_t type_info, type_info_t super_type_info)
+bool IsSubType(struct type_info_t* type_info, struct type_info_t* super_type_info)
 {
     DLOG_INTERPRETER(DEBUG, "[Interpreter] check IsSubType: ti=%p, sti=%p", type_info, super_type_info);
     if (type_info == nullptr || super_type_info == nullptr) {
@@ -264,8 +264,8 @@ bool IsSubType(type_info_t type_info, type_info_t super_type_info)
         return true;
     }
     
-    TypeInfo* tInfo = static_cast<TypeInfo*>(type_info);
-    TypeInfo* sInfo = static_cast<TypeInfo*>(super_type_info);
+    TypeInfo* tInfo = reinterpret_cast<TypeInfo*>(type_info);
+    TypeInfo* sInfo = reinterpret_cast<TypeInfo*>(super_type_info);
     return tInfo->IsSubType(sInfo);
 }
 
