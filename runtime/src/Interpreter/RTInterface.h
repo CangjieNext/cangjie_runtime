@@ -37,11 +37,11 @@ typedef void *type_info_t;
 typedef void *type_template_t;
 
 // Pointer to ThreadLocalData that is currently executing current fiber.
-typedef void* thread_local_data_t;
+typedef void *thread_local_data_t;
 
 // Pointer to fiber specific data that is used by interpreter during execution.
 // This pointer is stored in fiber specific storage.
-typedef void* fiber_specific_data_t;
+typedef void *fiber_specific_data_t;
 
 // This is alias for frame pointer. CJNative runtime should pass this pointer to `frame_info_provider_f` function.
 // Interpreter would return description of corresponding frame (e.g. file_name, line_number).
@@ -62,7 +62,7 @@ typedef const void *stack_ptr_visitor_t;
 // Pointer to ExceptionWrapper.
 typedef void *exception_wrapper_t;
 
-// TODO doc
+// Frame description used by interpreter frame visitors.
 struct frame_desc_t {
     frame_pointer_t fp;
     instruction_pointer_t ip;
@@ -76,18 +76,10 @@ struct interpreted_frame_info_t {
     char*  file_name;
 };
 
+// Pointer on stack can point to stack itself or not.
 enum stack_ptr_slot_type_t {
     OnStack,
     OutOfStack
-};
-
-// This is enumeration of all exception types that can be implicitly thrown during interpretation.
-enum implicit_exception_type_t {
-    OutOfMemoryException,
-    OutOfBoundsException,
-    StackOverflowException,
-    NullPointerException,
-    ArithmeticException
 };
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -99,14 +91,14 @@ enum implicit_exception_type_t {
 ////////////////////////////////////////////////////////////////////////////////////
 
 // C Calling convention (CCall)
-//   This is default calling convention used by any C/C++ code. Most of the provided callbacks use this calling
-//   convention to simplify interoperability of CJNative and interpreter
+//   This is default calling convention used by any C/C++ code. 
+//   Provided callbacks use this calling convention to simplify interoperability of CJNative and interpreter.
 //
 
 // Managed Cangjie Calling convention (ManagedCall)
 //   This is default calling convention used by compiled Cangjie code. Parameter passing is similar to CCall but there are some
-//   differences. For example, there is dedicated non-volatile register that holds pointer to fiber-secific data (e.g. r15 on x86_64).
-//   Some of the provided callbacks use this calling convention to improve performance of the interoperability between compiled and interpreted code.
+//   differences. For example, there is dedicated non-volatile register that holds pointer to thread local data (e.g. r15 on x86_64).
+//   Take care of this calling convention when making C2I or I2C transitions.
 //
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -128,22 +120,25 @@ struct cjnative_interface_t;
 // Initalizes runtime and its interface.
 //
 // params:
-// - Number of interpreter options.
 // - Pointer to `interpreter_interface_t` which will be filled.
 // - Pointer to `cjnative_interface_t`. The content will be copied.
 // return: 0 on success.
 //
-// Notes:
-//  CCall calling convention is used.
-//
-typedef int (*init_rt)(size_t, struct interpreter_interface_t *, struct cjnative_interface_t *);
+typedef int (*init_rt)(struct interpreter_interface_t *, struct cjnative_interface_t *);
 
-// TODO doc
+
+// Visit static roots (global variables) of interpreted code with some visitor.
+// Can be used to add interpreted roots for GC root-set.
 typedef void (*visit_global_roots_f)(root_visitor_t visitor);
 
-// TODO doc
+// Visit local roots (local variables) of interpreted function with some visitor.
+// Can be used to add interpreted roots for GC root-set.
+// 
+// params:
+// - visitor: CJNative visitor of reference placeholders
+// - frame_desc: description of interpreted frame to visit
+//
 typedef void (*visit_frame_roots_f)(root_visitor_t visitor, frame_desc_t frame_desc);
-
 
 // Visits interpreter fiber specific storages and invokes given visitor for each placeholder that contains object reference.
 // This method could be called by any thread (e.g. auxiliary GC thread) not necessarily from the thread that
@@ -151,13 +146,10 @@ typedef void (*visit_frame_roots_f)(root_visitor_t visitor, frame_desc_t frame_d
 // This function should be invoked after fiber that owns given `fiber_specific_data_t` has reached safe point and is stopped.
 //
 // params:
-// - Pointer to fiber-specific data
 // - CJNative visitor of reference placeholders
+// - Pointer to fiber-specific data
 //
-// Notes:
-// CCall calling convention is used.
 typedef void (*visit_fiber_roots_f)(root_visitor_t visitor, fiber_specific_data_t interp_fiber_data);
-
 
 // Visits interpreter fiber specific storages and invokes given visitor for each placeholder that contains pointer to CJ stack.
 // This function should be invoked when fiber that owns given `fiber_specific_data_t` tries to extend its stack.
@@ -168,8 +160,6 @@ typedef void (*visit_fiber_roots_f)(root_visitor_t visitor, fiber_specific_data_
 // - Determines if on-stack or out-of-stack placeholders should be visited: there can be separate visitors for each
 //   kind of placeholders because they (not only pointed value) can be moved or not depending on their place.
 //
-// Notes:
-// CCall calling convention is used.
 typedef void (*visit_stack_ptrs_f)(stack_ptr_visitor_t visitor, fiber_specific_data_t interp_fiber_data, stack_ptr_slot_type_t slot_type);
 
 
@@ -180,18 +170,13 @@ typedef void (*visit_stack_ptrs_f)(stack_ptr_visitor_t visitor, fiber_specific_d
 //
 // Notes:
 //  Interpreter will save auxiliary metadata in [fiber_specific_data_t + offset_to_fiber_specific_memory_f] memory area to simplify support of interpretation and Garbage collection.
-//  CCall calling convention is used.
 //
 typedef void (*fiber_start_f)(fiber_specific_data_t*);
-
 
 // Unregisters fiber in interpreter. This method could be called by any thread (e.g. auxiliary scheduler thread) to notify interpreter about termination of some completed fiber.
 //
 // params:
 // - Pointer to FiberSpecificData
-//
-// Notes:
-//  CCall calling convention is used.
 //
 typedef void (*fiber_destroy_f)(fiber_specific_data_t*);
 
@@ -207,12 +192,9 @@ typedef void (*fiber_destroy_f)(fiber_specific_data_t*);
 // - Instruction pointer in frame (callsite position).
 // - Pointer to interpreted_frame_info_t. Fields of this struct will be initialized by interpreter.
 //
-// Notes:
-//  CCall calling convention is used.
-//
 typedef void (*frame_info_provider_f)(frame_pointer_t, instruction_pointer_t ip, interpreted_frame_info_t *);
 
-//
+
 // Landing pad which handles pending exception.
 // If there is suitable catch block in current last interpreted frame, interprets catch block.
 // Otherwise, drops current frame and rethrows exception.
@@ -222,7 +204,6 @@ typedef void (*landing_pad_f)();
 ////////////////////////////////////////////////////////////////////////////////////
 // endregion interpreter interface
 ////////////////////////////////////////////////////////////////////////////////////
-
 
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -237,7 +218,6 @@ typedef void (*landing_pad_f)();
 //
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
-//  ManagedCall calling convention is used.
 //
 typedef obj_ref_t (*obj_alloc_f)(type_info_t);
 
@@ -250,7 +230,6 @@ typedef obj_ref_t (*obj_alloc_f)(type_info_t);
 //
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
-//  ManagedCall calling convention is used.
 //
 typedef obj_ref_t (*array_alloc_f)(type_info_t array_type, uint64_t size);
 
@@ -258,7 +237,6 @@ typedef obj_ref_t (*array_alloc_f)(type_info_t array_type, uint64_t size);
 //
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
-//  ManagedCall calling convention is used.
 //
 typedef void (*safe_point_f)();
 
@@ -278,18 +256,22 @@ typedef bool (*enter_safe_region_f)(bool updateUnwindContext);
 typedef bool (*leave_safe_region_f)();
 
 // C2N_Stub function, can be reused as implementation of I2N call.
+// TODO avoid using it
 typedef void (*C2N_Stub_f)();
+
+// Typedef for foreign function. See below for explanation.
+typedef void *(*foreign_func)(void*, void*, void*, void*, void*);
+
 
 // Provide a TypeInfo for type with given signature.
 //
 // params:
-// - type description as char string. TODO: use utf8?
+// - type description as char string.
 //
 // return: pointer to TypeInfo
 //
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
-//  ManagedCall calling convention is used.
 //
 typedef type_info_t (*type_info_provider_f)(const char *);
 
@@ -302,11 +284,9 @@ typedef type_info_t (*type_info_provider_f)(const char *);
 //
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
-//  ManagedCall calling convention is used.
 //
 typedef type_template_t (*type_template_f)(const char *);
 
-//
 // Get or create specialized TypeInfo from a TypeTemplate and type arguments.
 //
 // params:
@@ -318,11 +298,9 @@ typedef type_template_t (*type_template_f)(const char *);
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
-// ManagedCall calling convention is used.
 //
 typedef type_info_t (*get_or_create_type_info_f)(type_template_t typeTemplate, uint32_t argSize, type_info_t* typeArgs);
 
-//
 // Get the instance size of a type from its TypeInfo.
 //
 // params:
@@ -332,15 +310,14 @@ typedef type_info_t (*get_or_create_type_info_f)(type_template_t typeTemplate, u
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
-// ManagedCall calling convention is used.
 //
 typedef uint32_t (*get_instance_size_f)(type_info_t typeInfo);
+
 
 // Throw OutOfMemoryError exception.
 //
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
-//  CCall calling convention is used.
 //
 typedef void (*throw_OOM_f)();
 
@@ -351,7 +328,6 @@ typedef void (*throw_OOM_f)();
 //
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
-//  CCall calling convention is used.
 //
 typedef void (*throw_exception_f)(obj_ref_t exception_object);
 
@@ -362,7 +338,6 @@ typedef void (*throw_exception_f)(obj_ref_t exception_object);
 //
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
-//  CCall calling convention is used.
 //
 typedef obj_ref_t (*get_pending_exception_f)();
 
@@ -373,12 +348,9 @@ typedef obj_ref_t (*get_pending_exception_f)();
 //
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
-//  CCall calling convention is used.
 //
 typedef obj_ref_t (*get_and_clear_pending_exception_f)();
 
-// Typedef for foreign function. See below for explanation.
-typedef void *(*foreign_func)(void*, void*, void*, void*, void*);
 
 // Check that given object is an instance of given type.
 //
@@ -390,14 +362,38 @@ typedef void *(*foreign_func)(void*, void*, void*, void*, void*);
 //
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
-//  CCall calling convention is used.
 //
 typedef bool (*instance_of_f)(obj_ref_t obj, type_info_t ti);
 
-// TODO doc
+// Check that typeInfo is a subtype of superTypeInfo.
+//
+// params:
+// - type_info - type to check
+// - super_type_info - base type
+//
+// return: true if type_info is a subtype of super_type_info.
+//
+// Notes:
+//
+typedef bool (*is_sub_type_f)(type_info_t type_info, type_info_t super_type_info);
+
+
+// Apply global root visitor to reference placeholder.
+//
+// params:
+// - visitor: CJNative visitor of reference placeholders
+// - placeholder: pointer to the place that contains traceable object reference
+//
+// Notes:
+// This method will be invoked by interpreter as a part of root set visiting started by CJNative runtime.
+//
 typedef void (*visit_global_root_from_interpreter_f)(root_visitor_t visitor, placeholder_t placeholder);
 
-// TODO doc
+// Apply local root visitor to reference placeholder.
+//
+// Notes:
+// This method will be invoked by interpreter as a part of root set visiting started by CJNative runtime.
+//
 typedef void (*visit_frame_root_from_interpreter_f)(root_visitor_t visitor, placeholder_t placeholder);
 
 // Applies given visitor to given placeholder.
@@ -409,7 +405,6 @@ typedef void (*visit_frame_root_from_interpreter_f)(root_visitor_t visitor, plac
 //
 // Notes:
 // This method will be invoked by interpreter as a part of root set visiting started by CJNative runtime.
-// CCall calling convention is used.
 //
 typedef void (*visit_fiber_root_from_interpreter_f)(root_visitor_t visitor, placeholder_t placeholder);
 
@@ -422,7 +417,6 @@ typedef void (*visit_fiber_root_from_interpreter_f)(root_visitor_t visitor, plac
 //
 // Notes:
 // This method will be invoked by interpreter as a part of stack pointers adjusting started by CJNative runtime.
-// CCall calling convention is used.
 //
 typedef void (*visit_stack_ptr_from_interpreter_f)(stack_ptr_visitor_t visitor, placeholder_t placeholder);
 
@@ -435,7 +429,6 @@ typedef void (*visit_stack_ptr_from_interpreter_f)(stack_ptr_visitor_t visitor, 
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
-// CCall calling convention is used.
 //
 typedef obj_ref_t (*read_static_field_f)(field_ref_t source);
 
@@ -447,7 +440,6 @@ typedef obj_ref_t (*read_static_field_f)(field_ref_t source);
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
-// CCall calling convention is used.
 //
 typedef void (*write_static_field_f)(field_ref_t destination, obj_ref_t new_value);
 
@@ -461,7 +453,6 @@ typedef void (*write_static_field_f)(field_ref_t destination, obj_ref_t new_valu
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
-// CCall calling convention is used.
 //
 typedef obj_ref_t (*read_instance_field_f)(obj_ref_t source, field_ref_t field);
 
@@ -474,11 +465,10 @@ typedef obj_ref_t (*read_instance_field_f)(obj_ref_t source, field_ref_t field);
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
-// CCall calling convention is used.
 //
 typedef void (*write_instance_field_f)(obj_ref_t destination, field_ref_t field, obj_ref_t new_value);
 
-// Read a value type field from an object (struct).
+// Read a struct field from an object.
 //
 // params:
 // - dstPtr - pointer to the destination memory
@@ -488,11 +478,10 @@ typedef void (*write_instance_field_f)(obj_ref_t destination, field_ref_t field,
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
-// CCall calling convention is used.
 //
 typedef void (*read_struct_field_f)(uintptr_t dstPtr, obj_ref_t obj, uintptr_t srcField, size_t size);
 
-// Write a value type field to an object (struct).
+// Write a struct field to an object.
 //
 // params:
 // - obj - object containing the struct field
@@ -502,11 +491,10 @@ typedef void (*read_struct_field_f)(uintptr_t dstPtr, obj_ref_t obj, uintptr_t s
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
-// CCall calling convention is used.
 //
 typedef void (*write_struct_field_f)(obj_ref_t obj, uintptr_t dst, uintptr_t src, size_t size);
 
-// Read a static value type field (struct).
+// Read a static struct field.
 //
 // params:
 // - dstPtr - pointer to the destination memory
@@ -517,7 +505,6 @@ typedef void (*write_struct_field_f)(obj_ref_t obj, uintptr_t dst, uintptr_t src
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
-// CCall calling convention is used.
 //
 typedef void (*read_static_struct_field_f)(uintptr_t dstPtr, size_t dstSize, uintptr_t srcPtr, size_t srcSize, size_t tib_value);
 
@@ -532,7 +519,6 @@ typedef void (*read_static_struct_field_f)(uintptr_t dstPtr, size_t dstSize, uin
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
-// CCall calling convention is used.
 //
 typedef void (*write_static_struct_field_f)(uintptr_t dst, size_t dstLen, uintptr_t src, size_t srcLen, size_t tib_value);
 
@@ -547,7 +533,6 @@ typedef void (*write_static_struct_field_f)(uintptr_t dst, size_t dstLen, uintpt
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
-// CCall calling convention is used.
 //
 typedef void (*read_generic_field_f)(obj_ref_t dst, obj_ref_t src_obj, uintptr_t src_field, size_t size);
 
@@ -562,7 +547,6 @@ typedef void (*read_generic_field_f)(obj_ref_t dst, obj_ref_t src_obj, uintptr_t
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
-// CCall calling convention is used.
 //
 typedef void (*write_generic_field_f)(obj_ref_t dst_obj, uintptr_t dst_field, obj_ref_t src_obj, size_t size);
 
@@ -575,7 +559,6 @@ typedef void (*write_generic_field_f)(obj_ref_t dst_obj, uintptr_t dst_field, ob
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
-// CCall calling convention is used.
 //
 typedef obj_ref_t (*get_array_ref_element_f)(obj_ref_t source, uint64_t index);
 
@@ -588,7 +571,6 @@ typedef obj_ref_t (*get_array_ref_element_f)(obj_ref_t source, uint64_t index);
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
-// CCall calling convention is used.
 //
 typedef void (*set_array_ref_element_f)(obj_ref_t destination, uint64_t index, obj_ref_t new_value);
 
@@ -608,54 +590,27 @@ typedef thread_local_data_t (*get_thread_local_data_f)();
 //
 typedef bool (*is_active_gc_phase_f)(thread_local_data_t);
 
-//
 // Stub for stack growth.
 //
 typedef void* (*stack_grow_stub_f)();
 
-//
-// Check that typeInfo is a subtype of superTypeInfo.
-//
-// params:
-// - type_info - type to check
-// - super_type_info - base type
-//
-// return: true if type_info is a subtype of super_type_info.
-//
-// Notes:
-// CCall calling convention is used.
-//
-typedef bool (*is_sub_type_f)(type_info_t type_info, type_info_t super_type_info);
-
-//
 // Retrieves the current ExceptionWrapper.
 //
 // return: pointer to ExceptionWrapper
 //
-// Notes:
-// CCall calling convention is used.
-//
 typedef exception_wrapper_t (*get_exception_wrapper_f)();
 
-//
 // Get PC of function which caught exception.
 // Can be used as return address for interpreter landing pad.
 //
-// Notes:
-// CCall calling convention is used.
-//
 typedef uintptr_t (*get_current_catch_function_PC_f)();
 
-//
 // Begins exception catch block using the provided ExceptionWrapper.
 //
 // params:
 // - exception_wrapper - current exception wrapper
 //
 // return: exception object
-//
-// Notes:
-// CCall calling convention is used.
 //
 typedef obj_ref_t (*post_throw_exception_f)(exception_wrapper_t exception_wrapper);
 
@@ -665,9 +620,6 @@ typedef obj_ref_t (*post_throw_exception_f)(exception_wrapper_t exception_wrappe
 // params:
 // - tag - log tag
 // - message - log message
-//
-// Notes:
-// CCall calling convention is used.
 //
 typedef void (*native_logger_f)(int log_level, char* tag, char* message);
 
