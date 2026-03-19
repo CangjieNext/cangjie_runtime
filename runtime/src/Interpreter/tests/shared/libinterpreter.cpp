@@ -44,26 +44,29 @@ Mock::Mock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cj
 
     interpreter_interf->landing_pad = &LandingPadWrapper;
 
+    interpreter_interf->iterate_frames_with_state = (iterate_frames_with_state_f)+[]() {
+        log("[Mock] dummy iterate_frames_with_state called!"); return 0;
+    };
     interpreter_interf->visit_global_roots = (visit_global_roots_f)+[]() {
-        log("[Mock] dummy visit_global_roots called!\n"); return 0;
+        log("[Mock] dummy visit_global_roots called!"); return 0;
     };
-    interpreter_interf->visit_fiber_roots = (visit_fiber_roots_f)+[]() {
-        log("[Mock] dummy visit_fiber_roots called!\n"); return 0;
+    interpreter_interf->visit_frame_roots_expansion = (visit_frame_roots_expansion_f)+[]() {
+        log("[Mock] dummy visit_frame_roots_expansion called!"); return 0;
     };
-    interpreter_interf->visit_frame_roots = (visit_frame_roots_f)+[]() {
-        log("[Mock] dummy visit_frame_roots called!\n"); return 0;
+    interpreter_interf->visit_frame_roots_marking = (visit_frame_roots_marking_f)+[]() {
+        log("[Mock] dummy visit_frame_roots_marking called!"); return 0;
     };
-    interpreter_interf->visit_stack_ptrs = (visit_stack_ptrs_f)+[]() {
-        log("[Mock] dummy visit_stack_ptrs called!\n"); return 0;
+    interpreter_interf->visit_frame_roots_adjusting = (visit_frame_roots_adjusting_f)+[]() {
+        log("[Mock] dummy visit_frame_roots_adjusting called!"); return 0;
     };
     interpreter_interf->fiber_start = (fiber_start_f)+[]() {
-        log("[Mock] dummy fiber_start called!\n"); return 0;
+        log("[Mock] dummy fiber_start called!"); return 0;
     };
     interpreter_interf->fiber_destroy = (fiber_destroy_f)+[]() {
-        log("[Mock] dummy fiber_destroy called!\n"); return 0;
+        log("[Mock] dummy fiber_destroy called!"); return 0;
     };
     interpreter_interf->frame_info_provider = (frame_info_provider_f)+[]() {
-        log("[Mock] dummy frame_info_provider called!\n"); return 0;
+        log("[Mock] dummy frame_info_provider called!"); return 0;
     };
 
     g_GetCurrentCatchFunctionPCPtr = cjnative_interf->get_current_catch_function_PC;

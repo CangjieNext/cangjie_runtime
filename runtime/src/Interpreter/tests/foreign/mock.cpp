@@ -44,11 +44,11 @@ void ForeignTestMock::visitGlobalRoots(root_visitor_t visitor) {
     printf("[Mock] visitGlobalRoots called!\n");
     scanRefArray(visitor, static_cast<Ref*>(frameRoots), FRAME_ROOTS_N,
         [](root_visitor_t visitor, Ref* ph){
-            mockInstance.cjNativeInterface.visit_frame_root_from_interpreter(visitor, ph);
+            mockInstance.cjNativeInterface.visit_root_from_interpreter(visitor, ph);
         });
     scanRefArray(visitor, static_cast<Ref*>(adjustableRoots), SAVED_ROOTS_N,
         [](root_visitor_t visitor, Ref* ph){
-            mockInstance.cjNativeInterface.visit_frame_root_from_interpreter(visitor, ph);
+            mockInstance.cjNativeInterface.visit_root_from_interpreter(visitor, ph);
         });
 }
 

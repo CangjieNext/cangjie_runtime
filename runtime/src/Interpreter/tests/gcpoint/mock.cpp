@@ -2,6 +2,7 @@
 #include <atomic>
 #include "mock.h"
 #include "log.h"
+#include "utils.h"
 
 extern MOCK_IMPLEMENTATION mockInstance;
 
@@ -18,23 +19,30 @@ public:
 GCPointMock::GCPointMock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
     : Mock(interpreter_interf, cjnative_interf)
 {
-    interpreter_interf->visit_fiber_roots = &visitFiberRoots;
+
+    interpreter_interf->iterate_frames_with_state = &IterateFramesWithState;
+    interpreter_interf->visit_frame_roots_marking = &markFrameRoots;
+
     interpreter_interf->fiber_start = &doOnFiberStart;
 
     registerC2I(0, reinterpret_cast<uintptr_t>(pollSafepoints));
 }
 
-void GCPointMock::visitFiberRoots(root_visitor_t visitor, fiber_specific_data_t data) {
-    auto magic = static_cast<FiberMagicData*>(data);
-    if (magic->magicValue != 0xCAFEBABE) {
-        printf("[Interpreter] fiber: magic value mismatch (expected: 0xCAFEBABE, got: 0x%016lX)\n", 
-            magic->magicValue);
-        return;
-    }
-    auto fiberId = magic->fiberId;
-    printf("[Interpreter] visitFiberRoots: fiber id = %ld\n", fiberId);
+void GCPointMock::IterateFramesWithState(fiber_specific_data_t fiberData, void (*callback)(visiting_state_t, void*), void* ctx) {
+    log("[Mock] frames iterator called!");
+    callback(fiberData, ctx);
+    log("[Mock] frames iterator finished!");
 }
 
+void GCPointMock::markFrameRoots(visiting_state_t state, frame_desc_t desc, root_visitor_t visitor) {
+    auto magic = static_cast<FiberMagicData*>(state);
+
+    check(magic->magicValue == 0xCAFEBABE,
+        "[Interpreter] fiber: magic value mismatch (expected: 0xCAFEBABE, got: 0x%016lX)\n",
+        magic->magicValue);
+
+    printf("[Interpreter] visitFiberRoots: fiber id = %ld\n", magic->fiberId);
+}
 
 std::atomic<int64_t> fibers_count(0);
 

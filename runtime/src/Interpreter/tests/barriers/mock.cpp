@@ -35,8 +35,10 @@ public:
 BarriersMock::BarriersMock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
     : Mock(interpreter_interf, cjnative_interf)
 {
+    interpreter_interf->iterate_frames_with_state = &IterateFramesWithState;
+    interpreter_interf->visit_frame_roots_marking = &markFrameRoots;
+    interpreter_interf->visit_frame_roots_adjusting = &adjustFrameRoots;
     interpreter_interf->visit_global_roots = &visitGlobalRoots;
-    interpreter_interf->visit_frame_roots = &visitFrameRoots;
     interpreter_interf->fiber_start = &doOnFiberStart;
 
     registerC2I(0, reinterpret_cast<uintptr_t>(testBarriers));
@@ -56,20 +58,35 @@ void scanRefArray(root_visitor_t visitor, Ref* roots, int size, std::function<vo
 void BarriersMock::visitGlobalRoots(root_visitor_t visitor) {
     scanRefArray(visitor, globalRoots, GLOBAL_ROOTS_N,
         [](root_visitor_t visitor, Ref* ph){
-            mockInstance.cjNativeInterface.visit_global_root_from_interpreter(visitor, ph);
+            mockInstance.cjNativeInterface.visit_root_from_interpreter(visitor, ph);
         });
     scanRefArray(visitor, adjustableRoots, SAVED_ROOTS_N,
         [](root_visitor_t visitor, Ref* ph){
-            mockInstance.cjNativeInterface.visit_global_root_from_interpreter(visitor, ph);
+            mockInstance.cjNativeInterface.visit_root_from_interpreter(visitor, ph);
         });
     log("[Mock] finished global roots scanning");
 }
 
-void BarriersMock::visitFrameRoots(root_visitor_t visitor, frame_desc_t desc) {
+void BarriersMock::IterateFramesWithState(fiber_specific_data_t fiberData, void (*callback)(visiting_state_t, void*), void* ctx) {
+    log("[Mock] frames iterator called!");
+    callback(nullptr /* not used */, ctx);
+    log("[Mock] frames iterator finished!");
+}
+
+void BarriersMock::markFrameRoots(visiting_state_t state, frame_desc_t desc, root_visitor_t visitor) {
     log("[Mock] frame: (ip=%p, fp=%p)", desc.ip, desc.fp);
     scanRefArray(visitor, static_cast<Ref*>(frameRoots), FRAME_ROOTS_N,
         [](root_visitor_t visitor, Ref* ph){
-            mockInstance.cjNativeInterface.visit_frame_root_from_interpreter(visitor, ph);
+            mockInstance.cjNativeInterface.visit_root_from_interpreter(visitor, ph);
+        });
+    log("[Mock] finished frame roots scanning");
+}
+
+void BarriersMock::adjustFrameRoots(visiting_state_t state, frame_desc_t desc, root_visitor_t visitor, root_visitor_t derivedPtrVisitor) {
+    log("[Mock] frame: (ip=%p, fp=%p)", desc.ip, desc.fp);
+    scanRefArray(visitor, static_cast<Ref*>(frameRoots), FRAME_ROOTS_N,
+        [](root_visitor_t visitor, Ref* ph){
+            mockInstance.cjNativeInterface.visit_root_from_interpreter(visitor, ph);
         });
     log("[Mock] finished frame roots scanning");
 }
@@ -234,7 +251,7 @@ bool readAndCheckGenericField() {
         return false;
     }
 
-    uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(frameRoots[0]) + sizeof(type_info_t*); 
+    uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(frameRoots[0]) + sizeof(type_info_t*);
 
     type_template_t wrapperTemplate = interface.type_template("default:GenericWrapper");
     if (!wrapperTemplate) {
@@ -290,7 +307,7 @@ bool writeAndCheckGenericField() {
         return false;
     }
 
-    uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(frameRoots[0]) + sizeof(type_info_t*); 
+    uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(frameRoots[0]) + sizeof(type_info_t*);
 
     auto tiRecField = interface.type_info("default:RecField");
     if (!tiRecField) {        

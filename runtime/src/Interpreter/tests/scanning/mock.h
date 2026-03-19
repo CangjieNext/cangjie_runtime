@@ -9,15 +9,17 @@ class ScanningMock : public Mock {
         ScanningMock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf);
 
     private:
+        static void IterateFramesWithState(fiber_specific_data_t fiberData, void (*callback)(visiting_state_t, void*), void* ctx);
+
         static void visitGlobalRoots(root_visitor_t visitor);
-        static void visitFiberRoots(root_visitor_t visitor, fiber_specific_data_t data);
-        static void visitFrameRoots(root_visitor_t visitor, frame_desc_t desc);
+        static void markFrameRoots(visiting_state_t state, frame_desc_t frameDesc, root_visitor_t rootVisitor);
+        static void adjustFrameRoots(visiting_state_t state, frame_desc_t frameDesc, root_visitor_t rootVisitor, derived_ptr_visitor_t derivedPtrVisitor);
         static void init();
         static void doOnFiberStart(fiber_specific_data_t* data);
         static void intermidiateFrames();
 
-        static void visitStackPtrs(stack_ptr_visitor_t visitor, fiber_specific_data_t interp_fiber_data, stack_ptr_slot_type_t slot_type);
-        static void saveSomePointerToStack();
+        static void visitStackPtrs(visiting_state_t state, frame_desc_t frameDesc, root_visitor_t stackPtrVisitor, derived_ptr_visitor_t derivedPtrVisitor);
+        static void frameWithStackPtrSlot();
         static void checkIsPointerAdjusted();
 };
 

@@ -17,7 +17,9 @@ Ref frameRoots[FRAME_ROOTS_N];
 ExceptionsMock::ExceptionsMock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
     : Mock(interpreter_interf, cjnative_interf)
 {
-    interpreter_interf->visit_frame_roots = &visitFrameRoots;
+    interpreter_interf->iterate_frames_with_state = &IterateFramesWithState;
+    interpreter_interf->visit_frame_roots_marking = &markFrameRoots;
+    interpreter_interf->visit_frame_roots_adjusting = &adjustFrameRoots;
 
     interpreter_interf->frame_info_provider = &getInterpretedFrameInfo;
 
@@ -44,11 +46,26 @@ void scanRefArray(root_visitor_t visitor, Ref* roots, int size, std::function<vo
     }
 }
 
-void ExceptionsMock::visitFrameRoots(root_visitor_t visitor, frame_desc_t desc) {
+void ExceptionsMock::IterateFramesWithState(fiber_specific_data_t fiberData, void (*callback)(visiting_state_t, void*), void* ctx) {
+    log("[Mock] frames iterator called!");
+    callback(nullptr /* not used */, ctx);
+    log("[Mock] frames iterator finished!");
+}
+
+void ExceptionsMock::markFrameRoots(visiting_state_t state, frame_desc_t desc, root_visitor_t visitor) {
     log("[Mock] frame: (ip=%p, fp=%p)", desc.ip, desc.fp);
     scanRefArray(visitor, static_cast<Ref*>(frameRoots), FRAME_ROOTS_N,
         [](root_visitor_t visitor, Ref* ph){
-            mockInstance.cjNativeInterface.visit_frame_root_from_interpreter(visitor, ph);
+            mockInstance.cjNativeInterface.visit_root_from_interpreter(visitor, ph);
+        });
+    log("[Mock] finished frame roots scanning");
+}
+
+void ExceptionsMock::adjustFrameRoots(visiting_state_t state, frame_desc_t desc, root_visitor_t visitor, root_visitor_t derivedPtrVisitor) {
+    log("[Mock] frame: (ip=%p, fp=%p)", desc.ip, desc.fp);
+    scanRefArray(visitor, static_cast<Ref*>(frameRoots), FRAME_ROOTS_N,
+        [](root_visitor_t visitor, Ref* ph){
+            mockInstance.cjNativeInterface.visit_root_from_interpreter(visitor, ph);
         });
     log("[Mock] finished frame roots scanning");
 }

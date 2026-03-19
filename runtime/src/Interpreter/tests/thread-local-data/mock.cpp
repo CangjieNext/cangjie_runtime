@@ -5,6 +5,7 @@
 #include "mock.h"
 #include "log.h"
 #include "libinterpreter.h"
+#include "utils.h"
 
 extern MOCK_IMPLEMENTATION mockInstance;
 
@@ -31,10 +32,12 @@ public:
 ThreadLocalDataTestMock::ThreadLocalDataTestMock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
     : Mock(interpreter_interf, cjnative_interf)
 {
+    interpreter_interf->iterate_frames_with_state = &IterateFramesWithState;
+    interpreter_interf->visit_frame_roots_marking = &markFrameRoots;
+    interpreter_interf->visit_frame_roots_adjusting = &adjustFrameRoots;
     interpreter_interf->visit_global_roots = &visitGlobalRoots;
-    interpreter_interf->visit_frame_roots = &visitFrameRoots;
+
     interpreter_interf->fiber_start = &doOnFiberStart;
-    interpreter_interf->visit_fiber_roots = &visitFiberRoots;
 
     registerC2I(0, reinterpret_cast<uintptr_t>(testThreadLocalData));
     registerC2I(8, reinterpret_cast<uintptr_t>(init));
@@ -52,29 +55,42 @@ void scanRefArray(root_visitor_t visitor, Ref* roots, int size, std::function<vo
 void ThreadLocalDataTestMock::visitGlobalRoots(root_visitor_t visitor) {
     scanRefArray(visitor, globalRoots, GLOBAL_ROOTS_N,
         [](root_visitor_t visitor, Ref* ph){
-            mockInstance.cjNativeInterface.visit_global_root_from_interpreter(visitor, ph);
+            mockInstance.cjNativeInterface.visit_root_from_interpreter(visitor, ph);
         });
     log("[Mock] finished global roots scanning");
 }
 
-void ThreadLocalDataTestMock::visitFrameRoots(root_visitor_t visitor, frame_desc_t desc) {
-    log("[Mock] frame: (ip=%p, fp=%p)", desc.ip, desc.fp);
-    scanRefArray(visitor, static_cast<Ref*>(frameRoots), FRAME_ROOTS_N,
-        [](root_visitor_t visitor, Ref* ph){
-            mockInstance.cjNativeInterface.visit_frame_root_from_interpreter(visitor, ph);
-        });
-    log("[Mock] finished frame roots scanning");
+void ThreadLocalDataTestMock::IterateFramesWithState(fiber_specific_data_t fiberData, void (*callback)(visiting_state_t, void*), void* ctx) {
+    log("[Mock] frames iterator called!");
+    callback(fiberData, ctx);
+    log("[Mock] frames iterator finished!");
 }
 
-void ThreadLocalDataTestMock::visitFiberRoots(root_visitor_t visitor, fiber_specific_data_t data) {
-    auto magic = static_cast<FiberMagicData*>(data);
-    if (magic->magicValue != 0xCAFEBABE) {
-        printf("[Interpreter] error: fiber: magic value mismatch (expected: 0xCAFEBABE, got: 0x%016lX)\n", 
-            magic->magicValue);
-        return;
-    }
-    auto fiberId = magic->fiberId;
-    log("[Interpreter] visitFiberRoots: fiber id = %ld\n", fiberId);
+void ThreadLocalDataTestMock::markFrameRoots(visiting_state_t state, frame_desc_t desc, root_visitor_t visitor) {
+    log("[Mock] frame: (ip=%p, fp=%p)", desc.ip, desc.fp);
+
+    scanRefArray(visitor, static_cast<Ref*>(frameRoots), FRAME_ROOTS_N,
+        [](root_visitor_t visitor, Ref* ph){
+            mockInstance.cjNativeInterface.visit_root_from_interpreter(visitor, ph);
+        });
+
+    auto magic = static_cast<FiberMagicData*>(state);
+    check(magic->magicValue == 0xCAFEBABE,
+        "[Interpreter] fiber: magic value mismatch (expected: 0xCAFEBABE, got: 0x%016lX)\n",
+        magic->magicValue);
+
+    log("[Mock] finished frame roots marking");
+}
+
+void ThreadLocalDataTestMock::adjustFrameRoots(visiting_state_t state, frame_desc_t desc, root_visitor_t visitor, derived_ptr_visitor_t derivedPtrVisitor) {
+    log("[Mock] frame: (ip=%p, fp=%p)", desc.ip, desc.fp);
+
+    scanRefArray(visitor, static_cast<Ref*>(frameRoots), FRAME_ROOTS_N,
+        [](root_visitor_t visitor, Ref* ph){
+            mockInstance.cjNativeInterface.visit_root_from_interpreter(visitor, ph);
+        });
+
+    log("[Mock] finished frame roots adjusting");
 }
 
 std::atomic<int64_t> fibers_count(0);
