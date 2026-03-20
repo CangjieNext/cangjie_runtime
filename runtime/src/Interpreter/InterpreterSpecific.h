@@ -44,6 +44,8 @@ obj_ref_t ObjectAllocate(struct type_info_t* tpe);
 
 void SafePoint();
 
+bool IsPendingSafePoint(thread_local_data_t* tlData);
+
 obj_ref_t GetPendingException();
 obj_ref_t GetAndClearPendingException();
 bool InstanceOf(obj_ref_t ref, struct type_info_t* ti);
