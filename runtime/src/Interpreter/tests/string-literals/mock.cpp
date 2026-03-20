@@ -14,11 +14,11 @@ uint8_t literalsStorage[sizeof(RawArray) + CONTENT_SIZE];
 StrLiteralMock::StrLiteralMock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cjnative_interf)
     : Mock(interpreter_interf, cjnative_interf)
 {
-    registerC2I(0, reinterpret_cast<uintptr_t>(produceLiteralSlow1));
-    registerC2I(1, reinterpret_cast<uintptr_t>(produceLiteralSlow2));
-    registerC2I(2, reinterpret_cast<uintptr_t>(produceLiteralFast1));
-    registerC2I(3, reinterpret_cast<uintptr_t>(produceLiteralFast2));
-    registerC2I(8, reinterpret_cast<uintptr_t>(init));
+    registerC2I(0, reinterpret_cast<uintptr_t>(init));
+    registerC2I(1, reinterpret_cast<uintptr_t>(produceLiteralSlow1));
+    registerC2I(2, reinterpret_cast<uintptr_t>(produceLiteralSlow2));
+    registerC2I(3, reinterpret_cast<uintptr_t>(produceLiteralFast1));
+    registerC2I(4, reinterpret_cast<uintptr_t>(produceLiteralFast2));
 }
 
 struct type_info_t* getUtf8ArrayTI() {

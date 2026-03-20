@@ -22,11 +22,13 @@ func test(producer: () -> Unit, msg: String): Unit {
 main() {
     println(testField)
 
-    test(c2i.invoke0, "[App] call produceSlow1")
-    test(c2i.invoke1, "[App] call produceSlow2")
+    c2i.invoke0() // init static string literal
 
-    test(c2i.invoke2, "[App] call produceFast1")
-    test(c2i.invoke3, "[App] call produceFast2")
+    test(c2i.invoke1, "[App] call produceSlow1")
+    test(c2i.invoke2, "[App] call produceSlow2")
+
+    test(c2i.invoke3, "[App] call produceFast1")
+    test(c2i.invoke4, "[App] call produceFast2")
 
     println("GC count: ${getGCCount()}")
 }
