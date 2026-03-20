@@ -916,9 +916,17 @@ void ExclusiveExecutor(struct Thread* thread, struct CJThread* newCJThread)
 void* ExclusiveGetThreadContext(struct Thread* thread)
 {
     if (thread == nullptr) {
+        LOG(RTLOG_ERROR, "ExclusiveGetThreadContext received null thread.");
         return nullptr;
     }
+    LOG(RTLOG_ERROR, "ExclusiveGetThreadContext thread->context.sp =%p, context =%p", thread->context.sp, thread->context);
     return static_cast<void*>(&thread->context);
+}
+
+void ExclusiveLogContextSp(uintptr_t sp)
+{
+    LOG(RTLOG_ERROR, "CJ_MCC_ExclusiveScope: switching to OS thread stack sp=0x%lx",
+        static_cast<unsigned long>(sp));
 }
 
 int IsExclusiveCJThread(struct CJThread* cjthread)

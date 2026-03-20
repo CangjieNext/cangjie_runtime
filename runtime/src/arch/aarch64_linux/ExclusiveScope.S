@@ -179,10 +179,8 @@ unwindPCForExclusiveStub:
     cbz     x0, .L_exc_skip_stack_switch    // null thread -> skip
     mov     x27, x0                       // x27 = &thread->context
     ldr     x0, [x27, #CONTEXT_SP]
-    cbz     x0, .L_exc_skip_stack_switch
-    tbnz    x0, #63, .L_exc_skip_stack_switch
-    cmp     x0, #0x1000
-    b.lo    .L_exc_skip_stack_switch
+    bl      ExclusiveLogContextSp           // log sp value before stack switch (x0 = arg0)
+    ldr     x0, [x27, #CONTEXT_SP]          // reload x0: bl may clobber it
     mov     sp, x0
     ldr     w0, [x27, #CONTEXT_FPCR]
     msr     fpcr, x0
