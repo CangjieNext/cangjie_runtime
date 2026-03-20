@@ -120,20 +120,66 @@ struct cjnative_interface_t;
 //
 typedef int (*init_rt)(struct interpreter_interface_t *, struct cjnative_interface_t *);
 
-// TODO doc
+// Prepares state and calls callback with initialized state and provided context. After callback returns, performs necessary cleanup of the state.
+//
+// params:
+// - fiberData - pointer to interpreter data for current fiber.
+// - callback - continuation that expects initialized state and context.
+// - ctx - context that should be passed to callback.
+//
 typedef void (*iterate_frames_with_state_f)(fiber_specific_data_t fiberData, void (*callback)(visiting_state_t, void*), void* ctx);
 
-// TODO doc
-typedef void (*visit_frame_roots_expansion_f)(visiting_state_t state, frame_desc_t frameDesc, root_visitor_t stackPtrVisitor, derived_ptr_visitor_t derivedPtrVisitor);
 
-// TODO doc
-typedef void (*visit_frame_roots_marking_f)(visiting_state_t state, frame_desc_t frameDesc, root_visitor_t rootVisitor);
+// Visit all frame slots that contain pointers to stack using provided visitor.
+//
+// params:
+// - state - visiting state that was initialized in iterate_frames_with_state callback. This state is passed between consecutive calls to this function for different frames.
+// - frame_desc - description of the frame which slots are being visited.
+// - stack_ptr_visitor - visitor callback provided by CJNative runtime for processing slots with stack pointers.
+// - derived_ptr_visitor - derived pointers visitor callback provided by CJNative runtime for processing slots with intrapointers (which point to stack).
+//
+// Notes:
+// Provided visitors cannot be called directly by interpreter. Interpreter should pass visitor to the callbacks defined in `cjnative_interface_t` to process slots.
+//
+typedef void (*visit_frame_roots_expansion_f)(visiting_state_t state, frame_desc_t frame_desc, root_visitor_t stack_ptr_visitor, derived_ptr_visitor_t derived_ptr_visitor);
 
-// TODO doc
-typedef void (*visit_frame_roots_adjusting_f)(visiting_state_t state, frame_desc_t frameDesc, root_visitor_t rootVisitor, derived_ptr_visitor_t derivedPtrVisitor);
+
+// Visit frame roots (local variables) of interpreted code with marking visitor.
+//
+// params:
+// - state - visiting state that was initialized in iterate_frames_with_state callback. This state is passed between consecutive calls to this function for different frames.
+// - frame_desc - description of the frame which roots are being visited.
+// - root_visitor - marking root visitor callback provided by CJNative runtime. Interpreter should call this callback for each root it needs to process.
+//
+// Notes:
+// Root visitor cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `cjnative_interface_t` to process roots.
+//
+typedef void (*visit_frame_roots_marking_f)(visiting_state_t state, frame_desc_t frame_desc, root_visitor_t root_visitor);
+
+
+// Visit frame roots (local variables) of interpreted code with adjusting visitor.
+//
+// params:
+// - state - visiting state that was initialized in iterate_frames_with_state callback. This state is passed between consecutive calls to this function for different frames.
+// - frame_desc - description of the frame which roots are being visited.
+// - root_visitor - adjusting root visitor callback provided by CJNative runtime. Interpreter should call this callback for each root it needs to process.
+// - derived_ptr_visitor - derived pointers visitor callback provided by CJNative runtime.
+//
+// Notes:
+// Root visitors cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `cjnative_interface_t` to process roots.
+//
+typedef void (*visit_frame_roots_adjusting_f)(visiting_state_t state, frame_desc_t frame_desc, root_visitor_t root_visitor, derived_ptr_visitor_t derived_ptr_visitor);
+
 
 // Visit static roots (global variables) of interpreted code with some visitor.
-// Can be used to add interpreted roots for GC root-set.
+// Can be used to add interpreted roots for GC root-set or for references adjusting.
+//
+// params:
+// - visitor - root visitor callback provided by CJNative runtime. Interpreter should call this callback for each root it needs to process.
+//
+// Notes:
+// Root visitor cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `cjnative_interface_t` to process roots.
+//
 typedef void (*visit_global_roots_f)(root_visitor_t visitor);
 
 
@@ -146,6 +192,7 @@ typedef void (*visit_global_roots_f)(root_visitor_t visitor);
 //  Interpreter will save auxiliary metadata in [fiber_specific_data_t + offset_to_fiber_specific_memory_f] memory area to simplify support of interpretation and Garbage collection.
 //
 typedef void (*fiber_start_f)(fiber_specific_data_t*);
+
 
 // Unregisters fiber in interpreter. This method could be called by any thread (e.g. auxiliary scheduler thread) to notify interpreter about termination of some completed fiber.
 //
@@ -351,10 +398,21 @@ typedef bool (*instance_of_f)(obj_ref_t obj, struct type_info_t* ti);
 //
 typedef bool (*is_sub_type_f)(struct type_info_t* type_info, struct type_info_t* super_type_info);
 
-// TODO doc
+// Applies visitor to the given placeholder.
+//
+// params:
+// - visitor - root visitor callback provided by CJNative runtime. Interpreter should call this callback for each root it needs to process.
+// - placeholder - pointer to the place that contains reference which should be visited.
+//
 typedef void (*visit_root_from_interpreter_f)(root_visitor_t visitor, placeholder_t placeholder);
 
-// TODO doc
+// Applies visitor to the given derived and base pointers.
+//
+// params:
+// - visitor - root visitor callback provided by CJNative runtime.
+// - basePtrHolder - pointer to the place that contains base pointer.
+// - derivedPtrHolder - pointer to the place that contains derived pointer (intrapointer).
+//
 typedef void (*visit_derived_ptr_from_interpreter_f)(derived_ptr_visitor_t visitor, placeholder_t basePtrHolder, placeholder_t derivedPtrHolder);
 
 // Read reference from static field.
