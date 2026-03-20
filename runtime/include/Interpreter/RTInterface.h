@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "Interpreter/RuntimeTypes.h"
+#include "RuntimeTypes.h"
 
 #ifdef __cplusplus
 extern "C" {
