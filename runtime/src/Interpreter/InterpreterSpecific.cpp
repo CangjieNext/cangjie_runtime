@@ -210,6 +210,16 @@ void SafePoint()
     ScopedEnterSaferegion gcpoint(true);
 }
 
+bool IsPendingSafePoint(thread_local_data_t tlData)
+{
+    if (tlData == nullptr) {
+        LOG(RTLOG_ERROR, "[Interpreter] IsPendingSafePoint called with null thread_local_data_t");
+        return false;
+    }
+    ThreadLocalData* threadLocalData = reinterpret_cast<ThreadLocalData*>(tlData);
+    return threadLocalData->safepointState != 0;
+}
+
 void ThrowException(obj_ref_t exception) 
 {
     DLOG_INTERPRETER(DEBUG, "[Interpreter] ThrowException %p", exception);
@@ -487,6 +497,7 @@ void InitInterpreter(const RuntimeParam& runtimeParam)
         .object_alloc = &ObjectAllocate,
         .array_alloc = &ArrayAllocate,
         .safe_point = &SafePoint,
+        .is_pending_safe_point = &IsPendingSafePoint,
         .enter_safe_region = &MRT_EnterSaferegion,
         .leave_safe_region = &MRT_LeaveSaferegion,
         .throw_exception = &ThrowException,

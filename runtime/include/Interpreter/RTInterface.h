@@ -261,6 +261,18 @@ typedef obj_ref_t (*array_alloc_f)(struct type_info_t* array_type, uint64_t size
 //
 typedef void (*safe_point_f)();
 
+// Check if safepoint is pending.
+//
+// params:
+// - thread_local_data: pointer to current `ThreadLocalData`.
+//
+// return: true if safepoint is pending, false otherwise.
+//
+// Notes:
+//  This method will be invoked by interpreter as a part of interpretation loop.
+//
+typedef bool (*is_pending_safe_point_f)(thread_local_data_t);
+
 // Enter safe region. This method can be called before executing long-running "foreign" code.
 //
 // params:
@@ -666,6 +678,7 @@ struct cjnative_interface_t {
     obj_alloc_f object_alloc;
     array_alloc_f array_alloc;
     safe_point_f safe_point;
+    is_pending_safe_point_f is_pending_safe_point;
     enter_safe_region_f enter_safe_region;
     leave_safe_region_f leave_safe_region;
 

@@ -59,10 +59,18 @@ void GCPointMock::pollSafepoints() {
     auto interface = mockInstance.cjNativeInterface;
     auto ti = interface.type_info("std.core:Object");
 
-    printf("[Interpreter] pollSafepoints: allocating objects and poll safepoint...\n");
+    printf("[Interpreter] pollSafepoints: allocating objects and call safe_point...\n");
 
-    for (int i = 0; i < 100000000; i++) {
+    for (int i = 0; i < 70000000; i++) {
         interface.safe_point();
+    }
+
+    printf("[Interpreter] pollSafepoints: check if safepoint is pending and call safe_point...\n");
+
+    for (int i = 0; i < 70000000; i++) {
+        if (interface.is_pending_safe_point(interface.get_thread_local_data())) {
+            interface.safe_point();
+        }
     }
 
     printf("[Interpreter] pollSafepoints: finished\n");
