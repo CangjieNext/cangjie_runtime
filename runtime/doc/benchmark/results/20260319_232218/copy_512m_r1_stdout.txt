@@ -1,0 +1,29 @@
+========================================
+  Cangjie GC Benchmark Suite
+  Tip: MRT_REPORT=./gc_bench.log cjHeapSize=256mb ./gc_benchmark
+========================================
+
+--- Functional Tests ---
+[BENCH] F1_TreeIntegrity         PASS  133 ms
+[BENCH] F2_Generational          PASS  287 ms
+[BENCH] F3_LargeObject           PASS  1470 ms
+[BENCH] F4_LinkedList            PASS  113 ms
+[BENCH] F5_HashMap               PASS  122 ms
+
+--- Performance Tests ---
+[BENCH] P1_SmallAlloc            222 ms  6553550 nodes  29520 nodes/ms
+[BENCH] P2_LargeAlloc            811 ms  50 MB  63 MB/s
+[BENCH] P3_MixedWorkload         506 ms  30 rounds
+[BENCH] P4_LongLivedChurn        389 ms  persistent_intact=20/20
+[BENCH] P5_Fragmentation         633 ms  15 rounds
+
+========================================
+[BENCH] SUMMARY
+[BENCH] Functional: 5/5 passed
+[BENCH] P1_SmallAlloc:      222 ms
+[BENCH] P2_LargeAlloc:      811 ms
+[BENCH] P3_MixedWorkload:   506 ms
+[BENCH] P4_LongLivedChurn:  389 ms
+[BENCH] P5_Fragmentation:   633 ms
+[BENCH] Total wall time:    4690 ms
+========================================

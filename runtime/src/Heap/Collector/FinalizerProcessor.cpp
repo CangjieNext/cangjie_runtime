@@ -100,6 +100,11 @@ void FinalizerProcessor::Run()
             BackgroundSweepLoop();
         }
 
+        // O9: Fill hungry per-thread alloc caches after sweep completes
+        // (sweep may have freed regions that can now fill empty caches).
+        // Lightweight O(36 × numThreads) — safe to run every wake-up.
+        BackgroundFillAllocCaches();
+
         if (shouldFeedHungryBuffers.load(std::memory_order_relaxed)) {
             FeedHungryBuffers();
         }
@@ -107,6 +112,14 @@ void FinalizerProcessor::Run()
         if (shouldReclaimHeapGarbage.load(std::memory_order_relaxed)) {
             ReclaimHeapGarbage();
         }
+
+#ifdef MRT_USE_MARK_SWEEP
+        // O4: Async heuristic GC check — the only periodic HEU trigger point.
+        // FinalizerProcessor wakes every iterationWaitTime (or on signal),
+        // making this a natural low-overhead checkpoint.
+        // ShouldRetryAllocation() provides synchronous fallback if allocation fails.
+        CheckHeuristicGCTrigger();
+#endif
 
         {
             MRT_PHASE_TIMER("finalizerProcessor waitting time", FINALIZE);
@@ -295,7 +308,31 @@ void FinalizerProcessor::RegisterFinalizer(BaseObject* obj)
 void FinalizerProcessor::ReclaimHeapGarbage()
 {
     ScopedEntryTrace trace("CJRT_GC_RECLAIM");
-    Heap::GetHeap().GetAllocator().ReclaimGarbageMemory(false);
+#ifdef MRT_USE_MARK_SWEEP
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+    MSRegionManager* msRegionManager = space.GetMSRegionManager();
+    size_t dirtyBefore = (msRegionManager != nullptr) ? msRegionManager->GetDirtyTreeBytes() : 0;
+    size_t releasedBefore = (msRegionManager != nullptr) ? msRegionManager->GetReleasedTreeBytes() : 0;
+#endif
+
+    size_t releasedBytes = Heap::GetHeap().GetAllocator().ReclaimGarbageMemory(false);
+
+#ifdef MRT_USE_MARK_SWEEP
+    if (msRegionManager != nullptr) {
+        size_t dirtyAfter = msRegionManager->GetDirtyTreeBytes();
+        size_t releasedAfter = msRegionManager->GetReleasedTreeBytes();
+        VLOG(REPORT,
+               "[MS-GC][O6] reclaim cycle: released=%zuB, dirtyTree=%zuB->%zuB (delta=%lldB), "
+               "releasedTree=%zuB->%zuB (delta=%lldB)",
+             releasedBytes,
+               dirtyBefore, dirtyAfter,
+               static_cast<long long>(static_cast<int64_t>(dirtyAfter) - static_cast<int64_t>(dirtyBefore)),
+             releasedBefore, releasedAfter,
+               static_cast<long long>(static_cast<int64_t>(releasedAfter) - static_cast<int64_t>(releasedBefore)));
+        msRegionManager->DumpAndResetAllocClearStats();
+    }
+#endif
+
     shouldReclaimHeapGarbage.store(false, std::memory_order_relaxed);
 }
 
@@ -304,6 +341,26 @@ void FinalizerProcessor::FeedHungryBuffers()
     Heap::GetHeap().GetAllocator().FeedHungryBuffers();
     shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
 }
+
+#ifdef MRT_USE_MARK_SWEEP
+void FinalizerProcessor::CheckHeuristicGCTrigger()
+{
+    if (Heap::GetHeap().IsGcStarted()) {
+        return;
+    }
+    Collector& collector = Heap::GetHeap().GetCollector();
+    const GCStats& gcStats = collector.GetGCStats();
+    size_t threshold = gcStats.GetThreshold();
+    size_t allocated = Heap::GetHeap().GetAllocator().AllocatedBytes();
+    // O1 formula: effective allocation compensates for lazy-sweep lag
+    size_t baseline = gcStats.baselineAllocatedBytes;
+    size_t newAlloc = (allocated > baseline) ? (allocated - baseline) : 0;
+    size_t effectiveAlloc = gcStats.lastTrueLiveBytes + newAlloc;
+    if (effectiveAlloc >= threshold) {
+        collector.RequestGC(GC_REASON_HEU, true);  // async, non-blocking
+    }
+}
+#endif
 
 void FinalizerProcessor::BackgroundSweepLoop()
 {
@@ -315,6 +372,17 @@ void FinalizerProcessor::BackgroundSweepLoop()
     }
 #endif
     shouldBackgroundSweep_.store(false, std::memory_order_relaxed);
+}
+
+void FinalizerProcessor::BackgroundFillAllocCaches()
+{
+#ifdef MRT_USE_MARK_SWEEP
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    if (centralPool != nullptr) {
+        centralPool->BackgroundFillAllocCaches();
+    }
+#endif
 }
 
 } // namespace MapleRuntime

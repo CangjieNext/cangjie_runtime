@@ -16,6 +16,7 @@
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "Base/MemUtils.h"
+#include "Base/TimeUtils.h"
 #include "AllocUtil.h"
 #include "Common/ScopedObjectAccess.h"
 #include "Heap.h"
@@ -118,10 +119,11 @@ void MSRegionManager::Initialize(size_t heapSize, uintptr_t mmapBase, size_t max
         array_[i].prevRegionIdx = MSRegionInfo::INVALID_IDX;
     }
 
-    // Initialize CartesianTrees with MAX VIRTUAL unit count so they can handle
-    // indices from future growth segments.
-    dirtyTree_.Init(maxVirtualUnitCount_);
-    releasedTree_.Init(maxVirtualUnitCount_);
+    // Initialize CartesianTrees with MAX VIRTUAL REGION count so they can handle
+    // indices from future growth segments.  Tree Index/Count = region index/count.
+    dirtyTree_.Init(maxVirtualRegionCount_);
+    releasedTree_.Init(maxVirtualRegionCount_);
+    statsWindowStartNs_.store(TimeUtil::NanoSeconds(), std::memory_order_relaxed);
 
     VLOG(REPORT, "[MS-GC] MSRegionManager initialized (virtual reserve): mmapBase=0x%zx, "
         "maxMetadata=%zuKB, heapStart=0x%zx, committedEnd=0x%zx, maxHeapEnd=0x%zx, "
@@ -135,97 +137,65 @@ void MSRegionManager::Initialize(size_t heapSize, uintptr_t mmapBase, size_t max
 }
 
 // ============================================================================
-// TakeUnitsInternal — 3-level allocation: dirtyTree → releasedTree → inactiveZone
+// O4: unified HEU trigger checkpoint
 // ============================================================================
 
-bool MSRegionManager::TakeUnitsInternal(UnitCount num, UnitIndex& idx)
+void MSRegionManager::MaybeTriggerHeuGC()
 {
-    bool tryDirtyTree = true;
-    bool tryReleasedTree = true;
-
-    while (tryDirtyTree || tryReleasedTree) {
-        // 1. Try dirty tree first (data in memory, fastest).
-        //    refreshRegionInfo=false: CopyGC's UnitInfo mirror is not used in MS
-        //    mode; calling RefreshFreeRegionInfo would write into MSRegionInfo array.
-        if (tryDirtyTree && dirtyTreeMutex_.try_lock()) {
-            if (dirtyTree_.TakeUnitsLowestAddr(num, idx, false)) {
-                dirtyTreeMutex_.unlock();
-                ClearUnits(idx, num);
-                return true;
-            }
-            tryDirtyTree = false;
-            dirtyTreeMutex_.unlock();
-        }
-
-        // 2. Try released tree (pages may be zeroed by OS).
-        if (tryReleasedTree && releasedTreeMutex_.try_lock()) {
-            if (releasedTree_.TakeUnitsLowestAddr(num, idx, false)) {
-                releasedTreeMutex_.unlock();
-                return true;
-            }
-            tryReleasedTree = false;
-            releasedTreeMutex_.unlock();
-        }
-
-        ScopedEnterSaferegion enterSaferegion(true);
+    if (Heap::GetHeap().IsGcStarted()) {
+        return;
     }
 
-    // 3. Extend inactive zone (bump allocator for virgin heap space).
-    size_t byteCount = static_cast<size_t>(num) * unitSize_;
-    uintptr_t addr = inactiveZone_.fetch_add(byteCount, std::memory_order_relaxed);
-    if (addr + byteCount <= committedEnd_) {
-        idx = static_cast<UnitIndex>((addr - heapStart_) / unitSize_);
-        return true;
-    }
-    // Rollback
-    inactiveZone_.fetch_sub(byteCount, std::memory_order_relaxed);
+    Collector& collector = Heap::GetHeap().GetCollector();
+    const GCStats& gcStats = collector.GetGCStats();
+    size_t threshold = gcStats.GetThreshold();
+    size_t allocated = Heap::GetHeap().GetAllocator().AllocatedBytes();
 
-    // 4. Try to grow the committed heap, then retry inactiveZone extension.
-    if (GrowOneSegment()) {
-        addr = inactiveZone_.fetch_add(byteCount, std::memory_order_relaxed);
-        if (addr + byteCount <= committedEnd_) {
-            idx = static_cast<UnitIndex>((addr - heapStart_) / unitSize_);
-            return true;
-        }
-        inactiveZone_.fetch_sub(byteCount, std::memory_order_relaxed);
-    }
+    // O1 formula: effective allocation compensates for lazy-sweep lag.
+    size_t baseline = gcStats.baselineAllocatedBytes;
+    size_t newAlloc = (allocated > baseline) ? (allocated - baseline) : 0;
+    size_t effectiveAlloc = gcStats.lastTrueLiveBytes + newAlloc;
 
-    return false;
+    if (effectiveAlloc >= threshold) {
+        collector.RequestGC(GC_REASON_HEU, true);  // async, non-blocking
+    }
 }
 
 // ============================================================================
-// TakeUnitsAligned — allocate units with alignment guarantee.
-// Over-allocates from dirtyTree/releasedTree and returns unneeded fragments.
-// Falls back to inactiveZone which is naturally aligned at initialization.
+// TakeRegions — allocate contiguous regions from dirty/released tree or bump.
+// Trees operate at region granularity: no over-allocation or alignment splitting.
+// inactiveZone_ is always MS_REGION_SIZE-aligned (guaranteed by heapStart_
+// alignment and region-granular increments), so bump needs no alignment step.
 // ============================================================================
 
-bool MSRegionManager::TakeUnitsAligned(UnitCount num, UnitCount alignment, UnitIndex& idx)
+bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx)
 {
-    // Priority 1 & 2: allocate from dirty/released trees with over-allocation.
-    // Prefer reusing reclaimed memory to keep inactiveZone watermark low.
-    UnitCount totalNeeded = num + alignment - 1;
-    UnitIndex rawIdx = 0;
+    // Unified HEU trigger point for both small and large fresh-region paths.
+    MaybeTriggerHeuGC();
 
+    RegionIndex rawIdx = 0;
     bool tryDirtyTree = true;
     bool tryReleasedTree = true;
-    bool needClear = false;
 
     while (tryDirtyTree || tryReleasedTree) {
-        // refreshRegionInfo=false: see TakeUnitsInternal comment.
+        // refreshRegionInfo=false: MS mode does not use CopyGC's UnitInfo mirror.
         if (tryDirtyTree && dirtyTreeMutex_.try_lock()) {
-            if (dirtyTree_.TakeUnitsLowestAddr(totalNeeded, rawIdx, false)) {
+            if (dirtyTree_.TakeUnitsLowestAddr(num, rawIdx, false)) {
                 dirtyTreeMutex_.unlock();
-                needClear = true;
-                goto align_and_return;
+                idx = rawIdx;
+                allocFromDirtyCount_.fetch_add(1, std::memory_order_relaxed);
+                ClearUnits(RegionToUnitIdx(idx), RegionCountToUnitCount(num));
+                return true;
             }
             tryDirtyTree = false;
             dirtyTreeMutex_.unlock();
         }
         if (tryReleasedTree && releasedTreeMutex_.try_lock()) {
-            if (releasedTree_.TakeUnitsLowestAddr(totalNeeded, rawIdx, false)) {
+            if (releasedTree_.TakeUnitsLowestAddr(num, rawIdx, false)) {
                 releasedTreeMutex_.unlock();
-                needClear = false;
-                goto align_and_return;
+                idx = rawIdx;
+                allocFromReleasedCount_.fetch_add(1, std::memory_order_relaxed);
+                return true;
             }
             tryReleasedTree = false;
             releasedTreeMutex_.unlock();
@@ -233,75 +203,49 @@ bool MSRegionManager::TakeUnitsAligned(UnitCount num, UnitCount alignment, UnitI
         ScopedEnterSaferegion enterSaferegion(true);
     }
 
-    // Priority 3: extend inactiveZone (bump allocator, fallback).
+    // Fallback: extend inactiveZone (bump allocator).
+    // inactiveZone_ is always MS_REGION_SIZE-aligned, so no alignment gap.
     {
-        size_t byteCount = static_cast<size_t>(num) * unitSize_;
-        // Align the bump pointer to alignment * unitSize_ boundary
-        uintptr_t alignBytes = static_cast<uintptr_t>(alignment) * unitSize_;
+        size_t byteCount = static_cast<size_t>(num) * MS_REGION_SIZE;
         uintptr_t oldAddr = inactiveZone_.load(std::memory_order_relaxed);
-        uintptr_t alignedAddr;
         do {
-            alignedAddr = ((oldAddr + alignBytes - 1) / alignBytes) * alignBytes;
-            if (alignedAddr + byteCount <= committedEnd_) {
+            if (oldAddr + byteCount <= committedEnd_) {
                 break;  // fits in committed region
             }
-            // Try to grow the heap
             if (!GrowOneSegment()) {
                 return false;  // at max capacity, OOM
             }
-            // Reload after potential growth (committedEnd_ may have changed)
             oldAddr = inactiveZone_.load(std::memory_order_relaxed);
         } while (true);
 
-        // CAS loop to atomically claim the aligned region
+        // CAS loop to atomically claim the region range
         oldAddr = inactiveZone_.load(std::memory_order_relaxed);
         do {
-            alignedAddr = ((oldAddr + alignBytes - 1) / alignBytes) * alignBytes;
-            if (alignedAddr + byteCount > committedEnd_) {
-                // Another thread consumed the space; try grow again
+            if (oldAddr + byteCount > committedEnd_) {
                 if (!GrowOneSegment()) {
                     return false;
                 }
                 oldAddr = inactiveZone_.load(std::memory_order_relaxed);
                 continue;
             }
-        } while (!inactiveZone_.compare_exchange_weak(oldAddr, alignedAddr + byteCount,
+        } while (!inactiveZone_.compare_exchange_weak(oldAddr, oldAddr + byteCount,
                                                        std::memory_order_relaxed));
-        idx = static_cast<UnitIndex>((alignedAddr - heapStart_) / unitSize_);
-        return true;
-    }
-
-align_and_return:
-    {
-        UnitIndex alignedIdx = ((rawIdx + alignment - 1) / alignment) * alignment;
-        // Return leading fragment
-        if (alignedIdx > rawIdx) {
-            ReclaimUnitsInternal(rawIdx, alignedIdx - rawIdx);
-        }
-        // Return trailing fragment
-        UnitIndex rawEnd = rawIdx + totalNeeded;
-        UnitIndex alignedEnd = alignedIdx + num;
-        if (alignedEnd < rawEnd) {
-            ReclaimUnitsInternal(alignedEnd, rawEnd - alignedEnd);
-        }
-        if (needClear) {
-            ClearUnits(alignedIdx, num);
-        }
-        idx = alignedIdx;
+        idx = AddrToRegionIdx(oldAddr);
+        allocFromBumpCount_.fetch_add(1, std::memory_order_relaxed);
         return true;
     }
 }
 
 // ============================================================================
-// ReclaimUnitsInternal — return units to dirty tree
+// ReclaimRegionsDirty — return regions to dirty tree
 // ============================================================================
 
-void MSRegionManager::ReclaimUnitsInternal(UnitIndex idx, UnitCount num)
+void MSRegionManager::ReclaimRegionsDirty(RegionIndex idx, RegionCount num)
 {
     ScopedEnterSaferegion enterSaferegion(true);
     std::lock_guard<std::mutex> lg(dirtyTreeMutex_);
     if (UNLIKELY(!dirtyTree_.MergeInsert(idx, num, false))) {
-        LOG(RTLOG_FATAL, "[MS-GC] MSRegionManager: failed to reclaim units [%u+%u, %u)",
+        LOG(RTLOG_FATAL, "[MS-GC] MSRegionManager: failed to reclaim dirty regions [%u+%u, %u)",
             idx, num, idx + num);
     }
 }
@@ -314,7 +258,41 @@ void MSRegionManager::ClearUnits(UnitIndex idx, UnitCount num) const
 {
     uintptr_t addr = GetUnitAddress(idx);
     size_t bytes = static_cast<size_t>(num) * unitSize_;
+    uint64_t startNs = TimeUtil::NanoSeconds();
     memset(reinterpret_cast<void*>(addr), 0, bytes);
+    uint64_t endNs = TimeUtil::NanoSeconds();
+    const_cast<MSRegionManager*>(this)->clearUnitsCallCount_.fetch_add(1, std::memory_order_relaxed);
+    const_cast<MSRegionManager*>(this)->clearUnitsBytes_.fetch_add(bytes, std::memory_order_relaxed);
+    const_cast<MSRegionManager*>(this)->clearUnitsTimeNs_.fetch_add(endNs - startNs, std::memory_order_relaxed);
+}
+
+void MSRegionManager::DumpAndResetAllocClearStats()
+{
+    uint64_t nowNs = TimeUtil::NanoSeconds();
+    uint64_t windowStartNs = statsWindowStartNs_.exchange(nowNs, std::memory_order_relaxed);
+    uint64_t windowNs = (nowNs > windowStartNs) ? (nowNs - windowStartNs) : 0;
+
+    uint64_t dirtyHits = allocFromDirtyCount_.exchange(0, std::memory_order_relaxed);
+    uint64_t releasedHits = allocFromReleasedCount_.exchange(0, std::memory_order_relaxed);
+    uint64_t bumpHits = allocFromBumpCount_.exchange(0, std::memory_order_relaxed);
+    uint64_t clearCalls = clearUnitsCallCount_.exchange(0, std::memory_order_relaxed);
+    uint64_t clearBytes = clearUnitsBytes_.exchange(0, std::memory_order_relaxed);
+    uint64_t clearTimeNs = clearUnitsTimeNs_.exchange(0, std::memory_order_relaxed);
+
+    uint64_t totalHits = dirtyHits + releasedHits + bumpHits;
+    uint64_t clearPct = (windowNs == 0) ? 0 : (clearTimeNs * 100 / windowNs);
+
+    VLOG(REPORT,
+         "[MS-GC][O6] alloc-hit window: dirty=%llu, released=%llu, bump=%llu, total=%llu; "
+         "clear: calls=%llu, bytes=%llu, time=%lluns (~%llu%% of window)",
+         static_cast<unsigned long long>(dirtyHits),
+         static_cast<unsigned long long>(releasedHits),
+         static_cast<unsigned long long>(bumpHits),
+         static_cast<unsigned long long>(totalHits),
+         static_cast<unsigned long long>(clearCalls),
+         static_cast<unsigned long long>(clearBytes),
+         static_cast<unsigned long long>(clearTimeNs),
+         static_cast<unsigned long long>(clearPct));
 }
 
 // ============================================================================
@@ -323,42 +301,29 @@ void MSRegionManager::ClearUnits(UnitIndex idx, UnitCount num) const
 
 MSRegionInfo* MSRegionManager::TakeRegion()
 {
-    // Heuristic GC trigger check
-    if (!Heap::GetHeap().IsGcStarted()) {
-        Collector& collector = Heap::GetHeap().GetCollector();
-        size_t threshold = collector.GetGCStats().GetThreshold();
-        size_t allocated = Heap::GetHeap().GetAllocator().AllocatedBytes();
-        if (allocated >= threshold) {
-            collector.RequestGC(GC_REASON_HEU, true);
-        }
-    }
+    // HEU trigger is handled at TakeRegions() entry.
 
-    UnitIndex idx = 0;
-    // Small region must be aligned to unitsPerMSRegion_ so that
-    // regionIdx = idx / unitsPerMSRegion_ roundtrips correctly in ReclaimRegion.
-    if (!TakeUnitsAligned(static_cast<UnitCount>(unitsPerMSRegion_),
-                          static_cast<UnitCount>(unitsPerMSRegion_), idx)) {
+    RegionIndex regionIdx = 0;
+    if (!TakeRegions(1, regionIdx)) {
         return nullptr;
     }
 
-    // Compute region index: unitIdx / unitsPerMSRegion
-    size_t regionIdx = static_cast<size_t>(idx) / unitsPerMSRegion_;
     MRT_ASSERT(regionIdx < maxVirtualRegionCount_, "region index out of bounds");
 
     MSRegionInfo* info = &array_[regionIdx];
     // Debug: exhaustive check on every TakeRegion return
     if (UNLIKELY(info->regionType != MSRegionType::MS_REGION_FREE)) {
-        LOG(RTLOG_FATAL, "[MS-GC] TakeRegion: array_[%zu] NOT FREE! "
+        LOG(RTLOG_FATAL, "[MS-GC] TakeRegion: array_[%u] NOT FREE! "
             "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, "
             "sizeClass=%u, sweepState=%d, sweepGen=%u, "
             "nextIdx=%d, prevIdx=%d, reserved=0x%llx, "
-            "unitIdx=%u, array_=%p, info=%p",
+            "array_=%p, info=%p",
             regionIdx, (int)info->regionType, info->allocPtr, info->regionEnd,
             (void*)info->allocBitmap, (unsigned)info->sizeClass,
             (int)info->sweepState, info->sweepGen,
             info->nextRegionIdx, info->prevRegionIdx,
             (unsigned long long)info->reserved,
-            idx, (void*)array_, (void*)info);
+            (void*)array_, (void*)info);
     }
     return info;
 }
@@ -369,34 +334,20 @@ MSRegionInfo* MSRegionManager::TakeRegion()
 
 MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& regionStart)
 {
-    // Heuristic GC trigger check
-    if (!Heap::GetHeap().IsGcStarted()) {
-        Collector& collector = Heap::GetHeap().GetCollector();
-        size_t threshold = collector.GetGCStats().GetThreshold();
-        size_t allocated = Heap::GetHeap().GetAllocator().AllocatedBytes();
-        if (allocated >= threshold) {
-            collector.RequestGC(GC_REASON_HEU, true);
-        }
-    }
+    // HEU trigger is handled at TakeRegions() entry.
 
-    UnitIndex idx = 0;
-    // Large objects must be both start-aligned AND size-aligned to MS Region
-    // boundaries (unitsPerMSRegion_).  Otherwise:
-    //   - Unaligned start: regionIdx = idx/unitsPerMSRegion_ maps to wrong entry.
-    //   - Unaligned size:  trailing partial region is not covered by spanCount,
-    //     leaving MSRegionInfo entries un-initialized → heap metadata corruption.
-    UnitCount alignment = static_cast<UnitCount>(unitsPerMSRegion_);
-    UnitCount alignedUnitCount = static_cast<UnitCount>(
-        ((unitCount + unitsPerMSRegion_ - 1) / unitsPerMSRegion_) * unitsPerMSRegion_);
-    if (!TakeUnitsAligned(alignedUnitCount, alignment, idx)) {
+    // Convert unit count to region count (round up to full regions).
+    RegionCount regionCount = static_cast<RegionCount>(
+        (unitCount + unitsPerMSRegion_ - 1) / unitsPerMSRegion_);
+
+    RegionIndex regionIdx = 0;
+    if (!TakeRegions(regionCount, regionIdx)) {
         regionStart = 0;
         return nullptr;
     }
 
-    regionStart = GetUnitAddress(idx);
+    regionStart = RegionIdxToAddr(regionIdx);
 
-    // The base MSRegionInfo for large objects
-    size_t regionIdx = static_cast<size_t>(idx) / unitsPerMSRegion_;
     MRT_ASSERT(regionIdx < maxVirtualRegionCount_, "region index out of bounds");
 
     return &array_[regionIdx];
@@ -409,23 +360,20 @@ MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& r
 void MSRegionManager::ReclaimRegion(MSRegionInfo* region)
 {
     size_t regionIdx = static_cast<size_t>(region - array_);
-    UnitIndex unitIdx = static_cast<UnitIndex>(regionIdx * unitsPerMSRegion_);
-    UnitCount unitCount = static_cast<UnitCount>(unitsPerMSRegion_);
 
-    // Debug: verify MSRegionInfo was properly Reset BEFORE returning units
+    // Debug: verify MSRegionInfo was properly Reset BEFORE returning
     if (UNLIKELY(region->regionType != MSRegionType::MS_REGION_FREE)) {
         LOG(RTLOG_FATAL, "[MS-GC] ReclaimRegion: region NOT FREE before reclaim! "
             "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, "
-            "sizeClass=%u, sweepGen=%u, regionIdx=%zu, unitIdx=%u",
+            "sizeClass=%u, sweepGen=%u, regionIdx=%zu",
             (int)region->regionType, region->allocPtr, region->regionEnd,
             (void*)region->allocBitmap, (unsigned)region->sizeClass,
-            region->sweepGen, regionIdx, unitIdx);
+            region->sweepGen, regionIdx);
     }
 
-    DLOG(REGION, "[MS-GC] ReclaimRegion: regionIdx=%zu, unitIdx=%u, unitCount=%u",
-         regionIdx, unitIdx, unitCount);
+    DLOG(REGION, "[MS-GC] ReclaimRegion: regionIdx=%zu", regionIdx);
 
-    ReclaimUnitsInternal(unitIdx, unitCount);
+    ReclaimRegionsDirty(static_cast<RegionIndex>(regionIdx), 1);
 }
 
 // ============================================================================
@@ -435,16 +383,16 @@ void MSRegionManager::ReclaimRegion(MSRegionInfo* region)
 
 void MSRegionManager::ReclaimRegionLarge(uintptr_t regionStart, size_t regionBytes)
 {
-    UnitIndex unitIdx = static_cast<UnitIndex>((regionStart - heapStart_) / unitSize_);
-    UnitCount unitCount = static_cast<UnitCount>(
-        (regionBytes + unitSize_ - 1) / unitSize_);
+    RegionIndex regionIdx = AddrToRegionIdx(regionStart);
+    RegionCount regionCount = static_cast<RegionCount>(
+        (regionBytes + MS_REGION_SIZE - 1) / MS_REGION_SIZE);
 
-    DLOG(REGION, "[MS-GC] ReclaimRegionLarge->releasedTree: regionStart=0x%zx, unitIdx=%u, unitCount=%u, bytes=%zuKB",
-         regionStart, unitIdx, unitCount, regionBytes / 1024);
+    DLOG(REGION, "[MS-GC] ReclaimRegionLarge->releasedTree: regionStart=0x%zx, regionIdx=%u, regionCount=%u, bytes=%zuKB",
+         regionStart, regionIdx, regionCount, regionBytes / 1024);
 
     // Large objects (>= MS_REGION_SIZE) release physical pages immediately
     // and go to releasedTree, avoiding dirty cache bloat.
-    ReclaimUnitsReleased(unitIdx, unitCount);
+    ReclaimRegionsReleased(regionIdx, regionCount);
 }
 
 // ============================================================================
@@ -473,16 +421,17 @@ void MSRegionManager::ReleaseUnits(UnitIndex idx, UnitCount num) const
 }
 
 // ============================================================================
-// ReclaimUnitsReleased — release physical pages then insert to released tree
+// ReclaimRegionsReleased — release physical pages then insert to released tree
 // ============================================================================
 
-void MSRegionManager::ReclaimUnitsReleased(UnitIndex idx, UnitCount num)
+void MSRegionManager::ReclaimRegionsReleased(RegionIndex idx, RegionCount num)
 {
-    ReleaseUnits(idx, num);
+    // Convert to unit range for physical page release.
+    ReleaseUnits(RegionToUnitIdx(idx), RegionCountToUnitCount(num));
     ScopedEnterSaferegion enterSaferegion(true);
     std::lock_guard<std::mutex> lg(releasedTreeMutex_);
     if (UNLIKELY(!releasedTree_.MergeInsert(idx, num, false))) {
-        LOG(RTLOG_FATAL, "[MS-GC] MSRegionManager: failed to reclaim released units [%u+%u, %u)",
+        LOG(RTLOG_FATAL, "[MS-GC] MSRegionManager: failed to reclaim released regions [%u+%u, %u)",
             idx, num, idx + num);
     }
 }
@@ -494,8 +443,9 @@ void MSRegionManager::ReclaimUnitsReleased(UnitIndex idx, UnitCount num)
 
 size_t MSRegionManager::ReleaseGarbageRegions(size_t targetCachedSize)
 {
-    size_t dirtyBytes = static_cast<size_t>(dirtyTree_.GetTotalCount()) * unitSize_;
-    size_t releasedTreeBytes = static_cast<size_t>(releasedTree_.GetTotalCount()) * unitSize_;
+    // Tree counts are region counts; convert to bytes for comparison.
+    size_t dirtyBytes = static_cast<size_t>(dirtyTree_.GetTotalCount()) * MS_REGION_SIZE;
+    size_t releasedTreeBytes = static_cast<size_t>(releasedTree_.GetTotalCount()) * MS_REGION_SIZE;
     DLOG(REGION, "[MS-GC] ReleaseGarbageRegions enter: dirtyTree=%zuKB, releasedTree=%zuKB, target=%zuKB",
          dirtyBytes / 1024, releasedTreeBytes / 1024, targetCachedSize / 1024);
     if (dirtyBytes <= targetCachedSize) {
@@ -504,30 +454,30 @@ size_t MSRegionManager::ReleaseGarbageRegions(size_t targetCachedSize)
 
     size_t releasedBytes = 0;
     while (dirtyBytes > targetCachedSize) {
-        UnitIndex idx = 0;
-        UnitCount num = 0;
+        RegionIndex regionIdx = 0;
+        RegionCount regionCount = 0;
         {
             ScopedEnterSaferegion enterSaferegion(true);
             std::lock_guard<std::mutex> lg(dirtyTreeMutex_);
-            if (!dirtyTree_.RemoveRootNode(idx, num)) {
+            if (!dirtyTree_.RemoveRootNode(regionIdx, regionCount)) {
                 break;
             }
         }
 
-        // Release physical pages for extracted units.
-        ReleaseUnits(idx, num);
+        // Release physical pages (convert to unit range).
+        ReleaseUnits(RegionToUnitIdx(regionIdx), RegionCountToUnitCount(regionCount));
 
         {
             ScopedEnterSaferegion enterSaferegion(true);
             std::lock_guard<std::mutex> lg(releasedTreeMutex_);
-            if (UNLIKELY(!releasedTree_.MergeInsert(idx, num, false))) {
-                LOG(RTLOG_FATAL, "[MS-GC] ReleaseGarbageRegions: failed to insert released units [%u+%u)",
-                    idx, num);
+            if (UNLIKELY(!releasedTree_.MergeInsert(regionIdx, regionCount, false))) {
+                LOG(RTLOG_FATAL, "[MS-GC] ReleaseGarbageRegions: failed to insert released regions [%u+%u)",
+                    regionIdx, regionCount);
             }
         }
 
-        releasedBytes += static_cast<size_t>(num) * unitSize_;
-        dirtyBytes = static_cast<size_t>(dirtyTree_.GetTotalCount()) * unitSize_;
+        releasedBytes += static_cast<size_t>(regionCount) * MS_REGION_SIZE;
+        dirtyBytes = static_cast<size_t>(dirtyTree_.GetTotalCount()) * MS_REGION_SIZE;
     }
 
     DLOG(REGION, "[MS-GC] ReleaseGarbageRegions: dirty->released %zuKB, dirtyCache %zuKB (target %zuKB)",
@@ -607,48 +557,48 @@ void MSRegionManager::ShrinkHeap()
 
     uintptr_t originalIz = inactiveZone_.load(std::memory_order_relaxed);
     size_t gap = (committedEnd_ > originalIz) ? (committedEnd_ - originalIz) : 0;
-    uint32_t dirtyUnits = dirtyTree_.GetTotalCount();
-    uint32_t releasedUnits = releasedTree_.GetTotalCount();
+    uint32_t dirtyRegions = dirtyTree_.GetTotalCount();
+    uint32_t releasedRegions = releasedTree_.GetTotalCount();
     VLOG(REPORT, "[MS-GC] ShrinkHeap enter: inactiveZone=0x%zx, committedEnd=0x%zx, "
-         "gap=%zuKB, dirty=%u units, released=%u units, segmentSize=%zuMB",
-         originalIz, committedEnd_, gap / 1024, dirtyUnits, releasedUnits,
+         "gap=%zuKB, dirty=%u regions, released=%u regions, segmentSize=%zuMB",
+         originalIz, committedEnd_, gap / 1024, dirtyRegions, releasedRegions,
          segmentSize_ / (1024 * 1024));
 
     // Phase 1: Reclaim trailing released nodes contiguous with inactiveZone_.
-    size_t reclaimedUnits = 0;
+    size_t reclaimedRegions = 0;
     while (true) {
         uintptr_t iz = inactiveZone_.load(std::memory_order_relaxed);
         if (iz <= heapStart_) {
             break;
         }
-        UnitIndex izUnitIdx = static_cast<UnitIndex>((iz - heapStart_) / unitSize_);
+        RegionIndex izRegionIdx = AddrToRegionIdx(iz);
 
-        UnitIndex nodeIdx = 0;
-        UnitCount nodeNum = 0;
+        RegionIndex nodeIdx = 0;
+        RegionCount nodeNum = 0;
         bool found = false;
         {
             std::lock_guard<std::mutex> rlg(releasedTreeMutex_);
-            found = releasedTree_.TakeRightmostIfEndEquals(izUnitIdx, nodeIdx, nodeNum);
+            found = releasedTree_.TakeRightmostIfEndEquals(izRegionIdx, nodeIdx, nodeNum);
         }
 
         if (!found) {
             break;
         }
 
-        uintptr_t newIz = GetUnitAddress(nodeIdx);
+        uintptr_t newIz = RegionIdxToAddr(nodeIdx);
         if (!inactiveZone_.compare_exchange_strong(iz, newIz, std::memory_order_relaxed)) {
             // Concurrent allocator advanced inactiveZone_. Restore node.
             std::lock_guard<std::mutex> rlg(releasedTreeMutex_);
             releasedTree_.MergeInsert(nodeIdx, nodeNum, false);
             break;
         }
-        reclaimedUnits += nodeNum;
+        reclaimedRegions += nodeNum;
     }
 
-    if (reclaimedUnits > 0) {
+    if (reclaimedRegions > 0) {
         uintptr_t newIz = inactiveZone_.load(std::memory_order_relaxed);
-        VLOG(REPORT, "[MS-GC] ShrinkHeap phase1: reclaimed %zu trailing released units, "
-             "inactiveZone 0x%zx -> 0x%zx", reclaimedUnits, originalIz, newIz);
+        VLOG(REPORT, "[MS-GC] ShrinkHeap phase1: reclaimed %zu trailing released regions, "
+             "inactiveZone 0x%zx -> 0x%zx", reclaimedRegions, originalIz, newIz);
     }
 
     // Phase 2: Shrink committedEnd_ by whole segments above inactiveZone_.

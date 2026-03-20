@@ -169,6 +169,9 @@ MAddress RegionSpace::Allocate(size_t size, AllocType allocType)
     return internalAddr + HEADER_SIZE;
 }
 
+// In MS-GC mode: returns region-level committed bytes, NOT object-level live bytes.
+// Value = sum of all non-FREE MS region sizes tracked by CentralRegionPool.
+// After GC but before sweep completes, this stays inflated (includes dead objects).
 size_t RegionSpace::AllocatedBytes() const
 {
 #ifdef MRT_USE_MARK_SWEEP

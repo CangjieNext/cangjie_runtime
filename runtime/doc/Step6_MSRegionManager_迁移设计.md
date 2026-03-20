@@ -3,6 +3,30 @@
 > 目标：将 MS-GC 从共享 CopyGC 的 RegionManager 迁移到独立的 MSRegionManager，
 > 并将 MSRegionInfo[] 直接放置在堆前方元数据区（占据原 UnitInfo[] 的空间）。
 
+> 2026-03-19 代码复核结论：这份文档已有相当一部分内容被当前实现吸收，但文档本身没有同步收敛，属于“历史设计 + 部分已落地事实”混合态。阅读时应优先参考下面的状态摘要，再看后续分章节设计。
+
+## 0. 代码复核状态摘要
+
+### 0.1 已基本实现
+
+1. 已存在独立的 `MSRegionManager`，不再走“MS 共享 CopyGC RegionManager 做分配/回收”的旧主路径。
+2. `RegionSpace::Init()` 的 MS 分支已切到 `MSRegionManager::ComputeMaxVirtualHeapSize()`、`GetVirtualReserveSize()` 和 `Initialize(heapSize, mmapBase, maxVirtualHeapSize)`。
+3. `MSRegionInfo[]` 的主路径已放到 mmap 前端，`MSRegionInfoArray::Init(..., array)` 默认接收 `MSRegionManager` 提供的外部数组，不再走独立 malloc 主路径。
+4. `CentralRegionPool::GetFreshRegion()`、`ReleaseRegionInternal()`、`SweepLargeRegions()` 已直接调用 `MSRegionManager::TakeRegion()`、`ReclaimRegion()`、`ReclaimRegionLarge()`。
+5. 已有 `GrowOneSegment()`、`ReleaseGarbageRegions()`、`ShrinkHeap()`，说明“虚拟大预留 + committed 增长/回收”的基础能力已经落地。
+
+### 0.2 部分实现
+
+1. `MSRegionInfoArray` 没有完全删除，只是主路径已切到 mmap-front array，同时保留了 `malloc` fallback 和 `Cleanup()` 中的 `ownedByMalloc_` 兼容逻辑。
+2. `RegionInfo` / `RegionManager` 没有被彻底从 MS 编译路径中隔离，当前仍保留部分兼容用途，例如 `RegionInfo::Initialize(...)` 仍在 MS 初始化阶段被调用。
+3. 堆增长设计已部分内联进 `MSRegionManager`，但不是文档里单独 `HeapGrowthManager` 类的形态。
+
+### 0.3 未按文档原方案实现
+
+1. 文档中“CartesianTree 保持 Unit 索引语义”的推荐方案已经过时；当前代码已切到 **region index / region count** 粒度。
+2. 文档中单独的 `HeapGrowthManager`、`HeapGoalController`、`Scavenger` 类当前并不存在。
+3. 文档中 `Step F` 所描述的“通过 `#ifndef MRT_USE_MARK_SWEEP` 完全隔离 CopyGC 的 RegionManager/RegionInfo”当前未完成。
+
 ---
 
 ## 目录
@@ -167,6 +191,8 @@ mmap_base  512KB         heapStart(1.9MB)           heapEnd
 1. **Phase 1（立即可做）**：方案 B — MSRegionInfo[] 放在现有 mmap 前端，保留 UnitInfo[]
 2. **Phase 2（完整替换）**：方案 A — 独立 MSRegionManager，重新计算 MetadataSize，删除 UnitInfo[]
 
+> 复核备注：当前代码已经越过这里描述的“Phase 1/Phase 2 规划态”，主路径实际上已处于“独立 MSRegionManager + mmap-front MSRegionInfo[] + 虚拟大预留”的后期形态。后文的部分步骤因此应按“历史迁移说明”理解，而不是待做清单。
+
 ### 2.5 关键约束确认
 
 | 约束 | 是否满足 | 说明 |
@@ -312,6 +338,8 @@ MS 的 Region 粒度是 32KB。对齐方式：
 | **B. 改为 Region 索引** | 1 index = MS_REGION_SIZE | 32KB | 更直观，但需修改 CartesianTree |
 
 **推荐方案 A**：保持 Unit 索引不变。
+
+> 复核备注：这一条已过时。当前 `MSRegionManager` 中的 `dirtyTree_` / `releasedTree_` 已经按 **region index/count** 工作，而不再按 unit index/count 工作。
 
 理由：
 - CartesianTree 已经支持任意 `num` 参数的 TakeUnits
@@ -529,6 +557,8 @@ CentralRegionPool::ReleaseRegionInternal(MSRegionInfo*)
 | **Step F** | 条件编译隔离 CopyGC 代码 | `RegionManager.h`, `RegionInfo.h` | ~10 行 |
 | **总计** | | | **净增 ~200 行** |
 
+> 复核备注：按当前代码看，Step A-D 已基本完成；Step E 为部分完成；Step F 未完成。
+
 ### 5.2 Step A：新增 MSRegionManager
 
 创建 `src/Heap/Allocator/MSRegionManager.h` 和 `MSRegionManager.cpp`：
@@ -737,6 +767,8 @@ GC 触发阈值已有自适应调整（`TracingCollector::UpdateGCStats`），�
 
 #### 7.1.3 差距对照表
 
+> 复核备注：本表是早期设计视角，已与当前代码存在明显偏差。当前代码已经具备 `GrowOneSegment()`、`ReleaseGarbageRegions()`、`ShrinkHeap()` 和 `dirtyTree_/releasedTree_`，但仍没有独立的 `HeapGrowthManager` / `HeapGoalController` / `Scavenger` 类。
+
 | 设计组件 | Step1.3 设计 | 当前代码 | 状态 |
 |---------|-------------|---------|------|
 | **64GB 虚拟预留** | `MAP_NORESERVE` 预留 64GB，按需 `mprotect` | 一次性 `MapMemory(totalSize)` 固定大小 | ❌ 未实现 |
@@ -856,7 +888,7 @@ public:
     void Initialize(uintptr_t mmapBase, size_t maxVirtualHeapSize, size_t initialHeapSize);
 
     // 尝试提交下一个 Segment。成功返回 true，到达虚拟上限返回 false。
-    // 调用方：MSRegionManager::TakeUnitsInternal() 在 inactiveZone 扩展失败时调用。
+    // 调用方：MSRegionManager::TakeUnitsAligned() 在 inactiveZone 扩展失败时调用。
     bool GrowOneSegment();
 
     // 归还指定 Segment 的物理页（madvise DONTNEED）。
@@ -923,7 +955,7 @@ bool HeapGrowthManager::GrowOneSegment()
 
 #### 7.3.4 与 MSRegionManager 的集成
 
-`MSRegionManager::TakeUnitsInternal()` 的 Level 3（inactiveZone 扩展）需改造：
+`MSRegionManager::TakeUnitsAligned()` 的 bump fallback（inactiveZone 扩展）需改造：
 
 ```cpp
 // 现有：inactiveZone 到达 heapEnd_ 即 OOM
@@ -1195,7 +1227,7 @@ scavenger_->Wake();
 |------|------|---------|------|
 | **P0: 大虚拟预留** | `RegionSpace::Init()` 改为 `mmap(MAP_NORESERVE)` 大虚拟区 + 首段 `mprotect` 提交 | `RegionSpace.cpp`, `MSRegionManager.h/.cpp`, `MemMap.h` | §5 MSRegionManager 迁移完成 |
 | **P1: HeapGrowthManager** | 新增类，实现 `GrowOneSegment()` + `ShrinkSegment()` | 新文件 `HeapGrowthManager.h/.cpp` | P0 |
-| **P2: inactiveZone 扩展改造** | `TakeUnitsInternal` Level 3 接入 `GrowOneSegment` | `MSRegionManager.cpp` | P1 |
+| **P2: inactiveZone 扩展改造** | `TakeUnitsAligned` bump fallback 接入 `GrowOneSegment` | `MSRegionManager.cpp` | P1 |
 | **P3: HeapGoalController** | 新增类，GC 后堆增长判断 + 阈值联动 | 新文件 `HeapGoalController.h/.cpp`, `TracingCollector.cpp` | P1 |
 | **P4: Scavenger** | 新增后台线程，dirtyTree → madvise → releasedTree | 新文件 `Scavenger.h/.cpp` | P1, P3 |
 | **P5: 分配重试适配** | OOM 重试路径中插入 `GrowOneSegment` | `RegionSpace.cpp` | P2 |
@@ -1243,7 +1275,7 @@ scavenger_->Wake();
 | 修改文件 | 改动行数 | 说明 |
 |---------|---------|------|
 | `RegionSpace.cpp` | ~30 行 | Init() 改为大虚拟预留 |
-| `MSRegionManager.cpp` | ~15 行 | TakeUnitsInternal 接入 GrowOneSegment |
+| `MSRegionManager.cpp` | ~15 行 | TakeUnitsAligned bump fallback 接入 GrowOneSegment |
 | `TracingCollector.cpp` | ~10 行 | UpdateGCStats 末尾新增堆扩展检查 |
 | `RegionSpace.cpp` | ~10 行 | OOM 重试路径 |
 | **合计修改** | **~65 行** | |

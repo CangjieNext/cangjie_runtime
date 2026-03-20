@@ -230,8 +230,12 @@ private:
     void LogGCEntry(uint64_t gcIndex, GCReason reason);           // Block ①
     void LogSweepSummary();                                       // Block ④
     void DumpRegionStatsMS();                                     // Block ⑤
+    void DumpFragmentationStatsMS();                              // Block ⑤-b
     void LogGCSummary(uint64_t gcTimeUs);                         // Block ⑥
     void SnapshotPreviousCycleSweepStats();                       // Persist previous sweep stats
+
+    size_t prevCycleLargeFreedCount_ = 0;
+    size_t prevCycleLargeFreedBytes_ = 0;
 };
 
 } // namespace MapleRuntime

@@ -13,6 +13,7 @@
 #include "SizeClass.h"
 #include "Common/TypeDef.h"
 #include "Common/MarkWorkStack.h"
+#include <atomic>
 #include <vector>
 
 namespace MapleRuntime {
@@ -50,6 +51,10 @@ public:
 
     // GC STW: flush all thread-local Regions back to CentralRegionPool
     void FlushAll();
+
+    // Background: fill empty cachedRegion_ slots for size classes with high miss pressure.
+    // Called by gc-helper thread (FinalizerProcessor). Thread-safe via atomic cachedRegion_.
+    void BackgroundFillCache();
 
     // Record stack root (called from Mutator::GcPhaseEnum during root enumeration)
     void PushRoot(BaseObject* root) { stackRoots_.emplace_back(root); }
@@ -92,8 +97,15 @@ private:
     // Per-size-class active Region (nullptr = no active Region for this class)
     MSRegionInfo* activeRegions_[kNumSizeClasses] = {};
 
-    // O2: Per-size-class cached backup Region (prefetched in SlowAlloc)
-    MSRegionInfo* cachedRegion_[kNumSizeClasses] = {};
+    // O2/O9: Per-size-class cached backup Region.
+    // Written by gc-helper (BackgroundFillCache), consumed by mutator (SlowAlloc).
+    // Atomic: mutator exchange→nullptr, gc-helper CAS nullptr→region.
+    std::atomic<MSRegionInfo*> cachedRegion_[kNumSizeClasses] = {};
+
+    // O9: Per-size-class cache miss counter. Mutator increments on SlowAlloc
+    // when cachedRegion_ is empty. Background thread fills when >= threshold.
+    static constexpr uint8_t kCacheFillThreshold = 2;
+    uint8_t cacheMiss_[kNumSizeClasses] = {};
 
     // Back-pointer to global CentralRegionPool
     CentralRegionPool* central_ = nullptr;

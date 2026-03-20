@@ -11,6 +11,7 @@
 #include "MSRegionManager.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
+#include "Base/TimeUtils.h"
 #include <cstdio>
 #include <vector>
 
@@ -65,9 +66,11 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
 
         // CAS to claim sweep ownership: sg-2 → sg-1 (sweeping)
         if (region->CasSweepGen(sg - 2, sg - 1)) {
-            region->SweepRegion();
+            size_t freedBytes = region->SweepRegion();
             region->SetSweepGen(sg);
             sweepStats_.lazySweptRegions.fetch_add(1, std::memory_order_relaxed);
+            sweepStats_.sweptByClass[cls].fetch_add(1, std::memory_order_relaxed);
+            sweepStats_.sweptFreedBytes.fetch_add(freedBytes, std::memory_order_relaxed);
 
             if (region->IsCompletelyFree()) {
                 // P0: empty Region — return to MSRegionManager dirtyTree
@@ -94,9 +97,11 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
             }
 
             if (region->CasSweepGen(sg - 2, sg - 1)) {
-                region->SweepRegion();
+                size_t freedBytes = region->SweepRegion();
                 region->SetSweepGen(sg);
                 sweepStats_.lazySweptRegions.fetch_add(1, std::memory_order_relaxed);
+                sweepStats_.sweptByClass[cls].fetch_add(1, std::memory_order_relaxed);
+                sweepStats_.sweptFreedBytes.fetch_add(freedBytes, std::memory_order_relaxed);
 
                 if (region->IsCompletelyFree()) {
                     // P0: empty Region — return to MSRegionManager dirtyTree
@@ -337,6 +342,17 @@ void CentralRegionPool::ForceFinishSweep()
     sweepDone_.store(true, std::memory_order_release);
 }
 
+void CentralRegionPool::FinishSweepBeforeMark()
+{
+    // First help drain sweep work that is still discoverable from the central
+    // pool. This reduces how much of MarkSetup is spent in pure waiting.
+    ForceFinishSweep();
+
+    // Then wait for any background sweeper that had already claimed a region
+    // before ForceFinishSweep() ran to fully quiesce.
+    WaitForSweepDone();
+}
+
 void CentralRegionPool::SweepAndClassify(MSRegionInfo* region, uint32_t sg, SizeClassBucket& bucket)
 {
     // CAS to claim sweep ownership (coordinate with BackgroundSweep / LazySweep)
@@ -344,9 +360,11 @@ void CentralRegionPool::SweepAndClassify(MSRegionInfo* region, uint32_t sg, Size
         return;  // Another thread is handling this Region
     }
 
-    region->SweepRegion();
+    size_t freedBytes = region->SweepRegion();
     region->SetSweepGen(sg);
     sweepStats_.forceSweptRegions.fetch_add(1, std::memory_order_relaxed);
+    sweepStats_.sweptByClass[region->sizeClass].fetch_add(1, std::memory_order_relaxed);
+    sweepStats_.sweptFreedBytes.fetch_add(freedBytes, std::memory_order_relaxed);
 
     if (region->IsCompletelyFree()) {
         // P0: empty Region — return to MSRegionManager dirtyTree
@@ -436,6 +454,7 @@ void CentralRegionPool::BackgroundSweep()
 {
     bgSweepRunning_.store(true, std::memory_order_release);
     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
+    uint64_t t0 = TimeUtil::MicroSeconds();
 
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
         SizeClassBucket& bucket = buckets_[cls];
@@ -451,6 +470,13 @@ void CentralRegionPool::BackgroundSweep()
             std::this_thread::yield();
         }
     }
+
+    uint64_t elapsed = TimeUtil::MicroSeconds() - t0;
+    sweepStats_.bgSweepTimeUs.store(elapsed, std::memory_order_relaxed);
+    VLOG(REPORT, "[MS-GC] BackgroundSweep done: %zu regions swept, %zu released, %sus",
+         sweepStats_.bgSweptRegions.load(std::memory_order_relaxed),
+         sweepStats_.releasedRegions.load(std::memory_order_relaxed),
+         Pretty(elapsed).Str());
 
     sweepDone_.store(true, std::memory_order_release);
     bgSweepRunning_.store(false, std::memory_order_release);
@@ -470,9 +496,11 @@ void CentralRegionPool::SweepUnsweptList(SizeClassBucket& bucket, MSRegionList& 
 
         // CAS to claim sweep ownership (coordinate with Lazy Sweep / ForceFinishSweep)
         if (region->CasSweepGen(sg - 2, sg - 1)) {
-            region->SweepRegion();
+            size_t freedBytes = region->SweepRegion();
             region->SetSweepGen(sg);
             sweepStats_.bgSweptRegions.fetch_add(1, std::memory_order_relaxed);
+            sweepStats_.sweptByClass[region->sizeClass].fetch_add(1, std::memory_order_relaxed);
+            sweepStats_.sweptFreedBytes.fetch_add(freedBytes, std::memory_order_relaxed);
 
             if (region->IsCompletelyFree()) {
                 // P0: empty Region — return to MSRegionManager dirtyTree
@@ -633,6 +661,16 @@ void CentralRegionPool::FlushAllAllocBuffers()
     for (AllocBufferMS* buffer : msAllocBuffers_) {
         if (buffer != nullptr) {
             buffer->FlushAll();
+        }
+    }
+}
+
+void CentralRegionPool::BackgroundFillAllocCaches()
+{
+    std::lock_guard<std::mutex> lg(msAllocBufferLock_);
+    for (AllocBufferMS* buffer : msAllocBuffers_) {
+        if (buffer != nullptr) {
+            buffer->BackgroundFillCache();
         }
     }
 }

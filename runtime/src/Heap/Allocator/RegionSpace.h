@@ -138,6 +138,10 @@ public:
         return static_cast<size_t>(GetUsedPageSize() / heapUtilization);
     }
 
+    // In MS-GC mode: returns total committed region bytes (totalMSRegionBytes_),
+    // which includes live objects + dead objects in unswept regions + fragmentation.
+    // This is NOT the same as live object bytes (trueLiveBytes from GC marking).
+    // See O1 fix in MSRegionManager::TakeRegion() for how the trigger metric handles this gap.
     size_t AllocatedBytes() const override;
 
     size_t LargeObjectBytes() const override

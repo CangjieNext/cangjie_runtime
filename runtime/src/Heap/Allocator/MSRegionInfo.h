@@ -215,8 +215,8 @@ public:
 
         if (info->regionEnd != 0) {
             if (info->regionType == MSRegionType::MS_REGION_LARGE) {
-                // LARGE base entry: full object range is [allocPtr, regionEnd)
-                if (addr >= info->allocPtr && addr < info->regionEnd) {
+                // LARGE base entry: only object base pointer is valid.
+                if (addr == info->allocPtr) {
                     return info;
                 }
                 // addr not in this large object — cross-contamination from
@@ -229,9 +229,17 @@ public:
             }
         } else if (info->regionType == MSRegionType::MS_REGION_LARGE) {
             // LARGE span entry (regionEnd==0, reserved=baseIdx).
-            // RegisterLargeObjectMS initializes ALL spans; the index is
-            // correct for any interior pointer into the large object.
-            return info;
+            // Validate base entry liveness/range to avoid treating stale
+            // span metadata (after large object reclaimed/reset) as valid.
+            MSRegionInfo* base = GetRegionInfoByIdx(static_cast<size_t>(info->reserved));
+            if (base->regionType != MSRegionType::MS_REGION_LARGE ||
+                base->allocPtr == 0 || base->regionEnd == 0) {
+                return nullptr;
+            }
+            if (addr == base->allocPtr) {
+                return info;
+            }
+            return nullptr;
         }
 
         // Slow path: alignment mismatch for small/medium regions.

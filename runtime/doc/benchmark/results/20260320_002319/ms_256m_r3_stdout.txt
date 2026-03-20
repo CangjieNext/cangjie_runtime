@@ -1,0 +1,158 @@
+2026-03-20 00:25:01.764251 123912 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=0, force=0, released=0, largeFreed=0
+2026-03-20 00:25:01.765032 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=2, fullUnswept=0
+2026-03-20 00:25:01.765057 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=2
+2026-03-20 00:25:01.918847 123912 E [MS-GC] ForceFinishSweep stats: bg=14, lazy=1, force=0, released=0, largeFreed=0
+2026-03-20 00:25:01.919056 123912 E [MS-GC] MarkSetup cleared 1 dirty markBitmaps (total=2578)
+2026-03-20 00:25:01.919546 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=2571, fullUnswept=0
+2026-03-20 00:25:01.919559 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=2571
+2026-03-20 00:25:02.069743 123912 E [MS-GC] ForceFinishSweep stats: bg=1298, lazy=1286, force=0, released=2559, largeFreed=0
+2026-03-20 00:25:02.094407 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=3608, fullUnswept=0
+2026-03-20 00:25:02.094452 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=3608
+2026-03-20 00:25:02.244988 123912 E [MS-GC] ForceFinishSweep stats: bg=1913, lazy=1707, force=0, released=2718, largeFreed=0
+2026-03-20 00:25:02.269724 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=14, partialUnswept=0, fullSwept=4349, fullUnswept=0
+2026-03-20 00:25:02.269769 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=14, fullSwept=0, fullUnswept=4349
+2026-03-20 00:25:02.487112 123912 E [MS-GC] ForceFinishSweep stats: bg=4283, lazy=80, force=0, released=3582, largeFreed=0
+2026-03-20 00:25:02.490530 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=16, partialUnswept=0, fullSwept=4403, fullUnswept=0
+2026-03-20 00:25:02.490547 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=16, fullSwept=0, fullUnswept=4403
+2026-03-20 00:25:02.735185 123912 E [MS-GC] ForceFinishSweep stats: bg=2508, lazy=1911, force=0, released=4392, largeFreed=0
+2026-03-20 00:25:02.737624 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=4025, fullUnswept=0
+2026-03-20 00:25:02.737654 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=4025
+2026-03-20 00:25:02.963027 123912 E [MS-GC] ForceFinishSweep stats: bg=2609, lazy=1429, force=0, released=4013, largeFreed=0
+2026-03-20 00:25:02.965828 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=12, partialUnswept=0, fullSwept=3701, fullUnswept=0
+2026-03-20 00:25:02.965841 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=12, fullSwept=0, fullUnswept=3701
+2026-03-20 00:25:03.170894 123912 E [MS-GC] ForceFinishSweep stats: bg=1836, lazy=1877, force=0, released=3686, largeFreed=0
+2026-03-20 00:25:03.172200 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=3382, fullUnswept=0
+2026-03-20 00:25:03.172215 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=3382
+2026-03-20 00:25:03.361390 123912 E [MS-GC] ForceFinishSweep stats: bg=1794, lazy=1601, force=0, released=3372, largeFreed=0
+2026-03-20 00:25:03.362814 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=3105, fullUnswept=0
+2026-03-20 00:25:03.362830 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=3105
+2026-03-20 00:25:03.533903 123912 E [MS-GC] ForceFinishSweep stats: bg=1605, lazy=1513, force=0, released=3094, largeFreed=0
+2026-03-20 00:25:03.534478 123912 E [MS-GC] MarkSetup cleared 2 dirty markBitmaps (total=2829)
+2026-03-20 00:25:03.535205 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=2823, fullUnswept=0
+2026-03-20 00:25:03.535240 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=2823
+2026-03-20 00:25:03.691805 123912 E [MS-GC] ForceFinishSweep stats: bg=1850, lazy=986, force=0, released=2814, largeFreed=0
+2026-03-20 00:25:03.693194 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=2592, fullUnswept=0
+2026-03-20 00:25:03.693227 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=2592
+2026-03-20 00:25:03.843466 123912 E [MS-GC] ForceFinishSweep stats: bg=1701, lazy=904, force=0, released=2582, largeFreed=0
+2026-03-20 00:25:03.844940 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=2474, fullUnswept=0
+2026-03-20 00:25:03.844963 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=2474
+2026-03-20 00:25:03.995209 123912 E [MS-GC] ForceFinishSweep stats: bg=1597, lazy=890, force=0, released=2465, largeFreed=0
+2026-03-20 00:25:03.996192 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=2483, fullUnswept=0
+2026-03-20 00:25:03.996203 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=2483
+2026-03-20 00:25:04.146399 123912 E [MS-GC] ForceFinishSweep stats: bg=1284, lazy=1212, force=0, released=2476, largeFreed=0
+2026-03-20 00:25:04.147643 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=2468, fullUnswept=0
+2026-03-20 00:25:04.147652 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=2468
+2026-03-20 00:25:04.297836 123912 E [MS-GC] ForceFinishSweep stats: bg=1567, lazy=914, force=0, released=2456, largeFreed=0
+2026-03-20 00:25:04.299390 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=14, partialUnswept=0, fullSwept=4201, fullUnswept=0
+2026-03-20 00:25:04.299402 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=14, fullSwept=0, fullUnswept=4201
+2026-03-20 00:25:04.449641 123912 E [MS-GC] ForceFinishSweep stats: bg=2131, lazy=2084, force=0, released=4152, largeFreed=0
+2026-03-20 00:25:04.452656 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=24, partialUnswept=0, fullSwept=3932, fullUnswept=0
+2026-03-20 00:25:04.452689 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=24, fullSwept=0, fullUnswept=3932
+2026-03-20 00:25:04.460099 123912 E [MS-GC] ForceFinishSweep: swept=1548, casFail=0, sg=34
+2026-03-20 00:25:04.460179 123912 E [MS-GC] ForceFinishSweep stats: bg=1851, lazy=557, force=1548, released=3872, largeFreed=0
+2026-03-20 00:25:04.461501 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=24, partialUnswept=0, fullSwept=132, fullUnswept=0
+2026-03-20 00:25:04.461526 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=24, fullSwept=0, fullUnswept=132
+2026-03-20 00:25:04.612043 123912 E [MS-GC] ForceFinishSweep: swept=7, casFail=0, sg=36
+2026-03-20 00:25:04.612094 123912 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=149, force=7, released=46, largeFreed=0
+2026-03-20 00:25:04.614502 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=24, partialUnswept=0, fullSwept=3335, fullUnswept=0
+2026-03-20 00:25:04.614529 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=24, fullSwept=0, fullUnswept=3335
+2026-03-20 00:25:04.769147 123912 E [MS-GC] ForceFinishSweep stats: bg=2049, lazy=1310, force=0, released=3316, largeFreed=0
+2026-03-20 00:25:04.771912 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=3398, fullUnswept=0
+2026-03-20 00:25:04.771921 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=3398
+2026-03-20 00:25:04.953104 123912 E [MS-GC] ForceFinishSweep stats: bg=1802, lazy=1609, force=0, released=3326, largeFreed=0
+2026-03-20 00:25:04.954224 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=14, partialUnswept=0, fullSwept=3201, fullUnswept=0
+2026-03-20 00:25:04.954250 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=14, fullSwept=0, fullUnswept=3201
+2026-03-20 00:25:05.129953 123912 E [MS-GC] ForceFinishSweep stats: bg=2369, lazy=846, force=0, released=3193, largeFreed=0
+2026-03-20 00:25:05.131090 123912 E DrainSlice: obj=0x30142d500 has invalid TypeInfo=0x20b8c (raw stateword=0x20b8c), msRegion: type=3, sizeClass=2, allocPtr=0x30142fff8, regionEnd=0x301430000, sweepState=0, sweepGen=42, markBitmap=0x1161d40b0, totalSlots=1365, freeSlots=0
+2026-03-20 00:25:05.131751 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=14, partialUnswept=0, fullSwept=2921, fullUnswept=0
+2026-03-20 00:25:05.131758 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=14, fullSwept=0, fullUnswept=2921
+2026-03-20 00:25:05.293800 123912 E [MS-GC] ForceFinishSweep stats: bg=1725, lazy=1210, force=0, released=2911, largeFreed=0
+2026-03-20 00:25:05.294704 123912 E DrainSlice: obj=0x305f30000 has invalid TypeInfo=0x26ef4e (raw stateword=0x26ef4e), msRegion: type=4, sizeClass=0, allocPtr=0x0, regionEnd=0x0, sweepState=0, sweepGen=0, markBitmap=(nil), totalSlots=0, freeSlots=0
+2026-03-20 00:25:05.295431 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=2671, fullUnswept=0
+2026-03-20 00:25:05.295457 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=2671
+2026-03-20 00:25:05.445676 123912 E [MS-GC] ForceFinishSweep stats: bg=1374, lazy=1310, force=0, released=2659, largeFreed=0
+2026-03-20 00:25:05.447474 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=2469, fullUnswept=0
+2026-03-20 00:25:05.447485 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=2469
+2026-03-20 00:25:05.597785 123912 E [MS-GC] ForceFinishSweep stats: bg=1305, lazy=1177, force=0, released=2457, largeFreed=0
+2026-03-20 00:25:05.599605 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=2476, fullUnswept=0
+2026-03-20 00:25:05.599614 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=2476
+2026-03-20 00:25:05.749802 123912 E [MS-GC] ForceFinishSweep stats: bg=1210, lazy=1279, force=0, released=2462, largeFreed=0
+2026-03-20 00:25:05.750768 123912 E DrainSlice: obj=0x305880000 has invalid TypeInfo=0x2b3ea6 (raw stateword=0x2b3ea6), msRegion: type=4, sizeClass=0, allocPtr=0x0, regionEnd=0x0, sweepState=0, sweepGen=0, markBitmap=(nil), totalSlots=0, freeSlots=0
+2026-03-20 00:25:05.751707 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=2475, fullUnswept=0
+2026-03-20 00:25:05.751731 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=2475
+2026-03-20 00:25:05.901954 123912 E [MS-GC] ForceFinishSweep stats: bg=1210, lazy=1278, force=0, released=2464, largeFreed=0
+2026-03-20 00:25:05.904196 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=14, partialUnswept=0, fullSwept=2491, fullUnswept=0
+2026-03-20 00:25:05.904220 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=14, fullSwept=0, fullUnswept=2491
+2026-03-20 00:25:06.054445 123912 E [MS-GC] ForceFinishSweep stats: bg=1335, lazy=1170, force=0, released=2476, largeFreed=0
+2026-03-20 00:25:06.055500 123912 E [MS-GC] MarkSetup cleared 2 dirty markBitmaps (total=2620)
+2026-03-20 00:25:06.056778 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=24, partialUnswept=0, fullSwept=2613, fullUnswept=0
+2026-03-20 00:25:06.056786 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=24, fullSwept=0, fullUnswept=2613
+2026-03-20 00:25:06.206972 123912 E [MS-GC] ForceFinishSweep stats: bg=1967, lazy=670, force=0, released=2597, largeFreed=0
+2026-03-20 00:25:06.209179 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=24, partialUnswept=0, fullSwept=2637, fullUnswept=0
+2026-03-20 00:25:06.209190 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=24, fullSwept=0, fullUnswept=2637
+2026-03-20 00:25:06.359453 123912 E [MS-GC] ForceFinishSweep stats: bg=1927, lazy=734, force=0, released=2627, largeFreed=0
+2026-03-20 00:25:06.361800 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=24, partialUnswept=0, fullSwept=2620, fullUnswept=0
+2026-03-20 00:25:06.361829 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=24, fullSwept=0, fullUnswept=2620
+2026-03-20 00:25:06.512027 123912 E [MS-GC] ForceFinishSweep stats: bg=1448, lazy=1196, force=0, released=2613, largeFreed=0
+2026-03-20 00:25:06.513812 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=21, partialUnswept=0, fullSwept=2616, fullUnswept=0
+2026-03-20 00:25:06.513825 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=21, fullSwept=0, fullUnswept=2616
+2026-03-20 00:25:06.664065 123912 E [MS-GC] ForceFinishSweep stats: bg=1690, lazy=947, force=0, released=2610, largeFreed=0
+2026-03-20 00:25:06.666162 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=28, partialUnswept=0, fullSwept=2870, fullUnswept=0
+2026-03-20 00:25:06.666175 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=28, fullSwept=0, fullUnswept=2870
+2026-03-20 00:25:06.816431 123912 E [MS-GC] ForceFinishSweep stats: bg=2116, lazy=782, force=0, released=2863, largeFreed=0
+2026-03-20 00:25:06.822314 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=21, partialUnswept=0, fullSwept=4030, fullUnswept=0
+2026-03-20 00:25:06.822336 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=21, fullSwept=0, fullUnswept=4030
+2026-03-20 00:25:06.972620 123912 E [MS-GC] ForceFinishSweep stats: bg=2647, lazy=1404, force=0, released=3931, largeFreed=0
+2026-03-20 00:25:06.974150 123912 E DrainMainQueue: obj=0x30b81cac0 has invalid TypeInfo=0x30 (raw stateword=0x30), msRegion: type=3, sizeClass=30, allocPtr=0x30b81f800, regionEnd=0x30b820000, sweepState=0, sweepGen=66, markBitmap=0x1195a4008, totalSlots=6, freeSlots=0
+2026-03-20 00:25:06.974166 123912 E DrainMainQueue: obj=0x30b818ae0 has invalid TypeInfo=0x2d (raw stateword=0x2d), msRegion: type=3, sizeClass=30, allocPtr=0x30b81f800, regionEnd=0x30b820000, sweepState=0, sweepGen=66, markBitmap=0x1195a4008, totalSlots=6, freeSlots=0
+2026-03-20 00:25:06.974173 123912 E DrainMainQueue: obj=0x30b4ecb00 has invalid TypeInfo=0x495e (raw stateword=0x495e), msRegion: type=4, sizeClass=0, allocPtr=0x0, regionEnd=0x0, sweepState=0, sweepGen=0, markBitmap=(nil), totalSlots=0, freeSlots=0
+2026-03-20 00:25:06.977109 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=18, partialUnswept=0, fullSwept=4009, fullUnswept=0
+2026-03-20 00:25:06.977137 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=18, fullSwept=0, fullUnswept=4009
+2026-03-20 00:25:07.127477 123912 E [MS-GC] ForceFinishSweep stats: bg=2475, lazy=1552, force=0, released=3927, largeFreed=0
+2026-03-20 00:25:07.133449 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=22, partialUnswept=0, fullSwept=3755, fullUnswept=0
+2026-03-20 00:25:07.133465 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=22, fullSwept=0, fullUnswept=3755
+2026-03-20 00:25:07.290878 123912 E [MS-GC] ForceFinishSweep stats: bg=3183, lazy=594, force=0, released=3687, largeFreed=0
+2026-03-20 00:25:07.292238 123912 E DrainSlice: obj=0x30090f1c0 has invalid TypeInfo=0x78d8 (raw stateword=0x78d8), msRegion: type=4, sizeClass=0, allocPtr=0x0, regionEnd=0x0, sweepState=0, sweepGen=0, markBitmap=(nil), totalSlots=0, freeSlots=0
+2026-03-20 00:25:07.293769 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=15, partialUnswept=0, fullSwept=3225, fullUnswept=0
+2026-03-20 00:25:07.293797 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=15, fullSwept=0, fullUnswept=3225
+2026-03-20 00:25:07.444073 123912 E [MS-GC] ForceFinishSweep stats: bg=1806, lazy=1434, force=0, released=3206, largeFreed=0
+2026-03-20 00:25:07.447403 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=15, partialUnswept=0, fullSwept=2975, fullUnswept=0
+2026-03-20 00:25:07.447428 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=15, fullSwept=0, fullUnswept=2975
+2026-03-20 00:25:07.597676 123912 E [MS-GC] ForceFinishSweep stats: bg=1666, lazy=1324, force=0, released=2942, largeFreed=0
+2026-03-20 00:25:07.600400 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=15, partialUnswept=0, fullSwept=3004, fullUnswept=0
+2026-03-20 00:25:07.600417 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=15, fullSwept=0, fullUnswept=3004
+2026-03-20 00:25:07.750816 123912 E [MS-GC] ForceFinishSweep stats: bg=1709, lazy=1310, force=0, released=2980, largeFreed=0
+2026-03-20 00:25:07.754227 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=15, partialUnswept=0, fullSwept=3015, fullUnswept=0
+2026-03-20 00:25:07.754256 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=15, fullSwept=0, fullUnswept=3015
+2026-03-20 00:25:07.904513 123912 E [MS-GC] ForceFinishSweep stats: bg=1651, lazy=1379, force=0, released=2982, largeFreed=0
+2026-03-20 00:25:07.906883 123912 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=14, partialUnswept=0, fullSwept=2969, fullUnswept=0
+2026-03-20 00:25:07.906905 123912 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=14, fullSwept=0, fullUnswept=2969
+========================================
+  Cangjie GC Benchmark Suite
+  Tip: MRT_REPORT=./gc_bench.log cjHeapSize=256mb ./gc_benchmark
+========================================
+
+--- Functional Tests ---
+[BENCH] F1_TreeIntegrity         PASS  153 ms
+[BENCH] F2_Generational          PASS  339 ms
+[BENCH] F3_LargeObject           PASS  1959 ms
+[BENCH] F4_LinkedList            PASS  141 ms
+[BENCH] F5_HashMap               PASS  154 ms
+
+--- Performance Tests ---
+[BENCH] P1_SmallAlloc            302 ms  6553550 nodes  21700 nodes/ms
+[BENCH] P2_LargeAlloc            1079 ms  50 MB  47 MB/s
+[BENCH] P3_MixedWorkload         668 ms  30 rounds
+[BENCH] P4_LongLivedChurn        526 ms  persistent_intact=20/20
+[BENCH] P5_Fragmentation         904 ms  15 rounds
+
+========================================
+[BENCH] SUMMARY
+[BENCH] Functional: 5/5 passed
+[BENCH] P1_SmallAlloc:      302 ms
+[BENCH] P2_LargeAlloc:      1079 ms
+[BENCH] P3_MixedWorkload:   668 ms
+[BENCH] P4_LongLivedChurn:  526 ms
+[BENCH] P5_Fragmentation:   904 ms
+[BENCH] Total wall time:    6229 ms
+========================================

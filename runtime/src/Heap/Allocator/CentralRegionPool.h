@@ -31,6 +31,10 @@ struct MSSweepStats {
     std::atomic<size_t> forceSweptRegions{0}; // regions swept by ForceFinishSweep
     std::atomic<size_t> sweptFreedBytes{0};   // total bytes freed by small-object sweep
     std::atomic<size_t> releasedRegions{0};   // completely-free regions returned to OS
+    std::atomic<uint64_t> bgSweepTimeUs{0};   // BackgroundSweep wall-clock time (us)
+
+    // O3: per-sizeClass sweep region count for fragmentation diagnostics
+    std::atomic<size_t> sweptByClass[kNumSizeClasses]{};
 
     void Reset() {
         bgSweptRegions.store(0, std::memory_order_relaxed);
@@ -38,6 +42,10 @@ struct MSSweepStats {
         forceSweptRegions.store(0, std::memory_order_relaxed);
         sweptFreedBytes.store(0, std::memory_order_relaxed);
         releasedRegions.store(0, std::memory_order_relaxed);
+        bgSweepTimeUs.store(0, std::memory_order_relaxed);
+        for (size_t i = 0; i < kNumSizeClasses; i++) {
+            sweptByClass[i].store(0, std::memory_order_relaxed);
+        }
     }
 
     size_t TotalSweptRegions() const {
@@ -251,8 +259,15 @@ public:
     // ===== GC operations =====
 
     // Force-finish all remaining sweeps before starting new GC cycle.
-    // Corresponds to Go's finishsweep_m().
+    // Corresponds to Go's finishsweep_m(). This actively drains work that is
+    // still discoverable from the unswept lists, but does not by itself prove
+    // that an already-running background sweeper has fully quiesced.
     void ForceFinishSweep();
+
+    // Help complete the previous cycle's sweep work before the next mark setup.
+    // The current thread first drains remaining unclaimed unswept work, then
+    // waits for any already-running background sweeper to fully quiesce.
+    void FinishSweepBeforeMark();
 
     // Generation flip: globalSweepGen_ += 2.
     // All swept Regions logically become unswept.
@@ -262,8 +277,12 @@ public:
     // Thread-safe (CAS ownership). Called by gc-helper thread.
     void BackgroundSweep();
 
-    // Check if background/forced sweep has completed.
-    bool IsSweepDone() const { return sweepDone_.load(std::memory_order_acquire); }
+    // Check whether previous-cycle sweep work is globally quiescent.
+    bool IsSweepDone() const
+    {
+        return sweepDone_.load(std::memory_order_acquire) &&
+               !bgSweepRunning_.load(std::memory_order_acquire);
+    }
 
     // Visit all Regions across all size classes (for GC root enumeration).
     template<typename Visitor>
@@ -307,12 +326,12 @@ public:
     // Called after MarkTerminate / in PostMarkTermination.
     size_t SweepLargeRegions();
 
-    // Wait for all sweep (background + lazy) to finish.
-    // Called in MarkSetup before ForceFinishSweep to prevent data race:
-    // bg sweep's SweepRegion (memset markBitmap 0) vs next cycle's ConcurrentMark.
+    // Wait until previous-cycle sweep work is globally quiescent.
+    // This covers both the sweepDone_ completion flag and an already-running
+    // background sweeper that may still be mutating region metadata/bitmaps.
     void WaitForSweepDone()
     {
-        while (!sweepDone_.load(std::memory_order_acquire)) {
+        while (!IsSweepDone()) {
             std::this_thread::yield();
         }
     }
@@ -345,8 +364,13 @@ private:
     std::atomic<bool> bgSweepRunning_{false};
     MSSweepStats sweepStats_;
 
-    // Total bytes of MS regions currently in use (GetFreshRegion +, ReleaseRegion -)
-    // Used by AllocatedBytes() for GC trigger threshold check.
+    // Total bytes of MS regions currently committed (GetFreshRegion +, ReleaseRegion -).
+    // This is a region-level metric, NOT object-level:
+    //   - Includes live objects, dead objects in unswept regions, and intra-region fragmentation.
+    //   - After GC ends but before sweep completes, it remains inflated.
+    //   - Only decreases when sweep reclaims regions back to MSRegionManager.
+    // The GC trigger (MSRegionManager::TakeRegion) uses the O1 effective-allocation
+    // formula to compensate for this semantic gap vs trueLiveBytes.
     std::atomic<size_t> totalMSRegionBytes_{0};
 
     SizeClassBucket buckets_[kNumSizeClasses];
@@ -363,6 +387,11 @@ public:
     void RegisterAllocBufferMS(AllocBufferMS* buffer);
     void RemoveAllocBufferMS(AllocBufferMS* buffer);
     void FlushAllAllocBuffers();
+
+    // O9: Background fill of hungry per-thread alloc caches.
+    // Called by gc-helper thread. Iterates all AllocBufferMS and fills
+    // cachedRegion_ slots for size classes with high miss pressure.
+    void BackgroundFillAllocCaches();
 
     // Visit all registered AllocBufferMS instances (under lock)
     template<typename Visitor>

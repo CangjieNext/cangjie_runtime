@@ -110,6 +110,10 @@ private:
     void ReclaimHeapGarbage();
     void FeedHungryBuffers();
     void BackgroundSweepLoop();
+    void BackgroundFillAllocCaches();
+#ifdef MRT_USE_MARK_SWEEP
+    void CheckHeuristicGCTrigger();
+#endif
 
     std::mutex wakeLock;
     std::condition_variable wakeCondition; // notify finalizer processing continue

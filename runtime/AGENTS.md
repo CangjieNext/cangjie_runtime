@@ -293,6 +293,33 @@ runtime/
 4. 检查依赖是否正确克隆（bounds_checking_function）
 5. 查看详细构建日志（使用 `VERBOSE=1`）
 
+### 切换 Runtime 后必须重新编译 .cj 文件（强制规则）
+
+**规则**：每次替换 SDK 中的 `libcangjie-runtime.dylib`（如 CopyGC ↔ MS-GC 切换）后，**必须用 `cjc` 重新编译所有 `.cj` 测试文件**，不得复用旧 binary。
+
+**原因**：`cjc` 编译时会链接当前 SDK 中的 runtime dylib，生成的二进制包含与特定 GC 模式匹配的初始化数据和符号引用。用 CopyGC SDK 编译的 binary 加载 MS-GC dylib（或反之）会导致进程在 dylib 加载阶段卡死（macOS 上表现为 UE 不可中断状态，`kill -9` 无效）。
+
+**正确流程**：
+```bash
+# 1. 替换 runtime dylib
+bash run.sh ms-replace    # 或 bash run.sh restore
+
+# 2. 重新编译测试文件（必须！）
+source /path/to/cangjie/envsetup.sh
+cjc gc_benchmark.cj -o gc_benchmark
+
+# 3. 运行测试
+./gc_benchmark
+```
+
+**错误示例**（绝对禁止）：
+```bash
+# ✗ 用 CopyGC 编译 binary，然后换 MS-GC runtime 直接跑
+cjc gc_benchmark.cj -o gc_benchmark   # CopyGC SDK
+bash run.sh ms-replace                 # 换成 MS-GC
+./gc_benchmark                         # ← 卡死！进程进入 UE 状态
+```
+
 ## 参考资料
 
 - [仓颉 SDK 集成构建指导书](https://gitcode.com/Cangjie/cangjie_build/blob/dev/README_zh.md)
@@ -312,22 +339,22 @@ runtime/
 
 ---
 
-### A. Cangjie 语言语法（cangjie-skills）
+### A. Cangjie 语言语法（cangjie-grammar-skill）
 
 **用途**：编写 Cangjie 代码、调试语法错误、理解语言特性时使用。
 
-**入口文件**：`skills/cangjie-skills/SKILL.md`
+**入口文件**：`skills/cangjie-grammar-skill/SKILL.md`
 
 **加载顺序**：
-1. 读 `skills/cangjie-skills/SKILL.md` — 获取总览与使用规则
-2. 读 `skills/cangjie-skills/references/README.md` — 确定主题分支
-3. 按问题类型进入 `skills/cangjie-skills/references/语法/README.md` — 7 大语法主题索引
-4. 查规则：`skills/cangjie-skills/references/语法/语法速查.md` — 常见语法模板与示例
-5. 写代码前后自检：`skills/cangjie-skills/references/语法/代码生成清单.md`
+1. 读 `skills/cangjie-grammar-skill/SKILL.md` — 获取总览与使用规则
+2. 读 `skills/cangjie-grammar-skill/references/README.md` — 确定主题分支
+3. 按问题类型进入 `skills/cangjie-grammar-skill/references/语法/README.md` — 7 大语法主题索引
+4. 查规则：`skills/cangjie-grammar-skill/references/语法/语法速查.md` — 常见语法模板与示例
+5. 写代码前后自检：`skills/cangjie-grammar-skill/references/语法/代码生成清单.md`
 
 **目录结构**：
 ```
-skills/cangjie-skills/
+skills/cangjie-grammar-skill/
 ├── SKILL.md                          # 总入口（语法主题地图 + AI 生成原则）
 └── references/
     ├── README.md                     # 阅读顺序指南
@@ -341,14 +368,14 @@ skills/cangjie-skills/
 
 ---
 
-### B. Cangjie Runtime 知识（cangjie-runtime-skills）
+### B. Cangjie Runtime 知识（cangjie-runtime-skill）
 
 **用途**：理解/调试 Runtime 内部机制（GC、协程、元信息、链接加载）、排障、构建验证时使用。
 
-**入口文件**：`skills/cangjie-runtime-skills/SKILL.md`
+**入口文件**：`skills/cangjie-runtime-skill/SKILL.md`
 
 **加载顺序**：
-1. 读 `skills/cangjie-runtime-skills/SKILL.md` — 获取模块地图 + References 索引 + AI 执行规则
+1. 读 `skills/cangjie-runtime-skill/SKILL.md` — 获取模块地图 + References 索引 + AI 执行规则
 2. 根据关键词命中以下四大分支之一，先读 `README.md`，再进入主文档：
 
 | 分类 | 入口 | 命中关键词 |
@@ -401,11 +428,28 @@ references/问题解决/
 **构建/验证脚本**：
 ```bash
 # 统一脚本入口
-python3 skills/cangjie-runtime-skills/scripts/build_copy_verify.py \
+python3 skills/cangjie-runtime-skill/scripts/build_copy_verify.py \
     --runtime-root <runtime路径> \
     --cangjie-root <cangjie包路径> \
     --platform <macos-aarch64|linux-x86_64>
 ```
+
+---
+
+### C. Cangjie LLVM 后端知识（cangjie-llvm-skill）
+
+**用途**：修改/调试仓颉 LLVM 后端、GC 屏障 lowering、statepoint/safepoint、Cangjie intrinsic、CJMetadata、目标后端代码生成，以及 runtime dylib 替换与 macOS codesign 问题时使用。
+
+**入口文件**：`skills/cangjie-llvm-skill/SKILL.md`
+
+**加载顺序**：
+1. 读 `skills/cangjie-llvm-skill/SKILL.md` — 获取编译管道、常见任务与入口文件
+2. 读 `skills/cangjie-llvm-skill/references/architecture.md` — 理解项目结构与模块划分
+3. 读 `skills/cangjie-llvm-skill/references/gc-barriers.md` — 理解读写屏障、快速路径与 lowering 逻辑
+4. 读 `skills/cangjie-llvm-skill/references/debugging.md` — 排查开关、Pass 顺序与验证流程
+5. 查 `skills/cangjie-llvm-skill/references/file-index.md` — 做源码定位
+
+**触发关键词**：`CJBarrierLowering`、`EnableGCFastPath`、`EnableGCPhase`、`EnableTaggedPointer`、`statepoint`、`safepoint`、`CJMetadata`、`intrinsic`、`AArch64AsmPrinter`、`X86MCInstLower`、`codesign`
 
 ---
 
@@ -550,7 +594,7 @@ bash run.sh restore    # 恢复原始 runtime
 ```bash
 # 编译 MarkSweep runtime
 cd /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime
-python3 build.py build --gc-mode marksweep
+python3 build.py build 
 
 # 替换 + 重签名
 cp output/temp/lib/aarch64_Release/libcangjie-runtime.dylib \

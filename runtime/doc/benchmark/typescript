@@ -1,0 +1,208 @@
+Script started on Fri Mar 20 12:23:05 2026
+[1m[7m%[27m[1m[0m                                                                                ]2;lipeisheng@lipeishengdeMacBook-Pro:~/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark]1;..doc/benchmark]7;file://lipeishengdeMacBook-Pro.local/Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark\[0m[27m[24m[J(base) [01;32m➜  [36mbenchmark[00m [K[?1h=[?2004h[0m[27m[24m[J(base) [01;32m➜  [36mbenchmark[00m [01;34mgit:([31mGO_GC[34m) [33m✗[00m [K[?2004l
+[1m[7m%[27m[1m[0m                                                                                ]2;lipeisheng@lipeishengdeMacBook-Pro:~/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark]1;..doc/benchmark]7;file://lipeishengdeMacBook-Pro.local/Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark\[0m[27m[24m[J(base) [01;31m➜  [36mbenchmark[00m [01;34mgit:([31mGO_GC[34m) [33m✗[00m [K[?1h=[?2004h  echo "OK"[?1l>[?2004l
+]2;echo "OK"]1;echoOK
+[1m[7m%[27m[1m[0m                                                                                ]2;lipeisheng@lipeishengdeMacBook-Pro:~/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark]1;..doc/benchmark]7;file://lipeishengdeMacBook-Pro.local/Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark\[0m[27m[24m[J(base) [01;32m➜  [36mbenchmark[00m [01;34mgit:([31mGO_GC[34m) [33m✗[00m [K[?1h=[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                ]2;lipeisheng@lipeishengdeMacBook-Pro:~/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark]1;..doc/benchmark]7;file://lipeishengdeMacBook-Pro.local/Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark\[0m[27m[24m[J(base) [01;31m➜  [36mbenchmark[00m [01;34mgit:([31mGO_GC[34m) [33m✗[00m [K[?1h=[?2004h  cat > /tmp/gc_bench_remaining.sh << 'EOF'[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004h##!/usr/bin/env bash[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004hsset -euo pipefail[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004hccd /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/doc/b [K[Keenchmark[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004hRRESULTS="results/20260320_120855"[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004hBBINARY="$RESULTS/gc_benchmark_ms"[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004hrrun_once() {[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004h     local binary="$1" heap_mb="$2" prefix="$3"[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004h     local stdout_file="$RESULTS/${prefix}_stdout.txt"[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004h     local resource_file="$RESULTS/${prefix}_resource.csv"[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004h     echo "[RUN] $prefix heap=${heap_mb}mb"[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004h     echo "timestamp,cpu_pct,rss_kb" > "$resource_file"[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004h     cjHeapSize="${heap_mb}mb" "$binary" > "$stdout_file" 2>&1 &[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004h     local pid=$![?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004h     while kill -0 "$pid" 2>/dev/null; do[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004h         ts=$(date +%s)[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004h         read -r cpu rss < <(ps -p "$pid" -o %cpu=,rss= 2>/dev/null || e [K[Kccho "0 0")[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004h         [[ -n "$cpu" && -n "$rss" ]] && echo "$ts,$cpu,$rss" >> "$resou [K[Krrce_file"[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004h         sleep 0.2[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004h     done[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004h     wait "$pid" || true[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004h     grep '^\[BENCH\]' "$stdout_file" || echo "[WARN] No BENCH output fo [K[Krr $prefix"[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004h     echo ""[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004h}[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004hrrun_once "$BINARY" 256 "ms_256m_r3"[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004hrrun_once "$BINARY" 512 "ms_512m_r1#!/usr/bin/env bash[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004hsset -euo pipefail[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004hccd _oset -euo pipefail[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004h""mcd /Users/lipeis"=RESULTS="results/20260320_120855"[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004hBBINARY="$RESULTS/gc_benchmark_ms"[?1l>[?2004l
+[0m[27m[24m[Jheredoc> [K[?1h=[?2004hrrun_once()& BINARY="$RESULTS/gc_be[?2004l
+[1m[7m%[27m[1m[0m                                                                                ]2;lipeisheng@lipeishengdeMacBook-Pro:~/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark]1;..doc/benchmark]7;file://lipeishengdeMacBook-Pro.local/Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark\[0m[27m[24m[J(base) [01;31m➜  [36mbenchmark[00m [01;34mgit:([31mGO_GC[34m) [33m✗[00m [K[?1h=[?2004h  EOF[?1l>[?2004l
+]2;EOF]1;EOFzsh: command not found: EOF
+[1m[7m%[27m[1m[0m                                                                                ]2;lipeisheng@lipeishengdeMacBook-Pro:~/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark]1;..doc/benchmark]7;file://lipeishengdeMacBook-Pro.local/Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark\[0m[27m[24m[J(base) [01;31m➜  [36mbenchmark[00m [01;34mgit:([31mGO_GC[34m) [33m✗[00m [K[?1h=[?2004h[?2004l
+[1m[7m%[27m[1m[0m                                                                                ]2;lipeisheng@lipeishengdeMacBook-Pro:~/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark]1;..doc/benchmark]7;file://lipeishengdeMacBook-Pro.local/Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark\[0m[27m[24m[J(base) [01;31m➜  [36mbenchmark[00m [01;34mgit:([31mGO_GC[34m) [33m✗[00m [K[?1h=[?2004h  python3 -c "[?1l>[?2004l
+[0m[27m[24m[Jdquote> [K[?1h=[?2004hss = '''#!/usr/bin/env bash[?1l>[?2004l
+zsh: event not found: /usr/bin/env
+set -euo pipefail
+cd /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark
+RESULTS=\"results/20260320_120855\"
+BINARY=\"\$RESULTS/gc_benchmark_ms\"
+run_once() {
+    local binary=\"\$1\" heap_mb=\"\$2\" prefix=\"\$3\"
+    local stdout_file=\"\$RESULTS/\${prefix}_stdout.txt\"
+    local resource_file=\"\$RESULTS/\${prefix}_resource.csv\"
+    echo \"[RUN] \$prefix heap=\${heap_mb}mb\"
+    echo \"timestamp,cpu_pct,rss_kb\" > \"\$resource_file\"
+    cjHeapSize=\"\${heap_mb}mb\" \"\$binary\" > \"\$stdout_file\" 2>&1 &
+    local pid=\$!
+    while kill -0 \"\$pid\" 2>/dev/null; do
+        ts=\$(date +%s)
+        read -r cpu rss < <(ps -p \"\$pid\" -o %cpu=,rss= 2>/dev/null || echo \"0 0\")
+        [[ -n \"\$cpu\" && -n \"\$rss\" ]] && echo \"\$ts,\$cpu,\$rss\" >> \"\$resource_file\"
+        sleep 0.2
+    done
+    wait \"\$pid\" || true
+    grep \"^\\\\[BENCH\\\\]\" \"\$stdout_file\" || echo \"[WARN] No BENCH output for \$prefix\"
+    echo \"\"
+}
+run_once s = '''#!/us 2run_o[1m[7m%[27m[1m[0m                                                                                ]2;lipeisheng@lipeishengdeMacBook-Pro:~/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark]1;..doc/benchmark]7;file://lipeishengdeMacBook-Pro.local/Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark\[0m[27m[24m[J(base) [01;31m➜  [36mbenchmark[00m [01;34mgit:([31mGO_GC[34m) [33m✗[00m [K[?1h=[?2004hsset -euo pipefail[?1l>[?2004l
+cd /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark
+RESULTS=\"results/20260320_120855\"
+BINARY=\"\$RESULTS/gc_benchmark_ms\"
+run_once() {
+    local binary=\"\$1\" heap_mb=\"\$2\" prefix=\"\$3\"
+    local stdout_file=\"\$RESULTS/\${prefix}_stdout.txt\"
+    local resource_file=\"\$RESULTS/\${prefix}_resource.csv\"
+    echo \"[RUN] \$prefix heap=\${heap_mb}mb\"
+    echo \"timestamp,cpu_pct,rss_kb\" > \"\$resource_file\"
+    cjHeapSize=\"\${heap_mb}mb\" \"\$binary\" > \"\$stdout_file\" 2>&1 &
+    local pid=\$!
+    while kill -0 \"\$pid\" 2>/dev/null; do
+        ts=\$(date +%s)
+        read -r cpu rss < <(ps -p \"\$pid\" -o %cpu=,rss= 2>/dev/null || echo \"0 0\")
+        [[ -n \"\$cpu\" && -n \"\$rss\" ]] && echo \"\$ts,\$cpu,\$rss\" >> \"\$resource_file\"
+        sleep 0.2
+    done
+    wait \"\$pid\" || true
+    grep \"^\\\\[BENCH\\\\]\" \"\$stdout_file\" || echo \"[WARN] No BENCH output for \$prefix\"
+    echo \"\"
+}
+run_once s = '''#!/us 2run_once s = '''#!/us 2r]2;set -euo pipefail]1;set[1m[7m%[27m[1m[0m                                                                                ]2;lipeisheng@lipeishengdeMacBook-Pro:~/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark]1;..doc/benchmark]7;file://lipeishengdeMacBook-Pro.local/Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark\[0m[27m[24m[J(base) [01;32m➜  [36mbenchmark[00m [01;34mgit:([31mGO_GC[34m) [33m✗[00m [K[?1h=[?2004hccd /Users/lipeisheng/code/cangjie/cangjie/cang [K[Kjjie_runtime/runtime/doc/benchmark
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J(base) [01;32m➜  [36mbenchmark[00m [01;34mgit:([31mGO_GC[34m) [33m✗[00m cd /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark[K[?1l>[?2004l
+RESULTS=\"results/20260320_120855\"
+BINARY=\"\$RESULTS/gc_benchmark_ms\"
+run_once() {
+    local binary=\"\$1\" heap_mb=\"\$2\" prefix=\"\$3\"
+    local stdout_file=\"\$RESULTS/\${prefix}_stdout.txt\"
+    local resource_file=\"\$RESULTS/\${prefix}_resource.csv\"
+    echo \"[RUN] \$prefix heap=\${heap_mb}mb\"
+    echo \"timestamp,cpu_pct,rss_kb\" > \"\$resource_file\"
+    cjHeapSize=\"\${heap_mb}mb\" \"\$binary\" > \"\$stdout_file\" 2>&1 &
+    local pid=\$!
+    while kill -0 \"\$pid\" 2>/dev/null; do
+        ts=\$(date +%s)
+        read -r cpu rss < <(ps -p \"\$pid\" -o %cpu=,rss= 2>/dev/null || echo \"0 0\")
+        [[ -n \"\$cpu\" && -n \"\$rss\" ]] && echo \"\$ts,\$cpu,\$rss\" >> \"\$resource_file\"
+        sleep 0.2
+    done
+    wait \"\$pid\" || true
+    grep \"^\\\\[BENCH\\\\]\" \"\$stdout_file\" || echo \"[WARN] No BENCH output for \$prefix\"
+    echo \"\"
+}
+run_once s = '''#!/us 2run_once s = '''#!/us 2rue run_once s = ''' \run_once s = '''#!/us 2run_once s = '''#!/us 2rue run_once s]2;cd ]1;cd[1m[7m%[27m[1m[0m                                                                                ]2;lipeisheng@lipeishengdeMacBook-Pro:~/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark]1;..doc/benchmark]7;file://lipeishengdeMacBook-Pro.local/Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark\[0m[27m[24m[J(base) [01;32m➜  [36mbenchmark[00m [01;34mgit:([31mGO_GC[34m) [33m✗[00m [K[?1h=[?2004hRRESULTS=\"results/20260320_120855\"
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J(base) [01;32m➜  [36mbenchmark[00m [01;34mgit:([31mGO_GC[34m) [33m✗[00m RESULTS=\"results/20260320_120855\"[K[?1l>[?2004l
+BINARY=\"\$RESULTS/gc_benchmark_ms\"
+run_once() {
+    local binary=\"\$1\" heap_mb=\"\$2\" prefix=\"\$3\"
+    local stdout_file=\"\$RESULTS/\${prefix}_stdout.txt\"
+    local resource_file=\"\$RESULTS/\${prefix}_resource.csv\"
+    echo \"[RUN] \$prefix heap=\${heap_mb}mb\"
+    echo \"timestamp,cpu_pct,rss_kb\" > \"\$resource_file\"
+    cjHeapSize=\"\${heap_mb}mb\" \"\$binary\" > \"\$stdout_file\" 2>&1 &
+    local pid=\$!
+    while kill -0 \"\$pid\" 2>/dev/null; do
+        ts=\$(date +%s)
+        read -r cpu rss < <(ps -p \"\$pid\" -o %cpu=,rss= 2>/dev/null || echo \"0 0\")
+        [[ -n \"\$cpu\" && -n \"\$rss\" ]] && echo \"\$ts,\$cpu,\$rss\" >> \"\$resource_file\"
+        sleep 0.2
+    done
+    wait \"\$pid\" || true
+    grep \"^\\\\[BENCH\\\\]\" \"\$stdout_file\" || echo \"[WARN] No BENCH output for \$prefix\"
+    echo \"\"
+}
+run_once s = '''#!/us 2run_once s = '''#!/us 2rue run_once s = ''' \run_once s = '''#!/us 2run_once s = '''#!/us 2rue run_once s = ''' \run_once s12run_once s = '''#]2;RESULTS=\"results/20260320_120855\" ]1;[1m[7m%[27m[1m[0m                                                                                ]2;lipeisheng@lipeishengdeMacBook-Pro:~/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark]1;..doc/benchmark]7;file://lipeishengdeMacBook-Pro.local/Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark\[0m[27m[24m[J(base) [01;32m➜  [36mbenchmark[00m [01;34mgit:([31mGO_GC[34m) [33m✗[00m [K[?1h=[?2004hBBINARY=\"\$RESULTS/gc_benchmark_ms\"
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J(base) [01;32m➜  [36mbenchmark[00m [01;34mgit:([31mGO_GC[34m) [33m✗[00m BINARY=\"\$RESULTS/gc_benchmark_ms\"[K[?1l>[?2004l
+run_once() {
+    local binary=\"\$1\" heap_mb=\"\$2\" prefix=\"\$3\"
+    local stdout_file=\"\$RESULTS/\${prefix}_stdout.txt\"
+    local resource_file=\"\$RESULTS/\${prefix}_resource.csv\"
+    echo \"[RUN] \$prefix heap=\${heap_mb}mb\"
+    echo \"timestamp,cpu_pct,rss_kb\" > \"\$resource_file\"
+    cjHeapSize=\"\${heap_mb}mb\" \"\$binary\" > \"\$stdout_file\" 2>&1 &
+    local pid=\$!
+    while kill -0 \"\$pid\" 2>/dev/null; do
+        ts=\$(date +%s)
+        read -r cpu rss < <(ps -p \"\$pid\" -o %cpu=,rss= 2>/dev/null || echo \"0 0\")
+        [[ -n \"\$cpu\" && -n \"\$rss\" ]] && echo \"\$ts,\$cpu,\$rss\" >> \"\$resource_file\"
+        sleep 0.2
+    done
+    wait \"\$pid\" || true
+    grep \"^\\\\[BENCH\\\\]\" \"\$stdout_file\" || echo \"[WARN] No BENCH output for \$prefix\"
+    echo \"\"
+}
+run_once s = '''#!/us 2run_once s = '''#!/us 2rue run_once s = ''' \run_once s = '''#!/us 2run_once s = '''#!/us 2rue run_once s = ''' \run_once s12run_once s = '''#!/us 2run_once s airun_once s = '''#!/]2;BINARY=\"\$RESULTS/gc_benchmark_ms\" ]1;[1m[7m%[27m[1m[0m                                                                                ]2;lipeisheng@lipeishengdeMacBook-Pro:~/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark]1;..doc/benchmark]7;file://lipeishengdeMacBook-Pro.local/Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark\[0m[27m[24m[J(base) [01;32m➜  [36mbenchmark[00m [01;34mgit:([31mGO_GC[34m) [33m✗[00m [K[?1h=[?2004hrrun_once() {
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J(base) [01;32m➜  [36mbenchmark[00m [01;34mgit:([31mGO_GC[34m) [33m✗[00m run_once() {[K[?1l>[?2004l
+[0m[27m[24m[Jfunction> [K[?1h=[?2004h     local binary=\"\$1\" heap_mb=\"\$2\" prefix=\"\$3\"
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J>     local binary=\"\$1\" heap_mb=\"\$2\" prefix=\"\$3\"[K[?1l>[?2004l
+[0m[27m[24m[Jfunction> [K[?1h=[?2004h     local stdout_file=\"\$RESULTS/\${prefix}_stdout.txt\"
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J>     local stdout_file=\"\$RESULTS/\${prefix}_stdout.txt\"[K[?1l>[?2004l
+[0m[27m[24m[Jfunction> [K[?1h=[?2004h     local resource_file=\"\$RESULTS/\${prefix}_resource.csv\"
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J>     local resource_file=\"\$RESULTS/\${prefix}_resource.csv\"[K[?1l>[?2004l
+[0m[27m[24m[Jfunction> [K[?1h=[?2004h     echo \"[RUN] \$prefix heap=\${heap_mb}mb\"
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J>     echo \"[RUN] \$prefix heap=\${heap_mb}mb\"[K[?1l>[?2004l
+[0m[27m[24m[Jfunction> [K[?1h=[?2004h     echo \"timestamp,cpu_pct,rss_kb\" > \"\$resource_file\"
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J>     echo \"timestamp,cpu_pct,rss_kb\" > \"\$resource_file\"[K[?1l>[?2004l
+[0m[27m[24m[Jfunction> [K[?1h=[?2004h     cjHeapSize=\"\${heap_mb}mb\" \"\$binary\" > \"\$stdout_file\" 2>&1 [K[K[1C &
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J>     cjHeapSize=\"\${heap_mb}mb\" \"\$binary\" > \"\$stdout_file\" 2>&1 &[K[?1l>[?2004l
+[0m[27m[24m[Jfunction> [K[?1h=[?2004h     local pid=\$!
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J>     local pid=\$![K[?1l>[?2004l
+[0m[27m[24m[Jfunction> [K[?1h=[?2004h     while kill -0 \"\$pid\" 2>/dev/null; do
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J>     while kill -0 \"\$pid\" 2>/dev/null; do[K[?1l>[?2004l
+[0m[27m[24m[Jfunction while> [K[?1h=[?2004h         ts=\$(date +%s)
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J>         ts=\$(date +%s)[K[?1l>[?2004l
+[0m[27m[24m[Jfunction while> [K[?1h=[?2004h         read -r cpu rss < <(ps -p \"\$pid\" -o %cpu=,rss= 2>/dev [K[K//null || echo \"0 0\")
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J>         read -r cpu rss < <(ps -p \"\$pid\" -o %cpu=,rss= 2>/dev/null || echo \"0 0\")[K[?1l>[?2004l
+[0m[27m[24m[Jfunction while> [K[?1h=[?2004h         [[ -n \"\$cpu\" && -n \"\$rss\" ]] && echo \"\$ts,\$cpu, [K[K\\$rss\" >> \"\$resource_file\"
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J>         [[ -n \"\$cpu\" && -n \"\$rss\" ]] && echo \"\$ts,\$cpu,\$rss\" >> \"\$resource_file\"[K[?1l>[?2004l
+[0m[27m[24m[Jfunction while> [K[?1h=[?2004h         sleep 0.2
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J>         sleep 0.2[K[?1l>[?2004l
+[0m[27m[24m[Jfunction while> [K[?1h=[?2004h     done
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J>     done[K[?1l>[?2004l
+[0m[27m[24m[Jfunction> [K[?1h=[?2004h     wait \"\$pid\" || true
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J>     wait \"\$pid\" || true[K[?1l>[?2004l
+[0m[27m[24m[Jfunction> [K[?1h=[?2004h     grep \"^\\\\[BENCH\\\\]\" \"\$stdout_file\" || echo \"[WARN] No BE [K[KNNCH output for \$prefix\"
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J>     grep \"^\\\\[BENCH\\\\]\" \"\$stdout_file\" || echo \"[WARN] No BENCH output for \$prefix\"[K[?1l>[?2004l
+[0m[27m[24m[Jfunction> [K[?1h=[?2004h     echo \"\"
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J>     echo \"\"[K[?1l>[?2004l
+[0m[27m[24m[Jfunction> [K[?1h=[?2004h}
+_zsh_autosuggest_highlight_apply:3: POSTDISPLAY: parameter not set
+[0m[27m[24m[J> }[K[?1l>[?2004l
+]2;run_once () { ... }]1;run_once()[1m[7m%[27m[1m[0m                                                                                
+Script done on Fri Mar 20 12:24:15 2026

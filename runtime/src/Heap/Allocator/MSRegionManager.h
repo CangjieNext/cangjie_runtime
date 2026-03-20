@@ -39,12 +39,14 @@ namespace MapleRuntime {
 // Each MSRegionInfo is 64 bytes, exactly one cache line.
 // MetadataSize = ceil(regionCount * 64, PAGE_SIZE).
 //
-// CartesianTree operates in UNIT indexes (UNIT_SIZE = system page size).
-// Each MS Region = MS_REGION_SIZE / UNIT_SIZE units (e.g., 2 on macOS, 8 on Linux-4KB).
+// CartesianTree operates in REGION indexes (each Index = one MS_REGION_SIZE region).
+// Physical page operations (ClearUnits/ReleaseUnits) convert region index → unit index internally.
 //
 class MSRegionManager {
     using UnitIndex = CartesianTree::Index;
     using UnitCount = CartesianTree::Count;
+    using RegionIndex = CartesianTree::Index;
+    using RegionCount = CartesianTree::Count;
 
 public:
     MSRegionManager() = default;
@@ -144,36 +146,70 @@ public:
     // Free unit count across both trees + unallocated zone (within committed region).
     uint32_t GetFreeUnitCount() const
     {
-        uint32_t dirty = dirtyTree_.GetTotalCount();
-        uint32_t released = releasedTree_.GetTotalCount();
+        // Tree counts are in regions; convert to units for backward compatibility.
+        uint32_t dirtyUnits = dirtyTree_.GetTotalCount() * static_cast<uint32_t>(unitsPerMSRegion_);
+        uint32_t releasedUnits = releasedTree_.GetTotalCount() * static_cast<uint32_t>(unitsPerMSRegion_);
         uintptr_t committed = committedEnd_;
         uintptr_t inactive = inactiveZone_.load(std::memory_order_relaxed);
         uint32_t inactiveUnits = (committed > inactive)
             ? static_cast<uint32_t>((committed - inactive) / unitSize_)
             : 0;
-        return dirty + released + inactiveUnits;
+        return dirtyUnits + releasedUnits + inactiveUnits;
     }
 
+    size_t GetDirtyTreeBytes() const
+    {
+        return static_cast<size_t>(dirtyTree_.GetTotalCount()) * MS_REGION_SIZE;
+    }
+
+    size_t GetReleasedTreeBytes() const
+    {
+        return static_cast<size_t>(releasedTree_.GetTotalCount()) * MS_REGION_SIZE;
+    }
+
+    void DumpAndResetAllocClearStats();
+
 private:
-    // Try to take units from dirty tree, then released tree, then extend inactiveZone.
-    // Returns unit index via 'idx'. Returns true on success.
-    bool TakeUnitsInternal(UnitCount num, UnitIndex& idx);
+    // O4: unified HEU trigger checkpoint for fresh-region allocation paths.
+    // Called at TakeRegions() entry, covering both TakeRegion() and TakeRegionForLarge().
+    void MaybeTriggerHeuGC();
 
-    // Take units aligned to 'alignment' from dirty/released trees with
-    // over-allocation + split.  Falls back to inactiveZone which is naturally aligned.
-    bool TakeUnitsAligned(UnitCount num, UnitCount alignment, UnitIndex& idx);
+    // Take contiguous regions from dirty/released tree or inactiveZone bump.
+    // No over-allocation or alignment splitting — trees operate at region granularity.
+    bool TakeRegions(RegionCount num, RegionIndex& idx);
 
-    // Reclaim units back to dirty tree.
-    void ReclaimUnitsInternal(UnitIndex idx, UnitCount num);
+    // Reclaim regions back to dirty tree.
+    void ReclaimRegionsDirty(RegionIndex idx, RegionCount num);
 
-    // Reclaim units to released tree (release physical pages first).
-    void ReclaimUnitsReleased(UnitIndex idx, UnitCount num);
+    // Reclaim regions to released tree (release physical pages first).
+    void ReclaimRegionsReleased(RegionIndex idx, RegionCount num);
 
     // Release physical pages at given unit range (platform-specific).
     void ReleaseUnits(UnitIndex idx, UnitCount num) const;
 
     // Clear units (zero-fill) at given index/count.
     void ClearUnits(UnitIndex idx, UnitCount num) const;
+
+    // --- Region ↔ Unit / Address conversion helpers ---
+    uintptr_t RegionIdxToAddr(RegionIndex idx) const
+    {
+        return heapStart_ + static_cast<uintptr_t>(idx) * MS_REGION_SIZE;
+    }
+
+    RegionIndex AddrToRegionIdx(uintptr_t addr) const
+    {
+        return static_cast<RegionIndex>((addr - heapStart_) / MS_REGION_SIZE);
+    }
+
+    UnitIndex RegionToUnitIdx(RegionIndex regIdx) const
+    {
+        return static_cast<UnitIndex>(static_cast<size_t>(regIdx) * unitsPerMSRegion_);
+    }
+
+    UnitCount RegionCountToUnitCount(RegionCount regCount) const
+    {
+        return static_cast<UnitCount>(static_cast<size_t>(regCount) * unitsPerMSRegion_);
+    }
 
     MSRegionInfo* array_ = nullptr;         // MSRegionInfo array at mmap front
     uintptr_t heapStart_ = 0;              // First heap region address (immutable)
@@ -193,14 +229,25 @@ private:
     // Mutex for heap growth (serializes GrowOneSegment calls).
     std::mutex growMutex_;
 
-    // Dual CartesianTree for free unit management (same design as FreeRegionManager).
-    // dirty: units that have been used and reclaimed (contain stale data).
-    // released: units whose physical pages have been released (madvise DONTNEED).
+    // Dual CartesianTree for free region management (region-granularity).
+    // Tree Index = region index, Count = region count (not unit count).
+    // dirty: regions that have been used and reclaimed (contain stale data).
+    // released: regions whose physical pages have been released (madvise DONTNEED).
     std::mutex dirtyTreeMutex_;
     CartesianTree dirtyTree_;
 
     std::mutex releasedTreeMutex_;
     CartesianTree releasedTree_;
+
+    // O6 observability: allocation-source hit counts and ClearUnits costs.
+    std::atomic<uint64_t> allocFromDirtyCount_{0};
+    std::atomic<uint64_t> allocFromReleasedCount_{0};
+    std::atomic<uint64_t> allocFromBumpCount_{0};
+
+    std::atomic<uint64_t> clearUnitsCallCount_{0};
+    std::atomic<uint64_t> clearUnitsBytes_{0};
+    std::atomic<uint64_t> clearUnitsTimeNs_{0};
+    std::atomic<uint64_t> statsWindowStartNs_{0};
 };
 
 } // namespace MapleRuntime

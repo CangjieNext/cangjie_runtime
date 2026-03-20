@@ -1,0 +1,32 @@
+2026-03-19 20:52:00.428311 148553 E [MS-GC] ForceFinishSweep stats: bg=0, lazy=0, force=0, released=0, largeFreed=0
+2026-03-19 20:52:00.429266 148553 E [MS-GC] PrepareForSweep BEFORE swap: partialSwept=13, partialUnswept=0, fullSwept=9, fullUnswept=0
+2026-03-19 20:52:00.429292 148553 E [MS-GC] PrepareForSweep AFTER swap: partialSwept=0, partialUnswept=13, fullSwept=0, fullUnswept=9
+========================================
+  Cangjie GC Benchmark Suite
+  Tip: MRT_REPORT=./gc_bench.log cjHeapSize=256mb ./gc_benchmark
+========================================
+
+--- Functional Tests ---
+[BENCH] F1_TreeIntegrity         PASS  150 ms
+[BENCH] F2_Generational          PASS  317 ms
+[BENCH] F3_LargeObject           PASS  1915 ms
+[BENCH] F4_LinkedList            PASS  136 ms
+[BENCH] F5_HashMap               PASS  151 ms
+
+--- Performance Tests ---
+[BENCH] P1_SmallAlloc            299 ms  6553550 nodes  21918 nodes/ms
+[BENCH] P2_LargeAlloc            1062 ms  50 MB  48 MB/s
+[BENCH] P3_MixedWorkload         662 ms  30 rounds
+[BENCH] P4_LongLivedChurn        539 ms  persistent_intact=20/20
+[BENCH] P5_Fragmentation         881 ms  15 rounds
+
+========================================
+[BENCH] SUMMARY
+[BENCH] Functional: 5/5 passed
+[BENCH] P1_SmallAlloc:      299 ms
+[BENCH] P2_LargeAlloc:      1062 ms
+[BENCH] P3_MixedWorkload:   662 ms
+[BENCH] P4_LongLivedChurn:  539 ms
+[BENCH] P5_Fragmentation:   881 ms
+[BENCH] Total wall time:    6118 ms
+========================================

@@ -1,0 +1,3 @@
+dyld[16245]: Library not loaded: @rpath/libcangjie-runtime.dylib
+  Referenced from: <4C4C446D-5555-3144-A159-BFF3E88C80D9> /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/doc/benchmark/results/20260319_232218/gc_benchmark_ms2
+  Reason: no LC_RPATH's found

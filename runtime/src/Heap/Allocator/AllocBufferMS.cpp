@@ -253,6 +253,36 @@ void AllocBufferMS::FlushAll()
     }
 }
 
+// ============================================================================
+// BackgroundFillCache — O9: adaptive prefetch by gc-helper thread
+// ============================================================================
+void AllocBufferMS::BackgroundFillCache()
+{
+    if (UNLIKELY(central_ == nullptr)) {
+        return;
+    }
+    for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
+        if (cacheMiss_[cls] < kCacheFillThreshold) {
+            continue;
+        }
+        if (cachedRegion_[cls].load(std::memory_order_relaxed) != nullptr) {
+            cacheMiss_[cls] = 0;
+            continue;
+        }
+        MSRegionInfo* region = central_->GetRegion(cls);
+        if (region == nullptr) {
+            continue;
+        }
+        MSRegionInfo* expected = nullptr;
+        if (cachedRegion_[cls].compare_exchange_strong(expected, region,
+                std::memory_order_release, std::memory_order_relaxed)) {
+            cacheMiss_[cls] = 0;
+        } else {
+            central_->ReturnPartialRegion(region, cls);
+        }
+    }
+}
+
 } // namespace MapleRuntime
 
 #endif // MRT_USE_MARK_SWEEP

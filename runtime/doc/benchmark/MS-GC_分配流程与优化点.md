@@ -1,7 +1,7 @@
 # MS-GC 对象分配流程与优化点
 
-- **日期**: 2026-03-17
-- **代码版本**: GO_GC 分支 (f2838a53)
+- **日期**: 2026-03-19
+- **代码基线**: 当前工作区实现（以 runtime/src 中 MS-GC 代码为准）
 
 ---
 
@@ -20,12 +20,15 @@ RegionSpace::Allocate(size)               ← RegionSpace.cpp L172
   ├── ToAllocSize(size)   // size + HEADER_SIZE, 8字节对齐
   └── do { TryAllocateOnce() } while (retry)
         ↓
-      TryAllocateOnceMS(allocSize)        ← RegionSpace.cpp L37
+      TryAllocateOnceMS(allocSize)        ← RegionSpace.cpp
         │
         ├─ < 16KB  → AllocBufferMS::Allocate()    【小/中对象, 线程本地】
-        ├─ 16KB~4MB → MSRegionManager::TakeRegionForLarge()  【大对象】
-        └─ > 4MB   → LargeObjectSpace::Allocate()  【超大对象, 独立mmap】
+        └─ >= 16KB → MSRegionManager::TakeRegionForLarge()  【大对象, 主堆连续 region】
 ```
+
+> **当前实现说明**:
+> - 主分配路径已经收敛为 **两级路由**，不是旧文档中的“三级路由”。
+> - `LargeObjectSpace` 仍然存在，主要用于 GC 标记/清扫对 heap 外对象的统一处理；但 `TryAllocateOnceMS()` 当前**不会**按 `>4MB` 直接分流到 `LargeObjectSpace::Allocate()`。
 
 **重试策略** (`ShouldRetryAllocation`):
 - 第1~N次: `CJThreadResched()` 让出CPU
@@ -33,15 +36,14 @@ RegionSpace::Allocate(size)               ← RegionSpace.cpp L172
 - 第M次: 请求 GC (OOM reason)
 - 超过M次: 抛出 `OutOfMemoryError`
 
-## 2. 三级路由
+## 2. 二级路由（当前实现）
 
-`TryAllocateOnceMS()` (RegionSpace.cpp L37) 按大小分三级:
+`TryAllocateOnceMS()` 当前按 `kLargeObjectThreshold` 进行两级分流：
 
 | 层级 | 大小范围 | 路径 | 数据结构 |
 |------|---------|------|---------|
-| **Normal** | < 16KB (kLargeObjectThreshold) | AllocBufferMS → CentralRegionPool | per-thread TLAB + 四优先级链表 |
-| **Tier 1** | 16KB ~ 4MB | MSRegionManager::TakeRegionForLarge | CartesianTree bitmap |
-| **Tier 2** | > 4MB (kHugeObjectThreshold) | LargeObjectSpace::Allocate | 独立 mmap/munmap |
+| **Normal** | < 16KB (kLargeObjectThreshold) | AllocBufferMS → CentralRegionPool | per-thread TLAB + 四链表中央池 |
+| **Large** | >= 16KB | MSRegionManager::TakeRegionForLarge | 主堆连续 unit + MSRegionInfo span |
 
 **注意**: 16KB~32KB 的对象曾有 gap bug — `SizeToClass()` 溢出查表，`AllocBufferMS` 返回 0，无限重试导致 OOM。已修复：在 `TryAllocateOnceMS` 中用 `kLargeObjectThreshold` 而非 `MS_REGION_SIZE` 作为切分点。
 
@@ -69,15 +71,15 @@ AllocBufferMS::Allocate(size)              ← AllocBufferMS.cpp L50
   │   ├── RefillFromCentral(cls)   // 缓存空时从中央池取
   │   │   ├── P1: partialSwept    (CAS无锁Pop, 最快)
   │   │   ├── P2: partialUnswept  (需现场sweep)
-  │   │   ├── P3: fullUnswept     (sweep后可能有空闲)
-  │   │   └── P4: GetFreshRegion  (从MSRegionManager分配新region)
+    │   │   ├── P3: fullUnswept     (sweep后可能转成partial)
+    │   │   └── fallback: GetFreshRegion  (无可用缓存时从MSRegionManager取新region)
   │   ├── cachedRegion_[cls] = GetRegion(cls)  // ★ 预取下一个
   │   └── 从新region分配
   │
   └── Mark-at-alloc ──────────────────── 【GC阶段特殊处理】
-      └── if phase ∈ [MARK_SETUP, CONCURRENT_MARK, MARK_TERMINATION]:
+      └── if phase ∈ [MARK_SETUP, SWEEP]:
           ├── MarkObject(newObj)    // 新对象标黑, 保证存活
-          └── // TODO(O5): gcAssistBytes mutator辅助逻辑当前被注释未生效
+        └── // gcAssistBytes_ 仍在结构体中保留，但当前分配热路径未使用
 ```
 
 ### 关键数据结构 — AllocBufferMS（每线程一个）
@@ -87,7 +89,7 @@ Per-Thread AllocBufferMS
 ├── activeRegions_[36]    // 每个SizeClass最多一个活跃region
 ├── cachedRegion_[36]     // ★ 每个SizeClass预取的备用region（已实现）
 ├── central_              // 指向全局CentralRegionPool
-└── gcAssistBytes_        // mutator辅助计数器（当前未生效）
+└── gcAssistBytes_        // mutator辅助计数器（当前仅保留字段，未接入分配路径）
 ```
 
 - **FastAlloc 无锁**: activeRegions_ 是线程本地的，无需同步
@@ -153,9 +155,9 @@ Region 首次使用为 BUMP → 经 sweep 后变 PARTIAL。但 **完全空闲的
 
 此优化（原 O3 建议）**已在代码中实现**。
 
-## 5. CentralRegionPool 四优先级补充
+## 5. CentralRegionPool 四链表与获取路径
 
-`CentralRegionPool::GetRegion(cls)` (CentralRegionPool.cpp L30):
+`CentralRegionPool` 当前每个 size class 维护四条链表，但真正的获取路径是“P1/P2/P3 + fresh fallback”，不是把 `fullSwept` 当作直接分配优先级：
 
 ```
 每个 SizeClass 一个 Bucket:
@@ -166,30 +168,32 @@ Region 首次使用为 BUMP → 经 sweep 后变 PARTIAL。但 **完全空闲的
 │  P1: partialSwept  ← LockFreeRegionStack (CAS)   │ ★ 无锁
 │  P2: partialUnswept ← MSRegionList (加锁)        │
 │  P3: fullUnswept    ← MSRegionList (加锁)        │
-│  P4: fullSwept      ← MSRegionList (加锁)        │
+│  fullSwept          ← MSRegionList (加锁, 存储态) │
 └───────────────────────────────────────────────────┘
 ```
 
 **获取流程**:
 1. **P1 partialSwept**: **CAS 无锁 Pop**（`compare_exchange_weak`）→ 直接返回（最快，无 sweep 无锁）
-2. **P2 partialUnswept**: 加锁取出 → CAS sweepGen 抢 sweep 所有权 → 现场 sweep → 全空时 ResetToBump → 返回
+2. **P2 partialUnswept**: 加锁取出 → CAS sweepGen 抢 sweep 所有权 → 现场 sweep → 全空时 `ReleaseRegionInternal()` 归还给 `MSRegionManager`，否则返回 `PARTIAL`
 3. **P3 fullUnswept**: 加锁取出 → CAS sweep → 有空闲则返回，仍满则移到 fullSwept
-4. **P4 GetFreshRegion**: 从 MSRegionManager 分配全新 region（InitForSizeClass + allocBitmap）
+4. **fallback / GetFreshRegion**: 前三步都没有可用 region 时，从 `MSRegionManager` 分配全新 region（`InitForSizeClass + allocBitmap`）
 
 > **P1 的 LockFreeRegionStack**: Push/Pop 均使用 CAS 循环，memory_order 为 Push=release, Pop=acquire。注释说明"No ABA risk"——因为 Pop 后 Region 被线程独占。
 
 **归还分类** (ReturnRegion):
-- 完全空闲 → `ReleaseRegion()` 归还 MSRegionManager
-- 部分空闲 → `ReturnPartialRegion()` → partialSwept 链表
+- 完全空闲 → `ResetToBump()` 后走 `ReturnPartialRegion()`，保留 bitmap，作为 BUMP region 复用
+- 部分空闲 → `ReturnPartialRegion()` → partialSwept / partialUnswept
 - 满 → `ReturnFullRegion()` → fullSwept 链表
 
 **延迟 sweep 翻代** (PrepareForSweep):
+- STW 内先 `FlushAllAllocBuffers()`，再做 generation flip，避免 mutator 持有旧 region 跨代
+- `partialSwept` 会被 drain 到 `partialUnswept`，`fullSwept` 与 `fullUnswept` 交换
 - `globalSweepGen_ += 2`，O(1) 操作
-- 所有 "swept" region 逻辑上变成 "unswept"，无需移动链表
+- 实际 per-region sweep 由 lazy sweep 或 `BackgroundSweep()` 完成；当前 `NotifyToSweep()` 已接线
 
-## 6. 大对象分配（16KB - 4MB）
+## 6. 大对象分配（当前实现：>= 16KB 都走主堆）
 
-`TryAllocateOnceMS()` 中 (RegionSpace.cpp L48):
+`TryAllocateOnceMS()` 当前大对象路径如下：
 
 ```
 allocSize >= 16KB?
@@ -202,15 +206,17 @@ MSRegionManager::TakeRegionForLarge(unitCount, regionStart)
   │         ├── baseInfo->isMarked = 1  (防止被误sweep)
   │         └── CentralRegionPool 登记 (byte accounting)
   │
-  ├── 失败 → ForceFinishSweep()  // 同步sweep所有小对象region释放内存
-  │         └── 重试 TakeRegionForLarge
-  │
-  └── 再失败 → RequestGC(OOM) → WaitForGCFinish → 最后重试一次
+  └── 失败 → RequestGC(OOM) → WaitForGCFinish → 重试一次 TakeRegionForLarge
 ```
 
-**TakeRegionForLarge 内部**: `TakeUnitsAligned()` 从 CartesianTree 找连续空闲 unit，按 `MS_REGION_SIZE` 对齐。
+**TakeRegionForLarge 内部**:
+- 会把 `unitCount` 向上补齐到 `unitsPerMSRegion_` 的整数倍，保证对象跨度与 `MS_REGION_SIZE` 边界一致
+- `TakeUnitsAligned()` 优先从 `dirtyTree/releasedTree` 复用，再尝试 `inactiveZone` 和 `GrowOneSegment()`
 
-**性能瓶颈**: `ForceFinishSweep()` 在大对象分配路径上同步阻塞，遍历 36 个 bucket 的所有 unswept region 逐个 sweep。
+**当前状态**:
+- 大对象分配路径里的同步 `ForceFinishSweep()` 已移除
+- 剩余问题更偏向于 sweep 及时性/一致性，以及大对象需要连续 unit 时对碎片更敏感
+- `LargeObjectSpace` 基础设施依然存在，但当前主分配路径没有基于阈值切过去
 
 
 ## 8. 关键参数
@@ -221,10 +227,11 @@ MSRegionManager::TakeRegionForLarge(unitCount, regionStart)
 | ALLOC_ALIGN | 8B | 最小对齐 |
 | kNumSizeClasses | 36 | 覆盖 8B ~ 16KB |
 | kLargeObjectThreshold | 16KB | 小→大分界线 |
-| kHugeObjectThreshold | 4MB | 大→超大分界线 |
 | kGCAssistTriggerBytes | 64KB | mutator 辅助标记触发阈值 |
 | MSRegionInfo | 64B | 一个 cache line，per-region 元数据 |
 | SizeClass 步长 | 8B→2048B | 小尺寸步长小，大尺寸步长大 |
+
+> **注**: 代码中仍保留“Tier 2 / >4MB LOS”相关注释和 `LargeObjectSpace` 实现，但当前 `TryAllocateOnceMS()` 没有 `kHugeObjectThreshold` 这一路由常量或分支。
 
 ### SizeClass 分布
 
@@ -249,11 +256,11 @@ MSRegionManager::TakeRegionForLarge(unitCount, regionStart)
   ├── BUMP        MSRegionInfo::AllocBump       无        ★★★★
   └── BITMAP      MSRegionInfo::AllocFromBitmapFast  无   ★★★★
 慢速补充          AllocBufferMS::SlowAlloc      无        ★★★
-中央池取region    CentralRegionPool::GetRegion  mutex     ★★★   ← 竞争点
+中央池取region    CentralRegionPool::GetRegion  P1无锁 / 其余加锁  ★★★
   └── 现场sweep   MSRegionInfo::SweepRegion     CAS       ★★
 新region分配      MSRegionManager::TakeRegion   mutex     ★★
 大对象分配        TakeRegionForLarge            mutex     ★
-  └── 强制sweep   ForceFinishSweep              mutex     ★    ← 阻塞热点
+后台清扫          BackgroundSweep               bucket.lock/CAS   ★
 ```
 
 ---
@@ -296,24 +303,24 @@ MSRegionManager::TakeRegionForLarge(unitCount, regionStart)
 
 ---
 
-### O5: ForceFinishSweep 去阻塞 ⭐⭐⭐
+### O5: 大对象路径移除 ForceFinishSweep 阻塞 ✅ 已实现
 
-**现状**: 大对象分配失败时调用 `ForceFinishSweep()` 同步遍历 36 个 bucket 的所有 unswept region 逐个 sweep，阻塞当前线程。
+**当前实现**: 大对象分配失败后，`TryAllocateOnceMS()` 不再先调用 `ForceFinishSweep()`；而是直接触发 `RequestGC(GC_REASON_OOM)`，等待 GC 完成后只重试一次 `TakeRegionForLarge()`。
 
-**问题**: P2_LargeAlloc 差距 +26% 的主要来源之一。200 × 256KB 分配时频繁触发。
+**收益**: 移除了分配线程上的同步 sweep 阻塞，把 sweep 推回 GC 阶段 / 后台线程 / lazy sweep。
 
-**方案**:
-- 后台 sweep 线程持续推进（`BackgroundSweep` 已有但 `NotifyToSweep` 被注释掉）
-- 分配时只 sweep 1 个 region（Go 的 `sweepone()`），其余交给后台
-- 大对象优先从 inactive zone 扩展，避免依赖小对象 sweep 释放
+**剩余问题**:
+- `PrepareForSweep: fullUnswept COUNT MISMATCH`
+- `ForceFinishSweep CAS FAIL` 仍说明 sweep 子系统的一致性问题没有解决
+- 大对象仍需要连续 unit，对碎片和 sweep 及时性敏感
 
-**预期**: 大对象分配去掉同步 sweep 阻塞，P2 测试项 -8~12%。
+**结论**: O5 的“去阻塞”部分已经落地，但“让 sweep 更稳定、更及时”仍是当前性能与正确性瓶颈。
 
 ---
 
 ### O6: Mark-at-alloc 相位检查消除 ⭐
 
-**现状**: 每次分配后读 `GetMutatorPhase()` 判断是否在 mark 阶段。绝大部分时间 GC idle，分支永远不走。
+**现状**: 每次成功分配后都读 `GetMutatorPhase()`；当前相位范围是 `MARK_SETUP ... SWEEP`，绝大部分时间 GC idle，分支不会命中。
 
 **问题**: 虽有 `UNLIKELY` 标注，CPU 仍需做 branch prediction + 内存访问（读 mutatorPhase atomic）。
 
@@ -335,14 +342,58 @@ AllocFn allocFn_;  // GC idle: AllocateIdle;  GC marking: AllocateMarking
 
 ---
 
+## 10. 基于当前代码的新增优化建议
+
+### O8: 修复 PrepareForSweep 链表一致性，再谈 sweep 并发度
+
+**依据**: 当前代码在 `PrepareForSweep()` 中仍能打出 `fullUnswept COUNT MISMATCH`，说明链表计数和实际遍历不一致，继续叠加 sweep 优化会放大正确性风险。
+
+**建议**:
+- 优先把 `MSRegionList::count_` 与真实链路维护修正到可验证状态
+- 给 `DrainTo/Swap/TakeHead/Prepend/Remove` 增加一致性断言或 debug-only 校验
+- 先保证 sweep 代际翻转正确，再评估更激进的并发 sweep 策略
+
+### O9: 把 cachedRegion 预取从“同步拿一个”改成“按压力自适应”
+
+**依据**: 当前 `SlowAlloc()` 在设置新 active region 后，会同步再调一次 `central_->GetRegion(cls)` 预取一个缓存 region。这个动作发生在 mutator 线程上，可能把慢路径锁竞争拉长。
+
+**建议**:
+- 仅在该 size class 近期频繁 miss 时才预取
+- 或者改成后台/批量填充，而不是每次 SlowAlloc 都立即再取一个
+- 同时记录各 size class 的 cache hit/miss，再决定是否值得扩成 2-depth cache
+
+### O10: 区分“GC 运行中”和“需要 mark-at-alloc”的更细粒度快路径
+
+**依据**: 当前 `Allocate()` 只要成功分配，就会读取 mutator phase，并在 `MARK_SETUP ... SWEEP` 整段区间内执行 `MarkObject()`。这保证了正确性，但把 idle 和 active-GC 的热路径混在一起。
+
+**建议**:
+- 用函数指针或轻量状态位切分 idle / active-GC 两种分配函数
+- 至少先把 idle 场景做成无 phase 读取的纯 fast path
+- 如果担心切换成本，可只在 phase 迁移时更新线程本地标记
+
+### O11: 大对象优先消耗 inactiveZone，减少对树结构的连续块竞争
+
+**依据**: `TakeUnitsAligned()` 当前优先尝试 `dirtyTree/releasedTree`，复用旧空间有利于压低 watermark，但对需要连续大块的对象，碎片化区间的尝试成本更高。
+
+**建议**:
+- 对大对象请求增加“优先 inactiveZone / committed tail”的策略分支
+- 当 `unitCount` 超过阈值时，先尝试从 committed tail 直接 bump 获取连续块
+- 失败后再回退到树结构，避免在碎片严重时反复扫描和切分
+
+---
+
 ### 优化收益排序
 
 | 优先级 | 优化 | 状态 | 预期收益 | 改动量 | 风险 |
 |:------:|------|:----:|:--------:|:------:|:----:|
-| **P0** | O5: ForceFinishSweep 去阻塞 | ❌ 未实现 | -5~8% (P2,P3) | 中 | 中 |
+| ~~P0~~ | ~~O5: 大对象路径移除 ForceFinishSweep 阻塞~~ | ✅ 已实现 | — | — | — |
+| **P0** | O8: 修复 PrepareForSweep 链表一致性 | ❌ 未实现 | 正确性优先 | 中 | 中 |
 | ~~P0~~ | ~~O1: partialSwept 去锁~~ | ✅ 已实现 | — | — | — |
 | ~~P1~~ | ~~O2: 批量预取 region~~ | ✅ 已实现 | — | — | — |
 | ~~P1~~ | ~~O3: BUMP 模式复用~~ | ✅ 已实现 | — | — | — |
 | ~~P2~~ | ~~O4: Bitmap 分层索引~~ | ✅ 已实现 | — | — | — |
+| **P1** | O11: 大对象优先 inactiveZone | ❌ 未实现 | 3~8% (大对象/碎片场景) | 中 | 中 |
 | **P1** | O6: Mark-at-alloc 消除 | ❌ 未实现 | <1% | 中 | 中 |
+| **P1** | O9: cachedRegion 自适应预取 | ❌ 未实现 | 1~3% | 中 | 中 |
 | **P2** | O7: TLS 开销消除 | ❌ 未实现 | <1% | 小 | 低 |
+| **P2** | O10: idle/active-GC 双快路径 | ❌ 未实现 | <1% | 中 | 中 |

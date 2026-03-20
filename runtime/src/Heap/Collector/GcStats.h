@@ -29,6 +29,11 @@ public:
 
     size_t GetThreshold() const { return heapThreshold; }
 
+    // O1 fix: baseline for trigger metric consistency.
+    // Effective allocation = lastTrueLiveBytes + max(0, currentAllocated - baselineAllocatedBytes).
+    size_t baselineAllocatedBytes = 0;  // totalMSRegionBytes_ snapshot at GC end
+    size_t lastTrueLiveBytes = 0;       // trueLiveBytes from last GC marking
+
     void Dump() const;
 
     static uint64_t GetPrevGCStartTime() { return prevGcStartTime; }
