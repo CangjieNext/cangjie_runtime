@@ -168,25 +168,53 @@ void MarkSweepCollector::MarkSetup()
             centralPool->FlushAllAllocBuffers();
         }
 
-        // Clear all MSRegionInfo markBitmaps (small objects)
-        // Must be done while ALL regions are in central pool (i.e., during STW).
+        // ClearMarkBitmaps optimization (P0):
+        // SweepRegion() already clears markBitmap via memset after sweep.
+        // InitForSizeClass() and ResetToBump() also initialize markBitmap to zero.
+        // ForceFinishSweep() (Phase A above) guarantees all regions are swept
+        // before we reach this point. Therefore the STW bitmap clear is redundant.
+#ifdef MRT_DEBUG
+        // Debug mode: verify all markBitmaps are indeed zero; report + fix if not.
         {
             uint64_t t0 = TimeUtil::MicroSeconds();
-            size_t clearedRegions = 0;
+            size_t checkedRegions = 0;
+            size_t dirtyRegions = 0;
             if (centralPool != nullptr) {
-                centralPool->VisitAllRegions([&clearedRegions](MSRegionInfo* region) {
+                centralPool->VisitAllRegions([&checkedRegions, &dirtyRegions](MSRegionInfo* region) {
                     size_t wordCount = (region->totalSlotCount + 63) / 64;
                     if (region->markBitmap != nullptr && wordCount > 0) {
-                        memset(region->markBitmap, 0, wordCount * sizeof(uint64_t));
+                        bool dirty = false;
+                        for (size_t i = 0; i < wordCount; i++) {
+                            if (region->markBitmap[i] != 0) {
+                                dirty = true;
+                                break;
+                            }
+                        }
+                        if (dirty) {
+                            dirtyRegions++;
+                            LOG(RTLOG_ERROR, "[MS-GC] DEBUG: dirty markBitmap in region %p (cls=%u, sweepState=%d)",
+                                region, (unsigned)region->sizeClass, (int)region->sweepState);
+                            memset(region->markBitmap, 0, wordCount * sizeof(uint64_t));
+                        }
                     }
-                    clearedRegions++;
+                    checkedRegions++;
                 });
             }
             cycleStats_.clearBitmapUs = TimeUtil::MicroSeconds() - t0;
-            cycleStats_.clearBitmapRegions = clearedRegions;
-            VLOG(REPORT, "[MS-GC] ClearMarkBitmaps: %zu regions, %sus",
-                 clearedRegions, Pretty(cycleStats_.clearBitmapUs).Str());
+            cycleStats_.clearBitmapRegions = checkedRegions;
+            if (dirtyRegions > 0) {
+                LOG(RTLOG_ERROR, "[MS-GC] ClearMarkBitmaps DEBUG: %zu/%zu regions had dirty bitmaps!",
+                    dirtyRegions, checkedRegions);
+            }
+            VLOG(REPORT, "[MS-GC] ClearMarkBitmaps(verify): %zu regions checked, %zu dirty, %sus",
+                 checkedRegions, dirtyRegions, Pretty(cycleStats_.clearBitmapUs).Str());
         }
+#else
+        // Release mode: skip bitmap clear entirely — already done by SweepRegion().
+        cycleStats_.clearBitmapUs = 0;
+        cycleStats_.clearBitmapRegions = 0;
+        VLOG(REPORT, "[MS-GC] ClearMarkBitmaps: skipped (swept-clean invariant)");
+#endif
 
         // Clear LOS marks (Tier 2: large objects use region-level isMarked flag)
         LargeObjectSpace* los = space.GetLargeObjectSpace();
