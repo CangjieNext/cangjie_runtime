@@ -10,7 +10,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include "Interpreter/Options.h"
 #include "Interpreter/RuntimeTypes.h"
 
 #ifdef __cplusplus

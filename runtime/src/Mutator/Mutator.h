@@ -20,6 +20,7 @@
 #ifdef _WIN64
 #include "UnwindWin.h"
 #endif
+#include "Interpreter/Options.h"
 #include "Interpreter/RTInterface.h"
 
 
