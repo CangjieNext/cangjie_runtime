@@ -164,7 +164,7 @@ function(add_cangjie_library target_name)
     endif()
     # Do not use ${CMAKE_EXECUTABLE_SUFFIX} here, because its value is determined by the target platform, not the host.
     # Determine the suffix according to the host instead.
-    set(cangjie_compiler_tool "cjc$<$<BOOL:${CMAKE_HOST_WIN32}>:.exe>")
+    set(cangjie_compiler_tool "$ENV{CANGJIE_HOME}/bin/cjc$<$<BOOL:${CMAKE_HOST_WIN32}>:.exe>")
 
     # create building task
     if(CANGJIELIB_IS_PRELUDE)
@@ -255,10 +255,10 @@ function(add_cangjie_library target_name)
         BYPRODUCTS ${output_full_name}
         DEPENDS ${CANGJIELIB_DEPENDS} ${CANGJIELIB_SOURCE_DIR}
         COMMENT "Generating ${target_name}")
+    # Generate .bc files for LTO on Linux, OHOS, macOS, and iOS (not Windows, not with sanitizer)
     if(CANGJIE_CODEGEN_CJNATIVE_BACKEND
        AND NOT WIN32
-       AND NOT CANGJIE_SANITIZER_SUPPORT_ENABLED
-       AND NOT DARWIN)
+       AND NOT CANGJIE_SANITIZER_SUPPORT_ENABLED)
         add_custom_target(
             ${target_name}_bc ALL
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/${output_bc_dir}
@@ -320,8 +320,7 @@ function(add_cangjie_library target_name)
     endif()
 
     if(CANGJIE_CODEGEN_CJNATIVE_BACKEND
-       AND NOT WIN32
-       AND NOT DARWIN)
+       AND NOT WIN32)
         list(APPEND install_files ${output_lto_bc_full_name})
     endif()
     if(CANGJIE_CODEGEN_CJNATIVE_BACKEND)
