@@ -20,6 +20,7 @@
 #include "Heap/Collector/GcRequest.h"
 namespace MapleRuntime {
 std::mutex ExceptionManager::gUncaughtExceptionHandlerMtx;
+std::mutex ExceptionManager::gOOMHandlerMtx;
 void ExceptionManager::OutOfMemory()
 {
     ExceptionWrapper& eWrapper = Mutator::GetMutator()->GetExceptionWrapper();
@@ -36,6 +37,14 @@ void ExceptionManager::OutOfMemory()
                 Heap::GetHeap().GetCollectorResources().RequestHeapDump(GCTask::TaskType::TASK_TYPE_DUMP_HEAP_OOM);
             }
         }
+        const char* domain = "FRAMEWORK";
+        const char* event = "ARK_STATS_DUMP";
+        Heap& heap = Heap::GetHeap();
+        size_t activeMemory = heap.GetCurrentCapacity();
+        size_t limitSize = heap.GetMaxCapacity();
+        LOG(RTLOG_ERROR, "OOM: activeMemory=%zu, limitSize=%zu", activeMemory, limitSize);
+        Runtime::Current().GetExceptionManager().GetOOMHandler().oomInfoTask(domain, event, 1, limitSize, activeMemory);
+        LOG(RTLOG_ERROR,"oom Register finish\n");
         ThrowImplicitException(OOM);
     } else {
         std::vector<uint64_t>& liteFrameInfos = eWrapper.GetLiteFrameInfos();
@@ -96,11 +105,30 @@ void ExceptionManager::RegisterUncaughtExceptionHandler(const CJUncaughtExceptio
 }
 #endif
 
-#ifdef __APPLE__
+#if defined(__OHOS__) && (__OHOS__ == 1)
+void ExceptionManager::RegisterOOMHandler(CJOOMInfo handler)
+{
+    std::lock_guard<std::mutex> lock(gOOMHandlerMtx);
+    oomHandler = handler;
+}
+#endif
+
+#ifdef __IOS__
 void ExceptionManager::DefaultUncaughtTask(const char* sunmary, const CJErrorObject errorObj)
 {
     (void)sunmary;
     (void)errorObj;
+    abort();
+}
+
+void ExceptionManager::DefaultOOMInfoTask(const char* domain, const char* event, const size_t hiSysEventType,
+        const size_t limitSize, const size_t activeMemory)
+{
+    (void)domain;
+    (void)event;
+    (void)hiSysEventType;
+    (void)limitSize;
+    (void)activeMemory;
     abort();
 }
 #endif

@@ -702,6 +702,14 @@ void RegisterUncaughtExceptionHandler(const CJUncaughtExceptionInfo& handler)
 }
 #endif
 
+#if defined(__OHOS__) && (__OHOS__ == 1)
+void RegisterOOMHandler(const CJOOMInfo& handle)
+{
+    MapleRuntime::ExceptionManager& exceptionManager = MapleRuntime::Runtime::Current().GetExceptionManager();
+    exceptionManager.RegisterOOMHandler(handle);
+}
+#endif
+
 char* CJ_MRT_DemangleHandle(const char* functionName)
 {
     MapleRuntime::MangleNameHelper helper(functionName);
