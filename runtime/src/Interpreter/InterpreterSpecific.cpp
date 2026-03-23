@@ -22,6 +22,7 @@
 #include "Heap/Collector/Collector.h"
 #include "StackManager.h"
 #include "LoaderManager.h"
+#include "UnwindStack/UnwindCApi.h"
 
 #include "InterpreterSpecific.h"
 
@@ -500,6 +501,8 @@ void InitInterpreter(const RuntimeParam& runtimeParam)
         .is_pending_safe_point = &IsPendingSafePoint,
         .enter_safe_region = &MRT_EnterSaferegion,
         .leave_safe_region = &MRT_LeaveSaferegion,
+        .save_context_for_native_call = reinterpret_cast<save_context_for_native_call_f>(&MRT_SaveC2NContext),
+        .delete_context_for_native_call = reinterpret_cast<delete_context_for_native_call_f>(&MRT_DeleteC2NContext),
         .throw_exception = &ThrowException,
         .throw_OOM = &ThrowOutOfMemoryError,
         .get_pending_exception = &GetPendingException,
@@ -552,6 +555,15 @@ bool Isi2iAdapterStartAddr(const uintptr_t address)
     DLOG_INTERPRETER(DEBUG, "[Interpreter] Checking i2i function borders: is %p in [%p, %p)? -- %s", address,
         interpreterInterfaceInstance->i2iAdapterStartAddr,
         interpreterInterfaceInstance->i2iAdapterEndAddr, res ? "true" : "false");
+    return res;
+}
+
+bool IsI2NStubAddr(const uintptr_t address)
+{
+    bool res = interpreterInterfaceInstance->i2nStubStartAddr <= address && address < interpreterInterfaceInstance->i2nStubEndAddr;
+    DLOG_INTERPRETER(DEBUG, "[Interpreter] Checking i2n stub borders: is %p in [%p, %p)? -- %s", address,
+        interpreterInterfaceInstance->i2nStubStartAddr,
+        interpreterInterfaceInstance->i2nStubEndAddr, res ? "true" : "false");
     return res;
 }
 

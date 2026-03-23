@@ -602,6 +602,24 @@ typedef bool (*is_active_gc_phase_f)(thread_local_data_t);
 //
 typedef void* (*stack_grow_stub_f)();
 
+//
+// Save context before entering native code.
+//
+// params:
+// - pc - program counter before calling native code
+// - fa - frame address of the caller
+// - tld - thread local data
+//
+typedef void (*save_context_for_native_call_f)(const uint32_t* pc, void* fa, thread_local_data_t tld);
+
+//
+// Delete context after returning from native code.
+//
+// params:
+// - tld - thread local data
+//
+typedef void (*delete_context_for_native_call_f)(thread_local_data_t tld);
+
 // Retrieves the current ExceptionWrapper.
 //
 // return: pointer to ExceptionWrapper
@@ -652,6 +670,9 @@ struct interpreter_interface_t {
     uintptr_t i2iAdapterStartAddr;
     uintptr_t i2iAdapterEndAddr;
 
+    uintptr_t i2nStubStartAddr;
+    uintptr_t i2nStubEndAddr;
+
     iterate_frames_with_state_f iterate_frames_with_state;
     visit_frame_roots_expansion_f visit_frame_roots_expansion;
     visit_frame_roots_marking_f visit_frame_roots_marking;
@@ -679,8 +700,11 @@ struct cjnative_interface_t {
     array_alloc_f array_alloc;
     safe_point_f safe_point;
     is_pending_safe_point_f is_pending_safe_point;
+
     enter_safe_region_f enter_safe_region;
     leave_safe_region_f leave_safe_region;
+    save_context_for_native_call_f save_context_for_native_call;
+    delete_context_for_native_call_f delete_context_for_native_call;
 
     throw_exception_f throw_exception;
     throw_OOM_f throw_OOM;

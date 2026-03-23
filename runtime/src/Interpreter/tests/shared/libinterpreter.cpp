@@ -27,6 +27,11 @@ extern "C" {
     get_thread_local_data_f g_GetThreadLocalDataPtr = nullptr;
     stack_grow_stub_f g_CJ_MCC_StackGrowStubPtr = nullptr;
     C2N_Stub_f g_C2NStubPtr = nullptr;
+    enter_safe_region_f g_EnterSaferegionPtr = nullptr;
+    leave_safe_region_f g_LeaveSaferegionPtr = nullptr;
+    save_context_for_native_call_f g_SaveContextForNativeCallPtr = nullptr;
+    delete_context_for_native_call_f g_DeleteContextForNativeCallPtr = nullptr;
+    throw_pending_exception_f g_ThrowPendingExceptionPtr = nullptr;
     size_t g_InterpreterStackReserveSize = 0;
 }
 
@@ -41,6 +46,9 @@ Mock::Mock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cj
 
     interpreter_interf->i2iAdapterStartAddr = (uintptr_t) I2I_Stub;
     interpreter_interf->i2iAdapterEndAddr = (uintptr_t) I2I_Stub_End;
+
+    interpreter_interf->i2nStubStartAddr = (uintptr_t) I2N_Stub;
+    interpreter_interf->i2nStubEndAddr = (uintptr_t) I2N_Stub_End;
 
     interpreter_interf->landing_pad = &LandingPadWrapper;
 
@@ -72,9 +80,14 @@ Mock::Mock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cj
     g_GetCurrentCatchFunctionPCPtr = cjnative_interf->get_current_catch_function_PC;
     g_ThrowExceptionPtr = cjnative_interf->throw_exception;
     g_GetThreadLocalDataPtr = cjnative_interf->get_thread_local_data;
+    g_EnterSaferegionPtr = cjnative_interf->enter_safe_region;
+    g_LeaveSaferegionPtr = cjnative_interf->leave_safe_region;
+    g_SaveContextForNativeCallPtr = cjnative_interf->save_context_for_native_call;
+    g_DeleteContextForNativeCallPtr = cjnative_interf->delete_context_for_native_call;
 
     g_CJ_MCC_StackGrowStubPtr = reinterpret_cast<stack_grow_stub_f>(get_symbol_address("CJ_MCC_StackGrowStub"));
     g_C2NStubPtr = reinterpret_cast<C2N_Stub_f>(get_symbol_address("CJ_MCC_C2NStub"));
+    g_ThrowPendingExceptionPtr = reinterpret_cast<throw_pending_exception_f>(get_symbol_address("MRT_ThrowPendingException"));
     assert(g_CJ_MCC_StackGrowStubPtr != nullptr);
 }
 

@@ -39,7 +39,8 @@ enum class FrameType {
 #ifdef INTERPRETER_ENABLED
     INTERPRETER = 10,
     INTERPRETER_C2I = 11,
-    INTERPRETER_I2I = 12
+    INTERPRETER_I2I = 12,
+    INTERPRETER_I2N = 13
 #endif
 };
 
@@ -170,6 +171,8 @@ public:
     bool IsC2IStubFrame() const;
 
     bool IsI2IFrame() const;
+
+    bool IsI2NFrame() const;
 #endif
 
     bool IsN2CStubFrame() const;

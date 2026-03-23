@@ -71,6 +71,9 @@ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) con
     auto markingStackVisitor = [this, &func](visiting_state_t state) {
         for (const auto& frame : stack) {
             switch (frame.GetFrameType()) {
+                case FrameType::INTERPRETER_I2N:
+                    // all roots are saved in interpreted frame producing I2N call, I2N adapter does not save any references
+                    break; 
                 case FrameType::INTERPRETER:
                     VisitInterpreterFrameRootsMarking(state, frame, &func);
                     break;
@@ -122,6 +125,8 @@ void GCStackInfo::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, con
     auto adjustingStackVisitor = [this, &rootVisitor, &derivedPtrVisitor](visiting_state_t state) {
         for (const auto& frame : stack) {
             switch (frame.GetFrameType()) {
+                case FrameType::INTERPRETER_I2N:
+                    break;
                 case FrameType::INTERPRETER:
                     VisitInterpreterFrameRootsAdjusting(state, frame, &rootVisitor, &derivedPtrVisitor);
                     break;
