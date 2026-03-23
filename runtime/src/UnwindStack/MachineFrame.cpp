@@ -6,6 +6,7 @@
 
 
 #include "Base/Log.h"
+#include "Base/LogFile.h"
 #include "Base/MemUtils.h"
 #include "Common/StackType.h"
 #include "StackManager.h"
@@ -30,6 +31,10 @@ extern uintptr_t unwindPCForRuntimeStubEnd;
 extern uintptr_t unwindPCForC2NStubExceptionReturn;
 extern uintptr_t CalleeSavedStubFrameSize;
 extern uintptr_t C2NStubFrameSize;
+#endif
+#if defined(INTERPRETER_ENABLED) && defined(__x86_64__) && defined(__linux__)
+extern uintptr_t CJ_MCC_I2NStub;
+extern uintptr_t CJ_MCC_I2NStubEnd;
 #endif
 
 namespace MapleRuntime {
@@ -71,8 +76,20 @@ bool MachineFrame::IsI2IFrame() const {
     return Isi2iAdapterStartAddr(reinterpret_cast<uintptr_t>(ip));
 }
 
-bool MachineFrame::IsI2NFrame() const {
-    return IsI2NStubAddr(reinterpret_cast<uintptr_t>(ip));
+bool MachineFrame::IsI2NFrame() const
+{
+#if defined(__x86_64__) && defined(__linux__)
+    uintptr_t address = reinterpret_cast<uintptr_t>(ip);
+    uintptr_t i2nStubStartAddr = reinterpret_cast<uintptr_t>(&CJ_MCC_I2NStub);
+    uintptr_t i2nStubEndAddr = reinterpret_cast<uintptr_t>(&CJ_MCC_I2NStubEnd);
+    bool res = i2nStubStartAddr <= address && address < i2nStubEndAddr;
+    DLOG_INTERPRETER(DEBUG, "[Interpreter] Checking i2n stub borders: is %p in [%p, %p)? -- %s", address,
+        i2nStubStartAddr,
+        i2nStubEndAddr, res ? "true" : "false");
+    return res;
+#else
+    return false;
+#endif
 }
 #endif
 

@@ -273,21 +273,6 @@ typedef void (*safe_point_f)();
 //
 typedef bool (*is_pending_safe_point_f)(thread_local_data_t);
 
-// Enter safe region. This method can be called before executing long-running "foreign" code.
-//
-// params:
-// - updateUnwindContext: true if CJNative runtime should update UnwindContext for current Mutator.
-//
-// return: true if Mutator wasn`t is safe region and sucessfully entered it, false - otherwise
-//
-typedef bool (*enter_safe_region_f)(bool updateUnwindContext);
-
-// Leave safe region. This method can be called after executing long-running "foreign" code.
-//
-// return: true if Mutator was in safe region and successfully left it, false - otherwise
-//
-typedef bool (*leave_safe_region_f)();
-
 // C2N_Stub function, can be reused as implementation of I2N call.
 // TODO avoid using it
 typedef void (*C2N_Stub_f)();
@@ -383,12 +368,6 @@ typedef obj_ref_t (*get_pending_exception_f)();
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
 typedef obj_ref_t (*get_and_clear_pending_exception_f)();
-
-// Propagate pending exception if one is set. Can be used after returning from native code.
-// params:
-// - sigContext - signal context (can be nullptr)
-//
-typedef void (*throw_pending_exception_f)(void* sigContext);
 
 
 // Check that given object is an instance of given type.
@@ -608,23 +587,8 @@ typedef bool (*is_active_gc_phase_f)(thread_local_data_t);
 //
 typedef void* (*stack_grow_stub_f)();
 
-//
-// Save context before entering native code.
-//
-// params:
-// - pc - program counter before calling native code
-// - fa - frame address of the caller
-// - tld - thread local data
-//
-typedef void (*save_context_for_native_call_f)(const uint32_t* pc, void* fa, thread_local_data_t tld);
-
-//
-// Delete context after returning from native code.
-//
-// params:
-// - tld - thread local data
-//
-typedef void (*delete_context_for_native_call_f)(thread_local_data_t tld);
+// I2N_Stub function.
+typedef uintptr_t (*i2n_stub_f)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, void*, thread_local_data_t);
 
 // Retrieves the current ExceptionWrapper.
 //
@@ -707,11 +671,6 @@ struct cjnative_interface_t {
     safe_point_f safe_point;
     is_pending_safe_point_f is_pending_safe_point;
 
-    enter_safe_region_f enter_safe_region;
-    leave_safe_region_f leave_safe_region;
-    save_context_for_native_call_f save_context_for_native_call;
-    delete_context_for_native_call_f delete_context_for_native_call;
-
     throw_exception_f throw_exception;
     throw_OOM_f throw_OOM;
     get_pending_exception_f get_pending_exception;
@@ -719,7 +678,6 @@ struct cjnative_interface_t {
     get_exception_wrapper_f get_exception_wrapper;
     post_throw_exception_f post_throw_exception;
     get_current_catch_function_PC_f get_current_catch_function_PC;
-    throw_pending_exception_f throw_pending_exception;
 
     instance_of_f instance_of;
     is_sub_type_f is_sub_type;
@@ -748,6 +706,7 @@ struct cjnative_interface_t {
     get_thread_local_data_f get_thread_local_data;
     is_active_gc_phase_f is_active_gc_phase;
     stack_grow_stub_f stack_grow_stub;
+    i2n_stub_f i2n_stub;
 
     native_logger_f native_logger;
 };
