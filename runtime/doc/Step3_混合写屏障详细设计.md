@@ -1,7 +1,8 @@
-# Step 3：混合写屏障详细设计 —— 从 SATB+读屏障到 Go 风格 Hybrid Write Barrier
+# Step 3：写屏障演进详细设计 —— 当前主线为 MSSatbBarrier，目标方案为 Hybrid Write Barrier
 
 > 本文档是 [Go 风格 GC 迁移方案](Go风格GC迁移方案.md) Step 3 的独立详细设计文档。
-> 目标：用 Go 的混合写屏障（Hybrid Write Barrier）替换当前的 SATB 写屏障 + 6 套读写屏障体系，实现**无读屏障**的并发标记。
+> 当前代码状态：MS 主路径实际使用 `MSIdleBarrier + MSSatbBarrier + SatbBuffer`。
+> 目标方案：后续若继续推进，可再从当前 SATB deletion barrier 演进到 Go 风格的 Hybrid Write Barrier。
 
 ---
 
@@ -18,6 +19,27 @@
 9. [屏障安装与 Phase 联动](#9-屏障安装与-phase-联动)
 10. [与现有基础设施的复用与改造清单](#10-与现有基础设施的复用与改造清单)
 11. [验证方案](#11-验证方案)
+
+---
+
+## 0. 当前代码状态摘要
+
+截至 2026-03-23，Step3 与当前源码的关系应这样理解：
+
+1. **当前运行中的主路径不是 `MSWriteBarrier`**。
+   - `Heap.cpp` 构造的是 `msIdleBarrier + msSatbBarrier`
+   - `Barrier/CMakeLists.txt` 只把 `MSSatbBarrier.cpp` 编进当前 MS 构建
+
+2. **`MSWriteBarrier` / `WriteBarrierBuffer` 代码仍在仓库里，但不在当前主路径中**。
+   - 它们更适合视为保留中的目标方案或实验性实现
+
+3. **当前主线已经完成的能力**：
+   - MS 模式无读屏障
+   - 写屏障为 SATB deletion barrier
+   - old value 进入 `SatbBuffer`
+   - `MarkTermination` 通过 `DrainSatbBufferToMainQueue()` 收尾
+
+因此，本文后续如果出现“MSWriteBarrier”“WBBuf”的大段描述，应理解为**目标设计**，不是当前构建的真实行为。
 
 ---
 
@@ -341,58 +363,76 @@ writePointer(slot, ptr):    // 仅对堆上的写
 
 ### 4.2 新类继承关系
 
+当前主路径：
+
 ```
 Barrier (基类, 不变)
-  ├── MSIdleBarrier     (GC 空闲期 — 所有操作直接读写，零开销)
-  └── MSWriteBarrier    (GC Mark 期 — 写操作标灰旧值+新值，读操作直接返回)
+  ├── MSIdleBarrier     (GC 空闲期 / MS_SWEEP — 所有操作直接读写，零开销)
+  └── MSSatbBarrier     (GC Mark 期 — 仅 shade(old) + store，读操作直接返回)
 ```
 
-对比现有的 6 个 Barrier 子类，简化到 **2 个**。
+目标方案（保留代码、未进入当前主构建）：
+
+```
+Barrier (基类, 不变)
+  ├── MSIdleBarrier
+  └── MSWriteBarrier    (Hybrid barrier / WBBuf)
+```
 
 ### 4.3 新文件结构
 
 ```
-src/Heap/MSBarrier/
-├── MSIdleBarrier.h         — GC 空闲期屏障声明
-├── MSIdleBarrier.cpp       — GC 空闲期屏障实现
-├── MSWriteBarrier.h        — 混合写屏障声明
-├── MSWriteBarrier.cpp      — 混合写屏障实现
-└── WriteBarrierBuffer.h    — Per-thread 写屏障缓冲区
+src/Heap/Barrier/
+├── MSIdleBarrier.h         — GC 空闲期屏障声明（当前主路径）
+├── MSSatbBarrier.h         — 当前主线路障声明
+├── MSSatbBarrier.cpp       — 当前主线路障实现
+├── MSWriteBarrier.h        — 混合写屏障声明（保留/目标方案）
+├── MSWriteBarrier.cpp      — 混合写屏障实现（保留/目标方案）
+└── WriteBarrierBuffer.h    — Per-thread 写屏障缓冲区（保留/目标方案）
 ```
 
 > **详细代码设计**（MSIdleBarrier 完整实现、Barrier 基类兼容性分析）见 → [Step3.1 MSBarrier 详细实现](Step3.1_MSBarrier详细实现.md) §1-§2
 
 ---
 
-## 5. MSBarrier 详细实现
+## 5. 当前主线路障实现
 
 > **详细设计文档** → [Step3.1_MSBarrier详细实现.md](Step3.1_MSBarrier详细实现.md)
 
-MSWriteBarrier 在 GC Mark 阶段（`MS_PHASE_MARK_SETUP` → `MS_PHASE_MARK` → `MS_PHASE_MARK_TERMINATION`）生效，核心是 `MarkAndEnqueue` 机制：
+当前主路径的 `MSSatbBarrier` 在 `GC_PHASE_MS_MARK_SETUP` / `GC_PHASE_MS_CONCURRENT_MARK` / `GC_PHASE_MS_MARK_TERMINATION` 期间生效：
 
-- **写操作**：shade(old) + shade(new) — 立即原子标记（bitmap CAS）+ 推入 per-thread WBBuf
-- **读操作**：直接 load，零开销（与 MSIdleBarrier 相同）
+- **读操作**：直接 load
+- **写操作**：`shade(old) + store`
+- **shade(old)**：通过 `Mutator::RememberObjectInSatbBuffer()` 把 old value 写入 `SatbBuffer`
 
-主要方法：
-| 方法 | 行为 |
-|------|------|
-| `WriteReference` | shade(old) + shade(new) → release fence → store |
-| `WriteStaticRef` | 同上（注意：现有 TraceBarrier 不对静态引用记 SATB，MS 须修正） |
-| `WriteStruct` | 遍历 old refs shade → memcpy → 遍历 new refs shade |
-| `CopyRefArray` | 逐元素 shade old + shade new → bulk memcpy |
-| `AtomicSwapReference` | shade(new) → exchange → shade(返回的 old) |
-| `CompareAndSwapReference` | shade(old) + shade(new)（无论 CAS 结果） |
-| 所有 Read* | `field.GetTargetObject()` — 直接返回 |
+对应当前真实行为：
 
-> **各方法完整伪代码**（MarkAndEnqueue、WriteReference、WriteStaticRef、WriteStruct、CopyRefArray、原子操作、读操作）详见 → [Step3.1 MSBarrier 详细实现](Step3.1_MSBarrier详细实现.md) §3-§10
+| 方法 | 当前主路径行为 |
+|------|----------------|
+| `ReadReference` | `field.GetTargetObject()` |
+| `ReadStaticRef` | `field.GetTargetObject()` |
+| `ReadWeakRef` | `field.GetTargetObject()` |
+| `WriteReference` | 读 old -> `ShadeOld(old)` -> store |
+| `WriteStaticRef` | 读 old -> `ShadeOld(old)` -> store |
+| `WriteStruct` / `Copy*` | 先对被覆盖 old refs 做 SATB，再执行 memcpy/memmove |
+| `Atomic*Write/Swap/CAS` | 只对 old value 做 SATB 保护 |
+
+### 5.1 目标方案说明
+
+仓库里仍保留了 `MSWriteBarrier` 与 `WriteBarrierBuffer` 的实现和文档。这部分应视为：
+
+- 后续可切换到 hybrid barrier 的候选方案
+- 但不是当前构建的真实行为
 
 ---
 
-## 6. WriteBarrierBuffer 设计
+## 6. 目标方案：WriteBarrierBuffer 设计
 
 > **详细设计文档** → [Step3.2_WriteBarrierBuffer详细设计.md](Step3.2_WriteBarrierBuffer详细设计.md)
 
-为避免每次写屏障都竞争全局 WorkStack 锁，使用 per-thread 的 `WriteBarrierBuffer`（WBBuf）：
+下面这部分描述的是**目标方案**，不是当前主路径。当前主路径依旧使用 `SatbBuffer`。
+
+若未来重新启用 `MSWriteBarrier`，则会使用 per-thread 的 `WriteBarrierBuffer`（WBBuf）：
 
 - **容量**：256 entries（2KB），内嵌在 `Mutator` 中，无动态内存分配
 - **Push 路径**：1 次数组写 + 1 次边界检查，约 2 条指令（无锁）
@@ -429,11 +469,11 @@ Mark-Sweep 中对象不移动，不存在 from-space / to-space 概念，因此�
 
 > **详细设计文档** → [Step3.4_对Step2子阶段的改造.md](Step3.4_对Step2子阶段的改造.md)
 
-混合写屏障对 Step2 的 4 个子阶段产生如下影响：
+下面这一节描述的是**若未来重新启用混合写屏障目标方案**时，对 Step2 的影响；不是当前构建中的真实运行路径。
 
 | 子阶段 | 影响级别 | 关键变更 |
 |--------|---------|---------|
-| Step2.1 MarkSetup (Handshake) | 🟡 中 | Barrier 安装从 `MSTraceBarrier` 改为 `MSWriteBarrier`；`HandleGCPhase` 分支中 `SatbBuffer.RetireNode()` → `WBBuf.Flush()` |
+| Step2.1 MarkSetup (Handshake) | 🟡 中 | Barrier 安装从当前 `MSSatbBarrier` 进一步切换到 `MSWriteBarrier`；`HandleGCPhase` 分支中 `SatbBuffer.RetireNode()` → `WBBuf.Flush()` |
 | Step2.2 ConcurrentMark | 🔴 高 | WBBuf flush 实时写入 per-P `localWorkBuf`（非 STW 后批量处理）；灰色对象实时进入标记流水线 |
 | Step2.3 MarkTermination (STW) | 🟡 中 | `CollectSatbCandidatesToMain()` → `FlushAllWriteBarrierBuffers()`；无需栈重扫——混合屏障已保护栈引用 |
 | Step2.4 PostMarkTermination | 🟢 低 | `ClearSatbBuffer()` → `ClearWriteBarrierBuffers()`；其余 5 项任务不变 |
@@ -523,9 +563,9 @@ void HeapImpl::InstallBarrierMS(const GCPhase phase) {
 // Heap.cpp / HeapImpl 成员
 
 #ifdef MRT_USE_MARK_SWEEP
-    // Mark-Sweep 模式：仅 2 个 Barrier 实例
+    // 当前主路径：MSIdleBarrier + MSSatbBarrier
     MSIdleBarrier   msIdleBarrier_;        // GC 空闲期
-    MSWriteBarrier  msWriteBarrier_;       // GC Mark 期
+    MSSatbBarrier   msSatbBarrier_;        // GC Mark 期
     Barrier*        currentBarrier;        // 当前活跃
 #else
     // 现有 Copy GC 模式：6 个 Barrier 实例
@@ -564,8 +604,8 @@ Collector::TransitionToGCPhase(newPhase, isSTW)
 2. **非 STW 切换**：`InstallBarrierMS` 修改 `currentBarrier` 指针（单指针原子写），mutator 下一次 `GetBarrier()` 即获取新 barrier → 可能有 1-2 次旧 barrier 的尾部调用
 
 **MS 模式下的安全性**：
-- Off → On：某个 mutator 可能用 MSIdleBarrier 执行了一次没有 shade 的写 → 不影响，因为 Mark Setup 使用 Handshake 确保所有 Mutator 在进入并发标记前看到新 barrier
-- On → Off：某个 mutator 可能用 MSWriteBarrier 多做了一次 shade → 无害（多标不少标）
+- Off → On：某个 mutator 可能用 MSIdleBarrier 执行了一次没有 shade 的写 → 不影响，因为当前实现的 `MarkSetup` 使用短 STW + Handshake，确保所有 Mutator 在进入并发标记前看到新 barrier
+- On → Off：某个 mutator 可能用 `MSSatbBarrier` 多做了一次 shade(old) → 无害（多标不少标）
 
 **结论**：2 套 barrier 的切换比 6 套更安全，因为 Off→On 通过 Handshake 确保所有 Mutator 逐一切换，On→Off 的多余 shade 是无害的。
 
@@ -580,11 +620,11 @@ Collector::TransitionToGCPhase(newPhase, isSTW)
 | **Barrier 基类** | Barrier.h/cpp | ✅ 直接复用 | 虚函数接口不变 |
 | **IdleBarrier** | WCollector/IdleBarrier.h/cpp | ❌ 替换为 MSIdleBarrier | 去除 tag 处理 |
 | **EnumBarrier** | WCollector/EnumBarrier.h/cpp | ❌ 废弃 | MS 无 ENUM phase |
-| **TraceBarrier** | WCollector/TraceBarrier.h/cpp | ❌ 替换为 MSWriteBarrier | SATB → 混合 |
+| **TraceBarrier** | WCollector/TraceBarrier.h/cpp | 当前主路径不再使用；目标方案中可由 `MSWriteBarrier` 替换 | SATB/Tag -> 无读屏障 |
 | **PostTraceBarrier** | WCollector/PostTraceBarrier.h/cpp | ❌ 废弃 | MS 无此 phase |
 | **PreforwardBarrier** | WCollector/PreforwardBarrier.h/cpp | ❌ 废弃 | MS 无 Forward |
 | **ForwardBarrier** | WCollector/ForwardBarrier.h/cpp | ❌ 废弃 | MS 无 Forward |
-| **SatbBuffer** | Mutator/SatbBuffer.h/cpp | 🔄 部分复用 | arena/page 管理可复用，Node 改为 WBBuf |
+| **SatbBuffer** | Mutator/SatbBuffer.h/cpp | ✅ 当前主路径直接复用 | 记录 old value，MarkTermination 收尾 |
 | **Heap::GetBarrier()** | Heap.h/cpp | ✅ 直接复用 | 二级指针机制不变 |
 | **InstallBarrier** | Heap.cpp L189 | 🔄 修改 | 新增 `InstallBarrierMS` 分支 |
 | **CompilerCalls** | CompilerCalls.cpp | ✅ 直接复用 / 🔄 可选优化 | **签名完全不变**；读操作可选条件编译直接返回（绕过虚函数） |
@@ -598,11 +638,12 @@ Collector::TransitionToGCPhase(newPhase, isSTW)
 
 | 文件 | 说明 |
 |------|------|
-| `src/Heap/MSBarrier/MSIdleBarrier.h` | GC 空闲期屏障声明 |
-| `src/Heap/MSBarrier/MSIdleBarrier.cpp` | GC 空闲期屏障实现 |
-| `src/Heap/MSBarrier/MSWriteBarrier.h` | 混合写屏障声明 |
-| `src/Heap/MSBarrier/MSWriteBarrier.cpp` | 混合写屏障实现 |
-| `src/Heap/MSBarrier/WriteBarrierBuffer.h` | Per-thread 写屏障缓冲区 |
+| `src/Heap/Barrier/MSIdleBarrier.h` | GC 空闲期屏障声明（当前主路径） |
+| `src/Heap/Barrier/MSSatbBarrier.h` | 当前主线路障声明 |
+| `src/Heap/Barrier/MSSatbBarrier.cpp` | 当前主线路障实现 |
+| `src/Heap/Barrier/MSWriteBarrier.h` | 混合写屏障声明（保留/目标方案） |
+| `src/Heap/Barrier/MSWriteBarrier.cpp` | 混合写屏障实现（保留/目标方案） |
+| `src/Heap/Barrier/WriteBarrierBuffer.h` | Per-thread 写屏障缓冲区（保留/目标方案） |
 
 ### 10.3 需修改的现有文件
 

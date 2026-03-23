@@ -6,6 +6,11 @@
 > - [Step4.1 SweepRegion 详细实现](Step4.1_SweepRegion详细实现.md) — bitmap NOT 清扫、sweepState 状态机、Region 命运判定
 > - [Step4.2 Sweep 调度与 CentralRegionPool 集成](Step4.2_Sweep调度与CentralRegionPool集成.md) — sweepGen 机制、Lazy Sweep 路径、ForceFinishSweep
 > - [Step4.3 后台 Sweep 与 FinalizerProcessor 集成](Step4.3_后台Sweep与FinalizerProcessor集成.md) — gc-helper 线程、Finalizer 顺序保证、物理回收
+>
+> 2026-03-23 当前代码状态修正：
+> 1. 后台 sweep 已经接线，`MarkSweepCollector::ConcurrentSweep()` 会调用 `NotifyToSweep()`。
+> 2. gc-helper 主循环入口是 `FinalizerProcessor::Run()`，不是早期文档里的 `RunMS()`。
+> 3. `MS_SWEEP` phase 在 `MarkTermination` 的 STW 内就已经切好，`ConcurrentSweep()` 负责 flush alloc buffers、`PrepareForSweep()` 和通知后台清扫。
 
 ---
 
@@ -43,7 +48,7 @@ allocBitmap[i] = ~markBitmap[i]    // 单次 NOT 操作 = 64 个 slot 的 sweep
 | G3 | **bitmap NOT 而非 free-list 遍历** | 使用 `allocBitmap = ~markBitmap` 批量翻转，不触碰死对象内存（Step1.1 已定义） |
 | G4 | **与 CentralRegionPool 四链表对齐** | Sweep 状态由 `sweepGen` 代数驱动（+2/GC），不引入新的 RegionType 枚举（Step1.2 已定义） |
 | G5 | **不重复大对象回收** | 大对象回收由 [Step2.4 PostMarkTermination](Step2.4_PostMarkTermination_详细设计.md) 的 `CollectLargeGarbage()` 负责，Step4 仅引用 |
-| G6 | **Sweep 阶段无需写屏障** | [Step3 §5.6](Step3_混合写屏障详细设计.md)："Sweep 阶段不需要写屏障"，phase 已切到 `MS_PHASE_IDLE`/`MS_PHASE_POST_MARK` |
+| G6 | **Sweep 阶段无需写屏障** | 当前代码在 `GC_PHASE_MS_SWEEP` 下安装的是 `MSIdleBarrier`，因此 sweep 路径不承担写屏障开销 |
 | G7 | **CAS 无阻塞** | 遇到正在被他人 sweep 的 Region 直接跳过，不自旋等待（对标 Go `mcentral.cacheSpan`） |
 
 ### 1.3 与旧版 Step4 的关键差异
@@ -77,7 +82,7 @@ Mark-Sweep 的 Sweep 阶段采用**三路协作**模型，对标 Go runtime 的 
   │   PostMarkTermination:                                        │
   │     ① CollectLargeGarbage()        // 大对象 Eager Sweep      │
   │     ② PrepareForSweep()            // globalSweepGen_ += 2    │
-  │     ③ NotifyBackgroundSweep()      // 唤醒 gc-helper          │
+  │     ③ NotifyToSweep()              // 唤醒 gc-helper          │
   └────────────┬─────────────────────────┬────────────────────────┘
                │                         │
     ┌──────────▼──────────┐   ┌──────────▼──────────┐
@@ -102,7 +107,7 @@ Mark-Sweep 的 Sweep 阶段采用**三路协作**模型，对标 Go runtime 的 
 ```
 
 三路的关系：
-- **路径 A（后台 Sweep）**：gc-helper 线程在 `RunMS()` 中主动遍历所有 size class 的 Unswept 链表，批量 sweep。这是 **主动** 清扫，降低 Lazy Sweep 被触发的概率。
+- **路径 A（后台 Sweep）**：gc-helper 线程在 `FinalizerProcessor::Run()` 的主循环中检测 `shouldBackgroundSweep_`，随后执行 `BackgroundSweepLoop()`，主动遍历所有 size class 的 Unswept 链表，批量 sweep。这是 **主动** 清扫，降低 Lazy Sweep 被触发的概率。
 - **路径 B（Lazy Sweep）**：当分配线程从 `CentralRegionPool::GetRegion(cls)` 获取 Region 时，如果 `partialSwept` 为空，会从 `partialUnswept`/`fullUnswept` 中取出并**原地 sweep**。这是 **被动** 清扫，将 sweep 开销分摊到分配路径。
 - **路径 C（ForceFinishSweep）**：下轮 GC 的 `MarkSetup` 阶段调用，强制 sweep 所有尚未完成的 Unswept Region（冷 size class 等），确保 markBitmap 已全部清零，可安全开始新一轮标记。对标 Go `gcStart() → finishsweep_m()`。
 
@@ -114,12 +119,14 @@ MS_PHASE_MARK_TERMINATION (STW)
   │  PostMarkTermination (非 STW):
   │    ├─ Task 1-5: 弱引用/Finalizer/循环引用/...(Step2.4)
   │    ├─ Task 6: CollectLargeGarbage()          // 大对象 Eager Sweep
-  │    └─ PrepareForSweep():
-  │         globalSweepGen_ += 2                  // 代际翻转
-  │         所有 swept Region 隐式变为 unswept    // O(1)
+  │
+  │  ConcurrentSweep():
+  │    ├─ STW: FlushAllAllocBuffers + PrepareForSweep()
+  │    ├─ NotifyToSweep()
+  │    └─ NotifyToReclaimGarbage()
   │
   ▼
-MS_PHASE_POST_MARK → MS_PHASE_IDLE
+GC_PHASE_MS_SWEEP
   │
   │  Barrier: MSIdleBarrier（无写屏障开销）
   │
@@ -131,7 +138,7 @@ MS_PHASE_POST_MARK → MS_PHASE_IDLE
 ```
 
 关键点：
-1. **Sweep 发生在 `MS_PHASE_IDLE` 期间**，此时 Barrier 为 `MSIdleBarrier`（直接 store，无标记开销）
+1. **Sweep 发生在 `GC_PHASE_MS_SWEEP` 期间**，此时实际安装的是 `MSIdleBarrier`（直接 store，无标记开销）
 2. **sweepGen 代际翻转是 O(1)**：`globalSweepGen_ += 2`，原来 partialSwept/fullSwept 中 `sweepGen == oldGen` 的 Region 自动变为 Unswept（无需移动链表节点）
 3. **大对象已在 PostMarkTermination 中处理**，Step4 的三路协作仅针对小对象 Region
 
@@ -291,10 +298,10 @@ void CentralRegionPool::ForceFinishSweep() {
 
 ### 5.1 gc-helper 线程职责扩展
 
-现有 `FinalizerProcessor` 运行在 gc-helper 线程上。MS 模式下新增后台 sweep 职责：
+现有 `FinalizerProcessor` 运行在 gc-helper 线程上。当前代码中后台 sweep 已通过其现有 `Run()` 主循环接线：
 
 ```
-FinalizerProcessor::RunMS() 主循环:
+FinalizerProcessor::Run() 主循环:
   ① ProcessFinalizables()           // 最优先：执行 finalizer
   ② BackgroundSweepLoop()           // 新增：后台 sweep
   ③ FeedHungryBuffers()             // 预分配 region
@@ -465,7 +472,7 @@ bool IsSweepComplete() {
 | **RegionList** | 现有 | ✅ 直接复用 | 双向链表操作不变 |
 | **ReclaimGarbageMemory** | 现有 RegionSpace | ✅ 直接复用 | 三阶段物理回收不变 |
 | **CollectLargeGarbage** | Step2.4 | ✅ 直接复用 | 大对象 Eager Sweep 不变 |
-| **FinalizerProcessor** | 现有 | 🔄 修改 | 新增 `RunMS()` + `BackgroundSweepLoop()` + `NotifyToSweep()` |
+| **FinalizerProcessor** | 现有 | 🔄 修改 | 在现有 `Run()` 主循环中接入 `BackgroundSweepLoop()` + `NotifyToSweep()` |
 | **RegionManager** | 现有 | 🔄 修改 | 新增 `fullRegionList`（MS 模式） |
 
 ### 8.2 Step4 不新增的组件
@@ -485,9 +492,9 @@ bool IsSweepComplete() {
 
 | 文件 | 修改内容 |
 |------|----------|
-| `src/Heap/Collector/FinalizerProcessor.h/cpp` | 新增 `RunMS()`、`BackgroundSweepLoop()`、`NotifyToSweep()`、`shouldSweep_` |
-| `src/Heap/Collector/MarkSweepCollector.cpp` | `PostMarkTermination` 中调用 `PrepareForSweep()` + `NotifyToSweep()` |
-| `src/HeapManager.cpp` | MS 模式下 GC 启动前调用 `ForceFinishSweep()` |
+| `src/Heap/Collector/FinalizerProcessor.h/cpp` | 在现有 `Run()` 主循环中接入 `BackgroundSweepLoop()`、`NotifyToSweep()`、`shouldBackgroundSweep_` |
+| `src/Heap/Collector/MarkSweepCollector.cpp` | `ConcurrentSweep()` 中调用 `PrepareForSweep()` + `NotifyToSweep()` + `NotifyToReclaimGarbage()` |
+| `src/Heap/Collector/MarkSweepCollector.cpp` | `MarkSetup()` 中通过 `WaitForSweepDone()` / `ForceFinishSweep()` 保证上轮 sweep 收敛 |
 | `CMakeLists.txt` | 无新增文件（Step4 不创建独立 Sweeper 目录）|
 
 ### 8.4 改造优先级
@@ -496,7 +503,7 @@ bool IsSweepComplete() {
 |--------|------|----------|------|
 | P0 | `MSRegionInfo::SweepRegion()` 实现 | Step1.1 MSRegionInfo 完成 | 1 天 |
 | P0 | `CentralRegionPool` sweepGen + Lazy Sweep | Step1.2 CentralRegionPool 完成 | 2 天 |
-| P1 | `FinalizerProcessor::RunMS()` + BackgroundSweepLoop | Step2 MarkSweepCollector + P0 | 2 天 |
+| P1 | 在 `FinalizerProcessor::Run()` 中接入 BackgroundSweepLoop | Step2 MarkSweepCollector + P0 | 2 天 |
 | P1 | `ForceFinishSweep()` 集成到 MarkSetup | P0 + Step2.1 MarkSetup | 1 天 |
 | P1 | `PrepareForSweep()` 集成到 PostMarkTermination | P0 + Step2.4 | 0.5 天 |
 | P2 | 端到端集成测试 | 全部 P0/P1 | 2 天 |

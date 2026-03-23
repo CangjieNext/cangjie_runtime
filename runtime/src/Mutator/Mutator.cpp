@@ -588,17 +588,26 @@ inline void Mutator::HandleGCPhase(GCPhase newPhase)
         GcPhaseEnum(newPhase);
     }
     else if (newPhase == GCPhase::GC_PHASE_MS_MARK_TERMINATION) {
-        // MarkTermination STW: flush write barrier buffer so GC thread can drain all grey objects.
-        // The GC thread will call FlushAllWriteBarrierBuffers() to collect them.
-        // No action needed here — flush is done centrally by the collector under STW.
+        // MarkTermination STW: retire satbNode so GC thread can drain all SATB entries.
+        // This mirrors CopyGC's CLEAR_SATB_BUFFER phase handling.
+        std::lock_guard<std::mutex> lg(mutatorLock);
+        if (satbNode != nullptr) {
+            SatbBuffer::Instance().RetireNode(satbNode);
+            satbNode = nullptr;
+        }
     }
     else if (newPhase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK) {
         // Transition to concurrent mark: no special Mutator action needed.
         // SATB write barrier is already installed by barrier switch.
     }
     else if (newPhase == GCPhase::GC_PHASE_MS_SWEEP) {
-        // Transition to sweep: no special Mutator action needed.
-        // Barrier switched to idle by InstallBarrier.
+        // Transition to sweep: clear any remaining SATB node.
+        std::lock_guard<std::mutex> lg(mutatorLock);
+        if (satbNode != nullptr) {
+            satbNode->Clear();
+            SatbBuffer::Instance().RetireNode(satbNode);
+            satbNode = nullptr;
+        }
     }
 #endif // MRT_USE_MARK_SWEEP
 }

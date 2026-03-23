@@ -88,14 +88,40 @@ void MSWriteBarrier::MarkAndEnqueue(BaseObject* obj, WriteBarrierBuffer& wbBuf)
             if (collector != nullptr) {
                 collector->FlushWriteBarrierOverflow(wbBuf);
             } else {
-                // Fallback: should not happen during active marking because
-                // activeCollector_ is now set before phase transition.
-                // But as safety net, just clear the buffer.
                 wbBuf.Clear();
             }
         }
         wbBuf.Push(obj);
     }
+}
+
+// EnqueueForRescan: unconditionally push obj into WB buffer for re-scanning.
+// Unlike MarkAndEnqueue, this BYPASSES the mark-bit check.  Used for the
+// shade(new) container-rescan path: when a container object is already marked
+// (mark-at-alloc), MarkAndEnqueue would be a no-op, but we still need its
+// children traced at MarkTermination.
+void MSWriteBarrier::EnqueueForRescan(BaseObject* obj, WriteBarrierBuffer& wbBuf)
+{
+    if (obj == nullptr) {
+        return;
+    }
+    // Phase gate — only enqueue during active marking.
+    GCPhase phase = Mutator::GetMutator()->GetMutatorPhase();
+    if (phase != GCPhase::GC_PHASE_MS_MARK_SETUP &&
+        phase != GCPhase::GC_PHASE_MS_CONCURRENT_MARK &&
+        phase != GCPhase::GC_PHASE_MS_MARK_TERMINATION) {
+        return;
+    }
+    // Handle overflow before push.
+    if (UNLIKELY(wbBuf.IsFull())) {
+        MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
+        if (collector != nullptr) {
+            collector->FlushWriteBarrierOverflow(wbBuf);
+        } else {
+            wbBuf.Clear();
+        }
+    }
+    wbBuf.Push(obj);
 }
 
 WriteBarrierBuffer& MSWriteBarrier::GetWBBuf()
@@ -149,7 +175,6 @@ void MSWriteBarrier::ReadStaticStruct(MAddress dst, MAddress src, size_t size, c
 
 void MSWriteBarrier::WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref) const
 {
-    (void)obj;
     WriteBarrierBuffer& wbBuf = GetWBBuf();
 
     // shade(old): SATB deletion barrier — preserve snapshot
@@ -159,10 +184,17 @@ void MSWriteBarrier::WriteReference(BaseObject* obj, RefField<false>& field, Bas
     // store
     field.SetTargetObject(ref);
 
-    // shade(new): Dijkstra insertion barrier — for mark-at-alloc objects this
-    // is a no-op (already marked, survive via mark-bit); for pre-existing white
-    // objects this ensures they become grey and get traced.
-    MarkAndEnqueue(ref, wbBuf);
+    // shade(new): unconditionally enqueue the CONTAINER object for re-scan.
+    // Why bypass mark check: mark-at-alloc objects are already marked, so
+    // MarkAndEnqueue(obj) would be a no-op.  But their newly-assigned children
+    // may never have been traced.  By pushing obj to the WB buffer, MarkTermination
+    // will re-scan obj's fields and discover the entire new sub-graph.
+    if (obj != nullptr) {
+        EnqueueForRescan(obj, wbBuf);
+    } else {
+        // Static root or no container — fall back to shading the ref directly
+        MarkAndEnqueue(ref, wbBuf);
+    }
 }
 
 void MSWriteBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) const
@@ -337,7 +369,6 @@ BaseObject* MSWriteBarrier::AtomicReadReference(BaseObject* obj, RefField<true>&
 void MSWriteBarrier::AtomicWriteReference(BaseObject* obj, RefField<true>& field,
                                           BaseObject* ref, MemoryOrder order) const
 {
-    (void)obj;
     WriteBarrierBuffer& wbBuf = GetWBBuf();
 
     // shade(old): SATB deletion barrier
@@ -348,14 +379,17 @@ void MSWriteBarrier::AtomicWriteReference(BaseObject* obj, RefField<true>& field
     // atomic store
     field.SetTargetObject(ref, order);
 
-    // shade(new): Dijkstra insertion barrier
-    MarkAndEnqueue(ref, wbBuf);
+    // shade(new): enqueue container to trigger re-scan
+    if (obj != nullptr) {
+        EnqueueForRescan(obj, wbBuf);
+    } else {
+        MarkAndEnqueue(ref, wbBuf);
+    }
 }
 
 BaseObject* MSWriteBarrier::AtomicSwapReference(BaseObject* obj, RefField<true>& field,
                                                 BaseObject* newRef, MemoryOrder order) const
 {
-    (void)obj;
     WriteBarrierBuffer& wbBuf = GetWBBuf();
 
     // atomic exchange
@@ -366,8 +400,12 @@ BaseObject* MSWriteBarrier::AtomicSwapReference(BaseObject* obj, RefField<true>&
     // shade(old) — the swapped-out reference (SATB deletion barrier)
     MarkAndEnqueue(oldRef, wbBuf);
 
-    // shade(new): Dijkstra insertion barrier
-    MarkAndEnqueue(newRef, wbBuf);
+    // shade(new): enqueue container to trigger re-scan
+    if (obj != nullptr) {
+        EnqueueForRescan(obj, wbBuf);
+    } else {
+        MarkAndEnqueue(newRef, wbBuf);
+    }
 
     return oldRef;
 }
@@ -376,15 +414,18 @@ bool MSWriteBarrier::CompareAndSwapReference(BaseObject* obj, RefField<true>& fi
                                              BaseObject* oldRef, BaseObject* newRef,
                                              MemoryOrder succOrder, MemoryOrder failOrder) const
 {
-    (void)obj;
     WriteBarrierBuffer& wbBuf = GetWBBuf();
 
     bool success = field.CompareExchange(oldRef, newRef, succOrder, failOrder);
     if (success) {
         // CAS succeeded: shade old ref (SATB deletion barrier)
         MarkAndEnqueue(oldRef, wbBuf);
-        // shade(new): Dijkstra insertion barrier
-        MarkAndEnqueue(newRef, wbBuf);
+        // shade(new): enqueue container to trigger re-scan
+        if (obj != nullptr) {
+            EnqueueForRescan(obj, wbBuf);
+        } else {
+            MarkAndEnqueue(newRef, wbBuf);
+        }
     }
     // If CAS failed, no write happened — no barrier needed
     return success;

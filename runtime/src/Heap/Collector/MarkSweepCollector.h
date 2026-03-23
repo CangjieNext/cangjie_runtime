@@ -74,7 +74,7 @@ struct MSGCCycleStats {
 
 // MarkSweepCollector — Mark-Sweep GC collector
 // Inherits from TracingCollector, provides MS-GC framework.
-// Step 2: Tri-color marking (MarkSetup → ConcurrentMark → MarkTermination → PostMarkTermination)
+// Step 2: Tri-color marking (PreEnumRoots → EnumRoots → ConcurrentMark → MarkTermination → PostMarkTermination)
 class MarkSweepCollector : public TracingCollector {
 public:
     explicit MarkSweepCollector(Allocator& allocator, CollectorResources& resources)
@@ -157,7 +157,8 @@ public:
 private:
     // ── MS GC phases ──
     void DoGarbageCollection(uint64_t gcIndex);
-    void MarkSetup();           // Step 2.1: Handshake, bitmap clear, root enum
+    void PreEnumRoots();        // Step 2.1a: Stop sweep, clear bitmaps, reclassify
+    void EnumRoots();            // Step 2.1b: Handshake + root enumeration
     void ConcurrentMark();      // Step 2.2: Concurrent marking (GC thread + assist)
     void MarkTermination();     // Step 2.3: STW finalization of marking
     void PostMarkTermination(); // Step 2.4: Non-STW cleanup (WeakRef, SATB, Finalizer, LOS)
@@ -166,7 +167,7 @@ private:
     // ── Step 2.1 internals ──
     void ClearAllMarkBitmaps();
     void EnsureSweepDone();
-    void EnumAndMarkRoots(WorkStack& workStack, WorkStack& foreignStack);
+    void EnumAndMarkRoots(WorkStack& workStack);
 
     // ── Step 2.2 internals ──
     void RunConcurrentMarkLoop(WorkStack& workStack);
@@ -181,6 +182,7 @@ private:
 
     // ── Step 2.3 internals ──
     void CollectUnmarkedToMainQueue(WorkStack& mainQueue);
+    void DrainSatbBufferToMainQueue(WorkStack& mainQueue);
     void FlushAllWriteBarrierBuffers(WorkStack& mainQueue);
     void ClearAllWriteBarrierBuffers();
     void CollectExternCandidatesToMain(WorkStack& mainQueue);
@@ -196,9 +198,8 @@ private:
     size_t convergenceStableRounds_ = 0;
     static constexpr size_t kConvergenceRequiredRounds = 3;
 
-    // ── Inter-phase work stacks (populated in MarkSetup, consumed in ConcurrentMark) ──
+    // ── Work stack (populated in EnumRoots, consumed in ConcurrentMark) ──
     WorkStack markWorkStack_;
-    WorkStack markForeignStack_;
 
     // ── Drain slice parameters ──
     static constexpr size_t kSliceMaxObjects = 256;

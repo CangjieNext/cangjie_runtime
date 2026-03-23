@@ -102,6 +102,11 @@ public:
         Notify();
     }
 
+    void SetBackgroundFillAllocCaches(bool enabled)
+    {
+        shouldBackgroundFillAllocCaches_.store(enabled, std::memory_order_release);
+    }
+
 private:
     void NotifyStarted();
     void Wait(U32 timeoutMilliSeconds);
@@ -139,6 +144,7 @@ private:
     std::atomic<bool> shouldReclaimHeapGarbage;
     std::atomic<bool> shouldFeedHungryBuffers;
     std::atomic<bool> shouldBackgroundSweep_;
+    std::atomic<bool> shouldBackgroundFillAllocCaches_;
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     // stats
     void LogAfterProcess();

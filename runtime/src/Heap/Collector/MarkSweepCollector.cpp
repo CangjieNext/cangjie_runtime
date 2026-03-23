@@ -7,6 +7,7 @@
 #ifdef MRT_USE_MARK_SWEEP
 
 #include "MarkSweepCollector.h"
+#include <cstring>
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "CangjieRuntime.h"
@@ -19,6 +20,7 @@
 #include "Heap/Collector/ForwardDataManager.h"
 #include "Heap/Heap.h"
 #include "Mutator/MutatorManager.h"
+#include "Mutator/SatbBuffer.h"
 
 #ifndef _WIN32
 #include <unistd.h>  // usleep
@@ -106,7 +108,8 @@ void MarkSweepCollector::DoGarbageCollection(uint64_t gcIndex)
 {
     (void)gcIndex;
 
-    MarkSetup();           // Step 2.1
+    PreEnumRoots();        // Step 2.1a
+    EnumRoots();            // Step 2.1b
     ConcurrentMark();      // Step 2.2
     MarkTermination();     // Step 2.3
     PostMarkTermination(); // Step 2.4
@@ -114,153 +117,70 @@ void MarkSweepCollector::DoGarbageCollection(uint64_t gcIndex)
 }
 
 // ============================================================================
-// Step 2.1: MarkSetup
-//   Phase A  (pre-handshake): ForceFinishSweep
-//   Phase B  (brief STW):     Flush all TL Regions (only — minimal STW scope)
-//   Phase B2 (post-STW):      Clear all mark bitmaps + LOS marks (no STW needed)
-//   Phase C  (handshake):     GcPhaseEnum — each Mutator scans its own stack roots
-//   Phase D  (post-handshake): EnumAndMarkRoots
+// Step 2.1a: PreEnumRoots  (GC thread only, no STW)
+//   Stop all sweeps, clear markBitmaps, reclassify unswept→swept.
+//   TL-region flush is deferred to ConcurrentSweep's STW (FlushAll +
+//   PrepareForSweep), because marking is address-based and does not
+//   require regions to be in CentralRegionPool's lists.
 // ============================================================================
 
-void MarkSweepCollector::MarkSetup()
+void MarkSweepCollector::PreEnumRoots()
 {
-    uint64_t phaseStart = TimeUtil::MicroSeconds();
-    VLOG(REPORT, "[MS-GC] --- MarkSetup ---");
+    uint64_t t0 = TimeUtil::MicroSeconds();
+    VLOG(REPORT, "[MS-GC] --- PreEnumRoots ---");
 
-    // Set activeCollector_ early so that write barrier overflow handling
-    // (MarkAndEnqueue → FlushWriteBarrierOverflow) can reach the global work
-    // queue as soon as mutators resume with MARK_SETUP phase after STW.
+    // Set activeCollector_ for MSMarkAssist (Mutator assist during concurrent mark).
     activeCollector_.store(this, std::memory_order_release);
+
+    // Initialize SatbBuffer before concurrent marking begins.
+    SatbBuffer::Instance().Init();
 
     RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
 
-    // ── Phase A: Ensure previous sweep is fully completed ──
-    //    Must happen BEFORE bitmap clear (sweep reads the old bitmap).
-    //    Corresponds to Go's finishsweep_m().
-    {
-        uint64_t t0 = TimeUtil::MicroSeconds();
-        if (centralPool != nullptr) {
-            centralPool->WaitForSweepDone();
-            centralPool->ForceFinishSweep();
-        }
-        cycleStats_.forceFinishSweepUs = TimeUtil::MicroSeconds() - t0;
-        VLOG(REPORT, "[MS-GC] ForceFinishSweep: %sus",
-             Pretty(cycleStats_.forceFinishSweepUs).Str());
+    // Stop sweep → clear bitmaps → reclassify → re-enable lazy sweep.
+    // Safe pre-STW: no SweepRegion running, mark-at-alloc inactive.
+    if (centralPool != nullptr) {
+        centralPool->StopAndWaitForAllSweep();
+        centralPool->ClearAllMarkBitmaps();
+        centralPool->ReclassifyUnsweptToSwept();
+        centralPool->ReenableLazySweep();
     }
 
-    // ── Phase B: Brief STW — Flush TL Regions + Clear mark bitmaps ──
-    //    Why STW:  AllocBufferMS is per-OS-thread (TLS), shared by N coroutines
-    //    on the same Processor. Handshake is per-Mutator (per-coroutine), so
-    //    we cannot safely flush from HandleGCPhase (wrong TLS for parked coroutines,
-    //    and Mutators resume immediately after handshake — concurrent allocation).
-    //    A brief STW ensures no Mutator is allocating during flush.
-    //    ClearMarkBitmaps MUST be inside STW: after FlushAllAllocBuffers returns
-    //    ALL regions to central pool, VisitAllRegions can then clear every region.
-    //    If done outside STW, mutators may take regions before the clear, leaving
-    //    stale mark bits that prevent root re-tracing in subsequent cycles.
-    {
-        ScopedStopTheWorld stw("MS FlushTLRegions + ClearBitmaps");
+    // Reset marked object counter (GC-thread-only, no STW needed).
+    markedObjectCount.store(0, std::memory_order_relaxed);
 
-        // Flush all per-Processor AllocBufferMS Regions back to CentralRegionPool.
-        // After this, ALL small-object Regions are in the central pool.
-        if (centralPool != nullptr) {
-            centralPool->FlushAllAllocBuffers();
-        }
+    cycleStats_.forceFinishSweepUs = TimeUtil::MicroSeconds() - t0;
+    VLOG(REPORT, "[MS-GC] PreEnumRoots: %sus",
+         Pretty(cycleStats_.forceFinishSweepUs).Str());
+}
 
-        // ClearMarkBitmaps optimization (P0):
-        // SweepRegion() already clears markBitmap via memset after sweep.
-        // InitForSizeClass() and ResetToBump() also initialize markBitmap to zero.
-        // ForceFinishSweep() (Phase A above) guarantees all regions are swept
-        // before we reach this point. Therefore the STW bitmap clear is redundant.
-#ifdef MRT_DEBUG
-        // Debug mode: verify all markBitmaps are indeed zero; report + fix if not.
-        {
-            uint64_t t0 = TimeUtil::MicroSeconds();
-            size_t checkedRegions = 0;
-            size_t dirtyRegions = 0;
-            if (centralPool != nullptr) {
-                centralPool->VisitAllRegions([&checkedRegions, &dirtyRegions](MSRegionInfo* region) {
-                    size_t wordCount = (region->totalSlotCount + 63) / 64;
-                    if (region->markBitmap != nullptr && wordCount > 0) {
-                        bool dirty = false;
-                        for (size_t i = 0; i < wordCount; i++) {
-                            if (region->markBitmap[i] != 0) {
-                                dirty = true;
-                                break;
-                            }
-                        }
-                        if (dirty) {
-                            dirtyRegions++;
-                            LOG(RTLOG_ERROR, "[MS-GC] DEBUG: dirty markBitmap in region %p (cls=%u, sweepState=%d)",
-                                region, (unsigned)region->sizeClass, (int)region->sweepState);
-                            memset(region->markBitmap, 0, wordCount * sizeof(uint64_t));
-                        }
-                    }
-                    checkedRegions++;
-                });
-            }
-            cycleStats_.clearBitmapUs = TimeUtil::MicroSeconds() - t0;
-            cycleStats_.clearBitmapRegions = checkedRegions;
-            if (dirtyRegions > 0) {
-                LOG(RTLOG_ERROR, "[MS-GC] ClearMarkBitmaps DEBUG: %zu/%zu regions had dirty bitmaps!",
-                    dirtyRegions, checkedRegions);
-            }
-            VLOG(REPORT, "[MS-GC] ClearMarkBitmaps(verify): %zu regions checked, %zu dirty, %sus",
-                 checkedRegions, dirtyRegions, Pretty(cycleStats_.clearBitmapUs).Str());
-        }
-#else
-        // Release mode: skip bitmap clear entirely — already done by SweepRegion().
-        cycleStats_.clearBitmapUs = 0;
-        cycleStats_.clearBitmapRegions = 0;
-        VLOG(REPORT, "[MS-GC] ClearMarkBitmaps: skipped (swept-clean invariant)");
-#endif
+// ============================================================================
+// Step 2.1b: EnumRoots  (handshake + root enumeration)
+//   Phase B (handshake): TransitionToGCPhase(MS_MARK_SETUP) — each Mutator
+//     scans its own stack roots at safepoint.
+//   Phase C (GC thread): EnumAndMarkRoots — global roots + mark root set.
+// ============================================================================
 
-        // Clear LOS marks (Tier 2: large objects use region-level isMarked flag)
-        LargeObjectSpace* los = space.GetLargeObjectSpace();
-        if (los != nullptr) {
-            los->ClearAllMarks();
-        }
+void MarkSweepCollector::EnumRoots()
+{
+    uint64_t phaseStart = TimeUtil::MicroSeconds();
+    VLOG(REPORT, "[MS-GC] --- EnumRoots ---");
 
-        // Clear Tier 1 in-heap large region marks
-        if (centralPool != nullptr) {
-            centralPool->ClearLargeMarks();
-        }
+    // Handshake: each Mutator reaches safepoint, scans its own stack roots.
+    TransitionToGCPhase(GCPhase::GC_PHASE_MS_MARK_SETUP, true);
 
-        // Reset marked object counter (before root scanning below)
-        markedObjectCount.store(0, std::memory_order_relaxed);
-
-        // ── Phase C: Transition to MS_MARK_SETUP while world is stopped ──
-        //    This MUST happen inside STW so that when mutators resume, they go
-        //    through HandleSafepointStub.S → MRT_GetThreadLocalData(), which
-        //    encodes GCPhase (20) into x28's high 8 bits. The compiler's write
-        //    barrier fast path checks x28>>56 > 8 to decide whether to call the
-        //    barrier slow path. If the transition happens OUTSIDE STW (as a
-        //    separate handshake), mutators can resume from STW with x28 still
-        //    encoding the old phase (≤8), causing the fast path to skip the
-        //    barrier entirely during concurrent marking.
-        //
-        //    HandleGCPhase(MS_MARK_SETUP) → GcPhaseEnum: the GC thread scans
-        //    each stopped mutator's stack roots on their behalf. This is safe
-        //    because all mutators are frozen during STW.
-        TransitionToGCPhase(GCPhase::GC_PHASE_MS_MARK_SETUP, true);
-    } // ~ScopedStopTheWorld → StartTheWorld
-      // Mutators resume through HandleSafepointStub.S → MRT_GetThreadLocalData()
-      // → x28 high 8 bits = 20 (MS_MARK_SETUP) → barrier fast path fires
-
-    // ── Phase D: GC thread enumerates global roots + marks root set ──
+    // GC thread enumerates global roots + marks root set.
     markWorkStack_.clear();
-    markForeignStack_.clear();
     {
         uint64_t t0 = TimeUtil::MicroSeconds();
-        EnumAndMarkRoots(markWorkStack_, markForeignStack_);
+        EnumAndMarkRoots(markWorkStack_);
         cycleStats_.enumRootsUs = TimeUtil::MicroSeconds() - t0;
         cycleStats_.rootsCount = markWorkStack_.size();
     }
 
     cycleStats_.markSetupUs = TimeUtil::MicroSeconds() - phaseStart;
-
-    VLOG(REPORT, "[MS-GC] MarkSetup total: %sus, roots=%zu",
+    VLOG(REPORT, "[MS-GC] EnumRoots: %sus, roots=%zu",
          Pretty(cycleStats_.markSetupUs).Str(), cycleStats_.rootsCount);
 }
 
@@ -299,50 +219,13 @@ bool MarkSweepCollector::MarkObject(BaseObject* obj) const
 }
 
 
-void MarkSweepCollector::EnumAndMarkRoots(WorkStack& workStack, WorkStack& foreignStack)
+void MarkSweepCollector::EnumAndMarkRoots(WorkStack& workStack)
 {
     MRT_PHASE_TIMER("MS EnumAndMarkRoots");
 
-    // Step A: Root enumeration — reuse TracingCollector::DoEnumeration
-    // This will: enumerate static roots, coroutine roots, finalizer roots,
-    // merge mutator stack roots (from GcPhaseEnum done during handshake)
-    DoEnumeration(workStack, foreignStack);
-
-    // Step B: Mark root objects — set mark bit for each root
-    // Drain workStack into temp vector, then re-push only newly-marked roots
-    // (MarkStack has no move assignment operator, so we drain-and-refill)
-    std::vector<BaseObject*> roots;
-    while (!workStack.empty()) {
-        roots.push_back(workStack.back());
-        workStack.pop_back();
-    }
-
-    for (BaseObject* obj : roots) {
-        if (obj != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(obj))) {
-            // Always mark and always push — ensure all roots are traced
-            // even if MarkObject reports them as already marked (ROOT CAUSE #4 investigation)
-            bool alreadyMarked = MarkObject(obj);
-            if (!alreadyMarked) {
-                markedObjectCount.fetch_add(1, std::memory_order_relaxed);
-            }
-            workStack.push_back(obj);
-        }
-    }
-
-    // Mark foreign (export) roots too
-    std::vector<BaseObject*> fRoots;
-    while (!foreignStack.empty()) {
-        fRoots.push_back(foreignStack.back());
-        foreignStack.pop_back();
-    }
-    for (BaseObject* obj : fRoots) {
-        if (obj != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(obj))) {
-            if (!MarkObject(obj)) {
-                markedObjectCount.fetch_add(1, std::memory_order_relaxed);
-                foreignStack.push_back(obj);
-            }
-        }
-    }
+    // MS-GC: export roots need no special handling (no fromSpace/toSpace
+    // pointer update), so collect all roots into a single workStack.
+    DoEnumeration(workStack, workStack);
 }
 
 // ============================================================================
@@ -356,14 +239,7 @@ void MarkSweepCollector::ConcurrentMark()
     // 8. Transition to concurrent marking phase
     TransitionToGCPhase(GCPhase::GC_PHASE_MS_CONCURRENT_MARK, true);
 
-    // 9. Merge foreignStack into workStack
-    while (!markForeignStack_.empty()) {
-        BaseObject* obj = markForeignStack_.back();
-        markForeignStack_.pop_back();
-        markWorkStack_.push_back(obj);
-    }
-
-    // 10. Enable Mutator assist
+    // 9. Enable Mutator assist
     assistMarkedCount_.store(0, std::memory_order_relaxed);
     assistCallTotal_.store(0, std::memory_order_relaxed);
     assistEnabled_.store(true, std::memory_order_release);
@@ -371,9 +247,8 @@ void MarkSweepCollector::ConcurrentMark()
     // 11. Run concurrent marking loop (GC thread + Mutator assist)
     RunConcurrentMarkLoop(markWorkStack_);
 
-    // 12. Disable Mutator assist (but keep activeCollector_ alive —
-    //     it will be cleared in MarkTermination under STW to avoid
-    //     a window where mutators can't flush WB overflow to global queue).
+    // 12. Disable Mutator assist and clear activeCollector_.
+    //     No longer needed beyond concurrent mark.
     assistEnabled_.store(false, std::memory_order_release);
 }
 
@@ -434,6 +309,7 @@ void MarkSweepCollector::RunConcurrentMarkLoop(WorkStack& workStack)
 
 void MarkSweepCollector::RunCollectorDrainSlice(WorkStack& workStack, size_t maxObjects)
 {
+    size_t nNewlyMarked = 0;
     size_t processed = 0;
     while (!workStack.empty() && processed < maxObjects) {
         BaseObject* obj = workStack.back();
@@ -443,36 +319,24 @@ void MarkSweepCollector::RunCollectorDrainSlice(WorkStack& workStack, size_t max
             continue;
         }
 
-        // Object is grey (marked but not yet traced). Trace its children.
-        processed++;
-
-        // DEBUG: validate TypeInfo before touching it
-        {
-            TypeInfo* ti = obj->GetTypeInfo();
-            uintptr_t tiAddr = reinterpret_cast<uintptr_t>(ti);
-            if (ti == nullptr || tiAddr < 0x100000000ULL) {
-                uintptr_t objAddr = reinterpret_cast<uintptr_t>(obj);
-                // Read raw stateWord to understand corruption
-                uint64_t rawSW = *reinterpret_cast<uint64_t*>(obj);
-                MSRegionInfo* msInfo = MSRegionInfoArray::GetRegionInfoValidated(objAddr);
-                LOG(RTLOG_ERROR,
-                    "DrainSlice: obj=%p has invalid TypeInfo=%p (raw stateword=0x%llx), "
-                    "msRegion: type=%d, sizeClass=%u, allocPtr=0x%zx, regionEnd=0x%zx, "
-                    "sweepState=%u, sweepGen=%u, markBitmap=%p, totalSlots=%u, freeSlots=%u",
-                    (void*)obj, (void*)ti,
-                    (unsigned long long)rawSW,
-                    msInfo ? (int)msInfo->regionType : -1,
-                    msInfo ? (unsigned)msInfo->sizeClass : 0,
-                    msInfo ? msInfo->allocPtr : 0,
-                    msInfo ? msInfo->regionEnd : 0,
-                    msInfo ? (unsigned)msInfo->sweepState : 0,
-                    msInfo ? (unsigned)msInfo->sweepGen : 0,
-                    msInfo ? (void*)msInfo->markBitmap : nullptr,
-                    msInfo ? (unsigned)msInfo->totalSlotCount : 0,
-                    msInfo ? (unsigned)msInfo->freeSlotCount : 0);
-                continue;
-            }
+        // Guard: objects in the mark queue must have a valid stateWord.
+        // A zeroed stateWord means a corrupted/prematurely-reclaimed object —
+        // this is a fatal GC invariant violation, not a recoverable condition.
+        if (UNLIKELY(!obj->IsValidObject())) {
+            LOG(RTLOG_FATAL, "[MS-GC] RunCollectorDrainSlice: FATAL invalid stateWord obj=%p, "
+                "stateWord=0x%zx, markBit=%d",
+                (void*)obj,
+                *reinterpret_cast<uintptr_t*>(obj),
+                (int)IsMarkedObject(obj));
         }
+
+        // Mark on pop (same as CopyGC's ConcurrentMarkingWork::Execute):
+        // if already marked, skip — otherwise mark and trace children.
+        if (MarkObject(obj)) {
+            continue;  // already marked by another thread or earlier pass
+        }
+        nNewlyMarked++;
+        processed++;
 
         if (!obj->HasRefField()) {
             continue;
@@ -490,22 +354,36 @@ void MarkSweepCollector::RunCollectorDrainSlice(WorkStack& workStack, size_t max
             continue;
         }
 
-        // Trace all reference fields: mark children and push newly-marked as grey
+        // Trace all reference fields: push children as grey (mark-on-pop)
         TraceObjectRefFields(obj, workStack);
     }
+    // Batch update: one atomic op per slice instead of per-object (same as CopyGC)
+    (void)markedObjectCount.fetch_add(nNewlyMarked, std::memory_order_relaxed);
 }
 
 void MarkSweepCollector::TraceRefField(
     BaseObject* obj, RefField<>& field, WorkStack& workStack)
 {
-    (void)obj; // obj is the parent, not needed for MS (no tag/CAS)
     BaseObject* target = field.GetTargetObject();
     if (target == nullptr || !IsManagedAddress(reinterpret_cast<MAddress>(target))) {
         return;
     }
-    // Mark child: if newly marked (returns false), push as grey
-    if (!MarkObject(target)) {
-        markedObjectCount.fetch_add(1, std::memory_order_relaxed);
+    // Fatal: a traced reference field points to an object with invalid stateWord.
+    // This indicates stale data in a live object — a GC invariant violation.
+    if (UNLIKELY(!target->IsValidObject())) {
+        LOG(RTLOG_FATAL, "[MS-GC] TraceRefField: FATAL INVALID target=%p "
+            "(stateWord=0x%zx) from parent=%p (parentSW=0x%zx, parentTI=%p), "
+            "fieldAddr=%p",
+            (void*)target,
+            *reinterpret_cast<uintptr_t*>(target),
+            (void*)obj,
+            *reinterpret_cast<uintptr_t*>(obj),
+            (obj != nullptr ? (void*)obj->GetTypeInfo() : nullptr),
+            (void*)&field);
+    }
+    // Push if not yet marked; actual marking happens on pop (mark-on-pop pattern,
+    // same as CopyGC — avoids per-child atomic mark + fetch_add in hot loop)
+    if (!IsMarkedObject(target)) {
         workStack.push_back(target);
     }
 }
@@ -537,15 +415,8 @@ void MarkSweepCollector::EnqueueGreyObject(BaseObject* obj)
 
 void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
 {
-    std::lock_guard<std::mutex> lock(globalWorkMutex_);
-    BaseObject** data = wbBuf.Data();
-    size_t n = wbBuf.Count();
-    for (size_t i = 0; i < n; ++i) {
-        if (data[i] != nullptr) {
-            globalWorkQueue_.push_back(data[i]);
-        }
-    }
-    wbBuf.Clear();
+    // Legacy stub — was used by MSWriteBarrier, now using SatbBuffer path.
+    (void)wbBuf;
 }
 
 void MarkSweepCollector::PopFromGlobal(WorkStack& dest, size_t maxBufs)
@@ -598,8 +469,8 @@ void MarkSweepCollector::MSMarkAssist()
         return;  // No grey work available
     }
 
-    size_t processed = 0;
-    while (processed < kAssistMaxObjectsPerCall && !localWork.empty()) {
+    size_t nNewlyMarked = 0;
+    while (nNewlyMarked < kAssistMaxObjectsPerCall && !localWork.empty()) {
         BaseObject* obj = localWork.back();
         localWork.pop_back();
 
@@ -607,7 +478,20 @@ void MarkSweepCollector::MSMarkAssist()
             continue;
         }
 
-        processed++;
+        // Guard: objects in the mark queue must have a valid stateWord (same as RunCollectorDrainSlice).
+        if (UNLIKELY(!obj->IsValidObject())) {
+            LOG(RTLOG_FATAL, "[MS-GC] MSMarkAssist: FATAL invalid stateWord obj=%p, "
+                "stateWord=0x%zx, markBit=%d",
+                (void*)obj,
+                *reinterpret_cast<uintptr_t*>(obj),
+                (int)IsMarkedObject(obj));
+        }
+
+        // Mark on pop (same pattern as RunCollectorDrainSlice)
+        if (MarkObject(obj)) {
+            continue;  // already marked
+        }
+        nNewlyMarked++;
 
         if (!obj->HasRefField()) {
             continue;
@@ -619,7 +503,7 @@ void MarkSweepCollector::MSMarkAssist()
             continue;
         }
 
-        // Trace children → push newly-marked grey objects to localWork
+        // Trace children → push grey objects to localWork (mark-on-pop)
         TraceObjectRefFields(obj, localWork);
 
         // Flush excess to global to share with GC thread and other assists
@@ -633,7 +517,9 @@ void MarkSweepCollector::MSMarkAssist()
         PushToGlobal(localWork);
     }
 
-    assistMarkedCount_.fetch_add(processed, std::memory_order_relaxed);
+    // Batch update: one atomic op per assist call instead of per-object
+    (void)markedObjectCount.fetch_add(nNewlyMarked, std::memory_order_relaxed);
+    assistMarkedCount_.fetch_add(nNewlyMarked, std::memory_order_relaxed);
 }
 
 // ============================================================================
@@ -649,24 +535,20 @@ void MarkSweepCollector::MarkTermination()
     ScopedStopTheWorld stw("MS MarkTermination", true, GCPhase::GC_PHASE_MS_MARK_TERMINATION);
 
     // Now that all mutators are frozen, clear activeCollector_.
-    // This is safe because no mutator code (including write barriers) can run during STW.
-    // We kept it alive through the ConcurrentMark→MarkTermination gap to ensure
-    // write barrier overflow could always reach the global work queue.
     activeCollector_.store(nullptr, std::memory_order_release);
 
     WorkStack mainQueue = NewWorkStack();
 
-    // 1. Flush all write barrier buffers (per-mutator)
+    // 1. Drain SatbBuffer: collect from per-Mutator satbNodes + global retiredNodes
     {
         uint64_t t0 = TimeUtil::MicroSeconds();
-        FlushAllWriteBarrierBuffers(mainQueue);
+        DrainSatbBufferToMainQueue(mainQueue);
         cycleStats_.wbBufFlushUs = TimeUtil::MicroSeconds() - t0;
         cycleStats_.wbBufEntriesTotal = mainQueue.size();
     }
 
-    // 1b. Drain global work queue — objects pushed via WB overflow flush
-    //     (FlushWriteBarrierOverflow) go directly to globalWorkQueue_ and are
-    //     NOT in per-mutator WB buffers. Must drain them here under STW.
+    // 1b. Drain global work queue — objects pushed during concurrent mark
+    //     (via ShareWorkToGlobal / PushToGlobal) that weren't consumed.
     {
         std::lock_guard<std::mutex> lock(globalWorkMutex_);
         while (!globalWorkQueue_.empty()) {
@@ -681,7 +563,6 @@ void MarkSweepCollector::MarkTermination()
     // 2. Collect other remaining unmarked objects to main queue
     {
         uint64_t t0 = TimeUtil::MicroSeconds();
-        CollectExternCandidatesToMain(mainQueue);
         CollectResurrectionCandidatesToMain(mainQueue);
         cycleStats_.drainedGreyObjects = mainQueue.size();
         cycleStats_.drainMarkQueueUs = TimeUtil::MicroSeconds() - t0;
@@ -698,7 +579,7 @@ void MarkSweepCollector::MarkTermination()
 
     VLOG(REPORT, "[MS-GC] DrainMarkQueue: drained %zu grey objects, %sus",
          cycleStats_.drainedGreyObjects, Pretty(cycleStats_.drainMarkQueueUs).Str());
-    VLOG(REPORT, "[MS-GC] FlushWriteBarrierBuffers (final): %zu entries, %sus",
+    VLOG(REPORT, "[MS-GC] DrainSatbBuffer (final): %zu entries, %sus",
          cycleStats_.wbBufEntriesTotal, Pretty(cycleStats_.wbBufFlushUs).Str());
     VLOG(REPORT, "[MS-GC] MarkTermination total: %sus, total marked %zu",
          Pretty(cycleStats_.markTerminationUs).Str(),
@@ -707,20 +588,17 @@ void MarkSweepCollector::MarkTermination()
     // Transition to MS_SWEEP INSIDE STW so that when mutators resume,
     // the phase is MS_SWEEP (idle barrier). This eliminates a gap where
     // mutators could trigger the SATB barrier after MarkTermination drain
-    // but before PostMarkTermination switches the phase — objects shaded
-    // in that gap would never be traced because PostMarkTermination's
-    // ClearAllWriteBarrierBuffers discards them without tracing.
+    // but before PostMarkTermination switches the phase.
     TransitionToGCPhase(GCPhase::GC_PHASE_MS_SWEEP, false);
-    ClearAllWriteBarrierBuffers();
 
-    // 3. Transition to MS_SWEEP (uninstalls mark barrier, installs idle barrier)
-    //    Note: ScopedStopTheWorld destructor will call StartTheWorld()
+    // Clear SatbBuffer: return all retired nodes to free pool
+    SatbBuffer::Instance().ClearBuffer();
 }
 
 void MarkSweepCollector::CollectUnmarkedToMainQueue(WorkStack& mainQueue)
 {
-    // Flush all Mutators' write barrier buffers (replaces SATB collection)
-    FlushAllWriteBarrierBuffers(mainQueue);
+    // Drain SatbBuffer (replaces FlushAllWriteBarrierBuffers)
+    DrainSatbBufferToMainQueue(mainQueue);
 
     // Collect extern (foreign) object candidates
     CollectExternCandidatesToMain(mainQueue);
@@ -729,30 +607,51 @@ void MarkSweepCollector::CollectUnmarkedToMainQueue(WorkStack& mainQueue)
     CollectResurrectionCandidatesToMain(mainQueue);
 }
 
-void MarkSweepCollector::FlushAllWriteBarrierBuffers(WorkStack& mainQueue)
+void MarkSweepCollector::DrainSatbBufferToMainQueue(WorkStack& mainQueue)
 {
-    // Under STW: flush each Mutator's WriteBarrierBuffer into mainQueue.
-    // Objects are already marked by the write barrier; this just ensures
-    // they get traced (their children discovered).
-    auto func = [&mainQueue](Mutator& mutator) {
-        mutator.GetWriteBarrierBuffer().Flush(mainQueue);
+    // Under STW: collect objects from all Mutators' satbNodes and global retiredNodes.
+    // Filter: only keep heap objects that are not yet marked (need tracing).
+    WorkStack remarkStack;
+
+    // 1. Collect from each Mutator's active satbNode
+    auto func = [&remarkStack](Mutator& mutator) {
+        const SatbBuffer::Node* node = mutator.GetSatbBufferNode();
+        if (node != nullptr) {
+            const_cast<SatbBuffer::Node*>(node)->GetObjects(remarkStack);
+        }
     };
     MutatorManager::Instance().VisitAllMutators(func);
+
+    // 2. Collect from global retiredNodes
+    SatbBuffer::Instance().GetRetiredObjects(remarkStack);
+
+    // 3. Filter: only keep valid heap objects not yet marked
+    while (!remarkStack.empty()) {
+        BaseObject* obj = remarkStack.back();
+        remarkStack.pop_back();
+        if (obj != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(obj)) &&
+            obj->IsValidObject() && !IsMarkedObject(obj)) {
+            mainQueue.push_back(obj);
+        }
+    }
+}
+
+void MarkSweepCollector::FlushAllWriteBarrierBuffers(WorkStack& mainQueue)
+{
+    // Legacy stub — now using SatbBuffer path. Kept for interface compatibility.
+    (void)mainQueue;
 }
 
 void MarkSweepCollector::ClearAllWriteBarrierBuffers()
 {
-    auto func = [](Mutator& mutator) {
-        mutator.GetWriteBarrierBuffer().Clear();
-    };
-    MutatorManager::Instance().VisitAllMutators(func);
+    // Legacy stub — now using SatbBuffer path. Kept for interface compatibility.
 }
 
 void MarkSweepCollector::CollectExternCandidatesToMain(WorkStack& mainQueue)
 {
     for (auto& kv : discoveredExternObjects) {
         for (BaseObject* obj : kv.second) {
-            if (!IsMarkedObject(obj)) {
+            if (obj != nullptr && obj->IsValidObject() && !IsMarkedObject(obj)) {
                 mainQueue.push_back(obj);
             }
         }
@@ -763,7 +662,7 @@ void MarkSweepCollector::CollectResurrectionCandidatesToMain(WorkStack& mainQueu
 {
     VisitFinalizerRoots([&mainQueue, this](ObjectRef& ref) {
         BaseObject* finalizerObj = ref.object;
-        if (finalizerObj != nullptr && !IsMarkedObject(finalizerObj)) {
+        if (finalizerObj != nullptr && finalizerObj->IsValidObject() && !IsMarkedObject(finalizerObj)) {
             mainQueue.push_back(finalizerObj);
         }
     });
@@ -771,12 +670,34 @@ void MarkSweepCollector::CollectResurrectionCandidatesToMain(WorkStack& mainQueu
 
 void MarkSweepCollector::ExecuteLikeDrainMainQueue(WorkStack& mainQueue)
 {
+    size_t processed = 0;
+    size_t nNewlyMarked = 0;
+    size_t initialSize = mainQueue.size();
+    VLOG(REPORT, "[MS-GC] DrainMainQueue start: %zu items", initialSize);
+
     while (!mainQueue.empty()) {
         BaseObject* obj = mainQueue.back();
         mainQueue.pop_back();
+        processed++;
+
+        if ((processed % 100000) == 0 || initialSize <= 20) {
+            VLOG(REPORT, "[MS-GC] DrainQ item#%zu: obj=%p managed=%d qRemain=%zu",
+                 processed, (void*)obj,
+                 (obj != nullptr ? (int)IsManagedAddress(reinterpret_cast<MAddress>(obj)) : -1),
+                 mainQueue.size());
+        }
 
         if (obj == nullptr || !IsManagedAddress(reinterpret_cast<MAddress>(obj))) {
             continue;
+        }
+
+        // Guard: objects in released/reclaimed regions must not appear in
+        // the mark queue. A zeroed stateWord is a fatal GC invariant violation.
+        if (!obj->IsValidObject()) {
+            LOG(RTLOG_FATAL, "[MS-GC] ExecuteLikeDrainMainQueue: FATAL invalid stateWord obj=%p, "
+                "stateWord=0x%zx",
+                (void*)obj,
+                *reinterpret_cast<uintptr_t*>(obj));
         }
 
         // Try to mark. If newly marked, count it.
@@ -785,7 +706,12 @@ void MarkSweepCollector::ExecuteLikeDrainMainQueue(WorkStack& mainQueue)
         // their children untraced and subject to incorrect sweeping.
         bool alreadyMarked = MarkObject(obj);
         if (!alreadyMarked) {
-            markedObjectCount.fetch_add(1, std::memory_order_relaxed);
+            nNewlyMarked++;
+        }
+
+        if (initialSize <= 20) {
+            VLOG(REPORT, "[MS-GC] DrainQ item#%zu: marked=%d hasRef=%d qSize=%zu",
+                 processed, (int)alreadyMarked, (int)obj->HasRefField(), mainQueue.size());
         }
 
         if (!obj->HasRefField()) {
@@ -805,6 +731,10 @@ void MarkSweepCollector::ExecuteLikeDrainMainQueue(WorkStack& mainQueue)
 
         TraceObjectRefFields(obj, mainQueue);
     }
+
+    VLOG(REPORT, "[MS-GC] DrainMainQueue done: %zu processed (initial %zu)", processed, initialSize);
+    // Batch update: one atomic op for entire drain
+    (void)markedObjectCount.fetch_add(nNewlyMarked, std::memory_order_relaxed);
 }
 
 // ============================================================================
@@ -836,12 +766,6 @@ void MarkSweepCollector::PostMarkTermination()
              snapshotFinalizerNum, Pretty(finalizerUs).Str());
         cycleStats_.finalizerEnqueued = snapshotFinalizerNum;
     }
-
-    // 4. OHOS cross-language cycle reference preparation
-    PrepareCycleRef();
-
-    // 5. OHOS cross-language cycle reference resolve notification
-    PostResolveCycleTask();
 
     // 6. Large object garbage collection (eager sweep for LOS) — with stats
     {
@@ -888,12 +812,6 @@ void MarkSweepCollector::PostResolveCycleTask()
 void MarkSweepCollector::CollectLargeGarbage()
 {
     RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
-
-    // Tier 2: LOS huge objects (>4MB mmap)
-    LargeObjectSpace* los = space.GetLargeObjectSpace();
-    if (los != nullptr) {
-        los->SweepUnmarkedObjectsWithStats(cycleStats_.losFreedCount, cycleStats_.losFreedBytes);
-    }
 
     // Tier 1: in-heap large regions — eager sweep unmarked ones
     CentralRegionPool* centralPool = space.GetCentralPool();
@@ -1157,12 +1075,12 @@ void MarkSweepCollector::UpdateGCStats()
     // Simplified Go-style threshold: next GC triggers at liveBytes * (1 + heapGrowth).
     double heapGrowth = 1 + (CangjieRuntime::GetHeapParam().heapGrowth);
     size_t newThreshold = static_cast<size_t>(liveBytes * heapGrowth);
-    uint64_t gcInterval = CangjieRuntime::GetGCParam().gcInterval;
 
     // 0.98: make sure new threshold does not exceed reasonable limit.
     newThreshold = std::min(newThreshold, static_cast<size_t>(heapSize * 0.98));
     gcStats.heapThreshold = std::min(newThreshold, CangjieRuntime::GetGCParam().gcThreshold);
-    g_gcRequests[GC_REASON_HEU].SetMinInterval(gcInterval);
+    // No minimum GC interval — trigger immediately when threshold is reached.
+    g_gcRequests[GC_REASON_HEU].SetMinInterval(0);
     VLOG(REPORT, "[MS-GC] live bytes %zu (survived %zu, recent-allocated %zu), update gc threshold %zu -> %zu",
          liveBytes, liveBytes - recentBytes, recentBytes, oldThreshold, gcStats.heapThreshold);
     VLOG(REPORT, "[MS-GC]   committed %s B, true live %s B (%.1f%% utilization)",

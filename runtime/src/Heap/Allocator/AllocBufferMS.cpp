@@ -54,21 +54,33 @@ MAddress AllocBufferMS::Allocate(size_t size)
     }
     MAddress addr = FastAlloc(cls);
 
-    // Mark-at-alloc: during ALL MS-GC phases (MARK_SETUP through SWEEP),
-    // newly allocated objects must be colored black (marked) so they survive
-    // the current GC cycle's sweep.
-    //
-    // Critical: objects allocated during MS_SWEEP phase are placed in free
-    // slots of already-swept regions (using old allocBitmap). Their markBitmap
-    // bits are 0 (cleared at MarkSetup). When PrepareForSweep flips the
-    // generation and the region is lazily swept again, allocBitmap = ~markBitmap
-    // would incorrectly free these live objects. Setting the mark bit here
-    // prevents that.
     if (UNLIKELY(addr != 0)) {
+        // Mark-at-alloc: during ALL MS-GC phases (MARK_SETUP through SWEEP),
+        // newly allocated objects must be colored black (marked) so they survive
+        // the current GC cycle's sweep.
+        //
+        // Critical: objects allocated during MS_SWEEP phase are placed in free
+        // slots of already-swept regions (using old allocBitmap). Their markBitmap
+        // bits are 0 (cleared at MarkSetup). When PrepareForSweep flips the
+        // generation and the region is lazily swept again, allocBitmap = ~markBitmap
+        // would incorrectly free these live objects. Setting the mark bit here
+        // prevents that.
         GCPhase phase = Mutator::GetMutator()->GetMutatorPhase();
         if (UNLIKELY(phase >= GCPhase::GC_PHASE_MS_MARK_SETUP &&
                      phase <= GCPhase::GC_PHASE_MS_SWEEP)) {
             RegionSpace::MarkObject(reinterpret_cast<const BaseObject*>(addr));
+        }
+
+        // Mutator assist: accumulate allocation debt, trigger mark assist
+        // every kGCAssistTriggerBytes (64KB). MSMarkAssist() checks
+        // assistEnabled_ internally — no-op outside ConcurrentMark phase.
+        gcAssistBytes_ += size;
+        if (UNLIKELY(gcAssistBytes_ >= kGCAssistTriggerBytes)) {
+            gcAssistBytes_ = 0;
+            MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
+            if (collector != nullptr) {
+                collector->MSMarkAssist();
+            }
         }
     }
 
@@ -167,9 +179,18 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
     // Step 3: Set as active Region
     activeRegions_[cls] = newRegion;
 
-    // O2: Prefetch one backup region into cache for next SlowAlloc
-    if (cachedRegion_[cls] == nullptr && central_ != nullptr) {
-        cachedRegion_[cls] = central_->GetRegion(cls);
+    // O2: Prefetch one backup region into cache for next SlowAlloc.
+    // Must use CAS to avoid overwriting a region placed by BackgroundFillCache.
+    if (cachedRegion_[cls].load(std::memory_order_relaxed) == nullptr && central_ != nullptr) {
+        MSRegionInfo* prefetch = central_->GetRegion(cls);
+        if (prefetch != nullptr) {
+            MSRegionInfo* expected = nullptr;
+            if (!cachedRegion_[cls].compare_exchange_strong(expected, prefetch,
+                    std::memory_order_release, std::memory_order_relaxed)) {
+                // BackgroundFillCache already filled it; return the prefetched region.
+                central_->ReturnPartialRegion(prefetch, cls);
+            }
+        }
     }
 
     // Step 4: Allocate from the new Region (respect region type)
@@ -240,6 +261,8 @@ void AllocBufferMS::FlushAll()
         if (cachedRegion_[cls] != nullptr) {
             MSRegionInfo* cached = cachedRegion_[cls];
             cachedRegion_[cls] = nullptr;
+            // markBitmap clearing is now handled by ClearAllMarkBitmaps
+            // before STW, so no per-region ClearMarkBitmap here.
             if (cached->IsCompletelyFree()) {
                 cached->ResetToBump();
                 central_->ReturnPartialRegion(cached, cls);
@@ -249,6 +272,8 @@ void AllocBufferMS::FlushAll()
                 central_->ReturnFullRegion(cached, cls);
             }
         }
+
+        // Active region: return to pool (bitmap already cleared pre-STW)
         ReturnRegion(cls);
     }
 }

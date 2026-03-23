@@ -1,7 +1,13 @@
-# Step 1：分配器改造详细设计 —— 从 Bump-Pointer 到 Free-List 混合模式
+# Step 1：分配器改造详细设计 —— 从 Bump-Pointer 到 Bitmap/SizeClass 模式
 
 > 本文档是 [Go 风格 GC 迁移方案](Go风格GC迁移方案.md) Step 1 的独立详细设计文档。
 > 目标：在保留 Region 框架的前提下，改造分配器以支持 Mark-Sweep 模式下对象的原地回收与空间复用。
+>
+> 2026-03-23 当前代码状态修正：
+> 1. `MSRegionManager` 已经是独立主路径，负责虚拟大预留、segment 增长和 mmap-front `MSRegionInfo[]`。
+> 2. 当前大对象主分配路径是 `allocSize >= 16KB` 直接走 `MSRegionManager::TakeRegionForLarge()`，不是文档里描述的“主路径先到 `LargeObjectSpace`”。
+> 3. `LargeObjectSpace` 类仍存在，但目前主要用于 `Contains/MarkObject/SweepUnmarkedObjects` 这类辅助路径，不是 `TryAllocateOnceMS()` 的常规分配出口。
+> 4. `HeapGrowthManager`、`Scavenger`、`HeapGoalController` 并没有以独立类形态落地，相关能力已部分内联进 `MSRegionManager` 和现有回收/阈值逻辑。
 
 ---
 
@@ -271,7 +277,7 @@ Region (128KB):
 
 - **编译期分派**：通过 `MRT_USE_MARK_SWEEP` 宏在 `TryAllocateOnce` 中切换 Copy GC / MS 路径
 - **小对象路径**：`SizeToClass(size)` → `AllocBufferMS::FastAlloc(cls)` 内联 bitmap → 失败走 `SlowAlloc` 从 CentralRegionPool 补充
-- **大对象路径**：> 16KB 走 `AllocLarge`（Tier 1）或 `LargeObjectSpace`（Tier 2），详见 [Step1.3](Step1.3_大对象分配与堆增长设计.md) §1-§2
+- **大对象路径**：当前 `allocSize >= 16KB` 即直接走 `MSRegionManager::TakeRegionForLarge()` 注册为堆内 large region；`LargeObjectSpace` 仍保留，但不是 `TryAllocateOnceMS()` 的主分配出口，详见 [Step1.3](Step1.3_大对象分配与堆增长设计.md) §1-§2
 - **Pinned 对象**：MS 模式下所有对象天然不移动，pinned 语义自动满足，统一走 `AllocBufferMS`
 - **Raw-Pointer 对象**：仍使用独立 Region（不混入 size-class Region），复用现有逻辑
 - **编译器快速路径兼容**：保持 `AllocBuffer::tlRegion` 偏移 0、`allocPtr` 偏移 0 的约束；新 Region 首次分配仍用 bump-pointer，bitmap 复用在运行时慢速路径处理
@@ -295,13 +301,13 @@ Region (128KB):
 
 本节涵盖大对象分配和动态堆管理两大主题，已提取到独立文档。核心要点：
 
-- **三级分类**：≤16KB（size class bitmap）、16KB~4MB（FreeRegionManager Tier 1）、>4MB（mmap Tier 2）
+- **当前主路径分类**：`<16KB` 走 size class；`>=16KB` 走 `MSRegionManager::TakeRegionForLarge()` 注册 large region；`LargeObjectSpace` 主要作为辅助路径保留
 - **Tier 1 低地址优先**：CartesianTree `FindLowestAddr` 递归算法，减少堆碎片，Region 32KB 倍数对齐
 - **Tier 1 GC 集成**：独立 `LargeRegionList` 跟踪大对象 Region，标记完成后 Eager Sweep 回收
-- **Tier 2 LargeObjectSpace**：独立 mmap/munmap，`unordered_map` O(1) 查找，Eager Free 立即释放
+- **LargeObjectSpace 现状**：类仍存在，具备独立 mmap/munmap 与 `Contains/MarkObject/SweepUnmarkedObjects` 能力，但不是当前 `RegionSpace::TryAllocateOnceMS()` 的常规出口
 - **IsHeapAddress 修正**：快速路径（主堆范围检查）+ 慢速路径（LOS 哈希查找），详见 Step1.3 §5.4
 - **堆增长**：64GB `MAP_NORESERVE` 虚拟预留 + 256MB Segment 分段提交，元数据向低地址增长
-- **GC 堆目标**：`HeapGoalController` 控制触发阈值，`Scavenger` 后台归还空闲物理页
+- **堆增长与触发**：`MSRegionManager` 已内联 segment 增长能力，GC 阈值与回收仍由现有 `GCStats` / `RegionSpace` / `FinalizerProcessor` 协调，而不是单独的 `HeapGoalController` / `Scavenger`
 - **与 Go 对比**：Go 无 Tier 2 区分、Go 用 radix tree 而非 CartesianTree、Go 用 arena（64MB）而非 Segment（256MB）
 
 ---
@@ -316,7 +322,7 @@ Region (128KB):
 |--------|---------|------|
 | **Step1.1** | `MSRegionInfo` 64B 结构体、bitmap 字段、`AllocFromBitmap`/`SweepRegion`/`InitForSizeClass` 方法、堆前方镜像布局适配 | [Step1.1 §3.4-3.7](Step1.1_MS_RegionInfo元数据改造设计.md) |
 | **Step1.2** | `SizeClass.h/cpp`（新增）、`AllocBufferMS.h/cpp`（新增）、`CentralRegionPool.h/cpp`（新增）、`RegionSpace.cpp` 分派逻辑、Region 获取/释放全流程 | [Step1.2 §1-4](Step1.2_SizeClass与线程本地分配设计.md) |
-| **Step1.3** | `FreeRegionManager` 低地址优先改造、Region 对齐、`LargeObjectSpace`（新增）、`LargeRegionList`、`IsHeapAddress` 修正、`HeapGrowthManager`、`Scavenger`、`HeapGoalController` | [Step1.3 §7](Step1.3_大对象分配与堆增长设计.md) |
+| **Step1.3** | 大对象 large region、`LargeObjectSpace` 保留、`MSRegionManager` segment 增长、`IsHeapAddress` 修正 | [Step1.3 §7](Step1.3_大对象分配与堆增长设计.md) |
 
 ### 6.2 跨文档公共修改
 
@@ -421,16 +427,16 @@ python3 build.py build --target native --build-type debug -v 0.0.1 --gc-type mar
 | mspan | Region(RegionInfo) | MSRegionInfo + size class | Step1.1 |
 | mcache | AllocBuffer | AllocBufferMS | Step1.2 |
 | mcentral | - (无直接对应) | CentralRegionPool | Step1.2 |
-| mheap | RegionManager + FreeRegionManager | HeapGrowthManager | Step1.3 |
-| mheap.alloc (large) | RegionManager::AllocLarge | AllocLarge + LargeObjectSpace | Step1.3 |
+| mheap | RegionManager + FreeRegionManager | MSRegionManager（已内联增长/回收能力） | Step1.3 |
+| mheap.alloc (large) | RegionManager::AllocLarge | `MSRegionManager::TakeRegionForLarge`（当前主路径） | Step1.3 |
 | pageAlloc | FreeRegionManager (CartesianTree) | 低地址优先 FindLowestAddr | Step1.3 |
 | arena | 固定堆 (Init 一次性 mmap) | Segment (256MB) | Step1.3 |
-| bgscavenge | - (无) | Scavenger | Step1.3 |
-| GOGC | - (无) | HeapGoalController | Step1.3 |
+| bgscavenge | - (无) | 现有 `FinalizerProcessor + ReclaimGarbageMemory` 回收链 | Step1.3 |
+| GOGC | - (无) | 现有 `GCStats` / threshold 更新逻辑 | Step1.3 |
 | size class table | - (无) | SizeClassInfo (36 级) | Step1.2 |
 | sweepgen | - (无) | sweepState | Step1.1 |
 | freeindex | allocPtr | allocPtr + allocBitmap | Step1.1 |
-| spanClass=0 (large) | recentLargeRegionList | LargeRegionList + LargeObjectSpace | Step1.3 |
+| spanClass=0 (large) | recentLargeRegionList | large region + `LargeObjectSpace`（保留辅助路径） | Step1.3 |
 
 ## 附录 B：与后续 Step 的接口约定
 
@@ -445,12 +451,12 @@ python3 build.py build --target native --build-type debug -v 0.0.1 --gc-type mar
 | `AllocBufferMS::FlushAll()` | Step 2 (STW MarkSetup) | STW 时归还所有线程本地 Region | Step1.2 |
 | `SizeClassInfo::SizeToClass()` | Step 4 (WriteBarrier) | 屏障中判断对象大小 | Step1.2 |
 | `MSRegionInfo::IsCompletelyFree()` | Step 3 (Collector) | 判断 Region 是否可整体释放 | Step1.1 |
-| `LargeObjectSpace::Allocate()` | RegionSpace | Tier 2 超大对象堆外分配 | Step1.3 |
-| `LargeObjectSpace::SweepUnmarkedObjects()` | Step 3 (Collector) | GC 后 Eager Free 清扫 LOS 死对象 | Step1.3 |
-| `LargeObjectSpace::ForEachObject()` | Step 2 (Marker) | 标记阶段遍历 LOS 对象 | Step1.3 |
+| `LargeObjectSpace::Allocate()` | RegionSpace | 当前不是 `TryAllocateOnceMS()` 的主分配出口，作为保留能力存在 | Step1.3 |
+| `LargeObjectSpace::SweepUnmarkedObjects()` | Step 3 (Collector) | GC 后辅助清扫 LOS 对象 | Step1.3 |
+| `LargeObjectSpace::ForEachObject()` | Step 2 (Marker) | 辅助遍历 LOS 对象 | Step1.3 |
 | `LargeRegionList::SweepAndReclaim()` | Step 3 (Collector) | Tier 1 大对象 Eager Sweep | Step1.3 |
 | `Heap::IsHeapAddress()` | Barrier / Collector | 主堆 + LOS 地址识别 | Step1.3 |
-| `HeapGrowthManager::EnsureCapacity()` | RegionManager::TakeRegion | 堆空间不足时动态扩展 | Step1.3 |
-| `Scavenger::SetScavengeGoal()` | Step 3 (GC 结束后) | 设置归还目标，触发后台释放 | Step1.3 |
-| `HeapGoalController::ShouldTriggerGC()` | 分配路径 | 判断是否需要触发 GC | Step1.3 |
+| `MSRegionManager::GrowOneSegment()` | `MSRegionManager::TakeRegion*` | 堆空间不足时动态扩展 | Step1.3 |
+| `RegionSpace::ReclaimGarbageMemory()` | Step 4 / gc-helper | 回收与归还物理页 | Step1.3 |
+| `GCStats` threshold 更新 | 分配路径 | 判断是否需要触发 GC | Step1.3 |
 | `SafeGetRegionInfo()` | Barrier / Collector | LOS 安全的 Region 元数据获取 | Step1.3 |

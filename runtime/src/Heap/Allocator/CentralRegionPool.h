@@ -123,6 +123,14 @@ public:
         std::swap(count_, other.count_);
     }
 
+    // O(1) accept a single-linked chain (nextRegionIdx only, prev NOT set).
+    // List MUST be empty. Safe when consumers only use TakeHead (which fixes prev lazily).
+    void AcceptSingleLinkedChain(int32_t headIdx, size_t count)
+    {
+        headIdx_ = headIdx;
+        count_ = count;
+    }
+
     // Iterate all elements, calling visitor(MSRegionInfo*) for each.
     // Visitor may NOT modify the list (use TakeHead loop for drain).
     template<typename Visitor>
@@ -184,8 +192,7 @@ public:
     bool IsEmpty() const { return head_.load(std::memory_order_acquire) == MSRegionInfo::INVALID_IDX; }
     size_t Count() const { return count_.load(std::memory_order_relaxed); }
 
-    // Drain all elements into an MSRegionList (under external synchronization, e.g. STW).
-    // Used by PrepareForSweep to swap partialSwept into partialUnswept.
+    // O(n) drain all elements into an MSRegionList (under external synchronization, e.g. STW).
     void DrainTo(MSRegionList& dest)
     {
         int32_t idx = head_.exchange(MSRegionInfo::INVALID_IDX, std::memory_order_acquire);
@@ -200,6 +207,18 @@ public:
             drained++;
         }
         count_.fetch_sub(drained, std::memory_order_relaxed);
+    }
+
+    // O(1) transfer entire chain to MSRegionList. Must be called during STW.
+    // Destination MUST be empty. Prev pointers are NOT fixed — safe when
+    // consumers only use TakeHead (which fixes prev lazily).
+    void StealChainTo(MSRegionList& dest)
+    {
+        int32_t h = head_.load(std::memory_order_relaxed);
+        size_t cnt = count_.load(std::memory_order_relaxed);
+        head_.store(MSRegionInfo::INVALID_IDX, std::memory_order_relaxed);
+        count_.store(0, std::memory_order_relaxed);
+        dest.AcceptSingleLinkedChain(h, cnt);
     }
 
     // Unsafe iteration for GC (STW only). Visitor must NOT modify the stack.
@@ -319,22 +338,33 @@ public:
     // Register a large MSRegionInfo (MS_REGION_LARGE) for GC tracking.
     void RegisterLargeRegion(MSRegionInfo* region);
 
-    // Clear isMarked on all tracked large regions (called in MarkSetup).
-    void ClearLargeMarks();
-
     // Eager sweep: reclaim unmarked large regions, return freed bytes.
     // Called after MarkTerminate / in PostMarkTermination.
     size_t SweepLargeRegions();
 
     // Wait until previous-cycle sweep work is globally quiescent.
-    // This covers both the sweepDone_ completion flag and an already-running
-    // background sweeper that may still be mutating region metadata/bitmaps.
-    void WaitForSweepDone()
-    {
-        while (!IsSweepDone()) {
-            std::this_thread::yield();
-        }
-    }
+    // Actively helps drain remaining sweep work (via ForceFinishSweep)
+    // instead of spinning idle, then waits for any in-flight background
+    // sweeper to finish.
+    void WaitForSweepDone();
+
+    // ===== Pre-STW bitmap clearing (MarkSetup fast path) =====
+
+    // Stop background sweep and disable lazy sweep, wait for all in-flight
+    // sweeps (bg + lazy) to fully quiesce. Must be called before clearing
+    // markBitmaps to avoid data races with SweepRegion reading markBitmap.
+    void StopAndWaitForAllSweep();
+
+    // Clear markBitmaps for all active small/medium regions in MSRegionInfoArray.
+    // CAS-stamps unswept regions (sg-2 -> sg) to prevent future lazy sweep.
+    // Must be called after StopAndWaitForAllSweep().
+    void ClearAllMarkBitmaps();
+
+    // Drain unswept lists into swept lists after stamping all regions as swept.
+    void ReclassifyUnsweptToSwept();
+
+    // Re-enable lazy sweep after MarkSetup bitmap clearing is complete.
+    void ReenableLazySweep();
 
     // Adjust totalMSRegionBytes_ for large region tracking.
     void AddLargeRegionBytes(size_t bytes)
@@ -362,6 +392,9 @@ private:
     static std::atomic<uint32_t> globalSweepGen_;
     std::atomic<bool> sweepDone_{true};
     std::atomic<bool> bgSweepRunning_{false};
+    std::atomic<bool> stopSweepRequested_{false};    // Signal bg sweep to stop early
+    std::atomic<bool> skipLazySweep_{false};          // Disable lazy sweep in GetRegion P2/P3
+    std::atomic<size_t> activeLazySweepCount_{0};     // In-flight lazy sweep counter
     MSSweepStats sweepStats_;
 
     // Total bytes of MS regions currently committed (GetFreshRegion +, ReleaseRegion -).

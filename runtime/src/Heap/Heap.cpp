@@ -12,7 +12,7 @@
 #include "ObjectModel/RefField.inline.h"
 #ifdef MRT_USE_MARK_SWEEP
 #include "Barrier/MSIdleBarrier.h"
-#include "Barrier/MSWriteBarrier.h"
+#include "Barrier/MSSatbBarrier.h"
 #else
 #include "WCollector/IdleBarrier.h"
 #include "WCollector/EnumBarrier.h"
@@ -63,7 +63,7 @@ public:
         : theSpace(Allocator::NewAllocator()), collectorResources(collectorProxy),
           collectorProxy(*theSpace, collectorResources), stwBarrier(collectorProxy),
 #ifdef MRT_USE_MARK_SWEEP
-        msIdleBarrier(collectorProxy), msWriteBarrier(collectorProxy)
+        msIdleBarrier(collectorProxy), msSatbBarrier(collectorProxy)
 #else
         idleBarrier(collectorProxy), enumBarrier(collectorProxy), traceBarrier(collectorProxy),
         postTraceBarrier(collectorProxy), preforwardBarrier(collectorProxy), forwardBarrier(collectorProxy)
@@ -156,9 +156,9 @@ private:
     ExportRootTable exportRootsTable;
     Barrier stwBarrier;
 #ifdef MRT_USE_MARK_SWEEP
-    // MS mode: zero-overhead idle barrier + hybrid write barrier
+    // MS mode: zero-overhead idle barrier + pure SATB deletion barrier
     MSIdleBarrier msIdleBarrier;
-    MSWriteBarrier msWriteBarrier;
+    MSSatbBarrier msSatbBarrier;
 #else
     IdleBarrier idleBarrier;
     EnumBarrier enumBarrier;
@@ -217,7 +217,7 @@ void HeapImpl::InstallBarrier(const GCPhase phase)
         case GCPhase::GC_PHASE_MS_MARK_SETUP:
         case GCPhase::GC_PHASE_MS_CONCURRENT_MARK:
         case GCPhase::GC_PHASE_MS_MARK_TERMINATION:
-            currentBarrier = &msWriteBarrier;
+            currentBarrier = &msSatbBarrier;
             break;
         default:
             // fallback to STW barrier for unknown phases

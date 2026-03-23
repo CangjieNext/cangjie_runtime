@@ -9,6 +9,7 @@
 #include "Allocator/MSRegionInfo.h"
 
 #include <cstdlib>
+#include <cstring>
 #ifndef _WIN64
 #include <sys/mman.h>
 #endif
@@ -232,8 +233,27 @@ size_t MSRegionInfo::SweepRegion()
         }
     }
 
-    // Clear markBitmap for next GC cycle
-    memset(markBitmap, 0, wordCount * sizeof(uint64_t));
+    // Zero dead slots: the compiler assumes freshly-allocated memory is zeroed
+    // (same as CopyGC's bump allocator from mmap'd pages).  Bitmap allocation
+    // reuses swept slots, so stale object data must be cleared here — not on the
+    // allocation hot-path — to avoid GC tracing stale reference fields.
+    {
+        size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
+        uintptr_t base = RegionStart();
+        for (size_t i = 0; i < wordCount; i++) {
+            uint64_t freeBits = allocBitmap[i];
+            while (freeBits != 0) {
+                int bit = __builtin_ctzll(freeBits);
+                size_t slotIdx = i * 64 + static_cast<size_t>(bit);
+                uintptr_t slotAddr = base + slotIdx * slotSize;
+                memset(reinterpret_cast<void*>(slotAddr), 0, slotSize);
+                freeBits &= freeBits - 1;  // clear lowest set bit
+            }
+        }
+    }
+
+    // markBitmap is cleared by ClearAllMarkBitmaps at next MarkSetup,
+    // not here — avoids redundant memset per-region during sweep.
 
     liveSlotCount = static_cast<uint16_t>(liveCount);
     freeSlotCount = totalSlotCount - liveSlotCount;

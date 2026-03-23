@@ -166,6 +166,16 @@ struct MSRegionInfo {
     // Returns true if already marked (previous bit was set).
     bool TestAndSetMarkBit(uintptr_t objAddr);
 
+    // Clear markBitmap for next GC cycle. Called by FlushAll during MarkSetup STW
+    // to clear mark-at-alloc dirty bits on TL regions before returning to pool.
+    void ClearMarkBitmap()
+    {
+        if (markBitmap != nullptr && totalSlotCount > 0) {
+            size_t bitmapWords = (totalSlotCount + 63) / 64;
+            memset(markBitmap, 0, bitmapWords * sizeof(uint64_t));
+        }
+    }
+
     // === Sweep Generation (CAS-based lazy sweep protocol) ===
     uint32_t GetSweepGen() const { return sweepGen; }
     void SetSweepGen(uint32_t gen) { sweepGen = gen; }

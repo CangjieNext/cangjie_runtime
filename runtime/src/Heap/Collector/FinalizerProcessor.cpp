@@ -80,6 +80,7 @@ FinalizerProcessor::FinalizerProcessor()
     shouldReclaimHeapGarbage.store(false, std::memory_order_relaxed);
     shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
     shouldBackgroundSweep_.store(false, std::memory_order_relaxed);
+    shouldBackgroundFillAllocCaches_.store(true, std::memory_order_relaxed);
 }
 
 void FinalizerProcessor::Run()
@@ -103,7 +104,10 @@ void FinalizerProcessor::Run()
         // O9: Fill hungry per-thread alloc caches after sweep completes
         // (sweep may have freed regions that can now fill empty caches).
         // Lightweight O(36 × numThreads) — safe to run every wake-up.
-        BackgroundFillAllocCaches();
+        // Disabled during MarkSetup STW to avoid concurrent pool list modification.
+        if (shouldBackgroundFillAllocCaches_.load(std::memory_order_acquire)) {
+            BackgroundFillAllocCaches();
+        }
 
         if (shouldFeedHungryBuffers.load(std::memory_order_relaxed)) {
             FeedHungryBuffers();

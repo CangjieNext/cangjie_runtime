@@ -2,7 +2,13 @@
 
 > 本文档是 [Go 风格 GC 迁移方案](Go风格GC迁移方案.md) Step 2 的独立详细设计文档。
 > 目标：用 Go 风格的并发三色标记替换现有的 Trace + Forward（复制式）回收流程。
-> Sweep 阶段设计见 Step 3。
+> Sweep 阶段设计见 Step 4。
+>
+> 2026-03-23 当前代码状态修正：
+> 1. `MarkSetup` 当前实现不是纯 handshake，而是 `WaitForSweepDone` + 短 STW flush alloc buffers + handshake 枚举根。
+> 2. 当前主路径写屏障是 `MSSatbBarrier + SatbBuffer`，不是本文早期表述中的 `MSTraceBarrier` 或 `MSWriteBarrier` 主路径。
+> 3. `MarkTermination` 通过 `DrainSatbBufferToMainQueue()` 和 `globalWorkQueue_` 收尾，不复用 `TracingCollector::MarkSatbBuffer()` 作为主收敛接口。
+> 4. `GC_PHASE_MS_SWEEP` 的切换发生在 `MarkTermination` 的 STW 内；`PostMarkTermination` 只负责非 STW 清理。
 
 ---
 
@@ -11,7 +17,7 @@
 1. [现有 GC 流程深度分析](#1-现有-gc-流程深度分析)
 2. [三色标记抽象与实现映射](#2-三色标记抽象与实现映射)
 3. [MarkSweepCollector 总体设计](#3-marksweecollector-总体设计)
-4. [Phase 1: Mark Setup（Handshake）](#4-phase-1-mark-setuphandshake) → [Step 2.1](Step2.1_MarkSetup_STW详细设计.md)
+4. [Phase 1: Mark Setup（短 STW + Handshake）](#4-phase-1-mark-setup短-stw--handshake) → [Step 2.1](Step2.1_MarkSetup_STW详细设计.md)
 5. [Phase 2: Concurrent Mark（并发标记）](#5-phase-2-concurrent-mark并发标记) → [Step 2.2](Step2.2_ConcurrentMark_详细设计.md)
 6. [Phase 3: Mark Termination（STW）](#6-phase-3-mark-terminationstw) → [Step 2.3](Step2.3_MarkTermination_STW详细设计.md)
 7. [Phase 4: Post Mark Termination](#7-phase-4-post-mark-termination) → [Step 2.4](Step2.4_PostMarkTermination_详细设计.md)
@@ -83,7 +89,7 @@ WCollector::DoGarbageCollection()          // WCollector.cpp L527
 | `PrefetchQueue` | `TracingCollector.h` | 直接复用，标记预取优化 |
 | `RegionBitmap` (mark bitmap) | `Heap/Collector/LiveInfo.h` | 直接复用，per-Region 标记位图 |
 | `RegionInfo::MarkObject()` | `Heap/Allocator/RegionInfo.h` | 直接复用，设置标记位 |
-| `SatbBuffer` | `Mutator/SatbBuffer.h` | 复用结构，适配新语义 |
+| `SatbBuffer` | `Mutator/SatbBuffer.h` | 直接复用，当前 MS 主路径仍依赖它记录 old value |
 | `WeakRefBuffer` | `Mutator/SatbBuffer.h` | 直接复用 |
 | `FinalizerProcessor` | `Heap/Collector/FinalizerProcessor.h` | 直接复用 |
 | `EnumAllCommonRoots()` | `TracingCollector.cpp` | 需改造（去除指针 tag） |
@@ -249,7 +255,7 @@ Collector (抽象基类)
         └── MarkSweepCollector [NEW]        ← 新增 Mark-Sweep GC
 ```
 
-**设计决策**：`MarkSweepCollector` 直接继承 `TracingCollector`，复用其标记框架（`DoEnumeration`、`DoTracing`、`ConcurrentMarkingWork`、`MarkSatbBuffer`），但**不继承 CopyCollector**（不需要 Forward/Copy 能力）。
+**设计决策**：`MarkSweepCollector` 直接继承 `TracingCollector`，复用其标记框架（`DoEnumeration`、部分并发标记基础设施、GCThreadPool 协调等），但**不继承 CopyCollector**（不需要 Forward/Copy 能力）。当前 STW 收尾不直接复用 `MarkSatbBuffer`，而是走 MS 自己的 `DrainSatbBufferToMainQueue()`。
 
 ### 3.2 新文件结构
 
@@ -284,10 +290,10 @@ void MarkSweepCollector::DoGarbageCollection() {
 
 | 阶段 | WCollector | MarkSweepCollector |
 |------|------------|-------------------|
-| 标记准备 | TraceHeap() (ENUM+TRACE) | MarkSetup() (Handshake) |
+| 标记准备 | TraceHeap() (ENUM+TRACE) | MarkSetup() (`WaitForSweepDone` + 短 STW + Handshake) |
 | 并发标记 | DoTracing() | ConcurrentMark() |
-| 标记收尾 | PostTrace() (STW) | MarkTermination() (STW) |
-| 标记后清理 | PostTrace() 后半 | PostMarkTermination() |
+| 标记收尾 | PostTrace() (STW) | MarkTermination() (STW，内部切到 `MS_SWEEP`) |
+| 标记后清理 | PostTrace() 后半 | PostMarkTermination()（非 STW 清理） |
 | 对象复制 | Preforward() + ForwardFromSpace() | **无（不移动对象）** |
 | 空间翻转 | FlipTagID() | **无** |
 
@@ -324,21 +330,21 @@ private:
 
 ---
 
-## 4. Phase 1: Mark Setup（Handshake）
+## 4. Phase 1: Mark Setup（短 STW + Handshake）
 
 > **详细设计 → [Step 2.1：Mark Setup（Handshake）详细设计](Step2.1_MarkSetup_STW详细设计.md)**
 
-**概述**：通过 Handshake 机制（复用 `TransitionToGCPhase`）完成标记初始化，每个 Mutator 在 safepoint 自行转换，无需全局暂停。核心步骤：
+**概述**：当前实现通过 `WaitForSweepDone` + 短 STW + Handshake 组合完成标记初始化，并不是完全“无 STW 的纯 handshake”方案。核心步骤：
 
 1. **确保上一轮回收完成** — 等待或协助完成
-2. **RetireAllThreadLocalRegions** — 将所有线程私有 TL Region 回收到中央池（必须在 ClearBitmap 之前）
-3. **ClearAllMarkBitmaps** — 两阶段清除：中央池 Bitmap 由 GC 线程批量清除，TL Bitmap 由各 Mutator 在 Handshake 中自行清除
-4. **安装 SATB 删除屏障** — 通过 `TransitionToGCPhase(MS_MARK)` 完成
+2. **短 STW FlushAllAllocBuffers** — 将所有线程私有 `AllocBufferMS` Region 回收到中央池
+3. **Clear large mark / reset counter** — 当前 release 口径下不再全量清 bitmap，而是依赖 swept-clean invariant
+4. **安装 SATB 删除屏障** — 通过 `TransitionToGCPhase(GC_PHASE_MS_MARK_SETUP)` 完成
 5. **EnumAndMarkRoots** — GC 线程枚举全局根 + Mutator 自扫描栈根
 6. **EnableMarkNewObject** — 并发分配期间新对象标黑
 7. **sweepGen + gcEpoch** — 递增代际编号，为后续阶段提供 Region 纪元判定
 
-与现有 WCollector ENUM 阶段的关键差异：无 from-space 选择、Handshake 替代 STW、增加 TL Region 回收和 sweepGen 代际管理。
+与现有 WCollector ENUM 阶段的关键差异：无 from-space 选择、短 STW + Handshake 组合、增加 TL Region 回收和 sweep 收敛检查。
 
 ---
 
@@ -364,11 +370,11 @@ private:
 
 **概述**：STW-first 收敛策略，在短 STW 窗口内将并发标记的"尾巴"收敛到一致状态：
 
-1. **收集未标记候选到主队列**：SATB 残留、Extern 对象、Finalizer 复活链
+1. **收集未标记候选到主队列**：`SatbBuffer` 残留、`globalWorkQueue_`、Extern 对象、Finalizer 复活链
 2. **Execute 同构循环补标**：`MarkObject` + `TraceObjectRefFields` + WeakRef 分支
-3. **切换到下一阶段**：`TransitionToGCPhase(MS_PHASE_POST_MARK)` 卸载标记屏障
+3. **切换到下一阶段**：在 STW 内 `TransitionToGCPhase(GC_PHASE_MS_SWEEP)`，避免 Mutator 在 MarkTermination 与 PostMarkTermination 之间继续使用旧屏障语义
 
-`MarkSatbBuffer` 采用"核心逻辑复用 + MS 专用封装"，在 STW 内串行收敛，不依赖线程池。
+当前代码不以 `TracingCollector::MarkSatbBuffer()` 为主收敛接口，而是通过 `DrainSatbBufferToMainQueue()` + `ExecuteLikeDrainMainQueue()` 完成 STW 尾收敛。
 
 ---
 
@@ -381,11 +387,11 @@ private:
 | 序号 | 任务 | 说明 |
 |------|------|------|
 | 1 | `ClearWeakRefBuffer()` | 遍历 WeakRefBuffer，referent 未标记则置空 |
-| 2 | `ClearSatbBuffer()` | 释放 SATB 缓冲区内存 |
+| 2 | `SatbBuffer::ClearBuffer()` | 当前在 `MarkTermination` 末尾执行，不在 PostMarkTermination 中单独保留 |
 | 3 | `ProcessFinalizers()` | 将未标记的 finalizer 对象入队，通知 Finalizer 线程执行析构 |
 | 4 | `PrepareCycleRef()` | OHOS 专用：合并 discoveredExternObjects 到 cycleRefWorkStack |
 | 5 | `PostResolveCycleTask()` | OHOS 专用：兜底触发 CJ_MRT_RolveCycleRef |
-| 6 | `CollectLargeGarbage()` | 回收大对象 region：≤ 4MB 插入 freeManager，> 4MB 直接释放物理页 |
+| 6 | `CollectLargeGarbage()` | 当前主路径回收 Tier1 in-heap large region；相关辅助路径仍兼容 `LargeObjectSpace` |
 
 所有操作均基于已稳定的 mark bitmap，通过原子操作或独占访问保证并发安全。
 
@@ -412,19 +418,16 @@ enum GCPhase {
 };
 ```
 
-### 8.2 新增 Mark-Sweep Phase 值
+### 8.2 当前代码中的 Mark-Sweep Phase 值
 
 ```cpp
-// 在 GCPhase 枚举中新增（使用高位避免冲突）：
 enum GCPhase {
-    // ... 保留现有值（WCollector 使用） ...
-    
-    // === Mark-Sweep GC Phases ===
-    MS_PHASE_IDLE              = 20,   // 空闲（等待触发）
-    MS_PHASE_MARK_SETUP        = 21,   // Handshake: 安装屏障 + 根枚举
-    MS_PHASE_MARK              = 22,   // 并发标记
-    MS_PHASE_MARK_TERMINATION  = 23,   // STW: SATB 清理 + 弱引用 + Finalizer
-    MS_PHASE_POST_MARK         = 24,   // 非 STW: 标记后清理
+    // ... CopyGC 旧 phase 保留 ...
+
+    GC_PHASE_MS_MARK_SETUP       = 20,
+    GC_PHASE_MS_CONCURRENT_MARK  = 21,
+    GC_PHASE_MS_MARK_TERMINATION = 22,
+    GC_PHASE_MS_SWEEP            = 23,
 };
 ```
 
@@ -434,31 +437,31 @@ enum GCPhase {
      ┌────────────────────────────────────────────────────────────┐
      │                                                            │
      ▼                                                            │
-  MS_PHASE_IDLE ──[GC 触发]──→ MS_PHASE_MARK_SETUP (Handshake) │
-                                     │                          │
-                                     ▼                          │
-                              MS_PHASE_MARK (并发)              │
-                                     │                          │
-                                     ▼                          │
-                              MS_PHASE_MARK_TERMINATION (STW)   │
-                                     │                          │
-                                     ▼                          │
-                              MS_PHASE_POST_MARK (非 STW)       │
-                                     │                          │
-                                     └──────────────────────────┘
+  GC_PHASE_IDLE ──[GC 触发]──→ GC_PHASE_MS_MARK_SETUP       │
+                                      │                      │
+                                      ▼                      │
+                               GC_PHASE_MS_CONCURRENT_MARK   │
+                                      │                      │
+                                      ▼                      │
+                               GC_PHASE_MS_MARK_TERMINATION  │
+                                      │                      │
+                                      ▼                      │
+                               GC_PHASE_MS_SWEEP             │
+                                      │                      │
+                                      └──────────────────────┘
 ```
 
 ### 8.4 各 Phase 对应的 Barrier 类
 
 | Phase | Barrier 类 | 作用 |
 |-------|-----------|------|
-| `MS_PHASE_IDLE` | `IdleBarrier` | 无屏障，普通读写 |
-| `MS_PHASE_MARK_SETUP` | `MSTraceBarrier` | SATB 删除屏障（MarkSetup 末尾安装） |
-| `MS_PHASE_MARK` | `MSTraceBarrier` | SATB 删除屏障（写引用前保存旧值） |
-| `MS_PHASE_MARK_TERMINATION` | `MSTraceBarrier` | 保持屏障直到 MarkTermination 完成 |
-| `MS_PHASE_POST_MARK` | `IdleBarrier` | 卸载屏障（标记已完成） |
+| `GC_PHASE_IDLE` | `IdleBarrier` | 无屏障，普通读写 |
+| `GC_PHASE_MS_MARK_SETUP` | `MSSatbBarrier` | SATB 删除屏障（当前主路径） |
+| `GC_PHASE_MS_CONCURRENT_MARK` | `MSSatbBarrier` | SATB 删除屏障（写引用前保存旧值） |
+| `GC_PHASE_MS_MARK_TERMINATION` | `MSSatbBarrier` | 保持屏障直到 MarkTermination 完成 |
+| `GC_PHASE_MS_SWEEP` | `MSIdleBarrier` | 当前 phase 下 barrier 为 idle 语义 |
 
-### 8.5 MSTraceBarrier 设计
+### 8.5 早期 `MSTraceBarrier` 设计稿说明
 
 ```cpp
 // src/Heap/MarkSweepCollector/MSBarrier.h
@@ -471,7 +474,7 @@ public:
         BaseObject* oldValue = obj->GetRefField(offset);
         if (oldValue != nullptr) {
             // 将旧值记录到当前 Mutator 的 SATB buffer
-            GetCurrentMutator()->GetSatbBuffer()->Push(oldValue);
+            GetCurrentMutator()->RememberObjectInSatbBuffer(oldValue);
         }
         // 执行实际写入
         obj->SetRefField(offset, newValue);
@@ -487,15 +490,17 @@ private:
 };
 ```
 
+> 上面这段 `MSTraceBarrier` 代码是早期设计稿，当前源码主路径已经改为 `MSSatbBarrier`，这里保留仅用于说明演进方向。
+
 ### 8.6 Phase 切换对分配器的影响
 
 | Phase | 新分配对象行为 |
 |-------|--------------|
-| `MS_PHASE_IDLE` | 普通分配，不标记 |
-| `MS_PHASE_MARK_SETUP` | 分配 + 标记为黑色（`MarkNewObject`） |
-| `MS_PHASE_MARK` | 分配 + 标记为黑色（`MarkNewObject`） |
-| `MS_PHASE_MARK_TERMINATION` | 分配 + 标记为黑色 |
-| `MS_PHASE_POST_MARK` | 普通分配（已卸载标记 hook） |
+| `GC_PHASE_IDLE` | 普通分配，不标记 |
+| `GC_PHASE_MS_MARK_SETUP` | 分配 + 标记为黑色（`MarkNewObject`） |
+| `GC_PHASE_MS_CONCURRENT_MARK` | 分配 + 标记为黑色（`MarkNewObject`） |
+| `GC_PHASE_MS_MARK_TERMINATION` | 分配 + 标记为黑色 |
+| `GC_PHASE_MS_SWEEP` | 当前代码中分配仍会执行 mark-at-alloc，避免下一次 generation flip 后被误扫 |
 
 **关键**：在 MARK_SETUP / MARK / MARK_TERMINATION 三个阶段，新分配的对象**必须标记为黑色**，否则可能被误回收。
 
@@ -548,12 +553,12 @@ GCPhase GetPhase() const {
 | **TraceRefField** (virtual) | `WCollector.cpp` | 🔧 Override | 去除 tag/Forward/CAS（~40 行→~5 行），详见 §5.10.2 |
 | **TraceObjectRefFields** (virtual) | `WCollector.cpp` | 🔧 Override | 包装简化版 TraceRefField |
 | **GetAndTryTagObj** (virtual) | `WCollector.cpp` | 🔧 Override | 去除 tag/CAS（~25 行→~5 行），详见 §5.10.2 |
-| **MarkSatbBuffer** | `TracingCollector.cpp` | ✅ 直接复用 | SATB 处理逻辑与标记方式无关 |
-| **ConcurrentReMark** | `TracingCollector.cpp` | ✅ 直接复用 | 委托 MarkSatbBuffer |
+| **MarkSatbBuffer** | `TracingCollector.cpp` | ❌ 当前主路径不直接复用 | MS 自己走 `DrainSatbBufferToMainQueue()` |
+| **ConcurrentReMark** | `TracingCollector.cpp` | ❌ 当前主路径不直接复用 | MS 自己做 STW 尾收敛 |
 | **DoTracing** | `TracingCollector.cpp` | 🔧 小幅改造 | DoResurrection 需 Override 去除 tag/CAS，其余直接复用 |
 | **ProcessFinalizers** | `TracingCollector.cpp` | 🔧 改造 | 去除 Forward 相关的复活逻辑 |
-| **GCPhase 枚举** | `Heap/Collector/Collector.h` | 🆕 扩展 | 添加 MS_PHASE_* 值 |
-| **Barrier 类** | `Mutator/Barrier.h` | 🆕 新增 | `MSTraceBarrier` |
+| **GCPhase 枚举** | `Heap/Collector/Collector.h` | 🆕 扩展 | 添加 `GC_PHASE_MS_*` 值 |
+| **Barrier 类** | `Heap/Barrier/MSSatbBarrier.h` | ✅ 当前主路径已落地 | `MSSatbBarrier` |
 | **CollectorProxy** | `Heap/Collector/CollectorProxy.h` | 🔧 改造 | 支持切换到 MarkSweepCollector |
 | **ForwardTable / ForwardData** | `WCollector/` | ❌ 不使用 | Mark-Sweep 无需 |
 | **TagID / FlipTagID** | `WCollector.cpp` | ❌ 不使用 | Mark-Sweep 无需 |
@@ -563,9 +568,9 @@ GCPhase GetPhase() const {
 
 | 文件 | 职责 |
 |------|------|
-| `src/Heap/MarkSweepCollector/MarkSweepCollector.h` | 类声明 |
-| `src/Heap/MarkSweepCollector/MarkSweepCollector.cpp` | GC 主流程 (MarkSetup + ConcurrentMark + MarkTermination + PostMarkTermination) |
-| `src/Heap/MarkSweepCollector/MSBarrier.h` | MSTraceBarrier 实现 |
+| `src/Heap/Collector/MarkSweepCollector.h` | 类声明 |
+| `src/Heap/Collector/MarkSweepCollector.cpp` | GC 主流程 (MarkSetup + ConcurrentMark + MarkTermination + PostMarkTermination + ConcurrentSweep) |
+| `src/Heap/Barrier/MSSatbBarrier.h/cpp` | 当前主线路障实现 |
 
 > **注意**：原计划的 `MSMarkWork.h/cpp`（MSConcurrentMarkingWork）**不再需要**。经源码分析（§5.10.1），`ConcurrentMarkingWork` 内部全部通过 virtual 调用注入算法差异，MarkSweepCollector 只需 override `TraceRefField` / `TraceObjectRefFields` / `GetAndTryTagObj` 即可复用整个标记框架。
 
@@ -585,7 +590,7 @@ GCPhase GetPhase() const {
 | 优先级 | 改造项 | 风险 | 说明 |
 |--------|--------|------|------|
 | P0 | MarkSweepCollector 骨架 + Phase 定义 | 低 | 新增代码，不影响现有 |
-| P0 | MSTraceBarrier | 低 | 简化版 TraceBarrier |
+| P0 | `MSSatbBarrier` 当前主路径 | 低 | 已按源码落地 |
 | P0 | MSConcurrentMarkingWork | 低 | 简化版 ConcurrentMarkingWork |
 | P1 | EnumAllCommonRoots 改造 | 中 | 可能影响 WCollector 回归 |
 | P1 | CollectorProxy 切换支持 | 低 | 添加新分支 |
@@ -730,7 +735,7 @@ Level 5: Sanitizer — ASAN/TSAN 检测内存/并发错误
 | 测试项 | 验证内容 | 方法 |
 |--------|---------|------|
 | ClearAllMarkBitmaps | 所有 Region bitmap 清零 | 创建 Region → 标记若干位 → Clear → 验证全 0 |
-| MSTraceBarrier | SATB 记录旧值 | 安装屏障 → 写引用 → 检查 SATB buffer 是否记录旧值 |
+| MSSatbBarrier | SATB 记录旧值 | 安装屏障 → 写引用 → 检查 SATB buffer 是否记录旧值 |
 | MarkNewObject | 标记期间新分配对象为黑色 | 设 Phase=MARK → Allocate → 验证 bitmap 位为 1 |
 | WorkStack split | 工作窃取正确性 | 填充 WorkStack → split → 验证两半之和 = 原始 |
 

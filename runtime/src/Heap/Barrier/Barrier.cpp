@@ -208,7 +208,11 @@ void Barrier::ReadStaticStruct(MAddress dst, MAddress src, size_t size, const GC
 
 void Barrier::WriteGeneric(const ObjectPtr obj, void* fieldPtr, const ObjectPtr src, size_t size) const
 {
-    if ((obj != nullptr && !obj->HasRefField()) || (!Heap::IsHeapAddress(obj) && !Heap::IsHeapAddress(src))) {
+    // Guard: if obj is a heap object with NULL TypeInfo (stateWord=0), its slot was
+    // likely prematurely reclaimed and reused.  All fields are zero so there are no
+    // old references to shade — just memcpy.
+    if ((obj != nullptr && (obj->GetTypeInfo() == nullptr || !obj->HasRefField())) ||
+        (!Heap::IsHeapAddress(obj) && !Heap::IsHeapAddress(src))) {
         CHECK_DETAIL(memcpy_s(fieldPtr, size,
                               reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(src) + TYPEINFO_PTR_SIZE),
                               size) == EOK,

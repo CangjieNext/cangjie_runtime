@@ -74,6 +74,10 @@ private:
     // This is the "shade" operation in the hybrid barrier.
     static void MarkAndEnqueue(BaseObject* obj, WriteBarrierBuffer& wbBuf);
 
+    // Unconditionally push obj to WBBuf for re-scanning (bypasses mark check).
+    // Used for shade(new) on container objects that may already be mark-at-alloc.
+    static void EnqueueForRescan(BaseObject* obj, WriteBarrierBuffer& wbBuf);
+
     // Get the current Mutator's WriteBarrierBuffer.
     static WriteBarrierBuffer& GetWBBuf();
 };
