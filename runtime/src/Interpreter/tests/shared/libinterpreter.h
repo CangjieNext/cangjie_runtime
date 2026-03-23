@@ -29,11 +29,6 @@ extern "C" {
     extern throw_exception_f g_ThrowExceptionPtr;
     extern get_thread_local_data_f g_GetThreadLocalDataPtr;
     extern stack_grow_stub_f g_CJ_MCC_StackGrowStubPtr;
-    extern enter_safe_region_f g_EnterSaferegionPtr;
-    extern leave_safe_region_f g_LeaveSaferegionPtr;
-    extern save_context_for_native_call_f g_SaveContextForNativeCallPtr;
-    extern delete_context_for_native_call_f g_DeleteContextForNativeCallPtr;
-    extern throw_pending_exception_f g_ThrowPendingExceptionPtr;
     extern size_t g_InterpreterStackReserveSize;
 }
 
@@ -44,8 +39,6 @@ extern "C" {
     extern struct VirtFuncContainer virtualFuncs;
     
     extern uintptr_t I2C_Stub(uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, void* funcAddr, thread_local_data_t threadLocalData); // defined in I2C_Stub.s
-    extern uintptr_t I2N_Stub(uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, void* funcAddr, thread_local_data_t threadLocalData); // defined in I2N_Stub.s
-    extern void I2N_Stub_End();           // defined in I2N_Stub.s
 
     extern void I2I_Stub(uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, void* funcAddr); // defined in I2I_Stub.s
     extern void I2I_Stub_End();           // defined in I2I_Stub.s
@@ -97,7 +90,9 @@ class Mock {
         uintptr_t invokeI2N(uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, const char* funcName, thread_local_data_t& thread_local_data) {
             void* symAddr = get_symbol_address(funcName);
             assert(symAddr != nullptr);
-            uintptr_t res = I2N_Stub(arg1, arg2, arg3, arg4, symAddr, thread_local_data);
+            auto i2nStub = cjNativeInterface.i2n_stub;
+            assert(i2nStub != nullptr);
+            uintptr_t res = i2nStub(arg1, arg2, arg3, arg4, symAddr, thread_local_data);
 
             // update thread local data
             thread_local_data = cjNativeInterface.get_thread_local_data();

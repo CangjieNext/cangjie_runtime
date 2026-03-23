@@ -32,7 +32,6 @@ mkdir -p $LIB
 nasm -f elf64 $ASM_DIR/C2I_Stub.s -o $LIB/C2I_Stub.o
 nasm -f elf64 $ASM_DIR/I2C_Stub.s -o $LIB/I2C_Stub.o
 nasm -f elf64 $ASM_DIR/I2I_Stub.s -o $LIB/I2I_Stub.o
-nasm -f elf64 $ASM_DIR/I2N_Stub.s -o $LIB/I2N_Stub.o
 nasm -f elf64 $ASM_DIR/ExceptionHandling.s -o $LIB/ExceptionHandling.o
 
 CJTHREAD_INCLUDES=$(find ../../../src/CJThread/src -type d -name "include" | sed 's/^/-I/' | tr '\n' ' ')
