@@ -23,7 +23,7 @@
 #include "StackManager.h"
 #include "LoaderManager.h"
 #include "UnwindStack/UnwindCApi.h"
-
+#include "Exception/ExceptionCApi.h"
 #include "InterpreterSpecific.h"
 
 using namespace MRTExport;
@@ -510,6 +510,7 @@ void InitInterpreter(const RuntimeParam& runtimeParam)
         .get_exception_wrapper = &GetExceptionWrapper,
         .post_throw_exception = &PostThrowException,
         .get_current_catch_function_PC = &GetCurrentCatchFunctionPC,
+        .throw_pending_exception = &MRT_ThrowPendingException,
         .instance_of = &InstanceOf,
         .is_sub_type = &IsSubType,
         .visit_root_from_interpreter = &VisitRootFromInterpreter,

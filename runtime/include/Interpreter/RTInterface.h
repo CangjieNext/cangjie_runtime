@@ -384,6 +384,12 @@ typedef obj_ref_t (*get_pending_exception_f)();
 //
 typedef obj_ref_t (*get_and_clear_pending_exception_f)();
 
+// Propagate pending exception if one is set. Can be used after returning from native code.
+// params:
+// - sigContext - signal context (can be nullptr)
+//
+typedef void (*throw_pending_exception_f)(void* sigContext);
+
 
 // Check that given object is an instance of given type.
 //
@@ -713,6 +719,7 @@ struct cjnative_interface_t {
     get_exception_wrapper_f get_exception_wrapper;
     post_throw_exception_f post_throw_exception;
     get_current_catch_function_PC_f get_current_catch_function_PC;
+    throw_pending_exception_f throw_pending_exception;
 
     instance_of_f instance_of;
     is_sub_type_f is_sub_type;

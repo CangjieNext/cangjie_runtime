@@ -115,7 +115,7 @@ void ExceptionHandling::BuildEHFrameInfo()
                 break;
             }
 #ifdef INTERPRETER_ENABLED
-        } else if (frame.GetFrameType() == FrameType::INTERPRETER || frame.GetFrameType() == FrameType::INTERPRETER_C2I) {
+        } else if (frame.GetFrameType() == FrameType::INTERPRETER) {
             ehFrameInfos.push_back(std::make_unique<InterpreterEHFrameInfo>(frame, GetCommonInterpreterLandingPad()));
             eWrapper->SetIsCaught(true);
             eWrapper->SetTypeIndex(0);
