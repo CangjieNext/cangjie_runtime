@@ -141,6 +141,13 @@ struct CJUncaughtExceptionInfo {
     const char* hapPath;
     std::function<void(const char* summary, const CJErrorObject errorObj)> uncaughtTask;
 };
+
+struct CJOOMInfo {
+    const char* hapPath;
+    std::function<void(const char* domain, const char* event, const size_t hiSysEventType,
+        const size_t limitSize, const size_t activeMemory)> oomInfoTask;
+};
+
 #endif
 
 /* CJThread state type. */
@@ -749,6 +756,10 @@ MRT_EXPORT void RemoveHandlerFromSignalStack(int signal, bool (*fn)(int, siginfo
  */
 #ifdef __cplusplus
 MRT_EXPORT void RegisterUncaughtExceptionHandler(const CJUncaughtExceptionInfo& handle);
+#endif
+
+#ifdef __cplusplus
+MRT_EXPORT void RegisterOOMHandler(const CJOOMInfo& handle);
 #endif
 
 /*

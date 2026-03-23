@@ -32,14 +32,18 @@ public:
 
 #ifdef __APPLE__
     static void DefaultUncaughtTask(const char* sunmary, const CJErrorObject errorObj);
+    static void DefaultOOMInfoTask(const char* domain, const char* event, const size_t hiSysEventType,
+        const size_t limitSize, const size_t activeMemory);
 #endif
 
     // runtime required lifecycle interfaces
     void Init()
     {
         uncaughtExceptionHandler.hapPath = nullptr;
+	oomHandler.hapPath = nullptr;
 #ifdef __APPLE__
         uncaughtExceptionHandler.uncaughtTask = DefaultUncaughtTask;
+	oomHandler.oomInfoTask = DefaultOOMInfoTask;
 #endif
     };
     void Fini() const {};
@@ -81,6 +85,14 @@ public:
         return uncaughtExceptionHandler;
     }
 
+#if defined(__OHOS__) && (__OHOS__ == 1)
+    void RegisterOOMHandler(const CJOOMInfo handler);
+#endif
+    CJOOMInfo GetOOMHandler() const
+    {
+        return oomHandler;
+    }
+
 private:
 #if defined(_WIN64)
     static constexpr uint32_t COMPENSATE_SIZE = 16;
@@ -90,6 +102,8 @@ private:
     ExceptionRaiser exceptionRaiser = nullptr;
     static std::mutex gUncaughtExceptionHandlerMtx;
     CJUncaughtExceptionInfo uncaughtExceptionHandler;
+    static std::mutex gOOMHandlerMtx;
+    CJOOMInfo oomHandler;
 };
 } // namespace MapleRuntime
 
