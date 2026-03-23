@@ -747,6 +747,7 @@ struct cjnative_interface_t {
     is_valid_object_f is_valid_object;
     get_thread_local_data_f get_thread_local_data;
     is_active_gc_phase_f is_active_gc_phase;
+    stack_grow_stub_f stack_grow_stub;
 
     native_logger_f native_logger;
 };

@@ -84,8 +84,7 @@ Mock::Mock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cj
     g_SaveContextForNativeCallPtr = cjnative_interf->save_context_for_native_call;
     g_DeleteContextForNativeCallPtr = cjnative_interf->delete_context_for_native_call;
 
-    g_CJ_MCC_StackGrowStubPtr = reinterpret_cast<stack_grow_stub_f>(get_symbol_address("CJ_MCC_StackGrowStub"));
-    assert(g_CJ_MCC_StackGrowStubPtr != nullptr);
+    g_CJ_MCC_StackGrowStubPtr = cjnative_interf->stack_grow_stub;
     g_ThrowPendingExceptionPtr = cjnative_interf->throw_pending_exception;
 }
 

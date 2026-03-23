@@ -29,6 +29,8 @@
 using namespace MRTExport;
 namespace MapleRuntime {
 
+extern "C" void CJ_MCC_StackGrowStub(...);
+
 struct {
     bool initialized = false;
     interpreter_interface_t interpreterInterface;
@@ -531,6 +533,7 @@ void InitInterpreter(const RuntimeParam& runtimeParam)
         .is_valid_object = &IsValidObject,
         .get_thread_local_data = &GetThreadLocalData,
         .is_active_gc_phase = &IsActiveGCPhase,
+        .stack_grow_stub = reinterpret_cast<stack_grow_stub_f>(&CJ_MCC_StackGrowStub),
         .native_logger = &NativeLogger,
     };
 
