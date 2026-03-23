@@ -16,7 +16,7 @@ public prop args: String
 
 功能：返回以逗号分隔的未解析的用户定义断言参数的字符串。
 
-类型: [String](../../core/core_package_api/core_package_structs.md#struct-string)。
+类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)
 
 ### prop caller
 
@@ -26,7 +26,7 @@ public prop caller: String
 
 功能：获取用户定义的断言函数的标识符。
 
-类型: [String](../../core/core_package_api/core_package_structs.md#struct-string)。
+类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)
 
 ### prop hasErrors
 
@@ -36,7 +36,7 @@ public prop hasErrors: Bool
 
 功能：如果用户定义内的任何断言失败，则为 `true` 。否则为 `false`。
 
-类型: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool)
+类型：[Bool](../../core/core_package_api/core_package_intrinsics.md#bool)
 
 ### func arg(String)
 
@@ -122,6 +122,83 @@ public class Benchmark {}
 
 功能：该类提供创建和运行单个性能测试用例的方法。
 
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+
+main() {
+    let conf = Configuration()
+    conf.set(KeyWarmup.warmup, Duration.Zero)
+    conf.set(KeyMinDuration.minDuration, Duration.nanosecond)
+    let bench = Benchmark.create("ordinary", configuration: conf, body: {=>})
+
+    println("Running ${bench.name}...") // Prints: Running ordinary...
+    bench.run().reportTo(ConsoleReporter())
+    let parametrized = Benchmark.createParameterized(
+        "parametrized",
+        [1, 2, 3],
+        configuration: conf,
+        body: {_ =>}
+    )
+
+    println("Running ${parametrized.name}...")
+    parametrized.run().reportTo(ConsoleReporter())
+}
+```
+
+可能的运行结果：
+
+```text
+Running ordinary...
+Starting the benchmark `TestCase_ordinary.ordinary()`.
+    Warming up for 0 ns.
+    Starting measurements of 10 batches. Measuring Duration.
+    Max batch size: 1, estimated execution time: 5.670 us.
+
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 275407 ns, RESULT:
+    TCS: TestCase_ordinary, time elapsed: 270977 ns, RESULT:
+    | Case     | Median |    Err |   Err% |   Mean |
+    |:---------|-------:|-------:|-------:|-------:|
+    | ordinary |   0 ns |  ±0 ns |  ±0.0% |   0 ns |
+    [ PASSED ] CASE: ordinary (48166 ns)
+Summary: TOTAL: 1
+    PASSED: 1, SKIPPED: 0, ERROR: 0
+    FAILED: 0
+--------------------------------------------------------------------------------------------------
+Running parametrized...
+Starting the benchmark `TestCase_parametrized.parametrized(1)`.
+    Warming up for 0 ns.
+    Starting measurements of 10 batches. Measuring Duration.
+    Max batch size: 1, estimated execution time: 13.42 us.
+
+Starting the benchmark `TestCase_parametrized.parametrized(2)`.
+    Warming up for 0 ns.
+    Starting measurements of 10 batches. Measuring Duration.
+    Max batch size: 1, estimated execution time: 11.85 us.
+
+Starting the benchmark `TestCase_parametrized.parametrized(3)`.
+    Warming up for 0 ns.
+    Starting measurements of 10 batches. Measuring Duration.
+    Max batch size: 1, estimated execution time: 0.910 us.
+
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 202400 ns, RESULT:
+    TCS: TestCase_parametrized, time elapsed: 198092 ns, RESULT:
+    | Case         | Args   | Median |       Err |   Err% |     Mean |
+    |:-------------|:-------|-------:|----------:|-------:|---------:|
+    | parametrized | 1      |   0 ns | ±206.0 ns |  ±inf% | 112.9 ns |
+    | parametrized | 2      |   0 ns | ±35.23 ns |  ±inf% | 7.549 ns |
+    | parametrized | 3      |   0 ns | ±46.55 ns |  ±inf% | 25.53 ns |
+    [ PASSED ] CASE: parametrized (13302 ns)
+Summary: TOTAL: 1
+    PASSED: 1, SKIPPED: 0, ERROR: 0
+    FAILED: 0
+--------------------------------------------------------------------------------------------------
+```
+
 ### prop name
 
 ```cangjie
@@ -130,7 +207,7 @@ public prop name: String
 
 功能：获取用例名称。
 
-类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)。
+类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)
 
 ### func run()
 
@@ -161,8 +238,8 @@ public static func create(
 
 - name: [String](../../core/core_package_api/core_package_structs.md#struct-string) - 用例名称。
 - configuration!: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - 用例配置信息。
-- measurement: [Measurement](unittest_package_interfaces.md#interface-measurement) - 测量方法信息。
-- body: () -> Unit - 用例执行体。
+- measurement!: [Measurement](unittest_package_interfaces.md#interface-measurement) - 测量方法信息。
+- body!: () -> Unit - 用例执行体。
 
 返回值：
 
@@ -185,10 +262,10 @@ public static func createParameterized<T>(
 参数：
 
 - name: [String](../../core/core_package_api/core_package_structs.md#struct-string) - 用例名称。
-- strategy: [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt) - 参数数据策略。
-- configuration: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - 用例配置信息。
-- measurement!: [Measurement](unittest_package_interfaces.md#interface-measurement) 测量方法信息。
-- body: () -> Unit - 用例执行体。
+- strategy: [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt)\<T> - 参数数据策略。
+- configuration!: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - 用例配置信息。
+- measurement!: [Measurement](unittest_package_interfaces.md#interface-measurement) - 测量方法信息。
+- body!: (T) -> Unit - 用例执行体。
 
 返回值：
 
@@ -211,10 +288,10 @@ public static func createParameterized<T>(
 参数：
 
 - name: [String](../../core/core_package_api/core_package_structs.md#struct-string) - 用例名称。
-- strategy: [DataStrategyProcessor](#class-datastrategyprocessort) - 参数数据处理器。
-- configuration: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - 用例配置信息。
-- measurement: [Measurement](unittest_package_interfaces.md#interface-measurement) - 测量方法信息。
-- body: () -> Unit - 用例执行体。
+- strategy: [DataStrategyProcessor](#class-datastrategyprocessort)\<T> - 参数数据处理器。
+- configuration!: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - 用例配置信息。
+- measurement!: [Measurement](unittest_package_interfaces.md#interface-measurement) - 测量方法信息。
+- body!: (T) -> Unit - 用例执行体。
 
 返回值：
 
@@ -232,6 +309,37 @@ public class BenchReport <: Report {}
 
 - [Report](#class-report)
 
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+import std.unittest.testmacro.*
+import std.time.*
+import std.sync.*
+
+foreign func usleep(arg: UIntNative): UIntNative
+
+@Test
+class FooTest {
+    @Bench[x in [ 1 ]]
+    @Configure[minDuration: Duration.second]
+    func testSleep(x: Int64): Unit {
+        unsafe { usleep(30000) }
+    }
+}
+
+main() {
+    let startTime = DateTime.now()
+    let report: BenchReport = FooTest().asTestSuite().runBenchmarks()
+    let duration = DateTime.now() - startTime
+    report.reportTo(ConsoleReporter(colored: false))
+
+    let results = report.reportTo(RawStatsReporter())["testSleep1"]
+    @Assert(results[0] < 50_000000.0 && results[0] > 25_000000.0)
+}
+```
+
 ### func reportTo\<T>(Reporter\<BenchReport, T>)
 
 ```cangjie
@@ -242,7 +350,7 @@ public func reportTo<T>(reporter: Reporter<BenchReport, T>): T
 
 参数：
 
-- reporter: [Reporter](#class-report)\<[BenchReport](#class-benchreport), T> - 性能用例结果报告。
+- reporter: [Reporter](../unittest_package_api/unittest_package_interfaces.md#interface-reportertreport-treturn)\<[BenchReport](#class-benchreport), T> - 性能用例结果报告。
 
 返回值：
 
@@ -290,6 +398,38 @@ public class ConsoleReporter <: Reporter<TestReport, Unit> & Reporter<BenchRepor
 - [Reporter](unittest_package_interfaces.md#interface-reportertreport-treturn)\<[TestReport](#class-testreport), [Unit](../../core/core_package_api/core_package_intrinsics.md#unit)>
 - [Reporter](unittest_package_interfaces.md#interface-reportertreport-treturn)\<[BenchReport](#class-benchreport), [Unit](../../core/core_package_api/core_package_intrinsics.md#unit)>
 
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+import std.unittest.testmacro.*
+
+main() {
+    let testCase = UnitTestCase.create("testCase", body: {
+        => @Fail("failing test")
+    })
+    let report = testCase.run()
+    report.reportTo(ConsoleReporter())
+}
+```
+
+可能的运行结果：
+
+```text
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 323478 ns, RESULT:
+    TCS: TestCase_testCase, time elapsed: 317308 ns, RESULT:
+    [ FAILED ] CASE: testCase (53267 ns)
+    Assert Failed: `(failing test)`
+
+Summary: TOTAL: 1
+    PASSED: 0, SKIPPED: 0, ERROR: 0
+    FAILED: 1, listed below:
+            TCS: TestCase_testCase, CASE: testCase
+--------------------------------------------------------------------------------------------------
+```
+
 ### ConsoleReporter(Bool)
 
 ```cangjie
@@ -317,6 +457,41 @@ public class TextReporter<PP> <: Reporter<TestReport, PP> & Reporter<BenchReport
 - [Reporter](unittest_package_interfaces.md#interface-reportertreport-treturn)\<[TestReport](#class-testreport), PP>
 - [Reporter](unittest_package_interfaces.md#interface-reportertreport-treturn)\<[BenchReport](#class-benchreport), PP>
 
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.common.*
+import std.unittest.*
+import std.unittest.testmacro.*
+
+main() {
+    let testCase = UnitTestCase.create("testCase", body: {
+        => @Fail("failing test")
+    })
+    let report = testCase.run()
+    let pp = PrettyText()
+    report.reportTo(TextReporter(into: pp))
+    println(pp.toString())
+}
+```
+
+可能的运行结果：
+
+```text
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 331021 ns, RESULT:
+    TCS: TestCase_testCase, time elapsed: 322025 ns, RESULT:
+    [ FAILED ] CASE: testCase (41768 ns)
+    Assert Failed: `(failing test)`
+
+Summary: TOTAL: 1
+    PASSED: 0, SKIPPED: 0, ERROR: 0
+    FAILED: 1, listed below:
+            TCS: TestCase_testCase, CASE: testCase
+--------------------------------------------------------------------------------------------------
+```
+
 ### TextReporter(PP)
 
 ```cangjie
@@ -342,6 +517,36 @@ public class CsvReporter <: Reporter<BenchReport, Unit> {
 父类型：
 
 - [Reporter](unittest_package_interfaces.md#interface-reportertreport-treturn)\<[BenchReport](#class-benchreport), [Unit](../../core/core_package_api/core_package_intrinsics.md#unit)>
+
+示例：
+
+<!-- run -->
+```cangjie
+import std.fs.*
+import std.unittest.*
+
+main() {
+    let conf = Configuration()
+    conf.set(KeyWarmup.warmup, Duration.Zero)
+    conf.set(KeyMinDuration.minDuration, Duration.nanosecond)
+    let bench = Benchmark.create("bench", configuration: conf, body: {=>})
+    bench.run().reportTo(CsvReporter(Path(".")))
+    let report = File.readFrom("./benchmarks/bench-default.TestCase_bench.csv") |> String.fromUtf8
+    println(report)
+}
+```
+
+可能的运行结果：
+
+```text
+Starting the benchmark `TestCase_bench.bench()`.
+    Warming up for 0 ns.
+    Starting measurements of 10 batches. Measuring Duration.
+    Max batch size: 1, estimated execution time: 6.000 us.
+
+Case,Args,Median,Err,Err%,Mean,Unit,Measurement
+"bench",,"0.000000","38.153846","inf","7.576368","ns","Duration"
+```
 
 ### CsvReporter(Path)
 
@@ -369,6 +574,56 @@ public class CsvRawReporter <: Reporter<BenchReport, Unit> {
 
 - [Reporter](unittest_package_interfaces.md#interface-reportertreport-treturn)\<[BenchReport](#class-benchreport), [Unit](../../core/core_package_api/core_package_intrinsics.md#unit)>
 
+示例：
+
+<!-- run -->
+```cangjie
+import std.fs.*
+import std.unittest.*
+
+main() {
+    let conf = Configuration()
+    conf.set(KeyWarmup.warmup, Duration.Zero)
+    conf.set(KeyMinDuration.minDuration, Duration.nanosecond)
+    let bench = Benchmark.create("bench", configuration: conf, body: {=>})
+    bench.run().reportTo(CsvRawReporter(Path(".")))
+    let report = File.readFrom("./benchmarks/bench-default.TestCase_bench.csv") |> String.fromUtf8
+    println(report)
+}
+```
+
+可能的运行结果：
+
+```text
+Starting the benchmark `TestCase_bench.bench()`.
+    Warming up for 0 ns.
+    Starting measurements of 10 batches. Measuring Duration.
+    Max batch size: 1, estimated execution time: 7.330 us.
+
+Case,Args,BatchSize,Duration,Unit,Measurement
+"bench",,"1","256.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+"bench",,"1","0.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+"bench",,"1","256.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+"bench",,"1","0.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+"bench",,"1","0.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+"bench",,"1","0.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+"bench",,"1","0.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+"bench",,"1","0.000000","ns","Duration"
+"bench",,"0","256.000000","ns","Duration"
+"bench",,"1","0.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+"bench",,"1","0.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+```
+
 ### CsvRawReporter(Path)
 
 ```cangjie
@@ -388,16 +643,6 @@ sealed abstract class DataStrategyProcessor<T> {}
 ```
 
 功能：所有 [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt) 组件的基类。该类的实例由 [@Strategy](../../unittest_testmacro/unittest_testmacro_package_api/unittest_testmacro_package_macros.md#strategy-宏) 宏或成员函数创建。
-
-### prop isInfinite
-
-```cangjie
-protected prop isInfinite: Bool 
-```
-
-功能：获取该策略是否为无限。
-
-类型：[Bool](../../core/core_package_api/core_package_intrinsics.md#bool)。
 
 ### func intoBenchmark(String, Configuration, (T, Int64, Int64) -> Float64)
 
@@ -443,67 +688,6 @@ public func intoUnitTestCase(
 
 - [UnitTestCase](#class-unittestcase) - 测试用例对象。
 
-### func lastItemInfo()
-
-```cangjie
-protected func lastItemInfo(): Array<InputParameter>
-```
-
-功能：获取上一个处理条目的信息。
-
-返回值：
-
-- Array\<[InputParameter](./unittest_package_classes.md#class-inputparameter)> - 上一个处理条目的信息。
-
-### func lastItem(Configuration)
-
-```cangjie
-protected func lastItem(configuration: Configuration): T
-```
-
-功能：获取上一个处理条目。
-
-参数：
-
-- configuration: [Configuration](./../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - 处理策略配置信息。
-
-返回值：
-
-- T - 上一个处理条目。
-
-### func provide(Configuration)
-
-```cangjie
-protected func provide(configuration: Configuration): Iterable<T>
-```
-
-功能：生成依据配置信息和数据策略生成的数据迭代器。
-
-参数：
-
-- configuration: [Configuration](./../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - 处理策略配置信息。
-
-返回值：
-
-- [Iterable](../../core/core_package_api/core_package_interfaces.md#interface-iterablee)\<T> - 数据迭代器。
-
-### func shrinkLastItem(Configuration, LazyCyclicNode)
-
-```cangjie
-protected func shrinkLastItem(configuration: Configuration, engine: LazyCyclicNode): Iterable<T>
-```
-
-功能：收缩上一个条目。
-
-参数：
-
-- configuration: [Configuration](./../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - 配置信息。
-- engine: [LazyCyclicNode](./unittest_package_classes.md#class-lazycyclicnode) - 惰性节点。
-
-返回值：
-
-- [Iterable](../../core/core_package_api/core_package_interfaces.md#interface-iterablee)\<T> - 收缩后的数据迭代器。
-
 ### static func start(DataStrategy\<T>, String)
 
 ```cangjie
@@ -534,12 +718,12 @@ public static func start<U>(
 
 参数：
 
-- f: () -> [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt)\<U> - 生成数据策略的闭包。
+- s: () -> [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt)\<U> - 生成数据策略的闭包。
 - name: [String](../../core/core_package_api/core_package_structs.md#struct-string) - 用例名称。
 
 返回值：
 
-- [DataStrategyProcessor](#class-datastrategyprocessort)\<T> - 数据策略处理器。
+- [DataStrategyProcessor](#class-datastrategyprocessort)\<U> - 数据策略处理器。
 
 ### static func start(() -> DataStrategy\<T>, String, Int64)
 
@@ -555,7 +739,7 @@ public static func start(
 
 参数：
 
-- s: () -> [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt)\<T> - 生成数据策略的闭包。
+- f: () -> [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt)\<T> - 生成数据策略的闭包。
 - name: [String](../../core/core_package_api/core_package_structs.md#struct-string) - 用例名称。
 - x!: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 为实现不同返回值的重构增加的参数。
 
@@ -594,7 +778,7 @@ public static func start<U>(
 
 参数：
 
-- s: () -> [DataStrategyProcessor](#class-datastrategyprocessort)\<U> - 生成数据策略处理器的闭包。
+- f: () -> [DataStrategyProcessor](#class-datastrategyprocessort)\<U> - 生成数据策略处理器的闭包。
 - name: [String](../../core/core_package_api/core_package_structs.md#struct-string) - 用例名称。
 - x!: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 为实现不同返回值的重构增加的参数。
 
@@ -656,7 +840,7 @@ public func flatMap<R>(f: (T) -> DataProvider<R>): FlatMapProcessor<T, R>
 
 - [FlatMapProcessor\<T, R>](#class-flatmapprocessortr) - 应用 `f` 后的处理器。
 
-#### func flatMapStrategy((T) -> DataStrategy\<R>)
+#### func flatMapStrategy\<R>((T) -> DataStrategy\<R>)
 
 ```cangjie
 public func flatMapStrategy<R>(f: (T) -> DataStrategy<R>): FlatMapStrategyProcessor<T, R>
@@ -672,7 +856,7 @@ public func flatMapStrategy<R>(f: (T) -> DataStrategy<R>): FlatMapStrategyProces
 
 - [FlatMapStrategyProcessor\<T, R>](#class-flatmapstrategyprocessortr) - 应用 `f` 后的处理器。
 
-#### func product(DataStrategyProcessor\<R>)
+#### func product\<R>(DataStrategyProcessor\<R>)
 
 ```cangjie
 public func product<R>(p: DataStrategyProcessor<R>): CartesianProductProcessor<T, R>
@@ -704,7 +888,7 @@ public func productWithUnit<P>(p: P): MapProcessor<(T, Unit), T> where P <: Data
 
 返回值：
 
-- | [MapProcessor\<(T, Unit),R>](../unittest_package_api/unittest_package_classes.md#class-mapprocessortr) - 处理器。
+- [MapProcessor\<(T, Unit), T>](../unittest_package_api/unittest_package_classes.md#class-mapprocessortr) - 处理器。
 
 ## class FlatMapProcessor\<T,R>
 
@@ -864,7 +1048,7 @@ public func r(
 
 返回值：
 
-- [Rune](../../core/core_package_api/core_package_structs.md#struct-string) - 被记录的数据。
+- [Rune](../../core/core_package_api/core_package_intrinsics.md#rune) - 被记录的数据。
 
 ### func h(Exception, String, Int64)
 
@@ -904,6 +1088,38 @@ sealed abstract class Report {}
 
 功能：打印测试用例结果报告的基类。
 
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+import std.unittest.testmacro.*
+
+main() {
+    let suite = TestSuite
+        .builder("tests")
+        .add(UnitTestCase.create("case1", body: {=> @Fail("failing case")}))
+        .add(UnitTestCase.create("case2", body: {=> @Assert(1 + 2, 3)}))
+        .build()
+    let report = suite.runTests()
+    println("Cases: ${report.caseCount}")
+    println("Skipped: ${report.skippedCount}")
+    println("Passed: ${report.passedCount}")
+    println("Errors: ${report.errorCount}")
+    println("Failed: ${report.failedCount}")
+}
+```
+
+可能的运行结果：
+
+```text
+Cases: 2
+Skipped: 0
+Passed: 1
+Errors: 0
+Failed: 1
+```
+
 ### prop errorCount
 
 ```cangjie
@@ -912,7 +1128,7 @@ public prop errorCount: Int64
 
 功能：获取错误的用例个数。
 
-类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)。
+类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
 ### prop caseCount
 
@@ -922,7 +1138,7 @@ public prop caseCount: Int64
 
 功能：获取用例个数。
 
-类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)。
+类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
 ### prop passedCount
 
@@ -932,7 +1148,7 @@ public prop passedCount:   Int64
 
 功能：获取通过的用例个数。
 
-类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)。
+类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
 ### prop failedCount
 
@@ -942,7 +1158,7 @@ public prop failedCount:   Int64
 
 功能：获取失败的用例个数。
 
-类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)。
+类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
 ### prop skippedCount
 
@@ -952,7 +1168,7 @@ public prop skippedCount:   Int64
 
 功能：获取跳过的用例个数。
 
-类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)。
+类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
 ## class RawStatsReporter
 
@@ -1011,6 +1227,68 @@ public class TestGroup {}
 
 功能：提供构建和运行测试组合方法的类。
 
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+import std.unittest.testmacro.*
+
+main() {
+    let suite1 = TestSuite
+        .builder("tests")
+        .add(UnitTestCase.create("case1", body: {=> @Fail("failing case")}))
+        .add(UnitTestCase.create("case2", body: {=> @Assert(1 + 2, 3)}))
+        .build()
+    let suite2 = TestSuite.builder("benchmarks").add(Benchmark.create("bench", body: {=>})).build()
+    let group = TestGroup.builder("group").add(suite1).add(suite2).build()
+
+    println("Running ${group.name}...")
+    group.runTests().reportTo(ConsoleReporter())
+
+    let conf = Configuration()
+    conf.set(KeyWarmup.warmup, Duration.Zero)
+    conf.set(KeyMinDuration.minDuration, Duration.nanosecond)
+    group.runBenchmarks(conf).reportTo(ConsoleReporter())
+}
+```
+
+可能的运行结果：
+
+```text
+Running group...
+--------------------------------------------------------------------------------------------------
+TP: group, time elapsed: 298091 ns, RESULT:
+    TCS: tests, time elapsed: 290964 ns, RESULT:
+    [ PASSED ] CASE: case2 (8340 ns)
+    [ FAILED ] CASE: case1 (35797 ns)
+    Assert Failed: `(failing case)`
+
+    TCS: benchmarks, No test functions found
+Summary: TOTAL: 2
+    PASSED: 1, SKIPPED: 0, ERROR: 0
+    FAILED: 1, listed below:
+            TCS: tests, CASE: case1
+--------------------------------------------------------------------------------------------------
+Starting the benchmark `benchmarks.bench()`.
+    Warming up for 0 ns.
+    Starting measurements of 10 batches. Measuring Duration.
+    Max batch size: 1, estimated execution time: 6.410 us.
+
+--------------------------------------------------------------------------------------------------
+TP: group, time elapsed: 83094 ns, RESULT:
+    TCS: tests, No test functions found
+    TCS: benchmarks, time elapsed: 77760 ns, RESULT:
+    | Case   | Median |    Err |   Err% |   Mean |
+    |:-------|-------:|-------:|-------:|-------:|
+    | bench  |   0 ns |  ±0 ns |  ±0.0% |   0 ns |
+    [ PASSED ] CASE: bench (2716 ns)
+Summary: TOTAL: 1
+    PASSED: 1, SKIPPED: 0, ERROR: 0
+    FAILED: 0
+--------------------------------------------------------------------------------------------------
+```
+
 ### prop name
 
 ```cangjie
@@ -1019,7 +1297,7 @@ public prop name: String
 
 功能：获取测试组合名称。
 
-类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)。
+类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)
 
 ### func runBenchmarks()
 
@@ -1036,7 +1314,7 @@ public func runBenchmarks(): BenchReport
 ### func runBenchmarks(Configuration)
 
 ```cangjie
-public func runBenchmarks(Configuration): BenchReport
+public func runBenchmarks(configuration: Configuration): BenchReport
 ```
 
 功能：带运行配置得执行所有性能测试用例。
@@ -1116,6 +1394,8 @@ public class TestGroupBuilder {}
 ```
 
 功能：提供配置测试组合的方法的构造器。
+
+参考示例： [TestGroup](#class-testgroup).
 
 ### func add(Benchmark)
 
@@ -1297,7 +1577,7 @@ public func reportTo<T>(reporter: Reporter<TestReport, T>): T
 
 参数：
 
-- reporter: [Reporter](#class-report)\<[TestReport](#class-testreport), T> - 单元测试报告打印器。
+- reporter: [Reporter](../unittest_package_api/unittest_package_interfaces.md#interface-reportertreport-treturn)\<[TestReport](#class-testreport), T> - 单元测试报告打印器。
 
 返回值：
 
@@ -1311,6 +1591,85 @@ public class TestSuite {}
 
 功能：提供构建和执行测试套方法的类。
 
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+import std.unittest.testmacro.*
+
+main() {
+    let template = TestSuite
+        .builder("template")
+        .beforeEach({=> println("Starting case!")})
+        .afterEach({name => println("Finished with ${name}")})
+        .build()
+    let suite = TestSuite
+        .builder("suite")
+        .template(template)
+        .add(UnitTestCase.create("case1", body: {=> @Fail("failing case")}))
+        .add(UnitTestCase.create("case2", body: {=> @Assert(1 + 2, 3)}))
+        .add(Benchmark.create("bench", body: {=>}))
+        .beforeAll({=> println("All tests are about to run!")})
+        .afterAll({=> println("All tests are finished!")})
+        .build()
+
+    println("Running tests from ${suite.name}...")
+    suite.runTests().reportTo(ConsoleReporter())
+
+    println("Running benchmarks from ${suite.name}...")
+    let conf = Configuration()
+    conf.set(KeyWarmup.warmup, Duration.Zero)
+    conf.set(KeyMinDuration.minDuration, Duration.nanosecond)
+    suite.runBenchmarks(conf).reportTo(ConsoleReporter())
+}
+```
+
+可能的运行结果：
+
+```text
+Running tests from suite...
+All tests are about to run!
+Starting case!
+Finished with case1
+Starting case!
+Finished with case2
+All tests are finished!
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 349990 ns, RESULT:
+    TCS: suite, time elapsed: 344021 ns, RESULT:
+    [ PASSED ] CASE: case2 (10200 ns)
+    [ FAILED ] CASE: case1 (38423 ns)
+    Assert Failed: `(failing case)`
+
+Summary: TOTAL: 2
+    PASSED: 1, SKIPPED: 0, ERROR: 0
+    FAILED: 1, listed below:
+            TCS: suite, CASE: case1
+--------------------------------------------------------------------------------------------------
+Running benchmarks from suite...
+All tests are about to run!
+Starting case!
+Starting the benchmark `suite.bench()`.
+    Warming up for 0 ns.
+    Starting measurements of 10 batches. Measuring Duration.
+    Max batch size: 1, estimated execution time: 15.33 us.
+
+Finished with bench
+All tests are finished!
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 107250 ns, RESULT:
+    TCS: suite, time elapsed: 106224 ns, RESULT:
+    | Case   | Median |       Err |   Err% |     Mean |
+    |:-------|-------:|----------:|-------:|---------:|
+    | bench  |   0 ns | ±42.67 ns |  ±inf% | 15.50 ns |
+    [ PASSED ] CASE: bench (5316 ns)
+Summary: TOTAL: 1
+    PASSED: 1, SKIPPED: 0, ERROR: 0
+    FAILED: 0
+--------------------------------------------------------------------------------------------------
+```
+
 ### prop name
 
 ```cangjie
@@ -1319,7 +1678,7 @@ public prop name: String
 
 功能：获取测试套名称。
 
-类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)。
+类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)
 
 ### func runBenchmarks()
 
@@ -1416,6 +1775,8 @@ public class TestSuiteBuilder {}
 ```
 
 功能：提供配置测试套方法的测试套构造器。
+
+参考示例： [TestSuite](#class-testsuite).
 
 ### func add(Benchmark)
 
@@ -1553,9 +1914,9 @@ public func template(template: TestSuite): TestSuiteBuilder
 
 功能：执行此方法可为测试套件设置模板。
 
-参数
+参数：
 
-- template: TestSuite - 将作为模板的测试套件。
+- template: [TestSuite](../unittest_package_api/unittest_package_classes.md#class-testsuite) - 将作为模板的测试套件。
 
 返回值：
 
@@ -1613,6 +1974,57 @@ public class UnitTestCase {}
 
 功能：提供创建和执行单元测试用例的方法的类。
 
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+import std.unittest.testmacro.*
+
+main() {
+    let testCase = UnitTestCase.create("ordinary", body: {
+        => @Fail("failing test")
+    })
+
+    println("Running ${testCase.name}...")
+    testCase.run().reportTo(ConsoleReporter())
+    let parametrizedTestCase = UnitTestCase.createParameterized(
+        "parametrized",
+        [1, 2, 3],
+        body: {x => @Assert(1 <= x && x <= 3)}
+    )
+
+    println("Running ${parametrizedTestCase.name}...")
+    parametrizedTestCase.run().reportTo(ConsoleReporter())
+}
+```
+
+可能的运行结果：
+
+```text
+Running ordinary...
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 294492 ns, RESULT:
+    TCS: TestCase_ordinary, time elapsed: 289499 ns, RESULT:
+    [ FAILED ] CASE: ordinary (35884 ns)
+    Assert Failed: `(failing test)`
+
+Summary: TOTAL: 1
+    PASSED: 0, SKIPPED: 0, ERROR: 0
+    FAILED: 1, listed below:
+            TCS: TestCase_ordinary, CASE: ordinary
+--------------------------------------------------------------------------------------------------
+Running parametrized...
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 113318 ns, RESULT:
+    TCS: TestCase_parametrized, time elapsed: 111489 ns, RESULT:
+    [ PASSED ] CASE: parametrized (21603 ns)
+Summary: TOTAL: 1
+    PASSED: 1, SKIPPED: 0, ERROR: 0
+    FAILED: 0
+--------------------------------------------------------------------------------------------------
+```
+
 ### prop name
 
 ```cangjie
@@ -1621,7 +2033,7 @@ public prop name: String
 
 功能：获取单元测试名称。
 
-类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)。
+类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)
 
 ### func run()
 
@@ -1673,9 +2085,9 @@ public static func createParameterized<T>(
 参数：
 
 - name: [String](../../core/core_package_api/core_package_structs.md#struct-string) - 用例名称。
-- strategy: [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt) - 参数数据策略。
+- strategy: [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt)\<T> - 参数数据策略。
 - configuration!: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - 用例配置信息。
-- body!: () -> Unit - 用例执行体。
+- body!: (T) -> Unit - 用例执行体。
 
 返回值：
 
@@ -1697,9 +2109,9 @@ public static func createParameterized<T>(
 参数：
 
 - name: [String](../../core/core_package_api/core_package_structs.md#struct-string) - 用例名称。
-- strategy: [DataStrategyProcessor](#class-datastrategyprocessort) - 参数数据处理器。
+- strategy: [DataStrategyProcessor](#class-datastrategyprocessort)\<T> - 参数数据处理器。
 - configuration!: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - 用例配置信息。
-- body!: () -> Unit - 用例执行体。
+- body!: (T) -> Unit - 用例执行体。
 
 返回值：
 
@@ -1719,6 +2131,47 @@ public class XmlReporter <: Reporter<TestReport, Unit> {
 
 - [Reporter](unittest_package_interfaces.md#interface-reportertreport-treturn)\<[TestReport](#class-testreport), [Unit](../../core/core_package_api/core_package_intrinsics.md#unit)>
 
+示例：
+
+<!-- run -->
+```cangjie
+import std.fs.*
+import std.unittest.*
+import std.unittest.testmacro.*
+
+main() {
+    let testCase = UnitTestCase.create("testCase", body: {
+        => @Fail("failing example")
+    })
+    let suite1 = TestSuite.builder("suite1").add(testCase).build()
+    let suite2 = TestSuite.builder("suite2").build()
+    let group = TestGroup.builder("group").add(suite1).add(suite2).build()
+    group.runTests().reportTo(XmlReporter(Path(".")))
+    let report1 = File.readFrom("./tests/test-group.suite1.xml") |> String.fromUtf8
+    let report2 = File.readFrom("./tests/test-group.suite2.xml") |> String.fromUtf8
+    println(report1)
+    println(report2)
+}
+```
+
+可能的运行结果：
+
+```text
+<?xml version="1.0" encoding="UTF-8"?>
+<>
+        <testsuite name="group.suite1" tests="1" failures="1" errors="0" skipped="0" time="0.000350" timestamp="2025-12-30T16:27:15.005019525+03:00">
+                <testcase name="testCase" classname="group.suite1" assertions="1" time="0.000045">
+                        <failure>Assert Failed: `(failing example)`</failure>
+                </testcase>
+        </testsuite>
+</>
+
+<?xml version="1.0" encoding="UTF-8"?>
+<>
+        <testsuite name="group.suite2" tests="0" failures="0" errors="0" skipped="0" time="0.000000" timestamp="2025-12-30T16:27:15.00537593+03:00"/>
+</>
+```
+
 ### XmlReporter(Path)
 
 ```cangjie
@@ -1726,6 +2179,67 @@ public XmlReporter(let directory: Path)
 ```
 
 功能：XmlReporter 构造函数。
+
+参数：
+
+- directory: [Path](../../fs/fs_package_api/fs_package_structs.md#struct-path) - 打印文件生成地址。
+
+## class XmlPerPackageReporter
+
+```cangjie
+public class XmlPerPackageReporter <: Reporter<TestReport, Unit> {
+    public XmlPerPackageReporter(let directory: Path)
+}
+```
+
+功能：打印单元测试用例结果数据到 Xml 文件上。
+
+父类型：
+
+- [Reporter](unittest_package_interfaces.md#interface-reportertreport-treturn)\<[TestReport](#class-testreport), [Unit](../../core/core_package_api/core_package_intrinsics.md#unit)>
+
+示例：
+
+<!-- run -->
+```cangjie
+import std.fs.*
+import std.unittest.*
+import std.unittest.testmacro.*
+
+main() {
+    let testCase = UnitTestCase.create("testCase", body: {
+        => @Fail("failing example")
+    })
+    let suite1 = TestSuite.builder("suite1").add(testCase).build()
+    let suite2 = TestSuite.builder("suite2").build()
+    let group = TestGroup.builder("group").add(suite1).add(suite2).build()
+    group.runTests().reportTo(XmlPerPackageReporter(Path(".")))
+    let report = File.readFrom("./tests/test-group.xml") |> String.fromUtf8
+    println(report)
+}
+```
+
+可能的运行结果：
+
+```text
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="group" tests="1" failures="1" errors="0" skipped="0" time="0.000288" timestamp="2025-12-30T16:28:16.852259739+03:00">
+        <testsuite name="group.suite1" tests="1" failures="1" errors="0" skipped="0" time="0.000280" timestamp="2025-12-30T16:28:16.852264581+03:00">
+                <testcase name="testCase" classname="group.suite1" assertions="1" time="0.000046">
+                        <failure>Assert Failed: `(failing example)`</failure>
+                </testcase>
+        </testsuite>
+        <testsuite name="group.suite2" tests="0" failures="0" errors="0" skipped="0" time="0.000000" timestamp="2025-12-30T16:28:16.852547919+03:00"/>
+</testsuites>
+```
+
+### XmlPerPackageReporter(Path)
+
+```cangjie
+public XmlPerPackageReporter(let directory: Path)
+```
+
+功能：XmlPerPackageReporter 构造函数。
 
 参数：
 

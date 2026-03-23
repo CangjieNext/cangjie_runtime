@@ -473,6 +473,9 @@ table Token {
   kind: uint16;
   value: string;
   pos: Position;
+  delimiter_num: uint32;
+  is_single_quote: bool;
+  has_escape: bool;
 }
 
 table TokenPart {
@@ -966,6 +969,7 @@ table PackageSpec {
   packageNamePos:Position;
   accessible:AccessibleKind=ACCESSIBLE_PUBLIC;
   hasMacro:bool;
+  hasDoubleColon: bool;
 }
 
 enum ImportKind:int8 {
@@ -990,6 +994,7 @@ table ImportContent {
   items:[ImportContent];
   commaPoses:[Position];
   rightCurlPos:Position;
+  hasDoubleColon: bool;
 }
 
 enum ReExportKind:int8{

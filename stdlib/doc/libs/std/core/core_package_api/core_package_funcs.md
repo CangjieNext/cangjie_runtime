@@ -123,39 +123,6 @@ main() {
 NegativeArraySizeException is caught!
 ```
 
-## func eprintln(String)
-
-```cangjie
-public func eprintln(str: String): Unit
-```
-
-功能：将指定字符串打印到标准错误文本流，末尾添加换行。
-
-如抛出异常时，消息将打印到标准错误文本流（stderr），而不是标准输出（stdout）。
-
-参数：
-
-- str: [String](core_package_structs.md#struct-string) - 待输出的字符串。
-
-示例：
-
-<!-- verify -->
-```cangjie
-main() {
-    try {
-        throw NegativeArraySizeException("I am an Exception!")
-    } catch (e: NegativeArraySizeException) {
-        eprintln("NegativeArraySizeException is caught!")
-    }
-}
-```
-
-运行结果：
-
-```text
-NegativeArraySizeException is caught!
-```
-
 ## func eprint\<T>(T, Bool) where T <: ToString
 
 ```cangjie
@@ -207,6 +174,39 @@ main() {
 width: 10, height: 20
 ```
 
+## func eprintln(String)
+
+```cangjie
+public func eprintln(str: String): Unit
+```
+
+功能：将指定字符串打印到标准错误文本流，末尾添加换行。
+
+如抛出异常时，消息将打印到标准错误文本流（stderr），而不是标准输出（stdout）。
+
+参数：
+
+- str: [String](core_package_structs.md#struct-string) - 待输出的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    try {
+        throw NegativeArraySizeException("I am an Exception!")
+    } catch (e: NegativeArraySizeException) {
+        eprintln("NegativeArraySizeException is caught!")
+    }
+}
+```
+
+运行结果：
+
+```text
+NegativeArraySizeException is caught!
+```
+
 ## func eprintln\<T>(T) where T <: ToString
 
 ```cangjie
@@ -256,6 +256,58 @@ main() {
 ```text
 width: 10, height: 20
 ```
+
+<!--Del-->
+## func exclusiveScope\<T>(( ) -> T)
+
+```cangjie
+public func exclusiveScope<T>(fn: () -> T): T
+```
+
+功能：在独占作用域中执行一个闭包，确保闭包在隔离的上下文中运行，并适当地处理任何结果或异常。当执行 fn 时，会发生从仓颉线程栈到操作系统线程栈的切换，并且底层操作系统线程不能被其他仓颉线程抢占。在 fn 返回后，它将切换回仓颉线程栈，并允许进行抢占。
+
+> **注意：**
+>
+> 不支持平台：Windows、macOS、OpenHarmony、HarmonyOS、iOS。
+
+参数：
+
+- fn: () -> T - 在独占作用域中执行的函数/闭包。
+
+返回值：
+
+- T - 函数执行的结果。
+
+异常：
+
+- [ExclusiveScopeException](core_package_exceptions.md#class-exclusivescopeexception) - 如果在执行过程中发生异常。
+
+示例：
+
+<!-- verify -->
+
+```cangjie
+main() {
+    let result = exclusiveScope<Int64> {
+        // 在独占作用域中执行的代码
+        return 42
+    }
+    println("结果: ${result}")
+    
+    // 也可以执行无返回值的操作
+    exclusiveScope<Unit> {
+        println("在独占作用域中执行")
+    }
+}
+```
+
+运行结果：
+
+```text
+结果: 42
+在独占作用域中执行
+```
+<!--DelEnd-->
 
 ## func ifNone\<T>(Option\<T>, () -> Unit)
 
@@ -325,7 +377,7 @@ public func max<T>(a: T, b: T, others: Array<T>): T where T <: Comparable<T>
 
 > **注意：**
 >
-> 浮点数类型的比较也将按照 [Comparable](./core_package_interfaces.md#interface-comparablet) 的结果进行比较，如果浮点书中有非数 `NaN`，结果将不正确，此时建议使用 [Float16](./core_package_intrinsics.md#float16)、[Float32](./core_package_intrinsics.md#float32)、[Float64](./core_package_intrinsics.md#float64) 的 `static func max`方法。
+> 浮点数类型的比较也将按照 [Comparable](./core_package_interfaces.md#interface-comparablet) 的结果进行比较，如果浮点数中有非数 `NaN`，结果将不正确，此时建议使用 [Float16](./core_package_intrinsics.md#float16)、[Float32](./core_package_intrinsics.md#float32)、[Float64](./core_package_intrinsics.md#float64) 的 `static func max`方法。
 
 参数：
 
@@ -392,7 +444,7 @@ public func min<T>(a: T, b: T, others: Array<T>): T where T <: Comparable<T>
 
 > **注意：**
 >
-> 浮点数类型的比较也将按照 [Comparable](./core_package_interfaces.md#interface-comparablet) 的结果进行比较，如果浮点书中有非数`NaN`，结果将不正确，此时建议使用 [Float16](./core_package_intrinsics.md#float16)、[Float32](./core_package_intrinsics.md#float32)、[Float64](./core_package_intrinsics.md#float64) 的 `static func min`方法。
+> 浮点数类型的比较也将按照 [Comparable](./core_package_interfaces.md#interface-comparablet) 的结果进行比较，如果浮点数中有非数`NaN`，结果将不正确，此时建议使用 [Float16](./core_package_intrinsics.md#float16)、[Float32](./core_package_intrinsics.md#float32)、[Float64](./core_package_intrinsics.md#float64) 的 `static func min`方法。
 
 参数：
 
@@ -493,6 +545,10 @@ public func print(f: Float16, flush!: Bool = false): Unit
 
 功能：向控制台输出 [Float16](core_package_intrinsics.md#float16) 类型数据的小数点后六位的字符串表达，即超出六位的小数位不会输出，不足六位的小数位会补零。
 
+> **注意：**
+>
+> 仓颉采用 IEEE 754 格式表示浮点数，保存数值可能会有误差。
+
 参数：
 
 - f: [Float16](core_package_intrinsics.md#float16) - 待输出的 [Float16](core_package_intrinsics.md#float16) 类型数据。
@@ -518,10 +574,6 @@ main() {
 0.680176
 ```
 
-> **注意：**
->
-> 仓颉采用 IEEE 754 格式表示浮点数，保存数值可能会有误差。
->
 ## func print(Float32, Bool)
 
 ```cangjie
@@ -1643,8 +1695,8 @@ import std.time.*
 main(): Int64 {
     spawn {
         =>
-        println("New thread starts")
-        println("New thread ends")
+            println("New thread starts")
+            println("New thread ends")
     }
 
     println("Main thread")
@@ -1721,7 +1773,7 @@ class Student <: ToString {
 }
 ```
 
-示例结果：
+运行结果：
 
 ```text
 student

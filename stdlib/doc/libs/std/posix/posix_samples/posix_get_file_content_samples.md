@@ -2,7 +2,7 @@
 
 下面是文件内容相关操作示例。
 
-代码如下:
+示例：
 
 <!-- run -->
 
@@ -33,6 +33,7 @@ main(): Int64 {
     unsafe { LibC.free(str2) }
     println("writeNum ==> ${writeNum}")
     close(fd4)
+    unlink("textcase.txt")
     return 0
 }
 ```

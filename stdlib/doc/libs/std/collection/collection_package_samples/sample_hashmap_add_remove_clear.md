@@ -1,8 +1,8 @@
 # HashMap 的 add/remove/clear 函数
 
-此用例展示了 HashMap 的基本使用方法。
+此示例展示了 HashMap 的基本使用方法。
 
-代码如下：
+示例：
 
 <!-- verify -->
 
@@ -19,10 +19,10 @@ main() {
     print("d=${d.getOrThrow()} ")
     map.remove("d") // map : [("a", 13), ("e", 12)]
     var bool = map.contains("d")
-    print("bool=${bool.toString()} ")
+    print("bool=${bool} ")
     map.clear() // map: []
     var bool1 = map.contains("e")
-    print("bool1=${bool1.toString()}")
+    print("bool1=${bool1}")
     return 0
 }
 ```

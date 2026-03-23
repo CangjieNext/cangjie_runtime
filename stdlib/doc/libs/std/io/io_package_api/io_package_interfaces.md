@@ -1,18 +1,5 @@
 # 接口
 
-## interface IOStream
-
-```cangjie
-public interface IOStream <: InputStream & OutputStream {}
-```
-
-功能：输入输出流接口。
-
-父类型：
-
-- [InputStream](#interface-inputstream)
-- [OutputStream](#interface-outputstream)
-
 ## interface InputStream
 
 ```cangjie
@@ -38,6 +25,19 @@ func read(buffer: Array<Byte>): Int64
 返回值：
 
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 读取的数据的字节数。
+
+## interface IOStream
+
+```cangjie
+public interface IOStream <: InputStream & OutputStream {}
+```
+
+功能：输入输出流接口。
+
+父类型：
+
+- [InputStream](#interface-inputstream)
+- [OutputStream](#interface-outputstream)
 
 ## interface OutputStream
 
@@ -74,10 +74,10 @@ func write(buffer: Array<Byte>): Unit
 
 ```cangjie
 public interface Seekable {
-    prop length: Int64
+    func seek(sp: SeekPosition): Int64
     prop position: Int64
     prop remainLength: Int64
-    func seek(sp: SeekPosition): Int64
+    prop length: Int64
 }
 ```
 

@@ -5,8 +5,8 @@
 ```cangjie
 public class BufferedInputStream<T> <: InputStream where T <: InputStream {
     public init(input: T)
-    public init(input: T, buffer: Array<Byte>)
     public init(input: T, capacity: Int64)
+    public init(input: T, buffer: Array<Byte>)
 }
 ```
 
@@ -125,6 +125,33 @@ public init(input: T, capacity: Int64)
 异常：
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 capacity 小于等于 0 时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.ByteBuffer
+import std.io.BufferedInputStream
+
+main(): Unit {
+    let data = "Hello Capacity".toArray()
+    let input = ByteBuffer(data)
+
+    /* 使用指定 capacity 创建 BufferedInputStream */
+    let buffered = BufferedInputStream(input, 8)
+
+    /* 从 buffered 中读取全部数据并输出 */
+    let out = Array<Byte>(data.size, repeat: 0)
+    buffered.read(out)
+    println(String.fromUtf8(out))
+}
+```
+
+运行结果：
+
+```text
+Hello Capacity
+```
 
 ### func read(Array\<Byte>)
 
@@ -324,6 +351,62 @@ public func close(): Unit
 >
 > 调用此方法后不可再调用 [BufferedInputStream](io_package_classes.md#class-bufferedinputstreamt-where-t--inputstream) 的其他接口，否则会造成非预期现象。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.BufferedInputStream
+import std.io.InputStream
+import std.io.ByteBuffer
+
+/**
+ * 自定义实现 InputStream 和 Resource 接口的类
+ */
+public class TestStream <: InputStream & Resource {
+    private var closed: Bool = false
+
+    public func read(buffer: Array<Byte>): Int64 {
+        if (this.closed) {
+            return 0
+        }
+        let data = "Hello World".toArray()
+        let inputStream = ByteBuffer(data)
+        return inputStream.read(buffer)
+    }
+
+    public func isClosed(): Bool {
+        return closed
+    }
+
+    public func close(): Unit {
+        println("Stream is closed")
+        closed = true
+    }
+}
+
+main(): Unit {
+    let testStream = TestStream()
+    let bufferedStream = BufferedInputStream(testStream)
+
+    // 检查流是否关闭
+    println("Is closed before close(): ${bufferedStream.isClosed()}")
+
+    // 关闭流
+    bufferedStream.close()
+
+    // 检查流是否关闭
+    println("Is closed after close(): ${bufferedStream.isClosed()}")
+}
+```
+
+运行结果：
+
+```text
+Is closed before close(): false
+Stream is closed
+Is closed after close(): true
+```
+
 #### func isClosed()
 
 ```cangjie
@@ -416,6 +499,46 @@ public prop length: Int64
 
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.BufferedInputStream
+import std.io.InputStream
+import std.io.ByteBuffer
+import std.io.Seekable
+import std.io.SeekPosition
+
+/**
+ * 自定义实现 InputStream 和 Seekable 接口的类
+ */
+public class TestStream <: InputStream & Seekable {
+    private var inputStream: ByteBuffer = ByteBuffer("Hello World".toArray())
+
+    public func read(buffer: Array<Byte>): Int64 {
+        return this.inputStream.read(buffer)
+    }
+
+    public func seek(sp: SeekPosition): Int64 {
+        return this.inputStream.seek(sp)
+    }
+}
+
+main(): Unit {
+    let testStream = TestStream()
+    let bufferedStream = BufferedInputStream(testStream)
+
+    // 输出流的总长度
+    println("Length: ${bufferedStream.length}")
+}
+```
+
+运行结果：
+
+```text
+Length: 11
+```
+
 #### prop position
 
 ```cangjie
@@ -426,6 +549,50 @@ public prop position: Int64
 
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.BufferedInputStream
+import std.io.InputStream
+import std.io.ByteBuffer
+import std.io.Seekable
+import std.io.SeekPosition
+
+/**
+ * 自定义实现 InputStream 和 Seekable 接口的类
+ */
+public class TestStream <: InputStream & Seekable {
+    private var inputStream: ByteBuffer = ByteBuffer("Hello World".toArray())
+
+    public func read(buffer: Array<Byte>): Int64 {
+        return this.inputStream.read(buffer)
+    }
+
+    public func seek(sp: SeekPosition): Int64 {
+        return this.inputStream.seek(sp)
+    }
+}
+
+main(): Unit {
+    let testStream = TestStream()
+    let bufferedStream = BufferedInputStream(testStream)
+
+    // 读取一些数据
+    let buffer = Array<Byte>(5, repeat: 0)
+    bufferedStream.read(buffer)
+
+    // 输出当前光标位置
+    println("Position: ${bufferedStream.position}")
+}
+```
+
+运行结果：
+
+```text
+Position: 11
+```
+
 #### prop remainLength
 
 ```cangjie
@@ -435,6 +602,54 @@ public prop remainLength: Int64
 功能：返回当前流中未读的数据量（以字节为单位）。
 
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.BufferedInputStream
+import std.io.InputStream
+import std.io.ByteBuffer
+import std.io.Seekable
+import std.io.SeekPosition
+
+/**
+ * 自定义实现 InputStream 和 Seekable 接口的类
+ */
+public class TestStream <: InputStream & Seekable {
+    private var inputStream: ByteBuffer = ByteBuffer("Hello World".toArray())
+
+    public func read(buffer: Array<Byte>): Int64 {
+        return this.inputStream.read(buffer)
+    }
+
+    public func seek(sp: SeekPosition): Int64 {
+        return this.inputStream.seek(sp)
+    }
+}
+
+main(): Unit {
+    let testStream = TestStream()
+    let bufferedStream = BufferedInputStream(testStream)
+
+    // 输出初始未读数据量
+    println("Initial Remain Length: ${bufferedStream.remainLength}")
+
+    // 读取一些数据
+    let buffer = Array<Byte>(5, repeat: 0)
+    bufferedStream.read(buffer)
+
+    // 输出读取后的未读数据量
+    println("Remain Length after reading 5 bytes: ${bufferedStream.remainLength}")
+}
+```
+
+运行结果：
+
+```text
+Initial Remain Length: 11
+Remain Length after reading 5 bytes: 0
+```
 
 #### func seek(SeekPosition)
 
@@ -499,12 +714,12 @@ main(): Unit {
     bufferedStream.read(buffer)
 
     /* 输出当前流中总数据量，当前光标位置，当前流中未读的数据量 */
-    println("Length : " + bufferedStream.length.toString())
-    println("Position : " + bufferedStream.position.toString())
-    println("Remain Length : " + bufferedStream.remainLength.toString())
+    println("Length : ${bufferedStream.length}")
+    println("Position : ${bufferedStream.position}")
+    println("Remain Length : ${bufferedStream.remainLength}")
 
     /* 移动光标到指定位置，虽然超过了流中数据末尾但是合法的 */
-    println("Position after seek() : " + bufferedStream.seek(SeekPosition.Current(11)).toString())
+    println("Position after seek() : ${bufferedStream.seek(SeekPosition.Current(11))}")
 
     /* 尝试移动到数据头部之前，抛出异常 */
     try {
@@ -542,7 +757,7 @@ public class BufferedOutputStream<T> <: OutputStream where T <: OutputStream {
 
 功能：提供带缓冲区的输出流。
 
-可将其他 [OutputStream](io_package_interfaces.md#interface-outputstream) 类型的输入流（如 [ByteBuffer](io_package_classes.md#class-bytebuffer)）绑定到 [BufferedOutputStream](io_package_classes.md#class-bufferedoutputstreamt-where-t--outputstream) 实例，从该实例写入数据时，先把数据写入缓冲区暂存，再从缓冲区写入数据到流中。
+可将其他 [OutputStream](io_package_interfaces.md#interface-outputstream) 类型的输出流（如 [ByteBuffer](io_package_classes.md#class-bytebuffer)）绑定到 [BufferedOutputStream](io_package_classes.md#class-bufferedoutputstreamt-where-t--outputstream) 实例，从该实例写入数据时，先把数据写入缓冲区暂存，再从缓冲区写入数据到流中。
 
 父类型：
 
@@ -892,6 +1107,61 @@ public func close(): Unit
 >
 > 调用此方法后不可再调用 [BufferedOutputStream](io_package_classes.md#class-bufferedoutputstreamt-where-t--outputstream) 的其他接口，否则会造成非预期现象。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.BufferedOutputStream
+import std.io.OutputStream
+import std.io.ByteBuffer
+
+/**
+ * 自定义实现 OutputStream 和 Resource 接口的类
+ */
+public class TestStream <: OutputStream & Resource {
+    private var closed: Bool = false
+    private var outputStream: ByteBuffer = ByteBuffer()
+
+    public func write(buffer: Array<Byte>): Unit {
+        if (this.closed) {
+            return
+        }
+        this.outputStream = ByteBuffer(buffer)
+    }
+
+    public func isClosed(): Bool {
+        return closed
+    }
+
+    public func close(): Unit {
+        println("Stream is closed")
+        closed = true
+    }
+}
+
+main(): Unit {
+    let testStream = TestStream()
+    let bufferedStream = BufferedOutputStream(testStream)
+
+    // 检查流是否关闭
+    println("Is closed before close(): ${bufferedStream.isClosed()}")
+
+    // 关闭流
+    bufferedStream.close()
+
+    // 检查流是否关闭
+    println("Is closed after close(): ${bufferedStream.isClosed()}")
+}
+```
+
+运行结果：
+
+```text
+Is closed before close(): false
+Stream is closed
+Is closed after close(): true
+```
+
 #### func isClosed()
 
 ```cangjie
@@ -985,6 +1255,51 @@ public prop length: Int64
 
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.BufferedOutputStream
+import std.io.OutputStream
+import std.io.ByteBuffer
+import std.io.Seekable
+import std.io.SeekPosition
+
+/**
+ * 自定义实现 OutputStream 和 Seekable 接口的类
+ */
+public class TestStream <: OutputStream & Seekable {
+    private var outputStream: ByteBuffer = ByteBuffer()
+
+    public func write(buffer: Array<Byte>): Unit {
+        this.outputStream = ByteBuffer(buffer)
+    }
+
+    public func seek(sp: SeekPosition): Int64 {
+        return this.outputStream.seek(sp)
+    }
+}
+
+main(): Unit {
+    let testStream = TestStream()
+    let bufferedStream = BufferedOutputStream(testStream)
+
+    // 写入一些数据
+    let data = "Hello World".toArray()
+    bufferedStream.write(data)
+    bufferedStream.flush()
+
+    // 输出流的总长度
+    println("Length: ${bufferedStream.length}")
+}
+```
+
+运行结果：
+
+```text
+Length: 11
+```
+
 #### prop position
 
 ```cangjie
@@ -995,6 +1310,51 @@ public prop position: Int64
 
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.BufferedOutputStream
+import std.io.OutputStream
+import std.io.ByteBuffer
+import std.io.Seekable
+import std.io.SeekPosition
+
+/**
+ * 自定义实现 OutputStream 和 Seekable 接口的类
+ */
+public class TestStream <: OutputStream & Seekable {
+    private var outputStream: ByteBuffer = ByteBuffer()
+
+    public func write(buffer: Array<Byte>): Unit {
+        this.outputStream = ByteBuffer(buffer)
+    }
+
+    public func seek(sp: SeekPosition): Int64 {
+        return this.outputStream.seek(sp)
+    }
+}
+
+main(): Unit {
+    let testStream = TestStream()
+    let bufferedStream = BufferedOutputStream(testStream)
+
+    // 写入一些数据
+    let data = "Hello World".toArray()
+    bufferedStream.write(data)
+    bufferedStream.flush()
+
+    // 输出当前光标位置
+    println("Position: ${bufferedStream.position}")
+}
+```
+
+运行结果：
+
+```text
+Position: 0
+```
+
 #### prop remainLength
 
 ```cangjie
@@ -1004,6 +1364,51 @@ public prop remainLength: Int64
 功能：返回当前流中未读的数据量（以字节为单位）。
 
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.BufferedOutputStream
+import std.io.OutputStream
+import std.io.ByteBuffer
+import std.io.Seekable
+import std.io.SeekPosition
+
+/**
+ * 自定义实现 OutputStream 和 Seekable 接口的类
+ */
+public class TestStream <: OutputStream & Seekable {
+    private var outputStream: ByteBuffer = ByteBuffer()
+
+    public func write(buffer: Array<Byte>): Unit {
+        this.outputStream = ByteBuffer(buffer)
+    }
+
+    public func seek(sp: SeekPosition): Int64 {
+        return this.outputStream.seek(sp)
+    }
+}
+
+main(): Unit {
+    let testStream = TestStream()
+    let bufferedStream = BufferedOutputStream(testStream)
+
+    // 写入一些数据
+    let data = "Hello World".toArray()
+    bufferedStream.write(data)
+    bufferedStream.flush()
+
+    // 输出流中未读的数据量
+    println("Remain Length: ${bufferedStream.remainLength}")
+}
+```
+
+运行结果：
+
+```text
+Remain Length: 11
+```
 
 #### func seek(SeekPosition)
 
@@ -1066,12 +1471,12 @@ main(): Unit {
     bufferedStream.flush()
 
     /* 输出当前流中总数据量，当前光标位置，当前流中未读的数据量 */
-    println("Length : " + bufferedStream.length.toString())
-    println("Position : " + bufferedStream.position.toString())
-    println("Remain Length : " + bufferedStream.remainLength.toString())
+    println("Length : ${bufferedStream.length}")
+    println("Position : ${bufferedStream.position}")
+    println("Remain Length : ${bufferedStream.remainLength}")
 
     /* 移动光标到指定位置，虽然超过了流中数据末尾但是合法的 */
-    println("Position after seek() : " + bufferedStream.seek(SeekPosition.Current(11)).toString())
+    println("Position after seek() : ${bufferedStream.seek(SeekPosition.Current(11))}")
 
     /* 尝试移动到数据头部之前，抛出异常 */
     try {
@@ -1123,6 +1528,28 @@ public prop capacity: Int64
 功能：获取当前缓冲区容量。
 
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.ByteBuffer
+
+main(): Unit {
+    let buffer = ByteBuffer()
+    println("Default capacity: ${buffer.capacity}")
+
+    let buffer2 = ByteBuffer(1024)
+    println("Custom capacity: ${buffer2.capacity}")
+}
+```
+
+运行结果：
+
+```text
+Default capacity: 32
+Custom capacity: 1024
+```
 
 ### init()
 
@@ -1451,12 +1878,15 @@ nextByte: None
 public func reserve(additional: Int64): Unit
 ```
 
-功能：将缓冲区扩容指定大小。
+功能：以指定大小扩容缓冲区。
 
 > **说明：**
 >
-> - 当缓冲区剩余字节数大于等于 `additional` 时不发生扩容。
-> - 当缓冲区剩余字节数量小于 `additional` 时，取（`additional` + `capacity`）与（`capacity`的 1.5 倍向下取整）两个值中的最大值进行扩容。
+> - 若入参 additional ≤ 0，不执行任何扩容操作。
+> - 若当前剩余容量 ≥ additional，不进行扩容，直接返回。
+> - 若当前剩余容量 < additional，则按以下两者计算最大者执行扩容：
+>     - 1.原始容量的 1.5 倍（结果向下取整）
+>     - 2.已使用容量 + additional。
 
 参数：
 
@@ -1475,16 +1905,16 @@ import std.io.ByteBuffer
 
 main(): Unit {
     let buffer = ByteBuffer(11)
-    println("initial capacity: " + buffer.capacity.toString())
+    println("initial capacity: ${buffer.capacity}")
     buffer.write("Hello World".toArray())
 
     /* 尝试扩容，需要增加的容量大于剩余空间，发生扩容 */
     buffer.reserve(5)
-    println("reserve 5: " + buffer.capacity.toString())
+    println("reserve 5: ${buffer.capacity}")
 
     /* 尝试扩容，需要增加的容量小于剩余空间，不发生扩容 */
     buffer.reserve(2)
-    println("reserve 2: " + buffer.capacity.toString())
+    println("reserve 2: ${buffer.capacity}")
 
     /* 尝试扩容，additional 为负数 */
     try {
@@ -1599,7 +2029,7 @@ import std.io.ByteBuffer
 
 main(): Unit {
     let buffer = ByteBuffer("Hello World".toArray())
-    println("initial length: " + buffer.length.toString())
+    println("initial length: ${buffer.length}")
 
     /* 设置长度为 5，并读取缓冲区中所有的内容 */
     buffer.setLength(5)
@@ -1731,6 +2161,39 @@ public init(input: Array<T>)
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 input 为空时，抛出异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    // 创建多个ByteBuffer作为输入流
+    let buffer1 = ByteBuffer("Hello ".toArray())
+    let buffer2 = ByteBuffer("World".toArray())
+
+    // 使用init创建ChainedInputStream
+    let inputStreams = [buffer1, buffer2]
+    let chainedStream = ChainedInputStream(inputStreams)
+    println("ChainedInputStream created successfully")
+
+    // 测试空数组异常情况
+    try {
+        let emptyStreams = Array<ByteBuffer>()
+        let emptyChainedStream = ChainedInputStream(emptyStreams)
+    } catch (e: IllegalArgumentException) {
+        println("Error: ${e.message}")
+    }
+}
+```
+
+运行结果：
+
+```text
+ChainedInputStream created successfully
+Error: The array of input streams cannot be empty!
+```
+
 ### func read(Array\<Byte>)
 
 ```cangjie
@@ -1758,22 +2221,37 @@ public func read(buffer: Array<Byte>): Int64
 import std.io.*
 
 main(): Unit {
-    let inputData = "Hello World".toArray()
-    let bufferInput = ByteBuffer(inputData)
-    let cis = ChainedInputStream(bufferInput)
+    // 创建多个ByteBuffer作为输入流
+    let buffer1 = ByteBuffer("Hello ".toArray())
+    let buffer2 = ByteBuffer("World".toArray())
+    let buffer3 = ByteBuffer("!".toArray())
 
-    // 缓冲区容量是 7
-    let bufferOutput = Array<Byte>(7, repeat: 0)
-    cis.read(bufferOutput)
-    let result = String.fromUtf8(bufferOutput)
-    println(result)
+    // 创建ChainedInputStream
+    let inputStreams = [buffer1, buffer2, buffer3]
+    let chainedStream = ChainedInputStream(inputStreams)
+
+    // 读取所有数据
+    var result = ""
+    var totalBytesRead = 0
+    while (true) {
+        let buffer = Array<Byte>(10, repeat: 0)
+        let bytesRead = chainedStream.read(buffer)
+        if (bytesRead == 0) {
+            break
+        }
+        totalBytesRead += bytesRead
+        result += String.fromUtf8(buffer.slice(0, bytesRead))
+    }
+    println("Total bytes read: ${totalBytesRead}")
+    println("Result: " + result)
 }
 ```
 
 运行结果：
 
 ```text
-Hello W
+Total bytes read: 12
+Result: Hello World!
 ```
 
 ## class MultiOutputStream\<T> where T <: OutputStream
@@ -1806,6 +2284,39 @@ public init(output: Array<T>)
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当 output 为空时，抛出异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    // 创建多个ByteBuffer作为输出流
+    let buffer1 = ByteBuffer()
+    let buffer2 = ByteBuffer()
+
+    // 使用init创建MultiOutputStream
+    let outputStreams = [buffer1, buffer2]
+    let multiStream = MultiOutputStream(outputStreams)
+    println("MultiOutputStream created successfully")
+
+    // 测试空数组异常情况
+    try {
+        let emptyStreams = Array<ByteBuffer>()
+        let emptyMultiStream = MultiOutputStream(emptyStreams)
+    } catch (e: IllegalArgumentException) {
+        println("Error: ${e.message}")
+    }
+}
+```
+
+运行结果：
+
+```text
+MultiOutputStream created successfully
+Error: The array of output streams cannot be empty!
+```
+
 ### func flush()
 
 ```cangjie
@@ -1813,6 +2324,41 @@ public func flush(): Unit
 ```
 
 功能：刷新绑定的输出流数组里的每个输出流。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    // 创建多个ByteBuffer作为输出流
+    let buffer1 = ByteBuffer()
+    let buffer2 = ByteBuffer()
+
+    // 创建MultiOutputStream
+    let outputStreams = [buffer1, buffer2]
+    let multiStream = MultiOutputStream(outputStreams)
+
+    // 写入一些数据
+    let data = "Hello World".toArray()
+    multiStream.write(data)
+
+    // 刷新所有输出流
+    multiStream.flush()
+
+    // 验证数据已写入
+    println("Buffer1 content: " + String.fromUtf8(buffer1.bytes()))
+    println("Buffer2 content: " + String.fromUtf8(buffer2.bytes()))
+}
+```
+
+运行结果：
+
+```text
+Buffer1 content: Hello World
+Buffer2 content: Hello World
+```
 
 ### func write(Array\<Byte>)
 
@@ -1825,6 +2371,42 @@ public func write(buffer: Array<Byte>): Unit
 参数：
 
 - buffer: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[Byte](../../core/core_package_api/core_package_types.md#type-byte)> - 存储待写入数据的缓冲区。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    // 创建多个ByteBuffer作为输出流
+    let buffer1 = ByteBuffer()
+    let buffer2 = ByteBuffer()
+    let buffer3 = ByteBuffer()
+
+    // 创建MultiOutputStream
+    let outputStreams = [buffer1, buffer2, buffer3]
+    let multiStream = MultiOutputStream(outputStreams)
+
+    // 写入数据到所有输出流
+    let data = "Hello MultiOutputStream".toArray()
+    multiStream.write(data)
+    multiStream.flush()
+
+    // 验证所有输出流都包含了相同的数据
+    println("Buffer1: " + String.fromUtf8(buffer1.bytes()))
+    println("Buffer2: " + String.fromUtf8(buffer2.bytes()))
+    println("Buffer3: " + String.fromUtf8(buffer3.bytes()))
+}
+```
+
+运行结果：
+
+```text
+Buffer1: Hello MultiOutputStream
+Buffer2: Hello MultiOutputStream
+Buffer3: Hello MultiOutputStream
+```
 
 ## class StringReader\<T> where T <: InputStream
 
@@ -1853,6 +2435,21 @@ public init(input: T)
 
 - input: T - 待读取数据的输入流。
 
+示例：
+
+<!-- run -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    // 创建一个ByteBuffer作为输入流
+    let buffer = ByteBuffer("Hello World".toArray())
+
+    // 使用init创建StringReader
+    let stringReader = StringReader(buffer)
+}
+```
+
 ### func lines()
 
 ```cangjie
@@ -1877,6 +2474,35 @@ public func lines(): Iterator<String>
 
 - [ContentFormatException](io_package_exceptions.md#class-contentformatexception) - 当`for-in`或者调用`next()`方法时读取到非法字符，抛出异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    // 创建一个包含多行文本的ByteBuffer作为输入流
+    let buffer = ByteBuffer("Hello\nWorld\nCangjie".toArray())
+
+    // 创建StringReader
+    let stringReader = StringReader(buffer)
+
+    // 使用lines()方法读取所有行
+    let lineIterator = stringReader.lines()
+    for (line in lineIterator) {
+        println(line)
+    }
+}
+```
+
+运行结果：
+
+```text
+Hello
+World
+Cangjie
+```
+
 ### func read()
 
 ```cangjie
@@ -1893,61 +2519,35 @@ public func read(): ?Rune
 
 - [ContentFormatException](io_package_exceptions.md#class-contentformatexception) - 当读取到非法字符时，抛出异常。
 
-### func readToEnd()
+示例：
 
+<!-- verify -->
 ```cangjie
-public func readToEnd(): String
+import std.io.*
+
+main(): Unit {
+    // 创建一个ByteBuffer作为输入流
+    let buffer = ByteBuffer("Hello".toArray())
+
+    // 创建StringReader
+    let stringReader = StringReader(buffer)
+
+    // 使用read()方法逐个读取字符
+    while (true) {
+        let char = stringReader.read()
+        if (char == None) {
+            break
+        }
+        print(char.getOrThrow())
+    }
+}
 ```
 
-功能：读取流中所有剩余数据。
+运行结果：
 
-返回值：
-
-- [String](../../core/core_package_api/core_package_structs.md#struct-string) - 流中所有剩余数据。
-
-异常：
-
-- [ContentFormatException](io_package_exceptions.md#class-contentformatexception) - 当读取到非法字符时，抛出异常。
-
-### func readUntil((Rune)->Bool)
-
-```cangjie
-public func readUntil(predicate: (Rune)->Bool): Option<String>
+```text
+Hello
 ```
-
-功能：从流内读取到使 `predicate` 返回 true 的字符位置（包含这个字符）或者流结束位置的数据。
-
-参数：
-
-- predicate: ([Rune](../../../std/core/core_package_api/core_package_intrinsics.md#rune))->Bool - 满足一定条件返回 `true` 的表达式。
-
-返回值：
-
-- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[String](../../core/core_package_api/core_package_structs.md#struct-string)> - 读取成功，返回 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[String](../../core/core_package_api/core_package_structs.md#struct-string)>.Some(str)，str 为该次读出的字符串；否则返回 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[String](../../core/core_package_api/core_package_structs.md#struct-string)>.None。
-
-异常：
-
-- [ContentFormatException](io_package_exceptions.md#class-contentformatexception) - 当读取到非法字符时，抛出异常。
-
-### func readUntil(Rune)
-
-```cangjie
-public func readUntil(v: Rune): Option<String>
-```
-
-功能：从流内读取到指定字符（包含指定字符）或者流结束位置的数据。
-
-参数：
-
-- v: [Rune](../../../std/core/core_package_api/core_package_intrinsics.md#rune) - 指定字符。
-
-返回值：
-
-- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[String](../../core/core_package_api/core_package_structs.md#struct-string)> - 读取成功，返回 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[String](../../core/core_package_api/core_package_structs.md#struct-string)>.Some(str)，str 为该次读出的字符串；否则返回 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[String](../../core/core_package_api/core_package_structs.md#struct-string)>.None。
-
-异常：
-
-- [ContentFormatException](io_package_exceptions.md#class-contentformatexception) - 当读取到非法字符时，抛出异常。
 
 ### func readln()
 
@@ -1969,6 +2569,168 @@ public func readln(): Option<String>
 
 - [ContentFormatException](io_package_exceptions.md#class-contentformatexception) - 当读取到非法字符时，抛出异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    // 创建一个包含多行文本的ByteBuffer作为输入流
+    let buffer = ByteBuffer("Hello\nWorld\nCangjie".toArray())
+
+    // 创建StringReader
+    let stringReader = StringReader(buffer)
+
+    // 使用readln()方法逐行读取
+    while (true) {
+        let line = stringReader.readln()
+        if (line == None) {
+            break
+        }
+        println(line.getOrThrow())
+    }
+}
+```
+
+运行结果：
+
+```text
+Hello
+World
+Cangjie
+```
+
+### func readToEnd()
+
+```cangjie
+public func readToEnd(): String
+```
+
+功能：读取流中所有剩余数据。
+
+返回值：
+
+- [String](../../core/core_package_api/core_package_structs.md#struct-string) - 流中所有剩余数据。
+
+异常：
+
+- [ContentFormatException](io_package_exceptions.md#class-contentformatexception) - 当读取到非法字符时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    // 创建一个ByteBuffer作为输入流
+    let buffer = ByteBuffer("Hello World".toArray())
+
+    // 创建StringReader
+    let stringReader = StringReader(buffer)
+
+    // 使用readToEnd()方法读取所有剩余数据
+    let content = stringReader.readToEnd()
+    println(content)
+}
+```
+
+运行结果：
+
+```text
+Hello World
+```
+
+### func readUntil((Rune) -> Bool)
+
+```cangjie
+public func readUntil(predicate: (Rune) -> Bool): Option<String>
+```
+
+功能：从流内读取到使 `predicate` 返回 true 的字符位置（包含这个字符）或者流结束位置的数据。
+
+参数：
+
+- predicate: ([Rune](../../../std/core/core_package_api/core_package_intrinsics.md#rune))->Bool - 满足一定条件返回 `true` 的表达式。
+
+返回值：
+
+- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[String](../../core/core_package_api/core_package_structs.md#struct-string)> - 读取成功，返回 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[String](../../core/core_package_api/core_package_structs.md#struct-string)>.Some(str)，str 为该次读出的字符串；否则返回 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[String](../../core/core_package_api/core_package_structs.md#struct-string)>.None。
+
+异常：
+
+- [ContentFormatException](io_package_exceptions.md#class-contentformatexception) - 当读取到非法字符时，抛出异常。
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    // 创建一个ByteBuffer作为输入流
+    let buffer = ByteBuffer("Hello World".toArray())
+
+    // 创建StringReader
+    let stringReader = StringReader(buffer)
+
+    // 使用readUntil()方法读取到空格字符
+    let result = stringReader.readUntil({rune => rune == r' '})
+    println(result.getOrThrow())
+}
+```
+
+运行结果：
+
+```text
+Hello
+```
+
+### func readUntil(Rune)
+
+```cangjie
+public func readUntil(v: Rune): Option<String>
+```
+
+功能：从流内读取到指定字符（包含指定字符）或者流结束位置的数据。
+
+参数：
+
+- v: [Rune](../../../std/core/core_package_api/core_package_intrinsics.md#rune) - 指定字符。
+
+返回值：
+
+- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[String](../../core/core_package_api/core_package_structs.md#struct-string)> - 读取成功，返回 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[String](../../core/core_package_api/core_package_structs.md#struct-string)>.Some(str)，str 为该次读出的字符串；否则返回 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[String](../../core/core_package_api/core_package_structs.md#struct-string)>.None。
+
+异常：
+
+- [ContentFormatException](io_package_exceptions.md#class-contentformatexception) - 当读取到非法字符时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    // 创建一个ByteBuffer作为输入流
+    let buffer = ByteBuffer("Hello,World".toArray())
+
+    // 创建StringReader
+    let stringReader = StringReader(buffer)
+
+    // 使用readUntil()方法读取到逗号字符
+    let result = stringReader.readUntil(r',')
+    println(result.getOrThrow())
+}
+```
+
+运行结果：
+
+```text
+Hello,
+```
+
 ### func runes()
 
 ```cangjie
@@ -1984,6 +2746,35 @@ public func runes(): Iterator<Rune>
 异常：
 
 - [ContentFormatException](io_package_exceptions.md#class-contentformatexception) - 当`for-in`或者调用`next()`方法时读取到非法字符，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    // 创建一个ByteBuffer作为输入流
+    let buffer = ByteBuffer("Hello".toArray())
+
+    // 创建StringReader
+    let stringReader = StringReader(buffer)
+
+    // 使用runes()方法获取字符迭代器
+    let runeIterator = stringReader.runes()
+    for (rune in runeIterator) {
+        print(rune)
+        print(" ")
+    }
+    println()
+}
+```
+
+运行结果：
+
+```text
+H e l l o
+```
 
 ### extend\<T> StringReader\<T> <: Resource where T <: Resource
 
@@ -2009,6 +2800,60 @@ public func close(): Unit
 >
 > 调用此方法后不可再调用 [StringReader](io_package_classes.md#class-stringreadert-where-t--inputstream) 的其他接口，否则会造成非预期现象。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+/**
+ * 自定义实现 InputStream 和 Resource 接口的类
+ */
+public class TestStream <: InputStream & Resource {
+    private var closed: Bool = false
+
+    public func read(buffer: Array<Byte>): Int64 {
+        if (this.closed) {
+            return 0
+        }
+        let data = "Hello World".toArray()
+        let inputStream = ByteBuffer(data)
+        return inputStream.read(buffer)
+    }
+
+    public func isClosed(): Bool {
+        return closed
+    }
+
+    public func close(): Unit {
+        println("Stream is closed")
+        closed = true
+    }
+}
+
+main(): Unit {
+    let testStream = TestStream()
+    let stringReader = StringReader(testStream)
+
+    // 检查流是否关闭
+    println("Is closed before close(): ${stringReader.isClosed()}")
+
+    // 关闭流
+    stringReader.close()
+
+    // 检查流是否关闭
+    println("Is closed after close(): ${stringReader.isClosed()}")
+}
+```
+
+运行结果：
+
+```text
+Is closed before close(): false
+Stream is closed
+Is closed after close(): true
+```
+
 #### func isClosed()
 
 ```cangjie
@@ -2020,6 +2865,60 @@ public func isClosed(): Bool
 返回值：
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果当前流已经被关闭，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+/**
+ * 自定义实现 InputStream 和 Resource 接口的类
+ */
+public class TestStream <: InputStream & Resource {
+    private var closed: Bool = false
+
+    public func read(buffer: Array<Byte>): Int64 {
+        if (this.closed) {
+            return 0
+        }
+        let data = "Hello World".toArray()
+        let inputStream = ByteBuffer(data)
+        return inputStream.read(buffer)
+    }
+
+    public func isClosed(): Bool {
+        return closed
+    }
+
+    public func close(): Unit {
+        println("Stream is closed")
+        closed = true
+    }
+}
+
+main(): Unit {
+    let testStream = TestStream()
+    let stringReader = StringReader(testStream)
+
+    // 检查流是否关闭
+    println("Is closed before close(): ${stringReader.isClosed()}")
+
+    // 关闭流
+    stringReader.close()
+
+    // 检查流是否关闭
+    println("Is closed after close(): ${stringReader.isClosed()}")
+}
+```
+
+运行结果：
+
+```text
+Is closed before close(): false
+Stream is closed
+Is closed after close(): true
+```
 
 ### extend\<T> StringReader\<T> <: Seekable where T <: Seekable
 
@@ -2042,6 +2941,45 @@ public prop position: Int64
 功能：返回当前光标位置。
 
 类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+/**
+ * 自定义实现 InputStream 和 Seekable 接口的类
+ */
+public class TestStream <: InputStream & Seekable {
+    private var inputStream: ByteBuffer = ByteBuffer("Hello World".toArray())
+
+    public func read(buffer: Array<Byte>): Int64 {
+        return this.inputStream.read(buffer)
+    }
+
+    public func seek(sp: SeekPosition): Int64 {
+        return this.inputStream.seek(sp)
+    }
+}
+
+main(): Unit {
+    let testStream = TestStream()
+    let stringReader = StringReader(testStream)
+
+    // 读取一些数据
+    stringReader.read()
+
+    // 输出当前光标位置
+    println("Position: ${stringReader.position}")
+}
+```
+
+运行结果：
+
+```text
+Position: 1
+```
 
 #### func seek(SeekPosition)
 
@@ -2067,6 +3005,64 @@ public func seek(sp: SeekPosition): Int64
 异常：
 
 - [IOException](io_package_exceptions.md#class-ioexception) - 当指定的位置位于流中数据头部之前时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+/**
+ * 自定义实现 InputStream 和 Seekable 接口的类
+ */
+public class TestStream <: InputStream & Seekable {
+    public var inputStream: ByteBuffer = ByteBuffer("Hello World".toArray())
+
+    public func read(buffer: Array<Byte>): Int64 {
+        return this.inputStream.read(buffer)
+    }
+
+    public func seek(sp: SeekPosition): Int64 {
+        return this.inputStream.seek(sp)
+    }
+}
+
+main(): Unit {
+    let seekableStream = TestStream()
+    let stringReader = StringReader(seekableStream)
+    stringReader.read()
+
+    /* 输出当前光标位置，当前流中总数据量，当前流中未读的数据量 */
+    println("Position : ${stringReader.position}")
+    println("Length : ${stringReader.length}")
+    println("Remain Length : ${stringReader.remainLength}")
+
+    /* 移动光标到指定位置，虽然超过了流中数据末尾但是合法的 */
+    println("Position after seek() : ${stringReader.seek(SeekPosition.Current(11))}")
+
+    /* 尝试移动到数据头部之前，抛出异常 */
+    try {
+        stringReader.seek(SeekPosition.Begin(-1))
+    } catch (e: IOException) {
+        println("Error: " + e.message)
+    }
+
+    /* 将光标移动到第一个单词之后，读取后续的数据 */
+    stringReader.seek(SeekPosition.Begin(6))
+    println(String.fromUtf8(readToEnd(seekableStream.inputStream)))
+}
+```
+
+运行结果：
+
+```text
+Position : 1
+Length : 11
+Remain Length : 10
+Position after seek() : 12
+Error: Can't move the position before the beginning of the stream.
+World
+```
 
 ## class StringWriter\<T> where T <: OutputStream
 
@@ -2095,6 +3091,18 @@ public init(output: T)
 
 - output: T - 待写入数据的输出流。
 
+示例：
+
+<!-- run -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+}
+```
+
 ### func flush()
 
 ```cangjie
@@ -2102,6 +3110,33 @@ public func flush(): Unit
 ```
 
 功能：刷新内部缓冲区，将缓冲区数据写入 output 中，并刷新 output。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入数据 */
+    stringWriter.write("Hello, flush!")
+
+    /* 刷新缓冲区，确保数据写入到输出流 */
+    stringWriter.flush()
+
+    /* 读取写入的数据 */
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+Hello, flush!
+```
 
 ### func write(Bool)
 
@@ -2115,6 +3150,33 @@ public func write(v: Bool): Unit
 
 - v: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) 类型的实例。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入Bool值 */
+    stringWriter.write(true)
+    stringWriter.write(false)
+
+    stringWriter.flush()
+
+    /* 读取写入的数据 */
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+truefalse
+```
+
 ### func write(Float16)
 
 ```cangjie
@@ -2126,6 +3188,31 @@ public func write(v: Float16): Unit
 参数：
 
 - v: [Float16](../../core/core_package_api/core_package_intrinsics.md#float16) - [Float16](../../core/core_package_api/core_package_intrinsics.md#float16) 类型的实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入Float16值 */
+    stringWriter.write(3.14f16)
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+3.140625
+```
 
 ### func write(Float32)
 
@@ -2139,6 +3226,31 @@ public func write(v: Float32): Unit
 
 - v: [Float32](../../core/core_package_api/core_package_intrinsics.md#float32) - [Float32](../../core/core_package_api/core_package_intrinsics.md#float32) 类型的实例。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入Float32值 */
+    stringWriter.write(3.14159f32)
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+3.141590
+```
+
 ### func write(Float64)
 
 ```cangjie
@@ -2150,6 +3262,31 @@ public func write(v: Float64): Unit
 参数：
 
 - v: [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) - [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) 类型的实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入Float64值 */
+    stringWriter.write(3.141592653589793)
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+3.141593
+```
 
 ### func write(Int16)
 
@@ -2163,6 +3300,31 @@ public func write(v: Int16): Unit
 
 - v: [Int16](../../core/core_package_api/core_package_intrinsics.md#int16) - [Int16](../../core/core_package_api/core_package_intrinsics.md#int16) 类型的实例。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入Int16值 */
+    stringWriter.write(100i16)
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+100
+```
+
 ### func write(Int32)
 
 ```cangjie
@@ -2174,6 +3336,31 @@ public func write(v: Int32): Unit
 参数：
 
 - v: [Int32](../../core/core_package_api/core_package_intrinsics.md#int32) - [Int32](../../core/core_package_api/core_package_intrinsics.md#int32) 类型的实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入Int32值 */
+    stringWriter.write(100000i32)
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+100000
+```
 
 ### func write(Int64)
 
@@ -2187,6 +3374,31 @@ public func write(v: Int64): Unit
 
 - v: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) 类型的实例。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入Int64值 */
+    stringWriter.write(10000000000)
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+10000000000
+```
+
 ### func write(Int8)
 
 ```cangjie
@@ -2198,6 +3410,32 @@ public func write(v: Int8): Unit
 参数：
 
 - v: [Int8](../../core/core_package_api/core_package_intrinsics.md#int8) - [Int8](../../core/core_package_api/core_package_intrinsics.md#int8) 类型的实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入Int8值 */
+    stringWriter.write(100i8)
+
+    stringWriter.flush()
+
+    /* 读取写入的数据 */
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+100
+```
 
 ### func write(Rune)
 
@@ -2211,6 +3449,33 @@ public func write(v: Rune): Unit
 
 - v: [Rune](../../../std/core/core_package_api/core_package_intrinsics.md#rune) - [Rune](../../../std/core/core_package_api/core_package_intrinsics.md#rune) 类型的实例。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入Rune值 */
+    stringWriter.write(r'A')
+    stringWriter.write(r'中')
+
+    stringWriter.flush()
+
+    /* 读取写入的数据 */
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+A中
+```
+
 ### func write(String)
 
 ```cangjie
@@ -2222,6 +3487,33 @@ public func write(v: String): Unit
 参数：
 
 - v: [String](../../core/core_package_api/core_package_structs.md#struct-string) - 待写入的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入字符串 */
+    stringWriter.write("Hello, World!")
+    stringWriter.write(" 你好，世界！")
+
+    stringWriter.flush()
+
+    /* 读取写入的数据 */
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+Hello, World! 你好，世界！
+```
 
 ### func write(UInt16)
 
@@ -2235,6 +3527,32 @@ public func write(v: UInt16): Unit
 
 - v: [UInt16](../../core/core_package_api/core_package_intrinsics.md#uint16) - [UInt16](../../core/core_package_api/core_package_intrinsics.md#uint16) 类型的实例。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入UInt16值 */
+    stringWriter.write(100u16)
+
+    stringWriter.flush()
+
+    /* 读取写入的数据 */
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+100
+```
+
 ### func write(UInt32)
 
 ```cangjie
@@ -2246,6 +3564,32 @@ public func write(v: UInt32): Unit
 参数：
 
 - v: [UInt32](../../core/core_package_api/core_package_intrinsics.md#uint32) - [UInt32](../../core/core_package_api/core_package_intrinsics.md#uint32) 类型的实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入UInt32值 */
+    stringWriter.write(100000u32)
+
+    stringWriter.flush()
+
+    /* 读取写入的数据 */
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+100000
+```
 
 ### func write(UInt64)
 
@@ -2259,6 +3603,32 @@ public func write(v: UInt64): Unit
 
 - v: [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) - [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) 类型的实例。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入UInt64值 */
+    stringWriter.write(10000000000u64)
+
+    stringWriter.flush()
+
+    /* 读取写入的数据 */
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+10000000000
+```
+
 ### func write(UInt8)
 
 ```cangjie
@@ -2270,6 +3640,32 @@ public func write(v: UInt8): Unit
 参数：
 
 - v: [UInt8](../../core/core_package_api/core_package_intrinsics.md#uint8) - [UInt8](../../core/core_package_api/core_package_intrinsics.md#uint8) 类型的实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入UInt8值 */
+    stringWriter.write(100u8)
+
+    stringWriter.flush()
+
+    /* 读取写入的数据 */
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+100
+```
 
 ### func write\<T>(T) where T <: ToString
 
@@ -2283,6 +3679,33 @@ public func write<T>(v: T): Unit where T <: ToString
 
 - v: T - [ToString](../../core/core_package_api/core_package_interfaces.md#interface-tostring) 类型的实例。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入ToString类型的值 */
+    stringWriter.write(123.456)
+    stringWriter.write(true)
+
+    stringWriter.flush()
+
+    /* 读取写入的数据 */
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+123.456000true
+```
+
 ### func writeln()
 
 ```cangjie
@@ -2290,6 +3713,39 @@ public func writeln(): Unit
 ```
 
 功能：写入换行符。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入字符串 */
+    stringWriter.write("Hello")
+
+    /* 写入换行符 */
+    stringWriter.writeln()
+
+    /* 再写入字符串 */
+    stringWriter.write("World!")
+
+    stringWriter.flush()
+
+    /* 读取写入的数据 */
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+Hello
+World!
+```
 
 ### func writeln(Bool)
 
@@ -2303,6 +3759,33 @@ public func writeln(v: Bool): Unit
 
 - v: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) 类型的实例。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入Bool值并换行 */
+    stringWriter.writeln(true)
+    stringWriter.writeln(false)
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+true
+false
+```
+
 ### func writeln(Float16)
 
 ```cangjie
@@ -2314,6 +3797,31 @@ public func writeln(v: Float16): Unit
 参数：
 
 - v: [Float16](../../core/core_package_api/core_package_intrinsics.md#float16) - [Float16](../../core/core_package_api/core_package_intrinsics.md#float16) 类型的实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入Float16值并换行 */
+    stringWriter.writeln(3.14f16)
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+3.140625
+```
 
 ### func writeln(Float32)
 
@@ -2327,6 +3835,31 @@ public func writeln(v: Float32): Unit
 
 - v: [Float32](../../core/core_package_api/core_package_intrinsics.md#float32) - [Float32](../../core/core_package_api/core_package_intrinsics.md#float32) 类型的实例。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入Float32值并换行 */
+    stringWriter.writeln(3.14159f32)
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+3.141590
+```
+
 ### func writeln(Float64)
 
 ```cangjie
@@ -2338,6 +3871,31 @@ public func writeln(v: Float64): Unit
 参数：
 
 - v: [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) - [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) 类型的实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入Float64值并换行 */
+    stringWriter.writeln(3.141592653589793)
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+3.141593
+```
 
 ### func writeln(Int16)
 
@@ -2351,6 +3909,31 @@ public func writeln(v: Int16): Unit
 
 - v: [Int16](../../core/core_package_api/core_package_intrinsics.md#int16) - [Int16](../../core/core_package_api/core_package_intrinsics.md#int16) 类型的实例。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入Int16值并换行 */
+    stringWriter.writeln(100i16)
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+100
+```
+
 ### func writeln(Int32)
 
 ```cangjie
@@ -2362,6 +3945,31 @@ public func writeln(v: Int32): Unit
 参数：
 
 - v: [Int32](../../core/core_package_api/core_package_intrinsics.md#int32) - [Int32](../../core/core_package_api/core_package_intrinsics.md#int32) 类型的实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入Int32值并换行 */
+    stringWriter.writeln(100000i32)
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+100000
+```
 
 ### func writeln(Int64)
 
@@ -2375,6 +3983,31 @@ public func writeln(v: Int64): Unit
 
 - v: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) 类型的实例。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入Int64值并换行 */
+    stringWriter.writeln(10000000000)
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+10000000000
+```
+
 ### func writeln(Int8)
 
 ```cangjie
@@ -2386,6 +4019,31 @@ public func writeln(v: Int8): Unit
 参数：
 
 - v: [Int8](../../core/core_package_api/core_package_intrinsics.md#int8) - [Int8](../../core/core_package_api/core_package_intrinsics.md#int8) 类型的实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入Int8值并换行 */
+    stringWriter.writeln(100i8)
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+100
+```
 
 ### func writeln(Rune)
 
@@ -2399,6 +4057,31 @@ public func writeln(v: Rune): Unit
 
 - v: [Rune](../../../std/core/core_package_api/core_package_intrinsics.md#rune) - [Rune](../../../std/core/core_package_api/core_package_intrinsics.md#rune) 类型的实例。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入Rune值并换行 */
+    stringWriter.writeln(r'A')
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+A
+```
+
 ### func writeln(String)
 
 ```cangjie
@@ -2410,6 +4093,31 @@ public func writeln(v: String): Unit
 参数：
 
 - v: [String](../../core/core_package_api/core_package_structs.md#struct-string) - 待写入的字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入字符串并换行 */
+    stringWriter.writeln("Hello, World!")
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+Hello, World!
+```
 
 ### func writeln(UInt16)
 
@@ -2423,6 +4131,31 @@ public func writeln(v: UInt16): Unit
 
 - v: [UInt16](../../core/core_package_api/core_package_intrinsics.md#uint16) - [UInt16](../../core/core_package_api/core_package_intrinsics.md#uint16) 类型的实例。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入UInt16值并换行 */
+    stringWriter.writeln(100u16)
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+100
+```
+
 ### func writeln(UInt32)
 
 ```cangjie
@@ -2434,6 +4167,31 @@ public func writeln(v: UInt32): Unit
 参数：
 
 - v: [UInt32](../../core/core_package_api/core_package_intrinsics.md#uint32) - [UInt32](../../core/core_package_api/core_package_intrinsics.md#uint32) 类型的实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入UInt32值并换行 */
+    stringWriter.writeln(100000u32)
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+100000
+```
 
 ### func writeln(UInt64)
 
@@ -2447,6 +4205,31 @@ public func writeln(v: UInt64): Unit
 
 - v: [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) - [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) 类型的实例。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入UInt64值并换行 */
+    stringWriter.writeln(10000000000u64)
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+10000000000
+```
+
 ### func writeln(UInt8)
 
 ```cangjie
@@ -2459,6 +4242,31 @@ public func writeln(v: UInt8): Unit
 
 - v: [UInt8](../../core/core_package_api/core_package_intrinsics.md#uint8) - [UInt8](../../core/core_package_api/core_package_intrinsics.md#uint8) 类型的实例。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入UInt8值并换行 */
+    stringWriter.writeln(100u8)
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+100
+```
+
 ### func writeln\<T>(T) where T <: ToString
 
 ```cangjie
@@ -2470,6 +4278,31 @@ public func writeln<T>(v: T): Unit where T <: ToString
 参数：
 
 - v: T - [ToString](../../core/core_package_api/core_package_interfaces.md#interface-tostring) 类型的实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+main(): Unit {
+    let byteBuffer = ByteBuffer()
+    let stringWriter = StringWriter(byteBuffer)
+
+    /* 写入ToString类型的值并换行 */
+    stringWriter.writeln(123.456)
+
+    stringWriter.flush()
+
+    println(String.fromUtf8(readToEnd(byteBuffer)))
+}
+```
+
+运行结果：
+
+```text
+123.456000
+```
 
 ### extend\<T> StringWriter\<T> <: Resource where T <: Resource
 
@@ -2495,6 +4328,59 @@ public func close(): Unit
 >
 > 调用此方法后不可再调用 [StringWriter](io_package_classes.md#class-stringwritert-where-t--outputstream) 的其他接口，否则会造成非预期现象。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+/**
+ * 自定义实现 OutputStream 和 Resource 接口的类
+ */
+public class TestStream <: OutputStream & Resource {
+    private var closed: Bool = false
+    private var outputStream: ByteBuffer = ByteBuffer()
+
+    public func write(buffer: Array<Byte>): Unit {
+        if (this.closed) {
+            return
+        }
+        this.outputStream = ByteBuffer(buffer)
+    }
+
+    public func isClosed(): Bool {
+        return closed
+    }
+
+    public func close(): Unit {
+        println("Stream is closed")
+        closed = true
+    }
+}
+
+main(): Unit {
+    let testStream = TestStream()
+    let stringWriter = StringWriter(testStream)
+
+    // 检查流是否关闭
+    println("Is closed before close(): ${stringWriter.isClosed()}")
+
+    // 关闭流
+    stringWriter.close()
+
+    // 检查流是否关闭
+    println("Is closed after close(): ${stringWriter.isClosed()}")
+}
+```
+
+运行结果：
+
+```text
+Is closed before close(): false
+Stream is closed
+Is closed after close(): true
+```
+
 #### func isClosed()
 
 ```cangjie
@@ -2506,6 +4392,65 @@ public func isClosed(): Bool
 返回值：
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果当前流已经被关闭，返回 true，否则返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+/**
+ * 自定义实现 OutputStream 和 Resource 接口的类
+ */
+public class TestStream <: OutputStream & Resource {
+    private var closed: Bool = false
+    public var outputStream: ByteBuffer = ByteBuffer()
+
+    public func write(buffer: Array<Byte>): Unit {
+        if (this.closed) {
+            return
+        }
+        this.outputStream = ByteBuffer(buffer)
+    }
+
+    public func isClosed(): Bool {
+        return closed
+    }
+
+    public func close(): Unit {
+        println("Stream is closed")
+        closed = true
+    }
+}
+
+main(): Unit {
+    let testStream = TestStream()
+    let stringWriter = StringWriter(testStream)
+
+    /* 使用try-with-resource语法获取资源 */
+    try (r = stringWriter) {
+        println("Get the resource")
+        let data = "Hello World".toArray()
+        r.write(data)
+        r.flush()
+        println(r.isClosed())
+        println(String.fromUtf8(readToEnd(testStream.outputStream)))
+    }
+
+    /* 自动调用 close() 函数释放资源 */
+    println(stringWriter.isClosed())
+}
+```
+
+运行结果：
+
+```text
+Get the resource
+false
+[72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100]
+Stream is closed
+true
+```
 
 ### extend\<T> StringWriter\<T> <: Seekable where T <: Seekable
 
@@ -2543,3 +4488,55 @@ public func seek(sp: SeekPosition): Int64
 异常：
 
 - [IOException](io_package_exceptions.md#class-ioexception) - 当指定的位置位于流中数据头部之前时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.io.*
+
+/**
+ * 自定义实现 OutputStream 和 Seekable 接口的类A
+ */
+public class A <: OutputStream & Seekable {
+    public var outputStream: ByteBuffer = ByteBuffer()
+
+    public func write(buffer: Array<Byte>): Unit {
+        this.outputStream = ByteBuffer(buffer)
+    }
+
+    public func seek(sp: SeekPosition): Int64 {
+        return outputStream.seek(sp)
+    }
+}
+
+main(): Unit {
+    let seekableStream = A()
+    let stringWriter = StringWriter(seekableStream)
+    let data = "Hello World".toArray()
+    stringWriter.write(data)
+    stringWriter.flush()
+
+    /* 移动光标到指定位置，虽然超过了流中数据末尾但是合法的 */
+    println("Position after seek() : ${stringWriter.seek(SeekPosition.Current(11))}")
+
+    /* 尝试移动到数据头部之前，抛出异常 */
+    try {
+        stringWriter.seek(SeekPosition.Begin(-1))
+    } catch (e: IOException) {
+        println("Error: " + e.message)
+    }
+
+    /* 将光标移动到第一个单词之后，读取后续的数据（输入流已经作为String进入） */
+    stringWriter.seek(SeekPosition.Begin(29))
+    println(String.fromUtf8(readToEnd(seekableStream.outputStream)))
+}
+```
+
+运行结果：
+
+```text
+Position after seek() : 11
+Error: Can't move the position before the beginning of the stream.
+87, 111, 114, 108, 100]
+```

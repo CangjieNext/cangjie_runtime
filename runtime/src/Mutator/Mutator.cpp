@@ -451,12 +451,8 @@ intptr_t Mutator::FixExtendedStack(intptr_t frameBase, uint32_t adjustedSize __a
 
 inline void CheckAndPush(BaseObject* obj, std::set<BaseObject*>& rootSet, std::stack<BaseObject*>& rootStack)
 {
-    auto search = rootSet.find(obj);
-    if (search == rootSet.end()) {
-        rootSet.insert(obj);
-        if (obj->IsValidObject() && obj->HasRefField()) {
-            rootStack.push(obj);
-        }
+    if (rootSet.insert(obj).second && obj->IsValidObject() && obj->HasRefField()) {
+        rootStack.push(obj);
     }
 }
 
@@ -503,12 +499,11 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
         BaseObject* oldObj = refFieldAddr.GetTargetObject();
         if (Heap::IsHeapAddress(oldObj) && collector.IsGhostFromObject(oldObj) &&
             !collector.IsUnmovableFromObject(oldObj)) {
-            if (rootFieldSet.find((void*)(&refFieldAddr)) != rootFieldSet.end()) {
+            if (!rootFieldSet.insert((void*)(&refFieldAddr)).second) {
                 return;
             }
             BaseObject* toObj = collector.ForwardObject(oldObj);
             if (oldObj != toObj) { refFieldAddr.SetTargetObject(toObj); }
-            rootFieldSet.insert((void*)(&refFieldAddr));
         } else if (IsStackAddr(reinterpret_cast<uintptr_t>(oldObj))) {
             CheckAndPush(oldObj, rootSet, rootStack);
         }
@@ -518,12 +513,11 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
         BaseObject* oldObj = root.object;
         if (Heap::IsHeapAddress(oldObj) && collector.IsGhostFromObject(oldObj) &&
             !collector.IsUnmovableFromObject(oldObj)) {
-            if (rootFieldSet.find((void*)(&root)) != rootFieldSet.end()) {
+            if (!rootFieldSet.insert((void*)(&root)).second) {
                 return;
             }
             BaseObject* toObj = collector.ForwardObject(oldObj);
             if (oldObj != toObj) { root.object = toObj; }
-            rootFieldSet.insert((void*)(&root));
         } else if (IsStackAddr(reinterpret_cast<uintptr_t>(oldObj))) {
             CheckAndPush(oldObj, rootSet, rootStack);
         }
@@ -566,8 +560,24 @@ inline void Mutator::HandleGCPhase(GCPhase newPhase)
             SatbBuffer::Instance().RetireNode(satbNode);
             satbNode = nullptr;
         }
-    } else if (newPhase == GCPhase::GC_PHASE_IDLE && IsForeignThreadExit()) {
+    } else if (newPhase == GCPhase::GC_PHASE_IDLE) {
+        HandleGCPhaseIDLE();
+    }
+}
+
+inline void Mutator::HandleGCPhaseIDLE()
+{
+    if (IsForeignThreadExit()) {
         ReleaseForeignThread();
+    } else {
+#if defined(__OHOS__) && (__OHOS__ == 1)
+        if (foreignThreadInfo.allocBuffer != nullptr) {
+            auto status = GetUnwindContext().GetUnwindContextStatus();
+            if (status == UnwindContextStatus::RISKY) {
+                foreignThreadInfo.allocBuffer->FlushRegion();
+            }
+        }
+#endif
     }
 }
 
@@ -577,7 +587,7 @@ void Mutator::TransitionToGCPhaseExclusive(GCPhase newPhase)
     SetSafepointActive(false);
     // Clear mutator's suspend request after phase transition
     ClearSuspensionFlag(SUSPENSION_FOR_GC_PHASE);
-    mutatorPhase.store(newPhase, std::memory_order_release); // handshake between muator & mainGC thread
+    mutatorPhase.store(newPhase, std::memory_order_release); // handshake between mutator & mainGC thread
 }
 
 inline void Mutator::HandleCpuProfile()

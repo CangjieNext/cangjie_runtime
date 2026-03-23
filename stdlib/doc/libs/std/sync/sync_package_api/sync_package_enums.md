@@ -30,8 +30,8 @@ import std.time.MonoTime
 
 main() {
     let start = MonoTime.now()
-    Timer.repeatTimes(3, Duration.second, Duration.second, {=>
-        println("Tick at: ${MonoTime.now() - start}")
+    Timer.repeatTimes(3, Duration.second, Duration.second, {
+        => println("Tick at: ${MonoTime.now() - start}")
     }, style: Delay)
 
     sleep(Duration.second * 4)
@@ -106,7 +106,7 @@ public enum ReadWriteMutexMode {
 
 功能：读写锁公平模式枚举。
 
-锁的公平性是指，当同时有多个线程在等同一把锁时，是否按照等待顺序依次获得锁。
+锁的公平性是指，当同时有多个线程在等待同一把锁时，是否按照等待顺序依次获得锁。
 
 > **注意：**
 >

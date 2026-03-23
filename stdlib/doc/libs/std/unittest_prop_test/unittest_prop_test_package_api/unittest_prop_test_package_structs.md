@@ -64,6 +64,10 @@ public static func arbitrary(random: RandomSource): Generator<Function0Wrapper<R
 
 功能：获取生成 [Function0Wrapper](#struct-function0wrapperr)\<R> 类型随机值生成器。
 
+参数：
+
+- random: [RandomSource](../unittest_prop_test_package_api/unittest_prop_test_package_interfaces.md#interface-randomsource) - 随机值生成种子。
+
 返回值：
 
 - [Generator](../unittest_prop_test_package_api/unittest_prop_test_package_interfaces.md#interface-generatort)\<[Function0Wrapper](../unittest_prop_test_package_api/unittest_prop_test_package_structs.md#struct-function0wrapperr)\<R>> - 生成器。
@@ -88,6 +92,8 @@ public static prop random: KeyRandom
 
 功能：配置项的键值。
 
+类型：[KeyRandom](#struct-keyrandom)
+
 ### prop name
 
 ```cangjie
@@ -95,6 +101,8 @@ public prop name: String
 ```
 
 功能：配置项的键值的名称。
+
+类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)
 
 ## struct TupleWrapper2\<T0, T1>
 
@@ -256,6 +264,10 @@ public static func arbitrary(random: RandomSource): Generator<TupleWrapper2<T0, 
 
 功能：获取生成 [TupleWrapper2](#struct-tuplewrapper2t0-t1)\<T0, T1> 类型随机值生成器。
 
+参数：
+
+- random: [RandomSource](../unittest_prop_test_package_api/unittest_prop_test_package_interfaces.md#interface-randomsource) - 随机值生成种子。
+
 返回值：
 
 - [Generator](../unittest_prop_test_package_api/unittest_prop_test_package_interfaces.md#interface-generatort)\<[TupleWrapper2](#struct-tuplewrapper2t0-t1)\<T0, T1>> - 生成器。
@@ -280,7 +292,7 @@ public func shrink(): Iterable<TupleWrapper2<T0, T1>>
 
 返回值：
 
-- [Iterable](../../core/core_package_api/core_package_interfaces.md#interface-iterablee)\<TupleWrapper2<T0, T1> - 数据迭代器。
+- [Iterable](../../core/core_package_api/core_package_interfaces.md#interface-iterablee)\<TupleWrapper2\<T0, T1>> - 数据迭代器。
 
 ## struct TupleWrapper3\<T0, T1, T2>
 
@@ -290,7 +302,7 @@ public struct TupleWrapper3<T0, T1, T2> {
 }
 ```
 
-功能：将闭包封装为结构体。闭包带两个参数。
+功能：将闭包封装为结构体。闭包带三个参数。
 
 ### TupleWrapper3((T0, T1, T2))
 
@@ -442,6 +454,10 @@ public static func arbitrary(random: RandomSource): Generator<TupleWrapper3<T0, 
 
 功能：获取生成 [TupleWrapper3](#struct-tuplewrapper3t0-t1-t2)\<T0, T1, T2> 类型随机值生成器。
 
+参数：
+
+- random: [RandomSource](../unittest_prop_test_package_api/unittest_prop_test_package_interfaces.md#interface-randomsource) - 随机值生成种子。
+
 返回值：
 
 - [Generator](../unittest_prop_test_package_api/unittest_prop_test_package_interfaces.md#interface-generatort)\<[TupleWrapper3](#struct-tuplewrapper3t0-t1-t2)\<T0, T1, T2>> - 生成器。
@@ -467,7 +483,7 @@ public func shrink(): Iterable<TupleWrapper3<T0, T1, T2>>
 
 返回值：
 
-- [Iterable](../../core/core_package_api/core_package_interfaces.md#interface-iterablee)\<TupleWrapper3<T0, T1, T2> -  数据迭代器。
+- [Iterable](../../core/core_package_api/core_package_interfaces.md#interface-iterablee)\<TupleWrapper3\<T0, T1, T2>> -  数据迭代器。
 
 ## struct TupleWrapper4\<T0, T1, T2, T3>
 
@@ -477,7 +493,7 @@ public struct TupleWrapper4<T0, T1, T2, T3> {
 }
 ```
 
-功能：将闭包封装为结构体。闭包带两个参数。
+功能：将闭包封装为结构体。闭包带四个参数。
 
 ### TupleWrapper4((T0, T1, T2, T3))
 
@@ -540,14 +556,14 @@ public func toString()
 ### extend\<T0, T1, T2, T3> TupleWrapper4\<T0, T1, T2, T3> <: Equatable\<TupleWrapper4\<T0, T1, T2, T3>>
 
 ```cangjie
-extend<T0, T1, T2> TupleWrapper3<T0, T1, T2> <: Equatable<TupleWrapper3<T0, T1, T2>>
+extend<T0, T1, T2, T3> TupleWrapper4<T0, T1, T2, T3> <: Equatable<TupleWrapper4<T0, T1, T2, T3>>
 ```
 
 功能：为 [TupleWrapper4](#struct-tuplewrapper4t0-t1-t2-t3) 扩展 [Equatable](../../core/core_package_api/core_package_interfaces.md#interface-equatablet) 实现。
 
 父类型：
 
-- [Equatable](../../core/core_package_api/core_package_interfaces.md#interface-equatablet)\<[TupleWrapper3](#struct-tuplewrapper3t0-t1-t2)\<T0, T1, T2>>
+- [Equatable](../../core/core_package_api/core_package_interfaces.md#interface-equatablet)\<[TupleWrapper4](#struct-tuplewrapper4t0-t1-t2-t3)\<T0, T1, T2, T3>>
 
 #### operator func ==(TupleWrapper4\<T0, T1, T2, T3>)
 
@@ -609,10 +625,10 @@ public func getElementAsAny(index: Int64): ?Any
 
 - ?[Any](../../core/core_package_api/core_package_interfaces.md#interface-any) - 获取到的元组内的值。索引不合法时返回 `None` 。
 
-### extend\<T0, T1, T2, T3> TupleWrapper4\<T0, T1, T2, T3><: Arbitrary\<TupleWrapper4\<T0, T1, T2, T3>> where where T0 <: Arbitrary\<T0>,T1 <: Arbitrary\<T1>,T2 <: Arbitrary\<T2>,T3 <: Arbitrary\<T3>
+### extend\<T0, T1, T2, T3> TupleWrapper4\<T0, T1, T2, T3><: Arbitrary\<TupleWrapper4\<T0, T1, T2, T3>> where T0 <: Arbitrary\<T0>,T1 <: Arbitrary\<T1>,T2 <: Arbitrary\<T2>,T3 <: Arbitrary\<T3>
 
 ```cangjie
-extend<T0, T1, T2, T3> TupleWrapper4<T0, T1, T2, T3><: Arbitrary<TupleWrapper4<T0, T1, T2, T3>> where where T0 <: Arbitrary<T0>,T1 <: Arbitrary<T1>,T2 <: Arbitrary<T2>,T3 <: Arbitrary<T3>
+extend<T0, T1, T2, T3> TupleWrapper4<T0, T1, T2, T3><: Arbitrary<TupleWrapper4<T0, T1, T2, T3>> where T0 <: Arbitrary<T0>,T1 <: Arbitrary<T1>,T2 <: Arbitrary<T2>,T3 <: Arbitrary<T3>
 ```
 
 功能：为 [TupleWrapper4](#struct-tuplewrapper4t0-t1-t2-t3) 扩展 [Arbitrary](./unittest_prop_test_package_interfaces.md#interface-arbitraryt) 实现。
@@ -624,10 +640,14 @@ extend<T0, T1, T2, T3> TupleWrapper4<T0, T1, T2, T3><: Arbitrary<TupleWrapper4<T
 #### static func arbitrary(RandomSource)
 
 ```cangjie
-public static func arbitrary(random: RandomSource): Generator<TupleWrapper2<T0, T1, T2, T3>>
+public static func arbitrary(random: RandomSource): Generator<TupleWrapper4<T0, T1, T2, T3>>
 ```
 
 功能：获取生成 [TupleWrapper4](#struct-tuplewrapper4t0-t1-t2-t3)\<T0, T1, T2, T3> 类型随机值生成器。
+
+参数：
+
+- random: [RandomSource](../unittest_prop_test_package_api/unittest_prop_test_package_interfaces.md#interface-randomsource) - 随机值生成种子。
 
 返回值：
 
@@ -665,7 +685,7 @@ public struct TupleWrapper5<T0, T1, T2, T3, T4> {
 }
 ```
 
-功能：将闭包封装为结构体。闭包带两个参数。
+功能：将闭包封装为结构体。闭包带五个参数。
 
 ### TupleWrapper5((T0, T1, T2, T3, T4))
 
@@ -728,14 +748,14 @@ public func toString()
 ### extend\<T0, T1, T2, T3, T4> TupleWrapper5\<T0, T1, T2, T3, T4> <: Equatable\<TupleWrapper5\<T0, T1, T2, T3, T4>>
 
 ```cangjie
-extend<T0, T1, T2> TupleWrapper3<T0, T1, T2> <: Equatable<TupleWrapper3<T0, T1, T2>>
+extend<T0, T1, T2, T3, T4> TupleWrapper5<T0, T1, T2, T3, T4> <: Equatable<TupleWrapper5<T0, T1, T2, T3, T4>>
 ```
 
 功能：为 [TupleWrapper5](#struct-tuplewrapper5t0-t1-t2-t3-t4) 扩展 [Equatable](../../core/core_package_api/core_package_interfaces.md#interface-equatablet) 实现。
 
 父类型：
 
-- [Equatable](../../core/core_package_api/core_package_interfaces.md#interface-equatablet)\<[TupleWrapper3](#struct-tuplewrapper3t0-t1-t2)\<T0, T1, T2>>
+- [Equatable](../../core/core_package_api/core_package_interfaces.md#interface-equatablet)\<[TupleWrapper5](#struct-tuplewrapper5t0-t1-t2-t3-t4)\<T0, T1, T2, T3, T4>>
 
 #### operator func ==(TupleWrapper5\<T0, T1, T2, T3, T4>)
 
@@ -756,7 +776,7 @@ public operator func ==(other: TupleWrapper5<T0, T1, T2, T3, T4>): Bool
 #### operator func !=(TupleWrapper5\<T0, T1, T2, T3, T4>)
 
 ```cangjie
-public operator func !=(other: TupleWrapper2<T0, T1, T2, T3, T4>): Bool
+public operator func !=(other: TupleWrapper5<T0, T1, T2, T3, T4>): Bool
 ```
 
 功能：比较两个元组。
@@ -797,17 +817,17 @@ public func getElementAsAny(index: Int64): ?Any
 
 - ?[Any](../../core/core_package_api/core_package_interfaces.md#interface-any) - 获取到的元组内的值。索引不合法时返回 `None` 。
 
-### extend\<T0, T1, T2, T3, T4> TupleWrapper5\<T0, T1, T2, T3, T4> <: Arbitrary\<TupleWrapper2\<T0, T1, T2, T3, T4>> where T0 <: Arbitrary\<T0>,T1 <: Arbitrary\<T1>,T2 <: Arbitrary\<T2>,T3 <: Arbitrary\<T3>,T4 <: Arbitrary\<T4>
+### extend\<T0, T1, T2, T3, T4> TupleWrapper5\<T0, T1, T2, T3, T4> <: Arbitrary\<TupleWrapper5\<T0, T1, T2, T3, T4>> where T0 <: Arbitrary\<T0>,T1 <: Arbitrary\<T1>,T2 <: Arbitrary\<T2>,T3 <: Arbitrary\<T3>,T4 <: Arbitrary\<T4>
 
 ```cangjie
-extend<T0, T1, T2, T3, T4> TupleWrapper5<T0, T1, T2, T3, T4> <: Arbitrary<TupleWrapper2<T0, T1, T2, T3, T4>> where T0 <: Arbitrary<T0>,T1 <: Arbitrary<T1>,T2 <: Arbitrary<T2>,T3 <: Arbitrary<T3>,T4 <: Arbitrary<T4>
+extend<T0, T1, T2, T3, T4> TupleWrapper5<T0, T1, T2, T3, T4> <: Arbitrary<TupleWrapper5<T0, T1, T2, T3, T4>> where T0 <: Arbitrary<T0>,T1 <: Arbitrary<T1>,T2 <: Arbitrary<T2>,T3 <: Arbitrary<T3>,T4 <: Arbitrary<T4>
 ```
 
 功能：为 [TupleWrapper5](#struct-tuplewrapper5t0-t1-t2-t3-t4) 扩展 [Arbitrary](./unittest_prop_test_package_interfaces.md#interface-arbitraryt) 实现。
 
 父类型：
 
-- [Arbitrary](unittest_prop_test_package_interfaces.md#interface-arbitraryt)\<[TupleWrapper2](#struct-tuplewrapper2t0-t1)\<T0, T1, T2, T3, T4>>
+- [Arbitrary](unittest_prop_test_package_interfaces.md#interface-arbitraryt)\<[TupleWrapper5](#struct-tuplewrapper5t0-t1-t2-t3-t4)\<T0, T1, T2, T3, T4>>
 
 #### static func arbitrary(RandomSource)
 
@@ -817,9 +837,13 @@ public static func arbitrary(random: RandomSource): Generator<TupleWrapper5<T0, 
 
 功能：获取生成 [TupleWrapper5](#struct-tuplewrapper5t0-t1-t2-t3-t4)\<T0, T1, T2, T3, T4> 类型随机值生成器。
 
+参数：
+
+- random: [RandomSource](../unittest_prop_test_package_api/unittest_prop_test_package_interfaces.md#interface-randomsource) - 随机值生成种子。
+
 返回值：
 
-- [Generator](../unittest_prop_test_package_api/unittest_prop_test_package_interfaces.md#interface-generatort)\[TupleWrapper5](#struct-tuplewrapper5t0-t1-t2-t3-t4)\<T0, T1, T2, T3, T4>> - 生成器。
+- [Generator](../unittest_prop_test_package_api/unittest_prop_test_package_interfaces.md#interface-generatort)\<[TupleWrapper5](#struct-tuplewrapper5t0-t1-t2-t3-t4)\<T0, T1, T2, T3, T4>> - 生成器。
 
 ### extend\<T0, T1, T2, T3, T4> TupleWrapper5\<T0, T1, T2, T3, T4> <: Shrink\<TupleWrapper5\<T0, T1, T2, T3, T4>> where T0 <: Shrink\<T0>,T1 <: Shrink\<T1>,T2 <: Shrink\<T2>, T3 <: Shrink\<T3>, T4 <: Shrink\<T4>
 

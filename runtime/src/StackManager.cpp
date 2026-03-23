@@ -101,7 +101,7 @@ void StackManager::PrintStackTraceForCpuProfile(UnwindContext* unContext, unsign
     std::vector<uint64_t> funcDescRefs;
     std::vector<FrameType> frameTypes;
     std::vector<uint32_t> lineNumbers;
-    for (auto& frame : stacks) {
+    for (const auto& frame : stacks) {
 #ifdef __APPLE__
         FuncDescRef funcDesc = MFuncDesc::GetFuncDesc(frame.mFrame.GetFA());
 #else
@@ -327,7 +327,7 @@ void StackManager::InitAddressScope()
     StackManager::rtEndAddr = reinterpret_cast<Uptr>(&g_runtimeDynamicEnd);
 #endif
 #else                  // !COMPILE_DYNAMIC
-#if defined(__APPLE__) // MacOS, iOS
+#if defined(__APPLE__) || defined(_WIN64) // MacOS, iOS, Windows
     StackManager::rtStartAddr = reinterpret_cast<Uptr>(g_runtimeStaticStart);
     StackManager::rtEndAddr = reinterpret_cast<Uptr>(g_runtimeStaticEnd);
 #else

@@ -136,6 +136,38 @@ public class CardinalitySelector<A> where A <: ActionSelector {}
 - 桩签名的调用次数超过指定次数将立即抛出 [ExpectationFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) 。
 - 桩签名的调用次数不足时，框架将在测试用例执行完成后抛出 [ExceptionFailedException](./unittest_mock_package_exceptions.md#class-expectationfailedexception) 。
 
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.mock.*
+import std.unittest.mock.mockmacro.*
+
+class Printer {
+    func print(message: String): Bool { return true }
+}
+
+@Test
+func test() {
+    let printer = mock<Printer>()
+    @On(printer.print("abc")).returns(true)
+
+    printer.print("abc")
+    Verify.that(@Called(printer.print("abc")).once())
+
+    printer.print("abc")
+    Verify.that(@Called(printer.print("abc")).atLeastOnce())
+    Verify.that(@Called(printer.print("abc")).times(2))
+    Verify.that(@Called(printer.print("abc")).times(min: 1, max: 3))
+    Verify.that(@Called(printer.print("abc")).atLeastTimes(2))
+
+    Verify.that(@Called(printer.print("xyz")).times(0))
+    Verify.that(@Called(printer.print("xyz")).atLeastTimes(0))
+    Verify.that(@Called(printer.print("xyz")).never())
+}
+
+```
+
 ### func anyTimes()
 
 ```cangjie
@@ -279,8 +311,7 @@ public static func stubFunction<TRet>(
 
 参数：
 
-- stubCall: () -> Unit - 桩签名对应的调用表达式。
-- _: () -> TArg - 用于捕获属性或者字段的类型。
+- stubCall: () -> TRet - 桩签名对应的调用表达式。
 - matchers: Array\<[ArgumentMatcher](#class-argumentmatcher)> - 对应入参的参数匹配器。
 - prefixRefName: [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[String](../../core/core_package_api/core_package_structs.md#struct-string)> - 用于模拟类/接口成员的对象引用令牌，用于模拟静态声明的类型引用令牌，用于顶级声明的时为 None。
 - methodName: [String](../../core/core_package_api/core_package_structs.md#struct-string) - 方法的名称。
@@ -333,6 +364,29 @@ public class Continuation<A> where A <: ActionSelector {}
 - 允许当先前的操作得到满足时，桩签名将执行额外的操作。仅当后面跟着一个行为定义时，`Continuation` 实例才有意义。
 - 当先前的操作未得到满足时，将抛出 [MockFrameworkException](./unittest_mock_package_exceptions.md#class-mockframeworkexception) 异常。并不保证抛出此异常的确切位置。
 
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.mock.*
+import std.unittest.mock.mockmacro.*
+
+class Printer {
+    func print(message: String): Bool { return true }
+}
+
+@Test
+func test() {
+    let printer = mock<Printer>()
+    @On(printer.print("abc")).returns(true).times(2).then().returns(false)
+
+    @Assert(printer.print("abc") == true)
+    @Assert(printer.print("abc") == true)
+    @Assert(printer.print("abc") == false)
+    @Assert(printer.print("abc") == false)
+}
+```
+
 ### func then()
 
 ```cangjie
@@ -361,6 +415,8 @@ public class GetterActionSelector<TRet> <: ActionSelector {}
 父类型：
 
 - [ActionSelector](#class-actionselector)
+
+参考示例：[SyntheticField](#class-syntheticfieldt)。
 
 ### func getsField(SyntheticField\<TRet>)
 
@@ -494,6 +550,38 @@ extend MethodActionSelector<Unit> {}
 
 功能：扩展 [MethodActionSelector](#class-methodactionselectortret) 。
 
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.mock.*
+import std.unittest.mock.mockmacro.*
+
+class Printer {
+    func print(message: String): Bool { return true }
+}
+
+@Test
+func test() {
+    let printerMock = mock<Printer>()
+    @On(printerMock.print(_)).returns(false)
+    @On(printerMock.print("throw")).throws(TimeoutException())
+    @On(printerMock.print("fail")).fails()
+
+    @ExpectThrows[TimeoutException](printerMock.print("throw"))
+    @Expect(printerMock.print("something"), false)
+    // printerMock.print("fail") // expected to fail
+
+    let printer = Printer()
+    let printerSpy = spy(printer)
+    @On(printerSpy.print(_)).callsOriginal()
+    @On(printerSpy.print("hello")).returns(false)
+
+    @Expect(printerSpy.print("hello"), false)
+    @Expect(printerSpy.print("something"), true)
+}
+```
+
 #### func returns()
 
 ```cangjie
@@ -620,6 +708,10 @@ public static func capture<T>(listener: ValueListener<T>): TypedMatcher<T>
 
 功能：允许 listener 值监听器对类型为 T 的传入参数值进行处理。当 capture 的类型参数未指定时，将使用值监听器的类型参数值。
 
+> **注意：**
+>
+> 值监听器不允许在 @Called 的参数范围内使用。
+
 参数：
 
 - listener: [ValueListener](unittest_mock_package_interfaces.md#interface-valuelistenert)\<T> - 值监听器。
@@ -627,8 +719,6 @@ public static func capture<T>(listener: ValueListener<T>): TypedMatcher<T>
 返回值：
 
 - [TypedMatcher](#class-typedmatchert)\<T> - 拥有值监听器的类型匹配器。
-
-注意：值监听器不允许在 @Called 的参数范围内使用。
 
 ### static func default\<T>(T)
 
@@ -868,7 +958,7 @@ public static func openSession(name: String, sessionKind: MockSessionKind): Unit
 功能：打开一个新会话。会话形成一个类似堆栈的结构。
 会话关闭的顺序与开始时的顺序相反。
 在给定会话期间创建的 `mock object` 只能在该会话或其任何内部会话内部访问。
-每个会话都保留自己的调用日志，因此对最新打开会话内进行的调用执行任何验证， 只有在会议结束时才能验证期望。
+每个会话都保留自己的调用日志，因此对最新打开会话内进行的调用执行任何验证， 只有在会话结束时才能验证期望。
 
 参数：
 
@@ -884,7 +974,7 @@ public static func closeSession(): Unit
 功能：打开一个新会话。会话形成一个类似堆栈的结构。
 会话关闭的顺序与开始时的顺序相反。
 在给定会话期间创建的 `mock object` 只能在该会话或其任何内部会话内部访问。
-每个会话都保留自己的调用日志，因此对最新打开会话内进行的调用执行任何验证， 只有在会议结束时才能验证期望。
+每个会话都保留自己的调用日志，因此对最新打开会话内进行的调用执行任何验证， 只有在会话结束时才能验证期望。
 
 异常：
 
@@ -947,6 +1037,36 @@ public class OrderedVerifier {}
 
 功能：此类型用于收集 “验证语句”，可在 [ordered](#static-func-orderedarrayverifystatement) 函数中动态传入验证行为。
 
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.mock.*
+import std.unittest.mock.mockmacro.*
+
+class Printer {
+    func print(message: String): Bool { return true }
+}
+
+func printMessage(printer: Printer) {
+    printer.print("hello")
+    printer.print("world")
+}
+
+@Test
+func test() {
+    let printer = Printer()
+    let spyPrinter = spy<Printer>(printer)
+
+    printMessage(spyPrinter)
+
+    Verify.ordered(
+        @Called(spyPrinter.print("hello")),
+        @Called(spyPrinter.print("world"))
+    )
+}
+```
+
 ### func checkThat(VerifyStatement)
 
 ```cangjie
@@ -975,6 +1095,8 @@ public class SetterActionSelector<TArg> <: ActionSelector {}
 父类型：
 
 - [ActionSelector](#class-actionselector)
+
+参考示例：[SyntheticField](#class-syntheticfieldt)。
 
 ### func doesNothing()
 
@@ -1055,6 +1177,35 @@ public class SyntheticField<T> {}
 ```
 
 功能：合成字段。用于处理可变属性和字段。
+
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.mock.*
+import std.unittest.mock.mockmacro.*
+
+class Printer {
+    mut prop name: String {
+        get() { "nop" }
+        set(x) {}
+    }
+    func print(message: String): Bool { return true }
+}
+
+@Test
+func test() {
+    let printer = mock<Printer>(SyntheticFields)
+    let syntheticField = SyntheticField.create(initialValue: "tty0")
+    @On(printer.name).getsField(syntheticField)
+    @On(printer.name = _).setsField(syntheticField)
+
+    @Assert(printer.name, "tty0")
+
+    printer.name = "virtual0"
+    @Assert(printer.name, "virtual0")
+}
+```
 
 ### static func create(T)
 
@@ -1144,6 +1295,41 @@ public class UnorderedVerifier{}
 
 功能：此类型用于收集 “验证语句”， 可在 [unordered](#static-func-unorderedarrayverifystatement) 函数中动态传入验证行为。
 
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.mock.*
+import std.unittest.mock.mockmacro.*
+
+class Printer {
+    func print(message: String): Bool { return true }
+}
+
+func printMessage(printer: Printer) {
+    printer.print("hello")
+    printer.print("world")
+}
+
+@Test
+func test() {
+    let printer = Printer()
+    let spyPrinter = spy<Printer>(printer)
+
+    printMessage(spyPrinter)
+
+    Verify.unordered(
+        @Called(spyPrinter.print("hello")),
+        @Called(spyPrinter.print("world"))
+    )
+
+    Verify.unordered(
+        @Called(spyPrinter.print("world")),
+        @Called(spyPrinter.print("hello"))
+    )
+}
+```
+
 ### func checkThat(VerifyStatement)
 
 ```cangjie
@@ -1166,7 +1352,7 @@ public func checkThat(statement: VerifyStatement):UnorderedVerifier
 public class Verify {}
 ```
 
-功能：[Verify](unittest_mock_package_classes.md#class-verify) 提供了一系列静态方法来支持定义所需验证的动作，如 `that` 、 `ordered` 以及 `unorder` 。
+功能：[Verify](unittest_mock_package_classes.md#class-verify) 提供了一系列静态方法来支持定义所需验证的动作，如 `that` 、 `ordered` 以及 `unordered` 。
 
 一个验证动作可以包含多个由 `@Called` 生成的[验证语句](../unittest_mock_samples/mock_framework_verification.md#验证语句和-called-宏)，来描述需要验证的动作。
 通常验证的范围为所在测试用例的函数体，但 [Verify](unittest_mock_package_classes.md#class-verify) 提供了 `clearInvocationLog` 函数来清除此前的执行记录，以缩小验证范围。
@@ -1199,6 +1385,38 @@ Verify.that(@Called(foo.bar()))
 ```
 
 值得注意的是， [CardinalitySelector](unittest_mock_package_classes.md#class-cardinalityselectora)\<R> 提供了一些 API ，其支持验证一些行为 。因此，用户可自由选择不同的方式进行行为验证。
+
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.mock.*
+import std.unittest.mock.mockmacro.*
+
+class Printer {
+    func print(message: String): Bool { return true }
+}
+
+@Test
+func test() {
+    let printer = mock<Printer>()
+    @On(printer.print("abc")).returns(true)
+    @On(printer.print("xyz")).returns(false)
+
+    @Expect(printer.print("abc"), true)
+    @Expect(printer.print("xyz"), false)
+
+    Verify.that(@Called(printer.print("abc")).once())
+    Verify.that(@Called(printer.print("xyz")).atLeastOnce())
+    Verify.ordered(@Called(printer.print("abc")), @Called(printer.print("xyz")))
+    Verify.unordered(@Called(printer.print("xyz")), @Called(printer.print("abc")))
+    Verify.unordered(Partial, @Called(printer.print("xyz")))
+    @ExpectThrows[VerificationFailedException](Verify.unordered(Exhaustive, @Called(printer.print("xyz"))))
+
+    Verify.clearInvocationLog()
+    Verify.noInteractions(printer)
+}
+```
 
 ### static func clearInvocationLog()
 
@@ -1422,10 +1640,35 @@ public static func unordered(exhaustive: Exhaustiveness, statements: Array<Verif
 public class VerifyStatement {}
 ```
 
-功能：此类型表示对“桩签名”在验证范围内的单个验证验证语句（即上文中的“验证语句”），提供了成员函数指定“桩签名”的执行次数。
+功能：此类型表示对“桩签名”在验证范围内的单个验证语句（即上文中的“验证语句”），提供了成员函数指定“桩签名”的执行次数。
 该类型的对象仅可通过 `@Called` 宏调用表达式创建。
 对一个对象连续调用多个成员函数没有意义，并且会抛出异常。即，执行次数仅可被指定一次。
 当未调用成员函数指定执行次数时，将基于语句所在的验证动作类型定义默认的执行次数验证值。例如在 [Verify](unittest_mock_package_classes.md#class-verify).ordered() 中的“验证语句”默认为验证执行一次。
+
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.mock.*
+import std.unittest.mock.mockmacro.*
+
+class Printer {
+    func print(message: String): Bool { return true }
+}
+
+@Test
+func test() {
+    let printer = mock<Printer>()
+    @On(printer.print("abc")).returns(true)
+
+    printer.print("abc")
+    Verify.that(@Called(printer.print("abc")).once())
+
+    printer.print("abc")
+    Verify.that(@Called(printer.print("abc")).atLeastOnce())
+    Verify.that(@Called(printer.print("abc")).times(2))
+}
+```
 
 ### func atLeastOnce()
 
@@ -1532,7 +1775,7 @@ public static func fromStub<R>(
     objName: Option<String>,
     declarationName: String,
     callDescription: String,
-    lineNumber: Int64
+    _: Int64
 ): VerifyStatement
 ```
 
@@ -1545,7 +1788,7 @@ public static func fromStub<R>(
 - objName: [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[String](../../core/core_package_api/core_package_structs.md#struct-string)> - 被插桩的对象的名称。
 - declarationName: [String](../../core/core_package_api/core_package_structs.md#struct-string) - 声明的名称。
 - callDescription: [String](../../core/core_package_api/core_package_structs.md#struct-string) - 桩签名对应的调用表达式的字符串表达。
-- lineNumber: Int64 - 行号。
+- _: Int64 - 行号。
 
 返回值：
 

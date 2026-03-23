@@ -157,6 +157,15 @@ public static func merge(parent: Configuration, child: Configuration): Configura
 
 - [Configuration](#class-configuration) - 合并完成的配置
 
+参考示例：
+
+- [自定义性能基准测试配置](../../unittest/unittest_package_api/unittest_package_classes.md#class-benchmark)
+- [动态测试](../../unittest/unittest_samples/unittest_dynamic_tests.md#动态测试入门)
+
+对于大多数情况，你无需编程式地更改配置。请改用以下方式：
+
+[@Configure 宏](../../unittest_testmacro/unittest_testmacro_package_api/unittest_testmacro_package_macros.md#configure-宏)
+
 ## class ConfigurationKey
 
 ```cangjie
@@ -208,7 +217,7 @@ public override operator func ==(that: ConfigurationKey): Bool
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否相等。
 
-### operator func !=(that: ConfigurationKey)
+### operator func !=(ConfigurationKey)
 
 ```cangjie
 public override operator func !=(that: ConfigurationKey): Bool
@@ -234,11 +243,15 @@ extend ConfigurationKey {
 
 #### static func create\<T>(String)
 
+```cangjie
+public static func create<T>(name: String): ConfigurationKey
+```
+
 功能：创建 [ConfigurationKey](#class-configurationkey)。
 
 参数：
 
-- name: [String](../../../std/core/core_package_api/core_package_structs.md#struct-string) - 配置键值的名称。
+- name: [String](../../core/core_package_api/core_package_structs.md#struct-string) - 配置键值的名称。
 
 返回值：
 
@@ -253,6 +266,37 @@ public abstract class PrettyPrinter {
 ```
 
 功能：拥有颜色和对齐、缩进控制的打印器。
+
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.common.*
+
+main() {
+    let pp = PrettyText()
+    pp.colored(Color.BLUE, "Start:").newLine()
+    pp.appendLine('-' * 40)
+    pp.appendLeftAligned("left", 40).newLine()
+    pp.appendCentered("centered", 40).newLine()
+    pp.appendRightAligned("right", 40).newLine()
+    pp.indent {
+        => pp.appendLine("isTopLevel: ${pp.isTopLevel}")
+    }
+    println(pp.toString())
+}
+```
+
+可能的运行结果：
+
+```text
+Start:
+----------------------------------------
+left                                    
+                centered                
+                                   right
+    isTopLevel: false
+```
 
 ### PrettyPrinter(UInt64,UInt64)
 
@@ -275,7 +319,7 @@ public prop isTopLevel: Bool
 
 功能：获取是否在打印的缩进顶层。
 
-类型：Bool 。
+类型：Bool
 
 ### func append(String)
 
@@ -425,7 +469,7 @@ pp.colored(RED) {
 ### func fillLimitedSpace(Int64, () -\> Unit)
 
 ```cangjie
-public open func fillLimitedSpace(spaceSize: Int64, body: () -> Unit): c
+public open func fillLimitedSpace(spaceSize: Int64, body: () -> Unit): PrettyPrinter
 ```
 
 功能：指定大小填充代码块。
@@ -433,7 +477,7 @@ public open func fillLimitedSpace(spaceSize: Int64, body: () -> Unit): c
 参数：
 
 - spaceSize: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64)  - 所指定的大小。
-- body: () -\> body - 填充的方式。
+- body: () -\> Unit - 填充的方式。
 
 返回值：
 
@@ -607,6 +651,29 @@ public class PrettyText <: PrettyPrinter & PrettyPrintable & ToString {
 - [PrettyPrinter](#class-prettyprinter)
 - [PrettyPrintable](unittest_common_package_interfaces.md#interface-prettyprintable)
 - [ToString](../../core/core_package_api/core_package_interfaces.md#interface-tostring)
+
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+import std.unittest.common.*
+import std.unittest.testmacro.*
+
+main() {
+    let pp = PrettyText()
+    println("isEmpty: ${pp.isEmpty()}")
+    pp.append("hello world")
+    println(pp.toString())
+}
+```
+
+可能的运行结果：
+
+```text
+isEmpty: true
+hello world
+```
 
 ### init()
 

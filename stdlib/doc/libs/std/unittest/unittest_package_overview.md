@@ -4,7 +4,7 @@
 
 unittest 包用于编写仓颉项目单元测试代码，提供包括代码编写、运行和调测在内的基本功能，并为有经验的用户提供的一些高级功能。
 
-仓颉单元测试支持 cjc 编译器（单包编译模式）和 cjpm 包管理器（ 多包模式）。
+仓颉单元测试支持 cjc 编译器（单包编译模式）和 cjpm 项目管理器（ 多包模式）。
 
 用户可通过[快速入门](./unittest_samples/unittest_getting_started.md)写出第一个单元测试程序。同时文档对于一些[基础概念及用法](./unittest_samples/unittest_basics.md)做了说明并附有示例代码，另外，对于一些高阶特性例如[参数化测试](./unittest_samples/unittest_parameterized_tests.md#参数化测试入门)等做了进一步说明。
 
@@ -61,7 +61,6 @@ unittest 包用于编写仓颉项目单元测试代码，提供包括代码编�
 | [entryMain(TestPackage)](./unittest_package_api/unittest_package_functions.md#func-entrymaintestpackage) | 提供给 `cjc --test` 使用，框架执行测试用例的入口函数。 |
 | [expectCaughtUnexpectedE(String,String,String, ?AssertionCtx)](./unittest_package_api/unittest_package_functions.md#func-assertcaughtunexpectedestring-string-string-assertionctx) | 捕获的异常不符合预期，记录信息，不抛出异常。 |
 | [expectEqual(String, String, T, T, ?AssertionCtx)](./unittest_package_api/unittest_package_functions.md#func-assertequaltstring-string-t-t-assertionctx) | 比较 `expected` 和 `actual` 值是否相等。记录比较结果，不抛出异常。 |
-
 | [expectEqual(String, String, T, T, Bool, ?AssertionCtx)](./unittest_package_api/unittest_package_functions.md#func-expectequaltstring-string-t-t-bool-assertionctx) | 比较 `expected` 和 `actual` 值是否相等。记录比较结果，不抛出异常。 |
 | [fail(String)](./unittest_package_api/unittest_package_functions.md#func-failstring) | 使该用例失败，直接抛出异常。 |
 | [failExpect(String)](./unittest_package_api/unittest_package_functions.md#func-failexpectstring) | 使该用例失败，记录信息，不抛出异常。 |
@@ -85,6 +84,7 @@ unittest 包用于编写仓颉项目单元测试代码，提供包括代码编�
 | [BenchmarkInputMarker](./unittest_package_api/unittest_package_interfaces.md#interface-benchmarkinputmarker) | 当我们不知道 `T` 时，该接口能够检测 `BenchInputProvider<T>` 。|
 | [Measurement](./unittest_package_api/unittest_package_interfaces.md#interface-measurement) | 在性能测试过程中可以收集和分析各种数据的接口。性能测试期间使用的 `Measurement` 的具体实例在 `@Measure` 宏中指定（例如在类声明中）。|
 | [NearEquatable\<CT, D>](./unittest_package_api/unittest_package_interfaces.md#interface-nearequatablect-d) | 判断某个对象是否基于这个 delta 近似相等。|
+| [Reporter\<TReport, TReturn>](./unittest_package_api/unittest_package_interfaces.md#interface-reportertreport-treturn) | 报告器基础接口。|
 | [TestClass](./unittest_package_api/unittest_package_interfaces.md#interface-testclass) | 提供创建 [TestSuite](./unittest_package_api/unittest_package_classes.md#class-testsuite) 的方法。|
 
 ### 类
@@ -114,7 +114,9 @@ unittest 包用于编写仓颉项目单元测试代码，提供包括代码编�
 | [TestReport](./unittest_package_api/unittest_package_classes.md#class-testreport) | 单元测试执行结果报告。 |
 | [TestSuite](./unittest_package_api/unittest_package_classes.md#class-testsuite) | 提供构建和执行测试套方法的类。 |
 | [TestSuiteBuilder](./unittest_package_api/unittest_package_classes.md#class-testsuitebuilder) | 提供配置测试套方法的测试套构造器。 |
+| [TextReporter\<PP>](./unittest_package_api/unittest_package_classes.md#class-textreporterpp) | 将单元测试用例结果或性能测试结果打印到 [PrettyPrinter](../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-prettyprinter) 的子类。|
 | [UnitTestCase](./unittest_package_api/unittest_package_classes.md#class-unittestcase) | 提供创建和执行单元测试用例的方法的类。 |
+| [XmlPerPackageReporter](./unittest_package_api/unittest_package_classes.md#class-xmlperpackagereporter) | 打印单元测试用例结果数据到 Xml 文件上。 |
 | [XmlReporter](./unittest_package_api/unittest_package_classes.md#class-xmlreporter) | 打印单元测试用例结果数据到 Xml 文件上。 |
 
 ### 枚举
@@ -175,10 +177,10 @@ unittest 包用于编写仓颉项目单元测试代码，提供包括代码编�
 | [KeyTimeoutHandler](./unittest_package_api/unittest_package_structs.md#struct-keytimeouthandler) | 支持在配置信息中指定超时处理的句柄。 |
 | [KeyVerbose](./unittest_package_api/unittest_package_structs.md#struct-keyverbose) | 作为在配置信息中配置值的键值。 |
 | [KeyWarmup](./unittest_package_api/unittest_package_structs.md#struct-keywarmup) | 作为在配置信息中配置值的键值。 |
+| [MeasurementInfo](./unittest_package_api/unittest_package_structs.md#struct-measurementinfo) | 存储测量信息的结构体。 |
 | [Perf](./unittest_package_api/unittest_package_structs.md#struct-perf) | 使用 linux 系统调用 `perf_event_open` 测量各种硬件和软件 CPU 计数器。仅在 Linux 上可用。 |
 | [RelativeDelta](./unittest_package_api/unittest_package_structs.md#struct-relativedeltat) | 对于浮点类型，提供相对的 delta 数据类型来做近似相等的计算。 |
 | [TestCaseInfo](./unittest_package_api/unittest_package_structs.md#struct-testcaseinfo) | 当前正在运行的测试用例的信息。通常在动态 API 的超时处理句柄中被使用。 |
-| [Perf](./unittest_package_api/unittest_package_structs.md#struct-perf) | 使用 Linux 系统调用 `perf_event_open` 测量各种硬件和软件 CPU 计数器。仅在 Linux 上可用。 |
 | [TimeNow](./unittest_package_api/unittest_package_structs.md#struct-timenow) | [Measurement](./unittest_package_api/unittest_package_interfaces.md#interface-measurement) 的实现，用于测量执行一个函数所花费的时间。 |
 
 ### 异常类

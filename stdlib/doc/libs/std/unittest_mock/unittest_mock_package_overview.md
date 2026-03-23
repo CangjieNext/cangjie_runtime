@@ -57,8 +57,8 @@ unittest.mock 包提供仓颉单元测试的**mock 框架**，提供 API 用于�
 | [SyntheticField\<T>](./unittest_mock_package_api/unittest_mock_package_classes.md#class-syntheticfieldt) | 合成字段。 |
 | [TypedMatcher\<T>](./unittest_mock_package_api/unittest_mock_package_classes.md#class-typedmatchert) | 参数类型匹配器。 |
 | [UnorderedVerifier](./unittest_mock_package_api/unittest_mock_package_classes.md#class-unorderedverifier) | 此类型用于收集 “验证语句”， 可在 unordered 函数中动态传入验证行为。 |
-| [Verify](./unittest_mock_package_api/unittest_mock_package_classes.md#class-verify) | `Verify` 提供了一系列静态方法来支持定义所需验证的动作，如 `that` 、 `ordered` 以及 `unorder` 。 |
-| [VerifyStatement](./unittest_mock_package_api/unittest_mock_package_classes.md#class-verifystatement) | 此类型表示对“桩签名”在验证范围内的单个验证验证语句（即上文中的“验证语句”），提供了成员函数指定“桩签名”的执行次数。 |
+| [Verify](./unittest_mock_package_api/unittest_mock_package_classes.md#class-verify) | `Verify` 提供了一系列静态方法来支持定义所需验证的动作，如 `that` 、 `ordered` 以及 `unordered` 。 |
+| [VerifyStatement](./unittest_mock_package_api/unittest_mock_package_classes.md#class-verifystatement) | 此类型表示对“桩签名”在验证范围内的单个验证语句（即上文中的“验证语句”），提供了成员函数指定“桩签名”的执行次数。 |
 
 ### 枚举
 
@@ -67,3 +67,16 @@ unittest.mock 包提供仓颉单元测试的**mock 框架**，提供 API 用于�
 | [Exhaustiveness](./unittest_mock_package_api/unittest_mock_package_enums.md#enum-exhaustiveness) | 此枚举类型用于指定 `unordered` 函数的验证模式，包含两种模式。 |
 | [MockSessionKind](./unittest_mock_package_api/unittest_mock_package_enums.md#enum-mocksessionkind) | 控制允许在 MockSession 使用的[桩](../unittest_mock/unittest_mock_samples/mock_framework_basics.md#配置-api)的类型。 |
 | [StubMode](./unittest_mock_package_api/unittest_mock_package_enums.md#enum-stubmode) | 控制[桩的模式](../unittest_mock/unittest_mock_samples/mock_framework_stubs.md#桩的模式)。 |
+
+### 异常类
+
+|              异常名          |           功能           |
+| --------------------------- | ------------------------ |
+| [ExpectationFailedException](./unittest_mock_package_api/unittest_mock_package_exceptions.md#class-expectationfailedexception) | 在测试执行期间违反了 mock 配置期间设置的一个或多个期望。 |
+| [MockFrameworkException](./unittest_mock_package_api/unittest_mock_package_exceptions.md#class-mockframeworkexception) | 框架异常信息，用户使用 API 不满足框架要求时，抛出该异常。 |
+| [MockFrameworkInternalError](./unittest_mock_package_api/unittest_mock_package_exceptions.md#class-mockframeworkinternalerror) | 框架异常信息，用户不应期望该异常被抛出。 |
+| [PrettyException](./unittest_mock_package_api/unittest_mock_package_exceptions.md#class-prettyexception) | 支持 PrettyPrintable 的异常类型，可以较好地打印异常信息。 |
+| [UnhandledCallException](./unittest_mock_package_api/unittest_mock_package_exceptions.md#class-unhandledcallexception) | 提供的[桩](../unittest_mock/unittest_mock_samples/mock_framework_basics.md#配置-api)均未处理该调用。 |
+| [UnnecessaryStubbingException](./unittest_mock_package_api/unittest_mock_package_exceptions.md#class-unnecessarystubbingexception) | 指示被测试的代码从未触发[桩](../unittest_mock/unittest_mock_samples/mock_framework_basics.md#配置-api)。 |
+| [UnstubbedInvocationException](./unittest_mock_package_api/unittest_mock_package_exceptions.md#class-unstubbedinvocationexception) | 未提供与此调用匹配的[桩](../unittest_mock/unittest_mock_samples/mock_framework_basics.md#配置-api)。 |
+| [VerificationFailedException](./unittest_mock_package_api/unittest_mock_package_exceptions.md#class-verificationfailedexception) | 验证失败时，框架所抛出的异常。 |

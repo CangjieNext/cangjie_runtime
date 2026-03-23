@@ -8,6 +8,7 @@
 #include "SignalManager.h"
 
 #include <algorithm>
+#include <atomic>
 
 #include "Base/Log.h"
 #include "Base/LogFile.h"
@@ -30,13 +31,17 @@ void SignalManager::Init()
     PrepareSigStack();
     // Block some ignored signals
     BlockSignals();
-#if !defined(__OHOS__) && !defined(__ANDROID__)
+#if !defined(__OHOS__) && !defined(__ANDROID__) && !defined(__IOS__)
     // Install unexpected handler first
     InstallUnexpectedSignalHandlers();
     // Install sigsegv handler
     InstallSegvHandler();
     // Install sigusr1 handler
     InstallSIGUSR1Handlers();
+#endif
+#ifdef __OHOS__
+    // Install sigusr2 handler
+    InstallSIGUSR2Handlers();
 #endif
 }
 
@@ -212,6 +217,81 @@ void SignalManager::InstallSIGUSR1Handlers() const
     sa.scFlags = SA_SIGINFO | SA_ONSTACK;
     AddHandlerToSignalStack(SIGUSR1, &sa);
 }
+
+#ifdef __OHOS__
+void SignalManager::InstallSIGUSR2Handlers() const
+{
+    sigset_t mask;
+    CHECK_SIGNAL_CALL(sigemptyset, (&mask), "sigemptyset failed");
+    SignalAction sa;
+    sa.saSignalAction= HandleUnexpectedSIGUSR2;
+    sa.scMask = mask;
+    sa.scFlags = SA_SIGINFO | SA_ONSTACK;
+    AddHandlerToSignalStack(SIGUSR2, &sa);
+}
+
+struct ProfDumpNode {
+    int (*func)(void);
+    ProfDumpNode *next;
+};
+
+std::atomic<ProfDumpNode*> profileDumpList {nullptr};
+
+extern "C" void RegisterProfileDumpFunction(int (*func)(void))
+{
+    if (func == nullptr) {
+        return;
+    }
+
+    // Check if func is already registered
+    ProfDumpNode *current = profileDumpList.load(std::memory_order_relaxed);
+    while (current != nullptr) {
+        if (current->func == func) {
+            return;
+        }
+        current = current->next;
+    }
+
+    // Not found, allocate and add
+    ProfDumpNode *node = reinterpret_cast<ProfDumpNode*>(malloc(sizeof(ProfDumpNode)));
+    if (node == nullptr) {
+        LOG(RTLOG_FATAL, "Failed to allocate for ProfDumpNode");
+        return;
+    }
+
+    node->func = func;
+    ProfDumpNode *old = profileDumpList.load(std::memory_order_relaxed);
+    do {
+        node->next = old;
+    } while (!profileDumpList.compare_exchange_weak(old, node, std::memory_order_relaxed));
+
+    return;
+}
+
+
+extern "C" MRT_EXPORT
+    void CJ_MRT_RegisterProfDumpFunc(int (*func)(void)) __attribute__((alias("RegisterProfileDumpFunction")));
+
+bool SignalManager::HandleUnexpectedSIGUSR2(int sig, siginfo_t* info, void* context)
+{
+    ProfDumpNode *current = profileDumpList.load(std::memory_order_relaxed);
+    if (current == nullptr) {
+        LOG(RTLOG_INFO, "[CJ]: No Profile Dump Registered.");
+        return true;
+    }
+    LOG(RTLOG_INFO, "[CJ]: Inst Profile Dump Start.");
+
+    while (current != nullptr) {
+        if (current->func != nullptr) {
+            current->func();
+        }
+        current = current->next;
+    }
+
+    LOG(RTLOG_INFO, "[CJ]: Inst Profile Dump Finished.");
+    return true;
+}
+#endif
 
 bool SignalManager::HandleUnexpectedSIGUSR1(int sig, siginfo_t* info, void* context)
 {

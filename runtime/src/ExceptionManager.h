@@ -30,7 +30,7 @@ public:
         MAX_COUNT = 4, // implicit exception count
     };
 
-#ifdef __APPLE__
+#ifdef __IOS__
     static void DefaultUncaughtTask(const char* sunmary, const CJErrorObject errorObj);
     static void DefaultOOMInfoTask(const char* domain, const char* event, const size_t hiSysEventType,
         const size_t limitSize, const size_t activeMemory);

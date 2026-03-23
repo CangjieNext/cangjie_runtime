@@ -220,14 +220,13 @@ private:
 };
 struct MTableDesc {
     std::unordered_map<U32, InheritFuncTable> mTable;
-    std::vector<BaseFile*> waitedExtensionDatas;
     MTableBitmap mTableBitmap;
     std::recursive_mutex mTableMutex;
     bool pending = false;
     bool needsResolveInner = true;
     explicit MTableDesc(BIT_TYPE bitmap_);
     MTableDesc() = delete;
-    bool IsFullyHandled() const { return !NeedResolveInner() && waitedExtensionDatas.empty(); };
+    bool IsFullyHandled() const { return !NeedResolveInner(); };
     inline bool NeedResolveInner() const { return needsResolveInner; }
 };
 
@@ -493,6 +492,7 @@ public:
     void* GetAnnotations(TypeInfo* arrayTi);
     bool IsEnumCtor() const { return (modifier & MODIFIER_ENUM_CTOR) != 0; }
     U32 GetModifier() const { return modifier; }
+    Uptr GetAnnotationMethod() const { return annotationMethod; }
 private:
     Uptr annotationMethod;
     U32 modifier;
@@ -652,8 +652,9 @@ public:
     bool IsEnumKind1();
     bool ReflectIsEnable() const;
     bool ReflectInfoIsNull() const;
-    inline EnumCtorReflectInfo* GetEnumCtorReflectInfo();
+    inline EnumCtorReflectInfo* GetEnumCtorReflectInfo() const;
     ReflectInfo* GetReflectInfo() const;
+    U8 GetReflectionVersion() const;
 
     inline const char* GetName() const;
     FuncRef GetFinalizeMethod() const;
@@ -676,7 +677,7 @@ public:
 
     PackageInfo* GetPackageInfo();
     void* GetAnnotations(TypeInfo* arrayTi);
-    inline EnumInfo* GetEnumInfo();
+    inline EnumInfo* GetEnumInfo() const;
     // for generic
     void SetName(const char* name) { this->typeInfoName = name; }
     void SetType(I8 kindType) { this->type = kindType; }
@@ -707,7 +708,6 @@ public:
     void AddMTable(TypeInfo* ti, ExtensionData* extensionData);
     FuncPtr* GetMTable(TypeInfo* itf);
     TypeInfo* GetMethodOuterTI(TypeInfo* itf, U64 index);
-    TypeInfo* GetMethodOuterTIWithCache(TypeInfo* itf, U64 index);
     U32 GetUUID();
     inline U32 GetClassSize() const;
     inline TypeInfo* GetSuperTypeInfo() const;                     // it can be null
