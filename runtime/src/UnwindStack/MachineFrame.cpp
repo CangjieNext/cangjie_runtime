@@ -70,6 +70,10 @@ bool MachineFrame::IsC2IStubFrame() const {
 bool MachineFrame::IsI2IFrame() const {
     return Isi2iAdapterStartAddr(reinterpret_cast<uintptr_t>(ip));
 }
+
+bool MachineFrame::IsI2NFrame() const {
+    return IsI2NStubAddr(reinterpret_cast<uintptr_t>(ip));
+}
 #endif
 
 bool MachineFrame::IsC2NStubFrame() const

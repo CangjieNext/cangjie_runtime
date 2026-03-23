@@ -54,6 +54,7 @@ void InitInterpreter(const RuntimeParam& runtimeParam);
 
 bool IsC2IStubAddr(const uintptr_t addr);
 bool Isi2iAdapterStartAddr(const uintptr_t addr);
+bool IsI2NStubAddr(const uintptr_t addr);
 
 uintptr_t GetCommonInterpreterLandingPad();
 
