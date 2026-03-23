@@ -29,12 +29,10 @@ extern "C" {
     extern throw_exception_f g_ThrowExceptionPtr;
     extern get_thread_local_data_f g_GetThreadLocalDataPtr;
     extern stack_grow_stub_f g_CJ_MCC_StackGrowStubPtr;
-    extern C2N_Stub_f g_C2NStubPtr;
     extern enter_safe_region_f g_EnterSaferegionPtr;
     extern leave_safe_region_f g_LeaveSaferegionPtr;
     extern save_context_for_native_call_f g_SaveContextForNativeCallPtr;
     extern delete_context_for_native_call_f g_DeleteContextForNativeCallPtr;
-    typedef void (*throw_pending_exception_f)(void*);
     extern throw_pending_exception_f g_ThrowPendingExceptionPtr;
     extern size_t g_InterpreterStackReserveSize;
 }

@@ -26,7 +26,6 @@ extern "C" {
     throw_exception_f g_ThrowExceptionPtr = nullptr;
     get_thread_local_data_f g_GetThreadLocalDataPtr = nullptr;
     stack_grow_stub_f g_CJ_MCC_StackGrowStubPtr = nullptr;
-    C2N_Stub_f g_C2NStubPtr = nullptr;
     enter_safe_region_f g_EnterSaferegionPtr = nullptr;
     leave_safe_region_f g_LeaveSaferegionPtr = nullptr;
     save_context_for_native_call_f g_SaveContextForNativeCallPtr = nullptr;
@@ -86,9 +85,8 @@ Mock::Mock(interpreter_interface_t* interpreter_interf, cjnative_interface_t* cj
     g_DeleteContextForNativeCallPtr = cjnative_interf->delete_context_for_native_call;
 
     g_CJ_MCC_StackGrowStubPtr = reinterpret_cast<stack_grow_stub_f>(get_symbol_address("CJ_MCC_StackGrowStub"));
-    g_C2NStubPtr = reinterpret_cast<C2N_Stub_f>(get_symbol_address("CJ_MCC_C2NStub"));
-    g_ThrowPendingExceptionPtr = reinterpret_cast<throw_pending_exception_f>(get_symbol_address("MRT_ThrowPendingException"));
     assert(g_CJ_MCC_StackGrowStubPtr != nullptr);
+    g_ThrowPendingExceptionPtr = cjnative_interf->throw_pending_exception;
 }
 
 // Public library API

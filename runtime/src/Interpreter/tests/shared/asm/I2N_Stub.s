@@ -116,12 +116,11 @@ I2N_Stub:
     mov     r10, [r10]
     call    r10
 
-    ; MRT_ThrowPendingException(nullptr)
-    ; If a pending exception exists, this will unwind and not return.
+    ; ThrowPendingException(nullptr)
     xor     rdi, rdi
     mov     r10, [rel g_ThrowPendingExceptionPtr wrt ..got]
     mov     r10, [r10]
-    call    r10
+    call    r10         ; If a pending exception exists, execution will not return here.
 
     ; Restore return values
     mov     rax, [rbp - 200]
