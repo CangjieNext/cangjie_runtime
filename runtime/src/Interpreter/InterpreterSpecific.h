@@ -8,12 +8,12 @@
 #ifndef MRT_INTERPRETER_SPECIFIC_H
 #define MRT_INTERPRETER_SPECIFIC_H
 
+#include "Options.h"
 #ifdef INTERPRETER_ENABLED
 
 #include <stdio.h>
 #include <cstdlib>
 #include "Interpreter/RTInterface.h"
-#include "Options.h"
 #include "Mutator/Mutator.h"
 #include "Common/StackType.h"
 
