@@ -157,7 +157,9 @@ Mutator* MutatorManager::CreateRuntimeMutator(ThreadType threadType)
     }
     CHECK_DETAIL(mutator != nullptr, "create mutator out of native memory");
     MutatorManagementRLock();
+#ifdef INTERPRETER_ENABLED
     mutator->markAsRuntimeMutator();
+#endif
     mutator->Init();
     mutator->InitTid();
     mutator->InitProtectStackAddr();

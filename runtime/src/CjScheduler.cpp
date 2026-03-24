@@ -608,7 +608,7 @@ void MRT_CjRuntimeInit()
         LOG(RTLOG_FATAL, "Init cj runtime failed for %d\n", rtCode);
     }
 
-#ifdef TEST
+#if defined(TEST) && defined(INTERPRETER_ENABLED)
     initTestVirtualFuncs(param.interpreterParam.interpreterLibName.Str());
 #endif
 }
