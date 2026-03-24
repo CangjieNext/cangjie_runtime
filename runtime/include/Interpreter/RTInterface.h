@@ -587,8 +587,23 @@ typedef bool (*is_active_gc_phase_f)(thread_local_data_t);
 //
 typedef void* (*stack_grow_stub_f)();
 
-// I2N_Stub function.
-typedef uintptr_t (*i2n_stub_f)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, void*, thread_local_data_t);
+// I2N (interpreter-to-native) entry stub.
+//
+// This callback points to an architecture-specific assembly stub used by the
+// interpreter to invoke native code while preserving managed thread and stack in safe state.
+//
+// Assembly stub expects following arguments:
+// params:
+// - 5-th architecture-specific ABI integer argument - address of the native function to call.
+// - 6-th architecture-specific ABI integer argument - current thread local data of the calling interpreter thread.
+//
+// return:
+// - return value produced by the native callee using architecture-specific ABI.
+//
+// Notes:
+// - The callback can be null on platforms that do not provide an I2N stub.
+// - The concrete register/stack mapping is architecture-dependent and defined by the corresponding assembly implementation.
+typedef void (*i2n_stub_f)();
 
 // Retrieves the current ExceptionWrapper.
 //
