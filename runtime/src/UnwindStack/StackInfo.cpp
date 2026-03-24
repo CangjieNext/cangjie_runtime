@@ -129,16 +129,16 @@ void StackInfo::AnalyseAndSetFrameType(UnwindContext& uwContext)
 #ifdef INTERPRETER_ENABLED
     } else if (mFrame.IsInterpreterFrame()) {
         if (mFrame.IsC2IStubFrame()) {
-            DLOG_INTERPRETER(DEBUG, "[Analyzer] INTERPRETER_C2I frame, address: %p", mFrame.GetIP());
+            DLOG(INTERPRETER, "[Analyzer] INTERPRETER_C2I frame, address: %p", mFrame.GetIP());
             frameInfo.SetFrameType(FrameType::INTERPRETER_C2I);
         } else if (mFrame.IsI2IFrame()) {
-            DLOG_INTERPRETER(DEBUG, "[Analyzer] INTERPRETER_I2I frame, address: %p", mFrame.GetIP());
+            DLOG(INTERPRETER, "[Analyzer] INTERPRETER_I2I frame, address: %p", mFrame.GetIP());
             frameInfo.SetFrameType(FrameType::INTERPRETER_I2I);
         } else if (mFrame.IsI2NFrame()) {
-            DLOG_INTERPRETER(DEBUG, "[Analyzer] INTERPRETER_I2N frame, address: %p", mFrame.GetIP());
+            DLOG(INTERPRETER, "[Analyzer] INTERPRETER_I2N frame, address: %p", mFrame.GetIP());
             frameInfo.SetFrameType(FrameType::INTERPRETER_I2N);
         } else {
-            DLOG_INTERPRETER(DEBUG, "[Analyzer] interpreter frame, address: %p", mFrame.GetIP());
+            DLOG(INTERPRETER, "[Analyzer] INTERPRETER frame, address: %p", mFrame.GetIP());
             frameInfo.SetFrameType(FrameType::INTERPRETER);
         }
         isReliableN2CStub = false;

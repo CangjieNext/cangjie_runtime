@@ -83,11 +83,11 @@ bool MachineFrame::IsI2NFrame() const
     uintptr_t i2nStubStartAddr = reinterpret_cast<uintptr_t>(&CJ_MCC_I2NStub);
     uintptr_t i2nStubEndAddr = reinterpret_cast<uintptr_t>(&CJ_MCC_I2NStubEnd);
     bool res = i2nStubStartAddr <= address && address < i2nStubEndAddr;
-    DLOG_INTERPRETER(DEBUG, "[Interpreter] Checking i2n stub borders: is %p in [%p, %p)? -- %s", address,
-        i2nStubStartAddr,
-        i2nStubEndAddr, res ? "true" : "false");
+    DLOG(INTERPRETER, "Checking I2N stub borders: is %p in [%p, %p)? -- %s", address,
+        i2nStubStartAddr, i2nStubEndAddr, res ? "true" : "false");
     return res;
 #else
+    DLOG(INTERPRETER, "Checking I2N stub borders: I2N not supported on this architecture");
     return false;
 #endif
 }

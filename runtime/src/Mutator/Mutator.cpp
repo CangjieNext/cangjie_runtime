@@ -113,7 +113,7 @@ void Mutator::InitInterpreterPart()
         return;
     }
 
-    DLOG_INTERPRETER(DEBUG, "[Mutator] init interpreter part for fiber %p\n", this);
+    DLOG(INTERPRETER, "[Mutator] init interpreter part for fiber %p\n", this);
     InterpreterFiberStart(&(this->interpreterFiberData));
 }
 
@@ -123,7 +123,7 @@ void Mutator::DestroyInterpreterPart()
         return;
     }
 
-    DLOG_INTERPRETER(DEBUG, "[Mutator] destruct interpreter part for fiber %p\n", this);
+    DLOG(INTERPRETER, "[Mutator] destruct interpreter part for fiber %p\n", this);
     InterpreterFiberDestroy(&(this->interpreterFiberData));
 }
 #endif
@@ -420,7 +420,7 @@ intptr_t Mutator::FixExtendedStack(intptr_t frameBase, uint32_t adjustedSize __a
 #ifdef INTERPRETER_ENABLED
         } else if (IsC2IStubAddr(reinterpret_cast<uintptr_t>(ip))) {
                 // in this context, adjustedSize is the size required for c2i stub and interpreter frames 
-                DLOG_INTERPRETER(DEBUG, "[Interpreter] Stack overflow happened in C2I, stack size: %zu", stackSize);
+                DLOG(INTERPRETER, "Stack overflow happened in C2I, stack size: %zu", stackSize);
 #if defined(__x86_64__)
                 // 8 is the slot length of returnaddr.
                 uint64_t callerSp = *reinterpret_cast<intptr_t*>(frameBase) - 64 + 8;
@@ -431,10 +431,10 @@ intptr_t Mutator::FixExtendedStack(intptr_t frameBase, uint32_t adjustedSize __a
                 while (stackBaseAddr - callerSp + adjustedSize > newSize - CJThreadStackReversedGet()) {
                     newSize += newSize;
                 }
-                DLOG_INTERPRETER(DEBUG, "[Interpreter]    try to grow stack size: %zu -> %zu", stackSize, newSize);
+                DLOG(INTERPRETER, "   try to grow stack size: %zu -> %zu", stackSize, newSize);
                 stackOffset = CJThreadStackGrow(newSize);
                 if (stackOffset == -1 || stackOffset == 0) {
-                    DLOG_INTERPRETER(DEBUG, "[Interpreter]        stack overflow at %p", ip);
+                    DLOG(INTERPRETER, "       stack overflow at %p", ip);
                     ExceptionManager::StackOverflow(adjustedSize, ip);
                     return 0;
                 }

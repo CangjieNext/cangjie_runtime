@@ -58,10 +58,11 @@ void ExceptionWrapper::RestoreContext(CalleeSavedRegisterContext& context)
 #endif
 #endif
     for (const auto& framePtr : ehFrameInfos) {
-        DLOG_INTERPRETER(EXCEPTION, "RestoreContext: fa=%p, ip=%p, funcName=%s", framePtr->GetFA(), framePtr->GetIP(), framePtr->GetFunctionName().GetStr());
+        DLOG(EXCEPTION, "RestoreContext: fa=%p, ip=%p, funcName=%s, isCatchException=%s",
+            framePtr->GetFA(), framePtr->GetIP(), framePtr->GetFunctionName().GetStr(),
+            framePtr->IsCatchException() ? "true" : "false");
         if (framePtr->IsCatchException()) {
 #ifdef INTERPRETER_ENABLED
-            DLOG_INTERPRETER(EXCEPTION, "    IsCatchException");
             ExceptionWrapper& mExceptionWrapper = Mutator::GetMutator()->GetExceptionWrapper();
             mExceptionWrapper.SetCurrentCatchFunctionPC(reinterpret_cast<uintptr_t>(framePtr->GetIP()));
 #endif
@@ -150,18 +151,18 @@ void ExceptionHandling::ChangeEHStackInfoLR() const
         return;
     }
 
-    DLOG_INTERPRETER(EXCEPTION, "\nExceptionHandling::ChangeEHStackInfoLR");
+    DLOG(EXCEPTION, "ExceptionHandling::ChangeEHStackInfoLR");
 
     if (!eWrapper->IsCaught()) {
         const uint32_t* addr = ehFrameInfos.back()->GetFA()->returnAddress;
-        DLOG_INTERPRETER(EXCEPTION, "Return to = %p\n", addr);
+        DLOG(EXCEPTION, "  Exception is not caught, landing pad set to %p", addr);
         eWrapper->SetLandingPad(reinterpret_cast<uintptr_t>(const_cast<uint32_t*>(addr)));
     }
 
     eWrapper->SetTopManagedPC(
         reinterpret_cast<uintptr_t>(const_cast<uint32_t*>(lastRuntimeFrame.mFrame.GetFA()->returnAddress)));
 
-    DLOG_INTERPRETER(EXCEPTION, "Top managed PC = %p", eWrapper->GetTopManagedPC());
+    DLOG(EXCEPTION, "  Top managed PC = %p", eWrapper->GetTopManagedPC());
 
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
     auto mod = reinterpret_cast<uint64_t>(lastRuntimeFrame.mFrame.GetFA()) +
@@ -172,6 +173,6 @@ void ExceptionHandling::ChangeEHStackInfoLR() const
     lastRuntimeFrame.mFrame.GetFA()->returnAddress = reinterpret_cast<uint32_t*>(RestoreContextForEH);
 #endif
 
-    DLOG_INTERPRETER(EXCEPTION, "Last runtime frame redirected to RestoreContextForEH, fa=%p, ip=%p\n", lastRuntimeFrame.mFrame.GetFA(), lastRuntimeFrame.mFrame.GetIP());
+    DLOG(EXCEPTION, "  Last runtime frame (fa=%p, ip=%p) redirected to RestoreContextForEH", lastRuntimeFrame.mFrame.GetFA(), lastRuntimeFrame.mFrame.GetIP());
 }
 } // namespace MapleRuntime

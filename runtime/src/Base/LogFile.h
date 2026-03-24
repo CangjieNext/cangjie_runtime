@@ -50,6 +50,8 @@ enum LogType {
     SIGNAL,
 
     CJTHREAD,
+    
+    INTERPRETER,
 
 #if defined(CANGJIE_SANITIZER_SUPPORT) || defined(CANGJIE_GWPASAN_SUPPORT)
     SANITIZER,
@@ -142,6 +144,10 @@ enum LogType {
 #define DEFAULT_MRT_LOG_CJTHREAD 0
 #endif // DEFAULT_MRT_LOG_CJTHREAD
 
+#ifndef DEFAULT_MRT_LOG_INTERPRETER
+#define DEFAULT_MRT_LOG_INTERPRETER 0
+#endif // DEFAULT_MRT_LOG_INTERPRETER
+
 #ifndef DEFAULT_MRT_LOG2STDOUT
 #define DEFAULT_MRT_LOG2STDOUT 0
 #endif // DEFAULT_MRT_LOG2STDOUT
@@ -178,7 +184,7 @@ void WriteLog(bool addPrefix, LogType type, const char* format, ...) noexcept;
 
 #if defined (__OHOS__) || defined (__ANDROID__)
 #define VLOG(type, format...) \
-    if (type == LogType::REPORT) { \
+    if (type == LogType::REPORT || type == LogType::INTERPRETER) { \
         LOG(RTLOG_INFO, format); \
     } else if (LogFile::LogIsEnabled(type)) { \
         WriteLog(true, type, format); \
@@ -194,16 +200,6 @@ void WriteLog(bool addPrefix, LogType type, const char* format, ...) noexcept;
 #define DLOG(type, format...) VLOG(type, format)
 #else
 #define DLOG(type, format...) (void)(0)
-#endif
-
-#ifdef INTERPRETER_ENABLED
-#if defined (__OHOS__)
-#define DLOG_INTERPRETER(type, format...) VLOG(REPORT, format) // use hilog
-#else
-#define DLOG_INTERPRETER(type, format...) DLOG(type, format)
-#endif
-#else
-#define DLOG_INTERPRETER(type, format...) (void)(0)
 #endif
 
 // Macro for cjthread log and use it after ENABLE_LOG for judgment.
