@@ -49,6 +49,9 @@ extern "C" {
     extern void unwindInterpretedFrameAndRethrowException(void* exception_obj);
 }
 
+// Mock concrete signature for invoking opaque cjnative_interface_t::i2n_stub.
+typedef uintptr_t (*mock_i2n_stub_f)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, void*, thread_local_data_t);
+
 class Mock {
     public:
         Mock() = default;
@@ -90,7 +93,7 @@ class Mock {
         uintptr_t invokeI2N(uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, const char* funcName, thread_local_data_t& thread_local_data) {
             void* symAddr = get_symbol_address(funcName);
             assert(symAddr != nullptr);
-            auto i2nStub = cjNativeInterface.i2n_stub;
+            auto i2nStub = reinterpret_cast<mock_i2n_stub_f>(cjNativeInterface.i2n_stub);
             assert(i2nStub != nullptr);
             uintptr_t res = i2nStub(arg1, arg2, arg3, arg4, symAddr, thread_local_data);
 
