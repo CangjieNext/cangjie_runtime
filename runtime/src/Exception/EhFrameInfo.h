@@ -74,7 +74,7 @@ public:
 
     void RestoreToCallerContext(CalleeSavedRegisterContext& context, uint32_t adjustedSize = 0) const override
     {
-        DLOG_INTERPRETER(EXCEPTION, "Restore context for EHFrameInfo, fa=%p, ip=%p, adjustedSize=%u, funcName=%s", mFrame.GetFA(), mFrame.GetIP(), adjustedSize, this->GetFuncName().GetStr());
+        DLOG(EXCEPTION, "Restore context for EHFrameInfo, fa=%p, ip=%p, adjustedSize=%u, funcName=%s", mFrame.GetFA(), mFrame.GetIP(), adjustedSize, this->GetFuncName().GetStr());
 #if defined(__arm__)
         constexpr uint8_t sizeOfAddr = 4;
 #else

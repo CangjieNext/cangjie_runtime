@@ -25,7 +25,7 @@ void initTestVirtualFuncs(const char* interpreterLibName) {
 
     for (int i = 0; i < VIRTUAL_FUNCS_N; i++) {
         FuncPtr trampoline = getC2IFunc(i);
-        DLOG_INTERPRETER(DEBUG, "[Interpreter] trampoline addr(%d): %p", i, trampoline);
+        DLOG(INTERPRETER, "trampoline addr(%d): %p", i, trampoline);
     }
 
     TypeInfo* ti = LoaderManager::GetInstance()->FindTypeInfoFromLoadedFiles("common:C2I");
@@ -38,7 +38,7 @@ void initTestVirtualFuncs(const char* interpreterLibName) {
     
     for (int i = 0; i < VIRTUAL_FUNCS_N; i++) {
         data->GetFuncTable()[i] = getC2IFunc(i);
-        DLOG_INTERPRETER(DEBUG, "[Interpreter] patched C2I virtual func #%d, addr=%p", i, (void*)data->GetFuncTable()[i]);
+        DLOG(INTERPRETER, "patched C2I virtual func #%d, addr=%p", i, (void*)data->GetFuncTable()[i]);
     }
 }
 

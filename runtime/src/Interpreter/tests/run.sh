@@ -17,7 +17,7 @@ export LD_LIBRARY_PATH=./$TEST_NAME/out:$LD_LIBRARY_PATH
 
 export cjHeapSize=256mb
 
-# export MRT_LOG_DEBUG=1
+# export MRT_LOG_INTERPRETER=1
 # export MRT_LOG_EXCEPTION=1
 
 ./$TEST_NAME/out/test
