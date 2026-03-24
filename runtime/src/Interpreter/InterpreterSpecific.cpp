@@ -3,6 +3,8 @@
 // with Runtime Library Exception.
 //
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
+#include "InterpreterSpecific.h"
+#ifdef INTERPRETER_ENABLED
 
 #include "dlfcn.h"
 #include <stdint.h>
@@ -22,7 +24,6 @@
 #include "Heap/Collector/Collector.h"
 #include "StackManager.h"
 #include "LoaderManager.h"
-#include "InterpreterSpecific.h"
 
 using namespace MRTExport;
 namespace MapleRuntime {
@@ -569,3 +570,5 @@ uintptr_t GetCommonInterpreterLandingPad() {
 }
 
 }
+
+#endif // INTERPRETER_ENABLED
