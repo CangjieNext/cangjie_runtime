@@ -23,6 +23,8 @@
 #include "WinModuleManager.h"
 #endif
 #include "CpuProfiler/CpuProfiler.h"
+#include "Base/LogFile.h"
+#include "Interpreter/InterpreterSpecific.h"
 
 namespace MapleRuntime {
 extern "C" uintptr_t MRT_GetThreadLocalData()
@@ -118,6 +120,28 @@ extern "C" void MRT_SetStackGrow(bool enableStackScale)
 #endif
     }
 }
+
+#ifdef INTERPRETER_ENABLED
+void Mutator::InitInterpreterPart()
+{
+    if (isRuntimeMutator) {
+        return;
+    }
+
+    DLOG(INTERPRETER, "[Mutator] init interpreter part for fiber %p\n", this);
+    InterpreterFiberStart(&(this->interpreterFiberData));
+}
+
+void Mutator::DestroyInterpreterPart()
+{
+    if (isRuntimeMutator) {
+        return;
+    }
+
+    DLOG(INTERPRETER, "[Mutator] destruct interpreter part for fiber %p\n", this);
+    InterpreterFiberDestroy(&(this->interpreterFiberData));
+}
+#endif
 
 void Mutator::InitProtectStackAddr()
 {
@@ -408,6 +432,28 @@ intptr_t Mutator::FixExtendedStack(intptr_t frameBase, uint32_t adjustedSize __a
             if (stackOffset == 0 || stackOffset == -1) {
                 return 0;
             }
+#ifdef INTERPRETER_ENABLED
+        } else if (IsC2IStubAddr(reinterpret_cast<uintptr_t>(ip))) {
+                // in this context, adjustedSize is the size required for c2i stub and interpreter frames
+                DLOG(INTERPRETER, "Stack overflow happened in C2I, stack size: %zu", stackSize);
+#if defined(__x86_64__)
+                // 8 is the slot length of returnaddr.
+                uint64_t callerSp = *reinterpret_cast<intptr_t*>(frameBase) - 64 + 8;
+#elif defined(__aarch64__)
+                uint64_t callerSp = *reinterpret_cast<intptr_t*>(frameBase) - 64;
+#endif
+                size_t newSize = stackSize + stackSize;
+                while (stackBaseAddr - callerSp + adjustedSize > newSize - CJThreadStackReversedGet()) {
+                    newSize += newSize;
+                }
+                DLOG(INTERPRETER, "   try to grow stack size: %zu -> %zu", stackSize, newSize);
+                stackOffset = CJThreadStackGrow(newSize);
+                if (stackOffset == -1 || stackOffset == 0) {
+                    DLOG(INTERPRETER, "       stack overflow at %p", ip);
+                    ExceptionManager::StackOverflow(adjustedSize, ip);
+                    return 0;
+                }
+#endif // INTERPRETER_ENABLED
         } else {
             UnwindContext& stackGrowContext = Mutator::GetMutator()->GetUnwindContext();
             UnwindContext caller;
