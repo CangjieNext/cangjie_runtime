@@ -7,6 +7,8 @@
 #ifndef MRT_INTERPRETER_OPTIONS_H
 #define MRT_INTERPRETER_OPTIONS_H
 
+#if defined(__IOS__) || defined(__ANDROID__) || defined(__linux__)
 #define INTERPRETER_ENABLED
+#endif
 
 #endif // MRT_INTERPRETER_OPTIONS_H
