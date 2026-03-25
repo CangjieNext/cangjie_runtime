@@ -7,6 +7,8 @@
 
 #include "CjScheduler.h"
 
+#include <cstdlib>
+#include <cstring>
 #include <thread>
 #if defined(_WIN64)
 #include <windows.h>
@@ -276,13 +278,13 @@ static uint32_t InitProcessorNum()
 }
 
 #ifdef INTERPRETER_ENABLED
-static FixedCString InitInterpreterLibName()
+static const char* InitInterpreterLibName()
 {
-    auto env = std::getenv("INTERPRETER_LIB_NAME");
+    const char* env = std::getenv("INTERPRETER_LIB_NAME");
     if (env == nullptr) {
-        return FixedCString();
+        return nullptr;
     }
-    return FixedCString(env);
+    return strdup(env);
 }
 #endif
 

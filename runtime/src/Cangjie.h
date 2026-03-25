@@ -24,7 +24,6 @@
 #endif
 #endif
 
-#include "Base/CString.h"
 #include "Interpreter/Options.h"
 
 /* C++ needs to know that types and declarations are C, not C++. */
@@ -322,12 +321,12 @@ struct ConcurrencyParam {
 
 #ifdef INTERPRETER_ENABLED
 struct InterpreterParam {
-    const MapleRuntime::FixedCString interpreterLibName;
+    const char* interpreterLibName;
 
-    explicit InterpreterParam(MapleRuntime::FixedCString interpreterLibName) 
+    explicit InterpreterParam(const char* interpreterLibName)
         : interpreterLibName(interpreterLibName) {}
 
-    InterpreterParam(): interpreterLibName() {}
+    InterpreterParam() : interpreterLibName(nullptr) {}
 };
 #endif
 
