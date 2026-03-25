@@ -8,6 +8,7 @@
 
 #include "dlfcn.h"
 #include <stdint.h>
+#include <cstring>
 #include "Interpreter/RTInterface.h"
 #include "ObjectManager.inline.h"
 #include "ExceptionManager.inline.h"
@@ -465,12 +466,11 @@ size_t ComputeFiberDataOffset()
 
 void InitInterpreter(const RuntimeParam& runtimeParam) 
 {
-    if (runtimeParam.interpreterParam.interpreterLibName.IsEmpty()) {
+    const char* libName = runtimeParam.interpreterParam.interpreterLibName;
+    if (libName == nullptr || std::strlen(libName) == 0) {
         DLOG(INTERPRETER, "interpreter library name is empty");
         return;
     }
-
-    const char* libName = runtimeParam.interpreterParam.interpreterLibName.Str();
     DLOG(INTERPRETER, "initializing interpreter with library: %s", libName);
 
 #if defined(__OHOS__)
