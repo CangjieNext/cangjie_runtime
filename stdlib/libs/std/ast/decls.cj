@@ -59,7 +59,7 @@ public open class Decl <: Node {
             this.constraintCommas_ = decl.constraintCommas
             this.node = decl
             this.isGenericDecl_ = decl.isGenericDecl
-        } catch (e: Exception) {
+        } catch (e: ParseASTException) {
             ()
         }
     }
@@ -980,7 +980,7 @@ public class FuncDecl <: Decl {
         }
         var paramTokens = try {
             genericParam.toTokens()
-        } catch (e: Exception) {
+        } catch (e: ASTException) {
             Tokens()
         }
         ret.append(paramTokens).append(lParen_)
