@@ -25,7 +25,24 @@
 #endif
 namespace MapleRuntime {
 
-class EHFrameInfo : public FrameInfo {
+class IEHFrameInfo {
+public:
+    virtual ~IEHFrameInfo() = default;
+
+    virtual bool IsCatchException() const = 0;
+    virtual uint64_t GetTTypeIndex() const = 0;
+    virtual uintptr_t GetLandingPad() const = 0;
+    virtual void RestoreToCallerContext(CalleeSavedRegisterContext& context, uint32_t adjustedSize = 0) const = 0;
+
+    virtual const uint32_t* GetIP() const = 0;
+    virtual FrameAddress* GetFA() const = 0;
+    virtual MachineFrame GetMachineFrame() const = 0;
+
+    virtual const CString GetFunctionName() const = 0;
+
+};
+
+class EHFrameInfo : public FrameInfo, public IEHFrameInfo {
 public:
     EHFrameInfo(const FrameInfo& info, const ExceptionWrapper& eWrapper) : FrameInfo(info)
     {
@@ -49,14 +66,15 @@ public:
     EHFrameInfo() = delete;
     ~EHFrameInfo() override = default;
 
-    bool IsCatchException() const { return result.isCaught; }
+    bool IsCatchException() const override { return result.isCaught; }
 
-    uint64_t GetTTypeIndex() const { return result.typeIndex; }
+    uint64_t GetTTypeIndex() const override { return result.typeIndex; }
 
-    uint64_t GetLandingPad() const { return result.landingPad; }
+    uintptr_t GetLandingPad() const override { return result.landingPad; }
 
-    void RestoreToCallerContext(CalleeSavedRegisterContext& context, uint32_t adjustedSize = 0) const
+    void RestoreToCallerContext(CalleeSavedRegisterContext& context, uint32_t adjustedSize = 0) const override
     {
+        DLOG(EXCEPTION, "Restore context for EHFrameInfo, fa=%p, ip=%p, adjustedSize=%u, funcName=%s", mFrame.GetFA(), mFrame.GetIP(), adjustedSize, this->GetFuncName().GetStr());
 #if defined(__arm__)
         constexpr uint8_t sizeOfAddr = 4;
 #else
@@ -195,6 +213,14 @@ public:
         *point = reinterpret_cast<Uptr*>(reinterpret_cast<uint8_t*>(*point) + byteLen);
         return res;
     }
+
+    const uint32_t* GetIP() const override { return mFrame.GetIP(); }
+
+    FrameAddress* GetFA() const override { return mFrame.GetFA(); }
+
+    MachineFrame GetMachineFrame() const override { return mFrame; }
+
+    const CString GetFunctionName() const override { return FrameInfo::GetFuncName(); }
 
 private:
     ScanResult result;

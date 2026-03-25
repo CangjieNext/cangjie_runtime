@@ -7,6 +7,8 @@
 
 #include "CjScheduler.h"
 
+#include <cstdlib>
+#include <cstring>
 #include <thread>
 #if defined(_WIN64)
 #include <windows.h>
@@ -16,6 +18,7 @@
 #include "sys/sysinfo.h"
 #endif
 
+#include "Base/LogFile.h"
 #include "Base/CString.h"
 #include "Sync/Sync.h"
 #include "Base/Panic.h"
@@ -29,6 +32,7 @@
 #include "ExceptionManager.inline.h"
 #include "Mutator/Mutator.inline.h"
 #include "schedule.h"
+#include "Interpreter/InterpreterSpecific.h"
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
 #endif
@@ -272,6 +276,17 @@ static uint32_t InitProcessorNum()
     }
     return defaultProcs;
 }
+
+#ifdef INTERPRETER_ENABLED
+static const char* InitInterpreterLibName()
+{
+    const char* env = std::getenv("INTERPRETER_LIB_NAME");
+    if (env == nullptr) {
+        return nullptr;
+    }
+    return strdup(env);
+}
+#endif
 
 void* StartMainTask(void* arg, unsigned int len)
 {
@@ -578,7 +593,10 @@ static RuntimeParam InitRuntimeParam()
             .thStackSize = 1 * KB,
             .coStackSize = InitCoStackSize(),
             .processorNum = InitProcessorNum(),
-        }
+        },
+#ifdef INTERPRETER_ENABLED
+        .interpreterParam = InterpreterParam(InitInterpreterLibName()),
+#endif
     };
     return param;
 }
@@ -591,6 +609,10 @@ void MRT_CjRuntimeInit()
     if (rtCode != E_OK) {
         LOG(RTLOG_FATAL, "Init cj runtime failed for %d\n", rtCode);
     }
+
+#if defined(TEST) && defined(INTERPRETER_ENABLED)
+    initTestVirtualFuncs(param.interpreterParam.interpreterLibName);
+#endif
 }
 
 void MRT_SetCommandLineArgs(int argc, const char* argv[])
