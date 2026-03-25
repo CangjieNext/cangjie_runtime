@@ -6,10 +6,12 @@
 
 
 #include "Base/Log.h"
+#include "Base/LogFile.h"
 #include "Base/MemUtils.h"
 #include "Common/StackType.h"
 #include "StackManager.h"
 #include "securec.h"
+#include "Interpreter/InterpreterSpecific.h"
 #ifdef _WIN64
 #include "Common/Runtime.h"
 #include "UnwindWin.h"
@@ -29,6 +31,10 @@ extern uintptr_t unwindPCForRuntimeStubEnd;
 extern uintptr_t unwindPCForC2NStubExceptionReturn;
 extern uintptr_t CalleeSavedStubFrameSize;
 extern uintptr_t C2NStubFrameSize;
+#endif
+#if defined(INTERPRETER_ENABLED) && defined(__linux__) && (defined(__x86_64__) || defined(__aarch64__))
+extern uintptr_t CJ_MCC_I2NStub;
+extern uintptr_t CJ_MCC_I2NStubEnd;
 #endif
 
 namespace MapleRuntime {
@@ -56,6 +62,41 @@ bool MachineFrame::IsExclusiveStubFrame() const
 }
 
 bool MachineFrame::IsRuntimeFrame() const { return StackManager::IsRuntimeFrame(reinterpret_cast<uintptr_t>(ip)); }
+
+#ifdef INTERPRETER_ENABLED
+bool MachineFrame::IsInterpreterFrame() const {
+    return StackManager::IsInterpreterCodeAddr(reinterpret_cast<uintptr_t>(ip));
+}
+
+bool MachineFrame::IsC2IStubFrame() const {
+    return IsC2IStubAddr(reinterpret_cast<uintptr_t>(ip));
+}
+
+bool MachineFrame::IsI2IFrame() const {
+    return IsI2IAdapterStartAddr(reinterpret_cast<uintptr_t>(ip));
+}
+
+bool MachineFrame::IsI2NFrame() const
+{
+#if defined(__linux__) && (defined(__x86_64__) || defined(__aarch64__))
+    uintptr_t address = reinterpret_cast<uintptr_t>(ip);
+    uintptr_t i2nStubStartAddr = reinterpret_cast<uintptr_t>(&CJ_MCC_I2NStub);
+    uintptr_t i2nStubEndAddr = reinterpret_cast<uintptr_t>(&CJ_MCC_I2NStubEnd);
+    bool res = i2nStubStartAddr <= address && address < i2nStubEndAddr;
+    DLOG(INTERPRETER, "Checking I2N stub borders: is %p in [%p, %p)? -- %s", address,
+        i2nStubStartAddr, i2nStubEndAddr, res ? "true" : "false");
+    return res;
+#else
+    DLOG(INTERPRETER, "Checking I2N stub borders: I2N not supported on this architecture");
+    return false;
+#endif
+}
+
+bool MachineFrame::IsInterpreterPrologueFrame() const
+{
+    return IsInterpreterPrologueAddr(reinterpret_cast<uintptr_t>(ip));
+}
+#endif
 
 bool MachineFrame::IsC2NStubFrame() const
 {
