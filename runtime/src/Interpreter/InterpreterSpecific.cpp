@@ -29,8 +29,13 @@
 
 namespace MapleRuntime {
 
+#if (defined(__linux__) || (defined(__APPLE__) && defined(__IOS__))) && \
+    (defined(__x86_64__) || defined(__aarch64__))
+#define INTERPRETER_HAS_I2N_STUB 1
+#endif
+
 extern "C" void CJ_MCC_StackGrowStub(...);
-#if defined(__linux__) && (defined(__x86_64__) || defined(__aarch64__))
+#if defined(INTERPRETER_HAS_I2N_STUB)
 extern "C" void CJ_MCC_I2NStub(...);
 extern "C" void CJ_MCC_I2NStubEnd(...);
 #endif
@@ -398,7 +403,7 @@ void WriteStructFieldOfObject(DYN_ObjRef obj, MAddress dst, MAddress src, size_t
     Heap::GetBarrier().WriteStruct(static_cast<BaseObject*>(obj), dst, size, src, size);
 }
 
-void ReadStaticStructField(uintptr_t dstPtr, size_t dstSize, uintptr_t srcPtr, size_t srcSize, DYN_GCTib tib)
+void ReadStaticStructField(MAddress dstPtr, size_t dstSize, MAddress srcPtr, size_t srcSize, DYN_GCTib tib)
 {
     DLOG(INTERPRETER, "ReadStaticStructField dst=%p size=%zu src=%p size=%zu tib_val=%zx", dstPtr, dstSize, srcPtr,
         srcSize, static_cast<size_t>(tib.raw));
@@ -407,7 +412,7 @@ void ReadStaticStructField(uintptr_t dstPtr, size_t dstSize, uintptr_t srcPtr, s
     Heap::GetHeap().GetBarrier().ReadStaticStruct(dstPtr, srcPtr, dstSize, gcTib);
 }
 
-void WriteStaticStructField(uintptr_t dst, size_t dstLen, uintptr_t src, size_t srcLen, DYN_GCTib tib)
+void WriteStaticStructField(MAddress dst, size_t dstLen, MAddress src, size_t srcLen, DYN_GCTib tib)
 {
     DLOG(INTERPRETER, "WriteStaticStructField dst=%p size=%zu src=%p size=%zu tib_val=%zx", dst, dstLen, src, srcLen,
         static_cast<size_t>(tib.raw));
@@ -481,7 +486,9 @@ void* PostThrowException(DYN_ExceptionWrapper exception_wrapper)
 
 void NativeLogger(int logLevel, char* tag, char* message)
 {
-    VLOG(static_cast<LogType>(logLevel), "[%s] %s", tag, message);
+    const char* logTag = tag != nullptr ? tag : "interpreter";
+    const char* logMessage = message != nullptr ? message : "(null)";
+    VLOG(static_cast<LogType>(logLevel), "[%s] %s", logTag, logMessage);
 }
 
 size_t ComputeCJThreadDataOffset()
@@ -535,7 +542,8 @@ INT_InitInterpreter ResolveInterpreterInit(void* interpreterLibHandle)
 {
     void* sym = dlsym(interpreterLibHandle, "interpreter_bridge_init");
     if (sym == nullptr) {
-        DLOG(INTERPRETER, "dlsym failed: %s", dlerror());
+        const char* error = dlerror();
+        DLOG(INTERPRETER, "dlsym interpreter_bridge_init failed: %s", error != nullptr ? error : "unknown error");
         return nullptr;
     }
     return reinterpret_cast<INT_InitInterpreter>(sym);
@@ -543,7 +551,7 @@ INT_InitInterpreter ResolveInterpreterInit(void* interpreterLibHandle)
 
 DYN_CJNativeInterface CreateCJNativeInterface(void* symbolHandle)
 {
-#if defined(__linux__) && (defined(__x86_64__) || defined(__aarch64__))
+#if defined(INTERPRETER_HAS_I2N_STUB)
     DYN_I2NStubFn i2nStub = reinterpret_cast<DYN_I2NStubFn>(&CJ_MCC_I2NStub);
 #else
     DYN_I2NStubFn i2nStub = nullptr;
@@ -631,15 +639,18 @@ RTErrorCode InitInterpreter(const InterpreterParam& interpreterParam)
 
     void* interpreterLibHandle = LoadInterpreterLibrary(libName);
     if (interpreterLibHandle == nullptr) {
-        DLOG(INTERPRETER, "interpreter library could not be loaded: %s", dlerror());
+        const char* error = dlerror();
+        DLOG(INTERPRETER, "interpreter library could not be loaded: %s, error: %s",
+            libName, error != nullptr ? error : "unknown error");
         return E_FAILED;
     }
-    StackManager::InitAddressScopeForInterpreter(libName);
 
     INT_InitInterpreter init = ResolveInterpreterInit(interpreterLibHandle);
     if (init == nullptr) {
         return E_FAILED;
     }
+
+    StackManager::InitAddressScopeForInterpreter(libName, reinterpret_cast<const void*>(init));
 
     DYN_CJNativeInterface cjnativeInterface = CreateCJNativeInterface(interpreterParam.appLibHandle);
     return InitializeInterpreterInterface(init, cjnativeInterface, interpreterParam);
@@ -670,7 +681,7 @@ bool IsI2IAdapterStartAddr(const uintptr_t address)
 
 bool IsI2NStubAddr(const uintptr_t address)
 {
-#if defined(__linux__) && (defined(__x86_64__) || defined(__aarch64__))
+#if defined(INTERPRETER_HAS_I2N_STUB)
     uintptr_t i2nStubStartAddr = reinterpret_cast<uintptr_t>(&CJ_MCC_I2NStub);
     uintptr_t i2nStubEndAddr = reinterpret_cast<uintptr_t>(&CJ_MCC_I2NStubEnd);
     bool res = i2nStubStartAddr <= address && address < i2nStubEndAddr;
