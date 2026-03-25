@@ -7,6 +7,8 @@
 
 #include "Heap.h"
 
+#include "Interpreter/Options.h"
+#include "Interpreter/InterpreterSpecific.h"
 #include "Collector/CollectorProxy.h"
 #include "Collector/CollectorResources.h"
 #include "WCollector/IdleBarrier.h"
@@ -232,7 +234,12 @@ void HeapImpl::UnregisterStaticRoots(Uptr addr, U32 size)
     staticRootTable.UnregisterRoots(reinterpret_cast<StaticRootTable::StaticRootArray*>(addr), size);
 }
 
-void HeapImpl::VisitStaticRoots(const RefFieldVisitor& visitor) { staticRootTable.VisitRoots(visitor); }
+void HeapImpl::VisitStaticRoots(const RefFieldVisitor& visitor) {
+    staticRootTable.VisitRoots(visitor);
+#ifdef INTERPRETER_ENABLED
+    VisitInterpreterGlobalRoots(&visitor);
+#endif
+}
 
 #if defined(_WIN64)
 ssize_t HeapImpl::GetHeapPhysicalMemorySize() const
