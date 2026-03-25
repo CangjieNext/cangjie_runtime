@@ -339,6 +339,8 @@ public func setItem(key: String, value: String): Unit {
                 throw IllegalMemoryException("setItem malloc failed!")
             }
             CJ_SetItemInfo(macroObjPtr, keyStr, CPointer<Unit>(strV.getChars()), ITEM_TYPE_STRING)
+            LibC.free(keyStr)
+            LibC.free(strV)
         }
     }
 }
@@ -357,6 +359,8 @@ public func setItem(key: String, value: Int64): Unit {
             }
             intV.write(value)
             CJ_SetItemInfo(macroObjPtr, keyStr, CPointer<Unit>(intV), ITEM_TYPE_INT64)
+            LibC.free(keyStr)
+            LibC.free(intV)
         }
     }
 }
@@ -375,6 +379,8 @@ public func setItem(key: String, value: Bool): Unit {
             }
             boolV.write(value)
             CJ_SetItemInfo(macroObjPtr, keyStr, CPointer<Unit>(boolV), ITEM_TYPE_BOOL)
+            LibC.free(keyStr)
+            LibC.free(boolV)
         }
     }
 }
@@ -389,6 +395,8 @@ public func setItem(key: String, value: Tokens): Unit {
             let tokensBytes = value.toBytes()
             var tksV: CPointer<UInt8> = unsafePointerCastFromUint8Array(tokensBytes)
             CJ_SetItemInfo(macroObjPtr, keyStr, CPointer<Unit>(tksV), ITEM_TYPE_TOKENS)
+            LibC.free(keyStr)
+            LibC.free(tksV)
         }
     }
 }
