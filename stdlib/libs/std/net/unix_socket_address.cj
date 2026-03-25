@@ -1,0 +1,93 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
+ * This source file is part of the Cangjie project, licensed under Apache-2.0
+ * with Runtime Library Exception.
+ *
+ * See https://cangjie-lang.cn/pages/LICENSE for license information.
+ */
+
+package std.net
+
+import std.binary.*
+
+@When[os != "macOS" && os!= "iOS"]
+const MAX_UDS_PATH_LENGTH: Int64 = 108
+
+@When[os == "macOS" || os== "iOS"]
+const MAX_UDS_PATH_LENGTH: Int64 = 104
+
+func findLastNoneZeroIdx(path: Array<Byte>): Int64 {
+    var lastNoneZeroIdx = 0
+    for (i in path.size - 1..=0 : -1) {
+        if (path[i] != 0) {
+            lastNoneZeroIdx = i + 1
+            break
+        }
+    }
+    return lastNoneZeroIdx
+}
+
+public class UnixSocketAddress <: SocketAddress & Equatable<UnixSocketAddress> {
+    let _path: String
+    let _len: Int64
+
+    public init(path: Array<Byte>) {
+        this(unsafe { String.fromUtf8Unchecked(path[..findLastNoneZeroIdx(path)]) })
+    }
+    public init(path: String) {
+        _len = path.size
+        if (_len > MAX_UDS_PATH_LENGTH) {
+            throw IllegalArgumentException("Path size(${_len}) is too long, expect <= ${MAX_UDS_PATH_LENGTH}.")
+        }
+        if (_len == 0) { // Unnamed socket address
+            _path = ""
+        } else if (path[0] == 0) { // Abstract socket address
+            let un = path[1..]
+            if (let Some(idx) <- un.indexOf(0)) {
+                throw IllegalArgumentException(
+                    "Unix domain socket path must not contain interior null bytes: ${un.toArray()}")
+            }
+            _path = path
+        } else { // Pathname socket address
+            if (let Some(idx) <- path.indexOf(0)) {
+                throw IllegalArgumentException(
+                    "Unix domain socket path must not contain interior null bytes: ${path.toArray()}")
+            }
+            _path = path
+        }
+    }
+    public prop size: Int64 {
+        get() {
+            2 + _len
+        }
+    }
+    public prop family: AddressFamily {
+        get() {
+            AddressFamily.UNIX
+        }
+    }
+    public operator func ==(other: UnixSocketAddress): Bool {
+        return _path[0.._len] == other._path[0..other._len]
+    }
+    public operator func !=(other: UnixSocketAddress): Bool {
+        return !(this == other)
+    }
+    public func getAddressBytes(): Array<Byte> {
+        let buf = Array<Byte>(this.size, repeat: 0)
+        // 2bytes family
+        this.family.value.writeLittleEndian(buf)
+        // sun_un path
+        buf[2..] = _path[.._len].toArray()
+        return buf
+    }
+    public func hashCode(): Int64 {
+        var df = DefaultHasher()
+        for (i in 0.._len) {
+            df.write(_path[i])
+        }
+        df.finish()
+    }
+    public func toString(): String {
+        _path[0.._len]
+    }
+}
