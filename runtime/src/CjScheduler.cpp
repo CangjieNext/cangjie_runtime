@@ -7,7 +7,11 @@
 
 #include "CjScheduler.h"
 
+#include <cstdlib>
+#include <vector>
+#include <cstring>
 #include <thread>
+#include <new>
 #if defined(_WIN64)
 #include <windows.h>
 #elif defined(__APPLE__)
@@ -16,6 +20,7 @@
 #include "sys/sysinfo.h"
 #endif
 
+#include "Base/LogFile.h"
 #include "Base/CString.h"
 #include "Sync/Sync.h"
 #include "Base/Panic.h"
@@ -29,6 +34,8 @@
 #include "ExceptionManager.inline.h"
 #include "Mutator/Mutator.inline.h"
 #include "schedule.h"
+#include "Interpreter/InterpreterSpecific.h"
+#include "Interpreter/RuntimeAPI.h"
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
 #endif
@@ -272,6 +279,52 @@ static uint32_t InitProcessorNum()
     }
     return defaultProcs;
 }
+
+#ifdef INTERPRETER_ENABLED
+// Parse INTERPRETER_ARGS env variable and return null-terminated array of strings.
+// params:
+// - tokenCount - will be set to the number of strings in the array
+static const char* const* InitInterpreterArgs(int& tokenCount)
+{
+    tokenCount = 0;
+    const char* env = std::getenv("INTERPRETER_ARGS");
+
+    if (!env) {
+        return nullptr;
+    }
+
+    CString source(env);
+    std::vector<CString> tempTokens = CString::Split(source, ' ');
+
+    tokenCount = static_cast<int>(tempTokens.size());
+    if (tokenCount == 0) {
+        return nullptr;
+    }
+
+    const char** tokens = new (std::nothrow) const char*[tokenCount + 1];
+    CHECK_DETAIL(tokens != nullptr, "new tokens array failed: size=%d", tokenCount + 1);
+
+    for (int i = 0; i < tokenCount; ++i) {
+        size_t tokenLen = tempTokens[i].Length();
+        char* token = new (std::nothrow) char[tokenLen + 1];
+        CHECK_DETAIL(token != nullptr, "new token #%d failed: size=%zu bytes", i, tokenLen + 1);
+        std::strcpy(token, tempTokens[i].Str());
+        tokens[i] = token;
+    }
+    tokens[tokenCount] = nullptr;
+
+    return tokens;
+}
+
+static const char* InitInterpreterLibName()
+{
+    const char* env = std::getenv("INTERPRETER_LIB_NAME");
+    if (env == nullptr) {
+        return nullptr;
+    }
+    return strdup(env);
+}
+#endif
 
 void* StartMainTask(void* arg, unsigned int len)
 {
@@ -674,15 +727,54 @@ static RuntimeParam InitRuntimeParam()
             .thStackSize = 1 * KB,
             .coStackSize = InitCoStackSize(),
             .processorNum = InitProcessorNum(),
-        }
+        },
     };
     return param;
 }
+
+#ifdef INTERPRETER_ENABLED
+static InterpreterParam InitInterpreterParam()
+{
+    int interpreterArgsCount = 0;
+    const char* const* interpreterArgs = InitInterpreterArgs(interpreterArgsCount);
+    InterpreterParam interpreterParam = {
+        .interpreterLibName = InitInterpreterLibName(),
+        .interpreterArgsCount = interpreterArgsCount,
+        .interpreterArgs = interpreterArgs,
+        .appLibHandle = nullptr,
+    };
+    return interpreterParam;
+}
+
+static void DestroyInterpreterParam(InterpreterParam& interpreterParam)
+{
+    const char* const* interpreterArgs = interpreterParam.interpreterArgs;
+    if (interpreterArgs != nullptr) {
+        for (int i = 0; i < interpreterParam.interpreterArgsCount && interpreterArgs[i] != nullptr; ++i) {
+            delete[] interpreterArgs[i];
+        }
+        delete[] interpreterArgs;
+    }
+
+    if (interpreterParam.interpreterLibName != nullptr) {
+        std::free(const_cast<char*>(interpreterParam.interpreterLibName));
+    }
+    interpreterParam.interpreterLibName = nullptr;
+    interpreterParam.interpreterArgsCount = 0;
+    interpreterParam.interpreterArgs = nullptr;
+    interpreterParam.appLibHandle = nullptr;
+}
+#endif
 
 void MRT_CjRuntimeInit()
 {
     RuntimeParam param = InitRuntimeParam();
     CangjieRuntime::CreateAndInit(param);
+#ifdef INTERPRETER_ENABLED
+    InterpreterParam interpreterParam = InitInterpreterParam();
+    InitCJInterpreter(&interpreterParam);
+    DestroyInterpreterParam(interpreterParam);
+#endif
     RTErrorCode rtCode = SetRuntimeInitFlag();
     if (rtCode != E_OK) {
         LOG(RTLOG_FATAL, "Init cj runtime failed for %d\n", rtCode);
