@@ -17,6 +17,10 @@
 #include <cstdio>
 #include <cstdlib>
 
+#ifdef TEST
+#include "TestSupport.h"
+#endif
+
 namespace MapleRuntime {
 
 void IterateFramesWithState(

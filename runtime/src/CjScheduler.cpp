@@ -329,9 +329,11 @@ static INT_InterpreterArgs InitInterpreterArgs(int& tokenCount)
 static const char* InitInterpreterLibName()
 {
     const char* env = std::getenv("INTERPRETER_LIB_NAME");
-    if (env == nullptr) {
+    if (env == nullptr || std::strlen(env) == 0) {
+        DLOG(INTERPRETER, "INTERPRETER_LIB_NAME is not set or empty");
         return nullptr;
     }
+    DLOG(INTERPRETER, "INTERPRETER_LIB_NAME is set to %s", env);
     return strdup(env);
 }
 #endif

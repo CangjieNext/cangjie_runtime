@@ -6,6 +6,7 @@
 
 set(SRC_LIST
     "InterpreterSpecific.cpp"
+    "TestSupport.cpp"
 )
 
 add_library(Interpreter STATIC ${SRC_LIST})

@@ -127,6 +127,8 @@ void EHTable::ScanEHTable(const uint32_t* pc, const ExceptionWrapper& eWrapper, 
     uint64_t funcstart = reinterpret_cast<uint64_t>(startIp);
     uint64_t ipOffset = ip - funcstart;
     const uint8_t* curPtr = callSiteTableStart;
+    DLOG(EXCEPTION, "ScanEHTable for pc=%p, startIp=%p, ipOffset=%p",
+        reinterpret_cast<const void*>(pc), reinterpret_cast<const void*>(startIp), reinterpret_cast<void*>(ipOffset));
     while (curPtr < callSiteTableEnd) {
         // There is one entry per call site.
         // The call sites are non-overlapping in [start, start+length)
@@ -138,6 +140,7 @@ void EHTable::ScanEHTable(const uint32_t* pc, const ExceptionWrapper& eWrapper, 
         if ((start <= ipOffset) && (ipOffset < (start + length))) {
             // Found the call site containing ip.
             if (landingPad == 0) {
+                DLOG(EXCEPTION, "  No landing pad for this call site [%lu, %lu), exception cannot be caught", start, start + length);
                 continue;
             }
             landingPad = reinterpret_cast<uintptr_t>(startIp) + landingPad;
@@ -145,6 +148,7 @@ void EHTable::ScanEHTable(const uint32_t* pc, const ExceptionWrapper& eWrapper, 
             // ActionEntry is 0 means this function cannot catch the exception.
             // The landingPad is a epilog address.
             if (actionEntry == 0) {
+                DLOG(EXCEPTION, "  Found a call site [%lu, %lu) with landing pad %p but no action entry, exception cannot be caught", start, start + length, reinterpret_cast<void*>(landingPad));
                 result.landingPad = landingPad;
                 return;
             }
@@ -153,10 +157,16 @@ void EHTable::ScanEHTable(const uint32_t* pc, const ExceptionWrapper& eWrapper, 
                 result.typeIndex = exceptionTypeIndex;
                 result.landingPad = landingPad;
                 result.isCaught = true;
+                DLOG(EXCEPTION, "  Found a call site [%lu, %lu) with landing pad %p and action entry %lu, exception type index %u matched, exception can be caught", start, start + length, reinterpret_cast<void*>(landingPad), actionEntry, exceptionTypeIndex);
                 return;
             }
+            DLOG(EXCEPTION, "  Found a call site [%lu, %lu) with landing pad %p and action entry %lu, but no matching exception type, continue scanning",
+                 start, start + length, reinterpret_cast<void*>(landingPad), actionEntry);
+        } else {
+            DLOG(EXCEPTION, "  Skip call site [%lu, %lu): ipOffset=%lu is out of range", start, start + length, ipOffset);
         }
     } // there might be some tricky cases which break out of this loop
+    DLOG(EXCEPTION, "  Reached end of call site table for ipOffset=%lu without resolving a handler", ipOffset);
 }
 
 // Scan action table to match exception handler
@@ -166,11 +176,17 @@ uint8_t EHTable::MatchActionTable(uint64_t actionEntryIdx, const ExceptionRef& e
 {
     // The index of action table start from 1.
     const uint8_t* actionPtr = actionTableStart + (actionEntryIdx - 1);
+    const char* exceptionTypeName =
+        (exceptionRef != nullptr && exceptionRef->GetTypeInfo() != nullptr) ? exceptionRef->GetTypeInfo()->GetName()
+                                                                             : "<null>";
+    DLOG(EXCEPTION, "MatchActionTable start: actionEntryIdx=%lu, ttypeEncoding=%u, exceptionRef=%p, exceptionType=%s",
+         actionEntryIdx, static_cast<uint32_t>(flag), exceptionRef, exceptionTypeName);
     // Scan action entries until match a exception handler or reach end of action list.
     // Action list is a sequence of pairs (type index, offset of next action).
     // If offset of next action is 0, means reaching the end of action list.
     for (;;) {
         uint64_t typeIndex = *actionPtr++;
+        DLOG(EXCEPTION, "  Visit action entry: typeIndex=%lu", typeIndex);
         if (typeIndex > 0) {
             // this is a catch (T) clause
             // Current implementation only supports the absptr/udata4/indirect_pcrel_sdata4/indirect_pcrel_sdata8
@@ -193,11 +209,16 @@ uint8_t EHTable::MatchActionTable(uint64_t actionEntryIdx, const ExceptionRef& e
                     LOG(RTLOG_FATAL, "Unsupported ttype enconding!");
                     break;
             }
+            DLOG(EXCEPTION, "  Decoded catchType=%p for typeIndex=%lu", catchType, typeIndex);
             // Nullptr means matched all exception.
             if (catchType == nullptr || exceptionRef->IsSubType(*(reinterpret_cast<TypeInfo*>(catchType)))) {
                 // Found a matching handler and return exception type index
+                DLOG(EXCEPTION, "  Matched action entry: typeIndex=%lu (catchType=%p)", typeIndex, catchType);
                 return static_cast<uint8_t>(typeIndex);
             }
+            DLOG(EXCEPTION, "  Action entry typeIndex=%lu did not match thrown exception", typeIndex);
+        } else {
+            DLOG(EXCEPTION, "  typeIndex=0 indicates cleanup/non-catch entry, check next action link");
         }
 
         if (*actionPtr == 0) {
@@ -205,11 +226,13 @@ uint8_t EHTable::MatchActionTable(uint64_t actionEntryIdx, const ExceptionRef& e
             // which means the thrown exception can not be caught by this catch clause.
             // We will continue to search next call site table until we reach
             // the last call site entry which is the cleanup entry.
+            DLOG(EXCEPTION, "  Reached end of action list without match");
             return 0;
         } else {
             // Currently, the action offset is encoded with SLEB128. Need to decode it first and
             // change the action pointer accordingly.
             int64_t offset = EHTable::ReadSLEB128(&actionPtr);
+            DLOG(EXCEPTION, "  Follow next action link with SLEB128 offset=%ld", offset);
             actionPtr += offset;
         }
     }
