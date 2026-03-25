@@ -24,6 +24,8 @@
 #endif
 #endif
 
+#include "Interpreter/Options.h"
+
 /* C++ needs to know that types and declarations are C, not C++. */
 #ifdef __cplusplus
 #define CANGJIE_RT_API_DECLS_BEGIN extern "C" {
@@ -317,6 +319,17 @@ struct ConcurrencyParam {
     uint32_t processorNum;
 };
 
+#ifdef INTERPRETER_ENABLED
+struct InterpreterParam {
+    const char* interpreterLibName;
+
+    explicit InterpreterParam(const char* interpreterLibName)
+        : interpreterLibName(interpreterLibName) {}
+
+    InterpreterParam() : interpreterLibName(nullptr) {}
+};
+#endif
+
 /*
  * @struct RuntimeParam
  * @brief Data structure for Cangjie runtime parameters,\n
@@ -327,6 +340,9 @@ struct RuntimeParam {
     struct GCParam gcParam;
     struct LogParam logParam;
     struct ConcurrencyParam coParam;
+#ifdef INTERPRETER_ENABLED
+    struct InterpreterParam interpreterParam;
+#endif
 };
 
 CANGJIE_RT_API_DECLS_BEGIN

@@ -5,6 +5,7 @@
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 
+#include "Mutator/Mutator.h"
 #include "Exception.h"
 
 #include "Base/LogFile.h"
@@ -14,6 +15,8 @@
 #include "Mutator/MutatorManager.h"
 #include "UnwindStack/EhStackInfo.h"
 #include "schedule.h"
+#include "Interpreter/InterpreterEHFrameInfo.h"
+#include "Interpreter/InterpreterSpecific.h"
 
 namespace MapleRuntime {
 // Use the prologue info in stackmap to restore the registers layer by layer.
@@ -43,6 +46,47 @@ extern "C" uintptr_t MRT_GetTopManagedPC()
     return eWrapper.GetTopManagedPC();
 }
 
+void ExceptionWrapper::RestoreContext(CalleeSavedRegisterContext& context)
+{
+#ifdef GENERAL_ASAN_SUPPORT_INTERFACE
+#if defined(__x86_64__)
+        auto oldRsp = context.rsp;
+#elif defined(__aarch64__)
+        auto oldRsp = context.sp;
+#elif defined(__arm__)
+        auto oldRsp = context.sp;
+#endif
+#endif
+    for (const auto& framePtr : ehFrameInfos) {
+        DLOG(EXCEPTION, "RestoreContext: fa=%p, ip=%p, funcName=%s, isCatchException=%s",
+            framePtr->GetFA(), framePtr->GetIP(), framePtr->GetFunctionName().GetStr(),
+            framePtr->IsCatchException() ? "true" : "false");
+        if (framePtr->IsCatchException()) {
+#ifdef INTERPRETER_ENABLED
+            ExceptionWrapper& mExceptionWrapper = Mutator::GetMutator()->GetExceptionWrapper();
+            mExceptionWrapper.SetCurrentCatchFunctionPC(reinterpret_cast<uintptr_t>(framePtr->GetIP()));
+#endif
+            break;
+        }
+
+        if (framePtr->GetIP() == throwingSOFFramePc) {
+            framePtr->RestoreToCallerContext(context, adjustedSize);
+            adjustedSize = 0;
+        } else {
+            framePtr->RestoreToCallerContext(context);
+        }
+    }
+#ifdef GENERAL_ASAN_SUPPORT_INTERFACE
+#if defined(__x86_64__)
+        Sanitizer::HandleNoReturn(oldRsp, context.rsp);
+#elif defined(__aarch64__)
+        Sanitizer::HandleNoReturn(oldRsp, context.sp);
+#elif defined(__arm__)
+        Sanitizer::HandleNoReturn(oldRsp, context.sp);
+#endif
+#endif
+}
+
 void ExceptionHandling::BuildEHFrameInfo()
 {
     EHStackInfo ehStackInfo;
@@ -61,17 +105,24 @@ void ExceptionHandling::BuildEHFrameInfo()
         }
     }
 #endif
-    std::vector<EHFrameInfo>& ehFrameInfos = eWrapper->GetEHFrameInfos();
+    std::vector<std::unique_ptr<IEHFrameInfo>>& ehFrameInfos = eWrapper->GetEHFrameInfos();
     for (const auto& frame : stackInfo) {
         if (frame.GetFrameType() == FrameType::MANAGED) {
-            EHFrameInfo ehFrameInfo(frame, *eWrapper);
-            ehFrameInfos.push_back(ehFrameInfo);
-            if (ehFrameInfo.IsCatchException()) {
+            ehFrameInfos.push_back(std::make_unique<EHFrameInfo>(frame, *eWrapper));
+            if (ehFrameInfos.back()->IsCatchException()) {
                 eWrapper->SetIsCaught(true);
-                eWrapper->SetTypeIndex(ehFrameInfo.GetTTypeIndex() & 0xFFFFFFFF);
-                eWrapper->SetLandingPad(ehFrameInfo.GetLandingPad());
+                eWrapper->SetTypeIndex(ehFrameInfos.back()->GetTTypeIndex() & 0xFFFFFFFF);
+                eWrapper->SetLandingPad(ehFrameInfos.back()->GetLandingPad());
                 break;
             }
+#ifdef INTERPRETER_ENABLED
+        } else if (frame.GetFrameType() == FrameType::INTERPRETER) {
+            ehFrameInfos.push_back(std::make_unique<InterpreterEHFrameInfo>(frame, GetCommonInterpreterLandingPad()));
+            eWrapper->SetIsCaught(true);
+            eWrapper->SetTypeIndex(0);
+            eWrapper->SetLandingPad(ehFrameInfos.back()->GetLandingPad());
+            break;
+#endif
         } else {
             lastRuntimeFrame = frame;
         }
@@ -82,28 +133,37 @@ void ExceptionHandling::BuildEHFrameInfo()
         DLOG(EXCEPTION, "EHFrameInfos size : %zu", ehFrameInfos.size());
         DLOG(EXCEPTION, "Layer\tFA\t\tIP\t\tTTpyeIndex\t\tLandingPad\tCatch\t");
         for (int i = 0; i < ehFrameInfos.size(); ++i) {
-            DLOG(EXCEPTION, "#%x\t%x\t%x\t%x\t0x%p\t%x", i, ehFrameInfos[i].mFrame.GetFA(),
-                 ehFrameInfos[i].mFrame.GetIP(), ehFrameInfos[i].GetTTypeIndex(),
-                 reinterpret_cast<void*>(ehFrameInfos[i].GetLandingPad()),
-                 ehFrameInfos[i].IsCatchException());
+            DLOG(EXCEPTION, "#%x\t%x\t%x\t%x\t0x%p\t%x", i,
+                    ehFrameInfos[i]->GetFA(),
+                    ehFrameInfos[i]->GetIP(),
+                    ehFrameInfos[i]->GetTTypeIndex(),
+                    reinterpret_cast<void*>(ehFrameInfos[i]->GetLandingPad()),
+                    ehFrameInfos[i]->IsCatchException());
         }
     }
 }
 
 void ExceptionHandling::ChangeEHStackInfoLR() const
 {
-    std::vector<EHFrameInfo>& ehFrameInfos = eWrapper->GetEHFrameInfos();
+    std::vector<std::unique_ptr<IEHFrameInfo>>& ehFrameInfos = eWrapper->GetEHFrameInfos();
     if (UNLIKELY(ehFrameInfos.size() == 0)) {
         LOG(RTLOG_ERROR, "There are no one managed frame in the stack block.");
         return;
     }
+
+    DLOG(EXCEPTION, "ExceptionHandling::ChangeEHStackInfoLR");
+
     if (!eWrapper->IsCaught()) {
-        const uint32_t* addr = ehFrameInfos.back().mFrame.GetFA()->returnAddress;
+        const uint32_t* addr = ehFrameInfos.back()->GetFA()->returnAddress;
+        DLOG(EXCEPTION, "  Exception is not caught, landing pad set to %p", addr);
         eWrapper->SetLandingPad(reinterpret_cast<uintptr_t>(const_cast<uint32_t*>(addr)));
     }
 
     eWrapper->SetTopManagedPC(
         reinterpret_cast<uintptr_t>(const_cast<uint32_t*>(lastRuntimeFrame.mFrame.GetFA()->returnAddress)));
+
+    DLOG(EXCEPTION, "  Top managed PC = %p", eWrapper->GetTopManagedPC());
+
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
     auto mod = reinterpret_cast<uint64_t>(lastRuntimeFrame.mFrame.GetFA()) +
                 GetRuntimeFrameSize((MachineFrame&)lastRuntimeFrame.mFrame);
@@ -112,5 +172,7 @@ void ExceptionHandling::ChangeEHStackInfoLR() const
 #else
     lastRuntimeFrame.mFrame.GetFA()->returnAddress = reinterpret_cast<uint32_t*>(RestoreContextForEH);
 #endif
+
+    DLOG(EXCEPTION, "  Last runtime frame (fa=%p, ip=%p) redirected to RestoreContextForEH", lastRuntimeFrame.mFrame.GetFA(), lastRuntimeFrame.mFrame.GetIP());
 }
 } // namespace MapleRuntime

@@ -132,6 +132,13 @@ void LoaderManager::Fini()
 
 void* LoaderManager::LoadCJLibrary(const char* libName) const { return loader->LoadCJLibrary(libName); }
 
+#ifdef INTERPRETER_ENABLED
+void* LoaderManager::LoadInterpreter(const char* libName) const
+{
+    return loader->LoadInterpreter(libName);
+}
+#endif
+
 int LoaderManager::UnLoadLibrary(const char* libName) const { return loader->UnloadLibrary(libName); }
 
 Uptr LoaderManager::FindSymbol(const CString libName, const CString symbolName) const
@@ -238,7 +245,13 @@ void LoaderManager::RegisterLoadFunc()
         dlclose(handle);
         return;
     }
-    loader->RegisterLoadFunc(loadCJLibraryFunc);
+    void* loadLibraryFunc = (void*)envFuncs->loadLibrary; // for loading non-cj shared libraries in ohos
+    if (loadLibraryFunc == nullptr) {
+        LOG(RTLOG_ERROR, "LoaderManager::RegisterLoadFunc: get loadLibraryFunc fail\n");
+        dlclose(handle);
+        return;
+    }
+    loader->RegisterLoadFunc(loadCJLibraryFunc, loadLibraryFunc);
     dlclose(handle);
 }
 #endif
