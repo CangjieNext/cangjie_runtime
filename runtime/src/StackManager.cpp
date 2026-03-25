@@ -6,6 +6,7 @@
 
 
 #include "StackManager.h"
+#include <cstring>
 #include <cstdint>
 
 #include "Base/SysCall.h"
@@ -34,6 +35,8 @@
 #include "StackMap/StackMap.h"
 #endif
 #include "CpuProfiler/CpuProfiler.h"
+#include "Interpreter/Options.h"
+#include "Interpreter/InterpreterSpecific.h"
 
 #define LIBCANGJIE_RUNTIME "libcangjie-runtime"
 #define LIBCANGJIE_STD_CORE "libcangjie-std-core"
@@ -53,6 +56,10 @@ Uptr StackManager::cjcSoStartAddr = STACK_ADDR_MAX;
 Uptr StackManager::cjcSoEndAddr = 0;
 Uptr StackManager::traceSoStartAddr = STACK_ADDR_MAX;
 Uptr StackManager::traceSoEndAddr = 0;
+#ifdef INTERPRETER_ENABLED
+Uptr StackManager::interpreterSoStartAddr = ULLONG_MAX;
+Uptr StackManager::interpreterSoEndAddr = 0;
+#endif
 
 #if defined (COMPILE_DYNAMIC)
 #if !defined (__APPLE__)
@@ -259,6 +266,10 @@ static void GetEachSoAddrScope(std::vector<CString>& soNameVec)
                 GetSoAddrScope(lineStr, StackManager::rtStartAddr, StackManager::rtEndAddr);
             } else if  (strcmp(baseName, "cjc\n") == 0) {
                 GetSoAddrScope(lineStr, StackManager::cjcSoStartAddr, StackManager::cjcSoEndAddr);
+#ifdef INTERPRETER_ENABLED
+            } else {
+                GetSoAddrScope(lineStr, StackManager::interpreterSoStartAddr, StackManager::interpreterSoEndAddr);
+#endif
             }
         }
     }
@@ -357,6 +368,20 @@ void StackManager::InitAddressScope()
 #endif
 }
 
+#ifdef INTERPRETER_ENABLED
+void StackManager::InitAddressScopeForInterpreter(const char* libName)
+{
+#if defined(__linux__) // Linux, ANDROID, OHOS
+    std::vector<CString> interpreterSoName = { CString(libName).Combine("\n").Str() };
+    GetEachSoAddrScope(interpreterSoName);
+#elif defined(__APPLE__) && !defined(__IOS__) // MacOS
+    InitAddressInfoOnDarwin(CString(libName).Str(), StackManager::interpreterSoStartAddr, StackManager::interpreterSoEndAddr);
+#else
+    LOG(RTLOG_FATAL, "Unsupported platform for interpreter");
+#endif
+}
+#endif
+
 void InitAddressScopeForCJthreadTrace()
 {
 #ifdef _WIN64
@@ -429,4 +454,12 @@ bool StackManager::IsRuntimeFrame(Uptr pc)
            (pc > cjcSoStartAddr && pc < cjcSoEndAddr) || (pc > traceSoStartAddr && pc < traceSoEndAddr);
 #endif
 }
+
+#ifdef INTERPRETER_ENABLED
+bool StackManager::IsInterpreterCodeAddr(Uptr addr)
+{
+    return interpreterSoStartAddr <= addr && addr < interpreterSoEndAddr;
+}
+#endif
+
 } // namespace MapleRuntime

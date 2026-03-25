@@ -574,6 +574,9 @@ class TypeInfo {
 class ATTR_PACKED(4) TypeInfo {
 #endif
     friend class TypeInfoManager;
+#ifdef INTERPRETER_ENABLED
+    friend struct TypeInfoLayoutCheck;
+#endif
 public:
     // property/field query
     inline GCTib GetGCTib() const;
