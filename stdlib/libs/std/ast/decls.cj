@@ -43,25 +43,21 @@ public open class Decl <: Node {
         this.isGenericDecl_ = decl.isGenericDecl
     }
     init(input: Tokens) {
-        try {
-            var decl = parseDecl(input)
-            this.begin_ = decl.beginPos
-            this.end_ = decl.endPos
-            this.annotations_ = decl.annotations
-            this.modifiers_ = decl.modifiers
-            this.identifier_ = match (decl) {
-                case extDecl: ExtendDecl => Token()
-                case _ => decl.identifier
-            }
-            this.keyword_ = decl.keyword
-            this.genericParam_ = decl.genericParam_
-            this.constraint_ = decl.genericConstraint
-            this.constraintCommas_ = decl.constraintCommas
-            this.node = decl
-            this.isGenericDecl_ = decl.isGenericDecl
-        } catch (e: Exception) {
-            ()
+        var decl = parseDecl(input)
+        this.begin_ = decl.beginPos
+        this.end_ = decl.endPos
+        this.annotations_ = decl.annotations
+        this.modifiers_ = decl.modifiers
+        this.identifier_ = match (decl) {
+            case extDecl: ExtendDecl => Token()
+            case _ => decl.identifier
         }
+        this.keyword_ = decl.keyword
+        this.genericParam_ = decl.genericParam_
+        this.constraint_ = decl.genericConstraint
+        this.constraintCommas_ = decl.constraintCommas
+        this.node = decl
+        this.isGenericDecl_ = decl.isGenericDecl
     }
     init() {
         super()
@@ -980,7 +976,7 @@ public class FuncDecl <: Decl {
         }
         var paramTokens = try {
             genericParam.toTokens()
-        } catch (e: Exception) {
+        } catch (e: ASTException) {
             Tokens()
         }
         ret.append(paramTokens).append(lParen_)
