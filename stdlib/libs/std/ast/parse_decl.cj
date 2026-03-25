@@ -424,13 +424,9 @@ func createFuncParam(param: Option<NodeFormat_FuncParam>, index: Int64, length: 
     }
     var declNode = createDeclBase(keyTk, declBase)
     var comma = Token()
-    var ty = try {
-        match (pm.GetBase()) {
-            case Some(v) => generateTypeAST(v.GetType())
-            case None => throw Exception()
-        }
-    } catch (e: Exception) {
-        TypeNode()
+    var ty = match (pm.GetBase()) {
+        case Some(v) => generateTypeAST(v.GetType())
+        case None => throw ParseASTException()
     }
     if (index != length - 1) {
         comma = Token(TokenKind.COMMA).addPosition(pm.GetCommaPos())
@@ -444,11 +440,7 @@ func createFuncParam(param: Option<NodeFormat_FuncParam>, index: Int64, length: 
         colon = Token(TokenKind.COLON).addPosition(pm.GetColonPos())
     }
     var assign_ = Token()
-    var expr = try {
-        Some<Expr>(generateExprAST(pm.GetAssignment()))
-    } catch (e: Exception) {
-        None<Expr>
-    }
+    var expr = Some<Expr>(generateExprAST(pm.GetAssignment()))
     if (let Some(v) <- expr) {
         assign_ = Token(TokenKind.ASSIGN).addPosition(varDecl.GetAssignPos())
     }
@@ -499,13 +491,9 @@ func createFuncBody(funcBody: Option<NodeFormat_FuncBody>) {
     // create function parameters
     var funcParams: ArrayList<FuncParam> = generateFuncParams(fb)
     var colon = Token()
-    var ty = try {
-        var retTy_ = generateTypeAST(fb.GetRetType())
-        colon = Token(TokenKind.COLON).addPosition(fb.GetColonPos())
-        Some<TypeNode>(retTy_)
-    } catch (e: Exception) {
-        None<TypeNode>
-    }
+    var retTy_ = generateTypeAST(fb.GetRetType())
+    colon = Token(TokenKind.COLON).addPosition(fb.GetColonPos())
+    var ty = Some<TypeNode>(retTy_)
     var (lParen, rParen) = try {
         var paramList = fb.GetParamList().getOrThrow()
         var l = Token(TokenKind.LPAREN).addPosition(paramList.GetLeftParenPos())
@@ -576,21 +564,13 @@ func createVarDeclNode(decl: Option<NodeFormat_VarDecl>): VarDecl {
         case None => throw ParseASTException()
     }
     var colon = Token()
-    var ty = try {
-        var declTy = generateTypeAST(varDecl.GetType())
-        colon = Token(TokenKind.COLON).addPosition(varDecl.GetColonPos())
-        Some<TypeNode>(declTy)
-    } catch (e: Exception) {
-        None<TypeNode>
-    }
+    var declTy = generateTypeAST(varDecl.GetType())
+    colon = Token(TokenKind.COLON).addPosition(varDecl.GetColonPos())
+    var ty = Some<TypeNode>(declTy)
     var assign = Token()
-    var expr = try {
-        var initExpr = generateExprAST(varDecl.GetInitializer())
-        assign = Token(TokenKind.ASSIGN).addPosition(varDecl.GetAssignPos())
-        Some<Expr>(initExpr)
-    } catch (e: Exception) {
-        None<Expr>
-    }
+    var initExpr = generateExprAST(varDecl.GetInitializer())
+    assign = Token(TokenKind.ASSIGN).addPosition(varDecl.GetAssignPos())
+    var expr = Some<Expr>(initExpr)
     var keyWord = Token()
     if (varDecl.GetIsVar()) {
         keyWord = Token(TokenKind.VAR).addPosition(declBase.GetKeywordPos())
@@ -621,21 +601,13 @@ func createVarWithPatternDecl(decl: NodeFormat_Decl): Decl {
     }
     var pattern = Some<Pattern>(generatePatternAST(varWithPattern.GetPattern()))
     var colon = Token()
-    var ty = try {
-        var t = generateTypeAST(varWithPattern.GetType())
-        colon = Token(TokenKind.COLON).addPosition(varWithPattern.GetColonPos())
-        Some<TypeNode>(t)
-    } catch (e: Exception) {
-        None<TypeNode>
-    }
+    var t = generateTypeAST(varWithPattern.GetType())
+    colon = Token(TokenKind.COLON).addPosition(varWithPattern.GetColonPos())
+    var ty = Some<TypeNode>(t)
     var assign = Token()
-    var expr = try {
-        var initExpr = generateExprAST(varWithPattern.GetInitializer())
-        assign = Token(TokenKind.ASSIGN).addPosition(varWithPattern.GetAssignPos())
-        Some<Expr>(initExpr)
-    } catch (e: Exception) {
-        None<Expr>
-    }
+    var initExpr = generateExprAST(varWithPattern.GetInitializer())
+    assign = Token(TokenKind.ASSIGN).addPosition(varWithPattern.GetAssignPos())
+    var expr = Some<Expr>(initExpr)
     var keyWord = Token()
     if (varWithPattern.GetIsVar()) {
         keyWord = Token(TokenKind.VAR).addPosition(declBase.GetKeywordPos())

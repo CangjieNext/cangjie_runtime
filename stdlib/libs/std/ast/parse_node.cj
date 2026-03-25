@@ -332,11 +332,7 @@ func createMacroExpand(nodeInvocation: Option<NodeFormat_MacroInvocation>, isDec
     }
     var hasParenthesis = invocation.GetHasParenthesis()
     var isCompileTimeVisible = invocation.GetIsCompileTimeVisible()
-    var macroInputDecl: Option<Decl> = try {
-        Some(generateDeclAST(invocation.GetDecl()))
-    } catch (e: Exception) {
-        None<Decl>
-    }
+    var macroInputDecl: Option<Decl> = Some(generateDeclAST(invocation.GetDecl()))
     if (isDecl) {
         let m = MacroExpandDecl(key, packageIdentifier, identifier, lSquare, attrs, rSquare, lParen, inputs, rParen,
             macroInputDecl, hasParenthesis, isCompileTimeVisible)
