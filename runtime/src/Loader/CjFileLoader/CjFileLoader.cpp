@@ -408,6 +408,7 @@ void CJFileLoader::RegisterLoadFunc(void* loadFunc, void* loadLibraryFunc)
 
 void* CJFileLoader::LoadCJLibrary(const char* libName)
 {
+    DLOG(INTERPRETER, "LoadCJLibrary: %s", libName);
     void* handler = binLoadApi.binLoad(libName);
     if (handler != nullptr) {
         std::lock_guard<std::mutex> lock(libCjsoHandlersMutex);

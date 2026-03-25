@@ -418,6 +418,7 @@ void Mutator::RecordStackPtrs(std::set<BaseObject**>& resSet)
 
 intptr_t Mutator::FixExtendedStack(intptr_t frameBase, uint32_t adjustedSize, void* ip)
 {
+    DLOG(INTERPRETER, "Mutator::FixExtendedStack is called, frameBase: %p, adjustedSize: %u, ip: %p, isRuntime: %d\n", frameBase, adjustedSize, ip, IsRuntimeThread());
     if (!IsRuntimeThread()) {
 #if defined(_WIN64)
         stackGrowFrameSize = adjustedSize;

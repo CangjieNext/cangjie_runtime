@@ -316,7 +316,15 @@ RTErrorCode InitCJInterpreter(const struct InterpreterParam* param)
 #if defined(GENERAL_ASAN_SUPPORT_INTERFACE)
     MapleRuntime::Sanitizer::AsanRead(param, sizeof(struct InterpreterParam));
 #endif
-    return MapleRuntime::InitInterpreter(*param);
+    RTErrorCode initRet = MapleRuntime::InitInterpreter(*param);
+    if (initRet != E_OK) {
+        return initRet;
+    }
+
+#if defined(TEST)
+    MapleRuntime::initTestVirtualFuncs(param->interpreterLibName);
+#endif
+    return E_OK;
 }
 #endif
 

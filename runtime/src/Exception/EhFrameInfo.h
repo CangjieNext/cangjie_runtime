@@ -81,6 +81,7 @@ public:
 
     void RestoreToCallerContext(CalleeSavedRegisterContext& context, uint32_t adjustedSize = 0) const override
     {
+        DLOG(EXCEPTION, "Restore context for EHFrameInfo, fa=%p, ip=%p, adjustedSize=%u, funcName=%s", mFrame.GetFA(), mFrame.GetIP(), adjustedSize, this->GetFuncName().GetStr());
         constexpr uint8_t sizeOfAddr = sizeof(void*);       // arm32 is 4, aarch64 is 8
         constexpr uint8_t sizeOfStackHead = sizeOfAddr * 2; // callee rbp + return addr
 #if defined(__x86_64__)
