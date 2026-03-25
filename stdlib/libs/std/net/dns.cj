@@ -58,7 +58,10 @@ func resolveDomain(family: AddressFamily, domain: String): Array<IPAddress> {
     var res = PAddrinfo()
     var hints = AddrInfo()
     hints.ai_family = Int32(family.value)
-    hints.ai_flags = AI_PASSIVE | AI_ALL
+    hints.ai_flags = AI_PASSIVE
+    if (family == AddressFamily.UNSPEC) {
+        hints.ai_flags |= AI_ALL
+    }
     var rc = unsafe { getaddrinfo(node, CPointer<Byte>(), PAddrinfo(), inout res) }
     unsafe { LibC.free(node) }
     if (rc != 0) {
