@@ -54,9 +54,10 @@ Uptr StackManager::cjcSoStartAddr = STACK_ADDR_MAX;
 Uptr StackManager::cjcSoEndAddr = 0;
 Uptr StackManager::traceSoStartAddr = STACK_ADDR_MAX;
 Uptr StackManager::traceSoEndAddr = 0;
+#ifdef INTERPRETER_ENABLED
 Uptr StackManager::interpreterSoStartAddr = ULLONG_MAX;
 Uptr StackManager::interpreterSoEndAddr = 0;
-
+#endif
 
 #if defined (COMPILE_DYNAMIC)
 #if !defined (__APPLE__)
