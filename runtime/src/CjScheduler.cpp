@@ -7,7 +7,11 @@
 
 #include "CjScheduler.h"
 
+#include <iostream>
 #include <cstdlib>
+#include <string>
+#include <sstream>
+#include <vector>
 #include <cstring>
 #include <thread>
 #if defined(_WIN64)
@@ -278,6 +282,40 @@ static uint32_t InitProcessorNum()
 }
 
 #ifdef INTERPRETER_ENABLED
+// Parse INTERPRETER_ARGS env variable and return null-terminated array of strings.
+static char** InitInterpreterArgs(int& out_count)
+{
+    out_count = 0;
+    const char* env = std::getenv("INTERPRETER_ARGS");
+    
+    if (!env) {
+        return nullptr;
+    }
+
+    std::stringstream ss(env);
+    std::string token;
+    std::vector<std::string> temp_tokens;
+    
+    while (ss >> token) {
+        temp_tokens.push_back(token);
+    }
+
+    out_count = static_cast<int>(temp_tokens.size());
+    if (out_count == 0) {
+        return nullptr;
+    }
+
+    char** tokens = new char*[out_count + 1];
+    
+    for (int i = 0; i < out_count; ++i) {
+        tokens[i] = new char[temp_tokens[i].length() + 1];
+        std::strcpy(tokens[i], temp_tokens[i].c_str());
+    }
+    tokens[out_count] = nullptr;
+
+    return tokens;
+}
+
 static const char* InitInterpreterLibName()
 {
     const char* env = std::getenv("INTERPRETER_LIB_NAME");
@@ -545,6 +583,10 @@ static RuntimeParam InitRuntimeParam()
 {
     CheckSysmemSize();
     size_t initHeapSize = InitHeapSize(g_sysmemSize > 1 * GB ? 256 * KB : 64 * KB);
+#ifdef INTERPRETER_ENABLED
+    int interpreterArgsCount = 0;
+    char** interpreterArgs = InitInterpreterArgs(interpreterArgsCount);
+#endif
     RuntimeParam param = {
         .heapParam = {
 #if defined(__OHOS__) || defined(__ANDROID__)
@@ -595,7 +637,11 @@ static RuntimeParam InitRuntimeParam()
             .processorNum = InitProcessorNum(),
         },
 #ifdef INTERPRETER_ENABLED
-        .interpreterParam = InterpreterParam(InitInterpreterLibName()),
+        .interpreterParam = {
+            InitInterpreterLibName(), 
+            interpreterArgsCount, 
+            interpreterArgs
+        },
 #endif
     };
     return param;
