@@ -542,7 +542,9 @@ void InitInterpreter(const RuntimeParam& runtimeParam)
     interpreter_interface_t interpreterInterface;
     interpreterInterface.version = 1;
 
-    int code = init(&interpreterInterface, &cjnativeInterface);
+    int code = init(&interpreterInterface, &cjnativeInterface,
+        runtimeParam.interpreterParam.interpreterArgsCount,
+        runtimeParam.interpreterParam.interpreterArgs);
     interpreterInterfaceInstance.initialize(interpreterInterface);
 }
 
