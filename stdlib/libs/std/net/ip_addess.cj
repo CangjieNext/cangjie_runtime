@@ -62,7 +62,7 @@ sealed abstract class IPAddress <: ToString & Equatable<IPAddress> & Hashable & 
         return None
     }
 
-    // resolve domain
+    // resolve domain and filter out private/loopback/link-local addresses for SSRF protection
     public static func resolve(family: AddressFamily, domain: String): Array<IPAddress> {
         match (IPAddress.tryParse(domain)) {
             case Some(ip) => return [ip]
@@ -70,7 +70,8 @@ sealed abstract class IPAddress <: ToString & Equatable<IPAddress> & Hashable & 
                 if (!isDomainValid(domain)) {
                     return []
                 }
-                return resolveDomain(family, domain)
+                let addrs = resolveDomain(family, domain)
+                return addrs.filter { addr => addr.isGlobalUnicast() }
         }
     }
 
@@ -241,7 +242,7 @@ func parseIPv4(address: String, origin: String): Result<IPv4Address> {
 }
 
 // result, bytes_read
-func parseNumber(part: String, radix: UInt32, minDigits: UInt8, maxDigits: UInt8, allowZeroPrefix: Bool, origin: String): Result<(UInt32, 
+func parseNumber(part: String, radix: UInt32, minDigits: UInt8, maxDigits: UInt8, allowZeroPrefix: Bool, origin: String): Result<(UInt32,
     Int64)> {
     if (part.size == 0) {
         return Err(IllegalFormatException("Parse (${origin}): got empty field part."))
