@@ -114,11 +114,13 @@ struct cjnative_interface_t;
 // Initalizes runtime and its interface.
 //
 // params:
-// - Pointer to `interpreter_interface_t` which will be filled.
-// - Pointer to `cjnative_interface_t`. The content will be copied.
+// - interpreter_interface - Pointer to `interpreter_interface_t` which will be filled.
+// - cjnative_interface - Pointer to `cjnative_interface_t`. The content will be copied.
+// - interpreter_args_count - Number of interpreter arguments in `interpreter_args`.
+// - interpreter_args - Interpreter arguments array (null-terminated).
 // return: 0 on success.
 //
-typedef int (*init_rt)(struct interpreter_interface_t *, struct cjnative_interface_t *);
+typedef int (*init_rt)(struct interpreter_interface_t *interpreter_interface, struct cjnative_interface_t *cjnative_interface, int interpreter_args_count, char** interpreter_args);
 
 // Prepares state and calls callback with initialized state and provided context. After callback returns, performs necessary cleanup of the state.
 //
