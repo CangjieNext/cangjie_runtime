@@ -322,11 +322,8 @@ struct ConcurrencyParam {
 #ifdef INTERPRETER_ENABLED
 struct InterpreterParam {
     const char* interpreterLibName;
-
-    explicit InterpreterParam(const char* interpreterLibName)
-        : interpreterLibName(interpreterLibName) {}
-
-    InterpreterParam() : interpreterLibName(nullptr) {}
+    int interpreterArgsCount;
+    char** interpreterArgs;
 };
 #endif
 
