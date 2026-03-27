@@ -330,7 +330,7 @@ public class ArrayBlockingQueue<E> {
 
                 if (receiveQSize.load() != 0) {
                     sendMonitor.lock()
-                    sendMonitor.notify()
+                    sendMonitor.notifyAll()
                     sendMonitor.unlock()
                 }
                 return true
@@ -374,7 +374,7 @@ public class ArrayBlockingQueue<E> {
 
                 if (sendQSize.load() != 0) {
                     receiveMonitor.lock()
-                    receiveMonitor.notify()
+                    receiveMonitor.notifyAll()
                     receiveMonitor.unlock()
                 }
                 return Some(e)
