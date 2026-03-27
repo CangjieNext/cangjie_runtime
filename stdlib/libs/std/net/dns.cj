@@ -12,8 +12,6 @@ import std.binary.SwapEndianOrder
 import std.collection.HashSet
 import std.sort.sort
 
-const AI_PASSIVE: Int32 = 0x00000001i32
-const AI_ALL: Int32 = 0x00000100
 const DOMAIN_MAX_LEN = 255
 const SUB_DOMAIN_LIST_LEN = 63
 
@@ -64,8 +62,8 @@ func resolveDomain(family: AddressFamily, domain: String): Array<IPAddress> {
     var res = PAddrinfo()
     var hints = AddrInfo()
     hints.ai_family = Int32(family.value)
-    hints.ai_flags = AI_PASSIVE | AI_ALL
-    var rc = unsafe { getaddrinfo(node, CPointer<Byte>(), PAddrinfo(), inout res) }
+    hints.ai_flags = 0
+    var rc = unsafe { getaddrinfo(node, CPointer<Byte>(), inout hints, inout res) }
     unsafe { LibC.free(node) }
     if (rc != 0) {
         unsafe { LibC.free(res) }
