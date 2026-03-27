@@ -352,10 +352,16 @@ public class ConcurrentLinkedQueue<E> <: Collection<E> {
  */
 func newBlock<E>(tailBlock: Block<E>, tail: AtomicReference<Block<E>>): Unit {
     if (!tailBlock.isExtended.compareAndSwap(false, true)) {
+        var backoff = 1
         while (true) {
             if (let Some(_) <- tailBlock.next.load()) {
                 return
             }
+            if (backoff < 1024) {
+                backoff *= 2
+            }
+            for (_ in 0..backoff) { }
+            intrinsicSleep(0)
         }
     }
 
