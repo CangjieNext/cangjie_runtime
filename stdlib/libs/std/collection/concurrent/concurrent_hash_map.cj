@@ -954,7 +954,14 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
         if (!curHNodeVersion.compareAndSwap(curHT.version, newVersion)) {
             return // There exists a thread allocating new hashtable, returns
         }
-        while (curHT.migratedIndex.load() < concurrencyLevel) {}
+        var backoff = 1
+        while (curHT.migratedIndex.load() < concurrencyLevel) {
+            if (backoff < 1024) {
+                backoff *= 2
+            }
+            for (_ in 0..backoff) { }
+            intrinsicSleep(0)
+        }
         /* Allocate new hashtable */
         curHT.pre.store(None<HNode<K, V>>)
         head.store(HNode<K, V>(sz << 1, Some(curHT), lockG[newVersion & 1], newVersion))
