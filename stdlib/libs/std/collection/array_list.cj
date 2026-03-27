@@ -49,7 +49,6 @@ class ArrayListIterator<T> <: Iterator<T> {
      * @since 0.18.2
      */
     @Frozen
-    @OverflowWrapping
     public func next(): Option<T> {
         if (myData.myVersion != initVersion) {
             throw ConcurrentModificationException()
