@@ -743,13 +743,15 @@ func getSocketOptionInt32(sockFd: Int64, level: Int32, option: Int32): Int32 {
         }
         sockType.write(0)
         var len: Int32 = 4
-        let ret = CJ_SockOptionGet(sockFd, SOL_SOCKET, SOCK_TYPE, CPointer<Unit>(sockType), inout len)
-        LibC.free(sockType)
+        let ret = CJ_SockOptionGet(sockFd, level, option, CPointer<Unit>(sockType), inout len)
         if (ret != 0) {
+            LibC.free(sockType)
             let message = formatError(CJ_SockErrnoGet())
             throw SocketException(message)
         }
-        return sockType.read()
+        let value = sockType.read()
+        LibC.free(sockType)
+        return value
     }
 }
 
