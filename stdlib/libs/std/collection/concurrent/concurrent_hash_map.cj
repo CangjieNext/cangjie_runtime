@@ -10,6 +10,8 @@ package std.collection.concurrent
 
 import std.sync.*
 import std.collection.MapEntryView
+import std.core.Duration
+import std.core.sleep
 
 /**
  * The type of key-value. It is a tuple including:
@@ -960,7 +962,7 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
                 backoff *= 2
             }
             for (_ in 0..backoff) { }
-            intrinsicSleep(0)
+            sleep(Duration.Zero)
         }
         /* Allocate new hashtable */
         curHT.pre.store(None<HNode<K, V>>)

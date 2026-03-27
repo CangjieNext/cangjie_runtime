@@ -10,6 +10,8 @@ package std.collection.concurrent
 
 import std.sync.*
 import std.collection.ArrayList
+import std.core.Duration
+import std.core.sleep
 
 /**
  * ENTRY<E> Type defines the result of getting an element at the head of the block:
@@ -361,7 +363,7 @@ func newBlock<E>(tailBlock: Block<E>, tail: AtomicReference<Block<E>>): Unit {
                 backoff *= 2
             }
             for (_ in 0..backoff) { }
-            intrinsicSleep(0)
+            sleep(Duration.Zero)
         }
     }
 
