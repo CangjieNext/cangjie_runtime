@@ -30,6 +30,7 @@ public class LinkedListNode<T> {
         set(v) {
             checkNodeState()
             _item = v
+            _list.getOrThrow()._version++
         }
     }
 
