@@ -26,7 +26,7 @@ import std.sync.*
 @When[backend == "cjnative"]
 public class RawSocket {
     let sockImpl: RawSocketImpl
-    private var isClosed: Bool = false
+    private var isClosed: AtomicBool = AtomicBool(false)
     private var readTimeout_: ?Duration = None
     private var writeTimeout_: ?Duration = None
     var localAddr_: ?RawAddress = None
@@ -215,10 +215,9 @@ public class RawSocket {
 
     /* Close the socket */
     public func close(): Unit {
-        if (this.isClosed) {
+        if (!this.isClosed.compareAndSwap(false, true)) {
             return
         }
-        this.isClosed = true
         this.sockImpl.close()
     }
 
@@ -329,7 +328,7 @@ public class RawSocket {
     }
 
     private func throwIfClosed(): Unit {
-        if (isClosed) {
+        if (isClosed.load()) {
             SocketException.throwClosedException()
         }
     }
