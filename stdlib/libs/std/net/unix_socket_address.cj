@@ -30,30 +30,50 @@ func findLastNoneZeroIdx(path: Array<Byte>): Int64 {
 public class UnixSocketAddress <: SocketAddress & Equatable<UnixSocketAddress> {
     let _path: String
     let _len: Int64
+    let _rawBytes: Array<Byte>
+    let _isAbstract: Bool
 
     public init(path: Array<Byte>) {
-        this(unsafe { String.fromUtf8Unchecked(path[..findLastNoneZeroIdx(path)]) })
+        let lastIdx = findLastNoneZeroIdx(path)
+        _rawBytes = path[..lastIdx]
+        _len = lastIdx
+        _isAbstract = lastIdx > 0 && path[0] == 0
+        if (_isAbstract) {
+            _path = ""
+        } else {
+            _path = try {
+                String.fromUtf8(path[..lastIdx])
+            } catch (e: Exception) {
+                ""
+            }
+        }
     }
     public init(path: String) {
         _len = path.size
         if (_len > MAX_UDS_PATH_LENGTH) {
             throw IllegalArgumentException("Path size(${_len}) is too long, expect <= ${MAX_UDS_PATH_LENGTH}.")
         }
-        if (_len == 0) { // Unnamed socket address
+        if (_len == 0) {
             _path = ""
-        } else if (path[0] == 0) { // Abstract socket address
+            _rawBytes = Array<Byte>(0, repeat: 0)
+            _isAbstract = false
+        } else if (path[0] == 0) {
             let un = path[1..]
             if (let Some(idx) <- un.indexOf(0)) {
                 throw IllegalArgumentException(
                     "Unix domain socket path must not contain interior null bytes: ${un.toArray()}")
             }
             _path = path
-        } else { // Pathname socket address
+            _rawBytes = path.toArray()
+            _isAbstract = true
+        } else {
             if (let Some(idx) <- path.indexOf(0)) {
                 throw IllegalArgumentException(
                     "Unix domain socket path must not contain interior null bytes: ${path.toArray()}")
             }
             _path = path
+            _rawBytes = path.toArray()
+            _isAbstract = false
         }
     }
     public prop size: Int64 {
@@ -67,23 +87,27 @@ public class UnixSocketAddress <: SocketAddress & Equatable<UnixSocketAddress> {
         }
     }
     public operator func ==(other: UnixSocketAddress): Bool {
-        return _path[0.._len] == other._path[0..other._len]
+        if (_len != other._len) {
+            return false
+        }
+        if (_isAbstract || other._isAbstract) {
+            return _rawBytes == other._rawBytes
+        }
+        return _path == other._path
     }
     public operator func !=(other: UnixSocketAddress): Bool {
         return !(this == other)
     }
     public func getAddressBytes(): Array<Byte> {
         let buf = Array<Byte>(this.size, repeat: 0)
-        // 2bytes family
         this.family.value.writeLittleEndian(buf)
-        // sun_un path
-        buf[2..] = _path[.._len].toArray()
+        buf[2..] = _rawBytes
         return buf
     }
     public func hashCode(): Int64 {
         var df = DefaultHasher()
-        for (i in 0.._len) {
-            df.write(_path[i])
+        for (b in _rawBytes) {
+            df.write(b)
         }
         df.finish()
     }
