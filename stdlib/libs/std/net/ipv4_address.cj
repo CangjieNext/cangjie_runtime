@@ -105,15 +105,14 @@ public class IPv4Address <: IPAddress & ToString & Equatable<IPv4Address> & Less
     }
 }
 
-extend<T> Array<T> where T <: LessOrEqual<T> {
+extend<T> Array<T> where T <: LessOrEqual<T> & Equatable<T> {
     operator func <=(rhs: Array<T>): Bool {
-        var loq = true
-        for (i in 0..this.size) {
-            if (!(this[i] <= rhs[i])) {
-                loq = false
-                break
+        let minSize = if (this.size < rhs.size) { this.size } else { rhs.size }
+        for (i in 0..minSize) {
+            if (this[i] != rhs[i]) {
+                return this[i] <= rhs[i]
             }
         }
-        return loq
+        return this.size <= rhs.size
     }
 }
