@@ -96,7 +96,7 @@ public struct CPointerResource<T> <: Resource where T <: CType {
     }
 
     public func use<R>(action: (CPointer<T>) -> R): R {
-        if (isFree.value) {
+        if (isFree.load()) {
             throw IllegalMemoryException("CPointerResource has been closed")
         }
         return action(value)
