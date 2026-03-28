@@ -583,16 +583,9 @@ extend Float16 <: Hashable {
      * @since 0.17.4
      */
     public func isNormal(): Bool {
-        if (this == Float16(0)) {
-            return false
-        }
-        if (this != this) {
-            return false
-        }
-        if (this.isInf()) {
-            return false
-        }
-        return true
+        var bits: UInt16 = this.toBits()
+        var exp: UInt16 = (bits >> UInt16(10)) & UInt16(0x1F)
+        return exp != UInt16(0) && exp != UInt16(0x1F)
     }
 
     public static func max(a: Float16, b: Float16, others: Array<Float16>): Float16 {
