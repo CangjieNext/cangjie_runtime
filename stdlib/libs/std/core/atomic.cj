@@ -54,6 +54,20 @@ class AtomicBool {
         }
         store<AtomicBool, Int8>(this, valInt8, MemoryOrder.SeqCst)
     }
+
+    func compareAndSwap(old: Bool, new: Bool): Bool {
+        var oldInt8: Int8 = if (old) {
+            1
+        } else {
+            0
+        }
+        var newInt8: Int8 = if (new) {
+            1
+        } else {
+            0
+        }
+        return compareAndSwap<AtomicBool, Int8>(this, oldInt8, newInt8, MemoryOrder.SeqCst, MemoryOrder.SeqCst)
+    }
 }
 
 class AtomicInt64 {
