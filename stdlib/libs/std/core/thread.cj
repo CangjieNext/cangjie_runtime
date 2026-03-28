@@ -324,7 +324,7 @@ public class Thread {
                 if (!rtCJThreadHandle.isNull()) {
                     try {
                         unsafe {
-                            CJ_MRT_SetCJThreadName(rtCJThreadHandle, handle.pointer, newName.size)
+                            CJ_MRT_SetCJThreadName(rtCJThreadHandle, handle.pointer, Int64(newName.size))
                         }
                     } finally {
                         releaseCJThreadHandle()
