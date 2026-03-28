@@ -41,7 +41,7 @@ public struct LibC {
         }
         let itemSize = sizeOf<T>()
         if (UIntNative.Max / itemSize < UIntNative(count)) {
-            return CPointer<T>()
+            throw IllegalMemoryException("Integer overflow in malloc size calculation")
         }
         let size = UIntNative(count) * sizeOf<T>()
         return CPointer<T>(unsafe { malloc(size) })
