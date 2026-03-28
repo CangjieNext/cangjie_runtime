@@ -220,7 +220,7 @@ extend CString <: ToString {
 }
 
 public struct CStringResource <: Resource {
-    public let value: CString
+    private let value: CString
     private let isFree: AtomicInt64 = AtomicInt64(0)
 
     init(p: CString) {
@@ -229,6 +229,13 @@ public struct CStringResource <: Resource {
 
     public func isClosed(): Bool {
         return isFree.load() != 0
+    }
+
+    public func getValue(): CString {
+        if (isFree.load() != 0) {
+            throw IllegalStateException("Resource has been closed")
+        }
+        return value
     }
 
     public func close(): Unit {
