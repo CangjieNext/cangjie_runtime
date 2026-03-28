@@ -65,9 +65,8 @@ extend<T> CPointer<T> {
         return addPointer<T>(this, offset)
     }
 
-    @OverflowWrapping
     public unsafe operator func -(offset: Int64): CPointer<T> {
-        return addPointer<T>(this, (-1) * offset)
+        return addPointer<T>(this, -offset)
     }
 
     public func asResource(): CPointerResource<T> {
