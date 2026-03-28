@@ -10,8 +10,8 @@ package std.core
 
 public open class Error <: ToString {
     private var detailMessage: String = String.empty
-    var pcArray: RawArray<UInt64> = RawArray<UInt64>(1, repeat: 0)
-    var traceElementArray: Array<StackTraceElement> = []
+    private var pcArray: RawArray<UInt64> = RawArray<UInt64>(1, repeat: 0)
+    private var traceElementArray: Array<StackTraceElement> = []
 
     init() {
         pcArray = fillInStackTrace(RawArray<UInt64>(1, repeat: 0), detailMessage.toArray().rawptr)
