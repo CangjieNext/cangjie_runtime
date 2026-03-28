@@ -39,6 +39,9 @@ public struct LibC {
         if (count < 0) {
             throw IllegalArgumentException("The value of count cannot be negative")
         }
+        if (count == 0) {
+            throw IllegalArgumentException("The value of count cannot be zero")
+        }
         let itemSize = sizeOf<T>()
         if (UIntNative.Max / itemSize < UIntNative(count)) {
             throw IllegalMemoryException("Memory allocation overflow: requested size exceeds maximum")
