@@ -94,4 +94,11 @@ public struct CPointerResource<T> <: Resource where T <: CType {
         unsafe { LibC.free<T>(value) }
         isFree.value = true
     }
+
+    public func use<R>(action: (CPointer<T>) -> R): R {
+        if (isFree.value) {
+            throw IllegalMemoryException("CPointerResource has been closed")
+        }
+        return action(value)
+    }
 }
