@@ -535,10 +535,13 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         let newArr: Array<UInt8> = unsafe { new.rawData() }
         let newSize: Int64 = new.size
         var total: Int64 = this.count("")
-        var countSize: Int64 = size + newSize * total
-        if (countSize > Int64(UInt32.Max)) {
+
+        let maxSize = Int64(UInt32.Max) - size
+        if (total > 0 && newSize > maxSize / total) {
             throw IllegalArgumentException("The size of String is too large.")
         }
+
+        let countSize: Int64 = size + newSize * total
         var itemArray: Array<UInt8> = Array<UInt8>(countSize, repeat: 0)
         var start: Int64 = 0
         var oneSize: Int64 = 0
@@ -581,10 +584,20 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             if (total == 0) {
                 return this
             }
-            let countSize: Int64 = size + (newSize - oldSize) * total
-            if (countSize > Int64(UInt32.Max)) {
-                throw IllegalArgumentException("The size of String is too large.")
+
+            let diff: Int64 = newSize - oldSize
+            let countSize: Int64
+
+            if (diff > 0) {
+                let maxSize = Int64(UInt32.Max) - size
+                if (diff > maxSize / total) {
+                    throw IllegalArgumentException("The size of String is too large.")
+                }
+                countSize = size + diff * total
+            } else {
+                countSize = size + diff * total
             }
+
             var itemArray: Array<UInt8> = Array<UInt8>(countSize, repeat: 0)
             var itemStart: Int64 = 0
             var orgStart: Int64 = 0
@@ -868,8 +881,19 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             return this
         }
         let runeLen = padding.size
+        if (runeLen == 0) {
+            throw IllegalArgumentException("padding string cannot be empty")
+        }
+        if (totalWidth > Int64(UInt32.Max)) {
+            throw IllegalArgumentException("The size of String is too large.")
+        }
         let padLen: Int64 = (totalWidth - this.size + runeLen - 1) / runeLen
-        var itemBytes: Array<UInt8> = Array<UInt8>(runeLen * padLen + size, repeat: 0)
+        let totalBytes: Int64 = runeLen * padLen + size
+        if (totalBytes > Int64(UInt32.Max)) {
+            throw IllegalArgumentException("The size of String is too large.")
+        }
+
+        var itemBytes: Array<UInt8> = Array<UInt8>(totalBytes, repeat: 0)
         var k: Int64 = 0
         let paddingdata = unsafe { padding.rawData() }
         for (_ in 0..padLen) {
@@ -893,8 +917,19 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             return this
         }
         let runeLen = padding.size
+        if (runeLen == 0) {
+            throw IllegalArgumentException("padding string cannot be empty")
+        }
+        if (totalWidth > Int64(UInt32.Max)) {
+            throw IllegalArgumentException("The size of String is too large.")
+        }
         let padLen: Int64 = (totalWidth - this.size + runeLen - 1) / runeLen
-        var itemBytes: Array<UInt8> = Array<UInt8>(runeLen * padLen + size, repeat: 0)
+        let totalBytes: Int64 = runeLen * padLen + size
+        if (totalBytes > Int64(UInt32.Max)) {
+            throw IllegalArgumentException("The size of String is too large.")
+        }
+
+        var itemBytes: Array<UInt8> = Array<UInt8>(totalBytes, repeat: 0)
         itemBytes[..size] = unsafe { this.rawData() }
         var k: Int64 = size
         let paddingdata = unsafe { padding.rawData() }
@@ -1061,11 +1096,12 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         if (this.size == 0 || count == 0) {
             return String.empty
         }
-        let newLen = this.size * count
-        if (newLen > Int64(UInt32.Max)) {
+
+        if (count > Int64(UInt32.Max) / this.size) {
             throw IllegalArgumentException("The size of String is too large.")
         }
 
+        let newLen = this.size * count
         let newData = RawArray<Byte>(newLen, repeat: 0)
         var itemStart: Int64 = 0
         let byteSize: Int64 = size
@@ -1201,14 +1237,29 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             return String.empty
         }
         var sizeOfBytes: Int64 = 0
-        /* Back-to-front traversal can reduce boundary checks and improve performance */
         for (i in strArraySize - 1..=0 : -1) {
-            sizeOfBytes += strArray[i].size
+            let strSize = strArray[i].size
+            if (sizeOfBytes > Int64(UInt32.Max) - strSize) {
+                throw IllegalArgumentException("The size of String is too large.")
+            }
+            sizeOfBytes += strSize
         }
-        sizeOfBytes += delimiter.size * (strArraySize - 1)
+
+        let delimiterCount = strArraySize - 1
+        if (delimiterCount > 0 && delimiter.size > Int64(UInt32.Max) / delimiterCount) {
+            throw IllegalArgumentException("The size of String is too large.")
+        }
+
+        let delimiterTotal = delimiter.size * delimiterCount
+        if (sizeOfBytes > Int64(UInt32.Max) - delimiterTotal) {
+            throw IllegalArgumentException("The size of String is too large.")
+        }
+
+        sizeOfBytes += delimiterTotal
+
         if (sizeOfBytes == 0) {
             return String.empty
-        } else if (sizeOfBytes > Int64(Int32.Max)) {
+        } else if (sizeOfBytes > Int64(UInt32.Max)) {
             throw IllegalArgumentException("The size of target string is too large.")
         }
 
