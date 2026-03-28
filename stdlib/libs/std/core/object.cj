@@ -27,7 +27,7 @@ public func refEq(a: Object, b: Object): Bool {
 
 // This function is only used by ArrayList type, and it is not intended to be documented in users' guide
 @Intrinsic
-public unsafe func zeroValue<T>(): T
+internal unsafe func zeroValue<T>(): T
 
 @Intrinsic
 func intrinsicRefEq(a: Object, b: Object): Bool
