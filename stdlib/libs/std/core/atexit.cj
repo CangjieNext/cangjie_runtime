@@ -32,12 +32,12 @@ var callbacksRunningFlag: Bool = false // the flag whether callbacks is being ex
 
 // Add an atexitCallback Function to list.
 protected func CJ_CORE_AddAtexitCallback(callback: () -> Unit): Unit {
-    if (callbacksRunningFlag) { // Prevent deadlock caused by calling CJ_CORE_AddAtexitCallback inside a callback function 
-        return
-    }
-
     var newNode = AtexitCallbackNode(callback)
     unsafe { CJ_CORE_AtExitCallbackListLock() }
+    if (callbacksRunningFlag) {
+        unsafe { CJ_CORE_AtExitCallbackListUnlook() }
+        return
+    }
     match (atexitCallbackHead) {
         case Some(_) => newNode.next = atexitCallbackHead
         case None => ()
