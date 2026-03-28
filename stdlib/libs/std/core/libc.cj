@@ -39,9 +39,12 @@ public struct LibC {
         if (count < 0) {
             throw IllegalArgumentException("The value of count cannot be negative")
         }
+        if (count == 0) {
+            throw IllegalArgumentException("The value of count cannot be zero")
+        }
         let itemSize = sizeOf<T>()
         if (UIntNative.Max / itemSize < UIntNative(count)) {
-            return CPointer<T>()
+            throw IllegalMemoryException("Integer overflow in malloc size calculation")
         }
         let size = UIntNative(count) * sizeOf<T>()
         return CPointer<T>(unsafe { malloc(size) })
@@ -67,12 +70,22 @@ public struct LibC {
         var remain = length
         var offset = 0
         while (remain >= SECUREC_MEM_MAX_LEN) {
-            memcpy_s(cp + offset, UIntNative(SECUREC_MEM_MAX_LEN), ptrArr + offset, UIntNative(SECUREC_MEM_MAX_LEN))
+            let rc = memcpy_s(cp + offset, UIntNative(SECUREC_MEM_MAX_LEN), ptrArr + offset, UIntNative(SECUREC_MEM_MAX_LEN))
+            if (rc != 0) {
+                LibC.free(cp)
+                str.releaseRaw(ptrArr)
+                throw IllegalMemoryException("memcpy_s in mallocCString failed with error code: ${rc}.")
+            }
             offset += SECUREC_MEM_MAX_LEN
             remain -= SECUREC_MEM_MAX_LEN
         }
         if (remain > 0) {
-            memcpy_s(cp + offset, UIntNative(remain), ptrArr + offset, UIntNative(remain))
+            let rc = memcpy_s(cp + offset, UIntNative(remain), ptrArr + offset, UIntNative(remain))
+            if (rc != 0) {
+                LibC.free(cp)
+                str.releaseRaw(ptrArr)
+                throw IllegalMemoryException("memcpy_s in mallocCString failed with error code: ${rc}.")
+            }
         }
 
         str.releaseRaw(ptrArr)
