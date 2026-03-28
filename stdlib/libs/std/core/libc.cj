@@ -65,17 +65,25 @@ public struct LibC {
             return CString(cp)
         }
         let ptrArr: CPointer<UInt8> = str.acquireRaw()
-        // If the length of the string is greater than the safe length of the safe function,
-        // it needs to be copied multiple times.
         var remain = length
         var offset = 0
         while (remain >= SECUREC_MEM_MAX_LEN) {
-            memcpy_s(cp + offset, UIntNative(SECUREC_MEM_MAX_LEN), ptrArr + offset, UIntNative(SECUREC_MEM_MAX_LEN))
+            let ret = memcpy_s(cp + offset, UIntNative(SECUREC_MEM_MAX_LEN), ptrArr + offset, UIntNative(SECUREC_MEM_MAX_LEN))
+            if (ret != 0) {
+                str.releaseRaw(ptrArr)
+                LibC.free<UInt8>(cp)
+                throw IllegalMemoryException("memcpy_s failed in mallocCString")
+            }
             offset += SECUREC_MEM_MAX_LEN
             remain -= SECUREC_MEM_MAX_LEN
         }
         if (remain > 0) {
-            memcpy_s(cp + offset, UIntNative(remain), ptrArr + offset, UIntNative(remain))
+            let ret = memcpy_s(cp + offset, UIntNative(remain), ptrArr + offset, UIntNative(remain))
+            if (ret != 0) {
+                str.releaseRaw(ptrArr)
+                LibC.free<UInt8>(cp)
+                throw IllegalMemoryException("memcpy_s failed in mallocCString")
+            }
         }
 
         str.releaseRaw(ptrArr)
