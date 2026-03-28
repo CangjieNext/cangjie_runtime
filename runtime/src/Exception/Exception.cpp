@@ -61,11 +61,11 @@ void ExceptionHandling::BuildEHFrameInfo()
         }
     }
 #endif
-    std::vector<EHFrameInfo>& ehFrameInfos = eWrapper->GetEHFrameInfos();
+    std::vector<EHFrameInfo> tempEhFrameInfos;
     for (const auto& frame : stackInfo) {
         if (frame.GetFrameType() == FrameType::MANAGED) {
             EHFrameInfo ehFrameInfo(frame, *eWrapper);
-            ehFrameInfos.push_back(ehFrameInfo);
+            tempEhFrameInfos.push_back(ehFrameInfo);
             if (ehFrameInfo.IsCatchException()) {
                 eWrapper->SetIsCaught(true);
                 eWrapper->SetTypeIndex(ehFrameInfo.GetTTypeIndex() & 0xFFFFFFFF);
@@ -77,15 +77,17 @@ void ExceptionHandling::BuildEHFrameInfo()
         }
     }
 
+    eWrapper->GetEHFrameInfos().swap(tempEhFrameInfos);
+
     if (UNLIKELY(ENABLE_LOG(EXCEPTION))) {
         DLOG(EXCEPTION, "parse eh stack");
-        DLOG(EXCEPTION, "EHFrameInfos size : %zu", ehFrameInfos.size());
+        DLOG(EXCEPTION, "EHFrameInfos size : %zu", eWrapper->GetEHFrameInfos().size());
         DLOG(EXCEPTION, "Layer\tFA\t\tIP\t\tTTpyeIndex\t\tLandingPad\tCatch\t");
-        for (int i = 0; i < ehFrameInfos.size(); ++i) {
-            DLOG(EXCEPTION, "#%x\t%x\t%x\t%x\t0x%p\t%x", i, ehFrameInfos[i].mFrame.GetFA(),
-                 ehFrameInfos[i].mFrame.GetIP(), ehFrameInfos[i].GetTTypeIndex(),
-                 reinterpret_cast<void*>(ehFrameInfos[i].GetLandingPad()),
-                 ehFrameInfos[i].IsCatchException());
+        for (int i = 0; i < eWrapper->GetEHFrameInfos().size(); ++i) {
+            DLOG(EXCEPTION, "#%x\t%x\t%x\t%x\t0x%p\t%x", i, eWrapper->GetEHFrameInfos()[i].mFrame.GetFA(),
+                 eWrapper->GetEHFrameInfos()[i].mFrame.GetIP(), eWrapper->GetEHFrameInfos()[i].GetTTypeIndex(),
+                 reinterpret_cast<void*>(eWrapper->GetEHFrameInfos()[i].GetLandingPad()),
+                 eWrapper->GetEHFrameInfos()[i].IsCatchException());
         }
     }
 }
