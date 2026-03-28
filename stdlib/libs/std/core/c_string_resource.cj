@@ -236,4 +236,11 @@ public struct CStringResource <: Resource {
             unsafe { LibC.free(value.getChars()) }
         }
     }
+
+    public func use<R>(action: (CString) -> R): R {
+        if (isFree.value) {
+            throw IllegalMemoryException("CStringResource has been closed")
+        }
+        return action(value)
+    }
 }
