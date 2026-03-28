@@ -28,11 +28,11 @@ class AtexitCallbackNode {
 }
 
 var atexitCallbackHead: ?AtexitCallbackNode = None // atexitCallback list.
-var callbacksRunningFlag: Bool = false // the flag whether callbacks is being executed
+var callbacksRunningFlag: AtomicBool = AtomicBool(false) // the flag whether callbacks is being executed
 
 // Add an atexitCallback Function to list.
 protected func CJ_CORE_AddAtexitCallback(callback: () -> Unit): Unit {
-    if (callbacksRunningFlag) { // Prevent deadlock caused by calling CJ_CORE_AddAtexitCallback inside a callback function 
+    if (callbacksRunningFlag.load()) { // Prevent deadlock caused by calling CJ_CORE_AddAtexitCallback inside a callback function 
         return
     }
 
@@ -48,15 +48,15 @@ protected func CJ_CORE_AddAtexitCallback(callback: () -> Unit): Unit {
 
 // Execute all atexitCallback functions. Reverse order of addition.
 protected func CJ_CORE_ExecAtexitCallbacks(): Unit {
-    if (callbacksRunningFlag) { // Prevent deadlock caused by calling CJ_CORE_ExecAtexitCallbacks inside a callback function 
+    if (callbacksRunningFlag.load()) { // Prevent deadlock caused by calling CJ_CORE_ExecAtexitCallbacks inside a callback function 
         return
     }
     unsafe { CJ_CORE_AtExitCallbackListLock() }
-    if (callbacksRunningFlag) { // Prevent multiple threads from calling CJ_CORE_ExecAtexitCallbacks, which causes the callback function to be executed multiple times.
+    if (callbacksRunningFlag.load()) { // Prevent multiple threads from calling CJ_CORE_ExecAtexitCallbacks, which causes the callback function to be executed multiple times.
         unsafe { CJ_CORE_AtExitCallbackListUnlook() }
         return
     }
-    callbacksRunningFlag = true
+    callbacksRunningFlag.store(true)
     var currPos = atexitCallbackHead
     try {
         while (true) {
