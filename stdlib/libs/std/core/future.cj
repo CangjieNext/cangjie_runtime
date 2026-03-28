@@ -172,8 +172,8 @@ public class Future<T> {
             handleError(er)
         } finally {
             unsafe { futureNotifyAll(this) }
+            this._thread.clearRuntimeCJThreadHandle()
         }
-        this._thread.clearRuntimeCJThreadHandle()
         return
     }
 
