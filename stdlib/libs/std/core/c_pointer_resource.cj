@@ -76,7 +76,7 @@ extend<T> CPointer<T> {
 }
 
 public struct CPointerResource<T> <: Resource where T <: CType {
-    public let value: CPointer<T>
+    private let value: CPointer<T>
     private let isFree: AtomicInt64 = AtomicInt64(0)
 
     init(p: CPointer<T>) {
@@ -85,6 +85,13 @@ public struct CPointerResource<T> <: Resource where T <: CType {
 
     public func isClosed(): Bool {
         return isFree.load() != 0
+    }
+
+    public func getValue(): CPointer<T> {
+        if (isFree.load() != 0) {
+            throw IllegalStateException("Resource has been closed")
+        }
+        return value
     }
 
     public func close(): Unit {
