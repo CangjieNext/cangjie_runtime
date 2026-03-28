@@ -319,14 +319,20 @@ public class Thread {
             _name.store(newName)
             // Assign the name to the underlying CJ thread if possible.
             let handle = unsafe { acquireArrayRawData(newName.rawData()) }
-            let rtCJThreadHandle = acquireCJThreadHandle()
-            if (!rtCJThreadHandle.isNull()) {
-                unsafe {
-                    CJ_MRT_SetCJThreadName(rtCJThreadHandle, handle.pointer, newName.size)
+            try {
+                let rtCJThreadHandle = acquireCJThreadHandle()
+                if (!rtCJThreadHandle.isNull()) {
+                    try {
+                        unsafe {
+                            CJ_MRT_SetCJThreadName(rtCJThreadHandle, handle.pointer, newName.size)
+                        }
+                    } finally {
+                        releaseCJThreadHandle()
+                    }
                 }
-                releaseCJThreadHandle()
+            } finally {
+                unsafe { releaseArrayRawData(handle) }
             }
-            unsafe { releaseArrayRawData(handle) }
         }
     }
 
