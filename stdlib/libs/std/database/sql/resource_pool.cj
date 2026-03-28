@@ -145,7 +145,16 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
         if (idleEntry.size == 0 && entryCount < options.maxSize) {
             entryCount++
             mux.unlock()
-            return createEntry()
+            try {
+                return createEntry()
+            } catch (e: Exception) {
+                synchronized(mux) {
+                    if (entryCount > 0) {
+                        entryCount--
+                    }
+                }
+                throw e
+            }
         }
         mux.unlock()
         return getIdleEntry(timeout)
