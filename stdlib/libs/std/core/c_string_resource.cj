@@ -238,7 +238,7 @@ public struct CStringResource <: Resource {
     }
 
     public func use<R>(action: (CString) -> R): R {
-        if (isFree.value) {
+        if (isFree.load()) {
             throw IllegalMemoryException("CStringResource has been closed")
         }
         return action(value)
