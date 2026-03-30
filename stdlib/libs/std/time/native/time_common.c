@@ -217,10 +217,10 @@ extern const int64_t CJ_TIME_GetLocalTimeOffset()
 // convert 4 bytes to int
 static int readInt(const uint8_t src[4])
 {
-    int result = (src[0] << 24) |
-        ((int)src[1] << 16) |
-        ((int)src[2] << 8) |
-        (int)src[3];
+    int result = ((unsigned int)src[0] << 24) |
+        ((unsigned int)src[1] << 16) |
+        ((unsigned int)src[2] << 8) |
+        (unsigned int)src[3];
     return result;
 }
 #endif
