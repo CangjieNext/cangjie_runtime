@@ -556,6 +556,9 @@ func parseJsonString(parser: JsonParser): JsonString {
     }
     parser.offset++
     let start = parser.offset
+    if (parser.offset >= parser.size) {
+        throw JsonException("Unexpected end of JSON string")
+    }
     var next = parser.data[parser.offset]
     var needEscape = false
     var tmpStart = start
@@ -566,10 +569,16 @@ func parseJsonString(parser: JsonParser): JsonString {
             }
             parser.strCache.add(all: parser.data[tmpStart..parser.offset])
             parser.offset++
+            if (parser.offset >= parser.size) {
+                throw JsonException("Unexpected end of JSON string in escape sequence")
+            }
             handleEscape(parser)
             tmpStart = parser.offset + 1
         }
         parser.offset++
+        if (parser.offset >= parser.size) {
+            throw JsonException("Unexpected end of JSON string: missing closing quote")
+        }
         next = parser.data[parser.offset]
     }
     parser.offset++
