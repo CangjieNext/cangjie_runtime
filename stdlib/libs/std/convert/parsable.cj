@@ -950,7 +950,7 @@ func getDataAndFlag(data: String, isSigned: Bool, typeName: String): (Array<Byte
         throw IllegalArgumentException("The string is empty.")
     }
     let (rawData, isNegative) = match (data[0]) {
-        case '+' => throw IllegalArgumentException("Starting with \"+\" is illegal in ${typeName}.") // r'+'
+        case '+' => (unsafe { data.rawData() }[1..], 1)
         case '-' =>
             if (isSigned) {
                 (unsafe { data.rawData() }[1..], 0)
@@ -970,7 +970,7 @@ func getTryDataAndFlag(data: String, isSigned: Bool, _: String): (Array<Byte>, I
         return ([], 1)
     }
     let (rawData, isNegative) = match (data[0]) {
-        case '+' => return ([], 0)
+        case '+' => (unsafe { data.rawData() }[1..], 1)
         case '-' =>
             if (isSigned) {
                 (unsafe { data.rawData() }[1..], 0)
@@ -993,7 +993,7 @@ func getDataAndFlagWithRadix(data: String, isSigned: Bool, typeName: String, rad
         throw IllegalArgumentException("The radix out of range.")
     }
     let (rawData, isNegative) = match (data[0]) {
-        case '+' => throw IllegalArgumentException("Starting with \"+\" is illegal in ${typeName}.")
+        case '+' => (unsafe { data.rawData() }[1..], 1)
         case '-' =>
             if (isSigned) {
                 (unsafe { data.rawData() }[1..], 0)
@@ -1016,7 +1016,7 @@ func getTryDataAndFlagWithRadix(data: String, isSigned: Bool, _: String, radix: 
         return ([], 1)
     }
     let (rawData, isNegative) = match (data[0]) {
-        case '+' => return ([], 0)
+        case '+' => (unsafe { data.rawData() }[1..], 1)
         case '-' =>
             if (isSigned) {
                 (unsafe { data.rawData() }[1..], 0)

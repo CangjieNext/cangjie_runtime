@@ -496,7 +496,7 @@ protected func parseFormat(fmt: String): (Flags, Int64, Int64, Rune) {
         var str = fmt[start..start + len]
         width = Int64.parse(str)
         if (width > MAX_FORMAT_WIDTH) {
-            throw IllegalArgumentException("Format width ${width} exceeds maximum allowed value ${MAX_FORMAT_WIDTH}")
+            throw IllegalArgumentException("Format width ${width} exceeds maximum allowed value ${MAX_FORMAT_WIDTH}.")
         }
     }
     /* precision */
@@ -518,7 +518,7 @@ protected func parseFormat(fmt: String): (Flags, Int64, Int64, Rune) {
         var str = fmt[start..start + len]
         precision = Int64.parse(str)
         if (precision > MAX_FORMAT_WIDTH) {
-            throw IllegalArgumentException("Format precision ${precision} exceeds maximum allowed value ${MAX_FORMAT_WIDTH}")
+            throw IllegalArgumentException("Format precision ${precision} exceeds maximum allowed value ${MAX_FORMAT_WIDTH}.")
         }
     }
     /* specifier */
@@ -706,7 +706,7 @@ class FormatSpecifier {
      */
     func fmtFloat(arg: Float64): String {
         if (precision > MAX_FLOAT_PRECISION) {
-            throw IllegalArgumentException("Precision ${precision} exceeds maximum allowed value ${MAX_FLOAT_PRECISION}")
+            throw IllegalArgumentException("Precision ${precision} exceeds maximum allowed value ${MAX_FLOAT_PRECISION}.")
         }
         var negative = false
         var str = "${arg}".toRuneArray()
@@ -886,7 +886,7 @@ class FormatSpecifier {
      */
     private func toScientificString(u: Float64, isUpper: Bool, precision: Int64): String {
         if (precision > MAX_FLOAT_PRECISION) {
-            throw IllegalArgumentException("Precision ${precision} exceeds maximum allowed value ${MAX_FLOAT_PRECISION}")
+            throw IllegalArgumentException("Precision ${precision} exceeds maximum allowed value ${MAX_FLOAT_PRECISION}.")
         }
         var v: Float64 = u
         var fmt = ""
@@ -911,7 +911,7 @@ class FormatSpecifier {
      */
     private func toGeneralString(u: Float64, isUpper: Bool, precision: Int64): String {
         if (precision > MAX_FLOAT_PRECISION) {
-            throw IllegalArgumentException("Precision ${precision} exceeds maximum allowed value ${MAX_FLOAT_PRECISION}")
+            throw IllegalArgumentException("Precision ${precision} exceeds maximum allowed value ${MAX_FLOAT_PRECISION}.")
         }
         var v: Float64 = u
         var fmt = ""
@@ -935,7 +935,7 @@ class FormatSpecifier {
      */
     private func toDecimalString(u: Float64, precision: Int64): String {
         if (precision > MAX_FLOAT_PRECISION) {
-            throw IllegalArgumentException("Precision ${precision} exceeds maximum allowed value ${MAX_FLOAT_PRECISION}")
+            throw IllegalArgumentException("Precision ${precision} exceeds maximum allowed value ${MAX_FLOAT_PRECISION}.")
         }
         var v: Float64 = u
         var fmt = "%.${precision}f"

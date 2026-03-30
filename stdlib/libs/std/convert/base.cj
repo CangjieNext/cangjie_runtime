@@ -303,7 +303,7 @@ func strToChar(data: Array<Rune>): Option<Rune> {
  */
 func charToNumber(chs: Rune): UInt64 {
     if (!((chs >= r'0' && chs <= r'9') || (chs >= r'A' && chs <= r'F') || (chs >= r'a' && chs <= r'f'))) {
-        throw IllegalArgumentException("Invalid hexadecimal digit: '${chs}'")
+        throw IllegalArgumentException("Invalid hexadecimal digit: '${chs}'.")
     }
     var value: UInt64 = UInt64(UInt32(chs))
     if (chs >= r'A' && chs <= r'F') {

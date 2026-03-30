@@ -1201,7 +1201,7 @@ Returns:
 
 Exceptions:
 
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the string is empty, starts with `+`, conversion fails, the converted value exceeds the [Int16](../../core/core_package_api/core_package_intrinsics.md#int16) range, or the string contains invalid UTF-8 characters.
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the string is empty, conversion fails, the converted value exceeds the [Int16](../../core/core_package_api/core_package_intrinsics.md#int16) range, or the string contains invalid UTF-8 characters.
 
 Example:
 
@@ -1289,7 +1289,7 @@ Returns:
 
 Exceptions:
 
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the string is empty, starts with `+`, conversion fails, the converted value exceeds the [Int32](../../core/core_package_api/core_package_intrinsics.md#int32) range, or the string contains invalid UTF-8 characters.
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the string is empty, conversion fails, the converted value exceeds the [Int32](../../core/core_package_api/core_package_intrinsics.md#int32) range, or the string contains invalid UTF-8 characters.
 
 Example:
 
@@ -1729,7 +1729,7 @@ Returns:
 
 Exceptions:
 
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the string is empty, starts with `+` or `-`, conversion fails, the converted value exceeds the [UInt32](../../core/core_package_api/core_package_intrinsics.md#uint32) range, or the string contains invalid UTF-8 characters.
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the string is empty, starts with `-`, conversion fails, the converted value exceeds the [UInt32](../../core/core_package_api/core_package_intrinsics.md#uint32) range, or the string contains invalid UTF-8 characters.
 
 Example:
 
@@ -1905,7 +1905,7 @@ Returns:
 
 Exceptions:
 
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Throws an exception when the string is empty, starts with `+` or `-`, conversion fails, the converted value exceeds the [UInt8](../../core/core_package_api/core_package_intrinsics.md#uint8) range, or the string contains invalid UTF-8 characters.
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Throws an exception when the string is empty, starts with `-`, conversion fails, the converted value exceeds the [UInt8](../../core/core_package_api/core_package_intrinsics.md#uint8) range, or the string contains invalid UTF-8 characters.
 
 Example:
 
