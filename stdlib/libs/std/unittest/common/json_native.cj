@@ -299,6 +299,9 @@ func parseJsonObject(parser: JsonParser): JsonObject {
         parser.offset++
         let value = parseJson(parser)
         skipWhiteSpace(parser)
+        if (parser.cacheSize + 1 >= parser.cache.size) {
+            throw JsonException("JSON object too deeply nested or has too many keys")
+        }
         parser.cache[parser.cacheSize] = key
         parser.cache[parser.cacheSize + 1] = value
         count++
@@ -330,6 +333,9 @@ func parseJsonArray(parser: JsonParser): JsonArray {
         }
         let item = parseJson(parser)
         skipWhiteSpace(parser)
+        if (parser.cacheSize >= parser.cache.size) {
+            throw JsonException("JSON array too deeply nested or has too many elements")
+        }
         parser.cache[parser.cacheSize] = item
         count++
         parser.cacheSize++
