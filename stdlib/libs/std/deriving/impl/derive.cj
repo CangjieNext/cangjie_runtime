@@ -82,7 +82,6 @@ private func reportError(
     options: Array<DeriveInterfaceOption>,
     logger: Logger
 ) {
-    cause.printStackTrace()
     for (o in options) {
         if (interfaces |> any { it: QualifiedName => Identifier(it.simpleName) == o.interfaceName }) {
             logger.error(o.interfaceName.token, "Deriving failed for ${o.interfaceName}: ${cause.toString()}")
