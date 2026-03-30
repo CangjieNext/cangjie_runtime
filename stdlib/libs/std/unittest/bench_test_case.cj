@@ -408,7 +408,7 @@ Warning: Too many objects survive GC which causes unexpectedly long GC times.
                 break
             }
         }
-        DateTime.now() - start
+        return DateTime.now() - start
     }
 
     @OverflowWrapping
@@ -433,7 +433,7 @@ Warning: Too many objects survive GC which causes unexpectedly long GC times.
                 break
             }
         }
-        DateTime.now() - start
+        return DateTime.now() - start
     }
 
     func calcBatchSize(): (Range<Int64>, Int64) {
