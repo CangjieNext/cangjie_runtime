@@ -306,10 +306,14 @@ public class File <: Resource & IOStream & Seekable {
      * @throws IllegalArgumentException while path contains null character.
      */
     public static func create(path: String): File {
-        if (exists(path)) {
-            throw FSException("The file `${path}` is already exists.")
+        try {
+            return File(path, Write)
+        } catch (e: FSException) {
+            if (exists(path)) {
+                throw FSException("The file `${path}` is already exists.")
+            }
+            throw e
         }
-        return File(path, Write)
     }
 
     /**

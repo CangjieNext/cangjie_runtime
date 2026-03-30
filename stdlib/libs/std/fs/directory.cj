@@ -24,13 +24,17 @@ public class Directory {
      */
     public static func create(path: String, recursive!: Bool = false): Unit {
         let normalPath = removeTralingSlashChar(path)
-        if (exists(normalPath)) {
-            throw FSException("The input path `${path}` is already exists.")
-        }
-        if (recursive) {
-            Directory.createRecursive(normalPath)
-        } else {
-            Directory.createNoRecursive(normalPath)
+        try {
+            if (recursive) {
+                Directory.createRecursive(normalPath)
+            } else {
+                Directory.createNoRecursive(normalPath)
+            }
+        } catch (e: FSException) {
+            if (exists(normalPath)) {
+                throw FSException("The input path `${path}` is already exists.")
+            }
+            throw e
         }
     }
 

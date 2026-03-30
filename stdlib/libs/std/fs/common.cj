@@ -113,12 +113,10 @@ public func rename(sourcePath: String, to!: String, overwrite!: Bool = false): U
     if (Path(sourcePath) == Path(to)) {
         throw FSException("The input path 'sourcePath' `${sourcePath}` and 'to' `${to}` are the same path.")
     }
-    if (exists(to) && !overwrite) {
-        throw FSException("Destination path 'to' `${to}` is already exists and overwrite is false.")
-    }
 
-    try (sourceCPath = unsafe { LibC.mallocCString(sourcePath).asResource() },
-        destinationCPath = unsafe { LibC.mallocCString(to).asResource() }) {
+    try (sourceCPath = unsafe { LibC.mallocCString(sourcePath).asResource() }, destinationCPath = unsafe { LibC
+        .mallocCString(to)
+        .asResource() }) {
         let resultptr = unsafe { CJ_FS_Rename(sourceCPath.value, destinationCPath.value) }
         if (resultptr.isNull()) {
             throw FSException("Failed malloc in C code when rename `${sourcePath}` to `${to}`.")
@@ -128,12 +126,13 @@ public func rename(sourcePath: String, to!: String, overwrite!: Bool = false): U
         if (result.rtnCode == 0) {
             return
         }
-        try {
-            let errMessage = result.msg.toString()
-            throw FSException("Failed to rename `${sourcePath}` to `${to}` return ${result.rtnCode}:\"${errMessage.trimAscii()}\".")
-        } finally {
+        if (!overwrite && exists(to)) {
             unsafe { LibC.free(result.msg) }
+            throw FSException("Destination path 'to' `${to}` is already exists and overwrite is false.")
         }
+        let errMessage = unsafe { result.msg.toString() }
+        unsafe { LibC.free(result.msg) }
+        throw FSException("Failed to rename `${sourcePath}` to `${to}` return ${result.rtnCode}:\"${errMessage.trimAscii()}\".")
     }
 }
 
@@ -142,11 +141,15 @@ public func rename(sourcePath: Path, to!: Path, overwrite!: Bool = false): Unit 
 }
 
 public func removeIfExists(path: Path, recursive!: Bool = false): Bool {
-    if (exists(path)) {
+    try {
         remove(path, recursive: recursive)
         return true
+    } catch (e: FSException) {
+        if (!exists(path)) {
+            return false
+        }
+        throw e
     }
-    return false
 }
 
 public func removeIfExists(path: String, recursive!: Bool = false): Bool {
