@@ -278,6 +278,31 @@ func parseFields(arrReader: ArrReader): Array<Int64> {
                                 (UInt32(arrReader.arr[arrReader.index]) << 24))))
         arrReader.skip(4) // Jump 4 bytes of one UInt32
     }
+    
+    let (isUTCnt, isStdCnt, leapCnt, timeCnt, typeCnt, charCnt) = (0, 1, 2, 3, 4, 5)
+    let MAX_TRANSITIONS = 20000
+    let MAX_TYPES = 256
+    let MAX_CHARS = 100000
+    
+    if (fields[timeCnt] > MAX_TRANSITIONS) {
+        throw InvalidDataException("Failed to parse the timezone file.")
+    }
+    if (fields[typeCnt] > MAX_TYPES) {
+        throw InvalidDataException("Failed to parse the timezone file.")
+    }
+    if (fields[charCnt] > MAX_CHARS) {
+        throw InvalidDataException("Failed to parse the timezone file.")
+    }
+    if (fields[leapCnt] > MAX_TRANSITIONS) {
+        throw InvalidDataException("Failed to parse the timezone file.")
+    }
+    if (fields[isStdCnt] > MAX_TYPES) {
+        throw InvalidDataException("Failed to parse the timezone file.")
+    }
+    if (fields[isUTCnt] > MAX_TYPES) {
+        throw InvalidDataException("Failed to parse the timezone file.")
+    }
+
     return fields
 }
 
