@@ -646,11 +646,24 @@ func handleEscape(parser: JsonParser): Unit {
                 let byte8 = getNextHexNum(parser)
                 let str1 = unsafe { String.fromUtf8Unchecked([b'0', b'x', byte1, byte2, byte3, byte4]) }
                 let str2 = unsafe { String.fromUtf8Unchecked([b'0', b'x', byte5, byte6, byte7, byte8]) }
-                let num1 = UInt16.parse(str1) & 0b0000001111111111
-                let num2 = UInt16.parse(str2) & 0b0000001111111111
-                let str = Rune((((UInt32(num1)) << 10) | (UInt32(num2))) + 0x10000).toString()
+                let num1 = UInt16.parse(str1)
+                let num2 = UInt16.parse(str2)
+                if (!isHighSurrogate(num1) || !isLowSurrogate(num2)) {
+                    throw JsonException("Invalid Unicode surrogate pair")
+                }
+                let highBits = UInt32(num1 & 0b0000001111111111)
+                let lowBits = UInt32(num2 & 0b0000001111111111)
+                let str = Rune(((highBits << 10) | lowBits) + 0x10000).toString()
                 unsafe { parser.strCache.add(all: str.rawData()) }
             }
         case _ => throw JsonException("Fail to parseJsonString")
     }
+}
+
+func isHighSurrogate(code: UInt16): Bool {
+    code >= 0xD800 && code <= 0xDBFF
+}
+
+func isLowSurrogate(code: UInt16): Bool {
+    code >= 0xDC00 && code <= 0xDFFF
 }
