@@ -630,6 +630,15 @@ extend UInt8 <: Comparable<UInt8> {
 
 extend Float16 <: Comparable<Float16> {
     public func compare(other: Float16): Ordering {
+        if (this.isNaN()) {
+            if (other.isNaN()) {
+                return Ordering.EQ
+            }
+            return Ordering.GT
+        }
+        if (other.isNaN()) {
+            return Ordering.LT
+        }
         match {
             case this < other => Ordering.LT
             case this > other => Ordering.GT
@@ -670,6 +679,15 @@ extend Float16 <: Comparable<Float16> {
 
 extend Float32 <: Comparable<Float32> {
     public func compare(other: Float32): Ordering {
+        if (this.isNaN()) {
+            if (other.isNaN()) {
+                return Ordering.EQ
+            }
+            return Ordering.GT
+        }
+        if (other.isNaN()) {
+            return Ordering.LT
+        }
         match {
             case this < other => Ordering.LT
             case this > other => Ordering.GT
@@ -710,6 +728,15 @@ extend Float32 <: Comparable<Float32> {
 
 extend Float64 <: Comparable<Float64> {
     public func compare(other: Float64): Ordering {
+        if (this.isNaN()) {
+            if (other.isNaN()) {
+                return Ordering.EQ
+            }
+            return Ordering.GT
+        }
+        if (other.isNaN()) {
+            return Ordering.LT
+        }
         match {
             case this < other => Ordering.LT
             case this > other => Ordering.GT
