@@ -362,6 +362,9 @@ public struct Array<T> {
         if (other.len == 0) {
             return this.clone()
         }
+        if (this.len > Int64.Max - other.len) {
+            throw IllegalArgumentException("Array concat would result in size overflow.")
+        }
         let newSize = this.len + other.len
         let newArr = Array<T>(newSize, repeat: unsafe { zeroValue<T>() })
 
@@ -418,6 +421,9 @@ public struct Array<T> {
         }
         if (this.len == 0) {
             return this
+        }
+        if (this.len > Int64.Max / n) {
+            throw IllegalArgumentException("Array repeat would result in size overflow.")
         }
         let newLen = this.len * n
         let newRawPtr = RawArray<T>(newLen, repeat: unsafe { zeroValue<T>() })
@@ -575,6 +581,9 @@ public struct Array<T> {
         if (this.len < 2) {
             return this.clone()
         }
+        if (this.len > Int64.Max / 2) {
+            throw IllegalArgumentException("Array intersperse would result in size overflow.")
+        }
         let newSize: Int64 = 2 * this.len - 1
         let newRawPtr = RawArray<T>(newSize, repeat: unsafe { zeroValue<T>() })
 
@@ -716,6 +725,9 @@ extend<T> Array<Array<T>> {
     public func flatten(): Array<T> {
         var newLen = 0
         for (i in 0..this.len) {
+            if (newLen > Int64.Max - this[i].len) {
+                throw IllegalArgumentException("Array flatten would result in size overflow.")
+            }
             newLen += this[i].len
         }
         let newRawPtr = RawArray<T>(newLen, repeat: unsafe { zeroValue<T>() })
