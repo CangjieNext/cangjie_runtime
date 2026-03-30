@@ -40,7 +40,7 @@ public class Timer <: Equatable<Timer> & Hashable {
     private let scheduler: TimerScheduler
     let task: () -> ?Duration
     var endTime: MonoTime
-    var isEnabled = true
+    let isEnabled = AtomicBool(true)
 
     init(delay: Duration, task: () -> ?Duration) {
         let realDelay = if (delay > Duration.Zero) {
@@ -197,8 +197,7 @@ public class Timer <: Equatable<Timer> & Hashable {
     public func cancel(): Unit {
         // Thread security does not need to be considered.
         // Because the impact of repeatedly setting disable and increasing the number of cancels by 1 is controllable.
-        if (isEnabled) {
-            isEnabled = false
+        if (isEnabled.compareAndSwap(true, false)) {
             scheduler.addCancelCount()
         }
     }
@@ -435,7 +434,7 @@ class TimerScheduler {
             return
         }
         let timer = heap.top()
-        if (!timer.isEnabled) {
+        if (!timer.isEnabled.load()) {
             heap.poll()
             cancelCount.fetchSub(1)
             return
@@ -471,7 +470,7 @@ class TimerScheduler {
         heap = TimerHeap()
         while (!source.isEmpty) {
             let timer = source.poll()
-            if (timer.isEnabled) {
+            if (timer.isEnabled.load()) {
                 heap.add(timer)
             }
         }
