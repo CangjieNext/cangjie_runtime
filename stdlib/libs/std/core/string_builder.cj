@@ -55,6 +55,9 @@ public class StringBuilder <: ToString {
             throw IllegalArgumentException("The number of rune should not be negative.")
         }
         var bytesSize = Rune.utf8Size(r)
+        if (n > 0 && bytesSize > (Int64.Max - defaultCapacity) / n) {
+            throw IllegalArgumentException("The size of StringBuilder is too large.")
+        }
         let capacity = bytesSize * n + defaultCapacity
         this.data = Array<UInt8>(capacity, repeat: 0)
         var itemLen = 0
