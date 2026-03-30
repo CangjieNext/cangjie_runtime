@@ -37,6 +37,7 @@ class Framework {
     private var transport: ?Transport = None
     private var progressQueue: ?ConcurrentLinkedQueue<UTProgress> = None
     private let mtx: Mutex = Mutex()
+    private var isLaunched: Bool = false
 
     // "global utils" like @Assert/@Expect/@Fail will be reported here
     private var currentlyRunning: RunContext = OutsideOfFrameworkContext()
@@ -49,6 +50,12 @@ class Framework {
     // parallel calls to this will lead to unclear exceptions, need to add diagnostics to prohibit this scenario
     static func launch<T>(api!: LaunchApi, hasWorkersInSetup!: Bool,
         progressQueue!: ?ConcurrentLinkedQueue<UTProgress> = None, body!: () -> T): T {
+        synchronized(instance.mtx) {
+            if (instance.isLaunched) {
+                throw AssertException("Framework.launch() called concurrently - only one test session is allowed at a time")
+            }
+            instance.isLaunched = true
+        }
         instance.transport = if (hasWorkersInSetup) {
             Transport.fromDefaultConfiguration()
         } else {
@@ -66,6 +73,9 @@ class Framework {
             instance.currentlyRunning = OutsideOfFrameworkContext()
             instance.transport?.close()
             instance.progressQueue = None
+            synchronized(instance.mtx) {
+                instance.isLaunched = false
+            }
         }
     }
 
