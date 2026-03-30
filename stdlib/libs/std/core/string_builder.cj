@@ -31,6 +31,7 @@ public class StringBuilder <: ToString {
 
     /* defines the buffer defaultCapacity */
     private static const defaultCapacity: Int64 = 32
+    private static const maxCapacity: Int64 = 0x7FFFFFFFFFFFFFF7
 
     /**
      * Constructors
@@ -257,6 +258,10 @@ public class StringBuilder <: ToString {
     @Frozen
     @OverflowWrapping
     public func append(n: Int64): Unit {
+        if (n == Int64.Min) {
+            this.append("-9223372036854775808")
+            return
+        }
         var numLen: Int64 = 0
         var unum: UInt64 = if (n < 0) {
             UInt64(-n)
@@ -349,6 +354,16 @@ public class StringBuilder <: ToString {
         if (newCapacity < this.endIndex + additional) {
             newCapacity = this.endIndex + additional
         }
+        if (newCapacity > maxCapacity) {
+            if (additional < 0) {
+                throw IllegalMemoryException("Capacity overflow")
+            }
+            newCapacity = if (this.endIndex + additional > maxCapacity) {
+                Int64.Max
+            } else {
+                maxCapacity
+            }
+        }
         var itemData = Array<UInt8>(newCapacity, repeat: 0)
         this.data.copyTo(itemData, 0, 0, this.endIndex)
         this.data = itemData
@@ -362,8 +377,22 @@ public class StringBuilder <: ToString {
         }
         let oldCapacity = this.data.size
         var newCapacity = oldCapacity + (oldCapacity >> 1)
-        if (newCapacity < this.endIndex + minCapacity) {
-            newCapacity = this.endIndex + minCapacity + (oldCapacity >> 1)
+        if (newCapacity < 0 || newCapacity < oldCapacity) {
+            newCapacity = Int64.Max
+        }
+        let neededCapacity = this.endIndex + minCapacity
+        if (neededCapacity < 0 || neededCapacity < this.endIndex) {
+            throw IllegalMemoryException("Capacity overflow")
+        }
+        if (newCapacity < neededCapacity) {
+            newCapacity = neededCapacity
+        }
+        if (newCapacity > maxCapacity) {
+            newCapacity = if (neededCapacity > maxCapacity) {
+                Int64.Max
+            } else {
+                maxCapacity
+            }
         }
         var itemData = Array<UInt8>(newCapacity, repeat: 0)
         this.data.copyTo(itemData, 0, 0, this.endIndex)
