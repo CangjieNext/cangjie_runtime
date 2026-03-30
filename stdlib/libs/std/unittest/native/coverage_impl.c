@@ -541,10 +541,15 @@ SANCOV_CALLBACK void __sanitizer_cov_trace_pc_guard(UInt32* guard)
         return;
     }
 
-    UInt8 newCoverage = ++g_coverageMap[*guard - 1];
-    if (newCoverage > g_globalCoverageMap[*guard - 1]) {
+    size_t idx = *guard - 1;
+    UInt8 oldVal = g_coverageMap[idx];
+    UInt8 newVal = (oldVal < 255) ? oldVal + 1 : 255;
+    while (!__atomic_compare_exchange_n(&g_coverageMap[idx], &oldVal, newVal, 0, __ATOMIC_RELAXED, __ATOMIC_RELAXED)) {
+        newVal = (oldVal < 255) ? oldVal + 1 : 255;
+    }
+    if (newVal > g_globalCoverageMap[idx]) {
         DEBUG("new coverage on ", guard, *guard, 0);
-        g_globalCoverageMap[*guard - 1] = newCoverage;
+        __atomic_store_n(&g_globalCoverageMap[idx], newVal, __ATOMIC_RELAXED);
         STORE(g_hasNewCoverage, true);
     }
 }
