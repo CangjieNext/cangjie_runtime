@@ -268,7 +268,6 @@ func parseHeader(arrReader: ArrReader): (Int64, Array<Int64>) {
  *
  * @since 0.19.3
  */
-@OverflowWrapping
 func parseFields(arrReader: ArrReader): Array<Int64> {
     let fields = Array<Int64>(6, repeat: 0)
     let fieldCnt = 6
@@ -297,7 +296,6 @@ func parseFields(arrReader: ArrReader): Array<Int64> {
  *
  * @since 0.19.3
  */
-@OverflowWrapping
 func parseZones(zoneNum: Int64, typeRecords: Array<UInt8>, zoneDes: Array<UInt8>): Array<LocalTime> {
     if (zoneNum <= 0) {
         throw InvalidDataException("Failed to parse the timezone file.")
@@ -366,7 +364,6 @@ func itos(arr: Array<UInt8>, canNul: Bool): String {
  *
  * @since 0.19.3
  */
-@OverflowWrapping
 func parseZoneTrans(
     timeNum: Int64,
     zoneNum: Int64,
