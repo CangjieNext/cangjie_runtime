@@ -8,8 +8,6 @@
 
 package std.sort
 
-import std.math.*
-
 /*
  * Stable ascending sort
  *
@@ -467,7 +465,7 @@ extend<T> Array<T> where T <: Comparable<T> {
         // init temp data
         let mrl = this.getMinRunLength()
         var temp = TempArray(this.size, this[0])
-        let stackLen = Int64(log2(Float64(this.size) / Float64(mrl) + 2.0)) + 1
+        let stackLen = this.getStackLen()
         let startArr = Array<Int64>(stackLen, repeat: 0)
         let lengthArr = Array<Int64>(stackLen, repeat: 0)
         var endIndex = -1
@@ -926,7 +924,7 @@ extend<T> Array<T> {
         // init temp data
         let mrl = this.getMinRunLength()
         var temp = TempArray(this.size, this[0])
-        let stackLen = Int64(log2(Float64(this.size) / Float64(mrl) + 2.0)) + 1
+        let stackLen = this.getStackLen()
         let startArr = Array<Int64>(stackLen, repeat: 0)
         let lengthArr = Array<Int64>(stackLen, repeat: 0)
         var endIndex = -1
