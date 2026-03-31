@@ -288,39 +288,59 @@ extern int8_t CJ_FS_IsDirORLinkToFDir(const char* path)
 
 extern int8_t CJ_FS_CanRead(const char* path)
 {
-    struct stat buf;
-    if (stat(path, &buf) < 0) {
-        return -1;
+    // 修复 MEDIUM-01: 使用 access() 检查实际读权限，而非仅检查所有者位
+    if (access(path, R_OK) < 0) {
+        if (errno == EACCES || errno == EPERM) {
+            return 0;  // 无权限
+        }
+        return -1;  // 其他错误
     }
-    return (int8_t)((buf.st_mode | S_IRUSR) == buf.st_mode);
+    return 1;  // 有权限
 }
 
 extern int8_t CJ_FS_CanExecute(const char* path)
 {
-    struct stat buf;
-    if (stat(path, &buf) < 0) {
-        return -1;
+    // 修复 MEDIUM-01: 使用 access() 检查实际执行权限，而非仅检查所有者位
+    if (access(path, X_OK) < 0) {
+        if (errno == EACCES || errno == EPERM) {
+            return 0;  // 无权限
+        }
+        return -1;  // 其他错误
     }
-    return (int8_t)((buf.st_mode | S_IXUSR) == buf.st_mode);
+    return 1;  // 有权限
 }
 
 extern int8_t CJ_FS_IsReadOnly(const char* path)
 {
-    struct stat buf;
-    if (stat(path, &buf) < 0) {
-        return -1;
+    // 修复 MEDIUM-01: 使用 access() 检查实际权限，而非仅检查所有者位
+    // 只读 = 可读 && 不可写 && 不可执行
+    int canRead = access(path, R_OK);
+    int canWrite = access(path, W_OK);
+    int canExecute = access(path, X_OK);
+    
+    if (canRead < 0 || canWrite < 0 || canExecute < 0) {
+        // 检查是否有错误（非权限问题）
+        if ((canRead < 0 && errno != EACCES && errno != EPERM) ||
+            (canWrite < 0 && errno != EACCES && errno != EPERM) ||
+            (canExecute < 0 && errno != EACCES && errno != EPERM)) {
+            return -1;
+        }
     }
-    mode_t m = buf.st_mode;
-    return (int8_t)((m | S_IRUSR) == m && (m | S_IWUSR) != m && (m | S_IXUSR) != m);
+    
+    // 只读：可读 && 不可写 && 不可执行
+    return (canRead == 0 && canWrite < 0 && canExecute < 0) ? 1 : 0;
 }
 
 extern int8_t CJ_FS_CanWrite(const char* path)
 {
-    struct stat buf;
-    if (stat(path, &buf) < 0) {
-        return -1;
+    // 修复 MEDIUM-01: 使用 access() 检查实际写权限，而非仅检查所有者位
+    if (access(path, W_OK) < 0) {
+        if (errno == EACCES || errno == EPERM) {
+            return 0;  // 无权限
+        }
+        return -1;  // 其他错误
     }
-    return (int8_t)((buf.st_mode | S_IWUSR) == buf.st_mode);
+    return 1;  // 有权限
 }
 
 extern int8_t CJ_FS_SetExecutable(const char* path, bool executable)
