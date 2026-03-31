@@ -282,7 +282,7 @@ static uint32_t InitProcessorNum()
 // Parse INTERPRETER_ARGS env variable and return null-terminated array of strings.
 // params:
 // - tokenCount - will be set to the number of strings in the array
-static char** InitInterpreterArgs(int& tokenCount)
+static const char* const* InitInterpreterArgs(int& tokenCount)
 {
     tokenCount = 0;
     const char* env = std::getenv("INTERPRETER_ARGS");
@@ -299,14 +299,15 @@ static char** InitInterpreterArgs(int& tokenCount)
         return nullptr;
     }
 
-    char** tokens = new char*[tokenCount + 1];
+    const char** tokens = new const char*[tokenCount + 1];
     CHECK_DETAIL(tokens != nullptr, "new tokens array failed: size=%d", tokenCount + 1);
 
     for (int i = 0; i < tokenCount; ++i) {
         size_t tokenLen = tempTokens[i].Length();
-        tokens[i] = new char[tokenLen + 1];
-        CHECK_DETAIL(tokens[i] != nullptr, "new token #%d failed: size=%zu bytes", i, tokenLen + 1);
-        std::strcpy(tokens[i], tempTokens[i].Str());
+        char* token = new char[tokenLen + 1];
+        CHECK_DETAIL(token != nullptr, "new token #%d failed: size=%zu bytes", i, tokenLen + 1);
+        std::strcpy(token, tempTokens[i].Str());
+        tokens[i] = token;
     }
     tokens[tokenCount] = nullptr;
 
@@ -582,7 +583,7 @@ static RuntimeParam InitRuntimeParam()
     size_t initHeapSize = InitHeapSize(g_sysmemSize > 1 * GB ? 256 * KB : 64 * KB);
 #ifdef INTERPRETER_ENABLED
     int interpreterArgsCount = 0;
-    char** interpreterArgs = InitInterpreterArgs(interpreterArgsCount);
+    const char* const* interpreterArgs = InitInterpreterArgs(interpreterArgsCount);
 #endif
     RuntimeParam param = {
         .heapParam = {
