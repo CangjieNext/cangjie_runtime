@@ -27,7 +27,7 @@ func refEq<A,R>(a: (A)->R, b: (A)->R): Bool {
 public type SignalHandlerFunc = (Int32) -> Bool
 
 @When[os != "Windows"]
-private let mtx = Mutex()
+private let SIGNAL_HANDLING = AtomicBool(false)
 
 @When[os != "Windows"]
 class SignalManager {
@@ -45,69 +45,88 @@ class SignalManager {
 
 /**
  * Provides a way to register signal handlers in Cangjie.
- * It uses a mutex to ensure thread safety when accessing the signal slots. 
+ * It uses atomic lock to ensure thread safety when accessing the signal slots. 
  */
 @When[os != "Windows"]
 public func registerSignalHandler(sig: Signal, handler: SignalHandlerFunc): Unit {
     if (sig.value <= 0 || sig.value >= SignalManager.MAX_SIG_NUM) {
         throw IllegalArgumentException("Signal value must > 0 and < ${SignalManager.MAX_SIG_NUM}.")
     }
-    let slot = SignalManager.sigSlot[Int64(sig.value)]
-    synchronized(mtx) {
-        if (slot.size == 0) {
-            regSigChain(sig)
-        }
-        for (i in 0..slot.size) {
-            if (refEq<Int32, Bool>(slot[i], handler)) {
-                return
-            }
-        }
-        slot.add(handler)
+    
+    // Spin wait to acquire processing right
+    while (!SIGNAL_HANDLING.compareAndSwap(false, true)) {
+        // Busy wait
     }
+    
+    let slot = SignalManager.sigSlot[Int64(sig.value)]
+    if (slot.size == 0) {
+        regSigChain(sig)
+    }
+    for (i in 0..slot.size) {
+        if (refEq<Int32, Bool>(slot[i], handler)) {
+            SIGNAL_HANDLING.store(false)
+            return
+        }
+    }
+    slot.add(handler)
+    
+    SIGNAL_HANDLING.store(false)
 }
 
 /**
  * Provides a way to unregister signal handlers in Cangjie.
- * It uses a mutex to ensure thread safety when accessing the signal slots. 
+ * It uses atomic lock to ensure thread safety when accessing the signal slots. 
  */
 @When[os != "Windows"]
 public func unregisterSignalHandler(sig: Signal, handler: SignalHandlerFunc): Unit {
     if (sig.value <= 0 || sig.value >= SignalManager.MAX_SIG_NUM) {
         throw IllegalArgumentException("Signal value must > 0 and < ${SignalManager.MAX_SIG_NUM}.")
     }
-    let slot = SignalManager.sigSlot[Int64(sig.value)]
-    synchronized(mtx) {
-        slot.removeIf({f => refEq<Int32, Bool>(f, handler)})
-        if (slot.size == 0) {
-            unregSigChain(sig)
-        }
+    
+    // Spin wait to acquire processing right
+    while (!SIGNAL_HANDLING.compareAndSwap(false, true)) {
+        // Busy wait
     }
+    
+    let slot = SignalManager.sigSlot[Int64(sig.value)]
+    slot.removeIf({f => refEq<Int32, Bool>(f, handler)})
+    if (slot.size == 0) {
+        unregSigChain(sig)
+    }
+    
+    SIGNAL_HANDLING.store(false)
 }
 
 /**
  * Provides a way to reset signal handlers in Cangjie.
- * It uses a mutex to ensure thread safety when accessing the signal slots. 
+ * It uses atomic lock to ensure thread safety when accessing the signal slots. 
  */
 @When[os != "Windows"]
 public func resetSignalHandler(sigs: Array<Signal>): Unit {
-    synchronized(mtx) {
-        if (sigs.size == 0) {
-            for (i in 0..SignalManager.sigSlot.size) {
-                if (!SignalManager.sigSlot[i].isEmpty()) {
-                    SignalManager.sigSlot[i].clear()
-                    unregSigChain(Signal(Int32(i), ""))
-                }
-            }
-        } else {
-            for (sig in sigs) {
-                if (sig.value <= 0 || sig.value >= SignalManager.MAX_SIG_NUM) {
-                    throw IllegalArgumentException("Signal value must > 0 and < ${SignalManager.MAX_SIG_NUM}.")
-                }
-                SignalManager.sigSlot[Int64(sig.value)].clear()
-                unregSigChain(sig)
+    // Spin wait to acquire processing right
+    while (!SIGNAL_HANDLING.compareAndSwap(false, true)) {
+        // Busy wait
+    }
+    
+    if (sigs.size == 0) {
+        for (i in 0..SignalManager.sigSlot.size) {
+            if (!SignalManager.sigSlot[i].isEmpty()) {
+                SignalManager.sigSlot[i].clear()
+                unregSigChain(Signal(Int32(i), ""))
             }
         }
+    } else {
+        for (sig in sigs) {
+            if (sig.value <= 0 || sig.value >= SignalManager.MAX_SIG_NUM) {
+                SIGNAL_HANDLING.store(false)
+                throw IllegalArgumentException("Signal value must > 0 and < ${SignalManager.MAX_SIG_NUM}.")
+            }
+            SignalManager.sigSlot[Int64(sig.value)].clear()
+            unregSigChain(sig)
+        }
     }
+    
+    SIGNAL_HANDLING.store(false)
 }
 
 @When[os != "Windows"]
@@ -116,16 +135,23 @@ func signalHandler(sig: Int32, _: CPointer<Unit>, _: CPointer<Unit>): Bool {
     if (sig <= 0 || sig >= SignalManager.MAX_SIG_NUM) {
         return false
     }
+    
+    // Spin wait to acquire processing right
+    while (!SIGNAL_HANDLING.compareAndSwap(false, true)) {
+        // Busy wait - another handler is running, wait for it to complete
+    }
+    
     let slot = SignalManager.sigSlot[Int64(sig)]
-    synchronized(mtx) {
-        for (fn in slot) {
-            let result = fn(sig)
-            if (result) {
-                return true
-            }
+    var result = false
+    for (fn in slot) {
+        result = fn(sig)
+        if (result) {
+            break
         }
     }
-    return false
+    
+    SIGNAL_HANDLING.store(false)
+    return result
 }
 
 @When[os != "Windows"]
