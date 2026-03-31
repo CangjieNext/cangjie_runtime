@@ -93,6 +93,8 @@ uintptr_t __CJTypeExt;
 
 uintptr_t g_runtimeStaticStart;
 uintptr_t g_runtimeStaticEnd;
+uintptr_t g_runtimeThreadStaticStart;
+uintptr_t g_runtimeThreadStaticEnd;
 
 __attribute__((constructor(0))) __declspec(dllexport) void InitData()
 {
@@ -203,13 +205,18 @@ __attribute__((constructor(0))) __declspec(dllexport) void InitData()
             __CJReflectGISize = sectionHeader->Misc.VirtualSize;
         } else if (strncmp(secName, ".cjtpe", sizeof(".cjtpe") - 1) == 0) {
             __CJTypeExt = reinterpret_cast<uintptr_t>(hModule) +
-                             sectionHeader->VirtualAddress;
+                              sectionHeader->VirtualAddress;
             __CJTypeExtSize = sectionHeader->Misc.VirtualSize;
         } else if (strncmp(secName, ".text_rt", sizeof(".text_rt") - 1) == 0) {
             g_runtimeStaticStart = reinterpret_cast<uintptr_t>(hModule) +
-                                   sectionHeader->VirtualAddress;
+                                    sectionHeader->VirtualAddress;
             g_runtimeStaticEnd =
                 g_runtimeStaticStart + sectionHeader->Misc.VirtualSize;
+        } else if (strncmp(secName, ".text_th", sizeof(".text_th") - 1) == 0) {
+            g_runtimeThreadStaticStart = reinterpret_cast<uintptr_t>(hModule) +
+                sectionHeader->VirtualAddress;
+            g_runtimeThreadStaticEnd =
+                g_runtimeThreadStaticStart + sectionHeader->Misc.VirtualSize;
         }
         ++sectionHeader;
     }
