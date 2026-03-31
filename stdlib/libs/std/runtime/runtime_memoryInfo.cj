@@ -89,7 +89,29 @@ public func getUsedHeapSize(): Int64 {
 
 @When[backend == "cjnative"]
 public func dumpHeapData(path: Path): Unit {
-    try (file = File(path, ReadWrite)) {
+    let pathStr = path.toString()
+    if (pathStr.contains("..") || pathStr.contains("~")) {
+        throw MemoryInfoException("Heap dump path cannot contain '..' or '~' for security reasons.")
+    }
+    
+    let absolutePath = if (path.isAbsolute()) {
+        path
+    } else {
+        canonicalize(Path(".")).join(path)
+    }
+    
+    let resolvedPath = try {
+        let parentDir = absolutePath.parent
+        if (exists(parentDir)) {
+            canonicalize(parentDir).join(absolutePath.fileName)
+        } else {
+            absolutePath
+        }
+    } catch (e: Exception) {
+        absolutePath
+    }
+    
+    try (file = File(resolvedPath, ReadWrite)) {
         let success = dumpCjHeapData(Int32(file.fileDescriptor.fileHandle))
         if (!success) {
             throw MemoryInfoException("Failed to dump heap data.")
