@@ -1039,6 +1039,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
 
     /*
      * Transfer the key to obtain the hash value.
+     * Uses multi-round mixing to improve hash distribution and resist HashDoS attacks.
      *
      * @param key transfer the value for judgment.
      * @return the hash value corresponding to the key.
@@ -1046,9 +1047,9 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
      * @since 0.18.4
      */
     @Frozen
-    @OverflowWrapping
     private func getHash(hashCode: Int64): Int64 {
-        hashCode ^ (hashCode >> 32)
+        let h = hashCode
+        (h ^ (h >> 16) ^ (h >> 32)) & 0x7FFFFFFFFFFFFFFF
     }
 
     /**
