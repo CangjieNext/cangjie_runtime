@@ -36,9 +36,9 @@ extern "C" void CJ_MCC_I2NStub(...);
 
 struct {
     bool initialized = false;
-    interpreter_interface_t interpreterInterface;
+    InterpreterInterfaceT interpreterInterface;
 
-    void initialize(interpreter_interface_t& value)
+    void initialize(InterpreterInterfaceT& value)
     {
         interpreterInterface = value;
         initialized = true;
@@ -46,7 +46,7 @@ struct {
 
     operator bool() { return initialized; }
 
-    interpreter_interface_t* operator->()
+    InterpreterInterfaceT* operator->()
     {
         if (initialized) {
             return &interpreterInterface;
@@ -57,26 +57,26 @@ struct {
 
 } interpreterInterfaceInstance;
 
-void ProvideInterpretedFrameInfo(uint64_t fp, uint64_t ip, interpreted_frame_info_t* fInfo)
+void ProvideInterpretedFrameInfo(uint64_t fp, uint64_t ip, InterpretedFrameInfoT* fInfo)
 {
-    auto framePointer = reinterpret_cast<frame_pointer_t>(fp);
-    auto instructionPointer = reinterpret_cast<instruction_pointer_t>(ip);
+    auto framePointer = reinterpret_cast<FramePointerT>(fp);
+    auto instructionPointer = reinterpret_cast<InstructionPointerT>(ip);
 
     DLOG(INTERPRETER, "ProvideInterpretedFrameInfo(fp=%p, ip=%p)", framePointer, instructionPointer);
 
     if (interpreterInterfaceInstance) {
-        interpreterInterfaceInstance->frame_info_provider(framePointer, instructionPointer, fInfo);
+        interpreterInterfaceInstance->frameInfoProvider(framePointer, instructionPointer, fInfo);
     }
 }
 
-void IterateFramesWithState(fiber_specific_data_t fiberData, void (*callback)(visiting_state_t, void*), void* ctx) 
+void IterateFramesWithState(FiberSpecificDataT fiberData, void (*callback)(VisitingStateT, void*), void* ctx) 
 {
     if (interpreterInterfaceInstance) {
-        interpreterInterfaceInstance->iterate_frames_with_state(fiberData, callback, ctx);
+        interpreterInterfaceInstance->iterateFramesWithState(fiberData, callback, ctx);
     }
 }
 
-frame_desc_t toFrameDesc(FrameInfo frameInfo)
+FrameDescT toFrameDesc(FrameInfo frameInfo)
 {
     return {
         .fp = frameInfo.GetMachineFrame().GetFA(),
@@ -84,52 +84,52 @@ frame_desc_t toFrameDesc(FrameInfo frameInfo)
     };
 }
 
-void VisitInterpreterFrameRootsExpansion(visiting_state_t state, FrameInfo frameDesc, root_visitor_t stackPtrVisitor, derived_ptr_visitor_t derivedPtrVisitor)
+void VisitInterpreterFrameRootsExpansion(VisitingStateT state, FrameInfo frameDesc, RootVisitorT stackPtrVisitor, DerivedPtrVisitorT derivedPtrVisitor)
 {
     if (interpreterInterfaceInstance) {
-        frame_desc_t fd = toFrameDesc(frameDesc);
-        interpreterInterfaceInstance->visit_frame_roots_expansion(state, fd, stackPtrVisitor, derivedPtrVisitor);
+        FrameDescT fd = toFrameDesc(frameDesc);
+        interpreterInterfaceInstance->visitFrameRootsExpansion(state, fd, stackPtrVisitor, derivedPtrVisitor);
     }
 }
 
-void VisitInterpreterFrameRootsMarking(visiting_state_t state, FrameInfo frameDesc, root_visitor_t rootVisitor)
+void VisitInterpreterFrameRootsMarking(VisitingStateT state, FrameInfo frameDesc, RootVisitorT rootVisitor)
 {
     if (interpreterInterfaceInstance) {
-        frame_desc_t fd = toFrameDesc(frameDesc);
-        interpreterInterfaceInstance->visit_frame_roots_marking(state, fd, rootVisitor);
+        FrameDescT fd = toFrameDesc(frameDesc);
+        interpreterInterfaceInstance->visitFrameRootsMarking(state, fd, rootVisitor);
     }
 }
 
-void VisitInterpreterFrameRootsAdjusting(visiting_state_t state, FrameInfo frameDesc, root_visitor_t rootVisitor, derived_ptr_visitor_t derivedPtrVisitor)
+void VisitInterpreterFrameRootsAdjusting(VisitingStateT state, FrameInfo frameDesc, RootVisitorT rootVisitor, DerivedPtrVisitorT derivedPtrVisitor)
 {
     if (interpreterInterfaceInstance) {
-        frame_desc_t fd = toFrameDesc(frameDesc);
-        interpreterInterfaceInstance->visit_frame_roots_adjusting(state, fd, rootVisitor, derivedPtrVisitor);
+        FrameDescT fd = toFrameDesc(frameDesc);
+        interpreterInterfaceInstance->visitFrameRootsAdjusting(state, fd, rootVisitor, derivedPtrVisitor);
     }
 }
 
-void VisitInterpreterGlobalRoots(root_visitor_t visitor)
+void VisitInterpreterGlobalRoots(RootVisitorT visitor)
 {
     if (interpreterInterfaceInstance) {
-        interpreterInterfaceInstance->visit_global_roots(visitor);
+        interpreterInterfaceInstance->visitGlobalRoots(visitor);
     }
 }
 
-void InterpreterFiberStart(fiber_specific_data_t* dataField)
+void InterpreterFiberStart(FiberSpecificDataT* dataField)
 {
     if (interpreterInterfaceInstance) {
-        interpreterInterfaceInstance->fiber_start(dataField);
+        interpreterInterfaceInstance->fiberStart(dataField);
     }
 }
 
-void InterpreterFiberDestroy(fiber_specific_data_t* dataField)
+void InterpreterFiberDestroy(FiberSpecificDataT* dataField)
 {
     if (interpreterInterfaceInstance) {
-        interpreterInterfaceInstance->fiber_destroy(dataField);
+        interpreterInterfaceInstance->fiberDestroy(dataField);
     }
 }
 
-void VisitRootFromInterpreter(root_visitor_t _visitor, placeholder_t _placeholder)
+void VisitRootFromInterpreter(RootVisitorT _visitor, PlaceholderT _placeholder)
 {
     const RootVisitor* visitor = static_cast<const RootVisitor*>(_visitor);
     ObjectRef* placeholder = static_cast<ObjectRef*>(_placeholder);
@@ -139,7 +139,7 @@ void VisitRootFromInterpreter(root_visitor_t _visitor, placeholder_t _placeholde
     (*visitor)(*placeholder);
 }
 
-void VisitDerivedPtrFromInterpreter(derived_ptr_visitor_t _visitor, placeholder_t _basePtrHolder, placeholder_t _derivedPtrHolder)
+void VisitDerivedPtrFromInterpreter(DerivedPtrVisitorT _visitor, PlaceholderT _basePtrHolder, PlaceholderT _derivedPtrHolder)
 {
     const DerivedPtrVisitor* visitor = static_cast<const DerivedPtrVisitor*>(_visitor);
     BasePtrType* basePtrLocation = static_cast<BasePtrType*>(_basePtrHolder);
@@ -150,43 +150,43 @@ void VisitDerivedPtrFromInterpreter(derived_ptr_visitor_t _visitor, placeholder_
     (*visitor)(*basePtrLocation, *derivedPtrLocation);
 }
 
-struct type_info_t* TypeInfoProvider(const char * sig)
+struct TypeInfoT* TypeInfoProvider(const char * sig)
 {
     DLOG(INTERPRETER, "TypeInfoProvider: %s", sig);
-    auto *result = reinterpret_cast<struct type_info_t*>(LoaderManager::GetInstance()->FindTypeInfoFromLoadedFiles(sig));
+    auto *result = reinterpret_cast<struct TypeInfoT*>(LoaderManager::GetInstance()->FindTypeInfoFromLoadedFiles(sig));
     DLOG(INTERPRETER, "FindTypeInfoFromLoadedFiles(%s) return %p", sig, result);
 
     return result;
 }
 
-type_template_t FindTypeTemplate(const char* mangledName)
+TypeTemplateT FindTypeTemplate(const char* mangledName)
 {
     DLOG(INTERPRETER, "FindTypeTemplate: %s", mangledName);
-    type_template_t result = LoaderManager::GetInstance()->FindTypeTemplateFromLoadedFiles(mangledName);
+    TypeTemplateT result = LoaderManager::GetInstance()->FindTypeTemplateFromLoadedFiles(mangledName);
     DLOG(INTERPRETER, "FindTypeTemplateFromLoadedFiles(%s) return %p", mangledName, result);
 
     return result;
 }
 
-struct type_info_t* GetOrCreateTypeInfo(type_template_t typeTemplate, uint32_t typeArgsCount, struct type_info_t** typeArgs)
+struct TypeInfoT* GetOrCreateTypeInfo(TypeTemplateT typeTemplate, uint32_t typeArgsCount, struct TypeInfoT** typeArgs)
 {
     DLOG(INTERPRETER, "GetOrCreateTypeInfo: template=%p size=%u", typeTemplate, typeArgsCount);
 
-    return reinterpret_cast<struct type_info_t*>(TypeInfoManager::GetTypeInfoManager().GetOrCreateTypeInfo(
+    return reinterpret_cast<struct TypeInfoT*>(TypeInfoManager::GetTypeInfoManager().GetOrCreateTypeInfo(
         static_cast<TypeTemplate*>(typeTemplate), 
         typeArgsCount, 
         reinterpret_cast<TypeInfo**>(typeArgs)
     ));
 }
 
-uint32_t GetInstanceSize(struct type_info_t* typeInfoPtr)
+uint32_t GetInstanceSize(struct TypeInfoT* typeInfoPtr)
 {
     TypeInfo* ti = reinterpret_cast<TypeInfo*>(typeInfoPtr);
     DLOG(INTERPRETER, "GetInstanceSize: %s", ti->GetName());
     return ti->GetInstanceSize();
 }
 
-obj_ref_t ObjectAllocate(struct type_info_t* tpe) 
+ObjRefT ObjectAllocate(struct TypeInfoT* tpe) 
 {
     TypeInfo* typeInfo = reinterpret_cast<TypeInfo*>(tpe);
     MSize size = AlignUp<MSize>(typeInfo->GetInstanceSize(), 8) + sizeof(TypeInfo*);
@@ -195,17 +195,17 @@ obj_ref_t ObjectAllocate(struct type_info_t* tpe)
 
     DLOG(INTERPRETER, "ObjectAllocate: type=%p (%s), addr=%p, size=%u", tpe, typeInfo->GetName(), obj, size);
 
-    return (obj_ref_t)obj;
+    return (ObjRefT)obj;
 }
 
-obj_ref_t ArrayAllocate(struct type_info_t* tpe, uint64_t size) 
+ObjRefT ArrayAllocate(struct TypeInfoT* tpe, uint64_t size) 
 {
     TypeInfo* typeInfo = reinterpret_cast<TypeInfo*>(tpe);
 
     ArrayRef arr = ObjectManager::NewArray(size, typeInfo);
     DLOG(INTERPRETER, "ArrayAllocate: type=%p, addr=%p, size=%u", tpe, arr, size);
 
-    return (obj_ref_t)arr;
+    return (ObjRefT)arr;
 }
 
 void SafePoint() 
@@ -216,17 +216,17 @@ void SafePoint()
     ScopedEnterSaferegion gcpoint(true);
 }
 
-bool IsPendingSafePoint(thread_local_data_t tlData)
+bool IsPendingSafePoint(ThreadLocalDataT tlData)
 {
     if (tlData == nullptr) {
-        LOG(RTLOG_ERROR, "[Interpreter] IsPendingSafePoint called with null thread_local_data_t");
+        LOG(RTLOG_ERROR, "[Interpreter] IsPendingSafePoint called with null ThreadLocalDataT");
         return false;
     }
     ThreadLocalData* threadLocalData = reinterpret_cast<ThreadLocalData*>(tlData);
     return threadLocalData->safepointState != 0;
 }
 
-void ThrowException(obj_ref_t exception) 
+void ThrowException(ObjRefT exception) 
 {
     DLOG(INTERPRETER, "ThrowException: exception=%p", exception);
     ExceptionManager::ThrowException(static_cast<ExceptionRef>(exception));
@@ -239,15 +239,15 @@ void ThrowOutOfMemoryError()
     ExceptionManager::ThrowPendingException();
 }
 
-obj_ref_t GetPendingException()
+ObjRefT GetPendingException()
 {
     ExceptionRef ref = ExceptionManager::GetPendingException();
     
     DLOG(INTERPRETER, "GetPendingException: %p", ref);
-    return static_cast<obj_ref_t>(ref);
+    return static_cast<ObjRefT>(ref);
 }
 
-obj_ref_t GetAndClearPendingException()
+ObjRefT GetAndClearPendingException()
 {
     auto ref = GetPendingException();
 
@@ -257,7 +257,7 @@ obj_ref_t GetAndClearPendingException()
     return ref;
 }
 
-bool InstanceOf(obj_ref_t ref, struct type_info_t* ti) 
+bool InstanceOf(ObjRefT ref, struct TypeInfoT* ti) 
 {
     DLOG(INTERPRETER, "InstanceOf: ref=%p, typeInfo=%p", ref, ti);
 
@@ -270,68 +270,68 @@ bool InstanceOf(obj_ref_t ref, struct type_info_t* ti)
     return obj->IsSubType(*tinfo);
 }
 
-bool IsSubType(struct type_info_t* type_info, struct type_info_t* super_type_info)
+bool IsSubType(struct TypeInfoT* typeInfo, struct TypeInfoT* super_type_info)
 {
-    DLOG(INTERPRETER, "IsSubType: ti=%p, sti=%p", type_info, super_type_info);
-    if (type_info == nullptr || super_type_info == nullptr) {
+    DLOG(INTERPRETER, "IsSubType: ti=%p, sti=%p", typeInfo, super_type_info);
+    if (typeInfo == nullptr || super_type_info == nullptr) {
         return false;
     }
-    if (type_info == super_type_info) {
+    if (typeInfo == super_type_info) {
         return true;
     }
     
-    TypeInfo* tInfo = reinterpret_cast<TypeInfo*>(type_info);
+    TypeInfo* tInfo = reinterpret_cast<TypeInfo*>(typeInfo);
     TypeInfo* sInfo = reinterpret_cast<TypeInfo*>(super_type_info);
     return tInfo->IsSubType(sInfo);
 }
 
-obj_ref_t ReadStaticField(field_ref_t source) 
+ObjRefT ReadStaticField(FieldRefT source) 
 {
     DLOG(INTERPRETER, "ReadStaticField %p", source);
 
     BaseObject* res = Heap::GetBarrier().ReadStaticRef(*static_cast<RefField<false>*>(source));
-    return static_cast<obj_ref_t>(res);
+    return static_cast<ObjRefT>(res);
 }
 
-void WriteStaticField(field_ref_t destination, obj_ref_t new_value) 
+void WriteStaticField(FieldRefT destination, ObjRefT new_value) 
 {
     DLOG(INTERPRETER, "WriteStaticField %p %p", destination, new_value);
 
     Heap::GetBarrier().WriteStaticRef(*static_cast<RefField<false>*>(destination), static_cast<BaseObject*>(new_value));
 }
 
-obj_ref_t ReadInstanceField(obj_ref_t source, field_ref_t field) 
+ObjRefT ReadInstanceField(ObjRefT source, FieldRefT field) 
 {
     DLOG(INTERPRETER, "ReadInstanceField %p %p", source, field);
 
     RefField<false>& ref = *static_cast<RefField<false>*>(field); // TODO support RefField<true>
     BaseObject* res = Heap::GetBarrier().ReadReference(static_cast<BaseObject*>(source), ref);
-    return static_cast<obj_ref_t>(res);
+    return static_cast<ObjRefT>(res);
 }
 
-void WriteInstanceField(obj_ref_t destination, field_ref_t field, obj_ref_t new_value) 
+void WriteInstanceField(ObjRefT destination, FieldRefT field, ObjRefT new_value) 
 {
     DLOG(INTERPRETER, "WriteInstanceField %p %p %p", destination, field, new_value);
     RefField<false>& ref = *static_cast<RefField<false>*>(field); // TODO support RefField<true>
     Heap::GetBarrier().WriteReference(static_cast<BaseObject*>(destination), ref, static_cast<BaseObject*>(new_value));
 }
 
-obj_ref_t GetArrayElement(obj_ref_t source, U64 index)
+ObjRefT GetArrayElement(ObjRefT source, U64 index)
 {
     DLOG(INTERPRETER, "GetArrayElement %p %llu", source, index);
     MArray* array = static_cast<MArray*>(source);
-    return static_cast<obj_ref_t>(array->GetRefElement(index));
+    return static_cast<ObjRefT>(array->GetRefElement(index));
 }
 
 
-void SetArrayElement(obj_ref_t source, U64 index, obj_ref_t new_value)
+void SetArrayElement(ObjRefT source, U64 index, ObjRefT new_value)
 {
     DLOG(INTERPRETER, "SetArrayElement %p %llu %p", source, index, new_value);
     MArray* array = static_cast<MArray*>(source);
     array->SetRefElement(index, static_cast<BaseObject*>(new_value));
 }
 
-void ReadStructFieldOfObject(MAddress dstPtr, obj_ref_t obj, MAddress srcField, size_t size) {
+void ReadStructFieldOfObject(MAddress dstPtr, ObjRefT obj, MAddress srcField, size_t size) {
     DLOG(INTERPRETER, "ReadStructFieldOfObject %p %p %p %zu", dstPtr, obj, srcField, size);
     if (size == 0) {
         return;
@@ -339,7 +339,7 @@ void ReadStructFieldOfObject(MAddress dstPtr, obj_ref_t obj, MAddress srcField, 
     Heap::GetHeap().GetBarrier().ReadStruct(dstPtr, static_cast<BaseObject*>(obj), srcField, size);
 }
 
-void WriteStructFieldOfObject(obj_ref_t obj, MAddress dst, MAddress src, size_t size)
+void WriteStructFieldOfObject(ObjRefT obj, MAddress dst, MAddress src, size_t size)
 {
     DLOG(INTERPRETER, "WriteStructFieldOfObject %p %p %p %zu", obj, dst, src, size);
     CHECK_DETAIL((dst != 0u && src != 0u), "MCC_WriteStructField wrong parameter, dst: %p src: %p", dst, src);
@@ -377,7 +377,7 @@ void WriteStaticStructField(uintptr_t dst, size_t dstLen, uintptr_t src, size_t 
     Heap::GetBarrier().WriteStaticStruct(dst, dstLen, src, srcLen, tib);
 }
 
-void ReadGenericField(obj_ref_t dst, obj_ref_t srcObj, uintptr_t srcField, size_t size)
+void ReadGenericField(ObjRefT dst, ObjRefT srcObj, uintptr_t srcField, size_t size)
 {
     DLOG(INTERPRETER, "ReadGenericField dst=%p srcObj=%p srcField=%p size=%zu", dst, srcObj, srcField, size);
     
@@ -393,7 +393,7 @@ void ReadGenericField(obj_ref_t dst, obj_ref_t srcObj, uintptr_t srcField, size_
     );
 }
 
-void WriteGenericField(obj_ref_t dstObj, uintptr_t dstField, obj_ref_t src, size_t size)
+void WriteGenericField(ObjRefT dstObj, uintptr_t dstField, ObjRefT src, size_t size)
 {
     DLOG(INTERPRETER, "WriteGenericField dstObj=%p dstField=%p src=%p size=%zu", dstObj, dstField, src, size);
 
@@ -409,7 +409,7 @@ void WriteGenericField(obj_ref_t dstObj, uintptr_t dstField, obj_ref_t src, size
     );
 }
 
-bool IsValidObject(obj_ref_t object) 
+bool IsValidObject(ObjRefT object) 
 {
     DLOG(INTERPRETER, "IsValidObject %p", object);
     BaseObject* obj = reinterpret_cast<BaseObject*>(object);
@@ -419,21 +419,21 @@ bool IsValidObject(obj_ref_t object)
     return obj->IsValidObject();
 }
 
-thread_local_data_t GetThreadLocalData()
+ThreadLocalDataT GetThreadLocalData()
 {
-    return reinterpret_cast<thread_local_data_t>(MRT_GetThreadLocalData());
+    return reinterpret_cast<ThreadLocalDataT>(MRT_GetThreadLocalData());
 }
 
-bool IsActiveGCPhase(thread_local_data_t tld) {
+bool IsActiveGCPhase(ThreadLocalDataT tld) {
     ThreadLocalData* threadLocalData = static_cast<ThreadLocalData*>(tld);
     Mutator* mutator = threadLocalData->mutator;
     return mutator->GetMutatorPhase() >= GCPhase::GC_PHASE_ENUM;
 }
 
-exception_wrapper_t GetExceptionWrapper()
+ExceptionWrapperT GetExceptionWrapper()
 {
     DLOG(INTERPRETER, "GetExceptionWrapper");
-    return static_cast<exception_wrapper_t>(ExceptionManager::GetExceptionWrapper());
+    return static_cast<ExceptionWrapperT>(ExceptionManager::GetExceptionWrapper());
 }
 
 extern "C" uintptr_t GetCurrentCatchFunctionPC()
@@ -442,7 +442,7 @@ extern "C" uintptr_t GetCurrentCatchFunctionPC()
     return eWrapper.GetCurrentCatchFunctionPC();
 }
 
-void* PostThrowException(exception_wrapper_t exception_wrapper) 
+void* PostThrowException(ExceptionWrapperT exception_wrapper) 
 {
     DLOG(INTERPRETER, "PostThrowException %p", exception_wrapper);
     ExceptionWrapper* wrapper = static_cast<ExceptionWrapper*>(exception_wrapper);
@@ -486,60 +486,60 @@ void InitInterpreter(const RuntimeParam& runtimeParam)
     StackManager::InitAddressScopeForInterpreter(libName);
 
     void *sym = dlsym(handle, "interpreter_bridge_init");
-    init_rt init = (init_rt)sym;
+    InitRt init = (InitRt)sym;
     if (sym == 0) {
         DLOG(INTERPRETER, "dlsym failed: %s", dlerror());
         return;
     }
 
-    struct cjnative_interface_t cjnativeInterface = {
-        .carrier_specific_offset = offsetof(ThreadLocalData, mutator),
-        .fiber_specific_offset   = ComputeFiberDataOffset(),
-        .type_info = &TypeInfoProvider,
-        .type_template = &FindTypeTemplate,
-        .get_or_create_type_info = &GetOrCreateTypeInfo,
-        .get_instance_size = &GetInstanceSize,
-        .object_alloc = &ObjectAllocate,
-        .array_alloc = &ArrayAllocate,
-        .safe_point = &SafePoint,
-        .is_pending_safe_point = &IsPendingSafePoint,
-        .throw_exception = &ThrowException,
-        .throw_OOM = &ThrowOutOfMemoryError,
-        .get_pending_exception = &GetPendingException,
-        .get_and_clear_pending_exception = &GetAndClearPendingException,
-        .get_exception_wrapper = &GetExceptionWrapper,
-        .post_throw_exception = &PostThrowException,
-        .get_current_catch_function_PC = &GetCurrentCatchFunctionPC,
-        .instance_of = &InstanceOf,
-        .is_sub_type = &IsSubType,
-        .visit_root_from_interpreter = &VisitRootFromInterpreter,
-        .visit_derived_ptr_from_interpreter = &VisitDerivedPtrFromInterpreter,
-        .read_static_field = &ReadStaticField,
-        .write_static_field = &WriteStaticField,
-        .read_instance_field = &ReadInstanceField,
-        .write_instance_field = &WriteInstanceField,
-        .read_struct_field = &ReadStructFieldOfObject,
-        .write_struct_field = &WriteStructFieldOfObject,
-        .read_static_struct_field = &ReadStaticStructField,
-        .write_static_struct_field = &WriteStaticStructField,
-        .read_generic_field = &ReadGenericField,
-        .write_generic_field = &WriteGenericField,
-        .array_body_offset = static_cast<size_t>(MArray::GetContentOffset()),
-        .get_array_ref_element = &GetArrayElement,
-        .set_array_ref_element = &SetArrayElement,
-        .is_valid_object = &IsValidObject,
-        .get_thread_local_data = &GetThreadLocalData,
-        .is_active_gc_phase = &IsActiveGCPhase,
-        .stack_grow_stub = reinterpret_cast<stack_grow_stub_f>(&CJ_MCC_StackGrowStub),
+    struct CJNativeInterfaceT cjnativeInterface = {
+        .carrierSpecificOffset = offsetof(ThreadLocalData, mutator),
+        .fiberSpecificOffset   = ComputeFiberDataOffset(),
+        .typeInfo = &TypeInfoProvider,
+        .typeTemplate = &FindTypeTemplate,
+        .getOrCreateTypeInfo = &GetOrCreateTypeInfo,
+        .getInstanceSize = &GetInstanceSize,
+        .objectAlloc = &ObjectAllocate,
+        .arrayAlloc = &ArrayAllocate,
+        .safePoint = &SafePoint,
+        .isPendingSafePoint = &IsPendingSafePoint,
+        .throwException = &ThrowException,
+        .throwOom = &ThrowOutOfMemoryError,
+        .getPendingException = &GetPendingException,
+        .getAndClearPendingException = &GetAndClearPendingException,
+        .getExceptionWrapper = &GetExceptionWrapper,
+        .postThrowException = &PostThrowException,
+        .getCurrentCatchFunctionPc = &GetCurrentCatchFunctionPC,
+        .instanceOf = &InstanceOf,
+        .isSubType = &IsSubType,
+        .visitRootFromInterpreter = &VisitRootFromInterpreter,
+        .visitDerivedPtrFromInterpreter = &VisitDerivedPtrFromInterpreter,
+        .readStaticField = &ReadStaticField,
+        .writeStaticField = &WriteStaticField,
+        .readInstanceField = &ReadInstanceField,
+        .writeInstanceField = &WriteInstanceField,
+        .readStructField = &ReadStructFieldOfObject,
+        .writeStructField = &WriteStructFieldOfObject,
+        .readStaticStructField = &ReadStaticStructField,
+        .writeStaticStructField = &WriteStaticStructField,
+        .readGenericField = &ReadGenericField,
+        .writeGenericField = &WriteGenericField,
+        .arrayBodyOffset = static_cast<size_t>(MArray::GetContentOffset()),
+        .getArrayRefElement = &GetArrayElement,
+        .setArrayRefElement = &SetArrayElement,
+        .isValidObject = &IsValidObject,
+        .getThreadLocalData = &GetThreadLocalData,
+        .isActiveGcPhase = &IsActiveGCPhase,
+        .stackGrowStub = reinterpret_cast<StackGrowStubFn>(&CJ_MCC_StackGrowStub),
 #if defined(__x86_64__) && defined(__linux__)
-        .i2n_stub = reinterpret_cast<i2n_stub_f>(&CJ_MCC_I2NStub),
+        .i2nStub = reinterpret_cast<I2NStubFn>(&CJ_MCC_I2NStub),
 #else
-        .i2n_stub = nullptr,
+        .i2nStub = nullptr,
 #endif
-        .native_logger = &NativeLogger,
+        .nativeLogger = &NativeLogger,
     };
 
-    interpreter_interface_t interpreterInterface;
+    InterpreterInterfaceT interpreterInterface;
     interpreterInterface.version = 1;
 
     int code = init(&interpreterInterface, &cjnativeInterface,
@@ -567,8 +567,8 @@ bool Isi2iAdapterStartAddr(const uintptr_t address)
 }
 
 uintptr_t GetCommonInterpreterLandingPad() {
-    DLOG(INTERPRETER, "GetCommonInterpreterLandingPad: %p", interpreterInterfaceInstance->landing_pad);
-    return reinterpret_cast<uintptr_t>(interpreterInterfaceInstance->landing_pad);
+    DLOG(INTERPRETER, "GetCommonInterpreterLandingPad: %p", interpreterInterfaceInstance->landingPad);
+    return reinterpret_cast<uintptr_t>(interpreterInterfaceInstance->landingPad);
 }
 
 }
