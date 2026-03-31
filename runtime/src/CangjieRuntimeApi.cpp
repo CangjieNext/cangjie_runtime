@@ -5,6 +5,7 @@
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 
+#include "LoaderManager.h"
 #include <condition_variable>
 #include <thread>
 #include <set>
@@ -25,6 +26,7 @@
 #include "Heap/Collector/CollectorResources.h"
 #include "RuntimeConfig.h"
 #include "UnwindStack/MangleNameHelper.h"
+#include "Loader/CjFileLoader/CjFileLoader.h"
 #if defined(__OHOS__) && (__OHOS__ == 1)
 #include "Inspector/FileStream.h"
 #include "Inspector/ProfilerAgentImpl.h"
@@ -283,6 +285,11 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
         scheduler = MapleRuntime::Runtime::Current().GetConcurrencyModel().GetThreadScheduler();
     }
     ScheduleSetToCurrentThread(scheduler);
+    auto* loader = MapleRuntime::LoaderManager::GetInstance()->GetLoader();
+    loader->VisitBaseFile([loader](MapleRuntime::BaseFile* file) {
+        loader->DoInitImage(file);
+        return true;
+    });
     return E_OK;
 }
 
