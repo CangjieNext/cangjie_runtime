@@ -21,59 +21,59 @@ namespace MRTExport {
 
 #define EXTENSION_DATA_ATTRS ATTR_PACKED(4)
 
-struct TYPE_INFO_ATTRS type_info_t;
-struct TYPE_INFO_ATTRS extension_data_t;
+struct TYPE_INFO_ATTRS TypeInfoT;
+struct TYPE_INFO_ATTRS ExtensionDataT;
 
-typedef void* mtable_desc_t;
-typedef void* func_ptr_t;
+typedef void* MTableDescT;
+typedef void* FuncPtrT;
 
-union gc_tib_t {
+union GCTibT {
     uintptr_t raw;
     void *ptr;
 };
 
-struct TYPE_INFO_ATTRS type_info_t {
-    const char* type_info_name;
+struct TYPE_INFO_ATTRS TypeInfoT {
+    const char* typeInfoName;
     int8_t type;
     uint8_t flag;
-    uint16_t field_num;
+    uint16_t fieldNum;
     union {
-        uint32_t instance_size;
-        uint32_t component_size;
+        uint32_t instanceSize;
+        uint32_t componentSize;
     };
-    union gc_tib_t gctib;
+    union GCTibT gctib;
     uint32_t uuid;
     uint8_t align;
-    int8_t type_args_num;
-    uint16_t valid_inherit_num;
-    uint32_t* field_offsets;
-    func_ptr_t finalizer_method;
-    struct type_info_t** type_args;
-    struct type_info_t** fields;
+    int8_t typeArgsNum;
+    uint16_t validInheritNum;
+    uint32_t* fieldOffsets;
+    FuncPtrT finalizerMethod;
+    struct TypeInfoT** typeArgs;
+    struct TypeInfoT** fields;
     union {
-        struct type_info_t* super_type_info;
-        struct type_info_t* component_type_info;
+        struct TypeInfoT* superTypeInfo;
+        struct TypeInfoT* componentTypeInfo;
     };
-    struct extension_data_t** v_extension_data_start;
-    mtable_desc_t* mtable_desc;
-    void* reflect_or_debug_info;
+    struct ExtensionDataT** vExtensionDataStart;
+    MTableDescT* mTableDesc;
+    void* reflectOrDebugInfo;
 };
 
-struct EXTENSION_DATA_ATTRS extension_data_t {
-    uint32_t arg_num;
-    uint8_t is_interface_type_info;
+struct EXTENSION_DATA_ATTRS ExtensionDataT {
+    uint32_t argNum;
+    uint8_t isInterfaceTypeInfo;
     uint8_t flag;
-    uint16_t func_table_size;
+    uint16_t funcTableSize;
     union {
         void* tt;
-        struct type_info_t* ti;
+        struct TypeInfoT* ti;
     };
     union {
-        func_ptr_t interface_fn;
-        struct type_info_t* interface_type_info;
+        FuncPtrT interfaceFn;
+        struct TypeInfoT* interfaceTypeInfo;
     };
-    func_ptr_t where_cond_fn;
-    func_ptr_t* func_table;
+    FuncPtrT whereCondFn;
+    FuncPtrT* funcTable;
 };
 
 #ifdef __cplusplus
