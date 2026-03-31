@@ -1192,27 +1192,27 @@ void* EnumCtorReflectInfo::GetAnnotations(TypeInfo* arrayTi)
 
 #ifdef INTERPRETER_ENABLED
 struct TypeInfoLayoutCheck {
-    // Static layout checks: MRTExport::type_info_t is a binary mirror of TypeInfo.
+    // Static layout checks: MRTExport::TypeInfoT is a binary mirror of TypeInfo.
     static void CheckInterpreterMirror() {
-        static_assert(sizeof(MRTExport::type_info_t) == sizeof(TypeInfo), "type_info_t size must match TypeInfo");
-        static_assert(__builtin_offsetof(MRTExport::type_info_t, type_info_name) == __builtin_offsetof(TypeInfo, typeInfoName), "typeInfoName offset mismatch");
-        static_assert(__builtin_offsetof(MRTExport::type_info_t, type) == __builtin_offsetof(TypeInfo, type), "type offset mismatch");
-        static_assert(__builtin_offsetof(MRTExport::type_info_t, flag) == __builtin_offsetof(TypeInfo, flag), "flag offset mismatch");
-        static_assert(__builtin_offsetof(MRTExport::type_info_t, field_num) == __builtin_offsetof(TypeInfo, fieldNum), "fieldNum offset mismatch");
-        static_assert(__builtin_offsetof(MRTExport::type_info_t, instance_size) == __builtin_offsetof(TypeInfo, instanceSize), "instanceSize offset mismatch");
-        static_assert(__builtin_offsetof(MRTExport::type_info_t, gctib) == __builtin_offsetof(TypeInfo, gctib), "gctib offset mismatch");
-        static_assert(__builtin_offsetof(MRTExport::type_info_t, uuid) == __builtin_offsetof(TypeInfo, uuid), "uuid offset mismatch");
-        static_assert(__builtin_offsetof(MRTExport::type_info_t, align) == __builtin_offsetof(TypeInfo, align), "align offset mismatch");
-        static_assert(__builtin_offsetof(MRTExport::type_info_t, type_args_num) == __builtin_offsetof(TypeInfo, typeArgsNum), "typeArgsNum offset mismatch");
-        static_assert(__builtin_offsetof(MRTExport::type_info_t, valid_inherit_num) == __builtin_offsetof(TypeInfo, validInheritNum), "validInheritNum offset mismatch");
-        static_assert(__builtin_offsetof(MRTExport::type_info_t, field_offsets) == __builtin_offsetof(TypeInfo, fieldOffsets), "fieldOffsets offset mismatch");
-        static_assert(__builtin_offsetof(MRTExport::type_info_t, finalizer_method) == __builtin_offsetof(TypeInfo, finalizerMethod), "finalizerMethod offset mismatch");
-        static_assert(__builtin_offsetof(MRTExport::type_info_t, type_args) == __builtin_offsetof(TypeInfo, typeArgs), "typeArgs offset mismatch");
-        static_assert(__builtin_offsetof(MRTExport::type_info_t, fields) == __builtin_offsetof(TypeInfo, fields), "fields offset mismatch");
-        static_assert(__builtin_offsetof(MRTExport::type_info_t, super_type_info) == __builtin_offsetof(TypeInfo, superTypeInfo), "superTypeInfo offset mismatch");
-        static_assert(__builtin_offsetof(MRTExport::type_info_t, v_extension_data_start) == __builtin_offsetof(TypeInfo, vExtensionDataStart),"v_extension_data_start offset mismatch");
-        static_assert(__builtin_offsetof(MRTExport::type_info_t, mtable_desc) == __builtin_offsetof(TypeInfo, mTableDesc), "mTableDesc offset mismatch");
-        static_assert(__builtin_offsetof(MRTExport::type_info_t, reflect_or_debug_info) == __builtin_offsetof(TypeInfo, reflectInfo), "reflectInfo offset mismatch");
+        static_assert(sizeof(MRTExport::TypeInfoT) == sizeof(TypeInfo), "TypeInfoT size must match TypeInfo");
+        static_assert(__builtin_offsetof(MRTExport::TypeInfoT, typeInfoName) == __builtin_offsetof(TypeInfo, typeInfoName), "typeInfoName offset mismatch");
+        static_assert(__builtin_offsetof(MRTExport::TypeInfoT, type) == __builtin_offsetof(TypeInfo, type), "type offset mismatch");
+        static_assert(__builtin_offsetof(MRTExport::TypeInfoT, flag) == __builtin_offsetof(TypeInfo, flag), "flag offset mismatch");
+        static_assert(__builtin_offsetof(MRTExport::TypeInfoT, fieldNum) == __builtin_offsetof(TypeInfo, fieldNum), "fieldNum offset mismatch");
+        static_assert(__builtin_offsetof(MRTExport::TypeInfoT, instanceSize) == __builtin_offsetof(TypeInfo, instanceSize), "instanceSize offset mismatch");
+        static_assert(__builtin_offsetof(MRTExport::TypeInfoT, gctib) == __builtin_offsetof(TypeInfo, gctib), "gctib offset mismatch");
+        static_assert(__builtin_offsetof(MRTExport::TypeInfoT, uuid) == __builtin_offsetof(TypeInfo, uuid), "uuid offset mismatch");
+        static_assert(__builtin_offsetof(MRTExport::TypeInfoT, align) == __builtin_offsetof(TypeInfo, align), "align offset mismatch");
+        static_assert(__builtin_offsetof(MRTExport::TypeInfoT, typeArgsNum) == __builtin_offsetof(TypeInfo, typeArgsNum), "typeArgsNum offset mismatch");
+        static_assert(__builtin_offsetof(MRTExport::TypeInfoT, validInheritNum) == __builtin_offsetof(TypeInfo, validInheritNum), "validInheritNum offset mismatch");
+        static_assert(__builtin_offsetof(MRTExport::TypeInfoT, fieldOffsets) == __builtin_offsetof(TypeInfo, fieldOffsets), "fieldOffsets offset mismatch");
+        static_assert(__builtin_offsetof(MRTExport::TypeInfoT, finalizerMethod) == __builtin_offsetof(TypeInfo, finalizerMethod), "finalizerMethod offset mismatch");
+        static_assert(__builtin_offsetof(MRTExport::TypeInfoT, typeArgs) == __builtin_offsetof(TypeInfo, typeArgs), "typeArgs offset mismatch");
+        static_assert(__builtin_offsetof(MRTExport::TypeInfoT, fields) == __builtin_offsetof(TypeInfo, fields), "fields offset mismatch");
+        static_assert(__builtin_offsetof(MRTExport::TypeInfoT, superTypeInfo) == __builtin_offsetof(TypeInfo, superTypeInfo), "superTypeInfo offset mismatch");
+        static_assert(__builtin_offsetof(MRTExport::TypeInfoT, vExtensionDataStart) == __builtin_offsetof(TypeInfo, vExtensionDataStart),"vExtensionDataStart offset mismatch");
+        static_assert(__builtin_offsetof(MRTExport::TypeInfoT, mTableDesc) == __builtin_offsetof(TypeInfo, mTableDesc), "mTableDesc offset mismatch");
+        static_assert(__builtin_offsetof(MRTExport::TypeInfoT, reflectOrDebugInfo) == __builtin_offsetof(TypeInfo, reflectInfo), "reflectInfo offset mismatch");
     }
 };
 #endif

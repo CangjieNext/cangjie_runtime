@@ -24,31 +24,31 @@ using namespace MRTExport;
 
 namespace MapleRuntime { // TODO introduce separate namespace for interpreter-related functions  
 
-void IterateFramesWithState(fiber_specific_data_t fiberData, void (*callback)(visiting_state_t, void*), void* ctx);
+void IterateFramesWithState(FiberSpecificDataT fiberData, void (*callback)(VisitingStateT, void*), void* ctx);
 
-void VisitInterpreterGlobalRoots(root_visitor_t visitor);
+void VisitInterpreterGlobalRoots(RootVisitorT visitor);
 
-void VisitInterpreterFrameRootsExpansion(visiting_state_t state, FrameInfo frameDesc, root_visitor_t stackPtrVisitor, root_visitor_t derivedPtrVisitor);
-void VisitInterpreterFrameRootsMarking(visiting_state_t state, FrameInfo frameDesc, root_visitor_t rootVisitor);
-void VisitInterpreterFrameRootsAdjusting(visiting_state_t state, FrameInfo frameDesc, root_visitor_t rootVisitor, root_visitor_t derivedPtrVisitor);
+void VisitInterpreterFrameRootsExpansion(VisitingStateT state, FrameInfo frameDesc, RootVisitorT stackPtrVisitor, RootVisitorT derivedPtrVisitor);
+void VisitInterpreterFrameRootsMarking(VisitingStateT state, FrameInfo frameDesc, RootVisitorT rootVisitor);
+void VisitInterpreterFrameRootsAdjusting(VisitingStateT state, FrameInfo frameDesc, RootVisitorT rootVisitor, RootVisitorT derivedPtrVisitor);
 
 
-void InterpreterFiberStart(fiber_specific_data_t* mutator);
-void InterpreterFiberDestroy(fiber_specific_data_t* mutator);
+void InterpreterFiberStart(FiberSpecificDataT* mutator);
+void InterpreterFiberDestroy(FiberSpecificDataT* mutator);
 
-void ProvideInterpretedFrameInfo(uint64_t fp, uint64_t ip, interpreted_frame_info_t* fInfo);
+void ProvideInterpretedFrameInfo(uint64_t fp, uint64_t ip, InterpretedFrameInfoT* fInfo);
 
-struct type_info_t* TypeInfoProvider(char * sig);
+struct TypeInfoT* TypeInfoProvider(char * sig);
 
-obj_ref_t ObjectAllocate(struct type_info_t* tpe);
+ObjRefT ObjectAllocate(struct TypeInfoT* tpe);
 
 void SafePoint();
 
-bool IsPendingSafePoint(thread_local_data_t* tlData);
+bool IsPendingSafePoint(ThreadLocalDataT* tlData);
 
-obj_ref_t GetPendingException();
-obj_ref_t GetAndClearPendingException();
-bool InstanceOf(obj_ref_t ref, struct type_info_t* ti);
+ObjRefT GetPendingException();
+ObjRefT GetAndClearPendingException();
+bool InstanceOf(ObjRefT ref, struct TypeInfoT* ti);
 
 void InitInterpreter(const RuntimeParam& runtimeParam);
 

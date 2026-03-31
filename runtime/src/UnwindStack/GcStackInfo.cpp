@@ -68,7 +68,7 @@ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) con
     }
 
 #ifdef INTERPRETER_ENABLED
-    auto markingStackVisitor = [this, &func](visiting_state_t state) {
+    auto markingStackVisitor = [this, &func](VisitingStateT state) {
         for (const auto& frame : stack) {
             switch (frame.GetFrameType()) {
                 case FrameType::INTERPRETER_I2N:
@@ -81,7 +81,7 @@ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) con
         }
     };
 
-    IterateFramesWithState(mutator.interpreterFiberData, [](visiting_state_t state, void* ctx) {
+    IterateFramesWithState(mutator.interpreterFiberData, [](VisitingStateT state, void* ctx) {
         auto closure = reinterpret_cast<decltype(markingStackVisitor)*>(ctx);
         (*closure)(state);
     }, &markingStackVisitor);
@@ -122,7 +122,7 @@ void GCStackInfo::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, con
     }
 
 #ifdef INTERPRETER_ENABLED
-    auto adjustingStackVisitor = [this, &rootVisitor, &derivedPtrVisitor](visiting_state_t state) {
+    auto adjustingStackVisitor = [this, &rootVisitor, &derivedPtrVisitor](VisitingStateT state) {
         for (const auto& frame : stack) {
             switch (frame.GetFrameType()) {
                 case FrameType::INTERPRETER:
@@ -132,7 +132,7 @@ void GCStackInfo::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, con
         }
     };
 
-    IterateFramesWithState(mutator.interpreterFiberData, [](visiting_state_t state, void* ctx) {
+    IterateFramesWithState(mutator.interpreterFiberData, [](VisitingStateT state, void* ctx) {
         auto closure = reinterpret_cast<decltype(adjustingStackVisitor)*>(ctx);
         (*closure)(state);
     }, &adjustingStackVisitor);

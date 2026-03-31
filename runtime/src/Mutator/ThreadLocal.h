@@ -35,7 +35,7 @@ struct ThreadLocalData {
 # ifdef INTERPRETER_ENABLED
     // Duplicate of Mutator::interpreterFiberData for fast access.
     // Should be updated together with mutator field.
-    MRTExport::fiber_specific_data_t interpreterFiberData;
+    MRTExport::FiberSpecificDataT interpreterFiberData;
 # endif
     // Internal thread local var.
     ThreadType threadType;
