@@ -47,6 +47,8 @@ Uptr STACK_ADDR_MAX = ULLONG_MAX;
 #endif
 Uptr StackManager::rtStartAddr = STACK_ADDR_MAX;
 Uptr StackManager::rtEndAddr = 0;
+Uptr StackManager::rtThreadStartAddr = STACK_ADDR_MAX;
+Uptr StackManager::rtThreadEndAddr = 0;
 Uptr StackManager::cjcSoStartAddr = STACK_ADDR_MAX;
 Uptr StackManager::cjcSoEndAddr = 0;
 Uptr StackManager::traceSoStartAddr = STACK_ADDR_MAX;
@@ -330,9 +332,16 @@ void StackManager::InitAddressScope()
 #if defined(__APPLE__) || defined(_WIN64) // MacOS, iOS, Windows
     StackManager::rtStartAddr = reinterpret_cast<Uptr>(g_runtimeStaticStart);
     StackManager::rtEndAddr = reinterpret_cast<Uptr>(g_runtimeStaticEnd);
+#ifdef _WIN64
+    extern "C" uintptr_t g_runtimeThreadStaticStart;
+    extern "C" uintptr_t g_runtimeThreadStaticEnd;
+    StackManager::rtThreadStartAddr = reinterpret_cast<Uptr>(g_runtimeThreadStaticStart);
+    StackManager::rtThreadEndAddr = reinterpret_cast<Uptr>(g_runtimeThreadStaticEnd);
+#endif
 #else
     StackManager::rtStartAddr = reinterpret_cast<Uptr>(&g_runtimeStaticStart);
     StackManager::rtEndAddr = reinterpret_cast<Uptr>(&g_runtimeStaticEnd);
+#endif
 #endif
 #endif
 
@@ -413,10 +422,10 @@ bool StackManager::IsRuntimeFrame(Uptr pc)
     }
     return false;
 #else // Otherwise.
-    // For platforms that do not support macro expansion, such as iOS and HOS, the second condition will always be true
+    // For platforms that do not support macro expansion, such as iOS and HOS, second condition will always be true
     // because there is no display setting for the address info of cjc. The same logic applies to cjthread-trace.
-    return (pc > rtStartAddr && pc < rtEndAddr) || (pc > cjcSoStartAddr && pc < cjcSoEndAddr) ||
-        (pc > traceSoStartAddr && pc < traceSoEndAddr);
+    return (pc > rtStartAddr && pc < rtEndAddr) || (pc > rtThreadStartAddr && pc < rtThreadEndAddr) ||
+        (pc > cjcSoStartAddr && pc < cjcSoEndAddr) || (pc > traceSoStartAddr && pc < traceSoEndAddr);
 #endif
 }
 } // namespace MapleRuntime
