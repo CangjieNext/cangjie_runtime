@@ -2577,6 +2577,8 @@ enum CaseType {
     Upper | Lower | Title
 }
 
+const MAX_CASE_CONVERSION_INPUT_SIZE: Int64 = 715827882
+
 public enum CasingOption {
     // Turkish
     | TR
@@ -2996,6 +2998,9 @@ extend String <: UnicodeStringExtension {
     }
 
     private func toCaseInternal(ct: CaseType): String {
+        if (this.size > MAX_CASE_CONVERSION_INPUT_SIZE) {
+            throw IllegalArgumentException("Input string size exceeds maximum limit for case conversion: ${this.size} > ${MAX_CASE_CONVERSION_INPUT_SIZE}.")
+        }
         let result = ArrayList<UInt8>()
         let itemBytes = this.toArray()
         var i = 0
@@ -3063,6 +3068,9 @@ extend String <: UnicodeStringExtension {
     }
 
     private func toCaseInternalWithOption(ct: CaseType, opt: CasingOption): String {
+        if (this.size > MAX_CASE_CONVERSION_INPUT_SIZE) {
+            throw IllegalArgumentException("Input string size exceeds maximum limit for case conversion: ${this.size} > ${MAX_CASE_CONVERSION_INPUT_SIZE}.")
+        }
         let itemBytes = this.toArray()
         let result = ArrayList<UInt8>()
         var i = 0
