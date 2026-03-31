@@ -592,6 +592,9 @@ class ArgParser {
     }
 
     func addOptionAndExecuteAction(key: String, val: String, spec: ArgumentSpec) {
+        if (_options.contains(key)) {
+            throw ArgumentParseException("Duplicate option: ${key}.")
+        }
         _options.add(key, val)
         spec.optionAction?(val)
     }
