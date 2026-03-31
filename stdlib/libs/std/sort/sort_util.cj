@@ -10,6 +10,15 @@ package std.sort
 
 import std.math.*
 
+let TIMSORT_STACK_SIZE_TIER1: Int64 = 5
+let TIMSORT_STACK_SIZE_TIER2: Int64 = 10
+let TIMSORT_STACK_SIZE_TIER3: Int64 = 24
+let TIMSORT_STACK_SIZE_TIER4: Int64 = 49
+
+let TIMSORT_STACK_LEN_THRESHOLD1: Int64 = 120
+let TIMSORT_STACK_LEN_THRESHOLD2: Int64 = 1542
+let TIMSORT_STACK_LEN_THRESHOLD3: Int64 = 119151
+
 extend<T> Array<T> where T <: Comparable<T> {
     func compareSwap3(i1: Int64, i2: Int64, i3: Int64) {
         var a: T = this[i1]
@@ -447,6 +456,19 @@ extend<T> Array<T> {
             n = n >> 1
         }
         return n + r
+    }
+
+    func getStackLen(): Int64 {
+        let len = this.size
+        if (len < TIMSORT_STACK_LEN_THRESHOLD1) {
+            return TIMSORT_STACK_SIZE_TIER1
+        } else if (len < TIMSORT_STACK_LEN_THRESHOLD2) {
+            return TIMSORT_STACK_SIZE_TIER2
+        } else if (len < TIMSORT_STACK_LEN_THRESHOLD3) {
+            return TIMSORT_STACK_SIZE_TIER3
+        } else {
+            return TIMSORT_STACK_SIZE_TIER4
+        }
     }
 
     @OverflowWrapping
