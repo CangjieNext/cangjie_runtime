@@ -117,7 +117,8 @@ struct CJNativeInterfaceT;
 // - interpreterInterface - Pointer to `InterpreterInterfaceT` which will be filled.
 // - cjnativeInterface - Pointer to `CJNativeInterfaceT`. The content will be copied.
 // - interpreterArgsCount - Number of interpreter arguments in `interpreterArgs`.
-// - interpreterArgs - Interpreter arguments array (null-terminated).
+// - interpreterArgs - Interpreter arguments array (null-terminated). 
+//                     Pointer is owned by runtime and will not be freed.
 // return: 0 on success.
 //
 typedef int (*InitRt)(struct InterpreterInterfaceT *interpreterInterface,

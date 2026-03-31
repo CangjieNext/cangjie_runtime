@@ -7,10 +7,7 @@
 
 #include "CjScheduler.h"
 
-#include <iostream>
 #include <cstdlib>
-#include <string>
-#include <sstream>
 #include <vector>
 #include <cstring>
 #include <thread>
@@ -283,35 +280,35 @@ static uint32_t InitProcessorNum()
 
 #ifdef INTERPRETER_ENABLED
 // Parse INTERPRETER_ARGS env variable and return null-terminated array of strings.
-static char** InitInterpreterArgs(int& out_count)
+// params:
+// - tokenCount - will be set to the number of strings in the array
+static char** InitInterpreterArgs(int& tokenCount)
 {
-    out_count = 0;
+    tokenCount = 0;
     const char* env = std::getenv("INTERPRETER_ARGS");
-    
+
     if (!env) {
         return nullptr;
     }
 
-    std::stringstream ss(env);
-    std::string token;
-    std::vector<std::string> temp_tokens;
-    
-    while (ss >> token) {
-        temp_tokens.push_back(token);
-    }
+    CString source(env);
+    std::vector<CString> tempTokens = CString::Split(source, ' ');
 
-    out_count = static_cast<int>(temp_tokens.size());
-    if (out_count == 0) {
+    tokenCount = static_cast<int>(tempTokens.size());
+    if (tokenCount == 0) {
         return nullptr;
     }
 
-    char** tokens = new char*[out_count + 1];
-    
-    for (int i = 0; i < out_count; ++i) {
-        tokens[i] = new char[temp_tokens[i].length() + 1];
-        std::strcpy(tokens[i], temp_tokens[i].c_str());
+    char** tokens = new char*[tokenCount + 1];
+    CHECK_DETAIL(tokens != nullptr, "new tokens array failed: size=%d", tokenCount + 1);
+
+    for (int i = 0; i < tokenCount; ++i) {
+        size_t tokenLen = tempTokens[i].Length();
+        tokens[i] = new char[tokenLen + 1];
+        CHECK_DETAIL(tokens[i] != nullptr, "new token #%d failed: size=%zu bytes", i, tokenLen + 1);
+        std::strcpy(tokens[i], tempTokens[i].Str());
     }
-    tokens[out_count] = nullptr;
+    tokens[tokenCount] = nullptr;
 
     return tokens;
 }
