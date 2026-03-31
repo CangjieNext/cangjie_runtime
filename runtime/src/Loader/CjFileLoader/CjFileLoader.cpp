@@ -462,11 +462,13 @@ bool CJFileLoader::DoInitImage(BaseFile* baseFile) const
     ScopedEntryTrace trace((CString("CJRT_INIT_LIBRARY_") + baseFile->GetBaseName()).Str());
     std::vector<Uptr> funcs;
     baseFile->GetGlobalInitFunc(funcs);
+    auto name = baseFile->GetBaseName().Str();
+    printf("-------- init image %s --------\n", name);
     for (Uptr func : funcs) {
         if (reinterpret_cast<void*>(func) != nullptr) {
             using FuncType = void (*)();
             FuncType initAddr = reinterpret_cast<FuncType>(func);
-#if defined(__OHOS__)
+#if defined(__OHOS__) || defined(__IOS__)
             InitCJLibraryStub(reinterpret_cast<void*>(initAddr));
 #else
             Mutator* mutator = ThreadLocal::GetMutator();
@@ -474,6 +476,9 @@ bool CJFileLoader::DoInitImage(BaseFile* baseFile) const
                 mutator->SetManagedContext(true);
             }
             uintptr_t threadData = MapleRuntime::MRT_GetThreadLocalData();
+            printf("      init func addr: %p, threadData: %p\n",
+                   reinterpret_cast<void *>(initAddr),
+                   reinterpret_cast<void *>(threadData));
             ExecuteCangjieStub(0, 0, 0, reinterpret_cast<void*>(initAddr), reinterpret_cast<void*>(threadData), 0);
             if (mutator != nullptr) {
                 mutator->SetManagedContext(false);
