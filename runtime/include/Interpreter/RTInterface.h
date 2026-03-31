@@ -124,7 +124,7 @@ struct CJNativeInterfaceT;
 typedef int (*InitRt)(struct InterpreterInterfaceT *interpreterInterface,
                       struct CJNativeInterfaceT *cjnativeInterface,
                       int interpreterArgsCount,
-                      char **interpreterArgs);
+                      const char* const* interpreterArgs);
 
 // Prepares state and calls callback with initialized state and provided context. After callback returns, performs necessary cleanup of the state.
 //

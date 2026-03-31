@@ -330,7 +330,7 @@ struct ConcurrencyParam {
 struct InterpreterParam {
     const char* interpreterLibName;
     int interpreterArgsCount;
-    char** interpreterArgs;
+    const char* const* interpreterArgs;
 };
 #endif
 
