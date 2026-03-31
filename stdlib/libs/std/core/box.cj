@@ -9,10 +9,16 @@
 package std.core
 
 public class Box<T> {
-    public var value: T
+    private var _value: T
+    public prop value: T {
+        get() { _value }
+    }
     @Frozen
     public init(v: T) {
-        value = v
+        _value = v
+    }
+    public func mutValue(newValue: T): Unit {
+        _value = newValue
     }
 }
 

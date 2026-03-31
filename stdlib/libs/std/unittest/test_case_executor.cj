@@ -201,7 +201,7 @@ class TestCaseExecutor<T> <: Executor {
         let lastInput = Box(Array<InputParameter>())
         let executeBody = { arg: T, input: Array<InputParameter> =>
             let step = CaseStep(argDescription(input))
-            lastInput.value = input
+            lastInput.mutValue(input)
             Framework.runStepBody(step, Test(1), result.caseId.caseName) {
                 actualBody(arg)
             }

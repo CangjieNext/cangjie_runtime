@@ -176,7 +176,7 @@ private func constructorGenerator(constructorCall: (argGenCall: (ToTokens) -> To
     let argGenIdx = Box<Int64>(1)
     let buildArgGenerator: (ToTokens) -> ToTokens = { argGen: ToTokens =>
         let argGenId = Token(IDENTIFIER, "__g${argGenIdx.value}")
-        argGenIdx.value++
+        argGenIdx.mutValue(argGenIdx.value + 1)
         quote(let $(argGenId) = $argGen) |> parseDecl |> block.nodes.add
         quote($argGenId.next())
     }

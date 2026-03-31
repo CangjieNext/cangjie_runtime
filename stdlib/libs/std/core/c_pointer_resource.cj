@@ -92,6 +92,6 @@ public struct CPointerResource<T> <: Resource where T <: CType {
             return
         }
         unsafe { LibC.free<T>(value) }
-        isFree.value = true
+        isFree.mutValue(true)
     }
 }

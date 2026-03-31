@@ -115,7 +115,7 @@ abstract class ResultContainer<T> <: Result where T <: Result {
         let currentCase: Box<?TestCaseResult> = Box(None)
         visitAll<Result> { r =>
             match (r) {
-                case r: TestCaseResult => currentCase.value = r
+                case r: TestCaseResult => currentCase.mutValue(r)
                 // case r: RunStepResult where !r.isPartOfTestCase() => visitor(r, None)
                 case r: RunStepResult => visitor(r, currentCase.value.getOrThrow())
                 case _ => ()

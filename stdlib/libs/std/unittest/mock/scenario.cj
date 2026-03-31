@@ -67,7 +67,7 @@ class Scenario {
                 match (config.cardinality.check(newCount)) {
                     case More => false
                     case _ =>
-                        count.value = newCount
+                        count.mutValue(newCount)
                         true
                 }
             case _ => mustBeActive()

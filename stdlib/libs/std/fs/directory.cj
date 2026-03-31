@@ -211,7 +211,7 @@ public class Directory {
                         ret = CJ_FS_CopyLink(srcString.value, destString.value)
                     }
                     if (ret < 0) {
-                        fail.value = true
+                        fail.mutValue(true)
                         return false
                     }
                 }

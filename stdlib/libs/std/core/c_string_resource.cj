@@ -236,6 +236,6 @@ public struct CStringResource <: Resource {
             return
         }
         unsafe { LibC.free(value.getChars()) }
-        isFree.value = true
+        isFree.mutValue(true)
     }
 }

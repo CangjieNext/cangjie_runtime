@@ -34,7 +34,7 @@ class FieldStorage {
     }
 
     func setExplicitFieldValue(fieldDescription: SyntheticFieldDescription, value: Any): Unit {
-        getOrCreateExplicitFieldBox(fieldDescription).value = value
+        getOrCreateExplicitFieldBox(fieldDescription).mutValue(value)
     }
 
     private func getOrCreateExplicitFieldBox(fieldDescription: SyntheticFieldDescription): Box<Any> {
@@ -54,7 +54,7 @@ class FieldStorage {
     func setAutoFieldValue(id: AutoFieldId, value: Any): Unit {
         match (autoFields.get(id)) {
             case Some(existingStorage) =>
-                existingStorage.value = value
+                existingStorage.mutValue(value)
             case None =>
                 let newStorage = Box<Any>(value)
                 autoFields[id] = newStorage

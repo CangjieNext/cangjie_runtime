@@ -276,12 +276,12 @@ func burstStyleTick(delay: Duration, interval: Duration): () -> ?Duration {
 
         // `nextTime - now` is the next interval
         if (nextTime >= now) {
-            lastTime.value = nextTime
+            lastTime.mutValue(nextTime)
             return nextTime - now
         }
 
         // catchup step by step
-        lastTime.value = nextTime
+        lastTime.mutValue(nextTime)
         // tick immediately
         return Duration.Zero
     }
@@ -313,7 +313,7 @@ func skipStyleTick(delay: Duration, interval: Duration): () -> ?Duration {
 
         // `nextTime - now` is the next interval
         if (nextTime >= now) {
-            lastTime.value = nextTime
+            lastTime.mutValue(nextTime)
             return nextTime - now
         }
 
@@ -321,7 +321,7 @@ func skipStyleTick(delay: Duration, interval: Duration): () -> ?Duration {
         while (nextTime < now) {
             nextTime += interval
         }
-        lastTime.value = nextTime - interval
+        lastTime.mutValue(nextTime - interval)
 
         // tick immediately
         return Duration.Zero
@@ -369,7 +369,7 @@ func tickTimes(count: Int64, nextTick: () -> ?Duration): () -> ?Duration {
         if (cnt.value >= count) {
             return None
         }
-        cnt.value++
+        cnt.mutValue(cnt.value + 1)
         nextTick()
     }
 }

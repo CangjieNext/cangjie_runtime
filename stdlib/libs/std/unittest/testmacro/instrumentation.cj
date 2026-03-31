@@ -260,7 +260,7 @@ open class InstrumentedFunction {
                 let funCode = funIdent + quote(<$(commaSeparated(combination))>)
                 let caseId = "${funIdent.value}${counter.value}"
                 initSingleCaseCode(funCode, caseId, typesToString(funCode), typeArgs: combination, tb: tb)
-                counter.value++
+                counter.mutValue(counter.value + 1)
             }
             // we first walk the type arguments, and then check type substitution
             // because if there are problems with both, missing arguments are more important
@@ -533,11 +533,11 @@ class InstrumentedClass {
                     .append(pc.funcParams.toTokens())
                     .append(Token(TokenKind.RPAREN))
                 if (pc.funcParams.isEmpty()) {
-                    hasDefaultConstructor.value = true
+                    hasDefaultConstructor.mutValue(true)
                 }
                 let body = pc.block.nodes
                 buildConstructor(tb, pcIdent, paramList, body)
-                numConstructors.value++
+                numConstructors.mutValue(numConstructors.value + 1)
             case cons: FuncDecl where cons.isConstructor =>
                 let modifiers: Tokens = cons.modifiers.toTokens()
                 let body = cons.block.nodes
@@ -546,10 +546,10 @@ class InstrumentedClass {
                     .append(cons.funcParams.toTokens())
                     .append(Token(TokenKind.RPAREN))
                 if (cons.funcParams.isEmpty()) {
-                    hasDefaultConstructor.value = true
+                    hasDefaultConstructor.mutValue(true)
                 }
                 buildConstructor(tb, modifiers + quote(init), paramList, body)
-                numConstructors.value++
+                numConstructors.mutValue(numConstructors.value + 1)
             case funcDecl: FuncDecl where funcDecl.getDeprecatedLifecycleStage().isSome() =>
                 LifecycleStages.transformFunction(funcDecl, tb)
             case funcDecl: FuncDecl where funcDecl.has(BENCH_MACRO) =>
@@ -601,7 +601,7 @@ class InstrumentedClass {
 
             if (numConstructors.value == 0) {
                 buildConstructor(tb, quote(init), quote(()), ArrayList<Node>())
-                hasDefaultConstructor.value = true
+                hasDefaultConstructor.mutValue(true)
             }
 
             buildConfigurationFunc(tb)
