@@ -26,6 +26,7 @@
 #include "UnwindStack/StackMetadataHelper.h"
 #include <Mutator/MutatorManager.h>
 
+
 namespace MapleRuntime {
 static bool g_oomIsTrigged = false;
 
@@ -115,6 +116,8 @@ void CjHeapData::DumpHeap(bool needStopTheWorld)
     if (ret) {
         LOG(RTLOG_ERROR, "Fail to close file when dump heap data finished, %s", strerror(errno));
     }
+
+    
     if (!dumpAfterOOM) {
         const int strLen = 20;
         char* str = static_cast<char*>(NativeAllocator::NativeAlloc(strLen * sizeof(char)));
