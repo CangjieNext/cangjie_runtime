@@ -10,7 +10,7 @@ set(SRC_LIST
 
 # Mark-Sweep barrier sources
 if (MARKSWEEP_FLAG MATCHES 1)
-    list(APPEND SRC_LIST "MSSatbBarrier.cpp")
+    list(APPEND SRC_LIST "MSMarkBarrier.cpp")
 endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../)

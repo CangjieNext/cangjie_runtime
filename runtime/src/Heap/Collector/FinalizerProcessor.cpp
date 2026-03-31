@@ -8,15 +8,10 @@
 #include "Collector/FinalizerProcessor.h"
 
 #include "Base/Macros.h"
-#include "Common/ScopedObjectAccess.h"
-#include "ExceptionManager.inline.h"
 #include "Mutator/Mutator.h"
-#include "ObjectModel/MObject.h"
-
-#ifdef MRT_USE_MARK_SWEEP
-#include "Allocator/RegionSpace.h"
-#include "Allocator/CentralRegionPool.h"
-#endif
+#include "Mutator/Mutator.inline.h"
+#include "Mutator/MutatorManager.h"
+#include <thread>
 
 namespace MapleRuntime {
 constexpr U32 DEFAULT_FINALIZER_TIMEOUT_MS = 2000;
@@ -25,9 +20,9 @@ constexpr U32 DEFAULT_FINALIZER_TIMEOUT_MS = 2000;
 extern "C" MRT_EXPORT void* MRT_ProcessFinalizers(void* arg)
 {
 #ifdef __APPLE__
-    CHECK_PTHREAD_CALL(pthread_setname_np, ("gc-helper"), "finalizer-processor thread setname");
+    CHECK_PTHREAD_CALL(pthread_setname_np, ("finalizer"), "finalizer-processor thread setname");
 #elif defined(__linux__) || defined(hongmeng)
-    CHECK_PTHREAD_CALL(prctl, (PR_SET_NAME, "gc-helper"), "finalizer-processor thread setname");
+    CHECK_PTHREAD_CALL(prctl, (PR_SET_NAME, "finalizer"), "finalizer-processor thread setname");
 #endif
     reinterpret_cast<FinalizerProcessor*>(arg)->Run();
     return nullptr;
@@ -50,7 +45,7 @@ void FinalizerProcessor::Start()
     CHECK_PTHREAD_CALL(pthread_create, (&thread, &attr, MRT_ProcessFinalizers, this),
                        "create finalizer-process thread");
 #ifdef __WIN64
-    CHECK_PTHREAD_CALL(pthread_setname_np, (thread, "gc-helper"), "finalizer-processor thread setname");
+    CHECK_PTHREAD_CALL(pthread_setname_np, (thread, "finalizer"), "finalizer-processor thread setname");
 #endif
     CHECK_PTHREAD_CALL(pthread_attr_destroy, (&attr), "destroy pthread attr");
     threadHandle = thread;
@@ -76,11 +71,9 @@ FinalizerProcessor::FinalizerProcessor()
     timeProcessorBegin = 0;
     timeProcessUsed = 0;
     timeCurrentProcessBegin = 0;
-    hasFinalizableJob.store(false, std::memory_order_relaxed);
     shouldReclaimHeapGarbage.store(false, std::memory_order_relaxed);
-    shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
     shouldBackgroundSweep_.store(false, std::memory_order_relaxed);
-    shouldBackgroundFillAllocCaches_.store(true, std::memory_order_relaxed);
+    shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
 }
 
 void FinalizerProcessor::Run()
@@ -88,25 +81,11 @@ void FinalizerProcessor::Run()
     Init();
     NotifyStarted();
     while (running) {
-        if (hasFinalizableJob.load(std::memory_order_relaxed)) {
+        if (finalizerWorkList.HasFinalizableJob()) {
             ProcessFinalizables();
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
             LogAfterProcess();
 #endif
-        }
-
-        // Background sweep must run AFTER ProcessFinalizables to ensure
-        // finalizer execution before memory reclamation (ordering constraint).
-        if (shouldBackgroundSweep_.load(std::memory_order_relaxed)) {
-            BackgroundSweepLoop();
-        }
-
-        // O9: Fill hungry per-thread alloc caches after sweep completes
-        // (sweep may have freed regions that can now fill empty caches).
-        // Lightweight O(36 × numThreads) — safe to run every wake-up.
-        // Disabled during MarkSetup STW to avoid concurrent pool list modification.
-        if (shouldBackgroundFillAllocCaches_.load(std::memory_order_acquire)) {
-            BackgroundFillAllocCaches();
         }
 
         if (shouldFeedHungryBuffers.load(std::memory_order_relaxed)) {
@@ -114,25 +93,14 @@ void FinalizerProcessor::Run()
         }
 
         if (shouldReclaimHeapGarbage.load(std::memory_order_relaxed)) {
-            ReclaimHeapGarbage();
+            (void)ReclaimHeapGarbage();
         }
-
-#ifdef MRT_USE_MARK_SWEEP
-        // O4: Async heuristic GC check — the only periodic HEU trigger point.
-        // FinalizerProcessor wakes every iterationWaitTime (or on signal),
-        // making this a natural low-overhead checkpoint.
-        // ShouldRetryAllocation() provides synchronous fallback if allocation fails.
-        CheckHeuristicGCTrigger();
-#endif
 
         {
             MRT_PHASE_TIMER("finalizerProcessor waitting time", FINALIZE);
             while (running) {
                 Wait(iterationWaitTime);
-                if (hasFinalizableJob.load(std::memory_order_relaxed) ||
-                    shouldReclaimHeapGarbage.load(std::memory_order_relaxed) ||
-                    shouldFeedHungryBuffers.load(std::memory_order_relaxed) ||
-                    shouldBackgroundSweep_.load(std::memory_order_relaxed)) {
+                if (HasPendingWakeWork()) {
                     break;
                 }
             }
@@ -181,6 +149,13 @@ void FinalizerProcessor::Wait(U32 timeoutMilliSeconds)
 {
     std::unique_lock<std::mutex> lock(wakeLock);
     std::chrono::milliseconds epoch(timeoutMilliSeconds);
+    wakeCondition.wait_for(lock, epoch, [this] { return !running || HasPendingWakeWork(); });
+}
+
+void FinalizerProcessor::WaitForActiveBackoff(U32 timeoutMilliSeconds)
+{
+    std::unique_lock<std::mutex> lock(wakeLock);
+    std::chrono::milliseconds epoch(timeoutMilliSeconds);
     wakeCondition.wait_for(lock, epoch);
 }
 
@@ -203,86 +178,9 @@ void FinalizerProcessor::WaitStarted()
     startedCondition.wait(lock, [this] { return started; });
 }
 
-void FinalizerProcessor::EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit)
-{
-    std::lock_guard<std::mutex> l(listLock);
-    auto it = finalizers.begin();
-    while (it != finalizers.end() && countLimit != 0) {
-        RefField<> tmpField(reinterpret_cast<MAddress>(*it));
-        BaseObject* obj = tmpField.GetTargetObject();
-        --countLimit;
-        if (finalizable(obj)) {
-            finalizables.push_back(reinterpret_cast<BaseObject*>(tmpField.GetFieldValue()));
-            it = finalizers.erase(it);
-        } else {
-            ++it;
-        }
-    }
-
-    if (!finalizables.empty()) {
-        hasFinalizableJob.store(true, std::memory_order_relaxed);
-    }
-}
-
-// Process finalizable list
-// 1. always process list head
-// 2. Leave safe region (calling in finalizerProcessor thread)
-// 3. Invoke finalize method
-// 4. remove processed finalizables
-void FinalizerProcessor::ProcessFinalizableList()
-{
-    auto itor = workingFinalizables.begin();
-    while (itor != workingFinalizables.end() && running) {
-        // keep GC thread from visiting roots when workingFinalizables list is updating
-        ScopedObjectAccess soa;
-        CHECK_DETAIL(ExceptionManager::GetPendingException() == nullptr, "should not exist pending exception");
-        RefField<> tmpField(reinterpret_cast<MAddress>(*itor));
-        BaseObject* finalizeObjAddr = Heap::GetHeap().GetBarrier().ReadStaticRef(tmpField);
-
-        TypeInfo* classInfo = reinterpret_cast<MObject*>(finalizeObjAddr)->GetTypeInfo();
-        FuncRef finalizerMethod = classInfo->GetFinalizeMethod();
-        Mutator* mutator = ThreadLocal::GetMutator();
-
-        CHECK_DETAIL(finalizerMethod != nullptr, "%p has no finalize method", finalizeObjAddr);
-        void (*finalizer)(BaseObject*, TypeInfo*) = reinterpret_cast<void (*)(BaseObject*, TypeInfo*)>(finalizerMethod);
-        // finalize method return void, (moving) gc may take place here
-        mutator->SetManagedContext(true);
-        DLOG(FINALIZE, "tid %u finalize object %p", tid, finalizeObjAddr);
-        uintptr_t threadData = MapleRuntime::MRT_GetThreadLocalData();
-        ExecuteCangjieStub(finalizeObjAddr, finalizeObjAddr->GetTypeInfo(), 0, reinterpret_cast<void*>(finalizer),
-                           reinterpret_cast<void*>(threadData), 0);
-        mutator->SetManagedContext(false);
-
-        if (ExceptionManager::HasFatalException()) {
-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-            ExceptionManager::DumpException();
-#endif
-            LOG(RTLOG_FATAL, "FatalException happened in finalizer");
-        }
-        ExceptionManager::ClearPendingException();
-        {
-            std::lock_guard<std::mutex> l(listLock);
-            itor = workingFinalizables.erase(itor);
-        }
-    }
-}
-
 void FinalizerProcessor::ProcessFinalizables()
 {
-    MRT_PHASE_TIMER("Finalizer", FINALIZE);
-    {
-        // we leave saferegion to avoid GC visit those changing queues.
-        ScopedObjectAccess soa;
-        std::lock_guard<std::mutex> l(listLock);
-        // FP will not come here before cleaning up workingFinalizables
-        // workingFinalizables is expected empty, thus we could use std::swap here
-        workingFinalizables.swap(finalizables);
-    }
-    DLOG(FINALIZE, "finalizer: working size %zu", workingFinalizables.size());
-    ProcessFinalizableList();
-    if (finalizables.empty()) {
-        hasFinalizableJob.store(false, std::memory_order_relaxed);
-    }
+    finalizerWorkList.ProcessFinalizables([this] { return running; });
 }
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
@@ -301,43 +199,13 @@ void FinalizerProcessor::LogAfterProcess()
 }
 #endif
 
-void FinalizerProcessor::RegisterFinalizer(BaseObject* obj)
-{
-    RefField<> tmpField(nullptr);
-    Heap::GetHeap().GetBarrier().WriteStaticRef(tmpField, obj);
-    std::lock_guard<std::mutex> l(listLock);
-    finalizers.push_back(reinterpret_cast<BaseObject*>(tmpField.GetFieldValue()));
-}
-
-void FinalizerProcessor::ReclaimHeapGarbage()
+bool FinalizerProcessor::ReclaimHeapGarbage()
 {
     ScopedEntryTrace trace("CJRT_GC_RECLAIM");
-#ifdef MRT_USE_MARK_SWEEP
-    RegionSpace& space = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
-    MSRegionManager* msRegionManager = space.GetMSRegionManager();
-    size_t dirtyBefore = (msRegionManager != nullptr) ? msRegionManager->GetDirtyTreeBytes() : 0;
-    size_t releasedBefore = (msRegionManager != nullptr) ? msRegionManager->GetReleasedTreeBytes() : 0;
-#endif
-
     size_t releasedBytes = Heap::GetHeap().GetAllocator().ReclaimGarbageMemory(false);
-
-#ifdef MRT_USE_MARK_SWEEP
-    if (msRegionManager != nullptr) {
-        size_t dirtyAfter = msRegionManager->GetDirtyTreeBytes();
-        size_t releasedAfter = msRegionManager->GetReleasedTreeBytes();
-        VLOG(REPORT,
-               "[MS-GC][O6] reclaim cycle: released=%zuB, dirtyTree=%zuB->%zuB (delta=%lldB), "
-               "releasedTree=%zuB->%zuB (delta=%lldB)",
-             releasedBytes,
-               dirtyBefore, dirtyAfter,
-               static_cast<long long>(static_cast<int64_t>(dirtyAfter) - static_cast<int64_t>(dirtyBefore)),
-             releasedBefore, releasedAfter,
-               static_cast<long long>(static_cast<int64_t>(releasedAfter) - static_cast<int64_t>(releasedBefore)));
-        msRegionManager->DumpAndResetAllocClearStats();
-    }
-#endif
-
-    shouldReclaimHeapGarbage.store(false, std::memory_order_relaxed);
+    (void)releasedBytes;
+    shouldReclaimHeapGarbage.store(false, std::memory_order_release);
+    return false;
 }
 
 void FinalizerProcessor::FeedHungryBuffers()
@@ -346,47 +214,15 @@ void FinalizerProcessor::FeedHungryBuffers()
     shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
 }
 
-#ifdef MRT_USE_MARK_SWEEP
-void FinalizerProcessor::CheckHeuristicGCTrigger()
+bool FinalizerProcessor::BackgroundSweepLoop()
 {
-    if (Heap::GetHeap().IsGcStarted()) {
-        return;
-    }
-    Collector& collector = Heap::GetHeap().GetCollector();
-    const GCStats& gcStats = collector.GetGCStats();
-    size_t threshold = gcStats.GetThreshold();
-    size_t allocated = Heap::GetHeap().GetAllocator().AllocatedBytes();
-    // O1 formula: effective allocation compensates for lazy-sweep lag
-    size_t baseline = gcStats.baselineAllocatedBytes;
-    size_t newAlloc = (allocated > baseline) ? (allocated - baseline) : 0;
-    size_t effectiveAlloc = gcStats.lastTrueLiveBytes + newAlloc;
-    if (effectiveAlloc >= threshold) {
-        collector.RequestGC(GC_REASON_HEU, true);  // async, non-blocking
-    }
-}
-#endif
-
-void FinalizerProcessor::BackgroundSweepLoop()
-{
-#ifdef MRT_USE_MARK_SWEEP
-    RegionSpace& space = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
-    CentralRegionPool* centralPool = space.GetCentralPool();
-    if (centralPool != nullptr) {
-        centralPool->BackgroundSweep();
-    }
-#endif
-    shouldBackgroundSweep_.store(false, std::memory_order_relaxed);
+    shouldBackgroundSweep_.store(false, std::memory_order_release);
+    return false;
 }
 
 void FinalizerProcessor::BackgroundFillAllocCaches()
 {
-#ifdef MRT_USE_MARK_SWEEP
-    RegionSpace& space = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
-    CentralRegionPool* centralPool = space.GetCentralPool();
-    if (centralPool != nullptr) {
-        centralPool->BackgroundFillAllocCaches();
-    }
-#endif
+    shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
 }
 
 } // namespace MapleRuntime

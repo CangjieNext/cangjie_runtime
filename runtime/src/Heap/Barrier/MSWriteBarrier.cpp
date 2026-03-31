@@ -8,8 +8,8 @@
 
 #include "MSWriteBarrier.h"
 #include "Barrier.inline.h"
-#include "Heap/Allocator/LargeObjectSpace.h"
-#include "Heap/Allocator/RegionSpace.h"
+#include "Heap/MAllocator/MSLargeObjectSpace.h"
+#include "Heap/MAllocator/MSRegionSpace.h"
 #include "Heap/Collector/MarkSweepCollector.h"
 #include "Heap/Heap.h"
 #include "Mutator/Mutator.h"
@@ -60,7 +60,7 @@ void MSWriteBarrier::MarkAndEnqueue(BaseObject* obj, WriteBarrierBuffer& wbBuf)
     }
     // Check both contiguous heap AND LOS (mmap'd huge objects).
     if (!Heap::IsHeapAddress(obj)) {
-        RegionSpace& space = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+        RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
         LargeObjectSpace* los = space.GetLargeObjectSpace();
         if (los == nullptr || !los->Contains(reinterpret_cast<uintptr_t>(obj))) {
             return;
@@ -76,7 +76,7 @@ void MSWriteBarrier::MarkAndEnqueue(BaseObject* obj, WriteBarrierBuffer& wbBuf)
         return;
     }
     // RegionSpace::MarkObject returns true if ALREADY marked, false if NEWLY marked.
-    if (!RegionSpace::MarkObject(obj)) {
+    if (!Allocator::MarkObject(obj)) {
         // Newly marked → push to per-Mutator write barrier buffer.
         // If buffer is full, flush the ENTIRE buffer to the collector's global
         // work queue (one mutex acquisition for all items), then push the new

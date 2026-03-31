@@ -26,13 +26,15 @@ struct MSRegionInfo;
 // Accumulated during a single GC cycle, logged in DumpMSGCLog(), then reset.
 struct MSGCCycleStats {
     // ── Timing (microseconds) ──
+    uint64_t preEnumRootsUs = 0;
     uint64_t markSetupUs = 0;
     uint64_t clearBitmapUs = 0;
-    uint64_t forceFinishSweepUs = 0;
     uint64_t enumRootsUs = 0;
     uint64_t concurrentMarkUs = 0;
     uint64_t markTerminationUs = 0;
     uint64_t postMarkUs = 0;
+    uint64_t concurrentSweepUs = 0;
+    uint64_t postGcHookUs = 0;
 
     // ── Counting ──
     size_t clearBitmapRegions = 0;
@@ -42,29 +44,47 @@ struct MSGCCycleStats {
     size_t wbBufFlushCount = 0;
     size_t wbBufEntriesTotal = 0;
     uint64_t wbBufFlushUs = 0;
-    size_t drainedGreyObjects = 0;
+    size_t markTermProcessedObjects = 0;
+    size_t markTermNewlyMarkedObjects = 0;
     uint64_t drainMarkQueueUs = 0;
     size_t weakRefCleared = 0;
     size_t finalizerEnqueued = 0;
     size_t losFreedCount = 0;
+    size_t losFreedRegionCount = 0;
     size_t losFreedBytes = 0;
     uint64_t losCollectUs = 0;
     size_t preparedRegions = 0;
     uint64_t prepareForSweepUs = 0;
 
+    // ── Per-phase mark deltas (for DFX per-phase logging) ──
+    size_t markAfterEnumRoots = 0;     // markedObjectCount after EnumRoots
+    size_t markAfterConcMark = 0;      // markedObjectCount after ConcurrentMark
+    size_t markAfterMarkTerm = 0;      // markedObjectCount after MarkTermination
+
     // ── Previous cycle sweep summary (persisted from last cycle) ──
     size_t prevSweptSmallRegions = 0;
+    size_t prevSweptSmallEmptiedRegions = 0;
+    size_t prevSweptSmallRetainedRegions = 0;
     size_t prevSweptSmallFreedBytes = 0;
     size_t prevSweptLargeCount = 0;
+    size_t prevSweptLargeRegions = 0;
     size_t prevSweptLargeFreedBytes = 0;
-    size_t prevReleasedRegions = 0;
+    size_t prevEmptiedRegions = 0;
     size_t prevBgSweepRegions = 0;
     size_t prevLazySweepRegions = 0;
-    size_t prevForceSweepRegions = 0;
+    size_t prevReleasedTreeRegions = 0;
+    size_t prevReleasedTreeBytes = 0;
 
     // ── Mutator assist stats (Step 2.2 §4) ──
     size_t assistCallCount = 0;
     size_t assistMarkedObjects = 0;
+    size_t assistProcessedObjects = 0;
+    size_t assistTracedObjects = 0;
+    size_t assistFastSkipCount = 0;
+    size_t globalShareCount = 0;
+    size_t globalSharedBufs = 0;
+    size_t globalPopHitCount = 0;
+    size_t globalPopMissCount = 0;
 
     // ── True live bytes (computed from markBitmaps after marking) ──
     size_t trueLiveBytes = 0;
@@ -91,6 +111,8 @@ public:
 
     // ── Core GC entry ──
     void RunGarbageCollection(uint64_t gcIndex, GCReason reason) override;
+    void PreGarbageCollection(bool isConcurrent) override;
+    void PostGarbageCollection(uint64_t gcIndex) override;
 
     // ── MarkNewObject: mark newly allocated objects black during marking phases ──
     void MarkNewObject(BaseObject* obj) override;
@@ -104,7 +126,7 @@ public:
         return activeCollector_.load(std::memory_order_acquire);
     }
 
-    // Called from MSWriteBarrier when WriteBarrierBuffer overflows.
+    // Called from MSMarkBarrier when WriteBarrierBuffer overflows.
     // Pushes a single grey object to the global work queue for tracing.
     void EnqueueGreyObject(BaseObject* obj);
 
@@ -153,6 +175,8 @@ public:
 
     bool ShouldIgnoreRequest(GCRequest& request) override { return request.ShouldBeIgnored(); }
     void UpdateGCStats() override;
+    bool IsScannedObject(const BaseObject* obj) const;
+    void SetScannedObject(const BaseObject* obj) const;
 
 private:
     // ── MS GC phases ──
@@ -161,7 +185,7 @@ private:
     void EnumRoots();            // Step 2.1b: Handshake + root enumeration
     void ConcurrentMark();      // Step 2.2: Concurrent marking (GC thread + assist)
     void MarkTermination();     // Step 2.3: STW finalization of marking
-    void PostMarkTermination(); // Step 2.4: Non-STW cleanup (WeakRef, SATB, Finalizer, LOS)
+    void PostMarkTermination(); // Step 2.4: Non-STW cleanup (WeakRef, Finalizer, LOS)
     void ConcurrentSweep();     // Step 3 (stub)
 
     // ── Step 2.1 internals ──
@@ -182,9 +206,9 @@ private:
 
     // ── Step 2.3 internals ──
     void CollectUnmarkedToMainQueue(WorkStack& mainQueue);
-    void DrainSatbBufferToMainQueue(WorkStack& mainQueue);
     void FlushAllWriteBarrierBuffers(WorkStack& mainQueue);
-    void ClearAllWriteBarrierBuffers();
+    void FlushAllAssistLocalWorks(WorkStack& mainQueue);
+    void DrainGlobalWorkQueueToMainQueue(WorkStack& mainQueue);
     void CollectExternCandidatesToMain(WorkStack& mainQueue);
     void CollectResurrectionCandidatesToMain(WorkStack& mainQueue);
     void ExecuteLikeDrainMainQueue(WorkStack& mainQueue);
@@ -216,11 +240,20 @@ private:
     //    size() returns buffer count (each buf holds ≤64 objects)
     static constexpr size_t kAssistMaxObjectsPerCall = 64;     // max objects per assist call
     static constexpr size_t kAssistLocalFlushBufs = 2;         // flush local→global when > 2 bufs
-    static constexpr size_t kShareWorkBufs = 2;                // GC thread shares when local > 2 bufs
+    static constexpr size_t kShareWorkBufs = 2;                // GC thread shares when local >= 2 bufs
+    static constexpr size_t kAssistProbeIntervalCalls = 8;     // sparse probe when global queue looks empty
 
     // ── Assist concurrent stats ──
     std::atomic<size_t> assistMarkedCount_{0};
     std::atomic<size_t> assistCallTotal_{0};
+    std::atomic<size_t> assistProcessedCount_{0};
+    std::atomic<size_t> assistTracedCount_{0};
+    std::atomic<size_t> assistFastSkipCount_{0};
+    std::atomic<size_t> globalShareCount_{0};
+    std::atomic<size_t> globalSharedBufCount_{0};
+    std::atomic<size_t> globalPopHitCount_{0};
+    std::atomic<size_t> globalPopMissCount_{0};
+    std::atomic<bool> globalWorkAvailable_{false};
 
     // ── DFX: Per-cycle stats ──
     MSGCCycleStats cycleStats_;
@@ -229,13 +262,13 @@ private:
 
     // ── DFX: Logging methods (Step 5) ──
     void LogGCEntry(uint64_t gcIndex, GCReason reason);           // Block ①
-    void LogSweepSummary();                                       // Block ④
     void DumpRegionStatsMS();                                     // Block ⑤
-    void DumpFragmentationStatsMS();                              // Block ⑤-b
     void LogGCSummary(uint64_t gcTimeUs);                         // Block ⑥
     void SnapshotPreviousCycleSweepStats();                       // Persist previous sweep stats
+    void LogSweepSummary();                                       // Block ④
 
     size_t prevCycleLargeFreedCount_ = 0;
+    size_t prevCycleLargeFreedRegionCount_ = 0;
     size_t prevCycleLargeFreedBytes_ = 0;
 };
 

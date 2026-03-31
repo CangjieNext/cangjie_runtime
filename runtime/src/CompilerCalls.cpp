@@ -165,6 +165,7 @@ void RawPtrCheckerTimerEntry(void* arg)
     }
 }
 #endif
+
 // runtime interfaces provided to compiler for code generation.
 // The compiler should only call MCC_* to access runtime functions.
 // MCC_* calls follows C standard calling convention.
@@ -622,10 +623,7 @@ extern "C" StackTraceData MCC_DecodeStackTraceImpl(const uint64_t ip, const uint
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray return nullptr");
     }
 
-    AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
-    if (buffer != nullptr) {
-        buffer->CommitRawPointerRegions();
-    }
+    Allocator::CommitRawPointerRegions();
     std.lineNumber = stackTrace.lineNumber;
     return std;
 }
@@ -742,10 +740,7 @@ static ArrayRef GetAllThreadSnapshot(const TypeInfo* arraySnapshot, const TypeIn
         recordIndex++;
     }
 
-    AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
-    if (buffer != nullptr) {
-        buffer->CommitRawPointerRegions();
-    }
+    Allocator::CommitRawPointerRegions();
     return allRecords;
 }
 
@@ -790,10 +785,7 @@ extern "C" ThreadSnapshot MCC_GetCurrentThreadSnapshotImpl(const TypeInfo* array
     snapshot.stackTrace = CreateStackTrace(arrayStackTrace, charArray, record.stacks);
     snapshot.state = record.GetThreadState();
 
-    AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
-    if (buffer != nullptr) {
-        buffer->CommitRawPointerRegions();
-    }
+    Allocator::CommitRawPointerRegions();
     mutator->LeaveSaferegion();
     return snapshot;
 }
@@ -960,10 +952,7 @@ extern "C" ObjectPtr MCC_GetSubPackages(PackageInfo* packageInfo, TypeInfo* arra
     CJArray* cjArray = reinterpret_cast<CJArray*>(reinterpret_cast<Uptr>(obj) + TYPEINFO_PTR_SIZE);
     cjArray->start = 0;
     cjArray->length = subPkgCnt;
-    AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
-    if (buffer != nullptr) {
-        buffer->CommitRawPointerRegions();
-    }
+    Allocator::CommitRawPointerRegions();
     return obj;
 }
 
@@ -1365,10 +1354,7 @@ extern "C" ObjRef MCC_NewAndInitEnumTupleObject(TypeInfo* ti, void* args)
 
     // Parse fields from args and store them into obj.
     FieldInitializer::SetFieldFromArgs(obj, ti, args);
-    AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
-    if (buffer != nullptr) {
-        buffer->CommitRawPointerRegions();
-    }
+    Allocator::CommitRawPointerRegions();
     return obj;
 }
 
@@ -1417,10 +1403,7 @@ extern "C" ObjRef MCC_GetAssociatedValues(ObjRef obj, TypeInfo* arrayTi)
     CJArray* cjArray = reinterpret_cast<CJArray*>(reinterpret_cast<Uptr>(arrayObj) + TYPEINFO_PTR_SIZE);
     cjArray->start = 0;
     cjArray->length = fieldNum;
-    AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
-    if (buffer != nullptr) {
-        buffer->CommitRawPointerRegions();
-    }
+    Allocator::CommitRawPointerRegions();
     return arrayObj;
 }
 

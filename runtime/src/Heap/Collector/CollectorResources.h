@@ -10,6 +10,9 @@
 
 #include "Base/Macros.h"
 #include "FinalizerProcessor.h"
+#ifdef MRT_USE_MARK_SWEEP
+#include "BackgroundProcessor.h"
+#endif
 #include "Heap/Collector/TaskQueue.h"
 #include "Heap/GcThreadPool.h"
 #include "Inspector/CjHeapData.h"
@@ -53,6 +56,73 @@ public:
     bool IsGCActive() const { return Heap::GetHeap().IsGCEnabled() && isGCActive.load(std::memory_order_relaxed); }
 
     FinalizerProcessor& GetFinalizerProcessor() { return finalizerProcessor; }
+#ifdef MRT_USE_MARK_SWEEP
+    BackgroundProcessor& GetBackgroundProcessor() { return backgroundProcessor; }
+#endif
+        U32 VisitFinalizers(const RootVisitor& visitor)
+        {
+    #ifdef MRT_USE_MARK_SWEEP
+        return backgroundProcessor.VisitFinalizers(visitor);
+    #else
+        return finalizerProcessor.VisitFinalizers(visitor);
+    #endif
+        }
+        void VisitFinalizerGCRoots(const RootVisitor& visitor)
+        {
+    #ifdef MRT_USE_MARK_SWEEP
+        backgroundProcessor.VisitGCRoots(visitor);
+    #else
+        finalizerProcessor.VisitGCRoots(visitor);
+    #endif
+        }
+        void VisitFinalizerRawPointers(const RootVisitor& visitor)
+        {
+    #ifdef MRT_USE_MARK_SWEEP
+        backgroundProcessor.VisitRawPointers(visitor);
+    #else
+        finalizerProcessor.VisitRawPointers(visitor);
+    #endif
+        }
+        void EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit = UINT_MAX)
+        {
+    #ifdef MRT_USE_MARK_SWEEP
+        backgroundProcessor.EnqueueFinalizables(finalizable, countLimit);
+    #else
+        finalizerProcessor.EnqueueFinalizables(finalizable, countLimit);
+    #endif
+        }
+        void RegisterFinalizer(BaseObject* obj)
+        {
+    #ifdef MRT_USE_MARK_SWEEP
+        backgroundProcessor.RegisterFinalizer(obj);
+    #else
+        finalizerProcessor.RegisterFinalizer(obj);
+    #endif
+        }
+        void NotifyFinalizerWork()
+        {
+    #ifdef MRT_USE_MARK_SWEEP
+        backgroundProcessor.NotifyFinalizerWork();
+    #else
+        finalizerProcessor.Notify();
+    #endif
+        }
+        uint32_t GetFinalizerThreadTid() const
+        {
+    #ifdef MRT_USE_MARK_SWEEP
+        return backgroundProcessor.GetTid();
+    #else
+        return finalizerProcessor.GetTid();
+    #endif
+        }
+        Mutator* GetFinalizerMutator() const
+        {
+    #ifdef MRT_USE_MARK_SWEEP
+        return backgroundProcessor.GetMutator();
+    #else
+        return finalizerProcessor.GetMutator();
+    #endif
+        }
 
     void BroadcastGCCompletion();
     GCStats& GetGCStats() { return gcStats; }
@@ -115,6 +185,9 @@ private:
 #endif
     CollectorProxy& collectorProxy;
     FinalizerProcessor finalizerProcessor;
+#ifdef MRT_USE_MARK_SWEEP
+    mutable BackgroundProcessor backgroundProcessor;
+#endif
     GCStats gcStats;
 };
 } // namespace MapleRuntime

@@ -32,6 +32,7 @@ bool CartesianTree::MergeInsertInternal(Index idx, Count num, bool refreshRegion
             n = new (nodeAllocator.Allocate()) Node(idx, num, refreshRegionInfo);
             CTREE_ASSERT(n != nullptr, "failed to allocate a new node");
             *pn = n;
+            nodeCount++;
             IncTotalCount(num);
             break;
         }

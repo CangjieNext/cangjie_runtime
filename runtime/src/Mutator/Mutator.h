@@ -18,15 +18,19 @@
 #include "SatbBuffer.h"
 #include "schedule.h"
 #include "Heap/Barrier/WriteBarrierBuffer.h"
+#include "Common/MarkWorkStack.h"
 #ifdef _WIN64
 #include "UnwindWin.h"
 #endif
 
 
 namespace MapleRuntime {
+class AllocBufferMS;
 extern "C" MRT_EXPORT bool MRT_EnterSaferegion(bool updateUnwindContext);
 extern "C" MRT_EXPORT bool MRT_LeaveSaferegion();
 extern "C" MRT_EXPORT bool MRT_CheckRuntimeFinished();
+
+using AssistWorkStack = MarkStack<BaseObject*>;
 
 class Mutator {
 public:
@@ -64,6 +68,7 @@ public:
         observerCnt = 0;
         mutatorPhase.store(GCPhase::GC_PHASE_IDLE);
         inManagedContext.store(true);
+        assistLocalWork_.clear();
     }
 
     ~Mutator()
@@ -74,6 +79,7 @@ public:
             SatbBuffer::Instance().RetireNode(satbNode);
             satbNode = nullptr;
         }
+        assistLocalWork_.clear();
     }
 
     static Mutator* NewMutator()
@@ -92,6 +98,7 @@ public:
             SatbBuffer::Instance().RetireNode(satbNode);
             satbNode = nullptr;
         }
+        assistLocalWork_.clear();
         uwContext.Reset();
         exceptionWrapper.ClearInfo();
     }
@@ -396,6 +403,7 @@ public:
     }
 
     WriteBarrierBuffer& GetWriteBarrierBuffer() { return wbBuf_; }
+    AssistWorkStack& GetAssistLocalWork() { return assistLocalWork_; }
 
     inline uintptr_t GetStackTopAddr() { return stackTopAddr; }
     inline void SetStackTopAddr(uintptr_t sta) { stackTopAddr = sta; }
@@ -423,9 +431,7 @@ public:
 
     void PreparedToRun(ThreadLocalData* tlData)
     {
-        if (UNLIKELY(tlData->buffer == nullptr)) {
-            (void)AllocBuffer::GetOrCreateAllocBuffer();
-        }
+        Allocator::EnsureThreadLocalBuffer();
         DoLeaveSaferegion();
         SetSafepointStatePtr(&tlData->safepointState);
         SetSafepointActive(false);
@@ -463,7 +469,11 @@ public:
         InitTid();
         foreignThreadInfo.isForeignThread = true;
         foreignThreadInfo.isExit = false;
+#ifdef MRT_USE_MARK_SWEEP
+        foreignThreadInfo.allocBufferMS = ThreadLocal::GetAllocBufferMS();
+#else
         foreignThreadInfo.allocBuffer = ThreadLocal::GetAllocBuffer();
+#endif
         foreignThreadInfo.schedule = ThreadLocal::GetThreadLocalData()->schedule;
     }
 
@@ -537,6 +547,7 @@ private:
 
     SatbBuffer::Node* satbNode = nullptr;
     WriteBarrierBuffer wbBuf_;  // Always present to keep Mutator layout consistent across CJThread and runtime
+    AssistWorkStack assistLocalWork_;  // Persistent assist-local mark work, drained explicitly at MarkTermination
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
     GCInfos gcInfos;
 #endif
@@ -554,7 +565,11 @@ private:
     struct ForeignThreadInfo {
         bool isForeignThread = { false };
         bool isExit = { false };
+#ifdef MRT_USE_MARK_SWEEP
+        AllocBufferMS* allocBufferMS = { nullptr };
+#else
         AllocBuffer* allocBuffer = { nullptr };
+#endif
         ScheduleHandle schedule = { nullptr };
     } foreignThreadInfo;
 };

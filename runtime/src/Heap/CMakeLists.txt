@@ -11,6 +11,9 @@ set(SRC_LIST
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 add_subdirectory(Allocator)
+if (MARKSWEEP_FLAG MATCHES 1)
+    add_subdirectory(MAllocator)
+endif()
 add_subdirectory(Barrier)
 add_subdirectory(Collector)
 if (NOT MARKSWEEP_FLAG MATCHES 1)

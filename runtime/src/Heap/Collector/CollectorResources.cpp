@@ -60,13 +60,21 @@ void CollectorResources::Init()
     taskQueue->Init();
     finishedGcIndex = GCTask::SYNC_TASK_MIN_INDEX;
     StartGCThreads();
+#ifdef MRT_USE_MARK_SWEEP
+    backgroundProcessor.Start();
+#else
     finalizerProcessor.Start();
+#endif
     gcStats.Init();
 }
 
 void CollectorResources::Fini()
 {
+#ifndef MRT_USE_MARK_SWEEP
     MRT_ASSERT(!finalizerProcessor.IsRunning(), "Invalid finalizerProcessor status");
+#else
+    MRT_ASSERT(!backgroundProcessor.IsRunning(), "Invalid backgroundProcessor status");
+#endif
     MRT_ASSERT(!gcThreadRunning.load(std::memory_order_relaxed), "Invalid GC thread status");
     taskQueue->Fini();
     delete taskQueue;
@@ -75,7 +83,11 @@ void CollectorResources::Fini()
 
 void CollectorResources::StopGCWork()
 {
+#ifdef MRT_USE_MARK_SWEEP
+    backgroundProcessor.Stop();
+#else
     finalizerProcessor.Stop();
+#endif
     TerminateGCTask();
     StopGCThreads();
 }

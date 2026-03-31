@@ -20,8 +20,7 @@
 #include "ExceptionManager.h"
 #include "schedule.h"
 #ifdef MRT_USE_MARK_SWEEP
-#include "Heap/Allocator/AllocBufferMS.h"
-#include "Heap/Allocator/RegionSpace.h"
+#include "Heap/MAllocator/MSAllocBuffer.h"
 #endif
 #ifdef _WIN64
 #include "WinModuleManager.h"
@@ -96,7 +95,8 @@ extern "C" void MRT_FreeOldStack(intptr_t offset)
 
 extern "C" void MRT_SetStackGrow(bool enableStackScale)
 {
-    if (ThreadLocal::GetThreadType() == ThreadType::FP_THREAD) {
+    if (ThreadLocal::GetThreadType() == ThreadType::FP_THREAD ||
+        ThreadLocal::GetThreadType() == ThreadType::MSGC_BACKGROUND_THREAD) {
         return;
     }
     if (!CJThreadSetStackGrow(enableStackScale)) {
@@ -464,20 +464,9 @@ inline void Mutator::GcPhaseEnum(GCPhase newPhase)
 {
     std::set<BaseObject*> rootSet;
     std::stack<BaseObject*> rootStack;
-#ifdef MRT_USE_MARK_SWEEP
     auto pushRoot = [](BaseObject* obj) {
-        RegionSpace& space = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
-        AllocBufferMS* buffer = space.GetOrCreateAllocBufferMS();
-        if (buffer != nullptr) {
-            buffer->PushRoot(obj);
-        }
+        Allocator::PushRootToBuffer(obj);
     };
-#else
-    auto pushRoot = [](BaseObject* obj) {
-        AllocBuffer* buffer = AllocBuffer::GetOrCreateAllocBuffer();
-        buffer->PushRoot(obj);
-    };
-#endif
     RefFieldVisitor refVisitor = [&rootSet, &rootStack, this, &pushRoot](RefField<>& refFieldAddr) {
         BaseObject* obj = refFieldAddr.GetTargetObject();
         if (Heap::IsHeapAddress(obj)) {
@@ -644,12 +633,23 @@ void Mutator::TransitionToCpuProfileExclusive()
 
 void Mutator::ReleaseForeignThread()
 {
+#ifdef MRT_USE_MARK_SWEEP
+    AllocBufferMS* msBuffer = foreignThreadInfo.allocBufferMS;
+    foreignThreadInfo.allocBufferMS = nullptr;
+    if (msBuffer != nullptr) {
+        delete msBuffer;
+        ThreadLocal::SetAllocBufferMS(nullptr);
+        ThreadLocal::SetAllocBuffer(nullptr);
+    }
+#else
     AllocBuffer* buffer = foreignThreadInfo.allocBuffer;
     foreignThreadInfo.allocBuffer = nullptr;
     if (buffer != nullptr) {
         buffer->Fini();
         delete buffer;
     }
+#endif
     // We can remove foreign thread c-heap resource here.
 }
+
 } // namespace MapleRuntime

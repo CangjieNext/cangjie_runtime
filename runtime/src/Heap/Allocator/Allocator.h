@@ -30,6 +30,9 @@ public:
     virtual void TryReclaimGarbageMemory() = 0;
 #endif
     virtual void FeedHungryBuffers() = 0;
+    virtual bool HasPendingReclaimWork() const { return false; }
+    virtual bool BackgroundSweep() { return false; }
+    virtual void BackgroundFillAllocCaches() {}
 
     // returns the total size of live large objects, excluding alignment/roundup/header, ...
     // LargeObjects() is missing.
@@ -39,9 +42,7 @@ public:
     // allocated bytes for large objects are included.
     virtual size_t AllocatedBytes() const = 0;
 
-    inline void RegisterAllocBuffer(AllocBuffer& buffer) const { allocBufferManager->RegisterAllocBuffer(buffer); }
 
-    inline void RemoveAllocBuffer(AllocBuffer& buffer) const { allocBufferManager->RemoveAllocBuffer(buffer); }
 
     virtual ~Allocator() {}
     Allocator();
@@ -70,16 +71,17 @@ public:
     virtual bool IsHeapObject(MAddress) const = 0;
 #endif
 
-    void VisitAllocBuffers(const AllocBufferVisitor& visitor) { allocBufferManager->VisitAllocBuffers(visitor); }
-    size_t GetAllocBufersCount() { return allocBufferManager->GetAllocBufersCount(); }
-    void AddHungryBuffer(AllocBuffer& buffer) { allocBufferManager->AddHungryBuffer(buffer); }
-    void SwapHungryBuffers(AllocBufferManager::HungryBuffers &getBufferList)
-    {
-        allocBufferManager->SwapHungryBuffers(getBufferList);
-    }
+    // GC mark/enqueue interface — implementations in RegionSpace.cpp (CopyGC) / MSRegionSpace.cpp (MS)
+    static bool MarkObject(const BaseObject* obj);
+    static bool IsMarkedObject(const BaseObject* obj);
+    static bool ShouldEnqueue(const BaseObject* obj);
+    static bool IsResurrectedObject(const BaseObject* obj);
 
-protected:
-    AllocBufferManager* allocBufferManager;
+    // Thread-local buffer interface — implementations in RegionSpace.cpp (CopyGC) / MSRegionSpace.cpp (MS)
+    static void EnsureThreadLocalBuffer();
+    static void CommitRawPointerRegions();
+    static void PushRootToBuffer(BaseObject* root);
+
     std::atomic<bool> isAsyncAllocationEnable = { true };
 private:
     bool InitAyncAllocation();

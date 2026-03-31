@@ -6,7 +6,7 @@
 
 
 #include "SatbBuffer.h"
-#include "Heap/Allocator/RegionSpace.h"
+#include "Heap/Allocator/Allocator.h"
 
 #include "Base/ImmortalWrapper.h"
 
@@ -20,7 +20,7 @@ bool SatbBuffer::ShouldEnqueue(const BaseObject* obj)
     if (UNLIKELY(obj == nullptr)) {
         return false;
     }
-    return RegionSpace::ShouldEnqueue(obj);
+    return Allocator::ShouldEnqueue(obj);
 }
 
 static ImmortalWrapper<WeakRefBuffer> g_weakRefBuffer;

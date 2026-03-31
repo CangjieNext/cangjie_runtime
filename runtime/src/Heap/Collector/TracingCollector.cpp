@@ -10,8 +10,10 @@
 #include "Concurrency/Concurrency.h"
 #include "Heap/Allocator/AllocBuffer.h"
 #ifdef MRT_USE_MARK_SWEEP
-#include "Heap/Allocator/AllocBufferMS.h"
-#include "Heap/Allocator/CentralRegionPool.h"
+#include "Heap/MAllocator/MSAllocBuffer.h"
+#include "Heap/MAllocator/MSCentralRegionPool.h"
+#include "Heap/MAllocator/MSRegionSpace.h"
+#else
 #include "Heap/Allocator/RegionSpace.h"
 #endif
 #include "ObjectModel/RefField.inline.h"
@@ -300,13 +302,15 @@ void TracingCollector::MergeMutatorRoots(WorkStack& workStack)
     // hold mutator list lock to freeze mutator liveness, otherwise may access dead mutator fatally
     mutatorManager.MutatorManagementWLock();
 #ifdef MRT_USE_MARK_SWEEP
-    RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
+    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool != nullptr) {
         centralPool->VisitAllocBufferMS([&workStack](AllocBufferMS& buffer) { buffer.MergeRoots(workStack); });
     }
 #else
-    theAllocator.VisitAllocBuffers([&workStack](AllocBuffer& buffer) { buffer.MergeRoots(workStack); });
+    reinterpret_cast<RegionSpace&>(theAllocator).VisitAllocBuffers([&workStack](AllocBuffer& buffer) {
+        buffer.MergeRoots(workStack);
+    });
 #endif
     mutatorManager.MutatorManagementWUnlock();
 }
@@ -322,6 +326,15 @@ void TracingCollector::DoEnumeration(WorkStack& workStack, WorkStack& foreignRoo
     ScopedEntryTrace trace("CJRT_GC_ENUM");
     EnumAllCommonRoots(GetThreadPool(), workStack);
     EnumAllExportRoots(foreignRootsSet);
+}
+
+void TracingCollector::EnumAllCommonRootsSerial(RootSet& rootSet)
+{
+    MergeMutatorRoots(rootSet);
+    EnumStaticRoots(rootSet);
+    EnumConcurrencyModelRoots(rootSet);
+    EnumFinalizerProcessorRoots(rootSet);
+    EnumAllSurrectedExportRoots(rootSet);
 }
 
 void TracingCollector::AddExportObjectsTracingWork(RootSet &exportRoots)
@@ -531,7 +544,7 @@ void TracingCollector::DoResurrection(WorkStack& workStack)
             DLOG(FIX, "tag finalizer %p@%p -> %#zx", finalizerObj, &ref, newField.GetFieldValue());
         }
     };
-    snapshotFinalizerNum = collectorResources.GetFinalizerProcessor().VisitFinalizers(func);
+    snapshotFinalizerNum = collectorResources.VisitFinalizers(func);
 
     size_t resurrectdObjects = 0;
     while (!workStack.empty()) {
@@ -787,7 +800,9 @@ void TracingCollector::EnumAllCommonRoots(GCThreadPool* threadPool, RootSet& roo
     for (size_t i = 0; i < threadCount; ++i) {
         rootSet.insert(rootSets[i]);
     }
+#ifndef MRT_USE_MARK_SWEEP
     VLOG(REPORT, "Total roots: %zu(exclude stack roots)", rootSet.size());
+#endif
 }
 
 void TracingCollector::VisitStaticRoots(const RefFieldVisitor& visitor) const
@@ -797,9 +812,10 @@ void TracingCollector::VisitStaticRoots(const RefFieldVisitor& visitor) const
 
 void TracingCollector::VisitFinalizerRoots(const RootVisitor& visitor) const
 {
-    collectorResources.GetFinalizerProcessor().VisitGCRoots(visitor);
+    collectorResources.VisitFinalizerGCRoots(visitor);
 }
 
+#ifndef MRT_USE_MARK_SWEEP
 void TracingCollector::UpdateGCStats()
 {
     RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
@@ -862,4 +878,9 @@ void TracingCollector::UpdateGCStats()
          liveBytes - recentBytes, recentBytes, oldThreshold, gcStats.heapThreshold);
     TRACE_COUNT("CJRT_post_GC_HeapSize", Heap::GetHeap().GetAllocatedSize());
 }
+#else
+// MS mode: MarkSweepCollector::UpdateGCStats() overrides this.
+// Stub required for vtable completeness.
+void TracingCollector::UpdateGCStats() {}
+#endif // !MRT_USE_MARK_SWEEP
 } // namespace MapleRuntime

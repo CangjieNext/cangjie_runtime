@@ -22,13 +22,16 @@
 #endif
 #include "Common/ScopedObjectAccess.h"
 #include "Concurrency/Concurrency.h"
+#include "Heap/Collector/CollectorResources.h"
 #include "Heap/Collector/FinalizerProcessor.h"
 #include "Heap/Heap.h"
 #include "LoaderManager.h"
 #include "LogManager.h"
 #include "Mutator/Mutator.h"
 #include "Mutator/MutatorManager.h"
+#ifndef MRT_USE_MARK_SWEEP
 #include "Heap/Allocator/RegionSpace.h"
+#endif
 #ifdef CANGJIE_GWPASAN_SUPPORT
 #include "Sanitizer/SanitizerInterface.h"
 #endif
@@ -66,9 +69,16 @@ extern "C" MRT_EXPORT void MRT_LibraryUnLoad(uint64_t address)
 void DumpAllStackTrace0()
 {
     LOG(RTLOG_INFO, "---------------------------Dump all cjthread stack trace--------------------------- \n");
+#ifdef MRT_USE_MARK_SWEEP
+    uint32_t backgroundTid = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().GetTid();
+#endif
     MutatorManager::Instance().VisitAllMutators([&](Mutator& mutator) {
-        // don't print finalizerProcessorThread
-        if (mutator.GetTid() != Heap::GetHeap().GetFinalizerProcessor().GetTid()) {
+        // don't print finalizerProcessorThread or backgroundProcessorThread
+        if (mutator.GetTid() != Heap::GetHeap().GetFinalizerProcessor().GetTid()
+#ifdef MRT_USE_MARK_SWEEP
+            && mutator.GetTid() != backgroundTid
+#endif
+        ) {
             LOG(RTLOG_INFO, "cjthread thread:%d mutator:%p :\n", mutator.GetCJThreadId(), &mutator);
             StackManager::PrintStackTrace(&(mutator.GetUnwindContext()));
             LOG(RTLOG_INFO, "\n");
@@ -192,6 +202,7 @@ void CangjieRuntime::Init()
         static_cast<int>(param.logParam.logLevel), param.coParam.thStackSize,
         param.coParam.coStackSize, param.coParam.processorNum);
 #else
+#ifndef MRT_USE_MARK_SWEEP
     VLOG(REPORT,
         "Runtime parameter:\n\tHeap size: %zu(KB)\n\tRegion size: %zu(KB)\n\tExemption threshold: %.2f\n\t"
         "Heap utilization: %.2f\n\tCache Ratio: %.2f\n\tHeap growth: %.2f\n\tAllocation rate: %.2f(MB/s)\n\t"
@@ -206,6 +217,21 @@ void CangjieRuntime::Init()
         param.gcParam.gcInterval / MILLI_SECOND_TO_NANO_SECOND, param.gcParam.backupGCInterval / SECOND_TO_NANO_SECOND,
         static_cast<int>(param.logParam.logLevel), param.coParam.thStackSize,
         param.coParam.coStackSize, param.coParam.processorNum);
+#else
+    VLOG(REPORT,
+        "Runtime parameter:\n\tHeap size: %zu(KB)\n\tRegion size: %zu(KB)\n\tExemption threshold: %.2f\n\t"
+        "Heap utilization: %.2f\n\tHeap growth: %.2f\n\tAllocation rate: %.2f(MB/s)\n\t"
+        "Allocation wait time: %zuns\n\tGC Threshold: %zu(KB)\n\t"
+        "Garbage threshold: %.2f\n\tGC interval: %zums\n\tBackup GC interval: %zus\n\t"
+        "Log level: %d\n\tThread stack size: %zu(KB)\n\tCangjie stack size: %zu(KB)\n\tProcessor number: %d",
+        param.heapParam.heapSize, param.heapParam.regionSize, param.heapParam.exemptionThreshold,
+        param.heapParam.heapUtilization, 1 + param.heapParam.heapGrowth,
+        param.heapParam.allocationRate, param.heapParam.allocationWaitTime,
+        param.gcParam.gcThreshold / KB, param.gcParam.garbageThreshold,
+        param.gcParam.gcInterval / MILLI_SECOND_TO_NANO_SECOND, param.gcParam.backupGCInterval / SECOND_TO_NANO_SECOND,
+        static_cast<int>(param.logParam.logLevel), param.coParam.thStackSize,
+        param.coParam.coStackSize, param.coParam.processorNum);
+#endif // MRT_USE_MARK_SWEEP
 #endif
 }
 

@@ -7,20 +7,13 @@
 set(SRC_LIST
     "Allocator.cpp"
     "MemMap.cpp"
-    "RegionSpace.cpp"
-    "RegionManager.cpp"
     "CartesianTree.cpp"
 )
 
-if (MARKSWEEP_FLAG MATCHES 1)
-    list(APPEND SRC_LIST
-        "SizeClass.cpp"
-        "MSRegionInfo.cpp"
-        "MSRegionManager.cpp"
-        "CentralRegionPool.cpp"
-        "AllocBufferMS.cpp"
-        "LargeObjectSpace.cpp"
-    )
+if (NOT MARKSWEEP_FLAG MATCHES 1)
+    list(APPEND SRC_LIST "RegionManager.cpp")
+    list(APPEND SRC_LIST "RegionSpace.cpp")
+    list(APPEND SRC_LIST "AllocBuffer.cpp")
 endif()
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../)

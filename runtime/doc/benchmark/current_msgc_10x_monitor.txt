@@ -1,0 +1,42 @@
+[monitor] Starting: ./gc_benchmark_10x_current
+[monitor] cjHeapSize=16gb
+[monitor] Sampling interval: 100ms
+[monitor] PID: 9316
+
+[monitor] Process exited with code 0
+[monitor] Total samples: 634
+
+--- Benchmark Output ---
+========================================
+  Cangjie GC Benchmark Suite (10x)
+  Tip: MRT_REPORT=./gc_bench_10x.log cjHeapSize=16gb ./gc_benchmark_10x
+========================================
+
+--- Functional Tests ---
+[BENCH] F1_TreeIntegrity         PASS  1714 ms
+[BENCH] F2_Generational          PASS  3346 ms
+[BENCH] F3_LargeObject           PASS  21464 ms
+[BENCH] F4_LinkedList            PASS  1736 ms
+[BENCH] F5_HashMap               PASS  1762 ms
+
+--- Performance Tests ---
+[BENCH] P1_SmallAlloc            3313 ms  65535500 nodes  19781 nodes/ms
+[BENCH] P2_LargeAlloc            11909 ms  500 MB  42 MB/s
+[BENCH] P3_MixedWorkload         7855 ms  300 rounds
+[BENCH] P4_LongLivedChurn        5010 ms  persistent_intact=20/20
+[BENCH] P5_Fragmentation         11424 ms  150 rounds
+
+========================================
+[BENCH] SUMMARY
+[BENCH] Functional: 5/5 passed
+[BENCH] P1_SmallAlloc:      3313 ms
+[BENCH] P2_LargeAlloc:      11909 ms
+[BENCH] P3_MixedWorkload:   7855 ms
+[BENCH] P4_LongLivedChurn:  5010 ms
+[BENCH] P5_Fragmentation:   11424 ms
+[BENCH] Total wall time:    69537 ms
+========================================
+
+[monitor] RSS  — Min: 0.0 MB, Avg: 593.5 MB, Peak: 1647.0 MB
+[monitor] CPU% — Min: 0.0%, Avg: 121.4%, Peak: 216.5%
+[monitor] CSV saved to: current_msgc_10x_monitor.csv

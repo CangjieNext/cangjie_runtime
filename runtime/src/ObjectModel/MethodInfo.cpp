@@ -8,6 +8,7 @@
 #include "Base/Log.h"
 #include "ObjectManager.inline.h"
 #include "ExceptionManager.inline.h"
+#include "Heap/Allocator/Allocator.h"
 
 namespace MapleRuntime {
 
@@ -33,10 +34,7 @@ static U8 GetReflectionVersion(TypeInfo* ti)
 
 ScopedAllocBuffer::~ScopedAllocBuffer()
 {
-    AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
-    if (buffer != nullptr) {
-        buffer->CommitRawPointerRegions();
-    }
+    Allocator::CommitRawPointerRegions();
 }
 
 void* ParameterInfo::GetAnnotations(TypeInfo* arrayTi)

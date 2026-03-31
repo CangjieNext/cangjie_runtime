@@ -107,9 +107,7 @@ public:
 
     virtual CollectorResources& GetCollectorResources() = 0;
 
-    virtual void RegisterAllocBuffer(AllocBuffer& buffer) = 0;
 
-    virtual void RemoveAllocBuffer(AllocBuffer& buffer) = 0;
 
     virtual void CrossAccessBarrier(I64) = 0;
 

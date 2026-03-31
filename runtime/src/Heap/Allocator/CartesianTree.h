@@ -77,9 +77,14 @@ public:
 
         root = nullptr;
         totalCount = 0;
+        nodeCount = 0;
     }
 
     Count GetTotalCount() const { return totalCount; }
+
+    uint32_t GetNodeCount() const { return nodeCount; }
+
+    Count GetMaxBlockCount() const { return root ? root->GetCount() : 0; }
 
     void IncTotalCount(Count cnt) { totalCount += cnt; }
 
@@ -101,6 +106,7 @@ public:
         if (root == nullptr) {
             root = new (nodeAllocator.Allocate()) Node(idx, num, refreshRegionInfo);
             CTREE_ASSERT(root != nullptr, "failed to allocate a new node");
+            nodeCount++;
             IncTotalCount(num);
             return true;
         }
@@ -122,7 +128,6 @@ public:
         return TakeUnitsImpl(num, idx, refreshRegionInfo);
     }
 
-#ifdef MRT_USE_MARK_SWEEP
     // Low-address-first allocation: find the node with Count >= num that has
     // the smallest Index (lowest address). Exploits the BST property on Index
     // and the max-heap property on Count for pruning.
@@ -161,7 +166,6 @@ public:
 
         return true;
     }
-#endif // MRT_USE_MARK_SWEEP
 
     struct Node {
         Node(Index idx, Count num, bool refreshRegionInfo) : l(nullptr), r(nullptr), index(idx), count(num)
@@ -312,7 +316,6 @@ public:
         return true;
     }
 
-#ifdef MRT_USE_MARK_SWEEP
     // Remove the rightmost (highest-index) node if its range end (index + count)
     // equals targetEnd.  Used by ShrinkHeap to reclaim trailing free units
     // contiguous with inactiveZone_.
@@ -334,7 +337,6 @@ public:
         RemoveNode(*pp);
         return true;
     }
-#endif
 
     using RTAllocator = RTAllocatorT<sizeof(Node), alignof(Node)>;
 
@@ -344,6 +346,7 @@ public:
 
 private:
     Count totalCount = 0u; // sum of all node counts.
+    uint32_t nodeCount = 0u; // number of nodes in the tree.
     Node* root = nullptr;
     SingleUseDeque<Node**> sud;
     SingleUseDeque<Node*> traversalSud;
@@ -354,6 +357,7 @@ private:
         if (n == nullptr) {
             return;
         }
+        nodeCount--;
         nodeAllocator.Deallocate(n);
     }
 
@@ -416,6 +420,7 @@ private:
             } else {
                 parent->l = nearest->r;
             }
+            nodeCount--;
             nodeAllocator.Deallocate(nearest);
         }
         CTREE_CHECK_PARENT_AND_RCHILD(&n);
@@ -455,6 +460,7 @@ private:
                 parent->r = nearest->l;
             }
             n.UpdateNode(nearest->GetIndex(), n.GetCount() + nearest->GetCount(), refreshRegionInfo);
+            nodeCount--;
             nodeAllocator.Deallocate(nearest);
         }
         CTREE_CHECK_PARENT_AND_LCHILD(&n);
@@ -627,6 +633,7 @@ private:
     {
         Node*& nodeRef = MaintainHeapPropertyForZeroNode(n);
         CHECK_DETAIL((nodeRef->l == nullptr && nodeRef->r == nullptr), "UNEXPECT");
+        nodeCount--;
         nodeAllocator.Deallocate(nodeRef);
         nodeRef = nullptr;
     }
@@ -641,7 +648,6 @@ private:
     // move node n down in the tree to maintain the heap property
     void LowerNonZeroNode(Node*& n) const { MaintainHeapPropertyForNonZeroNode(n); }
 
-#ifdef MRT_USE_MARK_SWEEP
     // Recursive helper: find the node** with Count >= num that has the lowest Index.
     // BST property: left subtree has lower Index than current node.
     // Max-heap property: if node->Count < num, all descendants also have Count < num → prune.
@@ -670,7 +676,6 @@ private:
         }
         // No need to search right subtree — it has higher Index (address) than current.
     }
-#endif // MRT_USE_MARK_SWEEP
 
 #ifdef DEBUG_CARTESIAN_TREE
     inline void CheckParentAndLeftChild(const Node* n) const

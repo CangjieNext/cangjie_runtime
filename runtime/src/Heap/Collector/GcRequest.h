@@ -16,7 +16,7 @@
 namespace MapleRuntime {
 // Minimum time between async GC (heuristic, native).
 constexpr uint64_t MIN_ASYNC_GC_INTERVAL_NS = MapleRuntime::SECOND_TO_NANO_SECOND;
-constexpr uint64_t LONG_MIN_HEU_GC_INTERVAL_NS = 200 * MapleRuntime::MILLI_SECOND_TO_NANO_SECOND;
+constexpr uint64_t LONG_MIN_HEU_GC_INTERVAL_NS = 10 * MapleRuntime::MILLI_SECOND_TO_NANO_SECOND;
 
 // Used by Collector::RequestGC.
 // It tells why GC is triggered.

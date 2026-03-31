@@ -133,6 +133,10 @@ if (RUNTIME_BACKWARD_PTRAUTH_CFI MATCHES 1)
     add_compile_definitions(ENABLE_BACKWARD_PTRAUTH_CFI)
 endif ()
 
+if (MRT_USE_MARK_SWEEP MATCHES 1)
+    add_definitions(-DMRT_USE_MARK_SWEEP)
+endif ()
+
 if (RUNTIME_FORWARD_PTRAUTH_CFI MATCHES 1)
     add_compile_definitions(ENABLE_FORWARD_PTRAUTH_CFI)
 endif ()

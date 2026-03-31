@@ -24,6 +24,8 @@
 #include "Sync/Sync.h"
 
 namespace MapleRuntime {
+// Forward declaration — full type in RegionSpace.h (circular include)
+class RegionSpace;
 class CopyCollector;
 class CompactCollector;
 
@@ -118,21 +120,13 @@ public:
 
     RegionInfo* AllocateThreadLocalRegion(bool expectPhysicalMem = false);
 
-#ifndef MRT_USE_MARK_SWEEP
     void ForwardFromRegions(GCThreadPool* threadPool);
     void ForwardFromRegions();
     void ForwardRegion(RegionInfo* region);
     void CompactRegion(RegionInfo* region);
     void CompactRegion(RegionInfo* region, RegionInfo* toRegion1);
-#endif
 
     void ExemptFromRegion(RegionInfo* region);
-
-#ifdef MRT_USE_MARK_SWEEP
-    // After MS-GC marking, exempt all regions with live objects from fromRegionList.
-    // Dead regions (liveByteCount == 0) remain in fromRegionList for garbage collection.
-    void MSExemptLiveRegions();
-#endif
 
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
     void DumpRegionInfo() const;
@@ -354,15 +348,7 @@ public:
             oldLargeRegionList.GetAllocatedSize();
     }
 
-    size_t GetUsedUnitCount() const
-    {
-        return fromRegionList.GetUnitCount() + unmovableFromRegionList.GetUnitCount() +
-            recentFullRegionList.GetUnitCount() + oldLargeRegionList.GetUnitCount() +
-            recentLargeRegionList.GetUnitCount() + oldPinnedRegionList.GetUnitCount() +
-            recentPinnedRegionList.GetUnitCount() + rawPointerPinnedRegionList.GetUnitCount() +
-            largeTraceRegions.GetUnitCount() + fullTraceRegions.GetUnitCount() +
-            Heap::GetHeap().GetAllocator().GetAllocBufersCount() + tlRegionList.GetUnitCount();
-    }
+    size_t GetUsedUnitCount() const;
 
     size_t GetDirtyUnitCount() const { return freeRegionManager.GetDirtyUnitCount(); }
 
@@ -375,25 +361,7 @@ public:
         return oldLargeRegionList.GetAllocatedSize() + recentLargeRegionList.GetAllocatedSize();
     }
 
-    size_t GetAllocatedSize() const
-    {
-        size_t threadLocalSize = 0;
-        AllocBufferVisitor visitor = [&threadLocalSize](AllocBuffer& regionBuffer) {
-            RegionInfo* region = regionBuffer.GetRegion();
-            if (UNLIKELY(region == RegionInfo::NullRegion())) {
-                return;
-            }
-            threadLocalSize += region->GetRegionAllocatedSize();
-        };
-        Heap::GetHeap().GetAllocator().VisitAllocBuffers(visitor);
-        // exclude garbageRegionList for live object set.
-        return fromRegionList.GetAllocatedSize() + unmovableFromRegionList.GetAllocatedSize() +
-            recentFullRegionList.GetAllocatedSize() + oldLargeRegionList.GetAllocatedSize() +
-            recentLargeRegionList.GetAllocatedSize() + oldPinnedRegionList.GetAllocatedSize() +
-            recentPinnedRegionList.GetAllocatedSize() + rawPointerPinnedRegionList.GetAllocatedSize() +
-            largeTraceRegions.GetAllocatedSize() + fullTraceRegions.GetAllocatedSize() +
-            tlRegionList.GetAllocatedSize() + threadLocalSize;
-    }
+    size_t GetAllocatedSize() const;
 
     inline size_t GetFromSpaceSize() const { return fromRegionList.GetAllocatedSize(); }
 
@@ -439,7 +407,6 @@ public:
         largeTraceRegions.ActivateRegionCache();
     }
 
-#ifndef MRT_USE_MARK_SWEEP
     bool RouteOrCompactRegionImpl(RegionInfo* region);
 
     BaseObject* RouteObject(BaseObject* fromObj, RegionInfo* fromRegionInfo)
@@ -494,11 +461,6 @@ public:
             }
         } while (true);
     }
-#else
-    // MS mode stubs: forwarding/compaction is not used
-    BaseObject* RouteObject(BaseObject*, RegionInfo*) { return nullptr; }
-    BaseObject* RouteObject(BaseObject*) { return nullptr; }
-#endif // !MRT_USE_MARK_SWEEP
 
     void PrepareFromRegionList()
     {

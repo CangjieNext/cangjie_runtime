@@ -14,7 +14,7 @@
 #include "Collector.h"
 #include "CollectorResources.h"
 #include "Common/MarkWorkStack.h"
-#include "Heap/Allocator/RegionSpace.h"
+#include "Heap/Allocator/Allocator.h"
 #include "Heap/Collector/ForwardDataManager.h"
 #include "Mutator/MutatorManager.h"
 
@@ -244,12 +244,12 @@ public:
     bool ShouldIgnoreRequest(GCRequest& request) override { return request.ShouldBeIgnored(); }
 
     // live but not resurrected object.
-    bool IsMarkedObject(const BaseObject* obj) const { return RegionSpace::IsMarkedObject(obj); }
+    bool IsMarkedObject(const BaseObject* obj) const { return Allocator::IsMarkedObject(obj); }
 
     // live or resurrected object.
     inline bool IsSurvivedObject(const BaseObject* obj) const
     {
-        return RegionSpace::IsMarkedObject(obj) || RegionSpace::IsResurrectedObject(obj);
+        return Allocator::IsMarkedObject(obj) || Allocator::IsResurrectedObject(obj);
     }
     void DFSTraceExportObject(BaseObject* exportObj);
     virtual bool MarkObject(BaseObject* obj) const
@@ -270,7 +270,7 @@ public:
     virtual void EnumRefFieldRoot(RefField<>& ref, RootSet& rootSet) const {};
     virtual void TraceObjectRefFields(BaseObject* obj, WorkStack& workStack) { std::abort(); }
     virtual BaseObject* GetAndTryTagObj(BaseObject* obj, RefField<>& field) { std::abort(); }
-    inline bool IsResurrectedObject(const BaseObject* obj) const { return RegionSpace::IsResurrectedObject(obj); }
+    inline bool IsResurrectedObject(const BaseObject* obj) const { return Allocator::IsResurrectedObject(obj); }
 
     virtual bool ResurrectObject(BaseObject* obj, size_t offset, RegionInfo* regionInfo)
     {
@@ -357,6 +357,7 @@ protected:
     GCThreadPool* GetThreadPool() const { return collectorResources.GetThreadPool(); }
     // enum all common roots.
     void EnumAllCommonRoots(GCThreadPool* threadPool, RootSet& rootSet);
+    void EnumAllCommonRootsSerial(RootSet& rootSet);
     // enum roots referenced by foreign languages.
     void EnumAllExportRoots(RootSet& foreignRootsSet);
     // let finalizerProcessor process finalizers, and mark resurrected if in light sync gc

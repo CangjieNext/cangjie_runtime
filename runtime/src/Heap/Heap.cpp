@@ -12,7 +12,7 @@
 #include "ObjectModel/RefField.inline.h"
 #ifdef MRT_USE_MARK_SWEEP
 #include "Barrier/MSIdleBarrier.h"
-#include "Barrier/MSSatbBarrier.h"
+#include "Barrier/MSMarkBarrier.h"
 #else
 #include "WCollector/IdleBarrier.h"
 #include "WCollector/EnumBarrier.h"
@@ -63,7 +63,7 @@ public:
         : theSpace(Allocator::NewAllocator()), collectorResources(collectorProxy),
           collectorProxy(*theSpace, collectorResources), stwBarrier(collectorProxy),
 #ifdef MRT_USE_MARK_SWEEP
-        msIdleBarrier(collectorProxy), msSatbBarrier(collectorProxy)
+        msIdleBarrier(collectorProxy), msMarkBarrier(collectorProxy)
 #else
         idleBarrier(collectorProxy), enumBarrier(collectorProxy), traceBarrier(collectorProxy),
         postTraceBarrier(collectorProxy), preforwardBarrier(collectorProxy), forwardBarrier(collectorProxy)
@@ -85,7 +85,7 @@ public:
 
     bool IsSurvivedObject(const BaseObject* obj) const override
     {
-        return RegionSpace::IsMarkedObject(obj) || RegionSpace::IsResurrectedObject(obj);
+        return Allocator::IsMarkedObject(obj) || Allocator::IsResurrectedObject(obj);
     }
 
     bool IsGcStarted() const override { return collectorResources.IsGcStarted(); }
@@ -117,8 +117,7 @@ public:
     void InstallBarrier(const GCPhase phase) override;
     FinalizerProcessor& GetFinalizerProcessor() override;
     CollectorResources& GetCollectorResources() override;
-    void RegisterAllocBuffer(AllocBuffer& buffer) override;
-    void RemoveAllocBuffer(AllocBuffer& buffer) override;
+
     U64 RegisterExportRoot(BaseObject* obj) override;
     void VisitAllExportRoots(const RootVisitor& visitor) override;
     BaseObject* GetExportObject(U64 id) override;
@@ -158,7 +157,7 @@ private:
 #ifdef MRT_USE_MARK_SWEEP
     // MS mode: zero-overhead idle barrier + pure SATB deletion barrier
     MSIdleBarrier msIdleBarrier;
-    MSSatbBarrier msSatbBarrier;
+    MSMarkBarrier msMarkBarrier;
 #else
     IdleBarrier idleBarrier;
     EnumBarrier enumBarrier;
@@ -217,7 +216,7 @@ void HeapImpl::InstallBarrier(const GCPhase phase)
         case GCPhase::GC_PHASE_MS_MARK_SETUP:
         case GCPhase::GC_PHASE_MS_CONCURRENT_MARK:
         case GCPhase::GC_PHASE_MS_MARK_TERMINATION:
-            currentBarrier = &msSatbBarrier;
+            currentBarrier = &msMarkBarrier;
             break;
         default:
             // fallback to STW barrier for unknown phases
@@ -359,9 +358,7 @@ CollectorResources& HeapImpl::GetCollectorResources() { return collectorResource
 
 void HeapImpl::StopGCWork() { collectorResources.StopGCWork(); }
 
-void HeapImpl::RegisterAllocBuffer(AllocBuffer& buffer) { GetAllocator().RegisterAllocBuffer(buffer); }
 
-void HeapImpl::RemoveAllocBuffer(AllocBuffer &buffer) { GetAllocator().RemoveAllocBuffer(buffer); }
 
 void HeapImpl::VisitAllExportRoots(const RootVisitor &visitor)
 {

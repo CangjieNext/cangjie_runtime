@@ -16,7 +16,7 @@ class AllocBuffer;
 class AllocBufferMS;
 class Mutator;
 
-enum class ThreadType { CJ_PROCESSOR = 0, GC_THREAD, FP_THREAD, HOT_UPDATE_THREAD };
+enum class ThreadType { CJ_PROCESSOR = 0, GC_THREAD, FP_THREAD, MSGC_BACKGROUND_THREAD, HOT_UPDATE_THREAD };
 
 // Backend and CJThread will use external tls var through offset calculation, so external tls
 // must in the first place, followed by the internal tls.

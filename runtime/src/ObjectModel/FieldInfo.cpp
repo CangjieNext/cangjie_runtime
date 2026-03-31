@@ -10,6 +10,7 @@
 #include "Base/Globals.h"
 #include "Loader/ILoader.h"
 #include "Heap/Heap.h"
+#include "Heap/Allocator/Allocator.h"
 #include "ExceptionManager.inline.h"
 #include "ObjectModel/MObject.inline.h"
 #include "ObjectManager.inline.h"
@@ -146,10 +147,7 @@ void* InstanceFieldInfo::GetAnnotations(TypeInfo* arrayTi)
 #endif
     Heap::GetBarrier().WriteStruct(obj, reinterpret_cast<Uptr>(obj) + TYPEINFO_PTR_SIZE,
         size, reinterpret_cast<Uptr>(structRet), size);
-    AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
-    if (buffer != nullptr) {
-        buffer->CommitRawPointerRegions();
-    }
+    Allocator::CommitRawPointerRegions();
     return obj;
 }
 
@@ -249,10 +247,7 @@ void* StaticFieldInfo::GetAnnotations(TypeInfo* arrayTi)
 
     Heap::GetBarrier().WriteStruct(obj, reinterpret_cast<Uptr>(obj) + TYPEINFO_PTR_SIZE,
         size, reinterpret_cast<Uptr>(structRet), size);
-    AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
-    if (buffer != nullptr) {
-        buffer->CommitRawPointerRegions();
-    }
+    Allocator::CommitRawPointerRegions();
     return obj;
 }
 

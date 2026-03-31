@@ -51,7 +51,7 @@ public:
 
     // Push a grey object into the buffer.
     // Caller MUST check IsFull() before calling if overflow handling is needed
-    // (see MSWriteBarrier::MarkAndEnqueue for the overflow-to-global-queue path).
+    // (see MSMarkBarrier::EnqueueNew for the overflow-to-global-queue path).
     inline void Push(BaseObject* obj)
     {
         size_t idx = count_;

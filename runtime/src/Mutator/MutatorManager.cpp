@@ -11,6 +11,7 @@
 #include "Base/TimeUtils.h"
 #include "Common/Runtime.h"
 #include "Concurrency/ConcurrencyModel.h"
+#include "Heap/Collector/CollectorResources.h"
 #include "Heap/Collector/FinalizerProcessor.h"
 #include "Heap/Collector/TracingCollector.h"
 #include "Heap/Heap.h"
@@ -18,7 +19,7 @@
 #include "schedule.h"
 #include "CpuProfiler/CpuProfiler.h"
 #ifdef MRT_USE_MARK_SWEEP
-#include "Heap/Allocator/AllocBufferMS.h"
+#include "Heap/MAllocator/MSAllocBuffer.h"
 #endif
 
 namespace MapleRuntime {
@@ -71,9 +72,7 @@ extern "C" void HandleSafepointForArm(ThreadLocalData* tlData)
 void MutatorManager::BindMutator(Mutator& mutator) const
 {
     ThreadLocalData* tlData = ThreadLocal::GetThreadLocalData();
-    if (UNLIKELY(tlData->buffer == nullptr)) {
-        (void)AllocBuffer::GetOrCreateAllocBuffer();
-    }
+    Allocator::EnsureThreadLocalBuffer();
     mutator.SetSafepointStatePtr(&tlData->safepointState);
     mutator.SetSafepointActive(false);
     tlData->mutator = &mutator;
@@ -255,6 +254,12 @@ void MutatorManager::VisitAllMutators(MutatorVisitor func)
     if (mutator != nullptr) {
         func(*mutator);
     }
+#ifdef MRT_USE_MARK_SWEEP
+    Mutator* backgroundMutator = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().GetMutator();
+    if (backgroundMutator != nullptr) {
+        func(*backgroundMutator);
+    }
+#endif
 }
 
 void MutatorManager::StopTheWorld(bool syncGCPhase, GCPhase phase)

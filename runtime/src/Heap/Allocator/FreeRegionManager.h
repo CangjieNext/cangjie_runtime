@@ -106,54 +106,6 @@ public:
     UnitCount GetDirtyUnitCount() const { return dirtyUnitTree.GetTotalCount(); }
     UnitCount GetReleasedUnitCount() const { return releasedUnitTree.GetTotalCount(); }
 
-#ifdef MRT_USE_MARK_SWEEP
-    // Mark-Sweep mode: allocate regions at lowest address to reduce heap fragmentation.
-    // Uses CartesianTree::TakeUnitsLowestAddr for address-ordered first-fit.
-    RegionInfo* TakeRegionLowestAddr(size_t num, RegionInfo::UnitRole uclass, bool expectPhysicalMem)
-    {
-        UnitIndex idx = 0;
-        bool tryDirtyTree = true;
-        bool tryReleasedTree = true;
-
-        while (tryDirtyTree || tryReleasedTree) {
-            if (tryDirtyTree && dirtyUnitTreeMutex.try_lock()) {
-                if (dirtyUnitTree.TakeUnitsLowestAddr(num, idx)) {
-                    DLOG(REGION, "c-tree %p MS alloc dirty units[%u+%u, %u) @[0x%zx, 0x%zx)",
-                        &dirtyUnitTree, idx, num, idx + num, RegionInfo::GetUnitAddress(idx),
-                        RegionInfo::GetUnitAddress(idx + num));
-                    RegionInfo::ClearUnits(idx, num);
-                    RegionInfo* region = RegionInfo::InitRegion(idx, num, uclass);
-                    dirtyUnitTreeMutex.unlock();
-                    return region;
-                }
-                tryDirtyTree = false;
-                dirtyUnitTreeMutex.unlock();
-            }
-
-            if (tryReleasedTree && releasedUnitTreeMutex.try_lock()) {
-                if (releasedUnitTree.TakeUnitsLowestAddr(num, idx)) {
-#ifdef _WIN64
-                    MemMap::CommitMemory(
-                        reinterpret_cast<void*>(RegionInfo::GetUnitAddress(idx)), num * RegionInfo::UNIT_SIZE);
-#endif
-                    DLOG(REGION, "c-tree %p MS alloc released units[%u+%u, %u) @[0x%zx, 0x%zx)",
-                        &releasedUnitTree, idx, num, idx + num, RegionInfo::GetUnitAddress(idx),
-                        RegionInfo::GetUnitAddress(idx + num));
-                    RegionInfo* region = RegionInfo::InitRegion(idx, num, uclass);
-                    releasedUnitTreeMutex.unlock();
-                    PrehandleReleasedUnit(expectPhysicalMem, idx, num);
-                    return region;
-                }
-                tryReleasedTree = false;
-                releasedUnitTreeMutex.unlock();
-            }
-            ScopedEnterSaferegion enterSaferegion(true);
-        }
-
-        return nullptr;
-    }
-#endif // MRT_USE_MARK_SWEEP
-
 #if defined(MRT_DEBUG)
     void DumpReleasedUnitTree() const { releasedUnitTree.DumpTree("released-unit tree"); }
     void DumpDirtyUnitTree() const { dirtyUnitTree.DumpTree("dirty-unit tree"); }

@@ -13,12 +13,13 @@ set(SRC_LIST
     "TracingCollector.cpp"
     "TaskQueue.cpp"
     "FinalizerProcessor.cpp"
+    "FinalizerWorkList.cpp"
     "LiveInfo.cpp"
     "ForwardDataManager.cpp"
 )
 
 if (MARKSWEEP_FLAG MATCHES 1)
-    list(APPEND SRC_LIST "MarkSweepCollector.cpp")
+    list(APPEND SRC_LIST "MarkSweepCollector.cpp" "BackgroundProcessor.cpp")
 else()
     list(APPEND SRC_LIST "CopyCollector.cpp")
 endif()

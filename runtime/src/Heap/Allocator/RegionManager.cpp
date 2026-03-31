@@ -14,11 +14,7 @@
 #include "Allocator/RegionSpace.h"
 #include "Base/CString.h"
 #include "Collector/Collector.h"
-#ifdef MRT_USE_MARK_SWEEP
-#include "Collector/TracingCollector.h"
-#else
 #include "Collector/CopyCollector.h"
-#endif
 #include "Common/ScopedObjectAccess.h"
 #include "Heap.h"
 #include "Mutator/Mutator.inline.h"
@@ -30,43 +26,11 @@
 #include "Sync/Sync.h"
 
 namespace MapleRuntime {
-uintptr_t RegionInfo::UnitInfo::totalUnitCount = 0;
-uintptr_t RegionInfo::UnitInfo::heapStartAddress = 0;
-
-static size_t GetPageSize() noexcept
-{
-#if defined(_WIN64)
-    SYSTEM_INFO systeminfo;
-    GetSystemInfo(&systeminfo);
-    if (systeminfo.dwPageSize != 0) {
-        return systeminfo.dwPageSize;
-    } else {
-        // default page size is 4KB if get system page size failed.
-        return 4 * KB;
-    }
-#elif defined(__APPLE__)
-    // default page size is 16KB in MacOS
-    return 16 * KB;
-#else
-    return getpagesize();
-#endif
-}
-
-// System default page size
-const size_t MRT_PAGE_SIZE = GetPageSize();
-const size_t AllocatorUtils::ALLOC_PAGE_SIZE = MapleRuntime::MRT_PAGE_SIZE;
-// region unit size: same as system page size
-const size_t RegionInfo::UNIT_SIZE = MapleRuntime::MRT_PAGE_SIZE;
-// regarding a object as a large object when the size is greater than 32KB or one page size,
-// depending on the system page size.
-const size_t RegionInfo::LARGE_OBJECT_DEFAULT_THRESHOLD = MapleRuntime::MRT_PAGE_SIZE > (32 * KB) ?
-                                                            MapleRuntime::MRT_PAGE_SIZE : 32 * KB;
 // max size of per region is 128KB.
 const size_t RegionManager::MAX_UNIT_COUNT_PER_REGION = (128 * KB) / MapleRuntime::MRT_PAGE_SIZE;
 // size of huge page is 2048KB.
 const size_t RegionManager::HUGE_PAGE = (2048 * KB) / MapleRuntime::MRT_PAGE_SIZE;;
 
-#ifndef MRT_USE_MARK_SWEEP
 class ForwardTask : public HeapWork {
 public:
     ForwardTask(RegionManager& manager, RegionList& fromSpace)
@@ -87,7 +51,6 @@ private:
     RegionManager& regionManager;
     RegionList& fromRegionList;
 };
-#endif // !MRT_USE_MARK_SWEEP
 
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
 void RegionInfo::DumpRegionInfo(LogType type) const
@@ -609,7 +572,6 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
     return nullptr;
 }
 
-#ifndef MRT_USE_MARK_SWEEP
 void RegionManager::ForwardFromRegions(GCThreadPool* threadPool)
 {
     if (threadPool != nullptr) {
@@ -630,28 +592,12 @@ void RegionManager::ForwardFromRegions(GCThreadPool* threadPool)
         ForwardFromRegions();
     }
 }
-#endif // !MRT_USE_MARK_SWEEP
 
 void RegionManager::ExemptFromRegion(RegionInfo* region)
 {
     unmovableFromRegionList.PrependRegion(region, RegionInfo::RegionType::UNMOVABLE_FROM_REGION);
 }
 
-#ifdef MRT_USE_MARK_SWEEP
-void RegionManager::MSExemptLiveRegions()
-{
-    auto visitor = [this](RegionInfo* region) {
-        if (region->GetLiveByteCount() > 0 || region->GetRawPointerObjectCount() > 0) {
-            CHECK(region->IsFromRegion());
-            RemoveRegionLocked(&fromRegionList, region);
-            ExemptFromRegion(region);
-        }
-    };
-    fromRegionList.VisitAllRegions(visitor);
-}
-#endif // MRT_USE_MARK_SWEEP
-
-#ifndef MRT_USE_MARK_SWEEP
 void RegionManager::ForwardFromRegions()
 {
     RegionInfo* fromRegion = fromRegionList.GetHeadRegion();
@@ -669,7 +615,6 @@ void RegionManager::ForwardFromRegions()
         allocBuffer->ClearRegion(); // clear region for next GC
     }
 }
-#endif // !MRT_USE_MARK_SWEEP
 
 size_t RegionManager::CollectFreePinnedSlots(RegionInfo* region)
 {
@@ -947,7 +892,6 @@ void RegionManager::RequestForRegion(size_t size)
     prevRegionAllocTime = TimeUtil::NanoSeconds();
 }
 
-#ifndef MRT_USE_MARK_SWEEP
 bool RegionManager::RouteOrCompactRegionImpl(RegionInfo* region)
 {
     CHECK(region->IsRoutingState());
@@ -1123,9 +1067,7 @@ void RegionManager::CompactRegion(RegionInfo* region, RegionInfo* toRegion1)
     }
     tlRegionList.PrependRegion(region, RegionInfo::RegionType::THREAD_LOCAL_REGION);
 }
-#endif // !MRT_USE_MARK_SWEEP
 
-#ifndef MRT_USE_MARK_SWEEP
 void RegionManager::ForwardRegion(RegionInfo* region)
 {
     CHECK_DETAIL(region->IsFromRegion() || region->IsLoneFromRegion() || (region->IsThreadLocalRegion() &&
@@ -1156,24 +1098,11 @@ void RegionManager::ForwardRegion(RegionInfo* region)
         CollectRegion(region);
     }
 }
-#endif // !MRT_USE_MARK_SWEEP
 
 uintptr_t RegionManager::AllocPinnedFromFreeList(size_t size)
 {
     std::lock_guard<std::mutex> lock(freePinnedSlotListMutex);
     GCPhase mutatorPhase = Mutator::GetMutator()->GetMutatorPhase();
-#ifdef MRT_USE_MARK_SWEEP
-    // MS mode: during concurrent mark, mark newly allocated pinned objects
-    uintptr_t allocPtr = freePinnedSlotLists.PopFront(size);
-    if (allocPtr == 0 ||
-        (mutatorPhase != GCPhase::GC_PHASE_MS_CONCURRENT_MARK &&
-        mutatorPhase != GCPhase::GC_PHASE_MS_MARK_SETUP)) {
-        return allocPtr;
-    }
-    BaseObject* object = reinterpret_cast<BaseObject*>(allocPtr);
-    (reinterpret_cast<TracingCollector*>(&Heap::GetHeap().GetCollector()))->MarkObject(object);
-    return allocPtr;
-#else
     // For preventing missing mark, do not allocate object from slot list when gc phase is post trace.
     if (mutatorPhase == GCPhase::GC_PHASE_POST_TRACE) {
         return 0;
@@ -1191,6 +1120,37 @@ uintptr_t RegionManager::AllocPinnedFromFreeList(size_t size)
     BaseObject* object = reinterpret_cast<BaseObject*>(allocPtr);
     (reinterpret_cast<CopyCollector*>(&Heap::GetHeap().GetCollector()))->MarkObject(object);
     return allocPtr;
-#endif
 }
+
+size_t RegionManager::GetUsedUnitCount() const
+{
+    return fromRegionList.GetUnitCount() + unmovableFromRegionList.GetUnitCount() +
+        recentFullRegionList.GetUnitCount() + oldLargeRegionList.GetUnitCount() +
+        recentLargeRegionList.GetUnitCount() + oldPinnedRegionList.GetUnitCount() +
+        recentPinnedRegionList.GetUnitCount() + rawPointerPinnedRegionList.GetUnitCount() +
+        largeTraceRegions.GetUnitCount() + fullTraceRegions.GetUnitCount() +
+        reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator()).GetAllocBufersCount() +
+        tlRegionList.GetUnitCount();
+}
+
+size_t RegionManager::GetAllocatedSize() const
+{
+    size_t threadLocalSize = 0;
+    AllocBufferVisitor visitor = [&threadLocalSize](AllocBuffer& regionBuffer) {
+        RegionInfo* region = regionBuffer.GetRegion();
+        if (UNLIKELY(region == RegionInfo::NullRegion())) {
+            return;
+        }
+        threadLocalSize += region->GetRegionAllocatedSize();
+    };
+    reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator()).VisitAllocBuffers(visitor);
+    // exclude garbageRegionList for live object set.
+    return fromRegionList.GetAllocatedSize() + unmovableFromRegionList.GetAllocatedSize() +
+        recentFullRegionList.GetAllocatedSize() + oldLargeRegionList.GetAllocatedSize() +
+        recentLargeRegionList.GetAllocatedSize() + oldPinnedRegionList.GetAllocatedSize() +
+        recentPinnedRegionList.GetAllocatedSize() + rawPointerPinnedRegionList.GetAllocatedSize() +
+        largeTraceRegions.GetAllocatedSize() + fullTraceRegions.GetAllocatedSize() +
+        tlRegionList.GetAllocatedSize() + threadLocalSize;
+}
+
 } // namespace MapleRuntime
