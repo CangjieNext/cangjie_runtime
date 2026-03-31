@@ -30,10 +30,21 @@ public type SignalHandlerFunc = (Int32) -> Bool
 private let mtx = Mutex()
 
 @When[os != "Windows"]
+private let SIGNAL_HANDLING = AtomicBool(false)
+
+@When[os != "Windows"]
+private const PENDING_SIGNAL_QUEUE_SIZE: Int64 = 256
+
+@When[os != "Windows"]
+private let pendingSignalCount = AtomicInt32(0)
+
+@When[os != "Windows"]
+private let pendingSignals = Array<Int32>(PENDING_SIGNAL_QUEUE_SIZE, { _ => 0 })
+
+@When[os != "Windows"]
 class SignalManager {
     static const MAX_SIG_NUM: Int32 = 32
     static let sigSlot = Array<ArrayList<SignalHandlerFunc>>(Int64(MAX_SIG_NUM), { _ => ArrayList<SignalHandlerFunc>()})
-    // This memory allocation is globally unique and will only be released along with the program upon termination.
     static let ptrAction = LibC.malloc<SignalAction>(count: 1)
     static init() {
         let action = SignalAction(signalHandler)
@@ -116,16 +127,34 @@ func signalHandler(sig: Int32, _: CPointer<Unit>, _: CPointer<Unit>): Bool {
     if (sig <= 0 || sig >= SignalManager.MAX_SIG_NUM) {
         return false
     }
-    let slot = SignalManager.sigSlot[Int64(sig)]
-    synchronized(mtx) {
+    
+    let idx = pendingSignalCount.fetchAdd(1)
+    if (Int64(idx) < PENDING_SIGNAL_QUEUE_SIZE) {
+        pendingSignals[Int64(idx)] = sig
+    }
+    
+    if (!SIGNAL_HANDLING.compareAndSwap(false, true)) {
+        return true
+    }
+    
+    let count = pendingSignalCount.swap(0)
+    let safeCount = if (Int64(count) > PENDING_SIGNAL_QUEUE_SIZE) { PENDING_SIGNAL_QUEUE_SIZE } else { Int64(count) }
+    
+    for (i in 0..safeCount) {
+        let pendingSig = pendingSignals[Int64(i)]
+        if (pendingSig <= 0 || pendingSig >= SignalManager.MAX_SIG_NUM) {
+            continue
+        }
+        let slot = SignalManager.sigSlot[Int64(pendingSig)]
         for (fn in slot) {
-            let result = fn(sig)
-            if (result) {
-                return true
+            if (fn(pendingSig)) {
+                break
             }
         }
     }
-    return false
+    
+    SIGNAL_HANDLING.store(false)
+    return true
 }
 
 @When[os != "Windows"]
