@@ -8,9 +8,6 @@
 
 package std.runtime
 
-let MIN_GC_THRESHOLD: UInt64 = 1024 * 1024
-let MAX_GC_THRESHOLD: UInt64 = 1024 * 1024 * 1024 * 1024
-
 @Intrinsic
 func invokeGC(heavy: Bool): Unit
 
@@ -53,14 +50,7 @@ public func gc(heavy!: Bool = false): Unit {
 
 @When[backend == "cjnative"]
 public func setGCThreshold(value: UInt64): Unit {
-    let clampedValue = if (value < MIN_GC_THRESHOLD) {
-        MIN_GC_THRESHOLD
-    } else if (value > MAX_GC_THRESHOLD) {
-        MAX_GC_THRESHOLD
-    } else {
-        value
-    }
-    unsafe { setCjGCThreshold(clampedValue) }
+    unsafe { setCjGCThreshold(value) }
 }
 
 @When[backend == "cjnative"]
