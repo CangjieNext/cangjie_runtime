@@ -11,6 +11,9 @@ package std.runtime
 @When[backend == "cjnative"]
 import std.fs.*
 
+@When[backend == "cjnative"]
+import std.env.*
+
 @Intrinsic
 func getMaxCjHeapSize(): UIntNative
 
@@ -89,7 +92,16 @@ public func getUsedHeapSize(): Int64 {
 
 @When[backend == "cjnative"]
 public func dumpHeapData(path: Path): Unit {
-    try (file = File(path, ReadWrite)) {
+    let pathStr = path.toString()
+    if (pathStr.contains("..") || pathStr.contains("~")) {
+        throw MemoryInfoException("Heap dump path cannot contain '..' or '~' for security reasons.")
+    }
+    let absolutePath = if (path.isAbsolute()) {
+        path
+    } else {
+        Path(getVariable("PWD") ?? ".").join(path)
+    }
+    try (file = File(absolutePath, ReadWrite)) {
         let success = dumpCjHeapData(Int32(file.fileDescriptor.fileHandle))
         if (!success) {
             throw MemoryInfoException("Failed to dump heap data.")
