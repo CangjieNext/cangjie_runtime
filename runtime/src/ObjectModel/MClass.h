@@ -651,6 +651,7 @@ public:
     bool IsOptionLikeRefEnum();
     bool IsZeroSizedEnum();
     bool IsOptionLikeUnassociatedCtor();
+    bool IsEnumKind0();
     bool IsEnumKind1();
     bool ReflectIsEnable() const;
     bool ReflectInfoIsNull() const;
