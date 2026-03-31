@@ -346,7 +346,19 @@ void MethodInfo::AddCJArg(ArgValue *argValues, TypeInfo *argType, ObjRef argObj)
             argValues->AddReference(argObj);
             break;
         }
-        case TypeKind::TYPE_KIND_ENUM:
+        case TypeKind::TYPE_KIND_ENUM: {
+            if (argType->IsZeroSizedEnum()) {
+                argValues->AddInt64(0);
+            } else if (argType->IsEnumKind0()) {
+                argValues->AddInt64(argObj->Load<I32>(offset));
+            } else if (argType->IsOptionLikeRefEnum()) {
+                ObjRef innerRef = *reinterpret_cast<ObjRef*>(reinterpret_cast<Uptr>(argObj) + TYPEINFO_PTR_SIZE);
+                argValues->AddReference(innerRef);
+            } else {
+                argValues->AddInt64(reinterpret_cast<Uptr>(reinterpret_cast<Uptr>(argObj) + TYPEINFO_PTR_SIZE));
+            }
+            break;
+        }
         case TypeKind::TYPE_KIND_TUPLE:
         case TypeKind::TYPE_KIND_STRUCT:
         case TypeKind::TYPE_KIND_VARRAY: {
