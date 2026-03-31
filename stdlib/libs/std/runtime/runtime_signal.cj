@@ -30,6 +30,9 @@ public type SignalHandlerFunc = (Int32) -> Bool
 private let mtx = Mutex()
 
 @When[os != "Windows"]
+private let SIGNAL_HANDLING = AtomicBool(false)
+
+@When[os != "Windows"]
 class SignalManager {
     static const MAX_SIG_NUM: Int32 = 32
     static let sigSlot = Array<ArrayList<SignalHandlerFunc>>(Int64(MAX_SIG_NUM), { _ => ArrayList<SignalHandlerFunc>()})
@@ -116,16 +119,23 @@ func signalHandler(sig: Int32, _: CPointer<Unit>, _: CPointer<Unit>): Bool {
     if (sig <= 0 || sig >= SignalManager.MAX_SIG_NUM) {
         return false
     }
+    
+    // Spin wait to acquire processing right
+    while (!SIGNAL_HANDLING.compareAndSwap(false, true)) {
+        // Busy wait - another handler is running, wait for it to complete
+    }
+    
     let slot = SignalManager.sigSlot[Int64(sig)]
-    synchronized(mtx) {
-        for (fn in slot) {
-            let result = fn(sig)
-            if (result) {
-                return true
-            }
+    var result = false
+    for (fn in slot) {
+        result = fn(sig)
+        if (result) {
+            break
         }
     }
-    return false
+    
+    SIGNAL_HANDLING.store(false)
+    return result
 }
 
 @When[os != "Windows"]
