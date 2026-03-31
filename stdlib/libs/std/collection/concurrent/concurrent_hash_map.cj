@@ -993,7 +993,7 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
 
     private func getHash(hashCode: Int64): Int64 {
         let h = hashCode
-        h ^ (h >> 16) ^ (h >> 32)
+        (h ^ (h >> 16) ^ (h >> 32)) & 0x7FFFFFFFFFFFFFFF
     }
 }
 
