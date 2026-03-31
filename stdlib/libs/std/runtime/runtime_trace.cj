@@ -105,8 +105,35 @@ func traceStartByConfig(): Bool {
         return false
     }
 
+    if (cjTracePath.isEmpty() || cjTracePath.size > 4096) {
+        return false
+    }
+
+    if (cjTracePath.contains("\0")) {
+        return false
+    }
+
+    if (cjTracePath.contains("..") || cjTracePath.contains("~")) {
+        return false
+    }
+
+    if (!cjTracePath.startsWith("/") && !cjTracePath.startsWith("./")) {
+        return false
+    }
+
     try {
-        let file = File(cjTracePath, Write)
+        let path = Path(cjTracePath)
+        let resolvedPath = try {
+            let parentDir = path.parent
+            if (parentDir != Path(".") && exists(parentDir)) {
+                canonicalize(parentDir).join(path.fileName)
+            } else {
+                path
+            }
+        } catch (e: Exception) {
+            path
+        }
+        let file = File(resolvedPath, Write)
         return Trace.start(TraceType.all, file)
     } catch (e: Exception) {
         return false
