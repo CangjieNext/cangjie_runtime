@@ -97,6 +97,28 @@ struct Trace {
     }
 }
 
+@When[backend == "cjnative" && os == "Linux"]
+func isValidTracePath(pathStr: String): Bool {
+    return pathStr.startsWith("/") || pathStr.startsWith("./")
+}
+
+@When[backend == "cjnative" && os == "Windows"]
+func isValidTracePath(pathStr: String): Bool {
+    if (pathStr.startsWith("\\") || pathStr.startsWith(".\\")) {
+        return true
+    }
+    // Windows absolute path format: "C:" requires at least 2 characters (drive letter + colon)
+    if (pathStr.size >= 2) {
+        let firstChar = pathStr[0]
+        if ((firstChar >= 'a' && firstChar <= 'z') || (firstChar >= 'A' && firstChar <= 'Z')) {
+            if (pathStr[1] == ':') {
+                return true
+            }
+        }
+    }
+    return false
+}
+
 @When[backend == "cjnative" && (os == "Windows" || os == "Linux")]
 func traceStartByConfig(): Bool {
     let cjTracePath = if (let Some(env) <- getVariable("cjTracePath")) {
@@ -105,8 +127,18 @@ func traceStartByConfig(): Bool {
         return false
     }
 
+    if (!validatePathString(cjTracePath)) {
+        return false
+    }
+
+    if (!isValidTracePath(cjTracePath)) {
+        return false
+    }
+
     try {
-        let file = File(cjTracePath, Write)
+        let path = Path(cjTracePath)
+        let resolvedPath = resolvePath(path)
+        let file = File(resolvedPath, Write)
         return Trace.start(TraceType.all, file)
     } catch (e: Exception) {
         return false
