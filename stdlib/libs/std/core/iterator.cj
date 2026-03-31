@@ -355,6 +355,9 @@ class EnumerateIterator<T> <: Iterator<(Int64, T)> {
     public func next(): Option<(Int64, T)> {
         return match (it.next()) {
             case Some(value) =>
+                if (index == Int64.Max) {
+                    throw OverflowException("EnumerateIterator index overflow")
+                }
                 index++
                 Some((index, value))
             case _ => return None
