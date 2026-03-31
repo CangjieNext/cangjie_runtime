@@ -251,16 +251,16 @@ void StackInfo::GetStackTraceByLiteFrameInfo(const uint64_t v1, const uint64_t v
 #ifdef INTERPRETER_ENABLED
     if (v3 == INTERPRETED_FRAME_FDESC) {
         // handle interpreter frame
-        interpreted_frame_info_t info;
+        InterpretedFrameInfoT info;
 
         uint64_t ip = v1;
         uint64_t fa = v2;
         ProvideInterpretedFrameInfo(fa, ip, &info);
 
-        ste.lineNumber = info.line_number;
-        ste.methodName = info.method_name;
-        ste.className = info.class_name;
-        ste.fileName = info.file_name;
+        ste.lineNumber = info.lineNumber;
+        ste.methodName = info.methodName;
+        ste.className = info.className;
+        ste.fileName = info.fileName;
         return;
     }
 #endif

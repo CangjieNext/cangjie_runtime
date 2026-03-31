@@ -22,58 +22,58 @@ namespace MRTExport {
 ////////////////////////////////////////////////////////////////////////////////////
 
 // Pointer to traceable object reference. Binary layout of object is defined by CJNative runtime.
-typedef void *obj_ref_t;
+typedef void *ObjRefT;
 
 // Pointer to RefField
-typedef void *field_ref_t;
+typedef void *FieldRefT;
 
 // Pointer to the place that contains traceable object reference.
-typedef void *placeholder_t;
+typedef void *PlaceholderT;
 
 // State that's passed during visiting stack frames.
-typedef void *visiting_state_t;
+typedef void *VisitingStateT;
 
 // Pointer to TypeTemplate. Binary layout of this structure is defined by CJNative runtime.
-typedef void *type_template_t;
+typedef void *TypeTemplateT;
 
 // Pointer to ThreadLocalData that is currently executing current fiber.
-typedef void *thread_local_data_t;
+typedef void *ThreadLocalDataT;
 
 // Pointer to fiber specific data that is used by interpreter during execution.
 // This pointer is stored in fiber specific storage.
-typedef void *fiber_specific_data_t;
+typedef void *FiberSpecificDataT;
 
-// This is alias for frame pointer. CJNative runtime should pass this pointer to `frame_info_provider_f` function.
-// Interpreter would return description of corresponding frame (e.g. file_name, line_number).
-typedef const void *frame_pointer_t;
+// This is alias for frame pointer. CJNative runtime should pass this pointer to `FrameInfoProviderFn` function.
+// Interpreter would return description of corresponding frame (e.g. fileName, lineNumber).
+typedef const void *FramePointerT;
 
-// This is alias for instruction pointer. CJNative runtime should pass this pointer to `frame_info_provider_f` function.
-// Interpreter would return description of corresponding frame (e.g. file_name, line_number).
-typedef const void *instruction_pointer_t; 
+// This is alias for instruction pointer. CJNative runtime should pass this pointer to `FrameInfoProviderFn` function.
+// Interpreter would return description of corresponding frame (e.g. fileName, lineNumber).
+typedef const void *InstructionPointerT; 
 
 // Visitor of interpreter pointer placeholders.
-// Interpreter cannot use this data directly but should pass it to the callbacks defined in `cjnative_interface_t`.
-typedef const void *root_visitor_t;
+// Interpreter cannot use this data directly but should pass it to the callbacks defined in `CJNativeInterfaceT`.
+typedef const void *RootVisitorT;
 
 // Visitor of placeholders that contain derived pointers (intrapointers).
-// Interpreter cannot use this data directly but should pass it to the callbacks defined in `cjnative_interface_t`.
-typedef const void *derived_ptr_visitor_t;
+// Interpreter cannot use this data directly but should pass it to the callbacks defined in `CJNativeInterfaceT`.
+typedef const void *DerivedPtrVisitorT;
 
 // Pointer to ExceptionWrapper.
-typedef void *exception_wrapper_t;
+typedef void *ExceptionWrapperT;
 
 // Frame description used by interpreter frame visitors.
-struct frame_desc_t {
-    frame_pointer_t fp;
-    instruction_pointer_t ip;
+struct FrameDescT {
+    FramePointerT fp;
+    InstructionPointerT ip;
 };
 
-// This struct describes frame. Interpreter would fill this structure in `frame_info_provider_f` function.
-struct interpreted_frame_info_t {
-    size_t line_number;
-    char*  method_name;
-    char*  class_name;
-    char*  file_name;
+// This struct describes frame. Interpreter would fill this structure in `FrameInfoProviderFn` function.
+struct InterpretedFrameInfoT {
+    size_t lineNumber;
+    char*  methodName;
+    char*  className;
+    char*  fileName;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -101,10 +101,10 @@ struct interpreted_frame_info_t {
 
 
 // Collection of callbacks implemented by interpreter. See detailed description below.
-struct interpreter_interface_t;
+struct InterpreterInterfaceT;
 
 // Collection of callbacks implemented by CJNative. See detailed description below.
-struct cjnative_interface_t;
+struct CJNativeInterfaceT;
 
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -114,13 +114,16 @@ struct cjnative_interface_t;
 // Initalizes runtime and its interface.
 //
 // params:
-// - interpreter_interface - Pointer to `interpreter_interface_t` which will be filled.
-// - cjnative_interface - Pointer to `cjnative_interface_t`. The content will be copied.
-// - interpreter_args_count - Number of interpreter arguments in `interpreter_args`.
-// - interpreter_args - Interpreter arguments array (null-terminated).
+// - interpreterInterface - Pointer to `InterpreterInterfaceT` which will be filled.
+// - cjnativeInterface - Pointer to `CJNativeInterfaceT`. The content will be copied.
+// - interpreterArgsCount - Number of interpreter arguments in `interpreterArgs`.
+// - interpreterArgs - Interpreter arguments array (null-terminated).
 // return: 0 on success.
 //
-typedef int (*init_rt)(struct interpreter_interface_t *interpreter_interface, struct cjnative_interface_t *cjnative_interface, int interpreter_args_count, char** interpreter_args);
+typedef int (*InitRt)(struct InterpreterInterfaceT *interpreterInterface,
+                      struct CJNativeInterfaceT *cjnativeInterface,
+                      int interpreterArgsCount,
+                      char **interpreterArgs);
 
 // Prepares state and calls callback with initialized state and provided context. After callback returns, performs necessary cleanup of the state.
 //
@@ -129,48 +132,48 @@ typedef int (*init_rt)(struct interpreter_interface_t *interpreter_interface, st
 // - callback - continuation that expects initialized state and context.
 // - ctx - context that should be passed to callback.
 //
-typedef void (*iterate_frames_with_state_f)(fiber_specific_data_t fiberData, void (*callback)(visiting_state_t, void*), void* ctx);
+typedef void (*IterateFramesWithStateFn)(FiberSpecificDataT fiberData, void (*callback)(VisitingStateT, void*), void* ctx);
 
 
 // Visit all frame slots that contain pointers to stack using provided visitor.
 //
 // params:
-// - state - visiting state that was initialized in iterate_frames_with_state callback. This state is passed between consecutive calls to this function for different frames.
-// - frame_desc - description of the frame which slots are being visited.
-// - stack_ptr_visitor - visitor callback provided by CJNative runtime for processing slots with stack pointers.
-// - derived_ptr_visitor - derived pointers visitor callback provided by CJNative runtime for processing slots with intrapointers (which point to stack).
+// - state - visiting state that was initialized in iterateFramesWithState callback. This state is passed between consecutive calls to this function for different frames.
+// - frameDesc - description of the frame which slots are being visited.
+// - stackPtrVisitor - visitor callback provided by CJNative runtime for processing slots with stack pointers.
+// - derivedPtrVisitor - derived pointers visitor callback provided by CJNative runtime for processing slots with intrapointers (which point to stack).
 //
 // Notes:
-// Provided visitors cannot be called directly by interpreter. Interpreter should pass visitor to the callbacks defined in `cjnative_interface_t` to process slots.
+// Provided visitors cannot be called directly by interpreter. Interpreter should pass visitor to the callbacks defined in `CJNativeInterfaceT` to process slots.
 //
-typedef void (*visit_frame_roots_expansion_f)(visiting_state_t state, frame_desc_t frame_desc, root_visitor_t stack_ptr_visitor, derived_ptr_visitor_t derived_ptr_visitor);
+typedef void (*VisitFrameRootsExpansionFn)(VisitingStateT state, FrameDescT frameDesc, RootVisitorT stackPtrVisitor, DerivedPtrVisitorT derivedPtrVisitor);
 
 
 // Visit frame roots (local variables) of interpreted code with marking visitor.
 //
 // params:
-// - state - visiting state that was initialized in iterate_frames_with_state callback. This state is passed between consecutive calls to this function for different frames.
-// - frame_desc - description of the frame which roots are being visited.
-// - root_visitor - marking root visitor callback provided by CJNative runtime. Interpreter should call this callback for each root it needs to process.
+// - state - visiting state that was initialized in iterateFramesWithState callback. This state is passed between consecutive calls to this function for different frames.
+// - frameDesc - description of the frame which roots are being visited.
+// - rootVisitor - marking root visitor callback provided by CJNative runtime. Interpreter should call this callback for each root it needs to process.
 //
 // Notes:
-// Root visitor cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `cjnative_interface_t` to process roots.
+// Root visitor cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `CJNativeInterfaceT` to process roots.
 //
-typedef void (*visit_frame_roots_marking_f)(visiting_state_t state, frame_desc_t frame_desc, root_visitor_t root_visitor);
+typedef void (*VisitFrameRootsMarkingFn)(VisitingStateT state, FrameDescT frameDesc, RootVisitorT rootVisitor);
 
 
 // Visit frame roots (local variables) of interpreted code with adjusting visitor.
 //
 // params:
-// - state - visiting state that was initialized in iterate_frames_with_state callback. This state is passed between consecutive calls to this function for different frames.
-// - frame_desc - description of the frame which roots are being visited.
-// - root_visitor - adjusting root visitor callback provided by CJNative runtime. Interpreter should call this callback for each root it needs to process.
-// - derived_ptr_visitor - derived pointers visitor callback provided by CJNative runtime.
+// - state - visiting state that was initialized in iterateFramesWithState callback. This state is passed between consecutive calls to this function for different frames.
+// - frameDesc - description of the frame which roots are being visited.
+// - rootVisitor - adjusting root visitor callback provided by CJNative runtime. Interpreter should call this callback for each root it needs to process.
+// - derivedPtrVisitor - derived pointers visitor callback provided by CJNative runtime.
 //
 // Notes:
-// Root visitors cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `cjnative_interface_t` to process roots.
+// Root visitors cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `CJNativeInterfaceT` to process roots.
 //
-typedef void (*visit_frame_roots_adjusting_f)(visiting_state_t state, frame_desc_t frame_desc, root_visitor_t root_visitor, derived_ptr_visitor_t derived_ptr_visitor);
+typedef void (*VisitFrameRootsAdjustingFn)(VisitingStateT state, FrameDescT frameDesc, RootVisitorT rootVisitor, DerivedPtrVisitorT derivedPtrVisitor);
 
 
 // Visit static roots (global variables) of interpreted code with some visitor.
@@ -180,9 +183,9 @@ typedef void (*visit_frame_roots_adjusting_f)(visiting_state_t state, frame_desc
 // - visitor - root visitor callback provided by CJNative runtime. Interpreter should call this callback for each root it needs to process.
 //
 // Notes:
-// Root visitor cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `cjnative_interface_t` to process roots.
+// Root visitor cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `CJNativeInterfaceT` to process roots.
 //
-typedef void (*visit_global_roots_f)(root_visitor_t visitor);
+typedef void (*VisitGlobalRootsFn)(RootVisitorT visitor);
 
 
 // Registers newly created fiber in interpreter. This method could be called by any thread (e.g. auxiliary scheduler thread) to notify interpreter about creation of new fiber.
@@ -191,9 +194,9 @@ typedef void (*visit_global_roots_f)(root_visitor_t visitor);
 // - Pointer to FiberSpecificData
 //
 // Notes:
-//  Interpreter will save auxiliary metadata in [fiber_specific_data_t + offset_to_fiber_specific_memory_f] memory area to simplify support of interpretation and Garbage collection.
+//  Interpreter will save auxiliary metadata in [FiberSpecificDataT + offsetToFiberSpecificMemory] memory area to simplify support of interpretation and Garbage collection.
 //
-typedef void (*fiber_start_f)(fiber_specific_data_t*);
+typedef void (*FiberStartFn)(FiberSpecificDataT*);
 
 
 // Unregisters fiber in interpreter. This method could be called by any thread (e.g. auxiliary scheduler thread) to notify interpreter about termination of some completed fiber.
@@ -201,7 +204,7 @@ typedef void (*fiber_start_f)(fiber_specific_data_t*);
 // params:
 // - Pointer to FiberSpecificData
 //
-typedef void (*fiber_destroy_f)(fiber_specific_data_t*);
+typedef void (*FiberDestroyFn)(FiberSpecificDataT*);
 
 
 // Provides information about given frame which could be used for precise stack trace generation.
@@ -213,16 +216,16 @@ typedef void (*fiber_destroy_f)(fiber_specific_data_t*);
 // params:
 // - Frame pointer. Must be provided by CJNative runtime.
 // - Instruction pointer in frame (callsite position).
-// - Pointer to interpreted_frame_info_t. Fields of this struct will be initialized by interpreter.
+// - Pointer to InterpretedFrameInfoT. Fields of this struct will be initialized by interpreter.
 //
-typedef void (*frame_info_provider_f)(frame_pointer_t, instruction_pointer_t ip, interpreted_frame_info_t *);
+typedef void (*FrameInfoProviderFn)(FramePointerT, InstructionPointerT ip, InterpretedFrameInfoT *);
 
 
 // Landing pad which handles pending exception.
 // If there is suitable catch block in current last interpreted frame, interprets catch block.
 // Otherwise, drops current frame and rethrows exception.
 //
-typedef void (*landing_pad_f)();
+typedef void (*LandingPadFn)();
 
 ////////////////////////////////////////////////////////////////////////////////////
 // endregion interpreter interface
@@ -242,11 +245,11 @@ typedef void (*landing_pad_f)();
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef obj_ref_t (*obj_alloc_f)(struct type_info_t*);
+typedef ObjRefT (*ObjAllocFn)(struct TypeInfoT*);
 
 // Allocate new array.
 // params:
-// - array_type - pointer to TypeInfo describing the array to be allocated
+// - arrayType - pointer to TypeInfo describing the array to be allocated
 // - size - size of the array to be allocated
 //
 // return: allocated array object or NULL
@@ -254,33 +257,33 @@ typedef obj_ref_t (*obj_alloc_f)(struct type_info_t*);
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef obj_ref_t (*array_alloc_f)(struct type_info_t* array_type, uint64_t size);
+typedef ObjRefT (*ArrayAllocFn)(struct TypeInfoT* arrayType, uint64_t size);
 
 // Poll a safe point.
 //
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*safe_point_f)();
+typedef void (*SafePointFn)();
 
 // Check if safepoint is pending.
 //
 // params:
-// - thread_local_data: pointer to current `ThreadLocalData`.
+// - threadLocalData - pointer to current `ThreadLocalData`.
 //
 // return: true if safepoint is pending, false otherwise.
 //
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef bool (*is_pending_safe_point_f)(thread_local_data_t);
+typedef bool (*IsPendingSafePointFn)(ThreadLocalDataT);
 
 // C2N_Stub function, can be reused as implementation of I2N call.
 // TODO avoid using it
-typedef void (*C2N_Stub_f)();
+typedef void (*C2NStubFn)();
 
 // Typedef for foreign function. See below for explanation.
-typedef void *(*foreign_func)(void*, void*, void*, void*, void*);
+typedef void *(*ForeignFunc)(void*, void*, void*, void*, void*);
 
 
 // Provide a TypeInfo for type with given signature.
@@ -293,7 +296,7 @@ typedef void *(*foreign_func)(void*, void*, void*, void*, void*);
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef struct type_info_t* (*type_info_provider_f)(const char *);
+typedef struct TypeInfoT* (*TypeInfoProviderFn)(const char *);
 
 // Provide a TypeTemplate for type with given signature.
 //
@@ -305,7 +308,7 @@ typedef struct type_info_t* (*type_info_provider_f)(const char *);
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef type_template_t (*type_template_f)(const char *);
+typedef TypeTemplateT (*TypeTemplateFn)(const char *);
 
 // Get or create specialized TypeInfo from a TypeTemplate and type arguments.
 //
@@ -319,7 +322,7 @@ typedef type_template_t (*type_template_f)(const char *);
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef struct type_info_t* (*get_or_create_type_info_f)(type_template_t typeTemplate, uint32_t argSize, struct type_info_t** typeArgs);
+typedef struct TypeInfoT* (*GetOrCreateTypeInfoFn)(TypeTemplateT typeTemplate, uint32_t argSize, struct TypeInfoT** typeArgs);
 
 // Get the instance size of a type from its TypeInfo.
 //
@@ -331,7 +334,7 @@ typedef struct type_info_t* (*get_or_create_type_info_f)(type_template_t typeTem
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef uint32_t (*get_instance_size_f)(struct type_info_t* typeInfo);
+typedef uint32_t (*GetInstanceSizeFn)(struct TypeInfoT* typeInfo);
 
 
 // Throw OutOfMemoryError exception.
@@ -339,7 +342,7 @@ typedef uint32_t (*get_instance_size_f)(struct type_info_t* typeInfo);
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*throw_OOM_f)();
+typedef void (*ThrowOOMFn)();
 
 // Throw given exception.
 //
@@ -349,7 +352,7 @@ typedef void (*throw_OOM_f)();
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*throw_exception_f)(obj_ref_t exception_object);
+typedef void (*ThrowExceptionFn)(ObjRefT exceptionObject);
 
 // Get pending exception instance.
 // This method hasn't any side effects (doesn't affect pending status).
@@ -359,17 +362,17 @@ typedef void (*throw_exception_f)(obj_ref_t exception_object);
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef obj_ref_t (*get_pending_exception_f)();
+typedef ObjRefT (*GetPendingExceptionFn)();
 
 // Get and clear pending exception instance.
-// Any call to `get_pending_exception_f` after execution of this method should return null.
+// Any call to `GetPendingExceptionFn` after execution of this method should return null.
 //
 // return: pointer to pending object
 //
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef obj_ref_t (*get_and_clear_pending_exception_f)();
+typedef ObjRefT (*GetAndClearPendingExceptionFn)();
 
 
 // Check that given object is an instance of given type.
@@ -383,19 +386,19 @@ typedef obj_ref_t (*get_and_clear_pending_exception_f)();
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef bool (*instance_of_f)(obj_ref_t obj, struct type_info_t* ti);
+typedef bool (*InstanceOfFn)(ObjRefT obj, struct TypeInfoT* ti);
 
 // Check that typeInfo is a subtype of superTypeInfo.
 //
 // params:
-// - type_info - type to check
-// - super_type_info - base type
+// - typeInfo - type to check
+// - superTypeInfo - base type
 //
-// return: true if type_info is a subtype of super_type_info.
+// return: true if typeInfo is a subtype of superTypeInfo.
 //
 // Notes:
 //
-typedef bool (*is_sub_type_f)(struct type_info_t* type_info, struct type_info_t* super_type_info);
+typedef bool (*IsSubTypeFn)(struct TypeInfoT* typeInfo, struct TypeInfoT* superTypeInfo);
 
 // Applies visitor to the given placeholder.
 //
@@ -403,7 +406,7 @@ typedef bool (*is_sub_type_f)(struct type_info_t* type_info, struct type_info_t*
 // - visitor - root visitor callback provided by CJNative runtime. Interpreter should call this callback for each root it needs to process.
 // - placeholder - pointer to the place that contains reference which should be visited.
 //
-typedef void (*visit_root_from_interpreter_f)(root_visitor_t visitor, placeholder_t placeholder);
+typedef void (*VisitRootFromInterpreterFn)(RootVisitorT visitor, PlaceholderT placeholder);
 
 // Applies visitor to the given derived and base pointers.
 //
@@ -412,7 +415,7 @@ typedef void (*visit_root_from_interpreter_f)(root_visitor_t visitor, placeholde
 // - basePtrHolder - pointer to the place that contains base pointer.
 // - derivedPtrHolder - pointer to the place that contains derived pointer (intrapointer).
 //
-typedef void (*visit_derived_ptr_from_interpreter_f)(derived_ptr_visitor_t visitor, placeholder_t basePtrHolder, placeholder_t derivedPtrHolder);
+typedef void (*VisitDerivedPtrFromInterpreterFn)(DerivedPtrVisitorT visitor, PlaceholderT basePtrHolder, PlaceholderT derivedPtrHolder);
 
 // Read reference from static field.
 //
@@ -424,18 +427,18 @@ typedef void (*visit_derived_ptr_from_interpreter_f)(derived_ptr_visitor_t visit
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef obj_ref_t (*read_static_field_f)(field_ref_t source);
+typedef ObjRefT (*ReadStaticFieldFn)(FieldRefT source);
 
 // Write reference to static field.
 //
 // params:
 // - destination - pointer to static reference field
-// - new_value - object reference to store in the field
+// - newValue - object reference to store in the field
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*write_static_field_f)(field_ref_t destination, obj_ref_t new_value);
+typedef void (*WriteStaticFieldFn)(FieldRefT destination, ObjRefT newValue);
 
 // Read reference from instance field.
 //
@@ -448,19 +451,19 @@ typedef void (*write_static_field_f)(field_ref_t destination, obj_ref_t new_valu
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef obj_ref_t (*read_instance_field_f)(obj_ref_t source, field_ref_t field);
+typedef ObjRefT (*ReadInstanceFieldFn)(ObjRefT source, FieldRefT field);
 
 // Write reference to instance field.
 //
 // params:
 // - destination - object that contains instance field
 // - field - pointer to instance reference field
-// - new_value - object reference to store in the field
+// - newValue - object reference to store in the field
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*write_instance_field_f)(obj_ref_t destination, field_ref_t field, obj_ref_t new_value);
+typedef void (*WriteInstanceFieldFn)(ObjRefT destination, FieldRefT field, ObjRefT newValue);
 
 // Read a struct field from an object.
 //
@@ -473,7 +476,7 @@ typedef void (*write_instance_field_f)(obj_ref_t destination, field_ref_t field,
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*read_struct_field_f)(uintptr_t dstPtr, obj_ref_t obj, uintptr_t srcField, size_t size);
+typedef void (*ReadStructFieldFn)(uintptr_t dstPtr, ObjRefT obj, uintptr_t srcField, size_t size);
 
 // Write a struct field to an object.
 //
@@ -486,7 +489,7 @@ typedef void (*read_struct_field_f)(uintptr_t dstPtr, obj_ref_t obj, uintptr_t s
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*write_struct_field_f)(obj_ref_t obj, uintptr_t dst, uintptr_t src, size_t size);
+typedef void (*WriteStructFieldFn)(ObjRefT obj, uintptr_t dst, uintptr_t src, size_t size);
 
 // Read a static struct field.
 //
@@ -495,12 +498,12 @@ typedef void (*write_struct_field_f)(obj_ref_t obj, uintptr_t dst, uintptr_t src
 // - dstSize - size of destination memory
 // - srcPtr - pointer to the source static struct
 // - srcSize - size of source struct
-// - tib_value - The GCTib value (can be a pointer to TypeInfo or a raw ShortGCTib bitmap)
+// - tibValue - The GCTib value (can be a pointer to TypeInfo or a raw ShortGCTib bitmap)
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*read_static_struct_field_f)(uintptr_t dstPtr, size_t dstSize, uintptr_t srcPtr, size_t srcSize, size_t tib_value);
+typedef void (*ReadStaticStructFieldFn)(uintptr_t dstPtr, size_t dstSize, uintptr_t srcPtr, size_t srcSize, size_t tibValue);
 
 // Write a static value type field (struct).
 //
@@ -509,40 +512,40 @@ typedef void (*read_static_struct_field_f)(uintptr_t dstPtr, size_t dstSize, uin
 // - dstLen - size of destination struct
 // - src - pointer to the source memory
 // - srcLen - size of source memory
-// - tib_value - The GCTib value (can be a pointer to TypeInfo or a raw ShortGCTib bitmap)
+// - tibValue - The GCTib value (can be a pointer to TypeInfo or a raw ShortGCTib bitmap)
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*write_static_struct_field_f)(uintptr_t dst, size_t dstLen, uintptr_t src, size_t srcLen, size_t tib_value);
+typedef void (*WriteStaticStructFieldFn)(uintptr_t dst, size_t dstLen, uintptr_t src, size_t srcLen, size_t tibValue);
 
 // Read a generic field from an object.
-// Should be used if generic type resolves to struct/value at runtime, otherwise use read_instance_field_f.
+// Should be used if generic type resolves to struct/value at runtime, otherwise use ReadInstanceFieldFn.
 //
 // params:
 // - dst - pointer to the destination box-object of generic struct/value
-// - src_obj - the source object on the heap (can be box of generic struct/value)
-// - src_field - address of the field inside src_obj
+// - srcObj - the source object on the heap (can be box of generic struct/value)
+// - srcField - address of the field inside srcObj
 // - size - size of the data to copy
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*read_generic_field_f)(obj_ref_t dst, obj_ref_t src_obj, uintptr_t src_field, size_t size);
+typedef void (*ReadGenericFieldFn)(ObjRefT dst, ObjRefT srcObj, uintptr_t srcField, size_t size);
 
 // Write a generic field to an object.
-// Should be used if generic type resolves to struct/value at runtime, otherwise use write_instance_field_f.
+// Should be used if generic type resolves to struct/value at runtime, otherwise use WriteInstanceFieldFn.
 //
 // params:
-// - dst_obj - destination object (can be box of generic struct/value)
-// - dst_field - address of the field inside dst_obj
-// - src_obj - source box-object of generic struct/value
+// - dstObj - destination object (can be box of generic struct/value)
+// - dstField - address of the field inside dstObj
+// - srcObj - source box-object of generic struct/value
 // - size - size of the generic value
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*write_generic_field_f)(obj_ref_t dst_obj, uintptr_t dst_field, obj_ref_t src_obj, size_t size);
+typedef void (*WriteGenericFieldFn)(ObjRefT dstObj, uintptr_t dstField, ObjRefT srcObj, size_t size);
 
 // Read reference from array.
 //
@@ -554,44 +557,44 @@ typedef void (*write_generic_field_f)(obj_ref_t dst_obj, uintptr_t dst_field, ob
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef obj_ref_t (*get_array_ref_element_f)(obj_ref_t source, uint64_t index);
+typedef ObjRefT (*GetArrayRefElementFn)(ObjRefT source, uint64_t index);
 
 // Write reference to array.
 //
 // params:
 // - source - RawArray object containing references
 // - index - index of the element to write
-// - new_value - object reference to store
+// - newValue - object reference to store
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*set_array_ref_element_f)(obj_ref_t destination, uint64_t index, obj_ref_t new_value);
+typedef void (*SetArrayRefElementFn)(ObjRefT destination, uint64_t index, ObjRefT newValue);
 
 //
 // Check state flags of the object.
 //
-typedef bool (*is_valid_object_f)(obj_ref_t object);
+typedef bool (*IsValidObjectFn)(ObjRefT object);
 
 //
 // Get ThreadLocalData.
 //
-typedef thread_local_data_t (*get_thread_local_data_f)();
+typedef ThreadLocalDataT (*GetThreadLocalDataFn)();
 
 //
 // Returns true if the GC is in an "active" phase.
 // In active phase fast-path write barriers can`t be used.
 //
-typedef bool (*is_active_gc_phase_f)(thread_local_data_t);
+typedef bool (*IsActiveGcPhaseFn)(ThreadLocalDataT);
 
 //
 // Stub for stack growth.
 //
-typedef void* (*stack_grow_stub_f)();
+typedef void* (*StackGrowStubFn)();
 
 // I2N (interpreter-to-native) entry stub.
 //
-// This callback points to an architecture-specific assembly stub used by the
+// This function points to an architecture-specific assembly stub used by the
 // interpreter to invoke native code while preserving managed thread and stack in safe state.
 //
 // Assembly stub expects following arguments:
@@ -603,29 +606,29 @@ typedef void* (*stack_grow_stub_f)();
 // - return value produced by the native callee using architecture-specific ABI.
 //
 // Notes:
-// - The callback can be null on platforms that do not provide an I2N stub.
+// - The function can be null on platforms that do not provide an I2N stub.
 // - The concrete register/stack mapping is architecture-dependent and defined by the corresponding assembly implementation.
-typedef void (*i2n_stub_f)();
+typedef void (*I2NStubFn)();
 
 // Retrieves the current ExceptionWrapper.
 //
 // return: pointer to ExceptionWrapper
 //
-typedef exception_wrapper_t (*get_exception_wrapper_f)();
+typedef ExceptionWrapperT (*GetExceptionWrapperFn)();
 
 // Get PC of function which caught exception.
 // Can be used as return address for interpreter landing pad.
 //
-typedef uintptr_t (*get_current_catch_function_PC_f)();
+typedef uintptr_t (*GetCurrentCatchFunctionPcFn)();
 
 // Begins exception catch block using the provided ExceptionWrapper.
 //
 // params:
-// - exception_wrapper - current exception wrapper
+// - exceptionWrapper - current exception wrapper
 //
 // return: exception object
 //
-typedef obj_ref_t (*post_throw_exception_f)(exception_wrapper_t exception_wrapper);
+typedef ObjRefT (*PostThrowExceptionFn)(ExceptionWrapperT exceptionWrapper);
 
 //
 // Native logger function. E.g. hilog can be used to log events in interpreter on OHOS devices.
@@ -634,7 +637,7 @@ typedef obj_ref_t (*post_throw_exception_f)(exception_wrapper_t exception_wrappe
 // - tag - log tag
 // - message - log message
 //
-typedef void (*native_logger_f)(int log_level, char* tag, char* message);
+typedef void (*NativeLoggerFn)(int logLevel, char* tag, char* message);
 
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -644,12 +647,12 @@ typedef void (*native_logger_f)(int log_level, char* tag, char* message);
 
 // region Interfaces
 
-struct interpreter_interface_t {
+struct InterpreterInterfaceT {
     // current supported version is 1
     int64_t version;
 
-    size_t fiber_specific_data_size;
-    size_t iterator_size;
+    size_t fiberSpecificDataSize;
+    size_t iteratorSize;
 
     uintptr_t c2iStubStartAddr;
     uintptr_t c2iStubEndAddr;
@@ -660,72 +663,72 @@ struct interpreter_interface_t {
     uintptr_t i2nStubStartAddr;
     uintptr_t i2nStubEndAddr;
 
-    iterate_frames_with_state_f iterate_frames_with_state;
-    visit_frame_roots_expansion_f visit_frame_roots_expansion;
-    visit_frame_roots_marking_f visit_frame_roots_marking;
-    visit_frame_roots_adjusting_f visit_frame_roots_adjusting;
-    visit_global_roots_f visit_global_roots;
+    IterateFramesWithStateFn iterateFramesWithState;
+    VisitFrameRootsExpansionFn visitFrameRootsExpansion;
+    VisitFrameRootsMarkingFn visitFrameRootsMarking;
+    VisitFrameRootsAdjustingFn visitFrameRootsAdjusting;
+    VisitGlobalRootsFn visitGlobalRoots;
 
-    fiber_start_f fiber_start;
-    fiber_destroy_f fiber_destroy;
+    FiberStartFn fiberStart;
+    FiberDestroyFn fiberDestroy;
 
-    frame_info_provider_f frame_info_provider;
-    landing_pad_f landing_pad;
+    FrameInfoProviderFn frameInfoProvider;
+    LandingPadFn landingPad;
 };
 
 
-struct cjnative_interface_t {
-    size_t carrier_specific_offset;
-    size_t fiber_specific_offset;
+struct CJNativeInterfaceT {
+    size_t carrierSpecificOffset;
+    size_t fiberSpecificOffset;
 
-    type_info_provider_f type_info;
-    type_template_f type_template;
-    get_or_create_type_info_f get_or_create_type_info;
-    get_instance_size_f get_instance_size;
+    TypeInfoProviderFn typeInfo;
+    TypeTemplateFn typeTemplate;
+    GetOrCreateTypeInfoFn getOrCreateTypeInfo;
+    GetInstanceSizeFn getInstanceSize;
 
-    obj_alloc_f object_alloc;
-    array_alloc_f array_alloc;
-    safe_point_f safe_point;
-    is_pending_safe_point_f is_pending_safe_point;
+    ObjAllocFn objectAlloc;
+    ArrayAllocFn arrayAlloc;
+    SafePointFn safePoint;
+    IsPendingSafePointFn isPendingSafePoint;
 
-    throw_exception_f throw_exception;
-    throw_OOM_f throw_OOM;
-    get_pending_exception_f get_pending_exception;
-    get_and_clear_pending_exception_f get_and_clear_pending_exception;
-    get_exception_wrapper_f get_exception_wrapper;
-    post_throw_exception_f post_throw_exception;
-    get_current_catch_function_PC_f get_current_catch_function_PC;
+    ThrowExceptionFn throwException;
+    ThrowOOMFn throwOom;
+    GetPendingExceptionFn getPendingException;
+    GetAndClearPendingExceptionFn getAndClearPendingException;
+    GetExceptionWrapperFn getExceptionWrapper;
+    PostThrowExceptionFn postThrowException;
+    GetCurrentCatchFunctionPcFn getCurrentCatchFunctionPc;
 
-    instance_of_f instance_of;
-    is_sub_type_f is_sub_type;
+    InstanceOfFn instanceOf;
+    IsSubTypeFn isSubType;
 
-    visit_root_from_interpreter_f visit_root_from_interpreter;
-    visit_derived_ptr_from_interpreter_f visit_derived_ptr_from_interpreter;
+    VisitRootFromInterpreterFn visitRootFromInterpreter;
+    VisitDerivedPtrFromInterpreterFn visitDerivedPtrFromInterpreter;
 
-    read_static_field_f read_static_field;
-    write_static_field_f write_static_field;
-    read_instance_field_f read_instance_field;
-    write_instance_field_f write_instance_field;
+    ReadStaticFieldFn readStaticField;
+    WriteStaticFieldFn writeStaticField;
+    ReadInstanceFieldFn readInstanceField;
+    WriteInstanceFieldFn writeInstanceField;
 
-    read_struct_field_f read_struct_field;
-    write_struct_field_f write_struct_field;
-    read_static_struct_field_f read_static_struct_field;
-    write_static_struct_field_f write_static_struct_field;
+    ReadStructFieldFn readStructField;
+    WriteStructFieldFn writeStructField;
+    ReadStaticStructFieldFn readStaticStructField;
+    WriteStaticStructFieldFn writeStaticStructField;
 
-    read_generic_field_f read_generic_field;
-    write_generic_field_f write_generic_field;
+    ReadGenericFieldFn readGenericField;
+    WriteGenericFieldFn writeGenericField;
 
-    size_t array_body_offset;
-    get_array_ref_element_f get_array_ref_element;
-    set_array_ref_element_f set_array_ref_element;
+    size_t arrayBodyOffset;
+    GetArrayRefElementFn getArrayRefElement;
+    SetArrayRefElementFn setArrayRefElement;
 
-    is_valid_object_f is_valid_object;
-    get_thread_local_data_f get_thread_local_data;
-    is_active_gc_phase_f is_active_gc_phase;
-    stack_grow_stub_f stack_grow_stub;
-    i2n_stub_f i2n_stub;
+    IsValidObjectFn isValidObject;
+    GetThreadLocalDataFn getThreadLocalData;
+    IsActiveGcPhaseFn isActiveGcPhase;
+    StackGrowStubFn stackGrowStub;
+    I2NStubFn i2nStub;
 
-    native_logger_f native_logger;
+    NativeLoggerFn nativeLogger;
 };
 
 #ifdef __cplusplus
