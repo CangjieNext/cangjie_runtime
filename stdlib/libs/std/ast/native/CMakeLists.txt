@@ -60,21 +60,46 @@ set_target_properties(${libname}-objs PROPERTIES COMPILE_FLAGS "-fPIC")
 add_dependencies(${libname}-objs FLATC_OUTPUTS)
 
 set(CANGJIE_INC_DIR)
+set(CANGJIE_CJC_EXECUTABLE)
+set(CANGJIE_SDK_ROOT)
 set(AST_SUPPORT_LIB_DIR)
-# using CANGJIE_HOME or cangjie source directory
+# Locate the SDK root from the cjc executable so the AST support archive is
+# validated against the actual compiler being used during the build.
+set(cangjie_cjc_hints)
+if(CANGJIE_NATIVE_CANGJIE_TOOLS_PATH)
+    list(APPEND cangjie_cjc_hints "${CANGJIE_NATIVE_CANGJIE_TOOLS_PATH}")
+endif()
 if(DEFINED ENV{CANGJIE_HOME})
-    string(TOLOWER ${TARGET_TRIPLE_DIRECTORY_PREFIX}_${CJNATIVE_BACKEND} output_cj_lib_dir)
-    set(AST_SUPPORT_LIB_DIR $ENV{CANGJIE_HOME}/lib/${output_cj_lib_dir})
-    set(CANGJIE_INC_DIR $ENV{CANGJIE_HOME}/include)
+    list(APPEND cangjie_cjc_hints "$ENV{CANGJIE_HOME}/bin")
+endif()
+find_program(CANGJIE_CJC_EXECUTABLE
+    NAMES cjc cjc.exe
+    HINTS ${cangjie_cjc_hints})
+if(NOT CANGJIE_CJC_EXECUTABLE)
+    message(FATAL_ERROR "NOT FOUND CJC executable. Please ensure cjc is available in PATH or under CANGJIE_HOME/bin.")
+endif()
+
+get_filename_component(CANGJIE_CJC_BIN_DIR "${CANGJIE_CJC_EXECUTABLE}" DIRECTORY)
+get_filename_component(CANGJIE_SDK_ROOT "${CANGJIE_CJC_BIN_DIR}" DIRECTORY)
+
+string(TOLOWER ${TARGET_TRIPLE_DIRECTORY_PREFIX}_${CJNATIVE_BACKEND} output_cj_lib_dir)
+set(AST_SUPPORT_LIB_DIR "${CANGJIE_SDK_ROOT}/lib/${output_cj_lib_dir}")
+set(CANGJIE_INC_DIR "${CANGJIE_SDK_ROOT}/include")
+if(NOT EXISTS "${CANGJIE_INC_DIR}/cangjie")
+    # using local cangjie source
+    set(CANGJIE_INC_DIR ~/dev/cangjie/cangjie/include)
     if(NOT EXISTS "${CANGJIE_INC_DIR}/cangjie")
-        # using local cangjie source
-        set(CANGJIE_INC_DIR ~/dev/cangjie/cangjie/include)
-        if(NOT EXISTS "${CANGJIE_INC_DIR}/cangjie")
-            message(FATAL_ERROR "NOT FOUND CANGJIE HEADERS")
-        endif()
+        message(FATAL_ERROR "NOT FOUND CANGJIE HEADERS")
     endif()
-else()
-    message(FATAL_ERROR "NOT FOUND CJC")
+endif()
+
+set(CANGJIE_AST_SUPPORT_STATIC_LIB
+    "${AST_SUPPORT_LIB_DIR}/libcangjie-ast-support.a")
+if(NOT EXISTS "${CANGJIE_AST_SUPPORT_STATIC_LIB}")
+    message(FATAL_ERROR
+        "Found cjc at ${CANGJIE_CJC_EXECUTABLE}, but missing libcangjie-ast-support.a at "
+        "${CANGJIE_AST_SUPPORT_STATIC_LIB}. Please ensure the SDK that provides cjc also "
+        "contains lib/${output_cj_lib_dir}/libcangjie-ast-support.a.")
 endif()
 
 target_compile_options(${libname}-objs PRIVATE ${CMAKE_C_COVERAGE_FLAGS})
@@ -103,10 +128,10 @@ set(AST_FFI_LIB ${CMAKE_BINARY_DIR}/lib${libname}.a)
 add_custom_command(
     OUTPUT ${AST_FFI_LIB}
     COMMAND ${CMAKE_COMMAND} -E copy 
-        $ENV{CANGJIE_HOME}/lib/${output_cj_lib_dir}/libcangjie-ast-support.a
+        ${CANGJIE_AST_SUPPORT_STATIC_LIB}
         ${AST_FFI_LIB}
     COMMAND ${TARGET_AR} qD ${AST_FFI_LIB} $<TARGET_OBJECTS:${libname}-objs>
-    DEPENDS ${libname}-objs
+    DEPENDS ${libname}-objs ${CANGJIE_AST_SUPPORT_STATIC_LIB}
 )
 
 add_custom_target(AST_SUPPORT ALL DEPENDS ${AST_FFI_LIB})
