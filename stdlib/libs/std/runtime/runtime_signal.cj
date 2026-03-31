@@ -30,10 +30,12 @@ public type SignalHandlerFunc = (Int32) -> Bool
 private let mtx = Mutex()
 
 @When[os != "Windows"]
+private let signalHandling = AtomicBool(false)
+
+@When[os != "Windows"]
 class SignalManager {
     static const MAX_SIG_NUM: Int32 = 32
     static let sigSlot = Array<ArrayList<SignalHandlerFunc>>(Int64(MAX_SIG_NUM), { _ => ArrayList<SignalHandlerFunc>()})
-    // This memory allocation is globally unique and will only be released along with the program upon termination.
     static let ptrAction = LibC.malloc<SignalAction>(count: 1)
     static init() {
         let action = SignalAction(signalHandler)
@@ -116,16 +118,19 @@ func signalHandler(sig: Int32, _: CPointer<Unit>, _: CPointer<Unit>): Bool {
     if (sig <= 0 || sig >= SignalManager.MAX_SIG_NUM) {
         return false
     }
+    if (!signalHandling.compareAndSwap(false, true)) {
+        return false
+    }
     let slot = SignalManager.sigSlot[Int64(sig)]
-    synchronized(mtx) {
-        for (fn in slot) {
-            let result = fn(sig)
-            if (result) {
-                return true
-            }
+    var result = false
+    for (fn in slot) {
+        result = fn(sig)
+        if (result) {
+            break
         }
     }
-    return false
+    signalHandling.store(false)
+    return result
 }
 
 @When[os != "Windows"]
