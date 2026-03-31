@@ -89,7 +89,14 @@ public func getUsedHeapSize(): Int64 {
 
 @When[backend == "cjnative"]
 public func dumpHeapData(path: Path): Unit {
-    try (file = File(path, ReadWrite)) {
+    let pathStr = path.toString()
+    if (!validatePathString(pathStr)) {
+        throw MemoryInfoException("Heap dump path is invalid or contains forbidden characters for security reasons.")
+    }
+    
+    let resolvedPath = resolvePath(path)
+    
+    try (file = File(resolvedPath, ReadWrite)) {
         let success = dumpCjHeapData(Int32(file.fileDescriptor.fileHandle))
         if (!success) {
             throw MemoryInfoException("Failed to dump heap data.")
