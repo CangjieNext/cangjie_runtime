@@ -773,7 +773,7 @@ public struct DateTime <: ToString & Hashable & Comparable<DateTime> & Formattab
             throw ArithmeticException(YEAR_OUT_OF_RANGE)
         }
         let seconds = d.sec + n
-        let offset = this.tz.lookup(second)[1]
+        let offset = this.tz.lookup(seconds)[1]
         checkResultYear(seconds + offset)
         return DateTime(seconds, d.ns, this.tz)
     }
