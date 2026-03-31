@@ -41,6 +41,7 @@ public:
     void Init()
     {
         uncaughtExceptionHandler.hapPath = nullptr;
+        eventReportHandler.hapPath = nullptr;
 #ifdef __IOS__
         uncaughtExceptionHandler.uncaughtTask = DefaultUncaughtTask;
 #endif
@@ -81,10 +82,17 @@ public:
     }
 #if defined(__OHOS__) && (__OHOS__ == 1)
     void RegisterUncaughtExceptionHandler(const CJUncaughtExceptionInfo& handler);
+    void RegisterEventHandler(const CJEventReportInfo& handler);
+    static void TriggerEventReport(const char* domain, const char* event, size_t hiSysEventType,
+        const std::map<std::string, std::string>& params);
 #endif
     CJUncaughtExceptionInfo GetUncaughtExceptionHandler() const
     {
         return uncaughtExceptionHandler;
+    }
+    CJEventReportInfo GetEventHandler() const
+    {
+        return eventReportHandler;
     }
 
 private:
@@ -96,6 +104,8 @@ private:
     ExceptionRaiser exceptionRaiser = nullptr;
     static std::mutex gUncaughtExceptionHandlerMtx;
     CJUncaughtExceptionInfo uncaughtExceptionHandler;
+    static std::mutex gEventMtx;
+    static CJEventReportInfo eventReportHandler;
 };
 } // namespace MapleRuntime
 
