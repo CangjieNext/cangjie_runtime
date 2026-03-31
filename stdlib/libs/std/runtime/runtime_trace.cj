@@ -105,6 +105,14 @@ func traceStartByConfig(): Bool {
         return false
     }
 
+    if (cjTracePath.contains("..") || cjTracePath.contains("~")) {
+        return false
+    }
+
+    if (!cjTracePath.startsWith("/") && !cjTracePath.startsWith("./")) {
+        return false
+    }
+
     try {
         let file = File(cjTracePath, Write)
         return Trace.start(TraceType.all, file)
