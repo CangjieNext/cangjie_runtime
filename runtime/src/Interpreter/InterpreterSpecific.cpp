@@ -69,10 +69,10 @@ void FillInterpretedFrameInfo(uint64_t fp, uint64_t ip, InterpretedFrameInfoT* f
     }
 }
 
-void IterateFramesWithState(FiberSpecificDataT fiberData, void (*callback)(VisitingStateT, void*), void* ctx) 
+void IterateFramesWithState(CJThreadSpecificDataT cjThreadData, void (*callback)(VisitingStateT, void*), void* ctx) 
 {
     if (interpreterInterfaceInstance) {
-        interpreterInterfaceInstance->iterateFramesWithState(fiberData, callback, ctx);
+        interpreterInterfaceInstance->iterateFramesWithState(cjThreadData, callback, ctx);
     }
 }
 
@@ -115,17 +115,17 @@ void VisitInterpreterGlobalRoots(RootVisitorT visitor)
     }
 }
 
-void InterpreterFiberStart(FiberSpecificDataT* dataField)
+void InterpreterCJThreadStart(CJThreadSpecificDataT* dataField)
 {
     if (interpreterInterfaceInstance) {
-        interpreterInterfaceInstance->fiberStart(dataField);
+        interpreterInterfaceInstance->cjThreadStart(dataField);
     }
 }
 
-void InterpreterFiberDestroy(FiberSpecificDataT* dataField)
+void InterpreterCJThreadDestroy(CJThreadSpecificDataT* dataField)
 {
     if (interpreterInterfaceInstance) {
-        interpreterInterfaceInstance->fiberDestroy(dataField);
+        interpreterInterfaceInstance->cjThreadDestroy(dataField);
     }
 }
 
@@ -454,14 +454,14 @@ void NativeLogger(int logLevel, char* tag, char* message)
     VLOG(static_cast<LogType>(logLevel), "[%s] %s", tag, message);
 }
 
-size_t ComputeFiberDataOffset()
+size_t ComputeCJThreadDataOffset()
 {
     union MutatorTmpContainer {
         MutatorTmpContainer() {}
         ~MutatorTmpContainer() {}
         Mutator mutator;
     } tmp;
-    return ((size_t) &tmp.mutator.interpreterFiberData) - ((size_t) &tmp.mutator);
+    return ((size_t) &tmp.mutator.interpreterCJThreadData) - ((size_t) &tmp.mutator);
 }
 
 void InitInterpreter(const RuntimeParam& runtimeParam) 
@@ -494,7 +494,7 @@ void InitInterpreter(const RuntimeParam& runtimeParam)
 
     struct CJNativeInterfaceT cjnativeInterface = {
         .carrierSpecificOffset = offsetof(ThreadLocalData, mutator),
-        .fiberSpecificOffset   = ComputeFiberDataOffset(),
+        .cjThreadSpecificOffset   = ComputeCJThreadDataOffset(),
         .typeInfo = &TypeInfoProvider,
         .typeTemplate = &FindTypeTemplate,
         .getOrCreateTypeInfo = &GetOrCreateTypeInfo,

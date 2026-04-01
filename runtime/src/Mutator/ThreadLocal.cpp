@@ -21,7 +21,7 @@ void ThreadLocalData::SetMutator(Mutator* newMutator)
 {
     mutator = newMutator;
 #ifdef INTERPRETER_ENABLED
-    interpreterFiberData = newMutator != nullptr ? newMutator->interpreterFiberData : nullptr;
+    interpreterCJThreadData = newMutator != nullptr ? newMutator->interpreterCJThreadData : nullptr;
 #endif
 }
 
@@ -84,7 +84,7 @@ extern "C" void MCC_CheckThreadLocalDataOffset()
     static_assert(offsetof(ThreadLocalData, foreignCJThread) == sizeof(void*) * 6 + sizeof(uint64_t) * 2,
                   "need to modify the offset of this value in llvm-project and cjthread at the same time");
 #ifdef INTERPRETER_ENABLED
-    static_assert(offsetof(ThreadLocalData, interpreterFiberData) == sizeof(void*) * 7 + sizeof(uint64_t) * 2,
+    static_assert(offsetof(ThreadLocalData, interpreterCJThreadData) == sizeof(void*) * 7 + sizeof(uint64_t) * 2,
                   "need to modify the offset of this value in llvm-project and cjthread at the same time");
     static_assert(sizeof(ThreadLocalData) == sizeof(void*) * 11 + sizeof(uint64_t) * 2,
                   "need to modify the offset of this value in llvm-project and cjthread at the same time");
@@ -98,7 +98,7 @@ extern "C" void MCC_CheckThreadLocalDataOffset()
     static_assert(offsetof(ThreadLocalData, foreignCJThread) == sizeof(void*) * 8,
                   "need to modify the offset of this value in llvm-project and cjthread at the same time");
 #ifdef INTERPRETER_ENABLED
-    static_assert(offsetof(ThreadLocalData, interpreterFiberData) == sizeof(void*) * 9,
+    static_assert(offsetof(ThreadLocalData, interpreterCJThreadData) == sizeof(void*) * 9,
                   "need to modify the offset of this value in llvm-project and cjthread at the same time");
     static_assert(sizeof(ThreadLocalData) == sizeof(void*) * 12,
                   "need to modify the offset of this value in llvm-project and cjthread at the same time");

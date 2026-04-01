@@ -24,7 +24,7 @@ using namespace MRTExport;
 
 namespace MapleRuntime { // TODO introduce separate namespace for interpreter-related functions  
 
-void IterateFramesWithState(FiberSpecificDataT fiberData, void (*callback)(VisitingStateT, void*), void* ctx);
+void IterateFramesWithState(CJThreadSpecificDataT cjThreadData, void (*callback)(VisitingStateT, void*), void* ctx);
 
 void VisitInterpreterGlobalRoots(RootVisitorT visitor);
 
@@ -33,8 +33,8 @@ void VisitInterpreterFrameRootsMarking(VisitingStateT state, FrameInfo frameDesc
 void VisitInterpreterFrameRootsAdjusting(VisitingStateT state, FrameInfo frameDesc, RootVisitorT rootVisitor, RootVisitorT derivedPtrVisitor);
 
 
-void InterpreterFiberStart(FiberSpecificDataT* mutator);
-void InterpreterFiberDestroy(FiberSpecificDataT* mutator);
+void InterpreterCJThreadStart(CJThreadSpecificDataT* mutator);
+void InterpreterCJThreadDestroy(CJThreadSpecificDataT* mutator);
 
 void FillInterpretedFrameInfo(uint64_t fp, uint64_t ip, InterpretedFrameInfoT* fInfo);
 
