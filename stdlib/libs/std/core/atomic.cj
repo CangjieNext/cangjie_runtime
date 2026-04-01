@@ -95,7 +95,7 @@ class AtomicInt64 {
     }
 }
 
-class AtomicReference<T> where T <: Object {
+public class AtomicReference<T> where T <: Object {
     private var value: T
 
     init(val: T) {
@@ -110,12 +110,16 @@ class AtomicReference<T> where T <: Object {
     func store(val: T): Unit {
         store<AtomicReference<T>, T>(this, val, MemoryOrder.SeqCst)
     }
+
+    func compareAndSwap(old: T, new: T): Bool {
+        compareAndSwap<AtomicReference<T>, T>(this, old, new, MemoryOrder.SeqCst, MemoryOrder.SeqCst)
+    }
 }
 
 /**
  * A wrapper class to atomically load/store values of any types.
  */
-class AtomicBox<T> {
+public class AtomicBox<T> {
     private let boxRef: AtomicReference<Box<T>>
 
     init(val: T) {
@@ -128,5 +132,9 @@ class AtomicBox<T> {
 
     func store(val: T): Unit {
         boxRef.store(Box<T>(val))
+    }
+
+    func compareAndSwap(old: T, new: T): Bool {
+        boxRef.compareAndSwap(Box<T>(old), Box<T>(new))
     }
 }
