@@ -74,9 +74,18 @@ func getNameFromCommand(cmd: ?String): Option<String> {
 const INVALID_HANDLE: IntNative = -1
 
 @When[os != "Windows"]
+let nulFileCache: Option<IntNative> = None
+
+@When[os != "Windows"]
 func getNulFileHandle(): Option<IntNative> {
+    if (let Some(handle) <- nulFileCache) {
+        return handle
+    }
     return try {
-        File("/dev/null", ReadWrite).fileDescriptor.fileHandle
+        let file = File("/dev/null", ReadWrite)
+        let handle = file.fileDescriptor.fileHandle
+        nulFileCache = handle
+        handle
     } catch (_: FSException) {
         None
     }
