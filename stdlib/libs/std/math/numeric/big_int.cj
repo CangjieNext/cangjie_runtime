@@ -15,6 +15,7 @@ const DIGIT_DIFF: UInt8 = 0x30
 const LETTER_UPPER_DIFF: UInt8 = 0x41 - 0x0A
 const LETTER_LOWER_DIFF: UInt8 = 0x61 - 0x0A
 let EMPTY_ARRAY: Array<UInt32> = Array<UInt32>()
+const MAX_EXPONENT: UInt64 = 1_000_000_000
 
 public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
 
@@ -854,8 +855,13 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
      * @param n: power to raise this BigInt to.
      *
      * @return: the result of (this ** (@p n)).
+     *
+     * @throw IllegalArgumentException if @p n exceeds MAX_EXPONENT.
      */
     public operator func **(n: UInt64): BigInt {
+        if (n > MAX_EXPONENT) {
+            throw IllegalArgumentException("Exponent exceeds maximum allowed value: ${MAX_EXPONENT}")
+        }
         if (n == 0) {
             return BigInt(1, EMPTY_ARRAY, false)
         }
