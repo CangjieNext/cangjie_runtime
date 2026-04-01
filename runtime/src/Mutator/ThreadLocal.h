@@ -33,9 +33,9 @@ struct ThreadLocalData {
     uint64_t tid;
     void* foreignCJThread;
 # ifdef INTERPRETER_ENABLED
-    // Duplicate of Mutator::interpreterFiberData for fast access.
+    // Duplicate of Mutator::interpreterCJThreadData for fast access.
     // Should be updated together with mutator field.
-    MRTExport::FiberSpecificDataT interpreterFiberData;
+    MRTExport::CJThreadSpecificDataT interpreterCJThreadData;
 # endif
     // Internal thread local var.
     ThreadType threadType;

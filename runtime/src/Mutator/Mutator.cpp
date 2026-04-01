@@ -128,8 +128,8 @@ void Mutator::InitInterpreterPart()
         return;
     }
 
-    DLOG(INTERPRETER, "[Mutator] init interpreter part for fiber %p\n", this);
-    InterpreterFiberStart(&(this->interpreterFiberData));
+    DLOG(INTERPRETER, "[Mutator] init interpreter part for cjThread %p\n", this);
+    InterpreterCJThreadStart(&(this->interpreterCJThreadData));
 }
 
 void Mutator::DestroyInterpreterPart()
@@ -138,8 +138,8 @@ void Mutator::DestroyInterpreterPart()
         return;
     }
 
-    DLOG(INTERPRETER, "[Mutator] destruct interpreter part for fiber %p\n", this);
-    InterpreterFiberDestroy(&(this->interpreterFiberData));
+    DLOG(INTERPRETER, "[Mutator] destruct interpreter part for cjThread %p\n", this);
+    InterpreterCJThreadDestroy(&(this->interpreterCJThreadData));
 }
 #endif
 

@@ -109,7 +109,7 @@ void StackGrowStackInfo::RecordStackPtrs(const StackPtrVisitor& traceAndFixPtrVi
         }
     };
 
-    IterateFramesWithState(mutator.interpreterFiberData, [](VisitingStateT state, void* ctx) {
+    IterateFramesWithState(mutator.interpreterCJThreadData, [](VisitingStateT state, void* ctx) {
         auto closure = reinterpret_cast<decltype(expansionStackVisitor)*>(ctx);
         (*closure)(state);
     }, &expansionStackVisitor);

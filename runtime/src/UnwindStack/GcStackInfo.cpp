@@ -77,7 +77,7 @@ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) con
         }
     };
 
-    IterateFramesWithState(mutator.interpreterFiberData, [](VisitingStateT state, void* ctx) {
+    IterateFramesWithState(mutator.interpreterCJThreadData, [](VisitingStateT state, void* ctx) {
         auto closure = reinterpret_cast<decltype(markingStackVisitor)*>(ctx);
         (*closure)(state);
     }, &markingStackVisitor);
@@ -124,7 +124,7 @@ void GCStackInfo::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, con
         }
     };
 
-    IterateFramesWithState(mutator.interpreterFiberData, [](VisitingStateT state, void* ctx) {
+    IterateFramesWithState(mutator.interpreterCJThreadData, [](VisitingStateT state, void* ctx) {
         auto closure = reinterpret_cast<decltype(adjustingStackVisitor)*>(ctx);
         (*closure)(state);
     }, &adjustingStackVisitor);

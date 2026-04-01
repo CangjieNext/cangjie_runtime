@@ -36,12 +36,12 @@ typedef void *VisitingStateT;
 // Pointer to TypeTemplate. Binary layout of this structure is defined by CJNative runtime.
 typedef void *TypeTemplateT;
 
-// Pointer to ThreadLocalData that is currently executing current fiber.
+// Pointer to ThreadLocalData that is currently executing current cjThread.
 typedef void *ThreadLocalDataT;
 
-// Pointer to fiber specific data that is used by interpreter during execution.
-// This pointer is stored in fiber specific storage.
-typedef void *FiberSpecificDataT;
+// Pointer to cjThread specific data that is used by interpreter during execution.
+// This pointer is stored in cjThread specific storage.
+typedef void *CJThreadSpecificDataT;
 
 // This is alias for frame pointer. CJNative runtime should pass this pointer to `FrameInfoProviderFn` function.
 // Interpreter would return description of corresponding frame (e.g. fileName, lineNumber).
@@ -129,11 +129,11 @@ typedef int (*InitRt)(struct InterpreterInterfaceT *interpreterInterface,
 // Prepares state and calls callback with initialized state and provided context. After callback returns, performs necessary cleanup of the state.
 //
 // params:
-// - fiberData - pointer to interpreter data for current fiber.
+// - cjThreadData - pointer to interpreter data for current cjThread.
 // - callback - continuation that expects initialized state and context.
 // - ctx - context that should be passed to callback.
 //
-typedef void (*IterateFramesWithStateFn)(FiberSpecificDataT fiberData, void (*callback)(VisitingStateT, void*), void* ctx);
+typedef void (*IterateFramesWithStateFn)(CJThreadSpecificDataT cjThreadData, void (*callback)(VisitingStateT, void*), void* ctx);
 
 
 // Visit all frame slots that contain pointers to stack using provided visitor.
@@ -189,23 +189,23 @@ typedef void (*VisitFrameRootsAdjustingFn)(VisitingStateT state, FrameDescT fram
 typedef void (*VisitGlobalRootsFn)(RootVisitorT visitor);
 
 
-// Registers newly created fiber in interpreter. This method could be called by any thread (e.g. auxiliary scheduler thread) to notify interpreter about creation of new fiber.
+// Registers newly created cjThread in interpreter. This method could be called by any thread (e.g. auxiliary scheduler thread) to notify interpreter about creation of new cjThread.
 //
 // params:
-// - Pointer to FiberSpecificData
+// - Pointer to CJThreadSpecificData
 //
 // Notes:
-//  Interpreter will save auxiliary metadata in [FiberSpecificDataT + offsetToFiberSpecificMemory] memory area to simplify support of interpretation and Garbage collection.
+//  Interpreter will save auxiliary metadata in [CJThreadSpecificDataT + offsetToCJThreadSpecificMemory] memory area to simplify support of interpretation and Garbage collection.
 //
-typedef void (*FiberStartFn)(FiberSpecificDataT*);
+typedef void (*CJThreadStartFn)(CJThreadSpecificDataT*);
 
 
-// Unregisters fiber in interpreter. This method could be called by any thread (e.g. auxiliary scheduler thread) to notify interpreter about termination of some completed fiber.
+// Unregisters cjThread in interpreter. This method could be called by any thread (e.g. auxiliary scheduler thread) to notify interpreter about termination of some completed cjThread.
 //
 // params:
-// - Pointer to FiberSpecificData
+// - Pointer to CJThreadSpecificData
 //
-typedef void (*FiberDestroyFn)(FiberSpecificDataT*);
+typedef void (*CJThreadDestroyFn)(CJThreadSpecificDataT*);
 
 
 // Provides information about given frame which could be used for precise stack trace generation.
@@ -652,7 +652,7 @@ struct InterpreterInterfaceT {
     // current supported version is 1
     int64_t version;
 
-    size_t fiberSpecificDataSize;
+    size_t cjThreadSpecificDataSize;
     size_t iteratorSize;
 
     uintptr_t c2iStubStartAddr;
@@ -670,8 +670,8 @@ struct InterpreterInterfaceT {
     VisitFrameRootsAdjustingFn visitFrameRootsAdjusting;
     VisitGlobalRootsFn visitGlobalRoots;
 
-    FiberStartFn fiberStart;
-    FiberDestroyFn fiberDestroy;
+    CJThreadStartFn cjThreadStart;
+    CJThreadDestroyFn cjThreadDestroy;
 
     FrameInfoProviderFn frameInfoProvider;
     LandingPadFn landingPad;
@@ -680,7 +680,7 @@ struct InterpreterInterfaceT {
 
 struct CJNativeInterfaceT {
     size_t carrierSpecificOffset;
-    size_t fiberSpecificOffset;
+    size_t cjThreadSpecificOffset;
 
     TypeInfoProviderFn typeInfo;
     TypeTemplateFn typeTemplate;

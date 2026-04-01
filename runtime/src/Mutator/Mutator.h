@@ -571,7 +571,7 @@ public:
     void DestroyInterpreterPart();
 
     // Pointer to data used during hotfix interpreter execution
-    MRTExport::FiberSpecificDataT interpreterFiberData;
+    MRTExport::CJThreadSpecificDataT interpreterCJThreadData;
     bool isRuntimeMutator = false;
 
     void markAsRuntimeMutator() {
