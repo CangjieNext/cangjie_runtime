@@ -329,34 +329,34 @@ static void CloseAllFdsExcept(int32_t keepFds[], size_t keepCount)
 }
 
 static void ChildProcess(
-    ProcessStartInfo* info, int32_t filedes[STD_COUNT][WR_COUNT], int32_t* error, int32_t errorSize)
+    ProcessStartInfo* info, char** arguments, char** environment, int32_t filedes[STD_COUNT][WR_COUNT], int32_t* error, int32_t errorSize)
 {
     if (errorSize < WR_COUNT) {
-        return;
+        _exit(-1);
     }
 
     if (UnBlockSignals() < 0) {
         WriteError(error[WRITE], &errno);
-        return;
+        _exit(-1);
     }
 
     if (close(error[READ]) < 0) {
         WriteError(error[WRITE], &errno);
-        return;
+        _exit(-1);
     }
 
     if (Redirect(info, filedes, error) < 0) {
-        return;
+        _exit(-1);
     }
 
     if (ChangeDir(info) < 0) {
         WriteError(error[WRITE], &errno);
-        return;
+        _exit(-1);
     }
 
     if (fcntl(error[WRITE], F_SETFD, FD_CLOEXEC) < 0) {
         WriteError(error[WRITE], &errno);
-        return;
+        _exit(-1);
     }
 
     int32_t keepFds[4];
@@ -373,26 +373,9 @@ static void ChildProcess(
     }
     CloseAllFdsExcept(keepFds, keepCount);
 
-    char** arguments = CopyTwoDimensionalArray(info->arguments, info->argSize);
-    if (arguments == NULL) {
-        WriteError(error[WRITE], &errno);
-        return;
-    }
-
-    char** environment = NULL;
-    if (info->environment != NULL) {
-        environment = CopyTwoDimensionalArray(info->environment, info->envSize);
-        if (environment == NULL) {
-            FreeTwoDimensionalArray(arguments);
-            WriteError(error[WRITE], &errno);
-            return;
-        }
-    }
-
     Execvpe(info->command, arguments, environment);
-    FreeTwoDimensionalArray(arguments);
-    FreeTwoDimensionalArray(environment);
     WriteError(error[WRITE], &errno);
+    _exit(-1);
 }
 
 static int32_t InitFiledes(ProcessStartInfo* info, int32_t filedes[STD_COUNT][WR_COUNT])
@@ -479,11 +462,8 @@ extern ProcessRtnData* CJ_OS_StartProcess(ProcessStartInfo* info)
         return processData;
     }
 
-    (void)fflush(stdout);
-    (void)fflush(stderr);
-    // Create a child process.
-    pid_t pid = fork();
-    if (pid < 0) {
+    char** arguments = CopyTwoDimensionalArray(info->arguments, info->argSize);
+    if (arguments == NULL) {
         CloseFiledes(filedes);
         (void)close(error[READ]);
         (void)close(error[WRITE]);
@@ -492,12 +472,40 @@ extern ProcessRtnData* CJ_OS_StartProcess(ProcessStartInfo* info)
         return processData;
     }
 
-    if (pid == 0) { // Child process.
-        ChildProcess(info, filedes, error, WR_COUNT);
+    char** environment = NULL;
+    if (info->environment != NULL) {
+        environment = CopyTwoDimensionalArray(info->environment, info->envSize);
+        if (environment == NULL) {
+            FreeTwoDimensionalArray(arguments);
+            CloseFiledes(filedes);
+            (void)close(error[READ]);
+            (void)close(error[WRITE]);
+            processData->errMessage = GetErrMessage(errno);
+            processData->errCode = errno;
+            return processData;
+        }
+    }
+
+    (void)fflush(stdout);
+    (void)fflush(stderr);
+    pid_t pid = fork();
+    if (pid < 0) {
+        FreeTwoDimensionalArray(arguments);
+        FreeTwoDimensionalArray(environment);
+        CloseFiledes(filedes);
+        (void)close(error[READ]);
         (void)close(error[WRITE]);
-        _exit(-1); // Child process should not return to Cangjie.
-    } else {       // Parents process.
-        // Close redundant file descriptors in pipe mode.
+        processData->errMessage = GetErrMessage(errno);
+        processData->errCode = errno;
+        return processData;
+    }
+
+    if (pid == 0) {
+        ChildProcess(info, arguments, environment, filedes, error, WR_COUNT);
+        _exit(-1);
+    } else {
+        FreeTwoDimensionalArray(arguments);
+        FreeTwoDimensionalArray(environment);
         if (HandleFd(info, filedes, processData) < 0) {
             processData->errMessage = GetErrMessage(errno);
             processData->errCode = errno;
