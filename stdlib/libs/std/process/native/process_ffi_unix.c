@@ -19,6 +19,8 @@
 #include <unistd.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <dirent.h>
+#include <limits.h>
 #include "securec.h"
 #include "process_ffi_unix.h"
 
@@ -269,6 +271,55 @@ static int32_t UnBlockSignals(void)
     return 0;
 }
 
+static void CloseAllFdsExcept(int32_t keepFds[], size_t keepCount)
+{
+    DIR* dir = opendir("/proc/self/fd");
+    if (dir != NULL) {
+        struct dirent* entry;
+        while ((entry = readdir(dir)) != NULL) {
+            if (entry->d_type != DT_LNK) {
+                continue;
+            }
+            char* endPtr = NULL;
+            long fd = strtol(entry->d_name, &endPtr, 10);
+            if (endPtr == entry->d_name || *endPtr != '\0') {
+                continue;
+            }
+            if (fd < 3) {
+                continue;
+            }
+            bool shouldKeep = false;
+            for (size_t i = 0; i < keepCount; i++) {
+                if (fd == keepFds[i]) {
+                    shouldKeep = true;
+                    break;
+                }
+            }
+            if (!shouldKeep) {
+                (void)close((int)fd);
+            }
+        }
+        closedir(dir);
+    } else {
+        long maxFd = sysconf(_SC_OPEN_MAX);
+        if (maxFd < 0) {
+            maxFd = 1024;
+        }
+        for (long fd = 3; fd < maxFd; fd++) {
+            bool shouldKeep = false;
+            for (size_t i = 0; i < keepCount; i++) {
+                if (fd == keepFds[i]) {
+                    shouldKeep = true;
+                    break;
+                }
+            }
+            if (!shouldKeep) {
+                (void)close((int)fd);
+            }
+        }
+    }
+}
+
 static void ChildProcess(
     ProcessStartInfo* info, int32_t filedes[STD_COUNT][WR_COUNT], int32_t* error, int32_t errorSize)
 {
@@ -299,6 +350,20 @@ static void ChildProcess(
         WriteError(error[WRITE], &errno);
         return;
     }
+
+    int32_t keepFds[4];
+    size_t keepCount = 0;
+    keepFds[keepCount++] = error[WRITE];
+    if (info->stdIn != -1) {
+        keepFds[keepCount++] = (int32_t)info->stdIn;
+    }
+    if (info->stdOut != -1) {
+        keepFds[keepCount++] = (int32_t)info->stdOut;
+    }
+    if (info->stdErr != -1) {
+        keepFds[keepCount++] = (int32_t)info->stdErr;
+    }
+    CloseAllFdsExcept(keepFds, keepCount);
 
     char** arguments = CopyTwoDimensionalArray(info->arguments, info->argSize);
     if (arguments == NULL) {
