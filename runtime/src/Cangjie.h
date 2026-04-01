@@ -331,9 +331,16 @@ struct ConcurrencyParam {
 };
 
 #ifdef INTERPRETER_ENABLED
+/*
+ * @struct InterpreterParam
+ * @brief Data structure for interpreter configuration parameters.
+ */
 struct InterpreterParam {
+    /* Interpreter dynamic library name. */
     const char* interpreterLibName;
+    /* Number of startup arguments passed to interpreter. */
     int interpreterArgsCount;
+    /* Startup argument list passed to interpreter. */
     const char* const* interpreterArgs;
 };
 #endif
