@@ -83,27 +83,33 @@ extern unsigned char* CJ_REGEX_GetErrorMsg(const int errorCode)
 static uint32_t CJ_REGEX_GetNameCount(const pcre2_code* re)
 {
     uint32_t count;
-    (void)pcre2_pattern_info(re, /* the compiled pattern */
-        PCRE2_INFO_NAMECOUNT,    /* count of named capture group */
-        &count);                 /* where to put the answer */
+    if (pcre2_pattern_info(re, /* the compiled pattern */
+        PCRE2_INFO_NAMECOUNT,  /* count of named capture group */
+        &count) != 0) {        /* where to put the answer */
+        return 0;
+    }
     return count;
 }
 
 static uint32_t CJ_REGEX_GetNameEntrySize(const pcre2_code* re)
 {
     uint32_t size;
-    (void)pcre2_pattern_info(re,  /* the compiled pattern */
+    if (pcre2_pattern_info(re,  /* the compiled pattern */
         PCRE2_INFO_NAMEENTRYSIZE, /* size of each entry in the table */
-        &size);                   /* where to put the answer */
+        &size) != 0) {           /* where to put the answer */
+        return 0;
+    }
     return size;
 }
 
 static uint8_t* CJ_REGEX_GetNameTable(const pcre2_code* re)
 {
     PCRE2_SPTR table;
-    (void)pcre2_pattern_info(re, /* the compiled pattern */
-        PCRE2_INFO_NAMETABLE,    /* address of the table */
-        &table);                 /* where to put the answer */
+    if (pcre2_pattern_info(re, /* the compiled pattern */
+        PCRE2_INFO_NAMETABLE,  /* address of the table */
+        &table) != 0) {        /* where to put the answer */
+        return NULL;
+    }
     return (uint8_t*)table;
 }
 
