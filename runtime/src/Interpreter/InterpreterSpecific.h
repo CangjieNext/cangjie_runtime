@@ -36,7 +36,7 @@ void VisitInterpreterFrameRootsAdjusting(VisitingStateT state, FrameInfo frameDe
 void InterpreterFiberStart(FiberSpecificDataT* mutator);
 void InterpreterFiberDestroy(FiberSpecificDataT* mutator);
 
-void ProvideInterpretedFrameInfo(uint64_t fp, uint64_t ip, InterpretedFrameInfoT* fInfo);
+void FillInterpretedFrameInfo(uint64_t fp, uint64_t ip, InterpretedFrameInfoT* fInfo);
 
 struct TypeInfoT* TypeInfoProvider(char * sig);
 
@@ -53,7 +53,7 @@ bool InstanceOf(ObjRefT ref, struct TypeInfoT* ti);
 void InitInterpreter(const RuntimeParam& runtimeParam);
 
 bool IsC2IStubAddr(const uintptr_t addr);
-bool Isi2iAdapterStartAddr(const uintptr_t addr);
+bool IsI2IAdapterStartAddr(const uintptr_t addr);
 
 uintptr_t GetCommonInterpreterLandingPad();
 
