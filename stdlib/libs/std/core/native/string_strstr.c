@@ -154,10 +154,16 @@ int64_t* CJ_CORE_CountAndIndexOfByte(const uint8_t* orgStr, int64_t orgSize, uin
     if (orgSize < 0) {
         return NULL;
     }
+    
+    if ((uint64_t)orgSize > (uint64_t)(INT64_MAX / sizeof(int64_t) - 1)) {
+        return NULL;
+    }
+    
     int64_t n;
     int64_t i = 0;
     int64_t total = 0;
-    int64_t* result = (int64_t*)malloc(sizeof(int64_t) * (size_t)(orgSize + 1));
+    int64_t capacity = orgSize < 16 ? 16 : (orgSize < 1024 ? orgSize + 1 : 1024);
+    int64_t* result = (int64_t*)malloc(sizeof(int64_t) * (size_t)capacity);
     if (result == NULL) {
         return NULL;
     }
@@ -166,6 +172,20 @@ int64_t* CJ_CORE_CountAndIndexOfByte(const uint8_t* orgStr, int64_t orgSize, uin
         if (n < 0) {
             result[0] = total;
             return result;
+        }
+        if (total + 1 >= capacity) {
+            int64_t newCapacity = capacity * 2;
+            if ((uint64_t)newCapacity > (uint64_t)(INT64_MAX / sizeof(int64_t))) {
+                free(result);
+                return NULL;
+            }
+            int64_t* newResult = (int64_t*)realloc(result, sizeof(int64_t) * (size_t)newCapacity);
+            if (newResult == NULL) {
+                free(result);
+                return NULL;
+            }
+            result = newResult;
+            capacity = newCapacity;
         }
         result[total + 1] = i + n;
         total++;
