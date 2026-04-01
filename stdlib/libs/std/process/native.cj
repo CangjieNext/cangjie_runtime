@@ -70,6 +70,8 @@ foreign {
 
     func CJ_OS_WaitSubProcessExit(pid: Int32): Int64
 
+    func CJ_OS_WaitSubProcessExitNoHang(pid: Int32): Unit
+
     // File
     func CJ_OS_CloseFile(fd: IntNative): Int64 // -1: failed, (>= 0): success
 

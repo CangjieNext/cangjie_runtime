@@ -550,6 +550,17 @@ extern int64_t CJ_OS_WaitSubProcessExit(int32_t pid)
     return status;
 }
 
+/* Non-blocking wait for process to prevent zombie processes. */
+extern void CJ_OS_WaitSubProcessExitNoHang(int32_t pid)
+{
+    if (pid <= 0) {
+        return;
+    }
+    errno = 0;
+    int status;
+    (void)waitpid(pid, &status, WNOHANG);
+}
+
 /* Terminate a process. */
 extern int32_t CJ_OS_Terminate(int32_t pid, bool force)
 {

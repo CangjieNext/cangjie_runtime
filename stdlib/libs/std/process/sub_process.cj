@@ -47,6 +47,11 @@ public class SubProcess <: Process {
         }
     }
 
+    @When[os != "Windows" && os != "iOS"]
+    ~init() {
+        unsafe { CJ_OS_WaitSubProcessExitNoHang(Int32(this.pid)) }
+    }
+
     public prop stdInPipe: OutputStream {
         get() {
             this._stdIn
