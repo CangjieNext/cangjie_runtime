@@ -257,6 +257,11 @@ public class StringBuilder <: ToString {
     @Frozen
     @OverflowWrapping
     public func append(n: Int64): Unit {
+        if (n == Int64.Min) {
+            /* the Int64.Min cannot be negated, so append the string directly */
+            this.append("-9223372036854775808")
+            return
+        }
         var numLen: Int64 = 0
         var unum: UInt64 = if (n < 0) {
             UInt64(-n)
