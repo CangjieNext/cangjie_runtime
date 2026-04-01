@@ -255,7 +255,7 @@ void StackInfo::GetStackTraceByLiteFrameInfo(const uint64_t v1, const uint64_t v
 
         uint64_t ip = v1;
         uint64_t fa = v2;
-        ProvideInterpretedFrameInfo(fa, ip, &info);
+        FillInterpretedFrameInfo(fa, ip, &info);
 
         ste.lineNumber = info.lineNumber;
         ste.methodName = info.methodName;
