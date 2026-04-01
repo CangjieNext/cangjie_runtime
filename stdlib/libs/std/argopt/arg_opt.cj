@@ -533,6 +533,20 @@ public enum ArgumentSpec {
         }
     }
 
+    prop optionKey: String {
+        get() {
+            match (this) {
+                case Short(r, _) => r.toString()
+                case Short(r, _, _) => r.toString()
+                case Long(s, _) => s
+                case Long(s, _, _) => s
+                case Full(s, _, _) => s
+                case Full(s, _, _, _) => s
+                case NonOptions(_) => throw NoneValueException()
+            }
+        }
+    }
+
     prop nonOptionAction: ?(Array<String>) -> Unit {
         get() {
             match (this) {
@@ -661,7 +675,7 @@ class ArgParser {
         let arr: ArrayList<ArgumentSpec> = ArrayList<ArgumentSpec>()
         let set = HashSet<Rune>() // cjlint-ignore !G.VAR.02
         for ((idx, c) in enumerate(runeArray.iterator())) {
-            if (let Some(spec) <- _shortOptionSpecs.get(c) && !set.contains(c) && !_options.contains(c.toString()) &&
+            if (let Some(spec) <- _shortOptionSpecs.get(c) && !set.contains(c) && !_options.contains(spec.optionKey) &&
                 spec.mode == NoValue) { // cjlint-ignore !G.EXP.03 
                 arr.add(spec)
                 set.add(c)
@@ -675,8 +689,7 @@ class ArgParser {
         let noValueSpecs = generateNoValueSpecForShortOption(runeArray)
 
         for (spec in noValueSpecs) {
-            let key = spec.name[1]?.toString() ?? "" // should not be "", just for pass the compile check.
-            addOptionAndExecuteAction(key, "", spec)
+            addOptionAndExecuteAction(spec.optionKey, "", spec)
         }
 
         let cur = runeArray[0]
@@ -684,21 +697,21 @@ class ArgParser {
             let spec = _shortOptionSpecs.get(runeArray[runeArray.size - 1]) ?? throw ArgumentParseException(
                 "Unknown option: ${cur}.")
             match (spec.mode) {
-                case OptionalValue => addOptionAndExecuteAction(spec.name[1]?.toString() ?? "", "", spec)
+                case OptionalValue => addOptionAndExecuteAction(spec.optionKey, "", spec)
                 case RequiredValue =>
                     let value = next ?? throw ArgumentParseException("Missing option value for ${cur}.")
                     _index += 1
-                    addOptionAndExecuteAction(spec.name[1]?.toString() ?? "", value, spec)
+                    addOptionAndExecuteAction(spec.optionKey, value, spec)
                 case NoValue => throw ArgumentParseException("Should never reach here becauese of previously check.")
             }
         } else if (runeArray.size - 1 > noValueSpecs.size) { // for not last rune
             let spec = _shortOptionSpecs.get(runeArray[noValueSpecs.size]) ?? throw ArgumentParseException(
                 "Unknown option: ${runeArray[noValueSpecs.size]}.")
             if (spec.mode == RequiredValue && noValueSpecs.size < runeArray.size - 2) {
-                addOptionAndExecuteAction(spec.name[1]?.toString() ?? "", String(runeArray[noValueSpecs.size + 1..]),
+                addOptionAndExecuteAction(spec.optionKey, String(runeArray[noValueSpecs.size + 1..]),
                     spec)
             } else if (spec.mode == OptionalValue) {
-                addOptionAndExecuteAction(spec.name[1]?.toString() ?? "", String(runeArray[noValueSpecs.size + 1..]),
+                addOptionAndExecuteAction(spec.optionKey, String(runeArray[noValueSpecs.size + 1..]),
                     spec)
             } else {
                 throw ArgumentParseException("Unknown option: ${runeArray[noValueSpecs.size]}.")
@@ -719,7 +732,7 @@ class ArgParser {
                     } else {
                         ""
                     }
-                    addOptionAndExecuteAction(cur.toString(), value, spec)
+                    addOptionAndExecuteAction(spec.optionKey, value, spec)
                 case RequiredValue =>
                     let value = if (runeSize == 1) { // -o v
                         _index += 1
@@ -727,7 +740,7 @@ class ArgParser {
                     } else { // -ov
                         String(runeArray[1..])
                     }
-                    addOptionAndExecuteAction(cur.toString(), value, spec)
+                    addOptionAndExecuteAction(spec.optionKey, value, spec)
                 case NoValue => parseNoValueForShortOption(runeArray, next)
             }
         } else {
