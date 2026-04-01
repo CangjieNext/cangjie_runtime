@@ -95,7 +95,7 @@ class AtomicInt64 {
     }
 }
 
-public class AtomicReference<T> where T <: Object {
+class AtomicReference<T> where T <: Object {
     private var value: T
 
     init(val: T) {
@@ -119,7 +119,7 @@ public class AtomicReference<T> where T <: Object {
 /**
  * A wrapper class to atomically load/store values of any types.
  */
-public class AtomicBox<T> {
+class AtomicBox<T> {
     private let boxRef: AtomicReference<Box<T>>
 
     init(val: T) {
