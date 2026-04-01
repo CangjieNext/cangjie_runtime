@@ -523,6 +523,25 @@ public class Regex {
     public func string(): String {
         return this.pattern
     }
+
+    /**
+     * Escapes all special regex characters in the input string.
+     * @param input The string to escape.
+     * @return The escaped string where all regex metacharacters are prefixed with a backslash.
+     */
+    public static func escape(input: String): String {
+        if (input.size == 0) {
+            return ""
+        }
+        let sb = StringBuilder(input.size * 2)
+        for (c in input.runes()) {
+            if (c == r'.' || c == r'*' || c == r'+' || c == r'?' || c == r'^' || c == r'$' || c == r'|' || c == r'\\' || c == r'(' || c == r')' || c == r'[' || c == r']' || c == r'{' || c == r'}') {
+                sb.append("\\")
+            }
+            sb.append(c)
+        }
+        return sb.toString()
+    }
 }
 
 let _phantom = Object()
