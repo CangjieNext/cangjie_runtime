@@ -44,11 +44,18 @@ func getStdErrHandle(): IntNative {
 }
 
 @When[os == "Windows"]
+let nulFileCache: Option<IntNative> = None
+
+@When[os == "Windows"]
 func getNulFileHandle(): Option<IntNative> {
+    if (let Some(handle) <- nulFileCache) {
+        return handle
+    }
     let handle = unsafe { CJ_OS_GetNulFileHandle() }
     if (handle == 0) {
         return Option.None
     }
+    nulFileCache = handle
     return handle
 }
 
