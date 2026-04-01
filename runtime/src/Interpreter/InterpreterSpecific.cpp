@@ -57,12 +57,12 @@ struct {
 
 } interpreterInterfaceInstance;
 
-void ProvideInterpretedFrameInfo(uint64_t fp, uint64_t ip, InterpretedFrameInfoT* fInfo)
+void FillInterpretedFrameInfo(uint64_t fp, uint64_t ip, InterpretedFrameInfoT* fInfo)
 {
     auto framePointer = reinterpret_cast<FramePointerT>(fp);
     auto instructionPointer = reinterpret_cast<InstructionPointerT>(ip);
 
-    DLOG(INTERPRETER, "ProvideInterpretedFrameInfo(fp=%p, ip=%p)", framePointer, instructionPointer);
+    DLOG(INTERPRETER, "FillInterpretedFrameInfo(fp=%p, ip=%p)", framePointer, instructionPointer);
 
     if (interpreterInterfaceInstance) {
         interpreterInterfaceInstance->frameInfoProvider(framePointer, instructionPointer, fInfo);
@@ -557,7 +557,7 @@ bool IsC2IStubAddr(const uintptr_t address)
     return res;
 }
 
-bool Isi2iAdapterStartAddr(const uintptr_t address)
+bool IsI2IAdapterStartAddr(const uintptr_t address)
 {
     bool res = interpreterInterfaceInstance->i2iAdapterStartAddr <= address && address < interpreterInterfaceInstance->i2iAdapterEndAddr;
     DLOG(INTERPRETER, "Checking i2i function borders: is %p in [%p, %p)? -- %s", address,
