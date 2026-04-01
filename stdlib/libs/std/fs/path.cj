@@ -139,6 +139,35 @@ public struct Path <: Equatable<Path> & Hashable & ToString {
         }
     }
 
+    // 修复 LOW-02: 检查 Windows 保留设备名
+    private func checkWindowsDeviceName(path: String) {
+        if (!isWindows) {
+            return
+        }
+        // 提取文件名（不含路径）
+        let fileName = getFileName(path)
+        if (fileName.isEmpty()) {
+            return
+        }
+        // 提取文件名主体（不含扩展名）并转为大写
+        let dotIndex = fileName.indexOf(b'.')
+        let namePart = match (dotIndex) {
+            case Some(idx) => fileName[0..idx]
+            case None => fileName
+        }
+        let upperName = namePart.toUpperCase()
+
+        // Windows 保留设备名列表
+        let reservedNames = ["NUL", "CON", "PRN", "AUX", "CLOCK$", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6",
+            "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"]
+
+        for (reserved in reservedNames) {
+            if (upperName == reserved) {
+                throw IllegalArgumentException("Path contains Windows reserved device name: `${fileName}`")
+            }
+        }
+    }
+
     /**
      * @throws IllegalArgumentException while rawpath or path contains null character, or rawpath is empty.
      * @throws FSException if path is an absolute path.
@@ -162,6 +191,7 @@ public struct Path <: Equatable<Path> & Hashable & ToString {
             String.join([_rawPath, path], delimiter: SLASH_STRING)
         }
         checkWindowsSpecialPrefix(newPath)
+        checkWindowsDeviceName(newPath) // 修复 LOW-02: 检查设备名
         return Path(newPath)
     }
 
@@ -251,6 +281,7 @@ public struct Path <: Equatable<Path> & Hashable & ToString {
         }
         let newPathString = unsafe { String.fromUtf8Unchecked(newPath[..newIdx]) }
         checkWindowsSpecialPrefix(newPathString)
+        checkWindowsDeviceName(newPathString) // 修复 LOW-02: 检查设备名
         if (checkWindowsMiddleVolumeName(_rawPath) && checkWindowsLeadingVolumeName(newPathString)) {
             return Path(".\\${newPathString}")
         }
