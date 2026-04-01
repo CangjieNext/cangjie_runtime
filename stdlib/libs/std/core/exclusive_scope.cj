@@ -23,9 +23,10 @@ public func exclusiveScope<T>(fn: () -> T): T {
     let cl = ExclusiveScope<T>()
     cl.run(fn)
     match (cl.result) {
-        case Val(v) => v
-        case Ex(e) => throw ExclusiveScopeException(e)
-        case Err(e) => throw e
+        case Some(Val(v)) => v
+        case Some(Ex(e)) => throw ExclusiveScopeException(e)
+        case Some(Err(e)) => throw e
+        case None => throw ExclusiveScopeException(IllegalStateException("exclusiveScope not executed"))
     }
 }
 
@@ -39,15 +40,15 @@ private enum Result<T> {
 func exclusiveScopeImpl<T>(executeClosure: (() -> T) -> T, fn: () -> T): T
 
 private class ExclusiveScope<T> {
-    var result: Result<T> = unsafe { zeroValue<Result<T>>() }
+    var result: Option<Result<T>> = None
     func run(fn: () -> T): Unit {
         exclusiveScopeImpl(Future<Unit>.executeClosure) {
             try {
-                result = Val(fn())
+                result = Some(Val(fn()))
             } catch (e: Exception) {
-                result = Ex(e)
+                result = Some(Ex(e))
             } catch (e: Error) {
-                result = Err(e)
+                result = Some(Err(e))
             }
         }
     }
