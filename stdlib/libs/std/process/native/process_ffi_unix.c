@@ -170,15 +170,23 @@ static void WriteError(int32_t fd, const int32_t* errNum)
     }
 }
 
-/* Executing a new process with information in info. */
+#ifndef HAVE_EXECVPE
+static int execvpe(const char* file, char* const argv[], char* const envp[])
+{
+    if (envp == NULL) {
+        return execvp(file, argv);
+    }
+    char** oldEnviron = environ;
+    environ = (char**)envp;
+    int ret = execvp(file, argv);
+    environ = oldEnviron;
+    return ret;
+}
+#endif
+
 static void Execvpe(char* command, char** arguments, char** environment)
 {
-    char** tmp = environ;
-    if (environment != NULL) {
-        environ = (char**)environment;
-    }
-    (void)execvp(command, arguments);
-    environ = tmp;
+    (void)execvpe(command, arguments, environment);
 }
 
 /* Modifying the Working Directory. */
