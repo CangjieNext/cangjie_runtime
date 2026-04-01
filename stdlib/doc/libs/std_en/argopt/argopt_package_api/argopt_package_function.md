@@ -47,9 +47,13 @@ Returns:
 
 Exceptions:
 
-- [ArgumentParseException](./argopt_package_exception.md#class-argumentparseexception) - Thrown when argument parsing fails or an `illegal option` is encountered.
+- [ArgumentParseException](./argopt_package_exception.md#class-argumentparseexception) - Thrown when argument parsing fails, an `illegal option` is encountered, or the number of arguments exceeds the limit.
 
 - [IllegalArgumentException](../../../std_en/core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when [ArgumentSpec](./argopt_package_enums.md#enum-argumentspec) with duplicate `name` is defined.
+
+> **Note:**
+>
+> For security reasons, the maximum number of arguments that can be parsed is limited to 10000. If the number of arguments exceeds this limit, an `ArgumentParseException` will be thrown.
 
 Example:
 

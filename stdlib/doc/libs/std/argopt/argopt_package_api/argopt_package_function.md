@@ -47,9 +47,13 @@ public func parseArguments(args: Array<String>, specs: Array<ArgumentSpec>): Par
 
 异常：
 
-- [ArgumentParseException](./argopt_package_exception.md#class-argumentparseexception) - 当参数解析失败或解析到`非法选项`时，抛出异常。
+- [ArgumentParseException](./argopt_package_exception.md#class-argumentparseexception) - 当参数解析失败、解析到`非法选项`或参数数量超过限制时，抛出异常。
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当定义了相同 `name` 的 [ArgumentSpec](./argopt_package_enums.md#enum-argumentspec) 时，抛出异常。
+
+> **说明：**
+>
+> 出于安全考虑，可解析的参数数量上限为 10000。如果参数数量超过此限制，将抛出 `ArgumentParseException` 异常。
 
 示例：
 
