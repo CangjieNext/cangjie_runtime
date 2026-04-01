@@ -117,9 +117,6 @@ class ThreadLocalMap {
 
     func remove(tlKey!: ThreadLocalKey): Unit {
         if (let Some(index) <- findEntry(tlKey)) {
-            if (entries[index].isValid()) {
-                size -= 1
-            }
             entries[index] = DELETED_ENTRY
         }
     }
