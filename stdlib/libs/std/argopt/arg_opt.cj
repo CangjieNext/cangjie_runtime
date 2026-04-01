@@ -15,6 +15,8 @@ package std.argopt
 
 import std.collection.*
 
+private const MAX_ARGUMENTS: Int64 = 10000
+
 /**
  * This is a library for ArgOpt class.
  * This module helps scripts parse command-line arguments,
@@ -301,6 +303,9 @@ class ParserHelper {
      * @since 0.17.4
      */
     func argsParser(args: Array<String>, shortArgFormat: String, longArgList: Array<String>): Unit {
+        if (args.size > MAX_ARGUMENTS) {
+            throw IllegalArgumentException("Too many arguments (max ${MAX_ARGUMENTS}).")
+        }
         let shortStr: String = checkShortStr(shortArgFormat)
         let longOpts: Array<String> = checkLongOpt(longArgList)
         let size: Int64 = args.size
@@ -734,6 +739,9 @@ class ArgParser {
     }
 
     func parse(args: Array<String>, specs: Array<ArgumentSpec>): ParsedArguments {
+        if (args.size > MAX_ARGUMENTS) {
+            throw ArgumentParseException("Too many arguments (max ${MAX_ARGUMENTS}).")
+        }
         specs |> forEach(addSpec)
 
         var state = ParseState.Start

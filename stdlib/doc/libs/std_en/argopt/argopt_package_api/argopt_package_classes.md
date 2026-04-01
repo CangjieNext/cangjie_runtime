@@ -87,6 +87,10 @@ Exceptions:
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the short argument name string does not conform to the specification, or the long argument name strings in the array do not conform to the specification, or the strings are not UTF-8 encoded, or the Unicode character does not exist.
 
+> **Note:**
+>
+> For security reasons, the maximum number of arguments that can be parsed is limited to 10000. If the number of arguments exceeds this limit, an `IllegalArgumentException` will be thrown.
+
 Example：
 
 <!-- verify -->

@@ -51,6 +51,10 @@ public func parseArguments(args: Array<String>, specs: Array<ArgumentSpec>): Par
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当定义了相同 `name` 的 [ArgumentSpec](./argopt_package_enums.md#enum-argumentspec) 时，抛出异常。
 
+> **说明：**
+>
+> 出于安全考虑，可解析的参数数量上限为 10000。如果参数数量超过此限制，将抛出 `ArgumentParseException` 异常。
+
 示例：
 
 <!-- verify -->

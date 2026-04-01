@@ -80,6 +80,10 @@ public init(args: Array<String>, shortArgFormat: String, longArgList: Array<Stri
 
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 当短参名字符串不符合规范，或字符串数组中的长参名字符串不符合规范，或字符串不符合 UTF-8 编码，或不存在该 Unicode 字符时，抛出异常。
 
+> **说明：**
+>
+> 出于安全考虑，可解析的参数数量上限为 10000。如果参数数量超过此限制，将抛出 `IllegalArgumentException` 异常。
+
 示例：
 
 <!-- run -->
