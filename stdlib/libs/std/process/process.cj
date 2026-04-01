@@ -701,6 +701,7 @@ func escapeArgument(arg: String): String {
 
     var needBackslash: Bool = false
     var hasSpace: Bool = false
+    var hasSpecial: Bool = false
     let argRuneArr: Array<Rune> = arg.toRuneArray()
     for (argRune in argRuneArr) {
         if (argRune == r'"' || argRune == r'\\') {
@@ -710,13 +711,17 @@ func escapeArgument(arg: String): String {
         if (argRune == r' ' || argRune == r'\t') {
             hasSpace = true
         }
+
+        if (argRune == r'%' || argRune == r'^' || argRune < r' ' || argRune == r'\n' || argRune == r'\r') {
+            hasSpecial = true
+        }
     }
 
-    if (!needBackslash && !hasSpace) {
+    if (!needBackslash && !hasSpace && !hasSpecial) {
         return arg
     }
 
-    if (!needBackslash && hasSpace) {
+    if (!needBackslash && !hasSpecial && hasSpace) {
         let sb = StringBuilder(r'"')
         sb.append(arg)
         sb.append(r'"')
@@ -734,13 +739,40 @@ func escapeArgument(arg: String): String {
                     slashCount--
                 }
                 escapeArgBuilder.append(r'\\')
-            case _ => slashCount = 0
+            case r'%' =>
+                slashCount = 0
+                escapeArgBuilder.append(r'^')
+                escapeArgBuilder.append(r'%')
+            case r'^' =>
+                slashCount = 0
+                escapeArgBuilder.append(r'^')
+                escapeArgBuilder.append(r'^')
+            case r'\n' =>
+                slashCount = 0
+                escapeArgBuilder.append(r'^')
+                escapeArgBuilder.append(r'!')
+            case r'\r' =>
+                slashCount = 0
+                escapeArgBuilder.append(r'^')
+                escapeArgBuilder.append(r'M')
+            case r'\t' =>
+                slashCount = 0
+                escapeArgBuilder.append(r'^')
+                escapeArgBuilder.append(r'I')
+            case _ =>
+                if (argRune < r' ') {
+                    slashCount = 0
+                    escapeArgBuilder.append(r'^')
+                    escapeArgBuilder.append(argRune)
+                } else {
+                    slashCount = 0
+                    escapeArgBuilder.append(argRune)
+                }
         }
-        escapeArgBuilder.append(argRune)
     }
 
     var escapeArg = escapeArgBuilder.toString()
-    if (hasSpace) {
+    if (hasSpace && !hasSpecial) {
         while (slashCount > 0) {
             escapeArgBuilder.append(r'\\')
             slashCount--
