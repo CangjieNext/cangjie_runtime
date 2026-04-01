@@ -15,6 +15,26 @@ package std.argopt
 
 import std.collection.*
 
+private func isValidOptionName(name: String): Bool {
+    if (name.isEmpty()) {
+        return false
+    }
+    let runes = name.toRuneArray()
+    if (!runes[0].isAsciiLetter()) {
+        return false
+    }
+    for (r in runes) {
+        if (!r.isAsciiLetter() && !r.isAsciiNumber() && r != r'_' && r != r'-') {
+            return false
+        }
+    }
+    return true
+}
+
+private func isValidShortOptionName(r: Rune): Bool {
+    return r.isAsciiLetter()
+}
+
 /**
  * This is a library for ArgOpt class.
  * This module helps scripts parse command-line arguments,
@@ -423,20 +443,20 @@ class ParserHelper {
             if (item.isEmpty()) {
                 continue
             }
+            var optionName = item
             let isDoubleSign: Bool = item.startsWith("--")
             let isSingleSign: Bool = !isDoubleSign && item.startsWith("-")
-            let itemCharArray = item.toRuneArray()
-            let size: Int64 = itemCharArray.size
-            if (isDoubleSign && size >= 3 && itemCharArray[2].isAsciiLetter()) {
-                continue
+            if (isDoubleSign) {
+                optionName = item[2..]
+            } else if (isSingleSign) {
+                optionName = item[1..]
             }
-            if (isSingleSign && size >= 2 && itemCharArray[1].isAsciiLetter()) {
-                continue
+            if (optionName.endsWith("=")) {
+                optionName = optionName[0..(optionName.size - 1)]
             }
-            if (itemCharArray[0].isAsciiLetter()) {
-                continue
+            if (!isValidOptionName(optionName)) {
+                throw IllegalArgumentException("${exceptionPrompt}${item}\n")
             }
-            throw IllegalArgumentException("${exceptionPrompt}${item}\n")
         }
         return longOpts
     }
@@ -556,11 +576,17 @@ class ArgParser {
     var _pendingNonOptionArgs: ?Array<String> = None
 
     func checkDuplicateShortOption(r: Rune) {
+        if (!isValidShortOptionName(r)) {
+            throw IllegalArgumentException("Invalid short option name: '${r}'. Only ASCII letters are allowed.")
+        }
         if (_shortOptionSpecs.contains(r) || _longOptionSpecs.contains(String(r))) {
             throw IllegalArgumentException("Duplicated option ${r} founded.")
         }
     }
     func checkDuplicateLongOption(s: String) {
+        if (!isValidOptionName(s)) {
+            throw IllegalArgumentException("Invalid long option name: '${s}'. Only [a-zA-Z0-9_-] are allowed, and must start with a letter.")
+        }
         if (_longOptionSpecs.contains(s) || (s.size == 1 && _shortOptionSpecs.contains(Rune(s[0])))) {
             throw IllegalArgumentException("Duplicated option: ${s} founded.")
         }
