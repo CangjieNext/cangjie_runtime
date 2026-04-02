@@ -64,10 +64,12 @@ sealed abstract class IPAddress <: ToString & Equatable<IPAddress> & Hashable & 
 
     // resolve domain
     public static func resolve(family: AddressFamily, domain: String): Array<IPAddress> {
+        println("[resolve] family: ${family}, domain: ${domain}")
         match (IPAddress.tryParse(domain)) {
             case Some(ip) => return [ip]
             case _ =>
                 if (!isDomainValid(domain)) {
+                    println("[resolve] ${domain} is invalid")
                     return []
                 }
                 return resolveDomain(family, domain)
@@ -241,7 +243,7 @@ func parseIPv4(address: String, origin: String): Result<IPv4Address> {
 }
 
 // result, bytes_read
-func parseNumber(part: String, radix: UInt32, minDigits: UInt8, maxDigits: UInt8, allowZeroPrefix: Bool, origin: String): Result<(UInt32, 
+func parseNumber(part: String, radix: UInt32, minDigits: UInt8, maxDigits: UInt8, allowZeroPrefix: Bool, origin: String): Result<(UInt32,
     Int64)> {
     if (part.size == 0) {
         return Err(IllegalFormatException("Parse (${origin}): got empty field part."))

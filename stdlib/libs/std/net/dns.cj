@@ -16,6 +16,7 @@ const DOMAIN_MAX_LEN = 255
 const SUB_DOMAIN_LIST_LEN = 63
 
 func isDomainValid(domainStr: String): Bool {
+    println("[isDomainValid] domain: ${domainStr}")
     if (domainStr.isEmpty() || domainStr.size > DOMAIN_MAX_LEN) {
         return false
     }
@@ -55,6 +56,7 @@ func isDomainValid(domainStr: String): Bool {
  * @throws IllegalFormatException while domain contains null character.
  */
 func resolveDomain(family: AddressFamily, domain: String): Array<IPAddress> {
+    println("[resolveDomain] family: ${family}, domain: ${domain}")
     if (domain.contains(NULL_BYTE)) {
         throw IllegalFormatException("Domain cannot contain null character!")
     }
@@ -99,6 +101,7 @@ func resolveDomain(family: AddressFamily, domain: String): Array<IPAddress> {
     }
     unsafe { freeaddrinfo(res) }
     let iparr = ips.toArray()
+    println("[resolveDomain] iparr: ${iparr}")
     sort<IPAddress>(iparr, by: sortIPAddr, stable: true)
     return iparr
 }
