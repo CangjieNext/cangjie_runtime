@@ -11,6 +11,7 @@
 #include <string.h>
 #include <errno.h>
 #include <locale.h>
+#include <stdatomic.h>
 
 #if defined(__APPLE__)
 #include <xlocale.h>
@@ -32,8 +33,17 @@ extern double* CJ_STRTOD(char* str)
 
 #if HAS_STRTOD_L
     static locale_t c_locale = NULL;
-    if (c_locale == NULL) {
-        c_locale = newlocale(LC_NUMERIC_MASK, "C", (locale_t)0);
+    static atomic_int locale_init_state = 0;
+
+    if (atomic_load(&locale_init_state) == 0) {
+        int expected = 0;
+        if (atomic_compare_exchange_strong(&locale_init_state, &expected, 1)) {
+            locale_t new_locale = newlocale(LC_NUMERIC_MASK, "C", (locale_t)0);
+            c_locale = new_locale;
+            atomic_store(&locale_init_state, 2);
+        }
+    }
+    while (atomic_load(&locale_init_state) == 1) {
     }
     if (c_locale != NULL) {
         value = strtod_l(str, &p, c_locale);
