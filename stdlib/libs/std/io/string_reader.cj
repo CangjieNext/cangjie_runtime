@@ -178,8 +178,9 @@ public class StringReader<T> where T <: InputStream {
             var readNum = inputBIS
                 .inputStream
                 .read(inputBIS.inBuf.slice(inputBIS.availLen, inputBIS.inBuf.size - inputBIS.availLen))
-            if (readNum < 0) {
-                throw ContentFormatException("Input stread finished in the middle of a UTF-8 sequence")
+            // 修复 HIGH-03: 处理 readNum == 0 的情况，防止无限循环
+            if (readNum <= 0) {
+                throw ContentFormatException("Input stream finished in the middle of a UTF-8 sequence")
             }
             inputBIS.curPos = 0
             inputBIS.availLen += readNum
