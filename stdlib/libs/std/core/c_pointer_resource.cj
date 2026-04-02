@@ -67,7 +67,7 @@ extend<T> CPointer<T> {
 
     public unsafe operator func -(offset: Int64): CPointer<T> {
         if (offset == Int64.Min) {
-            throw OverflowException("Pointer offset overflow: cannot negate Int64.Min")
+            throw OverflowException("Pointer offset overflow: cannot negate Int64.Min.")
         }
         return addPointer<T>(this, (-1) * offset)
     }
@@ -79,18 +79,18 @@ extend<T> CPointer<T> {
 
 public struct CPointerResource<T> <: Resource where T <: CType {
     public let value: CPointer<T>
-    private let isFree: AtomicBool = AtomicBool(false)
+    private let isFree: Box<Bool> = Box(false)
 
     init(p: CPointer<T>) {
         this.value = p
     }
 
     public func isClosed(): Bool {
-        return isFree.load()
+        return isFree.value
     }
 
     public func close(): Unit {
-        if (isFree.compareAndSwap(false, true)) {
+        if (compareAndSwap<Box<Bool>, Bool>(isFree, false, true, MemoryOrder.SeqCst, MemoryOrder.SeqCst)) {
             unsafe { LibC.free<T>(value) }
         }
     }
