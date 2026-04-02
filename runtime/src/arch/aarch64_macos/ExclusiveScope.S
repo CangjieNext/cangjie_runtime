@@ -168,9 +168,20 @@ _unwindPCForExclusiveStub:
     mrs     x0, fpcr
     str     w0, [x26, #CONTEXT_FPCR]
 
+    // Check if already on OS thread stack (nested exclusive scope).
+    // If so, skip stack switch to avoid clobbering current frames.
+    ldr     x0, [x29, #0xe8]            // oldCJThread
+    bl      _IsExclusiveCJThread
+    cbnz    w0, .L_exc_skip_stack_switch
+
     // Switch to OS thread
     add     x27, x23, #THREAD_CONTEXT_OFFSET
     ldr     x0, [x27, #CONTEXT_SP]
+    cbz     x0, .L_exc_skip_stack_switch
+    tst     x0, x0
+    bmi     .L_exc_skip_stack_switch
+    cmp     x0, #0x1000
+    b.lo    .L_exc_skip_stack_switch
     mov     sp, x0
     ldr     w0, [x27, #CONTEXT_FPCR]
     msr     fpcr, x0
@@ -184,7 +195,15 @@ _unwindPCForExclusiveStub:
     ldr     x0, [x29, #0xf0]            // thread
     ldr     x1, [x29, #0xe0]            // newCJThread
     bl      _ExclusiveExecutor
+    b       .L_exc_after_executor
 
+.L_exc_skip_stack_switch:
+    // Already on OS thread stack, execute directly without switching sp.
+    ldr     x0, [x29, #0xf0]            // thread
+    ldr     x1, [x29, #0xe0]            // newCJThread
+    bl      _ExclusiveExecutor
+
+.L_exc_after_executor:
     // Restore to original stack frame (still on current function's stack)
     ldr     x0, [x29, #0xc8]            // saved sp
     mov     sp, x0

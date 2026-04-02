@@ -173,6 +173,13 @@ unwindPCForExclusiveStub:
     stmxcsr CONTEXT_MXCSR(%r14)
     fnstcw  CONTEXT_FPU_CW(%r14)
     
+    // Check if already on OS thread stack (nested exclusive scope).
+    // If so, skip stack switch to avoid clobbering current frames.
+    movq    -80(%rbp), %rcx     // oldCJThread
+    callq   IsExclusiveCJThread
+    testl   %eax, %eax
+    jnz     .L_exc_no_os_stack
+
     // Load parameters into registers BEFORE switching stack
     movq    -88(%rbp), %r12     // thread
     
