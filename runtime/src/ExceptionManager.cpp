@@ -232,6 +232,9 @@ void ExceptionManager::DumpException()
     }
 }
 
+// Throw exception using managed ExceptionRaiser. 
+// Since RUNRIME -> MANAGED transition is threated like N2C, stack-unwinding will stop at that managed function. See `StackInfo::IsN2CContext`.
+// Because of that, caller of this function should explicitly throw pending exception after call.
 void ExceptionManager::ThrowImplicitException(ImplicitExceptionType type)
 {
     MRT_SetStackGrow(false);
