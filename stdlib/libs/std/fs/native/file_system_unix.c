@@ -581,6 +581,26 @@ extern int8_t CJ_FS_CopyLink(char* linkName1, char* linkName2)
 }
 
 /* Copy file */
+// 辅助函数：写入数据，处理错误（修复 MEDIUM-04: 处理 write 错误，避免无限循环）
+static ssize_t WriteAll(int fd, char* buf, ssize_t len)
+{
+    ssize_t sts = 0;
+    while (sts < len) {
+        ssize_t written = write(fd, buf + sts, (size_t)(len - sts));
+        if (written < 0) {
+            if (errno == EINTR) {
+                continue;  // 被信号中断，重试
+            }
+            return -1;  // 其他错误（磁盘满、IO错误等）
+        }
+        if (written == 0) {
+            return -1;  // 写入 0 字节，可能磁盘已满
+        }
+        sts += written;
+    }
+    return sts;
+}
+
 extern int8_t CJ_FS_CopyREF(char* dir1, char* dir2)
 {
     char buf[BUF_SIZE];
@@ -597,26 +617,10 @@ extern int8_t CJ_FS_CopyREF(char* dir1, char* dir2)
 
     ssize_t ret = read(fd1, buf, sizeof(buf) - 1);
     while (ret > 0) {
-        ssize_t sts = 0;
-        while (sts < ret) {
-            ssize_t written = write(fd2, buf + sts, (size_t)(ret - sts));
-            // 修复 MEDIUM-04: 处理 write 错误，避免无限循环
-            if (written < 0) {
-                if (errno == EINTR) {
-                    continue;  // 被信号中断，重试
-                }
-                // 其他错误（磁盘满、IO错误等）
-                (void)close(fd1);
-                (void)close(fd2);
-                return -1;
-            }
-            if (written == 0) {
-                // 写入 0 字节，可能磁盘已满
-                (void)close(fd1);
-                (void)close(fd2);
-                return -1;
-            }
-            sts += written;
+        if (WriteAll(fd2, buf, ret) < 0) {
+            (void)close(fd1);
+            (void)close(fd2);
+            return -1;
         }
         if (memset_s(buf, sizeof(buf), 0, sizeof(buf)) != EOK) {
             ret = -1;
@@ -851,13 +855,13 @@ extern FsError* CJ_FS_Remove(const char* path, bool recursive)
 static FsError* GetErrnoResult(void)
 {
     // 修复 MEDIUM-07: 立即保存 errno，避免被后续操作覆盖
-    int savedErrno = errno;
-    char* errMsg = CJ_FS_ErrmesGet(savedErrno);
+    int saved_errno = errno;
+    char* errMsg = CJ_FS_ErrmesGet(saved_errno);
     FsError* result = (FsError*)malloc(sizeof(FsError));
     if (result == NULL) {
         return NULL;
     }
-    result->rtnCode = -savedErrno;
+    result->rtnCode = -saved_errno;
     result->msg = errMsg;
     return result;
 }
