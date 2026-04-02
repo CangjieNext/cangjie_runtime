@@ -80,6 +80,8 @@ extend<T> CPointer<T> {
 public struct CPointerResource<T> <: Resource where T <: CType {
     public let value: CPointer<T>
     private let isFree: Box<Bool> = Box(false)
+    // 使用AtomicInt64模拟布尔值的原子操作，0=false, 1=true
+    private let atomicFlag: AtomicInt64 = AtomicInt64(0)
 
     init(p: CPointer<T>) {
         this.value = p
@@ -90,9 +92,10 @@ public struct CPointerResource<T> <: Resource where T <: CType {
     }
 
     public func close(): Unit {
-        // 使用全局compareAndSwap内在函数实现原子操作，保持ABI兼容性
-        if (compareAndSwap<Box<Bool>, Bool>(isFree, false, true, MemoryOrder.SeqCst, MemoryOrder.SeqCst)) {
+        // 使用AtomicInt64的compareAndSwap方法实现原子操作
+        if (atomicFlag.compareAndSwap(0, 1)) {
             unsafe { LibC.free<T>(value) }
+            isFree.value = true
         }
     }
 }
