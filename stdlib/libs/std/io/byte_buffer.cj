@@ -242,9 +242,20 @@ public class ByteBuffer <: IOStream & Seekable {
      */
     public func seek(sp: SeekPosition): Int64 {
         let pos: Int64 = match (sp) {
-            case Current(offset) => this.start + offset
+            case Current(offset) =>
+                // 修复 CRITICAL-01: 检查 start + offset 溢出
+                if (offset > 0 && this.start > Int64.Max - offset) {
+                    throw IOException("Can't seek beyond the maximum position of the stream.")
+                }
+                this.start + offset
             case Begin(offset) => offset
-            case End(offset) => this.start + this._length + offset
+            case End(offset) =>
+                // 修复 CRITICAL-01: 检查 start + _length + offset 溢出
+                let sum = this.start + this._length
+                if (offset > 0 && sum > Int64.Max - offset) {
+                    throw IOException("Can't seek beyond the maximum position of the stream.")
+                }
+                sum + offset
         }
 
         if (pos < 0) {
