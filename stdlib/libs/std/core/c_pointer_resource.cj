@@ -90,6 +90,7 @@ public struct CPointerResource<T> <: Resource where T <: CType {
     }
 
     public func close(): Unit {
+        // 使用全局compareAndSwap内在函数实现原子操作，保持ABI兼容性
         if (compareAndSwap<Box<Bool>, Bool>(isFree, false, true, MemoryOrder.SeqCst, MemoryOrder.SeqCst)) {
             unsafe { LibC.free<T>(value) }
         }
