@@ -415,7 +415,7 @@ public class ArrayIterator<T> <: Iterator<T> {
     @OverflowWrapping
     public func next(): Option<T> {
         if (this.myPosition < this.end) {
-            var v: Option<T> = Some(this.myData[this.myPosition])
+            var v: Option<T> = Some(unsafe { this.myData.getUnchecked(this.myPosition) })
             this.myPosition++
             return v
         } else {
