@@ -221,18 +221,18 @@ extend CString <: ToString {
 
 public struct CStringResource <: Resource {
     public let value: CString
-    private let isFree: AtomicBool = AtomicBool(false)
+    private let isFree: Box<Bool> = Box(false)
 
     init(p: CString) {
         this.value = p
     }
 
     public func isClosed(): Bool {
-        return isFree.load()
+        return isFree.value
     }
 
     public func close(): Unit {
-        if (isFree.compareAndSwap(false, true)) {
+        if (compareAndSwap<Box<Bool>, Bool>(isFree, false, true, MemoryOrder.SeqCst, MemoryOrder.SeqCst)) {
             unsafe { LibC.free(value.getChars()) }
         }
     }
