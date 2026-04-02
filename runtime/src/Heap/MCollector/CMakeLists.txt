@@ -4,11 +4,10 @@
 #
 # See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-# MSBarrier — Mark-Sweep barrier implementations
-# Step 0: empty shell. Step 3 will add MSIdleBarrier and MSMarkBarrier sources.
+set(SRC_LIST
+    "MarkSweepCollector.cpp"
+    "BackgroundProcessor.cpp"
+)
 
-set(SRC_LIST)
-
-if (SRC_LIST)
-    add_library(MSBarrier STATIC ${SRC_LIST})
-endif()
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../)
+add_library(MCollector STATIC ${SRC_LIST})

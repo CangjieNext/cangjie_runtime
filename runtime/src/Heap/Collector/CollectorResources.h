@@ -11,7 +11,7 @@
 #include "Base/Macros.h"
 #include "FinalizerProcessor.h"
 #ifdef MRT_USE_MARK_SWEEP
-#include "BackgroundProcessor.h"
+#include "Heap/MCollector/BackgroundProcessor.h"
 #endif
 #include "Heap/Collector/TaskQueue.h"
 #include "Heap/GcThreadPool.h"
@@ -59,70 +59,70 @@ public:
 #ifdef MRT_USE_MARK_SWEEP
     BackgroundProcessor& GetBackgroundProcessor() { return backgroundProcessor; }
 #endif
-        U32 VisitFinalizers(const RootVisitor& visitor)
-        {
-    #ifdef MRT_USE_MARK_SWEEP
+    U32 VisitFinalizers(const RootVisitor& visitor)
+    {
+#ifdef MRT_USE_MARK_SWEEP
         return backgroundProcessor.VisitFinalizers(visitor);
-    #else
+#else
         return finalizerProcessor.VisitFinalizers(visitor);
-    #endif
-        }
-        void VisitFinalizerGCRoots(const RootVisitor& visitor)
-        {
-    #ifdef MRT_USE_MARK_SWEEP
+#endif
+    }
+    void VisitFinalizerGCRoots(const RootVisitor& visitor)
+    {
+#ifdef MRT_USE_MARK_SWEEP
         backgroundProcessor.VisitGCRoots(visitor);
-    #else
+#else
         finalizerProcessor.VisitGCRoots(visitor);
-    #endif
-        }
-        void VisitFinalizerRawPointers(const RootVisitor& visitor)
-        {
-    #ifdef MRT_USE_MARK_SWEEP
+#endif
+    }
+    void VisitFinalizerRawPointers(const RootVisitor& visitor)
+    {
+#ifdef MRT_USE_MARK_SWEEP
         backgroundProcessor.VisitRawPointers(visitor);
-    #else
+#else
         finalizerProcessor.VisitRawPointers(visitor);
-    #endif
-        }
-        void EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit = UINT_MAX)
-        {
-    #ifdef MRT_USE_MARK_SWEEP
+#endif
+    }
+    void EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit = UINT_MAX)
+    {
+#ifdef MRT_USE_MARK_SWEEP
         backgroundProcessor.EnqueueFinalizables(finalizable, countLimit);
-    #else
+#else
         finalizerProcessor.EnqueueFinalizables(finalizable, countLimit);
-    #endif
-        }
-        void RegisterFinalizer(BaseObject* obj)
-        {
-    #ifdef MRT_USE_MARK_SWEEP
+#endif
+    }
+    void RegisterFinalizer(BaseObject* obj)
+    {
+#ifdef MRT_USE_MARK_SWEEP
         backgroundProcessor.RegisterFinalizer(obj);
-    #else
+#else
         finalizerProcessor.RegisterFinalizer(obj);
-    #endif
-        }
-        void NotifyFinalizerWork()
-        {
-    #ifdef MRT_USE_MARK_SWEEP
+#endif
+    }
+    void NotifyFinalizerWork()
+    {
+#ifdef MRT_USE_MARK_SWEEP
         backgroundProcessor.NotifyFinalizerWork();
-    #else
+#else
         finalizerProcessor.Notify();
-    #endif
-        }
-        uint32_t GetFinalizerThreadTid() const
-        {
-    #ifdef MRT_USE_MARK_SWEEP
+#endif
+    }
+    uint32_t GetFinalizerThreadTid() const
+    {
+#ifdef MRT_USE_MARK_SWEEP
         return backgroundProcessor.GetTid();
-    #else
+#else
         return finalizerProcessor.GetTid();
-    #endif
-        }
-        Mutator* GetFinalizerMutator() const
-        {
-    #ifdef MRT_USE_MARK_SWEEP
+#endif
+    }
+    Mutator* GetFinalizerMutator() const
+    {
+#ifdef MRT_USE_MARK_SWEEP
         return backgroundProcessor.GetMutator();
-    #else
+#else
         return finalizerProcessor.GetMutator();
-    #endif
-        }
+#endif
+    }
 
     void BroadcastGCCompletion();
     GCStats& GetGCStats() { return gcStats; }

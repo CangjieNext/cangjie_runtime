@@ -8,11 +8,5 @@ set(SRC_LIST
     "Barrier.cpp"
 )
 
-# Mark-Sweep barrier sources
-if (MARKSWEEP_FLAG MATCHES 1)
-    list(APPEND SRC_LIST "MSMarkBarrier.cpp")
-endif()
-
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../)
 add_library(Barrier STATIC ${SRC_LIST})
-

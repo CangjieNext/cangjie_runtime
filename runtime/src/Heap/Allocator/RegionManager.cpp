@@ -794,6 +794,7 @@ void RegionManager::DumpRegionStats(const char* msg) const
     VLOG(REPORT, "\tlisted units: %zu (%zu B)", listedUnits, listedUnits * RegionInfo::UNIT_SIZE);
     VLOG(REPORT, "\tused units: %zu (%zu B)", usedUnits, usedUnits * RegionInfo::UNIT_SIZE);
     VLOG(REPORT, "\treleased units: %zu (%zu B)", releasedUnits, releasedUnits * RegionInfo::UNIT_SIZE);
+    VLOG(REPORT, "\treleased tree nodes: %u", freeRegionManager.GetReleasedTreeNodeCount());
     VLOG(REPORT, "\tdirty units: %zu (%zu B)", dirtyUnits, dirtyUnits * RegionInfo::UNIT_SIZE);
 
     TRACE_COUNT("CJRT_GC_totalSize", totalSize);

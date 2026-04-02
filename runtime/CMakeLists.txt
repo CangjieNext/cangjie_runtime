@@ -302,7 +302,13 @@ if (COV MATCHES 1)
     target_compile_options(Heap PUBLIC "SHELL:${CMAKE_COV_FLAGS}")
     target_compile_options(Allocator PUBLIC "SHELL:${CMAKE_COV_FLAGS}")
     target_compile_options(Barrier PUBLIC "SHELL:${CMAKE_COV_FLAGS}")
+    if (MARKSWEEP_FLAG MATCHES 1)
+        target_compile_options(MBarrier PUBLIC "SHELL:${CMAKE_COV_FLAGS}")
+    endif()
     target_compile_options(Collector PUBLIC "SHELL:${CMAKE_COV_FLAGS}")
+    if (MARKSWEEP_FLAG MATCHES 1)
+        target_compile_options(MCollector PUBLIC "SHELL:${CMAKE_COV_FLAGS}")
+    endif()
     target_compile_options(Loader PUBLIC "SHELL:${CMAKE_COV_FLAGS}")
     target_compile_options(Mutator PUBLIC "SHELL:${CMAKE_COV_FLAGS}")
     target_compile_options(ObjectModel PUBLIC "SHELL:${CMAKE_COV_FLAGS}")
@@ -343,7 +349,7 @@ endif()
 # GC mode conditional linking
 if (MARKSWEEP_FLAG MATCHES 1)
     # MS mode: no WCollector needed; MS barriers are built within Barrier/
-    list(APPEND LINK_LIBS "MAllocator")
+    list(APPEND LINK_LIBS "MAllocator" "MBarrier" "MCollector")
 else()
     list(APPEND LINK_LIBS "WCollector")
 endif()
@@ -618,7 +624,8 @@ if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MAT
     endif()
     # GC mode conditional static objects
     if (MARKSWEEP_FLAG MATCHES 1)
-        # MS mode: no WCollector objects; MS barriers are built within Barrier/
+        target_sources(cangjie-runtime-static PRIVATE $<TARGET_OBJECTS:MBarrier>)
+        target_sources(cangjie-runtime-static PRIVATE $<TARGET_OBJECTS:MCollector>)
     else()
         target_sources(cangjie-runtime-static PRIVATE $<TARGET_OBJECTS:WCollector>)
     endif()
@@ -688,7 +695,10 @@ if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MAT
                 "${SANITIZER_LIB_STATIC}"
         )
         # GC mode conditional: add WCollector objects only in CopyGC mode
-        if (NOT MARKSWEEP_FLAG MATCHES 1)
+        if (MARKSWEEP_FLAG MATCHES 1)
+            list(APPEND APPLE_RENAME_OBJECTS "$<TARGET_OBJECTS:MBarrier>")
+            list(APPEND APPLE_RENAME_OBJECTS "$<TARGET_OBJECTS:MCollector>")
+        else()
             list(APPEND APPLE_RENAME_OBJECTS "$<TARGET_OBJECTS:WCollector>")
         endif()
         add_custom_command(TARGET cangjie-runtime-static PRE_BUILD

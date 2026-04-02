@@ -74,12 +74,24 @@ public:
     ~MarkStack() { clear(); }
 
     MarkStackBuf<T>* head() { return this->h; }
+    const MarkStackBuf<T>* head() const { return this->h; }
 
     MarkStackBuf<T>* tail() { return this->t; }
+    const MarkStackBuf<T>* tail() const { return this->t; }
 
     size_t size() { return this->s; }
+    size_t size() const { return this->s; }
+
+    size_t BufferCount() const { return this->s; }
+
+    size_t MetadataBytes() const { return this->s * sizeof(MarkStackBuf<T>); }
 
     bool empty()
+    {
+        return this->s == 0 && this->h == nullptr && this->t == nullptr;
+    }
+
+    bool empty() const
     {
         return this->s == 0 && this->h == nullptr && this->t == nullptr;
     }

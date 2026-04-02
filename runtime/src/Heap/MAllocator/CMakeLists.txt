@@ -6,6 +6,7 @@
 
 set(SRC_LIST
     "MSSizeClass.cpp"
+    "MSFreeManager.cpp"
     "MSRegionInfo.cpp"
     "MSRegionManager.cpp"
     "MSCentralRegionPool.cpp"

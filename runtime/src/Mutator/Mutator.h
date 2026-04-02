@@ -17,7 +17,7 @@
 #include "Mutator/ThreadLocal.h"
 #include "SatbBuffer.h"
 #include "schedule.h"
-#include "Heap/Barrier/WriteBarrierBuffer.h"
+#include "Heap/MBarrier/WriteBarrierBuffer.h"
 #include "Common/MarkWorkStack.h"
 #ifdef _WIN64
 #include "UnwindWin.h"

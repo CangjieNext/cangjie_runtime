@@ -13,7 +13,7 @@
 #include "CollectorResources.h"
 
 #ifdef MRT_USE_MARK_SWEEP
-#include "MarkSweepCollector.h"
+#include "Heap/MCollector/MarkSweepCollector.h"
 #else
 #include "WCollector/WCollector.h"
 #endif

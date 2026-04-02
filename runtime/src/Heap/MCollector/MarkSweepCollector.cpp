@@ -9,15 +9,17 @@
 #include "MarkSweepCollector.h"
 #include <cstdlib>
 #include <cstring>
+#include "Base/CString.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "CangjieRuntime.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
+#include "Heap/MAllocator/MSAllocBuffer.h"
 #include "Heap/MAllocator/MSLargeObjectSpace.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSRegionManager.h"
 #include "Heap/MAllocator/MSRegionSpace.h"
-#include "Heap/Barrier/WriteBarrierBuffer.h"
+#include "Heap/MBarrier/WriteBarrierBuffer.h"
 #include "Concurrency/ConcurrencyModel.h"
 #include "Heap/Collector/CollectorResources.h"
 #include "Heap/Collector/FinalizerProcessor.h"
@@ -30,6 +32,52 @@
 #endif
 
 namespace MapleRuntime {
+
+namespace {
+double ReadEnvPosDec(const char* name, double fallback)
+{
+    const char* env = std::getenv(name);
+    if (env == nullptr) {
+        return fallback;
+    }
+    double value = CString::ParsePosDecFromEnv(env);
+    return value <= 0 ? fallback : value;
+}
+
+size_t ReadEnvCount(const char* name, size_t fallback)
+{
+    const char* env = std::getenv(name);
+    if (env == nullptr) {
+        return fallback;
+    }
+    size_t value = CString::ParsePosNumFromEnv(env);
+    return value == 0 ? fallback : value;
+}
+
+double GetMsAsyncAllocDisableRatio()
+{
+    static const double value = ReadEnvPosDec("CJ_MS_ASYNC_ALLOC_DISABLE_RATIO", 2.0 / 3.0);
+    return value;
+}
+
+size_t GetMsMinHeadroomRegions()
+{
+    static const size_t value = ReadEnvCount("CJ_MS_MIN_HEADROOM_REGIONS", 4);
+    return value;
+}
+
+double GetMsMinHeadroomHeapRatio()
+{
+    static const double value = ReadEnvPosDec("CJ_MS_MIN_HEADROOM_HEAP_RATIO", 0.01);
+    return value;
+}
+
+double GetMsThresholdHeapCapRatio()
+{
+    static const double value = ReadEnvPosDec("CJ_MS_THRESHOLD_HEAP_CAP_RATIO", 0.98);
+    return value;
+}
+}
 
 extern "C" void MSMarkBarrier_DumpAndResetCounters();
 
@@ -322,6 +370,15 @@ void MarkSweepCollector::EnumAndMarkRoots(WorkStack& workStack)
     // CopyGC. Enumerate all roots serially into a single work stack.
     EnumAllCommonRootsSerial(workStack);
     EnumAllExportRoots(workStack);
+}
+
+void MarkSweepCollector::MergeRootsFromAllocBuffers(WorkStack& workStack)
+{
+    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    if (centralPool != nullptr) {
+        centralPool->VisitAllocBufferMS([&workStack](AllocBufferMS& buffer) { buffer.MergeRoots(workStack); });
+    }
 }
 
 // ============================================================================
@@ -710,6 +767,8 @@ void MarkSweepCollector::MarkTermination()
     // STW: freeze all mutators
     ScopedStopTheWorld stw("MS MarkTermination", true, GCPhase::GC_PHASE_MS_MARK_TERMINATION);
 
+    SnapshotRuntimeRssStats();
+
     // Now that all mutators are frozen, clear activeCollector_.
     activeCollector_.store(nullptr, std::memory_order_release);
 
@@ -1002,10 +1061,8 @@ void MarkSweepCollector::ConcurrentSweep()
     // Mark-Sweep: generation flip now happens at the tail of MarkTermination's
     // STW, before mutators resume. ConcurrentSweep only kicks off background
     // sweeping and reclaim after the new generation is already visible.
-    if (centralPool != nullptr) {
-        // Notify gc-helper thread to start background sweep.
-        BackgroundProcessor& backgroundProcessor = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
-        backgroundProcessor.NotifyToSweep();
+    if (centralPool != nullptr && space.GetMSRegionManager() != nullptr) {
+        space.GetMSRegionManager()->MaybeNotifySweep();
     }
 
     uint64_t sweepUs = TimeUtil::MicroSeconds() - phaseStart;
@@ -1116,6 +1173,52 @@ void MarkSweepCollector::SnapshotPreviousCycleSweepStats()
     cycleStats_.prevSweptLargeFreedBytes = prevCycleLargeFreedBytes_;
 }
 
+void MarkSweepCollector::SnapshotRuntimeRssStats()
+{
+    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    if (centralPool != nullptr) {
+        cycleStats_.emptyCacheRegions = centralPool->GetEmptySweptRegionCount();
+        cycleStats_.emptyCacheBytes = centralPool->GetEmptySweptBytes();
+    }
+
+    MSRegionManager* msRegionManager = space.GetMSRegionManager();
+    if (msRegionManager != nullptr) {
+        MSRegionManager::HeapRssBreakdown breakdown = msRegionManager->GetHeapRssBreakdown();
+        cycleStats_.regionInfoCount = breakdown.regionInfoCount;
+        cycleStats_.regionInfoBytes = breakdown.regionInfoBytes;
+        cycleStats_.regionBitmapBytes = breakdown.regionBitmapBytes;
+        cycleStats_.releasedTreeMetadataBytes = breakdown.releasedTreeMetadataBytes;
+        cycleStats_.releasedTreeNodeBytes = breakdown.releasedTreeNodeBytes;
+    }
+
+    size_t collectorQueueBuffers = markWorkStack_.BufferCount();
+    size_t collectorQueueBytes = markWorkStack_.MetadataBytes();
+    {
+        std::lock_guard<std::mutex> lock(globalWorkMutex_);
+        collectorQueueBuffers += globalWorkQueue_.BufferCount();
+        collectorQueueBytes += globalWorkQueue_.MetadataBytes();
+    }
+
+    size_t wbBufferBytes = 0;
+    size_t wbPendingEntries = 0;
+    size_t mutatorCount = 0;
+    auto visitMutator = [&](Mutator& mutator) {
+        mutatorCount++;
+        collectorQueueBuffers += mutator.GetAssistLocalWork().BufferCount();
+        collectorQueueBytes += mutator.GetAssistLocalWork().MetadataBytes();
+        wbBufferBytes += sizeof(WriteBarrierBuffer);
+        wbPendingEntries += mutator.GetWriteBarrierBuffer().Count();
+    };
+    MutatorManager::Instance().VisitAllMutators(visitMutator);
+
+    cycleStats_.collectorQueueBuffers = collectorQueueBuffers;
+    cycleStats_.collectorQueueBytes = collectorQueueBytes;
+    cycleStats_.wbBufferBytes = wbBufferBytes;
+    cycleStats_.wbPendingEntries = wbPendingEntries;
+    cycleStats_.mutatorCount = mutatorCount;
+}
+
 // Block ④: Sweep Summary — output at START of next cycle with persisted stats
 void MarkSweepCollector::LogSweepSummary()
 {
@@ -1166,9 +1269,46 @@ void MarkSweepCollector::DumpRegionStatsMS()
          Pretty(activeRegionBytes).Str(), Pretty(trueLiveBytes).Str());
     MSRegionManager* msRegionManager = space.GetMSRegionManager();
     if (msRegionManager != nullptr) {
+                     cycleStats_.activeRegionCount = activeRegionBytes / MS_REGION_SIZE;
+                     cycleStats_.releasedTreeRegionCount = msRegionManager->GetReleasedTreeBytes() / MS_REGION_SIZE;
+                                         cycleStats_.releasedTreeNodeCount = msRegionManager->GetReleasedTreeNodeCount();
+                     cycleStats_.virginRegionCount = msRegionManager->GetVirginRegionCount();
+                     cycleStats_.committedRegionCount = msRegionManager->GetMaxRegionCount();
            VLOG(REPORT, "[MS-GC]   free-cache tree: releasedTree=%s B",
              Pretty(msRegionManager->GetReleasedTreeBytes()).Str());
+                     VLOG(REPORT, "[MS-GC]   free-cache tree nodes: releasedTree=%zu nodes",
+                         cycleStats_.releasedTreeNodeCount);
+                                         msRegionManager->DumpReleasedTreeSpans();
+                     VLOG(REPORT,
+                                "[MS-GC]   region-accounting: active=%zu regions, releasedTree=%zu regions, virgin=%zu regions, "
+                                "committed=%zu regions",
+                                cycleStats_.activeRegionCount,
+                                cycleStats_.releasedTreeRegionCount,
+                                cycleStats_.virginRegionCount,
+                                cycleStats_.committedRegionCount);
     }
+    size_t runtimeMetaBytes = cycleStats_.regionInfoBytes + cycleStats_.regionBitmapBytes +
+                        cycleStats_.releasedTreeMetadataBytes + cycleStats_.collectorQueueBytes +
+                        cycleStats_.wbBufferBytes;
+    VLOG(REPORT,
+        "[MS-GC]   runtime-rss: empty-cache bytes: %s B (%zu regions), region-info count: %zu, "
+        "region-info bytes: %s B, region-bitmap bytes: %s B, releasedTree meta bytes: %s B, "
+        "collector queue bytes: %s B, wb buffer bytes: %s B, runtime meta bytes: %s B",
+        Pretty(cycleStats_.emptyCacheBytes).Str(), cycleStats_.emptyCacheRegions,
+        cycleStats_.regionInfoCount,
+        Pretty(cycleStats_.regionInfoBytes).Str(),
+        Pretty(cycleStats_.regionBitmapBytes).Str(),
+        Pretty(cycleStats_.releasedTreeMetadataBytes).Str(),
+        Pretty(cycleStats_.collectorQueueBytes).Str(),
+        Pretty(cycleStats_.wbBufferBytes).Str(),
+        Pretty(runtimeMetaBytes).Str());
+    VLOG(REPORT,
+        "[MS-GC]   runtime-rss detail: releasedTree live nodes=%s B, collector queue bufs=%zu, "
+        "wb pending entries=%zu, mutators=%zu",
+        Pretty(cycleStats_.releasedTreeNodeBytes).Str(),
+        cycleStats_.collectorQueueBuffers,
+        cycleStats_.wbPendingEntries,
+        cycleStats_.mutatorCount);
 
     // CentralRegionPool 4-list breakdown
     CentralRegionPool* centralPool = space.GetCentralPool();
@@ -1194,6 +1334,7 @@ void MarkSweepCollector::LogGCSummary(uint64_t gcTimeUs)
                            cycleStats_.postMarkUs + cycleStats_.concurrentSweepUs +
                            cycleStats_.postGcHookUs;
     uint64_t otherUs = (gcTimeUs > accountedUs) ? (gcTimeUs - accountedUs) : 0;
+    size_t regionInfoTotalBytes = cycleStats_.regionInfoBytes + cycleStats_.regionBitmapBytes;
 
     VLOG(REPORT,
          "[MS-GC] active-region bytes: %s, true live: %s B, true-live utilization: %.2f%%, "
@@ -1212,6 +1353,13 @@ void MarkSweepCollector::LogGCSummary(uint64_t gcTimeUs)
          Pretty(cycleStats_.concurrentSweepUs).Str(),
          Pretty(cycleStats_.postGcHookUs).Str(),
          Pretty(otherUs).Str());
+        VLOG(REPORT,
+            "[MS-GC] runtime-extra summary: empty-cache %s B, region-info+bitmap %s B, "
+            "releasedTree-meta %s B, collector-meta %s B",
+            Pretty(cycleStats_.emptyCacheBytes).Str(),
+            Pretty(regionInfoTotalBytes).Str(),
+            Pretty(cycleStats_.releasedTreeMetadataBytes).Str(),
+            Pretty(cycleStats_.collectorQueueBytes + cycleStats_.wbBufferBytes).Str());
 
     // Also output the standard LOG(RTLOG_INFO) summary for compatibility
     LOG(RTLOG_INFO,
@@ -1240,7 +1388,7 @@ void MarkSweepCollector::UpdateGCStats()
     size_t recentBytes = space.GetRecentAllocatedSize();
 
     // 2 / 3: when committed bytes is over 2/3 heap size, the async allocation need to be closed.
-    if (committedBytes > heapSize * 2 / 3) {
+    if (committedBytes > static_cast<size_t>(heapSize * GetMsAsyncAllocDisableRatio())) {
         space.EnableAsyncAllocation(false);
     } else {
         space.EnableAsyncAllocation(true);
@@ -1253,12 +1401,12 @@ void MarkSweepCollector::UpdateGCStats()
 
     // Keep a minimum post-GC headroom so tiny live sets do not cause immediate
     // re-triggering after a few small region refills.
-    constexpr size_t kMinHeadroomRegions = 4;
-    size_t minHeadroom = std::max(heapSize / 100, static_cast<size_t>(MS_REGION_SIZE * kMinHeadroomRegions));
+    size_t minHeadroom = std::max(static_cast<size_t>(heapSize * GetMsMinHeadroomHeapRatio()),
+                                  static_cast<size_t>(MS_REGION_SIZE * GetMsMinHeadroomRegions()));
     size_t newThreshold = std::max(liveDrivenThreshold, liveBytes + minHeadroom);
 
     // 0.98: make sure new threshold does not exceed reasonable limit.
-    newThreshold = std::min(newThreshold, static_cast<size_t>(heapSize * 0.98));
+    newThreshold = std::min(newThreshold, static_cast<size_t>(heapSize * GetMsThresholdHeapCapRatio()));
     gcStats.heapThreshold = std::min(newThreshold, CangjieRuntime::GetGCParam().gcThreshold);
     // Persist the post-GC baseline used by MSGC's effective-allocation trigger:
     // effectiveAlloc = lastTrueLiveBytes + max(0, currentAllocated - baselineAllocatedBytes).

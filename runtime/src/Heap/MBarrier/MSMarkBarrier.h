@@ -4,39 +4,32 @@
 //
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-#ifndef MRT_MS_WRITE_BARRIER_H
-#define MRT_MS_WRITE_BARRIER_H
+#ifndef MRT_MS_MARK_BARRIER_H
+#define MRT_MS_MARK_BARRIER_H
 
 #ifdef MRT_USE_MARK_SWEEP
 
-#include "Barrier.h"
-#include "WriteBarrierBuffer.h"
+#include "Heap/Barrier/Barrier.h"
 
 namespace MapleRuntime {
 
 class Mutator;
 
-// MSWriteBarrier — Hybrid write barrier for MS-GC concurrent marking phase.
+// MSMarkBarrier — unified old/new write barrier for MSGC concurrent marking.
 //
-// Semantics (Go-style hybrid barrier):
+// Semantics:
 //   Write(slot, new):
-//     shade(old = *slot)   // deletion barrier — prevents losing reachable whites
-//     shade(new)           // insertion barrier — catches new grey roots
-//     *slot = new
+//     enqueue(old = *slot) // discover overwritten edge target
+//     *slot = new          // store
+//     enqueue(new)         // discover newly linked edge target
 //
-//   shade(ptr):
-//     if ptr != null && IsHeapAddress(ptr) && !IsMarked(ptr):
-//       MarkObject(ptr)    // atomic CAS on mark bitmap
-//       wbBuf.Push(ptr)    // buffer for later draining by GC thread
-//
-// Reads: zero-overhead direct load (no fromSpace/toSpace in MS-GC).
-//
-// The write barrier is installed during GC_PHASE_MS_MARK_SETUP,
-// GC_PHASE_MS_CONCURRENT_MARK, and GC_PHASE_MS_MARK_TERMINATION phases.
-class MSWriteBarrier : public Barrier {
+// Both old/new refs try to discover the target object and enqueue it into the
+// per-mutator concurrent mark queue. Newly allocated objects are handled by
+// MarkNewObject() on the allocation path.
+class MSMarkBarrier : public Barrier {
 public:
-    explicit MSWriteBarrier(Collector& collector) : Barrier(collector) {}
-    ~MSWriteBarrier() override = default;
+    explicit MSMarkBarrier(Collector& collector) : Barrier(collector) {}
+    ~MSMarkBarrier() override = default;
 
     // ── Reads: direct load, zero overhead ──
     BaseObject* ReadReference(BaseObject* obj, RefField<false>& field) const override;
@@ -45,7 +38,7 @@ public:
     void ReadStruct(MAddress dst, BaseObject* obj, MAddress src, size_t size) const override;
     void ReadStaticStruct(MAddress dst, MAddress src, size_t size, const GCTib gctib) const override;
 
-    // ── Writes: shade(old) + shade(new) + store ──
+    // ── Writes: enqueue(old) + store + enqueue(new) ──
     void WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref) const override;
     void WriteStaticRef(RefField<false>& field, BaseObject* ref) const override;
     void WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen) const override;
@@ -58,7 +51,7 @@ public:
     void CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
                          BaseObject* srcObj, MAddress srcField, MIndex srcSize) const override;
 
-    // ── Atomic operations: shade(old) + shade(new) ──
+    // ── Atomic operations: enqueue(old) + store + enqueue(new) ──
     BaseObject* AtomicReadReference(BaseObject* obj, RefField<true>& field,
                                     MemoryOrder order) const override;
     void AtomicWriteReference(BaseObject* obj, RefField<true>& field,
@@ -70,19 +63,17 @@ public:
                                  MemoryOrder succOrder, MemoryOrder failOrder) const override;
 
 private:
-    // Core helper: mark object in bitmap, push to per-Mutator WBBuf if newly marked.
-    // This is the "shade" operation in the hybrid barrier.
-    static void MarkAndEnqueue(BaseObject* obj, WriteBarrierBuffer& wbBuf);
+    // Try to discover a referenced object and enqueue it into the per-mutator
+    // concurrent mark queue. Already-discovered objects are skipped.
+    static void EnqueueRef(BaseObject* ref);
 
-    // Unconditionally push obj to WBBuf for re-scanning (bypasses mark check).
-    // Used for shade(new) on container objects that may already be mark-at-alloc.
-    static void EnqueueForRescan(BaseObject* obj, WriteBarrierBuffer& wbBuf);
-
-    // Get the current Mutator's WriteBarrierBuffer.
-    static WriteBarrierBuffer& GetWBBuf();
+    // Push the destination container object into the collector's global work
+    // queue so it will be re-scanned in the current cycle. Used as a focused
+    // bulk-struct diagnostic hardening path.
+    static void EnqueueContainer(BaseObject* obj);
 };
 
 } // namespace MapleRuntime
 
 #endif // MRT_USE_MARK_SWEEP
-#endif // MRT_MS_WRITE_BARRIER_H
+#endif // MRT_MS_MARK_BARRIER_H

@@ -8,14 +8,6 @@
 
 #include "Common/Runtime.h"
 #include "Concurrency/Concurrency.h"
-#include "Heap/Allocator/AllocBuffer.h"
-#ifdef MRT_USE_MARK_SWEEP
-#include "Heap/MAllocator/MSAllocBuffer.h"
-#include "Heap/MAllocator/MSCentralRegionPool.h"
-#include "Heap/MAllocator/MSRegionSpace.h"
-#else
-#include "Heap/Allocator/RegionSpace.h"
-#endif
 #include "ObjectModel/RefField.inline.h"
 
 namespace MapleRuntime {
@@ -301,17 +293,7 @@ void TracingCollector::MergeMutatorRoots(WorkStack& workStack)
     MutatorManager& mutatorManager = MutatorManager::Instance();
     // hold mutator list lock to freeze mutator liveness, otherwise may access dead mutator fatally
     mutatorManager.MutatorManagementWLock();
-#ifdef MRT_USE_MARK_SWEEP
-    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
-    CentralRegionPool* centralPool = space.GetCentralPool();
-    if (centralPool != nullptr) {
-        centralPool->VisitAllocBufferMS([&workStack](AllocBufferMS& buffer) { buffer.MergeRoots(workStack); });
-    }
-#else
-    reinterpret_cast<RegionSpace&>(theAllocator).VisitAllocBuffers([&workStack](AllocBuffer& buffer) {
-        buffer.MergeRoots(workStack);
-    });
-#endif
+    MergeRootsFromAllocBuffers(workStack);
     mutatorManager.MutatorManagementWUnlock();
 }
 
@@ -800,9 +782,7 @@ void TracingCollector::EnumAllCommonRoots(GCThreadPool* threadPool, RootSet& roo
     for (size_t i = 0; i < threadCount; ++i) {
         rootSet.insert(rootSets[i]);
     }
-#ifndef MRT_USE_MARK_SWEEP
     VLOG(REPORT, "Total roots: %zu(exclude stack roots)", rootSet.size());
-#endif
 }
 
 void TracingCollector::VisitStaticRoots(const RefFieldVisitor& visitor) const
@@ -815,72 +795,8 @@ void TracingCollector::VisitFinalizerRoots(const RootVisitor& visitor) const
     collectorResources.VisitFinalizerGCRoots(visitor);
 }
 
-#ifndef MRT_USE_MARK_SWEEP
 void TracingCollector::UpdateGCStats()
 {
-    RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
-    GCStats& gcStats = GetGCStats();
-    gcStats.Dump();
-
-    size_t oldThreshold = gcStats.heapThreshold;
-    size_t liveBytes = space.AllocatedBytes();
-    size_t heapSize = space.GetMaxCapacity();
-    size_t recentBytes = space.GetRecentAllocatedSize();
-
-    // 2 / 3: when live bytes is over 2/3 heap size, the async allocation need to be closed.
-    if (liveBytes > heapSize * 2 / 3) {
-        space.EnableAsyncAllocation(false);
-    } else {
-        space.EnableAsyncAllocation(true);
-    }
-    // 4 ways to estimate heap next threshold.
-#if defined (__OHOS__)
-    constexpr double lowUtilGrowth = 1.8;
-    constexpr double lowUtilRatio = 0.25;
-    double heapGrowth = liveBytes < heapSize * lowUtilRatio ?
-        lowUtilGrowth : 1 + (CangjieRuntime::GetHeapParam().heapGrowth);
-#else
-    double heapGrowth = 1 + (CangjieRuntime::GetHeapParam().heapGrowth);
-#endif
-    size_t threshold1 = liveBytes * heapGrowth;
-    size_t threshold2 = oldThreshold * heapGrowth;
-    size_t threshold3 = liveBytes * 1.2 / (1.0 + gcStats.garbageRatio);
-    size_t threshold4 = space.GetTargetSize();
-    size_t newThreshold = 0;
-    uint64_t gcInterval = CangjieRuntime::GetGCParam().gcInterval;
-    // 2 : We regard the half of heap size as a limit because of copying algorithm.
-    if (liveBytes < oldThreshold && oldThreshold < (heapSize / 2)) {
-#if defined (__OHOS__)
-        // When the ulitization is low, we can give the old threshold a larger weight to compute average value.
-        // 1, 4, 2, 1: These are the weights of the different parameters.
-        // 8: It is the total weight.
-        newThreshold = (threshold1 * 1 + threshold2 * 4 + threshold3 * 2 + threshold4 * 1) / 8;
-        // 2s: We set the max waiting time to 2s to avoid memory increasing too fast.
-        auto maxAdaptiveInterval = static_cast<uint64_t>(2) * MapleRuntime::SECOND_TO_NANO_SECOND;
-        uint64_t gcAdaptiveInterval = static_cast<uint64_t>((newThreshold - liveBytes) / gcStats.collectionRate / MB);
-        gcAdaptiveInterval = std::min(gcAdaptiveInterval, maxAdaptiveInterval);
-        gcInterval = std::max(gcInterval, gcAdaptiveInterval);
-#else
-        // 4: Computing arithmetic mean
-        newThreshold = (threshold1 + threshold2 + threshold3 + threshold4) / 4;
-#endif
-    } else {
-        // When the ulitization is high, we try to avoid threshold increasing and give it a small weight.
-        // 2, 1, 2, 3: These are the weights of the different parameters.
-        // 8: It is the total weight.
-        newThreshold = (threshold1 * 2 + threshold2 * 1 + threshold3 * 2 + threshold4 * 3) / 8;
-    }
-    // 0.98: make sure new threshold does not exceed reasonable limit.
-    newThreshold = std::min(newThreshold, static_cast<size_t>(space.GetMaxCapacity() * 0.98));
-    gcStats.heapThreshold = std::min(newThreshold, CangjieRuntime::GetGCParam().gcThreshold);
-    g_gcRequests[GC_REASON_HEU].SetMinInterval(gcInterval);
-    VLOG(REPORT, "live bytes %zu (survived %zu, recent-allocated %zu), update gc threshold %zu -> %zu", liveBytes,
-         liveBytes - recentBytes, recentBytes, oldThreshold, gcStats.heapThreshold);
-    TRACE_COUNT("CJRT_post_GC_HeapSize", Heap::GetHeap().GetAllocatedSize());
+    // Subclasses provide collector-specific GC threshold update policies.
 }
-#else
-// MS mode: MarkSweepCollector::UpdateGCStats() overrides this.
-// Stub required for vtable completeness.
-void TracingCollector::UpdateGCStats() {}
-#endif // !MRT_USE_MARK_SWEEP
 } // namespace MapleRuntime

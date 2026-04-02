@@ -13,7 +13,7 @@
 #include "Mutator/Mutator.h"
 #include "Base/Log.h"
 #include "Collector/CollectorResources.h"
-#include "Heap/Collector/MarkSweepCollector.h"
+#include "Heap/MCollector/MarkSweepCollector.h"
 #include <cstdio>
 
 namespace MapleRuntime {

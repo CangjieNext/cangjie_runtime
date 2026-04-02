@@ -9,7 +9,7 @@
 
 #ifdef MRT_USE_MARK_SWEEP
 
-#include "Barrier.h"
+#include "Heap/Barrier/Barrier.h"
 #include "securec.h"
 #if defined(CANGJIE_TSAN_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"

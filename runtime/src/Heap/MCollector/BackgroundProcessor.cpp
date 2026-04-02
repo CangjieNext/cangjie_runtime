@@ -6,7 +6,7 @@
 
 #ifdef MRT_USE_MARK_SWEEP
 
-#include "Collector/BackgroundProcessor.h"
+#include "BackgroundProcessor.h"
 
 #include "Base/Macros.h"
 #include "Heap/Heap.h"

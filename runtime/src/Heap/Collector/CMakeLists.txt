@@ -18,9 +18,7 @@ set(SRC_LIST
     "ForwardDataManager.cpp"
 )
 
-if (MARKSWEEP_FLAG MATCHES 1)
-    list(APPEND SRC_LIST "MarkSweepCollector.cpp" "BackgroundProcessor.cpp")
-else()
+if (NOT MARKSWEEP_FLAG MATCHES 1)
     list(APPEND SRC_LIST "CopyCollector.cpp")
 endif()
 

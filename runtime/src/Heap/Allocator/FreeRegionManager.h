@@ -105,6 +105,7 @@ public:
 
     UnitCount GetDirtyUnitCount() const { return dirtyUnitTree.GetTotalCount(); }
     UnitCount GetReleasedUnitCount() const { return releasedUnitTree.GetTotalCount(); }
+    uint32_t GetReleasedTreeNodeCount() const { return releasedUnitTree.GetNodeCount(); }
 
 #if defined(MRT_DEBUG)
     void DumpReleasedUnitTree() const { releasedUnitTree.DumpTree("released-unit tree"); }

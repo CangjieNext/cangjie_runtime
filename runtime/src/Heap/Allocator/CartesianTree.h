@@ -52,9 +52,11 @@ public:
         // calculate how much we need for native allocation
         // we might need some extra space for some temporaries, so set aside another 7 slots
         size_t nativeSize = (nodeCount + 7) * AllocUtilRndUp(sizeof(Node), alignof(Node));
+        nodeAllocatorMappedBytes_ = ALLOCUTIL_PAGE_RND_UP(nativeSize);
         nodeAllocator.Init(ALLOCUTIL_PAGE_RND_UP(nativeSize));
         // calculate how much we need for the deque temporary
         size_t dequeSize = nodeCount * sizeof(Node*);
+        dequeMappedBytes_ = ALLOCUTIL_PAGE_RND_UP(dequeSize);
         sud.Init(ALLOCUTIL_PAGE_RND_UP(dequeSize));
         traversalSud.Init(sud.GetMemMap());
     }
@@ -83,6 +85,22 @@ public:
     Count GetTotalCount() const { return totalCount; }
 
     uint32_t GetNodeCount() const { return nodeCount; }
+
+    size_t GetNodeBytesInUse() const
+    {
+        return static_cast<size_t>(nodeCount) * AllocUtilRndUp(sizeof(Node), alignof(Node));
+    }
+
+    size_t GetMetadataMappedBytes() const
+    {
+        return nodeAllocatorMappedBytes_ + dequeMappedBytes_;
+    }
+
+    size_t GetMetadataBytesInUse() const
+    {
+        size_t dequeBytes = std::max(sud.GetHighWaterBytes(), traversalSud.GetHighWaterBytes());
+        return nodeAllocator.GetUsedBytes() + dequeBytes;
+    }
 
     Count GetMaxBlockCount() const { return root ? root->GetCount() : 0; }
 
@@ -351,6 +369,8 @@ private:
     SingleUseDeque<Node**> sud;
     SingleUseDeque<Node*> traversalSud;
     RTAllocator nodeAllocator;
+    size_t nodeAllocatorMappedBytes_ = 0;
+    size_t dequeMappedBytes_ = 0;
 
     void DeleteNode(Node* n) noexcept
     {

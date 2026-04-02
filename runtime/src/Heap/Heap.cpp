@@ -11,8 +11,8 @@
 #include "Collector/CollectorResources.h"
 #include "ObjectModel/RefField.inline.h"
 #ifdef MRT_USE_MARK_SWEEP
-#include "Barrier/MSIdleBarrier.h"
-#include "Barrier/MSMarkBarrier.h"
+#include "MBarrier/MSIdleBarrier.h"
+#include "MBarrier/MSMarkBarrier.h"
 #else
 #include "WCollector/IdleBarrier.h"
 #include "WCollector/EnumBarrier.h"

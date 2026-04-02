@@ -285,8 +285,8 @@ public:
     // ===== Thread-local Region acquisition =====
 
     // Get a Region with free slots for the given size class.
-    // Priority: partialSwept → emptySweptCache(rebind) → partialUnswept (sweep)
-    //        → fullUnswept (sweep) → fresh.
+    // Priority: partialSwept → partialUnswept (lazy sweep) → fullUnswept (lazy sweep)
+    //        → emptySweptCache(rebind) → fresh.
     MSRegionInfo* GetRegion(uint8_t cls);
 
     // Get a brand-new Region from RegionManager, initialized for the given size class.
@@ -309,8 +309,10 @@ public:
     // Returns true if there is still pending sweep work after this slice.
     // Thread-safe (CAS ownership). Called by gc-helper thread.
     bool BackgroundSweep();
-    size_t ScavengeEmptyRegionsToReleased(bool releaseAll);
-    bool ShouldContinueBackgroundScavenge() const;
+
+    // Unified layer-3 entry: scavenge empty regions back to OS.
+    // Only called from ReclaimGarbageMemory.
+    size_t HandleBackgroundScavenge(bool releaseAll);
 
     // Check whether previous-cycle sweep work is globally quiescent.
     bool IsSweepDone() const
@@ -341,6 +343,10 @@ public:
         return emptySweptBytes_.load(std::memory_order_relaxed);
     }
     bool IsEmptyCacheLow() const;
+
+    size_t GetEmptyCacheHighWatermarkRegions() const;
+    size_t GetTrueLiveSlackTargetBytes() const;
+    bool ShouldPressureSweepForTrueLiveSlack(size_t committedBytes, size_t targetBytes, size_t emptyCount) const;
 
     // ===== DFX: Sweep statistics (persisted across GC cycle) =====
     MSSweepStats& GetSweepStats() { return sweepStats_; }
@@ -402,6 +408,16 @@ public:
     }
 
 private:
+    struct BackgroundScavengeState {
+        size_t emptyCount = 0;
+        size_t lowWatermark = 0;
+        size_t highWatermark = 0;
+        size_t committedBytes = 0;
+        size_t targetBytes = 0;
+        bool trueLiveSlackHigh = false;
+        bool shouldScavenge = false;
+    };
+
     struct SizeClassBucket {
         std::mutex lock;              // protects fullSwept, partialUnswept, fullUnswept only
         LockFreeRegionStack partialSwept;  // O1: lock-free CAS stack for P1 hot path
@@ -411,11 +427,12 @@ private:
     };
 
     void ReleaseRegionInternal(MSRegionInfo* region);
+    void HandleEmptyRegionForValidation(MSRegionInfo* region);
     void PushEmptySweptRegion(MSRegionInfo* region);
     MSRegionInfo* TakeEmptySweptRegion(uint8_t cls);
     size_t GetEmptyCacheLowWatermarkRegions() const;
-    size_t GetEmptyCacheHighWatermarkRegions() const;
-    bool UpdateBackgroundScavengeState() const;
+    bool ShouldScavengeForTrueLiveSlack(size_t committedBytes, size_t targetBytes) const;
+    BackgroundScavengeState CollectBackgroundScavengeState() const;
     bool SweepUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint32_t sg,
                           size_t& sweptInSlice, size_t maxRegions, uint64_t deadlineUs);
 
@@ -448,7 +465,6 @@ private:
     MSRegionList emptySweptCache_;
     std::atomic<size_t> emptySweptRegionCount_{0};
     std::atomic<size_t> emptySweptBytes_{0};
-    mutable std::atomic<bool> backgroundScavengeActive_{false};
 
     // ===== Per-thread AllocBufferMS registry =====
     // Every thread lazily creates an AllocBufferMS and registers it here.

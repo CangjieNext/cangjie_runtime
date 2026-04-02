@@ -120,7 +120,7 @@ MAddress RegionSpaceMS::GetSpaceEndAddress() const
 size_t RegionSpaceMS::GetCurrentCapacity() const
 {
     if (msRegionManager_ != nullptr) {
-        return msRegionManager_->GetInactiveZone() - reservedStart;
+        return msRegionManager_->GetCurrentCapacityBytes();
     }
     return 0;
 }
@@ -173,7 +173,7 @@ size_t RegionSpaceMS::ReclaimGarbageMemory(bool releaseAll)
     }
     size_t released = 0;
     if (msCentralPool_ != nullptr) {
-        released += msCentralPool_->ScavengeEmptyRegionsToReleased(releaseAll);
+        released += msCentralPool_->HandleBackgroundScavenge(releaseAll);
     }
     msRegionManager_->ShrinkHeap();
     return released;
@@ -181,7 +181,17 @@ size_t RegionSpaceMS::ReclaimGarbageMemory(bool releaseAll)
 
 bool RegionSpaceMS::HasPendingReclaimWork() const
 {
-    return msCentralPool_ != nullptr && msCentralPool_->ShouldContinueBackgroundScavenge();
+    if (msCentralPool_ == nullptr) {
+        return false;
+    }
+    size_t emptyCount = msCentralPool_->GetEmptySweptRegionCount();
+    size_t highWatermark = msCentralPool_->GetEmptyCacheHighWatermarkRegions();
+    if (emptyCount >= highWatermark) {
+        return true;
+    }
+    size_t committedBytes = msCentralPool_->GetTotalMSRegionBytes();
+    size_t targetBytes = msCentralPool_->GetTrueLiveSlackTargetBytes();
+    return targetBytes != 0 && committedBytes > targetBytes && emptyCount > 0;
 }
 
 bool RegionSpaceMS::BackgroundSweep()

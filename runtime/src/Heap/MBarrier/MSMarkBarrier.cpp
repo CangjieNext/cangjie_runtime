@@ -7,9 +7,9 @@
 #ifdef MRT_USE_MARK_SWEEP
 
 #include "MSMarkBarrier.h"
-#include "Barrier.inline.h"
+#include "Heap/Barrier/Barrier.inline.h"
 #include "Heap/Heap.h"
-#include "Heap/Collector/MarkSweepCollector.h"
+#include "Heap/MCollector/MarkSweepCollector.h"
 #include "Mutator/Mutator.h"
 #include "ObjectModel/Field.inline.h"
 #include "ObjectModel/RefField.inline.h"

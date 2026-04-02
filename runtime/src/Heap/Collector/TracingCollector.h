@@ -364,6 +364,7 @@ protected:
     virtual void ProcessFinalizers() {}
     // designed to mark resurrected finalizer, should not be call in stw gc
     virtual void DoResurrection(WorkStack& workStack);
+    virtual void MergeRootsFromAllocBuffers(WorkStack& workStack) = 0;
 
     void MergeMutatorRoots(WorkStack& workStack);
     void DoEnumeration(WorkStack& workStack, WorkStack& foreignRootsSet);

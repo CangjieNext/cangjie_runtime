@@ -9,11 +9,13 @@
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSAllocBuffer.h"
 #include "Heap/MAllocator/MSRegionManager.h"
+#include "Base/CString.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "Base/TimeUtils.h"
 #include "Collector/CollectorResources.h"
 #include "Heap.h"
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <vector>
@@ -24,34 +26,123 @@ namespace MapleRuntime {
 
 namespace {
 // Normal-mode sweep budget
-constexpr size_t BG_SWEEP_MAX_REGIONS_PER_SLICE = 64;
-constexpr uint64_t BG_SWEEP_MAX_TIME_US = 2000;
+constexpr size_t BG_SWEEP_MAX_REGIONS_PER_SLICE_DEFAULT = 64;
+constexpr uint64_t BG_SWEEP_MAX_TIME_US_DEFAULT = 2000;
 // Pressure-mode sweep budget (Step9 §6.3: pressure-aware dynamic budget)
-constexpr size_t BG_SWEEP_PRESSURE_REGIONS_PER_SLICE = 256;
-constexpr uint64_t BG_SWEEP_PRESSURE_TIME_US = 8000;
-constexpr size_t BG_SWEEP_PRESSURE_READY_THRESHOLD = 4;
-constexpr size_t EMPTY_CACHE_LOW_FLOOR_REGIONS = 32;
-constexpr size_t EMPTY_CACHE_LOW_CAP_REGIONS = 256;
-constexpr uint64_t EMPTY_SCAVENGE_MAX_TIME_US = 4000;
-constexpr size_t EMPTY_SCAVENGE_MAX_REGIONS_PER_SLICE = 256;
+constexpr size_t BG_SWEEP_PRESSURE_REGIONS_PER_SLICE_DEFAULT = 256;
+constexpr uint64_t BG_SWEEP_PRESSURE_TIME_US_DEFAULT = 8000;
+constexpr size_t BG_SWEEP_PRESSURE_READY_THRESHOLD_DEFAULT = 4;
+constexpr size_t EMPTY_CACHE_LOW_PER_BUFFER_DEFAULT = 2;
+constexpr size_t EMPTY_CACHE_LOW_FLOOR_REGIONS_DEFAULT = 32;
+constexpr size_t EMPTY_CACHE_LOW_CAP_REGIONS_DEFAULT = 256;
+constexpr size_t EMPTY_CACHE_HIGH_FACTOR_DEFAULT = 2;
+constexpr uint64_t EMPTY_SCAVENGE_MAX_TIME_US_DEFAULT = 4000;
+constexpr size_t EMPTY_SCAVENGE_MAX_REGIONS_PER_SLICE_DEFAULT = 256;
+constexpr size_t LAZY_EMPTY_CACHE_REFILL_LIMIT_DEFAULT = 1;
 
-inline void MaybeNotifyBackgroundSweepPressure(const CentralRegionPool::BucketPressure& pressure)
+uint64_t ReadEnvTimeNs(const char* name, uint64_t fallback)
 {
-    if (Heap::GetHeap().IsGcStarted()) {
-        return;
+    const char* env = std::getenv(name);
+    if (env == nullptr) {
+        return fallback;
     }
-    if (pressure.ReadyCount() < BG_SWEEP_PRESSURE_READY_THRESHOLD && pressure.UnsweptCount() > 0) {
-        Heap::GetHeap().GetCollectorResources().GetFinalizerProcessor().NotifyToSweep();
-    }
+    uint64_t value = CString::ParseTimeFromEnv(env);
+    return value == 0 ? fallback : value;
 }
 
-inline void MaybeNotifyScavengerCrossing(bool crossedHighWatermark)
+size_t ReadEnvCount(const char* name, size_t fallback)
 {
-    if (!crossedHighWatermark || Heap::GetHeap().IsGcStarted()) {
-        return;
+    const char* env = std::getenv(name);
+    if (env == nullptr) {
+        return fallback;
     }
-    Heap::GetHeap().GetCollectorResources().GetFinalizerProcessor().NotifyToReclaimGarbage();
+    size_t value = CString::ParsePosNumFromEnv(env);
+    return value == 0 ? fallback : value;
 }
+
+size_t GetBgSweepMaxRegionsPerSlice()
+{
+    static const size_t value =
+        ReadEnvCount("CJ_MS_BG_SWEEP_MAX_REGIONS_PER_SLICE", BG_SWEEP_MAX_REGIONS_PER_SLICE_DEFAULT);
+    return value;
+}
+
+uint64_t GetBgSweepMaxTimeUs()
+{
+    static const uint64_t value = ReadEnvTimeNs("CJ_MS_BG_SWEEP_MAX_TIME", BG_SWEEP_MAX_TIME_US_DEFAULT * 1000) /
+                                  1000;
+    return value;
+}
+
+size_t GetBgSweepPressureRegionsPerSlice()
+{
+    static const size_t value = ReadEnvCount("CJ_MS_BG_SWEEP_PRESSURE_REGIONS_PER_SLICE",
+                                             BG_SWEEP_PRESSURE_REGIONS_PER_SLICE_DEFAULT);
+    return value;
+}
+
+uint64_t GetBgSweepPressureTimeUs()
+{
+    static const uint64_t value =
+        ReadEnvTimeNs("CJ_MS_BG_SWEEP_PRESSURE_TIME", BG_SWEEP_PRESSURE_TIME_US_DEFAULT * 1000) / 1000;
+    return value;
+}
+
+size_t GetBgSweepPressureReadyThreshold()
+{
+    static const size_t value =
+        ReadEnvCount("CJ_MS_BG_SWEEP_PRESSURE_READY_THRESHOLD", BG_SWEEP_PRESSURE_READY_THRESHOLD_DEFAULT);
+    return value;
+}
+
+size_t GetEmptyCacheLowPerBuffer()
+{
+    static const size_t value =
+        ReadEnvCount("CJ_MS_EMPTY_CACHE_LOW_PER_BUFFER", EMPTY_CACHE_LOW_PER_BUFFER_DEFAULT);
+    return value;
+}
+
+size_t GetEmptyCacheLowFloorRegions()
+{
+    static const size_t value =
+        ReadEnvCount("CJ_MS_EMPTY_CACHE_LOW_FLOOR_REGIONS", EMPTY_CACHE_LOW_FLOOR_REGIONS_DEFAULT);
+    return value;
+}
+
+size_t GetEmptyCacheLowCapRegions()
+{
+    static const size_t value =
+        ReadEnvCount("CJ_MS_EMPTY_CACHE_LOW_CAP_REGIONS", EMPTY_CACHE_LOW_CAP_REGIONS_DEFAULT);
+    return value;
+}
+
+size_t GetEmptyCacheHighFactor()
+{
+    static const size_t value = ReadEnvCount("CJ_MS_EMPTY_CACHE_HIGH_FACTOR", EMPTY_CACHE_HIGH_FACTOR_DEFAULT);
+    return value;
+}
+
+uint64_t GetEmptyScavengeMaxTimeUs()
+{
+    static const uint64_t value =
+        ReadEnvTimeNs("CJ_MS_EMPTY_SCAVENGE_MAX_TIME", EMPTY_SCAVENGE_MAX_TIME_US_DEFAULT * 1000) / 1000;
+    return value;
+}
+
+size_t GetEmptyScavengeMaxRegionsPerSlice()
+{
+    static const size_t value = ReadEnvCount("CJ_MS_EMPTY_SCAVENGE_MAX_REGIONS_PER_SLICE",
+                                             EMPTY_SCAVENGE_MAX_REGIONS_PER_SLICE_DEFAULT);
+    return value;
+}
+
+size_t GetLazyEmptyCacheRefillLimit()
+{
+    static const size_t value =
+        ReadEnvCount("CJ_MS_LAZY_EMPTY_CACHE_REFILL_LIMIT", LAZY_EMPTY_CACHE_REFILL_LIMIT_DEFAULT);
+    return value;
+}
+
 }
 
 // Global sweep generation counter (starts at 2 so that sg-2 == 0 is valid initial state)
@@ -62,18 +153,27 @@ CentralRegionPool::CentralRegionPool(MSRegionManager* msRegionManager)
 
 // ============================================================================
 // GetRegion — five-priority Region acquisition
-// Priority: partialSwept -> emptySweptCache(rebind) -> unswept(lazy sweep)
+// Priority: partialSwept -> unswept(lazy sweep) -> emptySweptCache(rebind)
 //         -> fresh
 // ============================================================================
 MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
 {
     SizeClassBucket& bucket = buckets_[cls];
     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
+    size_t lazyEmptyCacheInsertions = 0;
 
-    // Trigger background sweep as soon as the central bucket is visibly short
-    // on ready supply while unswept backlog still exists, instead of waiting
-    // until we fall all the way through to a fresh-region request.
-    MaybeNotifyBackgroundSweepPressure(GetBucketPressure(cls));
+    auto RebindEmptyRegionForClass = [&](MSRegionInfo* region) -> MSRegionInfo* {
+        size_t regionIdx = MSRegionInfoArray::GetRegionIdx(region);
+        uintptr_t regionStart = MSRegionInfoArray::GetRegionAddress(regionIdx);
+        region->InitForSizeClass(cls);
+        CHECK_DETAIL(region->allocBitmap != nullptr,
+                     "GetRegion: InitForSizeClass failed for cls=%u idx=%zu",
+                     static_cast<unsigned>(cls), regionIdx);
+        region->allocPtr = regionStart;
+        region->regionEnd = regionStart + MS_REGION_SIZE;
+        region->SetSweepGen(sg);
+        return region;
+    };
 
     // ---- Priority 1: partialSwept — already swept, fastest path ----
     {
@@ -93,16 +193,7 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
         }
     }
 
-    // ---- Priority 2: global empty cache — classless empty region shell ----
-    {
-        MSRegionInfo* region = TakeEmptySweptRegion(cls);
-        if (region != nullptr) {
-            region->SetSweepGen(sg);
-            return region;
-        }
-    }
-
-    // ---- Priority 3: partialUnswept — sweep first, likely has free slots ----
+    // ---- Priority 2: partialUnswept — sweep first, likely has free slots ----
     if (!skipLazySweep_.load(std::memory_order_acquire)) {
         activeLazySweepCount_.fetch_add(1, std::memory_order_relaxed);
         // Double-check after increment to close the race with StopAndWaitForAllSweep
@@ -129,11 +220,19 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
                     sweepStats_.sweptFreedBytes.fetch_add(freedBytes, std::memory_order_relaxed);
 
                     if (region->IsCompletelyFree()) {
-                        // A completely empty region exits the class-local path and enters
-                        // the global classless empty cache.
-                        PushEmptySweptRegion(region);
                         sweepStats_.emptiedRegions.fetch_add(1, std::memory_order_relaxed);
-                        continue;
+                        if (msRegionManager_->UseTailDirectReleaseValidation()) {
+                            HandleEmptyRegionForValidation(region);
+                            continue;
+                        }
+                        if (lazyEmptyCacheInsertions < GetLazyEmptyCacheRefillLimit()) {
+                            // Mutator contributes a bounded amount of empty-cache refill.
+                            PushEmptySweptRegion(region);
+                            lazyEmptyCacheInsertions++;
+                            continue;
+                        }
+                        sweptRegion = RebindEmptyRegionForClass(region);
+                        break;
                     }
                     sweepStats_.retainedRegions.fetch_add(1, std::memory_order_relaxed);
                     region->regionType = MSRegionType::MS_REGION_PARTIAL;
@@ -151,7 +250,7 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
         } // end double-check else
     } // end skipLazySweep check
 
-    // ---- Priority 4: fullUnswept — sweep, may produce free slots ----
+    // ---- Priority 3: fullUnswept — sweep, may produce free slots ----
     if (!skipLazySweep_.load(std::memory_order_acquire)) {
         activeLazySweepCount_.fetch_add(1, std::memory_order_relaxed);
         if (skipLazySweep_.load(std::memory_order_acquire)) {
@@ -176,9 +275,18 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
                     sweepStats_.sweptFreedBytes.fetch_add(freedBytes, std::memory_order_relaxed);
 
                     if (region->IsCompletelyFree()) {
-                        PushEmptySweptRegion(region);
                         sweepStats_.emptiedRegions.fetch_add(1, std::memory_order_relaxed);
-                        continue;
+                        if (msRegionManager_->UseTailDirectReleaseValidation()) {
+                            HandleEmptyRegionForValidation(region);
+                            continue;
+                        }
+                        if (lazyEmptyCacheInsertions < GetLazyEmptyCacheRefillLimit()) {
+                            PushEmptySweptRegion(region);
+                            lazyEmptyCacheInsertions++;
+                            continue;
+                        }
+                        sweptRegion = RebindEmptyRegionForClass(region);
+                        break;
                     }
                     sweepStats_.retainedRegions.fetch_add(1, std::memory_order_relaxed);
                     if (region->HasFreeSpace()) {
@@ -205,6 +313,15 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
             }
         } // end double-check else
     } // end skipLazySweep check
+
+    // ---- Priority 4: global empty cache — classless empty region shell ----
+    {
+        MSRegionInfo* region = TakeEmptySweptRegion(cls);
+        if (region != nullptr) {
+            region->SetSweepGen(sg);
+            return region;
+        }
+    }
 
     // ---- Priority 5: no cached Regions available, caller should GetFreshRegion ----
     return nullptr;
@@ -297,6 +414,10 @@ void CentralRegionPool::ReturnFullRegion(MSRegionInfo* region, uint8_t cls)
 
 void CentralRegionPool::ReturnEmptyRegion(MSRegionInfo* region)
 {
+    if (msRegionManager_->UseTailDirectReleaseValidation()) {
+        HandleEmptyRegionForValidation(region);
+        return;
+    }
     PushEmptySweptRegion(region);
 }
 
@@ -318,6 +439,11 @@ void CentralRegionPool::ReleaseRegionInternal(MSRegionInfo* region)
     msRegionManager_->ReclaimRegion(region);
 }
 
+void CentralRegionPool::HandleEmptyRegionForValidation(MSRegionInfo* region)
+{
+    ReleaseRegionInternal(region);
+}
+
 void CentralRegionPool::PushEmptySweptRegion(MSRegionInfo* region)
 {
     CHECK_DETAIL(region != nullptr, "PushEmptySweptRegion with null region");
@@ -332,13 +458,16 @@ void CentralRegionPool::PushEmptySweptRegion(MSRegionInfo* region)
     size_t highWatermark = GetEmptyCacheHighWatermarkRegions();
     bool crossedHighWatermark = previousCount < highWatermark && (previousCount + 1) >= highWatermark;
     if (crossedHighWatermark) {
-        backgroundScavengeActive_.store(true, std::memory_order_relaxed);
+        msRegionManager_->MaybeNotifyReclaim();
     }
-    MaybeNotifyScavengerCrossing(crossedHighWatermark);
 }
 
 MSRegionInfo* CentralRegionPool::TakeEmptySweptRegion(uint8_t cls)
 {
+    if (msRegionManager_->UseTailDirectReleaseValidation()) {
+        return nullptr;
+    }
+
     MSRegionInfo* region = nullptr;
     {
         std::lock_guard<std::mutex> lg(emptySweptLock_);
@@ -367,35 +496,105 @@ MSRegionInfo* CentralRegionPool::TakeEmptySweptRegion(uint8_t cls)
 
 size_t CentralRegionPool::GetEmptyCacheLowWatermarkRegions() const
 {
-    size_t low = std::max(GetAllocBufferCount() * 2, EMPTY_CACHE_LOW_FLOOR_REGIONS);
-    return std::min(low, EMPTY_CACHE_LOW_CAP_REGIONS);
+    size_t low = std::max(GetAllocBufferCount() * GetEmptyCacheLowPerBuffer(), GetEmptyCacheLowFloorRegions());
+    return std::min(low, GetEmptyCacheLowCapRegions());
 }
 
 size_t CentralRegionPool::GetEmptyCacheHighWatermarkRegions() const
 {
-    return GetEmptyCacheLowWatermarkRegions() * 2;
+    return GetEmptyCacheLowWatermarkRegions() * GetEmptyCacheHighFactor();
 }
 
-bool CentralRegionPool::UpdateBackgroundScavengeState() const
+size_t CentralRegionPool::GetTrueLiveSlackTargetBytes() const
 {
-    size_t emptyCount = GetEmptySweptRegionCount();
-    size_t lowWatermark = GetEmptyCacheLowWatermarkRegions();
-    size_t highWatermark = GetEmptyCacheHighWatermarkRegions();
-    bool active = backgroundScavengeActive_.load(std::memory_order_relaxed);
+    const GCStats& gcStats = Heap::GetHeap().GetCollector().GetGCStats();
+    size_t targetBytes = gcStats.GetThreshold();
+    if (gcStats.lastTrueLiveBytes == 0 || targetBytes == 0) {
+        return 0;
+    }
+    return std::max(targetBytes, gcStats.lastTrueLiveBytes);
+}
 
-    if (emptyCount >= highWatermark) {
-        active = true;
-    } else if (emptyCount <= lowWatermark) {
-        active = false;
+bool CentralRegionPool::ShouldScavengeForTrueLiveSlack(size_t committedBytes, size_t targetBytes) const
+{
+    return targetBytes != 0 && committedBytes > targetBytes;
+}
+
+bool CentralRegionPool::ShouldPressureSweepForTrueLiveSlack(size_t committedBytes, size_t targetBytes,
+                                                            size_t emptyCount) const
+{
+    return emptyCount == 0 && GetTotalUnsweptCount() > 0 &&
+           ShouldScavengeForTrueLiveSlack(committedBytes, targetBytes);
+}
+
+CentralRegionPool::BackgroundScavengeState CentralRegionPool::CollectBackgroundScavengeState() const
+{
+    BackgroundScavengeState state;
+    state.emptyCount = GetEmptySweptRegionCount();
+    state.lowWatermark = GetEmptyCacheLowWatermarkRegions();
+    state.highWatermark = GetEmptyCacheHighWatermarkRegions();
+    state.committedBytes = GetTotalMSRegionBytes();
+    state.targetBytes = GetTrueLiveSlackTargetBytes();
+    state.trueLiveSlackHigh = ShouldScavengeForTrueLiveSlack(state.committedBytes, state.targetBytes);
+    state.shouldScavenge = (state.trueLiveSlackHigh && state.emptyCount > 0) ||
+                           (state.emptyCount >= state.highWatermark);
+    return state;
+}
+
+size_t CentralRegionPool::HandleBackgroundScavenge(bool releaseAll)
+{
+    BackgroundScavengeState state = CollectBackgroundScavengeState();
+    size_t unsweptCount = GetTotalUnsweptCount();
+    size_t largeCount = GetLargeRegionCount();
+    size_t largeSpanCount = GetLargeRegionSpanCount();
+    size_t tlActiveRegionCount = CountTLActiveRegions();
+    size_t releasedTreeBytes = msRegionManager_->GetReleasedTreeBytes();
+    uint32_t releasedTreeNodes = msRegionManager_->GetReleasedTreeNodeCount();
+    uint32_t releasedTreeMaxBlock = msRegionManager_->GetReleasedTreeMaxBlock();
+
+    msRegionManager_->MaybeNotifySweep(this);
+
+    if (!releaseAll && !state.shouldScavenge) {
+        return 0;
+    }
+    if (state.emptyCount <= state.lowWatermark && !state.trueLiveSlackHigh) {
+        return 0;
     }
 
-    backgroundScavengeActive_.store(active, std::memory_order_relaxed);
-    return active;
-}
+    uint64_t deadlineUs = TimeUtil::MicroSeconds() + GetEmptyScavengeMaxTimeUs();
+    size_t maxRegions = releaseAll ? state.emptyCount : GetEmptyScavengeMaxRegionsPerSlice();
+    size_t releasedRegions = 0;
+    size_t releasedBytes = 0;
 
-bool CentralRegionPool::ShouldContinueBackgroundScavenge() const
-{
-    return UpdateBackgroundScavengeState();
+    while ((GetEmptySweptRegionCount() > state.lowWatermark ||
+            (!releaseAll && GetEmptySweptRegionCount() > 0 &&
+             ShouldScavengeForTrueLiveSlack(GetTotalMSRegionBytes(), state.targetBytes))) &&
+           releasedRegions < maxRegions &&
+           (releaseAll || TimeUtil::MicroSeconds() < deadlineUs)) {
+        MSRegionInfo* region = nullptr;
+        {
+            std::lock_guard<std::mutex> lg(emptySweptLock_);
+            region = emptySweptCache_.TakeHead();
+            if (region == nullptr) {
+                break;
+            }
+            emptySweptRegionCount_.fetch_sub(1, std::memory_order_relaxed);
+            emptySweptBytes_.fetch_sub(MS_REGION_SIZE, std::memory_order_relaxed);
+        }
+
+        msRegionManager_->ReclaimEmptyRegionToReleased(region);
+        totalMSRegionBytes_.fetch_sub(MS_REGION_SIZE, std::memory_order_relaxed);
+        releasedRegions++;
+        releasedBytes += MS_REGION_SIZE;
+    }
+
+    if (releasedRegions > 0) {
+        VLOG(REPORT,
+             "[MS-GC] empty-cache scavenge: released=%zu regions (%s B), emptyCache=%zu->%zu regions, low=%zu",
+             releasedRegions, Pretty(releasedBytes).Str(),
+             state.emptyCount, GetEmptySweptRegionCount(), state.lowWatermark);
+    }
+    return releasedBytes;
 }
 
 bool CentralRegionPool::IsEmptyCacheLow() const
@@ -439,17 +638,22 @@ bool CentralRegionPool::BackgroundSweep()
 
     // Pressure detection: if any size class has low ready count but unswept backlog,
     // use larger budget to replenish CentralPool supply faster.
-    bool underPressure = false;
-    for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
-        BucketPressure p = GetBucketPressure(cls);
-        if (p.ReadyCount() < BG_SWEEP_PRESSURE_READY_THRESHOLD && p.UnsweptCount() > 0) {
-            underPressure = true;
-            break;
+    size_t emptyCount = GetEmptySweptRegionCount();
+    size_t committedBytes = GetTotalMSRegionBytes();
+    size_t targetBytes = GetTrueLiveSlackTargetBytes();
+    bool underPressure = ShouldPressureSweepForTrueLiveSlack(committedBytes, targetBytes, emptyCount);
+    if (!underPressure) {
+        for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
+            BucketPressure p = GetBucketPressure(cls);
+            if (p.ReadyCount() < GetBgSweepPressureReadyThreshold() && p.UnsweptCount() > 0) {
+                underPressure = true;
+                break;
+            }
         }
     }
 
-    size_t maxRegions = underPressure ? BG_SWEEP_PRESSURE_REGIONS_PER_SLICE : BG_SWEEP_MAX_REGIONS_PER_SLICE;
-    uint64_t deadlineUs = t0 + (underPressure ? BG_SWEEP_PRESSURE_TIME_US : BG_SWEEP_MAX_TIME_US);
+    size_t maxRegions = underPressure ? GetBgSweepPressureRegionsPerSlice() : GetBgSweepMaxRegionsPerSlice();
+    uint64_t deadlineUs = t0 + (underPressure ? GetBgSweepPressureTimeUs() : GetBgSweepMaxTimeUs());
     size_t sweptInSlice = 0;
     bool pendingWork = false;
 
@@ -491,60 +695,12 @@ bool CentralRegionPool::BackgroundSweep()
 
     if (!pendingWork && !stopSweepRequested_.load(std::memory_order_acquire)) {
         sweepDone_.store(true, std::memory_order_release);
+        if (GetTotalUnsweptCount() == 0) {
+            msRegionManager_->MaybeNotifyMark(MSRegionManager::HeuTriggerKind::BG_SWEEP_EXHAUSTED, this);
+        }
     }
     bgSweepRunning_.store(false, std::memory_order_release);
     return pendingWork;
-}
-
-size_t CentralRegionPool::ScavengeEmptyRegionsToReleased(bool releaseAll)
-{
-    size_t emptyCountBefore = GetEmptySweptRegionCount();
-    size_t lowWatermark = releaseAll ? 0 : GetEmptyCacheLowWatermarkRegions();
-    if (!releaseAll && !UpdateBackgroundScavengeState()) {
-        return 0;
-    }
-    if (emptyCountBefore <= lowWatermark) {
-        if (!releaseAll) {
-            backgroundScavengeActive_.store(false, std::memory_order_relaxed);
-        }
-        return 0;
-    }
-
-    uint64_t deadlineUs = TimeUtil::MicroSeconds() + EMPTY_SCAVENGE_MAX_TIME_US;
-    size_t maxRegions = releaseAll ? emptyCountBefore : EMPTY_SCAVENGE_MAX_REGIONS_PER_SLICE;
-    size_t releasedRegions = 0;
-    size_t releasedBytes = 0;
-
-    while (GetEmptySweptRegionCount() > lowWatermark &&
-           releasedRegions < maxRegions &&
-           (releaseAll || TimeUtil::MicroSeconds() < deadlineUs)) {
-        MSRegionInfo* region = nullptr;
-        {
-            std::lock_guard<std::mutex> lg(emptySweptLock_);
-            region = emptySweptCache_.TakeHead();
-            if (region == nullptr) {
-                break;
-            }
-            emptySweptRegionCount_.fetch_sub(1, std::memory_order_relaxed);
-            emptySweptBytes_.fetch_sub(MS_REGION_SIZE, std::memory_order_relaxed);
-        }
-
-        msRegionManager_->ReclaimEmptyRegionToReleased(region);
-        totalMSRegionBytes_.fetch_sub(MS_REGION_SIZE, std::memory_order_relaxed);
-        releasedRegions++;
-        releasedBytes += MS_REGION_SIZE;
-    }
-
-    if (releasedRegions > 0) {
-        VLOG(REPORT,
-             "[MS-GC] empty-cache scavenge: released=%zu regions (%s B), emptyCache=%zu->%zu regions, low=%zu",
-             releasedRegions, Pretty(releasedBytes).Str(),
-             emptyCountBefore, GetEmptySweptRegionCount(), lowWatermark);
-    }
-    if (!releaseAll) {
-        UpdateBackgroundScavengeState();
-    }
-    return releasedBytes;
 }
 
 bool CentralRegionPool::SweepUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint32_t sg,
@@ -581,8 +737,12 @@ bool CentralRegionPool::SweepUnsweptList(SizeClassBucket& bucket, MSRegionList& 
             if (region->IsCompletelyFree()) {
                 // Completely empty regions leave the class-local supply and
                 // become classless empty-cache entries.
-                PushEmptySweptRegion(region);
                 sweepStats_.emptiedRegions.fetch_add(1, std::memory_order_relaxed);
+                if (msRegionManager_->UseTailDirectReleaseValidation()) {
+                    HandleEmptyRegionForValidation(region);
+                } else {
+                    PushEmptySweptRegion(region);
+                }
             } else if (region->HasFreeSpace()) {
                 sweepStats_.retainedRegions.fetch_add(1, std::memory_order_relaxed);
                 region->regionType = MSRegionType::MS_REGION_PARTIAL;
