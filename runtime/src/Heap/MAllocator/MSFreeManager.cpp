@@ -9,8 +9,15 @@
 #include "Heap/MAllocator/MSFreeManager.h"
 
 #include <utility>
+#ifndef _WIN64
+#include <sys/mman.h>
+#else
+#include <windows.h>
+#endif
 
+#include "Base/MemUtils.h"
 #include "Base/Log.h"
+#include "Common/ScopedObjectAccess.h"
 
 namespace MapleRuntime {
 
@@ -18,6 +25,9 @@ namespace {
 
 class CartesianTreeBackend final : public FreeManager::Backend {
 public:
+    using UnitIndex = FreeManager::UnitIndex;
+    using UnitCount = FreeManager::UnitCount;
+
     void Initialize(UnitCount maxUnitCount) override
     {
         tree_.Init(maxUnitCount);
@@ -80,9 +90,6 @@ public:
     }
 
 private:
-    using UnitIndex = FreeManager::UnitIndex;
-    using UnitCount = FreeManager::UnitCount;
-
     mutable CartesianTree tree_;
 };
 
@@ -104,13 +111,27 @@ FreeManager::~FreeManager()
     }
 }
 
-void FreeManager::Initialize(UnitCount maxUnitCount, size_t unitSize, size_t unitsPerRegion)
+void FreeManager::Initialize(UnitCount maxUnitCount, size_t unitSize, size_t unitsPerRegion,
+                             RegionCount committedRegionCount, RegionCount maxVirtualRegionCount,
+                             uintptr_t heapStart, uintptr_t committedEnd, uintptr_t maxHeapEnd,
+                             size_t segmentSize)
 {
     CHECK_DETAIL(unitSize != 0, "[MS-GC] FreeManager unitSize must not be zero");
     CHECK_DETAIL(unitsPerRegion != 0, "[MS-GC] FreeManager unitsPerRegion must not be zero");
+    CHECK_DETAIL(heapStart <= committedEnd, "[MS-GC] FreeManager committed end is below heap start");
+    CHECK_DETAIL(committedEnd <= maxHeapEnd, "[MS-GC] FreeManager max heap end is below committed end");
 
     unitSize_ = unitSize;
     unitsPerRegion_ = unitsPerRegion;
+    heapStart_ = heapStart;
+    committedEnd_ = committedEnd;
+    maxHeapEnd_ = maxHeapEnd;
+    committedRegionCount_ = static_cast<size_t>(committedRegionCount);
+    committedUnitCount_ = static_cast<size_t>(RegionCountToUnitCount(committedRegionCount));
+    maxVirtualRegionCount_ = static_cast<size_t>(maxVirtualRegionCount);
+    maxVirtualUnitCount_ = static_cast<size_t>(maxUnitCount);
+    segmentSize_ = segmentSize;
+    inactiveZone_.store(heapStart, std::memory_order_relaxed);
     GetBackend().Initialize(maxUnitCount);
 }
 
@@ -146,6 +167,21 @@ bool FreeManager::TakeTrailingRegions(RegionIndex targetEnd, RegionIndex& idx, R
     return true;
 }
 
+bool FreeManager::TryIncreaseInactiveZone(RegionCount num, RegionIndex& idx)
+{
+    size_t byteCount = static_cast<size_t>(num) * GetRegionSizeBytes();
+    uintptr_t oldAddr = inactiveZone_.load(std::memory_order_relaxed);
+    do {
+        if (oldAddr + byteCount > committedEnd_) {
+            return false;
+        }
+    } while (!inactiveZone_.compare_exchange_weak(oldAddr, oldAddr + byteCount,
+                                                  std::memory_order_relaxed));
+
+    idx = AddrToRegionIdx(oldAddr);
+    return true;
+}
+
 void FreeManager::InsertRegions(RegionIndex idx, RegionCount num)
 {
     std::lock_guard<std::mutex> lg(mutex_);
@@ -158,10 +194,166 @@ void FreeManager::InsertRegions(RegionIndex idx, RegionCount num)
     }
 }
 
+void FreeManager::ReleaseUnits(UnitIndex idx, UnitCount num) const
+{
+    uintptr_t addr = heapStart_ + static_cast<uintptr_t>(idx) * unitSize_;
+    size_t size = static_cast<size_t>(num) * unitSize_;
+    DLOG(REGION, "[MS-GC] FreeManager::ReleaseUnits: idx=%u, num=%u, addr=0x%zx, size=%zu",
+         idx, num, addr, size);
+#if defined(_WIN64)
+    CHECK_E(UNLIKELY(!VirtualFree(reinterpret_cast<void*>(addr), size, MEM_DECOMMIT)),
+            "VirtualFree failed in FreeManager::ReleaseUnits");
+#elif defined(__APPLE__)
+    MemorySet(addr, size, 0, size);
+    void* ret = mmap(reinterpret_cast<void*>(addr), size, PROT_READ | PROT_WRITE,
+                     MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+    if (ret == MAP_FAILED) {
+        LOG(RTLOG_ERROR, "[MS-GC] FreeManager::ReleaseUnits mmap fixed failed");
+    }
+#else
+    (void)madvise(reinterpret_cast<void*>(addr), size, MADV_DONTNEED);
+#endif
+}
+
+void FreeManager::ReclaimRegionsReleased(RegionIndex idx, RegionCount num)
+{
+    ReleaseUnits(RegionToUnitIdx(idx), RegionCountToUnitCount(num));
+    ScopedEnterSaferegion enterSaferegion(true);
+    InsertRegions(idx, num);
+}
+
+bool FreeManager::GrowOneSegment(HeapRangeHandler& handler)
+{
+    std::lock_guard<std::mutex> lg(growMutex_);
+
+    if (committedEnd_ >= maxHeapEnd_) {
+        return false;
+    }
+
+    uintptr_t oldCommittedEnd = committedEnd_;
+    size_t growBytes = segmentSize_;
+    if (oldCommittedEnd + growBytes > maxHeapEnd_) {
+        growBytes = maxHeapEnd_ - oldCommittedEnd;
+    }
+
+    RegionCount growRegions = static_cast<RegionCount>(growBytes / GetRegionSizeBytes());
+    UnitCount growUnits = static_cast<UnitCount>(growBytes / unitSize_);
+    RegionIndex oldRegionCount = static_cast<RegionIndex>(committedRegionCount_);
+
+    handler.InitializeFreshRegions(oldRegionCount, growRegions);
+
+    committedRegionCount_ += static_cast<size_t>(growRegions);
+    committedUnitCount_ += static_cast<size_t>(growUnits);
+    committedEnd_ = oldCommittedEnd + growBytes;
+
+    handler.OnCommittedHeapExtended(committedEnd_);
+    heapGrowCount_++;
+
+    VLOG(REPORT, "[MS-GC] GrowOneSegment: +%zuMB -> committedEnd=0x%zx, "
+         "committedRegions=%zu/%zu, committedUnits=%zu/%zu",
+         growBytes / (1024 * 1024), committedEnd_,
+         committedRegionCount_, maxVirtualRegionCount_,
+         committedUnitCount_, maxVirtualUnitCount_);
+
+    return true;
+}
+
+size_t FreeManager::RewindInactiveZoneUsingReleasedTail()
+{
+    size_t reclaimedRegions = 0;
+    while (true) {
+        uintptr_t tail = inactiveZone_.load(std::memory_order_relaxed);
+        if (tail <= heapStart_) {
+            break;
+        }
+
+        RegionIndex targetEnd = AddrToRegionIdx(tail);
+        RegionIndex idx = 0;
+        RegionCount num = 0;
+        if (!TakeTrailingRegions(targetEnd, idx, num)) {
+            break;
+        }
+
+        uintptr_t newTail = RegionIdxToAddr(idx);
+        if (!inactiveZone_.compare_exchange_strong(tail, newTail, std::memory_order_relaxed)) {
+            ScopedEnterSaferegion enterSaferegion(true);
+            InsertRegions(idx, num);
+            break;
+        }
+        reclaimedRegions += num;
+    }
+    return reclaimedRegions;
+}
+
+void FreeManager::ShrinkHeap()
+{
+    std::lock_guard<std::mutex> lg(growMutex_);
+
+    uintptr_t originalIz = inactiveZone_.load(std::memory_order_relaxed);
+    size_t gap = (committedEnd_ > originalIz) ? (committedEnd_ - originalIz) : 0;
+    uint32_t releasedRegions = static_cast<uint32_t>(GetReleasedUnitCount() / unitsPerRegion_);
+    VLOG(REPORT, "[MS-GC] ShrinkHeap enter: inactiveZone=0x%zx, committedEnd=0x%zx, "
+         "gap=%zuKB, released=%u regions, segmentSize=%zuMB",
+         originalIz, committedEnd_, gap / 1024, releasedRegions,
+         segmentSize_ / (1024 * 1024));
+
+    size_t reclaimedRegions = RewindInactiveZoneUsingReleasedTail();
+
+    if (reclaimedRegions > 0) {
+        uintptr_t newIz = inactiveZone_.load(std::memory_order_relaxed);
+        VLOG(REPORT, "[MS-GC] ShrinkHeap phase1: reclaimed %zu trailing released regions, "
+             "inactiveZone 0x%zx -> 0x%zx", reclaimedRegions, originalIz, newIz);
+    }
+
+    uintptr_t iz = inactiveZone_.load(std::memory_order_relaxed);
+    if (committedEnd_ <= iz) {
+        return;
+    }
+
+    size_t shrinkGap = committedEnd_ - iz;
+    size_t shrinkSegments = shrinkGap / segmentSize_;
+    if (shrinkSegments == 0) {
+        return;
+    }
+
+    size_t shrinkBytes = shrinkSegments * segmentSize_;
+    uintptr_t newCommitted = committedEnd_ - shrinkBytes;
+
+    if (newCommitted < heapStart_ + segmentSize_) {
+        newCommitted = heapStart_ + segmentSize_;
+        if (newCommitted >= committedEnd_) {
+            return;
+        }
+        shrinkBytes = committedEnd_ - newCommitted;
+    }
+
+    uintptr_t oldCommitted = committedEnd_;
+    committedEnd_ = newCommitted;
+    committedRegionCount_ = (newCommitted - heapStart_) / GetRegionSizeBytes();
+    committedUnitCount_ = (newCommitted - heapStart_) / unitSize_;
+
+    VLOG(REPORT, "[MS-GC] ShrinkHeap phase2: -%zuMB -> committedEnd=0x%zx (was 0x%zx), "
+         "committedRegions=%zu, committedUnits=%zu, inactiveZone=0x%zx",
+         shrinkBytes / (1024 * 1024), committedEnd_, oldCommitted,
+         committedRegionCount_, committedUnitCount_, iz);
+}
+
 FreeManager::UnitCount FreeManager::GetReleasedUnitCount() const
 {
     std::lock_guard<std::mutex> lg(mutex_);
     return GetBackend().GetTotalCount();
+}
+
+FreeManager::UnitCount FreeManager::GetFreeUnitCount() const
+{
+    CheckAlignmentConfig();
+    UnitCount releasedUnits = GetReleasedUnitCount();
+    UnitCount inactiveUnits = 0;
+    uintptr_t inactiveZone = inactiveZone_.load(std::memory_order_relaxed);
+    if (committedEnd_ > inactiveZone) {
+        inactiveUnits = static_cast<UnitCount>((committedEnd_ - inactiveZone) / unitSize_);
+    }
+    return releasedUnits + inactiveUnits;
 }
 
 size_t FreeManager::GetReleasedBytes() const
@@ -255,6 +447,29 @@ void FreeManager::CheckAlignmentConfig() const
 {
     CHECK_DETAIL(unitSize_ != 0, "[MS-GC] FreeManager unitSize must not be zero");
     CHECK_DETAIL(unitsPerRegion_ != 0, "[MS-GC] FreeManager unitsPerRegion must not be zero");
+}
+
+size_t FreeManager::GetRegionSizeBytes() const
+{
+    CheckAlignmentConfig();
+    return unitSize_ * unitsPerRegion_;
+}
+
+FreeManager::RegionIndex FreeManager::AddrToRegionIdx(uintptr_t addr) const
+{
+    CHECK_DETAIL(addr >= heapStart_, "[MS-GC] address is below heap start: addr=0x%zx, heapStart=0x%zx",
+                 addr, heapStart_);
+    uintptr_t delta = addr - heapStart_;
+    size_t regionSize = GetRegionSizeBytes();
+    CHECK_DETAIL(delta % regionSize == 0,
+                 "[MS-GC] address is not region aligned: addr=0x%zx, heapStart=0x%zx, regionSize=%zu",
+                 addr, heapStart_, regionSize);
+    return static_cast<RegionIndex>(delta / regionSize);
+}
+
+uintptr_t FreeManager::RegionIdxToAddr(RegionIndex regionIdx) const
+{
+    return heapStart_ + static_cast<uintptr_t>(regionIdx) * GetRegionSizeBytes();
 }
 
 } // namespace MapleRuntime

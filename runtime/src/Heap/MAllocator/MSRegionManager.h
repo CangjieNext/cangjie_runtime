@@ -32,19 +32,19 @@ class CentralRegionPool;
 //
 // At initialization a large virtual address space is reserved (e.g. 4GB) via
 // mmap PROT_READ|PROT_WRITE (physical pages are lazily committed by the OS).
-// Only `committedEnd_` bytes of heap are considered usable.  When the
-// inactiveZone bump allocator reaches committedEnd_, GrowOneSegment()
-// extends it by segmentSize_ bytes and initializes the corresponding
-// MSRegionInfo entries.
+// Only the currently committed heap range is considered usable. When the
+// inactive-zone bump allocator reaches the committed end, FreeManager drives
+// heap growth and asks MSRegionManager to initialize the corresponding
+// MSRegionInfo entries for the newly committed range.
 //
 // MSRegionInfo[] is placed at the mmap front (forward array, not mirror/inverted).
 // Each MSRegionInfo is 64 bytes, exactly one cache line.
 // MetadataSize = ceil(regionCount * 64, PAGE_SIZE).
 //
-// FreeManager wraps the unit-based free-tree backend behind a region-aligned
-// interface so MSGC callers still operate in MS_REGION_SIZE chunks.
+// CartesianTree operates in REGION indexes (each Index = one MS_REGION_SIZE region).
+// FreeManager owns released-span page return; MSRegionManager keeps only ClearUnits locally.
 //
-class MSRegionManager {
+class MSRegionManager : private FreeManager::HeapRangeHandler {
     using UnitIndex = FreeManager::UnitIndex;
     using UnitCount = FreeManager::UnitCount;
     using RegionIndex = FreeManager::RegionIndex;
@@ -55,18 +55,18 @@ class MSRegionManager {
     };
 
 public:
+    enum class HeuTriggerKind : uint8_t {
+        SMALL_ALLOC,
+        LARGE_ALLOC,
+        BG_SWEEP_EXHAUSTED,
+    };
+
     struct HeapRssBreakdown {
         size_t regionInfoCount = 0;
         size_t regionInfoBytes = 0;
         size_t regionBitmapBytes = 0;
         size_t releasedTreeMetadataBytes = 0;
         size_t releasedTreeNodeBytes = 0;
-    };
-
-    enum class HeuTriggerKind : uint8_t {
-        SMALL_ALLOC,
-        LARGE_ALLOC,
-        BG_SWEEP_EXHAUSTED,
     };
 
 
@@ -125,13 +125,12 @@ public:
     size_t ReleaseGarbageRegions(size_t targetCachedSize);
 
     // Try to grow the committed heap by one segment.
-    // Called when inactiveZone reaches committedEnd_.
+    // The heap-top state is managed by FreeManager; this method delegates to it.
     // Returns true if growth succeeded, false if already at max.
     bool GrowOneSegment();
 
-    // Shrink the committed heap by reclaiming trailing released units
-    // contiguous with inactiveZone_, then reducing committedEnd_ by whole segments.
-    // Called after scavenging empty-cache / releasedTree in the gc-helper thread.
+    // Shrink the committed heap after scavenging empty-cache / releasedTree.
+    // The actual trailing-tail reclaim and committed-end update are managed by FreeManager.
     void ShrinkHeap();
 
     // O(1) address → MSRegionInfo lookup (region index = (addr - heapStart) / MS_REGION_SIZE).
@@ -142,31 +141,12 @@ public:
     }
 
     uintptr_t GetHeapStart() const { return heapStart_; }
-    uintptr_t GetHeapEnd() const { return committedEnd_; }
-    uintptr_t GetMaxHeapEnd() const { return maxHeapEnd_; }
-    uintptr_t GetInactiveZone() const { return inactiveZone_.load(std::memory_order_relaxed); }
-    uintptr_t GetTailAllocCursor() const { return tailAllocCursor_.load(std::memory_order_relaxed); }
-    size_t GetMaxRegionCount() const { return committedRegionCount_; }
-    size_t GetMaxVirtualRegionCount() const { return maxVirtualRegionCount_; }
-    size_t GetCurrentCapacityBytes() const
-    {
-        if (tailDirectReleaseValidation_) {
-            uintptr_t tailCursor = tailAllocCursor_.load(std::memory_order_relaxed);
-            return (committedEnd_ > tailCursor) ? (committedEnd_ - tailCursor) : 0;
-        }
-        uintptr_t inactive = inactiveZone_.load(std::memory_order_relaxed);
-        return (inactive > heapStart_) ? (inactive - heapStart_) : 0;
-    }
-    size_t GetVirginRegionCount() const
-    {
-        if (tailDirectReleaseValidation_) {
-            uintptr_t tailCursor = tailAllocCursor_.load(std::memory_order_relaxed);
-            return (tailCursor > heapStart_) ? ((tailCursor - heapStart_) / MS_REGION_SIZE) : 0;
-        }
-        uintptr_t inactive = inactiveZone_.load(std::memory_order_relaxed);
-        return (committedEnd_ > inactive) ? ((committedEnd_ - inactive) / MS_REGION_SIZE) : 0;
-    }
-    bool UseTailDirectReleaseValidation() const { return tailDirectReleaseValidation_; }
+    uintptr_t GetHeapEnd() const { return freeManager_.GetCommittedEnd(); }
+    uintptr_t GetMaxHeapEnd() const { return freeManager_.GetMaxHeapEnd(); }
+    size_t GetCurrentCapacityBytes() const { return freeManager_.GetCurrentCapacityBytes(); }
+    uintptr_t GetInactiveZone() const { return freeManager_.GetInactiveZone(); }
+    size_t GetMaxRegionCount() const { return freeManager_.GetCommittedRegionCount(); }
+    size_t GetMaxVirtualRegionCount() const { return freeManager_.GetMaxVirtualRegionCount(); }
 
     // Get the base pointer to the MSRegionInfo array (at mmap front).
     MSRegionInfo* GetArrayBase() const { return array_; }
@@ -184,39 +164,28 @@ public:
     }
 
     // Total unit count for the committed heap.
-    size_t GetMaxUnitCount() const { return committedUnitCount_; }
+    size_t GetMaxUnitCount() const { return freeManager_.GetCommittedUnitCount(); }
 
     // Total unit count for the full virtual reservation.
-    size_t GetMaxVirtualUnitCount() const { return maxVirtualUnitCount_; }
+    size_t GetMaxVirtualUnitCount() const { return freeManager_.GetMaxVirtualUnitCount(); }
 
     // Free unit count across releasedTree + unallocated zone (within committed region).
     uint32_t GetFreeUnitCount() const
     {
-        if (tailDirectReleaseValidation_) {
-            uintptr_t tailCursor = tailAllocCursor_.load(std::memory_order_relaxed);
-            return (tailCursor > heapStart_) ? static_cast<uint32_t>((tailCursor - heapStart_) / unitSize_) : 0;
-        }
-        uint32_t releasedUnits = releasedFreeManager_.GetReleasedUnitCount();
-        uintptr_t committed = committedEnd_;
-        uintptr_t inactive = inactiveZone_.load(std::memory_order_relaxed);
-        uint32_t inactiveUnits = (committed > inactive)
-            ? static_cast<uint32_t>((committed - inactive) / unitSize_)
-            : 0;
-        return releasedUnits + inactiveUnits;
+        return static_cast<uint32_t>(freeManager_.GetFreeUnitCount());
     }
 
     size_t GetReleasedTreeBytes() const
     {
-        return releasedFreeManager_.GetReleasedBytes();
+        return freeManager_.GetReleasedBytes();
     }
 
     HeapRssBreakdown GetHeapRssBreakdown() const;
-    void DumpReleasedTreeSpans();
 
-    uint32_t GetReleasedTreeNodeCount() const { return releasedFreeManager_.GetNodeCount(); }
-    uint32_t GetReleasedTreeMaxBlock() const { return releasedFreeManager_.GetMaxBlockRegions(); }
+    uint32_t GetReleasedTreeNodeCount() const { return freeManager_.GetNodeCount(); }
+    uint32_t GetReleasedTreeMaxBlock() const { return freeManager_.GetMaxBlockRegions(); }
     size_t GetDirtyTreeBytes() const { return 0; } // stub: no dirty tree in current design
-    uint64_t GetHeapGrowCount() const { return heapGrowCount_; }
+    uint64_t GetHeapGrowCount() const { return freeManager_.GetHeapGrowCount(); }
 
     void DumpAndResetAllocClearStats();
 
@@ -236,18 +205,13 @@ public:
     void MaybeNotifyReclaim();
 
 private:
+    void InitializeFreshRegions(RegionIndex startIdx, RegionCount count) override;
+    void OnCommittedHeapExtended(uintptr_t newCommittedEnd) override;
+
     // Take contiguous regions from releasedTree or inactiveZone bump.
-    // FreeManager keeps released space region-aligned while allowing the backend
-    // implementation underneath to remain unit-based and replaceable.
+    // High-level orchestration stays in MSRegionManager; FreeManager only exposes
+    // the primitive heap-state operations used by this path.
     bool TakeRegions(RegionCount num, RegionIndex& idx, AllocSource* source = nullptr);
-    bool TakeTailRegionsForValidation(RegionCount num, RegionIndex& idx, AllocSource* source = nullptr);
-
-    // Reclaim regions to released tree (release physical pages first).
-    void ReclaimRegionsReleased(RegionIndex idx, RegionCount num);
-    void ReclaimRegionsDirectForValidation(RegionIndex idx, RegionCount num);
-
-    // Release physical pages at given unit range (platform-specific).
-    void ReleaseUnits(UnitIndex idx, UnitCount num) const;
 
     // Clear units (zero-fill) at given index/count.
     void ClearUnits(UnitIndex idx, UnitCount num) const;
@@ -265,46 +229,21 @@ private:
 
     UnitIndex RegionToUnitIdx(RegionIndex regIdx) const
     {
-        return releasedFreeManager_.RegionToUnitIdx(regIdx);
+        return static_cast<UnitIndex>(static_cast<size_t>(regIdx) * unitsPerMSRegion_);
     }
 
     UnitCount RegionCountToUnitCount(RegionCount regCount) const
     {
-        return releasedFreeManager_.RegionCountToUnitCount(regCount);
-    }
-
-    RegionIndex UnitToRegionIdx(UnitIndex unitIdx) const
-    {
-        return releasedFreeManager_.UnitToRegionIdx(unitIdx);
-    }
-
-    RegionCount UnitCountToRegionCount(UnitCount unitCount) const
-    {
-        return releasedFreeManager_.UnitCountToRegionCount(unitCount);
+        return static_cast<UnitCount>(static_cast<size_t>(regCount) * unitsPerMSRegion_);
     }
 
     MSRegionInfo* array_ = nullptr;         // MSRegionInfo array at mmap front
     uintptr_t heapStart_ = 0;              // First heap region address (immutable)
-    uintptr_t maxHeapEnd_ = 0;             // Virtual reservation upper bound (immutable)
-    uintptr_t committedEnd_ = 0;           // Current committed heap upper bound (grows)
-    size_t maxVirtualRegionCount_ = 0;     // Total MSRegionInfo entries (for max virtual)
-    size_t maxVirtualUnitCount_ = 0;       // Total unit count for max virtual heap
-    size_t committedRegionCount_ = 0;      // MSRegionInfo entries for committed heap
-    size_t committedUnitCount_ = 0;        // Unit count for committed heap
-    size_t segmentSize_ = 0;              // Growth segment size in bytes
     size_t unitSize_ = 0;                  // = UNIT_SIZE (system page size)
     size_t unitsPerMSRegion_ = 0;          // = MS_REGION_SIZE / UNIT_SIZE
 
-    // Heap watermark: everything below inactiveZone_ has been allocated at least once.
-    std::atomic<uintptr_t> inactiveZone_{0};
-    std::atomic<uintptr_t> tailAllocCursor_{0};
-    bool tailDirectReleaseValidation_ = false;
-
-    // Mutex for heap growth (serializes GrowOneSegment calls).
-    std::mutex growMutex_;
-
-    // Region-aligned adapter over a replaceable free-space backend.
-    FreeManager releasedFreeManager_;
+    // Unified released-span entry for MSGC heap management.
+    FreeManager freeManager_;
 
     // O6 observability: allocation-source hit counts and ClearUnits costs.
     std::atomic<uint64_t> allocFromReleasedCount_{0};
@@ -315,8 +254,6 @@ private:
     std::atomic<uint64_t> clearUnitsTimeNs_{0};
     std::atomic<uint64_t> statsWindowStartNs_{0};
     std::atomic<uint64_t> lastHeuRequestNs_{0};
-
-    uint64_t heapGrowCount_ = 0;  // Number of GrowOneSegment() calls
 };
 
 } // namespace MapleRuntime

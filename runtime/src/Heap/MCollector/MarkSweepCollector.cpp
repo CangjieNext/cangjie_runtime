@@ -1271,14 +1271,11 @@ void MarkSweepCollector::DumpRegionStatsMS()
     if (msRegionManager != nullptr) {
                      cycleStats_.activeRegionCount = activeRegionBytes / MS_REGION_SIZE;
                      cycleStats_.releasedTreeRegionCount = msRegionManager->GetReleasedTreeBytes() / MS_REGION_SIZE;
-                                         cycleStats_.releasedTreeNodeCount = msRegionManager->GetReleasedTreeNodeCount();
-                     cycleStats_.virginRegionCount = msRegionManager->GetVirginRegionCount();
+                     cycleStats_.virginRegionCount = (msRegionManager->GetHeapEnd() - msRegionManager->GetInactiveZone()) /
+                                                                                     MS_REGION_SIZE;
                      cycleStats_.committedRegionCount = msRegionManager->GetMaxRegionCount();
            VLOG(REPORT, "[MS-GC]   free-cache tree: releasedTree=%s B",
              Pretty(msRegionManager->GetReleasedTreeBytes()).Str());
-                     VLOG(REPORT, "[MS-GC]   free-cache tree nodes: releasedTree=%zu nodes",
-                         cycleStats_.releasedTreeNodeCount);
-                                         msRegionManager->DumpReleasedTreeSpans();
                      VLOG(REPORT,
                                 "[MS-GC]   region-accounting: active=%zu regions, releasedTree=%zu regions, virgin=%zu regions, "
                                 "committed=%zu regions",

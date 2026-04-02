@@ -9,16 +9,9 @@
 #include "Heap/MAllocator/MSRegionManager.h"
 
 #include <algorithm>
-#include <cstdlib>
 #include <cstring>
-#include <vector>
-#ifndef _WIN64
-#include <sys/mman.h>
-#endif
-#include "Base/CString.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
-#include "Base/MemUtils.h"
 #include "Base/TimeUtils.h"
 #include "AllocUtil.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
@@ -30,11 +23,6 @@
 
 namespace MapleRuntime {
 
-namespace {
-bool IsReleasedTreeSpanDumpEnabled();
-bool IsTailDirectReleaseValidationEnabled();
-}
-
 // External: system page size (defined in RegionManager.cpp).
 extern const size_t MRT_PAGE_SIZE;
 
@@ -42,6 +30,28 @@ MSRegionManager::~MSRegionManager()
 {
     // array_ points into the mmap region — no free needed.
     array_ = nullptr;
+}
+
+MSRegionManager::HeapRssBreakdown MSRegionManager::GetHeapRssBreakdown() const
+{
+    HeapRssBreakdown breakdown;
+    size_t committedRegionCount = freeManager_.GetCommittedRegionCount();
+    breakdown.regionInfoCount = committedRegionCount;
+    breakdown.regionInfoBytes = committedRegionCount * sizeof(MSRegionInfo);
+
+    for (size_t i = 0; i < committedRegionCount; ++i) {
+        const MSRegionInfo& region = array_[i];
+        if (region.allocBitmap == nullptr || region.totalSlotCount == 0) {
+            continue;
+        }
+
+        size_t bitmapWords = (region.totalSlotCount + 63) / 64;
+        breakdown.regionBitmapBytes += bitmapWords * sizeof(uint64_t) * 3;
+    }
+
+    breakdown.releasedTreeMetadataBytes = freeManager_.GetMetadataBytesInUse();
+    breakdown.releasedTreeNodeBytes = freeManager_.GetNodeBytesInUse();
+    return breakdown;
 }
 
 // ============================================================================
@@ -70,11 +80,7 @@ size_t MSRegionManager::GetHeapMemorySize(size_t heapSize)
 
 size_t MSRegionManager::ComputeMaxVirtualHeapSize(size_t heapSize)
 {
-    if (IsTailDirectReleaseValidationEnabled()) {
-        static constexpr size_t VALIDATION_HEAP_SIZE = 4ULL * 1024ULL * 1024ULL * 1024ULL;
-        return RoundUp<size_t>(std::max(heapSize, VALIDATION_HEAP_SIZE), MS_REGION_SIZE);
-    }
-    // Cap at 512GB virtual reservation.
+    // Cap at 4GB virtual reservation.
     static constexpr size_t MAX_VIRTUAL_HEAP = 512ULL * 1024 * 1024 * 1024;
     size_t maxVirtual = RoundUp<size_t>(heapSize, MS_REGION_SIZE);
     if (maxVirtual < MAX_VIRTUAL_HEAP) {
@@ -90,54 +96,6 @@ size_t MSRegionManager::GetVirtualReserveSize(size_t maxVirtualHeapSize)
     return metadataSize + heapAligned;
 }
 
-MSRegionManager::HeapRssBreakdown MSRegionManager::GetHeapRssBreakdown() const
-{
-    HeapRssBreakdown breakdown;
-    breakdown.regionInfoCount = committedRegionCount_;
-    breakdown.regionInfoBytes = committedRegionCount_ * sizeof(MSRegionInfo);
-    breakdown.releasedTreeMetadataBytes = releasedFreeManager_.GetMetadataBytesInUse();
-    breakdown.releasedTreeNodeBytes = releasedFreeManager_.GetNodeBytesInUse();
-
-    size_t bitmapBytes = 0;
-    for (size_t idx = 0; idx < committedRegionCount_; ++idx) {
-        const MSRegionInfo& info = array_[idx];
-        if (info.allocBitmap == nullptr || info.totalSlotCount == 0) {
-            continue;
-        }
-        size_t bitmapWords = (static_cast<size_t>(info.totalSlotCount) + 63) / 64;
-        bitmapBytes += bitmapWords * sizeof(uint64_t) * 3;
-    }
-    breakdown.regionBitmapBytes = bitmapBytes;
-    return breakdown;
-}
-
-void MSRegionManager::DumpReleasedTreeSpans()
-{
-    if (!IsReleasedTreeSpanDumpEnabled()) {
-        return;
-    }
-
-    std::vector<FreeManager::RegionSpan> spans;
-    releasedFreeManager_.CollectRegionSpans(spans);
-
-    std::sort(spans.begin(), spans.end(), [](const auto& lhs, const auto& rhs) {
-        return lhs.idx < rhs.idx;
-    });
-
-    VLOG(REPORT, "[MS-GC]   releasedTree spans begin: nodeCount=%zu", spans.size());
-    for (const auto& span : spans) {
-        uintptr_t start = RegionIdxToAddr(span.idx);
-        uintptr_t end = RegionIdxToAddr(span.idx + span.num);
-        VLOG(REPORT,
-             "[MS-GC]   releasedTree span: idx=%u regions=%u start=0x%zx end=0x%zx",
-             span.idx,
-             span.num,
-             start,
-             end);
-    }
-    VLOG(REPORT, "[MS-GC]   releasedTree spans end");
-}
-
 // ============================================================================
 // Initialize — virtual reservation + initial committed segment
 // ============================================================================
@@ -146,57 +104,73 @@ void MSRegionManager::Initialize(size_t heapSize, uintptr_t mmapBase, size_t max
 {
     unitSize_ = MRT_PAGE_SIZE;
     unitsPerMSRegion_ = MS_REGION_SIZE / unitSize_;
-    tailDirectReleaseValidation_ = IsTailDirectReleaseValidationEnabled();
 
     // --- Max virtual capacity (full mmap reservation) ---
     size_t maxMetadataSize = GetMetadataSize(maxVirtualHeapSize);
     size_t maxHeapAligned = RoundUp<size_t>(maxVirtualHeapSize, MS_REGION_SIZE);
-    maxVirtualRegionCount_ = maxHeapAligned / MS_REGION_SIZE;
-    maxVirtualUnitCount_ = maxHeapAligned / unitSize_;
+    size_t maxVirtualRegionCount = maxHeapAligned / MS_REGION_SIZE;
+    size_t maxVirtualUnitCount = maxHeapAligned / unitSize_;
 
     // --- Initial committed segment ---
     size_t committedHeapSize = RoundUp<size_t>(heapSize, MS_REGION_SIZE);
-    committedRegionCount_ = committedHeapSize / MS_REGION_SIZE;
-    committedUnitCount_ = committedHeapSize / unitSize_;
+    size_t committedRegionCount = committedHeapSize / MS_REGION_SIZE;
+    size_t committedUnitCount = committedHeapSize / unitSize_;
 
     // Segment size for future growth: clamp to [64MB, 512MB], aligned to MS_REGION_SIZE.
     static constexpr size_t MIN_SEGMENT_SIZE = 64ULL * 1024 * 1024;
     static constexpr size_t MAX_SEGMENT_SIZE = 512ULL * 1024 * 1024;
     size_t clampedSegmentSize = std::min(std::max(heapSize, MIN_SEGMENT_SIZE), MAX_SEGMENT_SIZE);
-    segmentSize_ = RoundUp<size_t>(clampedSegmentSize, MS_REGION_SIZE);
+    size_t segmentSize = RoundUp<size_t>(clampedSegmentSize, MS_REGION_SIZE);
 
     // Memory layout: [MSRegionInfo[maxVirtualRegionCount] | Heap[maxHeapAligned]]
     //                ^mmapBase                            ^heapStart             ^maxHeapEnd
     array_ = reinterpret_cast<MSRegionInfo*>(mmapBase);
     heapStart_ = mmapBase + maxMetadataSize;
-    committedEnd_ = heapStart_ + committedHeapSize;
-    maxHeapEnd_ = heapStart_ + maxHeapAligned;
-    inactiveZone_.store(heapStart_, std::memory_order_relaxed);
-    tailAllocCursor_.store(committedEnd_, std::memory_order_relaxed);
+    uintptr_t committedEnd = heapStart_ + committedHeapSize;
+    uintptr_t maxHeapEnd = heapStart_ + maxHeapAligned;
 
     // Zero-initialize MSRegionInfo entries for the initial committed segment only.
-    // Pages beyond committedRegionCount_ are OS-zero (lazy commit) but we do NOT
+    // Pages beyond committedRegionCount are OS-zero (lazy commit) but we do NOT
     // touch them to avoid physical memory allocation.
-    memset(array_, 0, committedRegionCount_ * sizeof(MSRegionInfo));
-    for (size_t i = 0; i < committedRegionCount_; i++) {
+    memset(array_, 0, committedRegionCount * sizeof(MSRegionInfo));
+    for (size_t i = 0; i < committedRegionCount; i++) {
         array_[i].regionType = MSRegionType::MS_REGION_FREE;
         array_[i].nextRegionIdx = MSRegionInfo::INVALID_IDX;
         array_[i].prevRegionIdx = MSRegionInfo::INVALID_IDX;
     }
 
-    releasedFreeManager_.Initialize(static_cast<UnitCount>(maxVirtualUnitCount_), unitSize_, unitsPerMSRegion_);
+    freeManager_.Initialize(static_cast<UnitCount>(maxVirtualUnitCount), unitSize_, unitsPerMSRegion_,
+                            static_cast<RegionCount>(committedRegionCount),
+                            static_cast<RegionCount>(maxVirtualRegionCount),
+                            heapStart_, committedEnd, maxHeapEnd, segmentSize);
     statsWindowStartNs_.store(TimeUtil::NanoSeconds(), std::memory_order_relaxed);
 
     VLOG(REPORT, "[MS-GC] MSRegionManager initialized (virtual reserve): mmapBase=0x%zx, "
         "maxMetadata=%zuKB, heapStart=0x%zx, committedEnd=0x%zx, maxHeapEnd=0x%zx, "
         "committedRegions=%zu, maxVirtualRegions=%zu, segmentSize=%zuMB, "
-        "committedUnits=%zu, maxVirtualUnits=%zu, unitsPerMSRegion=%zu, directTailValidation=%s",
+        "committedUnits=%zu, maxVirtualUnits=%zu, unitsPerMSRegion=%zu",
         mmapBase, maxMetadataSize / 1024,
-        heapStart_, committedEnd_, maxHeapEnd_,
-        committedRegionCount_, maxVirtualRegionCount_,
-        segmentSize_ / (1024 * 1024),
-        committedUnitCount_, maxVirtualUnitCount_, unitsPerMSRegion_,
-        tailDirectReleaseValidation_ ? "on" : "off");
+        heapStart_, committedEnd, maxHeapEnd,
+        committedRegionCount, maxVirtualRegionCount,
+        segmentSize / (1024 * 1024),
+        committedUnitCount, maxVirtualUnitCount, unitsPerMSRegion_);
+}
+
+void MSRegionManager::InitializeFreshRegions(RegionIndex startIdx, RegionCount count)
+{
+    size_t startRegionIdx = static_cast<size_t>(startIdx);
+    size_t regionCount = static_cast<size_t>(count);
+    for (size_t i = 0; i < regionCount; ++i) {
+        size_t regionIdx = startRegionIdx + i;
+        array_[regionIdx].regionType = MSRegionType::MS_REGION_FREE;
+        array_[regionIdx].nextRegionIdx = MSRegionInfo::INVALID_IDX;
+        array_[regionIdx].prevRegionIdx = MSRegionInfo::INVALID_IDX;
+    }
+}
+
+void MSRegionManager::OnCommittedHeapExtended(uintptr_t newCommittedEnd)
+{
+    Heap::OnHeapExtended(newCommittedEnd);
 }
 
 // ============================================================================
@@ -204,108 +178,13 @@ void MSRegionManager::Initialize(size_t heapSize, uintptr_t mmapBase, size_t max
 // ============================================================================
 
 namespace {
-constexpr uint64_t HEU_REQUEST_COOLDOWN_NS_DEFAULT = 10ULL * 1000ULL * 1000ULL;
-constexpr size_t HEU_READY_REGION_WATERMARK_DEFAULT = 4;
-constexpr size_t HEU_UNSWEPT_REGION_WATERMARK_DEFAULT = 16;
-constexpr size_t HEU_RELEASED_TREE_BYTES_WATERMARK_DEFAULT = 16ULL * 1024ULL * 1024ULL;
-constexpr uint32_t HEU_RELEASED_TREE_NODE_WATERMARK_DEFAULT = 128;
-constexpr uint32_t HEU_RELEASED_TREE_MAX_BLOCK_WATERMARK_DEFAULT = 8;
-constexpr size_t BG_SWEEP_NOTIFY_READY_WATERMARK_DEFAULT = 4;
-
-uint64_t ReadEnvTimeNs(const char* name, uint64_t fallback)
-{
-    const char* env = std::getenv(name);
-    if (env == nullptr) {
-        return fallback;
-    }
-    uint64_t value = CString::ParseTimeFromEnv(env);
-    return value == 0 ? fallback : value;
-}
-
-size_t ReadEnvCount(const char* name, size_t fallback)
-{
-    const char* env = std::getenv(name);
-    if (env == nullptr) {
-        return fallback;
-    }
-    size_t value = CString::ParsePosNumFromEnv(env);
-    return value == 0 ? fallback : value;
-}
-
-size_t ReadEnvSizeBytes(const char* name, size_t fallback)
-{
-    const char* env = std::getenv(name);
-    if (env == nullptr) {
-        return fallback;
-    }
-    size_t valueInKb = CString::ParseSizeFromEnv(env);
-    return valueInKb == 0 ? fallback : valueInKb * KB;
-}
-
-uint64_t GetHeuRequestCooldownNs()
-{
-    static const uint64_t value = ReadEnvTimeNs("CJ_MS_HEU_REQUEST_COOLDOWN", HEU_REQUEST_COOLDOWN_NS_DEFAULT);
-    return value;
-}
-
-size_t GetHeuReadyRegionWatermark()
-{
-    static const size_t value = ReadEnvCount("CJ_MS_HEU_READY_WATERMARK", HEU_READY_REGION_WATERMARK_DEFAULT);
-    return value;
-}
-
-size_t GetHeuUnsweptRegionWatermark()
-{
-    static const size_t value = ReadEnvCount("CJ_MS_HEU_UNSWEPT_WATERMARK", HEU_UNSWEPT_REGION_WATERMARK_DEFAULT);
-    return value;
-}
-
-size_t GetHeuReleasedTreeBytesWatermark()
-{
-    static const size_t value =
-        ReadEnvSizeBytes("CJ_MS_HEU_RELEASED_TREE_BYTES_WATERMARK", HEU_RELEASED_TREE_BYTES_WATERMARK_DEFAULT);
-    return value;
-}
-
-uint32_t GetHeuReleasedTreeNodeWatermark()
-{
-    static const uint32_t value = static_cast<uint32_t>(
-        ReadEnvCount("CJ_MS_HEU_RELEASED_TREE_NODE_WATERMARK", HEU_RELEASED_TREE_NODE_WATERMARK_DEFAULT));
-    return value;
-}
-
-uint32_t GetHeuReleasedTreeMaxBlockWatermark()
-{
-    static const uint32_t value = static_cast<uint32_t>(
-        ReadEnvCount("CJ_MS_HEU_RELEASED_TREE_MAX_BLOCK_WATERMARK", HEU_RELEASED_TREE_MAX_BLOCK_WATERMARK_DEFAULT));
-    return value;
-}
-
-size_t GetBgSweepNotifyReadyWatermark()
-{
-    static const size_t value = ReadEnvCount("CJ_MS_BG_SWEEP_NOTIFY_READY_WATERMARK",
-                                             BG_SWEEP_NOTIFY_READY_WATERMARK_DEFAULT);
-    return value;
-}
-
-bool IsReleasedTreeSpanDumpEnabled()
-{
-    static const bool enabled = []() {
-        const char* env = std::getenv("CJ_MS_RELEASED_TREE_SPANS");
-        return env != nullptr && env[0] != '\0' && env[0] != '0';
-    }();
-    return enabled;
-}
-
-bool IsTailDirectReleaseValidationEnabled()
-{
-    static const bool enabled = []() {
-        const char* env = std::getenv("CJ_MS_TAIL_DIRECT_RELEASE_VALIDATE");
-        return env != nullptr && env[0] != '\0' && env[0] != '0';
-    }();
-    return enabled;
-}
-
+constexpr uint64_t HEU_REQUEST_COOLDOWN_NS = 10ULL * 1000ULL * 1000ULL;
+constexpr size_t HEU_READY_REGION_WATERMARK = 4;
+constexpr size_t HEU_UNSWEPT_REGION_WATERMARK = 16;
+constexpr size_t HEU_RELEASED_TREE_BYTES_WATERMARK = 16ULL * 1024ULL * 1024ULL;
+constexpr uint32_t HEU_RELEASED_TREE_NODE_WATERMARK = 128;
+constexpr uint32_t HEU_RELEASED_TREE_MAX_BLOCK_WATERMARK = 8;
+constexpr size_t BG_SWEEP_NOTIFY_READY_WATERMARK = 4;
 }
 
 void MSRegionManager::MaybeNotifySweep(const CentralRegionPool* centralPool, uint8_t cls)
@@ -322,24 +201,18 @@ void MSRegionManager::MaybeNotifySweep(const CentralRegionPool* centralPool, uin
         return;
     }
 
-    // Per-class bucket pressure check
     CentralRegionPool::BucketPressure pressure = centralPool->GetBucketPressure(cls);
-    if (pressure.ReadyCount() < GetBgSweepNotifyReadyWatermark() && pressure.UnsweptCount() > 0) {
-        backgroundProcessor.NotifyToSweep();
-        return;
-    }
-
-    // Global true-live slack pressure check: empty cache exhausted but unswept backlog exists
-    size_t emptyCount = centralPool->GetEmptySweptRegionCount();
-    size_t committedBytes = centralPool->GetTotalMSRegionBytes();
-    size_t targetBytes = centralPool->GetTrueLiveSlackTargetBytes();
-    if (centralPool->ShouldPressureSweepForTrueLiveSlack(committedBytes, targetBytes, emptyCount)) {
+    if (pressure.ReadyCount() < BG_SWEEP_NOTIFY_READY_WATERMARK && pressure.UnsweptCount() > 0) {
         backgroundProcessor.NotifyToSweep();
     }
 }
 
 void MSRegionManager::MaybeNotifyReclaim()
 {
+    if (Heap::GetHeap().IsGcStarted()) {
+        return;
+    }
+
     const CentralRegionPool* pool =
         static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator()).GetCentralPool();
     if (pool == nullptr) {
@@ -368,7 +241,6 @@ void MSRegionManager::MaybeNotifyMark(HeuTriggerKind triggerKind, const CentralR
         return;
     }
 
-    // --- Threshold check (common to all trigger kinds) ---
     Collector& collector = Heap::GetHeap().GetCollector();
     const GCStats& gcStats = collector.GetGCStats();
     size_t threshold = gcStats.GetThreshold();
@@ -378,36 +250,61 @@ void MSRegionManager::MaybeNotifyMark(HeuTriggerKind triggerKind, const CentralR
     size_t effectiveAlloc = gcStats.lastTrueLiveBytes + newAlloc;
 
     bool thresholdTriggered = effectiveAlloc >= threshold;
-
-    // --- Pressure check (SMALL_ALLOC and BG_SWEEP_EXHAUSTED only) ---
-    // All four supply tiers must be exhausted: ready + unswept + emptyCache + releasedTree.
+    size_t releasedTreeBytes = GetReleasedTreeBytes();
+    uint32_t releasedTreeNodeCount = GetReleasedTreeNodeCount();
+    uint32_t releasedTreeMaxBlock = GetReleasedTreeMaxBlock();
     bool pressureTriggered = false;
-    if (!thresholdTriggered && triggerKind != HeuTriggerKind::LARGE_ALLOC) {
-        CHECK_DETAIL(centralPool != nullptr, "HEU pressure check requires centralPool");
+    uint8_t triggeredCls = cls;
+    size_t triggeredReady = 0;
+    size_t triggeredUnswept = 0;
+    size_t emptyCacheCount = 0;
 
-        bool emptyLow = centralPool->IsEmptyCacheLow();
-        size_t releasedTreeBytes = GetReleasedTreeBytes();
-                bool releasedLow = releasedTreeBytes < GetHeuReleasedTreeBytesWatermark() &&
-                                                     !(GetReleasedTreeNodeCount() >= GetHeuReleasedTreeNodeWatermark() &&
-                                                         GetReleasedTreeMaxBlock() >= GetHeuReleasedTreeMaxBlockWatermark());
+    auto releasedPressureLow = [&]() {
+        return releasedTreeBytes < HEU_RELEASED_TREE_BYTES_WATERMARK &&
+               !(releasedTreeNodeCount >= HEU_RELEASED_TREE_NODE_WATERMARK &&
+                 releasedTreeMaxBlock >= HEU_RELEASED_TREE_MAX_BLOCK_WATERMARK);
+    };
 
-        if (emptyLow && releasedLow) {
-            auto isClassExhausted = [&](uint8_t c) {
-                CentralRegionPool::BucketPressure p = centralPool->GetBucketPressure(c);
-                  return p.ReadyCount() < GetHeuReadyRegionWatermark() &&
-                      p.UnsweptCount() < GetHeuUnsweptRegionWatermark();
-            };
-
-            if (triggerKind == HeuTriggerKind::SMALL_ALLOC) {
-                pressureTriggered = bumpSource && isClassExhausted(cls);
-            } else { // BG_SWEEP_EXHAUSTED
-                for (uint8_t c = 0; c < kNumSizeClasses; c++) {
-                    if (isClassExhausted(c)) {
+    switch (triggerKind) {
+        case HeuTriggerKind::SMALL_ALLOC: {
+            CHECK_DETAIL(centralPool != nullptr, "SMALL_ALLOC HEU trigger requires centralPool");
+            CentralRegionPool::BucketPressure pressure = centralPool->GetBucketPressure(cls);
+            triggeredReady = pressure.ReadyCount();
+            triggeredUnswept = pressure.UnsweptCount();
+            emptyCacheCount = centralPool->GetEmptySweptRegionCount();
+            if (!thresholdTriggered && bumpSource) {
+                bool readyLow = triggeredReady < HEU_READY_REGION_WATERMARK;
+                bool unsweptLow = triggeredUnswept < HEU_UNSWEPT_REGION_WATERMARK;
+                bool emptyLow = centralPool->IsEmptyCacheLow();
+                pressureTriggered = readyLow && unsweptLow && emptyLow && releasedPressureLow();
+            }
+            break;
+        }
+        case HeuTriggerKind::LARGE_ALLOC:
+            break;
+        case HeuTriggerKind::BG_SWEEP_EXHAUSTED: {
+            CHECK_DETAIL(centralPool != nullptr, "BG_SWEEP_EXHAUSTED HEU trigger requires centralPool");
+            emptyCacheCount = centralPool->GetEmptySweptRegionCount();
+            if (!thresholdTriggered) {
+                bool emptyLow = centralPool->IsEmptyCacheLow();
+                bool releasedLow = releasedPressureLow();
+                for (uint8_t candidateCls = 0; candidateCls < kNumSizeClasses; candidateCls++) {
+                    CentralRegionPool::BucketPressure pressure = centralPool->GetBucketPressure(candidateCls);
+                    bool readyLow = pressure.ReadyCount() < HEU_READY_REGION_WATERMARK;
+                    bool unsweptLow = pressure.UnsweptCount() < HEU_UNSWEPT_REGION_WATERMARK;
+                    if (readyLow && unsweptLow && emptyLow && releasedLow) {
                         pressureTriggered = true;
+                        triggeredCls = candidateCls;
+                        triggeredReady = pressure.ReadyCount();
+                        triggeredUnswept = pressure.UnsweptCount();
                         break;
                     }
                 }
             }
+            if (thresholdTriggered) {
+                triggeredUnswept = centralPool->GetTotalUnsweptCount();
+            }
+            break;
         }
     }
 
@@ -415,10 +312,9 @@ void MSRegionManager::MaybeNotifyMark(HeuTriggerKind triggerKind, const CentralR
         return;
     }
 
-    // --- Cooldown: deduplicate rapid HEU requests ---
     uint64_t nowNs = TimeUtil::NanoSeconds();
     uint64_t lastHeuRequestNs = lastHeuRequestNs_.load(std::memory_order_relaxed);
-    if (lastHeuRequestNs != 0 && nowNs - lastHeuRequestNs < GetHeuRequestCooldownNs()) {
+    if (lastHeuRequestNs != 0 && nowNs - lastHeuRequestNs < HEU_REQUEST_COOLDOWN_NS) {
         return;
     }
     if (!lastHeuRequestNs_.compare_exchange_strong(lastHeuRequestNs, nowNs,
@@ -427,109 +323,82 @@ void MSRegionManager::MaybeNotifyMark(HeuTriggerKind triggerKind, const CentralR
         return;
     }
 
-    // --- Fire GC request ---
-    const char* kindName = (triggerKind == HeuTriggerKind::SMALL_ALLOC) ? "small" :
-                           (triggerKind == HeuTriggerKind::LARGE_ALLOC) ? "large" : "bg-sweep-exhausted";
     collector.RequestGC(GC_REASON_HEU, true);
-    VLOG(REPORT,
-         "[MS-GC] HEU trigger (%s): cls=%u effectiveAlloc=%zu threshold=%zu "
-         "releasedTree=%zuB emptyCache=%zu reason=%s",
-         kindName, static_cast<unsigned>(cls),
-         effectiveAlloc, threshold,
-         GetReleasedTreeBytes(),
-         centralPool ? centralPool->GetEmptySweptRegionCount() : 0,
-         thresholdTriggered ? "threshold" : "pressure");
+    switch (triggerKind) {
+        case HeuTriggerKind::SMALL_ALLOC:
+            VLOG(REPORT,
+                 "[MS-GC] HEU trigger: cls=%u source=%u effectiveAlloc=%zu threshold=%zu ready=%zu unswept=%zu "
+                 "emptyCache=%zu releasedTree=%zuB nodes=%u maxBlock=%u reason=%s",
+                 static_cast<unsigned>(cls),
+                 static_cast<unsigned>(bumpSource ? AllocSource::BUMP : AllocSource::RELEASED),
+                 effectiveAlloc, threshold,
+                 triggeredReady, triggeredUnswept,
+                 emptyCacheCount,
+                 releasedTreeBytes, releasedTreeNodeCount, releasedTreeMaxBlock,
+                 thresholdTriggered ? "threshold" : "pressure");
+            break;
+        case HeuTriggerKind::LARGE_ALLOC:
+            VLOG(REPORT,
+                 "[MS-GC] HEU trigger (large): source=%u effectiveAlloc=%zu threshold=%zu releasedTree=%zuB nodes=%u maxBlock=%u",
+                 static_cast<unsigned>(bumpSource ? AllocSource::BUMP : AllocSource::RELEASED),
+                 effectiveAlloc, threshold,
+                 releasedTreeBytes, releasedTreeNodeCount, releasedTreeMaxBlock);
+            break;
+        case HeuTriggerKind::BG_SWEEP_EXHAUSTED:
+            VLOG(REPORT,
+                 "[MS-GC] HEU trigger (bg-sweep exhausted): effectiveAlloc=%zu threshold=%zu ready=%zu unswept=%zu "
+                 "emptyCache=%zu releasedTree=%zuB nodes=%u maxBlock=%u reason=%s cls=%u",
+                 effectiveAlloc, threshold,
+                 pressureTriggered ? triggeredReady : 0,
+                 triggeredUnswept,
+                 emptyCacheCount,
+                 releasedTreeBytes, releasedTreeNodeCount, releasedTreeMaxBlock,
+                 thresholdTriggered ? "threshold" : "pressure",
+                 static_cast<unsigned>(triggeredCls));
+            break;
+    }
 }
 
 // ============================================================================
-// TakeRegions — allocate contiguous regions from releasedTree or bump.
-// releasedTree uses the shared unit-based interface; MSGC preserves region
-// alignment through a thin adapter layer.
-// inactiveZone_ is always MS_REGION_SIZE-aligned (guaranteed by heapStart_
-// alignment and region-granular increments), so bump needs no alignment step.
+// TakeRegions — allocate contiguous regions from releasedTree or inactiveZone bump.
+// FreeManager exposes the primitive heap-state operations, while the policy and
+// fallback sequencing remain in MSRegionManager.
 // ============================================================================
 
 bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx, AllocSource* source)
 {
-    if (tailDirectReleaseValidation_) {
-        return TakeTailRegionsForValidation(num, idx, source);
-    }
-
+    RegionIndex rawIdx = 0;
     bool tryReleasedTree = true;
 
     while (tryReleasedTree) {
-        if (tryReleasedTree) {
-            RegionIndex rawIdx = 0;
-            FreeManager::TryTakeResult takeResult = releasedFreeManager_.TryTakeRegions(num, rawIdx);
-            if (takeResult == FreeManager::TryTakeResult::SUCCESS) {
-                idx = rawIdx;
-                if (source != nullptr) {
-                    *source = AllocSource::RELEASED;
-                }
-                allocFromReleasedCount_.fetch_add(1, std::memory_order_relaxed);
-                return true;
+        FreeManager::TryTakeResult result = freeManager_.TryTakeRegions(num, rawIdx);
+        if (result == FreeManager::TryTakeResult::SUCCESS) {
+            idx = rawIdx;
+            if (source != nullptr) {
+                *source = AllocSource::RELEASED;
             }
-            if (takeResult == FreeManager::TryTakeResult::EMPTY) {
-                tryReleasedTree = false;
-            }
+            allocFromReleasedCount_.fetch_add(1, std::memory_order_relaxed);
+            return true;
+        }
+        if (result == FreeManager::TryTakeResult::EMPTY) {
+            tryReleasedTree = false;
+            continue;
         }
         ScopedEnterSaferegion enterSaferegion(true);
     }
 
-    // Fallback: extend inactiveZone (bump allocator).
-    // inactiveZone_ is always MS_REGION_SIZE-aligned, so no alignment gap.
-    {
-        size_t byteCount = static_cast<size_t>(num) * MS_REGION_SIZE;
-        uintptr_t oldAddr = inactiveZone_.load(std::memory_order_relaxed);
-        do {
-            if (oldAddr + byteCount <= committedEnd_) {
-                break;  // fits in committed region
-            }
-            if (!GrowOneSegment()) {
-                return false;  // at max capacity, OOM
-            }
-            oldAddr = inactiveZone_.load(std::memory_order_relaxed);
-        } while (true);
-
-        // CAS loop to atomically claim the region range
-        oldAddr = inactiveZone_.load(std::memory_order_relaxed);
-        do {
-            if (oldAddr + byteCount > committedEnd_) {
-                if (!GrowOneSegment()) {
-                    return false;
-                }
-                oldAddr = inactiveZone_.load(std::memory_order_relaxed);
-                continue;
-            }
-        } while (!inactiveZone_.compare_exchange_weak(oldAddr, oldAddr + byteCount,
-                                                       std::memory_order_relaxed));
-        idx = AddrToRegionIdx(oldAddr);
-        if (source != nullptr) {
-            *source = AllocSource::BUMP;
-        }
-        allocFromBumpCount_.fetch_add(1, std::memory_order_relaxed);
-        return true;
-    }
-}
-
-bool MSRegionManager::TakeTailRegionsForValidation(RegionCount num, RegionIndex& idx, AllocSource* source)
-{
-    size_t byteCount = static_cast<size_t>(num) * MS_REGION_SIZE;
-    uintptr_t oldCursor = tailAllocCursor_.load(std::memory_order_relaxed);
-
     while (true) {
-        if (oldCursor < heapStart_ + byteCount) {
-            return false;
-        }
-
-        uintptr_t newCursor = oldCursor - byteCount;
-        if (tailAllocCursor_.compare_exchange_weak(oldCursor, newCursor, std::memory_order_relaxed)) {
-            idx = AddrToRegionIdx(newCursor);
+        if (freeManager_.TryIncreaseInactiveZone(num, rawIdx)) {
+            idx = rawIdx;
             if (source != nullptr) {
                 *source = AllocSource::BUMP;
             }
             allocFromBumpCount_.fetch_add(1, std::memory_order_relaxed);
             return true;
+        }
+
+        if (!freeManager_.GrowOneSegment(*this)) {
+            return false;
         }
     }
 }
@@ -592,7 +461,7 @@ MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& 
     MaybeNotifyReclaim();
     MaybeNotifyMark(HeuTriggerKind::SMALL_ALLOC, &centralPool, cls, source == AllocSource::BUMP);
 
-    MRT_ASSERT(regionIdx < maxVirtualRegionCount_, "region index out of bounds");
+    MRT_ASSERT(regionIdx < freeManager_.GetMaxVirtualRegionCount(), "region index out of bounds");
 
     MSRegionInfo* info = &array_[regionIdx];
     // Debug: exhaustive check on every TakeRegion return
@@ -633,7 +502,7 @@ MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& r
 
     regionStart = RegionIdxToAddr(regionIdx);
 
-    MRT_ASSERT(regionIdx < maxVirtualRegionCount_, "region index out of bounds");
+    MRT_ASSERT(regionIdx < freeManager_.GetMaxVirtualRegionCount(), "region index out of bounds");
 
     return &array_[regionIdx];
 }
@@ -658,7 +527,7 @@ void MSRegionManager::ReclaimRegion(MSRegionInfo* region)
 
     DLOG(REGION, "[MS-GC] ReclaimRegion: regionIdx=%zu", regionIdx);
 
-    ReclaimRegionsReleased(static_cast<RegionIndex>(regionIdx), 1);
+    freeManager_.ReclaimRegionsReleased(static_cast<RegionIndex>(regionIdx), 1);
 }
 
 // ============================================================================
@@ -677,7 +546,7 @@ void MSRegionManager::ReclaimRegionLarge(uintptr_t regionStart, size_t regionByt
 
     // Large objects (>= MS_REGION_SIZE) release physical pages immediately
     // and go to releasedTree, avoiding dirty cache bloat.
-    ReclaimRegionsReleased(regionIdx, regionCount);
+    freeManager_.ReclaimRegionsReleased(regionIdx, regionCount);
 }
 
 void MSRegionManager::ReclaimEmptyRegionToReleased(MSRegionInfo* region)
@@ -688,63 +557,7 @@ void MSRegionManager::ReclaimEmptyRegionToReleased(MSRegionInfo* region)
                  static_cast<unsigned>(region->regionType), regionIdx);
 
     region->Reset();
-    ReclaimRegionsReleased(static_cast<RegionIndex>(regionIdx), 1);
-}
-
-// ============================================================================
-// ReleaseUnits — platform-specific physical page release
-// ============================================================================
-
-void MSRegionManager::ReleaseUnits(UnitIndex idx, UnitCount num) const
-{
-    uintptr_t addr = GetUnitAddress(idx);
-    size_t size = static_cast<size_t>(num) * unitSize_;
-    DLOG(REGION, "[MS-GC] ReleaseUnits: idx=%u, num=%u, addr=0x%zx, size=%zu",
-         idx, num, addr, size);
-#if defined(_WIN64)
-    CHECK_E(UNLIKELY(!VirtualFree(reinterpret_cast<void*>(addr), size, MEM_DECOMMIT)),
-            "VirtualFree failed in MSRegionManager::ReleaseUnits");
-#elif defined(__APPLE__)
-    MemorySet(addr, size, 0, size);
-    void* ret = mmap(reinterpret_cast<void*>(addr), size, PROT_READ | PROT_WRITE,
-                     MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-    if (ret == MAP_FAILED) {
-        LOG(RTLOG_ERROR, "[MS-GC] ReleaseUnits mmap fixed failed");
-    }
-#else
-    (void)madvise(reinterpret_cast<void*>(addr), size, MADV_DONTNEED);
-#endif
-}
-
-// ============================================================================
-// ReclaimRegionsReleased — release physical pages then insert to released tree
-// ============================================================================
-
-void MSRegionManager::ReclaimRegionsReleased(RegionIndex idx, RegionCount num)
-{
-    if (tailDirectReleaseValidation_) {
-        ReclaimRegionsDirectForValidation(idx, num);
-        return;
-    }
-
-    // Convert to unit range for physical page release.
-    ReleaseUnits(RegionToUnitIdx(idx), RegionCountToUnitCount(num));
-    ScopedEnterSaferegion enterSaferegion(true);
-    releasedFreeManager_.InsertRegions(idx, num);
-}
-
-void MSRegionManager::ReclaimRegionsDirectForValidation(RegionIndex idx, RegionCount num)
-{
-    ReleaseUnits(RegionToUnitIdx(idx), RegionCountToUnitCount(num));
-
-    uintptr_t spanStart = RegionIdxToAddr(idx);
-    uintptr_t spanEnd = RegionIdxToAddr(idx + num);
-    uintptr_t cursor = tailAllocCursor_.load(std::memory_order_relaxed);
-    while (cursor == spanStart) {
-        if (tailAllocCursor_.compare_exchange_weak(cursor, spanEnd, std::memory_order_relaxed)) {
-            break;
-        }
-    }
+    freeManager_.ReclaimRegionsReleased(static_cast<RegionIndex>(regionIdx), 1);
 }
 
 // ============================================================================
@@ -760,156 +573,23 @@ size_t MSRegionManager::ReleaseGarbageRegions(size_t targetCachedSize)
 }
 
 // ============================================================================
-// GrowOneSegment — extend the committed heap by one segmentSize_ chunk.
-// Initializes the MSRegionInfo entries for the new regions and updates
-// committedEnd_ / committedRegionCount_ / committedUnitCount_.
-// Also updates Heap::heapCurrentEnd so that IsHeapAddress covers the new space.
+// GrowOneSegment — delegate heap growth to FreeManager.
+// FreeManager updates the committed heap state and calls back into
+// MSRegionManager to initialize new MSRegionInfo entries.
 // ============================================================================
 
 bool MSRegionManager::GrowOneSegment()
 {
-    std::lock_guard<std::mutex> lg(growMutex_);
-
-    // Double-check after acquiring lock (another thread may have grown already).
-    if (committedEnd_ >= maxHeapEnd_) {
-        return false;  // Already at maximum virtual capacity.
-    }
-
-    uintptr_t oldCommittedEnd = committedEnd_;
-    size_t growBytes = segmentSize_;
-    // Don't exceed maxHeapEnd_.
-    if (oldCommittedEnd + growBytes > maxHeapEnd_) {
-        growBytes = maxHeapEnd_ - oldCommittedEnd;
-    }
-
-    size_t growRegions = growBytes / MS_REGION_SIZE;
-    size_t growUnits = growBytes / unitSize_;
-    size_t oldRegionCount = committedRegionCount_;
-
-    // Initialize MSRegionInfo entries for the new regions.
-    // On macOS/Linux with lazy commit, the underlying pages are zero-filled
-    // on first access.  We still explicitly set the required fields.
-    for (size_t i = 0; i < growRegions; i++) {
-        size_t regionIdx = oldRegionCount + i;
-        array_[regionIdx].regionType = MSRegionType::MS_REGION_FREE;
-        array_[regionIdx].nextRegionIdx = MSRegionInfo::INVALID_IDX;
-        array_[regionIdx].prevRegionIdx = MSRegionInfo::INVALID_IDX;
-    }
-
-    // Update committed boundaries.
-    committedRegionCount_ += growRegions;
-    committedUnitCount_ += growUnits;
-    committedEnd_ = oldCommittedEnd + growBytes;
-
-    // Update the global heap end so Heap::IsHeapAddress covers the new range.
-    Heap::OnHeapExtended(committedEnd_);
-    heapGrowCount_++;
-
-    VLOG(REPORT, "[MS-GC] GrowOneSegment: +%zuMB \u2192 committedEnd=0x%zx, "
-        "committedRegions=%zu/%zu, committedUnits=%zu/%zu",
-        growBytes / (1024 * 1024), committedEnd_,
-        committedRegionCount_, maxVirtualRegionCount_,
-        committedUnitCount_, maxVirtualUnitCount_);
-
-    return true;
+    return freeManager_.GrowOneSegment(*this);
 }
 
 // ============================================================================
-// ShrinkHeap — reclaim trailing released units and shrink committed heap.
-//
-// Phase 1: Find releasedTree nodes at the tail (adjacent to inactiveZone_).
-//          Remove them and CAS-lower inactiveZone_ to their start address.
-//          This effectively "un-allocates" released memory at the heap top.
-//
-// Phase 2: If the virgin gap (inactiveZone_ to committedEnd_) covers at
-//          least one full segment, shrink committedEnd_ downward.
-//          Does NOT update Heap::heapCurrentEnd (keeps peak for IsHeapAddress).
+// ShrinkHeap — delegate trailing-tail reclaim and committed-heap shrink to FreeManager.
 // ============================================================================
 
 void MSRegionManager::ShrinkHeap()
 {
-    if (tailDirectReleaseValidation_) {
-        return;
-    }
-
-    std::lock_guard<std::mutex> lg(growMutex_);
-
-    uintptr_t originalIz = inactiveZone_.load(std::memory_order_relaxed);
-    size_t gap = (committedEnd_ > originalIz) ? (committedEnd_ - originalIz) : 0;
-    uint32_t releasedRegions = static_cast<uint32_t>(GetReleasedTreeBytes() / MS_REGION_SIZE);
-    VLOG(REPORT, "[MS-GC] ShrinkHeap enter: inactiveZone=0x%zx, committedEnd=0x%zx, "
-            "gap=%zuKB, released=%u regions, segmentSize=%zuMB",
-            originalIz, committedEnd_, gap / 1024, releasedRegions,
-         segmentSize_ / (1024 * 1024));
-
-    // Phase 1: Reclaim trailing released nodes contiguous with inactiveZone_.
-    size_t reclaimedRegions = 0;
-    while (true) {
-        uintptr_t iz = inactiveZone_.load(std::memory_order_relaxed);
-        if (iz <= heapStart_) {
-            break;
-        }
-        RegionIndex izRegionIdx = AddrToRegionIdx(iz);
-
-        RegionIndex nodeIdx = 0;
-        RegionCount nodeNum = 0;
-        bool found = releasedFreeManager_.TakeTrailingRegions(izRegionIdx, nodeIdx, nodeNum);
-
-        if (!found) {
-            break;
-        }
-
-        uintptr_t newIz = RegionIdxToAddr(nodeIdx);
-        if (!inactiveZone_.compare_exchange_strong(iz, newIz, std::memory_order_relaxed)) {
-            // Concurrent allocator advanced inactiveZone_. Restore node.
-            releasedFreeManager_.InsertRegions(nodeIdx, nodeNum);
-            break;
-        }
-        reclaimedRegions += nodeNum;
-    }
-
-    if (reclaimedRegions > 0) {
-        uintptr_t newIz = inactiveZone_.load(std::memory_order_relaxed);
-        VLOG(REPORT, "[MS-GC] ShrinkHeap phase1: reclaimed %zu trailing released regions, "
-             "inactiveZone 0x%zx -> 0x%zx", reclaimedRegions, originalIz, newIz);
-    }
-
-    // Phase 2: Shrink committedEnd_ by whole segments above inactiveZone_.
-    uintptr_t iz = inactiveZone_.load(std::memory_order_relaxed);
-    if (committedEnd_ <= iz) {
-        return;
-    }
-
-    size_t shrinkGap = committedEnd_ - iz;
-    size_t shrinkSegments = shrinkGap / segmentSize_;
-    if (shrinkSegments == 0) {
-        return;
-    }
-
-    size_t shrinkBytes = shrinkSegments * segmentSize_;
-    uintptr_t newCommitted = committedEnd_ - shrinkBytes;
-
-    // Don't shrink below one segment from heapStart_.
-    if (newCommitted < heapStart_ + segmentSize_) {
-        newCommitted = heapStart_ + segmentSize_;
-        if (newCommitted >= committedEnd_) {
-            return;
-        }
-        shrinkBytes = committedEnd_ - newCommitted;
-    }
-
-    uintptr_t oldCommitted = committedEnd_;
-    committedEnd_ = newCommitted;
-    committedRegionCount_ = (newCommitted - heapStart_) / MS_REGION_SIZE;
-    committedUnitCount_ = (newCommitted - heapStart_) / unitSize_;
-
-    // NOTE: Do NOT call Heap::OnHeapExtended(committedEnd_).
-    // heapCurrentEnd must stay at peak so IsHeapAddress covers all ever-allocated addresses.
-
-    VLOG(REPORT, "[MS-GC] ShrinkHeap phase2: -%zuMB \u2192 committedEnd=0x%zx (was 0x%zx), "
-        "committedRegions=%zu, committedUnits=%zu, inactiveZone=0x%zx",
-        shrinkBytes / (1024 * 1024), committedEnd_, oldCommitted,
-        committedRegionCount_, committedUnitCount_, iz);
+    freeManager_.ShrinkHeap();
 }
 
 } // namespace MapleRuntime

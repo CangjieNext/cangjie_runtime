@@ -93,7 +93,6 @@ struct MSGCCycleStats {
     size_t regionInfoCount = 0;
     size_t activeRegionCount = 0;
     size_t releasedTreeRegionCount = 0;
-    size_t releasedTreeNodeCount = 0;
     size_t virginRegionCount = 0;
     size_t committedRegionCount = 0;
     size_t regionInfoBytes = 0;

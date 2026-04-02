@@ -346,7 +346,6 @@ public:
 
     size_t GetEmptyCacheHighWatermarkRegions() const;
     size_t GetTrueLiveSlackTargetBytes() const;
-    bool ShouldPressureSweepForTrueLiveSlack(size_t committedBytes, size_t targetBytes, size_t emptyCount) const;
 
     // ===== DFX: Sweep statistics (persisted across GC cycle) =====
     MSSweepStats& GetSweepStats() { return sweepStats_; }
@@ -416,6 +415,7 @@ private:
         size_t targetBytes = 0;
         bool trueLiveSlackHigh = false;
         bool shouldScavenge = false;
+        bool shouldPressureSweep = false;
     };
 
     struct SizeClassBucket {
@@ -427,11 +427,11 @@ private:
     };
 
     void ReleaseRegionInternal(MSRegionInfo* region);
-    void HandleEmptyRegionForValidation(MSRegionInfo* region);
     void PushEmptySweptRegion(MSRegionInfo* region);
     MSRegionInfo* TakeEmptySweptRegion(uint8_t cls);
     size_t GetEmptyCacheLowWatermarkRegions() const;
     bool ShouldScavengeForTrueLiveSlack(size_t committedBytes, size_t targetBytes) const;
+    bool ShouldPressureSweepForTrueLiveSlack(size_t committedBytes, size_t targetBytes, size_t emptyCount) const;
     BackgroundScavengeState CollectBackgroundScavengeState() const;
     bool SweepUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint32_t sg,
                           size_t& sweptInSlice, size_t maxRegions, uint64_t deadlineUs);
