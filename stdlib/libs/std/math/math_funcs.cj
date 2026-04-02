@@ -2286,7 +2286,7 @@ public func atan2(y: Float16, x: Float16): Float16 {
  * ref: https://pubs.opengroup.org/onlinepubs/9699919799/functions/fmod.html
  */
 public func fmod(x: Float64, y: Float64): Float64 {
-    if (isEqual(x, Float64.Inf) || isEqual(y, 0.0)) {
+    if (x.isInf() || isEqual(y, 0.0)) {
         throw IllegalArgumentException("The input parameter is invalid. Please enter a correct parameter.")
     }
     return unsafe { CJ_MATH_Fmod(x, y) }
@@ -2299,7 +2299,7 @@ public func fmod(x: Float64, y: Float64): Float64 {
  * ref: https://pubs.opengroup.org/onlinepubs/9699919799/functions/fmod.html
  */
 public func fmod(x: Float32, y: Float32): Float32 {
-    if (isEqual(x, Float32.Inf) || isEqual(y, 0.0)) {
+    if (x.isInf() || isEqual(y, 0.0)) {
         throw IllegalArgumentException("The input parameter is invalid. Please enter a correct parameter.")
     }
     return unsafe { CJ_MATH_Fmodf(x, y) }
@@ -2312,7 +2312,7 @@ public func fmod(x: Float32, y: Float32): Float32 {
  * ref: https://pubs.opengroup.org/onlinepubs/9699919799/functions/fmod.html
  */
 public func fmod(x: Float16, y: Float16): Float16 {
-    if (isEqual(x, Float16.Inf) || isEqual(y, 0.0)) {
+    if (x.isInf() || isEqual(y, 0.0)) {
         throw IllegalArgumentException("The input parameter is invalid. Please enter a correct parameter.")
     }
     return unsafe { Float16(CJ_MATH_Fmod(Float64(x), Float64(y))) }
