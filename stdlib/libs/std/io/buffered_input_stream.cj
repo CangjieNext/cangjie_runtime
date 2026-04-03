@@ -181,8 +181,28 @@ extend<T> BufferedInputStream<T> <: Seekable where T <: Seekable {
      */
     public prop position: Int64 {
         get() {
-            inputStream.seek(Current(0))
+            // 修复 MEDIUM-02: 减去未读缓冲数据，返回正确的逻辑位置
+            // 注意: 当 availLen 为 -1 (EOF) 时，position 应该等于 underlyingPos
+            let underlyingPos = inputStream.seek(Current(0))
+            if (availLen < 0) {
+                underlyingPos
+            } else {
+                underlyingPos - availLen
+            }
         }
+    }
+
+    // 内部使用：获取底层流位置（不清空缓冲区）
+    internal func getUnderlyingPosition(): Int64 {
+        inputStream.seek(Current(0))
+    }
+
+    // 内部使用：获取底层流长度（不清空缓冲区）
+    internal func getUnderlyingLength(): Int64 {
+        let oldPos = inputStream.seek(Current(0))
+        let len = inputStream.seek(End(0))
+        inputStream.seek(Begin(oldPos))
+        len
     }
 
     /**
@@ -190,13 +210,8 @@ extend<T> BufferedInputStream<T> <: Seekable where T <: Seekable {
      */
     public prop remainLength: Int64 {
         get() {
-            let oldPos = inputStream.seek(Current(0))
-            let length = inputStream.seek(End(0))
-            if (length != oldPos) {
-                inputStream.seek(Begin(oldPos))
-            }
-
-            length - oldPos
+            // 修复: 使用 getUnderlyingLength 和 getUnderlyingPosition，避免副作用
+            getUnderlyingLength() - getUnderlyingPosition()
         }
     }
 
@@ -205,13 +220,8 @@ extend<T> BufferedInputStream<T> <: Seekable where T <: Seekable {
      */
     public prop length: Int64 {
         get() {
-            let oldPos = inputStream.seek(Current(0))
-            let length = inputStream.seek(End(0))
-            if (length != oldPos) {
-                inputStream.seek(Begin(oldPos))
-            }
-
-            length
+            // 修复: 使用 getUnderlyingLength，避免副作用
+            getUnderlyingLength()
         }
     }
 }
