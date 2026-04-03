@@ -156,7 +156,23 @@ public class Regex {
                 release(inputCString)
                 throw RegexException("Create match_data for pattern `${pattern}` failed.")
             }
-            let isMatch = CJ_REGEX_Match(this.re, inputCString, UIntNative(input.size), UIntNative(0), pcre2md) >= 0
+            let rc = CJ_REGEX_Match(this.re, inputCString, UIntNative(input.size), UIntNative(0), pcre2md)
+            if (rc == PCRE2_ERROR_NOMEMORY) {
+                release(inputCString)
+                release(pcre2md)
+                throw RegexException("Failed to create match context for pattern `${pattern}`.")
+            }
+            if (rc == PCRE2_ERROR_MATCHLIMIT) {
+                release(inputCString)
+                release(pcre2md)
+                throw RegexException("Match limit exceeded for pattern `${pattern}`.")
+            }
+            if (rc == PCRE2_ERROR_RECURSIONLIMIT) {
+                release(inputCString)
+                release(pcre2md)
+                throw RegexException("Recursion limit exceeded for pattern `${pattern}`.")
+            }
+            let isMatch = rc >= 0
             keepAlive(this)
             release(inputCString)
             release(pcre2md)
@@ -249,7 +265,16 @@ public class Regex {
     func find(input: String, inputCString: CString, pcre2md: Pcre2MatchDataPtr, offset: Int64, group!: Bool = false): Option<MatchData> {
         unsafe {
             var md: Option<MatchData> = None
-            let rc = Int64(CJ_REGEX_Match(this.re, inputCString, UIntNative(input.size), UIntNative(offset), pcre2md))
+            let rc = CJ_REGEX_Match(this.re, inputCString, UIntNative(input.size), UIntNative(offset), pcre2md)
+            if (rc == PCRE2_ERROR_NOMEMORY) {
+                throw RegexException("Failed to create match context for pattern `${pattern}`.")
+            }
+            if (rc == PCRE2_ERROR_MATCHLIMIT) {
+                throw RegexException("Match limit exceeded for pattern `${pattern}`.")
+            }
+            if (rc == PCRE2_ERROR_RECURSIONLIMIT) {
+                throw RegexException("Recursion limit exceeded for pattern `${pattern}`.")
+            }
             if (rc < 0) {
                 return md
             }
@@ -283,6 +308,21 @@ public class Regex {
                 throw RegexException("Create match_data for pattern `${pattern}` failed.")
             }
             let count = CJ_REGEX_Count(this.re, inputCString, UIntNative(input.size), UIntNative(begin), UIntNative(end), pcre2md)
+            if (count == PCRE2_ERROR_NOMEMORY) {
+                release(inputCString)
+                release(pcre2md)
+                throw RegexException("Failed to create match context for pattern `${pattern}`.")
+            }
+            if (count == PCRE2_ERROR_MATCHLIMIT) {
+                release(inputCString)
+                release(pcre2md)
+                throw RegexException("Match limit exceeded for pattern `${pattern}`.")
+            }
+            if (count == PCRE2_ERROR_RECURSIONLIMIT) {
+                release(inputCString)
+                release(pcre2md)
+                throw RegexException("Recursion limit exceeded for pattern `${pattern}`.")
+            }
             keepAlive(this)
             release(inputCString)
             release(pcre2md)
@@ -308,40 +348,49 @@ public class Regex {
                 release(inputCString)
                 throw RegexException("Create match_data for pattern `${pattern}` failed.")
             }
-            var offset = 0
-            while (true) {
-                let rc = Int64(CJ_REGEX_Match(this.re, inputCString, UIntNative(input.size), UIntNative(offset), pcre2md))
-                if (rc < 0) {
-                    break
+            try {
+                var offset = 0
+                while (true) {
+                    let rc = Int64(CJ_REGEX_Match(this.re, inputCString, UIntNative(input.size), UIntNative(offset), pcre2md))
+                    if (rc == PCRE2_ERROR_NOMEMORY) {
+                        throw RegexException("Failed to create match context for pattern `${pattern}`.")
+                    }
+                    if (rc == PCRE2_ERROR_MATCHLIMIT) {
+                        throw RegexException("Match limit exceeded for pattern `${pattern}`.")
+                    }
+                    if (rc == PCRE2_ERROR_RECURSIONLIMIT) {
+                        throw RegexException("Recursion limit exceeded for pattern `${pattern}`.")
+                    }
+                    if (rc < 0) {
+                        break
+                    }
+                    let ovector: CPointer<UIntNative> = CJ_REGEX_GetOvector(pcre2md)
+                    if (ovector.isNull()) {
+                        throw RegexException("Processing matched data failed.")
+                    }
+                    let positions: Array<Position>
+                    if (group) {
+                        positions = Array<Position>(rc, {i => Position(ovector.read(2 * i), ovector.read(2 * i + 1))})
+                        list.add(MatchData(input, positions, rc, nameToIndex: nameToIndex))
+                    } else {
+                        positions = [Position(ovector.read(0), ovector.read(1))]
+                        list.add(MatchData(input, positions, rc))
+                    }
+                    if (offset == positions[0].end) {
+                        offset = positions[0].end + 1
+                    } else {
+                        offset = positions[0].end
+                    }
                 }
-                // ovector cannot be `free()` because it's not created by `malloc`
-                let ovector: CPointer<UIntNative> = CJ_REGEX_GetOvector(pcre2md)
-                if (ovector.isNull()) {
-                    release(inputCString)
-                    release(pcre2md)
-                    throw RegexException("Processing matched data failed.")
-                }
-                let positions: Array<Position>
-                if (group) {
-                    positions = Array<Position>(rc, {i => Position(ovector.read(2 * i), ovector.read(2 * i + 1))})
-                    list.add(MatchData(input, positions, rc, nameToIndex: nameToIndex))
+                keepAlive(this)
+                return if (list.size == list.capacity) {
+                    list.getRawArray()
                 } else {
-                    positions = [Position(ovector.read(0), ovector.read(1))]
-                    list.add(MatchData(input, positions, rc))
+                    list.toArray()
                 }
-                if (offset == positions[0].end) {
-                    offset = positions[0].end + 1
-                } else {
-                    offset = positions[0].end
-                }
-            }
-            keepAlive(this)
-            release(inputCString)
-            release(pcre2md)
-            return if (list.size == list.capacity) {
-                list.getRawArray()
-            } else {
-                list.toArray()
+            } finally {
+                release(inputCString)
+                release(pcre2md)
             }
         }
     }
