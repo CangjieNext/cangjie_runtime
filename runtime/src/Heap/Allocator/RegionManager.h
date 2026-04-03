@@ -109,7 +109,8 @@ public:
           garbageRegionList("garbage regions"), recentPinnedRegionList("recent pinned regions"),
           oldPinnedRegionList("old pinned regions"), rawPointerPinnedRegionList("raw pointer pinned regions"),
           oldLargeRegionList("old large regions"), recentLargeRegionList("recent large regions"),
-          largeTraceRegions("large trace regions"), localModeRegionList("local mode regions")
+          largeTraceRegions("large trace regions"), localModeRegionList("local mode regions"),
+          deferredLocalRegionList("deferred local regions")
     {}
 
     RegionManager(const RegionManager&) = delete;
@@ -322,6 +323,7 @@ public:
     size_t CollectFreePinnedSlots(RegionInfo* region);
 
     void CollectLocalGarbage();
+    void FlushDeferredLocalRegions();
 
     // targetSize: size of memory which we do not release and keep it as cache for future allocation.
     size_t ReleaseGarbageRegions(size_t targetSize) { return freeRegionManager.ReleaseGarbageRegions(targetSize); }
@@ -428,6 +430,8 @@ public:
         tlRegionList.ClearTraceRegionFlag();
         recentPinnedRegionList.ClearTraceRegionFlag();
         oldPinnedRegionList.ClearTraceRegionFlag();
+
+        FlushDeferredLocalRegions();
     }
 
     void PrepareTrace()
@@ -610,6 +614,10 @@ private:
     FreePinnedSlotLists freePinnedSlotLists;
 
     RegionList localModeRegionList;
+
+    // deferred local regions during GC phase 9-11 (ENUM, TRACE, CLEAR_SATB_BUFFER)
+    // these regions will be collected in POST_TRACE phase
+    RegionList deferredLocalRegionList;
 
     std::atomic<uint64_t> localRegionTotalSize = { 0 };
 };
