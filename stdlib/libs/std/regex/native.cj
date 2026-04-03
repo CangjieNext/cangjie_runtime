@@ -52,3 +52,7 @@ foreign func CJ_REGEX_FreeMatchData(md: Pcre2MatchDataPtr): Unit
 @FastNative
 foreign func CJ_REGEX_Count(re: Pcre2CodePtr, cinput: CString, length: UIntNative, offset: UIntNative, end: UIntNative,
     matchData: Pcre2MatchDataPtr): Int64
+
+const PCRE2_ERROR_NOMATCH: Int32 = -1
+const PCRE2_ERROR_MATCHLIMIT: Int32 = -47
+const PCRE2_ERROR_RECURSIONLIMIT: Int32 = -53
