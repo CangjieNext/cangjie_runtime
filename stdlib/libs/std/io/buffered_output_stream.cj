@@ -134,8 +134,12 @@ extend<T> BufferedOutputStream<T> <: Resource where T <: Resource {
      */
     public func close(): Unit {
         if (!isClosed()) {
-            flush()
-            outputStream.close()
+            // 修复 LOW-03: 使用 try-finally 确保底层流总是关闭
+            try {
+                flush()
+            } finally {
+                outputStream.close()
+            }
         }
     }
 
