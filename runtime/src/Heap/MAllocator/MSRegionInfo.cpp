@@ -117,9 +117,15 @@ void MSRegionInfo::ReleaseBitmaps()
         size_t bitmapBytes = bitmapWords * sizeof(uint64_t);
         size_t totalBytes = bitmapBytes * 3;
 #ifndef _WIN64
-        munmap(allocBitmap, totalBytes);
+        if (munmap(allocBitmap, totalBytes) != 0) {
+            LOG(RTLOG_ERROR, "[MS-GC] ReleaseBitmaps munmap failed, totalSlotCount=%u, totalBytes=%zu",
+                static_cast<unsigned>(totalSlotCount), totalBytes);
+        }
 #else
-        VirtualFree(allocBitmap, 0, MEM_RELEASE);
+        if (!VirtualFree(allocBitmap, 0, MEM_RELEASE)) {
+            LOG(RTLOG_ERROR, "[MS-GC] ReleaseBitmaps VirtualFree failed, totalSlotCount=%u, totalBytes=%zu",
+                static_cast<unsigned>(totalSlotCount), totalBytes);
+        }
 #endif
         allocBitmap = nullptr;
         markBitmap = nullptr;
@@ -154,9 +160,16 @@ void MSRegionInfo::ResetToBump()
     // Reset a completely-free region back to BUMP for fast reuse (O3).
     // Preserves bitmap memory — avoids munmap/mmap cycle.
     allocPtr = RegionStart();
+    sweepState = MSSweepState::UNSWEPT;
     regionType = MSRegionType::MS_REGION_BUMP;
     freeSlotCount = totalSlotCount;
     liveSlotCount = 0;
+    rawPointerObjCount = 0;
+    isMarked = 0;
+    isEnqueued = 0;
+    isResurrected = 0;
+    isScanned = 0;
+    flagsPadding = 0;
 
     // Reset allocBitmap to all-1s (all slots free)
     size_t bitmapWords = (totalSlotCount + 63) / 64;

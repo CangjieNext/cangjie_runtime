@@ -32,28 +32,6 @@ MSRegionManager::~MSRegionManager()
     array_ = nullptr;
 }
 
-MSRegionManager::HeapRssBreakdown MSRegionManager::GetHeapRssBreakdown() const
-{
-    HeapRssBreakdown breakdown;
-    size_t committedRegionCount = freeManager_.GetCommittedRegionCount();
-    breakdown.regionInfoCount = committedRegionCount;
-    breakdown.regionInfoBytes = committedRegionCount * sizeof(MSRegionInfo);
-
-    for (size_t i = 0; i < committedRegionCount; ++i) {
-        const MSRegionInfo& region = array_[i];
-        if (region.allocBitmap == nullptr || region.totalSlotCount == 0) {
-            continue;
-        }
-
-        size_t bitmapWords = (region.totalSlotCount + 63) / 64;
-        breakdown.regionBitmapBytes += bitmapWords * sizeof(uint64_t) * 3;
-    }
-
-    breakdown.releasedTreeMetadataBytes = freeManager_.GetMetadataBytesInUse();
-    breakdown.releasedTreeNodeBytes = freeManager_.GetNodeBytesInUse();
-    return breakdown;
-}
-
 // ============================================================================
 // Static helpers
 // ============================================================================
@@ -81,7 +59,7 @@ size_t MSRegionManager::GetHeapMemorySize(size_t heapSize)
 size_t MSRegionManager::ComputeMaxVirtualHeapSize(size_t heapSize)
 {
     // Cap at 4GB virtual reservation.
-    static constexpr size_t MAX_VIRTUAL_HEAP = 512ULL * 1024 * 1024 * 1024;
+    static constexpr size_t MAX_VIRTUAL_HEAP = 4ULL * 1024 * 1024 * 1024;
     size_t maxVirtual = RoundUp<size_t>(heapSize, MS_REGION_SIZE);
     if (maxVirtual < MAX_VIRTUAL_HEAP) {
         maxVirtual = MAX_VIRTUAL_HEAP;

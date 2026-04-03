@@ -198,8 +198,6 @@ void FreeManager::ReleaseUnits(UnitIndex idx, UnitCount num) const
 {
     uintptr_t addr = heapStart_ + static_cast<uintptr_t>(idx) * unitSize_;
     size_t size = static_cast<size_t>(num) * unitSize_;
-    DLOG(REGION, "[MS-GC] FreeManager::ReleaseUnits: idx=%u, num=%u, addr=0x%zx, size=%zu",
-         idx, num, addr, size);
 #if defined(_WIN64)
     CHECK_E(UNLIKELY(!VirtualFree(reinterpret_cast<void*>(addr), size, MEM_DECOMMIT)),
             "VirtualFree failed in FreeManager::ReleaseUnits");
@@ -249,12 +247,6 @@ bool FreeManager::GrowOneSegment(HeapRangeHandler& handler)
     handler.OnCommittedHeapExtended(committedEnd_);
     heapGrowCount_++;
 
-    VLOG(REPORT, "[MS-GC] GrowOneSegment: +%zuMB -> committedEnd=0x%zx, "
-         "committedRegions=%zu/%zu, committedUnits=%zu/%zu",
-         growBytes / (1024 * 1024), committedEnd_,
-         committedRegionCount_, maxVirtualRegionCount_,
-         committedUnitCount_, maxVirtualUnitCount_);
-
     return true;
 }
 
@@ -289,21 +281,7 @@ void FreeManager::ShrinkHeap()
 {
     std::lock_guard<std::mutex> lg(growMutex_);
 
-    uintptr_t originalIz = inactiveZone_.load(std::memory_order_relaxed);
-    size_t gap = (committedEnd_ > originalIz) ? (committedEnd_ - originalIz) : 0;
-    uint32_t releasedRegions = static_cast<uint32_t>(GetReleasedUnitCount() / unitsPerRegion_);
-    VLOG(REPORT, "[MS-GC] ShrinkHeap enter: inactiveZone=0x%zx, committedEnd=0x%zx, "
-         "gap=%zuKB, released=%u regions, segmentSize=%zuMB",
-         originalIz, committedEnd_, gap / 1024, releasedRegions,
-         segmentSize_ / (1024 * 1024));
-
-    size_t reclaimedRegions = RewindInactiveZoneUsingReleasedTail();
-
-    if (reclaimedRegions > 0) {
-        uintptr_t newIz = inactiveZone_.load(std::memory_order_relaxed);
-        VLOG(REPORT, "[MS-GC] ShrinkHeap phase1: reclaimed %zu trailing released regions, "
-             "inactiveZone 0x%zx -> 0x%zx", reclaimedRegions, originalIz, newIz);
-    }
+    RewindInactiveZoneUsingReleasedTail();
 
     uintptr_t iz = inactiveZone_.load(std::memory_order_relaxed);
     if (committedEnd_ <= iz) {
@@ -324,18 +302,11 @@ void FreeManager::ShrinkHeap()
         if (newCommitted >= committedEnd_) {
             return;
         }
-        shrinkBytes = committedEnd_ - newCommitted;
     }
 
-    uintptr_t oldCommitted = committedEnd_;
     committedEnd_ = newCommitted;
     committedRegionCount_ = (newCommitted - heapStart_) / GetRegionSizeBytes();
     committedUnitCount_ = (newCommitted - heapStart_) / unitSize_;
-
-    VLOG(REPORT, "[MS-GC] ShrinkHeap phase2: -%zuMB -> committedEnd=0x%zx (was 0x%zx), "
-         "committedRegions=%zu, committedUnits=%zu, inactiveZone=0x%zx",
-         shrinkBytes / (1024 * 1024), committedEnd_, oldCommitted,
-         committedRegionCount_, committedUnitCount_, iz);
 }
 
 FreeManager::UnitCount FreeManager::GetReleasedUnitCount() const

@@ -56,10 +56,17 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
     auto RebindEmptyRegionForClass = [&](MSRegionInfo* region) -> MSRegionInfo* {
         size_t regionIdx = MSRegionInfoArray::GetRegionIdx(region);
         uintptr_t regionStart = MSRegionInfoArray::GetRegionAddress(regionIdx);
-        region->InitForSizeClass(cls);
-        CHECK_DETAIL(region->allocBitmap != nullptr,
-                     "GetRegion: InitForSizeClass failed for cls=%u idx=%zu",
-                     static_cast<unsigned>(cls), regionIdx);
+
+        if (region->sizeClass == cls && region->allocBitmap != nullptr) {
+            region->ResetToBump();
+        } else {
+            region->ResetToEmptyCache();
+            region->InitForSizeClass(cls);
+            CHECK_DETAIL(region->allocBitmap != nullptr,
+                         "GetRegion: InitForSizeClass failed for cls=%u idx=%zu",
+                         static_cast<unsigned>(cls), regionIdx);
+        }
+
         region->allocPtr = regionStart;
         region->regionEnd = regionStart + MS_REGION_SIZE;
         region->SetSweepGen(sg);

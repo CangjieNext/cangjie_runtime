@@ -61,16 +61,6 @@ public:
         BG_SWEEP_EXHAUSTED,
     };
 
-    struct HeapRssBreakdown {
-        size_t regionInfoCount = 0;
-        size_t regionInfoBytes = 0;
-        size_t regionBitmapBytes = 0;
-        size_t releasedTreeMetadataBytes = 0;
-        size_t releasedTreeNodeBytes = 0;
-    };
-
-
-
     MSRegionManager() = default;
     ~MSRegionManager();
 
@@ -179,8 +169,6 @@ public:
     {
         return freeManager_.GetReleasedBytes();
     }
-
-    HeapRssBreakdown GetHeapRssBreakdown() const;
 
     uint32_t GetReleasedTreeNodeCount() const { return freeManager_.GetNodeCount(); }
     uint32_t GetReleasedTreeMaxBlock() const { return freeManager_.GetMaxBlockRegions(); }

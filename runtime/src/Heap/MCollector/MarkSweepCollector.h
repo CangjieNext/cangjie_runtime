@@ -89,23 +89,11 @@ struct MSGCCycleStats {
     // ── True live bytes (computed from markBitmaps after marking) ──
     size_t trueLiveBytes = 0;
 
-    // ── Runtime RSS breakdown snapshot ──
-    size_t regionInfoCount = 0;
+    // ── Region accounting snapshot ──
     size_t activeRegionCount = 0;
     size_t releasedTreeRegionCount = 0;
     size_t virginRegionCount = 0;
     size_t committedRegionCount = 0;
-    size_t regionInfoBytes = 0;
-    size_t regionBitmapBytes = 0;
-    size_t emptyCacheRegions = 0;
-    size_t emptyCacheBytes = 0;
-    size_t releasedTreeMetadataBytes = 0;
-    size_t releasedTreeNodeBytes = 0;
-    size_t collectorQueueBuffers = 0;
-    size_t collectorQueueBytes = 0;
-    size_t wbBufferBytes = 0;
-    size_t wbPendingEntries = 0;
-    size_t mutatorCount = 0;
 
     void Reset() { *this = MSGCCycleStats{}; }
 };
@@ -285,7 +273,6 @@ private:
     void LogGCSummary(uint64_t gcTimeUs);                         // Block ⑥
     void SnapshotPreviousCycleSweepStats();                       // Persist previous sweep stats
     void LogSweepSummary();                                       // Block ④
-    void SnapshotRuntimeRssStats();
 
     size_t prevCycleLargeFreedCount_ = 0;
     size_t prevCycleLargeFreedRegionCount_ = 0;

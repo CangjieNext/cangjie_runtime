@@ -767,8 +767,6 @@ void MarkSweepCollector::MarkTermination()
     // STW: freeze all mutators
     ScopedStopTheWorld stw("MS MarkTermination", true, GCPhase::GC_PHASE_MS_MARK_TERMINATION);
 
-    SnapshotRuntimeRssStats();
-
     // Now that all mutators are frozen, clear activeCollector_.
     activeCollector_.store(nullptr, std::memory_order_release);
 
@@ -854,7 +852,6 @@ void MarkSweepCollector::FlushAllWriteBarrierBuffers(WorkStack& mainQueue)
     };
     MutatorManager::Instance().VisitAllMutators(func);
 }
-
 void MarkSweepCollector::FlushAllAssistLocalWorks(WorkStack& mainQueue)
 {
     auto func = [&mainQueue](Mutator& mutator) {
@@ -1173,52 +1170,6 @@ void MarkSweepCollector::SnapshotPreviousCycleSweepStats()
     cycleStats_.prevSweptLargeFreedBytes = prevCycleLargeFreedBytes_;
 }
 
-void MarkSweepCollector::SnapshotRuntimeRssStats()
-{
-    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
-    CentralRegionPool* centralPool = space.GetCentralPool();
-    if (centralPool != nullptr) {
-        cycleStats_.emptyCacheRegions = centralPool->GetEmptySweptRegionCount();
-        cycleStats_.emptyCacheBytes = centralPool->GetEmptySweptBytes();
-    }
-
-    MSRegionManager* msRegionManager = space.GetMSRegionManager();
-    if (msRegionManager != nullptr) {
-        MSRegionManager::HeapRssBreakdown breakdown = msRegionManager->GetHeapRssBreakdown();
-        cycleStats_.regionInfoCount = breakdown.regionInfoCount;
-        cycleStats_.regionInfoBytes = breakdown.regionInfoBytes;
-        cycleStats_.regionBitmapBytes = breakdown.regionBitmapBytes;
-        cycleStats_.releasedTreeMetadataBytes = breakdown.releasedTreeMetadataBytes;
-        cycleStats_.releasedTreeNodeBytes = breakdown.releasedTreeNodeBytes;
-    }
-
-    size_t collectorQueueBuffers = markWorkStack_.BufferCount();
-    size_t collectorQueueBytes = markWorkStack_.MetadataBytes();
-    {
-        std::lock_guard<std::mutex> lock(globalWorkMutex_);
-        collectorQueueBuffers += globalWorkQueue_.BufferCount();
-        collectorQueueBytes += globalWorkQueue_.MetadataBytes();
-    }
-
-    size_t wbBufferBytes = 0;
-    size_t wbPendingEntries = 0;
-    size_t mutatorCount = 0;
-    auto visitMutator = [&](Mutator& mutator) {
-        mutatorCount++;
-        collectorQueueBuffers += mutator.GetAssistLocalWork().BufferCount();
-        collectorQueueBytes += mutator.GetAssistLocalWork().MetadataBytes();
-        wbBufferBytes += sizeof(WriteBarrierBuffer);
-        wbPendingEntries += mutator.GetWriteBarrierBuffer().Count();
-    };
-    MutatorManager::Instance().VisitAllMutators(visitMutator);
-
-    cycleStats_.collectorQueueBuffers = collectorQueueBuffers;
-    cycleStats_.collectorQueueBytes = collectorQueueBytes;
-    cycleStats_.wbBufferBytes = wbBufferBytes;
-    cycleStats_.wbPendingEntries = wbPendingEntries;
-    cycleStats_.mutatorCount = mutatorCount;
-}
-
 // Block ④: Sweep Summary — output at START of next cycle with persisted stats
 void MarkSweepCollector::LogSweepSummary()
 {
@@ -1284,28 +1235,6 @@ void MarkSweepCollector::DumpRegionStatsMS()
                                 cycleStats_.virginRegionCount,
                                 cycleStats_.committedRegionCount);
     }
-    size_t runtimeMetaBytes = cycleStats_.regionInfoBytes + cycleStats_.regionBitmapBytes +
-                        cycleStats_.releasedTreeMetadataBytes + cycleStats_.collectorQueueBytes +
-                        cycleStats_.wbBufferBytes;
-    VLOG(REPORT,
-        "[MS-GC]   runtime-rss: empty-cache bytes: %s B (%zu regions), region-info count: %zu, "
-        "region-info bytes: %s B, region-bitmap bytes: %s B, releasedTree meta bytes: %s B, "
-        "collector queue bytes: %s B, wb buffer bytes: %s B, runtime meta bytes: %s B",
-        Pretty(cycleStats_.emptyCacheBytes).Str(), cycleStats_.emptyCacheRegions,
-        cycleStats_.regionInfoCount,
-        Pretty(cycleStats_.regionInfoBytes).Str(),
-        Pretty(cycleStats_.regionBitmapBytes).Str(),
-        Pretty(cycleStats_.releasedTreeMetadataBytes).Str(),
-        Pretty(cycleStats_.collectorQueueBytes).Str(),
-        Pretty(cycleStats_.wbBufferBytes).Str(),
-        Pretty(runtimeMetaBytes).Str());
-    VLOG(REPORT,
-        "[MS-GC]   runtime-rss detail: releasedTree live nodes=%s B, collector queue bufs=%zu, "
-        "wb pending entries=%zu, mutators=%zu",
-        Pretty(cycleStats_.releasedTreeNodeBytes).Str(),
-        cycleStats_.collectorQueueBuffers,
-        cycleStats_.wbPendingEntries,
-        cycleStats_.mutatorCount);
 
     // CentralRegionPool 4-list breakdown
     CentralRegionPool* centralPool = space.GetCentralPool();
@@ -1331,7 +1260,6 @@ void MarkSweepCollector::LogGCSummary(uint64_t gcTimeUs)
                            cycleStats_.postMarkUs + cycleStats_.concurrentSweepUs +
                            cycleStats_.postGcHookUs;
     uint64_t otherUs = (gcTimeUs > accountedUs) ? (gcTimeUs - accountedUs) : 0;
-    size_t regionInfoTotalBytes = cycleStats_.regionInfoBytes + cycleStats_.regionBitmapBytes;
 
     VLOG(REPORT,
          "[MS-GC] active-region bytes: %s, true live: %s B, true-live utilization: %.2f%%, "
@@ -1350,13 +1278,6 @@ void MarkSweepCollector::LogGCSummary(uint64_t gcTimeUs)
          Pretty(cycleStats_.concurrentSweepUs).Str(),
          Pretty(cycleStats_.postGcHookUs).Str(),
          Pretty(otherUs).Str());
-        VLOG(REPORT,
-            "[MS-GC] runtime-extra summary: empty-cache %s B, region-info+bitmap %s B, "
-            "releasedTree-meta %s B, collector-meta %s B",
-            Pretty(cycleStats_.emptyCacheBytes).Str(),
-            Pretty(regionInfoTotalBytes).Str(),
-            Pretty(cycleStats_.releasedTreeMetadataBytes).Str(),
-            Pretty(cycleStats_.collectorQueueBytes + cycleStats_.wbBufferBytes).Str());
 
     // Also output the standard LOG(RTLOG_INFO) summary for compatibility
     LOG(RTLOG_INFO,
