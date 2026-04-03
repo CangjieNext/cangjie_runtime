@@ -586,7 +586,8 @@ FuncPtr* TypeInfo::GetMTable(TypeInfo* itf)
     }
     auto extensionData = FindExtensionData(itf, true);
     if (UNLIKELY(extensionData == nullptr)) {
-        LOG(RTLOG_FATAL, "extensionData is nullptr, ti: %s, itf: %s", GetName(), itf->GetName());
+        LOG(RTLOG_FATAL, "extensionData is nullptr, ti: %s,
+            itf: %s", GetName(), itf->GetName());
     }
     if (UNLIKELY(!extensionData->IsFuncTableUpdated())) {
         TryUpdateExtensionData(itf, extensionData);

@@ -24,7 +24,6 @@ namespace MapleRuntime {
 #define ARM32_MARKED_FLAG_BITS  2
 #endif
 class BaseObject;
-
 /* there are several similar terms about object address:
     1. address: the start position of any virtual memory block.
     2. object-ref: an address pointing to some object, RawRoot and RawRef are object-ref.
