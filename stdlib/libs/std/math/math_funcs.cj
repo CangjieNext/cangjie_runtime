@@ -2159,6 +2159,9 @@ public func clamp(v: Float64, min: Float64, max: Float64): Float64 {
  * @since 0.25.2
  */
 public func round(x: Float64): Float64 {
+    if (x.isNaN()) {
+        return x
+    }
     var result: Float64 = abs(x)
     // note: if result >= 1e16, Float64(1e16) + 1 = ceil(Float64(1e16) + 0.9)
     if (result >= 1e16) {
@@ -2195,6 +2198,9 @@ public func round(x: Float64): Float64 {
  * @since 0.25.2
  */
 public func round(x: Float32): Float32 {
+    if (x.isNaN()) {
+        return x
+    }
     var result: Float32 = abs(x)
     // note: if result >= 1e8, Float32(1e8) + 1 != ceil(Float32(1e8) + 0.9)
     if (result >= 1e8) {
@@ -2231,6 +2237,9 @@ public func round(x: Float32): Float32 {
  * @since 0.25.2
  */
 public func round(x: Float16): Float16 {
+    if (x.isNaN()) {
+        return x
+    }
     var result: Float16 = abs(x)
     // note: if result >= 1e4, Float16(1e4) + 1 != ceil(Float16(1e4) + 0.5)
     if (result >= 1e4) {
