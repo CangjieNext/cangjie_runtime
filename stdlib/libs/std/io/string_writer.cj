@@ -148,26 +148,27 @@ public class StringWriter<T> where T <: OutputStream {
     }
 
     public func write(v: Float64): Unit {
-        var res: Int64 = 0
         unsafe {
             let p: CPointer<UInt8> = CJ_CORE_Float64ToCPointer(v)
             if (p.isNull()) {
                 throw IOException()
             }
             let cpSize = Int64(strlen(p)) + 1 // append r'\0' in the end
-            LibC.free(p)
             ensureEnoughOutBuf(cpSize)
 
             let cp = acquireArrayRawData(this.outputBOS.outBuf)
-            res = CJ_BUFFER_Float64ToCPointer(v, cp.pointer + this.outputBOS.curPos, cpSize)
+            // 直接复制第1次转换的结果，不再第2次转换
+            // 复制 cpSize-1 字节（不包括 '\0'）
+            let copyRes = memcpy_s(cp.pointer + this.outputBOS.curPos, UIntNative(cpSize), p, UIntNative(cpSize - 1))
+            LibC.free(p)
             releaseArrayRawData(cp)
-        }
 
-        if (res < 0) {
-            throw IOException("Error writing digit ${v}!")
-        }
+            if (copyRes != 0) {
+                throw IOException("Error writing digit ${v}!")
+            }
 
-        this.outputBOS.curPos += res
+            this.outputBOS.curPos += cpSize - 1 // 只增加实际内容长度（不包括 '\0'）
+        }
     }
 
     public func write(v: Rune): Unit {
