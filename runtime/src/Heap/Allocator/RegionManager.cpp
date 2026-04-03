@@ -745,8 +745,8 @@ void RegionManager::CollectLocalGarbage()
         } else {
             VLOG(LOCAL_REGION, "CollectLocalGarbage: region %p", del);
             CollectRegion(del);
+            (void)localRegionTotalSize.fetch_sub(del->GetRegionSize());
         }
-        (void)localRegionTotalSize.fetch_sub(del->GetRegionSize());
     }
 }
 
@@ -756,6 +756,7 @@ void RegionManager::FlushDeferredLocalRegions()
     while (region != nullptr) {
         VLOG(LOCAL_REGION, "FlushDeferredLocalRegions: collect region %p", region);
         CollectRegion(region);
+        (void)localRegionTotalSize.fetch_sub(region->GetRegionSize());
         region = deferredLocalRegionList.TakeHeadRegion();
     }
 }
