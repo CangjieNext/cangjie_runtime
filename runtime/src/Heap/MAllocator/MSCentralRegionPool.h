@@ -345,7 +345,12 @@ public:
     bool IsEmptyCacheLow() const;
 
     size_t GetEmptyCacheHighWatermarkRegions() const;
+    size_t GetEmptyCacheLowWatermarkRegions() const;
     size_t GetTrueLiveSlackTargetBytes() const;
+
+    // Step 11: inline reclaim support — used by MSRegionManager::InlineReclaimForBalance
+    MSRegionInfo* TakeEmptySweptRegionForReclaim();
+    void DecrementTotalMSRegionBytes(size_t bytes);
 
     // ===== DFX: Sweep statistics (persisted across GC cycle) =====
     MSSweepStats& GetSweepStats() { return sweepStats_; }
@@ -429,7 +434,6 @@ private:
     void ReleaseRegionInternal(MSRegionInfo* region);
     void PushEmptySweptRegion(MSRegionInfo* region);
     MSRegionInfo* TakeEmptySweptRegion(uint8_t cls);
-    size_t GetEmptyCacheLowWatermarkRegions() const;
     bool ShouldScavengeForTrueLiveSlack(size_t committedBytes, size_t targetBytes) const;
     bool ShouldPressureSweepForTrueLiveSlack(size_t committedBytes, size_t targetBytes, size_t emptyCount) const;
     BackgroundScavengeState CollectBackgroundScavengeState() const;

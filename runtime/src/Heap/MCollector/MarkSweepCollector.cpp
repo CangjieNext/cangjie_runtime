@@ -254,7 +254,7 @@ void MarkSweepCollector::PreEnumRoots()
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
 
-    // Stop sweep → clear bitmaps → reclassify → re-enable lazy sweep.
+    // Stop sweep → clear bitmaps → reclassify → re-enable.
     // Safe pre-STW: no SweepRegion running, mark-at-alloc inactive.
     if (centralPool != nullptr) {
         centralPool->StopAndWaitForAllSweep();
@@ -743,10 +743,8 @@ void MarkSweepCollector::MSMarkAssist()
         }
     }
 
-    // Push remaining local work back to global
-    if (!localWork.empty()) {
-        PushToGlobal(localWork);
-    }
+    // Keep residual local work on the mutator so the next assist call can
+    // resume without round-tripping through the shared global queue.
 
     // Batch update: one atomic op per assist call instead of per-object
     (void)markedObjectCount.fetch_add(nNewlyMarked, std::memory_order_relaxed);

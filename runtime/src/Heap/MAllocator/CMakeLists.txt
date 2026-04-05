@@ -5,6 +5,7 @@
 # See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 set(SRC_LIST
+    "MSBitmapArena.cpp"
     "MSSizeClass.cpp"
     "MSFreeManager.cpp"
     "MSRegionInfo.cpp"

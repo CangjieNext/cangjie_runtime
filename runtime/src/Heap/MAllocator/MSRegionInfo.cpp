@@ -6,13 +6,11 @@
 
 #ifdef MRT_USE_MARK_SWEEP
 
+#include "Heap/MAllocator/MSBitmapArena.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 
 #include <cstdlib>
 #include <cstring>
-#ifndef _WIN64
-#include <sys/mman.h>
-#endif
 
 #include "Base/Log.h"
 
@@ -41,29 +39,19 @@ void MSRegionInfo::InitForSizeClass(uint8_t cls)
     sweepGen = 0;
     reserved = 0;  // searchHint = 0
 
-    // Allocate allocBitmap + markBitmap + scannedBitmap contiguously via mmap
+    // Use the fixed sidecar slot for this region:
+    // [allocBitmap | markBitmap | scannedBitmap].
     size_t bitmapWords = (totalSlotCount + 63) / 64;
     size_t bitmapBytes = bitmapWords * sizeof(uint64_t);
-    size_t totalBytes = bitmapBytes * 3;
-
-#ifndef _WIN64
-    void* mem = mmap(nullptr, totalBytes, PROT_READ | PROT_WRITE,
-                     MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (mem == MAP_FAILED) {
-        allocBitmap = nullptr;
-        markBitmap = nullptr;
-        return;
-    }
-#else
-    void* mem = VirtualAlloc(nullptr, totalBytes, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    size_t regionIdx = MSRegionInfoArray::GetRegionIdx(this);
+    uint64_t* mem = MSBitmapArena::GetSlotBase(regionIdx);
     if (mem == nullptr) {
         allocBitmap = nullptr;
         markBitmap = nullptr;
         return;
     }
-#endif
 
-    allocBitmap = reinterpret_cast<uint64_t*>(mem);
+    allocBitmap = mem;
     markBitmap = reinterpret_cast<uint64_t*>(reinterpret_cast<uint8_t*>(mem) + bitmapBytes);
     uint64_t* scannedBitmap = reinterpret_cast<uint64_t*>(reinterpret_cast<uint8_t*>(mem) + bitmapBytes * 2);
 
@@ -113,20 +101,6 @@ void MSRegionInfo::InitForLargeObject(uintptr_t start, uintptr_t end)
 void MSRegionInfo::ReleaseBitmaps()
 {
     if (allocBitmap != nullptr) {
-        size_t bitmapWords = (totalSlotCount + 63) / 64;
-        size_t bitmapBytes = bitmapWords * sizeof(uint64_t);
-        size_t totalBytes = bitmapBytes * 3;
-#ifndef _WIN64
-        if (munmap(allocBitmap, totalBytes) != 0) {
-            LOG(RTLOG_ERROR, "[MS-GC] ReleaseBitmaps munmap failed, totalSlotCount=%u, totalBytes=%zu",
-                static_cast<unsigned>(totalSlotCount), totalBytes);
-        }
-#else
-        if (!VirtualFree(allocBitmap, 0, MEM_RELEASE)) {
-            LOG(RTLOG_ERROR, "[MS-GC] ReleaseBitmaps VirtualFree failed, totalSlotCount=%u, totalBytes=%zu",
-                static_cast<unsigned>(totalSlotCount), totalBytes);
-        }
-#endif
         allocBitmap = nullptr;
         markBitmap = nullptr;
     }

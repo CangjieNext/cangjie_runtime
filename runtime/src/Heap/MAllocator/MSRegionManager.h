@@ -192,6 +192,10 @@ public:
     // Layer-3 trigger: notify gc-helper to reclaim empty regions back to OS.
     void MaybeNotifyReclaim();
 
+    // Inline reclaim: when TakeRegion expands the heap via BUMP, synchronously
+    // release one empty-cache region to keep committed bytes stable.
+    void InlineReclaimForBalance(const CentralRegionPool& pool);
+
 private:
     void InitializeFreshRegions(RegionIndex startIdx, RegionCount count) override;
     void OnCommittedHeapExtended(uintptr_t newCommittedEnd) override;

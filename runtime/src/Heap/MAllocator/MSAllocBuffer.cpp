@@ -73,21 +73,24 @@ MAddress AllocBufferMS::Allocate(size_t size)
     MAddress addr = FastAlloc(cls);
 
     if (UNLIKELY(addr != 0)) {
-        GCPhase phase = Mutator::GetMutator()->GetMutatorPhase();
+        Mutator* mutator = Mutator::GetMutator();
+        GCPhase phase = mutator->GetMutatorPhase();
         if (UNLIKELY(IsMSMarkingPhase(phase))) {
             Heap::GetHeap().GetCollector().MarkNewObject(reinterpret_cast<BaseObject*>(addr));
-        }
 
-        // Mutator assist: accumulate allocation debt, trigger mark assist
-        // every kGCAssistTriggerBytes (64KB). MSMarkAssist() checks
-        // assistEnabled_ internally — no-op outside ConcurrentMark phase.
-        gcAssistBytes_ += size;
-        if (UNLIKELY(gcAssistBytes_ >= kGCAssistTriggerBytes)) {
-            gcAssistBytes_ = 0;
-            MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
-            if (collector != nullptr) {
-                collector->MSMarkAssist();
+            // Mutator assist: only accumulate debt during marking phases, and
+            // only pay it down when there is visible pending mark work.
+            gcAssistBytes_ += size;
+            if (UNLIKELY(gcAssistBytes_ >= kGCAssistTriggerBytes)) {
+                MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
+                if (collector != nullptr &&
+                    (!mutator->GetAssistLocalWork().empty() || collector->HasPendingGlobalAssistWork())) {
+                    gcAssistBytes_ = 0;
+                    collector->MSMarkAssist();
+                }
             }
+        } else {
+            gcAssistBytes_ = 0;
         }
     }
 

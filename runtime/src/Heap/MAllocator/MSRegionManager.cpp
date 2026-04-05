@@ -9,11 +9,14 @@
 #include "Heap/MAllocator/MSRegionManager.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
+#include "Base/CString.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "Base/TimeUtils.h"
 #include "AllocUtil.h"
+#include "Heap/MAllocator/MSBitmapArena.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSRegionSpace.h"
 #include "Common/ScopedObjectAccess.h"
@@ -30,6 +33,7 @@ MSRegionManager::~MSRegionManager()
 {
     // array_ points into the mmap region — no free needed.
     array_ = nullptr;
+    MSBitmapArena::Cleanup();
 }
 
 // ============================================================================
@@ -121,6 +125,7 @@ void MSRegionManager::Initialize(size_t heapSize, uintptr_t mmapBase, size_t max
                             static_cast<RegionCount>(committedRegionCount),
                             static_cast<RegionCount>(maxVirtualRegionCount),
                             heapStart_, committedEnd, maxHeapEnd, segmentSize);
+    MSBitmapArena::Init(maxVirtualRegionCount, committedRegionCount);
     statsWindowStartNs_.store(TimeUtil::NanoSeconds(), std::memory_order_relaxed);
 
     VLOG(REPORT, "[MS-GC] MSRegionManager initialized (virtual reserve): mmapBase=0x%zx, "
@@ -138,6 +143,7 @@ void MSRegionManager::InitializeFreshRegions(RegionIndex startIdx, RegionCount c
 {
     size_t startRegionIdx = static_cast<size_t>(startIdx);
     size_t regionCount = static_cast<size_t>(count);
+    MSBitmapArena::EnsureRegionRangeCommitted(startRegionIdx, regionCount);
     for (size_t i = 0; i < regionCount; ++i) {
         size_t regionIdx = startRegionIdx + i;
         array_[regionIdx].regionType = MSRegionType::MS_REGION_FREE;
@@ -156,13 +162,84 @@ void MSRegionManager::OnCommittedHeapExtended(uintptr_t newCommittedEnd)
 // ============================================================================
 
 namespace {
-constexpr uint64_t HEU_REQUEST_COOLDOWN_NS = 10ULL * 1000ULL * 1000ULL;
-constexpr size_t HEU_READY_REGION_WATERMARK = 4;
-constexpr size_t HEU_UNSWEPT_REGION_WATERMARK = 16;
-constexpr size_t HEU_RELEASED_TREE_BYTES_WATERMARK = 16ULL * 1024ULL * 1024ULL;
-constexpr uint32_t HEU_RELEASED_TREE_NODE_WATERMARK = 128;
-constexpr uint32_t HEU_RELEASED_TREE_MAX_BLOCK_WATERMARK = 8;
-constexpr size_t BG_SWEEP_NOTIFY_READY_WATERMARK = 4;
+uint64_t ReadEnvTimeNs(const char* name, uint64_t fallback)
+{
+    const char* env = std::getenv(name);
+    if (env == nullptr) {
+        return fallback;
+    }
+    uint64_t value = CString::ParseTimeFromEnv(env);
+    return value == 0 ? fallback : value;
+}
+
+size_t ReadEnvCount(const char* name, size_t fallback)
+{
+    const char* env = std::getenv(name);
+    if (env == nullptr) {
+        return fallback;
+    }
+    size_t value = CString::ParsePosNumFromEnv(env);
+    return value == 0 ? fallback : value;
+}
+
+size_t ReadEnvSizeBytes(const char* name, size_t fallback)
+{
+    const char* env = std::getenv(name);
+    if (env == nullptr) {
+        return fallback;
+    }
+    size_t valueKb = CString::ParseSizeFromEnv(env);
+    return valueKb == 0 ? fallback : valueKb * KB;
+}
+
+uint64_t GetHeuRequestCooldownNs()
+{
+    static const uint64_t value = ReadEnvTimeNs("CJ_MS_HEU_REQUEST_COOLDOWN", 10ULL * 1000ULL * 1000ULL);
+    return value;
+}
+
+size_t GetHeuReadyRegionWatermark()
+{
+    static const size_t value = ReadEnvCount("CJ_MS_HEU_READY_WATERMARK", 4);
+    return value;
+}
+
+size_t GetHeuUnsweptRegionWatermark()
+{
+    static const size_t value = ReadEnvCount("CJ_MS_HEU_UNSWEPT_WATERMARK", 16);
+    return value;
+}
+
+size_t GetHeuReleasedTreeBytesWatermark()
+{
+    static const size_t value = ReadEnvSizeBytes("CJ_MS_HEU_RELEASED_TREE_BYTES_WATERMARK",
+                                                 16ULL * 1024ULL * 1024ULL);
+    return value;
+}
+
+uint32_t GetHeuReleasedTreeNodeWatermark()
+{
+    static const uint32_t value = static_cast<uint32_t>(ReadEnvCount("CJ_MS_HEU_RELEASED_TREE_NODE_WATERMARK", 128));
+    return value;
+}
+
+uint32_t GetHeuReleasedTreeMaxBlockWatermark()
+{
+    static const uint32_t value = static_cast<uint32_t>(ReadEnvCount("CJ_MS_HEU_RELEASED_TREE_MAX_BLOCK_WATERMARK", 8));
+    return value;
+}
+
+size_t GetBgSweepNotifyReadyWatermark()
+{
+    static const size_t value = ReadEnvCount("CJ_MS_BG_SWEEP_NOTIFY_READY_WATERMARK", 4);
+    return value;
+}
+
+bool GetInlineReclaimEnabled()
+{
+    static const bool value = ReadEnvCount("CJ_MS_INLINE_RECLAIM", 1) != 0;
+    return value;
+}
 }
 
 void MSRegionManager::MaybeNotifySweep(const CentralRegionPool* centralPool, uint8_t cls)
@@ -180,7 +257,7 @@ void MSRegionManager::MaybeNotifySweep(const CentralRegionPool* centralPool, uin
     }
 
     CentralRegionPool::BucketPressure pressure = centralPool->GetBucketPressure(cls);
-    if (pressure.ReadyCount() < BG_SWEEP_NOTIFY_READY_WATERMARK && pressure.UnsweptCount() > 0) {
+    if (pressure.ReadyCount() < GetBgSweepNotifyReadyWatermark() && pressure.UnsweptCount() > 0) {
         backgroundProcessor.NotifyToSweep();
     }
 }
@@ -238,9 +315,9 @@ void MSRegionManager::MaybeNotifyMark(HeuTriggerKind triggerKind, const CentralR
     size_t emptyCacheCount = 0;
 
     auto releasedPressureLow = [&]() {
-        return releasedTreeBytes < HEU_RELEASED_TREE_BYTES_WATERMARK &&
-               !(releasedTreeNodeCount >= HEU_RELEASED_TREE_NODE_WATERMARK &&
-                 releasedTreeMaxBlock >= HEU_RELEASED_TREE_MAX_BLOCK_WATERMARK);
+                return releasedTreeBytes < GetHeuReleasedTreeBytesWatermark() &&
+                             !(releasedTreeNodeCount >= GetHeuReleasedTreeNodeWatermark() &&
+                                 releasedTreeMaxBlock >= GetHeuReleasedTreeMaxBlockWatermark());
     };
 
     switch (triggerKind) {
@@ -251,8 +328,8 @@ void MSRegionManager::MaybeNotifyMark(HeuTriggerKind triggerKind, const CentralR
             triggeredUnswept = pressure.UnsweptCount();
             emptyCacheCount = centralPool->GetEmptySweptRegionCount();
             if (!thresholdTriggered && bumpSource) {
-                bool readyLow = triggeredReady < HEU_READY_REGION_WATERMARK;
-                bool unsweptLow = triggeredUnswept < HEU_UNSWEPT_REGION_WATERMARK;
+                bool readyLow = triggeredReady < GetHeuReadyRegionWatermark();
+                bool unsweptLow = triggeredUnswept < GetHeuUnsweptRegionWatermark();
                 bool emptyLow = centralPool->IsEmptyCacheLow();
                 pressureTriggered = readyLow && unsweptLow && emptyLow && releasedPressureLow();
             }
@@ -268,8 +345,8 @@ void MSRegionManager::MaybeNotifyMark(HeuTriggerKind triggerKind, const CentralR
                 bool releasedLow = releasedPressureLow();
                 for (uint8_t candidateCls = 0; candidateCls < kNumSizeClasses; candidateCls++) {
                     CentralRegionPool::BucketPressure pressure = centralPool->GetBucketPressure(candidateCls);
-                    bool readyLow = pressure.ReadyCount() < HEU_READY_REGION_WATERMARK;
-                    bool unsweptLow = pressure.UnsweptCount() < HEU_UNSWEPT_REGION_WATERMARK;
+                    bool readyLow = pressure.ReadyCount() < GetHeuReadyRegionWatermark();
+                    bool unsweptLow = pressure.UnsweptCount() < GetHeuUnsweptRegionWatermark();
                     if (readyLow && unsweptLow && emptyLow && releasedLow) {
                         pressureTriggered = true;
                         triggeredCls = candidateCls;
@@ -292,7 +369,7 @@ void MSRegionManager::MaybeNotifyMark(HeuTriggerKind triggerKind, const CentralR
 
     uint64_t nowNs = TimeUtil::NanoSeconds();
     uint64_t lastHeuRequestNs = lastHeuRequestNs_.load(std::memory_order_relaxed);
-    if (lastHeuRequestNs != 0 && nowNs - lastHeuRequestNs < HEU_REQUEST_COOLDOWN_NS) {
+    if (lastHeuRequestNs != 0 && nowNs - lastHeuRequestNs < GetHeuRequestCooldownNs()) {
         return;
     }
     if (!lastHeuRequestNs_.compare_exchange_strong(lastHeuRequestNs, nowNs,
@@ -435,6 +512,13 @@ MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& 
     if (!TakeRegions(1, regionIdx, &source)) {
         return nullptr;
     }
+
+    // Step 11: inline reclaim — when BUMP expands committed heap, synchronously
+    // release one empty-cache region to keep committed bytes stable (RSS flat).
+    if (source == AllocSource::BUMP && GetInlineReclaimEnabled()) {
+        InlineReclaimForBalance(centralPool);
+    }
+
     MaybeNotifySweep(&centralPool, cls);
     MaybeNotifyReclaim();
     MaybeNotifyMark(HeuTriggerKind::SMALL_ALLOC, &centralPool, cls, source == AllocSource::BUMP);
@@ -539,6 +623,29 @@ void MSRegionManager::ReclaimEmptyRegionToReleased(MSRegionInfo* region)
 }
 
 // ============================================================================
+// InlineReclaimForBalance — synchronously release one empty-cache region
+// to offset a BUMP allocation, keeping committed bytes stable.
+// ============================================================================
+
+void MSRegionManager::InlineReclaimForBalance(const CentralRegionPool& pool)
+{
+    size_t emptyCount = pool.GetEmptySweptRegionCount();
+    size_t lowWatermark = pool.GetEmptyCacheLowWatermarkRegions();
+    if (emptyCount <= lowWatermark) {
+        return;
+    }
+
+    CentralRegionPool& mutablePool = const_cast<CentralRegionPool&>(pool);
+    MSRegionInfo* region = mutablePool.TakeEmptySweptRegionForReclaim();
+    if (region == nullptr) {
+        return;
+    }
+
+    ReclaimEmptyRegionToReleased(region);
+    mutablePool.DecrementTotalMSRegionBytes(MS_REGION_SIZE);
+}
+
+// ============================================================================
 // ReleaseGarbageRegions — no-op for MSGC.
 // Small regions are kept in CentralRegionPool empty cache and scavenged from
 // there. Large regions are reclaimed eagerly to releasedTree.
@@ -567,7 +674,12 @@ bool MSRegionManager::GrowOneSegment()
 
 void MSRegionManager::ShrinkHeap()
 {
+    size_t oldCommittedRegionCount = freeManager_.GetCommittedRegionCount();
     freeManager_.ShrinkHeap();
+    size_t newCommittedRegionCount = freeManager_.GetCommittedRegionCount();
+    if (newCommittedRegionCount < oldCommittedRegionCount) {
+        MSBitmapArena::ShrinkToCommittedRegionCount(newCommittedRegionCount);
+    }
 }
 
 } // namespace MapleRuntime

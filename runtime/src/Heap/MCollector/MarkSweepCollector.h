@@ -131,6 +131,10 @@ public:
     {
         return activeCollector_.load(std::memory_order_acquire);
     }
+    bool HasPendingGlobalAssistWork() const
+    {
+        return globalWorkAvailable_.load(std::memory_order_acquire);
+    }
 
     // Called from MSMarkBarrier when WriteBarrierBuffer overflows.
     // Pushes a single grey object to the global work queue for tracing.
