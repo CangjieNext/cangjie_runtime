@@ -168,6 +168,7 @@ elseif ((CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64") AND (WINDOWS_FLAG MATCHES 0))
         "CangjieRuntimeApi.cpp"
         "arch/aarch64_linux/N2CStub.S"
         "arch/aarch64_linux/C2NStub.S"
+        "arch/aarch64_linux/I2NStub.S"
         "arch/aarch64_linux/ExclusiveScope.S"
         "arch/aarch64_linux/CalleeSavedStub.S"
         "arch/aarch64_linux/StackGrowStub.S"
