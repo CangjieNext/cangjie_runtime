@@ -11,10 +11,14 @@ package std.process
 import std.collection.*
 import std.fs.*
 import std.io.*
+import std.sync.*
 
 const STDIN_FD: IntNative = 0
 const STDOUT_FD: IntNative = 1
 const STDERR_FD: IntNative = 2
+var nulFileCache: Option<IntNative> = None
+let nulFileMutex = Mutex()
+
 @When[os == "Windows"]
 const INVALID_HANDLE: IntNative = 0
 
@@ -45,11 +49,17 @@ func getStdErrHandle(): IntNative {
 
 @When[os == "Windows"]
 func getNulFileHandle(): Option<IntNative> {
-    let handle = unsafe { CJ_OS_GetNulFileHandle() }
-    if (handle == 0) {
-        return Option.None
+    synchronized (nulFileMutex) {
+        if (let Some(handle) <- nulFileCache) {
+            return handle
+        }
+        let handle = unsafe { CJ_OS_GetNulFileHandle() }
+        if (handle == 0) {
+            return Option.None
+        }
+        nulFileCache = handle
+        return handle
     }
-    return handle
 }
 
 @When[os == "Windows"]
@@ -75,10 +85,20 @@ const INVALID_HANDLE: IntNative = -1
 
 @When[os != "Windows"]
 func getNulFileHandle(): Option<IntNative> {
-    return try {
-        File("/dev/null", ReadWrite).fileDescriptor.fileHandle
-    } catch (_: FSException) {
-        None
+    synchronized (nulFileMutex) {
+        if (let Some(handle) <- nulFileCache) {
+            return handle
+        }
+        let handle: IntNative = try {
+            File("/dev/null", ReadWrite).fileDescriptor.fileHandle
+        } catch (_: FSException) {
+            -1
+        }
+        if (handle < 0) {
+            return None
+        }
+        nulFileCache = handle
+        return handle
     }
 }
 
