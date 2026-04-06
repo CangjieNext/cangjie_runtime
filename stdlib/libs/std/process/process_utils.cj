@@ -19,6 +19,9 @@ const STDERR_FD: IntNative = 2
 const INVALID_HANDLE: IntNative = 0
 
 @When[os == "Windows"]
+let nulFileCache: Option<IntNative> = None
+
+@When[os == "Windows"]
 func isHandleValid(fileHandle: IntNative): Bool {
     return fileHandle != -1
 }
@@ -45,10 +48,14 @@ func getStdErrHandle(): IntNative {
 
 @When[os == "Windows"]
 func getNulFileHandle(): Option<IntNative> {
+    if (let Some(handle) <- nulFileCache) {
+        return handle
+    }
     let handle = unsafe { CJ_OS_GetNulFileHandle() }
     if (handle == 0) {
         return Option.None
     }
+    nulFileCache = handle
     return handle
 }
 
@@ -74,12 +81,23 @@ func getNameFromCommand(cmd: ?String): Option<String> {
 const INVALID_HANDLE: IntNative = -1
 
 @When[os != "Windows"]
+let nulFileCache: Option<IntNative> = None
+
+@When[os != "Windows"]
 func getNulFileHandle(): Option<IntNative> {
-    return try {
+    if (let Some(handle) <- nulFileCache) {
+        return handle
+    }
+    let handle = try {
         File("/dev/null", ReadWrite).fileDescriptor.fileHandle
     } catch (_: FSException) {
-        None
+        -1
     }
+    if (handle < 0) {
+        return None
+    }
+    nulFileCache = handle
+    return handle
 }
 
 @When[os != "Windows"]
