@@ -105,6 +105,9 @@ public func setVariable(key: String, value: String): Unit {
     if (key.contains(NULL_BYTE) || value.contains(NULL_BYTE)) {
         throw IllegalArgumentException("The path cannot contain null character!")
     }
+    if (key.contains("=")) {
+        throw IllegalArgumentException("The environment key can not contain \'=\'")
+    }
 
     unsafe {
         try (ck = LibC.mallocCString(key).asResource(), cv = LibC.mallocCString(value).asResource()) {
