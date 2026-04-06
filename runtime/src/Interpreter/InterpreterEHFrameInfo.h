@@ -22,7 +22,9 @@ public:
     ~InterpreterEHFrameInfo() override = default;
 
     bool IsCatchException() const override {
-        return true; // interpreter frame always catches exception and rethrow it in landing pad if no suitable catch block is found
+        // Interpreted frames alawys catch exception, allowing interpreter to search for catch block for this method.
+        // Transition stubs are not catch points.
+        return !IsTransitionStubFrame();
     }
 
     uint64_t GetTTypeIndex() const override {
@@ -53,6 +55,10 @@ public:
     const CString GetFunctionName() const override { return FrameInfo::GetFuncName(); }
 
 private:
+    bool IsTransitionStubFrame() const
+    {
+        return mFrame.IsC2IStubFrame() || mFrame.IsI2IFrame() || mFrame.IsI2NFrame();
+    }
 
     uintptr_t landingPad;
 };
