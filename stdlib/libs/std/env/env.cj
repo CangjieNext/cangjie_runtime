@@ -76,7 +76,7 @@ public func getVariable(key: String): ?String {
         let ck: CString = LibC.mallocCString(key)
         try {
             return synchronized(mtx) {
-                nativeGetEnv(ck) // Note: No need to free.
+                nativeGetEnv(ck)
             }
         } finally {
             LibC.free(ck)
@@ -248,7 +248,7 @@ func getEnvirments(env: CPointer<CString>): ?Array<(String, String)> {
 }
 
 func homeDirectory(): Path {
-    let homeDir: CString = unsafe { CJ_OS_HomeDir() } // Note: no need to free.
+    let homeDir: CString = unsafe { CJ_OS_HomeDir() } // Note: no need to free homeDir.
     Path(homeDir.toString())
 }
 
@@ -265,7 +265,7 @@ func tempDirectory(): Path {
 
 @When[os == "Windows"]
 func nativeGetEnv(name: CString): Option<String> {
-    let res: CString = unsafe { CJ_OS_GetEnvVal(name) } // No need to free
+    let res: CString = unsafe { CJ_OS_GetEnvVal(name) } // No need to free name
     if (res.isNull()) {
         return None
     }
@@ -279,7 +279,7 @@ func nativeGetEnv(name: CString): Option<String> {
 
 @When[os != "Windows"]
 func nativeGetEnv(name: CString): Option<String> {
-    let res: CString = unsafe { getenv(name) } // No need to free
+    let res: CString = unsafe { getenv(name) } // No need to free name
 
     return if (res.isNull()) {
         None
