@@ -15,6 +15,8 @@ import std.io.*
 const STDIN_FD: IntNative = 0
 const STDOUT_FD: IntNative = 1
 const STDERR_FD: IntNative = 2
+let nulFileCache: Option<IntNative> = None
+
 @When[os == "Windows"]
 const INVALID_HANDLE: IntNative = 0
 
@@ -45,10 +47,14 @@ func getStdErrHandle(): IntNative {
 
 @When[os == "Windows"]
 func getNulFileHandle(): Option<IntNative> {
+    if (let Some(handle) <- nulFileCache) {
+        return handle
+    }
     let handle = unsafe { CJ_OS_GetNulFileHandle() }
     if (handle == 0) {
         return Option.None
     }
+    nulFileCache = handle
     return handle
 }
 
@@ -75,11 +81,19 @@ const INVALID_HANDLE: IntNative = -1
 
 @When[os != "Windows"]
 func getNulFileHandle(): Option<IntNative> {
-    return try {
+    if (let Some(handle) <- nulFileCache) {
+        return handle
+    }
+    let handle = try {
         File("/dev/null", ReadWrite).fileDescriptor.fileHandle
     } catch (_: FSException) {
-        None
+        -1
     }
+    if (handle < 0) {
+        return None
+    }
+    nulFileCache = handle
+    return handle
 }
 
 @When[os != "Windows"]
