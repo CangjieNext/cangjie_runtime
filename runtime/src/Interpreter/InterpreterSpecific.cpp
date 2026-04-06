@@ -30,7 +30,7 @@ using namespace MRTExport;
 namespace MapleRuntime {
 
 extern "C" void CJ_MCC_StackGrowStub(...);
-#if defined(__x86_64__) && defined(__linux__)
+#if defined(__linux__) && (defined(__x86_64__) || defined(__aarch64__))
 extern "C" void CJ_MCC_I2NStub(...);
 #endif
 
@@ -228,8 +228,12 @@ bool IsPendingSafePoint(ThreadLocalDataT tlData)
 
 void ThrowException(ObjRefT exception) 
 {
-    DLOG(INTERPRETER, "ThrowException: exception=%p", exception);
-    ExceptionManager::ThrowException(static_cast<ExceptionRef>(exception));
+    ExceptionRef exceptionRef = static_cast<ExceptionRef>(exception);
+    const char* exceptionTypeName =
+        (exceptionRef != nullptr && exceptionRef->GetTypeInfo() != nullptr) ? exceptionRef->GetTypeInfo()->GetName()
+                                                                             : "<null>";
+    DLOG(INTERPRETER, "ThrowException: exception=%p, type=%s", exceptionRef, exceptionTypeName);
+    ExceptionManager::ThrowException(exceptionRef);
 }
 
 void ThrowOutOfMemoryError() 
@@ -531,7 +535,7 @@ void InitInterpreter(const RuntimeParam& runtimeParam)
         .getThreadLocalData = &GetThreadLocalData,
         .isActiveGcPhase = &IsActiveGCPhase,
         .stackGrowStub = reinterpret_cast<StackGrowStubFn>(&CJ_MCC_StackGrowStub),
-#if defined(__x86_64__) && defined(__linux__)
+#if defined(__linux__) && (defined(__x86_64__) || defined(__aarch64__))
         .i2nStub = reinterpret_cast<I2NStubFn>(&CJ_MCC_I2NStub),
 #else
         .i2nStub = nullptr,

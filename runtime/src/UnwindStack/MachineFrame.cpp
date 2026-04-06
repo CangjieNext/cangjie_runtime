@@ -32,7 +32,7 @@ extern uintptr_t unwindPCForC2NStubExceptionReturn;
 extern uintptr_t CalleeSavedStubFrameSize;
 extern uintptr_t C2NStubFrameSize;
 #endif
-#if defined(INTERPRETER_ENABLED) && defined(__x86_64__) && defined(__linux__)
+#if defined(INTERPRETER_ENABLED) && defined(__linux__) && (defined(__x86_64__) || defined(__aarch64__))
 extern uintptr_t CJ_MCC_I2NStub;
 extern uintptr_t CJ_MCC_I2NStubEnd;
 #endif
@@ -78,7 +78,7 @@ bool MachineFrame::IsI2IFrame() const {
 
 bool MachineFrame::IsI2NFrame() const
 {
-#if defined(__x86_64__) && defined(__linux__)
+#if defined(__linux__) && (defined(__x86_64__) || defined(__aarch64__))
     uintptr_t address = reinterpret_cast<uintptr_t>(ip);
     uintptr_t i2nStubStartAddr = reinterpret_cast<uintptr_t>(&CJ_MCC_I2NStub);
     uintptr_t i2nStubEndAddr = reinterpret_cast<uintptr_t>(&CJ_MCC_I2NStubEnd);

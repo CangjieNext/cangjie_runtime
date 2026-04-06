@@ -10,6 +10,7 @@
 
 #include "Base/LogFile.h"
 #include "Base/Macros.h"
+#include "Base/Panic.h"
 #include "StackManager.h"
 #include "ExceptionCApi.h"
 #include "Mutator/MutatorManager.h"
@@ -126,6 +127,16 @@ void ExceptionHandling::BuildEHFrameInfo()
             eWrapper->SetTypeIndex(0);
             eWrapper->SetLandingPad(ehFrameInfos.back()->GetLandingPad());
             break;
+        } else if (frame.GetFrameType() == FrameType::INTERPRETER_I2I ||
+                    frame.GetFrameType() == FrameType::INTERPRETER_I2N) {
+                MRT_ASSERT(false, "should not reach here: did not met interpreted frame before I2I/I2N frame");
+        } else if (frame.GetFrameType() == FrameType::INTERPRETER_PROLOGUE ||
+                    frame.GetFrameType() == FrameType::INTERPRETER_C2I) {
+            // This is neither a managed nor a runtime frame.
+            // Since we didn`t met interpreted frame before, exception must be stack overflow, happened in C2I/I2I transition.
+            MRT_ASSERT(eWrapper->GetExceptionType() == ExceptionWrapper::ExceptionType::STACK_OVERFLOW,
+                    "expected StackOverflowError when meeting interpreter transition stub frame without meeting interpreted frame");
+            lastRuntimeFrame = frame;
 #endif
         } else {
             lastRuntimeFrame = frame;
