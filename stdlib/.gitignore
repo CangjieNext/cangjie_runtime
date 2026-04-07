@@ -119,3 +119,8 @@ cmake_format.py
 
 # just build
 etc/repos-latest.json
+
+.trae
+2026
+test
+build_temp
