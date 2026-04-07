@@ -111,8 +111,11 @@ public func setVariable(key: String, value: String): Unit {
 
     unsafe {
         try (ck = LibC.mallocCString(key).asResource(), cv = LibC.mallocCString(value).asResource()) {
-            synchronized(mtx) {
+            let errno = synchronized(mtx) {
                 nativeSetEnv(ck.value, cv.value, Int32(1))
+            }
+            if (errno != 0) {
+                throw EnvException("Failed to set variable, errCode is ${errno}")
             }
         }
     }
@@ -125,8 +128,11 @@ public func removeVariable(key: String): Unit {
 
     unsafe {
         try (ck = LibC.mallocCString(key).asResource()) {
-            synchronized(mtx) {
+            let errno = synchronized(mtx) {
                 nativeRemoveEnv(ck.value)
+            }
+            if (errno != 0) {
+                throw EnvException("Failed to remove variable, errCode is ${errno}")
             }
         }
     }
