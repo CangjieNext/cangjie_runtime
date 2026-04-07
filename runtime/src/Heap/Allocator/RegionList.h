@@ -117,10 +117,16 @@ public:
         std::lock_guard<std::mutex> lock(listMutex);
         RegionInfo* node = listHead;
         RegionInfo* next = node;
-        while (node != nullptr) {
+        size_t visited = 0;
+        while (node != nullptr && visited < regionCount) {
             next = node->GetNextRegion();
             visitor(node);
             node = next;
+            visited++;
+        }
+        if (node != nullptr) {
+            DLOG(REGION, "region list %s VisitAllRegions truncated after %zu nodes (count=%zu)",
+                listName, visited, regionCount);
         }
     }
 
@@ -134,16 +140,58 @@ public:
     void SetElementType(RegionInfo::RegionType type)
     {
         std::lock_guard<std::mutex> lock(listMutex);
-        for (RegionInfo* node = listHead; node != nullptr; node = node->GetNextRegion()) {
+        RegionInfo* prev = nullptr;
+        RegionInfo* node = listHead;
+        size_t visited = 0;
+        while (node != nullptr && visited < regionCount) {
+            if (node->GetPrevRegion() != prev) {
+                node->SetPrevRegion(prev);
+            }
+            RegionInfo* next = node->GetNextRegion();
             node->SetRegionType(type);
+            prev = node;
+            node = next;
+            visited++;
+        }
+        if (prev != nullptr) {
+            prev->SetNextRegion(nullptr);
+            listTail = prev;
+        }
+        if (listHead != nullptr) {
+            listHead->SetPrevRegion(nullptr);
+        }
+        if (node != nullptr) {
+            DLOG(REGION, "region list %s SetElementType truncated after %zu nodes (count=%zu)",
+                listName, visited, regionCount);
         }
     }
 
     void ClearTraceRegionFlag()
     {
         std::lock_guard<std::mutex> lock(listMutex);
-        for (RegionInfo *node = listHead; node != nullptr; node = node->GetNextRegion()) {
+        RegionInfo* prev = nullptr;
+        RegionInfo* node = listHead;
+        size_t visited = 0;
+        while (node != nullptr && visited < regionCount) {
+            if (node->GetPrevRegion() != prev) {
+                node->SetPrevRegion(prev);
+            }
+            RegionInfo* next = node->GetNextRegion();
             node->SetTraceRegionFlag(0);
+            prev = node;
+            node = next;
+            visited++;
+        }
+        if (prev != nullptr) {
+            prev->SetNextRegion(nullptr);
+            listTail = prev;
+        }
+        if (listHead != nullptr) {
+            listHead->SetPrevRegion(nullptr);
+        }
+        if (node != nullptr) {
+            DLOG(REGION, "region list %s ClearTraceRegionFlag truncated after %zu nodes (count=%zu)",
+                listName, visited, regionCount);
         }
     }
 
@@ -234,8 +282,29 @@ public:
     void DeactivateRegionCache()
     {
         std::lock_guard<std::mutex> lock(listMutex);
-        for (RegionInfo *node = listHead; node != nullptr; node = node->GetNextRegion()) {
+        RegionInfo* prev = nullptr;
+        RegionInfo* node = listHead;
+        size_t visited = 0;
+        while (node != nullptr && visited < regionCount) {
+            if (node->GetPrevRegion() != prev) {
+                node->SetPrevRegion(prev);
+            }
+            RegionInfo* next = node->GetNextRegion();
             node->SetTraceRegionFlag(0);
+            prev = node;
+            node = next;
+            visited++;
+        }
+        if (prev != nullptr) {
+            prev->SetNextRegion(nullptr);
+            listTail = prev;
+        }
+        if (listHead != nullptr) {
+            listHead->SetPrevRegion(nullptr);
+        }
+        if (node != nullptr) {
+            DLOG(REGION, "region cache %s DeactivateRegionCache truncated after %zu nodes (count=%zu)",
+                listName, visited, regionCount);
         }
         active = false;
     }
