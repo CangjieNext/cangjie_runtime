@@ -17,13 +17,12 @@ namespace MapleRuntime {
 
 // Forward declarations
 class CentralRegionPool;
-class LargeObjectSpace;
 class MSRegionManager;
 class AllocBufferMS;
 class MemMap;
 
 // RegionSpaceMS is the Allocator implementation for Mark-Sweep GC mode.
-// It manages memory via MSRegionManager/CentralRegionPool/LargeObjectSpace,
+// It manages memory via MSRegionManager/CentralRegionPool,
 // and uses AllocBufferMS for thread-local allocation.
 class RegionSpaceMS : public Allocator {
 public:
@@ -63,7 +62,6 @@ public:
 
     // MS-specific accessors
     CentralRegionPool* GetCentralPool() const { return msCentralPool_; }
-    LargeObjectSpace* GetLargeObjectSpace() const { return msLargeObjectSpace_; }
     MSRegionManager* GetMSRegionManager() const { return msRegionManager_; }
     bool BackgroundSweep() override;
     void BackgroundFillAllocCaches() override;
@@ -97,7 +95,6 @@ private:
     MAddress reservedEnd = 0;
     MemMap* map{ nullptr };
     CentralRegionPool* msCentralPool_ = nullptr;
-    LargeObjectSpace* msLargeObjectSpace_ = nullptr;
     MSRegionManager* msRegionManager_ = nullptr;
 };
 

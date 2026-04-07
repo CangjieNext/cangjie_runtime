@@ -27,7 +27,7 @@ namespace MapleRuntime {
 //   - 8-byte alignment (matches Allocator::ALLOC_ALIGN)
 //   - ~12.5-25% growth between adjacent classes
 //   - 36 classes covering 8B..16384B
-//   - Objects > kLargeObjectThreshold go to Large path (Tier 1 / Tier 2)
+//   - Objects > kLargeObjectThreshold go to the large-region path
 //
 // Reference: Go runtime msize.go (67 classes), adapted for Cangjie.
 // ============================================================================
@@ -95,10 +95,6 @@ static constexpr size_t kSizeClasses[kNumSizeClasses] = {
 // Rationale: a 16KB object in a 32KB Region can have at most 2 slots,
 // making bitmap allocation inefficient.
 static constexpr size_t kLargeObjectThreshold = 16384;
-
-// Huge object threshold: objects > this go to independent mmap (Tier 2)
-// = 4MB (128 Regions)
-static constexpr size_t kHugeObjectThreshold = 4 * 1024 * 1024;
 
 // ============================================================================
 // SizeToClass lookup acceleration

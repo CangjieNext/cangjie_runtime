@@ -18,7 +18,6 @@
 namespace MapleRuntime {
 
 class CentralRegionPool;
-class LargeObjectSpace;
 class WriteBarrierBuffer;
 struct MSRegionInfo;
 
@@ -136,10 +135,6 @@ public:
         return globalWorkAvailable_.load(std::memory_order_acquire);
     }
 
-    // Called from MSMarkBarrier when WriteBarrierBuffer overflows.
-    // Pushes a single grey object to the global work queue for tracing.
-    void EnqueueGreyObject(BaseObject* obj);
-
     // Flush an overflowed WriteBarrierBuffer to the global work queue.
     // Takes one mutex lock for the entire batch. Clears the buffer afterwards.
     void FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf);
@@ -196,7 +191,7 @@ private:
     void EnumRoots();            // Step 2.1b: Handshake + root enumeration
     void ConcurrentMark();      // Step 2.2: Concurrent marking (GC thread + assist)
     void MarkTermination();     // Step 2.3: STW finalization of marking
-    void PostMarkTermination(); // Step 2.4: Non-STW cleanup (WeakRef, Finalizer, LOS)
+    void PostMarkTermination(); // Step 2.4: Non-STW cleanup (WeakRef, Finalizer, large reclaim)
     void ConcurrentSweep();     // Step 3 (stub)
 
     // ── Step 2.1 internals ──

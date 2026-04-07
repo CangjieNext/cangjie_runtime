@@ -385,17 +385,23 @@ public:
 
     // ===== Pre-STW bitmap clearing (MarkSetup fast path) =====
 
-    // Stop background sweep and disable lazy sweep, wait for all in-flight
-    // sweeps (bg + lazy) to fully quiesce. Must be called before clearing
-    // markBitmaps to avoid data races with SweepRegion reading markBitmap.
+    // Stop background sweep and disable lazy sweep, then wait for all
+    // in-flight sweeps (bg + lazy) to fully quiesce. Current MarkSetup does
+    // not force-finish the remaining unswept backlog before the next GC; it
+    // only guarantees no SweepRegion is still running before bitmap clearing.
+    // Must be called before clearing markBitmaps to avoid data races with
+    // SweepRegion reading markBitmap.
     void StopAndWaitForAllSweep();
 
     // Clear markBitmaps for all active small/medium regions in MSRegionInfoArray.
-    // CAS-stamps unswept regions (sg-2 -> sg) to prevent future lazy sweep.
+    // CAS-stamps any residual unswept regions (sg-2 -> sg) to prevent future
+    // lazy sweep from observing stale markBitmaps.
     // Must be called after StopAndWaitForAllSweep().
     void ClearAllMarkBitmaps();
 
-    // Drain unswept lists into swept lists after stamping all regions as swept.
+    // Drain any residual unswept lists into swept lists after stamping regions
+    // as swept in ClearAllMarkBitmaps(). This is logical list reclassification,
+    // not a real sweep pass.
     void ReclassifyUnsweptToSwept();
 
     // Re-enable lazy sweep after MarkSetup bitmap clearing is complete.
@@ -437,6 +443,10 @@ private:
     bool ShouldScavengeForTrueLiveSlack(size_t committedBytes, size_t targetBytes) const;
     bool ShouldPressureSweepForTrueLiveSlack(size_t committedBytes, size_t targetBytes, size_t emptyCount) const;
     BackgroundScavengeState CollectBackgroundScavengeState() const;
+    void ForceFinishUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint8_t cls, uint32_t sg,
+                                size_t& sweptRegions, size_t& emptiedRegions,
+                                size_t& retainedRegions, size_t& freedBytes);
+    void ForceFinishAllUnswept();
     bool SweepUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint32_t sg,
                           size_t& sweptInSlice, size_t maxRegions, uint64_t deadlineUs);
 

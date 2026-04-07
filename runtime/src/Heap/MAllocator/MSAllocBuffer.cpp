@@ -68,7 +68,7 @@ MAddress AllocBufferMS::Allocate(size_t size)
 {
     uint8_t cls = SizeClassInfo::SizeToClass(size);
     if (UNLIKELY(cls >= kNumSizeClasses)) {
-        return 0;  // Large object — caller should route to LargeObjectSpace
+        return 0;  // Large object — caller handles it via the large-region path
     }
     MAddress addr = FastAlloc(cls);
 

@@ -42,7 +42,7 @@ static std::atomic<uint64_t> g_newCopyStructArrayCount{0};
 static std::atomic<uint64_t> g_newAtomicWriteCount{0};
 static std::atomic<uint64_t> g_newAtomicSwapCount{0};
 static std::atomic<uint64_t> g_newCasCount{0};
-static std::atomic<uint64_t> g_containerEnqueueCount{0};
+
 
 extern "C" void MSMarkBarrier_DumpAndResetCounters()
 {
@@ -73,8 +73,7 @@ extern "C" void MSMarkBarrier_DumpAndResetCounters()
          (unsigned long long)atomicWrite,
          (unsigned long long)atomicSwap,
          (unsigned long long)cas);
-    uint64_t container = g_containerEnqueueCount.exchange(0, std::memory_order_relaxed);
-    VLOG(REPORT, "[MS-HM-COUNT] container=%llu", (unsigned long long)container);
+
 }
 
 // ============================================================================
@@ -105,20 +104,6 @@ void MSMarkBarrier::EnqueueRef(BaseObject* ref)
         }
     }
     wbBuf.Push(ref);
-}
-
-void MSMarkBarrier::EnqueueContainer(BaseObject* obj)
-{
-    if (obj == nullptr || !Heap::IsHeapAddress(obj)) {
-        return;
-    }
-    if (IsHashMapCounterEnabled()) {
-        g_containerEnqueueCount.fetch_add(1, std::memory_order_relaxed);
-    }
-    MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
-    if (collector != nullptr) {
-        collector->EnqueueGreyObject(obj);
-    }
 }
 
 // ============================================================================
@@ -240,7 +225,6 @@ void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MA
                 MSMarkBarrier::EnqueueRef(newRef);
             },
             dst, dst + dstLen);
-        EnqueueContainer(obj);
     }
 }
 
@@ -350,7 +334,6 @@ void MSMarkBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MInde
                 MSMarkBarrier::EnqueueRef(newRef);
             },
             dstField, dstField + dstSize);
-        EnqueueContainer(dstObj);
     }
 }
 

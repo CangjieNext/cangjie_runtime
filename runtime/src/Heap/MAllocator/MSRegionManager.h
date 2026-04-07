@@ -95,7 +95,8 @@ public:
     // Take N units for large object (Tier 1, > threshold but <= 4MB).
     // unitCount = ceil(allocSize, UNIT_SIZE).
     // Returns pair: (MSRegionInfo* baseInfo, uintptr_t regionStart), or (nullptr, 0).
-    MSRegionInfo* TakeRegionForLarge(size_t unitCount, uintptr_t& regionStart);
+    MSRegionInfo* TakeRegionForLarge(size_t unitCount, uintptr_t& regionStart,
+                                     const CentralRegionPool* centralPool = nullptr);
 
     // Reclaim a small/medium Region (MS_REGION_SIZE).
     // In MSGC small-region steady-state this path is mostly bypassed by the

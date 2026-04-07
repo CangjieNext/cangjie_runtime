@@ -513,12 +513,6 @@ MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& 
         return nullptr;
     }
 
-    // Step 11: inline reclaim — when BUMP expands committed heap, synchronously
-    // release one empty-cache region to keep committed bytes stable (RSS flat).
-    if (source == AllocSource::BUMP && GetInlineReclaimEnabled()) {
-        InlineReclaimForBalance(centralPool);
-    }
-
     MaybeNotifySweep(&centralPool, cls);
     MaybeNotifyReclaim();
     MaybeNotifyMark(HeuTriggerKind::SMALL_ALLOC, &centralPool, cls, source == AllocSource::BUMP);
@@ -547,7 +541,8 @@ MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& 
 // TakeRegionForLarge — allocate N units for a large object
 // ============================================================================
 
-MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& regionStart)
+MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& regionStart,
+                                                   const CentralRegionPool* centralPool)
 {
     // Convert unit count to region count (round up to full regions).
     RegionCount regionCount = static_cast<RegionCount>(
@@ -559,6 +554,17 @@ MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& r
         regionStart = 0;
         return nullptr;
     }
+
+    // Inline reclaim: when allocating a large object, synchronously release
+    // regionCount empty-cache regions to offset the RSS growth from the new
+    // large span (whether from BUMP or RELEASED, both will be touched and
+    // consume physical pages).
+    if (GetInlineReclaimEnabled() && centralPool != nullptr) {
+        for (RegionCount i = 0; i < regionCount; ++i) {
+            InlineReclaimForBalance(*centralPool);
+        }
+    }
+
     MaybeNotifyReclaim();
     MaybeNotifyMark(HeuTriggerKind::LARGE_ALLOC, nullptr, 0, source == AllocSource::BUMP);
 

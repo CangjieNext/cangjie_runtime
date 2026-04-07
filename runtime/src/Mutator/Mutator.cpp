@@ -576,28 +576,9 @@ inline void Mutator::HandleGCPhase(GCPhase newPhase)
         // is per-OS-thread TLS — cannot be safely flushed per-Mutator.
         GcPhaseEnum(newPhase);
     }
-    else if (newPhase == GCPhase::GC_PHASE_MS_MARK_TERMINATION) {
-        // MarkTermination STW: retire satbNode so GC thread can drain all SATB entries.
-        // This mirrors CopyGC's CLEAR_SATB_BUFFER phase handling.
-        std::lock_guard<std::mutex> lg(mutatorLock);
-        if (satbNode != nullptr) {
-            SatbBuffer::Instance().RetireNode(satbNode);
-            satbNode = nullptr;
-        }
-    }
-    else if (newPhase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK) {
-        // Transition to concurrent mark: no special Mutator action needed.
-        // SATB write barrier is already installed by barrier switch.
-    }
-    else if (newPhase == GCPhase::GC_PHASE_MS_SWEEP) {
-        // Transition to sweep: clear any remaining SATB node.
-        std::lock_guard<std::mutex> lg(mutatorLock);
-        if (satbNode != nullptr) {
-            satbNode->Clear();
-            SatbBuffer::Instance().RetireNode(satbNode);
-            satbNode = nullptr;
-        }
-    }
+    // MS_MARK_TERMINATION, MS_CONCURRENT_MARK, MS_SWEEP:
+    // No Mutator-side action needed. Barrier switching is handled by InstallBarrier().
+    // WriteBarrierBuffer flush is done by the collector in STW (FlushAllWriteBarrierBuffers).
 #endif // MRT_USE_MARK_SWEEP
 }
 

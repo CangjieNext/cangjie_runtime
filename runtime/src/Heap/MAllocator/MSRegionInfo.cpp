@@ -32,10 +32,7 @@ void MSRegionInfo::InitForSizeClass(uint8_t cls)
     liveSlotCount = 0;
     rawPointerObjCount = 0;
 
-    isMarked = 0;
-    isEnqueued = 0;
-    isResurrected = 0;
-    flagsPadding = 0;
+    flags_ = 0;
     sweepGen = 0;
     reserved = 0;  // searchHint = 0
 
@@ -89,11 +86,7 @@ void MSRegionInfo::InitForLargeObject(uintptr_t start, uintptr_t end)
     sweepState = MSSweepState::UNSWEPT;
     regionType = MSRegionType::MS_REGION_LARGE;
 
-    isMarked = 0;
-    isEnqueued = 0;
-    isResurrected = 0;
-    isScanned = 0;
-    flagsPadding = 0;
+    flags_ = 0;
     sweepGen = 0;
     reserved = 0;
 }
@@ -120,11 +113,7 @@ void MSRegionInfo::Reset()
     sizeClass = 0;
     sweepState = MSSweepState::UNSWEPT;
     regionType = MSRegionType::MS_REGION_FREE;
-    isMarked = 0;
-    isEnqueued = 0;
-    isResurrected = 0;
-    isScanned = 0;
-    flagsPadding = 0;
+    flags_ = 0;
     sweepGen = 0;
     reserved = 0;
 }
@@ -139,11 +128,7 @@ void MSRegionInfo::ResetToBump()
     freeSlotCount = totalSlotCount;
     liveSlotCount = 0;
     rawPointerObjCount = 0;
-    isMarked = 0;
-    isEnqueued = 0;
-    isResurrected = 0;
-    isScanned = 0;
-    flagsPadding = 0;
+    flags_ = 0;
 
     // Reset allocBitmap to all-1s (all slots free)
     size_t bitmapWords = (totalSlotCount + 63) / 64;
@@ -174,11 +159,7 @@ void MSRegionInfo::ResetToEmptyCache()
     sizeClass = INVALID_SIZE_CLASS;
     sweepState = MSSweepState::SWEPT;
     regionType = MSRegionType::MS_REGION_EMPTY_CACHE;
-    isMarked = 0;
-    isEnqueued = 0;
-    isResurrected = 0;
-    isScanned = 0;
-    flagsPadding = 0;
+    flags_ = 0;
     reserved = 0;
 }
 

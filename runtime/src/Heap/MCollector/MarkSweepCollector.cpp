@@ -15,7 +15,6 @@
 #include "CangjieRuntime.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSAllocBuffer.h"
-#include "Heap/MAllocator/MSLargeObjectSpace.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSRegionManager.h"
 #include "Heap/MAllocator/MSRegionSpace.h"
@@ -124,19 +123,10 @@ static bool IsInterestingDiagType(const BaseObject* obj)
            std::strstr(name, "RawArray") != nullptr;
 }
 
-// Helper: check if an address belongs to any managed memory pool (main heap or LOS).
-// Used in GC tracing paths to replace Heap::IsHeapAddress() which misses LOS objects.
+// Helper: GC tracing paths only treat main-heap addresses as managed.
 static inline bool IsManagedAddress(MAddress addr)
 {
-    if (Heap::IsHeapAddress(addr)) {
-        return true;
-    }
-    // Fallback: check LOS (Tier 2 huge objects allocated via mmap).
-    // LOS::Contains acquires a mutex+linear scan, but this path is only
-    // reached for addresses outside the contiguous heap — rare during tracing.
-    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
-    LargeObjectSpace* los = space.GetLargeObjectSpace();
-    return los != nullptr && los->Contains(addr);
+    return Heap::IsHeapAddress(addr);
 }
 
 // Static member definition
@@ -237,7 +227,8 @@ void MarkSweepCollector::DoGarbageCollection(uint64_t gcIndex)
 
 // ============================================================================
 // Step 2.1a: PreEnumRoots  (GC thread only, no STW)
-//   Stop all sweeps, clear markBitmaps, reclassify unswept→swept.
+//   Stop all sweeps, wait for in-flight bg/lazy sweep to quiesce, clear
+//   markBitmaps, then stamp/reclassify any residual unswept regions as swept.
 //   TL-region flush is deferred to MarkTermination's STW (FlushAll +
 //   PrepareForSweep), because marking is address-based and does not
 //   require regions to be in CentralRegionPool's lists.
@@ -253,8 +244,9 @@ void MarkSweepCollector::PreEnumRoots()
 
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
-
-    // Stop sweep → clear bitmaps → reclassify → re-enable.
+    
+    // Stop sweep → wait for in-flight sweep to quiesce → clear bitmaps
+    // → reclassify residual unswept entries → re-enable.
     // Safe pre-STW: no SweepRegion running, mark-at-alloc inactive.
     if (centralPool != nullptr) {
         centralPool->StopAndWaitForAllSweep();
@@ -262,7 +254,6 @@ void MarkSweepCollector::PreEnumRoots()
         centralPool->ReclassifyUnsweptToSwept();
         centralPool->ReenableLazySweep();
     }
-
     // Reset marked object counter (GC-thread-only, no STW needed).
     markedObjectCount.store(0, std::memory_order_relaxed);
 
@@ -314,7 +305,7 @@ void MarkSweepCollector::EnsureSweepDone()
 
 // ============================================================================
 // MarkObject override: write to MSRegionInfo::markBitmap for MS regions,
-// fall back to CopyGC RegionInfo for LOS (large object) regions.
+// return already-marked/external status for non-heap addresses.
 // ============================================================================
 bool MarkSweepCollector::MarkObject(BaseObject* obj) const
 {
@@ -322,13 +313,6 @@ bool MarkSweepCollector::MarkObject(BaseObject* obj) const
 
     if (MSRegionInfoArray::IsHeapAddress(addr)) {
         return MSRegionInfoArray::MarkObjectInHeap(addr);
-    }
-
-    // Outside heap range: LOS Tier 2 (>4MB mmap objects) or external.
-    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
-    LargeObjectSpace* los = space.GetLargeObjectSpace();
-    if (los != nullptr && los->MarkObject(addr)) {
-        return false;  // newly marked in LOS
     }
 
     return true;
@@ -342,12 +326,6 @@ bool MarkSweepCollector::IsScannedObject(const BaseObject* obj) const
     uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
     if (MSRegionInfoArray::IsHeapAddress(addr)) {
         return MSRegionInfoArray::IsScannedObjectInHeap(addr);
-    }
-
-    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
-    LargeObjectSpace* los = space.GetLargeObjectSpace();
-    if (los != nullptr && los->Contains(addr)) {
-        return true;
     }
     return true;
 }
@@ -604,11 +582,6 @@ void MarkSweepCollector::PushSingleToGlobal(BaseObject* obj)
     std::lock_guard<std::mutex> lock(globalWorkMutex_);
     globalWorkQueue_.push_back(obj);
     globalWorkAvailable_.store(true, std::memory_order_release);
-}
-
-void MarkSweepCollector::EnqueueGreyObject(BaseObject* obj)
-{
-    PushSingleToGlobal(obj);
 }
 
 void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
@@ -984,7 +957,7 @@ void MarkSweepCollector::PostMarkTermination()
         cycleStats_.finalizerEnqueued = snapshotFinalizerNum;
     }
 
-    // 6. Large object garbage collection (eager sweep for LOS) — with stats
+    // 6. Large object garbage collection (eager sweep for in-heap large regions) — with stats
     {
         uint64_t t0 = TimeUtil::MicroSeconds();
         CollectLargeGarbage();

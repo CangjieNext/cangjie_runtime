@@ -66,11 +66,6 @@ private:
     // Try to discover a referenced object and enqueue it into the per-mutator
     // concurrent mark queue. Already-discovered objects are skipped.
     static void EnqueueRef(BaseObject* ref);
-
-    // Push the destination container object into the collector's global work
-    // queue so it will be re-scanned in the current cycle. Used as a focused
-    // bulk-struct diagnostic hardening path.
-    static void EnqueueContainer(BaseObject* obj);
 };
 
 } // namespace MapleRuntime

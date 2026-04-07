@@ -86,12 +86,33 @@ struct MSRegionInfo {
     MSSweepState sweepState;        // +49  sweep state (1B)
     MSRegionType regionType;        // +50  Region type (1B)
 
-    // ========== Flag bits ==========
-    uint8_t     isMarked     : 1;   // +51.0  GC mark flag
-    uint8_t     isEnqueued   : 1;   // +51.1  weak ref queue flag
-    uint8_t     isResurrected: 1;   // +51.2  finalizer resurrection flag
-    uint8_t     isScanned    : 1;   // +51.3  tri-color: children traced
-    uint8_t     flagsPadding : 4;   // +51.4  reserved bits
+    // ========== Flag bits (atomic for large-object concurrent safety) ==========
+    // bit 0: isMarked,  bit 1: isEnqueued,  bit 2: isResurrected,  bit 3: isScanned
+    static constexpr uint8_t FLAG_MARKED      = 0x01;
+    static constexpr uint8_t FLAG_ENQUEUED    = 0x02;
+    static constexpr uint8_t FLAG_RESURRECTED = 0x04;
+    static constexpr uint8_t FLAG_SCANNED     = 0x08;
+    uint8_t     flags_;              // +51  all GC flag bits (use atomic accessors for large objects)
+
+    // Atomic accessors — safe for concurrent mark on large objects
+    bool IsMarked() const { return (__atomic_load_n(&flags_, __ATOMIC_RELAXED) & FLAG_MARKED) != 0; }
+    bool IsScanned() const { return (__atomic_load_n(&flags_, __ATOMIC_RELAXED) & FLAG_SCANNED) != 0; }
+    bool IsEnqueued() const { return (flags_ & FLAG_ENQUEUED) != 0; }
+    bool IsResurrected() const { return (flags_ & FLAG_RESURRECTED) != 0; }
+
+    // Returns true if was already marked (skip), false if newly marked (enqueue)
+    bool AtomicTestAndSetMarked() {
+        uint8_t old = __atomic_fetch_or(&flags_, FLAG_MARKED, __ATOMIC_RELAXED);
+        return (old & FLAG_MARKED) != 0;
+    }
+    void AtomicSetScanned() { __atomic_fetch_or(&flags_, FLAG_SCANNED, __ATOMIC_RELAXED); }
+    void ClearFlags() { __atomic_store_n(&flags_, 0, __ATOMIC_RELAXED); }
+    void ClearMarkAndScanned() {
+        uint8_t old = __atomic_load_n(&flags_, __ATOMIC_RELAXED);
+        uint8_t nv = old & ~(FLAG_MARKED | FLAG_SCANNED);
+        __atomic_store_n(&flags_, nv, __ATOMIC_RELAXED);
+    }
+    void SetMarkedAndScanned() { __atomic_fetch_or(&flags_, FLAG_MARKED | FLAG_SCANNED, __ATOMIC_RELAXED); }
 
     // ========== Alignment padding ==========
     uint32_t    sweepGen;           // +52  sweep generation for lazy sweep (4B)
@@ -345,11 +366,7 @@ public:
             if (base->allocPtr == 0 && base->regionEnd == 0) {
                 return true;
             }
-            if (base->isMarked) {
-                return true;
-            }
-            base->isMarked = 1;
-            return false;  // newly marked
+            return base->AtomicTestAndSetMarked();
         }
         if (msInfo->markBitmap != nullptr && msInfo->totalSlotCount > 0) {
             return msInfo->TestAndSetMarkBit(addr);
@@ -368,7 +385,7 @@ public:
             if (base->allocPtr == 0 && base->regionEnd == 0) {
                 return true;
             }
-            return base->isScanned != 0;
+            return base->IsScanned();
         }
         if (msInfo->markBitmap != nullptr && msInfo->totalSlotCount > 0) {
             return msInfo->GetScannedBit(addr);
@@ -387,7 +404,7 @@ public:
             if (base->allocPtr == 0 && base->regionEnd == 0) {
                 return;
             }
-            base->isScanned = 1;
+            base->AtomicSetScanned();
             return;
         }
         if (msInfo->markBitmap != nullptr && msInfo->totalSlotCount > 0) {

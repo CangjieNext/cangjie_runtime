@@ -1857,7 +1857,19 @@ extern "C" void CJ_MCC_ArrayCopyGeneric(const ObjectPtr dstObj, MAddress dstFiel
 }
 
 extern "C" void CJ_MCC_CopyStructField(BaseObject* dstBase, void* dstField, size_t dstLen,
-                                       BaseObject* srcBase, void* srcField, size_t srcLen) {}
+                                       BaseObject* srcBase, void* srcField, size_t srcLen)
+{
+    if (UNLIKELY(dstBase == nullptr || dstField == nullptr || srcField == nullptr)) {
+        return;
+    }
+    if (UNLIKELY(!Heap::IsHeapAddress(dstBase))) {
+        CHECK_DETAIL(memcpy_s(dstField, dstLen, srcField, srcLen) == EOK,
+                     "CJ_MCC_CopyStructField memcpy_s failed");
+        return;
+    }
+    Heap::GetBarrier().WriteStruct(dstBase, reinterpret_cast<MAddress>(dstField), dstLen,
+                                   reinterpret_cast<MAddress>(srcField), srcLen);
+}
 
 extern "C" int32_t __ccc_personality_v0() { return 0; }
 // @deprecated

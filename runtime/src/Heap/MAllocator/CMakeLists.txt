@@ -12,7 +12,6 @@ set(SRC_LIST
     "MSRegionManager.cpp"
     "MSCentralRegionPool.cpp"
     "MSAllocBuffer.cpp"
-    "MSLargeObjectSpace.cpp"
     "MSRegionSpace.cpp"
 )
 

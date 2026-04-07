@@ -10,7 +10,6 @@
 
 #include "Heap/MAllocator/MSAllocBuffer.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
-#include "Heap/MAllocator/MSLargeObjectSpace.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSRegionManager.h"
 #include "Heap/MAllocator/MSSizeClass.h"
@@ -31,8 +30,6 @@ namespace MapleRuntime {
 // ============================================================
 RegionSpaceMS::~RegionSpaceMS()
 {
-    delete msLargeObjectSpace_;
-    msLargeObjectSpace_ = nullptr;
     delete msCentralPool_;
     msCentralPool_ = nullptr;
     delete msRegionManager_;
@@ -80,9 +77,26 @@ bool RegionSpaceMS::ShouldRetryAllocation(size_t& tryTimes, size_t size) const
 MAddress RegionSpaceMS::Allocate(size_t size, AllocType allocType)
 {
     (void)allocType;
-    size_t tryTimes = 0;
-    uintptr_t internalAddr = 0;
     size_t allocSize = ToAllocSize(size);
+    uintptr_t internalAddr = 0;
+
+    if (UNLIKELY(allocSize >= kLargeObjectThreshold)) {
+        internalAddr = TryAllocateOnceMS(allocSize);
+        if (UNLIKELY(internalAddr == 0)) {
+            if (IsGcThread()) {
+                return 0;
+            }
+            VLOG(REPORT, "Large allocation cannot allocate memory of %zu(B), throw an OutOfMemory exception", size);
+            ExceptionManager::OutOfMemory();
+            return 0;
+        }
+#if defined(CANGJIE_TSAN_SUPPORT)
+        Sanitizer::TsanAllocObject(reinterpret_cast<void *>(internalAddr), allocSize);
+#endif
+        return internalAddr + HEADER_SIZE;
+    }
+
+    size_t tryTimes = 0;
     do {
         tryTimes++;
         internalAddr = TryAllocateOnceMS(allocSize);
@@ -221,19 +235,9 @@ MAddress RegionSpaceMS::TryAllocateOnceMS(size_t allocSize)
                              / MS_REGION_SIZE * MS_REGION_SIZE;
 
         uintptr_t regionStart = 0;
-        MSRegionInfo* baseInfo = msRegionManager_->TakeRegionForLarge(unitCount, regionStart);
+        MSRegionInfo* baseInfo = msRegionManager_->TakeRegionForLarge(unitCount, regionStart, msCentralPool_);
         if (baseInfo == nullptr) {
-            if (!Heap::GetHeap().IsGcStarted()) {
-                Heap::GetHeap().GetCollector().RequestGC(GC_REASON_OOM, false);
-            }
-            {
-                ScopedEnterSaferegion enterSaferegion(false);
-                Heap::GetHeap().GetCollectorResources().WaitForGCFinish();
-            }
-            baseInfo = msRegionManager_->TakeRegionForLarge(unitCount, regionStart);
-        }
-        if (baseInfo == nullptr) {
-            LOG(RTLOG_ERROR, "[MS-GC] TryAllocateOnceMS LARGE ALLOC FAILED after GC: "
+            LOG(RTLOG_ERROR, "[MS-GC] TryAllocateOnceMS LARGE ALLOC FAILED: "
                 "allocSize=%zu, unitCount=%zu, totalMSRegionBytes=%zu, "
                 "msRegionManager freeUnits=%u",
                 allocSize, unitCount,
@@ -281,7 +285,7 @@ bool Allocator::IsMarkedObject(const BaseObject* obj)
             if (msInfo->regionType == MSRegionType::MS_REGION_LARGE) {
                 MSRegionInfo* base = MSRegionInfoArray::GetRegionInfoByIdx(
                     static_cast<size_t>(msInfo->reserved));
-                return base->isMarked != 0;
+                return base->IsMarked();
             }
             if (msInfo->markBitmap != nullptr && msInfo->totalSlotCount > 0) {
                 return msInfo->GetMarkBit(addr);
@@ -334,9 +338,6 @@ void RegionSpaceMS::Init(const HeapParam& vmHeapParam)
     msCentralPool_ = new (std::nothrow) CentralRegionPool(msRegionManager_);
     CHECK_DETAIL(msCentralPool_ != nullptr, "failed to create CentralRegionPool");
 
-    msLargeObjectSpace_ = new (std::nothrow) LargeObjectSpace();
-    CHECK_DETAIL(msLargeObjectSpace_ != nullptr, "failed to create LargeObjectSpace");
-
     VLOG(REPORT, "[MS-GC] MS subsystem initialized: committedRegions=%zu, maxVirtualRegions=%zu, "
          "heapRange=[0x%zx, 0x%zx), maxHeapEnd=0x%zx",
          msRegionManager_->GetMaxRegionCount(), maxVirtualRegionCount,
@@ -349,12 +350,6 @@ bool Allocator::MarkObject(const BaseObject* obj)
 
     if (MSRegionInfoArray::IsHeapAddress(addr)) {
         return MSRegionInfoArray::MarkObjectInHeap(static_cast<uintptr_t>(addr));
-    }
-
-    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
-    LargeObjectSpace* los = space.GetLargeObjectSpace();
-    if (los != nullptr && los->MarkObject(static_cast<uintptr_t>(addr))) {
-        return false;
     }
 
     return true;
@@ -436,12 +431,11 @@ void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t regionBytes)
         spanInfo->allocBitmap = nullptr;
         spanInfo->totalSlotCount = 0;
         spanInfo->freeSlotCount = 0;
-        spanInfo->isMarked = 0;
+        spanInfo->flags_ = 0;
         spanInfo->reserved = static_cast<uint64_t>(baseIdx);
     }
 
-    baseInfo->isMarked = 1;
-    baseInfo->isScanned = 1;
+    baseInfo->SetMarkedAndScanned();
 
     if (msCentralPool_ != nullptr) {
         msCentralPool_->RegisterLargeRegion(baseInfo);
