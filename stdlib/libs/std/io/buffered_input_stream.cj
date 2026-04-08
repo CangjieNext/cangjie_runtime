@@ -181,8 +181,24 @@ extend<T> BufferedInputStream<T> <: Seekable where T <: Seekable {
      */
     public prop position: Int64 {
         get() {
-            inputStream.seek(Current(0))
+            let underlyingPos = getUnderlyingPosition()
+            if (availLen < 0) {
+                underlyingPos
+            } else {
+                underlyingPos - availLen
+            }
         }
+    }
+
+    internal func getUnderlyingPosition(): Int64 {
+        inputStream.seek(Current(0))
+    }
+
+    internal func getUnderlyingLength(): Int64 {
+        let oldPos = inputStream.seek(Current(0))
+        let len = inputStream.seek(End(0))
+        inputStream.seek(Begin(oldPos))
+        len
     }
 
     /**
@@ -190,13 +206,7 @@ extend<T> BufferedInputStream<T> <: Seekable where T <: Seekable {
      */
     public prop remainLength: Int64 {
         get() {
-            let oldPos = inputStream.seek(Current(0))
-            let length = inputStream.seek(End(0))
-            if (length != oldPos) {
-                inputStream.seek(Begin(oldPos))
-            }
-
-            length - oldPos
+            getUnderlyingLength() - getUnderlyingPosition()
         }
     }
 
@@ -205,13 +215,7 @@ extend<T> BufferedInputStream<T> <: Seekable where T <: Seekable {
      */
     public prop length: Int64 {
         get() {
-            let oldPos = inputStream.seek(Current(0))
-            let length = inputStream.seek(End(0))
-            if (length != oldPos) {
-                inputStream.seek(Begin(oldPos))
-            }
-
-            length
+            getUnderlyingLength()
         }
     }
 }

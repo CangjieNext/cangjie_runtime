@@ -240,20 +240,37 @@ extend<T> StringReader<T> <: Seekable where T <: Seekable {
     /**
      * Gets the current read position of StringReader .
      *
-     * This property calls the `seek()` function each time it is accessed, moving the cursor to a specific location.
-     * The position is adjusted by setting the offset to the negative value of the current available bytes (`inputBIS.availLen` which not be read yet),
-     * ensuring that read operations continue from the appropriate position.
-     *
-     * Note: This property only performs operations when accessed, adjusting the cursor and returning the current position.
+     * This property returns the logical position in the stream, accounting for buffered but unread data.
      *
      * @return The current read position of the input stream (of type `Int64`), representing the offset of the cursor
      *         from the beginning of the stream.
      */
     public prop position: Int64 {
         get() {
-            // Move the cursor back by the length of unread data in the buffer (inputBIS.availLen).
-            // This ensures that subsequent reads start at the correct position in the stream.            
-            seek(Current(-inputBIS.availLen))
+            let underlyingPos = inputBIS.getUnderlyingPosition()
+            if (inputBIS.availLen < 0) {
+                underlyingPos
+            } else {
+                underlyingPos - inputBIS.availLen
+            }
+        }
+    }
+
+    /**
+     * @return the number of bytes from the file header to the file trailer.
+     */
+    public prop length: Int64 {
+        get() {
+            inputBIS.getUnderlyingLength()
+        }
+    }
+
+    /**
+     * @return the number of data bytes from the current cursor position to the end of the file.
+     */
+    public prop remainLength: Int64 {
+        get() {
+            inputBIS.getUnderlyingLength() - inputBIS.getUnderlyingPosition()
         }
     }
 }
