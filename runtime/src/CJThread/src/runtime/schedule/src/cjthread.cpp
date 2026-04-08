@@ -1416,7 +1416,8 @@ __attribute__((noinline)) int CJThreadResched(void)
     // If cjthread is in foreign or exclusive thread schedule, do not reschedule.
     struct CJThread *cjthread = CJThreadGet();
     if (cjthread->schedule->scheduleType == SCHEDULE_FOREIGN_THREAD ||
-        cjthread->schedule->scheduleType == SCHEDULE_EXCLUSIVE) {
+        cjthread->schedule->scheduleType == SCHEDULE_EXCLUSIVE ||
+        cjthread->boundThread) {
         return 0;
     }
 #ifdef CANGJIE_ASAN_SUPPORT
