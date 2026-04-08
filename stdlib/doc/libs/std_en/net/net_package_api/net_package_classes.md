@@ -122,6 +122,10 @@ public static func resolve(family: AddressFamily, domain: String): Array<IPAddre
 
 Function: Resolves a domain name to obtain a list of [IPAddress](net_package_classes.md#class-ipaddress) objects.
 
+> Note:
+> This API only parses literal IP addresses or resolves DNS names. It does not provide protection against DNS rebinding and does not filter loopback, private, link-local, unspecified, or multicast addresses.
+> When `domain` comes from an untrusted source, callers should validate the resolved addresses before opening a connection, for example by allowing only `isGlobalUnicast()` addresses, to reduce risks such as SSRF, internal network probing, or access to local services.
+
 Parameters:
 
 - family: [AddressFamily](net_package_structs.md#struct-addressfamily) - Address family.
@@ -151,6 +155,10 @@ public static func resolve(domain: String): Array<IPAddress>
 ```
 
 Function: Resolves a domain name to obtain a list of [IPAddress](net_package_classes.md#class-ipaddress) objects.
+
+> Note:
+> This API only parses literal IP addresses or resolves DNS names. It does not provide protection against DNS rebinding and does not filter loopback, private, link-local, unspecified, or multicast addresses.
+> When `domain` comes from an untrusted source, callers should validate the resolved addresses before opening a connection, for example by allowing only `isGlobalUnicast()` addresses, to reduce risks such as SSRF, internal network probing, or access to local services.
 
 Parameters:
 
