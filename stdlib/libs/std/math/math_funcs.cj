@@ -2335,7 +2335,7 @@ public func atan2(y: Float16, x: Float16): Float16 {
  */
 public func fmod(x: Float64, y: Float64): Float64 {
     if (x.isNaN() || y.isNaN()) {
-        return x
+        return Float64.NaN
     }
     if (x.isInf() || y == 0.0) {
         throw IllegalArgumentException("The input parameter is invalid. Please enter a correct parameter.")
@@ -2351,7 +2351,7 @@ public func fmod(x: Float64, y: Float64): Float64 {
  */
 public func fmod(x: Float32, y: Float32): Float32 {
     if (x.isNaN() || y.isNaN()) {
-        return x
+        return Float32.NaN
     }
     if (x.isInf() || y == 0.0) {
         throw IllegalArgumentException("The input parameter is invalid. Please enter a correct parameter.")
