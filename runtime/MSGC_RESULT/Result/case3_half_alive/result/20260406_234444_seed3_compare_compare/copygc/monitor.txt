@@ -1,0 +1,42 @@
+Starting: /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/MSGC_RESULT/Result/case3_half_alive/result/20260406_234444_seed3_compare_compare/copygc/benchmark
+Sampling interval: 200ms
+PID: 6760
+========================================
+  Case 3: Half Alive / Half Temporary
+  ~500MB alive + ~500MB temp per round
+========================================
+
+[PHASE1] Building persistent set (~500MB)...
+[PHASE1] Done: 60 objects, ~480 MB, 5386 ms
+
+[PHASE2] Starting churn: 10 rounds, ~500MB temp per round
+[PHASE2] Round 1/10: ~484 MB temp, 10920 ms
+[PHASE2] Round 2/10: ~484 MB temp, 10740 ms
+[PHASE2] Round 3/10: ~484 MB temp, 10976 ms
+[PHASE2] Round 4/10: ~484 MB temp, 11080 ms
+[PHASE2] Round 5/10: ~484 MB temp, 11017 ms
+[PHASE2] Round 6/10: ~484 MB temp, 11599 ms
+[PHASE2] Round 7/10: ~484 MB temp, 11171 ms
+[PHASE2] Round 8/10: ~484 MB temp, 11135 ms
+[PHASE2] Round 9/10: ~484 MB temp, 11114 ms
+[PHASE2] Round 10/10: ~484 MB temp, 11153 ms
+
+[PHASE3] Verifying persistent set...
+[PHASE3] Size check: PASS (60/60)
+[PHASE3] Checksum:   PASS (60/60)
+[PHASE3] Verify time: 6202 ms
+
+========================================
+[BENCH] SUMMARY
+[BENCH] Persistent set: ~480 MB (60 objects)
+[BENCH] Churn rounds:   10 × ~500MB
+[BENCH] Size check:     PASS
+[BENCH] Checksum:       PASS
+[BENCH] Total wall time: 122501 ms
+========================================
+
+RSS Stats:
+  Min:        32 KB =      0.0 MB
+  Avg:    316560 KB =    309.1 MB
+  Peak:   900112 KB =    879.0 MB
+Total time: 123231ms

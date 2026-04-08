@@ -1,0 +1,38 @@
+Starting: /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/MSGC_RESULT/Result/case1_baseline/result/20260406_211739_seed1_compare_compare/copygc/benchmark
+Sampling interval: 200ms
+PID: 37655
+========================================
+  Case 1: Baseline Benchmark (no idle)
+  Tip: MRT_REPORT=./runtime.log cjHeapSize=256mb ./benchmark
+========================================
+
+--- Functional Tests ---
+[BENCH] F1_TreeIntegrity         PASS  136 ms
+[BENCH] F2_Generational          PASS  323 ms
+[BENCH] F3_LargeObject           PASS  1886 ms
+[BENCH] F4_LinkedList            PASS  139 ms
+[BENCH] F5_HashMap               PASS  146 ms
+
+--- Performance Tests ---
+[BENCH] P1_SmallAlloc            373 ms  6553550 nodes  17569 nodes/ms
+[BENCH] P2_LargeAlloc            974 ms  50 MB  52 MB/s
+[BENCH] P3_MixedWorkload         554 ms  30 rounds
+[BENCH] P4_LongLivedChurn        466 ms  persistent_intact=20/20
+[BENCH] P5_Fragmentation         691 ms  15 rounds
+
+========================================
+[BENCH] SUMMARY
+[BENCH] Functional: 5/5 passed
+[BENCH] P1_SmallAlloc:      373 ms
+[BENCH] P2_LargeAlloc:      974 ms
+[BENCH] P3_MixedWorkload:   554 ms
+[BENCH] P4_LongLivedChurn:  466 ms
+[BENCH] P5_Fragmentation:   691 ms
+[BENCH] Total wall time:    5693 ms
+========================================
+
+RSS Stats:
+  Min:        32 KB =      0.0 MB
+  Avg:     62177 KB =     60.7 MB
+  Peak:   128384 KB =    125.4 MB
+Total time: 6600ms

@@ -1,0 +1,29 @@
+========================================
+  Case 2: 50x Pressure Benchmark
+  Tip: MRT_REPORT=./runtime.log cjHeapSize=4gb ./benchmark
+========================================
+
+--- Functional Tests (50x) ---
+[BENCH] F1_TreeIntegrity         PASS  7742 ms  (1000 rounds)
+[BENCH] F2_Generational          PASS  16297 ms  (10000 temp trees)
+[BENCH] F3_LargeObject           PASS  106409 ms  (2500 rounds)
+[BENCH] F4_LinkedList            PASS  8298 ms  (1500 rounds)
+[BENCH] F5_HashMap               PASS  8149 ms  (1000 rounds)
+
+--- Performance Tests (50x) ---
+[BENCH] P1_SmallAlloc            16296 ms  327677500 nodes  20107 nodes/ms
+[BENCH] P2_LargeAlloc            60524 ms  2500 MB  42 MB/s
+[BENCH] P3_MixedWorkload         37707 ms  1500 rounds
+[BENCH] P4_LongLivedChurn        24741 ms  persistent_intact=20/20  (5000 rounds)
+[BENCH] P5_Fragmentation         52642 ms  750 rounds
+
+========================================
+[BENCH] SUMMARY (50x pressure)
+[BENCH] Functional: 5/5 passed
+[BENCH] P1_SmallAlloc:      16296 ms
+[BENCH] P2_LargeAlloc:      60524 ms
+[BENCH] P3_MixedWorkload:   37707 ms
+[BENCH] P4_LongLivedChurn:  24741 ms
+[BENCH] P5_Fragmentation:   52642 ms
+[BENCH] Total wall time:    338811 ms
+========================================

@@ -1,0 +1,33 @@
+========================================
+  Case 3: Half Alive / Half Temporary
+  ~500MB alive + ~500MB temp per round
+========================================
+
+[PHASE1] Building persistent set (~500MB)...
+[PHASE1] Done: 60 objects, ~480 MB, 5551 ms
+
+[PHASE2] Starting churn: 10 rounds, ~500MB temp per round
+[PHASE2] Round 1/10: ~484 MB temp, 10715 ms
+[PHASE2] Round 2/10: ~484 MB temp, 10782 ms
+[PHASE2] Round 3/10: ~484 MB temp, 10636 ms
+[PHASE2] Round 4/10: ~484 MB temp, 10611 ms
+[PHASE2] Round 5/10: ~484 MB temp, 10631 ms
+[PHASE2] Round 6/10: ~484 MB temp, 11027 ms
+[PHASE2] Round 7/10: ~484 MB temp, 10617 ms
+[PHASE2] Round 8/10: ~484 MB temp, 10911 ms
+[PHASE2] Round 9/10: ~484 MB temp, 10870 ms
+[PHASE2] Round 10/10: ~484 MB temp, 10684 ms
+
+[PHASE3] Verifying persistent set...
+[PHASE3] Size check: PASS (60/60)
+[PHASE3] Checksum:   PASS (60/60)
+[PHASE3] Verify time: 5764 ms
+
+========================================
+[BENCH] SUMMARY
+[BENCH] Persistent set: ~480 MB (60 objects)
+[BENCH] Churn rounds:   10 × ~500MB
+[BENCH] Size check:     PASS
+[BENCH] Checksum:       PASS
+[BENCH] Total wall time: 118804 ms
+========================================

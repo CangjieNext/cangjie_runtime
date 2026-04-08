@@ -1,0 +1,15 @@
+========================================
+  Case 2: 50x Pressure Benchmark
+  Tip: MRT_REPORT=./runtime.log cjHeapSize=4gb ./benchmark
+========================================
+
+--- Functional Tests (50x) ---
+[BENCH] F1_TreeIntegrity         PASS  8600 ms  (1000 rounds)
+[BENCH] F2_Generational          PASS  19869 ms  (10000 temp trees)
+[BENCH] F3_LargeObject           PASS  101885 ms  (2500 rounds)
+[BENCH] F4_LinkedList            PASS  7049 ms  (1500 rounds)
+An exception has occurred:
+IndexOutOfBoundsException: index: 0, size: 0
+	 at std.collection::ArrayList<...>::[](Int64)(std/collection/array_list.cj:895)
+	 at default::benchF5_HashMap()(/Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/MSGC_RESULT/Result/case2_50x_pressure/benchmark.cj:189)
+	 at default::main()(/Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/MSGC_RESULT/Result/case2_50x_pressure/benchmark.cj:320)

@@ -1,0 +1,27 @@
+========================================
+  Case 4: Read-Heavy Benchmark (10:1)
+  10 reads per 1 write operation
+========================================
+
+[PHASE1] Building working set...
+[PHASE1] Done: 5 trees + 5 chains + 50K map + 20 large objects, 986 ms
+
+[PHASE2] Starting read-heavy work: 50 rounds (10 reads + 1 write each)
+[PHASE2] Round 1/50: 10352 ms
+[PHASE2] Round 11/50: 10726 ms
+[PHASE2] Round 21/50: 11238 ms
+[PHASE2] Round 31/50: 11773 ms
+[PHASE2] Round 41/50: 12092 ms
+
+[PHASE3] Final verification...
+[PHASE3] Trees: 5/5 intact, LargeObjects: 20/20 intact, 8 ms
+
+========================================
+[BENCH] SUMMARY (Read-Heavy 10:1)
+[BENCH] Total reads:    500
+[BENCH] Total writes:   50
+[BENCH] Read:Write:     10:1
+[BENCH] Trees intact:   5/5
+[BENCH] Large intact:   20/20
+[BENCH] Total wall time: 570881 ms
+========================================

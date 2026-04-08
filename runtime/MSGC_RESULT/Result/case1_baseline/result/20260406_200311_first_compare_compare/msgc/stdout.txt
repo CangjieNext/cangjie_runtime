@@ -1,0 +1,29 @@
+========================================
+  Case 1: Baseline Benchmark (no idle)
+  Tip: MRT_REPORT=./runtime.log cjHeapSize=256mb ./benchmark
+========================================
+
+--- Functional Tests ---
+[BENCH] F1_TreeIntegrity         PASS  136 ms
+[BENCH] F2_Generational          PASS  344 ms
+[BENCH] F3_LargeObject           PASS  2056 ms
+[BENCH] F4_LinkedList            PASS  265 ms
+[BENCH] F5_HashMap               PASS  202 ms
+
+--- Performance Tests ---
+[BENCH] P1_SmallAlloc            306 ms  6553550 nodes  21416 nodes/ms
+[BENCH] P2_LargeAlloc            1248 ms  50 MB  41 MB/s
+[BENCH] P3_MixedWorkload         709 ms  30 rounds
+[BENCH] P4_LongLivedChurn        562 ms  persistent_intact=20/20
+[BENCH] P5_Fragmentation         965 ms  15 rounds
+
+========================================
+[BENCH] SUMMARY
+[BENCH] Functional: 5/5 passed
+[BENCH] P1_SmallAlloc:      306 ms
+[BENCH] P2_LargeAlloc:      1248 ms
+[BENCH] P3_MixedWorkload:   709 ms
+[BENCH] P4_LongLivedChurn:  562 ms
+[BENCH] P5_Fragmentation:   965 ms
+[BENCH] Total wall time:    6798 ms
+========================================
