@@ -381,12 +381,7 @@ void TypeInfoManager::CreatedTypeInfoImpl(GenericTiDesc* &tiDesc, TypeTemplate* 
     CString typeInfoName = tt->GetTypeInfoName(argSize, args);
     TypeInfo* newTypeInfo = reinterpret_cast<TypeInfo*>(Allocate(sizeof(TypeInfo)));
     size_t nameSize = typeInfoName.Length() + 1;
-#ifdef __arm__
-    // nameAddr need four-byte aligned to prevent the fields from being overwritten incorrectly.
-    uintptr_t nameAddr = Allocate(MRT_ALIGN(nameSize, sizeof(uint32_t)));
-#else
     uintptr_t nameAddr = Allocate(nameSize);
-#endif
     MapleRuntime::MemoryCopy(nameAddr, nameSize, reinterpret_cast<uintptr_t>(typeInfoName.Str()), nameSize);
     newTypeInfo->SetName(reinterpret_cast<const char*>(nameAddr));
 
@@ -911,6 +906,10 @@ U32 TypeInfoManager::GetTypeSize(TypeInfo* ti)
 
 uintptr_t TypeInfoManager::Allocate(size_t size)
 {
+// TypeInfo related content needs four-byte aligned to prevent fields from being overwritten incorrectly.
+#ifdef __arm__
+    size = MRT_ALIGN(size, sizeof(uint32_t))
+#endif
     uintptr_t addr = position.fetch_add(size);
     if (addr + size > endAddress) {
         NewMMap(mapMemory);
