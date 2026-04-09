@@ -157,6 +157,9 @@ public class PooledDatasource <: Datasource {
      * @since 0.40.1
      */
     public func connect(): Connection {
+        if (isclosed.load()) {
+            throw SqlException("Connection pool is closed.")
+        }
         var item = pool.acquire(_connTimeout)
         match (item) {
             case Some(entry) => return ProxyConnection(entry.value, entry)

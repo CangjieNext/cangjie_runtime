@@ -131,7 +131,16 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
                 if (entryCount < options.maxSize) {
                     entryCount++
                     mux.unlock()
-                    return createEntry()
+                    try {
+                        return createEntry()
+                    } catch (e: Exception) {
+                        synchronized(mux) {
+                            if (entryCount > 0) {
+                                entryCount--
+                            }
+                        }
+                        throw e
+                    }
                 }
                 mux.unlock()
                 throw SqlException("Acquired entries exceed maxSize(${maxSize})")
