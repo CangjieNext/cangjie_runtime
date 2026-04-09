@@ -127,13 +127,25 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
             if (v.isValid) {
                 return v
             } else {
-                mux.lock()
-                if (entryCount < options.maxSize) {
-                    entryCount++
-                    mux.unlock()
-                    return createEntry()
+                let shouldCreate: Bool
+                synchronized(mux) {
+                    shouldCreate = entryCount < options.maxSize
+                    if (shouldCreate) {
+                        entryCount++
+                    }
                 }
-                mux.unlock()
+                if (shouldCreate) {
+                    try {
+                        return createEntry()
+                    } catch (e: Exception) {
+                        synchronized(mux) {
+                            if (entryCount > 0) {
+                                entryCount--
+                            }
+                        }
+                        throw e
+                    }
+                }
                 throw SqlException("Acquired entries exceed maxSize(${maxSize})")
             }
             case None => throw SqlException("Acquired entries exceed maxSize(${maxSize})")
