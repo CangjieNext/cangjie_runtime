@@ -251,7 +251,12 @@ public class ByteBuffer <: IOStream & Seekable {
             throw IOException("Can't move the position before the beginning of the stream.")
         }
 
-        this._length += this.start - pos
+        let newLength = this._length + this.start - pos
+        this._length = if (newLength < 0) {
+            0
+        } else {
+            newLength
+        }
         this.start = pos
 
         this.start
