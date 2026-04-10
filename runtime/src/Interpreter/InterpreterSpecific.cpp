@@ -543,7 +543,7 @@ void InitInterpreter(const RuntimeParam& runtimeParam)
         .nativeLogger = &NativeLogger,
     };
 
-    InterpreterInterfaceT interpreterInterface;
+    InterpreterInterfaceT interpreterInterface {};
     interpreterInterface.version = 1;
 
     int code = init(&interpreterInterface, &cjnativeInterface,
@@ -567,6 +567,17 @@ bool IsI2IAdapterStartAddr(const uintptr_t address)
     DLOG(INTERPRETER, "Checking i2i function borders: is %p in [%p, %p)? -- %s", address,
         interpreterInterfaceInstance->i2iAdapterStartAddr,
         interpreterInterfaceInstance->i2iAdapterEndAddr, res ? "true" : "false");
+    return res;
+}
+
+bool IsInterpreterPrologueAddr(const uintptr_t address)
+{
+    uintptr_t startAddr = interpreterInterfaceInstance->interpreterPrologueStartAddr;
+    uintptr_t endAddr = interpreterInterfaceInstance->interpreterPrologueEndAddr;
+    bool hasRange = startAddr != 0 && startAddr < endAddr;
+    bool res = hasRange && startAddr <= address && address < endAddr;
+    DLOG(INTERPRETER, "Checking interpreter prologue borders: is %p in [%p, %p)? -- %s", address,
+        startAddr, endAddr, res ? "true" : "false");
     return res;
 }
 
