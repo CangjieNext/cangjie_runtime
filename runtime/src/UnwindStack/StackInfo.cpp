@@ -137,6 +137,9 @@ void StackInfo::AnalyseAndSetFrameType(UnwindContext& uwContext)
         } else if (mFrame.IsI2NFrame()) {
             DLOG(INTERPRETER, "[Analyzer] INTERPRETER_I2N frame, address: %p", mFrame.GetIP());
             frameInfo.SetFrameType(FrameType::INTERPRETER_I2N);
+        } else if (mFrame.IsInterpreterPrologueFrame()) {
+            DLOG(INTERPRETER, "[Analyzer] INTERPRETER_PROLOGUE frame, address: %p", mFrame.GetIP());
+            frameInfo.SetFrameType(FrameType::INTERPRETER_PROLOGUE);
         } else {
             DLOG(INTERPRETER, "[Analyzer] INTERPRETER frame, address: %p", mFrame.GetIP());
             frameInfo.SetFrameType(FrameType::INTERPRETER);
@@ -210,7 +213,8 @@ void StackInfo::ExtractLiteFrameInfoFromStack(std::vector<uint64_t>& liteFrameIn
 #ifdef INTERPRETER_ENABLED
             case FrameType::INTERPRETER_C2I:
             case FrameType::INTERPRETER_I2I:
-            case FrameType::INTERPRETER_I2N: {
+            case FrameType::INTERPRETER_I2N:
+            case FrameType::INTERPRETER_PROLOGUE: {
                 liteFrameInfos.push_back(reinterpret_cast<uint64_t>(frameInfo.mFrame.GetIP())); // consumed by interpreter frame info provider
                 liteFrameInfos.push_back(reinterpret_cast<uint64_t>(frameInfo.mFrame.GetFA())); // consumed by interpreter frame info provider
                 liteFrameInfos.push_back(INTERPRETED_FRAME_FDESC);                              // marks this triple as "non-cjnative"

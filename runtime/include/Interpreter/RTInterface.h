@@ -661,8 +661,8 @@ struct InterpreterInterfaceT {
     uintptr_t i2iAdapterStartAddr;
     uintptr_t i2iAdapterEndAddr;
 
-    uintptr_t i2nStubStartAddr;
-    uintptr_t i2nStubEndAddr;
+    uintptr_t interpreterPrologueStartAddr;
+    uintptr_t interpreterPrologueEndAddr;
 
     IterateFramesWithStateFn iterateFramesWithState;
     VisitFrameRootsExpansionFn visitFrameRootsExpansion;
