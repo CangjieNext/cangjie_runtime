@@ -401,7 +401,7 @@ void Mutator::RecordStackPtrs(std::set<BaseObject**>& resSet)
     }
 }
 
-intptr_t Mutator::FixExtendedStack(intptr_t frameBase, uint32_t adjustedSize __attribute__((unused)), void* ip)
+intptr_t Mutator::FixExtendedStack(intptr_t frameBase, uint32_t adjustedSize, void* ip)
 {
     if (!IsRuntimeThread()) {
 #if defined(_WIN64)
@@ -412,23 +412,27 @@ intptr_t Mutator::FixExtendedStack(intptr_t frameBase, uint32_t adjustedSize __a
         // When frameBase != 0, the stack check is invoked. In this case, the stack is expanded by two times by default.
         // Check whether the stack expansion meets the requirements.
         // Otherwise, the stack expansion continues to reach the limit.
+#ifdef INTERPRETER_ENABLED
+        uintptr_t currentIp = reinterpret_cast<uintptr_t>(ip);
+        bool isInterpreterC2I = IsC2IStubAddr(currentIp);
+        bool isInterpreterPrologue = !isInterpreterC2I && IsInterpreterPrologueAddr(currentIp);
+#endif
         if (frameBase == 0) {
             stackOffset = CJThreadStackGrow(CJTHREAD_MAX_STACK_SIZE);
             if (stackOffset == 0 || stackOffset == -1) {
                 return 0;
             }
 #ifdef INTERPRETER_ENABLED
-        } else if (IsC2IStubAddr(reinterpret_cast<uintptr_t>(ip))) {
-                // in this context, adjustedSize is the size required for c2i stub and interpreter frames
-                DLOG(INTERPRETER, "Stack overflow happened in C2I, stack size: %zu", stackSize);
-#if defined(__x86_64__)
-                // 8 is the slot length of returnaddr.
-                uint64_t callerSp = *reinterpret_cast<intptr_t*>(frameBase) - 64 + 8;
-#elif defined(__aarch64__)
-                uint64_t callerSp = *reinterpret_cast<intptr_t*>(frameBase) - 64;
-#endif
+        } else if (isInterpreterC2I || isInterpreterPrologue) {
+                // The interpreter stack-grow path passes the full size that must fit below the caller
+                // frame base after StackGrowStub resumes execution in the transition stub/prologue.
+                DLOG(INTERPRETER, "Stack overflow happened in %s, stack size: %zu",
+                    isInterpreterPrologue ? "interpreter prologue" : "C2I", stackSize);
+                // SP of caller of C2I/prologue
+                uintptr_t callerFrameBase = static_cast<uintptr_t>(*reinterpret_cast<intptr_t*>(frameBase));
+                size_t requiredSize = stackBaseAddr - callerFrameBase + adjustedSize;
                 size_t newSize = stackSize + stackSize;
-                while (stackBaseAddr - callerSp + adjustedSize > newSize - CJThreadStackReversedGet()) {
+                while (requiredSize > newSize - CJThreadStackReversedGet()) {
                     newSize += newSize;
                 }
                 DLOG(INTERPRETER, "   try to grow stack size: %zu -> %zu", stackSize, newSize);
