@@ -499,7 +499,7 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
     }
     std::vector<uint64_t>& liteFrameInfos = eWrapper.GetLiteFrameInfos();
     liteFrameInfos.clear();
-    StackManager::RecordLiteFrameInfos(liteFrameInfos);
+    StackManager::RecordLiteFrameInfosForMix(liteFrameInfos);
     constexpr int frameInfoPairLen = 3; // function PC and startpc form one pair in liteFrameInfos
     if (eWrapper.IsThrowingSOFE()) {
         constexpr int defaultSize = 32;

@@ -17,6 +17,7 @@
 #include "UnwindStack/GcStackInfo.h"
 #include "UnwindStack/PrintSignalStackInfo.h"
 #include "UnwindStack/PrintStackInfo.h"
+#include "UnwindStack/PrintStackInfoForMix.h"
 #include "UnwindStack/StackGrowStackInfo.h"
 #ifdef _WIN64
 #include "UnwindWin.h"
@@ -127,6 +128,13 @@ void StackManager::PrintStackTraceForCpuProfile(UnwindContext* unContext, unsign
 void StackManager::RecordLiteFrameInfos(std::vector<uint64_t>& liteFrameInfos, size_t steps)
 {
     PrintStackInfo printStackInfo;
+    printStackInfo.FillInStackTrace();
+    printStackInfo.ExtractLiteFrameInfoFromStack(liteFrameInfos, steps);
+}
+
+void StackManager::RecordLiteFrameInfosForMix(std::vector<uint64_t>& liteFrameInfos, size_t steps)
+{
+    PrintStackInfoForMix printStackInfo;
     printStackInfo.FillInStackTrace();
     printStackInfo.ExtractLiteFrameInfoFromStack(liteFrameInfos, steps);
 }

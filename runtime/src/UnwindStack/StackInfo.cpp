@@ -9,6 +9,7 @@
 
 #include <cstdint>
 
+#include "ArkTSFrameRecognizer.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "Collector/TracingCollector.h"
@@ -119,8 +120,8 @@ void StackInfo::AnalyseAndSetFrameType(UnwindContext& uwContext)
     } else if (mFrame.IsStackGrowStubFrame()) {
         isReliableN2CStub = false;
         frameInfo.SetFrameType(FrameType::STACKGROW);
-    } else if (mFrame.IsExclusiveStubFrame()) {
-        frameInfo.SetFrameType(FrameType::EXSLUSIVE);
+    } else if (ArkTSFrameRecognizer::IsArkTSFrame(mFrame)) {
+        frameInfo.SetFrameType(FrameType::ARKTS_FRAME);
         isReliableN2CStub = false;
     } else if (mFrame.IsRuntimeFrame()) {
         frameInfo.SetFrameType(FrameType::RUNTIME);

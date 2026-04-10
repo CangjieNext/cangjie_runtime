@@ -10,6 +10,7 @@ set(SRC_LIST
     "GcStackInfo.cpp"
     "StackGrowStackInfo.cpp"
     "PrintStackInfo.cpp"
+    "PrintStackInfoForMix.cpp"
     "PrintSignalStackInfo.cpp"
     "MachineFrame.cpp"
     "UnwindContext.cpp"
@@ -17,9 +18,10 @@ set(SRC_LIST
     "FrameInfo.cpp"
     "MangleNameHelper.cpp"
     "StackMetadataHelper.cpp"
+    "ArkTSFrameRecognizer.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../Demangler/Demangler.cpp"
     "${CMAKE_CURRENT_SOURCE_DIR}/../Demangler/DeCompression.cpp"
-)
+    )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../Heap)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../Demangler)

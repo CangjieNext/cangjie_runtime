@@ -58,6 +58,8 @@ public:
 
     static void RecordLiteFrameInfos(std::vector<uint64_t>& liteFrameInfos, size_t steps = STACK_UNWIND_STEP_MAX);
 
+    static void RecordLiteFrameInfosForMix(std::vector<uint64_t>& liteFrameInfos, size_t steps = STACK_UNWIND_STEP_MAX);
+
     static void GetStackTraceByLiteFrameInfos(const std::vector<uint64_t>& liteFrameInfos,
                                               std::vector<StackTraceElement>& stackTrace);
 
