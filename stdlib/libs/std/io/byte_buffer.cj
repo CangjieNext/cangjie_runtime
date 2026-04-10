@@ -251,6 +251,17 @@ public class ByteBuffer <: IOStream & Seekable {
             throw IOException("Can't move the position before the beginning of the stream.")
         }
 
+        // 限制最大稀疏距离（100MB），防止无限制内存分配
+        let maxSparseDistance = 100 * 1024 * 1024
+        let currentEnd = this.start + (if (this._length >= 0) {
+            this._length
+        } else {
+            0
+        })
+        if (pos > currentEnd + maxSparseDistance) {
+            throw IOException("Seek position exceeds maximum sparse distance of 100 MB.")
+        }
+
         this._length += this.start - pos
         this.start = pos
 
