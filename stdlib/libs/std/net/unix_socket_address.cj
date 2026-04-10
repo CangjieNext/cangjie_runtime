@@ -27,12 +27,20 @@ func findLastNoneZeroIdx(path: Array<Byte>): Int64 {
     return lastNoneZeroIdx
 }
 
+func normalizeUnixSocketPath(path: Array<Byte>): String {
+    let lastIdx = findLastNoneZeroIdx(path)
+    if (lastIdx > MAX_UDS_PATH_LENGTH) {
+        throw IllegalArgumentException("Path size(${lastIdx}) is too long, expect <= ${MAX_UDS_PATH_LENGTH}.")
+    }
+    unsafe { String.fromUtf8Unchecked(path[..lastIdx]) }
+}
+
 public class UnixSocketAddress <: SocketAddress & Equatable<UnixSocketAddress> {
     let _path: String
     let _len: Int64
 
     public init(path: Array<Byte>) {
-        this(unsafe { String.fromUtf8Unchecked(path[..findLastNoneZeroIdx(path)]) })
+        this(normalizeUnixSocketPath(path))
     }
     public init(path: String) {
         _len = path.size
