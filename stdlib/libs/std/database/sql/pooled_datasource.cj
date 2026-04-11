@@ -8,7 +8,6 @@
 
 package std.database.sql
 
-import std.time.DateTime
 import std.sync.AtomicBool
 
 /**
@@ -182,10 +181,9 @@ public class PooledDatasource <: Datasource {
      * @since 0.40.1
      */
     public func close(): Unit {
-        if (isclosed.load()) {
+        if (!isclosed.compareAndSwap(false, true)) {
             return
         }
-        isclosed.store(true)
         pool.close()
         datasource.close()
     }
