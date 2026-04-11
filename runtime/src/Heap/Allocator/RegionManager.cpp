@@ -392,6 +392,9 @@ void RegionManager::Initialize(size_t nUnit, uintptr_t regionInfoAddr)
     // propagate region heap layout
     RegionInfo::Initialize(nUnit, regionHeapStart);
     freeRegionManager.Initialize(nUnit);
+    // Enable lowAddressFirst — allocate from low address to pack live regions at low end,
+    // maximizing the contiguous free zone at the high end for ShrinkInactiveZone.
+    freeRegionManager.SetLowAddressFirst(true);
     this->exemptedRegionThreshold = CangjieRuntime::GetHeapParam().exemptionThreshold;
     DLOG(REPORT, "region info @0x%zx+%zu, heap [0x%zx, 0x%zx), unit count %zu", regionInfoAddr, metadataSize,
          regionHeapStart, regionHeapEnd, nUnit);
@@ -552,19 +555,8 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
     size_t size = num * RegionInfo::UNIT_SIZE;
     RequestForRegion(size);
 
-    RegionInfo* head = garbageRegionList.TakeHeadRegion();
-    if (head != nullptr) {
-        DLOG(REGION, "take garbage region %p@[%#zx, %#zx)", head, head->GetRegionStart(), head->GetRegionEnd());
-        if (head->GetUnitCount() == num) {
-            auto idx = head->GetUnitIdx();
-            RegionInfo::ClearUnits(idx, num);
-            DLOG(REGION, "reuse garbage region %p@[%#zx, %#zx)", head, head->GetRegionStart(), head->GetRegionEnd());
-            return RegionInfo::InitRegion(idx, num, type);
-        } else {
-            DLOG(REGION, "reclaim garbage region %p@[%#zx, %#zx)", head, head->GetRegionStart(), head->GetRegionEnd());
-            ReclaimRegion(head);
-        }
-    }
+    // M6: garbageList bypassed — garbage regions go directly to freeTree now.
+    // No need to check garbageRegionList here.
 
     RegionInfo* region = freeRegionManager.TakeRegion(num, type, expectPhysicalMem);
     if (region != nullptr) {
@@ -705,11 +697,7 @@ size_t RegionManager::CollectLargeGarbage()
             RegionInfo* del = region;
             region = region->GetNextRegion();
             oldLargeRegionList.DeleteRegion(del);
-            if (del->GetRegionSize() > RegionInfo::LARGE_OBJECT_RELEASE_THRESHOLD) {
-                garbageSize += ReleaseRegion(del);
-            } else {
-                garbageSize += CollectRegion(del);
-            }
+            garbageSize += ReleaseRegion(del);
         } else {
             region->ResetMarkBit();
             region = region->GetNextRegion();
@@ -793,16 +781,33 @@ void RegionManager::DumpRegionStats(const char* msg) const
     size_t recentLargeSize = recentlargeUnits * RegionInfo::UNIT_SIZE;
     size_t allocRecentLargeSize = recentLargeRegionList.GetAllocatedSize();
 
-    size_t usedUnits = GetUsedUnitCount();
+    size_t allHeapSize = regionHeapEnd - regionHeapStart;
+    size_t allUnits = allHeapSize / RegionInfo::UNIT_SIZE;
+    size_t inactiveUnits = (regionHeapEnd - inactiveZone) / RegionInfo::UNIT_SIZE;
+    
+    size_t usedUnitCount = GetUsedUnitCount();
+    size_t usedObjSize = GetAllocatedSize();
     size_t releasedUnits = freeRegionManager.GetReleasedUnitCount();
     size_t dirtyUnits = freeRegionManager.GetDirtyUnitCount();
-    size_t listedUnits = fromUnits + garbageUnits + recentFullUnits + tlRegions +
-        rawPointerPinnedRegions + largeUnits + recentlargeUnits + pinnedUnits + recentPinnedUnits;
+    size_t dirtySize = dirtyUnits * RegionInfo::UNIT_SIZE;
+
+    size_t totalUnitCount = usedUnitCount + garbageUnits + dirtyUnits;
+    size_t totalObjSize = usedObjSize + garbageSize + dirtyUnits * RegionInfo::UNIT_SIZE;
+
+    double objectCapacity = (allHeapSize > 0) ? static_cast<double>(totalObjSize) / allHeapSize : 0.0;
+    double unitCapacity = (allUnits > 0) ? static_cast<double>(totalUnitCount) / allUnits : 0.0;
+    double usedObjectCapacity = (allHeapSize > 0) ? static_cast<double>(usedObjSize) / allHeapSize : 0.0;
+    double usedUnitCapacity = (allUnits > 0) ? static_cast<double>(usedUnitCount) / allUnits : 0.0;
+    double objFragRate = 1.0 - objectCapacity;
+    double unitFragRate = 1.0 - unitCapacity;
+    double usedObjFragRate = 1.0 - usedObjectCapacity;
+    double usedUnitFragRate = 1.0 - usedUnitCapacity;
 
     VLOG(REPORT, msg);
 
     VLOG(REPORT, "\ttotal units: %zu (%zu B)", totalUnits, totalSize);
     VLOG(REPORT, "\tactive units: %zu (%zu B)", activeUnits, activeSize);
+    VLOG(REPORT, "\tinactive units: %zu (%zu B)", inactiveUnits, inactiveUnits * RegionInfo::UNIT_SIZE);
 
     VLOG(REPORT, "\ttl-regions %zu: %zu units (%zu B, alloc %zu)", tlRegions,  tlUnits, tlSize, allocTLSize);
     VLOG(REPORT, "\tfrom-regions %zu: %zu units (%zu B, alloc %zu)", fromRegions,  fromUnits, fromSize, allocFromSize);
@@ -820,11 +825,27 @@ void RegionManager::DumpRegionStats(const char* msg) const
          largeRegions, largeUnits, largeSize, allocLargeSize);
     VLOG(REPORT, "\trecent large-object regions %zu: %zu units (%zu B, alloc %zu)",
          recentlargeRegions, recentlargeUnits, recentLargeSize, allocRecentLargeSize);
+    VLOG(REPORT, "\tused summary: usedUnits %zu (%zu B), usedObjSize %zu B",
+         usedUnitCount, usedUnitCount * RegionInfo::UNIT_SIZE, usedObjSize);
 
-    VLOG(REPORT, "\tlisted units: %zu (%zu B)", listedUnits, listedUnits * RegionInfo::UNIT_SIZE);
-    VLOG(REPORT, "\tused units: %zu (%zu B)", usedUnits, usedUnits * RegionInfo::UNIT_SIZE);
-    VLOG(REPORT, "\treleased units: %zu (%zu B)", releasedUnits, releasedUnits * RegionInfo::UNIT_SIZE);
-    VLOG(REPORT, "\tdirty units: %zu (%zu B)", dirtyUnits, dirtyUnits * RegionInfo::UNIT_SIZE);
+    size_t releasedMaxBlock = freeRegionManager.GetReleasedMaxBlock();
+    size_t dirtyMaxBlock = freeRegionManager.GetDirtyMaxBlock();
+    VLOG(REPORT, "\treleased units: %zu (%zu B), maxBlock: %zu units (%zu B)",
+         releasedUnits, releasedUnits * RegionInfo::UNIT_SIZE,
+         releasedMaxBlock, releasedMaxBlock * RegionInfo::UNIT_SIZE);
+    VLOG(REPORT, "\tdirty units: %zu (%zu B), maxBlock: %zu units (%zu B)",
+         dirtyUnits, dirtyUnits * RegionInfo::UNIT_SIZE, dirtyMaxBlock, dirtyMaxBlock * RegionInfo::UNIT_SIZE);
+
+    VLOG(REPORT, "\tgarbage+dirty summary: garbageUnits %zu (%zu B, allocObj %zu), dirtyUnits %zu (%zu B)",
+         garbageUnits, garbageSize, allocGarbageSize, dirtyUnits, dirtySize);
+    VLOG(REPORT, "\tobjectCapacity: %.4f (totalObjSize %zu / allHeapSize %zu), objFragRate: %.4f",
+         objectCapacity, totalObjSize, allHeapSize, objFragRate);
+    VLOG(REPORT, "\tunitCapacity: %.4f (totalUnitCount %zu / allUnits %zu), unitFragRate: %.4f",
+         unitCapacity, totalUnitCount, allUnits, unitFragRate);
+    VLOG(REPORT, "\tusedObjectCapacity: %.4f (usedObjSize %zu / allHeapSize %zu), usedObjFragRate: %.4f",
+         usedObjectCapacity, usedObjSize, allHeapSize, usedObjFragRate);
+    VLOG(REPORT, "\tusedUnitCapacity: %.4f (usedUnitCount %zu / allUnits %zu), usedUnitFragRate: %.4f",
+         usedUnitCapacity, usedUnitCount, allUnits, usedUnitFragRate);
 
     TRACE_COUNT("CJRT_GC_totalSize", totalSize);
     TRACE_COUNT("CJRT_GC_totalUnits", totalUnits);
@@ -866,10 +887,12 @@ void RegionManager::DumpRegionStats(const char* msg) const
     TRACE_COUNT("CJRT_GC_recentlargeUnits", recentlargeUnits);
     TRACE_COUNT("CJRT_GC_recentLargeSize", recentLargeSize);
     TRACE_COUNT("CJRT_GC_allocRecentLargeSize", allocRecentLargeSize);
-    TRACE_COUNT("CJRT_GC_usedUnits", usedUnits);
+    TRACE_COUNT("CJRT_GC_usedUnits", usedUnitCount);
     TRACE_COUNT("CJRT_GC_releasedUnits", releasedUnits);
     TRACE_COUNT("CJRT_GC_dirtyUnits", dirtyUnits);
     TRACE_COUNT("CJRT_GC_listedUnits", listedUnits);
+    TRACE_COUNT("CJRT_GC_objectCapacity", static_cast<size_t>(objectCapacity * 10000));
+    TRACE_COUNT("CJRT_GC_unitCapacity", static_cast<size_t>(unitCapacity * 10000));
 }
 
 RegionInfo* RegionManager::AllocateThreadLocalRegion(bool expectPhysicalMem)
