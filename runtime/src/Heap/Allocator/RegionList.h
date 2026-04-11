@@ -19,7 +19,14 @@ public:
     void PrependRegion(RegionInfo* region, RegionInfo::RegionType type);
     void PrependRegionLocked(RegionInfo* region, RegionInfo::RegionType type);
 
+    // Insert region maintaining address-ascending order (lowest address at head).
+    void InsertRegionSorted(RegionInfo* region, RegionInfo::RegionType type);
+    void InsertRegionSortedLocked(RegionInfo* region, RegionInfo::RegionType type);
+
     void MergeRegionList(RegionList& regionList, RegionInfo::RegionType regionType);
+
+    // Merge source list into this list maintaining address-ascending order.
+    void MergeRegionListSorted(RegionList& srcList, RegionInfo::RegionType regionType);
 
     void DeleteRegion(RegionInfo* del)
     {
@@ -87,6 +94,25 @@ public:
         if (listHead == nullptr) { return nullptr; }
         RegionInfo* currentHead = listHead;
         DeleteRegionLocked(currentHead);
+        return currentHead;
+    }
+
+    // Non-blocking version: returns nullptr immediately if mutex is held (e.g. by GC sorted-insert).
+    // *locked is set to false if try_lock failed, true otherwise.
+    RegionInfo* TryTakeHeadRegion(bool* locked)
+    {
+        if (!listMutex.try_lock()) {
+            *locked = false;
+            return nullptr;
+        }
+        *locked = true;
+        if (listHead == nullptr) {
+            listMutex.unlock();
+            return nullptr;
+        }
+        RegionInfo* currentHead = listHead;
+        DeleteRegionLocked(currentHead);
+        listMutex.unlock();
         return currentHead;
     }
 
