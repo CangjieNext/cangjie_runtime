@@ -90,6 +90,25 @@ public:
         return currentHead;
     }
 
+    // Non-blocking version: returns nullptr immediately if mutex is held (e.g. by GC sorted-insert).
+    // *locked is set to false if try_lock failed, true otherwise.
+    RegionInfo* TryTakeHeadRegion(bool* locked)
+    {
+        if (!listMutex.try_lock()) {
+            *locked = false;
+            return nullptr;
+        }
+        *locked = true;
+        if (listHead == nullptr) {
+            listMutex.unlock();
+            return nullptr;
+        }
+        RegionInfo* currentHead = listHead;
+        DeleteRegionLocked(currentHead);
+        listMutex.unlock();
+        return currentHead;
+    }
+
     RegionInfo* TakeHeadRegion(RegionInfo::RegionType newType)
     {
         std::lock_guard<std::mutex> lg(listMutex);

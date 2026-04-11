@@ -542,7 +542,6 @@ void WCollector::DoGarbageCollection()
     CollectSmallSpace();
     ForwardDataManager::GetForwardDataManager().UnbindPreviousLiveInfo();
 
-    reinterpret_cast<RegionSpace&>(theAllocator).DumpRegionStats("region statistics when gc ends");
 }
 
 void WCollector::MarkNewObject(BaseObject* obj)
@@ -591,7 +590,14 @@ BaseObject* WCollector::TryForwardObject(BaseObject* obj)
 
 BaseObject* WCollector::ForwardObjectImpl(BaseObject* obj, RegionInfo* ghostFromRegion)
 {
-    CHECK(GetGCPhase() == GCPhase::GC_PHASE_PREFORWARD || GetGCPhase() == GCPhase::GC_PHASE_FORWARD);
+    // Race guard: a mutator may have entered ForwardBarrier::ReadReference before the global
+    // phase was switched to IDLE. By the time it reaches here the phase may no longer be
+    // FORWARD/PREFORWARD. Fall back to FindToVersion which safely looks up the already-
+    // forwarded address without performing any mutation.
+    GCPhase phase = GetGCPhase();
+    if (UNLIKELY(phase != GCPhase::GC_PHASE_PREFORWARD && phase != GCPhase::GC_PHASE_FORWARD)) {
+        return FindToVersion(obj);
+    }
     do {
         StateWord oldWord = obj->GetStateWord();
 
