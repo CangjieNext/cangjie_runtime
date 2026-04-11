@@ -375,7 +375,7 @@ public func max<T>(a: T, b: T, others: Array<T>): T where T <: Comparable<T>
 
 > **注意：**
 >
-> 浮点数类型的比较也将按照 [Comparable](./core_package_interfaces.md#interface-comparablet) 的结果进行比较，如果浮点书中有非数 `NaN`，结果将不正确，此时建议使用 [Float16](./core_package_intrinsics.md#float16)、[Float32](./core_package_intrinsics.md#float32)、[Float64](./core_package_intrinsics.md#float64) 的 `static func max`方法。
+> 浮点数类型的比较也将按照 [Comparable](./core_package_interfaces.md#interface-comparablet) 的结果进行比较，如果浮点数中有非数 `NaN`，结果将不正确，此时建议使用 [Float16](./core_package_intrinsics.md#float16)、[Float32](./core_package_intrinsics.md#float32)、[Float64](./core_package_intrinsics.md#float64) 的 `static func max`方法。
 
 参数：
 
@@ -442,7 +442,7 @@ public func min<T>(a: T, b: T, others: Array<T>): T where T <: Comparable<T>
 
 > **注意：**
 >
-> 浮点数类型的比较也将按照 [Comparable](./core_package_interfaces.md#interface-comparablet) 的结果进行比较，如果浮点书中有非数`NaN`，结果将不正确，此时建议使用 [Float16](./core_package_intrinsics.md#float16)、[Float32](./core_package_intrinsics.md#float32)、[Float64](./core_package_intrinsics.md#float64) 的 `static func min`方法。
+> 浮点数类型的比较也将按照 [Comparable](./core_package_interfaces.md#interface-comparablet) 的结果进行比较，如果浮点数中有非数`NaN`，结果将不正确，此时建议使用 [Float16](./core_package_intrinsics.md#float16)、[Float32](./core_package_intrinsics.md#float32)、[Float64](./core_package_intrinsics.md#float64) 的 `static func min`方法。
 
 参数：
 
@@ -543,6 +543,10 @@ public func print(f: Float16, flush!: Bool = false): Unit
 
 功能：向控制台输出 [Float16](core_package_intrinsics.md#float16) 类型数据的小数点后六位的字符串表达，即超出六位的小数位不会输出，不足六位的小数位会补零。
 
+> **注意：**
+>
+> 仓颉采用 IEEE 754 格式表示浮点数，保存数值可能会有误差。
+
 参数：
 
 - f: [Float16](core_package_intrinsics.md#float16) - 待输出的 [Float16](core_package_intrinsics.md#float16) 类型数据。
@@ -568,10 +572,6 @@ main() {
 0.680176
 ```
 
-> **注意：**
->
-> 仓颉采用 IEEE 754 格式表示浮点数，保存数值可能会有误差。
->
 ## func print(Float32, Bool)
 
 ```cangjie

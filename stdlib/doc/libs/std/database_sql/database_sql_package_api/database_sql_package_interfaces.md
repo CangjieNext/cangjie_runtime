@@ -4,12 +4,12 @@
 
 ```cangjie
 public interface ColumnInfo {
-    prop displaySize: Int64
-    prop length: Int64
     prop name: String
-    prop nullable: Bool
-    prop scale: Int64
     prop typeName: String
+    prop length: Int64
+    prop scale: Int64
+    prop nullable: Bool
+    prop displaySize: Int64
 }
 ```
 
@@ -89,9 +89,9 @@ prop typeName: String
 ```cangjie
 public interface Connection <: Resource {
     prop state: ConnectionState
-    func createTransaction(): Transaction
     func getMetaData(): Map<String, String>
     func prepareStatement(sql: String): Statement
+    func createTransaction(): Transaction
 }
 ```
 
@@ -165,8 +165,8 @@ func prepareStatement(sql: String): Statement
 
 ```cangjie
 public interface Datasource <: Resource {
-    func connect(): Connection
     func setOption(key: String, value: String): Unit
+    func connect(): Connection
 }
 ```
 
@@ -208,8 +208,8 @@ func setOption(key: String, value: String): Unit
 ```cangjie
 public interface Driver {
     prop name: String
-    prop preferredPooling: Bool
     prop version: String
+    prop preferredPooling: Bool
     func open(connectionString: String, opts: Array<(String, String)>): Datasource
 }
 ```
@@ -355,7 +355,7 @@ func next(values: Array<SqlDbType>): Bool
 
 > **注意：**
 >
-> 未来版本即将废弃不再使用，可使用 [next()](database_sql_package_interfaces.md#func-next) 替代。
+> 未来版本即将废弃，可使用 [next()](database_sql_package_interfaces.md#func-next) 替代。
 
 参数：
 
@@ -377,7 +377,7 @@ public interface SqlDbType {
 
 > **注意：**
 >
-> 未来版本即将废弃不再使用。
+> 未来版本即将废弃。
 
 要扩展用户定义的类型，请继承 [SqlDbType <sup>(deprecated)</sup>](database_sql_package_interfaces.md#interface-sqldbtype-deprecated) 或 [SqlNullableDbType <sup>(deprecated)</sup>](database_sql_package_interfaces.md#interface-sqlnullabledbtype-deprecated)。
 
@@ -409,7 +409,7 @@ public interface SqlNullableDbType <: SqlDbType {}
 
 > **注意：**
 >
-> 未来版本即将废弃不再使用。
+> 未来版本即将废弃。
 
 如果为 `null` 值，`value` 属性值为 [Option](../../core/core_package_api/core_package_enums.md#enum-optiont).None。
 
@@ -422,9 +422,9 @@ public interface SqlNullableDbType <: SqlDbType {}
 ```cangjie
 public interface Statement <: Resource {
     prop parameterColumnInfos: Array<ColumnInfo>
-    func query(params: Array<SqlDbType>): QueryResult
     func setOption(key: String, value: String): Unit
     func update(params: Array<SqlDbType>): UpdateResult
+    func query(params: Array<SqlDbType>): QueryResult
     func set<T>(index: Int64, value: T): Unit
     func setNull(index: Int64): Unit
     func update(): UpdateResult
@@ -476,7 +476,7 @@ func query(params: Array<SqlDbType>): QueryResult
 
 > **注意：**
 >
-> 未来版本即将废弃不再使用，可使用 query() 替代。
+> 未来版本即将废弃，可使用 query() 替代。
 
 参数：
 
@@ -554,7 +554,7 @@ func update(params: Array<SqlDbType>): UpdateResult
 
 > **注意：**
 >
-> 未来版本即将废弃不再使用，可使用 update() 替代。
+> 未来版本即将废弃，可使用 update() 替代。
 
 参数：
 
@@ -572,15 +572,15 @@ func update(params: Array<SqlDbType>): UpdateResult
 
 ```cangjie
 public interface Transaction {
+    mut prop isoLevel: TransactionIsoLevel
     mut prop accessMode: TransactionAccessMode
     mut prop deferrableMode: TransactionDeferrableMode
-    mut prop isoLevel: TransactionIsoLevel
     func begin(): Unit
     func commit(): Unit
-    func release(savePointName: String): Unit
     func rollback(): Unit
     func rollback(savePointName: String): Unit
     func save(savePointName: String): Unit
+    func release(savePointName: String): Unit
 }
 ```
 
@@ -706,8 +706,8 @@ func save(savePointName: String): Unit
 
 ```cangjie
 public interface UpdateResult {
-    prop lastInsertId: Int64
     prop rowCount: Int64
+    prop lastInsertId: Int64
 }
 ```
 

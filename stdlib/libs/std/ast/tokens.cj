@@ -208,6 +208,10 @@ public open class Tokens <: ToString & Iterable<Token> & ToBytes {
     }
 
     public func remove(index: Int64): Tokens {
+        /** The field `tokens` of ConcatTokens is always empty. */
+        if (this is ConcatTokens) {
+            return this[..index] + this[(index + 1)..]
+        }
         tokens.remove(at: index)
         return this
     }
@@ -396,22 +400,44 @@ class ConcatTokens <: Tokens {
         }
     }
 
+    /**
+     * @throws IllegalArgumentException if the `step` of `range` is not equal to 1.
+     * @throws IndexOutOfBoundsException if the `range` is invalid.
+     */
     public operator func [](range: Range<Int64>): Tokens {
         if (range.step != 1) {
             throw IllegalArgumentException("Illegal step ${range.step}, step should be 1")
         }
 
-        if (range.start < 0 || range.end < range.start || range.end > size) {
-            throw IndexOutOfBoundsException("the range is illegal or out of bound of index of the tokens")
+        let start = if (range.hasStart) {
+            range.start
+        } else {
+            0
+        }
+
+        let end = if (range.hasEnd) {
+            if (range.isClosed) {
+                range.end + 1
+            } else {
+                range.end
+            }
+        } else {
+            size
+        }
+
+        if (start < 0 || end < start || end > size) {
+            throw IndexOutOfBoundsException(
+                "The length of the array is ${size}, but the actual range is [${start}, ${end}).")
         }
 
         let leftChildSize = leftChild.size
-        if (range.end <= leftChildSize) {
-            return leftChild[range]
-        } else if (range.start >= leftChildSize) {
-            return rightChild[(range.start - leftChildSize)..(range.end - leftChildSize)]
+
+        if (end <= leftChildSize) {
+            return leftChild[start..end]
+        } else if (start >= leftChildSize) {
+            return rightChild[(start - leftChildSize)..(end - leftChildSize)]
         } else {
-            return leftChild[range.start..leftChildSize] + rightChild[0..(range.end - leftChildSize)]
+            return leftChild[start..leftChildSize] + rightChild[0..(end - leftChildSize)]
         }
     }
 

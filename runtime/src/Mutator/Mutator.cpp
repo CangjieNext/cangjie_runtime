@@ -68,7 +68,7 @@ extern "C" void MRT_SetGrowFlag(bool flag)
 extern "C" intptr_t MRT_StackGrow(intptr_t frameBase, uint32_t adjustedSize, void* ip)
 {
 #ifdef __arm__
-    LOG(RTLOG_FAIL, "Unsupported stack grow for arm32");
+    LOG(RTLOG_FATAL, "Unsupported stack grow for arm32");
 #endif
     Mutator* mutator = Mutator::GetMutator();
     if (mutator == nullptr) {
@@ -560,8 +560,24 @@ inline void Mutator::HandleGCPhase(GCPhase newPhase)
             SatbBuffer::Instance().RetireNode(satbNode);
             satbNode = nullptr;
         }
-    } else if (newPhase == GCPhase::GC_PHASE_IDLE && IsForeignThreadExit()) {
+    } else if (newPhase == GCPhase::GC_PHASE_IDLE) {
+        HandleGCPhaseIDLE();
+    }
+}
+
+inline void Mutator::HandleGCPhaseIDLE()
+{
+    if (IsForeignThreadExit()) {
         ReleaseForeignThread();
+    } else {
+#if defined(__OHOS__) && (__OHOS__ == 1)
+        if (foreignThreadInfo.allocBuffer != nullptr) {
+            auto status = GetUnwindContext().GetUnwindContextStatus();
+            if (status == UnwindContextStatus::RISKY) {
+                foreignThreadInfo.allocBuffer->FlushRegion();
+            }
+        }
+#endif
     }
 }
 
@@ -571,7 +587,7 @@ void Mutator::TransitionToGCPhaseExclusive(GCPhase newPhase)
     SetSafepointActive(false);
     // Clear mutator's suspend request after phase transition
     ClearSuspensionFlag(SUSPENSION_FOR_GC_PHASE);
-    mutatorPhase.store(newPhase, std::memory_order_release); // handshake between muator & mainGC thread
+    mutatorPhase.store(newPhase, std::memory_order_release); // handshake between mutator & mainGC thread
 }
 
 inline void Mutator::HandleCpuProfile()

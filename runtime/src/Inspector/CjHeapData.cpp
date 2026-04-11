@@ -24,6 +24,8 @@
 #include "UnwindStack/PrintStackInfo.h"
 #include "UnwindStack/StackInfo.h"
 #include "UnwindStack/StackMetadataHelper.h"
+#include <Mutator/MutatorManager.h>
+
 namespace MapleRuntime {
 static bool g_oomIsTrigged = false;
 
@@ -53,11 +55,12 @@ void CjHeapData::ProcessHeap()
     CHECK_E(UNLIKELY(!ret), "theAllocator.ForEachObj() in DumpHeap() return false.");
 }
 
-void CjHeapData::DumpHeap()
+void CjHeapData::DumpHeap(bool needStopTheWorld)
 {
     // step1 - open file
     CString specifiedPath;
     if (dumpAfterOOM && !g_oomIsTrigged) {
+        LOG(RTLOG_INFO, "OOM DumpHeap dumpAfterOOM");
         g_oomIsTrigged = true;
         Logger::GetLogger().GetLogPath("cjHeapDumpLog", specifiedPath);
         auto pid = MapleRuntime::GetPid();
@@ -70,11 +73,13 @@ void CjHeapData::DumpHeap()
         if (specifiedPath.IsEmpty()) {
             // dump to current path
             fp = fopen(dumpFile.Str(), "wb");
+            LOG(RTLOG_INFO, "Heap dump log is writing into .%s%s ...\n", separator, dumpFile.Str());
             PRINT_INFO("Heap dump log is writing into .%s%s ...\n", separator, dumpFile.Str());
         } else {
             // dump to specified path
             dumpFile = specifiedPath + separator + dumpFile;
             fp = fopen(dumpFile.Str(), "wb");
+            LOG(RTLOG_INFO, "Heap dump log is writing into %s ...\n", dumpFile.Str());
             PRINT_INFO("Heap dump log is writing into %s ...\n", dumpFile.Str());
         }
     } else {
@@ -87,9 +92,22 @@ void CjHeapData::DumpHeap()
         return;
     }
     // step2 - write file
-    ScopedStopTheWorld scopedStopTheWorld("dump heap to file");
-    ProcessHeap();
-    WriteHeap();
+    if (needStopTheWorld) {
+        ScopedStopTheWorld scopedStopTheWorld("dump heap to file");
+        size_t allocatedSize = Heap::GetHeap().GetAllocatedSize();
+        // 40: Statistical ratio of heap size to object count, used to estimate container capacity
+        const size_t estimateSize = 40;
+        dumpObjects.reserve(allocatedSize / estimateSize);
+        ProcessHeap();
+        WriteHeap();
+    } else {
+        size_t allocatedSize = Heap::GetHeap().GetAllocatedSize();
+        // 40: Statistical ratio of heap size to object count, used to estimate container capacity
+        const size_t estimateSize = 40;
+        dumpObjects.reserve(allocatedSize / estimateSize);
+        ProcessHeap();
+        WriteHeap();
+    }
 
     // step3 - close file
     int ret = fclose(fp);
@@ -109,7 +127,7 @@ void CjHeapData::DumpHeap()
     }
 }
 
-bool CjHeapData::DumpHeap(int fd)
+bool CjHeapData::DumpHeap(int fd, bool needStopTheWorld)
 {
     int copyfd = dup(fd);
     if (copyfd == -1) {
@@ -122,9 +140,22 @@ bool CjHeapData::DumpHeap(int fd)
         return false;
     }
 
-    ScopedStopTheWorld scopedStopTheWorld("dump heap to fd");
-    ProcessHeap();
-    WriteHeap();
+    if (needStopTheWorld) {
+        ScopedStopTheWorld scopedStopTheWorld("dump heap to fd");
+        size_t allocatedSize = Heap::GetHeap().GetAllocatedSize();
+        // 40: Statistical ratio of heap size to object count, used to estimate container capacity
+        const size_t estimateSize = 40;
+        dumpObjects.reserve(allocatedSize / estimateSize);
+        ProcessHeap();
+        WriteHeap();
+    } else {
+        size_t allocatedSize = Heap::GetHeap().GetAllocatedSize();
+        // 40: Statistical ratio of heap size to object count, used to estimate container capacity
+        const size_t estimateSize = 40;
+        dumpObjects.reserve(allocatedSize / estimateSize);
+        ProcessHeap();
+        WriteHeap();
+    }
 
     // fclose will close fd
     // if fclose success, no need to close fd.
@@ -149,35 +180,23 @@ void CjHeapData::ProcessHeapObject(BaseObject* obj)
         MArray* mArray = reinterpret_cast<MArray*>(obj);
         TypeInfo* componentTypeInfo = mArray->GetComponentTypeInfo();
         if (componentTypeInfo->IsPrimitiveType()) {
-            DumpObject dumpObject = { obj, TAG_PRIMITIVE_ARRAY_DUMP, 0, 0,
-                                      LookupStringId(obj->GetTypeInfo()->GetName() == nullptr ?
-                                                         "anonymousPrimitiveArray" :
-                                                         obj->GetTypeInfo()->GetName()) };
+            DumpObject dumpObject = { obj, TAG_PRIMITIVE_ARRAY_DUMP, 0, 0 };
             dumpObjects.push_back(dumpObject);
         } else if (componentTypeInfo->IsStructType()) {
-            DumpObject dumpObject = { obj, TAG_STRUCT_ARRAY_DUMP, 0, 0,
-                                      LookupStringId(obj->GetTypeInfo()->GetName() == nullptr ?
-                                                         "anonymousStructArray" :
-                                                         obj->GetTypeInfo()->GetName()) };
+            DumpObject dumpObject = { obj, TAG_STRUCT_ARRAY_DUMP, 0, 0 };
             dumpObjects.push_back(dumpObject);
             ProcessStructClass(obj->GetTypeInfo());
             return;
         } else if (componentTypeInfo->IsObjectType() ||
                    componentTypeInfo->IsArrayType() ||
                    componentTypeInfo->IsInterface()) {
-            DumpObject dumpObject = { obj, TAG_OBJECT_ARRAY_DUMP, 0, 0,
-                                      LookupStringId(obj->GetTypeInfo()->GetName() == nullptr ?
-                                                         "anonymousObjectArray" :
-                                                         obj->GetTypeInfo()->GetName()) };
+            DumpObject dumpObject = { obj, TAG_OBJECT_ARRAY_DUMP, 0, 0 };
             dumpObjects.push_back(dumpObject);
         } else {
             LOG(RTLOG_ERROR, "array object %p has wrong component type", mArray);
         }
     } else if (obj->GetTypeInfo()->IsVaildType()) {
-        DumpObject dumpObject = {
-            obj, TAG_INSTANCE_DUMP, 0, 0,
-            LookupStringId(obj->GetTypeInfo()->GetName() == nullptr ? "defaultLambda" : obj->GetTypeInfo()->GetName())
-        };
+        DumpObject dumpObject = { obj, TAG_INSTANCE_DUMP, 0, 0 };
         dumpObjects.push_back(dumpObject);
     } else {
         LOG(RTLOG_ERROR, "object %p has wrong component type", obj);
@@ -213,16 +232,20 @@ void CjHeapData::ProcessStacktrace(RecordStackInfo* recordStackInfo)
         LookupStringId(threadName);
         for (size_t i = 0; i < framesInStack.size(); ++i) {
             FrameInfo* frame = framesInStack[i];
+            CjHeapDataStringId funcNameId = -1;
+            CjHeapDataStringId fileNameId = -1;
             if (frame->GetFrameType() == FrameType::MANAGED) {
-                LookupStringId(frame->GetFuncName().Str());
-                LookupStringId(frame->GetFileName().Str());
+                funcNameId = LookupStringId(frame->GetFuncName().Str());
+                fileNameId = LookupStringId(frame->GetFileName().Str());
             } else {
                 Os::Loader::BinaryInfo binInfo;
                 (void)Os::Loader::GetBinaryInfoFromAddress(frame->mFrame.GetIP(), &binInfo);
-                LookupStringId(CString(binInfo.filePathName).Str());
-                LookupStringId(CString(binInfo.symbolName).Str());
+                fileNameId = LookupStringId(CString(binInfo.filePathName).Str());
+                funcNameId = LookupStringId(CString(binInfo.symbolName).Str());
             }
             frames.insert(std::pair<FrameInfo*, CjHeapDataStackFrameId>(frame, frameId++));
+            frameFuncNames.insert(std::pair<FrameInfo*, CjHeapDataStringId>(frame, funcNameId));
+            frameFileNames.insert(std::pair<FrameInfo*, CjHeapDataStringId>(frame, fileNameId));
         }
     }
 }
@@ -252,8 +275,7 @@ void CjHeapData::ProcessRootLocal()
             DumpObject dumpObject = {obj,
                 TAG_ROOT_LOCAL,
                 threadId,
-                recordStackInfo->GetCurrentFrame(),
-                LookupStringId(obj->GetTypeInfo()->GetName() == nullptr ? "anonymous" : obj->GetTypeInfo()->GetName())
+                recordStackInfo->GetCurrentFrame()
             };
             dumpObjects.push_back(dumpObject);
         };
@@ -268,10 +290,7 @@ void CjHeapData::ProcessRootGlobal()
         if (obj == nullptr || !Heap::IsHeapAddress(obj)) {
             return;
         }
-        DumpObject dumpObject = {
-            obj, TAG_ROOT_GLOBAL, 0, 0,
-            LookupStringId(obj->GetTypeInfo()->GetName() == nullptr ? "anonymous" : obj->GetTypeInfo()->GetName())
-        };
+        DumpObject dumpObject = { obj, TAG_ROOT_GLOBAL, 0, 0 };
         dumpObjects.push_back(dumpObject);
     };
     Heap::GetHeap().VisitStaticRoots(visitor);
@@ -284,10 +303,7 @@ void CjHeapData::ProcessRootConcurrencyModel()
         if (obj == nullptr || !Heap::IsHeapAddress(obj)) {
             return;
         }
-        DumpObject dumpObject = {
-            obj, TAG_ROOT_UNKNOWN, 0, 0,
-            LookupStringId(obj->GetTypeInfo()->GetName() == nullptr ? "anonymous" : obj->GetTypeInfo()->GetName())
-        };
+        DumpObject dumpObject = { obj, TAG_ROOT_UNKNOWN, 0, 0 };
         dumpObjects.push_back(dumpObject);
     };
     Runtime::Current().GetConcurrencyModel().VisitGCRoots(&visitor);
@@ -300,10 +316,7 @@ void CjHeapData::ProcessRootFinalizer()
         if (obj == nullptr || !Heap::IsHeapAddress(obj)) {
             return;
         }
-        DumpObject dumpObject = {
-            obj, TAG_ROOT_UNKNOWN, 0, 0,
-            LookupStringId(obj->GetTypeInfo()->GetName() == nullptr ? "anonymous" : obj->GetTypeInfo()->GetName())
-        };
+        DumpObject dumpObject = { obj, TAG_ROOT_UNKNOWN, 0, 0 };
         dumpObjects.push_back(dumpObject);
     };
     Heap::GetHeap().GetFinalizerProcessor().VisitGCRoots(visitor);
@@ -311,6 +324,8 @@ void CjHeapData::ProcessRootFinalizer()
 
 void CjHeapData::WriteHeapDump()
 {
+    const size_t reservedObjSize = 24;
+    buffer.reserve(dumpObjects.size() * reservedObjSize);
     WriteRecordHeader(TAG_HEAP_DUMP, kCjHeapDataTime);
     WriteAllClass();
     WriteAllStructClass();
@@ -460,27 +475,18 @@ void CjHeapData::WriteObjectArray(BaseObject*& obj, const u1 tag)
     AddU1(tag);
     CjHeapDataID objId = (reinterpret_cast<CjHeapDataID>(obj));
     AddStringId(objId);
-    u4 num = 0;
-    std::stack<u8> VAL;
-    RefFieldVisitor visitor = [&VAL, &num](RefField<>& arrayContent) {
-        VAL.push(reinterpret_cast<CjHeapDataID>(arrayContent.GetTargetObject()));
-        num++;
-    };
     // take array length and content.
     MArray* mArray = reinterpret_cast<MArray*>(obj);
     MIndex arrayLengthVal = mArray->GetLength();
     RefField<>* arrayContent = reinterpret_cast<RefField<>*>(mArray->ConvertToCArray());
     // for each object in array.
+    std::vector<u8> VAL(arrayLengthVal);
     for (MIndex i = 0; i < arrayLengthVal; ++i) {
-        visitor(arrayContent[i]);
+        VAL[i] = reinterpret_cast<CjHeapDataID>(arrayContent[i].GetTargetObject());
     }
-    AddU4(num);
+    AddU4(static_cast<u4>(arrayLengthVal));
     AddStringId(reinterpret_cast<CjHeapDataID>(obj->GetTypeInfo()));
-    while (!VAL.empty()) {
-        u8 val = VAL.top();
-        VAL.pop();
-        AddU8(val);
-    }
+    AddU8List(VAL.data(), VAL.size());
 }
 
 /*
@@ -500,9 +506,9 @@ void CjHeapData::WriteObjectArray(BaseObject*& obj, const u1 tag)
     CjHeapDataID objId = (reinterpret_cast<CjHeapDataID>(obj));
     AddStringId(objId);
     u4 num = 0;
-    std::stack<u8> VAL;
+    std::vector<u8> VAL;
     RefFieldVisitor visitor = [&VAL, &num](RefField<>& arrayContent) {
-        VAL.push(reinterpret_cast<CjHeapDataID>(arrayContent.GetTargetObject()));
+        VAL.push_back(reinterpret_cast<CjHeapDataID>(arrayContent.GetTargetObject()));
         num++;
     };
     // take array length and content.
@@ -512,6 +518,7 @@ void CjHeapData::WriteObjectArray(BaseObject*& obj, const u1 tag)
     GCTib gcTib = componentTypeInfo->GetGCTib();
     MAddress contentAddr = reinterpret_cast<Uptr>(mArray) + MArray::GetContentOffset();
     if (componentTypeInfo->HasRefField()) {
+        VAL.reserve(arrayLengthVal);
         for (MIndex i = 0; i < arrayLengthVal; ++i) {
             gcTib.ForEachBitmapWord(contentAddr, visitor);
             contentAddr += mArray->GetElementSize();
@@ -520,11 +527,7 @@ void CjHeapData::WriteObjectArray(BaseObject*& obj, const u1 tag)
     AddU4(arrayLengthVal);
     AddU4(num);
     AddStringId(reinterpret_cast<CjHeapDataID>(obj->GetTypeInfo()));
-    while (!VAL.empty()) {
-        u8 val = VAL.top();
-        VAL.pop();
-        AddU8(val);
-    }
+    AddU8List(VAL.data(), VAL.size());
 }
 
 /*
@@ -619,9 +622,10 @@ void CjHeapData::WriteInstance(BaseObject*& obj, const u1 tag)
     AddStringId(objId);
     AddStringId(reinterpret_cast<CjHeapDataID>(obj->GetTypeInfo()));
     u4 num = 0;
-    std::stack<u8> VAL;
+    std::vector<u8> VAL;
+    VAL.reserve(obj->GetTypeInfo()->GetFieldNum());
     RefFieldVisitor visitor = [&VAL, &num](RefField<>& fieldAddr) {
-        VAL.push(reinterpret_cast<u8>(fieldAddr.GetTargetObject()));
+        VAL.push_back(reinterpret_cast<u8>(fieldAddr.GetTargetObject()));
         num++;
     };
     TypeInfo* currentClass = obj->GetTypeInfo();
@@ -631,11 +635,7 @@ void CjHeapData::WriteInstance(BaseObject*& obj, const u1 tag)
         gcTib.ForEachBitmapWord(objAddr, visitor);
     }
     AddU4(num);
-    while (!VAL.empty()) {
-        u8 val = VAL.top();
-        VAL.pop();
-        AddU8(val);
-    }
+    AddU8List(VAL.data(), VAL.size());
 }
 
 /*
@@ -673,19 +673,12 @@ void CjHeapData::WriteStackFrame(FrameInfo& frame, uint32_t frameIdx)
     }
     if (frame.GetFrameType() == FrameType::MANAGED) {
         StackMetadataHelper stackMetadataHelper(frame);
-        methodName = frame.GetFuncName();
-        fileName = frame.GetFileName();
         lineNumber = stackMetadataHelper.GetLineNumber();
-    } else {
-        Os::Loader::BinaryInfo binInfo;
-        (void)Os::Loader::GetBinaryInfoFromAddress(frame.mFrame.GetIP(), &binInfo);
-        fileName = CString(binInfo.filePathName);
-        methodName = CString(binInfo.symbolName);
     }
     WriteRecordHeader(TAG_STACK_FRAME, kCjHeapDataTime);
     AddStringId(frames[&frame]);
-    AddStringId(LookupStringId(methodName.Str()));
-    AddStringId(LookupStringId(fileName.Str()));
+    AddStringId(frameFuncNames[&frame]);
+    AddStringId(frameFileNames[&frame]);
     AddU4(reinterpret_cast<u4>(lineNumber));
     ModifyLength();
     EndRecord();
@@ -746,25 +739,24 @@ void CjHeapData::AddU8(const u8 value) { AddU8List(&value, 1); }
 
 void CjHeapData::AddID(const u8 value) { AddU8List(&value, 1); }
 
-void CjHeapData::AddU1List(const u1* value, uint8_t count)
+void CjHeapData::AddU1List(const u1* value, size_t count)
 {
     HandleAddU1(value, count);
     length += count;
 }
 
-void CjHeapData::AddU2List(const u2* value, uint8_t count)
+void CjHeapData::AddU2List(const u2* value, size_t count)
 {
     HandleAddU2(value, count);
     length += count * sizeof(u2);
-    ;
 }
 
-void CjHeapData::AddU4List(const u4* value, uint8_t count)
+void CjHeapData::AddU4List(const u4* value, size_t count)
 {
     HandleAddU4(value, count);
     length += count * sizeof(u4);
 }
-void CjHeapData::AddU8List(const u8* value, uint8_t count)
+void CjHeapData::AddU8List(const u8* value, size_t count)
 {
     HandleAddU8(value, count);
     length += count * sizeof(u8);
@@ -781,48 +773,66 @@ enum ByteOffset {
     EIGHTH_BYTE = 7 * 8
 };
 
-void CjHeapData::HandleAddU1(const u1* value, uint8_t count) { buffer.insert(buffer.end(), value, value + count); }
+void CjHeapData::HandleAddU1(const u1* value, size_t count) { buffer.insert(buffer.end(), value, value + count); }
 
-void CjHeapData::HandleAddU2(const u2* value, uint8_t count)
+void CjHeapData::HandleAddU2(const u2* value, size_t count)
 {
+    size_t oldSize = buffer.size();
+    buffer.resize(oldSize + count * sizeof(u2));
+    uint8_t* dst = buffer.data() + oldSize;
     for (int i = 0; i < count; i++) {
-        buffer.push_back(static_cast<uint8_t>((*value >> SECOND_BYTE) & 0xFF));
-        buffer.push_back(static_cast<uint8_t>((*value >> FIRST_BYTE) & 0xFF));
-        value++;
+        u2 val = *value++;
+        // 0: Stores 2th byte
+        dst[0] = static_cast<uint8_t>((val >> SECOND_BYTE) & 0xFF);
+        // 1: Stores 1th byte
+        dst[1] = static_cast<uint8_t>((val >> FIRST_BYTE) & 0xFF);
+        dst += sizeof(u2);
     }
 }
 
-void CjHeapData::HandleAddU4(const u4* value, uint8_t count)
+void CjHeapData::HandleAddU4(const u4* value, size_t count)
 {
+    size_t oldSize = buffer.size();
+    buffer.resize(oldSize + count * sizeof(u4));
+    uint8_t* dst = buffer.data() + oldSize;
     for (int i = 0; i < count; i++) {
-        buffer.push_back(static_cast<uint8_t>((*value >> FOURTH_BYTE) & 0xFF));
-        buffer.push_back(static_cast<uint8_t>((*value >> THIRD_BYTE) & 0xFF));
-        buffer.push_back(static_cast<uint8_t>((*value >> SECOND_BYTE) & 0xFF));
-        buffer.push_back(static_cast<uint8_t>((*value >> FIRST_BYTE) & 0xFF));
-        value++;
+        u4 val = *value++;
+        // 0: Stores 4th byte
+        dst[0] = static_cast<uint8_t>((val >> FOURTH_BYTE) & 0xFF);
+        // 1: Stores 3th byte
+        dst[1] = static_cast<uint8_t>((val >> THIRD_BYTE) & 0xFF);
+        // 2: Stores 2th byte
+        dst[2] = static_cast<uint8_t>((val >> SECOND_BYTE) & 0xFF);
+        // 3: Stores 1th byte
+        dst[3] = static_cast<uint8_t>((val >> FIRST_BYTE) & 0xFF);
+        dst += sizeof(u4);
     }
 }
 
-void CjHeapData::HandleAddU8(const u8* value, uint8_t count)
+void CjHeapData::HandleAddU8(const u8* value, size_t count)
 {
-    // 0: offset for 1st byte
-    // 8: offset for 2nd byte
-    // 16: offset for 3st byte
-    // 24: offset for 4st byte
-    // 32: offset for 5st byte
-    // 40: offset for 6st byte
-    // 48: offset for 7st byte
-    // 56: offset for 8st byte
+    size_t oldSize = buffer.size();
+    buffer.resize(oldSize + count * sizeof(u8));
+    uint8_t* dst = buffer.data() + oldSize;
     for (int i = 0; i < count; i++) {
-        buffer.push_back(static_cast<uint8_t>((*value >> EIGHTH_BYTE) & 0xFF));
-        buffer.push_back(static_cast<uint8_t>((*value >> SEVENTH_BYTE) & 0xFF));
-        buffer.push_back(static_cast<uint8_t>((*value >> SIXTH_BYTE) & 0xFF));
-        buffer.push_back(static_cast<uint8_t>((*value >> FIFTH_BYTE) & 0xFF));
-        buffer.push_back(static_cast<uint8_t>((*value >> FOURTH_BYTE) & 0xFF));
-        buffer.push_back(static_cast<uint8_t>((*value >> THIRD_BYTE) & 0xFF));
-        buffer.push_back(static_cast<uint8_t>((*value >> SECOND_BYTE) & 0xFF));
-        buffer.push_back(static_cast<uint8_t>((*value >> FIRST_BYTE) & 0xFF));
-        value++;
+        u8 val = *value++;
+        // 0: Stores 8th byte
+        dst[0] = static_cast<uint8_t>((val >> EIGHTH_BYTE) & 0xFF);
+        // 1: Stores 7th byte
+        dst[1] = static_cast<uint8_t>((val >> SEVENTH_BYTE) & 0xFF);
+        // 2: Stores 6th byte
+        dst[2] = static_cast<uint8_t>((val >> SIXTH_BYTE) & 0xFF);
+        // 3: Stores 5th byte
+        dst[3] = static_cast<uint8_t>((val >> FIFTH_BYTE) & 0xFF);
+        // 4: Stores 4th byte
+        dst[4] = static_cast<uint8_t>((val >> FOURTH_BYTE) & 0xFF);
+        // 5: Stores 3th byte
+        dst[5] = static_cast<uint8_t>((val >> THIRD_BYTE) & 0xFF);
+        // 6: Stores 2th byte
+        dst[6] = static_cast<uint8_t>((val >> SECOND_BYTE) & 0xFF);
+        // 7: Stores 1th byte
+        dst[7] = static_cast<uint8_t>((val >> FIRST_BYTE) & 0xFF);
+        dst += sizeof(u8);
     }
 }
 
@@ -903,4 +913,38 @@ CjHeapData::CjHeapDataStringId CjHeapData::LookupStringId(const CString& string)
     }
     return res.first->second;
 }
+
+#if defined(__OHOS__) && (__OHOS__ == 1)
+pid_t CjHeapData::ForkAndDumpHeap(int fd, bool fromOOM)
+{
+    LOG(RTLOG_INFO, "enter ForkAndDumpHeap start to fork the child process");
+    pid_t childPid = fork();
+    if (childPid < 0) {
+        // Fork failed
+        LOG(RTLOG_ERROR, "Failed to fork child process for heap dump: %s", strerror(errno));
+        return -1;
+    } else if (childPid == 0) {
+        // Child process - execute heap dump
+        LOG(RTLOG_ERROR, "Child process started for heap dump, pid: %d", getpid());
+        CjHeapData* cjHeapData = new CjHeapData(fromOOM);
+        if (cjHeapData != nullptr) {
+            if (fd >= 0) {
+                cjHeapData->DumpHeap(fd, false);
+            } else {
+                cjHeapData->DumpHeap(false);
+            }
+            LOG(RTLOG_ERROR, "Child process completed heap dump successfully");
+            delete cjHeapData;
+        } else {
+            LOG(RTLOG_ERROR, "Failed to allocate CjHeapData in child process");
+        }
+
+        // Exit child process
+        _exit(0);
+    }
+    // Parent process - return child pid immediately without waiting
+    LOG(RTLOG_INFO, "Forked child process %d for heap dump, parent process continues", childPid);
+    return childPid;
+}
+#endif
 } // namespace MapleRuntime

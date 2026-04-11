@@ -25,6 +25,8 @@
 #include "Heap/Collector/CollectorResources.h"
 #include "RuntimeConfig.h"
 #include "UnwindStack/MangleNameHelper.h"
+#include "Loader/CjFileLoader/CjFileLoader.h"
+#include "LoaderManager.h"
 #if defined(__OHOS__) && (__OHOS__ == 1)
 #include "Inspector/FileStream.h"
 #include "Inspector/ProfilerAgentImpl.h"
@@ -283,6 +285,13 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
         scheduler = MapleRuntime::Runtime::Current().GetConcurrencyModel().GetThreadScheduler();
     }
     ScheduleSetToCurrentThread(scheduler);
+#if defined(__IOS__)
+    auto* loader = MapleRuntime::LoaderManager::GetInstance()->GetLoader();
+    loader->VisitBaseFile([loader](MapleRuntime::BaseFile* file) {
+        loader->DoInitImage(file);
+        return true;
+    });
+#endif
     return E_OK;
 }
 
@@ -368,6 +377,7 @@ struct FutureImpl {
     FutureFlag flag{ FLAG_WAITING };
     std::mutex g_mtx;
     std::condition_variable cv;
+    bool autoRelease{ false };
 
     explicit FutureImpl(void* arg, const CJTaskFunc fn = nullptr) : fn(fn), arg(arg) {}
 };
@@ -394,6 +404,8 @@ static void* UserFuncExecutor(void* arg, [[maybe_unused]] unsigned int len)
         std::lock_guard<std::mutex> lck(fi->g_mtx);
         fi->res = ptr;
         if (fi->flag == FLAG_RELEASED) {
+            needDelete = true;
+        } else if (fi->autoRelease) {
             needDelete = true;
         } else {
             fi->flag = FLAG_DONE;
@@ -456,6 +468,9 @@ CJThreadHandle RunCJTaskImpl(const CJTaskFunc func, void* args, int num = 0, CJT
     if (UNLIKELY(fi == nullptr)) {
         LOG(RTLOG_ERROR, "new future failed.\n");
         return nullptr;
+    }
+    if (isSignal) {
+        fi->autoRelease = true;  // Mark for auto-release after signal task execution
     }
     {
         std::lock_guard<std::mutex> lck(g_mtx);
@@ -794,12 +809,12 @@ int UnloadCJLibrary(const char* libName)
 
 void RegisterStackInfoCallbacks(UpdateStackInfoFunc uFunc)
 {
-    (void)uFunc;
+    CJRegisterStackInfoCallbacks(uFunc);
 }
 
 void RegisterArkVMInRuntime(unsigned long long vm)
 {
-    (void)vm;
+    CJRegisterArkVMInRuntime(vm);
 }
 
 int CJThreadKeyCreate(CJThreadKey* key, DestructorFunc destructor)
@@ -832,9 +847,19 @@ void* CJThreadGetspecific(CJThreadKey key) { return CJThreadGetspecificInner(key
 
 void CJ_MRT_DumpHeapSnapshot(int fd)
 {
+#if defined(__OHOS__) && (__OHOS__ == 1)
+    // Fork child process to perform heap dump asynchronously
+    // Parent process does not wait, returns immediately
+    LOG(RTLOG_INFO, "start child process for heap dump from hidumper");
+    pid_t childPid = MapleRuntime::CjHeapData::ForkAndDumpHeap(fd, false);
+    if (childPid < 0) {
+        LOG(RTLOG_ERROR, "Failed to start child process for heap dump");
+    }
+#else
     MapleRuntime::ScopedEnterSaferegion enterSaferegion(false);
     MapleRuntime::CjHeapData cjHeapData;
     cjHeapData.DumpHeap(fd);
+#endif
 }
 
 void CJ_MRT_ForceFullGC() { MapleRuntime::HeapManager::RequestGC(MapleRuntime::GC_REASON_USER, false); }

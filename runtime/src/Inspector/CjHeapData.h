@@ -33,6 +33,13 @@ public:
         }
     }
 
+#if defined(__OHOS__) && (__OHOS__ == 1)
+    // Fork a child process to perform heap dump asynchronously
+    // Returns child process pid, or -1 on failure
+    // Parent process does not wait, returns immediately
+    static pid_t ForkAndDumpHeap(int fd = -1, bool fromOOM = false);
+#endif
+
     using u1 = uint8_t;
     using u2 = uint16_t;
     using u4 = uint32_t;
@@ -82,7 +89,6 @@ public:
         u1 tag;
         u4 threadId;
         u4 frameNum;
-        CjHeapDataStringId classId;
     };
 
     struct DumpClass {
@@ -90,7 +96,7 @@ public:
         CjHeapDataStringId klassId;
     };
 
-    std::list<DumpObject> dumpObjects;
+    std::vector<DumpObject> dumpObjects;
     std::map<TypeInfo*, CjHeapDataStringId> dumpClassMap;
     std::map<TypeInfo*, CjHeapDataStringId> dumpStructClassMap;
 
@@ -102,8 +108,8 @@ public:
 
     std::map<CString, CjHeapDataStringId> strings;
 
-    void DumpHeap();
-    bool DumpHeap(int fd);
+    void DumpHeap(bool needStopTheWorld = true);
+    bool DumpHeap(int fd, bool needStopTheWorld = true);
     void WriteHeap();
     void ProcessHeap();
 
@@ -131,15 +137,15 @@ public:
 
     void ModifyLength();
 
-    void AddU1List(const u1* value, uint8_t count);
-    void AddU2List(const u2* value, uint8_t count);
-    void AddU4List(const u4* value, uint8_t count);
-    void AddU8List(const u8* value, uint8_t count);
+    void AddU1List(const u1* value, size_t count);
+    void AddU2List(const u2* value, size_t count);
+    void AddU4List(const u4* value, size_t count);
+    void AddU8List(const u8* value, size_t count);
 
-    void HandleAddU1(const u1* value, uint8_t count);
-    void HandleAddU2(const u2* value, uint8_t count);
-    void HandleAddU4(const u4* value, uint8_t count);
-    void HandleAddU8(const u8* value, uint8_t count);
+    void HandleAddU1(const u1* value, size_t count);
+    void HandleAddU2(const u2* value, size_t count);
+    void HandleAddU4(const u4* value, size_t count);
+    void HandleAddU8(const u8* value, size_t count);
 
     void AddStringId(CjHeapDataStringId value);
 
@@ -178,6 +184,8 @@ public:
     bool dumpAfterOOM = false;
     CString threadName;
     std::unordered_map<FrameInfo*, CjHeapDataStackFrameId> frames;
+    std::unordered_map<FrameInfo*, CjHeapDataStringId> frameFuncNames;
+    std::unordered_map<FrameInfo*, CjHeapDataStringId> frameFileNames;
     std::unordered_map<RecordStackInfo*, CjHeapDataStackTraceSerialNumber> stacktraces;
     FILE* fp;
     CjHeapDataStackFrameId frameId = 0;

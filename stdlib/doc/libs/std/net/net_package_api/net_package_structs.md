@@ -2301,7 +2301,7 @@ Count: 5
 public let idle: Duration
 ```
 
-功能：允许连接空闲的时长，空闲超长将关闭连接。
+功能：允许连接空闲的时长，空闲超时将关闭连接。
 
 类型：[Duration](../../core/core_package_api/core_package_structs.md#struct-duration)
 
@@ -2602,7 +2602,7 @@ public static const IPPROTO_TCP: Int32 = 6
 
 > **注意：**
 >
-> 未来版本即将废弃不再使用，使用 [OptionLevel.TCP](#static-const-tcp) 替代。
+> 未来版本即将废弃，使用 [OptionLevel.TCP](#static-const-tcp) 替代。
 
 类型：[Int32](../../core/core_package_api/core_package_intrinsics.md#int32)
 
@@ -2635,7 +2635,7 @@ public static const IPPROTO_UDP: Int32 = 17
 
 > **注意：**
 >
-> 未来版本即将废弃不再使用，使用 [OptionLevel.UDP](#static-const-udp) 替代。
+> 未来版本即将废弃，使用 [OptionLevel.UDP](#static-const-udp) 替代。
 
 类型：[Int32](../../core/core_package_api/core_package_intrinsics.md#int32)
 
@@ -2903,7 +2903,7 @@ public static const SOL_SOCKET: Int32
 
 > **注意：**
 >
-> 未来版本即将废弃不再使用，使用 [OptionLevel.SOCKET](#static-const-socket) 替代。
+> 未来版本即将废弃，使用 [OptionLevel.SOCKET](#static-const-socket) 替代。
 
 类型：[Int32](../../core/core_package_api/core_package_intrinsics.md#int32)
 

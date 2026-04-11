@@ -469,7 +469,7 @@ extern "C" void CJ_MCC_SignalRaise(int sig)
 extern "C" void CJ_MCC_AddSignalHandler(int signal, struct SignalAction* sa)
 {
     if (signal == SIGABRT || signal == SIGILL) {
-        SignalStack::GetStacks()[signal].setUserSigHandler(true);
+        SignalStack::GetStacks()[signal].SetUserSigHandler(true);
     }
     // By default, block the SIGPIPE signal, and take no action on the SIGPIPE signal;
     // when the user registers a handler, unblock the SIGPIPE signal,
@@ -574,7 +574,10 @@ extern "C" StackTraceData MCC_DecodeStackTraceImpl(const uint64_t ip, const uint
                                                    const TypeInfo* charArray)
 {
     StackTraceElement stackTrace;
-    StackManager::GetStackTraceByLiteFrameInfo(ip, pc, funcDesc, stackTrace);
+    {
+        ScopedEnterSaferegion checkpoint(true);
+        StackManager::GetStackTraceByLiteFrameInfo(ip, pc, funcDesc, stackTrace);
+    }
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     DLOG(EXCEPTION, "get stack frame info");
     DLOG(EXCEPTION, "   framePc:0x%lx\t frameFuncStart:0x%lx", ip, pc);
@@ -1206,7 +1209,8 @@ extern "C" bool MCC_IsGeneric(TypeInfo* ti) { return ti->IsGeneric(); }
 
 extern "C" bool MCC_IsEnum(TypeInfo* ti) { return ti->IsEnum() || ti->IsTempEnum(); }
 
-extern "C" bool MCC_IsFunction(TypeInfo* ti) {
+extern "C" bool MCC_IsFunction(TypeInfo* ti)
+{
     if (ti->IsFunc()) {
         return true;
     }
@@ -1240,7 +1244,8 @@ extern "C" const char* MCC_GetEnumConstructorName(EnumCtorInfo* ti)
     return ti->GetName();
 }
 
-extern "C" EnumCtorInfo* MCC_GetEnumConstructorInfoFromAny(ObjRef obj) {
+extern "C" EnumCtorInfo* MCC_GetEnumConstructorInfoFromAny(ObjRef obj)
+{
     TypeInfo* ti = obj->GetTypeInfo();
     if (!ti->IsEnum() && !ti->IsTempEnum()) {
         return nullptr;
@@ -1331,7 +1336,6 @@ extern "C" TypeInfo** MCC_GetFieldTypes(TypeInfo* ti)
 }
 
 // MCC_NewAndInitEnumTupleObject - Creates and initializes objects for enum and tuple types
-//
 // This function is specifically designed to handle object creation for:
 // 1. Enum types (including temporary enums)
 // 2. Tuple types
@@ -1900,10 +1904,83 @@ void CJ_MCC_RemoveExportedRef(U64 id)
     Heap::GetHeap().RemoveExportObject(id);
 }
 
+// Object memory layout for CJ_MCC_GetJSLambdaAddr obj parameter:
+// struct AutoEnvObj {
+//     TypeInfo* ti;             // [0:TYPEINFO_PTR_SIZE] - object header
+//     uintptr_t func1;          // [TYPEINFO_PTR_SIZE], universal function
+//     uintptr_t func2;          // [TYPEINFO_PTR_SIZE+8], no generic parameter closure exists, the variable exists
+//     ObjectPtr realAutoEnvObj; // [TYPEINFO_PTR_SIZE+16] - for wrapper classes
+// };
+
+extern "C" uintptr_t CJ_MCC_GetJSLambdaAddr(const ObjectPtr obj)
+{
+    ObjectPtr currentObj = obj;
+    // offset of realAutoEnvObj in instance data (func1: 8 bytes + func2: 8 bytes)
+    constexpr size_t realAutoEnvObjOffset = 16;
+
+    // Loop to check if it's a wrapper class, if so, get realAutoEnvObj until finding a non-wrapper class
+    while (MCC_IsWrapperClassForAutoEnv(currentObj->GetTypeInfo())) {
+        currentObj = Heap::GetBarrier().ReadReference(currentObj,
+            currentObj->GetRefField(TYPEINFO_PTR_SIZE + realAutoEnvObjOffset));
+    }
+
+    // Access func1 directly from currentObj
+    uintptr_t func1 = *reinterpret_cast<uintptr_t*>(reinterpret_cast<Uptr>(currentObj) + TYPEINFO_PTR_SIZE);
+    return func1;
+}
+
 #if defined(__OHOS__)
+void* ARKTS_CreateEngine = nullptr;
+void* ARKTS_UpdateStackInfo = nullptr;
+void* ARKTS_GetContext = nullptr;
+bool g_hasFindArkTSFunctions = false;
+bool FindArkTSFunctions()
+{
+    static SpinLock spinLock;
+    ScopedEnterSpinLock scopedEnterSpinLock(spinLock);
+    if (g_hasFindArkTSFunctions) {
+        return true;
+    }
+    void* handler = dlopen("libark_interop.z.so", RTLD_NOW | RTLD_GLOBAL);
+    if (handler == nullptr) {
+        return false;
+    }
+    ARKTS_CreateEngine = dlsym(handler, "ARKTS_CreateEngine");
+    if (ARKTS_CreateEngine == nullptr) {
+        return false;
+    }
+    ARKTS_UpdateStackInfo = dlsym(handler, "ARKTS_UpdateStackInfo");
+    if (ARKTS_UpdateStackInfo == nullptr) {
+        return false;
+    }
+    ARKTS_GetContext = dlsym(handler, "ARKTS_GetContext");
+    if (ARKTS_GetContext == nullptr) {
+        return false;
+    }
+    g_hasFindArkTSFunctions = true;
+    return true;
+}
+
 extern "C" void* CJ_MRT_ARKTS_CreateEngine()
 {
-    return nullptr;
+    if (!FindArkTSFunctions()) {
+        LOG(RTLOG_ERROR, "Failed to find arkts functions.");
+        return nullptr;
+    }
+    auto res = ((void* (*)())ARKTS_CreateEngine)();
+    if (res == nullptr) {
+        LOG(RTLOG_ERROR, "Failed to create arkts engine.");
+        return res;
+    }
+    auto arkVm = ((unsigned long long (*)(void*))ARKTS_GetContext)(res);
+    if (arkVm == 0) {
+        LOG(RTLOG_ERROR, "Failed to get arkvm.");
+        return res;
+    }
+    RegisterArkVMInRuntime(arkVm);
+    RegisterStackInfoCallbacks(((UpdateStackInfoFunc)ARKTS_UpdateStackInfo));
+
+    return res;
 }
 #endif
 } // namespace MapleRuntime
