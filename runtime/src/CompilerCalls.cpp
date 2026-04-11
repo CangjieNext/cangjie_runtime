@@ -44,6 +44,146 @@
 #endif
 
 namespace MapleRuntime {
+namespace {
+void LogCurrentManagedStackTraceForOom(size_t maxFrames = 16)
+{
+    std::vector<uint64_t> liteFrameInfos;
+    StackManager::RecordLiteFrameInfos(liteFrameInfos, maxFrames);
+    if (liteFrameInfos.empty()) {
+        LOG(RTLOG_ERROR, "\t at <stack trace unavailable>");
+        return;
+    }
+
+    std::vector<StackTraceElement> stackTraces;
+    StackManager::GetStackTraceByLiteFrameInfos(liteFrameInfos, stackTraces);
+    if (stackTraces.empty()) {
+        LOG(RTLOG_ERROR, "\t at <stack trace unavailable>");
+        return;
+    }
+
+    for (const auto& ste : stackTraces) {
+        LOG(RTLOG_ERROR, "\t at %s%s%s(%s:%ld)", ste.className.Str(),
+            ste.className.Length() > 0 ? "." : "", ste.methodName.Str(), ste.fileName.Str(), ste.lineNumber);
+    }
+}
+} // namespace
+
+#if defined(CANGJIE_SANITIZER_SUPPORT)
+// These interfaces are used to detect whether the acquireArrayRawData is released in time.
+class PinnedArrayRecorder {
+public:
+    PinnedArrayRecorder() = default;
+    size_t RegisterBtInfo(void* rawPtr, Mutator* mutator, const std::vector<uint64_t>& stackInfo)
+    {
+        std::lock_guard<std::mutex> lg(safeMutex);
+        auto it = stackInfos.find(rawPtr);
+        if (it == stackInfos.end()) {
+            std::unordered_map<Mutator*, std::vector<std::vector<uint64_t>>> mutatorStackMap {
+                { mutator, std::vector<std::vector<uint64_t>>({ stackInfo }) }
+            };
+            stackInfos.emplace(rawPtr, mutatorStackMap);
+            return 0;
+        } else {
+            auto& mutatorStackMap = it->second;
+            auto mutatorIt = mutatorStackMap.find(mutator);
+            if (mutatorIt == mutatorStackMap.end()) {
+                mutatorStackMap.insert({ mutator, std::vector<std::vector<uint64_t>>({ stackInfo }) });
+                return 0;
+            } else {
+                auto& vec = mutatorIt->second;
+                size_t pos = vec.size();
+                vec.push_back(stackInfo);
+                return pos;
+            }
+        }
+    }
+
+    void RemoveBtInfo(void* rawPtr, Mutator* mutator, const std::vector<uint64_t>& stackInfo)
+    {
+        std::lock_guard<std::mutex> lg(safeMutex);
+        auto it = stackInfos.find(rawPtr);
+        if (it == stackInfos.end()) {
+            std::vector<StackTraceElement> stackTraces;
+            StackManager::GetStackTraceByLiteFrameInfos(stackInfo, stackTraces);
+            LOG(RTLOG_ERROR, "Call too many releaseArrayRawData");
+            for (const auto& ste : stackTraces) {
+                LOG(RTLOG_ERROR, "\t at %s%s%s(%s:%ld)", ste.className.Str(),
+                    ste.className.Length() > 0 ? "." : "", ste.methodName.Str(), ste.fileName.Str(),
+                    ste.lineNumber);
+            }
+            return;
+        }
+        auto& mutatorStackMap = it->second;
+        auto mutatorIt = mutatorStackMap.find(mutator);
+        if (mutatorIt == mutatorStackMap.end()) {
+            std::vector<StackTraceElement> stackTraces;
+            StackManager::GetStackTraceByLiteFrameInfos(stackInfo, stackTraces);
+            LOG(RTLOG_ERROR, "Call too many releaseArrayRawData");
+            for (const auto& ste : stackTraces) {
+                LOG(RTLOG_ERROR, "\t at %s%s%s(%s:%ld)", ste.className.Str(),
+                    ste.className.Length() > 0 ? "." : "", ste.methodName.Str(), ste.fileName.Str(),
+                    ste.lineNumber);
+            }
+            return;
+        }
+        auto& vec = mutatorIt->second;
+        vec.pop_back();
+        if (vec.empty()) {
+            mutatorStackMap.erase(mutatorIt);
+        }
+    }
+
+    bool CheckStackInfo(void* rawPtr, Mutator* mutator, size_t pos, std::vector<StackTraceElement>& stackTraces)
+    {
+        std::lock_guard<std::mutex> lg(safeMutex);
+        auto rawPtrIt = stackInfos.find(rawPtr);
+        if (rawPtrIt == stackInfos.end()) {
+            return true;
+        }
+        auto& mutatorStackMap = rawPtrIt->second;
+        auto mutatorIt = mutatorStackMap.find(mutator);
+        if (mutatorIt == mutatorStackMap.end()) {
+            return true;
+        }
+        auto& vec = mutatorIt->second;
+        if (pos >= vec.size()) {
+            return true;
+        }
+        std::vector<uint64_t>& frames = vec[pos];
+        StackManager::GetStackTraceByLiteFrameInfos(frames, stackTraces);
+        return false;
+    }
+private:
+    std::mutex safeMutex;
+    std::unordered_map<void*, std::unordered_map<Mutator*, std::vector<std::vector<uint64_t>>>> stackInfos;
+};
+
+PinnedArrayRecorder pinnedArrayRecorder;
+
+struct DataClosure {
+    void* rawPtr = nullptr;
+    Mutator* mutator = nullptr;
+    size_t pos = 0;
+};
+
+void RawPtrCheckerTimerEntry(void* arg)
+{
+    DataClosure* dataClosure = reinterpret_cast<DataClosure*>(arg);
+    void* rawPtr = dataClosure->rawPtr;
+    Mutator* mutator = dataClosure->mutator;
+    size_t pos = dataClosure->pos;
+    NativeAllocator::NativeFree(dataClosure, sizeof(DataClosure));
+    std::vector<StackTraceElement> stackTraces;
+    if (!pinnedArrayRecorder.CheckStackInfo(rawPtr, mutator, pos, stackTraces)) {
+        LOG(RTLOG_ERROR, "acquireArrayRawData lasted too long");
+        for (const auto& ste : stackTraces) {
+            LOG(RTLOG_ERROR, "\t at %s%s%s(%s:%ld) misses releaseArrayRawData", ste.className.Str(),
+                ste.className.Length() > 0 ?
+                "." : "", ste.methodName.Str(), ste.fileName.Str(), ste.lineNumber);
+        }
+}
+}
+#endif
 // runtime interfaces provided to compiler for code generation.
 // The compiler should only call MCC_* to access runtime functions.
 // MCC_* calls follows C standard calling convention.
@@ -1292,6 +1432,11 @@ extern "C" ArrayRef MCC_NewArrayGeneric(const TypeInfo* arrayInfo, MIndex nElems
             break;
     }
     if (array == nullptr) {
+        VLOG(REPORT, "Allocation generic array %s length %zu failed and throw OutOfMemoryError",
+             arrayInfo->GetName(), nElems);
+        LOG(RTLOG_ERROR, "Allocation generic array %s length %zu failed and throw OutOfMemoryError",
+            arrayInfo->GetName(), nElems);
+        LogCurrentManagedStackTraceForOom();
         ExceptionManager::CheckAndThrowPendingException("NewArrayGeneric return nullptr");
     }
     return array;
