@@ -49,6 +49,30 @@
 #endif
 
 namespace MapleRuntime {
+namespace {
+void LogCurrentManagedStackTraceForOom(size_t maxFrames = 16)
+{
+    std::vector<uint64_t> liteFrameInfos;
+    StackManager::RecordLiteFrameInfos(liteFrameInfos, maxFrames);
+    if (liteFrameInfos.empty()) {
+        LOG(RTLOG_ERROR, "\t at <stack trace unavailable>");
+        return;
+    }
+
+    std::vector<StackTraceElement> stackTraces;
+    StackManager::GetStackTraceByLiteFrameInfos(liteFrameInfos, stackTraces);
+    if (stackTraces.empty()) {
+        LOG(RTLOG_ERROR, "\t at <stack trace unavailable>");
+        return;
+    }
+
+    for (const auto& ste : stackTraces) {
+        LOG(RTLOG_ERROR, "\t at %s%s%s(%s:%ld)", ste.className.Str(),
+            ste.className.Length() > 0 ? "." : "", ste.methodName.Str(), ste.fileName.Str(), ste.lineNumber);
+    }
+}
+} // namespace
+
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 // These interfaces are used to detect whether the acquireArrayRawData is released in time.
 class PinnedArrayRecorder {
@@ -1806,6 +1830,9 @@ extern "C" ArrayRef MCC_NewArrayGeneric(const TypeInfo* arrayInfo, MIndex nElems
     if (array == nullptr) {
         VLOG(REPORT, "Allocation generic array %s length %zu failed and throw OutOfMemoryError",
              arrayInfo->GetName(), nElems);
+        LOG(RTLOG_ERROR, "Allocation generic array %s length %zu failed and throw OutOfMemoryError",
+            arrayInfo->GetName(), nElems);
+        LogCurrentManagedStackTraceForOom();
         ExceptionManager::CheckAndThrowPendingException("NewArrayGeneric return nullptr");
     }
     return array;
