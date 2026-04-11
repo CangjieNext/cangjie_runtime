@@ -35,6 +35,12 @@ public:
         dirtyUnitTree.Init(regionCnt);
     }
 
+    // M4b: Enable low-address-first allocation (for MAIN space defragmentation).
+    // When enabled, TakeRegion prefers the lowest-address free chunk,
+    // packing live regions toward regionHeapStart so that free space
+    // consolidates near inactiveZone for return to RESERVE.
+    void SetLowAddressFirst(bool enabled) { lowAddressFirst = enabled; }
+
     RegionInfo* TakeRegion(size_t num, RegionInfo::UnitRole uclass, bool expectPhysicalMem)
     {
         UnitIndex idx = 0;
@@ -45,7 +51,9 @@ public:
         while (tryDirtyTree || tryReleasedTree) {
             // first try to get a dirty region.
             if (tryDirtyTree && dirtyUnitTreeMutex.try_lock()) {
-                if (dirtyUnitTree.TakeUnits(num, idx)) {
+                bool dirtyOk = lowAddressFirst ? dirtyUnitTree.TakeUnitsLowAddr(num, idx)
+                                               : dirtyUnitTree.TakeUnits(num, idx);
+                if (dirtyOk) {
                     DLOG(REGION, "c-tree %p alloc dirty units[%u+%u, %u) @[0x%zx, 0x%zx), %u dirty-units left",
                         &dirtyUnitTree, idx, num, idx + num, RegionInfo::GetUnitAddress(idx),
                         RegionInfo::GetUnitAddress(idx + num), dirtyUnitTree.GetTotalCount());
@@ -62,7 +70,9 @@ public:
 
             // then try to get a released region.
             if (tryReleasedTree && releasedUnitTreeMutex.try_lock()) {
-                if (releasedUnitTree.TakeUnits(num, idx)) {
+                bool releasedOk = lowAddressFirst ? releasedUnitTree.TakeUnitsLowAddr(num, idx)
+                                                  : releasedUnitTree.TakeUnits(num, idx);
+                if (releasedOk) {
 #ifdef _WIN64
                     MemMap::CommitMemory(
                         reinterpret_cast<void*>(RegionInfo::GetUnitAddress(idx)), num * RegionInfo::UNIT_SIZE);
@@ -106,6 +116,18 @@ public:
     UnitCount GetDirtyUnitCount() const { return dirtyUnitTree.GetTotalCount(); }
     UnitCount GetReleasedUnitCount() const { return releasedUnitTree.GetTotalCount(); }
 
+    // Return the largest contiguous block in released/dirty tree (root node = max-heap top)
+    UnitCount GetReleasedMaxBlock() const
+    {
+        const auto* r = releasedUnitTree.RootNode();
+        return r ? r->GetCount() : 0;
+    }
+    UnitCount GetDirtyMaxBlock() const
+    {
+        const auto* r = dirtyUnitTree.RootNode();
+        return r ? r->GetCount() : 0;
+    }
+
 #if defined(MRT_DEBUG)
     void DumpReleasedUnitTree() const { releasedUnitTree.DumpTree("released-unit tree"); }
     void DumpDirtyUnitTree() const { dirtyUnitTree.DumpTree("dirty-unit tree"); }
@@ -122,6 +144,7 @@ private:
         }
     }
     RegionManager& regionManager;
+    bool lowAddressFirst = false; // M4b: prefer lowest-address free chunk (MAIN defrag)
 
     // physical pages of released units are probably released and they are prepared for allocation.
     std::mutex releasedUnitTreeMutex;

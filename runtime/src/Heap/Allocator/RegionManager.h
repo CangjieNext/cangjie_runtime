@@ -200,6 +200,10 @@ public:
     uintptr_t AllocLarge(size_t size)
     {
         size_t regionCount = (size + RegionInfo::UNIT_SIZE - 1) / RegionInfo::UNIT_SIZE;
+        // M4b: Round up to nearest multiple of maxUnitCountPerRegion (standard region size).
+        // This ensures that when the large object is freed, the released units form
+        // whole standard regions, preventing irregular fragmentation in freeRegionManager.
+        regionCount = ((regionCount + maxUnitCountPerRegion - 1) / maxUnitCountPerRegion) * maxUnitCountPerRegion;
         RegionInfo* region = TakeRegion(regionCount, RegionInfo::UnitRole::LARGE_SIZED_UNITS);
         if (region == nullptr) {
             return 0;
@@ -257,7 +261,12 @@ public:
 
     void CollectFromSpaceGarbage()
     {
-        garbageRegionList.MergeRegionList(fromRegionList, RegionInfo::RegionType::GARBAGE_REGION);
+        // M6: bypass garbageList — reclaim from-regions directly to freeTree.
+        RegionInfo* region = fromRegionList.TakeHeadRegion();
+        while (region != nullptr) {
+            ReclaimRegion(region);
+            region = fromRegionList.TakeHeadRegion();
+        }
     }
 
     size_t GetThreadLocalRegionSize() const
@@ -271,7 +280,8 @@ public:
              region->GetLiveByteCount(), region->GetRegionEnd(), region->GetRegionType());
 
         region->LockWriteRegion();
-        garbageRegionList.PrependRegion(region, RegionInfo::RegionType::GARBAGE_REGION);
+        // M6: bypass garbageList — reclaim directly to freeTree.
+        ReclaimRegion(region);
         region->UnlockWriteRegion();
 
         if (region->IsLargeRegion()) {
