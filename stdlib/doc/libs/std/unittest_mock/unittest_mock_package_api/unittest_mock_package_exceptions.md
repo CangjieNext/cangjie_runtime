@@ -42,7 +42,7 @@ public class MockFrameworkInternalError <: PrettyException {}
 public abstract class PrettyException <: Exception & PrettyPrintable {}
 ```
 
-功能：支持 [PrettyPrintable](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-prettyprintable) 的异常类型，可以较好得打印异常信息。
+功能：支持 [PrettyPrintable](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-prettyprintable) 的异常类型，可以较好地打印异常信息。
 
 父类型：
 
@@ -55,7 +55,7 @@ public abstract class PrettyException <: Exception & PrettyPrintable {}
 public func pprint(to: PrettyPrinter): PrettyPrinter
 ```
 
-功能：支持较好得颜色打印、缩进格式打印异常信息。
+功能：支持较好地颜色打印、缩进格式打印异常信息。
 
 参数：
 
@@ -72,18 +72,6 @@ public class UnhandledCallException <: PrettyException {}
 ```
 
 功能：提供的[桩](../unittest_mock_samples/mock_framework_basics.md#配置-api)均未处理该调用。
-
-父类型：
-
-- [PrettyException](#class-prettyexception)
-
-## class UnnecessaryStubbingException
-
-```cangjie
-public class UnnecessaryStubbingException <: PrettyException {}
-```
-
-功能：指示被测试的代码从未触发[桩](../unittest_mock_samples/mock_framework_basics.md#配置-api)。
 
 父类型：
 

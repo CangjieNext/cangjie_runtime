@@ -73,7 +73,7 @@ buffer = [1, 2, 3, 4, 5]
 public func digest<T>(algorithm: T, input: InputStream): Array<Byte> where T <: Digest
 ```
 
-功能：提供 digest 泛型函数，实现用指定的摘要算法对 InputStream 里的数据进行摘要运算。
+功能：提供 digest 泛型函数，实现用指定的摘要算法对 InputStream 里的数据进行摘要运算。当 digest 函数调用 input.read() 读取数据返回值为 0 时，digest 函数会认为 InputStream 已经读取完毕，不会继续读取。
 
 参数：
 
@@ -151,7 +151,7 @@ public func digest<T>(algorithm: T, data: String): Array<Byte> where T <: Digest
 
 > **注意：**
 >
-> 未来版本即将废弃不再使用，可使用 [digest\<T>(T, Array\<Byte>) where T <: Digest](./digest_package_funcs.md#func-digesttt-arraybyte-where-t--digest) 替代。
+> 未来版本即将废弃，可使用 [digest\<T>(T, Array\<Byte>) where T <: Digest](./digest_package_funcs.md#func-digesttt-arraybyte-where-t--digest) 替代。
 
 参数：
 

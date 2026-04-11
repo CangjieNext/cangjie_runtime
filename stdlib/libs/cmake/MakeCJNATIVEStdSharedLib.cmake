@@ -101,6 +101,9 @@ function(make_cangjie_lib target_name)
             endif()
 
             string(TOLOWER "${target_folder_name}_${CMAKE_SYSTEM_PROCESSOR}_${CJNATIVE_BACKEND}" tmpdir)
+            if(ANDROID AND "${CMAKE_SYSTEM_PROCESSOR}" STREQUAL "armv7-a")
+                string(TOLOWER "linux_android23_arm_${CJNATIVE_BACKEND}" tmpdir)
+            endif()
             list(APPEND flags_to_compile "-L${RUNTIME_COMMON_LIB_DIR}/../../runtime/lib/${tmpdir}${SANITIZER_SUBPATH}")
             set(runtime_link_option "cangjie-runtime")
             to_link_library_option(runtime_link_option)
@@ -166,6 +169,12 @@ function(make_cangjie_lib target_name)
         if(NOT DARWIN)
             if(TRIPLE STREQUAL "arm-linux-ohos")
                 list(APPEND flags_to_compile "-L${CANGJIE_TARGET_SYSROOT}/usr/lib/arm-linux-ohos")
+            elseif(TRIPLE STREQUAL "arm-linux-android23")
+                set(NDK_PREBUILT_ARCH "linux-x86_64")
+                if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+                    set(NDK_PREBUILT_ARCH "darwin-x86_64")
+                endif()
+                list(APPEND flags_to_compile "-L${CMAKE_ANDROID_NDK}/toolchains/llvm/prebuilt/${NDK_PREBUILT_ARCH}/lib/clang/18/lib/linux/arm")
             endif()
             list(APPEND flags_to_compile "-lm")
         endif()
@@ -253,6 +262,9 @@ function(make_cangjie_lib target_name)
         endif()
 
         set(link_std_libraries_flag)
+        if(ANDROID)
+            list(APPEND link_std_libraries_flag ${ANDROID_16K_LINKER_FLAGS})
+        endif()
         foreach(library_name ${CANGJIE_LIBRARY_CANGJIE_STD_LIB_DEPENDS})
             set(lib_link_option "cangjie-${library_name}")
             to_link_library_option(lib_link_option)
@@ -304,19 +316,27 @@ function(make_cangjie_lib target_name)
             endif()
         endforeach()
 
-        add_custom_target(
-            ${target_name} ALL
+        cj_resolve_depends(resolved_depends
+            ${CANGJIE_LIBRARY_DEPENDS}
+            ${CANGJIE_LIBRARY_CANGJIE_STD_LIB_DEPENDS}
+            ${CANGJIE_LIBRARY_CANGJIE_STD_LIB_INDIRECT_DEPENDS})
+
+        add_custom_command(
+            OUTPUT ${target_lib_full_name}
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/lib/${output_std_cj_lib_dir}
             COMMAND ${CMAKE_COMMAND} -E env ${set_env_path} ${clang_compiler} ${CANGJIE_LIBRARY_OBJECTS} ${force_link_archives_option}
                     ${CANGJIE_LIBRARY_FLAGS}  ${link_std_libraries_flag} ${flags_to_compile} -o ${target_lib_full_name}
-            BYPRODUCTS ${target_lib_full_name}
             DEPENDS
-                ${CANGJIE_LIBRARY_DEPENDS}
-                ${CANGJIE_LIBRARY_CANGJIE_STD_LIB_DEPENDS}
-                ${CANGJIE_LIBRARY_CANGJIE_STD_LIB_INDIRECT_DEPENDS}
+                ${resolved_depends}
                 ${CANGJIE_LIBRARY_OBJECTS}
                 boundscheck
             COMMENT "Generating ${target_lib_full_name}")
+
+        add_custom_target(
+            ${target_name} ALL
+            DEPENDS ${target_lib_full_name})
+
+        set_target_properties(${target_name} PROPERTIES CJ_LIB_OUTPUT_FILE ${target_lib_full_name})
     else()
         message(FATAL_ERROR "only support SHARED or EXE for now")
     endif()

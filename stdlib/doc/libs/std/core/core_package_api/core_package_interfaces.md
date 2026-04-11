@@ -451,7 +451,7 @@ byte3 (0x65) 是否是 ASCII 空白字符: false
 public func toAsciiLowerCase(): Byte
 ```
 
-功能：将 [Byte](core_package_types.md#type-byte) 换为对应的 Ascii 小写字符 [Byte](core_package_types.md#type-byte)，如果无法转换则保持现状。
+功能：将 [Byte](core_package_types.md#type-byte) 转换为对应的 Ascii 小写字符 [Byte](core_package_types.md#type-byte)，如果无法转换则保持现状。
 
 返回值：
 
@@ -491,7 +491,7 @@ byte3 (0x48) 转换为小写: 0x48 (保持不变)
 public func toAsciiUpperCase(): Byte
 ```
 
-功能：将 [Byte](core_package_types.md#type-byte) 换为对应的 Ascii 大写字符 [Byte](core_package_types.md#type-byte)，如果无法转换则保持现状。
+功能：将 [Byte](core_package_types.md#type-byte) 转换为对应的 Ascii 大写字符 [Byte](core_package_types.md#type-byte)，如果无法转换则保持现状。
 
 返回值：
 
@@ -580,10 +580,10 @@ func toArray(): Array<T>
 ```cangjie
 public interface Comparable<T> <: Equatable<T> & Less<T> & Greater<T> & LessOrEqual<T> & GreaterOrEqual<T> {
     func compare(other: T): Ordering
-    operator func <(other: T): Bool
-    operator func <=(other: T): Bool
     operator func ==(other: T): Bool
+    operator func <(other: T): Bool
     operator func >(other: T): Bool
+    operator func <=(other: T): Bool
     operator func >=(other: T): Bool
 }
 ```
@@ -853,7 +853,7 @@ Duration值: 1s
 ## interface CType
 
 ```cangjie
-sealed interface CType
+sealed interface CType {}
 ```
 
 功能：表示支持与 C 语言互操作的接口。
@@ -1344,8 +1344,8 @@ operator func !=(other: T): Bool
 
 ```cangjie
 public interface Resource {
-    func close(): Unit
     func isClosed(): Bool
+    func close(): Unit
 }
 ```
 

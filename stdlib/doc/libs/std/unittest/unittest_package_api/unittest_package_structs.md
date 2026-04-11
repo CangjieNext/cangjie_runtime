@@ -1566,6 +1566,10 @@ public struct KeyTimeoutHandler <: KeyFor<(TestCaseInfo) -> Unit> {}
 
 功能：支持在配置信息中指定超时处理的句柄。
 
+父类型：
+
+- [KeyFor](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-keyfort)
+
 示例：
 
 <!-- run -->
@@ -1608,10 +1612,6 @@ Summary: TOTAL: 1
             TCS: Test, CASE: assertIsACancellationPoint
 --------------------------------------------------------------------------------------------------
 ```
-
-父类型：
-
-- [KeyFor](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-keyfort)
 
 ### prop timeoutHandler
 
@@ -1701,57 +1701,17 @@ public prop name: String
 ## struct MeasurementInfo
 
 ```cangjie
-public struct MeasurementInfo {
-    public let conversionTable: MeasurementUnitTable,
-    public let name: String,
-    public let textDescription: String
-}
+public struct MeasurementInfo {}
 ```
 
 功能：存储测量信息的结构体。
-
-### let conversionTable
-
-```cangjie
-let conversionTable: MeasurementUnitTable
-```
-
-功能：用于在性能测试报告中构建测量值的表示。
-包含测量单位的边界对。
-根据值的边界，使用最合适的单位。
-对于 CSV 格式报告，始终选择下限以简化结果处理。
-默认值为 `[(1.0, "")]`。
-
-类型：[MeasurementUnitTable](../unittest_package_api/unittest_package_types.md#type-measurementunittable)
-
-### let name
-
-```cangjie
-let name: String
-```
-
-功能：当前 `Measurement` 类型的唯一显示名称。
-有助于区分报告表中的不同测量类型。
-默认值为 `Measurement`。
-
-类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)
-
-### let textDescription
-
-```cangjie
-let textDescription: String
-```
-
-功能：描述此测量的简单文本将显示在某些报告中。
-
-类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)
 
 ## struct Perf
 
 ```cangjie
 public struct Perf <: Measurement {
-    public init()
     public Perf(var counter: PerfCounter)
+    public init()
 }
 ```
 
@@ -1853,7 +1813,7 @@ $$|x - y| \le absolute + relative * max(abs(x), abs(y))$$
 public RelativeDelta(let absolute!: T, let relative!: T)
 ```
 
-功能：RelativeDelta 的主构造函数。
+功能：[RelativeDelta](#struct-relativedeltat) 的主构造函数。
 
 参数：
 
@@ -1910,7 +1870,7 @@ public let suiteName: String
 
 ```cangjie
 public struct Runtime <: Measurement {
-    public Runtime(counter: RuntimeInfo)
+    public Runtime(let variant: RuntimeInfo)
 }
 ```
 
@@ -1923,7 +1883,7 @@ public struct Runtime <: Measurement {
 ### prop conversionTable
 
 ```cangjie
-prop conversionTable: MeasurementUnitTable
+public prop conversionTable: MeasurementUnitTable
 ```
 
 功能：提供相应运行时指标的转换表。
@@ -1933,7 +1893,7 @@ prop conversionTable: MeasurementUnitTable
 ### prop name
 
 ```cangjie
-prop name: String
+public prop name: String
 ```
 
 功能：运行时指标的名字。
@@ -1943,7 +1903,7 @@ prop name: String
 ### prop textDescription
 
 ```cangjie
-prop textDescription: String
+public prop textDescription: String
 ```
 
 功能：在某些报告中将显示的该测量结果的简要文字描述。
@@ -1953,14 +1913,14 @@ prop textDescription: String
 ### Runtime(RuntimeInfo)
 
 ```cangjie
-public Runtime(counter: RuntimeInfo)
+public Runtime(let variant: RuntimeInfo)
 ```
 
 功能：构造函数，用于指定要测量的运行时指标。
 
 参数：
 
-- counter: [RuntimeInfo](../unittest_package_api/unittest_package_enums.md#enum-runtimeinfo) - 指定计数器。
+- variant: [RuntimeInfo](../unittest_package_api/unittest_package_enums.md#enum-runtimeinfo) - 指定统计类型。
 
 ### func measure()
 
@@ -1977,7 +1937,7 @@ public func measure(): Float64
 ### func setup()
 
 ```cangjie
-func setup()
+public func setup()
 ```
 
 功能：此测量的初始化函数。在每个基准测试步骤之前调用。

@@ -5,8 +5,8 @@
 ```cangjie
 public class BufferedInputStream<T> <: InputStream where T <: InputStream {
     public init(input: T)
-    public init(input: T, buffer: Array<Byte>)
     public init(input: T, capacity: Int64)
+    public init(input: T, buffer: Array<Byte>)
 }
 ```
 
@@ -757,7 +757,7 @@ public class BufferedOutputStream<T> <: OutputStream where T <: OutputStream {
 
 功能：提供带缓冲区的输出流。
 
-可将其他 [OutputStream](io_package_interfaces.md#interface-outputstream) 类型的输入流（如 [ByteBuffer](io_package_classes.md#class-bytebuffer)）绑定到 [BufferedOutputStream](io_package_classes.md#class-bufferedoutputstreamt-where-t--outputstream) 实例，从该实例写入数据时，先把数据写入缓冲区暂存，再从缓冲区写入数据到流中。
+可将其他 [OutputStream](io_package_interfaces.md#interface-outputstream) 类型的输出流（如 [ByteBuffer](io_package_classes.md#class-bytebuffer)）绑定到 [BufferedOutputStream](io_package_classes.md#class-bufferedoutputstreamt-where-t--outputstream) 实例，从该实例写入数据时，先把数据写入缓冲区暂存，再从缓冲区写入数据到流中。
 
 父类型：
 
@@ -1878,12 +1878,15 @@ nextByte: None
 public func reserve(additional: Int64): Unit
 ```
 
-功能：将缓冲区扩容指定大小。
+功能：以指定大小扩容缓冲区。
 
 > **说明：**
 >
-> - 当缓冲区剩余字节数大于等于 `additional` 时不发生扩容。
-> - 当缓冲区剩余字节数量小于 `additional` 时，取（`additional` + `capacity`）与（`capacity`的 1.5 倍向下取整）两个值中的最大值进行扩容。
+> - 若入参 additional ≤ 0，不执行任何扩容操作。
+> - 若当前剩余容量 ≥ additional，不进行扩容，直接返回。
+> - 若当前剩余容量 < additional，则按以下两者计算最大者执行扩容：
+>     - 1.原始容量的 1.5 倍（结果向下取整）
+>     - 2.已使用容量 + additional。
 
 参数：
 
@@ -1999,107 +2002,6 @@ initial position: 0
 World
 12
 Error: Can't move the position before the beginning of the stream.
-```
-
-### prop length
-
-```cangjie
-public prop length: Int64
-```
-
-功能：返回当前流中的总数据量（以字节为单位）。
-
-类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
-
-示例：
-
-<!-- verify -->
-```cangjie
-import std.io.ByteBuffer
-
-main(): Unit {
-    let buffer = ByteBuffer("Hello World".toArray())
-    println("Initial length: ${buffer.length}")
-
-    // 写入更多数据
-    buffer.write(" More Data".toArray())
-    println("Length after writing: ${buffer.length}")
-}
-```
-
-运行结果：
-
-```text
-Initial length: 11
-Length after writing: 21
-```
-
-### prop position
-
-```cangjie
-public prop position: Int64
-```
-
-功能：返回当前光标位置。
-
-类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
-
-示例：
-
-<!-- verify -->
-```cangjie
-import std.io.ByteBuffer
-
-main(): Unit {
-    let buffer = ByteBuffer("Hello World".toArray())
-    println("Initial position: ${buffer.position}")
-
-    // 读取一些数据
-    let data = Array<Byte>(5, repeat: 0)
-    buffer.read(data)
-    println("Position after reading 5 bytes: ${buffer.position}")
-}
-```
-
-运行结果：
-
-```text
-Initial position: 0
-Position after reading 5 bytes: 5
-```
-
-### prop remainLength
-
-```cangjie
-public prop remainLength: Int64
-```
-
-功能：返回当前流中未读的数据量（以字节为单位）。
-
-类型：[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)
-
-示例：
-
-<!-- verify -->
-```cangjie
-import std.io.ByteBuffer
-
-main(): Unit {
-    let buffer = ByteBuffer("Hello World".toArray())
-    println("Initial remain length: ${buffer.remainLength}")
-
-    // 读取一些数据
-    let data = Array<Byte>(5, repeat: 0)
-    buffer.read(data)
-    println("Remain length after reading 5 bytes: ${buffer.remainLength}")
-}
-```
-
-运行结果：
-
-```text
-Initial remain length: 11
-Remain length after reading 5 bytes: 6
 ```
 
 ### func setLength(Int64)
