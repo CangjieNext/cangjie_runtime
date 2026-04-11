@@ -149,9 +149,9 @@ Connecting == Connected: false
 
 ```cangjie
 public enum TransactionAccessMode <: ToString & Hashable & Equatable<TransactionAccessMode> {
-    | Unspecified
-    | ReadWrite
     | ReadOnly
+    | ReadWrite
+    | Unspecified
 }
 ```
 
@@ -379,9 +379,9 @@ ReadWrite == Unspecified: false
 
 ```cangjie
 public enum TransactionDeferrableMode <: ToString & Hashable & Equatable<TransactionDeferrableMode> {
-    | Unspecified
     | Deferrable
     | NotDeferrable
+    | Unspecified
 }
 ```
 
@@ -613,14 +613,14 @@ NotDeferrable == Unspecified: false
 
 ```cangjie
 public enum TransactionIsoLevel <: ToString & Hashable & Equatable<TransactionIsoLevel> {
-    | Unspecified
+    | Chaos
+    | Linearizable
     | ReadCommitted
     | ReadUncommitted
     | RepeatableRead
-    | Snapshot
     | Serializable
-    | Linearizable
-    | Chaos
+    | Snapshot
+    | Unspecified
 }
 ```
 

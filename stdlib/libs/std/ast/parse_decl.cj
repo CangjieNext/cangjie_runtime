@@ -71,23 +71,6 @@ public func parseDeclFragment(input: Tokens, startFrom!: Int64 = 0): (Decl, Int6
     return (astNode, count)
 }
 
-/**
- * @throws ASTException if input tokens cannot be parsed to a FuncParam node.
- */
-func parseFuncParam(input: Tokens): FuncParam {
-    var params = ArrayList<FuncParam>()
-    try {
-        let tokens = quote(foo($(input)){})
-        params = PrimaryCtorDecl(tokens).funcParams
-    } catch (_: ASTException) {
-        throw ASTException("Cannot construct the 'FuncParam' node.")
-    }
-    if (params.size == 0) {
-        throw ASTException("Cannot construct the 'FuncParam' node.")
-    }
-    params[0]
-}
-
 func generateDeclAST(declNode: Option<NodeFormat_Decl>): Decl {
     var decl = match (declNode) {
         case Some(v) => v
@@ -372,6 +355,10 @@ func createMacroExpandParam(decl: NodeFormat_Decl): Decl {
         case Some(v) => v
         case None => throw ParseASTException()
     }
+    let fp =  match (pm.GetBase()) {
+        case Some(v) => v
+        case None => throw ParseASTException()
+    }
     return match (createMacroExpand(pm.GetInvocation(), isDecl: false, isFuncParam: true) as FuncParam) {
         case Some(v) => v
         case None => throw ParseASTException("Failed to create MacroExpandParam Node")
@@ -420,7 +407,6 @@ func createFuncParam(param: Option<NodeFormat_FuncParam>, index: Int64, length: 
     }
     var declNode = createDeclBase(keyTk, declBase)
     var comma = Token()
-    // funcParam in lambda expression may not have a type, so it is optional here.
     var ty = try {
         match (pm.GetBase()) {
             case Some(v) => generateTypeAST(v.GetType())
@@ -443,7 +429,7 @@ func createFuncParam(param: Option<NodeFormat_FuncParam>, index: Int64, length: 
     var assign_ = Token()
     var expr = try {
         Some<Expr>(generateExprAST(pm.GetAssignment()))
-    } catch (e: ParseASTException) {
+    } catch (e: Exception) {
         None<Expr>
     }
     if (let Some(v) <- expr) {
@@ -500,13 +486,17 @@ func createFuncBody(funcBody: Option<NodeFormat_FuncBody>) {
         var retTy_ = generateTypeAST(fb.GetRetType())
         colon = Token(TokenKind.COLON).addPosition(fb.GetColonPos())
         Some<TypeNode>(retTy_)
-    } catch (e: ParseASTException) {
+    } catch (e: Exception) {
         None<TypeNode>
     }
-    // In a funcBody, the paramList and parentheses are mandatory, lambdaExpr is handled separately
-    var paramList = fb.GetParamList().getOrThrow()
-    var lParen = Token(TokenKind.LPAREN).addPosition(paramList.GetLeftParenPos())
-    var rParen = Token(TokenKind.RPAREN).addPosition(paramList.GetRightParenPos())
+    var (lParen, rParen) = try {
+        var paramList = fb.GetParamList().getOrThrow()
+        var l = Token(TokenKind.LPAREN).addPosition(paramList.GetLeftParenPos())
+        var r = Token(TokenKind.RPAREN).addPosition(paramList.GetRightParenPos())
+        (l, r)
+    } catch (e: Exception) {
+        (Token(), Token())
+    }
     // create function block
     return match (fb.GetBody()) {
         case Some(blockNode) =>
@@ -573,7 +563,7 @@ func createVarDeclNode(decl: Option<NodeFormat_VarDecl>): VarDecl {
         var declTy = generateTypeAST(varDecl.GetType())
         colon = Token(TokenKind.COLON).addPosition(varDecl.GetColonPos())
         Some<TypeNode>(declTy)
-    } catch (e: ParseASTException) {
+    } catch (e: Exception) {
         None<TypeNode>
     }
     var assign = Token()
@@ -581,7 +571,7 @@ func createVarDeclNode(decl: Option<NodeFormat_VarDecl>): VarDecl {
         var initExpr = generateExprAST(varDecl.GetInitializer())
         assign = Token(TokenKind.ASSIGN).addPosition(varDecl.GetAssignPos())
         Some<Expr>(initExpr)
-    } catch (e: ParseASTException) {
+    } catch (e: Exception) {
         None<Expr>
     }
     var keyWord = Token()
@@ -618,7 +608,7 @@ func createVarWithPatternDecl(decl: NodeFormat_Decl): Decl {
         var t = generateTypeAST(varWithPattern.GetType())
         colon = Token(TokenKind.COLON).addPosition(varWithPattern.GetColonPos())
         Some<TypeNode>(t)
-    } catch (e: ParseASTException) {
+    } catch (e: Exception) {
         None<TypeNode>
     }
     var assign = Token()
@@ -626,7 +616,7 @@ func createVarWithPatternDecl(decl: NodeFormat_Decl): Decl {
         var initExpr = generateExprAST(varWithPattern.GetInitializer())
         assign = Token(TokenKind.ASSIGN).addPosition(varWithPattern.GetAssignPos())
         Some<Expr>(initExpr)
-    } catch (e: ParseASTException) {
+    } catch (e: Exception) {
         None<Expr>
     }
     var keyWord = Token()

@@ -105,10 +105,6 @@ func traceStartByConfig(): Bool {
         return false
     }
 
-    if (!validatePathString(cjTracePath)) {
-        return false
-    }
-
     try {
         let file = File(cjTracePath, Write)
         return Trace.start(TraceType.all, file)

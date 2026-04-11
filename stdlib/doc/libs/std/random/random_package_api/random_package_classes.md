@@ -11,11 +11,6 @@ public class Random {
 
 功能：提供生成伪随机数的相关功能。
 
-> **注意：**
->
-> 1. 非安全用途：此随机数生成器使用伪随机数生成算法，不可用于密码学、令牌生成、密钥生成、验证码等安全敏感场景。
-> 2. 非线程安全：此类的实例不支持并发访问。在多线程环境中同时调用同一个 Random 实例的方法会导致未定义行为。
-
 ### prop seed
 
 ```cangjie
@@ -138,7 +133,7 @@ public func next(bits: UInt64): UInt64
 
 异常：
 
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 如果 `bits` 等于 0 ，或大于 64，超过 [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) 所能表示的长度，则抛出异常。
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 如果 `bits` 等于 0 ，或大于 64，超过所能截取的 [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) 长度，则抛出异常。
 
 示例：
 
@@ -179,7 +174,7 @@ public func nextBits(bits: UInt64): UInt64
 
 异常：
 
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 如果 `bits` 等于 0，或大于 64，超过 [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) 所能表示的长度，则抛出异常。
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - 如果 `bits` 等于 0，或大于 64，超过所能截取的 [UInt64](../../core/core_package_api/core_package_intrinsics.md#uint64) 长度，则抛出异常。
 
 示例：
 

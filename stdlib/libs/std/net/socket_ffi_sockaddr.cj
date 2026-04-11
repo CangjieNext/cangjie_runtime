@@ -82,11 +82,7 @@ struct SockAddr {
                     if (ptr.isNull()) {
                         throw SocketException("failed to malloc socket_address_in6_len.")
                     }
-                    let scopeId = match (ip) {
-                        case ipv6: IPv6Address => ipv6.scopeId ?? UInt32(0)
-                        case _ => UInt32(0)
-                    }
-                    setIpv6(ip.getAddressBytes(), port, scopeId)
+                    setIpv6(ip.getAddressBytes(), port)
                 case sa.family == AddressFamily.UNIX =>
                     len = socket_address_un_len
                     let un = (sa as UnixSocketAddress)?.toString() ?? throw SocketException("invalid IP family")
@@ -119,14 +115,14 @@ struct SockAddr {
     }
 
     @When[backend == "cjnative"]
-    private unsafe func setIpv6(addr: Array<UInt8>, port: UInt16, scopeId: UInt32) {
+    private unsafe func setIpv6(addr: Array<UInt8>, port: UInt16) {
         setFamily(ptr, AF_INET6)
         setPort(port)
         CPointer<UInt32>(ptr).write(1, UInt32(0)) // sin6_flowinfo
         for (i in 0..SOCK_ADDR_IPV6_LEN) {
             CPointer<UInt8>(ptr).write(8 + i, addr[i])
         }
-        CPointer<UInt32>(ptr).write(6, scopeId) // sin6_scope_id
+        CPointer<UInt32>(ptr).write(6, UInt32(0)) // sin6_scope_id
     }
 
     /*

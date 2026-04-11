@@ -200,8 +200,6 @@ Exceptions:
 
 - [IllegalArgumentException](../../../std_en/core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the function parameter `key` contains a null character.
 
-- [EnvException](./env_package_exceptions.md#class-envexception) - Thrown when the environment variable cannot be removed.
-
 ## func setVariable(String, String)
 
 ```cangjie
@@ -222,5 +220,3 @@ Parameters:
 Exceptions:
 
 - [IllegalArgumentException](../../../std_en/core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown when the function parameters `key` or `value` contain null characters.
-
-- [EnvException](./env_package_exceptions.md#class-envexception) - Thrown when the environment variable cannot be set.

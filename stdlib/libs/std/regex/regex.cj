@@ -156,23 +156,7 @@ public class Regex {
                 release(inputCString)
                 throw RegexException("Create match_data for pattern `${pattern}` failed.")
             }
-            let rc = CJ_REGEX_Match(this.re, inputCString, UIntNative(input.size), UIntNative(0), pcre2md)
-            if (rc == PCRE2_ERROR_NOMEMORY) {
-                release(inputCString)
-                release(pcre2md)
-                throw RegexException("Failed to create match context for pattern `${pattern}`.")
-            }
-            if (rc == PCRE2_ERROR_MATCHLIMIT) {
-                release(inputCString)
-                release(pcre2md)
-                throw RegexException("Match limit exceeded for pattern `${pattern}`.")
-            }
-            if (rc == PCRE2_ERROR_RECURSIONLIMIT) {
-                release(inputCString)
-                release(pcre2md)
-                throw RegexException("Recursion limit exceeded for pattern `${pattern}`.")
-            }
-            let isMatch = rc >= 0
+            let isMatch = CJ_REGEX_Match(this.re, inputCString, UIntNative(input.size), UIntNative(0), pcre2md) >= 0
             keepAlive(this)
             release(inputCString)
             release(pcre2md)
@@ -265,16 +249,7 @@ public class Regex {
     func find(input: String, inputCString: CString, pcre2md: Pcre2MatchDataPtr, offset: Int64, group!: Bool = false): Option<MatchData> {
         unsafe {
             var md: Option<MatchData> = None
-            let rc = CJ_REGEX_Match(this.re, inputCString, UIntNative(input.size), UIntNative(offset), pcre2md)
-            if (rc == PCRE2_ERROR_NOMEMORY) {
-                throw RegexException("Failed to create match context for pattern `${pattern}`.")
-            }
-            if (rc == PCRE2_ERROR_MATCHLIMIT) {
-                throw RegexException("Match limit exceeded for pattern `${pattern}`.")
-            }
-            if (rc == PCRE2_ERROR_RECURSIONLIMIT) {
-                throw RegexException("Recursion limit exceeded for pattern `${pattern}`.")
-            }
+            let rc = Int64(CJ_REGEX_Match(this.re, inputCString, UIntNative(input.size), UIntNative(offset), pcre2md))
             if (rc < 0) {
                 return md
             }
@@ -308,21 +283,6 @@ public class Regex {
                 throw RegexException("Create match_data for pattern `${pattern}` failed.")
             }
             let count = CJ_REGEX_Count(this.re, inputCString, UIntNative(input.size), UIntNative(begin), UIntNative(end), pcre2md)
-            if (count == PCRE2_ERROR_NOMEMORY) {
-                release(inputCString)
-                release(pcre2md)
-                throw RegexException("Failed to create match context for pattern `${pattern}`.")
-            }
-            if (count == PCRE2_ERROR_MATCHLIMIT) {
-                release(inputCString)
-                release(pcre2md)
-                throw RegexException("Match limit exceeded for pattern `${pattern}`.")
-            }
-            if (count == PCRE2_ERROR_RECURSIONLIMIT) {
-                release(inputCString)
-                release(pcre2md)
-                throw RegexException("Recursion limit exceeded for pattern `${pattern}`.")
-            }
             keepAlive(this)
             release(inputCString)
             release(pcre2md)
@@ -350,22 +310,7 @@ public class Regex {
             }
             var offset = 0
             while (true) {
-                let rc = CJ_REGEX_Match(this.re, inputCString, UIntNative(input.size), UIntNative(offset), pcre2md)
-                if (rc == PCRE2_ERROR_NOMEMORY) {
-                    release(inputCString)
-                    release(pcre2md)
-                    throw RegexException("Failed to create match context for pattern `${pattern}`.")
-                }
-                if (rc == PCRE2_ERROR_MATCHLIMIT) {
-                    release(inputCString)
-                    release(pcre2md)
-                    throw RegexException("Match limit exceeded for pattern `${pattern}`.")
-                }
-                if (rc == PCRE2_ERROR_RECURSIONLIMIT) {
-                    release(inputCString)
-                    release(pcre2md)
-                    throw RegexException("Recursion limit exceeded for pattern `${pattern}`.")
-                }
+                let rc = Int64(CJ_REGEX_Match(this.re, inputCString, UIntNative(input.size), UIntNative(offset), pcre2md))
                 if (rc < 0) {
                     break
                 }

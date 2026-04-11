@@ -2,7 +2,7 @@
 
 ## File 常规操作：创建、删除、读写、关闭
 
-示例：
+代码如下：
 <!-- verify -->
 
 ```cangjie
@@ -77,7 +77,7 @@ Data written newly: The file was truncated to an empty file!
 
 ## File 的一些 static 函数演示
 
-示例：
+代码如下：
 <!-- verify -->
 
 ```cangjie

@@ -10,6 +10,7 @@ package std.env
 
 import std.collection.*
 import std.fs.*
+import std.io.*
 import std.sync.*
 
 const STDIN_FD: IntNative = 0
@@ -76,7 +77,7 @@ public func getVariable(key: String): ?String {
         let ck: CString = LibC.mallocCString(key)
         try {
             return synchronized(mtx) {
-                nativeGetEnv(ck)
+                nativeGetEnv(ck) // Note: No need to free.
             }
         } finally {
             LibC.free(ck)
@@ -108,11 +109,8 @@ public func setVariable(key: String, value: String): Unit {
 
     unsafe {
         try (ck = LibC.mallocCString(key).asResource(), cv = LibC.mallocCString(value).asResource()) {
-            let errno = synchronized(mtx) {
+            synchronized(mtx) {
                 nativeSetEnv(ck.value, cv.value, Int32(1))
-            }
-            if (errno != 0) {
-                throw EnvException("Failed to set variable ${key}.")
             }
         }
     }
@@ -125,11 +123,8 @@ public func removeVariable(key: String): Unit {
 
     unsafe {
         try (ck = LibC.mallocCString(key).asResource()) {
-            let errno = synchronized(mtx) {
+            synchronized(mtx) {
                 nativeRemoveEnv(ck.value)
-            }
-            if (errno != 0) {
-                throw EnvException("Failed to remove variable ${key}.")
             }
         }
     }
@@ -251,7 +246,7 @@ func getEnvirments(env: CPointer<CString>): ?Array<(String, String)> {
 }
 
 func homeDirectory(): Path {
-    let homeDir: CString = unsafe { CJ_OS_HomeDir() } // Note: no need to free homeDir.
+    let homeDir: CString = unsafe { CJ_OS_HomeDir() } // Note: no need to free.
     Path(homeDir.toString())
 }
 
@@ -268,7 +263,7 @@ func tempDirectory(): Path {
 
 @When[os == "Windows"]
 func nativeGetEnv(name: CString): Option<String> {
-    let res: CString = unsafe { CJ_OS_GetEnvVal(name) } // No need to free name
+    let res: CString = unsafe { CJ_OS_GetEnvVal(name) } // No need to free
     if (res.isNull()) {
         return None
     }
@@ -282,7 +277,7 @@ func nativeGetEnv(name: CString): Option<String> {
 
 @When[os != "Windows"]
 func nativeGetEnv(name: CString): Option<String> {
-    let res: CString = unsafe { getenv(name) } // No need to free name
+    let res: CString = unsafe { getenv(name) } // No need to free
 
     return if (res.isNull()) {
         None

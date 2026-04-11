@@ -85,7 +85,7 @@ public class Semaphore {
      */
     public func release(amount!: Int64 = 1): Unit {
         if (amount < 0 || amount > initValue) {
-            throw IllegalArgumentException("Invalid amount to release.")
+            throw IllegalArgumentException("Invalid amount to acquire.")
         }
         synchronized(monitor) {
             let oldValue = countValue.load()

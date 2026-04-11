@@ -40,19 +40,14 @@ public class SyncCounter {
      * If the count is equal or less than zero, it has no effects.
      */
     public func dec(): Unit {
-        while (true) {
-            let cur = countValue.load()
-            if (cur <= 0) {
-                return
-            }
-            if (countValue.compareAndSwap(cur, cur - 1)) {
-                if (cur == 1) { // Case 1: The count becomes zero
-                    syncList.notifyAll()
-                }
-                // Case 2: Otherwise, there are still available counts; do nothing
-                return
-            }
+        if (countValue.load() <= 0) {
+            return
         }
+        let oldValue = countValue.fetchSub(1)
+        if (oldValue == 1) { // Case 1: The count becomes zero
+            syncList.notifyAll()
+        }
+        // Case 2: Otherwise, there are still available counts; do nothing
     }
 
     /**

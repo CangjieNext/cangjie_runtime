@@ -125,8 +125,6 @@ public enum StubMode {
 }
 ```
 
-功能：控制[桩的模式](../unittest_mock_samples/mock_framework_stubs.md#桩的模式)。
-
 示例：
 
 <!-- run -->
@@ -172,6 +170,8 @@ func test() {
     @Assert(generator.str, "unknown")
 }
 ```
+
+功能：控制[桩的模式](../unittest_mock_samples/mock_framework_stubs.md#桩的模式)。
 
 ### ReturnsDefaults
 

@@ -357,26 +357,21 @@ Warning: Too many objects survive GC which causes unexpectedly long GC times.
 
         maxMeasureBatch = this.batchSize.start
         let maxBatch = batchRange.end.ceilTo(maxMeasureBatch)
-        let benchExecTime: Duration
 
         if (batchCount < 50 || (benchmark.measurement as Runtime)?.measuresGC() == Some(true)) {
-            benchExecTime = doMacroBench(maxBatch, batchCount)
+            doMacroBench(maxBatch, batchCount)
         } else {
-            benchExecTime = doMicroBench(maxBatch, batchCount)
+            doMicroBench(maxBatch, batchCount)
         }
         
         // add some overhead calculations to collect at least some overhead statistics if not enough normal batches
         for (i in min(batchCount, 10 - this.batchSize.start * 10 / maxBatch)..10) {
             runMultipleAndMeasure(0, maxBatch) 
         }
-
-        progress.println {
-            "Finished in ${printDuration(benchExecTime)}. Analysing results:"
- 	    }
     }
 
     @OverflowWrapping
-    private func doMicroBench(maxBatch: Int64, batchCount: Int64): Duration {
+    private func doMicroBench(maxBatch: Int64, batchCount: Int64) {
         let max = Float64(maxBatch)
         let avgStep = max / Float64(batchCount)
         let expectedGCTime = Duration.nanosecond * warmupInfo.emaGC.result * batchCount
@@ -408,11 +403,10 @@ Warning: Too many objects survive GC which causes unexpectedly long GC times.
                 break
             }
         }
-        return DateTime.now() - start
     }
 
     @OverflowWrapping
-    private func doMacroBench(max: Int64, batchCount: Int64): Duration{
+    private func doMacroBench(max: Int64, batchCount: Int64) {
         let avgStep = Float64(max) / Float64(batchCount)
         let expectedGCTime = Duration.nanosecond * warmupInfo.emaGC.result * batchCount
         let start = DateTime.now()
@@ -433,7 +427,12 @@ Warning: Too many objects survive GC which causes unexpectedly long GC times.
                 break
             }
         }
-        return DateTime.now() - start
+
+        progress.println {
+            let realExecTime = DateTime.now() - start
+            "Finished in ${printDuration(realExecTime)}. Analysing results:"
+        }
+        
     }
 
     func calcBatchSize(): (Range<Int64>, Int64) {

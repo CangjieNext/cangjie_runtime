@@ -514,15 +514,9 @@ main() {
 public func reserve(additional: Int64): Unit
 ```
 
-功能：以指定大小进行扩容。
+功能：增加此双端队列的容量。
 
-> **说明：**
->
-> - 若入参 additional ≤ 0，不执行任何扩容操作。
-> - 若当前剩余容量 ≥ additional，不进行扩容，直接返回。
-> - 若当前剩余容量 < additional，则按以下两者计算最大者执行扩容：
->     - 1.原始容量的 1.5 倍（结果向下取整）
->     - 2.已使用容量 + additional。
+将双端队列扩容 additional 大小，当 additional 小于等于零时，不发生扩容；当此双端队列剩余容量大于等于 additional 时，不发生扩容；当此双端队列剩余容量小于 additional 时，取（原始容量的 1.5 倍向下取整）与（additional + 已使用容量）两个值中的最大值进行扩容。
 
 参数：
 
@@ -979,11 +973,15 @@ public static func of(elements: Array<T>): ArrayList<T>
 
 参数：
 
-- elements: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<T> - 传入数组。
+- elements: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<T> - 传入数组，变长参数语法支持参数省略数组字面量的 `[]` 。
 
 返回值：
 
 - [ArrayList](#class-arraylistt)\<T> - 元素为 T 类型的 ArrayList。
+
+> **说明：**
+>
+> 此函数的参数可使用变长参数方式提供，例如： `ArrayList.of(1, 2, 3)` 等价于 `ArrayList.of([1, 2, 3])` 。
 
 示例：
 
@@ -2110,15 +2108,9 @@ main() {
 public func reserve(additional: Int64): Unit
 ```
 
-功能：以指定大小进行扩容。
+功能：增加此 [ArrayList](collection_package_class.md#class-arraylistt) 实例的容量。
 
-> **说明：**
->
-> - 若入参 additional ≤ 0，不执行任何扩容操作。
-> - 若当前剩余容量 ≥ additional，不进行扩容，直接返回。
-> - 若当前剩余容量 < additional，则按以下两者计算最大者执行扩容：
->     - 1.原始容量的 1.5 倍（结果向下取整）
->     - 2.已使用容量 + additional。
+将 [ArrayList](collection_package_class.md#class-arraylistt) 扩容 additional 大小，当 additional 小于等于零时，不发生扩容；当 [ArrayList](collection_package_class.md#class-arraylistt) 剩余容量大于等于 additional 时，不发生扩容；当 [ArrayList](collection_package_class.md#class-arraylistt) 剩余容量小于 additional 时，取（原始容量的 1.5 倍向下取整）与（additional + 已使用容量）两个值中的最大值进行扩容。
 
 参数：
 
@@ -2261,11 +2253,10 @@ public func slice(range: Range<Int64>): ArrayList<T>
 
 > **注意：**
 >
-> 如果参数 range 是使用 [Range](../../core/core_package_api/core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) 构造函数构造的，那么有如下行为：
+> 如果参数 range 是使用 [Range](../../core/core_package_api/core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) 构造函数构造的 [Range](../../core/core_package_api/core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) 实例，有如下行为：
 >
-> 1. start 的值仅在 hasStart 为 true 时生效（作为切片的起始索引）；若 hasStart 为 false，start 值会被忽略，切片从数组的 0 索引开始。
-> 2. hasEnd 为 false 时，end 值和 isClosed 值均失效，数组切片从起始索引取到原数组最后一个元素；若 hasEnd 为 true，end 值作为切片的结束索引，isClosed 决定是否包含 end 值（true=包含，false=不包含）。
-> 3. step 步长的值必须为 1。
+> 1. start 的值就是构造函数传入的值本身，不受构造时传入的 hasStart 的值的影响。
+> 2. hasEnd 为 false 时，end 值不生效，且不受构造时传入的 isClosed 的值的影响，该数组切片取到原数组最后一个元素。
 
 参数：
 
@@ -2289,18 +2280,14 @@ import std.collection.*
 main() {
     let list = ArrayList<Int64>([0, 1, 2, 3, 4, 5])
 
-    println("原列表: ${list}")
+    println("原列表: ${list}") // [0, 1, 2, 3, 4, 5]
 
     // 通过范围操作符切片
     let sliceList = list[1..4]
-    // let sliceList = list[1..4) // 没有开区间的语法
 
-    println("通过范围操作符切片: ${sliceList}")
+    println("切片列表: ${sliceList}") // [1, 2, 3]
+    println("切片列表大小: ${sliceList.size}") // 3
 
-    // 通过 Range 构造函数切片
-    let range = Range<Int64>(2, 4, 1, true, true, true)
-    let sliceListByRange = list.slice(range)
-    println("通过 Range 构造函数切片: ${sliceListByRange}")
     return 0
 }
 ```
@@ -2309,8 +2296,8 @@ main() {
 
 ```text
 原列表: [0, 1, 2, 3, 4, 5]
-通过范围操作符切片: [1, 2, 3]
-通过 Range 构造函数切片: [2, 3, 4]
+切片列表: [1, 2, 3]
+切片列表大小: 3
 ```
 
 ### func sortBy((T, T) -> Ordering) <sup>(deprecated)</sup>
@@ -2833,7 +2820,7 @@ extend<T> ArrayList<T> <: Equatable<ArrayList<T>> where T <: Equatable<T>
 public func contains(element: T): Bool
 ```
 
-功能：判断当前容器中是否包含指定元素。
+功能：判断当前数组中是否含有指定元素 `element`。
 
 参数：
 
@@ -3012,13 +2999,13 @@ public func sort(stable!: Bool): Unit
 
 功能：将当前数组内元素以升序的方式排序。
 
-> **注意：**
->
-> 未来版本即将废弃，使用 [sort](../../sort/sort_package_api/sort_package_funcs.md#func-sorttlistt-bool-bool-where-t--comparablet) 替代。
-
 参数：
 
 - stable!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用稳定排序。
+
+> **注意：**
+>
+> 未来版本即将废弃，使用 [sort](../../sort/sort_package_api/sort_package_funcs.md#func-sorttlistt-bool-bool-where-t--comparablet) 替代。
 
 示例：
 
@@ -3093,13 +3080,13 @@ public func sortDescending(stable!: Bool): Unit
 
 功能：将当前数组内元素以降序的方式排序。
 
-> **注意：**
->
-> 未来版本即将废弃，使用 [sort](../../sort/sort_package_api/sort_package_funcs.md#func-sorttlistt-bool-bool-where-t--comparablet) 替代。
-
 参数：
 
 - stable!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用稳定排序。
+
+> **注意：**
+>
+> 未来版本即将废弃，使用 [sort](../../sort/sort_package_api/sort_package_funcs.md#func-sorttlistt-bool-bool-where-t--comparablet) 替代。
 
 示例：
 
@@ -3623,15 +3610,9 @@ main() {
 public func reserve(additional: Int64): Unit
 ```
 
-功能：以指定大小进行扩容。
+功能：增加此队列的容量。
 
-> **说明：**
->
-> - 若入参 additional ≤ 0，不执行任何扩容操作。
-> - 若当前剩余容量 ≥ additional，不进行扩容，直接返回。
-> - 若当前剩余容量 < additional，则按以下两者计算最大者执行扩容：
->     - 1.原始容量的 1.5 倍（结果向下取整）
->     - 2.已使用容量 + additional。
+将队列扩容 additional 大小，当 additional 小于等于零时，不发生扩容；当此队列剩余容量大于等于 additional 时，不发生扩容；当此队列剩余容量小于 additional 时，取（原始容量的 1.5 倍向下取整）与（additional + 已使用容量）两个值中的最大值进行扩容。
 
 参数：
 
@@ -4228,15 +4209,7 @@ main() {
 public func reserve(additional: Int64): Unit
 ```
 
-功能：以指定大小进行扩容。
-
-> **说明：**
->
-> - 若入参 additional ≤ 0，不执行任何扩容操作。
-> - 若当前剩余容量 ≥ additional，不进行扩容，直接返回。
-> - 若当前剩余容量 < additional，则按以下两者计算最大者执行扩容：
->     - 1.原始容量的 1.5 倍（结果向下取整）
->     - 2.已使用容量 + additional。
+功能：为当前 [ArrayStack](#class-arraystackt) 扩容相应的空间。当 additional 小于等于零时，不发生扩容；如果当前剩余空间大小大于等于 additional，不进行扩容操作，否则当前 [ArrayStack](#class-arraystackt) 会扩容至 size + additional 大小。
 
 参数：
 
@@ -4389,8 +4362,8 @@ main() {
 ```cangjie
 public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     public init()
-    public init(elements: Collection<(K, V)>)
     public init(elements: Array<(K, V)>)
+    public init(elements: Collection<(K, V)>)
     public init(capacity: Int64)
     public init(size: Int64, initElement: (Int64) -> (K, V))
 }
@@ -5829,15 +5802,9 @@ main() {
 public func reserve(additional: Int64): Unit
 ```
 
-功能：以指定大小进行扩容。
+功能：扩容当前的[HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)。
 
-> **说明：**
->
-> - 若入参 additional ≤ 0，不执行任何扩容操作。
-> - 若当前剩余容量 ≥ additional，不进行扩容，直接返回。
-> - 若当前剩余容量 < additional，则按以下两者计算最大者执行扩容：
->     - 1.原始容量的 1.5 倍（结果向下取整）
->     - 2.已使用容量 + additional。
+将 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 扩容 additional 大小当 additional 小于等于零时，不发生扩容；当 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 剩余容量大于等于 additional 时，不发生扩容；当 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 剩余容量小于 additional 时，取（原始容量的 1.5 倍向下取整）与（additional + 已使用容量）中的最大值进行扩容。
 
 参数：
 
@@ -7157,7 +7124,7 @@ main() {
 大于3的数字个数: 3
 ```
 
-### func filterMap\<R>((T) -> Option\<R>)
+### func filterMap\<R>((T) -> ?R)
 
 ```cangjie
 public func filterMap<R>(transform: (T) -> Option<R>): HashSet<R> where R <: Hashable & Equatable<R>
@@ -7663,15 +7630,7 @@ main() {
 public func reserve(additional: Int64): Unit
 ```
 
-功能：以指定大小进行扩容。
-
-> **说明：**
->
-> - 若入参 additional ≤ 0，不执行任何扩容操作。
-> - 若当前剩余容量 ≥ additional，不进行扩容，直接返回。
-> - 若当前剩余容量 < additional，则按以下两者计算最大者执行扩容：
->     - 1.原始容量的 1.5 倍（结果向下取整）
->     - 2.已使用容量 + additional。
+功能：将 [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) 扩容 additional 大小，当 additional 小于等于零时，不发生扩容；当 [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) 剩余容量大于等于 additional 时，不发生扩容；当 [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) 剩余容量小于 additional 时，取（原始容量的 1.5 倍向下取整）与（additional + 已使用容量）中的最大值进行扩容。
 
 参数：
 
@@ -11491,7 +11450,7 @@ main() {
 public func contains(all!: Collection<K>): Bool
 ```
 
-功能：判断是否包含指定集合中所有键的映射。
+功能：判断是否包含指定集合键的映射。
 
 参数：
 
@@ -13202,6 +13161,10 @@ public static func of(elements: Array<T>): TreeSet<T>
 返回值：
 
 - [TreeSet](collection_package_class.md#class-treesett-where-t--comparablet)\<T> - 元素为 T 类型的 [TreeSet](collection_package_class.md#class-treesett-where-t--comparablet)。
+
+> **说明：**
+>
+> 此函数的参数可使用变长参数方式提供，例如： `TreeSet.of(1, 2, 3)` 等价于 `TreeSet.of([1, 2, 3])` 。
 
 示例：
 

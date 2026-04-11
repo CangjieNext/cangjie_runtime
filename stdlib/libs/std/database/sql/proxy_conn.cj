@@ -36,9 +36,10 @@ class ProxyConnection <: Connection {
     }
 
     public func close(): Unit {
-        if (!isReleased.compareAndSwap(false, true)) {
+        if (isReleased.load()) {
             return
         }
+        isReleased.store(true)
         poolEntry.release()
     }
 

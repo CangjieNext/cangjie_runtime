@@ -309,30 +309,18 @@ extend Int16 <: BigEndianOrder<Int16> & LittleEndianOrder<Int16> & SwapEndianOrd
 
 extend UInt8 <: BigEndianOrder<UInt8> & LittleEndianOrder<UInt8> & SwapEndianOrder<UInt8> {
     public func writeLittleEndian(buffer: Array<Byte>): Int64 {
-        if (!buffer.isEmpty()) {
-            buffer[0] = this
-            return 1
-        }
-        throw IllegalArgumentException("Buffer too small: need at least 1 byte.")
+        buffer[0] = this
+        return 1
     }
     public func writeBigEndian(buffer: Array<Byte>): Int64 {
-        if (!buffer.isEmpty()) {
-            buffer[0] = this
-            return 1
-        }
-        throw IllegalArgumentException("Buffer too small: need at least 1 byte.")
+        buffer[0] = this
+        return 1
     }
     public static func readBigEndian(buffer: Array<Byte>): UInt8 {
-        if (!buffer.isEmpty()) {
-            return buffer[0]
-        }
-        throw IllegalArgumentException("Buffer too small: need at least 1 byte.")
+        buffer[0]
     }
     public static func readLittleEndian(buffer: Array<Byte>): UInt8 {
-        if (!buffer.isEmpty()) {
-            return buffer[0]
-        }
-        throw IllegalArgumentException("Buffer too small: need at least 1 byte.")
+        buffer[0]
     }
 
     public func swapBytes(): UInt8 {
@@ -343,36 +331,24 @@ extend UInt8 <: BigEndianOrder<UInt8> & LittleEndianOrder<UInt8> & SwapEndianOrd
 extend Int8 <: BigEndianOrder<Int8> & LittleEndianOrder<Int8> & SwapEndianOrder<Int8> {
     @OverflowWrapping
     public func writeLittleEndian(buffer: Array<Byte>): Int64 {
-        if (!buffer.isEmpty()) {
-            buffer[0] = UInt8(this)
-            return 1
-        }
-        throw IllegalArgumentException("Buffer too small: need at least 1 byte.")
+        buffer[0] = UInt8(this)
+        return 1
     }
 
     @OverflowWrapping
     public func writeBigEndian(buffer: Array<Byte>): Int64 {
-        if (!buffer.isEmpty()) {
-            buffer[0] = UInt8(this)
-            return 1
-        }
-        throw IllegalArgumentException("Buffer too small: need at least 1 byte.")
+        buffer[0] = UInt8(this)
+        return 1
     }
 
     @OverflowWrapping
     public static func readBigEndian(buffer: Array<Byte>): Int8 {
-        if (!buffer.isEmpty()) {
-            return Int8(buffer[0])
-        }
-        throw IllegalArgumentException("Buffer too small: need at least 1 byte.")
+        Int8(buffer[0])
     }
 
     @OverflowWrapping
     public static func readLittleEndian(buffer: Array<Byte>): Int8 {
-        if (!buffer.isEmpty()) {
-            return Int8(buffer[0])
-        }
-        throw IllegalArgumentException("Buffer too small: need at least 1 byte.")
+        Int8(buffer[0])
     }
 
     public func swapBytes(): Int8 {
@@ -446,38 +422,26 @@ extend Float16 <: BigEndianOrder<Float16> & LittleEndianOrder<Float16> {
 
 extend Bool <: BigEndianOrder<Bool> & LittleEndianOrder<Bool> {
     public func writeLittleEndian(buffer: Array<Byte>): Int64 {
-        if (!buffer.isEmpty()) {
-            buffer[0] = if (this) {
-                1
-            } else {
-                0
-            }
-            return 1
+        buffer[0] = if (this) {
+            1
+        } else {
+            0
         }
-        throw IllegalArgumentException("Buffer too small: need at least 1 byte.")
+        return 1
     }
     public func writeBigEndian(buffer: Array<Byte>): Int64 {
-        if (!buffer.isEmpty()) {
-            buffer[0] = if (this) {
-                1
-            } else {
-                0
-            }
-            return 1
+        buffer[0] = if (this) {
+            1
+        } else {
+            0
         }
-        throw IllegalArgumentException("Buffer too small: need at least 1 byte.")
+        return 1
     }
     public static func readBigEndian(buffer: Array<Byte>): Bool {
-        if (!buffer.isEmpty()) {
-            return buffer[0] != 0
-        }
-        throw IllegalArgumentException("Buffer too small: need at least 1 byte.")
+        return buffer[0] != 0
     }
     public static func readLittleEndian(buffer: Array<Byte>): Bool {
-        if (!buffer.isEmpty()) {
-            return buffer[0] != 0
-        }
-        throw IllegalArgumentException("Buffer too small: need at least 1 byte.")
+        return buffer[0] != 0
     }
 }
 

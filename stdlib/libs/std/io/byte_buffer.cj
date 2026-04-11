@@ -207,23 +207,23 @@ public class ByteBuffer <: IOStream & Seekable {
      *
      * @throws IllegalArgumentException - If `additional` is less than 0.
      */
-    public func reserve(additional: Int64): Unit {
-        if (additional < 0) {
+    public func reserve(addition: Int64): Unit {
+        if (addition < 0) {
             throw IllegalArgumentException("The additional must be greater than or equal to 0.")
         }
 
-        if (_length >= 0 && myData.size - start - _length >= additional) {
+        if (_length >= 0 && myData.size - start - _length >= addition) {
             return
         }
 
-        if (_length < 0 && myData.size - start >= additional) {
+        if (_length < 0 && myData.size - start >= addition) {
             return
         }
 
         let growSize = if (_length >= 0) {
-            checkGrowSize(myData.size, additional)
+            checkGrowSize(myData.size, addition)
         } else {
-            checkGrowSize(this.start, additional)
+            checkGrowSize(this.start, addition)
         }
 
         grow(growSize)
@@ -269,9 +269,9 @@ public class ByteBuffer <: IOStream & Seekable {
         myData = itemData
     }
 
-    private func checkGrowSize(oldSize: Int64, additional: Int64): Int64 {
+    private func checkGrowSize(oldSize: Int64, addition: Int64): Int64 {
         try {
-            return oldSize + additional
+            return oldSize + addition
         } catch (_: OverflowException) {
             throw OverflowException(
                 "The maximum value for capacity expansion cannot exceed the maximum value of Int64.")

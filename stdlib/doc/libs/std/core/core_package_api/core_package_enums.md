@@ -1060,7 +1060,7 @@ public func toString(): String
 转换结果如下：
 
 - GT: "[Ordering](core_package_enums.md#enum-ordering).GT"。
-- LT: "[Ordering](core_package_enums.md#enum-ordering).LT"。
+- LT: "[Ordering](core_package_enums.md#enum-ordering).ET"。
 - EQ: "[Ordering](core_package_enums.md#enum-ordering).EQ"。
 
 返回值：

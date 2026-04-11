@@ -255,10 +255,6 @@ public interface BenchmarkInputMarker {}
 public interface Measurement {
     func setup(): Unit
     func measure(): Float64
-    prop conversionTable: MeasurementUnitTable
-    prop name: String
-    prop textDescription: String
-    prop info: MeasurementInfo
 }
 ```
 
@@ -388,7 +384,7 @@ func measure(): Float64
 ### func setup()
 
 ```cangjie
-func setup(): Unit
+func setup()
 ```
 
 功能：此测量的初始化例程。在每个基准步骤之前调用。

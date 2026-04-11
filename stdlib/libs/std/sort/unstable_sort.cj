@@ -27,11 +27,7 @@ public func unstableSort<T>(data: Array<T>): Unit where T <: Comparable<T> {
  * Unstable sort
  *
  * @param data Array to be sorted.
- * @param comparator The comparator must establish a total order:
- *        - Antisymmetry: if compare(a, b) is LT, then compare(b, a) must be GT
- *        - Transitivity: if compare(a, b) is LT and compare(b, c) is LT, then compare(a, c) must be LT
- *        - Consistency: multiple invocations of compare(a, b) must return the same result
- *        Violating these requirements may result in undefined behavior.
+ * @param comparator The sorted comparison strategy.
  *
  * @since 0.27.3
  */

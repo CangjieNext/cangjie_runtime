@@ -19,8 +19,8 @@ public class MyPublicType {
         println(message)
     }
 
-    public static func myPublicStaticMemberFunction() {
-        println("myPackage.MyPublicType.myPublicStaticMemberFunction is called.")
+    public static func myPublicStaticMemeberFunction() {
+        println("myPackage.MyPublicType.myPublicStaticMemeberFunction is called.")
     }
 
     static let myStaticVariable = MyPublicType("Initializing myStaticVariable in myPackage.MyPublicType")

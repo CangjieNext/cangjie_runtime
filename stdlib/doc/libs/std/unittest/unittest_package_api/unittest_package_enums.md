@@ -7,7 +7,6 @@ public enum ExplicitGcType <: ToString {
     | Disabled
     | Light
     | Heavy
-    | Auto
 }
 ```
 
@@ -39,15 +38,7 @@ Heavy
 Light
 ```
 
-功能：[std.runtime.GC](../../runtime/runtime_package_api/runtime_package_funcs.md#func-gcbool)(heavy: false) 将在 Benchmark 函数执行期间由框架显式调用。
-
-### Auto
-
-```cangjie
-Auto
-```
-
-功能：Benchmark 函数执行期间由框架自行决策 GC 调用策略。这是默认设置。
+功能：[std.runtime.GC](../../runtime/runtime_package_api/runtime_package_funcs.md#func-gcbool)(heavy: false) 将在 Benchmark 函数执行期间由框架显式调用。这是默认设置。
 
 ### func toString()
 
@@ -55,11 +46,11 @@ Auto
 public func toString(): String
 ```
 
-功能：[GC](../../runtime/runtime_package_api/runtime_package_funcs.md#func-gcbool) 执行的三种不同方式的字符串。
+功能：[GC](../../runtime/runtime_package_api/runtime_package_funcs.md#func-gcbool) 执行的三种不同方式字符串。
 
 返回值：
 
-- [String](../../core/core_package_api/core_package_structs.md#struct-string) - [GC](../../runtime/runtime_package_api/runtime_package_funcs.md#func-gcbool) 执行的三种不同方式的字符串。
+- [String](../../core/core_package_api/core_package_structs.md#struct-string) - [GC](../../runtime/runtime_package_api/runtime_package_funcs.md#func-gcbool) 执行的三种不同方式字符串。
 
 示例：
 
@@ -192,7 +183,7 @@ Seconds
 public func toString(): String
 ```
 
-功能： 将时间单位转换为字符串。
+功能： 将时间转换为字符串。
 
 返回值：
 
@@ -372,7 +363,7 @@ HW_BUS_CYCLES
 HW_STALLED_CYCLES_FRONTEND
 ```
 
-功能：CPU 周期被浪费在 CPU 流水线前端阶段的等待上的数量。
+功能：CPU 周期被浪费在 CPU 管道前端阶段的等待上的数量。
 
 ### HW_STALLED_CYCLES_BACKEND
 
@@ -469,7 +460,7 @@ public func toString(): String
 ## enum RuntimeInfo
 
 ```cangjie
-public enum RuntimeInfo {
+public enum RuntimeInfo <: ToString { 
     | GCCount
     | GCTime
     | AllocatedMemory

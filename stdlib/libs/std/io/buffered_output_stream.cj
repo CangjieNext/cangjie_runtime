@@ -134,11 +134,8 @@ extend<T> BufferedOutputStream<T> <: Resource where T <: Resource {
      */
     public func close(): Unit {
         if (!isClosed()) {
-            try {
-                flush()
-            } finally {
-                outputStream.close()
-            }
+            flush()
+            outputStream.close()
         }
     }
 

@@ -35,7 +35,7 @@ public func spy<T>(objectToSpyOn: T): T
 @On(storage.getComments(testId)).returns(testComments)
 ```
 
-示例中，如果 mock 对象 `storage` *接收*到 `getComments` 方法的调用，并且指定了参数 `testId` ，则返回 `testComments` 。
+示例中，如果 mock 对象 `storage` *接收*到 `getComments` 方法的调用，并且指定了参数 `testId` ，则返回 `testComment` 。
 
 如上行为即为**打桩**，桩（Stub， 模拟还未实现或无法在测试环境中执行的组件）需在测试用例主体内部先定义。
 
@@ -254,7 +254,7 @@ mock 框架提供 API 来指定桩操作。触发桩后，打桩声明会执行�
 <!-- code_no_check -->
 
 ```cangjie
-@On(foo.bar()).returns(2) // 返回 2
+@On(foo.bar()).returns(2) // 返回 0
 @On(foo.bar()).returnsConsecutively(1, 2, 3) // 依次返回 1，2，3
 ```
 

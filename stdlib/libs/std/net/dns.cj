@@ -18,24 +18,17 @@ const DOMAIN_MAX_LEN = 255
 const SUB_DOMAIN_LIST_LEN = 63
 
 func isDomainValid(domainStr: String): Bool {
-    if (domainStr.isEmpty() || domainStr.size > DOMAIN_MAX_LEN) {
+    if (domainStr.size > DOMAIN_MAX_LEN) {
         return false
     }
-    var domain = domainStr
-    if (domain.endsWith(".")) {
-        domain = domain[0..(domain.size - 1)]
-    }
-    if (domain.isEmpty()) {
-        return false
-    }
-    let domainList = domain.split(".")
+    let domainList = domainStr.split(".")
     var numberPartCnt = 0
-    for (part in domainList) {
-        if (part.isEmpty() || part.size > SUB_DOMAIN_LIST_LEN || part.startsWith("-") || part.endsWith("-")) {
+    for (domain in domainList) {
+        if (domain.isEmpty() || domain.size > SUB_DOMAIN_LIST_LEN || domain.startsWith("-") || domain.endsWith("-")) {
             return false
         }
         var isNumber = true
-        for (b in part) {
+        for (b in domain) {
             if (!(b.isAsciiNumberOrLetter() || b == b'-')) {
                 return false
             }
@@ -47,6 +40,7 @@ func isDomainValid(domainStr: String): Bool {
             numberPartCnt++
         }
     }
+    // reject the evil domain which looks like ip
     if (numberPartCnt == domainList.size) {
         return false
     }
@@ -64,7 +58,8 @@ func resolveDomain(family: AddressFamily, domain: String): Array<IPAddress> {
     var res = PAddrinfo()
     var hints = AddrInfo()
     hints.ai_family = Int32(family.value)
-    var rc = unsafe { getaddrinfo(node, CPointer<Byte>(), inout hints, inout res) }
+    hints.ai_flags = AI_PASSIVE | AI_ALL
+    var rc = unsafe { getaddrinfo(node, CPointer<Byte>(), PAddrinfo(), inout res) }
     unsafe { LibC.free(node) }
     if (rc != 0) {
         unsafe { LibC.free(res) }

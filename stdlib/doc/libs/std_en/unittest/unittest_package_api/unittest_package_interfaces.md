@@ -255,10 +255,6 @@ Purpose: This interface enables detection of `BenchInputProvider<T>` when `T` is
 public interface Measurement {
     func setup(): Unit
     func measure(): Float64
-    prop conversionTable: MeasurementUnitTable
-    prop name: String
-    prop textDescription: String
-    prop info: MeasurementInfo
 }
 ```
 
@@ -388,7 +384,7 @@ Returns:
 ### func setup()
 
 ```cangjie
-func setup(): Unit
+func setup()
 ```
 
 Purpose: Initialization routine for this measurement. Called before each benchmark step.

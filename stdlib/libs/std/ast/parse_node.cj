@@ -334,7 +334,7 @@ func createMacroExpand(nodeInvocation: Option<NodeFormat_MacroInvocation>, isDec
     var isCompileTimeVisible = invocation.GetIsCompileTimeVisible()
     var macroInputDecl: Option<Decl> = try {
         Some(generateDeclAST(invocation.GetDecl()))
-    } catch (e: ParseASTException) {
+    } catch (e: Exception) {
         None<Decl>
     }
     if (isDecl) {

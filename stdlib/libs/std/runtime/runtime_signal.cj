@@ -48,7 +48,7 @@ class SignalManager {
  * It uses a mutex to ensure thread safety when accessing the signal slots. 
  */
 @When[os != "Windows"]
-public func registerSignalHandler(sig: Signal, handler: SignalHandlerFunc): Unit {
+public func registerSignalHandler(sig: Signal, handler: SignalHandlerFunc) {
     if (sig.value <= 0 || sig.value >= SignalManager.MAX_SIG_NUM) {
         throw IllegalArgumentException("Signal value must > 0 and < ${SignalManager.MAX_SIG_NUM}.")
     }
@@ -71,7 +71,7 @@ public func registerSignalHandler(sig: Signal, handler: SignalHandlerFunc): Unit
  * It uses a mutex to ensure thread safety when accessing the signal slots. 
  */
 @When[os != "Windows"]
-public func unregisterSignalHandler(sig: Signal, handler: SignalHandlerFunc): Unit {
+public func unregisterSignalHandler(sig: Signal, handler: SignalHandlerFunc) {
     if (sig.value <= 0 || sig.value >= SignalManager.MAX_SIG_NUM) {
         throw IllegalArgumentException("Signal value must > 0 and < ${SignalManager.MAX_SIG_NUM}.")
     }

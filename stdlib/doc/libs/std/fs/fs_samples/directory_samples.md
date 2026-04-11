@@ -2,7 +2,7 @@
 
 ## Directory 一些基础操作演示
 
-示例：
+代码如下：
 <!-- verify -->
 
 ```cangjie

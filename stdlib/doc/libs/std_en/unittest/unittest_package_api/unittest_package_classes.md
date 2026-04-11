@@ -1150,11 +1150,11 @@ Function: Returns a success result when the test case passes; throws an exceptio
 Parameters:
 
 - passed: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether the test case passed.
-
+ 
 ## class Report
 
 ```cangjie
-sealed abstract class Report {}
+abstract sealed class Report {}
 ```
 
 Function: Base class for printing test case result reports.
