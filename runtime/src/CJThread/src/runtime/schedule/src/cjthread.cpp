@@ -570,6 +570,10 @@ unsigned long long GetThreadStackTop()
 
 unsigned long long GetUIThreadStackTop()
 {
+    bool runtimeFinished = MapleRuntime::MRT_CheckRuntimeFinished();
+    if (runtimeFinished) {
+        return 0;
+    }
     Schedule* schedule = ScheduleGet();
     if (schedule == nullptr || schedule->scheduleType != SCHEDULE_UI_THREAD) {
         return 0;
@@ -662,7 +666,8 @@ MRT_STATIC_INLINE void CJThreadMake(const struct CJThreadAttrInner *attr,
     (void)memset_s(&newCJThread->context, sizeof(struct CJThreadContext), 0, sizeof(struct CJThreadContext));
 
     // foreign thread schedule do not create new stack and not need to init cjthread context.
-    if (newCJThread->schedule->scheduleType == SCHEDULE_FOREIGN_THREAD || newCJThread->schedule->scheduleType == SCHEDULE_EXCLUSIVE) {
+    if (newCJThread->schedule->scheduleType == SCHEDULE_FOREIGN_THREAD ||
+        newCJThread->schedule->scheduleType == SCHEDULE_EXCLUSIVE) {
         return;
     }
     if (attr != nullptr && attr->cjFromC) {
@@ -910,11 +915,43 @@ void ExclusiveExecutor(struct Thread* thread, struct CJThread* newCJThread)
     return;
 }
 
-// ExclusiveRestore restore from exclusive cjthread
-void ExclusiveRestore(struct CJThread* oldCJThread, struct Thread* thread, struct CJThread* newCJThread, struct Processor* oldProcessor)
+// Called from ExclusiveScope.S assembly to avoid hardcoding of thread context offset,
+//  which differs across platforms due to sizeof(sem_t)
+void* ExclusiveGetThreadContext(struct Thread* thread)
 {
+    if (thread == nullptr) {
+        LOG(RTLOG_ERROR, "ExclusiveGetThreadContext received null thread.");
+        return nullptr;
+    }
+    return static_cast<void*>(&thread->context);
+}
+
+int IsExclusiveCJThread(struct CJThread* cjthread)
+{
+    if (cjthread == nullptr || cjthread->schedule == nullptr) {
+        return 0;
+    }
+    return cjthread->schedule->scheduleType == SCHEDULE_EXCLUSIVE ? 1 : 0;
+}
+
+// ExclusiveRestore restore from exclusive cjthread
+void ExclusiveRestore(struct CJThread* oldCJThread, struct Thread* thread,
+                      struct CJThread* newCJThread, struct Processor* oldProcessor)
+{
+    if (oldCJThread == nullptr || thread == nullptr || newCJThread == nullptr || oldProcessor == nullptr) {
+        LOG(RTLOG_ERROR, "ExclusiveRestore received null parameter. oldCJThread=%p, thread=%p, newCJThread=%p, oldProcessor=%p",
+            oldCJThread, thread, newCJThread, oldProcessor);
+        return;
+    }
+
     struct Schedule* oldSchedule = oldCJThread->schedule;
     struct Schedule* newSchedule = newCJThread->schedule;
+
+    if (oldSchedule == nullptr || newSchedule == nullptr) {
+        LOG(RTLOG_ERROR, "ExclusiveRestore: invalid schedule detected. oldSchedule=%p, newSchedule=%p",
+            oldSchedule, newSchedule);
+        return;
+    }
 
     // Get saved values
     uintptr_t threadData = MapleRuntime::MRT_GetThreadLocalData();
@@ -945,7 +982,7 @@ void ExclusiveRestore(struct CJThread* oldCJThread, struct Thread* thread, struc
 }
 
 CJThreadHandle ExclusiveCJThreadNew(CJThreadFunc func,
-                           const void *argStart, unsigned int argSize)
+                                    const void *argStart, unsigned int argSize)
 {
     struct StackAttr stackAttr;
     stackAttr.stackGrow = false;
@@ -972,7 +1009,6 @@ CJThreadHandle ExclusiveCJThreadNew(CJThreadFunc func,
     }
     return newCJThread;
 }
-
 
 /* Create a cjthread in the cjthread context. */
 CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *attrUser, CJThreadFunc func,
@@ -1379,7 +1415,8 @@ __attribute__((noinline)) int CJThreadResched(void)
 {
     // If cjthread is in foreign or exclusive thread schedule, do not reschedule.
     struct CJThread *cjthread = CJThreadGet();
-    if (cjthread->schedule->scheduleType == SCHEDULE_FOREIGN_THREAD || cjthread->schedule->scheduleType == SCHEDULE_EXCLUSIVE) {
+    if (cjthread->schedule->scheduleType == SCHEDULE_FOREIGN_THREAD ||
+        cjthread->schedule->scheduleType == SCHEDULE_EXCLUSIVE) {
         return 0;
     }
 #ifdef CANGJIE_ASAN_SUPPORT

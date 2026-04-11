@@ -14,9 +14,9 @@
 
 #include "Base/HashUtils.h"
 #include "Base/Types.h"
-#include "ILoader.h"
+#include "Loader/ILoader.h"
 #include "os/Loader.h"
-#include "CjSemanticVersion/CjSemanticVersion.h"
+#include "Loader/CjSemanticVersion/CjSemanticVersion.h"
 #include "RuntimeConfig.h"
 namespace MapleRuntime {
 class CJFileLoader : public ILoader {
@@ -50,7 +50,7 @@ public:
     void* LoadCJLibrary(const char* libName) override;
     int UnloadLibrary(const char* libName) override;
     Uptr FindSymbol(const CString libName, const CString symName) const override;
-    bool DoInitImage(BaseFile* baseFile) const;
+    bool DoInitImage(BaseFile* baseFile) const override;
     BaseFile* GetBaseFile(CString fileName) const override;
     auto GetBinaryInfoFromAddressFunc() const { return binLoadApi.getBinaryInfoFromAddress; }
     TypeInfo* FindTypeInfoFromLoadedFiles(const char* className) override;
@@ -64,7 +64,6 @@ public:
     void GetSubPackages(PackageInfo* packageInfo, std::vector<PackageInfo*> &subPackages) override;
     void VisitExtensionData(
         TypeInfo* ti, const std::function<bool(ExtensionData* ed)>& f, TypeTemplate* tt) const override;
-    void VisitExtensionData(const std::function<void(BaseFile*)>& f) const override;
     bool CheckPackageCompatibility(BaseFile* file) override;
     void TryThrowException(Uptr fileMetaAddr) override;
     BaseFile* GetBaseFileByMetaAddr(Uptr fileMetaAddr);
@@ -108,7 +107,6 @@ private:
     std::mutex lazyStaticGIMutex;
     std::vector<TypeInfo*> staticGIs;
     CjSemanticVersion compatibility;
-    bool lastIsFinished = true;
 };
 } // namespace MapleRuntime
 #endif // MRT_CJ_FILE_LOADER_H

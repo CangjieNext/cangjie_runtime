@@ -23,7 +23,14 @@
 #include "Flags.h"
 
 namespace MapleRuntime {
+#ifdef __arm__
+const size_t TYPEINFO_PTR_SIZE = sizeof(TypeInfo*) + 4;
+#else
+const size_t TYPEINFO_PTR_SIZE = sizeof(TypeInfo*);
+#endif
+
 typedef void *(*GenericiFn)(U32 size, TypeInfo* args[]);
+
 TypeInfo* ExtensionData::GetInterfaceTypeInfo(U32 argsNum, TypeInfo** args) const
 {
     if (isInterfaceTypeInfo) {
@@ -33,12 +40,6 @@ TypeInfo* ExtensionData::GetInterfaceTypeInfo(U32 argsNum, TypeInfo** args) cons
     TypeInfo* itf = reinterpret_cast<TypeInfo*>(TypeTemplate::ExecuteGenericFunc(iFn, argsNum, args));
     return itf;
 }
-
-#ifdef __arm__
-const size_t TYPEINFO_PTR_SIZE = sizeof(TypeInfo*) + 4;
-#else
-const size_t TYPEINFO_PTR_SIZE = sizeof(TypeInfo*);
-#endif
 
 CString TypeTemplate::GetTypeInfoName(U32 argSize, TypeInfo *args[])
 {
@@ -81,6 +82,25 @@ void* TypeTemplate::ExecuteGenericFunc(void* genericFunc, U32 argSize, TypeInfo*
 ReflectInfo* TypeInfo::GetReflectInfo() const
 {
     return reflectInfo;
+}
+
+U8 TypeInfo::GetReflectionVersion() const
+{
+    if (!ReflectIsEnable()) {
+        return 0;
+    }
+    if (IsEnum() || IsTempEnum()) {
+        EnumInfo* enumInfo = GetEnumInfo();
+        if (enumInfo != nullptr) {
+            return enumInfo->GetReflectVersion();
+        }
+    } else {
+        ReflectInfo* reflectInfo = GetReflectInfo();
+        if (reflectInfo != nullptr) {
+            return reflectInfo->GetReflectVersion();
+        }
+    }
+    return 0;
 }
 
 TypeInfo* TypeTemplate::GetFieldType(U16 fieldIdx, U32 argSize, TypeInfo* args[])
@@ -135,12 +155,9 @@ void TypeInfo::TryInitMTable()
     }
 }
 
-MTableDesc::MTableDesc(BIT_TYPE bitmap_)
+MTableDesc::MTableDesc(ArchUInt bitmap_)
 {
     mTableBitmap.tag = bitmap_;
-    LoaderManager::GetInstance()->GetLoader()->VisitExtensionData(
-        [this](BaseFile* baseFile) { waitedExtensionDatas.emplace_back(baseFile); }
-    );
 }
 
 void TypeInfo::TryInitMTableNoLock()
@@ -150,7 +167,7 @@ void TypeInfo::TryInitMTableNoLock()
         auto& tim = TypeInfoManager::GetTypeInfoManager();
         auto desc = tim.GetMTableDesc(tiUUID);
         if (desc == nullptr) {
-            BIT_TYPE bitmap = GetResolveBitmapFromMTableDesc();
+            ArchUInt bitmap = GetResolveBitmapFromMTableDesc();
             desc = new (std::nothrow) MTableDesc(bitmap);
             CHECK_DETAIL(desc != nullptr, "fail to allocate MTableDesc");
             tim.RecordMTableDesc(tiUUID, desc);
@@ -218,7 +235,8 @@ void TypeInfo::TryUpdateExtensionData(TypeInfo* itf, ExtensionData* extensionDat
         }
 
         auto itfVExtensionDataStart = itf->GetvExtensionDataStart();
-        CHECK_DETAIL(itfVExtensionDataStart != nullptr, "itfVExtensionDataStart is nullptr");
+        CHECK_DETAIL(itfVExtensionDataStart != nullptr, "itfVExtensionDataStart is nullptr, ti: %s, itf: %s",
+                     GetName(), itf->GetName());
         auto itfExtData = itf->IsInterface() ? *itfVExtensionDataStart
                                             : *(itfVExtensionDataStart + itf->GetValidInheritNum() - 1);
         auto ftSize = extensionData->GetFuncTableSize();
@@ -434,6 +452,9 @@ void TypeInfo::TraverseInnerExtensionDefs(const std::function<void(TypeInfo*)> g
 
 void TypeInfo::TraverseOuterExtensionDefs(const std::function<void(TypeInfo*)> getInterface)
 {
+    if (!this->mTableDesc->NeedResolveOuter()) {
+        return;
+    }
     U16 typeArgNum = GetTypeArgNum();
     TypeInfo** typeArgs = nullptr;
     TypeInfo* componentTypeInfo = GetComponentTypeInfo();
@@ -468,6 +489,7 @@ void TypeInfo::TraverseOuterExtensionDefs(const std::function<void(TypeInfo*)> g
             return false;
         },
         sourceGeneric);
+    this->mTableDesc->needsResolveOuter = false;
 }
 
 void TypeInfo::GetInterfaces(std::vector<TypeInfo*> &itfs)
@@ -564,7 +586,7 @@ FuncPtr* TypeInfo::GetMTable(TypeInfo* itf)
     }
     auto extensionData = FindExtensionData(itf, true);
     if (UNLIKELY(extensionData == nullptr)) {
-        LOG(RTLOG_FATAL, "funcTable is nullptr, ti: %s, itf: %s", GetName(), itf->GetName());
+        LOG(RTLOG_FATAL, "extensionData is nullptr, ti: %s, itf: %s", GetName(), itf->GetName());
     }
     if (UNLIKELY(!extensionData->IsFuncTableUpdated())) {
         TryUpdateExtensionData(itf, extensionData);

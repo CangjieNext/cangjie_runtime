@@ -140,14 +140,8 @@ void CJFileLoader::VisitExtensionData(
     TypeInfo* ti, const std::function<bool(ExtensionData* ed)>& f, TypeTemplate* tt) const
 {
     ti->TryInitMTable();
-    auto mtDesc = ti->GetMTableDesc();
-    std::lock_guard<std::recursive_mutex> lock(mtDesc->mTableMutex);
-    if (mtDesc->waitedExtensionDatas.empty()) {
-        return;
-    }
-    size_t cnt = 0;
-    for (auto baseFile : mtDesc->waitedExtensionDatas) {
-        ++cnt;
+    CHECK(loadedFiles.size() >= extensionDatas.size());
+    for (auto baseFile : loadedFiles) {
         auto it1 = extensionDatas.find(baseFile);
         if (it1 == extensionDatas.end()) {
             continue;
@@ -157,30 +151,9 @@ void CJFileLoader::VisitExtensionData(
         if (range.first == range.second) {
             continue;
         }
-        bool found = false;
         for (auto it2 = range.first; it2 != range.second; ++it2) {
-            auto res = f(it2->second);
-            found |= res;
+            f(it2->second);
         }
-        if (found) {
-            break;
-        }
-    }
-    if (!lastIsFinished && cnt == mtDesc->waitedExtensionDatas.size()) {
-        auto last = mtDesc->waitedExtensionDatas.back();
-        mtDesc->waitedExtensionDatas.clear();
-        mtDesc->waitedExtensionDatas.emplace_back(last);
-    } else {
-        auto beginIt = mtDesc->waitedExtensionDatas.begin();
-        mtDesc->waitedExtensionDatas.erase(beginIt, beginIt + cnt);
-    }
-}
-
-void CJFileLoader::VisitExtensionData(const std::function<void(BaseFile*)>& f) const
-{
-    CHECK(loadedFiles.size() >= extensionDatas.size());
-    for (auto baseFile : loadedFiles) {
-        f(baseFile);
     }
 }
 
@@ -268,11 +241,7 @@ void CJFileLoader::RegisterTypeInfoCreatedByFE(BaseFile* baseFile)
 
 void CJFileLoader::RegisterOuterTypeExtensions(BaseFile* baseFile)
 {
-    lastIsFinished = false;
     TypeInfoManager& typeInfoMgr = TypeInfoManager::GetTypeInfoManager();
-    for (const auto& mtDesc : typeInfoMgr.mTableList) {
-        mtDesc.second->waitedExtensionDatas.emplace_back(baseFile);
-    }
     Uptr extensionDataRefBase = baseFile->GetOuterTypeExtensionsBase();
     Uptr extensionDataRefEnd = extensionDataRefBase + baseFile->GetOuterTypeExtensionsSize();
     while (extensionDataRefBase < extensionDataRefEnd) {
@@ -297,7 +266,6 @@ void CJFileLoader::RegisterOuterTypeExtensions(BaseFile* baseFile)
         TypeTemplate* tt = reinterpret_cast<TypeTemplate*>(extensionData->GetTargetType());
         extensionDatas[baseFile].emplace(tt, extensionData);
     }
-    lastIsFinished = true;
 }
 
 PackageInfo* CJFileLoader::GetPackageInfoByPath(const char* path)
@@ -498,7 +466,7 @@ bool CJFileLoader::DoInitImage(BaseFile* baseFile) const
         if (reinterpret_cast<void*>(func) != nullptr) {
             using FuncType = void (*)();
             FuncType initAddr = reinterpret_cast<FuncType>(func);
-#if defined(__OHOS__)
+#if defined(__OHOS__) || defined(__IOS__)
             InitCJLibraryStub(reinterpret_cast<void*>(initAddr));
 #else
             Mutator* mutator = ThreadLocal::GetMutator();
@@ -543,13 +511,9 @@ bool CJFileLoader::CheckPackageCompatibility(BaseFile* file)
     if (file == nullptr) {
         return false;
     }
-#ifdef __arm__
-    bool isCompatible = true;
-#else
     CString packageName = file->GetRealPath();
     CString packageVersion = file->GetSDKVersion();
     bool isCompatible = compatibility.CheckPackageCompatibility(packageName, packageVersion);
-#endif
     file->SetFileCompatibility(isCompatible);
     AddLoadedFiles(file);
     return isCompatible;
