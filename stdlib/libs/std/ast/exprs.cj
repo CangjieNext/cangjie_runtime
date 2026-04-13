@@ -2208,6 +2208,7 @@ public class LambdaExpr <: Expr {
                     this.nodes_ = v.nodes_
                     this.rCurl_ = v.rCurl_
                     this.mockSupported_ = v.mockSupported_
+                    this.addedByTryHandle_ = v.addedByTryHandle_
                 case None => throw ASTException("Cannot construct the 'LambdaExpr' node.")
             }
         } catch (e: ParseASTException) {
@@ -2222,13 +2223,14 @@ public class LambdaExpr <: Expr {
         super()
     }
     init(lCurl: Token, params: ArrayList<FuncParam>, db_arrow: Token, nodes: ArrayList<Node>, rCurl: Token,
-        mockSupported: Bool) {
+        mockSupported: Bool, addedByTryHandle: Bool) {
         lCurl_ = lCurl
         funcParams_ = params
         db_arrow_ = db_arrow
         nodes_ = nodes
         rCurl_ = rCurl
         mockSupported_ = mockSupported
+        addedByTryHandle_ = addedByTryHandle
     }
     private var lCurl_: Token = Token(TokenKind.LCURL)
     private var funcParams_: ArrayList<FuncParam> = ArrayList<FuncParam>()
@@ -2236,6 +2238,7 @@ public class LambdaExpr <: Expr {
     private var nodes_: ArrayList<Node> = ArrayList<Node>()
     private var rCurl_: Token = Token(TokenKind.RCURL)
     private var mockSupported_: Bool = false
+    private var addedByTryHandle_: Bool = false
     public mut prop lBrace: Token {
         get() {
             lCurl_

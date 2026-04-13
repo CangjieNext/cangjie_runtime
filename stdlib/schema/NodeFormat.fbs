@@ -290,6 +290,7 @@ table LambdaExpr {
   base: NodeBase;
   body: FuncBody;
   mockSupported: bool;
+  addedByTryHandle: bool;
 }
 
 table ArrayLit {

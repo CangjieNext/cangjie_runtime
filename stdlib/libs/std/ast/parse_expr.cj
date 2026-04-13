@@ -547,7 +547,8 @@ func createLambdaExpr(lambdaExpr: NodeFormat_LambdaExpr): LambdaExpr {
         doubleArrow = Token(TokenKind.DOUBLE_ARROW).addPosition(funcBody.GetArrowPos())
     }
     var rCurl = Token(TokenKind.RCURL).addPosition(blockNode.GetRightCurlPos())
-    return LambdaExpr(lCurl, funcParams, doubleArrow, nodes, rCurl, lambdaExpr.GetMockSupported())
+    return LambdaExpr(lCurl, funcParams, doubleArrow, nodes, rCurl,
+        lambdaExpr.GetMockSupported(), lambdaExpr.GetAddedByTryHandle())
 }
 
 func createLambdaExpr(expr: NodeFormat_Expr): Expr {
