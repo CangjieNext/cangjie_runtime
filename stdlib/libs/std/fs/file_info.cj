@@ -158,6 +158,7 @@ public struct FileInfo <: Equatable<FileInfo> {
     /**
      * @throws FSException if cPath is invalid
      * @throws FSException if operation not permitted on Windows
+     * 以特权用户运行的进程可能绕过此权限设置。
      */
     public func setExecutable(executable: Bool): Bool {
         return callNativeFunc(CJ_FS_SetExecutable, executable)
@@ -166,6 +167,7 @@ public struct FileInfo <: Equatable<FileInfo> {
     /**
      * @throws FSException if cPath is invalid
      * @throws FSException if operation not permitted on Windows
+     * 以特权用户运行的进程可能绕过此权限设置。
      */
     public func setReadable(readable: Bool): Bool {
         return callNativeFunc(CJ_FS_SetReadable, readable)
