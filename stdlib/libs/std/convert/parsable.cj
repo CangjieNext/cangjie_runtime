@@ -1123,6 +1123,8 @@ func doParseFloat<T>(data: String): ConvertResult<T> where T <: FloatParsable<T>
             digitCount++
         } else if (inputStr[index] == b' ') {
             return Failure("The string does not comply with the floating point number syntax.")
+        } else if (inputStr[index] == b'_') {
+            return Failure("The string does not comply with the floating point number syntax.")
         } else if (inputStr[index] == b'.') {
             pointNum++
             pointIndex = index
