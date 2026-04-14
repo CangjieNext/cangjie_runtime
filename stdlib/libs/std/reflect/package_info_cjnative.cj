@@ -18,7 +18,9 @@ const REPEATED_PACKAGE_LOAD: UIntNative = 2
 const REPEATED_FILENAME_LOAD: UIntNative = 3
 @When[os == "Windows"]
 const MODULE_SUFFIX = ".dll"
-@When[os != "Windows"]
+@When[os == "macOS"]
+const MODULE_SUFFIX = ".dylib"
+@When[os != "Windows" && os != "macOS"]
 const MODULE_SUFFIX = ".so"
 
 /**

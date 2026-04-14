@@ -92,7 +92,7 @@ extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetObjClass(const ObjectPtr obj);
 __asm__(".global _CJ_MCC_GetObjClass\n\t.set _CJ_MCC_GetObjClass, _MCC_GetObjClass");
 
 extern "C" MRT_EXPORT TypeTemplate* CJ_MCC_GetTypeTemplate(char* name);
-__asm__(".global _CJ_MCC_MCC_GetTypeTemplate\n\t.set _CJ_MCC_GetTypeTemplate, _MCC_GetTypeTemplate");
+__asm__(".global _CJ_MCC_GetTypeTemplate\n\t.set _CJ_MCC_GetTypeTemplate, _MCC_GetTypeTemplate");
 
 extern "C" MRT_EXPORT TypeInfo* CJ_MCC_GetOrCreateTypeInfoForReflect(TypeTemplate* tt, void* args);
 __asm__(".global _CJ_MCC_GetOrCreateTypeInfoForReflect\n\t.set _CJ_MCC_GetOrCreateTypeInfoForReflect, "
@@ -117,6 +117,9 @@ __asm__(".global _CJ_MCC_GetPackageVersion\n\t.set _CJ_MCC_GetPackageVersion, _M
 
 extern "C" MRT_EXPORT void* CJ_MCC_GetSubPackages(PackageInfo* packageInfo);
 __asm__(".global _CJ_MCC_GetSubPackages\n\t.set _CJ_MCC_GetSubPackages, _MCC_GetSubPackages");
+
+extern "C" MRT_EXPORT PackageInfo* CJ_MCC_GetRelatedPackageInfo(PackageInfo* packageInfo);
+__asm__(".global _CJ_MCC_GetRelatedPackageInfo\n\t.set _CJ_MCC_GetRelatedPackageInfo, _MCC_GetRelatedPackageInfo");
 
 extern "C" MRT_EXPORT char* CJ_MCC_GetPackageName(PackageInfo* packageInfo);
 __asm__(".global _CJ_MCC_GetPackageName\n\t.set _CJ_MCC_GetPackageName, _MCC_GetPackageName");
@@ -156,6 +159,10 @@ __asm__(".global _CJ_MCC_MethodEntryPointIsNull\n\t.set _CJ_MCC_MethodEntryPoint
 extern "C" MRT_EXPORT U32 CJ_MCC_GetNumOfActualParameters(MethodInfo* methodInfo);
 __asm__(".global _CJ_MCC_GetNumOfActualParameters\n\t.set _CJ_MCC_GetNumOfActualParameters, "
     "_MCC_GetNumOfActualParameters");
+
+extern "C" MRT_EXPORT U32 CJ_MCC_GetNumOfGenericParameters(MethodInfo* methodInfo);
+__asm__(".global _CJ_MCC_GetNumOfGenericParameters\n\t.set _CJ_MCC_GetNumOfGenericParameters, "
+    "_MCC_GetNumOfGenericParameters");
 
 extern "C" MRT_EXPORT ParameterInfoRef CJ_MCC_GetActualParameterInfo(MethodInfo* methodInfo, U32 index);
 __asm__(".global _CJ_MCC_GetActualParameterInfo\n\t.set _CJ_MCC_GetActualParameterInfo, _MCC_GetActualParameterInfo");
