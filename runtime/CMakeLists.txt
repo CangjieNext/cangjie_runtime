@@ -175,13 +175,13 @@ elseif (MACOS_FLAG MATCHES 1)
     endif()
 elseif (IOS_FLAG MATCHES 1)
     message("build cjthread for ios")
-    execute_process(COMMAND sh build/build_cjthread.sh -p ios_cangjie ${CMAKE_BUILD_TYPE} STATIC ${CJTHREAD_SAN_PRARM} ${OTHER_DEFINITIONS} ${CMAKE_INSTALL_PREFIX} ${TARGET_ARCH} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    execute_process(COMMAND sh build/build_cjthread.sh -p ios_cangjie ${CMAKE_BUILD_TYPE} STATIC ${CJTHREAD_SAN_PRARM} ${OTHER_DEFINITIONS} ${CMAKE_INSTALL_PREFIX} ${TARGET_ARCH} "" ${CANGJIE_TARGET_SYSROOT} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 elseif (IOS_SIMULATOR_FLAG MATCHES 2)
         message("build cjthread for ios simulator x86_64")
-        execute_process(COMMAND sh build/build_cjthread.sh -p ios_simulator_x86_64_cangjie ${CMAKE_BUILD_TYPE} STATIC ${CJTHREAD_SAN_PRARM} ${OTHER_DEFINITIONS} ${CMAKE_INSTALL_PREFIX} ${TARGET_ARCH} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+        execute_process(COMMAND sh build/build_cjthread.sh -p ios_simulator_x86_64_cangjie ${CMAKE_BUILD_TYPE} STATIC ${CJTHREAD_SAN_PRARM} ${OTHER_DEFINITIONS} ${CMAKE_INSTALL_PREFIX} ${TARGET_ARCH} "" ${CANGJIE_TARGET_SYSROOT} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 elseif (IOS_SIMULATOR_FLAG MATCHES 1)
         message("build cjthread for ios simulator aarch64")
-        execute_process(COMMAND sh build/build_cjthread.sh -p ios_simulator_aarch64_cangjie ${CMAKE_BUILD_TYPE} STATIC ${CJTHREAD_SAN_PRARM} ${OTHER_DEFINITIONS} ${CMAKE_INSTALL_PREFIX} ${TARGET_ARCH} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+        execute_process(COMMAND sh build/build_cjthread.sh -p ios_simulator_aarch64_cangjie ${CMAKE_BUILD_TYPE} STATIC ${CJTHREAD_SAN_PRARM} ${OTHER_DEFINITIONS} ${CMAKE_INSTALL_PREFIX} ${TARGET_ARCH} "" ${CANGJIE_TARGET_SYSROOT} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 else ()
     if (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
         message("build cjthread for aarch64")
@@ -270,17 +270,29 @@ elseif (MACOS_FLAG MATCHES 1)
 elseif (IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 2)
     set(IOS_PLATFORM "SIMULATOR")
     set(IOS_PLATFORM_LOCATION "iPhoneSimulator.platform")
-    set(CMAKE_IOS_DEVELOPER_ROOT "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer")
-    set(CMAKE_IOS_SDK_ROOT "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator17.5.sdk")
-    set(CMAKE_OSX_SYSROOT "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator17.5.sdk")
+    if(CANGJIE_TARGET_SYSROOT)
+        set(CMAKE_OSX_SYSROOT ${CANGJIE_TARGET_SYSROOT})
+        get_filename_component(CMAKE_IOS_SDK_ROOT ${CANGJIE_TARGET_SYSROOT} ABSOLUTE)
+        get_filename_component(CMAKE_IOS_DEVELOPER_ROOT "${CMAKE_IOS_SDK_ROOT}/.." ABSOLUTE)
+    else()
+        set(CMAKE_IOS_DEVELOPER_ROOT "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer")
+        set(CMAKE_IOS_SDK_ROOT "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator17.5.sdk")
+        set(CMAKE_OSX_SYSROOT "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator17.5.sdk")
+    endif()
     set(CMAKE_OSX_DEPLOYMENT_TARGET "")
 elseif (IOS_FLAG MATCHES 1)
     set(IOS ON)
     set(IOS_PLATFORM OS)
     set(IOS_PLATFORM_LOCATION "iPhoneOS.platform")
-    set(CMAKE_IOS_DEVELOPER_ROOT "/Applications/Xcode.app/Contents/Developer/Platforms/${IOS_PLATFORM_LOCATION}/Developer")
-    set(CMAKE_IOS_SDK_ROOT "${CMAKE_IOS_DEVELOPER_ROOT}/SDKs/iPhoneOS17.5.sdk")
-    set(CMAKE_OSX_SYSROOT "${CMAKE_IOS_DEVELOPER_ROOT}/SDKs/iPhoneOS17.5.sdk")
+    if(CANGJIE_TARGET_SYSROOT)
+        set(CMAKE_OSX_SYSROOT ${CANGJIE_TARGET_SYSROOT})
+        get_filename_component(CMAKE_IOS_SDK_ROOT ${CANGJIE_TARGET_SYSROOT} ABSOLUTE)
+        get_filename_component(CMAKE_IOS_DEVELOPER_ROOT "${CMAKE_IOS_SDK_ROOT}/.." ABSOLUTE)
+    else()
+        set(CMAKE_IOS_DEVELOPER_ROOT "/Applications/Xcode.app/Contents/Developer/Platforms/${IOS_PLATFORM_LOCATION}/Developer")
+        set(CMAKE_IOS_SDK_ROOT "${CMAKE_IOS_DEVELOPER_ROOT}/SDKs/iPhoneOS17.5.sdk")
+        set(CMAKE_OSX_SYSROOT "${CMAKE_IOS_DEVELOPER_ROOT}/SDKs/iPhoneOS17.5.sdk")
+    endif()
     set(CMAKE_OSX_DEPLOYMENT_TARGET "")
 endif()
 
@@ -631,17 +643,17 @@ if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MAT
     endif()
     if (IOS_FLAG MATCHES 1)
         add_custom_command(TARGET cangjie-runtime-static POST_BUILD
-            COMMAND sh build/build_cjthread.sh -p ios_cangjie ${CMAKE_BUILD_TYPE} STATIC ${CJTHREAD_SAN_PRARM} ${OTHER_DEFINITIONS} ${CMAKE_INSTALL_PREFIX} ${TARGET_ARCH} "apple_static_lib" WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            COMMAND sh build/build_cjthread.sh -p ios_cangjie ${CMAKE_BUILD_TYPE} STATIC ${CJTHREAD_SAN_PRARM} ${OTHER_DEFINITIONS} ${CMAKE_INSTALL_PREFIX} ${TARGET_ARCH} "apple_static_lib" ${CANGJIE_TARGET_SYSROOT} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
             VERBATIM
         )
     elseif (IOS_SIMULATOR_FLAG MATCHES 2)
         add_custom_command(TARGET cangjie-runtime-static POST_BUILD
-            COMMAND sh ${CMAKE_SOURCE_DIR}/build/build_cjthread.sh -p ios_simulator_x86_64_cangjie ${CMAKE_BUILD_TYPE} STATIC ${CJTHREAD_SAN_PRARM} ${OTHER_DEFINITIONS} ${CMAKE_INSTALL_PREFIX} ${TARGET_ARCH} "apple_static_lib" WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            COMMAND sh ${CMAKE_SOURCE_DIR}/build/build_cjthread.sh -p ios_simulator_x86_64_cangjie ${CMAKE_BUILD_TYPE} STATIC ${CJTHREAD_SAN_PRARM} ${OTHER_DEFINITIONS} ${CMAKE_INSTALL_PREFIX} ${TARGET_ARCH} "apple_static_lib" ${CANGJIE_TARGET_SYSROOT} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
             VERBATIM
         )
     elseif (IOS_SIMULATOR_FLAG MATCHES 1)
         add_custom_command(TARGET cangjie-runtime-static POST_BUILD
-            COMMAND sh ${CMAKE_SOURCE_DIR}/build/build_cjthread.sh -p ios_simulator_aarch64_cangjie ${CMAKE_BUILD_TYPE} STATIC ${CJTHREAD_SAN_PRARM} ${OTHER_DEFINITIONS} ${CMAKE_INSTALL_PREFIX} ${TARGET_ARCH} "apple_static_lib" WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+            COMMAND sh ${CMAKE_SOURCE_DIR}/build/build_cjthread.sh -p ios_simulator_aarch64_cangjie ${CMAKE_BUILD_TYPE} STATIC ${CJTHREAD_SAN_PRARM} ${OTHER_DEFINITIONS} ${CMAKE_INSTALL_PREFIX} ${TARGET_ARCH} "apple_static_lib" ${CANGJIE_TARGET_SYSROOT} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
             VERBATIM
         )
     elseif (MACOS_FLAG MATCHES 1)
