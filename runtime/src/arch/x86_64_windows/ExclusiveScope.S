@@ -189,15 +189,6 @@ unwindPCForExclusiveStub:
     testq   %rax, %rax
     jz      .L_exc_no_os_stack  // rsp is 0, don't switch stacks
     
-    // Additional validation: check if rsp looks like a valid stack address
-    // Stack addresses on x64 Windows are typically in range 0x000000xxxxxxxxxx
-    // Code/DLL addresses are typically 0x00007FFFxxxxxxxx or 0x00007FFExxxxxxxx
-    // If high bits are set (0x00007FFF...), it's likely a code address, not stack
-    movq    %rax, %r10
-    shrq    $32, %r10           // Get high 32 bits
-    testq   %r10, %r10
-    jnz     .L_exc_no_os_stack  // High bits set - not a stack address
-    
     // Switch to OS thread stack
     movq    %rax, %rsp
     ldmxcsr CONTEXT_MXCSR(%r15)
@@ -265,8 +256,10 @@ unwindPCForExclusiveStub:
     callq   MRT_LeaveSaferegion
     callq   MRT_GetThreadLocalData
     movq    %rax, %r13
-    
+    jmp     .L_exc_do_delete
 .L_exc_skip_leave:
+    movq    %r15, %r13
+.L_exc_do_delete:
     // Delete C2N context
     movq    %r13, %rcx
     callq   MRT_DeleteC2NContext
