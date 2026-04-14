@@ -195,8 +195,10 @@ _unwindPCForExclusiveStub:
     callq   _MRT_LeaveSaferegion
     callq   _MRT_GetThreadLocalData
     movq    %rax, %r13
+    jmp     .L_exc_do_delete
 .L_exc_skip_leave:
-
+    movq    %r15, %r13
+.L_exc_do_delete:
     movq    %r13, %rdi
     callq   _MRT_DeleteC2NContext
 
