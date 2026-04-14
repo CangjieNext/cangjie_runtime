@@ -63,6 +63,7 @@ _CJ_MCC_ExclusiveScope:
 
     movq    %rdi, -48(%rbp)     // executeClosure
     movq    %rsi, -56(%rbp)     // closurePtr
+    movq    %r15, -64(%rbp)     // original ThreadLocalData*
 
 
     // get oldCJThread thread oldProcessor
@@ -197,7 +198,7 @@ _unwindPCForExclusiveStub:
     movq    %rax, %r13
     jmp     .L_exc_do_delete
 .L_exc_skip_leave:
-    movq    %r15, %r13
+    movq    -64(%rbp), %r13
 .L_exc_do_delete:
     movq    %r13, %rdi
     callq   _MRT_DeleteC2NContext

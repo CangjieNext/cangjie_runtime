@@ -107,6 +107,7 @@ CJ_MCC_ExclusiveScope:
     // Save arguments
     movq    %rcx, -48(%rbp)     // executeClosure
     movq    %rdx, -56(%rbp)     // closurePtr
+    movq    %r15, -64(%rbp)     // original ThreadLocalData*
     
     // Get oldCJThread and thread
     callq   CJ_CJThreadGetHandle
@@ -128,7 +129,7 @@ CJ_MCC_ExclusiveScope:
     //                              rcx           rdx        r8
     movq    -48(%rbp), %rcx     // executeClosure
     movq    -56(%rbp), %rdx     // closurePtr
-    movq    -64(%rbp), %r8      // futureTi (may be uninitialized, but matches Linux)
+    movq    $0, %r8             // futureTi = 0
     callq   MCC_NewExclusiveCJThread
     testq   %rax, %rax
     jz      .L_exc_create_failed
@@ -258,7 +259,7 @@ unwindPCForExclusiveStub:
     movq    %rax, %r13
     jmp     .L_exc_do_delete
 .L_exc_skip_leave:
-    movq    %r15, %r13
+    movq    -64(%rbp), %r13
 .L_exc_do_delete:
     // Delete C2N context
     movq    %r13, %rcx
