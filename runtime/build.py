@@ -308,6 +308,7 @@ def do_build(args):
             "-DDUMPADDRESS_FLAG=0",
             "-DCJ_SDK_VERSION={}".format(version),
             "-DDISABLE_VERSION_CHECK=1",
+            "-DCANGJIE_TARGET_SYSROOT={}".format(args.target_sysroot if args.target_sysroot else ""),
             "-S", ".", "-B", "CMakebuild"
         ]
         build_target(cmake_command)
