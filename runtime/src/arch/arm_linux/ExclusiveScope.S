@@ -35,11 +35,6 @@
 #define CONTEXT_ARM32_D15           0x64
 #define CONTEXT_FPSCR               0x6c
 
-<<<<<<< HEAD
-// Thread structure offsets for ARM32
-#define THREAD_CONTEXT_OFFSET       0x40
-=======
->>>>>>> 91b1b781 (feat: support arm32 exclusive)
 #define THREAD_PROCESSOR_OFFSET     0x1c
 #define ExclusiveScopeFrameSize     144
 
@@ -207,15 +202,11 @@ unwindPCForExclusiveStub:
     bne     .L_exc_skip_stack_switch
 
     // Switch to OS thread
-<<<<<<< HEAD
-    add     r9, r7, #THREAD_CONTEXT_OFFSET
-=======
     mov     r0, r7                      // arg0 = thread pointer
     bl      ExclusiveGetThreadContext   // returns void* = &thread->context
     cmp     r0, #0
     beq     .L_exc_skip_stack_switch
     mov     r9, r0                      // r9 = &thread->context
->>>>>>> 91b1b781 (feat: support arm32 exclusive)
     ldr     r0, [r9, #CONTEXT_R13SP]
 
     // Validate saved stack pointer before switching.
