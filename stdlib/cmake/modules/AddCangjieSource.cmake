@@ -285,6 +285,13 @@ function(add_cangjie_library target_name)
                 ${COMPILE_CMD}
         DEPENDS ${resolved_depends} ${source_files} ${CANGJIELIB_SOURCE_DIR}
         COMMENT "Generating ${target_name}")
+
+    add_custom_target(
+        ${target_name} ALL
+        DEPENDS ${output_full_name} ${CANGJIELIB_DEPENDS})
+
+    set_target_properties(${target_name} PROPERTIES CJ_OUTPUT_FILE ${output_full_name})
+
     # Generate .bc files for LTO on Linux, OHOS, macOS, and iOS (not Windows, not with sanitizer)
     if(CANGJIE_CODEGEN_CJNATIVE_BACKEND
        AND NOT WIN32
@@ -294,15 +301,12 @@ function(add_cangjie_library target_name)
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/${output_bc_dir}
             COMMAND ${CMAKE_COMMAND} -E env "CANGJIE_PATH=${CMAKE_BINARY_DIR}/modules/${output_cj_lib_dir}" "LIBRARY_PATH=${CMAKE_BINARY_DIR}/lib"
                      ${COMPILE_BC_CMD}
+            BYPRODUCTS ${output_lto_bc_full_name}
             # ${target_name}_bc depends on ${target_name} so they will not run simultaneously. <target> and <target>_bc
             # compile the same package, which means they may write the same bc cache file. Running simultaneously
             # may cause IO error on windows in some cases.
             DEPENDS ${target_name}
             COMMENT "Generating ${target_name}_bc")
-
-        add_custom_target(
-            ${target_name}_bc ALL
-            DEPENDS ${output_lto_bc_full_name})
     endif()
 
     if(CANGJIE_CODEGEN_CJNATIVE_BACKEND)
