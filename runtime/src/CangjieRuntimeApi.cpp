@@ -260,7 +260,13 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
             .coStackSize = param->coParam.coStackSize == 0 ? defaultStackSize : param->coParam.coStackSize,
             .processorNum = param->coParam.processorNum == 0 ? defaultProcs : param->coParam.processorNum,
         },
-        .interpreterParam = InterpreterParam(param->interpreterParam.interpreterLibName),
+#ifdef INTERPRETER_ENABLED
+        .interpreterParam = {
+            .interpreterLibName = param->interpreterParam.interpreterLibName,
+            .interpreterArgsCount = param->interpreterParam.interpreterArgsCount,
+            .interpreterArgs = param->interpreterParam.interpreterArgs
+        },
+#endif
     };
 
     pthread_t thread;
