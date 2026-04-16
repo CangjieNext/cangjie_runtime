@@ -468,14 +468,24 @@ size_t ComputeCJThreadDataOffset()
     return ((size_t) &tmp.mutator.interpreterCJThreadData) - ((size_t) &tmp.mutator);
 }
 
-void InitInterpreter(const RuntimeParam& runtimeParam) 
+void InitInterpreter(const InterpreterParam& interpreterParam)
 {
-    const char* libName = runtimeParam.interpreterParam.interpreterLibName;
+    const char* libName = interpreterParam.interpreterLibName;
+    const int argsCount = interpreterParam.interpreterArgsCount;
+    const char* const* args = interpreterParam.interpreterArgs;
+
+    VLOG(INTERPRETER, "Interpreter parameter:\n\tInterpreter library: %s\n\tInterpreter arguments count: %d",
+        libName != nullptr ? libName : "(null)", argsCount);
+    if (args != nullptr && argsCount > 0) {
+        for (int i = 0; i < argsCount; ++i) {
+            VLOG(INTERPRETER, "\tInterpreter argument #%d: %s", i, args[i] != nullptr ? args[i] : "(null)");
+        }
+    }
+
     if (libName == nullptr || std::strlen(libName) == 0) {
-        DLOG(INTERPRETER, "interpreter library name is empty");
+        DLOG(INTERPRETER, "interpreter library name is empty, interpreter could not be initialized");
         return;
     }
-    DLOG(INTERPRETER, "initializing interpreter with library: %s", libName);
 
 #if defined(__OHOS__)
     void* handle = LoaderManager::GetInstance()->LoadInterpreter(libName);
@@ -547,8 +557,8 @@ void InitInterpreter(const RuntimeParam& runtimeParam)
     interpreterInterface.version = 1;
 
     int code = init(&interpreterInterface, &cjnativeInterface,
-        runtimeParam.interpreterParam.interpreterArgsCount,
-        runtimeParam.interpreterParam.interpreterArgs);
+        interpreterParam.interpreterArgsCount,
+        interpreterParam.interpreterArgs);
     interpreterInterfaceInstance.initialize(interpreterInterface);
 }
 

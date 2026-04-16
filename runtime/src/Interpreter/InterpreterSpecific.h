@@ -50,7 +50,7 @@ ObjRefT GetPendingException();
 ObjRefT GetAndClearPendingException();
 bool InstanceOf(ObjRefT ref, struct TypeInfoT* ti);
 
-void InitInterpreter(const RuntimeParam& runtimeParam);
+void InitInterpreter(const InterpreterParam& interpreterParam);
 
 bool IsC2IStubAddr(const uintptr_t addr);
 bool IsI2IAdapterStartAddr(const uintptr_t addr);

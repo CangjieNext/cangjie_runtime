@@ -267,10 +267,7 @@ static void GetEachSoAddrScope(std::vector<CString>& soNameVec)
             } else if  (strcmp(baseName, "cjc\n") == 0) {
                 GetSoAddrScope(lineStr, StackManager::cjcSoStartAddr, StackManager::cjcSoEndAddr);
 #ifdef INTERPRETER_ENABLED
-            } else if (const char* interpreterLibName = Runtime::Current().GetRuntimeParam().interpreterParam.interpreterLibName;
-                       interpreterLibName != nullptr && std::strlen(interpreterLibName) != 0 &&
-                           std::strncmp(baseName, interpreterLibName, std::strlen(interpreterLibName)) == 0 &&
-                           std::strcmp(baseName + std::strlen(interpreterLibName), "\n") == 0) {
+            } else {
                 GetSoAddrScope(lineStr, StackManager::interpreterSoStartAddr, StackManager::interpreterSoEndAddr);
 #endif
             }

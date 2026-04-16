@@ -27,6 +27,7 @@
 #include "UnwindStack/MangleNameHelper.h"
 #include "Loader/CjFileLoader/CjFileLoader.h"
 #include "LoaderManager.h"
+#include "Interpreter/InterpreterSpecific.h"
 #if defined(__OHOS__) && (__OHOS__ == 1)
 #include "Inspector/FileStream.h"
 #include "Inspector/ProfilerAgentImpl.h"
@@ -259,14 +260,7 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
             .thStackSize = param->coParam.thStackSize == 0 ? 1 * 1024 : param->coParam.thStackSize,
             .coStackSize = param->coParam.coStackSize == 0 ? defaultStackSize : param->coParam.coStackSize,
             .processorNum = param->coParam.processorNum == 0 ? defaultProcs : param->coParam.processorNum,
-        },
-#ifdef INTERPRETER_ENABLED
-        .interpreterParam = {
-            .interpreterLibName = param->interpreterParam.interpreterLibName,
-            .interpreterArgsCount = param->interpreterParam.interpreterArgsCount,
-            .interpreterArgs = param->interpreterParam.interpreterArgs
-        },
-#endif
+        }
     };
 
     pthread_t thread;
@@ -302,6 +296,21 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
 #endif
     return E_OK;
 }
+
+#ifdef INTERPRETER_ENABLED
+void InitCJInterpreter(const struct InterpreterParam* param)
+{
+    CHECK_DETAIL(!g_runtimeFinished.load(), 
+                 "Interpreter initialization started too late, runtime is already fully initialized.");
+    CHECK_DETAIL(MapleRuntime::Runtime::CurrentRef() != nullptr,
+                 "Cangjie runtime should be initialized before interpreter initialization.");
+    CHECK_DETAIL(param != nullptr, "Interpreter initialization parameter is null.");
+#if defined(GENERAL_ASAN_SUPPORT_INTERFACE)
+    MapleRuntime::Sanitizer::AsanRead(param, sizeof(struct InterpreterParam));
+#endif
+    MapleRuntime::InitInterpreter(*param);
+}
+#endif
 
 void* InitUIScheduler()
 {

@@ -351,9 +351,6 @@ struct RuntimeParam {
     struct GCParam gcParam;
     struct LogParam logParam;
     struct ConcurrencyParam coParam;
-#ifdef INTERPRETER_ENABLED
-    struct InterpreterParam interpreterParam;
-#endif
 };
 
 CANGJIE_RT_API_DECLS_BEGIN
@@ -368,6 +365,15 @@ CANGJIE_RT_API_DECLS_BEGIN
  * @retval Return 0 if OK. Otherwise, return an error code.
  */
 MRT_EXPORT enum RTErrorCode InitCJRuntime(const struct RuntimeParam* param);
+
+#ifdef INTERPRETER_ENABLED
+/*
+ * @brief Initialize interpreter part of Cangjie runtime environment.
+ * @attention This API should be invoked after InitCJRuntime succeeds.
+ * @param param [IN] a structure pointer to interpreter configuration parameters.
+ */
+MRT_EXPORT void InitCJInterpreter(const struct InterpreterParam* param);
+#endif
 
 /*
  * @brief register arkVM in Runtime

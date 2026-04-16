@@ -582,10 +582,6 @@ static RuntimeParam InitRuntimeParam()
 {
     CheckSysmemSize();
     size_t initHeapSize = InitHeapSize(g_sysmemSize > 1 * GB ? 256 * KB : 64 * KB);
-#ifdef INTERPRETER_ENABLED
-    int interpreterArgsCount = 0;
-    const char* const* interpreterArgs = InitInterpreterArgs(interpreterArgsCount);
-#endif
     RuntimeParam param = {
         .heapParam = {
 #if defined(__OHOS__) || defined(__ANDROID__)
@@ -635,21 +631,32 @@ static RuntimeParam InitRuntimeParam()
             .coStackSize = InitCoStackSize(),
             .processorNum = InitProcessorNum(),
         },
-#ifdef INTERPRETER_ENABLED
-        .interpreterParam = {
-            InitInterpreterLibName(), 
-            interpreterArgsCount, 
-            interpreterArgs
-        },
-#endif
     };
     return param;
 }
+
+#ifdef INTERPRETER_ENABLED
+static InterpreterParam InitInterpreterParam()
+{
+    int interpreterArgsCount = 0;
+    const char* const* interpreterArgs = InitInterpreterArgs(interpreterArgsCount);
+    InterpreterParam interpreterParam = {
+        .interpreterLibName = InitInterpreterLibName(),
+        .interpreterArgsCount = interpreterArgsCount,
+        .interpreterArgs = interpreterArgs,
+    };
+    return interpreterParam;
+}
+#endif
 
 void MRT_CjRuntimeInit()
 {
     RuntimeParam param = InitRuntimeParam();
     CangjieRuntime::CreateAndInit(param);
+#ifdef INTERPRETER_ENABLED
+    InterpreterParam interpreterParam = InitInterpreterParam();
+    InitCJInterpreter(&interpreterParam);
+#endif
     RTErrorCode rtCode = SetRuntimeInitFlag();
     if (rtCode != E_OK) {
         LOG(RTLOG_FATAL, "Init cj runtime failed for %d\n", rtCode);
