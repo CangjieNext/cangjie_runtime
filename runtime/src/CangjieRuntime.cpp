@@ -13,7 +13,6 @@
 #include "HeapManager.h"
 #include "ObjectManager.h"
 #include "StackManager.h"
-#include "Interpreter/InterpreterSpecific.h"
 #if defined(__linux__) || defined(hongmeng) || defined(__APPLE__)
 #include "SignalManager.h"
 #endif
@@ -176,11 +175,6 @@ void CangjieRuntime::Init()
     loaderManager->Init();
     objectManager = NewAndInit<ObjectManager>();
     exceptionManager = NewAndInit<ExceptionManager>();
-
-#ifdef INTERPRETER_ENABLED
-    // Should be initialized after all Manager classes
-    InitInterpreter(param);
-#endif
 
     LOG(RTLOG_INFO, "Cangjie runtime started.");
     // Record runtime parameter to report. heap growth value needs to plus 1.
