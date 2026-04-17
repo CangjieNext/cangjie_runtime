@@ -45,6 +45,7 @@ set(CMAKE_C_FLAGS
     -Wunused \
     -Wundef \
     -m64 \
+    -std=c99 \
     -fno-strict-aliasing \
     -fno-omit-frame-pointer \
     -fgnu89-inline \
@@ -72,6 +73,7 @@ set(CMAKE_CXX_FLAGS
     -Wunused \
     -Wundef \
     -m64 \
+    -std=gnu++14 \
     -fno-strict-aliasing \
     -fno-omit-frame-pointer \
     -fsigned-char \

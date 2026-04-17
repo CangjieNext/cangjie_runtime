@@ -43,6 +43,7 @@ set(CMAKE_C_FLAGS
     -Wundef \
     -Wdate-time \
     -Wformat=2 \
+    -std=c99 \
     -fgnu89-inline \
     -fno-common \
     -fno-strict-aliasing \
@@ -72,6 +73,7 @@ set(CMAKE_CXX_FLAGS
     -Wundef \
     -Wdate-time \
     -Wformat=2 \
+    -std=gnu++14 \
     -fno-common \
     -fno-strict-aliasing \
     -fno-builtin \
@@ -154,4 +156,3 @@ set(CMAKE_SHARED_LINKER_FLAGS
 
 # ar flags
 set(CMAKE_C_CREATE_STATIC_LIBRARY "<CMAKE_AR> rcD <TARGET> <OBJECTS>")
-
