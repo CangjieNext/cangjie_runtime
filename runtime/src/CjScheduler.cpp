@@ -11,6 +11,7 @@
 #include <vector>
 #include <cstring>
 #include <thread>
+#include <new>
 #if defined(_WIN64)
 #include <windows.h>
 #elif defined(__APPLE__)
@@ -299,12 +300,12 @@ static const char* const* InitInterpreterArgs(int& tokenCount)
         return nullptr;
     }
 
-    const char** tokens = new const char*[tokenCount + 1];
+    const char** tokens = new (std::nothrow) const char*[tokenCount + 1];
     CHECK_DETAIL(tokens != nullptr, "new tokens array failed: size=%d", tokenCount + 1);
 
     for (int i = 0; i < tokenCount; ++i) {
         size_t tokenLen = tempTokens[i].Length();
-        char* token = new char[tokenLen + 1];
+        char* token = new (std::nothrow) char[tokenLen + 1];
         CHECK_DETAIL(token != nullptr, "new token #%d failed: size=%zu bytes", i, tokenLen + 1);
         std::strcpy(token, tempTokens[i].Str());
         tokens[i] = token;
