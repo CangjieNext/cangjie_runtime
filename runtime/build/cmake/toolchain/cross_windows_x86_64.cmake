@@ -40,22 +40,25 @@ set(CMAKE_C_FLAGS
     -Wdate-time \
     -Wfloat-equal \
     -Wswitch-default \
-    -Wshadow \
-    -Wvla \
     -Wunused \
-    -Wundef \
+    -Wcast-qual \
+    -Wstrict-prototypes \
     -m64 \
+    -std=c11 \
     -fno-strict-aliasing \
     -fno-omit-frame-pointer \
     -fgnu89-inline \
     -fsigned-char \
     -fno-common \
     -fstack-protector-strong \
+    -Wframe-larger-than=10240 \
+    -fvisibility=hidden \
     -D_WIN32_WINNT=_WIN32_WINNT_VISTA \
     -Wno-inconsistent-dllimport \
     -Wno-pointer-to-int-cast \
     -fuse-ld=lld \
-    --rtlib=compiler-rt"
+    --rtlib=compiler-rt \
+    -pipe"
 )
 
 set(CMAKE_CXX_FLAGS
@@ -67,23 +70,28 @@ set(CMAKE_CXX_FLAGS
     -Wdate-time \
     -Wfloat-equal \
     -Wswitch-default \
-    -Wshadow \
-    -Wvla \
     -Wunused \
-    -Wundef \
+    -Wcast-qual \
+    -Woverloaded-virtual \
+    -Wnon-virtual-dtor \
+    -Wdelete-non-virtual-dtor \
     -m64 \
+    -std=gnu++14 \
     -fno-strict-aliasing \
     -fno-omit-frame-pointer \
     -fsigned-char \
     -fno-common \
     -fstack-protector-strong \
+    -Wframe-larger-than=10240 \
+    -fvisibility=hidden \
     -D_WIN32_WINNT=_WIN32_WINNT_VISTA \
     -Wno-inconsistent-dllimport \
     -fno-exceptions \
     -Wno-pointer-to-int-cast \
     -fuse-ld=lld \
     -stdlib=libc++ \
-    --rtlib=compiler-rt"
+    --rtlib=compiler-rt \
+    -pipe"
 )
 
 if("${BUILDING_STAGE}")
@@ -124,7 +132,6 @@ add_compile_definitions(
     "VOS_WORDSIZE=64"
     "VOS_BYTE_ORDER=VOS_LITTLE_ENDIAN"
     "USE___THREAD"
-    "DOPRA_LIB_LOCK"
     "$<$<CONFIG:Debug>:VOS_BUILD_DEBUG=1>"
     "$<$<CONFIG:Release>:VOS_BUILD_RELEASE=1>"
     "_CRT_RAND_S"
@@ -136,7 +143,10 @@ add_compile_definitions(
 # link flags
 set(CMAKE_SHARED_LINKER_FLAGS
     "--target=x86_64-pc-windows-gnu \
-    -m64"
+    -m64 \
+    -rdynamic \
+    -Wl,-Bsymbolic \
+    -Wl,--no-undefined"
 )
 
 link_libraries(ssp pthread ws2_32)

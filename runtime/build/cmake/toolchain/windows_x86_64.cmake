@@ -37,20 +37,23 @@ set(CMAKE_C_FLAGS
     -Wdate-time \
     -Wfloat-equal \
     -Wswitch-default \
-    -Wshadow \
-    -Wvla \
     -Wunused \
-    -Wundef \
+    -Wcast-qual \
+    -Wstrict-prototypes \
     -m64 \
+    -std=c11 \
     -fno-strict-aliasing \
     -fno-omit-frame-pointer \
     -fgnu89-inline \
     -fsigned-char \
     -fno-common \
     -fstack-protector-strong \
+    -Wframe-larger-than=10240 \
+    -fvisibility=hidden \
     -D_WIN32_WINNT=_WIN32_WINNT_VISTA \
     -Wno-inconsistent-dllimport \
-    -Wno-pointer-to-int-cast"
+    -Wno-pointer-to-int-cast \
+    -pipe"
 )
 
 set(CMAKE_CXX_FLAGS
@@ -62,20 +65,25 @@ set(CMAKE_CXX_FLAGS
     -Wdate-time \
     -Wfloat-equal \
     -Wswitch-default \
-    -Wshadow \
-    -Wvla \
     -Wunused \
-    -Wundef \
+    -Wcast-qual \
+    -Woverloaded-virtual \
+    -Wnon-virtual-dtor \
+    -Wdelete-non-virtual-dtor \
     -m64 \
+    -std=gnu++14 \
     -fno-strict-aliasing \
     -fno-omit-frame-pointer \
     -fsigned-char \
     -fno-common \
     -fstack-protector-strong \
+    -Wframe-larger-than=10240 \
+    -fvisibility=hidden \
     -D_WIN32_WINNT=_WIN32_WINNT_VISTA \
     -Wno-inconsistent-dllimport \
     -fno-exceptions \
-    -Wno-pointer-to-int-cast"
+    -Wno-pointer-to-int-cast \
+    -pipe"
 )
 
 if("${BUILDING_STAGE}")
@@ -132,7 +140,10 @@ set(openssl_link "-lcrypto -lssl")
 # link flags
 set(CMAKE_SHARED_LINKER_FLAGS
     "--target=x86_64-pc-windows-gnu \
-    -m64"
+    -m64 \
+    -rdynamic \
+    -Wl,-Bsymbolic \
+    -Wl,--no-undefined"
 )
 
 link_libraries(ssp pthread Ws2_32)

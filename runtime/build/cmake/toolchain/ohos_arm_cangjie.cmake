@@ -46,20 +46,27 @@ set(CMAKE_RANLIB "$ENV{OHOS_ROOT}/prebuilts/clang/ohos/${cmake_host_system_name}
 # compile flags for common
 set(CMAKE_C_FLAGS
     "-Wdeprecated-copy -fno-strict-aliasing --param=ssp-buffer-size=4 \
+     -std=c11 \
+     -Wdate-time -Wformat=2 -Wswitch-default -Wunused \
+     -Wcast-qual \
+     -Wstrict-prototypes \
      -Wno-builtin-macro-redefined -D__DATE__= -D__TIME__= -D__TIMESTAMP__= -funwind-tables -fcolor-diagnostics \
      -fmerge-all-constants -Xclang -mllvm -Xclang -instcombine-lower-dbg-declare=0 -no-canonical-prefixes \
      -ffunction-sections -fno-short-enums --target=arm-linux-ohos -Wextra -Wthread-safety \
      -fdata-sections -ffunction-sections -fno-omit-frame-pointer -g2 -ggnu-pubnames -fno-common -Wheader-hygiene \
-     -Wstring-conversion -Wtautological-overlap-compare -fPIC -fgnu89-inline -Wfloat-equal -mfpu=neon -mfloat-abi=softfp -march=armv7-a"
+     -Wstring-conversion -Wtautological-overlap-compare -Wframe-larger-than=10240 -fvisibility=hidden -fPIC -fgnu89-inline -Wfloat-equal -pipe -mfpu=neon -mfloat-abi=softfp -march=armv7-a"
 )
 
 set(CMAKE_CXX_FLAGS
     "-Wdeprecated-copy -fno-strict-aliasing --param=ssp-buffer-size=4 \
+     -std=gnu++14 \
+     -Wdate-time -Wformat=2 -Wswitch-default -Wunused \
+     -Wcast-qual -Woverloaded-virtual -Wnon-virtual-dtor -Wdelete-non-virtual-dtor \
      -Wno-builtin-macro-redefined -D__DATE__= -D__TIME__= -D__TIMESTAMP__= -funwind-tables -fcolor-diagnostics \
      -fmerge-all-constants -Xclang -mllvm -Xclang -instcombine-lower-dbg-declare=0 -no-canonical-prefixes \
      -ffunction-sections -fno-short-enums --target=arm-linux-ohos -Wextra -Wthread-safety \
      -fdata-sections -ffunction-sections -fno-omit-frame-pointer -g2 -ggnu-pubnames -fno-common -Wheader-hygiene \
-     -Wstring-conversion -Wtautological-overlap-compare -fPIC -Wfloat-equal -fno-exceptions -mfpu=neon -mfloat-abi=softfp -march=armv7-a"
+     -Wstring-conversion -Wtautological-overlap-compare -Wframe-larger-than=10240 -fvisibility=hidden -fPIC -Wfloat-equal -fno-exceptions -pipe -mfpu=neon -mfloat-abi=softfp -march=armv7-a"
 )
 
 set(OHOS_INCLUDE "-I$ENV{OHOS_ROOT}/third_party/openssl/include")
@@ -133,7 +140,9 @@ add_compile_definitions(
 
 # link flags
 set(CMAKE_SHARED_LINKER_FLAGS
-    "-rdynamic \
+    "-Wl,-Bsymbolic \
+    -Wl,--no-undefined \
+    -rdynamic \
     -Wl,-z,noexecstack \
     -Wl,-z,relro \
     -Wl,-z,now \

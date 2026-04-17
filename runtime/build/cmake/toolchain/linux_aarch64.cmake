@@ -34,13 +34,13 @@ set(CMAKE_C_FLAGS
     "-Wall \
     -Wextra \
     -Wfloat-equal \
-    -Wvla \
     -Wswitch-default \
-    -Wshadow \
     -Wunused \
-    -Wundef \
     -Wdate-time \
     -Wformat=2 \
+    -Wcast-qual \
+    -Wstrict-prototypes \
+    -std=c11 \
     -fgnu89-inline \
     -fno-common \
     -fno-strict-aliasing \
@@ -50,6 +50,8 @@ set(CMAKE_C_FLAGS
     -march=armv8-a \
     -mtune=cortex-a72 \
     -pipe \
+    -Wframe-larger-than=10240 \
+    -fvisibility=hidden \
     -fPIC \
     -fstack-protector-strong \
     --param=ssp-buffer-size=4 \
@@ -60,6 +62,11 @@ set(CMAKE_CXX_FLAGS
     "-Wall \
     -Wfloat-equal \
     -Wformat=2 \
+    -Wcast-qual \
+    -Woverloaded-virtual \
+    -Wnon-virtual-dtor \
+    -Wdelete-non-virtual-dtor \
+    -std=gnu++14 \
     -fno-common \
     -fno-strict-aliasing \
     -fno-builtin \
@@ -68,6 +75,8 @@ set(CMAKE_CXX_FLAGS
     -march=armv8-a \
     -mtune=cortex-a72 \
     -pipe \
+    -Wframe-larger-than=10240 \
+    -fvisibility=hidden \
     -fPIC \
     -fstack-protector-strong \
     --param=ssp-buffer-size=4 \
@@ -125,7 +134,9 @@ add_compile_definitions(
 
 # link flags
 set(CMAKE_SHARED_LINKER_FLAGS
-    "-rdynamic \
+    "-Wl,-Bsymbolic \
+    -Wl,--no-undefined \
+    -rdynamic \
     -Wl,-EL \
     -Wl,-z,relro,-z,noexecstack \
     -Wl,-z,now \

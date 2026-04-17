@@ -30,11 +30,11 @@ set(CMAKE_C_FLAGS
     -Wdate-time \
     -Wfloat-equal \
     -Wswitch-default \
-    -Wshadow \
-    -Wvla \
     -Wunused \
-    -Wundef \
+    -Wcast-qual \
+    -Wstrict-prototypes \
     -m32 \
+    -std=c11 \
     -fno-strict-aliasing \
     -fno-omit-frame-pointer \
     -fgnu89-inline \
@@ -43,7 +43,10 @@ set(CMAKE_C_FLAGS
     -fno-exceptions \
     -fno-rtti \
     -fstack-protector-strong \
+    -Wframe-larger-than=10240 \
+    -fvisibility=hidden \
     -fPIC \
+    -pipe \
     -mfpu=neon -mfloat-abi=softfp -march=armv7-a"
 )
 
@@ -55,11 +58,13 @@ set(CMAKE_CXX_FLAGS
     -Wdate-time \
     -Wfloat-equal \
     -Wswitch-default \
-    -Wshadow \
-    -Wvla \
     -Wunused \
-    -Wundef \
+    -Wcast-qual \
+    -Woverloaded-virtual \
+    -Wnon-virtual-dtor \
+    -Wdelete-non-virtual-dtor \
     -m32 \
+    -std=gnu++14 \
     -fno-strict-aliasing \
     -fno-omit-frame-pointer \
     -fsigned-char \
@@ -67,7 +72,10 @@ set(CMAKE_CXX_FLAGS
     -fno-exceptions \
     -fno-rtti \
     -fstack-protector-strong \
+    -Wframe-larger-than=10240 \
+    -fvisibility=hidden \
     -fPIC \
+    -pipe \
     -mfpu=neon -mfloat-abi=softfp -march=armv7-a"
 )
 
@@ -92,7 +100,9 @@ add_compile_definitions(
 
 # The link flags
 set(CMAKE_SHARED_LINKER_FLAGS
-    "-rdynamic \
+    "-Wl,-Bsymbolic \
+    -Wl,--no-undefined \
+    -rdynamic \
     -lboundscheck \
     -Wl,-z,noexecstack \
     -Wl,-z,relro \

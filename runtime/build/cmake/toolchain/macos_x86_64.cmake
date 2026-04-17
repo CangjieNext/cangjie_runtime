@@ -36,18 +36,21 @@ set(CMAKE_C_FLAGS
     -Wdate-time \
     -Wfloat-equal \
     -Wswitch-default \
-    -Wshadow \
-    -Wvla \
     -Wunused \
-    -Wundef \
+    -Wcast-qual \
+    -Wstrict-prototypes \
     -m64 \
+    -std=c11 \
     -fno-strict-aliasing \
     -fno-omit-frame-pointer \
     -fgnu89-inline \
     -fsigned-char \
     -fno-common \
     -fstack-protector-strong \
-    -fPIC"
+    -Wframe-larger-than=10240 \
+    -fvisibility=hidden \
+    -fPIC \
+    -pipe"
 )
 
 set(CMAKE_CXX_FLAGS
@@ -58,19 +61,23 @@ set(CMAKE_CXX_FLAGS
     -Wdate-time \
     -Wfloat-equal \
     -Wswitch-default \
-    -Wshadow \
-    -Wvla \
     -Wunused \
-    -Wundef \
+    -Wcast-qual \
+    -Woverloaded-virtual \
+    -Wnon-virtual-dtor \
+    -Wdelete-non-virtual-dtor \
     -m64 \
-    -std=c++11 \
+    -std=c++14 \
     -fno-strict-aliasing \
     -fno-omit-frame-pointer \
     -fsigned-char \
     -fno-common \
     -fstack-protector-strong \
+    -Wframe-larger-than=10240 \
+    -fvisibility=hidden \
     -fno-exceptions \
-    -fPIC"
+    -fPIC \
+    -pipe"
 )
 
 if("${DEBUG_INFO}" STREQUAL "INFO")
