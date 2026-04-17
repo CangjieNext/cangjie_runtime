@@ -498,12 +498,12 @@ typedef void (*DYN_WriteStructFieldFn)(DYN_ObjRefT obj, uintptr_t dst, uintptr_t
 // - dstSize - size of destination memory
 // - srcPtr - pointer to the source static struct
 // - srcSize - size of source struct
-// - tibValue - The GCTib value (can be a pointer to TypeInfo or a raw ShortGCTib bitmap)
+// - tib - The GCTib value (can be a pointer to StdGCTib or a ShortGCTib bitmap)
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*DYN_ReadStaticStructFieldFn)(uintptr_t dstPtr, size_t dstSize, uintptr_t srcPtr, size_t srcSize, size_t tibValue);
+typedef void (*DYN_ReadStaticStructFieldFn)(uintptr_t dstPtr, size_t dstSize, uintptr_t srcPtr, size_t srcSize, DYN_GCTibT tib);
 
 // Write a static value type field (struct).
 //
@@ -512,12 +512,12 @@ typedef void (*DYN_ReadStaticStructFieldFn)(uintptr_t dstPtr, size_t dstSize, ui
 // - dstLen - size of destination struct
 // - src - pointer to the source memory
 // - srcLen - size of source memory
-// - tibValue - The GCTib value (can be a pointer to TypeInfo or a raw ShortGCTib bitmap)
+// - tib - The GCTib value (can be a pointer to StdGCTib or a ShortGCTib bitmap)
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*DYN_WriteStaticStructFieldFn)(uintptr_t dst, size_t dstLen, uintptr_t src, size_t srcLen, size_t tibValue);
+typedef void (*DYN_WriteStaticStructFieldFn)(uintptr_t dst, size_t dstLen, uintptr_t src, size_t srcLen, DYN_GCTibT tib);
 
 // Read a generic field from an object.
 // Should be used if generic type resolves to struct/value at runtime, otherwise use DYN_ReadInstanceFieldFn.
