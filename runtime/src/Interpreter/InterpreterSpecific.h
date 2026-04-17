@@ -18,37 +18,33 @@
 #include "Common/StackType.h"
 
 
-#ifdef __cplusplus
-using namespace MRTExport;
-#endif
-
 namespace MapleRuntime { // TODO introduce separate namespace for interpreter-related functions  
 
-void IterateFramesWithState(CJThreadSpecificDataT cjThreadData, void (*callback)(VisitingStateT, void*), void* ctx);
+void IterateFramesWithState(DYN_CJThreadSpecificDataT cjThreadData, void (*callback)(DYN_VisitingStateT, void*), void* ctx);
 
-void VisitInterpreterGlobalRoots(RootVisitorT visitor);
+void VisitInterpreterGlobalRoots(DYN_RootVisitorT visitor);
 
-void VisitInterpreterFrameRootsExpansion(VisitingStateT state, FrameInfo frameDesc, RootVisitorT stackPtrVisitor, RootVisitorT derivedPtrVisitor);
-void VisitInterpreterFrameRootsMarking(VisitingStateT state, FrameInfo frameDesc, RootVisitorT rootVisitor);
-void VisitInterpreterFrameRootsAdjusting(VisitingStateT state, FrameInfo frameDesc, RootVisitorT rootVisitor, RootVisitorT derivedPtrVisitor);
+void VisitInterpreterFrameRootsExpansion(DYN_VisitingStateT state, FrameInfo frameDesc, DYN_RootVisitorT stackPtrVisitor, DYN_RootVisitorT derivedPtrVisitor);
+void VisitInterpreterFrameRootsMarking(DYN_VisitingStateT state, FrameInfo frameDesc, DYN_RootVisitorT rootVisitor);
+void VisitInterpreterFrameRootsAdjusting(DYN_VisitingStateT state, FrameInfo frameDesc, DYN_RootVisitorT rootVisitor, DYN_RootVisitorT derivedPtrVisitor);
 
 
-void InterpreterCJThreadStart(CJThreadSpecificDataT* mutator);
-void InterpreterCJThreadDestroy(CJThreadSpecificDataT* mutator);
+void InterpreterCJThreadStart(DYN_CJThreadSpecificDataT* mutator);
+void InterpreterCJThreadDestroy(DYN_CJThreadSpecificDataT* mutator);
 
-void FillInterpretedFrameInfo(uint64_t fp, uint64_t ip, InterpretedFrameInfoT* fInfo);
+void FillInterpretedFrameInfo(uint64_t fp, uint64_t ip, DYN_InterpretedFrameInfoT* fInfo);
 
-struct TypeInfoT* TypeInfoProvider(char * sig);
+struct DYN_TypeInfoT* TypeInfoProvider(char * sig);
 
-ObjRefT ObjectAllocate(struct TypeInfoT* tpe);
+DYN_ObjRefT ObjectAllocate(struct DYN_TypeInfoT* tpe);
 
 void SafePoint();
 
-bool IsPendingSafePoint(ThreadLocalDataT* tlData);
+bool IsPendingSafePoint(DYN_ThreadLocalDataT* tlData);
 
-ObjRefT GetPendingException();
-ObjRefT GetAndClearPendingException();
-bool InstanceOf(ObjRefT ref, struct TypeInfoT* ti);
+DYN_ObjRefT GetPendingException();
+DYN_ObjRefT GetAndClearPendingException();
+bool InstanceOf(DYN_ObjRefT ref, struct DYN_TypeInfoT* ti);
 
 void InitInterpreter(const InterpreterParam& interpreterParam);
 

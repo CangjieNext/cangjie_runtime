@@ -26,7 +26,6 @@
 #include "StackManager.h"
 #include "LoaderManager.h"
 
-using namespace MRTExport;
 namespace MapleRuntime {
 
 extern "C" void CJ_MCC_StackGrowStub(...);
@@ -36,9 +35,9 @@ extern "C" void CJ_MCC_I2NStub(...);
 
 struct {
     bool initialized = false;
-    InterpreterInterfaceT interpreterInterface;
+    DYN_InterpreterInterfaceT interpreterInterface;
 
-    void initialize(InterpreterInterfaceT& value)
+    void initialize(DYN_InterpreterInterfaceT& value)
     {
         interpreterInterface = value;
         initialized = true;
@@ -46,7 +45,7 @@ struct {
 
     operator bool() { return initialized; }
 
-    InterpreterInterfaceT* operator->()
+    DYN_InterpreterInterfaceT* operator->()
     {
         if (initialized) {
             return &interpreterInterface;
@@ -57,10 +56,10 @@ struct {
 
 } interpreterInterfaceInstance;
 
-void FillInterpretedFrameInfo(uint64_t fp, uint64_t ip, InterpretedFrameInfoT* fInfo)
+void FillInterpretedFrameInfo(uint64_t fp, uint64_t ip, DYN_InterpretedFrameInfoT* fInfo)
 {
-    auto framePointer = reinterpret_cast<FramePointerT>(fp);
-    auto instructionPointer = reinterpret_cast<InstructionPointerT>(ip);
+    auto framePointer = reinterpret_cast<DYN_FramePointerT>(fp);
+    auto instructionPointer = reinterpret_cast<DYN_InstructionPointerT>(ip);
 
     DLOG(INTERPRETER, "FillInterpretedFrameInfo(fp=%p, ip=%p)", framePointer, instructionPointer);
 
@@ -69,14 +68,14 @@ void FillInterpretedFrameInfo(uint64_t fp, uint64_t ip, InterpretedFrameInfoT* f
     }
 }
 
-void IterateFramesWithState(CJThreadSpecificDataT cjThreadData, void (*callback)(VisitingStateT, void*), void* ctx) 
+void IterateFramesWithState(DYN_CJThreadSpecificDataT cjThreadData, void (*callback)(DYN_VisitingStateT, void*), void* ctx) 
 {
     if (interpreterInterfaceInstance) {
         interpreterInterfaceInstance->iterateFramesWithState(cjThreadData, callback, ctx);
     }
 }
 
-FrameDescT toFrameDesc(FrameInfo frameInfo)
+DYN_FrameDescT toFrameDesc(FrameInfo frameInfo)
 {
     return {
         .fp = frameInfo.GetMachineFrame().GetFA(),
@@ -84,52 +83,52 @@ FrameDescT toFrameDesc(FrameInfo frameInfo)
     };
 }
 
-void VisitInterpreterFrameRootsExpansion(VisitingStateT state, FrameInfo frameDesc, RootVisitorT stackPtrVisitor, DerivedPtrVisitorT derivedPtrVisitor)
+void VisitInterpreterFrameRootsExpansion(DYN_VisitingStateT state, FrameInfo frameDesc, DYN_RootVisitorT stackPtrVisitor, DYN_DerivedPtrVisitorT derivedPtrVisitor)
 {
     if (interpreterInterfaceInstance) {
-        FrameDescT fd = toFrameDesc(frameDesc);
+        DYN_FrameDescT fd = toFrameDesc(frameDesc);
         interpreterInterfaceInstance->visitFrameRootsExpansion(state, fd, stackPtrVisitor, derivedPtrVisitor);
     }
 }
 
-void VisitInterpreterFrameRootsMarking(VisitingStateT state, FrameInfo frameDesc, RootVisitorT rootVisitor)
+void VisitInterpreterFrameRootsMarking(DYN_VisitingStateT state, FrameInfo frameDesc, DYN_RootVisitorT rootVisitor)
 {
     if (interpreterInterfaceInstance) {
-        FrameDescT fd = toFrameDesc(frameDesc);
+        DYN_FrameDescT fd = toFrameDesc(frameDesc);
         interpreterInterfaceInstance->visitFrameRootsMarking(state, fd, rootVisitor);
     }
 }
 
-void VisitInterpreterFrameRootsAdjusting(VisitingStateT state, FrameInfo frameDesc, RootVisitorT rootVisitor, DerivedPtrVisitorT derivedPtrVisitor)
+void VisitInterpreterFrameRootsAdjusting(DYN_VisitingStateT state, FrameInfo frameDesc, DYN_RootVisitorT rootVisitor, DYN_DerivedPtrVisitorT derivedPtrVisitor)
 {
     if (interpreterInterfaceInstance) {
-        FrameDescT fd = toFrameDesc(frameDesc);
+        DYN_FrameDescT fd = toFrameDesc(frameDesc);
         interpreterInterfaceInstance->visitFrameRootsAdjusting(state, fd, rootVisitor, derivedPtrVisitor);
     }
 }
 
-void VisitInterpreterGlobalRoots(RootVisitorT visitor)
+void VisitInterpreterGlobalRoots(DYN_RootVisitorT visitor)
 {
     if (interpreterInterfaceInstance) {
         interpreterInterfaceInstance->visitGlobalRoots(visitor);
     }
 }
 
-void InterpreterCJThreadStart(CJThreadSpecificDataT* dataField)
+void InterpreterCJThreadStart(DYN_CJThreadSpecificDataT* dataField)
 {
     if (interpreterInterfaceInstance) {
         interpreterInterfaceInstance->cjThreadStart(dataField);
     }
 }
 
-void InterpreterCJThreadDestroy(CJThreadSpecificDataT* dataField)
+void InterpreterCJThreadDestroy(DYN_CJThreadSpecificDataT* dataField)
 {
     if (interpreterInterfaceInstance) {
         interpreterInterfaceInstance->cjThreadDestroy(dataField);
     }
 }
 
-void VisitRootFromInterpreter(RootVisitorT _visitor, PlaceholderT _placeholder)
+void VisitRootFromInterpreter(DYN_RootVisitorT _visitor, DYN_PlaceholderT _placeholder)
 {
     const RootVisitor* visitor = static_cast<const RootVisitor*>(_visitor);
     ObjectRef* placeholder = static_cast<ObjectRef*>(_placeholder);
@@ -139,7 +138,7 @@ void VisitRootFromInterpreter(RootVisitorT _visitor, PlaceholderT _placeholder)
     (*visitor)(*placeholder);
 }
 
-void VisitDerivedPtrFromInterpreter(DerivedPtrVisitorT _visitor, PlaceholderT _basePtrHolder, PlaceholderT _derivedPtrHolder)
+void VisitDerivedPtrFromInterpreter(DYN_DerivedPtrVisitorT _visitor, DYN_PlaceholderT _basePtrHolder, DYN_PlaceholderT _derivedPtrHolder)
 {
     const DerivedPtrVisitor* visitor = static_cast<const DerivedPtrVisitor*>(_visitor);
     BasePtrType* basePtrLocation = static_cast<BasePtrType*>(_basePtrHolder);
@@ -150,43 +149,43 @@ void VisitDerivedPtrFromInterpreter(DerivedPtrVisitorT _visitor, PlaceholderT _b
     (*visitor)(*basePtrLocation, *derivedPtrLocation);
 }
 
-struct TypeInfoT* TypeInfoProvider(const char * sig)
+struct DYN_TypeInfoT* TypeInfoProvider(const char * sig)
 {
     DLOG(INTERPRETER, "TypeInfoProvider: %s", sig);
-    auto *result = reinterpret_cast<struct TypeInfoT*>(LoaderManager::GetInstance()->FindTypeInfoFromLoadedFiles(sig));
+    auto *result = reinterpret_cast<struct DYN_TypeInfoT*>(LoaderManager::GetInstance()->FindTypeInfoFromLoadedFiles(sig));
     DLOG(INTERPRETER, "FindTypeInfoFromLoadedFiles(%s) return %p", sig, result);
 
     return result;
 }
 
-TypeTemplateT FindTypeTemplate(const char* mangledName)
+DYN_TypeTemplateT FindTypeTemplate(const char* mangledName)
 {
     DLOG(INTERPRETER, "FindTypeTemplate: %s", mangledName);
-    TypeTemplateT result = LoaderManager::GetInstance()->FindTypeTemplateFromLoadedFiles(mangledName);
+    DYN_TypeTemplateT result = LoaderManager::GetInstance()->FindTypeTemplateFromLoadedFiles(mangledName);
     DLOG(INTERPRETER, "FindTypeTemplateFromLoadedFiles(%s) return %p", mangledName, result);
 
     return result;
 }
 
-struct TypeInfoT* GetOrCreateTypeInfo(TypeTemplateT typeTemplate, uint32_t typeArgsCount, struct TypeInfoT** typeArgs)
+struct DYN_TypeInfoT* GetOrCreateTypeInfo(DYN_TypeTemplateT typeTemplate, uint32_t typeArgsCount, struct DYN_TypeInfoT** typeArgs)
 {
     DLOG(INTERPRETER, "GetOrCreateTypeInfo: template=%p size=%u", typeTemplate, typeArgsCount);
 
-    return reinterpret_cast<struct TypeInfoT*>(TypeInfoManager::GetTypeInfoManager().GetOrCreateTypeInfo(
+    return reinterpret_cast<struct DYN_TypeInfoT*>(TypeInfoManager::GetTypeInfoManager().GetOrCreateTypeInfo(
         static_cast<TypeTemplate*>(typeTemplate), 
         typeArgsCount, 
         reinterpret_cast<TypeInfo**>(typeArgs)
     ));
 }
 
-uint32_t GetInstanceSize(struct TypeInfoT* typeInfoPtr)
+uint32_t GetInstanceSize(struct DYN_TypeInfoT* typeInfoPtr)
 {
     TypeInfo* ti = reinterpret_cast<TypeInfo*>(typeInfoPtr);
     DLOG(INTERPRETER, "GetInstanceSize: %s", ti->GetName());
     return ti->GetInstanceSize();
 }
 
-ObjRefT ObjectAllocate(struct TypeInfoT* tpe) 
+DYN_ObjRefT ObjectAllocate(struct DYN_TypeInfoT* tpe) 
 {
     TypeInfo* typeInfo = reinterpret_cast<TypeInfo*>(tpe);
     MSize size = AlignUp<MSize>(typeInfo->GetInstanceSize(), 8) + sizeof(TypeInfo*);
@@ -195,17 +194,17 @@ ObjRefT ObjectAllocate(struct TypeInfoT* tpe)
 
     DLOG(INTERPRETER, "ObjectAllocate: type=%p (%s), addr=%p, size=%u", tpe, typeInfo->GetName(), obj, size);
 
-    return (ObjRefT)obj;
+    return (DYN_ObjRefT)obj;
 }
 
-ObjRefT ArrayAllocate(struct TypeInfoT* tpe, uint64_t size) 
+DYN_ObjRefT ArrayAllocate(struct DYN_TypeInfoT* tpe, uint64_t size) 
 {
     TypeInfo* typeInfo = reinterpret_cast<TypeInfo*>(tpe);
 
     ArrayRef arr = ObjectManager::NewArray(size, typeInfo);
     DLOG(INTERPRETER, "ArrayAllocate: type=%p, addr=%p, size=%u", tpe, arr, size);
 
-    return (ObjRefT)arr;
+    return (DYN_ObjRefT)arr;
 }
 
 void SafePoint() 
@@ -216,17 +215,17 @@ void SafePoint()
     ScopedEnterSaferegion gcpoint(true);
 }
 
-bool IsPendingSafePoint(ThreadLocalDataT tlData)
+bool IsPendingSafePoint(DYN_ThreadLocalDataT tlData)
 {
     if (tlData == nullptr) {
-        LOG(RTLOG_ERROR, "[Interpreter] IsPendingSafePoint called with null ThreadLocalDataT");
+        LOG(RTLOG_ERROR, "[Interpreter] IsPendingSafePoint called with null DYN_ThreadLocalDataT");
         return false;
     }
     ThreadLocalData* threadLocalData = reinterpret_cast<ThreadLocalData*>(tlData);
     return threadLocalData->safepointState != 0;
 }
 
-void ThrowException(ObjRefT exception) 
+void ThrowException(DYN_ObjRefT exception) 
 {
     ExceptionRef exceptionRef = static_cast<ExceptionRef>(exception);
     const char* exceptionTypeName =
@@ -243,15 +242,15 @@ void ThrowOutOfMemoryError()
     ExceptionManager::ThrowPendingException();
 }
 
-ObjRefT GetPendingException()
+DYN_ObjRefT GetPendingException()
 {
     ExceptionRef ref = ExceptionManager::GetPendingException();
     
     DLOG(INTERPRETER, "GetPendingException: %p", ref);
-    return static_cast<ObjRefT>(ref);
+    return static_cast<DYN_ObjRefT>(ref);
 }
 
-ObjRefT GetAndClearPendingException()
+DYN_ObjRefT GetAndClearPendingException()
 {
     auto ref = GetPendingException();
 
@@ -261,7 +260,7 @@ ObjRefT GetAndClearPendingException()
     return ref;
 }
 
-bool InstanceOf(ObjRefT ref, struct TypeInfoT* ti) 
+bool InstanceOf(DYN_ObjRefT ref, struct DYN_TypeInfoT* ti) 
 {
     DLOG(INTERPRETER, "InstanceOf: ref=%p, typeInfo=%p", ref, ti);
 
@@ -274,7 +273,7 @@ bool InstanceOf(ObjRefT ref, struct TypeInfoT* ti)
     return obj->IsSubType(*tinfo);
 }
 
-bool IsSubType(struct TypeInfoT* typeInfo, struct TypeInfoT* super_type_info)
+bool IsSubType(struct DYN_TypeInfoT* typeInfo, struct DYN_TypeInfoT* super_type_info)
 {
     DLOG(INTERPRETER, "IsSubType: ti=%p, sti=%p", typeInfo, super_type_info);
     if (typeInfo == nullptr || super_type_info == nullptr) {
@@ -289,53 +288,53 @@ bool IsSubType(struct TypeInfoT* typeInfo, struct TypeInfoT* super_type_info)
     return tInfo->IsSubType(sInfo);
 }
 
-ObjRefT ReadStaticField(FieldRefT source) 
+DYN_ObjRefT ReadStaticField(DYN_FieldRefT source) 
 {
     DLOG(INTERPRETER, "ReadStaticField %p", source);
 
     BaseObject* res = Heap::GetBarrier().ReadStaticRef(*static_cast<RefField<false>*>(source));
-    return static_cast<ObjRefT>(res);
+    return static_cast<DYN_ObjRefT>(res);
 }
 
-void WriteStaticField(FieldRefT destination, ObjRefT new_value) 
+void WriteStaticField(DYN_FieldRefT destination, DYN_ObjRefT new_value) 
 {
     DLOG(INTERPRETER, "WriteStaticField %p %p", destination, new_value);
 
     Heap::GetBarrier().WriteStaticRef(*static_cast<RefField<false>*>(destination), static_cast<BaseObject*>(new_value));
 }
 
-ObjRefT ReadInstanceField(ObjRefT source, FieldRefT field) 
+DYN_ObjRefT ReadInstanceField(DYN_ObjRefT source, DYN_FieldRefT field) 
 {
     DLOG(INTERPRETER, "ReadInstanceField %p %p", source, field);
 
     RefField<false>& ref = *static_cast<RefField<false>*>(field); // TODO support RefField<true>
     BaseObject* res = Heap::GetBarrier().ReadReference(static_cast<BaseObject*>(source), ref);
-    return static_cast<ObjRefT>(res);
+    return static_cast<DYN_ObjRefT>(res);
 }
 
-void WriteInstanceField(ObjRefT destination, FieldRefT field, ObjRefT new_value) 
+void WriteInstanceField(DYN_ObjRefT destination, DYN_FieldRefT field, DYN_ObjRefT new_value) 
 {
     DLOG(INTERPRETER, "WriteInstanceField %p %p %p", destination, field, new_value);
     RefField<false>& ref = *static_cast<RefField<false>*>(field); // TODO support RefField<true>
     Heap::GetBarrier().WriteReference(static_cast<BaseObject*>(destination), ref, static_cast<BaseObject*>(new_value));
 }
 
-ObjRefT GetArrayElement(ObjRefT source, U64 index)
+DYN_ObjRefT GetArrayElement(DYN_ObjRefT source, U64 index)
 {
     DLOG(INTERPRETER, "GetArrayElement %p %llu", source, index);
     MArray* array = static_cast<MArray*>(source);
-    return static_cast<ObjRefT>(array->GetRefElement(index));
+    return static_cast<DYN_ObjRefT>(array->GetRefElement(index));
 }
 
 
-void SetArrayElement(ObjRefT source, U64 index, ObjRefT new_value)
+void SetArrayElement(DYN_ObjRefT source, U64 index, DYN_ObjRefT new_value)
 {
     DLOG(INTERPRETER, "SetArrayElement %p %llu %p", source, index, new_value);
     MArray* array = static_cast<MArray*>(source);
     array->SetRefElement(index, static_cast<BaseObject*>(new_value));
 }
 
-void ReadStructFieldOfObject(MAddress dstPtr, ObjRefT obj, MAddress srcField, size_t size) {
+void ReadStructFieldOfObject(MAddress dstPtr, DYN_ObjRefT obj, MAddress srcField, size_t size) {
     DLOG(INTERPRETER, "ReadStructFieldOfObject %p %p %p %zu", dstPtr, obj, srcField, size);
     if (size == 0) {
         return;
@@ -343,7 +342,7 @@ void ReadStructFieldOfObject(MAddress dstPtr, ObjRefT obj, MAddress srcField, si
     Heap::GetHeap().GetBarrier().ReadStruct(dstPtr, static_cast<BaseObject*>(obj), srcField, size);
 }
 
-void WriteStructFieldOfObject(ObjRefT obj, MAddress dst, MAddress src, size_t size)
+void WriteStructFieldOfObject(DYN_ObjRefT obj, MAddress dst, MAddress src, size_t size)
 {
     DLOG(INTERPRETER, "WriteStructFieldOfObject %p %p %p %zu", obj, dst, src, size);
     CHECK_DETAIL((dst != 0u && src != 0u), "MCC_WriteStructField wrong parameter, dst: %p src: %p", dst, src);
@@ -381,7 +380,7 @@ void WriteStaticStructField(uintptr_t dst, size_t dstLen, uintptr_t src, size_t 
     Heap::GetBarrier().WriteStaticStruct(dst, dstLen, src, srcLen, tib);
 }
 
-void ReadGenericField(ObjRefT dst, ObjRefT srcObj, uintptr_t srcField, size_t size)
+void ReadGenericField(DYN_ObjRefT dst, DYN_ObjRefT srcObj, uintptr_t srcField, size_t size)
 {
     DLOG(INTERPRETER, "ReadGenericField dst=%p srcObj=%p srcField=%p size=%zu", dst, srcObj, srcField, size);
     
@@ -397,7 +396,7 @@ void ReadGenericField(ObjRefT dst, ObjRefT srcObj, uintptr_t srcField, size_t si
     );
 }
 
-void WriteGenericField(ObjRefT dstObj, uintptr_t dstField, ObjRefT src, size_t size)
+void WriteGenericField(DYN_ObjRefT dstObj, uintptr_t dstField, DYN_ObjRefT src, size_t size)
 {
     DLOG(INTERPRETER, "WriteGenericField dstObj=%p dstField=%p src=%p size=%zu", dstObj, dstField, src, size);
 
@@ -413,7 +412,7 @@ void WriteGenericField(ObjRefT dstObj, uintptr_t dstField, ObjRefT src, size_t s
     );
 }
 
-bool IsValidObject(ObjRefT object) 
+bool IsValidObject(DYN_ObjRefT object) 
 {
     DLOG(INTERPRETER, "IsValidObject %p", object);
     BaseObject* obj = reinterpret_cast<BaseObject*>(object);
@@ -423,21 +422,21 @@ bool IsValidObject(ObjRefT object)
     return obj->IsValidObject();
 }
 
-ThreadLocalDataT GetThreadLocalData()
+DYN_ThreadLocalDataT GetThreadLocalData()
 {
-    return reinterpret_cast<ThreadLocalDataT>(MRT_GetThreadLocalData());
+    return reinterpret_cast<DYN_ThreadLocalDataT>(MRT_GetThreadLocalData());
 }
 
-bool IsActiveGCPhase(ThreadLocalDataT tld) {
+bool IsActiveGCPhase(DYN_ThreadLocalDataT tld) {
     ThreadLocalData* threadLocalData = static_cast<ThreadLocalData*>(tld);
     Mutator* mutator = threadLocalData->mutator;
     return mutator->GetMutatorPhase() >= GCPhase::GC_PHASE_ENUM;
 }
 
-ExceptionWrapperT GetExceptionWrapper()
+DYN_ExceptionWrapperT GetExceptionWrapper()
 {
     DLOG(INTERPRETER, "GetExceptionWrapper");
-    return static_cast<ExceptionWrapperT>(ExceptionManager::GetExceptionWrapper());
+    return static_cast<DYN_ExceptionWrapperT>(ExceptionManager::GetExceptionWrapper());
 }
 
 extern "C" uintptr_t GetCurrentCatchFunctionPC()
@@ -446,7 +445,7 @@ extern "C" uintptr_t GetCurrentCatchFunctionPC()
     return eWrapper.GetCurrentCatchFunctionPC();
 }
 
-void* PostThrowException(ExceptionWrapperT exception_wrapper) 
+void* PostThrowException(DYN_ExceptionWrapperT exception_wrapper) 
 {
     DLOG(INTERPRETER, "PostThrowException %p", exception_wrapper);
     ExceptionWrapper* wrapper = static_cast<ExceptionWrapper*>(exception_wrapper);
@@ -500,13 +499,13 @@ void InitInterpreter(const InterpreterParam& interpreterParam)
     StackManager::InitAddressScopeForInterpreter(libName);
 
     void *sym = dlsym(handle, "interpreter_bridge_init");
-    InitRt init = (InitRt)sym;
+    DYN_InitRt init = (DYN_InitRt)sym;
     if (sym == 0) {
         DLOG(INTERPRETER, "dlsym failed: %s", dlerror());
         return;
     }
 
-    struct CJNativeInterfaceT cjnativeInterface = {
+    struct DYN_CJNativeInterfaceT cjnativeInterface = {
         .carrierSpecificOffset = offsetof(ThreadLocalData, mutator),
         .cjThreadSpecificOffset   = ComputeCJThreadDataOffset(),
         .typeInfo = &TypeInfoProvider,
@@ -544,16 +543,16 @@ void InitInterpreter(const InterpreterParam& interpreterParam)
         .isValidObject = &IsValidObject,
         .getThreadLocalData = &GetThreadLocalData,
         .isActiveGcPhase = &IsActiveGCPhase,
-        .stackGrowStub = reinterpret_cast<StackGrowStubFn>(&CJ_MCC_StackGrowStub),
+        .stackGrowStub = reinterpret_cast<DYN_StackGrowStubFn>(&CJ_MCC_StackGrowStub),
 #if defined(__linux__) && (defined(__x86_64__) || defined(__aarch64__))
-        .i2nStub = reinterpret_cast<I2NStubFn>(&CJ_MCC_I2NStub),
+        .i2nStub = reinterpret_cast<DYN_I2NStubFn>(&CJ_MCC_I2NStub),
 #else
         .i2nStub = nullptr,
 #endif
         .nativeLogger = &NativeLogger,
     };
 
-    InterpreterInterfaceT interpreterInterface {};
+    DYN_InterpreterInterfaceT interpreterInterface {};
     interpreterInterface.version = 1;
 
     int code = init(&interpreterInterface, &cjnativeInterface,
