@@ -9,8 +9,9 @@
 #define cfi_restore(reg)		.cfi_restore reg
 #define cfi_def_cfa_register(reg)	.cfi_def_cfa_register reg
 
-// This signal handler stub relies on MRT_PrepareToHandleSignal to put continuation pc in x17.
-// Continuation pc describes the control flow after signal handling completes.
+#define SignalStubFrameSize           (0x40)
+
+// for arm32, do stack check and try to throw StackOverFlow Expection.
 
     .text
     .align 2
@@ -18,21 +19,41 @@
     .type CJ_MCC_StackGrowStub, %function
 CJ_MCC_StackGrowStub:
     .cfi_startproc
-    sub  sp, sp, #8
+    sub  sp, sp, # SignalStubFrameSize
+    cfi_adjust_cfa_offset (SignalStubFrameSize)
     str  r11, [sp]
-    str  lr, [sp, #4]
-    cfi_adjust_cfa_offset (8)
     cfi_rel_offset (r11, 0)
+    str  lr, [sp, #4]
     cfi_rel_offset (lr, 4)
+    str  r12, [sp, #8]
+    cfi_rel_offset (r12, 8)
+    str  r3, [sp, #12]
+    cfi_rel_offset (r3, 12)
+    str  r2, [sp, #16]
+    cfi_rel_offset (r2, 16)
+    str  r1, [sp, #20]
+    cfi_rel_offset (r1, 20)
 
-    // unsupport for arm32
+    mov  r0, sp
+    mov  r1, #0
+    mov  r2, lr
     bl  MRT_StackGrow
     .global unwindPCForStackGrowStub
 unwindPCForStackGrowStub:
     ldr  r11, [sp]
-    ldr  lr, [sp, #4]
     cfi_restore(r11)
+    ldr  lr, [sp, #4]
     cfi_restore(lr)
+    ldr  r12, [sp, #8]
+    cfi_restore(r12)
+    ldr  r3, [sp, #12]
+    cfi_restore(r3)
+    ldr  r2, [sp, #16]
+    cfi_restore(r2)
+    ldr  r1, [sp, #20]
+    cfi_restore(r1)
+    add  sp, sp, # SignalStubFrameSize
+    cfi_adjust_cfa_offset (-SignalStubFrameSize)
     bx  lr
     .cfi_endproc
     .size CJ_MCC_StackGrowStub, .-CJ_MCC_StackGrowStub
