@@ -41,6 +41,7 @@ set(CMAKE_C_FLAGS
     -Wundef \
     -Wdate-time \
     -Wformat=2 \
+    -std=c99 \
     -fgnu89-inline \
     -fno-common \
     -fno-strict-aliasing \
@@ -60,6 +61,7 @@ set(CMAKE_CXX_FLAGS
     "-Wall \
     -Wfloat-equal \
     -Wformat=2 \
+    -std=gnu++14 \
     -fno-common \
     -fno-strict-aliasing \
     -fno-builtin \
