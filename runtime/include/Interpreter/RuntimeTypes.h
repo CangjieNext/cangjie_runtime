@@ -27,7 +27,7 @@ typedef void* DYN_MTableDescT;
 typedef void* DYN_FuncPtrT;
 
 union DYN_GCTibT {
-    uintptr_t raw;
+    uintptr_t raw; // higher bit - 1: raw, 0: ptr
     void *ptr;
 };
 
