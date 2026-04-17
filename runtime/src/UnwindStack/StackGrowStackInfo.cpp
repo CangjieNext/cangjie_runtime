@@ -99,7 +99,7 @@ void StackGrowStackInfo::RecordStackPtrs(const StackPtrVisitor& traceAndFixPtrVi
     }
 
 #ifdef INTERPRETER_ENABLED
-    auto expansionStackVisitor = [this, &fixPtrVisitor, &derivedPtrVisitor](VisitingStateT state) {
+    auto expansionStackVisitor = [this, &fixPtrVisitor, &derivedPtrVisitor](DYN_VisitingStateT state) {
         for (const auto& frame : stack) {
             switch (frame.GetFrameType()) {
                 case FrameType::INTERPRETER:
@@ -109,7 +109,7 @@ void StackGrowStackInfo::RecordStackPtrs(const StackPtrVisitor& traceAndFixPtrVi
         }
     };
 
-    IterateFramesWithState(mutator.interpreterCJThreadData, [](VisitingStateT state, void* ctx) {
+    IterateFramesWithState(mutator.interpreterCJThreadData, [](DYN_VisitingStateT state, void* ctx) {
         auto closure = reinterpret_cast<decltype(expansionStackVisitor)*>(ctx);
         (*closure)(state);
     }, &expansionStackVisitor);
