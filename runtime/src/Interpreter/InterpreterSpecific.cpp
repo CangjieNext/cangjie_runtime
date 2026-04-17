@@ -354,30 +354,24 @@ void WriteStructFieldOfObject(DYN_ObjRefT obj, MAddress dst, MAddress src, size_
     Heap::GetBarrier().WriteStruct(static_cast<BaseObject*>(obj), dst, size, src, size);
 }
 
-inline GCTib CastToGCTib(size_t value) {
-    GCTib tib;
-    tib.tag = static_cast<U64>(value);
-    return tib;
-}
-
-void ReadStaticStructField(uintptr_t dstPtr, size_t dstSize, uintptr_t srcPtr, size_t srcSize, size_t tib_value)
+void ReadStaticStructField(uintptr_t dstPtr, size_t dstSize, uintptr_t srcPtr, size_t srcSize, DYN_GCTibT tib)
 {
     DLOG(INTERPRETER, "ReadStaticStructField dst=%p size=%zu src=%p size=%zu tib_val=%zx", 
-        dstPtr, dstSize, srcPtr, srcSize, tib_value);
+        dstPtr, dstSize, srcPtr, srcSize, static_cast<size_t>(tib.raw));
 
-    GCTib tib = CastToGCTib(tib_value);    
-    Heap::GetHeap().GetBarrier().ReadStaticStruct(dstPtr, srcPtr, dstSize, tib);
+    GCTib gcTib = *reinterpret_cast<GCTib*>(&tib);
+    Heap::GetHeap().GetBarrier().ReadStaticStruct(dstPtr, srcPtr, dstSize, gcTib);
 }
 
-void WriteStaticStructField(uintptr_t dst, size_t dstLen, uintptr_t src, size_t srcLen, size_t tib_value)
+void WriteStaticStructField(uintptr_t dst, size_t dstLen, uintptr_t src, size_t srcLen, DYN_GCTibT tib)
 {
     DLOG(INTERPRETER, "WriteStaticStructField dst=%p size=%zu src=%p size=%zu tib_val=%zx", 
-        dst, dstLen, src, srcLen, tib_value);
+        dst, dstLen, src, srcLen, static_cast<size_t>(tib.raw));
 
     CHECK_DETAIL((dst != 0u && src != 0u), "WriteStaticStructField wrong parameter, dst: %p src: %p", dst, src);
     
-    GCTib tib = CastToGCTib(tib_value);
-    Heap::GetBarrier().WriteStaticStruct(dst, dstLen, src, srcLen, tib);
+    GCTib gcTib = *reinterpret_cast<GCTib*>(&tib);
+    Heap::GetBarrier().WriteStaticStruct(dst, dstLen, src, srcLen, gcTib);
 }
 
 void ReadGenericField(DYN_ObjRefT dst, DYN_ObjRefT srcObj, uintptr_t srcField, size_t size)
