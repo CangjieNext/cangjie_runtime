@@ -35,7 +35,7 @@ struct ThreadLocalData {
 # ifdef INTERPRETER_ENABLED
     // Duplicate of Mutator::interpreterCJThreadData for fast access.
     // Should be updated together with mutator field.
-    MRTExport::CJThreadSpecificDataT interpreterCJThreadData;
+    DYN_CJThreadSpecificDataT interpreterCJThreadData;
 # endif
     // Internal thread local var.
     ThreadType threadType;

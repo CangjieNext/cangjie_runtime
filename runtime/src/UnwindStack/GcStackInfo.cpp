@@ -64,7 +64,7 @@ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) con
     }
 
 #ifdef INTERPRETER_ENABLED
-    auto markingStackVisitor = [this, &func](VisitingStateT state) {
+    auto markingStackVisitor = [this, &func](DYN_VisitingStateT state) {
         for (const auto& frame : stack) {
             switch (frame.GetFrameType()) {
                 case FrameType::INTERPRETER_I2N:
@@ -77,7 +77,7 @@ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) con
         }
     };
 
-    IterateFramesWithState(mutator.interpreterCJThreadData, [](VisitingStateT state, void* ctx) {
+    IterateFramesWithState(mutator.interpreterCJThreadData, [](DYN_VisitingStateT state, void* ctx) {
         auto closure = reinterpret_cast<decltype(markingStackVisitor)*>(ctx);
         (*closure)(state);
     }, &markingStackVisitor);
@@ -114,7 +114,7 @@ void GCStackInfo::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, con
     }
 
 #ifdef INTERPRETER_ENABLED
-    auto adjustingStackVisitor = [this, &rootVisitor, &derivedPtrVisitor](VisitingStateT state) {
+    auto adjustingStackVisitor = [this, &rootVisitor, &derivedPtrVisitor](DYN_VisitingStateT state) {
         for (const auto& frame : stack) {
             switch (frame.GetFrameType()) {
                 case FrameType::INTERPRETER:
@@ -124,7 +124,7 @@ void GCStackInfo::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, con
         }
     };
 
-    IterateFramesWithState(mutator.interpreterCJThreadData, [](VisitingStateT state, void* ctx) {
+    IterateFramesWithState(mutator.interpreterCJThreadData, [](DYN_VisitingStateT state, void* ctx) {
         auto closure = reinterpret_cast<decltype(adjustingStackVisitor)*>(ctx);
         (*closure)(state);
     }, &adjustingStackVisitor);
