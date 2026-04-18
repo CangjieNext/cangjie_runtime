@@ -106,6 +106,11 @@ struct MSRegionInfo {
         return (old & FLAG_MARKED) != 0;
     }
     void AtomicSetScanned() { __atomic_fetch_or(&flags_, FLAG_SCANNED, __ATOMIC_RELAXED); }
+    void ClearScannedFlag() {
+        uint8_t old = __atomic_load_n(&flags_, __ATOMIC_RELAXED);
+        uint8_t nv = old & ~FLAG_SCANNED;
+        __atomic_store_n(&flags_, nv, __ATOMIC_RELAXED);
+    }
     void ClearFlags() { __atomic_store_n(&flags_, 0, __ATOMIC_RELAXED); }
     void ClearMarkAndScanned() {
         uint8_t old = __atomic_load_n(&flags_, __ATOMIC_RELAXED);

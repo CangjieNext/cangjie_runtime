@@ -98,17 +98,15 @@ public:
 
     void clear()
     {
-        while (!empty()) {
-            MarkStackBuf<T>* tmp = this->h;
-            this->h = this->h->next;
-            if (this->h != nullptr) {
-                this->h->pre = nullptr;
-            }
-            delete tmp;
-            tmp = nullptr;
-            this->s--;
-        }
+        MarkStackBuf<T>* cur = this->h;
+        this->h = nullptr;
         this->t = nullptr;
+        this->s = 0;
+        while (cur != nullptr) {
+            MarkStackBuf<T>* next = cur->next;
+            delete cur;
+            cur = next;
+        }
     }
 
     void push_back(T value)

@@ -18,12 +18,21 @@
 #include "Common/ScopedObjectAccess.h"
 #include "ExceptionManager.h"
 #include "Heap.h"
-#include "Mutator/ThreadLocal.h"
+#include "Heap/MCollector/MarkSweepCollector.h"
+#include "Heap/MBarrier/WriteBarrierBuffer.h"
+#include "Mutator/Mutator.h"
 #if defined(CANGJIE_SANITIZER_SUPPORT) || defined(CANGJIE_GWPASAN_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
 #endif
 
 namespace MapleRuntime {
+
+static inline bool IsMSMarkingPhase(GCPhase phase)
+{
+    return phase == GCPhase::GC_PHASE_MS_MARK_SETUP ||
+           phase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK ||
+           phase == GCPhase::GC_PHASE_MS_MARK_TERMINATION;
+}
 
 // ============================================================
 // RegionSpaceMS destructor
@@ -436,6 +445,10 @@ void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t regionBytes)
     }
 
     baseInfo->SetMarkedAndScanned();
+
+    // BLACK allocation for large objects during marking: the hybrid write
+    // barrier (SATB + insertion) ensures children are independently
+    // discovered when fields are written.  No need to enqueue.
 
     if (msCentralPool_ != nullptr) {
         msCentralPool_->RegisterLargeRegion(baseInfo);

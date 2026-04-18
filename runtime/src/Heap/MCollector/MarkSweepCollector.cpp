@@ -1048,6 +1048,14 @@ void MarkSweepCollector::MarkNewObject(BaseObject* obj)
     if (UNLIKELY(phase == GCPhase::GC_PHASE_MS_MARK_SETUP) ||
         UNLIKELY(phase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK) ||
         UNLIKELY(phase == GCPhase::GC_PHASE_MS_MARK_TERMINATION)) {
+        // BLACK allocation: mark + set scanned so the object is treated as
+        // live but NOT enqueued for tracing.  The hybrid write barrier
+        // (SATB + insertion) ensures that any reference stored into a field
+        // of this object during construction is independently enqueued via
+        // enqueue(new) in MSMarkBarrier::WriteReference, so children are
+        // never missed.  Avoiding the WBBuf push eliminates the allocation-
+        // avalanche that occurs under high allocation rates during concurrent
+        // mark (observed: 27 ms → 4.3 s per mark cycle).
         MarkObject(obj);
         SetScannedObject(obj);
     }
