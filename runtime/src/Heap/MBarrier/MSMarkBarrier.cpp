@@ -22,6 +22,21 @@
 
 namespace MapleRuntime {
 
+namespace {
+class WriteBarrierBufferGreySink final : public MarkSweepCollector::GreyWorkSink {
+public:
+    explicit WriteBarrierBufferGreySink(WriteBarrierBuffer& wbBuf) : wbBuf_(wbBuf) {}
+
+    void PushGrey(BaseObject* obj) override
+    {
+        wbBuf_.Push(obj);
+    }
+
+private:
+    WriteBarrierBuffer& wbBuf_;
+};
+} // namespace
+
 static bool IsHashMapCounterEnabled()
 {
     static bool enabled = []() {
@@ -85,11 +100,6 @@ void MSMarkBarrier::EnqueueRef(BaseObject* ref)
     if (ref == nullptr || !Heap::IsHeapAddress(ref)) {
         return;
     }
-    MarkSweepCollector& collector = static_cast<MarkSweepCollector&>(Heap::GetHeap().GetCollector());
-    if (collector.MarkObject(ref)) {
-        return;
-    }
-
     Mutator* mutator = Mutator::GetMutator();
     if (mutator == nullptr) {
         return;
@@ -103,7 +113,9 @@ void MSMarkBarrier::EnqueueRef(BaseObject* ref)
             wbBuf.Clear();
         }
     }
-    wbBuf.Push(ref);
+    MarkSweepCollector& collector = static_cast<MarkSweepCollector&>(Heap::GetHeap().GetCollector());
+    WriteBarrierBufferGreySink sink(wbBuf);
+    (void)collector.TryEnqueueGreyObject(ref, sink);
 }
 
 // ============================================================================

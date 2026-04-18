@@ -102,6 +102,12 @@ struct MSGCCycleStats {
 // Step 2: Tri-color marking (PreEnumRoots → EnumRoots → ConcurrentMark → MarkTermination → PostMarkTermination)
 class MarkSweepCollector : public TracingCollector {
 public:
+    class GreyWorkSink {
+    public:
+        virtual ~GreyWorkSink() = default;
+        virtual void PushGrey(BaseObject* obj) = 0;
+    };
+
     explicit MarkSweepCollector(Allocator& allocator, CollectorResources& resources)
         : TracingCollector(allocator, resources)
     {
@@ -181,6 +187,7 @@ public:
 
     bool ShouldIgnoreRequest(GCRequest& request) override { return request.ShouldBeIgnored(); }
     void UpdateGCStats() override;
+    bool TryEnqueueGreyObject(BaseObject* obj, GreyWorkSink& sink);
     bool IsScannedObject(const BaseObject* obj) const;
     void SetScannedObject(const BaseObject* obj) const;
 
@@ -198,26 +205,32 @@ private:
     void ClearAllMarkBitmaps();
     void EnsureSweepDone();
     void EnumAndMarkRoots(WorkStack& workStack);
+    void DiscoverAndPushObject(BaseObject* obj, WorkStack& workStack);
+    bool TryEnqueueGreyObject(BaseObject* obj, GreyWorkQueue& queue);
+    bool DiscoverObject(BaseObject* obj);
+    void DebugVerifyQueuedGreyObject(const BaseObject* obj, const char* queueName) const;
+    void DebugRecordBlackObject(const BaseObject* obj) const;
 
     // ── Step 2.2 internals ──
-    void RunConcurrentMarkLoop(WorkStack& workStack);
-    void RunCollectorDrainSlice(WorkStack& workStack, size_t maxObjects);
+    void RunConcurrentMarkLoop(GreyWorkQueue& workStack);
+    void RunCollectorDrainSlice(GreyWorkQueue& workStack, size_t maxObjects);
     void TraceRefField(BaseObject* obj, RefField<>& field, WorkStack& workStack);
 
     // ── Step 2.2 global queue helpers (GC thread + Mutator assist) ──
-    void PushToGlobal(WorkStack& source);
-    void PushSingleToGlobal(BaseObject* obj);
-    void PopFromGlobal(WorkStack& dest, size_t maxBufs);
-    void ShareWorkToGlobal(WorkStack& local);
+    void PushToGlobal(GreyWorkQueue& source);
+    void PushSingleToDeferredMainThread(BaseObject* obj);
+    void PopFromGlobal(GreyWorkQueue& dest, size_t maxBufs);
+    void ShareWorkToGlobal(GreyWorkQueue& local);
 
     // ── Step 2.3 internals ──
-    void CollectUnmarkedToMainQueue(WorkStack& mainQueue);
-    void FlushAllWriteBarrierBuffers(WorkStack& mainQueue);
-    void FlushAllAssistLocalWorks(WorkStack& mainQueue);
-    void DrainGlobalWorkQueueToMainQueue(WorkStack& mainQueue);
-    void CollectExternCandidatesToMain(WorkStack& mainQueue);
-    void CollectResurrectionCandidatesToMain(WorkStack& mainQueue);
-    void ExecuteLikeDrainMainQueue(WorkStack& mainQueue);
+    void CollectUnmarkedToMainQueue(GreyWorkQueue& mainQueue);
+    void FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue);
+    void FlushAllAssistLocalWorks(GreyWorkQueue& mainQueue);
+    void DrainGlobalWorkQueueToMainQueue(GreyWorkQueue& mainQueue);
+    void DrainDeferredMainThreadQueueToMainQueue(GreyWorkQueue& mainQueue);
+    void CollectExternCandidatesToMain(GreyWorkQueue& mainQueue);
+    void CollectResurrectionCandidatesToMain(GreyWorkQueue& mainQueue);
+    void ExecuteLikeDrainMainQueue(GreyWorkQueue& mainQueue);
 
     // ── Step 2.4 internals ──
     void PrepareCycleRef();
@@ -229,14 +242,18 @@ private:
     static constexpr size_t kConvergenceRequiredRounds = 3;
 
     // ── Work stack (populated in EnumRoots, consumed in ConcurrentMark) ──
-    WorkStack markWorkStack_;
+    GreyWorkQueue markWorkStack_;
 
     // ── Drain slice parameters ──
     static constexpr size_t kSliceMaxObjects = 256;
 
     // ── Global work queue for concurrent marking (GC thread + Mutator assist) ──
-    WorkStack globalWorkQueue_;
+    GreyWorkQueue globalWorkQueue_;
     mutable std::mutex globalWorkMutex_;
+
+    // ── Main-thread-only deferred work (e.g. weak refs discovered by assist) ──
+    GreyWorkQueue deferredMainThreadQueue_;
+    mutable std::mutex deferredMainThreadMutex_;
 
     // ── Assist control ──
     std::atomic<bool> assistEnabled_{false};

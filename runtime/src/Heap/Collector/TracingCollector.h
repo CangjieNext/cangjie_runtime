@@ -184,9 +184,13 @@ public:
 
     static void RecordStubCalleeSaved(RegSlotsMap& regSlotsMap, Uptr fp);
     static void RecordStubAllRegister(RegSlotsMap& regSlotsMap, Uptr fp);
-    // Types, so that we don't confuse root sets and working stack.
-    // The policy is: we simply `push_back` into root set,
-    // but we use Enqueue to add into work stack.
+    // Types, so that we don't confuse root staging buffers and working stacks.
+    // Policy:
+    // - RootSet is only for staging/discovery input (e.g. roots gathered during
+    //   enumeration). Pushing into RootSet does not itself imply white->grey.
+    // - WorkStack is for already-produced grey work. Collector-specific code is
+    //   responsible for routing newly-grey objects through its enqueue protocol
+    //   before they enter any WorkStack.
     using RootSet = MarkStack<BaseObject*>;
     using WorkStack = MarkStack<BaseObject*>;
     using WorkStackBuf = MarkStackBuf<BaseObject*>;

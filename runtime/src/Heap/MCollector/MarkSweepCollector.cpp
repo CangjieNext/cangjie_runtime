@@ -76,6 +76,19 @@ double GetMsThresholdHeapCapRatio()
     static const double value = ReadEnvPosDec("CJ_MS_THRESHOLD_HEAP_CAP_RATIO", 0.98);
     return value;
 }
+
+class WorkStackGreySink final : public MarkSweepCollector::GreyWorkSink {
+public:
+    explicit WorkStackGreySink(MarkSweepCollector::WorkStack& workStack) : workStack_(workStack) {}
+
+    void PushGrey(BaseObject* obj) override
+    {
+        workStack_.push_back(obj);
+    }
+
+private:
+    MarkSweepCollector::WorkStack& workStack_;
+};
 }
 
 extern "C" void MSMarkBarrier_DumpAndResetCounters();
@@ -281,7 +294,7 @@ void MarkSweepCollector::EnumRoots()
     markWorkStack_.clear();
     {
         uint64_t t0 = TimeUtil::MicroSeconds();
-        EnumAndMarkRoots(markWorkStack_);
+        EnumAndMarkRoots(markWorkStack_.UnsafeRaw());
         cycleStats_.enumRootsUs = TimeUtil::MicroSeconds() - t0;
         cycleStats_.rootsCount = markWorkStack_.size();
     }
@@ -341,6 +354,66 @@ void MarkSweepCollector::SetScannedObject(const BaseObject* obj) const
     }
 }
 
+bool MarkSweepCollector::DiscoverObject(BaseObject* obj)
+{
+    if (obj == nullptr || !IsManagedAddress(reinterpret_cast<MAddress>(obj))) {
+        return false;
+    }
+    if (MarkObject(obj)) {
+        return false;
+    }
+    (void)markedObjectCount.fetch_add(1, std::memory_order_relaxed);
+    return true;
+}
+
+bool MarkSweepCollector::TryEnqueueGreyObject(BaseObject* obj, GreyWorkSink& sink)
+{
+    if (!DiscoverObject(obj)) {
+        return false;
+    }
+    sink.PushGrey(obj);
+    return true;
+}
+
+bool MarkSweepCollector::TryEnqueueGreyObject(BaseObject* obj, GreyWorkQueue& queue)
+{
+    if (!DiscoverObject(obj)) {
+        return false;
+    }
+    queue.PushNewlyGrey(obj);
+    return true;
+}
+
+void MarkSweepCollector::DiscoverAndPushObject(BaseObject* obj, WorkStack& workStack)
+{
+    WorkStackGreySink sink(workStack);
+    (void)TryEnqueueGreyObject(obj, sink);
+}
+
+void MarkSweepCollector::DebugVerifyQueuedGreyObject(const BaseObject* obj, const char* queueName) const
+{
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+    CHECK_DETAIL(IsMarkedObject(obj),
+                 "[MS-GC] protocol violation: queue %s contains non-grey obj=%p (mark=0, scanned=%d)",
+                 queueName, static_cast<const void*>(obj), static_cast<int>(IsScannedObject(obj)));
+    CHECK_DETAIL(!IsScannedObject(obj),
+                 "[MS-GC] protocol violation: queue %s contains already-scanned obj=%p",
+                 queueName, static_cast<const void*>(obj));
+#else
+    (void)obj;
+    (void)queueName;
+#endif
+}
+
+void MarkSweepCollector::DebugRecordBlackObject(const BaseObject* obj) const
+{
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+    SetScannedObject(obj);
+#else
+    (void)obj;
+#endif
+}
+
 
 void MarkSweepCollector::EnumAndMarkRoots(WorkStack& workStack)
 {
@@ -355,7 +428,13 @@ void MarkSweepCollector::MergeRootsFromAllocBuffers(WorkStack& workStack)
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool != nullptr) {
-        centralPool->VisitAllocBufferMS([&workStack](AllocBufferMS& buffer) { buffer.MergeRoots(workStack); });
+        WorkStack mutatorRoots = NewWorkStack();
+        centralPool->VisitAllocBufferMS([&mutatorRoots](AllocBufferMS& buffer) { buffer.MergeRoots(mutatorRoots); });
+        while (!mutatorRoots.empty()) {
+            BaseObject* obj = mutatorRoots.back();
+            mutatorRoots.pop_back();
+            DiscoverAndPushObject(obj, workStack);
+        }
     }
 }
 
@@ -391,7 +470,7 @@ void MarkSweepCollector::ConcurrentMark()
     assistEnabled_.store(false, std::memory_order_release);
 }
 
-void MarkSweepCollector::RunConcurrentMarkLoop(WorkStack& workStack)
+void MarkSweepCollector::RunConcurrentMarkLoop(GreyWorkQueue& workStack)
 {
     uint64_t t0 = TimeUtil::MicroSeconds();
     VLOG(REPORT, "[MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---");
@@ -463,9 +542,8 @@ void MarkSweepCollector::RunConcurrentMarkLoop(WorkStack& workStack)
          cycleStats_.globalPopMissCount);
 }
 
-void MarkSweepCollector::RunCollectorDrainSlice(WorkStack& workStack, size_t maxObjects)
+void MarkSweepCollector::RunCollectorDrainSlice(GreyWorkQueue& workStack, size_t maxObjects)
 {
-    size_t nNewlyMarked = 0;
     size_t processed = 0;
     while (!workStack.empty() && processed < maxObjects) {
         BaseObject* obj = workStack.back();
@@ -486,19 +564,14 @@ void MarkSweepCollector::RunCollectorDrainSlice(WorkStack& workStack, size_t max
                 (int)IsMarkedObject(obj));
         }
 
-        // Step8 foundation: mark bit means "discovered" (white->grey),
-        // scanned bit means children already traced (grey->black).
-        bool alreadyMarked = MarkObject(obj);
-        if (!alreadyMarked) {
-            nNewlyMarked++;
-        }
-        if (alreadyMarked && IsScannedObject(obj)) {
-            continue;
-        }
+        // Queue protocol: any newly-grey object must enter through
+        // TryEnqueueGreyObject(), so consumers can trust this queue contains
+        // only grey work. Debug builds verify the invariant explicitly.
+        DebugVerifyQueuedGreyObject(obj, "markWorkStack_");
         processed++;
 
         if (!obj->HasRefField()) {
-            SetScannedObject(obj);
+            DebugRecordBlackObject(obj);
             continue;
         }
 
@@ -511,16 +584,14 @@ void MarkSweepCollector::RunCollectorDrainSlice(WorkStack& workStack, size_t max
                 // Don't mark referent — add to WeakRefBuffer for later processing
                 WeakRefBuffer::Instance().Insert(obj);
             }
-            SetScannedObject(obj);
+            DebugRecordBlackObject(obj);
             continue;
         }
 
-        // Trace all reference fields: push children as grey (mark-on-pop)
-        TraceObjectRefFields(obj, workStack);
-        SetScannedObject(obj);
+        // Trace all reference fields: discover children before enqueue.
+        TraceObjectRefFields(obj, workStack.UnsafeRaw());
+        DebugRecordBlackObject(obj);
     }
-    // Batch update: one atomic op per slice instead of per-object (same as CopyGC)
-    (void)markedObjectCount.fetch_add(nNewlyMarked, std::memory_order_relaxed);
 }
 
 void MarkSweepCollector::TraceRefField(
@@ -543,8 +614,6 @@ void MarkSweepCollector::TraceRefField(
             (obj != nullptr ? (void*)obj->GetTypeInfo() : nullptr),
             (void*)&field);
     }
-    // Push if not yet marked; actual marking happens on pop (mark-on-pop pattern,
-    // same as CopyGC — avoids per-child atomic mark + fetch_add in hot loop)
     bool targetMarked = IsMarkedObject(target);
     if (UNLIKELY(IsHashMapTraceEnabled()) &&
         HashMapTracePermit() &&
@@ -555,7 +624,7 @@ void MarkSweepCollector::TraceRefField(
              (int)targetMarked, (void*)&field);
     }
     if (!targetMarked) {
-        workStack.push_back(target);
+        DiscoverAndPushObject(target, workStack);
     }
 }
 
@@ -563,7 +632,7 @@ void MarkSweepCollector::TraceRefField(
 // Global work queue helpers (GC thread + Mutator assist)
 // ============================================================================
 
-void MarkSweepCollector::PushToGlobal(WorkStack& source)
+void MarkSweepCollector::PushToGlobal(GreyWorkQueue& source)
 {
     if (source.empty()) {
         return;
@@ -577,23 +646,25 @@ void MarkSweepCollector::PushToGlobal(WorkStack& source)
     globalSharedBufCount_.fetch_add(movedBufs, std::memory_order_relaxed);
 }
 
-void MarkSweepCollector::PushSingleToGlobal(BaseObject* obj)
+void MarkSweepCollector::PushSingleToDeferredMainThread(BaseObject* obj)
 {
-    std::lock_guard<std::mutex> lock(globalWorkMutex_);
-    globalWorkQueue_.push_back(obj);
-    globalWorkAvailable_.store(true, std::memory_order_release);
+    if (obj == nullptr) {
+        return;
+    }
+    std::lock_guard<std::mutex> lock(deferredMainThreadMutex_);
+    deferredMainThreadQueue_.PushMovedGrey(obj);
 }
 
 void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
 {
     std::lock_guard<std::mutex> lock(globalWorkMutex_);
-    wbBuf.Flush(globalWorkQueue_);
+    wbBuf.Flush(globalWorkQueue_.UnsafeRaw());
     if (!globalWorkQueue_.empty()) {
         globalWorkAvailable_.store(true, std::memory_order_release);
     }
 }
 
-void MarkSweepCollector::PopFromGlobal(WorkStack& dest, size_t maxBufs)
+void MarkSweepCollector::PopFromGlobal(GreyWorkQueue& dest, size_t maxBufs)
 {
     std::lock_guard<std::mutex> lock(globalWorkMutex_);
     if (globalWorkQueue_.empty()) {
@@ -604,14 +675,13 @@ void MarkSweepCollector::PopFromGlobal(WorkStack& dest, size_t maxBufs)
     size_t toSplit = std::min(maxBufs, globalWorkQueue_.size());
     auto* bufs = globalWorkQueue_.split(toSplit);
     if (bufs != nullptr) {
-        WorkStack tmp(bufs);
-        dest.insert(tmp);
+        dest.AdoptSplitBuffers(bufs);
         globalPopHitCount_.fetch_add(1, std::memory_order_relaxed);
     }
     globalWorkAvailable_.store(!globalWorkQueue_.empty(), std::memory_order_release);
 }
 
-void MarkSweepCollector::ShareWorkToGlobal(WorkStack& local)
+void MarkSweepCollector::ShareWorkToGlobal(GreyWorkQueue& local)
 {
     size_t toShare = local.size() / 2;
     if (toShare == 0) {
@@ -647,7 +717,7 @@ void MarkSweepCollector::MSMarkAssist()
 
     size_t callSeq = assistCallTotal_.fetch_add(1, std::memory_order_relaxed) + 1;
 
-    WorkStack& localWork = mutator->GetAssistLocalWork();
+    AssistWorkStack& localWork = mutator->GetAssistLocalWork();
 
     // Refill from global only when this mutator has no persisted assist work.
     // If STW interrupted a previous assist in-flight, the remaining local work
@@ -665,7 +735,6 @@ void MarkSweepCollector::MSMarkAssist()
         return;  // No grey work available
     }
 
-    size_t nNewlyMarked = 0;
     size_t nProcessed = 0;
     size_t nTraced = 0;
     while (nProcessed < kAssistMaxObjectsPerCall && !localWork.empty()) {
@@ -685,29 +754,25 @@ void MarkSweepCollector::MSMarkAssist()
                 (int)IsMarkedObject(obj));
         }
 
-        bool alreadyMarked = MarkObject(obj);
-        if (!alreadyMarked) {
-            nNewlyMarked++;
-        }
-        if (alreadyMarked && IsScannedObject(obj)) {
-            continue;
-        }
+        DebugVerifyQueuedGreyObject(obj, "assistLocalWork_");
         nProcessed++;
 
         if (!obj->HasRefField()) {
-            SetScannedObject(obj);
+            DebugRecordBlackObject(obj);
             continue;
         }
 
-        // WeakRef: defer to GC main thread (WeakRefBuffer may not be thread-safe)
+        // WeakRef: defer to GC main thread. Assist must not process weak refs
+        // through the shared global grey-work queue, because only the main GC
+        // thread should run the special weak-ref handling path.
         if (UNLIKELY(obj->IsWeakRef())) {
-            PushSingleToGlobal(obj);
+            PushSingleToDeferredMainThread(obj);
             continue;
         }
 
-        // Trace children → push grey objects to localWork (mark-on-pop)
-        TraceObjectRefFields(obj, localWork);
-        SetScannedObject(obj);
+        // Trace children → discover before enqueue into local work.
+        TraceObjectRefFields(obj, localWork.UnsafeRaw());
+        DebugRecordBlackObject(obj);
         nTraced++;
 
         // Flush excess to global to share with GC thread and other assists
@@ -719,9 +784,6 @@ void MarkSweepCollector::MSMarkAssist()
     // Keep residual local work on the mutator so the next assist call can
     // resume without round-tripping through the shared global queue.
 
-    // Batch update: one atomic op per assist call instead of per-object
-    (void)markedObjectCount.fetch_add(nNewlyMarked, std::memory_order_relaxed);
-    assistMarkedCount_.fetch_add(nNewlyMarked, std::memory_order_relaxed);
     assistProcessedCount_.fetch_add(nProcessed, std::memory_order_relaxed);
     assistTracedCount_.fetch_add(nTraced, std::memory_order_relaxed);
 }
@@ -741,7 +803,7 @@ void MarkSweepCollector::MarkTermination()
     // Now that all mutators are frozen, clear activeCollector_.
     activeCollector_.store(nullptr, std::memory_order_release);
 
-    WorkStack mainQueue = NewWorkStack();
+    GreyWorkQueue mainQueue;
     size_t directSourceEntries = 0;
     size_t pendingWorkEntries = 0;
     size_t resurrectionEntries = 0;
@@ -757,10 +819,12 @@ void MarkSweepCollector::MarkTermination()
     }
 
     // 2. Collect pending concurrent-mark work:
-    //    persisted assist-local work + globalWorkQueue_.
+    //    persisted assist-local work + globalWorkQueue_ +
+    //    deferred main-thread-only special work.
     {
         FlushAllAssistLocalWorks(mainQueue);
         DrainGlobalWorkQueueToMainQueue(mainQueue);
+        DrainDeferredMainThreadQueueToMainQueue(mainQueue);
         pendingWorkEntries = mainQueue.size() - directSourceEntries;
     }
 
@@ -807,7 +871,7 @@ void MarkSweepCollector::MarkTermination()
     TransitionToGCPhase(GCPhase::GC_PHASE_MS_SWEEP, false);
 }
 
-void MarkSweepCollector::CollectUnmarkedToMainQueue(WorkStack& mainQueue)
+void MarkSweepCollector::CollectUnmarkedToMainQueue(GreyWorkQueue& mainQueue)
 {
     // Collect extern (foreign) object candidates
     CollectExternCandidatesToMain(mainQueue);
@@ -816,14 +880,14 @@ void MarkSweepCollector::CollectUnmarkedToMainQueue(WorkStack& mainQueue)
     CollectResurrectionCandidatesToMain(mainQueue);
 }
 
-void MarkSweepCollector::FlushAllWriteBarrierBuffers(WorkStack& mainQueue)
+void MarkSweepCollector::FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue)
 {
     auto func = [&mainQueue](Mutator& mutator) {
-        mutator.GetWriteBarrierBuffer().Flush(mainQueue);
+        mutator.GetWriteBarrierBuffer().Flush(mainQueue.UnsafeRaw());
     };
     MutatorManager::Instance().VisitAllMutators(func);
 }
-void MarkSweepCollector::FlushAllAssistLocalWorks(WorkStack& mainQueue)
+void MarkSweepCollector::FlushAllAssistLocalWorks(GreyWorkQueue& mainQueue)
 {
     auto func = [&mainQueue](Mutator& mutator) {
         mainQueue.insert(mutator.GetAssistLocalWork());
@@ -831,43 +895,48 @@ void MarkSweepCollector::FlushAllAssistLocalWorks(WorkStack& mainQueue)
     MutatorManager::Instance().VisitAllMutators(func);
 }
 
-void MarkSweepCollector::DrainGlobalWorkQueueToMainQueue(WorkStack& mainQueue)
+void MarkSweepCollector::DrainGlobalWorkQueueToMainQueue(GreyWorkQueue& mainQueue)
 {
     std::lock_guard<std::mutex> lock(globalWorkMutex_);
     while (!globalWorkQueue_.empty()) {
         BaseObject* obj = globalWorkQueue_.back();
         globalWorkQueue_.pop_back();
         if (obj != nullptr) {
-            mainQueue.push_back(obj);
+            mainQueue.PushMovedGrey(obj);
         }
     }
 }
 
-void MarkSweepCollector::CollectExternCandidatesToMain(WorkStack& mainQueue)
+void MarkSweepCollector::DrainDeferredMainThreadQueueToMainQueue(GreyWorkQueue& mainQueue)
+{
+    std::lock_guard<std::mutex> lock(deferredMainThreadMutex_);
+    mainQueue.insert(deferredMainThreadQueue_);
+}
+
+void MarkSweepCollector::CollectExternCandidatesToMain(GreyWorkQueue& mainQueue)
 {
     for (auto& kv : discoveredExternObjects) {
         for (BaseObject* obj : kv.second) {
-            if (obj != nullptr && obj->IsValidObject() && !IsMarkedObject(obj)) {
-                mainQueue.push_back(obj);
+            if (obj != nullptr && obj->IsValidObject()) {
+                (void)TryEnqueueGreyObject(obj, mainQueue);
             }
         }
     }
 }
 
-void MarkSweepCollector::CollectResurrectionCandidatesToMain(WorkStack& mainQueue)
+void MarkSweepCollector::CollectResurrectionCandidatesToMain(GreyWorkQueue& mainQueue)
 {
     VisitFinalizerRoots([&mainQueue, this](ObjectRef& ref) {
         BaseObject* finalizerObj = ref.object;
-        if (finalizerObj != nullptr && finalizerObj->IsValidObject() && !IsMarkedObject(finalizerObj)) {
-            mainQueue.push_back(finalizerObj);
+        if (finalizerObj != nullptr && finalizerObj->IsValidObject()) {
+            (void)TryEnqueueGreyObject(finalizerObj, mainQueue);
         }
     });
 }
 
-void MarkSweepCollector::ExecuteLikeDrainMainQueue(WorkStack& mainQueue)
+void MarkSweepCollector::ExecuteLikeDrainMainQueue(GreyWorkQueue& mainQueue)
 {
     size_t processed = 0;
-    size_t nNewlyMarked = 0;
 
     while (!mainQueue.empty()) {
         BaseObject* obj = mainQueue.back();
@@ -886,23 +955,15 @@ void MarkSweepCollector::ExecuteLikeDrainMainQueue(WorkStack& mainQueue)
                 *reinterpret_cast<uintptr_t*>(obj));
         }
 
-        // Step8 foundation: discovered (mark) is separate from scanned.
-        // Only objects already scanned can be skipped safely.
-        bool alreadyMarked = MarkObject(obj);
-        if (!alreadyMarked) {
-            nNewlyMarked++;
-        }
-        if (alreadyMarked && IsScannedObject(obj)) {
-            continue;
-        }
+        DebugVerifyQueuedGreyObject(obj, "mainQueue");
 
         if (UNLIKELY(IsHashMapTraceEnabled()) && HashMapTracePermit() && IsInterestingDiagType(obj)) {
             VLOG(REPORT, "[MS-HM-DIAG] DrainObj obj=%p<%s> alreadyMarked=%d qRemain=%zu",
-                 (void*)obj, GetDiagTypeName(obj), (int)alreadyMarked, mainQueue.size());
+                 (void*)obj, GetDiagTypeName(obj), (int)IsMarkedObject(obj), mainQueue.size());
         }
 
         if (!obj->HasRefField()) {
-            SetScannedObject(obj);
+            DebugRecordBlackObject(obj);
             continue;
         }
 
@@ -911,20 +972,18 @@ void MarkSweepCollector::ExecuteLikeDrainMainQueue(WorkStack& mainQueue)
                 reinterpret_cast<RefField<>*>(reinterpret_cast<uintptr_t>(obj) + sizeof(uintptr_t));
             BaseObject* referent = GetAndTryTagObj(obj, *referentField);
             if (referent != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(referent))) {
-                TraceObjectRefFields(referent, mainQueue);
+                TraceObjectRefFields(referent, mainQueue.UnsafeRaw());
                 WeakRefBuffer::Instance().Insert(obj);
             }
-            SetScannedObject(obj);
+            DebugRecordBlackObject(obj);
             continue;
         }
 
-        TraceObjectRefFields(obj, mainQueue);
-        SetScannedObject(obj);
+        TraceObjectRefFields(obj, mainQueue.UnsafeRaw());
+        DebugRecordBlackObject(obj);
     }
 
     cycleStats_.markTermProcessedObjects = processed;
-    // Batch update: one atomic op for entire drain
-    (void)markedObjectCount.fetch_add(nNewlyMarked, std::memory_order_relaxed);
 }
 
 // ============================================================================
@@ -1048,16 +1107,13 @@ void MarkSweepCollector::MarkNewObject(BaseObject* obj)
     if (UNLIKELY(phase == GCPhase::GC_PHASE_MS_MARK_SETUP) ||
         UNLIKELY(phase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK) ||
         UNLIKELY(phase == GCPhase::GC_PHASE_MS_MARK_TERMINATION)) {
-        // BLACK allocation: mark + set scanned so the object is treated as
-        // live but NOT enqueued for tracing.  The hybrid write barrier
-        // (SATB + insertion) ensures that any reference stored into a field
-        // of this object during construction is independently enqueued via
-        // enqueue(new) in MSMarkBarrier::WriteReference, so children are
-        // never missed.  Avoiding the WBBuf push eliminates the allocation-
-        // avalanche that occurs under high allocation rates during concurrent
-        // mark (observed: 27 ms → 4.3 s per mark cycle).
+        // Go-style alloc-black: mark the new object so it is treated as live
+        // and not eligible for grey-work production. The hybrid write barrier
+        // still discovers any child references written during construction.
+        // In debug builds we additionally record the object as black via the
+        // scanned bit, but runtime control flow no longer depends on scanned.
         MarkObject(obj);
-        SetScannedObject(obj);
+        DebugRecordBlackObject(obj);
     }
 }
 
@@ -1068,8 +1124,8 @@ void MarkSweepCollector::MarkNewObject(BaseObject* obj)
 void MarkSweepCollector::EnumRefFieldRoot(RefField<>& ref, RootSet& rootSet) const
 {
     BaseObject* target = ref.GetTargetObject();
-    if (target != nullptr) {
-        rootSet.push_back(target);
+    if (target != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(target))) {
+        const_cast<MarkSweepCollector*>(this)->DiscoverAndPushObject(target, rootSet);
     }
 }
 
@@ -1078,7 +1134,7 @@ void MarkSweepCollector::EnumAndTagRawRoot(ObjectRef& root, RootSet& rootSet) co
     // MS version: no tag/CAS, just push heap objects into root set
     BaseObject* obj = root.object;
     if (obj != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(obj))) {
-        rootSet.push_back(obj);
+        const_cast<MarkSweepCollector*>(this)->DiscoverAndPushObject(obj, rootSet);
     }
 }
 

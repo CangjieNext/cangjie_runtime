@@ -30,7 +30,7 @@ extern "C" MRT_EXPORT bool MRT_EnterSaferegion(bool updateUnwindContext);
 extern "C" MRT_EXPORT bool MRT_LeaveSaferegion();
 extern "C" MRT_EXPORT bool MRT_CheckRuntimeFinished();
 
-using AssistWorkStack = MarkStack<BaseObject*>;
+using AssistWorkStack = GreyWorkQueue;
 
 class Mutator {
 public:

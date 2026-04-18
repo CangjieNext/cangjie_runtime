@@ -12,6 +12,9 @@
 #include "Base/TimeUtils.h"
 
 namespace MapleRuntime {
+class BaseObject;
+class MarkSweepCollector;
+
 template<class T>
 class MarkStackBuf {
 constexpr static size_t MAX = 64;
@@ -227,6 +230,67 @@ private:
     MarkStackBuf<T>* h = nullptr;
     MarkStackBuf<T>* t = nullptr;
     size_t s = 0;
+};
+
+// GreyWorkQueue is a constrained wrapper for queues that are expected to hold
+// already-produced grey objects. It intentionally does not expose the raw
+// MarkStack push_back API, so newly-grey production can be audited through
+// collector-owned helpers such as TryEnqueueGreyObject.
+class GreyWorkQueue {
+public:
+    using RawWorkStack = MarkStack<BaseObject*>;
+    using Buffer = MarkStackBuf<BaseObject*>;
+
+    GreyWorkQueue() = default;
+
+    bool empty() const { return stack_.empty(); }
+    size_t size() const { return stack_.size(); }
+    void clear() { stack_.clear(); }
+
+    BaseObject* back() { return stack_.back(); }
+    void pop_back() { stack_.pop_back(); }
+
+    void insert(GreyWorkQueue& queue)
+    {
+        stack_.insert(queue.stack_);
+    }
+
+    void insert(RawWorkStack& queue)
+    {
+        stack_.insert(queue);
+    }
+
+    Buffer* split(size_t splitNum)
+    {
+        return stack_.split(splitNum);
+    }
+
+    void AdoptSplitBuffers(Buffer* bufs)
+    {
+        if (bufs == nullptr) {
+            return;
+        }
+        RawWorkStack tmp(bufs);
+        stack_.insert(tmp);
+    }
+
+    void PushMovedGrey(BaseObject* obj)
+    {
+        stack_.push_back(obj);
+    }
+
+    RawWorkStack& UnsafeRaw() { return stack_; }
+    const RawWorkStack& UnsafeRaw() const { return stack_; }
+
+private:
+    friend class MarkSweepCollector;
+
+    void PushNewlyGrey(BaseObject* obj)
+    {
+        stack_.push_back(obj);
+    }
+
+    RawWorkStack stack_;
 };
 }
 #endif // MRT_NEW_MARK_STACK_H

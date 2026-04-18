@@ -395,6 +395,9 @@ void Allocator::CommitRawPointerRegions()
 
 void Allocator::PushRootToBuffer(BaseObject* root)
 {
+    // Root buffering is only a staging step for MarkSetup handshake roots.
+    // It must not be treated as grey-work production; the collector later
+    // performs the white->grey transition explicitly when merging root buffers.
     AllocBufferMS* buffer = AllocBufferMS::GetOrCreateAllocBufferMS();
     if (buffer != nullptr) {
         buffer->PushRoot(root);
@@ -444,11 +447,15 @@ void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t regionBytes)
         spanInfo->reserved = static_cast<uint64_t>(baseIdx);
     }
 
-    baseInfo->SetMarkedAndScanned();
+    baseInfo->AtomicSetMarked();
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+    baseInfo->AtomicSetScanned();
+#endif
 
     // BLACK allocation for large objects during marking: the hybrid write
     // barrier (SATB + insertion) ensures children are independently
-    // discovered when fields are written.  No need to enqueue.
+    // discovered when fields are written. No need to enqueue. In debug
+    // builds we also tag the object as scanned for protocol validation.
 
     if (msCentralPool_ != nullptr) {
         msCentralPool_->RegisterLargeRegion(baseInfo);

@@ -67,14 +67,20 @@ public:
     // Called by gc-helper thread (FinalizerProcessor). Thread-safe via atomic cachedRegion_.
     void BackgroundFillCache();
 
-    // Record stack root (called from Mutator::GcPhaseEnum during root enumeration)
+    // Record stack root (called from Mutator::GcPhaseEnum during root enumeration).
+    // This is root staging only, not grey-work production. Objects become grey
+    // later when MarkSweepCollector merges these buffered roots through
+    // TryEnqueueGreyObject / DiscoverAndPushObject.
     void PushRoot(BaseObject* root) { stackRoots_.emplace_back(root); }
 
     // MS-GC: all objects (including RAW_POINTER_OBJECT) are managed by CentralRegionPool directly.
     // No separate thread-local raw pointer regions exist, so this is a no-op.
     void CommitRawPointerRegions() {}
 
-    // Move buffered stack roots into GC work stack (called from MergeMutatorRoots)
+    // Move buffered stack roots into a temporary root buffer.
+    // This helper intentionally does not discover/mark/enqueue grey work; the
+    // collector owns the later white->grey transition when it drains the merged
+    // root buffer into its grey-work queues.
     template<class WorkStack>
     inline void MergeRoots(WorkStack& workStack)
     {
