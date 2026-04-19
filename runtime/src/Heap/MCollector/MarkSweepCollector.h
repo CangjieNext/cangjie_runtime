@@ -188,8 +188,6 @@ public:
     bool ShouldIgnoreRequest(GCRequest& request) override { return request.ShouldBeIgnored(); }
     void UpdateGCStats() override;
     bool TryEnqueueGreyObject(BaseObject* obj, GreyWorkSink& sink);
-    bool IsScannedObject(const BaseObject* obj) const;
-    void SetScannedObject(const BaseObject* obj) const;
 
 private:
     // ── MS GC phases ──
@@ -209,7 +207,6 @@ private:
     bool TryEnqueueGreyObject(BaseObject* obj, GreyWorkQueue& queue);
     bool DiscoverObject(BaseObject* obj);
     void DebugVerifyQueuedGreyObject(const BaseObject* obj, const char* queueName) const;
-    void DebugRecordBlackObject(const BaseObject* obj) const;
 
     // ── Step 2.2 internals ──
     void RunConcurrentMarkLoop(GreyWorkQueue& workStack);

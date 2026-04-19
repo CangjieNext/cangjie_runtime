@@ -331,34 +331,8 @@ bool MarkSweepCollector::MarkObject(BaseObject* obj) const
     return true;
 }
 
-bool MarkSweepCollector::IsScannedObject(const BaseObject* obj) const
-{
-    if (obj == nullptr) {
-        return true;
-    }
-    uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
-    if (MSRegionInfoArray::IsHeapAddress(addr)) {
-        return MSRegionInfoArray::IsScannedObjectInHeap(addr);
-    }
-    return true;
-}
-
-void MarkSweepCollector::SetScannedObject(const BaseObject* obj) const
-{
-    if (obj == nullptr) {
-        return;
-    }
-    uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
-    if (MSRegionInfoArray::IsHeapAddress(addr)) {
-        MSRegionInfoArray::SetScannedObjectInHeap(addr);
-    }
-}
-
 bool MarkSweepCollector::DiscoverObject(BaseObject* obj)
 {
-    if (obj == nullptr || !IsManagedAddress(reinterpret_cast<MAddress>(obj))) {
-        return false;
-    }
     if (MarkObject(obj)) {
         return false;
     }
@@ -394,23 +368,11 @@ void MarkSweepCollector::DebugVerifyQueuedGreyObject(const BaseObject* obj, cons
 {
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     CHECK_DETAIL(IsMarkedObject(obj),
-                 "[MS-GC] protocol violation: queue %s contains non-grey obj=%p (mark=0, scanned=%d)",
-                 queueName, static_cast<const void*>(obj), static_cast<int>(IsScannedObject(obj)));
-    CHECK_DETAIL(!IsScannedObject(obj),
-                 "[MS-GC] protocol violation: queue %s contains already-scanned obj=%p",
+                 "[MS-GC] protocol violation: queue %s contains unmarked obj=%p",
                  queueName, static_cast<const void*>(obj));
 #else
     (void)obj;
     (void)queueName;
-#endif
-}
-
-void MarkSweepCollector::DebugRecordBlackObject(const BaseObject* obj) const
-{
-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-    SetScannedObject(obj);
-#else
-    (void)obj;
 #endif
 }
 
@@ -549,10 +511,6 @@ void MarkSweepCollector::RunCollectorDrainSlice(GreyWorkQueue& workStack, size_t
         BaseObject* obj = workStack.back();
         workStack.pop_back();
 
-        if (obj == nullptr || !IsManagedAddress(reinterpret_cast<MAddress>(obj))) {
-            continue;
-        }
-
         // Guard: objects in the mark queue must have a valid stateWord.
         // A zeroed stateWord means a corrupted/prematurely-reclaimed object —
         // this is a fatal GC invariant violation, not a recoverable condition.
@@ -564,14 +522,9 @@ void MarkSweepCollector::RunCollectorDrainSlice(GreyWorkQueue& workStack, size_t
                 (int)IsMarkedObject(obj));
         }
 
-        // Queue protocol: any newly-grey object must enter through
-        // TryEnqueueGreyObject(), so consumers can trust this queue contains
-        // only grey work. Debug builds verify the invariant explicitly.
-        DebugVerifyQueuedGreyObject(obj, "markWorkStack_");
         processed++;
 
         if (!obj->HasRefField()) {
-            DebugRecordBlackObject(obj);
             continue;
         }
 
@@ -584,13 +537,11 @@ void MarkSweepCollector::RunCollectorDrainSlice(GreyWorkQueue& workStack, size_t
                 // Don't mark referent — add to WeakRefBuffer for later processing
                 WeakRefBuffer::Instance().Insert(obj);
             }
-            DebugRecordBlackObject(obj);
             continue;
         }
 
         // Trace all reference fields: discover children before enqueue.
         TraceObjectRefFields(obj, workStack.UnsafeRaw());
-        DebugRecordBlackObject(obj);
     }
 }
 
@@ -598,34 +549,14 @@ void MarkSweepCollector::TraceRefField(
     BaseObject* obj, RefField<>& field, WorkStack& workStack)
 {
     BaseObject* target = field.GetTargetObject();
-    if (target == nullptr || !IsManagedAddress(reinterpret_cast<MAddress>(target))) {
-        return;
-    }
-    // Fatal: a traced reference field points to an object with invalid stateWord.
-    // This indicates stale data in a live object — a GC invariant violation.
-    if (UNLIKELY(!target->IsValidObject())) {
-        LOG(RTLOG_FATAL, "[MS-GC] TraceRefField: FATAL INVALID target=%p "
-            "(stateWord=0x%zx) from parent=%p (parentSW=0x%zx, parentTI=%p), "
-            "fieldAddr=%p",
-            (void*)target,
-            *reinterpret_cast<uintptr_t*>(target),
-            (void*)obj,
-            *reinterpret_cast<uintptr_t*>(obj),
-            (obj != nullptr ? (void*)obj->GetTypeInfo() : nullptr),
-            (void*)&field);
-    }
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     bool targetMarked = IsMarkedObject(target);
-    if (UNLIKELY(IsHashMapTraceEnabled()) &&
-        HashMapTracePermit() &&
-        (IsInterestingDiagType(obj) || IsInterestingDiagType(target))) {
-        VLOG(REPORT, "[MS-HM-DIAG] TraceRefField parent=%p<%s> target=%p<%s> marked=%d field=%p",
-             (void*)obj, GetDiagTypeName(obj),
-             (void*)target, GetDiagTypeName(target),
-             (int)targetMarked, (void*)&field);
-    }
     if (!targetMarked) {
         DiscoverAndPushObject(target, workStack);
     }
+#else
+    DiscoverAndPushObject(target, workStack);
+#endif
 }
 
 // ============================================================================
@@ -741,10 +672,6 @@ void MarkSweepCollector::MSMarkAssist()
         BaseObject* obj = localWork.back();
         localWork.pop_back();
 
-        if (obj == nullptr || !IsManagedAddress(reinterpret_cast<MAddress>(obj))) {
-            continue;
-        }
-
         // Guard: objects in the mark queue must have a valid stateWord (same as RunCollectorDrainSlice).
         if (UNLIKELY(!obj->IsValidObject())) {
             LOG(RTLOG_FATAL, "[MS-GC] MSMarkAssist: FATAL invalid stateWord obj=%p, "
@@ -754,11 +681,9 @@ void MarkSweepCollector::MSMarkAssist()
                 (int)IsMarkedObject(obj));
         }
 
-        DebugVerifyQueuedGreyObject(obj, "assistLocalWork_");
         nProcessed++;
 
         if (!obj->HasRefField()) {
-            DebugRecordBlackObject(obj);
             continue;
         }
 
@@ -772,7 +697,6 @@ void MarkSweepCollector::MSMarkAssist()
 
         // Trace children → discover before enqueue into local work.
         TraceObjectRefFields(obj, localWork.UnsafeRaw());
-        DebugRecordBlackObject(obj);
         nTraced++;
 
         // Flush excess to global to share with GC thread and other assists
@@ -917,7 +841,8 @@ void MarkSweepCollector::CollectExternCandidatesToMain(GreyWorkQueue& mainQueue)
 {
     for (auto& kv : discoveredExternObjects) {
         for (BaseObject* obj : kv.second) {
-            if (obj != nullptr && obj->IsValidObject()) {
+            if (obj != nullptr && obj->IsValidObject() &&
+                IsManagedAddress(reinterpret_cast<MAddress>(obj))) {
                 (void)TryEnqueueGreyObject(obj, mainQueue);
             }
         }
@@ -928,7 +853,8 @@ void MarkSweepCollector::CollectResurrectionCandidatesToMain(GreyWorkQueue& main
 {
     VisitFinalizerRoots([&mainQueue, this](ObjectRef& ref) {
         BaseObject* finalizerObj = ref.object;
-        if (finalizerObj != nullptr && finalizerObj->IsValidObject()) {
+        if (finalizerObj != nullptr && finalizerObj->IsValidObject() &&
+            IsManagedAddress(reinterpret_cast<MAddress>(finalizerObj))) {
             (void)TryEnqueueGreyObject(finalizerObj, mainQueue);
         }
     });
@@ -942,10 +868,6 @@ void MarkSweepCollector::ExecuteLikeDrainMainQueue(GreyWorkQueue& mainQueue)
         BaseObject* obj = mainQueue.back();
         mainQueue.pop_back();
         processed++;
-        if (obj == nullptr || !IsManagedAddress(reinterpret_cast<MAddress>(obj))) {
-            continue;
-        }
-
         // Guard: objects in released/reclaimed regions must not appear in
         // the mark queue. A zeroed stateWord is a fatal GC invariant violation.
         if (!obj->IsValidObject()) {
@@ -955,15 +877,7 @@ void MarkSweepCollector::ExecuteLikeDrainMainQueue(GreyWorkQueue& mainQueue)
                 *reinterpret_cast<uintptr_t*>(obj));
         }
 
-        DebugVerifyQueuedGreyObject(obj, "mainQueue");
-
-        if (UNLIKELY(IsHashMapTraceEnabled()) && HashMapTracePermit() && IsInterestingDiagType(obj)) {
-            VLOG(REPORT, "[MS-HM-DIAG] DrainObj obj=%p<%s> alreadyMarked=%d qRemain=%zu",
-                 (void*)obj, GetDiagTypeName(obj), (int)IsMarkedObject(obj), mainQueue.size());
-        }
-
         if (!obj->HasRefField()) {
-            DebugRecordBlackObject(obj);
             continue;
         }
 
@@ -975,12 +889,10 @@ void MarkSweepCollector::ExecuteLikeDrainMainQueue(GreyWorkQueue& mainQueue)
                 TraceObjectRefFields(referent, mainQueue.UnsafeRaw());
                 WeakRefBuffer::Instance().Insert(obj);
             }
-            DebugRecordBlackObject(obj);
             continue;
         }
 
         TraceObjectRefFields(obj, mainQueue.UnsafeRaw());
-        DebugRecordBlackObject(obj);
     }
 
     cycleStats_.markTermProcessedObjects = processed;
@@ -1110,10 +1022,7 @@ void MarkSweepCollector::MarkNewObject(BaseObject* obj)
         // Go-style alloc-black: mark the new object so it is treated as live
         // and not eligible for grey-work production. The hybrid write barrier
         // still discovers any child references written during construction.
-        // In debug builds we additionally record the object as black via the
-        // scanned bit, but runtime control flow no longer depends on scanned.
         MarkObject(obj);
-        DebugRecordBlackObject(obj);
     }
 }
 

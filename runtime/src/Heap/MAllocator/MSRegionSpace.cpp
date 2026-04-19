@@ -448,14 +448,10 @@ void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t regionBytes)
     }
 
     baseInfo->AtomicSetMarked();
-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-    baseInfo->AtomicSetScanned();
-#endif
 
     // BLACK allocation for large objects during marking: the hybrid write
     // barrier (SATB + insertion) ensures children are independently
-    // discovered when fields are written. No need to enqueue. In debug
-    // builds we also tag the object as scanned for protocol validation.
+    // discovered when fields are written. No need to enqueue.
 
     if (msCentralPool_ != nullptr) {
         msCentralPool_->RegisterLargeRegion(baseInfo);

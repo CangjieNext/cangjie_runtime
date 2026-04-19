@@ -37,7 +37,7 @@ void MSRegionInfo::InitForSizeClass(uint8_t cls)
     reserved = 0;  // searchHint = 0
 
     // Use the fixed sidecar slot for this region:
-    // [allocBitmap | markBitmap | scannedBitmap].
+    // [allocBitmap | markBitmap].
     size_t bitmapWords = (totalSlotCount + 63) / 64;
     size_t bitmapBytes = bitmapWords * sizeof(uint64_t);
     size_t regionIdx = MSRegionInfoArray::GetRegionIdx(this);
@@ -50,12 +50,10 @@ void MSRegionInfo::InitForSizeClass(uint8_t cls)
 
     allocBitmap = mem;
     markBitmap = reinterpret_cast<uint64_t*>(reinterpret_cast<uint8_t*>(mem) + bitmapBytes);
-    uint64_t* scannedBitmap = reinterpret_cast<uint64_t*>(reinterpret_cast<uint8_t*>(mem) + bitmapBytes * 2);
 
-    // Initialize: all slots free (allocBitmap all-1s), mark/scanned bits cleared
+    // Initialize: all slots free (allocBitmap all-1s), mark bits cleared
     memset(allocBitmap, 0xFF, bitmapBytes);
     memset(markBitmap, 0, bitmapBytes);
-    memset(scannedBitmap, 0, bitmapBytes);
 
     // Mask out invalid trailing bits in the last word if totalSlotCount % 64 != 0
     size_t trailingBits = totalSlotCount % 64;
@@ -139,7 +137,6 @@ void MSRegionInfo::ResetToBump()
     }
     // Clear markBitmap for safety
     memset(markBitmap, 0, bitmapWords * sizeof(uint64_t));
-    ClearScannedBitmap();
 
     // Build summary word (O4): all bitmap words have free slots
     reserved = (bitmapWords == 64) ? ~0ULL : ((1ULL << bitmapWords) - 1);
@@ -313,25 +310,6 @@ bool MSRegionInfo::TestAndSetMarkBit(uintptr_t objAddr)
     uint64_t bit = 1ULL << (slotIdx % 64);
     uint64_t old = __atomic_fetch_or(&markBitmap[wordIdx], bit, __ATOMIC_RELAXED);
     return (old & bit) != 0;  // true if was already marked
-}
-
-void MSRegionInfo::SetScannedBit(uintptr_t objAddr)
-{
-    size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
-    size_t slotIdx = (objAddr - RegionStart()) / slotSize;
-    size_t wordIdx = slotIdx / 64;
-    size_t bitIdx = slotIdx % 64;
-    __atomic_or_fetch(&GetScannedBitmap()[wordIdx], 1ULL << bitIdx, __ATOMIC_RELAXED);
-}
-
-bool MSRegionInfo::GetScannedBit(uintptr_t objAddr) const
-{
-    size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
-    size_t slotIdx = (objAddr - RegionStart()) / slotSize;
-    size_t wordIdx = slotIdx / 64;
-    size_t bitIdx = slotIdx % 64;
-    uint64_t word = __atomic_load_n(&GetScannedBitmap()[wordIdx], __ATOMIC_RELAXED);
-    return (word & (1ULL << bitIdx)) != 0;
 }
 
 // ============================================================================

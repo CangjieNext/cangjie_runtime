@@ -17,7 +17,7 @@ namespace MapleRuntime {
 class MSBitmapArena {
 public:
     static constexpr size_t kMaxBitmapWords = 64;
-    static constexpr size_t kBitmapSlotBytes = kMaxBitmapWords * sizeof(uint64_t) * 3;
+    static constexpr size_t kBitmapSlotBytes = kMaxBitmapWords * sizeof(uint64_t) * 2;
     static constexpr size_t kRegionsPerChunk = 256;
     static constexpr size_t kChunkBytes = kRegionsPerChunk * kBitmapSlotBytes;
 

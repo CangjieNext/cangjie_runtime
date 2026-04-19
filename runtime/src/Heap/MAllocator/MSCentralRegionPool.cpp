@@ -1152,7 +1152,7 @@ void CentralRegionPool::ClearAllMarkBitmaps()
         // Large regions: clear isMarked (no markBitmap to clear).
         // Replaces the separate ClearLargeMarks() + largeLock_ traversal.
         if (type == MSRegionType::MS_REGION_LARGE) {
-            info->ClearMarkAndScanned();
+            info->ClearMarkedFlag();
             largeCleared++;
             continue;
         }
@@ -1172,7 +1172,6 @@ void CentralRegionPool::ClearAllMarkBitmaps()
         // Safe because: no SweepRegion is running (StopAndWaitForAllSweep),
         // and mark-at-alloc is inactive (GC phase is IDLE/SWEEP).
         info->ClearMarkBitmap();
-        info->ClearScannedBitmap();
         clearedCount++;
     }
 

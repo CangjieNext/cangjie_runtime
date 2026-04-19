@@ -87,16 +87,14 @@ struct MSRegionInfo {
     MSRegionType regionType;        // +50  Region type (1B)
 
     // ========== Flag bits (atomic for large-object concurrent safety) ==========
-    // bit 0: isMarked,  bit 1: isEnqueued,  bit 2: isResurrected,  bit 3: isScanned
+    // bit 0: isMarked,  bit 1: isEnqueued,  bit 2: isResurrected
     static constexpr uint8_t FLAG_MARKED      = 0x01;
     static constexpr uint8_t FLAG_ENQUEUED    = 0x02;
     static constexpr uint8_t FLAG_RESURRECTED = 0x04;
-    static constexpr uint8_t FLAG_SCANNED     = 0x08;
     uint8_t     flags_;              // +51  all GC flag bits (use atomic accessors for large objects)
 
     // Atomic accessors — safe for concurrent mark on large objects
     bool IsMarked() const { return (__atomic_load_n(&flags_, __ATOMIC_RELAXED) & FLAG_MARKED) != 0; }
-    bool IsScanned() const { return (__atomic_load_n(&flags_, __ATOMIC_RELAXED) & FLAG_SCANNED) != 0; }
     bool IsEnqueued() const { return (flags_ & FLAG_ENQUEUED) != 0; }
     bool IsResurrected() const { return (flags_ & FLAG_RESURRECTED) != 0; }
 
@@ -106,19 +104,12 @@ struct MSRegionInfo {
         return (old & FLAG_MARKED) != 0;
     }
     void AtomicSetMarked() { __atomic_fetch_or(&flags_, FLAG_MARKED, __ATOMIC_RELAXED); }
-    void AtomicSetScanned() { __atomic_fetch_or(&flags_, FLAG_SCANNED, __ATOMIC_RELAXED); }
-    void ClearScannedFlag() {
-        uint8_t old = __atomic_load_n(&flags_, __ATOMIC_RELAXED);
-        uint8_t nv = old & ~FLAG_SCANNED;
-        __atomic_store_n(&flags_, nv, __ATOMIC_RELAXED);
-    }
     void ClearFlags() { __atomic_store_n(&flags_, 0, __ATOMIC_RELAXED); }
-    void ClearMarkAndScanned() {
+    void ClearMarkedFlag() {
         uint8_t old = __atomic_load_n(&flags_, __ATOMIC_RELAXED);
-        uint8_t nv = old & ~(FLAG_MARKED | FLAG_SCANNED);
+        uint8_t nv = old & ~FLAG_MARKED;
         __atomic_store_n(&flags_, nv, __ATOMIC_RELAXED);
     }
-    void SetMarkedAndScanned() { __atomic_fetch_or(&flags_, FLAG_MARKED | FLAG_SCANNED, __ATOMIC_RELAXED); }
 
     // ========== Alignment padding ==========
     uint32_t    sweepGen;           // +52  sweep generation for lazy sweep (4B)
@@ -200,9 +191,6 @@ struct MSRegionInfo {
     bool GetMarkBit(uintptr_t objAddr) const;
     // Returns true if already marked (previous bit was set).
     bool TestAndSetMarkBit(uintptr_t objAddr);
-    void SetScannedBit(uintptr_t objAddr);
-    bool GetScannedBit(uintptr_t objAddr) const;
-
     // Clear markBitmap for next GC cycle. Called by FlushAll during MarkSetup STW
     // to clear mark-at-alloc dirty bits on TL regions before returning to pool.
     void ClearMarkBitmap()
@@ -210,14 +198,6 @@ struct MSRegionInfo {
         if (markBitmap != nullptr && totalSlotCount > 0) {
             size_t bitmapWords = (totalSlotCount + 63) / 64;
             memset(markBitmap, 0, bitmapWords * sizeof(uint64_t));
-        }
-    }
-
-    void ClearScannedBitmap()
-    {
-        if (markBitmap != nullptr && totalSlotCount > 0) {
-            size_t bitmapWords = (totalSlotCount + 63) / 64;
-            memset(GetScannedBitmap(), 0, bitmapWords * sizeof(uint64_t));
         }
     }
 
@@ -239,17 +219,6 @@ struct MSRegionInfo {
     size_t GetLiveBytes() const;
 
 private:
-    inline uint64_t* GetScannedBitmap()
-    {
-        size_t bitmapWords = (totalSlotCount + 63) / 64;
-        return markBitmap + bitmapWords;
-    }
-
-    inline const uint64_t* GetScannedBitmap() const
-    {
-        size_t bitmapWords = (totalSlotCount + 63) / 64;
-        return markBitmap + bitmapWords;
-    }
 };
 
 static_assert(sizeof(MSRegionInfo) == 64, "MSRegionInfo must be exactly 64 bytes (one cache line)");
@@ -378,44 +347,6 @@ public:
             return msInfo->TestAndSetMarkBit(addr);
         }
         return true;  // uninitialized region — treat as already marked
-    }
-
-    static inline bool IsScannedObjectInHeap(uintptr_t addr)
-    {
-        MSRegionInfo* msInfo = GetRegionInfoValidated(addr);
-        if (msInfo == nullptr) {
-            return true;
-        }
-        if (msInfo->regionType == MSRegionType::MS_REGION_LARGE) {
-            MSRegionInfo* base = GetRegionInfoByIdx(static_cast<size_t>(msInfo->reserved));
-            if (base->allocPtr == 0 && base->regionEnd == 0) {
-                return true;
-            }
-            return base->IsScanned();
-        }
-        if (msInfo->markBitmap != nullptr && msInfo->totalSlotCount > 0) {
-            return msInfo->GetScannedBit(addr);
-        }
-        return true;
-    }
-
-    static inline void SetScannedObjectInHeap(uintptr_t addr)
-    {
-        MSRegionInfo* msInfo = GetRegionInfoValidated(addr);
-        if (msInfo == nullptr) {
-            return;
-        }
-        if (msInfo->regionType == MSRegionType::MS_REGION_LARGE) {
-            MSRegionInfo* base = GetRegionInfoByIdx(static_cast<size_t>(msInfo->reserved));
-            if (base->allocPtr == 0 && base->regionEnd == 0) {
-                return;
-            }
-            base->AtomicSetScanned();
-            return;
-        }
-        if (msInfo->markBitmap != nullptr && msInfo->totalSlotCount > 0) {
-            msInfo->SetScannedBit(addr);
-        }
     }
 
     static size_t GetMaxRegionCount() { return maxRegionCount_; }
