@@ -411,7 +411,7 @@ void MarkSweepCollector::ConcurrentMark()
     // 8. Transition to concurrent marking phase
     TransitionToGCPhase(GCPhase::GC_PHASE_MS_CONCURRENT_MARK, true);
 
-    // 9. Enable Mutator assist
+    // 9. Reset assist stats and bgScanCredit
     assistMarkedCount_.store(0, std::memory_order_relaxed);
     assistCallTotal_.store(0, std::memory_order_relaxed);
     assistProcessedCount_.store(0, std::memory_order_relaxed);
@@ -421,51 +421,84 @@ void MarkSweepCollector::ConcurrentMark()
     globalSharedBufCount_.store(0, std::memory_order_relaxed);
     globalPopHitCount_.store(0, std::memory_order_relaxed);
     globalPopMissCount_.store(0, std::memory_order_relaxed);
-    globalWorkAvailable_.store(false, std::memory_order_relaxed);
+    bgScanCredit_.store(0, std::memory_order_relaxed);
+    bgScanCreditConsumed_.store(0, std::memory_order_relaxed);
+
+    // 10. Init Per-P GCWork (Step5): initialize gcThreadWork_ and all per-P gcWork
+    gcThreadWork_.Init(&globalFull_, &workBufPool_);
+    InitAllPerPGCWork();
+
+    // 11. Enable assist
     assistEnabled_.store(true, std::memory_order_release);
 
-    // 11. Run concurrent marking loop (GC thread + Mutator assist)
-    RunConcurrentMarkLoop(markWorkStack_);
+    // 12. Transfer root objects from markWorkStack_ to gcThreadWork_
+    TransferRootsToGCWork();
 
-    // 12. Disable Mutator assist and clear activeCollector_.
-    //     No longer needed beyond concurrent mark.
+    // 13. Run concurrent marking loop (GC thread + Mutator assist)
+    RunConcurrentMarkLoop();
+
+    // 14. Disable Mutator assist and clear activeCollector_.
     assistEnabled_.store(false, std::memory_order_release);
 }
 
-void MarkSweepCollector::RunConcurrentMarkLoop(GreyWorkQueue& workStack)
+void MarkSweepCollector::RunConcurrentMarkLoop()
 {
     uint64_t t0 = TimeUtil::MicroSeconds();
-    VLOG(REPORT, "[MS-GC] --- ConcurrentMark (GC thread + Mutator assist) ---");
-    VLOG(REPORT, "[MS-GC] ConcurrentMark initial workStack bufs: %zu", workStack.size());
+    VLOG(REPORT, "[MS-GC] --- ConcurrentMark (Step5: Per-P gcWork + LFStack) ---");
 
     convergenceStableRounds_ = 0;
+    size_t localCreditAccum = 0;       // Opt2: batch bgScanCredit accumulation
+    size_t slicesSinceBalance = 0;     // Opt3: proactive balance counter
 
     while (true) {
-        // 1. Share work: push half of GC local to global for Mutator assist
-        if (workStack.size() >= kShareWorkBufs) {
-            ShareWorkToGlobal(workStack);
+        // Opt3: Proactive balance — share work to globalFull_ every 2 slices
+        // so that assist threads can actually find work to do,
+        // instead of only balancing when global is already empty.
+        slicesSinceBalance++;
+        if (slicesSinceBalance >= kBalanceEveryNSlices) {
+            gcThreadWork_.Balance();
+            slicesSinceBalance = 0;
         }
 
-        // 2. Drain a slice from GC local work (unchanged logic)
-        if (!workStack.empty()) {
-            RunCollectorDrainSlice(workStack, kSliceMaxObjects);
+        // 2. Drain a slice from gcThreadWork_
+        size_t scannedCount = 0;
+        DrainGCWork(gcThreadWork_, kSliceMaxObjects, scannedCount);
+
+        // Opt2: Accumulate credit locally, only flush to atomic every N slices
+        // to reduce cache-line bouncing with assist threads calling TryStealBgCredit.
+        localCreditAccum += scannedCount;
+        if (localCreditAccum >= kCreditFlushThreshold) {
+            bgScanCredit_.fetch_add(static_cast<int64_t>(localCreditAccum), std::memory_order_release);
+            localCreditAccum = 0;
         }
 
-        // 3. If GC local empty, try refill from global queue
-        if (workStack.empty()) {
-            PopFromGlobal(workStack, 1);  // refill 1 buffer (~64 objects)
-        }
-
-        // 4. Convergence check: local AND global both empty, stable for N rounds
-        bool globalEmpty = false;
-        {
-            std::lock_guard<std::mutex> lock(globalWorkMutex_);
-            globalEmpty = globalWorkQueue_.empty();
-        }
-
-        if (workStack.empty() && globalEmpty) {
+        // 3. Convergence check: gcThreadWork_ + globalFull_ both empty
+        if (gcThreadWork_.Empty() && globalFull_.Empty()) {
             convergenceStableRounds_++;
             if (convergenceStableRounds_ >= kConvergenceRequiredRounds) {
+                // ── Pre-convergence per-P flush ──
+                // Disable assist to prevent races on per-P buffers, then
+                // flush all per-P gcWork to global.  If residual work is
+                // found, drain it here (concurrent) instead of deferring
+                // to MarkTermination STW.
+                assistEnabled_.store(false, std::memory_order_release);
+                usleep(200);  // let in-flight assist calls complete
+
+                DisposeAllPerPGCWork();
+
+                if (!globalFull_.Empty()) {
+                    // Per-P flush produced residual work — continue draining.
+                    // Assist stays disabled to avoid re-accumulation.
+                    VLOG(REPORT, "[MS-GC] Pre-convergence flush: residual per-P work found, re-draining");
+                    convergenceStableRounds_ = 0;
+                    continue;
+                }
+                // No residual work → true convergence (assist already disabled)
+                // Opt2: flush remaining local credit before exiting
+                if (localCreditAccum > 0) {
+                    bgScanCredit_.fetch_add(static_cast<int64_t>(localCreditAccum), std::memory_order_release);
+                    localCreditAccum = 0;
+                }
                 break;
             }
             // Short yield — let in-flight assist finish pushing results
@@ -485,12 +518,13 @@ void MarkSweepCollector::RunConcurrentMarkLoop(GreyWorkQueue& workStack)
     cycleStats_.globalSharedBufs = globalSharedBufCount_.load(std::memory_order_relaxed);
     cycleStats_.globalPopHitCount = globalPopHitCount_.load(std::memory_order_relaxed);
     cycleStats_.globalPopMissCount = globalPopMissCount_.load(std::memory_order_relaxed);
+    cycleStats_.bgScanCreditConsumed = bgScanCreditConsumed_.load(std::memory_order_relaxed);
 
     cycleStats_.concurrentMarkUs = TimeUtil::MicroSeconds() - t0;
     VLOG(REPORT,
          "[MS-GC] ConcurrentMark time: %sus, marked %zu objects "
-         "(assist: %zu calls, %zu marked, %zu processed, %zu traced, %zu fast-skip; "
-         "global: %zu push/%zu bufs, pop hit %zu miss %zu)",
+         "(assist: %zu calls, %zu marked, %zu processed, %zu traced, %zu bgCredit-skip; "
+         "LFStack: push %zu, pop hit %zu miss %zu, bgCredit consumed %zu)",
          Pretty(cycleStats_.concurrentMarkUs).Str(),
          markedObjectCount.load(std::memory_order_relaxed),
          cycleStats_.assistCallCount,
@@ -499,50 +533,83 @@ void MarkSweepCollector::RunConcurrentMarkLoop(GreyWorkQueue& workStack)
          cycleStats_.assistTracedObjects,
          cycleStats_.assistFastSkipCount,
          cycleStats_.globalShareCount,
-         cycleStats_.globalSharedBufs,
          cycleStats_.globalPopHitCount,
-         cycleStats_.globalPopMissCount);
+         cycleStats_.globalPopMissCount,
+         cycleStats_.bgScanCreditConsumed);
 }
 
-void MarkSweepCollector::RunCollectorDrainSlice(GreyWorkQueue& workStack, size_t maxObjects)
+// ============================================================================
+// DrainGCWork: drain objects from PerPGCWork, trace children back into it.
+// This is the Step5 replacement for RunCollectorDrainSlice.
+// ============================================================================
+void MarkSweepCollector::DrainGCWork(PerPGCWork& gcw, size_t maxObjects, size_t& scannedCount)
 {
-    size_t processed = 0;
-    while (!workStack.empty() && processed < maxObjects) {
-        BaseObject* obj = workStack.back();
-        workStack.pop_back();
+    scannedCount = 0;
+    for (size_t i = 0; i < maxObjects; i++) {
+        BaseObject* obj = gcw.TryGetObj();
+        if (obj == nullptr) {
+            break;
+        }
 
-        // Guard: objects in the mark queue must have a valid stateWord.
-        // A zeroed stateWord means a corrupted/prematurely-reclaimed object —
-        // this is a fatal GC invariant violation, not a recoverable condition.
         if (UNLIKELY(!obj->IsValidObject())) {
-            LOG(RTLOG_FATAL, "[MS-GC] RunCollectorDrainSlice: FATAL invalid stateWord obj=%p, "
+            LOG(RTLOG_FATAL, "[MS-GC] DrainGCWork: FATAL invalid stateWord obj=%p, "
                 "stateWord=0x%zx, markBit=%d",
                 (void*)obj,
                 *reinterpret_cast<uintptr_t*>(obj),
                 (int)IsMarkedObject(obj));
         }
 
-        processed++;
+        scannedCount++;
 
         if (!obj->HasRefField()) {
             continue;
         }
 
-        // Handle WeakRef specially: don't trace referent, defer to WeakRefBuffer
         if (UNLIKELY(obj->IsWeakRef())) {
             RefField<>* referentField =
                 reinterpret_cast<RefField<>*>(reinterpret_cast<uintptr_t>(obj) + sizeof(uintptr_t));
             BaseObject* referent = GetAndTryTagObj(obj, *referentField);
             if (referent != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(referent))) {
-                // Don't mark referent — add to WeakRefBuffer for later processing
                 WeakRefBuffer::Instance().Insert(obj);
             }
             continue;
         }
 
-        // Trace all reference fields: discover children before enqueue.
-        TraceObjectRefFields(obj, workStack.UnsafeRaw());
+        TraceObjectRefFieldsToGCWork(obj, gcw);
     }
+}
+
+// ============================================================================
+// TraceObjectRefFieldsToGCWork: trace all ref fields of obj, push grey children
+// into PerPGCWork (Step5 replacement for TraceObjectRefFields on WorkStack).
+// ============================================================================
+void MarkSweepCollector::TraceObjectRefFieldsToGCWork(BaseObject* obj, PerPGCWork& gcw)
+{
+    auto refFunc = [this, &gcw](RefField<>& field) {
+        BaseObject* target = field.GetTargetObject();
+        if (target != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(target))) {
+            if (DiscoverObject(target)) {
+                gcw.PutObj(target);
+            }
+        }
+    };
+    obj->ForEachRefField(refFunc);
+}
+
+// ============================================================================
+// TransferRootsToGCWork: move root objects from markWorkStack_ into gcThreadWork_.
+// Called once at start of ConcurrentMark after root enumeration.
+// ============================================================================
+void MarkSweepCollector::TransferRootsToGCWork()
+{
+    size_t transferred = 0;
+    while (!markWorkStack_.empty()) {
+        BaseObject* obj = markWorkStack_.back();
+        markWorkStack_.pop_back();
+        gcThreadWork_.PutObj(obj);
+        transferred++;
+    }
+    VLOG(REPORT, "[MS-GC] TransferRootsToGCWork: %zu root objects → gcThreadWork_", transferred);
 }
 
 void MarkSweepCollector::TraceRefField(
@@ -560,21 +627,30 @@ void MarkSweepCollector::TraceRefField(
 }
 
 // ============================================================================
-// Global work queue helpers (GC thread + Mutator assist)
+// Global work queue helpers (Step5: LFStack-based, lock-free)
 // ============================================================================
 
-void MarkSweepCollector::PushToGlobal(GreyWorkQueue& source)
+void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
 {
-    if (source.empty()) {
-        return;
+    // Flush WB buffer objects into a WorkBuf and push to global LFStack.
+    WorkBuf* buf = workBufPool_.Get();
+    size_t n = wbBuf.Count();
+    BaseObject** data = wbBuf.Data();
+    for (size_t i = 0; i < n; i++) {
+        if (data[i] != nullptr) {
+            if (buf->Full()) {
+                globalFull_.Push(buf);
+                buf = workBufPool_.Get();
+            }
+            buf->Push(data[i]);
+        }
     }
-    size_t movedBufs = source.size();
-    std::lock_guard<std::mutex> lock(globalWorkMutex_);
-    globalWorkQueue_.insert(source);
-    globalWorkAvailable_.store(true, std::memory_order_release);
-    // insert() transfers ownership and cleans source
-    globalShareCount_.fetch_add(1, std::memory_order_relaxed);
-    globalSharedBufCount_.fetch_add(movedBufs, std::memory_order_relaxed);
+    wbBuf.Clear();
+    if (!buf->Empty()) {
+        globalFull_.Push(buf);
+    } else {
+        workBufPool_.Put(buf);
+    }
 }
 
 void MarkSweepCollector::PushSingleToDeferredMainThread(BaseObject* obj)
@@ -586,54 +662,96 @@ void MarkSweepCollector::PushSingleToDeferredMainThread(BaseObject* obj)
     deferredMainThreadQueue_.PushMovedGrey(obj);
 }
 
-void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
+// ============================================================================
+// Step5: LFStack helpers
+// ============================================================================
+
+void MarkSweepCollector::DrainGlobalLFStackToMainQueue(GreyWorkQueue& mainQueue)
 {
-    std::lock_guard<std::mutex> lock(globalWorkMutex_);
-    wbBuf.Flush(globalWorkQueue_.UnsafeRaw());
-    if (!globalWorkQueue_.empty()) {
-        globalWorkAvailable_.store(true, std::memory_order_release);
+    while (true) {
+        WorkBuf* buf = globalFull_.Pop();
+        if (buf == nullptr) {
+            break;
+        }
+        for (size_t i = 0; i < buf->len; i++) {
+            mainQueue.PushMovedGrey(buf->objs[i]);
+        }
+        workBufPool_.Put(buf);
     }
 }
 
-void MarkSweepCollector::PopFromGlobal(GreyWorkQueue& dest, size_t maxBufs)
+bool MarkSweepCollector::TryStealBgCredit(size_t debtObjects)
 {
-    std::lock_guard<std::mutex> lock(globalWorkMutex_);
-    if (globalWorkQueue_.empty()) {
-        globalWorkAvailable_.store(false, std::memory_order_release);
-        globalPopMissCount_.fetch_add(1, std::memory_order_relaxed);
-        return;
+    int64_t credit = bgScanCredit_.load(std::memory_order_acquire);
+    if (credit <= 0) {
+        return false;
     }
-    size_t toSplit = std::min(maxBufs, globalWorkQueue_.size());
-    auto* bufs = globalWorkQueue_.split(toSplit);
-    if (bufs != nullptr) {
-        dest.AdoptSplitBuffers(bufs);
-        globalPopHitCount_.fetch_add(1, std::memory_order_relaxed);
+    int64_t stolen = std::min(static_cast<int64_t>(debtObjects), credit);
+    while (!bgScanCredit_.compare_exchange_weak(
+               credit, credit - stolen,
+               std::memory_order_release, std::memory_order_relaxed)) {
+        if (credit <= 0) {
+            return false;
+        }
+        stolen = std::min(static_cast<int64_t>(debtObjects), credit);
     }
-    globalWorkAvailable_.store(!globalWorkQueue_.empty(), std::memory_order_release);
+    bgScanCreditConsumed_.fetch_add(static_cast<size_t>(stolen), std::memory_order_relaxed);
+    return stolen >= static_cast<int64_t>(debtObjects);
 }
 
-void MarkSweepCollector::ShareWorkToGlobal(GreyWorkQueue& local)
+void MarkSweepCollector::InitAllPerPGCWork()
 {
-    size_t toShare = local.size() / 2;
-    if (toShare == 0) {
-        return;
+    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    if (centralPool != nullptr) {
+        centralPool->VisitAllocBufferMS([this](AllocBufferMS& buf) {
+            buf.GetGCWork().Init(&globalFull_, &workBufPool_);
+        });
     }
-    auto* bufs = local.split(toShare);
-    if (bufs == nullptr) {
-        return;
+}
+
+void MarkSweepCollector::DisposeAllPerPGCWork()
+{
+    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    if (centralPool != nullptr) {
+        centralPool->VisitAllocBufferMS([](AllocBufferMS& buf) {
+            if (buf.GetGCWork().IsInitialized()) {
+                buf.GetGCWork().Dispose();
+            }
+        });
     }
-    WorkStack shared(bufs);
-    std::lock_guard<std::mutex> lock(globalWorkMutex_);
-    globalWorkQueue_.insert(shared);
-    globalWorkAvailable_.store(true, std::memory_order_release);
-    globalShareCount_.fetch_add(1, std::memory_order_relaxed);
-    globalSharedBufCount_.fetch_add(toShare, std::memory_order_relaxed);
+    // Also dispose the GC thread's own work
+    gcThreadWork_.Dispose();
+}
+
+void MarkSweepCollector::ResetAllPerPGCWork()
+{
+    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    if (centralPool != nullptr) {
+        centralPool->VisitAllocBufferMS([](AllocBufferMS& buf) {
+            if (buf.GetGCWork().IsInitialized()) {
+                buf.GetGCWork().Reset();
+            }
+        });
+    }
+    gcThreadWork_.Reset();
 }
 
 // ============================================================================
-// Mutator assist: called from AllocBufferMS::Allocate() during concurrent mark
+// MSMarkAssist (Step5): uses per-P gcWork from AllocBufferMS + bgScanCredit.
 // Budget-limited: processes at most kAssistMaxObjectsPerCall grey objects.
 // ============================================================================
+
+static bool IsAssistDisabledByEnv()
+{
+    static bool disabled = []() {
+        const char* env = std::getenv("CJ_MS_ASSIST_DISABLE");
+        return env != nullptr && env[0] != '\0' && std::strcmp(env, "0") != 0;
+    }();
+    return disabled;
+}
 
 void MarkSweepCollector::MSMarkAssist()
 {
@@ -641,38 +759,52 @@ void MarkSweepCollector::MSMarkAssist()
         return;
     }
 
-    Mutator* mutator = Mutator::GetMutator();
-    if (mutator == nullptr) {
+    // env var kill-switch: CJ_MS_ASSIST_DISABLE=1 disables all assist work
+    if (IsAssistDisabledByEnv()) {
         return;
     }
 
-    size_t callSeq = assistCallTotal_.fetch_add(1, std::memory_order_relaxed) + 1;
+    assistCallTotal_.fetch_add(1, std::memory_order_relaxed);
 
-    AssistWorkStack& localWork = mutator->GetAssistLocalWork();
-
-    // Refill from global only when this mutator has no persisted assist work.
-    // If STW interrupted a previous assist in-flight, the remaining local work
-    // stays in Mutator::assistLocalWork_ and is resumed here or flushed at
-    // MarkTermination under STW.
-    if (localWork.empty()) {
-        if (!globalWorkAvailable_.load(std::memory_order_acquire) &&
-            (callSeq % kAssistProbeIntervalCalls) != 0) {
-            assistFastSkipCount_.fetch_add(1, std::memory_order_relaxed);
-            return;
-        }
-        PopFromGlobal(localWork, 1);
+    // Step5: Try to steal bgScanCredit first — if GC thread is ahead, skip work.
+    if (TryStealBgCredit(kAssistMaxObjectsPerCall)) {
+        assistFastSkipCount_.fetch_add(1, std::memory_order_relaxed);
+        return;
     }
-    if (localWork.empty()) {
-        return;  // No grey work available
+
+    // Get per-P gcWork from this thread's AllocBufferMS.
+    AllocBufferMS* allocBuf = ThreadLocal::GetAllocBufferMS();
+    if (allocBuf == nullptr) {
+        return;
+    }
+    PerPGCWork& gcw = allocBuf->GetGCWork();
+
+    // Lazy init: if AllocBufferMS was created after ConcurrentMark started
+    if (!gcw.IsInitialized()) {
+        gcw.Init(&globalFull_, &workBufPool_);
+    }
+
+    // If per-P gcWork is empty and global is also empty, nothing to do.
+    if (gcw.Empty() && globalFull_.Empty()) {
+        return;
     }
 
     size_t nProcessed = 0;
     size_t nTraced = 0;
-    while (nProcessed < kAssistMaxObjectsPerCall && !localWork.empty()) {
-        BaseObject* obj = localWork.back();
-        localWork.pop_back();
+    for (size_t i = 0; i < kAssistMaxObjectsPerCall; i++) {
+        // Opt1: Check assistEnabled_ every 128 iterations so this mutator
+        // can reach a safepoint promptly when GC needs to start a new cycle.
+        if ((i & 127) == 0 && i > 0) {
+            if (!assistEnabled_.load(std::memory_order_acquire)) {
+                break;
+            }
+        }
 
-        // Guard: objects in the mark queue must have a valid stateWord (same as RunCollectorDrainSlice).
+        BaseObject* obj = gcw.TryGetObj();
+        if (obj == nullptr) {
+            break;
+        }
+
         if (UNLIKELY(!obj->IsValidObject())) {
             LOG(RTLOG_FATAL, "[MS-GC] MSMarkAssist: FATAL invalid stateWord obj=%p, "
                 "stateWord=0x%zx, markBit=%d",
@@ -687,26 +819,16 @@ void MarkSweepCollector::MSMarkAssist()
             continue;
         }
 
-        // WeakRef: defer to GC main thread. Assist must not process weak refs
-        // through the shared global grey-work queue, because only the main GC
-        // thread should run the special weak-ref handling path.
+        // WeakRef: defer to GC main thread
         if (UNLIKELY(obj->IsWeakRef())) {
             PushSingleToDeferredMainThread(obj);
             continue;
         }
 
-        // Trace children → discover before enqueue into local work.
-        TraceObjectRefFields(obj, localWork.UnsafeRaw());
+        // Trace children → push back into same per-P gcWork
+        TraceObjectRefFieldsToGCWork(obj, gcw);
         nTraced++;
-
-        // Flush excess to global to share with GC thread and other assists
-        if (localWork.size() > kAssistLocalFlushBufs) {
-            ShareWorkToGlobal(localWork);
-        }
     }
-
-    // Keep residual local work on the mutator so the next assist call can
-    // resume without round-tripping through the shared global queue.
 
     assistProcessedCount_.fetch_add(nProcessed, std::memory_order_relaxed);
     assistTracedCount_.fetch_add(nTraced, std::memory_order_relaxed);
@@ -743,11 +865,11 @@ void MarkSweepCollector::MarkTermination()
     }
 
     // 2. Collect pending concurrent-mark work:
-    //    persisted assist-local work + globalWorkQueue_ +
+    //    Step5: Dispose all per-P gcWork + global LFStack +
     //    deferred main-thread-only special work.
     {
-        FlushAllAssistLocalWorks(mainQueue);
-        DrainGlobalWorkQueueToMainQueue(mainQueue);
+        DisposeAllPerPGCWork();
+        DrainGlobalLFStackToMainQueue(mainQueue);
         DrainDeferredMainThreadQueueToMainQueue(mainQueue);
         pendingWorkEntries = mainQueue.size() - directSourceEntries;
     }
@@ -773,6 +895,9 @@ void MarkSweepCollector::MarkTermination()
         centralPool->FlushAllAllocBuffers();
         centralPool->PrepareForSweep();
     }
+
+    // Step5: Reset all per-P gcWork and return WorkBufs to pool.
+    ResetAllPerPGCWork();
 
     cycleStats_.wbBufEntriesTotal = directSourceEntries + pendingWorkEntries;
     cycleStats_.wbBufFlushUs = 0;
@@ -810,25 +935,6 @@ void MarkSweepCollector::FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue)
         mutator.GetWriteBarrierBuffer().Flush(mainQueue.UnsafeRaw());
     };
     MutatorManager::Instance().VisitAllMutators(func);
-}
-void MarkSweepCollector::FlushAllAssistLocalWorks(GreyWorkQueue& mainQueue)
-{
-    auto func = [&mainQueue](Mutator& mutator) {
-        mainQueue.insert(mutator.GetAssistLocalWork());
-    };
-    MutatorManager::Instance().VisitAllMutators(func);
-}
-
-void MarkSweepCollector::DrainGlobalWorkQueueToMainQueue(GreyWorkQueue& mainQueue)
-{
-    std::lock_guard<std::mutex> lock(globalWorkMutex_);
-    while (!globalWorkQueue_.empty()) {
-        BaseObject* obj = globalWorkQueue_.back();
-        globalWorkQueue_.pop_back();
-        if (obj != nullptr) {
-            mainQueue.PushMovedGrey(obj);
-        }
-    }
 }
 
 void MarkSweepCollector::DrainDeferredMainThreadQueueToMainQueue(GreyWorkQueue& mainQueue)

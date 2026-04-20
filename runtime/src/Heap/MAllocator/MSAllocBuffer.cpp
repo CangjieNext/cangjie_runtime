@@ -78,14 +78,13 @@ MAddress AllocBufferMS::Allocate(size_t size)
         if (UNLIKELY(IsMSMarkingPhase(phase))) {
             Heap::GetHeap().GetCollector().MarkNewObject(reinterpret_cast<BaseObject*>(addr));
 
-            // Mutator assist: only accumulate debt during marking phases, and
-            // only pay it down when there is visible pending mark work.
+            // Mutator assist (Step5): accumulate debt, trigger assist.
+            // bgScanCredit check is inside MSMarkAssist for early return.
             gcAssistBytes_ += size;
             if (UNLIKELY(gcAssistBytes_ >= kGCAssistTriggerBytes)) {
+                gcAssistBytes_ = 0;
                 MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
-                if (collector != nullptr &&
-                    (!mutator->GetAssistLocalWork().empty() || collector->HasPendingGlobalAssistWork())) {
-                    gcAssistBytes_ = 0;
+                if (collector != nullptr) {
                     collector->MSMarkAssist();
                 }
             }

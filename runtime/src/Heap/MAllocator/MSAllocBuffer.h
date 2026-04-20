@@ -14,6 +14,7 @@
 #include "Heap/MAllocator/MSSizeClass.h"
 #include "Common/TypeDef.h"
 #include "Common/MarkWorkStack.h"
+#include "Common/LFStack.h"
 #include <atomic>
 #include <vector>
 
@@ -102,6 +103,10 @@ public:
         return activeRegions_[cls];
     }
 
+    // Per-P GC Work buffer (Step5): used by Mutator assist during concurrent mark.
+    // Initialized by MarkSweepCollector::InitAllPerPGCWork() at GC start.
+    PerPGCWork& GetGCWork() { return gcWork_; }
+
 private:
     // LLVM fast-path compatibility: must be at offset 0 (same as AllocBuffer::tlRegion).
     // Set to NullRegion() so fast-path allocation always fails → slow path.
@@ -140,8 +145,11 @@ private:
 
     // Mutator assist: accumulated allocation debt (bytes).
     // When debt exceeds kGCAssistTriggerBytes, triggers MSMarkAssist().
-    static constexpr size_t kGCAssistTriggerBytes = 65536;  // 64KB
+    static constexpr size_t kGCAssistTriggerBytes = 16384;  // 16KB
     size_t gcAssistBytes_ = 0;
+
+    // Step5: Per-P GC work buffer for mutator assist
+    PerPGCWork gcWork_;
 };
 
 } // namespace MapleRuntime

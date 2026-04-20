@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "Heap/Collector/TracingCollector.h"
+#include "Common/LFStack.h"
 
 namespace MapleRuntime {
 
@@ -84,6 +85,9 @@ struct MSGCCycleStats {
     size_t globalSharedBufs = 0;
     size_t globalPopHitCount = 0;
     size_t globalPopMissCount = 0;
+    size_t bgScanCreditConsumed = 0;
+    size_t lfStackPushCount = 0;
+    size_t lfStackPopCount = 0;
 
     // ── True live bytes (computed from markBitmaps after marking) ──
     size_t trueLiveBytes = 0;
@@ -138,12 +142,15 @@ public:
     }
     bool HasPendingGlobalAssistWork() const
     {
-        return globalWorkAvailable_.load(std::memory_order_acquire);
+        return !globalFull_.Empty();
     }
 
-    // Flush an overflowed WriteBarrierBuffer to the global work queue.
-    // Takes one mutex lock for the entire batch. Clears the buffer afterwards.
+    // Flush an overflowed WriteBarrierBuffer to the global LFStack.
     void FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf);
+
+    // Per-P GCWork accessors for initialization during concurrent mark.
+    LFStack& GetGlobalFull() { return globalFull_; }
+    WorkBufPool& GetWorkBufPool() { return workBufPool_; }
 
     // ── CopyGC-specific overrides: safe no-ops ──
     BaseObject* ForwardObject(BaseObject*) override { return nullptr; }
@@ -208,22 +215,25 @@ private:
     bool DiscoverObject(BaseObject* obj);
     void DebugVerifyQueuedGreyObject(const BaseObject* obj, const char* queueName) const;
 
-    // ── Step 2.2 internals ──
-    void RunConcurrentMarkLoop(GreyWorkQueue& workStack);
-    void RunCollectorDrainSlice(GreyWorkQueue& workStack, size_t maxObjects);
+    // ── Step 2.2 internals (Step5: PerPGCWork + LFStack) ──
+    void RunConcurrentMarkLoop();
+    void DrainGCWork(PerPGCWork& gcw, size_t maxObjects, size_t& scannedCount);
+    void TraceObjectRefFieldsToGCWork(BaseObject* obj, PerPGCWork& gcw);
     void TraceRefField(BaseObject* obj, RefField<>& field, WorkStack& workStack);
+    void TransferRootsToGCWork();
 
-    // ── Step 2.2 global queue helpers (GC thread + Mutator assist) ──
-    void PushToGlobal(GreyWorkQueue& source);
+    // ── Step5: LFStack global queue helpers ──
     void PushSingleToDeferredMainThread(BaseObject* obj);
-    void PopFromGlobal(GreyWorkQueue& dest, size_t maxBufs);
-    void ShareWorkToGlobal(GreyWorkQueue& local);
+    void DrainGlobalLFStackToMainQueue(GreyWorkQueue& mainQueue);
+    bool TryStealBgCredit(size_t debtObjects);
+    void InitAllPerPGCWork();
+    void DisposeAllPerPGCWork();
+    void ResetAllPerPGCWork();
 
     // ── Step 2.3 internals ──
     void CollectUnmarkedToMainQueue(GreyWorkQueue& mainQueue);
     void FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue);
-    void FlushAllAssistLocalWorks(GreyWorkQueue& mainQueue);
-    void DrainGlobalWorkQueueToMainQueue(GreyWorkQueue& mainQueue);
+
     void DrainDeferredMainThreadQueueToMainQueue(GreyWorkQueue& mainQueue);
     void CollectExternCandidatesToMain(GreyWorkQueue& mainQueue);
     void CollectResurrectionCandidatesToMain(GreyWorkQueue& mainQueue);
@@ -244,9 +254,17 @@ private:
     // ── Drain slice parameters ──
     static constexpr size_t kSliceMaxObjects = 256;
 
-    // ── Global work queue for concurrent marking (GC thread + Mutator assist) ──
-    GreyWorkQueue globalWorkQueue_;
-    mutable std::mutex globalWorkMutex_;
+    // ── Opt2: bgScanCredit batch flush threshold (in objects) ──
+    static constexpr size_t kCreditFlushThreshold = 1024;
+
+    // ── Opt3: proactive balance interval (every N drain slices) ──
+    static constexpr size_t kBalanceEveryNSlices = 2;
+
+    // ── Step5: LFStack global work queue (lock-free, replaces mutex-protected GreyWorkQueue) ──
+    LFStack globalFull_;
+    WorkBufPool workBufPool_;
+    PerPGCWork gcThreadWork_;
+    std::atomic<int64_t> bgScanCredit_{0};
 
     // ── Main-thread-only deferred work (e.g. weak refs discovered by assist) ──
     GreyWorkQueue deferredMainThreadQueue_;
@@ -256,12 +274,8 @@ private:
     std::atomic<bool> assistEnabled_{false};
     static std::atomic<MarkSweepCollector*> activeCollector_;
 
-    // ── Assist parameters (MVP: fixed values, per Step 2.2 §4.6) ──
-    //    size() returns buffer count (each buf holds ≤64 objects)
-    static constexpr size_t kAssistMaxObjectsPerCall = 64;     // max objects per assist call
-    static constexpr size_t kAssistLocalFlushBufs = 2;         // flush local→global when > 2 bufs
-    static constexpr size_t kShareWorkBufs = 2;                // GC thread shares when local >= 2 bufs
-    static constexpr size_t kAssistProbeIntervalCalls = 8;     // sparse probe when global queue looks empty
+    // ── Assist parameters (Step5: simplified with Per-P + bgCredit) ──
+    static constexpr size_t kAssistMaxObjectsPerCall = 2048;  // max objects per assist call
 
     // ── Assist concurrent stats ──
     std::atomic<size_t> assistMarkedCount_{0};
@@ -273,7 +287,7 @@ private:
     std::atomic<size_t> globalSharedBufCount_{0};
     std::atomic<size_t> globalPopHitCount_{0};
     std::atomic<size_t> globalPopMissCount_{0};
-    std::atomic<bool> globalWorkAvailable_{false};
+    std::atomic<size_t> bgScanCreditConsumed_{0};
 
     // ── DFX: Per-cycle stats ──
     MSGCCycleStats cycleStats_;
