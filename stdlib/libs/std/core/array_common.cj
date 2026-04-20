@@ -31,7 +31,7 @@ private func arrayInitByCollection<T>(array: RawArray<T>, elements: Collection<T
 private func arrayInitByFunction<T>(array: RawArray<T>, initElement: (Int64) -> T): RawArray<T> {
     var i: Int64 = 0
     while (i < arraySize(array)) {
-        arraySet(array, i, initElement(i))
+        arraySetUnchecked(array, i, initElement(i))
         i++
     }
     return array
