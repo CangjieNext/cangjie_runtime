@@ -18,7 +18,8 @@ class Mutator;
 class StackInfo {
 public:
     explicit StackInfo(const UnwindContext* context = nullptr)
-        : n2cCount(0), lastFrameType(FrameType::UNKNOWN), topContext(context), isReliableN2CStub(false)
+        : n2cCount(0), lastFrameType(FrameType::UNKNOWN), topContext(context), isReliableN2CStub(false),
+          inNativeSegment(false)
     {
         if (context == nullptr) {
             anchorFA = GetAnchorFAFromMutatorContext();
@@ -82,6 +83,8 @@ private:
     const UnwindContext* topContext;
     // n2cstub status
     bool isReliableN2CStub;
+    // Whether currently in native segment (after C2N stub, before N2C stub)
+    bool inNativeSegment;
 };
 
 // Get current context frame info and fill to FrameInfo struct object.

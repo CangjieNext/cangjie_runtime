@@ -36,6 +36,7 @@ enum class FrameType {
     STACKGROW = 8,
     EXSLUSIVE = 9,
     ARKTS_FRAME = 10,
+    ARKTS_STUB = 11,
 };
 
 enum class StackMode {

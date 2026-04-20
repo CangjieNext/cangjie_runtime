@@ -26,14 +26,24 @@ class ArkTSFrameRecognizer {
 public:
     static bool IsArkTSFrame(const MachineFrame& frame);
     static bool IsArkTSFrame(FrameAddress* fa);
+    static bool IsArkTSFrameByPc(uintptr_t pc);
+    static bool IsInStubRange(uintptr_t pc);
+    static bool IsInInterpreterRange(uintptr_t pc);
     static bool ExtractFrameInfo(FrameAddress* fa, ArkTSFrameInfo& info);
     static bool IsArkTSRuntimeAvailable();
 
 private:
-    static constexpr uintptr_t ARKTS_FRAME_TYPE_OFFSET = sizeof(uintptr_t);
-    static bool IsValidArkTSFrameType(uintptr_t type);
+    static bool InitArkRanges();
+    static bool InitArkStubRange();
+    static bool InitArkInterpreterRange();
     static FrameAddress* GetPrevFp(FrameAddress* fa);
     static const uint32_t* GetReturnAddr(FrameAddress* fa);
+    
+    static uintptr_t arkStubBegin_;
+    static uintptr_t arkStubEnd_;
+    static uintptr_t arkInterpreterBegin_;
+    static uintptr_t arkInterpreterEnd_;
+    static bool arkRangeInitialized_;
 };
 
 } // namespace MapleRuntime

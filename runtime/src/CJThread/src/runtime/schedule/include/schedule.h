@@ -537,6 +537,8 @@ void CJRegisterStackInfoCallbacks(UpdateStackInfoFunc uFunc);
  */
 void CJRegisterArkVMInRuntime(unsigned long long vm);
 
+unsigned long long CJGetArkVM();
+
 /**
 * @brief Default cjthread parameter assignment.
 * @par Description: Assign a default value to the attrUser cjthread attribute.

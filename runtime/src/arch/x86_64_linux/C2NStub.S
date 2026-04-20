@@ -188,6 +188,8 @@ unwindPCForC2NStub:
     movapd  -224(%rbp), %xmm7
 
     callq   *%r12
+    .global unwindPCForC2NStubReturn
+unwindPCForC2NStubReturn:
 
     // keep potential return value
     // rax is 1st return register, rdx is 2nd return register

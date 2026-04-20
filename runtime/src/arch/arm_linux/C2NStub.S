@@ -235,6 +235,8 @@ unwindPCForC2NStub:
     mov  r3, r8
     ldr  r9, [r11, #FuncAddrAndCpStacksizeOffset]  // calleeAddr
     blx  r9
+    .global unwindPCForC2NStubReturn
+unwindPCForC2NStubReturn:
 
     // keep potential return value
     mov  r6, r0

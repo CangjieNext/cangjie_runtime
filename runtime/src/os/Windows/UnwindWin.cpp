@@ -17,6 +17,7 @@ extern uintptr_t CJ_MCC_ThrowStackOverflowError;
 
 extern uintptr_t unwindPCForN2CStub;
 extern uintptr_t unwindPCForC2NStub;
+extern uintptr_t unwindPCForC2NStubReturn;
 extern uintptr_t unwindPCForTPE;
 extern uintptr_t unwindPCForStackGrowStub;
 
@@ -176,7 +177,7 @@ FrameInfo GetCallerFrameInfo(WinModuleManager& winModuleManager, const MachineFr
             // |  pushed rbp       |
             uint32_t spOffset = 16; // 16: 8 for pushed rbp, 8 for pushed pc
             if (reinterpret_cast<uintptr_t>(curFrame.GetIP()) == reinterpret_cast<uintptr_t>(&unwindPCForN2CStub) ||
-                reinterpret_cast<uintptr_t>(curFrame.GetIP()) == reinterpret_cast<uintptr_t>(&unwindPCForC2NStub) ||
+                reinterpret_cast<uintptr_t>(curFrame.GetIP()) == reinterpret_cast<uintptr_t>(&unwindPCForC2NStubReturn) ||
                 reinterpret_cast<uintptr_t>(curFrame.GetIP()) == reinterpret_cast<uintptr_t>(&unwindPCForTPE)) {
                 spOffset += 16; // 16: 8 for param-stack-size, 8 for callee-addrnb
             }
@@ -225,7 +226,7 @@ uintptr_t GetCallerRsp(WinModuleManager& winModuleManager, const MachineFrame& c
     } else {
         uint32_t spOffset = sizeOfStackHead;
         if (reinterpret_cast<uintptr_t>(curFrame.GetIP()) == reinterpret_cast<uintptr_t>(&unwindPCForN2CStub) ||
-            reinterpret_cast<uintptr_t>(curFrame.GetIP()) == reinterpret_cast<uintptr_t>(&unwindPCForC2NStub) ||
+            reinterpret_cast<uintptr_t>(curFrame.GetIP()) == reinterpret_cast<uintptr_t>(&unwindPCForC2NStubReturn) ||
             reinterpret_cast<uintptr_t>(curFrame.GetIP()) == reinterpret_cast<uintptr_t>(&unwindPCForTPE)) {
             spOffset += sizeOfStackHead;
         }

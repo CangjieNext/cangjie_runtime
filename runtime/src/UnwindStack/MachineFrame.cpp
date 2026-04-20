@@ -18,6 +18,7 @@
 extern uintptr_t unwindPCForSafepointHandlerStub;
 extern uintptr_t unwindPCForN2CStub;
 extern uintptr_t unwindPCForC2NStub;
+extern uintptr_t unwindPCForC2NStubReturn;
 extern uintptr_t unwindPCForC2RStubStart;
 extern uintptr_t unwindPCForC2RStubEnd;
 extern uintptr_t unwindPCForStackGrowStub;
@@ -60,9 +61,9 @@ bool MachineFrame::IsRuntimeFrame() const { return StackManager::IsRuntimeFrame(
 bool MachineFrame::IsC2NStubFrame() const
 {
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
-    return PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip)) == reinterpret_cast<uintptr_t>(&unwindPCForC2NStub);
+    return PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip)) == reinterpret_cast<uintptr_t>(&unwindPCForC2NStubReturn);
 #else
-    return reinterpret_cast<uintptr_t>(ip) == reinterpret_cast<uintptr_t>(&unwindPCForC2NStub);
+    return reinterpret_cast<uintptr_t>(ip) == reinterpret_cast<uintptr_t>(&unwindPCForC2NStubReturn);
 #endif
 }
 

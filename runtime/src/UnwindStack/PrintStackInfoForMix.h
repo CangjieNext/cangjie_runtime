@@ -37,9 +37,10 @@ public:
     void FillInStackTrace() override;
 
 private:
-    bool UnwindToCallerArkTSFrame(UnwindContext& uwContext);
+    bool UnwindToCallerArkTSFrame(UnwindContext& uwContext, bool& outIsJsFrame);
     static StepArkFunc LoadArkTSStepArk();
     static bool ShouldStopUnwind(const MachineFrame& frame);
+    static bool AccessMem(void* ctx, uintptr_t addr, uintptr_t* val);
 };
 
 } // namespace MapleRuntime

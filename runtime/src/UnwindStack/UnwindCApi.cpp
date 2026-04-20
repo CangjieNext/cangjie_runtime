@@ -13,6 +13,7 @@
 #endif
 #if defined(__x86_64__)
 extern uintptr_t unwindPCForC2NStub;
+extern uintptr_t unwindPCForC2NStubReturn;
 #endif
 
 namespace MapleRuntime {

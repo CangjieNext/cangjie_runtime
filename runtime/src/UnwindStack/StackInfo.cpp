@@ -10,6 +10,7 @@
 #include <cstdint>
 
 #include "ArkTSFrameRecognizer.h"
+#include "ArkTSStackMetadataHelper.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "Collector/TracingCollector.h"
@@ -105,6 +106,7 @@ void StackInfo::AnalyseAndSetFrameType(UnwindContext& uwContext)
             isReliableN2CStub = true;
         }
         frameInfo.SetFrameType(FrameType::N2C_STUB);
+        inNativeSegment = true;
     } else if (mFrame.IsSafepointHandlerStubFrame()) {
         isReliableN2CStub = false;
         frameInfo.SetFrameType(FrameType::SAFEPOINT);
@@ -115,13 +117,22 @@ void StackInfo::AnalyseAndSetFrameType(UnwindContext& uwContext)
         // The lastFrameType cannot be checked here, because it may be unknow or runtime.
         isReliableN2CStub = false;
         frameInfo.SetFrameType(FrameType::C2N_STUB);
+        inNativeSegment = false;
         // Runtime frame judgment needs to be placed after N2C ande C2N and C2R judgment.
         // Because they are belong to runtime frame.
     } else if (mFrame.IsStackGrowStubFrame()) {
         isReliableN2CStub = false;
         frameInfo.SetFrameType(FrameType::STACKGROW);
-    } else if (ArkTSFrameRecognizer::IsArkTSFrame(mFrame)) {
+    } else if (mFrame.IsExclusiveStubFrame()) {
+        frameInfo.SetFrameType(FrameType::EXSLUSIVE);
+        isReliableN2CStub = false;
+    } else if (frameInfo.GetFrameType() == FrameType::ARKTS_FRAME) {
+        isReliableN2CStub = false;
+    } else if (ArkTSFrameRecognizer::IsInInterpreterRange(reinterpret_cast<uintptr_t>(mFrame.GetIP()))) {
         frameInfo.SetFrameType(FrameType::ARKTS_FRAME);
+        isReliableN2CStub = false;
+    } else if (ArkTSFrameRecognizer::IsInStubRange(reinterpret_cast<uintptr_t>(mFrame.GetIP()))) {
+        frameInfo.SetFrameType(FrameType::ARKTS_STUB);
         isReliableN2CStub = false;
     } else if (mFrame.IsRuntimeFrame()) {
         frameInfo.SetFrameType(FrameType::RUNTIME);
@@ -133,9 +144,13 @@ void StackInfo::AnalyseAndSetFrameType(UnwindContext& uwContext)
         if (isReliableN2CStub) {
             frameInfo.SetFrameType(FrameType::RUNTIME);
         } else {
-            frameInfo.SetFrameType(FrameType::MANAGED);
+            if (inNativeSegment) {
+                frameInfo.SetFrameType(FrameType::NATIVE);
+            } else {
+                frameInfo.SetFrameType(FrameType::MANAGED);
+                frameInfo.ResolveProcInfo();
+            }
             isReliableN2CStub = false;
-            frameInfo.ResolveProcInfo();
         }
         return;
     }
@@ -175,14 +190,24 @@ void StackInfo::ExtractLiteFrameInfoFromStack(std::vector<uint64_t>& liteFrameIn
     size_t count = 1;
     for (const auto& frameInfo : stack) {
         if (count <= steps) {
+            FrameType frameType = frameInfo.GetFrameType();
             liteFrameInfos.push_back(reinterpret_cast<uint64_t>(frameInfo.mFrame.GetIP()));
-            liteFrameInfos.push_back(reinterpret_cast<uint64_t>(frameInfo.GetFuncStartPC()));
+            
+            if (frameType == FrameType::MANAGED) {
+                liteFrameInfos.push_back(reinterpret_cast<uint64_t>(frameInfo.GetFuncStartPC()));
 #ifdef __APPLE__
-            FuncDescRef funcDesc = MFuncDesc::GetFuncDesc(frameInfo.mFrame.GetFA());
+                FuncDescRef funcDesc = MFuncDesc::GetFuncDesc(frameInfo.mFrame.GetFA());
 #else
-            FuncDescRef funcDesc = MFuncDesc::GetFuncDesc(reinterpret_cast<Uptr>(frameInfo.GetFuncStartPC()));
+                FuncDescRef funcDesc = MFuncDesc::GetFuncDesc(reinterpret_cast<Uptr>(frameInfo.GetFuncStartPC()));
 #endif
-            liteFrameInfos.push_back(reinterpret_cast<uint64_t>(funcDesc));
+                liteFrameInfos.push_back(reinterpret_cast<uint64_t>(funcDesc));
+            } else if (frameType == FrameType::ARKTS_FRAME) {
+                liteFrameInfos.push_back(reinterpret_cast<uint64_t>(frameInfo.mFrame.GetIP()));
+                liteFrameInfos.push_back(ARKTS_FRAME_MARKER);
+            } else {
+                liteFrameInfos.push_back(0);
+                liteFrameInfos.push_back(0);
+            }
             count++;
         }
     }
@@ -209,6 +234,15 @@ void StackInfo::GetStackTraceByLiteFrameInfos(const std::vector<uint64_t>& liteF
 void StackInfo::GetStackTraceByLiteFrameInfo(const uint64_t ip, const uint64_t pc, const uint64_t funcDesc,
                                              StackTraceElement& ste)
 {
+    if (funcDesc == ARKTS_FRAME_MARKER) {
+        ArkTSStackMetadataHelper arktsHelper(ip, pc);
+        ste.lineNumber = arktsHelper.GetLineNumber();
+        ste.methodName = arktsHelper.GetMethodName();
+        ste.className = arktsHelper.GetClassName();
+        ste.fileName = arktsHelper.GetFileName();
+        return;
+    }
+
     StackMetadataHelper stackMetadataHelper(reinterpret_cast<uint32_t*>(ip), reinterpret_cast<uint32_t*>(pc),
                                             reinterpret_cast<uint64_t*>(funcDesc));
     stackMetadataHelper.GetMangleNameHelper()->Demangle();

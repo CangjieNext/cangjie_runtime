@@ -205,6 +205,8 @@ unwindPCForC2NStub:
     movapd  -160(%rbp), %xmm3
 
     callq   *%r12
+    .global unwindPCForC2NStubReturn
+unwindPCForC2NStubReturn:
 
     // keep potential return value
     // rax is 1st return register, no 2nd return register in Windows

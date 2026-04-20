@@ -12,8 +12,21 @@
 #include "ArkTSFrameRecognizer.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
+#include "Common/StackType.h"
 
 namespace MapleRuntime {
+
+bool IsFrameValid(const MachineFrame& mFrame)
+{
+    if (mFrame.GetIP() == nullptr || mFrame.GetFA() == nullptr) {
+        return false;
+    }
+    uintptr_t faAddr = reinterpret_cast<uintptr_t>(mFrame.GetFA());
+    if (faAddr < 0x1000 || faAddr > 0x7fffffffffff) {
+        return false;
+    }
+    return true;
+}
 
 void PrintStackInfoForMix::FillInStackTrace()
 {
@@ -22,25 +35,75 @@ void PrintStackInfoForMix::FillInStackTrace()
     
     anchorFA = nullptr;
     
-    bool arkTSRuntimeAvailable = ArkTSFrameRecognizer::IsArkTSRuntimeAvailable();
+    uintptr_t prevPC = 0;
+    uintptr_t prevFA = 0;
+    size_t repeatCount = 0;
+    constexpr size_t MAX_REPEAT = 3;
+    
+    LOG(RTLOG_INFO, "[FillInStackTrace] Start filling stack trace for mixed stack");
     
     while (!ShouldStopUnwind(uwContext.frameInfo.mFrame)) {
+        uintptr_t currentPC = reinterpret_cast<uintptr_t>(uwContext.frameInfo.mFrame.GetIP());
+        uintptr_t currentFA = reinterpret_cast<uintptr_t>(uwContext.frameInfo.mFrame.GetFA());
+        
+        if (currentPC == prevPC && currentFA == prevFA) {
+            repeatCount++;
+            if (repeatCount >= MAX_REPEAT) {
+                LOG(RTLOG_INFO, "[FillInStackTrace] Detected repeated frame, stopping unwind");
+                break;
+            }
+        } else {
+            repeatCount = 0;
+        }
+        
+        prevPC = currentPC;
+        prevFA = currentFA;
+        
         AnalyseAndSetFrameType(uwContext);
         FrameType currentType = uwContext.frameInfo.GetFrameType();
         
         if (currentType == FrameType::MANAGED) {
+            const uint32_t* ip = uwContext.frameInfo.mFrame.GetIP();
+            const uint32_t* startPC = uwContext.frameInfo.GetFuncStartPC();
+            LOG(RTLOG_INFO, "[FillInStackTrace] MANAGED frame: ip=0x%lx, startPC=0x%lx",
+                reinterpret_cast<uintptr_t>(ip), reinterpret_cast<uintptr_t>(startPC));
             stack.emplace_back(uwContext.frameInfo);
-        } else if (currentType == FrameType::ARKTS_FRAME && arkTSRuntimeAvailable) {
+        } else if (currentType == FrameType::ARKTS_FRAME) {
+            const uint32_t* ip = uwContext.frameInfo.mFrame.GetIP();
+            FrameAddress* fa = uwContext.frameInfo.mFrame.GetFA();
+            LOG(RTLOG_INFO, "[FillInStackTrace] ARKTS_FRAME: ip=0x%lx, fa=0x%lx",
+                reinterpret_cast<uintptr_t>(ip), reinterpret_cast<uintptr_t>(fa));
             stack.emplace_back(uwContext.frameInfo);
+        } else if (currentType == FrameType::ARKTS_STUB) {
+            const uint32_t* ip = uwContext.frameInfo.mFrame.GetIP();
+            LOG(RTLOG_INFO, "[FillInStackTrace] ARKTS_STUB frame: ip=0x%lx",
+                reinterpret_cast<uintptr_t>(ip));
+        } else if (currentType == FrameType::NATIVE) {
+            const uint32_t* ip = uwContext.frameInfo.mFrame.GetIP();
+            LOG(RTLOG_INFO, "[FillInStackTrace] NATIVE frame: ip=0x%lx (skipped)",
+                reinterpret_cast<uintptr_t>(ip));
+        } else if (currentType == FrameType::N2C_STUB) {
+            LOG(RTLOG_INFO, "[FillInStackTrace] N2C_STUB frame");
+        } else if (currentType == FrameType::C2N_STUB) {
+            LOG(RTLOG_INFO, "[FillInStackTrace] C2N_STUB frame");
+        } else if (currentType == FrameType::RUNTIME) {
+            LOG(RTLOG_INFO, "[FillInStackTrace] RUNTIME frame");
         }
         
-        if (currentType == FrameType::ARKTS_FRAME && arkTSRuntimeAvailable) {
-            if (!UnwindToCallerArkTSFrame(uwContext)) {
+        lastFrameType = currentType;
+        
+        if (currentType == FrameType::ARKTS_FRAME || currentType == FrameType::ARKTS_STUB) {
+            bool isJsFrame = false;
+            if (!UnwindToCallerArkTSFrame(uwContext, isJsFrame)) {
                 break;
+            }
+            if (isJsFrame) {
+                uwContext.frameInfo.SetFrameType(FrameType::ARKTS_FRAME);
+            } else {
+                uwContext.frameInfo.SetFrameType(FrameType::UNKNOWN);
             }
         } else {
             UnwindContext caller;
-            lastFrameType = currentType;
 #ifndef _WIN64
             if (uwContext.frameInfo.mFrame.UnwindToCallerMachineFrame(caller.frameInfo.mFrame) == false) {
 #else
@@ -53,7 +116,22 @@ void PrintStackInfoForMix::FillInStackTrace()
     }
 }
 
-bool PrintStackInfoForMix::UnwindToCallerArkTSFrame(UnwindContext& uwContext)
+bool PrintStackInfoForMix::AccessMem(void* ctx, uintptr_t addr, uintptr_t* val)
+{
+    (void)ctx;
+    if (val == nullptr) {
+        return false;
+    }
+    
+    if (addr < 0x1000 || addr > 0x7fffffffffff) {
+        return false;
+    }
+    
+    *val = *reinterpret_cast<uintptr_t*>(addr);
+    return true;
+}
+
+bool PrintStackInfoForMix::UnwindToCallerArkTSFrame(UnwindContext& uwContext, bool& outIsJsFrame)
 {
     static bool arkTSUnwinderInitialized = false;
     static StepArkFunc gStepArk = nullptr;
@@ -69,17 +147,19 @@ bool PrintStackInfoForMix::UnwindToCallerArkTSFrame(UnwindContext& uwContext)
             return false;
         }
         uwContext.frameInfo = caller.frameInfo;
+        outIsJsFrame = false;
         return true;
     }
     
     ArkStepParam arkParam;
     FrameAddress* fa = const_cast<FrameAddress*>(uwContext.frameInfo.mFrame.GetFA());
-    arkParam.fp = reinterpret_cast<uintptr_t*>(fa);
-    arkParam.sp = reinterpret_cast<uintptr_t*>(fa);
+    uintptr_t fpValue = reinterpret_cast<uintptr_t>(fa);
+    uintptr_t spValue = fpValue;
+    uintptr_t pcValue = reinterpret_cast<uintptr_t>(uwContext.frameInfo.mFrame.GetIP());
     
-    const uint32_t* ip = uwContext.frameInfo.mFrame.GetIP();
-    uintptr_t ipValue = reinterpret_cast<uintptr_t>(ip);
-    arkParam.pc = &ipValue;
+    arkParam.fp = &fpValue;
+    arkParam.sp = &spValue;
+    arkParam.pc = &pcValue;
     
     bool isJsFrame = false;
     arkParam.isJsFrame = &isJsFrame;
@@ -87,14 +167,19 @@ bool PrintStackInfoForMix::UnwindToCallerArkTSFrame(UnwindContext& uwContext)
     arkParam.frameType = &frameType;
     arkParam.frameIndex = stack.size();
     
-    int result = gStepArk(nullptr, nullptr, &arkParam);
+    int result = gStepArk(nullptr, AccessMem, &arkParam);
     if (result != 1) {
+        LOG(RTLOG_ERROR, "[UnwindToCallerArkTSFrame] step_ark failed with result=%d, pc=0x%lx, fp=0x%lx", 
+            result, pcValue, fpValue);
         return false;
     }
     
-    uwContext.frameInfo.mFrame.SetFA(reinterpret_cast<FrameAddress*>(arkParam.fp));
-    uintptr_t pcValue = *arkParam.pc;
+    uwContext.frameInfo.mFrame.SetFA(reinterpret_cast<FrameAddress*>(fpValue));
     uwContext.frameInfo.mFrame.SetIP(reinterpret_cast<const uint32_t*>(pcValue));
+    outIsJsFrame = isJsFrame;
+    
+    LOG(RTLOG_INFO, "[UnwindToCallerArkTSFrame] step_ark success: new_pc=0x%lx, new_fp=0x%lx, new_sp=0x%lx, isJsFrame=%d",
+        pcValue, fpValue, spValue, isJsFrame);
     
     return true;
 }

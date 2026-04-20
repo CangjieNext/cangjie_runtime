@@ -223,6 +223,8 @@ _unwindPCForC2NStub:
     mov  x6, x26
     mov  x7, x27
     blr  x9
+    .global _unwindPCForC2NStubReturn
+_unwindPCForC2NStubReturn:
 
     /* keep potential return value */
     mov  x21, x0

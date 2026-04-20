@@ -648,6 +648,11 @@ void CJRegisterArkVMInRuntime(unsigned long long vm)
     g_scheduleManager.arkVM = vm;
 }
 
+unsigned long long CJGetArkVM()
+{
+    return g_scheduleManager.arkVM;
+}
+
 int ScheduleNetpollInit(void)
 {
     struct Schedule *schedule = ScheduleGet();
