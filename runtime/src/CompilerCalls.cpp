@@ -503,10 +503,11 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
     constexpr int frameInfoPairLen = 3; // function PC and startpc form one pair in liteFrameInfos
     if (eWrapper.IsThrowingSOFE()) {
         constexpr int defaultSize = 32;
-        // Frames from std::core and to be filtered out, 2 in total
+        // Top-side internal frames filtered by std/core stacktrace decoding, 3 in total
+        //     std$core::Error::<init>() ()
         //     std$core::StackOverflowError::<init>() ()
         //     rt$ThrowStackOverflowError$real ()
-        constexpr int coreOrFiltFuncSize = 2 * frameInfoPairLen;
+        constexpr int coreOrFiltFuncSize = 3 * frameInfoPairLen;
         // 2 frames need to be filtered at top
         //     user[main]
         //     cj_entry$

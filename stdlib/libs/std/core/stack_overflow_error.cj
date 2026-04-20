@@ -40,6 +40,15 @@ public class StackOverflowError <: Error {
         if (FoldedFlag == TopFolded) {
             eprintln("\t ... Some frames are not displayed ...")
         }
+        // The runtime trims stack-overflow traces by raw frame triples, but std/core still
+        // decodes and filters internal or invalid frames afterwards. The final visible stack
+        // trace can therefore be empty if every retained raw frame is filtered out.
+        if (traceElementArray.isEmpty()) {
+            if (FoldedFlag == BottomFolded) {
+                eprintln("\t ... Some frames are not displayed ...")
+            }
+            return
+        }
         // When stack overflow occurs, the first frame does not have a valid line number.Therefor the line number is not displayed.
         var packageDelimiter: String = if (traceElementArray[0].declaringClass.isEmpty()) {
             ""
