@@ -64,6 +64,10 @@ bool MangleNameHelper::IsNeedFilt() const
         return false;
     }
 
+    if (mangleName.EndsWith(".exception_outlined_func")) {
+        return true;
+    }
+
     for (const auto& filtMangleName : filtMangleNameSet) {
         if (mangleName.Find(filtMangleName.Str()) == 0) {
             return true;
