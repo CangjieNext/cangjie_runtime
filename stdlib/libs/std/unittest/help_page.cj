@@ -12,6 +12,7 @@ import std.unittest.common.optionsInfo
 import std.process.Process
 import std.collection.ArrayList
 import std.unittest.common.*
+import std.env.*
 
 /*
  * Generate and print help page if it the first CLI argument is `help`, `--help`, `-help` or `-h`.

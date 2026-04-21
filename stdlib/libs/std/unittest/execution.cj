@@ -44,6 +44,7 @@ func executeSmart(
         case Main =>
             let parallelInfo = ParallelInfo.fromDefaultConfiguration()
             let cmd = TestPackageExecuteCommand.fromCurrentProcess()
+            println("Creating MainExecutionCtx with nWorkers = ${parallelInfo.nWorkers}")
             let ctx = MainExecutionCtx(parallelInfo.nWorkers, Semaphore(parallelInfo.nWorkers), outputReporter, cmd)
             executeMain(initWorkersMain(ctx), packageName, ctx)
         case Worker(_, _, _, _) =>
@@ -52,14 +53,25 @@ func executeSmart(
 }
 
 func initWorkersMain(ctx: MainExecutionCtx): Array<WorkerProcess> {
+    println("Starting ${ctx.nWorkers} workers")
     let workers = 0..ctx.nWorkers |> mapParallelOrdered(ctx.nWorkers) { workerId: Int64 =>
-        WorkerProcess.createAndRegister(workerId, ctx)
+        println("Starting worker ${workerId}")
+        try {
+            WorkerProcess.createAndRegister(workerId, ctx)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            println("Faied for ${workerId}")
+            throw e
+        } finally {
+            println("done createAndRegister for ${workerId}")
+        }
     } |> collectArray // Wait for all test cases registration from workers
     return workers
 }
 
 func executeMain(workers: Array<WorkerProcess>, packageName: String, ctx: MainExecutionCtx): TestGroupResult {
     let workerResults = workers |> mapParallelOrdered(ctx.nWorkers) { worker: WorkerProcess =>
+        println("Before executeRestarting for ${worker.workerId} of ${ctx.nWorkers}")
         WorkerProcess.executeRestarting(worker, ctx)
     } |> collectArray
 
@@ -216,15 +228,18 @@ class WorkerProcess {
         private let transportChannel: ?TransportChannel,
         private let progressQueue: ?ConcurrentLinkedQueue<UTProgress>,
         private let outputReporter: TestOutputReporter,
-        private let workerId: Int64
+        let workerId: Int64
     ) {}
 
     /**
      * Should be called before test cases execution.
      */
     func waitCasesRegistration() {
+        println("Waiting for cases registration ${workerId}")
         match (transportChannel?.receive(limit: 1u64).next()) {
-            case Some(Some(p: TestCasesRegistrationPart)) => progressQueue?.add(TestProgressData(p, workerId: workerId))
+            case Some(Some(p: TestCasesRegistrationPart)) =>
+                println("got worker registration for ${workerId}")
+                progressQueue?.add(TestProgressData(p, workerId: workerId))
             case Some(Some(_)) => throw Exception(
                 "Expected test cases registration message from worker, but got another message")
             case _ => throw Exception("Expected test cases registration message from worker, but got nothing")
@@ -327,10 +342,14 @@ class WorkerProcess {
     }
 
     static func createAndRegister(workerId: Int64, ctx: MainExecutionCtx): WorkerProcess {
+        println("createAndRegister: before entering quota for worker ${workerId}")
         ctx.workersQuota.doWith {
+            println("createAndRegister: after entering quota for worker ${workerId}")
             let execution = startWorker(workerId: workerId, ctx: ctx)
+            println("worker started for ${workerId}")
             if (execution.hasTransportChannel()) {
                 execution.waitCasesRegistration()
+                println("done waiting for cases registration for ${workerId}")
             } else {
                 execution.commitCasesRegistrationFailure()
             }

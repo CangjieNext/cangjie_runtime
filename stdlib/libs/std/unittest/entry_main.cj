@@ -63,6 +63,7 @@ public func entryMain(testPackage: TestPackage): Int64 {
 // Test runner should be placed in std package to be able to call it.
 protected func testRunnerEntryMain(): Int64 {
     let nWorkers = ParallelInfo.fromDefaultConfiguration().nWorkers
+    println("Creating semaphore with size of ${nWorkers}")
     let semaphore = Semaphore(nWorkers)
     // We need to prevent situation when user wants to use 300 workers but
     // we are executing a lot of small packages and many worker processes just start,
