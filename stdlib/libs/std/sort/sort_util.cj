@@ -408,34 +408,29 @@ extend<T> Array<T> {
     // Ordering.LT/EQ: a <= b <= c
     // Ordering.GT   : a >= b >= c
     func compareSwap3(i1: Int64, i2: Int64, i3: Int64, comparator: (T, T) -> Ordering) {
-        var a: T = this[i1]
-        var b: T = this[i2]
-        var c: T = this[i3]
-        var t: T = a
-        match (comparator(a, b)) {
-            case GT =>
-                t = a
-                a = b
-                b = t
-            case _ => ()
+        // Bubble sort approach for stable sorting
+        // Only swap when strictly greater (not equal) to maintain stability
+        
+        // Compare i1 and i2
+        if (comparator(this[i1], this[i2]) == GT) {
+            var temp = this[i1]
+            this[i1] = this[i2]
+            this[i2] = temp
         }
-        match (comparator(a, c)) {
-            case GT =>
-                t = a
-                a = c
-                c = t
-            case _ => ()
+        
+        // Compare i2 and i3
+        if (comparator(this[i2], this[i3]) == GT) {
+            var temp = this[i2]
+            this[i2] = this[i3]
+            this[i3] = temp
         }
-        match (comparator(b, c)) {
-            case GT =>
-                t = b
-                b = c
-                c = t
-            case _ => ()
+        
+        // Compare i1 and i2 again (since i2 might have changed)
+        if (comparator(this[i1], this[i2]) == GT) {
+            var temp = this[i1]
+            this[i1] = this[i2]
+            this[i2] = temp
         }
-        this[i1] = a
-        this[i2] = b
-        this[i3] = c
     }
 
     @OverflowWrapping
