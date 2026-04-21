@@ -72,7 +72,7 @@ void ExceptionManager::OutOfMemory()
 #if defined(__OHOS__) && (__OHOS__ == 1)
         // Trigger OOM event reporting
         const char* domain = "FRAMEWORK";
-        const char* event = "ARK_STATS_DUMP";
+        const char* event = "CJ_OOM";
         Heap& heap = Heap::GetHeap();
         size_t activeMemory = heap.GetCurrentCapacity();
         size_t limitSize = heap.GetMaxCapacity();
@@ -81,6 +81,8 @@ void ExceptionManager::OutOfMemory()
         std::map<std::string, std::string> params;
         params["LIMIT_SIZE"] = std::to_string(limitSize);
         params["ACTIVE_MEMORY"] = std::to_string(activeMemory);
+        params["TYPE"] = "OOMDump";
+        params["EVENT_CONFIG"] = "event";
         TriggerEventReport(domain, event, HiSysEventType::FAULT, params);
         LOG(RTLOG_ERROR, "OOM event reporting finished");
 #endif
