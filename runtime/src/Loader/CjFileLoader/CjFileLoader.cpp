@@ -426,6 +426,10 @@ void* CJFileLoader::LoadCJLibrary(const char* libName)
 #ifdef INTERPRETER_ENABLED
 void* CJFileLoader::LoadInterpreter(const char* libName)
 {
+    if (binLoadApi.binLoadLib == nullptr) {
+        return nullptr;
+    }
+    
     return binLoadApi.binLoadLib(LibraryKind::APP, libName);
 }
 #endif

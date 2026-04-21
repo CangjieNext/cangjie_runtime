@@ -33,8 +33,8 @@ struct BinLoadApi {
     void* (*getBinHandle)(const char*);
     void* (*findSymbol)(void*, const char* symbolName);
     BinLoadApi()
-        : binLoad(nullptr), binUnload(nullptr), getBinaryInfoFromAddress(nullptr), getBinHandle(nullptr),
-          findSymbol(nullptr) {}
+        : binLoadLib(nullptr), binLoad(nullptr), binUnload(nullptr), getBinaryInfoFromAddress(nullptr), 
+        getBinHandle(nullptr), findSymbol(nullptr) {}
 };
 
 MRT_EXPORT uintptr_t MRT_StopGCWork();
