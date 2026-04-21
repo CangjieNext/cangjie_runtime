@@ -267,6 +267,7 @@ void MarkSweepCollector::PreEnumRoots()
         centralPool->ReclassifyUnsweptToSwept();
         centralPool->ReenableLazySweep();
     }
+    prevCycleMarkedObjects_.store(markedObjectCount.load(std::memory_order_relaxed), std::memory_order_relaxed);
     // Reset marked object counter (GC-thread-only, no STW needed).
     markedObjectCount.store(0, std::memory_order_relaxed);
 
@@ -333,6 +334,13 @@ bool MarkSweepCollector::MarkObject(BaseObject* obj) const
 
 bool MarkSweepCollector::DiscoverObject(BaseObject* obj)
 {
+    // Guard against stale pointers to reclaimed/zeroed slots.
+    // For such slots stateWord->TypeInfo is null, and they must not be enqueued
+    // into mark work queues in concurrent mark.
+    if (UNLIKELY(obj == nullptr || !obj->IsValidObject())) {
+        return false;
+    }
+
     if (MarkObject(obj)) {
         return false;
     }
@@ -404,6 +412,25 @@ void MarkSweepCollector::MergeRootsFromAllocBuffers(WorkStack& workStack)
 // Step 2.2: ConcurrentMark
 // ============================================================================
 
+// Forward declaration (defined later, used in ConcurrentMark and MSMarkAssist)
+static bool IsAssistDisabledByEnv();
+
+static inline void ConsumeAssistRemaining(std::atomic<int64_t>& remaining, size_t done)
+{
+    if (done == 0) {
+        return;
+    }
+    int64_t cur = remaining.load(std::memory_order_relaxed);
+    while (cur > 0) {
+        int64_t dec = std::min(cur, static_cast<int64_t>(done));
+        if (remaining.compare_exchange_weak(cur, cur - dec,
+                                            std::memory_order_release,
+                                            std::memory_order_relaxed)) {
+            break;
+        }
+    }
+}
+
 void MarkSweepCollector::ConcurrentMark()
 {
     // activeCollector_ was already set in MarkSetup (before STW).
@@ -424,12 +451,39 @@ void MarkSweepCollector::ConcurrentMark()
     bgScanCredit_.store(0, std::memory_order_relaxed);
     bgScanCreditConsumed_.store(0, std::memory_order_relaxed);
 
+    // Go-style gcAssistRatio: estimate scan work per allocated byte.
+    // ratioScaled = ceil(prevCycleMarkedObjects * scale / allocBudgetBytes)
+    GCStats& gcStats = GetGCStats();
+    size_t threshold = gcStats.GetThreshold();
+    size_t liveBaseline = gcStats.lastTrueLiveBytes;
+    size_t allocBudgetBytes = (threshold > liveBaseline) ? (threshold - liveBaseline) : 0;
+    size_t scanEstimateObjects = prevCycleMarkedObjects_.load(std::memory_order_relaxed);
+    uint64_t ratioScaled = 0;
+    if (allocBudgetBytes > 0 && scanEstimateObjects > 0) {
+        ratioScaled = (static_cast<uint64_t>(scanEstimateObjects) * kAssistRatioScale +
+                       static_cast<uint64_t>(allocBudgetBytes) - 1) /
+                      static_cast<uint64_t>(allocBudgetBytes);
+    }
+    assistWorkPerByteScaled_.store(ratioScaled, std::memory_order_release);
+    scanWorkRemaining_.store(static_cast<int64_t>(scanEstimateObjects), std::memory_order_relaxed);
+    assistThresholdBytes_ = threshold;
+    assistLiveBaselineBytes_ = liveBaseline;
+    assistAllocBaselineBytes_ = gcStats.baselineAllocatedBytes;
+    VLOG(REPORT,
+         "[MS-GC] assist ratio init: prevMarked=%zu allocBudget=%zuB ratio=%zu/%zu obj-per-byte",
+         scanEstimateObjects,
+         allocBudgetBytes,
+         static_cast<size_t>(ratioScaled),
+         static_cast<size_t>(kAssistRatioScale));
+
     // 10. Init Per-P GCWork (Step5): initialize gcThreadWork_ and all per-P gcWork
     gcThreadWork_.Init(&globalFull_, &workBufPool_);
     InitAllPerPGCWork();
 
-    // 11. Enable assist
-    assistEnabled_.store(true, std::memory_order_release);
+    // 11. Enable assist (skip if disabled by env CJ_MS_ASSIST_DISABLE=1)
+    if (!IsAssistDisabledByEnv()) {
+        assistEnabled_.store(true, std::memory_order_release);
+    }
 
     // 12. Transfer root objects from markWorkStack_ to gcThreadWork_
     TransferRootsToGCWork();
@@ -439,6 +493,8 @@ void MarkSweepCollector::ConcurrentMark()
 
     // 14. Disable Mutator assist and clear activeCollector_.
     assistEnabled_.store(false, std::memory_order_release);
+    assistWorkPerByteScaled_.store(0, std::memory_order_release);
+    scanWorkRemaining_.store(0, std::memory_order_release);
 }
 
 void MarkSweepCollector::RunConcurrentMarkLoop()
@@ -448,31 +504,50 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
 
     convergenceStableRounds_ = 0;
     size_t localCreditAccum = 0;       // Opt2: batch bgScanCredit accumulation
-    size_t slicesSinceBalance = 0;     // Opt3: proactive balance counter
 
     while (true) {
-        // Opt3: Proactive balance — share work to globalFull_ every 2 slices
-        // so that assist threads can actually find work to do,
-        // instead of only balancing when global is already empty.
-        slicesSinceBalance++;
-        if (slicesSinceBalance >= kBalanceEveryNSlices) {
-            gcThreadWork_.Balance();
-            slicesSinceBalance = 0;
-        }
+        bool assistActive = assistEnabled_.load(std::memory_order_acquire);
 
-        // 2. Drain a slice from gcThreadWork_
+        // 1. Drain a slice from gcThreadWork_
         size_t scannedCount = 0;
         DrainGCWork(gcThreadWork_, kSliceMaxObjects, scannedCount);
+        ConsumeAssistRemaining(scanWorkRemaining_, scannedCount);
 
-        // Opt2: Accumulate credit locally, only flush to atomic every N slices
-        // to reduce cache-line bouncing with assist threads calling TryStealBgCredit.
+        // Opt2: Always accumulate bgScanCredit from GC thread's work.
+        // When GC thread is scanning fast enough, bgScanCredit > 0 lets
+        // Mutator assist calls skip work via TryStealBgCredit() — this is
+        // the key pacing mechanism preventing assist from over-throttling
+        // mutator throughput.
         localCreditAccum += scannedCount;
         if (localCreditAccum >= kCreditFlushThreshold) {
             bgScanCredit_.fetch_add(static_cast<int64_t>(localCreditAccum), std::memory_order_release);
+
+            size_t allocatedBytes = Heap::GetHeap().GetAllocator().AllocatedBytes();
+            size_t newAlloc = (allocatedBytes > assistAllocBaselineBytes_) ?
+                              (allocatedBytes - assistAllocBaselineBytes_) : 0;
+            size_t effectiveAlloc = assistLiveBaselineBytes_ + newAlloc;
+            size_t remainingAllocBudget = (assistThresholdBytes_ > effectiveAlloc) ?
+                                          (assistThresholdBytes_ - effectiveAlloc) : 0;
+            int64_t remainingScanSigned = scanWorkRemaining_.load(std::memory_order_acquire);
+            size_t remainingScan = (remainingScanSigned > 0) ? static_cast<size_t>(remainingScanSigned) : 0;
+            uint64_t dynamicRatioScaled = 0;
+            if (remainingAllocBudget > 0 && remainingScan > 0) {
+                dynamicRatioScaled =
+                    (static_cast<uint64_t>(remainingScan) * kAssistRatioScale +
+                     static_cast<uint64_t>(remainingAllocBudget) - 1) /
+                    static_cast<uint64_t>(remainingAllocBudget);
+            }
+            assistWorkPerByteScaled_.store(dynamicRatioScaled, std::memory_order_release);
+
             localCreditAccum = 0;
         }
 
-        // 3. Convergence check: gcThreadWork_ + globalFull_ both empty
+        // 2. No explicit work sharing needed — assist threads naturally
+        //    pick up objects from globalFull_, which receives work from
+        //    WriteBarrierBuffer overflow (FlushWriteBarrierOverflow).
+        //    DFS frontier in gcThreadWork_ stays narrow (4-8 objects with
+        //    avg 1.0 children), so splitting has negligible benefit.
+
         if (gcThreadWork_.Empty() && globalFull_.Empty()) {
             convergenceStableRounds_++;
             if (convergenceStableRounds_ >= kConvergenceRequiredRounds) {
@@ -542,7 +617,8 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
 // DrainGCWork: drain objects from PerPGCWork, trace children back into it.
 // This is the Step5 replacement for RunCollectorDrainSlice.
 // ============================================================================
-void MarkSweepCollector::DrainGCWork(PerPGCWork& gcw, size_t maxObjects, size_t& scannedCount)
+void MarkSweepCollector::DrainGCWork(PerPGCWork& gcw, size_t maxObjects,
+                                     size_t& scannedCount)
 {
     scannedCount = 0;
     for (size_t i = 0; i < maxObjects; i++) {
@@ -636,6 +712,7 @@ void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
     WorkBuf* buf = workBufPool_.Get();
     size_t n = wbBuf.Count();
     BaseObject** data = wbBuf.Data();
+    size_t pushed = 0;
     for (size_t i = 0; i < n; i++) {
         if (data[i] != nullptr) {
             if (buf->Full()) {
@@ -643,6 +720,7 @@ void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
                 buf = workBufPool_.Get();
             }
             buf->Push(data[i]);
+            pushed++;
         }
     }
     wbBuf.Clear();
@@ -650,6 +728,14 @@ void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
         globalFull_.Push(buf);
     } else {
         workBufPool_.Put(buf);
+    }
+    // Fix 3: WriteBarrier-produced grey objects represent new scan work that was
+    // not accounted for in scanWorkRemaining_ (initialized from prevCycleMarkedObjects_).
+    // Without this update, scanWorkRemaining_ reaches zero prematurely and the dynamic
+    // ratio drops to zero, causing assist to stop accumulating debt even though there
+    // are still grey WB objects in globalFull_ waiting to be scanned.
+    if (pushed > 0 && assistWorkPerByteScaled_.load(std::memory_order_relaxed) > 0) {
+        scanWorkRemaining_.fetch_add(static_cast<int64_t>(pushed), std::memory_order_relaxed);
     }
 }
 
@@ -680,23 +766,27 @@ void MarkSweepCollector::DrainGlobalLFStackToMainQueue(GreyWorkQueue& mainQueue)
     }
 }
 
-bool MarkSweepCollector::TryStealBgCredit(size_t debtObjects)
+size_t MarkSweepCollector::TryStealBgCreditPartial(size_t debtObjects)
 {
+    if (debtObjects == 0) {
+        return 0;
+    }
+
     int64_t credit = bgScanCredit_.load(std::memory_order_acquire);
     if (credit <= 0) {
-        return false;
+        return 0;
     }
     int64_t stolen = std::min(static_cast<int64_t>(debtObjects), credit);
     while (!bgScanCredit_.compare_exchange_weak(
                credit, credit - stolen,
                std::memory_order_release, std::memory_order_relaxed)) {
         if (credit <= 0) {
-            return false;
+            return 0;
         }
         stolen = std::min(static_cast<int64_t>(debtObjects), credit);
     }
     bgScanCreditConsumed_.fetch_add(static_cast<size_t>(stolen), std::memory_order_relaxed);
-    return stolen >= static_cast<int64_t>(debtObjects);
+    return static_cast<size_t>(stolen);
 }
 
 void MarkSweepCollector::InitAllPerPGCWork()
@@ -753,29 +843,38 @@ static bool IsAssistDisabledByEnv()
     return disabled;
 }
 
-void MarkSweepCollector::MSMarkAssist()
+size_t MarkSweepCollector::MSMarkAssist(size_t debtObjects)
 {
+    if (debtObjects == 0) {
+        return 0;
+    }
+
     if (!assistEnabled_.load(std::memory_order_acquire)) {
-        return;
+        return 0;
     }
 
     // env var kill-switch: CJ_MS_ASSIST_DISABLE=1 disables all assist work
     if (IsAssistDisabledByEnv()) {
-        return;
+        return 0;
     }
 
     assistCallTotal_.fetch_add(1, std::memory_order_relaxed);
 
-    // Step5: Try to steal bgScanCredit first — if GC thread is ahead, skip work.
-    if (TryStealBgCredit(kAssistMaxObjectsPerCall)) {
+    // Step5: Try to steal bgScanCredit first — if GC thread is ahead, skip/partially skip work.
+    size_t paidByCredit = TryStealBgCreditPartial(debtObjects);
+    if (paidByCredit >= debtObjects) {
         assistFastSkipCount_.fetch_add(1, std::memory_order_relaxed);
-        return;
+        return debtObjects;
+    }
+    size_t assistBudget = std::min(kAssistMaxObjectsPerCall, debtObjects - paidByCredit);
+    if (assistBudget == 0) {
+        return paidByCredit;
     }
 
     // Get per-P gcWork from this thread's AllocBufferMS.
     AllocBufferMS* allocBuf = ThreadLocal::GetAllocBufferMS();
     if (allocBuf == nullptr) {
-        return;
+        return paidByCredit;
     }
     PerPGCWork& gcw = allocBuf->GetGCWork();
 
@@ -786,12 +885,12 @@ void MarkSweepCollector::MSMarkAssist()
 
     // If per-P gcWork is empty and global is also empty, nothing to do.
     if (gcw.Empty() && globalFull_.Empty()) {
-        return;
+        return paidByCredit;
     }
 
     size_t nProcessed = 0;
     size_t nTraced = 0;
-    for (size_t i = 0; i < kAssistMaxObjectsPerCall; i++) {
+    for (size_t i = 0; i < assistBudget; i++) {
         // Opt1: Check assistEnabled_ every 128 iterations so this mutator
         // can reach a safepoint promptly when GC needs to start a new cycle.
         if ((i & 127) == 0 && i > 0) {
@@ -832,6 +931,8 @@ void MarkSweepCollector::MSMarkAssist()
 
     assistProcessedCount_.fetch_add(nProcessed, std::memory_order_relaxed);
     assistTracedCount_.fetch_add(nTraced, std::memory_order_relaxed);
+    ConsumeAssistRemaining(scanWorkRemaining_, nProcessed);
+    return paidByCredit + nProcessed;
 }
 
 // ============================================================================
@@ -1107,6 +1208,12 @@ void MarkSweepCollector::ConcurrentSweep()
     // STW, before mutators resume. ConcurrentSweep only kicks off background
     // sweeping and reclaim after the new generation is already visible.
     if (centralPool != nullptr && space.GetMSRegionManager() != nullptr) {
+        // NOTE: EagerSweepBatch was removed from here because it races with the finalizer queue.
+        // PostMarkTermination() enqueues finalizeable objects (dead but not yet finalized) into
+        // finalizables queue. SweepRegion() would zero their memory, causing FATAL stateWord=0
+        // when the finalizer thread later accesses them. BackgroundProcessor::Run() correctly
+        // processes finalizers BEFORE calling BackgroundSweepLoop(). Therefore, any eager sweep
+        // must happen in the background processor after finalizers are drained, not here.
         space.GetMSRegionManager()->MaybeNotifySweep();
     }
 
@@ -1167,6 +1274,12 @@ BaseObject* MarkSweepCollector::GetAndTryTagObj(BaseObject* obj, RefField<>& fie
     (void)obj;
     BaseObject* target = field.GetTargetObject();
     if (target == nullptr || !IsManagedAddress(reinterpret_cast<MAddress>(target))) {
+        return nullptr;
+    }
+
+    // A managed address may still point to a reclaimed slot with cleared stateWord.
+    // Treat it as invalid and do not enqueue/trace it.
+    if (UNLIKELY(!target->IsValidObject())) {
         return nullptr;
     }
     return target;

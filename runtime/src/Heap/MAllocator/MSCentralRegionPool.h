@@ -383,6 +383,12 @@ public:
     // Called after MarkTerminate / in PostMarkTermination.
     MSLargeSweepStats SweepLargeRegions();
 
+    // Eager synchronous sweep of small regions: GC thread sweeps up to
+    // maxRegions regions across all size classes before handing off to background.
+    // Returns the number of regions actually swept.
+    // Called from ConcurrentSweep() to give immediate reclaim under pressure.
+    size_t EagerSweepBatch(size_t maxRegions);
+
     // ===== Pre-STW bitmap clearing (MarkSetup fast path) =====
 
     // Stop background sweep and disable lazy sweep, then wait for all

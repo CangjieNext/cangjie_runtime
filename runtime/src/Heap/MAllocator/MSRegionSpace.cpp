@@ -256,6 +256,12 @@ MAddress RegionSpaceMS::TryAllocateOnceMS(size_t allocSize)
         }
         MAddress addr = static_cast<MAddress>(regionStart);
         RegisterLargeObjectMS(addr, regionBytes);
+        // Pacing debt: large objects bypass AllocBufferMS::Allocate, so we must
+        // accumulate assist debt explicitly here to keep GC pacing correct.
+        AllocBufferMS* msBuffer = AllocBufferMS::GetAllocBufferMS();
+        if (msBuffer != nullptr) {
+            msBuffer->AccumulatePacingDebt(allocSize);
+        }
         return addr;
     }
 

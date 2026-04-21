@@ -92,6 +92,9 @@ struct MSGCCycleStats {
     // ── True live bytes (computed from markBitmaps after marking) ──
     size_t trueLiveBytes = 0;
 
+    // ── Eager sweep batch (方案3) ──
+    size_t eagerSweepBatchRegions = 0;
+
     // ── Region accounting snapshot ──
     size_t activeRegionCount = 0;
     size_t releasedTreeRegionCount = 0;
@@ -134,8 +137,14 @@ public:
 
     // ── Mutator assist interface (Step 2.2 §4) ──
     // Called from AllocBufferMS::Allocate() during concurrent marking.
-    // Drains grey objects from global queue in a budget-limited batch.
-    void MSMarkAssist();
+    // Pays mutator assist debt (in object units) and returns paid objects.
+    size_t MSMarkAssist(size_t debtObjects);
+    uint64_t GetAssistWorkPerByteScaled() const
+    {
+        return assistWorkPerByteScaled_.load(std::memory_order_acquire);
+    }
+    static constexpr uint64_t GetAssistRatioScale() { return kAssistRatioScale; }
+    size_t GetAssistDebtTriggerObjects() const { return kAssistDebtTriggerObjects; }
     static MarkSweepCollector* GetActiveCollector()
     {
         return activeCollector_.load(std::memory_order_acquire);
@@ -225,7 +234,7 @@ private:
     // ── Step5: LFStack global queue helpers ──
     void PushSingleToDeferredMainThread(BaseObject* obj);
     void DrainGlobalLFStackToMainQueue(GreyWorkQueue& mainQueue);
-    bool TryStealBgCredit(size_t debtObjects);
+    size_t TryStealBgCreditPartial(size_t debtObjects);
     void InitAllPerPGCWork();
     void DisposeAllPerPGCWork();
     void ResetAllPerPGCWork();
@@ -256,15 +265,19 @@ private:
 
     // ── Opt2: bgScanCredit batch flush threshold (in objects) ──
     static constexpr size_t kCreditFlushThreshold = 1024;
+    static constexpr uint64_t kAssistRatioScale = 1024;
 
-    // ── Opt3: proactive balance interval (every N drain slices) ──
-    static constexpr size_t kBalanceEveryNSlices = 2;
-
-    // ── Step5: LFStack global work queue (lock-free, replaces mutex-protected GreyWorkQueue) ──
+    // ── Step5: LFStack global work queue ──
     LFStack globalFull_;
     WorkBufPool workBufPool_;
     PerPGCWork gcThreadWork_;
     std::atomic<int64_t> bgScanCredit_{0};
+    std::atomic<uint64_t> assistWorkPerByteScaled_{0};
+    std::atomic<size_t> prevCycleMarkedObjects_{0};
+    std::atomic<int64_t> scanWorkRemaining_{0};
+    size_t assistThresholdBytes_ = 0;
+    size_t assistLiveBaselineBytes_ = 0;
+    size_t assistAllocBaselineBytes_ = 0;
 
     // ── Main-thread-only deferred work (e.g. weak refs discovered by assist) ──
     GreyWorkQueue deferredMainThreadQueue_;
@@ -275,7 +288,8 @@ private:
     static std::atomic<MarkSweepCollector*> activeCollector_;
 
     // ── Assist parameters (Step5: simplified with Per-P + bgCredit) ──
-    static constexpr size_t kAssistMaxObjectsPerCall = 2048;  // max objects per assist call
+    static constexpr size_t kAssistMaxObjectsPerCall = 512;  // max objects per assist call
+    static constexpr size_t kAssistDebtTriggerObjects = 64;
 
     // ── Assist concurrent stats ──
     std::atomic<size_t> assistMarkedCount_{0};

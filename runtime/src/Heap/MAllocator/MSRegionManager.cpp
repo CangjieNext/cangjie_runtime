@@ -229,6 +229,15 @@ uint32_t GetHeuReleasedTreeMaxBlockWatermark()
     return value;
 }
 
+// 方案4: Sweep-lag early trigger threshold (in number of regions).
+// If the unswept backlog exceeds this count, trigger a new GC early to
+// prevent RSS ballooning. Default: 64 regions = 64 * 256KB = 16MB backlog.
+size_t GetHeuSweepLagTriggerRegions()
+{
+    static const size_t value = ReadEnvCount("CJ_MS_HEU_SWEEP_LAG_TRIGGER_REGIONS", 64);
+    return value;
+}
+
 size_t GetBgSweepNotifyReadyWatermark()
 {
     static const size_t value = ReadEnvCount("CJ_MS_BG_SWEEP_NOTIFY_READY_WATERMARK", 4);
@@ -363,10 +372,21 @@ void MSRegionManager::MaybeNotifyMark(HeuTriggerKind triggerKind, const CentralR
         }
     }
 
+    // 方案4: Sweep-lag early trigger.
+    // If the unswept backlog is very large (background sweep can't keep up with
+    // allocation rate), trigger a new GC earlier than the normal threshold would.
+    // This avoids RSS ballooning caused by the heap growing faster than sweep.
+    if (!thresholdTriggered && !pressureTriggered && centralPool != nullptr) {
+        size_t totalUnswept = centralPool->GetTotalUnsweptCount();
+        if (totalUnswept > GetHeuSweepLagTriggerRegions()) {
+            pressureTriggered = true;
+            triggeredUnswept = totalUnswept;
+        }
+    }
+
     if (!thresholdTriggered && !pressureTriggered) {
         return;
     }
-
     uint64_t nowNs = TimeUtil::NanoSeconds();
     uint64_t lastHeuRequestNs = lastHeuRequestNs_.load(std::memory_order_relaxed);
     if (lastHeuRequestNs != 0 && nowNs - lastHeuRequestNs < GetHeuRequestCooldownNs()) {
@@ -390,14 +410,15 @@ void MSRegionManager::MaybeNotifyMark(HeuTriggerKind triggerKind, const CentralR
                  triggeredReady, triggeredUnswept,
                  emptyCacheCount,
                  releasedTreeBytes, releasedTreeNodeCount, releasedTreeMaxBlock,
-                 thresholdTriggered ? "threshold" : "pressure");
+                 thresholdTriggered ? "threshold" : (triggeredUnswept > GetHeuSweepLagTriggerRegions() ? "sweep-lag" : "pressure"));
             break;
         case HeuTriggerKind::LARGE_ALLOC:
             VLOG(REPORT,
-                 "[MS-GC] HEU trigger (large): source=%u effectiveAlloc=%zu threshold=%zu releasedTree=%zuB nodes=%u maxBlock=%u",
+                 "[MS-GC] HEU trigger (large): source=%u effectiveAlloc=%zu threshold=%zu releasedTree=%zuB nodes=%u maxBlock=%u reason=%s",
                  static_cast<unsigned>(bumpSource ? AllocSource::BUMP : AllocSource::RELEASED),
                  effectiveAlloc, threshold,
-                 releasedTreeBytes, releasedTreeNodeCount, releasedTreeMaxBlock);
+                 releasedTreeBytes, releasedTreeNodeCount, releasedTreeMaxBlock,
+                 thresholdTriggered ? "threshold" : (triggeredUnswept > GetHeuSweepLagTriggerRegions() ? "sweep-lag" : "pressure"));
             break;
         case HeuTriggerKind::BG_SWEEP_EXHAUSTED:
             VLOG(REPORT,

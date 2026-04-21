@@ -119,6 +119,12 @@ size_t GetEmptyScavengeMaxRegionsPerSlice()
     static const size_t value = ReadEnvCount("CJ_MS_EMPTY_SCAVENGE_MAX_REGIONS_PER_SLICE", 256);
     return value;
 }
+
+size_t GetEagerSweepBatchRegions()
+{
+    static const size_t value = ReadEnvCount("CJ_MS_EAGER_SWEEP_BATCH", 32);
+    return value;
+}
 }
 
 // Global sweep generation counter (starts at 2 so that sg-2 == 0 is valid initial state)
@@ -927,9 +933,38 @@ void CentralRegionPool::RegisterLargeRegion(MSRegionInfo* region)
     largeRegionList_.Prepend(region);
 }
 
+// EagerSweepBatch — synchronous GC-thread sweep of a batch of unswept regions.
+// Called from ConcurrentSweep() before handing off to the background thread,
+// giving immediate reclaim under high allocation pressure.
+// Uses the same CAS ownership protocol as BackgroundSweep / LazySweep.
+size_t CentralRegionPool::EagerSweepBatch(size_t maxRegions)
+{
+    if (maxRegions == 0) {
+        return 0;
+    }
+    uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
+    uint64_t deadlineUs = TimeUtil::MicroSeconds() + 5000;  // 5ms hard cap
+    size_t swept = 0;
+
+    for (uint8_t cls = 0; cls < kNumSizeClasses && swept < maxRegions; cls++) {
+        SizeClassBucket& bucket = buckets_[cls];
+        // Sweep partialUnswept first (most likely to yield free slots)
+        if (!SweepUnsweptList(bucket, bucket.partialUnswept, sg, swept, maxRegions, deadlineUs)) {
+            break;
+        }
+        if (!SweepUnsweptList(bucket, bucket.fullUnswept, sg, swept, maxRegions, deadlineUs)) {
+            break;
+        }
+    }
+
+    if (swept > 0) {
+        VLOG(REPORT, "[MS-GC] EagerSweepBatch: swept %zu regions (limit=%zu)", swept, maxRegions);
+    }
+    return swept;
+}
+
 MSLargeSweepStats CentralRegionPool::SweepLargeRegions()
 {
-    // Collect dead (unmarked) large regions into a local list, then release.
     // Two-pass to avoid holding largeLock_ during ReclaimRegion.
     std::vector<MSRegionInfo*> deadRegions;
     MSLargeSweepStats stats;

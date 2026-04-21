@@ -209,6 +209,22 @@ struct PerPGCWork {
         return wbuf1_->Pop();
     }
 
+    // TryGetObjLocal: pop from local wbuf1/wbuf2 ONLY.
+    // Does NOT refill from globalFull_.
+    // Used by GC thread when assist is enabled: leaves globalFull_
+    // work for assist threads to consume, creating true parallelism.
+    BaseObject* TryGetObjLocal()
+    {
+        if (wbuf1_ != nullptr && !wbuf1_->Empty()) {
+            return wbuf1_->Pop();
+        }
+        if (wbuf2_ != nullptr && !wbuf2_->Empty()) {
+            std::swap(wbuf1_, wbuf2_);
+            return wbuf1_->Pop();
+        }
+        return nullptr;
+    }
+
     // Dispose: flush all local work to global (convergence / MarkTermination).
     // Go equivalent: gcWork.dispose().
     void Dispose()
@@ -225,6 +241,42 @@ struct PerPGCWork {
         }
     }
 
+    // FlushAndSplit: share work with globalFull_ for assist threads.
+    // 1. Push wbuf2 to global if non-empty
+    // 2. Split wbuf1 in half -> push half to global, keep half locally
+    // Unlike Dispose(), the GC thread keeps half of wbuf1 so it can
+    // continue draining without an expensive global refill.
+    // Returns number of bufs pushed to global.
+    size_t FlushAndSplit()
+    {
+        size_t pushed = 0;
+        // Share wbuf2 first
+        if (wbuf2_ != nullptr && !wbuf2_->Empty()) {
+            globalFull_->Push(wbuf2_);
+            wbuf2_ = workBufPool_->Get();
+            flushedWork_ = true;
+            pushed++;
+        }
+        // Split wbuf1 if it has enough objects.
+        // DFS frontier is typically narrow (2-8 items with avg 1.0 children),
+        // so use a low threshold to actually trigger sharing.
+        constexpr size_t kMinSplitLen = 4;
+        if (wbuf1_ != nullptr && wbuf1_->len >= kMinSplitLen) {
+            size_t shareCount = wbuf1_->len / 2;
+            size_t keepCount = wbuf1_->len - shareCount;
+            WorkBuf* shareBuf = workBufPool_->Get();
+            // Bulk copy the second half to shareBuf
+            memcpy(shareBuf->objs, &wbuf1_->objs[keepCount],
+                   shareCount * sizeof(BaseObject*));
+            shareBuf->len = shareCount;
+            wbuf1_->len = keepCount;
+            globalFull_->Push(shareBuf);
+            flushedWork_ = true;
+            pushed++;
+        }
+        return pushed;
+    }
+
     // Balance: share wbuf2 to global when global is empty.
     // Lets other threads (GC / assist) find work.
     void Balance()
@@ -234,6 +286,15 @@ struct PerPGCWork {
             wbuf2_ = workBufPool_->Get();
             flushedWork_ = true;
         }
+    }
+
+    // LocalLen: return total objects in local wbuf1 + wbuf2 (no lock needed).
+    size_t LocalLen() const
+    {
+        size_t n = 0;
+        if (wbuf1_ != nullptr) { n += wbuf1_->len; }
+        if (wbuf2_ != nullptr) { n += wbuf2_->len; }
+        return n;
     }
 
     bool Empty() const

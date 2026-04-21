@@ -61,6 +61,11 @@ public:
     // Main allocation entry (called from AllocBuffer::Allocate in MS mode)
     MAddress Allocate(size_t size);
 
+    // Accumulate pacing debt for a given allocation size and trigger assist if needed.
+    // Called by large-object paths that bypass Allocate().
+    void AccumulatePacingDebt(size_t size);
+
+
     // GC STW: flush all thread-local Regions back to CentralRegionPool
     void FlushAll();
 
@@ -143,10 +148,9 @@ private:
     // Per-thread stack roots buffer (populated by Mutator::GcPhaseEnum)
     std::vector<BaseObject*> stackRoots_;
 
-    // Mutator assist: accumulated allocation debt (bytes).
-    // When debt exceeds kGCAssistTriggerBytes, triggers MSMarkAssist().
-    static constexpr size_t kGCAssistTriggerBytes = 16384;  // 16KB
-    size_t gcAssistBytes_ = 0;
+    // Mutator assist debt in fixed-point "object" units.
+    // debtScaled / AssistRatioScale = debtObjects.
+    uint64_t gcAssistDebtScaled_ = 0;
 
     // Step5: Per-P GC work buffer for mutator assist
     PerPGCWork gcWork_;

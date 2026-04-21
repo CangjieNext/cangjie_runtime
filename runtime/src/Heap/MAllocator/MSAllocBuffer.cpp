@@ -14,6 +14,8 @@
 #include "Base/Log.h"
 #include "Collector/CollectorResources.h"
 #include "Heap/MCollector/MarkSweepCollector.h"
+#include <algorithm>
+#include <cstdint>
 #include <cstdio>
 
 namespace MapleRuntime {
@@ -78,18 +80,35 @@ MAddress AllocBufferMS::Allocate(size_t size)
         if (UNLIKELY(IsMSMarkingPhase(phase))) {
             Heap::GetHeap().GetCollector().MarkNewObject(reinterpret_cast<BaseObject*>(addr));
 
-            // Mutator assist (Step5): accumulate debt, trigger assist.
-            // bgScanCredit check is inside MSMarkAssist for early return.
-            gcAssistBytes_ += size;
-            if (UNLIKELY(gcAssistBytes_ >= kGCAssistTriggerBytes)) {
-                gcAssistBytes_ = 0;
-                MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
-                if (collector != nullptr) {
-                    collector->MSMarkAssist();
+            // Go-style dynamic pacing: debt += allocatedBytes * assistRatio.
+            MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
+            if (collector != nullptr) {
+                uint64_t ratioScaled = collector->GetAssistWorkPerByteScaled();
+                if (ratioScaled > 0) {
+                    uint64_t deltaDebt = static_cast<uint64_t>(size) * ratioScaled;
+                    if (UNLIKELY(gcAssistDebtScaled_ > UINT64_MAX - deltaDebt)) {
+                        gcAssistDebtScaled_ = UINT64_MAX;
+                    } else {
+                        gcAssistDebtScaled_ += deltaDebt;
+                    }
+
+                    const uint64_t ratioScale = MarkSweepCollector::GetAssistRatioScale();
+                    size_t debtObjects = static_cast<size_t>(gcAssistDebtScaled_ / ratioScale);
+                    if (UNLIKELY(debtObjects >= collector->GetAssistDebtTriggerObjects())) {
+                        // Call MSMarkAssist unconditionally: it first tries bgScanCredit
+                        // (even when the mark work queue is empty), then does real marking
+                        // only if credit is insufficient and grey objects are available.
+                        // The old hasWork guard was wrong: it prevented credit consumption
+                        // when the work queue happened to be empty, causing debt to pile up
+                        // and trigger burst assist later.
+                        size_t paidObjects = collector->MSMarkAssist(debtObjects);
+                        size_t accounted = std::min(paidObjects, debtObjects);
+                        gcAssistDebtScaled_ -= static_cast<uint64_t>(accounted) * ratioScale;
+                    }
                 }
             }
         } else {
-            gcAssistBytes_ = 0;
+            gcAssistDebtScaled_ = 0;
         }
     }
 
@@ -337,6 +356,35 @@ AllocBufferMS* AllocBufferMS::GetOrCreateAllocBufferMS()
         ThreadLocal::SetAllocBufferMS(buffer);
     }
     return buffer;
+}
+
+// ============================================================================
+// AccumulatePacingDebt — pacing debt accumulation for paths bypassing Allocate()
+// (e.g. large-object allocation in TryAllocateOnceMS)
+// ============================================================================
+void AllocBufferMS::AccumulatePacingDebt(size_t size)
+{
+    MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
+    if (collector == nullptr) {
+        return;
+    }
+    uint64_t ratioScaled = collector->GetAssistWorkPerByteScaled();
+    if (ratioScaled == 0) {
+        return;
+    }
+    uint64_t deltaDebt = static_cast<uint64_t>(size) * ratioScaled;
+    if (UNLIKELY(gcAssistDebtScaled_ > UINT64_MAX - deltaDebt)) {
+        gcAssistDebtScaled_ = UINT64_MAX;
+    } else {
+        gcAssistDebtScaled_ += deltaDebt;
+    }
+    const uint64_t ratioScale = MarkSweepCollector::GetAssistRatioScale();
+    size_t debtObjects = static_cast<size_t>(gcAssistDebtScaled_ / ratioScale);
+    if (UNLIKELY(debtObjects >= collector->GetAssistDebtTriggerObjects())) {
+        size_t paidObjects = collector->MSMarkAssist(debtObjects);
+        size_t accounted = std::min(paidObjects, debtObjects);
+        gcAssistDebtScaled_ -= static_cast<uint64_t>(accounted) * ratioScale;
+    }
 }
 
 } // namespace MapleRuntime
