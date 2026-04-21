@@ -557,6 +557,9 @@ void InitInterpreter(const InterpreterParam& interpreterParam)
 
 bool IsC2IStubAddr(const uintptr_t address)
 {
+    if (!interpreterInterfaceInstance) {
+        return false;
+    }
     bool res = interpreterInterfaceInstance->c2iStubStartAddr <= address && address < interpreterInterfaceInstance->c2iStubEndAddr;
     DLOG(INTERPRETER, "Checking c2i virtual executor borders: is %p in [%p, %p)? -- %s", address,
         interpreterInterfaceInstance->c2iStubStartAddr,
@@ -566,6 +569,9 @@ bool IsC2IStubAddr(const uintptr_t address)
 
 bool IsI2IAdapterStartAddr(const uintptr_t address)
 {
+    if (!interpreterInterfaceInstance) {
+        return false;
+    }
     bool res = interpreterInterfaceInstance->i2iAdapterStartAddr <= address && address < interpreterInterfaceInstance->i2iAdapterEndAddr;
     DLOG(INTERPRETER, "Checking i2i function borders: is %p in [%p, %p)? -- %s", address,
         interpreterInterfaceInstance->i2iAdapterStartAddr,
@@ -575,6 +581,9 @@ bool IsI2IAdapterStartAddr(const uintptr_t address)
 
 bool IsInterpreterPrologueAddr(const uintptr_t address)
 {
+    if (!interpreterInterfaceInstance) {
+        return false;
+    }
     uintptr_t startAddr = interpreterInterfaceInstance->interpreterPrologueStartAddr;
     uintptr_t endAddr = interpreterInterfaceInstance->interpreterPrologueEndAddr;
     bool hasRange = startAddr != 0 && startAddr < endAddr;
@@ -585,6 +594,9 @@ bool IsInterpreterPrologueAddr(const uintptr_t address)
 }
 
 uintptr_t GetCommonInterpreterLandingPad() {
+    if (!interpreterInterfaceInstance) {
+        return 0;
+    }
     DLOG(INTERPRETER, "GetCommonInterpreterLandingPad: %p", interpreterInterfaceInstance->landingPad);
     return reinterpret_cast<uintptr_t>(interpreterInterfaceInstance->landingPad);
 }
