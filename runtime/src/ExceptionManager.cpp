@@ -72,7 +72,7 @@ void ExceptionManager::OutOfMemory()
 #if defined(__OHOS__) && (__OHOS__ == 1)
         // Trigger OOM event reporting
         const char* domain = "FRAMEWORK";
-        const char* event = "ARK_STATS_DUMP";
+        const char* event = "CJ_OOM";
         Heap& heap = Heap::GetHeap();
         size_t activeMemory = heap.GetCurrentCapacity();
         size_t limitSize = heap.GetMaxCapacity();
