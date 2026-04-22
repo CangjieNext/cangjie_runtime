@@ -338,6 +338,8 @@ struct InterpreterParam {
     int interpreterArgsCount;
     /* Startup argument list passed to interpreter. */
     const char* const* interpreterArgs;
+    /* Optional app library handle used by interpreter to resolve application symbols. */
+    void* appLibHandle;
 };
 #endif
 
