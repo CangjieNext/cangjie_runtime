@@ -40,10 +40,12 @@ set(CMAKE_C_FLAGS
     -Wswitch-default \
     -Wshadow \
     -Wunused \
-    -Wundef \
     -Wdate-time \
     -Wformat=2 \
     -Wcast-qual \
+    -Wconversion \
+    -Wcast-align \
+    -Werror \
     -Wstrict-prototypes \
     -std=c11 \
     -fgnu89-inline \
@@ -73,13 +75,13 @@ set(CMAKE_CXX_FLAGS
     -Wswitch-default \
     -Wshadow \
     -Wunused \
-    -Wundef \
     -Wdate-time \
     -Wformat=2 \
     -Wcast-qual \
     -Woverloaded-virtual \
     -Wnon-virtual-dtor \
     -Wdelete-non-virtual-dtor \
+    -Werror \
     -std=gnu++14 \
     -fno-common \
     -fno-strict-aliasing \
@@ -162,4 +164,3 @@ set(CMAKE_SHARED_LINKER_FLAGS
 
 # ar flags
 set(CMAKE_C_CREATE_STATIC_LIBRARY "<CMAKE_AR> rcD <TARGET> <OBJECTS>")
-

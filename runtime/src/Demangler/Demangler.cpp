@@ -183,9 +183,10 @@ T ReplaceString(T str, const char* pattern, const char* replacement)
     auto pos = str.Find(pattern);
     auto n = str.Length();
     auto pLen = strlen(pattern);
-    while (pos > -1 && n - pos - pLen > 0) {
+    while (pos > -1 && n - static_cast<size_t>(pos) - pLen > 0) {
         n = str.Length();
-        str = str.SubStr(0, pos) + replacement + str.SubStr(pos + pLen, n - pos - pLen);
+        str = str.SubStr(0, static_cast<size_t>(pos)) + replacement +
+              str.SubStr(static_cast<size_t>(pos) + pLen, n - static_cast<size_t>(pos) - pLen);
         pos = str.Find(pattern);
     }
     return str;
@@ -276,7 +277,7 @@ uint32_t Demangler<T>::DemangleLength()
         ++currentIndex;
         isValid = true;
     }
-    return atoi(numStr.Str());
+    return static_cast<uint32_t>(atoi(numStr.Str()));
 }
 
 template<typename T>
@@ -371,7 +372,7 @@ template<typename T>
 bool Demangler<T>::MatchForward(const char pattern[], uint32_t len) const
 {
     auto maxLen = mangledName.Length() - currentIndex;
-    len = len > maxLen ? maxLen : len;
+    len = len > static_cast<uint32_t>(maxLen) ? static_cast<uint32_t>(maxLen) : len;
     auto prefix = mangledName.SubStr(currentIndex, len);
     return prefix == T{ pattern };
 }
@@ -717,8 +718,9 @@ DemangleInfo<T> Demangler<T>::DemanglePackageName()
     if (pkg.IsEmpty()) {
         pkg = DemangleStringName();
         auto pos = pkg.Find(':');
-        if (pos > -1 && pkg.Length() - pos > 0) {
-            pkg = pkg.SubStr(0, pos) + T{':'} + pkg.SubStr(pos, pkg.Length() - pos);
+        if (pos > -1 && pkg.Length() - static_cast<size_t>(pos) > 0) {
+            pkg = pkg.SubStr(0, static_cast<size_t>(pos)) + T{':'} +
+                  pkg.SubStr(static_cast<size_t>(pos), pkg.Length() - static_cast<size_t>(pos));
         }
     }
     if (IsFileName()) {
@@ -1132,7 +1134,7 @@ DemangleInfo<T> Demangler<T>::DemangleVArray()
 {
     DemangleInfo<T> di{ MANGLE_VARRAY_STR, TypeKind::TUPLE };
     SkipChar(MANGLE_VARRAY_PREFIX);
-    uint32_t num = DemangleManglingNumber();
+    uint32_t num = static_cast<uint32_t>(DemangleManglingNumber());
     di.genericTypes = DemangleGenericTypes().GetFullName(scopeResolution, num);
     return di;
 }
@@ -1335,12 +1337,12 @@ DemangleInfo<T> Demangler<T>::DemangleDefaultParamFunction()
 {
     auto pos = mangledName.Find(MANGLE_UNDERSCORE_PREFIX, currentIndex);
     if (pos == -1 || pos == static_cast<int>(mangledName.Length()) - 1 ||
-        !IsCurrentCharDigit(mangledName[pos + MANGLE_CHAR_LEN])) {
+        !IsCurrentCharDigit(mangledName[static_cast<size_t>(pos) + MANGLE_CHAR_LEN])) {
         return Reject("invalid decl");
     }
 
     SkipChar(MANGLE_DEFAULT_PARAM_FUNCTION_PREFIX);
-    auto identifier = mangledName.SubStr(currentIndex, pos - currentIndex);
+    auto identifier = mangledName.SubStr(currentIndex, static_cast<size_t>(pos) - currentIndex);
     DemangleInfo<T> di{ identifier, TypeKind::FUNCTION_DECL };
     SkipString(identifier.Str());
     SkipChar(MANGLE_UNDERSCORE_PREFIX);
@@ -1365,9 +1367,9 @@ DemangleInfo<T> Demangler<T>::DemangleInnerFunction()
     if (!isValid) {
         return Reject();
     }
-    auto pkgName = mangledName.SubStr(currentIndex, prefixIndex - currentIndex);
+    auto pkgName = mangledName.SubStr(currentIndex, static_cast<size_t>(prefixIndex) - currentIndex);
     di.pkgName = pkgName;
-    auto funcName = mangledName.SubStr(prefixIndex + MANGLE_CHAR_LEN); // Skip "$"
+    auto funcName = mangledName.SubStr(static_cast<size_t>(prefixIndex) + MANGLE_CHAR_LEN); // Skip "$"
     di.demangled = funcName;
     currentIndex = mangledName.Length();
     return di;
@@ -1378,7 +1380,9 @@ DemangleInfo<T> Demangler<T>::DemangleWrappedFunction()
 {
     auto endIndex = mangledName.Find(MANGLE_END, currentIndex);
     auto prefixIndex = currentIndex + strlen(MANGLE_WRAPPED_FUNCTION_PREFIX);
-    mangledName = T(MANGLE_CANGJIE_PREFIX) + mangledName.SubStr(prefixIndex, endIndex - prefixIndex);
+    mangledName = T(MANGLE_CANGJIE_PREFIX) +
+        mangledName.SubStr(static_cast<size_t>(prefixIndex),
+            static_cast<size_t>(endIndex) - static_cast<size_t>(prefixIndex));
     auto di = DemangleDecl();
     di.demangled += WRAPPED_FUNCTION_SUFFIX_INFO;
     di.type = TypeKind::WRAPPED_FUNCTION;  

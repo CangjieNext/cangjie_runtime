@@ -183,7 +183,7 @@ private:
         page.prev = nullptr;
         page.next = nullptr;
         constexpr uint32_t offset = MapleRuntime::AlignUp<uint32_t>(sizeof(Page), AllocatorUtils::ALLOC_ALIGNMENT);
-        page.free = (AllocatorUtils::ALLOC_PAGE_SIZE - offset) / slotAlignment;
+        page.free = static_cast<decltype(page.free)>((AllocatorUtils::ALLOC_PAGE_SIZE - offset) / slotAlignment);
         page.total = page.free;
         CHECK_DETAIL(page.free >= 1, "use the wrong allocator! slot size = %u", slotAlignment);
 

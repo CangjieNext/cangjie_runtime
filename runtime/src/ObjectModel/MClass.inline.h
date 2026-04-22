@@ -62,7 +62,7 @@ inline bool TypeTemplate::IsCFunc() const { return type == TypeKind::TYPE_KIND_C
 inline const char* TypeTemplate::GetName() const { return name; }
 
 inline bool TypeTemplate::ReflectInfoIsNull() const { return reflectInfo == nullptr; }
-inline bool TypeTemplate::HasExtPart() const { return static_cast<bool>(flag & FLAG_HAS_EXT_PART); }
+inline bool TypeTemplate::HasExtPart() const { return static_cast<bool>(static_cast<U32>(flag) & FLAG_HAS_EXT_PART); }
 
 inline EnumInfo* TypeTemplate::GetEnumInfo()
 {
@@ -208,7 +208,7 @@ inline bool TypeInfo::IsReflectUnsupportedType() const
 }
 
 
-inline I8 TypeInfo::GetFlags() const { return flag; }
+inline I8 TypeInfo::GetFlags() const { return static_cast<I8>(flag); }
 
 inline I8 TypeInfo::GetType() const { return type; }
 

@@ -57,7 +57,7 @@ void PrintSignalStackInfo::PrintStackTrace() const
         longStackFlag = true;
     }
     for (size_t i = 0; i < stackSize; ++i) {
-        signalStack[i].PrintFrameInfo(i);
+        signalStack[i].PrintFrameInfo(static_cast<uint32_t>(i));
     }
     if (longStackFlag) {
         FLOG(RTLOG_ERROR, "      ...");

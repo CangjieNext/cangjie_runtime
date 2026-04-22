@@ -40,14 +40,14 @@ public:
     T GetAtomicValue(size_t pos, size_t bitLen) const
     {
         T value = __atomic_load_n(&fieldVal, __ATOMIC_ACQUIRE);
-        T bitMask = ((1 << bitLen) - 1) << pos;
+        T bitMask = static_cast<T>(((static_cast<uint64_t>(1) << bitLen) - 1ULL) << pos);
         return value & bitMask;
     }
     void SetAtomicValue(size_t pos, size_t bitLen, T newValue)
     {
         do {
             T oldValue = fieldVal;
-            T bitMask = ((1 << bitLen) - 1) << pos;
+            T bitMask = static_cast<T>(((static_cast<uint64_t>(1) << bitLen) - 1ULL) << pos);
             T unchangedBitMask = ~bitMask;
             T newFieldValue = ((newValue << pos) & bitMask) | (oldValue & unchangedBitMask);
             if (__atomic_compare_exchange_n(&fieldVal, &oldValue, newFieldValue, false, __ATOMIC_ACQ_REL,
@@ -308,7 +308,7 @@ public:
             }
             return true;
         }
-        U32 objSize = obj->GetSize();
+        U32 objSize = static_cast<U32>(obj->GetSize());
         size_t offset = GetAddressOffset(reinterpret_cast<MAddress>(obj));
         size_t regionSize = offset + GetRegionEnd() - reinterpret_cast<MAddress>(obj);
         bool marked = GetOrAllocMarkBitmap()->MarkBits(offset, objSize, regionSize);
@@ -341,7 +341,7 @@ public:
             }
             return true;
         }
-        U32 objSize = obj->GetSize();
+        U32 objSize = static_cast<U32>(obj->GetSize());
         size_t regionSize = offset + GetRegionEnd() - reinterpret_cast<MAddress>(obj);
         bool marked = GetOrAllocResurrectBitmap()->MarkBits(offset, objSize, regionSize);
         CHECK(IsResurrectedObject(offset));
@@ -357,7 +357,7 @@ public:
             }
             return true;
         }
-        U32 objSize = obj->GetSize();
+        U32 objSize = static_cast<U32>(obj->GetSize());
         size_t regionSize = offset + GetRegionEnd() - reinterpret_cast<MAddress>(obj);
         CHECK(regionSize > 0);
         bool marked = GetOrAllocEnqueueBitmap()->MarkBits(offset, objSize, regionSize);

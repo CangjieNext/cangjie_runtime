@@ -82,9 +82,9 @@ private:
         std::list<Uptr>* rootsList = nullptr) const
     {
         constexpr U32 PureValWidth = 31;
-        constexpr U32 PureValBit = 1 << PureValWidth;
+        constexpr U32 PureValBit = 1U << PureValWidth;
         constexpr U32 PureValMask = PureValBit - 1;
-        constexpr U32 CompressTagBit = 1 << 30;
+        constexpr U32 CompressTagBit = 1U << 30;
         constexpr U32 CompressCntMask = CompressTagBit - 1;
         SlotBias baseBias = slotBias * BIAS_COEF;
 
@@ -107,7 +107,7 @@ private:
                     if ((bit & LOWEST_BIT) == 0) {
                         continue;
                     }
-                    VisitOneSlot(j);
+                    VisitOneSlot(static_cast<I32>(j));
                 }
                 baseBias += static_cast<I32>(PureValWidth) * BYTES_PER_SLOT;
             } else {
@@ -115,7 +115,7 @@ private:
                 U32 bitNums = (bit & CompressCntMask) * PureValWidth;
                 if (isAllRef) {
                     for (uint32_t j = 0; j < bitNums; ++j) {
-                        VisitOneSlot(j);
+                        VisitOneSlot(static_cast<I32>(j));
                     }
                 }
                 baseBias += static_cast<I32>(bitNums) * BYTES_PER_SLOT;

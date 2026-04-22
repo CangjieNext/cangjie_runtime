@@ -37,7 +37,7 @@ MemMap* MemMap::MapMemory(size_t reqSize, size_t initSize, const Option& opt)
     mappedAddr = VirtualAlloc(NULL, reqSize, MEM_RESERVE, PAGE_READWRITE);
 #else
     DLOG(ALLOC, "MemMap::MapMemory size %zu", reqSize);
-    mappedAddr = mmap(opt.reqBase, reqSize, PROT_NONE, opt.flags, -1, 0);
+    mappedAddr = mmap(opt.reqBase, reqSize, PROT_NONE, static_cast<int>(opt.flags), -1, 0);
 #endif
 
     bool failure = false;

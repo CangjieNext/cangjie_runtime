@@ -180,7 +180,7 @@ void EnumBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, s
     Mutator* mutator = Mutator::GetMutator();
     gctib.ForEachBitmapWord(dst, [=](RefField<>& dstField) {
         mutator->RememberObjectInSatbBuffer(ReadReference(nullptr, dstField));
-        uint32_t offset = reinterpret_cast<MAddress>(&dstField) - dst;
+        uint32_t offset = static_cast<uint32_t>(reinterpret_cast<MAddress>(&dstField) - dst);
         RefField<>* srcField = reinterpret_cast<RefField<>*>(src + offset);
         mutator->RememberObjectInSatbBuffer(ReadReference(nullptr, *srcField));
     });

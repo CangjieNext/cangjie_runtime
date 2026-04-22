@@ -20,7 +20,7 @@ struct HashString {
     {
         U32 hash = 0;
         while ((*key) != '\0') {
-            U32 keyChar = *key;
+            U32 keyChar = static_cast<unsigned char>(*key);
             hash = hash * properPrime + keyChar;
             key += 1;
         }

@@ -43,7 +43,7 @@ struct StdPkgHash {
         size_t id = 0;
         const size_t n = cPkg.size();
         while (id < n) {
-            hash = ((hash << offset) + hash) + cPkg[id++];
+            hash = ((hash << offset) + hash) + static_cast<unsigned char>(cPkg[id++]);
         }
         return hash & (0x7FFFFFFF);
     }

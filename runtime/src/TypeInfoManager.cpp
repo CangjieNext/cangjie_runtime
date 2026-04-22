@@ -401,29 +401,29 @@ void TypeInfoManager::CreatedTypeInfoImpl(GenericTiDesc* &tiDesc, TypeTemplate* 
     U16 fieldNum = tt->GetFieldNum();
     U16 typeArgNum = tt->GetTypeArgNum();
     if (tt->IsCFunc()) {
-        typeArgNum = argSize;
+        typeArgNum = static_cast<U16>(argSize);
     } else if (tt->IsTuple() || tt->IsFunc() || tt->IsRawArray()) {
-        fieldNum = argSize;
-        typeArgNum = argSize;
+        fieldNum = static_cast<U16>(argSize);
+        typeArgNum = static_cast<U16>(argSize);
     } else if (tt->IsVArray()) {
         LOG(RTLOG_FATAL, "Instantiate TypeInfo for VArray is not supported");
     }
 
     U32 ptrSize = sizeof(void*);
     newTypeInfo->SetFieldNum(fieldNum);
-    newTypeInfo->SetTypeArgNum(typeArgNum);
+    newTypeInfo->SetTypeArgNum(static_cast<I8>(typeArgNum));
     if (tt->IsArrayType() || tt->IsCPointer()) {
         // args stores the component typeInfo of the array or cpointer.
         TypeInfo* componentTypeTi = args[0];
         newTypeInfo->SetComponentTypeInfo(componentTypeTi);
         newTypeInfo->SetInstanceSize(ptrSize);
-        newTypeInfo->SetAlign(ptrSize);
+        newTypeInfo->SetAlign(static_cast<U8>(ptrSize));
         AddTypeInfo(newTypeInfo);
         tiDesc->SetTypeInfoStatus(TypeInfoStatus::TYPEINFO_INITED);
         return;
     } else if (tt->IsCFunc()) {
         newTypeInfo->SetInstanceSize(ptrSize);
-        newTypeInfo->SetAlign(ptrSize);
+        newTypeInfo->SetAlign(static_cast<U8>(ptrSize));
         return;
     }
     U32* offsets = reinterpret_cast<U32*>(Allocate(fieldNum * sizeof(U32)));
@@ -740,15 +740,15 @@ void TypeInfoManager::CalculateGCTib(TypeInfo* typeInfo)
         // create StdGCTib
         // NOTE: If length is not divided by alignSize, special processing
         // is required for the assignment of num and bitmapWords.
-        U16 num = gcTibStr.Length() / alignSize;
-        U16 needSpace = sizeof(U32) + sizeof(U8) * num;
+        U16 num = static_cast<U16>(gcTibStr.Length() / alignSize);
+        U16 needSpace = static_cast<U16>(sizeof(U32) + sizeof(U8) * num);
         StdGCTib* stdGCTib = reinterpret_cast<StdGCTib*>(Allocate(needSpace));
-        stdGCTib->nBitmapWords = num;
+        stdGCTib->nBitmapWords = static_cast<U32>(num);
         U8 value = 0;
         size_t curIdx = 0;
         for (size_t idx = 0; idx < len; ++idx) {
             if (gcTibStr[idx] == '1') {
-                value |= 1 << (idx % alignSize);
+                value |= static_cast<U8>(1U << (idx % alignSize));
             }
             if ((idx + 1) % alignSize == 0) {
                 stdGCTib->bitmapWords[curIdx++] = value;
@@ -771,7 +771,7 @@ void TypeInfoManager::FillOffsets(TypeInfo* newTypeInfo, TypeTemplate* tt, U32 a
     if (tt->IsTuple() || tt->IsFunc()) {
         for (U32 fieldIdx = 0; fieldIdx < argSize; ++fieldIdx) {
             TypeInfo* fieldTi = args[fieldIdx];
-            newTypeInfo->SetFieldType(fieldIdx, fieldTi);
+            newTypeInfo->SetFieldType(static_cast<U16>(fieldIdx), fieldTi);
             // Nothing and Unit type, size is 0
             if (fieldTi->IsNothing() || fieldTi->IsUnit()) {
                 continue;
@@ -779,7 +779,7 @@ void TypeInfoManager::FillOffsets(TypeInfo* newTypeInfo, TypeTemplate* tt, U32 a
             if (fieldTi->IsRef() || fieldTi->HasRefField()) {
                 hasRefField = true;
             }
-            U8 fieldTiAlign = fieldTi->IsRef() ? sizeof(BaseObject*) : fieldTi->GetAlign();
+            U8 fieldTiAlign = static_cast<U8>(fieldTi->IsRef() ? sizeof(BaseObject*) : fieldTi->GetAlign());
             offset = MRT_ALIGN(offset, fieldTiAlign);
             offsets[fieldIdx] = offset;
             align = align > fieldTiAlign ? align : fieldTiAlign;
@@ -797,7 +797,7 @@ void TypeInfoManager::FillOffsets(TypeInfo* newTypeInfo, TypeTemplate* tt, U32 a
             if (fieldTi->IsRef() || fieldTi->HasRefField()) {
                 hasRefField = true;
             }
-            U8 fieldTiAlign = fieldTi->IsRef() ? sizeof(BaseObject*) : fieldTi->GetAlign();
+            U8 fieldTiAlign = static_cast<U8>(fieldTi->IsRef() ? sizeof(BaseObject*) : fieldTi->GetAlign());
             offset = MRT_ALIGN(offset, fieldTiAlign);
             offsets[fieldIdx] = offset;
             align = align > fieldTiAlign ? align : fieldTiAlign;
@@ -808,7 +808,7 @@ void TypeInfoManager::FillOffsets(TypeInfo* newTypeInfo, TypeTemplate* tt, U32 a
         newTypeInfo->SetFlagHasRefField();
     }
     if (newTypeInfo->IsRef()) {
-        newTypeInfo->SetAlign(TYPEINFO_PTR_SIZE);
+        newTypeInfo->SetAlign(static_cast<U8>(TYPEINFO_PTR_SIZE));
     } else {
         newTypeInfo->SetAlign(align);
     }
@@ -870,11 +870,11 @@ U32 TypeInfoManager::GetTypeSize(TypeInfo* ti)
                 if (fieldTi->IsNothing() || fieldTi->IsUnit()) {
                     continue;
                 }
-                U8 fieldTiAlign = fieldTi->IsRef() ? sizeof(BaseObject*) : fieldTi->GetAlign();
+                U8 fieldTiAlign = static_cast<U8>(fieldTi->IsRef() ? sizeof(BaseObject*) : fieldTi->GetAlign());
                 totalSize = MRT_ALIGN(totalSize, fieldTiAlign);
                 totalSize += GetTypeSize(fieldTi);
             }
-            return MRT_ALIGN(totalSize, ti->GetAlign());
+            return static_cast<U32>(MRT_ALIGN(totalSize, ti->GetAlign()));
         }
         case TypeKind::TYPE_KIND_TUPLE:
         case TypeKind::TYPE_KIND_STRUCT: {
@@ -886,11 +886,11 @@ U32 TypeInfoManager::GetTypeSize(TypeInfo* ti)
                 if (fieldTi->IsNothing() || fieldTi->IsUnit()) {
                     continue;
                 }
-                U8 fieldTiAlign = fieldTi->IsRef() ? sizeof(BaseObject*) : fieldTi->GetAlign();
+                U8 fieldTiAlign = static_cast<U8>(fieldTi->IsRef() ? sizeof(BaseObject*) : fieldTi->GetAlign());
                 totalSize = MRT_ALIGN(totalSize, fieldTiAlign);
                 totalSize += GetTypeSize(fieldTi);
             }
-            return MRT_ALIGN(totalSize, ti->GetAlign());
+            return static_cast<U32>(MRT_ALIGN(totalSize, ti->GetAlign()));
         }
         case TypeKind::TYPE_KIND_VARRAY: {
             U16 fieldNum = ti->GetFieldNum();

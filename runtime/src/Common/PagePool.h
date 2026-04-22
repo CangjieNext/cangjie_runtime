@@ -97,7 +97,7 @@ public:
             return;
         }
         CHECK_DETAIL(num < std::numeric_limits<Count>::max(), "native memory out of memory!");
-        Index idx = static_cast<Index>((page - base) / MapleRuntime::MRT_PAGE_SIZE);
+        Index idx = static_cast<Index>(static_cast<size_t>(page - base) / MapleRuntime::MRT_PAGE_SIZE);
 #if defined(_WIN64)
         CHECK_E(UNLIKELY(!VirtualFree(page, num * MapleRuntime::MRT_PAGE_SIZE, MEM_DECOMMIT)),
                 "VirtualFree failed in ReturnPage, errno: %s", GetLastError());

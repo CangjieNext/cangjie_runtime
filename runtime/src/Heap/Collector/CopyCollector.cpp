@@ -61,7 +61,8 @@ void CopyCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
     UpdateGCStats();
     uint64_t gcTimeNs = gcStats.gcEndTime - gcStats.gcStartTime;
     ScheduleTraceEvent(TRACE_EV_GC_DONE, -1, nullptr, 0);
-    double rate = (static_cast<double>(gcStats.collectedBytes) / gcTimeNs) * (static_cast<double>(NS_PER_S) / MB);
+    double rate = (static_cast<double>(gcStats.collectedBytes) / static_cast<double>(gcTimeNs)) *
+        (static_cast<double>(NS_PER_S) / MB);
     VLOG(REPORT, "total gc time: %s us, collection rate %.3lf MB/s\n", Pretty(gcTimeNs / NS_PER_US).Str(), rate);
     g_gcCount++;
     g_gcTotalTimeUs += (gcTimeNs / NS_PER_US);

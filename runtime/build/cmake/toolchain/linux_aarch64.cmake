@@ -38,10 +38,12 @@ set(CMAKE_C_FLAGS
     -Wswitch-default \
     -Wshadow \
     -Wunused \
-    -Wundef \
     -Wdate-time \
     -Wformat=2 \
     -Wcast-qual \
+    -Wconversion \
+    -Wcast-align \
+    -Werror \
     -Wstrict-prototypes \
     -std=c11 \
     -fgnu89-inline \
@@ -63,11 +65,13 @@ set(CMAKE_C_FLAGS
 set(CMAKE_CXX_FLAGS
     "-Wall \
     -Wfloat-equal \
+    -Wshadow \
     -Wformat=2 \
     -Wcast-qual \
     -Woverloaded-virtual \
     -Wnon-virtual-dtor \
     -Wdelete-non-virtual-dtor \
+    -Werror \
     -std=gnu++14 \
     -fno-common \
     -fno-strict-aliasing \

@@ -307,7 +307,8 @@ ssize_t HeapImpl::GetHeapPhysicalMemorySize() const
                 }
                 tmpStartAddr = endAddr;
             } while (endAddr <= GetHeap().GetSpaceEndAddress());
-            return physicalMemorySize * KB;
+            ssize_t physicalSize = static_cast<ssize_t>(physicalMemorySize);
+            return physicalSize * static_cast<ssize_t>(KB);
         }
     }
     LOG(RTLOG_ERROR, "GetHeapPhysicalMemorySize fail");
@@ -350,7 +351,7 @@ void HeapImpl::RemoveExportObject(U64 id)
 
 void HeapImpl::CrossAccessBarrier(I64 id)
 {
-    BaseObject* recordObj = GetExportObject(id);
+    BaseObject* recordObj = GetExportObject(static_cast<U64>(id));
     if (recordObj == nullptr) {
         return;
     }
@@ -363,7 +364,7 @@ void HeapImpl::CrossAccessBarrier(I64 id)
     }
 
     reinterpret_cast<TracingCollector&>(GetCollector()).ResurrectExportObject(recordObj);
-    SetExportObjActiveState(id, true);
+    SetExportObjActiveState(static_cast<U64>(id), true);
 }
 
 void HeapImpl::SetExportObjActiveState(U64 id, bool state)

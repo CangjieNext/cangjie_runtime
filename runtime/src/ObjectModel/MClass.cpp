@@ -124,12 +124,12 @@ TypeInfo* TypeTemplate::GetSuperTypeInfo(U32 argSize, TypeInfo* args[])
 
 void TypeInfo::SetFlagHasRefField() { this->flag |= FLAG_HAS_REF_FIELD; }
 
-void TypeInfo::SetGCTib(GCTib gctib)
+void TypeInfo::SetGCTib(GCTib newGctib)
 {
-    if (gctib.IsGCTibWord()) {
-        this->gctib.tag = gctib.tag;
+    if (newGctib.IsGCTibWord()) {
+        this->gctib.tag = newGctib.tag;
     } else {
-        this->gctib.gctib = gctib.gctib;
+        this->gctib.gctib = newGctib.gctib;
     }
 }
 
@@ -278,21 +278,21 @@ void TypeInfo::TryUpdateExtensionData(TypeInfo* itf, ExtensionData* extensionDat
                                    sizeof(FuncPtr) * ftSize) == EOK);
                 }
                 CHECK(memcpy_s(reinterpret_cast<void*>(newFt + ftSize),
-                               sizeof(FuncPtr) * incrementalSize,
+                               sizeof(FuncPtr) * static_cast<size_t>(incrementalSize),
                                reinterpret_cast<void*>(edOfSuper->GetFuncTable() + ftSize),
-                               sizeof(FuncPtr) * incrementalSize) == EOK);
+                               sizeof(FuncPtr) * static_cast<size_t>(incrementalSize)) == EOK);
                 if (!hasOuterTiFast) {
                     break;
                 }
                 if (ftSize > 0) {
                         CHECK(memcpy_s(reinterpret_cast<void*>(newFt + itfFtSize),
-                                       sizeof(OuterTiUnion) * ftSize,
+                                       sizeof(OuterTiUnion) * static_cast<size_t>(ftSize),
                                        reinterpret_cast<void*>(extensionData->GetFuncTable() + ftSize),
-                                       sizeof(OuterTiUnion) * ftSize) == EOK);
+                                       sizeof(OuterTiUnion) * static_cast<size_t>(ftSize)) == EOK);
                 }
                 CHECK(memset_s(reinterpret_cast<void*>(newFt + itfFtSize + ftSize),
-                               sizeof(OuterTiUnion) * incrementalSize,
-                               0, sizeof(OuterTiUnion) * incrementalSize) == EOK);
+                               sizeof(OuterTiUnion) * static_cast<size_t>(incrementalSize),
+                               0, sizeof(OuterTiUnion) * static_cast<size_t>(incrementalSize)) == EOK);
                 extensionData->UpdateFuncTable(itfFtSize, newFt);
                 break;
             }
@@ -456,18 +456,18 @@ void TypeInfo::TraverseOuterExtensionDefs(const std::function<void(TypeInfo*)> g
         return;
     }
     U16 typeArgNum = GetTypeArgNum();
-    TypeInfo** typeArgs = nullptr;
+    TypeInfo** currentTypeArgs = nullptr;
     TypeInfo* componentTypeInfo = GetComponentTypeInfo();
     if (IsCPointer() || IsArrayType()) {
         // the generic types, includes CPointer and Array.
         // the generic parameter is used as componentTypeInfo.
         typeArgNum = 1;
-        typeArgs = &componentTypeInfo;
+        currentTypeArgs = &componentTypeInfo;
     } else {
-        typeArgs = GetTypeArgs();
+        currentTypeArgs = GetTypeArgs();
     }
     LoaderManager::GetInstance()->GetLoader()->VisitExtensionData(this,
-        [this, typeArgNum, typeArgs, getInterface](ExtensionData* extensionData) {
+        [this, typeArgNum, currentTypeArgs, getInterface](ExtensionData* extensionData) {
             uintptr_t matched = false;
             void* whereCondFn = reinterpret_cast<void*>(extensionData->GetWhereCondFn());
             if (whereCondFn == nullptr) {
@@ -475,11 +475,12 @@ void TypeInfo::TraverseOuterExtensionDefs(const std::function<void(TypeInfo*)> g
             } else {
                 // &0x1: The compiler returns the lower byte of rax, but the runtime must accept it using 64 bits.
                 matched =
-                    reinterpret_cast<uintptr_t>(TypeTemplate::ExecuteGenericFunc(whereCondFn, typeArgNum, typeArgs)) &
+                    reinterpret_cast<uintptr_t>(
+                        TypeTemplate::ExecuteGenericFunc(whereCondFn, typeArgNum, currentTypeArgs)) &
                     0x1;
             }
             if (matched) {
-                TypeInfo* extItf = extensionData->GetInterfaceTypeInfo(typeArgNum, typeArgs);
+                TypeInfo* extItf = extensionData->GetInterfaceTypeInfo(typeArgNum, currentTypeArgs);
                 if (getInterface != nullptr) {
                     getInterface(extItf);
                 }
@@ -634,11 +635,11 @@ TypeInfo* TypeInfo::GetMethodOuterTI(TypeInfo* itf, U64 index)
         if (!thisEdSuper->IsTargetHasSameSourceWith(this)) {
             continue;
         }
-        TypeInfo* superTi = superTypePair.second.GetSuperTi();
-        if (superTi == this || superTi->GetUUID() == GetUUID()) {
+        TypeInfo* currentSuperTi = superTypePair.second.GetSuperTi();
+        if (currentSuperTi == this || currentSuperTi->GetUUID() == GetUUID()) {
             continue;
         }
-        auto* superEdItf = superTi->FindExtensionData(itf);
+        auto* superEdItf = currentSuperTi->FindExtensionData(itf);
         if (superEdItf == nullptr) {
             continue;
         }
@@ -740,7 +741,8 @@ bool TypeInfo::IsSubType(TypeInfo* typeInfo)
 
 void ReflectInfo::SetFieldNames(FieldNames* fieldNames)
 {
-    fieldNamesOffset.refOffset = reinterpret_cast<Uptr>(fieldNames) - reinterpret_cast<Uptr>(&fieldNamesOffset);
+    fieldNamesOffset.refOffset =
+        static_cast<I64>(reinterpret_cast<Uptr>(fieldNames) - reinterpret_cast<Uptr>(&fieldNamesOffset));
 }
 
 void ReflectInfo::SetInstanceMethodInfo(U32 idx, MethodInfo* methodInfo)
@@ -750,7 +752,7 @@ void ReflectInfo::SetInstanceMethodInfo(U32 idx, MethodInfo* methodInfo)
     baseAddr += staticFieldInfoCnt * sizeof(DataRefOffset64<StaticFieldInfo>);
     baseAddr += idx * sizeof(DataRefOffset64<MethodInfo>);
     I64* addr = reinterpret_cast<I64*>(baseAddr);
-    *addr = reinterpret_cast<Uptr>(methodInfo) - reinterpret_cast<Uptr>(addr);
+    *addr = static_cast<I64>(reinterpret_cast<Uptr>(methodInfo) - reinterpret_cast<Uptr>(addr));
 }
 
 void ReflectInfo::SetStaticMethodInfo(U32 idx, MethodInfo* methodInfo)
@@ -761,7 +763,7 @@ void ReflectInfo::SetStaticMethodInfo(U32 idx, MethodInfo* methodInfo)
     baseAddr += instanceMethodCnt * sizeof(DataRefOffset64<MethodInfo>);
     baseAddr += idx * sizeof(DataRefOffset64<MethodInfo>);
     I64* addr = reinterpret_cast<I64*>(baseAddr);
-    *addr = reinterpret_cast<Uptr>(methodInfo) - reinterpret_cast<Uptr>(addr);
+    *addr = static_cast<I64>(reinterpret_cast<Uptr>(methodInfo) - reinterpret_cast<Uptr>(addr));
 }
 
 char* ReflectInfo::GetFieldName(U32 idx) const
@@ -769,7 +771,7 @@ char* ReflectInfo::GetFieldName(U32 idx) const
     FieldNames* fieldNames = fieldNamesOffset.GetDataRef();
     Uptr baseAddr = reinterpret_cast<Uptr>(fieldNames) + sizeof(void*) * idx;
     I64 offset = fieldNames->fieldNameOffset[idx];
-    Uptr fieldNameAddr = baseAddr + offset;
+    Uptr fieldNameAddr = baseAddr + static_cast<Uptr>(offset);
     return reinterpret_cast<char*>(fieldNameAddr);
 }
 
@@ -854,9 +856,9 @@ static void* GetAnnotations(Uptr annotationMethod, TypeInfo* arrayTi)
     return obj;
 }
 
-bool TypeInfo::ReflectIsEnable() const { return static_cast<bool>(flag & FLAG_REFLECTION); }
+bool TypeInfo::ReflectIsEnable() const { return static_cast<bool>(static_cast<U8>(flag) & FLAG_REFLECTION); }
 
-bool TypeTemplate::ReflectIsEnable() const { return static_cast<bool>(flag & FLAG_REFLECTION); }
+bool TypeTemplate::ReflectIsEnable() const { return static_cast<bool>(static_cast<U8>(flag) & FLAG_REFLECTION); }
 
 bool TypeTemplate::IsEnumCtor() const
 {
@@ -1143,7 +1145,7 @@ EnumCtorInfo* EnumDebugInfo::GetEnumCtor(U32 idx) const
 
 void EnumDebugInfo::SetEnumCtors(void* ctors)
 {
-    enumCtorInfos.refOffset = reinterpret_cast<Uptr>(ctors) - reinterpret_cast<Uptr>(this);
+    enumCtorInfos.refOffset = static_cast<I64>(reinterpret_cast<Uptr>(ctors) - reinterpret_cast<Uptr>(this));
 }
 
 void* EnumInfo::GetAnnotations(TypeInfo* arrayTi)
@@ -1170,7 +1172,7 @@ void EnumInfo::SetInstanceMethodInfo(U32 idx, MethodInfo* methodInfo)
     Uptr baseAddr = GetBaseAddr();
     baseAddr += idx * sizeof(DataRefOffset64<MethodInfo>);
     I64* addr = reinterpret_cast<I64*>(baseAddr);
-    *addr = reinterpret_cast<Uptr>(methodInfo) - reinterpret_cast<Uptr>(addr);
+    *addr = static_cast<I64>(reinterpret_cast<Uptr>(methodInfo) - reinterpret_cast<Uptr>(addr));
 }
 
 void EnumInfo::SetStaticMethodInfo(U32 idx, MethodInfo* methodInfo)
@@ -1179,11 +1181,11 @@ void EnumInfo::SetStaticMethodInfo(U32 idx, MethodInfo* methodInfo)
     baseAddr += instanceMethodCnt * sizeof(DataRefOffset64<MethodInfo>);
     baseAddr += idx * sizeof(DataRefOffset64<MethodInfo>);
     I64* addr = reinterpret_cast<I64*>(baseAddr);
-    *addr = reinterpret_cast<Uptr>(methodInfo) - reinterpret_cast<Uptr>(addr);
+    *addr = static_cast<I64>(reinterpret_cast<Uptr>(methodInfo) - reinterpret_cast<Uptr>(addr));
 }
 void EnumCtorInfo::SetName(const char* pName)
 {
-    name.refOffset = reinterpret_cast<Uptr>(pName) - reinterpret_cast<Uptr>(this);
+    name.refOffset = static_cast<I64>(reinterpret_cast<Uptr>(pName) - reinterpret_cast<Uptr>(this));
 }
 
 void* EnumCtorReflectInfo::GetAnnotations(TypeInfo* arrayTi)

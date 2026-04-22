@@ -222,8 +222,8 @@ bool PostTraceBarrier::CompareAndSwapReference(BaseObject* obj, RefField<true>& 
             return true;
         }
         oldFieldValue = field.GetFieldValue(std::memory_order_seq_cst);
-        RefField<false> oldField(oldFieldValue);
-        oldVersion = ReadReference(nullptr, oldField);
+        RefField<false> latestOldField(oldFieldValue);
+        oldVersion = ReadReference(nullptr, latestOldField);
     }
     return false;
 }

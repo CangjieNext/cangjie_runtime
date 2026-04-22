@@ -260,8 +260,8 @@ void CjHeapData::ProcessStacktrace(RecordStackInfo* recordStackInfo)
         LookupStringId(threadName);
         for (size_t i = 0; i < framesInStack.size(); ++i) {
             FrameInfo* frame = framesInStack[i];
-            CjHeapDataStringId funcNameId = -1;
-            CjHeapDataStringId fileNameId = -1;
+            CjHeapDataStringId funcNameId = static_cast<CjHeapDataStringId>(-1);
+            CjHeapDataStringId fileNameId = static_cast<CjHeapDataStringId>(-1);
             if (frame->GetFrameType() == FrameType::MANAGED) {
                 funcNameId = LookupStringId(frame->GetFuncName().Str());
                 fileNameId = LookupStringId(frame->GetFileName().Str());
@@ -373,9 +373,9 @@ void CjHeapData::WriteStartThread()
 {
     for (auto trace = stacktraces.begin(); trace != stacktraces.end(); trace++) {
         WriteRecordHeader(TAG_START_THREAD, kCjHeapDataTime);
-        AddU4(trace->first->GetStackTid());
+        AddU4(static_cast<u4>(trace->first->GetStackTid()));
         AddID(threadObjectId++);
-        AddU4(trace->second);
+        AddU4(static_cast<u4>(trace->second));
         CString threadNameAll = trace->first->GetThreadName();
         AddID(LookupStringId(threadNameAll));
         ModifyLength();
@@ -405,7 +405,8 @@ void CjHeapData::WriteAllObjects()
                 WriteThreadObjectRoot(objectInfo.obj, objectInfo.tag, objectInfo.threadId, 0);
                 break;
             case TAG_ROOT_LOCAL:
-                WriteLocalRoot(objectInfo.obj, objectInfo.tag, objectInfo.threadId, objectInfo.frameNum);
+                WriteLocalRoot(objectInfo.obj, objectInfo.tag, objectInfo.threadId,
+                    static_cast<u1>(objectInfo.frameNum));
                 break;
             case TAG_ROOT_GLOBAL:
                 WriteGlobalRoot(objectInfo.obj, objectInfo.tag);
@@ -561,8 +562,8 @@ void CjHeapData::WriteObjectArray(BaseObject*& obj, const u1 tag)
             contentAddr += mArray->GetElementSize();
         }
     }
-    AddU4(arrayLengthVal);
-    AddU4(num);
+    AddU4(static_cast<u4>(arrayLengthVal));
+    AddU4(static_cast<u4>(num));
     AddStringId(reinterpret_cast<CjHeapDataID>(obj->GetTypeInfo()));
     AddU8List(VAL.data(), VAL.size());
 }
@@ -585,7 +586,7 @@ void CjHeapData::WritePrimitiveArray(BaseObject*& obj, const u1 tag)
     CjHeapDataID objId = (reinterpret_cast<CjHeapDataID>(obj));
     AddStringId(objId);
     MArray* mArray = reinterpret_cast<MArray*>(obj);
-    AddU4(mArray->GetLength());
+    AddU4(static_cast<u4>(mArray->GetLength()));
     switch (componentSize) {
         // bool:1 bytes
         case 1:
@@ -639,7 +640,7 @@ void CjHeapData::WriteClass(TypeInfo* klass, CjHeapDataStringId klassId, const u
         AddU4(0);
         return;
     }
-    u4 size = AlignUp<u4>((klass->GetInstanceSize() + TYPEINFO_PTR_SIZE), alignment);
+    u4 size = static_cast<u4>(AlignUp<u4>(static_cast<u4>(klass->GetInstanceSize() + TYPEINFO_PTR_SIZE), alignment));
     // 8 bytes for each field
     AddU4(size);
 }
@@ -734,16 +735,16 @@ void CjHeapData::WriteStackTrace()
     for (auto trace = stacktraces.begin(); trace != stacktraces.end(); trace++) {
         auto env = std::getenv("DumpStackDepth");
         // 10: Default Limit Max Dump Depth as 10 frames
-        size_t size = CString::ParseNumFromEnv(env) == 0 ? 10 : CString::ParseNumFromEnv(env);
+        size_t size = CString::ParseNumFromEnv(env) == 0 ? 10U : static_cast<size_t>(CString::ParseNumFromEnv(env));
         size_t depth = trace->first->stacks.size() > size ? size : trace->first->stacks.size();
         std::vector<FrameInfo*> stack = trace->first->stacks;
         for (size_t i = 0; i < depth; ++i) {
-            WriteStackFrame(*stack[i], i);
+            WriteStackFrame(*stack[i], static_cast<uint32_t>(i));
         }
         WriteRecordHeader(TAG_STACK_TRACE, kCjHeapDataTime);
-        AddU4(trace->second);
-        AddU4(trace->first->GetStackTid());
-        AddU4(depth);
+        AddU4(static_cast<u4>(trace->second));
+        AddU4(static_cast<u4>(trace->first->GetStackTid()));
+        AddU4(static_cast<u4>(depth));
         for (size_t i = 0; i < depth; ++i) {
             AddStringId(frames[stack[i]]);
         }
@@ -891,7 +892,8 @@ void CjHeapData::WriteFixedHeader()
     AddU4(idSize);
     struct timeval timeNow {};
     gettimeofday(&timeNow, nullptr);
-    const uint64_t msecsTime = (timeNow.tv_sec * 1000) + (timeNow.tv_usec / 1000);
+    const uint64_t msecsTime =
+        (static_cast<uint64_t>(timeNow.tv_sec) * 1000ULL) + (static_cast<uint64_t>(timeNow.tv_usec) / 1000ULL);
     const uint32_t timeHigh = static_cast<uint32_t>(msecsTime >> 32);
     const uint32_t timeLow = static_cast<uint32_t>(msecsTime & 0xFFFFFFFF);
     AddU4(timeHigh);
