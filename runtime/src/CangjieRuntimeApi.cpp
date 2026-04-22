@@ -298,17 +298,24 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
 }
 
 #ifdef INTERPRETER_ENABLED
-void InitCJInterpreter(const struct InterpreterParam* param)
+RTErrorCode InitCJInterpreter(const struct InterpreterParam* param)
 {
-    CHECK_DETAIL(!g_runtimeFinished.load(),
-                 "Interpreter initialization started too late, runtime is already fully initialized.");
-    CHECK_DETAIL(MapleRuntime::Runtime::CurrentRef() != nullptr,
-                 "Cangjie runtime should be initialized before interpreter initialization.");
-    CHECK_DETAIL(param != nullptr, "Interpreter initialization parameter is null.");
+    if (g_runtimeFinished.load()) {
+        LOG(RTLOG_ERROR, "Interpreter initialization started too late, runtime is already fully initialized.");
+        return E_STATE;
+    }
+    if (MapleRuntime::Runtime::CurrentRef() == nullptr) {
+        LOG(RTLOG_ERROR, "Cangjie runtime should be initialized before interpreter initialization.");
+        return E_STATE;
+    }
+    if (param == nullptr) {
+        LOG(RTLOG_ERROR, "Interpreter initialization parameter is null.");
+        return E_ARGS;
+    }
 #if defined(GENERAL_ASAN_SUPPORT_INTERFACE)
     MapleRuntime::Sanitizer::AsanRead(param, sizeof(struct InterpreterParam));
 #endif
-    MapleRuntime::InitInterpreter(*param);
+    return MapleRuntime::InitInterpreter(*param);
 }
 #endif
 

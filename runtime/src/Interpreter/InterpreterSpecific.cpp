@@ -461,7 +461,7 @@ size_t ComputeCJThreadDataOffset()
     return ((size_t) &tmp.mutator.interpreterCJThreadData) - ((size_t) &tmp.mutator);
 }
 
-void InitInterpreter(const InterpreterParam& interpreterParam)
+RTErrorCode InitInterpreter(const InterpreterParam& interpreterParam)
 {
     const char* libName = interpreterParam.interpreterLibName;
     const int argsCount = interpreterParam.interpreterArgsCount;
@@ -478,7 +478,7 @@ void InitInterpreter(const InterpreterParam& interpreterParam)
 
     if (libName == nullptr || std::strlen(libName) == 0) {
         DLOG(INTERPRETER, "interpreter library name is empty, interpreter could not be initialized");
-        return;
+        return E_ARGS;
     }
 
 #if defined(__OHOS__)
@@ -488,7 +488,7 @@ void InitInterpreter(const InterpreterParam& interpreterParam)
 #endif
     if (interpreterLibHandle == 0) {
         DLOG(INTERPRETER, "interpreter library could not be loaded: %s", dlerror());
-        return;
+        return E_FAILED;
     }
 
     StackManager::InitAddressScopeForInterpreter(libName);
@@ -497,7 +497,7 @@ void InitInterpreter(const InterpreterParam& interpreterParam)
     DYN_InitRt init = (DYN_InitRt)sym;
     if (sym == 0) {
         DLOG(INTERPRETER, "dlsym failed: %s", dlerror());
-        return;
+        return E_FAILED;
     }
 
     struct DYN_CJNativeInterfaceT cjnativeInterface = {
@@ -554,7 +554,12 @@ void InitInterpreter(const InterpreterParam& interpreterParam)
     int code = init(&interpreterInterface, &cjnativeInterface,
         interpreterParam.interpreterArgsCount,
         interpreterParam.interpreterArgs);
+    if (code != 0) {
+        DLOG(INTERPRETER, "interpreter_bridge_init failed, return code: %d", code);
+        return E_FAILED;
+    }
     interpreterInterfaceInstance.initialize(interpreterInterface);
+    return E_OK;
 }
 
 bool IsC2IStubAddr(const uintptr_t address)

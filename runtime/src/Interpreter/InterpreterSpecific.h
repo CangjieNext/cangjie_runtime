@@ -9,6 +9,7 @@
 #define MRT_INTERPRETER_SPECIFIC_H
 
 #include "Options.h"
+#include "Cangjie.h"
 #ifdef INTERPRETER_ENABLED
 
 #include <stdio.h>
@@ -46,7 +47,7 @@ DYN_ObjRefT GetPendingException();
 DYN_ObjRefT GetAndClearPendingException();
 bool InstanceOf(DYN_ObjRefT ref, struct DYN_TypeInfoT* ti);
 
-void InitInterpreter(const InterpreterParam& interpreterParam);
+RTErrorCode InitInterpreter(const InterpreterParam& interpreterParam);
 
 bool IsC2IStubAddr(const uintptr_t addr);
 bool IsI2IAdapterStartAddr(const uintptr_t addr);
