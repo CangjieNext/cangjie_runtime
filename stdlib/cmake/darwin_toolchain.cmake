@@ -15,7 +15,8 @@ set(OTHER_FLAGS "-pipe -fno-common -fno-strict-aliasing -fPIC -fstack-protector-
 
 set(STRIP_FLAG "-s")
 
-set(C_FLAGS "${WARNINGS_SETTINGS} ${C_OTHER_FLAGS} ${OTHER_FLAGS}")
+set(EXTRA_C_FLAGS "-std=gnu11 -Wextra -Wno-unused-parameter -Wformat=2 -Wstrict-prototypes -Wshadow -Wframe-larger-than=100000 -Wvla -Wunused -Wundef -Wnon-virtual-dtor -Wdelete-non-virtual-dtor -Woverloaded-virtual -Wconversion -Wno-implicit-int-conversion -Wno-sign-conversion -Wno-implicit-int-float-conversion")
+set(C_FLAGS "${WARNINGS_SETTINGS} ${C_OTHER_FLAGS} ${OTHER_FLAGS} ${EXTRA_C_FLAGS}")
 set(CPP_FLAGS "${WARNINGS_SETTINGS} ${CXX_OTHER_FLAGS} ${OTHER_FLAGS}")
 
 set(CMAKE_C_FLAGS "${C_FLAGS}")
@@ -27,7 +28,8 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-D_FORTIFY_SOURCE=2 -O2 -g")
 set(CMAKE_CXX_FLAGS_RELEASE "-D_FORTIFY_SOURCE=2 -O2")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -fstandalone-debug")
 if(CMAKE_BUILD_TYPE MATCHES Release)
-    set(CMAKE_EXE_LINKER_FLAGS "${LINK_FLAGS} ${STRIP_FLAG} ")
+    set(EXTRA_LINKER_FLAGS "-Wl,-Bsymbolic -rdynamic -Wl,--no-undefined")
+    set(CMAKE_EXE_LINKER_FLAGS "${LINK_FLAGS} ${STRIP_FLAG} ${EXTRA_LINKER_FLAGS}")
 else()
     set(CMAKE_EXE_LINKER_FLAGS "${LINK_FLAGS}")
 endif()
