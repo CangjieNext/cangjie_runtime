@@ -58,6 +58,22 @@ static std::atomic<uint64_t> g_newAtomicWriteCount{0};
 static std::atomic<uint64_t> g_newAtomicSwapCount{0};
 static std::atomic<uint64_t> g_newCasCount{0};
 
+static constexpr size_t ZERO_DST_FAST_PATH_MAX_BYTES = 64;
+
+static bool IsZeroedStructDestination(MAddress dst, size_t len)
+{
+    if (len == 0 || len > ZERO_DST_FAST_PATH_MAX_BYTES) {
+        return false;
+    }
+    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(dst);
+    for (size_t index = 0; index < len; ++index) {
+        if (bytes[index] != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
 
 extern "C" void MSMarkBarrier_DumpAndResetCounters()
 {
@@ -205,7 +221,8 @@ void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MA
 {
     // discover(old): preserve all existing reference fields in the destination struct
     // Guard: skip shade if TypeInfo is NULL (prematurely reclaimed / uninitialized object)
-    if (obj != nullptr && obj->GetTypeInfo() != nullptr) {
+    bool skipOldRefScan = obj != nullptr && obj->GetTypeInfo() != nullptr && IsZeroedStructDestination(dst, dstLen);
+    if (obj != nullptr && obj->GetTypeInfo() != nullptr && !skipOldRefScan) {
         obj->ForEachRefInStruct(
             [](RefField<false>& refField) {
                 BaseObject* oldRef = refField.GetTargetObject();

@@ -306,7 +306,8 @@ void TraceBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex
 
 void TraceBarrier::WriteGeneric(const ObjectPtr obj, void* fieldPtr, const ObjectPtr src, size_t size) const
 {
-    if ((obj != nullptr && !obj->HasRefField()) || (!Heap::IsHeapAddress(obj) && !Heap::IsHeapAddress(src))) {
+    if ((obj != nullptr && !obj->HasRefField()) ||
+        (!Heap::IsHeapAddress(obj) && !Heap::IsHeapAddress(src))) {
         CHECK_DETAIL(memcpy_s(fieldPtr, size,
                               reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(src) + TYPEINFO_PTR_SIZE),
                               size) == EOK,

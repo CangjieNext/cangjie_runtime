@@ -82,15 +82,23 @@ private:
     };
     class GenericTiDesc {
     public:
+        static constexpr U32 INLINE_ARG_LIMIT = 2;
+
         GenericTiDesc(TypeTemplate* pTypeTemplate, U32 pArgSize, TypeInfo* pArgs[])
-            : tt(pTypeTemplate), argSize(pArgSize), args(pArgs), hash(computeHash()) {
+            : tt(pTypeTemplate), argSize(pArgSize), args(pArgs)
+        {
+            hash = computeHash();
         }
 
         GenericTiDesc(GenericTiDesc &desc)
         {
             tt = desc.tt;
             argSize = desc.argSize;
+            args = nullptr;
             hash = desc.hash;
+            ttUUID = desc.ttUUID;
+            inlineArgUUIDs[0] = desc.inlineArgUUIDs[0];
+            inlineArgUUIDs[1] = desc.inlineArgUUIDs[1];
             argsVector.assign(desc.args, desc.args + desc.argSize);
             tid.store(GetTid());
         }
@@ -113,6 +121,8 @@ private:
         TypeInfo** args;
         U32 hash;
     private:
+        U32 ttUUID { 0 };
+        U32 inlineArgUUIDs[INLINE_ARG_LIMIT] { 0, 0 };
         std::vector<TypeInfo*> argsVector = { };
         std::atomic<TypeInfoStatus> status { TypeInfoStatus::TYPEINFO_NOT_CREATED };
     };

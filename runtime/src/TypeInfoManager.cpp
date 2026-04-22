@@ -13,6 +13,98 @@
 #include "Sync/Sync.h"
 
 namespace MapleRuntime {
+namespace {
+struct GenericTypeInfoLastHitCacheEntry {
+    static constexpr U32 INLINE_ARG_LIMIT = 2;
+
+    TypeTemplate* typeTemplate { nullptr };
+    U32 argSize { 0 };
+    TypeInfo* inlineArgs[INLINE_ARG_LIMIT] { nullptr, nullptr };
+    std::vector<TypeInfo*> overflowArgs {};
+    TypeInfo* typeInfo { nullptr };
+    U32 stamp { 0 };
+
+    bool Match(TypeTemplate* tt, U32 size, TypeInfo* args[]) const
+    {
+        if (typeInfo == nullptr || typeTemplate != tt || argSize != size) {
+            return false;
+        }
+        if (size <= INLINE_ARG_LIMIT) {
+            for (U32 idx = 0; idx < size; ++idx) {
+                if (inlineArgs[idx] != args[idx]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (overflowArgs.size() != size) {
+            return false;
+        }
+        for (U32 idx = 0; idx < size; ++idx) {
+            if (overflowArgs[idx] != args[idx]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void Update(TypeTemplate* tt, U32 size, TypeInfo* args[], TypeInfo* cachedTypeInfo, U32 currentStamp)
+    {
+        typeTemplate = tt;
+        argSize = size;
+        typeInfo = cachedTypeInfo;
+        stamp = currentStamp;
+        for (U32 idx = 0; idx < INLINE_ARG_LIMIT; ++idx) {
+            inlineArgs[idx] = idx < size ? args[idx] : nullptr;
+        }
+        if (size <= INLINE_ARG_LIMIT) {
+            overflowArgs.clear();
+            return;
+        }
+        overflowArgs.assign(args, args + size);
+    }
+};
+
+struct GenericTypeInfoLastHitCache {
+    static constexpr U32 CACHE_SIZE = 4;
+
+    GenericTypeInfoLastHitCacheEntry entries[CACHE_SIZE] {};
+    U32 nextStamp { 1 };
+
+    TypeInfo* Lookup(TypeTemplate* tt, U32 size, TypeInfo* args[])
+    {
+        for (U32 idx = 0; idx < CACHE_SIZE; ++idx) {
+            auto &entry = entries[idx];
+            if (!entry.Match(tt, size, args)) {
+                continue;
+            }
+            entry.stamp = nextStamp++;
+            return entry.typeInfo;
+        }
+        return nullptr;
+    }
+
+    void Update(TypeTemplate* tt, U32 size, TypeInfo* args[], TypeInfo* cachedTypeInfo)
+    {
+        GenericTypeInfoLastHitCacheEntry* target = &entries[0];
+        for (U32 idx = 0; idx < CACHE_SIZE; ++idx) {
+            auto &entry = entries[idx];
+            if (entry.Match(tt, size, args) || entry.typeInfo == nullptr) {
+                target = &entry;
+                target->Update(tt, size, args, cachedTypeInfo, nextStamp++);
+                return;
+            }
+            if (entry.stamp < target->stamp) {
+                target = &entry;
+            }
+        }
+        target->Update(tt, size, args, cachedTypeInfo, nextStamp++);
+    }
+};
+
+thread_local GenericTypeInfoLastHitCache genericTypeInfoLastHitCache;
+} // namespace
+
 void TypeGCInfo::FillTypeGCInfo(TypeInfo* ti, CString &gcTibStr, U32 &curSize)
 {
 #ifdef __arm__
@@ -85,19 +177,25 @@ U32 TypeInfoManager::GenericTiDesc::computeHash()
     auto update = [&H](U32 val) {
         H = 31 * H + val;
     };
-    U32 uuidOfTT = tt->GetUUID();
-    if (uuidOfTT == 0) {
-        uuidOfTT = mgr.GetTypeTemplateUUID(tt);
+    ttUUID = tt->GetUUID();
+    if (ttUUID == 0) {
+        ttUUID = mgr.GetTypeTemplateUUID(tt);
     }
-    update(uuidOfTT);
+    update(ttUUID);
 
+    inlineArgUUIDs[0] = 0;
+    inlineArgUUIDs[1] = 0;
     for (U32 idx = 0; idx < argSize; idx++) {
         TypeInfo* ti = args[idx];
         if (ti->IsInitialUUID()) {
             mgr.AddTypeInfo(ti);
         }
         CHECK(!ti->IsInitialUUID());
-        update(ti->uuid);
+        U32 argUUID = ti->uuid;
+        update(argUUID);
+        if (idx < INLINE_ARG_LIMIT) {
+            inlineArgUUIDs[idx] = argUUID;
+        }
     }
     return H;
 }
@@ -112,22 +210,32 @@ bool TypeInfoManager::GenericTiDesc::operator==(const GenericTiDesc &other) cons
         return false;
     }
 
-    TypeInfoManager& mgr = TypeInfoManager::GetTypeInfoManager();
-    if (tt != other.tt) {
-        U16 ttUUID = tt->GetUUID();
-        U16 otherTtUUID = other.tt->GetUUID();
-        if (ttUUID == 0) {
-            ttUUID = mgr.GetTypeTemplateUUID(tt);
-        }
-        if (otherTtUUID == 0) {
-            otherTtUUID = mgr.GetTypeTemplateUUID(other.tt);
-        }
-        if (ttUUID != otherTtUUID) {
-            return false;
-        }
+    if (ttUUID != other.ttUUID) {
+        return false;
     }
 
-    for (U32 idx = 0; idx < argSize; idx++) {
+    if (argSize == 0) {
+        return true;
+    }
+
+    if (inlineArgUUIDs[0] != other.inlineArgUUIDs[0]) {
+        return false;
+    }
+
+    if (argSize == 1) {
+        return true;
+    }
+
+    if (inlineArgUUIDs[1] != other.inlineArgUUIDs[1]) {
+        return false;
+    }
+
+    if (argSize == INLINE_ARG_LIMIT) {
+        return true;
+    }
+
+    TypeInfoManager& mgr = TypeInfoManager::GetTypeInfoManager();
+    for (U32 idx = INLINE_ARG_LIMIT; idx < argSize; ++idx) {
         TypeInfo* ti = argsVector[idx];
         TypeInfo* otherTi = other.args[idx];
         if (ti->IsInitialUUID()) {
@@ -366,17 +474,25 @@ TypeInfoManager::GenericTiDesc* TypeInfoManager::GetTypeInfo(TypeTemplate* tt, U
 
 TypeInfo* TypeInfoManager::GetOrCreateTypeInfo(TypeTemplate* tt, U32 argSize, TypeInfo* args[])
 {
+    if (TypeInfo* cachedTypeInfo = genericTypeInfoLastHitCache.Lookup(tt, argSize, args); cachedTypeInfo != nullptr) {
+        return cachedTypeInfo;
+    }
+
     auto typeInfoDesc = GetTypeInfo(tt, argSize, args);
+    auto cacheAndReturn = [tt, argSize, args](TypeInfo* typeInfo) {
+        genericTypeInfoLastHitCache.Update(tt, argSize, args, typeInfo);
+        return typeInfo;
+    };
     if (typeInfoDesc->IsInited()) {
-        return typeInfoDesc->typeInfo;
+        return cacheAndReturn(typeInfoDesc->typeInfo);
     }
     const U32 currentTid = static_cast<U32>(GetTid());
     do {
         if (typeInfoDesc->IsInited()) {
-            return typeInfoDesc->typeInfo;
+            return cacheAndReturn(typeInfoDesc->typeInfo);
         }
         if (typeInfoDesc->IsIniting() && typeInfoDesc->tid.load() == currentTid) {
-            return typeInfoDesc->typeInfo;
+            return cacheAndReturn(typeInfoDesc->typeInfo);
         }
         if (typeInfoDesc->IsNotCreated() && typeInfoDesc->tid.load() == currentTid) {
             CreatedTypeInfo(typeInfoDesc, tt, argSize, args);
