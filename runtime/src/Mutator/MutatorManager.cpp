@@ -444,7 +444,7 @@ void MutatorManager::WaitUntilAllMutatorStopped()
             (((remainMutatorsSize / STW_TIMEOUTS_THREADS_BASE_COUNT) * STW_TIMEOUTS_BASE_MS) + STW_TIMEOUTS_BASE_MS))) {
             timeoutTimes++;
             beginTime = TimeUtil::MilliSeconds();
-            DumpMutators(timeoutTimes);
+            DumpMutators(static_cast<uint32_t>(timeoutTimes));
         }
 
         (void)sched_yield();
@@ -476,8 +476,8 @@ void MutatorManager::EnsurePhaseTransition(GCPhase phase, std::list<Mutator*> &u
 void MutatorManager::TransitionAllMutatorsToGCPhase(GCPhase phase)
 {
     // Try to occupy mutatorListLock prevent some mutators from exiting
-    bool worldStopped = WorldStopped();
-    if (!worldStopped) {
+    bool isWorldStopped = WorldStopped();
+    if (!isWorldStopped) {
         AcquireMutatorManagementWLock();
     }
 
@@ -497,7 +497,7 @@ void MutatorManager::TransitionAllMutatorsToGCPhase(GCPhase phase)
         undoneMutators.push_back(&mutator);
     });
     EnsurePhaseTransition(phase, undoneMutators);
-    if (!worldStopped) {
+    if (!isWorldStopped) {
         MutatorManagementWUnlock();
     }
 }
@@ -528,8 +528,8 @@ void MutatorManager::EnsureCpuProfileFinish(std::list<Mutator*> &undoneMutators)
 
 void MutatorManager::TransitionAllMutatorsToCpuProfile()
 {
-    bool worldStopped = WorldStopped();
-    if (!worldStopped) {
+    bool isWorldStopped = WorldStopped();
+    if (!isWorldStopped) {
         if (!AcquireMutatorManagementWLockForCpuProfile()) {
             return;
         }
@@ -544,7 +544,7 @@ void MutatorManager::TransitionAllMutatorsToCpuProfile()
         }
     });
     EnsureCpuProfileFinish(undoneMutators);
-    if (!worldStopped) {
+    if (!isWorldStopped) {
         MutatorManagementWUnlock();
     }
 }
@@ -569,7 +569,7 @@ void MutatorManager::DumpMutators(uint32_t timeoutTimes)
             if (firstNotStoppedTid == -1) {
                 firstNotStoppedTid = static_cast<int>(mut.GetTid());
             }
-            int ret = sprintf_s(buf + index, sizeof(buf) - index, "%u ", mut.GetTid());
+            int ret = sprintf_s(buf + index, sizeof(buf) - static_cast<size_t>(index), "%u ", mut.GetTid());
             CHECK_DETAIL(ret != -1, "Dump mutators state failed");
             index += ret;
         } else {
@@ -579,7 +579,7 @@ void MutatorManager::DumpMutators(uint32_t timeoutTimes)
     });
     LOG(RTLOG_ERROR, "MutatorList size : %zu", mutatorCount);
 
-    CHECK_DETAIL(sprintf_s(buf + index, sizeof(buf) - index, ", total: %u, visited: %zu/%zu",
+    CHECK_DETAIL(sprintf_s(buf + index, sizeof(buf) - static_cast<size_t>(index), ", total: %u, visited: %zu/%zu",
                            GetSuspensionMutatorCount(), visitedSaferegion, visitedCount) != -1,
                  "Dump mutators state failed");
     CHECK_DETAIL(timeoutTimes <= MAX_TIMEOUT_TIMES, "Waiting mutators entering saferegion timeout status info:%s", buf);

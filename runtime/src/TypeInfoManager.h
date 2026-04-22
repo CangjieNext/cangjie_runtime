@@ -92,7 +92,7 @@ private:
             argSize = desc.argSize;
             hash = desc.hash;
             argsVector.assign(desc.args, desc.args + desc.argSize);
-            tid.store(GetTid());
+            tid.store(static_cast<uint32_t>(GetTid()));
         }
 
         GenericTiDesc& operator=(const GenericTiDesc& other) = delete;

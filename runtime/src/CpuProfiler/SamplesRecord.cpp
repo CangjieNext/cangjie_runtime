@@ -18,7 +18,8 @@ uint64_t SamplesRecord::GetMicrosecondsTimeStamp()
 {
     struct timespec time;
     clock_gettime(CLOCK_MONOTONIC, &time);
-    return time.tv_sec * TIME_USEC_PER_SEC + time.tv_nsec / TIME_NSEC_PER_USEC;
+    return static_cast<uint64_t>(time.tv_sec) * TIME_USEC_PER_SEC +
+        static_cast<uint64_t>(time.tv_nsec / TIME_NSEC_PER_USEC);
 }
 
 SamplesRecord::~SamplesRecord()
@@ -117,7 +118,7 @@ void SamplesRecord::AddNodes(ProfileInfo* info, CpuProfileNode& methodNode)
 
 int SamplesRecord::GetSampleNodeId(uint64_t previousId, uint64_t topFrameNodeId)
 {
-    return previousId == 0 ? ROOT_NODE_ID : topFrameNodeId;
+    return previousId == 0 ? ROOT_NODE_ID : static_cast<int>(topFrameNodeId);
 }
 
 uint64_t SamplesRecord::GetPreviousTimeStamp(uint64_t previousTimeStamp, uint64_t startTime)
@@ -128,7 +129,7 @@ uint64_t SamplesRecord::GetPreviousTimeStamp(uint64_t previousTimeStamp, uint64_
 void SamplesRecord::DeleteAbnormalSample(ProfileInfo* info, int timeDelta)
 {
     if (timeDelta > static_cast<int>(timeDeltaThreshold)) {
-        uint32_t size = info->samples.size();
+        uint32_t size = static_cast<uint32_t>(info->samples.size());
         if (size > 0) {
             info->samples[size - 1] = PROGRAM_NODE_ID;
         }
@@ -178,11 +179,11 @@ void SamplesRecord::AddSample(SampleTask& task)
     }
     // Construct the sampled data into an array of codeInfo.
     std::vector<CodeInfo> codeInfos = GetCodeInfos(task);
-    int frameSize = codeInfos.size();
+    int frameSize = static_cast<int>(codeInfos.size());
     CpuProfileNode methodNode;
     methodNode.id = 1;
     for (; frameSize >= 1; frameSize--) {
-        methodNode.codeEntry = codeInfos[frameSize - 1];
+        methodNode.codeEntry = codeInfos[static_cast<size_t>(frameSize - 1)];
         methodNode.parentId =  methodNode.id;
         if (UpdateNodeSet(info, methodNode)) {
             AddNodes(info, methodNode);
@@ -339,7 +340,7 @@ bool SamplesRecord::OpenFile(int fd)
 
 void SamplesRecord::WriteFile()
 {
-    int err = write(fileDesc, sampleData.Str(), sampleData.Length());
+    int err = static_cast<int>(write(fileDesc, sampleData.Str(), sampleData.Length()));
     if (err == -1) {
         LOG(RTLOG_ERROR, "Write file failed. msg: %s", strerror(errno));
     }
@@ -389,8 +390,8 @@ void SamplesRecord::ParseSampleData(uint64_t previousTimeStemp)
         }
         const int frameCnt = static_cast<int>(task.frameCnt);
         for (int i = task.checkPoint; i < frameCnt; ++i) {
-            GetDemangleName(task.funcDescRefs[i]);
-            GetUrl(task.funcDescRefs[i]);
+            GetDemangleName(task.funcDescRefs[static_cast<size_t>(i)]);
+            GetUrl(task.funcDescRefs[static_cast<size_t>(i)]);
             // Avoid taking too long time to parse symbol.
             if (IsTimeout(previousTimeStemp)) {
                 task.checkPoint = i + 1;

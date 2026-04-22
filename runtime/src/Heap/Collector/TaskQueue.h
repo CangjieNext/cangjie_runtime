@@ -180,7 +180,7 @@ public:
             return T::GetInvalidExecutor();
         }
         // count the number of trailing zeros
-        return T::GetGCExecutor(__builtin_ctz(dequeued));
+        return T::GetGCExecutor(static_cast<uint32_t>(__builtin_ctz(dequeued)));
     }
 
     // When gc thread exits, clear all tasks in queueWord

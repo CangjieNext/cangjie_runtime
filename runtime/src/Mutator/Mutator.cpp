@@ -322,10 +322,10 @@ void Mutator::StackGuardRecover() const
 
 void Mutator::InitStackInfo(ThreadLocalData* threadData)
 {
-    CJThread* cjthread = reinterpret_cast<CJThread*>(threadData->cjthread);
-    SetStackTopAddr(reinterpret_cast<uintptr_t>(CJThreadStackAddrGetByCJThrd(cjthread)));
-    SetStackSize(CJThreadStackSizeGetByCJThrd(cjthread));
-    SetStackBaseAddr(reinterpret_cast<uintptr_t>(CJThreadStackBaseAddrGetByCJThrd(cjthread)));
+    CJThread* currentCjthread = reinterpret_cast<CJThread*>(threadData->cjthread);
+    SetStackTopAddr(reinterpret_cast<uintptr_t>(CJThreadStackAddrGetByCJThrd(currentCjthread)));
+    SetStackSize(CJThreadStackSizeGetByCJThrd(currentCjthread));
+    SetStackBaseAddr(reinterpret_cast<uintptr_t>(CJThreadStackBaseAddrGetByCJThrd(currentCjthread)));
 }
 
 bool Mutator::IsStackAddr(uintptr_t addr)
@@ -428,11 +428,11 @@ intptr_t Mutator::FixExtendedStack(intptr_t frameBase, uint32_t adjustedSize __a
             uint32_t frameSize = EHFrameInfo::ReadVarInt(&stackMapEntry, validPos);
 #if defined(__x86_64__)
             // 8 is the slot length of returnaddr.
-            uint64_t callerSp = *reinterpret_cast<intptr_t*>(frameBase) - frameSize + 8;
+            uint64_t callerSp = static_cast<uint64_t>(*reinterpret_cast<intptr_t*>(frameBase) - frameSize + 8);
 #elif defined(__aarch64__)
-            uint64_t callerSp = *reinterpret_cast<intptr_t*>(frameBase) - frameSize;
+            uint64_t callerSp = static_cast<uint64_t>(*reinterpret_cast<intptr_t*>(frameBase) - frameSize);
 #elif defined(__arm__)
-            uint64_t callerSp = *reinterpret_cast<intptr_t*>(frameBase) - frameSize;
+            uint64_t callerSp = static_cast<uint64_t>(*reinterpret_cast<intptr_t*>(frameBase) - frameSize);
 #endif
             size_t newSize = stackSize + stackSize;
             while (stackBaseAddr - callerSp > newSize - CJThreadStackReversedGet()) {
@@ -453,11 +453,12 @@ intptr_t Mutator::FixExtendedStack(intptr_t frameBase, uint32_t adjustedSize __a
         intptr_t* newStackAddr;
         const int byteSize = 8;
         for (BaseObject** oldAddr : resSet) {
-            newStackAddr = reinterpret_cast<intptr_t*>(oldAddr + stackOffset / byteSize);
+            newStackAddr = reinterpret_cast<intptr_t*>(oldAddr + static_cast<size_t>(stackOffset / byteSize));
             *newStackAddr += stackOffset;
         }
 
-        uwContext.anchorFA = reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(uwContext.anchorFA) + stackOffset);
+        uwContext.anchorFA = reinterpret_cast<uint32_t*>(
+            reinterpret_cast<uintptr_t>(uwContext.anchorFA) + static_cast<uintptr_t>(stackOffset));
 
         return stackOffset;
     }
@@ -496,9 +497,9 @@ inline void Mutator::GcPhaseEnum(GCPhase newPhase)
             CheckAndPush(obj, rootSet, rootStack);
         }
         while (!rootStack.empty()) {
-            BaseObject* obj = rootStack.top();
+            BaseObject* stackObj = rootStack.top();
             rootStack.pop();
-            obj->ForEachRefField(refVisitor);
+            stackObj->ForEachRefField(refVisitor);
         }
     };
     VisitMutatorRoots(visitor);

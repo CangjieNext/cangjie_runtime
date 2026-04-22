@@ -1655,7 +1655,7 @@ unsigned int ScheduleRunningOSThreadCount(void)
 
     if (schedule == nullptr) {
         LOG_ERROR(ERRNO_SCHD_INVALID, "schedule is null");
-        return -1;
+        return static_cast<unsigned int>(-1);
     }
 
     pthread_mutex_lock(&g_scheduleManager.allScheduleListLock);
@@ -1846,7 +1846,7 @@ int ScheduleResume(void)
 void SchedulePreemptCheck(void)
 {
     struct CJThread *curCJThread;
-    uintptr_t spAddress = -1;
+    uintptr_t spAddress = static_cast<uintptr_t>(-1);
     uintptr_t preemptFlag;
 
     curCJThread = CJThreadGet();
@@ -2156,7 +2156,7 @@ int CJ_MRT_GetAllCJThreadInfo(void *cjthreadBufPtr, unsigned int num)
         CJThreadGetInfo(cjthread, &(cjthreadBuf[index]));
         index++;
     }
-    return index;
+    return static_cast<int>(index);
 }
 
 void CJForeignThreadExit(CJThreadHandle foreignThread)

@@ -22,7 +22,8 @@ unsigned long long CurrentNanotimeGet(void)
 {
     struct timespec time;
     clock_gettime(CLOCK_MONOTONIC, &time);
-    return (time.tv_sec * SECOND_TO_NANO_NUMBER + time.tv_nsec);
+    return (static_cast<unsigned long long>(time.tv_sec) * SECOND_TO_NANO_NUMBER +
+        static_cast<unsigned long long>(time.tv_nsec));
 }
 
 /* Obtain the current time, expressed in nanoseconds */

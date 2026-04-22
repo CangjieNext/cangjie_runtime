@@ -211,7 +211,7 @@ void CJFile::GetGlobalInitFunc(std::vector<Uptr> &globalInitFuncs) const
         }
     }
 #else
-    U32 cnt = sectionSize / sizeof(Uptr);
+    U32 cnt = static_cast<U32>(sectionSize / sizeof(Uptr));
     for (U32 i = 0; i < cnt; ++i) {
         auto func = reinterpret_cast<Uptr>(*(globalInitPtr + i));
         CHECK_DETAIL(func != 0, "global init func could not be null");

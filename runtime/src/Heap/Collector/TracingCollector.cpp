@@ -350,7 +350,7 @@ void TracingCollector::TracingImpl(WorkStack& workStack, WorkStack& foreignRoots
 bool TracingCollector::AddConcurrentTracingWork(RootSet& rs)
 {
     GCThreadPool* threadPool = GetThreadPool();
-    size_t threadCount = threadPool->GetMaxActiveThreadNum() + 1;
+    size_t threadCount = static_cast<size_t>(threadPool->GetMaxActiveThreadNum()) + 1U;
     if (rs.size() <= threadCount * MIN_MARKING_WORK_SIZE) {
         return false; // too less init tasks, which may lead to workload imbalance, add work rejected
     }
@@ -745,9 +745,9 @@ void TracingCollector::EnumAllCommonRoots(GCThreadPool* threadPool, RootSet& roo
 {
     MRT_ASSERT(threadPool != nullptr, "thread pool is null");
 
-    const size_t threadCount = threadPool->GetMaxThreadNum() + 1;
-    RootSet rootSetsInstance[threadCount];
-    RootSet* rootSets = rootSetsInstance; // work_around the crash of clang parser
+    const size_t threadCount = static_cast<size_t>(threadPool->GetMaxThreadNum()) + 1U;
+    std::vector<RootSet> rootSetsInstance(threadCount);
+    RootSet* rootSets = rootSetsInstance.data();
 
     // task to enum static field roots.
     threadPool->AddWork(new (std::nothrow)
@@ -810,9 +810,9 @@ void TracingCollector::UpdateGCStats()
 #else
     double heapGrowth = 1 + (CangjieRuntime::GetHeapParam().heapGrowth);
 #endif
-    size_t threshold1 = liveBytes * heapGrowth;
-    size_t threshold2 = oldThreshold * heapGrowth;
-    size_t threshold3 = liveBytes * 1.2 / (1.0 + gcStats.garbageRatio);
+    size_t threshold1 = static_cast<size_t>(static_cast<double>(liveBytes) * heapGrowth);
+    size_t threshold2 = static_cast<size_t>(static_cast<double>(oldThreshold) * heapGrowth);
+    size_t threshold3 = static_cast<size_t>(static_cast<double>(liveBytes) * 1.2 / (1.0 + gcStats.garbageRatio));
     size_t threshold4 = space.GetTargetSize();
     size_t newThreshold = 0;
     uint64_t gcInterval = CangjieRuntime::GetGCParam().gcInterval;
@@ -839,7 +839,7 @@ void TracingCollector::UpdateGCStats()
         newThreshold = (threshold1 * 2 + threshold2 * 1 + threshold3 * 2 + threshold4 * 3) / 8;
     }
     // 0.98: make sure new threshold does not exceed reasonable limit.
-    newThreshold = std::min(newThreshold, static_cast<size_t>(space.GetMaxCapacity() * 0.98));
+    newThreshold = std::min(newThreshold, static_cast<size_t>(static_cast<double>(space.GetMaxCapacity()) * 0.98));
     gcStats.heapThreshold = std::min(newThreshold, CangjieRuntime::GetGCParam().gcThreshold);
     g_gcRequests[GC_REASON_HEU].SetMinInterval(gcInterval);
     VLOG(REPORT, "live bytes %zu (survived %zu, recent-allocated %zu), update gc threshold %zu -> %zu", liveBytes,

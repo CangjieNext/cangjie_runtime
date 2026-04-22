@@ -56,20 +56,23 @@ inline bool MArray::IsPrimitiveArray() const
 
 inline ObjectPtr MArray::GetRefElement(MIndex index)
 {
-    RefField<>& ref = GetRefField(MArray::GetContentOffset() + RefField<>::GetSize() * index);
+    RefField<>& ref = GetRefField(static_cast<U32>(MArray::GetContentOffset() +
+        RefField<>::GetSize() * index));
     return Heap::GetBarrier().ReadReference(this, ref);
 }
 
 inline void MArray::SetRefElement(MIndex index, const ObjectPtr mObj)
 {
-    RefField<>& ref = GetRefField(MArray::GetContentOffset() + RefField<>::GetSize() * index);
+    RefField<>& ref = GetRefField(static_cast<U32>(MArray::GetContentOffset() +
+        RefField<>::GetSize() * index));
     Heap::GetBarrier().WriteReference(this, ref, mObj);
 }
 
 template<typename T>
 inline T MArray::GetPrimitiveElement(MIndex index) const
 {
-    Field<T>& field = GetField<T>(MArray::GetContentOffset() + GetElementSize() * index);
+    Field<T>& field = GetField<T>(static_cast<U32>(MArray::GetContentOffset() +
+        GetElementSize() * index));
     // normally we do not barrier for reading primitive fields.
     return field.GetFieldValue();
 }
@@ -77,7 +80,8 @@ inline T MArray::GetPrimitiveElement(MIndex index) const
 template<typename T>
 inline void MArray::SetPrimitiveElement(MIndex index, T value)
 {
-    Field<T>& field = GetField<T>(MArray::GetContentOffset() + GetElementSize() * index);
+    Field<T>& field = GetField<T>(static_cast<U32>(MArray::GetContentOffset() +
+        GetElementSize() * index));
     Heap::GetBarrier().WriteField(this, field, value);
 }
 
@@ -108,7 +112,7 @@ inline MArray* MArray::NewArray(MIndex nElems, TypeInfo& arrayClass, AllocType a
         if (!elem->IsRef()) {
             elemBits = arrayClass.GetSuperTypeInfo()->GetComponentSize();
         }
-        newArray = NewKnownWidthArray(nElems, arrayClass, elemBits, allocType);
+        newArray = NewKnownWidthArray(nElems, arrayClass, static_cast<U32>(elemBits), allocType);
     }
     return newArray;
 }

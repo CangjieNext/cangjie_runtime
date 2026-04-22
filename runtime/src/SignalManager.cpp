@@ -53,12 +53,12 @@ void SignalManager::Fini()
 void SignalManager::PrepareSigStack()
 {
     constexpr int stackSizeMultiples = 4;
-    signalStack.ss_sp = malloc(SIGSTKSZ * stackSizeMultiples);
+    signalStack.ss_sp = malloc(static_cast<size_t>(SIGSTKSZ) * stackSizeMultiples);
     if (signalStack.ss_sp == nullptr) {
         LOG(RTLOG_FATAL, "Alloca signal stack failed.");
     }
 
-    signalStack.ss_size = SIGSTKSZ * stackSizeMultiples;
+    signalStack.ss_size = static_cast<size_t>(SIGSTKSZ) * stackSizeMultiples;
     signalStack.ss_flags = 0;
 
     if (sigaltstack(&signalStack, nullptr) == -1) {
@@ -141,7 +141,7 @@ void PrintSignalHandlerStack(int sig, const siginfo_t* info, void* context)
                 char simpleSigStr[simpleSigStrSize];
                 CHECK_IN_SIG(sprintf_s(simpleSigStr, simpleSigStrSize,
                             "Thread \"%s\" catched unhandled %s (%s) from %s frame. Please report to us.", threadName,
-                            SignalManager::GetSignalName(sig), strsignal(sig), frameTypeStr) != -1);
+                            SignalManager::GetSignalName(static_cast<uint8_t>(sig)), strsignal(sig), frameTypeStr) != -1);
                 FLOG(RTLOG_ERROR, simpleSigStr);
                 return;
             }
@@ -154,7 +154,7 @@ void PrintSignalHandlerStack(int sig, const siginfo_t* info, void* context)
         char simpleSigStr[simpleSigStrSize];
         CHECK_IN_SIG(sprintf_s(simpleSigStr, simpleSigStrSize,
                      "Thread \"%s\" catched unhandled %s (%s) from %s frame. signal pc: 0x%lx", threadName,
-                     SignalManager::GetSignalName(sig), strsignal(sig), frameTypeStr, sigPc) != -1);
+                     SignalManager::GetSignalName(static_cast<uint8_t>(sig)), strsignal(sig), frameTypeStr, sigPc) != -1);
         if (sig == SIGSEGV) {
             CHECK_IN_SIG(sprintf_s(simpleSigStr, simpleSigStrSize, "%s, addr: %p", simpleSigStr, info->si_addr) != -1);
         }
@@ -173,7 +173,7 @@ void PrintSignalHandlerStack(int sig, const siginfo_t* info, void* context)
     char simpleSigStr[simpleSigStrSize];
     CHECK_IN_SIG(sprintf_s(simpleSigStr, simpleSigStrSize,
                  "Thread \"%s\" catched unhandled %s (%s) from %s frame. signal pc: 0x%lx", threadName,
-                 SignalManager::GetSignalName(sig), strsignal(sig), frameTypeStr, sigPc) != -1);
+                 SignalManager::GetSignalName(static_cast<uint8_t>(sig)), strsignal(sig), frameTypeStr, sigPc) != -1);
     if (sig == SIGSEGV) {
         CHECK_IN_SIG(sprintf_s(simpleSigStr, simpleSigStrSize, "%s, addr: %p", simpleSigStr, info->si_addr) != -1);
     }
@@ -328,7 +328,8 @@ void SignalManager::InstallSegvHandler()
     if (Runtime::Current().GetConcurrencyModel().GetStackGuardCheckFlag()) {
         // Alloc extra one page memory to handle stack overflow
         constexpr uint8_t minPageCount = 16;
-        extraStackSize = std::max(AlignUp<uint32_t>(MINSIGSTKSZ, MapleRuntime::MRT_PAGE_SIZE),
+        extraStackSize = std::max(AlignUp<uint32_t>(static_cast<uint32_t>(MINSIGSTKSZ),
+                                  static_cast<uint32_t>(MapleRuntime::MRT_PAGE_SIZE)),
                                   static_cast<uint32_t>(minPageCount * MapleRuntime::MRT_PAGE_SIZE));
         extraStack = PagePool::Instance().GetPage(extraStackSize);
         stack_t ss{};

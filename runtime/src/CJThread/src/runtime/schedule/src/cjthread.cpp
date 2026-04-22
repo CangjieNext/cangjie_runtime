@@ -97,11 +97,11 @@ void CJThreadStackMemFree(struct CJThread *cjthread, char *stackTopAddr, size_t 
         stackFreeAddr = stackTopAddr - pageSize;
         error = mprotect(stackFreeAddr, pageSize, PROT_READ | PROT_WRITE);
         if (error) {
-            HILOG_ERROR(errno, "mprotect failed in CJThreadStackMemFree. size is %u", pageSize);
+            HILOG_ERROR(errno, "mprotect failed in CJThreadStackMemFree. size is %zu", pageSize);
         }
         error = munmap(stackFreeAddr, stackSize + pageSize);
         if (error) {
-            HILOG_ERROR(errno, "munmap failed in CJThreadStackMemFree. size is %u", stackSize + pageSize);
+            HILOG_ERROR(errno, "munmap failed in CJThreadStackMemFree. size is %zu", stackSize + pageSize);
         }
     }
 }
@@ -159,7 +159,7 @@ MRT_STATIC_INLINE int CJThreadInit(struct CJThread *newCJThread, struct ArgAttr 
 {
     int error;
     char *argBuffer;
-    newCJThread->argSize = argAttr->argSize;
+    newCJThread->argSize = static_cast<unsigned int>(argAttr->argSize);
     if (argAttr->argStart != nullptr) {
         argBuffer = (char *)newCJThread + sizeof(struct CJThread);
         // Check CJThreadAttrCheck and ensure that argSize <= COARGS_SIZE_MAX. does not
@@ -366,7 +366,7 @@ char *CJThreadStackMemAlloc(struct Schedule *schedule, struct CJThread *cjthread
         addr = (char *)mmap(nullptr, *totalSize, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         if (addr == MAP_FAILED) {
             HILOG_ERROR(ERRNO_SCHD_CJTHREAD_ALLOC_FAILED,
-                        "cjthread stack mmap failed, size %u, error %d", *totalSize, errno);
+                        "cjthread stack mmap failed, size %zu, error %d", *totalSize, errno);
             return nullptr;
         }
 #if defined (__linux__) || defined(__OHOS__) || defined(__ANDROID__)
@@ -379,7 +379,7 @@ char *CJThreadStackMemAlloc(struct Schedule *schedule, struct CJThread *cjthread
         error = mprotect(addr, pageSize, PROT_NONE);
         if (error) {
             HILOG_ERROR(ERRNO_SCHD_CJTHREAD_ALLOC_FAILED,
-                        "cjthread stack mprotect failed, page_size %u, error %d", pageSize, errno);
+                        "cjthread stack mprotect failed, page_size %zu, error %d", pageSize, errno);
             munmap(addr, *totalSize);
             return nullptr;
         }
@@ -2240,7 +2240,7 @@ intptr_t CJThreadStackAdjust(struct CJThread *cjthread, size_t newStackSizeAlign
 
     // Calculate the total used size of the old stack.(CjthreadEntry to the stack size used
     // by the current function)
-    stackUsed = oldStackBaseAddr - spAddress;
+    stackUsed = static_cast<size_t>(oldStackBaseAddr - spAddress);
     if (memmove_s(newStackBaseAddr - stackUsed, stackUsed, oldStackBaseAddr - stackUsed, stackUsed) != EOK) {
         LOG_ERROR(-1, "memmove_s failed");
         return -1;
@@ -2274,7 +2274,7 @@ intptr_t CJThreadStackGrow(size_t stackSize)
     newStackSizeAlign = STACK_ADDR_ALIGN_UP(newStackSize, SchedulePageSize());
     if (newStackSizeAlign > CJTHREAD_MAX_STACK_SIZE || newStackSizeAlign <= oldStackSize) {
         LOG_ERROR(ERRNO_SCHD_CJTHREAD_STACK_EXPAND_FAILED,
-                  "cjthread stack overflow, newStackSizeAlign = %u", newStackSizeAlign);
+                  "cjthread stack overflow, newStackSizeAlign = %zu", newStackSizeAlign);
         return -1;
     }
 

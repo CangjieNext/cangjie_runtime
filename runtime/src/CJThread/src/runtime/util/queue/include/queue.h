@@ -260,7 +260,7 @@ MRT_INLINE static int QueueInit(struct Queue *queue, unsigned int capacity)
     }
     queue->buf = (void **)malloc(sizeof(void *) * (capacity));
     if (queue->buf == nullptr) {
-        LOG_ERROR(errno, "malloc failed, size: %u", (sizeof(void *) * capacity));
+        LOG_ERROR(errno, "malloc failed, size: %zu", sizeof(void *) * capacity);
         return ERROR_QUEUE_BUF_ALLOC_FAILED;
     }
     queue->capacity = capacity;
@@ -275,4 +275,3 @@ MRT_INLINE static int QueueInit(struct Queue *queue, unsigned int capacity)
 #endif
 #endif
 #endif /* _QUEUE_H */
-

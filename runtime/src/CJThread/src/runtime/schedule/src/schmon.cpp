@@ -111,7 +111,7 @@ void SchmonProcessorPreemptCheck(struct Processor *processor, unsigned long long
     if (processor->obRecord.lastSchedCnt == schedcnt) {
         int pTime = schedule->schdCJThread.cjthreadNum.load() != 0 || FastSchmonProcessorPreemptCheck(processor) ?
             PREEMPT_TIME : (PREEMPT_TIME * 100); // 100: When there is few cjthreads waiting, then change preempt time.
-        if (processor->obRecord.lastTime + pTime < now) {
+        if (processor->obRecord.lastTime + static_cast<unsigned long long>(pTime) < now) {
             // If the thread is executed on the same cjthread for more than 10 ms, preemption is performed.
             state = atomic_load(&processor->state);
             if (state == PROCESSOR_SYSCALL && ScheduleGet()->scheduleType == SCHEDULE_DEFAULT) {
@@ -232,8 +232,8 @@ void SchmonCJThreadPoolClean(unsigned long long now)
         // If the number of cjthreads in the global free list is greater than twice the
         // number of cjthreads to be run, clear the global resource pool.
         if (gfreelist->freeCJThreadNum && gfreelist->freeCJThreadNum >= schdCJThreadNum * multiple) {
-            DulinkMove(&removeList, &(gfreelist->gfreeList), -schdCJThreadNum);
-            gfreelist->freeCJThreadNum = schdCJThreadNum;
+            DulinkMove(&removeList, &(gfreelist->gfreeList), -static_cast<int>(schdCJThreadNum));
+            gfreelist->freeCJThreadNum = static_cast<unsigned int>(schdCJThreadNum);
         }
         pthread_mutex_unlock(&gfreelist->gfreeLock);
 
@@ -245,8 +245,8 @@ void SchmonCJThreadPoolClean(unsigned long long now)
             PthreadSpinLock(&processor->lock);
             length = QueueLength(&processor->runq);
             if (processor->freelist.cjthreadNum && processor->freelist.cjthreadNum >= length * multiple) {
-                DulinkMove(&removeList, &processor->freelist.freeList, -length);
-                processor->freelist.cjthreadNum = length;
+                DulinkMove(&removeList, &processor->freelist.freeList, -static_cast<int>(length));
+                processor->freelist.cjthreadNum = static_cast<unsigned int>(length);
             }
             PthreadSpinUnlock(&processor->lock);
         }
@@ -287,7 +287,7 @@ void SchmonCycle(void)
         if (schedule->netpoll.npfd != nullptr) {
             num = SchdpollAcquire(schedule, buf, SCHDPOLL_ACQUIRE_MAX_NUM, 0);
             if (num > 0) {
-                CJThreadAddBatch(buf, num);
+                CJThreadAddBatch(buf, static_cast<unsigned int>(num));
             }
         }
 #else
@@ -296,14 +296,14 @@ void SchmonCycle(void)
         if (schedule->netpoll.npfd != nullptr && schedule->scheduleType == SCHEDULE_DEFAULT) {
             num = SchdpollAcquire(schedule, buf, SCHDPOLL_ACQUIRE_MAX_NUM, NETPOLL_WAIT_TIME);
             if (num > 0) {
-                CJThreadAddBatch(buf, num);
+                CJThreadAddBatch(buf, static_cast<unsigned int>(num));
             }
         } else if (schedule->netpoll.npfd == nullptr && schedule->scheduleType == SCHEDULE_DEFAULT) {
             usleep(delay);
         } else if (schedule->netpoll.npfd != nullptr && schedule->scheduleType != SCHEDULE_DEFAULT) {
             num = SchdpollAcquire(schedule, buf, SCHDPOLL_ACQUIRE_MAX_NUM, 0);
             if (num > 0) {
-                CJThreadAddBatch(buf, num);
+                CJThreadAddBatch(buf, static_cast<unsigned int>(num));
             }
         }
 #endif

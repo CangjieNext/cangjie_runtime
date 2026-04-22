@@ -45,6 +45,9 @@ set(CMAKE_C_FLAGS
     -Wunused \
     -Wundef \
     -Wcast-qual \
+    -Wconversion \
+    -Wcast-align \
+    -Werror \
     -Wstrict-prototypes \
     -m64 \
     -std=c11 \
@@ -77,9 +80,12 @@ set(CMAKE_CXX_FLAGS
     -Wunused \
     -Wundef \
     -Wcast-qual \
+    -Wconversion \
+    -Wcast-align \
     -Woverloaded-virtual \
     -Wnon-virtual-dtor \
     -Wdelete-non-virtual-dtor \
+    -Werror \
     -m64 \
     -std=gnu++14 \
     -fno-strict-aliasing \

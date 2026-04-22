@@ -714,7 +714,8 @@ static ArrayRef CreateStackTrace(const TypeInfo* arrayStackTrace, const TypeInfo
 
         // push frame to stack array
         MSize elementSize = trace->GetElementSize();
-        MAddress dstAddr = reinterpret_cast<Uptr>(trace) + MArray::GetContentOffset() + elementSize * stackIndex;
+        MAddress dstAddr = reinterpret_cast<Uptr>(trace) + MArray::GetContentOffset() +
+            elementSize * static_cast<MSize>(stackIndex);
         Heap::GetBarrier().WriteStruct(trace, dstAddr, elementSize,
                                        reinterpret_cast<MAddress>(&frameData), elementSize);
         stackIndex++;
@@ -765,7 +766,8 @@ static ArrayRef GetAllThreadSnapshot(const TypeInfo* arraySnapshot, const TypeIn
         // push snapshot to record array
         MSize elementSize = allRecords->GetElementSize();
         MAddress dstAddr =
-            reinterpret_cast<Uptr>(allRecords) + MArray::GetContentOffset() + elementSize * recordIndex;
+            reinterpret_cast<Uptr>(allRecords) + MArray::GetContentOffset() +
+            elementSize * static_cast<MSize>(recordIndex);
         Heap::GetBarrier().WriteStruct(allRecords, dstAddr, elementSize,
                                        reinterpret_cast<MAddress>(&snapshot), elementSize);
         recordIndex++;
@@ -982,10 +984,11 @@ extern "C" ObjectPtr MCC_GetSubPackages(PackageInfo* packageInfo, TypeInfo* arra
         rawArrayObj->SetPrimitiveElement(idx, reinterpret_cast<int64_t>(subPackages[idx]));
     }
     U32 size = arrayTi->GetInstanceSize();
-    MSize objSize = MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+    MSize objSize = static_cast<MSize>(MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE));
     MObject* obj = ObjectManager::NewObject(arrayTi, objSize, AllocType::RAW_POINTER_OBJECT);
     // set rawArray
-    Heap::GetBarrier().WriteReference(obj, obj->GetRefField(TYPEINFO_PTR_SIZE), static_cast<BaseObject*>(rawArrayObj));
+    Heap::GetBarrier().WriteReference(obj, obj->GetRefField(static_cast<U32>(TYPEINFO_PTR_SIZE)),
+        static_cast<BaseObject*>(rawArrayObj));
     CJArray* cjArray = reinterpret_cast<CJArray*>(reinterpret_cast<Uptr>(obj) + TYPEINFO_PTR_SIZE);
     cjArray->start = 0;
     cjArray->length = subPkgCnt;
@@ -1150,15 +1153,15 @@ static TypeInfo* GetActualTypeFromGenericType(GenericTypeInfo* genericTi, void* 
     CHECK_DETAIL(mem != nullptr, "GetActualTypeFromGenericType calloc failed");
     TypeInfo** typeInfos = static_cast<TypeInfo**>(mem);
     for (U64 idx = 0; idx < len; ++idx) {
-        void* genericArg = genericTi->GetGenericArg(idx);
+        void* genericArg = genericTi->GetGenericArg(static_cast<U8>(idx));
         for (U64 argIdx = 0; argIdx < cjArray->rawPtr->len; ++argIdx) {
-            if (genericArg == genericArgs->GetGenericArg(argIdx)) {
+            if (genericArg == genericArgs->GetGenericArg(static_cast<U8>(argIdx))) {
                 typeInfos[idx] = actualTypeInfos[argIdx];
             }
         }
     }
     TypeInfo* ti = TypeInfoManager::GetTypeInfoManager().GetOrCreateTypeInfo(
-        genericTi->GetSourceGeneric(), len, typeInfos);
+        genericTi->GetSourceGeneric(), static_cast<U32>(len), typeInfos);
     free(mem);
     mem = nullptr;
     return ti;
@@ -1167,7 +1170,7 @@ static TypeInfo* GetActualTypeFromGenericType(GenericTypeInfo* genericTi, void* 
 static bool CheckGenericConstraint(GenericTypeInfo* genericTi, TypeInfo* ti, void* args, GenericTypeInfo* genericArgs)
 {
     for (U64 constraintIdx = 0; constraintIdx < genericTi->GetGenericConstraintNum(); ++constraintIdx) {
-        TypeInfo* constraintTi = genericTi->GetGenericConstraint(constraintIdx);
+        TypeInfo* constraintTi = genericTi->GetGenericConstraint(static_cast<U32>(constraintIdx));
         if (constraintTi->IsGeneric()) {
             constraintTi =
                 GetActualTypeFromGenericType(reinterpret_cast<GenericTypeInfo*>(constraintTi), args, genericArgs);
@@ -1208,14 +1211,14 @@ extern "C" TypeInfo* MCC_GetOrCreateTypeInfoForReflect(TypeTemplate* tt, void* a
         tt->GetReflectInfo()->GetDeclaringGenericTypeInfo());
     for (U64 idx = 0; idx < len; ++idx) {
         typeInfos[idx] = *reinterpret_cast<TypeInfo**>(base + idx * TYPEINFO_PTR_SIZE);
-        GenericTypeInfo* genericArg = static_cast<GenericTypeInfo*>(genericArgs->GetGenericArg(idx));
+        GenericTypeInfo* genericArg = static_cast<GenericTypeInfo*>(genericArgs->GetGenericArg(static_cast<U8>(idx)));
         if (!CheckGenericConstraint(genericArg, typeInfos[idx], args, genericArgs)) {
             free(mem);
             mem = nullptr;
             return nullptr;
         }
     }
-    TypeInfo* ti = TypeInfoManager::GetTypeInfoManager().GetOrCreateTypeInfo(tt, len, typeInfos);
+    TypeInfo* ti = TypeInfoManager::GetTypeInfoManager().GetOrCreateTypeInfo(tt, static_cast<U32>(len), typeInfos);
     free(mem);
     mem = nullptr;
     return ti;
@@ -1282,7 +1285,7 @@ extern "C" EnumCtorInfo* MCC_GetEnumConstructorInfoFromAny(ObjRef obj)
     }
 
     I32 tag = FieldInitializer::GetEnumTag(obj, ti);
-    return enumInfo->GetEnumCtor(tag);
+    return enumInfo->GetEnumCtor(static_cast<U32>(tag));
 }
 
 extern "C" bool MCC_IsBox(TypeInfo* ti)
@@ -1370,7 +1373,7 @@ extern "C" ObjRef MCC_NewAndInitEnumTupleObject(TypeInfo* ti, void* args)
     if (args == nullptr) {
         return nullptr;
     }
-    MSize size = MRT_ALIGN(ti->GetInstanceSize() + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+    MSize size = static_cast<MSize>(MRT_ALIGN(ti->GetInstanceSize() + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE));
     ObjRef obj = nullptr;
 
     // Need set tag for enum and temp enum.
@@ -1414,7 +1417,7 @@ extern "C" ObjRef MCC_GetAssociatedValues(ObjRef obj, TypeInfo* arrayTi)
             // Read the tag, and get constructor's TypeInfo based on the tag.
             EnumInfo* enumInfo = ti->GetEnumInfo();
             I32 tag = FieldInitializer::GetEnumTag(obj, ti);
-            ti = enumInfo->GetCtorTypeInfo(tag);
+            ti = enumInfo->GetCtorTypeInfo(static_cast<U32>(tag));
             fieldNum = ti->GetFieldNum();
         }
         if (!ti->IsZeroSizedEnum()) {
@@ -1436,14 +1439,14 @@ extern "C" ObjRef MCC_GetAssociatedValues(ObjRef obj, TypeInfo* arrayTi)
     FieldInitializer::SetElementFromObject(array, obj, ti, fieldNum);
 
     U32 size = arrayTi->GetInstanceSize();
-    MSize arrayObjSize = MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+    MSize arrayObjSize = static_cast<MSize>(MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE));
     ObjRef arrayObj = ObjectManager::NewObject(arrayTi, arrayObjSize, AllocType::RAW_POINTER_OBJECT);
     if (arrayObj == nullptr) {
         VLOG(REPORT, "MCC_GetAssociatedValues new object failed and throw OutOfMemoryError");
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewObject return nullptr");
     }
     Heap::GetBarrier().WriteReference(
-        arrayObj, arrayObj->GetRefField(TYPEINFO_PTR_SIZE), static_cast<BaseObject*>(array));
+        arrayObj, arrayObj->GetRefField(static_cast<U32>(TYPEINFO_PTR_SIZE)), static_cast<BaseObject*>(array));
     CJArray* cjArray = reinterpret_cast<CJArray*>(reinterpret_cast<Uptr>(arrayObj) + TYPEINFO_PTR_SIZE);
     cjArray->start = 0;
     cjArray->length = fieldNum;
@@ -1938,7 +1941,7 @@ extern "C" void CJ_MCC_IVCallInstrumentation(TypeInfo* cls, const char* callBase
 
 void CJ_MCC_CrossAccessBarrier(U64 cjExport)
 {
-    Heap::GetHeap().CrossAccessBarrier(cjExport);
+    Heap::GetHeap().CrossAccessBarrier(static_cast<I64>(cjExport));
 }
 
 U64 CJ_MCC_CreateExportHandle(BaseObject *obj)
@@ -1973,7 +1976,7 @@ extern "C" uintptr_t CJ_MCC_GetJSLambdaAddr(const ObjectPtr obj)
     // Loop to check if it's a wrapper class, if so, get realAutoEnvObj until finding a non-wrapper class
     while (MCC_IsWrapperClassForAutoEnv(currentObj->GetTypeInfo())) {
         currentObj = Heap::GetBarrier().ReadReference(currentObj,
-            currentObj->GetRefField(TYPEINFO_PTR_SIZE + realAutoEnvObjOffset));
+            currentObj->GetRefField(static_cast<U32>(TYPEINFO_PTR_SIZE + realAutoEnvObjOffset)));
     }
 
     // Access func1 directly from currentObj

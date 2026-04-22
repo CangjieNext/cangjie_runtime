@@ -141,7 +141,7 @@ int WaitqueuePark(struct Waitqueue *wq, long long ns,
         // There is a timeout period, and a timer is set.
         atomic_fetch_add(&queue->timerNwait, 1u);
         node->timeout = &isTimeout;
-        node->timer = TimerNew(ns, 0, (TimerFunc) WaitqueueCallback, node);
+        node->timer = TimerNew(static_cast<unsigned long long>(ns), 0, (TimerFunc) WaitqueueCallback, node);
         CJThreadPark(WaitqueueParkUnlock, TRACE_EV_CJTHREAD_BLOCK_SYNC, queue);
         if (isTimeout) {
             return WAIT_QUEUE_TIMEOUT;

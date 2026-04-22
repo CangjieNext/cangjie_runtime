@@ -135,7 +135,7 @@ public:
         } else if (bytes <= MemberSize::ALING_8192_BYTE) {
             return RoundUp(bytes, AlignNmu::ALIGN_8192);
         } else {
-            return -1;
+            return static_cast<size_t>(-1);
         }
     }
 
@@ -156,7 +156,7 @@ public:
             return Index(bytes - MemberSize::ALING_1024_BYTE, ALIGN_8192_SIFT) +
                 GROUP_ARRAY[3] + GROUP_ARRAY[2] + GROUP_ARRAY[1] + GROUP_ARRAY[0];
         } else {
-            return -1;
+            return static_cast<size_t>(-1);
         }
     }
 

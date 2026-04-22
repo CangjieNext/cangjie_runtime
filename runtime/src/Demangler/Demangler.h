@@ -241,7 +241,7 @@ private:
     void SkipPrivateTopLevelDeclHash();
     void DemangleFileName();
     void SkipLocalCounter();
-    T DemangleArgTypes(const T& delimiter, uint32_t size = -1);
+    T DemangleArgTypes(const T& delimiter, uint32_t size = static_cast<uint32_t>(-1));
     DemangleInfo<T> DemangleNestedDecls(bool isClass = false, bool isParamInit = false);
     uint32_t DemangleLength();
     DemangleInfo<T> Reject(const T& reason = T{});

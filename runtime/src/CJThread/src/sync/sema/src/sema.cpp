@@ -141,7 +141,7 @@ int SemaGetValue(const struct Sema *semHandle, int *semVal)
     }
 
     wq = &sema->queue;
-    *semVal = atomic_load(&sema->semaVal) - WaitqueueGetWaitNum(wq);
+    *semVal = static_cast<int>(atomic_load(&sema->semaVal)) - static_cast<int>(WaitqueueGetWaitNum(wq));
 
     return 0;
 }

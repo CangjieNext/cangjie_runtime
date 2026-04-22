@@ -45,7 +45,7 @@ int ProcessorGlobalWrite(struct CJThread *cjthreadList[], unsigned int num)
     // Get 1/4 from the local queue and put it into the global queue.
     length = QueueLength(&processor->runq) / GLOBAL_ADD_RATIO;
     if (length != 0) {
-        length = QueuePopHeadBatch(&processor->runq, buf, length);
+        length = QueuePopHeadBatch(&processor->runq, buf, static_cast<unsigned int>(length));
     }
 
     // To reduce the occupation time of schdCJThread.mutex, use tempDulink to temporarily
@@ -121,7 +121,7 @@ struct CJThread *ProcessorGlobalRead(void *schedule, bool batch)
     if (batch) {
         // The quantity is the number of processes in the global queue divided by the number
         // of processors. The value must be at least 1.
-        readNum = (schdCJThread->num + processorNum - 1) / processorNum;
+        readNum = static_cast<unsigned int>((schdCJThread->num + processorNum - 1) / processorNum);
         if (readNum > PROCESSOR_QUEUE_CAPACITY) {
             readNum = PROCESSOR_QUEUE_CAPACITY;
         }
@@ -138,7 +138,7 @@ struct CJThread *ProcessorGlobalRead(void *schedule, bool batch)
     }
     --readNum;
     DulinkInit(&tempDulink);
-    DulinkMove(&tempDulink, runDulink, readNum);
+    DulinkMove(&tempDulink, runDulink, static_cast<int>(readNum));
     pthread_mutex_unlock(&(schdCJThread->mutex));
 
     // The rest of the cjthreads are placed in the local queue. If batch is false or only
@@ -213,7 +213,7 @@ MRT_STATIC_INLINE unsigned long ProcessorQueueSteal(struct Processor *processor,
         length = bufLen;
     }
 
-    return QueuePopHeadBatch(stealRunq, buf, length);
+    return QueuePopHeadBatch(stealRunq, buf, static_cast<unsigned int>(length));
 }
 
 struct CJThread *ProcessorCJThreadSteal(struct Processor *localProcessor, struct Processor *stealProcessor)
@@ -231,7 +231,7 @@ struct CJThread *ProcessorCJThreadSteal(struct Processor *localProcessor, struct
 
     // Put the stolen cjthread into the local queue.
     localRunq = &localProcessor->runq;
-    pushNum = QueuePushTailBatch(localRunq, buf + 1, stealNum - 1);
+    pushNum = QueuePushTailBatch(localRunq, buf + 1, static_cast<unsigned int>(stealNum - 1));
     if (pushNum != stealNum - 1) {
         LOG_ERROR(ERRNO_SCHD_LOCAL_QUEUE_PUSH_FAILED,
                   "push local queue failed! steal_num: %u, push_num: %u",
@@ -330,7 +330,7 @@ int ProcessorStopWithLastCheck(void)
 
 void RandSeedInit(void)
 {
-    g_randSeed = CurrentNanotimeGet();
+    g_randSeed = static_cast<unsigned int>(CurrentNanotimeGet());
 }
 
 MRT_STATIC_INLINE unsigned int RandomPseudo(unsigned int range)
@@ -393,7 +393,7 @@ struct CJThread *ProcessorSteal(unsigned long long now)
     struct ScheduleProcessor *schdProcessor = &schedule->schdProcessor;
     unsigned long processorNum = schdProcessor->processorNum;
     bool stealTimersOrRunNext;
-    processorId = RandomPseudo(processorNum);
+    processorId = RandomPseudo(static_cast<unsigned int>(processorNum));
     for (unsigned int i = 0; i < PROCESSOR_STEAL_ROUNDS; ++i) {
         stealTimersOrRunNext = (i == (PROCESSOR_STEAL_ROUNDS - 1));
         for (stealNum = 0; stealNum < processorNum; stealNum++) {
@@ -627,7 +627,7 @@ struct CJThread *ProcessorCJThreadGet(void)
             if (num > 0) {
                 // After successfully fetching the cjthread from netpoll, review the local
                 // and global queues again.
-                CJThreadAddBatch(buf, num);
+                CJThreadAddBatch(buf, static_cast<unsigned int>(num));
                 continue;
             }
         }
@@ -1017,7 +1017,7 @@ int ProcessorGetInfoAll(struct ProcessorInfo *processorBuf, unsigned int num)
         count++;
     }
 
-    return count;
+    return static_cast<int>(count);
 }
 
 MRT_STATIC_INLINE void ProcessorFreelistPush(struct ProcessorFreelist *pfreelist,

@@ -43,7 +43,7 @@ int SyscallRead(int fd, void *buf, size_t count)
 {
     int res;
     SyscallEnter();
-    res = read(fd, buf, count);
+    res = static_cast<int>(read(fd, buf, count));
     SyscallExit();
     return res;
 }
@@ -52,7 +52,7 @@ int SyscallWrite(int fd, const void *buf, size_t count)
 {
     int res;
     SyscallEnter();
-    res = write(fd, buf, count);
+    res = static_cast<int>(write(fd, buf, count));
     SyscallExit();
     return res;
 }

@@ -95,7 +95,7 @@ MRT_INLINE static pid_t GetSystemThreadId(void)
 #elif defined (MRT_LINUX)
 MRT_INLINE static pid_t GetSystemThreadId(void)
 {
-    return syscall(SYS_gettid);
+    return (pid_t)syscall(SYS_gettid);
 }
 #endif
 
@@ -121,11 +121,13 @@ __attribute__((constructor)) static void GetSystemPageSize(void)
     GetSystemInfo(&systemInfo);
     g_pageSize = systemInfo.dwPageSize;
 #else
-    g_pageSize = sysconf(_SC_PAGE_SIZE);
-#endif
-    if (g_pageSize == (size_t)-1) {
-        LOG_ERROR(errno, "page_size wrong. size is: %u", g_pageSize);
+    long pageSize = sysconf(_SC_PAGE_SIZE);
+    if (pageSize == -1) {
+        LOG_ERROR(errno, "page_size wrong. size is: %ld", pageSize);
+        return;
     }
+    g_pageSize = (size_t)pageSize;
+#endif
 }
 
 /**

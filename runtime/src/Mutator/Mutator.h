@@ -105,7 +105,7 @@ public:
 
     void InitTid()
     {
-        tid = ThreadLocal::GetThreadLocalData()->tid;
+        tid = static_cast<uint32_t>(ThreadLocal::GetThreadLocalData()->tid);
         if (tid == 0) {
             tid = static_cast<uint32_t>(MapleRuntime::GetTid());
             ThreadLocal::GetThreadLocalData()->tid = tid;
