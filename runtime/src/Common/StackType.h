@@ -72,6 +72,14 @@ struct N2CSlotData {
     UnwindContextStatus status;
 };
 
+// C2RSlotData saves the top unwind context before entering a runtime helper through C2RStub.
+// It is used to restore TLS unwind context after returning from the helper.
+struct C2RSlotData {
+    const uint32_t* pc;
+    FrameAddress* fa;
+    UnwindContextStatus status;
+};
+
 // Data structure when the runtime part is used for stack information.
 struct StackTraceElement {
     CString className;
@@ -385,6 +393,29 @@ private:
     static constexpr int64_t OFFSET_FOR_UNWIND_DATA = 1;
 #else
     static constexpr int64_t OFFSET_FOR_UNWIND_DATA = -1;
+#endif
+};
+
+class C2RFrame : public MachineFrame {
+public:
+    C2RFrame() : MachineFrame() {}
+    ~C2RFrame() override = default;
+    C2RFrame(FrameAddress* pFa, const uint32_t* pIp) : MachineFrame(pFa, pIp) {}
+
+    static C2RSlotData* GetSlotData(FrameAddress* fa)
+    {
+#if defined(__x86_64__) && defined(__linux__) && !defined(_WIN64)
+        return reinterpret_cast<C2RSlotData*>(reinterpret_cast<char*>(fa) - OFFSET_FOR_UNWIND_DATA_BYTES);
+#else
+        return nullptr;
+#endif
+    }
+
+    C2RSlotData* GetSlotData() const { return GetSlotData(this->fa); }
+
+private:
+#if defined(__x86_64__) && defined(__linux__) && !defined(_WIN64)
+    static constexpr int64_t OFFSET_FOR_UNWIND_DATA_BYTES = 64;
 #endif
 };
 

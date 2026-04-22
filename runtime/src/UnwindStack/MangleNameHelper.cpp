@@ -45,6 +45,15 @@ void MangleNameHelper::Demangle()
     if (mangleName.EndsWith(POSTFIX_WITHOUT_TI)) {
         mangleName.Truncate(mangleName.Length() - strlen(POSTFIX_WITHOUT_TI));
     }
+    // Skip demangling for frames that are filtered from stack traces to avoid
+    // debug demangler warnings polluting exception output.
+    if (IsNeedFilt()) {
+        packName = "";
+        className = "";
+        methodName = mangleName;
+        demangleName = mangleName;
+        return;
+    }
     auto demangler = CreateNativeDemangler(mangleName.Str(), "::", genericTypefilter);
     auto functionDemangleInfo = demangler.Demangle();
     methodName = functionDemangleInfo.GetFullName(demangler.ScopeResolution());

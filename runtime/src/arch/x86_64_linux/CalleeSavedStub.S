@@ -5,7 +5,7 @@
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 // stub need to be 16-byte aligned, so we should use (8 * even numbers)
-#define CalleeSavedRegistersStubFrameSize           (8 * 8)
+#define CalleeSavedRegistersStubFrameSize           (8 * 14)
 
 ////////////////////////////////////////////////////////////////////////////////
 // CalleeSavedRegistersStub simply forwards arguments passed by runtime, i.e., arguments for compiled method are passed
@@ -23,9 +23,15 @@
 //                 | %r13         |
 //                 | %r12         |
 //                 | %rbx         |
+// c2r slot        | status       |
+//                 | saved fa     |
+//                 | saved pc     |
+// saved args      | %r9          |
+//                 | %r8          |
+//                 | %rcx         |
+//                 | %rdx         |
+//                 | %rsi         |
 // arg0            | %rdi         |
-// arg1            | %rsi         |
-//                 | null         |
 // 16-byte aligned | null         | <==CalleeSavedRegistersStubFrameSize, CalleeSavedRegistersStub frame ends at here
 
     .macro CalleeSavedRegistersStub, funcName, funcNameStub
@@ -53,8 +59,29 @@
     .cfi_rel_offset %r14, -16
     .cfi_rel_offset %r15, -8
 
+    movq    %rdi, -72(%rbp)
+    movq    %rsi, -80(%rbp)
+    movq    %rdx, -88(%rbp)
+    movq    %rcx, -96(%rbp)
+    movq    %r8,  -104(%rbp)
+    movq    %r9,  -112(%rbp)
+
+    movq    %rbp, %rdi
+    leaq    \funcNameStub(%rip), %rsi
+    callq   MRT_SaveTopContextToC2RStub@PLT
+
+    movq    -72(%rbp), %rdi
+    movq    -80(%rbp), %rsi
+    movq    -88(%rbp), %rdx
+    movq    -96(%rbp), %rcx
+    movq    -104(%rbp), %r8
+    movq    -112(%rbp), %r9
+
     callq   \funcName
     movq    %rax, -8(%rbp)
+
+    movq    %rbp, %rdi
+    callq   MRT_RestoreTopContextFromC2RStub@PLT
 
     callq   MRT_GetThreadLocalData@PLT
     movq    %rax,  %r15
