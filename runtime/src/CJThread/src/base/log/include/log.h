@@ -52,7 +52,7 @@ enum ThreadLogLevel {
  */
 #define LOG_DEBUG(errorCode, fmt, args...) \
     do { \
-        LogWrite(ThreadLogLevel::LOG_LEVEL_DEBUG, (errorCode), VOSFILENAME, __LINE__, fmt, ##args); \
+        LogWrite(ThreadLogLevel::LOG_LEVEL_DEBUG, (unsigned int)(errorCode), VOSFILENAME, __LINE__, fmt, ##args); \
     } while (0)
 
 /**
@@ -63,7 +63,7 @@ enum ThreadLogLevel {
  */
 #define LOG_INFO(errorCode, fmt, args...) \
     do { \
-        LogWrite(ThreadLogLevel::LOG_LEVEL_INFO, (errorCode), VOSFILENAME, __LINE__, fmt, ##args); \
+        LogWrite(ThreadLogLevel::LOG_LEVEL_INFO, (unsigned int)(errorCode), VOSFILENAME, __LINE__, fmt, ##args); \
     } while (0)
 
 /**
@@ -74,7 +74,7 @@ enum ThreadLogLevel {
  */
 #define LOG_WARN(errorCode, fmt, args...) \
     do { \
-        LogWrite(ThreadLogLevel::LOG_LEVEL_WARNING, (errorCode), VOSFILENAME, __LINE__, fmt, ##args); \
+        LogWrite(ThreadLogLevel::LOG_LEVEL_WARNING, (unsigned int)(errorCode), VOSFILENAME, __LINE__, fmt, ##args); \
     } while (0)
 
 /**
@@ -85,7 +85,7 @@ enum ThreadLogLevel {
  */
 #define LOG_ERROR(errorCode, fmt, args...) \
     do { \
-        LogWrite(ThreadLogLevel::LOG_LEVEL_ERROR, (errorCode), VOSFILENAME, __LINE__, fmt, ##args); \
+        LogWrite(ThreadLogLevel::LOG_LEVEL_ERROR, (unsigned int)(errorCode), VOSFILENAME, __LINE__, fmt, ##args); \
     } while (0)
 
 /**
@@ -96,7 +96,7 @@ enum ThreadLogLevel {
  */
 #define LOG_FATAL(errorCode, fmt, args...) \
     do { \
-        LogWrite(ThreadLogLevel::LOG_LEVEL_FATAL, (errorCode), VOSFILENAME, __LINE__, fmt, ##args); \
+        LogWrite(ThreadLogLevel::LOG_LEVEL_FATAL, (unsigned int)(errorCode), VOSFILENAME, __LINE__, fmt, ##args); \
     } while (0)
 
 /**
@@ -108,7 +108,7 @@ enum ThreadLogLevel {
 #define HILOG_WARN(errorCode, fmt, args...) \
     do { \
         if (g_logEnable) { \
-            LogWrite(ThreadLogLevel::LOG_LEVEL_WARNING, (errorCode), VOSFILENAME, __LINE__, fmt, ##args); \
+            LogWrite(ThreadLogLevel::LOG_LEVEL_WARNING, (unsigned int)(errorCode), VOSFILENAME, __LINE__, fmt, ##args); \
             break; \
         } \
         HiLogWrite(RTLogLevel::RTLOG_WARNING, fmt, ##args); \
@@ -123,7 +123,7 @@ enum ThreadLogLevel {
 #define HILOG_ERROR(errorCode, fmt, args...) \
     do { \
         if (g_logEnable) { \
-            LogWrite(ThreadLogLevel::LOG_LEVEL_ERROR, (errorCode), VOSFILENAME, __LINE__, fmt, ##args); \
+            LogWrite(ThreadLogLevel::LOG_LEVEL_ERROR, (unsigned int)(errorCode), VOSFILENAME, __LINE__, fmt, ##args); \
             break; \
         } \
         HiLogWrite(RTLogLevel::RTLOG_ERROR, fmt, ##args); \
@@ -138,7 +138,7 @@ enum ThreadLogLevel {
 #define HILOG_FATAL(errorCode, fmt, args...) \
     do { \
         if (g_logEnable) { \
-            LogWrite(ThreadLogLevel::LOG_LEVEL_FATAL, (errorCode), VOSFILENAME, __LINE__, fmt, ##args); \
+            LogWrite(ThreadLogLevel::LOG_LEVEL_FATAL, (unsigned int)(errorCode), VOSFILENAME, __LINE__, fmt, ##args); \
             break; \
         } \
         HiLogWrite(RTLogLevel::RTLOG_FATAL, fmt, ##args); \

@@ -153,7 +153,7 @@ inline T* NewAndInit(A arg)
 // HeapManager must be initialized before HeapManager because of inherited properties of signal handlers.
 void CangjieRuntime::Init()
 {
-    PagePool::Instance().Init(param.heapParam.heapSize * KB / MRT_PAGE_SIZE);
+    PagePool::Instance().Init(static_cast<uint32_t>(param.heapParam.heapSize * KB / MRT_PAGE_SIZE));
 #ifdef CANGJIE_GWPASAN_SUPPORT
     // setup gwpasan before heap initialized
     MapleRuntime::Sanitizer::SetupGwpAsanAsNeeded();
@@ -231,8 +231,8 @@ void* CangjieRuntime::CreateSingleThreadScheduler()
     auto defaultParam = CangjieRuntime::GetConcurrencyParam();
     ScheduleAttr attr;
     ScheduleAttrInit(&attr);
-    ScheduleAttrThstackSizeSet(&attr, defaultParam.thStackSize * KB);
-    ScheduleAttrCostackSizeSet(&attr, defaultParam.coStackSize * KB);
+    ScheduleAttrThstackSizeSet(&attr, static_cast<uint32_t>(defaultParam.thStackSize * KB));
+    ScheduleAttrCostackSizeSet(&attr, static_cast<uint32_t>(defaultParam.coStackSize * KB));
     ScheduleAttrProcessorNumSet(&attr, 1);
     ScheduleAttrStackGrowSet(&attr, false);
     ScheduleAttrStackProtectSet(&attr, false);

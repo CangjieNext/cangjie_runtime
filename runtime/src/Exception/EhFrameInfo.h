@@ -117,14 +117,17 @@ public:
             if (offset != 0 && offset != 1) {
                 ++calleeCount;
             }
-            uint64_t* slotAddr = reinterpret_cast<uint64_t*>(calleeFrameAddress + SLOT_SIZE_FACTOR * offset);
+            uint64_t* slotAddr = reinterpret_cast<uint64_t*>(calleeFrameAddress +
+                static_cast<uintptr_t>(SLOT_SIZE_FACTOR * offset));
             context.SetValueByIdx(idx, *slotAddr);
 #endif // __APPLE__
 #elif defined(__arm__)
-            uint32_t* slotAddr = reinterpret_cast<uint32_t*>(calleeFrameAddress + SLOT_SIZE_FACTOR * offset);
+            uint32_t* slotAddr = reinterpret_cast<uint32_t*>(
+                calleeFrameAddress + static_cast<uintptr_t>(SLOT_SIZE_FACTOR * offset));
             context.SetValueByIdx(idx, *slotAddr);
 #else // not (_WIN64 || __aarch64__)
-            uint64_t* slotAddr = reinterpret_cast<uint64_t*>(calleeFrameAddress + SLOT_SIZE_FACTOR * offset);
+            uint64_t* slotAddr = reinterpret_cast<uint64_t*>(
+                calleeFrameAddress + static_cast<uintptr_t>(SLOT_SIZE_FACTOR * offset));
             context.SetValueByIdx(idx, *slotAddr);
 #endif
         }

@@ -54,26 +54,26 @@ inline bool MObject::IsSubType(TypeInfo& mClass) { return GetTypeInfo()->IsSubTy
 template<typename T>
 inline T MObject::Load(size_t offset) const
 {
-    Field<T>& field = GetField<T>(offset);
+    Field<T>& field = GetField<T>(static_cast<U32>(offset));
     return field.GetFieldValue();
 }
 
 template<typename T>
 inline void MObject::Store(size_t offset, T value)
 {
-    Field<T>& field = GetField<T>(offset);
+    Field<T>& field = GetField<T>(static_cast<U32>(offset));
     Heap::GetBarrier().WriteField(this, field, value);
 }
 
 inline MObject* MObject::LoadRef(size_t offset)
 {
-    RefField<>& ref = GetRefField<false>(offset);
+    RefField<>& ref = GetRefField<false>(static_cast<U32>(offset));
     return static_cast<MObject*>(Heap::GetBarrier().ReadReference(this, ref));
 }
 
 inline void MObject::StoreRef(size_t offset, MObject* value)
 {
-    RefField<>& ref = GetRefField<false>(offset);
+    RefField<>& ref = GetRefField<false>(static_cast<U32>(offset));
     Heap::GetBarrier().WriteReference(this, ref, value);
 }
 } // namespace MapleRuntime

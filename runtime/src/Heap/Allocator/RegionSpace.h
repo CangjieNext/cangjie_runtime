@@ -78,7 +78,7 @@ public:
     inline size_t GetTargetSize() const
     {
         double heapUtilization = CangjieRuntime::GetHeapParam().heapUtilization;
-        return static_cast<size_t>(GetUsedPageSize() / heapUtilization);
+        return static_cast<size_t>(static_cast<double>(GetUsedPageSize()) / heapUtilization);
     }
 
     size_t AllocatedBytes() const override { return regionManager.GetAllocatedSize(); }
@@ -119,7 +119,8 @@ public:
             // Release memory to OS only when it was not used since previous GC and is over heapUtilization threshold.
             // It is important for avoiding the case where before GC we request more memory from OS
             // then GC happens and releases memory, and then we need to request same memory from OS again.
-            size_t targetCachedSize = std::max<size_t>(dirtyHeapUsed, sizeAfter * cachedRatio);
+            size_t targetCachedSize = std::max<size_t>(
+                dirtyHeapUsed, static_cast<size_t>(static_cast<double>(sizeAfter) * cachedRatio));
             return regionManager.ReleaseGarbageRegions(targetCachedSize);
         }
     }

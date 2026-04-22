@@ -57,7 +57,7 @@ uint64_t EHTable::ReadULEB128(const uint8_t** data)
     const uint8_t* p = *data;
     do {
         byte = *p++;
-        value |= (byte & VALUE_MASK) << shift;
+        value |= static_cast<uint64_t>(byte & VALUE_MASK) << shift;
         shift += SHIFT_LENGTH;
     } while ((byte & BYTE_MAX_BIT) != 0);
     *data = p;

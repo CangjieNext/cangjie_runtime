@@ -90,7 +90,7 @@ constexpr U32 MODIFIER_ENUM_PARSED      = 0x1 << 23;
 constexpr U32 MODIFIER_REFLECT_VER_BIT1 = 0x1 << 28;
 constexpr U32 MODIFIER_REFLECT_VER_BIT2 = 0x1 << 29;
 constexpr U32 MODIFIER_REFLECT_VER_BIT3 = 0x1 << 30;
-constexpr U32 MODIFIER_INVALID     = 0x1 << 31;
+constexpr U32 MODIFIER_INVALID     = 0x1U << 31;
 } // namespace MapleRuntime
 
 #endif // MRT_FLAGS_H

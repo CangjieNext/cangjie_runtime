@@ -45,9 +45,10 @@ public:
         while (tryDirtyTree || tryReleasedTree) {
             // first try to get a dirty region.
             if (tryDirtyTree && dirtyUnitTreeMutex.try_lock()) {
-                if (dirtyUnitTree.TakeUnits(num, idx)) {
+                if (dirtyUnitTree.TakeUnits(static_cast<CartesianTree::Count>(num), idx)) {
                     DLOG(REGION, "c-tree %p alloc dirty units[%u+%u, %u) @[0x%zx, 0x%zx), %u dirty-units left",
-                        &dirtyUnitTree, idx, num, idx + num, RegionInfo::GetUnitAddress(idx),
+                        &dirtyUnitTree, idx, static_cast<Count>(num), idx + static_cast<Count>(num),
+                        RegionInfo::GetUnitAddress(idx),
                         RegionInfo::GetUnitAddress(idx + num), dirtyUnitTree.GetTotalCount());
 
                     // it makes sense to slow down allocation by clearing region memory.
@@ -62,13 +63,14 @@ public:
 
             // then try to get a released region.
             if (tryReleasedTree && releasedUnitTreeMutex.try_lock()) {
-                if (releasedUnitTree.TakeUnits(num, idx)) {
+                if (releasedUnitTree.TakeUnits(static_cast<CartesianTree::Count>(num), idx)) {
 #ifdef _WIN64
                     MemMap::CommitMemory(
                         reinterpret_cast<void*>(RegionInfo::GetUnitAddress(idx)), num * RegionInfo::UNIT_SIZE);
 #endif
                     DLOG(REGION, "c-tree %p alloc released units[%u+%u, %u) @[0x%zx, 0x%zx), %u released-units left",
-                        &releasedUnitTree, idx, num, idx + num, RegionInfo::GetUnitAddress(idx),
+                        &releasedUnitTree, idx, static_cast<Count>(num), idx + static_cast<Count>(num),
+                        RegionInfo::GetUnitAddress(idx),
                         RegionInfo::GetUnitAddress(idx + num), releasedUnitTree.GetTotalCount());
                     RegionInfo* region = RegionInfo::InitRegion(idx, num, uclass);
                     releasedUnitTreeMutex.unlock();

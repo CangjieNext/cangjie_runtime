@@ -9,6 +9,8 @@
 #define MRT_LIGHTQUEUE_H
 
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include "mid.h"
 #include "macro_def.h"
@@ -79,7 +81,7 @@ MRT_INLINE static void DulinkAdd(struct Dulink *item, struct Dulink *where)
  * @param  member           [IN]  Name of a node in a structure
  */
 #define DULINK_ENTRY(item, type, member) \
-    ((type *)((char *)(item) - (unsigned long long)(&((type *)0)->member)))
+    ((type *)((uintptr_t)(void *)(item) - offsetof(type, member)))
 
 /**
  * @brief Add to the end of the linked list
@@ -288,7 +290,7 @@ static inline void LinkPushTail(struct Link *linkTail, void *object)
  * @param  member       [IN]  Name of a node in a structure.
  */
 #define LINK_ENTRY(item, type, member) \
-    ((type *)((char *)(item) - (unsigned long long)(&((type *)0)->member)))
+    ((type *)((uintptr_t)(void *)(item) - offsetof(type, member)))
 
 
 /**
@@ -308,4 +310,3 @@ MRT_INLINE static bool LinkIsEmpty(struct Link *link)
 #endif
 
 #endif /* MRT_LIGHTQUEUE_H */
-

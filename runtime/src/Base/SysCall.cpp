@@ -27,7 +27,7 @@ namespace MapleRuntime {
 // only support FUTEX_WAIT/FUTEX_WAKE
 int Futex(const volatile int* uaddr, int op, int val)
 {
-    return syscall(SYS_futex, uaddr, op, val, nullptr, nullptr, 0);
+    return static_cast<int>(syscall(SYS_futex, uaddr, op, val, nullptr, nullptr, 0));
 }
 #endif
 
@@ -42,7 +42,7 @@ pid_t GetTid()
     pthread_threadid_np(nullptr, &tid);
     return static_cast<pid_t>(tid);
 #else
-    return syscall(SYS_gettid);
+    return static_cast<pid_t>(syscall(SYS_gettid));
 #endif
 }
 
@@ -53,7 +53,7 @@ int GetPid()
 #elif defined(_WIN64)
     return GetCurrentProcessId();
 #else
-    return syscall(SYS_getpid);
+    return static_cast<int>(syscall(SYS_getpid));
 #endif
 }
 } // namespace MapleRuntime

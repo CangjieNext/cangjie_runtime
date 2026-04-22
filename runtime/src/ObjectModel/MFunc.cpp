@@ -69,22 +69,23 @@ CString ULEBDecode(CString& bytes, Uptr offset)
     size_t p = 0;
     std::vector<uint8_t> tempCode;
     while (p < bytes.Length()) {
-        tempCode.push_back(bytes[p]);
+        tempCode.push_back(static_cast<uint8_t>(static_cast<unsigned char>(bytes[p])));
         if ((bytes[p] & 0x80) == 0) {
             uint64_t decode = ULEBDecodeSingleStr(tempCode);
             if (decode > dictTotalSize) {
                 LOG(RTLOG_ERROR, "invalid index in stringpool");
                 return result;
             }
-            U32 subDictIdx = (decode - 1) / strPoolDictSplitSize + 1;
+            U32 subDictIdx = static_cast<U32>((decode - 1) / strPoolDictSplitSize + 1);
             // 4: offset value size, 4 bytes
-            U32 subDictOffset = *(reinterpret_cast<const U32*>(offset + 4 * subDictIdx));
+            U32 subDictOffset = *reinterpret_cast<const U32*>(offset + 4 * static_cast<Uptr>(subDictIdx));
             // use a SLRU cache to save string loading time.
-            std::vector<CString> subDictionary = g_stringPoolDictsCache.Get(offset + subDictOffset);
+            std::vector<CString> subDictionary =
+                g_stringPoolDictsCache.Get(static_cast<uint32_t>(offset + subDictOffset));
             if (subDictionary.empty()) {
                 CString subDictStr = reinterpret_cast<const char*>(offset + subDictOffset);
                 subDictionary = CString::Split(subDictStr, ',');
-                g_stringPoolDictsCache.Put(offset + subDictOffset, subDictionary);
+                g_stringPoolDictsCache.Put(static_cast<uint32_t>(offset + subDictOffset), subDictionary);
             }
             CString singleStr = subDictionary[(decode - 1) % strPoolDictSplitSize];
             result += singleStr;
@@ -110,7 +111,7 @@ void Split(const char *str, uint64_t targetSeg,
     while (*p) {
         if (*p == ',') {
             if (index == targetSeg) {
-                size_t len = p - start;
+                size_t len = static_cast<size_t>(p - start);
                 segments.push_back({start, len});
                 totalLen += len;
                 found = true;
@@ -122,7 +123,7 @@ void Split(const char *str, uint64_t targetSeg,
         ++p;
     }
     if (!found && index == targetSeg) {
-        size_t len = p - start;
+        size_t len = static_cast<size_t>(p - start);
         segments.push_back({start, len});
         totalLen += len;
         found = true;
@@ -175,20 +176,20 @@ CString FastULEBDecode(CString &bytes, Uptr offset)
     // 50: reserve enough space to avoid reallocation
     segments.reserve(50);
     while (p < bytes.Length()) {
-        tempCode.push_back(bytes[p]);
+        tempCode.push_back(static_cast<uint8_t>(static_cast<unsigned char>(bytes[p])));
         // 0x80 means the the highest bit is valid, if not, the encoding is complete.
-        const char mask = 0x80;
+        constexpr uint8_t mask = 0x80U;
         if ((bytes[p] & mask) == 0) {
             uint64_t decode = ULEBDecodeSingleStr(tempCode);
             if (decode > dictTotalSize) {
                 LOG(RTLOG_ERROR, "invalid index in stringpool");
                 return Merge(segments, totalLen);
             }
-            U32 subDictIdx = (decode - 1) / strPoolDictSplitSize + 1;
+            U32 subDictIdx = static_cast<U32>((decode - 1) / strPoolDictSplitSize + 1);
             // 4: offset value size, 4 bytes
-            U32 subDictOffset = *(reinterpret_cast<const U32*>(offset + 4 * subDictIdx));
+            U32 subDictOffset = *reinterpret_cast<const U32*>(offset + 4 * static_cast<Uptr>(subDictIdx));
             const char *subDictStr = reinterpret_cast<const char *>(offset + subDictOffset);
-            Split(subDictStr, (decode - 1) % strPoolDictSplitSize, segments, totalLen);
+            Split(subDictStr, static_cast<uint64_t>((decode - 1) % strPoolDictSplitSize), segments, totalLen);
             tempCode.clear();
         }
         p++;

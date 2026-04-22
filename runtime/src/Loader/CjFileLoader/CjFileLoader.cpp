@@ -227,7 +227,7 @@ void CJFileLoader::RegisterTypeInfoCreatedByFE(BaseFile* baseFile)
 #if defined(__APPLE__)
         TypeInfo* ti = reinterpret_cast<TypeInfo*>(staticGIBase - offset);
 #else
-        TypeInfo* ti = reinterpret_cast<TypeInfo*>(staticGIBase + offset);
+        TypeInfo* ti = reinterpret_cast<TypeInfo*>(staticGIBase + static_cast<Uptr>(offset));
 #endif
         staticGIBase += sizeof(I32);
         staticGIs.push_back(ti);
@@ -249,7 +249,7 @@ void CJFileLoader::RegisterOuterTypeExtensions(BaseFile* baseFile)
 #ifdef __APPLE__
         ExtensionData* extensionData = reinterpret_cast<ExtensionData*>(extensionDataRefBase - offset);
 #else
-        ExtensionData* extensionData = reinterpret_cast<ExtensionData*>(extensionDataRefBase + offset);
+        ExtensionData* extensionData = reinterpret_cast<ExtensionData*>(extensionDataRefBase + static_cast<Uptr>(offset));
 #endif
         extensionDataRefBase += sizeof(I32);
         // for the extension of which target is a TypeInfo, since it cannot be used
@@ -332,7 +332,7 @@ TypeInfo* CJFileLoader::FindTypeInfoFromLoadedFiles(const char* typeInfoName)
     if (idx < 0) {
         pkgName = "std.core";
     } else {
-        pkgName = typeInfoNameStr.SubStr(0, idx);
+        pkgName = typeInfoNameStr.SubStr(0, static_cast<size_t>(idx));
     }
     auto pkgIt = packageInfos.find(pkgName.Str());
     if (pkgIt != packageInfos.end()) {
@@ -359,7 +359,7 @@ TypeTemplate* CJFileLoader::FindTypeTemplateFromLoadedFiles(const char* typeTemp
     if (idx < 0) {
         pkgName = "std.core";
     } else {
-        pkgName = typeTemplateNameStr.SubStr(0, idx);
+        pkgName = typeTemplateNameStr.SubStr(0, static_cast<size_t>(idx));
     }
     auto pkgIt = packageInfos.find(pkgName.Str());
     if (pkgIt != packageInfos.end()) {
@@ -543,7 +543,7 @@ U32 CJFileLoader::GetNumOfInterface(TypeInfo* ti)
 {
     std::vector<TypeInfo*> itfs;
     ti->GetInterfaces(itfs);
-    return itfs.size();
+    return static_cast<U32>(itfs.size());
 }
 
 TypeInfo* CJFileLoader::GetInterface(TypeInfo* ti, U32 idx)

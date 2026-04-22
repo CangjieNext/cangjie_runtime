@@ -21,13 +21,13 @@ inline bool GCRequest::IsFrequentGC() const
     if (minIntervelNs == 0) {
         return false;
     }
-    int64_t now = static_cast<int64_t>(TimeUtil::NanoSeconds());
+    uint64_t now = TimeUtil::NanoSeconds();
     return (now - prevRequestTime < minIntervelNs);
 }
 
 inline bool GCRequest::IsFrequentAsyncGC() const
 {
-    int64_t now = static_cast<int64_t>(TimeUtil::NanoSeconds());
+    uint64_t now = TimeUtil::NanoSeconds();
     return (now - GCStats::GetPrevGCFinishTime() < minIntervelNs);
 }
 

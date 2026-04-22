@@ -33,7 +33,7 @@ bool WCollector::MarkObject(BaseObject* obj) const
     size_t objectSize = obj->GetSize();
     bool marked = region->MarkObject(obj, objectSize);
     if (!marked) {
-        region->AddLiveByteCount(objectSize);
+        region->AddLiveByteCount(static_cast<uint32_t>(objectSize));
         (void)region;
         DLOG(TRACE, "mark obj %p<%p>(%zu) in region %p(%u)@%#zx, live %u", obj, obj->GetTypeInfo(), objectSize,
              region, region->GetRegionType(), region->GetRegionStart(), region->GetLiveByteCount());
@@ -45,7 +45,7 @@ bool WCollector::ResurrectObject(BaseObject* obj, size_t offset, RegionInfo* reg
 {
     bool resurrected = region->ResurrectObject(obj, offset);
         if (!resurrected) {
-            region->AddLiveByteCount(obj->GetSize());
+            region->AddLiveByteCount(static_cast<uint32_t>(obj->GetSize()));
             DLOG(TRACE, "resurrect region %p@%#zx obj %p<%p>(%zu), live bytes %u", region, region->GetRegionStart(),
                  obj, obj->GetTypeInfo(), obj->GetSize(), region->GetLiveByteCount());
         }
@@ -641,7 +641,8 @@ void WCollector::CollectSmallSpace()
     }
 
     size_t candidateBytes = stats.fromSpaceSize + stats.pinnedSpaceSize + stats.largeSpaceSize;
-    stats.garbageRatio = (candidateBytes > 0) ? static_cast<float>(stats.collectedBytes) / candidateBytes : 0;
+    stats.garbageRatio = (candidateBytes > 0) ?
+        static_cast<float>(stats.collectedBytes) / static_cast<float>(candidateBytes) : 0;
 
     stats.liveBytesAfterGC = space.AllocatedBytes();
 

@@ -25,8 +25,8 @@ class BaseFile;
 constexpr U8 BITS_FOR_REF = 1;
 constexpr U8 REF_BIT_MASK = 1;
 // for arm32: 1 << 31. for aarch64 or x86_64: 1 << 63.
-constexpr ArchUInt SIGN_BIT =  (ArchUInt)1 << (sizeof(void*) * 8 - 1);
-constexpr U16 INVALID_INHERIT_NUM = (1 << 15) - 1;
+constexpr ArchUInt SIGN_BIT = static_cast<ArchUInt>(1) << (sizeof(void*) * 8 - 1);
+constexpr U16 INVALID_INHERIT_NUM = (static_cast<U16>(1U) << 15) - 1U;
 
 extern const size_t TYPEINFO_PTR_SIZE;
 
@@ -243,7 +243,7 @@ struct ShortGCTib {
                                   MAddress rangeEnd) const
     {
         ArchUInt gcInfo = bitmap & (~SIGN_BIT);
-        U32 startPos = (rangeStart - baseAddr) / sizeof(RefField<>);
+        U32 startPos = static_cast<U32>((rangeStart - baseAddr) / sizeof(RefField<>));
         gcInfo >>= startPos;
 
         MAddress fieldAddr = rangeStart;
@@ -311,7 +311,7 @@ struct StdGCTib {
     {
         const U8* bitmaps = bitmapWords;
         size_t mapWordSize = (sizeof(RefField<>) * REFS_PER_BIT_WORD);
-        U32 startIndex = (rangeStart - contentAddr) / mapWordSize;
+        U32 startIndex = static_cast<U32>((rangeStart - contentAddr) / mapWordSize);
         // start address of fields.
         MAddress baseAddr = startIndex * mapWordSize + contentAddr;
         // for each bitmap word.
@@ -367,7 +367,7 @@ union GCTib {
 #ifdef __arm__
         rangeStart = ((rangeStart + 3) & (~3)); // 3: upper aligned to 4
 #else
-        rangeStart = ((rangeStart + 7) & (~7)); // 7: upper aligned to 8
+        rangeStart = ((rangeStart + static_cast<MAddress>(7)) & (~static_cast<MAddress>(7))); // 7: upper aligned to 8
 #endif
         if (rangeStart >= rangeEnd) {
             return;
@@ -625,7 +625,7 @@ public:
     inline TypeInfo** GetFieldTypes() const { return fields; }
     inline TypeInfo* GetFieldType(U16 idx) const;
     inline TypeInfo* GetComponentTypeInfo() const;
-    inline U16 GetTypeArgNum() const { return typeArgsNum; }
+    inline U16 GetTypeArgNum() const { return static_cast<U16>(typeArgsNum); }
     inline U32 GetFieldOffset(U16 idx) const { return fieldOffsets[idx]; }
     inline TypeInfo** GetTypeArgs() const { return typeArgs; }
     inline TypeTemplate* GetSourceGeneric() const;
@@ -674,7 +674,7 @@ public:
     // for generic
     void SetName(const char* name) { this->typeInfoName = name; }
     void SetType(I8 kindType) { this->type = kindType; }
-    void SetFlag(I8 f) { this->flag = f; }
+    void SetFlag(I8 f) { this->flag = static_cast<U8>(f); }
     void SetFieldNum(U16 num) { this->fieldNum = num; }
     void SetTypeArgNum(I8 num) { this->typeArgsNum = num; }
     void SetUUID(U32 id) { this->uuid = id; }
@@ -689,7 +689,7 @@ public:
     void SetInstanceSize(U32 size) { this->instanceSize = size; }
     void SetGCTib(GCTib gctib);
     void SetComponentTypeInfo(TypeInfo* ti) { this->componentTypeInfo = ti; }
-    void SetValidInheritNum(U16 num) { this->validInheritNum = num | (1 << 15); }
+    void SetValidInheritNum(U16 num) { this->validInheritNum = static_cast<U16>(num | (static_cast<U16>(1U) << 15)); }
     bool IsSubType(TypeInfo* superTypeInfo);
     void SetFlagHasRefField();
     void SetReflectInfo(ReflectInfo* info) { this->reflectInfo = info; }

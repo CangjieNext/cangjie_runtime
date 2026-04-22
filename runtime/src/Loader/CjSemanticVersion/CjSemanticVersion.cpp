@@ -68,7 +68,7 @@ bool CjSemanticVersion::IsCompatible(CString& binaryVersion)
 bool CjSemanticVersion::IsCorePackage(CString& packageName)
 {
     CString baseName = Os::Path::GetBaseName(packageName.Str());
-    return baseName.Find("cangjie-std-core") != -1;
+    return baseName.Find("cangjie-std-core") >= 0;
 }
 #endif
 
@@ -90,17 +90,17 @@ SemanticVersionInfo::SemanticVersionInfo(CString& version)
             LOG(RTLOG_ERROR, "The version %s is incorrect.", version.Str());
             return;
         }
-        coreVersion = version.SubStr(0, dashPos);
-        preRelease = version.SubStr(dashPos + 1, plusPos - dashPos - 1);
-        buildMetaData = version.SubStr(plusPos + 1);
+        coreVersion = version.SubStr(0, static_cast<size_t>(dashPos));
+        preRelease = version.SubStr(static_cast<size_t>(dashPos + 1), static_cast<size_t>(plusPos - dashPos - 1));
+        buildMetaData = version.SubStr(static_cast<size_t>(plusPos + 1));
     } else if (dashPos < 0 && plusPos < 0) {
         coreVersion = version;
     } else if (dashPos < 0) {
-        coreVersion = version.SubStr(0, plusPos);
-        buildMetaData = version.SubStr(plusPos + 1);
+        coreVersion = version.SubStr(0, static_cast<size_t>(plusPos));
+        buildMetaData = version.SubStr(static_cast<size_t>(plusPos + 1));
     } else {
-        coreVersion = version.SubStr(0, dashPos);
-        preRelease = version.SubStr(dashPos + 1);
+        coreVersion = version.SubStr(0, static_cast<size_t>(dashPos));
+        preRelease = version.SubStr(static_cast<size_t>(dashPos + 1));
     }
     auto tokens = CString::Split(coreVersion, '.');
     // 3: A normal version number MUST consists of three parts, MAJOR.MINOR.PATCH.

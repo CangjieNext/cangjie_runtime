@@ -135,8 +135,8 @@ void Logger::GetLogPath(const char* env, CString& logPath)
     char pathBuf[PATH_MAX + 1] = { 0x00 };
     if (pos != static_cast<int>(envPathLen - 1)) {
         // path ends with name (could be a directory or a file)
-        CString path = CString(envPath).SubStr(0, pos + 1);
-        CString name = CString(envPath).SubStr(pos + 1);
+        CString path = CString(envPath).SubStr(0, static_cast<size_t>(pos + 1));
+        CString name = CString(envPath).SubStr(static_cast<size_t>(pos + 1));
         if ((!name.IsEmpty()) && Os::Path::GetRealPath(path.Str(), pathBuf)) {
             logPath = CString(pathBuf);
             int separatorPos = logPath.RFind(separator);
@@ -358,7 +358,7 @@ void Logger::FormatLog(RTLogLevel level, bool notInSigHandler, const char* forma
 #endif
     va_list args;
     va_start(args, format);
-    int ret = vsprintf_s(buf + index, sizeof(buf) - index, format, args);
+    int ret = vsprintf_s(buf + index, sizeof(buf) - static_cast<size_t>(index), format, args);
     if (ret == -1) {
         char errMsg[ERROR_MSG_SIZE];
         int errMsgRet = sprintf_s(errMsg, ERROR_MSG_SIZE, "FormatLog vsprintf_s failed. msg: %s\n", strerror(errno));
@@ -393,15 +393,15 @@ void Logger::FormatLog(RTLogLevel level, bool notInSigHandler, const char* forma
         if (notInSigHandler) {
             err = fprintf(fd, "%s", buf);
         } else {
-            err = write(reinterpret_cast<uint64_t>(fd), buf, strlen(buf));
+            err = static_cast<int>(write(static_cast<int>(reinterpret_cast<intptr_t>(fd)), buf, strlen(buf)));
         }
-        if ((err - 1) != index) { // 1 = '\n'
+        if ((err - 1) != static_cast<int>(index)) { // 1 = '\n'
             char errMsg[ERROR_MSG_SIZE];
             PRINT_FATAL_IF(sprintf_s(errMsg, ERROR_MSG_SIZE, "FormatLog fprintf failed. msg: %s\n",
                 strerror(errno)) == -1, "FormatLog sprintf_s failed.\n");
             WriteStr(STDERR_FILENO, errMsg, notInSigHandler);
         } else {
-            curPosLocation += index;
+            curPosLocation += static_cast<size_t>(index);
             if (MaybeRotate(curPosLocation, maxFileSize, fd)) {
                 curPosLocation = 0;
             }

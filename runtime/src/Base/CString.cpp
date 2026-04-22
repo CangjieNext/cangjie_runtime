@@ -59,7 +59,7 @@ CString::CString(int32_t number)
     PRINT_FATAL_IF(str == nullptr, "CString::Init failed");
     int ret = sprintf_s(str, capacity, "%d", number);
     PRINT_FATAL_IF(ret == -1, "CString::Init failed");
-    length = ret;
+    length = static_cast<size_t>(ret);
 }
 
 CString::CString(int64_t number)
@@ -69,7 +69,7 @@ CString::CString(int64_t number)
     PRINT_FATAL_IF(str == nullptr, "CString::Init failed");
     int ret = sprintf_s(str, capacity, "%lld", number);
     PRINT_FATAL_IF(ret == -1, "CString::Init failed");
-    length = ret;
+    length = static_cast<size_t>(ret);
 }
 
 CString::CString(uint32_t number)
@@ -79,7 +79,7 @@ CString::CString(uint32_t number)
     PRINT_FATAL_IF(str == nullptr, "CString::Init failed");
     int ret = sprintf_s(str, capacity, "%u", number);
     PRINT_FATAL_IF(ret == -1, "CString::Init failed");
-    length = ret;
+    length = static_cast<size_t>(ret);
 }
 
 CString::CString(uint64_t number)
@@ -89,7 +89,7 @@ CString::CString(uint64_t number)
     PRINT_FATAL_IF(str == nullptr, "CString::Init failed");
     int ret = sprintf_s(str, capacity, "%lu", number);
     PRINT_FATAL_IF(ret == -1, "CString::Init failed");
-    length = ret;
+    length = static_cast<size_t>(ret);
 }
 
 CString::CString(const CString& other)
@@ -256,14 +256,14 @@ int CString::Find(const char* subStr, size_t begin) const
 {
     PRINT_ERROR_RETURN_IF(begin >= length, -1, "CString::Find input parameter error");
     char* ret = strstr(str + begin, subStr);
-    return ret != nullptr ? ret - str : -1;
+    return ret != nullptr ? static_cast<int>(ret - str) : -1;
 }
 
 int CString::Find(const char chr, size_t begin) const
 {
     PRINT_ERROR_RETURN_IF(begin >= length, -1, "CString::Find input parameter error");
     char* ret = strchr(str + begin, chr);
-    return ret != nullptr ? ret - str : -1;
+    return ret != nullptr ? static_cast<int>(ret - str) : -1;
 }
 
 int CString::RFind(const char* subStr) const
@@ -272,10 +272,10 @@ int CString::RFind(const char* subStr) const
     int ret = Find(subStr);
     while (ret != -1) {
         index = ret;
-        if (ret + strlen(subStr) == length) {
+        if (static_cast<size_t>(ret) + strlen(subStr) == length) {
             break;
         }
-        ret = Find(subStr, ret + strlen(subStr));
+        ret = Find(subStr, static_cast<size_t>(ret) + strlen(subStr));
     }
     return index;
 }
@@ -455,7 +455,7 @@ size_t CString::ParsePosNumFromEnv(const CString& env)
     size_t temp = 0;
     CString noBlankStr = env.RemoveBlankSpace();
     if (IsPosNumber(noBlankStr)) {
-        temp = std::atoi(noBlankStr.Str());
+        temp = static_cast<size_t>(std::atoi(noBlankStr.Str()));
     } else {
         return 0;
     }

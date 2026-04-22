@@ -15,8 +15,8 @@ TypeInfo* PackageInfo::GetTypeInfo(const char* name)
     while (self != nullptr) {
         for (U32 idx = 0; idx < self->GetNumOfTypeInfos(); ++idx) {
             Uptr baseAddr = self->GetBaseAddr();
-            TypeInfo** base = reinterpret_cast<TypeInfo**>(baseAddr);
-            TypeInfo* ti = *(base + idx);
+            TypeInfo** typeInfoBase = reinterpret_cast<TypeInfo**>(baseAddr);
+            TypeInfo* ti = *(typeInfoBase + idx);
             if (strcmp(name, ti->GetName()) == 0) {
                 return ti;
             }
@@ -32,9 +32,9 @@ TypeTemplate* PackageInfo::GetTypeTemplate(const char* name)
     while (self != nullptr) {
         Uptr baseAddr = self->GetBaseAddr();
         baseAddr += self->GetNumOfTypeInfos() * TYPEINFO_PTR_SIZE;
-        TypeTemplate** base = reinterpret_cast<TypeTemplate**>(baseAddr);
+        TypeTemplate** typeTemplateBase = reinterpret_cast<TypeTemplate**>(baseAddr);
         for (U32 idx = 0; idx < self->GetNumOfTypeTemplates(); ++idx) {
-            TypeTemplate* tt = *(base + idx);
+            TypeTemplate* tt = *(typeTemplateBase + idx);
             if (tt == nullptr) { continue; }
             if (strcmp(name, tt->GetName()) == 0) {
                 return tt;

@@ -256,7 +256,9 @@ private:
     static RTLogLevel logLevel;
 };
 
-#define MRT_PHASE_TIMER(...) Timer MRT_pt_##__LINE__(__VA_ARGS__)
+#define MRT_CONCAT_INNER(a, b) a##b
+#define MRT_CONCAT(a, b) MRT_CONCAT_INNER(a, b)
+#define MRT_PHASE_TIMER(...) Timer MRT_CONCAT(MRT_pt_, __LINE__)(__VA_ARGS__)
 
 class Timer {
 public:

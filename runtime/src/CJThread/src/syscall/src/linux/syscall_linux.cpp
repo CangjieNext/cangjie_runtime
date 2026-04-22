@@ -20,7 +20,7 @@ int SyscallReadv(int fileds, const struct iovec *iov, int iovcnt)
 {
     int res;
     SyscallEnter();
-    res = readv(fileds, iov, iovcnt);
+    res = static_cast<int>(readv(fileds, iov, iovcnt));
     SyscallExit();
     return res;
 }
@@ -29,7 +29,7 @@ int SyscallWritev(int fileds, const struct iovec *iov, int iovcnt)
 {
     int res;
     SyscallEnter();
-    res = writev(fileds, iov, iovcnt);
+    res = static_cast<int>(writev(fileds, iov, iovcnt));
     SyscallExit();
     return res;
 }
@@ -89,7 +89,7 @@ int SyscallRecv(int sockfd, void *buf, size_t len, int flags)
 {
     int res;
     SyscallEnter();
-    res = recv(sockfd, buf, len, flags);
+    res = static_cast<int>(recv(sockfd, buf, len, flags));
     SyscallExit();
     return res;
 }
@@ -99,7 +99,7 @@ int SyscallRecvfrom(int sockfd, void *buf, size_t len, int flags,
 {
     int res;
     SyscallEnter();
-    res = recvfrom(sockfd, buf, len, flags, srcAddr, addrlen);
+    res = static_cast<int>(recvfrom(sockfd, buf, len, flags, srcAddr, addrlen));
     SyscallExit();
     return res;
 }
@@ -108,7 +108,7 @@ int SyscallRecvmsg(int sockfd, struct msghdr *msg, int flags)
 {
     int res;
     SyscallEnter();
-    res = recvmsg(sockfd, msg, flags);
+    res = static_cast<int>(recvmsg(sockfd, msg, flags));
     SyscallExit();
     return res;
 }
@@ -117,7 +117,7 @@ int SyscallSend(int sockfd, const void *buf, size_t len, int flags)
 {
     int res;
     SyscallEnter();
-    res = send(sockfd, buf, len, flags);
+    res = static_cast<int>(send(sockfd, buf, len, flags));
     SyscallExit();
     return res;
 }
@@ -127,7 +127,7 @@ int SyscallSendto(int sockfd, const void *buf, size_t len, int flags,
 {
     int res;
     SyscallEnter();
-    res = sendto(sockfd, buf, len, flags, destAddr, addrlen);
+    res = static_cast<int>(sendto(sockfd, buf, len, flags, destAddr, addrlen));
     SyscallExit();
     return res;
 }
@@ -136,7 +136,7 @@ int SyscallSendmsg(int sockfd, const struct msghdr *msg, int flags)
 {
     int res;
     SyscallEnter();
-    res = sendmsg(sockfd, msg, flags);
+    res = static_cast<int>(sendmsg(sockfd, msg, flags));
     SyscallExit();
     return res;
 }

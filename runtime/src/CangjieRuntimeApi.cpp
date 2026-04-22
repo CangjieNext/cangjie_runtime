@@ -484,7 +484,7 @@ CJThreadHandle RunCJTaskImpl(const CJTaskFunc func, void* args, int num = 0, CJT
 #if defined(GENERAL_ASAN_SUPPORT_INTERFACE)
         MapleRuntime::Sanitizer::AsanRead(data, sizeof(CJThreadSpecificDataInner));
 #endif
-        if (CJThreadAttrSpecificSet(&attr, num, data) != 0) {
+        if (CJThreadAttrSpecificSet(&attr, static_cast<unsigned int>(num), data) != 0) {
             LOG(RTLOG_ERROR, "failed to set cjthread specific, please check your input num.\n");
             return nullptr;
         }
@@ -563,7 +563,8 @@ SemiCJThreadHandle CreateCJThread(const CJTaskFunc func, void *arg, struct CJThr
 
     CJThreadAttr attr;
     CJThreadAttrInit(&attr);
-    if (data != nullptr && CJThreadAttrSpecificSet(&attr, num, (CJThreadSpecificDataInner*)data) != 0) {
+    if (data != nullptr && CJThreadAttrSpecificSet(&attr, static_cast<unsigned int>(num),
+        (CJThreadSpecificDataInner*)data) != 0) {
         LOG(RTLOG_ERROR, "failed to set CJThreadSpecificData, check in-arg num.\n");
         return nullptr;
     }
@@ -723,11 +724,11 @@ char* CJ_MRT_DemangleHandle(const char* functionName)
     MapleRuntime::MangleNameHelper helper(functionName);
     helper.Demangle();
     MapleRuntime::CString methodname = helper.GetDemangleName();
-    int32_t len = strlen(methodname.GetStr());
+    size_t len = strlen(methodname.GetStr());
     // demangleName should be freed by caller.
     char* demangleName = reinterpret_cast<char*>(malloc(len + 1));
     if (demangleName == nullptr) {
-        LOG(RTLOG_ERROR, "malloc demangleName failed, size is %d", len + 1);
+        LOG(RTLOG_ERROR, "malloc demangleName failed, size is %zu", len + 1);
         return nullptr;
     }
     int32_t ret = strcpy_s(demangleName, len + 1, methodname.GetStr());

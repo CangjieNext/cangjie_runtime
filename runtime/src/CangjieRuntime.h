@@ -49,12 +49,14 @@ public:
     RuntimeParam GetRuntimeParam() const override { return param; }
     void SetCommandLinesArgs(int argc, const char* argv[])
     {
-        commandLineArgs = new const char* [argc + 1]();
+        size_t argCount = static_cast<size_t>(argc);
+        commandLineArgs = new const char* [argCount + 1U]();
         size_t cstrLen = 0;
         for (int i = 0; i < argc; ++i) {
             cstrLen = strlen(argv[i]) + 1;
-            commandLineArgs[i] = new const char[cstrLen]();
-            CHECK_E(memcpy_s(const_cast<char*>(commandLineArgs[i]), cstrLen, argv[i], cstrLen) != EOK, "memcpy_s fail");
+            commandLineArgs[static_cast<size_t>(i)] = new const char[cstrLen]();
+            CHECK_E(memcpy_s(const_cast<char*>(commandLineArgs[static_cast<size_t>(i)]),
+                             cstrLen, argv[i], cstrLen) != EOK, "memcpy_s fail");
         }
     }
 

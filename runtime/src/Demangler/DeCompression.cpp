@@ -73,10 +73,10 @@ inline size_t GetNumber(T base62)
     long long decimal = 0;
     long long power = 1;
     for (size_t i = newBase62.Length() - 1; i != NPOS; i--) {
-        decimal += base62Chars.at(newBase62[i]) * power;
+        decimal += static_cast<unsigned long long>(base62Chars.at(newBase62[i])) * static_cast<unsigned long long>(power);
         power *= n;
     }
-    return decimal + 1;
+    return static_cast<size_t>(decimal + 1);
 }
 
 template<typename T>
@@ -295,7 +295,7 @@ inline size_t ForwardFileNameNumber(T& mangled, size_t idx)
         curIdx++;
     }
     if (isValid) {
-        for (int i = idx; i <= static_cast<int>(curIdx); i++) {
+        for (size_t i = idx; i <= curIdx; i++) {
             if (!isalnum(mangled[i])) {
                 return idx;
             }
@@ -521,7 +521,7 @@ size_t DeCompression<T>::ForwardName(T& mangled, size_t idx)
     while (idx < mangled.Length() && isdigit(mangled[idx + numberLen])) {
         numberLen++;
     }
-    size_t number = atoi(mangled.SubStr(idx, numberLen).Str());
+    size_t number = static_cast<size_t>(atoi(mangled.SubStr(idx, numberLen).Str()));
     return idx + numberLen + number;
 }
 
@@ -537,7 +537,7 @@ void DeCompression<T>::TreeIdMapPop(size_t& from, size_t to)
 template<typename T>
 T DeCompression<T>::TreeIdMapErase(T& mangled, size_t& cnt, size_t eid, size_t sid)
 {
-    treeIdMap.erase(treeIdMap.begin() + eid);
+    treeIdMap.erase(treeIdMap.begin() + static_cast<std::ptrdiff_t>(eid));
     UpdateCompressedName(mangled, sid, mangled.Length());
     cnt--;
     return mangled;
@@ -678,7 +678,7 @@ bool DeCompression<T>::IsCompressed(T& mangled)
         return false;
     }
     size_t pos = 0;
-    while ((pos = mangled.Find(MANGLE_COMPRESS_PREFIX, pos)) != NPOS) {
+    while ((pos = static_cast<size_t>(mangled.Find(MANGLE_COMPRESS_PREFIX, pos))) != NPOS) {
         size_t nextIdx = ForwardNumber(mangled, pos + MANGLE_CHAR_LEN);
         if (nextIdx != pos + MANGLE_CHAR_LEN) {
             return true;
@@ -989,8 +989,8 @@ size_t DeCompression<T>::TryNamePrefixPath(T& mangled, size_t& count, T& curMang
             }
             nextIdx = nextIdx == nameIdx + 1 ? nameIdx : nextIdx;
         } else if (mangled[nextIdx] == MANGLE_GENERIC_PREFIX) {
-            std::tuple<size_t, size_t, size_t> rParams{idx, entityId, nextIdx};
-            nextIdx = TryGenericPrefixPath(mangled, count, curMangled, rParams);
+            std::tuple<size_t, size_t, size_t> genericParams{idx, entityId, nextIdx};
+            nextIdx = TryGenericPrefixPath(mangled, count, curMangled, genericParams);
         } else if (mangled[nextIdx] == MANGLE_FUNCTION_PREFIX) {
             nextIdx = ForwardTypes(mangled, count, nameIdx + MANGLE_CHAR_LEN);
             if (nextIdx < mangled.Length() && mangled[nextIdx] == END) {

@@ -227,9 +227,10 @@ void TraceFlush(struct TraceBuf **traceBuf, unsigned int processorId, bool batch
 }
 
 bool TraceCheckEvSizeAndFlush(struct TraceBuf **traceBuf, unsigned int processorId,
-                              unsigned int eventMaxSize, bool batchFlag)
+                              size_t eventMaxSize, bool batchFlag)
 {
-    if (*traceBuf == nullptr || sizeof((*traceBuf)->arr) - ((*traceBuf)->header.pos) < eventMaxSize) {
+    if (*traceBuf == nullptr ||
+        sizeof((*traceBuf)->arr) - static_cast<size_t>((*traceBuf)->header.pos) < eventMaxSize) {
         TraceFlush(traceBuf, processorId, batchFlag);
         if (*traceBuf == nullptr && processorId == 0) {
             /* get buflock in TraceBufAquire */
@@ -527,9 +528,9 @@ bool TraceRecordStackEvent(unsigned long long stackId, int skip, void *mutator)
     }
 
     TraceByte(*traceBuf, static_cast<unsigned char>(TRACE_EV_STACK & TRACE_EFFECTIVE_EVENT));
-    TraceByte(*traceBuf, evBaseArgNum + TRACE_STACK_ARG_NUM * stackSize);
+    TraceByte(*traceBuf, static_cast<unsigned char>(evBaseArgNum + TRACE_STACK_ARG_NUM * stackSize));
     TraceUint64(*traceBuf, stackId);
-    TraceByte(*traceBuf, stackSize);
+    TraceByte(*traceBuf, static_cast<unsigned char>(stackSize));
     for (int i = 0; i < stackSize; i++) {
         TraceUint64(*traceBuf, framePcs[i]);
         TraceUint64(*traceBuf, funcNameStringIds[i]);
@@ -555,11 +556,11 @@ bool TraceRecordSpecialStackEvent(unsigned long long stackId, const char* funcSt
     }
 
     TraceByte(*traceBuf, static_cast<unsigned char>(TRACE_EV_STACK & TRACE_EFFECTIVE_EVENT));
-    TraceByte(*traceBuf, evArgNum + TRACE_STACK_ARG_NUM * 1);
+    TraceByte(*traceBuf, static_cast<unsigned char>(evArgNum + TRACE_STACK_ARG_NUM * 1));
     TraceUint64(*traceBuf, stackId);
-    TraceByte(*traceBuf, 1);
+    TraceByte(*traceBuf, static_cast<unsigned char>(1));
 
-    TraceByte(*traceBuf, 0);
+    TraceByte(*traceBuf, static_cast<unsigned char>(0));
     TraceUint64(*traceBuf, fucStringId);
     TraceUint64(*traceBuf, 1);
     TraceUint64(*traceBuf, 0);
@@ -598,7 +599,7 @@ unsigned long long TraceRecordStringEvent(const char* str)
     TraceUint64(*traceBuf, stringId);
     TraceUint64(*traceBuf, len);
     for (size_t i = 0; i < len; i++) {
-        TraceByte(*traceBuf, str[i]);
+        TraceByte(*traceBuf, static_cast<unsigned char>(str[i]));
     }
     TraceBufRelease();
     atomic_fetch_sub(&g_scheduleManager.trace.eventCount, 1);

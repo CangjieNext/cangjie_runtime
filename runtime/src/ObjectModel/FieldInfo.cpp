@@ -15,7 +15,7 @@
 #include "ObjectManager.inline.h"
 namespace MapleRuntime {
 
-U32 InstanceFieldInfo::GetModifier() const { return modifier; }
+U32 InstanceFieldInfo::GetModifier() const { return static_cast<U32>(modifier); }
 
 const char* InstanceFieldInfo::GetName(TypeInfo* declaringTypeInfo) const
 {
@@ -24,7 +24,7 @@ const char* InstanceFieldInfo::GetName(TypeInfo* declaringTypeInfo) const
     U32 idx = fieldIdx;
     TypeInfo* superTi = declaringTypeInfo->GetSuperTypeInfo();
     if (superTi != nullptr) {
-        idx = fieldIdx - superTi->GetFieldNum();
+        idx = static_cast<U32>(fieldIdx - superTi->GetFieldNum());
     }
     return reflectInfo->GetFieldName(idx);
 }
@@ -32,13 +32,13 @@ const char* InstanceFieldInfo::GetName(TypeInfo* declaringTypeInfo) const
 inline U32 InstanceFieldInfo::GetOffset(TypeInfo* declaringTypeInfo) const
 {
     CHECK(!(fieldIdx > declaringTypeInfo->GetFieldNum()));
-    return declaringTypeInfo->GetFieldOffset(fieldIdx);
+    return static_cast<U32>(declaringTypeInfo->GetFieldOffset(static_cast<U16>(fieldIdx)));
 }
 
 TypeInfo* InstanceFieldInfo::GetFieldType(TypeInfo* declaringTypeInfo)
 {
     CHECK(!(fieldIdx > declaringTypeInfo->GetFieldNum()));
-    return declaringTypeInfo->GetFieldType(fieldIdx);
+    return declaringTypeInfo->GetFieldType(static_cast<U16>(fieldIdx));
 }
 
 void* InstanceFieldInfo::GetValue(TypeInfo* declaringTi, ObjRef instanceObj)
@@ -48,9 +48,9 @@ void* InstanceFieldInfo::GetValue(TypeInfo* declaringTi, ObjRef instanceObj)
     TypeInfo* fieldTi = GetFieldType(declaringTi);
     if (fieldTi->IsRef()) {
         return Heap::GetBarrier().ReadReference(instanceObj,
-            instanceObj->GetRefField(GetOffset(declaringTi) + TYPEINFO_PTR_SIZE));
+            instanceObj->GetRefField(static_cast<U32>(GetOffset(declaringTi) + TYPEINFO_PTR_SIZE)));
     } else if (fieldTi->IsStruct() || fieldTi->IsTuple() || fieldTi->IsEnum()) {
-        MSize size = MRT_ALIGN(fieldTi->GetInstanceSize() + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+        MSize size = static_cast<MSize>(MRT_ALIGN(fieldTi->GetInstanceSize() + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE));
         MSize fieldSize = fieldTi->GetInstanceSize();
         MObject* obj = ObjectManager::NewObject(fieldTi, size);
         if (fieldSize == 0) {
@@ -63,7 +63,7 @@ void* InstanceFieldInfo::GetValue(TypeInfo* declaringTi, ObjRef instanceObj)
         free(tmp);
         return obj;
     } else if (fieldTi->IsPrimitiveType()) {
-        MSize size = MRT_ALIGN(fieldTi->GetInstanceSize() + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+        MSize size = static_cast<MSize>(MRT_ALIGN(fieldTi->GetInstanceSize() + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE));
         MObject* obj = ObjectManager::NewObject(fieldTi, size);
         if (memcpy_s(reinterpret_cast<void*>(reinterpret_cast<Uptr>(obj) + TYPEINFO_PTR_SIZE),
                      fieldTi->GetInstanceSize(),
@@ -75,8 +75,8 @@ void* InstanceFieldInfo::GetValue(TypeInfo* declaringTi, ObjRef instanceObj)
     } else if (fieldTi->IsVArray()) {
         // VArray is only used to store value types,
         // so we can copy the memory directly
-        MSize vArraySize = fieldTi->GetFieldNum() * fieldTi->GetComponentTypeInfo()->GetInstanceSize();
-        MSize size = MRT_ALIGN(vArraySize + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+        MSize vArraySize = static_cast<MSize>(fieldTi->GetFieldNum() * fieldTi->GetComponentTypeInfo()->GetInstanceSize());
+        MSize size = static_cast<MSize>(MRT_ALIGN(vArraySize + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE));
         MObject* obj = ObjectManager::NewObject(fieldTi, size);
         if (memcpy_s(reinterpret_cast<void*>(reinterpret_cast<Uptr>(obj) + TYPEINFO_PTR_SIZE), vArraySize,
                      reinterpret_cast<void*>(fieldAddr), vArraySize) != EOK) {
@@ -95,7 +95,7 @@ void InstanceFieldInfo::SetValue(TypeInfo* declaringTypeInfo, ObjRef instanceObj
     Uptr fieldAddr = reinterpret_cast<Uptr>(instanceObj) + TYPEINFO_PTR_SIZE + GetOffset(declaringTypeInfo);
     if (fieldTi->IsRef()) {
         Heap::GetBarrier().WriteReference(instanceObj,
-            instanceObj->GetRefField(TYPEINFO_PTR_SIZE + GetOffset(declaringTypeInfo)), newValue);
+            instanceObj->GetRefField(static_cast<U32>(TYPEINFO_PTR_SIZE + GetOffset(declaringTypeInfo))), newValue);
     } else if (fieldTi->IsStruct() || fieldTi->IsTuple() || fieldTi->IsEnum()) {
         MSize fieldSize = fieldTi->GetInstanceSize();
         if (fieldSize == 0) {
@@ -131,7 +131,7 @@ void* InstanceFieldInfo::GetAnnotations(TypeInfo* arrayTi)
 {
     CHECK_DETAIL(arrayTi != nullptr, "arrayTi is nullptr");
     U32 size = arrayTi->GetInstanceSize();
-    MSize objSize = MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+    MSize objSize = static_cast<MSize>(MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE));
     MObject* obj = ObjectManager::NewObject(arrayTi, objSize, AllocType::RAW_POINTER_OBJECT);
     if (obj == nullptr) {
         ExceptionManager::OutOfMemory();
@@ -166,7 +166,7 @@ void* StaticFieldInfo::GetValue()
         RefField<false>* refField = reinterpret_cast<RefField<false>*>(addr);
         return Heap::GetBarrier().ReadStaticRef(*refField);
     } else if (fieldTi->IsStruct() || fieldTi->IsTuple() || fieldTi->IsEnum()) {
-        MSize size = MRT_ALIGN(fieldTi->GetInstanceSize() + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+        MSize size = static_cast<MSize>(MRT_ALIGN(fieldTi->GetInstanceSize() + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE));
         MSize fieldSize = fieldTi->GetInstanceSize();
         MObject* obj = ObjectManager::NewObject(fieldTi, size);
         if (fieldSize == 0) {
@@ -176,7 +176,7 @@ void* StaticFieldInfo::GetValue()
             fieldSize, addr, fieldSize);
         return obj;
     } else if (fieldTi->IsPrimitiveType()) {
-        MSize size = MRT_ALIGN(fieldTi->GetInstanceSize() + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+        MSize size = static_cast<MSize>(MRT_ALIGN(fieldTi->GetInstanceSize() + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE));
         MObject* obj = ObjectManager::NewObject(fieldTi, size);
         if (memcpy_s(reinterpret_cast<void*>(reinterpret_cast<Uptr>(obj) + TYPEINFO_PTR_SIZE),
                      fieldTi->GetInstanceSize(),
@@ -188,8 +188,8 @@ void* StaticFieldInfo::GetValue()
     } else if (fieldTi->IsVArray()) {
         // VArray is only used to store value types,
         // so we can copy the memory directly
-        MSize vArraySize = fieldTi->GetFieldNum() * fieldTi->GetComponentTypeInfo()->GetInstanceSize();
-        MSize size = MRT_ALIGN(fieldTi->GetInstanceSize() + vArraySize, TYPEINFO_PTR_SIZE);
+        MSize vArraySize = static_cast<MSize>(fieldTi->GetFieldNum() * fieldTi->GetComponentTypeInfo()->GetInstanceSize());
+        MSize size = static_cast<MSize>(MRT_ALIGN(fieldTi->GetInstanceSize() + vArraySize, TYPEINFO_PTR_SIZE));
         MObject* obj = ObjectManager::NewObject(fieldTi, size);
         if (memcpy_s(reinterpret_cast<void*>(reinterpret_cast<Uptr>(obj) + TYPEINFO_PTR_SIZE), vArraySize,
                      reinterpret_cast<void*>(addr), vArraySize) != EOK) {
@@ -239,7 +239,7 @@ void* StaticFieldInfo::GetAnnotations(TypeInfo* arrayTi)
 {
     CHECK_DETAIL(arrayTi != nullptr, "arrayTi is nullptr");
     U32 size = arrayTi->GetInstanceSize();
-    MSize objSize = MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+    MSize objSize = static_cast<MSize>(MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE));
     MObject* obj = ObjectManager::NewObject(arrayTi, objSize, AllocType::RAW_POINTER_OBJECT);
     if (obj == nullptr) {
         ExceptionManager::OutOfMemory();
@@ -342,13 +342,13 @@ void SetFieldFromArgs(ObjRef obj, TypeInfo* ti, void* args)
 
     for (U64 idx = 0; idx < argCnt; ++idx) {
         ObjRef argObj = static_cast<ObjRef>(Heap::GetBarrier().ReadReference(rawArray, *refField));
-        TypeInfo* argType = ti->GetFieldType(idx);
-        U32 offset = ti->GetFieldOffset(idx);
+        TypeInfo* argType = ti->GetFieldType(static_cast<U16>(idx));
+        U32 offset = static_cast<U32>(ti->GetFieldOffset(static_cast<U16>(idx)));
 
         if ((ti->IsEnum() || ti->IsTempEnum()) && !ti->IsZeroSizedEnum()) {
             // For enum and temp enum, skip the first element (the tag).
-            argType = ti->GetFieldType(idx + 1);
-            offset = ti->GetFieldOffset(idx + 1);
+            argType = ti->GetFieldType(static_cast<U16>(idx + 1));
+            offset = static_cast<U32>(ti->GetFieldOffset(static_cast<U16>(idx + 1)));
         }
 
         Uptr argAddr = reinterpret_cast<Uptr>(obj) + TYPEINFO_PTR_SIZE + offset;
@@ -404,14 +404,14 @@ ObjRef CreateEnumObject(TypeInfo* ti, MSize size)
 
 void SetElementFromObject(ArrayRef array, ObjRef obj, TypeInfo* ti, U16 fieldNum)
 {
-    for (int idx = 0; idx < fieldNum; idx++) {
+    for (U16 idx = 0; idx < fieldNum; idx++) {
         TypeInfo* fieldTi = ti->GetFieldType(idx);
         U32 offset = ti->GetFieldOffset(idx);
 
         // For enum and temp enum, skip the first element (the tag)
         if ((ti->IsEnum() || ti->IsTempEnum()) && !ti->IsZeroSizedEnum()) {
-            fieldTi = ti->GetFieldType(idx + 1);
-            offset = ti->GetFieldOffset(idx + 1);
+            fieldTi = ti->GetFieldType(static_cast<U16>(idx + 1));
+            offset = ti->GetFieldOffset(static_cast<U16>(idx + 1));
         }
 
         BaseObject* fieldObj = FieldToAny(obj, fieldTi, offset);
@@ -428,7 +428,7 @@ BaseObject* FieldToAny(ObjRef obj, TypeInfo* fieldTi, U32 offset)
 {
     Uptr fieldAddr = reinterpret_cast<Uptr>(obj) + TYPEINFO_PTR_SIZE + offset;
     if (fieldTi->IsRef()) {
-        return Heap::GetBarrier().ReadReference(obj, obj->GetRefField(offset + TYPEINFO_PTR_SIZE));
+        return Heap::GetBarrier().ReadReference(obj, obj->GetRefField(static_cast<U32>(offset + TYPEINFO_PTR_SIZE)));
     } else if (fieldTi->IsStruct() || fieldTi->IsTuple() || fieldTi->IsEnum()) {
         return StructLikeToAny(obj, fieldTi, fieldAddr);
     } else if (fieldTi->IsPrimitiveType()) {
@@ -444,7 +444,7 @@ BaseObject* FieldToAny(ObjRef obj, TypeInfo* fieldTi, U32 offset)
 BaseObject* StructLikeToAny(ObjRef obj, TypeInfo* fieldTi, Uptr fieldAddr)
 {
     MSize fieldSize = fieldTi->GetInstanceSize();
-    MSize size = MRT_ALIGN(fieldSize + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+    MSize size = static_cast<MSize>(MRT_ALIGN(fieldSize + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE));
     BaseObject* fieldObj = ObjectManager::NewObject(fieldTi, size, AllocType::RAW_POINTER_OBJECT);
 
     if (fieldSize == 0) {
@@ -467,7 +467,7 @@ BaseObject* StructLikeToAny(ObjRef obj, TypeInfo* fieldTi, Uptr fieldAddr)
 
 BaseObject* PrimitiveToAny(TypeInfo* fieldTi, Uptr fieldAddr)
 {
-    MSize size = MRT_ALIGN(fieldTi->GetInstanceSize() + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+    MSize size = static_cast<MSize>(MRT_ALIGN(fieldTi->GetInstanceSize() + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE));
     BaseObject* fieldObj = ObjectManager::NewObject(fieldTi, size, AllocType::RAW_POINTER_OBJECT);
     if (fieldTi->GetInstanceSize() == 0) {
         return fieldObj;
@@ -485,8 +485,8 @@ BaseObject* PrimitiveToAny(TypeInfo* fieldTi, Uptr fieldAddr)
 BaseObject* VArrayToAny(TypeInfo* fieldTi, Uptr fieldAddr)
 {
     // VArray is only used to store value types, so we can copy the memory directly
-    MSize vArraySize = fieldTi->GetFieldNum() * fieldTi->GetComponentTypeInfo()->GetInstanceSize();
-    MSize size = MRT_ALIGN(vArraySize + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+    MSize vArraySize = static_cast<MSize>(fieldTi->GetFieldNum() * fieldTi->GetComponentTypeInfo()->GetInstanceSize());
+    MSize size = static_cast<MSize>(MRT_ALIGN(vArraySize + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE));
     BaseObject* fieldObj = ObjectManager::NewObject(fieldTi, size, AllocType::RAW_POINTER_OBJECT);
     if (vArraySize == 0) {
         return fieldObj;

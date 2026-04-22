@@ -90,7 +90,7 @@ int NetpollCreateImpl(struct NetpollMetaData *metaData)
 {
     metaData->epfd = g_epollRegister.epoll.createFn(EPOLL_CAPACITY);
     if (metaData->epfd == -1) {
-        LOG_ERROR(errno, "epoll create failed");
+        LOG_ERROR(static_cast<unsigned int>(errno), "epoll create failed");
         return errno;
     }
     return 0;
@@ -139,7 +139,7 @@ int NetpollAdd(NetpollFd npfd, int fd, void *data, unsigned int events)
     ret = g_epollRegister.epoll.ctlFn(meta->epfd, EPOLL_CTL_ADD, fd, &event);
     if (ret != 0) {
         ret = errno;
-        LOG_ERROR(ret, "netpoll add failed, epfd: %d, fd: %d", meta->epfd, fd);
+        LOG_ERROR(static_cast<unsigned int>(ret), "netpoll add failed, epfd: %d, fd: %d", meta->epfd, fd);
         return ret;
     }
     return 0;
@@ -160,7 +160,7 @@ int NetpollDel(NetpollFd npfd, int fd)
     ret = g_epollRegister.epoll.ctlFn(meta->epfd, EPOLL_CTL_DEL, fd, &event);
     if (ret != 0) {
         ret = errno;
-        LOG_ERROR(ret, "netpoll del failed, epfd: %d, fd: %d", meta->epfd, fd);
+        LOG_ERROR(static_cast<unsigned int>(ret), "netpoll del failed, epfd: %d, fd: %d", meta->epfd, fd);
         return ret;
     }
     return 0;
@@ -182,7 +182,8 @@ int NetpollWait(NetpollFd npfd, struct epoll_event *events, int maxevents, int t
     } while (eventsNum == -1 && errno == EINTR);
 
     if (eventsNum == -1) {
-        LOG_ERROR(errno, "netpoll wait failed, epfd: %d, maxevents: %d", meta->epfd, maxevents);
+        LOG_ERROR(static_cast<unsigned int>(errno), "netpoll wait failed, epfd: %d, maxevents: %d",
+            meta->epfd, maxevents);
     }
     return eventsNum;
 }

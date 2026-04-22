@@ -79,13 +79,13 @@ struct RegionBitmap {
             return isMarked;
         }
         size_t markWordSize = regionSize / (kMarkedBytesPerBit * kBitsPerWord);
-        uint8_t calFactor = factor > markWordSize ? markWordSize : factor;
+        uint8_t calFactor = static_cast<uint8_t>(factor > markWordSize ? markWordSize : static_cast<size_t>(factor));
         if (markWordSize % calFactor) {
             // The markWordSize needs to be rounded up to ensure it is divisible by calFactor.
             markWordSize = markWordSize + calFactor - markWordSize % calFactor;
         }
         partLiveBytes[maskInfo.headWordIdx / (markWordSize / calFactor)].fetch_add(
-            __builtin_popcountll(maskInfo.headMaskBits));
+            static_cast<uint16_t>(__builtin_popcountll(maskInfo.headMaskBits)));
         liveBytes.fetch_add(byteCnt);
 
         if (maskInfo.tailWordCnt > 0) {
@@ -93,16 +93,16 @@ struct RegionBitmap {
             if (maskInfo.lastMaskBits != 0) {
                 for (size_t idx = maskInfo.headWordIdx + 1; idx < lastWordIdx; idx++) {
                     uint64_t zeros = markWords[idx].fetch_or(~static_cast<uint64_t>(0));
-                    partLiveBytes[idx / (markWordSize / calFactor)].fetch_add(kBitsPerWord);
+                    partLiveBytes[idx / (markWordSize / calFactor)].fetch_add(static_cast<uint16_t>(kBitsPerWord));
                     DCHECK(zeros == 0);
                 }
                 markWords[lastWordIdx].fetch_or(maskInfo.lastMaskBits);
                 partLiveBytes[lastWordIdx / (markWordSize / calFactor)].fetch_add(
-                    __builtin_popcountll(maskInfo.lastMaskBits));
+                    static_cast<uint16_t>(__builtin_popcountll(maskInfo.lastMaskBits)));
             } else {
                 for (size_t idx = maskInfo.headWordIdx + 1; idx <= lastWordIdx; idx++) {
                     uint64_t zeros = markWords[idx].fetch_or(~static_cast<uint64_t>(0));
-                    partLiveBytes[idx / (markWordSize / calFactor)].fetch_add(kBitsPerWord);
+                    partLiveBytes[idx / (markWordSize / calFactor)].fetch_add(static_cast<uint16_t>(kBitsPerWord));
                     DCHECK(zeros == 0);
                 }
             }
@@ -140,15 +140,17 @@ struct RegionBitmap {
     {
         maskInfo.index = offset / (kBitsPerWord * kMarkedBytesPerBit);
         size_t markWordSize = regionSize / (kMarkedBytesPerBit * kBitsPerWord);
-        uint8_t calFactor = factor > markWordSize ? markWordSize : factor;
+        uint8_t calFactor = static_cast<uint8_t>(factor > markWordSize ? markWordSize : static_cast<size_t>(factor));
         if (markWordSize % calFactor) {
             // The markWordSize needs to be rounded up to ensure it is divisible by calFactor.
             markWordSize = markWordSize + calFactor - markWordSize % calFactor;
         }
-        maskInfo.partIndex = maskInfo.index / (markWordSize / calFactor) - 1;
+        ssize_t stepSize = static_cast<ssize_t>(markWordSize / calFactor);
+        ssize_t partIndex = static_cast<ssize_t>(maskInfo.index) / stepSize - 1;
+        maskInfo.partIndex = static_cast<int8_t>(partIndex);
         size_t bitIndex = (offset / kMarkedBytesPerBit) % kBitsPerWord;
         maskInfo.mask = (static_cast<uint64_t>(1) << bitIndex) - 1;
-        maskInfo.StepSize = markWordSize / calFactor;
+        maskInfo.StepSize = stepSize;
     }
 
     uint64_t GetPreLiveBytes(const PreMaskInfo& maskInfo)
@@ -161,7 +163,7 @@ struct RegionBitmap {
             partStartIndex += maskInfo.StepSize;
         }
         ssize_t index = maskInfo.index;
-        size_t liveBits = __builtin_popcountll(markWords[index].load() & maskInfo.mask);
+        size_t liveBits = static_cast<size_t>(__builtin_popcountll(markWords[index].load() & maskInfo.mask));
 
         if (index == partStartIndex) {
             return (preLiveBits + liveBits) * kMarkedBytesPerBit;
@@ -169,7 +171,7 @@ struct RegionBitmap {
         index--;
         while (index >= partStartIndex) {
             uint64_t makeBit = markWords[index].load();
-            liveBits += __builtin_popcountll(makeBit);
+            liveBits += static_cast<size_t>(__builtin_popcountll(makeBit));
             index--;
         }
         return (preLiveBits + liveBits) * kMarkedBytesPerBit;

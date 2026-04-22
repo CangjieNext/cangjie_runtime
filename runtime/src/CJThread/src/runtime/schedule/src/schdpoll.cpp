@@ -347,11 +347,11 @@ void SchdpollAcquireCallback(struct SchdpollDesc *pd, struct epoll_event *pollEv
         func(pollEvent, pd->callback.arg);
     } else if (pd->type == SCHDPOLL_CALLBACK_FD_OUTSIDE) {
         SchdpollFdEventProcFunc func = (SchdpollFdEventProcFunc)pd->callback.func;
-        func(pd->callback.fd, pollEvent->events, pd->callback.arg);
+        func(pd->callback.fd, static_cast<int>(pollEvent->events), pd->callback.arg);
         free(pd);
     } else if (pd->type == SCHDPOLL_CALLBACK) {
         SchdpollFdEventProcFunc func = (SchdpollFdEventProcFunc)pd->callback.func;
-        func(pd->callback.fd, pollEvent->events, pd->callback.arg);
+        func(pd->callback.fd, static_cast<int>(pollEvent->events), pd->callback.arg);
     }
 }
 
@@ -484,7 +484,7 @@ struct SchdpollDesc *SchdpollCallbackAdd(int fd, int events, void *func, void *a
     pd->callback.func = func;
     pd->callback.arg = arg;
     pd->type = type;
-    ret = NetpollAdd(schedule->netpoll.npfd, fd, pd, events);
+    ret = NetpollAdd(schedule->netpoll.npfd, fd, pd, static_cast<unsigned int>(events));
     if (ret != 0) {
         LOG_ERROR(ret, "NetpollAdd failed");
         free(pd);
