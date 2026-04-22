@@ -316,7 +316,8 @@ class InstrumentedClass {
         let typeParameters: Tokens,
         let genericConstraints: ArrayList<GenericConstraint>,
         let types: Array<(String, Array<Tokens>)>,
-        let measurements: Array<Expr>
+        let measurements: Array<Expr>,
+        let isPhantom: Bool
     ) {}
 
     init(original: ClassDecl) {
@@ -325,6 +326,7 @@ class InstrumentedClass {
         this.measurements = loadMeasurements(original)
 
         this.testFunctions = ArrayList()
+        this.isPhantom = false
 
         this.typeParameters = getGenericParams(original)
         this.genericConstraints = original.genericConstraint
@@ -335,6 +337,9 @@ class InstrumentedClass {
     }
 
     init(original: FuncDecl, dslTokens: Tokens, originalTokens!: Tokens) {
+        let isSpecific = original.modifiers.toTokens() |> any<Token> { m => m.kind == SPECIFIC }
+        this.isPhantom = isSpecific
+
         let className = Token(IDENTIFIER, "TestCase_" + original.identifier.value)
         let fakeClass = ClassDescriptor(className: className, modifiers: Tokens(), members: ArrayList<Decl>(), inject: [originalTokens], superTypes: [])
         this.original = fakeClass
@@ -567,8 +572,19 @@ class InstrumentedClass {
         return tb
     }
 
+    private func injectedToTokens(): Tokens {
+        let tb = TokensBuilder()
+        for (inj in original.inject) {
+            tb.append(inj).append(NL)
+        }
+        return tb.toTokens()
+    }
+
     public func toTokens(): Tokens {
         let tb = TokensBuilder()
+        if (isPhantom) {
+            return tb.append(injectedToTokens()).toTokens()
+        }
         var ident: Token = original.className
         let modifiers: Tokens = original.modifiers
         let body: ArrayList<Decl> = original.members
@@ -609,9 +625,7 @@ class InstrumentedClass {
             buildCheckInheritingTemplate(this.original.superTypes, tb)
         }
 
-        for (inj in original.inject) {
-            tb.append(inj).append(NL)
-        }
+        tb.append(injectedToTokens())
 
         // registration mechanism only applies to test classes that have default constructors
         // --test also checks this, so the only case where the opposite can happen is
