@@ -21,6 +21,8 @@
 namespace MapleRuntime {
 
 class CentralRegionPool;
+class Mutator;
+struct ThreadLocalData;
 
 // ============================================================================
 // AllocBufferMS: per-thread allocation cache for Mark-Sweep GC
@@ -44,6 +46,7 @@ class AllocBufferMS {
 public:
     // Mirror of AllocBuffer::GetOrCreateAllocBuffer / GetAllocBuffer for MS mode.
     static AllocBufferMS* GetOrCreateAllocBufferMS();
+    static AllocBufferMS* GetOrCreateAllocBufferMS(ThreadLocalData* local);
     static AllocBufferMS* GetAllocBufferMS();
 
     AllocBufferMS();
@@ -59,7 +62,7 @@ public:
     void Fini();
 
     // Main allocation entry (called from AllocBuffer::Allocate in MS mode)
-    MAddress Allocate(size_t size);
+    MAddress Allocate(size_t size, Mutator* mutator = nullptr);
 
     // Accumulate pacing debt for a given allocation size and trigger assist if needed.
     // Called by large-object paths that bypass Allocate().

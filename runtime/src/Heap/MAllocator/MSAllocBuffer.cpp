@@ -27,6 +27,11 @@ static inline bool IsMSMarkingPhase(GCPhase phase)
            phase == GCPhase::GC_PHASE_MS_MARK_TERMINATION;
 }
 
+static inline Mutator* ResolveMutatorForAllocFastPath(Mutator* mutator)
+{
+    return mutator != nullptr ? mutator : Mutator::GetMutator();
+}
+
 AllocBufferMS::~AllocBufferMS()
 {
     Fini();
@@ -66,7 +71,7 @@ void AllocBufferMS::Fini()
 // ============================================================================
 // Allocate — main entry point
 // ============================================================================
-MAddress AllocBufferMS::Allocate(size_t size)
+MAddress AllocBufferMS::Allocate(size_t size, Mutator* mutator)
 {
     uint8_t cls = SizeClassInfo::SizeToClass(size);
     if (UNLIKELY(cls >= kNumSizeClasses)) {
@@ -75,7 +80,7 @@ MAddress AllocBufferMS::Allocate(size_t size)
     MAddress addr = FastAlloc(cls);
 
     if (UNLIKELY(addr != 0)) {
-        Mutator* mutator = Mutator::GetMutator();
+        mutator = ResolveMutatorForAllocFastPath(mutator);
         GCPhase phase = mutator->GetMutatorPhase();
         if (UNLIKELY(IsMSMarkingPhase(phase))) {
             Heap::GetHeap().GetCollector().MarkNewObject(reinterpret_cast<BaseObject*>(addr));
@@ -214,19 +219,10 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
     // Step 3: Set as active Region
     activeRegions_[cls] = newRegion;
 
-    // O2: Prefetch one backup region into cache for next SlowAlloc.
-    // Must use CAS to avoid overwriting a region placed by BackgroundFillCache.
-    if (cachedRegion_[cls].load(std::memory_order_relaxed) == nullptr && central_ != nullptr) {
-        MSRegionInfo* prefetch = central_->GetRegion(cls);
-        if (prefetch != nullptr) {
-            MSRegionInfo* expected = nullptr;
-            if (!cachedRegion_[cls].compare_exchange_strong(expected, prefetch,
-                    std::memory_order_release, std::memory_order_relaxed)) {
-                // BackgroundFillCache already filled it; return the prefetched region.
-                central_->ReturnPartialRegion(prefetch, cls);
-            }
-        }
-    }
+    // Backup cache refill is handled by BackgroundFillCache after repeated misses.
+    // Avoid doing another synchronous GetRegion() here: on case1 this can turn one
+    // SlowAlloc miss into two central-pool refills, and the second refill may also
+    // fall into lazy sweep on the mutator thread.
 
     // Step 4: Allocate from the new Region (respect region type)
     uintptr_t addr;
@@ -347,13 +343,22 @@ AllocBufferMS* AllocBufferMS::GetAllocBufferMS()
 
 AllocBufferMS* AllocBufferMS::GetOrCreateAllocBufferMS()
 {
-    AllocBufferMS* buffer = GetAllocBufferMS();
+    return GetOrCreateAllocBufferMS(ThreadLocal::GetThreadLocalData());
+}
+
+AllocBufferMS* AllocBufferMS::GetOrCreateAllocBufferMS(ThreadLocalData* local)
+{
+    AllocBufferMS* buffer = local != nullptr ? local->msAllocBuffer : GetAllocBufferMS();
     if (buffer == nullptr) {
         buffer = new (std::nothrow) AllocBufferMS();
         CHECK_DETAIL(buffer != nullptr, "new MS alloc buffer fail");
         RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
         buffer->Init(space.GetCentralPool());
-        ThreadLocal::SetAllocBufferMS(buffer);
+        if (local != nullptr) {
+            local->msAllocBuffer = buffer;
+        } else {
+            ThreadLocal::SetAllocBufferMS(buffer);
+        }
     }
     return buffer;
 }

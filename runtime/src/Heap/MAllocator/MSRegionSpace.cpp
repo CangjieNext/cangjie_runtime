@@ -21,6 +21,7 @@
 #include "Heap/MCollector/MarkSweepCollector.h"
 #include "Heap/MBarrier/WriteBarrierBuffer.h"
 #include "Mutator/Mutator.h"
+#include "Mutator/ThreadLocal.h"
 #if defined(CANGJIE_SANITIZER_SUPPORT) || defined(CANGJIE_GWPASAN_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
 #endif
@@ -265,9 +266,11 @@ MAddress RegionSpaceMS::TryAllocateOnceMS(size_t allocSize)
         return addr;
     }
 
-    AllocBufferMS* msBuffer = AllocBufferMS::GetOrCreateAllocBufferMS();
+    ThreadLocalData* local = ThreadLocal::GetThreadLocalData();
+    AllocBufferMS* msBuffer = AllocBufferMS::GetOrCreateAllocBufferMS(local);
     if (msBuffer != nullptr) {
-        MAddress addr = msBuffer->Allocate(allocSize);
+        Mutator* mutator = local != nullptr ? local->mutator : nullptr;
+        MAddress addr = msBuffer->Allocate(allocSize, mutator);
         if (LIKELY(addr != 0)) {
             return addr;
         }

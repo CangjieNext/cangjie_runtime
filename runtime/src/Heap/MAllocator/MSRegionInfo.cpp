@@ -207,6 +207,7 @@ size_t MSRegionInfo::SweepRegion()
     size_t wordCount = (totalSlotCount + 63) / 64;
     int liveCount = 0;
     uint64_t summary = 0;
+    uintptr_t base = RegionStart();
 
     for (size_t i = 0; i < wordCount; i++) {
         // Core: allocBitmap = ~markBitmap  (one NOT per 64 slots)
@@ -227,12 +228,13 @@ size_t MSRegionInfo::SweepRegion()
     }
 
     // Zero dead slots: the compiler assumes freshly-allocated memory is zeroed
-    // (same as CopyGC's bump allocator from mmap'd pages).  Bitmap allocation
+    // (same as CopyGC's bump allocator from mmap'd pages). Bitmap allocation
     // reuses swept slots, so stale object data must be cleared here — not on the
     // allocation hot-path — to avoid GC tracing stale reference fields.
-    {
+    if (liveCount == 0) {
+        memset(reinterpret_cast<void*>(base), 0, MS_REGION_SIZE);
+    } else {
         size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
-        uintptr_t base = RegionStart();
         for (size_t i = 0; i < wordCount; i++) {
             uint64_t freeBits = allocBitmap[i];
             while (freeBits != 0) {
