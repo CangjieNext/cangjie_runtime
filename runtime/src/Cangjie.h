@@ -377,8 +377,9 @@ MRT_EXPORT enum RTErrorCode InitCJRuntime(const struct RuntimeParam* param);
  * @brief Initialize interpreter part of Cangjie runtime environment.
  * @attention This API should be invoked after InitCJRuntime succeeds.
  * @param param [IN] a structure pointer to interpreter configuration parameters.
+ * @retval Return 0 if OK. Otherwise, return an error code.
  */
-MRT_EXPORT void InitCJInterpreter(const struct InterpreterParam* param);
+MRT_EXPORT enum RTErrorCode InitCJInterpreter(const struct InterpreterParam* param);
 #endif
 
 /*
