@@ -570,6 +570,9 @@ ApplyCangjieMethodStubFloat64:
     ldp d4, d5, [x20, #32]
     ldp d6, d7, [x20, #48]
 
+    mov x0, x29
+    bl  MRT_SaveTopManagedContextToR2CStub
+
     mov x28, x23
     // threadData
     blr x22
@@ -588,6 +591,9 @@ ApplyCangjieMethodStubFloat64:
     stp  d2, d3, [sp, #StubCalleeSaveAreaSize+0x70]
     cfi_rel_offset (d2, StubCalleeSaveAreaSize+0x70)
     cfi_rel_offset (d3, StubCalleeSaveAreaSize+0x78)
+
+    mov  x0, x29
+    bl   MRT_RestoreTopManagedContextFromR2CStub
 
     /* set potential return value */
     mov  x0, x21
