@@ -133,7 +133,8 @@ GCThreadPool::GCThreadPool(const char* poolName, int32_t threadNum, int32_t prio
         CHECK_E(ret < 0, "snprintf_s name = %s threadId%d in GCThreadPool::GCThreadPool return %d rather than 0.",
                 name.Str(), (i + 1), ret);
         // default Sleeping
-        GCPoolThread* threadItem = new (std::nothrow) GCPoolThread(this, threadName, (i + 1), DEFAULT_STACK_SIZE);
+        GCPoolThread* threadItem =
+            new (std::nothrow) GCPoolThread(this, threadName, static_cast<size_t>(i + 1), DEFAULT_STACK_SIZE);
         CHECK_DETAIL(threadItem != nullptr, "new GCPoolThread failed");
         threads.push_back(threadItem);
     }

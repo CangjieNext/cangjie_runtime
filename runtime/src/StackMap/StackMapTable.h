@@ -394,7 +394,7 @@ private:
         U32 isAllRef;
         VarValue cnts;
         constexpr U32 PureValWidth = 31;
-        constexpr U32 PureValMask = 1 << PureValWidth;
+        constexpr U32 PureValMask = 1U << PureValWidth;
         constexpr U32 CompressTagBitPos = 30;
         while (remainLen != 0) {
             isPureVal = bitMapBits.GetBits(1);

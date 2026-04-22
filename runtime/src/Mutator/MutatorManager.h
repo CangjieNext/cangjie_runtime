@@ -181,7 +181,7 @@ public:
 
     __attribute__((always_inline)) inline int GetSyncFutexWordValue() const
     {
-        return GetSuspensionMutatorCount();
+        return static_cast<int>(GetSuspensionMutatorCount());
     }
 
     __attribute__((always_inline)) inline uint32_t GetSuspensionMutatorCount() const

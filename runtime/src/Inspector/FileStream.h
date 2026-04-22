@@ -19,7 +19,7 @@ namespace MapleRuntime {
 class StreamWriter {
 public:
     explicit StreamWriter(Stream* stream)
-        : stream_(stream), chunkSize_(stream->GetSize()), chunk_(chunkSize_), current_(0)
+        : stream_(stream), chunkSize_(static_cast<size_t>(stream->GetSize())), chunk_(chunkSize_), current_(0)
     {
     }
 
@@ -33,8 +33,8 @@ public:
         const char* cur = str.Str();
         const char* end = cur + len;
         while (cur < end) {
-            int dstSize = chunkSize_ - current_;
-            int writeSize = std::min(static_cast<int>(end - cur), dstSize);
+            size_t dstSize = chunkSize_ - current_;
+            size_t writeSize = std::min(static_cast<size_t>(end - cur), dstSize);
             ASSERT(writeSize > 0);
             if (memcpy_s(chunk_.data() + current_, dstSize, cur, writeSize) != EOK) {
                 LOG(RTLOG_ERROR, "memcpy_s failed");
@@ -73,9 +73,9 @@ public:
         if (len == 0) {
             return;
         }
-        int dstSize = chunkSize_ - current_;
+        size_t dstSize = chunkSize_ - current_;
         // To ensure that the character string is continuously written, write the data in buffer first.
-        if (len > static_cast<size_t>(dstSize)) {
+        if (len > dstSize) {
             End();
         }
         WriteString(str);
@@ -91,14 +91,15 @@ private:
 
     void WriteChunk()
     {
-        stream_->WriteChunk(chunk_.data(), current_);
+        ASSERT(current_ <= static_cast<size_t>(INT32_MAX));
+        stream_->WriteChunk(chunk_.data(), static_cast<int32_t>(current_));
         current_ = 0;
     }
 
     Stream* stream_ {nullptr};
-    int chunkSize_ {0};
+    size_t chunkSize_ {0};
     std::vector<char> chunk_;
-    int current_ {0};
+    size_t current_ {0};
 };
 
 enum MsgType : uint32_t {

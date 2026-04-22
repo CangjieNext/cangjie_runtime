@@ -99,8 +99,8 @@ void CJThreadModel::Init(const ConcurrencyParam param, ScheduleType scheduleType
 {
     ScheduleAttr attr;
     ScheduleAttrInit(&attr);
-    ScheduleAttrThstackSizeSet(&attr, param.thStackSize * KB);
-    ScheduleAttrCostackSizeSet(&attr, param.coStackSize * KB);
+    ScheduleAttrThstackSizeSet(&attr, static_cast<uint32_t>(param.thStackSize * KB));
+    ScheduleAttrCostackSizeSet(&attr, static_cast<uint32_t>(param.coStackSize * KB));
     ScheduleAttrProcessorNumSet(&attr, param.processorNum);
     stackGuardCheck = GetStackGuardFlagEnv();
     if (stackGuardCheck) {

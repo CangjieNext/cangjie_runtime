@@ -80,7 +80,8 @@ void LogWrite(ThreadLogLevel level,
 #endif
 
     va_start(alist, fmt);
-    ret = vsnprintf_s(output + len, LOG_BUF_SIZE - len, LOG_BUF_SIZE - len - 1, fmt, alist);
+    ret = vsnprintf_s(output + len, static_cast<size_t>(LOG_BUF_SIZE - len),
+        static_cast<size_t>(LOG_BUF_SIZE - len - 1), fmt, alist);
     va_end(alist);
     if (ret < 0) {
         printf("LogWrite failed: %d\n", errno);

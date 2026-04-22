@@ -29,7 +29,7 @@ uint64_t ClockTime(clockid_t clock)
     struct timespec time = { 0, 0 };
     clock_gettime(clock, &time);
     auto duration = Sec{ time.tv_sec } + Ns{ time.tv_nsec };
-    return std::chrono::duration_cast<TimeUnit>(duration).count();
+    return static_cast<uint64_t>(std::chrono::duration_cast<TimeUnit>(duration).count());
 }
 
 uint64_t NanoSeconds() { return ClockTime<Ns>(CLOCK_MONOTONIC); }
@@ -71,7 +71,7 @@ CString GetTimestamp()
     std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
     std::chrono::microseconds us = std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch());
     constexpr size_t microSecondsPerSecond = 1000000;
-    auto rem = us.count() % microSecondsPerSecond;
+    auto rem = static_cast<uint64_t>(us.count()) % microSecondsPerSecond;
 
     time_t time = std::chrono::system_clock::to_time_t(now);
     struct tm tm;

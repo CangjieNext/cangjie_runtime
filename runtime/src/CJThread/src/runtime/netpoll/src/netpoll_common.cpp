@@ -21,12 +21,13 @@ struct NetpollMetaData *NetpollMetaDataInit(void)
 
     metaData = (struct NetpollMetaData *)malloc(sizeof(struct NetpollMetaData));
     if (metaData == nullptr) {
-        LOG_ERROR(errno, "malloc failed, size: %u", sizeof(struct NetpollMetaData));
+        LOG_ERROR(static_cast<unsigned int>(errno), "malloc failed, size: %u",
+            static_cast<unsigned int>(sizeof(struct NetpollMetaData)));
         return nullptr;
     }
     error = memset_s(metaData, sizeof(struct NetpollMetaData), 0, sizeof(struct NetpollMetaData));
     if (error != 0) {
-        LOG_ERROR(error, "memset_s failed");
+        LOG_ERROR(static_cast<unsigned int>(error), "memset_s failed");
         free(metaData);
         return nullptr;
     }

@@ -261,7 +261,7 @@ static uint32_t InitProcessorNum()
     }
     CString s = env.RemoveBlankSpace();
     if (CString::IsPosNumber(s)) {
-        uint32_t custom = std::strtol(s.Str(), nullptr, 0);
+        uint32_t custom = static_cast<uint32_t>(std::strtol(s.Str(), nullptr, 0));
         const unsigned int maxMultiple = 2;
         if (custom > 0 && custom <= (cpus * maxMultiple)) {
             return custom;
@@ -615,7 +615,7 @@ void MRT_CjRuntimeStart(void* execute)
     lwtData.threadObject = nullptr;
     CJThreadAttr attr;
     CJThreadAttrInit(&attr);
-    CJThreadAttrStackSizeSet(&attr, g_initStackSize * KB); // Set main task stack size.
+    CJThreadAttrStackSizeSet(&attr, static_cast<unsigned int>(g_initStackSize * KB)); // Set main task stack size.
     CJThreadAttrNameSet(&attr, "cangjie");
     CJThreadHandle cjthread = CJThreadNew(scheduler, &attr, StartMainTask, &lwtData, sizeof(LWTData));
     MutatorManager::Instance().SetMainThreadHandle(cjthread);

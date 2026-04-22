@@ -47,8 +47,8 @@ set(CMAKE_RANLIB "$ENV{OHOS_ROOT}/prebuilts/clang/ohos/${cmake_host_system_name}
 set(CMAKE_C_FLAGS
     "-Wdeprecated-copy -fno-strict-aliasing --param=ssp-buffer-size=4  -flto -fvisibility=default -fsanitize=cfi -fno-sanitize=cfi-nvcall,cfi-icall -mbranch-protection=pac-ret \
      -std=c11 \
-     -Wdate-time -Wformat=2 -Wswitch-default -Wunused \
-     -Wcast-qual \
+     -Wdate-time -Wformat=2 -Wswitch-default -Wshadow -Wvla -Wunused -Wundef \
+     -Wcast-qual -Wconversion -Wcast-align -Werror \
      -Wstrict-prototypes \
      -Wno-builtin-macro-redefined -D__DATE__= -D__TIME__= -D__TIMESTAMP__= -funwind-tables -fcolor-diagnostics \
      -fmerge-all-constants -Xclang -mllvm -Xclang -instcombine-lower-dbg-declare=0 -no-canonical-prefixes \
@@ -60,8 +60,8 @@ set(CMAKE_C_FLAGS
 set(CMAKE_CXX_FLAGS
     "-Wdeprecated-copy -fno-strict-aliasing --param=ssp-buffer-size=4  -flto -fvisibility=default -fsanitize=cfi -fno-sanitize=cfi-nvcall,cfi-icall -mbranch-protection=pac-ret \
      -std=gnu++14 \
-     -Wdate-time -Wformat=2 -Wswitch-default -Wunused \
-     -Wcast-qual -Woverloaded-virtual -Wnon-virtual-dtor -Wdelete-non-virtual-dtor \
+     -Wdate-time -Wformat=2 -Wswitch-default -Wshadow -Wvla -Wunused -Wundef \
+     -Wcast-qual -Wconversion -Wcast-align -Woverloaded-virtual -Wnon-virtual-dtor -Wdelete-non-virtual-dtor -Werror \
      -Wno-builtin-macro-redefined -D__DATE__= -D__TIME__= -D__TIMESTAMP__= -funwind-tables -fcolor-diagnostics \
      -fmerge-all-constants -Xclang -mllvm -Xclang -instcombine-lower-dbg-declare=0 -no-canonical-prefixes \
      -ffunction-sections -fno-short-enums --target=aarch64-linux-ohos -Wextra -Wthread-safety \

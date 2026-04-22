@@ -155,14 +155,14 @@ void CJThreadStackInfo::FillInStackTrace()
         }
         uwContext = caller;
     }
-    filledStackSize = stack.size();
+    filledStackSize = static_cast<int>(stack.size());
 }
 
 char* CJThreadStackInfo::GetFuncOrFileNameStr(CString originName)
 {
     CString name;
     if (originName.Length() > maxStrSize) {
-            name = originName.SubStr(originName.Length() - maxStrSize);
+            name = originName.SubStr(originName.Length() - static_cast<size_t>(maxStrSize));
         } else {
             name = originName;
     }
@@ -184,7 +184,7 @@ void CJThreadStackInfo::GetInfoFromStackTrace(uint32_t* framePcArr, char** funcN
     }
     int arrIdx = 0;
     for (int stackIdx = 0; stackIdx < stackSize; stackIdx++) {
-        FrameInfo frame = stack[stackIdx];
+        FrameInfo frame = stack[static_cast<size_t>(stackIdx)];
         FrameType fType = frame.GetFrameType();
         /* During stack trace, runtime stack frame is not recorded,
          * or only the outermost two runtime stack frame is recorded at most.

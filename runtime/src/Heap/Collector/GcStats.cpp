@@ -43,9 +43,10 @@ void GCStats::Init()
     collectionRate = 0.0;
 
     // 20 MB:set 20 MB as intial value
-    heapThreshold = std::min(CangjieRuntime::GetGCParam().gcThreshold, 20 * MB);
+    heapThreshold = std::min(CangjieRuntime::GetGCParam().gcThreshold, static_cast<size_t>(20 * MB));
     // 0.2:set 20% heap size as intial value
-    heapThreshold = std::min(static_cast<size_t>(Heap::GetHeap().GetMaxCapacity() * 0.2), heapThreshold);
+    heapThreshold = std::min(static_cast<size_t>(static_cast<double>(Heap::GetHeap().GetMaxCapacity()) * 0.2),
+                             heapThreshold);
 }
 
 void GCStats::Dump() const
@@ -53,7 +54,8 @@ void GCStats::Dump() const
     // Print a summary of the last GC.
     size_t liveSize = Heap::GetHeap().GetAllocatedSize();
     size_t heapSize = Heap::GetHeap().GetUsedPageSize();
-    double utilization = (heapSize == 0) ? 0 : (static_cast<double>(liveSize) / heapSize) * 100; // 100 for percentage.
+    double utilization = (heapSize == 0) ? 0 :
+        (static_cast<double>(liveSize) / static_cast<double>(heapSize)) * 100; // 100 for percentage.
 
     // Do not change this GC log format.
     // Output one line statistic info after each gc task,

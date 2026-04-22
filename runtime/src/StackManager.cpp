@@ -93,7 +93,7 @@ void StackManager::PrintSignalStackTrace(UnwindContext* uwContext, uintptr_t pc,
     if (uwContext->GetUnwindContextStatus() == UnwindContextStatus::RISKY) {
         printSignalStackInfo.GetSignalStack()[printSignalStackInfo.GetStackIndex()] = SigHandlerFrameinfo(
             MachineFrame(reinterpret_cast<FrameAddress*>(fa), reinterpret_cast<uint32_t*>(pc)), FrameType::NATIVE);
-        printSignalStackInfo.SetStackIndex(printSignalStackInfo.GetStackIndex() + 1);
+        printSignalStackInfo.SetStackIndex(static_cast<uint8_t>(printSignalStackInfo.GetStackIndex() + 1));
     }
     printSignalStackInfo.FillInStackTrace();
     printSignalStackInfo.PrintStackTrace();
@@ -228,7 +228,8 @@ static void GetSoAddrScope(const CString& str, Uptr& startAddr, Uptr& endAddr)
     constexpr int8_t baseValue = 16;
     Uptr start = std::strtoull(str.SubStr(0, static_cast<uint64_t>(pos1)).Str(), nullptr, baseValue);
     startAddr = start < startAddr ? start : startAddr;
-    Uptr end = std::strtoull(str.SubStr(pos1 + 1, static_cast<uint64_t>(pos2 - pos1)).Str(), nullptr, baseValue);
+    Uptr end = std::strtoull(str.SubStr(static_cast<size_t>(pos1 + 1), static_cast<size_t>(pos2 - pos1)).Str(),
+                             nullptr, baseValue);
     endAddr = end > endAddr ? end : endAddr;
 }
 
@@ -249,7 +250,7 @@ static void GetEachSoAddrScope(std::vector<CString>& soNameVec)
             continue;
         }
         constexpr uint8_t protLen = 4;
-        if (lineStr.SubStr(protPos + 1, protLen).Find('x') < 0) {
+        if (lineStr.SubStr(static_cast<size_t>(protPos + 1), protLen).Find('x') < 0) {
             continue;
         }
         char* baseName = CString::BaseName(lineStr);
@@ -389,7 +390,7 @@ void InitAddressScopeForCJthreadTrace()
             continue;
         }
         constexpr uint8_t protLen = 4;
-        if (lineStr.SubStr(protPos + 1, protLen).Find('x') < 0) {
+        if (lineStr.SubStr(static_cast<size_t>(protPos + 1), protLen).Find('x') < 0) {
             continue;
         }
         char* baseName = CString::BaseName(lineStr);

@@ -141,7 +141,7 @@ static void WriteLogImpl(bool addPrefix, LogType type, const char* format, va_li
         }
     }
 
-    int ret = vsprintf_s(buf + index, sizeof(buf) - index, format, args);
+    int ret = vsprintf_s(buf + index, sizeof(buf) - static_cast<size_t>(index), format, args);
     if (ret == -1) {
         PRINT_ERROR("WriteLogImpl vsprintf_s failed. msg: %s\n", strerror(errno));
         return;
@@ -166,15 +166,15 @@ static void WriteLogImpl(bool addPrefix, LogType type, const char* format, va_li
         return;
     }
     int err = fprintf(file, "%s\n", buf);
-    if ((err - 1) != index) { // 1 = '\n'
+    if ((err - 1) != static_cast<int>(index)) { // 1 = '\n'
         PRINT_ERROR("WriteLogImpl fprintf failed. msg: %s\n", strerror(errno));
         LogFile::LogFileUnLock(type);
         return;
     }
 #ifndef MRT_DEBUG
     size_t curPos = LogFile::GetCurPosLocation(type);
-    LogFile::SetCurPosLocation(type, curPos + index);
-    if (Logger::MaybeRotate(curPos + index, LogFile::GetMaxFileSize(type), file)) {
+    LogFile::SetCurPosLocation(type, curPos + static_cast<size_t>(index));
+    if (Logger::MaybeRotate(curPos + static_cast<size_t>(index), LogFile::GetMaxFileSize(type), file)) {
         LogFile::SetCurPosLocation(type, 0);
     }
 #endif
@@ -206,7 +206,7 @@ CString Pretty(uint64_t number) noexcept
     CString orig = CString(number);
     int pos = static_cast<int>(orig.Length()) - NUM_DIGITS_PER_SEGMENT;
     while (pos > 0) {
-        orig.Insert(pos, ",");
+        orig.Insert(static_cast<size_t>(pos), ",");
         pos -= NUM_DIGITS_PER_SEGMENT;
     }
     return orig;

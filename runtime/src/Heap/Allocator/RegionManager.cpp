@@ -43,7 +43,7 @@ static size_t GetPageSize() noexcept
     // default page size is 16KB in MacOS
     return 16 * KB;
 #else
-    return getpagesize();
+        return static_cast<size_t>(getpagesize());
 #endif
 }
 
@@ -292,7 +292,8 @@ size_t FreeRegionManager::ReleaseGarbageRegions(size_t targetCachedSize)
         dirtyUnitTree.ReleaseRootNode();
 
         std::lock_guard<std::mutex> lock2(releasedUnitTreeMutex);
-        CHECK_DETAIL(releasedUnitTree.MergeInsert(idx, num, true), "tid %d: failed to release garbage units[%u+%u, %u)",
+        CHECK_DETAIL(releasedUnitTree.MergeInsert(static_cast<CartesianTree::Index>(idx),
+                     static_cast<CartesianTree::Count>(num), true), "tid %d: failed to release garbage units[%u+%u, %u)",
                      GetTid(), idx, num, idx + num);
         releasedBytes += (num * RegionInfo::UNIT_SIZE);
         dirtyBytes = dirtyUnitTree.GetTotalCount() * RegionInfo::UNIT_SIZE;
@@ -391,7 +392,7 @@ void RegionManager::Initialize(size_t nUnit, uintptr_t regionInfoAddr)
 #endif
     // propagate region heap layout
     RegionInfo::Initialize(nUnit, regionHeapStart);
-    freeRegionManager.Initialize(nUnit);
+    freeRegionManager.Initialize(static_cast<CartesianTree::Count>(nUnit));
     this->exemptedRegionThreshold = CangjieRuntime::GetHeapParam().exemptionThreshold;
     DLOG(REPORT, "region info @0x%zx+%zu, heap [0x%zx, 0x%zx), unit count %zu", regionInfoAddr, metadataSize,
          regionHeapStart, regionHeapEnd, nUnit);
@@ -408,7 +409,8 @@ void RegionManager::ReclaimRegion(RegionInfo* region)
         region->GetRegionAllocatedSize(), region->GetRegionEnd(), region->GetRegionType());
 
     region->InitFreeUnits();
-    freeRegionManager.AddGarbageUnits(unitIndex, num);
+    freeRegionManager.AddGarbageUnits(static_cast<CartesianTree::Index>(unitIndex),
+        static_cast<CartesianTree::Count>(num));
 }
 
 size_t RegionManager::ReleaseRegion(RegionInfo* region)
@@ -424,7 +426,8 @@ size_t RegionManager::ReleaseRegion(RegionInfo* region)
 
     region->InitFreeUnits();
     RegionInfo::ReleaseUnits(unitIndex, num);
-    freeRegionManager.AddReleaseUnits(unitIndex, num);
+    freeRegionManager.AddReleaseUnits(static_cast<CartesianTree::Index>(unitIndex),
+        static_cast<CartesianTree::Count>(num));
     return res;
 }
 
@@ -436,7 +439,7 @@ void RegionManager::ReassembleFromSpace()
 void RegionManager::CountLiveObject(const BaseObject* obj)
 {
     RegionInfo* region = RegionInfo::GetRegionInfoAt(reinterpret_cast<MAddress>(obj));
-    region->AddLiveByteCount(obj->GetSize());
+    region->AddLiveByteCount(static_cast<uint32_t>(obj->GetSize()));
 }
 
 void RegionManager::AssembleSmallGarbageCandidates()
@@ -483,7 +486,7 @@ size_t RegionManager::ExemptFromRegions()
     size_t oldFromBytes = fromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
     double exempt = exemptedRegionThreshold;
     auto visitor = [this, exempt, &floatingGarbage](RegionInfo* fromRegion) {
-        size_t threshold = static_cast<size_t>(exempt * fromRegion->GetRegionSize());
+        size_t threshold = static_cast<size_t>(exempt * static_cast<double>(fromRegion->GetRegionSize()));
         size_t liveBytes = fromRegion->GetLiveByteCount();
         long rawPtrCnt = fromRegion->GetRawPointerObjectCount();
         if (liveBytes > threshold) { // ignore this region
@@ -904,11 +907,12 @@ void RegionManager::RequestForRegion(size_t size)
     size_t allocatedBytes = GetAllocatedSize() - gcstats.liveBytesAfterGC;
     constexpr double pi = 3.14;
     size_t availableBytesAfterGC = heap.GetMaxCapacity() - gcstats.liveBytesAfterGC;
-    double heuAllocRate = std::cos((pi / 2.0) * allocatedBytes / availableBytesAfterGC) * gcstats.collectionRate;
+    double heuAllocRate = std::cos((pi / 2.0) * static_cast<double>(allocatedBytes) /
+                          static_cast<double>(availableBytesAfterGC)) * gcstats.collectionRate;
     // for maximum performance, choose the larger one.
     double allocRate = std::max(
         static_cast<double>(CangjieRuntime::GetHeapParam().allocationRate) * MB / SECOND_TO_NANO_SECOND, heuAllocRate);
-    size_t waitTime = static_cast<size_t>(size / allocRate);
+    size_t waitTime = static_cast<size_t>(static_cast<double>(size) / allocRate);
     uint64_t now = TimeUtil::NanoSeconds();
     if (prevRegionAllocTime + waitTime <= now) {
         prevRegionAllocTime = TimeUtil::NanoSeconds();
@@ -943,7 +947,7 @@ bool RegionManager::RouteOrCompactRegionImpl(RegionInfo* region)
         }
         buffer->SetRegion(toRegion1);
         size_t toRegion1Start = toRegion1->GetRegionStart();
-        region->SetRouteInfo(toRegion1Start, fromBytes);
+        region->SetRouteInfo(toRegion1Start, static_cast<uint32_t>(fromBytes));
         DLOG(FORWARD, "route region %p@[%#zx+%zu, %#zx) => %p@[%#zx~%#zx, %#zx)",
             region, region->GetRegionStart(), fromBytes, region->GetRegionEnd(), toRegion1,
             toRegion1Start, toRegion1Start + fromBytes, toRegion1->GetRegionEnd());
@@ -954,7 +958,7 @@ bool RegionManager::RouteOrCompactRegionImpl(RegionInfo* region)
     MAddress toRegion1Addr = toRegion1->GetRegionAllocPtr();
     if (fromBytes <= toRegion1Capacity) {
         toRegion1->Alloc(fromBytes);
-        region->SetRouteInfo(toRegion1Addr, fromBytes);
+        region->SetRouteInfo(toRegion1Addr, static_cast<uint32_t>(fromBytes));
         DLOG(FORWARD, "route region %p@[%#zx+%zu, %#zx) => %p@[%#zx, %#zx~%#zx, %#zx)",
             region, region->GetRegionStart(), fromBytes, region->GetRegionEnd(), toRegion1,
             toRegion1->GetRegionStart(), toRegion1Addr, toRegion1Addr + fromBytes, toRegion1->GetRegionEnd());
@@ -992,8 +996,8 @@ bool RegionManager::RouteOrCompactRegionImpl(RegionInfo* region)
         result = false;
     }
     buffer->SetRegion(toRegion2);
-    uint32_t toRegion2Idx = toRegion2->GetUnitIdx();
-    region->SetRouteInfo(toRegion1Addr, usedBytes1, toRegion2Idx);
+    uint32_t toRegion2Idx = static_cast<uint32_t>(toRegion2->GetUnitIdx());
+    region->SetRouteInfo(toRegion1Addr, static_cast<uint32_t>(usedBytes1), toRegion2Idx);
     DLOG(FORWARD, "route region %p@[%#zx+%zu, %#zx) => %p@[%#zx, %#zx~%#zx, %#zx) & %p@[%#zx~%#zx, %#zx)", region,
         region->GetRegionStart(), fromBytes, region->GetRegionEnd(), toRegion1, toRegion1->GetRegionStart(),
         toRegion1Addr, toRegion1Addr + usedBytes1, toRegion1->GetRegionEnd(), toRegion2,
@@ -1071,13 +1075,13 @@ void RegionManager::CompactRegion(RegionInfo* region, RegionInfo* toRegion1)
     while (currentPtr < regionLimit) {
         CHECK(currentPtr >= regionStart);
         size_t offset = currentPtr - regionStart;
-        BaseObject* currentObj = reinterpret_cast<BaseObject*>(currentPtr);
-        size_t size = currentObj->GetSize();
+        BaseObject* currentObject = reinterpret_cast<BaseObject*>(currentPtr);
+        size_t size = currentObject->GetSize();
         if (region->IsSurvivedObject(offset)) {
             MAddress toAddress = region->Alloc(size);
             BaseObject* toObj = reinterpret_cast<BaseObject*>(toAddress);
-            DLOG(FORWARD, "compact obj %p<%p>(%zu) to %p", currentObj, currentObj->GetTypeInfo(), size, toObj);
-            collector.CopyObject(*currentObj, *toObj, size);
+            DLOG(FORWARD, "compact obj %p<%p>(%zu) to %p", currentObject, currentObject->GetTypeInfo(), size, toObj);
+            collector.CopyObject(*currentObject, *toObj, size);
             toObj->SetStateCode(ObjectState::NORMAL);
             std::atomic_thread_fence(std::memory_order_release);
         }

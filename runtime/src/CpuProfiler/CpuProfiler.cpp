@@ -60,7 +60,7 @@ void CpuProfiler::TryStopSampling()
 void CpuProfiler::SamplingThread(SamplesRecord& generator)
 {
     generator.InitProfileInfo();
-    uint32_t interval = generator.GetSamplingInterval();
+    uint32_t interval = static_cast<uint32_t>(generator.GetSamplingInterval());
     uint64_t startTime = SamplesRecord::GetMicrosecondsTimeStamp();
     generator.SetThreadStartTime(startTime);
     uint64_t endTime = startTime;
@@ -70,7 +70,7 @@ void CpuProfiler::SamplingThread(SamplesRecord& generator)
         endTime = startTime;
         // when ts > 0, the time interval is less than the sampling interval.
         if (ts > 0) {
-            usleep(ts);
+            usleep(static_cast<__useconds_t>(ts));
             endTime = SamplesRecord::GetMicrosecondsTimeStamp();
         }
         DoSampleStack();
