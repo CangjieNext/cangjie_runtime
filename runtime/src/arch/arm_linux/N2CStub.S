@@ -482,6 +482,8 @@ CJ_MRT_ARKTS_CreateEngineStub:
 .type    ApplyCangjieMethodStubFloat32, %function
 .global  ApplyCangjieMethodStubFloat64
 .type    ApplyCangjieMethodStubFloat64, %function
+.global  unwindPCForApplyCangjieMethodStubStart
+unwindPCForApplyCangjieMethodStubStart:
 ApplyCangjieMethodStub:
 ApplyCangjieMethodStubFloat32:
 ApplyCangjieMethodStubFloat64:
@@ -624,6 +626,8 @@ ApplyCangjieMethodStubFloat64:
     cfi_restore (r11)
     cfi_restore (lr)
 
+    .global  unwindPCForApplyCangjieMethodStubEnd
+unwindPCForApplyCangjieMethodStubEnd:
     bx  lr
     .cfi_endproc
     .size ApplyCangjieMethodStub, .-ApplyCangjieMethodStub

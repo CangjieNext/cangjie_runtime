@@ -122,6 +122,18 @@ void StackInfo::AnalyseAndSetFrameType(UnwindContext& uwContext)
     } else if (mFrame.IsExclusiveStubFrame()) {
         frameInfo.SetFrameType(FrameType::EXSLUSIVE);
         isReliableN2CStub = false;
+    } else if (mFrame.IsApplyCangjieMethodStubFrame()) {
+#if defined(__x86_64__) && defined(__linux__) && !defined(_WIN64)
+        MRT_Check(lastFrameType == FrameType::MANAGED, "");
+        N2CSlotData* n2cSlotData = N2CFrame::GetSlotData(mFrame.GetFA());
+        if (n2cSlotData->status == UnwindContextStatus::RELIABLE) {
+            isReliableN2CStub = true;
+        }
+        frameInfo.SetFrameType(FrameType::N2C_STUB);
+#else
+        frameInfo.SetFrameType(FrameType::RUNTIME);
+        isReliableN2CStub = false;
+#endif
     } else if (mFrame.IsRuntimeFrame()) {
         frameInfo.SetFrameType(FrameType::RUNTIME);
         isReliableN2CStub = false;

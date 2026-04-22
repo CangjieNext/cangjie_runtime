@@ -172,6 +172,8 @@ public:
 
     bool IsC2RStubFrame() const;
 
+    bool IsApplyCangjieMethodStubFrame() const;
+
     bool IsExclusiveStubFrame() const;
 
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
