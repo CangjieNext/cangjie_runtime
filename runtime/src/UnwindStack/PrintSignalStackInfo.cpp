@@ -17,7 +17,8 @@ void PrintSignalStackInfo::FillInStackTrace()
     CheckTopUnwindContextAndInit(uwContext);
     while (!uwContext.frameInfo.mFrame.IsAnchorFrame(anchorFA)) {
         AnalyseAndSetFrameType(uwContext);
-        if (uwContext.frameInfo.GetFrameType() == FrameType::C2N_STUB && lastFrameType == FrameType::N2C_STUB) {
+        if (uwContext.frameInfo.GetFrameType() == FrameType::C2N_STUB &&
+            (lastFrameType == FrameType::N2C_STUB || lastFrameType == FrameType::R2C_STUB)) {
             // Check whether out-of-bounds array occurs. If the value is about to exceed the limit,
             // increase the value of Index by 1 to print prompt information using comments.
             if (stackIndex >= MAX_SIGNAL_STACK_SIZE) {

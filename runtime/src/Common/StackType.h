@@ -28,13 +28,14 @@ enum class FrameType {
     UNKNOWN = 0,
     MANAGED = 1,
     N2C_STUB = 2,
-    C2N_STUB = 3,
-    RUNTIME = 4,
-    SAFEPOINT = 5,
-    C2R_STUB = 6,
-    NATIVE = 7,
-    STACKGROW = 8,
-    EXSLUSIVE = 9,
+    R2C_STUB = 3,
+    C2N_STUB = 4,
+    RUNTIME = 5,
+    SAFEPOINT = 6,
+    C2R_STUB = 7,
+    NATIVE = 8,
+    STACKGROW = 9,
+    EXSLUSIVE = 10,
 };
 
 enum class StackMode {
@@ -67,6 +68,13 @@ struct FrameAddress {
 // N2CSlotData is a helper for retrieving previous managed context.
 // this data struct should match the layout defined in r2c_stub
 struct N2CSlotData {
+    const uint32_t* pc;
+    FrameAddress* fa;
+    UnwindContextStatus status;
+};
+
+// R2CSlotData saves the runtime caller context before entering managed code through R2CStub.
+struct R2CSlotData {
     const uint32_t* pc;
     FrameAddress* fa;
     UnwindContextStatus status;
@@ -421,6 +429,33 @@ private:
 #endif
 };
 
+class R2CFrame : public MachineFrame {
+public:
+    R2CFrame() : MachineFrame() {}
+    ~R2CFrame() override = default;
+    R2CFrame(FrameAddress* pFa, const uint32_t* pIp) : MachineFrame(pFa, pIp) {}
+
+    static R2CSlotData* GetSlotData(FrameAddress* fa)
+    {
+#if defined __aarch64__ || defined (__arm__)
+        return reinterpret_cast<R2CSlotData*>(fa + OFFSET_FOR_UNWIND_DATA);
+#elif defined(__x86_64__) && !defined(_WIN64)
+        return reinterpret_cast<R2CSlotData*>(reinterpret_cast<R2CSlotData*>(fa) + OFFSET_FOR_UNWIND_DATA);
+#else
+        return nullptr;
+#endif
+    }
+
+    R2CSlotData* GetSlotData() const { return GetSlotData(this->fa); }
+
+private:
+#if defined __aarch64__ || defined (__arm__)
+    static constexpr int64_t OFFSET_FOR_UNWIND_DATA = 1;
+#elif defined(__x86_64__) && !defined(_WIN64)
+    static constexpr int64_t OFFSET_FOR_UNWIND_DATA = -1;
+#endif
+};
+
 // This class contains all stacks except native stacks, including cangjie and runtime and C2N Stub
 // and R2C Stub.
 class UnwindContext {
@@ -466,6 +501,7 @@ public:
     // Get caller managed frame
     bool UnwindToCallerContext(UnwindContext& caller) const;
     bool UnwindToCallerContextFromN2CStub(UnwindContext& caller) const;
+    bool UnwindToCallerContextFromR2CStub(UnwindContext& caller) const;
 #endif
 
     void GoIntoManagedCode();

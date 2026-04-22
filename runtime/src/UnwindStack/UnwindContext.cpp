@@ -27,6 +27,22 @@ bool UnwindContext::UnwindToCallerContextFromN2CStub(UnwindContext& caller) cons
     return true;
 }
 
+bool UnwindContext::UnwindToCallerContextFromR2CStub(UnwindContext& caller) const
+{
+    R2CSlotData* r2cSlotData = R2CFrame::GetSlotData(frameInfo.mFrame.GetFA());
+    if (r2cSlotData->status == UnwindContextStatus::RISKY ||
+        r2cSlotData->status == UnwindContextStatus::SIGNAL_STATUS ||
+        r2cSlotData->status == UnwindContextStatus::UNKNOWN) {
+        caller.frameInfo.mFrame.SetFA(r2cSlotData->fa);
+        caller.frameInfo.mFrame.SetIP(r2cSlotData->pc);
+    } else if (r2cSlotData->status == UnwindContextStatus::RELIABLE) {
+        frameInfo.mFrame.UnwindToCallerMachineFrame(caller.frameInfo.mFrame);
+    }
+
+    caller.SetUnwindContextStatus(UnwindContextStatus::RELIABLE);
+    return true;
+}
+
 bool UnwindContext::UnwindToCallerContext(UnwindContext& caller) const
 {
     DLOG(UNWIND, "UnwindToCallerContext");
@@ -39,6 +55,8 @@ bool UnwindContext::UnwindToCallerContext(UnwindContext& caller) const
     DLOG(UNWIND, "FrameInfo->startProc\t%p", reinterpret_cast<uintptr_t>(frameInfo.GetStartProc()));
     if (frameInfo.GetFrameType() == FrameType::N2C_STUB) {
         UnwindToCallerContextFromN2CStub(caller);
+    } else if (frameInfo.GetFrameType() == FrameType::R2C_STUB) {
+        UnwindToCallerContextFromR2CStub(caller);
     } else {
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
         auto res = frameInfo.mFrame.UnwindToCallerMachineFrame(caller.frameInfo.mFrame);

@@ -391,7 +391,7 @@ ApplyCangjieMethodStubFloat64:
     movq    %rcx, -136(%rbp)
 
     movq    %rbp, %rdi
-    callq   MRT_SaveTopManagedContextToN2CStub
+    callq   MRT_SaveTopManagedContextToR2CStub
 
     movq    -112(%rbp), %r10 // save args
     movq    -120(%rbp), %r12 // stackSize
@@ -448,7 +448,7 @@ ApplyCangjieMethodStubFloat64:
     movsd   %xmm1, -160(%rbp)
 
     movq    %rbp, %rdi
-    callq   MRT_RestoreTopManagedContextFromN2CStub
+    callq   MRT_RestoreTopManagedContextFromR2CStub
 
     // set potential return value
     movq    -112(%rbp), %rdx

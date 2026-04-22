@@ -14,6 +14,8 @@ namespace MapleRuntime {
 struct ThreadLocalData;
 extern "C" MRT_EXPORT void MRT_RestoreTopManagedContextFromN2CStub(FrameAddress* fa);
 extern "C" MRT_EXPORT void MRT_SaveTopManagedContextToN2CStub(FrameAddress* fa);
+extern "C" MRT_EXPORT void MRT_RestoreTopManagedContextFromR2CStub(FrameAddress* fa);
+extern "C" MRT_EXPORT void MRT_SaveTopManagedContextToR2CStub(FrameAddress* fa);
 extern "C" MRT_EXPORT void MRT_SaveTopContextToC2RStub(FrameAddress* fa, const uint32_t* pc);
 extern "C" MRT_EXPORT void MRT_RestoreTopContextFromC2RStub(FrameAddress* fa);
 extern "C" MRT_EXPORT void MRT_SaveC2NContext(const uint32_t* pc, void* fa, ThreadLocalData* tlData);

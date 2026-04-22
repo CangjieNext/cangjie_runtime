@@ -125,11 +125,11 @@ void StackInfo::AnalyseAndSetFrameType(UnwindContext& uwContext)
     } else if (mFrame.IsApplyCangjieMethodStubFrame()) {
 #if defined(__x86_64__) && defined(__linux__) && !defined(_WIN64)
         MRT_Check(lastFrameType == FrameType::MANAGED, "");
-        N2CSlotData* n2cSlotData = N2CFrame::GetSlotData(mFrame.GetFA());
-        if (n2cSlotData->status == UnwindContextStatus::RELIABLE) {
+        R2CSlotData* r2cSlotData = R2CFrame::GetSlotData(mFrame.GetFA());
+        if (r2cSlotData->status == UnwindContextStatus::RELIABLE) {
             isReliableN2CStub = true;
         }
-        frameInfo.SetFrameType(FrameType::N2C_STUB);
+        frameInfo.SetFrameType(FrameType::R2C_STUB);
 #else
         frameInfo.SetFrameType(FrameType::RUNTIME);
         isReliableN2CStub = false;
@@ -168,7 +168,8 @@ void StackInfo::AnalyseAndSetFrameType(UnwindContext& uwContext)
 bool StackInfo::IsN2CContext(const UnwindContext& uwContext) const
 {
     if ((lastFrameType == FrameType::MANAGED && uwContext.frameInfo.GetFrameType() == FrameType::RUNTIME) ||
-        uwContext.frameInfo.GetFrameType() == FrameType::N2C_STUB) {
+        uwContext.frameInfo.GetFrameType() == FrameType::N2C_STUB ||
+        uwContext.frameInfo.GetFrameType() == FrameType::R2C_STUB) {
         return true;
     } else {
         return false;

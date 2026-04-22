@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <string>
 #ifndef _WIN64
 #include <csignal>
 #endif
