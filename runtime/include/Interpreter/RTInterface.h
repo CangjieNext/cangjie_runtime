@@ -678,6 +678,7 @@ struct DYN_InterpreterInterfaceT {
 
 
 struct DYN_CJNativeInterfaceT {
+    void* appLibHandle;
     size_t carrierSpecificOffset;
     size_t cjThreadSpecificOffset;
 

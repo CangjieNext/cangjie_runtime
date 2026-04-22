@@ -466,6 +466,7 @@ void InitInterpreter(const InterpreterParam& interpreterParam)
     const char* libName = interpreterParam.interpreterLibName;
     const int argsCount = interpreterParam.interpreterArgsCount;
     const char* const* args = interpreterParam.interpreterArgs;
+    void* symbolHandle = interpreterParam.appLibHandle;
 
     VLOG(INTERPRETER, "Interpreter parameter:\n\tInterpreter library: %s\n\tInterpreter arguments count: %d",
         libName != nullptr ? libName : "(null)", argsCount);
@@ -481,18 +482,18 @@ void InitInterpreter(const InterpreterParam& interpreterParam)
     }
 
 #if defined(__OHOS__)
-    void* handle = LoaderManager::GetInstance()->LoadInterpreter(libName);
+    void* interpreterLibHandle = LoaderManager::GetInstance()->LoadInterpreter(libName);
 #else
-    void* handle = dlopen(libName, RTLD_LAZY);
+    void* interpreterLibHandle = dlopen(libName, RTLD_LAZY);
 #endif
-    if (handle == 0) {
+    if (interpreterLibHandle == 0) {
         DLOG(INTERPRETER, "interpreter library could not be loaded: %s", dlerror());
         return;
     }
 
     StackManager::InitAddressScopeForInterpreter(libName);
 
-    void *sym = dlsym(handle, "interpreter_bridge_init");
+    void *sym = dlsym(interpreterLibHandle, "interpreter_bridge_init");
     DYN_InitRt init = (DYN_InitRt)sym;
     if (sym == 0) {
         DLOG(INTERPRETER, "dlsym failed: %s", dlerror());
@@ -500,6 +501,7 @@ void InitInterpreter(const InterpreterParam& interpreterParam)
     }
 
     struct DYN_CJNativeInterfaceT cjnativeInterface = {
+        .appLibHandle = symbolHandle,
         .carrierSpecificOffset = offsetof(ThreadLocalData, mutator),
         .cjThreadSpecificOffset   = ComputeCJThreadDataOffset(),
         .typeInfo = &TypeInfoProvider,

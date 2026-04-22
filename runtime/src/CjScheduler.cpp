@@ -645,6 +645,7 @@ static InterpreterParam InitInterpreterParam()
         .interpreterLibName = InitInterpreterLibName(),
         .interpreterArgsCount = interpreterArgsCount,
         .interpreterArgs = interpreterArgs,
+        .appLibHandle = nullptr,
     };
     return interpreterParam;
 }

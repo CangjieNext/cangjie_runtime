@@ -300,7 +300,7 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
 #ifdef INTERPRETER_ENABLED
 void InitCJInterpreter(const struct InterpreterParam* param)
 {
-    CHECK_DETAIL(!g_runtimeFinished.load(), 
+    CHECK_DETAIL(!g_runtimeFinished.load(),
                  "Interpreter initialization started too late, runtime is already fully initialized.");
     CHECK_DETAIL(MapleRuntime::Runtime::CurrentRef() != nullptr,
                  "Cangjie runtime should be initialized before interpreter initialization.");
