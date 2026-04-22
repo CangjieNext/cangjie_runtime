@@ -27,7 +27,7 @@ void StackGrowStackInfo::FillInStackTrace()
     // The offset on the window is unchanged.
     const int firstFrameBaseOffset = 48;
     while (reinterpret_cast<intptr_t>(uwContext.frameInfo.mFrame.GetFA()) !=
-           mutator->GetStackBaseAddr() - firstFrameBaseOffset) {
+           static_cast<intptr_t>(mutator->GetStackBaseAddr()) - firstFrameBaseOffset) {
 #else
     // [rbp] of CJ_CJThreadEntry is 0x0.
     while (reinterpret_cast<intptr_t>(uwContext.frameInfo.mFrame.GetFA()) != 0) {
