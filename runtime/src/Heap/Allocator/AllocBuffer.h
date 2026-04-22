@@ -26,17 +26,17 @@ public:
     static AllocBuffer* GetAllocBuffer();
 
     MAddress Allocate(size_t size, AllocType allocType);
-    RegionInfo* GetRegion() { return tlRegion; }
+    RegionInfo* GetRegion() { return runtimeRegion; }
     RegionInfo* GetPreparedRegion() { return preparedRegion.load(std::memory_order_relaxed); }
-    void SetRegion(RegionInfo* newRegion) { tlRegion = newRegion; }
+    void SetRegion(RegionInfo* newRegion) { runtimeRegion = newRegion; }
     inline void ClearRegion()
     {
-        if (tlRegion == RegionInfo::NullRegion()) {
+        if (runtimeRegion == RegionInfo::NullRegion()) {
             return;
         }
-        DLOG(REGION, "alloc buffer clear tlRegion %p@[0x%zx, 0x%zx)", tlRegion, tlRegion->GetRegionStart(),
-             tlRegion->GetRegionEnd());
-        tlRegion = RegionInfo::NullRegion();
+        DLOG(REGION, "alloc buffer clear runtimeRegion %p@[0x%zx, 0x%zx)", runtimeRegion,
+             runtimeRegion->GetRegionStart(), runtimeRegion->GetRegionEnd());
+        runtimeRegion = RegionInfo::NullRegion();
     }
 
     bool SetPreparedRegion(RegionInfo* newPreparedRegion)
@@ -62,15 +62,19 @@ public:
         stackRoots.clear();
     }
 
+    void FlushRegion();
+
 private:
     // slow path
     MAddress TryAllocateOnce(size_t totalSize, AllocType allocType);
     MAddress AllocateImpl(size_t totalSize, AllocType allocType);
     MAddress AllocateRawPointerObject(size_t totalSize);
 
-    // tlRegion in AllocBuffer is a shortcut for fast allocation.
-    // we should handle failure in RegionManager
+    // Keep the compiler-visible fast-path slot at offset 0 and leave it empty
+    // so generated fast-path code always falls back to runtime slow-path.
     RegionInfo* tlRegion = RegionInfo::NullRegion();
+    // Runtime uses its own region cache and does not expose it to generated code.
+    RegionInfo* runtimeRegion = RegionInfo::NullRegion();
 
     std::atomic<RegionInfo*> preparedRegion = { nullptr };
     // allocate objects which are exposed to runtime thus can not be moved.

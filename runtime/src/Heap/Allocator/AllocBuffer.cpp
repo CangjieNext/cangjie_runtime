@@ -28,13 +28,7 @@ AllocBuffer* AllocBuffer::GetAllocBuffer() { return ThreadLocal::GetAllocBuffer(
 
 AllocBuffer::~AllocBuffer()
 {
-    if (LIKELY(tlRegion != RegionInfo::NullRegion()) && tlRegion != nullptr) {
-        RegionSpace& theAllocator = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
-        RegionManager& manager = theAllocator.GetRegionManager();
-        manager.RemoveThreadLocalRegion(tlRegion);
-        manager.EnlistFullThreadLocalRegion(tlRegion);
-        tlRegion = RegionInfo::NullRegion();
-    }
+    FlushRegion();
 }
 
 void AllocBuffer::Init()
@@ -42,6 +36,8 @@ void AllocBuffer::Init()
     static_assert(offsetof(AllocBuffer, tlRegion) == 0,
                   "need to modify the offset of this value in llvm-project at the same time");
     tlRegion = RegionInfo::NullRegion();
+    runtimeRegion = RegionInfo::NullRegion();
+    ThreadLocal::InitializeCleaner();
     RegionSpace& space = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
     space.RegisterAllocBuffer(*this);
 }
@@ -54,14 +50,15 @@ void AllocBuffer::Fini()
 
 MAddress AllocBuffer::Allocate(size_t totalSize, AllocType allocType)
 {
-    // a hoisted specific fast path which can be inlined
+    // Keep the compiler-visible fast-path slot empty so generated code falls
+    // back to the runtime path backed by runtimeRegion.
     MAddress addr = 0;
     if (UNLIKELY(allocType == AllocType::RAW_POINTER_OBJECT)) {
         return AllocateRawPointerObject(totalSize);
     }
 
-    if (LIKELY(tlRegion != RegionInfo::NullRegion())) {
-        addr = tlRegion->Alloc(totalSize);
+    if (LIKELY(runtimeRegion != RegionInfo::NullRegion())) {
+        addr = runtimeRegion->Alloc(totalSize);
     }
 
     if (UNLIKELY(addr == 0)) {
@@ -79,18 +76,18 @@ MAddress AllocBuffer::AllocateImpl(size_t totalSize, AllocType allocType)
     RegionManager& manager = theAllocator.GetRegionManager();
 
     // allocate from thread local region
-    if (LIKELY(tlRegion != RegionInfo::NullRegion())) {
-        MAddress addr = tlRegion->Alloc(totalSize);
+    if (LIKELY(runtimeRegion != RegionInfo::NullRegion())) {
+        MAddress addr = runtimeRegion->Alloc(totalSize);
         if (addr != 0) {
             return addr;
         }
 
         // allocation failed because region is full.
-        CHECK(tlRegion->IsThreadLocalRegion());
+        CHECK(runtimeRegion->IsThreadLocalRegion());
         {
-            manager.RemoveThreadLocalRegion(tlRegion);
-            manager.EnlistFullThreadLocalRegion(tlRegion);
-            tlRegion = RegionInfo::NullRegion();
+            manager.RemoveThreadLocalRegion(runtimeRegion);
+            manager.EnlistFullThreadLocalRegion(runtimeRegion);
+            runtimeRegion = RegionInfo::NullRegion();
         }
     }
 
@@ -99,7 +96,7 @@ MAddress AllocBuffer::AllocateImpl(size_t totalSize, AllocType allocType)
     RegionInfo* r  = preparedRegion.load(std::memory_order_acquire);
     if (r != nullptr) {
         preparedRegion.store(nullptr, std::memory_order_release);
-        tlRegion = r;
+        runtimeRegion = r;
         if (theAllocator.IsAsyncAllocationEnable()) {
             theAllocator.AddHungryBuffer(*this);
             Heap::GetHeap().GetFinalizerProcessor().NotifyToFeedAllocBuffers();
@@ -107,21 +104,21 @@ MAddress AllocBuffer::AllocateImpl(size_t totalSize, AllocType allocType)
         return r->Alloc(totalSize);
     }
     // AllocateThreadLocalRegion is a safepoint, in which cj thread rescheule may happen.
-    // tlRegion is bound to specific thread, so we need to forbid reschedule.
+    // runtimeRegion is bound to specific thread, so we need to forbid reschedule.
     CJThreadPreemptOffCntAdd();
     r = manager.AllocateThreadLocalRegion();
     CJThreadPreemptOffCntSub();
     if (UNLIKELY(r == nullptr)) {
         return 0;
     }
-    // tlRegion may be set in PreforwardPhase handler while allocating region.
-    // Null region means tlRegion is not set.
-    if (tlRegion == RegionInfo::NullRegion()) {
-        tlRegion = r;
+    // runtimeRegion may be set in PreforwardPhase handler while allocating region.
+    // Null region means runtimeRegion is not set.
+    if (runtimeRegion == RegionInfo::NullRegion()) {
+        runtimeRegion = r;
         return r->Alloc(totalSize);
     }
-    // tlRegion has been set in preforward phase.
-    MAddress addr = tlRegion->Alloc(totalSize);
+    // runtimeRegion has been set in preforward phase.
+    MAddress addr = runtimeRegion->Alloc(totalSize);
     if (addr != 0) {
         if (!SetPreparedRegion(r)) {
             // r is inserted in thread-local region list when allocated, we need to remove it from the list.
@@ -130,10 +127,10 @@ MAddress AllocBuffer::AllocateImpl(size_t totalSize, AllocType allocType)
         }
         return addr;
     }
-    // tlRegion is not enough for allocation, so we use r.
-    manager.RemoveThreadLocalRegion(tlRegion);
-    manager.EnlistFullThreadLocalRegion(tlRegion);
-    tlRegion = r;
+    // runtimeRegion is not enough for allocation, so we use r.
+    manager.RemoveThreadLocalRegion(runtimeRegion);
+    manager.EnlistFullThreadLocalRegion(runtimeRegion);
+    runtimeRegion = r;
     return r->Alloc(totalSize);
 }
 
@@ -172,6 +169,29 @@ void AllocBuffer::CommitRawPointerRegions()
 {
     RegionManager& manager = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator()).GetRegionManager();
     manager.MergeRawPointerRegions(tlRawPointerRegions, tlLargeRawPointerRegions);
+}
+
+void AllocBuffer::FlushRegion()
+{
+    RegionSpace& theAllocator = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
+    RegionManager& manager = theAllocator.GetRegionManager();
+
+    if (LIKELY(runtimeRegion != RegionInfo::NullRegion()) && runtimeRegion != nullptr) {
+        manager.RemoveThreadLocalRegion(runtimeRegion);
+        manager.EnlistFullThreadLocalRegion(runtimeRegion);
+        runtimeRegion = RegionInfo::NullRegion();
+    }
+
+    RegionInfo* prepared = preparedRegion.load(std::memory_order_acquire);
+    if (LIKELY(prepared != RegionInfo::NullRegion()) && prepared != nullptr) {
+        manager.RemoveThreadLocalRegion(prepared);
+        if (prepared->IsEmpty()) {
+            manager.ReclaimRegion(prepared);
+        } else {
+            manager.EnlistFullThreadLocalRegion(prepared);
+        }
+        preparedRegion.store(nullptr, std::memory_order_release);
+    }
 }
 
 } // namespace MapleRuntime
