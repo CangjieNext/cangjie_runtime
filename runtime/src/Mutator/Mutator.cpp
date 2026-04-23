@@ -28,10 +28,19 @@
 #include "CpuProfiler/CpuProfiler.h"
 
 namespace MapleRuntime {
+namespace {
+constexpr uintptr_t kThreadLocalDataAddrMask = 0x00FFFFFFFFFFFFFFULL;
+}
+
 extern "C" uintptr_t MRT_GetThreadLocalData()
 {
-    uintptr_t tlDataAddr = reinterpret_cast<uintptr_t>(ThreadLocal::GetThreadLocalData());
+    return MRT_UpdateThreadLocalDataPhase(reinterpret_cast<uintptr_t>(ThreadLocal::GetThreadLocalData()));
+}
+
+extern "C" uintptr_t MRT_UpdateThreadLocalDataPhase(uintptr_t tlDataAddr)
+{
 #if defined(__aarch64__)
+    tlDataAddr &= kThreadLocalDataAddrMask;
     if (Heap::GetHeap().IsGcStarted()) {
         // Since the TBI(top bit ignore) feature in Aarch64,
         // set gc phase to high 8-bit of ThreadLocalData Address for gc barrier fast path.

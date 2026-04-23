@@ -133,6 +133,13 @@ std::atomic<uint32_t> CentralRegionPool::globalSweepGen_{2};
 CentralRegionPool::CentralRegionPool(MSRegionManager* msRegionManager)
     : msRegionManager_(msRegionManager) {}
 
+void CentralRegionPool::MaybeNotifySweep(uint8_t cls) const
+{
+    if (msRegionManager_ != nullptr) {
+        msRegionManager_->MaybeNotifySweep(this, cls);
+    }
+}
+
 // ============================================================================
 // GetRegion — five-priority Region acquisition
 // Priority: partialSwept -> unswept(lazy sweep) -> emptySweptCache(rebind)

@@ -168,6 +168,9 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
     if (newRegion != nullptr) {
         cachedRegion_[cls] = nullptr;
     } else {
+        if (central_ != nullptr) {
+            central_->MaybeNotifySweep(cls);
+        }
         if (cacheMiss_[cls] < UINT8_MAX) {
             ++cacheMiss_[cls];
         }
@@ -324,6 +327,7 @@ void AllocBufferMS::BackgroundFillCache()
         }
         MSRegionInfo* region = central_->GetRegion(cls);
         if (region == nullptr) {
+            central_->MaybeNotifySweep(cls);
             continue;
         }
         MSRegionInfo* expected = nullptr;

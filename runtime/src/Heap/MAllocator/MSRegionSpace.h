@@ -19,7 +19,9 @@ namespace MapleRuntime {
 class CentralRegionPool;
 class MSRegionManager;
 class AllocBufferMS;
+class Mutator;
 class MemMap;
+struct ThreadLocalData;
 
 // RegionSpaceMS is the Allocator implementation for Mark-Sweep GC mode.
 // It manages memory via MSRegionManager/CentralRegionPool,
@@ -82,7 +84,8 @@ public:
     friend class Allocator;
 
 private:
-    MAddress TryAllocateOnceMS(size_t allocSize);
+    MAddress TryAllocateOnceMS(size_t allocSize, ThreadLocalData* local, Mutator* mutator,
+                               AllocBufferMS*& msBuffer);
     void RegisterLargeObjectMS(MAddress addr, size_t regionBytes);
     bool ShouldRetryAllocation(size_t& tryTimes, size_t size) const;
 

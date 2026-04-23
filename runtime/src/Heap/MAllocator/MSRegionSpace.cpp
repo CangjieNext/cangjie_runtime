@@ -89,9 +89,12 @@ MAddress RegionSpaceMS::Allocate(size_t size, AllocType allocType)
     (void)allocType;
     size_t allocSize = ToAllocSize(size);
     uintptr_t internalAddr = 0;
+    ThreadLocalData* local = ThreadLocal::GetThreadLocalData();
+    Mutator* mutator = local != nullptr ? local->mutator : nullptr;
+    AllocBufferMS* msBuffer = local != nullptr ? local->msAllocBuffer : nullptr;
 
     if (UNLIKELY(allocSize >= kLargeObjectThreshold)) {
-        internalAddr = TryAllocateOnceMS(allocSize);
+        internalAddr = TryAllocateOnceMS(allocSize, local, mutator, msBuffer);
         if (UNLIKELY(internalAddr == 0)) {
             if (IsGcThread()) {
                 return 0;
@@ -109,7 +112,7 @@ MAddress RegionSpaceMS::Allocate(size_t size, AllocType allocType)
     size_t tryTimes = 0;
     do {
         tryTimes++;
-        internalAddr = TryAllocateOnceMS(allocSize);
+        internalAddr = TryAllocateOnceMS(allocSize, local, mutator, msBuffer);
         if (LIKELY(internalAddr != 0)) {
             break;
         }
@@ -237,7 +240,8 @@ bool RegionSpaceMS::ForEachObj(const std::function<void(BaseObject*)>& visitor, 
     return true;
 }
 
-MAddress RegionSpaceMS::TryAllocateOnceMS(size_t allocSize)
+MAddress RegionSpaceMS::TryAllocateOnceMS(size_t allocSize, ThreadLocalData* local, Mutator* mutator,
+                                          AllocBufferMS*& msBuffer)
 {
     if (UNLIKELY(allocSize >= kLargeObjectThreshold)) {
         size_t unitCount = (allocSize + MRT_PAGE_SIZE - 1) / MRT_PAGE_SIZE;
@@ -259,17 +263,16 @@ MAddress RegionSpaceMS::TryAllocateOnceMS(size_t allocSize)
         RegisterLargeObjectMS(addr, regionBytes);
         // Pacing debt: large objects bypass AllocBufferMS::Allocate, so we must
         // accumulate assist debt explicitly here to keep GC pacing correct.
-        AllocBufferMS* msBuffer = AllocBufferMS::GetAllocBufferMS();
         if (msBuffer != nullptr) {
             msBuffer->AccumulatePacingDebt(allocSize);
         }
         return addr;
     }
 
-    ThreadLocalData* local = ThreadLocal::GetThreadLocalData();
-    AllocBufferMS* msBuffer = AllocBufferMS::GetOrCreateAllocBufferMS(local);
+    if (msBuffer == nullptr) {
+        msBuffer = AllocBufferMS::GetOrCreateAllocBufferMS(local);
+    }
     if (msBuffer != nullptr) {
-        Mutator* mutator = local != nullptr ? local->mutator : nullptr;
         MAddress addr = msBuffer->Allocate(allocSize, mutator);
         if (LIKELY(addr != 0)) {
             return addr;
@@ -280,7 +283,8 @@ MAddress RegionSpaceMS::TryAllocateOnceMS(size_t allocSize)
 
 void RegionSpaceMS::EnsureThreadLocalAllocBuffer()
 {
-    (void)AllocBufferMS::GetOrCreateAllocBufferMS();
+    ThreadLocalData* local = ThreadLocal::GetThreadLocalData();
+    (void)AllocBufferMS::GetOrCreateAllocBufferMS(local);
 }
 
 size_t RegionSpaceMS::AllocatedBytes() const

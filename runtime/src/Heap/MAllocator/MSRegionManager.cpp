@@ -240,7 +240,7 @@ size_t GetHeuSweepLagTriggerRegions()
 
 size_t GetBgSweepNotifyReadyWatermark()
 {
-    static const size_t value = ReadEnvCount("CJ_MS_BG_SWEEP_NOTIFY_READY_WATERMARK", 4);
+    static const size_t value = ReadEnvCount("CJ_MS_BG_SWEEP_NOTIFY_READY_WATERMARK", 8);
     return value;
 }
 
