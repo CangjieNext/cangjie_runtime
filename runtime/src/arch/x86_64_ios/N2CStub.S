@@ -270,9 +270,11 @@ _ExecuteCangjieStub:
 
     .text
     .align 2
+    .global   _unwindPCForApplyCangjieMethodStubStart
     .global   _ApplyCangjieMethodStub
     .global   _ApplyCangjieMethodStubFloat32
     .global   _ApplyCangjieMethodStubFloat64
+_unwindPCForApplyCangjieMethodStubStart:
 _ApplyCangjieMethodStub:
 _ApplyCangjieMethodStubFloat32:
 _ApplyCangjieMethodStubFloat64:
@@ -340,6 +342,8 @@ _ApplyCangjieMethodStubFloat64:
 
     // call method
     movq    %r14, %r15
+    movq    %rbp, %rdi
+    callq   _MRT_SaveTopManagedContextToR2CStub
     callq   *%r13
 
     // keep potential return value
@@ -349,6 +353,9 @@ _ApplyCangjieMethodStubFloat64:
     movq    %rax,  -120(%rbp)
     movsd   %xmm0, -144(%rbp)
     movsd   %xmm1, -160(%rbp)
+
+    movq    %rbp, %rdi
+    callq   _MRT_RestoreTopManagedContextFromR2CStub
 
     // set potential return value
     movq    -112(%rbp), %rdx
@@ -367,6 +374,8 @@ _ApplyCangjieMethodStubFloat64:
 
     popq   %rbp
     .cfi_adjust_cfa_offset -8
+    .global   _unwindPCForApplyCangjieMethodStubEnd
+_unwindPCForApplyCangjieMethodStubEnd:
     retq
     .cfi_endproc
 
