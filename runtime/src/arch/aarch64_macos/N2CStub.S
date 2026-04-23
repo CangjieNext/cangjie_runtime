@@ -383,7 +383,11 @@ _ApplyCangjieMethodStubFloat64:
     mov  x21, x1 // stackSize
     mov  x22, x2 // save func
     mov  x23, x3 // threadData
-    mov  x8,  x4 // sret
+    mov  x25, x4 // sret, preserve across the R2C helper call
+
+    mov  x0, x29
+    bl   _MRT_SaveTopManagedContextToR2CStub
+    mov  x8, x25
 
     // x28 <- previous sp
     add  x28, sp, #StubFrameContextSize
@@ -425,9 +429,6 @@ _ApplyCangjieMethodStubFloat64:
     ldp d2, d3, [x20, #16]
     ldp d4, d5, [x20, #32]
     ldp d6, d7, [x20, #48]
-
-    mov x0, x29
-    bl  _MRT_SaveTopManagedContextToR2CStub
 
     mov x28, x23
     // threadData
