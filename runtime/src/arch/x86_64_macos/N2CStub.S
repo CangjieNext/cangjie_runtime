@@ -278,11 +278,18 @@ _ApplyCangjieMethodStubFloat64:
     .cfi_rel_offset %r14, -80
     .cfi_rel_offset %r15, -72
 
-    movq    %rdi, %r10 // save args
-    movq    %rsi, %r12 // stackSize
-    //movq    %rdx, %r11 // slot
-    movq    %rdx, %r13 // save func
-    movq    %rcx,  %r14 // theadData
+    movq    %rdi, -112(%rbp)
+    movq    %rsi, -120(%rbp)
+    movq    %rdx, -128(%rbp)
+    movq    %rcx, -136(%rbp)
+
+    movq    %rbp, %rdi
+    callq   _MRT_SaveTopManagedContextToR2CStub
+
+    movq    -112(%rbp), %r10 // save args
+    movq    -120(%rbp), %r12 // stackSize
+    movq    -128(%rbp), %r13 // save func
+    movq    -136(%rbp), %r14 // threadData
 
     // kRegArgsSize * 8 = 112
     movq    %r10, %rdi
@@ -323,8 +330,6 @@ _ApplyCangjieMethodStubFloat64:
 
     // call method
     movq    %r14, %r15
-    movq    %rbp, %rdi
-    callq   _MRT_SaveTopManagedContextToR2CStub
     callq   *%r13
 
     // keep potential return value
