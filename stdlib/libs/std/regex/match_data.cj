@@ -29,6 +29,7 @@ public struct MatchData {
         let input: String,
         let positions: Array<Position>,
         let rc: Int64,
+        let captureCount!: Int64 = rc - 1,
         let nameToIndex!: (String) -> Int64 = {
             _ => throw IllegalArgumentException("Capture group not enabled.")
         }
@@ -48,11 +49,14 @@ public struct MatchData {
      * @throws IndexOutOfBoundsException if capture group not enabled, or group is less than zero or larger than groupCount()
      */
     public func matchString(group: Int64): String {
-        if (positions.size == 1 && rc > 1 && group > 0) {
+        if (positions.size == 1 && captureCount > 0 && group > 0) {
             throw IllegalArgumentException("Capture group not enabled.")
         }
-        if (group < 0 || group >= rc) {
+        if (group < 0 || group > captureCount) {
             throw IllegalArgumentException("Invalid group index.")
+        }
+        if (group >= positions.size) {
+            return String.empty
         }
         let position = positions[group]
         if (position.start == UNCAPTURED_GROUP_INDEX || position.end == UNCAPTURED_GROUP_INDEX) {
@@ -67,10 +71,13 @@ public struct MatchData {
      * @throws IllegalArgumentException if capture group not enabled or group name not found
      */
     public func matchString(group: String): String {
-        if (positions.size == 1 && rc > 1) {
+        if (positions.size == 1 && captureCount > 0) {
             throw IllegalArgumentException("Capture group not enabled.")
         }
         let index = nameToIndex(group)
+        if (index >= positions.size) {
+            return String.empty
+        }
         let position = positions[index]
         if (position.start == UNCAPTURED_GROUP_INDEX || position.end == UNCAPTURED_GROUP_INDEX) {
             return String.empty
@@ -93,11 +100,14 @@ public struct MatchData {
      * @throws IllegalArgumentException if capture group not enabled, or group is less than zero or larger than groupCount
      */
     public func matchPosition(group: Int64): Position {
-        if (positions.size == 1 && rc > 1 && group > 0) {
+        if (positions.size == 1 && captureCount > 0 && group > 0) {
             throw IllegalArgumentException("Capture group not enabled.")
         }
-        if (group < 0 || group >= rc) {
+        if (group < 0 || group > captureCount) {
             throw IllegalArgumentException("Invalid group index.")
+        }
+        if (group >= positions.size) {
+            return Position(UNCAPTURED_GROUP_INDEX, UNCAPTURED_GROUP_INDEX)
         }
         return positions[group]
     }
@@ -108,10 +118,13 @@ public struct MatchData {
      * @throws IllegalArgumentException if capture group not enabled or group name not found
      */
     public func matchPosition(group: String): Position {
-        if (positions.size == 1 && rc > 1) {
+        if (positions.size == 1 && captureCount > 0) {
             throw IllegalArgumentException("Capture group not enabled.")
         }
         let index = nameToIndex(group)
+        if (index >= positions.size) {
+            return Position(UNCAPTURED_GROUP_INDEX, UNCAPTURED_GROUP_INDEX)
+        }
         return positions[index]
     }
 
@@ -124,6 +137,6 @@ public struct MatchData {
      * Get the count of capture groups.
      */
     public func groupCount(): Int64 {
-        return rc - 1
+        return captureCount
     }
 }
