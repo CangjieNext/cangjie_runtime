@@ -320,9 +320,11 @@ _ExecuteCangjieStub:
 
 .section __TEXT,__cjrt_text,regular
 .align 2
+.global  _unwindPCForApplyCangjieMethodStubStart
 .global  _ApplyCangjieMethodStub
 .global  _ApplyCangjieMethodStubFloat32
 .global  _ApplyCangjieMethodStubFloat64
+_unwindPCForApplyCangjieMethodStubStart:
 _ApplyCangjieMethodStub:
 _ApplyCangjieMethodStubFloat32:
 _ApplyCangjieMethodStubFloat64:
@@ -424,6 +426,9 @@ _ApplyCangjieMethodStubFloat64:
     ldp d4, d5, [x20, #32]
     ldp d6, d7, [x20, #48]
 
+    mov x0, x29
+    bl  _MRT_SaveTopManagedContextToR2CStub
+
     mov x28, x23
     // threadData
     blr x22
@@ -442,6 +447,9 @@ _ApplyCangjieMethodStubFloat64:
     stp  d2, d3, [sp, #StubCalleeSaveAreaSize+0x70]
     cfi_rel_offset (d2, StubCalleeSaveAreaSize+0x70)
     cfi_rel_offset (d3, StubCalleeSaveAreaSize+0x78)
+
+    mov  x0, x29
+    bl   _MRT_RestoreTopManagedContextFromR2CStub
 
     /* set potential return value */
     mov  x0, x21
@@ -483,6 +491,8 @@ _ApplyCangjieMethodStubFloat64:
     cfi_adjust_cfa_offset (-StubFrameContextSize)
     cfi_restore (x29)
     cfi_restore (x30)
+    .global  _unwindPCForApplyCangjieMethodStubEnd
+_unwindPCForApplyCangjieMethodStubEnd:
     ret
     .cfi_endproc
 
