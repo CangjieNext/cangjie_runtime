@@ -6,6 +6,7 @@
 
 
 #include "Base/Log.h"
+#include "Heap/Heap.h"
 #include "ObjectManager.inline.h"
 #include "ExceptionManager.inline.h"
 
@@ -200,9 +201,11 @@ bool MethodInfo::CheckMethodActualArgs(void* genericArgsArray, void* actualArgsA
     if (actualArgCnt != GetNumOfActualParameterInfos()) {
         return false;
     }
-    Uptr base = reinterpret_cast<Uptr>(&(actualArgs->rawPtr->data));
+    CJRawArray* cjRawArray = actualArgs->rawPtr;
+    ObjRef rawArray = reinterpret_cast<ObjRef>(cjRawArray);
+    RefField<false>* refField = reinterpret_cast<RefField<false>*>(&(cjRawArray->data));
     for (U64 actualArgIdx = 0; actualArgIdx < actualArgCnt; ++actualArgIdx) {
-        ObjRef argObj = *reinterpret_cast<ObjRef*>(base);
+        ObjRef argObj = static_cast<ObjRef>(Heap::GetBarrier().ReadReference(rawArray, *refField));
         ParameterInfo* actualParameterInfo = GetActualParameterInfo(actualArgIdx);
         TypeInfo* argType = actualParameterInfo->GetType();
         if (argType->IsGeneric()) {
@@ -211,7 +214,7 @@ bool MethodInfo::CheckMethodActualArgs(void* genericArgsArray, void* actualArgsA
         if (argType == nullptr) {
             return false;
         }
-        base += sizeof(ObjRef);
+        refField++;
         if (!argObj->GetTypeInfo()->IsSubType(argType)) {
             return false;
         }
