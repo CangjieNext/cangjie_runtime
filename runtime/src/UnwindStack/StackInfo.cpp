@@ -123,7 +123,7 @@ void StackInfo::AnalyseAndSetFrameType(UnwindContext& uwContext)
         frameInfo.SetFrameType(FrameType::EXSLUSIVE);
         isReliableN2CStub = false;
     } else if (mFrame.IsApplyCangjieMethodStubFrame()) {
-#if defined(__linux__) && !defined(_WIN64) && (defined(__x86_64__) || defined(__aarch64__))
+#if defined(__linux__) && !defined(_WIN64) && (defined(__x86_64__) || defined(__aarch64__) || defined(__arm__))
         MRT_Check(lastFrameType == FrameType::MANAGED, "");
         R2CSlotData* r2cSlotData = R2CFrame::GetSlotData(mFrame.GetFA());
         if (r2cSlotData->status == UnwindContextStatus::RELIABLE) {
