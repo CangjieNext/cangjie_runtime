@@ -44,6 +44,9 @@ foreign func CJ_REGEX_GetErrorMsg(errorCode: Int32): CString
 foreign func CJ_REGEX_GetNameTableInfo(re: Pcre2CodePtr): CPointer<NameTableInfo>
 
 @FastNative
+foreign func CJ_REGEX_GetCaptureCount(re: Pcre2CodePtr): UInt32
+
+@FastNative
 foreign func CJ_REGEX_FreeCode(re: Pcre2CodePtr): Unit
 
 @FastNative

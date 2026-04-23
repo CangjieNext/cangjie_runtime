@@ -132,6 +132,13 @@ extern NamedTableInfo* CJ_REGEX_GetNameTableInfo(const pcre2_code* re)
     return info;
 }
 
+extern uint32_t CJ_REGEX_GetCaptureCount(const pcre2_code* re)
+{
+    uint32_t count;
+    (void)pcre2_pattern_info(re, PCRE2_INFO_CAPTURECOUNT, &count);
+    return count;
+}
+
 extern void CJ_REGEX_FreeCode(pcre2_code* re)
 {
     pcre2_code_free(re);

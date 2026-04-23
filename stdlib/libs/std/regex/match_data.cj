@@ -54,6 +54,9 @@ public struct MatchData {
         if (group < 0 || group >= rc) {
             throw IllegalArgumentException("Invalid group index.")
         }
+        if (group >= positions.size) {
+            return String.empty
+        }
         let position = positions[group]
         if (position.start == UNCAPTURED_GROUP_INDEX || position.end == UNCAPTURED_GROUP_INDEX) {
             return String.empty
@@ -71,6 +74,9 @@ public struct MatchData {
             throw IllegalArgumentException("Capture group not enabled.")
         }
         let index = nameToIndex(group)
+        if (index >= positions.size) {
+            return String.empty
+        }
         let position = positions[index]
         if (position.start == UNCAPTURED_GROUP_INDEX || position.end == UNCAPTURED_GROUP_INDEX) {
             return String.empty
@@ -99,6 +105,9 @@ public struct MatchData {
         if (group < 0 || group >= rc) {
             throw IllegalArgumentException("Invalid group index.")
         }
+        if (group >= positions.size) {
+            return Position(UNCAPTURED_GROUP_INDEX, UNCAPTURED_GROUP_INDEX)
+        }
         return positions[group]
     }
 
@@ -112,6 +121,9 @@ public struct MatchData {
             throw IllegalArgumentException("Capture group not enabled.")
         }
         let index = nameToIndex(group)
+        if (index >= positions.size) {
+            return Position(UNCAPTURED_GROUP_INDEX, UNCAPTURED_GROUP_INDEX)
+        }
         return positions[index]
     }
 
