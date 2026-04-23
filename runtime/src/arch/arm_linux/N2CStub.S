@@ -537,6 +537,9 @@ ApplyCangjieMethodStubFloat64:
     mov  r7, r2  // save func
     mov  r8, r3  // threadData
 
+    mov  r0, r11
+    bl   MRT_SaveTopManagedContextToR2CStub
+
     // copy parameter to stack
     // size align to 16 byte.
     add  r6, r6, #(8 - 1)
@@ -578,9 +581,6 @@ ApplyCangjieMethodStubFloat64:
     vldr  d5, [r5, #40]
     vldr  d6, [r5, #48]
     vldr  d7, [r5, #56]
-
-    mov  r0, r11
-    bl   MRT_SaveTopManagedContextToR2CStub
 
     blx  r7
 
