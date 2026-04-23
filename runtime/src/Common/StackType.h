@@ -439,7 +439,7 @@ public:
     {
 #if defined __aarch64__ || defined (__arm__)
         return reinterpret_cast<R2CSlotData*>(fa + OFFSET_FOR_UNWIND_DATA);
-#elif defined(__x86_64__) && !defined(_WIN64)
+#elif defined(__x86_64__) || defined(_WIN64)
         return reinterpret_cast<R2CSlotData*>(reinterpret_cast<R2CSlotData*>(fa) + OFFSET_FOR_UNWIND_DATA);
 #else
         return nullptr;
@@ -451,7 +451,7 @@ public:
 private:
 #if defined __aarch64__ || defined (__arm__)
     static constexpr int64_t OFFSET_FOR_UNWIND_DATA = 1;
-#elif defined(__x86_64__) && !defined(_WIN64)
+#elif defined(__x86_64__) || defined(_WIN64)
     static constexpr int64_t OFFSET_FOR_UNWIND_DATA = -1;
 #endif
 };

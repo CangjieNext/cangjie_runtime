@@ -97,6 +97,18 @@ bool UnwindContext::UnwindToCallerContext(UnwindContext& caller, UnwindContextSt
         }
         caller.SetUnwindContextStatus(UnwindContextStatus::RELIABLE);
         return true;
+    } else if (frameInfo.GetFrameType() == FrameType::R2C_STUB) {
+        R2CSlotData* r2cSlotData = R2CFrame::GetSlotData(frameInfo.mFrame.GetFA());
+        if (r2cSlotData->status == UnwindContextStatus::RISKY ||
+            r2cSlotData->status == UnwindContextStatus::SIGNAL_STATUS ||
+            r2cSlotData->status == UnwindContextStatus::UNKNOWN) {
+            caller.frameInfo.mFrame.SetFA(r2cSlotData->fa);
+            caller.frameInfo.mFrame.SetIP(r2cSlotData->pc);
+        } else if (r2cSlotData->status == UnwindContextStatus::RELIABLE) {
+            frameInfo.mFrame.UnwindToCallerMachineFrame(caller.frameInfo, uwCtxStatus);
+        }
+        caller.SetUnwindContextStatus(UnwindContextStatus::RELIABLE);
+        return true;
     } else {
     return frameInfo.mFrame.UnwindToCallerMachineFrame(caller.frameInfo, uwCtxStatus);
     }

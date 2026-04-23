@@ -15,6 +15,7 @@
 #include "Common/StackType.h"
 #include "Common/TypeDef.h"
 #include "MangleNameHelper.h"
+#include "RuntimeConfig.h"
 #include "StackMap/StackMap.h"
 #include "UnwindStack/StackMetadataHelper.h"
 #ifdef _WIN64
@@ -122,12 +123,19 @@ void StackInfo::AnalyseAndSetFrameType(UnwindContext& uwContext)
     } else if (mFrame.IsExclusiveStubFrame()) {
         frameInfo.SetFrameType(FrameType::EXSLUSIVE);
         isReliableN2CStub = false;
-    } else if (mFrame.IsApplyCangjieMethodStubFrame()) {
+    } else if (
+#ifdef _WIN64
+        frameInfo.GetStartProc() == reinterpret_cast<const uint32_t*>(&ApplyCangjieMethodStub)
+#else
+        mFrame.IsApplyCangjieMethodStubFrame()
+#endif
+    ) {
 #if (defined(__linux__) && !defined(_WIN64) && (defined(__x86_64__) || defined(__aarch64__) || defined(__arm__))) || \
     (defined(__APPLE__) && defined(__x86_64__) && !defined(__IOS__)) || \
     (defined(__APPLE__) && defined(__aarch64__) && !defined(__IOS__)) || \
     (defined(__APPLE__) && defined(__x86_64__) && defined(__IOS__)) || \
-    (defined(__APPLE__) && defined(__aarch64__) && defined(__IOS__))
+    (defined(__APPLE__) && defined(__aarch64__) && defined(__IOS__)) || \
+    defined(_WIN64)
         MRT_Check(lastFrameType == FrameType::MANAGED, "");
         R2CSlotData* r2cSlotData = R2CFrame::GetSlotData(mFrame.GetFA());
         if (r2cSlotData->status == UnwindContextStatus::RELIABLE) {
