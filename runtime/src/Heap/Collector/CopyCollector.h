@@ -30,6 +30,7 @@ protected:
     virtual void ForwardFromSpace();
     virtual void RefineFromSpace();
 
+    virtual void DoFullGarbageCollection() = 0;
     virtual void DoGarbageCollection() = 0;
 
 private:

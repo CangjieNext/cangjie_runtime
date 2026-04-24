@@ -1672,6 +1672,35 @@ unsigned long long ScheduleCJThreadCountPublic(CJthreadStatePublic state)
     return cjthreadNum;
 }
 
+void ScheduleWaitUntilOtherCJThreadsFinishRunningWork(void)
+{
+    if (!g_scheduleManager.initFlag) {
+        return;
+    }
+    struct CJThread *self = static_cast<struct CJThread*>(CJThreadGetHandle());
+    for (;;) {
+        bool otherActive = false;
+        pthread_mutex_lock(&g_scheduleManager.allCJThreadListLock);
+        struct Dulink *scheduleCJThreadNode = nullptr;
+        DULINK_FOR_EACH_ITEM(scheduleCJThreadNode, &g_scheduleManager.allCJThreadList) {
+            struct CJThread *cjthread = DULINK_ENTRY(scheduleCJThreadNode, struct CJThread, allCJThreadDulink);
+            if (self != nullptr && cjthread == self) {
+                continue;
+            }
+            CJThreadState st = cjthread->state.load(std::memory_order_relaxed);
+            if (st == CJTHREAD_READY || st == CJTHREAD_RUNNING || st == CJTHREAD_SYSCALL) {
+                otherActive = true;
+                break;
+            }
+        }
+        pthread_mutex_unlock(&g_scheduleManager.allCJThreadListLock);
+        if (!otherActive) {
+            return;
+        }
+        (void)sched_yield();
+    }
+}
+
 /* Collects statistics on the number of running processors. */
 unsigned int ScheduleRunningOSThreadCount(void)
 {

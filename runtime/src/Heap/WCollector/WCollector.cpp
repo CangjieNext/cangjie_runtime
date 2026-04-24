@@ -7,6 +7,10 @@
 
 #include "WCollector.h"
 
+#include <algorithm>
+#include <cctype>
+#include <cstdlib>
+
 #include "Concurrency/Concurrency.h"
 #include "Mutator/MutatorManager.h"
 
@@ -196,10 +200,16 @@ void WCollector::EnumAndTagRawRoot(ObjectRef& ref, RootSet& rootSet) const
 // note each ref-field will not be traced twice, so each old pointer the tracer meets must come from previous gc.
 void WCollector::TraceRefField(BaseObject* obj, RefField<>& field, WorkStack& workStack) const
 {
+    TypeInfo* kls = obj->GetTypeInfo();
+    (void)kls;
     RefField<> oldField(field);
     if (IsCurrentPointer(oldField)) {
         BaseObject* targetObj = oldField.GetTargetObject();
+        
         if (!IsMarkedObject(targetObj)) {
+            if (!targetObj->IsValidObject()) {
+                printf("invalid target object found in current pointer from object %p\n", obj);
+            }
             workStack.push_back(targetObj);
         }
         return;
@@ -227,6 +237,9 @@ void WCollector::TraceRefField(BaseObject* obj, RefField<>& field, WorkStack& wo
     }
 
     if (!IsMarkedObject(latest)) {
+        if (!latest->IsValidObject()) {
+            printf("invalid target object found in current pointer from object %p\n", obj);
+        }
         workStack.push_back(latest);
     }
 }
@@ -366,12 +379,42 @@ void WCollector::PreforwardAllResurrectExportFromObjects()
         resurrectedExportObjectes.insert(tmp.begin(), tmp.end());
     }
 }
+
+void WCollector::preTrace()
+{
+    MRT_ASSERT(isFullGC, "preTrace called but isFullGC is false");
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
+    space.GetRegionManager().RevokeThreadLocalRegions();
+}
+
 void WCollector::TraceHeap()
 {
     WorkStack workStack = NewWorkStack();
     WorkStack foreignStack = NewWorkStack();
     // assemble garbage candidates for tracing.
-    reinterpret_cast<RegionSpace&>(theAllocator).AssembleGarbageCandidates();
+    reinterpret_cast<RegionSpace&>(theAllocator).AssembleGarbageCandidates(isFullGC);
+
+    {
+        MRT_PHASE_TIMER("enum roots & update old pointers within");
+        TransitionToGCPhase(GCPhase::GC_PHASE_ENUM, true);
+        DoEnumeration(workStack, foreignStack);
+    }
+
+    {
+        MRT_PHASE_TIMER("trace live objects & update old pointers in ref-fields");
+        markedObjectCount.store(0, std::memory_order_relaxed);
+        TransitionToGCPhase(GCPhase::GC_PHASE_TRACE, true);
+        reinterpret_cast<RegionSpace&>(theAllocator).PrepareTrace();
+        DoTracing(workStack, foreignStack);
+
+        ProcessFinalizers();
+    }
+}
+
+void WCollector::TinyTrace() {
+    WorkStack workStack = NewWorkStack();
+    WorkStack foreignStack = NewWorkStack();
+    // assemble garbage candidates for tracing.
 
     {
         MRT_PHASE_TIMER("enum roots & update old pointers within");
@@ -413,7 +456,10 @@ void WCollector::Preforward()
     ScopedEntryTrace trace("CJRT_GC_PREFORWARD");
     MRT_PHASE_TIMER("Preforward");
     {
-        ScopedLightSync scopedLightSync("Preforward", true, GCPhase::GC_PHASE_PREFORWARD);
+        if (!isFullGC) ScopedLightSync scopedLightSync("Preforward", true, GCPhase::GC_PHASE_PREFORWARD);
+        else {
+            TransitionToGCPhase(GCPhase::GC_PHASE_PREFORWARD, true);
+        }
     }
 
     GCThreadPool* threadPool = GetThreadPool();
@@ -525,6 +571,9 @@ void WCollector::PostResolveCycleTask()
 }
 void WCollector::DoGarbageCollection()
 {
+    if (isFullGC) {
+        preTrace();
+    }
     TraceHeap();
     PostTrace();
 
@@ -542,6 +591,14 @@ void WCollector::DoGarbageCollection()
     ForwardDataManager::GetForwardDataManager().UnbindPreviousLiveInfo();
 
     reinterpret_cast<RegionSpace&>(theAllocator).DumpRegionStats("region statistics when gc ends");
+}
+
+
+void WCollector::DoFullGarbageCollection()
+{
+    MRT_ASSERT(isFullGC, "DoFullGarbageCollection called but isFullGC is false");
+    preTrace();
+    TraceHeap();
 }
 
 void WCollector::MarkNewObject(BaseObject* obj)
@@ -629,6 +686,65 @@ BaseObject* WCollector::ForwardObjectExclusive(BaseObject* obj)
     return toObj;
 }
 
+std::vector<WCollector::LiveTypeSummary> WCollector::SummarizeLiveObjectsByType() const
+{
+    std::unordered_map<std::string, std::pair<size_t, size_t>> summaryMap;
+    auto summarizeVisitor = [&summaryMap](BaseObject* obj) {
+        if (obj == nullptr) {
+            return;
+        }
+
+        TypeInfo* typeInfo = obj->GetTypeInfo();
+        const char* rawName = (typeInfo != nullptr) ? typeInfo->GetName() : nullptr;
+        const std::string typeName = (rawName != nullptr) ? rawName : "anonymous";
+        auto& stat = summaryMap[typeName];
+        stat.first++;
+        stat.second += obj->GetSize();
+    };
+
+    bool ret = Heap::GetHeap().ForEachObj(summarizeVisitor, false);
+    CHECK_E(UNLIKELY(!ret), "theAllocator.ForEachObj() in SummarizeLiveObjectsByType() return false.");
+
+    std::vector<LiveTypeSummary> summaries;
+    summaries.reserve(summaryMap.size());
+    for (const auto& item : summaryMap) {
+        summaries.emplace_back(item.first, item.second.first, item.second.second);
+    }
+
+    std::sort(summaries.begin(), summaries.end(),
+        [](const LiveTypeSummary& left, const LiveTypeSummary& right) {
+            if (std::get<2>(left) != std::get<2>(right)) {
+                return std::get<2>(left) > std::get<2>(right);
+            }
+            if (std::get<1>(left) != std::get<1>(right)) {
+                return std::get<1>(left) > std::get<1>(right);
+            }
+            return std::get<0>(left) < std::get<0>(right);
+        });
+    return summaries;
+}
+
+bool WCollector::ShouldPrintLiveTypeSummary() const
+{
+    const char* env = std::getenv("cjPrintLiveTypeSummary");
+    if (env == nullptr || *env == '\0') {
+        return false;
+    }
+
+    std::string value(env);
+    std::transform(value.begin(), value.end(), value.begin(),
+        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    return value == "1" || value == "true" || value == "on" || value == "yes" || value == "y";
+}
+
+void WCollector::PrintLiveTypeSummary(const std::vector<LiveTypeSummary>& summaries) const
+{
+    printf("Live object type summary (typename, number, bytes), type count: %zu\n", summaries.size());
+    for (const auto& item : summaries) {
+        printf("<%s, %zu, %zu>\n", std::get<0>(item).c_str(), std::get<1>(item), std::get<2>(item));
+    }
+}
+
 void WCollector::CollectSmallSpace()
 {
     GCStats& stats = GetGCStats();
@@ -642,8 +758,23 @@ void WCollector::CollectSmallSpace()
     size_t candidateBytes = stats.fromSpaceSize + stats.pinnedSpaceSize + stats.largeSpaceSize;
     stats.garbageRatio = (candidateBytes > 0) ? static_cast<float>(stats.collectedBytes) / candidateBytes : 0;
 
-    stats.liveBytesAfterGC = space.AllocatedBytes();
+    stats.liveBytesAfterGC = space.AllocatedBytesForGCTest();
+    
+    if (isFullGC) {
+        stats.liveBytesAfterGC = space.AllocatedBytesForGCTest();
+        printf("After Full GC, Live %zu B.\n", stats.liveBytesAfterGC);
 
+        std::vector<LiveTypeSummary> liveTypeSummaries = SummarizeLiveObjectsByType();
+        size_t totalLiveBytes = 0;
+        for (const auto& summary : liveTypeSummaries) {
+            totalLiveBytes += std::get<2>(summary);
+        }
+
+        DCHECK(stats.liveBytesAfterGC == totalLiveBytes && "Live bytes after GC does not match the sum of live type summaries");
+        if (ShouldPrintLiveTypeSummary()) {
+            PrintLiveTypeSummary(liveTypeSummaries);
+        }
+    }
     VLOG(REPORT,
          "collect %zu B: old small %zu - %zu B, old pinned %zu - %zu B, old large %zu - %zu B. garbage ratio %.2f%%",
          stats.collectedBytes, stats.fromSpaceSize, stats.smallGarbageSize, stats.pinnedSpaceSize,
@@ -655,6 +786,11 @@ void WCollector::CollectSmallSpace()
     Heap::GetHeap().GetAllocator().TryReclaimGarbageMemory();
 #endif
     collectorResources.GetFinalizerProcessor().NotifyToReclaimGarbage();
+
+    if (isFullGC) {
+        size_t finalizableCount = collectorResources.GetFinalizerProcessor().GetFinalizablesSize();
+        printf("Number of objects requiring finalization: %zu\n", finalizableCount);
+    }
 }
 
 bool WCollector::ShouldIgnoreRequest(GCRequest& request) { return request.ShouldBeIgnored(); }

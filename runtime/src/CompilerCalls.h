@@ -51,6 +51,8 @@ extern "C" TypeInfo* MCC_GetTypeForAny(const ObjectPtr obj);
 // Called to trigger one gc task in managed code
 extern "C" void MCC_InvokeGCImpl(bool sync);
 
+extern "C" void MCC_InvokeFullGCImpl();
+
 extern "C" ssize_t MCC_GetRealHeapSize();
 extern "C" size_t MCC_GetAllocatedHeapSize();
 extern "C" size_t MCC_GetMaxHeapSize();

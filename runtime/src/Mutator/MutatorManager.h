@@ -109,6 +109,8 @@ public:
     void VisitAllMutators(MutatorVisitor func);
 
     // Some functions about stw
+    void StopTheWorld4FullGC();
+    void StartTheWorld4FullGC() noexcept;
     void StopTheWorld(bool syncGCPhase, GCPhase phase);
     void StartTheWorld() noexcept;
     void StartLightSync(bool syncGCPhase, GCPhase phase);
@@ -266,6 +268,26 @@ private:
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     bool saferegionStateChanged = false;
 #endif
+};
+
+class ScopedStopTheWorld4FullGC {
+public:
+    __attribute__((always_inline)) explicit ScopedStopTheWorld4FullGC(const char* gcReason) : reason(gcReason)
+    {
+        startTime = TimeUtil::NanoSeconds();
+        MutatorManager::Instance().StopTheWorld4FullGC();
+    }
+
+    __attribute__((always_inline)) ~ScopedStopTheWorld4FullGC()
+    {
+        LOG(RTLOG_REPORT, "%s full gc stw time %zu us", reason, GetElapsedTime() / 1000); // 1000:nsec per usec
+        MutatorManager::Instance().StartTheWorld4FullGC();
+    }
+private:
+    const char* reason = nullptr;
+    uint64_t startTime = 0;
+
+    uint64_t GetElapsedTime() const { return TimeUtil::NanoSeconds() - startTime; }
 };
 
 // Scoped stop the world.

@@ -49,10 +49,20 @@ void CopyCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
     GCStats& gcStats = GetGCStats();
     gcStats.collectedBytes = 0;
     gcStats.gcStartTime = TimeUtil::NanoSeconds();
+    isFullGC = (reason == GC_REASON_FULL);
 
-    DoGarbageCollection();
+    if (isFullGC) {
+        printf("====== Waiting for other CJThreads to finish running work ======\n");
+        ScheduleWaitUntilOtherCJThreadsFinishRunningWork();
+        printf("====== Other CJThreads finished running work ======\n");
+        ScopedStopTheWorld4FullGC stw("Full GC");
+        DoGarbageCollection();
+    } else {
+        DoGarbageCollection();
+    }
+    
 
-    if (reason == GC_REASON_OOM  || reason == GC_REASON_USER_SYNC) {
+    if (reason == GC_REASON_OOM  || reason == GC_REASON_USER_SYNC || reason == GC_REASON_FULL) {
         Heap::GetHeap().GetAllocator().ReclaimGarbageMemory(true);
     }
 
@@ -85,6 +95,10 @@ void CopyCollector::RefineFromSpace()
 {
     GCStats& stats = GetGCStats();
     RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
-    stats.smallGarbageSize = space.RefineFromSpace();
+    if (!isFullGC) {
+        stats.smallGarbageSize = space.RefineFromSpace();
+    } else {
+        stats.smallGarbageSize = space.DontRefineFromSpace();
+    }
 }
 } // namespace MapleRuntime

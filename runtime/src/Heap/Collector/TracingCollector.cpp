@@ -113,6 +113,9 @@ public:
             workStack.pop_back();
 
             // skip dangling object (such as: object already released).
+            if (!obj->IsValidObject()) {
+                void(0);
+            }
             DCHECK(obj->IsValidObject());
 
             bool wasMarked = collector.MarkObject(obj);
@@ -550,6 +553,10 @@ void TracingCollector::DoResurrection(WorkStack& workStack)
         if (obj->HasRefField()) {
             TraceObjectRefFields(obj, workStack);
         }
+    }
+
+    if (isFullGC && resurrectdObjects > 0) {
+        printf("Warning: Full GC resurrected %zu objects\n", resurrectdObjects);
     }
     markedObjectCount.fetch_add(resurrectdObjects, std::memory_order_relaxed);
     VLOG(REPORT, "resurrected objects %zu", resurrectdObjects);

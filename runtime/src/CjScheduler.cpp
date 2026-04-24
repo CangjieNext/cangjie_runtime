@@ -551,6 +551,7 @@ static RuntimeParam InitRuntimeParam()
 
 void MRT_CjRuntimeInit()
 {
+    printf("Last modified time: %s\n", __DATE__ " " __TIME__);
     RuntimeParam param = InitRuntimeParam();
     CangjieRuntime::CreateAndInit(param);
     RTErrorCode rtCode = SetRuntimeInitFlag();

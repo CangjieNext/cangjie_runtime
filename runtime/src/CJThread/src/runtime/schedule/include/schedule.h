@@ -1387,6 +1387,15 @@ unsigned long long ScheduleCJThreadCountPublic(CJthreadStatePublic state);
 
 /**
  * @ingroup schedule
+ * @brief Spin until no CJThread other than the caller is in READY, RUNNING, or SYSCALL.
+ *        Intended to let other cooperative cjthreads drain their current runnable work before
+ *        a full stop-the-world (e.g. Full GC). If the caller has no CJThread handle, every
+ *        cjthread is considered. Yields with sched_yield between checks.
+ */
+void ScheduleWaitUntilOtherCJThreadsFinishRunningWork(void);
+
+/**
+ * @ingroup schedule
  * @brief Obtain the number of running OS threads in the scheduling framework.
  * @retval If g_scheduleManager is not initialized, 0xffffffff is returned. The total number
  * of running OS threads is returned.

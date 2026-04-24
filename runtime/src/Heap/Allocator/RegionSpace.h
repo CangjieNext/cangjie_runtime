@@ -11,6 +11,7 @@
 #include <cassert>
 #include <list>
 #include <map>
+#include <mutex>
 #include <set>
 #include <thread>
 #include <vector>
@@ -83,6 +84,8 @@ public:
 
     size_t AllocatedBytes() const override { return regionManager.GetAllocatedSize(); }
 
+    size_t AllocatedBytesForGCTest() const { return regionManager.GetAllocatedSizeForGCTest(); }
+
     size_t LargeObjectBytes() const override { return regionManager.GetLargeObjectSize(); }
 
     size_t FromSpaceSize() const { return regionManager.GetFromSpaceSize(); }
@@ -99,6 +102,7 @@ public:
 
     size_t ReclaimGarbageMemory(bool releaseAll) override
     {
+        std::lock_guard<std::mutex> lg(regionMetadataAccessMtx);
         {
             MRT_PHASE_TIMER("ReclaimGarbageRegions");
             regionManager.ReclaimGarbageRegions();
@@ -117,6 +121,7 @@ public:
 #if defined(__EULER__)
     void TryReclaimGarbageMemory() override
     {
+        std::lock_guard<std::mutex> lg(regionMetadataAccessMtx);
         double cachedRatio = regionManager.GetCacheRatio();
         if (cachedRatio == 1.0) { // 1.0 is the default value
             return;
@@ -134,6 +139,7 @@ public:
 #endif
     bool ForEachObj(const std::function<void(BaseObject*)>& visitor, bool safe) const override
     {
+        std::lock_guard<std::mutex> lg(regionMetadataAccessMtx);
         if (UNLIKELY(safe)) {
             regionManager.ForEachObjSafe(visitor);
         } else {
@@ -147,6 +153,12 @@ public:
     {
         MRT_PHASE_TIMER("ExemptFromRegions");
         return regionManager.ExemptFromRegions();
+    }
+
+    size_t DontRefineFromSpace()
+    {
+        MRT_PHASE_TIMER("CalculateFromSpaceGarbage");
+        return regionManager.ExemptFromRegions(false);
     }
 
     BaseObject* RouteObject(BaseObject* fromObj) { return regionManager.RouteObject(fromObj); }
@@ -171,8 +183,11 @@ public:
         regionManager.ReassembleFromSpace();
     }
 
-    void AssembleGarbageCandidates(bool collectAll = false)
+    void AssembleGarbageCandidates(bool isFullGC = false, bool collectAll = false)
     {
+        if (isFullGC) {
+            MRT_ASSERT(regionManager.GetTlRegionListSize() == 0, "thread local region list is not empty");
+        }
         regionManager.AssembleSmallGarbageCandidates();
         regionManager.AssemblePinnedGarbageCandidates(collectAll);
         regionManager.AssembleLargeGarbageCandidates();
@@ -232,6 +247,7 @@ private:
     MAddress reservedStart = 0;
     MAddress reservedEnd = 0;
     RegionManager regionManager;
+    mutable std::mutex regionMetadataAccessMtx;
     MemMap* map{ nullptr };
 };
 } // namespace MapleRuntime

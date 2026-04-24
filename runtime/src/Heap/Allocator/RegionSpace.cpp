@@ -286,6 +286,7 @@ bool RegionSpace::IsHeapObject(MAddress addr) const
 #endif
 void RegionSpace::FeedHungryBuffers()
 {
+    std::lock_guard<std::mutex> lg(regionMetadataAccessMtx);
     ScopedObjectAccess soa;
     AllocBufferManager::HungryBuffers hungryBuffers;
     allocBufferManager->SwapHungryBuffers(hungryBuffers);

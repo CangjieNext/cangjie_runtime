@@ -17,7 +17,11 @@ bool GCExecutor::Execute(void* owner)
 {
     MRT_ASSERT(owner != nullptr, "task queue owner ptr should not be null!");
     CollectorProxy* collectorProxy = reinterpret_cast<CollectorProxy*>(owner);
-
+    static int times = 0;
+    times++;
+    if (taskType == GCTask::TaskType::TASK_TYPE_INVOKE_GC && times % 1000 == 0) {
+        printf("GCExecutor::Execute times: %d\n", times);
+    }
     switch (taskType) {
         case GCTask::TaskType::TASK_TYPE_TERMINATE_GC: {
             return false;

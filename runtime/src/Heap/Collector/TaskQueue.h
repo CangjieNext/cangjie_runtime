@@ -272,8 +272,9 @@ public:
         while (true) {
             T task = Dequeue();
             if (task.GetGCReason() == GCReason::GC_REASON_USER_SYNC) {
-                printf("GC task dequeue: type %u, reason %u\n", task.GetType(), task.GetGCReason());
+                // printf("GC task dequeue: type %u, reason %u\n", task.GetType(), task.GetGCReason());
             }
+            // if (task.GetGCReason() == GCReason::GC_REASON_HEU) continue;
             if (!task.Execute(owner)) {
                 Fini();
                 break;

@@ -57,6 +57,8 @@ public:
             return;
         }
         for (BaseObject* obj : stackRoots) {
+            TypeInfo* objInfo = obj->GetTypeInfo();
+            (void)objInfo;
             workStack.push_back(obj);
         }
         stackRoots.clear();

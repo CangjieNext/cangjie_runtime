@@ -231,6 +231,10 @@ extern "C" bool MCC_AtomicCompareSwapReference(const ObjectPtr oldRef, const Obj
 extern "C" void MCC_InvokeGCImpl(bool sync) { 
     HeapManager::RequestGC(sync ? GC_REASON_USER_SYNC : GC_REASON_USER_ASYNC, !sync); }
 
+extern "C" void MCC_InvokeFullGCImpl() {
+    HeapManager::RequestGC(GC_REASON_FULL, false);
+}
+
 extern "C" ssize_t MCC_GetRealHeapSize() { return Heap::GetHeap().GetHeapPhysicalMemorySize(); }
 
 extern "C" size_t MCC_GetAllocatedHeapSize() { return Heap::GetHeap().GetAllocatedSize(); }

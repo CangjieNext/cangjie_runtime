@@ -17,6 +17,10 @@ func waitForGC(): UIntNative
 
 @When[backend == "cjnative"]
 @Intrinsic
+func invokeFullGC(): Unit
+
+@When[backend == "cjnative"]
+@Intrinsic
 func getCjGCCount(): UIntNative
 
 @When[backend == "cjnative"]
@@ -72,4 +76,9 @@ public func getGCFreedSize(): Int64 {
 @When[backend == "cjnative"]
 public func waitUntilGCFinished(): Int64 {
     unsafe{ return Int64(waitForGC()) }
+}
+
+@When[backend == "cjnative"]
+public func fullGC(): Unit {
+    unsafe{ invokeFullGC() }
 }

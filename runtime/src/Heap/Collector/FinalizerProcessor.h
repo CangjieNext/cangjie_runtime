@@ -84,6 +84,11 @@ public:
     void WaitStop();
 
     void EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit = UINT_MAX);
+    size_t GetFinalizablesSize()
+    {
+        std::lock_guard<std::mutex> l(listLock);
+        return finalizables.size();
+    }
     void RegisterFinalizer(BaseObject* obj);
     bool IsRunning() const { return running; }
     uint32_t GetTid() const { return tid; }

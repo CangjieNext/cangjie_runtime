@@ -246,6 +246,82 @@ void MutatorManager::VisitAllMutators(MutatorVisitor func)
     }
 }
 
+void MutatorManager::StopTheWorld4FullGC()
+{
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+    bool saferegionEntered = false;
+    // Ensure an active mutator entered saferegion before STW (aka. stop all other mutators).
+    if (!IsGcThread()) {
+        Mutator* mutator = Mutator::GetMutator();
+        if (mutator != nullptr) {
+            saferegionEntered = mutator->EnterSaferegion(true);
+        }
+    }
+#endif
+    // Block if another thread is holding the syncMutex.
+    // Prevent multi-thread doing STW concurrently.
+    syncMutex.lock();
+    syncTriggered.store(true);
+
+    AcquireMutatorManagementWLock();
+
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+    // If current mutator saferegion state changed,
+    // we should restore it after the mutator called StartTheWorld().
+    saferegionStateChanged = saferegionEntered;
+#endif
+
+    size_t mutatorCount = GetMutatorCount();
+    if (UNLIKELY(mutatorCount == 0)) {
+        worldStopped.store(true, std::memory_order_release);
+        MutatorManagementWUnlock();
+        return;
+    }
+    // set mutatorCount as countOfMutatorsToStop.
+    SetSuspensionMutatorCount(static_cast<uint32_t>(mutatorCount));
+    DemandSuspensionForSync();
+    WaitUntilAllMutatorStopped();
+
+    // the world is stopped.
+    worldStopped.store(true, std::memory_order_release);
+    MutatorManagementWUnlock();
+    return;
+}
+
+void MutatorManager::StartTheWorld4FullGC() noexcept
+{
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+    bool shouldLeaveSaferegion = saferegionStateChanged;
+#endif
+    syncTriggered.store(false);
+    worldStopped.store(false, std::memory_order_release);
+
+    AcquireMutatorManagementWLock();
+    CancelSuspensionAfterSync();
+    SetSuspensionMutatorCount(0);
+
+    // wakeup all mutators which blocking on countOfMutatorsToStop futex.
+#if defined(_WIN64) || defined(__APPLE__)
+    WakeAllMutators();
+#else
+    (void)MapleRuntime::Futex(GetSyncFutexWord(), FUTEX_WAKE, INT_MAX);
+#endif
+
+    MutatorManagementWUnlock();
+
+    // Release syncMutex to allow other thread call STW.
+    syncMutex.unlock();
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+    // Restore saferegion state if the state is changed when mutator calls StopTheWorld().
+    if (!IsGcThread()) {
+        Mutator* mutator = Mutator::GetMutator();
+        if (mutator != nullptr && shouldLeaveSaferegion) {
+            (void)mutator->LeaveSaferegion();
+        }
+    }
+#endif
+}
+
 void MutatorManager::StopTheWorld(bool syncGCPhase, GCPhase phase)
 {
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)

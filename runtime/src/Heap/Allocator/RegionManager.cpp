@@ -476,17 +476,18 @@ void RemoveRegionLocked(RegionList* regionList, RegionInfo* region)
 }
 
 // forward only regions whose garbage bytes is greater than or equal to exemptedRegionThreshold.
-size_t RegionManager::ExemptFromRegions()
+size_t RegionManager::ExemptFromRegions(bool reclaim)
 {
     size_t forwardBytes = 0;
     size_t floatingGarbage = 0;
     size_t oldFromBytes = fromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
     double exempt = exemptedRegionThreshold;
-    auto visitor = [this, exempt, &floatingGarbage](RegionInfo* fromRegion) {
+    // printf("exempt threshold: %.2f%%\n", exempt * 100);
+    auto visitor = [this, exempt, &floatingGarbage, reclaim](RegionInfo* fromRegion) {
         size_t threshold = static_cast<size_t>(exempt * fromRegion->GetRegionSize());
         size_t liveBytes = fromRegion->GetLiveByteCount();
         long rawPtrCnt = fromRegion->GetRawPointerObjectCount();
-        if (liveBytes > threshold) { // ignore this region
+        if (reclaim && liveBytes > threshold) { // ignore this region
             RegionInfo* del = fromRegion;
             DLOG(REGION, "region %p @[0x%zx+%zu, 0x%zx) exempted by forwarding: %zu units, %u live bytes", del,
                 del->GetRegionStart(), del->GetRegionAllocatedSize(), del->GetRegionEnd(),
@@ -1151,4 +1152,24 @@ uintptr_t RegionManager::AllocPinnedFromFreeList(size_t size)
     (reinterpret_cast<CopyCollector*>(&Heap::GetHeap().GetCollector()))->MarkObject(object);
     return allocPtr;
 }
+
+void RegionManager::RevokeThreadLocalRegions()
+{
+    // Iterate over all alloc buffers
+    AllocBufferVisitor visitor = [this](AllocBuffer& buffer) {
+        RegionInfo* region = buffer.GetRegion();
+        if (region != RegionInfo::NullRegion()) {
+            buffer.ClearRegion();
+            CHECK(region->IsThreadLocalRegion());
+            {
+                RemoveThreadLocalRegion(region);
+            }
+            this->EnlistFullThreadLocalRegion(region);
+        }
+    };
+    Heap::GetHeap().GetAllocator().VisitAllocBuffers(visitor);
+}
+
 } // namespace MapleRuntime
+
+
