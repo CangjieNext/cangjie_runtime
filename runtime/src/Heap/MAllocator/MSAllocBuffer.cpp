@@ -27,6 +27,11 @@ static inline bool IsMSMarkingPhase(GCPhase phase)
            phase == GCPhase::GC_PHASE_MS_MARK_TERMINATION;
 }
 
+static inline bool IsMSAssistPhase(GCPhase phase)
+{
+    return phase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK;
+}
+
 static inline Mutator* ResolveMutatorForAllocFastPath(Mutator* mutator)
 {
     return mutator != nullptr ? mutator : Mutator::GetMutator();
@@ -79,41 +84,60 @@ MAddress AllocBufferMS::Allocate(size_t size, Mutator* mutator)
     }
     MAddress addr = FastAlloc(cls);
 
-    if (UNLIKELY(addr != 0)) {
-        mutator = ResolveMutatorForAllocFastPath(mutator);
-        GCPhase phase = mutator->GetMutatorPhase();
-        if (UNLIKELY(IsMSMarkingPhase(phase))) {
-            Heap::GetHeap().GetCollector().MarkNewObject(reinterpret_cast<BaseObject*>(addr));
+    if (UNLIKELY(addr == 0)) {
+        return addr;
+    }
 
-            // Go-style dynamic pacing: debt += allocatedBytes * assistRatio.
-            MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
-            if (collector != nullptr) {
-                uint64_t ratioScaled = collector->GetAssistWorkPerByteScaled();
-                if (ratioScaled > 0) {
-                    uint64_t deltaDebt = static_cast<uint64_t>(size) * ratioScaled;
-                    if (UNLIKELY(gcAssistDebtScaled_ > UINT64_MAX - deltaDebt)) {
-                        gcAssistDebtScaled_ = UINT64_MAX;
-                    } else {
-                        gcAssistDebtScaled_ += deltaDebt;
-                    }
+    GCPhase phase = Heap::GetHeap().GetGCPhase();
+    if (LIKELY(!IsMSMarkingPhase(phase))) {
+        gcAssistDebtScaled_ = 0;
+        return addr;
+    }
 
-                    const uint64_t ratioScale = MarkSweepCollector::GetAssistRatioScale();
-                    size_t debtObjects = static_cast<size_t>(gcAssistDebtScaled_ / ratioScale);
-                    if (UNLIKELY(debtObjects >= collector->GetAssistDebtTriggerObjects())) {
-                        // Call MSMarkAssist unconditionally: it first tries bgScanCredit
-                        // (even when the mark work queue is empty), then does real marking
-                        // only if credit is insufficient and grey objects are available.
-                        // The old hasWork guard was wrong: it prevented credit consumption
-                        // when the work queue happened to be empty, causing debt to pile up
-                        // and trigger burst assist later.
-                        size_t paidObjects = collector->MSMarkAssist(debtObjects);
-                        size_t accounted = std::min(paidObjects, debtObjects);
-                        gcAssistDebtScaled_ -= static_cast<uint64_t>(accounted) * ratioScale;
-                    }
-                }
-            }
+    BaseObject* obj = reinterpret_cast<BaseObject*>(addr);
+    MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
+    if (LIKELY(collector != nullptr)) {
+        collector->MarkObject(obj);
+    } else {
+        // Fall back to the generic path if the active collector snapshot is unavailable.
+        Heap::GetHeap().GetCollector().MarkNewObject(obj);
+        gcAssistDebtScaled_ = 0;
+        return addr;
+    }
+
+    if (UNLIKELY(!IsMSAssistPhase(phase))) {
+        gcAssistDebtScaled_ = 0;
+        return addr;
+    }
+
+    mutator = ResolveMutatorForAllocFastPath(mutator);
+    if (UNLIKELY(mutator == nullptr)) {
+        gcAssistDebtScaled_ = 0;
+        return addr;
+    }
+
+    // Go-style dynamic pacing: debt += allocatedBytes * assistRatio.
+    uint64_t ratioScaled = collector->GetAssistWorkPerByteScaled();
+    if (ratioScaled > 0) {
+        uint64_t deltaDebt = static_cast<uint64_t>(size) * ratioScaled;
+        if (UNLIKELY(gcAssistDebtScaled_ > UINT64_MAX - deltaDebt)) {
+            gcAssistDebtScaled_ = UINT64_MAX;
         } else {
-            gcAssistDebtScaled_ = 0;
+            gcAssistDebtScaled_ += deltaDebt;
+        }
+
+        const uint64_t ratioScale = MarkSweepCollector::GetAssistRatioScale();
+        size_t debtObjects = static_cast<size_t>(gcAssistDebtScaled_ / ratioScale);
+        if (UNLIKELY(debtObjects >= collector->GetAssistDebtTriggerObjects())) {
+            // Call MSMarkAssist unconditionally: it first tries bgScanCredit
+            // (even when the mark work queue is empty), then does real marking
+            // only if credit is insufficient and grey objects are available.
+            // The old hasWork guard was wrong: it prevented credit consumption
+            // when the work queue happened to be empty, causing debt to pile up
+            // and trigger burst assist later.
+            size_t paidObjects = collector->MSMarkAssist(debtObjects);
+            size_t accounted = std::min(paidObjects, debtObjects);
+            gcAssistDebtScaled_ -= static_cast<uint64_t>(accounted) * ratioScale;
         }
     }
 
