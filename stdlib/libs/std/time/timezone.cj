@@ -247,7 +247,7 @@ public class TimeZone <: ToString & Equatable<TimeZone> {
         if (id == "Local") {
             return Local
         }
-        if (id.contains("..") || id.contains("\0") || id[0] == b'/' || id[0] == b'\\') {
+        if (id.contains("..") || id.contains("\0") || id.contains("\\") || id[0] == b'/' || id[0] == b'\\') {
             throw IllegalArgumentException("Invalid timezone id: ${id}.")
         }
         if (let Some(tzdata) <- getOhosTzDataById(id)) {
@@ -282,7 +282,7 @@ public class TimeZone <: ToString & Equatable<TimeZone> {
         if (id.size == 0 || id.size > MAXPATHLEN) {
             throw IllegalArgumentException("Invalid timezone id.")
         }
-        if (id.contains("..") || id.contains("\0") || id[0] == b'/' || id[0] == b'\\') {
+        if (id.contains("..") || id.contains("\0") || id.contains("\\") || id[0] == b'/' || id[0] == b'\\') {
             throw IllegalArgumentException("Invalid timezone name.")
         }
 
