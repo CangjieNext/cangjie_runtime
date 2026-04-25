@@ -2037,13 +2037,8 @@ struct DateTimeParser {
         var slash = false
         for (i in this.index..this.value.size) {
             var character = value[i]
-            // Security fix: Only accept valid timezone ID characters:
-            // - ASCII letters (A-Z, a-z)
-            // - Slash (/) - path separator, only allowed once
-            // - Underscore (_) - common in timezone IDs like "America/New_York"
-            // - Digits (0-9) - some timezone IDs may contain digits
-            // - Hyphen (-) - used in some timezone IDs like "America/Argentina/Buenos_Aires"
-            // Removed overly permissive "character >= r'A'" condition that allowed arbitrary characters
+            // Accept only the supported timezone ID character subset here;
+            // full timezone ID validation is delegated to TimeZone.load.
             if (character.isAsciiLetter() || character.isAsciiNumber() || 
                 (!slash && character == r'/') || character == r'_' || character == r'-') {
                 if (character == r'/') {
