@@ -3089,23 +3089,42 @@ func safeAddCodepoint(codePosition: Int32, offset: Int32): UInt32 {
     return UInt32(result)
 }
 
+func specialMappingToRune(mapping: Array<UInt32>, fallback: Rune): Rune {
+    if (mapping.size == 1) {
+        return Rune(mapping[0])
+    }
+    return fallback
+}
+
 func findRune(rune: Rune, caseRange: CaseRange, caseType: CaseType): Rune {
     let start = caseRange.start
     let codePosition: Int32 = Int32(UInt32(rune))
     match (caseType) {
         case Upper => match {
             case caseRange.upper == UPPERLOWER => Rune(UInt32(start + ((codePosition - start) & !1)))
-            case caseRange.upper == SPECIAL_UNICODE => rune
+            case caseRange.upper == SPECIAL_UNICODE => 
+                match (findSpecialCaseRange(UInt32(rune))) {
+                    case Some(specialCase) => specialMappingToRune(specialCase.upper, rune)
+                    case None => rune
+                }
             case _ => Rune(safeAddCodepoint(codePosition, caseRange.upper))
         }
         case Lower => match {
             case caseRange.lower == UPPERLOWER => Rune(UInt32(start + ((codePosition - start) | 1)))
-            case caseRange.lower == SPECIAL_UNICODE => rune
+            case caseRange.lower == SPECIAL_UNICODE =>
+                match (findSpecialCaseRange(UInt32(rune))) {
+                    case Some(specialCase) => specialMappingToRune(specialCase.lower, rune)
+                    case None => rune
+                }
             case _ => Rune(safeAddCodepoint(codePosition, caseRange.lower))
         }
         case Title => match {
             case caseRange.title == UPPERLOWER => Rune(UInt32(start + ((codePosition - start) & !1)))
-            case caseRange.title == SPECIAL_UNICODE => rune
+            case caseRange.title == SPECIAL_UNICODE =>
+                match (findSpecialCaseRange(UInt32(rune))) {
+                    case Some(specialCase) => specialMappingToRune(specialCase.title, rune)
+                    case None => rune
+                }
             case _ => Rune(safeAddCodepoint(codePosition, caseRange.title))
         }
     }
@@ -3140,17 +3159,33 @@ func findRuneWithOption(rune: Rune, caseRange: CaseRange, caseType: CaseType, op
     match (caseType) {
         case Upper => match {
             case caseRange.upper == UPPERLOWER => Rune(UInt32(start + ((codePosition - start) & !1)))
-            case caseRange.upper == SPECIAL_UNICODE => rune
+            case caseRange.upper == SPECIAL_UNICODE =>
+                match (findSpecialCaseRange(UInt32(rune))) {
+                    case Some(specialCase) => specialMappingToRune(specialCase.upper, rune)
+                    case None => rune
+                }
             case _ => caseChangeForLetterI(codePosition, caseRange, caseType, opt)
         }
         case Lower => match {
             case caseRange.lower == UPPERLOWER => Rune(UInt32(start + ((codePosition - start) | 1)))
-            case caseRange.lower == SPECIAL_UNICODE => rune
+            case caseRange.lower == SPECIAL_UNICODE =>
+                if ((opt == TR || opt == AZ) && UInt32(rune) == CAPITAL_I_WITH_DOT_ABOVE) {
+                    Rune(SMALL_I)
+                } else {
+                    match (findSpecialCaseRange(UInt32(rune))) {
+                        case Some(specialCase) => specialMappingToRune(specialCase.lower, rune)
+                        case None => rune
+                    }
+                }
             case _ => caseChangeForLetterI(codePosition, caseRange, caseType, opt)
         }
         case Title => match {
             case caseRange.title == UPPERLOWER => Rune(UInt32(start + ((codePosition - start) & !1)))
-            case caseRange.title == SPECIAL_UNICODE => rune
+            case caseRange.title == SPECIAL_UNICODE =>
+                match (findSpecialCaseRange(UInt32(rune))) {
+                    case Some(specialCase) => specialMappingToRune(specialCase.title, rune)
+                    case None => rune
+                }
             case _ => caseChangeForLetterI(codePosition, caseRange, caseType, opt)
         }
     }
