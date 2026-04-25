@@ -3095,17 +3095,32 @@ func findRune(rune: Rune, caseRange: CaseRange, caseType: CaseType): Rune {
     match (caseType) {
         case Upper => match {
             case caseRange.upper == UPPERLOWER => Rune(UInt32(start + ((codePosition - start) & !1)))
-            case caseRange.upper == SPECIAL_UNICODE => rune
+            case caseRange.upper == SPECIAL_UNICODE => 
+                // Look up special case table for correct mapping
+                match (findSpecialCaseRange(UInt32(rune))) {
+                    case Some(specialCase) => Rune(specialCase.upper[0])
+                    case None => rune
+                }
             case _ => Rune(safeAddCodepoint(codePosition, caseRange.upper))
         }
         case Lower => match {
             case caseRange.lower == UPPERLOWER => Rune(UInt32(start + ((codePosition - start) | 1)))
-            case caseRange.lower == SPECIAL_UNICODE => rune
+            case caseRange.lower == SPECIAL_UNICODE =>
+                // Look up special case table for correct mapping
+                match (findSpecialCaseRange(UInt32(rune))) {
+                    case Some(specialCase) => Rune(specialCase.lower[0])
+                    case None => rune
+                }
             case _ => Rune(safeAddCodepoint(codePosition, caseRange.lower))
         }
         case Title => match {
             case caseRange.title == UPPERLOWER => Rune(UInt32(start + ((codePosition - start) & !1)))
-            case caseRange.title == SPECIAL_UNICODE => rune
+            case caseRange.title == SPECIAL_UNICODE =>
+                // Look up special case table for correct mapping
+                match (findSpecialCaseRange(UInt32(rune))) {
+                    case Some(specialCase) => Rune(specialCase.title[0])
+                    case None => rune
+                }
             case _ => Rune(safeAddCodepoint(codePosition, caseRange.title))
         }
     }
@@ -3140,17 +3155,33 @@ func findRuneWithOption(rune: Rune, caseRange: CaseRange, caseType: CaseType, op
     match (caseType) {
         case Upper => match {
             case caseRange.upper == UPPERLOWER => Rune(UInt32(start + ((codePosition - start) & !1)))
-            case caseRange.upper == SPECIAL_UNICODE => rune
+            case caseRange.upper == SPECIAL_UNICODE =>
+                // Look up special case table for correct mapping
+                match (findSpecialCaseRange(UInt32(rune))) {
+                    case Some(specialCase) => Rune(specialCase.upper[0])
+                    case None => rune
+                }
             case _ => caseChangeForLetterI(codePosition, caseRange, caseType, opt)
         }
         case Lower => match {
             case caseRange.lower == UPPERLOWER => Rune(UInt32(start + ((codePosition - start) | 1)))
-            case caseRange.lower == SPECIAL_UNICODE => rune
+            case caseRange.lower == SPECIAL_UNICODE =>
+                // Look up special case table for correct mapping
+                // This handles U+0130 (LATIN CAPITAL LETTER I WITH DOT ABOVE) correctly
+                match (findSpecialCaseRange(UInt32(rune))) {
+                    case Some(specialCase) => Rune(specialCase.lower[0])
+                    case None => rune
+                }
             case _ => caseChangeForLetterI(codePosition, caseRange, caseType, opt)
         }
         case Title => match {
             case caseRange.title == UPPERLOWER => Rune(UInt32(start + ((codePosition - start) & !1)))
-            case caseRange.title == SPECIAL_UNICODE => rune
+            case caseRange.title == SPECIAL_UNICODE =>
+                // Look up special case table for correct mapping
+                match (findSpecialCaseRange(UInt32(rune))) {
+                    case Some(specialCase) => Rune(specialCase.title[0])
+                    case None => rune
+                }
             case _ => caseChangeForLetterI(codePosition, caseRange, caseType, opt)
         }
     }
