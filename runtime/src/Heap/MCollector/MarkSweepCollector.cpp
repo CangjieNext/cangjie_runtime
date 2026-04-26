@@ -259,13 +259,13 @@ void MarkSweepCollector::PreEnumRoots()
     CentralRegionPool* centralPool = space.GetCentralPool();
     
     // Stop sweep → wait for in-flight sweep to quiesce → clear bitmaps
-    // → reclassify residual unswept entries → snapshot this cycle's sweep
-    // candidates. Returned active regions will be stamped to escape this cycle.
+    // → reclassify residual unswept entries → re-enable.
+    // Safe pre-STW: no SweepRegion running, mark-at-alloc inactive.
     if (centralPool != nullptr) {
         centralPool->StopAndWaitForAllSweep();
         centralPool->ClearAllMarkBitmaps();
         centralPool->ReclassifyUnsweptToSwept();
-        centralPool->PrepareForSweep();
+        centralPool->ReenableLazySweep();
     }
     prevCycleMarkedObjects_.store(markedObjectCount.load(std::memory_order_relaxed), std::memory_order_relaxed);
     // Reset marked object counter (GC-thread-only, no STW needed).
@@ -992,10 +992,9 @@ void MarkSweepCollector::MarkTermination()
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool != nullptr) {
-        // Return active TL/cache regions after the MarkSetup snapshot so they
-        // escape this cycle's unswept backlog.
+        // Finalize the next sweep generation before mutators resume.
         centralPool->FlushAllAllocBuffers();
-        centralPool->ReenableLazySweep();
+        centralPool->PrepareForSweep();
     }
 
     // Step5: Reset all per-P gcWork and return WorkBufs to pool.
@@ -1229,7 +1228,15 @@ void MarkSweepCollector::ConcurrentSweep()
 
 void MarkSweepCollector::MarkNewObject(BaseObject* obj)
 {
-    (void)obj;
+    GCPhase phase = Mutator::GetMutator()->GetMutatorPhase();
+    if (UNLIKELY(phase == GCPhase::GC_PHASE_MS_MARK_SETUP) ||
+        UNLIKELY(phase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK) ||
+        UNLIKELY(phase == GCPhase::GC_PHASE_MS_MARK_TERMINATION)) {
+        // Go-style alloc-black: mark the new object so it is treated as live
+        // and not eligible for grey-work production. The hybrid write barrier
+        // still discovers any child references written during construction.
+        MarkObject(obj);
+    }
 }
 
 // ============================================================================
