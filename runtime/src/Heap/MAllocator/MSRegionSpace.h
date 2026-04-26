@@ -84,8 +84,10 @@ public:
     friend class Allocator;
 
 private:
-    MAddress TryAllocateOnceMS(size_t allocSize, ThreadLocalData* local, Mutator* mutator,
-                               AllocBufferMS*& msBuffer);
+    MAddress AllocateLargeObject(size_t size, size_t allocSize);
+    MAddress AllocateRegularObject(size_t size, size_t allocSize);
+    MAddress TryAllocateLargeObjectOnce(size_t allocSize, ThreadLocalData* local, AllocBufferMS* msBuffer);
+    MAddress TryAllocateRegularObjectOnce(size_t allocSize, ThreadLocalData* local, AllocBufferMS*& msBuffer);
     void RegisterLargeObjectMS(MAddress addr, size_t regionBytes);
     bool ShouldRetryAllocation(size_t& tryTimes, size_t size) const;
 

@@ -24,6 +24,8 @@
 
 namespace MapleRuntime {
 
+static constexpr bool kDisableSweepOnRegionMissProbe = true;
+
 namespace {
 size_t ReadEnvCount(const char* name, size_t fallback)
 {
@@ -190,7 +192,7 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
     }
 
     // ---- Priority 2: partialUnswept — sweep first, likely has free slots ----
-    if (!skipLazySweep_.load(std::memory_order_acquire)) {
+    if (!kDisableSweepOnRegionMissProbe && !skipLazySweep_.load(std::memory_order_acquire)) {
         // Notify background sweep only when we actually enter unswept paths,
         // rather than speculatively at GetRegion entry.
         msRegionManager_->MaybeNotifySweep(this, cls);
@@ -246,7 +248,7 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
     } // end skipLazySweep check
 
     // ---- Priority 3: fullUnswept — sweep, may produce free slots ----
-    if (!skipLazySweep_.load(std::memory_order_acquire)) {
+    if (!kDisableSweepOnRegionMissProbe && !skipLazySweep_.load(std::memory_order_acquire)) {
         activeLazySweepCount_.fetch_add(1, std::memory_order_relaxed);
         if (skipLazySweep_.load(std::memory_order_acquire)) {
             activeLazySweepCount_.fetch_sub(1, std::memory_order_relaxed);
@@ -380,14 +382,12 @@ MSRegionInfo* CentralRegionPool::GetFreshRegion(uint8_t cls)
 void CentralRegionPool::ReturnPartialRegion(MSRegionInfo* region, uint8_t cls)
 {
     SizeClassBucket& bucket = buckets_[cls];
-    // O3: preserve region type (BUMP or PARTIAL) — don't force PARTIAL
     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
-    if (region->GetSweepGen() == sg) {
-        bucket.partialSwept.Push(region);  // O1: lock-free
-    } else {
-        std::lock_guard<std::mutex> lg(bucket.lock);
-        bucket.partialUnswept.Prepend(region);
-    }
+    // Regions returned after MarkSetup were not part of this cycle's sweep
+    // snapshot. Stamp them with the current generation so they only become
+    // sweep candidates after the next snapshot flip.
+    region->SetSweepGen(sg);
+    bucket.partialSwept.Push(region);  // O1: lock-free
 }
 
 void CentralRegionPool::ReturnFullRegion(MSRegionInfo* region, uint8_t cls)
@@ -396,11 +396,8 @@ void CentralRegionPool::ReturnFullRegion(MSRegionInfo* region, uint8_t cls)
     std::lock_guard<std::mutex> lg(bucket.lock);
     region->regionType = MSRegionType::MS_REGION_FULL;
     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
-    if (region->GetSweepGen() == sg) {
-        bucket.fullSwept.Prepend(region);
-    } else {
-        bucket.fullUnswept.Prepend(region);
-    }
+    region->SetSweepGen(sg);
+    bucket.fullSwept.Prepend(region);
 }
 
 void CentralRegionPool::ReturnEmptyRegion(MSRegionInfo* region)
@@ -602,8 +599,9 @@ void CentralRegionPool::PrepareForSweep()
 {
     sweepStats_.Reset();
 
-    // At this point MarkSetup has already stopped sweep and promoted any residual
-    // unswept regions to swept. FlushAllAllocBuffers returns TL regions to swept.
+    // MarkSetup freezes this cycle's central-pool sweep candidates. Regions
+    // returned by mutators after this point are stamped with the new
+    // generation and stay in swept lists until the next snapshot flip.
     // O(1) per-bucket flip:
     //   partialSwept → partialUnswept (StealChainTo: head pointer transfer)
     //   fullSwept    ↔ fullUnswept    (Swap: head/count exchange)
@@ -975,6 +973,7 @@ MSLargeSweepStats CentralRegionPool::SweepLargeRegions()
     // Two-pass to avoid holding largeLock_ during ReclaimRegion.
     std::vector<MSRegionInfo*> deadRegions;
     MSLargeSweepStats stats;
+    uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
 
     {
         std::lock_guard<std::mutex> lg(largeLock_);
@@ -982,10 +981,15 @@ MSLargeSweepStats CentralRegionPool::SweepLargeRegions()
         int32_t idx = largeRegionList_.IsEmpty() ? MSRegionInfo::INVALID_IDX : 0;
         // We need to iterate using ForEach and collect dead ones
         std::vector<MSRegionInfo*> toRemove;
-        largeRegionList_.ForEach([&toRemove](MSRegionInfo* region) {
+        largeRegionList_.ForEach([&toRemove, sg](MSRegionInfo* region) {
+            if (region->GetSweepGen() == sg) {
+                return;
+            }
             if (!region->IsMarked()) {
                 toRemove.push_back(region);
+                return;
             }
+            region->SetSweepGen(sg);
         });
         for (MSRegionInfo* region : toRemove) {
             largeRegionList_.Remove(region);

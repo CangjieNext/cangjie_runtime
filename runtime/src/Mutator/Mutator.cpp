@@ -41,12 +41,9 @@ extern "C" uintptr_t MRT_UpdateThreadLocalDataPhase(uintptr_t tlDataAddr)
 {
 #if defined(__aarch64__)
     tlDataAddr &= kThreadLocalDataAddrMask;
-    if (Heap::GetHeap().IsGcStarted()) {
-        // Since the TBI(top bit ignore) feature in Aarch64,
-        // set gc phase to high 8-bit of ThreadLocalData Address for gc barrier fast path.
-        // 56: make gcphase value shift left 56 bit to set the high 8-bit
-        tlDataAddr = tlDataAddr | (static_cast<uint64_t>(Heap::GetHeap().GetGCPhase()) << 56);
-    }
+    // The barrier phase is cached in TLS and updated on mutator phase changes,
+    // so the hot path does not need to query the global heap phase here.
+    tlDataAddr = tlDataAddr | (static_cast<uint64_t>(ThreadLocal::GetEncodedGCPhase()) << 56);
 #endif
     return tlDataAddr;
 }
@@ -597,7 +594,7 @@ void Mutator::TransitionToGCPhaseExclusive(GCPhase newPhase)
     SetSafepointActive(false);
     // Clear mutator's suspend request after phase transition
     ClearSuspensionFlag(SUSPENSION_FOR_GC_PHASE);
-    mutatorPhase.store(newPhase, std::memory_order_release); // handshake between muator & mainGC thread
+    SetMutatorPhase(newPhase); // handshake between muator & mainGC thread
 }
 
 inline void Mutator::HandleCpuProfile()

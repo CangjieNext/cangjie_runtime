@@ -116,6 +116,8 @@ public:
     PerPGCWork& GetGCWork() { return gcWork_; }
 
 private:
+    static constexpr uint8_t kCachedRegionSlots = 2;
+
     // LLVM fast-path compatibility: must be at offset 0 (same as AllocBuffer::tlRegion).
     // Set to NullRegion() so fast-path allocation always fails → slow path.
     RegionInfo* tlRegion_;
@@ -129,16 +131,26 @@ private:
     // Refill: get a Region from CentralRegionPool
     MSRegionInfo* RefillFromCentral(uint8_t cls);
 
+    // Consume one cached backup Region for the given size class.
+    MSRegionInfo* TakeCachedRegion(uint8_t cls);
+
+    // Try to store a backup Region into one empty cache slot.
+    bool TryCacheRegion(uint8_t cls, MSRegionInfo* region);
+
+    // Return a cached/active region back to the central pool using the same
+    // classification as ReturnRegion.
+    void ReturnRegionToCentral(MSRegionInfo* region, uint8_t cls);
+
     // Return current active Region to CentralRegionPool
     void ReturnRegion(uint8_t cls);
 
     // Per-size-class active Region (nullptr = no active Region for this class)
     MSRegionInfo* activeRegions_[kNumSizeClasses] = {};
 
-    // O2/O9: Per-size-class cached backup Region.
+    // O2/O9: Per-size-class cached backup Regions.
     // Written by gc-helper (BackgroundFillCache), consumed by mutator (SlowAlloc).
-    // Atomic: mutator exchange→nullptr, gc-helper CAS nullptr→region.
-    std::atomic<MSRegionInfo*> cachedRegion_[kNumSizeClasses] = {};
+    // Two slots reduce synchronous trips to CentralRegionPool on bursty refill workloads.
+    std::atomic<MSRegionInfo*> cachedRegion_[kNumSizeClasses][kCachedRegionSlots] = {};
 
     // O9: Per-size-class cache miss counter. Mutator increments on SlowAlloc
     // when cachedRegion_ is empty. Background thread fills when >= threshold.

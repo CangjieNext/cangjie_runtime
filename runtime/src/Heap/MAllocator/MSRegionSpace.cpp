@@ -88,31 +88,42 @@ MAddress RegionSpaceMS::Allocate(size_t size, AllocType allocType)
 {
     (void)allocType;
     size_t allocSize = ToAllocSize(size);
-    uintptr_t internalAddr = 0;
-    ThreadLocalData* local = ThreadLocal::GetThreadLocalData();
-    Mutator* mutator = local != nullptr ? local->mutator : nullptr;
-    AllocBufferMS* msBuffer = local != nullptr ? local->msAllocBuffer : nullptr;
-
     if (UNLIKELY(allocSize >= kLargeObjectThreshold)) {
-        internalAddr = TryAllocateOnceMS(allocSize, local, mutator, msBuffer);
-        if (UNLIKELY(internalAddr == 0)) {
-            if (IsGcThread()) {
-                return 0;
-            }
-            VLOG(REPORT, "Large allocation cannot allocate memory of %zu(B), throw an OutOfMemory exception", size);
-            ExceptionManager::OutOfMemory();
+        return AllocateLargeObject(size, allocSize);
+    }
+
+    return AllocateRegularObject(size, allocSize);
+}
+
+MAddress RegionSpaceMS::AllocateLargeObject(size_t size, size_t allocSize)
+{
+    ThreadLocalData* local = ThreadLocal::GetThreadLocalData();
+    AllocBufferMS* msBuffer = local != nullptr ? local->msAllocBuffer : AllocBufferMS::GetAllocBufferMS();
+    uintptr_t internalAddr = TryAllocateLargeObjectOnce(allocSize, local, msBuffer);
+    if (UNLIKELY(internalAddr == 0)) {
+        if (IsGcThread()) {
             return 0;
         }
-#if defined(CANGJIE_TSAN_SUPPORT)
-        Sanitizer::TsanAllocObject(reinterpret_cast<void *>(internalAddr), allocSize);
-#endif
-        return internalAddr + HEADER_SIZE;
+        VLOG(REPORT, "Large allocation cannot allocate memory of %zu(B), throw an OutOfMemory exception", size);
+        ExceptionManager::OutOfMemory();
+        return 0;
     }
+#if defined(CANGJIE_TSAN_SUPPORT)
+    Sanitizer::TsanAllocObject(reinterpret_cast<void *>(internalAddr), allocSize);
+#endif
+    return internalAddr + HEADER_SIZE;
+}
+
+MAddress RegionSpaceMS::AllocateRegularObject(size_t size, size_t allocSize)
+{
+    uintptr_t internalAddr = 0;
+    ThreadLocalData* local = ThreadLocal::GetThreadLocalData();
+    AllocBufferMS* msBuffer = local != nullptr ? local->msAllocBuffer : AllocBufferMS::GetAllocBufferMS();
 
     size_t tryTimes = 0;
     do {
         tryTimes++;
-        internalAddr = TryAllocateOnceMS(allocSize, local, mutator, msBuffer);
+        internalAddr = TryAllocateRegularObjectOnce(allocSize, local, msBuffer);
         if (LIKELY(internalAddr != 0)) {
             break;
         }
@@ -240,40 +251,41 @@ bool RegionSpaceMS::ForEachObj(const std::function<void(BaseObject*)>& visitor, 
     return true;
 }
 
-MAddress RegionSpaceMS::TryAllocateOnceMS(size_t allocSize, ThreadLocalData* local, Mutator* mutator,
-                                          AllocBufferMS*& msBuffer)
+MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t allocSize, ThreadLocalData* local, AllocBufferMS* msBuffer)
 {
-    if (UNLIKELY(allocSize >= kLargeObjectThreshold)) {
-        size_t unitCount = (allocSize + MRT_PAGE_SIZE - 1) / MRT_PAGE_SIZE;
-        size_t regionBytes = ((unitCount * MRT_PAGE_SIZE) + MS_REGION_SIZE - 1)
-                             / MS_REGION_SIZE * MS_REGION_SIZE;
+    (void)local;
+    size_t unitCount = (allocSize + MRT_PAGE_SIZE - 1) / MRT_PAGE_SIZE;
+    size_t regionBytes = ((unitCount * MRT_PAGE_SIZE) + MS_REGION_SIZE - 1)
+                         / MS_REGION_SIZE * MS_REGION_SIZE;
 
-        uintptr_t regionStart = 0;
-        MSRegionInfo* baseInfo = msRegionManager_->TakeRegionForLarge(unitCount, regionStart, msCentralPool_);
-        if (baseInfo == nullptr) {
-            LOG(RTLOG_ERROR, "[MS-GC] TryAllocateOnceMS LARGE ALLOC FAILED: "
-                "allocSize=%zu, unitCount=%zu, totalMSRegionBytes=%zu, "
-                "msRegionManager freeUnits=%u",
-                allocSize, unitCount,
-                msCentralPool_ ? msCentralPool_->GetTotalMSRegionBytes() : 0,
-                msRegionManager_->GetFreeUnitCount());
-            return 0;
-        }
-        MAddress addr = static_cast<MAddress>(regionStart);
-        RegisterLargeObjectMS(addr, regionBytes);
-        // Pacing debt: large objects bypass AllocBufferMS::Allocate, so we must
-        // accumulate assist debt explicitly here to keep GC pacing correct.
-        if (msBuffer != nullptr) {
-            msBuffer->AccumulatePacingDebt(allocSize);
-        }
-        return addr;
+    uintptr_t regionStart = 0;
+    MSRegionInfo* baseInfo = msRegionManager_->TakeRegionForLarge(unitCount, regionStart, msCentralPool_);
+    if (baseInfo == nullptr) {
+        LOG(RTLOG_ERROR, "[MS-GC] TryAllocateOnceMS LARGE ALLOC FAILED: "
+            "allocSize=%zu, unitCount=%zu, totalMSRegionBytes=%zu, "
+            "msRegionManager freeUnits=%u",
+            allocSize, unitCount,
+            msCentralPool_ ? msCentralPool_->GetTotalMSRegionBytes() : 0,
+            msRegionManager_->GetFreeUnitCount());
+        return 0;
     }
+    MAddress addr = static_cast<MAddress>(regionStart);
+    RegisterLargeObjectMS(addr, regionBytes);
+    // Pacing debt: large objects bypass AllocBufferMS::Allocate, so we must
+    // accumulate assist debt explicitly here to keep GC pacing correct.
+    if (msBuffer != nullptr) {
+        msBuffer->AccumulatePacingDebt(allocSize);
+    }
+    return addr;
+}
 
+MAddress RegionSpaceMS::TryAllocateRegularObjectOnce(size_t allocSize, ThreadLocalData* local, AllocBufferMS*& msBuffer)
+{
     if (msBuffer == nullptr) {
         msBuffer = AllocBufferMS::GetOrCreateAllocBufferMS(local);
     }
     if (msBuffer != nullptr) {
-        MAddress addr = msBuffer->Allocate(allocSize, mutator);
+        MAddress addr = msBuffer->Allocate(allocSize);
         if (LIKELY(addr != 0)) {
             return addr;
         }
@@ -448,6 +460,7 @@ void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t regionBytes)
 
     baseInfo->InitForLargeObject(start, end);
     baseInfo->reserved = static_cast<uint64_t>(baseIdx);
+    baseInfo->SetSweepGen(CentralRegionPool::GetGlobalSweepGen());
 
     for (size_t i = 1; i < spanCount; i++) {
         MSRegionInfo* spanInfo = MSRegionInfoArray::GetRegionInfoByIdx(baseIdx + i);
@@ -457,14 +470,9 @@ void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t regionBytes)
         spanInfo->totalSlotCount = 0;
         spanInfo->freeSlotCount = 0;
         spanInfo->flags_ = 0;
+        spanInfo->SetSweepGen(baseInfo->GetSweepGen());
         spanInfo->reserved = static_cast<uint64_t>(baseIdx);
     }
-
-    baseInfo->AtomicSetMarked();
-
-    // BLACK allocation for large objects during marking: the hybrid write
-    // barrier (SATB + insertion) ensures children are independently
-    // discovered when fields are written. No need to enqueue.
 
     if (msCentralPool_ != nullptr) {
         msCentralPool_->RegisterLargeRegion(baseInfo);

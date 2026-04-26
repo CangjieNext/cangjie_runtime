@@ -26,6 +26,8 @@
 
 namespace MapleRuntime {
 
+static constexpr bool kDisableSweepOnRegionMissProbe = true;
+
 // External: system page size (defined in RegionManager.cpp).
 extern const size_t MRT_PAGE_SIZE;
 
@@ -534,7 +536,9 @@ MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& 
         return nullptr;
     }
 
-    MaybeNotifySweep(&centralPool, cls);
+    if (!kDisableSweepOnRegionMissProbe) {
+        MaybeNotifySweep(&centralPool, cls);
+    }
     MaybeNotifyReclaim();
     MaybeNotifyMark(HeuTriggerKind::SMALL_ALLOC, &centralPool, cls, source == AllocSource::BUMP);
 

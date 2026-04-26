@@ -34,6 +34,9 @@ struct ThreadLocalData {
     // Internal thread local var.
     ThreadType threadType;
     bool isCJProcessor;
+    uint8_t gcFastState;
+    uint8_t encodedGCPhase;
+    uint8_t reserved0;
     void* threadCache;
     AllocBufferMS* msAllocBuffer;
 };
@@ -42,11 +45,20 @@ struct CleanThreadLocalData {
     ~CleanThreadLocalData();
 };
 
+extern thread_local uint64_t threadLocalData[sizeof(ThreadLocalData) / sizeof(uint64_t)];
+
 class ThreadLocal { // merge this to ThreadLocalData.
 public:
-    static ThreadLocalData* GetThreadLocalData();
+    static constexpr uint8_t GC_FAST_STATE_NONE = 0;
+    static constexpr uint8_t GC_FAST_STATE_MS_MARKING = 1U << 0;
+    static constexpr uint8_t GC_FAST_STATE_MS_ASSIST = 1U << 1;
 
-    static void SetMutator(Mutator* newMutator) { GetThreadLocalData()->mutator = newMutator; }
+    static inline ThreadLocalData* GetThreadLocalData()
+    {
+        return reinterpret_cast<ThreadLocalData*>(threadLocalData);
+    }
+
+    static void SetMutator(Mutator* newMutator);
 
     static Mutator* GetMutator() { return GetThreadLocalData()->mutator; }
 
@@ -69,6 +81,14 @@ public:
     static void SetCJProcessorFlag(bool flag) { GetThreadLocalData()->isCJProcessor = flag; }
 
     static bool IsCJProcessor() { return GetThreadLocalData()->isCJProcessor; }
+
+    static void SetGCFastState(uint8_t state) { GetThreadLocalData()->gcFastState = state; }
+
+    static uint8_t GetGCFastState() { return GetThreadLocalData()->gcFastState; }
+
+    static void SetEncodedGCPhase(uint8_t encodedPhase) { GetThreadLocalData()->encodedGCPhase = encodedPhase; }
+
+    static uint8_t GetEncodedGCPhase() { return GetThreadLocalData()->encodedGCPhase; }
 
     static void SetForeignCJThread(void* cjthread)
     {

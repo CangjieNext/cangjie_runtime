@@ -20,16 +20,17 @@
 
 namespace MapleRuntime {
 
-static inline bool IsMSMarkingPhase(GCPhase phase)
+static constexpr bool kDisableMutatorAssistProbe = false;
+static constexpr bool kDisableSweepOnRegionMissProbe = false;
+
+static inline bool IsMSMarkingActive(uint8_t gcFastState)
 {
-    return phase == GCPhase::GC_PHASE_MS_MARK_SETUP ||
-           phase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK ||
-           phase == GCPhase::GC_PHASE_MS_MARK_TERMINATION;
+    return (gcFastState & ThreadLocal::GC_FAST_STATE_MS_MARKING) != 0;
 }
 
-static inline bool IsMSAssistPhase(GCPhase phase)
+static inline bool IsMSAssistActive(uint8_t gcFastState)
 {
-    return phase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK;
+    return (gcFastState & ThreadLocal::GC_FAST_STATE_MS_ASSIST) != 0;
 }
 
 static inline Mutator* ResolveMutatorForAllocFastPath(Mutator* mutator)
@@ -88,24 +89,24 @@ MAddress AllocBufferMS::Allocate(size_t size, Mutator* mutator)
         return addr;
     }
 
-    GCPhase phase = Heap::GetHeap().GetGCPhase();
-    if (LIKELY(!IsMSMarkingPhase(phase))) {
+    uint8_t gcFastState = ThreadLocal::GetGCFastState();
+    if (LIKELY(!IsMSMarkingActive(gcFastState))) {
         gcAssistDebtScaled_ = 0;
         return addr;
     }
 
-    BaseObject* obj = reinterpret_cast<BaseObject*>(addr);
     MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
-    if (LIKELY(collector != nullptr)) {
-        collector->MarkObject(obj);
-    } else {
-        // Fall back to the generic path if the active collector snapshot is unavailable.
-        Heap::GetHeap().GetCollector().MarkNewObject(obj);
+    if (UNLIKELY(collector == nullptr)) {
         gcAssistDebtScaled_ = 0;
         return addr;
     }
 
-    if (UNLIKELY(!IsMSAssistPhase(phase))) {
+    if (kDisableMutatorAssistProbe) {
+        gcAssistDebtScaled_ = 0;
+        return addr;
+    }
+
+    if (UNLIKELY(!IsMSAssistActive(gcFastState))) {
         gcAssistDebtScaled_ = 0;
         return addr;
     }
@@ -188,18 +189,16 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
     }
 
     // O2: Check thread-local cache before going to CentralRegionPool
-    MSRegionInfo* newRegion = cachedRegion_[cls];
-    if (newRegion != nullptr) {
-        cachedRegion_[cls] = nullptr;
-    } else {
-        if (central_ != nullptr) {
+    MSRegionInfo* newRegion = TakeCachedRegion(cls);
+    if (newRegion == nullptr) {
+        if (!kDisableSweepOnRegionMissProbe && central_ != nullptr) {
             central_->MaybeNotifySweep(cls);
         }
         if (cacheMiss_[cls] < UINT8_MAX) {
             ++cacheMiss_[cls];
         }
         if (cacheMiss_[cls] >= kCacheFillThreshold) {
-            Heap::GetHeap().GetCollectorResources().GetFinalizerProcessor().NotifyToFeedAllocBuffers();
+            Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().NotifyToFeedAllocBuffers();
         }
         // Step 2: Get a new Region from CentralRegionPool
         newRegion = RefillFromCentral(cls);
@@ -271,6 +270,39 @@ void AllocBufferMS::ReturnRegion(uint8_t cls)
         return;
     }
 
+    ReturnRegionToCentral(region, cls);
+    activeRegions_[cls] = nullptr;
+}
+
+MSRegionInfo* AllocBufferMS::TakeCachedRegion(uint8_t cls)
+{
+    for (uint8_t slot = 0; slot < kCachedRegionSlots; ++slot) {
+        MSRegionInfo* region = cachedRegion_[cls][slot].exchange(nullptr, std::memory_order_acquire);
+        if (region != nullptr) {
+            return region;
+        }
+    }
+    return nullptr;
+}
+
+bool AllocBufferMS::TryCacheRegion(uint8_t cls, MSRegionInfo* region)
+{
+    for (uint8_t slot = 0; slot < kCachedRegionSlots; ++slot) {
+        MSRegionInfo* expected = nullptr;
+        if (cachedRegion_[cls][slot].compare_exchange_strong(expected, region,
+                std::memory_order_release, std::memory_order_relaxed)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+void AllocBufferMS::ReturnRegionToCentral(MSRegionInfo* region, uint8_t cls)
+{
+    if (region == nullptr) {
+        return;
+    }
+
     bool isFree = region->IsCompletelyFree();
     bool hasSpace = region->HasFreeSpace();
 
@@ -283,8 +315,6 @@ void AllocBufferMS::ReturnRegion(uint8_t cls)
         // Full → full list
         central_->ReturnFullRegion(region, cls);
     }
-
-    activeRegions_[cls] = nullptr;
 }
 
 // ============================================================================
@@ -314,17 +344,12 @@ void AllocBufferMS::FlushAll()
 {
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
         // O2: Return cached backup regions first
-        if (cachedRegion_[cls] != nullptr) {
-            MSRegionInfo* cached = cachedRegion_[cls];
-            cachedRegion_[cls] = nullptr;
-            // markBitmap clearing is now handled by ClearAllMarkBitmaps
-            // before STW, so no per-region ClearMarkBitmap here.
-            if (cached->IsCompletelyFree()) {
-                central_->ReturnEmptyRegion(cached);
-            } else if (cached->HasFreeSpace()) {
-                central_->ReturnPartialRegion(cached, cls);
-            } else {
-                central_->ReturnFullRegion(cached, cls);
+        for (uint8_t slot = 0; slot < kCachedRegionSlots; ++slot) {
+            MSRegionInfo* cached = cachedRegion_[cls][slot].exchange(nullptr, std::memory_order_acquire);
+            if (cached != nullptr) {
+                // markBitmap clearing is now handled by ClearAllMarkBitmaps
+                // before STW, so no per-region ClearMarkBitmap here.
+                ReturnRegionToCentral(cached, cls);
             }
         }
 
@@ -345,21 +370,38 @@ void AllocBufferMS::BackgroundFillCache()
         if (cacheMiss_[cls] < kCacheFillThreshold) {
             continue;
         }
-        if (cachedRegion_[cls].load(std::memory_order_relaxed) != nullptr) {
+        bool cacheFull = true;
+        for (uint8_t slot = 0; slot < kCachedRegionSlots; ++slot) {
+            if (cachedRegion_[cls][slot].load(std::memory_order_relaxed) != nullptr) {
+                continue;
+            }
+            cacheFull = false;
+            MSRegionInfo* region = central_->GetRegion(cls);
+            if (region == nullptr) {
+                if (!kDisableSweepOnRegionMissProbe) {
+                    central_->MaybeNotifySweep(cls);
+                }
+                break;
+            }
+            if (!TryCacheRegion(cls, region)) {
+                central_->ReturnPartialRegion(region, cls);
+                break;
+            }
+        }
+        if (cacheFull) {
             cacheMiss_[cls] = 0;
             continue;
         }
-        MSRegionInfo* region = central_->GetRegion(cls);
-        if (region == nullptr) {
-            central_->MaybeNotifySweep(cls);
-            continue;
+
+        bool allSlotsFilled = true;
+        for (uint8_t slot = 0; slot < kCachedRegionSlots; ++slot) {
+            if (cachedRegion_[cls][slot].load(std::memory_order_relaxed) == nullptr) {
+                allSlotsFilled = false;
+                break;
+            }
         }
-        MSRegionInfo* expected = nullptr;
-        if (cachedRegion_[cls].compare_exchange_strong(expected, region,
-                std::memory_order_release, std::memory_order_relaxed)) {
+        if (allSlotsFilled) {
             cacheMiss_[cls] = 0;
-        } else {
-            central_->ReturnPartialRegion(region, cls);
         }
     }
 }
@@ -397,6 +439,11 @@ AllocBufferMS* AllocBufferMS::GetOrCreateAllocBufferMS(ThreadLocalData* local)
 // ============================================================================
 void AllocBufferMS::AccumulatePacingDebt(size_t size)
 {
+    if (kDisableMutatorAssistProbe) {
+        gcAssistDebtScaled_ = 0;
+        return;
+    }
+
     MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
     if (collector == nullptr) {
         return;

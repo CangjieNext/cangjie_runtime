@@ -8,17 +8,43 @@
 #include "ThreadLocal.h"
 
 #include "Common/Runtime.h"
+#include "Heap/Collector/Collector.h"
+#include "Mutator.h"
 #include "schedule.h"
 #include "Base/Globals.h"
 
 namespace MapleRuntime {
+namespace {
+inline uint8_t EncodeThreadLocalGCFastState(GCPhase phase)
+{
+    switch (phase) {
+        case GCPhase::GC_PHASE_MS_MARK_SETUP:
+        case GCPhase::GC_PHASE_MS_MARK_TERMINATION:
+            return ThreadLocal::GC_FAST_STATE_MS_MARKING;
+        case GCPhase::GC_PHASE_MS_CONCURRENT_MARK:
+            return ThreadLocal::GC_FAST_STATE_MS_MARKING | ThreadLocal::GC_FAST_STATE_MS_ASSIST;
+        default:
+            return ThreadLocal::GC_FAST_STATE_NONE;
+    }
+}
+
+inline uint8_t EncodeThreadLocalGCPhaseByte(GCPhase phase)
+{
+    return phase > GCPhase::GC_PHASE_INIT ? static_cast<uint8_t>(phase) : 0;
+}
+}
+
 RwLock ThreadLocal::tlEnableLock;
 MRT_EXPORT thread_local uint64_t threadLocalData[sizeof(ThreadLocalData) / sizeof(uint64_t)];
 thread_local CleanThreadLocalData cleaner;
 
-ThreadLocalData* ThreadLocal::GetThreadLocalData()
+void ThreadLocal::SetMutator(Mutator* newMutator)
 {
-    return reinterpret_cast<ThreadLocalData*>(threadLocalData);
+    ThreadLocalData* local = GetThreadLocalData();
+    local->mutator = newMutator;
+    GCPhase phase = newMutator != nullptr ? newMutator->GetMutatorPhase() : GCPhase::GC_PHASE_IDLE;
+    local->gcFastState = EncodeThreadLocalGCFastState(phase);
+    local->encodedGCPhase = EncodeThreadLocalGCPhaseByte(phase);
 }
 
 CleanThreadLocalData::~CleanThreadLocalData()

@@ -320,6 +320,24 @@ public:
 
     inline void HandleCpuProfile();
 
+    static inline uint8_t EncodeThreadLocalGCFastState(const GCPhase phase)
+    {
+        switch (phase) {
+            case GCPhase::GC_PHASE_MS_MARK_SETUP:
+            case GCPhase::GC_PHASE_MS_MARK_TERMINATION:
+                return ThreadLocal::GC_FAST_STATE_MS_MARKING;
+            case GCPhase::GC_PHASE_MS_CONCURRENT_MARK:
+                return ThreadLocal::GC_FAST_STATE_MS_MARKING | ThreadLocal::GC_FAST_STATE_MS_ASSIST;
+            default:
+                return ThreadLocal::GC_FAST_STATE_NONE;
+        }
+    }
+
+    static inline uint8_t EncodeThreadLocalGCPhaseByte(const GCPhase phase)
+    {
+        return phase > GCPhase::GC_PHASE_INIT ? static_cast<uint8_t>(phase) : 0;
+    }
+
     void TransitionToGCPhaseExclusive(GCPhase newPhase);
 
     void TransitionToCpuProfileExclusive();
@@ -332,6 +350,10 @@ public:
     __attribute__((always_inline)) inline void SetMutatorPhase(const GCPhase newPhase)
     {
         mutatorPhase.store(newPhase, std::memory_order_release);
+        if (ThreadLocal::GetMutator() == this) {
+            ThreadLocal::SetGCFastState(EncodeThreadLocalGCFastState(newPhase));
+            ThreadLocal::SetEncodedGCPhase(EncodeThreadLocalGCPhaseByte(newPhase));
+        }
     }
 
     __attribute__((always_inline)) inline GCPhase GetMutatorPhase() const
