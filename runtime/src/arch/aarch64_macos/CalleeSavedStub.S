@@ -73,7 +73,8 @@
     bl   _\funcName
     str  x0,  [sp, #StubCalleeSaveAreaSize+0x48]
 
-    bl   _MRT_GetThreadLocalData
+    mov  x0, x28
+    bl   _MRT_UpdateThreadLocalDataPhase
     mov  x28, x0
 
     // restore all used callee-saved registers.
@@ -137,7 +138,8 @@
     bl   _\funcName
     str  x0,  [sp, #StubCalleeSaveAreaSize+0x48]
 
-    bl   _MRT_GetThreadLocalData
+    mov  x0, x28
+    bl   _MRT_UpdateThreadLocalDataPhase
     mov  x28, x0
 
     // restore all used callee-saved registers.

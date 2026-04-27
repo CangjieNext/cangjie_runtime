@@ -37,7 +37,6 @@ void AllocBuffer::Init()
                   "need to modify the offset of this value in llvm-project at the same time");
     tlRegion = RegionInfo::NullRegion();
     runtimeRegion = RegionInfo::NullRegion();
-    ThreadLocal::InitializeCleaner();
     RegionSpace& space = reinterpret_cast<RegionSpace&>(Heap::GetHeap().GetAllocator());
     space.RegisterAllocBuffer(*this);
 }
