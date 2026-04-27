@@ -32,7 +32,7 @@ int RawsockDisconnect(SignedSocket connFd)
     if (ret != 0) {
         return ret;
     }
-    ret = RawsockConnect(connFd, reinterpret_cast<const struct sockaddr *>(&peerAddr), peerLen, -1);
+    ret = RawsockConnect(connFd, reinterpret_cast<const struct sockaddr *>(&peerAddr), peerLen, ULLONG_MAX);
     if (ret != 0) {
         LOG_ERROR(ret, "RawsockConnect failed");
         SchdfdUnlock(connFd, type);

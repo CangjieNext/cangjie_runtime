@@ -83,7 +83,7 @@ int HeapProfilerStream::GetSize()
 }
 bool HeapProfilerStream::WriteChunk(char* data, int32_t size)
 {
-    std::string chunk(data, size);
+    std::string chunk(data, static_cast<size_t>(size));
     std::string msg = start + chunk + end;
     sendMsg(msg);
     return true;

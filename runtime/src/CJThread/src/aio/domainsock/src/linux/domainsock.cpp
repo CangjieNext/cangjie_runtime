@@ -43,7 +43,7 @@ int DomainsockDisconnect(SignedSocket connFd)
     if (ret != 0) {
         return ret;
     }
-    ret = DomainsockConnect(connFd, reinterpret_cast<const struct sockaddr *>(&peerAddr), peerLen, -1);
+    ret = DomainsockConnect(connFd, reinterpret_cast<const struct sockaddr *>(&peerAddr), peerLen, ULLONG_MAX);
     if (ret != 0) {
         LOG_ERROR(ret, "DomainsockConnect failed");
         SchdfdUnlock(connFd, type);

@@ -448,8 +448,8 @@ protected:
 };
 
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
-void InitPtrAuthRAMod(FrameInfo& callerFrameInfo, FrameInfo& calleeFrameInfo);
-uint64_t GetRuntimeFrameSize(MachineFrame &mFrame);
+void InitPtrAuthRAMod(FrameInfo& callerFrameInfo, const FrameInfo& calleeFrameInfo);
+uint64_t GetRuntimeFrameSize(const MachineFrame &mFrame);
 #endif
 
 inline void MRT_Check(bool ok, const CString& msg) { CHECK_DETAIL(ok, msg.Str()); }

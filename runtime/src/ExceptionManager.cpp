@@ -214,9 +214,9 @@ void ExceptionManager::DumpException()
             LOG(RTLOG_FATAL, "Alloca memory failed when Cangjie dump uncaught exception.");
         }
         for (const auto& ste : stackTrace) {
-            const int strLen = 10;
-            char* str = static_cast<char*>(malloc(strLen * sizeof(char)));
-            sprintf_s(str, strLen, "%ld", ste.lineNumber);
+            const int innerStrLen = 10;
+            char* innerStr = static_cast<char*>(malloc(innerStrLen * sizeof(char)));
+            sprintf_s(innerStr, innerStrLen, "%ld", ste.lineNumber);
             exceptionStack += "\t at ";
             exceptionStack += ste.className.Str();
             exceptionStack += (ste.className.Length() > 0 ? "." : "");
@@ -224,7 +224,7 @@ void ExceptionManager::DumpException()
             exceptionStack += "(";
             exceptionStack += ste.fileName.Str();
             exceptionStack += +":";
-            exceptionStack += str;
+            exceptionStack += innerStr;
             exceptionStack += ")\n";
 #if defined(__APPLE__) || (__ANDROID__)
             LOG(RTLOG_ERROR, exceptionStack.Str());

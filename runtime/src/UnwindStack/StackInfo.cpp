@@ -28,10 +28,10 @@ const int StackInfo::NEED_FILTED_FLAG = -1;
 static uint64_t *stackFrameAlign(uint64_t *fa)
 {
     auto addr = reinterpret_cast<uint64_t>(fa);
-    return reinterpret_cast<uint64_t*>((addr + 0xf) & (~0xf));
+    return reinterpret_cast<uint64_t*>((addr + 0xfUL) & (~0xfUL));
 }
 
-void InitPtrAuthRAMod(FrameInfo& callerFrameInfo, FrameInfo& calleeFrameInfo)
+void InitPtrAuthRAMod(FrameInfo& callerFrameInfo, const FrameInfo& calleeFrameInfo)
 {
     if (calleeFrameInfo.GetFrameType() == FrameType::MANAGED) {
         FuncDescRef funcDesc = MFuncDesc::GetFuncDesc(
@@ -52,7 +52,7 @@ void InitPtrAuthRAMod(FrameInfo& callerFrameInfo, FrameInfo& calleeFrameInfo)
         callerFrameInfo.mFrame.SetPtrAuthRAMod(stackFrameAlign(reinterpret_cast<uint64_t*>(fa) + count));
     } else if (calleeFrameInfo.mFrame.IsC2RStubFrame() || calleeFrameInfo.mFrame.IsC2NExceptionStubFrame()) {
         auto fa = calleeFrameInfo.mFrame.GetFA();
-        auto size = GetRuntimeFrameSize((MachineFrame&)calleeFrameInfo.mFrame);
+        auto size = GetRuntimeFrameSize(calleeFrameInfo.mFrame);
         callerFrameInfo.mFrame.SetPtrAuthRAMod(
             stackFrameAlign(reinterpret_cast<uint64_t*>(reinterpret_cast<uint64_t>(fa) + size)));
     } else {

@@ -136,7 +136,7 @@ inline MArray* MArray::NewKnownWidthArray(MIndex nElems, TypeInfo& arrayClass, c
         newArray->SetLength(nElems);
 #if defined(__OHOS__) && (__OHOS__ == 1)
         if (CjAllocData::GetCjAllocData()->IsRecording()) {
-            CjAllocData::GetCjAllocData()->RecordAllocNodes(&arrayClass, arraySize);
+            CjAllocData::GetCjAllocData()->RecordAllocNodes(&arrayClass, static_cast<MSize>(arraySize));
         }
 #endif
         return newArray;

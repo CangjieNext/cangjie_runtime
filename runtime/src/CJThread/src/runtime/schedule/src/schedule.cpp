@@ -692,11 +692,15 @@ bool IsForeignThread()
     switch (type) {
         case SCHEDULE_DEFAULT:
             HILOG_FATAL(ERRNO_SCHD_WRONG_TYPE, "Forbidden to use JSRuntime() in a spawn!");
+            return false;
         case SCHEDULE_UI_THREAD:
             return false;
         case SCHEDULE_FOREIGN_THREAD:
             return true;
+        case SCHEDULE_EXCLUSIVE:
+            return false;
     }
+    return false;
 }
 #endif
 

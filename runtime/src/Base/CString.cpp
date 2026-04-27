@@ -325,12 +325,12 @@ void CString::Replace(size_t pos, CString cStr)
 #ifdef __OHOS__
 void CString::ReplaceAll(CString replacement, CString target)
 {
-    int index = -1;
+    size_t index = 0;
     int ret = Find(target.Str());
     while (ret != -1) {
-        index = ret;
+        index = static_cast<size_t>(ret);
         Replace(index, replacement);
-        ret = Find(target.Str(), ret + target.length);
+        ret = Find(target.Str(), index + target.length);
     }
     return;
 }

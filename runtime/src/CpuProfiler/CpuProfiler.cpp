@@ -70,7 +70,7 @@ void CpuProfiler::SamplingThread(SamplesRecord& generator)
         endTime = startTime;
         // when ts > 0, the time interval is less than the sampling interval.
         if (ts > 0) {
-            usleep(static_cast<__useconds_t>(ts));
+            usleep(static_cast<unsigned int>(ts));
             endTime = SamplesRecord::GetMicrosecondsTimeStamp();
         }
         DoSampleStack();

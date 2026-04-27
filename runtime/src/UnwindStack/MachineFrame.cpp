@@ -126,7 +126,7 @@ void MachineFrame::Dump(const CString msg) const { LOG(RTLOG_INFO, "%s %s", msg.
 #endif
 
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
-uint64_t GetRuntimeFrameSize(MachineFrame &mFrame)
+uint64_t GetRuntimeFrameSize(const MachineFrame &mFrame)
 {
     uint64_t size = 0;
     if (mFrame.IsC2RStubFrame()) {

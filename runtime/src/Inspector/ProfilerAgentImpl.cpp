@@ -108,11 +108,11 @@ void GetHeapUsage(const std::string &message, SendMsgCB sendMsg)
     writer->WriteString("{\"id\":");
     writer->WriteString(stream->GetMessageID());
     writer->WriteString(",\"result\":{\"usedSize\":");
-    ssize_t allocatedSize = MapleRuntime::Heap::GetHeap().GetAllocatedSize();
-    writer->WriteNumber(allocatedSize);
+    size_t allocatedSize = MapleRuntime::Heap::GetHeap().GetAllocatedSize();
+    writer->WriteNumber(static_cast<int32_t>(allocatedSize));
     writer->WriteString(",\"totalSize\":");
-    ssize_t totalSize = MapleRuntime::Heap::GetHeap().GetMaxCapacity();
-    writer->WriteNumber(totalSize);
+    size_t totalSize = MapleRuntime::Heap::GetHeap().GetMaxCapacity();
+    writer->WriteNumber(static_cast<int32_t>(totalSize));
     writer->WriteString("}");
     writer->End();
     delete writer;

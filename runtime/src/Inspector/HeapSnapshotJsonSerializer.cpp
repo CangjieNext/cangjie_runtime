@@ -51,15 +51,15 @@ void CjHeapDataForIDE::SerializeFixedHeader()
     const u4 idSize = sizeof(u4);
     struct timeval timeNow {};
     gettimeofday(&timeNow, nullptr);
-    const uint64_t msecsTime = (timeNow.tv_sec * 1000) + (timeNow.tv_usec / 1000);
+    const uint64_t msecsTime = (static_cast<uint64_t>(timeNow.tv_sec) * 1000) + (static_cast<uint64_t>(timeNow.tv_usec) / 1000);
     const uint32_t timeHigh = static_cast<uint32_t>(msecsTime >> 32);
     const uint32_t timeLow = static_cast<uint32_t>(msecsTime & 0xFFFFFFFF);
     writer->WriteString("\\\"HEADER\\\":[");
     writer->WriteNumber(idSize);
     writer->WriteChar(',');
-    writer->WriteNumber(timeHigh);
+    writer->WriteNumber(static_cast<int32_t>(timeHigh));
     writer->WriteChar(',');
-    writer->WriteNumber(timeLow);
+    writer->WriteNumber(static_cast<int32_t>(timeLow));
     writer->WriteChar(']');
     writer->WriteChar(',');
 }
@@ -76,7 +76,7 @@ void CjHeapDataForIDE::SerializeString()
         }
         writer->WriteChar('[');
         CjHeapDataStringId id = string.second;
-        writer->WriteNumber(GetId(id));
+        writer->WriteNumber(static_cast<int32_t>(GetId(id)));
         writer->WriteChar(',');
         CString str = string.first;
         str.ReplaceAll("/", "\\");
@@ -140,9 +140,9 @@ void CjHeapDataForIDE::SerializeAllStructClass()
 void CjHeapDataForIDE::SerializeClassLoad(TypeInfo* ti, CjHeapDataStringId klassId, const u1 tag)
 {
     writer->WriteChar('[');
-    writer->WriteNumber(GetId(reinterpret_cast<CjHeapDataStringId>(ti)));
+    writer->WriteNumber(static_cast<int32_t>(GetId(reinterpret_cast<CjHeapDataStringId>(ti))));
     writer->WriteChar(',');
-    writer->WriteNumber(GetId(reinterpret_cast<CjHeapDataStringId>(klassId)));
+    writer->WriteNumber(static_cast<int32_t>(GetId(reinterpret_cast<CjHeapDataStringId>(klassId))));
     writer->WriteChar(']');
 }
 
@@ -179,13 +179,13 @@ void CjHeapDataForIDE::SerializeStackFrame(FrameInfo& frame, uint32_t frameIdx)
         fileName = CString(binInfo.filePathName);
         methodName = CString(binInfo.symbolName);
     }
-    writer->WriteNumber(frames[&frame]);
+    writer->WriteNumber(static_cast<int32_t>(frames[&frame]));
     writer->WriteChar(',');
-    writer->WriteNumber(GetId(LookupStringId(methodName.Str())));
+    writer->WriteNumber(static_cast<int32_t>(GetId(LookupStringId(methodName.Str()))));
     writer->WriteChar(',');
-    writer->WriteNumber(GetId(LookupStringId(fileName.Str())));
+    writer->WriteNumber(static_cast<int32_t>(GetId(LookupStringId(fileName.Str()))));
     writer->WriteChar(',');
-    writer->WriteNumber(reinterpret_cast<u4>(lineNumber));
+    writer->WriteNumber(static_cast<int32_t>(reinterpret_cast<u4>(lineNumber)));
     writer->WriteChar(']');
 }
 
@@ -208,23 +208,23 @@ void CjHeapDataForIDE::SerializeStackTrace()
             if (i != 0) {
                 writer->WriteChar(',');
             }
-            SerializeStackFrame(*stack[i], i);
+            SerializeStackFrame(*stack[i], static_cast<uint32_t>(i));
         }
         writer->WriteChar(']');
         writer->WriteChar(',');
         writer->WriteContinueString("\\\"STACKTRACE\\\":[");
-        writer->WriteNumber(trace->second);
+        writer->WriteNumber(static_cast<int32_t>(trace->second));
         writer->WriteChar(',');
-        writer->WriteNumber(trace->first->GetStackTid());
+        writer->WriteNumber(static_cast<int32_t>(trace->first->GetStackTid()));
         writer->WriteChar(',');
-        writer->WriteNumber(depth);
+        writer->WriteNumber(static_cast<int32_t>(depth));
         writer->WriteChar(',');
         writer->WriteChar('[');
         for (size_t i = 0; i < depth; ++i) {
             if (i != 0) {
                 writer->WriteChar(',');
             }
-            writer->WriteNumber(frames[stack[i]]);
+            writer->WriteNumber(static_cast<int32_t>(frames[stack[i]]));
         }
         writer->WriteChar(']');
         writer->WriteChar(']');
@@ -242,14 +242,14 @@ void CjHeapDataForIDE::SerializeStartThread()
             isFirstElement = false;
         }
         writer->WriteContinueString("\\\"STARTTHREAD\\\":[");
-        writer->WriteNumber(trace->first->GetStackTid());
+        writer->WriteNumber(static_cast<int32_t>(trace->first->GetStackTid()));
         writer->WriteChar(',');
-        writer->WriteNumber(GetId(threadObjectId++));
+        writer->WriteNumber(static_cast<int32_t>(GetId(threadObjectId++)));
         writer->WriteChar(',');
-        writer->WriteNumber(trace->second);
+        writer->WriteNumber(static_cast<int32_t>(trace->second));
         writer->WriteChar(',');
         CString threadNameAll = trace->first->GetThreadName();
-        writer->WriteNumber(GetId(LookupStringId(threadNameAll)));
+        writer->WriteNumber(static_cast<int32_t>(GetId(LookupStringId(threadNameAll))));
         writer->WriteChar(']');
     }
     writer->WriteChar(',');
@@ -277,7 +277,7 @@ void CjHeapDataForIDE::SerializeAllObjects()
                 SerializeThreadObjectRoot(objectInfo.obj, objectInfo.tag, objectInfo.threadId, 0);
                 break;
             case TAG_ROOT_LOCAL:
-                SerializeLocalRoot(objectInfo.obj, objectInfo.tag, objectInfo.threadId, objectInfo.frameNum);
+                SerializeLocalRoot(objectInfo.obj, objectInfo.tag, objectInfo.threadId, static_cast<u1>(objectInfo.frameNum));
                 break;
             case TAG_ROOT_GLOBAL:
                 SerializeGlobalRoot(objectInfo.obj, objectInfo.tag);
@@ -321,14 +321,14 @@ void CjHeapDataForIDE::SerializeAllObjects()
 void CjHeapDataForIDE::SerializeGlobalRoot(BaseObject*& obj, const u1 tag)
 {
     writer->WriteChar('[');
-    writer->WriteNumber(tag);
+    writer->WriteNumber(static_cast<int32_t>(tag));
     writer->WriteChar(',');
     writer->WriteNumber(GetObjType(obj));
     writer->WriteChar(',');
     CjHeapDataID objAddr = (reinterpret_cast<CjHeapDataID>(obj));
     u4 id = GetId(objAddr);
     CString name = obj->GetTypeInfo()->GetName();
-    writer->WriteNumber(id);
+    writer->WriteNumber(static_cast<int32_t>(id));
     writer->WriteChar(']');
 }
 
@@ -340,13 +340,13 @@ void CjHeapDataForIDE::SerializeGlobalRoot(BaseObject*& obj, const u1 tag)
 void CjHeapDataForIDE::SerializeUnknownRoot(BaseObject*& obj, const u1 tag)
 {
     writer->WriteChar('[');
-    writer->WriteNumber(tag);
+    writer->WriteNumber(static_cast<int32_t>(tag));
     writer->WriteChar(',');
     writer->WriteNumber(GetObjType(obj));
     writer->WriteChar(',');
     CjHeapDataID objAddr = (reinterpret_cast<CjHeapDataID>(obj));
     u4 id = GetId(objAddr);
-    writer->WriteNumber(id);
+    writer->WriteNumber(static_cast<int32_t>(id));
     writer->WriteChar(']');
 }
 
@@ -360,17 +360,17 @@ void CjHeapDataForIDE::SerializeUnknownRoot(BaseObject*& obj, const u1 tag)
 void CjHeapDataForIDE::SerializeLocalRoot(BaseObject*& obj, const u1 tag, const u4 tid, const u1 depth)
 {
     writer->WriteChar('[');
-    writer->WriteNumber(tag);
+    writer->WriteNumber(static_cast<int32_t>(tag));
     writer->WriteChar(',');
     writer->WriteNumber(GetObjType(obj));
     writer->WriteChar(',');
     CjHeapDataID objAddr = (reinterpret_cast<CjHeapDataID>(obj));
     u4 id = GetId(objAddr);
-    writer->WriteNumber(id);
+    writer->WriteNumber(static_cast<int32_t>(id));
     writer->WriteChar(',');
-    writer->WriteNumber(tid);
+    writer->WriteNumber(static_cast<int32_t>(tid));
     writer->WriteChar(',');
-    writer->WriteNumber(depth);
+    writer->WriteNumber(static_cast<int32_t>(depth));
     writer->WriteChar(']');
 }
 
@@ -385,17 +385,17 @@ void CjHeapDataForIDE::SerializeLocalRoot(BaseObject*& obj, const u1 tag, const 
 void CjHeapDataForIDE::SerializeThreadObjectRoot(BaseObject*& obj, const u1 tag, const u4 tid, const u4 stackTraceIdx)
 {
     writer->WriteChar('[');
-    writer->WriteNumber(tag);
+    writer->WriteNumber(static_cast<int32_t>(tag));
     writer->WriteChar(',');
     writer->WriteNumber(GetObjType(obj));
     writer->WriteChar(',');
     CjHeapDataID objAddr = (reinterpret_cast<CjHeapDataID>(obj));
     u4 id = GetId(objAddr);
-    writer->WriteNumber(id);
+    writer->WriteNumber(static_cast<int32_t>(id));
     writer->WriteChar(',');
-    writer->WriteNumber(tid);
+    writer->WriteNumber(static_cast<int32_t>(tid));
     writer->WriteChar(',');
-    writer->WriteNumber(stackTraceIdx);
+    writer->WriteNumber(static_cast<int32_t>(stackTraceIdx));
     writer->WriteChar(']');
 }
 
@@ -408,19 +408,17 @@ void CjHeapDataForIDE::SerializeThreadObjectRoot(BaseObject*& obj, const u1 tag,
 void CjHeapDataForIDE::SerializeClass(TypeInfo* ti, CjHeapDataStringId klassId, const u1 tag)
 {
     writer->WriteChar('[');
-    writer->WriteNumber(tag);
+    writer->WriteNumber(static_cast<int32_t>(tag));
     writer->WriteChar(',');
-    writer->WriteNumber(GetId(reinterpret_cast<CjHeapDataStringId>(ti)));
+    writer->WriteNumber(static_cast<int32_t>(GetId(reinterpret_cast<CjHeapDataStringId>(ti))));
     writer->WriteChar(',');
-    // 8-byte alignment
     if (!ti->IsObjectType()) {
         writer->WriteNumber(0);
         writer->WriteChar(']');
         return;
     }
-    u4 size = AlignUp<u4>((ti->GetInstanceSize() + TYPEINFO_PTR_SIZE), alignment);
-    // 8 bytes for each field
-    writer->WriteNumber(size);
+    u4 size = static_cast<u4>(AlignUp<size_t>((ti->GetInstanceSize() + TYPEINFO_PTR_SIZE), alignment));
+    writer->WriteNumber(static_cast<int32_t>(size));
     writer->WriteChar(']');
 }
 
@@ -436,13 +434,13 @@ void CjHeapDataForIDE::SerializeClass(TypeInfo* ti, CjHeapDataStringId klassId, 
 void CjHeapDataForIDE::SerializeObjectArray(BaseObject*& obj, const u1 tag)
 {
     writer->WriteChar('[');
-    writer->WriteNumber(tag);
+    writer->WriteNumber(static_cast<int32_t>(tag));
     writer->WriteChar(',');
     writer->WriteNumber(GetObjType(obj));
     writer->WriteChar(',');
     CjHeapDataID objAddr = (reinterpret_cast<CjHeapDataID>(obj));
     u4 id = GetId(objAddr);
-    writer->WriteNumber(id);
+    writer->WriteNumber(static_cast<int32_t>(id));
     writer->WriteChar(',');
     u4 num = 0;
     std::stack<u4> VAL;
@@ -450,17 +448,15 @@ void CjHeapDataForIDE::SerializeObjectArray(BaseObject*& obj, const u1 tag)
         VAL.push(GetId(reinterpret_cast<CjHeapDataID>(arrayContent.GetTargetObject())));
         num++;
     };
-    // take array length and content.
     MArray* mArray = reinterpret_cast<MArray*>(obj);
     MIndex arrayLengthVal = mArray->GetLength();
     RefField<>* arrayContent = reinterpret_cast<RefField<>*>(mArray->ConvertToCArray());
-    // for each object in array.
     for (MIndex i = 0; i < arrayLengthVal; ++i) {
         visitor(arrayContent[i]);
     }
-    writer->WriteNumber(num);
+    writer->WriteNumber(static_cast<int32_t>(num));
     writer->WriteChar(',');
-    writer->WriteNumber(GetId(reinterpret_cast<CjHeapDataID>(obj->GetTypeInfo())));
+    writer->WriteNumber(static_cast<int32_t>(GetId(reinterpret_cast<CjHeapDataStringId>(obj->GetTypeInfo()))));
     writer->WriteChar(',');
     writer->WriteChar('[');
     bool isFirstElement = true;
@@ -472,7 +468,7 @@ void CjHeapDataForIDE::SerializeObjectArray(BaseObject*& obj, const u1 tag)
         }
         u4 val = VAL.top();
         VAL.pop();
-        writer->WriteNumber(val);
+        writer->WriteNumber(static_cast<int32_t>(val));
     }
     writer->WriteChar(']');
     writer->WriteChar(']');
@@ -498,7 +494,7 @@ void CjHeapDataForIDE::SerializeStructArray(BaseObject*& obj, const u1 tag)
     writer->WriteChar(',');
     CjHeapDataID objAddr = (reinterpret_cast<CjHeapDataID>(obj));
     u4 id = GetId(objAddr);
-    writer->WriteNumber(id);
+    writer->WriteNumber(static_cast<int32_t>(id));
     writer->WriteChar(',');
     u4 num = 0;
     std::stack<u4> VAL;
@@ -519,11 +515,11 @@ void CjHeapDataForIDE::SerializeStructArray(BaseObject*& obj, const u1 tag)
         }
     }
 
-    writer->WriteNumber(arrayLengthVal);
+    writer->WriteNumber(static_cast<int32_t>(arrayLengthVal));
     writer->WriteChar(',');
-    writer->WriteNumber(num);
+    writer->WriteNumber(static_cast<int32_t>(num));
     writer->WriteChar(',');
-    writer->WriteNumber(GetId(reinterpret_cast<CjHeapDataID>(obj->GetTypeInfo())));
+    writer->WriteNumber(static_cast<int32_t>(GetId(reinterpret_cast<CjHeapDataStringId>(obj->GetTypeInfo()))));
     writer->WriteChar(',');
     writer->WriteChar('[');
     bool isFirstElement = true;
@@ -535,7 +531,7 @@ void CjHeapDataForIDE::SerializeStructArray(BaseObject*& obj, const u1 tag)
         }
         u4 val = VAL.top();
         VAL.pop();
-        writer->WriteNumber(val);
+        writer->WriteNumber(static_cast<int32_t>(val));
     }
     writer->WriteChar(']');
     writer->WriteChar(']');
@@ -552,16 +548,16 @@ void CjHeapDataForIDE::SerializeStructArray(BaseObject*& obj, const u1 tag)
 void CjHeapDataForIDE::SerializePrimitiveArray(BaseObject*& obj, const u1 tag)
 {
     writer->WriteChar('[');
-    writer->WriteNumber(tag);
+    writer->WriteNumber(static_cast<int32_t>(tag));
     writer->WriteChar(',');
     writer->WriteNumber(GetObjType(obj));
     writer->WriteChar(',');
     CjHeapDataID objAddr = (reinterpret_cast<CjHeapDataID>(obj));
     u4 id = GetId(objAddr);
-    writer->WriteNumber(id);
+    writer->WriteNumber(static_cast<int32_t>(id));
     writer->WriteChar(',');
     MArray* mArray = reinterpret_cast<MArray*>(obj);
-    writer->WriteNumber(mArray->GetLength());
+    writer->WriteNumber(static_cast<int32_t>(mArray->GetLength()));
     writer->WriteChar(',');
     MSize componentSize = obj->GetTypeInfo()->GetComponentSize();
     switch (componentSize) {
@@ -596,14 +592,13 @@ void CjHeapDataForIDE::SerializePrimitiveArray(BaseObject*& obj, const u1 tag)
 void CjHeapDataForIDE::SerializeStructClass(TypeInfo* ti, CjHeapDataStringId klassId, const u1 tag)
 {
     writer->WriteChar('[');
-    writer->WriteNumber(tag);
+    writer->WriteNumber(static_cast<int32_t>(tag));
     writer->WriteChar(',');
-    writer->WriteNumber(GetId(reinterpret_cast<CjHeapDataStringId>(ti)));
+    writer->WriteNumber(static_cast<int32_t>(GetId(reinterpret_cast<CjHeapDataStringId>(ti))));
     TypeInfo* componentKlass = ti->GetComponentTypeInfo();
-    // No alignment required
     u4 size = componentKlass->GetInstanceSize();
     writer->WriteChar(',');
-    writer->WriteNumber(size);
+    writer->WriteNumber(static_cast<int32_t>(size));
     writer->WriteChar(']');
 }
 
@@ -618,14 +613,14 @@ void CjHeapDataForIDE::SerializeStructClass(TypeInfo* ti, CjHeapDataStringId kla
 void CjHeapDataForIDE::SerializeInstance(BaseObject*& obj, const u1 tag)
 {
     writer->WriteChar('[');
-    writer->WriteNumber(tag);
+    writer->WriteNumber(static_cast<int32_t>(tag));
     writer->WriteChar(',');
     writer->WriteNumber(GetObjType(obj));
     writer->WriteChar(',');
     u4 id = GetId(reinterpret_cast<CjHeapDataID>(obj));
-    writer->WriteNumber(id);
+    writer->WriteNumber(static_cast<int32_t>(id));
     writer->WriteChar(',');
-    writer->WriteNumber(GetId(reinterpret_cast<CjHeapDataID>(obj->GetTypeInfo())));
+    writer->WriteNumber(static_cast<int32_t>(GetId(reinterpret_cast<CjHeapDataStringId>(obj->GetTypeInfo()))));
     writer->WriteChar(',');
     u4 num = 0;
     std::stack<u4> VAL;
@@ -639,7 +634,7 @@ void CjHeapDataForIDE::SerializeInstance(BaseObject*& obj, const u1 tag)
         MAddress objAddr = reinterpret_cast<MAddress>(obj) + TYPEINFO_PTR_SIZE;
         gcTib.ForEachBitmapWord(objAddr, visitor);
     }
-    writer->WriteNumber(num);
+    writer->WriteNumber(static_cast<int32_t>(num));
     writer->WriteChar(',');
     writer->WriteChar('[');
     bool isFirstElement = true;
@@ -651,7 +646,7 @@ void CjHeapDataForIDE::SerializeInstance(BaseObject*& obj, const u1 tag)
         }
         u4 val = VAL.top();
         VAL.pop();
-        writer->WriteNumber(val);
+        writer->WriteNumber(static_cast<int32_t>(val));
     }
     writer->WriteChar(']');
     writer->WriteChar(']');

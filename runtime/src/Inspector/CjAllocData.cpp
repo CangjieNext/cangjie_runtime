@@ -36,7 +36,7 @@ TraceNodeField* CjAllocData::FindNode(const FrameAddress* ptr, const char* str)
     if (str == nullptr) {
         return nullptr;
     };
-    size_t key = FindKey(ptr, str);
+    int32_t key = FindKey(ptr, str);
     auto iter = traceNodeMap.find(key);
     if (iter != traceNodeMap.end()) {
         return iter->second;
@@ -50,7 +50,7 @@ int32_t CjAllocData::FindKey(const FrameAddress* ptr, const char* str)
     // The identifier of a stack frame depends on the FA of the frame and the name of the frame.
     std::size_t hash1 = std::hash<const FrameAddress* >{}(ptr);
     std::size_t hash2 = std::hash<std::string>{}(str);
-    return hash1 ^ hash2;
+    return static_cast<int32_t>(hash1 ^ hash2);
 }
 
 void CjAllocData::DeleteCjAllocData()
@@ -103,13 +103,13 @@ void CjAllocData::SerializeCallFrames()
 void CjAllocData::SerializeFunctionInfo(int32_t idx)
 {
     writer->WriteString("{\\\"functionName\\\":\\\"");
-    writer->WriteString(traceFunctionInfo[idx]->functionName);
+    writer->WriteString(traceFunctionInfo[static_cast<size_t>(idx)]->functionName);
     writer->WriteString("\\\",\\\"scriptName\\\":\\\"");
-    writer->WriteString(traceFunctionInfo[idx]->scriptName);
+    writer->WriteString(traceFunctionInfo[static_cast<size_t>(idx)]->scriptName);
     writer->WriteString("\\\",\\\"lineNumber\\\":");
-    writer->WriteNumber(traceFunctionInfo[idx]->line);
+    writer->WriteNumber(traceFunctionInfo[static_cast<size_t>(idx)]->line);
     writer->WriteString(",\\\"columnNumber\\\":");
-    writer->WriteNumber(traceFunctionInfo[idx]->column);
+    writer->WriteNumber(traceFunctionInfo[static_cast<size_t>(idx)]->column);
     writer->WriteChar('}');
 }
 
@@ -197,8 +197,8 @@ void CjAllocData::SerializeStats()
     writer->WriteChar(',');
     writer->WriteNumber(0);
     writer->WriteChar(',');
-    ssize_t allocatedSize = MapleRuntime::Heap::GetHeap().GetAllocatedSize();
-    writer->WriteNumber(allocatedSize);
+    size_t allocatedSize = MapleRuntime::Heap::GetHeap().GetAllocatedSize();
+    writer->WriteNumber(static_cast<int32_t>(allocatedSize));
     writer->WriteString("]");
     writer->End();
 }
@@ -232,14 +232,14 @@ int32_t AllocStackInfo::ProcessTraceInfo(FrameInfo &frame)
         traceFunction->scriptName = frame.GetFileName();
         traceFunction->scriptName.ReplaceAll("/", "\\");
         traceFunction->functionName = frame.GetFuncName();
-        traceFunction->line = stackMetadataHelper.GetLineNumber();
+        traceFunction->line = static_cast<int32_t>(stackMetadataHelper.GetLineNumber());
     } else {
         delete traceFunction;
         return -1;
     }
 
     CjAllocData::GetCjAllocData()->traceFunctionInfo.push_back(traceFunction);
-    int32_t functionInfoIndex = CjAllocData::GetCjAllocData()->traceFunctionInfo.size() - 1;
+    int32_t functionInfoIndex = static_cast<int32_t>(CjAllocData::GetCjAllocData()->traceFunctionInfo.size() - 1);
     return functionInfoIndex;
 }
 
@@ -269,8 +269,8 @@ void AllocStackInfo::ProcessTraceNode(TraceNodeField* head, const TypeInfo* ti, 
         head = traceNode;
         // Add to the map for next search.
         FrameAddress* FA = f->mFrame.GetFA();
-        size_t key = CjAllocData::GetCjAllocData()->FindKey(FA, f->GetFuncName().Str());
-        CjAllocData::GetCjAllocData()->traceNodeMap.insert(std::pair<size_t, TraceNodeField* >(key, traceNode));
+        int32_t key = CjAllocData::GetCjAllocData()->FindKey(FA, f->GetFuncName().Str());
+        CjAllocData::GetCjAllocData()->traceNodeMap.insert(std::pair<int32_t, TraceNodeField*>(key, traceNode));
         delete f;
         f = nullptr;
     }
@@ -309,8 +309,8 @@ void AllocStackInfo::ProcessStackTrace(const TypeInfo* ti, MSize size)
 
     // 3. Record the samples at this time.
     Sample* sample = new Sample();
-    sample->size = size;
-    sample->nodeId = CjAllocData::GetCjAllocData()->traceFunctionInfo.size();
+    sample->size = static_cast<int32_t>(size);
+    sample->nodeId = static_cast<int32_t>(CjAllocData::GetCjAllocData()->traceFunctionInfo.size());
     auto now = std::chrono::system_clock::now();
     auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
     sample->orinal = static_cast<int32_t>(timestamp);

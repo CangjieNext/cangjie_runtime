@@ -1666,7 +1666,7 @@ void CJThreadSetName(CJThreadHandle handle, const char *name, size_t len)
         cjthread->name[len] = '\0';
     }
 #ifdef __OHOS__
-    MapleRuntime::ScopedEntryAsyncTrace(TRACE_CJTHREAD_SETNAME, cjthread->id, cjthread->name);
+    MapleRuntime::ScopedEntryAsyncTrace(TRACE_CJTHREAD_SETNAME, static_cast<int32_t>(cjthread->id), cjthread->name);
 #elif defined(__ANDROID__)
     TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_SETNAME, cjthread->id, 1, cjthread->name));
     TRACE_FINISH();

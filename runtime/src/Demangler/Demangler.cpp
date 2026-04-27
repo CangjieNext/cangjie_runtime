@@ -298,15 +298,15 @@ T Demangler<T>::UIntToString(size_t value) const
 template<typename T>
 bool Demangler<T>::IsGlobalInit() const
 {
-    auto isPkgInit = MatchForward(MANGLE_GLOBAL_PACKAGE_INIT_PREFIX, strlen(MANGLE_GLOBAL_PACKAGE_INIT_PREFIX));
-    auto isFileInit = MatchForward(MANGLE_GLOBAL_FILE_INIT_PREFIX, strlen(MANGLE_GLOBAL_FILE_INIT_PREFIX));
+    auto isPkgInit = MatchForward(MANGLE_GLOBAL_PACKAGE_INIT_PREFIX, static_cast<uint32_t>(strlen(MANGLE_GLOBAL_PACKAGE_INIT_PREFIX)));
+    auto isFileInit = MatchForward(MANGLE_GLOBAL_FILE_INIT_PREFIX, static_cast<uint32_t>(strlen(MANGLE_GLOBAL_FILE_INIT_PREFIX)));
     return isPkgInit || isFileInit;
 }
 
 template<typename T>
 bool Demangler<T>::IsParamInit() const
 {
-    return MatchForward(MANGLE_FUNC_PARA_INIT_PREFIX, strlen(MANGLE_FUNC_PARA_INIT_PREFIX));
+    return MatchForward(MANGLE_FUNC_PARA_INIT_PREFIX, static_cast<uint32_t>(strlen(MANGLE_FUNC_PARA_INIT_PREFIX)));
 }
 
 template<typename T>
@@ -352,7 +352,7 @@ bool Demangler<T>::IsQualifiedType() const
 template<typename T>
 bool Demangler<T>::IsDecl() const
 {
-    return MatchForward(MANGLE_NESTED_PREFIX, strlen(MANGLE_NESTED_PREFIX));
+    return MatchForward(MANGLE_NESTED_PREFIX, static_cast<uint32_t>(strlen(MANGLE_NESTED_PREFIX)));
 }
 
 template<typename T>
@@ -585,11 +585,11 @@ template<typename T>
 DemangleInfo<T> Demangler<T>::DemangleGlobalInit()
 {
     T prefix;
-    if (MatchForward(MANGLE_GLOBAL_PACKAGE_INIT_PREFIX, strlen(MANGLE_GLOBAL_PACKAGE_INIT_PREFIX))) {
+    if (MatchForward(MANGLE_GLOBAL_PACKAGE_INIT_PREFIX, static_cast<uint32_t>(strlen(MANGLE_GLOBAL_PACKAGE_INIT_PREFIX)))) {
         SkipString(MANGLE_GLOBAL_PACKAGE_INIT_PREFIX);
         auto pkgDi = DemanglePackageName();
         prefix = pkgDi.pkgName + T{ "::package" };
-    } else if (MatchForward(MANGLE_GLOBAL_FILE_INIT_PREFIX, strlen(MANGLE_GLOBAL_FILE_INIT_PREFIX))) {
+    } else if (MatchForward(MANGLE_GLOBAL_FILE_INIT_PREFIX, static_cast<uint32_t>(strlen(MANGLE_GLOBAL_FILE_INIT_PREFIX)))) {
         SkipString(MANGLE_GLOBAL_FILE_INIT_PREFIX);
         auto pkgDi = DemanglePackageName();
         prefix = pkgDi.pkgName + T{ "::file" };
@@ -1230,7 +1230,7 @@ DemangleInfo<T> Demangler<T>::DemanglePrimitive()
         return Reject(ERROR_EXCEED_THE_INPUT_STRING_LENGTH);
     }
     char ch = mangledName[currentIndex];
-    if (MatchForward(MANGLE_FLOAT16_PREFIX, strlen(MANGLE_FLOAT16_PREFIX))) {
+    if (MatchForward(MANGLE_FLOAT16_PREFIX, static_cast<uint32_t>(strlen(MANGLE_FLOAT16_PREFIX)))) {
         SkipString(MANGLE_FLOAT16_PREFIX); // skip "Dh"
     } else {
         SkipChar(ch);

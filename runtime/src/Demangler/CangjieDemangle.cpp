@@ -75,13 +75,12 @@ char* CJ_MRT_Demangle(const char* functionName)
     std::string pkgName = demangleData.GetPkgName();
     std::string demangledFunctionName =
         pkgName + std::string(pkgName.empty() ? "" : ".") + demangleData.GetFullName();
-    int32_t len = strlen(demangledFunctionName.c_str());
-    // demangleName should be freed by caller.
+    size_t len = strlen(demangledFunctionName.c_str());
     char* demangleName = reinterpret_cast<char*>(malloc(len + 1));
     if (demangleName == nullptr) {
         return nullptr;
     }
-    for (int i = 0; i < len; ++i) {
+    for (size_t i = 0; i < len; ++i) {
         demangleName[i] = demangledFunctionName[i];
     }
     demangleName[len] = '\0';

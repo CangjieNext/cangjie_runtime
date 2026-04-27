@@ -43,7 +43,7 @@ bool UnwindContext::UnwindToCallerContext(UnwindContext& caller) const
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
         auto res = frameInfo.mFrame.UnwindToCallerMachineFrame(caller.frameInfo.mFrame);
         if (res) {
-            InitPtrAuthRAMod(caller.frameInfo, (FrameInfo&)frameInfo);
+            InitPtrAuthRAMod(caller.frameInfo, frameInfo);
         }
         return res;
 #else

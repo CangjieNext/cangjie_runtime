@@ -110,7 +110,7 @@ void ExceptionHandling::ChangeEHStackInfoLR() const
         reinterpret_cast<uintptr_t>(const_cast<uint32_t*>(lastRuntimeFrame.mFrame.GetFA()->returnAddress)));
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
     auto mod = reinterpret_cast<uint64_t>(lastRuntimeFrame.mFrame.GetFA()) +
-                GetRuntimeFrameSize((MachineFrame&)lastRuntimeFrame.mFrame);
+                GetRuntimeFrameSize(lastRuntimeFrame.mFrame);
     auto pc = PtrauthSignWithInstAkey(reinterpret_cast<Uptr>(RestoreContextForEH), reinterpret_cast<Uptr>(mod));
     lastRuntimeFrame.mFrame.GetFA()->returnAddress = reinterpret_cast<uint32_t*>(pc);
 #else
