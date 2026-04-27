@@ -22,6 +22,17 @@ std::mutex ExceptionManager::gUncaughtExceptionHandlerMtx;
 #if defined(__OHOS__) && (__OHOS__ == 1)
 std::mutex ExceptionManager::gEventMtx;
 CJEventReportInfo ExceptionManager::eventReportHandler = {nullptr, nullptr};
+HybridStackCallbackFunc ExceptionManager::hybridStackCallback = nullptr;
+
+void ExceptionManager::RegisterHybridStackCallback(HybridStackCallbackFunc callback)
+{
+    hybridStackCallback = callback;
+}
+
+HybridStackCallbackFunc ExceptionManager::GetHybridStackCallback()
+{
+    return hybridStackCallback;
+}
 #endif
 
 void ExceptionManager::OutOfMemory()
