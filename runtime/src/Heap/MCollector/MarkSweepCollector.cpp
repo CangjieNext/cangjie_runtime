@@ -992,8 +992,9 @@ void MarkSweepCollector::MarkTermination()
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool != nullptr) {
-        // Finalize the next sweep generation before mutators resume.
-        centralPool->FlushAllAllocBuffers();
+        // Experimental policy: keep thread-local regions out of the current
+        // sweep generation; they will be returned later and stamped into the
+        // new generation when flowing back to the central pool.
         centralPool->PrepareForSweep();
     }
 

@@ -308,6 +308,11 @@ void AllocBufferMS::ReturnRegionToCentral(MSRegionInfo* region, uint8_t cls)
         return;
     }
 
+    // Experimental policy: TL regions returned after the cycle boundary are
+    // stamped as swept in the current generation so they participate in the
+    // next GC cycle instead of the current sweep.
+    region->SetSweepGen(CentralRegionPool::GetGlobalSweepGen());
+
     bool isFree = region->IsCompletelyFree();
     bool hasSpace = region->HasFreeSpace();
 
