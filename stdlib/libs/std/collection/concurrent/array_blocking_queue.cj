@@ -58,10 +58,11 @@ public class ArrayBlockingQueue<E> {
 
     let allocated: AtomicUInt64 = AtomicUInt64(0) // index in buffer for the next producer
     let reserved: AtomicUInt64 = AtomicUInt64(0) // index in buffer for the next consumer
-    let sendQSize = AtomicUInt64(0) // Number of elements that are enqueuing
-    let receiveQSize = AtomicUInt64(0) // Number of elements that are being dequeued
-    let sendMonitor = Monitor() // Monitor for blocking the fail receivers
-    let receiveMonitor = Monitor() // Monitor for blocking the fail senders
+    private let putMonitor = Monitor()
+    private let takeMonitor = Monitor()
+    private let count = AtomicInt64(0)
+    private let putWaiters = AtomicInt64(0)
+    private let takeWaiters = AtomicInt64(0)
 
     let unsignedCapacity: UInt64 // the unsigned version of the capacity
 
@@ -119,9 +120,7 @@ public class ArrayBlockingQueue<E> {
      */
     public prop size: Int64 {
         get() {
-            let front = reserved.load()
-            let rear = allocated.load()
-            return Int64(rear - front)
+            return count.load()
         }
     }
 
@@ -140,14 +139,32 @@ public class ArrayBlockingQueue<E> {
     }
 
     public func add(element: E): Unit {
-        while (!tryAdd(element)) {
-            receiveMonitor.lock()
-            sendQSize.fetchAdd(1)
-            if (isFull()) {
-                receiveMonitor.wait()
+        putMonitor.lock()
+        var c: Int64 = -1
+        try {
+            while (true) {
+                if (count.load() != capacity) {
+                    break
+                }
+                putWaiters.fetchAdd(1)
+                try {
+                    if (count.load() == capacity) {
+                        putMonitor.wait()
+                    }
+                } finally {
+                    putWaiters.fetchSub(1)
+                }
             }
-            sendQSize.fetchSub(1)
-            receiveMonitor.unlock()
+            while (!enqueueCas(element)) {}
+            c = count.fetchAdd(1)
+            if (c + 1 < capacity) {
+                putMonitor.notify()
+            }
+        } finally {
+            putMonitor.unlock()
+        }
+        if (c == 0 && takeWaiters.load() > 0) {
+            signalNotEmpty()
         }
     }
 
@@ -169,26 +186,40 @@ public class ArrayBlockingQueue<E> {
 
     public func add(element: E, timeout: Duration): Bool {
         var total = timeout
-        while (true) {
-            if (tryAdd(element)) {
-                return true
+        putMonitor.lock()
+        var c: Int64 = -1
+        try {
+            while (true) {
+                if (count.load() != capacity) {
+                    break
+                }
+                if (total <= Duration.Zero) {
+                    return false
+                }
+                putWaiters.fetchAdd(1)
+                try {
+                    if (count.load() == capacity) {
+                        let startTime = MonoTime.now()
+                        let _ = putMonitor.wait(timeout: total)
+                        let endTime = MonoTime.now()
+                        total -= endTime - startTime
+                    }
+                } finally {
+                    putWaiters.fetchSub(1)
+                }
             }
-
-            receiveMonitor.lock()
-            let startTime = MonoTime.now()
-            if (total <= Duration.Zero) {
-                receiveMonitor.unlock()
-                break
+            while (!enqueueCas(element)) {}
+            c = count.fetchAdd(1)
+            if (c + 1 < capacity) {
+                putMonitor.notify()
             }
-
-            sendQSize.fetchAdd(1)
-            receiveMonitor.wait(timeout: total)
-            sendQSize.fetchSub(1)
-            let endTime = MonoTime.now()
-            total -= endTime - startTime
-            receiveMonitor.unlock()
+        } finally {
+            putMonitor.unlock()
         }
-        return false
+        if (c == 0 && takeWaiters.load() > 0) {
+            signalNotEmpty()
+        }
+        return true
     }
 
     /**
@@ -204,20 +235,34 @@ public class ArrayBlockingQueue<E> {
     }
 
     public func remove(): E {
-        while (true) {
-            if (let Some(e) <- tryRemove()) {
-                return e
+        takeMonitor.lock()
+        var c: Int64 = -1
+        try {
+            while (true) {
+                if (count.load() != 0) {
+                    break
+                }
+                takeWaiters.fetchAdd(1)
+                try {
+                    if (count.load() == 0) {
+                        takeMonitor.wait()
+                    }
+                } finally {
+                    takeWaiters.fetchSub(1)
+                }
             }
-
-            sendMonitor.lock()
-            receiveQSize.fetchAdd(1)
-            if (size == 0) {
-                sendMonitor.wait()
+            let value = dequeueCasOrSpin()
+            c = count.fetchSub(1)
+            if (c > 1) {
+                takeMonitor.notify()
             }
-            receiveQSize.fetchSub(1)
-            sendMonitor.unlock()
+            return value
+        } finally {
+            takeMonitor.unlock()
+            if (c == capacity && putWaiters.load() > 0) {
+                signalNotFull()
+            }
         }
-        throw Exception("Unreachable code.")
     }
 
     /**
@@ -237,26 +282,40 @@ public class ArrayBlockingQueue<E> {
 
     public func remove(timeout: Duration): Option<E> {
         var total = timeout
-        while (true) {
-            if (let Some(e) <- tryRemove()) {
-                return Some(e)
+        takeMonitor.lock()
+        var c: Int64 = -1
+        try {
+            while (true) {
+                if (count.load() != 0) {
+                    break
+                }
+                if (total <= Duration.Zero) {
+                    return None<E>
+                }
+                takeWaiters.fetchAdd(1)
+                try {
+                    if (count.load() == 0) {
+                        let startTime = MonoTime.now()
+                        let _ = takeMonitor.wait(timeout: total)
+                        let endTime = MonoTime.now()
+                        total -= endTime - startTime
+                    }
+                } finally {
+                    takeWaiters.fetchSub(1)
+                }
             }
-
-            sendMonitor.lock()
-            let startTime = MonoTime.now()
-            if (total <= Duration.Zero) {
-                sendMonitor.unlock()
-                break
+            let value = dequeueCasOrSpin()
+            c = count.fetchSub(1)
+            if (c > 1) {
+                takeMonitor.notify()
             }
-
-            receiveQSize.fetchAdd(1)
-            sendMonitor.wait(timeout: total)
-            receiveQSize.fetchSub(1)
-            let endTime = MonoTime.now()
-            total -= endTime - startTime
-            sendMonitor.unlock()
+            return Some(value)
+        } finally {
+            takeMonitor.unlock()
+            if (c == capacity && putWaiters.load() > 0) {
+                signalNotFull()
+            }
         }
-        return None<E>
     }
 
     /**
@@ -273,27 +332,21 @@ public class ArrayBlockingQueue<E> {
     }
 
     public func peek(): Option<E> {
-        while (true) {
-            let roundIndex = reserved.load() // LP: if returns 'None<E>'
-            let index = getIndex(roundIndex)
-            let roundState = unsafe { CjStdSyncStateLoad(state, index) }
-            let roundBit = roundState >> ROUND_BIT
-
-            if ((roundState & STATE_BITS) == READABLE) {
-                if (unsafe { CjStdSyncStateCas(state, index, roundState, lockState(roundBit)) }) {
-                    if (reserved.load() == roundIndex) { // LP: if returns 'Some(e)'
-                        let e = buffer[index]
-                        unsafe { CjStdSyncStateStore(state, index, roundState) }
-                        return Some(e)
-                    } else {
-                        unsafe { CjStdSyncStateStore(state, index, roundState) }
-                    }
-                }
-            } else if (roundIndex >= allocated.load()) {
-                return None<E>
-            }
+        if (count.load() == 0) {
+            return None<E>
         }
-        return None<E>
+        var result: Option<E> = None<E>
+        takeMonitor.lock()
+        try {
+            if (count.load() == 0) {
+                result = None<E>
+            } else {
+                result = peekCasLoop()
+            }
+        } finally {
+            takeMonitor.unlock()
+        }
+        return result
     }
 
     /**
@@ -311,34 +364,28 @@ public class ArrayBlockingQueue<E> {
         tryAdd(element)
     }
 
-    @OverflowWrapping
     public func tryAdd(element: E): Bool {
-        while (true) {
-            let roundIndex = allocated.load() // LP: if returns 'false'
-            let round = getRound(roundIndex)
-            let index = getIndex(roundIndex)
-            let roundState = unsafe { CjStdSyncStateLoad(state, index) }
-            let roundBit = roundState >> ROUND_BIT
-
-            if (matchState(round, roundBit, roundState & STATE_BITS, WRITEABLE)) {
-                if (!allocated.compareAndSwap(roundIndex, roundIndex + 1)) { // LP: if returns true
-                    continue
-                }
-
-                buffer[index] = element
-                unsafe { CjStdSyncStateStore(state, index, readableState(roundBit)) }
-
-                if (receiveQSize.load() != 0) {
-                    sendMonitor.lock()
-                    sendMonitor.notify()
-                    sendMonitor.unlock()
-                }
-                return true
-            } else if (roundIndex >= reserved.load() + unsignedCapacity) {
-                return false // buffer full
+        if (count.load() == capacity) {
+            return false
+        }
+        putMonitor.lock()
+        var c: Int64 = -1
+        try {
+            if (count.load() == capacity) {
+                return false
+            }
+            while (!enqueueCas(element)) {}
+            c = count.fetchAdd(1)
+            if (c + 1 < capacity) {
+                putMonitor.notify()
+            }
+            return true
+        } finally {
+            putMonitor.unlock()
+            if (c == 0 && takeWaiters.load() > 0) {
+                signalNotEmpty()
             }
         }
-        return false
     }
 
     /**
@@ -354,43 +401,129 @@ public class ArrayBlockingQueue<E> {
         tryRemove()
     }
 
-    @OverflowWrapping
     public func tryRemove(): Option<E> {
+        if (count.load() == 0) {
+            return None<E>
+        }
+        takeMonitor.lock()
+        var c: Int64 = -1
+        try {
+            if (count.load() == 0) {
+                return None<E>
+            }
+            let value = dequeueCasOrSpin()
+            c = count.fetchSub(1)
+            if (c > 1) {
+                takeMonitor.notify()
+            }
+            return Some(value)
+        } finally {
+            takeMonitor.unlock()
+            if (c == capacity && putWaiters.load() > 0) {
+                signalNotFull()
+            }
+        }
+    }
+
+    private func signalNotEmpty(): Unit {
+        takeMonitor.lock()
+        try {
+            takeMonitor.notify()
+        } finally {
+            takeMonitor.unlock()
+        }
+    }
+
+    private func signalNotFull(): Unit {
+        putMonitor.lock()
+        try {
+            putMonitor.notify()
+        } finally {
+            putMonitor.unlock()
+        }
+    }
+
+    @OverflowWrapping
+    private func enqueueCas(element: E): Bool {
         while (true) {
-            let roundIndex = reserved.load() // LP: if returns 'None<E>'
+            let roundIndex = allocated.load()
+            let round = getRound(roundIndex)
+            let index = getIndex(roundIndex)
+            let roundState = unsafe { CjStdSyncStateLoad(state, index) }
+            let roundBit = roundState >> ROUND_BIT
+
+            if (matchState(round, roundBit, roundState & STATE_BITS, WRITEABLE)) {
+                if (!allocated.compareAndSwap(roundIndex, roundIndex + 1)) {
+                    continue
+                }
+
+                buffer[index] = element
+                unsafe { CjStdSyncStateStore(state, index, readableState(roundBit)) }
+                return true
+            } else if (roundIndex >= reserved.load() + unsignedCapacity) {
+                return false
+            }
+        }
+        return false
+    }
+
+    @OverflowWrapping
+    private func dequeueCas(): Option<E> {
+        while (true) {
+            let roundIndex = reserved.load()
             let round = getRound(roundIndex)
             let index = getIndex(roundIndex)
             let roundState = unsafe { CjStdSyncStateLoad(state, index) }
             let roundBit = roundState >> ROUND_BIT
 
             if (matchState(round, roundBit, roundState & STATE_BITS, READABLE)) {
-                if (!reserved.compareAndSwap(roundIndex, roundIndex + 1)) { // LP: if returns 'Some(e)'
+                if (!reserved.compareAndSwap(roundIndex, roundIndex + 1)) {
                     continue
                 }
 
                 let e = buffer[index]
                 buffer[index] = unsafe { zeroValue<E>() }
                 while (!unsafe { CjStdSyncStateCas(state, index, roundState, writeableState(roundBit)) }) {}
-
-                if (sendQSize.load() != 0) {
-                    receiveMonitor.lock()
-                    receiveMonitor.notify()
-                    receiveMonitor.unlock()
-                }
                 return Some(e)
             } else if (roundIndex >= allocated.load()) {
-                return None<E> // buffer empty
+                return None<E>
             }
         }
         return None<E>
     }
 
     @OverflowWrapping
-    private func isFull(): Bool {
-        if (allocated.load() >= reserved.load() + unsignedCapacity) {
-            return true
+    private func dequeueCasOrSpin(): E {
+        while (true) {
+            if (let Some(e) <- dequeueCas()) {
+                return e
+            }
         }
-        return false
+        throw Exception("Unreachable code.")
+    }
+
+    private func peekCasLoop(): Option<E> {
+        while (true) {
+            let roundIndex = reserved.load()
+            let index = getIndex(roundIndex)
+            let roundState = unsafe { CjStdSyncStateLoad(state, index) }
+            let roundBit = roundState >> ROUND_BIT
+
+            if ((roundState & STATE_BITS) == READABLE) {
+                if (unsafe { CjStdSyncStateCas(state, index, roundState, lockState(roundBit)) }) {
+                    if (reserved.load() == roundIndex) {
+                        let e = buffer[index]
+                        unsafe { CjStdSyncStateStore(state, index, roundState) }
+                        return Some(e)
+                    } else {
+                        unsafe { CjStdSyncStateStore(state, index, roundState) }
+                    }
+                }
+            } else if (roundIndex >= allocated.load()) {
+                return None<E>
+            }
+        }
+        return None<E>
     }
 
     private func getRound(roundIndex: UInt64): UInt64 {
