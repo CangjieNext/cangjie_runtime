@@ -10,6 +10,7 @@
 #include "Base/CString.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
+#include "Base/SysCall.h"
 #include "Common/BaseObject.h"
 #include "ObjectModel/FieldInfo.h"
 
@@ -392,6 +393,12 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
     std::vector<uint64_t>& liteFrameInfos = eWrapper.GetLiteFrameInfos();
     liteFrameInfos.clear();
     StackManager::RecordLiteFrameInfos(liteFrameInfos);
+#if defined(__OHOS__) && (__OHOS__ == 1)
+    auto callback = ExceptionManager::GetHybridStackCallback();
+    if (callback != nullptr) {
+        callback();
+    }
+#endif
     constexpr int frameInfoPairLen = 3; // function PC and startpc form one pair in liteFrameInfos
     if (eWrapper.IsThrowingSOFE()) {
         constexpr int defaultSize = 32;
@@ -1868,6 +1875,11 @@ extern "C" void* CJ_MRT_ARKTS_CreateEngine()
     RegisterStackInfoCallbacks(((UpdateStackInfoFunc)ARKTS_UpdateStackInfo));
 
     return res;
+}
+
+extern "C" void CJ_MRT_RegisterExceptionOnCreated(void(*callback)())
+{
+    ExceptionManager::RegisterHybridStackCallback(callback);
 }
 #endif
 } // namespace MapleRuntime
