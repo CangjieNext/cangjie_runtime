@@ -10,6 +10,7 @@
 #include "Base/CString.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
+#include "Base/SysCall.h"
 #include "Common/BaseObject.h"
 #include "ObjectModel/FieldInfo.h"
 
@@ -392,6 +393,22 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
     std::vector<uint64_t>& liteFrameInfos = eWrapper.GetLiteFrameInfos();
     liteFrameInfos.clear();
     StackManager::RecordLiteFrameInfos(liteFrameInfos);
+#ifdef __OHOS__
+    if (GetTid() == GetPid()) {
+        static void* interopBacktraceFunc = []() -> void* {
+            void* handler = dlopen("libinterop_dfx.z.so", RTLD_NOW);
+            if (handler == nullptr) {
+                return nullptr;
+            }
+            return dlsym(handler, "OHOS_InteropBacktrace");
+        }();
+        if (interopBacktraceFunc != nullptr) {
+            using InteropBacktraceFuncType = bool (*)(int);
+            InteropBacktraceFuncType func = reinterpret_cast<InteropBacktraceFuncType>(interopBacktraceFunc);
+            (void)func(0);
+        }
+    }
+#endif
     constexpr int frameInfoPairLen = 3; // function PC and startpc form one pair in liteFrameInfos
     if (eWrapper.IsThrowingSOFE()) {
         constexpr int defaultSize = 32;
