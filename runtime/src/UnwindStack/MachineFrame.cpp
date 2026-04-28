@@ -20,6 +20,8 @@ extern uintptr_t unwindPCForN2CStub;
 extern uintptr_t unwindPCForC2NStub;
 extern uintptr_t unwindPCForC2RStubStart;
 extern uintptr_t unwindPCForC2RStubEnd;
+extern uintptr_t unwindPCForApplyCangjieMethodStubStart;
+extern uintptr_t unwindPCForApplyCangjieMethodStubEnd;
 extern uintptr_t unwindPCForStackGrowStub;
 extern uintptr_t unwindPCForExclusiveStubFull;
 extern uintptr_t unwindPCForExclusiveStub;
@@ -79,12 +81,25 @@ bool MachineFrame::IsStackGrowStubFrame() const
 bool MachineFrame::IsC2RStubFrame() const
 {
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
-    return PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip)) >
+    return PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip)) >=
             reinterpret_cast<uintptr_t>(&unwindPCForC2RStubStart) &&
         PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip)) < reinterpret_cast<uintptr_t>(&unwindPCForC2RStubEnd);
 #else
-    return reinterpret_cast<uintptr_t>(ip) > reinterpret_cast<uintptr_t>(&unwindPCForC2RStubStart) &&
+    return reinterpret_cast<uintptr_t>(ip) >= reinterpret_cast<uintptr_t>(&unwindPCForC2RStubStart) &&
         reinterpret_cast<uintptr_t>(ip) < reinterpret_cast<uintptr_t>(&unwindPCForC2RStubEnd);
+#endif
+}
+
+bool MachineFrame::IsApplyCangjieMethodStubFrame() const
+{
+#if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
+    uintptr_t strippedIP = PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip));
+    return strippedIP > reinterpret_cast<uintptr_t>(&unwindPCForApplyCangjieMethodStubStart) &&
+        strippedIP < reinterpret_cast<uintptr_t>(&unwindPCForApplyCangjieMethodStubEnd);
+#else
+    uintptr_t ipAddr = reinterpret_cast<uintptr_t>(ip);
+    return ipAddr > reinterpret_cast<uintptr_t>(&unwindPCForApplyCangjieMethodStubStart) &&
+        ipAddr < reinterpret_cast<uintptr_t>(&unwindPCForApplyCangjieMethodStubEnd);
 #endif
 }
 

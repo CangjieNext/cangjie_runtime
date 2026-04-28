@@ -360,6 +360,8 @@ CJ_MRT_ARKTS_CreateEngineStub:
     .type     ApplyCangjieMethodStubFloat32, @function
     .global   ApplyCangjieMethodStubFloat64
     .type     ApplyCangjieMethodStubFloat64, @function
+    .global   unwindPCForApplyCangjieMethodStubStart
+unwindPCForApplyCangjieMethodStubStart:
 ApplyCangjieMethodStub:
 ApplyCangjieMethodStubFloat32:
 ApplyCangjieMethodStubFloat64:
@@ -382,11 +384,19 @@ ApplyCangjieMethodStubFloat64:
     .cfi_rel_offset %r14, -80
     .cfi_rel_offset %r15, -72
 
-    movq    %rdi, %r10 // save args
-    movq    %rsi, %r12 // stackSize
-    //movq    %rdx, %r11 // slot
-    movq    %rdx, %r13 // save func
-    movq    %rcx,  %r14 // theadData
+    // save incoming runtime->managed call state before switching TLS top-context
+    movq    %rdi, -112(%rbp)
+    movq    %rsi, -120(%rbp)
+    movq    %rdx, -128(%rbp)
+    movq    %rcx, -136(%rbp)
+
+    movq    %rbp, %rdi
+    callq   MRT_SaveTopManagedContextToR2CStub
+
+    movq    -112(%rbp), %r10 // save args
+    movq    -120(%rbp), %r12 // stackSize
+    movq    -128(%rbp), %r13 // save func
+    movq    -136(%rbp), %r14 // threadData
 
     // kRegArgsSize * 8 = 112
     movq    %r10, %rdi
@@ -437,6 +447,9 @@ ApplyCangjieMethodStubFloat64:
     movsd   %xmm0, -144(%rbp)
     movsd   %xmm1, -160(%rbp)
 
+    movq    %rbp, %rdi
+    callq   MRT_RestoreTopManagedContextFromR2CStub
+
     // set potential return value
     movq    -112(%rbp), %rdx
     movq    -120(%rbp), %rax
@@ -454,6 +467,8 @@ ApplyCangjieMethodStubFloat64:
 
     popq   %rbp
     .cfi_adjust_cfa_offset -8
+    .global   unwindPCForApplyCangjieMethodStubEnd
+unwindPCForApplyCangjieMethodStubEnd:
     retq
     .cfi_endproc
     .size ApplyCangjieMethodStub, .-ApplyCangjieMethodStub

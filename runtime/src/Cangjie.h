@@ -14,7 +14,6 @@
 #include <functional>
 #if defined(__OHOS__) && (__OHOS__ == 1)
 #include <map>
-#endif
 #ifndef _WIN64
 #include <csignal>
 #endif
