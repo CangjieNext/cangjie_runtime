@@ -81,11 +81,11 @@ bool MachineFrame::IsStackGrowStubFrame() const
 bool MachineFrame::IsC2RStubFrame() const
 {
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
-    return PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip)) >
+    return PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip)) >=
             reinterpret_cast<uintptr_t>(&unwindPCForC2RStubStart) &&
         PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip)) < reinterpret_cast<uintptr_t>(&unwindPCForC2RStubEnd);
 #else
-    return reinterpret_cast<uintptr_t>(ip) > reinterpret_cast<uintptr_t>(&unwindPCForC2RStubStart) &&
+    return reinterpret_cast<uintptr_t>(ip) >= reinterpret_cast<uintptr_t>(&unwindPCForC2RStubStart) &&
         reinterpret_cast<uintptr_t>(ip) < reinterpret_cast<uintptr_t>(&unwindPCForC2RStubEnd);
 #endif
 }
