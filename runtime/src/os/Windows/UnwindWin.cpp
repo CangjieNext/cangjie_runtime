@@ -143,6 +143,9 @@ FrameInfo GetCallerFrameInfo(WinModuleManager& winModuleManager, const MachineFr
         if (startProc == reinterpret_cast<uintptr_t>(&CJ_MCC_N2CStub)) {
             status = UnwindContextStatus::RISKY;
         }
+        if (startProc == reinterpret_cast<uintptr_t>(&ApplyCangjieMethodStub)) {
+            status = UnwindContextStatus::RISKY;
+        }
         frameInfo.mFrame.SetFA(curFrame.GetFA()->callerFrameAddress);
     } else if (isCalleeThrowStackOverFlowError) {
         frameInfo.mFrame.SetFA(

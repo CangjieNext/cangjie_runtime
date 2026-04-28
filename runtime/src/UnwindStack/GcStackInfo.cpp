@@ -11,8 +11,30 @@
 
 #include "Collector/TracingCollector.h"
 #include "Common/StackType.h"
+#if defined(__x86_64__) && defined(__linux__) && !defined(_WIN64)
+#include "Common/RegisterX86-64.h"
+#endif
 
 namespace MapleRuntime {
+namespace {
+#if defined(__x86_64__) && defined(__linux__) && !defined(_WIN64)
+void RecordR2CStubCalleeSaved(RegSlotsMap& regSlotsMap, Uptr fp)
+{
+    // ApplyCangjieMethodStub keeps its callee-saved registers below the R2C slot area.
+    // The saved layout matches the x86_64 N2C-style stub, not the shorter C2R/C2N layout.
+    constexpr Uptr slotLength = 8;
+    Uptr slotAddr = fp - 72;
+    static constexpr Register::RegisterId calleeSavedRegister[] = {
+        Register::R15, Register::R14, Register::R13, Register::R12, Register::RBX
+    };
+    for (auto reg : calleeSavedRegister) {
+        regSlotsMap.Insert(reg, reinterpret_cast<SlotAddress>(slotAddr));
+        slotAddr -= slotLength;
+    }
+}
+#endif
+} // namespace
+
 void GCStackInfo::FillInStackTrace()
 {
     UnwindContext uwContext;
@@ -53,6 +75,13 @@ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) con
             case FrameType::EXSLUSIVE:
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
                 break;
+            case FrameType::R2C_STUB:
+#if defined(__x86_64__) && defined(__linux__) && !defined(_WIN64)
+                RecordR2CStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
+#else
+                TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
+#endif
+                break;
             default: {
                 break;
             }
@@ -75,6 +104,13 @@ void GCStackInfo::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, con
             case FrameType::C2N_STUB:
             case FrameType::EXSLUSIVE:
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
+                break;
+            case FrameType::R2C_STUB:
+#if defined(__x86_64__) && defined(__linux__) && !defined(_WIN64)
+                RecordR2CStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
+#else
+                TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
+#endif
                 break;
             case FrameType::SAFEPOINT:
             case FrameType::STACKGROW:
@@ -128,6 +164,13 @@ void RecordStackInfo::VisitStackRoots(const RootVisitor &func, Mutator &mutator)
             case FrameType::C2N_STUB:
             case FrameType::EXSLUSIVE:
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame->mFrame.GetFA()));
+                break;
+            case FrameType::R2C_STUB:
+#if defined(__x86_64__) && defined(__linux__) && !defined(_WIN64)
+                RecordR2CStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame->mFrame.GetFA()));
+#else
+                TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame->mFrame.GetFA()));
+#endif
                 break;
             default: {
                 break;
