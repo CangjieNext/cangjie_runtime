@@ -40,6 +40,107 @@
 #define LIBCANGJIE_CJTHREAD_TRACE "libcangjie-trace"
 
 namespace MapleRuntime {
+#if defined(__ANDROID__)
+#include <cstdio>
+#include <cstring>
+#include <cstdlib>
+#include <sys/stat.h>
+#include <sys/system_properties.h>
+
+// Check if a file exists
+static bool FileExists(const char* path)
+{
+    struct stat st;
+    return stat(path, &st) == 0;
+}
+
+// Check if system property contains a substring
+static bool PropContains(const char* key, const char* needle)
+{
+    char value[PROP_VALUE_MAX] = {0};
+    if (__system_property_get(key, value) <= 0) {
+        return false;
+    }
+    return strstr(value, needle) != nullptr;
+}
+
+// Detect Android emulator running ARM64 architecture.
+// Detection methods:
+// 1. Emulator device files (most reliable): /dev/qemu_pipe, /dev/socket/qemud, etc.
+// 2. System properties: ro.build.fingerprint, ro.hardware, ro.product.model
+// 3. Low BogoMIPS value (emulators typically have BogoMIPS < 30)
+static bool IsAndroidEmulator()
+{
+    // Method 1: Check emulator device files (most reliable)
+    if (FileExists("/dev/qemu_pipe") || FileExists("/dev/socket/qemud") ||
+        FileExists("/dev/goldfish_pipe") || FileExists("/dev/vboxpipe") ||
+        FileExists("/dev/qemu_tracing")) {
+        LOG(RTLOG_ERROR, "IsAndroidEmulator: detected by device files");
+        return true;
+    }
+
+    // Method 2: Check system properties
+    if (PropContains("ro.build.fingerprint", "generic") ||
+        PropContains("ro.build.fingerprint", "emulator") ||
+        PropContains("ro.build.fingerprint", "test-keys") ||
+        PropContains("ro.hardware", "goldfish") ||
+        PropContains("ro.hardware", "ranchu") ||
+        PropContains("ro.product.model", "sdk") ||
+        PropContains("ro.product.model", "Emulator") ||
+        PropContains("ro.product.device", "generic")) {
+        LOG(RTLOG_ERROR, "IsAndroidEmulator: detected by system properties");
+        return true;
+    }
+
+    // Method 3: Check BogoMIPS from /proc/cpuinfo (ARM emulator has very low value)
+    FILE* fp = fopen("/proc/cpuinfo", "r");
+    if (fp == nullptr) {
+        LOG(RTLOG_ERROR, "IsAndroidEmulator: failed to open /proc/cpuinfo");
+        return false;
+    }
+
+    char line[512];
+    double bogoMIPS = 0.0;
+    char hardware[128] = {0};
+
+    while (fgets(line, sizeof(line), fp) != nullptr) {
+        // Check BogoMIPS (ARM emulators typically have BogoMIPS < 30)
+        if (strstr(line, "BogoMIPS") != nullptr) {
+            char* colon = strchr(line, ':');
+            if (colon != nullptr) {
+                bogoMIPS = atof(colon + 1);
+            }
+        }
+        // Check Hardware field
+        if (strstr(line, "Hardware") != nullptr) {
+            char* colon = strchr(line, ':');
+            if (colon != nullptr) {
+                strncpy(hardware, colon + 1, sizeof(hardware) - 1);
+                // Trim whitespace
+                char* end = hardware + strlen(hardware) - 1;
+                while (end > hardware && (*end == ' ' || *end == '\t' || *end == '\n' || *end == '\r')) {
+                    *end = '\0';
+                    end--;
+                }
+            }
+        }
+    }
+    fclose(fp);
+
+    // ARM emulator typically has BogoMIPS < 30, real devices > 50
+    if (bogoMIPS > 0.0 && bogoMIPS < 30.0) {
+        LOG(RTLOG_ERROR, "IsAndroidEmulator: detected by low BogoMIPS=%.2f hardware=[%s]", bogoMIPS, hardware);
+        return true;
+    }
+
+    LOG(RTLOG_ERROR, "IsAndroidEmulator: not an emulator (BogoMIPS=%.2f hardware=[%s])", bogoMIPS, hardware);
+    return false;
+}
+
+// Global cached result for emulator detection, initialized once on first call.
+static bool g_isAndroidEmulator = IsAndroidEmulator();
+#endif
+
 #ifdef __arm__
 Uptr STACK_ADDR_MAX = UINT32_MAX;
 #else
@@ -248,10 +349,19 @@ static void GetEachSoAddrScope(std::vector<CString>& soNameVec)
         if (protPos < 0) {
             continue;
         }
+#ifdef __ANDROID__
+        if (!g_isAndroidEmulator) {
+            constexpr uint8_t protLen = 4;
+            if (lineStr.SubStr(protPos + 1, protLen).Find('x') < 0) {
+                continue;
+            }
+        }
+#else
         constexpr uint8_t protLen = 4;
         if (lineStr.SubStr(protPos + 1, protLen).Find('x') < 0) {
             continue;
         }
+#endif
         char* baseName = CString::BaseName(lineStr);
         auto it = std::find(soNameVec.begin(), soNameVec.end(), baseName);
         if (it != soNameVec.end()) {
@@ -388,10 +498,19 @@ void InitAddressScopeForCJthreadTrace()
         if (protPos < 0) {
             continue;
         }
+#ifdef __ANDROID__
+        if (!g_isAndroidEmulator) {
+            constexpr uint8_t protLen = 4;
+            if (lineStr.SubStr(protPos + 1, protLen).Find('x') < 0) {
+                continue;
+            }
+        }
+#else
         constexpr uint8_t protLen = 4;
         if (lineStr.SubStr(protPos + 1, protLen).Find('x') < 0) {
             continue;
         }
+#endif
         char* baseName = CString::BaseName(lineStr);
         if (strcmp(baseName, LIBCANGJIE_CJTHREAD_TRACE ".so\n") == 0) {
             GetSoAddrScope(lineStr, StackManager::traceSoStartAddr, StackManager::traceSoEndAddr);
