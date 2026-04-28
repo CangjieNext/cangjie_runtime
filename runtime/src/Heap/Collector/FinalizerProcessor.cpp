@@ -280,6 +280,19 @@ void FinalizerProcessor::RegisterFinalizer(BaseObject* obj)
     finalizers.push_back(reinterpret_cast<BaseObject*>(tmpField.GetFieldValue()));
 }
 
+void FinalizerProcessor::RegisterFinalizers(std::vector<BaseObject*>& objs)
+{
+    if (objs.empty()) {
+        return;
+    }
+    std::lock_guard<std::mutex> l(listLock);
+    for (BaseObject* obj : objs) {
+        RefField<> tmpField(nullptr);
+        Heap::GetBarrier().WriteStaticRef(tmpField, obj);
+        finalizers.push_back(reinterpret_cast<BaseObject*>(tmpField.GetFieldValue()));
+    }
+}
+
 void FinalizerProcessor::ReclaimHeapGarbage()
 {
     ScopedEntryTrace trace("CJRT_GC_RECLAIM");

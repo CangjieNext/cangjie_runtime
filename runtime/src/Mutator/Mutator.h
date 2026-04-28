@@ -9,6 +9,7 @@
 #define MRT_MUTATOR_H
 
 #include <climits>
+#include <vector>
 
 #include "Exception/Exception.h"
 #include "Heap/Allocator/Allocator.h"
@@ -26,6 +27,8 @@ namespace MapleRuntime {
 extern "C" MRT_EXPORT bool MRT_EnterSaferegion(bool updateUnwindContext);
 extern "C" MRT_EXPORT bool MRT_LeaveSaferegion();
 extern "C" MRT_EXPORT bool MRT_CheckRuntimeFinished();
+
+class BaseObject;
 
 class Mutator {
 public:
@@ -415,6 +418,12 @@ public:
         rawObject.object = nullptr;
         return obj;
     }
+
+    void AddLocalFinalizer(BaseObject* obj)
+    {
+        localFinalizers.push_back(obj);
+    }
+
     void MutatorLock() { mutatorLock.lock(); }
 
     void MutatorUnlock() { mutatorLock.unlock(); }
@@ -501,6 +510,8 @@ private:
             }
         }
     }
+    std::vector<BaseObject*>& GetLocalFinalizers() { return localFinalizers; }
+    void ClearLocalFinalizers() { localFinalizers.clear(); }
     // Indicate the current mutator phase and use which barrier in concurrent gc
     // ATTENTION: THE LAYOUT FOR GCPHASE MUST NOT BE CHANGED!
     std::atomic<GCPhase> mutatorPhase = { GCPhase::GC_PHASE_UNDEF };
@@ -532,6 +543,8 @@ private:
     // Indicate the state of mutator's phase transition
     std::atomic<GCPhaseTransitionState> transitionState = { NO_TRANSITION };
     ObjectRef rawObject{ nullptr };
+
+    std::vector<BaseObject*> localFinalizers;
 
     SatbBuffer::Node* satbNode = nullptr;
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG

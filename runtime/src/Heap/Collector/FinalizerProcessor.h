@@ -12,6 +12,7 @@
 #include <condition_variable>
 #include <list>
 #include <mutex>
+#include <vector>
 
 #include "Base/Panic.h"
 #include "Common/PageAllocator.h"
@@ -85,6 +86,7 @@ public:
 
     void EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit = UINT_MAX);
     void RegisterFinalizer(BaseObject* obj);
+    void RegisterFinalizers(std::vector<BaseObject*>& objs);
     bool IsRunning() const { return running; }
     uint32_t GetTid() const { return tid; }
 
