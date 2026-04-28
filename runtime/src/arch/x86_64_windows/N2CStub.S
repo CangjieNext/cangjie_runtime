@@ -370,6 +370,9 @@ ApplyCangjieMethodStubFloat64:
     movapd  %xmm14, -368(%rbp)
     movapd  %xmm15, -384(%rbp)
 
+    movq    %rbp,  %rcx
+    callq   MRT_SaveTopManagedContextToR2CStub
+
     movq    -128(%rbp), %rcx // value
     movq    -136(%rbp), %rdx // stackSize
     movq    -144(%rbp), %r14  // entry pointer
@@ -432,6 +435,9 @@ ApplyCangjieMethodStubFloat64:
     // xmm0 was used to return floating point argument
     movq    %rax,  -128(%rbp)
     movapd  %xmm0, -176(%rbp)
+
+    movq    %rbp,  %rcx
+    callq   MRT_RestoreTopManagedContextFromR2CStub
 
     // set potential return value
     movq    -128(%rbp), %rax

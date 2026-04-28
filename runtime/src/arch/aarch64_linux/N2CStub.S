@@ -465,6 +465,8 @@ CJ_MRT_ARKTS_CreateEngineStub:
 .type    ApplyCangjieMethodStubFloat32, @function
 .global  ApplyCangjieMethodStubFloat64
 .type    ApplyCangjieMethodStubFloat64, @function
+.global  unwindPCForApplyCangjieMethodStubStart
+unwindPCForApplyCangjieMethodStubStart:
 ApplyCangjieMethodStub:
 ApplyCangjieMethodStubFloat32:
 ApplyCangjieMethodStubFloat64:
@@ -525,7 +527,11 @@ ApplyCangjieMethodStubFloat64:
     mov  x21, x1 // stackSize
     mov  x22, x2 // save func
     mov  x23, x3 // threadData
-    mov  x8,  x4 // sret
+    mov  x25, x4 // sret, preserve across the R2C helper call
+
+    mov  x0, x29
+    bl   MRT_SaveTopManagedContextToR2CStub
+    mov  x8, x25
 
     // x28 <- previous sp
     add  x28, sp, #StubFrameContextSize
@@ -587,6 +593,9 @@ ApplyCangjieMethodStubFloat64:
     cfi_rel_offset (d2, StubCalleeSaveAreaSize+0x70)
     cfi_rel_offset (d3, StubCalleeSaveAreaSize+0x78)
 
+    mov  x0, x29
+    bl   MRT_RestoreTopManagedContextFromR2CStub
+
     /* set potential return value */
     mov  x0, x21
     mov  x1, x22
@@ -630,6 +639,8 @@ ApplyCangjieMethodStubFloat64:
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
     autiasp
 #endif
+    .global  unwindPCForApplyCangjieMethodStubEnd
+unwindPCForApplyCangjieMethodStubEnd:
     ret
     .cfi_endproc
     .size ApplyCangjieMethodStub, .-ApplyCangjieMethodStub
