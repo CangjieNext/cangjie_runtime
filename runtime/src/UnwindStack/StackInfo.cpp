@@ -15,6 +15,7 @@
 #include "Common/StackType.h"
 #include "Common/TypeDef.h"
 #include "MangleNameHelper.h"
+#include "RuntimeConfig.h"
 #include "StackMap/StackMap.h"
 #include "UnwindStack/StackMetadataHelper.h"
 #ifdef _WIN64
@@ -122,6 +123,29 @@ void StackInfo::AnalyseAndSetFrameType(UnwindContext& uwContext)
     } else if (mFrame.IsExclusiveStubFrame()) {
         frameInfo.SetFrameType(FrameType::EXSLUSIVE);
         isReliableN2CStub = false;
+    } else if (
+#ifdef _WIN64
+        frameInfo.GetStartProc() == reinterpret_cast<const uint32_t*>(&ApplyCangjieMethodStub)
+#else
+        mFrame.IsApplyCangjieMethodStubFrame()
+#endif
+    ) {
+#if (defined(__linux__) && !defined(_WIN64) && (defined(__x86_64__) || defined(__aarch64__) || defined(__arm__))) || \
+    (defined(__APPLE__) && defined(__x86_64__) && !defined(__IOS__)) || \
+    (defined(__APPLE__) && defined(__aarch64__) && !defined(__IOS__)) || \
+    (defined(__APPLE__) && defined(__x86_64__) && defined(__IOS__)) || \
+    (defined(__APPLE__) && defined(__aarch64__) && defined(__IOS__)) || \
+    defined(_WIN64)
+        MRT_Check(lastFrameType == FrameType::MANAGED, "");
+        R2CSlotData* r2cSlotData = R2CFrame::GetSlotData(mFrame.GetFA());
+        if (r2cSlotData->status == UnwindContextStatus::RELIABLE) {
+            isReliableN2CStub = true;
+        }
+        frameInfo.SetFrameType(FrameType::R2C_STUB);
+#else
+        frameInfo.SetFrameType(FrameType::RUNTIME);
+        isReliableN2CStub = false;
+#endif
     } else if (mFrame.IsRuntimeFrame()) {
         frameInfo.SetFrameType(FrameType::RUNTIME);
         isReliableN2CStub = false;
@@ -156,7 +180,8 @@ void StackInfo::AnalyseAndSetFrameType(UnwindContext& uwContext)
 bool StackInfo::IsN2CContext(const UnwindContext& uwContext) const
 {
     if ((lastFrameType == FrameType::MANAGED && uwContext.frameInfo.GetFrameType() == FrameType::RUNTIME) ||
-        uwContext.frameInfo.GetFrameType() == FrameType::N2C_STUB) {
+        uwContext.frameInfo.GetFrameType() == FrameType::N2C_STUB ||
+        uwContext.frameInfo.GetFrameType() == FrameType::R2C_STUB) {
         return true;
     } else {
         return false;

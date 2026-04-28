@@ -432,7 +432,7 @@ public:
     void PreparedToPark(void* pc, void* fa)
     {
         SetSafepointStatePtr(nullptr);
-        if (UNLIKELY((uwContext.GetUnwindContextStatus() == UnwindContextStatus::RISKY) || InSaferegion())) {
+        if (UNLIKELY(InSaferegion())) {
             return;
         }
 #if defined(__linux__) || defined(hongmeng) || defined(__APPLE__)
