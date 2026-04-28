@@ -482,6 +482,8 @@ CJ_MRT_ARKTS_CreateEngineStub:
 .type    ApplyCangjieMethodStubFloat32, %function
 .global  ApplyCangjieMethodStubFloat64
 .type    ApplyCangjieMethodStubFloat64, %function
+.global  unwindPCForApplyCangjieMethodStubStart
+unwindPCForApplyCangjieMethodStubStart:
 ApplyCangjieMethodStub:
 ApplyCangjieMethodStubFloat32:
 ApplyCangjieMethodStubFloat64:
@@ -534,6 +536,9 @@ ApplyCangjieMethodStubFloat64:
     mov  r6, r1  // stackSize
     mov  r7, r2  // save func
     mov  r8, r3  // threadData
+
+    mov  r0, r11
+    bl   MRT_SaveTopManagedContextToR2CStub
 
     // copy parameter to stack
     // size align to 16 byte.
@@ -588,6 +593,9 @@ ApplyCangjieMethodStubFloat64:
     cfi_rel_offset(d0, StubCalleeSaveAreaSize+32)
     cfi_rel_offset(d1, StubCalleeSaveAreaSize+40)
 
+    mov  r0, r11
+    bl   MRT_RestoreTopManagedContextFromR2CStub
+
     /* set potential return value */
     mov  r0, r6
     mov  r1, r7
@@ -624,6 +632,8 @@ ApplyCangjieMethodStubFloat64:
     cfi_restore (r11)
     cfi_restore (lr)
 
+    .global  unwindPCForApplyCangjieMethodStubEnd
+unwindPCForApplyCangjieMethodStubEnd:
     bx  lr
     .cfi_endproc
     .size ApplyCangjieMethodStub, .-ApplyCangjieMethodStub
