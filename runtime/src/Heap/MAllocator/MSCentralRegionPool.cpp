@@ -325,54 +325,75 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
 // ============================================================================
 MSRegionInfo* CentralRegionPool::GetFreshRegion(uint8_t cls)
 {
-    // MSRegionManager::TakeRegion allocates one MS_REGION_SIZE region
-    // and returns the corresponding MSRegionInfo* directly (one-level).
-    MSRegionInfo* msInfo = msRegionManager_->TakeRegion(cls, *this);
-    if (msInfo == nullptr) {
+    MSRegionInfo* regions[1] = { nullptr };
+    if (GetFreshRegionBatch(cls, regions, 1) == 0) {
         return nullptr;
     }
 
-    // Compute region start address from MSRegionInfo index
-    size_t regionIdx = MSRegionInfoArray::GetRegionIdx(msInfo);
-    uintptr_t regionStart = MSRegionInfoArray::GetRegionAddress(regionIdx);
+    return regions[0];
+}
 
-    // Debug: check MSRegionInfo state BEFORE InitForSizeClass
-    if (UNLIKELY(msInfo->regionType != MSRegionType::MS_REGION_FREE)) {
-        LOG(RTLOG_FATAL, "[MS-GC] GetFreshRegion: TakeRegion returned non-FREE region! "
-            "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, "
-            "sizeClass=%u, sweepState=%d, sweepGen=%u, "
-            "nextIdx=%d, prevIdx=%d, reserved=0x%llx, "
-            "cls=%u, regionIdx=%zu, regionStart=0x%zx, this=%p",
-            (int)msInfo->regionType, msInfo->allocPtr, msInfo->regionEnd,
-            (void*)msInfo->allocBitmap, (unsigned)msInfo->sizeClass,
-            (int)msInfo->sweepState, msInfo->sweepGen,
-            msInfo->nextRegionIdx, msInfo->prevRegionIdx,
-            (unsigned long long)msInfo->reserved,
-            (unsigned)cls, regionIdx, regionStart, (void*)msInfo);
+uint8_t CentralRegionPool::GetFreshRegionBatch(uint8_t cls, MSRegionInfo** outRegions, uint8_t maxCount)
+{
+    if (UNLIKELY(outRegions == nullptr || maxCount == 0)) {
+        return 0;
     }
 
-    // Initialize for the requested size class (sets bitmaps, slot counts, state)
-    msInfo->InitForSizeClass(cls);
-
-    // Debug: verify bitmap allocation succeeded
-    if (UNLIKELY(msInfo->allocBitmap == nullptr)) {
-        LOG(RTLOG_FATAL, "[MS-GC] GetFreshRegion: InitForSizeClass failed to alloc bitmap, "
-            "cls=%u, regionIdx=%zu, regionStart=0x%zx, totalSlots=%u, this=%p",
-            (unsigned)cls, regionIdx, regionStart, (unsigned)msInfo->totalSlotCount,
-            (void*)msInfo);
+    uint8_t count = msRegionManager_->TakeRegionBatch(cls, *this, maxCount, outRegions);
+    if (count == 0) {
+        return 0;
     }
 
-    // Set addresses that InitForSizeClass does not set
-    msInfo->allocPtr = regionStart;
-    msInfo->regionEnd = regionStart + MS_REGION_SIZE;
+    uint32_t sweepGen = globalSweepGen_.load(std::memory_order_acquire);
+    for (uint8_t index = 0; index < count; ++index) {
+        MSRegionInfo* msInfo = outRegions[index];
+        if (msInfo == nullptr) {
+            count = index;
+            break;
+        }
 
-    // Stamp the current sweep generation so this Region is seen as "already swept"
-    msInfo->SetSweepGen(globalSweepGen_.load(std::memory_order_acquire));
+        // Compute region start address from MSRegionInfo index
+        size_t regionIdx = MSRegionInfoArray::GetRegionIdx(msInfo);
+        uintptr_t regionStart = MSRegionInfoArray::GetRegionAddress(regionIdx);
+
+        // Debug: check MSRegionInfo state BEFORE InitForSizeClass
+        if (UNLIKELY(msInfo->regionType != MSRegionType::MS_REGION_FREE)) {
+            LOG(RTLOG_FATAL, "[MS-GC] GetFreshRegionBatch: TakeRegion returned non-FREE region! "
+                "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, "
+                "sizeClass=%u, sweepState=%d, sweepGen=%u, "
+                "nextIdx=%d, prevIdx=%d, reserved=0x%llx, "
+                "cls=%u, regionIdx=%zu, regionStart=0x%zx, this=%p",
+                (int)msInfo->regionType, msInfo->allocPtr, msInfo->regionEnd,
+                (void*)msInfo->allocBitmap, (unsigned)msInfo->sizeClass,
+                (int)msInfo->sweepState, msInfo->sweepGen,
+                msInfo->nextRegionIdx, msInfo->prevRegionIdx,
+                (unsigned long long)msInfo->reserved,
+                (unsigned)cls, regionIdx, regionStart, (void*)msInfo);
+        }
+
+        // Initialize for the requested size class (sets bitmaps, slot counts, state)
+        msInfo->InitForSizeClass(cls);
+
+        // Debug: verify bitmap allocation succeeded
+        if (UNLIKELY(msInfo->allocBitmap == nullptr)) {
+            LOG(RTLOG_FATAL, "[MS-GC] GetFreshRegionBatch: InitForSizeClass failed to alloc bitmap, "
+                "cls=%u, regionIdx=%zu, regionStart=0x%zx, totalSlots=%u, this=%p",
+                (unsigned)cls, regionIdx, regionStart, (unsigned)msInfo->totalSlotCount,
+                (void*)msInfo);
+        }
+
+        // Set addresses that InitForSizeClass does not set
+        msInfo->allocPtr = regionStart;
+        msInfo->regionEnd = regionStart + MS_REGION_SIZE;
+
+        // Stamp the current sweep generation so this Region is seen as "already swept"
+        msInfo->SetSweepGen(sweepGen);
+    }
 
     // Track total MS region bytes for GC trigger
-    totalMSRegionBytes_.fetch_add(MS_REGION_SIZE, std::memory_order_relaxed);
+    totalMSRegionBytes_.fetch_add(static_cast<size_t>(count) * MS_REGION_SIZE, std::memory_order_relaxed);
 
-    return msInfo;
+    return count;
 }
 
 // ============================================================================

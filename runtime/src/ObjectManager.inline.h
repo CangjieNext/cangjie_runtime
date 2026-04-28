@@ -22,22 +22,38 @@
 namespace MapleRuntime {
 inline ObjRef ObjectManager::NewObject(const TypeInfo* ti, MSize size, AllocType allocType)
 {
+    return NewObject(ti, size, allocType, nullptr);
+}
+
+inline ObjRef ObjectManager::NewObject(const TypeInfo* ti, MSize size, AllocType allocType, ThreadLocalData* local)
+{
     CHECK_DETAIL(ti != nullptr, "ti is nullptr");
-    auto obj = MObject::NewObject(const_cast<TypeInfo*>(ti), size, allocType);
+    auto obj = MObject::NewObject(const_cast<TypeInfo*>(ti), size, allocType, local);
     return static_cast<ObjRef>(obj);
 }
 
 inline ObjRef ObjectManager::NewWeakRefObject(const TypeInfo* ti, MSize size, AllocType allocType)
 {
+    return NewWeakRefObject(ti, size, allocType, nullptr);
+}
+
+inline ObjRef ObjectManager::NewWeakRefObject(const TypeInfo* ti, MSize size, AllocType allocType,
+                                              ThreadLocalData* local)
+{
     CHECK_DETAIL(ti != nullptr, "klass is nullptr");
-    auto obj = MObject::NewObject(const_cast<TypeInfo*>(ti), size, allocType);
+    auto obj = MObject::NewObject(const_cast<TypeInfo*>(ti), size, allocType, local);
     return static_cast<ObjRef>(obj);
 }
 
 inline ObjRef ObjectManager::NewPinnedObject(const TypeInfo* ti, MSize size, bool isFinalizer)
 {
+    return NewPinnedObject(ti, size, isFinalizer, nullptr);
+}
+
+inline ObjRef ObjectManager::NewPinnedObject(const TypeInfo* ti, MSize size, bool isFinalizer, ThreadLocalData* local)
+{
     CHECK_DETAIL(ti != nullptr, "ti is nullptr");
-    auto obj = MObject::NewPinnedObject(const_cast<TypeInfo*>(ti), size);
+    auto obj = MObject::NewPinnedObject(const_cast<TypeInfo*>(ti), size, local);
     if (isFinalizer && obj != nullptr) {
         static_cast<ObjRef>(obj)->OnFinalizerCreated();
     }
@@ -46,8 +62,13 @@ inline ObjRef ObjectManager::NewPinnedObject(const TypeInfo* ti, MSize size, boo
 
 inline ObjRef ObjectManager::NewFinalizer(const TypeInfo* ti, MSize size)
 {
+    return NewFinalizer(ti, size, nullptr);
+}
+
+inline ObjRef ObjectManager::NewFinalizer(const TypeInfo* ti, MSize size, ThreadLocalData* local)
+{
     CHECK_DETAIL(ti != nullptr, "ti is nullptr");
-    auto obj = MObject::NewFinalizer(ti, size);
+    auto obj = MObject::NewFinalizer(ti, size, local);
     return static_cast<ObjRef>(obj);
 }
 

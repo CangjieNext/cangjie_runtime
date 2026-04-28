@@ -181,10 +181,32 @@ extern "C" ObjRef MCC_NewObject(const TypeInfo* klass, MSize size)
     return obj;
 }
 
+extern "C" ObjRef MCC_NewObjectLocal(const TypeInfo* klass, MSize size, ThreadLocalData* local)
+{
+    DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
+    ObjRef obj = ObjectManager::NewObject(klass, size, AllocType::MOVEABLE_OBJECT, local);
+    if (obj == nullptr) {
+        VLOG(REPORT, "Allocating object %s (%zu B) failed and throw OutOfMemoryError", klass->GetName(), size);
+        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewObject return nullptr");
+    }
+    return obj;
+}
+
 extern "C" ObjRef MCC_NewWeakRefObject(const TypeInfo* klass, MSize size)
 {
     DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
     ObjRef obj = ObjectManager::NewWeakRefObject(klass, size);
+    if (obj == nullptr) {
+        VLOG(REPORT, "Allocating weak reference %s (%zu B) failed and throw OutOfMemoryError", klass->GetName(), size);
+        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewWeakRefObject return nullptr");
+    }
+    return obj;
+}
+
+extern "C" ObjRef MCC_NewWeakRefObjectLocal(const TypeInfo* klass, MSize size, ThreadLocalData* local)
+{
+    DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
+    ObjRef obj = ObjectManager::NewWeakRefObject(klass, size, AllocType::MOVEABLE_OBJECT, local);
     if (obj == nullptr) {
         VLOG(REPORT, "Allocating weak reference %s (%zu B) failed and throw OutOfMemoryError", klass->GetName(), size);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewWeakRefObject return nullptr");
@@ -203,10 +225,34 @@ extern "C" ObjRef MCC_NewPinnedObject(const TypeInfo* klass, MSize size, bool is
     return obj;
 }
 
+extern "C" ObjRef MCC_NewPinnedObjectLocal(const TypeInfo* klass, MSize size, bool isFinalizer,
+                                            ThreadLocalData* local)
+{
+    DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
+    ObjRef obj = ObjectManager::NewPinnedObject(klass, size, isFinalizer, local);
+    if (obj == nullptr) {
+        VLOG(REPORT, "Allocating object %s (%zu B) failed and throw OutOfMemoryError", klass->GetName(), size);
+        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewPinnedObject return nullptr");
+    }
+    return obj;
+}
+
 extern "C" ObjRef MCC_NewFinalizer(const TypeInfo* klass, MSize size)
 {
     DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
     ObjRef obj = ObjectManager::NewFinalizer(klass, size);
+    if (obj == nullptr) {
+        VLOG(REPORT, "Allocating object with ~init %s (%zu B) failed and throw OutOfMemoryError",
+            klass->GetName(), size);
+        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewFinalizer return nullptr");
+    }
+    return obj;
+}
+
+extern "C" ObjRef MCC_NewFinalizerLocal(const TypeInfo* klass, MSize size, ThreadLocalData* local)
+{
+    DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
+    ObjRef obj = ObjectManager::NewFinalizer(klass, size, local);
     if (obj == nullptr) {
         VLOG(REPORT, "Allocating object with ~init %s (%zu B) failed and throw OutOfMemoryError",
             klass->GetName(), size);

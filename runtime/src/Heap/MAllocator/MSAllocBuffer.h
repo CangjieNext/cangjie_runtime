@@ -47,6 +47,7 @@ public:
     // Mirror of AllocBuffer::GetOrCreateAllocBuffer / GetAllocBuffer for MS mode.
     static AllocBufferMS* GetOrCreateAllocBufferMS();
     static AllocBufferMS* GetOrCreateAllocBufferMS(ThreadLocalData* local);
+    static AllocBufferMS* GetOrCreateAllocBufferMS(ThreadLocalData* local, CentralRegionPool* central);
     static AllocBufferMS* GetAllocBufferMS();
 
     AllocBufferMS();
@@ -62,7 +63,9 @@ public:
     void Fini();
 
     // Main allocation entry (called from AllocBuffer::Allocate in MS mode)
-    MAddress Allocate(size_t size, Mutator* mutator = nullptr);
+    // Reuse caller-resolved ThreadLocalData when available to avoid extra TLS lookups
+    // on the mutator allocation path.
+    MAddress Allocate(size_t size, ThreadLocalData* local = nullptr);
 
     // Accumulate pacing debt for a given allocation size and trigger assist if needed.
     // Called by large-object paths that bypass Allocate().
@@ -103,11 +106,12 @@ public:
     }
 
     // Get active Region for a given size class (for GC iteration)
-    MSRegionInfo* GetActiveRegion(uint8_t cls) const
+    MSRegionInfo* GetActiveRegion(uint8_t cls)
     {
         if (cls >= kNumSizeClasses) {
             return nullptr;
         }
+        SyncActiveBumpRegionShadow(cls);
         return activeRegions_[cls];
     }
 
@@ -118,6 +122,12 @@ public:
 private:
     static constexpr uint8_t kCachedRegionSlots = 2;
 
+    enum class ActiveAllocKind : uint8_t {
+        NONE = 0,
+        BUMP,
+        BITMAP,
+    };
+
     // LLVM fast-path compatibility: must be at offset 0 (same as AllocBuffer::tlRegion).
     // Set to NullRegion() so fast-path allocation always fails → slow path.
     RegionInfo* tlRegion_;
@@ -127,6 +137,12 @@ private:
 
     // Slow path: current Region exhausted, refill from CentralRegionPool
     MAddress SlowAlloc(uint8_t cls);
+
+    // Install a new active region and initialize any fast-path shadow state.
+    void SetActiveRegion(uint8_t cls, MSRegionInfo* region);
+
+    // Sync local bump-allocation shadows back to the active region metadata.
+    void SyncActiveBumpRegionShadow(uint8_t cls);
 
     // Refill: get a Region from CentralRegionPool
     MSRegionInfo* RefillFromCentral(uint8_t cls);
@@ -146,6 +162,15 @@ private:
 
     // Per-size-class active Region (nullptr = no active Region for this class)
     MSRegionInfo* activeRegions_[kNumSizeClasses] = {};
+
+    // Cache the active allocation strategy so FastAlloc does not need to branch
+    // on regionType for every small-object allocation.
+    ActiveAllocKind activeAllocKinds_[kNumSizeClasses] = {};
+
+    // For fresh BUMP regions, keep allocPtr/regionEnd in the AllocBuffer so the
+    // mutator fast path can avoid touching MSRegionInfo metadata on every hit.
+    uintptr_t activeAllocPtrs_[kNumSizeClasses] = {};
+    uintptr_t activeRegionEnds_[kNumSizeClasses] = {};
 
     // O2/O9: Per-size-class cached backup Regions.
     // Written by gc-helper (BackgroundFillCache), consumed by mutator (SlowAlloc).

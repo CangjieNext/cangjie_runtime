@@ -530,10 +530,36 @@ void MSRegionManager::DumpAndResetAllocClearStats()
 
 MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& centralPool)
 {
+    MSRegionInfo* regions[1] = { nullptr };
+    if (TakeRegionBatch(cls, centralPool, 1, regions) == 0) {
+        return nullptr;
+    }
+
+    return regions[0];
+}
+
+uint8_t MSRegionManager::TakeRegionBatch(uint8_t cls, const CentralRegionPool& centralPool,
+                                         uint8_t maxCount, MSRegionInfo** outRegions)
+{
+    if (UNLIKELY(outRegions == nullptr || maxCount == 0)) {
+        return 0;
+    }
+
+    for (uint8_t index = 0; index < maxCount; ++index) {
+        outRegions[index] = nullptr;
+    }
+
     RegionIndex regionIdx = 0;
     AllocSource source = AllocSource::BUMP;
-    if (!TakeRegions(1, regionIdx, &source)) {
-        return nullptr;
+    uint8_t count = maxCount;
+    while (count > 0) {
+        if (TakeRegions(count, regionIdx, &source)) {
+            break;
+        }
+        --count;
+    }
+    if (count == 0) {
+        return 0;
     }
 
     if (!kDisableSweepOnRegionMissProbe) {
@@ -542,24 +568,29 @@ MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& 
     MaybeNotifyReclaim();
     MaybeNotifyMark(HeuTriggerKind::SMALL_ALLOC, &centralPool, cls, source == AllocSource::BUMP);
 
-    MRT_ASSERT(regionIdx < freeManager_.GetMaxVirtualRegionCount(), "region index out of bounds");
+    MRT_ASSERT(static_cast<size_t>(regionIdx) + count <= freeManager_.GetMaxVirtualRegionCount(),
+               "region index out of bounds");
 
-    MSRegionInfo* info = &array_[regionIdx];
-    // Debug: exhaustive check on every TakeRegion return
-    if (UNLIKELY(info->regionType != MSRegionType::MS_REGION_FREE)) {
-        LOG(RTLOG_FATAL, "[MS-GC] TakeRegion: array_[%u] NOT FREE! "
-            "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, "
-            "sizeClass=%u, sweepState=%d, sweepGen=%u, "
-            "nextIdx=%d, prevIdx=%d, reserved=0x%llx, "
-            "array_=%p, info=%p",
-            regionIdx, (int)info->regionType, info->allocPtr, info->regionEnd,
-            (void*)info->allocBitmap, (unsigned)info->sizeClass,
-            (int)info->sweepState, info->sweepGen,
-            info->nextRegionIdx, info->prevRegionIdx,
-            (unsigned long long)info->reserved,
-            (void*)array_, (void*)info);
+    for (uint8_t index = 0; index < count; ++index) {
+        MSRegionInfo* info = &array_[regionIdx + index];
+        // Debug: exhaustive check on every TakeRegion return
+        if (UNLIKELY(info->regionType != MSRegionType::MS_REGION_FREE)) {
+            LOG(RTLOG_FATAL, "[MS-GC] TakeRegionBatch: array_[%u] NOT FREE! "
+                "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, "
+                "sizeClass=%u, sweepState=%d, sweepGen=%u, "
+                "nextIdx=%d, prevIdx=%d, reserved=0x%llx, "
+                "array_=%p, info=%p",
+                regionIdx + index, (int)info->regionType, info->allocPtr, info->regionEnd,
+                (void*)info->allocBitmap, (unsigned)info->sizeClass,
+                (int)info->sweepState, info->sweepGen,
+                info->nextRegionIdx, info->prevRegionIdx,
+                (unsigned long long)info->reserved,
+                (void*)array_, (void*)info);
+        }
+        outRegions[index] = info;
     }
-    return info;
+
+    return count;
 }
 
 // ============================================================================

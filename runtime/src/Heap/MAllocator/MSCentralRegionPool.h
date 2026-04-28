@@ -292,6 +292,11 @@ public:
     // Get a brand-new Region from RegionManager, initialized for the given size class.
     MSRegionInfo* GetFreshRegion(uint8_t cls);
 
+    // Get up to maxCount brand-new Regions from RegionManager, initialized for the same size
+    // class. The first entry is intended for the current refill, and the remaining entries can
+    // be cached locally to amortize repeated trips through TakeRegions(1).
+    uint8_t GetFreshRegionBatch(uint8_t cls, MSRegionInfo** outRegions, uint8_t maxCount);
+
     // ===== Thread-local Region return =====
 
     void ReturnPartialRegion(MSRegionInfo* region, uint8_t cls);

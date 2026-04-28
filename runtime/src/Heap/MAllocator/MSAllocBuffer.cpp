@@ -33,9 +33,42 @@ static inline bool IsMSAssistActive(uint8_t gcFastState)
     return (gcFastState & ThreadLocal::GC_FAST_STATE_MS_ASSIST) != 0;
 }
 
-static inline Mutator* ResolveMutatorForAllocFastPath(Mutator* mutator)
+static inline uint8_t ResolveGCFastStateForAllocFastPath(ThreadLocalData* local)
 {
-    return mutator != nullptr ? mutator : Mutator::GetMutator();
+    return local != nullptr ? local->gcFastState : ThreadLocal::GetGCFastState();
+}
+
+static inline uintptr_t FastAllocBump(uintptr_t& allocPtr, uintptr_t regionEnd, size_t slotSize)
+{
+    uintptr_t next = allocPtr + slotSize;
+    if (LIKELY(next <= regionEnd)) {
+        uintptr_t addr = allocPtr;
+        allocPtr = next;
+        return addr;
+    }
+    return 0;
+}
+
+static inline uintptr_t FastAllocBitmap(MSRegionInfo* region, size_t slotSize)
+{
+    uint64_t summary = region->reserved;
+    while (summary != 0) {
+        size_t wordIdx = static_cast<size_t>(__builtin_ctzll(summary));
+        uint64_t word = region->allocBitmap[wordIdx];
+        if (LIKELY(word != 0)) {
+            int bit = __builtin_ctzll(word);
+            region->allocBitmap[wordIdx] = word & ~(1ULL << bit);
+            region->freeSlotCount--;
+            if (region->allocBitmap[wordIdx] == 0) {
+                region->reserved &= ~(1ULL << wordIdx);
+            }
+            size_t slotIndex = wordIdx * 64 + static_cast<size_t>(bit);
+            return region->RegionStart() + slotIndex * slotSize;
+        }
+        summary &= ~(1ULL << wordIdx);
+        region->reserved &= ~(1ULL << wordIdx);
+    }
+    return 0;
 }
 
 AllocBufferMS::~AllocBufferMS()
@@ -56,7 +89,7 @@ void AllocBufferMS::Init(CentralRegionPool* central)
 {
     central_ = central;
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
-        activeRegions_[cls] = nullptr;
+        SetActiveRegion(cls, nullptr);
     }
     // Register with CentralRegionPool so GC can FlushAll
     if (central_ != nullptr) {
@@ -74,10 +107,50 @@ void AllocBufferMS::Fini()
     central_ = nullptr;
 }
 
+void AllocBufferMS::SetActiveRegion(uint8_t cls, MSRegionInfo* region)
+{
+    activeRegions_[cls] = region;
+    if (region == nullptr) {
+        activeAllocKinds_[cls] = ActiveAllocKind::NONE;
+        activeAllocPtrs_[cls] = 0;
+        activeRegionEnds_[cls] = 0;
+        return;
+    }
+
+    activeAllocKinds_[cls] = region->regionType == MSRegionType::MS_REGION_BUMP ?
+        ActiveAllocKind::BUMP : ActiveAllocKind::BITMAP;
+    if (activeAllocKinds_[cls] == ActiveAllocKind::BUMP) {
+        activeAllocPtrs_[cls] = region->allocPtr;
+        activeRegionEnds_[cls] = region->regionEnd;
+    } else {
+        activeAllocPtrs_[cls] = 0;
+        activeRegionEnds_[cls] = 0;
+    }
+}
+
+void AllocBufferMS::SyncActiveBumpRegionShadow(uint8_t cls)
+{
+    if (activeAllocKinds_[cls] != ActiveAllocKind::BUMP) {
+        return;
+    }
+
+    MSRegionInfo* region = activeRegions_[cls];
+    if (region == nullptr) {
+        return;
+    }
+
+    uintptr_t allocPtr = activeAllocPtrs_[cls];
+    uintptr_t regionEnd = activeRegionEnds_[cls];
+    region->allocPtr = allocPtr;
+    region->regionEnd = regionEnd;
+    size_t slotSize = SizeClassInfo::ClassToSize(cls);
+    region->freeSlotCount = static_cast<uint16_t>((regionEnd - allocPtr) / slotSize);
+}
+
 // ============================================================================
 // Allocate — main entry point
 // ============================================================================
-MAddress AllocBufferMS::Allocate(size_t size, Mutator* mutator)
+MAddress AllocBufferMS::Allocate(size_t size, ThreadLocalData* local)
 {
     uint8_t cls = SizeClassInfo::SizeToClass(size);
     if (UNLIKELY(cls >= kNumSizeClasses)) {
@@ -89,22 +162,15 @@ MAddress AllocBufferMS::Allocate(size_t size, Mutator* mutator)
         return addr;
     }
 
-    uint8_t gcFastState = ThreadLocal::GetGCFastState();
+    uint8_t gcFastState = ResolveGCFastStateForAllocFastPath(local);
     if (LIKELY(!IsMSMarkingActive(gcFastState))) {
         gcAssistDebtScaled_ = 0;
         return addr;
     }
 
-    BaseObject* obj = reinterpret_cast<BaseObject*>(addr);
-    MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
-    if (LIKELY(collector != nullptr)) {
-        collector->MarkObject(obj);
-    } else {
-        // Fall back to the generic path if the active collector snapshot is unavailable.
-        Heap::GetHeap().GetCollector().MarkNewObject(obj);
-        gcAssistDebtScaled_ = 0;
-        return addr;
-    }
+    // Fresh objects allocated during MS marking are always heap objects here,
+    // so we can mark them directly without going through collector lookup.
+    (void)MSRegionInfoArray::MarkObjectInHeap(static_cast<uintptr_t>(addr));
 
     if (kDisableMutatorAssistProbe) {
         gcAssistDebtScaled_ = 0;
@@ -116,8 +182,8 @@ MAddress AllocBufferMS::Allocate(size_t size, Mutator* mutator)
         return addr;
     }
 
-    mutator = ResolveMutatorForAllocFastPath(mutator);
-    if (UNLIKELY(mutator == nullptr)) {
+    MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
+    if (UNLIKELY(collector == nullptr)) {
         gcAssistDebtScaled_ = 0;
         return addr;
     }
@@ -169,10 +235,17 @@ MAddress AllocBufferMS::FastAlloc(uint8_t cls)
 #endif
 
         uintptr_t addr;
-        if (region->regionType == MSRegionType::MS_REGION_BUMP) {
-            addr = region->AllocBump();
-        } else {
-            addr = region->AllocFromBitmapFast();
+        switch (activeAllocKinds_[cls]) {
+            case ActiveAllocKind::BUMP:
+                addr = FastAllocBump(activeAllocPtrs_[cls], activeRegionEnds_[cls], SizeClassInfo::ClassToSize(cls));
+                break;
+            case ActiveAllocKind::BITMAP:
+                addr = FastAllocBitmap(region, SizeClassInfo::ClassToSize(cls));
+                break;
+            case ActiveAllocKind::NONE:
+            default:
+                addr = 0;
+                break;
         }
         if (LIKELY(addr != 0)) {
             return static_cast<MAddress>(addr);
@@ -248,7 +321,7 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
 #endif
 
     // Step 3: Set as active Region
-    activeRegions_[cls] = newRegion;
+    SetActiveRegion(cls, newRegion);
 
     // Backup cache refill is handled by BackgroundFillCache after repeated misses.
     // Avoid doing another synchronous GetRegion() here: on case1 this can turn one
@@ -257,10 +330,10 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
 
     // Step 4: Allocate from the new Region (respect region type)
     uintptr_t addr;
-    if (newRegion->regionType == MSRegionType::MS_REGION_BUMP) {
-        addr = newRegion->AllocBump();
+    if (activeAllocKinds_[cls] == ActiveAllocKind::BUMP) {
+        addr = FastAllocBump(activeAllocPtrs_[cls], activeRegionEnds_[cls], SizeClassInfo::ClassToSize(cls));
     } else {
-        addr = newRegion->AllocFromBitmapFast();
+        addr = FastAllocBitmap(newRegion, SizeClassInfo::ClassToSize(cls));
     }
     return static_cast<MAddress>(addr);
 }
@@ -275,8 +348,10 @@ void AllocBufferMS::ReturnRegion(uint8_t cls)
         return;
     }
 
+    SyncActiveBumpRegionShadow(cls);
+
     ReturnRegionToCentral(region, cls);
-    activeRegions_[cls] = nullptr;
+    SetActiveRegion(cls, nullptr);
 }
 
 MSRegionInfo* AllocBufferMS::TakeCachedRegion(uint8_t cls)
@@ -342,9 +417,21 @@ MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls)
         return region;
     }
 
-    // Priority 2: brand-new Region from RegionManager
-    region = central_->GetFreshRegion(cls);
-    return region;
+    // Priority 2: batch-fetch fresh regions so one slow-path refill can populate
+    // the active region plus a couple of thread-local backups.
+    constexpr uint8_t kFreshBatchCount = 1 + kCachedRegionSlots;
+    MSRegionInfo* freshRegions[kFreshBatchCount] = {};
+    uint8_t freshCount = central_->GetFreshRegionBatch(cls, freshRegions, kFreshBatchCount);
+    if (freshCount == 0) {
+        return nullptr;
+    }
+
+    for (uint8_t index = 1; index < freshCount; ++index) {
+        if (!TryCacheRegion(cls, freshRegions[index])) {
+            central_->ReturnPartialRegion(freshRegions[index], cls);
+        }
+    }
+    return freshRegions[0];
 }
 
 // ============================================================================
@@ -428,12 +515,17 @@ AllocBufferMS* AllocBufferMS::GetOrCreateAllocBufferMS()
 
 AllocBufferMS* AllocBufferMS::GetOrCreateAllocBufferMS(ThreadLocalData* local)
 {
+    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
+    return GetOrCreateAllocBufferMS(local, space.GetCentralPool());
+}
+
+AllocBufferMS* AllocBufferMS::GetOrCreateAllocBufferMS(ThreadLocalData* local, CentralRegionPool* central)
+{
     AllocBufferMS* buffer = local != nullptr ? local->msAllocBuffer : GetAllocBufferMS();
     if (buffer == nullptr) {
         buffer = new (std::nothrow) AllocBufferMS();
         CHECK_DETAIL(buffer != nullptr, "new MS alloc buffer fail");
-        RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
-        buffer->Init(space.GetCentralPool());
+        buffer->Init(central);
         if (local != nullptr) {
             local->msAllocBuffer = buffer;
         } else {

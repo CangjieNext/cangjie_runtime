@@ -41,9 +41,13 @@ extern "C" uintptr_t MRT_UpdateThreadLocalDataPhase(uintptr_t tlDataAddr)
 {
 #if defined(__aarch64__)
     tlDataAddr &= kThreadLocalDataAddrMask;
+    if (UNLIKELY(tlDataAddr == 0)) {
+        return 0;
+    }
     // The barrier phase is cached in TLS and updated on mutator phase changes,
-    // so the hot path does not need to query the global heap phase here.
-    tlDataAddr = tlDataAddr | (static_cast<uint64_t>(ThreadLocal::GetEncodedGCPhase()) << 56);
+    // so the hot path only needs the caller-provided ThreadLocalData pointer.
+    auto* local = reinterpret_cast<ThreadLocalData*>(tlDataAddr);
+    tlDataAddr = tlDataAddr | (static_cast<uint64_t>(local->encodedGCPhase) << 56);
 #endif
     return tlDataAddr;
 }

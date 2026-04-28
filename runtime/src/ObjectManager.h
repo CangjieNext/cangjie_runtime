@@ -16,6 +16,8 @@
 // Note: general field accessor is a common facility
 
 namespace MapleRuntime {
+struct ThreadLocalData;
+
 //  Motivation: all interfaces related to object model implementation should have a separated control plane
 class ObjectManager {
 public:
@@ -27,10 +29,14 @@ public:
     void Fini() const {};
 
     static inline ObjRef NewObject(const TypeInfo* ti, MSize size, AllocType allocType = AllocType::MOVEABLE_OBJECT);
+    static inline ObjRef NewObject(const TypeInfo* ti, MSize size, AllocType allocType, ThreadLocalData* local);
     static inline ObjRef NewWeakRefObject(const TypeInfo* ti, MSize size,
                                           AllocType allocType = AllocType::MOVEABLE_OBJECT);
+    static inline ObjRef NewWeakRefObject(const TypeInfo* ti, MSize size, AllocType allocType, ThreadLocalData* local);
     static inline ObjRef NewPinnedObject(const TypeInfo* ti, MSize size, bool isFinalizer);
+    static inline ObjRef NewPinnedObject(const TypeInfo* ti, MSize size, bool isFinalizer, ThreadLocalData* local);
     static inline ObjRef NewFinalizer(const TypeInfo* ti, MSize size);
+    static inline ObjRef NewFinalizer(const TypeInfo* ti, MSize size, ThreadLocalData* local);
 
     static inline GCTib GetGCInfo(const TypeInfo* ti);
 

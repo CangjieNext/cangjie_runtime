@@ -12,7 +12,12 @@
 namespace MapleRuntime {
 MObject* MObject::NewObject(TypeInfo* ti, MSize size, AllocType allocType)
 {
-    auto addr = HeapManager::Allocate(size, allocType);
+    return NewObject(ti, size, allocType, nullptr);
+}
+
+MObject* MObject::NewObject(TypeInfo* ti, MSize size, AllocType allocType, ThreadLocalData* local)
+{
+    auto addr = HeapManager::Allocate(size, allocType, local);
     if (LIKELY(addr != NULL_ADDRESS)) {
         // Debug: validate allocated address is in heap range
         if (UNLIKELY(!Heap::IsHeapAddress(addr))) {
@@ -34,8 +39,13 @@ MObject* MObject::NewObject(TypeInfo* ti, MSize size, AllocType allocType)
 
 MObject* MObject::NewPinnedObject(TypeInfo* ti, MSize size)
 {
+    return NewPinnedObject(ti, size, nullptr);
+}
+
+MObject* MObject::NewPinnedObject(TypeInfo* ti, MSize size, ThreadLocalData* local)
+{
     CHECK_DETAIL(ti->IsObjectType() == true, "must be object class.");
-    auto addr = HeapManager::Allocate(size, AllocType::PINNED_OBJECT);
+    auto addr = HeapManager::Allocate(size, AllocType::PINNED_OBJECT, local);
     if (LIKELY(addr != NULL_ADDRESS)) {
         (void)SetClassInfo(addr, ti);
     } else {
@@ -51,8 +61,13 @@ MObject* MObject::NewPinnedObject(TypeInfo* ti, MSize size)
 
 MObject* MObject::NewFinalizer(const TypeInfo* ti, MSize size)
 {
+    return NewFinalizer(ti, size, nullptr);
+}
+
+MObject* MObject::NewFinalizer(const TypeInfo* ti, MSize size, ThreadLocalData* local)
+{
     CHECK_DETAIL(ti->IsObjectType() == true, "must be object class.");
-    auto addr = HeapManager::Allocate(size);
+    auto addr = HeapManager::Allocate(size, AllocType::MOVEABLE_OBJECT, local);
     if (LIKELY(addr != NULL_ADDRESS)) {
         (void)SetClassInfo(addr, const_cast<TypeInfo*>(ti));
         reinterpret_cast<BaseObject*>(addr)->OnFinalizerCreated();

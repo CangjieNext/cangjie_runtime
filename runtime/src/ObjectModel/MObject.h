@@ -11,15 +11,20 @@
 #include "Common/BaseObject.h"
 
 namespace MapleRuntime {
+struct ThreadLocalData;
+
 // MObject is the peer structure of MArray, thus not "the" generic structure for runtime.
 // refer to BaseObject instead.
 class ATTR_PACKED(4) MObject : public BaseObject {
 public:
     static MObject* NewFinalizer(const TypeInfo* ti, MSize size);
+    static MObject* NewFinalizer(const TypeInfo* ti, MSize size, ThreadLocalData* local);
 
     // no need to retrieve object size via class metadata, i.e. GetInstanceSize().
     static MObject* NewObject(TypeInfo* ti, MSize objectSize, AllocType);
+    static MObject* NewObject(TypeInfo* ti, MSize objectSize, AllocType, ThreadLocalData* local);
     static MObject* NewPinnedObject(TypeInfo* ti, MSize objectSize);
+    static MObject* NewPinnedObject(TypeInfo* ti, MSize objectSize, ThreadLocalData* local);
 
     // inlined functions
     // Property query

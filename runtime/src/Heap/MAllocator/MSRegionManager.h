@@ -92,6 +92,11 @@ public:
     // Returns the MSRegionInfo* for the new region, or nullptr if OOM.
     MSRegionInfo* TakeRegion(uint8_t cls, const CentralRegionPool& centralPool);
 
+    // Take up to maxCount contiguous fresh MS regions for the same size class.
+    // Returns the number of regions populated into outRegions.
+    uint8_t TakeRegionBatch(uint8_t cls, const CentralRegionPool& centralPool,
+                            uint8_t maxCount, MSRegionInfo** outRegions);
+
     // Take N units for large object (Tier 1, > threshold but <= 4MB).
     // unitCount = ceil(allocSize, UNIT_SIZE).
     // Returns pair: (MSRegionInfo* baseInfo, uintptr_t regionStart), or (nullptr, 0).
