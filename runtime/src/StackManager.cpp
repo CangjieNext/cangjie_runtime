@@ -248,10 +248,12 @@ static void GetEachSoAddrScope(std::vector<CString>& soNameVec)
         if (protPos < 0) {
             continue;
         }
+#ifndef __ANDROID__
         constexpr uint8_t protLen = 4;
         if (lineStr.SubStr(protPos + 1, protLen).Find('x') < 0) {
             continue;
         }
+#endif
         char* baseName = CString::BaseName(lineStr);
         auto it = std::find(soNameVec.begin(), soNameVec.end(), baseName);
         if (it != soNameVec.end()) {
@@ -388,10 +390,12 @@ void InitAddressScopeForCJthreadTrace()
         if (protPos < 0) {
             continue;
         }
+#ifndef __ANDROID__
         constexpr uint8_t protLen = 4;
         if (lineStr.SubStr(protPos + 1, protLen).Find('x') < 0) {
             continue;
         }
+#endif
         char* baseName = CString::BaseName(lineStr);
         if (strcmp(baseName, LIBCANGJIE_CJTHREAD_TRACE ".so\n") == 0) {
             GetSoAddrScope(lineStr, StackManager::traceSoStartAddr, StackManager::traceSoEndAddr);
