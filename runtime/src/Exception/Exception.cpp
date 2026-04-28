@@ -45,8 +45,14 @@ extern "C" uintptr_t MRT_GetTopManagedPC()
 
 void ExceptionHandling::BuildEHFrameInfo()
 {
+    UnwindContext& topUnwindContext = Mutator::GetMutator()->GetUnwindContext();
+    UnwindContext savedTopUnwindContext = topUnwindContext;
+    // EH must start from the current runtime call chain. If a thread is inside a C2R helper,
+    // the saved C2R top context would skip the throwing managed frames and break nested catches.
+    topUnwindContext.GoIntoManagedCode();
     EHStackInfo ehStackInfo;
     ehStackInfo.FillInStackTrace();
+    topUnwindContext = savedTopUnwindContext;
     std::vector<FrameInfo>& stackInfo = ehStackInfo.GetStack();
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     if (UNLIKELY(ENABLE_LOG(EXCEPTION))) {

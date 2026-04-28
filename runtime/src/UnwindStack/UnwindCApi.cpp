@@ -37,6 +37,44 @@ extern "C" void MRT_SaveTopManagedContextToN2CStub(FrameAddress* fa)
     uwContext.GoIntoManagedCode();
 }
 
+extern "C" void MRT_RestoreTopManagedContextFromR2CStub(FrameAddress* fa)
+{
+    UnwindContext& uwContext = Mutator::GetMutator()->GetUnwindContext();
+    R2CSlotData* slotData = R2CFrame::GetSlotData(fa);
+    uwContext.frameInfo.mFrame.SetIP(slotData->pc);
+    uwContext.frameInfo.mFrame.SetFA(slotData->fa);
+    uwContext.SetUnwindContextStatus(slotData->status);
+}
+
+extern "C" void MRT_SaveTopManagedContextToR2CStub(FrameAddress* fa)
+{
+    UnwindContext& uwContext = Mutator::GetMutator()->GetUnwindContext();
+    R2CSlotData* slotData = R2CFrame::GetSlotData(fa);
+    slotData->pc = uwContext.frameInfo.mFrame.GetIP();
+    slotData->fa = uwContext.frameInfo.mFrame.GetFA();
+    slotData->status = uwContext.GetUnwindContextStatus();
+    uwContext.GoIntoManagedCode();
+}
+
+extern "C" void MRT_SaveTopContextToC2RStub(FrameAddress* fa, const uint32_t* pc)
+{
+    UnwindContext& uwContext = Mutator::GetMutator()->GetUnwindContext();
+    C2RSlotData* slotData = C2RFrame::GetSlotData(fa);
+    slotData->pc = uwContext.frameInfo.mFrame.GetIP();
+    slotData->fa = uwContext.frameInfo.mFrame.GetFA();
+    slotData->status = uwContext.GetUnwindContextStatus();
+    uwContext.GoIntoNativeCode(pc, fa);
+}
+
+extern "C" void MRT_RestoreTopContextFromC2RStub(FrameAddress* fa)
+{
+    UnwindContext& uwContext = Mutator::GetMutator()->GetUnwindContext();
+    C2RSlotData* slotData = C2RFrame::GetSlotData(fa);
+    uwContext.frameInfo.mFrame.SetIP(slotData->pc);
+    uwContext.frameInfo.mFrame.SetFA(slotData->fa);
+    uwContext.SetUnwindContextStatus(slotData->status);
+}
+
 extern "C" void MRT_SaveC2NContext(const uint32_t* pc, void* fa, ThreadLocalData* tlData)
 {
     UnwindContext& uwContext = tlData->mutator->GetUnwindContext();
