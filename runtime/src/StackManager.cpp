@@ -34,12 +34,48 @@
 #include "StackMap/StackMap.h"
 #endif
 #include "CpuProfiler/CpuProfiler.h"
+#if defined(__ANDROID__)
+#include <cstring>
+#include <sys/system_properties.h>
+#endif
 
 #define LIBCANGJIE_RUNTIME "libcangjie-runtime"
 #define LIBCANGJIE_STD_CORE "libcangjie-std-core"
 #define LIBCANGJIE_CJTHREAD_TRACE "libcangjie-trace"
 
 namespace MapleRuntime {
+namespace {
+#if defined(__ANDROID__)
+bool IsAndroidEmulator()
+{
+    char value[PROP_VALUE_MAX] = {0};
+
+    auto hasProp = [&](const char* key, const char* needle) -> bool {
+        value[0] = '\0';
+        if (__system_property_get(key, value) <= 0) {
+            return false;
+        }
+        return std::strstr(value, needle) != nullptr;
+    };
+
+    if (hasProp("ro.kernel.qemu", "1")) {
+        return true;
+    }
+    if (hasProp("ro.hardware", "goldfish") || hasProp("ro.hardware", "ranchu")) {
+        return true;
+    }
+    if (hasProp("ro.product.model", "sdk") || hasProp("ro.product.model", "Emulator") ||
+        hasProp("ro.product.model", "Android SDK built for")) {
+        return true;
+    }
+    if (hasProp("ro.product.device", "generic")) {
+        return true;
+    }
+    return false;
+}
+#endif
+} // namespace
+
 #ifdef __arm__
 Uptr STACK_ADDR_MAX = UINT32_MAX;
 #else
@@ -72,6 +108,11 @@ StackManager::StackManager() {}
 
 void StackManager::Init()
 {
+#if defined(__ANDROID__)
+    if (IsAndroidEmulator()) {
+        LOG(RTLOG_FATAL, "Android emulator detected, abort for runtime validation.");
+    }
+#endif
     InitAddressScope();
     InitStackGrowConfig();
 }
