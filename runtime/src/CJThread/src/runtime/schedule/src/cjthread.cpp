@@ -488,7 +488,7 @@ void *CJThreadMexit(struct CJThread *delCJThread)
     TRACE_START_ASYNC(TRACE_CJTHREAD_EXIT, cjthreadId);
 #elif defined (__ANDROID__)
     TRACE_FINISH();
-    TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXIT, cjthreadId));
+    TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXIT, cjthreadId).Str());
 #endif
     struct Schedule *schedule = delCJThread->schedule;
     struct ScheduleCJThread *scheduleCJThread = &schedule->schdCJThread;
@@ -909,7 +909,7 @@ void ExclusiveExecutor(struct Thread* thread, struct CJThread* newCJThread)
     tlData->mutator = mutator;
     mutator->PreparedToRun(tlData);
 #if defined(__ANDROID__)
-    TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXEC, CJThreadGetId(newCJThread)));
+    TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXEC, CJThreadGetId(newCJThread)).Str());
 #endif
     newCJThread->func(newCJThread->argStart, newCJThread->argSize);
     return;
@@ -972,7 +972,7 @@ void ExclusiveRestore(struct CJThread* oldCJThread, struct Thread* thread,
 
 #if defined(__ANDROID__)
     TRACE_FINISH();
-    TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXIT, CJThreadGetId(newCJThread)));
+    TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXIT, CJThreadGetId(newCJThread)).Str());
 #endif
     // Free cjthread and scheduler
     ScheduleAllCJThreadListRemove(newCJThread);
@@ -1020,7 +1020,7 @@ CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *a
 #ifdef __OHOS__
     TRACE_START_ASYNC(TRACE_CJTHREAD_NEW, cjthreadId);
 #elif defined(__ANDROID__)
-    TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_NEW, cjthreadId));
+    TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_NEW, cjthreadId).Str());
 #endif
     int error = 0;
     struct Schedule *currentSchedule;
@@ -1182,7 +1182,7 @@ void *CJThreadMpark(struct CJThread *parkCJThread)
 #ifdef __OHOS__
             TRACE_START_ASYNC(TRACE_CJTHREAD_EXEC, parkCJThread->id);
 #elif defined(__ANDROID__)
-            TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXEC, parkCJThread->id));
+            TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXEC, parkCJThread->id).Str());
 #endif
             CJThreadExecute(parkCJThread, (void**)&tlData->cjthread);
         }
@@ -1220,7 +1220,7 @@ int CJThreadParkInForeignThread(CJThread* cjthread, ParkCallbackFunc func, void 
 #ifdef __OHOS__
     TRACE_START_ASYNC(TRACE_CJTHREAD_EXEC, cjthread->id);
 #elif defined(__ANDROID__)
-    TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXEC, cjthread->id));
+    TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXEC, cjthread->id).Str());
 #endif
 
     // Check the timer.
@@ -1349,7 +1349,7 @@ void *CJThreadMRAW(struct CJThread *parkCJThread)
 #ifdef __OHOS__
             TRACE_START_ASYNC(TRACE_CJTHREAD_EXEC, nextCJThread->id);
 #elif defined (__ANDROID__)
-            TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXEC, nextCJThread->id));
+            TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXEC, nextCJThread->id).Str());
 #endif
 #ifdef __OHOS__
             if (nextCJThread->schedule->scheduleType == SCHEDULE_UI_THREAD) {
@@ -1668,7 +1668,7 @@ void CJThreadSetName(CJThreadHandle handle, const char *name, size_t len)
 #ifdef __OHOS__
     MapleRuntime::ScopedEntryAsyncTrace(TRACE_CJTHREAD_SETNAME, cjthread->id, cjthread->name);
 #elif defined(__ANDROID__)
-    TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_SETNAME, cjthread->id, 1, cjthread->name));
+    TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_SETNAME, cjthread->id, 1, cjthread->name).Str());
     TRACE_FINISH();
 #endif
 }
