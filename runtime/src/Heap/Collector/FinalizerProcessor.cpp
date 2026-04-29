@@ -35,8 +35,9 @@ void FinalizerProcessor::Start()
     size_t stackSize = CangjieRuntime::GetConcurrencyParam().thStackSize * KB; // default 1MB stacksize
 #if defined(__linux__) || defined(hongmeng) || defined(__APPLE__)
     // PTHREAD_STACK_MIN is not supported in Windows.
-    if (stackSize < PTHREAD_STACK_MIN) {
-        stackSize = PTHREAD_STACK_MIN;
+    const size_t minStackSize = static_cast<size_t>(PTHREAD_STACK_MIN);
+    if (stackSize < minStackSize) {
+        stackSize = minStackSize;
     }
 #endif
     CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), "init pthread attr");
@@ -207,7 +208,7 @@ void FinalizerProcessor::ProcessFinalizableList()
         ScopedObjectAccess soa;
         CHECK_DETAIL(ExceptionManager::GetPendingException() == nullptr, "should not exist pending exception");
         RefField<> tmpField(reinterpret_cast<MAddress>(*itor));
-        BaseObject* finalizeObjAddr = Heap::GetHeap().GetBarrier().ReadStaticRef(tmpField);
+        BaseObject* finalizeObjAddr = Heap::GetBarrier().ReadStaticRef(tmpField);
 
         TypeInfo* classInfo = reinterpret_cast<MObject*>(finalizeObjAddr)->GetTypeInfo();
         FuncRef finalizerMethod = classInfo->GetFinalizeMethod();
@@ -274,7 +275,7 @@ void FinalizerProcessor::LogAfterProcess()
 void FinalizerProcessor::RegisterFinalizer(BaseObject* obj)
 {
     RefField<> tmpField(nullptr);
-    Heap::GetHeap().GetBarrier().WriteStaticRef(tmpField, obj);
+    Heap::GetBarrier().WriteStaticRef(tmpField, obj);
     std::lock_guard<std::mutex> l(listLock);
     finalizers.push_back(reinterpret_cast<BaseObject*>(tmpField.GetFieldValue()));
 }
