@@ -968,6 +968,8 @@ void ExclusiveRestore(struct CJThread* oldCJThread, struct Thread* thread,
     // Restore thread data
     thread->cjthread = oldCJThread;
     tlData->mutator = oldCJThread->mutator;
+    ProtectAddrSet(reinterpret_cast<uintptr_t>(oldCJThread->stack.stackGuard));
+
 #if defined(__ANDROID__)
     TRACE_FINISH();
     TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXIT, CJThreadGetId(newCJThread)));
@@ -1417,6 +1419,9 @@ __attribute__((noinline)) int CJThreadResched(void)
     struct CJThread *cjthread = CJThreadGet();
     if (cjthread->schedule->scheduleType == SCHEDULE_FOREIGN_THREAD ||
         cjthread->schedule->scheduleType == SCHEDULE_EXCLUSIVE) {
+        return 0;
+    }
+    if (UNLIKELY(cjthread->boundThread)) {
         return 0;
     }
 #ifdef CANGJIE_ASAN_SUPPORT

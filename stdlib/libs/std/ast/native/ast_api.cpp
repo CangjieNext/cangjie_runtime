@@ -130,7 +130,7 @@ void TryCombineDoubleArrow(MacroCall* macCall, std::vector<Token> inputTokens, s
 } // namespace
 
 extern "C" {
-ParseRes* CJ_AST_Lex(void* fptr, const char* code)
+ParseRes* CJ_AST_Lex(void* fptr, const char* code, int64_t codeLen)
 {
     Cangjie::ICE::TriggerPointSetter iceSetter(CompileStage::PARSE);
     DiagnosticEngine diag;
@@ -138,7 +138,7 @@ ParseRes* CJ_AST_Lex(void* fptr, const char* code)
     diag.SetSourceManager(&sm);
     diag.SetDiagnoseStatus(true);
     diag.SetDisableWarning(true);
-    std::string cangjieCode(code);
+    std::string cangjieCode(code, static_cast<size_t>(codeLen));
     Lexer lex(cangjieCode, diag, sm, false, false);
     std::vector<Token> tokens{};
 
@@ -510,7 +510,7 @@ uint8_t CJ_AST_DiagReport(
     auto invocation = macCall->GetInvocation().get();
 
     auto begin = invocation->atPos;
-    auto end = invocation->identifierPos + invocation->fullName.size();
+    auto end = invocation->macroCallDiagInfo.identifierPos + invocation->macroCallDiagInfo.fullName.size();
     // we optimize the display length because the printout doesn't look good caused by the last NL token.
     auto tokensEndPos = (tokens.empty()) ? end : tokens.back().End();
     if (!tokens.empty() && tokens.back().kind == TokenKind::NL) {

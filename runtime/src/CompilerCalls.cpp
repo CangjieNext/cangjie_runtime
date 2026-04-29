@@ -49,30 +49,19 @@
 #endif
 
 namespace MapleRuntime {
-namespace {
-void LogCurrentManagedStackTraceForOom(size_t maxFrames = 16)
+static bool IsGlobalStruct(const ObjectPtr basePtr, MAddress field)
 {
-    std::vector<uint64_t> liteFrameInfos;
-    StackManager::RecordLiteFrameInfos(liteFrameInfos, maxFrames);
-    if (liteFrameInfos.empty()) {
-        LOG(RTLOG_ERROR, "\t at <stack trace unavailable>");
-        return;
-    }
-
-    std::vector<StackTraceElement> stackTraces;
-    StackManager::GetStackTraceByLiteFrameInfos(liteFrameInfos, stackTraces);
-    if (stackTraces.empty()) {
-        LOG(RTLOG_ERROR, "\t at <stack trace unavailable>");
-        return;
-    }
-
-    for (const auto& ste : stackTraces) {
-        LOG(RTLOG_ERROR, "\t at %s%s%s(%s:%ld)", ste.className.Str(),
-            ste.className.Length() > 0 ? "." : "", ste.methodName.Str(), ste.fileName.Str(), ste.lineNumber);
-    }
+#ifdef __aarch64__
+    // On aarch64, flag of the global variable is recorded on the highest bit of "field".
+    // This has no impact on the consistency of versions.
+    constexpr uintptr_t globalFlag = 1ULL << 63;
+    return (static_cast<uintptr_t>(field) & globalFlag) != 0;
+#else
+    // On other platforms, base pointer of the field with value "1" means it's a global struct.
+    constexpr uintptr_t globalFlag = 0x1;
+    return (reinterpret_cast<uintptr_t>(basePtr) & globalFlag) != 0;
+#endif
 }
-} // namespace
-
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 // These interfaces are used to detect whether the acquireArrayRawData is released in time.
 class PinnedArrayRecorder {
@@ -305,6 +294,11 @@ extern "C" ArrayRef MCC_NewArray64(const TypeInfo* arrayInfo, MIndex nElems)
 
 extern "C" void MCC_WriteRefField(const ObjectPtr ref, const ObjectPtr obj, RefField<false>* field)
 {
+    if (IsGlobalStruct(obj, reinterpret_cast<MAddress>(field))) {
+        VLOG(REPORT, "found and writing a global struct ref field");
+        Heap::GetBarrier().WriteStaticRef(*field, ref);
+        return;
+    }
     if (!Heap::IsHeapAddress(obj)) {
         field->SetTargetObject(ref);
         return;
@@ -312,9 +306,14 @@ extern "C" void MCC_WriteRefField(const ObjectPtr ref, const ObjectPtr obj, RefF
     Heap::GetBarrier().WriteReference(obj, *field, ref);
 }
 
-extern "C" void MCC_WriteStructField(ObjectPtr obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen)
+extern "C" void MCC_WriteStructField(ObjectPtr obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen,
+                                     GCTib gctib)
 {
     CHECK_DETAIL((dst != 0u && src != 0u), "MCC_WriteStructField wrong parameter, dst: %p src: %p", dst, src);
+    if (IsGlobalStruct(obj, dst)) {
+        Heap::GetBarrier().WriteStaticStruct(dst, dstLen, src, srcLen, gctib);
+        return;
+    }
     if (UNLIKELY(!Heap::IsHeapAddress(obj))) {
         CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), dstLen, reinterpret_cast<void*>(src), srcLen) == EOK,
                      "memcpy_s failed");
@@ -544,10 +543,12 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
         sofSize *= frameInfoPairLen;
         // When a stack is folded, an additional element is added behind liteFrameInfos to record the folding.
         // At this time, the size of liteFrameInfos is changed to 3n+1.
-        if (sofSize > 0 && liteFrameInfos.size() > sofSize + coreOrFiltFuncSize + topFiltFrameSize) {
+        if (sofSize > 0 &&
+            liteFrameInfos.size() > static_cast<size_t>(sofSize + coreOrFiltFuncSize + topFiltFrameSize)) {
             liteFrameInfos.erase(liteFrameInfos.begin() + sofSize + coreOrFiltFuncSize, liteFrameInfos.end());
             liteFrameInfos.push_back(static_cast<uint64_t>(SofStackFlag::BOTTOM_FOLDED));
-        } else if (sofSize < 0 && liteFrameInfos.size() > coreOrFiltFuncSize + topFiltFrameSize - sofSize) {
+        } else if (sofSize < 0 &&
+                   liteFrameInfos.size() > static_cast<size_t>(coreOrFiltFuncSize + topFiltFrameSize - sofSize)) {
             sofSize -= topFiltFrameSize;
             liteFrameInfos.erase(liteFrameInfos.begin(), liteFrameInfos.end() + sofSize);
             liteFrameInfos.push_back(static_cast<uint64_t>(SofStackFlag::TOP_FOLDED));
@@ -1577,14 +1578,17 @@ extern "C" void* MCC_GetParameterAnnotations(ParameterInfo* parameterInfo, TypeI
 
 extern "C" ObjectPtr CJ_MCC_ReadRefField(const ObjectPtr obj, RefField<false>* field)
 {
-    return Heap::GetHeap().GetBarrier().ReadReference(obj, *field);
+    if (IsGlobalStruct(obj, reinterpret_cast<MAddress>(field))) {
+        return Heap::GetBarrier().ReadStaticRef(*field);
+    }
+    return Heap::GetBarrier().ReadReference(obj, *field);
 }
 
 extern "C" ObjectPtr CJ_MCC_ReadWeakRef(const ObjectPtr obj, RefField<false>* field)
 {
-    return Heap::GetHeap().GetBarrier().ReadWeakRef(obj, *field);
+    return Heap::GetBarrier().ReadWeakRef(obj, *field);
 }
-extern "C" void CJ_MCC_ReadStructField(MAddress dstPtr, ObjectPtr obj, MAddress srcField, size_t size)
+extern "C" void CJ_MCC_ReadStructField(MAddress dstPtr, ObjectPtr obj, MAddress srcField, size_t size, GCTib gctib)
 {
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     if (Heap::IsHeapAddress((void*)dstPtr)) {
@@ -1594,15 +1598,19 @@ extern "C" void CJ_MCC_ReadStructField(MAddress dstPtr, ObjectPtr obj, MAddress 
     if (size == 0) {
         return;
     }
-    Heap::GetHeap().GetBarrier().ReadStruct(dstPtr, obj, srcField, size);
+    if (IsGlobalStruct(obj, srcField)) {
+        Heap::GetBarrier().ReadStaticStruct(dstPtr, srcField, size, gctib);
+        return;
+    }
+    Heap::GetBarrier().ReadStruct(dstPtr, obj, srcField, size);
 }
 extern "C" ObjectPtr CJ_MCC_ReadStaticRef(RefField<false>* field)
 {
-    return Heap::GetHeap().GetBarrier().ReadStaticRef(*field);
+    return Heap::GetBarrier().ReadStaticRef(*field);
 }
 extern "C" void CJ_MCC_ReadStaticStruct(MAddress dstPtr, size_t dstSize, MAddress srcPtr, size_t srcSize, GCTib gctib)
 {
-    Heap::GetHeap().GetBarrier().ReadStaticStruct(dstPtr, srcPtr, dstSize, gctib);
+    Heap::GetBarrier().ReadStaticStruct(dstPtr, srcPtr, dstSize, gctib);
 }
 extern "C" void* MCC_GetTypeInfoAnnotations(TypeInfo* cls, TypeInfo* arrayTi) { return cls->GetAnnotations(arrayTi); }
 
@@ -1735,6 +1743,25 @@ extern "C" void CJ_MCC_ReadGeneric(const ObjectPtr dstPtr, ObjectPtr obj, void* 
     if (size == 0) {
         return;
     }
+    if (IsGlobalStruct(obj, reinterpret_cast<MAddress>(fieldPtr))) {
+        constexpr size_t stackCache = 256;
+        if (size < stackCache) {
+            char stackMem[stackCache]{ 0 };
+            Heap::GetBarrier().ReadStaticStruct(reinterpret_cast<MAddress>(stackMem),
+                reinterpret_cast<MAddress>(fieldPtr), size, dstPtr->GetGCTib());
+            Heap::GetBarrier().ReadGeneric(dstPtr, nullptr, stackMem, size);
+            return;
+        } else {
+            char* nativeHeapMem = (char*)malloc(size);
+            CHECK_DETAIL(nativeHeapMem != nullptr, "malloc failed when read generic %p -> %p(%p) size %zu",
+                         dstPtr, obj, fieldPtr, size);
+            Heap::GetBarrier().ReadStaticStruct(reinterpret_cast<MAddress>(nativeHeapMem),
+                reinterpret_cast<MAddress>(fieldPtr), size, dstPtr->GetGCTib());
+            Heap::GetBarrier().ReadGeneric(dstPtr, nullptr, nativeHeapMem, size);
+            free(nativeHeapMem);
+            return;
+        }
+    }
     Heap::GetBarrier().ReadGeneric(dstPtr, obj, fieldPtr, size);
 }
 
@@ -1832,7 +1859,6 @@ extern "C" ArrayRef MCC_NewArrayGeneric(const TypeInfo* arrayInfo, MIndex nElems
              arrayInfo->GetName(), nElems);
         LOG(RTLOG_ERROR, "Allocation generic array %s length %zu failed and throw OutOfMemoryError",
             arrayInfo->GetName(), nElems);
-        LogCurrentManagedStackTraceForOom();
         ExceptionManager::CheckAndThrowPendingException("NewArrayGeneric return nullptr");
     }
     return array;
