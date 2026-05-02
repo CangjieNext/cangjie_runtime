@@ -33,9 +33,17 @@ static inline bool IsMSAssistActive(uint8_t gcFastState)
     return (gcFastState & ThreadLocal::GC_FAST_STATE_MS_ASSIST) != 0;
 }
 
-static inline Mutator* ResolveMutatorForAllocFastPath(Mutator* mutator)
+static inline uint8_t ResolveGCFastStateForAllocFastPath(ThreadLocalData* local)
 {
-    return mutator != nullptr ? mutator : Mutator::GetMutator();
+    return local != nullptr ? local->gcFastState : ThreadLocal::GetGCFastState();
+}
+
+static inline Mutator* ResolveMutatorForAllocFastPath(ThreadLocalData* local)
+{
+    if (local != nullptr && local->mutator != nullptr) {
+        return local->mutator;
+    }
+    return Mutator::GetMutator();
 }
 
 AllocBufferMS::~AllocBufferMS()
@@ -77,7 +85,7 @@ void AllocBufferMS::Fini()
 // ============================================================================
 // Allocate — main entry point
 // ============================================================================
-MAddress AllocBufferMS::Allocate(size_t size, Mutator* mutator)
+MAddress AllocBufferMS::Allocate(size_t size, ThreadLocalData* local)
 {
     uint8_t cls = SizeClassInfo::SizeToClass(size);
     if (UNLIKELY(cls >= kNumSizeClasses)) {
@@ -89,7 +97,7 @@ MAddress AllocBufferMS::Allocate(size_t size, Mutator* mutator)
         return addr;
     }
 
-    uint8_t gcFastState = ThreadLocal::GetGCFastState();
+    uint8_t gcFastState = ResolveGCFastStateForAllocFastPath(local);
     if (LIKELY(!IsMSMarkingActive(gcFastState))) {
         gcAssistDebtScaled_ = 0;
         return addr;
@@ -111,7 +119,7 @@ MAddress AllocBufferMS::Allocate(size_t size, Mutator* mutator)
         return addr;
     }
 
-    mutator = ResolveMutatorForAllocFastPath(mutator);
+    Mutator* mutator = ResolveMutatorForAllocFastPath(local);
     if (UNLIKELY(mutator == nullptr)) {
         gcAssistDebtScaled_ = 0;
         return addr;

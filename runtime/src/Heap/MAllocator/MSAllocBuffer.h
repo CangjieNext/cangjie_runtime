@@ -62,7 +62,7 @@ public:
     void Fini();
 
     // Main allocation entry (called from AllocBuffer::Allocate in MS mode)
-    MAddress Allocate(size_t size, Mutator* mutator = nullptr);
+    MAddress Allocate(size_t size, ThreadLocalData* local = nullptr);
 
     // Accumulate pacing debt for a given allocation size and trigger assist if needed.
     // Called by large-object paths that bypass Allocate().

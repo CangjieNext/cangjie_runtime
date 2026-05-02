@@ -193,6 +193,12 @@ public:
     // Layer-3 trigger: notify gc-helper to reclaim empty regions back to OS.
     void MaybeNotifyReclaim();
 
+    // Reclaim pressure is recorded on mutator-side hot paths and drained by the
+    // background alloc-cache refill pass to avoid running reclaim heuristics on
+    // fresh-miss paths.
+    void RecordReclaimPressure();
+    void DrainBackgroundReclaimPressure();
+
     // Inline reclaim: when TakeRegion expands the heap via BUMP, synchronously
     // release one empty-cache region to keep committed bytes stable.
     void InlineReclaimForBalance(const CentralRegionPool& pool);
@@ -234,6 +240,8 @@ private:
     uintptr_t heapStart_ = 0;              // First heap region address (immutable)
     size_t unitSize_ = 0;                  // = UNIT_SIZE (system page size)
     size_t unitsPerMSRegion_ = 0;          // = MS_REGION_SIZE / UNIT_SIZE
+
+    std::atomic<bool> pendingReclaimPressure_{false};
 
     // Unified released-span entry for MSGC heap management.
     FreeManager freeManager_;

@@ -285,7 +285,7 @@ MAddress RegionSpaceMS::TryAllocateRegularObjectOnce(size_t allocSize, ThreadLoc
         msBuffer = AllocBufferMS::GetOrCreateAllocBufferMS(local);
     }
     if (msBuffer != nullptr) {
-        MAddress addr = msBuffer->Allocate(allocSize);
+        MAddress addr = msBuffer->Allocate(allocSize, local);
         if (LIKELY(addr != 0)) {
             return addr;
         }

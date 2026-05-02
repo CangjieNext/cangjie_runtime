@@ -300,6 +300,20 @@ void MSRegionManager::MaybeNotifyReclaim()
     }
 }
 
+void MSRegionManager::RecordReclaimPressure()
+{
+    if (!pendingReclaimPressure_.exchange(true, std::memory_order_relaxed)) {
+        Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().NotifyToFeedAllocBuffers();
+    }
+}
+
+void MSRegionManager::DrainBackgroundReclaimPressure()
+{
+    if (pendingReclaimPressure_.exchange(false, std::memory_order_relaxed)) {
+        MaybeNotifyReclaim();
+    }
+}
+
 void MSRegionManager::MaybeNotifyMark(HeuTriggerKind triggerKind, const CentralRegionPool* centralPool,
                                         uint8_t cls, bool bumpSource)
 {
@@ -539,7 +553,7 @@ MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& 
     if (!kDisableSweepOnRegionMissProbe) {
         MaybeNotifySweep(&centralPool, cls);
     }
-    MaybeNotifyReclaim();
+    RecordReclaimPressure();
     MaybeNotifyMark(HeuTriggerKind::SMALL_ALLOC, &centralPool, cls, source == AllocSource::BUMP);
 
     MRT_ASSERT(regionIdx < freeManager_.GetMaxVirtualRegionCount(), "region index out of bounds");
@@ -590,7 +604,7 @@ MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& r
         }
     }
 
-    MaybeNotifyReclaim();
+    RecordReclaimPressure();
     MaybeNotifyMark(HeuTriggerKind::LARGE_ALLOC, nullptr, 0, source == AllocSource::BUMP);
 
     regionStart = RegionIdxToAddr(regionIdx);

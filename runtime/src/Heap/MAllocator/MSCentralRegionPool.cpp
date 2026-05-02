@@ -441,7 +441,7 @@ void CentralRegionPool::PushEmptySweptRegion(MSRegionInfo* region)
     size_t highWatermark = GetEmptyCacheHighWatermarkRegions();
     bool crossedHighWatermark = previousCount < highWatermark && (previousCount + 1) >= highWatermark;
     if (crossedHighWatermark) {
-        msRegionManager_->MaybeNotifyReclaim();
+        msRegionManager_->RecordReclaimPressure();
     }
 }
 
@@ -1087,6 +1087,12 @@ void CentralRegionPool::BackgroundFillAllocCaches()
         if (buffer != nullptr) {
             buffer->BackgroundFillCache();
         }
+    }
+
+    if (msRegionManager_ != nullptr) {
+        // Drain reclaim pressure on the gc-helper thread so reclaim heuristics
+        // stay off the fresh-miss path without delaying mark heuristics.
+        msRegionManager_->DrainBackgroundReclaimPressure();
     }
 }
 
