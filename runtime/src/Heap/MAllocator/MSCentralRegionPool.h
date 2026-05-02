@@ -393,9 +393,9 @@ public:
     // ===== Pre-STW bitmap clearing (MarkSetup fast path) =====
 
     // Stop background sweep and disable lazy sweep, then wait for all
-    // in-flight sweeps (bg + lazy) to fully quiesce. Current MarkSetup does
-    // not force-finish the remaining unswept backlog before the next GC; it
-    // only guarantees no SweepRegion is still running before bitmap clearing.
+    // in-flight sweeps (bg + lazy) to fully quiesce. Any remaining central
+    // unswept backlog is synchronously finished before bitmap clearing, so the
+    // next mark setup does not reclassify central unswept lists without a real sweep.
     // Must be called before clearing markBitmaps to avoid data races with
     // SweepRegion reading markBitmap.
     void StopAndWaitForAllSweep();

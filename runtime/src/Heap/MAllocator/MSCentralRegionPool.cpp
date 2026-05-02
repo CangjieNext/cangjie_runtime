@@ -627,6 +627,21 @@ void CentralRegionPool::PrepareForSweep()
 bool CentralRegionPool::BackgroundSweep()
 {
     bgSweepRunning_.store(true, std::memory_order_release);
+    auto finish = [this](bool pendingWork) {
+        bgSweepRunning_.store(false, std::memory_order_release);
+        return pendingWork;
+    };
+
+    if (stopSweepRequested_.load(std::memory_order_acquire)) {
+        return finish(false);
+    }
+
+    if (GetTotalUnsweptCount() == 0) {
+        sweepDone_.store(true, std::memory_order_release);
+        msRegionManager_->MaybeNotifyMark(MSRegionManager::HeuTriggerKind::BG_SWEEP_EXHAUSTED, this);
+        return finish(false);
+    }
+
     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
     uint64_t t0 = TimeUtil::MicroSeconds();
 
@@ -654,7 +669,9 @@ bool CentralRegionPool::BackgroundSweep()
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
         // Check stop request at each size class boundary
         if (stopSweepRequested_.load(std::memory_order_acquire)) {
-            VLOG(REPORT, "[MS-GC] BackgroundSweep: stop requested at cls=%u", (unsigned)cls);
+            if (sweptInSlice > 0) {
+                VLOG(REPORT, "[MS-GC] BackgroundSweep: stop requested at cls=%u", (unsigned)cls);
+            }
             break;
         }
 
@@ -662,13 +679,13 @@ bool CentralRegionPool::BackgroundSweep()
 
         // Sweep partialUnswept
         if (!SweepUnsweptList(bucket, bucket.partialUnswept, sg, sweptInSlice, maxRegions, deadlineUs)) {
-            pendingWork = true;
+            pendingWork = !stopSweepRequested_.load(std::memory_order_acquire);
             break;
         }
 
         // Sweep fullUnswept
         if (!SweepUnsweptList(bucket, bucket.fullUnswept, sg, sweptInSlice, maxRegions, deadlineUs)) {
-            pendingWork = true;
+            pendingWork = !stopSweepRequested_.load(std::memory_order_acquire);
             break;
         }
 
@@ -680,12 +697,14 @@ bool CentralRegionPool::BackgroundSweep()
 
     uint64_t elapsed = TimeUtil::MicroSeconds() - t0;
     sweepStats_.bgSweepTimeUs.fetch_add(elapsed, std::memory_order_relaxed);
-    VLOG(REPORT, "[MS-GC] BackgroundSweep slice: swept=%zu regions, emptied=%zu, elapsed=%sus, pending=%s, mode=%s",
-         sweptInSlice,
-         sweepStats_.emptiedRegions.load(std::memory_order_relaxed),
-         Pretty(elapsed).Str(),
-         pendingWork ? "yes" : "no",
-         underPressure ? "pressure" : "normal");
+    if (sweptInSlice > 0 || pendingWork) {
+        VLOG(REPORT, "[MS-GC] BackgroundSweep slice: swept=%zu regions, emptied=%zu, elapsed=%sus, pending=%s, mode=%s",
+             sweptInSlice,
+             sweepStats_.emptiedRegions.load(std::memory_order_relaxed),
+             Pretty(elapsed).Str(),
+             pendingWork ? "yes" : "no",
+             underPressure ? "pressure" : "normal");
+    }
 
     if (!pendingWork && !stopSweepRequested_.load(std::memory_order_acquire)) {
         sweepDone_.store(true, std::memory_order_release);
@@ -693,8 +712,7 @@ bool CentralRegionPool::BackgroundSweep()
             msRegionManager_->MaybeNotifyMark(MSRegionManager::HeuTriggerKind::BG_SWEEP_EXHAUSTED, this);
         }
     }
-    bgSweepRunning_.store(false, std::memory_order_release);
-    return pendingWork;
+    return finish(pendingWork);
 }
 
 bool CentralRegionPool::SweepUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint32_t sg,
@@ -1169,6 +1187,10 @@ void CentralRegionPool::StopAndWaitForAllSweep()
     //    is running and no new one can start.
     while (activeLazySweepCount_.load(std::memory_order_acquire) > 0) {
         std::this_thread::yield();
+    }
+
+    if (GetTotalUnsweptCount() > 0) {
+        ForceFinishAllUnswept();
     }
 }
 
