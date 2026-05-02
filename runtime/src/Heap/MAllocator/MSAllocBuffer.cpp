@@ -95,13 +95,8 @@ MAddress AllocBufferMS::Allocate(size_t size, Mutator* mutator)
         return addr;
     }
 
-    BaseObject* obj = reinterpret_cast<BaseObject*>(addr);
     MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
-    if (LIKELY(collector != nullptr)) {
-        collector->MarkObject(obj);
-    } else {
-        // Fall back to the generic path if the active collector snapshot is unavailable.
-        Heap::GetHeap().GetCollector().MarkNewObject(obj);
+    if (UNLIKELY(collector == nullptr)) {
         gcAssistDebtScaled_ = 0;
         return addr;
     }

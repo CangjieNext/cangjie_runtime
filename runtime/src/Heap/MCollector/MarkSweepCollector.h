@@ -132,7 +132,7 @@ public:
     void PreGarbageCollection(bool isConcurrent) override;
     void PostGarbageCollection(uint64_t gcIndex) override;
 
-    // ── MarkNewObject: mark newly allocated objects black during marking phases ──
+    // ── MarkNewObject: keep new objects live and defer one scan until mark termination ──
     void MarkNewObject(BaseObject* obj) override;
 
     // ── Mutator assist interface (Step 2.2 §4) ──

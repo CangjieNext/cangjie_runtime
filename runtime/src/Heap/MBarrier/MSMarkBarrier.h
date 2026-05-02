@@ -24,8 +24,8 @@ class Mutator;
 //     enqueue(new)         // discover newly linked edge target
 //
 // Both old/new refs try to discover the target object and enqueue it into the
-// per-mutator concurrent mark queue. Newly allocated objects are handled by
-// MarkNewObject() on the allocation path.
+// per-mutator concurrent mark queue. Newly allocated objects are marked after
+// their header is initialized and scanned once during mark termination.
 class MSMarkBarrier : public Barrier {
 public:
     explicit MSMarkBarrier(Collector& collector) : Barrier(collector) {}
