@@ -15,13 +15,143 @@
 #include "Collector/CollectorResources.h"
 #include "Heap/MCollector/MarkSweepCollector.h"
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <cstdio>
 
 namespace MapleRuntime {
 
+namespace {
+enum class MSAllocRefillConsumer : uint8_t {
+    SLOW_ALLOC = 0,
+    BACKGROUND_FILL = 1,
+};
+
+enum class MSAllocRefillSource : uint8_t {
+    CACHED_HIT = 0,
+    PARTIAL_SWEPT,
+    PARTIAL_UNSWEPT,
+    FULL_UNSWEPT,
+    EMPTY_REBIND,
+    FRESH,
+    FAILED,
+};
+
+struct MSAllocSlowPathCounters {
+    std::atomic<uint64_t> slowPathCalls {0};
+    std::atomic<uint64_t> cachedMisses {0};
+    std::atomic<uint64_t> slowSweepNotifyCalls {0};
+    std::atomic<uint64_t> slowFeedNotifyCalls {0};
+    std::atomic<uint64_t> centralSweepNotifyCalls {0};
+    std::atomic<uint64_t> refillCounters[2][7] {};
+};
+
+MSAllocSlowPathCounters g_msAllocSlowPathCounters;
+
+constexpr size_t ToIndex(MSAllocRefillConsumer consumer)
+{
+    return static_cast<size_t>(consumer);
+}
+
+constexpr size_t ToIndex(MSAllocRefillSource source)
+{
+    return static_cast<size_t>(source);
+}
+
+MSAllocRefillSource ToRefillSource(MSRegionAcquireSource source)
+{
+    switch (source) {
+        case MSRegionAcquireSource::PARTIAL_SWEPT:
+            return MSAllocRefillSource::PARTIAL_SWEPT;
+        case MSRegionAcquireSource::PARTIAL_UNSWEPT:
+            return MSAllocRefillSource::PARTIAL_UNSWEPT;
+        case MSRegionAcquireSource::FULL_UNSWEPT:
+            return MSAllocRefillSource::FULL_UNSWEPT;
+        case MSRegionAcquireSource::EMPTY_REBIND:
+            return MSAllocRefillSource::EMPTY_REBIND;
+        case MSRegionAcquireSource::NONE:
+        default:
+            return MSAllocRefillSource::FAILED;
+    }
+}
+
+void RecordRefillSource(MSAllocRefillConsumer consumer, MSAllocRefillSource source)
+{
+    g_msAllocSlowPathCounters.refillCounters[ToIndex(consumer)][ToIndex(source)].fetch_add(1,
+        std::memory_order_relaxed);
+}
+}
+
 static constexpr bool kDisableMutatorAssistProbe = false;
 static constexpr bool kDisableSweepOnRegionMissProbe = false;
+constexpr uint8_t kWarmCacheHeatThreshold = 3;
+constexpr uint8_t kHotCacheHeatThreshold = 6;
+constexpr uint8_t kExpandedCacheClassRankLimit = 4;
+constexpr uint8_t kMaxCacheClassRankForFourSlots = 2;
+constexpr uint8_t kHeatBoostOnCacheMiss = 2;
+constexpr uint8_t kHeatBoostOnCachedHit = 1;
+constexpr uint8_t kHeatBoostOnCentralRefill = 1;
+constexpr uint8_t kHeatCoolOnSaturatedCache = 1;
+constexpr uint8_t kHeatCoolOnIdleScan = 1;
+
+uint8_t SaturatingAddU8(uint8_t value, uint8_t delta)
+{
+    return value > UINT8_MAX - delta ? UINT8_MAX : static_cast<uint8_t>(value + delta);
+}
+
+uint8_t SaturatingSubU8(uint8_t value, uint8_t delta)
+{
+    return value < delta ? 0 : static_cast<uint8_t>(value - delta);
+}
+
+void MSAllocBuffer_RecordCentralSweepNotify()
+{
+    g_msAllocSlowPathCounters.centralSweepNotifyCalls.fetch_add(1, std::memory_order_relaxed);
+}
+
+extern "C" void MSAllocBuffer_DumpAndResetSlowAllocCounters()
+{
+    uint64_t slowPathCalls = g_msAllocSlowPathCounters.slowPathCalls.exchange(0, std::memory_order_relaxed);
+    uint64_t cachedMisses = g_msAllocSlowPathCounters.cachedMisses.exchange(0, std::memory_order_relaxed);
+    uint64_t slowSweepNotifyCalls =
+        g_msAllocSlowPathCounters.slowSweepNotifyCalls.exchange(0, std::memory_order_relaxed);
+    uint64_t slowFeedNotifyCalls =
+        g_msAllocSlowPathCounters.slowFeedNotifyCalls.exchange(0, std::memory_order_relaxed);
+    uint64_t centralSweepNotifyCalls =
+        g_msAllocSlowPathCounters.centralSweepNotifyCalls.exchange(0, std::memory_order_relaxed);
+
+    uint64_t refillCounters[2][7] = {};
+    for (size_t consumer = 0; consumer < 2; ++consumer) {
+        for (size_t source = 0; source < 7; ++source) {
+            refillCounters[consumer][source] =
+                g_msAllocSlowPathCounters.refillCounters[consumer][source].exchange(0, std::memory_order_relaxed);
+        }
+    }
+
+    VLOG(REPORT,
+         "[MS-ALLOC-MISS] slow_calls=%llu cached_hit=%llu cached_miss=%llu slow_sweep_notify=%llu "
+         "slow_feed_notify=%llu central_sweep_notify=%llu slow_partial_swept=%llu "
+         "slow_partial_unswept=%llu slow_full_unswept=%llu slow_empty_rebind=%llu slow_fresh=%llu slow_failed=%llu "
+         "bg_partial_swept=%llu bg_partial_unswept=%llu bg_full_unswept=%llu bg_empty_rebind=%llu bg_fresh=%llu bg_failed=%llu",
+         (unsigned long long)slowPathCalls,
+         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::SLOW_ALLOC)][ToIndex(MSAllocRefillSource::CACHED_HIT)],
+         (unsigned long long)cachedMisses,
+         (unsigned long long)slowSweepNotifyCalls,
+         (unsigned long long)slowFeedNotifyCalls,
+         (unsigned long long)centralSweepNotifyCalls,
+         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::SLOW_ALLOC)][ToIndex(MSAllocRefillSource::PARTIAL_SWEPT)],
+         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::SLOW_ALLOC)][ToIndex(MSAllocRefillSource::PARTIAL_UNSWEPT)],
+         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::SLOW_ALLOC)][ToIndex(MSAllocRefillSource::FULL_UNSWEPT)],
+         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::SLOW_ALLOC)][ToIndex(MSAllocRefillSource::EMPTY_REBIND)],
+         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::SLOW_ALLOC)][ToIndex(MSAllocRefillSource::FRESH)],
+         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::SLOW_ALLOC)][ToIndex(MSAllocRefillSource::FAILED)],
+         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::BACKGROUND_FILL)][ToIndex(MSAllocRefillSource::PARTIAL_SWEPT)],
+         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::BACKGROUND_FILL)][ToIndex(MSAllocRefillSource::PARTIAL_UNSWEPT)],
+         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::BACKGROUND_FILL)][ToIndex(MSAllocRefillSource::FULL_UNSWEPT)],
+         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::BACKGROUND_FILL)][ToIndex(MSAllocRefillSource::EMPTY_REBIND)],
+         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::BACKGROUND_FILL)][ToIndex(MSAllocRefillSource::FRESH)],
+         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::BACKGROUND_FILL)][ToIndex(MSAllocRefillSource::FAILED)]);
+}
 
 static inline bool IsMSMarkingActive(uint8_t gcFastState)
 {
@@ -80,6 +210,125 @@ void AllocBufferMS::Fini()
         central_->RemoveAllocBufferMS(this);
     }
     central_ = nullptr;
+}
+
+uint8_t AllocBufferMS::BumpCacheMiss(uint8_t cls)
+{
+    uint8_t miss = cacheMiss_[cls].load(std::memory_order_relaxed);
+    miss = SaturatingAddU8(miss, 1);
+    cacheMiss_[cls].store(miss, std::memory_order_relaxed);
+    return miss;
+}
+
+void AllocBufferMS::SetCacheMiss(uint8_t cls, uint8_t value)
+{
+    cacheMiss_[cls].store(value, std::memory_order_relaxed);
+}
+
+void AllocBufferMS::BoostCacheHeat(uint8_t cls, uint8_t delta)
+{
+    uint8_t heat = cacheHeat_[cls].load(std::memory_order_relaxed);
+    cacheHeat_[cls].store(SaturatingAddU8(heat, delta), std::memory_order_relaxed);
+}
+
+void AllocBufferMS::CoolCacheHeat(uint8_t cls, uint8_t delta)
+{
+    uint8_t heat = cacheHeat_[cls].load(std::memory_order_relaxed);
+    cacheHeat_[cls].store(SaturatingSubU8(heat, delta), std::memory_order_relaxed);
+}
+
+uint8_t AllocBufferMS::CountCachedRegions(uint8_t cls) const
+{
+    uint8_t cachedCount = 0;
+    for (uint8_t slot = 0; slot < kCachedRegionSlots; ++slot) {
+        if (cachedRegion_[cls][slot].load(std::memory_order_relaxed) != nullptr) {
+            ++cachedCount;
+        }
+    }
+    return cachedCount;
+}
+
+uint16_t AllocBufferMS::GetHotClassScore(uint8_t cls) const
+{
+    uint8_t heat = cacheHeat_[cls].load(std::memory_order_relaxed);
+    uint8_t miss = cacheMiss_[cls].load(std::memory_order_relaxed);
+    return static_cast<uint16_t>(heat) * 16 + miss;
+}
+
+uint8_t AllocBufferMS::GetHotClassRank(uint8_t cls) const
+{
+    uint16_t myScore = GetHotClassScore(cls);
+    if (myScore == 0) {
+        return kNumSizeClasses;
+    }
+
+    uint8_t rank = 0;
+    for (uint8_t other = 0; other < kNumSizeClasses; ++other) {
+        if (other == cls) {
+            continue;
+        }
+        uint16_t otherScore = GetHotClassScore(other);
+        if (otherScore > myScore || (otherScore == myScore && other < cls)) {
+            ++rank;
+        }
+    }
+    return rank;
+}
+
+uint8_t AllocBufferMS::GetTargetCachedSlots(uint8_t cls) const
+{
+    uint8_t heat = cacheHeat_[cls].load(std::memory_order_relaxed);
+    uint8_t rank = GetHotClassRank(cls);
+    if (heat >= kHotCacheHeatThreshold && rank < kMaxCacheClassRankForFourSlots) {
+        return kCachedRegionSlots;
+    }
+    if (heat >= kWarmCacheHeatThreshold && rank < kExpandedCacheClassRankLimit) {
+        return kBaseCachedRegionSlots + 1;
+    }
+    return kBaseCachedRegionSlots;
+}
+
+uint8_t AllocBufferMS::GetCacheFillThreshold(uint8_t cls) const
+{
+    return GetTargetCachedSlots(cls) > kBaseCachedRegionSlots ? 1 : 2;
+}
+
+uint16_t AllocBufferMS::GetBackgroundFillPriority(uint8_t cls) const
+{
+    uint8_t targetSlots = GetTargetCachedSlots(cls);
+    uint8_t cachedCount = CountCachedRegions(cls);
+    uint8_t miss = cacheMiss_[cls].load(std::memory_order_relaxed);
+    bool needsBaseRefill = miss >= GetCacheFillThreshold(cls);
+    bool needsHotSpare = targetSlots > kBaseCachedRegionSlots && cachedCount < targetSlots;
+    if (!needsBaseRefill && !needsHotSpare) {
+        return 0;
+    }
+
+    uint8_t deficit = targetSlots > cachedCount ? static_cast<uint8_t>(targetSlots - cachedCount) : 0;
+    return static_cast<uint16_t>(deficit) * 1024 + static_cast<uint16_t>(GetHotClassScore(cls)) * 4 + miss;
+}
+
+void AllocBufferMS::NotifyBackgroundFillIfNeeded(uint8_t cls)
+{
+    uint8_t targetSlots = GetTargetCachedSlots(cls);
+    if (targetSlots <= kBaseCachedRegionSlots) {
+        return;
+    }
+    if (CountCachedRegions(cls) >= targetSlots) {
+        return;
+    }
+    Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().NotifyToFeedAllocBuffers();
+}
+
+void AllocBufferMS::TrimExtraCachedRegions(uint8_t cls)
+{
+    uint8_t targetSlots = GetTargetCachedSlots(cls);
+    for (uint8_t slot = targetSlots; slot < kCachedRegionSlots; ++slot) {
+        MSRegionInfo* extra = cachedRegion_[cls][slot].exchange(nullptr, std::memory_order_acquire);
+        if (extra != nullptr) {
+            ReturnRegionToCentral(extra, cls);
+        }
+    }
 }
 
 // ============================================================================
@@ -191,6 +440,9 @@ MAddress AllocBufferMS::FastAlloc(uint8_t cls)
 // ============================================================================
 MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
 {
+    g_msAllocSlowPathCounters.slowPathCalls.fetch_add(1, std::memory_order_relaxed);
+    bool backgroundFillRequested = false;
+
     // Step 1: Return the exhausted Region to the central pool
     if (activeRegions_[cls] != nullptr) {
         ReturnRegion(cls);
@@ -198,18 +450,23 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
 
     // O2: Check thread-local cache before going to CentralRegionPool
     MSRegionInfo* newRegion = TakeCachedRegion(cls);
-    if (newRegion == nullptr) {
-        if (!kDisableSweepOnRegionMissProbe && central_ != nullptr) {
-            central_->MaybeNotifySweep(cls);
-        }
-        if (cacheMiss_[cls] < UINT8_MAX) {
-            ++cacheMiss_[cls];
-        }
-        if (cacheMiss_[cls] >= kCacheFillThreshold) {
+    if (newRegion != nullptr) {
+        BoostCacheHeat(cls, kHeatBoostOnCachedHit);
+        RecordRefillSource(MSAllocRefillConsumer::SLOW_ALLOC, MSAllocRefillSource::CACHED_HIT);
+    } else {
+        g_msAllocSlowPathCounters.cachedMisses.fetch_add(1, std::memory_order_relaxed);
+        BoostCacheHeat(cls, kHeatBoostOnCacheMiss);
+        uint8_t missCount = BumpCacheMiss(cls);
+        if (missCount >= GetCacheFillThreshold(cls)) {
+            g_msAllocSlowPathCounters.slowFeedNotifyCalls.fetch_add(1, std::memory_order_relaxed);
             Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().NotifyToFeedAllocBuffers();
+            backgroundFillRequested = true;
         }
         // Step 2: Get a new Region from CentralRegionPool
         newRegion = RefillFromCentral(cls);
+        if (newRegion != nullptr) {
+            BoostCacheHeat(cls, kHeatBoostOnCentralRefill);
+        }
     }
     if (UNLIKELY(newRegion == nullptr)) {
         return 0;  // OOM or GC needed — caller handles
@@ -252,6 +509,9 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
 
     // Step 3: Set as active Region
     activeRegions_[cls] = newRegion;
+    if (!backgroundFillRequested) {
+        NotifyBackgroundFillIfNeeded(cls);
+    }
 
     // Backup cache refill is handled by BackgroundFillCache after repeated misses.
     // Avoid doing another synchronous GetRegion() here: on case1 this can turn one
@@ -293,9 +553,10 @@ MSRegionInfo* AllocBufferMS::TakeCachedRegion(uint8_t cls)
     return nullptr;
 }
 
-bool AllocBufferMS::TryCacheRegion(uint8_t cls, MSRegionInfo* region)
+bool AllocBufferMS::TryCacheRegion(uint8_t cls, MSRegionInfo* region, uint8_t slotLimit)
 {
-    for (uint8_t slot = 0; slot < kCachedRegionSlots; ++slot) {
+    slotLimit = std::min(slotLimit, kCachedRegionSlots);
+    for (uint8_t slot = 0; slot < slotLimit; ++slot) {
         MSRegionInfo* expected = nullptr;
         if (cachedRegion_[cls][slot].compare_exchange_strong(expected, region,
                 std::memory_order_release, std::memory_order_relaxed)) {
@@ -333,20 +594,28 @@ void AllocBufferMS::ReturnRegionToCentral(MSRegionInfo* region, uint8_t cls)
 // ============================================================================
 // RefillFromCentral — get a Region from CentralRegionPool
 // ============================================================================
-MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls)
+MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls, bool backgroundFill)
 {
+    MSAllocRefillConsumer consumer =
+        backgroundFill ? MSAllocRefillConsumer::BACKGROUND_FILL : MSAllocRefillConsumer::SLOW_ALLOC;
+
     if (UNLIKELY(central_ == nullptr)) {
+        RecordRefillSource(consumer, MSAllocRefillSource::FAILED);
         return nullptr;
     }
 
     // Priority 1: partial Region with free slots (from CentralRegionPool's 4-list)
-    MSRegionInfo* region = central_->GetRegion(cls);
+    MSRegionAcquireSource source = MSRegionAcquireSource::NONE;
+    MSRegionInfo* region = central_->GetRegion(cls, &source);
     if (region != nullptr) {
+        RecordRefillSource(consumer, ToRefillSource(source));
         return region;
     }
 
     // Priority 2: brand-new Region from RegionManager
     region = central_->GetFreshRegion(cls);
+    RecordRefillSource(consumer,
+        region != nullptr ? MSAllocRefillSource::FRESH : MSAllocRefillSource::FAILED);
     return region;
 }
 
@@ -379,42 +648,59 @@ void AllocBufferMS::BackgroundFillCache()
     if (UNLIKELY(central_ == nullptr)) {
         return;
     }
-    for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
-        if (cacheMiss_[cls] < kCacheFillThreshold) {
+
+    std::array<uint8_t, kNumSizeClasses> classOrder {};
+    for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
+        classOrder[cls] = cls;
+    }
+    std::sort(classOrder.begin(), classOrder.end(), [this](uint8_t lhs, uint8_t rhs) {
+        uint16_t lhsPriority = GetBackgroundFillPriority(lhs);
+        uint16_t rhsPriority = GetBackgroundFillPriority(rhs);
+        if (lhsPriority != rhsPriority) {
+            return lhsPriority > rhsPriority;
+        }
+        return lhs < rhs;
+    });
+
+    for (uint8_t cls : classOrder) {
+        TrimExtraCachedRegions(cls);
+
+        uint8_t targetSlots = GetTargetCachedSlots(cls);
+        if (CountCachedRegions(cls) >= targetSlots) {
+            SetCacheMiss(cls, 0);
+            CoolCacheHeat(cls, kHeatCoolOnSaturatedCache);
             continue;
         }
+
+        if (GetBackgroundFillPriority(cls) == 0) {
+            CoolCacheHeat(cls, kHeatCoolOnIdleScan);
+            continue;
+        }
+
         bool cacheFull = true;
-        for (uint8_t slot = 0; slot < kCachedRegionSlots; ++slot) {
+        for (uint8_t slot = 0; slot < targetSlots; ++slot) {
             if (cachedRegion_[cls][slot].load(std::memory_order_relaxed) != nullptr) {
                 continue;
             }
             cacheFull = false;
-            MSRegionInfo* region = central_->GetRegion(cls);
+            MSRegionInfo* region = RefillFromCentral(cls, true);
             if (region == nullptr) {
-                if (!kDisableSweepOnRegionMissProbe) {
-                    central_->MaybeNotifySweep(cls);
-                }
                 break;
             }
-            if (!TryCacheRegion(cls, region)) {
+            if (!TryCacheRegion(cls, region, targetSlots)) {
                 central_->ReturnPartialRegion(region, cls);
                 break;
             }
         }
         if (cacheFull) {
-            cacheMiss_[cls] = 0;
+            SetCacheMiss(cls, 0);
+            CoolCacheHeat(cls, kHeatCoolOnSaturatedCache);
             continue;
         }
 
-        bool allSlotsFilled = true;
-        for (uint8_t slot = 0; slot < kCachedRegionSlots; ++slot) {
-            if (cachedRegion_[cls][slot].load(std::memory_order_relaxed) == nullptr) {
-                allSlotsFilled = false;
-                break;
-            }
-        }
-        if (allSlotsFilled) {
-            cacheMiss_[cls] = 0;
+        if (CountCachedRegions(cls) >= targetSlots) {
+            SetCacheMiss(cls, 0);
+            CoolCacheHeat(cls, kHeatCoolOnSaturatedCache);
         }
     }
 }

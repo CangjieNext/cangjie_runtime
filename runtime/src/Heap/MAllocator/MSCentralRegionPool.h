@@ -24,6 +24,14 @@ namespace MapleRuntime {
 class MSRegionManager;
 class AllocBufferMS;
 
+enum class MSRegionAcquireSource : uint8_t {
+    NONE = 0,
+    PARTIAL_SWEPT,
+    PARTIAL_UNSWEPT,
+    FULL_UNSWEPT,
+    EMPTY_REBIND,
+};
+
 // Sweep statistics accumulated across a GC cycle, persisted until next GC.
 struct MSSweepStats {
     std::atomic<size_t> bgSweptRegions{0};    // regions swept by background sweep
@@ -287,7 +295,7 @@ public:
     // Get a Region with free slots for the given size class.
     // Priority: partialSwept → partialUnswept (lazy sweep) → fullUnswept (lazy sweep)
     //        → emptySweptCache(rebind) → fresh.
-    MSRegionInfo* GetRegion(uint8_t cls);
+    MSRegionInfo* GetRegion(uint8_t cls, MSRegionAcquireSource* source = nullptr);
 
     // Get a brand-new Region from RegionManager, initialized for the given size class.
     MSRegionInfo* GetFreshRegion(uint8_t cls);

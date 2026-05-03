@@ -20,6 +20,9 @@
 
 namespace MapleRuntime {
 
+void MSAllocBuffer_RecordCentralSweepNotify();
+extern "C" void MSAllocBuffer_DumpAndResetSlowAllocCounters();
+
 class CentralRegionPool;
 class Mutator;
 struct ThreadLocalData;
@@ -116,7 +119,8 @@ public:
     PerPGCWork& GetGCWork() { return gcWork_; }
 
 private:
-    static constexpr uint8_t kCachedRegionSlots = 2;
+    static constexpr uint8_t kCachedRegionSlots = 4;
+    static constexpr uint8_t kBaseCachedRegionSlots = 2;
 
     // LLVM fast-path compatibility: must be at offset 0 (same as AllocBuffer::tlRegion).
     // Set to NullRegion() so fast-path allocation always fails → slow path.
@@ -129,13 +133,26 @@ private:
     MAddress SlowAlloc(uint8_t cls);
 
     // Refill: get a Region from CentralRegionPool
-    MSRegionInfo* RefillFromCentral(uint8_t cls);
+    MSRegionInfo* RefillFromCentral(uint8_t cls, bool backgroundFill = false);
+
+    uint8_t BumpCacheMiss(uint8_t cls);
+    void SetCacheMiss(uint8_t cls, uint8_t value);
+    void BoostCacheHeat(uint8_t cls, uint8_t delta);
+    void CoolCacheHeat(uint8_t cls, uint8_t delta);
+    uint8_t CountCachedRegions(uint8_t cls) const;
+    uint16_t GetHotClassScore(uint8_t cls) const;
+    uint8_t GetHotClassRank(uint8_t cls) const;
+    uint8_t GetTargetCachedSlots(uint8_t cls) const;
+    uint8_t GetCacheFillThreshold(uint8_t cls) const;
+    uint16_t GetBackgroundFillPriority(uint8_t cls) const;
+    void NotifyBackgroundFillIfNeeded(uint8_t cls);
+    void TrimExtraCachedRegions(uint8_t cls);
 
     // Consume one cached backup Region for the given size class.
     MSRegionInfo* TakeCachedRegion(uint8_t cls);
 
     // Try to store a backup Region into one empty cache slot.
-    bool TryCacheRegion(uint8_t cls, MSRegionInfo* region);
+    bool TryCacheRegion(uint8_t cls, MSRegionInfo* region, uint8_t slotLimit = kCachedRegionSlots);
 
     // Return a cached/active region back to the central pool using the same
     // classification as ReturnRegion.
@@ -149,13 +166,15 @@ private:
 
     // O2/O9: Per-size-class cached backup Regions.
     // Written by gc-helper (BackgroundFillCache), consumed by mutator (SlowAlloc).
-    // Two slots reduce synchronous trips to CentralRegionPool on bursty refill workloads.
+    // Base capacity stays at 2; a few hot classes may temporarily expand to 3 or 4.
     std::atomic<MSRegionInfo*> cachedRegion_[kNumSizeClasses][kCachedRegionSlots] = {};
 
-    // O9: Per-size-class cache miss counter. Mutator increments on SlowAlloc
-    // when cachedRegion_ is empty. Background thread fills when >= threshold.
-    static constexpr uint8_t kCacheFillThreshold = 2;
-    uint8_t cacheMiss_[kNumSizeClasses] = {};
+    // O9: Per-size-class cache miss / heat heuristics.
+    // cacheMiss_ tracks current refill pressure; cacheHeat_ keeps a short-lived
+    // notion of hot classes so the background worker can prefill spare regions
+    // for a few hot classes instead of sweeping all classes uniformly.
+    std::atomic<uint8_t> cacheMiss_[kNumSizeClasses] = {};
+    std::atomic<uint8_t> cacheHeat_[kNumSizeClasses] = {};
 
     // Back-pointer to global CentralRegionPool
     CentralRegionPool* central_ = nullptr;

@@ -7,6 +7,8 @@
 #ifdef MRT_USE_MARK_SWEEP
 
 #include "Heap/MAllocator/MSCentralRegionPool.h"
+
+#include "Heap/MAllocator/MSAllocBuffer.h"
 #include "Heap/MAllocator/MSAllocBuffer.h"
 #include "Heap/MAllocator/MSRegionManager.h"
 #include "Base/CString.h"
@@ -147,11 +149,15 @@ void CentralRegionPool::MaybeNotifySweep(uint8_t cls) const
 // Priority: partialSwept -> unswept(lazy sweep) -> emptySweptCache(rebind)
 //         -> fresh
 // ============================================================================
-MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
+MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls, MSRegionAcquireSource* source)
 {
     SizeClassBucket& bucket = buckets_[cls];
     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
     size_t lazyEmptyCacheInsertions = 0;
+
+    if (source != nullptr) {
+        *source = MSRegionAcquireSource::NONE;
+    }
 
     auto RebindEmptyRegionForClass = [&](MSRegionInfo* region) -> MSRegionInfo* {
         size_t regionIdx = MSRegionInfoArray::GetRegionIdx(region);
@@ -177,6 +183,9 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
     {
         MSRegionInfo* region = bucket.partialSwept.Pop();
         if (region != nullptr) {
+            if (source != nullptr) {
+                *source = MSRegionAcquireSource::PARTIAL_SWEPT;
+            }
             size_t ridx = MSRegionInfoArray::GetRegionIdx(region);
             uintptr_t expectedEnd = MSRegionInfoArray::GetRegionAddress(ridx) + MS_REGION_SIZE;
             if (UNLIKELY(region->regionEnd != expectedEnd)) {
@@ -195,6 +204,7 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
     if (!kDisableSweepOnRegionMissProbe && !skipLazySweep_.load(std::memory_order_acquire)) {
         // Notify background sweep only when we actually enter unswept paths,
         // rather than speculatively at GetRegion entry.
+        MSAllocBuffer_RecordCentralSweepNotify();
         msRegionManager_->MaybeNotifySweep(this, cls);
         activeLazySweepCount_.fetch_add(1, std::memory_order_relaxed);
         // Double-check after increment to close the race with StopAndWaitForAllSweep
@@ -242,6 +252,9 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
             }
             activeLazySweepCount_.fetch_sub(1, std::memory_order_relaxed);
             if (sweptRegion != nullptr) {
+                if (source != nullptr) {
+                    *source = MSRegionAcquireSource::PARTIAL_UNSWEPT;
+                }
                 return sweptRegion;
             }
         } // end double-check else
@@ -302,6 +315,9 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
             }
             activeLazySweepCount_.fetch_sub(1, std::memory_order_relaxed);
             if (sweptRegion != nullptr) {
+                if (source != nullptr) {
+                    *source = MSRegionAcquireSource::FULL_UNSWEPT;
+                }
                 return sweptRegion;
             }
         } // end double-check else
@@ -312,6 +328,9 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls)
         MSRegionInfo* region = TakeEmptySweptRegion(cls);
         if (region != nullptr) {
             region->SetSweepGen(sg);
+            if (source != nullptr) {
+                *source = MSRegionAcquireSource::EMPTY_REBIND;
+            }
             return region;
         }
     }
