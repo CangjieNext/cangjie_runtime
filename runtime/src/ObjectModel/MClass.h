@@ -235,7 +235,8 @@ typedef TypeInfo* (*GenericFunc)(TypeInfo**);
 struct ShortGCTib {
     BIT_TYPE bitmap; // lower 63 bits are valid, each bit indicates 8-byte width, 1:ref, 0:no-ref
 
-    void ForEachBitmapWord(MAddress fieldAddr, const RefFieldVisitor& visitor) const
+    template<class Visitor>
+    void ForEachBitmapWordFast(MAddress fieldAddr, Visitor& visitor) const
     {
         BIT_TYPE gcInfo = bitmap & (~SIGN_BIT);
         while (LIKELY(gcInfo != 0)) {
@@ -246,8 +247,15 @@ struct ShortGCTib {
             fieldAddr += sizeof(RefField<>);
         }
     }
-    void ForEachBitmapWordInRange(MAddress baseAddr, const RefFieldVisitor& visitor, MAddress rangeStart,
-                                  MAddress rangeEnd) const
+
+    void ForEachBitmapWord(MAddress fieldAddr, const RefFieldVisitor& visitor) const
+    {
+        ForEachBitmapWordFast(fieldAddr, visitor);
+    }
+
+    template<class Visitor>
+    void ForEachBitmapWordInRangeFast(MAddress baseAddr, Visitor& visitor, MAddress rangeStart,
+                                      MAddress rangeEnd) const
     {
         BIT_TYPE gcInfo = bitmap & (~SIGN_BIT);
         U32 startPos = (rangeStart - baseAddr) / sizeof(RefField<>);
@@ -265,6 +273,12 @@ struct ShortGCTib {
             fieldAddr += sizeof(RefField<>);
         }
     }
+
+    void ForEachBitmapWordInRange(MAddress baseAddr, const RefFieldVisitor& visitor, MAddress rangeStart,
+                                  MAddress rangeEnd) const
+    {
+        ForEachBitmapWordInRangeFast(baseAddr, visitor, rangeStart, rangeEnd);
+    }
 };
 
 struct StdGCTib {
@@ -276,15 +290,20 @@ struct StdGCTib {
     // An array of bitmap words. Length is `nBitmapWords`.
     U8 bitmapWords[];
 
-    void VisitRefField(U8& bitmapWord, MAddress& fieldAddr, const RefFieldVisitor& visitor) const
+    template<class Visitor>
+    void VisitRefFieldFast(U8& bitmapWord, MAddress& fieldAddr, Visitor& visitor) const
     {
         U8 wordBits = bitmapWord & REF_BIT_MASK;
         if (wordBits != 0) {
             visitor(*reinterpret_cast<RefField<>*>(fieldAddr));
         }
-        // go next ref word.
         bitmapWord >>= BITS_FOR_REF;
         fieldAddr += sizeof(RefField<>);
+    }
+
+    void VisitRefField(U8& bitmapWord, MAddress& fieldAddr, const RefFieldVisitor& visitor) const
+    {
+        VisitRefFieldFast(bitmapWord, fieldAddr, visitor);
     }
     void VisitAllField(U8 &bitmapWord, MAddress &fieldAddr, const RefFieldVisitor &visitor) const
     {
@@ -294,53 +313,59 @@ struct StdGCTib {
         bitmapWord >>= BITS_FOR_REF;
         fieldAddr += sizeof(RefField<>);
     }
-    void ForEachBitmapWord(MAddress contentAddr, const RefFieldVisitor& visitor) const
+
+    template<class Visitor>
+    void ForEachBitmapWordFast(MAddress contentAddr, Visitor& visitor) const
     {
         const U8* bitmaps = bitmapWords;
 
-        // start address of fields.
         MAddress baseAddr = contentAddr;
-        // for each bitmap word.
         for (U32 i = 0; i < nBitmapWords; ++i) {
             U8 bitmapWord = bitmaps[i];
             MAddress fieldAddr = baseAddr;
 
-            // for each bit in bitmap.
             while (LIKELY(bitmapWord != 0)) {
-                VisitRefField(bitmapWord, fieldAddr, visitor);
+                VisitRefFieldFast(bitmapWord, fieldAddr, visitor);
             }
-            // go next bitmap word.
             baseAddr += (sizeof(RefField<>) * REFS_PER_BIT_WORD);
         }
     }
-    void ForEachBitmapWordInRange(MAddress contentAddr, const RefFieldVisitor& visitor, MAddress rangeStart,
-                                  MAddress rangeEnd) const
+
+    void ForEachBitmapWord(MAddress contentAddr, const RefFieldVisitor& visitor) const
+    {
+        ForEachBitmapWordFast(contentAddr, visitor);
+    }
+
+    template<class Visitor>
+    void ForEachBitmapWordInRangeFast(MAddress contentAddr, Visitor& visitor, MAddress rangeStart,
+                                      MAddress rangeEnd) const
     {
         const U8* bitmaps = bitmapWords;
         size_t mapWordSize = (sizeof(RefField<>) * REFS_PER_BIT_WORD);
         U32 startIndex = (rangeStart - contentAddr) / mapWordSize;
-        // start address of fields.
         MAddress baseAddr = startIndex * mapWordSize + contentAddr;
-        // for each bitmap word.
         for (U32 i = startIndex; i < nBitmapWords; ++i) {
             U8 bitmapWord = bitmaps[i];
             MAddress fieldAddr = baseAddr;
-            // Make sure each fieldAddr visited is no less then rangeStart addr
             if (i == startIndex && bitmapWord != 0) {
                 bitmapWord >>= ((rangeStart - baseAddr) / sizeof(RefField<>));
                 fieldAddr = rangeStart;
             }
-            // for each bit in bitmap.
             while (LIKELY(bitmapWord != 0)) {
                 if (fieldAddr >= rangeEnd) {
                     return;
                 }
-                VisitRefField(bitmapWord, fieldAddr, visitor);
+                VisitRefFieldFast(bitmapWord, fieldAddr, visitor);
             }
 
-            // go next bitmap word.
             baseAddr += (sizeof(RefField<>) * REFS_PER_BIT_WORD);
         }
+    }
+
+    void ForEachBitmapWordInRange(MAddress contentAddr, const RefFieldVisitor& visitor, MAddress rangeStart,
+                                  MAddress rangeEnd) const
+    {
+        ForEachBitmapWordInRangeFast(contentAddr, visitor, rangeStart, rangeEnd);
     }
 };
 
@@ -359,17 +384,24 @@ union GCTib {
 #endif
     }
 
-    void ForEachBitmapWord(MAddress contentAddr, const RefFieldVisitor& visitor) const
+    template<class Visitor>
+    void ForEachBitmapWordFast(MAddress contentAddr, Visitor& visitor) const
     {
         if (IsGCTibWord()) {
-            bitmap.ForEachBitmapWord(contentAddr, visitor);
+            bitmap.ForEachBitmapWordFast(contentAddr, visitor);
         } else {
-            gctib->ForEachBitmapWord(contentAddr, visitor);
+            gctib->ForEachBitmapWordFast(contentAddr, visitor);
         }
     }
 
-    void ForEachBitmapWordInRange(MAddress contentAddr, const RefFieldVisitor& visitor, MAddress rangeStart,
-                                  MAddress rangeEnd) const
+    void ForEachBitmapWord(MAddress contentAddr, const RefFieldVisitor& visitor) const
+    {
+        ForEachBitmapWordFast(contentAddr, visitor);
+    }
+
+    template<class Visitor>
+    void ForEachBitmapWordInRangeFast(MAddress contentAddr, Visitor& visitor, MAddress rangeStart,
+                                      MAddress rangeEnd) const
     {
 #ifdef __arm__
         rangeStart = ((rangeStart + 3) & (~3)); // 3: upper aligned to 4
@@ -380,10 +412,16 @@ union GCTib {
             return;
         }
         if (IsGCTibWord()) {
-            bitmap.ForEachBitmapWordInRange(contentAddr, visitor, rangeStart, rangeEnd);
+            bitmap.ForEachBitmapWordInRangeFast(contentAddr, visitor, rangeStart, rangeEnd);
         } else {
-            gctib->ForEachBitmapWordInRange(contentAddr, visitor, rangeStart, rangeEnd);
+            gctib->ForEachBitmapWordInRangeFast(contentAddr, visitor, rangeStart, rangeEnd);
         }
+    }
+
+    void ForEachBitmapWordInRange(MAddress contentAddr, const RefFieldVisitor& visitor, MAddress rangeStart,
+                                  MAddress rangeEnd) const
+    {
+        ForEachBitmapWordInRangeFast(contentAddr, visitor, rangeStart, rangeEnd);
     }
 };
 

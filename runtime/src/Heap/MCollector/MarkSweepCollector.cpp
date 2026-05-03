@@ -13,6 +13,7 @@
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "CangjieRuntime.h"
+#include "Common/GCRefFieldScan.inline.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSAllocBuffer.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
@@ -669,7 +670,7 @@ void MarkSweepCollector::TraceObjectRefFieldsToGCWork(BaseObject* obj, PerPGCWor
             }
         }
     };
-    obj->ForEachRefField(refFunc);
+    ForEachRefFieldGCInline(obj, refFunc);
 }
 
 // ============================================================================
@@ -1268,7 +1269,7 @@ void MarkSweepCollector::TraceObjectRefFields(BaseObject* obj, WorkStack& workSt
     auto refFunc = [this, obj, &workStack](RefField<>& field) {
         TraceRefField(obj, field, workStack);
     };
-    obj->ForEachRefField(refFunc);
+    ForEachRefFieldGCInline(obj, refFunc);
 }
 
 BaseObject* MarkSweepCollector::GetAndTryTagObj(BaseObject* obj, RefField<>& field)
