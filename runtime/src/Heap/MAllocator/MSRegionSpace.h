@@ -10,8 +10,8 @@
 
 #ifdef MRT_USE_MARK_SWEEP
 
-#include "Allocator/AllocUtil.h"
-#include "Allocator/Allocator.h"
+#include "Heap/Allocator/AllocUtil.h"
+#include "Heap/Allocator/Allocator.h"
 
 namespace MapleRuntime {
 
@@ -45,6 +45,7 @@ public:
 
     void Init(const HeapParam&) override;
     MAddress Allocate(size_t size, AllocType allocType) override;
+    MAddress Allocate(size_t size, AllocType allocType, ThreadLocalData* local);
 
     MAddress GetSpaceStartAddress() const override { return reservedStart; }
     MAddress GetSpaceEndAddress() const override;
@@ -84,8 +85,8 @@ public:
     friend class Allocator;
 
 private:
-    MAddress AllocateLargeObject(size_t size, size_t allocSize);
-    MAddress AllocateRegularObject(size_t size, size_t allocSize);
+    MAddress AllocateLargeObject(size_t size, size_t allocSize, ThreadLocalData* local);
+    MAddress AllocateRegularObject(size_t size, size_t allocSize, ThreadLocalData* local);
     MAddress TryAllocateLargeObjectOnce(size_t allocSize, ThreadLocalData* local, AllocBufferMS* msBuffer);
     MAddress TryAllocateRegularObjectOnce(size_t allocSize, ThreadLocalData* local, AllocBufferMS*& msBuffer);
     void RegisterLargeObjectMS(MAddress addr, size_t regionBytes);

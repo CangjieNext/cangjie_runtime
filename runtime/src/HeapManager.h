@@ -14,6 +14,8 @@
 #include "RuntimeConfig.h"
 
 namespace MapleRuntime {
+struct ThreadLocalData;
+
 // replace this for Heap.
 class HeapManager {
 public:
@@ -26,6 +28,10 @@ public:
 
     // alloc returns a memory address, not an "object" pointer that has not been initialized
     static MAddress Allocate(size_t allocSize, AllocType allocType = AllocType::MOVEABLE_OBJECT);
+#ifdef MRT_USE_MARK_SWEEP
+    static MAddress Allocate(size_t allocSize, ThreadLocalData* local,
+                             AllocType allocType = AllocType::MOVEABLE_OBJECT);
+#endif
     static inline void RequestGC(GCReason reason, bool async);
 };
 } // namespace MapleRuntime

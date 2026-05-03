@@ -78,6 +78,11 @@ double GetMsThresholdHeapCapRatio()
     return value;
 }
 
+bool IsMSMarkingFastState(uint8_t gcFastState)
+{
+    return (gcFastState & ThreadLocal::GC_FAST_STATE_MS_MARKING) != 0;
+}
+
 class WorkStackGreySink final : public MarkSweepCollector::GreyWorkSink {
 public:
     explicit WorkStackGreySink(MarkSweepCollector::WorkStack& workStack) : workStack_(workStack) {}
@@ -1230,17 +1235,15 @@ void MarkSweepCollector::ConcurrentSweep()
 
 void MarkSweepCollector::MarkNewObject(BaseObject* obj)
 {
-    Mutator* mutator = Mutator::GetMutator();
-    GCPhase phase = mutator != nullptr ? mutator->GetMutatorPhase() : GetGCPhase();
-    if (UNLIKELY(phase == GCPhase::GC_PHASE_MS_MARK_SETUP) ||
-        UNLIKELY(phase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK) ||
-        UNLIKELY(phase == GCPhase::GC_PHASE_MS_MARK_TERMINATION)) {
-        // Newly allocated objects may receive constructor/init stores through
-        // paths where the compiler has elided a member barrier. Keep the object
-        // live immediately, then scan it at MarkTermination after initialization.
-        MarkObject(obj);
-        PushSingleToDeferredMainThread(obj);
+    GCPhase phase = GetGCPhase();
+    if (LIKELY(phase != GCPhase::GC_PHASE_MS_MARK_SETUP) &&
+        LIKELY(phase != GCPhase::GC_PHASE_MS_CONCURRENT_MARK) &&
+        LIKELY(phase != GCPhase::GC_PHASE_MS_MARK_TERMINATION)) {
+        return;
     }
+
+    MarkObject(obj);
+    PushSingleToDeferredMainThread(obj);
 }
 
 // ============================================================================

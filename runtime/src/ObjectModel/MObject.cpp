@@ -9,10 +9,18 @@
 #include "MObject.inline.h"
 #include "Inspector/CjAllocData.h"
 #include "Heap/Heap.h"
+#ifdef MRT_USE_MARK_SWEEP
+#include "Mutator/ThreadLocal.h"
+#endif
 namespace MapleRuntime {
 MObject* MObject::NewObject(TypeInfo* ti, MSize size, AllocType allocType)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    ThreadLocalData* local = ThreadLocal::GetThreadLocalData();
+    auto addr = HeapManager::Allocate(size, local, allocType);
+#else
     auto addr = HeapManager::Allocate(size, allocType);
+#endif
     if (LIKELY(addr != NULL_ADDRESS)) {
         // Debug: validate allocated address is in heap range
         if (UNLIKELY(!Heap::IsHeapAddress(addr))) {
@@ -22,7 +30,7 @@ MObject* MObject::NewObject(TypeInfo* ti, MSize size, AllocType allocType)
         }
         (void)SetClassInfo(addr, ti);
 #ifdef MRT_USE_MARK_SWEEP
-        Heap::GetHeap().GetCollector().MarkNewObject(reinterpret_cast<BaseObject*>(addr));
+    Heap::GetHeap().GetCollector().MarkNewObject(reinterpret_cast<BaseObject*>(addr));
 #endif
     } else {
         return nullptr;
@@ -38,11 +46,16 @@ MObject* MObject::NewObject(TypeInfo* ti, MSize size, AllocType allocType)
 MObject* MObject::NewPinnedObject(TypeInfo* ti, MSize size)
 {
     CHECK_DETAIL(ti->IsObjectType() == true, "must be object class.");
+#ifdef MRT_USE_MARK_SWEEP
+    ThreadLocalData* local = ThreadLocal::GetThreadLocalData();
+    auto addr = HeapManager::Allocate(size, local, AllocType::PINNED_OBJECT);
+#else
     auto addr = HeapManager::Allocate(size, AllocType::PINNED_OBJECT);
+#endif
     if (LIKELY(addr != NULL_ADDRESS)) {
         (void)SetClassInfo(addr, ti);
 #ifdef MRT_USE_MARK_SWEEP
-        Heap::GetHeap().GetCollector().MarkNewObject(reinterpret_cast<BaseObject*>(addr));
+    Heap::GetHeap().GetCollector().MarkNewObject(reinterpret_cast<BaseObject*>(addr));
 #endif
     } else {
         return nullptr;

@@ -14,6 +14,9 @@
 #include "Heap/Barrier/Barrier.inline.h"
 #include "Heap/Heap.h"
 #include "HeapManager.inline.h"
+#ifdef MRT_USE_MARK_SWEEP
+#include "Mutator/ThreadLocal.h"
+#endif
 // module internal interfaces
 #include "MArray.h"
 #include "MClass.inline.h"
@@ -126,7 +129,12 @@ inline MArray* MArray::NewKnownWidthArray(MIndex nElems, TypeInfo& arrayClass, c
         ExceptionManager::OutOfMemory();
         return nullptr;
     }
+#ifdef MRT_USE_MARK_SWEEP
+    ThreadLocalData* local = ThreadLocal::GetThreadLocalData();
+    auto address = HeapManager::Allocate(arraySize, local, allocType);
+#else
     auto address = HeapManager::Allocate(arraySize, allocType);
+#endif
     if (LIKELY(address != NULL_ADDRESS)) {
         MArray* newArray = reinterpret_cast<MArray*>(SetClassInfo(address, &arrayClass));
         newArray->SetLength(nElems);

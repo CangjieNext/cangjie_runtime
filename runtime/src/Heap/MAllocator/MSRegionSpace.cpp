@@ -86,18 +86,22 @@ bool RegionSpaceMS::ShouldRetryAllocation(size_t& tryTimes, size_t size) const
 
 MAddress RegionSpaceMS::Allocate(size_t size, AllocType allocType)
 {
+    return Allocate(size, allocType, ThreadLocal::GetThreadLocalData());
+}
+
+MAddress RegionSpaceMS::Allocate(size_t size, AllocType allocType, ThreadLocalData* local)
+{
     (void)allocType;
     size_t allocSize = ToAllocSize(size);
     if (UNLIKELY(allocSize >= kLargeObjectThreshold)) {
-        return AllocateLargeObject(size, allocSize);
+        return AllocateLargeObject(size, allocSize, local);
     }
 
-    return AllocateRegularObject(size, allocSize);
+    return AllocateRegularObject(size, allocSize, local);
 }
 
-MAddress RegionSpaceMS::AllocateLargeObject(size_t size, size_t allocSize)
+MAddress RegionSpaceMS::AllocateLargeObject(size_t size, size_t allocSize, ThreadLocalData* local)
 {
-    ThreadLocalData* local = ThreadLocal::GetThreadLocalData();
     AllocBufferMS* msBuffer = local != nullptr ? local->msAllocBuffer : AllocBufferMS::GetAllocBufferMS();
     uintptr_t internalAddr = TryAllocateLargeObjectOnce(allocSize, local, msBuffer);
     if (UNLIKELY(internalAddr == 0)) {
@@ -114,10 +118,9 @@ MAddress RegionSpaceMS::AllocateLargeObject(size_t size, size_t allocSize)
     return internalAddr + HEADER_SIZE;
 }
 
-MAddress RegionSpaceMS::AllocateRegularObject(size_t size, size_t allocSize)
+MAddress RegionSpaceMS::AllocateRegularObject(size_t size, size_t allocSize, ThreadLocalData* local)
 {
     uintptr_t internalAddr = 0;
-    ThreadLocalData* local = ThreadLocal::GetThreadLocalData();
     AllocBufferMS* msBuffer = local != nullptr ? local->msAllocBuffer : AllocBufferMS::GetAllocBufferMS();
 
     size_t tryTimes = 0;
