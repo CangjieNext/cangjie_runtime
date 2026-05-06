@@ -30,6 +30,8 @@ Type: [IntNative](../../core/core_package_api/core_package_intrinsics.md#IntNati
 public struct FileInfo <: Equatable<FileInfo> {
     public init(path: Path)
     public init(path: String)
+    public init(path: Path, followSymlink!: Bool)
+    public init(path: String, followSymlink!: Bool)
 }
 ```
 
@@ -40,6 +42,10 @@ Function: Corresponds to file metadata in the file system.
 > File metadata refers to information related to files in the file system, including filename, file size, creation time, modification time, access time, file permissions, file owner, etc.
 >
 > The underlying implementation of [FileInfo](fs_package_structs.md#struct-fileinfo) does not directly cache file attributes. Each time the [FileInfo](fs_package_structs.md#struct-fileinfo) API is called, the latest file attributes are retrieved on the spot.
+>
+> When creating a [FileInfo](fs_package_structs.md#struct-fileinfo) instance for a symbolic link, `followSymlink` controls which entity is queried. The default value is `true`, which queries the final target of the symbolic link. When it is set to `false`, metadata APIs query the symbolic link itself. This applies to time, size, file type, hidden-state, and permission query APIs. For a dangling symbolic link, `followSymlink: false` can query the link itself, while querying target metadata with `followSymlink: true` throws an exception.
+>
+> When [FileInfo](fs_package_structs.md#struct-fileinfo) represents the symbolic link itself, `setExecutable`, `setReadable`, and `setWritable` do not modify the link target. They return whether the symbolic link itself is executable, readable, or writable. Regular files and directories keep the existing permission-setting semantics.
 >
 > Therefore, special attention is required: for the same [FileInfo](fs_package_structs.md#struct-fileinfo) instance, if the corresponding file entity is modified or replaced by other users or processes between two attribute retrieval operations, the latter retrieval may not yield the expected file attributes.
 >
@@ -150,7 +156,7 @@ Function: Creates a [FileInfo](fs_package_structs.md#struct-fileinfo) instance.
 
 Parameters:
 
-- path: [Path](fs_package_structs.md#struct-path) - The directory path in [Path](fs_package_structs.md#struct-path) form.
+- path: [Path](fs_package_structs.md#struct-path) - The file or directory path in [Path](fs_package_structs.md#struct-path) form.
 
 Exceptions:
 
@@ -167,12 +173,110 @@ Function: Creates a [FileInfo](fs_package_structs.md#struct-fileinfo) instance.
 
 Parameters:
 
-- path: [String](../../core/core_package_api/core_package_structs.md#struct-string) - The directory path in [String](../../core/core_package_api/core_package_structs.md#struct-string) form.
+- path: [String](../../core/core_package_api/core_package_structs.md#struct-string) - The file or directory path in [String](../../core/core_package_api/core_package_structs.md#struct-string) form.
 
 Exceptions:
 
 - [FSException](fs_package_exceptions.md#class-fsexception) - Thrown if the path is invalid.
 - [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if the path is empty or contains a string terminator.
+
+### init(Path, Bool)
+
+```cangjie
+public init(path: Path, followSymlink!: Bool)
+```
+
+Function: Creates a [FileInfo](fs_package_structs.md#struct-fileinfo) instance and specifies the symbolic link query semantics.
+
+Parameters:
+
+- path: [Path](fs_package_structs.md#struct-path) - The file or directory path in [Path](fs_package_structs.md#struct-path) form.
+- followSymlink: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether to query target metadata when `path` is a symbolic link. The default value is `true`.
+
+Exceptions:
+
+- [FSException](fs_package_exceptions.md#class-fsexception) - Thrown if the path is invalid.
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if the path is empty or contains a string terminator.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.fs.*
+
+main(): Unit {
+    // Delete before creation to prevent creation failure.
+    removeIfExists("./test_init_path_symlink_link.txt", recursive: true)
+    removeIfExists("./test_init_path_symlink_source.txt", recursive: true)
+
+    // Create a file and a symbolic link pointing to it.
+    File.create("./test_init_path_symlink_source.txt")
+    SymbolicLink.create("./test_init_path_symlink_link.txt", to: "./test_init_path_symlink_source.txt")
+
+    // Query the symbolic link itself.
+    let linkInfo = FileInfo(Path("./test_init_path_symlink_link.txt"), followSymlink: false)
+    println("File is symbolic link: ${linkInfo.isSymbolicLink()}")
+
+    // Delete the file and symbolic link.
+    removeIfExists("./test_init_path_symlink_link.txt", recursive: true)
+    removeIfExists("./test_init_path_symlink_source.txt", recursive: true)
+}
+```
+
+Output:
+
+```text
+File is symbolic link: true
+```
+
+### init(String, Bool)
+
+```cangjie
+public init(path: String, followSymlink!: Bool)
+```
+
+Function: Creates a [FileInfo](fs_package_structs.md#struct-fileinfo) instance and specifies the symbolic link query semantics.
+
+Parameters:
+
+- path: [String](../../core/core_package_api/core_package_structs.md#struct-string) - The file or directory path in [String](../../core/core_package_api/core_package_structs.md#struct-string) form.
+- followSymlink: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether to query target metadata when `path` is a symbolic link. The default value is `true`.
+
+Exceptions:
+
+- [FSException](fs_package_exceptions.md#class-fsexception) - Thrown if the path is invalid.
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if the path is empty or contains a string terminator.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.fs.*
+
+main(): Unit {
+    // Delete before creation to prevent creation failure.
+    removeIfExists("./test_init_string_symlink_link.txt", recursive: true)
+    removeIfExists("./test_init_string_symlink_source.txt", recursive: true)
+
+    // Create a file and a symbolic link pointing to it.
+    File.create("./test_init_string_symlink_source.txt")
+    SymbolicLink.create("./test_init_string_symlink_link.txt", to: "./test_init_string_symlink_source.txt")
+
+    // Query the symbolic link target.
+    let targetInfo = FileInfo("./test_init_string_symlink_link.txt", followSymlink: true)
+    println("File is regular: ${targetInfo.isRegular()}")
+
+    // Delete the file and symbolic link.
+    removeIfExists("./test_init_string_symlink_link.txt", recursive: true)
+    removeIfExists("./test_init_string_symlink_source.txt", recursive: true)
+}
+```
+
+Output:
+
+```text
+File is regular: true
+```
 
 ### func canExecute()
 
