@@ -49,7 +49,7 @@ public class SymbolicLink {
 
     public static func readFrom(path: Path, recursive!: Bool = false): Path {
         PathValidator.throwIfEmptyOrContainsNullByte("path", path, true)
-        if (!FileInfo(path).isSymbolicLink()) {
+        if (!FileInfo(path, followSymlink: false).isSymbolicLink()) {
             throw IllegalArgumentException("The input path `${path}` is not a symbolic link.")
         }
 
