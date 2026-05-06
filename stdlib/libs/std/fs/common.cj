@@ -18,9 +18,9 @@ public func copy(sourcePath: Path, to!: Path, overwrite!: Bool = false): Unit {
         throw FSException("The input path 'sourcePath' `${sourcePath}` and 'to' `${to}` are the same path.")
     }
 
-    let fileInfo = FileInfo(sourcePath)
+    let fileInfo = FileInfo(sourcePath, followSymlink: false)
     let destInfo = if (exists(to)) {
-        Some(FileInfo(to))
+        Some(FileInfo(to, followSymlink: false))
     } else {
         Option<FileInfo>.None
     }

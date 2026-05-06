@@ -328,6 +328,8 @@ public static func readFrom(path: Path): Array<FileInfo>
 
 功能：读取指定路径对应目录下所有子项目的信息。
 
+返回的子项目 [FileInfo](fs_package_structs.md#struct-fileinfo) 按符号链接自身查询，不跟随符号链接目标。
+
 子项目在数组中的顺序取决于文件在系统中的排序。
 
 参数：
@@ -379,6 +381,8 @@ public static func readFrom(path: String): Array<FileInfo>
 
 功能：读取指定路径对应目录下所有子项目的信息。
 
+返回的子项目 [FileInfo](./fs_package_structs.md#struct-fileinfo) 按符号链接自身查询，不跟随符号链接目标。
+
 子项目在数组中的顺序取决于文件在系统中的排序。
 
 参数：
@@ -429,6 +433,8 @@ public static func walk(path: Path, f: (FileInfo) -> Bool): Unit
 ```
 
 功能：遍历指定目录下的子项目（非递归，即不包含子目录的子项目），对每一个子项目执行回调函数。
+
+传入回调函数的 [FileInfo](./fs_package_structs.md#struct-fileinfo) 按符号链接自身查询，不跟随符号链接目标。
 
 该函数退出条件为遍历结束或指定回调函数返回 false。遍历顺序取决于文件在系统中的排序。
 
@@ -496,6 +502,8 @@ public static func walk(path: String, f: (FileInfo) -> Bool): Unit
 ```
 
 功能：遍历指定目录下的子项目（非递归，即不包含子目录的子项目），对每一个子项目执行回调函数。
+
+传入回调函数的 [FileInfo](./fs_package_structs.md#struct-fileinfo) 按符号链接自身查询，不跟随符号链接目标。
 
 该函数退出条件为遍历结束或指定回调函数返回 false。遍历顺序取决于文件在系统中的排序。
 
@@ -2119,7 +2127,7 @@ Symbolic link file content: [83, 121, 109, 98, 111, 108, 105, 99, 76, 105, 110, 
 public static func readFrom(path: Path, recursive!: Bool = false): Path
 ```
 
-功能：获取指定符号链接的目标。当指定 'recursive' 为 'true' 时，表示跟踪指向最终目标的链接，并且返回目标的全路径，当指定 'recursive' 为 'false' 时，读取当前目标链接并且返回。
+功能：获取指定符号链接的目标。该函数按符号链接自身校验 `path` 是否为符号链接，不跟随其目标。当指定 'recursive' 为 'true' 时，表示跟踪指向最终目标的链接，并且返回目标的全路径，当指定 'recursive' 为 'false' 时，读取当前目标链接并且返回。
 
 参数：
 
@@ -2177,7 +2185,7 @@ Symbolic link target: ./test_symlink_source.txt
 public static func readFrom(path: String, recursive!: Bool = false): Path
 ```
 
-功能：获取指定符号链接的目标。当指定 'recursive' 为 'true' 时，表示跟踪指向最终目标的链接，并且返回目标的全路径，当指定 'recursive' 为 'false' 时，读取当前目标链接并且返回。
+功能：获取指定符号链接的目标。该函数按符号链接自身校验 `path` 是否为符号链接，不跟随其目标。当指定 'recursive' 为 'true' 时，表示跟踪指向最终目标的链接，并且返回目标的全路径，当指定 'recursive' 为 'false' 时，读取当前目标链接并且返回。
 
 参数：
 
