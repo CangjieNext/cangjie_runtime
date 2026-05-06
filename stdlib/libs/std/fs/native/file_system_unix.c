@@ -14,6 +14,11 @@
 static int64_t BuildSubPath(char* dirPath, const int64_t pathLen, const char* subName);
 static FsError* GetErrnoResult(void);
 
+static int StatPath(const char* path, bool followSymlink, struct stat* buf)
+{
+    return followSymlink ? stat(path, buf) : lstat(path, buf);
+}
+
 struct FolderNode {
     char* path;
     struct FolderNode* next;
@@ -74,14 +79,14 @@ static inline int SysRmdir(const char* path)
 }
 
 /* If get get directory size faied, return 0. */
-static int64_t GetDirectorySize(char* dirPath, int64_t pathLen)
+static int64_t GetDirectorySize(char* dirPath, int64_t pathLen, bool followRootSymlink)
 {
     if (pathLen < 0 || pathLen > MAX_PATH_LEN) {
         return 0;
     }
     int64_t totalSize = 0;
     struct stat statbuf;
-    if (lstat(dirPath, &statbuf) < 0) {
+    if (StatPath(dirPath, followRootSymlink, &statbuf) < 0) {
         return 0;
     }
     DIR* dirPtr = opendir(dirPath);
@@ -100,7 +105,7 @@ static int64_t GetDirectorySize(char* dirPath, int64_t pathLen)
             break;
         }
         if (S_ISDIR(statbuf.st_mode)) {
-            totalSize += GetDirectorySize(dirPath, newPathLen);
+            totalSize += GetDirectorySize(dirPath, newPathLen, false);
         } else {
             totalSize += statbuf.st_size;
         }
@@ -109,10 +114,10 @@ static int64_t GetDirectorySize(char* dirPath, int64_t pathLen)
     return totalSize;
 }
 
-extern int64_t CJ_FS_PathSize(const char* path)
+extern int64_t CJ_FS_PathSize(const char* path, bool followSymlink)
 {
     struct stat buf;
-    int64_t ret = lstat(path, &buf);
+    int64_t ret = StatPath(path, followSymlink, &buf);
     if (ret < 0) {
         return -1;
     }
@@ -123,74 +128,74 @@ extern int64_t CJ_FS_PathSize(const char* path)
         if (rc != 0) {
             return -1;
         }
-        int64_t res = GetDirectorySize(cPath, pathLen);
+        int64_t res = GetDirectorySize(cPath, pathLen, followSymlink);
         return res;
     } else {
         return buf.st_size;
     }
 }
 
-extern int64_t CJ_FS_GetCreationTime(const char* path)
+extern int64_t CJ_FS_GetCreationTime(const char* path, bool followSymlink)
 {
     struct stat buf;
-    int64_t ret = stat(path, &buf);
+    int64_t ret = StatPath(path, followSymlink, &buf);
     if (ret < 0) {
         return -1;
     }
     return buf.st_ctime;
 }
 
-extern int64_t CJ_FS_GetLastAccessTime(const char* path)
+extern int64_t CJ_FS_GetLastAccessTime(const char* path, bool followSymlink)
 {
     struct stat buf;
-    int64_t ret = stat(path, &buf);
+    int64_t ret = StatPath(path, followSymlink, &buf);
     if (ret < 0) {
         return -1;
     }
     return buf.st_atime;
 }
 
-extern int64_t CJ_FS_GetLastModificationTime(const char* path)
+extern int64_t CJ_FS_GetLastModificationTime(const char* path, bool followSymlink)
 {
     struct stat buf;
-    int64_t ret = stat(path, &buf);
+    int64_t ret = StatPath(path, followSymlink, &buf);
     if (ret < 0) {
         return -1;
     }
     return buf.st_mtime;
 }
 
-extern int8_t CJ_FS_Exists(const char* path)
+extern int8_t CJ_FS_Exists(const char* path, bool followSymlink)
 {
     struct stat buf;
-    int ret = lstat(path, &buf);
+    int ret = StatPath(path, followSymlink, &buf);
     return (int8_t)ret;
 }
 
-extern int8_t CJ_FS_IsLink(const char* path)
+extern int8_t CJ_FS_IsLink(const char* path, bool followSymlink)
 {
     struct stat buf;
-    int64_t ret = lstat(path, &buf);
+    int64_t ret = StatPath(path, followSymlink, &buf);
     if (ret < 0) {
         return -1;
     }
     return (S_ISLNK(buf.st_mode) ? 1 : 0);
 }
 
-extern int8_t CJ_FS_IsFile(const char* path)
+extern int8_t CJ_FS_IsFile(const char* path, bool followSymlink)
 {
     struct stat buf;
-    int64_t ret = lstat(path, &buf);
+    int64_t ret = StatPath(path, followSymlink, &buf);
     if (ret < 0) {
         return -1;
     }
     return (S_ISREG(buf.st_mode) ? 1 : 0);
 }
 
-extern int8_t CJ_FS_IsDir(const char* path)
+extern int8_t CJ_FS_IsDir(const char* path, bool followSymlink)
 {
     struct stat buf;
-    int64_t ret = lstat(path, &buf);
+    int64_t ret = StatPath(path, followSymlink, &buf);
     if (ret < 0) {
         return -1;
     }
@@ -286,38 +291,38 @@ extern int8_t CJ_FS_IsDirORLinkToFDir(const char* path)
     return (S_ISDIR(buf.st_mode) ? 1 : 0);
 }
 
-extern int8_t CJ_FS_CanRead(const char* path)
+extern int8_t CJ_FS_CanRead(const char* path, bool followSymlink)
 {
     struct stat buf;
-    if (stat(path, &buf) < 0) {
+    if (StatPath(path, followSymlink, &buf) < 0) {
         return -1;
     }
     return (int8_t)((buf.st_mode | S_IRUSR) == buf.st_mode);
 }
 
-extern int8_t CJ_FS_CanExecute(const char* path)
+extern int8_t CJ_FS_CanExecute(const char* path, bool followSymlink)
 {
     struct stat buf;
-    if (stat(path, &buf) < 0) {
+    if (StatPath(path, followSymlink, &buf) < 0) {
         return -1;
     }
     return (int8_t)((buf.st_mode | S_IXUSR) == buf.st_mode);
 }
 
-extern int8_t CJ_FS_IsReadOnly(const char* path)
+extern int8_t CJ_FS_IsReadOnly(const char* path, bool followSymlink)
 {
     struct stat buf;
-    if (stat(path, &buf) < 0) {
+    if (StatPath(path, followSymlink, &buf) < 0) {
         return -1;
     }
     mode_t m = buf.st_mode;
     return (int8_t)((m | S_IRUSR) == m && (m | S_IWUSR) != m && (m | S_IXUSR) != m);
 }
 
-extern int8_t CJ_FS_CanWrite(const char* path)
+extern int8_t CJ_FS_CanWrite(const char* path, bool followSymlink)
 {
     struct stat buf;
-    if (stat(path, &buf) < 0) {
+    if (StatPath(path, followSymlink, &buf) < 0) {
         return -1;
     }
     return (int8_t)((buf.st_mode | S_IWUSR) == buf.st_mode);

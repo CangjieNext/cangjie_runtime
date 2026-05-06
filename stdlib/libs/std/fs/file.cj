@@ -103,7 +103,7 @@ public class File <: Resource & IOStream & Seekable {
             throw FSException("The input path 'parent' `${parent}` does not exist.")
         }
         // Because `filePath` may not exist before `openFile` is executed, `FileInfo` does not check whether the path exists.
-        _fileInfo = FileInfo(filePath, false)
+        _fileInfo = FileInfo(filePath, checkPath: false)
         _openMode = mode
         openFile()
     }
@@ -129,7 +129,7 @@ public class File <: Resource & IOStream & Seekable {
             throw FSException("Invalid File Handle ${fd}.")
         }
         let filePath: Path = Path(path)
-        _fileInfo = FileInfo(filePath, false)
+        _fileInfo = FileInfo(filePath, checkPath: false)
         _openMode = mode
         fileHandle = fd
     }
