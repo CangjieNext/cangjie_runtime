@@ -19,16 +19,16 @@ foreign {
     func CJ_FS_NormalizePath(path: CString, realPath: CPointer<UInt8>): CPointer<FsError> // (<= 0): error, (> 0): real path size
 
     // FileInfo
-    func CJ_FS_PathSize(path: CString): Int64 // -1: failed, (>= 0): file size
-    func CJ_FS_GetCreationTime(path: CString): Int64 // -1: failed, (>= 0): time data
-    func CJ_FS_GetLastAccessTime(path: CString): Int64 // -1: failed, (>= 0): time data
-    func CJ_FS_GetLastModificationTime(path: CString): Int64 // -1: failed, (>= 0): time data
+    func CJ_FS_PathSize(path: CString, followSymlink: Bool): Int64 // -1: failed, (>= 0): file size
+    func CJ_FS_GetCreationTime(path: CString, followSymlink: Bool): Int64 // -1: failed, (>= 0): time data
+    func CJ_FS_GetLastAccessTime(path: CString, followSymlink: Bool): Int64 // -1: failed, (>= 0): time data
+    func CJ_FS_GetLastModificationTime(path: CString, followSymlink: Bool): Int64 // -1: failed, (>= 0): time data
 
-    func CJ_FS_IsReadOnly(path: CString): Int8 // -1: error, 0: false, 1: true
+    func CJ_FS_IsReadOnly(path: CString, followSymlink: Bool): Int8 // -1: error, 0: false, 1: true
 
-    func CJ_FS_CanRead(path: CString): Int8 // -1: error, 0: false, 1: true
-    func CJ_FS_CanWrite(path: CString): Int8 // -1: error, 0: false, 1: true
-    func CJ_FS_CanExecute(path: CString): Int8 // -1: error, 0: false, 1: true
+    func CJ_FS_CanRead(path: CString, followSymlink: Bool): Int8 // -1: error, 0: false, 1: true
+    func CJ_FS_CanWrite(path: CString, followSymlink: Bool): Int8 // -1: error, 0: false, 1: true
+    func CJ_FS_CanExecute(path: CString, followSymlink: Bool): Int8 // -1: error, 0: false, 1: true
 
     func CJ_FS_SetExecutable(path: CString, executable: Bool): Int8 // -4: Operation not permitted (ERRNO_EPERM), -2: Invalid argument (ERRNO_EINVAL), -1: Other Errors, 0: false, 1: true
     func CJ_FS_SetReadable(path: CString, readable: Bool): Int8 // -4: Operation not permitted (ERRNO_EPERM), -2: Invalid argument (ERRNO_EINVAL), -1: Other Errors, 0: false, 1: true
@@ -57,14 +57,14 @@ foreign {
     func CJ_FS_CreateTempFile(path: CPointer<Byte>): FileHandle
 
     // Util
-    func CJ_FS_IsLink(path: CString): Int8 // -1: error, 0: false, 1: true
-    func CJ_FS_IsFile(path: CString): Int8 // -1: error, 0: false, 1: true
-    func CJ_FS_IsDir(path: CString): Int8 // -1: error, 0: false, 1: true
+    func CJ_FS_IsLink(path: CString, followSymlink: Bool): Int8 // -1: error, 0: false, 1: true
+    func CJ_FS_IsFile(path: CString, followSymlink: Bool): Int8 // -1: error, 0: false, 1: true
+    func CJ_FS_IsDir(path: CString, followSymlink: Bool): Int8 // -1: error, 0: false, 1: true
 
     func CJ_FS_IsFileORLinkToFile(path: CString): Int8 // -1: error, 0: false, 1: true
     func CJ_FS_IsDirORLinkToFDir(path: CString): Int8 // -1: error, 0: false, 1: true
 
-    func CJ_FS_Exists(path: CString): Int8 //0: true
+    func CJ_FS_Exists(path: CString, followSymlink: Bool): Int8 //0: true
     func CJ_FS_Remove(path: CString, recursive: Bool): CPointer<FsError> // false: errCode < 0, true: errCode == 0
     func CJ_FS_Rename(sourcePath: CString, destinationPath: CString): CPointer<FsError> // false: errCode < 0, true: errCode == 0
 
