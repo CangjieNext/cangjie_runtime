@@ -15,37 +15,53 @@ package std.fs
 
 import std.time.*
 
+const FILE_INFO_NO_FOLLOW_PREFIX = "\0std.fs.FileInfo.noFollow\0"
+
 public struct FileInfo <: Equatable<FileInfo> {
     var _path: Path
 
     public init(path: Path) {
-        this(path, true)
+        this(path, checkPath: true)
     }
 
     public init(path: String) {
-        this(Path(path), true)
+        this(Path(path), checkPath: true)
+    }
+
+    public init(path: Path, followSymlink!: Bool) {
+        this(path, checkPath: true, followSymlink: followSymlink)
+    }
+
+    public init(path: String, followSymlink!: Bool) {
+        this(Path(path), followSymlink: followSymlink)
     }
 
     /**
      * @throws FSException if path is invalid
      */
-    init(path: Path, isCheckPath: Bool) {
-        if (isCheckPath && !exists(path)) {
+    init(path: Path, checkPath!: Bool, followSymlink!: Bool = true) {
+        if (checkPath && !exists(path, followSymlink: followSymlink)) {
             throw FSException("The input path `${path}` does not exist.")
         }
-        _path = toAbsolutePath(path)
+        let absolutePath = toAbsolutePath(path)
+        _path = if (followSymlink) {
+            absolutePath
+        } else {
+            Path(FILE_INFO_NO_FOLLOW_PREFIX + absolutePath.toString())
+        }
     }
 
     public prop name: String {
         get() {
-            _path.fileName
+            realPath().fileName
         }
     }
 
     public prop parentDirectory: Option<FileInfo> {
         get() {
-            let parent = _path.parent
-            if (!parent.toString().isEmpty() && !isRootPath(_path.toString())) {
+            let path = realPath()
+            let parent = path.parent
+            if (!parent.toString().isEmpty() && !isRootPath(path.toString())) {
                 return FileInfo(parent)
             }
             return None
@@ -54,7 +70,7 @@ public struct FileInfo <: Equatable<FileInfo> {
 
     public prop path: Path {
         get() {
-            _path
+            realPath()
         }
     }
 
@@ -63,7 +79,7 @@ public struct FileInfo <: Equatable<FileInfo> {
      */
     public prop creationTime: DateTime {
         get() {
-            let time = callNativeFunc(CJ_FS_GetCreationTime, "Failed to get creation time.")
+            let time = callQueryNativeFunc(CJ_FS_GetCreationTime, "Failed to get creation time.")
             return DateTime.ofEpoch(second: time, nanosecond: 0)
         }
     }
@@ -73,7 +89,7 @@ public struct FileInfo <: Equatable<FileInfo> {
      */
     public prop lastAccessTime: DateTime {
         get() {
-            let time = callNativeFunc(CJ_FS_GetLastAccessTime, "Failed to get last access time.")
+            let time = callQueryNativeFunc(CJ_FS_GetLastAccessTime, "Failed to get last access time.")
             return DateTime.ofEpoch(second: time, nanosecond: 0)
         }
     }
@@ -83,7 +99,7 @@ public struct FileInfo <: Equatable<FileInfo> {
      */
     public prop lastModificationTime: DateTime {
         get() {
-            let time = callNativeFunc(CJ_FS_GetLastModificationTime, "Failed to get last modification time.")
+            let time = callQueryNativeFunc(CJ_FS_GetLastModificationTime, "Failed to get last modification time.")
             return DateTime.ofEpoch(second: time, nanosecond: 0)
         }
     }
@@ -93,7 +109,7 @@ public struct FileInfo <: Equatable<FileInfo> {
      */
     public prop size: Int64 {
         get() {
-            return callNativeFunc(CJ_FS_PathSize, "Failed to get file size.")
+            return callQueryNativeFunc(CJ_FS_PathSize, "Failed to get file size.")
         }
     }
 
@@ -101,32 +117,36 @@ public struct FileInfo <: Equatable<FileInfo> {
      * @throws FSException if cPath is invalid or symbol not linked
      */
     public func isSymbolicLink(): Bool {
-        return callNativeFunc(CJ_FS_IsLink)
+        return callQueryNativeFunc(CJ_FS_IsLink)
     }
 
     /**
      * @throws FSException if cPath is invalid
      */
     public func isRegular(): Bool {
-        return callNativeFunc(CJ_FS_IsFile)
+        return callQueryNativeFunc(CJ_FS_IsFile)
     }
 
     /**
      * @throws FSException if cPath is invalid
      */
     public func isDirectory(): Bool {
-        return callNativeFunc(CJ_FS_IsDir)
+        return callQueryNativeFunc(CJ_FS_IsDir)
     }
 
     /**
      * @throws FSException if cPath is invalid
      */
     public func isReadOnly(): Bool {
-        return callNativeFunc(CJ_FS_IsReadOnly)
+        return callQueryNativeFunc(CJ_FS_IsReadOnly)
     }
 
     public func isHidden(): Bool {
-        let fileName = canonicalize(_path).fileName
+        let fileName = if (followSymlink() && queryNativeBool(CJ_FS_IsLink, followSymlink: false)) {
+            canonicalize(realPath()).fileName
+        } else {
+            realPath().fileName
+        }
         if (fileName.isEmpty()) {
             throw FSException("FileName is empty.")
         }
@@ -138,21 +158,21 @@ public struct FileInfo <: Equatable<FileInfo> {
      */
     public func canExecute(): Bool {
         // _wstat in implementation do not accept "\\\\?\\" as it's argument
-        return callNativeFunc(CJ_FS_CanExecute, shouldFixLongPath: false)
+        return callQueryNativeFunc(CJ_FS_CanExecute, shouldFixLongPath: false)
     }
 
     /**
      * @throws FSException if cPath is invalid
      */
     public func canRead(): Bool {
-        return callNativeFunc(CJ_FS_CanRead)
+        return callQueryNativeFunc(CJ_FS_CanRead)
     }
 
     /**
      * @throws FSException if cPath is invalid
      */
     public func canWrite(): Bool {
-        return callNativeFunc(CJ_FS_CanWrite)
+        return callQueryNativeFunc(CJ_FS_CanWrite)
     }
 
     /**
@@ -161,7 +181,10 @@ public struct FileInfo <: Equatable<FileInfo> {
      * Processes running as a privileged user may bypass this permission setting.
      */
     public func setExecutable(executable: Bool): Bool {
-        return callNativeFunc(CJ_FS_SetExecutable, executable)
+        if (isSelfSymbolicLink()) {
+            return canExecute()
+        }
+        return callSetterNativeFunc(CJ_FS_SetExecutable, executable)
     }
 
     /**
@@ -170,7 +193,10 @@ public struct FileInfo <: Equatable<FileInfo> {
      * Processes running as a privileged user may bypass this permission setting.
      */
     public func setReadable(readable: Bool): Bool {
-        return callNativeFunc(CJ_FS_SetReadable, readable)
+        if (isSelfSymbolicLink()) {
+            return canRead()
+        }
+        return callSetterNativeFunc(CJ_FS_SetReadable, readable)
     }
 
     /**
@@ -179,21 +205,34 @@ public struct FileInfo <: Equatable<FileInfo> {
      */
     public func setWritable(writable: Bool): Bool {
         // _wstat in implementation do not accept "\\\\?\\" as it's argument
-        return callNativeFunc(CJ_FS_SetWritable, writable, shouldFixLongPath: false)
+        if (isSelfSymbolicLink()) {
+            return canWrite()
+        }
+        return callSetterNativeFunc(CJ_FS_SetWritable, writable, shouldFixLongPath: false)
+    }
+
+    private func isSelfSymbolicLink(): Bool {
+        return !followSymlink() && callQueryNativeFunc(CJ_FS_IsLink)
     }
 
     /**
      * @throws FSException if cPath is invalid
      */
-    private func callNativeFunc(nativeFunction: CFunc<(CString) -> Int8>, shouldFixLongPath!: Bool = true): Bool {
+    private func callQueryNativeFunc(nativeFunction: CFunc<(CString, Bool) -> Int8>, shouldFixLongPath!: Bool = true): Bool {
+        return queryNativeBool(nativeFunction, followSymlink: followSymlink(), shouldFixLongPath: shouldFixLongPath)
+    }
+
+    private func queryNativeBool(nativeFunction: CFunc<(CString, Bool) -> Int8>, followSymlink!: Bool,
+        shouldFixLongPath!: Bool = true): Bool {
         unsafe {
+            let queryPath = realPath()
             let pathStr = if (shouldFixLongPath) {
-                fixLongPath(_path.toString())
+                fixLongPath(queryPath.toString())
             } else {
-                _path.toString()
+                queryPath.toString()
             }
             let cPath = LibC.mallocCString(pathStr)
-            var ret: Int8 = nativeFunction(cPath)
+            var ret: Int8 = nativeFunction(cPath, followSymlink)
             LibC.free(cPath)
             if (ret < 0) {
                 throw FSException("Native function error return ${ret}.")
@@ -206,13 +245,14 @@ public struct FileInfo <: Equatable<FileInfo> {
      * @throws FSException if cPath is invalid
      * @throws FSException if operation not permitted on Windows
      */
-    private func callNativeFunc(nativeFunction: CFunc<(CString, Bool) -> Int8>, flag: Bool,
+    private func callSetterNativeFunc(nativeFunction: CFunc<(CString, Bool) -> Int8>, flag: Bool,
         shouldFixLongPath!: Bool = true): Bool {
         unsafe {
+            let queryPath = realPath()
             let pathStr = if (shouldFixLongPath) {
-                fixLongPath(_path.toString())
+                fixLongPath(queryPath.toString())
             } else {
-                _path.toString()
+                queryPath.toString()
             }
             let cPath = LibC.mallocCString(pathStr)
             let ret: Int8 = nativeFunction(cPath, flag)
@@ -231,15 +271,17 @@ public struct FileInfo <: Equatable<FileInfo> {
     /**
      * @throws FSException if `nativeFunction` returns negative error code
      */
-    private func callNativeFunc(nativeFunction: CFunc<(CString) -> Int64>, msg: String, shouldFixLongPath!: Bool = true): Int64 {
+    private func callQueryNativeFunc(nativeFunction: CFunc<(CString, Bool) -> Int64>, msg: String,
+        shouldFixLongPath!: Bool = true): Int64 {
         unsafe {
+            let queryPath = realPath()
             let pathStr = if (shouldFixLongPath) {
-                fixLongPath(_path.toString())
+                fixLongPath(queryPath.toString())
             } else {
-                _path.toString()
+                queryPath.toString()
             }
             let cPath: CString = LibC.mallocCString(pathStr)
-            let ret: Int64 = nativeFunction(cPath)
+            let ret: Int64 = nativeFunction(cPath, followSymlink())
             LibC.free(cPath)
             if (ret < 0) {
                 throw FSException("${msg} Native function return ${ret}.")
@@ -249,6 +291,18 @@ public struct FileInfo <: Equatable<FileInfo> {
     }
 
     public operator func ==(other: FileInfo): Bool {
-        return _path == other.path
+        return realPath() == other.path
+    }
+
+    private func followSymlink(): Bool {
+        return !_path.toString().startsWith(FILE_INFO_NO_FOLLOW_PREFIX)
+    }
+
+    private func realPath(): Path {
+        let path = _path.toString()
+        if (path.startsWith(FILE_INFO_NO_FOLLOW_PREFIX)) {
+            return Path(path.removePrefix(FILE_INFO_NO_FOLLOW_PREFIX))
+        }
+        return _path
     }
 }
