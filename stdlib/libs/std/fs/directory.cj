@@ -118,7 +118,7 @@ public class Directory {
             let fileName = cstr.toString()
             unsafe { LibC.free(cstr) }
             let fullPathName = String.join([absPathStr, fileName], delimiter: SLASH_STRING)
-            f(FileInfo(Path(fullPathName), false))
+            f(FileInfo(Path(fullPathName), checkPath: false, followSymlink: false))
         }
 
         var dirHandle: UIntNative = 0

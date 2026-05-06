@@ -18,9 +18,9 @@ public func copy(sourcePath: Path, to!: Path, overwrite!: Bool = false): Unit {
         throw FSException("The input path 'sourcePath' `${sourcePath}` and 'to' `${to}` are the same path.")
     }
 
-    let fileInfo = FileInfo(sourcePath)
+    let fileInfo = FileInfo(sourcePath, followSymlink: false)
     let destInfo = if (exists(to)) {
-        Some(FileInfo(to))
+        Some(FileInfo(to, followSymlink: false))
     } else {
         Option<FileInfo>.None
     }
@@ -53,7 +53,7 @@ public func copy(sourcePath: Path, to!: Path, overwrite!: Bool = false): Unit {
                 remove(to)
             }
         }
-        let target = SymbolicLink.readFrom(fileInfo._path)
+        let target = SymbolicLink.readFrom(fileInfo.path)
         SymbolicLink.create(to, to: target)
         return
     }
@@ -97,11 +97,19 @@ public func exists(path: Path): Bool {
 }
 
 public func exists(path: String): Bool {
+    exists(path, followSymlink: false)
+}
+
+func exists(path: Path, followSymlink!: Bool): Bool {
+    exists(path._rawPath, followSymlink: followSymlink)
+}
+
+func exists(path: String, followSymlink!: Bool): Bool {
     PathValidator.throwIfEmptyOrContainsNullByte("path", path, true)
 
     unsafe {
         let cPath = LibC.mallocCString(path)
-        var ret: Int8 = CJ_FS_Exists(cPath)
+        var ret: Int8 = CJ_FS_Exists(cPath, followSymlink)
         LibC.free(cPath)
         return ret == 0
     }
