@@ -204,8 +204,6 @@ void AllocBufferMS::Init(CentralRegionPool* central)
 
 void AllocBufferMS::Fini()
 {
-    FlushAll();
-    // Unregister from CentralRegionPool before clearing
     if (central_ != nullptr) {
         central_->RemoveAllocBufferMS(this);
     }
@@ -277,14 +275,6 @@ uint8_t AllocBufferMS::GetHotClassRank(uint8_t cls) const
 
 uint8_t AllocBufferMS::GetTargetCachedSlots(uint8_t cls) const
 {
-    uint8_t heat = cacheHeat_[cls].load(std::memory_order_relaxed);
-    uint8_t rank = GetHotClassRank(cls);
-    if (heat >= kHotCacheHeatThreshold && rank < kMaxCacheClassRankForFourSlots) {
-        return kCachedRegionSlots;
-    }
-    if (heat >= kWarmCacheHeatThreshold && rank < kExpandedCacheClassRankLimit) {
-        return kBaseCachedRegionSlots + 1;
-    }
     return kBaseCachedRegionSlots;
 }
 
