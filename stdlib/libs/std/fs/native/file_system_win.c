@@ -10,18 +10,38 @@
 
 enum FILE_TIME_TYPE { CREATION, LAST_ACCESS, LAST_WRITE };
 
+typedef struct _REPARSE_DATA_BUFFER {
+    ULONG ReparseTag;
+    USHORT ReparseDataLength;
+    USHORT Reserved;
+    union {
+        struct {
+            USHORT SubstituteNameOffset;
+            USHORT SubstituteNameLength;
+            USHORT PrintNameOffset;
+            USHORT PrintNameLength;
+            ULONG Flags;
+            WCHAR PathBuffer[1];
+        } SymbolicLinkReparseBuffer;
+        struct {
+            USHORT SubstituteNameOffset;
+            USHORT SubstituteNameLength;
+            USHORT PrintNameOffset;
+            USHORT PrintNameLength;
+            WCHAR PathBuffer[1];
+        } MountPointReparseBuffer;
+        struct {
+            UCHAR DataBuffer[1];
+        } GenericReparseBuffer;
+    } DUMMYUNIONNAME;
+} REPARSE_DATA_BUFFER, *PREPARSE_DATA_BUFFER;
+
 #define DOS_DEVICE_PATH_SPECIFIER_PERIOD "\\\\.\\"
 #define DOS_DEVICE_PATH_SPECIFIER_QUESTION_MARK "\\\\?\\"
 #define DOS_DEVICE_PATH_SPECIFIER_SIZE 4
 #define NORMALIZE_PATH_BUF_SIZE (MAX_PATH + DOS_DEVICE_PATH_SPECIFIER_SIZE)  // 264
 #define WINDOWS_TICK 10000000
 #define SEC_TO_UNIX_EPOCH 11644473600LL
-#define TYPE_OFFSET 1
-#define PATH_OFFSET 2
-#define FT_DIR 4
-#define FT_REG 8
-#define FT_LNK 10
-#define FT_UNKNOWN 0
 
 const DWORD FILE_SHARE_MODE = FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE;
 
@@ -40,11 +60,16 @@ static char* CJ_FS_ErrmesGet(int errnoValue);
 static bool IsDosDevicePath(const char* path);
 static BOOL GetFileAttr(const char* path, WIN32_FILE_ATTRIBUTE_DATA* wfad);
 static int32_t GetDosDevicePathLocation(char* cPath, int64_t pathLen);
-static int64_t FileTime(const char* path, enum FILE_TIME_TYPE ty);
-static int64_t FileSize(const wchar_t* path);
-static int64_t GetDirectorySize(const wchar_t* path);
-static int64_t IsFileExecutable(const char* path);
+static int WPathJoinStar(wchar_t* dest, size_t destMax, const wchar_t* path, bool matchAll);
+static int WPathJoinEntry(wchar_t* dest, size_t destMax, const wchar_t* path, const wchar_t* name);
+static BOOL IsPathReparsePoint(const char* path);
+static BOOL IsFollowTargetAvailable(const char* path);
+static int64_t FileTime(const char* path, enum FILE_TIME_TYPE ty, bool followSymlink);
+static int64_t GetDirectorySize(const wchar_t* path, bool followSymlink);
 static inline bool IsSlash(char c);
+static inline bool IsWSlash(wchar_t c);
+static HANDLE GetFileHandleWithFollow(const char* path, bool followSymlink);
+static BOOL GetFileInformation(const char* path, bool followSymlink, BY_HANDLE_FILE_INFORMATION* info);
 
 static int8_t IsDirectory(const wchar_t* path)
 {
@@ -74,6 +99,11 @@ static inline bool IsSlash(char c)
     return c == SLASH || c == '/';
 }
 
+static inline bool IsWSlash(wchar_t c)
+{
+    return c == L'\\' || c == L'/';
+}
+
 static inline int SysWMkdir(const wchar_t* path)
 {
     return _wmkdir(path);
@@ -82,6 +112,26 @@ static inline int SysWMkdir(const wchar_t* path)
 static inline int SysWAccess(const wchar_t* path, int mode)
 {
     return _waccess(path, mode);
+}
+
+static int WPathJoinStar(wchar_t* dest, size_t destMax, const wchar_t* path, bool matchAll)
+{
+    if (dest == NULL || destMax == 0 || path == NULL) {
+        return -1;
+    }
+    int ret = _snwprintf(dest, destMax, matchAll ? L"%ls\\*.*" : L"%ls\\*", path);
+    dest[destMax - 1] = L'\0';
+    return ret < 0 || (size_t)ret >= destMax ? -1 : ret;
+}
+
+static int WPathJoinEntry(wchar_t* dest, size_t destMax, const wchar_t* path, const wchar_t* name)
+{
+    if (dest == NULL || destMax == 0 || path == NULL || name == NULL) {
+        return -1;
+    }
+    int ret = _snwprintf(dest, destMax, L"%ls\\%ls", path, name);
+    dest[destMax - 1] = L'\0';
+    return ret < 0 || (size_t)ret >= destMax ? -1 : ret;
 }
 
 static wchar_t* GetWPath(const char* cstr)
@@ -118,24 +168,30 @@ static wchar_t* GetWPathEndWithStar(const char* cstr)
     return conv;
 }
 
-extern int64_t CJ_FS_PathSize(const char* path)
+extern int64_t CJ_FS_PathSize(const char* path, bool followSymlink)
 {
+    BY_HANDLE_FILE_INFORMATION info;
+    if (!GetFileInformation(path, followSymlink, &info)) {
+        return -1;
+    }
+    bool isDirectory = (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+    bool isReparsePoint = (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+    if (!isDirectory || (!followSymlink && isReparsePoint)) {
+        return ((int64_t)info.nFileSizeHigh << 32) | info.nFileSizeLow;
+    }
     wchar_t* wPath = GetWPath(path);
     if (wPath == NULL) {
         return -1;
     }
-    int64_t len = FileSize(wPath);
-    if (len < 0 && IsDirectory(wPath) > 0) {
-        len = GetDirectorySize(wPath);
-    }
+    int64_t len = GetDirectorySize(wPath, followSymlink);
     free(wPath);
     return len;
 }
 
-static int64_t GetDirectorySize(const wchar_t* wPath)
+static int64_t GetDirectorySize(const wchar_t* wPath, bool followSymlink)
 {
     wchar_t dirPath[MAX_PATH_LEN];
-    if (swprintf_s(dirPath, MAX_PATH_LEN, L"%s\\*.*", wPath) < 0) {
+    if (WPathJoinStar(dirPath, MAX_PATH_LEN, wPath, true) < 0) {
         return -1;
     }
 
@@ -150,24 +206,22 @@ static int64_t GetDirectorySize(const wchar_t* wPath)
             continue;
         }
         DWORD fileType = fileData.dwFileAttributes;
-        bool isFile = (fileType & FILE_ATTRIBUTE_REPARSE_POINT) == 0 && (fileType & FILE_ATTRIBUTE_DIRECTORY) == 0;
-        bool isDir = (fileType & FILE_ATTRIBUTE_REPARSE_POINT) == 0 && (fileType & FILE_ATTRIBUTE_DIRECTORY) != 0;
-        bool isLink = (fileType & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
-        if (isFile) {
-            totalSize += ((int64_t)fileData.nFileSizeHigh << 32) | fileData.nFileSizeLow; // Size is 32-bit
-        } else if (isDir) {
-            if (swprintf_s(dirPath, MAX_PATH_LEN, L"%s\\%s", wPath, fileData.cFileName) < 0) {
+        bool isReparsePoint = (fileType & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+        bool isDir = (fileType & FILE_ATTRIBUTE_DIRECTORY) != 0;
+        int64_t entrySize = ((int64_t)fileData.nFileSizeHigh << 32) | fileData.nFileSizeLow; // Size is 32-bit
+        if (!isDir || (isReparsePoint && !followSymlink)) {
+            totalSize += entrySize;
+        } else {
+            if (WPathJoinEntry(dirPath, MAX_PATH_LEN, wPath, fileData.cFileName) < 0) {
                 return -1;
             }
-            int subSize = GetDirectorySize(dirPath);
+            int64_t subSize = GetDirectorySize(dirPath, followSymlink);
             if (subSize < 0) {
                 totalSize = -1;
                 break;
             } else {
                 totalSize += subSize;
             }
-        } else {
-            continue;
         }
     } while (FindNextFileW(hFind, &fileData));
 
@@ -179,24 +233,24 @@ static int64_t GetDirectorySize(const wchar_t* wPath)
     return totalSize;
 }
 
-extern int64_t CJ_FS_GetCreationTime(const char* path)
+extern int64_t CJ_FS_GetCreationTime(const char* path, bool followSymlink)
 {
     enum FILE_TIME_TYPE ty = CREATION;
-    int64_t ret = FileTime(path, ty);
+    int64_t ret = FileTime(path, ty, followSymlink);
     return ret;
 }
 
-extern int64_t CJ_FS_GetLastAccessTime(const char* path)
+extern int64_t CJ_FS_GetLastAccessTime(const char* path, bool followSymlink)
 {
     enum FILE_TIME_TYPE ty = LAST_ACCESS;
-    int64_t ret = FileTime(path, ty);
+    int64_t ret = FileTime(path, ty, followSymlink);
     return ret;
 }
 
-extern int64_t CJ_FS_GetLastModificationTime(const char* path)
+extern int64_t CJ_FS_GetLastModificationTime(const char* path, bool followSymlink)
 {
     enum FILE_TIME_TYPE ty = LAST_WRITE;
-    int64_t ret = FileTime(path, ty);
+    int64_t ret = FileTime(path, ty, followSymlink);
     return ret;
 }
 
@@ -267,34 +321,276 @@ static BOOL GetFileAttr(const char* path, WIN32_FILE_ATTRIBUTE_DATA* wfad)
     return result;
 }
 
-static int64_t IsFileExecutable(const char* path)
+static BOOL IsPathReparsePoint(const char* path)
 {
-    BOOL result;
-    DWORD able;
-    wchar_t* conv = (wchar_t*)GetWPath(path);
+    wchar_t* conv = GetWPath(path);
     if (conv == NULL) {
-        return -1;
+        return FALSE;
     }
-    result = GetBinaryTypeW(conv, &able);
+
+    HANDLE hFile = CreateFileW(conv, FILE_READ_ATTRIBUTES, FILE_SHARE_MODE, NULL, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
     free((void*)conv);
-    if (result) {
-        return able; // real value could be 0.
-    } else {
-        return -1;
+    if (hFile == INVALID_HANDLE_VALUE) {
+        return FALSE;
+    }
+
+    BY_HANDLE_FILE_INFORMATION info;
+    BOOL result = GetFileInformationByHandle(hFile, &info);
+    CloseHandle(hFile);
+    return result && (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+}
+
+static BOOL IsWPathAbsolute(const wchar_t* path)
+{
+    if (path == NULL || path[0] == L'\0') {
+        return FALSE;
+    }
+    if (IsWSlash(path[0]) && IsWSlash(path[1])) {
+        return TRUE;
+    }
+    return iswalpha(path[0]) && path[1] == L':' && IsWSlash(path[2]);
+}
+
+static void StripNtPathPrefix(wchar_t* path)
+{
+    const wchar_t* ntPrefix = L"\\??\\";
+    size_t ntPrefixLen = wcslen(ntPrefix);
+    if (path != NULL && wcsncmp(path, ntPrefix, ntPrefixLen) == 0) {
+        (void)memmove_s(path, (wcslen(path) + 1) * sizeof(wchar_t), path + ntPrefixLen,
+            (wcslen(path + ntPrefixLen) + 1) * sizeof(wchar_t));
     }
 }
 
-static int64_t FileTime(const char* path, enum FILE_TIME_TYPE ty)
+static wchar_t* CopyReparseTarget(PREPARSE_DATA_BUFFER data)
 {
-    WIN32_FILE_ATTRIBUTE_DATA wfad;
+    USHORT offset;
+    USHORT length;
+    WCHAR* buffer;
+    if (data->ReparseTag == IO_REPARSE_TAG_SYMLINK) {
+        offset = data->SymbolicLinkReparseBuffer.PrintNameOffset;
+        length = data->SymbolicLinkReparseBuffer.PrintNameLength;
+        if (length == 0) {
+            offset = data->SymbolicLinkReparseBuffer.SubstituteNameOffset;
+            length = data->SymbolicLinkReparseBuffer.SubstituteNameLength;
+        }
+        buffer = data->SymbolicLinkReparseBuffer.PathBuffer;
+    } else if (data->ReparseTag == IO_REPARSE_TAG_MOUNT_POINT) {
+        offset = data->MountPointReparseBuffer.PrintNameOffset;
+        length = data->MountPointReparseBuffer.PrintNameLength;
+        if (length == 0) {
+            offset = data->MountPointReparseBuffer.SubstituteNameOffset;
+            length = data->MountPointReparseBuffer.SubstituteNameLength;
+        }
+        buffer = data->MountPointReparseBuffer.PathBuffer;
+    } else {
+        return NULL;
+    }
+
+    int wlen = length / sizeof(WCHAR);
+    wchar_t* target = (wchar_t*)malloc(sizeof(wchar_t) * (wlen + 1));
+    if (target == NULL) {
+        return NULL;
+    }
+    (void)memcpy_s(target, sizeof(wchar_t) * (wlen + 1), buffer + offset / sizeof(WCHAR), length);
+    target[wlen] = L'\0';
+    StripNtPathPrefix(target);
+    return target;
+}
+
+static wchar_t* ResolveReparseTarget(const wchar_t* linkPath, wchar_t* target)
+{
+    if (target == NULL || IsWPathAbsolute(target)) {
+        return target;
+    }
+
+    wchar_t* separator = wcsrchr(linkPath, L'\\');
+    if (separator == NULL) {
+        return target;
+    }
+
+    size_t parentLen = separator - linkPath;
+    size_t targetLen = wcslen(target);
+    size_t resolvedLen = parentLen + 1 + targetLen + 1;
+    wchar_t* resolved = (wchar_t*)malloc(sizeof(wchar_t) * resolvedLen);
+    if (resolved == NULL) {
+        return target;
+    }
+    int ret = _snwprintf(resolved, resolvedLen, L"%.*ls\\%ls", (int)parentLen, linkPath, target);
+    resolved[resolvedLen - 1] = L'\0';
+    if (ret < 0 || (size_t)ret >= resolvedLen) {
+        free(resolved);
+        return target;
+    }
+    free(target);
+    return resolved;
+}
+
+static wchar_t* ReadReparseTarget(const char* path)
+{
+    wchar_t* wPath = GetWPath(path);
+    if (wPath == NULL) {
+        return NULL;
+    }
+
+    HANDLE hFile = CreateFileW(wPath, FILE_READ_ATTRIBUTES, FILE_SHARE_MODE, NULL, OPEN_EXISTING,
+        FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+    if (hFile == INVALID_HANDLE_VALUE) {
+        free(wPath);
+        return NULL;
+    }
+
+    DWORD dwBufferSize = MAXIMUM_REPARSE_DATA_BUFFER_SIZE;
+    REPARSE_DATA_BUFFER* pReparseData = (REPARSE_DATA_BUFFER*)malloc(dwBufferSize);
+    if (pReparseData == NULL) {
+        CloseHandle(hFile);
+        free(wPath);
+        return NULL;
+    }
+
+    DWORD dwBytesReturned;
+    BOOL result =
+        DeviceIoControl(hFile, FSCTL_GET_REPARSE_POINT, NULL, 0, pReparseData, dwBufferSize, &dwBytesReturned, NULL);
+    CloseHandle(hFile);
+    if (!result) {
+        free(pReparseData);
+        free(wPath);
+        return NULL;
+    }
+
+    wchar_t* target = CopyReparseTarget(pReparseData);
+    free(pReparseData);
+    target = ResolveReparseTarget(wPath, target);
+    free(wPath);
+    return target;
+}
+
+static BOOL IsFollowTargetAvailable(const char* path)
+{
+    if (!IsPathReparsePoint(path)) {
+        return TRUE;
+    }
+
+    wchar_t* target = ReadReparseTarget(path);
+    if (target == NULL) {
+        return FALSE;
+    }
+
+    DWORD attrs = GetFileAttributesW(target);
+    free(target);
+    return attrs != INVALID_FILE_ATTRIBUTES;
+}
+
+static HANDLE GetFileHandleWithFollow(const char* path, bool followSymlink)
+{
+    wchar_t* conv = (wchar_t*)GetWPath(path);
+    if (conv == NULL) {
+        return NULL;
+    }
+    DWORD flags = FILE_FLAG_BACKUP_SEMANTICS;
+    if (!followSymlink) {
+        flags |= FILE_FLAG_OPEN_REPARSE_POINT;
+    }
+    HANDLE hFile = CreateFileW(conv, FILE_READ_ATTRIBUTES, FILE_SHARE_MODE, NULL, OPEN_EXISTING, flags, NULL);
+    free((void*)conv);
+    return hFile;
+}
+
+static BOOL GetReparseTagByHandle(HANDLE hFile, DWORD* tag)
+{
+    if (tag == NULL) {
+        return FALSE;
+    }
+    DWORD dwBufferSize = MAXIMUM_REPARSE_DATA_BUFFER_SIZE;
+    REPARSE_DATA_BUFFER* pReparseData = (REPARSE_DATA_BUFFER*)malloc(dwBufferSize);
+    if (pReparseData == NULL) {
+        return FALSE;
+    }
+
+    DWORD dwBytesReturned;
+    BOOL result =
+        DeviceIoControl(hFile, FSCTL_GET_REPARSE_POINT, NULL, 0, pReparseData, dwBufferSize, &dwBytesReturned, NULL);
+    if (result) {
+        *tag = pReparseData->ReparseTag;
+    }
+    free(pReparseData);
+    return result;
+}
+
+static BOOL GetFileInformation(const char* path, bool followSymlink, BY_HANDLE_FILE_INFORMATION* info)
+{
+    if (info == NULL) {
+        return FALSE;
+    }
+    if (followSymlink && !IsFollowTargetAvailable(path)) {
+        return FALSE;
+    }
+    HANDLE hFile = GetFileHandleWithFollow(path, followSymlink);
+    if (hFile == NULL || hFile == INVALID_HANDLE_VALUE) {
+        return FALSE;
+    }
+    BOOL result = GetFileInformationByHandle(hFile, info);
+    if (result && followSymlink && (info->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
+        result = FALSE;
+    }
+    CloseHandle(hFile);
+    return result;
+}
+
+static int8_t GetIsSymbolicLinkWithInfo(const char* path, BY_HANDLE_FILE_INFORMATION* info)
+{
+    if (info == NULL) {
+        return -1;
+    }
+    HANDLE hFile = GetFileHandleWithFollow(path, false);
+    if (hFile == NULL || hFile == INVALID_HANDLE_VALUE) {
+        return -1;
+    }
+
+    BOOL result = GetFileInformationByHandle(hFile, info);
+    DWORD reparseTag = 0;
+    if (result && (info->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
+        (void)GetReparseTagByHandle(hFile, &reparseTag);
+    }
+    CloseHandle(hFile);
+    if (!result) {
+        return -1;
+    }
+    BOOL isSymbolicLink =
+        (info->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0 && reparseTag == IO_REPARSE_TAG_SYMLINK;
+    return isSymbolicLink == TRUE;
+}
+
+static BOOL CanOpenPath(const char* path, bool followSymlink, DWORD desiredAccess)
+{
+    wchar_t* conv = (wchar_t*)GetWPath(path);
+    if (conv == NULL) {
+        return FALSE;
+    }
+    DWORD flags = FILE_FLAG_BACKUP_SEMANTICS;
+    if (!followSymlink) {
+        flags |= FILE_FLAG_OPEN_REPARSE_POINT;
+    }
+    HANDLE hFile = CreateFileW(conv, desiredAccess, FILE_SHARE_MODE, NULL, OPEN_EXISTING, flags, NULL);
+    free((void*)conv);
+    if (hFile == INVALID_HANDLE_VALUE) {
+        return FALSE;
+    }
+    CloseHandle(hFile);
+    return TRUE;
+}
+
+static int64_t FileTime(const char* path, enum FILE_TIME_TYPE ty, bool followSymlink)
+{
+    BY_HANDLE_FILE_INFORMATION info;
     FILETIME systime;
-    if (GetFileAttr(path, &wfad)) {
+    if (GetFileInformation(path, followSymlink, &info)) {
         if (ty == CREATION) {
-            systime = wfad.ftCreationTime;
+            systime = info.ftCreationTime;
         } else if (ty == LAST_ACCESS) {
-            systime = wfad.ftLastAccessTime;
+            systime = info.ftLastAccessTime;
         } else if (ty == LAST_WRITE) {
-            systime = wfad.ftLastWriteTime;
+            systime = info.ftLastWriteTime;
         }
         return ((int64_t)((((uint64_t)systime.dwHighDateTime << 32) // 32 is the size of dwLowDateTime
                               | systime.dwLowDateTime) /
@@ -304,73 +600,48 @@ static int64_t FileTime(const char* path, enum FILE_TIME_TYPE ty)
     return -1;
 }
 
-static int64_t FileSize(const wchar_t* path)
+extern int8_t CJ_FS_Exists(const char* path, bool followSymlink)
 {
-    WIN32_FILE_ATTRIBUTE_DATA wfad;
-    if (GetFileAttributesExW(path, GetFileExInfoStandard, &wfad)) {
-        // If this is a normal file, returns file's size
-        if ((wfad.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0 &&
-            (wfad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
-            int64_t size = ((int64_t)wfad.nFileSizeHigh << 32) | wfad.nFileSizeLow;
-            return size;
+    BY_HANDLE_FILE_INFORMATION info;
+    return GetFileInformation(path, followSymlink, &info) ? 0 : -1;
+}
+
+extern int8_t CJ_FS_IsDir(const char* path, bool followSymlink)
+{
+    BY_HANDLE_FILE_INFORMATION info;
+    if (!GetFileInformation(path, followSymlink, &info)) {
+        return -1;
+    } else {
+        if (!followSymlink && (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+            return 0;
         }
-    }
-    return -1;
-}
-
-static uint8_t FileType(DWORD fileType)
-{
-    if ((fileType & FILE_ATTRIBUTE_REPARSE_POINT) == 0 && (fileType & FILE_ATTRIBUTE_DIRECTORY) == 0) {
-        return FT_REG;
-    }
-
-    if ((fileType & FILE_ATTRIBUTE_REPARSE_POINT) == 0 && (fileType & FILE_ATTRIBUTE_DIRECTORY) != 0) {
-        return FT_DIR;
-    }
-
-    if ((fileType & FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
-        return FT_LNK;
-    }
-    return FT_UNKNOWN;
-}
-
-extern int8_t CJ_FS_Exists(const char* path)
-{
-    WIN32_FILE_ATTRIBUTE_DATA wfad;
-    return GetFileAttr(path, &wfad) == 0 ? 1 : 0;
-}
-
-extern int8_t CJ_FS_IsDir(const char* path)
-{
-    WIN32_FILE_ATTRIBUTE_DATA wfad;
-    if (GetFileAttr(path, &wfad) == 0) {
-        return -1;
-    } else if ((wfad.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
-        return 0; // is link
-    } else {
-        return (wfad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? 1 : 0;
+        return (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? 1 : 0;
     }
 }
 
-extern int8_t CJ_FS_IsFile(const char* path)
+extern int8_t CJ_FS_IsFile(const char* path, bool followSymlink)
 {
-    WIN32_FILE_ATTRIBUTE_DATA wfad;
-    if (GetFileAttr(path, &wfad) == 0) {
-        return -1;
-    } else if ((wfad.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
-        return 0; // is link
-    } else {
-        return (wfad.dwFileAttributes & (FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_NORMAL)) ? 1 : 0;
-    }
-}
-
-extern int8_t CJ_FS_IsLink(const char* path)
-{
-    WIN32_FILE_ATTRIBUTE_DATA wfad;
-    if (GetFileAttr(path, &wfad) == 0) {
+    BY_HANDLE_FILE_INFORMATION info;
+    if (!GetFileInformation(path, followSymlink, &info)) {
         return -1;
     } else {
-        return (wfad.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) == FILE_ATTRIBUTE_REPARSE_POINT ? 1 : 0;
+        if (!followSymlink && (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+            return 0;
+        }
+        return (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? 0 : 1;
+    }
+}
+
+extern int8_t CJ_FS_IsLink(const char* path, bool followSymlink)
+{
+    BY_HANDLE_FILE_INFORMATION info;
+    if (!followSymlink) {
+        return GetIsSymbolicLinkWithInfo(path, &info);
+    }
+    if (!GetFileInformation(path, followSymlink, &info)) {
+        return -1;
+    } else {
+        return (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) == FILE_ATTRIBUTE_REPARSE_POINT ? 1 : 0;
     }
 }
 
@@ -461,9 +732,13 @@ extern int8_t CJ_FS_IsDirORLinkToFDir(const char* path)
     }
 }
 
-extern int8_t CJ_FS_CanRead(const char* path, int64_t pathLen)
+extern int8_t CJ_FS_CanRead(const char* path, bool followSymlink)
 {
-    return 1;
+    BY_HANDLE_FILE_INFORMATION info;
+    if (!GetFileInformation(path, followSymlink, &info)) {
+        return -1;
+    }
+    return CanOpenPath(path, followSymlink, GENERIC_READ) ? 1 : 0;
 }
 
 static int64_t LocalStat(const char* path, struct stat* buf)
@@ -490,8 +765,18 @@ static int64_t LocalStat(const char* path, struct stat* buf)
     return ret;
 }
 
-extern int8_t CJ_FS_CanExecute(const char* path)
+extern int8_t CJ_FS_CanExecute(const char* path, bool followSymlink)
 {
+    if (!followSymlink) {
+        BY_HANDLE_FILE_INFORMATION info;
+        int8_t isSymbolicLink = GetIsSymbolicLinkWithInfo(path, &info);
+        if (isSymbolicLink < 0) {
+            return -1;
+        }
+        if ((info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0) {
+            return isSymbolicLink == 1;
+        }
+    }
     struct stat buf;
     if (LocalStat(path, &buf) < 0) {
         return -1;
@@ -499,28 +784,29 @@ extern int8_t CJ_FS_CanExecute(const char* path)
     return (int8_t)((buf.st_mode | S_IXUSR) == buf.st_mode);
 }
 
-extern int8_t CJ_FS_IsReadOnly(const char* path)
+extern int8_t CJ_FS_IsReadOnly(const char* path, bool followSymlink)
 {
     /*
      * In the Windows environment, the read-only permission of a user on a file is normal.
      * The user always has the permission to delete or modify a directory.
      */
-    int8_t isDir = CJ_FS_IsDir(path);
+    int8_t isDir = CJ_FS_IsDir(path, followSymlink);
     if (isDir < 0) {
         return -1;
     } else if (isDir == 1) {
         return 0;
     }
-    WIN32_FILE_ATTRIBUTE_DATA wfad;
-    BOOL result = GetFileAttr(path, &wfad);
-    return (int8_t)result != 0 ? ((wfad.dwFileAttributes == FILE_ATTRIBUTE_READONLY) ||
-                                     (wfad.dwFileAttributes & FILE_ATTRIBUTE_READONLY) == FILE_ATTRIBUTE_READONLY)
-                               : 0;
+    BY_HANDLE_FILE_INFORMATION info;
+    if (!GetFileInformation(path, followSymlink, &info)) {
+        return -1;
+    }
+    return (int8_t)((info.dwFileAttributes == FILE_ATTRIBUTE_READONLY) ||
+        (info.dwFileAttributes & FILE_ATTRIBUTE_READONLY) == FILE_ATTRIBUTE_READONLY);
 }
 
-extern int8_t CJ_FS_CanWrite(const char* path)
+extern int8_t CJ_FS_CanWrite(const char* path, bool followSymlink)
 {
-    int8_t isReadOnly = CJ_FS_IsReadOnly(path);
+    int8_t isReadOnly = CJ_FS_IsReadOnly(path, followSymlink);
     if (isReadOnly < 0) {
         return -1;
     } else if (isReadOnly == 0) {
@@ -528,6 +814,7 @@ extern int8_t CJ_FS_CanWrite(const char* path)
     } else if (isReadOnly == 1) {
         return 0;
     }
+    return -1;
 }
 
 extern int8_t CJ_FS_SetExecutable(const char* path, bool executable)
@@ -535,7 +822,7 @@ extern int8_t CJ_FS_SetExecutable(const char* path, bool executable)
     return 0;
 }
 
-extern int8_t CJ_FS_SetReadable(const char* path, int64_t pathLen, bool readable)
+extern int8_t CJ_FS_SetReadable(const char* path, bool readable)
 {
     return (int8_t)readable;
 }
@@ -547,7 +834,7 @@ extern int8_t CJ_FS_SetWritable(const char* path, bool writable)
      * The user always has the write permission on the directory and cannot be changed.
      * This function does not take effect.
      */
-    int8_t isDir = CJ_FS_IsDir(path);
+    int8_t isDir = CJ_FS_IsDir(path, true);
     if (isDir < 0) {
         return -1;
     } else if (isDir == 1) {
@@ -608,7 +895,7 @@ extern char* CJ_FS_GetDirHandleAndFirstFile(const char* path, uintptr_t* hd)
     }
     WIN32_FIND_DATAW fileData;
     wchar_t dirPath[MAX_PATH_LEN];
-    if (swprintf_s(dirPath, MAX_PATH_LEN, L"%s\\*.*", conv) < 0) {
+    if (WPathJoinStar(dirPath, MAX_PATH_LEN, conv, true) < 0) {
         free((void*)conv);
         return NULL;
     }
@@ -703,7 +990,7 @@ static FsError* DeleteTree(wchar_t* wPath)
     wchar_t szPath[MAX_PATH_LEN] = {0};
     WIN32_FIND_DATAW fd;
 
-    if (swprintf_s(szPath, MAX_PATH_LEN, L"%ls\\*", wPath) == -1) {
+    if (WPathJoinStar(szPath, MAX_PATH_LEN, wPath, false) == -1) {
         return GetErrnoResult();
     }
 
@@ -714,7 +1001,7 @@ static FsError* DeleteTree(wchar_t* wPath)
                 continue;
             }
 
-            if (swprintf_s(szPath, MAX_PATH_LEN, L"%ls\\%ls", wPath, fd.cFileName) == -1) {
+            if (WPathJoinEntry(szPath, MAX_PATH_LEN, wPath, fd.cFileName) == -1) {
                 return GetErrnoResult();
             }
             if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
@@ -1238,32 +1525,6 @@ extern FsError* CJ_FS_SymLink(const char* linkPath, char* originPath)
     }
     return GetDefaultResult();
 }
-
-typedef struct _REPARSE_DATA_BUFFER {
-    ULONG ReparseTag;
-    USHORT ReparseDataLength;
-    USHORT Reserved;
-    union {
-        struct {
-            USHORT SubstituteNameOffset;
-            USHORT SubstituteNameLength;
-            USHORT PrintNameOffset;
-            USHORT PrintNameLength;
-            ULONG Flags;
-            WCHAR PathBuffer[1];
-        } SymbolicLinkReparseBuffer;
-        struct {
-            USHORT SubstituteNameOffset;
-            USHORT SubstituteNameLength;
-            USHORT PrintNameOffset;
-            USHORT PrintNameLength;
-            WCHAR PathBuffer[1];
-        } MountPointReparseBuffer;
-        struct {
-            UCHAR DataBuffer[1];
-        } GenericReparseBuffer;
-    } DUMMYUNIONNAME;
-} REPARSE_DATA_BUFFER, *PREPARSE_DATA_BUFFER;
 
 /**
  * If this function succeeds, the `rtnCode` is zero and the `msg` is the target path.

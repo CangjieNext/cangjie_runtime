@@ -151,6 +151,8 @@ public static func readFrom(path: Path): Array<FileInfo>
 
 Function: Retrieves the list of sub-items in the current directory.
 
+The returned [FileInfo](fs_package_structs.md#struct-fileinfo) for each sub-item queries the symbolic link itself and does not follow the symbolic link target.
+
 The order of sub-items in the array depends on the system's file sorting.
 
 Parameters:
@@ -173,6 +175,8 @@ public static func readFrom(path: String): Array<FileInfo>
 ```
 
 Function: Retrieves the list of sub-items in the current directory.
+
+The returned [FileInfo](./fs_package_structs.md#struct-fileinfo) for each sub-item queries the symbolic link itself and does not follow the symbolic link target.
 
 The order of sub-items in the array depends on the system's file sorting.
 
@@ -197,6 +201,8 @@ public static func walk(path: Path, f: (FileInfo)->Bool): Unit
 
 Function: Traverses sub-items (non-recursive, excluding sub-directories' sub-items) under the directory corresponding to `path` and executes a callback function for each sub-item.
 
+The [FileInfo](./fs_package_structs.md#struct-fileinfo) passed to the callback queries the symbolic link itself and does not follow the symbolic link target.
+
 The `walk` function exits when traversal completes or the callback function `f` returns false. The traversal order depends on the system's file sorting.
 
 Parameters:
@@ -216,6 +222,8 @@ public static func walk(path: String, f: (FileInfo)->Bool): Unit
 ```
 
 Function: Traverses sub-items (non-recursive, excluding sub-directories' sub-items) under the directory corresponding to `path` and executes a callback function for each sub-item.
+
+The [FileInfo](./fs_package_structs.md#struct-fileinfo) passed to the callback queries the symbolic link itself and does not follow the symbolic link target.
 
 The `walk` function exits when traversal completes or the callback function `f` returns false. The traversal order depends on the system's file sorting.
 
@@ -519,7 +527,7 @@ Exceptions:
 public static func readFrom(path: Path, recursive!: Bool = false): Path
 ```
 
-Function: Retrieves the target of the specified symbolic link. When 'recursive' is set to 'true', it follows the link to the final target and returns the full path of the target. When 'recursive' is set to 'false', it reads the current target link and returns it.
+Function: Retrieves the target of the specified symbolic link. This function checks whether `path` is a symbolic link by querying the symbolic link itself and does not follow its target. When 'recursive' is set to 'true', it follows the link to the final target and returns the full path of the target. When 'recursive' is set to 'false', it reads the current target link and returns it.
 
 Parameters:
 
@@ -541,7 +549,7 @@ Exceptions:
 public static func readFrom(path: String, recursive!: Bool = false): Path
 ```
 
-Function: Retrieves the target of the specified symbolic link. When 'recursive' is set to 'true', it follows the link to the final target and returns the full path of the target. When 'recursive' is set to 'false', it reads the current target link and returns it.
+Function: Retrieves the target of the specified symbolic link. This function checks whether `path` is a symbolic link by querying the symbolic link itself and does not follow its target. When 'recursive' is set to 'true', it follows the link to the final target and returns the full path of the target. When 'recursive' is set to 'false', it reads the current target link and returns it.
 
 Parameters:
 
