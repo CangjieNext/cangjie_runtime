@@ -58,7 +58,9 @@ File fileHandle: 3
 ```cangjie
 public struct FileInfo <: Equatable<FileInfo> {
     public init(path: Path)
+    public init(path: Path, followSymlink!: Bool)
     public init(path: String)
+    public init(path: String, followSymlink!: Bool)
 }
 ```
 
@@ -69,6 +71,10 @@ public struct FileInfo <: Equatable<FileInfo> {
 > 文件元数据是指文件系统中与文件相关的信息，包括文件名、文件大小、创建时间、修改时间、访问时间、文件权限、文件所有者等。
 >
 > [FileInfo](fs_package_structs.md#struct-fileinfo) 的底层实现是没有直接缓存文件属性的，每次通过 [FileInfo](fs_package_structs.md#struct-fileinfo) 的 API 都是现场获取的最新的文件属性。
+>
+> 创建 [FileInfo](fs_package_structs.md#struct-fileinfo) 实例时，如果 `path` 是符号链接，`followSymlink` 用于控制元数据查询对象。默认值为 `true`，表示查询符号链接最终指向的目标；设置为 `false` 时查询符号链接本身。该规则适用于时间、大小、文件类型、隐藏状态和权限查询接口。对悬空符号链接，`followSymlink: false` 可查询符号链接本身，`followSymlink: true` 查询目标元数据时会抛出异常。
+>
+> 当 [FileInfo](fs_package_structs.md#struct-fileinfo) 表示符号链接本身时，`setExecutable`、`setReadable`、`setWritable` 不修改链接目标，而是返回符号链接本身对应的可执行、可读、可写状态。普通文件和目录保持原有设置权限语义。
 >
 > 因此这里有需要注意的情况，对于创建的同一 [FileInfo](fs_package_structs.md#struct-fileinfo) 实例，如果在两次获取其文件属性操作期间，对应的文件实体可能会被其他用户或进程做了修改或者替换等不期望的操作，就会导致后一次获取的可能不是期望的文件属性。
 > 如果有特殊文件操作需求需要避免上述情况的产生，可以采用设置文件权限或者给关键文件操作加锁的方式来保证。
@@ -389,13 +395,15 @@ File size: 4 bytes
 
 ```cangjie
 public init(path: Path)
+public init(path: Path, followSymlink!: Bool)
 ```
 
 功能：创建 [FileInfo](fs_package_structs.md#struct-fileinfo) 实例。
 
 参数：
 
-- path: [Path](fs_package_structs.md#struct-path) - [Path](fs_package_structs.md#struct-path) 形式的目录路径。
+- path: [Path](fs_package_structs.md#struct-path) - [Path](fs_package_structs.md#struct-path) 形式的文件或目录路径。
+- followSymlink: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 当 `path` 是符号链接时是否查询其目标元数据，默认值为 `true`。
 
 异常：
 
@@ -437,13 +445,15 @@ File name: test_init_path.txt
 
 ```cangjie
 public init(path: String)
+public init(path: String, followSymlink!: Bool)
 ```
 
 功能：创建 [FileInfo](fs_package_structs.md#struct-fileinfo) 实例。
 
 参数：
 
-- path: [String](../../core/core_package_api/core_package_structs.md#struct-string) - [String](../../core/core_package_api/core_package_structs.md#struct-string) 形式的目录路径。
+- path: [String](../../core/core_package_api/core_package_structs.md#struct-string) - [String](../../core/core_package_api/core_package_structs.md#struct-string) 形式的文件或目录路径。
+- followSymlink: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 当 `path` 是符号链接时是否查询其目标元数据，默认值为 `true`。
 
 异常：
 

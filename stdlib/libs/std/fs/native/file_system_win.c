@@ -40,11 +40,12 @@ static char* CJ_FS_ErrmesGet(int errnoValue);
 static bool IsDosDevicePath(const char* path);
 static BOOL GetFileAttr(const char* path, WIN32_FILE_ATTRIBUTE_DATA* wfad);
 static int32_t GetDosDevicePathLocation(char* cPath, int64_t pathLen);
-static int64_t FileTime(const char* path, enum FILE_TIME_TYPE ty);
-static int64_t FileSize(const wchar_t* path);
+static int64_t FileTime(const char* path, enum FILE_TIME_TYPE ty, bool followSymlink);
+static int64_t FileSize(const char* path, bool followSymlink);
 static int64_t GetDirectorySize(const wchar_t* path);
 static int64_t IsFileExecutable(const char* path);
 static inline bool IsSlash(char c);
+static BOOL GetFileInformation(const char* path, bool followSymlink, BY_HANDLE_FILE_INFORMATION* info);
 
 static int8_t IsDirectory(const wchar_t* path)
 {
@@ -118,14 +119,14 @@ static wchar_t* GetWPathEndWithStar(const char* cstr)
     return conv;
 }
 
-extern int64_t CJ_FS_PathSize(const char* path)
+extern int64_t CJ_FS_PathSize(const char* path, bool followSymlink)
 {
     wchar_t* wPath = GetWPath(path);
     if (wPath == NULL) {
         return -1;
     }
-    int64_t len = FileSize(wPath);
-    if (len < 0 && IsDirectory(wPath) > 0) {
+    int64_t len = FileSize(path, followSymlink);
+    if (len < 0) {
         len = GetDirectorySize(wPath);
     }
     free(wPath);
@@ -179,24 +180,24 @@ static int64_t GetDirectorySize(const wchar_t* wPath)
     return totalSize;
 }
 
-extern int64_t CJ_FS_GetCreationTime(const char* path)
+extern int64_t CJ_FS_GetCreationTime(const char* path, bool followSymlink)
 {
     enum FILE_TIME_TYPE ty = CREATION;
-    int64_t ret = FileTime(path, ty);
+    int64_t ret = FileTime(path, ty, followSymlink);
     return ret;
 }
 
-extern int64_t CJ_FS_GetLastAccessTime(const char* path)
+extern int64_t CJ_FS_GetLastAccessTime(const char* path, bool followSymlink)
 {
     enum FILE_TIME_TYPE ty = LAST_ACCESS;
-    int64_t ret = FileTime(path, ty);
+    int64_t ret = FileTime(path, ty, followSymlink);
     return ret;
 }
 
-extern int64_t CJ_FS_GetLastModificationTime(const char* path)
+extern int64_t CJ_FS_GetLastModificationTime(const char* path, bool followSymlink)
 {
     enum FILE_TIME_TYPE ty = LAST_WRITE;
-    int64_t ret = FileTime(path, ty);
+    int64_t ret = FileTime(path, ty, followSymlink);
     return ret;
 }
 
@@ -267,6 +268,35 @@ static BOOL GetFileAttr(const char* path, WIN32_FILE_ATTRIBUTE_DATA* wfad)
     return result;
 }
 
+static HANDLE GetFileHandleWithFollow(const char* path, bool followSymlink)
+{
+    wchar_t* conv = (wchar_t*)GetWPath(path);
+    if (conv == NULL) {
+        return NULL;
+    }
+    DWORD flags = FILE_FLAG_BACKUP_SEMANTICS;
+    if (!followSymlink) {
+        flags |= FILE_FLAG_OPEN_REPARSE_POINT;
+    }
+    HANDLE hFile = CreateFileW(conv, FILE_READ_ATTRIBUTES, FILE_SHARE_MODE, NULL, OPEN_EXISTING, flags, NULL);
+    free((void*)conv);
+    return hFile;
+}
+
+static BOOL GetFileInformation(const char* path, bool followSymlink, BY_HANDLE_FILE_INFORMATION* info)
+{
+    if (info == NULL) {
+        return FALSE;
+    }
+    HANDLE hFile = GetFileHandleWithFollow(path, followSymlink);
+    if (hFile == NULL || hFile == INVALID_HANDLE_VALUE) {
+        return FALSE;
+    }
+    BOOL result = GetFileInformationByHandle(hFile, info);
+    CloseHandle(hFile);
+    return result;
+}
+
 static int64_t IsFileExecutable(const char* path)
 {
     BOOL result;
@@ -284,17 +314,17 @@ static int64_t IsFileExecutable(const char* path)
     }
 }
 
-static int64_t FileTime(const char* path, enum FILE_TIME_TYPE ty)
+static int64_t FileTime(const char* path, enum FILE_TIME_TYPE ty, bool followSymlink)
 {
-    WIN32_FILE_ATTRIBUTE_DATA wfad;
+    BY_HANDLE_FILE_INFORMATION info;
     FILETIME systime;
-    if (GetFileAttr(path, &wfad)) {
+    if (GetFileInformation(path, followSymlink, &info)) {
         if (ty == CREATION) {
-            systime = wfad.ftCreationTime;
+            systime = info.ftCreationTime;
         } else if (ty == LAST_ACCESS) {
-            systime = wfad.ftLastAccessTime;
+            systime = info.ftLastAccessTime;
         } else if (ty == LAST_WRITE) {
-            systime = wfad.ftLastWriteTime;
+            systime = info.ftLastWriteTime;
         }
         return ((int64_t)((((uint64_t)systime.dwHighDateTime << 32) // 32 is the size of dwLowDateTime
                               | systime.dwLowDateTime) /
@@ -304,16 +334,16 @@ static int64_t FileTime(const char* path, enum FILE_TIME_TYPE ty)
     return -1;
 }
 
-static int64_t FileSize(const wchar_t* path)
+static int64_t FileSize(const char* path, bool followSymlink)
 {
-    WIN32_FILE_ATTRIBUTE_DATA wfad;
-    if (GetFileAttributesExW(path, GetFileExInfoStandard, &wfad)) {
-        // If this is a normal file, returns file's size
-        if ((wfad.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0 &&
-            (wfad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
-            int64_t size = ((int64_t)wfad.nFileSizeHigh << 32) | wfad.nFileSizeLow;
-            return size;
+    BY_HANDLE_FILE_INFORMATION info;
+    if (GetFileInformation(path, followSymlink, &info)) {
+        bool isDirectory = (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0;
+        bool isReparsePoint = (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0;
+        if (isDirectory && (followSymlink || !isReparsePoint)) {
+            return -1;
         }
+        return ((int64_t)info.nFileSizeHigh << 32) | info.nFileSizeLow;
     }
     return -1;
 }
@@ -340,37 +370,39 @@ extern int8_t CJ_FS_Exists(const char* path)
     return GetFileAttr(path, &wfad) == 0 ? 1 : 0;
 }
 
-extern int8_t CJ_FS_IsDir(const char* path)
+extern int8_t CJ_FS_IsDir(const char* path, bool followSymlink)
 {
-    WIN32_FILE_ATTRIBUTE_DATA wfad;
-    if (GetFileAttr(path, &wfad) == 0) {
+    BY_HANDLE_FILE_INFORMATION info;
+    if (!GetFileInformation(path, followSymlink, &info)) {
         return -1;
-    } else if ((wfad.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
-        return 0; // is link
     } else {
-        return (wfad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? 1 : 0;
+        if (!followSymlink && (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+            return 0;
+        }
+        return (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? 1 : 0;
     }
 }
 
-extern int8_t CJ_FS_IsFile(const char* path)
+extern int8_t CJ_FS_IsFile(const char* path, bool followSymlink)
 {
-    WIN32_FILE_ATTRIBUTE_DATA wfad;
-    if (GetFileAttr(path, &wfad) == 0) {
+    BY_HANDLE_FILE_INFORMATION info;
+    if (!GetFileInformation(path, followSymlink, &info)) {
         return -1;
-    } else if ((wfad.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
-        return 0; // is link
     } else {
-        return (wfad.dwFileAttributes & (FILE_ATTRIBUTE_ARCHIVE | FILE_ATTRIBUTE_NORMAL)) ? 1 : 0;
+        if (!followSymlink && (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
+            return 0;
+        }
+        return (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? 0 : 1;
     }
 }
 
-extern int8_t CJ_FS_IsLink(const char* path)
+extern int8_t CJ_FS_IsLink(const char* path, bool followSymlink)
 {
-    WIN32_FILE_ATTRIBUTE_DATA wfad;
-    if (GetFileAttr(path, &wfad) == 0) {
+    BY_HANDLE_FILE_INFORMATION info;
+    if (!GetFileInformation(path, followSymlink, &info)) {
         return -1;
     } else {
-        return (wfad.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) == FILE_ATTRIBUTE_REPARSE_POINT ? 1 : 0;
+        return (info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) == FILE_ATTRIBUTE_REPARSE_POINT ? 1 : 0;
     }
 }
 
@@ -461,7 +493,7 @@ extern int8_t CJ_FS_IsDirORLinkToFDir(const char* path)
     }
 }
 
-extern int8_t CJ_FS_CanRead(const char* path, int64_t pathLen)
+extern int8_t CJ_FS_CanRead(const char* path, bool followSymlink)
 {
     return 1;
 }
@@ -490,8 +522,15 @@ static int64_t LocalStat(const char* path, struct stat* buf)
     return ret;
 }
 
-extern int8_t CJ_FS_CanExecute(const char* path)
+extern int8_t CJ_FS_CanExecute(const char* path, bool followSymlink)
 {
+    if (!followSymlink) {
+        BY_HANDLE_FILE_INFORMATION info;
+        if (!GetFileInformation(path, followSymlink, &info)) {
+            return -1;
+        }
+        return (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? 1 : 0;
+    }
     struct stat buf;
     if (LocalStat(path, &buf) < 0) {
         return -1;
@@ -499,28 +538,29 @@ extern int8_t CJ_FS_CanExecute(const char* path)
     return (int8_t)((buf.st_mode | S_IXUSR) == buf.st_mode);
 }
 
-extern int8_t CJ_FS_IsReadOnly(const char* path)
+extern int8_t CJ_FS_IsReadOnly(const char* path, bool followSymlink)
 {
     /*
      * In the Windows environment, the read-only permission of a user on a file is normal.
      * The user always has the permission to delete or modify a directory.
      */
-    int8_t isDir = CJ_FS_IsDir(path);
+    int8_t isDir = CJ_FS_IsDir(path, followSymlink);
     if (isDir < 0) {
         return -1;
     } else if (isDir == 1) {
         return 0;
     }
-    WIN32_FILE_ATTRIBUTE_DATA wfad;
-    BOOL result = GetFileAttr(path, &wfad);
-    return (int8_t)result != 0 ? ((wfad.dwFileAttributes == FILE_ATTRIBUTE_READONLY) ||
-                                     (wfad.dwFileAttributes & FILE_ATTRIBUTE_READONLY) == FILE_ATTRIBUTE_READONLY)
-                               : 0;
+    BY_HANDLE_FILE_INFORMATION info;
+    if (!GetFileInformation(path, followSymlink, &info)) {
+        return -1;
+    }
+    return (int8_t)((info.dwFileAttributes == FILE_ATTRIBUTE_READONLY) ||
+        (info.dwFileAttributes & FILE_ATTRIBUTE_READONLY) == FILE_ATTRIBUTE_READONLY);
 }
 
-extern int8_t CJ_FS_CanWrite(const char* path)
+extern int8_t CJ_FS_CanWrite(const char* path, bool followSymlink)
 {
-    int8_t isReadOnly = CJ_FS_IsReadOnly(path);
+    int8_t isReadOnly = CJ_FS_IsReadOnly(path, followSymlink);
     if (isReadOnly < 0) {
         return -1;
     } else if (isReadOnly == 0) {
@@ -528,6 +568,7 @@ extern int8_t CJ_FS_CanWrite(const char* path)
     } else if (isReadOnly == 1) {
         return 0;
     }
+    return -1;
 }
 
 extern int8_t CJ_FS_SetExecutable(const char* path, bool executable)
@@ -535,7 +576,7 @@ extern int8_t CJ_FS_SetExecutable(const char* path, bool executable)
     return 0;
 }
 
-extern int8_t CJ_FS_SetReadable(const char* path, int64_t pathLen, bool readable)
+extern int8_t CJ_FS_SetReadable(const char* path, bool readable)
 {
     return (int8_t)readable;
 }
@@ -547,7 +588,7 @@ extern int8_t CJ_FS_SetWritable(const char* path, bool writable)
      * The user always has the write permission on the directory and cannot be changed.
      * This function does not take effect.
      */
-    int8_t isDir = CJ_FS_IsDir(path);
+    int8_t isDir = CJ_FS_IsDir(path, true);
     if (isDir < 0) {
         return -1;
     } else if (isDir == 1) {
