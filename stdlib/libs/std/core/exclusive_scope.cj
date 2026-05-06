@@ -63,14 +63,15 @@ public class ExclusiveScopeException <: Exception {
         super(cause)
     }
 
-    /*
-    * Returns a string representation of the exception including its stack trace.
-    * This method overrides the base toString method to provide detailed information
-    * about the wrapped exception.
-    *
-    * @return A string representation of the exception with its stack trace
-    */
+    protected override func getClassName(): String {
+        return "ExclusiveScopeException"
+    }
+
     public override func toString(): String {
-        "ExclusiveScopeException"
+        let className: String = getClassName()
+        if (let Some(cause) <- causedBy) {
+            return "${className}: ${cause.toString()}"
+        }
+        return className
     }
 }
