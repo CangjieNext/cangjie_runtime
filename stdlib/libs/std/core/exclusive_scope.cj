@@ -9,15 +9,16 @@
 package std.core
 
 /**
- * The execution of the input function @param fn occupies the underlying OS thread exclusively.
- * When executing @param fn, a switch from the cangjie thread stack to the OS thread stack will occur,
+ * The execution of the input function occupies the underlying OS thread exclusively.
+ * When executing the function, a switch from the cangjie thread stack to the OS thread stack will occur,
  * and the underlying OS thread cannot be preempted by other cangjie threads.
- * After @param fn returns, it will switch back to the cangjie thread stack,
+ * After the function returns, it will switch back to the cangjie thread stack,
  * and the preemption will be permitted.
- * 
- * @param fn The function to be executed exclusively.
- * @return The return value of @param fn.
- * @throws ExclusiveScopeException if an exception occurs during execution.
+ *
+ * @param fn the function to be executed exclusively
+ * @returns T the return value of `fn`
+ * @throws ExclusiveScopeException if an exception occurs during execution
+ * @throws Error if an error occurs during execution
  */
 public func exclusiveScope<T>(fn: () -> T): T {
     let cl = ExclusiveScope<T>()
@@ -64,12 +65,12 @@ public class ExclusiveScopeException <: Exception {
     }
 
     /*
-    * Returns a string representation of the exception including its stack trace.
-    * This method overrides the base toString method to provide detailed information
-    * about the wrapped exception.
-    *
-    * @return A string representation of the exception with its stack trace
-    */
+     * Returns a string representation of the exception including its stack trace.
+     * This method overrides the base toString method to provide detailed information
+     * about the wrapped exception.
+     *
+     * @returns String a string representation of the exception with its stack trace
+     */
     public override func toString(): String {
         "ExclusiveScopeException"
     }

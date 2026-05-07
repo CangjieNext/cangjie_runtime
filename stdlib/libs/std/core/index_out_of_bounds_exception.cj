@@ -8,13 +8,26 @@
 
 package std.core
 
+/**
+ * Thrown to indicate that an index of some sort (such as an array, string, or collection) is out of range.
+ */
 public class IndexOutOfBoundsException <: Exception {
+    /**
+     * Constructs an IndexOutOfBoundsException with no detail message.
+     */
     public init() {
         super()
     }
+
+    /**
+     * Constructs an IndexOutOfBoundsException with the specified detail message.
+     *
+     * @param message the detail message
+     */
     public init(message: String) {
         super(message)
     }
+
     protected override func getClassName(): String {
         return "IndexOutOfBoundsException"
     }

@@ -8,11 +8,22 @@
 
 package std.core
 
+/**
+ * Thrown to indicate that a method has been invoked at an illegal or inappropriate time.
+ */
 public class IllegalStateException <: Exception {
+    /**
+     * Constructs an IllegalStateException with no detail message.
+     */
     public init() {
         super()
     }
 
+    /**
+     * Constructs an IllegalStateException with the specified detail message.
+     *
+     * @param message the detail message
+     */
     public init(message: String) {
         super(message)
     }

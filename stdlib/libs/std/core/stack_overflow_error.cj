@@ -8,6 +8,9 @@
 
 package std.core
 
+/**
+ * Thrown when the call stack exceeds its maximum depth due to excessive recursion.
+ */
 public class StackOverflowError <: Error {
     private let NotFolded: UInt64 = 0
     private let TopFolded: UInt64 = 1
@@ -21,18 +24,32 @@ public class StackOverflowError <: Error {
         }
     }
 
+    /**
+     * Constructs a StackOverflowError with no detail message.
+     */
     init() {
         super()
         getIsFolded()
     }
+
+    /**
+     * Constructs a StackOverflowError with the specified detail message.
+     *
+     * @param message the detail message
+     */
     init(message: String) {
         super(message)
         getIsFolded()
     }
+
     protected override func getClassName(): String {
         return "StackOverflowError"
     }
 
+    /**
+     * Prints the stack trace of this error to standard error.
+     * When stack overflow occurs, some frames may be folded and not displayed.
+     */
     public override func printStackTrace(): Unit {
         eprintln("An exception has occurred:")
         eprintln(toString())

@@ -8,13 +8,26 @@
 
 package std.core
 
+/**
+ * Thrown when a blocking operation times out.
+ */
 public class TimeoutException <: Exception {
+    /**
+     * Constructs a TimeoutException with no detail message.
+     */
     public init() {
         super()
     }
+
+    /**
+     * Constructs a TimeoutException with the specified detail message.
+     *
+     * @param message the detail message
+     */
     public init(message: String) {
         super(message)
     }
+
     protected override func getClassName(): String {
         return "TimeoutException"
     }

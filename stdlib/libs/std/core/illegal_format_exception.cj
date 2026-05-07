@@ -8,13 +8,26 @@
 
 package std.core
 
+/**
+ * Thrown to indicate that a format string contains illegal syntax or an incompatible format argument.
+ */
 public open class IllegalFormatException <: IllegalArgumentException {
+    /**
+     * Constructs an IllegalFormatException with no detail message.
+     */
     public init() {
         super()
     }
+
+    /**
+     * Constructs an IllegalFormatException with the specified detail message.
+     *
+     * @param message the detail message
+     */
     public init(message: String) {
         super(message)
     }
+
     protected override func getClassName(): String {
         return "IllegalFormatException"
     }

@@ -9,12 +9,22 @@
 package std.core
 
 /**
- * Countable interface
+ * Interface for types that support stepping and positioning.
  */
 public interface Countable<T> {
-    /** Returns the sum of two instances of type T. */
+    /**
+     * Returns the value obtained by stepping this value by the given amount.
+     *
+     * @param right the step amount
+     * @returns T the resulting value
+     */
     func next(right: Int64): T
-    /** Returns the Int64 type of the instance. */
+
+    /**
+     * Returns the Int64 position of this value.
+     *
+     * @returns Int64 the position value
+     */
     func position(): Int64
 }
 

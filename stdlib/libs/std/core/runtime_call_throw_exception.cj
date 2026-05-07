@@ -26,7 +26,7 @@ func throwImplicitException(id: Int64, args: CPointer<Unit>): Unit {
     }
 }
 
-/*
+/**
  * @throws ArithmeticException if divided by zero
  */
 func throwArithmeticException(): Unit {

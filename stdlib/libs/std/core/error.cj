@@ -8,6 +8,10 @@
 
 package std.core
 
+/**
+ * The base class for all errors in Cangjie.
+ * Errors represent serious unrecoverable problems, as opposed to Exceptions which represent recoverable conditions.
+ */
 public open class Error <: ToString {
     private var detailMessage: String = String.empty
     var pcArray: RawArray<UInt64> = RawArray<UInt64>(1, repeat: 0)
@@ -17,6 +21,9 @@ public open class Error <: ToString {
         pcArray = fillInStackTrace(RawArray<UInt64>(1, repeat: 0), detailMessage.toArray().rawptr)
     }
 
+    /**
+     * @param message the detail message for this error
+     */
     init(message: String) {
         detailMessage = message
         pcArray = fillInStackTrace(RawArray<UInt64>(1, repeat: 0), detailMessage.toArray().rawptr)
@@ -26,12 +33,22 @@ public open class Error <: ToString {
         return "Error"
     }
 
+    /**
+     * Returns the detail message of this error.
+     *
+     * @type String
+     */
     public open prop message: String {
         get() {
             return detailMessage
         }
     }
 
+    /**
+     * Returns the string representation of this error.
+     *
+     * @returns String the string representation
+     */
     public open func toString(): String {
         let className: String = getClassName()
         let message: String = this.message
@@ -41,10 +58,18 @@ public open class Error <: ToString {
         return "${className}: ${message}"
     }
 
+    /**
+     * Prints the stack trace of this error to standard error.
+     */
     public open func printStackTrace(): Unit {
         eprintln("An exception has occurred: ${getStackTraceMessage()}")
     }
 
+    /**
+     * Returns the stack trace message of this error as a string.
+     *
+     * @returns String the formatted stack trace message
+     */
     public open func getStackTraceMessage(): String {
         let message = StringBuilder()
         message.append(toString() + "\n")
@@ -59,6 +84,11 @@ public open class Error <: ToString {
         return message.toString()
     }
 
+    /**
+     * Returns the stack trace elements of this error.
+     *
+     * @returns Array<StackTraceElement> the stack trace elements
+     */
     public func getStackTrace(): Array<StackTraceElement> {
         getStackTraceImpl(pcArray)
     }

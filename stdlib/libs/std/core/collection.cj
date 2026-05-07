@@ -9,19 +9,31 @@
 package std.core
 
 /**
-   The root interface in the collection hierarchy.
-   A collection represents a group of objects, known as its elements.
-   Some collections allow duplicate elements and others do not.
-   Some are ordered and others unordered.
-   This interface is typically used to pass collections around and manipulate them where maximum generality is desired.
+ * The root interface in the collection hierarchy.
+ * A collection represents a group of objects, known as its elements.
+ * Some collections allow duplicate elements and others do not.
+ * Some are ordered and others unordered.
  */
 public interface Collection<T> <: Iterable<T> {
-    // Returns the number of elements in this collection.
+    /**
+     * The number of elements in this collection.
+     *
+     * @type Int64
+     */
     prop size: Int64
 
-    // Returns true if this collection contains no elements.
+    /**
+     * Checks if this collection contains no elements.
+     *
+     * @returns Bool true if this collection contains no elements, false otherwise
+     */
     func isEmpty(): Bool
 
+    /**
+     * Returns an array containing all elements in this collection.
+     *
+     * @returns Array<T> an array of all elements
+     */
     func toArray(): Array<T> {
         return Array<T>(this)
     }

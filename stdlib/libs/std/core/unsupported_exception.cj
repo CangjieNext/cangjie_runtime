@@ -8,11 +8,22 @@
 
 package std.core
 
+/**
+ * Thrown to indicate that a requested operation is not supported.
+ */
 public class UnsupportedException <: Exception {
+    /**
+     * Constructs an UnsupportedException with no detail message.
+     */
     public init() {
         super()
     }
 
+    /**
+     * Constructs an UnsupportedException with the specified detail message.
+     *
+     * @param message the detail message
+     */
     public init(message: String) {
         super(message)
     }

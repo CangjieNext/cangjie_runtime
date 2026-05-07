@@ -8,13 +8,26 @@
 
 package std.core
 
+/**
+ * Thrown when attempting to access the value of an Option that is None.
+ */
 public class NoneValueException <: Exception {
+    /**
+     * Constructs a NoneValueException with no detail message.
+     */
     public init() {
         super()
     }
+
+    /**
+     * Constructs a NoneValueException with the specified detail message.
+     *
+     * @param message the detail message
+     */
     public init(message: String) {
         super(message)
     }
+
     protected override func getClassName(): String {
         return "NoneValueException"
     }

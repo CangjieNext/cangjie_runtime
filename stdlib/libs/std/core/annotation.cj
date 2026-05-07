@@ -8,6 +8,9 @@
 
 package std.core
 
+/**
+ * Represents the kinds of program elements that can be annotated.
+ */
 public enum AnnotationKind {
     | Type
     | Parameter

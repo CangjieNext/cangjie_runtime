@@ -8,7 +8,19 @@
 
 package std.core
 
+/**
+ * Interface for resources that can be closed.
+ */
 public interface Resource {
+    /**
+     * Checks if this resource has been closed.
+     *
+     * @returns Bool true if the resource is closed, false otherwise
+     */
     func isClosed(): Bool
+
+    /**
+     * Closes this resource and releases any associated resources.
+     */
     func close(): Unit
 }

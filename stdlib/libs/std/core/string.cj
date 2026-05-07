@@ -22,6 +22,10 @@ const IS_SIMD_SUPPORTED: Bool = unsafe { CJ_CORE_CanUseSIMD() }
 @When[backend == "cjnative"]
 const VECTOR_OFFSET_32: Int64 = 32
 
+/**
+ * An immutable UTF-8 encoded string.
+ * String provides various operations for text processing including searching, splitting, and transformation.
+ */
 @When[backend == "cjnative"]
 @ConstSafe
 public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToString {
@@ -29,6 +33,11 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     let start: UInt32
     let length: UInt32
 
+    /**
+     * An empty string.
+     *
+     * @type String
+     */
     public static const empty: String = String()
 
     /**
@@ -254,7 +263,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
      * Construct a string from a utf8-compliant bytecode sequence
      * @Param utf8Data - UTF8 bytecode sequence
      * @throws IllegalArgumentException If the array is an invalid UTF8 sequence
-     * @return a String
+     * @returns a String
      */
     @Frozen
     public static func fromUtf8(utf8Data: Array<UInt8>): String {
@@ -469,7 +478,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     /**
-     * @return an array of strings which are the result of separating this string using the specified
+     * @returns an array of strings which are the result of separating this string using the specified
      *         separator. If the separator is not empty and is absent in this string, returns an array
      *         which only contains this string. If the separator is empty, split after each character.
      *         If both this string and separator are empty, returns an empty array.
@@ -484,7 +493,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     /**
-     * @return an array of strings which are the result of separating this string using the specified
+     * @returns an array of strings which are the result of separating this string using the specified
      *         separator with maximum split number `maxSplits`.
      * @throws OutOfMemoryError if failed to call `this.splitOfString`.
      */
@@ -866,7 +875,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     /**
-     * @return a new string which is the result of padding zero or more `padding` to this string on the left.
+     * @returns a new string which is the result of padding zero or more `padding` to this string on the left.
      * @throws IllegalArgumentException if `totalWidth` < 0.
      */
     @Frozen
@@ -902,7 +911,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     /**
-     * @return a new string which is the result of padding zero or more `padding` to this string on the right.
+     * @returns a new string which is the result of padding zero or more `padding` to this string on the right.
      * @throws IllegalArgumentException if `totalWidth` < 0.
      */
     @Frozen
@@ -1038,7 +1047,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
      * Compare the relationship between two instance of String, lexically byte-wise.
      *
      * @param str Instance of String compared with this.
-     * @return Value indicating the relationship between two instance of String.
+     * @returns Value indicating the relationship between two instance of String.
      *
      * @throws IllegalArgumentException if there is an invalid utf8 leading code
      *         in array `arr1` or `arr2`.
@@ -1164,7 +1173,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     /**
-     * @return the `Byte` value at the specified index.
+     * @returns the `Byte` value at the specified index.
      * @throws IndexOutOfBoundsException if `index` is out of bounds.
      */
     @Frozen
@@ -1184,7 +1193,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     }
 
     /**
-     * @return the `String` value at the specified range.
+     * @returns the `String` value at the specified range.
      * @throws IllegalArgumentException if `step` is not equal to one.
      * @throws IndexOutOfBoundsException if `range` is out of bounds.
      * @throws IllegalArgumentException if the start or end point of the range is not the code point boundary.

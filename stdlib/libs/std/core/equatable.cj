@@ -8,14 +8,35 @@
 
 package std.core
 
+/**
+ * Interface for types that support the equality operator.
+ */
 public interface Equal<T> {
+    /**
+     * Checks if this value is equal to the other.
+     *
+     * @param other the value to compare with
+     * @returns Bool true if this is equal to other
+     */
     operator func ==(other: T): Bool
 }
 
+/**
+ * Interface for types that support the inequality operator.
+ */
 public interface NotEqual<T> {
+    /**
+     * Checks if this value is not equal to the other.
+     *
+     * @param other the value to compare with
+     * @returns Bool true if this is not equal to other
+     */
     operator func !=(other: T): Bool
 }
 
+/**
+ * Interface for types that support both equality and inequality comparisons.
+ */
 public interface Equatable<T> <: Equal<T> & NotEqual<T> {
     operator func !=(other: T): Bool {
         !(this == other)

@@ -10,35 +10,45 @@ package std.core
 
 extend Rune {
     /**
-     * Returns true if this Unicode character is an Ascii letter.
+     * Checks if this Unicode character is an ASCII letter.
+     *
+     * @returns Bool true if this character is an ASCII letter
      */
     public func isAsciiLetter(): Bool {
         return (this >= r'A' && this <= r'Z') || (this >= r'a' && this <= r'z')
     }
 
     /**
-     * Returns true if this Unicode character is an Ascii number.
+     * Checks if this Unicode character is an ASCII digit.
+     *
+     * @returns Bool true if this character is an ASCII digit
      */
     public func isAsciiNumber(): Bool {
         return this >= r'0' && this <= r'9'
     }
 
     /**
-     * Returns true if this this Rune is an Ascii hexadecimal number.
+     * Checks if this Rune is an ASCII hexadecimal digit.
+     *
+     * @returns Bool true if this character is an ASCII hexadecimal digit
      */
     public func isAsciiHex(): Bool {
         return this.isAsciiNumber() || (this >= r'a' && this <= r'f') || (this >= r'A' && this <= r'F')
     }
 
     /**
-     * Returns true if this Rune is an ASCII octal number.
+     * Checks if this Rune is an ASCII octal digit.
+     *
+     * @returns Bool true if this character is an ASCII octal digit
      */
     public func isAsciiOct(): Bool {
         return this >= r'0' && this <= r'7'
     }
 
     /**
-     * Return true if this Rune is an ASCII punctuation.
+     * Checks if this Rune is an ASCII punctuation character.
+     *
+     * @returns Bool true if this character is an ASCII punctuation character
      */
     public func isAsciiPunctuation(): Bool {
         return (this >= r'!' && this <= r'/') || (this >= r':' && this <= r'@') || (this >= r'[' && this <= r'`') || (this >=
@@ -46,47 +56,73 @@ extend Rune {
     }
 
     /**
-     * Return true if this Rune is an ASCII graphic character.
+     * Checks if this Rune is an ASCII graphic character.
+     *
+     * @returns Bool true if this character is an ASCII graphic character
      */
     public func isAsciiGraphic(): Bool {
         return this >= r'!' && this <= r'~'
     }
 
     /**
-     * Return true if this Rune is an ASCII control character.
+     * Checks if this Rune is an ASCII control character.
+     *
+     * @returns Bool true if this character is an ASCII control character
      */
     public func isAsciiControl(): Bool {
         return (this >= r'\u{0000}' && this <= r'\u{001F}') || this == r'\u{007F}'
     }
 
     /**
-     * Return true if this Rune is an ASCII number or ASCII letter.
+     * Checks if this Rune is an ASCII alphanumeric character.
+     *
+     * @returns Bool true if this character is an ASCII letter or digit
      */
     public func isAsciiNumberOrLetter(): Bool {
         return this.isAsciiLetter() || this.isAsciiNumber()
     }
 
-    /** Returns true if this Unicode character is Lowercase. */
+    /**
+     * Checks if this Unicode character is a lowercase ASCII letter.
+     *
+     * @returns Bool true if this character is a lowercase ASCII letter
+     */
     public func isAsciiLowerCase(): Bool {
         return this >= r'a' && this <= r'z'
     }
 
-    /** Returns true if this Unicode character is Uppercase. */
+    /**
+     * Checks if this Unicode character is an uppercase ASCII letter.
+     *
+     * @returns Bool true if this character is an uppercase ASCII letter
+     */
     public func isAsciiUpperCase(): Bool {
         return this >= r'A' && this <= r'Z'
     }
 
-    /** Returns true if this Unicode character is an Ascii code. */
+    /**
+     * Checks if this Unicode character is in the ASCII range.
+     *
+     * @returns Bool true if this character is an ASCII character
+     */
     public func isAscii(): Bool {
         return this >= r'\u{0000}' && this <= r'\u{007F}'
     }
 
-    /** Returns true if this Unicode character is whitespace. */
+    /**
+     * Checks if this Unicode character is an ASCII whitespace character.
+     *
+     * @returns Bool true if this character is an ASCII whitespace character
+     */
     public func isAsciiWhiteSpace(): Bool {
         return (this >= r'\u{0009}' && this <= r'\u{000D}') || this == r'\u{0020}'
     }
 
-    /** Returns the uppercase of this Unicode character. */
+    /**
+     * Returns the uppercase equivalent of this Unicode character.
+     *
+     * @returns Rune the uppercase equivalent
+     */
     public func toAsciiUpperCase(): Rune {
         return if (this.isAsciiLowerCase()) {
             Rune(UInt32(this) - UInt32(ASCII_UPPER_TO_LOWER_DIFF))
@@ -95,7 +131,11 @@ extend Rune {
         }
     }
 
-    /** Returns the lowercase of this Unicode character. */
+    /**
+     * Returns the lowercase equivalent of this Unicode character.
+     *
+     * @returns Rune the lowercase equivalent
+     */
     public func toAsciiLowerCase(): Rune {
         return if (this.isAsciiUpperCase()) {
             Rune(UInt32(this) + UInt32(ASCII_UPPER_TO_LOWER_DIFF))
@@ -104,9 +144,13 @@ extend Rune {
         }
     }
 
-    /*
-     * @throws IllegalArgumentException if `arr[index]` is an invalid utf8 leading code or
-     *         there is no valid utf8 code among `arr[0] ~ arr[index - 1]`.
+    /**
+     * Returns the UTF-8 byte size at the given index in the array.
+     *
+     * @param arr the byte array containing UTF-8 encoded data
+     * @param index the byte index to check
+     * @returns Int64 the number of bytes the UTF-8 character occupies
+     * @throws IllegalArgumentException if arr[index] is an invalid UTF-8 leading code or there is no valid UTF-8 code among arr[0] ~ arr[index - 1]
      */
     public static func utf8Size(arr: Array<UInt8>, index: Int64): Int64 {
         if (index >= arr.size) {
@@ -142,6 +186,13 @@ extend Rune {
         }
     }
 
+    /**
+     * Returns the UTF-8 byte size of the given Rune.
+     *
+     * @param c the Rune to measure
+     * @returns Int64 the number of bytes the Rune occupies in UTF-8 encoding
+     * @throws IllegalArgumentException if the Unicode scalar value exceeds U+10FFFF
+     */
     @OverflowWrapping
     public static func utf8Size(c: Rune): Int64 {
         var ch = UInt32(c)
@@ -154,9 +205,13 @@ extend Rune {
         }
     }
 
-    /*
-     * @throws IllegalArgumentException if arr[index] is an invalid utf8 code or
-     * there is no valid utf8 code among arr[0] ~ arr[index - 1].
+    /**
+     * Decodes a Rune from the UTF-8 byte array at the given index.
+     *
+     * @param arr the byte array containing UTF-8 encoded data
+     * @param index the byte index to start decoding
+     * @returns (Rune, Int64) the decoded Rune and the number of bytes consumed
+     * @throws IllegalArgumentException if arr[index] is an invalid UTF-8 code or there is no valid UTF-8 code among arr[0] ~ arr[index - 1]
      */
     @OverflowWrapping
     public static func fromUtf8(arr: Array<UInt8>, index: Int64): (Rune, Int64) {
@@ -178,9 +233,13 @@ extend Rune {
         }
     }
 
-    /*
-     * @throws IllegalArgumentException if there is no valid utf8 code
-     *         among `arr[0] ~ arr[index - 1]`.
+    /**
+     * Returns the previous Rune before the given index in the UTF-8 byte array.
+     *
+     * @param arr the byte array containing UTF-8 encoded data
+     * @param index the byte index to search backwards from
+     * @returns (Rune, Int64) the previous Rune and its starting byte index
+     * @throws IllegalArgumentException if there is no valid UTF-8 code among arr[0] ~ arr[index - 1]
      */
     @OverflowWrapping
     public static func getPreviousFromUtf8(arr: Array<UInt8>, index: Int64): (Rune, Int64) {
@@ -203,7 +262,13 @@ extend Rune {
         return res
     }
 
-    /*
+    /**
+     * Encodes a Rune into a UTF-8 byte array at the given index.
+     *
+     * @param c the Rune to encode
+     * @param arr the byte array to write the UTF-8 bytes into
+     * @param index the starting byte index to write
+     * @returns Int64 the number of bytes written
      * @throws IllegalArgumentException if the character occupies a position beyond the array range
      */
     @OverflowWrapping
@@ -262,10 +327,10 @@ extend Rune {
 
 extend Rune <: Comparable<Rune> {
     /**
-     * Compare the relationship between two instance of Rune.
+     * Compares the relationship between two Rune instances.
      *
-     * @param other Instance of Rune compared with this.
-     * @return Value indicating the relationship between two instance of Rune.
+     * @param other the Rune to compare with this
+     * @returns Ordering the ordering relationship between the two Runes
      *
      * @since 0.27.3
      */

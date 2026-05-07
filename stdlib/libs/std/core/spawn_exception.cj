@@ -8,13 +8,26 @@
 
 package std.core
 
+/**
+ * Thrown when a spawn operation fails.
+ */
 public class SpawnException <: Exception {
+    /**
+     * Constructs a SpawnException with no detail message.
+     */
     public init() {
         super()
     }
+
+    /**
+     * Constructs a SpawnException with the specified detail message.
+     *
+     * @param message the detail message
+     */
     public init(message: String) {
         super(message)
     }
+
     protected override func getClassName(): String {
         return "SpawnException"
     }

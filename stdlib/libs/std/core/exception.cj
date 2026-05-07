@@ -53,27 +53,50 @@ func getStackTraceImpl(pcArray: RawArray<UInt64>): Array<StackTraceElement> {
     return stackTraceArray.clone(0..eleSize)
 }
 
+/**
+ * The base class for all exceptions in Cangjie.
+ * Exceptions represent recoverable error conditions, as opposed to Errors which represent unrecoverable problems.
+ */
 public open class Exception <: ToString {
     private var detailMessage: String = String.empty
     private var pcArray: RawArray<UInt64> = RawArray<UInt64>(1, repeat: 0)
     private var traceElementArray: Array<StackTraceElement> = []
     private var innerCause: ?Exception = None
 
+    /**
+     * Constructs an Exception with no detail message.
+     */
     public init() {
         pcArray = fillInStackTrace(RawArray<UInt64>(1, repeat: 0), detailMessage.toArray().rawptr)
     }
 
+    /**
+     * Constructs an Exception with the specified detail message.
+     *
+     * @param message the detail message for this exception
+     */
     public init(message: String) {
         detailMessage = message
         pcArray = fillInStackTrace(RawArray<UInt64>(1, repeat: 0), detailMessage.toArray().rawptr)
     }
 
+    /**
+     * Constructs an Exception with the specified detail message and cause.
+     *
+     * @param message the detail message for this exception
+     * @param causedBy the cause of this exception
+     */
     public init(message: String, causedBy: Exception) {
         detailMessage = message
         innerCause = causedBy
         pcArray = fillInStackTrace(RawArray<UInt64>(1, repeat: 0), detailMessage.toArray().rawptr)
     }
 
+    /**
+     * Constructs an Exception with the specified cause.
+     *
+     * @param causedBy the cause of this exception
+     */
     public init(causedBy: Exception) {
         innerCause = causedBy
         pcArray = fillInStackTrace(RawArray<UInt64>(1, repeat: 0), detailMessage.toArray().rawptr)
@@ -83,12 +106,22 @@ public open class Exception <: ToString {
         return "Exception"
     }
 
+    /**
+     * Returns the detail message of this exception.
+     *
+     * @type String
+     */
     public open prop message: String {
         get() {
             return detailMessage
         }
     }
 
+    /**
+     * Returns or sets the cause of this exception.
+     *
+     * @type ?Exception
+     */
     public mut prop causedBy: ?Exception {
         get() {
             return innerCause
@@ -98,6 +131,11 @@ public open class Exception <: ToString {
         }
     }
 
+    /**
+     * Returns the string representation of this exception.
+     *
+     * @returns String the string representation
+     */
     public open func toString(): String {
         let className: String = getClassName()
         let message: String = this.message
@@ -107,12 +145,15 @@ public open class Exception <: ToString {
         return "${className}: ${message}"
     }
 
+    /**
+     * Prints the stack trace of this exception to standard error.
+     */
     public func printStackTrace(): Unit {
         printStackTrace("An exception has occurred:\n", Array<StackTraceElement>())
     }
 
-    /*
-     * Print the stack trace of this exception with a caption and enclosing trace. 
+    /**
+     * Prints the stack trace of this exception with a caption and enclosing trace.
      *
      * @param caption the caption to print before the stack trace
      * @param enclosingTrace the enclosing stack trace if present (that is the stack trace of `causedBy`)
@@ -148,8 +189,12 @@ public open class Exception <: ToString {
         }
     }
 
+    /**
+     * Returns the stack trace elements of this exception.
+     *
+     * @returns Array<StackTraceElement> the stack trace elements
+     */
     public func getStackTrace(): Array<StackTraceElement> {
         getStackTraceImpl(pcArray)
     }
 }
-

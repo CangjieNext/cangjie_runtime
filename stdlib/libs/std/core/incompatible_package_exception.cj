@@ -8,11 +8,22 @@
 
 package std.core
 
+/**
+ * Thrown when a package compatibility check fails at runtime.
+ */
 public class IncompatiblePackageException <: Exception {
+    /**
+     * Constructs an IncompatiblePackageException with no detail message.
+     */
     public init() {
         super()
     }
 
+    /**
+     * Constructs an IncompatiblePackageException with the specified detail message.
+     *
+     * @param message the detail message
+     */
     public init(message: String) {
         super(message)
     }

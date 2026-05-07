@@ -8,7 +8,15 @@
 
 package std.core
 
+/**
+ * Interface for types that can produce a hash code value.
+ */
 public interface Hashable {
+    /**
+     * Computes the hash code of this value.
+     *
+     * @returns Int64 the hash code value
+     */
     func hashCode(): Int64
 }
 
@@ -653,25 +661,125 @@ extend<T> Range<T> <: Hashable where T <: Hashable & Countable<T> & Comparable<T
     }
 }
 
+/**
+ * Interface for a hash code computation state.
+ * Provides methods to feed values into the hash computation and retrieve the final result.
+ */
 public interface Hasher {
+    /**
+     * Finalizes the hash computation and returns the result.
+     *
+     * @returns Int64 the computed hash code
+     */
     func finish(): Int64
+
+    /**
+     * Resets the hasher to its initial state.
+     */
     mut func reset(): Unit
+
+    /**
+     * Feeds a Bool value into the hash computation.
+     *
+     * @param value the Bool value to feed
+     */
     mut func write(value: Bool): Unit
+
+    /**
+     * Feeds a Rune value into the hash computation.
+     *
+     * @param value the Rune value to feed
+     */
     mut func write(value: Rune): Unit
+
+    /**
+     * Feeds an Int8 value into the hash computation.
+     *
+     * @param value the Int8 value to feed
+     */
     mut func write(value: Int8): Unit
+
+    /**
+     * Feeds an Int16 value into the hash computation.
+     *
+     * @param value the Int16 value to feed
+     */
     mut func write(value: Int16): Unit
+
+    /**
+     * Feeds an Int32 value into the hash computation.
+     *
+     * @param value the Int32 value to feed
+     */
     mut func write(value: Int32): Unit
+
+    /**
+     * Feeds an Int64 value into the hash computation.
+     *
+     * @param value the Int64 value to feed
+     */
     mut func write(value: Int64): Unit
+
+    /**
+     * Feeds a UInt8 value into the hash computation.
+     *
+     * @param value the UInt8 value to feed
+     */
     mut func write(value: UInt8): Unit
+
+    /**
+     * Feeds a UInt16 value into the hash computation.
+     *
+     * @param value the UInt16 value to feed
+     */
     mut func write(value: UInt16): Unit
+
+    /**
+     * Feeds a UInt32 value into the hash computation.
+     *
+     * @param value the UInt32 value to feed
+     */
     mut func write(value: UInt32): Unit
+
+    /**
+     * Feeds a UInt64 value into the hash computation.
+     *
+     * @param value the UInt64 value to feed
+     */
     mut func write(value: UInt64): Unit
+
+    /**
+     * Feeds a Float16 value into the hash computation.
+     *
+     * @param value the Float16 value to feed
+     */
     mut func write(value: Float16): Unit
+
+    /**
+     * Feeds a Float32 value into the hash computation.
+     *
+     * @param value the Float32 value to feed
+     */
     mut func write(value: Float32): Unit
+
+    /**
+     * Feeds a Float64 value into the hash computation.
+     *
+     * @param value the Float64 value to feed
+     */
     mut func write(value: Float64): Unit
+
+    /**
+     * Feeds a String value into the hash computation.
+     *
+     * @param value the String value to feed
+     */
     mut func write(value: String): Unit
 }
 
+/**
+ * A default implementation of the Hasher interface using a hash combining algorithm.
+ */
 public struct DefaultHasher <: Hasher {
     private var res: Int64 = 0
 

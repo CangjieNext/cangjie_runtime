@@ -25,15 +25,18 @@ let digits100: Array<Byte> = [
     b'8',b'0',b'8',b'1',b'8',b'2',b'8',b'3',b'8',b'4',b'8',b'5',b'8',b'6',b'8',b'7',b'8',b'8',b'8',b'9', //80 ~ 89
     b'9',b'0',b'9',b'1',b'9',b'2',b'9',b'3',b'9',b'4',b'9',b'5',b'9',b'6',b'9',b'7',b'9',b'8',b'9',b'9'] //90 ~ 99
 
+/**
+ * A mutable sequence of characters.
+ * StringBuilder provides an efficient way to build strings by appending various types of data.
+ */
 public class StringBuilder <: ToString {
     private var data: Array<UInt8>
     private var endIndex: Int64
 
-    /* defines the buffer defaultCapacity */
     private static const defaultCapacity: Int64 = 32
 
     /**
-     * Constructors
+     * Constructs an empty StringBuilder with default capacity.
      */
     @Frozen
     public init() {
@@ -41,6 +44,11 @@ public class StringBuilder <: ToString {
         this.endIndex = 0
     }
 
+    /**
+     * Constructs a StringBuilder initialized with the given string.
+     *
+     * @param str the initial string content
+     */
     @Frozen
     public init(str: String) {
         let capacity = str.size + defaultCapacity
@@ -49,6 +57,13 @@ public class StringBuilder <: ToString {
         this.endIndex = str.size
     }
 
+    /**
+     * Constructs a StringBuilder with n repetitions of the given Rune.
+     *
+     * @param r the Rune to repeat
+     * @param n the number of times to repeat the Rune
+     * @throws IllegalArgumentException if n is negative
+     */
     @Frozen
     public init(r: Rune, n: Int64) {
         if (n < 0) {
@@ -64,6 +79,11 @@ public class StringBuilder <: ToString {
         this.endIndex = itemLen
     }
 
+    /**
+     * Constructs a StringBuilder from an array of Runes.
+     *
+     * @param value the array of Runes to initialize with
+     */
     @Frozen
     public init(value: Array<Rune>) {
         if (value.size == 0) {
@@ -78,6 +98,12 @@ public class StringBuilder <: ToString {
         }
     }
 
+    /**
+     * Constructs an empty StringBuilder with the specified capacity.
+     *
+     * @param capacity the initial capacity
+     * @throws IllegalArgumentException if capacity is not positive
+     */
     @Frozen
     public init(capacity: Int64) {
         if (capacity <= 0) {
@@ -88,7 +114,9 @@ public class StringBuilder <: ToString {
     }
 
     /**
-     * Get UTF-8 code unit size.
+     * Returns the UTF-8 code unit size of this StringBuilder.
+     *
+     * @type Int64
      */
     @Frozen
     public prop size: Int64 {
@@ -98,7 +126,9 @@ public class StringBuilder <: ToString {
     }
 
     /**
-     * Get capacity of this instance.
+     * Returns the capacity of this StringBuilder.
+     *
+     * @type Int64
      */
     @Frozen
     public prop capacity: Int64 {
@@ -108,9 +138,9 @@ public class StringBuilder <: ToString {
     }
 
     /**
-     * Return a String managed by StringBuilder.
+     * Returns the string representation of the contents of this StringBuilder.
      *
-     * @return a String managed by StringBuilder.
+     * @returns String the string built by this StringBuilder
      */
     @Frozen
     public func toString(): String {
@@ -118,7 +148,11 @@ public class StringBuilder <: ToString {
     }
 
     /**
-     * @throws IllegalMemoryException if there are some system errors.
+     * Resets this StringBuilder, optionally with a new capacity.
+     *
+     * @param capacity the optional new capacity; if None, uses the default capacity
+     * @throws IllegalArgumentException if the provided capacity is not positive
+     * @throws IllegalMemoryException if there are some system errors
      */
     @Frozen
     public func reset(capacity!: Option<Int64> = None): Unit {
@@ -134,6 +168,11 @@ public class StringBuilder <: ToString {
         this.endIndex = 0
     }
 
+    /**
+     * Appends a Rune to this StringBuilder.
+     *
+     * @param r the Rune to append
+     */
     @OverflowWrapping
     @Frozen
     public func append(r: Rune): Unit {
@@ -150,6 +189,11 @@ public class StringBuilder <: ToString {
         this.endIndex += itemLen
     }
 
+    /**
+     * Appends a String to this StringBuilder.
+     *
+     * @param str the String to append
+     */
     @OverflowWrapping
     @Frozen
     public func append(str: String): Unit {
@@ -163,6 +207,11 @@ public class StringBuilder <: ToString {
         this.endIndex += itemLen
     }
 
+    /**
+     * Appends the contents of another StringBuilder to this StringBuilder.
+     *
+     * @param sb the StringBuilder to append
+     */
     @OverflowWrapping
     @Frozen
     public func append(sb: StringBuilder): Unit {
@@ -175,9 +224,11 @@ public class StringBuilder <: ToString {
         this.endIndex += itemLen
     }
 
-    /*
-     * @throws IllegalArgumentException if there is an invalid utf8 leading code
-     *         in array "arr[i]".
+    /**
+     * Appends UTF-8 bytes from the given array after validating the encoding.
+     *
+     * @param arr the byte array containing UTF-8 data
+     * @throws IllegalArgumentException if there is an invalid UTF-8 leading code in the array
      */
     @OverflowWrapping
     @Frozen
@@ -192,6 +243,11 @@ public class StringBuilder <: ToString {
         this.endIndex += arrSize
     }
 
+    /**
+     * Appends UTF-8 bytes from the given array without validating the encoding.
+     *
+     * @param arr the byte array containing UTF-8 data
+     */
     @OverflowWrapping
     @Frozen
     public unsafe func appendFromUtf8Unchecked(arr: Array<Byte>): Unit {
@@ -205,6 +261,11 @@ public class StringBuilder <: ToString {
         return
     }
 
+    /**
+     * Appends an array of Runes to this StringBuilder.
+     *
+     * @param runeArr the array of Runes to append
+     */
     @Frozen
     public func append(runeArr: Array<Rune>): Unit {
         for (c in runeArr) {
@@ -213,11 +274,21 @@ public class StringBuilder <: ToString {
         return
     }
 
+    /**
+     * Appends a C-style string to this StringBuilder.
+     *
+     * @param cstr the CString to append
+     */
     @Frozen
     public func append(cstr: CString): Unit {
         this.append(cstr.toString())
     }
 
+    /**
+     * Appends the string representation of a value to this StringBuilder.
+     *
+     * @param v the value to append
+     */
     @Frozen
     public func append<T>(v: T): Unit where T <: ToString {
         match (v) {
@@ -235,6 +306,11 @@ public class StringBuilder <: ToString {
         }
     }
 
+    /**
+     * Appends the string representation of each element in the array to this StringBuilder.
+     *
+     * @param val the array of values to append
+     */
     @Frozen
     public func append<T>(val: Array<T>): Unit where T <: ToString {
         for (v in val) {
@@ -242,6 +318,11 @@ public class StringBuilder <: ToString {
         }
     }
 
+    /**
+     * Appends "true" or "false" to this StringBuilder.
+     *
+     * @param b the Bool to append
+     */
     @Frozen
     public func append(b: Bool): Unit {
         if (b) {
@@ -251,6 +332,11 @@ public class StringBuilder <: ToString {
         }
     }
 
+    /**
+     * Appends the string representation of an Int64 to this StringBuilder.
+     *
+     * @param n the Int64 to append
+     */
     @Frozen
     @OverflowWrapping
     public func append(n: Int64): Unit {
@@ -278,21 +364,41 @@ public class StringBuilder <: ToString {
         this.endIndex += numLen
     }
 
+    /**
+     * Appends the string representation of an Int32 to this StringBuilder.
+     *
+     * @param n the Int32 to append
+     */
     @Frozen
     public func append(n: Int32): Unit {
         return this.append(Int64(n))
     }
 
+    /**
+     * Appends the string representation of an Int16 to this StringBuilder.
+     *
+     * @param n the Int16 to append
+     */
     @Frozen
     public func append(n: Int16): Unit {
         return this.append(Int64(n))
     }
 
+    /**
+     * Appends the string representation of an Int8 to this StringBuilder.
+     *
+     * @param n the Int8 to append
+     */
     @Frozen
     public func append(n: Int8): Unit {
         return this.append(Int64(n))
     }
 
+    /**
+     * Appends the string representation of a UInt64 to this StringBuilder.
+     *
+     * @param n the UInt64 to append
+     */
     @OverflowWrapping
     @Frozen
     public func append(n: UInt64): Unit {
@@ -302,21 +408,41 @@ public class StringBuilder <: ToString {
         this.endIndex += numLen
     }
 
+    /**
+     * Appends the string representation of a UInt32 to this StringBuilder.
+     *
+     * @param n the UInt32 to append
+     */
     @Frozen
     public func append(n: UInt32): Unit {
         return this.append(UInt64(n))
     }
 
+    /**
+     * Appends the string representation of a UInt16 to this StringBuilder.
+     *
+     * @param n the UInt16 to append
+     */
     @Frozen
     public func append(n: UInt16): Unit {
         return this.append(UInt64(n))
     }
 
+    /**
+     * Appends the string representation of a UInt8 to this StringBuilder.
+     *
+     * @param n the UInt8 to append
+     */
     @Frozen
     public func append(n: UInt8): Unit {
         return this.append(UInt64(n))
     }
 
+    /**
+     * Appends the string representation of a Float64 to this StringBuilder.
+     *
+     * @param n the Float64 to append
+     */
     @Frozen
     public func append(n: Float64): Unit {
         unsafe {
@@ -329,16 +455,31 @@ public class StringBuilder <: ToString {
         }
     }
 
+    /**
+     * Appends the string representation of a Float32 to this StringBuilder.
+     *
+     * @param n the Float32 to append
+     */
     @Frozen
     public func append(n: Float32): Unit {
         return this.append(Float64(n))
     }
 
+    /**
+     * Appends the string representation of a Float16 to this StringBuilder.
+     *
+     * @param n the Float16 to append
+     */
     @Frozen
     public func append(n: Float16): Unit {
         return this.append(Float64(n))
     }
 
+    /**
+     * Ensures that the capacity is at least the current capacity plus the specified additional amount.
+     *
+     * @param additional the additional capacity required
+     */
     @Frozen
     @OverflowThrowing
     public func reserve(additional: Int64): Unit {

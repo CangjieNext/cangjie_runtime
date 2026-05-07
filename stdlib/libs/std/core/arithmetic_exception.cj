@@ -8,13 +8,26 @@
 
 package std.core
 
+/**
+ * Thrown when an arithmetic operation encounters an exceptional condition, such as integer overflow or division by zero.
+ */
 public open class ArithmeticException <: Exception {
+    /**
+     * Constructs an ArithmeticException with no detail message.
+     */
     public init() {
         super()
     }
+
+    /**
+     * Constructs an ArithmeticException with the specified detail message.
+     *
+     * @param message the detail message
+     */
     public init(message: String) {
         super(message)
     }
+
     protected open override func getClassName(): String {
         return "ArithmeticException"
     }

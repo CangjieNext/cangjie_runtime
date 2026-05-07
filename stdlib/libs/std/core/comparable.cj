@@ -206,27 +206,76 @@ func Float64Equal(a: Float64, b: Float64): Bool
 @Intrinsic
 func Float64NotEqual(a: Float64, b: Float64): Bool
 
+/**
+ * Represents the result of a comparison: less than (LT), greater than (GT), or equal (EQ).
+ */
 public enum Ordering {
     LT | GT | EQ
 }
 
+/**
+ * Interface for types that support the less-than operator.
+ */
 public interface Less<T> {
+    /**
+     * Checks if this value is less than the other.
+     *
+     * @param other the value to compare with
+     * @returns Bool true if this is less than other
+     */
     operator func <(other: T): Bool
 }
 
+/**
+ * Interface for types that support the greater-than operator.
+ */
 public interface Greater<T> {
+    /**
+     * Checks if this value is greater than the other.
+     *
+     * @param other the value to compare with
+     * @returns Bool true if this is greater than other
+     */
     operator func >(other: T): Bool
 }
 
+/**
+ * Interface for types that support the less-than-or-equal operator.
+ */
 public interface LessOrEqual<T> {
+    /**
+     * Checks if this value is less than or equal to the other.
+     *
+     * @param other the value to compare with
+     * @returns Bool true if this is less than or equal to other
+     */
     operator func <=(other: T): Bool
 }
 
+/**
+ * Interface for types that support the greater-than-or-equal operator.
+ */
 public interface GreaterOrEqual<T> {
+    /**
+     * Checks if this value is greater than or equal to the other.
+     *
+     * @param other the value to compare with
+     * @returns Bool true if this is greater than or equal to other
+     */
     operator func >=(other: T): Bool
 }
 
+/**
+ * Interface for types that support total ordering comparisons.
+ * Combines Equatable, Less, Greater, LessOrEqual, and GreaterOrEqual.
+ */
 public interface Comparable<T> <: Equatable<T> & Less<T> & Greater<T> & LessOrEqual<T> & GreaterOrEqual<T> {
+    /**
+     * Compares this value with the other and returns the ordering.
+     *
+     * @param other the value to compare with
+     * @returns Ordering the result of the comparison
+     */
     func compare(other: T): Ordering
 
     operator func ==(other: T): Bool {
@@ -748,6 +797,14 @@ extend Float64 <: Comparable<Float64> {
     }
 }
 
+/**
+ * Returns the maximum of the given values.
+ *
+ * @param a the first value
+ * @param b the second value
+ * @param others additional values to compare
+ * @returns T the maximum value
+ */
 @Frozen
 public func max<T>(a: T, b: T, others: Array<T>): T where T <: Comparable<T> {
     var max = if (a > b) { a } else { b }
@@ -762,6 +819,14 @@ public func max<T>(a: T, b: T, others: Array<T>): T where T <: Comparable<T> {
     return max
 }
 
+/**
+ * Returns the minimum of the given values.
+ *
+ * @param a the first value
+ * @param b the second value
+ * @param others additional values to compare
+ * @returns T the minimum value
+ */
 @Frozen
 public func min<T>(a: T, b: T, others: Array<T>): T where T <: Comparable<T> {
     var min = if (a < b) { a } else { b }

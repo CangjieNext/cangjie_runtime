@@ -8,12 +8,46 @@
 
 package std.core
 
+/**
+ * Represents an element in a stack trace, containing class, method, file, and line information.
+ */
 public open class StackTraceElement <: ToString {
+    /**
+     * The declaring class name of the stack trace element.
+     *
+     * @type String
+     */
     public let declaringClass: String
+
+    /**
+     * The method name of the stack trace element.
+     *
+     * @type String
+     */
     public let methodName: String
+
+    /**
+     * The source file name of the stack trace element.
+     *
+     * @type String
+     */
     public let fileName: String
+
+    /**
+     * The line number of the stack trace element.
+     *
+     * @type Int64
+     */
     public let lineNumber: Int64
 
+    /**
+     * Constructs a StackTraceElement with the specified class, method, file, and line number.
+     *
+     * @param declaringClass the declaring class name
+     * @param methodName the method name
+     * @param fileName the source file name
+     * @param lineNumber the line number
+     */
     public init(declaringClass: String, methodName: String, fileName: String, lineNumber: Int64) {
         this.declaringClass = declaringClass
         this.methodName = methodName
@@ -22,11 +56,11 @@ public open class StackTraceElement <: ToString {
     }
 
     /**
-     * Converts the call point information to a string representation
-     * 
-     * @return Returns a formatted string containing class name, method name, file name and line number information
+     * Converts the call point information to a string representation.
+     *
+     * @returns String a formatted string containing class name, method name, file name and line number information
      */
-    public func toString(): String { 
+    public func toString(): String {
         if (declaringClass.isEmpty() && methodName.isEmpty()) {
                 return("${fileName}:${lineNumber}")
         } else {
@@ -43,11 +77,23 @@ let decodeStackTraceWrapper = { pcArray: RawArray<UInt64>, j: Int64 =>
         arrayGet(pcArray, j * 3), arrayGet(pcArray, j * 3 + 1), arrayGet(pcArray, j * 3 + 2))
 }
 
+/**
+ * Returns the raw stack trace of the current thread.
+ *
+ * @returns Array<UInt64> the raw stack trace data
+ */
 protected func getRawStackTrace(): Array<UInt64> {
     let stackTrace = fillInStackTrace(RawArray<UInt64>(1, repeat: 0), String.empty.toArray().rawptr)
     return Array(stackTrace, 0, arraySize(stackTrace))
 }
 
+/**
+ * Decodes a raw stack trace element at the given frame index.
+ *
+ * @param rawStackTrace the raw stack trace data
+ * @param frameIndex the frame index to decode
+ * @returns Option<StackTraceElement> the decoded StackTraceElement, or None if the frame is invalid
+ */
 protected func decodeRawStackTrace(rawStackTrace: Array<UInt64>, frameIndex: Int64): Option<StackTraceElement> {
     let data = decodeStackTraceWrapper(rawStackTrace.rawptr, frameIndex)
 

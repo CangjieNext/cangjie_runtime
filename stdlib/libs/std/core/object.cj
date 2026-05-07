@@ -8,16 +8,25 @@
 
 package std.core
 
+/**
+ * The root interface of the Cangjie type hierarchy.
+ * All types implicitly implement Any.
+ */
 public interface Any {}
 
+/**
+ * The base class for all reference types in Cangjie.
+ */
 public open class Object <: Any {
     public const init() {}
 }
 
 /**
- * Check whether two Objects are referencing to the same memory block
+ * Checks whether two Objects reference the same memory block.
  *
- * @return true means they are the same Object.
+ * @param a the first object to compare
+ * @param b the second object to compare
+ * @returns Bool true if both references point to the same object
  *
  * @since 0.21.4
  */

@@ -8,6 +8,10 @@
 
 package std.core
 
+/**
+ * A contiguous growable array type.
+ * Array provides indexed access to elements and supports slicing.
+ */
 @ConstSafe
 public struct Array<T> {
     let rawptr: RawArray<T>
@@ -24,6 +28,9 @@ public struct Array<T> {
         return newRawPtr
     }
 
+    /**
+     * Constructs an empty Array.
+     */
     @Frozen
     public const init() {
         this.start = 0
@@ -31,6 +38,12 @@ public struct Array<T> {
         this.len = 0
     }
 
+    /**
+     * Constructs an Array of the given size, with all elements initialized to the given value.
+     *
+     * @param size the size of the Array
+     * @param repeat the value to fill the Array with
+     */
     @Frozen
     public init(size: Int64, repeat!: T) {
         this.start = 0
@@ -45,6 +58,12 @@ public struct Array<T> {
         this.len = arraySize(rawptr)
     }
 
+    /**
+     * Constructs an Array of the given size, with each element initialized by the given closure.
+     *
+     * @param size the size of the Array
+     * @param initElement the closure that initializes each element by its index
+     */
     @Frozen
     public init(size: Int64, initElement: (Int64) -> T) {
         this.start = 0
@@ -59,6 +78,11 @@ public struct Array<T> {
         this.len = len
     }
 
+    /**
+     * Returns the first element, or None if the Array is empty.
+     *
+     * @type Option<T>
+     */
     @Frozen
     public prop first: Option<T> {
         get() {
@@ -69,6 +93,11 @@ public struct Array<T> {
         }
     }
 
+    /**
+     * Returns the last element, or None if the Array is empty.
+     *
+     * @type Option<T>
+     */
     @Frozen
     public prop last: Option<T> {
         get() {
@@ -80,9 +109,12 @@ public struct Array<T> {
     }
 
     /**
-     * @return slice of this Array
-     * @throws IndexOutOfBoundsException if `start` is negative, or `len` is negative,
-     *         or `start + len` is greater than the size of array.
+     * Returns a slice of this Array.
+     *
+     * @param start the start index of the slice
+     * @param len the length of the slice
+     * @returns Array<T> a new Array representing the slice
+     * @throws IndexOutOfBoundsException if start is negative, or len is negative, or start + len is greater than the size of the array
      */
     @Frozen
     public func slice(start: Int64, len: Int64): Array<T> {
@@ -198,7 +230,7 @@ public struct Array<T> {
      * @param range
      * @param size Size of the collection
      *
-     * @return Parameters of start*stop*step*offset.
+     * @returns Parameters of start*stop*step*offset.
      * @since 0.25.2
      *
      * @throws IllegalArgumentException if the `step` of `range` is not equal to 1.

@@ -8,8 +8,22 @@
 
 package std.core
 
+/**
+ * A wrapper class that boxes a value of any type for use with AtomicReference.
+ */
 public class Box<T> {
+    /**
+     * The boxed value.
+     *
+     * @type T
+     */
     public var value: T
+
+    /**
+     * Constructs a Box with the given value.
+     *
+     * @param v the value to box
+     */
     @Frozen
     public init(v: T) {
         value = v
@@ -43,10 +57,10 @@ extend<T> Box<T> <: Comparable<Box<T>> where T <: Comparable<T> {
     }
 
     /**
-     * Compare the relationship between two instance of Box<T>.
+     * Compares the relationship between two Box<T> instances.
      *
-     * @param other Instance of Box<T> compared with this.
-     * @return Value indicating the relationship between two instance of Box<T>.
+     * @param other the Box<T> to compare with this
+     * @returns Ordering the ordering relationship between the two Box<T> instances
      *
      * @since 0.27.3
      */

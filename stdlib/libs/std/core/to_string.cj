@@ -9,12 +9,14 @@
 package std.core
 
 /**
- * This file introduces 'ToString' interface, which has a 'toString' function declaration.
- * 'toString' function is used to provide string representation for various types.
- * For primitive types, we provide standard toString implementation. For composite types
- * or user-defined types, they have to to implement toString function by themselves.
+ * Interface for types that can provide a string representation of themselves.
  */
 public interface ToString {
+    /**
+     * Returns the string representation of this value.
+     *
+     * @returns String the string representation
+     */
     func toString(): String
 }
 

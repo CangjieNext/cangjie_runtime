@@ -10,13 +10,22 @@ package std.core
 
 /**
  * Endianness, also known as byte order.
- *
  */
 public enum Endian {
-    Big | Little
     /**
-     * Get the endianness of the current running platform.
+     * Big-endian byte order.
+     */
+    | Big
+
+    /**
+     * Little-endian byte order.
+     */
+    | Little
+
+    /**
+     * Returns the endianness of the current running platform.
      *
+     * @type Endian
      */
     public static prop Platform: Endian {
         get() {

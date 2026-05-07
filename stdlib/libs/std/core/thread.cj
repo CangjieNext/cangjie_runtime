@@ -47,7 +47,7 @@ public enum ThreadState <: ToString {
 
     /**
      * Converts the enum value to its string representation
-     * @return String representation of the thread state
+     * @returns String representation of the thread state
      */
     public func toString(): String {
         match (this) {
@@ -62,7 +62,7 @@ public enum ThreadState <: ToString {
     /**
      * Parses an integer value into a ThreadState enum.
      * @param value Integer value representing the thread state
-     * @return Corresponding ThreadState enum value
+     * @returns Corresponding ThreadState enum value
      * @throws IllegalArgumentException if the value is not supported
      */
     static func parse(value: Int64): ThreadState {
@@ -92,9 +92,32 @@ struct ThreadSnapshotInfo {
  * Provides functionality for retrieving and printing thread information.
  */
 public class ThreadSnapshot <: ToString {
+    /**
+     * The thread identifier.
+     *
+     * @type Int64
+     */
     public let id: Int64
+
+    /**
+     * The thread name.
+     *
+     * @type String
+     */
     public let name: String
+
+    /**
+     * The stack trace elements of the thread.
+     *
+     * @type Array<StackTraceElement>
+     */
     public let stackTrace: Array<StackTraceElement>
+
+    /**
+     * The thread state.
+     *
+     * @type ThreadState
+     */
     public let state: ThreadState
 
     /**
@@ -114,7 +137,7 @@ public class ThreadSnapshot <: ToString {
     /**
      * Converts the thread snapshot information to a string representation
      * 
-     * @return Returns a formatted string containing thread ID, name, state and stack trace information
+     * @returns Returns a formatted string containing thread ID, name, state and stack trace information
      */
     public func toString(): String {
         var stringBuffer = "ThreadSnapshot(id=${id}, name=${name}, state=${state})\n"
@@ -134,7 +157,7 @@ public class ThreadSnapshot <: ToString {
     /**
      * Parses ThreadSnapshotInfo into a ThreadSnapshot object.
      * @param info ThreadSnapshotInfo to parse
-     * @return ThreadSnapshot object
+     * @returns ThreadSnapshot object
      */
     private static func parseThreadInfo(info: ThreadSnapshotInfo): ThreadSnapshot {
         let infoSize = arraySize(info.stackTrace)
@@ -160,7 +183,7 @@ public class ThreadSnapshot <: ToString {
 
     /**
      * Retrieves snapshots of all currently active threads.
-     * @return Array of ThreadSnapshot objects
+     * @returns Array of ThreadSnapshot objects
      */
     public static func dumpAllThreads(): Array<ThreadSnapshot> {
         let dumpInfo: RawArray<ThreadSnapshotInfo> = dumpAllThreadsInfo()
@@ -175,7 +198,7 @@ public class ThreadSnapshot <: ToString {
 
     /**
      * Retrieves a snapshot of the current thread.
-     * @return ThreadSnapshot of the current thread
+     * @returns ThreadSnapshot of the current thread
      */
     public static func dumpCurrentThread(): ThreadSnapshot {
         let dumpInfo: ThreadSnapshotInfo = dumpCurrentThreadInfo()
@@ -278,8 +301,13 @@ public class Thread {
         _rtCJThreadHandleRefCount.fetchAdd(-1)
     }
 
-    // If a Cangjie thread is created without a Future object,
-    // its Thread object will be lazy-constructed.
+    /**
+     * Returns the current thread object.
+     * If a Cangjie thread is created without a Future object,
+     * its Thread object will be lazy-constructed.
+     *
+     * @type Thread
+     */
     public static prop currentThread: Thread {
         get() {
             if (isThreadObjectInited()) {
@@ -299,6 +327,11 @@ public class Thread {
         }
     }
 
+    /**
+     * Returns the thread identifier.
+     *
+     * @type Int64
+     */
     public prop id: Int64 {
         get() {
             var cjThreadId = _id.load()
@@ -311,6 +344,11 @@ public class Thread {
         }
     }
 
+    /**
+     * Returns or sets the name of this thread.
+     *
+     * @type String
+     */
     public mut prop name: String {
         get() {
             _name.load()
@@ -331,8 +369,10 @@ public class Thread {
     }
 
     /**
-     * Check whether the current Cangjie thread has termination requests,
+     * Checks whether the current Cangjie thread has termination requests,
      * i.e., whether its future has been marked as cancelled.
+     *
+     * @type Bool
      */
     public prop hasPendingCancellation: Bool {
         get() {
@@ -344,10 +384,20 @@ public class Thread {
         this._hasCancellation.store(true)
     }
 
+    /**
+     * Sets the handler for uncaught exceptions in threads.
+     *
+     * @param exHandler the handler to call when a thread has an uncaught exception
+     */
     public static func handleUncaughtExceptionBy(exHandler: (Thread, Exception) -> Unit): Unit {
         Thread.exceptionHandler.store(exHandler)
     }
 
+    /**
+     * Sets the handler for uncaught errors in threads.
+     *
+     * @param erHandler the handler to call when a thread has an uncaught error
+     */
     public static func handleUncaughtErrorBy(erHandler: (Error) -> Unit): Unit {
         Thread.errorHandler.store(erHandler)
     }
@@ -358,7 +408,7 @@ public class Thread {
      * Returns the current thread's state by querying the underlying CJ thread.
      * Returns Terminated if thread handle is invalid.
      * 
-     * @return ThreadState Current thread state
+     * @returns ThreadState Current thread state
      */
     public prop state: ThreadState {
         get() {

@@ -12,7 +12,9 @@ const ASCII_UPPER_TO_LOWER_DIFF: UInt8 = 0x20
 
 extend Byte {
     /**
-     * Returns true if this Byte is in Ascii letter range.
+     * Checks if this Byte is in the ASCII letter range.
+     *
+     * @returns Bool true if this Byte is an ASCII letter
      */
     public func isAsciiLetter(): Bool {
         return (this >= b'A' && this <= b'Z') || (this >= b'a' && this <=
@@ -20,14 +22,18 @@ extend Byte {
     }
 
     /**
-     * Returns true if this this Byte is in Ascii number range.
+     * Checks if this Byte is in the ASCII number range.
+     *
+     * @returns Bool true if this Byte is an ASCII digit
      */
     public func isAsciiNumber(): Bool {
         return this >= b'0' && this <= b'9'
     }
 
     /**
-     * Returns true if this this Byte is in Ascii hexadecimal range.
+     * Checks if this Byte is in the ASCII hexadecimal range.
+     *
+     * @returns Bool true if this Byte is an ASCII hexadecimal digit
      */
     public func isAsciiHex(): Bool {
         return this.isAsciiNumber() || (this >= b'a' && this <= b'f') || (this >= b'A' &&
@@ -35,14 +41,18 @@ extend Byte {
     }
 
     /**
-     * Returns true if this Byte is in ASCII octal digit range.
+     * Checks if this Byte is in the ASCII octal digit range.
+     *
+     * @returns Bool true if this Byte is an ASCII octal digit
      */
     public func isAsciiOct(): Bool {
         return this >= b'0' && this <= b'7'
     }
 
     /**
-     * Return true if this Byte is in ASCII punctuation range.
+     * Checks if this Byte is in the ASCII punctuation range.
+     *
+     * @returns Bool true if this Byte is an ASCII punctuation character
      */
     public func isAsciiPunctuation(): Bool {
         return (this >= b'!' && this <= b'/') || (this >= b':' && this <= b'@') ||
@@ -50,50 +60,74 @@ extend Byte {
     }
 
     /**
-     * Return true if this Byte is in ASCII graphic character range.
+     * Checks if this Byte is in the ASCII graphic character range.
+     *
+     * @returns Bool true if this Byte is an ASCII graphic character
      */
     public func isAsciiGraphic(): Bool {
         return this >= b'!' && this <= b'~'
     }
 
     /**
-     * Return true if this Byte is in ASCII control character range.
+     * Checks if this Byte is in the ASCII control character range.
+     *
+     * @returns Bool true if this Byte is an ASCII control character
      */
     public func isAsciiControl(): Bool {
         return this <= 0x1F || this == 0x7F
     }
 
     /**
-     * Return true if this Byte is in ASCII number or letter range.
+     * Checks if this Byte is in the ASCII number or letter range.
+     *
+     * @returns Bool true if this Byte is an ASCII alphanumeric character
      */
     public func isAsciiNumberOrLetter(): Bool {
         return this.isAsciiLetter() || this.isAsciiNumber()
     }
 
-    /** Returns true if this Byte is in Lowercase Ascii letter range. */
+    /**
+     * Checks if this Byte is in the lowercase ASCII letter range.
+     *
+     * @returns Bool true if this Byte is a lowercase ASCII letter
+     */
     public func isAsciiLowerCase(): Bool {
         return this >= b'a' && this <= b'z'
     }
 
-    /** Returns true if this Byte is in Uppercase Ascii letter range. */
+    /**
+     * Checks if this Byte is in the uppercase ASCII letter range.
+     *
+     * @returns Bool true if this Byte is an uppercase ASCII letter
+     */
     public func isAsciiUpperCase(): Bool {
         return this >= b'A' && this <= b'Z'
     }
 
-    /** Returns true if this Byte is in Ascii range. */
+    /**
+     * Checks if this Byte is in the ASCII range.
+     *
+     * @returns Bool true if this Byte is an ASCII character
+     */
     public func isAscii(): Bool {
         return this <= 0x7F
     }
 
-    /** 
-     * Returns true if this Byte is whitespace.
-     * whitespace include HT, LF, VT, FF, CR, SP
+    /**
+     * Checks if this Byte is a whitespace character.
+     * Whitespace includes HT, LF, VT, FF, CR, SP.
+     *
+     * @returns Bool true if this Byte is an ASCII whitespace character
      */
     public func isAsciiWhiteSpace(): Bool {
         return (this >= 0x09 && this <= 0x0D) || this == 0x20
     }
 
-    /** Returns the uppercase of this Byte. */
+    /**
+     * Returns the uppercase equivalent of this Byte.
+     *
+     * @returns Byte the uppercase equivalent
+     */
     public func toAsciiUpperCase(): Byte {
         return if (this.isAsciiLowerCase()) {
             this - ASCII_UPPER_TO_LOWER_DIFF
@@ -102,7 +136,11 @@ extend Byte {
         }
     }
 
-    /** Returns the lowercase of this Byte. */
+    /**
+     * Returns the lowercase equivalent of this Byte.
+     *
+     * @returns Byte the lowercase equivalent
+     */
     public func toAsciiLowerCase(): Byte {
         return if (this.isAsciiUpperCase()) {
             this + ASCII_UPPER_TO_LOWER_DIFF

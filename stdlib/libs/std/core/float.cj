@@ -15,19 +15,19 @@ func bitCast<From, To>(val: From): To where From <: BitCastRange, To <: BitCastR
 
 extend Float64 {
     /**
-     * @brief Convert from IEEE 754 binary value to Float64 value
-     * @param bits, IEEE 754 binary representation of value
-     * @return Float64 value
+     * Converts from an IEEE 754 binary representation to a Float64 value.
      *
+     * @param bits the IEEE 754 binary representation of the value
+     * @returns Float64 the Float64 value
      */
     public static func fromBits(bits: UInt64): Float64 {
         bitCast(bits)
     }
+
     /**
-     * @brief Convert a Float64 value to an IEEE 754 binary representation
+     * Converts this Float64 value to its IEEE 754 binary representation.
      *
-     * @return UInt64 The value represented by the IEEE 754 binary bit representation
-     *
+     * @returns UInt64 the IEEE 754 binary representation
      */
     public func toBits(): UInt64 {
         bitCast(this)
@@ -36,19 +36,19 @@ extend Float64 {
 
 extend Float32 {
     /**
-     * @brief Convert from IEEE 754 binary value to Float32 value
-     * @param bits, IEEE 754 binary representation of value
-     * @return Float32 value
+     * Converts from an IEEE 754 binary representation to a Float32 value.
      *
+     * @param bits the IEEE 754 binary representation of the value
+     * @returns Float32 the Float32 value
      */
     public static func fromBits(bits: UInt32): Float32 {
         bitCast(bits)
     }
+
     /**
-     * @brief Convert a Float32 value to an IEEE 754 binary representation
+     * Converts this Float32 value to its IEEE 754 binary representation.
      *
-     * @return UInt64 The value represented by the IEEE 754 binary bit representation
-     *
+     * @returns UInt32 the IEEE 754 binary representation
      */
     public func toBits(): UInt32 {
         bitCast(this)
@@ -57,19 +57,19 @@ extend Float32 {
 
 extend Float16 {
     /**
-     * @brief Convert from IEEE 754 binary value to Float16 value
-     * @param bits, IEEE 754 binary representation of value
-     * @return Float16 value
+     * Converts from an IEEE 754 binary representation to a Float16 value.
      *
+     * @param bits the IEEE 754 binary representation of the value
+     * @returns Float16 the Float16 value
      */
     public static func fromBits(bits: UInt16): Float16 {
         bitCast(bits)
     }
+
     /**
-     * @brief Convert a Float16 value to an IEEE 754 binary representation
+     * Converts this Float16 value to its IEEE 754 binary representation.
      *
-     * @return UInt64 The value represented by the IEEE 754 binary bit representation
-     *
+     * @returns UInt16 the IEEE 754 binary representation
      */
     public func toBits(): UInt16 {
         bitCast(this)

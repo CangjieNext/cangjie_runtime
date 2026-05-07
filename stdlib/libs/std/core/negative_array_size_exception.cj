@@ -8,13 +8,26 @@
 
 package std.core
 
+/**
+ * Thrown when an application attempts to create an array with a negative size.
+ */
 public class NegativeArraySizeException <: Exception {
+    /**
+     * Constructs a NegativeArraySizeException with no detail message.
+     */
     public init() {
         super()
     }
+
+    /**
+     * Constructs a NegativeArraySizeException with the specified detail message.
+     *
+     * @param message the detail message
+     */
     public init(message: String) {
         super(message)
     }
+
     protected override func getClassName(): String {
         return "NegativeArraySizeException"
     }

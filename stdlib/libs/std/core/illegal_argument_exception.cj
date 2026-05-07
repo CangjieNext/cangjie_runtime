@@ -8,13 +8,26 @@
 
 package std.core
 
+/**
+ * Thrown to indicate that a method has been passed an illegal or inappropriate argument.
+ */
 public open class IllegalArgumentException <: Exception {
+    /**
+     * Constructs an IllegalArgumentException with no detail message.
+     */
     public init() {
         super()
     }
+
+    /**
+     * Constructs an IllegalArgumentException with the specified detail message.
+     *
+     * @param message the detail message
+     */
     public init(message: String) {
         super(message)
     }
+
     protected open override func getClassName(): String {
         return "IllegalArgumentException"
     }

@@ -38,7 +38,9 @@ public class ThreadLocal<T> {
     let key: ThreadLocalKey = ThreadLocalKey()
 
     /**
-     * Return the value of this thread-local variable in the current thread.
+     * Returns the value of this thread-local variable in the current thread.
+     *
+     * @returns ?T the value of this thread-local variable, or None if not set
      */
     public func get(): ?T {
         let map: ThreadLocalMap = getThreadLocalMap()
@@ -46,9 +48,10 @@ public class ThreadLocal<T> {
     }
 
     /**
-     * Set the current thread's thread-local variable with the value parameter.
-     * If None is passed as the parameter, the value of this thread-local variable
-     * will be removed from the current thread.
+     * Sets the current thread's thread-local variable with the given value.
+     * If None is passed, the value of this thread-local variable will be removed.
+     *
+     * @param value the value to set, or None to remove
      */
     public func set(value: ?T): Unit {
         let map: ThreadLocalMap = getThreadLocalMap()

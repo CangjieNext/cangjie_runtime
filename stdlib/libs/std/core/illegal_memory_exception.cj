@@ -8,11 +8,22 @@
 
 package std.core
 
+/**
+ * Thrown when a memory allocation or access operation fails due to illegal conditions.
+ */
 public class IllegalMemoryException <: Exception {
+    /**
+     * Constructs an IllegalMemoryException with no detail message.
+     */
     public init() {
         super()
     }
 
+    /**
+     * Constructs an IllegalMemoryException with the specified detail message.
+     *
+     * @param message the detail message
+     */
     public init(message: String) {
         super(message)
     }
