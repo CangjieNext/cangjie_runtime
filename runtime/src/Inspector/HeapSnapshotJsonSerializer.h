@@ -45,6 +45,11 @@ public:
     void SerializeStructClass(TypeInfo* klass, CjHeapDataStringId klassId, const u1 tag);
     u4 GetId(CjHeapDataStringId klassId);
     I8 GetObjType(BaseObject* obj);
+    enum IDEVersion {
+        V1 = 0x01,
+        V2 = 0x02,
+        V3 = 0x03
+    };
 private:
     StreamWriter* writer = nullptr;
     std::unordered_map<CjHeapDataStringId, u4> stringIdxMap;

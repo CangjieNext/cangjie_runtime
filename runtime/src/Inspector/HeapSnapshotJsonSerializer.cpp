@@ -27,6 +27,7 @@ bool CjHeapDataForIDE::Serialize()
     stream->SetContext(DUMPHEAPSNAPSHOT);
     writer = new StreamWriter(stream);
     writer->WriteChar('{');
+    SerializeVersion();
     SerializeFixedHeader();
     SerializeString();
     SerializeAllClassLoad();
@@ -44,6 +45,14 @@ bool CjHeapDataForIDE::Serialize()
     delete writer;
     writer = nullptr;
     return true;
+}
+
+void CjHeapDataForIDE::SerializeVersion()
+{
+    writer->WriteString("\\\"VERSION\\\":[");
+    writer->WriteNumber(V3);
+    writer->WriteChar(']');
+    writer->WriteChar(',');
 }
 
 void CjHeapDataForIDE::SerializeFixedHeader()
