@@ -140,14 +140,57 @@ func generateBlock(blockOption: Option<NodeFormat_Block>): Block {
 }
 
 func createBinaryExpr(expr: NodeFormat_Expr): Expr {
-    var biExpr = match (expr.GetExprAsBinaryExpr()) {
-        case Some(v) => v
-        case None => throw ParseASTException()
+    /*
+     * Cangjie binary operators are left-associative, so a long chain like
+     * `a + b + c + ... + z` is parsed as `((((a + b) + c) + d) ...)`.
+     * Recursing through `generateExprAST(biExpr.GetLeftExpr())` once per
+     * level overflows the small Cangjie coroutine stack on inputs with
+     * thousands of operands. Walk the leftExpr chain iteratively first,
+     * then build the AST bottom-up so stack usage stays O(1) per level.
+     */
+    var chainExprs: ArrayList<NodeFormat_BinaryExpr> = ArrayList<NodeFormat_BinaryExpr>()
+    var chainBases: ArrayList<NodeFormat_NodeBase> = ArrayList<NodeFormat_NodeBase>()
+    var currentExpr = expr
+    var done = false
+    while (!done) {
+        var bi = match (currentExpr.GetExprAsBinaryExpr()) {
+            case Some(v) => v
+            case None => throw ParseASTException()
+        }
+        var base = match (currentExpr.GetBase()) {
+            case Some(v) => v
+            case None => throw ParseASTException()
+        }
+        chainExprs.add(bi)
+        chainBases.add(base)
+        if (let Some(leftE) <- bi.GetLeftExpr()) {
+            if (let Some(leftBase) <- leftE.GetBase()) {
+                if (leftBase.GetAstKind() == "binary_expr") {
+                    currentExpr = leftE
+                } else {
+                    done = true
+                }
+            } else {
+                done = true
+            }
+        } else {
+            done = true
+        }
     }
-    var lexpr = generateExprAST(biExpr.GetLeftExpr())
-    var rexpr = generateExprAST(biExpr.GetRightExpr())
-    var op = Token(getTokenKind(biExpr.GetOperatorKind())).addPosition(biExpr.GetOperatorPos())
-    return BinaryExpr(lexpr, op, rexpr)
+    var resultExpr = generateExprAST(chainExprs[chainExprs.size - 1].GetLeftExpr())
+    var i = chainExprs.size - 1
+    while (i >= 0) {
+        var bi = chainExprs[i]
+        var rexpr = generateExprAST(bi.GetRightExpr())
+        var op = Token(getTokenKind(bi.GetOperatorKind())).addPosition(bi.GetOperatorPos())
+        var binNode = BinaryExpr(resultExpr, op, rexpr)
+        if (i > 0) {
+            addPositionInfo(binNode, chainBases[i])
+        }
+        resultExpr = binNode
+        i = i - 1
+    }
+    return resultExpr
 }
 
 func createUnaryExpr(expr: NodeFormat_Expr): Expr {
