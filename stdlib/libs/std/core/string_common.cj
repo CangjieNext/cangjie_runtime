@@ -50,6 +50,52 @@ let EMPTY_INT64_ARRAY: Array<Int64> = Array<Int64>()
 let EMPTY_STRING_ARRAY: Array<String> = Array<String>()
 const STRING_C_THRESHOLD = 32
 
+public enum Utf8Result {
+    | Ok(String)
+    | Error(String, Utf8Error)
+}
+
+public struct Utf8Error <: Equatable<Utf8Error> & ToString {
+    private let validUpTo: Int64
+    private let invalidLength: Int64
+
+    public init(from: Int64, length: Int64) {
+        this.validUpTo = from
+        this.invalidLength = length
+    }
+
+    /**
+     * Byte length of the longest valid UTF-8 prefix, also the offset of the first failing byte.
+     */
+    public prop from: Int64 {
+        get() {
+            return this.validUpTo
+        }
+    }
+
+    /**
+     * Number of bytes consumed to diagnose the failing UTF-8 encoding unit starting from `from`.
+     * If the first byte is not a valid UTF-8 leading byte, this value is 1.
+     */
+    public prop length: Int64 {
+        get() {
+            return this.invalidLength
+        }
+    }
+
+    public operator func ==(other: Utf8Error): Bool {
+        return this.from == other.from && this.length == other.length
+    }
+
+    public operator func !=(other: Utf8Error): Bool {
+        return !(this == other)
+    }
+
+    public func toString(): String {
+        return "Utf8Error(from: ${this.from}, length: ${this.length})"
+    }
+}
+
 /**
  * Legal UTF-8 Byte Sequences of 2 bytes
  * Code point      Byte 1	 Byte 2
@@ -240,6 +286,127 @@ func checkInvalid(arr: RawArray<Byte>, startIndex: Int64, endIndex: Int64): Unit
             case _ => throw IllegalArgumentException("Invalid unicode scalar value.")
         }
     }
+}
+
+func getValidUtf8ByteCount(arr: RawArray<Byte>, startIndex: Int64, endIndex: Int64): Int64 {
+    if (startIndex >= endIndex) {
+        return 0
+    }
+    let nowByte: UInt8 = arrayGetUnchecked<UInt8>(arr, startIndex)
+    return match {
+        case nowByte < HIGH_1_UInt8 => 1
+        case nowByte < HIGH_2_UInt8 => 0
+        case nowByte < HIGH_3_UInt8 => if (checkUtf8Of2BytesWithoutException(arr, startIndex, endIndex)) { 2 } else { 0 }
+        case nowByte < HIGH_4_UInt8 => if (checkUtf8Of3BytesWithoutException(arr, startIndex, endIndex)) { 3 } else { 0 }
+        case nowByte < HIGH_5_UInt8 => if (checkUtf8Of4BytesWithoutException(arr, startIndex, endIndex)) { 4 } else { 0 }
+        case _ => 0
+    }
+}
+
+func getInvalidUtf8ByteCount(arr: RawArray<Byte>, startIndex: Int64, endIndex: Int64): Int64 {
+    if (startIndex >= endIndex) {
+        return 0
+    }
+
+    let available = endIndex - startIndex
+    let byte1: UInt8 = arrayGetUnchecked<UInt8>(arr, startIndex)
+    if (byte1 < HIGH_1_UInt8) {
+        return 0
+    }
+    if (byte1 < HIGH_2_UInt8 || byte1 >= HIGH_5_UInt8) {
+        return 1
+    }
+
+    if (available < 2) {
+        return available
+    }
+    let byte2: UInt8 = arrayGetUnchecked<UInt8>(arr, startIndex + 1)
+    if (byte1 < HIGH_3_UInt8) {
+        if ((byte1 & 0x1e) == 0) {
+            return 1
+        }
+        return 2
+    }
+    if ((byte2 & 0xc0) != 0x80) {
+        return 2
+    }
+
+    if (byte1 < HIGH_4_UInt8) {
+        if ((byte1 & 0b1111) == 0 && (byte2 & 0b00100000) == 0) {
+            return 2
+        }
+        if ((byte1 & 0b1111) == 0b1101 && (byte2 & 0b00100000) != 0) {
+            return 2
+        }
+        return if (available < 3) { available } else { 3 }
+    }
+
+    if ((byte1 & 0b111) > 0b100) {
+        return 1
+    }
+    if ((byte1 & 0b111) == 0 && (byte2 & 0b00110000) == 0) {
+        return 2
+    }
+    if ((byte1 & 0b111) == 0b100 && (byte2 & 0b00110000) != 0) {
+        return 2
+    }
+    if (available < 3) {
+        return available
+    }
+    let byte3: UInt8 = arrayGetUnchecked<UInt8>(arr, startIndex + 2)
+    if ((byte3 & 0xc0) != 0x80) {
+        return 3
+    }
+    return if (available < 4) { available } else { 4 }
+}
+
+func diagnoseUtf8(arr: RawArray<Byte>, startIndex: Int64, endIndex: Int64): ?Utf8Error {
+    var i = startIndex
+    while (i < endIndex) {
+        let utf8Size = getValidUtf8ByteCount(arr, i, endIndex)
+        if (utf8Size == 0) {
+            return Some(Utf8Error(i - startIndex, getInvalidUtf8ByteCount(arr, i, endIndex)))
+        }
+        i += utf8Size
+    }
+    return None
+}
+
+func findFirstUtf8Index(arr: RawArray<Byte>, startIndex: Int64, endIndex: Int64): ?Int64 {
+    var i = startIndex
+    while (i < endIndex) {
+        if (getValidUtf8ByteCount(arr, i, endIndex) > 0) {
+            return Some(i)
+        }
+        i++
+    }
+    return None
+}
+
+unsafe func arrayFromCPointer(cptr: CPointer<Byte>, len: Int64): Array<Byte> {
+    if (len < 0) {
+        throw IllegalArgumentException("The length cannot be negative.")
+    }
+    if (len == 0) {
+        return Array<Byte>()
+    }
+    let result = Array<Byte>(len, repeat: 0)
+    if (len < STRING_C_THRESHOLD) {
+        for (i in 0..len) {
+            result[i] = cptr.read(i)
+        }
+    } else {
+        let handle = acquireArrayRawData<Byte>(result)
+        try {
+            let rc = memcpy_s(handle.pointer, UIntNative(len), cptr, UIntNative(len))
+            if (rc != 0) {
+                throw IllegalMemoryException("The memcpy_s in arrayFromCPointer failed with error code: ${rc}.")
+            }
+        } finally {
+            releaseArrayRawData(handle)
+        }
+    }
+    return result
 }
 
 class StringIteratorData {

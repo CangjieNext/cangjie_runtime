@@ -4729,6 +4729,47 @@ main() {
 字符的字节长度: 3
 ```
 
+#### static func getFirstUTF8Index(Array\<Byte>, Int64)
+
+```cangjie
+public static func getFirstUTF8Index(arr: Array<Byte>, index: Int64): ?Int64
+```
+
+功能：从 `index` 之后开始，查找字节数组中第一个满足 UTF-8 编码规则的字符起始位置。
+
+参数：
+
+- arr: [Array](core_package_structs.md#struct-arrayt)\<[Byte](core_package_types.md#type-byte)> - 待查找的字节数组。
+- index: [Int64](core_package_intrinsics.md#int64) - 查找起始参考位置，实际查找从该位置之后开始。
+
+返回值：
+
+- ?[Int64](core_package_intrinsics.md#int64) - 找到的 UTF-8 字符起始位置；如果不存在则返回 `None`。
+
+异常：
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当 `index` 小于 0 时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [128, 97, 228, 184, 173]
+    println(Rune.getFirstUTF8Index(bytes, 0))
+    println(Rune.getFirstUTF8Index(bytes, 1))
+    println(Rune.getFirstUTF8Index(bytes, 2))
+}
+```
+
+运行结果：
+
+```text
+Some(1)
+Some(2)
+None
+```
+
 #### static func intoUtf8Array(Rune, Array\<UInt8>, Int64)
 
 ```cangjie

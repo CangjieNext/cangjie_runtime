@@ -1,5 +1,55 @@
 # 枚举
 
+## enum Utf8Result
+
+```cangjie
+public enum Utf8Result {
+    | Ok(String)
+    | Error(String, Utf8Error)
+}
+```
+
+功能：表示 UTF-8 字节序列诊断转换结果。
+
+### Ok(String)
+
+```cangjie
+Ok(String)
+```
+
+功能：表示输入整体满足 UTF-8 编码，参数为转换得到的字符串。
+
+### Error(String, Utf8Error)
+
+```cangjie
+Error(String, Utf8Error)
+```
+
+功能：表示输入不满足 UTF-8 编码，第一个参数为最长合法 UTF-8 前缀对应的字符串，第二个参数为错误信息。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [97, 228, 65]
+    match (String.fromUtf8Diagnosed(bytes)) {
+        case Utf8Result.Ok(str) =>
+            println("ok: ${str}")
+        case Utf8Result.Error(prefix, err) =>
+            println("prefix: ${prefix}")
+            println("from: ${err.from}, length: ${err.length}")
+    }
+}
+```
+
+运行结果：
+
+```text
+prefix: a
+from: 1, length: 2
+```
+
 ## enum AnnotationKind
 
 ```cangjie

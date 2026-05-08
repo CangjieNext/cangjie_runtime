@@ -3537,6 +3537,146 @@ Content: 'Hello, World'
 Size: 12
 ```
 
+### func appendFromUtf8(CPointer\<Byte>, Int64)
+
+```cangjie
+public unsafe func appendFromUtf8(cptr: CPointer<Byte>, len: Int64): Unit
+```
+
+Function: Appends the UTF-8 byte sequence pointed to by `cptr` with length `len` to the end of [StringBuilder](core_package_classes.md#class-stringbuilder).
+
+This function requires the whole input to conform to UTF-8 encoding. If the input does not conform to UTF-8 encoding, an exception is thrown and no partial append result is produced.
+
+Parameters:
+
+- cptr: [CPointer](core_package_intrinsics.md#cpointert)\<[Byte](core_package_types.md#type-byte)> - A pointer to the UTF-8 byte sequence. When `len` is greater than 0, the pointer must point to at least `len` readable bytes.
+- len: [Int64](core_package_intrinsics.md#int64) - The length of the byte sequence to append.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Thrown when `len` is negative or the input does not conform to UTF-8 encoding rules.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [67, 97, 110, 103, 106, 105, 101]
+    let sb = StringBuilder("Hello, ")
+    unsafe {
+        let handle = acquireArrayRawData(bytes)
+        try {
+            sb.appendFromUtf8(handle.pointer, bytes.size)
+        } finally {
+            releaseArrayRawData(handle)
+        }
+    }
+    println(sb.toString())
+}
+```
+
+Output:
+
+```text
+Hello, Cangjie
+```
+
+### func appendFromUtf8Diagnosed(Array\<Byte>)
+
+```cangjie
+public func appendFromUtf8Diagnosed(arr: Array<Byte>): ?Utf8Error
+```
+
+Function: Appends the longest valid UTF-8 prefix in `arr` to the end of [StringBuilder](core_package_classes.md#class-stringbuilder).
+
+If the whole `arr` conforms to UTF-8 encoding, appends all content and returns `None`. If `arr` does not conform to UTF-8 encoding, appends only the longest valid UTF-8 prefix and returns [Utf8Error](core_package_structs.md#struct-utf8error) error information.
+
+Parameters:
+
+- arr: [Array](core_package_structs.md#struct-arrayt)\<[Byte](core_package_types.md#type-byte)> - The byte array to diagnostically append.
+
+Returns:
+
+- ?[Utf8Error](core_package_structs.md#struct-utf8error) - UTF-8 error information. Returns `None` if the whole input is valid.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [97, 228, 65]
+    let sb = StringBuilder("prefix:")
+    let err = sb.appendFromUtf8Diagnosed(bytes)
+    println(sb.toString())
+    match (err) {
+        case Some(e) =>
+            println("from: ${e.from}, length: ${e.length}")
+        case None =>
+            println("valid UTF-8")
+    }
+}
+```
+
+Output:
+
+```text
+prefix:a
+from: 1, length: 2
+```
+
+### func appendFromUtf8Diagnosed(CPointer\<Byte>, Int64)
+
+```cangjie
+public unsafe func appendFromUtf8Diagnosed(cptr: CPointer<Byte>, len: Int64): ?Utf8Error
+```
+
+Function: Appends the longest valid UTF-8 prefix in the memory pointed to by `cptr` to the end of [StringBuilder](core_package_classes.md#class-stringbuilder).
+
+Parameters:
+
+- cptr: [CPointer](core_package_intrinsics.md#cpointert)\<[Byte](core_package_types.md#type-byte)> - A pointer to the UTF-8 byte sequence to diagnose. When `len` is greater than 0, the pointer must point to at least `len` readable bytes.
+- len: [Int64](core_package_intrinsics.md#int64) - The length of the byte sequence to diagnose.
+
+Returns:
+
+- ?[Utf8Error](core_package_structs.md#struct-utf8error) - UTF-8 error information. Returns `None` if the whole input is valid.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Thrown when `len` is negative.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [228, 184, 173, 128]
+    let sb = StringBuilder("value:")
+    unsafe {
+        let handle = acquireArrayRawData(bytes)
+        try {
+            let err = sb.appendFromUtf8Diagnosed(handle.pointer, bytes.size)
+            println(sb.toString())
+            match (err) {
+                case Some(e) =>
+                    println("from: ${e.from}, length: ${e.length}")
+                case None =>
+                    println("valid UTF-8")
+            }
+        } finally {
+            releaseArrayRawData(handle)
+        }
+    }
+}
+```
+
+Output:
+
+```text
+value:中
+from: 3, length: 1
+```
+
 ### func appendFromUtf8Unchecked(Array\<Byte>)
 
 ```cangjie

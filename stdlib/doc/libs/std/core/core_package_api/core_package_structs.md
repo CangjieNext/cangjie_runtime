@@ -6042,6 +6042,54 @@ Same range hash code: -1988359251787629792
 Same ranges have the same hash code
 ```
 
+## struct Utf8Error
+
+```cangjie
+public struct Utf8Error <: Equatable<Utf8Error> & ToString {
+    public init(from: Int64, length: Int64)
+}
+```
+
+功能：表示 UTF-8 诊断转换中的错误信息。
+
+### prop from
+
+```cangjie
+public prop from: Int64
+```
+
+功能：获取输入中最长合法 UTF-8 前缀的字节长度，也即首个失败字节相对输入起点的偏移。
+
+类型：[Int64](core_package_intrinsics.md#int64)
+
+### prop length
+
+```cangjie
+public prop length: Int64
+```
+
+功能：获取从 `from` 位置开始，为诊断失败 UTF-8 编码单元而消耗的字节数。如果首字节本身不是合法 UTF-8 起始字节，该值为 1。
+
+类型：[Int64](core_package_intrinsics.md#int64)
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let err = Utf8Error(1, 2)
+    println("from: ${err.from}")
+    println("length: ${err.length}")
+}
+```
+
+运行结果：
+
+```text
+from: 1
+length: 2
+```
+
 ## struct String
 
 ```cangjie
@@ -6324,6 +6372,143 @@ main() {
 ```text
 String from UTF-8 bytes: 'Hello 世界'
 String size: 12
+```
+
+### static func fromUtf8Diagnosed(Array\<Byte>)
+
+```cangjie
+public static func fromUtf8Diagnosed(utf8Data: Array<Byte>): Utf8Result
+```
+
+功能：根据 UTF-8 编码的字节数组诊断式构造字符串。
+
+如果入参整体符合 UTF-8 编码，返回 [Utf8Result](core_package_enums.md#enum-utf8result)`.Ok`。如果入参不符合 UTF-8 编码，返回 [Utf8Result](core_package_enums.md#enum-utf8result)`.Error`，其中包含最长合法 UTF-8 前缀对应的字符串和 [Utf8Error](core_package_structs.md#struct-utf8error) 错误信息。
+
+参数：
+
+- utf8Data: [Array](core_package_structs.md#struct-arrayt)\<[Byte](core_package_types.md#type-byte)> - 待诊断的字节数组。
+
+返回值：
+
+- [Utf8Result](core_package_enums.md#enum-utf8result) - UTF-8 诊断转换结果。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [97, 228, 65]
+    match (String.fromUtf8Diagnosed(bytes)) {
+        case Utf8Result.Ok(str) =>
+            println("ok: ${str}")
+        case Utf8Result.Error(prefix, err) =>
+            println("prefix: ${prefix}")
+            println("from: ${err.from}, length: ${err.length}")
+    }
+}
+```
+
+运行结果：
+
+```text
+prefix: a
+from: 1, length: 2
+```
+
+### static func fromUtf8(CPointer\<Byte>, Int64)
+
+```cangjie
+public unsafe static func fromUtf8(cptr: CPointer<Byte>, len: Int64): String
+```
+
+功能：将 `cptr` 指向的长度为 `len` 的内存内容按 UTF-8 编码转换为字符串。
+
+参数：
+
+- cptr: [CPointer](core_package_intrinsics.md#cpointert)\<[Byte](core_package_types.md#type-byte)> - 指向 UTF-8 字节序列的指针。当 `len` 大于 0 时，该指针必须指向至少 `len` 个可读字节。
+- len: [Int64](core_package_intrinsics.md#int64) - 待转换字节序列的长度。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) - 构造的字符串。
+
+异常：
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当 `len` 为负数，或输入不符合 UTF-8 编码规则时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [228, 184, 173]
+    unsafe {
+        let handle = acquireArrayRawData(bytes)
+        try {
+            let str = String.fromUtf8(handle.pointer, bytes.size)
+            println(str)
+        } finally {
+            releaseArrayRawData(handle)
+        }
+    }
+}
+```
+
+运行结果：
+
+```text
+中
+```
+
+### static func fromUtf8Diagnosed(CPointer\<Byte>, Int64)
+
+```cangjie
+public unsafe static func fromUtf8Diagnosed(cptr: CPointer<Byte>, len: Int64): Utf8Result
+```
+
+功能：将 `cptr` 指向的长度为 `len` 的内存内容按 UTF-8 编码进行诊断式转换。
+
+参数：
+
+- cptr: [CPointer](core_package_intrinsics.md#cpointert)\<[Byte](core_package_types.md#type-byte)> - 指向待诊断 UTF-8 字节序列的指针。当 `len` 大于 0 时，该指针必须指向至少 `len` 个可读字节。
+- len: [Int64](core_package_intrinsics.md#int64) - 待诊断字节序列的长度。
+
+返回值：
+
+- [Utf8Result](core_package_enums.md#enum-utf8result) - UTF-8 诊断转换结果。
+
+异常：
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当 `len` 为负数时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [228, 184, 173, 128]
+    unsafe {
+        let handle = acquireArrayRawData(bytes)
+        try {
+            match (String.fromUtf8Diagnosed(handle.pointer, bytes.size)) {
+                case Utf8Result.Ok(str) =>
+                    println("ok: ${str}")
+                case Utf8Result.Error(prefix, err) =>
+                    println("prefix: ${prefix}")
+                    println("from: ${err.from}, length: ${err.length}")
+            }
+        } finally {
+            releaseArrayRawData(handle)
+        }
+    }
+}
+```
+
+运行结果：
+
+```text
+prefix: 中
+from: 3, length: 1
 ```
 
 ### static func fromUtf8Unchecked(Array\<UInt8>)
