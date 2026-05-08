@@ -3597,7 +3597,7 @@ Parameters:
 
 Returns:
 
-- [Option](core_package_enums.md#enum-optiont)\<[Utf8Error](core_package_structs.md#struct-utf8error)> - UTF-8 error information. Returns `None` if the whole input is valid.
+- ?[Utf8Error](core_package_structs.md#struct-utf8error) - UTF-8 error information. Returns `None` if the whole input is valid.
 
 Example:
 
@@ -3639,7 +3639,7 @@ Parameters:
 
 Returns:
 
-- [Option](core_package_enums.md#enum-optiont)\<[Utf8Error](core_package_structs.md#struct-utf8error)> - UTF-8 error information. Returns `None` if the whole input is valid.
+- ?[Utf8Error](core_package_structs.md#struct-utf8error) - UTF-8 error information. Returns `None` if the whole input is valid.
 
 Exceptions:
 

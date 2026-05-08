@@ -3599,7 +3599,7 @@ public func appendFromUtf8Diagnosed(arr: Array<Byte>): ?Utf8Error
 
 返回值：
 
-- [Option](core_package_enums.md#enum-optiont)\<[Utf8Error](core_package_structs.md#struct-utf8error)> - UTF-8 错误信息；如果输入整体合法，则返回 `None`。
+- ?[Utf8Error](core_package_structs.md#struct-utf8error) - UTF-8 错误信息；如果输入整体合法，则返回 `None`。
 
 示例：
 
@@ -3641,7 +3641,7 @@ public unsafe func appendFromUtf8Diagnosed(cptr: CPointer<Byte>, len: Int64): ?U
 
 返回值：
 
-- [Option](core_package_enums.md#enum-optiont)\<[Utf8Error](core_package_structs.md#struct-utf8error)> - UTF-8 错误信息；如果输入整体合法，则返回 `None`。
+- ?[Utf8Error](core_package_structs.md#struct-utf8error) - UTF-8 错误信息；如果输入整体合法，则返回 `None`。
 
 异常：
 

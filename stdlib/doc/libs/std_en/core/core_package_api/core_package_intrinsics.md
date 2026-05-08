@@ -4744,7 +4744,7 @@ Parameters:
 
 Returns:
 
-- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - The UTF-8 character start position if found; otherwise, returns `None`.
+- ?[Int64](core_package_intrinsics.md#int64) - The UTF-8 character start position if found; otherwise, returns `None`.
 
 Exceptions:
 

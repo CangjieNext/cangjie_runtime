@@ -4744,7 +4744,7 @@ public static func getFirstUTF8Index(arr: Array<Byte>, index: Int64): ?Int64
 
 返回值：
 
-- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - 找到的 UTF-8 字符起始位置；如果不存在则返回 `None`。
+- ?[Int64](core_package_intrinsics.md#int64) - 找到的 UTF-8 字符起始位置；如果不存在则返回 `None`。
 
 异常：
 
