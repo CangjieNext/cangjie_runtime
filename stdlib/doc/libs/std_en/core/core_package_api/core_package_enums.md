@@ -27,6 +27,29 @@ Error(String, Utf8Error)
 
 Function: Indicates that the input does not satisfy UTF-8 encoding. The first parameter is the string converted from the longest valid UTF-8 prefix, and the second parameter is the error information.
 
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [97, 228, 65]
+    match (String.fromUtf8Diagnosed(bytes)) {
+        case Utf8Result.Ok(str) =>
+            println("ok: ${str}")
+        case Utf8Result.Error(prefix, err) =>
+            println("prefix: ${prefix}")
+            println("from: ${err.from}, length: ${err.length}")
+    }
+}
+```
+
+Output:
+
+```text
+prefix: a
+from: 1, length: 2
+```
+
 ## enum AnnotationKind
 
 ```cangjie
@@ -1191,4 +1214,3 @@ Conversion results are as follows:
 Returns:
 
 - [String](core_package_structs.md#struct-string) - The converted string.
-

@@ -4750,6 +4750,26 @@ public static func getFirstUTF8Index(arr: Array<Byte>, index: Int64): ?Int64
 
 - [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当 `index` 小于 0 时，抛出异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [128, 97, 228, 184, 173]
+    println(Rune.getFirstUTF8Index(bytes, 0))
+    println(Rune.getFirstUTF8Index(bytes, 1))
+    println(Rune.getFirstUTF8Index(bytes, 2))
+}
+```
+
+运行结果：
+
+```text
+Some(1)
+Some(2)
+None
+```
+
 #### static func intoUtf8Array(Rune, Array\<UInt8>, Int64)
 
 ```cangjie

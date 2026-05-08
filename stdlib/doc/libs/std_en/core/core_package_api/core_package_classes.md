@@ -3556,6 +3556,31 @@ Exceptions:
 
 - [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Thrown when `len` is negative or the input does not conform to UTF-8 encoding rules.
 
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [67, 97, 110, 103, 106, 105, 101]
+    let sb = StringBuilder("Hello, ")
+    unsafe {
+        let handle = acquireArrayRawData(bytes)
+        try {
+            sb.appendFromUtf8(handle.pointer, bytes.size)
+        } finally {
+            releaseArrayRawData(handle)
+        }
+    }
+    println(sb.toString())
+}
+```
+
+Output:
+
+```text
+Hello, Cangjie
+```
+
 ### func appendFromUtf8Diagnosed(Array\<Byte>)
 
 ```cangjie
@@ -3573,6 +3598,31 @@ Parameters:
 Returns:
 
 - [Option](core_package_enums.md#enum-optiont)\<[Utf8Error](core_package_structs.md#struct-utf8error)> - UTF-8 error information. Returns `None` if the whole input is valid.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [97, 228, 65]
+    let sb = StringBuilder("prefix:")
+    let err = sb.appendFromUtf8Diagnosed(bytes)
+    println(sb.toString())
+    match (err) {
+        case Some(e) =>
+            println("from: ${e.from}, length: ${e.length}")
+        case None =>
+            println("valid UTF-8")
+    }
+}
+```
+
+Output:
+
+```text
+prefix:a
+from: 1, length: 2
+```
 
 ### func appendFromUtf8Diagnosed(CPointer\<Byte>, Int64)
 
@@ -3594,6 +3644,38 @@ Returns:
 Exceptions:
 
 - [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Thrown when `len` is negative.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [228, 184, 173, 128]
+    let sb = StringBuilder("value:")
+    unsafe {
+        let handle = acquireArrayRawData(bytes)
+        try {
+            let err = sb.appendFromUtf8Diagnosed(handle.pointer, bytes.size)
+            println(sb.toString())
+            match (err) {
+                case Some(e) =>
+                    println("from: ${e.from}, length: ${e.length}")
+                case None =>
+                    println("valid UTF-8")
+            }
+        } finally {
+            releaseArrayRawData(handle)
+        }
+    }
+}
+```
+
+Output:
+
+```text
+value:中
+from: 3, length: 1
+```
 
 ### func appendFromUtf8Unchecked(Array\<Byte>)
 

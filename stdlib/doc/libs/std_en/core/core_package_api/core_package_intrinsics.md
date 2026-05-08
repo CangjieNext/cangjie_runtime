@@ -4750,6 +4750,26 @@ Exceptions:
 
 - [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Thrown when `index` is less than 0.
 
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [128, 97, 228, 184, 173]
+    println(Rune.getFirstUTF8Index(bytes, 0))
+    println(Rune.getFirstUTF8Index(bytes, 1))
+    println(Rune.getFirstUTF8Index(bytes, 2))
+}
+```
+
+Output:
+
+```text
+Some(1)
+Some(2)
+None
+```
+
 #### static func intoUtf8Array(Rune, Array\<UInt8>, Int64)
 
 ```cangjie

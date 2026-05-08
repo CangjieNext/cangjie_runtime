@@ -3558,6 +3558,31 @@ public unsafe func appendFromUtf8(cptr: CPointer<Byte>, len: Int64): Unit
 
 - [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当 `len` 为负数，或输入不符合 UTF-8 编码规则时，抛出异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [67, 97, 110, 103, 106, 105, 101]
+    let sb = StringBuilder("Hello, ")
+    unsafe {
+        let handle = acquireArrayRawData(bytes)
+        try {
+            sb.appendFromUtf8(handle.pointer, bytes.size)
+        } finally {
+            releaseArrayRawData(handle)
+        }
+    }
+    println(sb.toString())
+}
+```
+
+运行结果：
+
+```text
+Hello, Cangjie
+```
+
 ### func appendFromUtf8Diagnosed(Array\<Byte>)
 
 ```cangjie
@@ -3575,6 +3600,31 @@ public func appendFromUtf8Diagnosed(arr: Array<Byte>): ?Utf8Error
 返回值：
 
 - [Option](core_package_enums.md#enum-optiont)\<[Utf8Error](core_package_structs.md#struct-utf8error)> - UTF-8 错误信息；如果输入整体合法，则返回 `None`。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [97, 228, 65]
+    let sb = StringBuilder("prefix:")
+    let err = sb.appendFromUtf8Diagnosed(bytes)
+    println(sb.toString())
+    match (err) {
+        case Some(e) =>
+            println("from: ${e.from}, length: ${e.length}")
+        case None =>
+            println("valid UTF-8")
+    }
+}
+```
+
+运行结果：
+
+```text
+prefix:a
+from: 1, length: 2
+```
 
 ### func appendFromUtf8Diagnosed(CPointer\<Byte>, Int64)
 
@@ -3596,6 +3646,38 @@ public unsafe func appendFromUtf8Diagnosed(cptr: CPointer<Byte>, len: Int64): ?U
 异常：
 
 - [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当 `len` 为负数时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [228, 184, 173, 128]
+    let sb = StringBuilder("value:")
+    unsafe {
+        let handle = acquireArrayRawData(bytes)
+        try {
+            let err = sb.appendFromUtf8Diagnosed(handle.pointer, bytes.size)
+            println(sb.toString())
+            match (err) {
+                case Some(e) =>
+                    println("from: ${e.from}, length: ${e.length}")
+                case None =>
+                    println("valid UTF-8")
+            }
+        } finally {
+            releaseArrayRawData(handle)
+        }
+    }
+}
+```
+
+运行结果：
+
+```text
+value:中
+from: 3, length: 1
+```
 
 ### func appendFromUtf8Unchecked(Array\<Byte>)
 

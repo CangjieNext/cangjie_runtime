@@ -6072,6 +6072,24 @@ public prop length: Int64
 
 类型：[Int64](core_package_intrinsics.md#int64)
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let err = Utf8Error(1, 2)
+    println("from: ${err.from}")
+    println("length: ${err.length}")
+}
+```
+
+运行结果：
+
+```text
+from: 1
+length: 2
+```
+
 ## struct String
 
 ```cangjie
@@ -6374,6 +6392,29 @@ public static func fromUtf8Diagnosed(utf8Data: Array<Byte>): Utf8Result
 
 - [Utf8Result](core_package_enums.md#enum-utf8result) - UTF-8 诊断转换结果。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [97, 228, 65]
+    match (String.fromUtf8Diagnosed(bytes)) {
+        case Utf8Result.Ok(str) =>
+            println("ok: ${str}")
+        case Utf8Result.Error(prefix, err) =>
+            println("prefix: ${prefix}")
+            println("from: ${err.from}, length: ${err.length}")
+    }
+}
+```
+
+运行结果：
+
+```text
+prefix: a
+from: 1, length: 2
+```
+
 ### static func fromUtf8(CPointer\<Byte>, Int64)
 
 ```cangjie
@@ -6395,6 +6436,30 @@ public unsafe static func fromUtf8(cptr: CPointer<Byte>, len: Int64): String
 
 - [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当 `len` 为负数，或输入不符合 UTF-8 编码规则时，抛出异常。
 
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [228, 184, 173]
+    unsafe {
+        let handle = acquireArrayRawData(bytes)
+        try {
+            let str = String.fromUtf8(handle.pointer, bytes.size)
+            println(str)
+        } finally {
+            releaseArrayRawData(handle)
+        }
+    }
+}
+```
+
+运行结果：
+
+```text
+中
+```
+
 ### static func fromUtf8Diagnosed(CPointer\<Byte>, Int64)
 
 ```cangjie
@@ -6415,6 +6480,36 @@ public unsafe static func fromUtf8Diagnosed(cptr: CPointer<Byte>, len: Int64): U
 异常：
 
 - [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当 `len` 为负数时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [228, 184, 173, 128]
+    unsafe {
+        let handle = acquireArrayRawData(bytes)
+        try {
+            match (String.fromUtf8Diagnosed(handle.pointer, bytes.size)) {
+                case Utf8Result.Ok(str) =>
+                    println("ok: ${str}")
+                case Utf8Result.Error(prefix, err) =>
+                    println("prefix: ${prefix}")
+                    println("from: ${err.from}, length: ${err.length}")
+            }
+        } finally {
+            releaseArrayRawData(handle)
+        }
+    }
+}
+```
+
+运行结果：
+
+```text
+prefix: 中
+from: 3, length: 1
+```
 
 ### static func fromUtf8Unchecked(Array\<UInt8>)
 
