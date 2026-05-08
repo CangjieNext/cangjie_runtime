@@ -194,6 +194,45 @@ public class StringBuilder <: ToString {
 
     @OverflowWrapping
     @Frozen
+    public unsafe func appendFromUtf8(cptr: CPointer<Byte>, len: Int64): Unit {
+        let data = arrayFromCPointer(cptr, len)
+        appendFromUtf8(data)
+    }
+
+    @OverflowWrapping
+    @Frozen
+    public func appendFromUtf8Diagnosed(arr: Array<Byte>): ?Utf8Error {
+        if (arr.size == 0) {
+            return None
+        }
+        match (diagnoseUtf8(arr.rawptr, arr.start, arr.start + arr.size)) {
+            case Some(err) =>
+                if (err.from > 0) {
+                    let validPrefix = arr[..err.from]
+                    let arrSize = validPrefix.size
+                    this.grow(arrSize)
+                    validPrefix.copyTo(this.data, 0, this.endIndex, arrSize)
+                    this.endIndex += arrSize
+                }
+                return Some(err)
+            case None =>
+                let arrSize = arr.size
+                this.grow(arrSize)
+                arr.copyTo(this.data, 0, this.endIndex, arrSize)
+                this.endIndex += arrSize
+                return None
+        }
+    }
+
+    @OverflowWrapping
+    @Frozen
+    public unsafe func appendFromUtf8Diagnosed(cptr: CPointer<Byte>, len: Int64): ?Utf8Error {
+        let data = arrayFromCPointer(cptr, len)
+        return appendFromUtf8Diagnosed(data)
+    }
+
+    @OverflowWrapping
+    @Frozen
     public unsafe func appendFromUtf8Unchecked(arr: Array<Byte>): Unit {
         if (arr.size == 0) {
             return
