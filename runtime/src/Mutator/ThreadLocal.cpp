@@ -13,6 +13,10 @@
 #include "schedule.h"
 #include "Base/Globals.h"
 
+#ifdef MRT_USE_MARK_SWEEP
+#include "Heap/MAllocator/MSRegionInfo.h"
+#endif
+
 namespace MapleRuntime {
 namespace {
 inline uint8_t EncodeThreadLocalGCFastState(GCPhase phase)
@@ -30,7 +34,11 @@ inline uint8_t EncodeThreadLocalGCFastState(GCPhase phase)
 
 inline uint8_t EncodeThreadLocalGCPhaseByte(GCPhase phase)
 {
-    return phase > GCPhase::GC_PHASE_INIT ? static_cast<uint8_t>(phase) : 0;
+    // Fix: directly cast phase to uint8_t so GC_PHASE_IDLE(1) encodes to 1,
+    // matching the LLVM fast-path constant MSGCGCPhaseIdle=1.
+    // GC_PHASE_UNDEF=0 naturally encodes to 0, keeping fast-path disabled
+    // for uninitialized mutators.
+    return static_cast<uint8_t>(phase);
 }
 }
 
@@ -92,8 +100,27 @@ extern "C" void MCC_CheckThreadLocalDataOffset()
                   "need to modify the offset of this value in llvm-project and cjthread at the same time");
     static_assert(offsetof(ThreadLocalData, foreignCJThread) == sizeof(void*) * 8,
                   "need to modify the offset of this value in llvm-project and cjthread at the same time");
+    static_assert(offsetof(ThreadLocalData, encodedGCPhase) == sizeof(void*) * 9 + 6,
+                  "need to modify the offset of this value in llvm-project at the same time");
+    static_assert(offsetof(ThreadLocalData, msAllocBuffer) == sizeof(void*) * 11,
+                  "need to modify the offset of this value in llvm-project at the same time");
     static_assert(sizeof(ThreadLocalData) == sizeof(void*) * 12,
                   "need to modify the offset of this value in llvm-project and cjthread at the same time");
+#endif
+
+#ifdef MRT_USE_MARK_SWEEP
+    static_assert(offsetof(MSRegionInfo, allocPtr) == 0,
+                  "need to modify the offset of this value in llvm-project at the same time");
+    static_assert(offsetof(MSRegionInfo, regionEnd) == 8,
+                  "need to modify the offset of this value in llvm-project at the same time");
+    static_assert(offsetof(MSRegionInfo, allocBitmap) == 24,
+                  "need to modify the offset of this value in llvm-project at the same time");
+    static_assert(offsetof(MSRegionInfo, freeSlotCount) == 42,
+                  "need to modify the offset of this value in llvm-project at the same time");
+    static_assert(offsetof(MSRegionInfo, regionType) == 50,
+                  "need to modify the offset of this value in llvm-project at the same time");
+    static_assert(offsetof(MSRegionInfo, reserved) == 56,
+                  "need to modify the offset of this value in llvm-project at the same time");
 #endif
 }
 

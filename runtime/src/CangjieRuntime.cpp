@@ -35,6 +35,9 @@
 #ifdef CANGJIE_GWPASAN_SUPPORT
 #include "Sanitizer/SanitizerInterface.h"
 #endif
+
+// Forward declaration for alloc stats (defined in CompilerCalls.cpp)
+extern "C" void MCC_PrintAllocStats();
 namespace MapleRuntime {
 StackGrowConfig CangjieRuntime::stackGrowConfig = StackGrowConfig::UNDEF;
 extern "C" MRT_EXPORT void MRT_LibraryOnLoad(uint64_t address, bool enableGC)
@@ -320,6 +323,7 @@ void CangjieRuntime::Fini()
     CheckAndFini<LogManager>(logManager);
     PagePool::Instance().Fini();
 
+    MCC_PrintAllocStats();
     LOG(RTLOG_INFO, "Cangjie runtime shutdown.");
 }
 
