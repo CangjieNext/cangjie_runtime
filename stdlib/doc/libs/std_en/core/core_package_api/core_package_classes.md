@@ -3537,6 +3537,64 @@ Content: 'Hello, World'
 Size: 12
 ```
 
+### func appendFromUtf8(CPointer\<Byte>, Int64)
+
+```cangjie
+public unsafe func appendFromUtf8(cptr: CPointer<Byte>, len: Int64): Unit
+```
+
+Function: Appends the UTF-8 byte sequence pointed to by `cptr` with length `len` to the end of [StringBuilder](core_package_classes.md#class-stringbuilder).
+
+This function requires the whole input to conform to UTF-8 encoding. If the input does not conform to UTF-8 encoding, an exception is thrown and no partial append result is produced.
+
+Parameters:
+
+- cptr: [CPointer](core_package_intrinsics.md#cpointert)\<[Byte](core_package_types.md#type-byte)> - A pointer to the UTF-8 byte sequence.
+- len: [Int64](core_package_intrinsics.md#int64) - The length of the byte sequence to append.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Thrown when `len` is negative or the input does not conform to UTF-8 encoding rules.
+
+### func appendFromUtf8Diagnosed(Array\<Byte>)
+
+```cangjie
+public func appendFromUtf8Diagnosed(arr: Array<Byte>): ?Utf8Error
+```
+
+Function: Appends the longest valid UTF-8 prefix in `arr` to the end of [StringBuilder](core_package_classes.md#class-stringbuilder).
+
+If the whole `arr` conforms to UTF-8 encoding, appends all content and returns `None`. If `arr` does not conform to UTF-8 encoding, appends only the longest valid UTF-8 prefix and returns [Utf8Error](core_package_structs.md#struct-utf8error) error information.
+
+Parameters:
+
+- arr: [Array](core_package_structs.md#struct-arrayt)\<[Byte](core_package_types.md#type-byte)> - The byte array to diagnostically append.
+
+Returns:
+
+- [Option](core_package_enums.md#enum-optiont)\<[Utf8Error](core_package_structs.md#struct-utf8error)> - UTF-8 error information. Returns `None` if the whole input is valid.
+
+### func appendFromUtf8Diagnosed(CPointer\<Byte>, Int64)
+
+```cangjie
+public unsafe func appendFromUtf8Diagnosed(cptr: CPointer<Byte>, len: Int64): ?Utf8Error
+```
+
+Function: Appends the longest valid UTF-8 prefix in the memory pointed to by `cptr` to the end of [StringBuilder](core_package_classes.md#class-stringbuilder).
+
+Parameters:
+
+- cptr: [CPointer](core_package_intrinsics.md#cpointert)\<[Byte](core_package_types.md#type-byte)> - A pointer to the UTF-8 byte sequence to diagnose.
+- len: [Int64](core_package_intrinsics.md#int64) - The length of the byte sequence to diagnose.
+
+Returns:
+
+- [Option](core_package_enums.md#enum-optiont)\<[Utf8Error](core_package_structs.md#struct-utf8error)> - UTF-8 error information. Returns `None` if the whole input is valid.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Thrown when `len` is negative.
+
 ### func appendFromUtf8Unchecked(Array\<Byte>)
 
 ```cangjie

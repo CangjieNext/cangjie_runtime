@@ -203,6 +203,16 @@ extend Rune {
         return res
     }
 
+    public static func getFirstUTF8Index(arr: Array<Byte>, index: Int64): ?Int64 {
+        if (index < 0) {
+            throw IllegalArgumentException("The index cannot be less than 0.")
+        }
+        if (index + 1 >= arr.size) {
+            return None
+        }
+        return findFirstUtf8Index(arr.rawptr, arr.start + index + 1, arr.start + arr.size).map { it => it - arr.start }
+    }
+
     /*
      * @throws IllegalArgumentException if the character occupies a position beyond the array range
      */

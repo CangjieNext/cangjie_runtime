@@ -6042,6 +6042,36 @@ Same range hash code: -1988359251787629792
 Same ranges have the same hash code
 ```
 
+## struct Utf8Error
+
+```cangjie
+public struct Utf8Error <: Equatable<Utf8Error> & ToString {
+    public init(from: Int64, length: Int64)
+}
+```
+
+功能：表示 UTF-8 诊断转换中的错误信息。
+
+### prop from
+
+```cangjie
+public prop from: Int64
+```
+
+功能：获取输入中最长合法 UTF-8 前缀的字节长度。
+
+类型：[Int64](core_package_intrinsics.md#int64)
+
+### prop length
+
+```cangjie
+public prop length: Int64
+```
+
+功能：获取从 `from` 位置开始的失败 UTF-8 编码单元长度。
+
+类型：[Int64](core_package_intrinsics.md#int64)
+
 ## struct String
 
 ```cangjie
@@ -6325,6 +6355,66 @@ main() {
 String from UTF-8 bytes: 'Hello 世界'
 String size: 12
 ```
+
+### static func fromUtf8Diagnosed(Array\<Byte>)
+
+```cangjie
+public static func fromUtf8Diagnosed(utf8Data: Array<Byte>): Utf8Result
+```
+
+功能：根据 UTF-8 编码的字节数组诊断式构造字符串。
+
+如果入参整体符合 UTF-8 编码，返回 [Utf8Result](core_package_enums.md#enum-utf8result)`.Ok`。如果入参不符合 UTF-8 编码，返回 [Utf8Result](core_package_enums.md#enum-utf8result)`.Error`，其中包含最长合法 UTF-8 前缀对应的字符串和 [Utf8Error](core_package_structs.md#struct-utf8error) 错误信息。
+
+参数：
+
+- utf8Data: [Array](core_package_structs.md#struct-arrayt)\<[Byte](core_package_types.md#type-byte)> - 待诊断的字节数组。
+
+返回值：
+
+- [Utf8Result](core_package_enums.md#enum-utf8result) - UTF-8 诊断转换结果。
+
+### static func fromUtf8(CPointer\<Byte>, Int64)
+
+```cangjie
+public unsafe static func fromUtf8(cptr: CPointer<Byte>, len: Int64): String
+```
+
+功能：将 `cptr` 指向的长度为 `len` 的内存内容按 UTF-8 编码转换为字符串。
+
+参数：
+
+- cptr: [CPointer](core_package_intrinsics.md#cpointert)\<[Byte](core_package_types.md#type-byte)> - 指向 UTF-8 字节序列的指针。
+- len: [Int64](core_package_intrinsics.md#int64) - 待转换字节序列的长度。
+
+返回值：
+
+- [String](core_package_structs.md#struct-string) - 构造的字符串。
+
+异常：
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当 `len` 为负数，或输入不符合 UTF-8 编码规则时，抛出异常。
+
+### static func fromUtf8Diagnosed(CPointer\<Byte>, Int64)
+
+```cangjie
+public unsafe static func fromUtf8Diagnosed(cptr: CPointer<Byte>, len: Int64): Utf8Result
+```
+
+功能：将 `cptr` 指向的长度为 `len` 的内存内容按 UTF-8 编码进行诊断式转换。
+
+参数：
+
+- cptr: [CPointer](core_package_intrinsics.md#cpointert)\<[Byte](core_package_types.md#type-byte)> - 指向待诊断 UTF-8 字节序列的指针。
+- len: [Int64](core_package_intrinsics.md#int64) - 待诊断字节序列的长度。
+
+返回值：
+
+- [Utf8Result](core_package_enums.md#enum-utf8result) - UTF-8 诊断转换结果。
+
+异常：
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当 `len` 为负数时，抛出异常。
 
 ### static func fromUtf8Unchecked(Array\<UInt8>)
 

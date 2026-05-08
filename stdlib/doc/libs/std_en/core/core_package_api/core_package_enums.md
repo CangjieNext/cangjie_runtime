@@ -1,5 +1,32 @@
 # Enumerations
 
+## enum Utf8Result
+
+```cangjie
+public enum Utf8Result {
+    | Ok(String)
+    | Error(String, Utf8Error)
+}
+```
+
+Function: Represents the diagnostic conversion result of a UTF-8 byte sequence.
+
+### Ok(String)
+
+```cangjie
+Ok(String)
+```
+
+Function: Indicates that the whole input satisfies UTF-8 encoding. The parameter is the converted string.
+
+### Error(String, Utf8Error)
+
+```cangjie
+Error(String, Utf8Error)
+```
+
+Function: Indicates that the input does not satisfy UTF-8 encoding. The first parameter is the string converted from the longest valid UTF-8 prefix, and the second parameter is the error information.
+
 ## enum AnnotationKind
 
 ```cangjie
@@ -1164,5 +1191,4 @@ Conversion results are as follows:
 Returns:
 
 - [String](core_package_structs.md#struct-string) - The converted string.
-
 

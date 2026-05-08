@@ -4729,6 +4729,27 @@ Found character: 爱
 Byte length of character: 3
 ```
 
+#### static func getFirstUTF8Index(Array\<Byte>, Int64)
+
+```cangjie
+public static func getFirstUTF8Index(arr: Array<Byte>, index: Int64): ?Int64
+```
+
+Function: Searches for the first character start position that satisfies UTF-8 encoding rules in the byte array, starting strictly after `index`.
+
+Parameters:
+
+- arr: [Array](core_package_structs.md#struct-arrayt)\<[Byte](core_package_types.md#type-byte)> - The byte array to search.
+- index: [Int64](core_package_intrinsics.md#int64) - The reference position. The search starts after this position.
+
+Returns:
+
+- [Option](core_package_enums.md#enum-optiont)\<[Int64](core_package_intrinsics.md#int64)> - The UTF-8 character start position if found; otherwise, returns `None`.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Thrown when `index` is less than 0.
+
 #### static func intoUtf8Array(Rune, Array\<UInt8>, Int64)
 
 ```cangjie

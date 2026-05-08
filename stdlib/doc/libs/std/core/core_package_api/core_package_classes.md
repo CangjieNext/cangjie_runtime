@@ -3539,6 +3539,64 @@ Content: 'Hello, World'
 Size: 12
 ```
 
+### func appendFromUtf8(CPointer\<Byte>, Int64)
+
+```cangjie
+public unsafe func appendFromUtf8(cptr: CPointer<Byte>, len: Int64): Unit
+```
+
+功能：将 `cptr` 指向的长度为 `len` 的 UTF-8 字节序列追加到 [StringBuilder](core_package_classes.md#class-stringbuilder) 末尾。
+
+该函数要求输入整体符合 UTF-8 编码。如果输入不符合 UTF-8 编码，将抛出异常，且不会产生部分追加结果。
+
+参数：
+
+- cptr: [CPointer](core_package_intrinsics.md#cpointert)\<[Byte](core_package_types.md#type-byte)> - 指向 UTF-8 字节序列的指针。
+- len: [Int64](core_package_intrinsics.md#int64) - 待追加字节序列的长度。
+
+异常：
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当 `len` 为负数，或输入不符合 UTF-8 编码规则时，抛出异常。
+
+### func appendFromUtf8Diagnosed(Array\<Byte>)
+
+```cangjie
+public func appendFromUtf8Diagnosed(arr: Array<Byte>): ?Utf8Error
+```
+
+功能：将 `arr` 中满足 UTF-8 编码规则的最长前缀追加到 [StringBuilder](core_package_classes.md#class-stringbuilder) 末尾。
+
+如果 `arr` 整体符合 UTF-8 编码，追加全部内容并返回 `None`。如果 `arr` 不符合 UTF-8 编码，只追加最长合法 UTF-8 前缀，并返回 [Utf8Error](core_package_structs.md#struct-utf8error) 错误信息。
+
+参数：
+
+- arr: [Array](core_package_structs.md#struct-arrayt)\<[Byte](core_package_types.md#type-byte)> - 待诊断追加的字节数组。
+
+返回值：
+
+- [Option](core_package_enums.md#enum-optiont)\<[Utf8Error](core_package_structs.md#struct-utf8error)> - UTF-8 错误信息；如果输入整体合法，则返回 `None`。
+
+### func appendFromUtf8Diagnosed(CPointer\<Byte>, Int64)
+
+```cangjie
+public unsafe func appendFromUtf8Diagnosed(cptr: CPointer<Byte>, len: Int64): ?Utf8Error
+```
+
+功能：将 `cptr` 指向内存中满足 UTF-8 编码规则的最长前缀追加到 [StringBuilder](core_package_classes.md#class-stringbuilder) 末尾。
+
+参数：
+
+- cptr: [CPointer](core_package_intrinsics.md#cpointert)\<[Byte](core_package_types.md#type-byte)> - 指向待诊断 UTF-8 字节序列的指针。
+- len: [Int64](core_package_intrinsics.md#int64) - 待诊断字节序列的长度。
+
+返回值：
+
+- [Option](core_package_enums.md#enum-optiont)\<[Utf8Error](core_package_structs.md#struct-utf8error)> - UTF-8 错误信息；如果输入整体合法，则返回 `None`。
+
+异常：
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - 当 `len` 为负数时，抛出异常。
+
 ### func appendFromUtf8Unchecked(Array\<Byte>)
 
 ```cangjie

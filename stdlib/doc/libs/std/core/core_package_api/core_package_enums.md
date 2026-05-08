@@ -1,5 +1,32 @@
 # 枚举
 
+## enum Utf8Result
+
+```cangjie
+public enum Utf8Result {
+    | Ok(String)
+    | Error(String, Utf8Error)
+}
+```
+
+功能：表示 UTF-8 字节序列诊断转换结果。
+
+### Ok(String)
+
+```cangjie
+Ok(String)
+```
+
+功能：表示输入整体满足 UTF-8 编码，参数为转换得到的字符串。
+
+### Error(String, Utf8Error)
+
+```cangjie
+Error(String, Utf8Error)
+```
+
+功能：表示输入不满足 UTF-8 编码，第一个参数为最长合法 UTF-8 前缀对应的字符串，第二个参数为错误信息。
+
 ## enum AnnotationKind
 
 ```cangjie
