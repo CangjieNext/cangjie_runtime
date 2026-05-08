@@ -5623,6 +5623,54 @@ Output:
 Range hash code: -198835925178762
 ```
 
+## struct Utf8Error
+
+```cangjie
+public struct Utf8Error <: Equatable<Utf8Error> & ToString {
+    public init(from: Int64, length: Int64)
+}
+```
+
+Function: Represents error information from diagnostic UTF-8 conversion.
+
+### prop from
+
+```cangjie
+public prop from: Int64
+```
+
+Function: Gets the byte length of the longest valid UTF-8 prefix in the input.
+
+Type: [Int64](core_package_intrinsics.md#int64)
+
+### prop length
+
+```cangjie
+public prop length: Int64
+```
+
+Function: Gets the length of the failing UTF-8 encoding unit starting from `from`.
+
+Type: [Int64](core_package_intrinsics.md#int64)
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let err = Utf8Error(1, 2)
+    println("from: ${err.from}")
+    println("length: ${err.length}")
+}
+```
+
+Output:
+
+```text
+from: 1
+length: 2
+```
+
 ## struct String
 
 ```cangjie
@@ -5879,6 +5927,143 @@ Output:
 ```text
 String from UTF-8 bytes: 'Hello 世界'
 String size: 12
+```
+
+### static func fromUtf8Diagnosed(Array\<Byte>)
+
+```cangjie
+public static func fromUtf8Diagnosed(utf8Data: Array<Byte>): Utf8Result
+```
+
+Function: Diagnostically constructs a string from a UTF-8 encoded byte array.
+
+If the whole input conforms to UTF-8 encoding, returns [Utf8Result](core_package_enums.md#enum-utf8result)`.Ok`. If the input does not conform to UTF-8 encoding, returns [Utf8Result](core_package_enums.md#enum-utf8result)`.Error`, which contains the string converted from the longest valid UTF-8 prefix and the [Utf8Error](core_package_structs.md#struct-utf8error) error information.
+
+Parameters:
+
+- utf8Data: [Array](core_package_structs.md#struct-arrayt)\<[Byte](core_package_types.md#type-byte)> - The byte array to diagnose.
+
+Returns:
+
+- [Utf8Result](core_package_enums.md#enum-utf8result) - The UTF-8 diagnostic conversion result.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [97, 228, 65]
+    match (String.fromUtf8Diagnosed(bytes)) {
+        case Utf8Result.Ok(str) =>
+            println("ok: ${str}")
+        case Utf8Result.Error(prefix, err) =>
+            println("prefix: ${prefix}")
+            println("from: ${err.from}, length: ${err.length}")
+    }
+}
+```
+
+Output:
+
+```text
+prefix: a
+from: 1, length: 2
+```
+
+### static func fromUtf8(CPointer\<Byte>, Int64)
+
+```cangjie
+public unsafe static func fromUtf8(cptr: CPointer<Byte>, len: Int64): String
+```
+
+Function: Converts the memory content pointed to by `cptr` with length `len` into a string using UTF-8 encoding.
+
+Parameters:
+
+- cptr: [CPointer](core_package_intrinsics.md#cpointert)\<[Byte](core_package_types.md#type-byte)> - A pointer to the UTF-8 byte sequence.
+- len: [Int64](core_package_intrinsics.md#int64) - The length of the byte sequence to convert.
+
+Returns:
+
+- [String](core_package_structs.md#struct-string) - The constructed string.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Thrown when `len` is negative or the input does not conform to UTF-8 encoding rules.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [228, 184, 173]
+    unsafe {
+        let handle = acquireArrayRawData(bytes)
+        try {
+            let str = String.fromUtf8(handle.pointer, bytes.size)
+            println(str)
+        } finally {
+            releaseArrayRawData(handle)
+        }
+    }
+}
+```
+
+Output:
+
+```text
+中
+```
+
+### static func fromUtf8Diagnosed(CPointer\<Byte>, Int64)
+
+```cangjie
+public unsafe static func fromUtf8Diagnosed(cptr: CPointer<Byte>, len: Int64): Utf8Result
+```
+
+Function: Diagnostically converts the memory content pointed to by `cptr` with length `len` using UTF-8 encoding.
+
+Parameters:
+
+- cptr: [CPointer](core_package_intrinsics.md#cpointert)\<[Byte](core_package_types.md#type-byte)> - A pointer to the UTF-8 byte sequence to diagnose.
+- len: [Int64](core_package_intrinsics.md#int64) - The length of the byte sequence to diagnose.
+
+Returns:
+
+- [Utf8Result](core_package_enums.md#enum-utf8result) - The UTF-8 diagnostic conversion result.
+
+Exceptions:
+
+- [IllegalArgumentException](core_package_exceptions.md#class-illegalargumentexception) - Thrown when `len` is negative.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let bytes: Array<Byte> = [228, 184, 173, 128]
+    unsafe {
+        let handle = acquireArrayRawData(bytes)
+        try {
+            match (String.fromUtf8Diagnosed(handle.pointer, bytes.size)) {
+                case Utf8Result.Ok(str) =>
+                    println("ok: ${str}")
+                case Utf8Result.Error(prefix, err) =>
+                    println("prefix: ${prefix}")
+                    println("from: ${err.from}, length: ${err.length}")
+            }
+        } finally {
+            releaseArrayRawData(handle)
+        }
+    }
+}
+```
+
+Output:
+
+```text
+prefix: 中
+from: 3, length: 1
 ```
 
 ### static func fromUtf8Unchecked(Array\<UInt8>)

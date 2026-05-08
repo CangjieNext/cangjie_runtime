@@ -262,6 +262,39 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         return String(utf8Data.clone())
     }
 
+    public static func fromUtf8Diagnosed(utf8Data: Array<Byte>): Utf8Result {
+        match (diagnoseUtf8(utf8Data.rawptr, utf8Data.start, utf8Data.start + utf8Data.size)) {
+            case Some(err) =>
+                return Utf8Result.Error(
+                    unsafe { String.fromUtf8Unchecked(utf8Data[..err.from]) },
+                    err
+                )
+            case None =>
+                return Utf8Result.Ok(unsafe { String.fromUtf8Unchecked(utf8Data) })
+        }
+    }
+
+    public unsafe static func fromUtf8Diagnosed(cptr: CPointer<Byte>, len: Int64): Utf8Result {
+        let data = arrayFromCPointer(cptr, len)
+        match (diagnoseUtf8(data.rawptr, data.start, data.start + data.size)) {
+            case Some(err) =>
+                return Utf8Result.Error(
+                    String(data[..err.from]),
+                    err
+                )
+            case None =>
+                return Utf8Result.Ok(String(data))
+        }
+    }
+
+    public unsafe static func fromUtf8(cptr: CPointer<Byte>, len: Int64): String {
+        match (fromUtf8Diagnosed(cptr, len)) {
+            case Utf8Result.Ok(str) => str
+            case Utf8Result.Error(_, err) =>
+                throw IllegalArgumentException("Invalid utf8 byte sequence at ${err.from}, length ${err.length}.")
+        }
+    }
+
     @Frozen
     public unsafe func rawData(): Array<Byte> {
         return Array<Byte>(myData, Int64(start), Int64(length))
