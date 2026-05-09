@@ -48,67 +48,11 @@
 #include <dlfcn.h>
 #endif
 
-#include <atomic>
-#include <cstdio>
-#include "Mutator/ThreadLocal.h"
-#ifdef MRT_USE_MARK_SWEEP
-#include "Heap/MAllocator/MSAllocBuffer.h"
-#include "Heap/MAllocator/MSSizeClass.h"
-#endif
-
 namespace MapleRuntime {
-
-// ===== Alloc Stats Counters =====
-// Counts every call that reaches these MCC_* runtime functions
-// (i.e., the inline fast-path missed or no fast-path is present).
-static constexpr size_t kAllocCountLargeThreshold = 16384;
-static std::atomic<uint64_t> g_alloc_small_obj{0};
-static std::atomic<uint64_t> g_alloc_large_obj{0};
-static std::atomic<uint64_t> g_alloc_array{0};
-#ifdef MRT_USE_MARK_SWEEP
-// ---- Fast-path gate miss breakdown (small objects only, staged) ----
-// Stage 1: encodedGCPhase not in {IDLE, MS_SWEEP}
-static std::atomic<uint64_t> g_miss_phase{0};
-// Stage 2: msAllocBuffer == nullptr
-static std::atomic<uint64_t> g_miss_no_buffer{0};
-// Stage 3: activeRegions[cls] == nullptr
-static std::atomic<uint64_t> g_miss_no_region{0};
-// Stage 4: regionType == BUMP and allocPtr + size <= regionEnd → would be fast-path HIT
-static std::atomic<uint64_t> g_would_hit_bump{0};
-// Stage 5: regionType == BUMP but full (allocPtr + size > regionEnd)
-static std::atomic<uint64_t> g_miss_bump_full{0};
-// Stage 6: regionType == PARTIAL → bitmap alloc could handle it
-static std::atomic<uint64_t> g_miss_partial{0};
-// Stage 7: other regionType (FULL, FREE, LARGE, ...)
-static std::atomic<uint64_t> g_miss_other_type{0};
-#endif
 
 extern "C" void MCC_PrintAllocStats()
 {
-    uint64_t small = g_alloc_small_obj.load(std::memory_order_relaxed);
-    uint64_t large = g_alloc_large_obj.load(std::memory_order_relaxed);
-    uint64_t arr   = g_alloc_array.load(std::memory_order_relaxed);
-    fprintf(stderr,
-        "\n[AllocStats] SmallObj(<%zu B): %lu  LargeObj(>=%zu B): %lu  Array: %lu  Total: %lu\n",
-        kAllocCountLargeThreshold, small,
-        kAllocCountLargeThreshold, large,
-        arr, small + large + arr);
-#ifdef MRT_USE_MARK_SWEEP
-    uint64_t phase      = g_miss_phase.load(std::memory_order_relaxed);
-    uint64_t no_buf     = g_miss_no_buffer.load(std::memory_order_relaxed);
-    uint64_t no_reg     = g_miss_no_region.load(std::memory_order_relaxed);
-    uint64_t hit_bump   = g_would_hit_bump.load(std::memory_order_relaxed);
-    uint64_t bump_full  = g_miss_bump_full.load(std::memory_order_relaxed);
-    uint64_t partial    = g_miss_partial.load(std::memory_order_relaxed);
-    uint64_t other_type = g_miss_other_type.load(std::memory_order_relaxed);
-    fprintf(stderr,
-        "[FastPathGate] phase_miss=%lu  no_buffer=%lu  no_region=%lu\n"
-        "[FastPathGate] BUMP_would_hit=%lu  BUMP_full=%lu  PARTIAL=%lu  other_type=%lu\n",
-        phase, no_buf, no_reg,
-        hit_bump, bump_full, partial, other_type);
-#endif
 }
-// ===== End Alloc Stats Counters =====
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 // These interfaces are used to detect whether the acquireArrayRawData is released in time.
 class PinnedArrayRecorder {
@@ -233,72 +177,6 @@ void RawPtrCheckerTimerEntry(void* arg)
 extern "C" ObjRef MCC_NewObject(const TypeInfo* klass, MSize size)
 {
     DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
-#ifdef MRT_USE_MARK_SWEEP
-    // Diagnostic: print TLS fast-path state for first 5 calls to identify which check fails.
-    static std::atomic<int> g_diag_count{0};
-    int diag_idx = g_diag_count.fetch_add(1, std::memory_order_relaxed);
-    if (diag_idx < 5) {
-        ThreadLocalData* local = ThreadLocal::GetThreadLocalData();
-        uint8_t phase = local ? local->encodedGCPhase : 0xFF;
-        AllocBufferMS* msb = local ? local->msAllocBuffer : nullptr;
-        MSRegionInfo* activeReg = nullptr;
-        uint8_t cls = 0xFF;
-        if (msb && size < 16384) {
-            cls = SizeClassInfo::SizeToClass(size);
-            if (cls < kNumSizeClasses) {
-                activeReg = msb->GetActiveRegion(cls);
-            }
-        }
-        fprintf(stderr,
-            "[FastPathDiag#%d] size=%zu cls=%u encodedGCPhase=%u msAllocBuffer=%p activeRegions[cls]=%p\n",
-            diag_idx, (size_t)size, (unsigned)cls, (unsigned)phase, (void*)msb, (void*)activeReg);
-        fflush(stderr);
-    }
-    // Staged fast-path gate miss breakdown (small objects only)
-    if (size < kAllocCountLargeThreshold) {
-        ThreadLocalData* tld = ThreadLocal::GetThreadLocalData();
-        // Stage 1: phase check
-        uint8_t phase = tld ? tld->encodedGCPhase : 0xFF;
-        if (phase != 1 /* GC_PHASE_IDLE */ && phase != 23 /* GC_PHASE_MS_SWEEP */) {
-            g_miss_phase.fetch_add(1, std::memory_order_relaxed);
-        } else {
-            AllocBufferMS* msb = tld ? tld->msAllocBuffer : nullptr;
-            // Stage 2: buffer check
-            if (msb == nullptr) {
-                g_miss_no_buffer.fetch_add(1, std::memory_order_relaxed);
-            } else {
-                uint8_t cls = SizeClassInfo::SizeToClass(size);
-                MSRegionInfo* region = (cls < kNumSizeClasses) ? msb->GetActiveRegion(cls) : nullptr;
-                // Stage 3: region check
-                if (region == nullptr) {
-                    g_miss_no_region.fetch_add(1, std::memory_order_relaxed);
-                } else {
-                    MSRegionType rtype = region->regionType;
-                    if (rtype == MSRegionType::MS_REGION_BUMP) {
-                        // Stage 4 vs 5: bump space check
-                        uintptr_t slotSize = SizeClassInfo::ClassToSize(cls);
-                        if (region->allocPtr + slotSize <= region->regionEnd) {
-                            g_would_hit_bump.fetch_add(1, std::memory_order_relaxed);
-                        } else {
-                            g_miss_bump_full.fetch_add(1, std::memory_order_relaxed);
-                        }
-                    } else if (rtype == MSRegionType::MS_REGION_PARTIAL) {
-                        // Stage 6: partial region
-                        g_miss_partial.fetch_add(1, std::memory_order_relaxed);
-                    } else {
-                        // Stage 7: FULL, FREE, LARGE, etc.
-                        g_miss_other_type.fetch_add(1, std::memory_order_relaxed);
-                    }
-                }
-            }
-        }
-    }
-#endif
-    if (size < kAllocCountLargeThreshold) {
-        g_alloc_small_obj.fetch_add(1, std::memory_order_relaxed);
-    } else {
-        g_alloc_large_obj.fetch_add(1, std::memory_order_relaxed);
-    }
     ObjRef obj = ObjectManager::NewObject(klass, size);
     if (obj == nullptr) {
         VLOG(REPORT, "Allocating object %s (%zu B) failed and throw OutOfMemoryError", klass->GetName(), size);
@@ -310,11 +188,6 @@ extern "C" ObjRef MCC_NewObject(const TypeInfo* klass, MSize size)
 extern "C" ObjRef MCC_NewWeakRefObject(const TypeInfo* klass, MSize size)
 {
     DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
-    if (size < kAllocCountLargeThreshold) {
-        g_alloc_small_obj.fetch_add(1, std::memory_order_relaxed);
-    } else {
-        g_alloc_large_obj.fetch_add(1, std::memory_order_relaxed);
-    }
     ObjRef obj = ObjectManager::NewWeakRefObject(klass, size);
     if (obj == nullptr) {
         VLOG(REPORT, "Allocating weak reference %s (%zu B) failed and throw OutOfMemoryError", klass->GetName(), size);
@@ -326,11 +199,6 @@ extern "C" ObjRef MCC_NewWeakRefObject(const TypeInfo* klass, MSize size)
 extern "C" ObjRef MCC_NewPinnedObject(const TypeInfo* klass, MSize size, bool isFinalizer)
 {
     DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
-    if (size < kAllocCountLargeThreshold) {
-        g_alloc_small_obj.fetch_add(1, std::memory_order_relaxed);
-    } else {
-        g_alloc_large_obj.fetch_add(1, std::memory_order_relaxed);
-    }
     ObjRef obj = ObjectManager::NewPinnedObject(klass, size, isFinalizer);
     if (obj == nullptr) {
         VLOG(REPORT, "Allocating object %s (%zu B) failed and throw OutOfMemoryError", klass->GetName(), size);
@@ -342,11 +210,6 @@ extern "C" ObjRef MCC_NewPinnedObject(const TypeInfo* klass, MSize size, bool is
 extern "C" ObjRef MCC_NewFinalizer(const TypeInfo* klass, MSize size)
 {
     DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
-    if (size < kAllocCountLargeThreshold) {
-        g_alloc_small_obj.fetch_add(1, std::memory_order_relaxed);
-    } else {
-        g_alloc_large_obj.fetch_add(1, std::memory_order_relaxed);
-    }
     ObjRef obj = ObjectManager::NewFinalizer(klass, size);
     if (obj == nullptr) {
         VLOG(REPORT, "Allocating object with ~init %s (%zu B) failed and throw OutOfMemoryError",
@@ -363,7 +226,6 @@ extern "C" ObjRef MCC_OnFinalizerCreated(ObjRef ref)
 }
 extern "C" ArrayRef MCC_NewArray(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    g_alloc_array.fetch_add(1, std::memory_order_relaxed);
     ArrayRef array = ObjectManager::NewArray(static_cast<MIndex>(nElems), arrayInfo);
     if (array == nullptr) {
         VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
@@ -374,7 +236,6 @@ extern "C" ArrayRef MCC_NewArray(const TypeInfo* arrayInfo, MIndex nElems)
 
 extern "C" ArrayRef MCC_NewObjArray(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    g_alloc_array.fetch_add(1, std::memory_order_relaxed);
     ArrayRef array = ObjectManager::NewObjArray(nElems, arrayInfo);
     if (array == nullptr) {
         VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
@@ -385,7 +246,6 @@ extern "C" ArrayRef MCC_NewObjArray(const TypeInfo* arrayInfo, MIndex nElems)
 
 extern "C" ArrayRef MCC_NewArray8(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    g_alloc_array.fetch_add(1, std::memory_order_relaxed);
     ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_8B);
     if (array == nullptr) {
         VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
@@ -396,7 +256,6 @@ extern "C" ArrayRef MCC_NewArray8(const TypeInfo* arrayInfo, MIndex nElems)
 
 extern "C" ArrayRef MCC_NewArray16(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    g_alloc_array.fetch_add(1, std::memory_order_relaxed);
     ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_16B);
     if (array == nullptr) {
         VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
@@ -407,7 +266,6 @@ extern "C" ArrayRef MCC_NewArray16(const TypeInfo* arrayInfo, MIndex nElems)
 
 extern "C" ArrayRef MCC_NewArray32(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    g_alloc_array.fetch_add(1, std::memory_order_relaxed);
     ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_32B);
     if (array == nullptr) {
         VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
@@ -418,7 +276,6 @@ extern "C" ArrayRef MCC_NewArray32(const TypeInfo* arrayInfo, MIndex nElems)
 
 extern "C" ArrayRef MCC_NewArray64(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    g_alloc_array.fetch_add(1, std::memory_order_relaxed);
     ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_64B);
     if (array == nullptr) {
         VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
@@ -1869,7 +1726,6 @@ extern "C" ObjRef MCC_NewGenericObject(const TypeInfo* klass, MSize size)
 
 extern "C" ArrayRef MCC_NewArrayGeneric(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    g_alloc_array.fetch_add(1, std::memory_order_relaxed);
     ArrayRef array = nullptr;
     if (!arrayInfo->IsArrayType()) {
         return array;

@@ -33,6 +33,8 @@
 
 namespace MapleRuntime {
 
+constexpr size_t MarkSweepCollector::kAssistMaxObjectsPerCall;
+
 namespace {
 double ReadEnvPosDec(const char* name, double fallback)
 {
@@ -248,10 +250,10 @@ void MarkSweepCollector::DoGarbageCollection(uint64_t gcIndex)
 // ============================================================================
 // Step 2.1a: PreEnumRoots  (GC thread only, no STW)
 //   Stop all sweeps, wait for in-flight bg/lazy sweep to quiesce, clear
-//   markBitmaps, then stamp/reclassify any residual unswept regions as swept.
-//   TL-region flush is deferred to MarkTermination's STW (FlushAll +
-//   PrepareForSweep), because marking is address-based and does not
-//   require regions to be in CentralRegionPool's lists.
+//   markBitmaps, then stamp/reclassify any residual unswept regions as swept,
+//   and freeze this cycle's sweep snapshot. Regions returned by mutators after
+//   this point are stamped into the new sweep generation and will be swept in
+//   the next GC cycle.
 // ============================================================================
 
 void MarkSweepCollector::PreEnumRoots()
@@ -266,13 +268,15 @@ void MarkSweepCollector::PreEnumRoots()
     CentralRegionPool* centralPool = space.GetCentralPool();
     
     // Stop sweep → wait for in-flight sweep to quiesce → clear bitmaps
-    // → reclassify residual unswept entries → re-enable.
+    // → reclassify residual unswept entries → freeze this cycle's sweep
+    // snapshot. Lazy sweep stays disabled until MarkTermination completes,
+    // because the mark bitmap is not yet final.
     // Safe pre-STW: no SweepRegion running, mark-at-alloc inactive.
     if (centralPool != nullptr) {
         centralPool->StopAndWaitForAllSweep();
         centralPool->ClearAllMarkBitmaps();
         centralPool->ReclassifyUnsweptToSwept();
-        centralPool->ReenableLazySweep();
+        centralPool->PrepareForSweep();
     }
     prevCycleMarkedObjects_.store(markedObjectCount.load(std::memory_order_relaxed), std::memory_order_relaxed);
     // Reset marked object counter (GC-thread-only, no STW needed).
@@ -996,15 +1000,6 @@ void MarkSweepCollector::MarkTermination()
             markedObjectCount.load(std::memory_order_relaxed) - beforeMark;
     }
 
-    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
-    CentralRegionPool* centralPool = space.GetCentralPool();
-    if (centralPool != nullptr) {
-        // Experimental policy: keep thread-local regions out of the current
-        // sweep generation; they will be returned later and stamped into the
-        // new generation when flowing back to the central pool.
-        centralPool->PrepareForSweep();
-    }
-
     // Step5: Reset all per-P gcWork and return WorkBufs to pool.
     ResetAllPerPGCWork();
 
@@ -1027,6 +1022,12 @@ void MarkSweepCollector::MarkTermination()
     // mutators could still buffer write-barrier entries after the last drain
     // but before PostMarkTermination switches the phase.
     TransitionToGCPhase(GCPhase::GC_PHASE_MS_SWEEP, false);
+
+    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    if (centralPool != nullptr) {
+        centralPool->ReenableLazySweep();
+    }
 }
 
 void MarkSweepCollector::CollectUnmarkedToMainQueue(GreyWorkQueue& mainQueue)
@@ -1244,7 +1245,6 @@ void MarkSweepCollector::MarkNewObject(BaseObject* obj)
     }
 
     MarkObject(obj);
-    PushSingleToDeferredMainThread(obj);
 }
 
 // ============================================================================

@@ -9,6 +9,7 @@
 #define MRT_MUTATOR_H
 
 #include <climits>
+#include <cstddef>
 
 #include "Exception/Exception.h"
 #include "Heap/Allocator/Allocator.h"
@@ -342,6 +343,12 @@ public:
         return static_cast<uint8_t>(phase);
     }
 
+    static inline void SetThreadLocalGCPhase(ThreadLocalData* local, const GCPhase phase)
+    {
+        local->gcFastState = EncodeThreadLocalGCFastState(phase);
+        local->encodedGCPhase = EncodeThreadLocalGCPhaseByte(phase);
+    }
+
     void TransitionToGCPhaseExclusive(GCPhase newPhase);
 
     void TransitionToCpuProfileExclusive();
@@ -354,9 +361,19 @@ public:
     __attribute__((always_inline)) inline void SetMutatorPhase(const GCPhase newPhase)
     {
         mutatorPhase.store(newPhase, std::memory_order_release);
-        if (ThreadLocal::GetMutator() == this) {
-            ThreadLocal::SetGCFastState(EncodeThreadLocalGCFastState(newPhase));
-            ThreadLocal::SetEncodedGCPhase(EncodeThreadLocalGCPhaseByte(newPhase));
+        ThreadLocalData* local = ThreadLocal::GetThreadLocalData();
+        if (local->mutator == this) {
+            SetThreadLocalGCPhase(local, newPhase);
+            return;
+        }
+
+        uint64_t* statePtr = safepointStatePtr;
+        if (statePtr != nullptr) {
+            auto* targetLocal = reinterpret_cast<ThreadLocalData*>(
+                reinterpret_cast<uintptr_t>(statePtr) - offsetof(ThreadLocalData, safepointState));
+            if (targetLocal->mutator == this) {
+                SetThreadLocalGCPhase(targetLocal, newPhase);
+            }
         }
     }
 
@@ -458,6 +475,7 @@ public:
     void PreparedToRun(ThreadLocalData* tlData)
     {
         Allocator::EnsureThreadLocalBuffer();
+        SetThreadLocalGCPhase(tlData, GetMutatorPhase());
         DoLeaveSaferegion();
         SetSafepointStatePtr(&tlData->safepointState);
         SetSafepointActive(false);

@@ -503,6 +503,15 @@ void MutatorManager::TransitionAllMutatorsToGCPhase(GCPhase phase)
 
     // Set global gc phase in the scope of mutatorlist lock
     Heap::GetHeap().InstallBarrier(phase);
+#ifdef MRT_USE_MARK_SWEEP
+    // MSGC compiler fast paths read the phase from mutator TLS. Publish the
+    // target phase to TLS before the global phase changes, while still keeping
+    // the normal handshake below for phase-specific mutator work such as stack
+    // root enumeration.
+    VisitAllMutators([phase](Mutator& mutator) {
+        mutator.SetMutatorPhase(phase);
+    });
+#endif
     Heap::GetHeap().SetGCPhase(phase);
 
     std::list<Mutator*> undoneMutators;

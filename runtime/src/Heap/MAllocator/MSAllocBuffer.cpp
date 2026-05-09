@@ -21,6 +21,8 @@
 
 namespace MapleRuntime {
 
+constexpr uint8_t AllocBufferMS::kCachedRegionSlots;
+
 namespace {
 enum class MSAllocRefillConsumer : uint8_t {
     SLOW_ALLOC = 0,
