@@ -2677,7 +2677,7 @@ package test
 import std.reflect.*
 
 main(): Unit {
-    let f = { x: Int64, y: UInt8 => x + Int64(y) }
+    let f = {x: Int64, y: UInt8 => x + Int64(y)}
     let info = FunctionTypeInfo.of(f)
     println(info.parameters.size)
     println(info.parameters[0].name)
@@ -2717,7 +2717,7 @@ package test
 import std.reflect.*
 
 main(): Unit {
-    let f = { x: Int64, y: Int64 => x + y }
+    let f = {x: Int64, y: Int64 => x + y}
     let info = FunctionTypeInfo.of(f)
     println(info.returnType.name)
     return

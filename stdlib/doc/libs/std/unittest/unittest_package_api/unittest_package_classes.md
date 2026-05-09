@@ -786,10 +786,10 @@ public static func start<U>(
 
 - [DataStrategyProcessor](#class-datastrategyprocessort)\<U> - 数据策略处理器。
 
-### extend \<T> DataStrategyProcessor\<T>
+### extend\<T> DataStrategyProcessor\<T>
 
 ```cangjie
-extend <T> DataStrategyProcessor<T> {}
+extend<T> DataStrategyProcessor<T> {}
 ```
 
 #### func map\<R>((T) -> R)
@@ -890,10 +890,10 @@ public func productWithUnit<P>(p: P): MapProcessor<(T, Unit), T> where P <: Data
 
 - [MapProcessor\<(T, Unit), T>](../unittest_package_api/unittest_package_classes.md#class-mapprocessortr) - 处理器。
 
-## class FlatMapProcessor\<T,R>
+## class FlatMapProcessor\<T, R>
 
 ```cangjie
-public class FlatMapProcessor<T,R> <: DataStrategyProcessor<R> {}
+public class FlatMapProcessor<T, R> <: DataStrategyProcessor<R> {}
 ```
 
 功能：对参数数据进行 [FlatMap](../../collection/collection_package_api/collection_package_function.md#func-flatmapt-rt---iterabler) 的处理器。
@@ -902,10 +902,10 @@ public class FlatMapProcessor<T,R> <: DataStrategyProcessor<R> {}
 
 - [DataStrategyProcessor](#class-datastrategyprocessort)\<R>
 
-## class FlatMapStrategyProcessor\<T,R>
+## class FlatMapStrategyProcessor\<T, R>
 
 ```cangjie
-public class FlatMapStrategyProcessor<T,R> <: DataStrategyProcessor<R> {}
+public class FlatMapStrategyProcessor<T, R> <: DataStrategyProcessor<R> {}
 ```
 
 功能：对参数数据进行 [FlatMap](../../collection/collection_package_api/collection_package_function.md#func-flatmapt-rt---iterabler) 的处理器。
@@ -950,10 +950,10 @@ protected open func recover(): Unit
 
 功能：恢复或后退一个值。
 
-## class MapProcessor\<T,R>
+## class MapProcessor\<T, R>
 
 ```cangjie
-public class MapProcessor<T,R> <: DataStrategyProcessor<R> {}
+public class MapProcessor<T, R> <: DataStrategyProcessor<R> {}
 ```
 
 功能：对参数数据进行 [Map](../../collection/collection_package_api/collection_package_function.md#func-mapt-rt---r) 的处理器。
