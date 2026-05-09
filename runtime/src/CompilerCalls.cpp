@@ -49,7 +49,6 @@
 #endif
 
 namespace MapleRuntime {
-
 static bool IsGlobalStruct(const ObjectPtr basePtr, MAddress field)
 {
 #ifdef __aarch64__
@@ -63,6 +62,7 @@ static bool IsGlobalStruct(const ObjectPtr basePtr, MAddress field)
     return (reinterpret_cast<uintptr_t>(basePtr) & globalFlag) != 0;
 #endif
 }
+
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 // These interfaces are used to detect whether the acquireArrayRawData is released in time.
 class PinnedArrayRecorder {
@@ -1858,6 +1858,8 @@ extern "C" ArrayRef MCC_NewArrayGeneric(const TypeInfo* arrayInfo, MIndex nElems
     if (array == nullptr) {
         VLOG(REPORT, "Allocation generic array %s length %zu failed and throw OutOfMemoryError",
              arrayInfo->GetName(), nElems);
+        LOG(RTLOG_ERROR, "Allocation generic array %s length %zu failed and throw OutOfMemoryError",
+            arrayInfo->GetName(), nElems);
         ExceptionManager::CheckAndThrowPendingException("NewArrayGeneric return nullptr");
     }
     return array;
