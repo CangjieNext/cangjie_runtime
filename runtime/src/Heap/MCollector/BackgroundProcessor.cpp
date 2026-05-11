@@ -41,6 +41,7 @@ BackgroundProcessor::BackgroundProcessor()
     shouldReclaimHeapGarbage.store(false, std::memory_order_relaxed);
     shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
     shouldBackgroundSweep_.store(false, std::memory_order_relaxed);
+    preferredSweepCls_.store(kNoPreferredSweepClass, std::memory_order_relaxed);
 }
 
 void BackgroundProcessor::Start()
@@ -225,8 +226,11 @@ void BackgroundProcessor::NotifyToFeedAllocBuffers()
     RequestWork(shouldFeedHungryBuffers);
 }
 
-void BackgroundProcessor::NotifyToSweep()
+void BackgroundProcessor::NotifyToSweep(uint8_t cls)
 {
+    if (cls != kNoPreferredSweepClass) {
+        preferredSweepCls_.store(cls, std::memory_order_release);
+    }
     RequestWork(shouldBackgroundSweep_);
 }
 
@@ -245,7 +249,9 @@ bool BackgroundProcessor::ReclaimHeapGarbage()
 bool BackgroundProcessor::BackgroundSweepLoop()
 {
     Allocator& allocator = Heap::GetHeap().GetAllocator();
-    bool pendingSweep = allocator.BackgroundSweep();
+    uint8_t preferredCls = preferredSweepCls_.exchange(kNoPreferredSweepClass, std::memory_order_acq_rel);
+    allocator.BackgroundSweep(preferredCls);
+    bool pendingSweep = allocator.HasPendingSweepWork();
     shouldBackgroundSweep_.store(pendingSweep, std::memory_order_release);
     if (!pendingSweep && allocator.HasPendingReclaimWork()) {
         shouldReclaimHeapGarbage.store(true, std::memory_order_release);

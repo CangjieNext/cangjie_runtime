@@ -551,7 +551,7 @@ static RuntimeParam InitRuntimeParam()
              * the maximum is 100% of heap, default to 80% of heap.
              */
             .heapUtilization = InitPercentParameter("cjHeapUtilization", 0.0, 1.0, 0.8),
-            // Default heap growth is (1 + 0.5) = 1.5 (Go-style: allow 50% growth before next GC).
+            // Default heap growth is (1 + 0.5) = 1.5 (allow 50% growth before next GC).
             .heapGrowth = InitDecParameter("cjHeapGrowth", 0.0, 0.5),
             // Default allocation rate is 10240MB/s.
             .allocationRate = InitDecParameter("cjAllocationRate", 0.0, 10240),
@@ -559,12 +559,12 @@ static RuntimeParam InitRuntimeParam()
             .allocationWaitTime = static_cast<size_t>(InitTimeParameter("cjAllocationWaitTime", 0, 1000)),
         },
         .gcParam = {
-            // Default gc threshold is heapSize.
-            .gcThreshold = InitSizeParameter("cjGCThreshold", 0, initHeapSize) * KB,
+            // Default gc threshold is half of heapSize.
+            .gcThreshold = InitSizeParameter("cjGCThreshold", 0, initHeapSize / 2) * KB,
             // Default garbage ration is 50% of from space.
             .garbageThreshold = InitPercentParameterIncl("cjGarbageThreshold", 0.0, 1.0, 0.5),
-            // Default GC interval is 150ms.
-            .gcInterval = InitTimeParameter("cjGCInterval", 0, 150 * MILLI_SECOND_TO_NANO_SECOND),
+            // Default GC interval is 20ms.
+            .gcInterval = InitTimeParameter("cjGCInterval", 0, 20 * MILLI_SECOND_TO_NANO_SECOND),
             // Default backup GC interval is 240s.
             .backupGCInterval = InitTimeParameter("cjBackupGCInterval", 0, 240 * SECOND_TO_NANO_SECOND),
             // Default GC thread factor is 2.

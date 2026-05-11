@@ -100,10 +100,8 @@ MAddress AllocBuffer::AllocateImpl(size_t totalSize, AllocType allocType)
     if (r != nullptr) {
         preparedRegion.store(nullptr, std::memory_order_release);
         tlRegion = r;
-        if (theAllocator.IsAsyncAllocationEnable()) {
-            theAllocator.AddHungryBuffer(*this);
-            Heap::GetHeap().GetFinalizerProcessor().NotifyToFeedAllocBuffers();
-        }
+        theAllocator.AddHungryBuffer(*this);
+        Heap::GetHeap().GetFinalizerProcessor().NotifyToFeedAllocBuffers();
         return r->Alloc(totalSize);
     }
     // AllocateThreadLocalRegion is a safepoint, in which cj thread rescheule may happen.

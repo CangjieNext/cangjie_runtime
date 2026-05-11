@@ -313,10 +313,15 @@ public:
     // All swept Regions logically become unswept.
     void PrepareForSweep();
 
-    // Background sweep: iterate all size classes, sweep unswept Regions.
-    // Returns true if there is still pending sweep work after this slice.
+    // Background sweep: iterate all size classes, sweep one slice of unswept Regions.
     // Thread-safe (CAS ownership). Called by gc-helper thread.
-    bool BackgroundSweep();
+    void BackgroundSweep(uint8_t preferredCls = kNumSizeClasses);
+
+    bool HasPendingSweepWork() const
+    {
+        return !stopSweepRequested_.load(std::memory_order_acquire) &&
+               GetTotalUnsweptCount() > 0;
+    }
 
     // Unified layer-3 entry: scavenge empty regions back to OS.
     // Only called from ReclaimGarbageMemory.
@@ -337,6 +342,8 @@ public:
     size_t GetTotalPartialCount() const;
     size_t GetTotalFullCount() const;
     size_t GetTotalUnsweptCount() const;
+    size_t GetTotalPartialSweptCount() const;
+    size_t GetTotalFullUnsweptCount() const;
     size_t GetLargeRegionCount() const;
     size_t GetLargeRegionSpanCount() const;
     size_t CountTLActiveRegions() const;
@@ -458,12 +465,16 @@ private:
     bool ShouldScavengeForTrueLiveSlack(size_t committedBytes, size_t targetBytes) const;
     bool ShouldPressureSweepForTrueLiveSlack(size_t committedBytes, size_t targetBytes, size_t emptyCount) const;
     BackgroundScavengeState CollectBackgroundScavengeState() const;
+    size_t ComputeNeededEmptyRegions(size_t committedBytes, size_t targetBytes) const;
+    void RequestEmptyPressureSweep(const BackgroundScavengeState& state);
+    void UpdateEmptyPressureSweepProgress(size_t emptyBefore, size_t emptyAfter, size_t targetEmpty,
+                                          size_t remainingUnswept, size_t sweptInSlice);
     void ForceFinishUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint8_t cls, uint32_t sg,
                                 size_t& sweptRegions, size_t& emptiedRegions,
                                 size_t& retainedRegions, size_t& freedBytes);
     void ForceFinishAllUnswept();
     bool SweepUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint32_t sg,
-                          size_t& sweptInSlice, size_t maxRegions, uint64_t deadlineUs);
+                         size_t& sweptInSlice, size_t maxRegions, uint64_t deadlineUs);
 
     static std::atomic<uint32_t> globalSweepGen_;
     std::atomic<bool> sweepDone_{true};
@@ -471,6 +482,8 @@ private:
     std::atomic<bool> stopSweepRequested_{false};    // Signal bg sweep to stop early
     std::atomic<bool> skipLazySweep_{false};          // Disable lazy sweep in GetRegion P2/P3
     std::atomic<size_t> activeLazySweepCount_{0};     // In-flight lazy sweep counter
+    std::atomic<size_t> emptyPressureTargetRegions_{0};
+    std::atomic<uint8_t> emptyPressureSweepRounds_{0};
     MSSweepStats sweepStats_;
 
     // Total bytes of MS regions currently committed (GetFreshRegion +, ReleaseRegion -).

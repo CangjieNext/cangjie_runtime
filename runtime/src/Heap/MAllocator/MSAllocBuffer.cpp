@@ -85,7 +85,6 @@ void RecordRefillSource(MSAllocRefillConsumer consumer, MSAllocRefillSource sour
 }
 
 static constexpr bool kDisableMutatorAssistProbe = false;
-static constexpr bool kDisableSweepOnRegionMissProbe = false;
 constexpr uint8_t kWarmCacheHeatThreshold = 3;
 constexpr uint8_t kHotCacheHeatThreshold = 6;
 constexpr uint8_t kExpandedCacheClassRankLimit = 4;

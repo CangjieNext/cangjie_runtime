@@ -17,6 +17,7 @@
 #include "Base/TimeUtils.h"
 #include "Collector/CollectorResources.h"
 #include "Heap.h"
+#include "Heap/MCollector/BackgroundProcessor.h"
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
@@ -25,8 +26,6 @@
 #include <thread>
 
 namespace MapleRuntime {
-
-static constexpr bool kDisableSweepOnRegionMissProbe = true;
 
 namespace {
 size_t ReadEnvCount(const char* name, size_t fallback)
@@ -37,6 +36,16 @@ size_t ReadEnvCount(const char* name, size_t fallback)
     }
     size_t value = CString::ParsePosNumFromEnv(env);
     return value == 0 ? fallback : value;
+}
+
+double ReadEnvPositiveDecimal(const char* name, double fallback)
+{
+    const char* env = std::getenv(name);
+    if (env == nullptr) {
+        return fallback;
+    }
+    double value = CString::ParsePosDecFromEnv(env);
+    return value == 0.0 ? fallback : value;
 }
 
 uint64_t ReadEnvTimeUs(const char* name, uint64_t fallbackUs)
@@ -124,6 +133,18 @@ size_t GetEmptyScavengeMaxRegionsPerSlice()
     return value;
 }
 
+size_t GetEmptyPressureSweepMaxRounds()
+{
+    static const size_t value = ReadEnvCount("CJ_MS_EMPTY_PRESSURE_SWEEP_MAX_ROUNDS", 3);
+    return value;
+}
+
+double GetReclaimTrueLiveTargetRatio()
+{
+    static const double value = ReadEnvPositiveDecimal("CJ_MS_RECLAIM_TRUE_LIVE_TARGET_RATIO", 1.2);
+    return value;
+}
+
 size_t GetEagerSweepBatchRegions()
 {
     static const size_t value = ReadEnvCount("CJ_MS_EAGER_SWEEP_BATCH", 32);
@@ -201,7 +222,7 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls, MSRegionAcquireSource* s
     }
 
     // ---- Priority 2: partialUnswept — sweep first, likely has free slots ----
-    if (!kDisableSweepOnRegionMissProbe && !skipLazySweep_.load(std::memory_order_acquire)) {
+    if (!skipLazySweep_.load(std::memory_order_acquire)) {
         // Notify background sweep only when we actually enter unswept paths,
         // rather than speculatively at GetRegion entry.
         MSAllocBuffer_RecordCentralSweepNotify();
@@ -261,7 +282,7 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls, MSRegionAcquireSource* s
     } // end skipLazySweep check
 
     // ---- Priority 3: fullUnswept — sweep, may produce free slots ----
-    if (!kDisableSweepOnRegionMissProbe && !skipLazySweep_.load(std::memory_order_acquire)) {
+    if (!skipLazySweep_.load(std::memory_order_acquire)) {
         activeLazySweepCount_.fetch_add(1, std::memory_order_relaxed);
         if (skipLazySweep_.load(std::memory_order_acquire)) {
             activeLazySweepCount_.fetch_sub(1, std::memory_order_relaxed);
@@ -460,7 +481,7 @@ void CentralRegionPool::PushEmptySweptRegion(MSRegionInfo* region)
     size_t highWatermark = GetEmptyCacheHighWatermarkRegions();
     bool crossedHighWatermark = previousCount < highWatermark && (previousCount + 1) >= highWatermark;
     if (crossedHighWatermark) {
-        msRegionManager_->RecordReclaimPressure();
+        msRegionManager_->MaybeNotifyReclaim();
     }
 }
 
@@ -523,11 +544,14 @@ size_t CentralRegionPool::GetEmptyCacheHighWatermarkRegions() const
 size_t CentralRegionPool::GetTrueLiveSlackTargetBytes() const
 {
     const GCStats& gcStats = Heap::GetHeap().GetCollector().GetGCStats();
-    size_t targetBytes = gcStats.GetThreshold();
-    if (gcStats.lastTrueLiveBytes == 0 || targetBytes == 0) {
+    size_t gcThreshold = gcStats.GetThreshold();
+    if (gcStats.lastTrueLiveBytes == 0 || gcThreshold == 0) {
         return 0;
     }
-    return std::max(targetBytes, gcStats.lastTrueLiveBytes);
+    size_t targetBytes = static_cast<size_t>(static_cast<double>(gcStats.lastTrueLiveBytes) *
+                                             GetReclaimTrueLiveTargetRatio());
+    targetBytes = std::max(targetBytes, gcStats.lastTrueLiveBytes);
+    return std::min(targetBytes, gcThreshold);
 }
 
 bool CentralRegionPool::ShouldScavengeForTrueLiveSlack(size_t committedBytes, size_t targetBytes) const
@@ -558,14 +582,86 @@ CentralRegionPool::BackgroundScavengeState CentralRegionPool::CollectBackgroundS
     return state;
 }
 
+size_t CentralRegionPool::ComputeNeededEmptyRegions(size_t committedBytes, size_t targetBytes) const
+{
+    if (targetBytes == 0 || committedBytes <= targetBytes) {
+        return GetEmptyCacheLowWatermarkRegions();
+    }
+    size_t slackBytes = committedBytes - targetBytes;
+    size_t slackRegions = (slackBytes + MS_REGION_SIZE - 1) / MS_REGION_SIZE;
+    return std::max(slackRegions, GetEmptyCacheLowWatermarkRegions());
+}
+
+void CentralRegionPool::RequestEmptyPressureSweep(const BackgroundScavengeState& state)
+{
+    if (Heap::GetHeap().IsGcStarted() || !state.shouldPressureSweep) {
+        return;
+    }
+
+    size_t targetEmpty = ComputeNeededEmptyRegions(state.committedBytes, state.targetBytes);
+    size_t oldTarget = emptyPressureTargetRegions_.load(std::memory_order_relaxed);
+    while (targetEmpty > oldTarget &&
+           !emptyPressureTargetRegions_.compare_exchange_weak(oldTarget, targetEmpty,
+                                                              std::memory_order_release,
+                                                              std::memory_order_relaxed)) {
+    }
+
+    Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().NotifyToSweep(kEmptyRegionPressureSweepClass);
+    VLOG(REPORT,
+         "[MS-GC] reclaim pressure requests sweep: empty=%zu targetEmpty=%zu committed=%zu target=%zu unswept=%zu",
+         state.emptyCount,
+         std::max(targetEmpty, oldTarget),
+         state.committedBytes,
+         state.targetBytes,
+         GetTotalUnsweptCount());
+}
+
+void CentralRegionPool::UpdateEmptyPressureSweepProgress(size_t emptyBefore, size_t emptyAfter, size_t targetEmpty,
+                                                         size_t remainingUnswept, size_t sweptInSlice)
+{
+    if (targetEmpty == 0) {
+        return;
+    }
+
+    if (emptyAfter >= targetEmpty) {
+        emptyPressureTargetRegions_.store(0, std::memory_order_release);
+        emptyPressureSweepRounds_.store(0, std::memory_order_release);
+        VLOG(REPORT,
+             "[MS-GC] empty-pressure sweep satisfied: emptyBefore=%zu emptyAfter=%zu targetEmpty=%zu",
+             emptyBefore, emptyAfter, targetEmpty);
+        return;
+    }
+
+    uint8_t rounds = emptyPressureSweepRounds_.fetch_add(1, std::memory_order_acq_rel) + 1;
+    bool noMoreSweepSupply = remainingUnswept == 0 || remainingUnswept < (targetEmpty - emptyAfter);
+    bool exhaustedRounds = rounds >= GetEmptyPressureSweepMaxRounds();
+    VLOG(REPORT,
+         "[MS-GC] empty-pressure sweep progress: round=%u emptyBefore=%zu emptyAfter=%zu targetEmpty=%zu "
+         "swept=%zu remainingUnswept=%zu noMoreSupply=%s exhaustedRounds=%s",
+         static_cast<unsigned>(rounds),
+         emptyBefore,
+         emptyAfter,
+         targetEmpty,
+         sweptInSlice,
+         remainingUnswept,
+         noMoreSweepSupply ? "yes" : "no",
+         exhaustedRounds ? "yes" : "no");
+
+    if (noMoreSweepSupply || exhaustedRounds) {
+        emptyPressureTargetRegions_.store(0, std::memory_order_release);
+        emptyPressureSweepRounds_.store(0, std::memory_order_release);
+        msRegionManager_->MaybeNotifyMark(MSRegionManager::HeuTriggerKind::RECLAIM_SWEEP_EXHAUSTED,
+                                          this, 0, true);
+    } else if (remainingUnswept > 0) {
+        Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().NotifyToSweep(kEmptyRegionPressureSweepClass);
+    }
+}
+
 size_t CentralRegionPool::HandleBackgroundScavenge(bool releaseAll)
 {
     BackgroundScavengeState state = CollectBackgroundScavengeState();
 
-    if (!Heap::GetHeap().IsGcStarted() && state.shouldPressureSweep) {
-        BackgroundProcessor& backgroundProcessor = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
-        backgroundProcessor.NotifyToSweep();
-    }
+    RequestEmptyPressureSweep(state);
 
     if (!releaseAll && !state.shouldScavenge) {
         return 0;
@@ -607,6 +703,7 @@ size_t CentralRegionPool::HandleBackgroundScavenge(bool releaseAll)
              releasedRegions, Pretty(releasedBytes).Str(),
              state.emptyCount, GetEmptySweptRegionCount(), state.lowWatermark);
     }
+    RequestEmptyPressureSweep(CollectBackgroundScavengeState());
     return releasedBytes;
 }
 
@@ -643,33 +740,34 @@ void CentralRegionPool::PrepareForSweep()
 // BackgroundSweep — called by gc-helper thread (FinalizerProcessor)
 // ============================================================================
 
-bool CentralRegionPool::BackgroundSweep()
+void CentralRegionPool::BackgroundSweep(uint8_t preferredCls)
 {
     bgSweepRunning_.store(true, std::memory_order_release);
-    auto finish = [this](bool pendingWork) {
+    auto finish = [this]() {
         bgSweepRunning_.store(false, std::memory_order_release);
-        return pendingWork;
     };
 
     if (stopSweepRequested_.load(std::memory_order_acquire)) {
-        return finish(false);
-    }
-
-    if (GetTotalUnsweptCount() == 0) {
-        sweepDone_.store(true, std::memory_order_release);
-        msRegionManager_->MaybeNotifyMark(MSRegionManager::HeuTriggerKind::BG_SWEEP_EXHAUSTED, this);
-        return finish(false);
+        finish();
+        return;
     }
 
     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
     uint64_t t0 = TimeUtil::MicroSeconds();
+    size_t emptyBefore = GetEmptySweptRegionCount();
+    size_t targetEmpty = (preferredCls == kEmptyRegionPressureSweepClass) ?
+        emptyPressureTargetRegions_.load(std::memory_order_acquire) : 0;
+    bool emptyPressureSweep = preferredCls == kEmptyRegionPressureSweepClass && targetEmpty != 0;
+    if (emptyPressureSweep) {
+        preferredCls = kNoPreferredSweepClass;
+    }
 
     // Pressure detection: if any size class has low ready count but unswept backlog,
     // use larger budget to replenish CentralPool supply faster.
-    size_t emptyCount = GetEmptySweptRegionCount();
+    size_t emptyCount = emptyBefore;
     size_t committedBytes = GetTotalMSRegionBytes();
     size_t targetBytes = GetTrueLiveSlackTargetBytes();
-    bool underPressure = ShouldPressureSweepForTrueLiveSlack(committedBytes, targetBytes, emptyCount);
+    bool underPressure = emptyPressureSweep || ShouldPressureSweepForTrueLiveSlack(committedBytes, targetBytes, emptyCount);
     if (!underPressure) {
         for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
             BucketPressure p = GetBucketPressure(cls);
@@ -681,36 +779,79 @@ bool CentralRegionPool::BackgroundSweep()
     }
 
     size_t maxRegions = underPressure ? GetBgSweepPressureRegionsPerSlice() : GetBgSweepMaxRegionsPerSlice();
+    size_t remainingUnswept = GetTotalUnsweptCount();
+    if (remainingUnswept == 0) {
+        if (emptyPressureSweep) {
+            UpdateEmptyPressureSweepProgress(emptyBefore, GetEmptySweptRegionCount(), targetEmpty, 0, 0);
+        }
+        sweepDone_.store(true, std::memory_order_release);
+        finish();
+        return;
+    }
     uint64_t deadlineUs = t0 + (underPressure ? GetBgSweepPressureTimeUs() : GetBgSweepMaxTimeUs());
     size_t sweptInSlice = 0;
     bool pendingWork = false;
 
-    for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
-        // Check stop request at each size class boundary
+    auto SweepBucket = [&](uint8_t cls) -> bool {
         if (stopSweepRequested_.load(std::memory_order_acquire)) {
             if (sweptInSlice > 0) {
                 VLOG(REPORT, "[MS-GC] BackgroundSweep: stop requested at cls=%u", (unsigned)cls);
             }
-            break;
+            pendingWork = false;
+            return false;
         }
 
         SizeClassBucket& bucket = buckets_[cls];
-
-        // Sweep partialUnswept
         if (!SweepUnsweptList(bucket, bucket.partialUnswept, sg, sweptInSlice, maxRegions, deadlineUs)) {
             pendingWork = !stopSweepRequested_.load(std::memory_order_acquire);
-            break;
+            return false;
         }
-
-        // Sweep fullUnswept
         if (!SweepUnsweptList(bucket, bucket.fullUnswept, sg, sweptInSlice, maxRegions, deadlineUs)) {
             pendingWork = !stopSweepRequested_.load(std::memory_order_acquire);
-            break;
+            return false;
         }
-
-        // Yield periodically to avoid starving other tasks on gc-helper
         if (cls % 4 == 3) {
             std::this_thread::yield();
+        }
+        return true;
+    };
+
+    if (preferredCls < kNumSizeClasses) {
+        if (!SweepBucket(preferredCls)) {
+            uint64_t elapsed = TimeUtil::MicroSeconds() - t0;
+            sweepStats_.bgSweepTimeUs.fetch_add(elapsed, std::memory_order_relaxed);
+            if (sweptInSlice > 0 || pendingWork) {
+                VLOG(REPORT, "[MS-GC] BackgroundSweep slice: swept=%zu regions, emptied=%zu, elapsed=%sus, pending=%s, mode=%s",
+                     sweptInSlice,
+                     sweepStats_.emptiedRegions.load(std::memory_order_relaxed),
+                     Pretty(elapsed).Str(),
+                     pendingWork ? "yes" : "no",
+                     underPressure ? "pressure" : "normal");
+            }
+            remainingUnswept = GetTotalUnsweptCount();
+            if (!stopSweepRequested_.load(std::memory_order_acquire) && remainingUnswept < maxRegions) {
+                msRegionManager_->MaybeNotifyMark(MSRegionManager::HeuTriggerKind::BG_SWEEP_EXHAUSTED, this, 0, true);
+            }
+            if (emptyPressureSweep) {
+                UpdateEmptyPressureSweepProgress(emptyBefore, GetEmptySweptRegionCount(), targetEmpty,
+                                                 remainingUnswept, sweptInSlice);
+            }
+            if (!pendingWork && !stopSweepRequested_.load(std::memory_order_acquire)) {
+                sweepDone_.store(true, std::memory_order_release);
+            }
+            finish();
+            return;
+        }
+    }
+
+    for (uint8_t offset = 0; offset < kNumSizeClasses; ++offset) {
+        uint8_t cls = static_cast<uint8_t>((preferredCls < kNumSizeClasses) ?
+            ((preferredCls + 1 + offset) % kNumSizeClasses) : offset);
+        if (preferredCls < kNumSizeClasses && cls == preferredCls) {
+            continue;
+        }
+        if (!SweepBucket(cls)) {
+            break;
         }
     }
 
@@ -725,13 +866,20 @@ bool CentralRegionPool::BackgroundSweep()
              underPressure ? "pressure" : "normal");
     }
 
+    remainingUnswept = GetTotalUnsweptCount();
+    if (!stopSweepRequested_.load(std::memory_order_acquire) && remainingUnswept < maxRegions) {
+        msRegionManager_->MaybeNotifyMark(MSRegionManager::HeuTriggerKind::BG_SWEEP_EXHAUSTED, this,
+                                          0, true);
+    }
+    if (emptyPressureSweep) {
+        UpdateEmptyPressureSweepProgress(emptyBefore, GetEmptySweptRegionCount(), targetEmpty,
+                                         remainingUnswept, sweptInSlice);
+    }
+
     if (!pendingWork && !stopSweepRequested_.load(std::memory_order_acquire)) {
         sweepDone_.store(true, std::memory_order_release);
-        if (GetTotalUnsweptCount() == 0) {
-            msRegionManager_->MaybeNotifyMark(MSRegionManager::HeuTriggerKind::BG_SWEEP_EXHAUSTED, this);
-        }
     }
-    return finish(pendingWork);
+    finish();
 }
 
 bool CentralRegionPool::SweepUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint32_t sg,
@@ -818,6 +966,24 @@ size_t CentralRegionPool::GetTotalUnsweptCount() const
     size_t total = 0;
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
         total += buckets_[cls].partialUnswept.Count();
+        total += buckets_[cls].fullUnswept.Count();
+    }
+    return total;
+}
+
+size_t CentralRegionPool::GetTotalPartialSweptCount() const
+{
+    size_t total = 0;
+    for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
+        total += buckets_[cls].partialSwept.Count();
+    }
+    return total;
+}
+
+size_t CentralRegionPool::GetTotalFullUnsweptCount() const
+{
+    size_t total = 0;
+    for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
         total += buckets_[cls].fullUnswept.Count();
     }
     return total;
@@ -1108,11 +1274,6 @@ void CentralRegionPool::BackgroundFillAllocCaches()
         }
     }
 
-    if (msRegionManager_ != nullptr) {
-        // Drain reclaim pressure on the gc-helper thread so reclaim heuristics
-        // stay off the fresh-miss path without delaying mark heuristics.
-        msRegionManager_->DrainBackgroundReclaimPressure();
-    }
 }
 
 // ============================================================================

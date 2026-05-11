@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include "Base/CString.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
@@ -25,8 +26,6 @@
 #include "Collector/CollectorResources.h"
 
 namespace MapleRuntime {
-
-static constexpr bool kDisableSweepOnRegionMissProbe = true;
 
 // External: system page size (defined in RegionManager.cpp).
 extern const size_t MRT_PAGE_SIZE;
@@ -184,59 +183,15 @@ size_t ReadEnvCount(const char* name, size_t fallback)
     return value == 0 ? fallback : value;
 }
 
-size_t ReadEnvSizeBytes(const char* name, size_t fallback)
-{
-    const char* env = std::getenv(name);
-    if (env == nullptr) {
-        return fallback;
-    }
-    size_t valueKb = CString::ParseSizeFromEnv(env);
-    return valueKb == 0 ? fallback : valueKb * KB;
-}
-
 uint64_t GetHeuRequestCooldownNs()
 {
     static const uint64_t value = ReadEnvTimeNs("CJ_MS_HEU_REQUEST_COOLDOWN", 10ULL * 1000ULL * 1000ULL);
     return value;
 }
 
-size_t GetHeuReadyRegionWatermark()
+size_t GetHeuSupplyEnoughRegions()
 {
-    static const size_t value = ReadEnvCount("CJ_MS_HEU_READY_WATERMARK", 4);
-    return value;
-}
-
-size_t GetHeuUnsweptRegionWatermark()
-{
-    static const size_t value = ReadEnvCount("CJ_MS_HEU_UNSWEPT_WATERMARK", 16);
-    return value;
-}
-
-size_t GetHeuReleasedTreeBytesWatermark()
-{
-    static const size_t value = ReadEnvSizeBytes("CJ_MS_HEU_RELEASED_TREE_BYTES_WATERMARK",
-                                                 16ULL * 1024ULL * 1024ULL);
-    return value;
-}
-
-uint32_t GetHeuReleasedTreeNodeWatermark()
-{
-    static const uint32_t value = static_cast<uint32_t>(ReadEnvCount("CJ_MS_HEU_RELEASED_TREE_NODE_WATERMARK", 128));
-    return value;
-}
-
-uint32_t GetHeuReleasedTreeMaxBlockWatermark()
-{
-    static const uint32_t value = static_cast<uint32_t>(ReadEnvCount("CJ_MS_HEU_RELEASED_TREE_MAX_BLOCK_WATERMARK", 8));
-    return value;
-}
-
-// 方案4: Sweep-lag early trigger threshold (in number of regions).
-// If the unswept backlog exceeds this count, trigger a new GC early to
-// prevent RSS ballooning. Default: 64 regions = 64 * 256KB = 16MB backlog.
-size_t GetHeuSweepLagTriggerRegions()
-{
-    static const size_t value = ReadEnvCount("CJ_MS_HEU_SWEEP_LAG_TRIGGER_REGIONS", 64);
+    static const size_t value = ReadEnvCount("CJ_MS_HEU_SUPPLY_ENOUGH_REGIONS", 10);
     return value;
 }
 
@@ -269,7 +224,7 @@ void MSRegionManager::MaybeNotifySweep(const CentralRegionPool* centralPool, uin
 
     CentralRegionPool::BucketPressure pressure = centralPool->GetBucketPressure(cls);
     if (pressure.ReadyCount() < GetBgSweepNotifyReadyWatermark() && pressure.UnsweptCount() > 0) {
-        backgroundProcessor.NotifyToSweep();
+        backgroundProcessor.NotifyToSweep(cls);
     }
 }
 
@@ -300,155 +255,108 @@ void MSRegionManager::MaybeNotifyReclaim()
     }
 }
 
-void MSRegionManager::RecordReclaimPressure()
-{
-    if (!pendingReclaimPressure_.exchange(true, std::memory_order_relaxed)) {
-        Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().NotifyToFeedAllocBuffers();
-    }
-}
-
-void MSRegionManager::DrainBackgroundReclaimPressure()
-{
-    if (pendingReclaimPressure_.exchange(false, std::memory_order_relaxed)) {
-        MaybeNotifyReclaim();
-    }
-}
-
 void MSRegionManager::MaybeNotifyMark(HeuTriggerKind triggerKind, const CentralRegionPool* centralPool,
                                         uint8_t cls, bool bumpSource)
 {
+    (void)cls;
+    (void)bumpSource;
+
     if (Heap::GetHeap().IsGcStarted()) {
         return;
     }
 
-    Collector& collector = Heap::GetHeap().GetCollector();
-    const GCStats& gcStats = collector.GetGCStats();
-    size_t threshold = gcStats.GetThreshold();
-    size_t allocated = Heap::GetHeap().GetAllocator().AllocatedBytes();
-    size_t baseline = gcStats.baselineAllocatedBytes;
-    size_t newAlloc = (allocated > baseline) ? (allocated - baseline) : 0;
-    size_t effectiveAlloc = gcStats.lastTrueLiveBytes + newAlloc;
-
-    bool thresholdTriggered = effectiveAlloc >= threshold;
-    size_t releasedTreeBytes = GetReleasedTreeBytes();
-    uint32_t releasedTreeNodeCount = GetReleasedTreeNodeCount();
-    uint32_t releasedTreeMaxBlock = GetReleasedTreeMaxBlock();
-    bool pressureTriggered = false;
-    uint8_t triggeredCls = cls;
-    size_t triggeredReady = 0;
-    size_t triggeredUnswept = 0;
-    size_t emptyCacheCount = 0;
-
-    auto releasedPressureLow = [&]() {
-                return releasedTreeBytes < GetHeuReleasedTreeBytesWatermark() &&
-                             !(releasedTreeNodeCount >= GetHeuReleasedTreeNodeWatermark() &&
-                                 releasedTreeMaxBlock >= GetHeuReleasedTreeMaxBlockWatermark());
-    };
-
-    switch (triggerKind) {
-        case HeuTriggerKind::SMALL_ALLOC: {
-            CHECK_DETAIL(centralPool != nullptr, "SMALL_ALLOC HEU trigger requires centralPool");
-            CentralRegionPool::BucketPressure pressure = centralPool->GetBucketPressure(cls);
-            triggeredReady = pressure.ReadyCount();
-            triggeredUnswept = pressure.UnsweptCount();
-            emptyCacheCount = centralPool->GetEmptySweptRegionCount();
-            if (!thresholdTriggered && bumpSource) {
-                bool readyLow = triggeredReady < GetHeuReadyRegionWatermark();
-                bool unsweptLow = triggeredUnswept < GetHeuUnsweptRegionWatermark();
-                bool emptyLow = centralPool->IsEmptyCacheLow();
-                pressureTriggered = readyLow && unsweptLow && emptyLow && releasedPressureLow();
-            }
-            break;
-        }
-        case HeuTriggerKind::LARGE_ALLOC:
-            break;
-        case HeuTriggerKind::BG_SWEEP_EXHAUSTED: {
-            CHECK_DETAIL(centralPool != nullptr, "BG_SWEEP_EXHAUSTED HEU trigger requires centralPool");
-            emptyCacheCount = centralPool->GetEmptySweptRegionCount();
-            if (!thresholdTriggered) {
-                bool emptyLow = centralPool->IsEmptyCacheLow();
-                bool releasedLow = releasedPressureLow();
-                for (uint8_t candidateCls = 0; candidateCls < kNumSizeClasses; candidateCls++) {
-                    CentralRegionPool::BucketPressure pressure = centralPool->GetBucketPressure(candidateCls);
-                    bool readyLow = pressure.ReadyCount() < GetHeuReadyRegionWatermark();
-                    bool unsweptLow = pressure.UnsweptCount() < GetHeuUnsweptRegionWatermark();
-                    if (readyLow && unsweptLow && emptyLow && releasedLow) {
-                        pressureTriggered = true;
-                        triggeredCls = candidateCls;
-                        triggeredReady = pressure.ReadyCount();
-                        triggeredUnswept = pressure.UnsweptCount();
-                        break;
-                    }
-                }
-            }
-            if (thresholdTriggered) {
-                triggeredUnswept = centralPool->GetTotalUnsweptCount();
-            }
-            break;
-        }
-    }
-
-    // 方案4: Sweep-lag early trigger.
-    // If the unswept backlog is very large (background sweep can't keep up with
-    // allocation rate), trigger a new GC earlier than the normal threshold would.
-    // This avoids RSS ballooning caused by the heap growing faster than sweep.
-    if (!thresholdTriggered && !pressureTriggered && centralPool != nullptr) {
-        size_t totalUnswept = centralPool->GetTotalUnsweptCount();
-        if (totalUnswept > GetHeuSweepLagTriggerRegions()) {
-            pressureTriggered = true;
-            triggeredUnswept = totalUnswept;
-        }
-    }
-
-    if (!thresholdTriggered && !pressureTriggered) {
-        return;
-    }
     uint64_t nowNs = TimeUtil::NanoSeconds();
     uint64_t lastHeuRequestNs = lastHeuRequestNs_.load(std::memory_order_relaxed);
-    if (lastHeuRequestNs != 0 && nowNs - lastHeuRequestNs < GetHeuRequestCooldownNs()) {
+    bool bypassCooldown = triggerKind == HeuTriggerKind::RECLAIM_SWEEP_EXHAUSTED;
+    if (!bypassCooldown && lastHeuRequestNs != 0 && nowNs - lastHeuRequestNs < GetHeuRequestCooldownNs()) {
         return;
     }
-    if (!lastHeuRequestNs_.compare_exchange_strong(lastHeuRequestNs, nowNs,
-                                                   std::memory_order_relaxed,
-                                                   std::memory_order_relaxed)) {
+
+    Collector& collector = Heap::GetHeap().GetCollector();
+    bool shouldRequest = false;
+    std::function<void()> logHeuTrigger = []() {};
+
+    switch (triggerKind) {
+        case HeuTriggerKind::TAKE_REGIONS: {
+            const GCStats& gcStats = collector.GetGCStats();
+            size_t threshold = gcStats.GetThreshold();
+            size_t allocated = Heap::GetHeap().GetAllocator().AllocatedBytes();
+            size_t baseline = gcStats.baselineAllocatedBytes;
+            size_t newAlloc = (allocated > baseline) ? (allocated - baseline) : 0;
+            size_t effectiveAlloc = gcStats.lastTrueLiveBytes + newAlloc;
+
+            if (effectiveAlloc < threshold) {
+                return;
+            }
+
+            shouldRequest = true;
+            logHeuTrigger = [effectiveAlloc, threshold]() {
+                VLOG(REPORT,
+                     "[MS-GC] HEU trigger (take-regions): effectiveAlloc=%zu threshold=%zu reason=threshold",
+                     effectiveAlloc, threshold);
+            };
+            break;
+        }
+        case HeuTriggerKind::BG_SWEEP_EXHAUSTED: {
+            CHECK_DETAIL(centralPool != nullptr, "BG_SWEEP_EXHAUSTED HEU trigger requires centralPool");
+
+            size_t emptyCacheCount = centralPool->GetEmptySweptRegionCount();
+            size_t partialSweptCount = centralPool->GetTotalPartialSweptCount();
+            size_t fullUnsweptCount = centralPool->GetTotalFullUnsweptCount();
+            size_t supplyTotal = emptyCacheCount + partialSweptCount + fullUnsweptCount;
+
+            if (supplyTotal >= GetHeuSupplyEnoughRegions()) {
+                return;
+            }
+
+            shouldRequest = true;
+            logHeuTrigger = [emptyCacheCount, partialSweptCount, fullUnsweptCount, supplyTotal]() {
+                VLOG(REPORT,
+                     "[MS-GC] HEU trigger (bg-sweep exhausted): emptyCache=%zu partialSwept=%zu fullUnswept=%zu "
+                     "supplyTotal=%zu",
+                     emptyCacheCount,
+                     partialSweptCount,
+                     fullUnsweptCount,
+                     supplyTotal);
+            };
+            break;
+        }
+        case HeuTriggerKind::RECLAIM_SWEEP_EXHAUSTED: {
+            CHECK_DETAIL(centralPool != nullptr, "RECLAIM_SWEEP_EXHAUSTED HEU trigger requires centralPool");
+
+            size_t emptyCacheCount = centralPool->GetEmptySweptRegionCount();
+            size_t totalUnswept = centralPool->GetTotalUnsweptCount();
+            size_t committedBytes = centralPool->GetTotalMSRegionBytes();
+            size_t targetBytes = centralPool->GetTrueLiveSlackTargetBytes();
+
+            shouldRequest = true;
+            logHeuTrigger = [emptyCacheCount, totalUnswept, committedBytes, targetBytes]() {
+                VLOG(REPORT,
+                     "[MS-GC] HEU trigger (reclaim sweep exhausted): emptyCache=%zu totalUnswept=%zu "
+                     "committed=%zu target=%zu reason=empty-reclaim-pressure",
+                     emptyCacheCount,
+                     totalUnswept,
+                     committedBytes,
+                     targetBytes);
+            };
+            break;
+        }
+    }
+
+    if (!shouldRequest) {
         return;
+    }
+
+    if (!bypassCooldown) {
+        if (!lastHeuRequestNs_.compare_exchange_strong(lastHeuRequestNs, nowNs,
+                                                       std::memory_order_relaxed,
+                                                       std::memory_order_relaxed)) {
+            return;
+        }
     }
 
     collector.RequestGC(GC_REASON_HEU, true);
-    switch (triggerKind) {
-        case HeuTriggerKind::SMALL_ALLOC:
-            VLOG(REPORT,
-                 "[MS-GC] HEU trigger: cls=%u source=%u effectiveAlloc=%zu threshold=%zu ready=%zu unswept=%zu "
-                 "emptyCache=%zu releasedTree=%zuB nodes=%u maxBlock=%u reason=%s",
-                 static_cast<unsigned>(cls),
-                 static_cast<unsigned>(bumpSource ? AllocSource::BUMP : AllocSource::RELEASED),
-                 effectiveAlloc, threshold,
-                 triggeredReady, triggeredUnswept,
-                 emptyCacheCount,
-                 releasedTreeBytes, releasedTreeNodeCount, releasedTreeMaxBlock,
-                 thresholdTriggered ? "threshold" : (triggeredUnswept > GetHeuSweepLagTriggerRegions() ? "sweep-lag" : "pressure"));
-            break;
-        case HeuTriggerKind::LARGE_ALLOC:
-            VLOG(REPORT,
-                 "[MS-GC] HEU trigger (large): source=%u effectiveAlloc=%zu threshold=%zu releasedTree=%zuB nodes=%u maxBlock=%u reason=%s",
-                 static_cast<unsigned>(bumpSource ? AllocSource::BUMP : AllocSource::RELEASED),
-                 effectiveAlloc, threshold,
-                 releasedTreeBytes, releasedTreeNodeCount, releasedTreeMaxBlock,
-                 thresholdTriggered ? "threshold" : (triggeredUnswept > GetHeuSweepLagTriggerRegions() ? "sweep-lag" : "pressure"));
-            break;
-        case HeuTriggerKind::BG_SWEEP_EXHAUSTED:
-            VLOG(REPORT,
-                 "[MS-GC] HEU trigger (bg-sweep exhausted): effectiveAlloc=%zu threshold=%zu ready=%zu unswept=%zu "
-                 "emptyCache=%zu releasedTree=%zuB nodes=%u maxBlock=%u reason=%s cls=%u",
-                 effectiveAlloc, threshold,
-                 pressureTriggered ? triggeredReady : 0,
-                 triggeredUnswept,
-                 emptyCacheCount,
-                 releasedTreeBytes, releasedTreeNodeCount, releasedTreeMaxBlock,
-                 thresholdTriggered ? "threshold" : "pressure",
-                 static_cast<unsigned>(triggeredCls));
-            break;
-    }
+    logHeuTrigger();
 }
 
 // ============================================================================
@@ -461,6 +369,9 @@ bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx, AllocSource
 {
     RegionIndex rawIdx = 0;
     bool tryReleasedTree = true;
+
+    MaybeNotifyMark(HeuTriggerKind::TAKE_REGIONS);
+    MaybeNotifyReclaim();
 
     while (tryReleasedTree) {
         FreeManager::TryTakeResult result = freeManager_.TryTakeRegions(num, rawIdx);
@@ -550,11 +461,6 @@ MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& 
         return nullptr;
     }
 
-    if (!kDisableSweepOnRegionMissProbe) {
-        MaybeNotifySweep(&centralPool, cls);
-    }
-    RecordReclaimPressure();
-    MaybeNotifyMark(HeuTriggerKind::SMALL_ALLOC, &centralPool, cls, source == AllocSource::BUMP);
 
     MRT_ASSERT(regionIdx < freeManager_.GetMaxVirtualRegionCount(), "region index out of bounds");
 
@@ -603,9 +509,6 @@ MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& r
             InlineReclaimForBalance(*centralPool);
         }
     }
-
-    RecordReclaimPressure();
-    MaybeNotifyMark(HeuTriggerKind::LARGE_ALLOC, nullptr, 0, source == AllocSource::BUMP);
 
     regionStart = RegionIdxToAddr(regionIdx);
 

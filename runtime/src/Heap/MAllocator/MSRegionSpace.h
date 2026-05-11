@@ -66,7 +66,8 @@ public:
     // MS-specific accessors
     CentralRegionPool* GetCentralPool() const { return msCentralPool_; }
     MSRegionManager* GetMSRegionManager() const { return msRegionManager_; }
-    bool BackgroundSweep() override;
+    bool HasPendingSweepWork() const override;
+    void BackgroundSweep(uint8_t preferredCls) override;
     void BackgroundFillAllocCaches() override;
     void EnsureThreadLocalAllocBuffer();
 

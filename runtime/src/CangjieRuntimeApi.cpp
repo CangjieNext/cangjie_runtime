@@ -227,21 +227,21 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
             // Default value of heap utilization is 80%.
             .heapUtilization = param->heapParam.heapUtilization < ERRORESTIMATE ? \
                 0.8 : param->heapParam.heapUtilization,
-            // Default value of heap growth is 1 + 0.15.
-            .heapGrowth = param->heapParam.heapGrowth < ERRORESTIMATE ? 0.15 : param->heapParam.heapGrowth,
+            // Default value of heap growth is 1 + 0.5.
+            .heapGrowth = param->heapParam.heapGrowth < ERRORESTIMATE ? 0.5 : param->heapParam.heapGrowth,
             // Default value of allocation rate is 1024MB/s.
             .allocationRate = param->heapParam.allocationRate < ERRORESTIMATE ? 10240 : param->heapParam.allocationRate,
             // Default value of allocation wait time is 1000ns.
             .allocationWaitTime = param->heapParam.allocationWaitTime == 0 ? 1000 : param->heapParam.allocationWaitTime,
         },
         .gcParam = {
-            // Default value of gc threshold is heapSize.
+            // Default value of gc threshold is half of heapSize.
             .gcThreshold = param->gcParam.gcThreshold == 0 ? \
-                initHeapSize * MapleRuntime::KB : param->gcParam.gcThreshold * MapleRuntime::KB,
+                (initHeapSize / 2) * MapleRuntime::KB : param->gcParam.gcThreshold * MapleRuntime::KB,
             // Default value of garbage ratio is 50%.
             .garbageThreshold = param->gcParam.garbageThreshold < ERRORESTIMATE ? 0.5 : param->gcParam.garbageThreshold,
-            // Default value of GC interval is 150ms.
-            .gcInterval = param->gcParam.gcInterval == 0 ? 150 * MapleRuntime::MILLI_SECOND_TO_NANO_SECOND :
+            // Default value of GC interval is 20ms.
+            .gcInterval = param->gcParam.gcInterval == 0 ? 20 * MapleRuntime::MILLI_SECOND_TO_NANO_SECOND :
                 param->gcParam.gcInterval * MapleRuntime::MILLI_SECOND_TO_NANO_SECOND,
             // Default value of backup GC interval is 240s.
             .backupGCInterval = param->gcParam.backupGCInterval == 0 ? 240 * MapleRuntime::SECOND_TO_NANO_SECOND :

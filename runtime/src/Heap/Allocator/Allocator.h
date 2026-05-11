@@ -31,7 +31,8 @@ public:
 #endif
     virtual void FeedHungryBuffers() = 0;
     virtual bool HasPendingReclaimWork() const { return false; }
-    virtual bool BackgroundSweep() { return false; }
+    virtual bool HasPendingSweepWork() const { return false; }
+    virtual void BackgroundSweep(uint8_t preferredCls) { (void)preferredCls; }
     virtual void BackgroundFillAllocCaches() {}
 
     // returns the total size of live large objects, excluding alignment/roundup/header, ...
@@ -53,15 +54,6 @@ public:
     virtual size_t GetUsedPageSize() const = 0;
     virtual MAddress GetSpaceStartAddress() const = 0;
     virtual MAddress GetSpaceEndAddress() const = 0;
-    void EnableAsyncAllocation(bool enableAyncAlloc)
-    {
-        isAsyncAllocationEnable.store(enableAyncAlloc & asyncAllocationInitSwitch, std::memory_order_release);
-    }
-
-    bool IsAsyncAllocationEnable()
-    {
-        return isAsyncAllocationEnable.load(std::memory_order_acquire);
-    }
     // IsHeapAddress is a range-based check, used to quickly identify heap address,
     // non-heap address never falls into this address range.
     // for more accurate check, use IsHeapObject().
@@ -81,11 +73,6 @@ public:
     static void EnsureThreadLocalBuffer();
     static void CommitRawPointerRegions();
     static void PushRootToBuffer(BaseObject* root);
-
-    std::atomic<bool> isAsyncAllocationEnable = { true };
-private:
-    bool InitAyncAllocation();
-    bool asyncAllocationInitSwitch = true;
 };
 } // namespace MapleRuntime
 #endif // MRT_ALLOCATOR_H

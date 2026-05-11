@@ -56,9 +56,9 @@ class MSRegionManager : private FreeManager::HeapRangeHandler {
 
 public:
     enum class HeuTriggerKind : uint8_t {
-        SMALL_ALLOC,
-        LARGE_ALLOC,
+        TAKE_REGIONS,
         BG_SWEEP_EXHAUSTED,
+        RECLAIM_SWEEP_EXHAUSTED,
     };
 
     MSRegionManager() = default;
@@ -179,9 +179,6 @@ public:
     void DumpAndResetAllocClearStats();
 
     // Unified layer-1 HEU trigger entry.
-    // - SMALL_ALLOC: called after taking a fresh small-object region.
-    // - LARGE_ALLOC: called after taking a large-object span.
-    // - BG_SWEEP_EXHAUSTED: called when layer-2 has drained unswept backlog.
     void MaybeNotifyMark(HeuTriggerKind triggerKind, const CentralRegionPool* centralPool = nullptr,
                            uint8_t cls = 0, bool bumpSource = true);
 
@@ -192,12 +189,6 @@ public:
 
     // Layer-3 trigger: notify gc-helper to reclaim empty regions back to OS.
     void MaybeNotifyReclaim();
-
-    // Reclaim pressure is recorded on mutator-side hot paths and drained by the
-    // background alloc-cache refill pass to avoid running reclaim heuristics on
-    // fresh-miss paths.
-    void RecordReclaimPressure();
-    void DrainBackgroundReclaimPressure();
 
     // Inline reclaim: when TakeRegion expands the heap via BUMP, synchronously
     // release one empty-cache region to keep committed bytes stable.

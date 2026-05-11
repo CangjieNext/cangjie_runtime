@@ -108,12 +108,6 @@ void CopyCollector::UpdateGCStats()
     size_t heapSize = space.GetMaxCapacity();
     size_t recentBytes = space.GetRecentAllocatedSize();
 
-    // 2 / 3: when live bytes is over 2/3 heap size, the async allocation need to be closed.
-    if (liveBytes > heapSize * 2 / 3) {
-        space.EnableAsyncAllocation(false);
-    } else {
-        space.EnableAsyncAllocation(true);
-    }
     // 4 ways to estimate heap next threshold.
 #if defined (__OHOS__)
     constexpr double lowUtilGrowth = 1.8;

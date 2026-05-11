@@ -65,41 +65,7 @@ const size_t RegionInfo::UNIT_SIZE = MapleRuntime::MRT_PAGE_SIZE;
 // depending on the system page size.
 const size_t RegionInfo::LARGE_OBJECT_DEFAULT_THRESHOLD = MapleRuntime::MRT_PAGE_SIZE > (32 * KB) ?
                                                             MapleRuntime::MRT_PAGE_SIZE : 32 * KB;
-Allocator::Allocator()
-{
-    asyncAllocationInitSwitch = InitAyncAllocation();
-    isAsyncAllocationEnable.store(asyncAllocationInitSwitch);
-}
-
-bool Allocator::InitAyncAllocation()
-{
-    auto enableAsyncAllocation = std::getenv("cjEnableAsyncAllocation");
-    if (enableAsyncAllocation == nullptr) {
-#if defined(__OHOS__) || defined(__ANDROID__)
-        return true;
-#else
-        return false;
-#endif
-    }
-    if (strlen(enableAsyncAllocation) != 1) {
-        LOG(RTLOG_ERROR, "Unsupported cjEnableAsyncAllocation, cjEnableAsyncAllocation should be 0 or 1.\n");
-#if defined(__OHOS__) || defined(__ANDROID__)
-        return true;
-#else
-        return false;
-#endif
-    }
-
-    switch (enableAsyncAllocation[0]) {
-        case '0':
-            return false;
-        case '1':
-            return true;
-        default:
-            LOG(RTLOG_ERROR, "Unsupported cjEnableAsyncAllocation, cjEnableAsyncAllocation should be 0 or 1.\n");
-    }
-    return true;
-}
+Allocator::Allocator() = default;
 
 // PageAlllocator
 // the input parameter cat should be guaranteed in the range of value of enum type AllocationTag by

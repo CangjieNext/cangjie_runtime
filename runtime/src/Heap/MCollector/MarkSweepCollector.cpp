@@ -56,30 +56,6 @@ size_t ReadEnvCount(const char* name, size_t fallback)
     return value == 0 ? fallback : value;
 }
 
-double GetMsAsyncAllocDisableRatio()
-{
-    static const double value = ReadEnvPosDec("CJ_MS_ASYNC_ALLOC_DISABLE_RATIO", 2.0 / 3.0);
-    return value;
-}
-
-size_t GetMsMinHeadroomRegions()
-{
-    static const size_t value = ReadEnvCount("CJ_MS_MIN_HEADROOM_REGIONS", 4);
-    return value;
-}
-
-double GetMsMinHeadroomHeapRatio()
-{
-    static const double value = ReadEnvPosDec("CJ_MS_MIN_HEADROOM_HEAP_RATIO", 0.01);
-    return value;
-}
-
-double GetMsThresholdHeapCapRatio()
-{
-    static const double value = ReadEnvPosDec("CJ_MS_THRESHOLD_HEAP_CAP_RATIO", 0.98);
-    return value;
-}
-
 bool IsMSMarkingFastState(uint8_t gcFastState)
 {
     return (gcFastState & ThreadLocal::GC_FAST_STATE_MS_MARKING) != 0;
@@ -1476,26 +1452,10 @@ void MarkSweepCollector::UpdateGCStats()
     size_t heapSize = space.GetMaxCapacity();
     size_t recentBytes = space.GetRecentAllocatedSize();
 
-    // 2 / 3: when committed bytes is over 2/3 heap size, the async allocation need to be closed.
-    if (committedBytes > static_cast<size_t>(heapSize * GetMsAsyncAllocDisableRatio())) {
-        space.EnableAsyncAllocation(false);
-    } else {
-        space.EnableAsyncAllocation(true);
-    }
-
     // Step9: drive the next cycle primarily from true-live bytes instead of
     // blending active-region slack into the threshold base.
     double heapGrowth = 1 + (CangjieRuntime::GetHeapParam().heapGrowth);
-    size_t liveDrivenThreshold = static_cast<size_t>(liveBytes * heapGrowth);
-
-    // Keep a minimum post-GC headroom so tiny live sets do not cause immediate
-    // re-triggering after a few small region refills.
-    size_t minHeadroom = std::max(static_cast<size_t>(heapSize * GetMsMinHeadroomHeapRatio()),
-                                  static_cast<size_t>(MS_REGION_SIZE * GetMsMinHeadroomRegions()));
-    size_t newThreshold = std::max(liveDrivenThreshold, liveBytes + minHeadroom);
-
-    // 0.98: make sure new threshold does not exceed reasonable limit.
-    newThreshold = std::min(newThreshold, static_cast<size_t>(heapSize * GetMsThresholdHeapCapRatio()));
+    size_t newThreshold = static_cast<size_t>(liveBytes * heapGrowth);
     gcStats.heapThreshold = std::min(newThreshold, CangjieRuntime::GetGCParam().gcThreshold);
     // Persist the post-GC baseline used by MSGC's effective-allocation trigger:
     // effectiveAlloc = lastTrueLiveBytes + max(0, currentAllocated - baselineAllocatedBytes).
@@ -1505,9 +1465,9 @@ void MarkSweepCollector::UpdateGCStats()
     VLOG(REPORT, "[MS-GC] --- Total ---");
     VLOG(REPORT,
             "[MS-GC] live bytes %zu (survived %zu, recent-allocated %zu), active-region bytes %zu, "
-            "live-driven threshold base %zu, min headroom %zu, update gc threshold %zu -> %zu",
+            "live-driven threshold base %zu, update gc threshold %zu -> %zu",
          liveBytes, survivedBytes, recentBytes, committedBytes,
-            liveBytes, minHeadroom, oldThreshold, gcStats.heapThreshold);
+            newThreshold, oldThreshold, gcStats.heapThreshold);
     VLOG(REPORT, "[MS-GC]   active-region bytes %s B, true live %s B (%.1f%% utilization)",
          Pretty(committedBytes).Str(), Pretty(liveBytes).Str(),
          (committedBytes == 0) ? 0.0 : (static_cast<double>(liveBytes) / committedBytes) * 100);

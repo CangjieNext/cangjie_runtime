@@ -235,9 +235,16 @@ bool RegionSpaceMS::HasPendingReclaimWork() const
     return targetBytes != 0 && committedBytes > targetBytes && emptyCount > 0;
 }
 
-bool RegionSpaceMS::BackgroundSweep()
+bool RegionSpaceMS::HasPendingSweepWork() const
 {
-    return msCentralPool_ != nullptr && msCentralPool_->BackgroundSweep();
+    return msCentralPool_ != nullptr && msCentralPool_->HasPendingSweepWork();
+}
+
+void RegionSpaceMS::BackgroundSweep(uint8_t preferredCls)
+{
+    if (msCentralPool_ != nullptr) {
+        msCentralPool_->BackgroundSweep(preferredCls);
+    }
 }
 
 void RegionSpaceMS::BackgroundFillAllocCaches()

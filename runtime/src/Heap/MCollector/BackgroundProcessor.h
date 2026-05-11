@@ -12,11 +12,15 @@
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include <cstdint>
 
 #include "Heap/Collector/FinalizerWorkList.h"
 
 namespace MapleRuntime {
 class Mutator;
+
+constexpr uint8_t kNoPreferredSweepClass = UINT8_MAX;
+constexpr uint8_t kEmptyRegionPressureSweepClass = UINT8_MAX - 1;
 
 class BackgroundProcessor {
 public:
@@ -47,7 +51,7 @@ public:
 
     void NotifyToReclaimGarbage();
     void NotifyToFeedAllocBuffers();
-    void NotifyToSweep();
+    void NotifyToSweep(uint8_t cls = kNoPreferredSweepClass);
 
 private:
     void Notify();
@@ -73,6 +77,7 @@ private:
     std::atomic<bool> shouldReclaimHeapGarbage;
     std::atomic<bool> shouldFeedHungryBuffers;
     std::atomic<bool> shouldBackgroundSweep_;
+    std::atomic<uint8_t> preferredSweepCls_{kNoPreferredSweepClass};
     FinalizerWorkList finalizerWorkList;
     uint32_t tid = 0;
     pthread_t threadHandle = 0;
