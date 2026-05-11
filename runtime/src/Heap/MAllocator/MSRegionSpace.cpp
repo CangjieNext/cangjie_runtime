@@ -232,7 +232,15 @@ bool RegionSpaceMS::HasPendingReclaimWork() const
     }
     size_t committedBytes = msCentralPool_->GetTotalMSRegionBytes();
     size_t targetBytes = msCentralPool_->GetTrueLiveSlackTargetBytes();
-    return targetBytes != 0 && committedBytes > targetBytes && emptyCount > 0;
+    if (targetBytes == 0 || committedBytes <= targetBytes) {
+        return false;
+    }
+    return emptyCount > 0 || msCentralPool_->GetTotalUnsweptCount() > 0;
+}
+
+bool RegionSpaceMS::IsReclaimPressureHigh() const
+{
+    return msCentralPool_ != nullptr && msCentralPool_->IsReclaimPressureHigh();
 }
 
 bool RegionSpaceMS::HasPendingSweepWork() const
@@ -247,11 +255,12 @@ void RegionSpaceMS::BackgroundSweep(uint8_t preferredCls)
     }
 }
 
-void RegionSpaceMS::BackgroundFillAllocCaches()
+BackgroundFeedStats RegionSpaceMS::BackgroundFillAllocCaches(uint8_t preferredCls)
 {
     if (msCentralPool_ != nullptr) {
-        msCentralPool_->BackgroundFillAllocCaches();
+        return msCentralPool_->BackgroundFillAllocCaches(preferredCls);
     }
+    return {};
 }
 
 bool RegionSpaceMS::ForEachObj(const std::function<void(BaseObject*)>& visitor, bool safe) const

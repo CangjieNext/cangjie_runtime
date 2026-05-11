@@ -246,7 +246,7 @@ void MSRegionManager::MaybeNotifyReclaim()
     if (!shouldReclaim) {
         size_t committedBytes = pool->GetTotalMSRegionBytes();
         size_t targetBytes = pool->GetTrueLiveSlackTargetBytes();
-        shouldReclaim = targetBytes != 0 && committedBytes > targetBytes && emptyCount > 0;
+        shouldReclaim = targetBytes != 0 && committedBytes > targetBytes;
     }
 
     if (shouldReclaim) {

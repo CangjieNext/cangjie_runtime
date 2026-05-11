@@ -20,6 +20,7 @@ constexpr U32 DEFAULT_MS_GC_HELPER_POLL_MS = 2000;
 constexpr U32 DEFAULT_MS_GC_HELPER_ACTIVE_BACKOFF_MS = 1;
 constexpr U32 DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_ROUNDS = 4;
 constexpr uint64_t DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_US = 12000;
+constexpr U32 DEFAULT_MS_GC_HELPER_FEED_PRESSURE_BACKOFF_MS = 2;
 }
 
 extern "C" MRT_EXPORT void* MRT_ProcessBackgroundWork(void* arg)
@@ -42,6 +43,7 @@ BackgroundProcessor::BackgroundProcessor()
     shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
     shouldBackgroundSweep_.store(false, std::memory_order_relaxed);
     preferredSweepCls_.store(kNoPreferredSweepClass, std::memory_order_relaxed);
+    preferredFeedCls_.store(kNoPreferredFeedClass, std::memory_order_relaxed);
 }
 
 void BackgroundProcessor::Start()
@@ -109,6 +111,7 @@ void BackgroundProcessor::Run()
                 continue;
             }
 
+            FlushBackgroundFeedStats();
             backgroundBurstRounds = 0;
             backgroundBurstStartUs = 0;
             WaitForActiveBackoff(DEFAULT_MS_GC_HELPER_ACTIVE_BACKOFF_MS);
@@ -121,6 +124,7 @@ void BackgroundProcessor::Run()
 
         backgroundBurstRounds = 0;
         backgroundBurstStartUs = 0;
+        FlushBackgroundFeedStats();
         while (running.load(std::memory_order_acquire)) {
             if (HasPendingWakeWork()) {
                 break;
@@ -221,8 +225,11 @@ void BackgroundProcessor::NotifyToReclaimGarbage()
     RequestWork(shouldReclaimHeapGarbage);
 }
 
-void BackgroundProcessor::NotifyToFeedAllocBuffers()
+void BackgroundProcessor::NotifyToFeedAllocBuffers(uint8_t cls)
 {
+    if (cls != kNoPreferredFeedClass) {
+        preferredFeedCls_.store(cls, std::memory_order_release);
+    }
     RequestWork(shouldFeedHungryBuffers);
 }
 
@@ -259,8 +266,27 @@ bool BackgroundProcessor::BackgroundSweepLoop()
 
 void BackgroundProcessor::BackgroundFillAllocCaches()
 {
+    Allocator& allocator = Heap::GetHeap().GetAllocator();
+    if (allocator.HasPendingReclaimWork()) {
+        WaitForActiveBackoff(DEFAULT_MS_GC_HELPER_FEED_PRESSURE_BACKOFF_MS);
+    }
     shouldFeedHungryBuffers.store(false, std::memory_order_release);
-    Heap::GetHeap().GetAllocator().BackgroundFillAllocCaches();
+    uint8_t preferredCls = preferredFeedCls_.exchange(kNoPreferredFeedClass, std::memory_order_acq_rel);
+    pendingFeedStats_.Merge(allocator.BackgroundFillAllocCaches(preferredCls));
+}
+
+void BackgroundProcessor::FlushBackgroundFeedStats()
+{
+    if (!pendingFeedStats_.HasWork()) {
+        return;
+    }
+    VLOG(REPORT,
+         "[MS-GC] feed alloc caches: buffers=%zu touchedBuffers=%zu filledClasses=%zu filledRegions=%zu",
+         pendingFeedStats_.buffersScanned,
+         pendingFeedStats_.touchedBuffers,
+         pendingFeedStats_.filledClasses,
+         pendingFeedStats_.filledRegions);
+    pendingFeedStats_.Reset();
 }
 } // namespace MapleRuntime
 

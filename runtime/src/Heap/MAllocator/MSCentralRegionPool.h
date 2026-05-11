@@ -10,12 +10,14 @@
 #ifdef MRT_USE_MARK_SWEEP
 
 #include <atomic>
+#include <array>
 #include <mutex>
 #include <cstdint>
 #include <vector>
 #include <algorithm>
 #include <thread>
 
+#include "Heap/Allocator/Allocator.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSSizeClass.h"
 
@@ -331,7 +333,9 @@ public:
     bool IsSweepDone() const
     {
         return sweepDone_.load(std::memory_order_acquire) &&
-               !bgSweepRunning_.load(std::memory_order_acquire);
+               !bgSweepRunning_.load(std::memory_order_acquire) &&
+               activeLazySweepCount_.load(std::memory_order_acquire) == 0 &&
+               activeReclaimSweepCount_.load(std::memory_order_acquire) == 0;
     }
 
     // Visit all Regions across all size classes (for GC root enumeration).
@@ -454,6 +458,15 @@ private:
         bool shouldPressureSweep = false;
     };
 
+    struct ReclaimSweepStats {
+        size_t targetRegions = 0;
+        size_t sweptRegions = 0;
+        size_t releasedRegions = 0;
+        size_t releasedBytes = 0;
+        bool noMoreSupply = false;
+        bool budgetExhausted = false;
+    };
+
     struct SizeClassBucket {
         std::mutex lock;              // protects fullSwept, partialUnswept, fullUnswept only
         LockFreeRegionStack partialSwept;  // O1: lock-free CAS stack for P1 hot path
@@ -469,15 +482,16 @@ private:
     bool ShouldPressureSweepForTrueLiveSlack(size_t committedBytes, size_t targetBytes, size_t emptyCount) const;
     BackgroundScavengeState CollectBackgroundScavengeState() const;
     size_t ComputeNeededEmptyRegions(size_t committedBytes, size_t targetBytes) const;
-    void RequestEmptyPressureSweep(const BackgroundScavengeState& state);
-    void UpdateEmptyPressureSweepProgress(size_t emptyBefore, size_t emptyAfter, size_t targetEmpty,
-                                          size_t remainingUnswept, size_t sweptInSlice);
+    ReclaimSweepStats FastReclaimBySweeping(const BackgroundScavengeState& state);
+    bool SweepUnsweptListForReclaim(SizeClassBucket& bucket, MSRegionList& list, uint32_t sg,
+                                    ReclaimSweepStats& stats, size_t maxRegions, uint64_t deadlineUs);
     void ForceFinishUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint8_t cls, uint32_t sg,
                                 size_t& sweptRegions, size_t& emptiedRegions,
                                 size_t& retainedRegions, size_t& freedBytes);
     void ForceFinishAllUnswept();
     bool SweepUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint32_t sg,
                          size_t& sweptInSlice, size_t maxRegions, uint64_t deadlineUs);
+    std::array<uint8_t, kNumSizeClasses> BuildBackgroundSweepClassOrder(uint8_t preferredCls) const;
 
     static std::atomic<uint32_t> globalSweepGen_;
     std::atomic<bool> sweepDone_{true};
@@ -485,8 +499,7 @@ private:
     std::atomic<bool> stopSweepRequested_{false};    // Signal bg sweep to stop early
     std::atomic<bool> skipLazySweep_{false};          // Disable lazy sweep in GetRegion P2/P3
     std::atomic<size_t> activeLazySweepCount_{0};     // In-flight lazy sweep counter
-    std::atomic<size_t> emptyPressureTargetRegions_{0};
-    std::atomic<uint8_t> emptyPressureSweepRounds_{0};
+    std::atomic<size_t> activeReclaimSweepCount_{0};  // In-flight reclaim fast-sweep counter
     MSSweepStats sweepStats_;
 
     // Total bytes of MS regions currently committed (GetFreshRegion +, ReleaseRegion -).
@@ -518,11 +531,12 @@ public:
     void RegisterAllocBufferMS(AllocBufferMS* buffer);
     void RemoveAllocBufferMS(AllocBufferMS* buffer);
     void FlushAllAllocBuffers();
+    bool IsReclaimPressureHigh() const;
 
     // O9: Background fill of hungry per-thread alloc caches.
     // Called by gc-helper thread. Iterates all AllocBufferMS and fills
     // cachedRegion_ slots for size classes with high miss pressure.
-    void BackgroundFillAllocCaches();
+    BackgroundFeedStats BackgroundFillAllocCaches(uint8_t preferredCls = kNoPreferredFeedClass);
 
     // Visit all registered AllocBufferMS instances (under lock)
     template<typename Visitor>

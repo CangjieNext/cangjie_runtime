@@ -58,6 +58,7 @@ public:
     bool ForEachObj(const std::function<void(BaseObject*)>& visitor, bool safe) const override;
     void FeedHungryBuffers() override;
     bool HasPendingReclaimWork() const override;
+    bool IsReclaimPressureHigh() const override;
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     bool IsHeapObject(MAddress addr) const override;
@@ -68,7 +69,7 @@ public:
     MSRegionManager* GetMSRegionManager() const { return msRegionManager_; }
     bool HasPendingSweepWork() const override;
     void BackgroundSweep(uint8_t preferredCls) override;
-    void BackgroundFillAllocCaches() override;
+    BackgroundFeedStats BackgroundFillAllocCaches(uint8_t preferredCls = kNoPreferredFeedClass) override;
     void EnsureThreadLocalAllocBuffer();
 
     // MS-specific metrics

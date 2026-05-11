@@ -15,12 +15,12 @@
 #include <cstdint>
 
 #include "Heap/Collector/FinalizerWorkList.h"
+#include "Heap/Allocator/Allocator.h"
 
 namespace MapleRuntime {
 class Mutator;
 
 constexpr uint8_t kNoPreferredSweepClass = UINT8_MAX;
-constexpr uint8_t kEmptyRegionPressureSweepClass = UINT8_MAX - 1;
 
 class BackgroundProcessor {
 public:
@@ -50,7 +50,7 @@ public:
     void NotifyFinalizerWork() { Notify(); }
 
     void NotifyToReclaimGarbage();
-    void NotifyToFeedAllocBuffers();
+    void NotifyToFeedAllocBuffers(uint8_t cls = kNoPreferredFeedClass);
     void NotifyToSweep(uint8_t cls = kNoPreferredSweepClass);
 
 private:
@@ -64,6 +64,7 @@ private:
     bool ReclaimHeapGarbage();
     bool BackgroundSweepLoop();
     void BackgroundFillAllocCaches();
+    void FlushBackgroundFeedStats();
 
     std::mutex wakeLock;
     std::condition_variable wakeCondition;
@@ -78,6 +79,8 @@ private:
     std::atomic<bool> shouldFeedHungryBuffers;
     std::atomic<bool> shouldBackgroundSweep_;
     std::atomic<uint8_t> preferredSweepCls_{kNoPreferredSweepClass};
+    std::atomic<uint8_t> preferredFeedCls_{kNoPreferredFeedClass};
+    BackgroundFeedStats pendingFeedStats_{};
     FinalizerWorkList finalizerWorkList;
     uint32_t tid = 0;
     pthread_t threadHandle = 0;

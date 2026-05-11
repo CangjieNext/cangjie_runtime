@@ -13,6 +13,33 @@
 #include "Heap/Heap.h"
 
 namespace MapleRuntime {
+constexpr uint8_t kNoPreferredFeedClass = UINT8_MAX;
+
+struct BackgroundFeedStats {
+    size_t buffersScanned = 0;
+    size_t touchedBuffers = 0;
+    size_t filledClasses = 0;
+    size_t filledRegions = 0;
+
+    bool HasWork() const
+    {
+        return filledRegions != 0;
+    }
+
+    void Merge(const BackgroundFeedStats& other)
+    {
+        buffersScanned = std::max(buffersScanned, other.buffersScanned);
+        touchedBuffers += other.touchedBuffers;
+        filledClasses += other.filledClasses;
+        filledRegions += other.filledRegions;
+    }
+
+    void Reset()
+    {
+        *this = BackgroundFeedStats{};
+    }
+};
+
 // Allocator abstract class
 class Allocator {
 public:
@@ -31,9 +58,14 @@ public:
 #endif
     virtual void FeedHungryBuffers() = 0;
     virtual bool HasPendingReclaimWork() const { return false; }
+    virtual bool IsReclaimPressureHigh() const { return false; }
     virtual bool HasPendingSweepWork() const { return false; }
     virtual void BackgroundSweep(uint8_t preferredCls) { (void)preferredCls; }
-    virtual void BackgroundFillAllocCaches() {}
+    virtual BackgroundFeedStats BackgroundFillAllocCaches(uint8_t preferredCls = UINT8_MAX)
+    {
+        (void)preferredCls;
+        return {};
+    }
 
     // returns the total size of live large objects, excluding alignment/roundup/header, ...
     // LargeObjects() is missing.
