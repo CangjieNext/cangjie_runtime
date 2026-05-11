@@ -699,7 +699,7 @@ size_t CentralRegionPool::HandleBackgroundScavenge(bool releaseAll)
 
     if (releasedRegions > 0) {
         VLOG(REPORT,
-             "[MS-GC] empty-cache scavenge: released=%zu regions (%s B), emptyCache=%zu->%zu regions, low=%zu",
+             "[MS-GC] BackgroundScavenge slice: released=%zu regions (%s B), emptyCache=%zu->%zu regions, low=%zu",
              releasedRegions, Pretty(releasedBytes).Str(),
              state.emptyCount, GetEmptySweptRegionCount(), state.lowWatermark);
     }
@@ -1094,6 +1094,35 @@ size_t CentralRegionPool::GetAllocBufferCount() const
     return msAllocBuffers_.size();
 }
 
+size_t CentralRegionPool::GetAllAllocBufferActiveRegionCount() const
+{
+    size_t total = 0;
+    std::lock_guard<std::mutex> lg(const_cast<std::mutex&>(msAllocBufferLock_));
+    for (AllocBufferMS* buffer : msAllocBuffers_) {
+        if (buffer != nullptr) {
+            total += buffer->CountActiveRegions();
+        }
+    }
+    return total;
+}
+
+size_t CentralRegionPool::GetAllAllocBufferCachedRegionCount() const
+{
+    size_t total = 0;
+    std::lock_guard<std::mutex> lg(const_cast<std::mutex&>(msAllocBufferLock_));
+    for (AllocBufferMS* buffer : msAllocBuffers_) {
+        if (buffer != nullptr) {
+            total += buffer->CountCachedRegions();
+        }
+    }
+    return total;
+}
+
+size_t CentralRegionPool::GetAllAllocBufferRegionCount() const
+{
+    return GetAllAllocBufferActiveRegionCount() + GetAllAllocBufferCachedRegionCount();
+}
+
 CentralRegionPool::BucketPressure CentralRegionPool::GetBucketPressure(uint8_t cls) const
 {
     BucketPressure pressure;
@@ -1268,12 +1297,26 @@ void CentralRegionPool::BackgroundFillAllocCaches()
         std::lock_guard<std::mutex> lg(msAllocBufferLock_);
         buffers = msAllocBuffers_;
     }
+
+    size_t totalBuffers = buffers.size();
+    size_t touchedBuffers = 0;
+    size_t filledClasses = 0;
+    size_t filledRegions = 0;
     for (AllocBufferMS* buffer : buffers) {
         if (buffer != nullptr) {
-            buffer->BackgroundFillCache();
+            MSAllocCacheFillStats stats = buffer->BackgroundFillCache();
+            if (stats.HasWork()) {
+                touchedBuffers++;
+                filledClasses += stats.filledClasses;
+                filledRegions += stats.filledRegions;
+            }
         }
     }
-
+    if (filledRegions > 0) {
+        VLOG(REPORT,
+             "[MS-GC] BackgroundCache slice: buffers=%zu touchedBuffers=%zu filledClasses=%zu filledRegions=%zu",
+             totalBuffers, touchedBuffers, filledClasses, filledRegions);
+    }
 }
 
 // ============================================================================

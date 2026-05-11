@@ -348,6 +348,9 @@ public:
     size_t GetLargeRegionSpanCount() const;
     size_t CountTLActiveRegions() const;
     size_t GetAllocBufferCount() const;
+    size_t GetAllAllocBufferRegionCount() const;
+    size_t GetAllAllocBufferActiveRegionCount() const;
+    size_t GetAllAllocBufferCachedRegionCount() const;
     BucketPressure GetBucketPressure(uint8_t cls) const;
     void MaybeNotifySweep(uint8_t cls) const;
     size_t GetEmptySweptRegionCount() const

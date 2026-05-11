@@ -23,6 +23,16 @@ namespace MapleRuntime {
 void MSAllocBuffer_RecordCentralSweepNotify();
 extern "C" void MSAllocBuffer_DumpAndResetSlowAllocCounters();
 
+struct MSAllocCacheFillStats {
+    size_t filledClasses = 0;
+    size_t filledRegions = 0;
+
+    bool HasWork() const
+    {
+        return filledClasses != 0 || filledRegions != 0;
+    }
+};
+
 class CentralRegionPool;
 class Mutator;
 struct ThreadLocalData;
@@ -77,7 +87,7 @@ public:
 
     // Background: fill empty cachedRegion_ slots for size classes with high miss pressure.
     // Called by gc-helper thread (FinalizerProcessor). Thread-safe via atomic cachedRegion_.
-    void BackgroundFillCache();
+    MSAllocCacheFillStats BackgroundFillCache();
 
     // Record stack root (called from Mutator::GcPhaseEnum during root enumeration).
     // This is root staging only, not grey-work production. Objects become grey
@@ -113,6 +123,10 @@ public:
         }
         return activeRegions_[cls];
     }
+
+    size_t CountActiveRegions() const;
+    size_t CountCachedRegions() const;
+    size_t CountTotalRegions() const { return CountActiveRegions() + CountCachedRegions(); }
 
     // Per-P GC Work buffer (Step5): used by Mutator assist during concurrent mark.
     // Initialized by MarkSweepCollector::InitAllPerPGCWork() at GC start.

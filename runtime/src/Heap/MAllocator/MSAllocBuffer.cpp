@@ -247,6 +247,26 @@ uint8_t AllocBufferMS::CountCachedRegions(uint8_t cls) const
     return cachedCount;
 }
 
+size_t AllocBufferMS::CountActiveRegions() const
+{
+    size_t total = 0;
+    for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
+        if (activeRegions_[cls] != nullptr) {
+            ++total;
+        }
+    }
+    return total;
+}
+
+size_t AllocBufferMS::CountCachedRegions() const
+{
+    size_t total = 0;
+    for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
+        total += CountCachedRegions(cls);
+    }
+    return total;
+}
+
 uint16_t AllocBufferMS::GetHotClassScore(uint8_t cls) const
 {
     uint8_t heat = cacheHeat_[cls].load(std::memory_order_relaxed);
@@ -634,10 +654,11 @@ void AllocBufferMS::FlushAll()
 // ============================================================================
 // BackgroundFillCache — O9: adaptive prefetch by gc-helper thread
 // ============================================================================
-void AllocBufferMS::BackgroundFillCache()
+MSAllocCacheFillStats AllocBufferMS::BackgroundFillCache()
 {
+    MSAllocCacheFillStats stats;
     if (UNLIKELY(central_ == nullptr)) {
-        return;
+        return stats;
     }
 
     std::array<uint8_t, kNumSizeClasses> classOrder {};
@@ -655,6 +676,7 @@ void AllocBufferMS::BackgroundFillCache()
 
     for (uint8_t cls : classOrder) {
         TrimExtraCachedRegions(cls);
+        bool clsFilled = false;
 
         uint8_t targetSlots = GetTargetCachedSlots(cls);
         if (CountCachedRegions(cls) >= targetSlots) {
@@ -682,6 +704,11 @@ void AllocBufferMS::BackgroundFillCache()
                 central_->ReturnPartialRegion(region, cls);
                 break;
             }
+            stats.filledRegions++;
+            clsFilled = true;
+        }
+        if (clsFilled) {
+            stats.filledClasses++;
         }
         if (cacheFull) {
             SetCacheMiss(cls, 0);
@@ -694,6 +721,8 @@ void AllocBufferMS::BackgroundFillCache()
             CoolCacheHeat(cls, kHeatCoolOnSaturatedCache);
         }
     }
+
+    return stats;
 }
 
 AllocBufferMS* AllocBufferMS::GetAllocBufferMS()

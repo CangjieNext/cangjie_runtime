@@ -96,10 +96,6 @@ void BackgroundProcessor::Run()
             BackgroundFillAllocCaches();
         }
 
-        if (shouldReclaimHeapGarbage.load(std::memory_order_relaxed)) {
-            shouldContinueImmediate = ReclaimHeapGarbage() || shouldContinueImmediate;
-        }
-
         if (shouldContinueImmediate) {
             if (backgroundBurstRounds == 0) {
                 backgroundBurstStartUs = TimeUtil::MicroSeconds();
@@ -117,6 +113,10 @@ void BackgroundProcessor::Run()
             backgroundBurstStartUs = 0;
             WaitForActiveBackoff(DEFAULT_MS_GC_HELPER_ACTIVE_BACKOFF_MS);
             continue;
+        }
+
+        if (shouldReclaimHeapGarbage.load(std::memory_order_relaxed)) {
+            shouldContinueImmediate = ReclaimHeapGarbage() || shouldContinueImmediate;
         }
 
         backgroundBurstRounds = 0;
@@ -240,8 +240,6 @@ bool BackgroundProcessor::ReclaimHeapGarbage()
     Allocator& allocator = Heap::GetHeap().GetAllocator();
     size_t releasedBytes = allocator.ReclaimGarbageMemory(false);
     bool pendingReclaim = allocator.HasPendingReclaimWork();
-    VLOG(REPORT, "[MS-GC] reclaim done: released=%zuB, pending=%s",
-         releasedBytes, pendingReclaim ? "yes" : "no");
     shouldReclaimHeapGarbage.store(pendingReclaim, std::memory_order_release);
     return pendingReclaim;
 }

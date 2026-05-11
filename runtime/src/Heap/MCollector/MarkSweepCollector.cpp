@@ -188,6 +188,7 @@ void MarkSweepCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
     LogSweepSummary();
 
     PreGarbageCollection(/* isConcurrent */ true);
+    DumpGCStateSnapshot("preGCMark");
     DoGarbageCollection(gcIndex);
     UpdateGCStats();
     PostGarbageCollection(gcIndex);
@@ -235,7 +236,6 @@ void MarkSweepCollector::DoGarbageCollection(uint64_t gcIndex)
 void MarkSweepCollector::PreEnumRoots()
 {
     uint64_t t0 = TimeUtil::MicroSeconds();
-    VLOG(REPORT, "[MS-GC] --- PreEnumRoots ---");
 
     // Set activeCollector_ for MSMarkAssist (Mutator assist during concurrent mark).
     activeCollector_.store(this, std::memory_order_release);
@@ -1097,7 +1097,6 @@ void MarkSweepCollector::ExecuteLikeDrainMainQueue(GreyWorkQueue& mainQueue)
 void MarkSweepCollector::PostMarkTermination()
 {
     uint64_t phaseStart = TimeUtil::MicroSeconds();
-    VLOG(REPORT, "[MS-GC] --- PostMark ---");
 
     // Phase transition and WB clear already done in MarkTermination (inside STW).
     // No need to transition again or clear WB buffers here.
@@ -1395,6 +1394,42 @@ void MarkSweepCollector::DumpRegionStatsMS()
     }
 }
 
+void MarkSweepCollector::DumpGCStateSnapshot(const char* stage)
+{
+    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    if (centralPool == nullptr) {
+        VLOG(REPORT, "[MS-GC] --- %s --- (no central pool)", stage);
+        return;
+    }
+
+    size_t allocBufferCount = centralPool->GetAllocBufferCount();
+    size_t bufferRegionCount = centralPool->GetAllAllocBufferRegionCount();
+    size_t bufferActiveRegionCount = centralPool->GetAllAllocBufferActiveRegionCount();
+    size_t bufferCachedRegionCount = centralPool->GetAllAllocBufferCachedRegionCount();
+    size_t emptyCacheCount = centralPool->GetEmptySweptRegionCount();
+    size_t largeRegionCount = centralPool->GetLargeRegionCount();
+
+    VLOG(REPORT, "[MS-GC] --- %s ---", stage);
+    VLOG(REPORT, "[MS-GC]   alloc buffers: %zu", allocBufferCount);
+    VLOG(REPORT, "[MS-GC]   alloc-buffer regions: total=%zu active=%zu cached=%zu",
+         bufferRegionCount, bufferActiveRegionCount, bufferCachedRegionCount);
+    VLOG(REPORT, "[MS-GC]   central pool: empty=%zu large=%zu", emptyCacheCount, largeRegionCount);
+
+    for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
+        CentralRegionPool::BucketPressure pressure = centralPool->GetBucketPressure(cls);
+        size_t clsTotal = pressure.partialSwept + pressure.partialUnswept + pressure.fullSwept + pressure.fullUnswept;
+        if (clsTotal == 0) {
+            continue;
+        }
+        VLOG(REPORT,
+             "[MS-GC]     cls=%u partialSwept=%zu fullSwept=%zu partialUnswept=%zu fullUnswept=%zu total=%zu",
+             static_cast<unsigned>(cls),
+             pressure.partialSwept, pressure.fullSwept,
+             pressure.partialUnswept, pressure.fullUnswept, clsTotal);
+    }
+}
+
 // Block ⑥: GC Summary — 3 lines
 void MarkSweepCollector::LogGCSummary(uint64_t gcTimeUs)
 {
@@ -1462,6 +1497,7 @@ void MarkSweepCollector::UpdateGCStats()
     gcStats.lastTrueLiveBytes = liveBytes;
     gcStats.baselineAllocatedBytes = committedBytes;
     size_t survivedBytes = (liveBytes > recentBytes) ? (liveBytes - recentBytes) : 0;
+    DumpGCStateSnapshot("postGCMark");
     VLOG(REPORT, "[MS-GC] --- Total ---");
     VLOG(REPORT,
             "[MS-GC] live bytes %zu (survived %zu, recent-allocated %zu), active-region bytes %zu, "

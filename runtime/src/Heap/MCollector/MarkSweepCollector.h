@@ -314,6 +314,7 @@ private:
     void LogGCSummary(uint64_t gcTimeUs);                         // Block ⑥
     void SnapshotPreviousCycleSweepStats();                       // Persist previous sweep stats
     void LogSweepSummary();                                       // Block ④
+    void DumpGCStateSnapshot(const char* stage);
 
     size_t prevCycleLargeFreedCount_ = 0;
     size_t prevCycleLargeFreedRegionCount_ = 0;
