@@ -139,34 +139,36 @@ func generateBlock(blockOption: Option<NodeFormat_Block>): Block {
     return Block(lCurl, nodes, rCurl, unSafe)
 }
 
-func createBinaryExpr(expr: NodeFormat_Expr): Expr {
-    /*
-     * Cangjie binary operators are left-associative, so a long chain like
-     * `a + b + c + ... + z` is parsed as `((((a + b) + c) + d) ...)`.
-     * Recursing through `generateExprAST(biExpr.GetLeftExpr())` once per
-     * level overflows the small Cangjie coroutine stack on inputs with
-     * thousands of operands. Walk the leftExpr chain iteratively first,
-     * then build the AST bottom-up so stack usage stays O(1) per level.
-     */
-    var chainExprs: ArrayList<NodeFormat_BinaryExpr> = ArrayList<NodeFormat_BinaryExpr>()
-    var chainBases: ArrayList<NodeFormat_NodeBase> = ArrayList<NodeFormat_NodeBase>()
-    var currentExpr = expr
+/**
+ * Walk a left-associative `BinaryExpr` chain rooted at `start` and append each
+ * level's payload / base to the supplied lists, from outermost to innermost.
+ *
+ * Walking is iterative -- this helper exists so that the cursor variable
+ * (`current`) is confined here rather than living for the whole lifetime of
+ * `createBinaryExpr`, which keeps the public function's variable scopes tight.
+ *
+ * @throws ParseASTException when any level of the chain is missing its
+ *     `BinaryExpr` payload or `NodeBase`.
+ */
+func collectLeftBinaryChain(start: NodeFormat_Expr, exprs: ArrayList<NodeFormat_BinaryExpr>,
+    bases: ArrayList<NodeFormat_NodeBase>): Unit {
+    var current = start
     var done = false
     while (!done) {
-        var bi = match (currentExpr.GetExprAsBinaryExpr()) {
+        let bi = match (current.GetExprAsBinaryExpr()) {
             case Some(v) => v
             case None => throw ParseASTException()
         }
-        var base = match (currentExpr.GetBase()) {
+        let base = match (current.GetBase()) {
             case Some(v) => v
             case None => throw ParseASTException()
         }
-        chainExprs.add(bi)
-        chainBases.add(base)
+        exprs.add(bi)
+        bases.add(base)
         if (let Some(leftE) <- bi.GetLeftExpr()) {
             if (let Some(leftBase) <- leftE.GetBase()) {
                 if (leftBase.GetAstKind() == "binary_expr") {
-                    currentExpr = leftE
+                    current = leftE
                 } else {
                     done = true
                 }
@@ -177,13 +179,35 @@ func createBinaryExpr(expr: NodeFormat_Expr): Expr {
             done = true
         }
     }
+}
+
+/**
+ * Build the Cangjie AST for a (potentially deeply left-associative) binary
+ * expression from its flatbuffer representation.
+ *
+ * Cangjie binary operators are left-associative, so a long chain like
+ * `a + b + c + ... + z` is parsed as `((((a + b) + c) + d) ...)`. Recursing
+ * through `generateExprAST(biExpr.GetLeftExpr())` once per level would
+ * overflow the small Cangjie coroutine stack on inputs with thousands of
+ * operands. `collectLeftBinaryChain` walks the leftExpr chain iteratively
+ * first, then the AST is rebuilt bottom-up below; stack usage stays O(1)
+ * per level.
+ *
+ * @throws ParseASTException when the flatbuffer node is malformed: the
+ *     enclosing `NodeFormat_Expr` is missing its `BinaryExpr` payload or
+ *     its `NodeBase` at any level of the leftExpr chain.
+ */
+func createBinaryExpr(expr: NodeFormat_Expr): Expr {
+    let chainExprs: ArrayList<NodeFormat_BinaryExpr> = ArrayList<NodeFormat_BinaryExpr>()
+    let chainBases: ArrayList<NodeFormat_NodeBase> = ArrayList<NodeFormat_NodeBase>()
+    collectLeftBinaryChain(expr, chainExprs, chainBases)
     var resultExpr = generateExprAST(chainExprs[chainExprs.size - 1].GetLeftExpr())
     var i = chainExprs.size - 1
     while (i >= 0) {
-        var bi = chainExprs[i]
-        var rexpr = generateExprAST(bi.GetRightExpr())
-        var op = Token(getTokenKind(bi.GetOperatorKind())).addPosition(bi.GetOperatorPos())
-        var binNode = BinaryExpr(resultExpr, op, rexpr)
+        let bi = chainExprs[i]
+        let rexpr = generateExprAST(bi.GetRightExpr())
+        let op = Token(getTokenKind(bi.GetOperatorKind())).addPosition(bi.GetOperatorPos())
+        let binNode = BinaryExpr(resultExpr, op, rexpr)
         if (i > 0) {
             addPositionInfo(binNode, chainBases[i])
         }
