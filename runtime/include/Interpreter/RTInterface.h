@@ -113,11 +113,11 @@ struct DYN_CJNativeInterfaceT;
 // Initalizes runtime and its interface.
 //
 // params:
-// - interpreterInterface - Pointer to `DYN_InterpreterInterfaceT` which will be filled.
-// - cjnativeInterface - Pointer to `DYN_CJNativeInterfaceT`. The content will be copied.
+// - interpreterInterface - Pointer to `DYN_InterpreterInterfaceT` which filled by callee (out parameter).
+// - cjnativeInterface - Pointer to `DYN_CJNativeInterfaceT`. Pointer owned by caller, callee should copy the content.
 // - interpreterArgsCount - Number of interpreter arguments in `interpreterArgs`.
 // - interpreterArgs - Interpreter arguments array (null-terminated). 
-//                     Pointer is owned by runtime and will not be freed.
+//                     Pointer owned by caller, callee should copy the content.
 // return: 0 on success.
 //
 typedef int (*DYN_InitRt)(struct DYN_InterpreterInterfaceT *interpreterInterface,
@@ -277,14 +277,6 @@ typedef void (*DYN_SafePointFn)();
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
 typedef bool (*DYN_IsPendingSafePointFn)(DYN_ThreadLocalDataT);
-
-// C2N_Stub function, can be reused as implementation of I2N call.
-// TODO avoid using it
-typedef void (*DYN_C2NStubFn)();
-
-// Typedef for foreign function. See below for explanation.
-typedef void *(*DYN_ForeignFunc)(void*, void*, void*, void*, void*);
-
 
 // Provide a TypeInfo for type with given signature.
 //
