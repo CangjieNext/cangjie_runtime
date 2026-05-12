@@ -94,6 +94,10 @@ void BackgroundProcessor::Run()
             shouldContinueImmediate = BackgroundSweepLoop() || shouldContinueImmediate;
         }
 
+        if (shouldReclaimHeapGarbage.load(std::memory_order_relaxed)) {
+            shouldContinueImmediate = ReclaimHeapGarbage() || shouldContinueImmediate;
+        }
+
         if (shouldFeedHungryBuffers.load(std::memory_order_acquire)) {
             BackgroundFillAllocCaches();
         }
@@ -116,10 +120,6 @@ void BackgroundProcessor::Run()
             backgroundBurstStartUs = 0;
             WaitForActiveBackoff(DEFAULT_MS_GC_HELPER_ACTIVE_BACKOFF_MS);
             continue;
-        }
-
-        if (shouldReclaimHeapGarbage.load(std::memory_order_relaxed)) {
-            shouldContinueImmediate = ReclaimHeapGarbage() || shouldContinueImmediate;
         }
 
         backgroundBurstRounds = 0;
@@ -258,7 +258,7 @@ bool BackgroundProcessor::BackgroundSweepLoop()
     allocator.BackgroundSweep(preferredCls);
     bool pendingSweep = allocator.HasPendingSweepWork();
     shouldBackgroundSweep_.store(pendingSweep, std::memory_order_release);
-    if (!pendingSweep && allocator.HasPendingReclaimWork()) {
+    if (allocator.HasPendingReclaimWork()) {
         shouldReclaimHeapGarbage.store(true, std::memory_order_release);
     }
     return pendingSweep;

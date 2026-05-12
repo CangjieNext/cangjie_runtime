@@ -639,13 +639,6 @@ bool CentralRegionPool::IsReclaimPressureHigh() const
     return ShouldScavengeForTrueLiveSlack(GetTotalMSRegionBytes(), GetTrueLiveSlackTargetBytes());
 }
 
-bool CentralRegionPool::ShouldPressureSweepForTrueLiveSlack(size_t committedBytes, size_t targetBytes,
-                                                            size_t emptyCount) const
-{
-    return emptyCount == 0 && GetTotalUnsweptCount() > 0 &&
-           ShouldScavengeForTrueLiveSlack(committedBytes, targetBytes);
-}
-
 CentralRegionPool::BackgroundScavengeState CentralRegionPool::CollectBackgroundScavengeState() const
 {
     BackgroundScavengeState state;
@@ -655,21 +648,16 @@ CentralRegionPool::BackgroundScavengeState CentralRegionPool::CollectBackgroundS
     state.committedBytes = GetTotalMSRegionBytes();
     state.targetBytes = GetTrueLiveSlackTargetBytes();
     state.trueLiveSlackHigh = ShouldScavengeForTrueLiveSlack(state.committedBytes, state.targetBytes);
+    if (state.trueLiveSlackHigh) {
+        size_t slackBytes = state.committedBytes - state.targetBytes;
+        state.reclaimDebtRegions = (slackBytes + MS_REGION_SIZE - 1) / MS_REGION_SIZE;
+        state.targetReleaseRegions = std::min(state.reclaimDebtRegions, GetEmptyScavengeMaxRegionsPerSlice());
+    }
     state.shouldScavenge = (state.trueLiveSlackHigh && state.emptyCount > 0) ||
                            (state.emptyCount >= state.highWatermark);
-    state.shouldPressureSweep = ShouldPressureSweepForTrueLiveSlack(state.committedBytes, state.targetBytes,
-                                                                    state.emptyCount);
+    state.shouldPressureSweep = state.trueLiveSlackHigh && state.reclaimDebtRegions > state.emptyCount &&
+                                GetTotalUnsweptCount() > 0;
     return state;
-}
-
-size_t CentralRegionPool::ComputeNeededEmptyRegions(size_t committedBytes, size_t targetBytes) const
-{
-    if (targetBytes == 0 || committedBytes <= targetBytes) {
-        return GetEmptyCacheLowWatermarkRegions();
-    }
-    size_t slackBytes = committedBytes - targetBytes;
-    size_t slackRegions = (slackBytes + MS_REGION_SIZE - 1) / MS_REGION_SIZE;
-    return std::max(slackRegions, GetEmptyCacheLowWatermarkRegions());
 }
 
 CentralRegionPool::ReclaimSweepStats CentralRegionPool::FastReclaimBySweeping(
@@ -693,7 +681,11 @@ CentralRegionPool::ReclaimSweepStats CentralRegionPool::FastReclaimBySweeping(
         return stats;
     }
 
-    stats.targetRegions = ComputeNeededEmptyRegions(state.committedBytes, state.targetBytes);
+    stats.targetRegions = state.targetReleaseRegions;
+    if (stats.targetRegions == 0) {
+        finish();
+        return stats;
+    }
     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
     size_t maxRegions = GetReclaimSweepMaxRegionsPerSlice();
     uint64_t t0 = TimeUtil::MicroSeconds();
@@ -816,12 +808,13 @@ size_t CentralRegionPool::HandleBackgroundScavenge(bool releaseAll)
 
     uint64_t deadlineUs = TimeUtil::MicroSeconds() + GetEmptyScavengeMaxTimeUs();
     size_t maxRegions = releaseAll ? state.emptyCount : GetEmptyScavengeMaxRegionsPerSlice();
+    if (!releaseAll && state.trueLiveSlackHigh) {
+        maxRegions = state.targetReleaseRegions;
+    }
     size_t releasedRegions = 0;
     size_t releasedBytes = 0;
 
-    while ((GetEmptySweptRegionCount() > state.lowWatermark ||
-            (!releaseAll && GetEmptySweptRegionCount() > 0 &&
-             ShouldScavengeForTrueLiveSlack(GetTotalMSRegionBytes(), state.targetBytes))) &&
+    while ((releaseAll || state.trueLiveSlackHigh || GetEmptySweptRegionCount() > state.lowWatermark) &&
            releasedRegions < maxRegions &&
            (releaseAll || TimeUtil::MicroSeconds() < deadlineUs)) {
         MSRegionInfo* region = nullptr;
@@ -847,7 +840,14 @@ size_t CentralRegionPool::HandleBackgroundScavenge(bool releaseAll)
              releasedRegions, Pretty(releasedBytes).Str(),
              state.emptyCount, GetEmptySweptRegionCount(), state.lowWatermark);
     }
-    ReclaimSweepStats sweepStats = FastReclaimBySweeping(CollectBackgroundScavengeState());
+    BackgroundScavengeState afterState = CollectBackgroundScavengeState();
+    if (!releaseAll && state.trueLiveSlackHigh && releasedRegions < maxRegions &&
+        afterState.targetReleaseRegions > 0) {
+        afterState.targetReleaseRegions = std::min(afterState.targetReleaseRegions, maxRegions - releasedRegions);
+    } else if (!releaseAll && state.trueLiveSlackHigh) {
+        afterState.targetReleaseRegions = 0;
+    }
+    ReclaimSweepStats sweepStats = FastReclaimBySweeping(afterState);
     return releasedBytes + sweepStats.releasedBytes;
 }
 
@@ -904,7 +904,12 @@ void CentralRegionPool::BackgroundSweep(uint8_t preferredCls)
     size_t emptyCount = GetEmptySweptRegionCount();
     size_t committedBytes = GetTotalMSRegionBytes();
     size_t targetBytes = GetTrueLiveSlackTargetBytes();
-    bool underPressure = ShouldPressureSweepForTrueLiveSlack(committedBytes, targetBytes, emptyCount);
+    bool underPressure = false;
+    if (ShouldScavengeForTrueLiveSlack(committedBytes, targetBytes)) {
+        size_t slackBytes = committedBytes - targetBytes;
+        size_t reclaimDebtRegions = (slackBytes + MS_REGION_SIZE - 1) / MS_REGION_SIZE;
+        underPressure = emptyCount < reclaimDebtRegions;
+    }
     if (!underPressure) {
         for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
             BucketPressure p = GetBucketPressure(cls);

@@ -453,6 +453,8 @@ private:
         size_t highWatermark = 0;
         size_t committedBytes = 0;
         size_t targetBytes = 0;
+        size_t reclaimDebtRegions = 0;
+        size_t targetReleaseRegions = 0;
         bool trueLiveSlackHigh = false;
         bool shouldScavenge = false;
         bool shouldPressureSweep = false;
@@ -479,9 +481,7 @@ private:
     void PushEmptySweptRegion(MSRegionInfo* region);
     MSRegionInfo* TakeEmptySweptRegion(uint8_t cls);
     bool ShouldScavengeForTrueLiveSlack(size_t committedBytes, size_t targetBytes) const;
-    bool ShouldPressureSweepForTrueLiveSlack(size_t committedBytes, size_t targetBytes, size_t emptyCount) const;
     BackgroundScavengeState CollectBackgroundScavengeState() const;
-    size_t ComputeNeededEmptyRegions(size_t committedBytes, size_t targetBytes) const;
     ReclaimSweepStats FastReclaimBySweeping(const BackgroundScavengeState& state);
     bool SweepUnsweptListForReclaim(SizeClassBucket& bucket, MSRegionList& list, uint32_t sg,
                                     ReclaimSweepStats& stats, size_t maxRegions, uint64_t deadlineUs);

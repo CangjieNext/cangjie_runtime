@@ -235,7 +235,7 @@ bool RegionSpaceMS::HasPendingReclaimWork() const
     if (targetBytes == 0 || committedBytes <= targetBytes) {
         return false;
     }
-    return emptyCount > 0 || msCentralPool_->GetTotalUnsweptCount() > 0;
+    return true;
 }
 
 bool RegionSpaceMS::IsReclaimPressureHigh() const
