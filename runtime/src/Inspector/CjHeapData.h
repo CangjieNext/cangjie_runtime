@@ -45,11 +45,13 @@ public:
     using u4 = uint32_t;
     using u8 = uint64_t;
     using CjHeapDataID = u8;
-    using CjHeapDataStringId = CjHeapDataID;
+    using CjHeapDataStringId = u4;
     using CjHeapDataStackFrameId = CjHeapDataID;
     using CjHeapDataStackTraceSerialNumber = CjHeapDataID;
     static constexpr CjHeapDataStackTraceSerialNumber kCjHeapDataNullStackTrace = 0;
     const static size_t alignment = 8;
+    static constexpr size_t HEAP_SIZE_THRESHOLD_4GB = 4ULL * 1024 * 1024 * 1024;
+    static constexpr u8 NULL_OBJECT_ID = 0xFFFFFFFFFFFFFFFFULL;  // Special ID for null object references
 
     enum CjHeapDataTag {
         TAG_STRING_IN_UTF8 = 0x01,
@@ -108,6 +110,8 @@ public:
     std::vector<DumpObject> dumpObjects;
     std::map<TypeInfo*, CjHeapDataStringId> dumpClassMap;
     std::map<TypeInfo*, CjHeapDataStringId> dumpStructClassMap;
+    std::map<BaseObject*, u4> objectToIdMap;
+    u4 objectIdCounter = 0;
 
     uint32_t kCjHeapDataTime = 0;
 
@@ -124,8 +128,6 @@ public:
 
     void WriteFixedHeader();
     void WriteString();
-    void WriteAllClassLoad();
-    void WriteAllStructClassLoad();
     void WriteStackFrame(FrameInfo& frame, uint32_t frameIdx);
     void WriteStackTrace();
     void WriteRecordHeader(const u1 tag, const u4 time);
@@ -143,6 +145,7 @@ public:
     void AddU4(const u4 value); // add len = 1
     void AddU8(const u8 value); // add len = 1
     void AddID(const u8 value); // add len = 1
+    u8 GetObjectId(BaseObject* obj); // Get object ID with address semantics
 
     void ModifyLength();
 
@@ -178,7 +181,6 @@ public:
     void WriteClass(TypeInfo* klass, CjHeapDataStringId klassId, const u1 tag);
     void WriteStructClass(TypeInfo* klass, CjHeapDataStringId klassId, const u1 tag);
 
-    void WriteClassLoad(TypeInfo* klass, CjHeapDataStringId klassId, const u1 tag);
     void GetFrameInfo(FrameInfo frame, const u1 tag);
     void EndRecord();
 
@@ -201,6 +203,8 @@ public:
     CjHeapDataStackFrameId threadNameId = 0;
     u4 threadId = 0;
     CjHeapDataStackTraceSerialNumber traceSerialNum = kCjHeapDataNullStackTrace + 1;
+    bool use4ByteID = false;
+    MAddress heapStartAddr = 0;
 };
 } // namespace MapleRuntime
 #endif
