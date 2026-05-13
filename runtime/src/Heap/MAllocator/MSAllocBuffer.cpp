@@ -411,7 +411,7 @@ void AllocBufferMS::NotifyBackgroundFillIfNeeded(uint8_t cls)
         }
     }
     hotHintCls_.store(cls, std::memory_order_relaxed);
-    Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().NotifyToFeedAllocBuffers(cls);
+    Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().MaybeNotifyFeed(cls);
 }
 
 void AllocBufferMS::TrimExtraCachedRegions(uint8_t cls, uint8_t targetSlots)
@@ -556,7 +556,7 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
         if (missCount >= GetCacheFillThreshold(cls) && ShouldNotifyBackgroundFeed(cls)) {
             g_msAllocSlowPathCounters.slowFeedNotifyCalls.fetch_add(1, std::memory_order_relaxed);
             hotHintCls_.store(cls, std::memory_order_relaxed);
-            Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().NotifyToFeedAllocBuffers(cls);
+            Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().MaybeNotifyFeed(cls);
             backgroundFillRequested = true;
         }
         // Step 2: Get a new Region from CentralRegionPool
@@ -833,17 +833,6 @@ MSAllocCacheFillStats AllocBufferMS::BackgroundFillCache(uint8_t preferredCls, b
         }
 
         uint8_t cachedAfter = CountCachedRegions(cls);
-        if (clsFilled) {
-            VLOG(REPORT,
-                 "[MS-GC] feed cls: preferred=%u cls=%u target=%u cachedBefore=%u filledNow=%zu cachedAfter=%u full=%s",
-                 static_cast<unsigned>(preferredCls),
-                 static_cast<unsigned>(cls),
-                 static_cast<unsigned>(targetSlots),
-                 static_cast<unsigned>(cachedBefore),
-                 filledForCls,
-                 static_cast<unsigned>(cachedAfter),
-                 (cachedAfter >= targetSlots) ? "yes" : "no");
-        }
 
         if (cachedAfter >= targetSlots) {
             SetCacheMiss(cls, 0);

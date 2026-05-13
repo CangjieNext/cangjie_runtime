@@ -105,7 +105,7 @@ void BackgroundProcessor::Run()
         }
 
         if (shouldFeedHungryBuffers.load(std::memory_order_acquire)) {
-            BackgroundFillAllocCaches();
+            shouldContinueImmediate = BackgroundFeedLoop() || shouldContinueImmediate;
         }
 
         if (shouldContinueImmediate) {
@@ -231,8 +231,21 @@ void BackgroundProcessor::NotifyToReclaimGarbage()
     RequestWork(shouldReclaimHeapGarbage);
 }
 
-void BackgroundProcessor::NotifyToFeedAllocBuffers(uint8_t cls)
+void BackgroundProcessor::MaybeNotifyFeed(uint8_t cls)
 {
+    // Skip notification when cached regions already cover all active (in-use) regions,
+    // or when memory pressure is extreme (feeding is suppressed at that level anyway).
+    CentralRegionPool* pool = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator()).GetCentralPool();
+    if (pool != nullptr) {
+        if (pool->GetFeedPressureLevel() == MSFeedPressureLevel::EXTREME) {
+            return;
+        }
+        size_t cached = pool->GetAllAllocBufferCachedRegionCount();
+        size_t active = pool->GetAllAllocBufferActiveRegionCount();
+        if (cached >= active) {
+            return;
+        }
+    }
     if (cls != kNoPreferredFeedClass) {
         preferredFeedCls_.store(cls, std::memory_order_release);
     }
@@ -293,15 +306,43 @@ bool BackgroundProcessor::HasPendingSweepWork()
     return false;
 }
 
-void BackgroundProcessor::BackgroundFillAllocCaches()
+bool BackgroundProcessor::BackgroundFeedLoop()
 {
     Allocator& allocator = Heap::GetHeap().GetAllocator();
-    if (allocator.HasPendingReclaimWork()) {
-        WaitForActiveBackoff(DEFAULT_MS_GC_HELPER_FEED_PRESSURE_BACKOFF_MS);
-    }
-    shouldFeedHungryBuffers.store(false, std::memory_order_release);
     uint8_t preferredCls = preferredFeedCls_.exchange(kNoPreferredFeedClass, std::memory_order_acq_rel);
-    pendingFeedStats_.Merge(allocator.BackgroundFillAllocCaches(preferredCls));
+    BackgroundFeedStats sliceStats = allocator.BackgroundFillAllocCaches(preferredCls);
+    if (sliceStats.HasWork()) {
+        VLOG(REPORT,
+             "[MS-GC] feed slice: filled=%zu classes=%zu aws=%zu pres=%u",
+             sliceStats.filledRegions,
+             sliceStats.filledClasses,
+             sliceStats.activeWorkingSetRegions,
+             static_cast<unsigned>(sliceStats.pressureLevel));
+    }
+    pendingFeedStats_.Merge(sliceStats);
+    return HasPendingFeedWork();
+}
+
+bool BackgroundProcessor::HasPendingFeedWork()
+{
+    CentralRegionPool* pool = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator()).GetCentralPool();
+    if (pool == nullptr) {
+        shouldFeedHungryBuffers.store(false, std::memory_order_release);
+        return false;
+    }
+    // When memory pressure is extreme, feeding is suppressed anyway; stop looping.
+    if (pool->GetFeedPressureLevel() == MSFeedPressureLevel::EXTREME) {
+        shouldFeedHungryBuffers.store(false, std::memory_order_release);
+        return false;
+    }
+    size_t cached = pool->GetAllAllocBufferCachedRegionCount();
+    size_t active = pool->GetAllAllocBufferActiveRegionCount();
+    if (cached >= active) {
+        // All active buffers have a cached spare: feed work done.
+        shouldFeedHungryBuffers.store(false, std::memory_order_release);
+        return false;
+    }
+    return true;
 }
 
 void BackgroundProcessor::FlushBackgroundFeedStats()

@@ -50,7 +50,7 @@ public:
     void NotifyFinalizerWork() { Notify(); }
 
     void NotifyToReclaimGarbage();
-    void NotifyToFeedAllocBuffers(uint8_t cls = kNoPreferredFeedClass);
+    void MaybeNotifyFeed(uint8_t cls = kNoPreferredFeedClass);
     void NotifyToSweep(uint8_t cls = kNoPreferredSweepClass);
     bool IsSweepPressureMode() const { return sweepPressureMode_.load(std::memory_order_acquire); }
     void SetSweepPressureMode(bool val) { sweepPressureMode_.store(val, std::memory_order_release); }
@@ -65,9 +65,10 @@ private:
     bool HasPendingWakeWork() const;
     bool HasPendingSweepWork();    // check pending sweep work; updates pressure state and shouldBackgroundSweep_
     bool HasPendingReclaimWork();  // check pending reclaim work; updates shouldReclaimHeapGarbage
+    bool HasPendingFeedWork();     // check if cached < active across all buffers; clears flag when done
     bool BackgroundReclaimLoop();
     bool BackgroundSweepLoop();
-    void BackgroundFillAllocCaches();
+    bool BackgroundFeedLoop();
     void FlushBackgroundFeedStats();
 
     std::mutex wakeLock;

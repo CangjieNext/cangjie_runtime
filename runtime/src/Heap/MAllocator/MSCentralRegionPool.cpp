@@ -122,24 +122,6 @@ size_t GetEmptyScavengeMaxRegionsPerSlice()
     return value;
 }
 
-size_t GetFeedPressureMediumActiveRegions()
-{
-    static const size_t value = ReadEnvCount("CJ_MS_FEED_PRESSURE_MEDIUM_ACTIVE_REGIONS", 256);
-    return value;
-}
-
-size_t GetFeedPressureHighActiveRegions()
-{
-    static const size_t value = ReadEnvCount("CJ_MS_FEED_PRESSURE_HIGH_ACTIVE_REGIONS", 384);
-    return value;
-}
-
-size_t GetFeedPressureExtremeActiveRegions()
-{
-    static const size_t value = ReadEnvCount("CJ_MS_FEED_PRESSURE_EXTREME_ACTIVE_REGIONS", 512);
-    return value;
-}
-
 size_t GetReclaimSweepMaxRegionsPerSlice()
 {
     static const size_t value = ReadEnvCount("CJ_MS_RECLAIM_SWEEP_MAX_REGIONS_PER_SLICE", 512);
@@ -661,14 +643,25 @@ size_t CentralRegionPool::GetActiveWorkingSetRegionCount() const
 
 MSFeedPressureLevel CentralRegionPool::GetFeedPressureLevel() const
 {
+    // Thresholds are computed dynamically from the current committed heap capacity,
+    // so they automatically scale when the heap grows or shrinks.
+    // Ratios (using integer cross-multiplication to avoid division):
+    //   MEDIUM  : activeWorkingSet >= 1/2 of totalRegions
+    //   HIGH    : activeWorkingSet >= 2/3 of totalRegions
+    //   EXTREME : activeWorkingSet >= 4/5 of totalRegions
+    size_t totalRegions = (msRegionManager_ != nullptr) ? msRegionManager_->GetMaxRegionCount() : 0;
     size_t activeWorkingSet = GetActiveWorkingSetRegionCount();
-    if (activeWorkingSet >= GetFeedPressureExtremeActiveRegions()) {
+
+    if (totalRegions == 0) {
+        return MSFeedPressureLevel::LOW;
+    }
+    if (activeWorkingSet * 5 >= totalRegions * 4) {
         return MSFeedPressureLevel::EXTREME;
     }
-    if (activeWorkingSet >= GetFeedPressureHighActiveRegions()) {
+    if (activeWorkingSet * 3 >= totalRegions * 2) {
         return MSFeedPressureLevel::HIGH;
     }
-    if (activeWorkingSet >= GetFeedPressureMediumActiveRegions()) {
+    if (activeWorkingSet * 2 >= totalRegions) {
         return MSFeedPressureLevel::MEDIUM;
     }
     return MSFeedPressureLevel::LOW;
