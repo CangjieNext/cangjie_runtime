@@ -373,11 +373,6 @@ public:
         return emptySweptBytes_.load(std::memory_order_relaxed);
     }
     bool ShouldNotifyBackgroundReclaim() const;
-    bool IsEmptyCacheLow() const;
-
-    size_t GetEmptyCacheHighWatermarkRegions() const;
-    size_t GetEmptyCacheLowWatermarkRegions() const;
-    size_t GetTrueLiveSlackTargetBytes() const;
 
     // Step 11: inline reclaim support — used by MSRegionManager::InlineReclaimForBalance
     MSRegionInfo* TakeEmptySweptRegionForReclaim();
@@ -466,7 +461,6 @@ private:
     void ReleaseRegionInternal(MSRegionInfo* region);
     void PushEmptySweptRegion(MSRegionInfo* region);
     MSRegionInfo* TakeEmptySweptRegion(uint8_t cls);
-    bool ShouldScavengeForTrueLiveSlack(size_t committedBytes, size_t targetBytes) const;
     void ForceFinishUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint8_t cls, uint32_t sg,
                                 size_t& sweptRegions, size_t& emptiedRegions,
                                 size_t& retainedRegions, size_t& freedBytes);
@@ -512,7 +506,6 @@ public:
     void RegisterAllocBufferMS(AllocBufferMS* buffer);
     void RemoveAllocBufferMS(AllocBufferMS* buffer);
     void FlushAllAllocBuffers();
-    bool IsReclaimPressureHigh() const;
     size_t GetActiveWorkingSetRegionCount() const;
     MSFeedPressureLevel GetFeedPressureLevel() const;
 

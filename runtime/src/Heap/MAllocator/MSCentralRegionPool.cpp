@@ -15,6 +15,8 @@
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "Base/TimeUtils.h"
+#include "CangjieRuntime.h"
+#include "Concurrency/ConcurrencyModel.h"
 #include "Collector/CollectorResources.h"
 #include "Heap.h"
 #include "Heap/MCollector/BackgroundProcessor.h"
@@ -39,16 +41,6 @@ size_t ReadEnvCount(const char* name, size_t fallback)
     return value == 0 ? fallback : value;
 }
 
-double ReadEnvPositiveDecimal(const char* name, double fallback)
-{
-    const char* env = std::getenv(name);
-    if (env == nullptr) {
-        return fallback;
-    }
-    double value = CString::ParsePosDecFromEnv(env);
-    return value == 0.0 ? fallback : value;
-}
-
 uint64_t ReadEnvTimeUs(const char* name, uint64_t fallbackUs)
 {
     const char* env = std::getenv(name);
@@ -62,12 +54,14 @@ uint64_t ReadEnvTimeUs(const char* name, uint64_t fallbackUs)
     return std::max<uint64_t>(1, valueNs / 1000ULL);
 }
 
+// 后台批量处理 region 数
 size_t GetBgSweepMaxRegionsPerSlice()
 {
     static const size_t value = ReadEnvCount("CJ_MS_BG_SWEEP_MAX_REGIONS_PER_SLICE", 64);
     return value;
 }
 
+// 后台批量处理超时时间
 uint64_t GetBgSweepMaxTimeUs()
 {
     static const uint64_t value = ReadEnvTimeUs("CJ_MS_BG_SWEEP_MAX_TIME", 2000);
@@ -76,75 +70,15 @@ uint64_t GetBgSweepMaxTimeUs()
 
 size_t GetBgReclaimNotifyEmptyRegions()
 {
-    static const size_t value = ReadEnvCount("CJ_MS_BG_RECLAIM_NOTIFY_EMPTY_REGIONS", 100);
-    return value;
+    // Constant: processorCount × numSizeClasses × 2.
+    // This gives each thread a chance to fill one region per class before the
+    // background reclaim loop is triggered, with a factor of 2 as headroom.
+    uint32_t processorNum = Runtime::CurrentRef() != nullptr
+        ? Runtime::Current().GetConcurrencyModel().GetProcessorNum()
+        : 1;
+    return static_cast<size_t>(processorNum) * kNumSizeClasses * 2;
 }
 
-size_t GetLazyEmptyCacheRefillLimit()
-{
-    static const size_t value = ReadEnvCount("CJ_MS_LAZY_EMPTY_CACHE_REFILL_LIMIT", 1);
-    return value;
-}
-
-size_t GetEmptyCacheLowPerBuffer()
-{
-    static const size_t value = ReadEnvCount("CJ_MS_EMPTY_CACHE_LOW_PER_BUFFER", 2);
-    return value;
-}
-
-size_t GetEmptyCacheLowFloorRegions()
-{
-    static const size_t value = ReadEnvCount("CJ_MS_EMPTY_CACHE_LOW_FLOOR_REGIONS", 32);
-    return value;
-}
-
-size_t GetEmptyCacheLowCapRegions()
-{
-    static const size_t value = ReadEnvCount("CJ_MS_EMPTY_CACHE_LOW_CAP_REGIONS", 256);
-    return value;
-}
-
-size_t GetEmptyCacheHighFactor()
-{
-    static const size_t value = ReadEnvCount("CJ_MS_EMPTY_CACHE_HIGH_FACTOR", 2);
-    return value;
-}
-
-uint64_t GetEmptyScavengeMaxTimeUs()
-{
-    static const uint64_t value = ReadEnvTimeUs("CJ_MS_EMPTY_SCAVENGE_MAX_TIME", 4000);
-    return value;
-}
-
-size_t GetEmptyScavengeMaxRegionsPerSlice()
-{
-    static const size_t value = ReadEnvCount("CJ_MS_EMPTY_SCAVENGE_MAX_REGIONS_PER_SLICE", 256);
-    return value;
-}
-
-size_t GetReclaimSweepMaxRegionsPerSlice()
-{
-    static const size_t value = ReadEnvCount("CJ_MS_RECLAIM_SWEEP_MAX_REGIONS_PER_SLICE", 512);
-    return value;
-}
-
-uint64_t GetReclaimSweepMaxTimeUs()
-{
-    static const uint64_t value = ReadEnvTimeUs("CJ_MS_RECLAIM_SWEEP_MAX_TIME", 2000);
-    return value;
-}
-
-double GetReclaimTrueLiveTargetRatio()
-{
-    static const double value = ReadEnvPositiveDecimal("CJ_MS_RECLAIM_TRUE_LIVE_TARGET_RATIO", 1.2);
-    return value;
-}
-
-size_t GetEagerSweepBatchRegions()
-{
-    static const size_t value = ReadEnvCount("CJ_MS_EAGER_SWEEP_BATCH", 32);
-    return value;
-}
 }
 
 // Global sweep generation counter (starts at 2 so that sg-2 == 0 is valid initial state)
@@ -316,7 +250,7 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls, MSRegionAcquireSource* s
 
                     if (region->IsCompletelyFree()) {
                         sweepStats_.emptiedRegions.fetch_add(1, std::memory_order_relaxed);
-                        if (lazyEmptyCacheInsertions < GetLazyEmptyCacheRefillLimit()) {
+                        if (lazyEmptyCacheInsertions < 2) {
                             // Mutator contributes a bounded amount of empty-cache refill.
                             PushEmptySweptRegion(region);
                             lazyEmptyCacheInsertions++;
@@ -370,7 +304,7 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls, MSRegionAcquireSource* s
 
                     if (region->IsCompletelyFree()) {
                         sweepStats_.emptiedRegions.fetch_add(1, std::memory_order_relaxed);
-                        if (lazyEmptyCacheInsertions < GetLazyEmptyCacheRefillLimit()) {
+                        if (lazyEmptyCacheInsertions < 2) {
                             PushEmptySweptRegion(region);
                             lazyEmptyCacheInsertions++;
                             continue;
@@ -590,43 +524,9 @@ void CentralRegionPool::DecrementTotalMSRegionBytes(size_t bytes)
     totalMSRegionBytes_.fetch_sub(bytes, std::memory_order_relaxed);
 }
 
-size_t CentralRegionPool::GetEmptyCacheLowWatermarkRegions() const
-{
-    size_t low = std::max(GetAllocBufferCount() * GetEmptyCacheLowPerBuffer(), GetEmptyCacheLowFloorRegions());
-    return std::min(low, GetEmptyCacheLowCapRegions());
-}
-
-size_t CentralRegionPool::GetEmptyCacheHighWatermarkRegions() const
-{
-    return GetEmptyCacheLowWatermarkRegions() * GetEmptyCacheHighFactor();
-}
-
 bool CentralRegionPool::ShouldNotifyBackgroundReclaim() const
 {
     return GetEmptySweptRegionCount() >= GetBgReclaimNotifyEmptyRegions();
-}
-
-size_t CentralRegionPool::GetTrueLiveSlackTargetBytes() const
-{
-    const GCStats& gcStats = Heap::GetHeap().GetCollector().GetGCStats();
-    size_t gcThreshold = gcStats.GetThreshold();
-    if (gcStats.lastTrueLiveBytes == 0 || gcThreshold == 0) {
-        return 0;
-    }
-    size_t targetBytes = static_cast<size_t>(static_cast<double>(gcStats.lastTrueLiveBytes) *
-                                             GetReclaimTrueLiveTargetRatio());
-    targetBytes = std::max(targetBytes, gcStats.lastTrueLiveBytes);
-    return std::min(targetBytes, gcThreshold);
-}
-
-bool CentralRegionPool::ShouldScavengeForTrueLiveSlack(size_t committedBytes, size_t targetBytes) const
-{
-    return targetBytes != 0 && committedBytes > targetBytes;
-}
-
-bool CentralRegionPool::IsReclaimPressureHigh() const
-{
-    return ShouldScavengeForTrueLiveSlack(GetTotalMSRegionBytes(), GetTrueLiveSlackTargetBytes());
 }
 
 size_t CentralRegionPool::GetActiveWorkingSetRegionCount() const
@@ -710,11 +610,6 @@ size_t CentralRegionPool::HandleBackgroundScavenge(bool releaseAll)
              emptyCount, GetEmptySweptRegionCount(), targetRegions);
     }
     return releasedBytes;
-}
-
-bool CentralRegionPool::IsEmptyCacheLow() const
-{
-    return GetEmptySweptRegionCount() < GetEmptyCacheLowWatermarkRegions();
 }
 
 // ============================================================================
@@ -1237,7 +1132,6 @@ void CentralRegionPool::FlushAllAllocBuffers()
 BackgroundFeedStats CentralRegionPool::BackgroundFillAllocCaches(uint8_t preferredCls)
 {
     BackgroundFeedStats totalStats;
-    bool reclaimPressure = IsReclaimPressureHigh();
     MSFeedPressureLevel pressureLevel = GetFeedPressureLevel();
     totalStats.pressureLevel = static_cast<uint8_t>(pressureLevel);
     totalStats.activeWorkingSetRegions = GetActiveWorkingSetRegionCount();
@@ -1254,7 +1148,7 @@ BackgroundFeedStats CentralRegionPool::BackgroundFillAllocCaches(uint8_t preferr
     totalStats.buffersScanned = buffers.size();
     for (AllocBufferMS* buffer : buffers) {
         if (buffer != nullptr) {
-            MSAllocCacheFillStats stats = buffer->BackgroundFillCache(preferredCls, reclaimPressure, pressureLevel);
+            MSAllocCacheFillStats stats = buffer->BackgroundFillCache(preferredCls, pressureLevel);
             if (stats.HasWork()) {
                 totalStats.touchedBuffers++;
                 totalStats.filledClasses += stats.filledClasses;

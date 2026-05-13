@@ -228,11 +228,6 @@ bool RegionSpaceMS::HasPendingReclaimWork() const
     return msCentralPool_->ShouldNotifyBackgroundReclaim();
 }
 
-bool RegionSpaceMS::IsReclaimPressureHigh() const
-{
-    return msCentralPool_ != nullptr && msCentralPool_->IsReclaimPressureHigh();
-}
-
 bool RegionSpaceMS::HasPendingSweepWork() const
 {
     return msCentralPool_ != nullptr && msCentralPool_->HasPendingSweepWork();

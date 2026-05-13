@@ -87,8 +87,6 @@ void RecordRefillSource(MSAllocRefillConsumer consumer, MSAllocRefillSource sour
 static constexpr bool kDisableMutatorAssistProbe = false;
 constexpr uint8_t kWarmCacheHeatThreshold = 3;
 constexpr uint8_t kHotCacheHeatThreshold = 6;
-constexpr uint8_t kExpandedCacheClassRankLimit = 4;
-constexpr uint8_t kMaxCacheClassRankForFourSlots = 2;
 constexpr uint8_t kHeatBoostOnCacheMiss = 2;
 constexpr uint8_t kHeatBoostOnCachedHit = 1;
 constexpr uint8_t kHeatBoostOnCentralRefill = 1;
@@ -311,7 +309,7 @@ bool AllocBufferMS::IsSecondaryHotClass(uint8_t cls) const
     return !IsPrimaryHotClass(cls) && GetHotClassScore(cls) >= kHotCacheHeatThreshold * 16;
 }
 
-uint8_t AllocBufferMS::GetTargetCachedSlots(uint8_t cls, bool reclaimPressure,
+uint8_t AllocBufferMS::GetTargetCachedSlots(uint8_t cls,
                                             MSFeedPressureLevel pressureLevel) const
 {
     uint16_t score = GetHotClassScore(cls);
@@ -329,9 +327,6 @@ uint8_t AllocBufferMS::GetTargetCachedSlots(uint8_t cls, bool reclaimPressure,
             return 2;
         }
         return IsSecondaryHotClass(cls) ? 1 : 0;
-    }
-    if (reclaimPressure) {
-        return IsPrimaryHotClass(cls) ? 1 : 0;
     }
     if (IsPrimaryHotClass(cls)) {
         return kCachedRegionSlots;
@@ -359,7 +354,7 @@ bool AllocBufferMS::ShouldBackgroundFillClass(uint8_t cls, uint8_t preferredCls,
         return localHint == cls && ShouldNotifyBackgroundFeed(cls);
     }
 
-    uint8_t targetSlots = GetTargetCachedSlots(cls, false, pressureLevel);
+    uint8_t targetSlots = GetTargetCachedSlots(cls, pressureLevel);
     if (targetSlots == 0 || CountCachedRegions(cls) >= targetSlots) {
         return false;
     }
@@ -371,7 +366,7 @@ bool AllocBufferMS::ShouldBackgroundFillClass(uint8_t cls, uint8_t preferredCls,
 
 uint8_t AllocBufferMS::GetCacheFillThreshold(uint8_t cls) const
 {
-    uint8_t targetSlots = GetTargetCachedSlots(cls, false, MSFeedPressureLevel::LOW);
+    uint8_t targetSlots = GetTargetCachedSlots(cls, MSFeedPressureLevel::LOW);
     if (targetSlots >= kCachedRegionSlots) {
         return 2;
     }
@@ -383,7 +378,7 @@ uint8_t AllocBufferMS::GetCacheFillThreshold(uint8_t cls) const
 
 uint16_t AllocBufferMS::GetBackgroundFillPriority(uint8_t cls) const
 {
-    uint8_t targetSlots = GetTargetCachedSlots(cls, false, MSFeedPressureLevel::LOW);
+    uint8_t targetSlots = GetTargetCachedSlots(cls, MSFeedPressureLevel::LOW);
     uint8_t cachedCount = CountCachedRegions(cls);
     uint8_t miss = cacheMiss_[cls].load(std::memory_order_relaxed);
     bool needsBaseRefill = miss >= GetCacheFillThreshold(cls);
@@ -537,9 +532,15 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
     g_msAllocSlowPathCounters.slowPathCalls.fetch_add(1, std::memory_order_relaxed);
     bool backgroundFillRequested = false;
 
-    // Step 1: Return the exhausted Region to the central pool
+    // Step 1: Return the exhausted Region to the central pool.
+    // When the compiler fast path (EnableGCFastPath) is enabled, the mutator
+    // bump-allocates inline and never calls Allocate().  SlowAlloc() is the
+    // only runtime entry point reached after a full region (~MS_REGION_SIZE
+    // bytes) has been consumed inline.  Accumulate pacing debt here so that
+    // MSMarkAssist fires at the correct rate even on the fast-path-only route.
     if (activeRegions_[cls] != nullptr) {
         ReturnRegion(cls);
+        AccumulatePacingDebt(MS_REGION_SIZE);
     }
 
     // O2: Check thread-local cache before going to CentralRegionPool
@@ -740,7 +741,7 @@ void AllocBufferMS::FlushAll()
 // ============================================================================
 // BackgroundFillCache — O9: adaptive prefetch by gc-helper thread
 // ============================================================================
-MSAllocCacheFillStats AllocBufferMS::BackgroundFillCache(uint8_t preferredCls, bool reclaimPressure,
+MSAllocCacheFillStats AllocBufferMS::BackgroundFillCache(uint8_t preferredCls,
                                                          MSFeedPressureLevel pressureLevel)
 {
     MSAllocCacheFillStats stats;
@@ -781,7 +782,7 @@ MSAllocCacheFillStats AllocBufferMS::BackgroundFillCache(uint8_t preferredCls, b
     for (uint8_t cls : classOrder) {
         bool clsFilled = false;
 
-        uint8_t targetSlots = GetTargetCachedSlots(cls, reclaimPressure, pressureLevel);
+        uint8_t targetSlots = GetTargetCachedSlots(cls, pressureLevel);
         TrimExtraCachedRegions(cls, targetSlots);
         uint8_t cachedBefore = CountCachedRegions(cls);
         if (targetSlots == 0) {
@@ -842,7 +843,7 @@ MSAllocCacheFillStats AllocBufferMS::BackgroundFillCache(uint8_t preferredCls, b
     }
 
     if (preferredCls < kNumSizeClasses &&
-        CountCachedRegions(preferredCls) >= GetTargetCachedSlots(preferredCls, reclaimPressure, pressureLevel)) {
+        CountCachedRegions(preferredCls) >= GetTargetCachedSlots(preferredCls, pressureLevel)) {
         hotHintCls_.store(kNoPreferredHotClass, std::memory_order_relaxed);
     }
     return stats;

@@ -23,9 +23,6 @@ constexpr U32 DEFAULT_MS_GC_HELPER_POLL_MS = 2000;
 constexpr U32 DEFAULT_MS_GC_HELPER_ACTIVE_BACKOFF_MS = 1;
 constexpr U32 DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_ROUNDS = 4;
 constexpr uint64_t DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_US = 12000;
-constexpr U32 DEFAULT_MS_GC_HELPER_FEED_PRESSURE_BACKOFF_MS = 2;
-// Sweep pressure mode constants
-constexpr uint32_t kSweepPressureMaxSlices = 5;           // slices per wakeup in pressure mode
 }
 
 extern "C" MRT_EXPORT void* MRT_ProcessBackgroundWork(void* arg)

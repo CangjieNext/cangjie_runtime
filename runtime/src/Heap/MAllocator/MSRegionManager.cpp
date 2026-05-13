@@ -206,12 +206,12 @@ bool GetInlineReclaimEnabled()
     return value;
 }
 
-// Mirror CJ_MS_RECLAIM_SWEEP_MAX_REGIONS_PER_SLICE used by CentralRegionPool under memory pressure.
-// When the HEU threshold is hit, the system is already under allocation pressure, so we use the
-// reclaim-sweep slice size (default 512) as the bar for the sweep-first deferral check.
+// GetBgSweepMaxRegionsPerSlice — 后台批量处理 region 数（与 CentralRegionPool 共用同一环境变量）。
+// When the HEU threshold is hit, the system is already under allocation pressure; we reuse the
+// background-sweep slice limit so that sweep-first deferral uses the same knob as the bg-sweep path.
 size_t GetBgSweepMaxRegionsPerSlice()
 {
-    static const size_t value = ReadEnvCount("CJ_MS_RECLAIM_SWEEP_MAX_REGIONS_PER_SLICE", 512);
+    static const size_t value = ReadEnvCount("CJ_MS_BG_SWEEP_MAX_REGIONS_PER_SLICE", 64);
     return value;
 }
 }
@@ -533,9 +533,7 @@ void MSRegionManager::ReclaimEmptyRegionToReleased(MSRegionInfo* region)
 
 void MSRegionManager::InlineReclaimForBalance(const CentralRegionPool& pool)
 {
-    size_t emptyCount = pool.GetEmptySweptRegionCount();
-    size_t lowWatermark = pool.GetEmptyCacheLowWatermarkRegions();
-    if (emptyCount <= lowWatermark) {
+    if (pool.GetEmptySweptRegionCount() == 0) {
         return;
     }
 

@@ -94,7 +94,7 @@ public:
 
     // Background: fill empty cachedRegion_ slots for size classes with high miss pressure.
     // Called by gc-helper thread (FinalizerProcessor). Thread-safe via atomic cachedRegion_.
-    MSAllocCacheFillStats BackgroundFillCache(uint8_t preferredCls, bool reclaimPressure,
+    MSAllocCacheFillStats BackgroundFillCache(uint8_t preferredCls,
                                              MSFeedPressureLevel pressureLevel);
 
     // Record stack root (called from Mutator::GcPhaseEnum during root enumeration).
@@ -186,7 +186,7 @@ private:
     bool ShouldNotifyBackgroundFeed(uint8_t cls) const;
     bool ShouldBackgroundFillClass(uint8_t cls, uint8_t preferredCls,
                                    MSFeedPressureLevel pressureLevel) const;
-    uint8_t GetTargetCachedSlots(uint8_t cls, bool reclaimPressure = false,
+    uint8_t GetTargetCachedSlots(uint8_t cls,
                                  MSFeedPressureLevel pressureLevel = MSFeedPressureLevel::LOW) const;
     uint8_t GetCacheFillThreshold(uint8_t cls) const;
     uint16_t GetBackgroundFillPriority(uint8_t cls) const;

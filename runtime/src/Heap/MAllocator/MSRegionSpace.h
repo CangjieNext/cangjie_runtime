@@ -58,7 +58,6 @@ public:
     bool ForEachObj(const std::function<void(BaseObject*)>& visitor, bool safe) const override;
     void FeedHungryBuffers() override;
     bool HasPendingReclaimWork() const override;
-    bool IsReclaimPressureHigh() const override;
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     bool IsHeapObject(MAddress addr) const override;

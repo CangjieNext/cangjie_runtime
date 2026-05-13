@@ -62,7 +62,6 @@ public:
 #endif
     virtual void FeedHungryBuffers() = 0;
     virtual bool HasPendingReclaimWork() const { return false; }
-    virtual bool IsReclaimPressureHigh() const { return false; }
     virtual bool HasPendingSweepWork() const { return false; }
     virtual void BackgroundSweep(uint8_t preferredCls) { (void)preferredCls; }
     virtual BackgroundFeedStats BackgroundFillAllocCaches(uint8_t preferredCls = UINT8_MAX)
