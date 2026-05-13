@@ -34,15 +34,8 @@ public:
     bool CheckSubSchedulerValid(void* scheduler);
     bool FiniSubScheduler(void* scheduler);
     static HeapParam GetHeapParam() { return Runtime::Current().GetRuntimeParam().heapParam; }
-    void SetGCThreshold(uint64_t threshold) override
-    {
-        if (threshold == 0) {
-            LOG(RTLOG_ERROR, "The threshold must be greater than 0.\n");
-        } else {
-            param.gcParam.gcThreshold = threshold * KB;
-            LOG(RTLOG_INFO, "gcThreshold is set to %d KB.", threshold);
-        }
-    }
+    void SetGCThreshold(uint64_t threshold) override;
+    void SyncGCThresholdWithHeapSize(size_t heapSizeBytes);
     static ConcurrencyParam GetConcurrencyParam() { return Runtime::Current().GetRuntimeParam().coParam; }
     static GCParam GetGCParam() { return Runtime::Current().GetRuntimeParam().gcParam; }
     static LogParam GetLogParam() { return Runtime::Current().GetRuntimeParam().logParam; }

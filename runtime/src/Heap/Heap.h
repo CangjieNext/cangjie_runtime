@@ -119,7 +119,7 @@ public:
         heapCurrentEnd = 0;
     }
 
-    static void OnHeapExtended(MAddress newEnd) { heapCurrentEnd = newEnd; }
+    static void OnHeapExtended(MAddress newEnd);
 
     virtual ~Heap() {}
     static Barrier** currentBarrierPtr; // record ptr for fast access

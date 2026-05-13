@@ -213,7 +213,7 @@ struct HeapParam {
     /*
      * The ratio to expand heap after each GC.
      * GC is probably triggered more often if this value is set to an improperly small number.
-     * Default to 0.15, must > 0.
+        * Default to 0.25, must > 0.
      * It will be set to default value if assigned with 0.
      */
     double heapGrowth;
@@ -244,8 +244,10 @@ struct HeapParam {
  */
 struct GCParam {
     /*
-     * GC will be triggered when heap allocated size is greater than this threshold.
-     * Measured in KB, must be > 0.
+    * Runtime-maintained GC threshold derived from the current heap size.
+    * Input values provided during initialization are ignored; when the heap grows,
+    * runtime updates this value to the grown heap size.
+    * Measured in KB.
      */
     size_t gcThreshold;
 

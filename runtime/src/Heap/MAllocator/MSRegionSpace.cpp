@@ -225,17 +225,7 @@ bool RegionSpaceMS::HasPendingReclaimWork() const
     if (msCentralPool_ == nullptr) {
         return false;
     }
-    size_t emptyCount = msCentralPool_->GetEmptySweptRegionCount();
-    size_t highWatermark = msCentralPool_->GetEmptyCacheHighWatermarkRegions();
-    if (emptyCount >= highWatermark) {
-        return true;
-    }
-    size_t committedBytes = msCentralPool_->GetTotalMSRegionBytes();
-    size_t targetBytes = msCentralPool_->GetTrueLiveSlackTargetBytes();
-    if (targetBytes == 0 || committedBytes <= targetBytes) {
-        return false;
-    }
-    return true;
+    return msCentralPool_->ShouldNotifyBackgroundReclaim();
 }
 
 bool RegionSpaceMS::IsReclaimPressureHigh() const

@@ -52,6 +52,8 @@ public:
     void NotifyToReclaimGarbage();
     void NotifyToFeedAllocBuffers(uint8_t cls = kNoPreferredFeedClass);
     void NotifyToSweep(uint8_t cls = kNoPreferredSweepClass);
+    bool IsSweepPressureMode() const { return sweepPressureMode_.load(std::memory_order_acquire); }
+    void SetSweepPressureMode(bool val) { sweepPressureMode_.store(val, std::memory_order_release); }
 
 private:
     void Notify();
@@ -61,7 +63,9 @@ private:
 
     void RequestWork(std::atomic<bool>& flag);
     bool HasPendingWakeWork() const;
-    bool ReclaimHeapGarbage();
+    bool HasPendingSweepWork();    // check pending sweep work; updates pressure state and shouldBackgroundSweep_
+    bool HasPendingReclaimWork();  // check pending reclaim work; updates shouldReclaimHeapGarbage
+    bool BackgroundReclaimLoop();
     bool BackgroundSweepLoop();
     void BackgroundFillAllocCaches();
     void FlushBackgroundFeedStats();
@@ -80,6 +84,7 @@ private:
     std::atomic<bool> shouldBackgroundSweep_;
     std::atomic<uint8_t> preferredSweepCls_{kNoPreferredSweepClass};
     std::atomic<uint8_t> preferredFeedCls_{kNoPreferredFeedClass};
+    std::atomic<bool> sweepPressureMode_{false};
     BackgroundFeedStats pendingFeedStats_{};
     FinalizerWorkList finalizerWorkList;
     uint32_t tid = 0;

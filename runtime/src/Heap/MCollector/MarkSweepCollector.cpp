@@ -1191,16 +1191,6 @@ void MarkSweepCollector::ConcurrentSweep()
     // Mark-Sweep: generation flip now happens at the tail of MarkTermination's
     // STW, before mutators resume. ConcurrentSweep only kicks off background
     // sweeping and reclaim after the new generation is already visible.
-    if (centralPool != nullptr && space.GetMSRegionManager() != nullptr) {
-        // NOTE: EagerSweepBatch was removed from here because it races with the finalizer queue.
-        // PostMarkTermination() enqueues finalizeable objects (dead but not yet finalized) into
-        // finalizables queue. SweepRegion() would zero their memory, causing FATAL stateWord=0
-        // when the finalizer thread later accesses them. BackgroundProcessor::Run() correctly
-        // processes finalizers BEFORE calling BackgroundSweepLoop(). Therefore, any eager sweep
-        // must happen in the background processor after finalizers are drained, not here.
-        space.GetMSRegionManager()->MaybeNotifySweep();
-    }
-
     uint64_t sweepUs = TimeUtil::MicroSeconds() - phaseStart;
     cycleStats_.concurrentSweepUs = sweepUs;
     VLOG(REPORT, "[MS-GC] ConcurrentSweep total: %sus", Pretty(sweepUs).Str());
@@ -1480,6 +1470,7 @@ void MarkSweepCollector::UpdateGCStats()
     GCStats& gcStats = GetGCStats();
 
     size_t oldThreshold = gcStats.heapThreshold;
+    size_t gcThresholdCap = CangjieRuntime::GetGCParam().gcThreshold;
     // Use true live bytes (computed from markBitmaps) instead of AllocatedBytes()
     // which returns totalMSRegionBytes_ (committed region bytes, only increases).
     size_t liveBytes = cycleStats_.trueLiveBytes;
@@ -1489,26 +1480,41 @@ void MarkSweepCollector::UpdateGCStats()
 
     // Step9: drive the next cycle primarily from true-live bytes instead of
     // blending active-region slack into the threshold base.
-    double heapGrowth = 1 + (CangjieRuntime::GetHeapParam().heapGrowth);
-    size_t newThreshold = static_cast<size_t>(liveBytes * heapGrowth);
-    gcStats.heapThreshold = std::min(newThreshold, CangjieRuntime::GetGCParam().gcThreshold);
-    // Persist the post-GC baseline used by MSGC's effective-allocation trigger:
-    // effectiveAlloc = lastTrueLiveBytes + max(0, currentAllocated - baselineAllocatedBytes).
+    double heapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
+    size_t newThreshold = static_cast<size_t>(static_cast<double>(liveBytes) * (1.0 + heapGrowth));
+    gcStats.heapThreshold = std::min(newThreshold, gcThresholdCap);
+    // Persist the post-GC baselines used by MSGC pacing and HEU trigger logic.
     gcStats.lastTrueLiveBytes = liveBytes;
     gcStats.baselineAllocatedBytes = committedBytes;
+    gcStats.lastRegionBytes = committedBytes;
+    size_t regionGrowthThreshold = std::min(
+        static_cast<size_t>(static_cast<double>(committedBytes) * (1.0 + heapGrowth)),
+        gcThresholdCap);
+    size_t liveGrowthThreshold = gcThresholdCap;
+    if (liveBytes != 0) {
+        liveGrowthThreshold = std::min(
+            static_cast<size_t>(static_cast<double>(liveBytes) * (1.0 + heapGrowth * 10.0)),
+            gcThresholdCap);
+    }
+    gcStats.takeRegionsThreshold = std::min(regionGrowthThreshold, liveGrowthThreshold);
     size_t survivedBytes = (liveBytes > recentBytes) ? (liveBytes - recentBytes) : 0;
     DumpGCStateSnapshot("postGCMark");
     VLOG(REPORT, "[MS-GC] --- Total ---");
     VLOG(REPORT,
             "[MS-GC] live bytes %zu (survived %zu, recent-allocated %zu), active-region bytes %zu, "
-            "live-driven threshold base %zu, update gc threshold %zu -> %zu",
+            "live-driven threshold base %zu, take-regions threshold(region=%zu true-live=%zu final=%zu), "
+            "update gc threshold %zu -> %zu",
          liveBytes, survivedBytes, recentBytes, committedBytes,
-            newThreshold, oldThreshold, gcStats.heapThreshold);
+            newThreshold, regionGrowthThreshold, liveGrowthThreshold, gcStats.takeRegionsThreshold,
+            oldThreshold, gcStats.heapThreshold);
     VLOG(REPORT, "[MS-GC]   active-region bytes %s B, true live %s B (%.1f%% utilization)",
          Pretty(committedBytes).Str(), Pretty(liveBytes).Str(),
          (committedBytes == 0) ? 0.0 : (static_cast<double>(liveBytes) / committedBytes) * 100);
-    VLOG(REPORT, "[MS-GC]   trigger baseline persisted: lastTrueLive=%zu baselineAllocated=%zu",
-         gcStats.lastTrueLiveBytes, gcStats.baselineAllocatedBytes);
+    VLOG(REPORT,
+         "[MS-GC]   trigger baseline persisted: lastTrueLive=%zu lastRegion=%zu baselineAllocated=%zu "
+         "takeRegionsThreshold=%zu",
+         gcStats.lastTrueLiveBytes, gcStats.lastRegionBytes, gcStats.baselineAllocatedBytes,
+         gcStats.takeRegionsThreshold);
     TRACE_COUNT("CJRT_post_GC_HeapSize", Heap::GetHeap().GetAllocatedSize());
 }
 

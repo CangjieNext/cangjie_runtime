@@ -374,6 +374,8 @@ public:
 
     void ClearFreePinnedSlots() { freePinnedSlotLists.Clear(); }
 
+    void MaybeNotifyMark();
+
     // wait for a period of time to allocate region which will avoid harm to gc
     void RequestForRegion(size_t size);
 

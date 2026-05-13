@@ -38,6 +38,15 @@ void GCStats::Init()
 
     liveBytesBeforeGC = 0;
     liveBytesAfterGC = 0;
+    baselineAllocatedBytes = 0;
+    lastTrueLiveBytes = 0;
+    lastRegionBytes = 0;
+    // Mirror heapThreshold's two-cap policy so the first GC fires well before the heap is full.
+    // 20 MB: same initial cap as heapThreshold
+    takeRegionsThreshold = std::min(CangjieRuntime::GetGCParam().gcThreshold, 20 * MB);
+    // 0.2: same 20% maxCapacity cap as heapThreshold
+    takeRegionsThreshold = std::min(
+        static_cast<size_t>(Heap::GetHeap().GetMaxCapacity() * 0.2), takeRegionsThreshold);
 
     garbageRatio = 0.0;
     collectionRate = 0.0;

@@ -55,12 +55,6 @@ class MSRegionManager : private FreeManager::HeapRangeHandler {
     };
 
 public:
-    enum class HeuTriggerKind : uint8_t {
-        TAKE_REGIONS,
-        BG_SWEEP_EXHAUSTED,
-        RECLAIM_SWEEP_EXHAUSTED,
-    };
-
     MSRegionManager() = default;
     ~MSRegionManager();
 
@@ -178,14 +172,12 @@ public:
 
     void DumpAndResetAllocClearStats();
 
-    // Unified layer-1 HEU trigger entry.
-    void MaybeNotifyMark(HeuTriggerKind triggerKind, const CentralRegionPool* centralPool = nullptr,
-                           uint8_t cls = 0, bool bumpSource = true);
+    // Unified layer-1 HEU trigger entry. MSGC now only keeps the TAKE_REGIONS path.
+    void MaybeNotifyMark();
 
-    // Layer-2 trigger: notify gc-helper to sweep if the given size class
-    // has low ready supply but unswept backlog.  When called without
-    // centralPool (e.g. from GC_CONCURRENT_SWEEP) it is an unconditional kick.
-    void MaybeNotifySweep(const CentralRegionPool* centralPool = nullptr, uint8_t cls = 0);
+    // Layer-2 trigger: notify gc-helper to sweep only when the target size
+    // class has both low ready supply and unswept backlog.
+    void MaybeNotifySweep(const CentralRegionPool* centralPool, uint8_t cls);
 
     // Layer-3 trigger: notify gc-helper to reclaim empty regions back to OS.
     void MaybeNotifyReclaim();
@@ -231,8 +223,6 @@ private:
     uintptr_t heapStart_ = 0;              // First heap region address (immutable)
     size_t unitSize_ = 0;                  // = UNIT_SIZE (system page size)
     size_t unitsPerMSRegion_ = 0;          // = MS_REGION_SIZE / UNIT_SIZE
-
-    std::atomic<bool> pendingReclaimPressure_{false};
 
     // Unified released-span entry for MSGC heap management.
     FreeManager freeManager_;

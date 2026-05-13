@@ -29,11 +29,11 @@ public:
 
     size_t GetThreshold() const { return heapThreshold; }
 
-    // O1 fix: baseline for trigger metric consistency.
-    // Effective allocation = lastTrueLiveBytes + max(0, currentAllocated - baselineAllocatedBytes).
+    // Snapshots persisted at GC end for pacing / HEU trigger calculations.
     size_t baselineAllocatedBytes = 0;  // totalMSRegionBytes_ snapshot at GC end
     size_t lastTrueLiveBytes = 0;       // trueLiveBytes from last GC marking
-
+    size_t lastRegionBytes = 0;         // occupied region bytes snapshot at GC end
+    size_t takeRegionsThreshold = 0;    // precomputed TAKE_REGIONS trigger threshold
     void Dump() const;
 
     static uint64_t GetPrevGCStartTime() { return prevGcStartTime; }

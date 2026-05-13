@@ -26,6 +26,13 @@ namespace MapleRuntime {
 class MSRegionManager;
 class AllocBufferMS;
 
+enum class MSFeedPressureLevel : uint8_t {
+    LOW = 0,
+    MEDIUM = 1,
+    HIGH = 2,
+    EXTREME = 3,
+};
+
 enum class MSRegionAcquireSource : uint8_t {
     NONE = 0,
     PARTIAL_SWEPT,
@@ -334,8 +341,7 @@ public:
     {
         return sweepDone_.load(std::memory_order_acquire) &&
                !bgSweepRunning_.load(std::memory_order_acquire) &&
-               activeLazySweepCount_.load(std::memory_order_acquire) == 0 &&
-               activeReclaimSweepCount_.load(std::memory_order_acquire) == 0;
+               activeLazySweepCount_.load(std::memory_order_acquire) == 0;
     }
 
     // Visit all Regions across all size classes (for GC root enumeration).
@@ -346,6 +352,7 @@ public:
     size_t GetTotalPartialCount() const;
     size_t GetTotalFullCount() const;
     size_t GetTotalUnsweptCount() const;
+    size_t GetTotalSweptCount() const;
     size_t GetTotalPartialSweptCount() const;
     size_t GetTotalFullUnsweptCount() const;
     size_t GetLargeRegionCount() const;
@@ -365,6 +372,7 @@ public:
     {
         return emptySweptBytes_.load(std::memory_order_relaxed);
     }
+    bool ShouldNotifyBackgroundReclaim() const;
     bool IsEmptyCacheLow() const;
 
     size_t GetEmptyCacheHighWatermarkRegions() const;
@@ -447,28 +455,6 @@ public:
     }
 
 private:
-    struct BackgroundScavengeState {
-        size_t emptyCount = 0;
-        size_t lowWatermark = 0;
-        size_t highWatermark = 0;
-        size_t committedBytes = 0;
-        size_t targetBytes = 0;
-        size_t reclaimDebtRegions = 0;
-        size_t targetReleaseRegions = 0;
-        bool trueLiveSlackHigh = false;
-        bool shouldScavenge = false;
-        bool shouldPressureSweep = false;
-    };
-
-    struct ReclaimSweepStats {
-        size_t targetRegions = 0;
-        size_t sweptRegions = 0;
-        size_t releasedRegions = 0;
-        size_t releasedBytes = 0;
-        bool noMoreSupply = false;
-        bool budgetExhausted = false;
-    };
-
     struct SizeClassBucket {
         std::mutex lock;              // protects fullSwept, partialUnswept, fullUnswept only
         LockFreeRegionStack partialSwept;  // O1: lock-free CAS stack for P1 hot path
@@ -481,10 +467,6 @@ private:
     void PushEmptySweptRegion(MSRegionInfo* region);
     MSRegionInfo* TakeEmptySweptRegion(uint8_t cls);
     bool ShouldScavengeForTrueLiveSlack(size_t committedBytes, size_t targetBytes) const;
-    BackgroundScavengeState CollectBackgroundScavengeState() const;
-    ReclaimSweepStats FastReclaimBySweeping(const BackgroundScavengeState& state);
-    bool SweepUnsweptListForReclaim(SizeClassBucket& bucket, MSRegionList& list, uint32_t sg,
-                                    ReclaimSweepStats& stats, size_t maxRegions, uint64_t deadlineUs);
     void ForceFinishUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint8_t cls, uint32_t sg,
                                 size_t& sweptRegions, size_t& emptiedRegions,
                                 size_t& retainedRegions, size_t& freedBytes);
@@ -499,7 +481,6 @@ private:
     std::atomic<bool> stopSweepRequested_{false};    // Signal bg sweep to stop early
     std::atomic<bool> skipLazySweep_{false};          // Disable lazy sweep in GetRegion P2/P3
     std::atomic<size_t> activeLazySweepCount_{0};     // In-flight lazy sweep counter
-    std::atomic<size_t> activeReclaimSweepCount_{0};  // In-flight reclaim fast-sweep counter
     MSSweepStats sweepStats_;
 
     // Total bytes of MS regions currently committed (GetFreshRegion +, ReleaseRegion -).
@@ -532,6 +513,8 @@ public:
     void RemoveAllocBufferMS(AllocBufferMS* buffer);
     void FlushAllAllocBuffers();
     bool IsReclaimPressureHigh() const;
+    size_t GetActiveWorkingSetRegionCount() const;
+    MSFeedPressureLevel GetFeedPressureLevel() const;
 
     // O9: Background fill of hungry per-thread alloc caches.
     // Called by gc-helper thread. Iterates all AllocBufferMS and fills

@@ -505,18 +505,27 @@ void RegionManager::ForEachObjSafe(const std::function<void(BaseObject*)>& visit
     ForEachObjUnsafe(visitor);
 }
 
+void RegionManager::MaybeNotifyMark()
+{
+    if (Heap::GetHeap().IsGcStarted()) {
+        return;
+    }
+
+    Collector& collector = Heap::GetHeap().GetCollector();
+    size_t threshold = collector.GetGCStats().GetThreshold();
+    size_t allocated = Heap::GetHeap().GetAllocator().AllocatedBytes();
+    if (allocated < threshold) {
+        return;
+    }
+
+    DLOG(ALLOC, "request heu gc: allocated %zu, threshold %zu", allocated, threshold);
+    collector.RequestGC(GC_REASON_HEU, true);
+}
+
 RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, bool expectPhysicalMem)
 {
     // a chance to invoke heuristic gc.
-    if (!Heap::GetHeap().IsGcStarted()) {
-        Collector& collector = Heap::GetHeap().GetCollector();
-        size_t threshold = collector.GetGCStats().GetThreshold();
-        size_t allocated = Heap::GetHeap().GetAllocator().AllocatedBytes();
-        if (allocated >= threshold) {
-            DLOG(ALLOC, "request heu gc: allocated %zu, threshold %zu", allocated, threshold);
-            collector.RequestGC(GC_REASON_HEU, true);
-        }
-    }
+    MaybeNotifyMark();
 
     // check for allocation since we do not want gc threads and mutators do any harm to each other.
     size_t size = num * RegionInfo::UNIT_SIZE;

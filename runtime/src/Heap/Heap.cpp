@@ -7,6 +7,7 @@
 
 #include "Heap.h"
 
+#include "CangjieRuntime.h"
 #include "Collector/CollectorProxy.h"
 #include "Collector/CollectorResources.h"
 #include "ObjectModel/RefField.inline.h"
@@ -34,6 +35,17 @@ Barrier** Heap::currentBarrierPtr = nullptr;
 Barrier* Heap::stwBarrierPtr = nullptr;
 MAddress Heap::heapStartAddr = 0;
 MAddress Heap::heapCurrentEnd = 0;
+
+void Heap::OnHeapExtended(MAddress newEnd)
+{
+    heapCurrentEnd = newEnd;
+    if (Runtime::CurrentRef() == nullptr || heapStartAddr == 0 || newEnd <= heapStartAddr) {
+        return;
+    }
+
+    auto* runtime = reinterpret_cast<CangjieRuntime*>(Runtime::CurrentRef());
+    runtime->SyncGCThresholdWithHeapSize(static_cast<size_t>(newEnd - heapStartAddr));
+}
 
 static bool InitEnabledGCParam()
 {

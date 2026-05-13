@@ -10,6 +10,7 @@
 #ifdef MRT_USE_MARK_SWEEP
 
 #include "Heap/Allocator/RegionInfo.h"
+#include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSSizeClass.h"
 #include "Common/TypeDef.h"
@@ -93,7 +94,8 @@ public:
 
     // Background: fill empty cachedRegion_ slots for size classes with high miss pressure.
     // Called by gc-helper thread (FinalizerProcessor). Thread-safe via atomic cachedRegion_.
-    MSAllocCacheFillStats BackgroundFillCache(uint8_t preferredCls, bool reclaimPressure);
+    MSAllocCacheFillStats BackgroundFillCache(uint8_t preferredCls, bool reclaimPressure,
+                                             MSFeedPressureLevel pressureLevel);
 
     // Record stack root (called from Mutator::GcPhaseEnum during root enumeration).
     // This is root staging only, not grey-work production. Objects become grey
@@ -182,8 +184,10 @@ private:
     bool IsPrimaryHotClass(uint8_t cls) const;
     bool IsSecondaryHotClass(uint8_t cls) const;
     bool ShouldNotifyBackgroundFeed(uint8_t cls) const;
-    bool ShouldBackgroundFillClass(uint8_t cls, uint8_t preferredCls) const;
-    uint8_t GetTargetCachedSlots(uint8_t cls, bool reclaimPressure = false) const;
+    bool ShouldBackgroundFillClass(uint8_t cls, uint8_t preferredCls,
+                                   MSFeedPressureLevel pressureLevel) const;
+    uint8_t GetTargetCachedSlots(uint8_t cls, bool reclaimPressure = false,
+                                 MSFeedPressureLevel pressureLevel = MSFeedPressureLevel::LOW) const;
     uint8_t GetCacheFillThreshold(uint8_t cls) const;
     uint16_t GetBackgroundFillPriority(uint8_t cls) const;
     void NotifyBackgroundFillIfNeeded(uint8_t cls);

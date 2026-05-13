@@ -10,6 +10,9 @@
 
 #include "Base/Macros.h"
 #include "Heap/Heap.h"
+#include "Heap/MAllocator/MSCentralRegionPool.h"
+#include "Heap/MAllocator/MSRegionSpace.h"
+#include "Heap/MAllocator/MSRegionManager.h"
 #include "Mutator/Mutator.inline.h"
 #include "Mutator/MutatorManager.h"
 #include <thread>
@@ -21,6 +24,8 @@ constexpr U32 DEFAULT_MS_GC_HELPER_ACTIVE_BACKOFF_MS = 1;
 constexpr U32 DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_ROUNDS = 4;
 constexpr uint64_t DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_US = 12000;
 constexpr U32 DEFAULT_MS_GC_HELPER_FEED_PRESSURE_BACKOFF_MS = 2;
+// Sweep pressure mode constants
+constexpr uint32_t kSweepPressureMaxSlices = 5;           // slices per wakeup in pressure mode
 }
 
 extern "C" MRT_EXPORT void* MRT_ProcessBackgroundWork(void* arg)
@@ -44,6 +49,7 @@ BackgroundProcessor::BackgroundProcessor()
     shouldBackgroundSweep_.store(false, std::memory_order_relaxed);
     preferredSweepCls_.store(kNoPreferredSweepClass, std::memory_order_relaxed);
     preferredFeedCls_.store(kNoPreferredFeedClass, std::memory_order_relaxed);
+    sweepPressureMode_.store(false, std::memory_order_relaxed);
 }
 
 void BackgroundProcessor::Start()
@@ -95,7 +101,7 @@ void BackgroundProcessor::Run()
         }
 
         if (shouldReclaimHeapGarbage.load(std::memory_order_relaxed)) {
-            shouldContinueImmediate = ReclaimHeapGarbage() || shouldContinueImmediate;
+            shouldContinueImmediate = BackgroundReclaimLoop() || shouldContinueImmediate;
         }
 
         if (shouldFeedHungryBuffers.load(std::memory_order_acquire)) {
@@ -241,14 +247,21 @@ void BackgroundProcessor::NotifyToSweep(uint8_t cls)
     RequestWork(shouldBackgroundSweep_);
 }
 
-bool BackgroundProcessor::ReclaimHeapGarbage()
+bool BackgroundProcessor::BackgroundReclaimLoop()
 {
-    ScopedEntryTrace trace("CJRT_GC_RECLAIM");
     Allocator& allocator = Heap::GetHeap().GetAllocator();
-    size_t releasedBytes = allocator.ReclaimGarbageMemory(false);
-    bool pendingReclaim = allocator.HasPendingReclaimWork();
-    shouldReclaimHeapGarbage.store(pendingReclaim, std::memory_order_release);
-    return pendingReclaim;
+    (void)allocator.ReclaimGarbageMemory(false);
+    return HasPendingReclaimWork();
+}
+
+bool BackgroundProcessor::HasPendingReclaimWork()
+{
+    Allocator& allocator = Heap::GetHeap().GetAllocator();
+    if (!allocator.HasPendingReclaimWork()) {
+        shouldReclaimHeapGarbage.store(false, std::memory_order_release);
+        return false;
+    }
+    return true;
 }
 
 bool BackgroundProcessor::BackgroundSweepLoop()
@@ -256,12 +269,28 @@ bool BackgroundProcessor::BackgroundSweepLoop()
     Allocator& allocator = Heap::GetHeap().GetAllocator();
     uint8_t preferredCls = preferredSweepCls_.exchange(kNoPreferredSweepClass, std::memory_order_acq_rel);
     allocator.BackgroundSweep(preferredCls);
-    bool pendingSweep = allocator.HasPendingSweepWork();
-    shouldBackgroundSweep_.store(pendingSweep, std::memory_order_release);
-    if (allocator.HasPendingReclaimWork()) {
-        shouldReclaimHeapGarbage.store(true, std::memory_order_release);
+    return HasPendingSweepWork();
+}
+
+bool BackgroundProcessor::HasPendingSweepWork()
+{
+    Allocator& allocator = Heap::GetHeap().GetAllocator();
+    if (!allocator.HasPendingSweepWork()) {
+        // All unswept work done: clear flag and exit pressure mode.
+        sweepPressureMode_.store(false, std::memory_order_release);
+        shouldBackgroundSweep_.store(false, std::memory_order_release);
+        return false;
     }
-    return pendingSweep;
+
+    // Still has pending work. In pressure mode, keep re-entering the outer
+    // Run() loop until all unswept regions are gone.
+    if (sweepPressureMode_.load(std::memory_order_acquire)) {
+        return true;
+    }
+
+    // Normal mode: stop self-rescheduling; wait for next NotifyToSweep.
+    shouldBackgroundSweep_.store(false, std::memory_order_release);
+    return false;
 }
 
 void BackgroundProcessor::BackgroundFillAllocCaches()
@@ -281,11 +310,14 @@ void BackgroundProcessor::FlushBackgroundFeedStats()
         return;
     }
     VLOG(REPORT,
-         "[MS-GC] feed alloc caches: buffers=%zu touchedBuffers=%zu filledClasses=%zu filledRegions=%zu",
+         "[MS-GC] feed alloc caches: buffers=%zu touchedBuffers=%zu filledClasses=%zu filledRegions=%zu "
+         "activeWorkingSet=%zu pressureLevel=%u",
          pendingFeedStats_.buffersScanned,
          pendingFeedStats_.touchedBuffers,
          pendingFeedStats_.filledClasses,
-         pendingFeedStats_.filledRegions);
+         pendingFeedStats_.filledRegions,
+         pendingFeedStats_.activeWorkingSetRegions,
+         static_cast<unsigned>(pendingFeedStats_.pressureLevel));
     pendingFeedStats_.Reset();
 }
 } // namespace MapleRuntime

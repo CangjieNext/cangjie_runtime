@@ -128,6 +128,27 @@ void CangjieRuntime::CreateAndInit(const RuntimeParam& runtimeParam)
     g_initialized.store(true, std::memory_order_release);
 }
 
+void CangjieRuntime::SetGCThreshold(uint64_t threshold)
+{
+    size_t heapSizeBytes = (Heap::heapCurrentEnd > Heap::heapStartAddr)
+        ? static_cast<size_t>(Heap::heapCurrentEnd - Heap::heapStartAddr)
+        : static_cast<size_t>(param.heapParam.heapSize) * KB;
+    if (threshold != 0) {
+        LOG(RTLOG_INFO,
+            "Ignore requested gcThreshold=%llu KB; gcThreshold is derived from current heap size.",
+            static_cast<unsigned long long>(threshold));
+    }
+    SyncGCThresholdWithHeapSize(heapSizeBytes);
+}
+
+void CangjieRuntime::SyncGCThresholdWithHeapSize(size_t heapSizeBytes)
+{
+    if (heapSizeBytes == 0) {
+        return;
+    }
+    param.gcParam.gcThreshold = heapSizeBytes;
+}
+
 void CangjieRuntime::FiniAndDelete()
 {
     ScopedEntryTrace trace("CJRT_FiniAndDelete");
@@ -141,7 +162,10 @@ void CangjieRuntime::FiniAndDelete()
     delete cjRuntime;
 }
 
-CangjieRuntime::CangjieRuntime(const RuntimeParam& runtimeParam) : param(runtimeParam) {}
+CangjieRuntime::CangjieRuntime(const RuntimeParam& runtimeParam) : param(runtimeParam)
+{
+    SyncGCThresholdWithHeapSize(static_cast<size_t>(param.heapParam.heapSize) * KB);
+}
 
 template<typename T>
 inline T* NewAndInit()
