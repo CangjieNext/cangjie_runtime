@@ -589,6 +589,7 @@ BaseObject* WCollector::TryForwardObject(BaseObject* obj)
 
 BaseObject* WCollector::ForwardObjectImpl(BaseObject* obj, RegionInfo* ghostFromRegion)
 {
+    CHECK(GetGCPhase() == GCPhase::GC_PHASE_PREFORWARD || GetGCPhase() == GCPhase::GC_PHASE_FORWARD);
     do {
         StateWord oldWord = obj->GetStateWord();
 
