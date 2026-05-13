@@ -541,8 +541,6 @@ void WCollector::DoGarbageCollection()
 
     CollectSmallSpace();
     ForwardDataManager::GetForwardDataManager().UnbindPreviousLiveInfo();
-
-    reinterpret_cast<RegionSpace&>(theAllocator).DumpRegionStats("region statistics when gc ends");
 }
 
 void WCollector::MarkNewObject(BaseObject* obj)
@@ -591,7 +589,6 @@ BaseObject* WCollector::TryForwardObject(BaseObject* obj)
 
 BaseObject* WCollector::ForwardObjectImpl(BaseObject* obj, RegionInfo* ghostFromRegion)
 {
-    CHECK(GetGCPhase() == GCPhase::GC_PHASE_PREFORWARD || GetGCPhase() == GCPhase::GC_PHASE_FORWARD);
     do {
         StateWord oldWord = obj->GetStateWord();
 
