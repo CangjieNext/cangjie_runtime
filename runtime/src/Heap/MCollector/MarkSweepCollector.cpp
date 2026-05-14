@@ -713,6 +713,7 @@ void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
     wbBuf.Clear();
     if (!buf->Empty()) {
         globalFull_.Push(buf);
+        globalShareCount_.fetch_add(1, std::memory_order_relaxed);
     } else {
         workBufPool_.Put(buf);
     }

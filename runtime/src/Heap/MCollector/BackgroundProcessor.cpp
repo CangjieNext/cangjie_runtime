@@ -9,6 +9,7 @@
 #include "BackgroundProcessor.h"
 
 #include "Base/Macros.h"
+#include "Base/TimeUtils.h"
 #include "Heap/Heap.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSRegionSpace.h"
@@ -118,7 +119,6 @@ void BackgroundProcessor::Run()
                 continue;
             }
 
-            FlushBackgroundFeedStats();
             backgroundBurstRounds = 0;
             backgroundBurstStartUs = 0;
             WaitForActiveBackoff(DEFAULT_MS_GC_HELPER_ACTIVE_BACKOFF_MS);
@@ -127,7 +127,6 @@ void BackgroundProcessor::Run()
 
         backgroundBurstRounds = 0;
         backgroundBurstStartUs = 0;
-        FlushBackgroundFeedStats();
         while (running.load(std::memory_order_acquire)) {
             if (HasPendingWakeWork()) {
                 break;
@@ -260,8 +259,21 @@ void BackgroundProcessor::NotifyToSweep(uint8_t cls)
 bool BackgroundProcessor::BackgroundReclaimLoop()
 {
     Allocator& allocator = Heap::GetHeap().GetAllocator();
-    (void)allocator.ReclaimGarbageMemory(false);
-    return HasPendingReclaimWork();
+    BackgroundReclaimStats sliceStats = allocator.BackgroundReclaim();
+    if (sliceStats.HasWork()) {
+        pendingReclaimStats_.Merge(sliceStats);
+    }
+    bool hasMore = HasPendingReclaimWork();
+    if (!hasMore && pendingReclaimStats_.HasWork()) {
+        VLOG(REPORT,
+             "[MS-GC] reclaim done: slices=%zu regions=%zu bytes=%zuB elapsed=%zuus",
+             pendingReclaimStats_.slices,
+             pendingReclaimStats_.releasedRegions,
+             pendingReclaimStats_.releasedBytes,
+             static_cast<size_t>(pendingReclaimStats_.elapsedUs));
+        pendingReclaimStats_.Reset();
+    }
+    return hasMore;
 }
 
 bool BackgroundProcessor::HasPendingReclaimWork()
@@ -278,8 +290,22 @@ bool BackgroundProcessor::BackgroundSweepLoop()
 {
     Allocator& allocator = Heap::GetHeap().GetAllocator();
     uint8_t preferredCls = preferredSweepCls_.exchange(kNoPreferredSweepClass, std::memory_order_acq_rel);
-    allocator.BackgroundSweep(preferredCls);
-    return HasPendingSweepWork();
+    BackgroundSweepStats sliceStats = allocator.BackgroundSweep(preferredCls);
+    pendingSweepStats_.Merge(sliceStats);
+    bool hasMore = HasPendingSweepWork();
+    if (!hasMore && pendingSweepStats_.HasWork()) {
+        CentralRegionPool* pool = static_cast<RegionSpaceMS&>(allocator).GetCentralPool();
+        size_t remaining = pool ? pool->GetTotalUnsweptCount() : 0;
+        VLOG(REPORT,
+             "[MS-GC] sweep done: slices=%zu swept=%zu empty=%zu unswept=%zu elapsed=%zuus",
+             pendingSweepStats_.slices,
+             pendingSweepStats_.sweptRegions,
+             pendingSweepStats_.emptyRegions,
+             remaining,
+             static_cast<size_t>(pendingSweepStats_.elapsedUs));
+        pendingSweepStats_.Reset();
+    }
+    return hasMore;
 }
 
 bool BackgroundProcessor::HasPendingSweepWork()
@@ -308,16 +334,20 @@ bool BackgroundProcessor::BackgroundFeedLoop()
     Allocator& allocator = Heap::GetHeap().GetAllocator();
     uint8_t preferredCls = preferredFeedCls_.exchange(kNoPreferredFeedClass, std::memory_order_acq_rel);
     BackgroundFeedStats sliceStats = allocator.BackgroundFillAllocCaches(preferredCls);
-    if (sliceStats.HasWork()) {
-        VLOG(REPORT,
-             "[MS-GC] feed slice: filled=%zu classes=%zu aws=%zu pres=%u",
-             sliceStats.filledRegions,
-             sliceStats.filledClasses,
-             sliceStats.activeWorkingSetRegions,
-             static_cast<unsigned>(sliceStats.pressureLevel));
-    }
     pendingFeedStats_.Merge(sliceStats);
-    return HasPendingFeedWork();
+    bool hasMore = HasPendingFeedWork();
+    if (!hasMore && pendingFeedStats_.HasWork()) {
+        VLOG(REPORT,
+             "[MS-GC] feed done: slices=%zu buffers=%zu classes=%zu regions=%zu pressure=%u elapsed=%zuus",
+             pendingFeedStats_.slices,
+             pendingFeedStats_.touchedBuffers,
+             pendingFeedStats_.filledClasses,
+             pendingFeedStats_.filledRegions,
+             static_cast<unsigned>(pendingFeedStats_.pressureLevel),
+             static_cast<size_t>(pendingFeedStats_.elapsedUs));
+        pendingFeedStats_.Reset();
+    }
+    return hasMore;
 }
 
 bool BackgroundProcessor::HasPendingFeedWork()
@@ -340,23 +370,6 @@ bool BackgroundProcessor::HasPendingFeedWork()
         return false;
     }
     return true;
-}
-
-void BackgroundProcessor::FlushBackgroundFeedStats()
-{
-    if (!pendingFeedStats_.HasWork()) {
-        return;
-    }
-    VLOG(REPORT,
-         "[MS-GC] feed alloc caches: buffers=%zu touchedBuffers=%zu filledClasses=%zu filledRegions=%zu "
-         "activeWorkingSet=%zu pressureLevel=%u",
-         pendingFeedStats_.buffersScanned,
-         pendingFeedStats_.touchedBuffers,
-         pendingFeedStats_.filledClasses,
-         pendingFeedStats_.filledRegions,
-         pendingFeedStats_.activeWorkingSetRegions,
-         static_cast<unsigned>(pendingFeedStats_.pressureLevel));
-    pendingFeedStats_.Reset();
 }
 } // namespace MapleRuntime
 

@@ -324,7 +324,7 @@ public:
 
     // Background sweep: iterate all size classes, sweep one slice of unswept Regions.
     // Thread-safe (CAS ownership). Called by gc-helper thread.
-    void BackgroundSweep(uint8_t preferredCls = kNumSizeClasses);
+    BackgroundSweepStats BackgroundSweep(uint8_t preferredCls = kNumSizeClasses);
 
     bool HasPendingSweepWork() const
     {

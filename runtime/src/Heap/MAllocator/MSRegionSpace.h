@@ -55,6 +55,7 @@ public:
     size_t AllocatedBytes() const override;
     size_t LargeObjectBytes() const override;
     size_t ReclaimGarbageMemory(bool releaseAll) override;
+    BackgroundReclaimStats BackgroundReclaim() override;
     bool ForEachObj(const std::function<void(BaseObject*)>& visitor, bool safe) const override;
     void FeedHungryBuffers() override;
     bool HasPendingReclaimWork() const override;
@@ -67,7 +68,7 @@ public:
     CentralRegionPool* GetCentralPool() const { return msCentralPool_; }
     MSRegionManager* GetMSRegionManager() const { return msRegionManager_; }
     bool HasPendingSweepWork() const override;
-    void BackgroundSweep(uint8_t preferredCls) override;
+    BackgroundSweepStats BackgroundSweep(uint8_t preferredCls) override;
     BackgroundFeedStats BackgroundFillAllocCaches(uint8_t preferredCls = kNoPreferredFeedClass) override;
     void EnsureThreadLocalAllocBuffer();
 

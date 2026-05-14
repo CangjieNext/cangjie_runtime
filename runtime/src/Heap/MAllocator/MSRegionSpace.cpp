@@ -8,6 +8,7 @@
 
 #ifdef MRT_USE_MARK_SWEEP
 
+#include "Base/TimeUtils.h"
 #include "Heap/MAllocator/MSAllocBuffer.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
@@ -220,6 +221,19 @@ size_t RegionSpaceMS::ReclaimGarbageMemory(bool releaseAll)
     return released;
 }
 
+BackgroundReclaimStats RegionSpaceMS::BackgroundReclaim()
+{
+    uint64_t t0 = TimeUtil::MicroSeconds();
+    size_t releasedBytes = ReclaimGarbageMemory(false);
+    uint64_t elapsed = TimeUtil::MicroSeconds() - t0;
+    BackgroundReclaimStats s;
+    s.slices = 1;
+    s.releasedRegions = releasedBytes / MS_REGION_SIZE;
+    s.releasedBytes = releasedBytes;
+    s.elapsedUs = elapsed;
+    return s;
+}
+
 bool RegionSpaceMS::HasPendingReclaimWork() const
 {
     if (msCentralPool_ == nullptr) {
@@ -233,11 +247,12 @@ bool RegionSpaceMS::HasPendingSweepWork() const
     return msCentralPool_ != nullptr && msCentralPool_->HasPendingSweepWork();
 }
 
-void RegionSpaceMS::BackgroundSweep(uint8_t preferredCls)
+BackgroundSweepStats RegionSpaceMS::BackgroundSweep(uint8_t preferredCls)
 {
     if (msCentralPool_ != nullptr) {
-        msCentralPool_->BackgroundSweep(preferredCls);
+        return msCentralPool_->BackgroundSweep(preferredCls);
     }
+    return {};
 }
 
 BackgroundFeedStats RegionSpaceMS::BackgroundFillAllocCaches(uint8_t preferredCls)

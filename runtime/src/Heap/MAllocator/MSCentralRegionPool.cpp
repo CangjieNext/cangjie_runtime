@@ -57,7 +57,7 @@ uint64_t ReadEnvTimeUs(const char* name, uint64_t fallbackUs)
 // 后台批量处理 region 数
 size_t GetBgSweepMaxRegionsPerSlice()
 {
-    static const size_t value = ReadEnvCount("CJ_MS_BG_SWEEP_MAX_REGIONS_PER_SLICE", 64);
+    static const size_t value = ReadEnvCount("CJ_MS_BG_SWEEP_MAX_REGIONS_PER_SLICE", 256);
     return value;
 }
 
@@ -604,10 +604,7 @@ size_t CentralRegionPool::HandleBackgroundScavenge(bool releaseAll)
     }
 
     if (releasedRegions > 0) {
-        VLOG(REPORT,
-             "[MS-GC] BackgroundScavenge slice: released=%zu regions (%s B), emptyCache=%zu->%zu regions, target=%zu",
-             releasedRegions, Pretty(releasedBytes).Str(),
-             emptyCount, GetEmptySweptRegionCount(), targetRegions);
+        (void)releasedRegions;
     }
     return releasedBytes;
 }
@@ -640,7 +637,7 @@ void CentralRegionPool::PrepareForSweep()
 // BackgroundSweep — called by gc-helper thread (FinalizerProcessor)
 // ============================================================================
 
-void CentralRegionPool::BackgroundSweep(uint8_t preferredCls)
+BackgroundSweepStats CentralRegionPool::BackgroundSweep(uint8_t preferredCls)
 {
     bgSweepRunning_.store(true, std::memory_order_release);
     auto finish = [this]() {
@@ -649,7 +646,7 @@ void CentralRegionPool::BackgroundSweep(uint8_t preferredCls)
 
     if (stopSweepRequested_.load(std::memory_order_acquire)) {
         finish();
-        return;
+        return {};
     }
 
     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
@@ -659,11 +656,12 @@ void CentralRegionPool::BackgroundSweep(uint8_t preferredCls)
     if (remainingUnswept == 0) {
         sweepDone_.store(true, std::memory_order_release);
         finish();
-        return;
+        return {};
     }
     uint64_t deadlineUs = t0 + GetBgSweepMaxTimeUs();
     size_t sweptInSlice = 0;
     bool pendingWork = false;
+    size_t emptyBefore = sweepStats_.emptiedRegions.load(std::memory_order_relaxed);
 
     auto SweepBucket = [&](uint8_t cls) -> bool {
         if (stopSweepRequested_.load(std::memory_order_acquire)) {
@@ -698,18 +696,14 @@ void CentralRegionPool::BackgroundSweep(uint8_t preferredCls)
 
     uint64_t elapsed = TimeUtil::MicroSeconds() - t0;
     sweepStats_.bgSweepTimeUs.fetch_add(elapsed, std::memory_order_relaxed);
-    if (sweptInSlice > 0 || pendingWork) {
-        VLOG(REPORT, "[MS-GC] BackgroundSweep slice: swept=%zu regions, emptied=%zu, elapsed=%sus, pending=%s",
-             sweptInSlice,
-             sweepStats_.emptiedRegions.load(std::memory_order_relaxed),
-             Pretty(elapsed).Str(),
-             pendingWork ? "yes" : "no");
-    }
+
+    size_t emptyInSlice = sweepStats_.emptiedRegions.load(std::memory_order_relaxed) - emptyBefore;
 
     if (!pendingWork && !stopSweepRequested_.load(std::memory_order_acquire)) {
         sweepDone_.store(true, std::memory_order_release);
     }
     finish();
+    return BackgroundSweepStats{1, sweptInSlice, emptyInSlice, elapsed};
 }
 
 bool CentralRegionPool::SweepUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint32_t sg,
@@ -1132,6 +1126,7 @@ void CentralRegionPool::FlushAllAllocBuffers()
 BackgroundFeedStats CentralRegionPool::BackgroundFillAllocCaches(uint8_t preferredCls)
 {
     BackgroundFeedStats totalStats;
+    totalStats.slices = 1;
     MSFeedPressureLevel pressureLevel = GetFeedPressureLevel();
     totalStats.pressureLevel = static_cast<uint8_t>(pressureLevel);
     totalStats.activeWorkingSetRegions = GetActiveWorkingSetRegionCount();
@@ -1146,6 +1141,7 @@ BackgroundFeedStats CentralRegionPool::BackgroundFillAllocCaches(uint8_t preferr
         buffers = msAllocBuffers_;
     }
     totalStats.buffersScanned = buffers.size();
+    uint64_t t0 = TimeUtil::MicroSeconds();
     for (AllocBufferMS* buffer : buffers) {
         if (buffer != nullptr) {
             MSAllocCacheFillStats stats = buffer->BackgroundFillCache(preferredCls, pressureLevel);
@@ -1156,6 +1152,7 @@ BackgroundFeedStats CentralRegionPool::BackgroundFillAllocCaches(uint8_t preferr
             }
         }
     }
+    totalStats.elapsedUs = TimeUtil::MicroSeconds() - t0;
     return totalStats;
 }
 

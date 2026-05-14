@@ -69,7 +69,6 @@ private:
     bool BackgroundReclaimLoop();
     bool BackgroundSweepLoop();
     bool BackgroundFeedLoop();
-    void FlushBackgroundFeedStats();
 
     std::mutex wakeLock;
     std::condition_variable wakeCondition;
@@ -87,6 +86,8 @@ private:
     std::atomic<uint8_t> preferredFeedCls_{kNoPreferredFeedClass};
     std::atomic<bool> sweepPressureMode_{false};
     BackgroundFeedStats pendingFeedStats_{};
+    BackgroundSweepStats pendingSweepStats_{};
+    BackgroundReclaimStats pendingReclaimStats_{};
     FinalizerWorkList finalizerWorkList;
     uint32_t tid = 0;
     pthread_t threadHandle = 0;

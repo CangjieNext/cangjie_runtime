@@ -64,8 +64,8 @@ size_t MSRegionManager::GetHeapMemorySize(size_t heapSize)
 
 size_t MSRegionManager::ComputeMaxVirtualHeapSize(size_t heapSize)
 {
-    // Cap at 4GB virtual reservation.
-    static constexpr size_t MAX_VIRTUAL_HEAP = 4ULL * 1024 * 1024 * 1024;
+    // Cap at 512GB virtual reservation.
+    static constexpr size_t MAX_VIRTUAL_HEAP = 512ULL * 1024 * 1024 * 1024;
     size_t maxVirtual = RoundUp<size_t>(heapSize, MS_REGION_SIZE);
     if (maxVirtual < MAX_VIRTUAL_HEAP) {
         maxVirtual = MAX_VIRTUAL_HEAP;
@@ -211,7 +211,7 @@ bool GetInlineReclaimEnabled()
 // background-sweep slice limit so that sweep-first deferral uses the same knob as the bg-sweep path.
 size_t GetBgSweepMaxRegionsPerSlice()
 {
-    static const size_t value = ReadEnvCount("CJ_MS_BG_SWEEP_MAX_REGIONS_PER_SLICE", 64);
+    static const size_t value = ReadEnvCount("CJ_MS_BG_SWEEP_MAX_REGIONS_PER_SLICE", 256);
     return value;
 }
 }
@@ -293,10 +293,6 @@ void MSRegionManager::MaybeNotifyMark()
         // Background sweep will keep draining slices until unswept count reaches 0.
         bp.SetSweepPressureMode(true);
         bp.NotifyToSweep(kNoPreferredSweepClass);
-        VLOG(REPORT,
-             "[MS-GC] HEU trigger deferred (sweep-first, pressure): effectiveAlloc=%zu "
-             "threshold=%zu totalUnswept=%zu sweepSlice=%zu",
-             effectiveAlloc, threshold, totalUnswept, sweepSlice);
         return;
     }
 

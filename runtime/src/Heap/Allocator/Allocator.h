@@ -16,12 +16,14 @@ namespace MapleRuntime {
 constexpr uint8_t kNoPreferredFeedClass = UINT8_MAX;
 
 struct BackgroundFeedStats {
+    size_t slices = 0;
     size_t buffersScanned = 0;
     size_t touchedBuffers = 0;
     size_t filledClasses = 0;
     size_t filledRegions = 0;
     size_t activeWorkingSetRegions = 0;
     uint8_t pressureLevel = 0;
+    uint64_t elapsedUs = 0;
 
     bool HasWork() const
     {
@@ -30,17 +32,69 @@ struct BackgroundFeedStats {
 
     void Merge(const BackgroundFeedStats& other)
     {
+        slices += other.slices;
         buffersScanned = std::max(buffersScanned, other.buffersScanned);
         touchedBuffers += other.touchedBuffers;
         filledClasses += other.filledClasses;
         filledRegions += other.filledRegions;
         activeWorkingSetRegions = std::max(activeWorkingSetRegions, other.activeWorkingSetRegions);
         pressureLevel = std::max(pressureLevel, other.pressureLevel);
+        elapsedUs += other.elapsedUs;
     }
 
     void Reset()
     {
         *this = BackgroundFeedStats{};
+    }
+};
+
+struct BackgroundSweepStats {
+    size_t slices = 0;
+    size_t sweptRegions = 0;
+    size_t emptyRegions = 0;
+    uint64_t elapsedUs = 0;
+
+    bool HasWork() const
+    {
+        return sweptRegions > 0;
+    }
+
+    void Merge(const BackgroundSweepStats& other)
+    {
+        slices += other.slices;
+        sweptRegions += other.sweptRegions;
+        emptyRegions += other.emptyRegions;
+        elapsedUs += other.elapsedUs;
+    }
+
+    void Reset()
+    {
+        *this = BackgroundSweepStats{};
+    }
+};
+
+struct BackgroundReclaimStats {
+    size_t slices = 0;
+    size_t releasedRegions = 0;
+    size_t releasedBytes = 0;
+    uint64_t elapsedUs = 0;
+
+    bool HasWork() const
+    {
+        return releasedBytes > 0;
+    }
+
+    void Merge(const BackgroundReclaimStats& other)
+    {
+        slices += other.slices;
+        releasedRegions += other.releasedRegions;
+        releasedBytes += other.releasedBytes;
+        elapsedUs += other.elapsedUs;
+    }
+
+    void Reset()
+    {
+        *this = BackgroundReclaimStats{};
     }
 };
 
@@ -63,7 +117,8 @@ public:
     virtual void FeedHungryBuffers() = 0;
     virtual bool HasPendingReclaimWork() const { return false; }
     virtual bool HasPendingSweepWork() const { return false; }
-    virtual void BackgroundSweep(uint8_t preferredCls) { (void)preferredCls; }
+    virtual BackgroundReclaimStats BackgroundReclaim() { return {}; }
+    virtual BackgroundSweepStats BackgroundSweep(uint8_t preferredCls) { (void)preferredCls; return {}; }
     virtual BackgroundFeedStats BackgroundFillAllocCaches(uint8_t preferredCls = UINT8_MAX)
     {
         (void)preferredCls;
