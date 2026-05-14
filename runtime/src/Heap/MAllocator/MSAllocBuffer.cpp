@@ -41,6 +41,7 @@ enum class MSAllocRefillSource : uint8_t {
 
 struct MSAllocSlowPathCounters {
     std::atomic<uint64_t> slowPathCalls {0};
+    std::atomic<uint64_t> fastAllocHits {0};
     std::atomic<uint64_t> cachedMisses {0};
     std::atomic<uint64_t> slowSweepNotifyCalls {0};
     std::atomic<uint64_t> slowFeedNotifyCalls {0};
@@ -49,6 +50,10 @@ struct MSAllocSlowPathCounters {
 };
 
 MSAllocSlowPathCounters g_msAllocSlowPathCounters;
+
+// Lifetime-total counters (never reset, printed at process exit by DumpAllocCounters_MSAllocBuffer).
+static std::atomic<uint64_t> g_msAllocFastHitsTotal{0};
+static std::atomic<uint64_t> g_msAllocSlowCallsTotal{0};
 
 constexpr size_t ToIndex(MSAllocRefillConsumer consumer)
 {
@@ -151,6 +156,14 @@ extern "C" void MSAllocBuffer_DumpAndResetSlowAllocCounters()
          (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::BACKGROUND_FILL)][ToIndex(MSAllocRefillSource::EMPTY_REBIND)],
          (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::BACKGROUND_FILL)][ToIndex(MSAllocRefillSource::FRESH)],
          (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::BACKGROUND_FILL)][ToIndex(MSAllocRefillSource::FAILED)]);
+}
+
+extern "C" void DumpAllocCounters_MSAllocBuffer()
+{
+    uint64_t fastHits  = g_msAllocFastHitsTotal.load(std::memory_order_relaxed);
+    uint64_t slowCalls = g_msAllocSlowCallsTotal.load(std::memory_order_relaxed);
+    fprintf(stderr, "[ALLOC-COUNTER] MSGC  fast_alloc_hits=%llu  slow_alloc_calls=%llu\n",
+            (unsigned long long)fastHits, (unsigned long long)slowCalls);
 }
 
 static inline bool IsMSMarkingActive(uint8_t gcFastState)
@@ -516,6 +529,8 @@ MAddress AllocBufferMS::FastAlloc(uint8_t cls)
             addr = region->AllocFromBitmapFast();
         }
         if (LIKELY(addr != 0)) {
+            g_msAllocSlowPathCounters.fastAllocHits.fetch_add(1, std::memory_order_relaxed);
+            g_msAllocFastHitsTotal.fetch_add(1, std::memory_order_relaxed);
             return static_cast<MAddress>(addr);
         }
     }
@@ -530,6 +545,7 @@ MAddress AllocBufferMS::FastAlloc(uint8_t cls)
 MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
 {
     g_msAllocSlowPathCounters.slowPathCalls.fetch_add(1, std::memory_order_relaxed);
+    g_msAllocSlowCallsTotal.fetch_add(1, std::memory_order_relaxed);
     bool backgroundFillRequested = false;
 
     // Step 1: Return the exhausted Region to the central pool.

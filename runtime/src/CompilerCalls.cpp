@@ -7,6 +7,8 @@
 
 #include "CompilerCalls.h"
 
+#include <atomic>
+#include <cstdio>
 #include "Base/CString.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
@@ -50,8 +52,139 @@
 
 namespace MapleRuntime {
 
+// Lifetime counter for MCC_NewObject calls (both MSGC and CopyGC).
+static std::atomic<uint64_t> g_mccNewObjectCalls{0};
+
+#ifdef MRT_USE_MARK_SWEEP
+// Fast-path failure diagnostic counters.
+// Check 1: safepointState != 0  (at [x28+0x30])
+// Check 2: msAllocBuffer == nullptr  (at [x28+0x58])
+// Check 3: activeRegions_[cls] == nullptr  (at [msAllocBuffer+cls*8+8])
+// Check 4: regionType not BUMP(1) or PARTIAL(2)  (at [region+0x32])
+// Check 5: BUMP bump alloc fails (allocPtr+sz > regionEnd)
+// Check 6: PARTIAL bitmap alloc fails
+static std::atomic<uint64_t> g_failCheck1{0};
+static std::atomic<uint64_t> g_failCheck2{0};
+static std::atomic<uint64_t> g_failCheck3{0};
+static std::atomic<uint64_t> g_failCheck4{0};
+static std::atomic<uint64_t> g_failCheckBump{0};    // regionType=BUMP but allocPtr+sz>regionEnd
+static std::atomic<uint64_t> g_failCheckBitmap{0};  // regionType=PARTIAL
+static std::atomic<uint64_t> g_failCheckOther{0};   // x28==null or unknown
+static std::atomic<uint64_t> g_diagSampleN{0};  // sample every N calls
+
+// Print at most kMaxPrints times for detailed info
+static std::atomic<uint32_t> g_detailPrints{0};
+static constexpr uint32_t kMaxDetailPrints = 5;
+
+static void DiagnoseFastPathFailure(size_t size)
+{
+    constexpr uint64_t kSampleEvery = 1000000ULL;
+    uint64_t n = g_diagSampleN.fetch_add(1, std::memory_order_relaxed);
+    if (n % kSampleEvery != 0) {
+        return;
+    }
+
+    // Read x28 (Cangjie Thread Pointer)
+    uintptr_t x28val = 0;
+    asm volatile("mov %0, x28" : "=r"(x28val));
+    if (x28val == 0) {
+        g_failCheckOther.fetch_add(1, std::memory_order_relaxed);
+        return;
+    }
+
+    // Check 1: safepointState at [x28+0x30]
+    volatile uint64_t safepointState = *reinterpret_cast<volatile uint64_t*>(x28val + 0x30);
+    if (safepointState != 0) {
+        g_failCheck1.fetch_add(1, std::memory_order_relaxed);
+        return;
+    }
+
+    // Check 2: msAllocBuffer at [x28+0x58]
+    volatile uintptr_t msAllocBufPtr = *reinterpret_cast<volatile uintptr_t*>(x28val + 0x58);
+    if (msAllocBufPtr == 0) {
+        g_failCheck2.fetch_add(1, std::memory_order_relaxed);
+        return;
+    }
+
+    // Determine size class (mirror SizeClassInfo::SizeToClass)
+    // For cls1_sz16: size=16, cls=1; cls0_sz8: size=8, cls=0
+    // Simple mapping: cls = (size - 1) / 8  (approximate, works for small sizes)
+    constexpr size_t kSlotStep = 8;
+    uint8_t cls = static_cast<uint8_t>((size <= 8) ? 0 : (size - 1) / kSlotStep);
+    if (cls > 15) cls = 15;  // cap at max size class
+
+    // Check 3: activeRegions_[cls] at [msAllocBuf + 8 + cls*8]
+    uintptr_t activeRegionPtr = *reinterpret_cast<volatile uintptr_t*>(msAllocBufPtr + 8 + static_cast<uintptr_t>(cls) * 8);
+    if (activeRegionPtr == 0) {
+        g_failCheck3.fetch_add(1, std::memory_order_relaxed);
+        return;
+    }
+
+    // Check 4: regionType at [region + 0x32]
+    uint8_t regionType = *reinterpret_cast<volatile uint8_t*>(activeRegionPtr + 0x32);
+    if (regionType != 1 && regionType != 2) {
+        g_failCheck4.fetch_add(1, std::memory_order_relaxed);
+        return;
+    }
+
+    // All 4 checks passed. Now determine if it's BUMP or PARTIAL failure.
+    if (regionType == 1) {
+        // BUMP: check allocPtr + size vs regionEnd
+        uintptr_t allocPtr  = *reinterpret_cast<volatile uintptr_t*>(activeRegionPtr + 0x00);
+        uintptr_t regionEnd = *reinterpret_cast<volatile uintptr_t*>(activeRegionPtr + 0x08);
+        g_failCheckBump.fetch_add(1, std::memory_order_relaxed);
+        uint32_t pIdx = g_detailPrints.fetch_add(1, std::memory_order_relaxed);
+        if (pIdx < kMaxDetailPrints) {
+            fprintf(stderr, "[BUMP-DETAIL] size=%zu cls=%u allocPtr=0x%zx regionEnd=0x%zx gap=%zd regionBase=0x%zx\n",
+                size, (unsigned)cls, allocPtr, regionEnd,
+                (ptrdiff_t)(regionEnd - allocPtr),
+                activeRegionPtr);
+        }
+    } else {
+        // PARTIAL (bitmap) failure
+        g_failCheckBitmap.fetch_add(1, std::memory_order_relaxed);
+        uint32_t pIdx = g_detailPrints.fetch_add(1, std::memory_order_relaxed);
+        if (pIdx < kMaxDetailPrints) {
+            uintptr_t freeSlotCount = *reinterpret_cast<volatile uint16_t*>(activeRegionPtr + 0x2A);
+            fprintf(stderr, "[BITMAP-DETAIL] size=%zu cls=%u freeSlotCount=%zu region=0x%zx\n",
+                size, (unsigned)cls, freeSlotCount, activeRegionPtr);
+        }
+    }
+}
+#endif  // MRT_USE_MARK_SWEEP
+
+// Forward declarations for per-GC-mode alloc counter dump functions.
+#ifdef MRT_USE_MARK_SWEEP
+extern "C" void DumpAllocCounters_MSAllocBuffer();
+#else
+extern "C" void DumpAllocCounters_AllocBuffer();
+#endif
+
 extern "C" void MCC_PrintAllocStats()
 {
+    uint64_t mccCalls = g_mccNewObjectCalls.load(std::memory_order_relaxed);
+    fprintf(stderr, "[ALLOC-COUNTER] MCC_NewObject_calls=%llu\n", (unsigned long long)mccCalls);
+#ifdef MRT_USE_MARK_SWEEP
+    fprintf(stderr, "[FAST-PATH-DIAG] fail_check1(safepointState!=0)=%llu\n",
+        (unsigned long long)g_failCheck1.load(std::memory_order_relaxed));
+    fprintf(stderr, "[FAST-PATH-DIAG] fail_check2(msAllocBuf==null)=%llu\n",
+        (unsigned long long)g_failCheck2.load(std::memory_order_relaxed));
+    fprintf(stderr, "[FAST-PATH-DIAG] fail_check3(activeRegion==null)=%llu\n",
+        (unsigned long long)g_failCheck3.load(std::memory_order_relaxed));
+    fprintf(stderr, "[FAST-PATH-DIAG] fail_check4(bad_regionType)=%llu\n",
+        (unsigned long long)g_failCheck4.load(std::memory_order_relaxed));
+    fprintf(stderr, "[FAST-PATH-DIAG] fail_checkBump(allocPtr+sz>regionEnd)=%llu\n",
+        (unsigned long long)g_failCheckBump.load(std::memory_order_relaxed));
+    fprintf(stderr, "[FAST-PATH-DIAG] fail_checkBitmap(PARTIAL_noFreeSlot)=%llu\n",
+        (unsigned long long)g_failCheckBitmap.load(std::memory_order_relaxed));
+    fprintf(stderr, "[FAST-PATH-DIAG] fail_checkOther(x28null)=%llu\n",
+        (unsigned long long)g_failCheckOther.load(std::memory_order_relaxed));
+    uint64_t totalSampled = g_diagSampleN.load(std::memory_order_relaxed) / 1000000ULL;
+    fprintf(stderr, "[FAST-PATH-DIAG] samples_taken(per_1M)=%llu\n", (unsigned long long)totalSampled);
+    DumpAllocCounters_MSAllocBuffer();
+#else
+    DumpAllocCounters_AllocBuffer();
+#endif
 }
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 // These interfaces are used to detect whether the acquireArrayRawData is released in time.
@@ -176,6 +309,10 @@ void RawPtrCheckerTimerEntry(void* arg)
 
 extern "C" ObjRef MCC_NewObject(const TypeInfo* klass, MSize size)
 {
+    g_mccNewObjectCalls.fetch_add(1, std::memory_order_relaxed);
+#ifdef MRT_USE_MARK_SWEEP
+    DiagnoseFastPathFailure(size);
+#endif
     DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
     ObjRef obj = ObjectManager::NewObject(klass, size);
     if (obj == nullptr) {
