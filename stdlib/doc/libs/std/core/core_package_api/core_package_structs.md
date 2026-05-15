@@ -198,6 +198,7 @@ String array with repeated value: [Hello, Hello, Hello]
 Boolean array with repeated value: [true, true, true, true]
 ```
 
+<!--Del-->
 ### func all((T) -> Bool)
 
 ```cangjie
@@ -248,6 +249,9 @@ main() {
 所有元素都大于5: false
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func any((T) -> Bool)
 
 ```cangjie
@@ -298,6 +302,7 @@ main() {
 存在大于10的元素: false
 ```
 
+<!--DelEnd-->
 ### func clone()
 
 ```cangjie
@@ -550,6 +555,7 @@ Before partial fill: [1, 2, 3, 4, 5]
 After partial fill: [1, -1, -1, -1, 5]
 ```
 
+<!--Del-->
 ### func filter((T) -> Bool)
 
 ```cangjie
@@ -594,6 +600,9 @@ main() {
 偶数: [2, 4, 6, 8, 10]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func filterMap\<R>((T) -> ?R)
 
 ```cangjie
@@ -645,6 +654,9 @@ main() {
 非空字符串的长度: [3, 4, 2]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func flatMap\<R>((T) -> Array\<R>)
 
 ```cangjie
@@ -691,6 +703,9 @@ main() {
 扩展后: [数字: 1, 数字的平方: 1, 数字: 2, 数字的平方: 4, 数字: 3, 数字的平方: 9]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func fold\<R>(R, (R, T) -> R)
 
 ```cangjie
@@ -736,6 +751,9 @@ main() {
 数组元素之和: 15
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func forEach((T) -> Unit)
 
 ```cangjie
@@ -781,6 +799,7 @@ main() {
  cherry
 ```
 
+<!--DelEnd-->
 ### func get(Int64)
 
 ```cangjie
@@ -818,6 +837,7 @@ main() {
 Some(0)
 ```
 
+<!--Del-->
 ### func intersperse(T)
 
 ```cangjie
@@ -862,6 +882,7 @@ main() {
 插入分隔符0后: [1, 0, 2, 0, 3, 0, 4]
 ```
 
+<!--DelEnd-->
 ### func map\<R>((T)->R)
 
 ```cangjie
@@ -907,6 +928,7 @@ Mapped array (each element + 1): [2, 3, 4, 5, 6]
 String array: [Number: 1, Number: 2, Number: 3, Number: 4, Number: 5]
 ```
 
+<!--Del-->
 ### func none((T) -> Bool)
 
 ```cangjie
@@ -957,6 +979,9 @@ main() {
 没有大于10的数: true
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func reduce((T, T) -> T)
 
 ```cangjie
@@ -1005,6 +1030,7 @@ main() {
 数组元素之和: 15
 ```
 
+<!--DelEnd-->
 ### func repeat(Int64)
 
 ```cangjie
@@ -1096,6 +1122,7 @@ Original string array: [Hello, World, Cangjie]
 Reversed string array: [Cangjie, World, Hello]
 ```
 
+<!--Del-->
 ### func skip(Int64)
 
 ```cangjie
@@ -1157,6 +1184,7 @@ main() {
 跳过前10个元素后: []
 ```
 
+<!--DelEnd-->
 ### func slice(Int64, Int64)
 
 ```cangjie
@@ -1272,6 +1300,7 @@ Left slice: [-1, 1, 2]
 Right slice: [3, 4, 5]
 ```
 
+<!--Del-->
 ### func step(Int64)
 
 ```cangjie
@@ -1322,6 +1351,7 @@ main() {
 步长为3提取的元素: [1, 4, 7, 10]
 ```
 
+<!--DelEnd-->
 ### func swap(Int64, Int64)
 
 ```cangjie
@@ -1370,6 +1400,7 @@ After swapping indices 1 and 3: [1, 4, 3, 2, 5]
 After swapping index 2 with itself: [1, 4, 3, 2, 5]
 ```
 
+<!--Del-->
 ### func take(Int64)
 
 ```cangjie
@@ -1426,6 +1457,7 @@ main() {
 取前10个元素: [1, 2, 3, 4, 5, 6, 7, 8]
 ```
 
+<!--DelEnd-->
 ### operator func \[](Int64)
 
 ```cangjie
@@ -1648,6 +1680,7 @@ main(): Int64 {
 [1, 2, 3, 4]
 ```
 
+<!--Del-->
 ### extend\<T> Array\<T>
 
 ```cangjie
@@ -1755,6 +1788,7 @@ main() {
  (4, date)
 ```
 
+<!--DelEnd-->
 ### extend\<T> Array\<T> <: Collection\<T>
 
 ```cangjie

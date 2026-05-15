@@ -291,7 +291,6 @@ Exception: 这是一个cause
 >
 > 不支持平台：OpenHarmony
 <!--DelEnd-->
-
 ### prop message
 
 ```cangjie
@@ -399,7 +398,6 @@ Exception: 这是一个cause
 >
 > 不支持平台：OpenHarmony
 <!--DelEnd-->
-
 ### init(String)
 
 ```cangjie
@@ -487,7 +485,6 @@ Caused by: Exception: 这是一个cause
 >
 > 不支持平台：OpenHarmony
 <!--DelEnd-->
-
 ### func getStackTrace()
 
 ```cangjie
@@ -596,6 +593,7 @@ main() {
 带消息异常的字符串表示: Exception: 自定义异常信息
 ```
 
+<!--Del-->
 ## class ExclusiveScopeException
 
 ```cangjie
@@ -634,6 +632,7 @@ main() {
 }
 ```
 
+<!--DelEnd-->
 ## class IllegalArgumentException
 
 ```cangjie
