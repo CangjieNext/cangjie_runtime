@@ -58,11 +58,11 @@ public class ArrayBlockingQueue<E> {
 
     let allocated: AtomicUInt64 = AtomicUInt64(0) // index in buffer for the next producer
     let reserved: AtomicUInt64 = AtomicUInt64(0) // index in buffer for the next consumer
-    private let putMonitor = Monitor()
-    private let takeMonitor = Monitor()
-    private let count = AtomicInt64(0)
-    private let putWaiters = AtomicInt64(0)
-    private let takeWaiters = AtomicInt64(0)
+    let sendQSize = AtomicUInt64(0) // Number of elements that are enqueuing
+    let receiveQSize = AtomicUInt64(0) // Number of elements that are being dequeued	 
+    let sendMonitor = Monitor() // Monitor for blocking the fail receivers	 
+    let receiveMonitor = Monitor() // Monitor for blocking the fail senders
+    let count = AtomicInt64(0) // Number of elements in the queue
 
     let unsignedCapacity: UInt64 // the unsigned version of the capacity
 
@@ -139,31 +139,31 @@ public class ArrayBlockingQueue<E> {
     }
 
     public func add(element: E): Unit {
-        putMonitor.lock()
+        receiveMonitor.lock()
         var c: Int64 = -1
         try {
             while (true) {
                 if (count.load() != capacity) {
                     break
                 }
-                putWaiters.fetchAdd(1)
+                sendQSize.fetchAdd(1)
                 try {
                     if (count.load() == capacity) {
-                        putMonitor.wait()
+                        receiveMonitor.wait()
                     }
                 } finally {
-                    putWaiters.fetchSub(1)
+                    sendQSize.fetchSub(1)
                 }
             }
             while (!enqueueCas(element)) {}
             c = count.fetchAdd(1)
             if (c + 1 < capacity) {
-                putMonitor.notify()
+                receiveMonitor.notify()
             }
         } finally {
-            putMonitor.unlock()
+            receiveMonitor.unlock()
         }
-        if (c == 0 && takeWaiters.load() > 0) {
+        if (c == 0 && receiveQSize.load() > 0) {
             signalNotEmpty()
         }
     }
@@ -186,7 +186,7 @@ public class ArrayBlockingQueue<E> {
 
     public func add(element: E, timeout: Duration): Bool {
         var total = timeout
-        putMonitor.lock()
+        receiveMonitor.lock()
         var c: Int64 = -1
         try {
             while (true) {
@@ -196,27 +196,27 @@ public class ArrayBlockingQueue<E> {
                 if (total <= Duration.Zero) {
                     return false
                 }
-                putWaiters.fetchAdd(1)
+                sendQSize.fetchAdd(1)
                 try {
                     if (count.load() == capacity) {
                         let startTime = MonoTime.now()
-                        let _ = putMonitor.wait(timeout: total)
+                        let _ = receiveMonitor.wait(timeout: total)
                         let endTime = MonoTime.now()
                         total -= endTime - startTime
                     }
                 } finally {
-                    putWaiters.fetchSub(1)
+                    sendQSize.fetchSub(1)
                 }
             }
             while (!enqueueCas(element)) {}
             c = count.fetchAdd(1)
             if (c + 1 < capacity) {
-                putMonitor.notify()
+                receiveMonitor.notify()
             }
         } finally {
-            putMonitor.unlock()
+            receiveMonitor.unlock()
         }
-        if (c == 0 && takeWaiters.load() > 0) {
+        if (c == 0 && receiveQSize.load() > 0) {
             signalNotEmpty()
         }
         return true
@@ -235,31 +235,31 @@ public class ArrayBlockingQueue<E> {
     }
 
     public func remove(): E {
-        takeMonitor.lock()
+        sendMonitor.lock()
         var c: Int64 = -1
         try {
             while (true) {
                 if (count.load() != 0) {
                     break
                 }
-                takeWaiters.fetchAdd(1)
+                receiveQSize.fetchAdd(1)
                 try {
                     if (count.load() == 0) {
-                        takeMonitor.wait()
+                        sendMonitor.wait()
                     }
                 } finally {
-                    takeWaiters.fetchSub(1)
+                    receiveQSize.fetchSub(1)
                 }
             }
             let value = dequeueCasOrSpin()
             c = count.fetchSub(1)
             if (c > 1) {
-                takeMonitor.notify()
+                sendMonitor.notify()
             }
             return value
         } finally {
-            takeMonitor.unlock()
-            if (c == capacity && putWaiters.load() > 0) {
+            sendMonitor.unlock()
+            if (c == capacity && sendQSize.load() > 0) {
                 signalNotFull()
             }
         }
@@ -282,7 +282,7 @@ public class ArrayBlockingQueue<E> {
 
     public func remove(timeout: Duration): Option<E> {
         var total = timeout
-        takeMonitor.lock()
+        sendMonitor.lock()
         var c: Int64 = -1
         try {
             while (true) {
@@ -292,27 +292,27 @@ public class ArrayBlockingQueue<E> {
                 if (total <= Duration.Zero) {
                     return None<E>
                 }
-                takeWaiters.fetchAdd(1)
+                receiveQSize.fetchAdd(1)
                 try {
                     if (count.load() == 0) {
                         let startTime = MonoTime.now()
-                        let _ = takeMonitor.wait(timeout: total)
+                        let _ = sendMonitor.wait(timeout: total)
                         let endTime = MonoTime.now()
                         total -= endTime - startTime
                     }
                 } finally {
-                    takeWaiters.fetchSub(1)
+                    receiveQSize.fetchSub(1)
                 }
             }
             let value = dequeueCasOrSpin()
             c = count.fetchSub(1)
             if (c > 1) {
-                takeMonitor.notify()
+                sendMonitor.notify()
             }
             return Some(value)
         } finally {
-            takeMonitor.unlock()
-            if (c == capacity && putWaiters.load() > 0) {
+            sendMonitor.unlock()
+            if (c == capacity && sendQSize.load() > 0) {
                 signalNotFull()
             }
         }
@@ -336,7 +336,7 @@ public class ArrayBlockingQueue<E> {
             return None<E>
         }
         var result: Option<E> = None<E>
-        takeMonitor.lock()
+        sendMonitor.lock()
         try {
             if (count.load() == 0) {
                 result = None<E>
@@ -344,7 +344,7 @@ public class ArrayBlockingQueue<E> {
                 result = peekCasLoop()
             }
         } finally {
-            takeMonitor.unlock()
+            sendMonitor.unlock()
         }
         return result
     }
@@ -368,7 +368,7 @@ public class ArrayBlockingQueue<E> {
         if (count.load() == capacity) {
             return false
         }
-        putMonitor.lock()
+        receiveMonitor.lock()
         var c: Int64 = -1
         try {
             if (count.load() == capacity) {
@@ -377,12 +377,12 @@ public class ArrayBlockingQueue<E> {
             while (!enqueueCas(element)) {}
             c = count.fetchAdd(1)
             if (c + 1 < capacity) {
-                putMonitor.notify()
+                receiveMonitor.notify()
             }
             return true
         } finally {
-            putMonitor.unlock()
-            if (c == 0 && takeWaiters.load() > 0) {
+            receiveMonitor.unlock()
+            if (c == 0 && receiveQSize.load() > 0) {
                 signalNotEmpty()
             }
         }
@@ -405,7 +405,7 @@ public class ArrayBlockingQueue<E> {
         if (count.load() == 0) {
             return None<E>
         }
-        takeMonitor.lock()
+        sendMonitor.lock()
         var c: Int64 = -1
         try {
             if (count.load() == 0) {
@@ -414,32 +414,32 @@ public class ArrayBlockingQueue<E> {
             let value = dequeueCasOrSpin()
             c = count.fetchSub(1)
             if (c > 1) {
-                takeMonitor.notify()
+                sendMonitor.notify()
             }
             return Some(value)
         } finally {
-            takeMonitor.unlock()
-            if (c == capacity && putWaiters.load() > 0) {
+            sendMonitor.unlock()
+            if (c == capacity && sendQSize.load() > 0) {
                 signalNotFull()
             }
         }
     }
 
     private func signalNotEmpty(): Unit {
-        takeMonitor.lock()
+        sendMonitor.lock()
         try {
-            takeMonitor.notify()
+            sendMonitor.notify()
         } finally {
-            takeMonitor.unlock()
+            sendMonitor.unlock()
         }
     }
 
     private func signalNotFull(): Unit {
-        putMonitor.lock()
+        receiveMonitor.lock()
         try {
-            putMonitor.notify()
+            receiveMonitor.notify()
         } finally {
-            putMonitor.unlock()
+            receiveMonitor.unlock()
         }
     }
 

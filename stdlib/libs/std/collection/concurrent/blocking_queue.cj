@@ -18,14 +18,14 @@ public type BlockingQueue<E> = LinkedBlockingQueue<E>
  * BlockingQueue is a concurrent queue with a blocking mechanism and supports a user-specified upper bound of capacity.
  */
 public class LinkedBlockingQueue<E> {
-    public let capacity: Int64 // the capacity of the queue
-    private let putMonitor = Monitor()
-    private let takeMonitor = Monitor()
+    public let capacity: Int64 // the capacity of the queue	 
+    private let sendMonitor = Monitor() // Monitor for blocking the fail receivers	 
+    private let receiveMonitor = Monitor() // Monitor for blocking the fail senders	 
+    private let sendQSize = AtomicInt64(0) // Number of elements that are enqueuing.	 
+    private let receiveQSize = AtomicInt64(0) // Number of elements that are being dequeued.	 
+    private let front: AtomicReference<Block<E>> // head of BlockingQueue.	 
+    private let rear: AtomicReference<Block<E>> // tail of BlockingQueue.
     private let count = AtomicInt64(0)
-    private let putWaiters = AtomicInt64(0)
-    private let takeWaiters = AtomicInt64(0)
-    private let front: AtomicReference<Block<E>> // head block
-    private let rear: AtomicReference<Block<E>> // tail block
 
     public init(capacity: Int64) {
         if (capacity <= 0) {
@@ -111,31 +111,31 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func add(element: E): Unit {
-        putMonitor.lock()
+        receiveMonitor.lock()
         var c: Int64 = -1
         try {
             while (true) {
                 if (count.load() != capacity) {
                     break
                 }
-                putWaiters.fetchAdd(1)
+                sendQSize.fetchAdd(1)
                 try {
                     if (count.load() == capacity) {
-                        putMonitor.wait()
+                        receiveMonitor.wait()
                     }
                 } finally {
-                    putWaiters.fetchSub(1)
+                    sendQSize.fetchSub(1)
                 }
             }
             enqueueUnsafe(element)
             c = count.fetchAdd(1)
             if (c + 1 < capacity) {
-                putMonitor.notify()
+                receiveMonitor.notify()
             }
         } finally {
-            putMonitor.unlock()
+            receiveMonitor.unlock()
         }
-        if (c == 0 && takeWaiters.load() > 0) {
+        if (c == 0 && receiveQSize.load() > 0) {
             signalNotEmpty()
         }
     }
@@ -158,7 +158,7 @@ public class LinkedBlockingQueue<E> {
 
     public func add(element: E, timeout: Duration): Bool {
         var total = timeout
-        putMonitor.lock()
+        receiveMonitor.lock()
         var c: Int64 = -1
         try {
             while (true) {
@@ -168,27 +168,27 @@ public class LinkedBlockingQueue<E> {
                 if (total <= Duration.Zero) {
                     return false
                 }
-                putWaiters.fetchAdd(1)
+                sendQSize.fetchAdd(1)
                 try {
                     if (count.load() == capacity) {
                         let startTime = MonoTime.now()
-                        let _ = putMonitor.wait(timeout: total)
+                        let _ = receiveMonitor.wait(timeout: total)
                         let endTime = MonoTime.now()
                         total -= endTime - startTime
                     }
                 } finally {
-                    putWaiters.fetchSub(1)
+                    sendQSize.fetchSub(1)
                 }
             }
             enqueueUnsafe(element)
             c = count.fetchAdd(1)
             if (c + 1 < capacity) {
-                putMonitor.notify()
+                receiveMonitor.notify()
             }
         } finally {
-            putMonitor.unlock()
+            receiveMonitor.unlock()
         }
-        if (c == 0 && takeWaiters.load() > 0) {
+        if (c == 0 && receiveQSize.load() > 0) {
             signalNotEmpty()
         }
         return true
@@ -210,31 +210,31 @@ public class LinkedBlockingQueue<E> {
     }
 
     public func remove(): E {
-        takeMonitor.lock()
+        sendMonitor.lock()
         var c: Int64 = -1
         try {
             while (true) {
                 if (count.load() != 0) {
                     break
                 }
-                takeWaiters.fetchAdd(1)
+                receiveQSize.fetchAdd(1)
                 try {
                     if (count.load() == 0) {
-                        takeMonitor.wait()
+                        sendMonitor.wait()
                     }
                 } finally {
-                    takeWaiters.fetchSub(1)
+                    receiveQSize.fetchSub(1)
                 }
             }
             let value = dequeueUnsafe()
             c = count.fetchSub(1)
             if (c > 1) {
-                takeMonitor.notify()
+                sendMonitor.notify()
             }
             return value
         } finally {
-            takeMonitor.unlock()
-            if (c == capacity && putWaiters.load() > 0) {
+            sendMonitor.unlock()
+            if (c == capacity && sendQSize.load() > 0) {
                 signalNotFull()
             }
         }
@@ -257,7 +257,7 @@ public class LinkedBlockingQueue<E> {
 
     public func remove(timeout: Duration): Option<E> {
         var total = timeout
-        takeMonitor.lock()
+        sendMonitor.lock()
         var c: Int64 = -1
         try {
             while (true) {
@@ -267,27 +267,27 @@ public class LinkedBlockingQueue<E> {
                 if (total <= Duration.Zero) {
                     return None<E>
                 }
-                takeWaiters.fetchAdd(1)
+                receiveQSize.fetchAdd(1)
                 try {
                     if (count.load() == 0) {
                         let startTime = MonoTime.now()
-                        let _ = takeMonitor.wait(timeout: total)
+                        let _ = sendMonitor.wait(timeout: total)
                         let endTime = MonoTime.now()
                         total -= endTime - startTime
                     }
                 } finally {
-                    takeWaiters.fetchSub(1)
+                    receiveQSize.fetchSub(1)
                 }
             }
             let value = dequeueUnsafe()
             c = count.fetchSub(1)
             if (c > 1) {
-                takeMonitor.notify()
+                sendMonitor.notify()
             }
             return Some(value)
         } finally {
-            takeMonitor.unlock()
-            if (c == capacity && putWaiters.load() > 0) {
+            sendMonitor.unlock()
+            if (c == capacity && sendQSize.load() > 0) {
                 signalNotFull()
             }
         }
@@ -311,7 +311,7 @@ public class LinkedBlockingQueue<E> {
             return None<E>
         }
         var result: Option<E> = None<E>
-        takeMonitor.lock()
+        sendMonitor.lock()
         try {
             if (count.load() == 0) {
                 result = None<E>
@@ -334,7 +334,7 @@ public class LinkedBlockingQueue<E> {
                 }
             }
         } finally {
-            takeMonitor.unlock()
+            sendMonitor.unlock()
         }
         return result
     }
@@ -358,7 +358,7 @@ public class LinkedBlockingQueue<E> {
         if (count.load() == capacity) {
             return false
         }
-        putMonitor.lock()
+        receiveMonitor.lock()
         var c: Int64 = -1
         try {
             if (count.load() == capacity) {
@@ -367,12 +367,12 @@ public class LinkedBlockingQueue<E> {
             enqueueUnsafe(element)
             c = count.fetchAdd(1)
             if (c + 1 < capacity) {
-                putMonitor.notify()
+                receiveMonitor.notify()
             }
             return true
         } finally {
-            putMonitor.unlock()
-            if (c == 0 && takeWaiters.load() > 0) {
+            receiveMonitor.unlock()
+            if (c == 0 && receiveQSize.load() > 0) {
                 signalNotEmpty()
             }
         }
@@ -395,7 +395,7 @@ public class LinkedBlockingQueue<E> {
         if (count.load() == 0) {
             return None<E>
         }
-        takeMonitor.lock()
+        sendMonitor.lock()
         var c: Int64 = -1
         try {
             if (count.load() == 0) {
@@ -404,12 +404,12 @@ public class LinkedBlockingQueue<E> {
             let value = dequeueUnsafe()
             c = count.fetchSub(1)
             if (c > 1) {
-                takeMonitor.notify()
+                sendMonitor.notify()
             }
             return Some(value)
         } finally {
-            takeMonitor.unlock()
-            if (c == capacity && putWaiters.load() > 0) {
+            sendMonitor.unlock()
+            if (c == capacity && sendQSize.load() > 0) {
                 signalNotFull()
             }
         }
@@ -443,20 +443,20 @@ public class LinkedBlockingQueue<E> {
     }
 
     private func signalNotEmpty(): Unit {
-        takeMonitor.lock()
+        sendMonitor.lock()
         try {
-            takeMonitor.notify()
+            sendMonitor.notify()
         } finally {
-            takeMonitor.unlock()
+            sendMonitor.unlock()
         }
     }
 
     private func signalNotFull(): Unit {
-        putMonitor.lock()
+        receiveMonitor.lock()
         try {
-            putMonitor.notify()
+            receiveMonitor.notify()
         } finally {
-            putMonitor.unlock()
+            receiveMonitor.unlock()
         }
     }
 }
