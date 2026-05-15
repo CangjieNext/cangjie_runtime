@@ -215,6 +215,7 @@ main() {
 
 ## class Exception
 
+<!--RP1-->
 ```cangjie
 public open class Exception <: ToString {
     public init()
@@ -223,6 +224,7 @@ public open class Exception <: ToString {
     public init(causedBy: Exception)
 }
 ```
+<!--RP1End-->
 
 功能：[Exception](core_package_exceptions.md#class-exception) 是所有异常类的父类。
 
@@ -232,6 +234,7 @@ public open class Exception <: ToString {
 
 - [ToString](core_package_interfaces.md#interface-tostring)
 
+<!--Del-->
 ### prop causedBy
 
 ```cangjie
@@ -249,7 +252,7 @@ public mut prop causedBy: ?Exception
 main() {
     try {
         throwException()
-    } catch(e: Exception) {
+    } catch (e: Exception) {
         println(e)
         if (let Some(cause) <- e.causedBy) {
             println(cause)
@@ -270,7 +273,6 @@ func throwException() {
 func throwCause() {
     throw Exception("这是一个cause")
 }
-
 ```
 
 运行结果：
@@ -279,6 +281,11 @@ func throwCause() {
 Exception: 这是一个异常
 Exception: 这是一个cause
 ```
+
+> **注意：**
+>
+> 不支持平台：OpenHarmony
+<!--DelEnd-->
 
 ### prop message
 
@@ -330,6 +337,7 @@ main() {
 }
 ```
 
+<!--Del-->
 ### init(Exception)
 
 ```cangjie
@@ -349,7 +357,7 @@ public init(causedBy: Exception)
 main() {
     try {
         throwException()
-    } catch(e: Exception) {
+    } catch (e: Exception) {
         println(e)
         if (let Some(cause) <- e.causedBy) {
             println(cause)
@@ -377,6 +385,11 @@ Exception
 Exception: 这是一个cause
 ```
 
+> **注意：**
+>
+> 不支持平台：OpenHarmony
+<!--DelEnd-->
+
 ### init(String)
 
 ```cangjie
@@ -399,6 +412,7 @@ main() {
 }
 ```
 
+<!--Del-->
 ### init(String, Exception)
 
 ```cangjie
@@ -419,7 +433,7 @@ public init(message: String, causedBy: Exception)
 main(): Unit {
     try {
         throwException()
-    } catch(e: Exception) {
+    } catch (e: Exception) {
         throw Exception("这是被抛出的异常", e)
     }
 
@@ -453,6 +467,11 @@ Caused by: Exception: 这是一个cause
 	 at default::throwException()(/tmp/test-exception-chain.cj:13)
 	 ... 1 more
 ```
+
+> **注意：**
+>
+> 不支持平台：OpenHarmony
+<!--DelEnd-->
 
 ### func getStackTrace()
 
