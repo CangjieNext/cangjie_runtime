@@ -1181,6 +1181,7 @@ main() {
 列表大小: 3
 ```
 
+<!--Del-->
 ### func all((T) -> Bool)
 
 ```cangjie
@@ -1188,7 +1189,6 @@ public func all(predicate: (T) -> Bool): Bool
 ```
 
 功能：判断 [ArrayList](collection_package_class.md#class-arraylistt) 中所有元素是否都满足条件。
-
 
 > **注意：**
 >
@@ -1234,6 +1234,9 @@ main() {
 添加奇数后所有元素都是偶数: false
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func any((T) -> Bool)
 
 ```cangjie
@@ -1241,7 +1244,6 @@ public func any(predicate: (T) -> Bool): Bool
 ```
 
 功能：判断 [ArrayList](collection_package_class.md#class-arraylistt) 是否存在任意一个满足条件的元素。
-
 
 > **注意：**
 >
@@ -1287,6 +1289,7 @@ main() {
 添加偶数后存在偶数: true
 ```
 
+<!--DelEnd-->
 ### func clear()
 
 ```cangjie
@@ -1372,6 +1375,7 @@ main() {
 克隆列表保持不变: [1, 2, 3]
 ```
 
+<!--Del-->
 ### func filter((T) -> Bool)
 
 ```cangjie
@@ -1379,7 +1383,6 @@ public func filter(predicate: (T) -> Bool): ArrayList<T>
 ```
 
 功能： 返回一个满足筛选条件的元素的新 [ArrayList](collection_package_class.md#class-arraylistt)\<T>。
-
 
 > **注意：**
 >
@@ -1419,6 +1422,9 @@ main() {
 偶数列表: [2, 4, 6]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func filterMap\<R>((T) -> ?R)
 
 ```cangjie
@@ -1426,7 +1432,6 @@ public func filterMap<R>(transform: (T) -> ?R): ArrayList<R>
 ```
 
 功能：同时进行筛选操作和映射操作，返回一个新 [ArrayList](collection_package_class.md#class-arraylistt)。
-
 
 > **注意：**
 >
@@ -1473,6 +1478,9 @@ main() {
 类型检查: true
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func flatMap\<R>((T) -> ArrayList\<R>)
 
 ```cangjie
@@ -1480,7 +1488,6 @@ public func flatMap<R>(transform: (T) -> ArrayList<R>): ArrayList<R>
 ```
 
 功能：对 [ArrayList](collection_package_class.md#class-arraylistt) 中的每个元素应用一个转换闭包（transform），该闭包返回一个新的 [ArrayList](collection_package_class.md#class-arraylistt)，然后将所有返回的 [ArrayList](collection_package_class.md#class-arraylistt)“压平”（flatten）并连接成一个单一的结果 [ArrayList](collection_package_class.md#class-arraylistt)。
-
 
 > **注意：**
 >
@@ -1522,6 +1529,9 @@ main() {
 压平映射后: [1, 1, 2, 4, 3, 9]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func fold\<R>(R, (R, T) -> R)
 
 ```cangjie
@@ -1529,7 +1539,6 @@ public func fold<R>(initial: R, operation: (R, T) -> R): R
 ```
 
 功能：使用指定初始值，从左向右计算。
-
 
 > **注意：**
 >
@@ -1570,6 +1579,9 @@ main() {
 元素乘积: 24
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func forEach((T) -> Unit)
 
 ```cangjie
@@ -1577,7 +1589,6 @@ public func forEach(action: (T) -> Unit): Unit
 ```
 
 功能：遍历所有元素，执行给定的操作。
-
 
 > **注意：**
 >
@@ -1624,6 +1635,7 @@ main() {
 元素总和: 15
 ```
 
+<!--DelEnd-->
 ### func get(Int64)
 
 ```cangjie
@@ -1716,6 +1728,7 @@ main() {
 原始数组大小: 16
 ```
 
+<!--Del-->
 ### func intersperse(T)
 
 ```cangjie
@@ -1723,7 +1736,6 @@ public func intersperse(separator: T): ArrayList<T>
 ```
 
 功能：返回每两个元素之间插入一个给定的新元素后的新 [ArrayList](collection_package_class.md#class-arraylistt) 。
-
 
 > **注意：**
 >
@@ -1773,6 +1785,7 @@ main() {
 数字插入分隔符后: [1, 0, 2, 0, 3, 0, 4]
 ```
 
+<!--DelEnd-->
 ### func isEmpty()
 
 ```cangjie
@@ -1848,6 +1861,7 @@ main() {
 3
 ```
 
+<!--Del-->
 ### func map\<R>((T) -> R)
 
 ```cangjie
@@ -1855,7 +1869,6 @@ public func map<R>(transform: (T) -> R): ArrayList<R>
 ```
 
 功能：对此 [ArrayList](collection_package_class.md#class-arraylistt) 进行映射并返回一个新 [ArrayList](collection_package_class.md#class-arraylistt)。
-
 
 > **注意：**
 >
@@ -1901,6 +1914,9 @@ main() {
 转换为字符串: [1, 2, 3, 4, 5]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func none((T) -> Bool)
 
 ```cangjie
@@ -1908,7 +1924,6 @@ public func none(predicate: (T) -> Bool): Bool
 ```
 
 功能：判断 [ArrayList](collection_package_class.md#class-arraylistt) 中所有元素是否都不满足条件。
-
 
 > **注意：**
 >
@@ -1954,6 +1969,9 @@ main() {
 添加偶数后所有元素都不是偶数: false
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func reduce((T, T) -> T)
 
 ```cangjie
@@ -1961,7 +1979,6 @@ public func reduce(operation: (T, T) -> T): Option<T>
 ```
 
 功能：使用第一个元素作为初始值，从左向右计算。
-
 
 > **注意：**
 >
@@ -2020,6 +2037,7 @@ main() {
 空列表的最大值: None
 ```
 
+<!--DelEnd-->
 ### func remove(Int64)
 
 ```cangjie
@@ -2252,6 +2270,7 @@ main() {
 反转后: [3, 2, 1, 0]
 ```
 
+<!--Del-->
 ### func skip(Int64)
 
 ```cangjie
@@ -2261,7 +2280,6 @@ public func skip(count: Int64): ArrayList<T>
 功能： 跳过特定个数元素并返回一个新 [ArrayList](collection_package_class.md#class-arraylistt)。
 
 当 count 小于等于 0 时，抛出异常。当 count 等于 0 时，相当没有跳过任何元素，返回包含源 [ArrayList](collection_package_class.md#class-arraylistt) 所有元素的新 [ArrayList](collection_package_class.md#class-arraylistt) 。当 count 大于 0 小于源 [ArrayList](collection_package_class.md#class-arraylistt) 的大小时，跳过前 count 个元素，返回包含剩下的元素的新 [ArrayList](collection_package_class.md#class-arraylistt)。当 count 大于等于 [ArrayList](collection_package_class.md#class-arraylistt) 的大小时，返回空 [ArrayList](collection_package_class.md#class-arraylistt)。
-
 
 > **注意：**
 >
@@ -2311,6 +2329,7 @@ main() {
 跳过10个元素后: []
 ```
 
+<!--DelEnd-->
 ### func slice(Range\<Int64>)
 
 ```cangjie
@@ -2478,6 +2497,7 @@ main() {
 稳定排序后: [4, 3, 2, 1]
 ```
 
+<!--Del-->
 ### func step(Int64)
 
 ```cangjie
@@ -2487,7 +2507,6 @@ public func step(count: Int64): ArrayList<T>
 功能：以指定的间隔从 [ArrayList](collection_package_class.md#class-arraylistt) 中提取元素，并返回一个新 [ArrayList](collection_package_class.md#class-arraylistt)。
 
 当 count 小于等于 0 时，抛出异常
-
 
 > **注意：**
 >
@@ -2531,6 +2550,9 @@ main() {
 步长为3: [0, 3, 6]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func take(Int64)
 
 ```cangjie
@@ -2540,7 +2562,6 @@ public func take(count: Int64): ArrayList<T>
 功能： 从数组取出特定个数元素并返回一个新数组。
 
 当 count 小于等于 0 时，抛出异常。当 count 等于 0 时，不取元素，返回空数组。当 count 大于 0 小于源数组的大小时，取前 count 个元素，返回新数组。当 count 大于等于数组的大小时，取所有元素，返回新数组。
-
 
 > **注意：**
 >
@@ -2590,6 +2611,7 @@ main() {
 取10个元素: [0, 1, 2, 3, 4, 5]
 ```
 
+<!--DelEnd-->
 ### func toArray()
 
 ```cangjie
@@ -2781,6 +2803,7 @@ main() {
 切片列表大小: 3
 ```
 
+<!--Del-->
 ### extend\<T> ArrayList\<T>
 
 ```cangjie
@@ -2796,7 +2819,6 @@ public func enumerate(): ArrayList<(Int64, T)>
 ```
 
 功能：用于获取带索引的 [ArrayList](collection_package_class.md#class-arraylistt) 。
-
 
 > **注意：**
 >
@@ -2890,6 +2912,7 @@ Bob 的年龄是 30 岁
 Charlie 的年龄是 35 岁
 ```
 
+<!--DelEnd-->
 ### extend\<T> ArrayList\<T> <: Equatable\<ArrayList\<T>> where T <: Equatable\<T>
 
 ```cangjie
@@ -4885,6 +4908,7 @@ main() {
 当前 'first' 的值: 200
 ```
 
+<!--Del-->
 ### func all((K, V) -> Bool)
 
 ```cangjie
@@ -4892,7 +4916,6 @@ public func all(predicate: (K, V) -> Bool): Bool
 ```
 
 功能：判断 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中所有键值对是否都满足条件。
-
 
 > **注意：**
 >
@@ -4940,6 +4963,9 @@ main() {
 所有值都大于25: false
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func any((K, V) -> Bool)
 
 ```cangjie
@@ -4947,7 +4973,6 @@ public func any(predicate: (K, V) -> Bool): Bool
 ```
 
 功能：判断 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 是否存在任意一个满足条件的键值对。
-
 
 > **注意：**
 >
@@ -4995,6 +5020,7 @@ main() {
 存在值大于50的键值对: false
 ```
 
+<!--DelEnd-->
 ### func clear()
 
 ```cangjie
@@ -5229,6 +5255,7 @@ main() {
 修改后键 'key1' 的值为: 150
 ```
 
+<!--Del-->
 ### func filter((K, V) -> Bool)
 
 ```cangjie
@@ -5236,7 +5263,6 @@ public func filter(predicate: (K, V) -> Bool): HashMap<K, V>
 ```
 
 功能： 返回一个满足筛选条件的键值对的新 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)\<K, V>。
-
 
 > **注意：**
 >
@@ -5278,6 +5304,9 @@ main() {
 筛选后: [(c, 30), (d, 40)]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func fold\<R>(R, (R, K, V) -> R)
 
 ```cangjie
@@ -5285,7 +5314,6 @@ public func fold<R>(initial: R, operation: (R, K, V) -> R): R
 ```
 
 功能：使用指定初始值，从左向右计算。
-
 
 > **注意：**
 >
@@ -5328,6 +5356,9 @@ main() {
 值的总和: 100
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func forEach((K, V) -> Unit)
 
 ```cangjie
@@ -5335,7 +5366,6 @@ public func forEach(action: (K, V) -> Unit): Unit
 ```
 
 功能：遍历所有键值对，执行给定的操作。
-
 
 > **注意：**
 >
@@ -5372,6 +5402,7 @@ main() {
   d: 40
 ```
 
+<!--DelEnd-->
 ### func get(K)
 
 ```cangjie
@@ -5564,6 +5595,7 @@ main() {
 包含键 'b'
 ```
 
+<!--Del-->
 ### func mapValues\<R>((K, V) -> R)
 
 ```cangjie
@@ -5571,7 +5603,6 @@ public func mapValues<R>(transform: (K, V) -> R): HashMap<K, R>
 ```
 
 功能：对此 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 进行映射并返回一个新 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)。
-
 
 > **注意：**
 >
@@ -5613,6 +5644,9 @@ main() {
 字符串映射: [(a, 10), (b, 20), (c, 30), (d, 40)]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func mapValues\<R>((V) -> R)
 
 ```cangjie
@@ -5620,7 +5654,6 @@ public func mapValues<R>(transform: (V) -> R): HashMap<K, R>
 ```
 
 功能：对此 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 进行映射并返回一个新 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek)。
-
 
 > **注意：**
 >
@@ -5660,6 +5693,9 @@ main() {
 平方映射: [(a, 100), (b, 400), (c, 900), (d, 1600)]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func none((K, V) -> Bool)
 
 ```cangjie
@@ -5667,7 +5703,6 @@ public func none(predicate: (K, V) -> Bool): Bool
 ```
 
 功能：判断 [HashMap](collection_package_class.md#class-hashmapk-v-where-k--hashable--equatablek) 中所有键值对是否都不满足条件。
-
 
 > **注意：**
 >
@@ -5711,6 +5746,9 @@ main() {
 所有值都不大于35: false
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func reduce((V, V) -> V)
 
 ```cangjie
@@ -5718,7 +5756,6 @@ public func reduce(operation: (V, V) -> V): Option<V>
 ```
 
 功能：使用第一个值作为初始值，从左向右计算。
-
 
 > **注意：**
 >
@@ -5777,6 +5814,7 @@ main() {
 空映射的最大值: None
 ```
 
+<!--DelEnd-->
 ### func remove(Collection\<K>)
 
 ```cangjie
@@ -6954,6 +6992,7 @@ main() {
 集合大小: 1
 ```
 
+<!--Del-->
 ### func all((T) -> Bool)
 
 ```cangjie
@@ -6961,7 +7000,6 @@ public func all(predicate: (T) -> Bool): Bool
 ```
 
 功能：判断 [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) 中所有元素是否都满足条件。
-
 
 > **注意：**
 >
@@ -7005,6 +7043,9 @@ main() {
 添加奇数后所有元素都是偶数: false
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func any((T) -> Bool)
 
 ```cangjie
@@ -7012,7 +7053,6 @@ public func any(predicate: (T) -> Bool): Bool
 ```
 
 功能：判断 [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) 是否存在任意一个满足条件的元素。
-
 
 > **注意：**
 >
@@ -7055,6 +7095,7 @@ main() {
 存在长度大于10的字符串: false
 ```
 
+<!--DelEnd-->
 ### func clear()
 
 ```cangjie
@@ -7242,6 +7283,7 @@ main() {
 不包含 'grape'
 ```
 
+<!--Del-->
 ### func filter((T) -> Bool)
 
 ```cangjie
@@ -7249,7 +7291,6 @@ public func filter(predicate: (T) -> Bool): HashSet<T>
 ```
 
 功能： 返回一个满足筛选条件的元素的新 [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet)\<T>。
-
 
 > **注意：**
 >
@@ -7292,6 +7333,9 @@ main() {
 大于3的数字个数: 3
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func filterMap\<R>((T) -> Option\<R>)
 
 ```cangjie
@@ -7299,7 +7343,6 @@ public func filterMap<R>(transform: (T) -> Option<R>): HashSet<R> where R <: Has
 ```
 
 功能：同时进行筛选操作和映射操作，返回一个新 [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet)。
-
 
 > **注意：**
 >
@@ -7342,6 +7385,9 @@ main() {
 检查其中元素是否都是Int64类型: true
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func fold\<R>(R, (R, T) -> R)
 
 ```cangjie
@@ -7349,7 +7395,6 @@ public func fold<R>(initial: R, operation: (R, T) -> R): R
 ```
 
 功能：使用指定初始值，从左向右计算。
-
 
 > **注意：**
 >
@@ -7393,6 +7438,9 @@ main() {
 所有元素的乘积: 24
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func forEach((T) -> Unit)
 
 ```cangjie
@@ -7400,7 +7448,6 @@ public func forEach(action: (T) -> Unit): Unit
 ```
 
 功能：遍历所有元素，执行给定的操作。
-
 
 > **注意：**
 >
@@ -7439,6 +7486,7 @@ main() {
 元素: cherry, 长度: 6
 ```
 
+<!--DelEnd-->
 ### func isEmpty()
 
 ```cangjie
@@ -7533,6 +7581,7 @@ main() {
  orange
 ```
 
+<!--Del-->
 ### func map\<R>((T)->R)
 
 ```cangjie
@@ -7540,7 +7589,6 @@ public func map<R>(transform: (T) -> R): HashSet<R> where R <: Hashable & Equata
 ```
 
 功能：将当前 [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) 内所有 T 类型元素根据 transform 映射为 R 类型的元素，组成新的 [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet)。
-
 
 > **注意：**
 >
@@ -7584,6 +7632,9 @@ main() {
 大写集合: [APPLE, BANANA, CHERRY]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func none((T) -> Bool)
 
 ```cangjie
@@ -7591,7 +7642,6 @@ public func none(predicate: (T) -> Bool): Bool
 ```
 
 功能：判断 [HashSet](collection_package_class.md#class-hashsett-where-t--hashable--equatablet) 中所有元素是否都不满足条件。
-
 
 > **注意：**
 >
@@ -7635,6 +7685,9 @@ main() {
 添加偶数后没有偶数: false
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func reduce((T, T) -> T)
 
 ```cangjie
@@ -7642,7 +7695,6 @@ public func reduce(operation: (T, T) -> T): Option<T>
 ```
 
 功能：使用第一个元素作为初始值，从左向右计算。
-
 
 > **注意：**
 >
@@ -7686,6 +7738,7 @@ main() {
 空集合的所有元素的和: None
 ```
 
+<!--DelEnd-->
 ### func remove(Collection\<T>)
 
 ```cangjie
@@ -9077,6 +9130,7 @@ main() {
 链表中的所有元素: [第一个, 第二个, 第三个]
 ```
 
+<!--Del-->
 ### func all((T) -> Bool)
 
 ```cangjie
@@ -9084,7 +9138,6 @@ public func all(predicate: (T) -> Bool): Bool
 ```
 
 功能：判断链表中所有元素是否都满足条件。
-
 
 > **注意：**
 >
@@ -9135,6 +9188,9 @@ main() {
 添加负数后所有元素都为正数: false
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func any((T) -> Bool)
 
 ```cangjie
@@ -9142,7 +9198,6 @@ public func any(predicate: (T) -> Bool): Bool
 ```
 
 功能：判断此链表是否存在任意一个满足条件的元素。
-
 
 > **注意：**
 >
@@ -9194,6 +9249,7 @@ main() {
 添加正数后存在正数: true
 ```
 
+<!--DelEnd-->
 ### func backward(LinkedListNode\<T>)
 
 ```cangjie
@@ -9283,6 +9339,7 @@ main() {
 清除后是否为空: true
 ```
 
+<!--Del-->
 ### func filter((T) -> Bool)
 
 ```cangjie
@@ -9290,7 +9347,6 @@ public func filter(predicate: (T) -> Bool): LinkedList<T>
 ```
 
 功能： 返回一个满足筛选条件的元素的新链表。
-
 
 > **注意：**
 >
@@ -9334,6 +9390,9 @@ main() {
 大于3的数字: [4, 5, 6]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func filterMap\<R>((T) -> ?R)
 
 ```cangjie
@@ -9341,7 +9400,6 @@ public func filterMap<R>(transform: (T) -> ?R): LinkedList<R>
 ```
 
 功能：同时进行筛选操作和映射操作，返回一个新 [LinkedList](collection_package_class.md#class-linkedlistt)。
-
 
 > **注意：**
 >
@@ -9386,6 +9444,9 @@ main() {
 偶数的平方: [4, 16, 36]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func flatMap\<R>((T) -> LinkedList\<R>)
 
 ```cangjie
@@ -9393,7 +9454,6 @@ public func flatMap<R>(transform: (T) -> LinkedList<R>): LinkedList<R>
 ```
 
 功能：对链表中的每个元素应用一个转换闭包（transform），该闭包返回一个新的链表，然后将所有返回的链表“压平”（flatten）并连接成一个单一的结果链表。
-
 
 > **注意：**
 >
@@ -9440,6 +9500,9 @@ main() {
 每个元素的2倍和3倍数: [2, 3, 4, 6, 6, 9]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func fold\<R>(R, (R, T) -> R)
 
 ```cangjie
@@ -9447,7 +9510,6 @@ public func fold<R>(initial: R, operation: (R, T) -> R): R
 ```
 
 功能：使用指定初始值，从左向右计算。
-
 
 > **注意：**
 >
@@ -9503,6 +9565,9 @@ main() {
 最大值: 5
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func forEach((T) -> Unit)
 
 ```cangjie
@@ -9510,7 +9575,6 @@ public func forEach(action: (T) -> Unit): Unit
 ```
 
 功能：遍历所有元素，执行给定的操作。
-
 
 > **注意：**
 >
@@ -9548,6 +9612,7 @@ main() {
  葡萄
 ```
 
+<!--DelEnd-->
 ### func forward(LinkedListNode\<T>)
 
 ```cangjie
@@ -9601,6 +9666,7 @@ main() {
 30 40 50
 ```
 
+<!--Del-->
 ### func intersperse(T)
 
 ```cangjie
@@ -9608,7 +9674,6 @@ public func intersperse(separator: T): LinkedList<T>
 ```
 
 功能：返回每两个元素之间插入一个给定的新元素后的新 [LinkedList](collection_package_class.md#class-linkedlistt) 。
-
 
 > **注意：**
 >
@@ -9646,6 +9711,7 @@ main() {
 插入分隔符后的链表: [苹果, |, 香蕉, |, 橙子]
 ```
 
+<!--DelEnd-->
 ### func isEmpty()
 
 ```cangjie
@@ -9736,6 +9802,7 @@ main() {
 苹果 香蕉 橙子 葡萄
 ```
 
+<!--Del-->
 ### func map\<R>((T) -> R)
 
 ```cangjie
@@ -9743,7 +9810,6 @@ public func map<R>(transform: (T) -> R): LinkedList<R>
 ```
 
 功能：对此 [LinkedList](collection_package_class.md#class-linkedlistt) 进行映射并返回一个新 [LinkedList](collection_package_class.md#class-linkedlistt)。
-
 
 > **注意：**
 >
@@ -9787,6 +9853,7 @@ main() {
 转换为字符串后的链表: [数字_1, 数字_2, 数字_3, 数字_4, 数字_5]
 ```
 
+<!--DelEnd-->
 ### func nodeAt(Int64)
 
 ```cangjie
@@ -9853,6 +9920,7 @@ main() {
 索引-1没有节点（负索引）
 ```
 
+<!--Del-->
 ### func none((T) -> Bool)
 
 ```cangjie
@@ -9860,7 +9928,6 @@ public func none(predicate: (T) -> Bool): Bool
 ```
 
 功能：判断此链表中所有元素是否都不满足条件。
-
 
 > **注意：**
 >
@@ -9911,6 +9978,9 @@ main() {
 添加正数后没有正数: false
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func reduce((T, T) -> T)
 
 ```cangjie
@@ -9918,7 +9988,6 @@ public func reduce(operation: (T, T) -> T): Option<T>
 ```
 
 功能：使用第一个元素作为初始值，从左向右计算。
-
 
 > **注意：**
 >
@@ -9964,6 +10033,7 @@ main() {
 求和结果: Some(10)
 ```
 
+<!--DelEnd-->
 ### func remove(LinkedListNode\<T>)
 
 ```cangjie
@@ -10204,6 +10274,7 @@ main() {
 反转后的链表: [第五个, 第四个, 第三个, 第二个, 第一个]
 ```
 
+<!--Del-->
 ### func skip(Int64)
 
 ```cangjie
@@ -10213,7 +10284,6 @@ public func skip(count: Int64): LinkedList<T>
 功能： 跳过特定个数元素并返回一个新链表。
 
 当 count 小于等于 0 时，抛出异常。当 count 等于 0 时，相当没有跳过任何元素，返回包含源链表所有元素的新链表。当 count 大于 0 小于源链表的大小时，跳过前 count 个元素，返回包含剩下的元素的新链表。当 count 大于等于源链表的大小时，返回空链表。
-
 
 > **注意：**
 >
@@ -10265,6 +10335,7 @@ main() {
 跳过10个元素后的链表: []
 ```
 
+<!--DelEnd-->
 ### func splitOff(LinkedListNode\<T>)
 
 ```cangjie
@@ -10321,6 +10392,7 @@ main() {
 新的链表: [3, 4, 5, 6]
 ```
 
+<!--Del-->
 ### func step(Int64)
 
 ```cangjie
@@ -10330,7 +10402,6 @@ public func step(count: Int64): LinkedList<T>
 功能：以指定的间隔从链表中提取元素，并返回一个新链表。
 
 当 count 小于等于 0 时，抛出异常
-
 
 > **注意：**
 >
@@ -10383,6 +10454,9 @@ main() {
 大步长(15)的链表: [1]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func take(Int64)
 
 ```cangjie
@@ -10392,7 +10466,6 @@ public func take(count: Int64): LinkedList<T>
 功能： 从链表取出特定个数元素并返回一个新链表。
 
 当 count 小于等于 0 时，抛出异常。当 count 等于 0 时，不取元素，返回空链表。当 count 大于 0 小于源链表的大小时，取前 count 个元素，返回新链表。当 count 大于等于源链表的大小时，取所有元素，返回新链表。
-
 
 > **注意：**
 >
@@ -10441,6 +10514,7 @@ main() {
 从空链表取2个元素后大小: []
 ```
 
+<!--DelEnd-->
 ### func toArray()
 
 ```cangjie
@@ -10479,6 +10553,7 @@ main() {
 数组内容: [苹果, 香蕉, 橙子, 葡萄, 草莓]
 ```
 
+<!--Del-->
 ### extend\<T> LinkedList\<T>
 
 ```cangjie
@@ -10494,7 +10569,6 @@ public func enumerate(): LinkedList<(Int64, T)>
 ```
 
 功能：用于获取带索引的链表。
-
 
 > **注意：**
 >
@@ -10590,6 +10664,7 @@ main() {
 合并后链表大小: 3
 ```
 
+<!--DelEnd-->
 ### extend\<T> LinkedList\<T> <: Equatable\<LinkedList\<T>> where T <: Equatable\<T>
 
 ```cangjie
@@ -11443,6 +11518,7 @@ main() {
 最终的TreeMap: [(apple, 15), (banana, 20)]
 ```
 
+<!--Del-->
 ### func all((K, V) -> Bool)
 
 ```cangjie
@@ -11450,7 +11526,6 @@ public func all(predicate: (K, V) -> Bool): Bool
 ```
 
 功能：判断 [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek) 中所有键值对是否都满足条件。
-
 
 > **注意：**
 >
@@ -11504,6 +11579,9 @@ TreeMap内容: [(apple, 10), (banana, 20), (cherry, 30)]
 所有键都包含字母'a': false
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func any((K, V) -> Bool)
 
 ```cangjie
@@ -11511,7 +11589,6 @@ public func any(predicate: (K, V) -> Bool): Bool
 ```
 
 功能：判断 [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek) 是否存在任意一个满足条件的键值对。
-
 
 > **注意：**
 >
@@ -11564,6 +11641,7 @@ TreeMap内容: [(apple, 10), (banana, 20), (cherry, 30)]
 存在键包含字母'e': true
 ```
 
+<!--DelEnd-->
 ### func backward(K, Bool)
 
 ```cangjie
@@ -11892,6 +11970,7 @@ TreeMap内容: [(apple, 10), (banana, 20), (cherry, 30)]
 获取到不存在的grape的引用视图: grape - None
 ```
 
+<!--Del-->
 ### func filter((K, V) -> Bool)
 
 ```cangjie
@@ -11899,7 +11978,6 @@ public func filter(predicate: (K, V) -> Bool): TreeMap<K, V>
 ```
 
 功能： 返回一个满足筛选条件的键值对的新 [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek)\<K, V>。
-
 
 > **注意：**
 >
@@ -11949,6 +12027,9 @@ main() {
 键包含字母'a'的键值对: [(apple, 10), (banana, 20), (date, 5)]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func fold\<R>(R, (R, K, V) -> R)
 
 ```cangjie
@@ -11956,7 +12037,6 @@ public func fold<R>(initial: R, operation: (R, K, V) -> R): R
 ```
 
 功能：使用指定初始值，从左向右计算。
-
 
 > **注意：**
 >
@@ -12012,6 +12092,9 @@ main() {
 所有键组成的字符串: apple,banana,cherry,date
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func forEach((K, V) -> Unit)
 
 ```cangjie
@@ -12019,7 +12102,6 @@ public func forEach(action: (K, V) -> Unit): Unit
 ```
 
 功能：遍历所有键值对，执行给定的操作。
-
 
 > **注意：**
 >
@@ -12065,6 +12147,7 @@ main() {
   键 'date' 的值是 5
 ```
 
+<!--DelEnd-->
 ### func forward(K, Bool)
 
 ```cangjie
@@ -12353,6 +12436,7 @@ main() {
 TreeMap的大小: 4
 ```
 
+<!--Del-->
 ### func mapValues\<R>((K, V) -> R)
 
 ```cangjie
@@ -12360,7 +12444,6 @@ public func mapValues<R>(transform: (K, V) -> R): TreeMap<K, R>
 ```
 
 功能：对此 [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek) 进行映射并返回一个新 [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek)。
-
 
 > **注意：**
 >
@@ -12403,6 +12486,9 @@ main() {
 描述字符串映射: [(apple, 水果apple的数量是10), (banana, 水果banana的数量是20), (cherry, 水果cherry的数量是30)]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func mapValues\<R>((V) -> R)
 
 ```cangjie
@@ -12410,7 +12496,6 @@ public func mapValues<R>(transform: (V) -> R): TreeMap<K, R>
 ```
 
 功能：对此 [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek)\<K, R> 进行映射并返回一个新 [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek)\<K, R>。
-
 
 > **注意：**
 >
@@ -12452,6 +12537,9 @@ main() {
 值的描述字符串映射: [(apple, 数值: 10), (banana, 数值: 20), (cherry, 数值: 30)]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func none((K, V) -> Bool)
 
 ```cangjie
@@ -12459,7 +12547,6 @@ public func none(predicate: (K, V) -> Bool): Bool
 ```
 
 功能：判断 [TreeMap](collection_package_class.md#class-treemapk-v-where-k--comparablek) 中所有键值对是否都不满足条件。
-
 
 > **注意：**
 >
@@ -12501,6 +12588,9 @@ main() {
 没有任何值大于100: true
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func reduce((V, V) -> V)
 
 ```cangjie
@@ -12508,7 +12598,6 @@ public func reduce(operation: (V, V) -> V): Option<V>
 ```
 
 功能：使用第一个值作为初始值，从左向右计算。
-
 
 > **注意：**
 >
@@ -12554,6 +12643,7 @@ main() {
 所有值的总和: 60
 ```
 
+<!--DelEnd-->
 ### func remove(Collection\<K>)
 
 ```cangjie
@@ -13611,6 +13701,7 @@ main() {
 最终集合: [apple, banana, cherry]
 ```
 
+<!--Del-->
 ### func all((T) -> Bool)
 
 ```cangjie
@@ -13618,7 +13709,6 @@ public func all(predicate: (T) -> Bool): Bool
 ```
 
 功能：判断 [TreeSet](collection_package_class.md#class-treesett-where-t--comparablet) 中所有元素是否都满足条件。
-
 
 > **注意：**
 >
@@ -13664,6 +13754,9 @@ TreeSet内容: [apple, banana, cherry, date]
 所有元素都包含字母'a': false
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func any((T) -> Bool)
 
 ```cangjie
@@ -13671,7 +13764,6 @@ public func any(predicate: (T) -> Bool): Bool
 ```
 
 功能：判断 [TreeSet](collection_package_class.md#class-treesett-where-t--comparablet) 是否存在任意一个满足条件的元素。
-
 
 > **注意：**
 >
@@ -13711,6 +13803,7 @@ TreeSet内容: [apple, banana, cherry, date]
 存在包含字母'y'的元素: true
 ```
 
+<!--DelEnd-->
 ### func backward(T, Bool)
 
 ```cangjie
@@ -13944,6 +14037,7 @@ main() {
 包含'elderberry': false
 ```
 
+<!--Del-->
 ### func filter((T) -> Bool)
 
 ```cangjie
@@ -13951,7 +14045,6 @@ public func filter(predicate: (T) -> Bool): TreeSet<T>
 ```
 
 功能： 返回一个满足筛选条件的元素的新 [TreeSet](collection_package_class.md#class-treesett-where-t--comparablet)\<T>。
-
 
 > **注意：**
 >
@@ -13993,6 +14086,9 @@ main() {
 长度大于5的元素: [banana, cherry, elderberry]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func filterMap\<R>((T) -> Option\<R>)
 
 ```cangjie
@@ -14000,7 +14096,6 @@ public func filterMap<R>(transform: (T) -> Option<R>): TreeSet<R> where R <: Com
 ```
 
 功能：同时进行筛选操作和映射操作，返回一个新 [TreeSet](collection_package_class.md#class-treesett-where-t--comparablet)。
-
 
 > **注意：**
 >
@@ -14046,6 +14141,9 @@ main() {
 非空字符串的长度: [5, 6]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func fold\<R>(R, (R, T) -> R)
 
 ```cangjie
@@ -14053,7 +14151,6 @@ public func fold<R>(initial: R, operation: (R, T) -> R): R
 ```
 
 功能：使用指定初始值，从左向右计算。
-
 
 > **注意：**
 >
@@ -14096,6 +14193,9 @@ main() {
 所有字符串的总长度: 17
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func forEach((T) -> Unit)
 
 ```cangjie
@@ -14103,7 +14203,6 @@ public func forEach(action: (T) -> Unit): Unit
 ```
 
 功能：遍历所有元素，执行给定的操作。
-
 
 > **注意：**
 >
@@ -14143,6 +14242,7 @@ main() {
  cherry
 ```
 
+<!--DelEnd-->
 ### func forward(T, Bool)
 
 ```cangjie
@@ -14277,6 +14377,7 @@ main() {
   date
 ```
 
+<!--Del-->
 ### func map\<R>((T)->R)
 
 ```cangjie
@@ -14284,7 +14385,6 @@ public func map<R>(transform: (T) -> R): TreeSet<R> where R <: Comparable<R>
 ```
 
 功能：将当前 [TreeSet](collection_package_class.md#class-treesett-where-t--comparablet) 内所有 T 类型元素根据 transform 映射为 R 类型的元素，组成新的 [TreeSet](collection_package_class.md#class-treesett-where-t--comparablet)。
-
 
 > **注意：**
 >
@@ -14326,6 +14426,9 @@ main() {
 长度集合: [5, 6]
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func none((T) -> Bool)
 
 ```cangjie
@@ -14333,7 +14436,6 @@ public func none(predicate: (T) -> Bool): Bool
 ```
 
 功能：判断 [TreeSet](collection_package_class.md#class-treesett-where-t--comparablet) 中所有元素是否都不满足条件。
-
 
 > **注意：**
 >
@@ -14375,6 +14477,9 @@ TreeSet内容: [apple, banana, cherry, date]
 没有长度大于10的元素: true
 ```
 
+<!--DelEnd-->
+
+<!--Del-->
 ### func reduce((T, T) -> T)
 
 ```cangjie
@@ -14382,7 +14487,6 @@ public func reduce(operation: (T, T) -> T): Option<T>
 ```
 
 功能：使用第一个元素作为初始值，从左向右计算。
-
 
 > **注意：**
 >
@@ -14427,6 +14531,7 @@ main() {
 连接结果: apple_banana_cherry
 ```
 
+<!--DelEnd-->
 ### func remove(Collection\<T>)
 
 ```cangjie

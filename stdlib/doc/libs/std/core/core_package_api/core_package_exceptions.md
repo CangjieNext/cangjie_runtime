@@ -245,7 +245,6 @@ public mut prop causedBy: ?Exception
 
 类型：?[Exception](core_package_exceptions.md#class-exception)
 
-
 > **注意：**
 >
 > 不支持平台：OpenHarmony
@@ -291,7 +290,6 @@ Exception: 这是一个cause
 >
 > 不支持平台：OpenHarmony
 <!--DelEnd-->
-
 ### prop message
 
 ```cangjie
@@ -351,7 +349,6 @@ public init(causedBy: Exception)
 
 功能：根据触发原因构造一个 [Exception](core_package_exceptions.md#class-exception) 实例，异常信息为空。
 
-
 > **注意：**
 >
 > 不支持平台：OpenHarmony
@@ -399,7 +396,6 @@ Exception: 这是一个cause
 >
 > 不支持平台：OpenHarmony
 <!--DelEnd-->
-
 ### init(String)
 
 ```cangjie
@@ -430,7 +426,6 @@ public init(message: String, causedBy: Exception)
 ```
 
 功能：根据异常信息和触发原因构造一个 [Exception](core_package_exceptions.md#class-exception) 实例。
-
 
 > **注意：**
 >
@@ -487,7 +482,6 @@ Caused by: Exception: 这是一个cause
 >
 > 不支持平台：OpenHarmony
 <!--DelEnd-->
-
 ### func getStackTrace()
 
 ```cangjie
@@ -596,6 +590,7 @@ main() {
 带消息异常的字符串表示: Exception: 自定义异常信息
 ```
 
+<!--Del-->
 ## class ExclusiveScopeException
 
 ```cangjie
@@ -634,6 +629,7 @@ main() {
 }
 ```
 
+<!--DelEnd-->
 ## class IllegalArgumentException
 
 ```cangjie

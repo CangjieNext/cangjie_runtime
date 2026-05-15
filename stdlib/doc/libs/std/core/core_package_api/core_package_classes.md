@@ -3923,6 +3923,7 @@ main(): Int64 {
 Current thread state: 'Running'
 ```
 
+<!--Del-->
 ### static func handleUncaughtErrorBy((Error) -> Unit)
 
 ```cangjie
@@ -3941,7 +3942,6 @@ public static func handleUncaughtErrorBy(erHandler: (Error) -> Unit): Unit
 当有多个线程同时因异常而终止时，处理函数将被并发执行，因而开发者需要在处理函数中确保并发正确性。
 
 处理函数的参数类型为 [Error](core_package_exceptions.md#class-error)，是线程未处理的错误。
-
 
 > **注意：**
 >
@@ -3997,6 +3997,7 @@ An exception has occurred:
     Out of memory
 ```
 
+<!--DelEnd-->
 ### static func handleUncaughtExceptionBy((Thread, Exception) -> Unit)
 
 ```cangjie
