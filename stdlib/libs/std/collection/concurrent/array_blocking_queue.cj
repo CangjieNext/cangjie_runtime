@@ -62,9 +62,8 @@ public class ArrayBlockingQueue<E> {
     let receiveQSize = AtomicUInt64(0) // Number of elements that are being dequeued	 
     let sendMonitor = Monitor() // Monitor for blocking the fail receivers	 
     let receiveMonitor = Monitor() // Monitor for blocking the fail senders
-    let count = AtomicInt64(0) // Number of elements in the queue
-
     let unsignedCapacity: UInt64 // the unsigned version of the capacity
+    let count = AtomicInt64(0) // Number of elements in the queue
 
     public init(capacity: Int64) {
         if (capacity <= 0) {
