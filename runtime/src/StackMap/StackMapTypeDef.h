@@ -45,6 +45,7 @@ struct RegSlotsMap {
     SlotAddress addrMap[REGISTERS_COUNT]{ nullptr };
     bool isRecorded[REGISTERS_COUNT]{ false };
     bool HasReg(RegisterNum reg) const { return isRecorded[reg]; }
+    static constexpr size_t ROOT_REG_DEBUG_LIMIT = 16;
     inline void Insert(RegisterNum reg, SlotAddress slot)
     {
         isRecorded[reg] = true;
@@ -57,9 +58,23 @@ struct RegSlotsMap {
                               std::list<Uptr>* rootsList = nullptr)
     {
         if (!HasReg(reg)) {
+            LOG(RTLOG_ERROR, "HOUDINI_ROOT request.reg reg=%s recorded=0", GetRegisterName(reg));
+            size_t dumped = 0;
+            for (RegisterNum i = 0; i < REGISTERS_COUNT && dumped < ROOT_REG_DEBUG_LIMIT; ++i) {
+                if (!isRecorded[i]) {
+                    continue;
+                }
+                SlotAddress slot = addrMap[i];
+                BaseObject* obj = slot == nullptr ? nullptr : slot->object;
+                LOG(RTLOG_ERROR, "HOUDINI_ROOT recorded.reg[%zu] reg=%s slot=%p raw=%p", dumped,
+                    GetRegisterName(i), reinterpret_cast<void*>(slot), reinterpret_cast<void*>(obj));
+                dumped++;
+            }
             LOG(RTLOG_ERROR, "register %s is not recorded", GetRegisterName(reg));
             return false;
         }
+        LOG(RTLOG_ERROR, "HOUDINI_ROOT request.reg reg=%s recorded=1 slot=%p raw=%p", GetRegisterName(reg),
+            reinterpret_cast<void*>(addrMap[reg]), reinterpret_cast<void*>(addrMap[reg]->object));
         if (rootsList != nullptr) {
             rootsList->push_back(reinterpret_cast<Uptr>(addrMap[reg]->object));
         }
@@ -74,10 +89,14 @@ struct RegSlotsMap {
     bool VisitDoubleSlotsRoot(const RootVisitor& visitor, const RegDebugVisitor& debugFunc, RegisterNum reg)
     {
         if (!HasReg(reg)) {
+            LOG(RTLOG_ERROR, "HOUDINI_ROOT request.reg reg=%s recorded=0", GetRegisterName(reg));
             LOG(RTLOG_ERROR, "register %s is not recorded", GetRegisterName(reg));
             return false;
         }
         SlotAddress slot = addrMap[reg];
+        LOG(RTLOG_ERROR, "HOUDINI_ROOT request.reg reg=%s recorded=1 slot=%p raw0=%p raw1=%p",
+            GetRegisterName(reg), reinterpret_cast<void*>(slot), reinterpret_cast<void*>(slot->object),
+            reinterpret_cast<void*>((slot + 1)->object));
         if (debugFunc != nullptr) {
             debugFunc(reg, slot->object);
             debugFunc(reg, (slot + 1)->object);

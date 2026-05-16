@@ -15,6 +15,38 @@ namespace MapleRuntime {
 const size_t TracingCollector::MAX_MARKING_WORK_SIZE = 16; // fork task if bigger
 const size_t TracingCollector::MIN_MARKING_WORK_SIZE = 8;  // forbid forking task if smaller
 
+namespace {
+constexpr size_t ROOT_DEBUG_LOG_LIMIT = 16;
+
+static bool IsLikelyHeapObject(const BaseObject* obj)
+{
+    return obj != nullptr && Heap::GetHeap().GetAllocator().IsHeapObject(reinterpret_cast<MAddress>(obj));
+}
+
+static bool IsLikelyValidHeapObject(const BaseObject* obj)
+{
+    return IsLikelyHeapObject(obj) && obj->IsValidObject();
+}
+
+static TypeInfo* TryGetRootTypeInfo(const BaseObject* obj)
+{
+    if (!IsLikelyValidHeapObject(obj)) {
+        return nullptr;
+    }
+    return obj->GetTypeInfo();
+}
+
+static const char* TryGetRootTypeName(const BaseObject* obj)
+{
+    TypeInfo* typeInfo = TryGetRootTypeInfo(obj);
+    if (typeInfo == nullptr) {
+        return IsLikelyHeapObject(obj) ? "<invalid-object>" : "<non-heap>";
+    }
+    const char* typeName = typeInfo->GetName();
+    return typeName == nullptr ? "<null-type-name>" : typeName;
+}
+} // namespace
+
 // Fill gc roots entry to buckets
 void StaticRootTable::RegisterRoots(StaticRootArray* addr, U32 size)
 {
@@ -176,32 +208,92 @@ void TracingCollector::VisitStackRoots(const RootVisitor& visitor, RegSlotsMap& 
     uintptr_t startIP = reinterpret_cast<uintptr_t>(frame.GetStartProc());
     uintptr_t frameIP = reinterpret_cast<uintptr_t>(frame.mFrame.GetIP());
     uintptr_t frameAddress = reinterpret_cast<uintptr_t>(frame.mFrame.GetFA());
+    CString funcName = frame.GetFuncName();
+    LOG(RTLOG_ERROR, "HOUDINI_STACKMAP VisitStackRoots.enter startIP=%p frameIP=%p fp=%p frameType=%d",
+        reinterpret_cast<void*>(startIP), reinterpret_cast<void*>(frameIP), reinterpret_cast<void*>(frameAddress),
+        static_cast<int>(frame.GetFrameType()));
+    LOG(RTLOG_ERROR, "HOUDINI_STACKMAP VisitStackRoots.func startIP=%p frameIP=%p fp=%p func=%s",
+        reinterpret_cast<void*>(startIP), reinterpret_cast<void*>(frameIP), reinterpret_cast<void*>(frameAddress),
+        funcName.IsEmpty() ? "?" : funcName.Str());
     StackMapBuilder builder = StackMapBuilder(startIP, frameIP, frameAddress);
     RootMap rootMap = builder.Build<RootMap>();
+    LOG(RTLOG_ERROR, "HOUDINI_STACKMAP VisitStackRoots.map startIP=%p frameIP=%p fp=%p valid=%d",
+        reinterpret_cast<void*>(startIP), reinterpret_cast<void*>(frameIP), reinterpret_cast<void*>(frameAddress),
+        static_cast<int>(rootMap.IsValid()));
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
     DLOG(ENUM, "visit frame 0x%zx-@0x%zx, fp 0x%zx", startIP, frameIP, frameAddress);
     auto gcInfo = GCInfoNode::BuildNodeForTrace(startIP, frameIP, frame.mFrame.GetFA());
-    auto slotDebugFunc = [&gcInfo](SlotBias off, const BaseObject* root) {
-        if (Heap::GetHeap().GetAllocator().IsHeapObject(reinterpret_cast<MAddress>(root))) {
-            gcInfo.InsertSlotRoots<true>(off, root);
-        } else {
-            gcInfo.InsertSlotRoots<false>(off, root);
-        }
-    };
-    auto regDebugFunc = [&gcInfo](RegisterNum i, const BaseObject* root) {
-        if (Heap::GetHeap().GetAllocator().IsHeapObject(reinterpret_cast<MAddress>(root))) {
-            gcInfo.InsertRegRoot<true>(i, root);
-        } else {
-            gcInfo.InsertRegRoot<false>(i, root);
-        }
-    };
-#else
-    SlotDebugVisitor slotDebugFunc = nullptr;
-    RegDebugVisitor regDebugFunc = nullptr;
 #endif
+    auto CountRecordedRegs = [](const RegSlotsMap& slots) -> size_t {
+        size_t count = 0;
+        for (size_t i = 0; i < REGISTERS_COUNT; i++) {
+            if (slots.isRecorded[i]) {
+                count++;
+            }
+        }
+        return count;
+    };
+    size_t slotDebugCount = 0;
+    SlotDebugVisitor slotDebugFunc = [&](SlotBias bias, BaseObject* root) {
+        if (slotDebugCount >= ROOT_DEBUG_LOG_LIMIT) {
+            return;
+        }
+#if defined(GCINFO_DEBUG) && GCINFO_DEBUG
+        if (Heap::GetHeap().GetAllocator().IsHeapObject(reinterpret_cast<MAddress>(root))) {
+            gcInfo.InsertSlotRoots<true>(bias, root);
+        } else {
+            gcInfo.InsertSlotRoots<false>(bias, root);
+        }
+#endif
+        TypeInfo* typeInfo = TryGetRootTypeInfo(root);
+        LOG(RTLOG_ERROR,
+            "HOUDINI_ROOT stack.slot[%zu] bias=%d raw=%p heap=%d valid=%d typeInfo=%p type=%s",
+            slotDebugCount, static_cast<int>(bias), reinterpret_cast<void*>(root), static_cast<int>(IsLikelyHeapObject(root)),
+            static_cast<int>(typeInfo != nullptr), reinterpret_cast<void*>(typeInfo), TryGetRootTypeName(root));
+        slotDebugCount++;
+    };
+    size_t regDebugCount = 0;
+    RegDebugVisitor regDebugFunc = [&](RegisterNum reg, const BaseObject* root) {
+        if (regDebugCount >= ROOT_DEBUG_LOG_LIMIT) {
+            return;
+        }
+#if defined(GCINFO_DEBUG) && GCINFO_DEBUG
+        if (Heap::GetHeap().GetAllocator().IsHeapObject(reinterpret_cast<MAddress>(root))) {
+            gcInfo.InsertRegRoot<true>(reg, root);
+        } else {
+            gcInfo.InsertRegRoot<false>(reg, root);
+        }
+#endif
+        TypeInfo* typeInfo = TryGetRootTypeInfo(root);
+        LOG(RTLOG_ERROR,
+            "HOUDINI_ROOT stack.reg[%zu] reg=%s raw=%p heap=%d valid=%d typeInfo=%p type=%s",
+            regDebugCount, GetRegisterName(reg), reinterpret_cast<const void*>(root),
+            static_cast<int>(IsLikelyHeapObject(root)), static_cast<int>(typeInfo != nullptr),
+            reinterpret_cast<void*>(typeInfo), TryGetRootTypeName(root));
+        regDebugCount++;
+    };
+    size_t visitedRoots = 0;
+    RootVisitor wrappedVisitor = [&visitor, &visitedRoots](ObjectRef& root) {
+        auto* obj = root.object;
+        bool isHeapObj = IsLikelyHeapObject(obj);
+        TypeInfo* typeInfo = TryGetRootTypeInfo(obj);
+        if (visitedRoots < 8) {
+            LOG(RTLOG_ERROR,
+                "HOUDINI_ROOT stack.root[%zu] raw=%p heap=%d valid=%d typeInfo=%p type=%s",
+                visitedRoots, reinterpret_cast<void*>(obj), static_cast<int>(isHeapObj),
+                static_cast<int>(typeInfo != nullptr), reinterpret_cast<void*>(typeInfo), TryGetRootTypeName(obj));
+        }
+        visitedRoots++;
+        visitor(root);
+    };
+    bool regVisitResult = true;
     if (rootMap.IsValid()) {
-        rootMap.VisitSlotRoots(visitor, slotDebugFunc);
-        if (!rootMap.VisitRegRoots(visitor, regDebugFunc, regSlotsMap)) {
+        rootMap.VisitSlotRoots(wrappedVisitor, slotDebugFunc);
+        regVisitResult = rootMap.VisitRegRoots(wrappedVisitor, regDebugFunc, regSlotsMap);
+        LOG(RTLOG_ERROR, "HOUDINI_STACKMAP VisitStackRoots.regVisit startIP=%p frameIP=%p result=%d roots=%zu",
+            reinterpret_cast<void*>(startIP), reinterpret_cast<void*>(frameIP), static_cast<int>(regVisitResult),
+            visitedRoots);
+        if (!regVisitResult) {
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
             mutator.PushFrameInfoForTrace(gcInfo);
 #endif
@@ -209,6 +301,9 @@ void TracingCollector::VisitStackRoots(const RootVisitor& visitor, RegSlotsMap& 
                 reinterpret_cast<void*>(frameIP));
         }
     }
+    LOG(RTLOG_ERROR, "HOUDINI_STACKMAP VisitStackRoots.exit startIP=%p frameIP=%p valid=%d roots=%zu regSlots=%zu",
+        reinterpret_cast<void*>(startIP), reinterpret_cast<void*>(frameIP), static_cast<int>(rootMap.IsValid()),
+        visitedRoots, CountRecordedRegs(regSlotsMap));
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
     mutator.PushFrameInfoForTrace(gcInfo);
 #endif
@@ -222,8 +317,18 @@ void TracingCollector::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor
     uintptr_t startIP = reinterpret_cast<uintptr_t>(frame.GetStartProc());
     uintptr_t frameIP = reinterpret_cast<uintptr_t>(frame.mFrame.GetIP());
     uintptr_t frameAddress = reinterpret_cast<uintptr_t>(frame.mFrame.GetFA());
+    CString funcName = frame.GetFuncName();
+    LOG(RTLOG_ERROR, "HOUDINI_STACKMAP VisitHeapReferences.enter startIP=%p frameIP=%p fp=%p frameType=%d",
+        reinterpret_cast<void*>(startIP), reinterpret_cast<void*>(frameIP), reinterpret_cast<void*>(frameAddress),
+        static_cast<int>(frame.GetFrameType()));
+    LOG(RTLOG_ERROR, "HOUDINI_STACKMAP VisitHeapReferences.func startIP=%p frameIP=%p fp=%p func=%s",
+        reinterpret_cast<void*>(startIP), reinterpret_cast<void*>(frameIP), reinterpret_cast<void*>(frameAddress),
+        funcName.IsEmpty() ? "?" : funcName.Str());
     StackMapBuilder builder = StackMapBuilder(startIP, frameIP, frameAddress);
     HeapReferenceMap heapMap = builder.Build<HeapReferenceMap>();
+    LOG(RTLOG_ERROR, "HOUDINI_STACKMAP VisitHeapReferences.map startIP=%p frameIP=%p fp=%p valid=%d",
+        reinterpret_cast<void*>(startIP), reinterpret_cast<void*>(frameIP), reinterpret_cast<void*>(frameAddress),
+        static_cast<int>(heapMap.IsValid()));
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
     auto infoNode = GCInfoNodeForFix::BuildNodeForFix(startIP, frameIP, frame.mFrame.GetFA());
     auto slotDebugFunc = [&infoNode](SlotBias off, const BaseObject* root) {
@@ -248,19 +353,59 @@ void TracingCollector::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor
     SlotDebugVisitor slotDebugFunc = nullptr;
     DerivedPtrDebugVisitor derivedPtrDebugFunc = nullptr;
 #endif
+    auto CountRecordedRegs = [](const RegSlotsMap& slots) -> size_t {
+        size_t count = 0;
+        for (size_t i = 0; i < REGISTERS_COUNT; i++) {
+            if (slots.isRecorded[i]) {
+                count++;
+            }
+        }
+        return count;
+    };
+    size_t visitedRoots = 0;
+    size_t visitedDerived = 0;
+    RootVisitor wrappedRootVisitor = [&rootVisitor, &visitedRoots](ObjectRef& root) {
+        auto* obj = root.object;
+        bool isHeapObj = obj != nullptr &&
+            Heap::GetHeap().GetAllocator().IsHeapObject(reinterpret_cast<MAddress>(obj));
+        if (visitedRoots < 8) {
+            LOG(RTLOG_ERROR, "HOUDINI_ROOT heapRef[%zu]=%p isHeap=%d", visitedRoots,
+                reinterpret_cast<void*>(obj), static_cast<int>(isHeapObj));
+        }
+        visitedRoots++;
+        rootVisitor(root);
+    };
+    DerivedPtrVisitor wrappedDerivedPtrVisitor = [&derivedPtrVisitor, &visitedDerived](BasePtrType basePtr,
+                                                                                       DerivedPtrType& derivedPtr) {
+        if (visitedDerived < 8) {
+            LOG(RTLOG_ERROR, "HOUDINI_ROOT derived[%zu] base=%p derived=%p", visitedDerived,
+                reinterpret_cast<void*>(basePtr), reinterpret_cast<void*>(derivedPtr));
+        }
+        visitedDerived++;
+        derivedPtrVisitor(basePtr, derivedPtr);
+    };
+    bool regVisitResult = true;
     DLOG(ENUM, "visit heap-ref 0x%zx-@0x%zx, fp 0x%zx", startIP, frameIP, frameAddress);
     if (heapMap.IsValid()) {
-        if (!heapMap.VisitRegRoots(rootVisitor, regDebugFunc, regSlotsMap)) {
+        regVisitResult = heapMap.VisitRegRoots(wrappedRootVisitor, regDebugFunc, regSlotsMap);
+        LOG(RTLOG_ERROR, "HOUDINI_STACKMAP VisitHeapReferences.regVisit startIP=%p frameIP=%p result=%d roots=%zu",
+            reinterpret_cast<void*>(startIP), reinterpret_cast<void*>(frameIP), static_cast<int>(regVisitResult),
+            visitedRoots);
+        if (!regVisitResult) {
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
             mutator.PushFrameInfoForFix(infoNode);
 #endif
             LOG(RTLOG_FATAL, "wrong reg info, start ip: %p frame pc: %p", reinterpret_cast<void*>(startIP),
                 reinterpret_cast<void*>(frameIP));
         }
-        heapMap.VisitSlotRoots(rootVisitor, slotDebugFunc);
+        heapMap.VisitSlotRoots(wrappedRootVisitor, slotDebugFunc);
         // VisitDerivedPtr must be invoked after VisitRegRoots and VisitSlotRoots;
-        heapMap.VisitDerivedPtr(derivedPtrVisitor, derivedPtrDebugFunc, regSlotsMap);
+        heapMap.VisitDerivedPtr(wrappedDerivedPtrVisitor, derivedPtrDebugFunc, regSlotsMap);
     }
+    LOG(RTLOG_ERROR,
+        "HOUDINI_STACKMAP VisitHeapReferences.exit startIP=%p frameIP=%p valid=%d roots=%zu derived=%zu regSlots=%zu",
+        reinterpret_cast<void*>(startIP), reinterpret_cast<void*>(frameIP), static_cast<int>(heapMap.IsValid()),
+        visitedRoots, visitedDerived, CountRecordedRegs(regSlotsMap));
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
     mutator.PushFrameInfoForFix(infoNode);
 #endif

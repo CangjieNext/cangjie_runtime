@@ -7,7 +7,9 @@
 
 #include "MutatorManager.h"
 
+#include <cstdio>
 #include <thread>
+#include <time.h>
 #include "Base/TimeUtils.h"
 #include "Common/Runtime.h"
 #include "Concurrency/ConcurrencyModel.h"
@@ -19,6 +21,14 @@
 #include "CpuProfiler/CpuProfiler.h"
 
 namespace MapleRuntime {
+static inline void MutatorManagerConsoleProbe(const char* msg)
+{
+    timespec ts {};
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    std::printf("[%lld.%06ld] %s\n", static_cast<long long>(ts.tv_sec), ts.tv_nsec / 1000, msg);
+    std::fflush(stdout);
+}
+
 extern "C" uintptr_t MRT_GetSafepointProtectedPage()
 {
     return static_cast<uintptr_t>(true);
@@ -42,12 +52,25 @@ bool IsGcThread()
 
 extern "C" void HandleSafepoint(ThreadLocalData* tlData)
 {
+    MutatorManagerConsoleProbe("HOUDINI_SAFEPOINT HandleSafepoint.enter");
+    LOG(RTLOG_ERROR, "HOUDINI_SAFEPOINT HandleSafepoint.enter tlData=%p currentTl=%p",
+        tlData, ThreadLocal::GetThreadLocalData());
     Mutator* mutator = tlData->mutator;
     // Current mutator enter saferegion
     mutator->DoEnterSaferegion();
     // Current mutator block before leaving saferegion
     mutator->DoLeaveSaferegion();
+    MutatorManagerConsoleProbe("HOUDINI_SAFEPOINT HandleSafepoint.exit");
+    LOG(RTLOG_ERROR, "HOUDINI_SAFEPOINT HandleSafepoint.exit tlData=%p currentTl=%p",
+        tlData, ThreadLocal::GetThreadLocalData());
     DLOG(SIGNAL, "HandleSafepoint, thread restarted.");
+}
+
+extern "C" void MRT_LogSafepointStub(ThreadLocalData* tlData)
+{
+    MutatorManagerConsoleProbe("HOUDINI_SAFEPOINT Stub.enter");
+    LOG(RTLOG_ERROR, "HOUDINI_SAFEPOINT Stub.enter x28_as_tlData=%p currentTl=%p",
+        tlData, ThreadLocal::GetThreadLocalData());
 }
 
 #if defined (__arm__)
@@ -248,6 +271,17 @@ void MutatorManager::VisitAllMutators(MutatorVisitor func)
 
 void MutatorManager::StopTheWorld(bool syncGCPhase, GCPhase phase)
 {
+    ThreadLocalData* tlData = ThreadLocal::GetThreadLocalData();
+    std::printf("[%lld.%06ld] HOUDINI_STW StopTheWorld.enter syncGCPhase=%d phase=%d tl=%p mutator=%p threadType=%d tid=%llu worldStopped=%d syncTriggered=%d\n",
+        static_cast<long long>([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec; }()),
+        ([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_nsec / 1000; }()),
+        static_cast<int>(syncGCPhase), static_cast<int>(phase), tlData,
+        tlData == nullptr ? nullptr : tlData->mutator,
+        tlData == nullptr ? -1 : static_cast<int>(tlData->threadType),
+        static_cast<unsigned long long>(tlData == nullptr ? 0 : tlData->tid),
+        static_cast<int>(worldStopped.load(std::memory_order_acquire)),
+        static_cast<int>(syncTriggered.load()));
+    std::fflush(stdout);
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     bool saferegionEntered = false;
     // Ensure an active mutator entered saferegion before STW (aka. stop all other mutators).
@@ -261,9 +295,16 @@ void MutatorManager::StopTheWorld(bool syncGCPhase, GCPhase phase)
     // Block if another thread is holding the syncMutex.
     // Prevent multi-thread doing STW concurrently.
     syncMutex.lock();
+    MutatorManagerConsoleProbe("HOUDINI_STW StopTheWorld.after_syncMutex_lock");
     syncTriggered.store(true);
+    std::printf("[%lld.%06ld] HOUDINI_STW StopTheWorld.after_syncTriggered syncTriggered=%d worldStopped=%d\n",
+        static_cast<long long>([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec; }()),
+        ([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_nsec / 1000; }()),
+        static_cast<int>(syncTriggered.load()), static_cast<int>(worldStopped.load(std::memory_order_acquire)));
+    std::fflush(stdout);
 
     AcquireMutatorManagementWLock();
+    MutatorManagerConsoleProbe("HOUDINI_STW StopTheWorld.after_AcquireMutatorManagementWLock");
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     // If current mutator saferegion state changed,
@@ -279,11 +320,23 @@ void MutatorManager::StopTheWorld(bool syncGCPhase, GCPhase phase)
     }
     // set mutatorCount as countOfMutatorsToStop.
     SetSuspensionMutatorCount(static_cast<uint32_t>(mutatorCount));
+    std::printf("[%lld.%06ld] HOUDINI_STW StopTheWorld.before_DemandSuspensionForSync mutatorCount=%zu suspensionCount=%u\n",
+        static_cast<long long>([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec; }()),
+        ([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_nsec / 1000; }()),
+        mutatorCount, suspensionMutatorCount.load());
+    std::fflush(stdout);
     DemandSuspensionForSync();
+    MutatorManagerConsoleProbe("HOUDINI_STW StopTheWorld.after_DemandSuspensionForSync");
     WaitUntilAllMutatorStopped();
+    MutatorManagerConsoleProbe("HOUDINI_STW StopTheWorld.after_WaitUntilAllMutatorStopped");
 
     // the world is stopped.
     worldStopped.store(true, std::memory_order_release);
+    std::printf("[%lld.%06ld] HOUDINI_STW StopTheWorld.after_worldStopped_true worldStopped=%d syncTriggered=%d\n",
+        static_cast<long long>([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec; }()),
+        ([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_nsec / 1000; }()),
+        static_cast<int>(worldStopped.load(std::memory_order_acquire)), static_cast<int>(syncTriggered.load()));
+    std::fflush(stdout);
     if (syncGCPhase) { TransitionAllMutatorsToGCPhase(phase); }
 }
 
@@ -410,15 +463,87 @@ void MutatorManager::WaitUntilAllMutatorStopped()
 {
     uint64_t beginTime = TimeUtil::MilliSeconds();
     std::list<Mutator*> unstoppedMutators;
+    std::printf("[%lld.%06ld] HOUDINI_STW WaitUntilAllMutatorStopped.enter worldStopped=%d syncTriggered=%d\n",
+        static_cast<long long>([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec; }()),
+        ([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_nsec / 1000; }()),
+        static_cast<int>(worldStopped.load(std::memory_order_acquire)), static_cast<int>(syncTriggered.load()));
+    std::fflush(stdout);
     auto func = [&unstoppedMutators](Mutator& mutator) {
         if ((!mutator.InSaferegion())) {
             unstoppedMutators.emplace_back(&mutator);
         }
     };
     VisitAllMutators(func);
+    for (Mutator* mutator : unstoppedMutators) {
+        std::printf("[%lld.%06ld] HOUDINI_STW WaitUntilAllMutatorStopped.unstopped.ptr mutator=%p\n",
+            static_cast<long long>([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec; }()),
+            ([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_nsec / 1000; }()),
+            mutator);
+        std::fflush(stdout);
+        std::printf("[%lld.%06ld] HOUDINI_STW WaitUntilAllMutatorStopped.before_GetTid mutator=%p\n",
+            static_cast<long long>([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec; }()),
+            ([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_nsec / 1000; }()),
+            mutator);
+        std::fflush(stdout);
+        uint32_t tid = mutator->GetTid();
+        std::printf("[%lld.%06ld] HOUDINI_STW WaitUntilAllMutatorStopped.after_GetTid mutator=%p tid=%u\n",
+            static_cast<long long>([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec; }()),
+            ([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_nsec / 1000; }()),
+            mutator, tid);
+        std::fflush(stdout);
+        std::printf("[%lld.%06ld] HOUDINI_STW WaitUntilAllMutatorStopped.before_GetMutatorPhase mutator=%p\n",
+            static_cast<long long>([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec; }()),
+            ([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_nsec / 1000; }()),
+            mutator);
+        std::fflush(stdout);
+        int phase = static_cast<int>(mutator->GetMutatorPhase());
+        std::printf("[%lld.%06ld] HOUDINI_STW WaitUntilAllMutatorStopped.after_GetMutatorPhase mutator=%p phase=%d\n",
+            static_cast<long long>([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec; }()),
+            ([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_nsec / 1000; }()),
+            mutator, phase);
+        std::fflush(stdout);
+        std::printf("[%lld.%06ld] HOUDINI_STW WaitUntilAllMutatorStopped.before_InSaferegion mutator=%p\n",
+            static_cast<long long>([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec; }()),
+            ([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_nsec / 1000; }()),
+            mutator);
+        std::fflush(stdout);
+        int saferegion = static_cast<int>(mutator->InSaferegion());
+        std::printf("[%lld.%06ld] HOUDINI_STW WaitUntilAllMutatorStopped.after_InSaferegion mutator=%p saferegion=%d\n",
+            static_cast<long long>([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec; }()),
+            ([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_nsec / 1000; }()),
+            mutator, saferegion);
+        std::fflush(stdout);
+        std::printf("[%lld.%06ld] HOUDINI_STW WaitUntilAllMutatorStopped.before_IsManagedContext mutator=%p\n",
+            static_cast<long long>([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec; }()),
+            ([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_nsec / 1000; }()),
+            mutator);
+        std::fflush(stdout);
+        int managed = static_cast<int>(mutator->IsManagedContext());
+        std::printf("[%lld.%06ld] HOUDINI_STW WaitUntilAllMutatorStopped.after_IsManagedContext mutator=%p managed=%d\n",
+            static_cast<long long>([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec; }()),
+            ([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_nsec / 1000; }()),
+            mutator, managed);
+        std::fflush(stdout);
+        std::printf("[%lld.%06ld] HOUDINI_STW WaitUntilAllMutatorStopped.before_FinishedTransition mutator=%p\n",
+            static_cast<long long>([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec; }()),
+            ([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_nsec / 1000; }()),
+            mutator);
+        std::fflush(stdout);
+        int finished = static_cast<int>(mutator->FinishedTransition());
+        std::printf("[%lld.%06ld] HOUDINI_STW WaitUntilAllMutatorStopped.after_FinishedTransition mutator=%p finished=%d\n",
+            static_cast<long long>([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec; }()),
+            ([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_nsec / 1000; }()),
+            mutator, finished);
+        std::fflush(stdout);
+    }
+    std::fflush(stdout);
 
     size_t remainMutatorsSize = unstoppedMutators.size();
     if (remainMutatorsSize == 0) {
+        std::printf("[%lld.%06ld] HOUDINI_STW WaitUntilAllMutatorStopped.exit_empty\n",
+            static_cast<long long>([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_sec; }()),
+            ([]() { timespec ts{}; clock_gettime(CLOCK_MONOTONIC, &ts); return ts.tv_nsec / 1000; }()));
+        std::fflush(stdout);
         return;
     }
 
@@ -453,32 +578,50 @@ void MutatorManager::WaitUntilAllMutatorStopped()
 
 void MutatorManager::EnsurePhaseTransition(GCPhase phase, std::list<Mutator*> &undoneMutators)
 {
-    // Traverse through undoneMutators to select mutators that have not yet completed transition
-    // 1. ignore mutators which have completed transition
-    // 2. gc compete phase transition with mutators which are in saferegion
-    // 3. fill mutators which are running state in undoneMutators
+    LOG(RTLOG_ERROR, "HOUDINI_ENSURE EnsurePhaseTransition.enter phase=%d undone=%zu",
+        static_cast<int>(phase), undoneMutators.size());
+    size_t loopCount = 0;
     while (undoneMutators.size() > 0) {
+        LOG(RTLOG_ERROR, "HOUDINI_ENSURE EnsurePhaseTransition.loop loopCount=%zu undone=%zu",
+            loopCount, undoneMutators.size());
         for (auto it = undoneMutators.begin(); it != undoneMutators.end();) {
             Mutator* mutator = *it;
+            LOG(RTLOG_ERROR, "HOUDINI_ENSURE EnsurePhaseTransition.iter mutator=%p tid=%u phase=%d currentPhase=%d finished=%d saferegion=%d",
+                mutator, mutator->GetTid(), static_cast<int>(phase), static_cast<int>(mutator->GetMutatorPhase()),
+                static_cast<int>(mutator->FinishedTransition()), static_cast<int>(mutator->InSaferegion()));
             if (mutator->GetMutatorPhase() == phase && mutator->FinishedTransition()) {
+                LOG(RTLOG_ERROR, "HOUDINI_ENSURE EnsurePhaseTransition.already_done mutator=%p tid=%u", mutator, mutator->GetTid());
                 it = undoneMutators.erase(it);
                 continue;
             }
             if (mutator->InSaferegion() && mutator->TransitionGCPhase(false)) {
+                LOG(RTLOG_ERROR, "HOUDINI_ENSURE EnsurePhaseTransition.transition_done mutator=%p tid=%u", mutator, mutator->GetTid());
                 it = undoneMutators.erase(it);
                 continue;
             }
+            LOG(RTLOG_ERROR, "HOUDINI_ENSURE EnsurePhaseTransition.not_ready mutator=%p tid=%u", mutator, mutator->GetTid());
             ++it;
         }
+        loopCount++;
     }
+    LOG(RTLOG_ERROR, "HOUDINI_ENSURE EnsurePhaseTransition.exit phase=%d", static_cast<int>(phase));
 }
 
 void MutatorManager::TransitionAllMutatorsToGCPhase(GCPhase phase)
 {
     // Try to occupy mutatorListLock prevent some mutators from exiting
     bool worldStopped = WorldStopped();
+    MutatorManagerConsoleProbe("HOUDINI_TRANSGC TransitionAllMutatorsToGCPhase.enter");
+    LOG(RTLOG_ERROR, "HOUDINI_GC TransitionAllMutatorsToGCPhase.enter phase=%d worldStopped=%d", static_cast<int>(phase),
+        static_cast<int>(worldStopped));
     if (!worldStopped) {
+        MutatorManagerConsoleProbe("HOUDINI_TRANSGC TransitionAllMutatorsToGCPhase.before_AcquireMutatorManagementWLock");
+        LOG(RTLOG_ERROR, "HOUDINI_GC TransitionAllMutatorsToGCPhase.before_AcquireMutatorManagementWLock phase=%d",
+            static_cast<int>(phase));
         AcquireMutatorManagementWLock();
+        MutatorManagerConsoleProbe("HOUDINI_TRANSGC TransitionAllMutatorsToGCPhase.after_AcquireMutatorManagementWLock");
+        LOG(RTLOG_ERROR, "HOUDINI_GC TransitionAllMutatorsToGCPhase.after_AcquireMutatorManagementWLock phase=%d",
+            static_cast<int>(phase));
     }
 
     DLOG(GCPHASE, "transition gc: %s(%u) -> %s(%u)",
@@ -486,20 +629,41 @@ void MutatorManager::TransitionAllMutatorsToGCPhase(GCPhase phase)
          Collector::GetGCPhaseName(phase), phase);
 
     // Set global gc phase in the scope of mutatorlist lock
+    MutatorManagerConsoleProbe("HOUDINI_TRANSGC TransitionAllMutatorsToGCPhase.before_InstallBarrier");
+    LOG(RTLOG_ERROR, "HOUDINI_GC TransitionAllMutatorsToGCPhase.before_InstallBarrier phase=%d currentPhase=%d",
+        static_cast<int>(phase), static_cast<int>(Heap::GetHeap().GetGCPhase()));
     Heap::GetHeap().InstallBarrier(phase);
     Heap::GetHeap().SetGCPhase(phase);
+    MutatorManagerConsoleProbe("HOUDINI_TRANSGC TransitionAllMutatorsToGCPhase.after_SetGCPhase");
+    LOG(RTLOG_ERROR, "HOUDINI_GC TransitionAllMutatorsToGCPhase.after_SetGCPhase phase=%d currentPhase=%d",
+        static_cast<int>(phase), static_cast<int>(Heap::GetHeap().GetGCPhase()));
 
     std::list<Mutator*> undoneMutators;
     // Broadcast mutator phase transition signal to all mutators
     VisitAllMutators([&undoneMutators](Mutator& mutator) {
+        MutatorManagerConsoleProbe("HOUDINI_TRANSGC TransitionAllMutatorsToGCPhase.visit_mutator");
+        LOG(RTLOG_ERROR,
+            "HOUDINI_GC TransitionAllMutatorsToGCPhase.visit_mutator mutator=%p tid=%u currentPhase=%d saferegion=%d"
+            " cjthread=%p",
+            &mutator, mutator.GetTid(), static_cast<int>(mutator.GetMutatorPhase()),
+            static_cast<int>(mutator.InSaferegion()), mutator.GetCjthreadPtr());
         mutator.SetSuspensionFlag(Mutator::SuspensionType::SUSPENSION_FOR_GC_PHASE);
         mutator.SetSafepointActive(true);
         undoneMutators.push_back(&mutator);
     });
+    MutatorManagerConsoleProbe("HOUDINI_TRANSGC TransitionAllMutatorsToGCPhase.before_EnsurePhaseTransition");
+    LOG(RTLOG_ERROR, "HOUDINI_GC TransitionAllMutatorsToGCPhase.before_EnsurePhaseTransition phase=%d undone=%zu",
+        static_cast<int>(phase), undoneMutators.size());
     EnsurePhaseTransition(phase, undoneMutators);
+    MutatorManagerConsoleProbe("HOUDINI_TRANSGC TransitionAllMutatorsToGCPhase.after_EnsurePhaseTransition");
+    LOG(RTLOG_ERROR, "HOUDINI_GC TransitionAllMutatorsToGCPhase.after_EnsurePhaseTransition phase=%d undone=%zu",
+        static_cast<int>(phase), undoneMutators.size());
     if (!worldStopped) {
         MutatorManagementWUnlock();
     }
+    MutatorManagerConsoleProbe("HOUDINI_TRANSGC TransitionAllMutatorsToGCPhase.exit");
+    LOG(RTLOG_ERROR, "HOUDINI_GC TransitionAllMutatorsToGCPhase.exit phase=%d worldStopped=%d",
+        static_cast<int>(phase), static_cast<int>(worldStopped));
 }
 
 void MutatorManager::EnsureCpuProfileFinish(std::list<Mutator*> &undoneMutators)

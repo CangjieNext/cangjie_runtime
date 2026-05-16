@@ -7,10 +7,41 @@
 
 #include "WCollector.h"
 
+#include <cstdio>
+#include <time.h>
+
 #include "Concurrency/Concurrency.h"
 #include "Mutator/MutatorManager.h"
 
 namespace MapleRuntime {
+static unsigned long long g_houdini_trace_heap_seq = 0;
+
+static inline void WCollectorConsoleProbe(const char* msg)
+{
+    timespec ts {};
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    std::printf("[%lld.%06ld] %s\n", static_cast<long long>(ts.tv_sec), ts.tv_nsec / 1000, msg);
+    std::fflush(stdout);
+}
+
+static inline void WCollectorMutatorSnapshotProbe(const char* msg)
+{
+    timespec ts {};
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    MutatorManager& mm = MutatorManager::Instance();
+    std::printf("[%lld.%06ld] %s gcPhase=%d worldStopped=%d syncTriggered=%d mutatorCount=%zu\n",
+        static_cast<long long>(ts.tv_sec), ts.tv_nsec / 1000, msg, static_cast<int>(Heap::GetHeap().GetGCPhase()),
+        static_cast<int>(mm.WorldStopped()), static_cast<int>(mm.SyncTriggered()), mm.GetMutatorCount());
+    MutatorManager::Instance().VisitAllMutators([&](Mutator& mutator) {
+        std::printf("[%lld.%06ld] HOUDINI_STATES mutator=%p tid=%llu phase=%d saferegion=%d managed=%d cjthread=%p\n",
+            static_cast<long long>(ts.tv_sec), ts.tv_nsec / 1000, &mutator,
+            static_cast<unsigned long long>(mutator.GetTid()), static_cast<int>(mutator.GetMutatorPhase()),
+            static_cast<int>(mutator.InSaferegion()), static_cast<int>(mutator.IsManagedContext()),
+            mutator.GetCjthreadPtr());
+    });
+    std::fflush(stdout);
+}
+
 bool WCollector::IsUnmovableFromObject(BaseObject* obj) const
 {
     // filter const string object.
@@ -369,26 +400,88 @@ void WCollector::PreforwardAllResurrectExportFromObjects()
 }
 void WCollector::TraceHeap()
 {
+    unsigned long long runId = ++g_houdini_trace_heap_seq;
+    timespec ts {};
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    std::printf("[%lld.%06ld] HOUDINI_RUN TraceHeap.run_id=%llu collector=%p phase=%d tag=%u\n",
+        static_cast<long long>(ts.tv_sec), ts.tv_nsec / 1000, runId, this, static_cast<int>(GetGCPhase()),
+        currentTagID);
+    std::fflush(stdout);
+    LOG(RTLOG_ERROR, "HOUDINI_GC TraceHeap.enter collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
     WorkStack workStack = NewWorkStack();
     WorkStack foreignStack = NewWorkStack();
+    WCollectorConsoleProbe("HOUDINI_RAW TraceHeap.after_NewWorkStack_probe_1");
+    WCollectorConsoleProbe("HOUDINI_RAW TraceHeap.after_NewWorkStack_probe_2");
+    LOG(RTLOG_ERROR, "HOUDINI_GC TraceHeap.after_NewWorkStack collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
     // assemble garbage candidates for tracing.
-    reinterpret_cast<RegionSpace&>(theAllocator).AssembleGarbageCandidates();
+    WCollectorConsoleProbe("HOUDINI_RAW TraceHeap.before_AssembleGarbageCandidates_probe_1");
+    WCollectorConsoleProbe("HOUDINI_RAW TraceHeap.before_AssembleGarbageCandidates_probe_2");
+    LOG(RTLOG_ERROR, "HOUDINI_GC TraceHeap.before_AssembleGarbageCandidates collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
+    WCollectorMutatorSnapshotProbe("HOUDINI_SNAPSHOT TraceHeap.before_AssembleGarbageCandidates");
+    WCollectorConsoleProbe("HOUDINI_STW TraceHeap.before_PreAssembleSTW");
+    {
+        ScopedStopTheWorld scopedStopTheWorld("TraceHeap.PreAssembleCandidates", false);
+        WCollectorConsoleProbe("HOUDINI_STW TraceHeap.in_PreAssembleSTW");
+        WCollectorMutatorSnapshotProbe("HOUDINI_SNAPSHOT TraceHeap.in_PreAssembleSTW");
+        reinterpret_cast<RegionSpace&>(theAllocator).AssembleGarbageCandidates();
+        WCollectorConsoleProbe("HOUDINI_STW TraceHeap.after_AssembleGarbageCandidates_in_STW");
+    }
+    WCollectorConsoleProbe("HOUDINI_STW TraceHeap.after_PreAssembleSTW");
+    LOG(RTLOG_ERROR, "HOUDINI_GC TraceHeap.after_AssembleGarbageCandidates collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
+    WCollectorConsoleProbe("HOUDINI_RAW TraceHeap.after_AssembleGarbageCandidates_probe_1");
+    WCollectorConsoleProbe("HOUDINI_RAW TraceHeap.after_AssembleGarbageCandidates_probe_2");
 
     {
         MRT_PHASE_TIMER("enum roots & update old pointers within");
+        WCollectorConsoleProbe("HOUDINI_RAW TraceHeap.before_TransitionToEnum_probe_1");
+        WCollectorConsoleProbe("HOUDINI_RAW TraceHeap.before_TransitionToEnum_probe_2");
+        LOG(RTLOG_ERROR, "HOUDINI_GC TraceHeap.before_TransitionToEnum collector=%p phase=%d tag=%u", this,
+            static_cast<int>(GetGCPhase()), currentTagID);
         TransitionToGCPhase(GCPhase::GC_PHASE_ENUM, true);
+        LOG(RTLOG_ERROR, "HOUDINI_GC TraceHeap.after_TransitionToEnum collector=%p phase=%d tag=%u", this,
+            static_cast<int>(GetGCPhase()), currentTagID);
+        LOG(RTLOG_ERROR, "HOUDINI_GC TraceHeap.before_DoEnumeration collector=%p phase=%d tag=%u", this,
+            static_cast<int>(GetGCPhase()), currentTagID);
         DoEnumeration(workStack, foreignStack);
+        LOG(RTLOG_ERROR, "HOUDINI_GC TraceHeap.after_DoEnumeration collector=%p phase=%d tag=%u", this,
+            static_cast<int>(GetGCPhase()), currentTagID);
     }
 
     {
         MRT_PHASE_TIMER("trace live objects & update old pointers in ref-fields");
+        LOG(RTLOG_ERROR, "HOUDINI_GC TraceHeap.before_ResetMarkedObjectCount collector=%p phase=%d tag=%u", this,
+            static_cast<int>(GetGCPhase()), currentTagID);
         markedObjectCount.store(0, std::memory_order_relaxed);
+        LOG(RTLOG_ERROR, "HOUDINI_GC TraceHeap.after_ResetMarkedObjectCount collector=%p phase=%d tag=%u", this,
+            static_cast<int>(GetGCPhase()), currentTagID);
+        LOG(RTLOG_ERROR, "HOUDINI_GC TraceHeap.before_TransitionToTrace collector=%p phase=%d tag=%u", this,
+            static_cast<int>(GetGCPhase()), currentTagID);
         TransitionToGCPhase(GCPhase::GC_PHASE_TRACE, true);
+        LOG(RTLOG_ERROR, "HOUDINI_GC TraceHeap.after_TransitionToTrace collector=%p phase=%d tag=%u", this,
+            static_cast<int>(GetGCPhase()), currentTagID);
+        LOG(RTLOG_ERROR, "HOUDINI_GC TraceHeap.before_PrepareTrace collector=%p phase=%d tag=%u", this,
+            static_cast<int>(GetGCPhase()), currentTagID);
         reinterpret_cast<RegionSpace&>(theAllocator).PrepareTrace();
+        LOG(RTLOG_ERROR, "HOUDINI_GC TraceHeap.after_PrepareTrace collector=%p phase=%d tag=%u", this,
+            static_cast<int>(GetGCPhase()), currentTagID);
+        LOG(RTLOG_ERROR, "HOUDINI_GC TraceHeap.before_DoTracing collector=%p phase=%d tag=%u", this,
+            static_cast<int>(GetGCPhase()), currentTagID);
         DoTracing(workStack, foreignStack);
+        LOG(RTLOG_ERROR, "HOUDINI_GC TraceHeap.after_DoTracing collector=%p phase=%d tag=%u", this,
+            static_cast<int>(GetGCPhase()), currentTagID);
 
+        LOG(RTLOG_ERROR, "HOUDINI_GC TraceHeap.before_ProcessFinalizers collector=%p phase=%d tag=%u", this,
+            static_cast<int>(GetGCPhase()), currentTagID);
         ProcessFinalizers();
+        LOG(RTLOG_ERROR, "HOUDINI_GC TraceHeap.after_ProcessFinalizers collector=%p phase=%d tag=%u", this,
+            static_cast<int>(GetGCPhase()), currentTagID);
     }
+    LOG(RTLOG_ERROR, "HOUDINI_GC TraceHeap.exit collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
 }
 
 void WCollector::PostTrace()
@@ -526,23 +619,73 @@ void WCollector::PostResolveCycleTask()
 }
 void WCollector::DoGarbageCollection()
 {
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.enter collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.before_TraceHeap collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
     TraceHeap();
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.after_TraceHeap collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.before_PostTrace collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
     PostTrace();
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.after_PostTrace collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
 
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.before_Preforward collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
     Preforward();
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.after_Preforward collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
 
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.before_ForwardFromSpace collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
     ForwardFromSpace();
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.after_ForwardFromSpace collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
 
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.before_TransitionToIdle collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
     TransitionToGCPhase(GCPhase::GC_PHASE_IDLE, true);
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.after_TransitionToIdle collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.before_MergeResurrectExportObjects collector=%p phase=%d "
+        "tag=%u", this, static_cast<int>(GetGCPhase()), currentTagID);
     MergeResurrectExportObjects();
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.after_MergeResurrectExportObjects collector=%p phase=%d tag=%u",
+        this, static_cast<int>(GetGCPhase()), currentTagID);
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.before_PostResolveCycleTask collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
     PostResolveCycleTask();
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.after_PostResolveCycleTask collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.before_FlipTagID collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
     FlipTagID();
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.after_FlipTagID collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.before_SetTagID collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
     ForwardDataManager::GetForwardDataManager().SetTagID(currentTagID);
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.after_SetTagID collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
 
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.before_CollectSmallSpace collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
     CollectSmallSpace();
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.after_CollectSmallSpace collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.before_UnbindPreviousLiveInfo collector=%p phase=%d tag=%u",
+        this, static_cast<int>(GetGCPhase()), currentTagID);
     ForwardDataManager::GetForwardDataManager().UnbindPreviousLiveInfo();
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.after_UnbindPreviousLiveInfo collector=%p phase=%d tag=%u",
+        this, static_cast<int>(GetGCPhase()), currentTagID);
 
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.before_DumpRegionStats collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
     reinterpret_cast<RegionSpace&>(theAllocator).DumpRegionStats("region statistics when gc ends");
+    LOG(RTLOG_ERROR, "HOUDINI_GC DoGarbageCollection.exit collector=%p phase=%d tag=%u", this,
+        static_cast<int>(GetGCPhase()), currentTagID);
 }
 
 void WCollector::MarkNewObject(BaseObject* obj)

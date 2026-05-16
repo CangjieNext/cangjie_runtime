@@ -26,6 +26,13 @@ namespace MapleRuntime {
 extern "C" MRT_EXPORT bool MRT_EnterSaferegion(bool updateUnwindContext);
 extern "C" MRT_EXPORT bool MRT_LeaveSaferegion();
 extern "C" MRT_EXPORT bool MRT_CheckRuntimeFinished();
+extern "C" void MRT_LogMutatorSafepointSet(void* mutator, uint32_t tid, uint64_t* statePtr, uint64_t value,
+                                           uint32_t suspensionFlag);
+extern "C" void MRT_LogMutatorSafepointSlowPath(void* mutator, void* tlData, uint32_t tid, uint32_t suspensionFlag,
+                                                uint64_t safepointState);
+extern "C" void MRT_LogMutatorSaferegionBoundary(const char* event, void* mutator, void* tlData, uint32_t tid,
+                                                 uint32_t suspensionFlag, uint64_t safepointState, int inSaferegion,
+                                                 int syncTriggered, int updateUnwindContext);
 
 class Mutator {
 public:
@@ -169,6 +176,9 @@ public:
         SetInSaferegion(SAFE_REGION_FALSE);
         // go slow path if the mutator should suspend
         if (UNLIKELY(HasAnySuspensionRequest())) {
+            ThreadLocalData* tlData = ThreadLocal::GetThreadLocalData();
+            MRT_LogMutatorSafepointSlowPath(this, tlData, GetTid(), GetSuspensionFlag(),
+                                            tlData == nullptr ? 0 : tlData->safepointState);
             HandleSuspensionRequest();
         }
     }
@@ -281,6 +291,9 @@ public:
             return;
         }
         *statePtr = static_cast<uint64_t>(value);
+        if (value) {
+            MRT_LogMutatorSafepointSet(this, GetTid(), statePtr, *statePtr, GetSuspensionFlag());
+        }
     }
 
     // Spin wait phase transition finished when GC is tranverting this mutator's phase
@@ -334,8 +347,15 @@ public:
 
     void VisitMutatorRoots(const RootVisitor& visitor)
     {
+        LOG(RTLOG_ERROR, "HOUDINI_ENUM VisitMutatorRoots.enter mutator=%p tid=%u phase=%d saferegion=%d",
+            this, GetTid(), static_cast<int>(GetMutatorPhase()), static_cast<int>(InSaferegion()));
+        LOG(RTLOG_ERROR, "HOUDINI_ENUM VisitMutatorRoots.before_stack mutator=%p tid=%u", this, GetTid());
         VisitStackRoots(visitor);
+        LOG(RTLOG_ERROR, "HOUDINI_ENUM VisitMutatorRoots.after_stack mutator=%p tid=%u", this, GetTid());
+        LOG(RTLOG_ERROR, "HOUDINI_ENUM VisitMutatorRoots.before_exception mutator=%p tid=%u", this, GetTid());
         VisitExceptionRoots(visitor);
+        LOG(RTLOG_ERROR, "HOUDINI_ENUM VisitMutatorRoots.after_exception mutator=%p tid=%u", this, GetTid());
+        LOG(RTLOG_ERROR, "HOUDINI_ENUM VisitMutatorRoots.exit mutator=%p tid=%u", this, GetTid());
     }
 
     void VisitHeapReferences(const RootVisitor& rootVisitor, const DerivedPtrVisitor& derivedPtrVisitor);

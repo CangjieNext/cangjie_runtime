@@ -7,6 +7,8 @@
 
 #include "Base/Types.h"
 #include "Common/TypeDef.h"
+#include <cstdio>
+#include <time.h>
 #if defined(_WIN64)
 #define NOGDI
 #include <windows.h>
@@ -25,6 +27,14 @@
 #include "CpuProfiler/CpuProfiler.h"
 
 namespace MapleRuntime {
+static inline void MutatorConsoleProbe(const char* msg)
+{
+    timespec ts {};
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    std::printf("[%lld.%06ld] %s\n", static_cast<long long>(ts.tv_sec), ts.tv_nsec / 1000, msg);
+    std::fflush(stdout);
+}
+
 extern "C" uintptr_t MRT_GetThreadLocalData()
 {
     uintptr_t tlDataAddr = reinterpret_cast<uintptr_t>(ThreadLocal::GetThreadLocalData());
@@ -37,6 +47,37 @@ extern "C" uintptr_t MRT_GetThreadLocalData()
     }
 #endif
     return tlDataAddr;
+}
+
+extern "C" void MRT_LogMutatorSafepointSet(void* mutator, uint32_t tid, uint64_t* statePtr, uint64_t value,
+                                           uint32_t suspensionFlag)
+{
+    MutatorConsoleProbe("HOUDINI_SAFEPOINT SetSafepointActive.true");
+    LOG(RTLOG_ERROR,
+        "HOUDINI_SAFEPOINT SetSafepointActive.true mutator=%p tid=%u statePtr=%p value=%llu suspensionFlag=0x%x",
+        mutator, tid, statePtr, static_cast<unsigned long long>(value), suspensionFlag);
+}
+
+extern "C" void MRT_LogMutatorSafepointSlowPath(void* mutator, void* tlData, uint32_t tid, uint32_t suspensionFlag,
+                                                uint64_t safepointState)
+{
+    MutatorConsoleProbe("HOUDINI_SAFEPOINT DoLeaveSaferegion.slowpath");
+    LOG(RTLOG_ERROR,
+        "HOUDINI_SAFEPOINT DoLeaveSaferegion.slowpath mutator=%p tid=%u tlData=%p suspensionFlag=0x%x"
+        " safepointState=%llu",
+        mutator, tid, tlData, suspensionFlag, static_cast<unsigned long long>(safepointState));
+}
+
+extern "C" void MRT_LogMutatorSaferegionBoundary(const char* event, void* mutator, void* tlData, uint32_t tid,
+                                                 uint32_t suspensionFlag, uint64_t safepointState, int inSaferegion,
+                                                 int syncTriggered, int updateUnwindContext)
+{
+    MutatorConsoleProbe(event);
+    LOG(RTLOG_ERROR,
+        "%s mutator=%p tid=%u tlData=%p suspensionFlag=0x%x safepointState=%llu inSaferegion=%d"
+        " syncTriggered=%d updateUnwindContext=%d",
+        event, mutator, tid, tlData, suspensionFlag, static_cast<unsigned long long>(safepointState),
+        inSaferegion, syncTriggered, updateUnwindContext);
 }
 
 extern "C" bool MRT_EnterSaferegion(bool updateUnwindContext)
@@ -145,8 +186,23 @@ void Mutator::SetManagedContext(bool isManagedContext)
 
 void Mutator::HandleSuspensionRequest()
 {
+    ThreadLocalData* tlData = ThreadLocal::GetThreadLocalData();
+    MutatorConsoleProbe("HOUDINI_SAFEPOINT HandleSuspensionRequest.enter");
+    LOG(RTLOG_ERROR,
+        "HOUDINI_SAFEPOINT HandleSuspensionRequest.enter mutator=%p tid=%u tlData=%p suspensionFlag=0x%x"
+        " safepointState=%llu inSaferegion=%d",
+        this, GetTid(), tlData, GetSuspensionFlag(),
+        static_cast<unsigned long long>(tlData == nullptr ? 0 : tlData->safepointState),
+        static_cast<int>(InSaferegion()));
     for (;;) {
         SetInSaferegion(SAFE_REGION_TRUE);
+        MutatorConsoleProbe("HOUDINI_SAFEPOINT HandleSuspensionRequest.loop");
+        LOG(RTLOG_ERROR,
+            "HOUDINI_SAFEPOINT HandleSuspensionRequest.loop mutator=%p tid=%u suspensionFlag=0x%x"
+            " safepointState=%llu inSaferegion=%d",
+            this, GetTid(), GetSuspensionFlag(),
+            static_cast<unsigned long long>(tlData == nullptr ? 0 : tlData->safepointState),
+            static_cast<int>(InSaferegion()));
         if (HasSuspensionRequest(SUSPENSION_FOR_GC_PHASE)) {
             TransitionGCPhase(true);
         } else if (HasSuspensionRequest(SUSPENSION_FOR_CPU_PROFILE)) {
@@ -184,9 +240,25 @@ void Mutator::HandleSuspensionRequest()
 
 void Mutator::SuspendForSync()
 {
+    ThreadLocalData* tlData = ThreadLocal::GetThreadLocalData();
+    MutatorConsoleProbe("HOUDINI_SAFEPOINT SuspendForSync.enter");
+    LOG(RTLOG_ERROR,
+        "HOUDINI_SAFEPOINT SuspendForSync.enter mutator=%p tid=%u tlData=%p suspensionFlag=0x%x"
+        " safepointState=%llu inSaferegion=%d",
+        this, GetTid(), tlData, GetSuspensionFlag(),
+        static_cast<unsigned long long>(tlData == nullptr ? 0 : tlData->safepointState),
+        static_cast<int>(InSaferegion()));
     ClearSuspensionFlag(SUSPENSION_FOR_SYNC);
+    MutatorConsoleProbe("HOUDINI_SAFEPOINT SuspendForSync.after_ClearSuspensionFlag");
+    LOG(RTLOG_ERROR,
+        "HOUDINI_SAFEPOINT SuspendForSync.after_ClearSuspensionFlag mutator=%p tid=%u suspensionFlag=0x%x",
+        this, GetTid(), GetSuspensionFlag());
     // wait until StartTheWorld
     int curCount = static_cast<int>(MutatorManager::Instance().GetSyncFutexWordValue());
+    MutatorConsoleProbe("HOUDINI_SAFEPOINT SuspendForSync.before_wait");
+    LOG(RTLOG_ERROR,
+        "HOUDINI_SAFEPOINT SuspendForSync.before_wait mutator=%p tid=%u curCount=%d suspensionFlag=0x%x",
+        this, GetTid(), curCount, GetSuspensionFlag());
     // Avoid losing wake-ups
     if (curCount > 0) {
 #if defined(_WIN64) || defined(__APPLE__)
@@ -199,6 +271,10 @@ void Mutator::SuspendForSync()
         (void)Futex(countAddr, FUTEX_WAIT, curCount);
 #endif
     }
+    MutatorConsoleProbe("HOUDINI_SAFEPOINT SuspendForSync.exit");
+    LOG(RTLOG_ERROR,
+        "HOUDINI_SAFEPOINT SuspendForSync.exit mutator=%p tid=%u suspensionFlag=0x%x",
+        this, GetTid(), GetSuspensionFlag());
 }
 
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
@@ -207,9 +283,12 @@ void Mutator::CreateCurrentGCInfo() { gcInfos.CreateCurrentGCInfo(); }
 
 void Mutator::VisitStackRoots(const RootVisitor& func)
 {
+    LOG(RTLOG_ERROR, "HOUDINI_ENUM VisitStackRoots.enter mutator=%p tid=%u managed=%d saferegion=%d",
+        this, GetTid(), static_cast<int>(IsManagedContext()), static_cast<int>(InSaferegion()));
     MutatorLock();
     // the stack doesn't include managed frame, skip it.
     if (!IsManagedContext()) {
+        LOG(RTLOG_ERROR, "HOUDINI_ENUM VisitStackRoots.skip_unmanaged mutator=%p tid=%u", this, GetTid());
         MutatorUnlock();
         return;
     }
@@ -218,14 +297,20 @@ void Mutator::VisitStackRoots(const RootVisitor& func)
     CreateCurrentGCInfo();
 #endif
     StackManager::VisitStackRoots(uwContext, func, *this);
+    LOG(RTLOG_ERROR, "HOUDINI_ENUM VisitStackRoots.after_stack_manager mutator=%p tid=%u", this, GetTid());
     VisitRawObjects(func);
+    LOG(RTLOG_ERROR, "HOUDINI_ENUM VisitStackRoots.after_raw_objects mutator=%p tid=%u", this, GetTid());
     DecObserver();
     MutatorUnlock();
+    LOG(RTLOG_ERROR, "HOUDINI_ENUM VisitStackRoots.exit mutator=%p tid=%u", this, GetTid());
 }
 
 void Mutator::VisitExceptionRoots(const RootVisitor& func)
 {
+    LOG(RTLOG_ERROR, "HOUDINI_ENUM VisitExceptionRoots.enter mutator=%p tid=%u exceptionRef=%p",
+        this, GetTid(), exceptionWrapper.GetExceptionRef());
     func(reinterpret_cast<ObjectRef&>(exceptionWrapper.GetExceptionRef()));
+    LOG(RTLOG_ERROR, "HOUDINI_ENUM VisitExceptionRoots.exit mutator=%p tid=%u", this, GetTid());
 }
 
 void Mutator::VisitRawObjects(const RootVisitor& func)
@@ -237,9 +322,13 @@ void Mutator::VisitRawObjects(const RootVisitor& func)
 
 void Mutator::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, const DerivedPtrVisitor& derivedPtrVisitor)
 {
+    LOG(RTLOG_ERROR, "HOUDINI_PREFORWARD VisitHeapReferencesOnStack.enter mutator=%p tid=%u managed=%d saferegion=%d",
+        this, GetTid(), static_cast<int>(IsManagedContext()), static_cast<int>(InSaferegion()));
     MutatorLock();
     // the stack doesn't include managed frame, skip it.
     if (!IsManagedContext()) {
+        LOG(RTLOG_ERROR, "HOUDINI_PREFORWARD VisitHeapReferencesOnStack.skip_unmanaged mutator=%p tid=%u",
+            this, GetTid());
         MutatorUnlock();
         return;
     }
@@ -248,15 +337,24 @@ void Mutator::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, const D
     CreateCurrentGCInfo();
 #endif
     StackManager::VisitHeapReferencesOnStack(uwContext, rootVisitor, derivedPtrVisitor, *this);
+    LOG(RTLOG_ERROR, "HOUDINI_PREFORWARD VisitHeapReferencesOnStack.after_stack_manager mutator=%p tid=%u",
+        this, GetTid());
     VisitRawObjects(rootVisitor);
+    LOG(RTLOG_ERROR, "HOUDINI_PREFORWARD VisitHeapReferencesOnStack.after_raw_objects mutator=%p tid=%u",
+        this, GetTid());
     DecObserver();
     MutatorUnlock();
+    LOG(RTLOG_ERROR, "HOUDINI_PREFORWARD VisitHeapReferencesOnStack.exit mutator=%p tid=%u", this, GetTid());
 }
 
 void Mutator::VisitHeapReferences(const RootVisitor& rootVisitor, const DerivedPtrVisitor& derivedPtrVisitor)
 {
+    LOG(RTLOG_ERROR, "HOUDINI_PREFORWARD VisitHeapReferences.enter mutator=%p tid=%u", this, GetTid());
     VisitHeapReferencesOnStack(rootVisitor, derivedPtrVisitor);
+    LOG(RTLOG_ERROR, "HOUDINI_PREFORWARD VisitHeapReferences.after_stack mutator=%p tid=%u", this, GetTid());
     VisitExceptionRoots(rootVisitor);
+    LOG(RTLOG_ERROR, "HOUDINI_PREFORWARD VisitHeapReferences.after_exception mutator=%p tid=%u", this, GetTid());
+    LOG(RTLOG_ERROR, "HOUDINI_PREFORWARD VisitHeapReferences.exit mutator=%p tid=%u", this, GetTid());
 }
 
 Mutator* Mutator::GetMutator() noexcept
@@ -473,6 +571,9 @@ inline void CheckAndPush(BaseObject* obj, std::set<BaseObject*>& rootSet, std::s
 
 inline void Mutator::GcPhaseEnum(GCPhase newPhase)
 {
+    MutatorConsoleProbe("HOUDINI_ENUM GcPhaseEnum.enter");
+    LOG(RTLOG_ERROR, "HOUDINI_ENUM GcPhaseEnum.enter mutator=%p tid=%u newPhase=%d saferegion=%d cjthread=%p",
+        this, GetTid(), static_cast<int>(newPhase), static_cast<int>(InSaferegion()), GetCjthreadPtr());
     std::set<BaseObject*> rootSet;
     std::stack<BaseObject*> rootStack;
     RefFieldVisitor refVisitor = [&rootSet, &rootStack, this](RefField<>& refFieldAddr) {
@@ -487,6 +588,9 @@ inline void Mutator::GcPhaseEnum(GCPhase newPhase)
     };
 
     RootVisitor visitor = [&rootSet, &rootStack, this, &refVisitor](ObjectRef& root) {
+        MutatorConsoleProbe("HOUDINI_ENUM GcPhaseEnum.visitor_enter");
+        LOG(RTLOG_ERROR, "HOUDINI_ENUM GcPhaseEnum.visitor_enter mutator=%p tid=%u rootAddr=%p",
+            this, GetTid(), &root);
         BaseObject* obj = root.object;
         if (Heap::IsHeapAddress(obj)) {
             AllocBuffer* buffer = AllocBuffer::GetOrCreateAllocBuffer();
@@ -500,12 +604,23 @@ inline void Mutator::GcPhaseEnum(GCPhase newPhase)
             rootStack.pop();
             obj->ForEachRefField(refVisitor);
         }
+        MutatorConsoleProbe("HOUDINI_ENUM GcPhaseEnum.visitor_exit");
+        LOG(RTLOG_ERROR, "HOUDINI_ENUM GcPhaseEnum.visitor_exit mutator=%p tid=%u rootAddr=%p rootSetSize=%zu",
+            this, GetTid(), &root, rootSet.size());
     };
+    MutatorConsoleProbe("HOUDINI_ENUM GcPhaseEnum.before_VisitMutatorRoots");
+    LOG(RTLOG_ERROR, "HOUDINI_ENUM GcPhaseEnum.before_VisitMutatorRoots mutator=%p tid=%u", this, GetTid());
     VisitMutatorRoots(visitor);
+    MutatorConsoleProbe("HOUDINI_ENUM GcPhaseEnum.after_VisitMutatorRoots");
+    LOG(RTLOG_ERROR, "HOUDINI_ENUM GcPhaseEnum.after_VisitMutatorRoots mutator=%p tid=%u rootSetSize=%zu",
+        this, GetTid(), rootSet.size());
 }
 
 inline void Mutator::GCPhasePreForward(GCPhase newPhase)
 {
+    LOG(RTLOG_ERROR,
+        "HOUDINI_PREFORWARD GCPhasePreForward.enter mutator=%p tid=%u newPhase=%d currentPhase=%d saferegion=%d",
+        this, GetTid(), static_cast<int>(newPhase), static_cast<int>(GetMutatorPhase()), static_cast<int>(InSaferegion()));
     std::set<BaseObject*> rootSet;
     std::set<void*> rootFieldSet;
     std::stack<BaseObject*> rootStack;
@@ -525,6 +640,8 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
     };
 
     RootVisitor visitor = [&rootSet, &rootFieldSet, &rootStack, &collector, this, &refVisitor](ObjectRef& root) {
+        LOG(RTLOG_ERROR, "HOUDINI_PREFORWARD GCPhasePreForward.visitor_enter mutator=%p tid=%u rootAddr=%p",
+            this, GetTid(), &root);
         BaseObject* oldObj = root.object;
         if (Heap::IsHeapAddress(oldObj) && collector.IsGhostFromObject(oldObj) &&
             !collector.IsUnmovableFromObject(oldObj)) {
@@ -541,6 +658,10 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
             rootStack.pop();
             obj->ForEachRefField(refVisitor);
         }
+        LOG(RTLOG_ERROR,
+            "HOUDINI_PREFORWARD GCPhasePreForward.visitor_exit mutator=%p tid=%u rootAddr=%p rootSetSize=%zu"
+            " rootFieldSetSize=%zu",
+            this, GetTid(), &root, rootSet.size(), rootFieldSet.size());
     };
 
     DerivedPtrVisitor derivedPtrVisitor = [&collector](BasePtrType basePtr, DerivedPtrType& derivedPtr) {
@@ -555,11 +676,20 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
             derivedPtr = toDerived;
         }
     };
+    LOG(RTLOG_ERROR, "HOUDINI_PREFORWARD GCPhasePreForward.before_visit_heap_refs mutator=%p tid=%u",
+        this, GetTid());
     VisitHeapReferences(visitor, derivedPtrVisitor);
+    LOG(RTLOG_ERROR,
+        "HOUDINI_PREFORWARD GCPhasePreForward.exit mutator=%p tid=%u rootSetSize=%zu rootFieldSetSize=%zu",
+        this, GetTid(), rootSet.size(), rootFieldSet.size());
 }
 
 inline void Mutator::HandleGCPhase(GCPhase newPhase)
 {
+    MutatorConsoleProbe("HOUDINI_TRANS Mutator.HandleGCPhase.enter");
+    LOG(RTLOG_ERROR, "HOUDINI_GC Mutator.HandleGCPhase.enter mutator=%p tid=%u newPhase=%d currentPhase=%d saferegion=%d"
+        " cjthread=%p", this, GetTid(), static_cast<int>(newPhase), static_cast<int>(GetMutatorPhase()),
+        static_cast<int>(InSaferegion()), GetCjthreadPtr());
     if (newPhase == GCPhase::GC_PHASE_FINISH || newPhase == GCPhase::GC_PHASE_FORWARD) {
         std::lock_guard<std::mutex> lg(mutatorLock);
         if (satbNode != nullptr) {
@@ -578,6 +708,10 @@ inline void Mutator::HandleGCPhase(GCPhase newPhase)
     } else if (newPhase == GCPhase::GC_PHASE_IDLE) {
         HandleGCPhaseIDLE();
     }
+    MutatorConsoleProbe("HOUDINI_TRANS Mutator.HandleGCPhase.exit");
+    LOG(RTLOG_ERROR, "HOUDINI_GC Mutator.HandleGCPhase.exit mutator=%p tid=%u newPhase=%d currentPhase=%d saferegion=%d"
+        " cjthread=%p", this, GetTid(), static_cast<int>(newPhase), static_cast<int>(GetMutatorPhase()),
+        static_cast<int>(InSaferegion()), GetCjthreadPtr());
 }
 
 inline void Mutator::HandleGCPhaseIDLE()
@@ -598,11 +732,28 @@ inline void Mutator::HandleGCPhaseIDLE()
 
 void Mutator::TransitionToGCPhaseExclusive(GCPhase newPhase)
 {
+    MutatorConsoleProbe("HOUDINI_TRANS TransitionToGCPhaseExclusive.enter");
+    LOG(RTLOG_ERROR, "HOUDINI_TRANS TransitionToGCPhaseExclusive.enter mutator=%p tid=%u newPhase=%d",
+        this, GetTid(), static_cast<int>(newPhase));
     HandleGCPhase(newPhase);
+    MutatorConsoleProbe("HOUDINI_TRANS TransitionToGCPhaseExclusive.after_HandleGCPhase");
+    LOG(RTLOG_ERROR, "HOUDINI_TRANS TransitionToGCPhaseExclusive.after_HandleGCPhase mutator=%p tid=%u",
+        this, GetTid());
     SetSafepointActive(false);
-    // Clear mutator's suspend request after phase transition
+    MutatorConsoleProbe("HOUDINI_TRANS TransitionToGCPhaseExclusive.after_SetSafepointActive");
+    LOG(RTLOG_ERROR, "HOUDINI_TRANS TransitionToGCPhaseExclusive.after_SetSafepointActive mutator=%p tid=%u",
+        this, GetTid());
     ClearSuspensionFlag(SUSPENSION_FOR_GC_PHASE);
-    mutatorPhase.store(newPhase, std::memory_order_release); // handshake between mutator & mainGC thread
+    MutatorConsoleProbe("HOUDINI_TRANS TransitionToGCPhaseExclusive.after_ClearSuspensionFlag");
+    LOG(RTLOG_ERROR, "HOUDINI_TRANS TransitionToGCPhaseExclusive.after_ClearSuspensionFlag mutator=%p tid=%u",
+        this, GetTid());
+    mutatorPhase.store(newPhase, std::memory_order_release);
+    MutatorConsoleProbe("HOUDINI_TRANS TransitionToGCPhaseExclusive.after_store_phase");
+    LOG(RTLOG_ERROR, "HOUDINI_TRANS TransitionToGCPhaseExclusive.after_store_phase mutator=%p tid=%u phase=%d",
+        this, GetTid(), static_cast<int>(mutatorPhase.load()));
+    MutatorConsoleProbe("HOUDINI_TRANS TransitionToGCPhaseExclusive.exit");
+    LOG(RTLOG_ERROR, "HOUDINI_TRANS TransitionToGCPhaseExclusive.exit mutator=%p tid=%u",
+        this, GetTid());
 }
 
 inline void Mutator::HandleCpuProfile()

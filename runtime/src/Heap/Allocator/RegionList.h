@@ -8,9 +8,39 @@
 #ifndef MRT_REGION_LIST_H
 #define MRT_REGION_LIST_H
 
+#include <cstdio>
+#include <time.h>
+#include <unistd.h>
+
 #include "RegionInfo.h"
+#include "Heap/Heap.h"
+#include "Mutator/ThreadLocal.h"
 
 namespace MapleRuntime {
+static inline void RegionListWriteProbe(const char* msg, const void* list, const void* region)
+{
+    timespec ts {};
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    ThreadLocalData* tl = ThreadLocal::GetThreadLocalData();
+    GCPhase gcPhase = Heap::GetHeap().GetGCPhase();
+    int threadType = tl == nullptr ? -1 : static_cast<int>(tl->threadType);
+    std::printf("[%lld.%06ld] %s list=%p region=%p tl=%p mutator=%p buffer=%p threadType=%d cjthread=%p schedule=%p tid=%llu gcPhase=%d\n",
+        static_cast<long long>(ts.tv_sec), ts.tv_nsec / 1000, msg, list, region, tl,
+        tl == nullptr ? nullptr : tl->mutator, tl == nullptr ? nullptr : tl->buffer,
+        threadType, tl == nullptr ? nullptr : tl->cjthread,
+        tl == nullptr ? nullptr : tl->schedule,
+        static_cast<unsigned long long>(tl == nullptr ? 0 : tl->tid), static_cast<int>(gcPhase));
+    if (threadType == 0 && gcPhase != GCPhase::GC_PHASE_IDLE) {
+        std::printf("[%lld.%06ld] HOUDINI_RACE mutator_write_during_gc list=%p region=%p tl=%p mutator=%p buffer=%p threadType=%d cjthread=%p schedule=%p tid=%llu gcPhase=%d\n",
+            static_cast<long long>(ts.tv_sec), ts.tv_nsec / 1000, list, region, tl,
+            tl == nullptr ? nullptr : tl->mutator, tl == nullptr ? nullptr : tl->buffer,
+            threadType, tl == nullptr ? nullptr : tl->cjthread,
+            tl == nullptr ? nullptr : tl->schedule,
+            static_cast<unsigned long long>(tl == nullptr ? 0 : tl->tid), static_cast<int>(gcPhase));
+    }
+    std::fflush(stdout);
+}
+
 class RegionList {
 public:
     friend void RemoveRegionLocked(RegionList*, RegionInfo*);
@@ -27,8 +57,11 @@ public:
             return;
         }
 
+        RegionListWriteProbe("HOUDINI_WRITE DeleteRegion.before_lock", this, del);
         std::lock_guard<std::mutex> lock(listMutex);
+        RegionListWriteProbe("HOUDINI_WRITE DeleteRegion.after_lock", this, del);
         DeleteRegionLocked(del);
+        RegionListWriteProbe("HOUDINI_WRITE DeleteRegion.after_delete_locked", this, del);
     }
 
     bool TryDeleteRegion(RegionInfo* del, RegionInfo::RegionType oldType, RegionInfo::RegionType newType)
@@ -38,12 +71,16 @@ public:
         }
 
         CHECK(oldType != newType);
+        RegionListWriteProbe("HOUDINI_WRITE TryDeleteRegion.before_lock", this, del);
         std::lock_guard<std::mutex> lock(listMutex);
+        RegionListWriteProbe("HOUDINI_WRITE TryDeleteRegion.after_lock", this, del);
         if (del->GetRegionType() == oldType) {
             DeleteRegionLocked(del);
             del->SetRegionType(newType);
+            RegionListWriteProbe("HOUDINI_WRITE TryDeleteRegion.success", this, del);
             return true;
         }
+        RegionListWriteProbe("HOUDINI_WRITE TryDeleteRegion.noop", this, del);
         return false;
     }
 
@@ -69,17 +106,34 @@ public:
         unitCount += nUnit;
     }
 
-    RegionInfo* GetHeadRegion() const { return listHead; }
+    RegionInfo* GetHeadRegion() const
+    {
+        LOG(RTLOG_ERROR, "HOUDINI_GETTER GetHeadRegion this=%p listHead=%p listTail=%p regionCount=%zu unitCount=%zu",
+            this, listHead, listTail, regionCount, unitCount);
+        return listHead;
+    }
 
     void ClearList()
     {
+        LOG(RTLOG_ERROR,
+            "HOUDINI_CLEARLIST ClearList.enter this=%p listHead=%p listTail=%p regionCount=%zu unitCount=%zu",
+            this, listHead, listTail, regionCount, unitCount);
         listHead = nullptr;
+        LOG(RTLOG_ERROR, "HOUDINI_CLEARLIST ClearList.after_listHead this=%p listHead=%p", this, listHead);
         listTail = nullptr;
+        LOG(RTLOG_ERROR, "HOUDINI_CLEARLIST ClearList.after_listTail this=%p listTail=%p", this, listTail);
         regionCount = 0;
+        LOG(RTLOG_ERROR, "HOUDINI_CLEARLIST ClearList.after_regionCount this=%p regionCount=%zu", this, regionCount);
         unitCount = 0;
+        LOG(RTLOG_ERROR, "HOUDINI_CLEARLIST ClearList.after_unitCount this=%p unitCount=%zu", this, unitCount);
     }
 
-    RegionInfo* GetTailRegion() { return listTail; }
+    RegionInfo* GetTailRegion()
+    {
+        LOG(RTLOG_ERROR, "HOUDINI_GETTER GetTailRegion this=%p listHead=%p listTail=%p regionCount=%zu unitCount=%zu",
+            this, listHead, listTail, regionCount, unitCount);
+        return listTail;
+    }
 
     RegionInfo* TakeHeadRegion()
     {
@@ -151,9 +205,21 @@ public:
 
     void MoveTo(RegionList& targetList)
     {
+        RegionListWriteProbe("HOUDINI_WRITE MoveTo.before_lock", this, &targetList);
+        (void)::write(1, "HOUDINI_WRITE MoveTo.enter_raw\n", sizeof("HOUDINI_WRITE MoveTo.enter_raw\n") - 1);
+        LOG(RTLOG_ERROR, "HOUDINI_MOVETO MoveTo.enter this=%p targetList=%p listHead=%p listTail=%p regionCount=%zu unitCount=%zu",
+            this, &targetList, listHead, listTail, regionCount, unitCount);
         std::lock_guard<std::mutex> lock(listMutex);
+        RegionListWriteProbe("HOUDINI_WRITE MoveTo.after_lock", this, &targetList);
+        LOG(RTLOG_ERROR, "HOUDINI_MOVETO MoveTo.after_lock this=%p targetList=%p", this, &targetList);
         targetList.AssignWith(*this);
+        RegionListWriteProbe("HOUDINI_WRITE MoveTo.after_assign_with", this, &targetList);
+        LOG(RTLOG_ERROR, "HOUDINI_MOVETO MoveTo.after_AssignWith this=%p targetList=%p this->listHead=%p this->listTail=%p",
+            this, &targetList, listHead, listTail);
         this->ClearList();
+        RegionListWriteProbe("HOUDINI_WRITE MoveTo.after_clear_list", this, &targetList);
+        LOG(RTLOG_ERROR, "HOUDINI_MOVETO MoveTo.after_ClearList this=%p this->listHead=%p this->listTail=%p",
+            this, listHead, listTail);
     }
 
     void CopyListTo(RegionList& dstList)
@@ -177,11 +243,21 @@ private:
 
     void AssignWith(const RegionList& srcList)
     {
+        RegionListWriteProbe("HOUDINI_WRITE AssignWith.before_lock", this, &srcList);
+        LOG(RTLOG_ERROR, "HOUDINI_ASSIGN AssignWith.enter this=%p srcList=%p srcList.listHead=%p srcList.listTail=%p srcList.regionCount=%zu srcList.unitCount=%zu",
+            this, &srcList, srcList.listHead, srcList.listTail, srcList.regionCount, srcList.unitCount);
         std::lock_guard<std::mutex> lock(listMutex);
+        RegionListWriteProbe("HOUDINI_WRITE AssignWith.after_lock", this, &srcList);
+        LOG(RTLOG_ERROR, "HOUDINI_ASSIGN AssignWith.after_lock this=%p srcList=%p", this, &srcList);
         listHead = srcList.listHead;
+        LOG(RTLOG_ERROR, "HOUDINI_ASSIGN AssignWith.after_listHead this=%p listHead=%p", this, listHead);
         listTail = srcList.listTail;
+        LOG(RTLOG_ERROR, "HOUDINI_ASSIGN AssignWith.after_listTail this=%p listTail=%p", this, listTail);
         regionCount = srcList.regionCount;
+        LOG(RTLOG_ERROR, "HOUDINI_ASSIGN AssignWith.after_regionCount this=%p regionCount=%zu", this, regionCount);
         unitCount = srcList.unitCount;
+        LOG(RTLOG_ERROR, "HOUDINI_ASSIGN AssignWith.after_unitCount this=%p unitCount=%zu", this, unitCount);
+        RegionListWriteProbe("HOUDINI_WRITE AssignWith.after_copy", this, &srcList);
     }
 
     // allocated-size of to-region list must be calculated on the fly.

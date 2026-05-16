@@ -116,6 +116,10 @@ CJ_MCC_HandleSafepoint:
    mov  x3, x28
    bl MRT_UpdateUwContext
 
+   // debug probe: log the raw x28 value before entering HandleSafepoint
+   mov  x0, x28
+   bl MRT_LogSafepointStub
+
    // call safepoint handler
    mov  x0, x28
    bl HandleSafepoint

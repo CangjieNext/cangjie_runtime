@@ -7,6 +7,9 @@
 
 #include "CangjieRuntime.h"
 
+#include <cstdio>
+#include <time.h>
+
 #include "Base/Log.h"
 #include "ExceptionManager.h"
 #include "Heap/Heap.h"
@@ -33,6 +36,8 @@
 #include "Sanitizer/SanitizerInterface.h"
 #endif
 namespace MapleRuntime {
+static constexpr const char* HOUDINI_BUILD_ID = "houdini_probe_20260511_1515";
+
 StackGrowConfig CangjieRuntime::stackGrowConfig = StackGrowConfig::UNDEF;
 extern "C" MRT_EXPORT void MRT_LibraryOnLoad(uint64_t address, bool enableGC)
 {
@@ -153,6 +158,11 @@ inline T* NewAndInit(A arg)
 // HeapManager must be initialized before HeapManager because of inherited properties of signal handlers.
 void CangjieRuntime::Init()
 {
+    timespec ts {};
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    std::printf("[%lld.%06ld] HOUDINI_BUILD runtime_init build_id=%s build_time=%s %s runtime=%p\n",
+        static_cast<long long>(ts.tv_sec), ts.tv_nsec / 1000, HOUDINI_BUILD_ID, __DATE__, __TIME__, this);
+    std::fflush(stdout);
     PagePool::Instance().Init(param.heapParam.heapSize * KB / MRT_PAGE_SIZE);
 #ifdef CANGJIE_GWPASAN_SUPPORT
     // setup gwpasan before heap initialized
@@ -177,6 +187,7 @@ void CangjieRuntime::Init()
     exceptionManager = NewAndInit<ExceptionManager>();
 
     LOG(RTLOG_INFO, "Cangjie runtime started.");
+    printf("hello world\n");
     // Record runtime parameter to report. heap growth value needs to plus 1.
 #if not defined(__EULER__)
     VLOG(REPORT,

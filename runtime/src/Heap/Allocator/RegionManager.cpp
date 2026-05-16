@@ -8,10 +8,13 @@
 #include "Allocator/RegionManager.h"
 
 #include <cmath>
+#include <cstdio>
+#include <time.h>
 #include <unistd.h>
 
 #include "Allocator/RegionSpace.h"
 #include "Base/CString.h"
+#include "Base/Print.h"
 #include "Collector/Collector.h"
 #include "Collector/CopyCollector.h"
 #include "Common/ScopedObjectAccess.h"
@@ -25,6 +28,14 @@
 #include "Sync/Sync.h"
 
 namespace MapleRuntime {
+static inline void RegionManagerConsoleProbe(const char* msg)
+{
+    timespec ts {};
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    std::printf("[%lld.%06ld] %s\n", static_cast<long long>(ts.tv_sec), ts.tv_nsec / 1000, msg);
+    std::fflush(stdout);
+}
+
 uintptr_t RegionInfo::UnitInfo::totalUnitCount = 0;
 uintptr_t RegionInfo::UnitInfo::heapStartAddress = 0;
 
@@ -153,30 +164,71 @@ bool RegionInfo::VisitLiveObjectsUntilFalse(const std::function<bool(BaseObject*
 
 void RegionList::MergeRegionList(RegionList& srcList, RegionInfo::RegionType regionType)
 {
+    RegionManagerConsoleProbe("HOUDINI_RAW MergeRegionList.enter");
+    LOG(RTLOG_ERROR,
+        "HOUDINI_REGION MergeRegionList.enter dst=%p(%s) src=%p(%s) dstHead=%p dstTail=%p dstRegions=%zu dstUnits=%zu "
+        "srcHead=%p srcTail=%p srcRegions=%zu srcUnits=%zu targetType=%d",
+        this, listName, &srcList, srcList.listName, listHead, listTail, regionCount, unitCount,
+        srcList.listHead, srcList.listTail, srcList.regionCount, srcList.unitCount, static_cast<int>(regionType));
     RegionList regionList("region list cache");
+    LOG(RTLOG_ERROR, "HOUDINI_REGION MergeRegionList.before_MoveTo src=%p(%s) srcList.listHead=%p srcList.listTail=%p srcList.regionCount=%zu srcList.unitCount=%zu",
+        &srcList, srcList.listName, srcList.listHead, srcList.listTail, srcList.regionCount, srcList.unitCount);
+    LOG(RTLOG_ERROR, "HOUDINI_REGION MergeRegionList.regionList_addr regionList=%p regionList.listHead=%p regionList.listTail=%p",
+        &regionList, regionList.listHead, regionList.listTail);
+    LOG(RTLOG_ERROR, "HOUDINI_REGION MergeRegionList.calling_MoveTo src=%p target=%p", &srcList, &regionList);
+    (void)::write(1, "HOUDINI_WRITE MergeRegionList.before_MoveTo_call_raw\n",
+                  sizeof("HOUDINI_WRITE MergeRegionList.before_MoveTo_call_raw\n") - 1);
     srcList.MoveTo(regionList);
+    LOG(RTLOG_ERROR,
+        "HOUDINI_REGION MergeRegionList.after_MoveTo src=%p(%s) cacheHead=%p cacheTail=%p cacheRegions=%zu cacheUnits=%zu "
+        "srcHead=%p srcTail=%p srcRegions=%zu srcUnits=%zu",
+        &srcList, srcList.listName, regionList.GetHeadRegion(), regionList.GetTailRegion(),
+        regionList.GetRegionCount(), regionList.GetUnitCount(), srcList.listHead, srcList.listTail, srcList.regionCount,
+        srcList.unitCount);
+    LOG(RTLOG_ERROR, "HOUDINI_REGION MergeRegionList.before_GetHeadRegion regionList=%p", &regionList);
     RegionInfo* head = regionList.GetHeadRegion();
+    LOG(RTLOG_ERROR, "HOUDINI_REGION MergeRegionList.after_GetHeadRegion regionList=%p head=%p", &regionList, head);
+    LOG(RTLOG_ERROR, "HOUDINI_REGION MergeRegionList.before_GetTailRegion regionList=%p", &regionList);
     RegionInfo* tail = regionList.GetTailRegion();
+    LOG(RTLOG_ERROR, "HOUDINI_REGION MergeRegionList.after_GetTailRegion regionList=%p tail=%p", &regionList, tail);
+    LOG(RTLOG_ERROR, "HOUDINI_REGION MergeRegionList.after_GetHeadTail cacheHead=%p cacheTail=%p", head, tail);
     if (head == nullptr) {
+        LOG(RTLOG_ERROR, "HOUDINI_REGION MergeRegionList.exit_empty dst=%p(%s)", this, listName);
         return;
     }
     std::lock_guard<std::mutex> lock(listMutex);
+    LOG(RTLOG_ERROR, "HOUDINI_REGION MergeRegionList.before_SetElementType cacheRegions=%zu cacheUnits=%zu",
+        regionList.GetRegionCount(), regionList.GetUnitCount());
     regionList.SetElementType(regionType);
+    LOG(RTLOG_ERROR, "HOUDINI_REGION MergeRegionList.after_SetElementType");
     IncCounts(regionList.GetRegionCount(), regionList.GetUnitCount());
+    LOG(RTLOG_ERROR, "HOUDINI_REGION MergeRegionList.after_IncCounts dstRegions=%zu dstUnits=%zu",
+        regionCount, unitCount);
     if (listHead == nullptr) {
+        LOG(RTLOG_ERROR, "HOUDINI_REGION MergeRegionList.branch_empty_dst head=%p tail=%p", head, tail);
         listHead = head;
         listTail = tail;
     } else {
+        LOG(RTLOG_ERROR, "HOUDINI_REGION MergeRegionList.branch_nonempty_dst before_link dstHead=%p dstTail=%p head=%p tail=%p",
+            listHead, listTail, head, tail);
         tail->SetNextRegion(listHead);
         listHead->SetPrevRegion(tail);
         listHead = head;
+        LOG(RTLOG_ERROR, "HOUDINI_REGION MergeRegionList.branch_nonempty_dst after_link dstHead=%p dstTail=%p",
+            listHead, listTail);
     }
+    LOG(RTLOG_ERROR,
+        "HOUDINI_REGION MergeRegionList.exit dst=%p(%s) dstHead=%p dstTail=%p dstRegions=%zu dstUnits=%zu",
+        this, listName, listHead, listTail, regionCount, unitCount);
 }
 
 void RegionList::PrependRegion(RegionInfo* region, RegionInfo::RegionType type)
 {
+    RegionListWriteProbe("HOUDINI_WRITE PrependRegion.before_lock", this, region);
     std::lock_guard<std::mutex> lock(listMutex);
+    RegionListWriteProbe("HOUDINI_WRITE PrependRegion.after_lock", this, region);
     PrependRegionLocked(region, type);
+    RegionListWriteProbe("HOUDINI_WRITE PrependRegion.after_prepend_locked", this, region);
 }
 
 void RegionList::PrependRegionLocked(RegionInfo* region, RegionInfo::RegionType type)
@@ -184,6 +236,8 @@ void RegionList::PrependRegionLocked(RegionInfo* region, RegionInfo::RegionType 
     if (region == nullptr) {
         return;
     }
+
+    RegionListWriteProbe("HOUDINI_WRITE PrependRegionLocked.enter", this, region);
 
     DLOG(REGION, "list %p (%zu, %zu)+(%zu, %zu) prepend region %p@[%#zx+%zu, %#zx) type %u->%u", this,
         regionCount, unitCount, 1llu, region->GetUnitCount(), region, region->GetRegionStart(),
@@ -200,10 +254,12 @@ void RegionList::PrependRegionLocked(RegionInfo* region, RegionInfo::RegionType 
         listHead->SetPrevRegion(region);
     }
     listHead = region;
+    RegionListWriteProbe("HOUDINI_WRITE PrependRegionLocked.exit", this, region);
 }
 
 void RegionList::DeleteRegionLocked(RegionInfo* del)
 {
+    RegionListWriteProbe("HOUDINI_WRITE DeleteRegionLocked.enter", this, del);
     MRT_ASSERT(listHead != nullptr && listTail != nullptr, "illegal region list");
 
     RegionInfo* pre = del->GetPrevRegion();
@@ -223,6 +279,7 @@ void RegionList::DeleteRegionLocked(RegionInfo* del)
         listHead = next;
         if (listHead == nullptr) { // now empty
             listTail = nullptr;
+            RegionListWriteProbe("HOUDINI_WRITE DeleteRegionLocked.exit_empty_after_head", this, del);
             return;
         }
     } else {
@@ -234,11 +291,13 @@ void RegionList::DeleteRegionLocked(RegionInfo* del)
         listTail = pre;
         if (listTail == nullptr) { // now empty
             listHead = nullptr;
+            RegionListWriteProbe("HOUDINI_WRITE DeleteRegionLocked.exit_empty_after_tail", this, del);
             return;
         }
     } else {
         next->SetPrevRegion(pre);
     }
+    RegionListWriteProbe("HOUDINI_WRITE DeleteRegionLocked.exit", this, del);
 }
 
 #ifdef MRT_DEBUG
@@ -441,34 +500,120 @@ void RegionManager::CountLiveObject(const BaseObject* obj)
 
 void RegionManager::AssembleSmallGarbageCandidates()
 {
+    LOG(RTLOG_ERROR,
+        "HOUDINI_REGION AssembleSmallGarbageCandidates.enter from=%zu rawPinned=%zu recentFull=%zu unmovable=%zu",
+        fromRegionList.GetRegionCount(), rawPointerPinnedRegionList.GetRegionCount(), recentFullRegionList.GetRegionCount(),
+        unmovableFromRegionList.GetRegionCount());
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.before_from_head");
+    RegionInfo* fromHead = fromRegionList.GetHeadRegion();
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.after_from_head");
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.before_from_tail");
+    RegionInfo* fromTail = fromRegionList.GetTailRegion();
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.after_from_tail");
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.before_raw_head");
+    RegionInfo* rawHead = rawPointerPinnedRegionList.GetHeadRegion();
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.after_raw_head");
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.before_raw_tail");
+    RegionInfo* rawTail = rawPointerPinnedRegionList.GetTailRegion();
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.after_raw_tail");
+    LOG(RTLOG_ERROR,
+        "HOUDINI_REGION AssembleSmallGarbageCandidates.state_rawPinned dst=%p src=%p dstHead=%p dstTail=%p dstRegions=%zu dstUnits=%zu "
+        "srcHead=%p srcTail=%p srcRegions=%zu srcUnits=%zu invariantDst=%d invariantSrc=%d",
+        &fromRegionList, &rawPointerPinnedRegionList, fromHead, fromTail,
+        fromRegionList.GetRegionCount(), fromRegionList.GetUnitCount(), rawHead, rawTail,
+        rawPointerPinnedRegionList.GetRegionCount(), rawPointerPinnedRegionList.GetUnitCount(),
+        static_cast<int>((fromHead == nullptr) == (fromTail == nullptr)),
+        static_cast<int>((rawHead == nullptr) == (rawTail == nullptr)));
+    LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleSmallGarbageCandidates.check1 before next log");
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.raw_probe_1");
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.raw_probe_2");
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.raw_probe_3");
+    LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleSmallGarbageCandidates.check2 about to log before_merge");
+    LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleSmallGarbageCandidates.before_merge_rawPinned");
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.before_call_MergeRegionList_rawPinned_1");
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.before_call_MergeRegionList_rawPinned_2");
     fromRegionList.MergeRegionList(rawPointerPinnedRegionList, RegionInfo::RegionType::FROM_REGION);
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.after_call_MergeRegionList_rawPinned_1");
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.after_call_MergeRegionList_rawPinned_2");
+    LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleSmallGarbageCandidates.after_merge_rawPinned from=%zu rawPinned=%zu",
+        fromRegionList.GetRegionCount(), rawPointerPinnedRegionList.GetRegionCount());
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.after_merge_rawPinned_probe_1");
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.after_merge_rawPinned_probe_2");
+    LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleSmallGarbageCandidates.before_merge_recentFull");
     fromRegionList.MergeRegionList(recentFullRegionList, RegionInfo::RegionType::FROM_REGION);
+    LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleSmallGarbageCandidates.after_merge_recentFull from=%zu recentFull=%zu",
+        fromRegionList.GetRegionCount(), recentFullRegionList.GetRegionCount());
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.after_merge_recentFull_probe_1");
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.after_merge_recentFull_probe_2");
+    LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleSmallGarbageCandidates.before_merge_unmovable");
     fromRegionList.MergeRegionList(unmovableFromRegionList, RegionInfo::RegionType::FROM_REGION);
+    LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleSmallGarbageCandidates.after_merge_unmovable from=%zu unmovable=%zu",
+        fromRegionList.GetRegionCount(), unmovableFromRegionList.GetRegionCount());
 
+    LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleSmallGarbageCandidates.before_clear_live_info from=%zu",
+        fromRegionList.GetRegionCount());
     fromRegionList.VisitAllRegions([](RegionInfo* region) { region->ClearLiveInfo(); });
+    LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleSmallGarbageCandidates.exit from=%zu", fromRegionList.GetRegionCount());
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.exit_probe_1");
+    RegionManagerConsoleProbe("HOUDINI_RAW AssembleSmallGarbageCandidates.exit_probe_2");
 }
 
 void RegionManager::AssembleLargeGarbageCandidates()
 {
+    LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleLargeGarbageCandidates.enter oldLarge=%zu recentLarge=%zu",
+        oldLargeRegionList.GetRegionCount(), recentLargeRegionList.GetRegionCount());
+    LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleLargeGarbageCandidates.before_merge_recentLarge");
     oldLargeRegionList.MergeRegionList(recentLargeRegionList, RegionInfo::RegionType::LARGE_REGION);
+    LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleLargeGarbageCandidates.after_merge_recentLarge oldLarge=%zu recentLarge=%zu",
+        oldLargeRegionList.GetRegionCount(), recentLargeRegionList.GetRegionCount());
+    LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleLargeGarbageCandidates.before_clear_live_info oldLarge=%zu",
+        oldLargeRegionList.GetRegionCount());
     for (RegionInfo* region = oldLargeRegionList.GetHeadRegion(); region != nullptr; region = region->GetNextRegion()) {
         region->ClearLiveInfo();
     }
+    LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleLargeGarbageCandidates.exit oldLarge=%zu",
+        oldLargeRegionList.GetRegionCount());
 }
 
 void RegionManager::AssemblePinnedGarbageCandidates(bool collectAll)
 {
+    LOG(RTLOG_ERROR, "HOUDINI_REGION AssemblePinnedGarbageCandidates.enter collectAll=%d oldPinned=%zu recentPinned=%zu",
+        static_cast<int>(collectAll), oldPinnedRegionList.GetRegionCount(), recentPinnedRegionList.GetRegionCount());
+    LOG(RTLOG_ERROR, "HOUDINI_REGION AssemblePinnedGarbageCandidates.before_merge_recentPinned collectAll=%d",
+        static_cast<int>(collectAll));
     oldPinnedRegionList.MergeRegionList(recentPinnedRegionList, RegionInfo::RegionType::FULL_PINNED_REGION);
+    LOG(RTLOG_ERROR,
+        "HOUDINI_REGION AssemblePinnedGarbageCandidates.after_merge_recentPinned collectAll=%d oldPinned=%zu recentPinned=%zu",
+        static_cast<int>(collectAll), oldPinnedRegionList.GetRegionCount(), recentPinnedRegionList.GetRegionCount());
+    LOG(RTLOG_ERROR, "HOUDINI_REGION AssemblePinnedGarbageCandidates.before_get_head collectAll=%d oldPinned=%zu",
+        static_cast<int>(collectAll), oldPinnedRegionList.GetRegionCount());
     RegionInfo* region = oldPinnedRegionList.GetHeadRegion();
+    LOG(RTLOG_ERROR, "HOUDINI_REGION AssemblePinnedGarbageCandidates.after_get_head region=%p", region);
     while (region != nullptr) {
+        LOG(RTLOG_ERROR,
+            "HOUDINI_REGION AssemblePinnedGarbageCandidates.loop_enter region=%p rawPtrCnt=%ld liveBytes=%u next=%p",
+            region, region->GetRawPointerObjectCount(), region->GetLiveByteCount(), region->GetNextRegion());
         RegionInfo* nextRegion = region->GetNextRegion();
+        LOG(RTLOG_ERROR, "HOUDINI_REGION AssemblePinnedGarbageCandidates.after_get_next region=%p next=%p", region,
+            nextRegion);
         if (collectAll && (region->GetRawPointerObjectCount() > 0)) {
+            LOG(RTLOG_ERROR, "HOUDINI_REGION AssemblePinnedGarbageCandidates.before_move_raw_pointer_pinned region=%p",
+                region);
             oldPinnedRegionList.DeleteRegion(region);
             rawPointerPinnedRegionList.PrependRegion(region, RegionInfo::RegionType::RAW_POINTER_PINNED_REGION);
+            LOG(RTLOG_ERROR,
+                "HOUDINI_REGION AssemblePinnedGarbageCandidates.move_raw_pointer_pinned region=%p oldPinned=%zu rawPinned=%zu",
+                region, oldPinnedRegionList.GetRegionCount(), rawPointerPinnedRegionList.GetRegionCount());
         }
+        LOG(RTLOG_ERROR, "HOUDINI_REGION AssemblePinnedGarbageCandidates.before_clear_live_info region=%p", region);
         region->ClearLiveInfo();
+        LOG(RTLOG_ERROR, "HOUDINI_REGION AssemblePinnedGarbageCandidates.after_clear_live_info region=%p", region);
         region = nextRegion;
+        LOG(RTLOG_ERROR, "HOUDINI_REGION AssemblePinnedGarbageCandidates.loop_advance nextRegion=%p", region);
     }
+    LOG(RTLOG_ERROR,
+        "HOUDINI_REGION AssemblePinnedGarbageCandidates.exit collectAll=%d oldPinned=%zu rawPinned=%zu",
+        static_cast<int>(collectAll), oldPinnedRegionList.GetRegionCount(), rawPointerPinnedRegionList.GetRegionCount());
 }
 void RemoveRegionLocked(RegionList* regionList, RegionInfo* region)
 {

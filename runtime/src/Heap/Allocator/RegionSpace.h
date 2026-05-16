@@ -9,10 +9,12 @@
 #define MRT_REGION_SPACE_H
 
 #include <cassert>
+#include <cstdio>
 #include <list>
 #include <map>
 #include <set>
 #include <thread>
+#include <time.h>
 #include <vector>
 
 #include "AllocUtil.h"
@@ -25,6 +27,14 @@
 #endif
 
 namespace MapleRuntime {
+static inline void HoudiniConsoleProbe(const char* msg)
+{
+    timespec ts {};
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    std::printf("[%lld.%06ld] %s\n", static_cast<long long>(ts.tv_sec), ts.tv_nsec / 1000, msg);
+    std::fflush(stdout);
+}
+
 // RegionSpace aims to be the API for other components of runtime
 // the complication of implementation is delegated to RegionManager
 // allocator should not depend on any assumptions on the details of RegionManager
@@ -182,9 +192,33 @@ public:
 
     void AssembleGarbageCandidates(bool collectAll = false)
     {
+        HoudiniConsoleProbe("HOUDINI_RAW AssembleGarbageCandidates.enter_probe_1");
+        HoudiniConsoleProbe("HOUDINI_RAW AssembleGarbageCandidates.enter_probe_2");
+        LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleGarbageCandidates.enter collectAll=%d", static_cast<int>(collectAll));
+        HoudiniConsoleProbe("HOUDINI_RAW AssembleGarbageCandidates.before_small_probe_1");
+        HoudiniConsoleProbe("HOUDINI_RAW AssembleGarbageCandidates.before_small_probe_2");
+        LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleGarbageCandidates.before_small collectAll=%d",
+            static_cast<int>(collectAll));
         regionManager.AssembleSmallGarbageCandidates();
+        LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleGarbageCandidates.after_small collectAll=%d",
+            static_cast<int>(collectAll));
+        HoudiniConsoleProbe("HOUDINI_RAW AssembleGarbageCandidates.after_small_probe_1");
+        HoudiniConsoleProbe("HOUDINI_RAW AssembleGarbageCandidates.after_small_probe_2");
+        LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleGarbageCandidates.before_pinned collectAll=%d",
+            static_cast<int>(collectAll));
         regionManager.AssemblePinnedGarbageCandidates(collectAll);
+        LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleGarbageCandidates.after_pinned collectAll=%d",
+            static_cast<int>(collectAll));
+        HoudiniConsoleProbe("HOUDINI_RAW AssembleGarbageCandidates.after_pinned_probe_1");
+        HoudiniConsoleProbe("HOUDINI_RAW AssembleGarbageCandidates.after_pinned_probe_2");
+        LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleGarbageCandidates.before_large collectAll=%d",
+            static_cast<int>(collectAll));
         regionManager.AssembleLargeGarbageCandidates();
+        LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleGarbageCandidates.after_large collectAll=%d",
+            static_cast<int>(collectAll));
+        LOG(RTLOG_ERROR, "HOUDINI_REGION AssembleGarbageCandidates.exit collectAll=%d", static_cast<int>(collectAll));
+        HoudiniConsoleProbe("HOUDINI_RAW AssembleGarbageCandidates.exit_probe_1");
+        HoudiniConsoleProbe("HOUDINI_RAW AssembleGarbageCandidates.exit_probe_2");
     }
 
     void DumpRegionStats(const char* msg) const { regionManager.DumpRegionStats(msg); }

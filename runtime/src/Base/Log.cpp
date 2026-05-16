@@ -7,6 +7,8 @@
 
 #include "Log.h"
 
+#include <cstdio>
+#include <time.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -20,6 +22,14 @@
 #include "Base/LogFile.h"
 namespace MapleRuntime {
 static ImmortalWrapper<Logger> g_loggerInstance;
+
+static inline void HoudiniConsoleProbe(const char* msg)
+{
+    timespec ts {};
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    std::printf("[%lld.%06ld] %s\n", static_cast<long long>(ts.tv_sec), ts.tv_nsec / 1000, msg);
+    std::fflush(stdout);
+}
 
 Logger& Logger::GetLogger() noexcept { return *g_loggerInstance; }
 
@@ -288,6 +298,14 @@ static inline void WriteLogOnOhos(RTLogLevel level, const char* buf, bool printT
 #if defined(__ANDROID__)
 static inline void WriteLogOnAndroid(RTLogLevel level, const char* buf)
 {
+    bool isCriticalHoudiniLog =
+        strstr(buf, "HOUDINI_REGION AssembleSmallGarbageCandidates.check2") != nullptr ||
+        strstr(buf, "HOUDINI_REGION AssembleSmallGarbageCandidates.before_merge_rawPinned") != nullptr ||
+        strstr(buf, "HOUDINI_GC TraceHeap.after_AssembleGarbageCandidates") != nullptr ||
+        strstr(buf, "HOUDINI_GC TraceHeap.before_TransitionToEnum") != nullptr;
+    if (isCriticalHoudiniLog) {
+        HoudiniConsoleProbe("HOUDINI_FMT enter_WriteLogOnAndroid");
+    }
     switch (level) {
         case RTLOG_DEBUG:
             PRINT_DEBUG("%s\n", buf);
@@ -307,6 +325,9 @@ static inline void WriteLogOnAndroid(RTLogLevel level, const char* buf)
             VLOG(REPORT, "%{public}s\n", buf)
         default:
             PRINT_INFO("%s\n", buf);
+    }
+    if (isCriticalHoudiniLog) {
+        HoudiniConsoleProbe("HOUDINI_FMT exit_WriteLogOnAndroid");
     }
 }
 #endif
@@ -371,10 +392,28 @@ void Logger::FormatLog(RTLogLevel level, bool notInSigHandler, const char* forma
     }
     index += ret;
     va_end(args);
+    if (strstr(buf, "HOUDINI_") != nullptr) {
+        timespec ts {};
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        std::printf("[%lld.%06ld] %s\n", static_cast<long long>(ts.tv_sec), ts.tv_nsec / 1000, buf);
+        std::fflush(stdout);
+        return;
+    }
 #if (defined(__OHOS__) && (__OHOS__ == 1))
     WriteLogOnOhos(level, buf, true);
 #elif defined(__ANDROID__)
+    bool isCriticalHoudiniLog =
+        strstr(buf, "HOUDINI_REGION AssembleSmallGarbageCandidates.check2") != nullptr ||
+        strstr(buf, "HOUDINI_REGION AssembleSmallGarbageCandidates.before_merge_rawPinned") != nullptr ||
+        strstr(buf, "HOUDINI_GC TraceHeap.after_AssembleGarbageCandidates") != nullptr ||
+        strstr(buf, "HOUDINI_GC TraceHeap.before_TransitionToEnum") != nullptr;
+    if (isCriticalHoudiniLog) {
+        HoudiniConsoleProbe("HOUDINI_FMT before_WriteLogOnAndroid");
+    }
     WriteLogOnAndroid(level, buf);
+    if (isCriticalHoudiniLog) {
+        HoudiniConsoleProbe("HOUDINI_FMT after_WriteLogOnAndroid");
+    }
 #elif defined (__IOS__)
     WriteLogOnIos(level, buf);
 #else
