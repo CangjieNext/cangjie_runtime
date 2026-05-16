@@ -92,12 +92,6 @@ private:
     MAddress TryAllocateLargeObjectOnce(size_t allocSize, ThreadLocalData* local, AllocBufferMS* msBuffer);
     MAddress TryAllocateRegularObjectOnce(size_t allocSize, ThreadLocalData* local, AllocBufferMS*& msBuffer);
     void RegisterLargeObjectMS(MAddress addr, size_t regionBytes);
-    bool ShouldRetryAllocation(size_t& tryTimes, size_t size) const;
-
-    enum class TryAllocationThreshold {
-        RESCHEDULE = 3,
-        TRIGGER_OOM = 5,
-    };
 
     MAddress reservedStart = 0;
     MAddress reservedEnd = 0;

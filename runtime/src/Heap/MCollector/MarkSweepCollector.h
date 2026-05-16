@@ -143,8 +143,9 @@ public:
     {
         return assistWorkPerByteScaled_.load(std::memory_order_acquire);
     }
-    static constexpr uint64_t GetAssistRatioScale() { return kAssistRatioScale; }
-    size_t GetAssistDebtTriggerObjects() const { return kAssistDebtTriggerObjects; }
+    static uint64_t GetAssistRatioScale();
+    static double   GetAssistRatioMaxMultiplier();
+    size_t GetAssistDebtTriggerObjects() const;
     static MarkSweepCollector* GetActiveCollector()
     {
         return activeCollector_.load(std::memory_order_acquire);
@@ -226,6 +227,9 @@ private:
 
     // ── Step 2.2 internals (Step5: PerPGCWork + LFStack) ──
     void RunConcurrentMarkLoop();
+    // Returns true when true convergence is reached and the loop should break.
+    // Manages convergenceStableRounds_ and flushes localCreditAccum on convergence.
+    bool CheckConvergenceAndBreak(size_t& localCreditAccum);
     void DrainGCWork(PerPGCWork& gcw, size_t maxObjects, size_t& scannedCount);
     void TraceObjectRefFieldsToGCWork(BaseObject* obj, PerPGCWork& gcw);
     void TraceRefField(BaseObject* obj, RefField<>& field, WorkStack& workStack);
@@ -244,6 +248,7 @@ private:
     void FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue);
 
     void DrainDeferredMainThreadQueueToMainQueue(GreyWorkQueue& mainQueue);
+    void ProcessDeferredWeakRefsPreSTW();  // Non-STW WeakRef processing after concurrent mark
     void CollectExternCandidatesToMain(GreyWorkQueue& mainQueue);
     void CollectResurrectionCandidatesToMain(GreyWorkQueue& mainQueue);
     void ExecuteLikeDrainMainQueue(GreyWorkQueue& mainQueue);
@@ -253,19 +258,52 @@ private:
     void PostResolveCycleTask();
     void CollectLargeGarbage();
 
+    // ============================================================
+    // Assist tuning parameters
+    // ============================================================
+    //
+    // Fixed constants (compile-time):
+    //   kAssistRatioScale          - Fixed-point scale for assistWorkPerByteScaled_.
+    //                                ratio_real = assistWorkPerByteScaled_ / kAssistRatioScale
+    //   kAssistDebtTriggerObjects  - Max objects per single MSMarkAssist call.
+    //   kCreditFlushThreshold      - GC thread accumulates bgScanCredit locally
+    //                                and flushes every N objects to reduce atomic traffic.
+    //   kSliceMaxObjects           - GC thread drain slice size per loop iteration.
+    //   kConvergenceRequiredRounds - Consecutive empty rounds before triggering
+    //                                the per-P flush + convergence check.
+    //   kAssistRatioMaxMultiplier  - Ratio is capped at initial * this value.
+    //   kConvergenceYieldUs        - usleep duration when stable rounds < threshold.
+    //   kConvergenceFlushWaitUs    - usleep before per-P flush to let in-flight assists finish.
+    //
+    // Environment variables (runtime):
+    //   CJ_MS_ASSIST_RATIO_COEFF        - Escalation coefficient per loop iteration.
+    //                                     ratio *= (1 + coeff) each iteration.
+    //                                     Range: (0, 10], default 0.1.
+    //   CJ_MS_ASSIST_RATIO_SCALE        - Fixed-point scale denominator (positive integer).
+    //                                     Default 1024.
+    //   CJ_MS_ASSIST_DEBT_TRIGGER       - Objects per assist call trigger threshold.
+    //                                     Default 256.
+    //   CJ_MS_ASSIST_RATIO_MAX_MULT     - Maximum ratio escalation multiplier over the initial
+    //                                     value. Controls how much assist participates in long
+    //                                     GC cycles. Range: (0, 100], default 10.
+    //                                     Example: 1.5 means ratio can grow at most 1.5x the
+    //                                     initial value, yielding moderate assist for long GC
+    //                                     cycles while keeping short GC cycles assist-free.
+    // ============================================================
+    // kAssistRatioScale and kAssistDebtTriggerObjects are configurable at runtime
+    // via CJ_MS_ASSIST_RATIO_SCALE and CJ_MS_ASSIST_DEBT_TRIGGER respectively.
+    // kAssistRatioMaxMultiplier is configurable via CJ_MS_ASSIST_RATIO_MAX_MULT.
+    static constexpr size_t   kCreditFlushThreshold     = 1024;
+    static constexpr size_t   kSliceMaxObjects          = 256;
+    static constexpr size_t   kConvergenceRequiredRounds     = 3;
+    static constexpr uint64_t kConvergenceYieldUs            = 50;
+    static constexpr uint64_t kConvergenceFlushWaitUs        = 200;
+
     // ── Convergence tracking ──
     size_t convergenceStableRounds_ = 0;
-    static constexpr size_t kConvergenceRequiredRounds = 3;
 
     // ── Work stack (populated in EnumRoots, consumed in ConcurrentMark) ──
     GreyWorkQueue markWorkStack_;
-
-    // ── Drain slice parameters ──
-    static constexpr size_t kSliceMaxObjects = 256;
-
-    // ── Opt2: bgScanCredit batch flush threshold (in objects) ──
-    static constexpr size_t kCreditFlushThreshold = 1024;
-    static constexpr uint64_t kAssistRatioScale = 1024;
 
     // ── Step5: LFStack global work queue ──
     LFStack globalFull_;
@@ -274,22 +312,15 @@ private:
     std::atomic<int64_t> bgScanCredit_{0};
     std::atomic<uint64_t> assistWorkPerByteScaled_{0};
     std::atomic<size_t> prevCycleMarkedObjects_{0};
-    std::atomic<int64_t> scanWorkRemaining_{0};
-    size_t assistThresholdBytes_ = 0;
-    size_t assistLiveBaselineBytes_ = 0;
-    size_t assistAllocBaselineBytes_ = 0;
 
     // ── Main-thread-only deferred work (e.g. weak refs discovered by assist) ──
     GreyWorkQueue deferredMainThreadQueue_;
     mutable std::mutex deferredMainThreadMutex_;
 
     // ── Assist control ──
-    std::atomic<bool> assistEnabled_{false};
     static std::atomic<MarkSweepCollector*> activeCollector_;
 
-    // ── Assist parameters (Step5: simplified with Per-P + bgCredit) ──
-    static constexpr size_t kAssistMaxObjectsPerCall = 512;  // max objects per assist call
-    static constexpr size_t kAssistDebtTriggerObjects = 64;
+    // (assist parameters are grouped above with other tuning constants)
 
     // ── Assist concurrent stats ──
     std::atomic<size_t> assistMarkedCount_{0};

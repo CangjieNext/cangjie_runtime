@@ -178,6 +178,12 @@ void CollectorResources::RequestGCAndWait(GCReason reason)
 
 void CollectorResources::RequestGC(GCReason reason, bool async)
 {
+    // CJ_GC_DISABLE=1 : suppress all GC requests (for pure-alloc benchmarking).
+    static const bool gcDisabled = (std::getenv("CJ_GC_DISABLE") != nullptr &&
+                                    std::getenv("CJ_GC_DISABLE")[0] == '1');
+    if (gcDisabled) {
+        return;
+    }
     if (!IsGCActive()) {
         return;
     }

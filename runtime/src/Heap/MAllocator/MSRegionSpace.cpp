@@ -51,40 +51,6 @@ RegionSpaceMS::~RegionSpaceMS()
     MemMap::DestroyMemMap(map);
 }
 
-// ============================================================
-// Shared allocation logic (copied from RegionSpace)
-// ============================================================
-bool RegionSpaceMS::ShouldRetryAllocation(size_t& tryTimes, size_t size) const
-{
-    if (!IsRuntimeThread() && tryTimes <= static_cast<size_t>(TryAllocationThreshold::RESCHEDULE)) {
-        CJThreadResched();
-        return true;
-    }
-    if (tryTimes < static_cast<size_t>(TryAllocationThreshold::TRIGGER_OOM)) {
-        if (Heap::GetHeap().IsGcStarted()) {
-            ScopedEnterSaferegion enterSaferegion(false);
-            Heap::GetHeap().GetCollectorResources().WaitForGCFinish();
-        } else {
-            Heap::GetHeap().GetCollector().RequestGC(GC_REASON_HEU, false);
-        }
-        return true;
-    }
-    if (tryTimes == static_cast<size_t>(TryAllocationThreshold::TRIGGER_OOM)) {
-        if (!Heap::GetHeap().IsGcStarted()) {
-            VLOG(REPORT, "gc is triggered for OOM");
-            Heap::GetHeap().GetCollector().RequestGC(GC_REASON_OOM, false);
-        } else {
-            ScopedEnterSaferegion enterSaferegion(false);
-            Heap::GetHeap().GetCollectorResources().WaitForGCFinish();
-            tryTimes--;
-        }
-        return true;
-    }
-    VLOG(REPORT, "Cannot allocate memory of %zu(B), throw an OutOfMemory exception", size);
-    ExceptionManager::OutOfMemory();
-    return false;
-}
-
 MAddress RegionSpaceMS::Allocate(size_t size, AllocType allocType)
 {
     return Allocate(size, allocType, ThreadLocal::GetThreadLocalData());
@@ -121,25 +87,14 @@ MAddress RegionSpaceMS::AllocateLargeObject(size_t size, size_t allocSize, Threa
 
 MAddress RegionSpaceMS::AllocateRegularObject(size_t size, size_t allocSize, ThreadLocalData* local)
 {
-    uintptr_t internalAddr = 0;
     AllocBufferMS* msBuffer = local != nullptr ? local->msAllocBuffer : AllocBufferMS::GetAllocBufferMS();
-
-    size_t tryTimes = 0;
-    do {
-        tryTimes++;
-        internalAddr = TryAllocateRegularObjectOnce(allocSize, local, msBuffer);
-        if (LIKELY(internalAddr != 0)) {
-            break;
-        }
+    uintptr_t internalAddr = TryAllocateRegularObjectOnce(allocSize, local, msBuffer);
+    if (UNLIKELY(internalAddr == 0)) {
         if (IsGcThread()) {
             return 0;
         }
-        if (!ShouldRetryAllocation(tryTimes, size)) {
-            break;
-        }
-        (void)sched_yield();
-    } while (true);
-    if (internalAddr == 0) {
+        VLOG(REPORT, "Regular allocation cannot allocate memory of %zu(B), throw an OutOfMemory exception", size);
+        ExceptionManager::OutOfMemory();
         return 0;
     }
 #if defined(CANGJIE_TSAN_SUPPORT)
@@ -272,7 +227,9 @@ bool RegionSpaceMS::ForEachObj(const std::function<void(BaseObject*)>& visitor, 
 
 MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t allocSize, ThreadLocalData* local, AllocBufferMS* msBuffer)
 {
-    (void)local;
+    if (msBuffer == nullptr) {
+        msBuffer = AllocBufferMS::GetOrCreateAllocBufferMS(local);
+    }
     size_t unitCount = (allocSize + MRT_PAGE_SIZE - 1) / MRT_PAGE_SIZE;
     size_t regionBytes = ((unitCount * MRT_PAGE_SIZE) + MS_REGION_SIZE - 1)
                          / MS_REGION_SIZE * MS_REGION_SIZE;
@@ -298,6 +255,7 @@ MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t allocSize, ThreadLocal
     return addr;
 }
 
+
 MAddress RegionSpaceMS::TryAllocateRegularObjectOnce(size_t allocSize, ThreadLocalData* local, AllocBufferMS*& msBuffer)
 {
     if (msBuffer == nullptr) {
@@ -309,6 +267,9 @@ MAddress RegionSpaceMS::TryAllocateRegularObjectOnce(size_t allocSize, ThreadLoc
             return addr;
         }
     }
+    LOG(RTLOG_ERROR, "[MS-GC] TryAllocateRegularObjectOnce FAILED: "
+        "allocSize=%zu, msBuffer=%p",
+        allocSize, static_cast<void*>(msBuffer));
     return 0;
 }
 

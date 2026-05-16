@@ -166,28 +166,6 @@ extern "C" void DumpAllocCounters_MSAllocBuffer()
             (unsigned long long)fastHits, (unsigned long long)slowCalls);
 }
 
-static inline bool IsMSMarkingActive(uint8_t gcFastState)
-{
-    return (gcFastState & ThreadLocal::GC_FAST_STATE_MS_MARKING) != 0;
-}
-
-static inline bool IsMSAssistActive(uint8_t gcFastState)
-{
-    return (gcFastState & ThreadLocal::GC_FAST_STATE_MS_ASSIST) != 0;
-}
-
-static inline uint8_t ResolveGCFastStateForAllocFastPath(ThreadLocalData* local)
-{
-    return local != nullptr ? local->gcFastState : ThreadLocal::GetGCFastState();
-}
-
-static inline Mutator* ResolveMutatorForAllocFastPath(ThreadLocalData* local)
-{
-    if (local != nullptr && local->mutator != nullptr) {
-        return local->mutator;
-    }
-    return Mutator::GetMutator();
-}
 
 AllocBufferMS::~AllocBufferMS()
 {
@@ -435,73 +413,19 @@ void AllocBufferMS::TrimExtraCachedRegions(uint8_t cls, uint8_t targetSlots)
 
 // ============================================================================
 // Allocate — main entry point
+// Pacing debt is no longer tracked per-object here.  It is consolidated into
+// AccumulatePacingDebt(MS_REGION_SIZE) called once per region acquisition in
+// SlowAlloc(), covering both the compiler fast-path (Allocate() bypassed) and
+// the runtime slow-path uniformly.
 // ============================================================================
 MAddress AllocBufferMS::Allocate(size_t size, ThreadLocalData* local)
 {
+    (void)local;
     uint8_t cls = SizeClassInfo::SizeToClass(size);
     if (UNLIKELY(cls >= kNumSizeClasses)) {
         return 0;  // Large object — caller handles it via the large-region path
     }
-    MAddress addr = FastAlloc(cls);
-
-    if (UNLIKELY(addr == 0)) {
-        return addr;
-    }
-
-    uint8_t gcFastState = ResolveGCFastStateForAllocFastPath(local);
-    if (LIKELY(!IsMSMarkingActive(gcFastState))) {
-        gcAssistDebtScaled_ = 0;
-        return addr;
-    }
-
-    MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
-    if (UNLIKELY(collector == nullptr)) {
-        gcAssistDebtScaled_ = 0;
-        return addr;
-    }
-
-    if (kDisableMutatorAssistProbe) {
-        gcAssistDebtScaled_ = 0;
-        return addr;
-    }
-
-    if (UNLIKELY(!IsMSAssistActive(gcFastState))) {
-        gcAssistDebtScaled_ = 0;
-        return addr;
-    }
-
-    Mutator* mutator = ResolveMutatorForAllocFastPath(local);
-    if (UNLIKELY(mutator == nullptr)) {
-        gcAssistDebtScaled_ = 0;
-        return addr;
-    }
-
-    // Go-style dynamic pacing: debt += allocatedBytes * assistRatio.
-    uint64_t ratioScaled = collector->GetAssistWorkPerByteScaled();
-    if (ratioScaled > 0) {
-        uint64_t deltaDebt = static_cast<uint64_t>(size) * ratioScaled;
-        if (UNLIKELY(gcAssistDebtScaled_ > UINT64_MAX - deltaDebt)) {
-            gcAssistDebtScaled_ = UINT64_MAX;
-        } else {
-            gcAssistDebtScaled_ += deltaDebt;
-        }
-
-        const uint64_t ratioScale = MarkSweepCollector::GetAssistRatioScale();
-        size_t debtObjects = static_cast<size_t>(gcAssistDebtScaled_ / ratioScale);
-        if (UNLIKELY(debtObjects >= collector->GetAssistDebtTriggerObjects())) {
-            // Call MSMarkAssist unconditionally: it first tries bgScanCredit
-            // (even when the mark work queue is empty), then does real marking
-            // only if credit is insufficient and grey objects are available.
-            // The old hasWork guard was wrong: it prevented credit consumption
-            // when the work queue happened to be empty, causing debt to pile up
-            // and trigger burst assist later.
-            size_t paidObjects = collector->MSMarkAssist(debtObjects);
-            size_t accounted = std::min(paidObjects, debtObjects);
-            gcAssistDebtScaled_ -= static_cast<uint64_t>(accounted) * ratioScale;
-        }
-    }
-
-    return addr;
+    return FastAlloc(cls);
 }
 
 // ============================================================================
@@ -511,17 +435,6 @@ MAddress AllocBufferMS::FastAlloc(uint8_t cls)
 {
     MSRegionInfo* region = activeRegions_[cls];
     if (LIKELY(region != nullptr)) {
-#ifdef MRT_DEBUG
-        if (UNLIKELY(region->regionType == MSRegionType::MS_REGION_LARGE ||
-                     region->regionType == MSRegionType::MS_REGION_FREE ||
-                     region->regionType == MSRegionType::MS_REGION_EMPTY_CACHE)) {
-            LOG(RTLOG_FATAL, "[MS-GC] FastAlloc: activeRegion has bad type=%d, cls=%u, "
-                "region=%p, allocPtr=0x%zx, regionEnd=0x%zx",
-                (int)region->regionType, (unsigned)cls, (void*)region,
-                region->allocPtr, region->regionEnd);
-        }
-#endif
-
         uintptr_t addr;
         if (region->regionType == MSRegionType::MS_REGION_BUMP) {
             addr = region->AllocBump();
@@ -548,15 +461,13 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
     g_msAllocSlowCallsTotal.fetch_add(1, std::memory_order_relaxed);
     bool backgroundFillRequested = false;
 
-    // Step 1: Return the exhausted Region to the central pool.
+    // Step 1: Return the exhausted Region to the central pool (if any).
     // When the compiler fast path (EnableGCFastPath) is enabled, the mutator
-    // bump-allocates inline and never calls Allocate().  SlowAlloc() is the
-    // only runtime entry point reached after a full region (~MS_REGION_SIZE
-    // bytes) has been consumed inline.  Accumulate pacing debt here so that
-    // MSMarkAssist fires at the correct rate even on the fast-path-only route.
+    // bump-allocates inline and never calls Allocate(), so activeRegions_[cls]
+    // may already be null here.  Pacing debt is recorded after the new region
+    // is installed (Step 3) regardless of this condition.
     if (activeRegions_[cls] != nullptr) {
         ReturnRegion(cls);
-        AccumulatePacingDebt(MS_REGION_SIZE);
     }
 
     // O2: Check thread-local cache before going to CentralRegionPool
@@ -586,43 +497,15 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
         return 0;  // OOM or GC needed — caller handles
     }
 
-    // Debug: validate newly-acquired region
-#ifdef MRT_DEBUG
-    {
-        size_t span = newRegion->regionEnd - newRegion->allocPtr;
-        size_t ridx = MSRegionInfoArray::GetRegionIdx(newRegion);
-        uintptr_t expectedEnd = MSRegionInfoArray::GetRegionAddress(ridx) + MS_REGION_SIZE;
-        if (UNLIKELY(newRegion->regionEnd != expectedEnd)) {
-            LOG(RTLOG_FATAL, "[MS-GC] SlowAlloc: region has wrong regionEnd! "
-                "regionEnd=0x%zx, expected=0x%zx, allocPtr=0x%zx, "
-                "cls=%u, regionType=%d, sweepState=%d, sizeClass=%u, "
-                "allocBitmap=%p, markBitmap=%p, "
-                "totalSlots=%u, freeSlots=%u, "
-                "nextRegionIdx=%d, prevRegionIdx=%d, "
-                "sweepGen=%u, reserved=0x%llx, "
-                "this=%p (idx=%zu)",
-                newRegion->regionEnd, expectedEnd, newRegion->allocPtr,
-                (unsigned)cls, (int)newRegion->regionType, (int)newRegion->sweepState,
-                (unsigned)newRegion->sizeClass,
-                (void*)newRegion->allocBitmap, (void*)newRegion->markBitmap,
-                (unsigned)newRegion->totalSlotCount, (unsigned)newRegion->freeSlotCount,
-                newRegion->nextRegionIdx, newRegion->prevRegionIdx,
-                newRegion->sweepGen, (unsigned long long)newRegion->reserved,
-                (void*)newRegion, ridx);
-        }
-        if (UNLIKELY(newRegion->allocBitmap == nullptr)) {
-            LOG(RTLOG_FATAL, "[MS-GC] SlowAlloc: region has allocBitmap=nullptr, "
-                "cls=%u, regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, "
-                "this=%p (idx=%zu)",
-                (unsigned)cls, (int)newRegion->regionType,
-                newRegion->allocPtr, newRegion->regionEnd,
-                (void*)newRegion, ridx);
-        }
-    }
-#endif
-
-    // Step 3: Set as active Region
+    // Step 3: Set as active Region and record pacing debt for the consumed region.
+    // AccumulatePacingDebt(MS_REGION_SIZE) accounts for ~one region worth of bytes,
+    // covering both paths:
+    //   - compiler fast-path: the previous region was exhausted inline (activeRegions_
+    //     was null on entry), so no per-object debt was recorded.
+    //   - runtime slow-path: Allocate() no longer tracks per-object debt; all debt
+    //     is consolidated here at region-acquisition granularity.
     activeRegions_[cls] = newRegion;
+    AccumulatePacingDebt(MS_REGION_SIZE);
     if (!backgroundFillRequested) {
         NotifyBackgroundFillIfNeeded(cls);
     }
@@ -893,22 +776,33 @@ AllocBufferMS* AllocBufferMS::GetOrCreateAllocBufferMS(ThreadLocalData* local)
 }
 
 // ============================================================================
-// AccumulatePacingDebt — pacing debt accumulation for paths bypassing Allocate()
-// (e.g. large-object allocation in TryAllocateOnceMS)
+// AccumulatePacingDebt — unified pacing debt accumulation
+// Called at region-acquisition time from SlowAlloc() (once per ~MS_REGION_SIZE
+// bytes, covering both compiler fast-path and runtime slow-path), and also
+// directly from large-object paths (TryAllocateOnceMS).
+// Resets gcAssistDebtScaled_ when marking is not active so stale debt from a
+// previous GC cycle does not carry over.
 // ============================================================================
 void AllocBufferMS::AccumulatePacingDebt(size_t size)
 {
-    if (kDisableMutatorAssistProbe) {
-        gcAssistDebtScaled_ = 0;
+    // CJ_MS_DISABLE_ASSIST=1 : suppress mutator assist entirely (for benchmarking).
+    static const bool assistDisabled = (std::getenv("CJ_MS_DISABLE_ASSIST") != nullptr &&
+                                        std::getenv("CJ_MS_DISABLE_ASSIST")[0] == '1');
+    if (assistDisabled) {
         return;
     }
-
+    // Check whether marking is active before accumulating debt.
+    // The previous guard `if (gcAssistDebtScaled_ == 0) return` was wrong:
+    // since the field is zero-initialized and only grows here, the early-exit
+    // prevented debt from ever accumulating, causing assist to never trigger.
     MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
     if (collector == nullptr) {
+        gcAssistDebtScaled_ = 0;
         return;
     }
     uint64_t ratioScaled = collector->GetAssistWorkPerByteScaled();
     if (ratioScaled == 0) {
+        gcAssistDebtScaled_ = 0;  // Marking not active — clear stale debt
         return;
     }
     uint64_t deltaDebt = static_cast<uint64_t>(size) * ratioScaled;
