@@ -455,6 +455,14 @@ void TypeInfo::TraverseOuterExtensionDefs(const std::function<void(TypeInfo*)> g
     if (!this->mTableDesc->NeedResolveOuter()) {
         return;
     }
+    if (this->mTableDesc->pending) {
+        return;
+    }
+    struct PendingGuard {
+        explicit PendingGuard(MTableDesc* desc) : mTableDesc(desc) { mTableDesc->pending = true; }
+        ~PendingGuard() { mTableDesc->pending = false; }
+        MTableDesc* mTableDesc;
+    } pendingGuard(this->mTableDesc);
     U16 typeArgNum = GetTypeArgNum();
     TypeInfo** typeArgs = nullptr;
     TypeInfo* componentTypeInfo = GetComponentTypeInfo();
