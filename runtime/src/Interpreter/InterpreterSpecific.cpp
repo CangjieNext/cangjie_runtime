@@ -35,9 +35,9 @@ extern "C" void CJ_MCC_I2NStub(...);
 
 struct {
     bool initialized = false;
-    DYN_InterpreterInterfaceT interpreterInterface;
+    INT_InterpreterInterfaceT interpreterInterface;
 
-    void initialize(DYN_InterpreterInterfaceT& value)
+    void initialize(INT_InterpreterInterfaceT& value)
     {
         interpreterInterface = value;
         initialized = true;
@@ -45,7 +45,7 @@ struct {
 
     operator bool() { return initialized; }
 
-    DYN_InterpreterInterfaceT* operator->()
+    INT_InterpreterInterfaceT* operator->()
     {
         if (initialized) {
             return &interpreterInterface;
@@ -548,7 +548,7 @@ RTErrorCode InitInterpreter(const InterpreterParam& interpreterParam)
         .nativeLogger = &NativeLogger,
     };
 
-    DYN_InterpreterInterfaceT interpreterInterface {};
+    INT_InterpreterInterfaceT interpreterInterface {};
     interpreterInterface.version = 1;
 
     int code = init(&interpreterInterface, &cjnativeInterface,
