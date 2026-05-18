@@ -601,16 +601,22 @@ MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls, bool backgroundFill)
         return nullptr;
     }
 
-    // Priority 1: partial Region with free slots (from CentralRegionPool's 4-list)
-    MSRegionAcquireSource source = MSRegionAcquireSource::NONE;
-    MSRegionInfo* region = central_->GetRegion(cls, &source);
-    if (region != nullptr) {
-        RecordRefillSource(consumer, ToRefillSource(source));
-        return region;
+    MSRegionInfo* region = nullptr;
+    if (!backgroundFill) {
+        // Mutator: central pool first, then direct bump/grow. Do not go through releasedTree.
+        MSRegionAcquireSource source = MSRegionAcquireSource::NONE;
+        region = central_->GetRegion(cls, &source);
+        if (region != nullptr) {
+            RecordRefillSource(consumer, ToRefillSource(source));
+            return region;
+        }
+
+        region = central_->GetFreshRegion(cls);
+    } else {
+        // gc-helper feed: bypass central lists and directly source from releasedTree or bump/grow.
+        region = central_->GetFreshRegionForFeed(cls);
     }
 
-    // Priority 2: brand-new Region from RegionManager
-    region = central_->GetFreshRegion(cls);
     RecordRefillSource(consumer,
         region != nullptr ? MSAllocRefillSource::FRESH : MSAllocRefillSource::FAILED);
     return region;

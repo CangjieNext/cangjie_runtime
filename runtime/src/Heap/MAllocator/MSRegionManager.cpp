@@ -214,6 +214,12 @@ size_t GetBgSweepMaxRegionsPerSlice()
     static const size_t value = ReadEnvCount("CJ_MS_BG_SWEEP_MAX_REGIONS_PER_SLICE", 256);
     return value;
 }
+
+size_t GetReleasedBusyRetryLimit()
+{
+    static const size_t value = ReadEnvCount("CJ_MS_RELEASED_BUSY_RETRY_LIMIT", 8);
+    return value;
+}
 }
 
 void MSRegionManager::MaybeNotifySweep(const CentralRegionPool* centralPool, uint8_t cls)
@@ -318,10 +324,13 @@ void MSRegionManager::MaybeNotifyMark()
 // fallback sequencing remain in MSRegionManager.
 // ============================================================================
 
-bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx, AllocSource* source)
+bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx, AllocSource* source,
+                                  bool allowReleasedTree)
 {
     RegionIndex rawIdx = 0;
-    bool tryReleasedTree = true;
+    bool tryReleasedTree = allowReleasedTree;
+    size_t busyRetries = 0;
+    const size_t busyRetryLimit = GetReleasedBusyRetryLimit();
 
     MaybeNotifyMark();
 
@@ -338,6 +347,11 @@ bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx, AllocSource
         if (result == FreeManager::TryTakeResult::EMPTY) {
             tryReleasedTree = false;
             continue;
+        }
+        if (++busyRetries >= busyRetryLimit) {
+            freeManager_.RecordTakeBusyFallback();
+            tryReleasedTree = false;
+            break;
         }
         ScopedEnterSaferegion enterSaferegion(true);
     }
@@ -409,7 +423,7 @@ MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& 
 {
     RegionIndex regionIdx = 0;
     AllocSource source = AllocSource::BUMP;
-    if (!TakeRegions(1, regionIdx, &source)) {
+    if (!TakeRegions(1, regionIdx, &source, false)) {
         return nullptr;
     }
 
@@ -434,6 +448,33 @@ MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& 
     return info;
 }
 
+MSRegionInfo* MSRegionManager::TakeRegionForFeed(uint8_t cls, const CentralRegionPool& centralPool)
+{
+    RegionIndex regionIdx = 0;
+    AllocSource source = AllocSource::BUMP;
+    if (!TakeRegions(1, regionIdx, &source, true)) {
+        return nullptr;
+    }
+
+    MRT_ASSERT(regionIdx < freeManager_.GetMaxVirtualRegionCount(), "region index out of bounds");
+
+    MSRegionInfo* info = &array_[regionIdx];
+    if (UNLIKELY(info->regionType != MSRegionType::MS_REGION_FREE)) {
+        LOG(RTLOG_FATAL, "[MS-GC] TakeRegionForFeed: array_[%u] NOT FREE! "
+            "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, "
+            "sizeClass=%u, sweepState=%d, sweepGen=%u, "
+            "nextIdx=%d, prevIdx=%d, reserved=0x%llx, "
+            "array_=%p, info=%p, cls=%u",
+            regionIdx, (int)info->regionType, info->allocPtr, info->regionEnd,
+            (void*)info->allocBitmap, (unsigned)info->sizeClass,
+            (int)info->sweepState, info->sweepGen,
+            info->nextRegionIdx, info->prevRegionIdx,
+            (unsigned long long)info->reserved,
+            (void*)array_, (void*)info, (unsigned)cls);
+    }
+    return info;
+}
+
 // ============================================================================
 // TakeRegionForLarge — allocate N units for a large object
 // ============================================================================
@@ -447,7 +488,7 @@ MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& r
 
     RegionIndex regionIdx = 0;
     AllocSource source = AllocSource::BUMP;
-    if (!TakeRegions(regionCount, regionIdx, &source)) {
+    if (!TakeRegions(regionCount, regionIdx, &source, true)) {
         regionStart = 0;
         return nullptr;
     }

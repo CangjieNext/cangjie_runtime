@@ -1195,14 +1195,20 @@ void MarkSweepCollector::ConcurrentSweep()
     CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool != nullptr) {
         cycleStats_.trueLiveBytes = centralPool->ComputeMarkedBytes();
+        size_t totalUnswept = centralPool->GetTotalUnsweptCount();
+        size_t eagerSweepTarget = (totalUnswept <= 1) ? totalUnswept : (totalUnswept / 2);
+        cycleStats_.eagerSweepBatchRegions = centralPool->EagerSweepBatch(eagerSweepTarget);
     }
 
     // Mark-Sweep: generation flip now happens at the tail of MarkTermination's
     // STW, before mutators resume. ConcurrentSweep only kicks off background
     // sweeping and reclaim after the new generation is already visible.
+    // The GC thread only performs one bounded synchronous sweep batch here,
+    // then leaves the remaining unswept backlog to lazy/background sweep.
     uint64_t sweepUs = TimeUtil::MicroSeconds() - phaseStart;
     cycleStats_.concurrentSweepUs = sweepUs;
-    VLOG(REPORT, "[MS-GC] ConcurrentSweep total: %sus", Pretty(sweepUs).Str());
+    VLOG(REPORT, "[MS-GC] ConcurrentSweep total: %sus, eagerSwept=%zu",
+         Pretty(sweepUs).Str(), cycleStats_.eagerSweepBatchRegions);
 }
 
 // ============================================================================

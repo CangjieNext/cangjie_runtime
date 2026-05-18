@@ -16,6 +16,8 @@
 #include "Heap/MAllocator/MSRegionManager.h"
 #include "Mutator/Mutator.inline.h"
 #include "Mutator/MutatorManager.h"
+#include <cstdlib>
+#include <cstring>
 #include <thread>
 
 namespace MapleRuntime {
@@ -24,6 +26,45 @@ constexpr U32 DEFAULT_MS_GC_HELPER_POLL_MS = 2000;
 constexpr U32 DEFAULT_MS_GC_HELPER_ACTIVE_BACKOFF_MS = 1;
 constexpr U32 DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_ROUNDS = 4;
 constexpr uint64_t DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_US = 12000;
+
+bool EqualsIgnoreCase(const char* lhs, const char* rhs)
+{
+    if (lhs == nullptr || rhs == nullptr) {
+        return false;
+    }
+    while (*lhs != '\0' && *rhs != '\0') {
+        char lc = *lhs;
+        char rc = *rhs;
+        if (lc >= 'A' && lc <= 'Z') {
+            lc = static_cast<char>(lc - 'A' + 'a');
+        }
+        if (rc >= 'A' && rc <= 'Z') {
+            rc = static_cast<char>(rc - 'A' + 'a');
+        }
+        if (lc != rc) {
+            return false;
+        }
+        ++lhs;
+        ++rhs;
+    }
+    return *lhs == '\0' && *rhs == '\0';
+}
+
+bool IsBackgroundFeedEnabled()
+{
+    static const bool enabled = []() {
+        const char* env = std::getenv("CJ_MS_BG_FEED");
+        if (env == nullptr || env[0] == '\0') {
+            return true;
+        }
+        if (std::strcmp(env, "0") == 0 || EqualsIgnoreCase(env, "false") ||
+            EqualsIgnoreCase(env, "off") || EqualsIgnoreCase(env, "no")) {
+            return false;
+        }
+        return true;
+    }();
+    return enabled;
+}
 }
 
 extern "C" MRT_EXPORT void* MRT_ProcessBackgroundWork(void* arg)
@@ -229,6 +270,11 @@ void BackgroundProcessor::NotifyToReclaimGarbage()
 
 void BackgroundProcessor::MaybeNotifyFeed(uint8_t cls)
 {
+    if (!IsBackgroundFeedEnabled()) {
+        shouldFeedHungryBuffers.store(false, std::memory_order_release);
+        return;
+    }
+
     // Skip notification when cached regions already cover all active (in-use) regions,
     // or when memory pressure is extreme (feeding is suppressed at that level anyway).
     CentralRegionPool* pool = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator()).GetCentralPool();
@@ -331,6 +377,12 @@ bool BackgroundProcessor::HasPendingSweepWork()
 
 bool BackgroundProcessor::BackgroundFeedLoop()
 {
+    if (!IsBackgroundFeedEnabled()) {
+        shouldFeedHungryBuffers.store(false, std::memory_order_release);
+        pendingFeedStats_.Reset();
+        return false;
+    }
+
     Allocator& allocator = Heap::GetHeap().GetAllocator();
     uint8_t preferredCls = preferredFeedCls_.exchange(kNoPreferredFeedClass, std::memory_order_acq_rel);
     BackgroundFeedStats sliceStats = allocator.BackgroundFillAllocCaches(preferredCls);
@@ -352,6 +404,11 @@ bool BackgroundProcessor::BackgroundFeedLoop()
 
 bool BackgroundProcessor::HasPendingFeedWork()
 {
+    if (!IsBackgroundFeedEnabled()) {
+        shouldFeedHungryBuffers.store(false, std::memory_order_release);
+        return false;
+    }
+
     CentralRegionPool* pool = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator()).GetCentralPool();
     if (pool == nullptr) {
         shouldFeedHungryBuffers.store(false, std::memory_order_release);

@@ -82,9 +82,13 @@ public:
     // maxVirtualHeapSize is the total virtual heap capacity.
     void Initialize(size_t heapSize, uintptr_t mmapBase, size_t maxVirtualHeapSize);
 
-    // Take one MS Region (MS_REGION_SIZE bytes).
-    // Returns the MSRegionInfo* for the new region, or nullptr if OOM.
+    // Take one MS Region for mutator fresh allocation.
+    // This path skips releasedTree and only uses bump/grow after central lists miss.
     MSRegionInfo* TakeRegion(uint8_t cls, const CentralRegionPool& centralPool);
+
+    // Take one MS Region for gc-helper background feed.
+    // This path may still consume releasedTree before falling back to bump/grow.
+    MSRegionInfo* TakeRegionForFeed(uint8_t cls, const CentralRegionPool& centralPool);
 
     // Take N units for large object (Tier 1, > threshold but <= 4MB).
     // unitCount = ceil(allocSize, UNIT_SIZE).
@@ -190,10 +194,12 @@ private:
     void InitializeFreshRegions(RegionIndex startIdx, RegionCount count) override;
     void OnCommittedHeapExtended(uintptr_t newCommittedEnd) override;
 
-    // Take contiguous regions from releasedTree or inactiveZone bump.
+    // Take contiguous regions from inactiveZone bump, optionally trying
+    // releasedTree first depending on the caller policy.
     // High-level orchestration stays in MSRegionManager; FreeManager only exposes
     // the primitive heap-state operations used by this path.
-    bool TakeRegions(RegionCount num, RegionIndex& idx, AllocSource* source = nullptr);
+    bool TakeRegions(RegionCount num, RegionIndex& idx, AllocSource* source = nullptr,
+                     bool allowReleasedTree = true);
 
     // Clear units (zero-fill) at given index/count.
     void ClearUnits(UnitIndex idx, UnitCount num) const;

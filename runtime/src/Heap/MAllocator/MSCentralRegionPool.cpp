@@ -68,6 +68,12 @@ uint64_t GetBgSweepMaxTimeUs()
     return value;
 }
 
+uint64_t GetEagerSweepBatchMaxTimeUs()
+{
+    static const uint64_t value = ReadEnvTimeUs("CJ_MS_EAGER_SWEEP_BATCH_MAX_TIME", 10000);
+    return value;
+}
+
 size_t GetBgReclaimNotifyEmptyRegions()
 {
     // Constant: processorCount × numSizeClasses × 2.
@@ -407,6 +413,46 @@ MSRegionInfo* CentralRegionPool::GetFreshRegion(uint8_t cls)
     msInfo->SetSweepGen(globalSweepGen_.load(std::memory_order_acquire));
 
     // Track total MS region bytes for GC trigger
+    totalMSRegionBytes_.fetch_add(MS_REGION_SIZE, std::memory_order_relaxed);
+
+    return msInfo;
+}
+
+MSRegionInfo* CentralRegionPool::GetFreshRegionForFeed(uint8_t cls)
+{
+    MSRegionInfo* msInfo = msRegionManager_->TakeRegionForFeed(cls, *this);
+    if (msInfo == nullptr) {
+        return nullptr;
+    }
+
+    size_t regionIdx = MSRegionInfoArray::GetRegionIdx(msInfo);
+    uintptr_t regionStart = MSRegionInfoArray::GetRegionAddress(regionIdx);
+
+    if (UNLIKELY(msInfo->regionType != MSRegionType::MS_REGION_FREE)) {
+        LOG(RTLOG_FATAL, "[MS-GC] GetFreshRegionForFeed: TakeRegionForFeed returned non-FREE region! "
+            "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, "
+            "sizeClass=%u, sweepState=%d, sweepGen=%u, "
+            "nextIdx=%d, prevIdx=%d, reserved=0x%llx, "
+            "cls=%u, regionIdx=%zu, regionStart=0x%zx, this=%p",
+            (int)msInfo->regionType, msInfo->allocPtr, msInfo->regionEnd,
+            (void*)msInfo->allocBitmap, (unsigned)msInfo->sizeClass,
+            (int)msInfo->sweepState, msInfo->sweepGen,
+            msInfo->nextRegionIdx, msInfo->prevRegionIdx,
+            (unsigned long long)msInfo->reserved,
+            (unsigned)cls, regionIdx, regionStart, (void*)msInfo);
+    }
+
+    msInfo->InitForSizeClass(cls);
+    if (UNLIKELY(msInfo->allocBitmap == nullptr)) {
+        LOG(RTLOG_FATAL, "[MS-GC] GetFreshRegionForFeed: InitForSizeClass failed to alloc bitmap, "
+            "cls=%u, regionIdx=%zu, regionStart=0x%zx, totalSlots=%u, this=%p",
+            (unsigned)cls, regionIdx, regionStart, (unsigned)msInfo->totalSlotCount,
+            (void*)msInfo);
+    }
+
+    msInfo->allocPtr = regionStart;
+    msInfo->regionEnd = regionStart + MS_REGION_SIZE;
+    msInfo->SetSweepGen(globalSweepGen_.load(std::memory_order_acquire));
     totalMSRegionBytes_.fetch_add(MS_REGION_SIZE, std::memory_order_relaxed);
 
     return msInfo;
@@ -1014,11 +1060,12 @@ void CentralRegionPool::RegisterLargeRegion(MSRegionInfo* region)
 // Uses the same CAS ownership protocol as BackgroundSweep / LazySweep.
 size_t CentralRegionPool::EagerSweepBatch(size_t maxRegions)
 {
-    if (maxRegions == 0) {
+    uint64_t maxTimeUs = GetEagerSweepBatchMaxTimeUs();
+    if (maxRegions == 0 || maxTimeUs == 0) {
         return 0;
     }
     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
-    uint64_t deadlineUs = TimeUtil::MicroSeconds() + 5000;  // 5ms hard cap
+    uint64_t deadlineUs = TimeUtil::MicroSeconds() + maxTimeUs;
     size_t swept = 0;
 
     for (uint8_t cls = 0; cls < kNumSizeClasses && swept < maxRegions; cls++) {
@@ -1033,7 +1080,8 @@ size_t CentralRegionPool::EagerSweepBatch(size_t maxRegions)
     }
 
     if (swept > 0) {
-        VLOG(REPORT, "[MS-GC] EagerSweepBatch: swept %zu regions (limit=%zu)", swept, maxRegions);
+        VLOG(REPORT, "[MS-GC] EagerSweepBatch: swept %zu regions (limit=%zu, maxTime=%zuus)",
+             swept, maxRegions, static_cast<size_t>(maxTimeUs));
     }
     return swept;
 }

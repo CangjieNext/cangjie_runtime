@@ -306,8 +306,13 @@ public:
     //        → emptySweptCache(rebind) → fresh.
     MSRegionInfo* GetRegion(uint8_t cls, MSRegionAcquireSource* source = nullptr);
 
-    // Get a brand-new Region from RegionManager, initialized for the given size class.
+    // Get a fresh mutator Region from RegionManager after central lists miss.
+    // This path skips releasedTree and goes directly to bump/grow.
     MSRegionInfo* GetFreshRegion(uint8_t cls);
+
+    // Get a background-feed Region from RegionManager.
+    // This path may consume releasedTree before falling back to bump/grow.
+    MSRegionInfo* GetFreshRegionForFeed(uint8_t cls);
 
     // ===== Thread-local Region return =====
 
@@ -410,7 +415,8 @@ public:
     MSLargeSweepStats SweepLargeRegions();
 
     // Eager synchronous sweep of small regions: GC thread sweeps up to
-    // maxRegions regions across all size classes before handing off to background.
+    // maxRegions regions across all size classes before handing off to background,
+    // but stops early when the configured wall-time budget is exhausted.
     // Returns the number of regions actually swept.
     // Called from ConcurrentSweep() to give immediate reclaim under pressure.
     size_t EagerSweepBatch(size_t maxRegions);

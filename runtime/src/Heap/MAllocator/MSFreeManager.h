@@ -48,6 +48,8 @@ public:
     public:
         virtual ~Backend() = default;
 
+        virtual std::unique_ptr<Backend> CreateEmpty() const = 0;
+
         virtual void Initialize(UnitCount maxUnitCount) = 0;
         virtual void Finalize() noexcept = 0;
 
@@ -81,6 +83,7 @@ public:
                     size_t segmentSize);
 
     TryTakeResult TryTakeRegions(RegionCount num, RegionIndex& idx);
+    void RecordTakeBusyFallback();
     bool TryIncreaseInactiveZone(RegionCount num, RegionIndex& idx);
     void ReclaimRegionsReleased(RegionIndex idx, RegionCount num);
     bool GrowOneSegment(HeapRangeHandler& handler);
@@ -111,19 +114,79 @@ public:
     RegionCount UnitCountToRegionCount(UnitCount unitCount) const;
 
 private:
-    bool TakeTrailingRegions(RegionIndex targetEnd, RegionIndex& idx, RegionCount& num);
+    struct ReleaseBank {
+        mutable std::mutex mutex;
+        std::unique_ptr<Backend> backend;
+        std::atomic<UnitCount> totalUnits {0};
+        std::atomic<UnitCount> maxBlockUnits {0};
+        UnitIndex rangeStart = 0;
+        UnitIndex rangeEnd = 0;
+        uint64_t epoch = 0;
+    };
+
+    struct Diagnostics {
+        bool enabled = false;
+        std::atomic<uint64_t> producerPublishCalls {0};
+        std::atomic<uint64_t> producerPublishUnits {0};
+        std::atomic<uint64_t> producerPublishNs {0};
+        std::atomic<uint64_t> consumerPublishCalls {0};
+        std::atomic<uint64_t> consumerPublishUnits {0};
+        std::atomic<uint64_t> consumerPublishNs {0};
+        std::atomic<uint64_t> rotateCalls {0};
+        std::atomic<uint64_t> rotatePayloadCalls {0};
+        std::atomic<uint64_t> rotateMovedSpans {0};
+        std::atomic<uint64_t> rotateMovedUnits {0};
+        std::atomic<uint64_t> rotateCollectNs {0};
+        std::atomic<uint64_t> rotateDistributeNs {0};
+        std::atomic<uint64_t> rotateTotalNs {0};
+        std::atomic<uint64_t> takeCalls {0};
+        std::atomic<uint64_t> takeRequestedUnits {0};
+        std::atomic<uint64_t> takeVisitedBanks {0};
+        std::atomic<uint64_t> takeSummarySkipBanks {0};
+        std::atomic<uint64_t> takeLockBusyBanks {0};
+        std::atomic<uint64_t> takeBackendMissBanks {0};
+        std::atomic<uint64_t> takeSuccessCalls {0};
+        std::atomic<uint64_t> takeBusyReturns {0};
+        std::atomic<uint64_t> takeBusyFallbacks {0};
+        std::atomic<uint64_t> takeEmptyReturns {0};
+        std::atomic<uint64_t> takeEmptyWithProducerUnits {0};
+        std::atomic<uint64_t> takeEmptyWithConsumerUnits {0};
+        std::atomic<uint64_t> takePublishOnMissAttempts {0};
+        std::atomic<uint64_t> takePublishOnMissSuccess {0};
+        std::atomic<uint64_t> takeTotalNs {0};
+        std::atomic<uint64_t> growCalls {0};
+        std::atomic<uint64_t> growSuccessCalls {0};
+        std::atomic<uint64_t> growFailAtMaxHeap {0};
+        std::atomic<uint64_t> growBytes {0};
+        std::atomic<uint64_t> growTotalNs {0};
+    };
+
+    bool TryTakeRegionsFromConsumers(RegionCount num, RegionIndex& idx);
+    bool TakeTrailingRegions(RegionIndex targetEnd, RegionIndex& idx, RegionCount& num,
+                            ReleaseBank** sourceBank = nullptr);
+    bool TakeTrailingRegionsFromBank(ReleaseBank& bank, RegionIndex targetEnd,
+                                     RegionIndex& idx, RegionCount& num);
     void ReleaseUnits(UnitIndex idx, UnitCount num) const;
     void InsertRegions(RegionIndex idx, RegionCount num);
-    Backend& GetBackend();
-    const Backend& GetBackend() const;
+    void InsertRegionsToBank(ReleaseBank& bank, RegionIndex idx, RegionCount num);
+    void InsertRegionsToBankLocked(ReleaseBank& bank, RegionIndex idx, RegionCount num);
+    void RefreshBankSummaryLocked(ReleaseBank& bank) const;
+    void InitializeConsumerBank();
+    void ResetBankLocked(ReleaseBank& bank);
+    void RotateReleasedBanksOnGrow();
+    bool PublishProducerToConsumers(bool dueToGrow);
+    void DistributeFrozenSpansToConsumers(const std::vector<UnitSpan>& spans);
+    void ReportDiagnostics() const;
     void CheckAlignmentConfig() const;
     size_t GetRegionSizeBytes() const;
     RegionIndex AddrToRegionIdx(uintptr_t addr) const;
     uintptr_t RegionIdxToAddr(RegionIndex regionIdx) const;
     size_t RewindInactiveZoneUsingReleasedTail();
 
-    mutable std::mutex mutex_;
-    std::unique_ptr<Backend> backend_;
+    std::unique_ptr<Backend> backendPrototype_;
+    ReleaseBank producerBank_;
+    ReleaseBank consumerBank_;
+    mutable std::mutex rotateMutex_;
     size_t unitSize_ = 0;
     size_t unitsPerRegion_ = 0;
     uintptr_t heapStart_ = 0;
@@ -137,6 +200,7 @@ private:
     std::atomic<uintptr_t> inactiveZone_{0};
     mutable std::mutex growMutex_;
     uint64_t heapGrowCount_ = 0;
+    Diagnostics diagnostics_;
 };
 
 } // namespace MapleRuntime
