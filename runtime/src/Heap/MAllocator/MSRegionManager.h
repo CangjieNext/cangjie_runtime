@@ -86,21 +86,11 @@ public:
     // This path skips releasedTree and only uses bump/grow after central lists miss.
     MSRegionInfo* TakeRegion(uint8_t cls, const CentralRegionPool& centralPool);
 
-    // Take one MS Region for gc-helper background feed.
-    // This path may still consume releasedTree before falling back to bump/grow.
-    MSRegionInfo* TakeRegionForFeed(uint8_t cls, const CentralRegionPool& centralPool);
-
     // Take N units for large object (Tier 1, > threshold but <= 4MB).
     // unitCount = ceil(allocSize, UNIT_SIZE).
     // Returns pair: (MSRegionInfo* baseInfo, uintptr_t regionStart), or (nullptr, 0).
     MSRegionInfo* TakeRegionForLarge(size_t unitCount, uintptr_t& regionStart,
                                      const CentralRegionPool* centralPool = nullptr);
-
-    // Reclaim a small/medium Region (MS_REGION_SIZE).
-    // In MSGC small-region steady-state this path is mostly bypassed by the
-    // CentralRegionPool empty-cache. If it is used, the region goes directly
-    // to releasedTree instead of a dirty cache.
-    void ReclaimRegion(MSRegionInfo* region);
 
     // Reclaim a large Region spanning regionBytes.
     // regionStart is the actual start address of the allocation (from TakeRegionForLarge).
@@ -117,6 +107,7 @@ public:
     // The heap-top state is managed by FreeManager; this method delegates to it.
     // Returns true if growth succeeded, false if already at max.
     bool GrowOneSegment();
+    size_t ScavengeFreeRegions(bool releaseAll);
 
     // Shrink the committed heap after scavenging empty-cache / releasedTree.
     // The actual trailing-tail reclaim and committed-end update are managed by FreeManager.

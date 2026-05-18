@@ -168,10 +168,10 @@ size_t RegionSpaceMS::ReclaimGarbageMemory(bool releaseAll)
     if (msRegionManager_ == nullptr) {
         return 0;
     }
-    size_t released = 0;
     if (msCentralPool_ != nullptr) {
-        released += msCentralPool_->HandleBackgroundScavenge(releaseAll);
+        (void)msCentralPool_->HandleBackgroundScavenge(releaseAll);
     }
+    size_t released = msRegionManager_->ScavengeFreeRegions(releaseAll);
     msRegionManager_->ShrinkHeap();
     return released;
 }

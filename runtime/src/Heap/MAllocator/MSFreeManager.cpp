@@ -9,178 +9,145 @@
 #include "Heap/MAllocator/MSFreeManager.h"
 
 #include <algorithm>
-#include <cstdio>
-#include <cstdlib>
 #include <cstring>
-#include <utility>
+
 #ifndef _WIN64
 #include <sys/mman.h>
 #else
 #include <windows.h>
 #endif
 
-#include "Base/CString.h"
-#include "Base/MemUtils.h"
 #include "Base/Log.h"
-#include "Base/TimeUtils.h"
-#include "Common/ScopedObjectAccess.h"
+#include "Base/MemUtils.h"
 
 namespace MapleRuntime {
 
+#if defined(_WIN64)
 namespace {
-
-class CartesianTreeBackend final : public FreeManager::Backend {
-public:
-    using UnitIndex = FreeManager::UnitIndex;
-    using UnitCount = FreeManager::UnitCount;
-
-    std::unique_ptr<Backend> CreateEmpty() const override
-    {
-        return std::make_unique<CartesianTreeBackend>();
-    }
-
-    void Initialize(UnitCount maxUnitCount) override
-    {
-        tree_.Init(maxUnitCount);
-    }
-
-    void Finalize() noexcept override
-    {
-        tree_.Fini();
-    }
-
-    bool TakeUnits(UnitCount num, UnitIndex& idx) override
-    {
-        return tree_.TakeUnits(num, idx, false);
-    }
-
-    bool TakeTrailingUnits(UnitIndex targetEnd, UnitIndex& idx, UnitCount& num) override
-    {
-        return tree_.TakeRightmostIfEndEquals(targetEnd, idx, num);
-    }
-
-    bool MergeInsert(UnitIndex idx, UnitCount num) override
-    {
-        return tree_.MergeInsert(idx, num, false);
-    }
-
-    UnitCount GetTotalCount() const override
-    {
-        return tree_.GetTotalCount();
-    }
-
-    uint32_t GetNodeCount() const override
-    {
-        return tree_.GetNodeCount();
-    }
-
-    uint32_t GetMaxBlockCount() const override
-    {
-        return tree_.GetMaxBlockCount();
-    }
-
-    size_t GetMetadataBytesInUse() const override
-    {
-        return tree_.GetMetadataBytesInUse();
-    }
-
-    size_t GetNodeBytesInUse() const override
-    {
-        return tree_.GetNodeBytesInUse();
-    }
-
-    void CollectUnitSpans(std::vector<FreeManager::UnitSpan>& spans) const override
-    {
-        spans.clear();
-        CartesianTree& tree = const_cast<CartesianTree&>(tree_);
-        spans.reserve(tree.GetNodeCount());
-        CartesianTree::Iterator it(tree);
-        for (CartesianTree::Node* node = it.Next(); node != nullptr; node = it.Next()) {
-            spans.push_back({ node->GetIndex(), node->GetCount() });
-        }
-    }
-
-private:
-    mutable CartesianTree tree_;
-};
-
-bool EqualsIgnoreCase(const char* lhs, const char* rhs)
+size_t GetOsPageSize()
 {
-    if (lhs == nullptr || rhs == nullptr) {
-        return false;
-    }
-    while (*lhs != '\0' && *rhs != '\0') {
-        char lc = static_cast<char>(*lhs);
-        char rc = static_cast<char>(*rhs);
-        if (lc >= 'A' && lc <= 'Z') {
-            lc = static_cast<char>(lc - 'A' + 'a');
-        }
-        if (rc >= 'A' && rc <= 'Z') {
-            rc = static_cast<char>(rc - 'A' + 'a');
-        }
-        if (lc != rc) {
-            return false;
-        }
-        ++lhs;
-        ++rhs;
-    }
-    return *lhs == '\0' && *rhs == '\0';
+    static size_t pageSize = []() {
+        SYSTEM_INFO info;
+        GetSystemInfo(&info);
+        return static_cast<size_t>(info.dwPageSize);
+    }();
+    return pageSize;
 }
 
-bool ReadReleasedDiagEnabled()
+void CommitReservedPrefix(void* base, size_t bytes)
 {
-    const char* env = std::getenv("CJ_MS_RELEASED_DIAG");
-    if (env == nullptr) {
-        return false;
+    if (base == nullptr || bytes == 0) {
+        return;
     }
-    if (env[0] == '\0') {
-        return true;
-    }
-    if (strcmp(env, "0") == 0 || EqualsIgnoreCase(env, "false") ||
-        EqualsIgnoreCase(env, "off") || EqualsIgnoreCase(env, "no")) {
-        return false;
-    }
-    return true;
+    size_t pageSize = GetOsPageSize();
+    size_t commitBytes = ((bytes + pageSize - 1) / pageSize) * pageSize;
+    void* ret = VirtualAlloc(base, commitBytes, MEM_COMMIT, PAGE_READWRITE);
+    CHECK_DETAIL(ret != nullptr, "VirtualAlloc commit failed for FreeManager metadata");
 }
-
-inline uint64_t NowNs()
-{
-    return TimeUtil::NanoSeconds();
 }
-
-inline double NsToMs(uint64_t ns)
-{
-    return static_cast<double>(ns) / 1000000.0;
-}
-
-inline double AverageUs(uint64_t totalNs, uint64_t count)
-{
-    if (count == 0) {
-        return 0.0;
-    }
-    return static_cast<double>(totalNs) / static_cast<double>(count) / 1000.0;
-}
-
-} // namespace
-
-FreeManager::FreeManager() : FreeManager(nullptr)
-{
-}
-
-FreeManager::FreeManager(std::unique_ptr<Backend> backend)
-    : backendPrototype_(backend == nullptr ? std::make_unique<CartesianTreeBackend>() : std::move(backend))
-{
-}
+#endif
 
 FreeManager::~FreeManager()
 {
-    ReportDiagnostics();
-    if (producerBank_.backend != nullptr) {
-        producerBank_.backend->Finalize();
+    ReleaseMetadataStorage();
+}
+
+void FreeManager::ReserveMetadataStorage(size_t bitmapWordCapacity, size_t summaryChunkCapacity)
+{
+    ReleaseMetadataStorage();
+
+    bitmapWordCapacity_ = bitmapWordCapacity;
+    summaryChunkCapacity_ = summaryChunkCapacity;
+    bitmapWordCountInUse_ = 0;
+    summaryChunkCountInUse_ = 0;
+
+    size_t bitmapBytes = bitmapWordCapacity_ * sizeof(uint64_t);
+    size_t summaryBytes = summaryChunkCapacity_ * sizeof(ChunkSummary);
+
+#if defined(_WIN64)
+    allocBits_ = static_cast<uint64_t*>(VirtualAlloc(nullptr, bitmapBytes, MEM_RESERVE, PAGE_READWRITE));
+    scavengedBits_ = static_cast<uint64_t*>(VirtualAlloc(nullptr, bitmapBytes, MEM_RESERVE, PAGE_READWRITE));
+    chunkSummaries_ = static_cast<ChunkSummary*>(VirtualAlloc(nullptr, summaryBytes, MEM_RESERVE, PAGE_READWRITE));
+    CHECK_DETAIL(allocBits_ != nullptr, "VirtualAlloc reserve failed for allocBits");
+    CHECK_DETAIL(scavengedBits_ != nullptr, "VirtualAlloc reserve failed for scavengedBits");
+    CHECK_DETAIL(chunkSummaries_ != nullptr, "VirtualAlloc reserve failed for chunkSummaries");
+#else
+    allocBits_ = static_cast<uint64_t*>(mmap(nullptr, bitmapBytes, PROT_READ | PROT_WRITE,
+                                             MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+    scavengedBits_ = static_cast<uint64_t*>(mmap(nullptr, bitmapBytes, PROT_READ | PROT_WRITE,
+                                                 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+    chunkSummaries_ = static_cast<ChunkSummary*>(mmap(nullptr, summaryBytes, PROT_READ | PROT_WRITE,
+                                                      MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+    CHECK_DETAIL(allocBits_ != MAP_FAILED, "mmap reserve failed for allocBits");
+    CHECK_DETAIL(scavengedBits_ != MAP_FAILED, "mmap reserve failed for scavengedBits");
+    CHECK_DETAIL(chunkSummaries_ != MAP_FAILED, "mmap reserve failed for chunkSummaries");
+#endif
+}
+
+void FreeManager::ReleaseMetadataStorage()
+{
+#if defined(_WIN64)
+    if (allocBits_ != nullptr) {
+        (void)VirtualFree(allocBits_, 0, MEM_RELEASE);
     }
-    if (consumerBank_.backend != nullptr) {
-        consumerBank_.backend->Finalize();
+    if (scavengedBits_ != nullptr) {
+        (void)VirtualFree(scavengedBits_, 0, MEM_RELEASE);
     }
+    if (chunkSummaries_ != nullptr) {
+        (void)VirtualFree(chunkSummaries_, 0, MEM_RELEASE);
+    }
+#else
+    if (allocBits_ != nullptr) {
+        (void)munmap(allocBits_, bitmapWordCapacity_ * sizeof(uint64_t));
+    }
+    if (scavengedBits_ != nullptr) {
+        (void)munmap(scavengedBits_, bitmapWordCapacity_ * sizeof(uint64_t));
+    }
+    if (chunkSummaries_ != nullptr) {
+        (void)munmap(chunkSummaries_, summaryChunkCapacity_ * sizeof(ChunkSummary));
+    }
+#endif
+    allocBits_ = nullptr;
+    scavengedBits_ = nullptr;
+    chunkSummaries_ = nullptr;
+    bitmapWordCapacity_ = 0;
+    bitmapWordCountInUse_ = 0;
+    summaryChunkCapacity_ = 0;
+    summaryChunkCountInUse_ = 0;
+}
+
+void FreeManager::EnsureMetadataInitializedForRegionCount(size_t regionCount)
+{
+    size_t targetWordCount = RegionCountToChunkCount(regionCount);
+    size_t targetChunkCount = RegionCountToChunkCount(regionCount);
+
+    CHECK_DETAIL(targetWordCount <= bitmapWordCapacity_,
+                 "[MS-GC] metadata word capacity exceeded: target=%zu capacity=%zu",
+                 targetWordCount, bitmapWordCapacity_);
+    CHECK_DETAIL(targetChunkCount <= summaryChunkCapacity_,
+                 "[MS-GC] metadata chunk capacity exceeded: target=%zu capacity=%zu",
+                 targetChunkCount, summaryChunkCapacity_);
+
+#if defined(_WIN64)
+    if (targetWordCount > bitmapWordCountInUse_) {
+        CommitReservedPrefix(allocBits_, targetWordCount * sizeof(uint64_t));
+        CommitReservedPrefix(scavengedBits_, targetWordCount * sizeof(uint64_t));
+    }
+    if (targetChunkCount > summaryChunkCountInUse_) {
+        CommitReservedPrefix(chunkSummaries_, targetChunkCount * sizeof(ChunkSummary));
+    }
+#endif
+
+    for (size_t wordIdx = bitmapWordCountInUse_; wordIdx < targetWordCount; ++wordIdx) {
+        allocBits_[wordIdx] = ~0ULL;
+        scavengedBits_[wordIdx] = 0;
+    }
+    for (size_t chunkIdx = summaryChunkCountInUse_; chunkIdx < targetChunkCount; ++chunkIdx) {
+        chunkSummaries_[chunkIdx] = {};
+    }
+
+    bitmapWordCountInUse_ = targetWordCount;
+    summaryChunkCountInUse_ = targetChunkCount;
 }
 
 void FreeManager::Initialize(UnitCount maxUnitCount, size_t unitSize, size_t unitsPerRegion,
@@ -203,177 +170,450 @@ void FreeManager::Initialize(UnitCount maxUnitCount, size_t unitSize, size_t uni
     maxVirtualRegionCount_ = static_cast<size_t>(maxVirtualRegionCount);
     maxVirtualUnitCount_ = static_cast<size_t>(maxUnitCount);
     segmentSize_ = segmentSize;
-    inactiveZone_.store(heapStart, std::memory_order_relaxed);
-    diagnostics_.enabled = ReadReleasedDiagEnabled();
+    heapGrowCount_ = 0;
+    freeRegionCount_ = committedRegionCount_;
+    scavengedRegionCount_ = 0;
+    searchIdx_ = 0;
 
-    producerBank_.backend = backendPrototype_->CreateEmpty();
-    producerBank_.backend->Initialize(maxUnitCount);
-    producerBank_.rangeStart = 0;
-    producerBank_.rangeEnd = static_cast<UnitIndex>(maxVirtualUnitCount_);
-    producerBank_.epoch = 0;
-    producerBank_.totalUnits.store(0, std::memory_order_relaxed);
-    producerBank_.maxBlockUnits.store(0, std::memory_order_relaxed);
+    size_t wordCount = RegionCountToChunkCount(maxVirtualRegionCount_);
+    ReserveMetadataStorage(wordCount, wordCount);
+    EnsureMetadataInitializedForRegionCount(committedRegionCount_);
 
-    InitializeConsumerBank();
+    for (size_t regionIdx = 0; regionIdx < committedRegionCount_; ++regionIdx) {
+        ClearBit(allocBits_, regionIdx);
+    }
+    for (size_t chunkIdx = 0; chunkIdx < summaryChunkCountInUse_; ++chunkIdx) {
+        UpdateChunkSummaryLocked(chunkIdx);
+    }
 }
 
 FreeManager::TryTakeResult FreeManager::TryTakeRegions(RegionCount num, RegionIndex& idx)
 {
-    const bool diagEnabled = diagnostics_.enabled;
-    const uint64_t startNs = diagEnabled ? NowNs() : 0;
-    UnitCount unitCount = RegionCountToUnitCount(num);
-    bool busySeen = false;
-    uint64_t visitedBanks = 0;
-    bool publishTriggered = false;
-
-    if (diagEnabled) {
-        diagnostics_.takeCalls.fetch_add(1, std::memory_order_relaxed);
-        diagnostics_.takeRequestedUnits.fetch_add(unitCount, std::memory_order_relaxed);
-    }
-
-    if (consumerBank_.backend == nullptr) {
-        if (diagEnabled) {
-            diagnostics_.takeEmptyReturns.fetch_add(1, std::memory_order_relaxed);
-            diagnostics_.takeTotalNs.fetch_add(NowNs() - startNs, std::memory_order_relaxed);
-        }
+    if (num == 0) {
         return TryTakeResult::EMPTY;
     }
 
-    for (size_t attempt = 0; attempt < 2; ++attempt) {
-        ReleaseBank& bank = consumerBank_;
-        ++visitedBanks;
-        if (bank.totalUnits.load(std::memory_order_relaxed) < unitCount ||
-            bank.maxBlockUnits.load(std::memory_order_relaxed) < unitCount) {
-            if (diagEnabled) {
-                diagnostics_.takeSummarySkipBanks.fetch_add(1, std::memory_order_relaxed);
-            }
-            break;
-        }
-        if (!bank.mutex.try_lock()) {
-            busySeen = true;
-            if (diagEnabled) {
-                diagnostics_.takeLockBusyBanks.fetch_add(1, std::memory_order_relaxed);
-            }
-            break;
-        }
-        std::lock_guard<std::mutex> lg(bank.mutex, std::adopt_lock);
-
-        UnitIndex unitIdx = 0;
-        if (!bank.backend->TakeUnits(unitCount, unitIdx)) {
-            RefreshBankSummaryLocked(bank);
-            if (diagEnabled) {
-                diagnostics_.takeBackendMissBanks.fetch_add(1, std::memory_order_relaxed);
-            }
-        } else {
-            RefreshBankSummaryLocked(bank);
-            idx = UnitToRegionIdx(unitIdx);
-            if (diagEnabled) {
-                diagnostics_.takeVisitedBanks.fetch_add(visitedBanks, std::memory_order_relaxed);
-                diagnostics_.takeSuccessCalls.fetch_add(1, std::memory_order_relaxed);
-                diagnostics_.takeTotalNs.fetch_add(NowNs() - startNs, std::memory_order_relaxed);
-            }
-            return TryTakeResult::SUCCESS;
+    bool reusedScavenged = false;
+    {
+        std::lock_guard<std::mutex> lg(pageHeapMutex_);
+        if (!FindFreeRunLocked(num, idx)) {
+            return TryTakeResult::EMPTY;
         }
 
-        if (busySeen || publishTriggered || producerBank_.totalUnits.load(std::memory_order_relaxed) == 0) {
-            break;
-        }
-
-        publishTriggered = true;
-        if (diagEnabled) {
-            diagnostics_.takePublishOnMissAttempts.fetch_add(1, std::memory_order_relaxed);
-        }
-        if (!PublishProducerToConsumers(false)) {
-            break;
-        }
-        if (diagEnabled) {
-            diagnostics_.takePublishOnMissSuccess.fetch_add(1, std::memory_order_relaxed);
+        MarkAllocatedLocked(idx, num, reusedScavenged);
+        if (idx <= searchIdx_) {
+            searchIdx_ = FindNextFreeRegionLocked(idx + num);
         }
     }
 
-    if (diagEnabled) {
-        diagnostics_.takeVisitedBanks.fetch_add(visitedBanks, std::memory_order_relaxed);
-        if (busySeen) {
-            diagnostics_.takeBusyReturns.fetch_add(1, std::memory_order_relaxed);
-        } else {
-            diagnostics_.takeEmptyReturns.fetch_add(1, std::memory_order_relaxed);
-            if (producerBank_.totalUnits.load(std::memory_order_relaxed) != 0) {
-                diagnostics_.takeEmptyWithProducerUnits.fetch_add(1, std::memory_order_relaxed);
-            }
-            UnitCount consumerUnits = consumerBank_.totalUnits.load(std::memory_order_relaxed);
-            if (consumerUnits != 0) {
-                diagnostics_.takeEmptyWithConsumerUnits.fetch_add(1, std::memory_order_relaxed);
-            }
-        }
-        diagnostics_.takeTotalNs.fetch_add(NowNs() - startNs, std::memory_order_relaxed);
+    if (reusedScavenged) {
+        ReuseUnits(RegionToUnitIdx(idx), RegionCountToUnitCount(num));
     }
-
-    return busySeen ? TryTakeResult::BUSY : TryTakeResult::EMPTY;
-}
-
-void FreeManager::RecordTakeBusyFallback()
-{
-    if (!diagnostics_.enabled) {
-        return;
-    }
-    diagnostics_.takeBusyFallbacks.fetch_add(1, std::memory_order_relaxed);
+    return TryTakeResult::SUCCESS;
 }
 
 bool FreeManager::TryIncreaseInactiveZone(RegionCount num, RegionIndex& idx)
 {
-    size_t byteCount = static_cast<size_t>(num) * GetRegionSizeBytes();
-    uintptr_t oldAddr = inactiveZone_.load(std::memory_order_relaxed);
-    do {
-        if (oldAddr + byteCount > committedEnd_) {
-            return false;
-        }
-    } while (!inactiveZone_.compare_exchange_weak(oldAddr, oldAddr + byteCount,
-                                                  std::memory_order_relaxed));
+    (void)num;
+    (void)idx;
+    return false;
+}
 
-    idx = AddrToRegionIdx(oldAddr);
+void FreeManager::ReclaimRegionsReleased(RegionIndex idx, RegionCount num)
+{
+    if (num == 0) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lg(pageHeapMutex_);
+    MarkFreeLocked(idx, num);
+    searchIdx_ = std::min(searchIdx_, idx);
+}
+
+bool FreeManager::GrowOneSegment(HeapRangeHandler& handler)
+{
+    std::lock_guard<std::mutex> growLock(growMutex_);
+    if (committedEnd_ >= maxHeapEnd_) {
+        return false;
+    }
+
+    uintptr_t oldCommittedEnd = committedEnd_;
+    size_t growBytes = segmentSize_;
+    if (oldCommittedEnd + growBytes > maxHeapEnd_) {
+        growBytes = maxHeapEnd_ - oldCommittedEnd;
+    }
+
+    RegionCount growRegions = static_cast<RegionCount>(growBytes / GetRegionSizeBytes());
+    UnitCount growUnits = static_cast<UnitCount>(growBytes / unitSize_);
+    RegionIndex oldRegionCount = static_cast<RegionIndex>(committedRegionCount_);
+    size_t newCommittedRegionCount = committedRegionCount_ + static_cast<size_t>(growRegions);
+
+    handler.InitializeFreshRegions(oldRegionCount, growRegions);
+
+    {
+        std::lock_guard<std::mutex> pageLock(pageHeapMutex_);
+        EnsureMetadataInitializedForRegionCount(newCommittedRegionCount);
+        committedRegionCount_ = newCommittedRegionCount;
+        committedUnitCount_ += static_cast<size_t>(growUnits);
+        committedEnd_ = oldCommittedEnd + growBytes;
+        MarkFreeLocked(oldRegionCount, growRegions);
+        searchIdx_ = std::min(searchIdx_, oldRegionCount);
+    }
+
+    handler.OnCommittedHeapExtended(committedEnd_);
+    heapGrowCount_++;
     return true;
 }
 
-void FreeManager::InsertRegions(RegionIndex idx, RegionCount num)
+void FreeManager::ShrinkHeap()
 {
-    InsertRegionsToBank(producerBank_, idx, num);
-}
+    std::lock_guard<std::mutex> growLock(growMutex_);
+    std::lock_guard<std::mutex> pageLock(pageHeapMutex_);
 
-void FreeManager::InsertRegionsToBank(ReleaseBank& bank, RegionIndex idx, RegionCount num)
-{
-    std::lock_guard<std::mutex> lg(bank.mutex);
-    InsertRegionsToBankLocked(bank, idx, num);
-}
-
-void FreeManager::InsertRegionsToBankLocked(ReleaseBank& bank, RegionIndex idx, RegionCount num)
-{
-    const bool diagEnabled = diagnostics_.enabled;
-    const uint64_t startNs = diagEnabled ? NowNs() : 0;
-    UnitIndex unitIdx = RegionToUnitIdx(idx);
-    UnitCount unitCount = RegionCountToUnitCount(num);
-    if (!bank.backend->MergeInsert(unitIdx, unitCount)) {
-        LOG(RTLOG_FATAL, "[MS-GC] FreeManager: failed to insert released regions [%u+%u, %u)",
-            idx, num, idx + num);
+    size_t trailingFree = CountTrailingFreeRegionsLocked();
+    if (trailingFree == 0) {
+        return;
     }
-    RefreshBankSummaryLocked(bank);
-    if (diagEnabled) {
-        const uint64_t elapsedNs = NowNs() - startNs;
-        if (&bank == &producerBank_) {
-            diagnostics_.producerPublishCalls.fetch_add(1, std::memory_order_relaxed);
-            diagnostics_.producerPublishUnits.fetch_add(unitCount, std::memory_order_relaxed);
-            diagnostics_.producerPublishNs.fetch_add(elapsedNs, std::memory_order_relaxed);
+
+    size_t trailingBytes = trailingFree * GetRegionSizeBytes();
+    size_t shrinkSegments = trailingBytes / segmentSize_;
+    if (shrinkSegments == 0) {
+        return;
+    }
+
+    size_t shrinkBytes = shrinkSegments * segmentSize_;
+    size_t shrinkRegions = shrinkBytes / GetRegionSizeBytes();
+    size_t minCommittedRegions = segmentSize_ / GetRegionSizeBytes();
+    if (committedRegionCount_ <= minCommittedRegions) {
+        return;
+    }
+    if (shrinkRegions > committedRegionCount_ - minCommittedRegions) {
+        shrinkRegions = committedRegionCount_ - minCommittedRegions;
+        shrinkBytes = shrinkRegions * GetRegionSizeBytes();
+    }
+    if (shrinkRegions == 0) {
+        return;
+    }
+
+    RegionIndex shrinkStart = static_cast<RegionIndex>(committedRegionCount_ - shrinkRegions);
+    ReleaseUnits(RegionToUnitIdx(shrinkStart), RegionCountToUnitCount(static_cast<RegionCount>(shrinkRegions)));
+    MarkUnavailableLocked(shrinkStart, static_cast<RegionCount>(shrinkRegions));
+
+    committedRegionCount_ -= shrinkRegions;
+    committedUnitCount_ = committedRegionCount_ * unitsPerRegion_;
+    committedEnd_ -= shrinkBytes;
+    bitmapWordCountInUse_ = RegionCountToChunkCount(committedRegionCount_);
+    summaryChunkCountInUse_ = RegionCountToChunkCount(committedRegionCount_);
+    searchIdx_ = std::min(searchIdx_, static_cast<RegionIndex>(committedRegionCount_));
+}
+
+size_t FreeManager::ScavengeFreeRegions(bool releaseAll)
+{
+    std::lock_guard<std::mutex> pageLock(pageHeapMutex_);
+    if (freeRegionCount_ == 0 || committedRegionCount_ == 0) {
+        return 0;
+    }
+
+    size_t regionBudget = releaseAll ? freeRegionCount_ : std::max<size_t>(1, segmentSize_ / GetRegionSizeBytes());
+    size_t scavengedRegions = 0;
+    RegionIndex scan = static_cast<RegionIndex>(committedRegionCount_);
+
+    while (scan > 0 && scavengedRegions < regionBudget) {
+        RegionIndex end = scan;
+        while (scan > 0) {
+            RegionIndex idx = scan - 1;
+            if (!IsRegionFreeLocked(idx) || IsRegionScavengedLocked(idx)) {
+                break;
+            }
+            --scan;
+        }
+        if (scan == end) {
+            --scan;
+            continue;
+        }
+
+        RegionCount run = static_cast<RegionCount>(end - scan);
+        if (!releaseAll && scavengedRegions + run > regionBudget) {
+            RegionIndex partialStart = static_cast<RegionIndex>(end - (regionBudget - scavengedRegions));
+            run = static_cast<RegionCount>(regionBudget - scavengedRegions);
+            scan = partialStart;
+        }
+
+        ReleaseUnits(RegionToUnitIdx(scan), RegionCountToUnitCount(run));
+        MarkScavengedLocked(scan, run);
+        scavengedRegions += run;
+    }
+
+    return scavengedRegions * GetRegionSizeBytes();
+}
+
+FreeManager::UnitCount FreeManager::GetReleasedUnitCount() const
+{
+    std::lock_guard<std::mutex> lg(pageHeapMutex_);
+    return static_cast<UnitCount>(scavengedRegionCount_ * unitsPerRegion_);
+}
+
+FreeManager::UnitCount FreeManager::GetFreeUnitCount() const
+{
+    std::lock_guard<std::mutex> lg(pageHeapMutex_);
+    return static_cast<UnitCount>(freeRegionCount_ * unitsPerRegion_);
+}
+
+size_t FreeManager::GetReleasedBytes() const
+{
+    std::lock_guard<std::mutex> lg(pageHeapMutex_);
+    return scavengedRegionCount_ * GetRegionSizeBytes();
+}
+
+uint32_t FreeManager::GetMaxBlockRegions() const
+{
+    std::lock_guard<std::mutex> lg(pageHeapMutex_);
+    uint32_t maxRun = 0;
+    for (size_t chunkIdx = 0; chunkIdx < summaryChunkCountInUse_; ++chunkIdx) {
+        maxRun = std::max<uint32_t>(maxRun, chunkSummaries_[chunkIdx].max);
+    }
+    return maxRun;
+}
+
+size_t FreeManager::GetMetadataBytesInUse() const
+{
+    std::lock_guard<std::mutex> lg(pageHeapMutex_);
+    return bitmapWordCountInUse_ * sizeof(uint64_t) * 2 +
+           summaryChunkCountInUse_ * sizeof(ChunkSummary);
+}
+
+void FreeManager::CollectRegionSpans(std::vector<RegionSpan>& spans) const
+{
+    std::lock_guard<std::mutex> lg(pageHeapMutex_);
+    spans.clear();
+
+    RegionIndex idx = 0;
+    while (idx < committedRegionCount_) {
+        idx = FindNextFreeRegionLocked(idx);
+        if (idx >= committedRegionCount_) {
+            break;
+        }
+        RegionIndex start = idx;
+        while (idx < committedRegionCount_ && IsRegionFreeLocked(idx)) {
+            ++idx;
+        }
+        spans.push_back({ start, static_cast<RegionCount>(idx - start) });
+    }
+}
+
+bool FreeManager::IsRegionFreeLocked(RegionIndex idx) const
+{
+    return idx < committedRegionCount_ && !TestBit(allocBits_, idx);
+}
+
+bool FreeManager::IsRegionScavengedLocked(RegionIndex idx) const
+{
+    return idx < committedRegionCount_ && TestBit(scavengedBits_, idx);
+}
+
+FreeManager::RegionIndex FreeManager::FindNextFreeRegionLocked(RegionIndex start) const
+{
+    for (RegionIndex idx = start; idx < committedRegionCount_; ++idx) {
+        if (IsRegionFreeLocked(idx)) {
+            return idx;
+        }
+    }
+    return static_cast<RegionIndex>(committedRegionCount_);
+}
+
+bool FreeManager::PreciseFitFromLocked(RegionIndex start, RegionCount num) const
+{
+    if (start + num > committedRegionCount_) {
+        return false;
+    }
+    for (RegionIndex idx = start; idx < start + num; ++idx) {
+        if (!IsRegionFreeLocked(idx)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool FreeManager::FindFreeRunLocked(RegionCount num, RegionIndex& idx) const
+{
+    if (num == 0 || num > committedRegionCount_ || freeRegionCount_ < num) {
+        return false;
+    }
+
+    RegionIndex cursor = std::min(searchIdx_, static_cast<RegionIndex>(committedRegionCount_));
+    RegionIndex carryStart = cursor;
+    uint32_t carryLen = 0;
+    size_t startChunk = cursor / kChunkBits;
+
+    for (size_t chunkIdx = startChunk; chunkIdx < summaryChunkCountInUse_; ++chunkIdx) {
+        const ChunkSummary& chunk = chunkSummaries_[chunkIdx];
+        if (chunk.max == 0 && chunk.start == 0 && chunk.end == 0) {
+            carryLen = 0;
+            carryStart = static_cast<RegionIndex>((chunkIdx + 1) * kChunkBits);
+            continue;
+        }
+
+        RegionIndex chunkStart = static_cast<RegionIndex>(chunkIdx * kChunkBits);
+        RegionIndex candidate = std::max(cursor, chunkStart);
+        if (chunk.max >= num) {
+            RegionIndex chunkEnd = std::min<RegionIndex>(static_cast<RegionIndex>(committedRegionCount_),
+                                                         static_cast<RegionIndex>(chunkStart + kChunkBits));
+            for (RegionIndex probe = candidate; probe + num <= chunkEnd; ++probe) {
+                if (PreciseFitFromLocked(probe, num)) {
+                    idx = probe;
+                    return true;
+                }
+            }
+        }
+        if (carryLen != 0 && static_cast<uint32_t>(carryLen + chunk.start) >= num &&
+            PreciseFitFromLocked(carryStart, num)) {
+            idx = carryStart;
+            return true;
+        }
+        if (chunk.end == kChunkBits) {
+            if (carryLen == 0) {
+                carryStart = chunkStart;
+            }
+            carryLen += chunk.end;
+        } else if (chunk.end != 0) {
+            carryStart = static_cast<RegionIndex>(chunkStart + kChunkBits - chunk.end);
+            carryLen = chunk.end;
         } else {
-            diagnostics_.consumerPublishCalls.fetch_add(1, std::memory_order_relaxed);
-            diagnostics_.consumerPublishUnits.fetch_add(unitCount, std::memory_order_relaxed);
-            diagnostics_.consumerPublishNs.fetch_add(elapsedNs, std::memory_order_relaxed);
+            carryLen = 0;
+            carryStart = static_cast<RegionIndex>(chunkStart + kChunkBits);
+        }
+    }
+    return false;
+}
+
+size_t FreeManager::CountScavengedInRangeLocked(RegionIndex idx, RegionCount num) const
+{
+    size_t count = 0;
+    for (RegionIndex cur = idx; cur < idx + num; ++cur) {
+        if (IsRegionScavengedLocked(cur)) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+size_t FreeManager::CountFreeInRangeLocked(RegionIndex idx, RegionCount num) const
+{
+    size_t count = 0;
+    for (RegionIndex cur = idx; cur < idx + num; ++cur) {
+        if (IsRegionFreeLocked(cur)) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+void FreeManager::MarkAllocatedLocked(RegionIndex idx, RegionCount num, bool& reusedScavenged)
+{
+    size_t scavengedCount = CountScavengedInRangeLocked(idx, num);
+    reusedScavenged = scavengedCount != 0;
+    scavengedRegionCount_ -= scavengedCount;
+    freeRegionCount_ -= CountFreeInRangeLocked(idx, num);
+
+    for (RegionIndex cur = idx; cur < idx + num; ++cur) {
+        SetBit(allocBits_, cur);
+        ClearBit(scavengedBits_, cur);
+    }
+    UpdateChunkSummaryRangeLocked(idx, num);
+}
+
+void FreeManager::MarkFreeLocked(RegionIndex idx, RegionCount num)
+{
+    for (RegionIndex cur = idx; cur < idx + num && cur < committedRegionCount_; ++cur) {
+        if (TestBit(allocBits_, cur)) {
+            ++freeRegionCount_;
+        }
+        if (TestBit(scavengedBits_, cur)) {
+            ClearBit(scavengedBits_, cur);
+            --scavengedRegionCount_;
+        }
+        ClearBit(allocBits_, cur);
+    }
+    UpdateChunkSummaryRangeLocked(idx, num);
+}
+
+void FreeManager::MarkScavengedLocked(RegionIndex idx, RegionCount num)
+{
+    for (RegionIndex cur = idx; cur < idx + num && cur < committedRegionCount_; ++cur) {
+        if (IsRegionFreeLocked(cur) && !TestBit(scavengedBits_, cur)) {
+            SetBit(scavengedBits_, cur);
+            ++scavengedRegionCount_;
         }
     }
 }
 
-void FreeManager::RefreshBankSummaryLocked(ReleaseBank& bank) const
+void FreeManager::MarkUnavailableLocked(RegionIndex idx, RegionCount num)
 {
-    bank.totalUnits.store(bank.backend->GetTotalCount(), std::memory_order_relaxed);
-    bank.maxBlockUnits.store(bank.backend->GetMaxBlockCount(), std::memory_order_relaxed);
+    scavengedRegionCount_ -= CountScavengedInRangeLocked(idx, num);
+    freeRegionCount_ -= CountFreeInRangeLocked(idx, num);
+
+    for (RegionIndex cur = idx; cur < idx + num; ++cur) {
+        SetBit(allocBits_, cur);
+        ClearBit(scavengedBits_, cur);
+    }
+    UpdateChunkSummaryRangeLocked(idx, num);
+}
+
+void FreeManager::UpdateChunkSummaryLocked(size_t chunkIdx)
+{
+    size_t chunkStart = chunkIdx * kChunkBits;
+    size_t chunkEnd = std::min(committedRegionCount_, chunkStart + kChunkBits);
+
+    ChunkSummary summary {};
+    uint16_t prefix = 0;
+    while (chunkStart + prefix < chunkEnd &&
+           !TestBit(allocBits_, chunkStart + prefix)) {
+        ++prefix;
+    }
+    summary.start = prefix;
+
+    uint16_t suffix = 0;
+    while (chunkEnd > chunkStart + suffix &&
+           !TestBit(allocBits_, chunkEnd - suffix - 1)) {
+        ++suffix;
+    }
+    summary.end = suffix;
+
+    uint16_t current = 0;
+    uint16_t best = 0;
+    for (size_t regionIdx = chunkStart; regionIdx < chunkEnd; ++regionIdx) {
+        if (!TestBit(allocBits_, regionIdx)) {
+            ++current;
+            best = std::max(best, current);
+        } else {
+            current = 0;
+        }
+    }
+    summary.max = best;
+    chunkSummaries_[chunkIdx] = summary;
+}
+
+void FreeManager::UpdateChunkSummaryRangeLocked(RegionIndex idx, RegionCount num)
+{
+    if (summaryChunkCountInUse_ == 0) {
+        return;
+    }
+    size_t firstChunk = idx / kChunkBits;
+    size_t lastChunk = (idx + std::max<RegionCount>(1, num) - 1) / kChunkBits;
+    for (size_t chunkIdx = firstChunk; chunkIdx <= lastChunk && chunkIdx < summaryChunkCountInUse_; ++chunkIdx) {
+        UpdateChunkSummaryLocked(chunkIdx);
+    }
+}
+
+size_t FreeManager::CountTrailingFreeRegionsLocked() const
+{
+    size_t count = 0;
+    RegionIndex idx = static_cast<RegionIndex>(committedRegionCount_);
+    while (idx > 0 && IsRegionFreeLocked(idx - 1)) {
+        --idx;
+        ++count;
+    }
+    return count;
 }
 
 void FreeManager::ReleaseUnits(UnitIndex idx, UnitCount num) const
@@ -395,448 +635,17 @@ void FreeManager::ReleaseUnits(UnitIndex idx, UnitCount num) const
 #endif
 }
 
-void FreeManager::ReclaimRegionsReleased(RegionIndex idx, RegionCount num)
+void FreeManager::ReuseUnits(UnitIndex idx, UnitCount num) const
 {
-    ReleaseUnits(RegionToUnitIdx(idx), RegionCountToUnitCount(num));
-    ScopedEnterSaferegion enterSaferegion(true);
-    InsertRegions(idx, num);
-}
-
-bool FreeManager::GrowOneSegment(HeapRangeHandler& handler)
-{
-    const bool diagEnabled = diagnostics_.enabled;
-    const uint64_t startNs = diagEnabled ? NowNs() : 0;
-    if (diagEnabled) {
-        diagnostics_.growCalls.fetch_add(1, std::memory_order_relaxed);
-    }
-    std::lock_guard<std::mutex> lg(growMutex_);
-
-    if (committedEnd_ >= maxHeapEnd_) {
-        if (diagEnabled) {
-            diagnostics_.growFailAtMaxHeap.fetch_add(1, std::memory_order_relaxed);
-            diagnostics_.growTotalNs.fetch_add(NowNs() - startNs, std::memory_order_relaxed);
-        }
-        return false;
-    }
-
-    uintptr_t oldCommittedEnd = committedEnd_;
-    size_t growBytes = segmentSize_;
-    if (oldCommittedEnd + growBytes > maxHeapEnd_) {
-        growBytes = maxHeapEnd_ - oldCommittedEnd;
-    }
-
-    RegionCount growRegions = static_cast<RegionCount>(growBytes / GetRegionSizeBytes());
-    UnitCount growUnits = static_cast<UnitCount>(growBytes / unitSize_);
-    RegionIndex oldRegionCount = static_cast<RegionIndex>(committedRegionCount_);
-
-    handler.InitializeFreshRegions(oldRegionCount, growRegions);
-
-    committedRegionCount_ += static_cast<size_t>(growRegions);
-    committedUnitCount_ += static_cast<size_t>(growUnits);
-    committedEnd_ = oldCommittedEnd + growBytes;
-
-    handler.OnCommittedHeapExtended(committedEnd_);
-    heapGrowCount_++;
-    PublishProducerToConsumers(true);
-
-    if (diagEnabled) {
-        diagnostics_.growSuccessCalls.fetch_add(1, std::memory_order_relaxed);
-        diagnostics_.growBytes.fetch_add(growBytes, std::memory_order_relaxed);
-        diagnostics_.growTotalNs.fetch_add(NowNs() - startNs, std::memory_order_relaxed);
-    }
-
-    return true;
-}
-
-void FreeManager::InitializeConsumerBank()
-{
-    consumerBank_.backend = backendPrototype_->CreateEmpty();
-    consumerBank_.backend->Initialize(static_cast<UnitCount>(maxVirtualUnitCount_));
-    consumerBank_.rangeStart = 0;
-    consumerBank_.rangeEnd = static_cast<UnitIndex>(maxVirtualUnitCount_);
-    consumerBank_.epoch = 0;
-    consumerBank_.totalUnits.store(0, std::memory_order_relaxed);
-    consumerBank_.maxBlockUnits.store(0, std::memory_order_relaxed);
-}
-
-void FreeManager::ResetBankLocked(ReleaseBank& bank)
-{
-    bank.backend->Finalize();
-    bank.backend->Initialize(static_cast<UnitCount>(maxVirtualUnitCount_));
-    bank.totalUnits.store(0, std::memory_order_relaxed);
-    bank.maxBlockUnits.store(0, std::memory_order_relaxed);
-}
-
-void FreeManager::RotateReleasedBanksOnGrow()
-{
-    (void)PublishProducerToConsumers(true);
-}
-
-bool FreeManager::PublishProducerToConsumers(bool dueToGrow)
-{
-    const bool diagEnabled = diagnostics_.enabled;
-    const uint64_t totalStartNs = diagEnabled ? NowNs() : 0;
-    if (diagEnabled && dueToGrow) {
-        diagnostics_.rotateCalls.fetch_add(1, std::memory_order_relaxed);
-    }
-
-    std::lock_guard<std::mutex> rotateLock(rotateMutex_);
-
-    if (producerBank_.totalUnits.load(std::memory_order_relaxed) == 0) {
-        if (diagEnabled && dueToGrow) {
-            diagnostics_.rotateTotalNs.fetch_add(NowNs() - totalStartNs, std::memory_order_relaxed);
-        }
-        return false;
-    }
-
-    std::unique_ptr<Backend> frozenBackend;
-    std::vector<UnitSpan> frozenSpans;
-    {
-        std::lock_guard<std::mutex> producerLock(producerBank_.mutex);
-        if (producerBank_.backend == nullptr || producerBank_.backend->GetTotalCount() == 0) {
-            if (diagEnabled && dueToGrow) {
-                diagnostics_.rotateTotalNs.fetch_add(NowNs() - totalStartNs, std::memory_order_relaxed);
-            }
-            return false;
-        }
-        frozenBackend = std::move(producerBank_.backend);
-        producerBank_.backend = backendPrototype_->CreateEmpty();
-        producerBank_.backend->Initialize(static_cast<UnitCount>(maxVirtualUnitCount_));
-        producerBank_.totalUnits.store(0, std::memory_order_relaxed);
-        producerBank_.maxBlockUnits.store(0, std::memory_order_relaxed);
-        if (dueToGrow) {
-            producerBank_.epoch = heapGrowCount_;
-        }
-    }
-
-    const uint64_t collectStartNs = diagEnabled ? NowNs() : 0;
-    frozenBackend->CollectUnitSpans(frozenSpans);
-    frozenBackend->Finalize();
-    if (diagEnabled && dueToGrow) {
-        diagnostics_.rotateCollectNs.fetch_add(NowNs() - collectStartNs, std::memory_order_relaxed);
-    }
-
-    if (frozenSpans.empty()) {
-        if (diagEnabled && dueToGrow) {
-            diagnostics_.rotateTotalNs.fetch_add(NowNs() - totalStartNs, std::memory_order_relaxed);
-        }
-        return false;
-    }
-
-    if (diagEnabled && dueToGrow) {
-        uint64_t movedUnits = 0;
-        for (const UnitSpan& span : frozenSpans) {
-            movedUnits += span.num;
-        }
-        diagnostics_.rotatePayloadCalls.fetch_add(1, std::memory_order_relaxed);
-        diagnostics_.rotateMovedSpans.fetch_add(frozenSpans.size(), std::memory_order_relaxed);
-        diagnostics_.rotateMovedUnits.fetch_add(movedUnits, std::memory_order_relaxed);
-    }
-
-    const uint64_t distributeStartNs = diagEnabled ? NowNs() : 0;
-    DistributeFrozenSpansToConsumers(frozenSpans);
-    if (diagEnabled && dueToGrow) {
-        diagnostics_.rotateDistributeNs.fetch_add(NowNs() - distributeStartNs, std::memory_order_relaxed);
-        diagnostics_.rotateTotalNs.fetch_add(NowNs() - totalStartNs, std::memory_order_relaxed);
-    }
-    return true;
-}
-
-void FreeManager::DistributeFrozenSpansToConsumers(const std::vector<UnitSpan>& spans)
-{
-    if (consumerBank_.backend == nullptr || spans.empty()) {
-        return;
-    }
-
-    std::lock_guard<std::mutex> bankLock(consumerBank_.mutex);
-    for (const UnitSpan& span : spans) {
-        InsertRegionsToBankLocked(consumerBank_, UnitToRegionIdx(span.idx), UnitCountToRegionCount(span.num));
-    }
-    consumerBank_.epoch = heapGrowCount_;
-    RefreshBankSummaryLocked(consumerBank_);
-}
-
-    void FreeManager::ReportDiagnostics() const
-    {
-        if (!diagnostics_.enabled) {
-        return;
-        }
-
-        const uint64_t producerPublishCalls = diagnostics_.producerPublishCalls.load(std::memory_order_relaxed);
-        const uint64_t producerPublishUnits = diagnostics_.producerPublishUnits.load(std::memory_order_relaxed);
-        const uint64_t producerPublishNs = diagnostics_.producerPublishNs.load(std::memory_order_relaxed);
-        const uint64_t consumerPublishCalls = diagnostics_.consumerPublishCalls.load(std::memory_order_relaxed);
-        const uint64_t consumerPublishUnits = diagnostics_.consumerPublishUnits.load(std::memory_order_relaxed);
-        const uint64_t consumerPublishNs = diagnostics_.consumerPublishNs.load(std::memory_order_relaxed);
-        const uint64_t rotateCalls = diagnostics_.rotateCalls.load(std::memory_order_relaxed);
-        const uint64_t rotatePayloadCalls = diagnostics_.rotatePayloadCalls.load(std::memory_order_relaxed);
-        const uint64_t rotateMovedSpans = diagnostics_.rotateMovedSpans.load(std::memory_order_relaxed);
-        const uint64_t rotateMovedUnits = diagnostics_.rotateMovedUnits.load(std::memory_order_relaxed);
-        const uint64_t rotateCollectNs = diagnostics_.rotateCollectNs.load(std::memory_order_relaxed);
-        const uint64_t rotateDistributeNs = diagnostics_.rotateDistributeNs.load(std::memory_order_relaxed);
-        const uint64_t rotateTotalNs = diagnostics_.rotateTotalNs.load(std::memory_order_relaxed);
-        const uint64_t takeCalls = diagnostics_.takeCalls.load(std::memory_order_relaxed);
-        const uint64_t takeRequestedUnits = diagnostics_.takeRequestedUnits.load(std::memory_order_relaxed);
-        const uint64_t takeVisitedBanks = diagnostics_.takeVisitedBanks.load(std::memory_order_relaxed);
-        const uint64_t takeSummarySkipBanks = diagnostics_.takeSummarySkipBanks.load(std::memory_order_relaxed);
-        const uint64_t takeLockBusyBanks = diagnostics_.takeLockBusyBanks.load(std::memory_order_relaxed);
-        const uint64_t takeBackendMissBanks = diagnostics_.takeBackendMissBanks.load(std::memory_order_relaxed);
-        const uint64_t takeSuccessCalls = diagnostics_.takeSuccessCalls.load(std::memory_order_relaxed);
-        const uint64_t takeBusyReturns = diagnostics_.takeBusyReturns.load(std::memory_order_relaxed);
-        const uint64_t takeBusyFallbacks = diagnostics_.takeBusyFallbacks.load(std::memory_order_relaxed);
-        const uint64_t takeEmptyReturns = diagnostics_.takeEmptyReturns.load(std::memory_order_relaxed);
-        const uint64_t takeEmptyWithProducerUnits = diagnostics_.takeEmptyWithProducerUnits.load(std::memory_order_relaxed);
-        const uint64_t takeEmptyWithConsumerUnits = diagnostics_.takeEmptyWithConsumerUnits.load(std::memory_order_relaxed);
-        const uint64_t takePublishOnMissAttempts = diagnostics_.takePublishOnMissAttempts.load(std::memory_order_relaxed);
-        const uint64_t takePublishOnMissSuccess = diagnostics_.takePublishOnMissSuccess.load(std::memory_order_relaxed);
-        const uint64_t takeTotalNs = diagnostics_.takeTotalNs.load(std::memory_order_relaxed);
-        const uint64_t growCalls = diagnostics_.growCalls.load(std::memory_order_relaxed);
-        const uint64_t growSuccessCalls = diagnostics_.growSuccessCalls.load(std::memory_order_relaxed);
-        const uint64_t growFailAtMaxHeap = diagnostics_.growFailAtMaxHeap.load(std::memory_order_relaxed);
-        const uint64_t growBytes = diagnostics_.growBytes.load(std::memory_order_relaxed);
-        const uint64_t growTotalNs = diagnostics_.growTotalNs.load(std::memory_order_relaxed);
-
-        fprintf(stderr,
-            "[RELEASED-DIAG] take calls=%llu success=%llu busy=%llu empty=%llu requested_units=%llu visited_banks=%llu total_ms=%.3f avg_us=%.3f\n",
-            static_cast<unsigned long long>(takeCalls),
-            static_cast<unsigned long long>(takeSuccessCalls),
-            static_cast<unsigned long long>(takeBusyReturns),
-            static_cast<unsigned long long>(takeEmptyReturns),
-            static_cast<unsigned long long>(takeRequestedUnits),
-            static_cast<unsigned long long>(takeVisitedBanks),
-            NsToMs(takeTotalNs), AverageUs(takeTotalNs, takeCalls));
-        fprintf(stderr,
-                "[RELEASED-DIAG] take summary_skip=%llu lock_busy=%llu backend_miss=%llu busy_fallbacks=%llu empty_with_producer=%llu empty_with_consumer=%llu publish_on_miss=%llu/%llu consumer_shards=%d\n",
-            static_cast<unsigned long long>(takeSummarySkipBanks),
-            static_cast<unsigned long long>(takeLockBusyBanks),
-            static_cast<unsigned long long>(takeBackendMissBanks),
-                static_cast<unsigned long long>(takeBusyFallbacks),
-            static_cast<unsigned long long>(takeEmptyWithProducerUnits),
-            static_cast<unsigned long long>(takeEmptyWithConsumerUnits),
-                static_cast<unsigned long long>(takePublishOnMissSuccess),
-                static_cast<unsigned long long>(takePublishOnMissAttempts),
-            1);
-        fprintf(stderr,
-            "[RELEASED-DIAG] publish producer_calls=%llu producer_units=%llu producer_ms=%.3f producer_avg_us=%.3f consumer_calls=%llu consumer_units=%llu consumer_ms=%.3f consumer_avg_us=%.3f\n",
-            static_cast<unsigned long long>(producerPublishCalls),
-            static_cast<unsigned long long>(producerPublishUnits),
-            NsToMs(producerPublishNs), AverageUs(producerPublishNs, producerPublishCalls),
-            static_cast<unsigned long long>(consumerPublishCalls),
-            static_cast<unsigned long long>(consumerPublishUnits),
-            NsToMs(consumerPublishNs), AverageUs(consumerPublishNs, consumerPublishCalls));
-        fprintf(stderr,
-            "[RELEASED-DIAG] rotate calls=%llu payload_calls=%llu moved_spans=%llu moved_units=%llu collect_ms=%.3f distribute_ms=%.3f total_ms=%.3f avg_us=%.3f\n",
-            static_cast<unsigned long long>(rotateCalls),
-            static_cast<unsigned long long>(rotatePayloadCalls),
-            static_cast<unsigned long long>(rotateMovedSpans),
-            static_cast<unsigned long long>(rotateMovedUnits),
-            NsToMs(rotateCollectNs), NsToMs(rotateDistributeNs), NsToMs(rotateTotalNs),
-            AverageUs(rotateTotalNs, rotateCalls));
-        fprintf(stderr,
-            "[RELEASED-DIAG] grow calls=%llu success=%llu fail_at_max=%llu bytes=%llu total_ms=%.3f avg_us=%.3f heap_grow_count=%llu\n",
-            static_cast<unsigned long long>(growCalls),
-            static_cast<unsigned long long>(growSuccessCalls),
-            static_cast<unsigned long long>(growFailAtMaxHeap),
-            static_cast<unsigned long long>(growBytes),
-            NsToMs(growTotalNs), AverageUs(growTotalNs, growCalls),
-            static_cast<unsigned long long>(heapGrowCount_));
-    }
-
-bool FreeManager::TakeTrailingRegions(RegionIndex targetEnd, RegionIndex& idx, RegionCount& num,
-                                      ReleaseBank** sourceBank)
-{
-    if (TakeTrailingRegionsFromBank(producerBank_, targetEnd, idx, num)) {
-        if (sourceBank != nullptr) {
-            *sourceBank = &producerBank_;
-        }
-        return true;
-    }
-
-    if (targetEnd == 0 || consumerBank_.backend == nullptr) {
-        return false;
-    }
-
-    ReleaseBank& bank = consumerBank_;
-    if (!TakeTrailingRegionsFromBank(bank, targetEnd, idx, num)) {
-        return false;
-    }
-    if (sourceBank != nullptr) {
-        *sourceBank = &bank;
-    }
-    return true;
-}
-
-bool FreeManager::TakeTrailingRegionsFromBank(ReleaseBank& bank, RegionIndex targetEnd,
-                                              RegionIndex& idx, RegionCount& num)
-{
-    std::lock_guard<std::mutex> lg(bank.mutex);
-
-    UnitIndex unitIdx = 0;
-    UnitCount unitCount = 0;
-    if (!bank.backend->TakeTrailingUnits(RegionToUnitIdx(targetEnd), unitIdx, unitCount)) {
-        return false;
-    }
-
-    RefreshBankSummaryLocked(bank);
-    idx = UnitToRegionIdx(unitIdx);
-    num = UnitCountToRegionCount(unitCount);
-    return true;
-}
-
-size_t FreeManager::RewindInactiveZoneUsingReleasedTail()
-{
-    size_t reclaimedRegions = 0;
-    while (true) {
-        uintptr_t tail = inactiveZone_.load(std::memory_order_relaxed);
-        if (tail <= heapStart_) {
-            break;
-        }
-
-        RegionIndex targetEnd = AddrToRegionIdx(tail);
-        RegionIndex idx = 0;
-        RegionCount num = 0;
-        ReleaseBank* sourceBank = nullptr;
-        if (!TakeTrailingRegions(targetEnd, idx, num, &sourceBank)) {
-            break;
-        }
-
-        uintptr_t newTail = RegionIdxToAddr(idx);
-        if (!inactiveZone_.compare_exchange_strong(tail, newTail, std::memory_order_relaxed)) {
-            ScopedEnterSaferegion enterSaferegion(true);
-            if (sourceBank != nullptr) {
-                InsertRegionsToBank(*sourceBank, idx, num);
-            }
-            break;
-        }
-        reclaimedRegions += num;
-    }
-    return reclaimedRegions;
-}
-
-void FreeManager::ShrinkHeap()
-{
-    std::lock_guard<std::mutex> lg(growMutex_);
-
-    RewindInactiveZoneUsingReleasedTail();
-
-    uintptr_t iz = inactiveZone_.load(std::memory_order_relaxed);
-    if (committedEnd_ <= iz) {
-        return;
-    }
-
-    size_t shrinkGap = committedEnd_ - iz;
-    size_t shrinkSegments = shrinkGap / segmentSize_;
-    if (shrinkSegments == 0) {
-        return;
-    }
-
-    size_t shrinkBytes = shrinkSegments * segmentSize_;
-    uintptr_t newCommitted = committedEnd_ - shrinkBytes;
-
-    if (newCommitted < heapStart_ + segmentSize_) {
-        newCommitted = heapStart_ + segmentSize_;
-        if (newCommitted >= committedEnd_) {
-            return;
-        }
-    }
-
-    committedEnd_ = newCommitted;
-    committedRegionCount_ = (newCommitted - heapStart_) / GetRegionSizeBytes();
-    committedUnitCount_ = (newCommitted - heapStart_) / unitSize_;
-}
-
-FreeManager::UnitCount FreeManager::GetReleasedUnitCount() const
-{
-    return static_cast<UnitCount>(producerBank_.totalUnits.load(std::memory_order_relaxed) +
-        consumerBank_.totalUnits.load(std::memory_order_relaxed));
-}
-
-FreeManager::UnitCount FreeManager::GetFreeUnitCount() const
-{
-    CheckAlignmentConfig();
-    UnitCount releasedUnits = GetReleasedUnitCount();
-    UnitCount inactiveUnits = 0;
-    uintptr_t inactiveZone = inactiveZone_.load(std::memory_order_relaxed);
-    if (committedEnd_ > inactiveZone) {
-        inactiveUnits = static_cast<UnitCount>((committedEnd_ - inactiveZone) / unitSize_);
-    }
-    return releasedUnits + inactiveUnits;
-}
-
-size_t FreeManager::GetReleasedBytes() const
-{
-    return static_cast<size_t>(GetReleasedUnitCount()) * unitSize_;
-}
-
-uint32_t FreeManager::GetNodeCount() const
-{
-    uint32_t nodeCount = 0;
-    {
-        std::lock_guard<std::mutex> lg(producerBank_.mutex);
-        nodeCount += producerBank_.backend->GetNodeCount();
-    }
-    {
-        std::lock_guard<std::mutex> lg(consumerBank_.mutex);
-        nodeCount += consumerBank_.backend->GetNodeCount();
-    }
-    return nodeCount;
-}
-
-uint32_t FreeManager::GetMaxBlockRegions() const
-{
-    UnitCount maxBlock = producerBank_.maxBlockUnits.load(std::memory_order_relaxed);
-    maxBlock = std::max(maxBlock, consumerBank_.maxBlockUnits.load(std::memory_order_relaxed));
-    return UnitCountToRegionCount(maxBlock);
-}
-
-size_t FreeManager::GetMetadataBytesInUse() const
-{
-    size_t bytes = 0;
-    {
-        std::lock_guard<std::mutex> lg(producerBank_.mutex);
-        bytes += producerBank_.backend->GetMetadataBytesInUse();
-    }
-    {
-        std::lock_guard<std::mutex> lg(consumerBank_.mutex);
-        bytes += consumerBank_.backend->GetMetadataBytesInUse();
-    }
-    return bytes;
-}
-
-size_t FreeManager::GetNodeBytesInUse() const
-{
-    size_t bytes = 0;
-    {
-        std::lock_guard<std::mutex> lg(producerBank_.mutex);
-        bytes += producerBank_.backend->GetNodeBytesInUse();
-    }
-    {
-        std::lock_guard<std::mutex> lg(consumerBank_.mutex);
-        bytes += consumerBank_.backend->GetNodeBytesInUse();
-    }
-    return bytes;
-}
-
-void FreeManager::CollectRegionSpans(std::vector<RegionSpan>& spans) const
-{
-    std::vector<UnitSpan> unitSpans;
-    {
-        std::lock_guard<std::mutex> lg(producerBank_.mutex);
-        producerBank_.backend->CollectUnitSpans(unitSpans);
-    }
-
-    std::vector<UnitSpan> consumerSpans;
-    {
-        std::lock_guard<std::mutex> lg(consumerBank_.mutex);
-        consumerBank_.backend->CollectUnitSpans(consumerSpans);
-    }
-    unitSpans.insert(unitSpans.end(), consumerSpans.begin(), consumerSpans.end());
-
-    spans.clear();
-    spans.reserve(unitSpans.size());
-    for (const UnitSpan& span : unitSpans) {
-        spans.push_back({ UnitToRegionIdx(span.idx), UnitCountToRegionCount(span.num) });
-    }
+#if defined(_WIN64)
+    uintptr_t addr = heapStart_ + static_cast<uintptr_t>(idx) * unitSize_;
+    size_t size = static_cast<size_t>(num) * unitSize_;
+    void* ret = VirtualAlloc(reinterpret_cast<void*>(addr), size, MEM_COMMIT, PAGE_READWRITE);
+    CHECK_DETAIL(ret != nullptr, "VirtualAlloc failed in FreeManager::ReuseUnits");
+#else
+    (void)idx;
+    (void)num;
+#endif
 }
 
 FreeManager::UnitIndex FreeManager::RegionToUnitIdx(RegionIndex regionIdx) const

@@ -310,16 +310,11 @@ public:
     // This path skips releasedTree and goes directly to bump/grow.
     MSRegionInfo* GetFreshRegion(uint8_t cls);
 
-    // Get a background-feed Region from RegionManager.
-    // This path may consume releasedTree before falling back to bump/grow.
-    MSRegionInfo* GetFreshRegionForFeed(uint8_t cls);
-
     // ===== Thread-local Region return =====
 
     void ReturnPartialRegion(MSRegionInfo* region, uint8_t cls);
     void ReturnFullRegion(MSRegionInfo* region, uint8_t cls);
     void ReturnEmptyRegion(MSRegionInfo* region);
-    void ReleaseRegion(MSRegionInfo* region, uint8_t cls);
 
     // ===== GC operations =====
 
@@ -464,7 +459,6 @@ private:
         MSRegionList fullUnswept;
     };
 
-    void ReleaseRegionInternal(MSRegionInfo* region);
     void PushEmptySweptRegion(MSRegionInfo* region);
     MSRegionInfo* TakeEmptySweptRegion(uint8_t cls);
     void ForceFinishUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint8_t cls, uint32_t sg,

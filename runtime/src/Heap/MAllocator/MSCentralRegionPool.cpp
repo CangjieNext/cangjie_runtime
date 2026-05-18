@@ -418,46 +418,6 @@ MSRegionInfo* CentralRegionPool::GetFreshRegion(uint8_t cls)
     return msInfo;
 }
 
-MSRegionInfo* CentralRegionPool::GetFreshRegionForFeed(uint8_t cls)
-{
-    MSRegionInfo* msInfo = msRegionManager_->TakeRegionForFeed(cls, *this);
-    if (msInfo == nullptr) {
-        return nullptr;
-    }
-
-    size_t regionIdx = MSRegionInfoArray::GetRegionIdx(msInfo);
-    uintptr_t regionStart = MSRegionInfoArray::GetRegionAddress(regionIdx);
-
-    if (UNLIKELY(msInfo->regionType != MSRegionType::MS_REGION_FREE)) {
-        LOG(RTLOG_FATAL, "[MS-GC] GetFreshRegionForFeed: TakeRegionForFeed returned non-FREE region! "
-            "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, "
-            "sizeClass=%u, sweepState=%d, sweepGen=%u, "
-            "nextIdx=%d, prevIdx=%d, reserved=0x%llx, "
-            "cls=%u, regionIdx=%zu, regionStart=0x%zx, this=%p",
-            (int)msInfo->regionType, msInfo->allocPtr, msInfo->regionEnd,
-            (void*)msInfo->allocBitmap, (unsigned)msInfo->sizeClass,
-            (int)msInfo->sweepState, msInfo->sweepGen,
-            msInfo->nextRegionIdx, msInfo->prevRegionIdx,
-            (unsigned long long)msInfo->reserved,
-            (unsigned)cls, regionIdx, regionStart, (void*)msInfo);
-    }
-
-    msInfo->InitForSizeClass(cls);
-    if (UNLIKELY(msInfo->allocBitmap == nullptr)) {
-        LOG(RTLOG_FATAL, "[MS-GC] GetFreshRegionForFeed: InitForSizeClass failed to alloc bitmap, "
-            "cls=%u, regionIdx=%zu, regionStart=0x%zx, totalSlots=%u, this=%p",
-            (unsigned)cls, regionIdx, regionStart, (unsigned)msInfo->totalSlotCount,
-            (void*)msInfo);
-    }
-
-    msInfo->allocPtr = regionStart;
-    msInfo->regionEnd = regionStart + MS_REGION_SIZE;
-    msInfo->SetSweepGen(globalSweepGen_.load(std::memory_order_acquire));
-    totalMSRegionBytes_.fetch_add(MS_REGION_SIZE, std::memory_order_relaxed);
-
-    return msInfo;
-}
-
 // ============================================================================
 // Return / Release — Region return from thread-local cache
 // ============================================================================
@@ -491,23 +451,6 @@ void CentralRegionPool::ReturnFullRegion(MSRegionInfo* region, uint8_t cls)
 void CentralRegionPool::ReturnEmptyRegion(MSRegionInfo* region)
 {
     PushEmptySweptRegion(region);
-}
-
-void CentralRegionPool::ReleaseRegion(MSRegionInfo* region, uint8_t /* cls */)
-{
-    ReleaseRegionInternal(region);
-}
-
-void CentralRegionPool::ReleaseRegionInternal(MSRegionInfo* region)
-{
-    region->Reset();
-
-    // Track total MS region bytes for GC trigger
-    totalMSRegionBytes_.fetch_sub(MS_REGION_SIZE, std::memory_order_relaxed);
-
-    // Return the underlying physical Region to MSRegionManager's free pool.
-    // One-level: MSRegionManager directly manages the region via MSRegionInfo*.
-    msRegionManager_->ReclaimRegion(region);
 }
 
 void CentralRegionPool::PushEmptySweptRegion(MSRegionInfo* region)

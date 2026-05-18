@@ -319,22 +319,18 @@ void MSRegionManager::MaybeNotifyMark()
 }
 
 // ============================================================================
-// TakeRegions — allocate contiguous regions from releasedTree or inactiveZone bump.
-// FreeManager exposes the primitive heap-state operations, while the policy and
-// fallback sequencing remain in MSRegionManager.
+// TakeRegions — allocate contiguous regions from the unified page-heap manager.
 // ============================================================================
 
 bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx, AllocSource* source,
                                   bool allowReleasedTree)
 {
+    (void)allowReleasedTree;
     RegionIndex rawIdx = 0;
-    bool tryReleasedTree = allowReleasedTree;
-    size_t busyRetries = 0;
-    const size_t busyRetryLimit = GetReleasedBusyRetryLimit();
 
     MaybeNotifyMark();
 
-    while (tryReleasedTree) {
+    while (true) {
         FreeManager::TryTakeResult result = freeManager_.TryTakeRegions(num, rawIdx);
         if (result == FreeManager::TryTakeResult::SUCCESS) {
             idx = rawIdx;
@@ -342,27 +338,6 @@ bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx, AllocSource
                 *source = AllocSource::RELEASED;
             }
             allocFromReleasedCount_.fetch_add(1, std::memory_order_relaxed);
-            return true;
-        }
-        if (result == FreeManager::TryTakeResult::EMPTY) {
-            tryReleasedTree = false;
-            continue;
-        }
-        if (++busyRetries >= busyRetryLimit) {
-            freeManager_.RecordTakeBusyFallback();
-            tryReleasedTree = false;
-            break;
-        }
-        ScopedEnterSaferegion enterSaferegion(true);
-    }
-
-    while (true) {
-        if (freeManager_.TryIncreaseInactiveZone(num, rawIdx)) {
-            idx = rawIdx;
-            if (source != nullptr) {
-                *source = AllocSource::BUMP;
-            }
-            allocFromBumpCount_.fetch_add(1, std::memory_order_relaxed);
             return true;
         }
 
@@ -448,33 +423,6 @@ MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& 
     return info;
 }
 
-MSRegionInfo* MSRegionManager::TakeRegionForFeed(uint8_t cls, const CentralRegionPool& centralPool)
-{
-    RegionIndex regionIdx = 0;
-    AllocSource source = AllocSource::BUMP;
-    if (!TakeRegions(1, regionIdx, &source, true)) {
-        return nullptr;
-    }
-
-    MRT_ASSERT(regionIdx < freeManager_.GetMaxVirtualRegionCount(), "region index out of bounds");
-
-    MSRegionInfo* info = &array_[regionIdx];
-    if (UNLIKELY(info->regionType != MSRegionType::MS_REGION_FREE)) {
-        LOG(RTLOG_FATAL, "[MS-GC] TakeRegionForFeed: array_[%u] NOT FREE! "
-            "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, "
-            "sizeClass=%u, sweepState=%d, sweepGen=%u, "
-            "nextIdx=%d, prevIdx=%d, reserved=0x%llx, "
-            "array_=%p, info=%p, cls=%u",
-            regionIdx, (int)info->regionType, info->allocPtr, info->regionEnd,
-            (void*)info->allocBitmap, (unsigned)info->sizeClass,
-            (int)info->sweepState, info->sweepGen,
-            info->nextRegionIdx, info->prevRegionIdx,
-            (unsigned long long)info->reserved,
-            (void*)array_, (void*)info, (unsigned)cls);
-    }
-    return info;
-}
-
 // ============================================================================
 // TakeRegionForLarge — allocate N units for a large object
 // ============================================================================
@@ -511,29 +459,6 @@ MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& r
 }
 
 // ============================================================================
-// ReclaimRegion — reclaim a small/medium MS Region
-// ============================================================================
-
-void MSRegionManager::ReclaimRegion(MSRegionInfo* region)
-{
-    size_t regionIdx = static_cast<size_t>(region - array_);
-
-    // Debug: verify MSRegionInfo was properly Reset BEFORE returning
-    if (UNLIKELY(region->regionType != MSRegionType::MS_REGION_FREE)) {
-        LOG(RTLOG_FATAL, "[MS-GC] ReclaimRegion: region NOT FREE before reclaim! "
-            "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, "
-            "sizeClass=%u, sweepGen=%u, regionIdx=%zu",
-            (int)region->regionType, region->allocPtr, region->regionEnd,
-            (void*)region->allocBitmap, (unsigned)region->sizeClass,
-            region->sweepGen, regionIdx);
-    }
-
-    DLOG(REGION, "[MS-GC] ReclaimRegion: regionIdx=%zu", regionIdx);
-
-    freeManager_.ReclaimRegionsReleased(static_cast<RegionIndex>(regionIdx), 1);
-}
-
-// ============================================================================
 // ReclaimRegionLarge — reclaim a large Region spanning regionBytes
 // regionStart must be the actual allocation start address (saved before Reset).
 // ============================================================================
@@ -561,6 +486,11 @@ void MSRegionManager::ReclaimEmptyRegionToReleased(MSRegionInfo* region)
 
     region->Reset();
     freeManager_.ReclaimRegionsReleased(static_cast<RegionIndex>(regionIdx), 1);
+}
+
+size_t MSRegionManager::ScavengeFreeRegions(bool releaseAll)
+{
+    return freeManager_.ScavengeFreeRegions(releaseAll);
 }
 
 // ============================================================================

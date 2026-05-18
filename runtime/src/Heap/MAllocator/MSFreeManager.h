@@ -9,24 +9,21 @@
 
 #ifdef MRT_USE_MARK_SWEEP
 
-#include <atomic>
 #include <cstddef>
 #include <cstdint>
-#include <memory>
 #include <mutex>
 #include <vector>
 
-#include "Heap/Allocator/CartesianTree.h"
 #include "Base/Panic.h"
 
 namespace MapleRuntime {
 
 class FreeManager {
 public:
-    using UnitIndex = CartesianTree::Index;
-    using UnitCount = CartesianTree::Count;
-    using RegionIndex = CartesianTree::Index;
-    using RegionCount = CartesianTree::Count;
+    using UnitIndex = uint32_t;
+    using UnitCount = uint32_t;
+    using RegionIndex = uint32_t;
+    using RegionCount = uint32_t;
 
     struct UnitSpan {
         UnitIndex idx = 0;
@@ -44,27 +41,6 @@ public:
         BUSY,
     };
 
-    class Backend {
-    public:
-        virtual ~Backend() = default;
-
-        virtual std::unique_ptr<Backend> CreateEmpty() const = 0;
-
-        virtual void Initialize(UnitCount maxUnitCount) = 0;
-        virtual void Finalize() noexcept = 0;
-
-        virtual bool TakeUnits(UnitCount num, UnitIndex& idx) = 0;
-        virtual bool TakeTrailingUnits(UnitIndex targetEnd, UnitIndex& idx, UnitCount& num) = 0;
-        virtual bool MergeInsert(UnitIndex idx, UnitCount num) = 0;
-
-        virtual UnitCount GetTotalCount() const = 0;
-        virtual uint32_t GetNodeCount() const = 0;
-        virtual uint32_t GetMaxBlockCount() const = 0;
-        virtual size_t GetMetadataBytesInUse() const = 0;
-        virtual size_t GetNodeBytesInUse() const = 0;
-        virtual void CollectUnitSpans(std::vector<UnitSpan>& spans) const = 0;
-    };
-
     class HeapRangeHandler {
     public:
         virtual ~HeapRangeHandler() = default;
@@ -73,8 +49,7 @@ public:
         virtual void OnCommittedHeapExtended(uintptr_t newCommittedEnd) = 0;
     };
 
-    FreeManager();
-    explicit FreeManager(std::unique_ptr<Backend> backend);
+    FreeManager() = default;
     ~FreeManager();
 
     void Initialize(UnitCount maxUnitCount, size_t unitSize, size_t unitsPerRegion,
@@ -83,24 +58,25 @@ public:
                     size_t segmentSize);
 
     TryTakeResult TryTakeRegions(RegionCount num, RegionIndex& idx);
-    void RecordTakeBusyFallback();
+    void RecordTakeBusyFallback() {}
     bool TryIncreaseInactiveZone(RegionCount num, RegionIndex& idx);
     void ReclaimRegionsReleased(RegionIndex idx, RegionCount num);
     bool GrowOneSegment(HeapRangeHandler& handler);
     void ShrinkHeap();
+    size_t ScavengeFreeRegions(bool releaseAll);
 
     UnitCount GetReleasedUnitCount() const;
     UnitCount GetFreeUnitCount() const;
     size_t GetReleasedBytes() const;
-    uint32_t GetNodeCount() const;
+    uint32_t GetNodeCount() const { return 0; }
     uint32_t GetMaxBlockRegions() const;
     size_t GetMetadataBytesInUse() const;
-    size_t GetNodeBytesInUse() const;
+    size_t GetNodeBytesInUse() const { return 0; }
     void CollectRegionSpans(std::vector<RegionSpan>& spans) const;
 
     uintptr_t GetCommittedEnd() const { return committedEnd_; }
     uintptr_t GetMaxHeapEnd() const { return maxHeapEnd_; }
-    uintptr_t GetInactiveZone() const { return inactiveZone_.load(std::memory_order_relaxed); }
+    uintptr_t GetInactiveZone() const { return committedEnd_; }
     size_t GetCurrentCapacityBytes() const { return committedEnd_ - heapStart_; }
     size_t GetCommittedRegionCount() const { return committedRegionCount_; }
     size_t GetCommittedUnitCount() const { return committedUnitCount_; }
@@ -114,79 +90,67 @@ public:
     RegionCount UnitCountToRegionCount(UnitCount unitCount) const;
 
 private:
-    struct ReleaseBank {
-        mutable std::mutex mutex;
-        std::unique_ptr<Backend> backend;
-        std::atomic<UnitCount> totalUnits {0};
-        std::atomic<UnitCount> maxBlockUnits {0};
-        UnitIndex rangeStart = 0;
-        UnitIndex rangeEnd = 0;
-        uint64_t epoch = 0;
+    struct ChunkSummary {
+        uint16_t start = 0;
+        uint16_t max = 0;
+        uint16_t end = 0;
     };
 
-    struct Diagnostics {
-        bool enabled = false;
-        std::atomic<uint64_t> producerPublishCalls {0};
-        std::atomic<uint64_t> producerPublishUnits {0};
-        std::atomic<uint64_t> producerPublishNs {0};
-        std::atomic<uint64_t> consumerPublishCalls {0};
-        std::atomic<uint64_t> consumerPublishUnits {0};
-        std::atomic<uint64_t> consumerPublishNs {0};
-        std::atomic<uint64_t> rotateCalls {0};
-        std::atomic<uint64_t> rotatePayloadCalls {0};
-        std::atomic<uint64_t> rotateMovedSpans {0};
-        std::atomic<uint64_t> rotateMovedUnits {0};
-        std::atomic<uint64_t> rotateCollectNs {0};
-        std::atomic<uint64_t> rotateDistributeNs {0};
-        std::atomic<uint64_t> rotateTotalNs {0};
-        std::atomic<uint64_t> takeCalls {0};
-        std::atomic<uint64_t> takeRequestedUnits {0};
-        std::atomic<uint64_t> takeVisitedBanks {0};
-        std::atomic<uint64_t> takeSummarySkipBanks {0};
-        std::atomic<uint64_t> takeLockBusyBanks {0};
-        std::atomic<uint64_t> takeBackendMissBanks {0};
-        std::atomic<uint64_t> takeSuccessCalls {0};
-        std::atomic<uint64_t> takeBusyReturns {0};
-        std::atomic<uint64_t> takeBusyFallbacks {0};
-        std::atomic<uint64_t> takeEmptyReturns {0};
-        std::atomic<uint64_t> takeEmptyWithProducerUnits {0};
-        std::atomic<uint64_t> takeEmptyWithConsumerUnits {0};
-        std::atomic<uint64_t> takePublishOnMissAttempts {0};
-        std::atomic<uint64_t> takePublishOnMissSuccess {0};
-        std::atomic<uint64_t> takeTotalNs {0};
-        std::atomic<uint64_t> growCalls {0};
-        std::atomic<uint64_t> growSuccessCalls {0};
-        std::atomic<uint64_t> growFailAtMaxHeap {0};
-        std::atomic<uint64_t> growBytes {0};
-        std::atomic<uint64_t> growTotalNs {0};
-    };
+    static constexpr size_t kChunkBits = 64;
 
-    bool TryTakeRegionsFromConsumers(RegionCount num, RegionIndex& idx);
-    bool TakeTrailingRegions(RegionIndex targetEnd, RegionIndex& idx, RegionCount& num,
-                            ReleaseBank** sourceBank = nullptr);
-    bool TakeTrailingRegionsFromBank(ReleaseBank& bank, RegionIndex targetEnd,
-                                     RegionIndex& idx, RegionCount& num);
+    static bool TestBit(const uint64_t* bits, size_t idx)
+    {
+        return (bits[idx / kChunkBits] >> (idx % kChunkBits)) & 1ULL;
+    }
+
+    static void SetBit(uint64_t* bits, size_t idx)
+    {
+        bits[idx / kChunkBits] |= (1ULL << (idx % kChunkBits));
+    }
+
+    static void ClearBit(uint64_t* bits, size_t idx)
+    {
+        bits[idx / kChunkBits] &= ~(1ULL << (idx % kChunkBits));
+    }
+
+    static size_t RegionCountToChunkCount(size_t regionCount)
+    {
+        return (regionCount + kChunkBits - 1) / kChunkBits;
+    }
+
+    bool IsRegionFreeLocked(RegionIndex idx) const;
+    bool IsRegionScavengedLocked(RegionIndex idx) const;
+    RegionIndex FindNextFreeRegionLocked(RegionIndex start) const;
+    bool PreciseFitFromLocked(RegionIndex start, RegionCount num) const;
+    bool FindFreeRunLocked(RegionCount num, RegionIndex& idx) const;
+    size_t CountScavengedInRangeLocked(RegionIndex idx, RegionCount num) const;
+    size_t CountFreeInRangeLocked(RegionIndex idx, RegionCount num) const;
+    void MarkAllocatedLocked(RegionIndex idx, RegionCount num, bool& reusedScavenged);
+    void MarkFreeLocked(RegionIndex idx, RegionCount num);
+    void MarkScavengedLocked(RegionIndex idx, RegionCount num);
+    void MarkUnavailableLocked(RegionIndex idx, RegionCount num);
+    void UpdateChunkSummaryLocked(size_t chunkIdx);
+    void UpdateChunkSummaryRangeLocked(RegionIndex idx, RegionCount num);
+    size_t CountTrailingFreeRegionsLocked() const;
     void ReleaseUnits(UnitIndex idx, UnitCount num) const;
-    void InsertRegions(RegionIndex idx, RegionCount num);
-    void InsertRegionsToBank(ReleaseBank& bank, RegionIndex idx, RegionCount num);
-    void InsertRegionsToBankLocked(ReleaseBank& bank, RegionIndex idx, RegionCount num);
-    void RefreshBankSummaryLocked(ReleaseBank& bank) const;
-    void InitializeConsumerBank();
-    void ResetBankLocked(ReleaseBank& bank);
-    void RotateReleasedBanksOnGrow();
-    bool PublishProducerToConsumers(bool dueToGrow);
-    void DistributeFrozenSpansToConsumers(const std::vector<UnitSpan>& spans);
-    void ReportDiagnostics() const;
+    void ReuseUnits(UnitIndex idx, UnitCount num) const;
     void CheckAlignmentConfig() const;
     size_t GetRegionSizeBytes() const;
     RegionIndex AddrToRegionIdx(uintptr_t addr) const;
     uintptr_t RegionIdxToAddr(RegionIndex regionIdx) const;
-    size_t RewindInactiveZoneUsingReleasedTail();
+    void ReserveMetadataStorage(size_t bitmapWordCapacity, size_t summaryChunkCapacity);
+    void ReleaseMetadataStorage();
+    void EnsureMetadataInitializedForRegionCount(size_t regionCount);
 
-    std::unique_ptr<Backend> backendPrototype_;
-    ReleaseBank producerBank_;
-    ReleaseBank consumerBank_;
-    mutable std::mutex rotateMutex_;
+    mutable std::mutex pageHeapMutex_;
+    mutable std::mutex growMutex_;
+    uint64_t* allocBits_ = nullptr;
+    uint64_t* scavengedBits_ = nullptr;
+    ChunkSummary* chunkSummaries_ = nullptr;
+    size_t bitmapWordCapacity_ = 0;
+    size_t bitmapWordCountInUse_ = 0;
+    size_t summaryChunkCapacity_ = 0;
+    size_t summaryChunkCountInUse_ = 0;
     size_t unitSize_ = 0;
     size_t unitsPerRegion_ = 0;
     uintptr_t heapStart_ = 0;
@@ -197,10 +161,10 @@ private:
     size_t maxVirtualRegionCount_ = 0;
     size_t maxVirtualUnitCount_ = 0;
     size_t segmentSize_ = 0;
-    std::atomic<uintptr_t> inactiveZone_{0};
-    mutable std::mutex growMutex_;
+    size_t freeRegionCount_ = 0;
+    size_t scavengedRegionCount_ = 0;
+    RegionIndex searchIdx_ = 0;
     uint64_t heapGrowCount_ = 0;
-    Diagnostics diagnostics_;
 };
 
 } // namespace MapleRuntime
