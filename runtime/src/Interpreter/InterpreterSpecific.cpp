@@ -501,6 +501,7 @@ RTErrorCode InitInterpreter(const InterpreterParam& interpreterParam)
     }
 
     struct DYN_CJNativeInterface cjnativeInterface = {
+        .version = DYN_CJNATIVE_INTERFACE_VERSION,
         .appLibHandle = symbolHandle,
         .carrierSpecificOffset = offsetof(ThreadLocalData, mutator),
         .cjThreadSpecificOffset   = ComputeCJThreadDataOffset(),
@@ -549,13 +550,18 @@ RTErrorCode InitInterpreter(const InterpreterParam& interpreterParam)
     };
 
     INT_InterpreterInterface interpreterInterface {};
-    interpreterInterface.version = 1;
+    interpreterInterface.version = INT_INTERPRETER_INTERFACE_VERSION;
 
     int code = init(&interpreterInterface, &cjnativeInterface,
         interpreterParam.interpreterArgsCount,
         interpreterParam.interpreterArgs);
     if (code != 0) {
         DLOG(INTERPRETER, "interpreter_bridge_init failed, return code: %d", code);
+        return E_FAILED;
+    }
+    if (interpreterInterface.version != INT_INTERPRETER_INTERFACE_VERSION) {
+        DLOG(INTERPRETER, "unsupported interpreter interface version: %lld, expected: %d",
+            static_cast<long long>(interpreterInterface.version), INT_INTERPRETER_INTERFACE_VERSION);
         return E_FAILED;
     }
     interpreterInterfaceInstance.initialize(interpreterInterface);

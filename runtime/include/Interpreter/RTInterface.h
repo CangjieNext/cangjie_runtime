@@ -105,6 +105,8 @@ struct INT_InterpreterInterface;
 // Collection of callbacks implemented by CJNative. See detailed description below.
 struct DYN_CJNativeInterface;
 
+#define INT_INTERPRETER_INTERFACE_VERSION 1
+#define DYN_CJNATIVE_INTERFACE_VERSION 1
 
 ////////////////////////////////////////////////////////////////////////////////////
 // region interpreter interface
@@ -640,7 +642,7 @@ typedef void (*DYN_NativeLoggerFn)(int logLevel, char* tag, char* message);
 // region Interfaces
 
 struct INT_InterpreterInterface {
-    // current supported version is 1
+    // current supported version is INT_INTERPRETER_INTERFACE_VERSION
     int64_t version;
 
     size_t cjThreadSpecificDataSize;
@@ -670,6 +672,9 @@ struct INT_InterpreterInterface {
 
 
 struct DYN_CJNativeInterface {
+    // current supported version is DYN_CJNATIVE_INTERFACE_VERSION
+    int64_t version;
+
     void* appLibHandle;
     size_t carrierSpecificOffset;
     size_t cjThreadSpecificOffset;
