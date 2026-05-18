@@ -167,7 +167,8 @@ static size_t InitSizeParameter(const char* name, size_t minSize, size_t default
         if (parameter > minSize) {
             return parameter;
         } else {
-            LOG(RTLOG_ERROR, "Unsupported %s parameter. Valid %s range must be greater than %zu.\n",
+            LOG(RTLOG_ERROR, "Unsupported %s parameter. The unit must be added when configuring, "
+                "it supports 'kb', 'mb', 'gb' with positive integer value. Valid %s range must be greater than %zukb.\n",
                 name, name, minSize);
         }
     }
@@ -182,7 +183,8 @@ static uint64_t InitTimeParameter(const char* name, uint64_t minSize, uint64_t d
         if (parameter > minSize) {
             return parameter;
         } else {
-            LOG(RTLOG_ERROR, "Unsupported %s parameter. Valid %s range must be greater than %zu.\n",
+            LOG(RTLOG_ERROR, "Unsupported %s parameter. The unit must be added when configuring, "
+                "it supports 's', 'ms', 'us', 'ns'. Valid %s range must be greater than %zuns.\n",
                 name, name, minSize);
         }
     }
