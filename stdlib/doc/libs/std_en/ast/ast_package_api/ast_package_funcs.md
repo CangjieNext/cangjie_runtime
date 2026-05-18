@@ -89,7 +89,7 @@ Function: Error reporting interface that outputs diagnostic messages during the 
 > - When the severity level is `ERROR`, this interface will terminate the compilation process but not the macro expansion process. It is recommended to immediately return or throw an exception after calling this interface to terminate macro expansion.
 > - This interface follows the cjc standard error reporting format, displaying the source code line containing the tokens with squiggly underlines. The message is shown on the first line, and the hint is displayed below the squiggly underlines.
 > - The referenced source code content is currently determined based on the start position of the first [Token](ast_package_structs.md#struct-token) and the end position of the last [Token](ast_package_structs.md#struct-token), without verifying consistency of intermediate [Token](ast_package_structs.md#struct-token) positions.
-> - This interface is ineffective when called outside the macro expansion process. See [example code](../ast_samples/report.md#non-macro-expansion-call-example).
+> - This interface is ineffective when called outside the macro expansion process. See [example code](../ast_samples/report.md#non-macro-expansion-context-example).
 
 Parameters:
 

@@ -2364,7 +2364,7 @@ A [FeaturesDirective](ast_package_classes.md#class-featuresdirective) node: `fea
 
 > **Note:**
 >
-> Features directive declaration must start with keyword `features`, followed by the [features set](), and must appear before the package header of the source file.
+> Features directive declaration must start with keyword `features`, followed by the [FeaturesSet](ast_package_classes.md#class-featuresset), and must appear before the package header of the source file.
 
 Parent Type:
 
@@ -2422,11 +2422,11 @@ Function: Constructs a [FeaturesDirective](ast_package_classes.md#class-features
 
 Parameters:
 
-- inputs: [Tokens](ast_package_classes.md#class-tokens) - The lexical unit collection ([Tokens](ast_package_classes.md#class-tokens)) sequence used to construct the [PackageHeader](ast_package_classes.md#class-featuresdirective) type.
+- inputs: [Tokens](ast_package_classes.md#class-tokens) - The lexical unit collection ([Tokens](ast_package_classes.md#class-tokens)) sequence used to construct the [FeaturesDirective](ast_package_classes.md#class-featuresdirective) type.
 
 Exceptions:
 
-- [ASTException](ast_package_exceptions.md#class-astexception) - Thrown when the input [Tokens](ast_package_classes.md#class-tokens) type cannot be constructed as a [PackageHeader](ast_package_classes.md#class-featuresdirective) node.
+- [ASTException](ast_package_exceptions.md#class-astexception) - Thrown when the input [Tokens](ast_package_classes.md#class-tokens) type cannot be constructed as a [FeaturesDirective](ast_package_classes.md#class-featuresdirective) node.
 
 ### func toTokens()
 
@@ -2466,7 +2466,7 @@ A [FeaturesSet](ast_package_classes.md#class-featuresset) node: `features set de
 
 > **Note:**
 >
-> Features set must start with `{` and end with `}`. Features set contains set of [featuresId](ast_package_classes.md#class-featureid).
+> Features set must start with `{` and end with `}`. Features set contains set of [featureid](ast_package_classes.md#class-featureid).
 
 Parent Type:
 
@@ -2492,9 +2492,9 @@ Exceptions:
 public mut prop content: ArrayList<FeatureId> 
 ```
 
-Function: Gets of sets the content of the [FeaturesSet](ast_package_classes.md#class-featureset) node.
+Function: Gets of sets the content of the [FeaturesSet](ast_package_classes.md#class-featuresset) node.
 
-Type: [ArrayList](../../collection/collection_package_api/collection_package_class.md#class-arraylistt)\<[featuresId](ast_package_classes.md#class-featureid)>
+Type: [ArrayList](../../collection/collection_package_api/collection_package_class.md#class-arraylistt)\<[FeatureId](ast_package_classes.md#class-featureid)>
 
 ### prop lCurl
 
@@ -2502,7 +2502,7 @@ Type: [ArrayList](../../collection/collection_package_api/collection_package_cla
 public mut prop lCurl: Token
 ```
 
-Function: Gets or sets the `{` in the [FeaturesSet](ast_package_classes.md#class-featureset) node.
+Function: Gets or sets the `{` in the [FeaturesSet](ast_package_classes.md#class-featuresset) node.
 
 Type: [Token](ast_package_structs.md#struct-token)
 
@@ -2516,7 +2516,7 @@ Exceptions:
 public mut prop rCurl: Token
 ```
 
-Function: Gets or sets the `}` in the [FeaturesSet](ast_package_classes.md#class-featureset) node.
+Function: Gets or sets the `}` in the [FeaturesSet](ast_package_classes.md#class-featuresset) node.
 
 Type: [Token](ast_package_structs.md#struct-token)
 
