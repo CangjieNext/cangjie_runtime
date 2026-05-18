@@ -571,7 +571,7 @@ public:
     void DestroyInterpreterPart();
 
     // Pointer to data used during hotfix interpreter execution
-    DYN_CJThreadSpecificDataT interpreterCJThreadData;
+    DYN_CJThreadSpecificData interpreterCJThreadData;
     bool isRuntimeMutator = false;
 
     void markAsRuntimeMutator() {

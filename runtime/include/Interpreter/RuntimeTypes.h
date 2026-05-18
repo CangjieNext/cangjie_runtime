@@ -20,18 +20,18 @@ extern "C" {
 
 #define EXTENSION_DATA_ATTRS ATTR_PACKED(4)
 
-struct TYPE_INFO_ATTRS DYN_TypeInfoT;
-struct TYPE_INFO_ATTRS DYN_ExtensionDataT;
+struct TYPE_INFO_ATTRS DYN_TypeInfo;
+struct TYPE_INFO_ATTRS DYN_ExtensionData;
 
-typedef void* DYN_MTableDescT;
-typedef void* DYN_FuncPtrT;
+typedef void* DYN_MTableDesc;
+typedef void* DYN_FuncPtr;
 
-union DYN_GCTibT {
+union DYN_GCTib {
     uintptr_t raw; // higher bit - 1: raw, 0: ptr
     void *ptr;
 };
 
-struct TYPE_INFO_ATTRS DYN_TypeInfoT {
+struct TYPE_INFO_ATTRS DYN_TypeInfo {
     const char* typeInfoName;
     int8_t type;
     uint8_t flag;
@@ -40,39 +40,39 @@ struct TYPE_INFO_ATTRS DYN_TypeInfoT {
         uint32_t instanceSize;
         uint32_t componentSize;
     };
-    union DYN_GCTibT gctib;
+    union DYN_GCTib gctib;
     uint32_t uuid;
     uint8_t align;
     int8_t typeArgsNum;
     uint16_t validInheritNum;
     uint32_t* fieldOffsets;
-    DYN_FuncPtrT finalizerMethod;
-    struct DYN_TypeInfoT** typeArgs;
-    struct DYN_TypeInfoT** fields;
+    DYN_FuncPtr finalizerMethod;
+    struct DYN_TypeInfo** typeArgs;
+    struct DYN_TypeInfo** fields;
     union {
-        struct DYN_TypeInfoT* superTypeInfo;
-        struct DYN_TypeInfoT* componentTypeInfo;
+        struct DYN_TypeInfo* superTypeInfo;
+        struct DYN_TypeInfo* componentTypeInfo;
     };
-    struct DYN_ExtensionDataT** vExtensionDataStart;
-    DYN_MTableDescT* mTableDesc;
+    struct DYN_ExtensionData** vExtensionDataStart;
+    DYN_MTableDesc* mTableDesc;
     void* reflectOrDebugInfo;
 };
 
-struct EXTENSION_DATA_ATTRS DYN_ExtensionDataT {
+struct EXTENSION_DATA_ATTRS DYN_ExtensionData {
     uint32_t argNum;
     uint8_t isInterfaceTypeInfo;
     uint8_t flag;
     uint16_t funcTableSize;
     union {
         void* tt;
-        struct DYN_TypeInfoT* ti;
+        struct DYN_TypeInfo* ti;
     };
     union {
-        DYN_FuncPtrT interfaceFn;
-        struct DYN_TypeInfoT* interfaceTypeInfo;
+        DYN_FuncPtr interfaceFn;
+        struct DYN_TypeInfo* interfaceTypeInfo;
     };
-    DYN_FuncPtrT whereCondFn;
-    DYN_FuncPtrT* funcTable;
+    DYN_FuncPtr whereCondFn;
+    DYN_FuncPtr* funcTable;
 };
 
 #ifdef __cplusplus

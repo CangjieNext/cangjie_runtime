@@ -1198,27 +1198,27 @@ void* EnumCtorReflectInfo::GetAnnotations(TypeInfo* arrayTi)
 
 #ifdef INTERPRETER_ENABLED
 struct TypeInfoLayoutCheck {
-    // Static layout checks: DYN_TypeInfoT is a binary mirror of TypeInfo.
+    // Static layout checks: DYN_TypeInfo is a binary mirror of TypeInfo.
     static void CheckInterpreterMirror() {
-        static_assert(sizeof(DYN_TypeInfoT) == sizeof(TypeInfo), "DYN_TypeInfoT size must match TypeInfo");
-        static_assert(__builtin_offsetof(DYN_TypeInfoT, typeInfoName) == __builtin_offsetof(TypeInfo, typeInfoName), "typeInfoName offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfoT, type) == __builtin_offsetof(TypeInfo, type), "type offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfoT, flag) == __builtin_offsetof(TypeInfo, flag), "flag offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfoT, fieldNum) == __builtin_offsetof(TypeInfo, fieldNum), "fieldNum offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfoT, instanceSize) == __builtin_offsetof(TypeInfo, instanceSize), "instanceSize offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfoT, gctib) == __builtin_offsetof(TypeInfo, gctib), "gctib offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfoT, uuid) == __builtin_offsetof(TypeInfo, uuid), "uuid offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfoT, align) == __builtin_offsetof(TypeInfo, align), "align offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfoT, typeArgsNum) == __builtin_offsetof(TypeInfo, typeArgsNum), "typeArgsNum offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfoT, validInheritNum) == __builtin_offsetof(TypeInfo, validInheritNum), "validInheritNum offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfoT, fieldOffsets) == __builtin_offsetof(TypeInfo, fieldOffsets), "fieldOffsets offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfoT, finalizerMethod) == __builtin_offsetof(TypeInfo, finalizerMethod), "finalizerMethod offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfoT, typeArgs) == __builtin_offsetof(TypeInfo, typeArgs), "typeArgs offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfoT, fields) == __builtin_offsetof(TypeInfo, fields), "fields offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfoT, superTypeInfo) == __builtin_offsetof(TypeInfo, superTypeInfo), "superTypeInfo offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfoT, vExtensionDataStart) == __builtin_offsetof(TypeInfo, vExtensionDataStart),"vExtensionDataStart offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfoT, mTableDesc) == __builtin_offsetof(TypeInfo, mTableDesc), "mTableDesc offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfoT, reflectOrDebugInfo) == __builtin_offsetof(TypeInfo, reflectInfo), "reflectInfo offset mismatch");
+        static_assert(sizeof(DYN_TypeInfo) == sizeof(TypeInfo), "DYN_TypeInfo size must match TypeInfo");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, typeInfoName) == __builtin_offsetof(TypeInfo, typeInfoName), "typeInfoName offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, type) == __builtin_offsetof(TypeInfo, type), "type offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, flag) == __builtin_offsetof(TypeInfo, flag), "flag offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, fieldNum) == __builtin_offsetof(TypeInfo, fieldNum), "fieldNum offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, instanceSize) == __builtin_offsetof(TypeInfo, instanceSize), "instanceSize offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, gctib) == __builtin_offsetof(TypeInfo, gctib), "gctib offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, uuid) == __builtin_offsetof(TypeInfo, uuid), "uuid offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, align) == __builtin_offsetof(TypeInfo, align), "align offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, typeArgsNum) == __builtin_offsetof(TypeInfo, typeArgsNum), "typeArgsNum offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, validInheritNum) == __builtin_offsetof(TypeInfo, validInheritNum), "validInheritNum offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, fieldOffsets) == __builtin_offsetof(TypeInfo, fieldOffsets), "fieldOffsets offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, finalizerMethod) == __builtin_offsetof(TypeInfo, finalizerMethod), "finalizerMethod offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, typeArgs) == __builtin_offsetof(TypeInfo, typeArgs), "typeArgs offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, fields) == __builtin_offsetof(TypeInfo, fields), "fields offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, superTypeInfo) == __builtin_offsetof(TypeInfo, superTypeInfo), "superTypeInfo offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, vExtensionDataStart) == __builtin_offsetof(TypeInfo, vExtensionDataStart),"vExtensionDataStart offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, mTableDesc) == __builtin_offsetof(TypeInfo, mTableDesc), "mTableDesc offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, reflectOrDebugInfo) == __builtin_offsetof(TypeInfo, reflectInfo), "reflectInfo offset mismatch");
     }
 };
 #endif

@@ -255,7 +255,7 @@ void StackInfo::GetStackTraceByLiteFrameInfo(const uint64_t v1, const uint64_t v
 #ifdef INTERPRETER_ENABLED
     if (v3 == INTERPRETED_FRAME_FDESC) {
         // handle interpreter frame
-        DYN_InterpretedFrameInfoT info;
+        DYN_InterpretedFrameInfo info;
 
         uint64_t ip = v1;
         uint64_t fa = v2;

@@ -21,54 +21,54 @@ extern "C" {
 ////////////////////////////////////////////////////////////////////////////////////
 
 // Pointer to traceable object reference. Binary layout of object is defined by CJNative runtime.
-typedef void *DYN_ObjRefT;
+typedef void *DYN_ObjRef;
 
 // Pointer to RefField
-typedef void *DYN_FieldRefT;
+typedef void *DYN_FieldRef;
 
 // Pointer to the place that contains traceable object reference.
-typedef void *DYN_PlaceholderT;
+typedef void *DYN_Placeholder;
 
 // State that's passed during visiting stack frames.
-typedef void *DYN_VisitingStateT;
+typedef void *DYN_VisitingState;
 
 // Pointer to TypeTemplate. Binary layout of this structure is defined by CJNative runtime.
-typedef void *DYN_TypeTemplateT;
+typedef void *DYN_TypeTemplate;
 
 // Pointer to ThreadLocalData that is currently executing current cjThread.
-typedef void *DYN_ThreadLocalDataT;
+typedef void *DYN_ThreadLocalData;
 
 // Pointer to cjThread specific data that is used by interpreter during execution.
 // This pointer is stored in cjThread specific storage.
-typedef void *DYN_CJThreadSpecificDataT;
+typedef void *DYN_CJThreadSpecificData;
 
 // This is alias for frame pointer. CJNative runtime should pass this pointer to `INT_FrameInfoProviderFn` function.
 // Interpreter would return description of corresponding frame (e.g. fileName, lineNumber).
-typedef const void *DYN_FramePointerT;
+typedef const void *DYN_FramePointer;
 
 // This is alias for instruction pointer. CJNative runtime should pass this pointer to `INT_FrameInfoProviderFn` function.
 // Interpreter would return description of corresponding frame (e.g. fileName, lineNumber).
-typedef const void *DYN_InstructionPointerT; 
+typedef const void *DYN_InstructionPointer;
 
 // Visitor of interpreter pointer placeholders.
-// Interpreter cannot use this data directly but should pass it to the callbacks defined in `DYN_CJNativeInterfaceT`.
-typedef const void *DYN_RootVisitorT;
+// Interpreter cannot use this data directly but should pass it to the callbacks defined in `DYN_CJNativeInterface`.
+typedef const void *DYN_RootVisitor;
 
 // Visitor of placeholders that contain derived pointers (intrapointers).
-// Interpreter cannot use this data directly but should pass it to the callbacks defined in `DYN_CJNativeInterfaceT`.
-typedef const void *DYN_DerivedPtrVisitorT;
+// Interpreter cannot use this data directly but should pass it to the callbacks defined in `DYN_CJNativeInterface`.
+typedef const void *DYN_DerivedPtrVisitor;
 
 // Pointer to ExceptionWrapper.
-typedef void *DYN_ExceptionWrapperT;
+typedef void *DYN_ExceptionWrapper;
 
 // Frame description used by interpreter frame visitors.
-struct DYN_FrameDescT {
-    DYN_FramePointerT fp;
-    DYN_InstructionPointerT ip;
+struct DYN_FrameDesc {
+    DYN_FramePointer fp;
+    DYN_InstructionPointer ip;
 };
 
 // This struct describes frame. Interpreter would fill this structure in `INT_FrameInfoProviderFn` function.
-struct DYN_InterpretedFrameInfoT {
+struct DYN_InterpretedFrameInfo {
     size_t lineNumber;
     char*  methodName;
     char*  className;
@@ -100,10 +100,10 @@ struct DYN_InterpretedFrameInfoT {
 
 
 // Collection of callbacks implemented by interpreter. See detailed description below.
-struct INT_InterpreterInterfaceT;
+struct INT_InterpreterInterface;
 
 // Collection of callbacks implemented by CJNative. See detailed description below.
-struct DYN_CJNativeInterfaceT;
+struct DYN_CJNativeInterface;
 
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -113,15 +113,15 @@ struct DYN_CJNativeInterfaceT;
 // Initalizes runtime and its interface.
 //
 // params:
-// - interpreterInterface - Pointer to `INT_InterpreterInterfaceT` which filled by callee (out parameter).
-// - cjnativeInterface - Pointer to `DYN_CJNativeInterfaceT`. Pointer owned by caller, callee should copy the content.
+// - interpreterInterface - Pointer to `INT_InterpreterInterface` which filled by callee (out parameter).
+// - cjnativeInterface - Pointer to `DYN_CJNativeInterface`. Pointer owned by caller, callee should copy the content.
 // - interpreterArgsCount - Number of interpreter arguments in `interpreterArgs`.
-// - interpreterArgs - Interpreter arguments array (null-terminated). 
+// - interpreterArgs - Interpreter arguments array (null-terminated).
 //                     Pointer owned by caller, callee should copy the content.
 // return: 0 on success.
 //
-typedef int (*DYN_InitRt)(struct INT_InterpreterInterfaceT *interpreterInterface,
-                      struct DYN_CJNativeInterfaceT *cjnativeInterface,
+typedef int (*DYN_InitRt)(struct INT_InterpreterInterface *interpreterInterface,
+                      struct DYN_CJNativeInterface *cjnativeInterface,
                       int interpreterArgsCount,
                       const char* const* interpreterArgs);
 
@@ -132,7 +132,7 @@ typedef int (*DYN_InitRt)(struct INT_InterpreterInterfaceT *interpreterInterface
 // - callback - continuation that expects initialized state and context.
 // - ctx - context that should be passed to callback.
 //
-typedef void (*INT_IterateFramesWithStateFn)(DYN_CJThreadSpecificDataT cjThreadData, void (*callback)(DYN_VisitingStateT, void*), void* ctx);
+typedef void (*INT_IterateFramesWithStateFn)(DYN_CJThreadSpecificData cjThreadData, void (*callback)(DYN_VisitingState, void*), void* ctx);
 
 
 // Visit all frame slots that contain pointers to stack using provided visitor.
@@ -144,9 +144,9 @@ typedef void (*INT_IterateFramesWithStateFn)(DYN_CJThreadSpecificDataT cjThreadD
 // - derivedPtrVisitor - derived pointers visitor callback provided by CJNative runtime for processing slots with intrapointers (which point to stack).
 //
 // Notes:
-// Provided visitors cannot be called directly by interpreter. Interpreter should pass visitor to the callbacks defined in `DYN_CJNativeInterfaceT` to process slots.
+// Provided visitors cannot be called directly by interpreter. Interpreter should pass visitor to the callbacks defined in `DYN_CJNativeInterface` to process slots.
 //
-typedef void (*INT_VisitFrameRootsExpansionFn)(DYN_VisitingStateT state, DYN_FrameDescT frameDesc, DYN_RootVisitorT stackPtrVisitor, DYN_DerivedPtrVisitorT derivedPtrVisitor);
+typedef void (*INT_VisitFrameRootsExpansionFn)(DYN_VisitingState state, DYN_FrameDesc frameDesc, DYN_RootVisitor stackPtrVisitor, DYN_DerivedPtrVisitor derivedPtrVisitor);
 
 
 // Visit frame roots (local variables) of interpreted code with marking visitor.
@@ -157,9 +157,9 @@ typedef void (*INT_VisitFrameRootsExpansionFn)(DYN_VisitingStateT state, DYN_Fra
 // - rootVisitor - marking root visitor callback provided by CJNative runtime. Interpreter should call this callback for each root it needs to process.
 //
 // Notes:
-// Root visitor cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `DYN_CJNativeInterfaceT` to process roots.
+// Root visitor cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `DYN_CJNativeInterface` to process roots.
 //
-typedef void (*INT_VisitFrameRootsMarkingFn)(DYN_VisitingStateT state, DYN_FrameDescT frameDesc, DYN_RootVisitorT rootVisitor);
+typedef void (*INT_VisitFrameRootsMarkingFn)(DYN_VisitingState state, DYN_FrameDesc frameDesc, DYN_RootVisitor rootVisitor);
 
 
 // Visit frame roots (local variables) of interpreted code with adjusting visitor.
@@ -171,9 +171,9 @@ typedef void (*INT_VisitFrameRootsMarkingFn)(DYN_VisitingStateT state, DYN_Frame
 // - derivedPtrVisitor - derived pointers visitor callback provided by CJNative runtime.
 //
 // Notes:
-// Root visitors cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `DYN_CJNativeInterfaceT` to process roots.
+// Root visitors cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `DYN_CJNativeInterface` to process roots.
 //
-typedef void (*INT_VisitFrameRootsAdjustingFn)(DYN_VisitingStateT state, DYN_FrameDescT frameDesc, DYN_RootVisitorT rootVisitor, DYN_DerivedPtrVisitorT derivedPtrVisitor);
+typedef void (*INT_VisitFrameRootsAdjustingFn)(DYN_VisitingState state, DYN_FrameDesc frameDesc, DYN_RootVisitor rootVisitor, DYN_DerivedPtrVisitor derivedPtrVisitor);
 
 
 // Visit static roots (global variables) of interpreted code with some visitor.
@@ -183,9 +183,9 @@ typedef void (*INT_VisitFrameRootsAdjustingFn)(DYN_VisitingStateT state, DYN_Fra
 // - visitor - root visitor callback provided by CJNative runtime. Interpreter should call this callback for each root it needs to process.
 //
 // Notes:
-// Root visitor cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `DYN_CJNativeInterfaceT` to process roots.
+// Root visitor cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `DYN_CJNativeInterface` to process roots.
 //
-typedef void (*INT_VisitGlobalRootsFn)(DYN_RootVisitorT visitor);
+typedef void (*INT_VisitGlobalRootsFn)(DYN_RootVisitor visitor);
 
 
 // Registers newly created cjThread in interpreter. This method could be called by any thread (e.g. auxiliary scheduler thread) to notify interpreter about creation of new cjThread.
@@ -194,9 +194,9 @@ typedef void (*INT_VisitGlobalRootsFn)(DYN_RootVisitorT visitor);
 // - Pointer to CJThreadSpecificData
 //
 // Notes:
-//  Interpreter will save auxiliary metadata in [DYN_CJThreadSpecificDataT + offsetToCJThreadSpecificMemory] memory area to simplify support of interpretation and Garbage collection.
+//  Interpreter will save auxiliary metadata in [DYN_CJThreadSpecificData + offsetToCJThreadSpecificMemory] memory area to simplify support of interpretation and Garbage collection.
 //
-typedef void (*INT_CJThreadStartFn)(DYN_CJThreadSpecificDataT*);
+typedef void (*INT_CJThreadStartFn)(DYN_CJThreadSpecificData*);
 
 
 // Unregisters cjThread in interpreter. This method could be called by any thread (e.g. auxiliary scheduler thread) to notify interpreter about termination of some completed cjThread.
@@ -204,7 +204,7 @@ typedef void (*INT_CJThreadStartFn)(DYN_CJThreadSpecificDataT*);
 // params:
 // - Pointer to CJThreadSpecificData
 //
-typedef void (*INT_CJThreadDestroyFn)(DYN_CJThreadSpecificDataT*);
+typedef void (*INT_CJThreadDestroyFn)(DYN_CJThreadSpecificData*);
 
 
 // Provides information about given frame which could be used for precise stack trace generation.
@@ -216,9 +216,9 @@ typedef void (*INT_CJThreadDestroyFn)(DYN_CJThreadSpecificDataT*);
 // params:
 // - Frame pointer. Must be provided by CJNative runtime.
 // - Instruction pointer in frame (callsite position).
-// - Pointer to DYN_InterpretedFrameInfoT. Fields of this struct will be initialized by interpreter.
+// - Pointer to DYN_InterpretedFrameInfo. Fields of this struct will be initialized by interpreter.
 //
-typedef void (*INT_FrameInfoProviderFn)(DYN_FramePointerT, DYN_InstructionPointerT ip, DYN_InterpretedFrameInfoT *);
+typedef void (*INT_FrameInfoProviderFn)(DYN_FramePointer, DYN_InstructionPointer ip, DYN_InterpretedFrameInfo *);
 
 
 // Landing pad which handles pending exception.
@@ -245,7 +245,7 @@ typedef void (*INT_LandingPadFn)();
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef DYN_ObjRefT (*DYN_ObjAllocFn)(struct DYN_TypeInfoT*);
+typedef DYN_ObjRef (*DYN_ObjAllocFn)(struct DYN_TypeInfo*);
 
 // Allocate new array.
 // params:
@@ -257,7 +257,7 @@ typedef DYN_ObjRefT (*DYN_ObjAllocFn)(struct DYN_TypeInfoT*);
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef DYN_ObjRefT (*DYN_ArrayAllocFn)(struct DYN_TypeInfoT* arrayType, uint64_t size);
+typedef DYN_ObjRef (*DYN_ArrayAllocFn)(struct DYN_TypeInfo* arrayType, uint64_t size);
 
 // Poll a safe point.
 //
@@ -276,7 +276,7 @@ typedef void (*DYN_SafePointFn)();
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef bool (*DYN_IsPendingSafePointFn)(DYN_ThreadLocalDataT);
+typedef bool (*DYN_IsPendingSafePointFn)(DYN_ThreadLocalData);
 
 // Provide a TypeInfo for type with given signature.
 //
@@ -288,7 +288,7 @@ typedef bool (*DYN_IsPendingSafePointFn)(DYN_ThreadLocalDataT);
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef struct DYN_TypeInfoT* (*DYN_TypeInfoProviderFn)(const char *);
+typedef struct DYN_TypeInfo* (*DYN_TypeInfoProviderFn)(const char *);
 
 // Provide a TypeTemplate for type with given signature.
 //
@@ -300,7 +300,7 @@ typedef struct DYN_TypeInfoT* (*DYN_TypeInfoProviderFn)(const char *);
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef DYN_TypeTemplateT (*DYN_TypeTemplateFn)(const char *);
+typedef DYN_TypeTemplate (*DYN_TypeTemplateFn)(const char *);
 
 // Get or create specialized TypeInfo from a TypeTemplate and type arguments.
 //
@@ -314,7 +314,7 @@ typedef DYN_TypeTemplateT (*DYN_TypeTemplateFn)(const char *);
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef struct DYN_TypeInfoT* (*DYN_GetOrCreateTypeInfoFn)(DYN_TypeTemplateT typeTemplate, uint32_t argSize, struct DYN_TypeInfoT** typeArgs);
+typedef struct DYN_TypeInfo* (*DYN_GetOrCreateTypeInfoFn)(DYN_TypeTemplate typeTemplate, uint32_t argSize, struct DYN_TypeInfo** typeArgs);
 
 // Get the instance size of a type from its TypeInfo.
 //
@@ -326,7 +326,7 @@ typedef struct DYN_TypeInfoT* (*DYN_GetOrCreateTypeInfoFn)(DYN_TypeTemplateT typ
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef uint32_t (*DYN_GetInstanceSizeFn)(struct DYN_TypeInfoT* typeInfo);
+typedef uint32_t (*DYN_GetInstanceSizeFn)(struct DYN_TypeInfo* typeInfo);
 
 
 // Throw OutOfMemoryError exception.
@@ -344,7 +344,7 @@ typedef void (*DYN_ThrowOOMFn)();
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*DYN_ThrowExceptionFn)(DYN_ObjRefT exceptionObject);
+typedef void (*DYN_ThrowExceptionFn)(DYN_ObjRef exceptionObject);
 
 // Get pending exception instance.
 // This method hasn't any side effects (doesn't affect pending status).
@@ -354,7 +354,7 @@ typedef void (*DYN_ThrowExceptionFn)(DYN_ObjRefT exceptionObject);
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef DYN_ObjRefT (*DYN_GetPendingExceptionFn)();
+typedef DYN_ObjRef (*DYN_GetPendingExceptionFn)();
 
 // Get and clear pending exception instance.
 // Any call to `DYN_GetPendingExceptionFn` after execution of this method should return null.
@@ -364,7 +364,7 @@ typedef DYN_ObjRefT (*DYN_GetPendingExceptionFn)();
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef DYN_ObjRefT (*DYN_GetAndClearPendingExceptionFn)();
+typedef DYN_ObjRef (*DYN_GetAndClearPendingExceptionFn)();
 
 
 // Check that given object is an instance of given type.
@@ -378,7 +378,7 @@ typedef DYN_ObjRefT (*DYN_GetAndClearPendingExceptionFn)();
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef bool (*DYN_InstanceOfFn)(DYN_ObjRefT obj, struct DYN_TypeInfoT* ti);
+typedef bool (*DYN_InstanceOfFn)(DYN_ObjRef obj, struct DYN_TypeInfo* ti);
 
 // Check that typeInfo is a subtype of superTypeInfo.
 //
@@ -390,7 +390,7 @@ typedef bool (*DYN_InstanceOfFn)(DYN_ObjRefT obj, struct DYN_TypeInfoT* ti);
 //
 // Notes:
 //
-typedef bool (*DYN_IsSubTypeFn)(struct DYN_TypeInfoT* typeInfo, struct DYN_TypeInfoT* superTypeInfo);
+typedef bool (*DYN_IsSubTypeFn)(struct DYN_TypeInfo* typeInfo, struct DYN_TypeInfo* superTypeInfo);
 
 // Applies visitor to the given placeholder.
 //
@@ -398,7 +398,7 @@ typedef bool (*DYN_IsSubTypeFn)(struct DYN_TypeInfoT* typeInfo, struct DYN_TypeI
 // - visitor - root visitor callback provided by CJNative runtime. Interpreter should call this callback for each root it needs to process.
 // - placeholder - pointer to the place that contains reference which should be visited.
 //
-typedef void (*DYN_VisitRootFromInterpreterFn)(DYN_RootVisitorT visitor, DYN_PlaceholderT placeholder);
+typedef void (*DYN_VisitRootFromInterpreterFn)(DYN_RootVisitor visitor, DYN_Placeholder placeholder);
 
 // Applies visitor to the given derived and base pointers.
 //
@@ -407,7 +407,7 @@ typedef void (*DYN_VisitRootFromInterpreterFn)(DYN_RootVisitorT visitor, DYN_Pla
 // - basePtrHolder - pointer to the place that contains base pointer.
 // - derivedPtrHolder - pointer to the place that contains derived pointer (intrapointer).
 //
-typedef void (*DYN_VisitDerivedPtrFromInterpreterFn)(DYN_DerivedPtrVisitorT visitor, DYN_PlaceholderT basePtrHolder, DYN_PlaceholderT derivedPtrHolder);
+typedef void (*DYN_VisitDerivedPtrFromInterpreterFn)(DYN_DerivedPtrVisitor visitor, DYN_Placeholder basePtrHolder, DYN_Placeholder derivedPtrHolder);
 
 // Read reference from static field.
 //
@@ -419,7 +419,7 @@ typedef void (*DYN_VisitDerivedPtrFromInterpreterFn)(DYN_DerivedPtrVisitorT visi
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef DYN_ObjRefT (*DYN_ReadStaticFieldFn)(DYN_FieldRefT source);
+typedef DYN_ObjRef (*DYN_ReadStaticFieldFn)(DYN_FieldRef source);
 
 // Write reference to static field.
 //
@@ -430,20 +430,20 @@ typedef DYN_ObjRefT (*DYN_ReadStaticFieldFn)(DYN_FieldRefT source);
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*DYN_WriteStaticFieldFn)(DYN_FieldRefT destination, DYN_ObjRefT newValue);
+typedef void (*DYN_WriteStaticFieldFn)(DYN_FieldRef destination, DYN_ObjRef newValue);
 
 // Read reference from instance field.
 //
 // params:
 // - source - object that contains instance field
 // - field - pointer to instance reference field
-// 
+//
 // return: object reference stored in the field
 //
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef DYN_ObjRefT (*DYN_ReadInstanceFieldFn)(DYN_ObjRefT source, DYN_FieldRefT field);
+typedef DYN_ObjRef (*DYN_ReadInstanceFieldFn)(DYN_ObjRef source, DYN_FieldRef field);
 
 // Write reference to instance field.
 //
@@ -455,7 +455,7 @@ typedef DYN_ObjRefT (*DYN_ReadInstanceFieldFn)(DYN_ObjRefT source, DYN_FieldRefT
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*DYN_WriteInstanceFieldFn)(DYN_ObjRefT destination, DYN_FieldRefT field, DYN_ObjRefT newValue);
+typedef void (*DYN_WriteInstanceFieldFn)(DYN_ObjRef destination, DYN_FieldRef field, DYN_ObjRef newValue);
 
 // Read a struct field from an object.
 //
@@ -468,7 +468,7 @@ typedef void (*DYN_WriteInstanceFieldFn)(DYN_ObjRefT destination, DYN_FieldRefT 
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*DYN_ReadStructFieldFn)(uintptr_t dstPtr, DYN_ObjRefT obj, uintptr_t srcField, size_t size);
+typedef void (*DYN_ReadStructFieldFn)(uintptr_t dstPtr, DYN_ObjRef obj, uintptr_t srcField, size_t size);
 
 // Write a struct field to an object.
 //
@@ -481,7 +481,7 @@ typedef void (*DYN_ReadStructFieldFn)(uintptr_t dstPtr, DYN_ObjRefT obj, uintptr
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*DYN_WriteStructFieldFn)(DYN_ObjRefT obj, uintptr_t dst, uintptr_t src, size_t size);
+typedef void (*DYN_WriteStructFieldFn)(DYN_ObjRef obj, uintptr_t dst, uintptr_t src, size_t size);
 
 // Read a static struct field.
 //
@@ -495,7 +495,7 @@ typedef void (*DYN_WriteStructFieldFn)(DYN_ObjRefT obj, uintptr_t dst, uintptr_t
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*DYN_ReadStaticStructFieldFn)(uintptr_t dstPtr, size_t dstSize, uintptr_t srcPtr, size_t srcSize, DYN_GCTibT tib);
+typedef void (*DYN_ReadStaticStructFieldFn)(uintptr_t dstPtr, size_t dstSize, uintptr_t srcPtr, size_t srcSize, DYN_GCTib tib);
 
 // Write a static value type field (struct).
 //
@@ -509,7 +509,7 @@ typedef void (*DYN_ReadStaticStructFieldFn)(uintptr_t dstPtr, size_t dstSize, ui
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*DYN_WriteStaticStructFieldFn)(uintptr_t dst, size_t dstLen, uintptr_t src, size_t srcLen, DYN_GCTibT tib);
+typedef void (*DYN_WriteStaticStructFieldFn)(uintptr_t dst, size_t dstLen, uintptr_t src, size_t srcLen, DYN_GCTib tib);
 
 // Read a generic field from an object.
 // Should be used if generic type resolves to struct/value at runtime, otherwise use DYN_ReadInstanceFieldFn.
@@ -523,7 +523,7 @@ typedef void (*DYN_WriteStaticStructFieldFn)(uintptr_t dst, size_t dstLen, uintp
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*DYN_ReadGenericFieldFn)(DYN_ObjRefT dst, DYN_ObjRefT srcObj, uintptr_t srcField, size_t size);
+typedef void (*DYN_ReadGenericFieldFn)(DYN_ObjRef dst, DYN_ObjRef srcObj, uintptr_t srcField, size_t size);
 
 // Write a generic field to an object.
 // Should be used if generic type resolves to struct/value at runtime, otherwise use DYN_WriteInstanceFieldFn.
@@ -537,7 +537,7 @@ typedef void (*DYN_ReadGenericFieldFn)(DYN_ObjRefT dst, DYN_ObjRefT srcObj, uint
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*DYN_WriteGenericFieldFn)(DYN_ObjRefT dstObj, uintptr_t dstField, DYN_ObjRefT srcObj, size_t size);
+typedef void (*DYN_WriteGenericFieldFn)(DYN_ObjRef dstObj, uintptr_t dstField, DYN_ObjRef srcObj, size_t size);
 
 // Read reference from array.
 //
@@ -549,7 +549,7 @@ typedef void (*DYN_WriteGenericFieldFn)(DYN_ObjRefT dstObj, uintptr_t dstField, 
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef DYN_ObjRefT (*DYN_GetArrayRefElementFn)(DYN_ObjRefT source, uint64_t index);
+typedef DYN_ObjRef (*DYN_GetArrayRefElementFn)(DYN_ObjRef source, uint64_t index);
 
 // Write reference to array.
 //
@@ -561,23 +561,23 @@ typedef DYN_ObjRefT (*DYN_GetArrayRefElementFn)(DYN_ObjRefT source, uint64_t ind
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*DYN_SetArrayRefElementFn)(DYN_ObjRefT destination, uint64_t index, DYN_ObjRefT newValue);
+typedef void (*DYN_SetArrayRefElementFn)(DYN_ObjRef destination, uint64_t index, DYN_ObjRef newValue);
 
 //
 // Check state flags of the object.
 //
-typedef bool (*DYN_IsValidObjectFn)(DYN_ObjRefT object);
+typedef bool (*DYN_IsValidObjectFn)(DYN_ObjRef object);
 
 //
 // Get ThreadLocalData.
 //
-typedef DYN_ThreadLocalDataT (*DYN_GetThreadLocalDataFn)();
+typedef DYN_ThreadLocalData (*DYN_GetThreadLocalDataFn)();
 
 //
 // Returns true if the GC is in an "active" phase.
 // In active phase fast-path write barriers can`t be used.
 //
-typedef bool (*DYN_IsActiveGcPhaseFn)(DYN_ThreadLocalDataT);
+typedef bool (*DYN_IsActiveGcPhaseFn)(DYN_ThreadLocalData);
 
 //
 // Stub for stack growth.
@@ -606,7 +606,7 @@ typedef void (*DYN_I2NStubFn)();
 //
 // return: pointer to ExceptionWrapper
 //
-typedef DYN_ExceptionWrapperT (*DYN_GetExceptionWrapperFn)();
+typedef DYN_ExceptionWrapper (*DYN_GetExceptionWrapperFn)();
 
 // Get PC of function which caught exception.
 // Can be used as return address for interpreter landing pad.
@@ -620,7 +620,7 @@ typedef uintptr_t (*DYN_GetCurrentCatchFunctionPcFn)();
 //
 // return: exception object
 //
-typedef DYN_ObjRefT (*DYN_PostThrowExceptionFn)(DYN_ExceptionWrapperT exceptionWrapper);
+typedef DYN_ObjRef (*DYN_PostThrowExceptionFn)(DYN_ExceptionWrapper exceptionWrapper);
 
 //
 // Native logger function. E.g. hilog can be used to log events in interpreter on OHOS devices.
@@ -639,7 +639,7 @@ typedef void (*DYN_NativeLoggerFn)(int logLevel, char* tag, char* message);
 
 // region Interfaces
 
-struct INT_InterpreterInterfaceT {
+struct INT_InterpreterInterface {
     // current supported version is 1
     int64_t version;
 
@@ -669,7 +669,7 @@ struct INT_InterpreterInterfaceT {
 };
 
 
-struct DYN_CJNativeInterfaceT {
+struct DYN_CJNativeInterface {
     void* appLibHandle;
     size_t carrierSpecificOffset;
     size_t cjThreadSpecificOffset;
