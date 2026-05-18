@@ -225,11 +225,13 @@ private:
     bool DiscoverObject(BaseObject* obj);
     void DebugVerifyQueuedGreyObject(const BaseObject* obj, const char* queueName) const;
 
-    // ── Step 2.2 internals (Step5: PerPGCWork + LFStack) ──
+    // ── Step 2.2 internals ──
     void RunConcurrentMarkLoop();
     // Returns true when true convergence is reached and the loop should break.
     // Manages convergenceStableRounds_ and flushes localCreditAccum on convergence.
     bool CheckConvergenceAndBreak(size_t& localCreditAccum);
+    void DrainMarkWorkStack(size_t maxObjects, size_t& scannedCount);
+    void DrainConcurrentOverflowQueueToMarkWork();
     void DrainGCWork(PerPGCWork& gcw, size_t maxObjects, size_t& scannedCount);
     void TraceObjectRefFieldsToGCWork(BaseObject* obj, PerPGCWork& gcw);
     void TraceRefField(BaseObject* obj, RefField<>& field, WorkStack& workStack);
@@ -304,6 +306,8 @@ private:
 
     // ── Work stack (populated in EnumRoots, consumed in ConcurrentMark) ──
     GreyWorkQueue markWorkStack_;
+    GreyWorkQueue concurrentOverflowQueue_;
+    mutable std::mutex concurrentOverflowQueueMutex_;
 
     // ── Step5: LFStack global work queue ──
     LFStack globalFull_;

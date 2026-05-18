@@ -7,6 +7,7 @@
 
 #include "Allocator/RegionManager.h"
 
+#include <atomic>
 #include <cmath>
 #include <unistd.h>
 #include <cstdio>
@@ -30,6 +31,22 @@ namespace MapleRuntime {
 const size_t RegionManager::MAX_UNIT_COUNT_PER_REGION = (128 * KB) / MapleRuntime::MRT_PAGE_SIZE;
 // size of huge page is 2048KB.
 const size_t RegionManager::HUGE_PAGE = (2048 * KB) / MapleRuntime::MRT_PAGE_SIZE;;
+
+static std::atomic<uint64_t> g_copyGCTakeRegionCallsTotal{0};
+static std::atomic<uint64_t> g_copyGCTakeRegionTimeNsTotal{0};
+
+extern "C" void DumpLifetimeStats_CopyGCRegionManager()
+{
+    uint64_t calls = g_copyGCTakeRegionCallsTotal.load(std::memory_order_relaxed);
+    uint64_t totalNs = g_copyGCTakeRegionTimeNsTotal.load(std::memory_order_relaxed);
+    uint64_t avgNs = (calls == 0) ? 0 : (totalNs / calls);
+    fprintf(stderr,
+            "[COPYGC-TAKEREGION] calls=%llu total_ns=%llu total_ms=%.3f avg_ns=%llu\n",
+            static_cast<unsigned long long>(calls),
+            static_cast<unsigned long long>(totalNs),
+            static_cast<double>(totalNs) / 1000000.0,
+            static_cast<unsigned long long>(avgNs));
+}
 
 class ForwardTask : public HeapWork {
 public:
@@ -524,6 +541,12 @@ void RegionManager::MaybeNotifyMark()
 
 RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, bool expectPhysicalMem)
 {
+    uint64_t startNs = TimeUtil::NanoSeconds();
+    auto recordTakeRegion = [startNs]() {
+        g_copyGCTakeRegionCallsTotal.fetch_add(1, std::memory_order_relaxed);
+        g_copyGCTakeRegionTimeNsTotal.fetch_add(TimeUtil::NanoSeconds() - startNs, std::memory_order_relaxed);
+    };
+
     // a chance to invoke heuristic gc.
     MaybeNotifyMark();
 
@@ -538,6 +561,7 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
             auto idx = head->GetUnitIdx();
             RegionInfo::ClearUnits(idx, num);
             DLOG(REGION, "reuse garbage region %p@[%#zx, %#zx)", head, head->GetRegionStart(), head->GetRegionEnd());
+            recordTakeRegion();
             return RegionInfo::InitRegion(idx, num, type);
         } else {
             DLOG(REGION, "reclaim garbage region %p@[%#zx, %#zx)", head, head->GetRegionStart(), head->GetRegionEnd());
@@ -550,6 +574,7 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
         if (num >= HUGE_PAGE) {
             TagHugePage(region, num);
         }
+        recordTakeRegion();
         return region;
     }
 
@@ -572,12 +597,14 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
             if (expectPhysicalMem) {
                 RegionInfo::ClearUnits(idx, num);
             }
+            recordTakeRegion();
             return region;
         } else {
             (void)inactiveZone.fetch_sub(size);
         }
     }
 
+    recordTakeRegion();
     return nullptr;
 }
 

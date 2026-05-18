@@ -382,6 +382,32 @@ size_t FreeManager::GetMetadataBytesInUse() const
            summaryChunkCountInUse_ * sizeof(ChunkSummary);
 }
 
+FreeManager::FinalStats FreeManager::GetFinalStats() const
+{
+    std::lock_guard<std::mutex> lg(pageHeapMutex_);
+
+    FinalStats stats;
+    stats.committedRegions = committedRegionCount_;
+    stats.committedBytes = committedRegionCount_ * GetRegionSizeBytes();
+    stats.freeRegions = freeRegionCount_;
+    stats.freeBytes = freeRegionCount_ * GetRegionSizeBytes();
+    stats.scavengedRegions = scavengedRegionCount_;
+    stats.scavengedBytes = scavengedRegionCount_ * GetRegionSizeBytes();
+    stats.hotFreeRegions = (freeRegionCount_ >= scavengedRegionCount_) ?
+        (freeRegionCount_ - scavengedRegionCount_) : 0;
+    stats.hotFreeBytes = stats.hotFreeRegions * GetRegionSizeBytes();
+    stats.usedRegions = (committedRegionCount_ >= freeRegionCount_) ?
+        (committedRegionCount_ - freeRegionCount_) : 0;
+    stats.usedBytes = stats.usedRegions * GetRegionSizeBytes();
+    stats.metadataBytes = bitmapWordCountInUse_ * sizeof(uint64_t) * 2 +
+        summaryChunkCountInUse_ * sizeof(ChunkSummary);
+    for (size_t chunkIdx = 0; chunkIdx < summaryChunkCountInUse_; ++chunkIdx) {
+        stats.maxFreeRunRegions = std::max<uint32_t>(stats.maxFreeRunRegions, chunkSummaries_[chunkIdx].max);
+    }
+    stats.heapGrowCount = heapGrowCount_;
+    return stats;
+}
+
 void FreeManager::CollectRegionSpans(std::vector<RegionSpan>& spans) const
 {
     std::lock_guard<std::mutex> lg(pageHeapMutex_);

@@ -65,6 +65,22 @@ bool IsBackgroundFeedEnabled()
     }();
     return enabled;
 }
+
+bool IsBackgroundReclaimEnabled()
+{
+    static const bool enabled = []() {
+        const char* env = std::getenv("CJ_MS_BG_RECLAIM");
+        if (env == nullptr || env[0] == '\0') {
+            return true;
+        }
+        if (std::strcmp(env, "0") == 0 || EqualsIgnoreCase(env, "false") ||
+            EqualsIgnoreCase(env, "off") || EqualsIgnoreCase(env, "no")) {
+            return false;
+        }
+        return true;
+    }();
+    return enabled;
+}
 }
 
 extern "C" MRT_EXPORT void* MRT_ProcessBackgroundWork(void* arg)
@@ -265,6 +281,10 @@ bool BackgroundProcessor::HasPendingWakeWork() const
 
 void BackgroundProcessor::NotifyToReclaimGarbage()
 {
+    if (!IsBackgroundReclaimEnabled()) {
+        shouldReclaimHeapGarbage.store(false, std::memory_order_release);
+        return;
+    }
     RequestWork(shouldReclaimHeapGarbage);
 }
 
@@ -304,6 +324,12 @@ void BackgroundProcessor::NotifyToSweep(uint8_t cls)
 
 bool BackgroundProcessor::BackgroundReclaimLoop()
 {
+    if (!IsBackgroundReclaimEnabled()) {
+        shouldReclaimHeapGarbage.store(false, std::memory_order_release);
+        pendingReclaimStats_.Reset();
+        return false;
+    }
+
     Allocator& allocator = Heap::GetHeap().GetAllocator();
     BackgroundReclaimStats sliceStats = allocator.BackgroundReclaim();
     if (sliceStats.HasWork()) {
@@ -324,6 +350,11 @@ bool BackgroundProcessor::BackgroundReclaimLoop()
 
 bool BackgroundProcessor::HasPendingReclaimWork()
 {
+    if (!IsBackgroundReclaimEnabled()) {
+        shouldReclaimHeapGarbage.store(false, std::memory_order_release);
+        return false;
+    }
+
     Allocator& allocator = Heap::GetHeap().GetAllocator();
     if (!allocator.HasPendingReclaimWork()) {
         shouldReclaimHeapGarbage.store(false, std::memory_order_release);

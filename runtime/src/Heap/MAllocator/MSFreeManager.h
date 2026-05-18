@@ -35,6 +35,22 @@ public:
         RegionCount num = 0;
     };
 
+    struct FinalStats {
+        size_t committedRegions = 0;
+        size_t committedBytes = 0;
+        size_t freeRegions = 0;
+        size_t freeBytes = 0;
+        size_t hotFreeRegions = 0;
+        size_t hotFreeBytes = 0;
+        size_t scavengedRegions = 0;
+        size_t scavengedBytes = 0;
+        size_t usedRegions = 0;
+        size_t usedBytes = 0;
+        size_t metadataBytes = 0;
+        uint32_t maxFreeRunRegions = 0;
+        uint64_t heapGrowCount = 0;
+    };
+
     enum class TryTakeResult : uint8_t {
         SUCCESS,
         EMPTY,
@@ -72,6 +88,7 @@ public:
     uint32_t GetMaxBlockRegions() const;
     size_t GetMetadataBytesInUse() const;
     size_t GetNodeBytesInUse() const { return 0; }
+    FinalStats GetFinalStats() const;
     void CollectRegionSpans(std::vector<RegionSpan>& spans) const;
 
     uintptr_t GetCommittedEnd() const { return committedEnd_; }

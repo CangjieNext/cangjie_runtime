@@ -9,6 +9,7 @@
 
 #include <atomic>
 #include <cstddef>
+#include <mutex>
 #include <new>
 #include <utility>
 
@@ -41,52 +42,49 @@ struct alignas(64) WorkBuf {
 };
 
 // ============================================================================
-// LFStack: Treiber lock-free stack of WorkBuf pointers.
-// Go equivalent: runtime.lfstack (work.full / work.empty).
-// Uses simple CAS; ABA is benign in this scenario because each WorkBuf is
-// exclusively owned during push/pop — no concurrent aliasing.
+// LFStack: shared WorkBuf stack used by global GC work exchange and the pool.
+// WorkBuf nodes are aggressively recycled, so a plain Treiber stack is not
+// safe here without ABA protection. Use a small mutex to preserve correctness.
 // ============================================================================
 class LFStack {
 public:
     void Push(WorkBuf* buf)
     {
-        WorkBuf* oldTop;
-        do {
-            oldTop = top_.load(std::memory_order_acquire);
-            buf->next = oldTop;
-        } while (!top_.compare_exchange_weak(oldTop, buf,
-                     std::memory_order_release, std::memory_order_relaxed));
-        count_.fetch_add(1, std::memory_order_relaxed);
+        std::lock_guard<std::mutex> lock(mutex_);
+        buf->next = top_;
+        top_ = buf;
+        ++count_;
     }
 
     WorkBuf* Pop()
     {
-        WorkBuf* oldTop;
-        do {
-            oldTop = top_.load(std::memory_order_acquire);
-            if (oldTop == nullptr) {
-                return nullptr;
-            }
-        } while (!top_.compare_exchange_weak(oldTop, oldTop->next,
-                     std::memory_order_release, std::memory_order_relaxed));
+        std::lock_guard<std::mutex> lock(mutex_);
+        WorkBuf* oldTop = top_;
+        if (oldTop == nullptr) {
+            return nullptr;
+        }
+        top_ = oldTop->next;
         oldTop->next = nullptr;
-        count_.fetch_sub(1, std::memory_order_relaxed);
+        --count_;
         return oldTop;
     }
 
     bool Empty() const
     {
-        return top_.load(std::memory_order_acquire) == nullptr;
+        std::lock_guard<std::mutex> lock(mutex_);
+        return top_ == nullptr;
     }
 
     size_t Count() const
     {
-        return count_.load(std::memory_order_relaxed);
+        std::lock_guard<std::mutex> lock(mutex_);
+        return count_;
     }
 
 private:
-    std::atomic<WorkBuf*> top_{nullptr};
-    std::atomic<size_t> count_{0};
+    mutable std::mutex mutex_;
+    WorkBuf* top_ = nullptr;
+    size_t count_ = 0;
 };
 
 // ============================================================================

@@ -156,8 +156,10 @@ static void DiagnoseFastPathFailure(size_t size)
 // Forward declarations for per-GC-mode alloc counter dump functions.
 #ifdef MRT_USE_MARK_SWEEP
 extern "C" void DumpAllocCounters_MSAllocBuffer();
+extern "C" void DumpLifetimeStats_MSRegionManager();
 #else
 extern "C" void DumpAllocCounters_AllocBuffer();
+extern "C" void DumpLifetimeStats_CopyGCRegionManager();
 #endif
 
 extern "C" void MCC_PrintAllocStats()
@@ -182,8 +184,10 @@ extern "C" void MCC_PrintAllocStats()
     uint64_t totalSampled = g_diagSampleN.load(std::memory_order_relaxed) / 1000000ULL;
     fprintf(stderr, "[FAST-PATH-DIAG] samples_taken(per_1M)=%llu\n", (unsigned long long)totalSampled);
     DumpAllocCounters_MSAllocBuffer();
+    DumpLifetimeStats_MSRegionManager();
 #else
     DumpAllocCounters_AllocBuffer();
+    DumpLifetimeStats_CopyGCRegionManager();
 #endif
 }
 #if defined(CANGJIE_SANITIZER_SUPPORT)

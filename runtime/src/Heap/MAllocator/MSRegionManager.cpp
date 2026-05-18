@@ -327,6 +327,7 @@ bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx, AllocSource
 {
     (void)allowReleasedTree;
     RegionIndex rawIdx = 0;
+    uint64_t startNs = TimeUtil::NanoSeconds();
 
     MaybeNotifyMark();
 
@@ -338,10 +339,14 @@ bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx, AllocSource
                 *source = AllocSource::RELEASED;
             }
             allocFromReleasedCount_.fetch_add(1, std::memory_order_relaxed);
+            takeRegionsCallCount_.fetch_add(1, std::memory_order_relaxed);
+            takeRegionsTimeNs_.fetch_add(TimeUtil::NanoSeconds() - startNs, std::memory_order_relaxed);
             return true;
         }
 
         if (!freeManager_.GrowOneSegment(*this)) {
+            takeRegionsCallCount_.fetch_add(1, std::memory_order_relaxed);
+            takeRegionsTimeNs_.fetch_add(TimeUtil::NanoSeconds() - startNs, std::memory_order_relaxed);
             return false;
         }
     }
@@ -388,6 +393,48 @@ void MSRegionManager::DumpAndResetAllocClearStats()
          static_cast<unsigned long long>(clearBytes),
          static_cast<unsigned long long>(clearTimeNs),
          static_cast<unsigned long long>(clearPct));
+}
+
+void MSRegionManager::DumpLifetimeStats() const
+{
+    uint64_t takeRegionsCalls = takeRegionsCallCount_.load(std::memory_order_relaxed);
+    uint64_t takeRegionsTimeNs = takeRegionsTimeNs_.load(std::memory_order_relaxed);
+    uint64_t takeRegionsAvgNs = (takeRegionsCalls == 0) ? 0 : (takeRegionsTimeNs / takeRegionsCalls);
+    FreeManager::FinalStats stats = freeManager_.GetFinalStats();
+
+    fprintf(stderr,
+            "[MS-TAKEREGION] calls=%llu total_ns=%llu total_ms=%.3f avg_ns=%llu\n",
+            static_cast<unsigned long long>(takeRegionsCalls),
+            static_cast<unsigned long long>(takeRegionsTimeNs),
+            static_cast<double>(takeRegionsTimeNs) / 1000000.0,
+            static_cast<unsigned long long>(takeRegionsAvgNs));
+    fprintf(stderr,
+            "[MS-FREEMANAGER] grows=%llu committed_regions=%zu committed_bytes=%zu free_regions=%zu free_bytes=%zu "
+            "hot_free_regions=%zu hot_free_bytes=%zu released_regions=%zu released_bytes=%zu used_regions=%zu "
+            "used_bytes=%zu metadata_bytes=%zu max_free_run_regions=%u max_virtual_regions=%zu\n",
+            static_cast<unsigned long long>(stats.heapGrowCount),
+            stats.committedRegions,
+            stats.committedBytes,
+            stats.freeRegions,
+            stats.freeBytes,
+            stats.hotFreeRegions,
+            stats.hotFreeBytes,
+            stats.scavengedRegions,
+            stats.scavengedBytes,
+            stats.usedRegions,
+            stats.usedBytes,
+            stats.metadataBytes,
+            stats.maxFreeRunRegions,
+            freeManager_.GetMaxVirtualRegionCount());
+}
+
+extern "C" void DumpLifetimeStats_MSRegionManager()
+{
+    auto& allocator = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
+    MSRegionManager* regionManager = allocator.GetMSRegionManager();
+    if (regionManager != nullptr) {
+        regionManager->DumpLifetimeStats();
+    }
 }
 
 // ============================================================================

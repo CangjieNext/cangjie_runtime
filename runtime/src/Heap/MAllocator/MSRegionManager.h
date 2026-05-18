@@ -166,6 +166,7 @@ public:
     uint64_t GetHeapGrowCount() const { return freeManager_.GetHeapGrowCount(); }
 
     void DumpAndResetAllocClearStats();
+    void DumpLifetimeStats() const;
 
     // Unified layer-1 HEU trigger entry. MSGC now only keeps the TAKE_REGIONS path.
     void MaybeNotifyMark();
@@ -231,6 +232,8 @@ private:
     std::atomic<uint64_t> clearUnitsCallCount_{0};
     std::atomic<uint64_t> clearUnitsBytes_{0};
     std::atomic<uint64_t> clearUnitsTimeNs_{0};
+    std::atomic<uint64_t> takeRegionsCallCount_{0};
+    std::atomic<uint64_t> takeRegionsTimeNs_{0};
     std::atomic<uint64_t> statsWindowStartNs_{0};
     std::atomic<uint64_t> lastHeuRequestNs_{0};
 };

@@ -328,6 +328,7 @@ void CangjieRuntime::Fini()
 {
     // To avoid foreign thread access finalized runtime.
     ThreadLocal::ThreadLocalFini();
+    MCC_PrintAllocStats();
     // since there might be failure during initialization,
     // here we need to check and call fini.
 #ifdef _WIN64
@@ -346,8 +347,6 @@ void CangjieRuntime::Fini()
 #endif
     CheckAndFini<LogManager>(logManager);
     PagePool::Instance().Fini();
-
-    MCC_PrintAllocStats();
     LOG(RTLOG_INFO, "Cangjie runtime shutdown.");
 }
 
