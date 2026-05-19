@@ -257,12 +257,8 @@ public:
 
     void CollectFromSpaceGarbage()
     {
-        // bypass garbageList — reclaim from-regions directly to freeTree.
-        RegionInfo* region = fromRegionList.TakeHeadRegion();
-        while (region != nullptr) {
-            ReclaimRegion(region);
-            region = fromRegionList.TakeHeadRegion();
-        }
+        garbageRegionList.MergeRegionList(fromRegionList, RegionInfo::RegionType::GARBAGE_REGION);
+        ReclaimGarbageRegions();
     }
 
     size_t GetThreadLocalRegionSize() const
@@ -276,8 +272,7 @@ public:
              region->GetLiveByteCount(), region->GetRegionEnd(), region->GetRegionType());
 
         region->LockWriteRegion();
-        // bypass garbageList — reclaim directly to freeTree.
-        ReclaimRegion(region);
+        garbageRegionList.PrependRegion(region, RegionInfo::RegionType::GARBAGE_REGION);
         region->UnlockWriteRegion();
 
         if (region->IsLargeRegion()) {

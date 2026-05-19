@@ -552,8 +552,19 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
     size_t size = num * RegionInfo::UNIT_SIZE;
     RequestForRegion(size);
 
-    // garbageList bypassed — garbage regions go directly to freeTree now.
-    // No need to check garbageRegionList here.
+    RegionInfo* head = garbageRegionList.TakeHeadRegion();
+    if (head != nullptr) {
+        DLOG(REGION, "take garbage region %p@[%#zx, %#zx)", head, head->GetRegionStart(), head->GetRegionEnd());
+        if (head->GetUnitCount() == num) {
+            auto idx = head->GetUnitIdx();
+            RegionInfo::ClearUnits(idx, num);
+            DLOG(REGION, "reuse garbage region %p@[%#zx, %#zx)", head, head->GetRegionStart(), head->GetRegionEnd());
+            return RegionInfo::InitRegion(idx, num, type);
+        } else {
+            DLOG(REGION, "reclaim garbage region %p@[%#zx, %#zx)", head, head->GetRegionStart(), head->GetRegionEnd());
+            ReclaimRegion(head);
+        }
+    }
 
     RegionInfo* region = freeRegionManager.TakeRegion(num, type, expectPhysicalMem);
     if (region != nullptr) {
