@@ -149,49 +149,53 @@ struct PerPGCWork {
         globalFull_ = full;
         workBufPool_ = pool;
         flushedWork_ = false;
-        // wbuf1_/wbuf2_ allocated lazily on first PutObj
+        // wbuf1_ (get buf) allocated lazily on first TryGetObj refill;
+        // wbuf2_ (put buf) allocated lazily on first PutObj.
     }
 
-    // Push a grey object into the local buffer.
-    // Overflow → push full buf to global LFStack.
+    // Push a grey object into the put buffer (wbuf2_).
+    // wbuf2_ is the dedicated sink for newly discovered children;
+    // it is separate from wbuf1_ (the get buffer) so that TryGetObj
+    // monotonically drains wbuf1_ without interference from PutObj.
+    // Overflow → push full wbuf2_ to globalFull_, get new empty buf from pool.
     void PutObj(BaseObject* obj)
     {
-        if (wbuf1_ == nullptr) {
-            wbuf1_ = workBufPool_->Get();
+        if (wbuf2_ == nullptr) {
+            wbuf2_ = workBufPool_->Get();
         }
-        if (!wbuf1_->Full()) {
-            wbuf1_->Push(obj);
+        if (!wbuf2_->Full()) {
+            wbuf2_->Push(obj);
             return;
         }
-        // wbuf1 full → push to global, rotate
-        globalFull_->Push(wbuf1_);
+        // wbuf2 full → push to global, get fresh empty put buf
+        globalFull_->Push(wbuf2_);
         flushedWork_ = true;
-        if (wbuf2_ != nullptr && !wbuf2_->Full()) {
-            wbuf1_ = wbuf2_;
-            wbuf2_ = workBufPool_->Get();
-        } else {
-            if (wbuf2_ != nullptr && wbuf2_->Full()) {
-                globalFull_->Push(wbuf2_);
-            }
-            wbuf1_ = workBufPool_->Get();
-            wbuf2_ = workBufPool_->Get();
-        }
-        wbuf1_->Push(obj);
+        wbuf2_ = workBufPool_->Get();
+        wbuf2_->Push(obj);
     }
 
-    // Pop a grey object from local buffer.
-    // Underflow → refill from global LFStack.
+    // Pop a grey object from the get buffer (wbuf1_).
+    // wbuf1_ is the dedicated source; PutObj never writes here.
+    // Drain order:
+    //   1. wbuf1_ (no lock)
+    //   2. wbuf2_ → promote to wbuf1_ (no lock; avoids globalFull_ mutex)
+    //   3. globalFull_ (mutex; cross-thread refill)
     BaseObject* TryGetObj()
     {
+        // 1. Drain get buffer
         if (wbuf1_ != nullptr && !wbuf1_->Empty()) {
             return wbuf1_->Pop();
         }
-        // wbuf1 empty → try wbuf2
+        // 2. wbuf1 empty: promote put buffer to get buffer
         if (wbuf2_ != nullptr && !wbuf2_->Empty()) {
-            std::swap(wbuf1_, wbuf2_);
+            if (wbuf1_ != nullptr) {
+                workBufPool_->Put(wbuf1_);
+            }
+            wbuf1_ = wbuf2_;
+            wbuf2_ = workBufPool_->Get();  // fresh empty put buf
             return wbuf1_->Pop();
         }
-        // Both empty → refill from global
+        // 3. Both empty: refill from global
         if (globalFull_ == nullptr) {
             return nullptr;
         }
@@ -199,7 +203,6 @@ struct PerPGCWork {
         if (buf == nullptr) {
             return nullptr;
         }
-        // Return old empty wbuf1 to pool
         if (wbuf1_ != nullptr) {
             workBufPool_->Put(wbuf1_);
         }
@@ -216,8 +219,13 @@ struct PerPGCWork {
         if (wbuf1_ != nullptr && !wbuf1_->Empty()) {
             return wbuf1_->Pop();
         }
+        // Promote put buffer to get buffer (no lock)
         if (wbuf2_ != nullptr && !wbuf2_->Empty()) {
-            std::swap(wbuf1_, wbuf2_);
+            if (wbuf1_ != nullptr) {
+                workBufPool_->Put(wbuf1_);
+            }
+            wbuf1_ = wbuf2_;
+            wbuf2_ = workBufPool_->Get();
             return wbuf1_->Pop();
         }
         return nullptr;

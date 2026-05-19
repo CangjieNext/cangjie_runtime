@@ -521,13 +521,27 @@ void MarkSweepCollector::ConcurrentMark()
     bgScanCredit_.store(0, std::memory_order_relaxed);
     bgScanCreditConsumed_.store(0, std::memory_order_relaxed);
 
-    assistWorkPerByteScaled_.store(0, std::memory_order_release);
+    // 10. Init per-P GCWork for all existing mutators before enabling assist.
+    //     New mutators that join later will lazily init in MSMarkAssist.
+    InitAllPerPGCWork();
+
+    // 11. Enable assist: compute initial ratio from previous cycle stats.
     {
-        std::lock_guard<std::mutex> lock(concurrentOverflowQueueMutex_);
-        concurrentOverflowQueue_.clear();
+        uint64_t ratioScale = GetAssistRatioScale();
+        size_t prevMarked = prevCycleMarkedObjects_.load(std::memory_order_relaxed);
+        size_t allocSize = Heap::GetHeap().GetAllocatedSize();
+        uint64_t initialRatioScaled = 1;  // minimum non-zero
+        if (prevMarked > 0 && allocSize > 0) {
+            // objects-per-byte * scale; start conservatively at 1/4 of computed value
+            uint64_t computed = static_cast<uint64_t>(prevMarked) * ratioScale / allocSize;
+            initialRatioScaled = std::max((uint64_t)1, computed / 4);
+        }
+        assistWorkPerByteScaled_.store(initialRatioScaled, std::memory_order_release);
+        VLOG(REPORT, "[MS-GC] Assist enabled: ratioScaled=%llu (prevMarked=%zu, allocSize=%zu)",
+             (unsigned long long)initialRatioScaled, prevMarked, allocSize);
     }
 
-    // 10. Run concurrent marking loop on the collector-owned mark stack.
+    // 12. Run concurrent marking loop using gcThreadWork_ + globalFull_.
     RunConcurrentMarkLoop();
 
     // 11. Process WeakRefs deferred during concurrent mark, before entering STW.
@@ -540,17 +554,21 @@ void MarkSweepCollector::ConcurrentMark()
 void MarkSweepCollector::RunConcurrentMarkLoop()
 {
     uint64_t t0 = TimeUtil::MicroSeconds();
-    VLOG(REPORT, "[MS-GC] --- ConcurrentMark (serial markWorkStack + overflow queue) ---");
+    VLOG(REPORT, "[MS-GC] --- ConcurrentMark (gcThreadWork_ + globalFull_ LFStack) ---");
+
+    // Init GC thread's own PerPGCWork (sets globalFull_ pointer for TryGetObj refill).
+    // Then pack all root objects into WorkBufs and push directly to globalFull_.
+    // GC thread and assist threads both compete for work from globalFull_ via TryGetObj().
+    gcThreadWork_.Init(&globalFull_, &workBufPool_);
+    TransferRootsToGCWork();
 
     convergenceStableRounds_ = 0;
-    size_t localCreditAccum = 0;       // Opt2: batch bgScanCredit accumulation
+    size_t localCreditAccum = 0;
 
     while (true) {
-        DrainConcurrentOverflowQueueToMarkWork();
-
-        // 1. Drain a slice from the collector-owned mark stack.
+        // Drain a slice via gcThreadWork_ (refills from globalFull_ on empty).
         size_t scannedCount = 0;
-        DrainMarkWorkStack(kSliceMaxObjects, scannedCount);
+        DrainGCWork(gcThreadWork_, kSliceMaxObjects, scannedCount);
 
         localCreditAccum += scannedCount;
         if (localCreditAccum >= kCreditFlushThreshold) {
@@ -558,8 +576,7 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
             localCreditAccum = 0;
         }
 
-        DrainConcurrentOverflowQueueToMarkWork();
-        if (markWorkStack_.empty()) {
+        if (gcThreadWork_.Empty() && globalFull_.Empty()) {
             if (CheckConvergenceAndBreak(localCreditAccum)) {
                 break;
             }
@@ -609,17 +626,16 @@ bool MarkSweepCollector::CheckConvergenceAndBreak(size_t& localCreditAccum)
 {
     convergenceStableRounds_++;
     if (convergenceStableRounds_ < kConvergenceRequiredRounds) {
-        // Short yield — let in-flight write-barrier flushes publish results.
+        // Short yield — let in-flight write-barrier flushes arrive in globalFull_.
         usleep(kConvergenceYieldUs);
-        DrainConcurrentOverflowQueueToMarkWork();
         return false;
     }
 
     usleep(kConvergenceFlushWaitUs);
-    DrainConcurrentOverflowQueueToMarkWork();
 
-    if (!markWorkStack_.empty()) {
-        VLOG(REPORT, "[MS-GC] Pre-convergence flush: residual overflow work found, re-draining");
+    // After longer wait, check if new barrier overflow arrived in globalFull_.
+    if (!gcThreadWork_.Empty() || !globalFull_.Empty()) {
+        VLOG(REPORT, "[MS-GC] Pre-convergence flush: residual work found, re-draining");
         convergenceStableRounds_ = 0;
         return false;
     }
@@ -788,19 +804,38 @@ void MarkSweepCollector::TraceObjectRefFieldsToGCWork(BaseObject* obj, PerPGCWor
 }
 
 // ============================================================================
-// TransferRootsToGCWork: move root objects from markWorkStack_ into gcThreadWork_.
+// TransferRootsToGCWork: pack root objects into WorkBufs and push directly to
+// globalFull_, same as WriteBarrierBuffer overflow does.
+// GC thread and assist threads both consume from globalFull_ via TryGetObj().
 // Called once at start of ConcurrentMark after root enumeration.
 // ============================================================================
 void MarkSweepCollector::TransferRootsToGCWork()
 {
+    if (markWorkStack_.empty()) {
+        VLOG(REPORT, "[MS-GC] TransferRootsToGCWork: 0 root objects → globalFull_");
+        return;
+    }
+
     size_t transferred = 0;
+    WorkBuf* buf = workBufPool_.Get();
     while (!markWorkStack_.empty()) {
         BaseObject* obj = markWorkStack_.back();
         markWorkStack_.pop_back();
-        gcThreadWork_.PutObj(obj);
+        if (buf->Full()) {
+            globalFull_.Push(buf);
+            buf = workBufPool_.Get();
+        }
+        buf->Push(obj);
         transferred++;
     }
-    VLOG(REPORT, "[MS-GC] TransferRootsToGCWork: %zu root objects → gcThreadWork_", transferred);
+    // Push the last (possibly partial) buf
+    if (!buf->Empty()) {
+        globalFull_.Push(buf);
+    } else {
+        workBufPool_.Put(buf);
+    }
+
+    VLOG(REPORT, "[MS-GC] TransferRootsToGCWork: %zu root objects → globalFull_", transferred);
 }
 
 void MarkSweepCollector::TraceRefField(
@@ -824,20 +859,34 @@ void MarkSweepCollector::TraceRefField(
 void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
 {
     size_t n = wbBuf.Count();
+    if (n == 0) {
+        return;
+    }
     BaseObject** data = wbBuf.Data();
-    size_t pushed = 0;
-    {
-        std::lock_guard<std::mutex> lock(concurrentOverflowQueueMutex_);
-        for (size_t i = 0; i < n; i++) {
-            if (data[i] != nullptr) {
-                concurrentOverflowQueue_.PushMovedGrey(data[i]);
-                pushed++;
-            }
+    // Route barrier overflow directly to globalFull_ via WorkBufs so that:
+    //   - gcThreadWork_ (GC thread) sees them via TryGetObj() refill
+    //   - per-mutator PerPGCWork (assist) sees them via TryGetObj() refill
+    // Objects in wbBuf are already marked (DiscoverObject was called in EnqueueRef).
+    WorkBuf* buf = workBufPool_.Get();
+    size_t bufsUsed = 0;
+    for (size_t i = 0; i < n; i++) {
+        if (data[i] == nullptr) continue;
+        if (buf->Full()) {
+            globalFull_.Push(buf);
+            bufsUsed++;
+            buf = workBufPool_.Get();
         }
+        buf->Push(data[i]);
+    }
+    if (!buf->Empty()) {
+        globalFull_.Push(buf);
+        bufsUsed++;
+    } else {
+        workBufPool_.Put(buf);
     }
     wbBuf.Clear();
-    if (pushed > 0) {
-        globalShareCount_.fetch_add(1, std::memory_order_relaxed);
+    if (bufsUsed > 0) {
+        globalShareCount_.fetch_add(bufsUsed, std::memory_order_relaxed);
     }
 }
 
