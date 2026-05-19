@@ -78,6 +78,25 @@ public:
     size_t FromSpaceSize() const;
     size_t PinnedSpaceSize() const;
 
+    // Scavenge-related queries (used by BackgroundScavengeLoop).
+    // heapInUse  = totalMSRegionBytes - emptySweptBytes  (live-ish memory)
+    // heapRetained = totalMSRegionBytes + hotFreeBytes    (committed RSS-cost)
+    size_t GetHeapInUseBytes() const;
+    size_t GetHeapRetainedBytes() const;
+    size_t GetHeapGoalBytes() const;
+    size_t GetHotFreeBytes() const;
+    bool HasEmptySweptRegions() const;
+    // Step A (on-demand): flush half of emptySweptCache → FreeManager (released state).
+    size_t FlushHalfEmptySweptToFreeManager();
+    // Step B: release up to quantumBytes of hot-free regions to OS. Returns bytes released.
+    size_t BackgroundScavenge(size_t quantumBytes);
+    // Step C: shrink committed heap end after scavenging.
+    void BackgroundShrinkHeap();
+    // True when heapRetained > heapGoal (scavenge work remains).
+    bool HasPendingScavengeWork() const;
+    // Trigger scavenge if heapRetained > heapGoal * (1 + kHysteresis).
+    void MaybeNotifyScavenge();
+
     inline size_t GetTargetSize() const
     {
         double heapUtilization = CangjieRuntime::GetHeapParam().heapUtilization;

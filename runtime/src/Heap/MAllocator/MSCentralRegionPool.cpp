@@ -463,9 +463,8 @@ void CentralRegionPool::PushEmptySweptRegion(MSRegionInfo* region)
         emptySweptRegionCount_.fetch_add(1, std::memory_order_relaxed);
         emptySweptBytes_.fetch_add(MS_REGION_SIZE, std::memory_order_relaxed);
     }
-    if (msRegionManager_ != nullptr && ShouldNotifyBackgroundReclaim()) {
-        msRegionManager_->MaybeNotifyReclaim();
-    }
+    // MaybeNotifyReclaim removed: scavenge trigger is now driven by
+    // MaybeNotifyScavenge() in MSRegionManager::TakeRegions() (heapGoal-based).
 }
 
 MSRegionInfo* CentralRegionPool::TakeEmptySweptRegion(uint8_t cls)

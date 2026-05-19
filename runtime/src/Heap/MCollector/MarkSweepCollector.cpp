@@ -1289,22 +1289,25 @@ void MarkSweepCollector::ConcurrentSweep()
     if (centralPool != nullptr) {
         cycleStats_.trueLiveBytes = centralPool->ComputeMarkedBytes();
         size_t totalUnswept = centralPool->GetTotalUnsweptCount();
-        cycleStats_.forceFinishSweptRegions = totalUnswept;
-        cycleStats_.eagerSweepBatchRegions = 0;
-        // Keep the old eager batch path in-place for later re-enable if needed.
-        // size_t eagerSweepTarget = (totalUnswept <= 1) ? totalUnswept : (totalUnswept / 2);
-        // cycleStats_.eagerSweepBatchRegions = centralPool->EagerSweepBatch(eagerSweepTarget);
-        centralPool->StopAndWaitForAllSweep();
+        cycleStats_.forceFinishSweptRegions = 0;
+        // Kick off an eager sweep batch (half of unswept regions) on the GC thread
+        // so that AllocBuffers can be recycled sooner; the rest is swept lazily
+        // by BackgroundSweepLoop.
+        size_t eagerSweepTarget = (totalUnswept <= 1) ? totalUnswept : (totalUnswept / 2);
+        size_t emptyBytesBefore = centralPool->GetEmptySweptBytes();
+        cycleStats_.eagerSweepBatchRegions = centralPool->EagerSweepBatch(eagerSweepTarget);
+        size_t emptyBytesAfter = centralPool->GetEmptySweptBytes();
+        cycleStats_.eagerSweepEmptyBytes =
+            (emptyBytesAfter > emptyBytesBefore) ? (emptyBytesAfter - emptyBytesBefore) : 0;
     }
 
     // Mark-Sweep: generation flip now happens at the tail of MarkTermination's
     // STW, before mutators resume. ConcurrentSweep only kicks off background
     // sweeping and reclaim after the new generation is already visible.
-        // The GC thread now force-finishes the current unswept backlog here.
     uint64_t sweepUs = TimeUtil::MicroSeconds() - phaseStart;
     cycleStats_.concurrentSweepUs = sweepUs;
-        VLOG(REPORT, "[MS-GC] ConcurrentSweep total: %sus, forceFinished=%zu",
-            Pretty(sweepUs).Str(), cycleStats_.forceFinishSweptRegions);
+    VLOG(REPORT, "[MS-GC] ConcurrentSweep total: %sus, eagerBatch=%zu",
+        Pretty(sweepUs).Str(), cycleStats_.eagerSweepBatchRegions);
 }
 
 // ============================================================================
@@ -1598,34 +1601,57 @@ void MarkSweepCollector::UpdateGCStats()
     gcStats.lastTrueLiveBytes = liveBytes;
     gcStats.baselineAllocatedBytes = committedBytes;
     gcStats.lastRegionBytes = committedBytes;
-    size_t regionGrowthThreshold = std::min(
-        static_cast<size_t>(static_cast<double>(committedBytes) * (1.0 + heapGrowth)),
-        gcThresholdCap);
-    size_t liveGrowthThreshold = gcThresholdCap;
-    if (liveBytes != 0) {
-        liveGrowthThreshold = std::min(
-            static_cast<size_t>(static_cast<double>(liveBytes) * (1.0 + heapGrowth * 10.0)),
-            gcThresholdCap);
+    // Predict survivingRegionBytes at GC end using the eager-batch empty ratio.
+    // predictedEmptyBytes = unsweptCount * eagerSweepEmptyBytes / eagerSweepBatchRegions.
+    // Falls back to previous-cycle ratio when no eager sweep was performed.
+    // Floor: survivingPredicted >= gcStats.lastTrueLiveBytes * 1.2 to ensure
+    //        heapGoal is always at least 20% above actually-marked live bytes.
+    {
+        CentralRegionPool* centralPool = space.GetCentralPool();
+        size_t emptySweptNow   = centralPool ? centralPool->GetEmptySweptBytes() : 0;
+        size_t unsweptCount    = centralPool ? centralPool->GetTotalUnsweptCount() : 0;
+        size_t eagerSwept      = cycleStats_.eagerSweepBatchRegions;
+        size_t eagerEmptyBytes = cycleStats_.eagerSweepEmptyBytes;
+        size_t predictedEmptyBytes = 0;
+        if (eagerSwept > 0) {
+            predictedEmptyBytes = unsweptCount * eagerEmptyBytes / eagerSwept;
+        } else if (cycleStats_.prevSweptSmallRegions > 0) {
+            // Fall back to previous-cycle empty ratio.
+            predictedEmptyBytes =
+                unsweptCount * cycleStats_.prevSweptSmallEmptiedRegions * MS_REGION_SIZE
+                / cycleStats_.prevSweptSmallRegions;
+        }
+        size_t nonEmpty = (committedBytes > emptySweptNow) ? (committedBytes - emptySweptNow) : 0;
+        size_t survivingPredicted = (nonEmpty > predictedEmptyBytes) ? (nonEmpty - predictedEmptyBytes) : 0;
+        // Enforce floor: heapGoal must cover at least 120% of marked live bytes.
+        size_t liveFloor = static_cast<size_t>(static_cast<double>(liveBytes) * 1.2);
+        if (survivingPredicted < liveFloor) {
+            survivingPredicted = liveFloor;
+        }
+        if (survivingPredicted > 0) {
+            size_t goal = gcStats.UpdateHeapGoal(survivingPredicted);
+            VLOG(REPORT,
+                 "[MS-GC]   heapGoal (predicted): surviving=%zuB emptyNow=%zuB predEmpty=%zuB goal=%zuB "
+                 "eagerSwept=%zu eagerEmpty=%zuB unswept=%zu liveFloor=%zuB",
+                 survivingPredicted, emptySweptNow, predictedEmptyBytes, goal,
+                 eagerSwept, eagerEmptyBytes, unsweptCount, liveFloor);
+        }
     }
-    gcStats.takeRegionsThreshold = std::min(regionGrowthThreshold, liveGrowthThreshold);
+
     size_t survivedBytes = (liveBytes > recentBytes) ? (liveBytes - recentBytes) : 0;
     DumpGCStateSnapshot("postGCMark");
     VLOG(REPORT, "[MS-GC] --- Total ---");
     VLOG(REPORT,
             "[MS-GC] live bytes %zu (survived %zu, recent-allocated %zu), active-region bytes %zu, "
-            "live-driven threshold base %zu, take-regions threshold(region=%zu true-live=%zu final=%zu), "
-            "update gc threshold %zu -> %zu",
+            "live-driven threshold base %zu, update gc threshold %zu -> %zu",
          liveBytes, survivedBytes, recentBytes, committedBytes,
-            newThreshold, regionGrowthThreshold, liveGrowthThreshold, gcStats.takeRegionsThreshold,
-            oldThreshold, gcStats.heapThreshold);
+            newThreshold, oldThreshold, gcStats.heapThreshold);
     VLOG(REPORT, "[MS-GC]   active-region bytes %s B, true live %s B (%.1f%% utilization)",
          Pretty(committedBytes).Str(), Pretty(liveBytes).Str(),
          (committedBytes == 0) ? 0.0 : (static_cast<double>(liveBytes) / committedBytes) * 100);
     VLOG(REPORT,
-         "[MS-GC]   trigger baseline persisted: lastTrueLive=%zu lastRegion=%zu baselineAllocated=%zu "
-         "takeRegionsThreshold=%zu",
-         gcStats.lastTrueLiveBytes, gcStats.lastRegionBytes, gcStats.baselineAllocatedBytes,
-         gcStats.takeRegionsThreshold);
+         "[MS-GC]   trigger baseline persisted: lastTrueLive=%zu lastRegion=%zu baselineAllocated=%zu",
+         gcStats.lastTrueLiveBytes, gcStats.lastRegionBytes, gcStats.baselineAllocatedBytes);
     TRACE_COUNT("CJRT_post_GC_HeapSize", Heap::GetHeap().GetAllocatedSize());
 }
 

@@ -18,6 +18,15 @@ size_t g_gcCollectedTotalBytes = 0;
 uint64_t GCStats::prevGcStartTime = TimeUtil::NanoSeconds() - LONG_MIN_HEU_GC_INTERVAL_NS;
 uint64_t GCStats::prevGcFinishTime = TimeUtil::NanoSeconds() - LONG_MIN_HEU_GC_INTERVAL_NS;
 
+size_t GCStats::UpdateHeapGoal(size_t survivingRegionBytes)
+{
+    double heapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
+    size_t goal = static_cast<size_t>(survivingRegionBytes * (1.0 + heapGrowth));
+    lastSurvivingRegionBytes = survivingRegionBytes;
+    heapGoal.store(goal, std::memory_order_release);
+    return goal;
+}
+
 void GCStats::Init()
 {
     isConcurrentMark = false;
@@ -41,12 +50,6 @@ void GCStats::Init()
     baselineAllocatedBytes = 0;
     lastTrueLiveBytes = 0;
     lastRegionBytes = 0;
-    // Mirror heapThreshold's two-cap policy so the first GC fires well before the heap is full.
-    // 20 MB: same initial cap as heapThreshold
-    takeRegionsThreshold = std::min(CangjieRuntime::GetGCParam().gcThreshold, 20 * MB);
-    // 0.2: same 20% maxCapacity cap as heapThreshold
-    takeRegionsThreshold = std::min(
-        static_cast<size_t>(Heap::GetHeap().GetMaxCapacity() * 0.2), takeRegionsThreshold);
 
     garbageRatio = 0.0;
     collectionRate = 0.0;

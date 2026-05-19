@@ -81,6 +81,22 @@ bool IsBackgroundReclaimEnabled()
     }();
     return enabled;
 }
+
+bool IsBackgroundScavengeEnabled()
+{
+    static const bool enabled = []() {
+        const char* env = std::getenv("CJ_MS_BG_SCAVENGE");
+        if (env == nullptr || env[0] == '\0') {
+            return true;
+        }
+        if (std::strcmp(env, "0") == 0 || EqualsIgnoreCase(env, "false") ||
+            EqualsIgnoreCase(env, "off") || EqualsIgnoreCase(env, "no")) {
+            return false;
+        }
+        return true;
+    }();
+    return enabled;
+}
 }
 
 extern "C" MRT_EXPORT void* MRT_ProcessBackgroundWork(void* arg)
@@ -102,6 +118,7 @@ BackgroundProcessor::BackgroundProcessor()
     shouldReclaimHeapGarbage.store(false, std::memory_order_relaxed);
     shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
     shouldBackgroundSweep_.store(false, std::memory_order_relaxed);
+    shouldScavengeHeap_.store(false, std::memory_order_relaxed);
     preferredSweepCls_.store(kNoPreferredSweepClass, std::memory_order_relaxed);
     preferredFeedCls_.store(kNoPreferredFeedClass, std::memory_order_relaxed);
     sweepPressureMode_.store(false, std::memory_order_relaxed);
@@ -157,6 +174,10 @@ void BackgroundProcessor::Run()
 
         if (shouldReclaimHeapGarbage.load(std::memory_order_relaxed)) {
             shouldContinueImmediate = BackgroundReclaimLoop() || shouldContinueImmediate;
+        }
+
+        if (shouldScavengeHeap_.load(std::memory_order_relaxed)) {
+            shouldContinueImmediate = BackgroundScavengeLoop() || shouldContinueImmediate;
         }
 
         if (shouldFeedHungryBuffers.load(std::memory_order_acquire)) {
@@ -276,7 +297,8 @@ bool BackgroundProcessor::HasPendingWakeWork() const
     return finalizerWorkList.HasFinalizableJob() ||
            shouldReclaimHeapGarbage.load(std::memory_order_relaxed) ||
            shouldFeedHungryBuffers.load(std::memory_order_relaxed) ||
-           shouldBackgroundSweep_.load(std::memory_order_relaxed);
+           shouldBackgroundSweep_.load(std::memory_order_relaxed) ||
+           shouldScavengeHeap_.load(std::memory_order_relaxed);
 }
 
 void BackgroundProcessor::NotifyToReclaimGarbage()
@@ -320,6 +342,15 @@ void BackgroundProcessor::NotifyToSweep(uint8_t cls)
         preferredSweepCls_.store(cls, std::memory_order_release);
     }
     RequestWork(shouldBackgroundSweep_);
+}
+
+void BackgroundProcessor::NotifyToScavenge()
+{
+    if (!IsBackgroundScavengeEnabled()) {
+        shouldScavengeHeap_.store(false, std::memory_order_release);
+        return;
+    }
+    RequestWork(shouldScavengeHeap_);
 }
 
 bool BackgroundProcessor::BackgroundReclaimLoop()
@@ -381,6 +412,20 @@ bool BackgroundProcessor::BackgroundSweepLoop()
              remaining,
              static_cast<size_t>(pendingSweepStats_.elapsedUs));
         pendingSweepStats_.Reset();
+
+        // Sweep-done: refresh heapGoal with precise surviving bytes for scavenger targeting.
+        RegionSpaceMS& space = static_cast<RegionSpaceMS&>(allocator);
+        size_t heapInUse = space.GetHeapInUseBytes();
+        if (heapInUse > 0) {
+            GCStats& gcStats = Heap::GetHeap().GetCollector().GetGCStats();
+            size_t prevGoal = gcStats.heapGoal.load(std::memory_order_acquire);
+            gcStats.UpdateHeapGoal(heapInUse);
+            size_t newGoal = gcStats.heapGoal.load(std::memory_order_acquire);
+            VLOG(REPORT,
+                 "[MS-GC] heapGoal (sweep-done precise): heapInUse=%zuB prevGoal=%zuB newGoal=%zuB",
+                 heapInUse, prevGoal, newGoal);
+            space.MaybeNotifyScavenge();
+        }
     }
     return hasMore;
 }
@@ -458,6 +503,86 @@ bool BackgroundProcessor::HasPendingFeedWork()
         return false;
     }
     return true;
+}
+
+bool BackgroundProcessor::BackgroundScavengeLoop()
+{
+    if (!IsBackgroundScavengeEnabled()) {
+        shouldScavengeHeap_.store(false, std::memory_order_release);
+        pendingScavengeStats_.Reset();
+        return false;
+    }
+
+    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
+    size_t retained = space.GetHeapRetainedBytes();
+    size_t goal = space.GetHeapGoalBytes();
+
+    if (goal == 0 || retained <= goal) {
+        shouldScavengeHeap_.store(false, std::memory_order_release);
+        if (pendingScavengeStats_.HasWork()) {
+            VLOG(REPORT,
+                 "[MS-GC] scavenge done (goal met): slices=%zu regions=%zu bytes=%zuB elapsed=%zuus "
+                 "retained=%zuB goal=%zuB",
+                 pendingScavengeStats_.slices,
+                 pendingScavengeStats_.releasedRegions,
+                 pendingScavengeStats_.releasedBytes,
+                 static_cast<size_t>(pendingScavengeStats_.elapsedUs),
+                 retained, goal);
+            pendingScavengeStats_.Reset();
+        }
+        return false;
+    }
+
+    size_t toScavenge = retained - goal;
+
+    // Step A (on-demand): if FreeManager has little hot-free and emptySwept cache
+    // is non-empty, flush half of it to FreeManager now.
+    if (space.HasEmptySweptRegions()) {
+        size_t hotFree = space.GetHotFreeBytes();
+        if (hotFree < toScavenge) {
+            (void)space.FlushHalfEmptySweptToFreeManager();
+        }
+    }
+
+    // Step B: release a quantum of hot-free regions to OS.
+    static constexpr size_t kRounds = 8;
+    static constexpr double kOvershoot = 0.05;
+    static constexpr size_t kMaxQuantumBytes = 32 * 1024 * 1024; // 32MB per slice
+    size_t rawQuantum = static_cast<size_t>(
+        static_cast<double>(toScavenge / kRounds) * (1.0 + kOvershoot));
+    size_t quantum = std::max(std::min(rawQuantum, kMaxQuantumBytes),
+                              static_cast<size_t>(MS_REGION_SIZE));
+
+    uint64_t t0 = TimeUtil::MicroSeconds();
+    size_t released = space.BackgroundScavenge(quantum);
+    uint64_t elapsed = TimeUtil::MicroSeconds() - t0;
+
+    if (released > 0) {
+        BackgroundReclaimStats slice;
+        slice.slices = 1;
+        slice.releasedRegions = released / MS_REGION_SIZE;
+        slice.releasedBytes = released;
+        slice.elapsedUs = elapsed;
+        pendingScavengeStats_.Merge(slice);
+    }
+
+    // Check whether we still have work.
+    bool hasMore = space.HasPendingScavengeWork();
+    if (!hasMore) {
+        // Step C: shrink committed heap end.
+        space.BackgroundShrinkHeap();
+        if (pendingScavengeStats_.HasWork()) {
+            VLOG(REPORT,
+                 "[MS-GC] scavenge done: slices=%zu regions=%zu bytes=%zuB elapsed=%zuus",
+                 pendingScavengeStats_.slices,
+                 pendingScavengeStats_.releasedRegions,
+                 pendingScavengeStats_.releasedBytes,
+                 static_cast<size_t>(pendingScavengeStats_.elapsedUs));
+            pendingScavengeStats_.Reset();
+        }
+        shouldScavengeHeap_.store(false, std::memory_order_release);
+    }
+    return hasMore;
 }
 } // namespace MapleRuntime
 

@@ -109,6 +109,10 @@ public:
     bool GrowOneSegment();
     size_t ScavengeFreeRegions(bool releaseAll);
 
+    // Scavenge up to maxBytes of hot-free regions (pages returned to OS).
+    // Used by BackgroundScavengeLoop for per-quantum budget control.
+    size_t ScavengeFreeRegionsUpTo(size_t maxBytes);
+
     // Shrink the committed heap after scavenging empty-cache / releasedTree.
     // The actual trailing-tail reclaim and committed-end update are managed by FreeManager.
     void ShrinkHeap();
@@ -177,6 +181,12 @@ public:
 
     // Layer-3 trigger: notify gc-helper to reclaim empty regions back to OS.
     void MaybeNotifyReclaim();
+
+    // Layer-4 trigger: notify gc-helper to scavenge heap when retained exceeds goal.
+    void MaybeNotifyScavenge();
+
+    // Return bytes in hot-free regions (free but pages not yet returned to OS).
+    size_t GetHotFreeBytes() const;
 
     // Inline reclaim: when TakeRegion expands the heap via BUMP, synchronously
     // release one empty-cache region to keep committed bytes stable.

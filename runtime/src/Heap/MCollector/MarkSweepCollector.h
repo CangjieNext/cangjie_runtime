@@ -92,8 +92,9 @@ struct MSGCCycleStats {
     // ── True live bytes (computed from markBitmaps after marking) ──
     size_t trueLiveBytes = 0;
 
-    // ── Eager sweep batch (方案3) ──
+    // ── Eager sweep batch ──
     size_t eagerSweepBatchRegions = 0;
+    size_t eagerSweepEmptyBytes = 0;     // emptySweptBytes_ delta during eager batch
 
     // ── Region accounting snapshot ──
     size_t activeRegionCount = 0;

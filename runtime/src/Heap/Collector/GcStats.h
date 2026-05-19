@@ -33,7 +33,17 @@ public:
     size_t baselineAllocatedBytes = 0;  // totalMSRegionBytes_ snapshot at GC end
     size_t lastTrueLiveBytes = 0;       // trueLiveBytes from last GC marking
     size_t lastRegionBytes = 0;         // occupied region bytes snapshot at GC end
-    size_t takeRegionsThreshold = 0;    // precomputed TAKE_REGIONS trigger threshold
+    // Compute and store heapGoal = survivingRegionBytes × (1 + heapGrowth).
+    // Called once at GC end (UpdateGCStats) with the predicted surviving bytes.
+    // Returns the computed goal so the call site can log it.
+    size_t UpdateHeapGoal(size_t survivingRegionBytes);
+
+    // heapGoal: predicted surviving region bytes × (1 + heapGrowth).
+    // Set once at GC end (UpdateGCStats) using the eager-batch empty ratio to predict
+    // how many remaining unswept regions will become empty after background sweep.
+    // MaybeNotifyMark compares: heapInUse = totalMSRegionBytes_ - emptySweptBytes_ >= heapGoal
+    std::atomic<size_t> heapGoal{0};            // target threshold (region-granularity)
+    size_t lastSurvivingRegionBytes = 0;        // predicted surviving region bytes from last GC end
     void Dump() const;
 
     static uint64_t GetPrevGCStartTime() { return prevGcStartTime; }

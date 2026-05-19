@@ -260,6 +260,43 @@ void MSRegionManager::MaybeNotifyReclaim()
     backgroundProcessor.NotifyToReclaimGarbage();
 }
 
+size_t MSRegionManager::GetHotFreeBytes() const
+{
+    return freeManager_.GetHotFreeBytes();
+}
+
+void MSRegionManager::MaybeNotifyScavenge()
+{
+    if (Heap::GetHeap().IsGcStarted()) {
+        return;
+    }
+
+    Collector& collector = Heap::GetHeap().GetCollector();
+    const GCStats& gcStats = collector.GetGCStats();
+    size_t goal = gcStats.heapGoal.load(std::memory_order_acquire);
+    if (goal == 0) {
+        return;
+    }
+
+    const CentralRegionPool* pool =
+        static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator()).GetCentralPool();
+    if (pool == nullptr) {
+        return;
+    }
+
+    size_t totalBytes = pool->GetTotalMSRegionBytes();
+    size_t hotFree = freeManager_.GetHotFreeBytes();
+    size_t heapRetained = totalBytes + hotFree;
+
+    static constexpr double kHysteresis = 0.1;
+    if (heapRetained <= static_cast<size_t>(static_cast<double>(goal) * (1.0 + kHysteresis))) {
+        return;
+    }
+
+    BackgroundProcessor& bp = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
+    bp.NotifyToScavenge();
+}
+
 void MSRegionManager::MaybeNotifyMark()
 {
     if (Heap::GetHeap().IsGcStarted()) {
@@ -280,9 +317,15 @@ void MSRegionManager::MaybeNotifyMark()
         return;
     }
 
-    size_t effectiveAlloc = pool->GetTotalMSRegionBytes();
-    size_t threshold = gcStats.takeRegionsThreshold;
-    if (effectiveAlloc < threshold) {
+    // Use heapInUse = totalMSRegionBytes_ - emptySweptBytes_ as the trigger metric.
+    // Compare against heapGoal (region-granularity, set by UpdateGCStats Phase1 and
+    // refined at sweep-done Phase2). Before the first GC, heapGoal == 0 so
+    // heapInUse is never below threshold and GC fires early on the first allocation.
+    size_t totalBytes  = pool->GetTotalMSRegionBytes();
+    size_t emptySwept  = pool->GetEmptySweptBytes();
+    size_t heapInUse   = (totalBytes > emptySwept) ? (totalBytes - emptySwept) : 0;
+    size_t threshold   = gcStats.heapGoal.load(std::memory_order_relaxed);
+    if (heapInUse < threshold) {
         return;
     }
 
@@ -310,9 +353,11 @@ void MSRegionManager::MaybeNotifyMark()
 
     collector.RequestGC(GC_REASON_HEU, true);
     VLOG(REPORT,
-         "[MS-GC] HEU trigger (take-regions): effectiveAlloc=%zu threshold=%zu lastRegionBytes=%zu "
-         "lastTrueLiveBytes=%zu reason=threshold",
-         effectiveAlloc,
+         "[MS-GC] HEU trigger (take-regions): heapInUse=%zuB emptySwept=%zuB totalMSR=%zuB "
+         "heapGoal=%zuB lastRegionBytes=%zu lastTrueLiveBytes=%zu reason=heapGoal",
+         heapInUse,
+         emptySwept,
+         totalBytes,
          threshold,
          gcStats.lastRegionBytes,
          gcStats.lastTrueLiveBytes);
@@ -341,6 +386,7 @@ bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx, AllocSource
             allocFromReleasedCount_.fetch_add(1, std::memory_order_relaxed);
             takeRegionsCallCount_.fetch_add(1, std::memory_order_relaxed);
             takeRegionsTimeNs_.fetch_add(TimeUtil::NanoSeconds() - startNs, std::memory_order_relaxed);
+            MaybeNotifyScavenge();
             return true;
         }
 
@@ -538,6 +584,11 @@ void MSRegionManager::ReclaimEmptyRegionToReleased(MSRegionInfo* region)
 size_t MSRegionManager::ScavengeFreeRegions(bool releaseAll)
 {
     return freeManager_.ScavengeFreeRegions(releaseAll);
+}
+
+size_t MSRegionManager::ScavengeFreeRegionsUpTo(size_t maxBytes)
+{
+    return freeManager_.ScavengeFreeRegionsUpTo(maxBytes);
 }
 
 // ============================================================================

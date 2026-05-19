@@ -365,6 +365,61 @@ size_t FreeManager::GetReleasedBytes() const
     return scavengedRegionCount_ * GetRegionSizeBytes();
 }
 
+size_t FreeManager::GetHotFreeBytes() const
+{
+    std::lock_guard<std::mutex> lg(pageHeapMutex_);
+    size_t hot = (freeRegionCount_ >= scavengedRegionCount_)
+                     ? (freeRegionCount_ - scavengedRegionCount_)
+                     : 0;
+    return hot * GetRegionSizeBytes();
+}
+
+size_t FreeManager::ScavengeFreeRegionsUpTo(size_t maxBytes)
+{
+    if (maxBytes == 0) {
+        return 0;
+    }
+    std::lock_guard<std::mutex> lg(pageHeapMutex_);
+    if (freeRegionCount_ == 0 || committedRegionCount_ == 0) {
+        return 0;
+    }
+    size_t regionSize = GetRegionSizeBytes();
+    size_t regionBudget = (maxBytes + regionSize - 1) / regionSize;
+    regionBudget = std::min(regionBudget, freeRegionCount_);
+
+    size_t scavengedRegions = 0;
+    RegionIndex scan = static_cast<RegionIndex>(committedRegionCount_);
+
+    while (scan > 0 && scavengedRegions < regionBudget) {
+        RegionIndex end = scan;
+        while (scan > 0) {
+            RegionIndex idx = scan - 1;
+            if (!IsRegionFreeLocked(idx) || IsRegionScavengedLocked(idx)) {
+                break;
+            }
+            --scan;
+        }
+        if (scan == end) {
+            --scan;
+            continue;
+        }
+
+        RegionCount run = static_cast<RegionCount>(end - scan);
+        if (scavengedRegions + run > regionBudget) {
+            RegionIndex partialStart =
+                static_cast<RegionIndex>(end - (regionBudget - scavengedRegions));
+            run = static_cast<RegionCount>(regionBudget - scavengedRegions);
+            scan = partialStart;
+        }
+
+        ReleaseUnits(RegionToUnitIdx(scan), RegionCountToUnitCount(run));
+        MarkScavengedLocked(scan, run);
+        scavengedRegions += run;
+    }
+
+    return scavengedRegions * regionSize;
+}
+
 uint32_t FreeManager::GetMaxBlockRegions() const
 {
     std::lock_guard<std::mutex> lg(pageHeapMutex_);

@@ -91,6 +91,14 @@ public:
     FinalStats GetFinalStats() const;
     void CollectRegionSpans(std::vector<RegionSpan>& spans) const;
 
+    // Return bytes in free regions whose physical pages have NOT been returned
+    // to the OS yet (hotFree = freeRegions - scavengedRegions).
+    size_t GetHotFreeBytes() const;
+
+    // Like ScavengeFreeRegions, but caps the work at maxBytes.
+    // Returns actual bytes released (madvise'd).
+    size_t ScavengeFreeRegionsUpTo(size_t maxBytes);
+
     uintptr_t GetCommittedEnd() const { return committedEnd_; }
     uintptr_t GetMaxHeapEnd() const { return maxHeapEnd_; }
     uintptr_t GetInactiveZone() const { return committedEnd_; }

@@ -168,33 +168,111 @@ size_t RegionSpaceMS::ReclaimGarbageMemory(bool releaseAll)
     if (msRegionManager_ == nullptr) {
         return 0;
     }
-    if (msCentralPool_ != nullptr) {
-        (void)msCentralPool_->HandleBackgroundScavenge(releaseAll);
+    if (!releaseAll) {
+        // Background incremental reclaim path is removed; BackgroundScavengeLoop
+        // now handles heap shrinking via BackgroundScavenge().
+        return 0;
     }
-    size_t released = msRegionManager_->ScavengeFreeRegions(releaseAll);
+    // STW full reclaim: flush all emptySweptCache → FreeManager → OS → shrink.
+    if (msCentralPool_ != nullptr) {
+        (void)msCentralPool_->HandleBackgroundScavenge(true);
+    }
+    size_t released = msRegionManager_->ScavengeFreeRegions(true);
     msRegionManager_->ShrinkHeap();
     return released;
 }
 
 BackgroundReclaimStats RegionSpaceMS::BackgroundReclaim()
 {
-    uint64_t t0 = TimeUtil::MicroSeconds();
-    size_t releasedBytes = ReclaimGarbageMemory(false);
-    uint64_t elapsed = TimeUtil::MicroSeconds() - t0;
-    BackgroundReclaimStats s;
-    s.slices = 1;
-    s.releasedRegions = releasedBytes / MS_REGION_SIZE;
-    s.releasedBytes = releasedBytes;
-    s.elapsedUs = elapsed;
-    return s;
+    // Incremental reclaim is replaced by BackgroundScavengeLoop; this path is a no-op.
+    return {};
 }
 
 bool RegionSpaceMS::HasPendingReclaimWork() const
 {
+    // Reclaim is now driven by BackgroundScavengeLoop (heapGoal-based).
+    return false;
+}
+
+// ---------------------------------------------------------------------------
+// Scavenge-related queries
+// ---------------------------------------------------------------------------
+
+size_t RegionSpaceMS::GetHeapInUseBytes() const
+{
     if (msCentralPool_ == nullptr) {
+        return 0;
+    }
+    size_t total = msCentralPool_->GetTotalMSRegionBytes();
+    size_t empty = msCentralPool_->GetEmptySweptBytes();
+    return (total > empty) ? (total - empty) : 0;
+}
+
+size_t RegionSpaceMS::GetHeapRetainedBytes() const
+{
+    if (msCentralPool_ == nullptr || msRegionManager_ == nullptr) {
+        return 0;
+    }
+    size_t total = msCentralPool_->GetTotalMSRegionBytes();
+    size_t hotFree = msRegionManager_->GetHotFreeBytes();
+    return total + hotFree;
+}
+
+size_t RegionSpaceMS::GetHeapGoalBytes() const
+{
+    return Heap::GetHeap().GetCollector().GetGCStats().heapGoal.load(std::memory_order_acquire);
+}
+
+size_t RegionSpaceMS::GetHotFreeBytes() const
+{
+    if (msRegionManager_ == nullptr) {
+        return 0;
+    }
+    return msRegionManager_->GetHotFreeBytes();
+}
+
+bool RegionSpaceMS::HasEmptySweptRegions() const
+{
+    return msCentralPool_ != nullptr && msCentralPool_->GetEmptySweptRegionCount() > 0;
+}
+
+size_t RegionSpaceMS::FlushHalfEmptySweptToFreeManager()
+{
+    if (msCentralPool_ == nullptr) {
+        return 0;
+    }
+    return msCentralPool_->HandleBackgroundScavenge(false);
+}
+
+size_t RegionSpaceMS::BackgroundScavenge(size_t quantumBytes)
+{
+    if (msRegionManager_ == nullptr) {
+        return 0;
+    }
+    return msRegionManager_->ScavengeFreeRegionsUpTo(quantumBytes);
+}
+
+void RegionSpaceMS::BackgroundShrinkHeap()
+{
+    if (msRegionManager_ != nullptr) {
+        msRegionManager_->ShrinkHeap();
+    }
+}
+
+bool RegionSpaceMS::HasPendingScavengeWork() const
+{
+    size_t goal = GetHeapGoalBytes();
+    if (goal == 0) {
         return false;
     }
-    return msCentralPool_->ShouldNotifyBackgroundReclaim();
+    return GetHeapRetainedBytes() > goal;
+}
+
+void RegionSpaceMS::MaybeNotifyScavenge()
+{
+    if (msRegionManager_ != nullptr) {
+        msRegionManager_->MaybeNotifyScavenge();
+    }
 }
 
 bool RegionSpaceMS::HasPendingSweepWork() const
