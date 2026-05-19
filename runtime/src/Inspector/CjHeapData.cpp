@@ -300,10 +300,13 @@ void CjHeapData::ProcessRootLocal()
             if (obj == nullptr || !Heap::IsHeapAddress(obj)) {
                 return;
             }
+            FrameInfo* currentFrame = recordStackInfo->GetCurrentFramePtr();
+            CjHeapDataStackFrameId frameId = (currentFrame != nullptr && frames.find(currentFrame) != frames.end())
+                ? frames[currentFrame] : 0;
             DumpObject dumpObject = {obj,
                 TAG_ROOT_LOCAL,
                 threadId,
-                recordStackInfo->GetCurrentFrame()
+                static_cast<u4>(frameId)
             };
             dumpObjects.push_back(dumpObject);
         };
@@ -468,7 +471,7 @@ void CjHeapData::WriteUnknownRoot(BaseObject*& obj, const u1 tag)
  *     u4 threadIdx;   // thread serial number
  *     u4 frame;       // frame number in stack trace (-1 for empty)
  */
-void CjHeapData::WriteLocalRoot(BaseObject*& obj, const u1 tag, const u4 tid, const u1 depth)
+void CjHeapData::WriteLocalRoot(BaseObject*& obj, const u1 tag, const u4 tid, const u4 depth)
 {
     AddU1(tag);
     AddID(GetObjectId(obj));

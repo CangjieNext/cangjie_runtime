@@ -172,7 +172,7 @@ public:
 
     void WriteGlobalRoot(BaseObject*& obj, const u1 tag);
     void WriteUnknownRoot(BaseObject*& obj, const u1 tag);
-    void WriteLocalRoot(BaseObject*& obj, const u1 tag, const u4 tid, const u1 depth);
+    void WriteLocalRoot(BaseObject*& obj, const u1 tag, const u4 tid, const u4 depth);
     void WriteThreadObjectRoot(BaseObject*& obj, const u1 tag, const u4 tid, const u4 stackTraceIdx);
     void WriteObjectArray(BaseObject*& obj, const u1 tag);
     void WriteStructArray(BaseObject*& obj, const u1 tag);
