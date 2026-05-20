@@ -182,8 +182,11 @@ static uint64_t InitTimeParameter(const char* name, uint64_t minSize, uint64_t d
         if (parameter > minSize) {
             return parameter;
         } else {
-            LOG(RTLOG_ERROR, "Unsupported %s parameter. Valid %s range must be greater than %zu.\n",
-                name, name, minSize);
+            LOG(RTLOG_ERROR, "Unsupported %s parameter '%s'. "
+                "Expected format: <number><unit> (e.g. 100ms, 1s), "
+                "number must be a non-decimal positive integer, unit is one of ns, us, ms, s. "
+                "Valid %s range must be greater than %zuns.\n",
+                name, env, name, minSize);
         }
     }
     return defaultParam;
