@@ -67,7 +67,7 @@ private:
     bool HasPendingFeedWork();     // check if cached < active across all buffers; clears flag when done
     bool BackgroundSweepLoop();
     bool BackgroundFeedLoop();
-    bool BackgroundScavengeLoop(); // heapGoal-based: Step A (flush emptySwept) + Step B (scavenge) + Step C (shrink)
+    bool BackgroundScavengeLoop(); // heapThreshold-based: Step A (flush emptySwept) + Step B (scavenge) + Step C (shrink)
 
     std::mutex wakeLock;
     std::condition_variable wakeCondition;

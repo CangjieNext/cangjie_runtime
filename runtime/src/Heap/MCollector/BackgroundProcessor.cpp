@@ -429,25 +429,25 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
 
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
     size_t retained = space.GetHeapRetainedBytes();
-    size_t goal = space.GetHeapGoalBytes();
+    size_t threshold = space.GetHeapThresholdBytes();
 
-    if (goal == 0 || retained <= goal) {
+    if (threshold == 0 || retained <= threshold) {
         shouldScavengeHeap_.store(false, std::memory_order_release);
         if (pendingScavengeStats_.HasWork()) {
             VLOG(REPORT,
                  "[MS-GC] scavenge done (goal met): slices=%zu regions=%zu bytes=%zuB elapsed=%zuus "
-                 "retained=%zuB goal=%zuB",
+                 "retained=%zuB threshold=%zuB",
                  pendingScavengeStats_.slices,
                  pendingScavengeStats_.releasedRegions,
                  pendingScavengeStats_.releasedBytes,
                  static_cast<size_t>(pendingScavengeStats_.elapsedUs),
-                 retained, goal);
+                 retained, threshold);
             pendingScavengeStats_.Reset();
         }
         return false;
     }
 
-    size_t toScavenge = retained - goal;
+    size_t toScavenge = retained - threshold;
 
     // Step A (on-demand): if FreeManager has little hot-free and emptySwept cache
     // is non-empty, flush half of it to FreeManager now.

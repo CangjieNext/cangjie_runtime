@@ -253,8 +253,8 @@ void MSRegionManager::MaybeNotifyScavenge()
 
     Collector& collector = Heap::GetHeap().GetCollector();
     const GCStats& gcStats = collector.GetGCStats();
-    size_t goal = gcStats.heapGoal.load(std::memory_order_acquire);
-    if (goal == 0) {
+    size_t threshold = gcStats.GetThreshold();
+    if (threshold == 0) {
         return;
     }
 
@@ -269,7 +269,7 @@ void MSRegionManager::MaybeNotifyScavenge()
     size_t heapRetained = totalBytes + hotFree;
 
     static constexpr double kHysteresis = 0.1;
-    if (heapRetained <= static_cast<size_t>(static_cast<double>(goal) * (1.0 + kHysteresis))) {
+    if (heapRetained <= static_cast<size_t>(static_cast<double>(threshold) * (1.0 + kHysteresis))) {
         return;
     }
 

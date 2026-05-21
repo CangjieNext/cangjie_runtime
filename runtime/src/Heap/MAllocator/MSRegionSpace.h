@@ -83,7 +83,7 @@ public:
     // heapRetained = totalMSRegionBytes + hotFreeBytes    (committed RSS-cost)
     size_t GetHeapInUseBytes() const;
     size_t GetHeapRetainedBytes() const;
-    size_t GetHeapGoalBytes() const;
+    size_t GetHeapThresholdBytes() const;
     size_t GetHotFreeBytes() const;
     bool HasEmptySweptRegions() const;
     // Step A (on-demand): flush half of emptySweptCache → FreeManager (released state).
@@ -92,9 +92,9 @@ public:
     size_t BackgroundScavenge(size_t quantumBytes);
     // Step C: shrink committed heap end after scavenging.
     void BackgroundShrinkHeap();
-    // True when heapRetained > heapGoal (scavenge work remains).
+    // True when heapRetained > heapThreshold (scavenge work remains).
     bool HasPendingScavengeWork() const;
-    // Trigger scavenge if heapRetained > heapGoal * (1 + kHysteresis).
+    // Trigger scavenge if heapRetained > heapThreshold * (1 + kHysteresis).
     void MaybeNotifyScavenge();
 
     inline size_t GetTargetSize() const

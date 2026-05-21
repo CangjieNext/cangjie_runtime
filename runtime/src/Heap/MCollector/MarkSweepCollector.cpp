@@ -1592,7 +1592,6 @@ void MarkSweepCollector::UpdateGCStats()
 
     if (estimatedLiveBytes > 0) {
         size_t threshold = gcStats.UpdateHeapThreshold(estimatedLiveBytes);
-        (void)gcStats.UpdateHeapGoal(estimatedLiveBytes);
         VLOG(REPORT,
              "[MS-GC] heapThreshold: oldThreshold=%zuB newThreshold=%zuB "
                          "prevLive=%zuB curLive=%zuB preActiveRegionBytes=%zuB activeRegion=%zuB estimatedLive=%zuB",
@@ -1600,7 +1599,6 @@ void MarkSweepCollector::UpdateGCStats()
              estimatedLiveBytes);
     } else if (activeRegionBytes > 0) {
         size_t threshold = gcStats.UpdateHeapThreshold(activeRegionBytes);
-        (void)gcStats.UpdateHeapGoal(activeRegionBytes);
         VLOG(REPORT,
              "[MS-GC] heapThreshold (fallback): oldThreshold=%zuB newThreshold=%zuB "
                          "preActiveRegionBytes=%zuB activeRegion=%zuB",

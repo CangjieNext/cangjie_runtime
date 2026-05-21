@@ -103,7 +103,7 @@ void CopyCollector::UpdateGCStats()
     GCStats& gcStats = GetGCStats();
     gcStats.Dump();
 
-    size_t oldThreshold = gcStats.heapThreshold;
+    size_t oldThreshold = gcStats.GetThreshold();
     size_t liveBytes = space.AllocatedBytes();
     size_t heapSize = space.GetMaxCapacity();
     size_t recentBytes = space.GetRecentAllocatedSize();
@@ -147,10 +147,10 @@ void CopyCollector::UpdateGCStats()
     }
     // 0.98: make sure new threshold does not exceed reasonable limit.
     newThreshold = std::min(newThreshold, static_cast<size_t>(space.GetMaxCapacity() * 0.98));
-    gcStats.heapThreshold = std::min(newThreshold, CangjieRuntime::GetGCParam().gcThreshold);
+        gcStats.SetThreshold(std::min(newThreshold, CangjieRuntime::GetGCParam().gcThreshold));
     g_gcRequests[GC_REASON_HEU].SetMinInterval(gcInterval);
     VLOG(REPORT, "live bytes %zu (survived %zu, recent-allocated %zu), update gc threshold %zu -> %zu", liveBytes,
-         liveBytes - recentBytes, recentBytes, oldThreshold, gcStats.heapThreshold);
+            liveBytes - recentBytes, recentBytes, oldThreshold, gcStats.GetThreshold());
     TRACE_COUNT("CJRT_post_GC_HeapSize", Heap::GetHeap().GetAllocatedSize());
 }
 } // namespace MapleRuntime

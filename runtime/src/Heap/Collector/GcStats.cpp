@@ -18,22 +18,15 @@ size_t g_gcCollectedTotalBytes = 0;
 uint64_t GCStats::prevGcStartTime = TimeUtil::NanoSeconds() - LONG_MIN_HEU_GC_INTERVAL_NS;
 uint64_t GCStats::prevGcFinishTime = TimeUtil::NanoSeconds() - LONG_MIN_HEU_GC_INTERVAL_NS;
 
-size_t GCStats::UpdateHeapGoal(size_t survivingRegionBytes)
-{
-    double heapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
-    size_t goal = static_cast<size_t>(survivingRegionBytes * (1.0 + heapGrowth));
-    lastSurvivingRegionBytes = survivingRegionBytes;
-    heapGoal.store(goal, std::memory_order_release);
-    return goal;
-}
-
 size_t GCStats::UpdateHeapThreshold(size_t liveRegionBytes)
 {
     double heapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
     size_t gcThresholdCap = CangjieRuntime::GetGCParam().gcThreshold;
     size_t threshold = static_cast<size_t>(static_cast<double>(liveRegionBytes) * (1.0 + heapGrowth));
-    heapThreshold = std::min(threshold, gcThresholdCap);
-    return heapThreshold;
+    threshold = std::min(threshold, gcThresholdCap);
+    lastSurvivingRegionBytes = liveRegionBytes;
+    heapThreshold.store(threshold, std::memory_order_release);
+    return threshold;
 }
 
 void GCStats::Init()
@@ -64,9 +57,10 @@ void GCStats::Init()
     collectionRate = 0.0;
 
     // 20 MB:set 20 MB as intial value
-    heapThreshold = std::min(CangjieRuntime::GetGCParam().gcThreshold, 20 * MB);
+    size_t initThreshold = std::min(CangjieRuntime::GetGCParam().gcThreshold, 20 * MB);
     // 0.2:set 20% heap size as intial value
-    heapThreshold = std::min(static_cast<size_t>(Heap::GetHeap().GetMaxCapacity() * 0.2), heapThreshold);
+    initThreshold = std::min(static_cast<size_t>(Heap::GetHeap().GetMaxCapacity() * 0.2), initThreshold);
+    heapThreshold.store(initThreshold, std::memory_order_relaxed);
 }
 
 void GCStats::Dump() const

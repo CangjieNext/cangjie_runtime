@@ -191,7 +191,7 @@ BackgroundReclaimStats RegionSpaceMS::BackgroundReclaim()
 
 bool RegionSpaceMS::HasPendingReclaimWork() const
 {
-    // Reclaim is now driven by BackgroundScavengeLoop (heapGoal-based).
+    // Reclaim is now driven by BackgroundScavengeLoop (heapThreshold-based).
     return false;
 }
 
@@ -219,9 +219,9 @@ size_t RegionSpaceMS::GetHeapRetainedBytes() const
     return total + hotFree;
 }
 
-size_t RegionSpaceMS::GetHeapGoalBytes() const
+size_t RegionSpaceMS::GetHeapThresholdBytes() const
 {
-    return Heap::GetHeap().GetCollector().GetGCStats().heapGoal.load(std::memory_order_acquire);
+    return Heap::GetHeap().GetCollector().GetGCStats().GetThreshold();
 }
 
 size_t RegionSpaceMS::GetHotFreeBytes() const
@@ -267,11 +267,11 @@ void RegionSpaceMS::BackgroundShrinkHeap()
 
 bool RegionSpaceMS::HasPendingScavengeWork() const
 {
-    size_t goal = GetHeapGoalBytes();
-    if (goal == 0) {
+    size_t threshold = GetHeapThresholdBytes();
+    if (threshold == 0) {
         return false;
     }
-    return GetHeapRetainedBytes() > goal;
+    return GetHeapRetainedBytes() > threshold;
 }
 
 void RegionSpaceMS::MaybeNotifyScavenge()

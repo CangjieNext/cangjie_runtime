@@ -27,23 +27,14 @@ public:
 
     void Init();
 
-    size_t GetThreshold() const { return heapThreshold; }
+    size_t GetThreshold() const { return heapThreshold.load(std::memory_order_acquire); }
+    void SetThreshold(size_t val) { heapThreshold.store(val, std::memory_order_release); }
     size_t UpdateHeapThreshold(size_t liveRegionBytes);
 
     // Snapshots persisted at GC end for pacing / HEU trigger calculations.
     size_t baselineAllocatedBytes = 0;  // totalMSRegionBytes_ snapshot at GC end
     size_t lastTrueLiveBytes = 0;       // trueLiveBytes from last GC marking
     size_t lastRegionBytes = 0;         // occupied region bytes snapshot at GC end
-    // Compute and store heapGoal = survivingRegionBytes × (1 + heapGrowth).
-    // Called once at GC end (UpdateGCStats) with the predicted surviving bytes.
-    // Returns the computed goal so the call site can log it.
-    size_t UpdateHeapGoal(size_t survivingRegionBytes);
-
-    // heapGoal: predicted surviving region bytes × (1 + heapGrowth).
-    // Set once at GC end (UpdateGCStats) using the eager-batch empty ratio to predict
-    // how many remaining unswept regions will become empty after background sweep.
-    // MaybeNotifyMark compares: heapInUse = totalMSRegionBytes_ - emptySweptBytes_ >= heapGoal
-    std::atomic<size_t> heapGoal{0};            // target threshold (region-granularity)
     size_t lastSurvivingRegionBytes = 0;        // predicted surviving region bytes from last GC end
     void Dump() const;
 
@@ -83,7 +74,8 @@ public:
     double garbageRatio;
     double collectionRate; // bytes per nano-second
 
-    size_t heapThreshold;
+private:
+    std::atomic<size_t> heapThreshold{0};
 };
 extern size_t g_gcCount;
 extern uint64_t g_gcTotalTimeUs;
