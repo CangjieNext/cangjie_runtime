@@ -474,6 +474,12 @@ void*** CJ_GetChildMessages(void* fptr, char* children)
     return macCall->GetChildMessagesFromMacroContext(children);
 }
 
+void CJ_RequirePackageImport(void* fptr, char* packageName)
+{
+    auto macCall = reinterpret_cast<MacroCall*>(fptr);
+    macCall->RequirePackageImport(packageName);
+}
+
 void CJ_CheckAddSpace(const uint8_t* tokBytes, bool* spaceFlag)
 {
     std::vector<Token> tokens = TokenSerialization::GetTokensFromBytes(tokBytes);

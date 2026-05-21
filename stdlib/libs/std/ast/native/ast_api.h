@@ -42,6 +42,8 @@ void CJ_SetItemInfo(void* fptr, char* key, void* value, uint8_t type);
 
 void*** CJ_GetChildMessages(void* fptr, char* children);
 
+void CJ_RequirePackageImport(void* fptr, char* packageName);
+
 void CJ_CheckAddSpace(const uint8_t* tokensBytes, bool* spaceFlag);
 
 uint8_t CJ_AST_DiagReport(void* fptr, const int* level, const uint8_t* tokensBytes,

@@ -44,6 +44,8 @@ foreign {
     func CJ_AST_DiagReport(fptr: CPointer<Unit>, level: CPointer<Int32>, tokensBytes: CPointer<UInt8>, message: CString,
         hint: CString): UInt8
 
+    func CJ_RequirePackageImport(fptr: CPointer<Unit>, packageName: CString): Unit
+
     func CJ_GetMacroPosition(fptr: CPointer<Unit>, fileID: CPointer<UInt32>, line: CPointer<Int32>,
         column: CPointer<Int32>): Unit
 
@@ -591,4 +593,25 @@ public func getChildMessages(children: String): ArrayList<MacroMessage> {
     }
 
     return res
+}
+
+/**
+ * 声明宏展开后需要额外导入的包
+ *
+ * 在宏定义内部调用此接口，告诉编译器在宏展开后的代码中
+ * 需要自动添加对应的 import 语句。
+ *
+ * @param packageName - 需要导入的包全名，如 "std.collection.HashMap" 或 "packageA"
+ */
+public func requirePackageImport(packageName: String): Unit {
+    unsafe {
+        if (let Some(macroObjPtr) <- MACRO_OBJECT.get()) {
+            var pStr = LibC.mallocCString(packageName)
+            if (pStr.isNull()) {
+                throw IllegalMemoryException("requirePackageImport malloc failed!")
+            }
+            CJ_RequirePackageImport(macroObjPtr, pStr)
+            LibC.free(pStr)
+        }
+    }
 }
