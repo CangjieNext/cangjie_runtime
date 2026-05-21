@@ -49,7 +49,6 @@ public:
     void RegisterFinalizer(BaseObject* obj) { finalizerWorkList.RegisterFinalizer(obj); }
     void NotifyFinalizerWork() { Notify(); }
 
-    void NotifyToReclaimGarbage();
     void MaybeNotifyFeed(uint8_t cls = kNoPreferredFeedClass);
     void NotifyToSweep(uint8_t cls = kNoPreferredSweepClass);
     void NotifyToScavenge();
@@ -65,9 +64,7 @@ private:
     void RequestWork(std::atomic<bool>& flag);
     bool HasPendingWakeWork() const;
     bool HasPendingSweepWork();    // check pending sweep work; updates pressure state and shouldBackgroundSweep_
-    bool HasPendingReclaimWork();  // check pending reclaim work; updates shouldReclaimHeapGarbage
     bool HasPendingFeedWork();     // check if cached < active across all buffers; clears flag when done
-    bool BackgroundReclaimLoop();
     bool BackgroundSweepLoop();
     bool BackgroundFeedLoop();
     bool BackgroundScavengeLoop(); // heapGoal-based: Step A (flush emptySwept) + Step B (scavenge) + Step C (shrink)
@@ -81,7 +78,6 @@ private:
     std::atomic<bool> running;
 
     U32 iterationWaitTime;
-    std::atomic<bool> shouldReclaimHeapGarbage;
     std::atomic<bool> shouldFeedHungryBuffers;
     std::atomic<bool> shouldBackgroundSweep_;
     std::atomic<bool> shouldScavengeHeap_{false};
@@ -90,7 +86,6 @@ private:
     std::atomic<bool> sweepPressureMode_{false};
     BackgroundFeedStats pendingFeedStats_{};
     BackgroundSweepStats pendingSweepStats_{};
-    BackgroundReclaimStats pendingReclaimStats_{};
     BackgroundReclaimStats pendingScavengeStats_{};
     FinalizerWorkList finalizerWorkList;
     uint32_t tid = 0;

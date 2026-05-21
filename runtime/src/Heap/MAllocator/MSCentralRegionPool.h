@@ -332,9 +332,9 @@ public:
                GetTotalUnsweptCount() > 0;
     }
 
-    // Unified layer-3 entry: scavenge empty regions back to OS.
-    // Only called from ReclaimGarbageMemory.
-    size_t HandleBackgroundScavenge(bool releaseAll);
+    // Reclaim up to maxRegions empty regions from emptySweptCache into released state.
+    // Passing a very large maxRegions value releases all currently cached empty regions.
+    size_t ReclaimEmptyRegion(size_t maxRegions);
 
     // Check whether previous-cycle sweep work is globally quiescent.
     bool IsSweepDone() const
@@ -372,7 +372,6 @@ public:
     {
         return emptySweptBytes_.load(std::memory_order_relaxed);
     }
-    bool ShouldNotifyBackgroundReclaim() const;
 
     // Step 11: inline reclaim support — used by MSRegionManager::InlineReclaimForBalance
     MSRegionInfo* TakeEmptySweptRegionForReclaim();
@@ -409,10 +408,9 @@ public:
     // Called after MarkTerminate / in PostMarkTermination.
     MSLargeSweepStats SweepLargeRegions();
 
-    // Eager synchronous sweep of small regions: GC thread sweeps up to
-    // maxRegions regions across all size classes before handing off to background,
-    // but stops early when the configured wall-time budget is exhausted.
-    // Returns the number of regions actually swept.
+    // Eager synchronous sweep of small regions: GC thread sweeps unswept regions
+    // across all size classes until the configured wall-time budget is exhausted.
+    // maxRegions is kept as a caller-side request snapshot for compatibility.
     // Called from ConcurrentSweep() to give immediate reclaim under pressure.
     size_t EagerSweepBatch(size_t maxRegions);
 

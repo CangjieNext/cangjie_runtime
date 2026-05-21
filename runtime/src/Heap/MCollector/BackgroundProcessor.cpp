@@ -66,22 +66,6 @@ bool IsBackgroundFeedEnabled()
     return enabled;
 }
 
-bool IsBackgroundReclaimEnabled()
-{
-    static const bool enabled = []() {
-        const char* env = std::getenv("CJ_MS_BG_RECLAIM");
-        if (env == nullptr || env[0] == '\0') {
-            return true;
-        }
-        if (std::strcmp(env, "0") == 0 || EqualsIgnoreCase(env, "false") ||
-            EqualsIgnoreCase(env, "off") || EqualsIgnoreCase(env, "no")) {
-            return false;
-        }
-        return true;
-    }();
-    return enabled;
-}
-
 bool IsBackgroundScavengeEnabled()
 {
     static const bool enabled = []() {
@@ -115,7 +99,6 @@ BackgroundProcessor::BackgroundProcessor()
     started.store(false, std::memory_order_relaxed);
     running.store(false, std::memory_order_relaxed);
     iterationWaitTime = DEFAULT_MS_GC_HELPER_POLL_MS;
-    shouldReclaimHeapGarbage.store(false, std::memory_order_relaxed);
     shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
     shouldBackgroundSweep_.store(false, std::memory_order_relaxed);
     shouldScavengeHeap_.store(false, std::memory_order_relaxed);
@@ -170,10 +153,6 @@ void BackgroundProcessor::Run()
 
         if (shouldBackgroundSweep_.load(std::memory_order_relaxed)) {
             shouldContinueImmediate = BackgroundSweepLoop() || shouldContinueImmediate;
-        }
-
-        if (shouldReclaimHeapGarbage.load(std::memory_order_relaxed)) {
-            shouldContinueImmediate = BackgroundReclaimLoop() || shouldContinueImmediate;
         }
 
         if (shouldScavengeHeap_.load(std::memory_order_relaxed)) {
@@ -295,19 +274,9 @@ void BackgroundProcessor::RequestWork(std::atomic<bool>& flag)
 bool BackgroundProcessor::HasPendingWakeWork() const
 {
     return finalizerWorkList.HasFinalizableJob() ||
-           shouldReclaimHeapGarbage.load(std::memory_order_relaxed) ||
            shouldFeedHungryBuffers.load(std::memory_order_relaxed) ||
            shouldBackgroundSweep_.load(std::memory_order_relaxed) ||
            shouldScavengeHeap_.load(std::memory_order_relaxed);
-}
-
-void BackgroundProcessor::NotifyToReclaimGarbage()
-{
-    if (!IsBackgroundReclaimEnabled()) {
-        shouldReclaimHeapGarbage.store(false, std::memory_order_release);
-        return;
-    }
-    RequestWork(shouldReclaimHeapGarbage);
 }
 
 void BackgroundProcessor::MaybeNotifyFeed(uint8_t cls)
@@ -353,47 +322,6 @@ void BackgroundProcessor::NotifyToScavenge()
     RequestWork(shouldScavengeHeap_);
 }
 
-bool BackgroundProcessor::BackgroundReclaimLoop()
-{
-    if (!IsBackgroundReclaimEnabled()) {
-        shouldReclaimHeapGarbage.store(false, std::memory_order_release);
-        pendingReclaimStats_.Reset();
-        return false;
-    }
-
-    Allocator& allocator = Heap::GetHeap().GetAllocator();
-    BackgroundReclaimStats sliceStats = allocator.BackgroundReclaim();
-    if (sliceStats.HasWork()) {
-        pendingReclaimStats_.Merge(sliceStats);
-    }
-    bool hasMore = HasPendingReclaimWork();
-    if (!hasMore && pendingReclaimStats_.HasWork()) {
-        VLOG(REPORT,
-             "[MS-GC] reclaim done: slices=%zu regions=%zu bytes=%zuB elapsed=%zuus",
-             pendingReclaimStats_.slices,
-             pendingReclaimStats_.releasedRegions,
-             pendingReclaimStats_.releasedBytes,
-             static_cast<size_t>(pendingReclaimStats_.elapsedUs));
-        pendingReclaimStats_.Reset();
-    }
-    return hasMore;
-}
-
-bool BackgroundProcessor::HasPendingReclaimWork()
-{
-    if (!IsBackgroundReclaimEnabled()) {
-        shouldReclaimHeapGarbage.store(false, std::memory_order_release);
-        return false;
-    }
-
-    Allocator& allocator = Heap::GetHeap().GetAllocator();
-    if (!allocator.HasPendingReclaimWork()) {
-        shouldReclaimHeapGarbage.store(false, std::memory_order_release);
-        return false;
-    }
-    return true;
-}
-
 bool BackgroundProcessor::BackgroundSweepLoop()
 {
     Allocator& allocator = Heap::GetHeap().GetAllocator();
@@ -412,20 +340,6 @@ bool BackgroundProcessor::BackgroundSweepLoop()
              remaining,
              static_cast<size_t>(pendingSweepStats_.elapsedUs));
         pendingSweepStats_.Reset();
-
-        // Sweep-done: refresh heapGoal with precise surviving bytes for scavenger targeting.
-        RegionSpaceMS& space = static_cast<RegionSpaceMS&>(allocator);
-        size_t heapInUse = space.GetHeapInUseBytes();
-        if (heapInUse > 0) {
-            GCStats& gcStats = Heap::GetHeap().GetCollector().GetGCStats();
-            size_t prevGoal = gcStats.heapGoal.load(std::memory_order_acquire);
-            gcStats.UpdateHeapGoal(heapInUse);
-            size_t newGoal = gcStats.heapGoal.load(std::memory_order_acquire);
-            VLOG(REPORT,
-                 "[MS-GC] heapGoal (sweep-done precise): heapInUse=%zuB prevGoal=%zuB newGoal=%zuB",
-                 heapInUse, prevGoal, newGoal);
-            space.MaybeNotifyScavenge();
-        }
     }
     return hasMore;
 }

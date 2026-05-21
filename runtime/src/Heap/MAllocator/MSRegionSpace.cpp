@@ -23,6 +23,7 @@
 #include "Heap/MBarrier/WriteBarrierBuffer.h"
 #include "Mutator/Mutator.h"
 #include "Mutator/ThreadLocal.h"
+#include <limits>
 #if defined(CANGJIE_SANITIZER_SUPPORT) || defined(CANGJIE_GWPASAN_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
 #endif
@@ -175,7 +176,7 @@ size_t RegionSpaceMS::ReclaimGarbageMemory(bool releaseAll)
     }
     // STW full reclaim: flush all emptySweptCache → FreeManager → OS → shrink.
     if (msCentralPool_ != nullptr) {
-        (void)msCentralPool_->HandleBackgroundScavenge(true);
+        (void)msCentralPool_->ReclaimEmptyRegion(std::numeric_limits<size_t>::max());
     }
     size_t released = msRegionManager_->ScavengeFreeRegions(true);
     msRegionManager_->ShrinkHeap();
@@ -241,7 +242,12 @@ size_t RegionSpaceMS::FlushHalfEmptySweptToFreeManager()
     if (msCentralPool_ == nullptr) {
         return 0;
     }
-    return msCentralPool_->HandleBackgroundScavenge(false);
+    size_t emptyCount = msCentralPool_->GetEmptySweptRegionCount();
+    if (emptyCount == 0) {
+        return 0;
+    }
+    size_t targetRegions = std::max<size_t>(1, emptyCount / 2);
+    return msCentralPool_->ReclaimEmptyRegion(targetRegions);
 }
 
 size_t RegionSpaceMS::BackgroundScavenge(size_t quantumBytes)

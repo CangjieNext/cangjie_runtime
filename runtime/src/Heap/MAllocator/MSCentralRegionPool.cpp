@@ -74,17 +74,6 @@ uint64_t GetEagerSweepBatchMaxTimeUs()
     return value;
 }
 
-size_t GetBgReclaimNotifyEmptyRegions()
-{
-    // Constant: processorCount × numSizeClasses × 2.
-    // This gives each thread a chance to fill one region per class before the
-    // background reclaim loop is triggered, with a factor of 2 as headroom.
-    uint32_t processorNum = Runtime::CurrentRef() != nullptr
-        ? Runtime::Current().GetConcurrencyModel().GetProcessorNum()
-        : 1;
-    return static_cast<size_t>(processorNum) * kNumSizeClasses * 2;
-}
-
 }
 
 // Global sweep generation counter (starts at 2 so that sg-2 == 0 is valid initial state)
@@ -463,8 +452,6 @@ void CentralRegionPool::PushEmptySweptRegion(MSRegionInfo* region)
         emptySweptRegionCount_.fetch_add(1, std::memory_order_relaxed);
         emptySweptBytes_.fetch_add(MS_REGION_SIZE, std::memory_order_relaxed);
     }
-    // MaybeNotifyReclaim removed: scavenge trigger is now driven by
-    // MaybeNotifyScavenge() in MSRegionManager::TakeRegions() (heapGoal-based).
 }
 
 MSRegionInfo* CentralRegionPool::TakeEmptySweptRegion(uint8_t cls)
@@ -512,11 +499,6 @@ void CentralRegionPool::DecrementTotalMSRegionBytes(size_t bytes)
     totalMSRegionBytes_.fetch_sub(bytes, std::memory_order_relaxed);
 }
 
-bool CentralRegionPool::ShouldNotifyBackgroundReclaim() const
-{
-    return GetEmptySweptRegionCount() >= GetBgReclaimNotifyEmptyRegions();
-}
-
 size_t CentralRegionPool::GetActiveWorkingSetRegionCount() const
 {
     // Count regions that are immediately part of the current working set:
@@ -555,25 +537,16 @@ MSFeedPressureLevel CentralRegionPool::GetFeedPressureLevel() const
     return MSFeedPressureLevel::LOW;
 }
 
-size_t CentralRegionPool::HandleBackgroundScavenge(bool releaseAll)
+size_t CentralRegionPool::ReclaimEmptyRegion(size_t maxRegions)
 {
     size_t emptyCount = GetEmptySweptRegionCount();
-    if (emptyCount == 0) {
+    if (emptyCount == 0 || maxRegions == 0) {
         return 0;
     }
-
-    if (!releaseAll && !ShouldNotifyBackgroundReclaim()) {
-        return 0;
-    }
-
-    uint64_t deadlineUs = TimeUtil::MicroSeconds() + GetBgSweepMaxTimeUs();
-    size_t targetRegions = releaseAll ? emptyCount : std::max<size_t>(1, emptyCount / 2);
-    size_t maxRegions = releaseAll ? emptyCount : std::min(targetRegions, GetBgSweepMaxRegionsPerSlice());
     size_t releasedRegions = 0;
     size_t releasedBytes = 0;
 
-    while (releasedRegions < maxRegions &&
-           (releaseAll || TimeUtil::MicroSeconds() < deadlineUs)) {
+    while (releasedRegions < maxRegions) {
         MSRegionInfo* region = nullptr;
         {
             std::lock_guard<std::mutex> lg(emptySweptLock_);
@@ -591,9 +564,6 @@ size_t CentralRegionPool::HandleBackgroundScavenge(bool releaseAll)
         releasedBytes += MS_REGION_SIZE;
     }
 
-    if (releasedRegions > 0) {
-        (void)releasedRegions;
-    }
     return releasedBytes;
 }
 
@@ -1003,27 +973,30 @@ void CentralRegionPool::RegisterLargeRegion(MSRegionInfo* region)
 size_t CentralRegionPool::EagerSweepBatch(size_t maxRegions)
 {
     uint64_t maxTimeUs = GetEagerSweepBatchMaxTimeUs();
-    if (maxRegions == 0 || maxTimeUs == 0) {
+    if (maxTimeUs == 0) {
         return 0;
     }
+    (void)maxRegions;
     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
     uint64_t deadlineUs = TimeUtil::MicroSeconds() + maxTimeUs;
     size_t swept = 0;
 
-    for (uint8_t cls = 0; cls < kNumSizeClasses && swept < maxRegions; cls++) {
-        SizeClassBucket& bucket = buckets_[cls];
-        // Sweep partialUnswept first (most likely to yield free slots)
-        if (!SweepUnsweptList(bucket, bucket.partialUnswept, sg, swept, maxRegions, deadlineUs)) {
+    for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
+        if (TimeUtil::MicroSeconds() >= deadlineUs) {
             break;
         }
-        if (!SweepUnsweptList(bucket, bucket.fullUnswept, sg, swept, maxRegions, deadlineUs)) {
+        SizeClassBucket& bucket = buckets_[cls];
+        // Sweep partialUnswept first (most likely to yield free slots).
+        if (!SweepUnsweptList(bucket, bucket.partialUnswept, sg, swept, SIZE_MAX, deadlineUs)) {
+            break;
+        }
+        if (!SweepUnsweptList(bucket, bucket.fullUnswept, sg, swept, SIZE_MAX, deadlineUs)) {
             break;
         }
     }
 
     if (swept > 0) {
-        VLOG(REPORT, "[MS-GC] EagerSweepBatch: swept %zu regions (limit=%zu, maxTime=%zuus)",
-             swept, maxRegions, static_cast<size_t>(maxTimeUs));
+        VLOG(REPORT, "[MS-GC] EagerSweepBatch: swept=%zu (deadline=%zuus)", swept, static_cast<size_t>(maxTimeUs));
     }
     return swept;
 }
@@ -1245,9 +1218,16 @@ void CentralRegionPool::StopAndWaitForAllSweep()
         std::this_thread::yield();
     }
 
-    if (GetTotalUnsweptCount() > 0) {
+    size_t unsweptBefore = GetTotalUnsweptCount();
+    if (unsweptBefore > 0) {
         ForceFinishAllUnswept();
     }
+    size_t totalMsr = GetTotalMSRegionBytes();
+    size_t emptySwept = GetEmptySweptBytes();
+    size_t activeBytes = (totalMsr > emptySwept) ? (totalMsr - emptySwept) : 0;
+    VLOG(REPORT, "[MS-GC] StopAndWaitForAllSweep: forceSwept=%zu unswept regions, "
+         "totalMSR=%zuB emptySwept=%zuB activeBytes=%zuB",
+         unsweptBefore, totalMsr, emptySwept, activeBytes);
 }
 
 void CentralRegionPool::ClearAllMarkBitmaps()

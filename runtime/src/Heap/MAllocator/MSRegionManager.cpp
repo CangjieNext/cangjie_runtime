@@ -240,26 +240,6 @@ void MSRegionManager::MaybeNotifySweep(const CentralRegionPool* centralPool, uin
     }
 }
 
-void MSRegionManager::MaybeNotifyReclaim()
-{
-    if (Heap::GetHeap().IsGcStarted()) {
-        return;
-    }
-
-    const CentralRegionPool* pool =
-        static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator()).GetCentralPool();
-    if (pool == nullptr) {
-        return;
-    }
-
-    if (!pool->ShouldNotifyBackgroundReclaim()) {
-        return;
-    }
-
-    BackgroundProcessor& backgroundProcessor = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
-    backgroundProcessor.NotifyToReclaimGarbage();
-}
-
 size_t MSRegionManager::GetHotFreeBytes() const
 {
     return freeManager_.GetHotFreeBytes();
@@ -311,20 +291,16 @@ void MSRegionManager::MaybeNotifyMark()
 
     Collector& collector = Heap::GetHeap().GetCollector();
     const GCStats& gcStats = collector.GetGCStats();
+    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
     const CentralRegionPool* pool =
-        static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator()).GetCentralPool();
+        space.GetCentralPool();
     if (pool == nullptr) {
         return;
     }
 
-    // Use heapInUse = totalMSRegionBytes_ - emptySweptBytes_ as the trigger metric.
-    // Compare against heapGoal (region-granularity, set by UpdateGCStats Phase1 and
-    // refined at sweep-done Phase2). Before the first GC, heapGoal == 0 so
-    // heapInUse is never below threshold and GC fires early on the first allocation.
-    size_t totalBytes  = pool->GetTotalMSRegionBytes();
-    size_t emptySwept  = pool->GetEmptySweptBytes();
-    size_t heapInUse   = (totalBytes > emptySwept) ? (totalBytes - emptySwept) : 0;
-    size_t threshold   = gcStats.heapGoal.load(std::memory_order_relaxed);
+    // Use heapThreshold updated at GC end from active-region bytes and eager-sweep sampling.
+    size_t heapInUse = space.GetHeapInUseBytes();
+    size_t threshold = gcStats.GetThreshold();
     if (heapInUse < threshold) {
         return;
     }
@@ -353,14 +329,9 @@ void MSRegionManager::MaybeNotifyMark()
 
     collector.RequestGC(GC_REASON_HEU, true);
     VLOG(REPORT,
-         "[MS-GC] HEU trigger (take-regions): heapInUse=%zuB emptySwept=%zuB totalMSR=%zuB "
-         "heapGoal=%zuB lastRegionBytes=%zu lastTrueLiveBytes=%zu reason=heapGoal",
+         "[MS-GC] HEU trigger (take-regions): active-region bytes=%zuB heapThreshold=%zuB reason=GC_REASON_HEU",
          heapInUse,
-         emptySwept,
-         totalBytes,
-         threshold,
-         gcStats.lastRegionBytes,
-         gcStats.lastTrueLiveBytes);
+         threshold);
 }
 
 // ============================================================================

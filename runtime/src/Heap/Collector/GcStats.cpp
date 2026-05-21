@@ -27,6 +27,15 @@ size_t GCStats::UpdateHeapGoal(size_t survivingRegionBytes)
     return goal;
 }
 
+size_t GCStats::UpdateHeapThreshold(size_t liveRegionBytes)
+{
+    double heapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
+    size_t gcThresholdCap = CangjieRuntime::GetGCParam().gcThreshold;
+    size_t threshold = static_cast<size_t>(static_cast<double>(liveRegionBytes) * (1.0 + heapGrowth));
+    heapThreshold = std::min(threshold, gcThresholdCap);
+    return heapThreshold;
+}
+
 void GCStats::Init()
 {
     isConcurrentMark = false;

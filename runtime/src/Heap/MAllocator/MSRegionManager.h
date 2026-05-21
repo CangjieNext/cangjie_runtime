@@ -179,9 +179,6 @@ public:
     // class has both low ready supply and unswept backlog.
     void MaybeNotifySweep(const CentralRegionPool* centralPool, uint8_t cls);
 
-    // Layer-3 trigger: notify gc-helper to reclaim empty regions back to OS.
-    void MaybeNotifyReclaim();
-
     // Layer-4 trigger: notify gc-helper to scavenge heap when retained exceeds goal.
     void MaybeNotifyScavenge();
 

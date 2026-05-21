@@ -28,6 +28,7 @@ public:
     void Init();
 
     size_t GetThreshold() const { return heapThreshold; }
+    size_t UpdateHeapThreshold(size_t liveRegionBytes);
 
     // Snapshots persisted at GC end for pacing / HEU trigger calculations.
     size_t baselineAllocatedBytes = 0;  // totalMSRegionBytes_ snapshot at GC end

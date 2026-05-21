@@ -26,81 +26,53 @@ struct MSRegionInfo;
 // Accumulated during a single GC cycle, logged in DumpMSGCLog(), then reset.
 struct MSGCCycleStats {
     // ── Timing (microseconds) ──
-    uint64_t preEnumRootsUs = 0;
-    uint64_t markSetupUs = 0;
-    uint64_t clearBitmapUs = 0;
-    uint64_t enumRootsUs = 0;
-    uint64_t concurrentMarkUs = 0;
-    uint64_t markTerminationUs = 0;
-    uint64_t postMarkUs = 0;
-    uint64_t concurrentSweepUs = 0;
-    uint64_t postGcHookUs = 0;
+    uint64_t preEnumRootsUs = 0;      // PreEnumRoots wall time: stop sweep, clear bitmaps, reclassify, prepare sweep.
+    uint64_t markSetupUs = 0;         // EnumRoots wall time: handshake + EnumAndMarkRoots root discovery.
+    uint64_t concurrentMarkUs = 0;    // ConcurrentMark wall time: RunConcurrentMarkLoop and assist snapshot.
+    uint64_t markTerminationUs = 0;   // MarkTermination wall time: STW drain, WB flush, deferred queue drain.
+    uint64_t postMarkUs = 0;          // PostMarkTermination wall time: weak refs, finalizers, large-object reclaim.
+    uint64_t concurrentSweepUs = 0;   // ConcurrentSweep wall time: ComputeMarkedBytes and eager sweep sampling.
+    uint64_t postGcHookUs = 0;        // PostGarbageCollection hook wall time after UpdateGCStats completes.
 
     // ── Counting ──
-    size_t clearBitmapRegions = 0;
-    size_t forceFinishSweptRegions = 0;
-    size_t rootsCount = 0;
-    size_t concMarkThreads = 0;
-    size_t wbBufFlushCount = 0;
-    size_t wbBufEntriesTotal = 0;
-    uint64_t wbBufFlushUs = 0;
-    size_t markTermProcessedObjects = 0;
-    size_t markTermNewlyMarkedObjects = 0;
-    uint64_t drainMarkQueueUs = 0;
-    size_t weakRefCleared = 0;
-    size_t finalizerEnqueued = 0;
-    size_t losFreedCount = 0;
-    size_t losFreedRegionCount = 0;
-    size_t losFreedBytes = 0;
-    uint64_t losCollectUs = 0;
-    size_t preparedRegions = 0;
-    uint64_t prepareForSweepUs = 0;
-
-    // ── Per-phase mark deltas (for DFX per-phase logging) ──
-    size_t markAfterEnumRoots = 0;     // markedObjectCount after EnumRoots
-    size_t markAfterConcMark = 0;      // markedObjectCount after ConcurrentMark
-    size_t markAfterMarkTerm = 0;      // markedObjectCount after MarkTermination
+    size_t rootsCount = 0;                // markWorkStack_.size() right after EnumAndMarkRoots finishes.
+    size_t markTermProcessedObjects = 0;  // Objects drained by ExecuteLikeDrainMainQueue during STW mark termination.
+    size_t markTermNewlyMarkedObjects = 0; // markedObjectCount delta created by the STW final drain.
+    size_t losFreedCount = 0;             // Large objects reclaimed in CollectLargeGarbage for this cycle.
+    size_t losFreedRegionCount = 0;       // Large-object region spans reclaimed in CollectLargeGarbage.
+    size_t losFreedBytes = 0;             // Bytes reclaimed from large-object spans in this cycle.
+    uint64_t losCollectUs = 0;            // Timer around CollectLargeGarbage.
 
     // ── Previous cycle sweep summary (persisted from last cycle) ──
-    size_t prevSweptSmallRegions = 0;
-    size_t prevSweptSmallEmptiedRegions = 0;
-    size_t prevSweptSmallRetainedRegions = 0;
-    size_t prevSweptSmallFreedBytes = 0;
-    size_t prevSweptLargeCount = 0;
-    size_t prevSweptLargeRegions = 0;
-    size_t prevSweptLargeFreedBytes = 0;
-    size_t prevEmptiedRegions = 0;
-    size_t prevBgSweepRegions = 0;
-    size_t prevLazySweepRegions = 0;
-    size_t prevReleasedTreeRegions = 0;
-    size_t prevReleasedTreeBytes = 0;
+    size_t prevSweptSmallRegions = 0;         // Previous cycle TotalSweptRegions() snapshot used by LogSweepSummary.
+    size_t prevSweptSmallEmptiedRegions = 0;  // Previous cycle emptiedRegions snapshot used by LogSweepSummary.
+    size_t prevSweptLargeCount = 0;           // Previous cycle large-object reclaim count used by LogSweepSummary.
+    size_t prevSweptLargeRegions = 0;         // Previous cycle large-object reclaimed region spans.
+    size_t prevSweptLargeFreedBytes = 0;      // Previous cycle large-object reclaimed bytes.
+    size_t prevBgSweepRegions = 0;            // Previous cycle background-swept small-region count.
+    size_t prevLazySweepRegions = 0;          // Previous cycle lazy-swept small-region count.
 
     // ── Mutator assist stats (Step 2.2 §4) ──
-    size_t assistCallCount = 0;
-    size_t assistMarkedObjects = 0;
-    size_t assistProcessedObjects = 0;
-    size_t assistTracedObjects = 0;
-    size_t assistFastSkipCount = 0;
-    size_t globalShareCount = 0;
-    size_t globalSharedBufs = 0;
-    size_t globalPopHitCount = 0;
-    size_t globalPopMissCount = 0;
-    size_t bgScanCreditConsumed = 0;
-    size_t lfStackPushCount = 0;
-    size_t lfStackPopCount = 0;
+    size_t assistCallCount = 0;          // assistCallTotal_ snapshot at ConcurrentMark end.
+    size_t assistMarkedObjects = 0;      // assistMarkedCount_ snapshot; current branch does not increment it.
+    size_t assistProcessedObjects = 0;   // assistProcessedCount_ snapshot at ConcurrentMark end.
+    size_t assistTracedObjects = 0;      // assistTracedCount_ snapshot at ConcurrentMark end.
+    size_t assistFastSkipCount = 0;      // assistFastSkipCount_ snapshot for bg-credit short-circuit counts.
+    size_t globalShareCount = 0;         // Number of WorkBuf pushes to globalFull_ from WB overflow paths.
+    size_t globalPopHitCount = 0;        // global LFStack pop-hit count snapshot from concurrent mark.
+    size_t globalPopMissCount = 0;       // global LFStack pop-miss count snapshot from concurrent mark.
+    size_t bgScanCreditConsumed = 0;     // bgScanCreditConsumed_ snapshot after concurrent mark convergence.
 
     // ── True live bytes (computed from markBitmaps after marking) ──
-    size_t trueLiveBytes = 0;
+    size_t trueLiveBytes = 0;            // ComputeMarkedBytes() result, used by UpdateGCStats and GC-end logs.
 
     // ── Eager sweep batch ──
-    size_t eagerSweepBatchRegions = 0;
-    size_t eagerSweepEmptyBytes = 0;     // emptySweptBytes_ delta during eager batch
+    size_t eagerSweepBatchRegions = 0;   // Actual regions swept by EagerSweepBatch during ConcurrentSweep.
+    size_t eagerSweepEmptiedRegions = 0; // Empty regions produced by eager sweep, derived from empty cache delta.
+    size_t eagerSweepTotalUnswept = 0;   // Unswept region count sampled before eager sweep starts.
 
     // ── Region accounting snapshot ──
-    size_t activeRegionCount = 0;
-    size_t releasedTreeRegionCount = 0;
-    size_t virginRegionCount = 0;
-    size_t committedRegionCount = 0;
+    size_t activeRegionCount = 0;        // activeRegionBytes / MS_REGION_SIZE, emitted in DumpRegionStatsMS.
 
     void Reset() { *this = MSGCCycleStats{}; }
 };
@@ -334,7 +306,6 @@ private:
     std::atomic<size_t> assistTracedCount_{0};
     std::atomic<size_t> assistFastSkipCount_{0};
     std::atomic<size_t> globalShareCount_{0};
-    std::atomic<size_t> globalSharedBufCount_{0};
     std::atomic<size_t> globalPopHitCount_{0};
     std::atomic<size_t> globalPopMissCount_{0};
     std::atomic<size_t> bgScanCreditConsumed_{0};
