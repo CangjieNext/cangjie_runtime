@@ -94,8 +94,7 @@ public:
 
     // Background: fill empty cachedRegion_ slots for size classes with high miss pressure.
     // Called by gc-helper thread (FinalizerProcessor). Thread-safe via atomic cachedRegion_.
-    MSAllocCacheFillStats BackgroundFillCache(uint8_t preferredCls,
-                                             MSFeedPressureLevel pressureLevel);
+    MSAllocCacheFillStats BackgroundFillCache(uint8_t preferredCls);
 
     // Record stack root (called from Mutator::GcPhaseEnum during root enumeration).
     // This is root staging only, not grey-work production. Objects become grey
@@ -134,6 +133,7 @@ public:
 
     size_t CountActiveRegions() const;
     size_t CountCachedRegions() const;
+    bool NeedsBackgroundFill(uint8_t preferredCls) const;
     uint16_t SnapshotHotClassScore(uint8_t cls) const { return GetHotClassScore(cls); }
     HotClassLevel SnapshotHotClassLevel(uint8_t cls) const
     {
@@ -157,8 +157,8 @@ public:
 private:
     friend class CentralRegionPool;
     static constexpr uint8_t kNoPreferredHotClass = UINT8_MAX;
-    static constexpr uint8_t kCachedRegionSlots = 5;
-    static constexpr uint8_t kBaseCachedRegionSlots = 2;
+    static constexpr uint8_t kCachedRegionSlots = 1;
+    static constexpr uint8_t kBackgroundFeedTopK = 5;
 
     // LLVM fast-path compatibility: must be at offset 0 (same as AllocBuffer::tlRegion).
     // Set to NullRegion() so fast-path allocation always fails → slow path.
@@ -178,20 +178,19 @@ private:
     void BoostCacheHeat(uint8_t cls, uint8_t delta);
     void CoolCacheHeat(uint8_t cls, uint8_t delta);
     uint8_t CountCachedRegions(uint8_t cls) const;
+    void ObserveFeedHotness(uint8_t cls, uint8_t demand);
+    void DecayFeedHotness(uint8_t cls, uint8_t floor = 0);
     uint16_t GetHotClassScore(uint8_t cls) const;
     uint8_t GetHotClassRank(uint8_t cls) const;
     uint8_t GetHotHintClass() const;
     bool IsPrimaryHotClass(uint8_t cls) const;
     bool IsSecondaryHotClass(uint8_t cls) const;
     bool ShouldNotifyBackgroundFeed(uint8_t cls) const;
-    bool ShouldBackgroundFillClass(uint8_t cls, uint8_t preferredCls,
-                                   MSFeedPressureLevel pressureLevel) const;
-    uint8_t GetTargetCachedSlots(uint8_t cls,
-                                 MSFeedPressureLevel pressureLevel = MSFeedPressureLevel::LOW) const;
+    uint8_t GetTargetCachedSlots(uint8_t cls) const;
     uint8_t GetCacheFillThreshold(uint8_t cls) const;
     uint16_t GetBackgroundFillPriority(uint8_t cls) const;
-    void NotifyBackgroundFillIfNeeded(uint8_t cls);
-    void TrimExtraCachedRegions(uint8_t cls, uint8_t targetSlots = kBaseCachedRegionSlots);
+    bool IsTopFeedHotClass(uint8_t cls, uint8_t preferredCls) const;
+    void TrimExtraCachedRegions(uint8_t cls, uint8_t targetSlots = kCachedRegionSlots);
 
     // Consume one cached backup Region for the given size class.
     MSRegionInfo* TakeCachedRegion(uint8_t cls);
@@ -212,7 +211,7 @@ private:
     // O2/O9: Per-size-class cached backup Regions.
     // Written by gc-helper (BackgroundFillCache), consumed by mutator (SlowAlloc).
     // Base capacity stays at 2; a few hot classes may temporarily expand to 3 or 4.
-    std::atomic<MSRegionInfo*> cachedRegion_[kNumSizeClasses][kCachedRegionSlots] = {};
+    std::atomic<MSRegionInfo*> cachedRegion_[kNumSizeClasses] = {};
 
     // O9: Per-size-class cache miss / heat heuristics.
     // cacheMiss_ tracks current refill pressure; cacheHeat_ keeps a short-lived
@@ -220,6 +219,7 @@ private:
     // for a few hot classes instead of sweeping all classes uniformly.
     std::atomic<uint8_t> cacheMiss_[kNumSizeClasses] = {};
     std::atomic<uint8_t> cacheHeat_[kNumSizeClasses] = {};
+    std::atomic<uint16_t> feedHotness_[kNumSizeClasses] = {};
     std::atomic<uint8_t> hotHintCls_{kNoPreferredHotClass};
     std::atomic<uint8_t> cacheConsumed_[kNumSizeClasses] = {};
 

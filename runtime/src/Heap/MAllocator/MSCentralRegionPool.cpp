@@ -499,54 +499,16 @@ void CentralRegionPool::DecrementTotalMSRegionBytes(size_t bytes)
     totalMSRegionBytes_.fetch_sub(bytes, std::memory_order_relaxed);
 }
 
-size_t CentralRegionPool::GetActiveWorkingSetRegionCount() const
-{
-    // Count regions that are immediately part of the current working set:
-    // mutator-active regions + alloc-buffer cached spares + central ready regions.
-    // Exclude empty cache and released spans because they do not actively grow RSS pressure.
-    return GetAllAllocBufferActiveRegionCount() +
-           GetAllAllocBufferCachedRegionCount() +
-           GetTotalPartialSweptCount() +
-           GetTotalFullCount() +
-           GetLargeRegionSpanCount();
-}
-
-MSFeedPressureLevel CentralRegionPool::GetFeedPressureLevel() const
-{
-    // Thresholds are computed dynamically from the current committed heap capacity,
-    // so they automatically scale when the heap grows or shrinks.
-    // Ratios (using integer cross-multiplication to avoid division):
-    //   MEDIUM  : activeWorkingSet >= 1/2 of totalRegions
-    //   HIGH    : activeWorkingSet >= 2/3 of totalRegions
-    //   EXTREME : activeWorkingSet >= 4/5 of totalRegions
-    size_t totalRegions = (msRegionManager_ != nullptr) ? msRegionManager_->GetMaxRegionCount() : 0;
-    size_t activeWorkingSet = GetActiveWorkingSetRegionCount();
-
-    if (totalRegions == 0) {
-        return MSFeedPressureLevel::LOW;
-    }
-    if (activeWorkingSet * 5 >= totalRegions * 4) {
-        return MSFeedPressureLevel::EXTREME;
-    }
-    if (activeWorkingSet * 3 >= totalRegions * 2) {
-        return MSFeedPressureLevel::HIGH;
-    }
-    if (activeWorkingSet * 2 >= totalRegions) {
-        return MSFeedPressureLevel::MEDIUM;
-    }
-    return MSFeedPressureLevel::LOW;
-}
-
 size_t CentralRegionPool::ReclaimEmptyRegion(size_t maxRegions)
 {
     size_t emptyCount = GetEmptySweptRegionCount();
     if (emptyCount == 0 || maxRegions == 0) {
         return 0;
     }
-    size_t releasedRegions = 0;
-    size_t releasedBytes = 0;
+    size_t promotedRegions = 0;
+    size_t promotedBytes = 0;
 
-    while (releasedRegions < maxRegions) {
+    while (promotedRegions < maxRegions) {
         MSRegionInfo* region = nullptr;
         {
             std::lock_guard<std::mutex> lg(emptySweptLock_);
@@ -558,13 +520,13 @@ size_t CentralRegionPool::ReclaimEmptyRegion(size_t maxRegions)
             emptySweptBytes_.fetch_sub(MS_REGION_SIZE, std::memory_order_relaxed);
         }
 
-        msRegionManager_->ReclaimEmptyRegionToReleased(region);
+        msRegionManager_->ReclaimEmptyRegionToHotFree(region);
         totalMSRegionBytes_.fetch_sub(MS_REGION_SIZE, std::memory_order_relaxed);
-        releasedRegions++;
-        releasedBytes += MS_REGION_SIZE;
+        promotedRegions++;
+        promotedBytes += MS_REGION_SIZE;
     }
 
-    return releasedBytes;
+    return promotedBytes;
 }
 
 // ============================================================================
@@ -910,6 +872,17 @@ size_t CentralRegionPool::GetAllAllocBufferCachedRegionCount() const
     return total;
 }
 
+bool CentralRegionPool::HasHungryAllocBuffer(uint8_t preferredCls) const
+{
+    std::lock_guard<std::mutex> lg(const_cast<std::mutex&>(msAllocBufferLock_));
+    for (AllocBufferMS* buffer : msAllocBuffers_) {
+        if (buffer != nullptr && buffer->NeedsBackgroundFill(preferredCls)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 size_t CentralRegionPool::GetAllAllocBufferRegionCount() const
 {
     return GetAllAllocBufferActiveRegionCount() + GetAllAllocBufferCachedRegionCount();
@@ -1090,13 +1063,6 @@ BackgroundFeedStats CentralRegionPool::BackgroundFillAllocCaches(uint8_t preferr
 {
     BackgroundFeedStats totalStats;
     totalStats.slices = 1;
-    MSFeedPressureLevel pressureLevel = GetFeedPressureLevel();
-    totalStats.pressureLevel = static_cast<uint8_t>(pressureLevel);
-    totalStats.activeWorkingSetRegions = GetActiveWorkingSetRegionCount();
-
-    if (pressureLevel == MSFeedPressureLevel::EXTREME) {
-        return totalStats;
-    }
 
     std::vector<AllocBufferMS*> buffers;
     {
@@ -1107,7 +1073,7 @@ BackgroundFeedStats CentralRegionPool::BackgroundFillAllocCaches(uint8_t preferr
     uint64_t t0 = TimeUtil::MicroSeconds();
     for (AllocBufferMS* buffer : buffers) {
         if (buffer != nullptr) {
-            MSAllocCacheFillStats stats = buffer->BackgroundFillCache(preferredCls, pressureLevel);
+            MSAllocCacheFillStats stats = buffer->BackgroundFillCache(preferredCls);
             if (stats.HasWork()) {
                 totalStats.touchedBuffers++;
                 totalStats.filledClasses += stats.filledClasses;

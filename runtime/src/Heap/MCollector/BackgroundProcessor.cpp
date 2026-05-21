@@ -16,6 +16,7 @@
 #include "Heap/MAllocator/MSRegionManager.h"
 #include "Mutator/Mutator.inline.h"
 #include "Mutator/MutatorManager.h"
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <thread>
@@ -26,6 +27,9 @@ constexpr U32 DEFAULT_MS_GC_HELPER_POLL_MS = 2000;
 constexpr U32 DEFAULT_MS_GC_HELPER_ACTIVE_BACKOFF_MS = 1;
 constexpr U32 DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_ROUNDS = 4;
 constexpr uint64_t DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_US = 12000;
+constexpr size_t DEFAULT_MS_FEED_TARGET_CACHED_PER_BUFFER = 5;
+constexpr size_t DEFAULT_MS_SCAVENGE_ROUNDS = 8;
+constexpr size_t DEFAULT_MS_SCAVENGE_MIN_SLICE_BYTES = 4 * MS_REGION_SIZE;
 
 bool EqualsIgnoreCase(const char* lhs, const char* rhs)
 {
@@ -48,6 +52,22 @@ bool EqualsIgnoreCase(const char* lhs, const char* rhs)
         ++rhs;
     }
     return *lhs == '\0' && *rhs == '\0';
+}
+
+bool IsBackgroundSweepEnabled()
+{
+    static const bool enabled = []() {
+        const char* env = std::getenv("CJ_MS_BG_SWEEP");
+        if (env == nullptr || env[0] == '\0') {
+            return true;
+        }
+        if (std::strcmp(env, "0") == 0 || EqualsIgnoreCase(env, "false") ||
+            EqualsIgnoreCase(env, "off") || EqualsIgnoreCase(env, "no")) {
+            return false;
+        }
+        return true;
+    }();
+    return enabled;
 }
 
 bool IsBackgroundFeedEnabled()
@@ -189,6 +209,14 @@ void BackgroundProcessor::Run()
                 break;
             }
             Wait(iterationWaitTime);
+            if (!running.load(std::memory_order_acquire)) {
+                break;
+            }
+            if (!HasPendingWakeWork() && ShouldStartPeriodicFeed()) {
+                shouldFeedHungryBuffers.store(true, std::memory_order_release);
+                preferredFeedCls_.store(kNoPreferredFeedClass, std::memory_order_release);
+                break;
+            }
         }
     }
     Fini();
@@ -279,34 +307,33 @@ bool BackgroundProcessor::HasPendingWakeWork() const
            shouldScavengeHeap_.load(std::memory_order_relaxed);
 }
 
-void BackgroundProcessor::MaybeNotifyFeed(uint8_t cls)
+bool BackgroundProcessor::ShouldStartPeriodicFeed() const
 {
     if (!IsBackgroundFeedEnabled()) {
-        shouldFeedHungryBuffers.store(false, std::memory_order_release);
-        return;
+        return false;
     }
-
-    // Skip notification when cached regions already cover all active (in-use) regions,
-    // or when memory pressure is extreme (feeding is suppressed at that level anyway).
     CentralRegionPool* pool = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator()).GetCentralPool();
-    if (pool != nullptr) {
-        if (pool->GetFeedPressureLevel() == MSFeedPressureLevel::EXTREME) {
-            return;
-        }
-        size_t cached = pool->GetAllAllocBufferCachedRegionCount();
-        size_t active = pool->GetAllAllocBufferActiveRegionCount();
-        if (cached >= active) {
-            return;
-        }
+    if (pool == nullptr) {
+        return false;
     }
-    if (cls != kNoPreferredFeedClass) {
-        preferredFeedCls_.store(cls, std::memory_order_release);
+    size_t bufferCount = pool->GetAllocBufferCount();
+    if (bufferCount == 0) {
+        return false;
     }
-    RequestWork(shouldFeedHungryBuffers);
+    size_t cachedCount = pool->GetAllAllocBufferCachedRegionCount();
+    size_t halfFullThreshold = (bufferCount * DEFAULT_MS_FEED_TARGET_CACHED_PER_BUFFER) / 2;
+    if (halfFullThreshold == 0) {
+        halfFullThreshold = 1;
+    }
+    return cachedCount < halfFullThreshold && pool->HasHungryAllocBuffer(kNoPreferredFeedClass);
 }
 
 void BackgroundProcessor::NotifyToSweep(uint8_t cls)
 {
+    if (!IsBackgroundSweepEnabled()) {
+        shouldBackgroundSweep_.store(false, std::memory_order_release);
+        return;
+    }
     if (cls != kNoPreferredSweepClass) {
         preferredSweepCls_.store(cls, std::memory_order_release);
     }
@@ -367,52 +394,32 @@ bool BackgroundProcessor::HasPendingSweepWork()
 
 bool BackgroundProcessor::BackgroundFeedLoop()
 {
-    if (!IsBackgroundFeedEnabled()) {
-        shouldFeedHungryBuffers.store(false, std::memory_order_release);
-        pendingFeedStats_.Reset();
-        return false;
-    }
-
     Allocator& allocator = Heap::GetHeap().GetAllocator();
     uint8_t preferredCls = preferredFeedCls_.exchange(kNoPreferredFeedClass, std::memory_order_acq_rel);
     BackgroundFeedStats sliceStats = allocator.BackgroundFillAllocCaches(preferredCls);
     pendingFeedStats_.Merge(sliceStats);
-    bool hasMore = HasPendingFeedWork();
+    bool hasMore = HasPendingFeedWork(preferredCls);
     if (!hasMore && pendingFeedStats_.HasWork()) {
         VLOG(REPORT,
-             "[MS-GC] feed done: slices=%zu buffers=%zu classes=%zu regions=%zu pressure=%u elapsed=%zuus",
+             "[MS-GC] feed done: slices=%zu buffers=%zu classes=%zu regions=%zu elapsed=%zuus",
              pendingFeedStats_.slices,
              pendingFeedStats_.touchedBuffers,
              pendingFeedStats_.filledClasses,
              pendingFeedStats_.filledRegions,
-             static_cast<unsigned>(pendingFeedStats_.pressureLevel),
              static_cast<size_t>(pendingFeedStats_.elapsedUs));
         pendingFeedStats_.Reset();
     }
     return hasMore;
 }
 
-bool BackgroundProcessor::HasPendingFeedWork()
+bool BackgroundProcessor::HasPendingFeedWork(uint8_t preferredCls)
 {
-    if (!IsBackgroundFeedEnabled()) {
-        shouldFeedHungryBuffers.store(false, std::memory_order_release);
-        return false;
-    }
-
     CentralRegionPool* pool = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator()).GetCentralPool();
     if (pool == nullptr) {
         shouldFeedHungryBuffers.store(false, std::memory_order_release);
         return false;
     }
-    // When memory pressure is extreme, feeding is suppressed anyway; stop looping.
-    if (pool->GetFeedPressureLevel() == MSFeedPressureLevel::EXTREME) {
-        shouldFeedHungryBuffers.store(false, std::memory_order_release);
-        return false;
-    }
-    size_t cached = pool->GetAllAllocBufferCachedRegionCount();
-    size_t active = pool->GetAllAllocBufferActiveRegionCount();
-    if (cached >= active) {
-        // All active buffers have a cached spare: feed work done.
+    if (!pool->HasHungryAllocBuffer(preferredCls)) {
         shouldFeedHungryBuffers.store(false, std::memory_order_release);
         return false;
     }
@@ -421,12 +428,6 @@ bool BackgroundProcessor::HasPendingFeedWork()
 
 bool BackgroundProcessor::BackgroundScavengeLoop()
 {
-    if (!IsBackgroundScavengeEnabled()) {
-        shouldScavengeHeap_.store(false, std::memory_order_release);
-        pendingScavengeStats_.Reset();
-        return false;
-    }
-
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
     size_t retained = space.GetHeapRetainedBytes();
     size_t threshold = space.GetHeapThresholdBytes();
@@ -447,28 +448,36 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
         return false;
     }
 
-    size_t toScavenge = retained - threshold;
+    size_t targetBytes = retained - threshold;
+    size_t sliceTargetBytes = targetBytes;
+    uint64_t t0 = TimeUtil::MicroSeconds();
+    size_t refilledHotFree = 0;
+    size_t released = 0;
 
-    // Step A (on-demand): if FreeManager has little hot-free and emptySwept cache
-    // is non-empty, flush half of it to FreeManager now.
+    // Step A (on-demand): if hot-free supply is below the current target and
+    // emptySwept cache is non-empty, move half of emptySwept into hot-free first.
     if (space.HasEmptySweptRegions()) {
         size_t hotFree = space.GetHotFreeBytes();
-        if (hotFree < toScavenge) {
-            (void)space.FlushHalfEmptySweptToFreeManager();
+        if (hotFree < targetBytes) {
+            refilledHotFree = space.FlushHalfEmptySweptToHotFree();
         }
     }
 
-    // Step B: release a quantum of hot-free regions to OS.
-    static constexpr size_t kRounds = 8;
-    static constexpr double kOvershoot = 0.05;
-    static constexpr size_t kMaxQuantumBytes = 32 * 1024 * 1024; // 32MB per slice
-    size_t rawQuantum = static_cast<size_t>(
-        static_cast<double>(toScavenge / kRounds) * (1.0 + kOvershoot));
-    size_t quantum = std::max(std::min(rawQuantum, kMaxQuantumBytes),
-                              static_cast<size_t>(MS_REGION_SIZE));
+    size_t hotFreeAfterFlush = space.GetHotFreeBytes();
+    if (hotFreeAfterFlush < DEFAULT_MS_SCAVENGE_MIN_SLICE_BYTES) {
+        if (pendingScavengeStats_.HasWork()) {
+            pendingScavengeStats_.Reset();
+        }
+        shouldScavengeHeap_.store(false, std::memory_order_release);
+        return false;
+    }
 
-    uint64_t t0 = TimeUtil::MicroSeconds();
-    size_t released = space.BackgroundScavenge(quantum);
+    // Step B: release at most one round of the target, capped by current hot-free supply.
+    size_t roundTarget = std::max(
+        (sliceTargetBytes + DEFAULT_MS_SCAVENGE_ROUNDS - 1) / DEFAULT_MS_SCAVENGE_ROUNDS,
+        static_cast<size_t>(MS_REGION_SIZE));
+    size_t quantum = std::min(roundTarget, hotFreeAfterFlush);
+    released = space.BackgroundScavenge(quantum);
     uint64_t elapsed = TimeUtil::MicroSeconds() - t0;
 
     if (released > 0) {

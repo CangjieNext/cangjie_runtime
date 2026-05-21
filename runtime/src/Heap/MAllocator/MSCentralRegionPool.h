@@ -26,13 +26,6 @@ namespace MapleRuntime {
 class MSRegionManager;
 class AllocBufferMS;
 
-enum class MSFeedPressureLevel : uint8_t {
-    LOW = 0,
-    MEDIUM = 1,
-    HIGH = 2,
-    EXTREME = 3,
-};
-
 enum class MSRegionAcquireSource : uint8_t {
     NONE = 0,
     PARTIAL_SWEPT,
@@ -362,6 +355,7 @@ public:
     size_t GetAllAllocBufferRegionCount() const;
     size_t GetAllAllocBufferActiveRegionCount() const;
     size_t GetAllAllocBufferCachedRegionCount() const;
+    bool HasHungryAllocBuffer(uint8_t preferredCls = UINT8_MAX) const;
     BucketPressure GetBucketPressure(uint8_t cls) const;
     void MaybeNotifySweep(uint8_t cls) const;
     size_t GetEmptySweptRegionCount() const
@@ -504,8 +498,6 @@ public:
     void RegisterAllocBufferMS(AllocBufferMS* buffer);
     void RemoveAllocBufferMS(AllocBufferMS* buffer);
     void FlushAllAllocBuffers();
-    size_t GetActiveWorkingSetRegionCount() const;
-    MSFeedPressureLevel GetFeedPressureLevel() const;
 
     // O9: Background fill of hungry per-thread alloc caches.
     // Called by gc-helper thread. Iterates all AllocBufferMS and fills

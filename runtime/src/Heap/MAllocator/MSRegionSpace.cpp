@@ -232,12 +232,20 @@ size_t RegionSpaceMS::GetHotFreeBytes() const
     return msRegionManager_->GetHotFreeBytes();
 }
 
+size_t RegionSpaceMS::GetEmptySweptBytes() const
+{
+    if (msCentralPool_ == nullptr) {
+        return 0;
+    }
+    return msCentralPool_->GetEmptySweptBytes();
+}
+
 bool RegionSpaceMS::HasEmptySweptRegions() const
 {
     return msCentralPool_ != nullptr && msCentralPool_->GetEmptySweptRegionCount() > 0;
 }
 
-size_t RegionSpaceMS::FlushHalfEmptySweptToFreeManager()
+size_t RegionSpaceMS::FlushHalfEmptySweptToHotFree()
 {
     if (msCentralPool_ == nullptr) {
         return 0;

@@ -49,7 +49,6 @@ public:
     void RegisterFinalizer(BaseObject* obj) { finalizerWorkList.RegisterFinalizer(obj); }
     void NotifyFinalizerWork() { Notify(); }
 
-    void MaybeNotifyFeed(uint8_t cls = kNoPreferredFeedClass);
     void NotifyToSweep(uint8_t cls = kNoPreferredSweepClass);
     void NotifyToScavenge();
     bool IsSweepPressureMode() const { return sweepPressureMode_.load(std::memory_order_acquire); }
@@ -62,9 +61,10 @@ private:
     void WaitForActiveBackoff(U32 timeoutMilliSeconds);
 
     void RequestWork(std::atomic<bool>& flag);
+    bool ShouldStartPeriodicFeed() const;
     bool HasPendingWakeWork() const;
     bool HasPendingSweepWork();    // check pending sweep work; updates pressure state and shouldBackgroundSweep_
-    bool HasPendingFeedWork();     // check if cached < active across all buffers; clears flag when done
+    bool HasPendingFeedWork(uint8_t preferredCls); // check if topK hot classes still need a single cached spare
     bool BackgroundSweepLoop();
     bool BackgroundFeedLoop();
     bool BackgroundScavengeLoop(); // heapThreshold-based: Step A (flush emptySwept) + Step B (scavenge) + Step C (shrink)

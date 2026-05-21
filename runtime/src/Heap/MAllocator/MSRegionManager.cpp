@@ -28,6 +28,10 @@
 
 namespace MapleRuntime {
 
+namespace {
+constexpr size_t DEFAULT_MS_SCAVENGE_WAKE_BYTES = 4 * MS_REGION_SIZE;
+}
+
 // External: system page size (defined in RegionManager.cpp).
 extern const size_t MRT_PAGE_SIZE;
 
@@ -264,9 +268,19 @@ void MSRegionManager::MaybeNotifyScavenge()
         return;
     }
 
+    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
     size_t totalBytes = pool->GetTotalMSRegionBytes();
     size_t hotFree = freeManager_.GetHotFreeBytes();
     size_t heapRetained = totalBytes + hotFree;
+
+    size_t emptySwept = space.GetEmptySweptBytes();
+    size_t releasableSupply = hotFree + emptySwept;
+
+    // Do not wake BackgroundScavengeLoop when there is not enough supply to
+    // produce at least one meaningful scavenge slice.
+    if (releasableSupply < DEFAULT_MS_SCAVENGE_WAKE_BYTES) {
+        return;
+    }
 
     static constexpr double kHysteresis = 0.1;
     if (heapRetained <= static_cast<size_t>(static_cast<double>(threshold) * (1.0 + kHysteresis))) {
@@ -541,11 +555,11 @@ void MSRegionManager::ReclaimRegionLarge(uintptr_t regionStart, size_t regionByt
     freeManager_.ReclaimRegionsReleased(regionIdx, regionCount);
 }
 
-void MSRegionManager::ReclaimEmptyRegionToReleased(MSRegionInfo* region)
+void MSRegionManager::ReclaimEmptyRegionToHotFree(MSRegionInfo* region)
 {
     size_t regionIdx = static_cast<size_t>(region - array_);
     CHECK_DETAIL(region->regionType == MSRegionType::MS_REGION_EMPTY_CACHE,
-                 "[MS-GC] ReclaimEmptyRegionToReleased: bad regionType=%u idx=%zu",
+                 "[MS-GC] ReclaimEmptyRegionToHotFree: bad regionType=%u idx=%zu",
                  static_cast<unsigned>(region->regionType), regionIdx);
 
     region->Reset();
@@ -579,7 +593,7 @@ void MSRegionManager::InlineReclaimForBalance(const CentralRegionPool& pool)
         return;
     }
 
-    ReclaimEmptyRegionToReleased(region);
+    ReclaimEmptyRegionToHotFree(region);
     mutablePool.DecrementTotalMSRegionBytes(MS_REGION_SIZE);
 }
 

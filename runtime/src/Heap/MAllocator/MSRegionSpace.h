@@ -85,9 +85,10 @@ public:
     size_t GetHeapRetainedBytes() const;
     size_t GetHeapThresholdBytes() const;
     size_t GetHotFreeBytes() const;
+    size_t GetEmptySweptBytes() const;
     bool HasEmptySweptRegions() const;
-    // Step A (on-demand): flush half of emptySweptCache → FreeManager (released state).
-    size_t FlushHalfEmptySweptToFreeManager();
+    // Step A (on-demand): flush half of emptySweptCache → FreeManager hot-free supply.
+    size_t FlushHalfEmptySweptToHotFree();
     // Step B: release up to quantumBytes of hot-free regions to OS. Returns bytes released.
     size_t BackgroundScavenge(size_t quantumBytes);
     // Step C: shrink committed heap end after scavenging.

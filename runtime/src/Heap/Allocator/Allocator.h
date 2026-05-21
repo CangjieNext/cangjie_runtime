@@ -21,13 +21,11 @@ struct BackgroundFeedStats {
     size_t touchedBuffers = 0;
     size_t filledClasses = 0;
     size_t filledRegions = 0;
-    size_t activeWorkingSetRegions = 0;
-    uint8_t pressureLevel = 0;
     uint64_t elapsedUs = 0;
 
     bool HasWork() const
     {
-        return filledRegions != 0 || pressureLevel != 0;
+        return filledRegions != 0;
     }
 
     void Merge(const BackgroundFeedStats& other)
@@ -37,8 +35,6 @@ struct BackgroundFeedStats {
         touchedBuffers += other.touchedBuffers;
         filledClasses += other.filledClasses;
         filledRegions += other.filledRegions;
-        activeWorkingSetRegions = std::max(activeWorkingSetRegions, other.activeWorkingSetRegions);
-        pressureLevel = std::max(pressureLevel, other.pressureLevel);
         elapsedUs += other.elapsedUs;
     }
 

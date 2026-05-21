@@ -95,9 +95,9 @@ public:
     // Reclaim a large Region spanning regionBytes.
     // regionStart is the actual start address of the allocation (from TakeRegionForLarge).
     void ReclaimRegionLarge(uintptr_t regionStart, size_t regionBytes);
-    // Move a classless empty-cache region to releasedTree, releasing physical
-    // pages first. Used by CentralRegionPool's background scavenger.
-    void ReclaimEmptyRegionToReleased(MSRegionInfo* region);
+    // Move a classless empty-cache region to FreeManager as hot-free supply.
+    // Physical pages are released later by BackgroundScavengeLoop Step B.
+    void ReclaimEmptyRegionToHotFree(MSRegionInfo* region);
 
     // Compatibility hook for allocator reclaim. MSGC small-region reclaim is
     // handled by CentralRegionPool empty-cache scavenging, so this is a no-op.
@@ -179,7 +179,8 @@ public:
     // class has both low ready supply and unswept backlog.
     void MaybeNotifySweep(const CentralRegionPool* centralPool, uint8_t cls);
 
-    // Layer-4 trigger: notify gc-helper to scavenge heap when retained exceeds goal.
+    // Layer-4 trigger: notify gc-helper to scavenge heap when retained exceeds
+    // threshold and enough releasable supply is available.
     void MaybeNotifyScavenge();
 
     // Return bytes in hot-free regions (free but pages not yet returned to OS).
