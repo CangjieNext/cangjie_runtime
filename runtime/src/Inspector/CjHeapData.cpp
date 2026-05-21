@@ -719,19 +719,20 @@ void CjHeapData::WriteInstance(BaseObject*& obj, const u1 tag)
 
 /*
  * Record String Info:
- *     RecordHeader header;
- *     ID id;      // ID for this string
+ *     u1 tag;     // TAG_STRING_IN_UTF8
+ *     u4 length;  // stringId + UTF8 bytes
+ *     u4 id;      // ID for this string
  *     u1 str[];   // UTF8 characters for string (NOT NULL terminated)
  */
 void CjHeapData::WriteString()
 {
     for (const auto& string : strings) {
-        WriteRecordHeader(TAG_STRING_IN_UTF8, kCjHeapDataTime);
+        AddU1(TAG_STRING_IN_UTF8);
         CjHeapDataStringId id = string.second;
-        AddStringId(id);
         const CString str = string.first;
+        AddU4(static_cast<u4>(sizeof(CjHeapDataStringId) + str.Length()));
+        AddStringId(id);
         AddU1List(reinterpret_cast<const uint8_t*>(str.Str()), str.Length());
-        ModifyLength();
         EndRecord();
     }
 }
@@ -947,7 +948,7 @@ void CjHeapData::EndRecord()
 
 void CjHeapData::WriteFixedHeader()
 {
-    const char ident[] = "CANGJIE PROFILE 1.0.1";
+    const char ident[] = "CANGJIE PROFILE 1.0.2";
     AddU1List(reinterpret_cast<const uint8_t*>(ident), sizeof(ident));
     const u4 idSize = use4ByteID ? sizeof(u4) : sizeof(u8);
     AddU4(idSize);
