@@ -464,20 +464,53 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     }
 
     size_t hotFreeAfterFlush = space.GetHotFreeBytes();
-    if (hotFreeAfterFlush < DEFAULT_MS_SCAVENGE_MIN_SLICE_BYTES) {
-        if (pendingScavengeStats_.HasWork()) {
-            pendingScavengeStats_.Reset();
+    // Snapshot emptySwept AFTER Step A so that any regions flushed into hotFree are
+    // already reflected in hotFreeAfterFlush and not double-counted.
+    size_t emptySweptAfterFlush = space.GetEmptySweptBytes();
+
+    // Guard: abort this slice if the total free buffer (hotFree + emptySwept) does not
+    // exceed the larger of (a) the mark-window reserve and (b) the minimum slice size.
+    // emptySwept counts toward the reserve, so hotFree can still be released even when
+    // hotFree alone is smaller than reserveBytes.
+    {
+        const GCStats& gcStats = Heap::GetHeap().GetCollector().GetGCStats();
+        size_t reserveBytes = gcStats.markWindowReserveBytes;
+        size_t scavengeGuard = std::max(reserveBytes,
+                                        static_cast<size_t>(DEFAULT_MS_SCAVENGE_MIN_SLICE_BYTES));
+        size_t totalFreeAfterFlush = hotFreeAfterFlush + emptySweptAfterFlush;
+        if (totalFreeAfterFlush <= scavengeGuard) {
+            if (pendingScavengeStats_.HasWork()) {
+                pendingScavengeStats_.Reset();
+            }
+            shouldScavengeHeap_.store(false, std::memory_order_release);
+            return false;
         }
-        shouldScavengeHeap_.store(false, std::memory_order_release);
-        return false;
     }
 
-    // Step B: release at most one round of the target, capped by current hot-free supply.
+    // Step B: release at most one round of the target.
+    // Reserve is satisfied first by emptySwept (cached empty regions already excluded
+    // from OS return).  Only if emptySwept < reserveBytes is the shortfall carved from
+    // hotFree, so that emptySwept acts as the primary reserve buffer.
     size_t roundTarget = std::max(
         (sliceTargetBytes + DEFAULT_MS_SCAVENGE_ROUNDS - 1) / DEFAULT_MS_SCAVENGE_ROUNDS,
         static_cast<size_t>(MS_REGION_SIZE));
-    size_t quantum = std::min(roundTarget, hotFreeAfterFlush);
-    released = space.BackgroundScavenge(quantum);
+    {
+        const GCStats& gcStats2 = Heap::GetHeap().GetCollector().GetGCStats();
+        size_t reserveBytes2 = gcStats2.markWindowReserveBytes;
+        // emptySwept satisfies the reserve first; hold back hotFree only for the shortfall.
+        size_t hotFreeToKeep = (reserveBytes2 > emptySweptAfterFlush)
+            ? (reserveBytes2 - emptySweptAfterFlush)
+            : 0;
+        size_t availableToRelease = (hotFreeAfterFlush > hotFreeToKeep)
+            ? (hotFreeAfterFlush - hotFreeToKeep)
+            : 0;
+        if (availableToRelease == 0) {
+            shouldScavengeHeap_.store(false, std::memory_order_release);
+            return false;
+        }
+        size_t quantum = std::min(roundTarget, availableToRelease);
+        released = space.BackgroundScavenge(quantum);
+    }
     uint64_t elapsed = TimeUtil::MicroSeconds() - t0;
 
     if (released > 0) {

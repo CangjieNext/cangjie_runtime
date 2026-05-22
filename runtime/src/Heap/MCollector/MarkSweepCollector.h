@@ -59,6 +59,9 @@ struct MSGCCycleStats {
     size_t globalShareCount = 0;         // Number of WorkBuf pushes to globalFull_ from WB overflow paths.
     size_t bgScanCreditConsumed = 0;     // bgScanCreditConsumed_ snapshot after concurrent mark convergence.
 
+    // ── TakeRegion delta during concurrent mark (for reserve estimation) ──
+    uint64_t takeRegionsDuringMark = 0;  // TakeRegion call count delta: mark-end minus mark-start snapshot.
+
     // ── True live bytes (computed from markBitmaps after marking) ──
     size_t trueLiveBytes = 0;            // ComputeMarkedBytes() result, used by UpdateGCStats and GC-end logs.
 

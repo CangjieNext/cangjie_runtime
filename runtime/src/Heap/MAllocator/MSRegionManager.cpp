@@ -276,10 +276,16 @@ void MSRegionManager::MaybeNotifyScavenge()
     size_t emptySwept = space.GetEmptySweptBytes();
     size_t releasableSupply = hotFree + emptySwept;
 
-    // Do not wake BackgroundScavengeLoop when there is not enough supply to
-    // produce at least one meaningful scavenge slice.
-    if (releasableSupply < DEFAULT_MS_SCAVENGE_WAKE_BYTES) {
-        return;
+    // Do not wake BackgroundScavengeLoop when releasable supply is insufficient to
+    // produce a meaningful slice *after* preserving the mark-window reserve buffer.
+    // The guard is the larger of the reserve bytes and the minimum slice size.
+    {
+        size_t reserveBytes = gcStats.markWindowReserveBytes;
+        size_t wakeGuard = std::max(reserveBytes,
+                                    static_cast<size_t>(DEFAULT_MS_SCAVENGE_WAKE_BYTES));
+        if (releasableSupply <= wakeGuard) {
+            return;
+        }
     }
 
     static constexpr double kHysteresis = 0.1;
@@ -313,10 +319,16 @@ void MSRegionManager::MaybeNotifyMark()
     }
 
     // Use heapThreshold updated at GC end from active-region bytes and eager-sweep sampling.
+    // Subtract the mark-window reserve so GC triggers early enough to leave free regions
+    // available throughout the next concurrent mark phase.
     size_t heapInUse = space.GetHeapInUseBytes();
     size_t threshold = gcStats.GetThreshold();
-    if (heapInUse < threshold) {
-        return;
+    {
+        size_t reserveBytes = gcStats.markWindowReserveBytes;
+        size_t effectiveThreshold = (threshold > reserveBytes) ? (threshold - reserveBytes) : 0;
+        if (heapInUse < effectiveThreshold) {
+            return;
+        }
     }
 
     // Sweep-first deferral: if unswept backlog exceeds one sweep-slice worth of
@@ -343,9 +355,12 @@ void MSRegionManager::MaybeNotifyMark()
 
     collector.RequestGC(GC_REASON_HEU, true);
     VLOG(REPORT,
-         "[MS-GC] HEU trigger (take-regions): active-region bytes=%zuB heapThreshold=%zuB reason=GC_REASON_HEU",
+         "[MS-GC] HEU trigger (take-regions): active-region bytes=%zuB heapThreshold=%zuB"
+         " effectiveThreshold=%zuB reserveBytes=%zuB reason=GC_REASON_HEU",
          heapInUse,
-         threshold);
+         threshold,
+         (threshold > gcStats.markWindowReserveBytes) ? (threshold - gcStats.markWindowReserveBytes) : 0,
+         gcStats.markWindowReserveBytes);
 }
 
 // ============================================================================

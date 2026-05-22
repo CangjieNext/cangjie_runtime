@@ -574,8 +574,20 @@ void MarkSweepCollector::ConcurrentMark()
                allocSize);
     }
 
+    // Snapshot TakeRegion count at concurrent mark start for reserve computation.
+    MSRegionManager* rmgr = reinterpret_cast<RegionSpaceMS&>(theAllocator).GetMSRegionManager();
+    uint64_t takeRegionAtMarkStart = (rmgr != nullptr) ? rmgr->GetTakeRegionsCallCount() : 0;
+
     // 12. Run concurrent marking loop using gcThreadWork_ + globalFull_.
     RunConcurrentMarkLoop();
+
+    // Record TakeRegion delta during concurrent mark for reserve computation in UpdateGCStats.
+    if (rmgr != nullptr) {
+        uint64_t takeRegionAtMarkEnd = rmgr->GetTakeRegionsCallCount();
+        cycleStats_.takeRegionsDuringMark = (takeRegionAtMarkEnd >= takeRegionAtMarkStart)
+            ? (takeRegionAtMarkEnd - takeRegionAtMarkStart)
+            : 0;
+    }
 
     // 11. Process WeakRefs deferred during concurrent mark, before entering STW.
     ProcessDeferredWeakRefsPreSTW();
@@ -1629,15 +1641,45 @@ void MarkSweepCollector::UpdateGCStats()
         size_t threshold = gcStats.UpdateHeapThreshold(estimatedLiveBytes);
         VLOG(REPORT,
              "[MS-GC] heapThreshold: oldThreshold=%zuB newThreshold=%zuB "
-                         "prevLive=%zuB curLive=%zuB preActiveRegionBytes=%zuB activeRegion=%zuB estimatedLive=%zuB",
+                         "prevLive=%zuB curLive=%zuB preActiveRegionBytes=%zuB activeRegion=%zuB estimatedLive=%zuB"
+                         " reserveRegions=%zu(%.1fMB)",
                oldThreshold, threshold, oldLastTrueLiveBytes, liveBytes, preActiveRegionBytes, activeRegionBytes,
-             estimatedLiveBytes);
+             estimatedLiveBytes,
+             gcStats.markWindowReserveBytes / MS_REGION_SIZE,
+             static_cast<double>(gcStats.markWindowReserveBytes) / (1024.0 * 1024.0));
     } else if (activeRegionBytes > 0) {
         size_t threshold = gcStats.UpdateHeapThreshold(activeRegionBytes);
         VLOG(REPORT,
              "[MS-GC] heapThreshold (fallback): oldThreshold=%zuB newThreshold=%zuB "
-                         "preActiveRegionBytes=%zuB activeRegion=%zuB",
-               oldThreshold, threshold, preActiveRegionBytes, activeRegionBytes);
+                         "preActiveRegionBytes=%zuB activeRegion=%zuB reserveRegions=%zu(%.1fMB)",
+               oldThreshold, threshold, preActiveRegionBytes, activeRegionBytes,
+             gcStats.markWindowReserveBytes / MS_REGION_SIZE,
+             static_cast<double>(gcStats.markWindowReserveBytes) / (1024.0 * 1024.0));
+    }
+
+    // Compute mark-window reserve for the *next* GC cycle, based on this cycle's
+    // concurrent mark duration and TakeRegion call delta.
+    {
+        size_t reserveBytes = 0;
+        if (cycleStats_.takeRegionsDuringMark > 0) {
+            // Use raw region count from last concurrent mark phase as next-cycle reserve.
+            reserveBytes = cycleStats_.takeRegionsDuringMark * MS_REGION_SIZE;
+            // Cap at 25% of the new threshold to prevent premature GC churn.
+            size_t cap = gcStats.GetThreshold() / 4;
+            if (cap > 0 && reserveBytes > cap) {
+                reserveBytes = cap;
+            }
+        }
+        gcStats.markWindowReserveBytes = reserveBytes;
+        gcStats.lastMarkTakeRegionCount = static_cast<size_t>(cycleStats_.takeRegionsDuringMark);
+        gcStats.lastMarkTimeUs = cycleStats_.concurrentMarkUs;
+        VLOG(REPORT,
+             "[MS-GC] markWindowReserve: takeRegionsDuringMark=%llu markTimeUs=%llu"
+             " reserveRegions=%zu reserveBytes=%zuB",
+             (unsigned long long)cycleStats_.takeRegionsDuringMark,
+             (unsigned long long)cycleStats_.concurrentMarkUs,
+             reserveBytes / MS_REGION_SIZE,
+             reserveBytes);
     }
 
     VLOG(REPORT,
