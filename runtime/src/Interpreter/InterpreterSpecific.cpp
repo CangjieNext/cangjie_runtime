@@ -523,7 +523,7 @@ RTErrorCode InitInterpreter(const InterpreterParam& interpreterParam)
     StackManager::InitAddressScopeForInterpreter(libName);
 
     void *sym = dlsym(interpreterLibHandle, "interpreter_bridge_init");
-    DYN_InitRt init = (DYN_InitRt)sym;
+    INT_InitInterpreter init = (INT_InitInterpreter)sym;
     if (sym == 0) {
         DLOG(INTERPRETER, "dlsym failed: %s", dlerror());
         return E_FAILED;

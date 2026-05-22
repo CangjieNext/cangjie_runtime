@@ -115,7 +115,7 @@ struct DYN_CJNativeInterface;
 // region interpreter interface
 ////////////////////////////////////////////////////////////////////////////////////
 
-// Initalizes runtime and its interface.
+// Initalize interpreter and fill it`s interface.
 //
 // params:
 // - interpreterInterface - Pointer to `INT_InterpreterInterface` which filled by callee (out parameter).
@@ -125,7 +125,7 @@ struct DYN_CJNativeInterface;
 //                     Pointer owned by caller, callee should copy the content.
 // return: 0 on success.
 //
-typedef int (*DYN_InitRt)(struct INT_InterpreterInterface *interpreterInterface,
+typedef int (*INT_InitInterpreter)(struct INT_InterpreterInterface *interpreterInterface,
                       struct DYN_CJNativeInterface *cjnativeInterface,
                       int interpreterArgsCount,
                       const char* const* interpreterArgs);
