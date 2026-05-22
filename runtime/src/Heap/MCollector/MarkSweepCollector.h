@@ -54,13 +54,9 @@ struct MSGCCycleStats {
 
     // ── Mutator assist stats (Step 2.2 §4) ──
     size_t assistCallCount = 0;          // assistCallTotal_ snapshot at ConcurrentMark end.
-    size_t assistMarkedObjects = 0;      // assistMarkedCount_ snapshot; current branch does not increment it.
     size_t assistProcessedObjects = 0;   // assistProcessedCount_ snapshot at ConcurrentMark end.
-    size_t assistTracedObjects = 0;      // assistTracedCount_ snapshot at ConcurrentMark end.
     size_t assistFastSkipCount = 0;      // assistFastSkipCount_ snapshot for bg-credit short-circuit counts.
     size_t globalShareCount = 0;         // Number of WorkBuf pushes to globalFull_ from WB overflow paths.
-    size_t globalPopHitCount = 0;        // global LFStack pop-hit count snapshot from concurrent mark.
-    size_t globalPopMissCount = 0;       // global LFStack pop-miss count snapshot from concurrent mark.
     size_t bgScanCreditConsumed = 0;     // bgScanCreditConsumed_ snapshot after concurrent mark convergence.
 
     // ── True live bytes (computed from markBitmaps after marking) ──
@@ -117,17 +113,12 @@ public:
         return assistWorkPerByteScaled_.load(std::memory_order_acquire);
     }
     static uint64_t GetAssistRatioScale();
-    static double   GetAssistRatioMaxMultiplier();
+    static double GetAssistRatioMaxMultiplier();
     size_t GetAssistDebtTriggerObjects() const;
     static MarkSweepCollector* GetActiveCollector()
     {
         return activeCollector_.load(std::memory_order_acquire);
     }
-    bool HasPendingGlobalAssistWork() const
-    {
-        return !globalFull_.Empty();
-    }
-
     // Flush an overflowed WriteBarrierBuffer to the global LFStack.
     void FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf);
 
@@ -238,15 +229,11 @@ private:
     // ============================================================
     //
     // Fixed constants (compile-time):
-    //   kAssistRatioScale          - Fixed-point scale for assistWorkPerByteScaled_.
-    //                                ratio_real = assistWorkPerByteScaled_ / kAssistRatioScale
-    //   kAssistDebtTriggerObjects  - Max objects per single MSMarkAssist call.
     //   kCreditFlushThreshold      - GC thread accumulates bgScanCredit locally
     //                                and flushes every N objects to reduce atomic traffic.
     //   kSliceMaxObjects           - GC thread drain slice size per loop iteration.
     //   kConvergenceRequiredRounds - Consecutive empty rounds before triggering
     //                                the per-P flush + convergence check.
-    //   kAssistRatioMaxMultiplier  - Ratio is capped at initial * this value.
     //   kConvergenceYieldUs        - usleep duration when stable rounds < threshold.
     //   kConvergenceFlushWaitUs    - usleep before per-P flush to let in-flight assists finish.
     //
@@ -265,9 +252,6 @@ private:
     //                                     initial value, yielding moderate assist for long GC
     //                                     cycles while keeping short GC cycles assist-free.
     // ============================================================
-    // kAssistRatioScale and kAssistDebtTriggerObjects are configurable at runtime
-    // via CJ_MS_ASSIST_RATIO_SCALE and CJ_MS_ASSIST_DEBT_TRIGGER respectively.
-    // kAssistRatioMaxMultiplier is configurable via CJ_MS_ASSIST_RATIO_MAX_MULT.
     static constexpr size_t   kCreditFlushThreshold     = 1024;
     static constexpr size_t   kSliceMaxObjects          = 256;
     static constexpr size_t   kConvergenceRequiredRounds     = 3;
@@ -300,14 +284,10 @@ private:
     // (assist parameters are grouped above with other tuning constants)
 
     // ── Assist concurrent stats ──
-    std::atomic<size_t> assistMarkedCount_{0};
     std::atomic<size_t> assistCallTotal_{0};
     std::atomic<size_t> assistProcessedCount_{0};
-    std::atomic<size_t> assistTracedCount_{0};
     std::atomic<size_t> assistFastSkipCount_{0};
     std::atomic<size_t> globalShareCount_{0};
-    std::atomic<size_t> globalPopHitCount_{0};
-    std::atomic<size_t> globalPopMissCount_{0};
     std::atomic<size_t> bgScanCreditConsumed_{0};
 
     // ── DFX: Per-cycle stats ──

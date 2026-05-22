@@ -7,8 +7,10 @@
 #ifdef MRT_USE_MARK_SWEEP
 
 #include "MarkSweepCollector.h"
+#include <cmath>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include "Base/CString.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
@@ -462,6 +464,38 @@ static double GetAssistRatioCoeff()
     return coeff;
 }
 
+uint64_t ComputeAssistRatioCap(uint64_t initialRatioScaled)
+{
+    long double capped = std::ceil(static_cast<long double>(initialRatioScaled) *
+                                   static_cast<long double>(MarkSweepCollector::GetAssistRatioMaxMultiplier()));
+    if (capped < 1.0L) {
+        return 1;
+    }
+    if (capped >= static_cast<long double>(std::numeric_limits<uint64_t>::max())) {
+        return std::numeric_limits<uint64_t>::max();
+    }
+    return static_cast<uint64_t>(capped);
+}
+
+uint64_t ComputeNextAssistRatioScaled(uint64_t currentRatioScaled, uint64_t ratioCapScaled)
+{
+    if (currentRatioScaled >= ratioCapScaled) {
+        return ratioCapScaled;
+    }
+
+    long double escalated = std::ceil(static_cast<long double>(currentRatioScaled) *
+                                      (1.0L + static_cast<long double>(GetAssistRatioCoeff())));
+    if (escalated >= static_cast<long double>(std::numeric_limits<uint64_t>::max())) {
+        return ratioCapScaled;
+    }
+
+    uint64_t nextRatioScaled = static_cast<uint64_t>(escalated);
+    if (nextRatioScaled <= currentRatioScaled) {
+        nextRatioScaled = currentRatioScaled + 1;
+    }
+    return std::min(nextRatioScaled, ratioCapScaled);
+}
+
 // Fixed-point scale denominator for assist ratio (configurable via CJ_MS_ASSIST_RATIO_SCALE).
 uint64_t MarkSweepCollector::GetAssistRatioScale()
 {
@@ -508,14 +542,10 @@ void MarkSweepCollector::ConcurrentMark()
     TransitionToGCPhase(GCPhase::GC_PHASE_MS_CONCURRENT_MARK, true);
 
     // 9. Reset assist stats and bgScanCredit
-    assistMarkedCount_.store(0, std::memory_order_relaxed);
     assistCallTotal_.store(0, std::memory_order_relaxed);
     assistProcessedCount_.store(0, std::memory_order_relaxed);
-    assistTracedCount_.store(0, std::memory_order_relaxed);
     assistFastSkipCount_.store(0, std::memory_order_relaxed);
     globalShareCount_.store(0, std::memory_order_relaxed);
-    globalPopHitCount_.store(0, std::memory_order_relaxed);
-    globalPopMissCount_.store(0, std::memory_order_relaxed);
     bgScanCredit_.store(0, std::memory_order_relaxed);
     bgScanCreditConsumed_.store(0, std::memory_order_relaxed);
 
@@ -533,10 +563,15 @@ void MarkSweepCollector::ConcurrentMark()
             // objects-per-byte * scale; start conservatively at 1/4 of computed value
             uint64_t computed = static_cast<uint64_t>(prevMarked) * ratioScale / allocSize;
             initialRatioScaled = std::max((uint64_t)1, computed / 4);
-        }
-        assistWorkPerByteScaled_.store(initialRatioScaled, std::memory_order_release);
-        VLOG(REPORT, "[MS-GC] Assist enabled: ratioScaled=%llu (prevMarked=%zu, allocSize=%zu)",
-             (unsigned long long)initialRatioScaled, prevMarked, allocSize);
+           }
+           assistWorkPerByteScaled_.store(initialRatioScaled, std::memory_order_release);
+           VLOG(REPORT,
+               "[MS-GC] Assist enabled: ratioScaled=%llu coeff=%.3f maxMult=%.3f (prevMarked=%zu, allocSize=%zu)",
+               (unsigned long long)initialRatioScaled,
+               GetAssistRatioCoeff(),
+               GetAssistRatioMaxMultiplier(),
+               prevMarked,
+               allocSize);
     }
 
     // 12. Run concurrent marking loop using gcThreadWork_ + globalFull_.
@@ -562,11 +597,19 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
 
     convergenceStableRounds_ = 0;
     size_t localCreditAccum = 0;
+    const uint64_t initialRatioScaled = assistWorkPerByteScaled_.load(std::memory_order_acquire);
+    const uint64_t ratioCapScaled = ComputeAssistRatioCap(initialRatioScaled);
 
     while (true) {
         // Drain a slice via gcThreadWork_ (refills from globalFull_ on empty).
         size_t scannedCount = 0;
         DrainGCWork(gcThreadWork_, kSliceMaxObjects, scannedCount);
+
+        uint64_t currentRatioScaled = assistWorkPerByteScaled_.load(std::memory_order_relaxed);
+        if (currentRatioScaled != 0 && currentRatioScaled < ratioCapScaled) {
+            assistWorkPerByteScaled_.store(ComputeNextAssistRatioScaled(currentRatioScaled, ratioCapScaled),
+                                           std::memory_order_release);
+        }
 
         localCreditAccum += scannedCount;
         if (localCreditAccum >= kCreditFlushThreshold) {
@@ -585,31 +628,24 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
 
     // Snapshot assist stats
     cycleStats_.assistCallCount = assistCallTotal_.load(std::memory_order_relaxed);
-    cycleStats_.assistMarkedObjects = assistMarkedCount_.load(std::memory_order_relaxed);
     cycleStats_.assistProcessedObjects = assistProcessedCount_.load(std::memory_order_relaxed);
-    cycleStats_.assistTracedObjects = assistTracedCount_.load(std::memory_order_relaxed);
     cycleStats_.assistFastSkipCount = assistFastSkipCount_.load(std::memory_order_relaxed);
     cycleStats_.globalShareCount = globalShareCount_.load(std::memory_order_relaxed);
-    cycleStats_.globalPopHitCount = globalPopHitCount_.load(std::memory_order_relaxed);
-    cycleStats_.globalPopMissCount = globalPopMissCount_.load(std::memory_order_relaxed);
     cycleStats_.bgScanCreditConsumed = bgScanCreditConsumed_.load(std::memory_order_relaxed);
 
     cycleStats_.concurrentMarkUs = TimeUtil::MicroSeconds() - t0;
     VLOG(REPORT,
          "[MS-GC] ConcurrentMark time: %sus, marked %zu objects "
-         "(assist: %zu calls, %zu marked, %zu processed, %zu traced, %zu bgCredit-skip; "
-         "LFStack: push %zu, pop hit %zu miss %zu, bgCredit consumed %zu)",
+            "(assist: %zu calls, %zu processed, %zu bgCredit-skip; "
+            "LFStack: push %zu, bgCredit consumed %zu, final ratioScaled=%llu)",
          Pretty(cycleStats_.concurrentMarkUs).Str(),
          markedObjectCount.load(std::memory_order_relaxed),
          cycleStats_.assistCallCount,
-         cycleStats_.assistMarkedObjects,
          cycleStats_.assistProcessedObjects,
-         cycleStats_.assistTracedObjects,
          cycleStats_.assistFastSkipCount,
          cycleStats_.globalShareCount,
-         cycleStats_.globalPopHitCount,
-         cycleStats_.globalPopMissCount,
-         cycleStats_.bgScanCreditConsumed);
+            cycleStats_.bgScanCreditConsumed,
+            (unsigned long long)assistWorkPerByteScaled_.load(std::memory_order_relaxed));
 }
 
 // ============================================================================
@@ -1017,7 +1053,6 @@ size_t MarkSweepCollector::MSMarkAssist(size_t debtObjects)
     DrainGCWork(gcw, assistBudget, nProcessed);
 
     assistProcessedCount_.fetch_add(nProcessed, std::memory_order_relaxed);
-    assistTracedCount_.fetch_add(nProcessed, std::memory_order_relaxed);
     return paidByCredit + nProcessed;
 }
 
