@@ -2091,7 +2091,8 @@ extern "C" ArrayRef MCC_NewLocalArray(const TypeInfo* arrayInfo, MIndex nElems)
 
     ArrayRef array = ObjectManager::NewArray(static_cast<MIndex>(nElems), arrayInfo, AllocType::LOCAL_OBJECT);
     if (array == nullptr) {
-        VLOG(REPORT, "Allocating local array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
+        VLOG(REPORT, "Allocating local array %s length %zu failed and throw OutOfMemoryError",
+             arrayInfo->GetName(), nElems);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::MCC_NewLocalArray return nullptr");
     }
     return array;
@@ -2105,7 +2106,8 @@ extern "C" ArrayRef MCC_NewLocalObjArray(const TypeInfo* arrayInfo, MIndex nElem
 
     ArrayRef array = ObjectManager::NewObjArray(nElems, arrayInfo, AllocType::LOCAL_OBJECT);
     if (array == nullptr) {
-        VLOG(REPORT, "Allocating local array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
+        VLOG(REPORT, "Allocating local array %s length %zu failed and throw OutOfMemoryError",
+             arrayInfo->GetName(), nElems);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::MCC_NewLocalObjArray return nullptr");
     }
     return array;
@@ -2116,10 +2118,11 @@ extern "C" ArrayRef MCC_NewLocalArray8(const TypeInfo* arrayInfo, MIndex nElems)
     if (!Heap::GetHeap().IsLocalRegionEnabled()) {
         return MCC_NewArray8(arrayInfo, nElems);
     }
-    
-    ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_8B, AllocType::LOCAL_OBJECT);
+    ArrayRef array = ObjectManager::NewKnownWidthArray(
+        nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_8B, AllocType::LOCAL_OBJECT);
     if (array == nullptr) {
-        VLOG(REPORT, "Allocating local array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
+        VLOG(REPORT, "Allocating local array %s length %zu failed and throw OutOfMemoryError",
+             arrayInfo->GetName(), nElems);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::MCC_NewLocalArray(8B) return nullptr");
     }
     return array;
@@ -2131,9 +2134,11 @@ extern "C" ArrayRef MCC_NewLocalArray16(const TypeInfo* arrayInfo, MIndex nElems
         return MCC_NewArray16(arrayInfo, nElems);
     }
 
-    ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_16B, AllocType::LOCAL_OBJECT);
+    ArrayRef array = ObjectManager::NewKnownWidthArray(
+        nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_16B, AllocType::LOCAL_OBJECT);
     if (array == nullptr) {
-        VLOG(REPORT, "Allocating local array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
+        VLOG(REPORT, "Allocating local array %s length %zu failed and throw OutOfMemoryError",
+             arrayInfo->GetName(), nElems);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray(16B) return nullptr");
     }
     return array;
@@ -2145,9 +2150,11 @@ extern "C" ArrayRef MCC_NewLocalArray32(const TypeInfo* arrayInfo, MIndex nElems
         return MCC_NewArray32(arrayInfo, nElems);
     }
 
-    ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_32B, AllocType::LOCAL_OBJECT);
+    ArrayRef array = ObjectManager::NewKnownWidthArray(
+        nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_32B, AllocType::LOCAL_OBJECT);
     if (array == nullptr) {
-        VLOG(REPORT, "Allocating local array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
+        VLOG(REPORT, "Allocating local array %s length %zu failed and throw OutOfMemoryError",
+             arrayInfo->GetName(), nElems);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray(32B) return nullptr");
     }
     return array;
@@ -2159,9 +2166,11 @@ extern "C" ArrayRef MCC_NewLocalArray64(const TypeInfo* arrayInfo, MIndex nElems
         return MCC_NewArray64(arrayInfo, nElems);
     }
 
-    ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_64B, AllocType::LOCAL_OBJECT);
+    ArrayRef array = ObjectManager::NewKnownWidthArray(
+        nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_64B, AllocType::LOCAL_OBJECT);
     if (array == nullptr) {
-        VLOG(REPORT, "Allocating local array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
+        VLOG(REPORT, "Allocating local array %s length %zu failed and throw OutOfMemoryError",
+             arrayInfo->GetName(), nElems);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray(64B) return nullptr");
     }
     return array;
@@ -2175,7 +2184,8 @@ extern "C" ObjRef MCC_NewLocalGenericObject(const TypeInfo* klass, MSize size)
     
     ObjRef obj = ObjectManager::NewObject(klass, size, AllocType::LOCAL_OBJECT);
     if (obj == nullptr) {
-        VLOG(REPORT, "Allocation local generic object %s (%zu B) failed and throw OutOfMemoryError", klass->GetName(), size);
+        VLOG(REPORT, "Allocation local generic object %s (%zu B) failed and throw OutOfMemoryError",
+             klass->GetName(), size);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::MCC_NewLocalGenericObject return nullptr");
     }
     return obj;
@@ -2217,20 +2227,23 @@ extern "C" ArrayRef MCC_NewLocalGenericArray(const TypeInfo* arrayInfo, MIndex n
         case TypeKind::TYPE_KIND_BOOL:
         case TypeKind::TYPE_KIND_UINT8:
         case TypeKind::TYPE_KIND_INT8: {
-            array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_8B, AllocType::LOCAL_OBJECT);
+            array = ObjectManager::NewKnownWidthArray(
+                nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_8B, AllocType::LOCAL_OBJECT);
             break;
         }
         case TypeKind::TYPE_KIND_UINT16:
         case TypeKind::TYPE_KIND_INT16:
         case TypeKind::TYPE_KIND_FLOAT16: {
-            array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_16B, AllocType::LOCAL_OBJECT);
+            array = ObjectManager::NewKnownWidthArray(
+                nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_16B, AllocType::LOCAL_OBJECT);
             break;
         }
         case TypeKind::TYPE_KIND_UINT32:
         case TypeKind::TYPE_KIND_INT32:
         case TypeKind::TYPE_KIND_RUNE:
         case TypeKind::TYPE_KIND_FLOAT32: {
-            array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_32B, AllocType::LOCAL_OBJECT);
+            array = ObjectManager::NewKnownWidthArray(
+                nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_32B, AllocType::LOCAL_OBJECT);
             break;
         }
         case TypeKind::TYPE_KIND_INT_NATIVE:
@@ -2241,7 +2254,8 @@ extern "C" ArrayRef MCC_NewLocalGenericArray(const TypeInfo* arrayInfo, MIndex n
         case TypeKind::TYPE_KIND_CSTRING:
         case TypeKind::TYPE_KIND_CPOINTER:
         case TypeKind::TYPE_KIND_CFUNC: {
-            array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_64B, AllocType::LOCAL_OBJECT);
+            array = ObjectManager::NewKnownWidthArray(
+                nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_64B, AllocType::LOCAL_OBJECT);
             break;
         }
         default:

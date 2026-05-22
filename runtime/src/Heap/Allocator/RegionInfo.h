@@ -990,7 +990,6 @@ public:
     RegionInfo* GetPrevLocalRegion() const { return metadata.localPrevRegion; }
     void SetPrevLocalRegion(RegionInfo* region) { metadata.localPrevRegion = region; }
 
-
 private:
     static constexpr int32_t MAX_RAW_POINTER_COUNT = std::numeric_limits<int32_t>::max();
     static constexpr int32_t BIT_LENGTH = 4;
@@ -1231,7 +1230,6 @@ private:
 
     static constexpr uint32_t NULLPTR_IDX = UnitInfo::INVALID_IDX;
     UnitMetadata metadata;
-
 };
 } // namespace MapleRuntime
 #endif // MRT_REGION_INFO_H

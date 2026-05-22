@@ -61,12 +61,19 @@ extend<T> Array<T> <: Collection<T> {
         get() {
             return this.len
         }
+        get(this @local?) {
+            this.len
+        }
     }
 
     /** Returns true if this Array contains no elements. */
     @Frozen
     public func isEmpty(): Bool {
         return this.len == 0
+    }
+    @Frozen
+    public func isEmpty(this @local?): Bool {
+        return this.size == 0
     }
 
     @Frozen
@@ -428,16 +435,30 @@ public struct CPointerHandle<T> where T <: CType {
     public let pointer: CPointer<T>
     public let array: Array<T>
 
-    @Deprecated[message: "Use global function `public unsafe func acquireArrayRawData<T>(arr: Array<T>): CPointerHandle<T> where T <: CType` instead."]
+    // @Deprecated[message: "Use global function `public unsafe func acquireArrayRawData<T>(arr: Array<T>): CPointerHandle<T> where T <: CType` instead."]
     public init() {
         pointer = CPointer<T>()
         array = Array<T>()
     }
 
-    @Deprecated[message: "Use global function `public unsafe func acquireArrayRawData<T>(arr: Array<T>): CPointerHandle<T> where T <: CType` instead."]
+    public init(this @local?) {
+        exclave {
+            pointer = CPointer<T>()
+            array = Array<T> @local?()
+        }
+    }
+
+    // @Deprecated[message: "Use global function `public unsafe func acquireArrayRawData<T>(arr: Array<T>): CPointerHandle<T> where T <: CType` instead."]
     public init(ptr: CPointer<T>, arr: Array<T>) {
         this.pointer = ptr
         this.array = arr
+    }
+
+    public init(this @local?, ptr: CPointer<T> @local?, arr: Array<T> @local?) {
+        exclave {
+            pointer = ptr
+            array = arr
+        }
     }
 }
 
@@ -453,6 +474,16 @@ public unsafe func acquireArrayRawData<T>(arr: Array<T>): CPointerHandle<T> wher
 }
 
 @Frozen
+public unsafe func acquireArrayRawData<T>(arr: Array<T> @local?): CPointerHandle<T> @local? where T <: CType {
+    exclave { CPointerHandle<T>(acquireRawData2<T>(arr.rawptr) + arr.start, arr) }
+}
+
+@Frozen
 public unsafe func releaseArrayRawData<T>(handle: CPointerHandle<T>): Unit where T <: CType {
     releaseRawData(handle.array.rawptr, handle.pointer - handle.array.start)
+}
+
+@Frozen
+public unsafe func releaseArrayRawData<T>(handle: CPointerHandle<T> @local?): Unit where T <: CType {
+    releaseRawData2(handle.array.rawptr, handle.pointer - handle.array.start)
 }
