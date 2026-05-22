@@ -25,6 +25,7 @@
 #include "Heap/Collector/Collector.h"
 #include "StackManager.h"
 #include "LoaderManager.h"
+#include "CjScheduler.h"
 
 namespace MapleRuntime {
 
@@ -32,6 +33,9 @@ extern "C" void CJ_MCC_StackGrowStub(...);
 #if defined(__linux__) && (defined(__x86_64__) || defined(__aarch64__))
 extern "C" void CJ_MCC_I2NStub(...);
 #endif
+extern "C" FuncPtr* CJ_MCC_GetMTable(TypeInfo* ti, TypeInfo* itf);
+extern "C" TypeInfo* CJ_MCC_GetMethodOuterTI(TypeInfo* ti, TypeInfo* itf, U64 index);
+extern "C" void CJ_MCC_UpdateVMT(TypeInfo* ti, TypeInfo* itf, ExtensionData* extensionData);
 
 struct {
     bool initialized = false;
@@ -128,6 +132,12 @@ void InterpreterCJThreadDestroy(DYN_CJThreadSpecificData* dataField)
     }
 }
 
+DYN_CJThreadHandle NewCJThread(void* execute, DYN_ObjRef future, void* scheduler)
+{
+    DLOG(INTERPRETER, "NewCJThread: execute=%p, future=%p, scheduler=%p", execute, future, scheduler);
+    return MCC_NewCJThread(execute, future, scheduler);
+}
+
 void VisitRootFromInterpreter(DYN_RootVisitor _visitor, DYN_Placeholder _placeholder)
 {
     const RootVisitor* visitor = static_cast<const RootVisitor*>(_visitor);
@@ -183,6 +193,35 @@ uint32_t GetInstanceSize(struct DYN_TypeInfo* typeInfoPtr)
     TypeInfo* ti = reinterpret_cast<TypeInfo*>(typeInfoPtr);
     DLOG(INTERPRETER, "GetInstanceSize: %s", ti->GetName());
     return ti->GetInstanceSize();
+}
+
+DYN_FuncPtr* GetMTable(struct DYN_TypeInfo* ti, struct DYN_TypeInfo* itf)
+{
+    DLOG(INTERPRETER, "GetMTable: ti=%p, itf=%p", ti, itf);
+    return reinterpret_cast<DYN_FuncPtr*>(
+        CJ_MCC_GetMTable(reinterpret_cast<TypeInfo*>(ti), reinterpret_cast<TypeInfo*>(itf)));
+}
+
+struct DYN_TypeInfo* GetMethodOuterTI(struct DYN_TypeInfo* ti, struct DYN_TypeInfo* itf, uint64_t index)
+{
+    DLOG(INTERPRETER, "GetMethodOuterTI: ti=%p, itf=%p, index=%llu", ti, itf,
+         static_cast<unsigned long long>(index));
+    return reinterpret_cast<struct DYN_TypeInfo*>(
+        CJ_MCC_GetMethodOuterTI(reinterpret_cast<TypeInfo*>(ti), reinterpret_cast<TypeInfo*>(itf), index));
+}
+
+void UpdateVMT(struct DYN_TypeInfo* ti, struct DYN_TypeInfo* itf, struct DYN_ExtensionData* extensionData)
+{
+    DLOG(INTERPRETER, "UpdateVMT: ti=%p, itf=%p, extensionData=%p", ti, itf, extensionData);
+    CJ_MCC_UpdateVMT(reinterpret_cast<TypeInfo*>(ti), reinterpret_cast<TypeInfo*>(itf),
+                     reinterpret_cast<ExtensionData*>(extensionData));
+}
+
+uint32_t GetTypeInfoUUID(struct DYN_TypeInfo* ti)
+{
+    TypeInfo* typeInfo = reinterpret_cast<TypeInfo*>(ti);
+    DLOG(INTERPRETER, "GetTypeInfoUUID: ti=%p", ti);
+    return typeInfo->GetUUID();
 }
 
 DYN_ObjRef ObjectAllocate(struct DYN_TypeInfo* tpe)
@@ -505,10 +544,15 @@ RTErrorCode InitInterpreter(const InterpreterParam& interpreterParam)
         .appLibHandle = symbolHandle,
         .carrierSpecificOffset = offsetof(ThreadLocalData, mutator),
         .cjThreadSpecificOffset   = ComputeCJThreadDataOffset(),
+        .newCJThread = &NewCJThread,
         .typeInfo = &TypeInfoProvider,
         .typeTemplate = &FindTypeTemplate,
         .getOrCreateTypeInfo = &GetOrCreateTypeInfo,
         .getInstanceSize = &GetInstanceSize,
+        .getMTable = &GetMTable,
+        .getMethodOuterTI = &GetMethodOuterTI,
+        .updateVMT = &UpdateVMT,
+        .getTypeInfoUUID = &GetTypeInfoUUID,
         .objectAlloc = &ObjectAllocate,
         .arrayAlloc = &ArrayAllocate,
         .safePoint = &SafePoint,

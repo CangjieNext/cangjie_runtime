@@ -32,10 +32,16 @@ void VisitInterpreterFrameRootsAdjusting(DYN_VisitingState state, FrameInfo fram
 
 void InterpreterCJThreadStart(DYN_CJThreadSpecificData* mutator);
 void InterpreterCJThreadDestroy(DYN_CJThreadSpecificData* mutator);
+DYN_CJThreadHandle NewCJThread(void* execute, DYN_ObjRef future, void* scheduler);
 
 void FillInterpretedFrameInfo(uint64_t fp, uint64_t ip, DYN_InterpretedFrameInfo* fInfo);
 
 struct DYN_TypeInfo* TypeInfoProvider(char * sig);
+uint32_t GetInstanceSize(struct DYN_TypeInfo* typeInfoPtr);
+DYN_FuncPtr* GetMTable(struct DYN_TypeInfo* ti, struct DYN_TypeInfo* itf);
+struct DYN_TypeInfo* GetMethodOuterTI(struct DYN_TypeInfo* ti, struct DYN_TypeInfo* itf, uint64_t index);
+void UpdateVMT(struct DYN_TypeInfo* ti, struct DYN_TypeInfo* itf, struct DYN_ExtensionData* extensionData);
+uint32_t GetTypeInfoUUID(struct DYN_TypeInfo* ti);
 
 DYN_ObjRef ObjectAllocate(struct DYN_TypeInfo* tpe);
 

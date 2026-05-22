@@ -42,6 +42,9 @@ typedef void *DYN_ThreadLocalData;
 // This pointer is stored in cjThread specific storage.
 typedef void *DYN_CJThreadSpecificData;
 
+// Handle of a cjThread.
+typedef void *DYN_CJThreadHandle;
+
 // This is alias for frame pointer. CJNative runtime should pass this pointer to `INT_FrameInfoProviderFn` function.
 // Interpreter would return description of corresponding frame (e.g. fileName, lineNumber).
 typedef const void *DYN_FramePointer;
@@ -330,6 +333,62 @@ typedef struct DYN_TypeInfo* (*DYN_GetOrCreateTypeInfoFn)(DYN_TypeTemplate typeT
 //
 typedef uint32_t (*DYN_GetInstanceSizeFn)(struct DYN_TypeInfo* typeInfo);
 
+// Get method table for a concrete type using the method layout of another type.
+// VMT for type is split into subtables keyed by the type that owns the method layout.
+// The layout owner is interface, concrete class itself or one of its supertypes.
+//
+// params:
+// - concreteTi - concrete type
+// - ownerTi - method layout owner type, interface/supertype
+//
+// return: methods array of ownerTi implemented by concreteTi
+//
+typedef DYN_FuncPtr* (*DYN_GetMTableFn)(struct DYN_TypeInfo* concreteTi, struct DYN_TypeInfo* ownerTi);
+
+// Get the outer TypeInfo for the implementation in a method-table slot.
+// The method table is selected by concreteTi and ownerTi: ownerTi provides the
+// method layout and index selects a slot in that layout. "Outer TypeInfo" means
+// the TypeInfo that owns the selected implementation. If concreteTi overrides
+// the slot, this is concreteTi. If concreteTi inherits the same function pointer
+// from a supertype, this is the supertype that provides it.
+//
+// params:
+// - concreteTi - concrete type
+// - ownerTi - method layout owner type, interface/supertype
+// - index - method index in the owner method table
+//
+// return: outer TypeInfo for the selected method
+//
+typedef struct DYN_TypeInfo* (*DYN_GetMethodOuterTIFn)(
+    struct DYN_TypeInfo* concreteTi, struct DYN_TypeInfo* ownerTi, uint64_t index);
+
+// Refresh an ExtensionData function table used for virtual dispatch.
+// concreteTi is the concrete type whose dispatch table is being refreshed.
+// ownerTi is the method layout owner whose current function-table size is used
+// as the target size. extensionData is the dispatch metadata entry for
+// concreteTi under ownerTi's method layout. If the table is already marked
+// updated, this call is a no-op. Otherwise the runtime may allocate a larger
+// function table, copy existing slots, fill newly added slots from a compatible
+// direct supertype, reset cached outer TypeInfo entries, and mark the table as
+// updated.
+//
+// params:
+// - concreteTi - concrete type
+// - ownerTi - method layout owner type, interface/supertype
+// - extensionData - dispatch metadata entry to refresh
+//
+typedef void (*DYN_UpdateVMTFn)(
+    struct DYN_TypeInfo* concreteTi, struct DYN_TypeInfo* ownerTi, struct DYN_ExtensionData* extensionData);
+
+// Get TypeInfo UUID.
+//
+// params:
+// - ti - type info
+//
+// return: UUID assigned to type by runtime
+//
+typedef uint32_t (*DYN_GetTypeInfoUUIDFn)(struct DYN_TypeInfo* ti);
+
 
 // Throw OutOfMemoryError exception.
 //
@@ -575,6 +634,22 @@ typedef bool (*DYN_IsValidObjectFn)(DYN_ObjRef object);
 //
 typedef DYN_ThreadLocalData (*DYN_GetThreadLocalDataFn)();
 
+// Creates and schedules a new Cangjie thread that executes a managed Future task.
+//
+// The new cjThread startup payload keeps `future` as a GC-visible object reference.
+// When the cjThread starts, runtime prepares managed execution and invokes `execute`
+// with the future object and its type info as managed arguments.
+//
+// params:
+// - execute - managed-call entry pointer for Future.execute. Must be non-null.
+// - future - Future object passed to `execute` and used for task result/completion.
+//            Must be a non-null valid object reference.
+// - scheduler - target scheduler handle, or null to use the current runtime scheduler.
+//
+// return: opaque cjThread handle for the created thread, or null if creation or scheduling fails.
+//
+typedef DYN_CJThreadHandle (*DYN_NewCJThreadFn)(void* execute, DYN_ObjRef future, void* scheduler);
+
 //
 // Returns true if the GC is in an "active" phase.
 // In active phase fast-path write barriers can`t be used.
@@ -633,7 +708,6 @@ typedef DYN_ObjRef (*DYN_PostThrowExceptionFn)(DYN_ExceptionWrapper exceptionWra
 //
 typedef void (*DYN_NativeLoggerFn)(int logLevel, char* tag, char* message);
 
-
 ////////////////////////////////////////////////////////////////////////////////////
 // endregion CJNative interface
 ////////////////////////////////////////////////////////////////////////////////////
@@ -678,11 +752,16 @@ struct DYN_CJNativeInterface {
     void* appLibHandle;
     size_t carrierSpecificOffset;
     size_t cjThreadSpecificOffset;
+    DYN_NewCJThreadFn newCJThread;
 
     DYN_TypeInfoProviderFn typeInfo;
     DYN_TypeTemplateFn typeTemplate;
     DYN_GetOrCreateTypeInfoFn getOrCreateTypeInfo;
     DYN_GetInstanceSizeFn getInstanceSize;
+    DYN_GetMTableFn getMTable;
+    DYN_GetMethodOuterTIFn getMethodOuterTI;
+    DYN_UpdateVMTFn updateVMT;
+    DYN_GetTypeInfoUUIDFn getTypeInfoUUID;
 
     DYN_ObjAllocFn objectAlloc;
     DYN_ArrayAllocFn arrayAlloc;
