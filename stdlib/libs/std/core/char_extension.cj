@@ -166,8 +166,16 @@ extend Rune {
         return fromUtf8(arr.rawptr, arr.start + index, arr.start + arr.len)
     }
 
-    static func fromUtf8(arr: RawArray<UInt8>, startIndex: Int64, endIndex: Int64): (Rune, Int64) {
-        let byte0: UInt8 = arrayGetUnchecked(arr, startIndex)
+    @OverflowWrapping
+    public static func fromUtf8(arr: Array<UInt8> @local?, index: Int64): (Rune, Int64) {
+        if (index >= arr.size) {
+            throw IllegalArgumentException("Invalid utf8 byte sequence.")
+        }
+        return fromUtf8(arr.rawptr, arr.start + index, arr.start + arr.len)
+    }
+
+    static func fromUtf8(arr: RawArray<UInt8> @local?, startIndex: Int64, endIndex: Int64): (Rune, Int64) {
+        let byte0: UInt8 = arrayGetUnchecked3<UInt8>(arr, startIndex)
         return match {
             case byte0 < HIGH_1_UInt8 => (Rune(byte0), 1)
             case byte0 < HIGH_2_UInt8 => throw IllegalArgumentException("Invalid utf8 byte sequence.")
@@ -233,10 +241,37 @@ extend Rune {
         }
     }
 
+    @OverflowWrapping
+    public static func intoUtf8Array(c: Rune, arr: Array<UInt8> @local?, index: Int64): Int64 {
+        var ch = UInt32(c)
+        checkIndexValid(c, arr, index)
+        if (ch <= UTF8_1_MAX) {
+            arr[index] = UInt8(ch)
+            return 1
+        } else if (ch <= UTF8_2_MAX) {
+            arr[index] = UInt8(((ch >> SHIFT_6) & LOW_5_MASK) | HIGH_2_MASK)
+            arr[index + 1] = UInt8(((ch) & LOW_6_MASK) | HIGH_1_MASK)
+            return 2
+        } else if (ch <= UTF8_3_MAX) {
+            arr[index] = UInt8(((ch >> SHIFT_12) & LOW_4_MASK) | HIGH_3_MASK)
+            arr[index + 1] = UInt8(((ch >> SHIFT_6) & LOW_6_MASK) | HIGH_1_MASK)
+            arr[index + 2] = UInt8((ch & LOW_6_MASK) | HIGH_1_MASK)
+            return 3
+        } else if (ch <= UTF8_4_MAX) {
+            arr[index] = UInt8(((ch >> SHIFT_18) & LOW_3_MASK) | HIGH_4_MASK)
+            arr[index + 1] = UInt8(((ch >> SHIFT_12) & LOW_6_MASK) | HIGH_1_MASK)
+            arr[index + 2] = UInt8(((ch >> SHIFT_6) & LOW_6_MASK) | HIGH_1_MASK)
+            arr[index + 3] = UInt8((ch & LOW_6_MASK) | HIGH_1_MASK)
+            return 4
+        } else {
+            throw IllegalArgumentException("Invalid Unicode scalar value: code point exceeds U+10FFFF.")
+        }
+    }
+
     /*
      * @throws IllegalArgumentException if the character occupies a position beyond the array range
      */
-    private static func checkIndexValid(c: Rune, arr: Array<UInt8>, index: Int64): Unit {
+    private static func checkIndexValid(c: Rune, arr: Array<UInt8> @local?, index: Int64): Unit {
         if (index < 0) {
             throw IllegalArgumentException("The index cannot be less than 0.")
         }
