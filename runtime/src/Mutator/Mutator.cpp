@@ -649,7 +649,7 @@ bool Mutator::AllocFuncFirstLocalRegion()
         return false;
     }
     region->SetFirstRegionTag(true);
-    PushLocalRegoinStack(region); 
+    PushLocalRegoinStack(region);
     VLOG(LOCAL_REGION, "StartLocalRegoin: mutator %p, regoin %p, size %zu, stackTop %p",
          this, region, region->GetRegionSize(), localRegionInfo.stackTop);
     return true;

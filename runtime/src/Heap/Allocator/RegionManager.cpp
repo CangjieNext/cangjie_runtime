@@ -1233,7 +1233,9 @@ uintptr_t RegionManager::AllocLocalMode(size_t size)
     if (region != nullptr) {
         addr = region->Alloc(size);
         if (addr != 0) {
-            VLOG(LOCAL_REGION, "AllocLocalMode in old region: mutator %p, regoin %p(isFirst %d), size %zu, stackTop %p, obj %p, objSize %zu",
+            VLOG(LOCAL_REGION,
+                 "AllocLocalMode in old region: mutator %p, regoin %p(isFirst %d), "
+                 "size %zu, stackTop %p, obj %p, objSize %zu",
                  Mutator::GetMutator(), region, region->IsFirstRegionOfFunc(), region->GetRegionSize(),
                  Mutator::GetMutator()->GetLocalRegionStackTop(), addr, size);
             return addr;
@@ -1249,12 +1251,13 @@ uintptr_t RegionManager::AllocLocalMode(size_t size)
         DLOG(REGION, "cannot take a local mode region from heap");
         return 0;
     }
-    // localModeRegionList.PrependRegion(region, RegionInfo::RegionType::LOCAL_MODE_REGION);
     (void)localRegionTotalSize.fetch_add(region->GetRegionSize());
     region->SetRegionType(RegionInfo::RegionType::LOCAL_MODE_REGION);
     mutator->PushLocalRegoinStack(region);
     addr = region->Alloc(size);
-    VLOG(LOCAL_REGION, "AllocLocalMode in new region: mutator %p, regoin %p(isFirst %d), size %zu, stackTop %p, obj %p, objSize %zu",
+    VLOG(LOCAL_REGION,
+         "AllocLocalMode in new region: mutator %p, regoin %p(isFirst %d), "
+         "size %zu, stackTop %p, obj %p, objSize %zu",
          Mutator::GetMutator(), region, region->IsFirstRegionOfFunc(), region->GetRegionSize(),
          Mutator::GetMutator()->GetLocalRegionStackTop(), addr, size);
     CHECK_DETAIL(addr != 0, "alloc local object failed");
@@ -1269,7 +1272,6 @@ RegionInfo* RegionManager::AllocateLocalModeRegion(bool expectPhysicalMem)
         VLOG(LOCAL_REGION, "cannot take a local mode region from heap");
         return nullptr;
     }
-    // localModeRegionList.PrependRegion(region, RegionInfo::RegionType::LOCAL_MODE_REGION);
     (void)localRegionTotalSize.fetch_add(region->GetRegionSize());
     region->SetRegionType(RegionInfo::RegionType::LOCAL_MODE_REGION);
     region->SetFirstRegionTag(false);
