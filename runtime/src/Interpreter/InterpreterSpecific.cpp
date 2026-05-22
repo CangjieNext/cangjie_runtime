@@ -60,7 +60,7 @@ struct {
 
 } interpreterInterfaceInstance;
 
-void FillInterpretedFrameInfo(uint64_t fp, uint64_t ip, DYN_InterpretedFrameInfo* fInfo)
+void FillInterpretedFrameInfo(uint64_t fp, uint64_t ip, INT_InterpretedFrameInfo* fInfo)
 {
     auto framePointer = reinterpret_cast<DYN_FramePointer>(fp);
     auto instructionPointer = reinterpret_cast<DYN_InstructionPointer>(ip);
@@ -79,7 +79,7 @@ void IterateFramesWithState(DYN_CJThreadSpecificData cjThreadData, void (*callba
     }
 }
 
-DYN_FrameDesc toFrameDesc(FrameInfo frameInfo)
+INT_FrameDesc toFrameDesc(FrameInfo frameInfo)
 {
     return {
         .fp = frameInfo.GetMachineFrame().GetFA(),
@@ -90,7 +90,7 @@ DYN_FrameDesc toFrameDesc(FrameInfo frameInfo)
 void VisitInterpreterFrameRootsExpansion(DYN_VisitingState state, FrameInfo frameDesc, DYN_RootVisitor stackPtrVisitor, DYN_DerivedPtrVisitor derivedPtrVisitor)
 {
     if (interpreterInterfaceInstance) {
-        DYN_FrameDesc fd = toFrameDesc(frameDesc);
+        INT_FrameDesc fd = toFrameDesc(frameDesc);
         interpreterInterfaceInstance->visitFrameRootsExpansion(state, fd, stackPtrVisitor, derivedPtrVisitor);
     }
 }
@@ -98,7 +98,7 @@ void VisitInterpreterFrameRootsExpansion(DYN_VisitingState state, FrameInfo fram
 void VisitInterpreterFrameRootsMarking(DYN_VisitingState state, FrameInfo frameDesc, DYN_RootVisitor rootVisitor)
 {
     if (interpreterInterfaceInstance) {
-        DYN_FrameDesc fd = toFrameDesc(frameDesc);
+        INT_FrameDesc fd = toFrameDesc(frameDesc);
         interpreterInterfaceInstance->visitFrameRootsMarking(state, fd, rootVisitor);
     }
 }
@@ -106,7 +106,7 @@ void VisitInterpreterFrameRootsMarking(DYN_VisitingState state, FrameInfo frameD
 void VisitInterpreterFrameRootsAdjusting(DYN_VisitingState state, FrameInfo frameDesc, DYN_RootVisitor rootVisitor, DYN_DerivedPtrVisitor derivedPtrVisitor)
 {
     if (interpreterInterfaceInstance) {
-        DYN_FrameDesc fd = toFrameDesc(frameDesc);
+        INT_FrameDesc fd = toFrameDesc(frameDesc);
         interpreterInterfaceInstance->visitFrameRootsAdjusting(state, fd, rootVisitor, derivedPtrVisitor);
     }
 }
@@ -121,14 +121,14 @@ void VisitInterpreterGlobalRoots(DYN_RootVisitor visitor)
 void InterpreterCJThreadStart(DYN_CJThreadSpecificData* dataField)
 {
     if (interpreterInterfaceInstance) {
-        interpreterInterfaceInstance->cjThreadStart(dataField);
+        interpreterInterfaceInstance->cjThreadOnStart(dataField);
     }
 }
 
 void InterpreterCJThreadDestroy(DYN_CJThreadSpecificData* dataField)
 {
     if (interpreterInterfaceInstance) {
-        interpreterInterfaceInstance->cjThreadDestroy(dataField);
+        interpreterInterfaceInstance->cjThreadOnDestroy(dataField);
     }
 }
 
@@ -445,16 +445,6 @@ void WriteGenericField(DYN_ObjRef dstObj, uintptr_t dstField, DYN_ObjRef src, si
     );
 }
 
-bool IsValidObject(DYN_ObjRef object)
-{
-    DLOG(INTERPRETER, "IsValidObject %p", object);
-    BaseObject* obj = reinterpret_cast<BaseObject*>(object);
-    if (obj == nullptr) {
-        return false;
-    }
-    return obj->IsValidObject();
-}
-
 DYN_ThreadLocalData GetThreadLocalData()
 {
     return reinterpret_cast<DYN_ThreadLocalData>(MRT_GetThreadLocalData());
@@ -581,7 +571,6 @@ RTErrorCode InitInterpreter(const InterpreterParam& interpreterParam)
         .arrayBodyOffset = static_cast<size_t>(MArray::GetContentOffset()),
         .getArrayRefElement = &GetArrayElement,
         .setArrayRefElement = &SetArrayElement,
-        .isValidObject = &IsValidObject,
         .getThreadLocalData = &GetThreadLocalData,
         .isActiveGcPhase = &IsActiveGCPhase,
         .stackGrowStub = reinterpret_cast<DYN_StackGrowStubFn>(&CJ_MCC_StackGrowStub),

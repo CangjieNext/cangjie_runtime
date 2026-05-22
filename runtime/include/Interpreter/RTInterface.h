@@ -65,13 +65,13 @@ typedef const void *DYN_DerivedPtrVisitor;
 typedef void *DYN_ExceptionWrapper;
 
 // Frame description used by interpreter frame visitors.
-struct DYN_FrameDesc {
+struct INT_FrameDesc {
     DYN_FramePointer fp;
     DYN_InstructionPointer ip;
 };
 
 // This struct describes frame. Interpreter would fill this structure in `INT_FrameInfoProviderFn` function.
-struct DYN_InterpretedFrameInfo {
+struct INT_InterpretedFrameInfo {
     size_t lineNumber;
     char*  methodName;
     char*  className;
@@ -151,7 +151,7 @@ typedef void (*INT_IterateFramesWithStateFn)(DYN_CJThreadSpecificData cjThreadDa
 // Notes:
 // Provided visitors cannot be called directly by interpreter. Interpreter should pass visitor to the callbacks defined in `DYN_CJNativeInterface` to process slots.
 //
-typedef void (*INT_VisitFrameRootsExpansionFn)(DYN_VisitingState state, DYN_FrameDesc frameDesc, DYN_RootVisitor stackPtrVisitor, DYN_DerivedPtrVisitor derivedPtrVisitor);
+typedef void (*INT_VisitFrameRootsExpansionFn)(DYN_VisitingState state, INT_FrameDesc frameDesc, DYN_RootVisitor stackPtrVisitor, DYN_DerivedPtrVisitor derivedPtrVisitor);
 
 
 // Visit frame roots (local variables) of interpreted code with marking visitor.
@@ -164,7 +164,7 @@ typedef void (*INT_VisitFrameRootsExpansionFn)(DYN_VisitingState state, DYN_Fram
 // Notes:
 // Root visitor cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `DYN_CJNativeInterface` to process roots.
 //
-typedef void (*INT_VisitFrameRootsMarkingFn)(DYN_VisitingState state, DYN_FrameDesc frameDesc, DYN_RootVisitor rootVisitor);
+typedef void (*INT_VisitFrameRootsMarkingFn)(DYN_VisitingState state, INT_FrameDesc frameDesc, DYN_RootVisitor rootVisitor);
 
 
 // Visit frame roots (local variables) of interpreted code with adjusting visitor.
@@ -178,7 +178,7 @@ typedef void (*INT_VisitFrameRootsMarkingFn)(DYN_VisitingState state, DYN_FrameD
 // Notes:
 // Root visitors cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `DYN_CJNativeInterface` to process roots.
 //
-typedef void (*INT_VisitFrameRootsAdjustingFn)(DYN_VisitingState state, DYN_FrameDesc frameDesc, DYN_RootVisitor rootVisitor, DYN_DerivedPtrVisitor derivedPtrVisitor);
+typedef void (*INT_VisitFrameRootsAdjustingFn)(DYN_VisitingState state, INT_FrameDesc frameDesc, DYN_RootVisitor rootVisitor, DYN_DerivedPtrVisitor derivedPtrVisitor);
 
 
 // Visit static roots (global variables) of interpreted code with some visitor.
@@ -201,7 +201,7 @@ typedef void (*INT_VisitGlobalRootsFn)(DYN_RootVisitor visitor);
 // Notes:
 //  Interpreter will save auxiliary metadata in [DYN_CJThreadSpecificData + offsetToCJThreadSpecificMemory] memory area to simplify support of interpretation and Garbage collection.
 //
-typedef void (*INT_CJThreadStartFn)(DYN_CJThreadSpecificData*);
+typedef void (*INT_CJThreadOnStartFn)(DYN_CJThreadSpecificData*);
 
 
 // Unregisters cjThread in interpreter. This method could be called by any thread (e.g. auxiliary scheduler thread) to notify interpreter about termination of some completed cjThread.
@@ -209,7 +209,7 @@ typedef void (*INT_CJThreadStartFn)(DYN_CJThreadSpecificData*);
 // params:
 // - Pointer to CJThreadSpecificData
 //
-typedef void (*INT_CJThreadDestroyFn)(DYN_CJThreadSpecificData*);
+typedef void (*INT_CJThreadOnDestroyFn)(DYN_CJThreadSpecificData*);
 
 
 // Provides information about given frame which could be used for precise stack trace generation.
@@ -221,9 +221,9 @@ typedef void (*INT_CJThreadDestroyFn)(DYN_CJThreadSpecificData*);
 // params:
 // - Frame pointer. Must be provided by CJNative runtime.
 // - Instruction pointer in frame (callsite position).
-// - Pointer to DYN_InterpretedFrameInfo. Fields of this struct will be initialized by interpreter.
+// - Pointer to INT_InterpretedFrameInfo. Fields of this struct will be initialized by interpreter.
 //
-typedef void (*INT_FrameInfoProviderFn)(DYN_FramePointer, DYN_InstructionPointer ip, DYN_InterpretedFrameInfo *);
+typedef void (*INT_FrameInfoProviderFn)(DYN_FramePointer, DYN_InstructionPointer ip, INT_InterpretedFrameInfo *);
 
 
 // Landing pad which handles pending exception.
@@ -625,11 +625,6 @@ typedef DYN_ObjRef (*DYN_GetArrayRefElementFn)(DYN_ObjRef source, uint64_t index
 typedef void (*DYN_SetArrayRefElementFn)(DYN_ObjRef destination, uint64_t index, DYN_ObjRef newValue);
 
 //
-// Check state flags of the object.
-//
-typedef bool (*DYN_IsValidObjectFn)(DYN_ObjRef object);
-
-//
 // Get ThreadLocalData.
 //
 typedef DYN_ThreadLocalData (*DYN_GetThreadLocalDataFn)();
@@ -656,10 +651,37 @@ typedef DYN_CJThreadHandle (*DYN_NewCJThreadFn)(void* execute, DYN_ObjRef future
 //
 typedef bool (*DYN_IsActiveGcPhaseFn)(DYN_ThreadLocalData);
 
+// Runtime stack-growth entry used by interpreter-owned transition/prologue stubs.
 //
-// Stub for stack growth.
+// `DYN_CJNativeInterface::stackGrowStub` is initialized by runtime with
+// `CJ_MCC_StackGrowStub`, an architecture-specific assembly stub. It is intended
+// to be called only after a transition/prologue stack-limit check has failed,
+// while the caller frame is still materialized and visible for runtime unwinding.
 //
-typedef void* (*DYN_StackGrowStubFn)();
+// No C parameters are declared here because the actual call ABI is defined by the
+// assembly stub for each architecture. The caller must pass the required stack
+// size in the architecture-specific scratch register consumed by the stub (for
+// example, `rax` on x86_64 and `x9` on AArch64). The caller must also keep a
+// regular frame record/return address so the stub can pass the frame base,
+// required size, and call-site PC to runtime stack-growth code.
+//
+// Behavior:
+// - saves and restores caller general-purpose and vector registers, while
+//   refreshing the managed thread-local-data register from runtime after stack
+//   movement;
+// - updates runtime unwind context, grows the current cjThread stack when
+//   possible, fixes stack-resident pointers and derived pointers using stack maps
+//   and interpreter frame-expansion visitors, moves stack frames by the runtime
+//   returned stack offset, frees the old stack, and refreshes thread-local data;
+// - if stack growth cannot be performed, leaves a pending StackOverflowError in
+//   runtime exception state and returns to the caller.
+//
+// Before calling this stub, transition code must initialize any callee-saved
+// register slots that stack-map based pointer adjustment may inspect. After the
+// call returns, the caller should check runtime pending-exception state and route
+// StackOverflowError to the appropriate exception-handling path.
+//
+typedef void (*DYN_StackGrowStubFn)();
 
 // I2N (interpreter-to-native) entry stub.
 //
@@ -720,7 +742,6 @@ struct INT_InterpreterInterface {
     int64_t version;
 
     size_t cjThreadSpecificDataSize;
-    size_t iteratorSize;
 
     uintptr_t c2iStubStartAddr;
     uintptr_t c2iStubEndAddr;
@@ -737,8 +758,8 @@ struct INT_InterpreterInterface {
     INT_VisitFrameRootsAdjustingFn visitFrameRootsAdjusting;
     INT_VisitGlobalRootsFn visitGlobalRoots;
 
-    INT_CJThreadStartFn cjThreadStart;
-    INT_CJThreadDestroyFn cjThreadDestroy;
+    INT_CJThreadOnStartFn cjThreadOnStart;
+    INT_CJThreadOnDestroyFn cjThreadOnDestroy;
 
     INT_FrameInfoProviderFn frameInfoProvider;
     INT_LandingPadFn landingPad;
@@ -799,7 +820,6 @@ struct DYN_CJNativeInterface {
     DYN_GetArrayRefElementFn getArrayRefElement;
     DYN_SetArrayRefElementFn setArrayRefElement;
 
-    DYN_IsValidObjectFn isValidObject;
     DYN_GetThreadLocalDataFn getThreadLocalData;
     DYN_IsActiveGcPhaseFn isActiveGcPhase;
     DYN_StackGrowStubFn stackGrowStub;
