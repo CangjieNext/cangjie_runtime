@@ -20,6 +20,9 @@ func writePointer<T>(c: CPointer<T>, idx: Int64, value: T): Unit where T <: CTyp
 @Intrinsic
 func addPointer<T>(c: CPointer<T>, offset: Int64): CPointer<T> where T <: CType
 
+@Intrinsic
+func addPointer2<T>(c: CPointer<T> @local?, offset: Int64): CPointer<T> @local? where T <: CType
+
 extend<T> CPointer<T> {
     public func isNull(): Bool {
         return getPointerAddress<T>(this) == 0
@@ -65,12 +68,21 @@ extend<T> CPointer<T> {
         return addPointer<T>(this, offset)
     }
 
+    public unsafe operator func +(this @local?, offset: Int64): CPointer<T> @local? {
+        exclave { addPointer2<T>(this, offset) }
+    }
+
     @OverflowWrapping
     public unsafe operator func -(offset: Int64): CPointer<T> {
         if (offset == Int64.Min) {
             throw OverflowException("Pointer offset overflow: cannot negate Int64.Min.")
         }
         return addPointer<T>(this, (-1) * offset)
+    }
+
+    @OverflowWrapping
+    public unsafe operator func -(this @local?, offset: Int64): CPointer<T> @local? {
+        exclave { addPointer2<T>(this, (-1) * offset) }
     }
 
     public func asResource(): CPointerResource<T> {
