@@ -118,7 +118,7 @@ struct DYN_CJNativeInterface;
 // Initalize interpreter and fill it`s interface.
 //
 // params:
-// - interpreterInterface - Pointer to `INT_InterpreterInterface` which filled by callee (out parameter).
+// - interpreterInterface - [OUT] Pointer to `INT_InterpreterInterface` which filled by callee.
 // - cjnativeInterface - Pointer to `DYN_CJNativeInterface`. Pointer owned by caller, callee should copy the content.
 // - interpreterArgsCount - Number of interpreter arguments in `interpreterArgs`.
 // - interpreterArgs - Interpreter arguments array (null-terminated).
@@ -219,11 +219,11 @@ typedef void (*INT_CJThreadOnDestroyFn)(DYN_CJThreadSpecificData*);
 //            should treat this method as "foreign" code.
 //
 // params:
-// - Frame pointer. Must be provided by CJNative runtime.
-// - Instruction pointer in frame (callsite position).
-// - Pointer to INT_InterpretedFrameInfo. Fields of this struct will be initialized by interpreter.
+// - fp - Frame pointer. Must be provided by CJNative runtime.
+// - ip - Instruction pointer in frame (callsite position).
+// - frameInfo - [OUT] Pointer to INT_InterpretedFrameInfo. Fields of this struct will be initialized by interpreter.
 //
-typedef void (*INT_FrameInfoProviderFn)(DYN_FramePointer, DYN_InstructionPointer ip, INT_InterpretedFrameInfo *);
+typedef void (*INT_FrameInfoProviderFn)(DYN_FramePointer fp, DYN_InstructionPointer ip, INT_InterpretedFrameInfo* frameInfo);
 
 
 // Landing pad which handles pending exception.
