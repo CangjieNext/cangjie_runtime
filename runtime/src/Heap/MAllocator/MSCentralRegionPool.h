@@ -14,6 +14,7 @@
 #include <mutex>
 #include <cstdint>
 #include <vector>
+#include <unordered_map>
 #include <algorithm>
 #include <thread>
 
@@ -68,6 +69,9 @@ struct MSLargeSweepStats {
     size_t objectCount = 0;
     size_t regionCount = 0;
     size_t freedBytes = 0;
+    size_t cachedObjectCount = 0;  // Dead large objects placed into hot cache (not immediately reclaimed).
+    size_t cachedRegionCount = 0;  // Region spans placed into hot cache.
+    size_t cachedBytes = 0;        // Bytes placed into hot cache.
 };
 
 // ============================================================================
@@ -402,6 +406,35 @@ public:
     // Called after MarkTerminate / in PostMarkTermination.
     MSLargeSweepStats SweepLargeRegions();
 
+    // Large object hot cache: try to cache a freshly-freed large region so
+    // its physical pages remain resident for fast reuse on the next allocation.
+    // Returns true if accepted; false if the cache bucket is full (caller should
+    // call ReclaimRegionLarge instead).
+    bool TryPutLargeHotCache(uintptr_t regionStart, size_t regionBytes);
+
+    // Pop a cached entry matching regionBytes from the hot cache.
+    // Returns true and sets regionStart if found; false if miss.
+    bool TryTakeLargeHotCache(size_t regionBytes, uintptr_t& regionStart);
+
+    // Release all hot-cached entries back to MSRegionManager (called at GC start).
+    void FlushLargeHotCache();
+
+    // Lock-free approximate read of total bytes held in the large hot cache.
+    size_t GetLargeHotCacheBytes() const
+    {
+        return largeHotCacheTotalBytes_.load(std::memory_order_relaxed);
+    }
+
+    // Returns true if the large hot cache is non-empty (lock-free).
+    bool HasLargeFreeCache() const
+    {
+        return largeHotCacheTotalBytes_.load(std::memory_order_relaxed) > 0;
+    }
+
+    // Drain approximately half the large hot cache into FreeManager (releasedTree).
+    // Called by BackgroundScavengeLoop Step A2. Returns flushed bytes.
+    size_t FlushHalfLargeFreeCacheToFreeManager();
+
     // Eager synchronous sweep of small regions: GC thread sweeps unswept regions
     // across all size classes until the configured wall-time budget is exhausted.
     // maxRegions is kept as a caller-side request snapshot for compatibility.
@@ -484,6 +517,20 @@ private:
     // Large region tracking (Tier 1: in-heap large objects, MS_REGION_LARGE)
     std::mutex largeLock_;
     MSRegionList largeRegionList_;
+
+    // Large object hot cache: recently-freed large regions whose physical pages
+    // are still resident. Allows reuse without page-fault overhead on next alloc.
+    // Bucketed by regionCount (key = regionBytes / MS_REGION_SIZE) for O(1)
+    // size-matched lookup. No size or total-bytes cap: the scavenger is responsible
+    // for draining the cache when RSS exceeds the threshold.
+    // Flushed at the start of each SweepLargeRegions call.
+    struct LargeHotEntry {
+        uintptr_t regionStart;
+        size_t    regionBytes;
+    };
+    std::mutex largeHotCacheLock_;
+    std::atomic<size_t> largeHotCacheTotalBytes_{0};
+    std::unordered_map<size_t, std::vector<LargeHotEntry>> largeHotCache_; // key = regionCount
 
     // Global cache of completely-empty small/medium regions.
     std::mutex emptySweptLock_;

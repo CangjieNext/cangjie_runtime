@@ -271,10 +271,11 @@ void MSRegionManager::MaybeNotifyScavenge()
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
     size_t totalBytes = pool->GetTotalMSRegionBytes();
     size_t hotFree = freeManager_.GetHotFreeBytes();
-    size_t heapRetained = totalBytes + hotFree;
+    size_t largeCache = pool->GetLargeHotCacheBytes();
+    size_t heapRetained = totalBytes + hotFree + largeCache;
 
     size_t emptySwept = space.GetEmptySweptBytes();
-    size_t releasableSupply = hotFree + emptySwept;
+    size_t releasableSupply = hotFree + emptySwept + largeCache;
 
     // Do not wake BackgroundScavengeLoop when releasable supply is insufficient to
     // produce a meaningful slice *after* preserving the mark-window reserve buffer.

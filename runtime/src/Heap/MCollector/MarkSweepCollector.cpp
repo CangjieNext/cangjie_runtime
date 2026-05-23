@@ -1267,9 +1267,10 @@ void MarkSweepCollector::PostMarkTermination()
         uint64_t t0 = TimeUtil::MicroSeconds();
         CollectLargeGarbage();
         cycleStats_.losCollectUs = TimeUtil::MicroSeconds() - t0;
-        VLOG(REPORT, "[MS-GC] CollectLargeGarbage: freed %zu large objects / %zu regions (%s B), %sus",
+        VLOG(REPORT, "[MS-GC] CollectLargeGarbage: freed %zu large objects / %zu regions (%s B), cached %zu objects / %zu regions, %sus",
              cycleStats_.losFreedCount, cycleStats_.losFreedRegionCount,
              Pretty(cycleStats_.losFreedBytes).Str(),
+             cycleStats_.losCachedCount, cycleStats_.losCachedRegionCount,
              Pretty(cycleStats_.losCollectUs).Str());
     }
 
@@ -1315,6 +1316,8 @@ void MarkSweepCollector::CollectLargeGarbage()
         cycleStats_.losFreedCount += stats.objectCount;
         cycleStats_.losFreedRegionCount += stats.regionCount;
         cycleStats_.losFreedBytes += stats.freedBytes;
+        cycleStats_.losCachedCount += stats.cachedObjectCount;
+        cycleStats_.losCachedRegionCount += stats.cachedRegionCount;
     }
 }
 
@@ -1443,8 +1446,10 @@ void MarkSweepCollector::LogGCEntry(uint64_t gcIndex, GCReason reason)
     size_t emptyCount = (centralPool != nullptr) ? centralPool->GetEmptySweptRegionCount() : 0;
     size_t hotFreeBytes = (msRegionManager != nullptr) ? msRegionManager->GetHotFreeBytes() : 0;
     size_t hotFreeCount = hotFreeBytes / MS_REGION_SIZE;
-    VLOG(REPORT, "[MS-GC] unswept: %zu regions, emptyCache: %zu regions, hotFree: %zu regions",
-        unsweptCount, emptyCount, hotFreeCount);
+    size_t largeCacheBytes = (centralPool != nullptr) ? centralPool->GetLargeHotCacheBytes() : 0;
+    size_t largeCacheCount = largeCacheBytes / MS_REGION_SIZE;
+    VLOG(REPORT, "[MS-GC] unswept: %zu regions, emptyCache: %zu regions, hotFree: %zu regions, largeCache: %zu regions (%zu KB)",
+        unsweptCount, emptyCount, hotFreeCount, largeCacheCount, largeCacheBytes / 1024);
 }
 
 // Snapshot previous cycle's sweep stats before PrepareForSweep resets them.
@@ -1509,16 +1514,18 @@ void MarkSweepCollector::DumpRegionStatsMS()
          Pretty(activeRegionBytes).Str(), Pretty(trueLiveBytes).Str(), utilization);
     if (msRegionManager != nullptr) {
         cycleStats_.activeRegionCount = activeRegionBytes / MS_REGION_SIZE;
-        size_t emptyRegionCount = 0;
-        if (CentralRegionPool* centralPool = space.GetCentralPool(); centralPool != nullptr) {
-            emptyRegionCount = centralPool->GetEmptySweptRegionCount();
-        }
+        CentralRegionPool* cpForAccounting = space.GetCentralPool();
+        size_t emptyRegionCount = (cpForAccounting != nullptr)
+            ? cpForAccounting->GetEmptySweptRegionCount() : 0;
         size_t hotFreeRegionCount = msRegionManager->GetHotFreeBytes() / MS_REGION_SIZE;
+        size_t largeCacheRegionCount = (cpForAccounting != nullptr)
+            ? cpForAccounting->GetLargeHotCacheBytes() / MS_REGION_SIZE : 0;
         VLOG(REPORT,
-             "[MS-GC]   region-accounting: active=%zu regions, empty=%zu regions, hotFree=%zu regions",
+             "[MS-GC]   region-accounting: active=%zu regions, empty=%zu regions, hotFree=%zu regions, largeCache=%zu regions",
              cycleStats_.activeRegionCount,
              emptyRegionCount,
-             hotFreeRegionCount);
+             hotFreeRegionCount,
+             largeCacheRegionCount);
     }
 
     // CentralRegionPool 4-list breakdown

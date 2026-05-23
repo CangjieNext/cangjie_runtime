@@ -429,6 +429,7 @@ bool BackgroundProcessor::HasPendingFeedWork(uint8_t preferredCls)
 bool BackgroundProcessor::BackgroundScavengeLoop()
 {
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
+    CentralRegionPool* pool = space.GetCentralPool();            // for large hot cache ops
     size_t retained = space.GetHeapRetainedBytes();
     size_t threshold = space.GetHeapThresholdBytes();
 
@@ -463,21 +464,32 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
         }
     }
 
+    // Step A2 (on-demand): large hot cache → FreeManager (releasedTree).
+    // If hot-free is still below target after Step A, drain ~half the large cache.
+    // This makes the large cache's pages visible to BackgroundScavenge (Step B).
+    if (pool != nullptr && pool->HasLargeFreeCache()) {
+        size_t hotFree = space.GetHotFreeBytes();
+        if (hotFree < targetBytes) {
+            refilledHotFree += pool->FlushHalfLargeFreeCacheToFreeManager();
+        }
+    }
+
     size_t hotFreeAfterFlush = space.GetHotFreeBytes();
     // Snapshot emptySwept AFTER Step A so that any regions flushed into hotFree are
     // already reflected in hotFreeAfterFlush and not double-counted.
     size_t emptySweptAfterFlush = space.GetEmptySweptBytes();
+    // Snapshot large cache residual after Step A2 (any flushed bytes are now in releasedTree).
+    size_t largeResidualBytes = (pool != nullptr) ? pool->GetLargeHotCacheBytes() : 0;
 
-    // Guard: abort this slice if the total free buffer (hotFree + emptySwept) does not
-    // exceed the larger of (a) the mark-window reserve and (b) the minimum slice size.
-    // emptySwept counts toward the reserve, so hotFree can still be released even when
-    // hotFree alone is smaller than reserveBytes.
+    // Guard: abort this slice if the total free buffer (hotFree + emptySwept + large cache)
+    // does not exceed the larger of (a) the mark-window reserve and (b) the minimum slice.
+    // emptySwept and large cache count toward the reserve.
     {
         const GCStats& gcStats = Heap::GetHeap().GetCollector().GetGCStats();
         size_t reserveBytes = gcStats.markWindowReserveBytes;
         size_t scavengeGuard = std::max(reserveBytes,
                                         static_cast<size_t>(DEFAULT_MS_SCAVENGE_MIN_SLICE_BYTES));
-        size_t totalFreeAfterFlush = hotFreeAfterFlush + emptySweptAfterFlush;
+        size_t totalFreeAfterFlush = hotFreeAfterFlush + emptySweptAfterFlush + largeResidualBytes;
         if (totalFreeAfterFlush <= scavengeGuard) {
             if (pendingScavengeStats_.HasWork()) {
                 pendingScavengeStats_.Reset();
@@ -488,18 +500,19 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     }
 
     // Step B: release at most one round of the target.
-    // Reserve is satisfied first by emptySwept (cached empty regions already excluded
-    // from OS return).  Only if emptySwept < reserveBytes is the shortfall carved from
-    // hotFree, so that emptySwept acts as the primary reserve buffer.
+    // Reserve is satisfied first by emptySwept + large cache residual (pages already
+    // managed or staged for release).  Only if that combined reserve < reserveBytes
+    // is the shortfall carved from hotFree.
     size_t roundTarget = std::max(
         (sliceTargetBytes + DEFAULT_MS_SCAVENGE_ROUNDS - 1) / DEFAULT_MS_SCAVENGE_ROUNDS,
         static_cast<size_t>(MS_REGION_SIZE));
     {
         const GCStats& gcStats2 = Heap::GetHeap().GetCollector().GetGCStats();
         size_t reserveBytes2 = gcStats2.markWindowReserveBytes;
-        // emptySwept satisfies the reserve first; hold back hotFree only for the shortfall.
-        size_t hotFreeToKeep = (reserveBytes2 > emptySweptAfterFlush)
-            ? (reserveBytes2 - emptySweptAfterFlush)
+        // emptySwept + large cache residual satisfy the reserve first.
+        size_t combinedReserve = emptySweptAfterFlush + largeResidualBytes;
+        size_t hotFreeToKeep = (reserveBytes2 > combinedReserve)
+            ? (reserveBytes2 - combinedReserve)
             : 0;
         size_t availableToRelease = (hotFreeAfterFlush > hotFreeToKeep)
             ? (hotFreeAfterFlush - hotFreeToKeep)

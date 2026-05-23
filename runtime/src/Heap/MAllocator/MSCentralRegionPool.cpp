@@ -927,6 +927,9 @@ void CentralRegionPool::DumpPoolStats() const
     VLOG(REPORT, "[MS-GC]     emptySweptCache: %zu regions", emptySweptTotal);
     VLOG(REPORT, "[MS-GC]     total small: %zu regions", totalSmall);
     VLOG(REPORT, "[MS-GC]     large regions: %zu", largeRegionList_.Count());
+    size_t largeCacheBytes = largeHotCacheTotalBytes_.load(std::memory_order_relaxed);
+    VLOG(REPORT, "[MS-GC]     largeHotCache: %zu regions (%zu KB)",
+         largeCacheBytes / MS_REGION_SIZE, largeCacheBytes / 1024);
 }
 
 // ============================================================================
@@ -937,6 +940,100 @@ void CentralRegionPool::RegisterLargeRegion(MSRegionInfo* region)
 {
     std::lock_guard<std::mutex> lg(largeLock_);
     largeRegionList_.Prepend(region);
+}
+
+// ============================================================================
+// Large object hot cache
+// ============================================================================
+
+bool CentralRegionPool::TryPutLargeHotCache(uintptr_t regionStart, size_t regionBytes)
+{
+    size_t regionCount = regionBytes / MS_REGION_SIZE;
+    if (regionCount == 0) {
+        return false;
+    }
+    // No size or total-bytes cap: scavenger drains the cache when RSS exceeds threshold.
+    std::lock_guard<std::mutex> lg(largeHotCacheLock_);
+    largeHotCache_[regionCount].push_back({regionStart, regionBytes});
+    largeHotCacheTotalBytes_.fetch_add(regionBytes, std::memory_order_relaxed);
+    return true;
+}
+
+bool CentralRegionPool::TryTakeLargeHotCache(size_t regionBytes, uintptr_t& regionStart)
+{
+    size_t regionCount = regionBytes / MS_REGION_SIZE;
+    if (regionCount == 0) {
+        return false;
+    }
+    std::lock_guard<std::mutex> lg(largeHotCacheLock_);
+    auto it = largeHotCache_.find(regionCount);
+    if (it == largeHotCache_.end() || it->second.empty()) {
+        return false;
+    }
+    auto& bucket = it->second;
+    regionStart = bucket.back().regionStart;
+    bucket.pop_back();
+    largeHotCacheTotalBytes_.fetch_sub(regionBytes, std::memory_order_relaxed);
+    return true;
+}
+
+void CentralRegionPool::FlushLargeHotCache()
+{
+    std::vector<LargeHotEntry> toReclaim;
+    {
+        std::lock_guard<std::mutex> lg(largeHotCacheLock_);
+        for (auto& kv : largeHotCache_) {
+            for (auto& entry : kv.second) {
+                toReclaim.push_back(entry);
+            }
+        }
+        largeHotCache_.clear();
+        largeHotCacheTotalBytes_.store(0, std::memory_order_relaxed);
+    }
+    for (auto& entry : toReclaim) {
+        msRegionManager_->ReclaimRegionLarge(entry.regionStart, entry.regionBytes);
+    }
+}
+
+size_t CentralRegionPool::FlushHalfLargeFreeCacheToFreeManager()
+{
+    size_t totalBytes = largeHotCacheTotalBytes_.load(std::memory_order_relaxed);
+    if (totalBytes == 0) {
+        return 0;
+    }
+    size_t targetBytes = (totalBytes + 1) / 2; // flush ~half by bytes
+
+    std::vector<LargeHotEntry> toReclaim;
+    size_t flushed = 0;
+    {
+        std::lock_guard<std::mutex> lg(largeHotCacheLock_);
+        // Collect all (regionCount, entries) pairs, sort descending by regionCount
+        // (largest objects first: higher RSS impact, lower reuse probability).
+        std::vector<size_t> keys;
+        keys.reserve(largeHotCache_.size());
+        for (auto& kv : largeHotCache_) {
+            keys.push_back(kv.first);
+        }
+        std::sort(keys.rbegin(), keys.rend());
+
+        for (size_t key : keys) {
+            if (flushed >= targetBytes) {
+                break;
+            }
+            auto& bucket = largeHotCache_[key];
+            while (!bucket.empty() && flushed < targetBytes) {
+                LargeHotEntry entry = bucket.back();
+                bucket.pop_back();
+                toReclaim.push_back(entry);
+                flushed += entry.regionBytes;
+            }
+        }
+        largeHotCacheTotalBytes_.fetch_sub(flushed, std::memory_order_relaxed);
+    }
+    for (auto& entry : toReclaim) {
+        msRegionManager_->ReclaimRegionLarge(entry.regionStart, entry.regionBytes);
+    }
+    return flushed;
 }
 
 // EagerSweepBatch — synchronous GC-thread sweep of a batch of unswept regions.
@@ -976,6 +1073,9 @@ size_t CentralRegionPool::EagerSweepBatch(size_t maxRegions)
 
 MSLargeSweepStats CentralRegionPool::SweepLargeRegions()
 {
+    // Flush unconsumed hot-cache entries from the previous GC cycle first.
+    FlushLargeHotCache();
+
     // Two-pass to avoid holding largeLock_ during ReclaimRegion.
     std::vector<MSRegionInfo*> deadRegions;
     MSLargeSweepStats stats;
@@ -1014,13 +1114,20 @@ MSLargeSweepStats CentralRegionPool::SweepLargeRegions()
             spanInfo->Reset();
         }
 
-        // Reset base MSRegionInfo
+        // Reset base MSRegionInfo — leaves regionType=MS_REGION_FREE which
+        // RegisterLargeObjectMS accepts when this entry is reused from hot cache.
         msInfo->Reset();
 
-        // Return the physical region to MSRegionManager (one-level, no RegionInfo indirection)
-        msRegionManager_->ReclaimRegionLarge(regionStart, regionBytes);
+        // Try to keep physical pages hot for fast reuse; fall back to normal reclaim.
+        if (TryPutLargeHotCache(regionStart, regionBytes)) {
+            stats.cachedObjectCount++;
+            stats.cachedRegionCount += spanCount;
+            stats.cachedBytes += regionBytes;
+        } else {
+            msRegionManager_->ReclaimRegionLarge(regionStart, regionBytes);
+        }
 
-        // Adjust byte counter
+        // Adjust byte counter (dead objects no longer count toward GC threshold).
         totalMSRegionBytes_.fetch_sub(regionBytes, std::memory_order_relaxed);
     }
 
@@ -1185,15 +1292,14 @@ void CentralRegionPool::StopAndWaitForAllSweep()
     }
 
     size_t unsweptBefore = GetTotalUnsweptCount();
-    if (unsweptBefore > 0) {
-        ForceFinishAllUnswept();
-    }
+    ForceFinishAllUnswept();
+    size_t unsweptAfter = GetTotalUnsweptCount();
     size_t totalMsr = GetTotalMSRegionBytes();
     size_t emptySwept = GetEmptySweptBytes();
     size_t activeBytes = (totalMsr > emptySwept) ? (totalMsr - emptySwept) : 0;
-    VLOG(REPORT, "[MS-GC] StopAndWaitForAllSweep: forceSwept=%zu unswept regions, "
+    VLOG(REPORT, "[MS-GC] StopAndWaitForAllSweep: forceSwept=%zu->%zu unswept regions, "
          "totalMSR=%zuB emptySwept=%zuB activeBytes=%zuB",
-         unsweptBefore, totalMsr, emptySwept, activeBytes);
+         unsweptBefore, unsweptAfter, totalMsr, emptySwept, activeBytes);
 }
 
 void CentralRegionPool::ClearAllMarkBitmaps()

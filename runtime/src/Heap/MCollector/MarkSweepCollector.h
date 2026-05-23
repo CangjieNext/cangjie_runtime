@@ -41,6 +41,8 @@ struct MSGCCycleStats {
     size_t losFreedCount = 0;             // Large objects reclaimed in CollectLargeGarbage for this cycle.
     size_t losFreedRegionCount = 0;       // Large-object region spans reclaimed in CollectLargeGarbage.
     size_t losFreedBytes = 0;             // Bytes reclaimed from large-object spans in this cycle.
+    size_t losCachedCount = 0;            // Dead large objects placed into hot cache (deferred reclaim).
+    size_t losCachedRegionCount = 0;      // Region spans placed into hot cache.
     uint64_t losCollectUs = 0;            // Timer around CollectLargeGarbage.
 
     // ── Previous cycle sweep summary (persisted from last cycle) ──

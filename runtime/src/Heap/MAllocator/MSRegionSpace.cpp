@@ -216,7 +216,8 @@ size_t RegionSpaceMS::GetHeapRetainedBytes() const
     }
     size_t total = msCentralPool_->GetTotalMSRegionBytes();
     size_t hotFree = msRegionManager_->GetHotFreeBytes();
-    return total + hotFree;
+    size_t largeCache = msCentralPool_->GetLargeHotCacheBytes();
+    return total + hotFree + largeCache;
 }
 
 size_t RegionSpaceMS::GetHeapThresholdBytes() const
@@ -325,6 +326,22 @@ MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t allocSize, ThreadLocal
     size_t unitCount = (allocSize + MRT_PAGE_SIZE - 1) / MRT_PAGE_SIZE;
     size_t regionBytes = ((unitCount * MRT_PAGE_SIZE) + MS_REGION_SIZE - 1)
                          / MS_REGION_SIZE * MS_REGION_SIZE;
+
+    // Hot cache fast path: reuse a recently-freed large region whose physical
+    // pages are still resident — avoids TakeRegions + InlineReclaimForBalance
+    // overhead and eliminates page-fault cycles for the common churn pattern.
+    uintptr_t hotCacheStart = 0;
+    if (msCentralPool_ != nullptr &&
+        msCentralPool_->TryTakeLargeHotCache(regionBytes, hotCacheStart)) {
+        MAddress addr = static_cast<MAddress>(hotCacheStart);
+        // Zero-fill the region so the mutator sees a clean object.
+        ::memset(reinterpret_cast<void*>(hotCacheStart), 0, regionBytes);
+        RegisterLargeObjectMS(addr, regionBytes);
+        if (msBuffer != nullptr) {
+            msBuffer->AccumulatePacingDebt(allocSize);
+        }
+        return addr;
+    }
 
     uintptr_t regionStart = 0;
     MSRegionInfo* baseInfo = msRegionManager_->TakeRegionForLarge(unitCount, regionStart, msCentralPool_);
