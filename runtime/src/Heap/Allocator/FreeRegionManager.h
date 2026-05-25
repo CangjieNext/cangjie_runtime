@@ -35,11 +35,13 @@ public:
         dirtyUnitTree.Init(regionCnt);
     }
 
-    RegionInfo* TakeRegion(size_t num, RegionInfo::UnitRole uclass, bool expectPhysicalMem)
+    RegionInfo* TakeRegion(size_t num, RegionInfo::UnitRole uclass, bool expectPhysicalMem, bool isRoutingRegion = false)
     {
+        constexpr size_t maxRouteRetries = 3;
         UnitIndex idx = 0;
         bool tryDirtyTree = true;
         bool tryReleasedTree = true;
+        size_t retries = 0;
 
         // try as hard as we can to take free regions for allocation.
         while (tryDirtyTree || tryReleasedTree) {
@@ -78,7 +80,14 @@ public:
                 tryReleasedTree = false; // once we fail to take units, stop trying.
                 releasedUnitTreeMutex.unlock();
             }
-            ScopedEnterSaferegion enterSaferegion(true);
+
+            retries++;
+            if (!isRoutingRegion) {
+                ScopedEnterSaferegion enterSaferegion(true);
+            } else if (retries > maxRouteRetries) {
+                // It's ok to return nullptr because region will be compacted in placement when allocation failure happens.
+                return nullptr;
+            }
         }
 
         return nullptr;

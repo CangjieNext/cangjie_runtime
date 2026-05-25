@@ -535,7 +535,7 @@ void RegionManager::ForEachObjSafe(const std::function<void(BaseObject*)>& visit
     ForEachObjUnsafe(visitor);
 }
 
-RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, bool expectPhysicalMem)
+RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, bool expectPhysicalMem, bool isRoutingRegion)
 {
     // a chance to invoke heuristic gc.
     if (!Heap::GetHeap().IsGcStarted()) {
@@ -566,7 +566,7 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
         }
     }
 
-    RegionInfo* region = freeRegionManager.TakeRegion(num, type, expectPhysicalMem);
+    RegionInfo* region = freeRegionManager.TakeRegion(num, type, expectPhysicalMem, isRoutingRegion);
     if (region != nullptr) {
         if (num >= HUGE_PAGE) {
             TagHugePage(region, num);
@@ -872,9 +872,9 @@ void RegionManager::DumpRegionStats(const char* msg) const
     TRACE_COUNT("CJRT_GC_listedUnits", listedUnits);
 }
 
-RegionInfo* RegionManager::AllocateThreadLocalRegion(bool expectPhysicalMem)
+RegionInfo* RegionManager::AllocateThreadLocalRegion(bool expectPhysicalMem, bool isRoutingRegion)
 {
-    RegionInfo* region = TakeRegion(maxUnitCountPerRegion, RegionInfo::UnitRole::SMALL_SIZED_UNITS, expectPhysicalMem);
+    RegionInfo* region = TakeRegion(maxUnitCountPerRegion, RegionInfo::UnitRole::SMALL_SIZED_UNITS, expectPhysicalMem, isRoutingRegion);
     if (region != nullptr) {
         {
             GCPhase phase = Heap::GetHeap().GetCollector().GetGCPhase();
@@ -926,13 +926,14 @@ bool RegionManager::RouteOrCompactRegionImpl(RegionInfo* region)
 {
     CHECK(region->IsRoutingState());
     CHECK_DETAIL(region->GetRawPointerObjectCount() <= 0, "pinned region shouldn't be moved");
+    constexpr bool isRoutingRegion = true;
     size_t fromBytes = region->GetLiveByteCount();
     AllocBuffer* buffer = AllocBuffer::GetOrCreateAllocBuffer();
     RegionInfo* toRegion1 = buffer->GetRegion();
     CHECK(region != toRegion1);
     bool result;
     if (toRegion1 == RegionInfo::NullRegion()) {
-        toRegion1 = AllocateThreadLocalRegion();
+        toRegion1 = AllocateThreadLocalRegion(false, isRoutingRegion);
         if (toRegion1 == nullptr) {
             CompactRegion(region);
             toRegion1 = region;
@@ -980,7 +981,7 @@ bool RegionManager::RouteOrCompactRegionImpl(RegionInfo* region)
         EnlistFullThreadLocalRegion(toRegion1);
     }
 
-    RegionInfo* toRegion2 = AllocateThreadLocalRegion();
+    RegionInfo* toRegion2 = AllocateThreadLocalRegion(false, isRoutingRegion);
     CHECK(region != toRegion2);
     if (toRegion2 != nullptr) {
         toRegion1->Alloc(usedBytes1);
