@@ -209,34 +209,25 @@ size_t MSRegionInfo::SweepRegion()
     uint64_t summary = 0;
     uintptr_t base = RegionStart();
 
+    // Pass 1: count live objects only. Do not publish free slots yet.
     for (size_t i = 0; i < wordCount; i++) {
-        // Core: allocBitmap = ~markBitmap  (one NOT per 64 slots)
-        allocBitmap[i] = ~markBitmap[i];
         liveCount += __builtin_popcountll(markBitmap[i]);
-        if (allocBitmap[i] != 0) {
-            summary |= (1ULL << i);
-        }
     }
 
-    // Mask out invalid trailing bits
     size_t trailingBits = totalSlotCount % 64;
-    if (trailingBits != 0) {
-        allocBitmap[wordCount - 1] &= (1ULL << trailingBits) - 1;
-        if (allocBitmap[wordCount - 1] == 0) {
-            summary &= ~(1ULL << (wordCount - 1));
-        }
-    }
 
-    // Zero dead slots: the compiler assumes freshly-allocated memory is zeroed
-    // (same as CopyGC's bump allocator from mmap'd pages). Bitmap allocation
-    // reuses swept slots, so stale object data must be cleared here — not on the
-    // allocation hot-path — to avoid GC tracing stale reference fields.
+    // Pass 2: zero dead slots before publishing them as allocatable.
+    // Otherwise a mutator can observe allocBitmap=free, claim the slot, and
+    // still read stale header / ref fields from the previous dead object.
     if (liveCount == 0) {
         memset(reinterpret_cast<void*>(base), 0, MS_REGION_SIZE);
     } else {
         size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
         for (size_t i = 0; i < wordCount; i++) {
-            uint64_t freeBits = allocBitmap[i];
+            uint64_t freeBits = ~markBitmap[i];
+            if (i == wordCount - 1 && trailingBits != 0) {
+                freeBits &= (1ULL << trailingBits) - 1;
+            }
             while (freeBits != 0) {
                 int bit = __builtin_ctzll(freeBits);
                 size_t slotIdx = i * 64 + static_cast<size_t>(bit);
@@ -244,6 +235,18 @@ size_t MSRegionInfo::SweepRegion()
                 memset(reinterpret_cast<void*>(slotAddr), 0, slotSize);
                 freeBits &= freeBits - 1;  // clear lowest set bit
             }
+        }
+    }
+
+    // Pass 3: publish free bitmap only after zeroing is complete.
+    for (size_t i = 0; i < wordCount; i++) {
+        uint64_t freeBits = ~markBitmap[i];
+        if (i == wordCount - 1 && trailingBits != 0) {
+            freeBits &= (1ULL << trailingBits) - 1;
+        }
+        allocBitmap[i] = freeBits;
+        if (freeBits != 0) {
+            summary |= (1ULL << i);
         }
     }
 
