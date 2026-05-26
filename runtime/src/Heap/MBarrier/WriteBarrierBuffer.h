@@ -38,7 +38,7 @@ class WorkStack;
 
 class WriteBarrierBuffer {
 public:
-    static constexpr size_t kCapacity = 256;
+    static constexpr size_t kCapacity = 1024;
 
     WriteBarrierBuffer() : count_(0)
     {

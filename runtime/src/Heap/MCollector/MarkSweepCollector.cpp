@@ -459,7 +459,7 @@ static double GetAssistRatioCoeff()
                 return v;
             }
         }
-        return 0.1;
+        return 0.05;
     }();
     return coeff;
 }
@@ -509,7 +509,7 @@ uint64_t MarkSweepCollector::GetAssistRatioScale()
 size_t MarkSweepCollector::GetAssistDebtTriggerObjects() const
 {
     static size_t trigger = []() -> size_t {
-        return ReadEnvCount("CJ_MS_ASSIST_DEBT_TRIGGER", 256);
+        return ReadEnvCount("CJ_MS_ASSIST_DEBT_TRIGGER", 512);
     }();
     return trigger;
 }
@@ -529,7 +529,7 @@ double MarkSweepCollector::GetAssistRatioMaxMultiplier()
                 return v;
             }
         }
-        return 10.0;
+        return 3.0;
     }();
     return mult;
 }

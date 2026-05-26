@@ -22,7 +22,7 @@ class BaseObject;
 // Go equivalent: runtime.workbuf (256 pointers per buf).
 // ============================================================================
 struct alignas(64) WorkBuf {
-    static constexpr size_t kCapacity = 256;
+    static constexpr size_t kCapacity = 1024;
 
     WorkBuf* next = nullptr;
     size_t len = 0;
