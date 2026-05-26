@@ -99,6 +99,7 @@ public:
             SatbBuffer::Instance().RetireNode(satbNode);
             satbNode = nullptr;
         }
+        wbBuf_.Clear();
         assistLocalWork_.clear();
         uwContext.Reset();
         exceptionWrapper.ClearInfo();

@@ -111,6 +111,11 @@ static const char* GetDiagTypeName(const BaseObject* obj)
     return obj->GetTypeInfo()->GetName();
 }
 
+static uintptr_t LoadStateWordForDiag(const BaseObject* obj)
+{
+    return obj == nullptr ? 0 : *reinterpret_cast<const uintptr_t*>(obj);
+}
+
 static bool IsInterestingDiagType(const BaseObject* obj)
 {
     const char* name = GetDiagTypeName(obj);
@@ -914,14 +919,39 @@ void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
     // Objects in wbBuf are already marked (DiscoverObject was called in EnqueueRef).
     WorkBuf* buf = workBufPool_.Get();
     size_t bufsUsed = 0;
+    size_t queued = 0;
+    size_t dropped = 0;
     for (size_t i = 0; i < n; i++) {
-        if (data[i] == nullptr) continue;
+        BaseObject* obj = data[i];
+        if (obj == nullptr) {
+            continue;
+        }
+        if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
+            dropped++;
+            VLOG(REPORT,
+                 "[MS-GC] Enqueue source=WBBOverflow drop non-traceable obj=%p idx=%zu",
+                 static_cast<void*>(obj),
+                 i);
+            continue;
+        }
+        uintptr_t stateWord = LoadStateWordForDiag(obj);
+        if (UNLIKELY(!obj->IsValidObject())) {
+            dropped++;
+            VLOG(REPORT,
+                 "[MS-GC] Enqueue source=WBBOverflow drop invalid obj=%p idx=%zu stateWord=0x%zx markBit=%d",
+                 static_cast<void*>(obj),
+                 i,
+                 stateWord,
+                 static_cast<int>(IsMarkedObject(obj)));
+            continue;
+        }
         if (buf->Full()) {
             globalFull_.Push(buf);
             bufsUsed++;
             buf = workBufPool_.Get();
         }
-        buf->Push(data[i]);
+        buf->Push(obj);
+        queued++;
     }
     if (!buf->Empty()) {
         globalFull_.Push(buf);
@@ -933,11 +963,33 @@ void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
     if (bufsUsed > 0) {
         globalShareCount_.fetch_add(bufsUsed, std::memory_order_relaxed);
     }
+    if (dropped > 0) {
+        VLOG(REPORT,
+             "[MS-GC] Enqueue source=WBBOverflow queued=%zu dropped=%zu workBufs=%zu",
+             queued,
+             dropped,
+             bufsUsed);
+    }
 }
 
 void MarkSweepCollector::PushSingleToDeferredMainThread(BaseObject* obj)
 {
     if (obj == nullptr) {
+        return;
+    }
+    if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
+        VLOG(REPORT,
+             "[MS-GC] Enqueue source=DeferredMain drop non-traceable obj=%p",
+             static_cast<void*>(obj));
+        return;
+    }
+    uintptr_t stateWord = LoadStateWordForDiag(obj);
+    if (UNLIKELY(!obj->IsValidObject())) {
+        VLOG(REPORT,
+             "[MS-GC] Enqueue source=DeferredMain drop invalid obj=%p stateWord=0x%zx markBit=%d",
+             static_cast<void*>(obj),
+             stateWord,
+             static_cast<int>(IsMarkedObject(obj)));
         return;
     }
     std::lock_guard<std::mutex> lock(deferredMainThreadMutex_);
@@ -950,15 +1002,54 @@ void MarkSweepCollector::PushSingleToDeferredMainThread(BaseObject* obj)
 
 void MarkSweepCollector::DrainGlobalLFStackToMainQueue(GreyWorkQueue& mainQueue)
 {
+    size_t moved = 0;
+    size_t dropped = 0;
+    size_t buffers = 0;
     while (true) {
         WorkBuf* buf = globalFull_.Pop();
         if (buf == nullptr) {
             break;
         }
+        buffers++;
         for (size_t i = 0; i < buf->len; i++) {
-            mainQueue.PushMovedGrey(buf->objs[i]);
+            BaseObject* obj = buf->objs[i];
+            if (obj == nullptr) {
+                continue;
+            }
+            if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
+                dropped++;
+                VLOG(REPORT,
+                     "[MS-GC] MarkTermination source=globalFull drop non-traceable obj=%p buf=%p slot=%zu len=%zu",
+                     static_cast<void*>(obj),
+                     static_cast<void*>(buf),
+                     i,
+                     buf->len);
+                continue;
+            }
+            uintptr_t stateWord = LoadStateWordForDiag(obj);
+            if (UNLIKELY(!obj->IsValidObject())) {
+                dropped++;
+                VLOG(REPORT,
+                     "[MS-GC] MarkTermination source=globalFull drop invalid obj=%p stateWord=0x%zx markBit=%d buf=%p slot=%zu len=%zu",
+                     static_cast<void*>(obj),
+                     stateWord,
+                     static_cast<int>(IsMarkedObject(obj)),
+                     static_cast<void*>(buf),
+                     i,
+                     buf->len);
+                continue;
+            }
+            mainQueue.PushMovedGrey(obj);
+            moved++;
         }
         workBufPool_.Put(buf);
+    }
+    if (dropped > 0) {
+        VLOG(REPORT,
+             "[MS-GC] MarkTermination source=globalFull moved=%zu dropped=%zu buffers=%zu",
+             moved,
+             dropped,
+             buffers);
     }
 }
 
@@ -1160,16 +1251,104 @@ void MarkSweepCollector::CollectUnmarkedToMainQueue(GreyWorkQueue& mainQueue)
 
 void MarkSweepCollector::FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue)
 {
-    auto func = [&mainQueue](Mutator& mutator) {
-        mutator.GetWriteBarrierBuffer().Flush(mainQueue.UnsafeRaw());
+    size_t totalMoved = 0;
+    size_t totalDropped = 0;
+    size_t droppedMutators = 0;
+    auto func = [this, &mainQueue, &totalMoved, &totalDropped, &droppedMutators](Mutator& mutator) {
+        WriteBarrierBuffer& wbBuf = mutator.GetWriteBarrierBuffer();
+        BaseObject** data = wbBuf.Data();
+        size_t n = wbBuf.Count();
+        size_t localMoved = 0;
+        size_t localDropped = 0;
+        for (size_t i = 0; i < n; ++i) {
+            BaseObject* obj = data[i];
+            if (obj == nullptr) {
+                continue;
+            }
+            if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
+                localDropped++;
+                VLOG(REPORT,
+                     "[MS-GC] MarkTermination source=WBB drop non-traceable obj=%p mutatorTid=%u idx=%zu",
+                     static_cast<void*>(obj),
+                     mutator.GetTid(),
+                     i);
+                continue;
+            }
+            uintptr_t stateWord = LoadStateWordForDiag(obj);
+            if (UNLIKELY(!obj->IsValidObject())) {
+                localDropped++;
+                VLOG(REPORT,
+                     "[MS-GC] MarkTermination source=WBB drop invalid obj=%p stateWord=0x%zx markBit=%d mutatorTid=%u idx=%zu",
+                     static_cast<void*>(obj),
+                     stateWord,
+                     static_cast<int>(IsMarkedObject(obj)),
+                     mutator.GetTid(),
+                     i);
+                continue;
+            }
+            mainQueue.PushMovedGrey(obj);
+            localMoved++;
+        }
+        wbBuf.Clear();
+        totalMoved += localMoved;
+        totalDropped += localDropped;
+        if (localDropped > 0) {
+            droppedMutators++;
+            VLOG(REPORT,
+                 "[MS-GC] MarkTermination source=WBB mutatorTid=%u buffered=%zu moved=%zu dropped=%zu",
+                 mutator.GetTid(),
+                 n,
+                 localMoved,
+                 localDropped);
+        }
     };
     MutatorManager::Instance().VisitAllMutators(func);
+    if (totalDropped > 0) {
+        VLOG(REPORT,
+             "[MS-GC] MarkTermination source=WBB totalMoved=%zu totalDropped=%zu mutatorsWithDrops=%zu",
+             totalMoved,
+             totalDropped,
+             droppedMutators);
+    }
 }
 
 void MarkSweepCollector::DrainDeferredMainThreadQueueToMainQueue(GreyWorkQueue& mainQueue)
 {
+    size_t moved = 0;
+    size_t dropped = 0;
     std::lock_guard<std::mutex> lock(deferredMainThreadMutex_);
-    mainQueue.insert(deferredMainThreadQueue_);
+    while (!deferredMainThreadQueue_.empty()) {
+        BaseObject* obj = deferredMainThreadQueue_.back();
+        deferredMainThreadQueue_.pop_back();
+        if (obj == nullptr) {
+            continue;
+        }
+        if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
+            dropped++;
+            VLOG(REPORT,
+                 "[MS-GC] MarkTermination source=deferredMain drop non-traceable obj=%p",
+                 static_cast<void*>(obj));
+            continue;
+        }
+        uintptr_t stateWord = LoadStateWordForDiag(obj);
+        if (UNLIKELY(!obj->IsValidObject())) {
+            dropped++;
+            VLOG(REPORT,
+                 "[MS-GC] MarkTermination source=deferredMain drop invalid obj=%p stateWord=0x%zx markBit=%d",
+                 static_cast<void*>(obj),
+                 stateWord,
+                 static_cast<int>(IsMarkedObject(obj)));
+            continue;
+        }
+        mainQueue.PushMovedGrey(obj);
+        moved++;
+    }
+    if (dropped > 0) {
+        VLOG(REPORT,
+             "[MS-GC] MarkTermination source=deferredMain moved=%zu dropped=%zu",
+             moved,
+             dropped);
+    }
 }
 
 void MarkSweepCollector::CollectExternCandidatesToMain(GreyWorkQueue& mainQueue)
