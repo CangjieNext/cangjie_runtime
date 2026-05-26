@@ -63,7 +63,14 @@ public:
 
     bool IsForwarded() const { return GetObjectState().IsForwardedState(); }
 
-    void SetClassInfo(TypeInfo* klassRef) { stateWord.SetTypeInfo(klassRef); }
+    void SetClassInfo(TypeInfo* klassRef)
+    {
+#ifdef MRT_USE_MARK_SWEEP
+        stateWord.InitStateWord(klassRef);
+#else
+        stateWord.SetTypeInfo(klassRef);
+#endif
+    }
     void SetStateCode(ObjectState::ObjectStateCode state) { stateWord.SetStateCode(state); }
 
     bool IsInTraceRegion() const;
@@ -90,7 +97,11 @@ protected:
     static inline BaseObject* SetClassInfo(MAddress address, TypeInfo* klass)
     {
         auto ref = reinterpret_cast<BaseObject*>(address);
+#ifdef MRT_USE_MARK_SWEEP
+        ref->stateWord.InitStateWord(klass);
+#else
         ref->stateWord.SetTypeInfo(klass);
+#endif
         return ref;
     }
 

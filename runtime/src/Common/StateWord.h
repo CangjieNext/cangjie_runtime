@@ -95,8 +95,14 @@ public:
 #ifdef __arm__
         uint32_t address = this->typeInfo;
 #else
+#ifdef MRT_USE_MARK_SWEEP
+        uint64_t word = __atomic_load_n(reinterpret_cast<const uint64_t*>(this), __ATOMIC_ACQUIRE);
+        uintptr_t low = word & LOW_ADDRESS_MASK;
+        uintptr_t high = (word >> HIGH_ADDRESS_SHIFT) & HIGH_ADDRESS_MASK;
+#else
         uintptr_t low = this->typeInfoLow32;
         uintptr_t high = this->typeInfoHigh16;
+#endif
         uintptr_t address = (high << HIGH_ADDRESS_SHIFT) | low;
 #endif
         return reinterpret_cast<TypeInfo*>(address);
@@ -112,6 +118,22 @@ public:
         this->typeInfoHigh16 = (address >> HIGH_ADDRESS_SHIFT) & HIGH_ADDRESS_MASK;
 #endif
     }
+
+ #ifdef MRT_USE_MARK_SWEEP
+    void InitStateWord(TypeInfo* typeInfo)
+    {
+        uintptr_t address = reinterpret_cast<uintptr_t>(typeInfo);
+#ifdef __arm__
+        this->typeInfo = reinterpret_cast<uint32_t>(address);
+        this->padding = 0;
+        this->objectState = ObjectState(static_cast<uint16_t>(0));
+#else
+        uint64_t word = (((address >> HIGH_ADDRESS_SHIFT) & HIGH_ADDRESS_MASK) << 32) |
+                        ((address >> LOW_ADDRESS_SHIFT) & LOW_ADDRESS_MASK);
+        __atomic_store_n(reinterpret_cast<uint64_t*>(this), word, __ATOMIC_RELEASE);
+#endif
+    }
+#endif
 
     bool IsValidStateWord() const { return GetTypeInfo() != nullptr; }
     StateWord GetStateWord() const

@@ -1712,8 +1712,19 @@ extern "C" TypeInfo* CJ_MCC_GetOrCreateTypeInfo(TypeTemplate* typeTemplate, U32 
     return TypeInfoManager::GetTypeInfoManager().GetOrCreateTypeInfo(typeTemplate, argSize, typeArgs);
 }
 
+static inline TypeInfo* NormalizeRuntimeTypeInfo(TypeInfo* typeInfo)
+{
+#ifdef MRT_USE_MARK_SWEEP
+    constexpr uintptr_t kTypeInfoMask = 0x0000FFFFffffFFFFull;
+    return reinterpret_cast<TypeInfo*>(reinterpret_cast<uintptr_t>(typeInfo) & kTypeInfoMask);
+#else
+    return typeInfo;
+#endif
+}
+
 extern "C" bool CJ_MCC_IsSubType(TypeInfo* typeInfo, TypeInfo* superTypeInfo)
 {
+    typeInfo = NormalizeRuntimeTypeInfo(typeInfo);
     if (typeInfo == nullptr || superTypeInfo == nullptr) {
         return false;
     }
@@ -1840,11 +1851,13 @@ extern "C" void CJ_MCC_ReadGeneric(const ObjectPtr dstPtr, ObjectPtr obj, void* 
 
 extern "C" FuncPtr* CJ_MCC_GetMTable(TypeInfo* ti, TypeInfo* itf)
 {
+    ti = NormalizeRuntimeTypeInfo(ti);
     return ti->GetMTable(itf);
 }
 
 extern "C" TypeInfo* CJ_MCC_GetMethodOuterTI(TypeInfo* ti, TypeInfo* itf, U64 index)
 {
+    ti = NormalizeRuntimeTypeInfo(ti);
     return ti->GetMethodOuterTI(itf, index);
 }
 
