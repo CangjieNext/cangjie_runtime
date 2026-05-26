@@ -214,13 +214,11 @@ class Sample {
             var gridPointKdeSum = 0.0
             let bandwidth = kdeParamsState.getBandwidth()
             let (windowStartIndex, windowFinishIndex) = kdeParamsState.getWindow()
-            let windowSize = 2.0 * bandwidth
             for (dataPointIndex in windowStartIndex..windowFinishIndex) {
                 let dataPoint = data[dataPointIndex]
                 let distance = abs(gridPoint - dataPoint)
                 gridPointKdeSum += kernelFunction(distance, bandwidth)
             }
-            // return gridPointKdeSum / (windowSize * bandwidth)
             return gridPointKdeSum / Float64(data.size)
         }
 
@@ -231,9 +229,6 @@ class Sample {
          * (the size of the step depends on the distance to some data point, then if in data there are many points with the same value we will loop forever without minBandwith)
          * (at the same time we have a boostrap sample, so it's very likely)
          */
-
-        // percentile(0.02) and percentile(0.98) are taken to ignore outliers in the data
-        // let approxRange = max(this.percentile(0.95) - this.percentile(0.02), 0.01)
         let irq = max(irq(), 0.01)
         let stddev = stddev()
 
