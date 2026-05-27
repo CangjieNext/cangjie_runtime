@@ -7,6 +7,7 @@
 
 #include "Base/Types.h"
 #include "Common/TypeDef.h"
+#include <atomic>
 #if defined(_WIN64)
 #define NOGDI
 #include <windows.h>
@@ -535,6 +536,16 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
             if (oldObj != toObj) { root.object = toObj; }
         } else if (IsStackAddr(reinterpret_cast<uintptr_t>(oldObj))) {
             CheckAndPush(oldObj, rootSet, rootStack);
+        } else if (oldObj != nullptr) {
+            // Diagnostic: stackmap reported a root that is neither heap nor stack.
+            // This usually indicates a stale value from a missed safepoint or wrong liveness info.
+            // Log once per process to avoid impacting release performance.
+            static std::atomic_flag warnedSuspiciousPreForwardRoot = ATOMIC_FLAG_INIT;
+            if (!warnedSuspiciousPreForwardRoot.test_and_set(std::memory_order_relaxed)) {
+                LOG(RTLOG_ERROR,
+                    "suspicious stackmap root@GCPhasePreForward slot=%p val=%p (neither heap nor stack)",
+                    static_cast<void*>(&root), static_cast<void*>(oldObj));
+            }
         }
         while (!rootStack.empty()) {
             BaseObject* obj = rootStack.top();

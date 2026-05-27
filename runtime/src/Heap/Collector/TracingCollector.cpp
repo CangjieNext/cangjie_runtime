@@ -6,6 +6,8 @@
 
 #include "TracingCollector.h"
 
+#include <atomic>
+
 #include "Common/Runtime.h"
 #include "Concurrency/Concurrency.h"
 #include "Heap/Allocator/AllocBuffer.h"
@@ -216,6 +218,16 @@ void TracingCollector::VisitStackRoots(const RootVisitor& visitor, RegSlotsMap& 
             LOG(RTLOG_FATAL, "wrong reg info, start ip: %p frame pc: %p", reinterpret_cast<void*>(startIP),
                 reinterpret_cast<void*>(frameIP));
         }
+    } else {
+        // Diagnostic: stackmap missing for this frame may indicate compiler-side omission.
+        // Log once per process to avoid impacting release performance.
+        static std::atomic_flag warnedStackRootsOmission = ATOMIC_FLAG_INIT;
+        if (!warnedStackRootsOmission.test_and_set(std::memory_order_relaxed)) {
+            LOG(RTLOG_ERROR,
+                "possible stackmap omission@VisitStackRoots start_ip=%p frame_pc=%p offset=0x%zx fp=%p",
+                reinterpret_cast<void*>(startIP), reinterpret_cast<void*>(frameIP),
+                static_cast<size_t>(frameIP - startIP), reinterpret_cast<void*>(frameAddress));
+        }
     }
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
     mutator.PushFrameInfoForTrace(gcInfo);
@@ -268,6 +280,15 @@ void TracingCollector::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor
         heapMap.VisitSlotRoots(rootVisitor, slotDebugFunc);
         // VisitDerivedPtr must be invoked after VisitRegRoots and VisitSlotRoots;
         heapMap.VisitDerivedPtr(derivedPtrVisitor, derivedPtrDebugFunc, regSlotsMap);
+    } else {
+        // Diagnostic: heap-reference stackmap missing during PREFORWARD fixup; log once per process.
+        static std::atomic_flag warnedHeapRefOmission = ATOMIC_FLAG_INIT;
+        if (!warnedHeapRefOmission.test_and_set(std::memory_order_relaxed)) {
+            LOG(RTLOG_ERROR,
+                "possible stackmap omission@VisitHeapReferencesOnStack start_ip=%p frame_pc=%p offset=0x%zx fp=%p",
+                reinterpret_cast<void*>(startIP), reinterpret_cast<void*>(frameIP),
+                static_cast<size_t>(frameIP - startIP), reinterpret_cast<void*>(frameAddress));
+        }
     }
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
     mutator.PushFrameInfoForFix(infoNode);
