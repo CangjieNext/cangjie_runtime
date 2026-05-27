@@ -9,7 +9,7 @@
 /**
  * @file
  *
- * This is a class for ConsoleWriter.
+ * This file provides the environment console writer implementation.
  */
 
 package std.env
@@ -74,7 +74,11 @@ public class ConsoleWriter <: OutputStream {
         })
     }
 
-    public func write(v: Int8): Unit {
+    public func write(v: Int64): Unit {
+        writeInt64(v, newline: false)
+    }
+
+    public func write(v: Int32): Unit {
         write(Int64(v))
     }
 
@@ -82,15 +86,15 @@ public class ConsoleWriter <: OutputStream {
         write(Int64(v))
     }
 
-    public func write(v: Int32): Unit {
+    public func write(v: Int8): Unit {
         write(Int64(v))
     }
 
-    public func write(v: Int64): Unit {
-        writeInt64(v, newline: false)
+    public func write(v: UInt64): Unit {
+        writeUInt64(v, newline: false)
     }
 
-    public func write(v: UInt8): Unit {
+    public func write(v: UInt32): Unit {
         write(UInt64(v))
     }
 
@@ -98,12 +102,8 @@ public class ConsoleWriter <: OutputStream {
         write(UInt64(v))
     }
 
-    public func write(v: UInt32): Unit {
+    public func write(v: UInt8): Unit {
         write(UInt64(v))
-    }
-
-    public func write(v: UInt64): Unit {
-        writeUInt64(v, newline: false)
     }
 
     public func write(v: Float16): Unit {
@@ -141,7 +141,11 @@ public class ConsoleWriter <: OutputStream {
         })
     }
 
-    public func writeln(v: Int8): Unit {
+    public func writeln(v: Int64): Unit {
+        writeInt64(v, newline: true)
+    }
+
+    public func writeln(v: Int32): Unit {
         writeln(Int64(v))
     }
 
@@ -149,15 +153,15 @@ public class ConsoleWriter <: OutputStream {
         writeln(Int64(v))
     }
 
-    public func writeln(v: Int32): Unit {
+    public func writeln(v: Int8): Unit {
         writeln(Int64(v))
     }
 
-    public func writeln(v: Int64): Unit {
-        writeInt64(v, newline: true)
+    public func writeln(v: UInt64): Unit {
+        writeUInt64(v, newline: true)
     }
 
-    public func writeln(v: UInt8): Unit {
+    public func writeln(v: UInt32): Unit {
         writeln(UInt64(v))
     }
 
@@ -165,12 +169,8 @@ public class ConsoleWriter <: OutputStream {
         writeln(UInt64(v))
     }
 
-    public func writeln(v: UInt32): Unit {
+    public func writeln(v: UInt8): Unit {
         writeln(UInt64(v))
-    }
-
-    public func writeln(v: UInt64): Unit {
-        writeUInt64(v, newline: true)
     }
 
     public func writeln(v: Float16): Unit {
@@ -191,6 +191,15 @@ public class ConsoleWriter <: OutputStream {
         writeln(itemBytes[..len])
     }
 
+    private func directWriteFormatted(writePos: Int64, newline: Bool): Unit {
+        var end = writePos
+        if (newline) {
+            this.buffer[end] = b'\n'
+            end++
+        }
+        directWrite(this.buffer, end)
+    }
+
     private func writeInt64(v: Int64, newline!: Bool = false): Unit {
         synchronized(mutex) {
             var writePos: Int64 = 0
@@ -199,11 +208,7 @@ public class ConsoleWriter <: OutputStream {
                 writePos = CJ_BUFFER_Int64ToCPointer(v, cp.pointer, this.bufferSize)
                 releaseArrayRawData(cp)
             }
-            if (newline) {
-                this.buffer[writePos] = b'\n'
-                writePos++
-            }
-            directWrite(this.buffer, writePos)
+            directWriteFormatted(writePos, newline)
         }
     }
 
@@ -215,13 +220,7 @@ public class ConsoleWriter <: OutputStream {
                 writePos = CJ_BUFFER_UInt64ToCPointer(v, cp.pointer, this.bufferSize)
                 releaseArrayRawData(cp)
             }
-
-            if (newline) {
-                this.buffer[writePos] = b'\n'
-                writePos++
-            }
-
-            directWrite(this.buffer, writePos)
+            directWriteFormatted(writePos, newline)
         }
     }
 
@@ -233,13 +232,7 @@ public class ConsoleWriter <: OutputStream {
                 writePos = CJ_BUFFER_Float64ToCPointer(v, cp.pointer, this.bufferSize)
                 releaseArrayRawData(cp)
             }
-
-            if (newline) {
-                this.buffer[writePos] = b'\n'
-                writePos++
-            }
-
-            directWrite(this.buffer, writePos)
+            directWriteFormatted(writePos, newline)
         }
     }
 

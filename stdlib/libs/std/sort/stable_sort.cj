@@ -615,33 +615,33 @@ extend<T> Array<T> {
         temp: TempArray<T>,
         comparator: (T, T) -> Ordering
     ): Unit {
-        var s1 = start1
-        var l1 = len1
-        var s2 = start2
-        var l2 = len2
-        var lt = this.queryLT(this[s1 + l1 - 1], s2, l2, comparator, true)
-        l2 = lt - s2
-        if (l2 == 0) {
+        var leftStart = start1
+        var leftLen = len1
+        var rightStart = start2
+        var rightLen = len2
+        var rightLimit = this.queryLT(this[leftStart + leftLen - 1], rightStart, rightLen, comparator, true)
+        rightLen = rightLimit - rightStart
+        if (rightLen == 0) {
             return
         }
-        var gt = this.queryGT(this[s2], s1, l1, comparator, false)
-        l1 = l1 - (gt - s1)
-        s1 = gt
-        if (l1 == 0) {
+        var leftLimit = this.queryGT(this[rightStart], leftStart, leftLen, comparator, false)
+        leftLen = leftLen - (leftLimit - leftStart)
+        leftStart = leftLimit
+        if (leftLen == 0) {
             return
         }
-        if (l1 == 1) {
-            let t0 = this[s1]
-            this.copyTo(this, s2, s2 - 1, l2)
-            this[s1 + l2] = t0
-        } else if (l2 == 1) {
-            let t0 = this[s2]
-            this.copyTo(this, s1, s1 + 1, l1)
-            this[s1] = t0
-        } else if (l1 <= l2) {
-            mergeFromLeft(s1, l1, s2, l2, temp, comparator)
+        if (leftLen == 1) {
+            let saved = this[leftStart]
+            this.copyTo(this, rightStart, rightStart - 1, rightLen)
+            this[leftStart + rightLen] = saved
+        } else if (rightLen == 1) {
+            let saved = this[rightStart]
+            this.copyTo(this, leftStart, leftStart + 1, leftLen)
+            this[leftStart] = saved
+        } else if (leftLen <= rightLen) {
+            mergeFromLeft(leftStart, leftLen, rightStart, rightLen, temp, comparator)
         } else {
-            mergeFromRight(s1, l1, s2, l2, temp, comparator)
+            mergeFromRight(leftStart, leftLen, rightStart, rightLen, temp, comparator)
         }
     }
 

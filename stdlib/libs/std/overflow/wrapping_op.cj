@@ -496,33 +496,35 @@ extend UIntNative <: WrappingOp<UIntNative> {
     @Frozen
     public func wrappingShl(y: UInt64): UIntNative {
         if (isNative64) {
-            if (y >= 64) {
-                return this << (y & 0b111111)
-            } else {
-                return this << y
+            let shiftMask: UInt64 = 0b111111
+            let bitWidth: UInt64 = 64
+            if (y >= bitWidth) {
+                return this << (y & shiftMask)
             }
         } else {
-            if (y >= 32) {
-                return this << (y & 0b11111)
-            } else {
-                return this << y
+            let shiftMask: UInt64 = 0b11111
+            let bitWidth: UInt64 = 32
+            if (y >= bitWidth) {
+                return this << (y & shiftMask)
             }
         }
+        return this << y
     }
 
     public func wrappingShr(y: UInt64): UIntNative {
         if (isNative64) {
-            if (y >= 64) {
-                return this >> (y & 0b111111)
-            } else {
-                return this >> y
+            let rightShiftMask: UInt64 = 0b111111
+            let nativeWidth: UInt64 = 64
+            if (y >= nativeWidth) {
+                return this >> (y & rightShiftMask)
             }
         } else {
-            if (y >= 32) {
-                return this >> (y & 0b11111)
-            } else {
-                return this >> y
+            let rightShiftMask: UInt64 = 0b11111
+            let nativeWidth: UInt64 = 32
+            if (y >= nativeWidth) {
+                return this >> (y & rightShiftMask)
             }
         }
+        return this >> y
     }
 }

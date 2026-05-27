@@ -423,8 +423,9 @@ public class LinkedList<T> <: Collection<T> {
         while (let Some(n) <- node) {
             match (transform(n.value)) {
                 case Some(v) => result.addLast(v)
-                case None => node = n.next
-                            continue
+                case None =>
+                    node = n.next
+                    continue
             }
             node = n.next
         }
@@ -444,7 +445,7 @@ public class LinkedList<T> <: Collection<T> {
         }
         var result = LinkedList<T>()
         var node = _head.getOrThrow()
-        for(_ in 0..size - 1){
+        for (_ in 0..size - 1) {
             result.addLast(node.value)
             result.addLast(separator)
             node = node.next.getOrThrow()
@@ -454,9 +455,9 @@ public class LinkedList<T> <: Collection<T> {
     }
 
     /**
-     * @description Iterates over all elements and performs the given operation.
+     * @description Visits nodes from head to tail and applies the supplied action to each value.
      *
-     * @param action the given operation function.
+     * @param action operation invoked for every element in list order.
      */
     @When[env != "ohos"]
     public func forEach(action: (T) -> Unit): Unit {
@@ -468,10 +469,10 @@ public class LinkedList<T> <: Collection<T> {
     }
 
     /**
-     * @description Determine whether all elements in the linked list satisfy the condition.
+     * @description Checks whether every value in this linked list satisfies the predicate.
      *
-     * @param predicate the given condition.
-     * @returns true if all elements in this linked list satisfy the condition, otherwise returns false.
+     * @param predicate condition evaluated in node order.
+     * @returns true when no element fails the predicate.
      */
     @When[env != "ohos"]
     public func all(predicate: (T) -> Bool): Bool {
@@ -488,10 +489,10 @@ public class LinkedList<T> <: Collection<T> {
     }
 
     /**
-     * @description Determine whether there is any element in this linked list that satisfies the condition.
+     * @description Searches this linked list for a value accepted by the predicate.
      *
-     * @param predicate the given condition.
-     * @returns Whether there is any element that satisfies the condition.
+     * @param predicate condition evaluated from head to tail.
+     * @returns true when at least one element matches.
      */
     @When[env != "ohos"]
     public func any(predicate: (T) -> Bool): Bool {
@@ -508,10 +509,10 @@ public class LinkedList<T> <: Collection<T> {
     }
 
     /**
-     * @description Determine whether all elements in this linked list do not satisfy the condition.
+     * @description Checks that the predicate is false for every node value.
      *
-     * @param predicate the given condition.
-     * @returns Whether all elements in the current linked list do not satisfy the condition.
+     * @param predicate condition evaluated from the head node onward.
+     * @returns true when the list has no matching element.
      */
     @When[env != "ohos"]
     public func none(predicate: (T) -> Bool): Bool {
@@ -528,11 +529,11 @@ public class LinkedList<T> <: Collection<T> {
     }
 
     /**
-     * @description Computes from left to right using the specified initial value.
+     * @description Folds this linked list from head to tail starting with the supplied initial value.
      *
-     * @param initial the given initial value of type R.
-     * @param operation the given computation function.
-     * @returns the final computed value.
+     * @param initial initial accumulator value.
+     * @param operation function used to combine the accumulator with each element.
+     * @returns final accumulator value.
      */
     @When[env != "ohos"]
     public func fold<R>(initial: R, operation: (R, T) -> R): R {
@@ -546,10 +547,10 @@ public class LinkedList<T> <: Collection<T> {
     }
 
     /**
-     * @description Compute from left to right using the first element as the initial value.
+     * @description Reduces the linked list in traversal order, starting with the head value.
      *
-     * @param operation the given computation function.
-     * @returns the final computed value.
+     * @param operation function used to combine the accumulated value with each following value.
+     * @returns None for an empty list; otherwise, the reduction result.
      */
     @When[env != "ohos"]
     public func reduce(operation: (T, T) -> T): Option<T> {
