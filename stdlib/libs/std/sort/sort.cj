@@ -10,6 +10,23 @@ package std.sort
 
 import std.collection.*
 
+private func sortList<T>(data: List<T>, sorter: (Array<T>) -> Unit): Unit {
+    var dataArray = data.toArray()
+    sorter(dataArray)
+    data.clear()
+    for (i in dataArray) {
+        data.add(i)
+    }
+}
+
+private func sortArrayList<T>(data: ArrayList<T>, sorter: (Array<T>) -> Unit): Unit {
+    unsafe {
+        var dataArray = data.getRawArray()
+        sorter(dataArray[0..data.size])
+        data.updateVersion()
+    }
+}
+
 /**
  * Sorting element T.
  *
@@ -53,7 +70,8 @@ public func sort<T>(data: Array<T>, stable!: Bool = false, descending!: Bool = f
 public func sort<T>(data: Array<T>, by!: (T, T) -> Ordering, stable!: Bool = false, descending!: Bool = false): Unit {
     var comparator = by
     if (descending) {
-        comparator = {l: T, r: T => match (by(l, r)) {
+        comparator = {
+            l: T, r: T => match (by(l, r)) {
                 case GT => LT
                 case LT => GT
                 case _ => EQ
@@ -81,9 +99,11 @@ public func sort<T>(data: Array<T>, by!: (T, T) -> Ordering, stable!: Bool = fal
  *
  */
 public func sort<T>(data: Array<T>, lessThan!: (T, T) -> Bool, stable!: Bool = false, descending!: Bool = false): Unit {
-    let comparator = {l: T, r: T => match (lessThan(l, r)) {
+    let comparator = {
+        l: T, r: T => match (lessThan(l, r)) {
             case true => LT
-            case false => if (lessThan(r, l)) {
+            case false =>
+                if (lessThan(r, l)) {
                     GT
                 } else {
                     EQ
@@ -116,26 +136,21 @@ public func sort<T, K>(data: Array<T>, key!: (T) -> K, stable!: Bool = false, de
 }
 
 /**
- * Sorting element T.
+ * Sorting elements in an ArrayList.
  *
- * @param data List of elements to be sorted.
+ * @param data ArrayList of elements to be sorted.
  * @param stable Whether to use stable sorting.
  * @param descending Indicates whether to use descending sorting.
  *
  */
 public func sort<T>(data: List<T>, stable!: Bool = false, descending!: Bool = false): Unit where T <: Comparable<T> {
-    var dataArray = data.toArray()
-    sort(dataArray, stable: stable, descending: descending)
-    data.clear()
-    for (i in dataArray) {
-        data.add(i)
-    }
+    sortList(data, {dataArray: Array<T> => sort(dataArray, stable: stable, descending: descending)})
 }
 
 /**
- * Sorting element T.
+ * Sorting elements in an ArrayList with an Ordering comparator.
  *
- * @param data List of elements to be sorted.
+ * @param data ArrayList of elements to be sorted.
  * @param by Comparator. The comparator must establish a total order:
  *        - Antisymmetry: if compare(a, b) is LT, then compare(b, a) must be GT
  *        - Transitivity: if compare(a, b) is LT and compare(b, c) is LT, then compare(a, c) must be LT
@@ -146,18 +161,13 @@ public func sort<T>(data: List<T>, stable!: Bool = false, descending!: Bool = fa
  *
  */
 public func sort<T>(data: List<T>, by!: (T, T) -> Ordering, stable!: Bool = false, descending!: Bool = false): Unit {
-    var dataArray = data.toArray()
-    sort(dataArray, by: by, stable: stable, descending: descending)
-    data.clear()
-    for (i in dataArray) {
-        data.add(i)
-    }
+    sortList(data, {dataArray: Array<T> => sort(dataArray, by: by, stable: stable, descending: descending)})
 }
 
 /**
- * Sorting element T.
+ * Sorting elements in an ArrayList with a less-than predicate.
  *
- * @param data List of elements to be sorted.
+ * @param data ArrayList of elements to be sorted.
  * @param lessThan Comparator. The comparator must establish a total order:
  *        - Antisymmetry: if lessThan(a, b) is true, then lessThan(b, a) must be false
  *        - Transitivity: if lessThan(a, b) and lessThan(b, c), then lessThan(a, c) must be true
@@ -168,30 +178,20 @@ public func sort<T>(data: List<T>, by!: (T, T) -> Ordering, stable!: Bool = fals
  *
  */
 public func sort<T>(data: List<T>, lessThan!: (T, T) -> Bool, stable!: Bool = false, descending!: Bool = false): Unit {
-    var dataArray = data.toArray()
-    sort(dataArray, lessThan: lessThan, stable: stable, descending: descending)
-    data.clear()
-    for (i in dataArray) {
-        data.add(i)
-    }
+    sortList(data, {dataArray: Array<T> => sort(dataArray, lessThan: lessThan, stable: stable, descending: descending)})
 }
 
 /**
- * Sorting element T.
+ * Sorting elements in an ArrayList by mapped keys.
  *
- * @param data List of elements to be sorted.
+ * @param data ArrayList of elements to be sorted.
  * @param key Mapping of elements T to K.
  * @param stable Whether to use stable sorting.
  * @param descending Indicates whether to use descending sorting.
  *
  */
 public func sort<T, K>(data: List<T>, key!: (T) -> K, stable!: Bool = false, descending!: Bool = false): Unit where K <: Comparable<K> {
-    var dataArray = data.toArray()
-    sort(dataArray, key: key, stable: stable, descending: descending)
-    data.clear()
-    for (i in dataArray) {
-        data.add(i)
-    }
+    sortList(data, {dataArray: Array<T> => sort(dataArray, key: key, stable: stable, descending: descending)})
 }
 
 /**
@@ -203,11 +203,7 @@ public func sort<T, K>(data: List<T>, key!: (T) -> K, stable!: Bool = false, des
  *
  */
 public func sort<T>(data: ArrayList<T>, stable!: Bool = false, descending!: Bool = false): Unit where T <: Comparable<T> {
-    unsafe {
-        var dataArray = data.getRawArray()
-        sort(dataArray[0..data.size], stable: stable, descending: descending)
-        data.updateVersion()
-    }
+    sortArrayList(data, {dataArray: Array<T> => sort(dataArray, stable: stable, descending: descending)})
 }
 
 /**
@@ -224,11 +220,7 @@ public func sort<T>(data: ArrayList<T>, stable!: Bool = false, descending!: Bool
  *
  */
 public func sort<T>(data: ArrayList<T>, by!: (T, T) -> Ordering, stable!: Bool = false, descending!: Bool = false): Unit {
-    unsafe {
-        var dataArray = data.getRawArray()
-        sort(dataArray[0..data.size], by: by, stable: stable, descending: descending)
-        data.updateVersion()
-    }
+    sortArrayList(data, {dataArray: Array<T> => sort(dataArray, by: by, stable: stable, descending: descending)})
 }
 
 /**
@@ -245,11 +237,8 @@ public func sort<T>(data: ArrayList<T>, by!: (T, T) -> Ordering, stable!: Bool =
  *
  */
 public func sort<T>(data: ArrayList<T>, lessThan!: (T, T) -> Bool, stable!: Bool = false, descending!: Bool = false): Unit {
-    unsafe {
-        var dataArray = data.getRawArray()
-        sort(dataArray[0..data.size], lessThan: lessThan, stable: stable, descending: descending)
-        data.updateVersion()
-    }
+    sortArrayList(data,
+        {dataArray: Array<T> => sort(dataArray, lessThan: lessThan, stable: stable, descending: descending)})
 }
 
 /**
@@ -262,11 +251,7 @@ public func sort<T>(data: ArrayList<T>, lessThan!: (T, T) -> Bool, stable!: Bool
  *
  */
 public func sort<T, K>(data: ArrayList<T>, key!: (T) -> K, stable!: Bool = false, descending!: Bool = false): Unit where K <: Comparable<K> {
-    unsafe {
-        var dataArray = data.getRawArray()
-        sort(dataArray[0..data.size], key: key, stable: stable, descending: descending)
-        data.updateVersion()
-    }
+    sortArrayList(data, {dataArray: Array<T> => sort(dataArray, key: key, stable: stable, descending: descending)})
 }
 
 @Deprecated[message: "The interface is deprecated, no substitutions."]

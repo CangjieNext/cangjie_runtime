@@ -49,23 +49,26 @@ class HashMapKeys<K, V> <: EquatableCollection<K> where K <: Hashable & Equatabl
     }
 
     /**
-     * Returns sizes of key-value.
+     * Returns the number of keys exposed by this view.
      *
-     * @return sizes of key-value.
+     * The key view is backed by the map, so this value changes with the map.
+     *
+     * @return current number of entries in the backing HashMap.
      *
      * @since 0.24.2
      */
     @Frozen
     public prop size: Int64 {
         get() {
-            return map.size
+            let currentSize = map.size
+            return currentSize
         }
     }
 
     /**
-     * Check whether the size is empty. If yes, true is returned. Otherwise, false is returned.
+     * Reports whether this key view has no elements.
      *
-     * @return bool if yes, true is returned. Otherwise, false is returned.
+     * @return true when the backing HashMap contains no keys.
      *
      * @since 0.24.2
      */
@@ -145,9 +148,11 @@ class HashMapValues<K, V> <: Collection<V> where K <: Hashable & Equatable<K> {
     }
 
     /**
-     * Returns sizes of values.
+     * Returns the current number of values exposed by this view.
      *
-     * @return sizes of values.
+     * The value view follows the backing map, so the count is the map's current entry count.
+     *
+     * @return number of values in the map.
      *
      * @since 0.24.2
      */
@@ -159,9 +164,9 @@ class HashMapValues<K, V> <: Collection<V> where K <: Hashable & Equatable<K> {
     }
 
     /**
-     * Check whether the size is empty. If yes, true is returned. Otherwise, false is returned.
+     * Reports whether this value view currently has no elements.
      *
-     * @return bool if yes, true is returned. Otherwise, false is returned.
+     * @return true when the backing map is empty; otherwise, false.
      *
      * @since 0.24.2
      */
@@ -491,13 +496,13 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     /**
-     * Associates the specified @p value with the specified @p key in this map.
-     * If you map a mapping that previously contained a key, the old value is replaced.
+     * Stores @p value under @p key in this HashMap.
      *
-     * @param key the key to put.
-     * @param value the value to assign.
-     * @return If the key exists before the assignment, the value before the assignment is encapsulated with Option.
-     * Otherwise, return to Option<V>.None
+     * If the key is already present, its value is replaced and the old value is returned.
+     *
+     * @param key key used to locate the entry.
+     * @param value value to associate with the key.
+     * @return Some(oldValue) when an existing entry is replaced; otherwise, None.
      *
      * @since 0.18.4
      */
@@ -580,10 +585,11 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     /**
-     * Transfer specified elements for traversal and assign values in sequence.
-     * If you map a mapping that previously contained a key, the old value is replaced.
+     * Inserts each key-value pair from the supplied collection into this HashMap.
      *
-     * @param elements the element passing in for traversal assignment.
+     * Existing entries with the same key are overwritten while new keys are appended.
+     *
+     * @param elements collection of pairs to insert.
      *
      * @since 0.18.4
      */
@@ -650,9 +656,9 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     /**
-     * Transfer a lambda expression and delete the corresponding key value if the condition is met.
+     * Removes every entry whose key and value are accepted by the predicate.
      *
-     * @param predicate transfer a lambda expression for judgment.
+     * @param predicate condition used to select entries for removal.
      *
      * @since 0.18.4
      */
@@ -828,7 +834,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
 
     /**
      * @description Performs mapping on this HashMap and returns a new HashMap.
-     * 
+     *
      * @param transform the given mapping function.
      * @returns a new HashMap.
      */
@@ -846,7 +852,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
 
     /**
      * @description Performs mapping on this HashMap and returns a new HashMap.
-     * 
+     *
      * @param transform the given mapping function.
      * @returns a new HashMap.
      */
@@ -864,7 +870,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
 
     /**
      * @description Returns a new HashMap<K, V> containing key-value pairs that satisfy the filtering condition.
-     * 
+     *
      * @param predicate the given condition.
      * @returns a new collection of key-value pairs that satisfy the filtering condition.
      */
@@ -882,7 +888,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
 
     /**
      * @description Iterates over all key-value pairs and performs the given operation.
-     * 
+     *
      * @param action the given operation function.
      */
     @When[env != "ohos"]
@@ -897,7 +903,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
 
     /**
      * @description Determine whether all key-value pairs in the HashMap satisfy the condition.
-     * 
+     *
      * @param predicate the given condition.
      * @returns true if all key-value pairs in the HashMap satisfy the condition, otherwise returns false.
      */
@@ -914,7 +920,7 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
 
     /**
      * @description Determine whether there is any key-value pair in the HashMap that satisfies the condition.
-     * 
+     *
      * @param predicate the given condition.
      * @returns Whether there is any key-value pair that satisfies the condition.
      */
@@ -930,10 +936,10 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     /**
-     * @description Determine whether all key-value pairs in the HashMap do not satisfy the condition.
-     * 
-     * @param predicate the given condition.
-     * @returns Whether all key-value pairs in the current HashMap do not satisfy the condition.
+     * @description Checks that the predicate is false for every live HashMap entry.
+     *
+     * @param predicate condition evaluated with each key and value.
+     * @returns true when no stored entry satisfies the predicate.
      */
     @When[env != "ohos"]
     public func none(predicate: (K, V) -> Bool): Bool {
@@ -947,11 +953,11 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     /**
-     * @description Computes from left to right using the specified initial value.
-     * 
-     * @param initial the given initial value of type R.
-     * @param operation the given computation function.
-     * @returns the final computed value.
+     * @description Folds all active HashMap entries into an accumulator.
+     *
+     * @param initial accumulator value used before visiting entries.
+     * @param operation function that receives the accumulator, key, and value.
+     * @returns accumulated value after all live entries are visited.
      */
     @When[env != "ohos"]
     public func fold<R>(initial: R, operation: (R, K, V) -> R): R {
@@ -966,10 +972,10 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     /**
-     * @description Compute from left to right using the first value as the initial value.
-     * 
-     * @param operation the given computation function.
-     * @returns the final computed value.
+     * @description Combines HashMap values using the first live value as the starting point.
+     *
+     * @param operation function used to merge the accumulated value with the next value.
+     * @returns None when the map is empty; otherwise, the reduced value.
      */
     @When[env != "ohos"]
     public func reduce(operation: (V, V) -> V): Option<V> {
@@ -1000,12 +1006,12 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     /**
-     * An exception is reported when the get operator is overloaded and the key does not exist.
+     * Reads the value associated with @p key through index syntax.
      *
-     * @param key transfer the value for judgment.
-     * @return the value corresponding to the key.
+     * @param key key whose value is required.
+     * @return value stored for the key.
      *
-     * @throws NoneValueException if value does not exist.
+     * @throws NoneValueException if the key is absent.
      *
      * @since 0.18.4
      */
@@ -1018,10 +1024,12 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     /**
-     * The operator overloads the set. If the key does not exist, an exception is reported.
+     * Assigns @p value to @p key through index syntax.
      *
-     * @param key transfer the value for judgment.
-     * @param value transfer the value to be set.
+     * The assignment inserts a new entry or replaces the value of an existing entry.
+     *
+     * @param key key to update.
+     * @param value value to store.
      *
      * @since 0.18.4
      */
@@ -1061,9 +1069,9 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     /**
-     * Returns sizes of key-value.
+     * Returns the number of live key-value pairs currently stored.
      *
-     * @return sizes of key-value.
+     * @return entry count after excluding free slots.
      *
      * @since 0.18.4
      */
@@ -1087,9 +1095,9 @@ public class HashMap<K, V> <: Map<K, V> where K <: Hashable & Equatable<K> {
     }
 
     /**
-     * Check whether the size is empty. If yes, true is returned. Otherwise, false is returned.
+     * Reports whether this HashMap contains no key-value pairs.
      *
-     * @return bool if yes, true is returned. Otherwise, false is returned.
+     * @return true if the map has no live entries.
      *
      * @since 0.18.4
      */

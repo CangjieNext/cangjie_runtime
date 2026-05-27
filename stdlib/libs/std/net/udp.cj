@@ -8,6 +8,56 @@
 
 package std.net
 
+private func checkUdpSocketAddress(address: SocketAddress, name: String): SocketAddress {
+    if (!(address is IPSocketAddress)) {
+        throw IllegalArgumentException("${name} should be either IPv4 or IPv6 but got ${address.family}: ${address}")
+    }
+    return address
+}
+
+private func createUdpSocketCommon(bindAt: SocketAddress): SocketCommon<ActualPlatformSocket> {
+    checkUdpSocketAddress(bindAt, "bindAt")
+    let impl = SocketCommon<ActualPlatformSocket>(SocketNet.UDP, bindAt.family, DatagramMode)
+    impl.localAddress = bindAt
+    return impl
+}
+
+private func udpRemoteAddress(impl: SocketCommon<ActualPlatformSocket>): ?SocketAddress {
+    impl.remoteAddress
+}
+
+private func udpLocalAddress(impl: SocketCommon<ActualPlatformSocket>): SocketAddress {
+    impl.localAddress ?? SocketException.notYetBoundNeedBind()
+}
+
+private func udpReceiveTimeout(impl: SocketCommon<ActualPlatformSocket>): ?Duration {
+    impl.readTimeout
+}
+
+private func udpReceiveTimeout(impl: SocketCommon<ActualPlatformSocket>, timeout: ?Duration): Unit {
+    impl.readTimeout = timeout?.throwIfNegative("Receive timeout").toNanosecondGranularity()
+}
+
+private func udpSendTimeout(impl: SocketCommon<ActualPlatformSocket>): ?Duration {
+    impl.writeTimeout
+}
+
+private func udpSendTimeout(impl: SocketCommon<ActualPlatformSocket>, timeout: ?Duration): Unit {
+    impl.writeTimeout = timeout?.throwIfNegative("Send timeout").toNanosecondGranularity()
+}
+
+private func udpSocketClose(impl: SocketCommon<ActualPlatformSocket>): Unit {
+    impl.close()
+}
+
+private func udpSocketClosed(impl: SocketCommon<ActualPlatformSocket>): Bool {
+    impl.isClosed()
+}
+
+private func udpSocketBind(impl: SocketCommon<ActualPlatformSocket>): Unit {
+    impl.bind(None)
+}
+
 /*
  * Represents a UDP datagram socket.
  *
@@ -48,67 +98,62 @@ public class UdpSocket <: DatagramSocket {
      * Creates an unbound UDP socket ready to bind at the specified interface/port
      */
     public init(bindAt!: SocketAddress) {
-        checkAddress(bindAt, "bindAt")
-        impl = SocketCommon(SocketNet.UDP, bindAt.family, DatagramMode)
-        impl.localAddress = bindAt
+        impl = createUdpSocketCommon(bindAt)
     }
 
     /**
-     * Remote address the socket is connected to or `None` if the socket is unconnected.
+     * UDP peer selected by connect(), or `None` while this socket accepts packets from any sender.
      *
-     * @throws SocketException is the socket is already closed.
+     * @throws SocketException if the socket is already closed.
      */
     public override prop remoteAddress: ?SocketAddress {
         get() {
-            impl.remoteAddress
+            udpRemoteAddress(impl)
         }
     }
 
     /**
-     * Local address the socket will be or is currently bound at.
+     * IP endpoint configured for bind(), or the endpoint currently bound by this UDP socket.
      *
-     * @throws SocketException is the socket is already closed.
+     * @throws SocketException if the socket is already closed.
      */
     public override prop localAddress: SocketAddress {
         get() {
-            impl.localAddress ?? SocketException.notYetBoundNeedBind()
+            udpLocalAddress(impl)
         }
     }
 
     /**
-     * Receive/ReceiveFrom operation time limit or `None` for infinite read attempts.
-     * The value specified here is actually the minimal amount of time before a read operation cancelled.
-     * The actual time is not guaranteed but it will be never cancelled earlier than the specified timeout value.
-     * If the duration is too big than it can be bumped to the infinite. When it's too small then if will be bumped to the minimal clock granularity.
+     * Timeout applied to UDP receive and receiveFrom calls.
      *
-     * The default value is None.
+     * `None` means that a read may wait indefinitely. A finite value is rounded to the socket layer granularity
+     * and is never shortened below the requested duration unless the platform reports a larger failure first.
+     *
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public override mut prop receiveTimeout: ?Duration {
         get() {
-            impl.readTimeout
+            udpReceiveTimeout(impl)
         }
         set(timeout) {
-            impl.readTimeout = timeout?.throwIfNegative("Receive timeout").toNanosecondGranularity()
+            udpReceiveTimeout(impl, timeout)
         }
     }
 
     /**
-     * Send/SendTo operation time limit or `None` for infinite read attempts.
+     * Timeout applied to UDP send and sendTo calls.
      *
-     * The value specified here is actually the minimal amount of time before a write operation cancelled.
-     * The actual time is not guaranteed but it will be never cancelled earlier than the specified timeout value.
-     * If the duration is too big than it can be bumped to the infinite. When it's too small then if will be bumped to the minimal clock granularity.
+     * `None` lets the write wait without a library-side deadline. Finite durations are normalized to the
+     * platform socket granularity before they are stored.
      *
-     * The default value is None.
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public override mut prop sendTimeout: ?Duration {
         get() {
-            impl.writeTimeout
+            udpSendTimeout(impl)
         }
         set(timeout) {
-            impl.writeTimeout = timeout?.throwIfNegative("Send timeout").toNanosecondGranularity()
+            udpSendTimeout(impl, timeout)
         }
     }
 
@@ -117,21 +162,21 @@ public class UdpSocket <: DatagramSocket {
      * This function is reentrant.
      **/
     public override func close(): Unit {
-        impl.close()
+        udpSocketClose(impl)
     }
 
     /**
      * Checks whether this socket has been explicitly closed via close()
      **/
     public override func isClosed(): Bool {
-        impl.isClosed()
+        udpSocketClosed(impl)
     }
 
     /**
      * Bind UDP socket at local port
      */
     public func bind(): Unit {
-        impl.bind(None)
+        udpSocketBind(impl)
     }
 
     /**
@@ -150,12 +195,11 @@ public class UdpSocket <: DatagramSocket {
      */
     public func connect(remote: SocketAddress): Unit {
         throwIfIPv4ZeroOnWindows(remote)
-        checkAddress(remote, "remote")
+        checkUdpSocketAddress(remote, "remote")
 
         if (remote.family != localAddress.family) {
             throw IllegalArgumentException(
-                "remote address kind (${remote.family}) should have the same address family as local (${localAddress.family})"
-            )
+                "remote address kind (${remote.family}) should have the same address family as local (${localAddress.family})")
         }
 
         impl.remoteAddress = remote
@@ -168,25 +212,22 @@ public class UdpSocket <: DatagramSocket {
     }
 
     /**
-     * Reverts the effect of connect() function so we can send and receive to/from any address again.
-     * This function makes no effect if invoked multiple times or if we invoke disconnect without connect invocation.
+     * Clears the UDP peer filter installed by connect().
+     *
+     * After disconnecting, sendTo can target any compatible IP peer again and receiveFrom may return datagrams
+     * from any sender accepted by the operating system. Calling this repeatedly has no additional effect.
      */
     public func disconnect(): Unit {
         impl.disconnect()
     }
 
     /**
-     * Receive the next datagram into the specified buffer waiting for data if needed.
+     * Reads one UDP datagram into the provided buffer, waiting until data is available or the timeout expires.
      *
-     * Returns a pair of the datagram sender address and the actual size of received datagram, possibly zero
-     * or a value greater than the passed buffer size.
+     * The returned pair contains the sender address and the datagram size reported by the platform. When the
+     * packet is larger than the buffer, copied bytes are truncated and the reported size may exceed buffer.size.
      *
-     * Unlike read in streams, this function requires a buffer of proper size (big enough),
-     * otherwise a datagram that is bigger than the provided buffer will be
-     * truncated and the returned datagram size will be greater that the buffer size.
-     *
-     * @throws SocketException if buffer is empty or if it is not possible to read the data.
-     * @throws SocketException if not bound or already closed
+     * @throws SocketException if buffer is empty, the socket is not bound, or the socket cannot read data.
      * @throws SocketTimeoutException if reading time has expired.
      */
     public override func receiveFrom(buffer: Array<Byte>): (SocketAddress, Int64) {
@@ -194,14 +235,14 @@ public class UdpSocket <: DatagramSocket {
     }
 
     /**
-     * Sends datagram of the payload to the specified recipient address.
+     * Sends the payload as one UDP datagram to the specified IP recipient.
      *
-     * It also may block in this function invocation if there is not enough
-     * output buffer space available for some reason. Depending on the underlying
-     * implementation, it may also silently discard a datagram in this case.
+     * The call may block while the socket output queue is full. Platform UDP behavior still applies, so a
+     * successfully submitted datagram is not guaranteed to be delivered.
      *
+     * @throws IllegalArgumentException if recipient is not compatible with the local address family.
      * @throws SocketException if payload size is larger than allowed by platform.
-     * @throws SocketException if connect was preliminary called and abnormal ICMP was received.
+     * @throws SocketException if connect was called earlier and an abnormal ICMP response is reported.
      */
     public override func sendTo(recipient: SocketAddress, payload: Array<Byte>): Unit {
         throwIfIPv4ZeroOnWindows(
@@ -294,165 +335,67 @@ public class UdpSocket <: DatagramSocket {
         }
     }
 
-    /**
-     * SO_SNDBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired outgoing buffer size.
-     *
-     * Changing this option is not guaranteed to have any effect since it's
-     * completely up to the operating system.
-     *
-     * Reading this property could also provide non-realistic values on some systems in
-     * some cases so no logic should strictly rely on this value.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** Gets or sets this UdpSocket SO_SNDBUF size; non-positive updates throw IllegalArgumentException. */
     public mut prop sendBufferSize: Int64 {
         get() {
-            Int64(impl.getSocketOptionIntNative(SOL_SOCKET, SOCK_SNDBUF))
+            socketSendBufferSize(impl)
         }
         set(newSize) {
-            if (newSize <= 0) {
-                throw IllegalArgumentException("Buffer size should be positive, got ${newSize}.")
-            }
-            impl.setSocketOptionIntNative(SOL_SOCKET, SOCK_SNDBUF, IntNative(newSize))
+            socketSendBufferSize(impl, newSize)
         }
     }
 
-    /**
-     * SO_RCVBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired receive buffer size.
-     *
-     * Changing this option is not guaranteed to have any effect since it's
-     * completely up to the operating system.
-     *
-     * Reading this property could also provide non-realistic values on some systems in
-     * some cases so no logic should strictly rely on this value.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** Gets or sets this UdpSocket SO_RCVBUF size; non-positive updates throw IllegalArgumentException. */
     public mut prop receiveBufferSize: Int64 {
         get() {
-            Int64(impl.getSocketOptionIntNative(SOL_SOCKET, SOCK_RCVBUF))
+            socketReceiveBufferSize(impl)
         }
         set(newSize) {
-            if (newSize <= 0) {
-                throw IllegalArgumentException("Buffer size should be positive, got ${newSize}.")
-            }
-            impl.setSocketOptionIntNative(SOL_SOCKET, SOCK_RCVBUF, IntNative(newSize))
+            socketReceiveBufferSize(impl, newSize)
         }
     }
 
-    /**
-     * Read the specified socket option writing the result to value buffer
-     * of the specified valueLength (in bytes).
-     * Before invoking this function valueLength should be initialized with the buffer size
-     * After invoking this function valueLength will contain the actual result
-     * size in bytes.
-     *
-     * Throws an exception if failed (when getsockopt returns -1).
-     */
+    /** Reads a UdpSocket raw option into `value`; failures are reported as SocketException. */
     public func getSocketOption(
         level: Int32,
         option: Int32,
         value: CPointer<Unit>,
         valueLength: CPointer<UIntNative>
     ): Unit {
-        unsafe { impl.getSocketOption(level, option, value, valueLength) }
+        socketGetOption(impl, level, option, value, valueLength)
     }
 
-    /**
-     * Write the specified socket option from value buffer having valueLength
-     * size in bytes.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when setsockopt returns -1).
-     */
+    /** Writes a UdpSocket raw option from `value`; failures are reported as SocketException. */
     public func setSocketOption(
         level: Int32,
         option: Int32,
         value: CPointer<Unit>,
         valueLength: UIntNative
     ): Unit {
-        unsafe { impl.setSocketOption(level, option, value, valueLength) }
+        socketSetOption(impl, level, option, value, valueLength)
     }
 
-    /**
-     * Read the specified socket option returning it's value as IntNative result.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when getsockopt returns -1) or if the result
-     * has size different from IntNative.
-     */
-    public func getSocketOptionIntNative(
-        level: Int32,
-        option: Int32
-    ): IntNative {
-        impl.getSocketOptionIntNative(level, option)
+    /** Reads a UdpSocket option represented as IntNative. */
+    public func getSocketOptionIntNative(level: Int32, option: Int32): IntNative {
+        socketGetOptionIntNative(impl, level, option)
     }
 
-    /**
-     * Write a numeric IntNative value to the specified socket option.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when setsockopt returns -1), for example
-     * when the option size is different from IntNative.
-     */
-    public func setSocketOptionIntNative(
-        level: Int32,
-        option: Int32,
-        value: IntNative
-    ): Unit {
-        impl.setSocketOptionIntNative(level, option, value)
+    /** Writes a UdpSocket option represented as IntNative. */
+    public func setSocketOptionIntNative(level: Int32, option: Int32, value: IntNative): Unit {
+        socketSetOptionIntNative(impl, level, option, value)
     }
 
-    /**
-     * Read the specified socket option returning it's value as a boolean value
-     * converting it from an IntNative.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * The conversion is defined as 0 => false, other values => true.
-     *
-     * Throws an exception if failed (when getsockopt returns -1) or if the result
-     * has size different from IntNative.
-     */
-    public func getSocketOptionBool(
-        level: Int32,
-        option: Int32
-    ): Bool {
-        impl.getSocketOptionBool(level, option)
+    /** Reads a UdpSocket option represented as Bool. */
+    public func getSocketOptionBool(level: Int32, option: Int32): Bool {
+        socketGetOptionBool(impl, level, option)
     }
 
-    /**
-     * Write a boolean value to the specified socket option converting it to IntNative.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * The conversion is defined as false => 0, true => 1
-     *
-     * Throws an exception if failed (when setsockopt returns -1), for example
-     * when the option size is different from IntNative.
-     */
-    public func setSocketOptionBool(
-        level: Int32,
-        option: Int32,
-        value: Bool
-    ): Unit {
-        impl.setSocketOptionBool(level, option, value)
+    /** Writes a UdpSocket option represented as Bool. */
+    public func setSocketOptionBool(level: Int32, option: Int32, value: Bool): Unit {
+        socketSetOptionBool(impl, level, option, value)
     }
 
     public override func toString(): String {
         "UdpSocket(${impl.toString()})"
-    }
-
-    private static func checkAddress(address: SocketAddress, name: String): SocketAddress {
-        if (!(address is IPSocketAddress)) {
-            throw IllegalArgumentException(
-                "${name} should be either IPv4 or IPv6 but got ${address.family}: ${address}")
-        }
-        return address
     }
 }

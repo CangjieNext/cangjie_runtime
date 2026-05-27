@@ -72,20 +72,24 @@ public struct SocketDomain <: Equatable<SocketDomain> & ToString & Hashable {
     }
 
     public operator func ==(r: SocketDomain): Bool {
-        return this.val == r.val
+        return r.val == this.val
     }
 
     public operator func !=(r: SocketDomain): Bool {
-        return !(this == r)
+        return r.val != this.val
     }
 
     public func toString(): String {
-        return match {
-            case val == Int32(AF_INET) => "IPv4"
-            case val == Int32(AF_INET6) => "IPv6"
-            case val == Int32(AF_UNIX) => "unix"
-            case _ => "Domain(${val})"
+        if (val == Int32(AF_INET)) {
+            return "IPv4"
         }
+        if (val == Int32(AF_INET6)) {
+            return "IPv6"
+        }
+        if (val == Int32(AF_UNIX)) {
+            return "unix"
+        }
+        return "Domain(${val})"
     }
 
     public func hashCode(): Int64 {

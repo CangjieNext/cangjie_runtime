@@ -183,27 +183,7 @@ class SocketHolder<NS> <: Resource where NS <: PlatformSocket<NS> {
             }
         } while (true)
 
-        if (let Ready(socket) <- state_) {
-            return (socket, state)
-        }
-
-        return createSocketUsingSession(state)
-    }
-
-    private func createSocketUsingSession(state: SocketState): ?(NS, SocketState) {
-        let socket = try {
-            ensureSocket()
-        } catch (e: Exception) {
-            leave()
-            throw e
-        }
-
-        return match (socket) {
-            case Some(socket) => (socket, state)
-            case None =>
-                leave()
-                return None
-        }
+        return existingOrCreatedSession(state, {=> this.leave()})
     }
 
     /**
@@ -247,27 +227,7 @@ class SocketHolder<NS> <: Resource where NS <: PlatformSocket<NS> {
             }
         } while (true)
 
-        if (let Ready(socket) <- state_) {
-            return (socket, state)
-        }
-
-        return createSocketReadSession(state)
-    }
-
-    private func createSocketReadSession(state: SocketState): ?(NS, SocketState) {
-        let socket = try {
-            ensureSocket()
-        } catch (e: Exception) {
-            leaveRead()
-            throw e
-        }
-
-        return match (socket) {
-            case Some(socket) => (socket, state)
-            case None =>
-                leaveRead()
-                return None
-        }
+        return existingOrCreatedSession(state, {=> this.leaveRead()})
     }
 
     private static func throwAlreadyReading(): Nothing {
@@ -315,25 +275,25 @@ class SocketHolder<NS> <: Resource where NS <: PlatformSocket<NS> {
             }
         } while (true)
 
+        return existingOrCreatedSession(state, {=> this.leaveWrite()})
+    }
+
+    private func existingOrCreatedSession(state: SocketState, leaveSession: () -> Unit): ?(NS, SocketState) {
         if (let Ready(socket) <- state_) {
             return (socket, state)
         }
 
-        return createSocketWriteSession(state)
-    }
-
-    private func createSocketWriteSession(state: SocketState): ?(NS, SocketState) {
         let socket = try {
             ensureSocket()
         } catch (e: Exception) {
-            leaveWrite()
+            leaveSession()
             throw e
         }
 
         return match (socket) {
             case Some(socket) => (socket, state)
             case None =>
-                leaveWrite()
+                leaveSession()
                 return None
         }
     }
@@ -388,73 +348,22 @@ class SocketHolder<NS> <: Resource where NS <: PlatformSocket<NS> {
 
     @OverflowWrapping
     private func leaveRead(): Unit {
-        var doDispose: Bool = false
-
-        while (true) {
-            let before = SocketState(useCounter.load())
-            if (before.useCounter == 0) {
-                throwLeaveWithoutEnter()
-            }
-
-            var new: SocketState
-            if (before.disposedOrShuttingDown && before.useCounter == 1) {
-                doDispose = true
-                new = SocketState.Terminal
-            } else {
-                doDispose = false
-                new = before
-                new.useCounter--
-                new.hasReaders = false
-            }
-
-            if (useCounter.compareAndSwap(before.value, new.value)) {
-                break
-            }
-        }
-
-        if (doDispose) {
-            // we had replaced -1 to Int64.Min
-            // so we are the last one
-            dispose()
-        }
+        leaveSession(clearRead: true)
     }
 
     // this should be only invoked from WriteSession.close()
     @OverflowWrapping
     private func leaveWrite(): Unit {
-        var doDispose: Bool = false
-
-        while (true) {
-            let before = SocketState(useCounter.load())
-            if (before.useCounter == 0) {
-                throwLeaveWithoutEnter()
-            }
-
-            var new: SocketState
-            if (before.disposedOrShuttingDown && before.useCounter == 1) {
-                doDispose = true
-                new = SocketState.Terminal
-            } else {
-                doDispose = false
-                new = before
-                new.useCounter--
-                new.hasWriters = false
-            }
-
-            if (useCounter.compareAndSwap(before.value, new.value)) {
-                break
-            }
-        }
-
-        if (doDispose) {
-            // we had replaced -1 to Int64.Min
-            // so we are the last one
-            dispose()
-        }
+        leaveSession(clearWrite: true)
     }
 
     @OverflowWrapping
     private func leave(): Unit {
+        leaveSession()
+    }
+
+    @OverflowWrapping
+    private func leaveSession(clearRead!: Bool = false, clearWrite!: Bool = false): Unit {
         var doDispose: Bool = false
 
         while (true) {
@@ -471,6 +380,12 @@ class SocketHolder<NS> <: Resource where NS <: PlatformSocket<NS> {
                 doDispose = false
                 new = before
                 new.useCounter--
+                if (clearRead) {
+                    new.hasReaders = false
+                }
+                if (clearWrite) {
+                    new.hasWriters = false
+                }
             }
 
             if (useCounter.compareAndSwap(before.value, new.value)) {
@@ -479,8 +394,7 @@ class SocketHolder<NS> <: Resource where NS <: PlatformSocket<NS> {
         }
 
         if (doDispose) {
-            // we had replaced 1 to the terminal state
-            // so we are the last one
+            // we are the last session and replaced the state with terminal
             dispose()
         }
     }

@@ -208,11 +208,13 @@ class IPv6Prefix <: IPPrefix & Equatable<IPv6Prefix> & Hashable & ToString {
 
     public prop prefixLength: UInt8 {
         get() {
-            _prefixLength
+            return _prefixLength
         }
     }
     public func contains(rhs: IPv6Address): Bool {
-        return this.network() <= rhs && rhs <= this.broadcast()
+        let lower = this.network()
+        let upper = this.broadcast()
+        return lower <= rhs && rhs <= upper
     }
     public func contains(rhs: IPv6Prefix): Bool {
         return this.network() <= rhs.network() && rhs.broadcast() <= this.broadcast()
