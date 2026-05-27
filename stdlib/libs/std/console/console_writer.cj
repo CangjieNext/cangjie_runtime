@@ -21,6 +21,14 @@ foreign func CJ_CONSOLE_Write(fd: Int32, c: CPointer<UInt8>, len: Int64, newLine
 
 foreign func CJ_CONSOLE_Flush(fd: Int32): Unit
 
+private func consoleBoolToString(v: Bool): String {
+    if (v) {
+        "true"
+    } else {
+        "false"
+    }
+}
+
 @Deprecated[message: "This class migrate to the std.env."]
 public class ConsoleWriter <: OutputStream {
     private let mutex: ReentrantMutex = ReentrantMutex()
@@ -41,24 +49,34 @@ public class ConsoleWriter <: OutputStream {
     }
 
     public func flush(): Unit {
+        flushWriter()
+    }
+
+    private func flushWriter(): Unit {
         synchronized(mutex) {
             unsafe { CJ_CONSOLE_Flush(this.fd_) }
         }
     }
 
     public func write(buffer: Array<Byte>): Unit {
+        writeBytes(buffer, newline: false)
+    }
+
+    private func writeBytes(buffer: Array<Byte>, newline!: Bool): Unit {
         synchronized(mutex) {
-            directWrite(buffer, buffer.size)
+            directWrite(buffer, buffer.size, newline: newline)
         }
     }
 
     public func writeln(buffer: Array<Byte>): Unit {
-        synchronized(mutex) {
-            directWrite(buffer, buffer.size, newline: true)
-        }
+        writeBytes(buffer, newline: true)
     }
 
     public func write(v: String): Unit {
+        writeString(v)
+    }
+
+    private func writeString(v: String): Unit {
         if (v.isEmpty()) {
             return
         }
@@ -70,61 +88,55 @@ public class ConsoleWriter <: OutputStream {
     }
 
     public func write(v: Bool): Unit {
-        write(if (v) {
-            "true"
-        } else {
-            "false"
-        })
+        write(consoleBoolToString(v))
     }
 
     public func write(v: Int8): Unit {
-        write(Int64(v))
+        writeSigned(Int64(v), newline: false)
     }
 
     public func write(v: Int16): Unit {
-        write(Int64(v))
+        writeSigned(Int64(v), newline: false)
     }
 
     public func write(v: Int32): Unit {
-        write(Int64(v))
+        writeSigned(Int64(v), newline: false)
     }
 
     public func write(v: Int64): Unit {
-        writeInt64(v, newline: false)
+        writeSigned(v, newline: false)
     }
 
     public func write(v: UInt8): Unit {
-        write(UInt64(v))
+        writeUnsigned(UInt64(v), newline: false)
     }
 
     public func write(v: UInt16): Unit {
-        write(UInt64(v))
+        writeUnsigned(UInt64(v), newline: false)
     }
 
     public func write(v: UInt32): Unit {
-        write(UInt64(v))
+        writeUnsigned(UInt64(v), newline: false)
     }
 
     public func write(v: UInt64): Unit {
-        writeUInt64(v, newline: false)
+        writeUnsigned(v, newline: false)
     }
 
     public func write(v: Float16): Unit {
-        write(Float64(v))
+        writeFloat(Float64(v), newline: false)
     }
 
     public func write(v: Float32): Unit {
-        write(Float64(v))
+        writeFloat(Float64(v), newline: false)
     }
 
     public func write(v: Float64): Unit {
-        writeFloat64(v, newline: false)
+        writeFloat(v, newline: false)
     }
 
     public func write(v: Rune): Unit {
-        var itemBytes: Array<UInt8> = Array<UInt8>(6, repeat: 0)
-        let len = Rune.intoUtf8Array(v, itemBytes, 0)
-        write(itemBytes[..len])
+        writeRune(v, newline: false)
     }
 
     public func writeln(v: String): Unit {
@@ -136,64 +148,68 @@ public class ConsoleWriter <: OutputStream {
     }
 
     public func writeln(v: Bool): Unit {
-        writeln(if (v) {
-            "true"
-        } else {
-            "false"
-        })
+        writeln(consoleBoolToString(v))
     }
 
     public func writeln(v: Int8): Unit {
-        writeln(Int64(v))
+        writeSigned(Int64(v), newline: true)
     }
 
     public func writeln(v: Int16): Unit {
-        writeln(Int64(v))
+        writeSigned(Int64(v), newline: true)
     }
 
     public func writeln(v: Int32): Unit {
-        writeln(Int64(v))
+        writeSigned(Int64(v), newline: true)
     }
 
     public func writeln(v: Int64): Unit {
-        writeInt64(v, newline: true)
+        writeSigned(v, newline: true)
     }
 
     public func writeln(v: UInt8): Unit {
-        writeln(UInt64(v))
+        writeUnsigned(UInt64(v), newline: true)
     }
 
     public func writeln(v: UInt16): Unit {
-        writeln(UInt64(v))
+        writeUnsigned(UInt64(v), newline: true)
     }
 
     public func writeln(v: UInt32): Unit {
-        writeln(UInt64(v))
+        writeUnsigned(UInt64(v), newline: true)
     }
 
     public func writeln(v: UInt64): Unit {
-        writeUInt64(v, newline: true)
+        writeUnsigned(v, newline: true)
     }
 
     public func writeln(v: Float16): Unit {
-        writeln(Float64(v))
+        writeFloat(Float64(v), newline: true)
     }
 
     public func writeln(v: Float32): Unit {
-        writeln(Float64(v))
+        writeFloat(Float64(v), newline: true)
     }
 
     public func writeln(v: Float64): Unit {
-        writeFloat64(v, newline: true)
+        writeFloat(v, newline: true)
     }
 
     public func writeln(v: Rune): Unit {
-        var itemBytes: Array<UInt8> = Array<UInt8>(6, repeat: 0)
-        let len = Rune.intoUtf8Array(v, itemBytes, 0)
-        writeln(itemBytes[..len])
+        writeRune(v, newline: true)
     }
 
-    private func writeInt64(v: Int64, newline!: Bool = false): Unit {
+    private func writeRune(v: Rune, newline!: Bool): Unit {
+        var itemBytes: Array<UInt8> = Array<UInt8>(6, repeat: 0)
+        let len = Rune.intoUtf8Array(v, itemBytes, 0)
+        if (newline) {
+            writeln(itemBytes[..len])
+        } else {
+            write(itemBytes[..len])
+        }
+    }
+
+    private func writeSigned(v: Int64, newline!: Bool): Unit {
         synchronized(mutex) {
             var writePos: Int64
             unsafe {
@@ -209,7 +225,7 @@ public class ConsoleWriter <: OutputStream {
         }
     }
 
-    private func writeUInt64(v: UInt64, newline!: Bool = false): Unit {
+    private func writeUnsigned(v: UInt64, newline!: Bool): Unit {
         synchronized(mutex) {
             var writePos: Int64
             unsafe {
@@ -225,7 +241,7 @@ public class ConsoleWriter <: OutputStream {
         }
     }
 
-    private func writeFloat64(v: Float64, newline!: Bool = false): Unit {
+    private func writeFloat(v: Float64, newline!: Bool): Unit {
         synchronized(mutex) {
             var writePos: Int64
             unsafe {
@@ -241,17 +257,7 @@ public class ConsoleWriter <: OutputStream {
         }
     }
 
-    /**
-     * Write buffer data into stdOut.
-     *
-     * @param arr write Array.
-     * @param off The write data is placed into b from the index.
-     * @param cnt write cnt bytes.
-     *
-     * @return Int64
-     *
-     * @since 0.24.1
-     */
+    // Writes raw bytes to the console fd in Int32-sized chunks.
     private func directWrite(arr: Array<UInt8>, cnt: Int64, newline!: Bool = false): Int64 {
         unsafe {
             var pos: Int64 = 0

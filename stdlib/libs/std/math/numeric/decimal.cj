@@ -635,11 +635,9 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
     }
 
     /**
-     * Overloading r'+' operator.
-     * Return a Decimal, whose value is (this + @p d),
-     * with the precision is 0 which means unlimited precision,
-     * the specific precision is determined by the calculation result.
-     * The result has scale = max(this.scale, @p d.scale).
+     * Overloads the `+` operator for Decimal addition.
+     * The operator delegates to add(d), so the resulting precision is determined
+     * by the computed value and the resulting scale is max(this.scale, @p d.scale).
      *
      * @param d: the value to be added to this Decimal;
      *

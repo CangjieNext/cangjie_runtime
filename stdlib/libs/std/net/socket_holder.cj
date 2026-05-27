@@ -422,31 +422,31 @@ class SocketHolder<NS> <: Resource where NS <: PlatformSocket<NS> {
     // this should be only invoked from WriteSession.close()
     @OverflowWrapping
     private func leaveWrite(): Unit {
-        var doDispose: Bool = false
+        var shouldDispose: Bool = false
 
         while (true) {
-            let before = SocketState(useCounter.load())
-            if (before.useCounter == 0) {
+            let previous = SocketState(useCounter.load())
+            if (previous.useCounter == 0) {
                 throwLeaveWithoutEnter()
             }
 
-            var new: SocketState
-            if (before.disposedOrShuttingDown && before.useCounter == 1) {
-                doDispose = true
-                new = SocketState.Terminal
+            var next: SocketState
+            if (previous.disposedOrShuttingDown && previous.useCounter == 1) {
+                shouldDispose = true
+                next = SocketState.Terminal
             } else {
-                doDispose = false
-                new = before
-                new.useCounter--
-                new.hasWriters = false
+                shouldDispose = false
+                next = previous
+                next.useCounter--
+                next.hasWriters = false
             }
 
-            if (useCounter.compareAndSwap(before.value, new.value)) {
+            if (useCounter.compareAndSwap(previous.value, next.value)) {
                 break
             }
         }
 
-        if (doDispose) {
+        if (shouldDispose) {
             // we had replaced -1 to Int64.Min
             // so we are the last one
             dispose()

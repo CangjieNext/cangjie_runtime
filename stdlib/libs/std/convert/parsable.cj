@@ -946,61 +946,64 @@ extend UInt64 <: RadixConvertible<UInt64> {
 }
 
 func getDataAndFlag(data: String, isSigned: Bool, typeName: String): (Array<Byte>, Int64) {
-    if (data.isEmpty()) {
-        throw IllegalArgumentException("The string is empty.")
-    }
-    let (rawData, isNegative) = match (data[0]) {
-        case '+' => throw IllegalArgumentException("Starting with \"+\" is illegal in ${typeName}.") // r'+'
-        case '-' =>
-            if (isSigned) {
-                (unsafe { data.rawData() }[1..], 0)
-            } else {
-                throw IllegalArgumentException("Starting with \"-\" is illegal in ${typeName}.")
-            }
-        case _ => (unsafe { data.rawData() }, 1)
-    }
-    if (rawData.size == 0) {
-        throw IllegalArgumentException("The value part is empty.")
-    }
-    return (rawData, isNegative)
+    checkParseDataNotEmpty(data)
+    getDataAndFlagCore(data, isSigned, typeName, false)
 }
 
 func getTryDataAndFlag(data: String, isSigned: Bool, _: String): (Array<Byte>, Int64) {
-    if (data.isEmpty()) {
-        return ([], 1)
-    }
-    let (rawData, isNegative) = match (data[0]) {
-        case '+' => return ([], 0)
-        case '-' =>
-            if (isSigned) {
-                (unsafe { data.rawData() }[1..], 0)
-            } else {
-                return ([], 0)
-            }
-        case _ => (unsafe { data.rawData() }, 1)
-    }
-    if (rawData.size == 0) {
-        return ([], 1)
-    }
-    return (rawData, isNegative)
+    getTryDataAndFlagCore(data, isSigned, false)
 }
 
 func getDataAndFlagWithRadix(data: String, isSigned: Bool, typeName: String, radix: Int64): (Array<Byte>, Int64) {
+    checkParseDataNotEmpty(data)
+    checkParseRadix(radix)
+    getDataAndFlagCore(data, isSigned, typeName, true)
+}
+
+func getTryDataAndFlagWithRadix(data: String, isSigned: Bool, _: String, radix: Int64): (Array<Byte>, Int64) {
+    if (!isValidParseRadix(radix)) {
+        return ([], 1)
+    }
+    getTryDataAndFlagCore(data, isSigned, true)
+}
+
+private func checkParseDataNotEmpty(data: String): Unit {
     if (data.isEmpty()) {
         throw IllegalArgumentException("The string is empty.")
     }
-    if (radix < 2 || radix > 36) {
+}
+
+private func isValidParseRadix(radix: Int64): Bool {
+    radix >= 2 && radix <= 36
+}
+
+private func checkParseRadix(radix: Int64): Unit {
+    if (!isValidParseRadix(radix)) {
         throw IllegalArgumentException("The radix out of range.")
     }
+}
+
+private func getDataAndFlagCore(
+    data: String,
+    isSigned: Bool,
+    typeName: String,
+    prefixPlusAllowed: Bool
+): (Array<Byte>, Int64) {
+    let dataBytes = unsafe { data.rawData() }
     let (rawData, isNegative) = match (data[0]) {
-        case '+' => (unsafe { data.rawData() }[1..], 1)
+        case '+' =>
+            if (prefixPlusAllowed) {
+                (dataBytes[1..], 1)
+            } else {
+                throw IllegalArgumentException("Starting with \"+\" is illegal in ${typeName}.") // r'+'
+            }
         case '-' =>
             if (isSigned) {
-                (unsafe { data.rawData() }[1..], 0)
+                (dataBytes[1..], 0)
             } else {
                 throw IllegalArgumentException("Starting with \"-\" is illegal in ${typeName}.")
             }
-        case _ => (unsafe { data.rawData() }, 1)
+        case _ => (dataBytes, 1)
     }
     if (rawData.size == 0) {
         throw IllegalArgumentException("The value part is empty.")
@@ -1008,22 +1011,25 @@ func getDataAndFlagWithRadix(data: String, isSigned: Bool, typeName: String, rad
     return (rawData, isNegative)
 }
 
-func getTryDataAndFlagWithRadix(data: String, isSigned: Bool, _: String, radix: Int64): (Array<Byte>, Int64) {
-    if (radix < 2 || radix > 36) {
-        return ([], 1)
-    }
+private func getTryDataAndFlagCore(data: String, isSigned: Bool, prefixPlusAllowed: Bool): (Array<Byte>, Int64) {
     if (data.isEmpty()) {
         return ([], 1)
     }
+    let dataBytes = unsafe { data.rawData() }
     let (rawData, isNegative) = match (data[0]) {
-        case '+' => (unsafe { data.rawData() }[1..], 1)
-        case '-' =>
-            if (isSigned) {
-                (unsafe { data.rawData() }[1..], 0)
+        case '+' =>
+            if (prefixPlusAllowed) {
+                (dataBytes[1..], 1)
             } else {
                 return ([], 0)
             }
-        case _ => (unsafe { data.rawData() }, 1)
+        case '-' =>
+            if (isSigned) {
+                (dataBytes[1..], 0)
+            } else {
+                return ([], 0)
+            }
+        case _ => (dataBytes, 1)
     }
     if (rawData.size == 0) {
         return ([], 1)
@@ -1140,7 +1146,7 @@ func doParseFloat<T>(data: String): ConvertResult<T> where T <: FloatParsable<T>
     if (digitCount > FLOAT64_MAX_DECIMAL_DIGITS) {
         return doParseFloatFromCffi<T>(trimmedStr)
     }
-    
+
     var df = inputStr.size - pointIndex - 1
     var leftMove: Float64 = 1.0
     for (_ in 0..df) {
@@ -1382,7 +1388,7 @@ extend Bool <: Parsable<Bool> {
             return Some(true)
         }
         if (strData.size == 5 && strData[4] == b'e' && strData[3] == b's' && strData[2] == b'l' && strData[1] == b'a' &&
-        strData[0] == b'f') {
+            strData[0] == b'f') {
             return Some(false)
         }
         return None

@@ -544,15 +544,14 @@ public class Regex {
     }
 
     /**
-     * Split the input sequence by all subsequence that matches the pattern as the delimiters
+     * Split the supplied input sequence by subsequences that match this pattern as delimiters.
      *
-     * if limit n is greater than zero then it will separate the string at most n times
-     * if limit n is non-positive, it will separate the string as many times as possible
+     * If @p limit is greater than zero, at most @p limit pieces are produced.
+     * If @p limit is non-positive, all matching delimiters are applied.
      *
-     * @param input The the input sequence.
-     * @param limit The limit of split
-     * @return The array of strings computed by splitting the input
-     * around matches of this pattern
+     * @param input The input sequence to split.
+     * @param limit The maximum number of split results when positive.
+     * @return The array of strings computed by splitting @p input around matches of this pattern.
      */
     public func split(input: String, limit: Int64): Array<String> {
         if (limit <= 0) {

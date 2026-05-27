@@ -218,18 +218,13 @@ public class TcpServerSocket <: ServerSocket {
     }
 
     /**
-     * Accept a client TCP socket, waiting for one if there are no pending connection requests.
+     * Accept a client TCP socket without applying an explicit timeout.
      *
-     * The OS implementation usually provides an incoming connection requests queue (called backlog),
-     * so calling accept() does takes a candidate from the queue
-     * or wait until we get some request if the queue is empty.
+     * This overload delegates to accept(timeout: None), so it waits until a client
+     * is accepted or the server socket is closed.
      *
-     * Usually, a TCP client is waiting for connection until we get it from server.accept() function. If the server don't
-     * get it in time then the client may fail to connect with error (e.g. connection timeout error). If the backlog queue is full
-     * due to the missing accept() invocations then the operating system usually start rejecting new incoming connections that don't fit
-     * the backlog queue capacity.
-     * This fact could be used for backpressure control so if a server detects that no requests could be processed for some reason
-     * then it may stop doing accept() to keep client in the queue and limit workload.
+     * The operating system backlog queue still controls pending connection
+     * capacity, and clients may time out if they wait there for too long.
      */
     public override func accept(): TcpSocket {
         accept(timeout: None)

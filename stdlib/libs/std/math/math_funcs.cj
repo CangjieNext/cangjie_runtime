@@ -15,14 +15,11 @@
 package std.math
 
 /**
- * Returns the cube root of the value.
- * The cube root of a positive value is the positive number
- * of the cube root of the size of the value.
- * That is, the cube root of a negative value is the negative number
- * of the cube root of the size of the value.
- * special cases that arise:
- * If the argument is NaN, the result is NaN.
- * If the argument is infinite, the result is infinity.
+ * Returns the cube root of a Float64 value.
+ * Positive inputs produce positive roots, while negative inputs produce
+ * negative roots with the same magnitude rule.
+ * If @p x is NaN, the result is NaN. If @p x is infinite, the result is
+ * infinity with the corresponding sign.
  *
  * @param x some value.
  * @return the cube root of @p x.
@@ -34,14 +31,10 @@ public func cbrt(x: Float64): Float64 {
 }
 
 /**
- * Returns the cube root of the value.
- * The cube root of a positive value is the positive number
- * of the cube root of the size of the value.
- * That is, the cube root of a negative value is the negative number
- * of the cube root of the size of the value.
- * special cases that arise:
- * If the argument is NaN, the result is NaN.
- * If the argument is infinite, the result is infinity.
+ * Computes the cube root of a Float32 value.
+ * The sign of a finite non-zero result follows the sign of @p x.
+ * If @p x is NaN, the result is NaN. Infinite input returns an infinite
+ * result with the same sign.
  *
  * @param x some value.
  * @return the cube root of @p x.
@@ -53,14 +46,10 @@ public func cbrt(x: Float32): Float32 {
 }
 
 /**
- * Returns the cube root of the value.
- * The cube root of a positive value is the positive number
- * of the cube root of the size of the value.
- * That is, the cube root of a negative value is the negative number
- * of the cube root of the size of the value.
- * special cases that arise:
- * If the argument is NaN, the result is NaN.
- * If the argument is infinite, the result is infinity.
+ * Computes the cube root of a Float16 value.
+ * The sign of a finite non-zero result follows the sign of @p x.
+ * If @p x is NaN, the result is NaN. Infinite input returns an infinite
+ * result with the same sign.
  *
  * @param x some value.
  * @return the cube root of @p x.
@@ -72,16 +61,9 @@ public func cbrt(x: Float16): Float16 {
 }
 
 /**
- * Returns the x logarithm of the base of a value.
- * special cases that arise:
- * If the base is 2.
- * @see func log2(x)
- *
- * If the base is 10.
- * @see func log10(x)
- *
- * If the base is e.
- * @see func log(x)
+ * Computes the logarithm of a Float32 value using the specified base.
+ * For base 2, base 10, or base e, prefer log2(x), log10(x), or log(x)
+ * respectively.
  *
  * @param x some value.
  * @param base base value.
@@ -99,16 +81,9 @@ public func logBase(x: Float32, base: Float32): Float32 {
 }
 
 /**
- * Returns the x logarithm of the base of a value.
- * special cases that arise:
- * If the base is 2.
- * @see func log2(x)
- *
- * If the base is 10.
- * @see func log10(x)
- *
- * If the base is e.
- * @see func log(x)
+ * Computes the logarithm of a Float64 value using the specified base.
+ * Inputs rejected by the range checks throw IllegalArgumentException. NaN values
+ * pass through the logarithm calculation and produce NaN.
  *
  * @param x some value.
  * @param base base value.
@@ -126,16 +101,9 @@ public func logBase(x: Float64, base: Float64): Float64 {
 }
 
 /**
- * Returns the x logarithm of the base of a value.
- * special cases that arise:
- * If the base is 2.
- * @see func log2(x)
- *
- * If the base is 10.
- * @see func log10(x)
- *
- * If the base is e.
- * @see func log(x)
+ * Computes the logarithm of a Float16 value using the specified base.
+ * The same validation as the wider overload is applied after Float16 comparison;
+ * NaN input is left for the logarithm calculation to propagate.
  *
  * @param x some value.
  * @param base base value.
@@ -153,7 +121,7 @@ public func logBase(x: Float16, base: Float16): Float16 {
 }
 
 /**
- * Returns the gamma function value of @p x.
+ * Returns the gamma function value of a Float64 value.
  *
  * @param x some value.
  * @return the gamma function value of @p x.
@@ -165,7 +133,7 @@ public func gamma(x: Float64): Float64 {
 }
 
 /**
- * Returns the gamma function value of @p x.
+ * Returns the gamma function value of a Float32 value.
  *
  * @param x some value.
  * @return the gamma function value of @p x.
@@ -177,7 +145,7 @@ public func gamma(x: Float32): Float32 {
 }
 
 /**
- * Returns the gamma function value of @p x.
+ * Returns the gamma function value of a Float16 value.
  *
  * @param x some value.
  * @return the gamma function value of @p x.
@@ -189,7 +157,7 @@ public func gamma(x: Float16): Float16 {
 }
 
 /**
- * Returns the Gauss error function of @p x.
+ * Returns the Gauss error function of a Float64 value.
  * The related definition is: \f$ {erf} x={\frac {2}{\sqrt {\pi }}}\int _{0}^{x}e^{-t^{2}}\,dt \f$
  *
  * @param x some value.
@@ -202,7 +170,7 @@ public func erf(x: Float64): Float64 {
 }
 
 /**
- * Returns the Gauss error function of @p x.
+ * Returns the Gauss error function of a Float32 value.
  * The related definition is: \f$ {erf} x={\frac {2}{\sqrt {\pi }}}\int _{0}^{x}e^{-t^{2}}\,dt \f$
  *
  * @param x some value.
@@ -215,7 +183,7 @@ public func erf(x: Float32): Float32 {
 }
 
 /**
- * Returns the Gauss error function of @p x.
+ * Returns the Gauss error function of a Float16 value.
  * The related definition is: \f$ {erf} x={\frac {2}{\sqrt {\pi }}}\int _{0}^{x}e^{-t^{2}}\,dt \f$
  *
  * @param x some value.
@@ -230,7 +198,7 @@ public func erf(x: Float16): Float16 {
 /********************* Trigonometric functions *********************/
 
 /**
- * Returns the trigonometric tangent of an angle.
+ * Returns the trigonometric tangent of a Float64 angle.
  *
  * @param x an angle, in radians.
  * @return the tangent of @p x.
@@ -242,7 +210,7 @@ public func tan(x: Float64): Float64 {
 }
 
 /**
- * Returns the trigonometric tangent of an angle.
+ * Returns the trigonometric tangent of a Float32 angle.
  *
  * @param x an angle, in radians.
  * @return the tangent of @p x.
@@ -254,7 +222,7 @@ public func tan(x: Float32): Float32 {
 }
 
 /**
- * Returns the trigonometric tangent of an angle.
+ * Returns the trigonometric tangent of a Float16 angle.
  *
  * @param x an angle, in radians.
  * @return the tangent of @p x.
@@ -266,7 +234,8 @@ public func tan(x: Float16): Float16 {
 }
 
 /**
- * Returns the arc sine of a value, the returned angle is in the range -π/2 through π/2.
+ * Returns the arc sine of a Float64 value.
+ * The returned angle is in the range -π/2 through π/2.
  *
  * @param x some value.
  * @return the arc sine of @p x.
@@ -283,7 +252,8 @@ public func asin(x: Float64): Float64 {
 }
 
 /**
- * Returns the arc sine of a value, the returned angle is in the range -π/2 through π/2.
+ * Returns the arc sine of a Float32 value.
+ * The returned angle is in the range -π/2 through π/2.
  *
  * @param x some value.
  * @return the arc sine of @p x.
@@ -300,7 +270,8 @@ public func asin(x: Float32): Float32 {
 }
 
 /**
- * Returns the arc sine of a value, the returned angle is in the range -π/2 through π/2.
+ * Returns the arc sine of a Float16 value.
+ * The returned angle is in the range -π/2 through π/2.
  *
  * @param x some value.
  * @return the arc sine of @p x.
@@ -317,7 +288,8 @@ public func asin(x: Float16): Float16 {
 }
 
 /**
- * Returns the arc cosine of a value, the returned angle is in the range 0.0 through π.
+ * Returns the arc cosine of a Float64 value.
+ * The returned angle is in the range 0.0 through π.
  *
  * @param x some value.
  * @return the arc cosine of @p x.
@@ -368,7 +340,8 @@ public func acos(x: Float16): Float16 {
 }
 
 /**
- * Returns the arc tangent of a value, the returned angle is in the range -π/2 through π/2.
+ * Returns the arc tangent of a Float64 value.
+ * The returned angle is in the range -π/2 through π/2.
  *
  * @param x some value.
  * @return the arc tangent of @p x.
@@ -380,7 +353,8 @@ public func atan(x: Float64): Float64 {
 }
 
 /**
- * Returns the arc tangent of a value, the returned angle is in the range -π/2 through π/2.
+ * Returns the arc tangent of a Float32 value.
+ * The returned angle is in the range -π/2 through π/2.
  *
  * @param x some value.
  * @return the arc tangent of @p x.
@@ -392,7 +366,8 @@ public func atan(x: Float32): Float32 {
 }
 
 /**
- * Returns the arc tangent of a value, the returned angle is in the range -π/2 through π/2.
+ * Returns the arc tangent of a Float16 value.
+ * The returned angle is in the range -π/2 through π/2.
  *
  * @param x some value.
  * @return the arc tangent of @p x.
@@ -745,7 +720,7 @@ var revtab: Array<UInt8> = [0x00, 0x80, 0x40, 0xc0, 0x20, 0xa0, 0x60, 0xe0, 0x10
     0x07, 0x87, 0x47, 0xc7, 0x27, 0xa7, 0x67, 0xe7, 0x17, 0x97, 0x57, 0xd7, 0x37, 0xb7, 0x77, 0xf7, 0x0f, 0x8f, 0x4f,
     0xcf, 0x2f, 0xaf, 0x6f, 0xef, 0x1f, 0x9f, 0x5f, 0xdf, 0x3f, 0xbf, 0x7f, 0xff]
 /**
- * Number of zero bits returned before the most significant (leftmost) bit.
+ * Counts leading zero bits in a UInt64 value.
  *
  * @param xx some value.
  * @return number of zero bits before the most significant bit of @p xx.
@@ -771,7 +746,7 @@ public func leadingZeros(x: UInt64): Int64 {
 }
 
 /**
- * Number of zero bits returned before the most significant (leftmost) bit.
+ * Counts leading zero bits in a UInt32 value.
  *
  * @param xx some value.
  * @return number of zero bits before the most significant bit of @p xx.
@@ -842,7 +817,7 @@ public func leadingZeros(x: Int8): Int64 {
 }
 
 /**
- * Number of zero bits returned before the most significant (leftmost) bit.
+ * Counts leading zero bits in an Int16 value.
  *
  * @param x some value.
  * @return number of zero bits before the most significant bit of @p x.
@@ -861,7 +836,7 @@ public func leadingZeros(x: Int16): Int64 {
 }
 
 /**
- * Number of zero bits returned before the most significant (leftmost) bit.
+ * Counts leading zero bits in an Int32 value.
  *
  * @param x some value.
  * @return number of zero bits before the most significant bit of @p x.
@@ -880,7 +855,7 @@ public func leadingZeros(x: Int32): Int64 {
 }
 
 /**
- * Number of zero bits returned before the most significant (leftmost) bit.
+ * Counts leading zero bits in an Int64 value.
  *
  * @param x some value.
  * @return number of zero bits before the most significant bit of @p x.
@@ -899,7 +874,7 @@ public func leadingZeros(x: Int64): Int64 {
 }
 
 /**
- * Obtains the number of consecutive 0s starting from the least significant bits.
+ * Counts trailing zero bits in a UInt64 value.
  *
  * @param x some value.
  * @return number of consecutive 0s starting from the least significant bit of @p x.
@@ -922,7 +897,7 @@ public func trailingZeros(x: UInt64): Int64 {
 }
 
 /**
- * Obtains the number of consecutive 0s starting from the least significant bits.
+ * Counts trailing zero bits in a UInt32 value.
  *
  * @param x some value.
  * @return number of consecutive 0s starting from the least significant bit of @p x.
@@ -938,7 +913,7 @@ public func trailingZeros(x: UInt32): Int64 {
 }
 
 /**
- * Obtains the number of consecutive 0s starting from the least significant bits.
+ * Counts trailing zero bits in a UInt16 value.
  *
  * @param x some value.
  * @return number of consecutive 0s starting from the least significant bit of @p x.
@@ -954,7 +929,7 @@ public func trailingZeros(x: UInt16): Int64 {
 }
 
 /**
- * Obtains the number of consecutive 0s starting from the least significant bits.
+ * Counts trailing zero bits in a UInt8 value.
  *
  * @param x some value.
  * @return number of consecutive 0s starting from the least significant bit of @p x.
@@ -970,7 +945,7 @@ public func trailingZeros(x: UInt8): Int64 {
 }
 
 /**
- * Obtains the number of consecutive 0s starting from the least significant bits.
+ * Counts trailing zero bits in an Int8 value.
  *
  * @param x some value.
  * @return number of consecutive 0s starting from the least significant bit of @p x.
@@ -989,7 +964,7 @@ public func trailingZeros(x: Int8): Int64 {
 }
 
 /**
- * Obtains the number of consecutive 0s starting from the least significant bits.
+ * Counts trailing zero bits in an Int16 value.
  *
  * @param x some value.
  * @return number of consecutive 0s starting from the least significant bit of @p x.
@@ -1008,7 +983,7 @@ public func trailingZeros(x: Int16): Int64 {
 }
 
 /**
- * Obtains the number of consecutive 0s starting from the least significant bits.
+ * Counts trailing zero bits in an Int32 value.
  *
  * @param x some value.
  * @return number of consecutive 0s starting from the least significant bit of @p x.
@@ -1027,7 +1002,7 @@ public func trailingZeros(x: Int32): Int64 {
 }
 
 /**
- * Obtains the number of consecutive 0s starting from the least significant bits.
+ * Counts trailing zero bits in an Int64 value.
  *
  * @param x some value.
  * @return number of consecutive 0s starting from the least significant bit of @p x.
@@ -1046,7 +1021,7 @@ public func trailingZeros(x: Int64): Int64 {
 }
 
 /**
- * Calculate the number of one.
+ * Counts set bits in a UInt64 value.
  *
  * @param x some value.
  * @return the number of one in @p x.
@@ -1058,7 +1033,7 @@ public func countOnes(x: UInt64): Int64 {
 }
 
 /**
- * Calculate the number of one.
+ * Counts set bits in a UInt32 value.
  *
  * @param x some value.
  * @return the number of one in @p x.
@@ -1070,7 +1045,7 @@ public func countOnes(x: UInt32): Int64 {
 }
 
 /**
- * Calculate the number of one.
+ * Counts set bits in a UInt16 value.
  *
  * @param x some value.
  * @return the number of one in @p x.
@@ -1082,7 +1057,7 @@ public func countOnes(x: UInt16): Int64 {
 }
 
 /**
- * Calculate the number of one.
+ * Counts set bits in a UInt8 value.
  *
  * @param x some value.
  * @return the number of one in @p x.
@@ -1094,10 +1069,12 @@ public func countOnes(x: UInt8): Int64 {
 }
 
 /**
- * Calculate the number of one.
+ * Counts one bits after converting an Int8 input to the ordering used by this
+ * API. Negative values use UInt8(-x) + UInt8(Int8.Min), and Int8.Min maps to a
+ * single set bit.
  *
  * @param x some value.
- * @return the number of one in @p x.
+ * @return the mapped one-bit count, not the two's-complement bit count.
  *
  * @since 0.18.4
  */
@@ -1113,10 +1090,12 @@ public func countOnes(x: Int8): Int64 {
 }
 
 /**
- * Calculate the number of one.
+ * Counts one bits after converting an Int16 input to this API's unsigned order.
+ * For negative values other than Int16.Min, the mapped value is UInt16(-x) +
+ * UInt16(Int16.Min); Int16.Min returns one.
  *
  * @param x some value.
- * @return the number of one in @p x.
+ * @return the mapped one-bit count, not the two's-complement bit count.
  *
  * @since 0.18.4
  */
@@ -1132,10 +1111,12 @@ public func countOnes(x: Int16): Int64 {
 }
 
 /**
- * Calculate the number of one.
+ * Counts one bits after mapping an Int32 value into the UInt32 range used here.
+ * Negative inputs are mapped with UInt32(-x) + UInt32(Int32.Min), while Int32.Min
+ * contributes exactly one bit.
  *
  * @param x some value.
- * @return the number of one in @p x.
+ * @return the mapped one-bit count, not the two's-complement bit count.
  *
  * @since 0.18.4
  */
@@ -1151,10 +1132,12 @@ public func countOnes(x: Int32): Int64 {
 }
 
 /**
- * Calculate the number of one.
+ * Counts one bits after mapping an Int64 value into the UInt64 range used here.
+ * Negative inputs are mapped with UInt64(-x) + UInt64(Int64.Min), while Int64.Min
+ * contributes exactly one bit.
  *
  * @param x some value.
- * @return the number of one in @p x.
+ * @return the mapped one-bit count, not the two's-complement bit count.
  *
  * @since 0.18.4
  */
@@ -1210,7 +1193,7 @@ public func countOne(x: UInt64): Int8 {
 }
 
 /**
- * Reverse bit pattern.
+ * Reverses the bit pattern of a UInt64 value.
  *
  * @param x some value.
  * @return reverse bits of @p x.
@@ -1222,7 +1205,7 @@ public func reverse(x: UInt64): UInt64 {
 }
 
 /**
- * Reverse bit pattern.
+ * Reverses the bit pattern of a UInt32 value.
  *
  * @param x some value.
  * @return reverse bits of @p x.
@@ -1234,7 +1217,7 @@ public func reverse(x: UInt32): UInt32 {
 }
 
 /**
- * Reverse bit pattern.
+ * Reverses the bit pattern of a UInt16 value.
  *
  * @param x some value.
  * @return reverse bits of @p x.
@@ -1246,7 +1229,7 @@ public func reverse(x: UInt16): UInt16 {
 }
 
 /**
- * Reverse bit pattern.
+ * Reverses the bit pattern of a UInt8 value.
  *
  * @param x some value.
  * @return reverse bits of @p x.
@@ -1730,8 +1713,8 @@ public func gcd(x: UInt8, y: UInt8): UInt8 {
 }
 
 /**
- * Returns the largest of the commonfactors of two UInt16 numbers.
- * Using a modified version of the Euclidean algorithm: Stein.
+ * Returns the greatest common divisor of two UInt16 numbers.
+ * The calculation uses Stein's binary GCD algorithm.
  *
  * @param x an argument.
  * @param y another argument.
@@ -1748,38 +1731,38 @@ public func gcd(x: UInt16, y: UInt16): UInt16 {
         return y
     }
 
-    var x_ = x;
-    var y_ = y;
-    var counter = 0;
-    while (x_ != y_) {
-        if (x_ < y_) {
-            x_ = x_ ^ y_
-            y_ = x_ ^ y_
-            x_ = x_ ^ y_
+    var left = x;
+    var right = y;
+    var commonPower = 0;
+    while (left != right) {
+        if (left < right) {
+            left = left ^ right
+            right = left ^ right
+            left = left ^ right
         }
 
-        if (UInt16(x_ & 1) == 1) {
-            if (UInt16(y_ & 1) == 1) {
-                y_ = (x_ - y_) >> 1
-                x_ -= y_
+        if (UInt16(left & 1) == 1) {
+            if (UInt16(right & 1) == 1) {
+                right = (left - right) >> 1
+                left -= right
             } else {
-                y_ >>= 1
+                right >>= 1
             }
         } else {
-            x_ >>= 1
-            if (UInt16(y_ & 1) != 1) {
-                y_ >>= 1
-                counter++;
+            left >>= 1
+            if (UInt16(right & 1) != 1) {
+                right >>= 1
+                commonPower++;
             }
         }
     }
 
-    x_ << counter;
+    left << commonPower;
 }
 
 /**
- * Returns the largest of the commonfactors of two UInt32 numbers.
- * Using a modified version of the Euclidean algorithm: Stein.
+ * Returns the greatest common divisor of two UInt32 numbers.
+ * The calculation uses Stein's binary GCD algorithm.
  *
  * @param x an argument.
  * @param y another argument.
@@ -1796,38 +1779,38 @@ public func gcd(x: UInt32, y: UInt32): UInt32 {
         return y
     }
 
-    var x_ = x;
-    var y_ = y;
-    var counter = 0;
-    while (x_ != y_) {
-        if (x_ < y_) {
-            x_ = x_ ^ y_
-            y_ = x_ ^ y_
-            x_ = x_ ^ y_
+    var lhs = x;
+    var rhs = y;
+    var shift = 0;
+    while (lhs != rhs) {
+        if (lhs < rhs) {
+            lhs = lhs ^ rhs
+            rhs = lhs ^ rhs
+            lhs = lhs ^ rhs
         }
 
-        if (UInt32(x_ & 1) == 1) {
-            if (UInt32(y_ & 1) == 1) {
-                y_ = (x_ - y_) >> 1
-                x_ -= y_
+        if (UInt32(lhs & 1) == 1) {
+            if (UInt32(rhs & 1) == 1) {
+                rhs = (lhs - rhs) >> 1
+                lhs -= rhs
             } else {
-                y_ >>= 1
+                rhs >>= 1
             }
         } else {
-            x_ >>= 1
-            if (UInt32(y_ & 1) != 1) {
-                y_ >>= 1
-                counter++;
+            lhs >>= 1
+            if (UInt32(rhs & 1) != 1) {
+                rhs >>= 1
+                shift++;
             }
         }
     }
 
-    x_ << counter;
+    lhs << shift;
 }
 
 /**
- * Returns the largest of the commonfactors of two UInt64 numbers.
- * Using a modified version of the Euclidean algorithm: Stein.
+ * Returns the greatest common divisor of two UInt64 numbers.
+ * The calculation uses Stein's binary GCD algorithm.
  *
  * @param x an argument.
  * @param y another argument.
@@ -1844,33 +1827,33 @@ public func gcd(x: UInt64, y: UInt64): UInt64 {
         return y
     }
 
-    var x_ = x;
-    var y_ = y;
-    var counter = 0;
-    while (x_ != y_) {
-        if (x_ < y_) {
-            x_ = x_ ^ y_
-            y_ = x_ ^ y_
-            x_ = x_ ^ y_
+    var a = x;
+    var b = y;
+    var shiftCount = 0;
+    while (a != b) {
+        if (a < b) {
+            a = a ^ b
+            b = a ^ b
+            a = a ^ b
         }
 
-        if (UInt64(x_ & 1) == 1) {
-            if (UInt64(y_ & 1) == 1) {
-                y_ = (x_ - y_) >> 1
-                x_ -= y_
+        if (UInt64(a & 1) == 1) {
+            if (UInt64(b & 1) == 1) {
+                b = (a - b) >> 1
+                a -= b
             } else {
-                y_ >>= 1
+                b >>= 1
             }
         } else {
-            x_ >>= 1
-            if (UInt64(y_ & 1) != 1) {
-                y_ >>= 1
-                counter++;
+            a >>= 1
+            if (UInt64(b & 1) != 1) {
+                b >>= 1
+                shiftCount++;
             }
         }
     }
 
-    x_ << counter;
+    a << shiftCount;
 }
 
 /**
@@ -2101,17 +2084,16 @@ public func lcm(x: UInt64, y: UInt64): UInt64 {
 }
 
 /**
- * Panics if min > max, min is NaN, or max is NaN.
- * Restrict a value to a certain Interval unless it is NaN.
- * Returns max if self is greater than max, and min if self is less than min.
- * Otherwise this returns self. Note that this function returns NaN if the initial value was NaN as well.
+ * Restricts a Float16 value to the inclusive interval from @p min to @p max.
+ * Returns @p min when @p v is below the interval, @p max when it is above
+ * the interval, and @p v otherwise. If @p v is NaN, the result is NaN.
  *
  * @brief  Returns a number between the maximum and minimum values.
  *
- * @param   v   an argument.
- * @param   min   a minimum argument.
- * @param   max   a maximum argument.
- * @return  restricted value between @p min and @p max.
+ * @param   v   the Float16 value to restrict.
+ * @param   min   the lower bound of the interval.
+ * @param   max   the upper bound of the interval.
+ * @return  @p v restricted to the Float16 interval.
  *
  * @since 0.17.4
  *
@@ -2128,17 +2110,16 @@ public func clamp(v: Float16, min: Float16, max: Float16): Float16 {
 }
 
 /**
- * Panics if min > max, min is NaN, or max is NaN.
- * Restrict a value to a certain Interval unless it is NaN.
- * Returns max if self is greater than max, and min if self is less than min.
- * Otherwise this returns self. Note that this function returns NaN if the initial value was NaN as well.
+ * Clamps a Float32 value to the inclusive interval from @p min to @p max.
+ * Values below the interval produce @p min, values above it produce @p max,
+ * and values already in range are returned unchanged. If @p v is NaN, the result is NaN.
  *
  * @brief  Returns a number between the maximum and minimum values.
  *
- * @param   v   an argument.
- * @param   min   a minimum argument.
- * @param   max   a maximum argument.
- * @return  restricted value between @p min and @p max.
+ * @param   v   the Float32 value to clamp.
+ * @param   min   the inclusive lower bound.
+ * @param   max   the inclusive upper bound.
+ * @return  the clamped Float32 result.
  *
  * @since 0.17.4
  *
@@ -2155,16 +2136,16 @@ public func clamp(v: Float32, min: Float32, max: Float32): Float32 {
 }
 
 /**
- * Panics if min > max, min is NaN, or max is NaN.
- * Restrict a value to a certain Interval unless it is NaN.
- * Returns max if self is greater than max, and min if self is less than min.
- * Otherwise this returns self. Note that this function returns NaN if the initial value was NaN as well.
+ * Restricts a Float64 value to the inclusive interval from @p min to @p max.
+ * If @p v is smaller than @p min, @p min is returned; if it is larger than
+ * @p max, @p max is returned. If @p v is NaN, the result is NaN.
+ *
  * @brief  Returns a number between the maximum and minimum values.
  *
- * @param   v   an argument.
- * @param   min   a minimum argument.
- * @param   max   a maximum argument.
- * @return  restricted value between @p min and @p max.
+ * @param   v   the Float64 value to restrict.
+ * @param   min   the lower edge of the allowed interval.
+ * @param   max   the upper edge of the allowed interval.
+ * @return  @p v after applying the Float64 bounds.
  *
  * @since 0.17.4
  *
@@ -2181,13 +2162,9 @@ public func clamp(v: Float64, min: Float64, max: Float64): Float64 {
 }
 
 /**
- * The banker algorithm is an IEEE-754 specification.
- * If the value of the rounding bit is less than 5, the rounding bit is directly performed.
- * If the value of the rounding bit is greater than 5, the value of the rounding bit is incremented by 1.
- * When the number of rounded bits is equal to 5, there are two cases:
- *    If 5 is followed by other non-zero digits (that is, 5 is not the last digit), the carry value increases by 1.
- *    If there is only 0 after 5 (that is, 5 is the last digit), the system determines whether the first digit is an odd number.
- *    If the first digit is an odd number, the system adds 1 to the carry value. If the first digit is an even number, the system rounds it off.
+ * Rounds a Float64 value using the IEEE-754 round-to-nearest-even rule.
+ * Values exactly halfway between two integers are rounded to the even
+ * integer. If @p x is NaN, the result is NaN.
  *
  * @param x Floating point value
  * @return Float64 Rounded value of @x
@@ -2220,16 +2197,11 @@ public func round(x: Float64): Float64 {
 }
 
 /**
- * The banker algorithm is an IEEE-754 specification.
- * If the value of the rounding bit is less than 5, the rounding bit is directly performed.
- * If the value of the rounding bit is greater than 5, the value of the rounding bit is incremented by 1.
- * When the number of rounded bits is equal to 5, there are two cases:
- *    If 5 is followed by other non-zero digits (that is, 5 is not the last digit), the carry value increases by 1.
- *    If there is only 0 after 5 (that is, 5 is the last digit), the system determines whether the first digit is an odd number.
- *    If the first digit is an odd number, the system adds 1 to the carry value. If the first digit is an even number, the system rounds it off.
+ * Rounds a Float32 value to the nearest integer using the IEEE-754
+ * round-to-nearest-even rule. If @p x is NaN, the result is NaN.
  *
  * @param x Floating point value
- * @return Float64 Rounded value of @x
+ * @return Float32 Rounded value of @x
  *
  * @since 0.25.2
  */
@@ -2237,38 +2209,33 @@ public func round(x: Float32): Float32 {
     if (x.isNaN()) {
         return Float32.NaN
     }
-    var result: Float32 = abs(x)
-    // note: if result >= 1e8, Float32(1e8) + 1 != ceil(Float32(1e8) + 0.9)
-    if (result >= 1e8) {
+    var rounded: Float32 = abs(x)
+    // note: if rounded >= 1e8, Float32(1e8) + 1 != ceil(Float32(1e8) + 0.9)
+    if (rounded >= 1e8) {
         return x
     }
 
-    let integer: Float32 = floor(result)
-    let decimal: Float32 = result - integer
-    result = match {
-        case decimal < 0.5 => integer
-        case decimal > 0.5 => integer + 1.0
-        case Int64(integer) % 2 == 0 => integer
-        case _ => integer + 1.0
+    let whole: Float32 = floor(rounded)
+    let fraction: Float32 = rounded - whole
+    rounded = match {
+        case fraction < 0.5 => whole
+        case fraction > 0.5 => whole + 1.0
+        case Int64(whole) % 2 == 0 => whole
+        case _ => whole + 1.0
     }
 
     return match (x < 0.0) {
-        case true => -result
-        case false => result
+        case true => -rounded
+        case false => rounded
     }
 }
 
 /**
- * The banker algorithm is an IEEE-754 specification.
- * If the value of the rounding bit is less than 5, the rounding bit is directly performed.
- * If the value of the rounding bit is greater than 5, the value of the rounding bit is incremented by 1.
- * When the number of rounded bits is equal to 5, there are two cases:
- *    If 5 is followed by other non-zero digits (that is, 5 is not the last digit), the carry value increases by 1.
- *    If there is only 0 after 5 (that is, 5 is the last digit), the system determines whether the first digit is an odd number.
- *    If the first digit is an odd number, the system adds 1 to the carry value. If the first digit is an even number, the system rounds it off.
+ * Rounds a Float16 value to the nearest integer using the IEEE-754
+ * round-to-nearest-even rule. If @p x is NaN, the result is NaN.
  *
  * @param x Floating point value
- * @return Float64 Rounded value of @x
+ * @return Float16 Rounded value of @x
  *
  * @since 0.25.2
  */
@@ -2276,24 +2243,24 @@ public func round(x: Float16): Float16 {
     if (x.isNaN()) {
         return Float16.NaN
     }
-    var result: Float16 = abs(x)
-    // note: if result >= 1e4, Float16(1e4) + 1 != ceil(Float16(1e4) + 0.5)
-    if (result >= 1e4) {
+    var nearest: Float16 = abs(x)
+    // note: if nearest >= 1e4, Float16(1e4) + 1 != ceil(Float16(1e4) + 0.5)
+    if (nearest >= 1e4) {
         return x
     }
 
-    let integer: Float16 = floor(result)
-    let decimal: Float16 = result - integer
-    result = match {
-        case decimal < 0.5 => integer
-        case decimal > 0.5 => integer + 1.0
-        case Int64(integer) % 2 == 0 => integer
-        case _ => integer + 1.0
+    let integral: Float16 = floor(nearest)
+    let remainder: Float16 = nearest - integral
+    nearest = match {
+        case remainder < 0.5 => integral
+        case remainder > 0.5 => integral + 1.0
+        case Int64(integral) % 2 == 0 => integral
+        case _ => integral + 1.0
     }
 
     return match (x < 0.0) {
-        case true => -result
-        case false => result
+        case true => -nearest
+        case false => nearest
     }
 }
 

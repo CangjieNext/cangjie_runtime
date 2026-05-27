@@ -43,6 +43,16 @@ public class Matcher {
      * @return MatchData's Option where the entire region matches this matcher's pattern.
      */
     public func fullMatch(): Option<MatchData> {
+        let result = findFromBegin()
+        if (let Some(md) <- result) {
+            if (md.matchString().size != this.input.size) {
+                return None
+            }
+        }
+        return result
+    }
+
+    private func findFromBegin(): Option<MatchData> {
         let inputCString = unsafe { LibC.mallocCString(input) }
         if (inputCString.isNull()) {
             throw RegexException("Failed to mallocCString.")
@@ -58,11 +68,6 @@ public class Matcher {
         } finally {
             release(inputCString)
             release(pcre2md)
-        }
-        if (let Some(md) <- result) {
-            if (md.matchString().size != this.input.size) {
-                return None
-            }
         }
         return result
     }
@@ -72,22 +77,7 @@ public class Matcher {
      * @return MatchData's Option where the entire region matches this matcher's pattern.
      */
     public func matchStart(): Option<MatchData> {
-        let inputCString = unsafe { LibC.mallocCString(input) }
-        if (inputCString.isNull()) {
-            throw RegexException("Failed to mallocCString.")
-        }
-        let pcre2md = unsafe { CJ_REGEX_CreateMatchData(this.regex.re) }
-        if (pcre2md.isNull()) {
-            release(inputCString)
-            throw RegexException("Create match_data for pattern `${this.regex.pattern}` failed.")
-        }
-        let result: Option<MatchData>
-        try {
-            result = regex.find(input, inputCString, pcre2md, this.begin, group: true)
-        } finally {
-            release(inputCString)
-            release(pcre2md)
-        }
+        let result = findFromBegin()
         if (let Some(md) <- result) {
             if (this.input.startsWith(md.matchString())) {
                 return md
@@ -255,15 +245,13 @@ public class Matcher {
     }
 
     /**
-     * Split the input sequence by all subsequence that matches the pattern as the delimiters
+     * Split this matcher's input by subsequences that match the pattern as delimiters.
      *
-     * if limit n is greater than zero then it will separate the string at most n times
-     * if limit n is non-positive, it will separate the string as many times as possible
+     * If @p limit is greater than zero, at most @p limit pieces are produced.
+     * If @p limit is non-positive, all matching delimiters are applied.
      *
-     * @param input The the input sequence.
-     * @param limit The limit of split
-     * @return The array of strings computed by splitting the input
-     * around matches of this pattern
+     * @param limit The limit of split.
+     * @return The array of strings computed by splitting this matcher's input around matches of this pattern.
      */
     public func split(limit: Int64): Array<String> {
         return regex.split(input, limit)

@@ -110,12 +110,10 @@ public class ArrayBlockingQueue<E> {
     }
 
     /**
-     * Returns the number of elements in the BlockingQueue.
+     * Returns the current distance between the array reservation index and allocation index.
      *
-     * It ensures to return the accurate number of elements in the BlockingQueue in sequential.
-     * Note that getting 'size' prop is not atomic!
-     * So, if elements are added or removed during execution of getting 'size',
-     * the 'size' may be inaccurate.
+     * The value is computed from atomic counters used by the ring buffer. Concurrent producers or consumers can change
+     * those counters while size is being read, so the returned value is only a momentary observation.
      */
     public prop size: Int64 {
         get() {
@@ -126,13 +124,11 @@ public class ArrayBlockingQueue<E> {
     }
 
     /**
-     * Blocking method to send the element @p element into the tail of the queue.
-     * If there is no free space in the queue, the thread calling such method will be blocked,
-     * and waiting for another thread calling 'dequeue' method to await.
+     * Deprecated array-backed enqueue operation.
      *
-     * @param element: the element to send into the queue.
+     * The call waits while the fixed-size buffer is full and resumes when a consumer frees a slot.
      *
-     * A successful 'enqueue' will await the threads blocked by calling 'dequeue'.
+     * @param element element to append at the producer side of the ring buffer.
      */
     @Deprecated[message: "Use member function `public func add(element: E): Unit` instead."]
     public func enqueue(element: E): Unit {
@@ -141,30 +137,29 @@ public class ArrayBlockingQueue<E> {
 
     public func add(element: E): Unit {
         while (!tryAdd(element)) {
-            receiveMonitor.lock()
-            sendQSize.fetchAdd(1)
-            if (isFull()) {
-                receiveMonitor.wait()
-            }
-            sendQSize.fetchSub(1)
-            receiveMonitor.unlock()
+            waitForWritableSlot()
         }
     }
 
-    /**
-     * Blocking method to send the element @p element to the tail of the queue,
-     * waiting up to @p timeout if the ArrayBlockingQueue is full.
-     *
-     * @param element: the element to send into the queue.
-     * @param timeout: the waiting time.
-     *
-     * @return:
-     * - true: if @p element is successfully pushed at the tail of the queue.
-     * - false: if the waiting time exceeds @p timeout.
-     */
-    @Deprecated[message: "Use member function `public func add(element: E, timeout: Duration): Bool` instead."]
-    public func enqueue(element: E, timeout: Duration): Bool {
-        add(element, timeout)
+    private func waitForWritableSlot(): Unit {
+        receiveMonitor.lock()
+        sendQSize.fetchAdd(1)
+        if (isFull()) {
+            receiveMonitor.wait()
+        }
+        sendQSize.fetchSub(1)
+        receiveMonitor.unlock()
+    }
+
+    private func waitForWritableSlot(timeout: Duration): Duration {
+        receiveMonitor.lock()
+        let startTime = MonoTime.now()
+        sendQSize.fetchAdd(1)
+        receiveMonitor.wait(timeout: timeout)
+        sendQSize.fetchSub(1)
+        let endTime = MonoTime.now()
+        receiveMonitor.unlock()
+        timeout - (endTime - startTime)
     }
 
     public func add(element: E, timeout: Duration): Bool {
@@ -173,30 +168,32 @@ public class ArrayBlockingQueue<E> {
             if (tryAdd(element)) {
                 return true
             }
-
-            receiveMonitor.lock()
-            let startTime = MonoTime.now()
             if (total <= Duration.Zero) {
-                receiveMonitor.unlock()
                 break
             }
-
-            sendQSize.fetchAdd(1)
-            receiveMonitor.wait(timeout: total)
-            sendQSize.fetchSub(1)
-            let endTime = MonoTime.now()
-            total -= endTime - startTime
-            receiveMonitor.unlock()
+            total = waitForWritableSlot(total)
         }
         return false
     }
 
     /**
-     * Blocking method to get and remove the element at the head of the queue.
-     * If the queue is empty, the thread calling such method will be blocked,
-     * and waiting for another thread calling 'enqueue' method to await.
+     * Deprecated timed enqueue operation for the array-backed queue.
      *
-     * A successful 'dequeue' will await blocked threads calling 'enqueue'.
+     * The element is appended when a buffer slot becomes writable before timeout expires.
+     *
+     * @param element element to append.
+     * @param timeout maximum time spent waiting for space.
+     * @return true on success, false after timeout.
+     */
+    @Deprecated[message: "Use member function `public func add(element: E, timeout: Duration): Bool` instead."]
+    public func enqueue(element: E, timeout: Duration): Bool {
+        add(element, timeout)
+    }
+
+    /**
+     * Deprecated blocking dequeue operation for the array-backed queue.
+     *
+     * The call waits while the ring buffer is empty and resumes after a producer publishes a readable slot.
      */
     @Deprecated[message: "Use member function `public func remove(): E` instead."]
     public func dequeue(): E {
@@ -209,30 +206,30 @@ public class ArrayBlockingQueue<E> {
                 return e
             }
 
-            sendMonitor.lock()
-            receiveQSize.fetchAdd(1)
-            if (size == 0) {
-                sendMonitor.wait()
-            }
-            receiveQSize.fetchSub(1)
-            sendMonitor.unlock()
+            waitForReadableSlot()
         }
         throw Exception("Unreachable code.")
     }
 
-    /**
-     * Blocking method to get and remove the head of the queue,
-     * waiting up to @p timeout if the ArrayBlockingQueue is empty.
-     *
-     * @param timeout: the waiting time.
-     *
-     * @return:
-     * - Some(v): if gets and removes the element at the head of the queue successfully.
-     * - None: if the waiting time exceeds @p timeout.
-     */
-    @Deprecated[message: "Use member function `public func remove(timeout: Duration): Option<E>` instead."]
-    public func dequeue(timeout: Duration): Option<E> {
-        remove(timeout)
+    private func waitForReadableSlot(): Unit {
+        sendMonitor.lock()
+        receiveQSize.fetchAdd(1)
+        if (size == 0) {
+            sendMonitor.wait()
+        }
+        receiveQSize.fetchSub(1)
+        sendMonitor.unlock()
+    }
+
+    private func waitForReadableSlot(timeout: Duration): Duration {
+        sendMonitor.lock()
+        let startTime = MonoTime.now()
+        receiveQSize.fetchAdd(1)
+        sendMonitor.wait(timeout: timeout)
+        receiveQSize.fetchSub(1)
+        let endTime = MonoTime.now()
+        sendMonitor.unlock()
+        timeout - (endTime - startTime)
     }
 
     public func remove(timeout: Duration): Option<E> {
@@ -241,31 +238,29 @@ public class ArrayBlockingQueue<E> {
             if (let Some(e) <- tryRemove()) {
                 return Some(e)
             }
-
-            sendMonitor.lock()
-            let startTime = MonoTime.now()
             if (total <= Duration.Zero) {
-                sendMonitor.unlock()
                 break
             }
-
-            receiveQSize.fetchAdd(1)
-            sendMonitor.wait(timeout: total)
-            receiveQSize.fetchSub(1)
-            let endTime = MonoTime.now()
-            total -= endTime - startTime
-            sendMonitor.unlock()
+            total = waitForReadableSlot(total)
         }
         return None<E>
     }
 
     /**
-     * Gets the head of the queue, but does not remove it.
-     * Such method is non-blocking.
+     * Deprecated timed dequeue operation for the array-backed queue.
      *
-     * @return:
-     * - Some(v): if we successfully gets the element at the head of the queue.
-     * - None: if the queue is empty, and we fails to get the head of the queue.
+     * @param timeout maximum time spent waiting for a readable slot.
+     * @return Some(element) when an element is removed, or None after timeout.
+     */
+    @Deprecated[message: "Use member function `public func remove(timeout: Duration): Option<E>` instead."]
+    public func dequeue(timeout: Duration): Option<E> {
+        remove(timeout)
+    }
+
+    /**
+     * Deprecated non-blocking peek operation for the array-backed queue.
+     *
+     * @return the current readable head element when present, otherwise None.
      */
     @Deprecated[message: "Use member function `public func peek(): Option<E>` instead."]
     public func head(): Option<E> {
@@ -297,14 +292,10 @@ public class ArrayBlockingQueue<E> {
     }
 
     /**
-     * Non-blocking method to send the element @p element to the tail of the queue.
-     * A successful 'tryEnqueue' will await blocked threads calling 'dequeue'.
+     * Deprecated non-blocking enqueue attempt for the array-backed queue.
      *
-     * @param element: the element to send into the queue.
-     *
-     * @return:
-     * - true: if @p element is successfully pushed at the tail of the queue.
-     * - false: if the queue is full.
+     * @param element element to publish into the next writable slot.
+     * @return true when the slot is reserved and written, false when the fixed buffer is full.
      */
     @Deprecated[message: "Use member function `public func tryAdd(element: E): Bool` instead."]
     public func tryEnqueue(element: E): Bool {
@@ -342,12 +333,9 @@ public class ArrayBlockingQueue<E> {
     }
 
     /**
-     * Non-blocking method to get and remove the head of the queue.
-     * A successful 'tryDequeue' will await blocked threads calling 'enqueue'.
+     * Deprecated non-blocking dequeue attempt for the array-backed queue.
      *
-     * @return:
-     * - Some(v): if gets and removes the element at the head of the queue successfully.
-     * - None: if the queue is empty.
+     * @return Some(element) when a readable slot is claimed, or None if the buffer is empty.
      */
     @Deprecated[message: "Use member function `public func tryRemove(): Option<E>` instead."]
     public func tryDequeue(): Option<E> {
