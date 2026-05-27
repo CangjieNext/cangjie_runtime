@@ -942,6 +942,68 @@ public func findProcess(pid: Int64): Process {
     return Process.buildProcess(Int32(pid))
 }
 
+private func launchImpl(
+    command: String,
+    arguments: Array<String>,
+    workingDirectory: ?Path,
+    environment: ?Map<String, String>,
+    stdIn: ProcessRedirect,
+    stdOut: ProcessRedirect,
+    stdErr: ProcessRedirect
+): SubProcess {
+    var std_redirects: Array<ProcessRedirect> = [stdIn, stdOut, stdErr]
+    // check command, arguments and environment, can not be empty or Null.
+    // workingDirectory must be directory.
+    if (command.contains("\0")) {
+        throw IllegalArgumentException("Command \"${command}\" cannot contains null character.")
+    }
+
+    for (arg in arguments) {
+        if (arg.contains("\0")) {
+            throw IllegalArgumentException("Argument \"${arg}\" cannot contains null character.")
+        }
+    }
+
+    if (let Some(envMap) <- environment) {
+        for (envEntry in envMap) {
+            if (envEntry[0].contains("\0") || envEntry[0].contains("=") || envEntry[1].contains("\0")) {
+                throw IllegalArgumentException(
+                    "Environment \"${envEntry[0]}\" entry cannot contains invalid character.")
+            }
+        }
+    }
+
+    if (let Some(dir) <- workingDirectory) {
+        try {
+            if (!FileInfo(dir).isDirectory()) {
+                throw IllegalArgumentException("WorkingDirectory \"${dir}\" must be directory.")
+            }
+        } catch (_: FSException) {
+            throw IllegalArgumentException("WorkingDirectory \"${dir}\" not exist in the file system.")
+        }
+    }
+
+    if (getNulFileHandle().isNone() && Process.hasDiscardMode(std_redirects)) {
+        throw IllegalArgumentException("Failed to open null file, can not redirect stdio to discard mode.")
+    }
+
+    // convert attribute from String to CString
+    // if workingDir is None, it means exec the command in current dir.
+    let workingDir_c: CString = match (workingDirectory) {
+        case Some(dir) => unsafe { LibC.mallocCString(dir.toString()) }
+        case _ => CString(CPointer())
+    }
+
+    try {
+        return buildSubProcess(command, arguments, workingDir_c, environment, std_redirects)
+    } finally {
+        // release malloc space
+        unsafe {
+            workingDir_c.asResource().close()
+        }
+    }
+}
+
 /**
  * start a new subProcess using command and arguments which provide by user.
  *
@@ -965,57 +1027,7 @@ public func launch(
     stdOut!: ProcessRedirect = Inherit,
     stdErr!: ProcessRedirect = Inherit
 ): SubProcess {
-    var std_redirects: Array<ProcessRedirect> = [stdIn, stdOut, stdErr]
-    // check command, arguments and environment, can not be empty or Null.
-    // workingDirectory must be directory.
-    if (command.contains("\0")) {
-        throw IllegalArgumentException("Command \"${command}\" cannot contains null character.")
-    }
-
-    for (arg in arguments) {
-        if (arg.contains("\0")) {
-            throw IllegalArgumentException("Argument \"${arg}\" cannot contains null character.")
-        }
-    }
-
-    if (let Some(envMap) <- environment) {
-        for (envEntry in envMap) {
-            if (envEntry[0].contains("\0") || envEntry[0].contains("=") || envEntry[1].contains("\0")) {
-                throw IllegalArgumentException(
-                    "Environment \"${envEntry[0]}\" entry cannot contains invalid character.")
-            }
-        }
-    }
-
-    if (let Some(dir) <- workingDirectory) {
-        try {
-            if (!FileInfo(dir).isDirectory()) {
-                throw IllegalArgumentException("WorkingDirectory \"${dir}\" must be directory.")
-            }
-        } catch (_: FSException) {
-            throw IllegalArgumentException("WorkingDirectory \"${dir}\" not exist in the file system.")
-        }
-    }
-
-    if (getNulFileHandle().isNone() && Process.hasDiscardMode(std_redirects)) {
-        throw IllegalArgumentException("Failed to open null file, can not redirect stdio to discard mode.")
-    }
-
-    // convert attribute from String to CString
-    // if workingDir is None, it means exec the command in current dir.
-    let workingDir_c: CString = match (workingDirectory) {
-        case Some(dir) => unsafe { LibC.mallocCString(dir.toString()) }
-        case _ => CString(CPointer())
-    }
-
-    try {
-        return buildSubProcess(command, arguments, workingDir_c, environment, std_redirects)
-    } finally {
-        // release malloc space
-        unsafe {
-            workingDir_c.asResource().close()
-        }
-    }
+    launchImpl(command, arguments, workingDirectory, environment, stdIn, stdOut, stdErr)
 }
 
 @When[os == "iOS"]
@@ -1029,57 +1041,7 @@ public func launch(
     stdOut!: ProcessRedirect = Inherit,
     stdErr!: ProcessRedirect = Inherit
 ): SubProcess {
-    var std_redirects: Array<ProcessRedirect> = [stdIn, stdOut, stdErr]
-    // check command, arguments and environment, can not be empty or Null.
-    // workingDirectory must be directory.
-    if (command.contains("\0")) {
-        throw IllegalArgumentException("Command \"${command}\" cannot contains null character.")
-    }
-
-    for (arg in arguments) {
-        if (arg.contains("\0")) {
-            throw IllegalArgumentException("Argument \"${arg}\" cannot contains null character.")
-        }
-    }
-
-    if (let Some(envMap) <- environment) {
-        for (envEntry in envMap) {
-            if (envEntry[0].contains("\0") || envEntry[0].contains("=") || envEntry[1].contains("\0")) {
-                throw IllegalArgumentException(
-                    "Environment \"${envEntry[0]}\" entry cannot contains invalid character.")
-            }
-        }
-    }
-
-    if (let Some(dir) <- workingDirectory) {
-        try {
-            if (!FileInfo(dir).isDirectory()) {
-                throw IllegalArgumentException("WorkingDirectory \"${dir}\" must be directory.")
-            }
-        } catch (_: FSException) {
-            throw IllegalArgumentException("WorkingDirectory \"${dir}\" not exist in the file system.")
-        }
-    }
-
-    if (getNulFileHandle().isNone() && Process.hasDiscardMode(std_redirects)) {
-        throw IllegalArgumentException("Failed to open null file, can not redirect stdio to discard mode.")
-    }
-
-    // convert attribute from String to CString
-    // if workingDir is None, it means exec the command in current dir.
-    let workingDir_c: CString = match (workingDirectory) {
-        case Some(dir) => unsafe { LibC.mallocCString(dir.toString()) }
-        case _ => CString(CPointer())
-    }
-
-    try {
-        return buildSubProcess(command, arguments, workingDir_c, environment, std_redirects)
-    } finally {
-        // release malloc space
-        unsafe {
-            workingDir_c.asResource().close()
-        }
-    }
+    launchImpl(command, arguments, workingDirectory, environment, stdIn, stdOut, stdErr)
 }
 
 /**
@@ -1097,9 +1059,8 @@ public func execute(
     stdErr!: ProcessRedirect = Inherit,
     timeout!: ?Duration = None
 ): Int64 {
-    let subProcess: SubProcess = launch(command, arguments, workingDirectory: workingDirectory, environment: environment,
-        stdIn: stdIn, stdOut: stdOut, stdErr: stdErr)
-    subProcess.wait(timeout: timeout)
+    let exitCode = executeImpl(command, arguments, workingDirectory, environment, stdIn, stdOut, stdErr, timeout)
+    exitCode
 }
 
 @When[os == "iOS"]
@@ -1114,7 +1075,20 @@ public func execute(
     stdErr!: ProcessRedirect = Inherit,
     timeout!: ?Duration = None
 ): Int64 {
-    let subProcess: SubProcess = launch(command, arguments, workingDirectory: workingDirectory, environment: environment,
+    executeImpl(command, arguments, workingDirectory, environment, stdIn, stdOut, stdErr, timeout)
+}
+
+private func executeImpl(
+    command: String,
+    arguments: Array<String>,
+    workingDirectory: ?Path,
+    environment: ?Map<String, String>,
+    stdIn: ProcessRedirect,
+    stdOut: ProcessRedirect,
+    stdErr: ProcessRedirect,
+    timeout: ?Duration
+): Int64 {
+    let subProcess = launch(command, arguments, workingDirectory: workingDirectory, environment: environment,
         stdIn: stdIn, stdOut: stdOut, stdErr: stdErr)
     subProcess.wait(timeout: timeout)
 }
@@ -1133,9 +1107,8 @@ public func executeWithOutput(
     stdOut!: ProcessRedirect = Pipe,
     stdErr!: ProcessRedirect = Pipe
 ): (Int64, Array<Byte>, Array<Byte>) {
-    let subProcess: SubProcess = launch(command, arguments, workingDirectory: workingDirectory, environment: environment,
-        stdIn: stdIn, stdOut: stdOut, stdErr: stdErr)
-    subProcess.waitOutput()
+    let output = executeWithOutputImpl(command, arguments, workingDirectory, environment, stdIn, stdOut, stdErr)
+    output
 }
 
 @When[os == "iOS"]
@@ -1149,7 +1122,19 @@ public func executeWithOutput(
     stdOut!: ProcessRedirect = Pipe,
     stdErr!: ProcessRedirect = Pipe
 ): (Int64, Array<Byte>, Array<Byte>) {
-    let subProcess: SubProcess = launch(command, arguments, workingDirectory: workingDirectory, environment: environment,
+    executeWithOutputImpl(command, arguments, workingDirectory, environment, stdIn, stdOut, stdErr)
+}
+
+private func executeWithOutputImpl(
+    command: String,
+    arguments: Array<String>,
+    workingDirectory: ?Path,
+    environment: ?Map<String, String>,
+    stdIn: ProcessRedirect,
+    stdOut: ProcessRedirect,
+    stdErr: ProcessRedirect
+): (Int64, Array<Byte>, Array<Byte>) {
+    let subProcess = launch(command, arguments, workingDirectory: workingDirectory, environment: environment,
         stdIn: stdIn, stdOut: stdOut, stdErr: stdErr)
     subProcess.waitOutput()
 }

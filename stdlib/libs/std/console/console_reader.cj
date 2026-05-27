@@ -79,23 +79,17 @@ public class ConsoleReader <: InputStream {
         return None
     }
 
-    /** Read all line */
+    /** Reads all remaining console input. */
     public func readToEnd(): ?String {
         return readUntil({_ => return false})
     }
 
-    /**
-     * Reads until some contents is encountered, or the end of the stream is reached.
-     * ch is included in the result
-     */
+    /** Reads through ch or to the end of the stream. */
     public func readUntil(ch: Rune): ?String {
         return readUntil({it => it == ch})
     }
 
-    /**
-     * Reads until predicate is encountered, or the end of the stream is reached.
-     * ch is included in the result
-     */
+    /** Reads until predicate matches or the end of the stream is reached. */
     public func readUntil(predicate: (Rune) -> Bool): ?String {
         let result: StringBuilder = StringBuilder()
         synchronized(MUTEX) {
@@ -126,21 +120,29 @@ public class ConsoleReader <: InputStream {
      * write Array<Byte> from stdIn to arr and return the length
      */
     public func read(arr: Array<Byte>): Int64 {
-        let arraySize = arr.size
+        let requested = arr.size
         synchronized(MUTEX) {
-            while (arraySize > endIndex - startIndex) {
+            while (requested > availableSize()) {
                 if (!readFromConsole()) {
-                    buffer.copyTo(arr, startIndex, 0, endIndex - startIndex)
-                    let ret = endIndex - startIndex
-                    startIndex = 0
-                    endIndex = 0
-                    return ret
+                    return consumeAvailable(arr)
                 }
             }
-            buffer.copyTo(arr, startIndex, 0, arraySize)
-            startIndex += arraySize
+            buffer.copyTo(arr, startIndex, 0, requested)
+            startIndex += requested
         }
-        return arraySize
+        return requested
+    }
+
+    private func availableSize(): Int64 {
+        endIndex - startIndex
+    }
+
+    private func consumeAvailable(arr: Array<Byte>): Int64 {
+        let copied = availableSize()
+        buffer.copyTo(arr, startIndex, 0, copied)
+        startIndex = 0
+        endIndex = 0
+        return copied
     }
 
     private func readFromConsole(): Bool {
@@ -150,17 +152,18 @@ public class ConsoleReader <: InputStream {
             return false
         }
 
-        unsafe {
-            let ss = line.read()
-            try {
-                this.append(ss)
-            } finally {
-                LibC.free(ss.buffer)
-                LibC.free(line)
-            }
-        }
-
+        unsafe { appendLineAndRelease(line) }
         return true
+    }
+
+    private unsafe func appendLineAndRelease(line: CPointer<StructureString>): Unit {
+        let ss = line.read()
+        try {
+            this.append(ss)
+        } finally {
+            LibC.free(ss.buffer)
+            LibC.free(line)
+        }
     }
 
     /*

@@ -38,15 +38,14 @@ public interface ConcurrentMap<K, V> {
     func contains(key: K): Bool
 
     /**
-     * Add a new key value to the map. If the key already exists,
-     * the value will be overwritten and the overwritten value will be returned.
+     * Stores a value for @p key, replacing an existing value when the key is already present.
      *
-     * @param key: the key to put;
-     * @param value: the value to put.
+     * @param key: key to insert or update.
+     * @param value: value associated with the key.
      *
      * @return:
-     * - None: if @p key does not exist before putting;
-     * - Some(v): if @p key associated with v before putting.
+     * - None: if @p key was absent before the call;
+     * - Some(v): if v was the previous value for @p key.
      */
     @Deprecated[message: "Use member function `func add(key: K, value: V): ?V` instead."]
     func put(key: K, value: V): ?V
@@ -71,13 +70,13 @@ public interface ConcurrentMap<K, V> {
     func addIfAbsent(key: K, value: V): ?V
 
     /**
-     * Removes the key-value pair corresponding to @p key from this mapping, if one exists.
+     * Removes the entry stored for @p key.
      *
-     * @param key: pass in the key to be deleted.
+     * @param key: key whose mapping is removed.
      *
      * @return:
-     * - Some(v): where the pair of @p key and v is the removed element;
-     * - None: where @p key does not exist in the concurrent map.
+     * - Some(v): if @p key previously mapped to v;
+     * - None: if the concurrent map did not contain @p key.
      */
     func remove(key: K): ?V
 

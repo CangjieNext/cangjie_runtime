@@ -43,18 +43,10 @@ public class LinkedBlockingQueue<E> {
 
     @Deprecated[message: "Use the other version of `init` instead."]
     public init(capacity: Int64, elements: Array<E>) {
-        if (capacity <= 0) {
-            throw IllegalArgumentException("Invalid size of BlockingQueue: ${capacity}.")
-        }
-
+        this(capacity)
         if (capacity < elements.size) {
             throw IllegalArgumentException("Size of BlockingQueue should be equal or greater than ${elements.size}.")
         }
-
-        this.capacity = capacity
-        let block = Block<E>(0)
-        front = AtomicReference<Block<E>>(block)
-        rear = AtomicReference<Block<E>>(block)
 
         for (e in elements) {
             tryEnqueue(e)
@@ -63,18 +55,10 @@ public class LinkedBlockingQueue<E> {
 
     @Deprecated[message: "Use the other version of `init` instead."]
     public init(capacity: Int64, elements: Collection<E>) {
-        if (capacity <= 0) {
-            throw IllegalArgumentException("Invalid size of BlockingQueue: ${capacity}.")
-        }
-
+        this(capacity)
         if (capacity < elements.size) {
             throw IllegalArgumentException("Size of BlockingQueue should be equal or greater than ${elements.size}.")
         }
-
-        this.capacity = capacity
-        let block = Block<E>(0)
-        front = AtomicReference<Block<E>>(block)
-        rear = AtomicReference<Block<E>>(block)
 
         for (e in elements) {
             tryEnqueue(e)
@@ -82,12 +66,9 @@ public class LinkedBlockingQueue<E> {
     }
 
     /**
-     * Returns the number of elements in the BlockingQueue.
+     * Returns a sequential snapshot of the number of elements in the linked queue.
      *
-     * It ensures to return the accurate number of elements in the BlockingQueue in sequential.
-     * Note that getting 'size' prop is not atomic!
-     * So, if elements are added or removed during execution of getting 'size',
-     * the 'size' may be inaccurate.
+     * The value is not atomic with concurrent producers or consumers, so it may be stale as soon as it is observed.
      */
     public prop size: Int64 {
         get() {
@@ -95,7 +76,8 @@ public class LinkedBlockingQueue<E> {
             let tailBlock = rear.load()
             let (headBlockVersion, headBlockReserved) = headBlock.getReserved()
             let (tailBlockVersion, tailBlockAllocated) = tailBlock.getAllocated()
-            return (tailBlockAllocated - headBlockReserved) + (Int64(tailBlockVersion - headBlockVersion) << BUF_SIZE_BITS)
+            return (tailBlockAllocated - headBlockReserved) + (Int64(tailBlockVersion - headBlockVersion) <<
+                BUF_SIZE_BITS)
         }
     }
 
@@ -119,14 +101,18 @@ public class LinkedBlockingQueue<E> {
                 return
             }
 
-            receiveMonitor.lock()
-            sendQSize.fetchAdd(1)
-            if (isFull()) {
-                receiveMonitor.wait()
-            }
-            sendQSize.fetchSub(1)
-            receiveMonitor.unlock()
+            waitForWritableElement()
         }
+    }
+
+    private func waitForWritableElement(): Unit {
+        receiveMonitor.lock()
+        sendQSize.fetchAdd(1)
+        if (isFull()) {
+            receiveMonitor.wait()
+        }
+        sendQSize.fetchSub(1)
+        receiveMonitor.unlock()
     }
 
     /**
@@ -151,20 +137,23 @@ public class LinkedBlockingQueue<E> {
             if (tryAdd(element)) {
                 return true
             }
-            receiveMonitor.lock()
-            let startTime = MonoTime.now()
             if (total <= Duration.Zero) {
-                receiveMonitor.unlock()
                 break
             }
-            sendQSize.fetchAdd(1)
-            receiveMonitor.wait(timeout: total)
-            sendQSize.fetchSub(1)
-            let endTime = MonoTime.now()
-            total -= endTime - startTime
-            receiveMonitor.unlock()
+            total = waitForWritableElement(total)
         }
         return false
+    }
+
+    private func waitForWritableElement(timeout: Duration): Duration {
+        receiveMonitor.lock()
+        let startTime = MonoTime.now()
+        sendQSize.fetchAdd(1)
+        receiveMonitor.wait(timeout: timeout)
+        sendQSize.fetchSub(1)
+        let endTime = MonoTime.now()
+        receiveMonitor.unlock()
+        timeout - (endTime - startTime)
     }
 
     /**
@@ -179,7 +168,7 @@ public class LinkedBlockingQueue<E> {
      */
     @Deprecated[message: "Use member function `public func remove(): E` instead."]
     public func dequeue(): E {
-        remove()
+        return remove()
     }
 
     public func remove(): E {
@@ -188,15 +177,19 @@ public class LinkedBlockingQueue<E> {
                 return e
             }
 
-            sendMonitor.lock()
-            receiveQSize.fetchAdd(1)
-            if (size == 0) {
-                sendMonitor.wait()
-            }
-            receiveQSize.fetchSub(1)
-            sendMonitor.unlock()
+            waitForReadableElement()
         }
         throw Exception("Unreachable code.")
+    }
+
+    private func waitForReadableElement(): Unit {
+        sendMonitor.lock()
+        receiveQSize.fetchAdd(1)
+        if (size == 0) {
+            sendMonitor.wait()
+        }
+        receiveQSize.fetchSub(1)
+        sendMonitor.unlock()
     }
 
     /**
@@ -220,29 +213,31 @@ public class LinkedBlockingQueue<E> {
             if (let Some(e) <- tryRemove()) {
                 return Some(e)
             }
-            sendMonitor.lock()
-            let startTime = MonoTime.now()
             if (total <= Duration.Zero) {
-                sendMonitor.unlock()
                 break
             }
-            receiveQSize.fetchAdd(1)
-            sendMonitor.wait(timeout: total)
-            receiveQSize.fetchSub(1)
-            let endTime = MonoTime.now()
-            total -= endTime - startTime
-            sendMonitor.unlock()
+            total = waitForReadableElement(total)
         }
         return None<E>
     }
 
+    private func waitForReadableElement(timeout: Duration): Duration {
+        sendMonitor.lock()
+        let startTime = MonoTime.now()
+        receiveQSize.fetchAdd(1)
+        sendMonitor.wait(timeout: timeout)
+        receiveQSize.fetchSub(1)
+        let endTime = MonoTime.now()
+        sendMonitor.unlock()
+        timeout - (endTime - startTime)
+    }
+
     /**
-     * Gets the head of the queue, but does not remove it.
-     * Such method is non-blocking.
+     * Returns the current head element without removing it.
      *
-     * @return:
-     * - Some(v): if we successfully gets the element at the head of the queue.
-     * - None: if the queue is empty, and we fails to get the head of the queue.
+     * The operation is non-blocking and observes the linked queue at the time of the call.
+     *
+     * @return Some(element) when a head element is available, otherwise None.
      */
     @Deprecated[message: "Use member function `public func peek(): Option<E>` instead."]
     public func head(): Option<E> {

@@ -130,13 +130,11 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
     }
 
     /**
-     * Associates the specified @p value with the specified @p key in this map.
-     * If you map a mapping that previously contained a key, the old value is replaced.
+     * Inserts or replaces the value associated with @p key while preserving key order.
      *
-     * @param key the key to put.
-     * @param value the value to assign.
-     * @return If the key exists before the assignment, the value before the assignment is encapsulated with Option.
-     * Otherwise, return to Option<V>.None
+     * @param key ordered key used to place the entry.
+     * @param value value stored with the key.
+     * @return Some(oldValue) if an existing mapping was replaced; otherwise, None.
      *
      * @since 0.43.1
      */
@@ -539,12 +537,12 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
     }
 
     /**
-     * An exception is reported when the get operator is overloaded and the key does not exist.
+     * Reads the value associated with @p key by using index syntax.
      *
-     * @param key transfer the value for judgment.
-     * @return the value corresponding to the key.
+     * @param key ordered key whose value is required.
+     * @return value stored for the key.
      *
-     * @throws NoneValueException if value does not exist.
+     * @throws NoneValueException if the key is not present.
      *
      * @since 0.43.1
      */
@@ -556,10 +554,10 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
     }
 
     /**
-     * The operator overloads the set. If the key does not exist, an exception is reported.
+     * Stores @p value for @p key through index syntax.
      *
-     * @param key transfer the value for judgment.
-     * @param value transfer the value to be set.
+     * @param key ordered key to insert or update.
+     * @param value value assigned to the key.
      *
      * @since 0.43.1
      */
@@ -590,9 +588,9 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
     }
 
     /**
-     * Returns sizes of key-value.
+     * Returns the number of key-value pairs stored in this TreeMap.
      *
-     * @return sizes of key-value.
+     * @return current ordered entry count.
      *
      * @since 0.43.1
      */
@@ -603,9 +601,9 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
     }
 
     /**
-     * Check whether the size is empty. If yes, true is returned. Otherwise, false is returned.
+     * Reports whether this TreeMap currently has no entries.
      *
-     * @return bool if yes, true is returned. Otherwise, false is returned.
+     * @return true when the root contains no key-value pairs.
      *
      * @since 0.43.1
      */
@@ -646,9 +644,9 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
     }
 
     /**
-     * Delete the first node of the TreeMap.
+     * Removes the entry with the smallest key.
      *
-     * @return If there is a first node, return the deletion and return the key-value pair it stores; Otherwise, None is returned.
+     * @return removed key-value pair, or None when the map is empty.
      *
      * @since 0.43.1
      */
@@ -675,17 +673,17 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
             let sr: SearchResult<K, V> = getLastEntry()
             match (sr.replaceNode) {
                 case Some(v) =>
-                    let item = v.getEntry(sr.index).getOrThrow()
-                    return (item.key, item.value)
+                    let entry = v.getEntry(sr.index).getOrThrow()
+                    return (entry.key, entry.value)
                 case None => None
             }
         }
     }
 
     /**
-     * Delete the last node of the TreeMap.
+     * Removes the entry with the largest key.
      *
-     * @return If there is a last node, return the deletion and return the key-value pair it stores; Otherwise, None is returned.
+     * @return removed key-value pair, or None when the map has no entries.
      *
      * @since 0.43.1
      */
@@ -724,14 +722,14 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
         return TreeMapEntryView<K, V>(this, searchEntry(this.root, result))
     }
     /**
-     * Generate an iterator in positive order from the current node to the end of the bound node.
+     * Creates a reverse-order iterator beginning near @p mark.
      *
-     * @param bound - Passed key
-     * @param inclusive: indicates whether the input key is included. The default value is true, indicating that the input key is included.
+     * @param mark boundary key used to locate the first returned entry.
+     * @param inclusive whether an existing entry equal to @p mark is included.
      *
-     * @return value Iterator<(K, V)> - Returns an iterator in positive order from the current node to the end of the bound.
+     * @return iterator that moves toward smaller keys from the selected entry.
      *
-     * @throws ConcurrentModificationException if lockVersion is not equal to "this.map.version()".
+     * @throws ConcurrentModificationException if the map is modified during iteration.
      *
      * @since 0.43.1
      */
@@ -753,14 +751,14 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
     }
 
     /**
-     * Generate an iterator in positive order from the current node to the end of the bound node.
+     * Creates a forward-order iterator beginning near @p mark.
      *
-     * @param bound - Passed key
-     * @param inclusive: indicates whether the input key is included. The default value is true, indicating that the input key is included.
+     * @param mark boundary key used to locate the first returned entry.
+     * @param inclusive whether an existing entry equal to @p mark is included.
      *
-     * @return value Iterator<(K, V)> - Returns an iterator in positive order from the current node to the end of the bound.
+     * @return iterator that moves toward larger keys from the selected entry.
      *
-     * @throws ConcurrentModificationException if lockVersion is not equal to "this.map.version()".
+     * @throws ConcurrentModificationException if the map is modified during iteration.
      *
      * @since 0.43.1
      */
@@ -853,13 +851,13 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
                 var childNode: Node<K, V> = node.getChild(sr.index).getOrThrow()
                 if (childNode.entrySize == MAX_ENTRY_SIZE) {
                     splitNode(node, childNode, sr.index)
-                    match(node.searchEntry(entry.key).replaceNode){
+                    match (node.searchEntry(entry.key).replaceNode) {
                         case Some(node) =>
                             let tmp = node.getEntry(sr.index).getOrThrow()
                             let oldValue = tmp.value
                             tmp.value = entry.value
                             return oldValue
-                         case None => ()
+                        case None => ()
                     }
                     if (entry.key > node.getEntry(sr.index).getOrThrow().key) {
                         childNode = node.getChild(sr.index + 1).getOrThrow()
@@ -1274,9 +1272,11 @@ class ForwardIterator<K, V> <: Iterator<(K, V)> where K <: Comparable<K> {
     private var inclusive: Bool
 
     /**
-     * Initialize the iterator and transfer the treemap.
+     * Creates an iterator that walks toward larger keys.
      *
-     * @param map the treemap to be transferred.
+     * @param node starting node selected by the caller.
+     * @param key boundary key for this iterator.
+     * @param inclusive whether the boundary node is part of the traversal.
      *
      * @since 0.43.1
      */
@@ -1291,11 +1291,11 @@ class ForwardIterator<K, V> <: Iterator<(K, V)> where K <: Comparable<K> {
     }
 
     /**
-     * Iterate over the nodes of the treemap. The return type is Option, which contains key and value.
+     * Returns the next key-value pair while moving forward through the tree.
      *
-     * @return type is Option, which contains key and value.
+     * @return Some(pair) for the next node, or None when the traversal is exhausted.
      *
-     * @throws ConcurrentModificationException if lockVersion is not equal to "this.map.version()".
+     * @throws ConcurrentModificationException if the backing map changes during traversal.
      *
      * @since 0.43.1
      */
@@ -1378,9 +1378,9 @@ class TreeMapKeys<K, V> <: EquatableCollection<K> where K <: Comparable<K> {
     }
 
     /**
-     * Returns sizes of key-value.
+     * Returns the number of keys visible through this TreeMap key view.
      *
-     * @return sizes of key-value.
+     * @return current size of the backing map.
      *
      * @since 0.43.1
      */
@@ -1391,9 +1391,9 @@ class TreeMapKeys<K, V> <: EquatableCollection<K> where K <: Comparable<K> {
     }
 
     /**
-     * Check whether the size is empty. If yes, true is returned. Otherwise, false is returned.
+     * Reports whether this key view has no elements.
      *
-     * @return bool if yes, true is returned. Otherwise, false is returned.
+     * @return true when the backing TreeMap is empty.
      *
      * @since 0.43.1
      */
@@ -1451,9 +1451,9 @@ class TreeMapValues<K, V> <: Collection<V> where K <: Comparable<K> {
     }
 
     /**
-     * Returns sizes of values.
+     * Returns the number of values visible through this view.
      *
-     * @return sizes of values.
+     * @return current size of the backing tree map.
      *
      * @since 0.43.1
      */
@@ -1464,9 +1464,9 @@ class TreeMapValues<K, V> <: Collection<V> where K <: Comparable<K> {
     }
 
     /**
-     * Check whether the size is empty. If yes, true is returned. Otherwise, false is returned.
+     * Reports whether this value view is empty.
      *
-     * @return bool if yes, true is returned. Otherwise, false is returned.
+     * @return true when the backing map has no entries; otherwise, false.
      *
      * @since 0.43.1
      */

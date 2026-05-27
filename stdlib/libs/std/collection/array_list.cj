@@ -464,7 +464,7 @@ public class ArrayList<T> <: List<T> {
 
     /**
      * @description Extracts elements from the ArrayList at the specified interval and returns a new ArrayList.
-     * 
+     *
      * @param count the selected interval.
      * @returns a new ArrayList containing all elements extracted from the source ArrayList at intervals.
      * @throws IllegalArgumentException, if count < 0.
@@ -492,7 +492,7 @@ public class ArrayList<T> <: List<T> {
 
     /**
      * @description Extracts a specific number of elements from the array and returns a new array.
-     * 
+     *
      * @param the number of elements to take.
      * @returns a new ArrayList with the specified number of elements taken.
      * @throws IllegalArgumentException, if count < 0.
@@ -515,7 +515,7 @@ public class ArrayList<T> <: List<T> {
 
     /**
      * @description Skips a specific number of elements and returns a new ArrayList.
-     * 
+     *
      * @param count the number of elements to skip.
      * @returns a new ArrayList with the specified number of elements skipped.
      * @throws IllegalArgumentException, if count < 0.
@@ -540,7 +540,7 @@ public class ArrayList<T> <: List<T> {
 
     /**
      * @description Returns a new ArrayList<T> containing elements that satisfy the filtering condition.
-     * 
+     *
      * @param predicate the given condition.
      * @returns a new collection containing elements that satisfy the filtering condition.
      */
@@ -557,12 +557,12 @@ public class ArrayList<T> <: List<T> {
                 j++
             }
         }
-        return ArrayList<T>(newData.slice(0,j))
+        return ArrayList<T>(newData.slice(0, j))
     }
 
     /**
      * @description Performs mapping on this ArrayList and returns a new ArrayList.
-     * 
+     *
      * @param transform the given mapping function.
      * @returns a new ArrayList.
      */
@@ -580,14 +580,14 @@ public class ArrayList<T> <: List<T> {
 
     /**
      * @description Performs filtering and mapping operations simultaneously, returning a new ArrayList.
-     * 
+     *
      * @param transform the given mapping function.
      * @returns a new ArrayList after filtering and mapping.
      */
     @When[env != "ohos"]
     public func flatMap<R>(transform: (T) -> ArrayList<R>): ArrayList<R> {
-        var newList :ArrayList<R> = ArrayList<R>()
-        for(i in 0..mySize){
+        var newList: ArrayList<R> = ArrayList<R>()
+        for (i in 0..mySize) {
             var tempData = transform(myData[i])
             newList.add(all: tempData)
         }
@@ -597,7 +597,7 @@ public class ArrayList<T> <: List<T> {
     /**
      * @description Applies a transformation closure (transform) to each element in the ArrayList, where the closure returns a new ArrayList
                     then "flattens" and concatenates all returned ArrayList into a single result ArrayList.
-     * 
+     *
      * @param transform the given mapping function.
      * @returns the new ArrayList after being "mapped" and "flattened".
      */
@@ -616,12 +616,12 @@ public class ArrayList<T> <: List<T> {
                 case None => continue
             }
         }
-        return ArrayList<R>(newData.slice(0,j))
+        return ArrayList<R>(newData.slice(0, j))
     }
 
     /**
      * @description Returns a new ArrayList with the given new element inserted between every two elements.
-     * 
+     *
      * @param separator the given element.
      * @returns a new ArrayList.
      */
@@ -643,7 +643,7 @@ public class ArrayList<T> <: List<T> {
 
     /**
      * @description Iterates over all elements and performs the given operation.
-     * 
+     *
      * @param action the given operation function.
      */
     @When[env != "ohos"]
@@ -655,7 +655,7 @@ public class ArrayList<T> <: List<T> {
 
     /**
      * @description Determine whether all elements in the ArrayList satisfy the condition.
-     * 
+     *
      * @param predicate the given condition.
      * @returns true if all elements in the ArrayList satisfy the condition, otherwise returns false.
      */
@@ -671,7 +671,7 @@ public class ArrayList<T> <: List<T> {
 
     /**
      * @description Determine whether there is any element in the ArrayList that satisfies the condition.
-     * 
+     *
      * @param predicate the given condition.
      * @returns Whether there is any element that satisfies the condition.
      */
@@ -686,10 +686,10 @@ public class ArrayList<T> <: List<T> {
     }
 
     /**
-     * @description Determine whether all elements in the ArrayList do not satisfy the condition.
-     * 
-     * @param predicate the given condition.
-     * @returns Whether all elements in the current ArrayList do not satisfy the condition.
+     * @description Checks that the predicate rejects every occupied slot in this ArrayList.
+     *
+     * @param predicate condition evaluated against each stored element.
+     * @returns true when no element matches the predicate.
      */
     @When[env != "ohos"]
     public func none(predicate: (T) -> Bool): Bool {
@@ -702,11 +702,11 @@ public class ArrayList<T> <: List<T> {
     }
 
     /**
-     * @description Computes from left to right using the specified initial value.
-     * 
-     * @param initial the given initial value of type R.
-     * @param operation the given computation function.
-     * @returns the final computed value.
+     * @description Walks the ArrayList in index order and updates an accumulator for each element.
+     *
+     * @param initial accumulator value used before the first element is visited.
+     * @param operation function that combines the accumulator with the current element.
+     * @returns accumulator value after all elements have been processed.
      */
     @When[env != "ohos"]
     public func fold<R>(initial: R, operation: (R, T) -> R): R {
@@ -718,10 +718,10 @@ public class ArrayList<T> <: List<T> {
     }
 
     /**
-     * @description Compute from left to right using the first element as the initial value.
-     * 
-     * @param operation the given computation function.
-     * @returns the final computed value.
+     * @description Reduces this ArrayList from the first element to the last element.
+     *
+     * @param operation function used to combine two accumulated elements.
+     * @returns None for an empty list; otherwise, the reduced value.
      */
     @When[env != "ohos"]
     public func reduce(operation: (T, T) -> T): Option<T> {
@@ -1115,7 +1115,7 @@ extend<T> ArrayList<T> <: ToString where T <: ToString {
 extend<T> ArrayList<T> {
     /**
      * @description Merges two ArrayList into a new ArrayList (the length depends on the shorter ArrayList).
-     * 
+     *
      * @param other one of the ArrayList to be merged.
      * @returns a new ArrayList.
      */
@@ -1134,7 +1134,7 @@ extend<T> ArrayList<T> {
 
     /**
      * @description Used to obtain an ArrayList with indices.
-     * 
+     *
      * @returns a new ArrayList with indices.
      */
     @When[env != "ohos"]
@@ -1894,7 +1894,7 @@ extend<T> Array<T> {
             a = b
             b = temp
         }
-        
+
         if (comparator(c, a) == LT) {
             this[i1] = c
             this[i2] = a
