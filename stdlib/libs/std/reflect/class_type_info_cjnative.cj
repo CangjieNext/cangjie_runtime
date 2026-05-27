@@ -26,14 +26,14 @@ public class ClassTypeInfo <: TypeInfo {
         super(cp)
     }
 
-    public redef static func get(qualifiedName: String): ClassTypeInfo {
+    public static redef func get(qualifiedName: String): ClassTypeInfo {
         match (TypeInfo.get(qualifiedName)) {
             case typ: ClassTypeInfo => return typ
             case _ => throw IllegalTypeException("The type of '${qualifiedName}' is not a Class Type.")
         }
     }
 
-    public redef static func of(a: Any): ClassTypeInfo {
+    public static redef func of(a: Any): ClassTypeInfo {
         match (TypeInfo.of(a)) {
             case typ: ClassTypeInfo => return typ
             case _ => throw IllegalTypeException("The type of parameter 'a' is not a Class Type.")
@@ -44,7 +44,7 @@ public class ClassTypeInfo <: TypeInfo {
         return TypeInfo.of(a)
     }
 
-    public redef static func of<T>(): ClassTypeInfo {
+    public static redef func of<T>(): ClassTypeInfo {
         match (TypeInfo.of<T>()) {
             case typ: ClassTypeInfo => return typ
             case _ => throw IllegalTypeException("The type of generic type 'T' is not a Class Type.")
@@ -74,18 +74,7 @@ public class ClassTypeInfo <: TypeInfo {
             match (_instanceVariables) {
                 case Some(res) => res
                 case None =>
-                    let num = getNumOfInstanceFieldInfos(_info)
-                    let infos = Array<InstanceVariableInfo>(
-                        Int64(num),
-                        {
-                            index =>
-                            let pointer = getInstanceFieldInfo(_info, UInt32(index))
-                            if (pointer.isNull()) {
-                                throw InfoNotFoundException("ClassTypeInfo find instanceVariables failed!")
-                            }
-                            InstanceVariableInfo(pointer, _info)
-                        }
-                    )
+                    let infos = getInstanceVariableInfos(_info, "ClassTypeInfo", false)
                     _instanceVariables = infos
                     infos
             }
@@ -100,18 +89,7 @@ public class ClassTypeInfo <: TypeInfo {
             match (_staticVariables) {
                 case Some(res) => res
                 case None =>
-                    let num = getNumOfStaticFieldInfos(_info)
-                    let infos = Array<StaticVariableInfo>(
-                        Int64(num),
-                        {
-                            index =>
-                            let pointer = getStaticFieldInfo(_info, UInt32(index))
-                            if (pointer.isNull()) {
-                                throw InfoNotFoundException("ClassTypeInfo find staticVariables failed!")
-                            }
-                            StaticVariableInfo(pointer, _info)
-                        }
-                    )
+                    let infos = getStaticVariableInfos(_info, "ClassTypeInfo")
                     _staticVariables = infos
                     infos
             }

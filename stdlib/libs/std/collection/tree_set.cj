@@ -265,9 +265,9 @@ public class TreeSet<T> <: OrderedSet<T> where T <: Comparable<T> {
     }
 
     /**
-     * @description Iterates over all elements and performs the given operation.
+     * @description Visits TreeSet elements in their map-backed traversal order.
      *
-     * @param action the given operation function.
+     * @param action operation invoked for each element.
      */
     @When[env != "ohos"]
     public func forEach(action: (T) -> Unit): Unit {
@@ -275,10 +275,10 @@ public class TreeSet<T> <: OrderedSet<T> where T <: Comparable<T> {
     }
 
     /**
-     * @description Determine whether all elements in the TreeSet satisfy the condition.
+     * @description Checks whether every element in this TreeSet satisfies the predicate.
      *
-     * @param predicate the given condition.
-     * @returns true if all elements in the TreeSet satisfy the condition, otherwise returns false.
+     * @param predicate condition evaluated against each ordered element.
+     * @returns true when all elements match the predicate.
      */
     @When[env != "ohos"]
     public func all(predicate: (T) -> Bool): Bool {
@@ -286,10 +286,10 @@ public class TreeSet<T> <: OrderedSet<T> where T <: Comparable<T> {
     }
 
     /**
-     * @description Determine whether there is any element in the TreeSet that satisfies the condition.
+     * @description Searches this TreeSet for an element accepted by the predicate.
      *
-     * @param predicate the given condition.
-     * @returns Whether there is any element that satisfies the condition.
+     * @param predicate condition evaluated in set traversal order.
+     * @returns true when at least one element satisfies the predicate.
      */
     @When[env != "ohos"]
     public func any(predicate: (T) -> Bool): Bool {
@@ -297,10 +297,10 @@ public class TreeSet<T> <: OrderedSet<T> where T <: Comparable<T> {
     }
 
     /**
-     * @description Determine whether all elements in the TreeSet do not satisfy the condition.
+     * @description Checks that no element in this TreeSet satisfies the predicate.
      *
-     * @param predicate the given condition.
-     * @returns Whether all elements in the current TreeSet do not satisfy the condition.
+     * @param predicate condition evaluated through the backing map.
+     * @returns true if every element is rejected by the predicate.
      */
     @When[env != "ohos"]
     public func none(predicate: (T) -> Bool): Bool {
@@ -308,11 +308,11 @@ public class TreeSet<T> <: OrderedSet<T> where T <: Comparable<T> {
     }
 
     /**
-     * @description Computes from left to right using the specified initial value.
+     * @description Folds TreeSet elements into an accumulator using backing-map traversal.
      *
-     * @param initial the given initial value of type R.
-     * @param operation the given computation function.
-     * @returns the final computed value.
+     * @param initial accumulator value used before the first element.
+     * @param operation function that combines the accumulator with one element.
+     * @returns accumulated value after traversal completes.
      */
     @When[env != "ohos"]
     public func fold<R>(initial: R, operation: (R, T) -> R): R {
@@ -320,9 +320,9 @@ public class TreeSet<T> <: OrderedSet<T> where T <: Comparable<T> {
     }
 
     /**
-     * @description Compute from left to right using the first value as the initial value.
+     * @description Reduces TreeSet elements using the first traversed element as the initial value.
      *
-     * @param operation the given computation function.
+     * @param operation function that combines the accumulated element with the next element.
      * @returns the final computed value.
      */
     @When[env != "ohos"]
@@ -449,8 +449,8 @@ public class TreeSet<T> <: OrderedSet<T> where T <: Comparable<T> {
      */
     public operator func &(other: ReadOnlySet<T>): TreeSet<T> {
         let result = TreeSet<T>()
-        for (key in this.myMap.keys() where other.contains(key)) {
-            result.add(key)
+        for (element in this.myMap.keys() where other.contains(element)) {
+            result.add(element)
         }
         return result
     }
