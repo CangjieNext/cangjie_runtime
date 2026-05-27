@@ -16,12 +16,9 @@ package std.math
 
 /********************* utility functions *********************/
 /**
- * Returns the absolute value of a floating-point number.
- * If the parameter is not a negative number, the parameter is returned.
- * If the argument is negative, the negative number of the argument is returned.
- * special cases that arise:
- * If the argument is NaN, the result is NaN.
- * If the argument is infinite, the result is positive infinity.
+ * Returns the magnitude of a Float64 value without changing its numeric type.
+ * The sign bit is removed from finite inputs, so -0.0 becomes +0.0.
+ * For NaN, the result is NaN. For either infinity, the result is positive infinity.
  *
  * @param x some value.
  * @return the absolute value of @p x.
@@ -34,12 +31,9 @@ public func abs(x: Float64): Float64 {
 }
 
 /**
- * Returns the absolute value of a floating-point number.
- * If the parameter is not a negative number, the parameter is returned.
- * If the argument is negative, the negative number of the argument is returned.
- * special cases that arise:
- * If the argument is NaN, the result is NaN.
- * If the argument is infinite, the result is positive infinity.
+ * Computes the absolute value for a Float32 argument.
+ * The sign bit is cleared for finite inputs, including negative zero.
+ * NaN stays NaN, and infinite input produces positive infinity.
  *
  * @param x some value.
  * @return the absolute value of @p x.
@@ -52,12 +46,9 @@ public func abs(x: Float32): Float32 {
 }
 
 /**
- * Returns the absolute value of a floating-point number.
- * If the parameter is not a negative number, the parameter is returned.
- * If the argument is negative, the negative number of the argument is returned.
- * special cases that arise:
- * If the argument is NaN, the result is NaN.
- * If the argument is infinite, the result is positive infinity.
+ * Gets the absolute value of a Float16 argument.
+ * Finite inputs are returned with a positive sign, including -0.0.
+ * NaN remains NaN, and infinity is normalized to positive infinity.
  *
  * @param x some value.
  * @return the absolute value of @p x.
@@ -70,11 +61,9 @@ public func abs(x: Float16): Float16 {
 }
 
 /**
- * Returns the absolute value of a number.
- * If the parameter is not a negative number, the parameter is returned.
- * If the argument is negative, the negative number of the argument is returned.
- * special cases that arise:
- * An OverflowException will be thrown if the argument is MIN_VALUE.
+ * Returns the absolute value of an Int64 number.
+ * Non-negative input is returned directly, and negative input is negated.
+ * Int64.Min cannot be represented as a positive Int64 and causes an exception.
  *
  * @param x some value.
  * @return the absolute value of @p x.
@@ -92,11 +81,10 @@ public func abs(x: Int64): Int64 {
 }
 
 /**
- * Returns the absolute value of a number.
- * If the parameter is not a negative number, the parameter is returned.
- * If the argument is negative, the negative number of the argument is returned.
- * special cases that arise:
- * An OverflowException will be thrown if the argument is MIN_VALUE.
+ * Computes the absolute value of an Int32 number.
+ * Values greater than or equal to zero are preserved, while negative values are
+ * converted to their positive counterpart.
+ * Int32.Min overflows the result range.
  *
  * @param x some value.
  * @return the absolute value of @p x.
@@ -114,11 +102,9 @@ public func abs(x: Int32): Int32 {
 }
 
 /**
- * Returns the absolute value of a number.
- * If the parameter is not a negative number, the parameter is returned.
- * If the argument is negative, the negative number of the argument is returned.
- * special cases that arise:
- * An OverflowException will be thrown if the argument is MIN_VALUE.
+ * Gets the absolute value of an Int16 number.
+ * A non-negative argument is returned as is. A negative argument is negated unless
+ * it is Int16.Min, whose positive value is out of range.
  *
  * @param x some value.
  * @return the absolute value of @p x.
@@ -136,11 +122,9 @@ public func abs(x: Int16): Int16 {
 }
 
 /**
- * Returns the absolute value of a number.
- * If the parameter is not a negative number, the parameter is returned.
- * If the argument is negative, the negative number of the argument is returned.
- * special cases that arise:
- * An OverflowException will be thrown if the argument is MIN_VALUE.
+ * Returns the magnitude of an Int8 value.
+ * The minimum Int8 value has no representable positive counterpart and therefore
+ * throws OverflowException.
  *
  * @param x some value.
  * @return the absolute value of @p x.
@@ -158,13 +142,9 @@ public func abs(x: Int8): Int8 {
 }
 
 /**
- * Returns the square root of the value.
- * The square root of a positive value is the positive number
- * of the square root of the size of the value.
- * special cases that arise:
- * If the parameter is negative, an invalid parameter exception is thrown.
- * If the argument is NaN, the result is NaN.
- * If the argument is positive infinity, the result is positive infinity.
+ * Returns the square root of a Float16 value.
+ * A negative argument is rejected with IllegalArgumentException.
+ * NaN remains NaN, and positive infinity is returned as positive infinity.
  *
  * @param x some value.
  * @return the square root of @p x.
@@ -183,13 +163,9 @@ public func sqrt(x: Float16): Float16 {
 }
 
 /**
- * Returns the square root of the value.
- * The square root of a positive value is the positive number
- * of the square root of the size of the value.
- * special cases that arise:
- * If the parameter is negative, an invalid parameter exception is thrown.
- * If the argument is NaN, the result is NaN.
- * If the argument is positive infinity, the result is positive infinity.
+ * Computes the Float32 square root of the argument.
+ * Negative input is invalid and raises IllegalArgumentException.
+ * The special values NaN and positive infinity are propagated.
  *
  * @param x some value.
  * @return the square root of @p x.
@@ -208,13 +184,9 @@ public func sqrt(x: Float32): Float32 {
 }
 
 /**
- * Returns the square root of the value.
- * The square root of a positive value is the positive number
- * of the square root of the size of the value.
- * special cases that arise:
- * If the parameter is negative, an invalid parameter exception is thrown.
- * If the argument is NaN, the result is NaN.
- * If the argument is positive infinite, the result is positive infinity.
+ * Computes the principal square root of a Float64 value.
+ * Values below zero are rejected with IllegalArgumentException.
+ * NaN is returned as NaN, and positive infinity is returned unchanged.
  *
  * @param x some value.
  * @return the square root of @p x.
@@ -233,12 +205,9 @@ public func sqrt(x: Float64): Float64 {
 }
 
 /**
- * Returns Euler's number raised to the power of a value.
- * special cases that arise:
- * If the argument is NaN, the result is NaN.
- * If the parameter is negative, an invalid parameter exception is thrown.
- * If the argument is positive infinite, the result is positive infinity.
- * If the argument is negative infinity, then the result is zero
+ * Raises Euler's number to a Float64 exponent.
+ * NaN is returned as NaN; positive infinity returns positive infinity; negative
+ * infinity returns zero.
  *
  * @param x some value.
  * @return \f$ e^{x} \f$.
@@ -251,12 +220,9 @@ public func exp(x: Float64): Float64 {
 }
 
 /**
- * Returns Euler's number raised to the power of a value.
- * special cases that arise:
- * If the argument is NaN, the result is NaN.
- * If the parameter is negative, an invalid parameter exception is thrown.
- * If the argument is positive infinite, the result is positive infinity.
- * If the argument is negative infinity, then the result is zero
+ * Evaluates the natural exponential function for a Float32 argument.
+ * NaN propagates as NaN, and the two infinite inputs return positive infinity
+ * and zero respectively.
  *
  * @param x some value.
  * @return \f$ e^{x} \f$.
@@ -269,12 +235,9 @@ public func exp(x: Float32): Float32 {
 }
 
 /**
- * Returns Euler's number raised to the power of a value.
- * special cases that arise:
- * If the argument is NaN, the result is NaN.
- * If the parameter is negative, an invalid parameter exception is thrown.
- * If the argument is positive infinite, the result is positive infinity.
- * If the argument is negative infinity, then the result is zero
+ * Computes e raised to the Float16 argument.
+ * The result is NaN for NaN, positive infinity for positive infinity, and zero
+ * for negative infinity.
  *
  * @param x some value.
  * @return \f$ e^{x} \f$.
@@ -287,12 +250,9 @@ public func exp(x: Float16): Float16 {
 }
 
 /**
- * Returns 2's number raised to the power of a value.
- * special cases that arise:
- * If the argument is NaN, the result is NaN.
- * If the parameter is negative, an invalid parameter exception is thrown.
- * If the argument is positive infinite, the result is positive infinity.
- * If the argument is negative infinity, then the result is zero
+ * Raises 2 to a Float64 exponent.
+ * NaN remains NaN, positive infinity produces positive infinity, and negative
+ * infinity produces zero.
  *
  * @param x some value.
  * @return \f$ 2^{x} \f$.
@@ -305,12 +265,9 @@ public func exp2(x: Float64): Float64 {
 }
 
 /**
- * Returns 2's number raised to the power of a value.
- * special cases that arise:
- * If the argument is NaN, the result is NaN.
- * If the parameter is negative, an invalid parameter exception is thrown.
- * If the argument is positive infinite, the result is positive infinity.
- * If the argument is negative infinity, then the result is zero
+ * Evaluates 2 to the power of a Float32 value.
+ * NaN is propagated. Positive infinity and negative infinity return positive
+ * infinity and zero respectively.
  *
  * @param x some value.
  * @return \f$ 2^{x} \f$.
@@ -323,12 +280,9 @@ public func exp2(x: Float32): Float32 {
 }
 
 /**
- * Returns 2's number raised to the power of a value.
- * special cases that arise:
- * If the argument is NaN, the result is NaN.
- * If the parameter is negative, an invalid parameter exception is thrown.
- * If the argument is positive infinite, the result is positive infinity.
- * If the argument is negative infinity, then the result is zero
+ * Computes 2 raised to the Float16 argument.
+ * NaN, positive infinity, and negative infinity map to NaN, positive infinity,
+ * and zero respectively.
  *
  * @param x some value.
  * @return \f$ 2^{x} \f$.
@@ -341,12 +295,9 @@ public func exp2(x: Float16): Float16 {
 }
 
 /**
- * Returns the base 10 logarithm of a value.
- * special cases that arise:
- * If the parameter is NaN or less than zero, the result is NaN.
- * If the argument is positive infinity, the result is positive infinity.
- * If the argument is positive zero or negative zero, the result is negative infinity.
- * If the argument is equal to a 10*n integer, the result is n.
+ * Returns the base 10 logarithm for a Float64 value.
+ * NaN and negative values return NaN, positive infinity returns positive infinity,
+ * and either signed zero returns negative infinity.
  *
  * @param x some value.
  * @return base 10 logarithm of @p x.
@@ -359,12 +310,9 @@ public func log10(x: Float64): Float64 {
 }
 
 /**
- * Returns the base 10 logarithm of a value.
- * special cases that arise:
- * If the parameter is NaN or less than zero, the result is NaN.
- * If the argument is positive infinity, the result is positive infinity.
- * If the argument is positive zero or negative zero, the result is negative infinity.
- * If the argument is equal to a 10*n integer, the result is n.
+ * Computes the decimal logarithm of a Float32 value.
+ * The result is NaN for NaN or negative input, positive infinity for positive
+ * infinity, and negative infinity for positive or negative zero.
  *
  * @param x some value.
  * @return base 10 logarithm of @p x.
@@ -377,12 +325,9 @@ public func log10(x: Float32): Float32 {
 }
 
 /**
- * Returns the base 10 logarithm of a value.
- * special cases that arise:
- * If the parameter is NaN or less than zero, the result is NaN.
- * If the argument is positive infinity, the result is positive infinity.
- * If the argument is positive zero or negative zero, the result is negative infinity.
- * If the argument is equal to a 10*n integer, the result is n.
+ * Gets the base 10 logarithm of a Float16 value.
+ * NaN and values below zero produce NaN. Positive infinity is preserved, and
+ * both signed zeros produce negative infinity.
  *
  * @param x some value.
  * @return base 10 logarithm of @p x.
@@ -395,12 +340,9 @@ public func log10(x: Float16): Float16 {
 }
 
 /**
- * Returns the base 2 logarithm of a value.
- * special cases that arise:
- * If the parameter is NaN or less than zero, the result is NaN.
- * If the argument is positive infinity, the result is positive infinity.
- * If the argument is positive zero or negative zero, the result is negative infinity.
- * If the argument is equal to a 2*n integer, the result is n.
+ * Returns the base 2 logarithm for a Float64 value.
+ * NaN or negative input returns NaN. Positive infinity returns positive infinity,
+ * and positive or negative zero returns negative infinity.
  *
  * @param x some value.
  * @return base 2 logarithm of @p x.
@@ -413,12 +355,9 @@ public func log2(x: Float64): Float64 {
 }
 
 /**
- * Returns the base 2 logarithm of a value.
- * special cases that arise:
- * If the parameter is NaN or less than zero, the result is NaN.
- * If the argument is positive infinity, the result is positive infinity.
- * If the argument is positive zero or negative zero, the result is negative infinity.
- * If the argument is equal to a 2*n integer, the result is n.
+ * Computes the binary logarithm of a Float32 value.
+ * NaN and negative arguments produce NaN; positive infinity and signed zero
+ * produce positive infinity and negative infinity respectively.
  *
  * @param x some value.
  * @return base 2 logarithm of @p x.
@@ -431,12 +370,9 @@ public func log2(x: Float32): Float32 {
 }
 
 /**
- * Returns the base 2 logarithm of a value.
- * special cases that arise:
- * If the parameter is NaN or less than zero, the result is NaN.
- * If the argument is positive infinity, the result is positive infinity.
- * If the argument is positive zero or negative zero, the result is negative infinity.
- * If the argument is equal to a 2*n integer, the result is n.
+ * Gets the base 2 logarithm of a Float16 argument.
+ * NaN or a value less than zero returns NaN, positive infinity is preserved, and
+ * both signed zeros return negative infinity.
  *
  * @param x some value.
  * @return base 2 logarithm of @p x.
@@ -449,11 +385,9 @@ public func log2(x: Float16): Float16 {
 }
 
 /**
- * Return the natural logarithm of a value.
- * special cases that arise:
- * If the parameter is NaN or less than zero, the result is NaN.
- * If the argument is positive infinity, the result is positive infinity.
- * If the argument is positive zero or negative zero, the result is negative infinity.
+ * Returns the natural logarithm of a Float64 value.
+ * NaN and negative values return NaN, positive infinity returns positive infinity,
+ * and either signed zero returns negative infinity.
  *
  * @param x some value.
  * @return \f$ \ln{x} \f$.
@@ -466,11 +400,9 @@ public func log(x: Float64): Float64 {
 }
 
 /**
- * Return the natural logarithm of a value.
- * special cases that arise:
- * If the parameter is NaN or less than zero, the result is NaN.
- * If the argument is positive infinity, the result is positive infinity.
- * If the argument is positive zero or negative zero, the result is negative infinity.
+ * Computes the natural logarithm of a Float32 value.
+ * The result is NaN for NaN or negative input, positive infinity for positive
+ * infinity, and negative infinity for positive or negative zero.
  *
  * @param x some value.
  * @return \f$ \ln{x} \f$.
@@ -483,11 +415,9 @@ public func log(x: Float32): Float32 {
 }
 
 /**
- * Return the natural logarithm of a value.
- * special cases that arise:
- * If the parameter is NaN or less than zero, the result is NaN.
- * If the argument is positive infinity, the result is positive infinity.
- * If the argument is positive zero or negative zero, the result is negative infinity.
+ * Gets the natural logarithm of a Float16 value.
+ * NaN and values below zero produce NaN. Positive infinity is preserved, and
+ * both signed zeros produce negative infinity.
  *
  * @param x some value.
  * @return \f$ \ln{x} \f$.
@@ -500,12 +430,11 @@ public func log(x: Float16): Float16 {
 }
 
 /**
- * Return the largest (closest to positive infinity) floating-point value that
- * less than or equal to the argument and is equal to a mathematical integer.
+ * Rounds a Float64 value downward to the nearest mathematical integer value.
+ * The returned floating-point value is less than or equal to @p x.
  *
  * @param x some value.
- * @return the largest (closest to positive infinity) floating-point value that
- * less than or equal to the argument and is equal to a mathematical integer.
+ * @return the rounded-down Float64 result.
  *
  * @since 0.17.4
  */
@@ -515,12 +444,11 @@ public func floor(x: Float64): Float64 {
 }
 
 /**
- * Return the largest (closest to positive infinity) floating-point value that
- * less than or equal to the argument and is equal to a mathematical integer.
+ * Returns the greatest Float32 integer value that is not greater than @p x.
+ * The result keeps the Float32 type.
  *
  * @param x some value.
- * @return the largest (closest to positive infinity) floating-point value that
- * less than or equal to the argument and is equal to a mathematical integer.
+ * @return the floor of @p x as Float32.
  *
  * @since 0.17.4
  */
@@ -530,12 +458,11 @@ public func floor(x: Float32): Float32 {
 }
 
 /**
- * Return the largest (closest to positive infinity) floating-point value that
- * less than or equal to the argument and is equal to a mathematical integer.
+ * Computes the floor of a Float16 value.
+ * The result is the nearest mathematical integer value toward negative infinity.
  *
  * @param x some value.
- * @return the largest (closest to positive infinity) floating-point value that
- * less than or equal to the argument and is equal to a mathematical integer.
+ * @return the floor of @p x as Float16.
  *
  * @since 0.17.4
  */
@@ -545,12 +472,11 @@ public func floor(x: Float16): Float16 {
 }
 
 /**
- * Return the smallest (closest to negative infinity) floating-point value that
- * is greater than or equal to the argument and is equal to a mathematical integer.
+ * Rounds a Float64 value upward to the nearest mathematical integer value.
+ * The returned floating-point value is greater than or equal to @p x.
  *
  * @param x some value.
- * @return the smallest (closest to negative infinity) floating-point value that
- * is greater than or equal to the argument and is equal to a mathematical integer.
+ * @return the rounded-up Float64 result.
  *
  * @since 0.17.4
  */
@@ -560,12 +486,11 @@ public func ceil(x: Float64): Float64 {
 }
 
 /**
- * Return the smallest (closest to negative infinity) floating-point value that
- * is greater than or equal to the argument and is equal to a mathematical integer.
+ * Returns the least Float32 integer value that is not less than @p x.
+ * The result keeps the Float32 type.
  *
  * @param x some value.
- * @return the smallest (closest to negative infinity) floating-point value that
- * is greater than or equal to the argument and is equal to a mathematical integer.
+ * @return the ceiling of @p x as Float32.
  *
  * @since 0.17.4
  */
@@ -575,12 +500,11 @@ public func ceil(x: Float32): Float32 {
 }
 
 /**
- * Return the smallest (closest to negative infinity) floating-point value that
- * is greater than or equal to the argument and is equal to a mathematical integer.
+ * Computes the ceiling of a Float16 value.
+ * The result is the nearest mathematical integer value toward positive infinity.
  *
  * @param x some value.
- * @return the smallest (closest to negative infinity) floating-point value that
- * is greater than or equal to the argument and is equal to a mathematical integer.
+ * @return the ceiling of @p x as Float16.
  *
  * @since 0.17.4
  */
@@ -590,10 +514,10 @@ public func ceil(x: Float16): Float16 {
 }
 
 /**
- * Truncates the values after the decimal point.
+ * Truncates a Float64 value toward zero.
  *
  * @param x some value.
- * @return the values after the decimal point is 0.
+ * @return the Float64 value with the fractional part removed.
  *
  * @since 0.17.4
  */
@@ -603,10 +527,10 @@ public func trunc(x: Float64): Float64 {
 }
 
 /**
- * Truncates the values after the decimal point.
+ * Removes the fractional part of a Float32 value by rounding toward zero.
  *
  * @param x some value.
- * @return the values after the decimal point is 0.
+ * @return the truncated Float32 result.
  *
  * @since 0.17.4
  */
@@ -616,10 +540,10 @@ public func trunc(x: Float32): Float32 {
 }
 
 /**
- * Truncates the values after the decimal point.
+ * Computes the Float16 value obtained by discarding the fractional part.
  *
  * @param x some value.
- * @return the values after the decimal point is 0.
+ * @return the truncated Float16 result.
  *
  * @since 0.17.4
  */
@@ -631,10 +555,10 @@ public func trunc(x: Float16): Float16 {
 /********************* Trigonometric functions *********************/
 
 /**
- * Returns the trigonometric sine of an angle.
+ * Returns the sine of a Float64 angle measured in radians.
  *
  * @param x an angle, in radians.
- * @return the sine of @p x.
+ * @return the Float64 sine of @p x.
  *
  * @since 0.17.4
  */
@@ -644,10 +568,10 @@ public func sin(x: Float64): Float64 {
 }
 
 /**
- * Returns the trigonometric sine of an angle.
+ * Computes the trigonometric sine for a Float32 radian value.
  *
  * @param x an angle, in radians.
- * @return the sine of @p x.
+ * @return the Float32 sine of @p x.
  *
  * @since 0.17.4
  */
@@ -657,10 +581,10 @@ public func sin(x: Float32): Float32 {
 }
 
 /**
- * Returns the trigonometric sine of an angle.
+ * Gets the sine of a Float16 angle in radians.
  *
  * @param x an angle, in radians.
- * @return the sine of @p x.
+ * @return the Float16 sine of @p x.
  *
  * @since 0.17.4
  */
@@ -670,10 +594,10 @@ public func sin(x: Float16): Float16 {
 }
 
 /**
- * Returns the trigonometric cosine of an angle.
+ * Returns the cosine of a Float64 angle measured in radians.
  *
  * @param x an angle, in radians.
- * @return the cosine of @p x.
+ * @return the Float64 cosine of @p x.
  *
  * @since 0.17.4
  */
@@ -683,10 +607,10 @@ public func cos(x: Float64): Float64 {
 }
 
 /**
- * Returns the trigonometric cosine of an angle.
+ * Computes the trigonometric cosine for a Float32 radian value.
  *
  * @param x an angle, in radians.
- * @return the cosine of @p x.
+ * @return the Float32 cosine of @p x.
  *
  * @since 0.17.4
  */
@@ -696,10 +620,10 @@ public func cos(x: Float32): Float32 {
 }
 
 /**
- * Returns the trigonometric cosine of an angle.
+ * Gets the cosine of a Float16 angle in radians.
  *
  * @param x an angle, in radians.
- * @return the cosine of @p x.
+ * @return the Float16 cosine of @p x.
  *
  * @since 0.17.4
  */
@@ -709,10 +633,10 @@ public func cos(x: Float16): Float16 {
 }
 
 /**
- * Returns the value of the first argument raised to the power of the second argument.
- * @param base the base.
- * @param exponent the exponent.
- * @return \f$ {base}^{exponent} \f$.
+ * Raises a Float64 base to a Float64 exponent.
+ * @param base the Float64 base.
+ * @param exponent the Float64 exponent.
+ * @return \f$ {base}^{exponent} \f$ as Float64.
  *
  * @since 0.17.4
  */
@@ -722,10 +646,10 @@ public func pow(base: Float64, exponent: Float64): Float64 {
 }
 
 /**
- * Returns the value of the first argument raised to the power of the second argument.
- * @param base the base.
- * @param exponent the exponent.
- * @return \f$ {base}^{exponent} \f$.
+ * Computes a Float32 base raised to a Float32 exponent.
+ * @param base the Float32 base.
+ * @param exponent the Float32 exponent.
+ * @return \f$ {base}^{exponent} \f$ as Float32.
  *
  * @since 0.17.4
  */
@@ -735,11 +659,11 @@ public func pow(base: Float32, exponent: Float32): Float32 {
 }
 
 /**
- * Returns the value of the first argument raised to the power of the second argument.
+ * Raises a Float64 base to an Int64 exponent.
  * Note: Due to the lack of support from LLVM, Int64 calls cffi while Int32 can use intrinsicPowi.
- * @param base the base.
- * @param exponent the exponent.
- * @return \f$ {base}^{exponent} \f$.
+ * @param base the Float64 base.
+ * @param exponent the Int64 exponent.
+ * @return \f$ {base}^{exponent} \f$ as Float64.
  *
  * @since 0.17.4
  */
@@ -749,10 +673,10 @@ public func pow(base: Float64, exponent: Int64): Float64 {
 }
 
 /**
- * Returns the value of the first argument raised to the power of the second argument.
- * @param base the base.
- * @param exponent the exponent.
- * @return \f$ {base}^{exponent} \f$.
+ * Computes a Float32 base raised to an Int32 exponent.
+ * @param base the Float32 base.
+ * @param exponent the Int32 exponent.
+ * @return \f$ {base}^{exponent} \f$ as Float32.
  *
  * @since 0.17.4
  */

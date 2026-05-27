@@ -173,41 +173,34 @@ class FlattenIterator<T, R> <: Iterator<R> where T <: Iterable<R> {
      */
     @Frozen
     public func next(): Option<R> {
-        /**
-         * Check whether subIt is consumed.
-         * If yes, return the resulting value.
-         * If not, reset subIt and continue to check from the beginning.
-         */
         while (true) {
-            match (subIt) {
-                case Some(result) => match (result.next()) {
-                    case Some(v) => return Some(v)
-                    case _ => ()
+            // Drain the current nested iterator before pulling another source element.
+            if (let Some(result) <- subIt) {
+                if (let Some(v) <- result.next()) {
+                    return Some(v)
                 }
-                case _ => ()
             }
 
-            match (it.next()) {
-                case Some(sub) => subIt = Some(sub.iterator())
-                case _ => return None
+            if (let Some(sub) <- it.next()) {
+                subIt = Some(sub.iterator())
+                continue
             }
+            return None
         }
         return None
     }
 }
 
 class FlatMapIterator<T, R> <: Iterator<R> {
-    private var subIt: Option<Iterator<R>> = None
     private let transform: (T) -> Iterable<R>
     private let it: Iterator<T>
+    private var subIt: Option<Iterator<R>> = None
 
     /*
-     * All elements are converted to Iterator<R> by transform func.
+     * Builds an iterator that expands each source element through transform.
      *
-     * @param it Iterable.
-     * @param transform Transform func.
-     *
-     * @return Option<R> The return type of Option<R>.
+     * @param it Source iterable.
+     * @param transform Function that supplies the nested iterable for one element.
      */
     init(it: Iterable<T>, transform: (T) -> Iterable<R>) {
         this.it = it.iterator()
@@ -215,30 +208,22 @@ class FlatMapIterator<T, R> <: Iterator<R> {
     }
 
     /*
-     * Get FlatMap Iterator next.
-     *
-     * @return Option<R> The return type of Option<R>.
+     * Returns the next flattened element produced by transform.
      */
     @Frozen
     public func next(): Option<R> {
-        /**
-         * Check whether subIt is consumed.
-         * If yes, return the resulting value.
-         * If not, reset subIt and continue to check from the beginning.
-         */
         while (true) {
-            match (subIt) {
-                case Some(result) => match (result.next()) {
-                    case Some(v) => return Some(v)
-                    case _ => ()
+            if (let Some(result) <- subIt) {
+                if (let Some(v) <- result.next()) {
+                    return Some(v)
                 }
-                case _ => ()
             }
 
-            match (it.next()) {
-                case Some(sub) => subIt = Some(transform(sub).iterator())
-                case _ => return None
+            if (let Some(sub) <- it.next()) {
+                subIt = Some(transform(sub).iterator())
+                continue
             }
+            return None
         }
         return None
     }

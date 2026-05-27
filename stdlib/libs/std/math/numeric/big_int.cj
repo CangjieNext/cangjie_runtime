@@ -1963,36 +1963,36 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
 
     // if the bit length of the abs of divisor exceeds 32 bits but does not exceed 64 bits
     private func knuthDivAndMod(that: UInt64, needMod!: Bool = true): (UInt64, Array<UInt32>, UInt64, Array<UInt32>) {
-        let sizeDD = intArr.size + 1 + 2
+        let normalizedSize = intArr.size + 1 + 2
         // normalize, let the most significant UInt32 larger than 0x8000_0000
-        let l = leadingZeros(that)
-        let normalizedDividend = knuthNormalize(sizeDD, this.int, this.intArr, l)
-        let normalizedDivisor = that << l
+        let shift = leadingZeros(that)
+        let normalizedDividend = knuthNormalize(normalizedSize, this.int, this.intArr, shift)
+        let normalizedDivisor = that << shift
         // initialize j
-        var j = intArr.size
-        var rArr: Array<UInt32> = EMPTY_ARRAY
-        var rInt: UInt64 = 0
-        if (j >= 2) {
-            rArr = Array<UInt32>(j - 1, repeat: 0)
+        var offset = intArr.size
+        var quotientWords: Array<UInt32> = EMPTY_ARRAY
+        var quotientTail: UInt64 = 0
+        if (offset >= 2) {
+            quotientWords = Array<UInt32>(offset - 1, repeat: 0)
         }
         // loop
-        while (j >= 0) {
-            let q = knuthDivGuessQ(normalizedDividend, normalizedDivisor, j)
-            if (j >= 2) {
-                rArr[j - 2] = UInt32(q)
+        while (offset >= 0) {
+            let q = knuthDivGuessQ(normalizedDividend, normalizedDivisor, offset)
+            if (offset >= 2) {
+                quotientWords[offset - 2] = UInt32(q)
             } else {
-                rInt = rInt << 32
-                rInt += q
+                quotientTail = quotientTail << 32
+                quotientTail += q
             }
-            j--
+            offset--
         }
         if (!needMod) {
-            return (rInt, normalize(rArr), 0, EMPTY_ARRAY)
+            return (quotientTail, normalize(quotientWords), 0, EMPTY_ARRAY)
         }
         // unnormalize
-        let remArr = shiftRightInSitu(normalizedDividend, l)
+        let remArr = shiftRightInSitu(normalizedDividend, shift)
         let remInt = UInt64(remArr[0]) + (UInt64(remArr[1]) << 32)
-        return (rInt, normalize(rArr), remInt, normalize(remArr[2..]))
+        return (quotientTail, normalize(quotientWords), remInt, normalize(remArr[2..]))
     }
 
     func compareMagnitude(that: BigInt): Int64 {

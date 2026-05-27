@@ -1163,18 +1163,6 @@ public class AtomicOptionReference<T> where T <: Object {
         successOrder!: MemoryOrder,
         failureOrder!: MemoryOrder
     ): Bool {
-        return compareAndSwap<AtomicOptionReference<T>, Option<Object>>(
-            this,
-            match (old) {
-                case Some(v) => Option<Object>.Some(v)
-                case _ => Option<Object>.None
-            },
-            match (new) {
-                case Some(v) => Option<Object>.Some(v)
-                case _ => Option<Object>.None
-            },
-            DefaultMemoryOrder,
-            DefaultMemoryOrder
-        )
+        return compareAndSwap(old, new)
     }
 }
