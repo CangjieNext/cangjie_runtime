@@ -42,7 +42,9 @@ class NoShrinker<T> <: DataShrinker<T> {
      * Always returns an empty array.
      * @param value the value to reduce, always ignored
      */
-    public override func shrink(_: T): Iterable<T> { [] }
+    public override func shrink(_: T): Iterable<T> {
+        []
+    }
 
     /**
      * Singleton instance of NoShrinker<T>
@@ -77,7 +79,9 @@ public interface DataStrategy<T> {
      * @return true if the result of `provider` should be iterated indefinitely, false otherwise
      */
     prop isInfinite: Bool {
-        get() { false }
+        get() {
+            false
+        }
     }
 }
 
@@ -91,22 +95,25 @@ public interface DataStrategy<T> {
  */
 extend<T> Array<T> <: DataStrategy<T> & DataProvider<T> {
     /**
-     * Get the provided data from the provider
-     * @return this
+     * Returns the range itself as iterable test data.
      */
-    public func provide(): Iterable<T> { this }
-    /**
-     * Is this provider infinite?
-     * @returns false
-     */
-    public prop isInfinite: Bool {
-        get() { false }
+    public func provide(): Iterable<T> {
+        this
     }
     /**
-     * Get the provider using the configuration object. Does not actually use any configuration.
-     * @return this
+     * Range-backed data providers are finite.
      */
-    public func provider(_: Configuration): DataProvider<T> { this }
+    public prop isInfinite: Bool {
+        get() {
+            false
+        }
+    }
+    /**
+     * Returns this provider; the configuration does not affect range data.
+     */
+    public func provider(_: Configuration): DataProvider<T> {
+        this
+    }
 }
 /**
  * The implementation of DataStrategy interface for Range
@@ -121,17 +128,23 @@ extend<T> Range<T> <: DataStrategy<T> & DataProvider<T> {
      * Get the provided data from the provider
      * @return this
      */
-    public func provide(): Iterable<T> { this }
+    public func provide(): Iterable<T> {
+        this
+    }
     /**
      * Is this provider infinite?
      * @returns false
      */
     public prop isInfinite: Bool {
-        get() { false }
+        get() {
+            false
+        }
     }
     /**
      * Get the provider using the configuration object. Does not actually use any configuration.
      * @return this
      */
-    public func provider(_: Configuration): DataProvider<T> { this }
+    public func provider(_: Configuration): DataProvider<T> {
+        this
+    }
 }

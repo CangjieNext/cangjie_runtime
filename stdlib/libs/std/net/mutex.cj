@@ -10,6 +10,18 @@ package std.net
 
 import std.sync.*
 
+private func lockWithCondition(tryLock: () -> Bool, m: Mutex, condition: Condition): Unit {
+    if (tryLock()) {
+        return
+    }
+
+    synchronized(m) {
+        while (!tryLock()) {
+            condition.wait()
+        }
+    }
+}
+
 /**
  * Custom non-reentrant read-write mutex.
  *
@@ -28,7 +40,9 @@ struct NonReentrantReadWriteMutex {
         let m = Mutex()
         let useCounter = AtomicInt64(0) // positive = read count, -1 - write
 
-        let condition = synchronized(m) { m.condition() }
+        let condition = synchronized(m) {
+            m.condition()
+        }
         this.readMutex = NonReentrantReadLock(m, useCounter, condition)
         this.writeMutex = NonReentrantWriteLock(m, useCounter, condition)
     }
@@ -43,17 +57,7 @@ struct NonReentrantReadLock <: Lock {
     }
 
     public override func lock(): Unit {
-        if (!tryLock()) {
-            lockSlowpath()
-        }
-    }
-
-    private func lockSlowpath(): Unit {
-        synchronized(m) {
-            while (!tryLock()) {
-                condition.wait()
-            }
-        }
+        lockWithCondition({=> this.tryLock()}, m, condition)
     }
 
     public override func tryLock(): Bool {
@@ -127,21 +131,13 @@ struct NonReentrantWriteLock <: Lock {
     init() {
         this.m = Mutex()
         this.useCounter = AtomicInt64(0)
-        this.condition = synchronized(m) { m.condition() }
+        this.condition = synchronized(m) {
+            m.condition()
+        }
     }
 
     public override func lock(): Unit {
-        if (!tryLock()) {
-            lockSlowpath()
-        }
-    }
-
-    private func lockSlowpath(): Unit {
-        synchronized(m) {
-            while (!tryLock()) {
-                condition.wait()
-            }
-        }
+        lockWithCondition({=> this.tryLock()}, m, condition)
     }
 
     public override func tryLock(): Bool {

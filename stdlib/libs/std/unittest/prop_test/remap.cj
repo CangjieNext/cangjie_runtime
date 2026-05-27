@@ -10,21 +10,27 @@ package std.unittest.prop_test
 @OverflowWrapping
 func toInt(x: Float64): Int64 {
     var res = Int64(x.toBits())
-    if (res < 0) { return Int64.Max ^ res }
+    if (res < 0) {
+        return Int64.Max ^ res
+    }
     return res
 }
 
 @OverflowWrapping
 func toInt(x: Float32): Int32 {
     var res = Int32(x.toBits())
-    if (res < 0) { return Int32.Max ^ res }
+    if (res < 0) {
+        return Int32.Max ^ res
+    }
     return res
 }
 
 @OverflowWrapping
 func toInt(x: Float16): Int16 {
     var res = Int16(x.toBits())
-    if (res < 0) { return Int16.Max ^ res }
+    if (res < 0) {
+        return Int16.Max ^ res
+    }
     return res
 }
 
@@ -153,11 +159,11 @@ func remap(l: Float64, r: Float64, x: Float64): Float64 {
 
 @OverflowWrapping
 func remap(l: Float32, r: Float32, x: Float32): Float32 {
-    if (r < l) {
-        throw IllegalArgumentException("[${l}, ${r}] is an empty interval")
-    }
     if (l.isNaN() || r.isNaN()) {
         throw IllegalArgumentException("cannot pass nan as border value")
+    }
+    if (r < l) {
+        throw IllegalArgumentException("[${l}, ${r}] is an empty interval")
     }
     var left = toInt(l)
     var right = toInt(r)
@@ -178,6 +184,7 @@ func remap(l: Float16, r: Float16, x: Float16): Float16 {
     if (l.isNaN() || r.isNaN()) {
         throw IllegalArgumentException("cannot pass nan as border value")
     }
+    let source = toInt(x)
     var left = toInt(l)
     var right = toInt(r)
     if (left == 0) {
@@ -186,5 +193,5 @@ func remap(l: Float16, r: Float16, x: Float16): Float16 {
     if (right == -1) {
         right = 0
     }
-    return toFloat(remap(left, right, toInt(x)))
+    return toFloat(remap(left, right, source))
 }

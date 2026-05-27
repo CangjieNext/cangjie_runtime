@@ -11,6 +11,20 @@ import std.collection.*
 import std.math.*
 import std.random.Random
 
+private func shrinkUnsignedInteger<T>(value: T, zero: T, one: T, half: T): Iterable<T> where T <: Hashable & Equatable<T> {
+    if (value == zero) {
+        return Array<T>(0, repeat: zero)
+    }
+    if (value == one) {
+        return [zero]
+    }
+    let result = HashSet<T>()
+    result.add(zero)
+    result.add(one)
+    result.add(half)
+    result
+}
+
 /**
  * Shrink interface: reduce values of type T to a number of "smaller" values
  */
@@ -18,14 +32,14 @@ public interface Shrink<T> {
     /**
      * shrink this value to a set of possible "smaller" values
      */
-    func shrink(): Iterable<T> { emptyIterable<T>() }
+    func shrink(): Iterable<T> {
+        emptyIterable<T>()
+    }
 }
 
-extend Unit <: Shrink<Unit> {
-}
+extend Unit <: Shrink<Unit> {}
 
-extend Bool <: Shrink<Bool> {
-}
+extend Bool <: Shrink<Bool> {}
 
 /*****************************************************************
 @ForEach[IntType in [Int8, Int16, Int32, Int64, IntNative]]
@@ -95,11 +109,15 @@ extend Int16 <: Shrink<Int16> {
 extend Int32 <: Shrink<Int32> {
     public func shrink(): Iterable<Int32> {
         let res = HashSet<Int32>()
-        if (this == 0) { return [] }
-        if (this == 1) { return [0] }
+        if (this == 0) {
+            return []
+        }
+        if (this == 1) {
+            return [0]
+        }
         res.add(0)
         res.add(1)
-        if (this < 0&& this != Int32.Min) { // -Int.Min causes overflow
+        if (this < 0 && this != Int32.Min) { // -Int.Min causes overflow
             res.add(-this)
         }
         res.add(this / 2)
@@ -113,8 +131,12 @@ extend Int32 <: Shrink<Int32> {
 extend Int64 <: Shrink<Int64> {
     public func shrink(): Iterable<Int64> {
         let res = HashSet<Int64>()
-        if (this == 0) { return [] }
-        if (this == 1) { return [0] }
+        if (this == 0) {
+            return []
+        }
+        if (this == 1) {
+            return [0]
+        }
         res.add(0)
         res.add(1)
         if (this < 0 && this != Int64.Min) { // -Int.Min causes overflow
@@ -131,8 +153,12 @@ extend Int64 <: Shrink<Int64> {
 extend IntNative <: Shrink<IntNative> {
     public func shrink(): Iterable<IntNative> {
         let res = HashSet<IntNative>()
-        if (this == 0) { return [] }
-        if (this == 1) { return [0] }
+        if (this == 0) {
+            return []
+        }
+        if (this == 1) {
+            return [0]
+        }
         res.add(0)
         res.add(1)
         if (this < 0 && this != IntNative.Min) { // -Int.Min causes overflow
@@ -163,13 +189,7 @@ extend UIntType <: Shrink<UIntType> {
  */
 extend UInt8 <: Shrink<UInt8> {
     public func shrink(): Iterable<UInt8> {
-        let res = HashSet<UInt8>()
-        if (this == 0) { return [] }
-        if (this == 1) { return [0] }
-        res.add(0)
-        res.add(1)
-        res.add(this / 2)
-        res
+        shrinkUnsignedInteger<UInt8>(this, UInt8(0), UInt8(1), this / 2)
     }
 }
 
@@ -178,13 +198,7 @@ extend UInt8 <: Shrink<UInt8> {
  */
 extend UInt16 <: Shrink<UInt16> {
     public func shrink(): Iterable<UInt16> {
-        let res = HashSet<UInt16>()
-        if (this == 0) { return [] }
-        if (this == 1) { return [0] }
-        res.add(0)
-        res.add(1)
-        res.add(this / 2)
-        res
+        shrinkUnsignedInteger<UInt16>(this, UInt16(0), UInt16(1), this / 2)
     }
 }
 
@@ -193,13 +207,7 @@ extend UInt16 <: Shrink<UInt16> {
  */
 extend UInt32 <: Shrink<UInt32> {
     public func shrink(): Iterable<UInt32> {
-        let res = HashSet<UInt32>()
-        if (this == 0) { return [] }
-        if (this == 1) { return [0] }
-        res.add(0)
-        res.add(1)
-        res.add(this / 2)
-        res
+        shrinkUnsignedInteger<UInt32>(this, UInt32(0), UInt32(1), this / 2)
     }
 }
 
@@ -208,13 +216,7 @@ extend UInt32 <: Shrink<UInt32> {
  */
 extend UInt64 <: Shrink<UInt64> {
     public func shrink(): Iterable<UInt64> {
-        let res = HashSet<UInt64>()
-        if (this == 0) { return [] }
-        if (this == 1) { return [0] }
-        res.add(0)
-        res.add(1)
-        res.add(this / 2)
-        res
+        shrinkUnsignedInteger<UInt64>(this, UInt64(0), UInt64(1), this / 2)
     }
 }
 
@@ -223,19 +225,15 @@ extend UInt64 <: Shrink<UInt64> {
  */
 extend UIntNative <: Shrink<UIntNative> {
     public func shrink(): Iterable<UIntNative> {
-        let res = HashSet<UIntNative>()
-        if (this == 0) { return [] }
-        if (this == 1) { return [0] }
-        res.add(0)
-        res.add(1)
-        res.add(this / 2)
-        res
+        shrinkUnsignedInteger<UIntNative>(this, UIntNative(0), UIntNative(1), this / 2)
     }
 }
 
 extend Float16 <: Shrink<Float16> {
     private static func appendShrinked(item: Float16, result: HashSet<Float16>) {
-        if (!item.isNaN() && !item.isInf()) { result.add(item) }
+        if (!item.isNaN() && !item.isInf()) {
+            result.add(item)
+        }
     }
     private func shrinkTo(result: HashSet<Float16>) {
         if (this < 0.0) {
@@ -266,12 +264,16 @@ extend Float16 <: Shrink<Float16> {
 
 extend Float32 <: Shrink<Float32> {
     private static func appendShrinked(item: Float32, result: HashSet<Float32>) {
-        if (!item.isNaN() && !item.isInf()) { result.add(item) }
+        if (!item.isNaN() && !item.isInf()) {
+            result.add(item)
+        }
     }
     private func shrinkFracDigits(result: HashSet<Float32>, multiplier: Float32) {
         for (precision in [1e6f32, 1e5f32, 1e4f32, 1e3f32, 1e2f32, 10.0f32, 1.0f32]) {
             let m = Int64(round(this * precision))
-            if (precision != 1.0 && m % 10 == 0) { continue }
+            if (precision != 1.0 && m % 10 == 0) {
+                continue
+            }
             let candidate = Float32(m) / precision
             if (abs(candidate) < abs(this)) {
                 appendShrinked(candidate * multiplier, result)
@@ -313,12 +315,16 @@ extend Float32 <: Shrink<Float32> {
 
 extend Float64 <: Shrink<Float64> {
     private static func appendShrinked(item: Float64, result: HashSet<Float64>) {
-        if (!item.isNaN() && !item.isInf()) { result.add(item) }
+        if (!item.isNaN() && !item.isInf()) {
+            result.add(item)
+        }
     }
     private func shrinkFracDigits(result: HashSet<Float64>, multiplier: Float64) {
         for (precision in [1e6, 1e5, 1e4, 1e3, 1e2, 10.0, 1.0]) {
             let m = Int64(round(this * precision))
-            if (precision != 1.0 && m % 10 == 0) { continue }
+            if (precision != 1.0 && m % 10 == 0) {
+                continue
+            }
             let candidate = Float64(m) / precision
             if (abs(candidate) < abs(this)) {
                 appendShrinked(candidate * multiplier, result)
@@ -366,15 +372,25 @@ extend Rune <: Shrink<Rune> {
         let alnum = shrinkToAlnum(this)
         let ascii = shrinkToAscii(this)
 
-        if (this == alnum) { return [] }
-        if (this == ascii || ascii == alnum) { return [alnum] }
+        if (this == alnum) {
+            return []
+        }
+        if (this == ascii || ascii == alnum) {
+            return [alnum]
+        }
 
         return [alnum, ascii]
     }
 }
 
 func arrayReplace<T>(array: Array<T>, index: Int64, element: T) {
-    Array<T>(array.size) { ix => if (ix == index) { element } else { array[ix] } }
+    Array<T>(array.size) {
+        ix => if (ix == index) {
+            element
+        } else {
+            array[ix]
+        }
+    }
 }
 
 /**
@@ -391,11 +407,12 @@ private interface CanShrinkElements<T> {
 
 extend<T> Array<T> <: CanShrinkElements<Array<T>> where T <: Shrink<T> {
     public func shrinkUsingElements(): LazySeq<Array<T>> {
-        let iterators = Array<Iterator<Array<T>>>(this.size) { index: Int64 =>
-            this[index].shrink().iterator().map<Array<T>> { shrunk =>
-                let col = this.clone()
-                col[index] = shrunk
-                col
+        let iterators = Array<Iterator<Array<T>>>(this.size) {
+            index: Int64 => this[index].shrink().iterator().map<Array<T>> {
+                shrunk =>
+                    let col = this.clone()
+                    col[index] = shrunk
+                    col
             }
         }
         return LazySeq.of(MixingIterator<Array<T>>(iterators))
@@ -417,8 +434,7 @@ extend<T> Array<T> <: Shrink<Array<T>> {
             result = result.append(this[this.size / 2..this.size])
         }
         match (this) {
-            case shr: CanShrinkElements<Array<T>> =>
-                result = result.concat(shr.shrinkUsingElements())
+            case shr: CanShrinkElements<Array<T>> => result = result.concat(shr.shrinkUsingElements())
             case _ => ()
         }
         return result
@@ -427,11 +443,12 @@ extend<T> Array<T> <: Shrink<Array<T>> {
 
 extend<T> ArrayList<T> <: CanShrinkElements<ArrayList<T>> where T <: Shrink<T> {
     public func shrinkUsingElements(): LazySeq<ArrayList<T>> {
-        let iterators = Array<Iterator<ArrayList<T>>>(this.size) { index: Int64 =>
-            this[index].shrink().iterator().map<ArrayList<T>> { shrunk =>
-                let col = this.clone()
-                col[index] = shrunk
-                col
+        let iterators = Array<Iterator<ArrayList<T>>>(this.size) {
+            index: Int64 => this[index].shrink().iterator().map<ArrayList<T>> {
+                shrunk =>
+                    let col = this.clone()
+                    col[index] = shrunk
+                    col
             }
         }
         return LazySeq.of(MixingIterator<ArrayList<T>>(iterators))
@@ -453,8 +470,7 @@ extend<T> ArrayList<T> <: Shrink<ArrayList<T>> {
             result = result.append(this[this.size / 2..this.size])
         }
         match (this) {
-            case shr: CanShrinkElements<ArrayList<T>> =>
-                result = result.concat(shr.shrinkUsingElements())
+            case shr: CanShrinkElements<ArrayList<T>> => result = result.concat(shr.shrinkUsingElements())
             case _ => ()
         }
         return result
@@ -463,12 +479,13 @@ extend<T> ArrayList<T> <: Shrink<ArrayList<T>> {
 
 extend<T> HashSet<T> <: CanShrinkElements<HashSet<T>> where T <: Shrink<T> {
     public func shrinkUsingElements(): LazySeq<HashSet<T>> {
-        let iterators = this.iterator().map<Iterator<HashSet<T>>> { elem: T =>
-            elem.shrink().iterator().map<HashSet<T>> { shrunk =>
-                let col = this.clone()
-                col.remove(elem)
-                col.add(shrunk)
-                col
+        let iterators = this.iterator().map<Iterator<HashSet<T>>> {
+            elem: T => elem.shrink().iterator().map<HashSet<T>> {
+                shrunk =>
+                    let col = this.clone()
+                    col.remove(elem)
+                    col.add(shrunk)
+                    col
             }
         } |> collectArray
         return LazySeq.of(MixingIterator<HashSet<T>>(iterators))
@@ -495,8 +512,7 @@ extend<T> HashSet<T> <: Shrink<HashSet<T>> {
             result = result.append(firstHalf).append(secondHalf)
         }
         match (this) {
-            case shr: CanShrinkElements<HashSet<T>> =>
-                result = result.concat(shr.shrinkUsingElements())
+            case shr: CanShrinkElements<HashSet<T>> => result = result.concat(shr.shrinkUsingElements())
             case _ => ()
         }
         return result
@@ -523,14 +539,16 @@ private struct ShrinkKeyWrapper<K, V> where K <: Equatable<K> & Hashable {
  */
 extend<K, V> ShrinkKeyWrapper<K, V> <: CanShrinkElements<HashMap<K, V>> where K <: Shrink<K> {
     public func shrinkUsingElements(): LazySeq<HashMap<K, V>> {
-        let iterators = this.data |> map { kv: (K, V) =>
-            let (k, v) = kv
-            k.shrink().iterator().map<HashMap<K, V>> { shrunk =>
-                let col = this.data.clone()
-                col.remove(k)
-                col[shrunk] = v
-                col
-            }
+        let iterators = this.data |> map {
+            kv: (K, V) =>
+                let (k, v) = kv
+                k.shrink().iterator().map<HashMap<K, V>> {
+                    shrunk =>
+                        let col = this.data.clone()
+                        col.remove(k)
+                        col[shrunk] = v
+                        col
+                }
         } |> collectArray
         return LazySeq.of(MixingIterator<HashMap<K, V>>(iterators))
     }
@@ -542,13 +560,15 @@ extend<K, V> ShrinkKeyWrapper<K, V> <: CanShrinkElements<HashMap<K, V>> where K 
  */
 extend<K, V> HashMap<K, V> <: CanShrinkElements<HashMap<K, V>> where V <: Shrink<V> {
     public func shrinkUsingElements(): LazySeq<HashMap<K, V>> {
-        let iterators = this |> map { kv: (K, V) =>
-            let (k, v) = kv
-            v.shrink().iterator().map<HashMap<K, V>> { shrunk =>
-                let col = this.clone()
-                col[k] = shrunk
-                col
-            }
+        let iterators = this |> map {
+            kv: (K, V) =>
+                let (k, v) = kv
+                v.shrink().iterator().map<HashMap<K, V>> {
+                    shrunk =>
+                        let col = this.clone()
+                        col[k] = shrunk
+                        col
+                }
         } |> collectArray
         return LazySeq.of(MixingIterator<HashMap<K, V>>(iterators))
     }
@@ -576,8 +596,7 @@ extend<K, V> HashMap<K, V> <: Shrink<HashMap<K, V>> {
             result = result.append(firstHalf).append(secondHalf)
         }
         match (this) {
-            case shr: CanShrinkElements<HashMap<K, V>> =>
-                result = result.concat(shr.shrinkUsingElements())
+            case shr: CanShrinkElements<HashMap<K, V>> => result = result.concat(shr.shrinkUsingElements())
             case _ => ()
         }
         match (ShrinkKeyWrapper(this)) {
@@ -606,21 +625,24 @@ let COMMON_WORDS_BY_SIZE = [
 
 extend String <: Shrink<String> {
     private static func shrinkUsingRunes(runeArr: Array<Rune>): LazySeq<String> {
-        let iterators = Array<Iterator<String>>(runeArr.size) { index: Int64 =>
-            runeArr[index].shrink().iterator().map<String> { shrunk =>
-                let arrCopy = runeArr.clone()
-                arrCopy[index] = shrunk
-                String(arrCopy)
+        let iterators = Array<Iterator<String>>(runeArr.size) {
+            index: Int64 => runeArr[index].shrink().iterator().map<String> {
+                shrunk =>
+                    let arrCopy = runeArr.clone()
+                    arrCopy[index] = shrunk
+                    String(arrCopy)
             }
         }
         return LazySeq.of(MixingIterator<String>(iterators))
     }
     public func shrink(): Iterable<String> {
-        if (this.size == 0) { return emptyIterable<String>() }
+        if (this.size == 0) {
+            return emptyIterable<String>()
+        }
         let charArr = this.toRuneArray()
         if (charArr.size == 1) {
             let sub = LazySeq.of(charArr[0].shrink())
-            return sub.map<String> { ch => String([ch]) }.prepend("")
+            return sub.map<String> {ch => String([ch])}.prepend("")
         }
         var result = LazySeq<String>()
         result = result.append("")
@@ -644,10 +666,8 @@ extend String <: Shrink<String> {
 extend<T> Option<T> <: CanShrinkElements<Option<T>> where T <: Shrink<T> {
     public func shrinkUsingElements(): LazySeq<Option<T>> {
         match (this) {
-            case None =>
-                return LazySeq<?T>()
-            case Some(value) =>
-                return LazySeq.of(value.shrink()).map<Option<T>> { it => it }
+            case None => return LazySeq<?T>()
+            case Some(value) => return LazySeq.of(value.shrink()).map<Option<T>> {it => it}
         }
     }
 }
@@ -656,67 +676,54 @@ extend<T> Option<T> <: Shrink<Option<T>> {
     public func shrink(): Iterable<Option<T>> {
         match (this) {
             case None => return emptyIterable()
-            case withElems: CanShrinkElements<Option<T>> =>
-                return withElems.shrinkUsingElements().prepend(None)
+            case withElems: CanShrinkElements<Option<T>> => return withElems.shrinkUsingElements().prepend(None)
             case _ => return [None]
         }
     }
 }
 
-extend<R> Function0Wrapper<R> <: Shrink<Function0Wrapper<R>> {
-}
+extend<R> Function0Wrapper<R> <: Shrink<Function0Wrapper<R>> {}
 
-extend<T0, T1> TupleWrapper2<T0, T1> <: Shrink<TupleWrapper2<T0, T1>>
-        where T0 <: Shrink<T0>,
-              T1 <: Shrink<T1> {
+extend<T0, T1> TupleWrapper2<T0, T1> <: Shrink<TupleWrapper2<T0, T1>> where T0 <: Shrink<T0>, T1 <: Shrink<T1> {
     public func shrink(): Iterable<TupleWrapper2<T0, T1>> {
-        let s0 = LazySeq.of(tuple[0].shrink()).map { t0: T0 => TupleWrapper2((t0,       tuple[1])) }
-        let s1 = LazySeq.of(tuple[1].shrink()).map { t1: T1 => TupleWrapper2((tuple[0], t1      )) }
+        let s0 = LazySeq.of(tuple[0].shrink()).map {t0: T0 => TupleWrapper2((t0, tuple[1]))}
+        let s1 = LazySeq.of(tuple[1].shrink()).map {t1: T1 => TupleWrapper2((tuple[0], t1))}
 
         LazySeq.mix(s0, s1)
     }
 }
 
-extend<T0, T1, T2> TupleWrapper3<T0, T1, T2> <: Shrink<TupleWrapper3<T0, T1, T2>>
-        where T0 <: Shrink<T0>,
-              T1 <: Shrink<T1>,
-              T2 <: Shrink<T2> {
+extend<T0, T1, T2> TupleWrapper3<T0, T1, T2> <: Shrink<TupleWrapper3<T0, T1, T2>> where T0 <: Shrink<T0>,
+    T1 <: Shrink<T1>, T2 <: Shrink<T2> {
     public func shrink(): Iterable<TupleWrapper3<T0, T1, T2>> {
-        let s0 = LazySeq.of(tuple[0].shrink()).map { t0: T0 => TupleWrapper3((t0,       tuple[1], tuple[2])) }
-        let s1 = LazySeq.of(tuple[1].shrink()).map { t1: T1 => TupleWrapper3((tuple[0], t1,       tuple[2])) }
-        let s2 = LazySeq.of(tuple[2].shrink()).map { t2: T2 => TupleWrapper3((tuple[0], tuple[1], t2      )) }
+        let s0 = LazySeq.of(tuple[0].shrink()).map {t0: T0 => TupleWrapper3((t0, tuple[1], tuple[2]))}
+        let s1 = LazySeq.of(tuple[1].shrink()).map {t1: T1 => TupleWrapper3((tuple[0], t1, tuple[2]))}
+        let s2 = LazySeq.of(tuple[2].shrink()).map {t2: T2 => TupleWrapper3((tuple[0], tuple[1], t2))}
 
         LazySeq.mix(s0, s1, s2)
     }
 }
 
-extend<T0, T1, T2, T3> TupleWrapper4<T0, T1, T2, T3> <: Shrink<TupleWrapper4<T0, T1, T2, T3>>
-        where T0 <: Shrink<T0>,
-              T1 <: Shrink<T1>,
-              T2 <: Shrink<T2>,
-              T3 <: Shrink<T3> {
+extend<T0, T1, T2, T3> TupleWrapper4<T0, T1, T2, T3> <: Shrink<TupleWrapper4<T0, T1, T2, T3>> where T0 <: Shrink<T0>,
+    T1 <: Shrink<T1>, T2 <: Shrink<T2>, T3 <: Shrink<T3> {
     public func shrink(): Iterable<TupleWrapper4<T0, T1, T2, T3>> {
-        let s0 = LazySeq.of(tuple[0].shrink()).map { t0: T0 => TupleWrapper4((t0,       tuple[1], tuple[2], tuple[3])) }
-        let s1 = LazySeq.of(tuple[1].shrink()).map { t1: T1 => TupleWrapper4((tuple[0], t1,       tuple[2], tuple[3])) }
-        let s2 = LazySeq.of(tuple[2].shrink()).map { t2: T2 => TupleWrapper4((tuple[0], tuple[1], t2,       tuple[3])) }
-        let s3 = LazySeq.of(tuple[3].shrink()).map { t3: T3 => TupleWrapper4((tuple[0], tuple[1], tuple[2], t3      )) }
+        let s0 = LazySeq.of(tuple[0].shrink()).map {t0: T0 => TupleWrapper4((t0, tuple[1], tuple[2], tuple[3]))}
+        let s1 = LazySeq.of(tuple[1].shrink()).map {t1: T1 => TupleWrapper4((tuple[0], t1, tuple[2], tuple[3]))}
+        let s2 = LazySeq.of(tuple[2].shrink()).map {t2: T2 => TupleWrapper4((tuple[0], tuple[1], t2, tuple[3]))}
+        let s3 = LazySeq.of(tuple[3].shrink()).map {t3: T3 => TupleWrapper4((tuple[0], tuple[1], tuple[2], t3))}
 
         LazySeq.mix(s0, s1, s2, s3)
     }
 }
 
-extend<T0, T1, T2, T3, T4> TupleWrapper5<T0, T1, T2, T3, T4> <: Shrink<TupleWrapper5<T0, T1, T2, T3, T4>>
-        where T0 <: Shrink<T0>,
-              T1 <: Shrink<T1>,
-              T2 <: Shrink<T2>,
-              T3 <: Shrink<T3>,
-              T4 <: Shrink<T4> {
+extend<T0, T1, T2, T3, T4> TupleWrapper5<T0, T1, T2, T3, T4> <: Shrink<TupleWrapper5<T0, T1, T2, T3, T4>> where T0 <: Shrink<T0>,
+    T1 <: Shrink<T1>, T2 <: Shrink<T2>, T3 <: Shrink<T3>, T4 <: Shrink<T4> {
     public func shrink(): Iterable<TupleWrapper5<T0, T1, T2, T3, T4>> {
-        let s0 = LazySeq.of(tuple[0].shrink()).map { t0: T0 => TupleWrapper5((t0 ,      tuple[1], tuple[2], tuple[3], tuple[4])) }
-        let s1 = LazySeq.of(tuple[1].shrink()).map { t1: T1 => TupleWrapper5((tuple[0], t1,       tuple[2], tuple[3], tuple[4])) }
-        let s2 = LazySeq.of(tuple[2].shrink()).map { t2: T2 => TupleWrapper5((tuple[0], tuple[1], t2,       tuple[3], tuple[4])) }
-        let s3 = LazySeq.of(tuple[3].shrink()).map { t3: T3 => TupleWrapper5((tuple[0], tuple[1], tuple[2], t3,       tuple[4])) }
-        let s4 = LazySeq.of(tuple[4].shrink()).map { t4: T4 => TupleWrapper5((tuple[0], tuple[1], tuple[2], tuple[3], t4      )) }
+        let s0 = LazySeq.of(tuple[0].shrink()).map {t0: T0 => TupleWrapper5((t0, tuple[1], tuple[2], tuple[3], tuple[4]))}
+        let s1 = LazySeq.of(tuple[1].shrink()).map {t1: T1 => TupleWrapper5((tuple[0], t1, tuple[2], tuple[3], tuple[4]))}
+        let s2 = LazySeq.of(tuple[2].shrink()).map {t2: T2 => TupleWrapper5((tuple[0], tuple[1], t2, tuple[3], tuple[4]))}
+        let s3 = LazySeq.of(tuple[3].shrink()).map {t3: T3 => TupleWrapper5((tuple[0], tuple[1], tuple[2], t3, tuple[4]))}
+        let s4 = LazySeq.of(tuple[4].shrink()).map {t4: T4 => TupleWrapper5((tuple[0], tuple[1], tuple[2], tuple[3], t4))}
 
         LazySeq.mix(s0, s1, s2, s3, s4)
     }
@@ -734,8 +741,8 @@ public class ShrinkHelpers {
         t0: Iterable<T0>,
         t1: Iterable<T1>
     ): Iterable<(T0, T1)> {
-        let s0 = LazySeq.of(t0).map { t0: T0 => (t0, tuple[1]) }
-        let s1 = LazySeq.of(t1).map { t1: T1 => (tuple[0], t1) }
+        let s0 = LazySeq.of(t0).map {t0: T0 => (t0, tuple[1])}
+        let s1 = LazySeq.of(t1).map {t1: T1 => (tuple[0], t1)}
 
         LazySeq.mix(s0, s1)
     }
@@ -749,9 +756,9 @@ public class ShrinkHelpers {
         t1: Iterable<T1>,
         t2: Iterable<T2>
     ): Iterable<(T0, T1, T2)> {
-        let s0 = LazySeq.of(t0).map { t0: T0 => (t0, tuple[1], tuple[2]) }
-        let s1 = LazySeq.of(t1).map { t1: T1 => (tuple[0], t1, tuple[2]) }
-        let s2 = LazySeq.of(t2).map { t2: T2 => (tuple[0], tuple[1], t2) }
+        let s0 = LazySeq.of(t0).map {t0: T0 => (t0, tuple[1], tuple[2])}
+        let s1 = LazySeq.of(t1).map {t1: T1 => (tuple[0], t1, tuple[2])}
+        let s2 = LazySeq.of(t2).map {t2: T2 => (tuple[0], tuple[1], t2)}
 
         LazySeq.mix(s0, s1, s2)
     }
@@ -766,10 +773,10 @@ public class ShrinkHelpers {
         t2: Iterable<T2>,
         t3: Iterable<T3>
     ): Iterable<(T0, T1, T2, T3)> {
-        let s0 = LazySeq.of(t0).map { t0: T0 => (t0, tuple[1], tuple[2], tuple[3]) }
-        let s1 = LazySeq.of(t1).map { t1: T1 => (tuple[0], t1, tuple[2], tuple[3]) }
-        let s2 = LazySeq.of(t2).map { t2: T2 => (tuple[0], tuple[1], t2, tuple[3]) }
-        let s3 = LazySeq.of(t3).map { t3: T3 => (tuple[0], tuple[1], tuple[2], t3) }
+        let s0 = LazySeq.of(t0).map {t0: T0 => (t0, tuple[1], tuple[2], tuple[3])}
+        let s1 = LazySeq.of(t1).map {t1: T1 => (tuple[0], t1, tuple[2], tuple[3])}
+        let s2 = LazySeq.of(t2).map {t2: T2 => (tuple[0], tuple[1], t2, tuple[3])}
+        let s3 = LazySeq.of(t3).map {t3: T3 => (tuple[0], tuple[1], tuple[2], t3)}
 
         LazySeq.mix(s0, s1, s2, s3)
     }
@@ -785,18 +792,18 @@ public class ShrinkHelpers {
         t3: Iterable<T3>,
         t4: Iterable<T4>
     ): Iterable<(T0, T1, T2, T3, T4)> {
-        let s0 = LazySeq.of(t0).map { t0: T0 => (t0, tuple[1], tuple[2], tuple[3], tuple[4]) }
-        let s1 = LazySeq.of(t1).map { t1: T1 => (tuple[0], t1, tuple[2], tuple[3], tuple[4]) }
-        let s2 = LazySeq.of(t2).map { t2: T2 => (tuple[0], tuple[1], t2, tuple[3], tuple[4]) }
-        let s3 = LazySeq.of(t3).map { t3: T3 => (tuple[0], tuple[1], tuple[2], t3, tuple[4]) }
-        let s4 = LazySeq.of(t4).map { t4: T4 => (tuple[0], tuple[1], tuple[2], tuple[3], t4) }
+        let s0 = LazySeq.of(t0).map {t0: T0 => (t0, tuple[1], tuple[2], tuple[3], tuple[4])}
+        let s1 = LazySeq.of(t1).map {t1: T1 => (tuple[0], t1, tuple[2], tuple[3], tuple[4])}
+        let s2 = LazySeq.of(t2).map {t2: T2 => (tuple[0], tuple[1], t2, tuple[3], tuple[4])}
+        let s3 = LazySeq.of(t3).map {t3: T3 => (tuple[0], tuple[1], tuple[2], t3, tuple[4])}
+        let s4 = LazySeq.of(t4).map {t4: T4 => (tuple[0], tuple[1], tuple[2], tuple[3], t4)}
 
         LazySeq.mix(s0, s1, s2, s3, s4)
     }
 
     public static func mix<T>(iterables: Array<Iterable<T>>): Iterable<T> {
-        let iterators = Array<Iterator<T>>(iterables.size) { i =>
-            iterables[i].iterator()
+        let iterators = Array<Iterator<T>>(iterables.size) {
+            i => iterables[i].iterator()
         }
         MixingIterator(iterators)
     }

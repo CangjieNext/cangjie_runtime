@@ -23,27 +23,29 @@ public class TestSuite {
     }
 
     public prop name: String {
-        get() { _name }
+        get() {
+            _name
+        }
     }
 
     public func runTests(): TestReport {
-        run(Configuration(), OnlyTests).asTestReport(Configuration())
+        return run(Configuration(), OnlyTests).asTestReport(Configuration())
     }
 
     public func runTests(configuration: Configuration): TestReport {
-        run(configuration, OnlyTests).asTestReport(configuration)
+        return run(configuration, OnlyTests).asTestReport(configuration)
     }
 
     public func runBenchmarks(): BenchReport {
-        run(Configuration(), OnlyBenchmarks).asBenchReport(Configuration())
+        return run(Configuration(), OnlyBenchmarks).asBenchReport(Configuration())
     }
 
     public func runBenchmarks(configuration: Configuration): BenchReport {
-        run(configuration, OnlyBenchmarks).asBenchReport(configuration)
+        return run(configuration, OnlyBenchmarks).asBenchReport(configuration)
     }
 
     func run(configuration: Configuration, mode: ExecutionMode): TestGroupResult {
-        fakeGroup({ => this }).run(configuration, mode)
+        fakeGroup({=> this}).run(configuration, mode)
     }
 
     func execute(groupName: String, runConfiguration: Configuration, filterService: FilterService): TestSuiteResult {
@@ -124,9 +126,7 @@ public class TestGroupBuilder {
     private let suites = ArrayList<() -> TestSuite>()
     private var configuration = Configuration()
 
-    TestGroupBuilder(
-        private var name: String
-    ) {}
+    TestGroupBuilder(private var name: String) {}
 
     public func setName(name: String): TestGroupBuilder {
         this.name = name
@@ -149,7 +149,7 @@ public class TestGroupBuilder {
 
     public func add(suite: TestSuite): TestGroupBuilder {
         enableOptimizedMockForBenchIfNeeded(suite)
-        add({ => suite })
+        add({=> suite})
     }
 
     func add(suite: () -> TestSuite): TestGroupBuilder {
@@ -158,13 +158,13 @@ public class TestGroupBuilder {
     }
 
     public func build(): TestGroup {
-        let suites = suites.iterator().map{ x => x() }.inspect{ s => enableOptimizedMockForBenchIfNeeded(s) } |> collectArray
+        let suites = suites.iterator().map {x => x()}.inspect {s => enableOptimizedMockForBenchIfNeeded(s)} |>
+            collectArray
         TestGroup(name, suites, configuration)
     }
 
     private func enableOptimizedMockForBenchIfNeeded(suite: TestSuite) {
-        let optimizedMocksForBenchEnabled =
-            configuration.get(KeyOptimizeMocksForBench.optimizeMocksForBench) ?? false
+        let optimizedMocksForBenchEnabled = configuration.get(KeyOptimizeMocksForBench.optimizeMocksForBench) ?? false
         if (optimizedMocksForBenchEnabled) {
             suite.suiteConfiguration.set(KeyOptimizeMocksForBench.optimizeMocksForBench, true)
         }
@@ -182,9 +182,7 @@ public class TestSuiteBuilder {
 
     var template_ = Option<TestSuite>.None
 
-    TestSuiteBuilder(
-        private var name: String
-    ) {}
+    TestSuiteBuilder(private var name: String) {}
 
     public func setName(name: String): TestSuiteBuilder {
         this.name = name
@@ -207,12 +205,12 @@ public class TestSuiteBuilder {
     }
 
     public func beforeEach(body: () -> Unit): TestSuiteBuilder {
-        beforeEachs.add({ _ => body() })
+        beforeEachs.add({_ => body()})
         this
     }
 
     public func afterEach(body: () -> Unit): TestSuiteBuilder {
-        afterEachs.add({ _ => body() })
+        afterEachs.add({_ => body()})
         this
     }
 
@@ -297,7 +295,7 @@ public class UnitTestCase {
         configuration!: Configuration = Configuration(),
         body!: () -> Unit
     ): UnitTestCase {
-        createParameterized<Unit>(name, noArgsProcessor(), configuration: configuration, body: { _ => body() })
+        createParameterized<Unit>(name, noArgsProcessor(), configuration: configuration, body: {_ => body()})
     }
 }
 
@@ -308,7 +306,11 @@ public class Benchmark {
         let executor: Executor
     ) {}
 
-    public prop name: String { get() { _name } }
+    public prop name: String {
+        get() {
+            _name
+        }
+    }
 
     public func run(): BenchReport {
         fakeGroup(fakeSuite(Bench(this))).run(Configuration(), OnlyBenchmarks).asBenchReport(benchmarkConfiguration)
@@ -375,14 +377,15 @@ public class Benchmark {
         measurement: Measurement,
         singleRun: (T) -> Unit
     ): (T, Int64, Int64, Int64, Measurement) -> Float64 {
-        { value, count: Int64, max: Int64, batchSize___: Int64,  measurement: Measurement =>
-            let start = measurement.measure()
-            for (i in 0..max) {
-                if (i < count) {
-                    singleRun(value)
+        {
+            value, count: Int64, max: Int64, batchSize___: Int64, measurement: Measurement =>
+                let start = measurement.measure()
+                for (i in 0..max) {
+                    if (i < count) {
+                        singleRun(value)
+                    }
                 }
-            }
-            measurement.measure() - start
+                measurement.measure() - start
         }
     }
 }
@@ -391,7 +394,7 @@ public struct TestCaseInfo {
     TestCaseInfo(
         public let groupName: String,
         public let suiteName: String,
-        public let caseName: String        
+        public let caseName: String
     ) {}
 }
 
@@ -405,11 +408,31 @@ sealed abstract class Report {
         this.details = groupResult.details
     }
 
-    public prop errorCount:   Int64 { get() { details.errorCount }}
-    public prop caseCount:    Int64 { get() { details.totalCount }}
-    public prop passedCount:  Int64 { get() { details.passedCount }}
-    public prop failedCount:  Int64 { get() { details.failedCount }}
-    public prop skippedCount: Int64 { get() { details.skippedCount }}
+    public prop errorCount: Int64 {
+        get() {
+            details.errorCount
+        }
+    }
+    public prop caseCount: Int64 {
+        get() {
+            details.totalCount
+        }
+    }
+    public prop passedCount: Int64 {
+        get() {
+            details.passedCount
+        }
+    }
+    public prop failedCount: Int64 {
+        get() {
+            details.failedCount
+        }
+    }
+    public prop skippedCount: Int64 {
+        get() {
+            details.skippedCount
+        }
+    }
 }
 
 public class TestReport <: Report {
@@ -425,8 +448,9 @@ public class TestReport <: Report {
         match (reporter) {
             case printer: TextReporterBase<T> => return printer.printReport(this)
             case xmlReporter: XmlReporter => UTestReportFormat.XML(xmlReporter.directory).report(groupResult)
-            case xmlPerPackageReporter: XmlPerPackageReporter => 
-                UTestReportFormat.XMLPerPackage(xmlPerPackageReporter.directory).report(groupResult)
+            case xmlPerPackageReporter: XmlPerPackageReporter => UTestReportFormat
+                .XMLPerPackage(xmlPerPackageReporter.directory)
+                .report(groupResult)
             case _ => throw Exception("Unkown reporter")
         }
     }
@@ -461,9 +485,7 @@ public interface TestClass {
 public class TestPackage {
     private let builder: TestGroupBuilder
 
-    public TestPackage(
-        let name: String
-    ) {
+    public TestPackage(let name: String) {
         this.builder = TestGroupBuilder(name)
     }
 
@@ -543,9 +565,16 @@ enum CaseOrBench {
 }
 
 private func fakeSuite(test: CaseOrBench): () -> TestSuite {
-    { =>
-        TestSuite("TestCase_${test.name}", [test], Configuration(),
-            [], [], [], [], None
+    {
+        => TestSuite(
+            "TestCase_${test.name}",
+            [test],
+            Configuration(),
+            [],
+            [],
+            [],
+            [],
+            None
         )
     }
 }
@@ -553,7 +582,8 @@ private func fakeSuite(test: CaseOrBench): () -> TestSuite {
 private func fakeGroup(testSuite: () -> TestSuite): TestGroup {
     TestGroup(
         "default",
-        [testSuite()], Configuration()
+        [testSuite()],
+        Configuration()
     )
 }
 

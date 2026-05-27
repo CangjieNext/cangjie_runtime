@@ -246,9 +246,9 @@ protected class JsonFloat <: JsonValue {
     }
 
     /**
-     * Convert JsonFloat to String.
+     * Convert this JsonFloat value to a compact string.
      *
-     * @return json-converted String is value string data.
+     * @return string form of the floating-point value.
      *
      * @since 0.17.4
      */
@@ -257,9 +257,9 @@ protected class JsonFloat <: JsonValue {
     }
 
     /**
-     * Convert JsonFloat to json-String.
+     * Convert this JsonFloat value to a JSON string.
      *
-     * @return json-converted prettified String is value string data.
+     * @return JSON text for the floating-point value.
      *
      * @since 0.21.1
      */
@@ -415,15 +415,8 @@ protected class JsonArray <: JsonValue {
      * @throws JsonException if there exists JsonValue which cannot be converted to String.
      */
     public func toJsonString(depth: Int64, bracketInNewLine!: Bool = false, indent!: String = "  "): String {
-        if (depth < 0) {
-            throw IllegalArgumentException("Depth cannot be negative.")
-        }
-        if (!indent.isContainOnlySpaceAndTab()) {
-            throw IllegalArgumentException("Indent must be an empty string or any combination of spaces and tabs.")
-        }
-        let buff = WriteBuffer(asumecapacity(this))
-        jsonWriteArray(this, buff, depth, bracketInNewLine, indent)
-        return unsafe { String.fromUtf8Unchecked(buff.getAndClear()) }
+        checkJsonFormatArgs(depth, indent)
+        jsonStringFromBuffer(asumecapacity(this)) {buff => jsonWriteArray(this, buff, depth, bracketInNewLine, indent)}
     }
 
     /**
@@ -436,9 +429,7 @@ protected class JsonArray <: JsonValue {
      * @throws JsonException if there exists JsonValue which cannot be converted to String.
      */
     public func toString(): String {
-        let buff = WriteBuffer(asumecapacity(this))
-        jsonWriteWithoutFormat(this, buff)
-        return unsafe { String.fromUtf8Unchecked(buff.getAndClear()) }
+        jsonStringFromBuffer(asumecapacity(this)) {buff => jsonWriteWithoutFormat(this, buff)}
     }
 
     /**
@@ -550,13 +541,13 @@ protected class JsonObject <: JsonValue {
     }
 
     /**
-     * Convert JsonObject to Json-String.
+     * Convert JsonObject fields to JSON text.
      *
-     * @return json-converted String is fields string data.
+     * @return JSON text for the object fields.
      *
      * @since 0.17.4
      *
-     * @throws JsonException if there exists JsonValue which cannot be converted to String.
+     * @throws JsonException if a field cannot be converted to JSON text.
      */
     public func toJsonString(): String {
         return toJsonString(0)
@@ -573,30 +564,21 @@ protected class JsonObject <: JsonValue {
      * @throws JsonException if there exists JsonValue which cannot be converted to String.
      */
     public func toJsonString(depth: Int64, bracketInNewLine!: Bool = false, indent!: String = "  "): String {
-        if (depth < 0) {
-            throw IllegalArgumentException("Depth cannot be negative.")
-        }
-        if (!indent.isContainOnlySpaceAndTab()) {
-            throw IllegalArgumentException("Indent must be an empty string or any combination of spaces and tabs.")
-        }
-        let buff = WriteBuffer(asumecapacity(this))
-        jsonWriteObject(this, buff, depth, bracketInNewLine, indent)
-        return unsafe { String.fromUtf8Unchecked(buff.getAndClear()) }
+        checkJsonFormatArgs(depth, indent)
+        jsonStringFromBuffer(asumecapacity(this)) {buff => jsonWriteObject(this, buff, depth, bracketInNewLine, indent)}
     }
 
     /**
-     * Convert JsonObject to String.
+     * Convert JsonObject to compact text.
      *
-     * @return json-converted String is fields string data.
+     * @return compact JSON text for the object fields.
      *
      * @since 0.21.1
      *
-     * @throws JsonException if there exists JsonValue which cannot be converted to String.
+     * @throws JsonException if a field cannot be converted to JSON text.
      */
     public func toString(): String {
-        let buff = WriteBuffer(asumecapacity(this))
-        jsonWriteWithoutFormat(this, buff)
-        return unsafe { String.fromUtf8Unchecked(buff.getAndClear()) }
+        jsonStringFromBuffer(asumecapacity(this)) {buff => jsonWriteWithoutFormat(this, buff)}
     }
 
     /**
@@ -673,6 +655,21 @@ protected class JsonObject <: JsonValue {
     public func getFields(): HashMap<String, JsonValue> {
         return fields
     }
+}
+
+private func checkJsonFormatArgs(depth: Int64, indent: String): Unit {
+    if (depth < 0) {
+        throw IllegalArgumentException("Depth cannot be negative.")
+    }
+    if (!indent.isContainOnlySpaceAndTab()) {
+        throw IllegalArgumentException("Indent must be an empty string or any combination of spaces and tabs.")
+    }
+}
+
+private func jsonStringFromBuffer(capacity: Int64, write: (WriteBuffer) -> Unit): String {
+    let buff = WriteBuffer(capacity)
+    write(buff)
+    unsafe { String.fromUtf8Unchecked(buff.getAndClear()) }
 }
 
 extend String {

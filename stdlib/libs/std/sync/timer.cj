@@ -136,15 +136,7 @@ public class Timer <: Equatable<Timer> & Hashable {
         if (period <= Duration.Zero) {
             throw IllegalArgumentException("Period cannot be less than or equal to Duration.Zero.")
         }
-        if (interval <= Duration.Zero) {
-            throw IllegalArgumentException("Interval cannot be less than or equal to Duration.Zero.")
-        }
-
-        let innerTick = match (style) {
-            case Delay => delayStyleTick(interval)
-            case Burst => burstStyleTick(delay, interval)
-            case Skip => skipStyleTick(delay, interval)
-        }
+        let innerTick = catchupStyleTick(delay, interval, style)
         let nextTick = tickDuring(delay, period, innerTick)
 
         Timer(delay) {
@@ -171,15 +163,7 @@ public class Timer <: Equatable<Timer> & Hashable {
         if (count <= 0) {
             throw IllegalArgumentException("Count cannot be less than or equal to 0.")
         }
-        if (interval <= Duration.Zero) {
-            throw IllegalArgumentException("Interval cannot be less than or equal to Duration.Zero.")
-        }
-
-        let innerTick = match (style) {
-            case Delay => delayStyleTick(interval)
-            case Burst => burstStyleTick(delay, interval)
-            case Skip => skipStyleTick(delay, interval)
-        }
+        let innerTick = catchupStyleTick(delay, interval, style)
         let nextTick = tickTimes(count, innerTick)
 
         Timer(delay) {
@@ -239,6 +223,18 @@ public enum CatchupStyle {
     | Skip
 }
 
+private func catchupStyleTick(delay: Duration, interval: Duration, style: CatchupStyle): () -> ?Duration {
+    if (interval <= Duration.Zero) {
+        throw IllegalArgumentException("Interval cannot be less than or equal to Duration.Zero.")
+    }
+
+    return match (style) {
+        case Delay => delayStyleTick(interval)
+        case Burst => burstStyleTick(delay, interval)
+        case Skip => skipStyleTick(delay, interval)
+    }
+}
+
 /**
  * CatchupStyle Delay, ticks at fix interval after previous task completed.
  *
@@ -258,32 +254,25 @@ func delayStyleTick(interval: Duration): () -> ?Duration {
  * Tick Time: |  delay  | task ---| very very long task | task | task | task | task | task ---|
  */
 func burstStyleTick(delay: Duration, interval: Duration): () -> ?Duration {
-    // the `lastTime' should be at `delay`
-    let lastTime: Box<MonoTime>
-    try {
-        lastTime = Box<MonoTime>(MonoTime.now() + delay)
-    } catch (e: ArithmeticException) {
-        // delay is too large, timer will never tick
-        return {=> None}
-    }
+    let lastTime = catchupStartTime(delay) ?? return {=> None}
 
     return {
         =>
-        let now = MonoTime.now()
+            let now = MonoTime.now()
 
-        // calculate the next tick time
-        let nextTime = lastTime.value + interval
+            // calculate the next tick time
+            let nextTime = lastTime.value + interval
 
-        // `nextTime - now` is the next interval
-        if (nextTime >= now) {
+            // `nextTime - now` is the next interval
+            if (nextTime >= now) {
+                lastTime.value = nextTime
+                return nextTime - now
+            }
+
+            // catchup step by step
             lastTime.value = nextTime
-            return nextTime - now
-        }
-
-        // catchup step by step
-        lastTime.value = nextTime
-        // tick immediately
-        return Duration.Zero
+            // tick immediately
+            return Duration.Zero
     }
 }
 
@@ -295,36 +284,38 @@ func burstStyleTick(delay: Duration, interval: Duration): () -> ?Duration {
  * Tick Time: |  delay  | task ---| very very long task | task -| task ---| task ---| task ---|
  */
 func skipStyleTick(delay: Duration, interval: Duration): () -> ?Duration {
-    // the `lastTime' should be at `delay`
-    let lastTime: Box<MonoTime>
-    try {
-        lastTime = Box<MonoTime>(MonoTime.now() + delay)
-    } catch (e: ArithmeticException) {
-        // delay is too large, timer will never tick
-        return {=> None}
-    }
+    let lastTime = catchupStartTime(delay) ?? return {=> None}
 
     return {
         =>
-        let now = MonoTime.now()
+            let now = MonoTime.now()
 
-        // calculate the next tick time
-        var nextTime = lastTime.value + interval
+            // calculate the next tick time
+            var nextTime = lastTime.value + interval
 
-        // `nextTime - now` is the next interval
-        if (nextTime >= now) {
-            lastTime.value = nextTime
-            return nextTime - now
-        }
+            // `nextTime - now` is the next interval
+            if (nextTime >= now) {
+                lastTime.value = nextTime
+                return nextTime - now
+            }
 
-        // skip missed ticks
-        while (nextTime < now) {
-            nextTime += interval
-        }
-        lastTime.value = nextTime - interval
+            // skip missed ticks
+            while (nextTime < now) {
+                nextTime += interval
+            }
+            lastTime.value = nextTime - interval
 
-        // tick immediately
-        return Duration.Zero
+            // tick immediately
+            return Duration.Zero
+    }
+}
+
+private func catchupStartTime(delay: Duration): ?Box<MonoTime> {
+    try {
+        return Some(Box<MonoTime>(MonoTime.now() + delay))
+    } catch (e: ArithmeticException) {
+        // delay is too large, timer will never tick
+        return None
     }
 }
 
@@ -346,19 +337,19 @@ func tickDuring(delay: Duration, period: Duration, nextTick: () -> ?Duration): (
 
     return {
         =>
-        let now = MonoTime.now()
-        // last tick time <= finalTime
-        if (now > finalTime) {
-            return None
-        }
-
-        if (let Some(interval) <- nextTick()) {
-            if (now + interval > finalTime) {
+            let now = MonoTime.now()
+            // last tick time <= finalTime
+            if (now > finalTime) {
                 return None
             }
-            return interval
-        }
-        return None
+
+            if (let Some(interval) <- nextTick()) {
+                if (now + interval > finalTime) {
+                    return None
+                }
+                return interval
+            }
+            return None
     }
 }
 
@@ -366,11 +357,11 @@ func tickTimes(count: Int64, nextTick: () -> ?Duration): () -> ?Duration {
     let cnt = Box<Int64>(1)
     return {
         =>
-        if (cnt.value >= count) {
-            return None
-        }
-        cnt.value++
-        nextTick()
+            if (cnt.value >= count) {
+                return None
+            }
+            cnt.value++
+            nextTick()
     }
 }
 
@@ -612,27 +603,15 @@ class TimerBlock {
 
     func pop(): PopResult {
         while (true) {
-            let index = reserved.load()
-
-            if (index >= TIMER_BLOCK_BUFFER_SIZE) {
-                return BlockDone
-            }
-
-            let currentCommitted = committed.load()
-            if (currentCommitted != TIMER_BLOCK_BUFFER_SIZE) {
-                if (currentCommitted != allocated.load()) {
-                    continue
-                }
-            }
-
-            if (index == currentCommitted) {
-                return NoEntry
-            }
-
-            if (reserved.compareAndSwap(index, index + 1)) {
-                let elem = Element(buffer[index])
-                buffer[index] = unsafe { zeroValue<Timer>() }
-                return elem
+            let (result, index) = frontEntry()
+            match (result) {
+                case Element(elem) =>
+                    if (!reserved.compareAndSwap(index, index + 1)) {
+                        continue
+                    }
+                    buffer[index] = unsafe { zeroValue<Timer>() }
+                    return Element(elem)
+                case _ => return result
             }
         }
 
@@ -640,11 +619,16 @@ class TimerBlock {
     }
 
     func front(): PopResult {
+        let (result, _) = frontEntry()
+        return result
+    }
+
+    private func frontEntry(): (PopResult, Int64) {
         while (true) {
             let index = reserved.load()
 
             if (index >= TIMER_BLOCK_BUFFER_SIZE) {
-                return BlockDone
+                return (BlockDone, -1)
             }
 
             let currentCommitted = committed.load()
@@ -655,13 +639,13 @@ class TimerBlock {
             }
 
             if (index == currentCommitted) {
-                return NoEntry
+                return (NoEntry, -1)
             }
 
-            return Element(buffer[index])
+            return (Element(buffer[index]), index)
         }
 
-        return BlockDone
+        return (BlockDone, -1)
     }
 }
 

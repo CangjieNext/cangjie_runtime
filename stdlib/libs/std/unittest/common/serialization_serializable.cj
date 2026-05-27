@@ -15,6 +15,10 @@ package std.unittest.common
 
 import std.collection.*
 
+private func serializeInteger(value: Int64): DataModel {
+    return DataModelInt(value)
+}
+
 /**
  * This interface used for canonical serialization.
  */
@@ -51,7 +55,8 @@ extend Int64 <: Serializable<Int64> {
      * @since 0.17.4
      */
     public func serializeInternal(): DataModel {
-        return DataModelInt(this)
+        let int64Value = this
+        return serializeInteger(int64Value)
     }
 
     /**
@@ -84,7 +89,8 @@ extend Int32 <: Serializable<Int32> {
      * @since 0.17.4
      */
     public func serializeInternal(): DataModel {
-        return DataModelInt(Int64(this))
+        let int32Value = Int64(this)
+        return serializeInteger(int32Value)
     }
 
     /**
@@ -117,7 +123,8 @@ extend Int16 <: Serializable<Int16> {
      * @since 0.17.4
      */
     public func serializeInternal(): DataModel {
-        return DataModelInt(Int64(this))
+        let int16Value = Int64(this)
+        return serializeInteger(int16Value)
     }
 
     /**
@@ -150,7 +157,8 @@ extend Int8 <: Serializable<Int8> {
      * @since 0.17.4
      */
     public func serializeInternal(): DataModel {
-        return DataModelInt(Int64(this))
+        let int8Value = Int64(this)
+        return serializeInteger(int8Value)
     }
 
     /**
@@ -183,7 +191,8 @@ extend UInt64 <: Serializable<UInt64> {
      * @since 0.17.4
      */
     public func serializeInternal(): DataModel {
-        return DataModelInt(Int64(this))
+        let uint64Value = Int64(this)
+        return serializeInteger(uint64Value)
     }
 
     /**
@@ -216,7 +225,8 @@ extend UInt32 <: Serializable<UInt32> {
      * @since 0.17.4
      */
     public func serializeInternal(): DataModel {
-        return DataModelInt(Int64(this))
+        let uint32Value = Int64(this)
+        return serializeInteger(uint32Value)
     }
 
     /**
@@ -249,7 +259,8 @@ extend UInt16 <: Serializable<UInt16> {
      * @since 0.17.4
      */
     public func serializeInternal(): DataModel {
-        return DataModelInt(Int64(this))
+        let uint16Value = Int64(this)
+        return serializeInteger(uint16Value)
     }
 
     /**
@@ -282,7 +293,8 @@ extend UInt8 <: Serializable<UInt8> {
      * @since 0.17.4
      */
     public func serializeInternal(): DataModel {
-        return DataModelInt(Int64(this))
+        let uint8Value = Int64(this)
+        return serializeInteger(uint8Value)
     }
 
     /**
@@ -662,8 +674,8 @@ extend<T> HashSet<T> <: Serializable<HashSet<T>> where T <: Serializable<T> & Ha
 /**
  * Extended HashMap to implement Serializable.
  */
-extend<K, V> HashMap<K, V> <: Serializable<HashMap<K, V>>
-    where K <: Serializable<K> & Hashable & Equatable<K>, V <: Serializable<V> {
+extend<K, V> HashMap<K, V> <: Serializable<HashMap<K, V>> where K <: Serializable<K> & Hashable & Equatable<K>,
+    V <: Serializable<V> {
     /*
      * Serializes HashMap into DataModelStruct.
      *
