@@ -23,7 +23,6 @@ public interface Formattable {
 
 let signed: Bool = true
 let unsigned: Bool = false
-
 const MAX_FORMAT_WIDTH: Int64 = 100000 /* Maximum format width to prevent memory exhaustion. */
 const MAX_FLOAT_PRECISION: Int64 = 350 /* Maximum float precision; covers Float64's full range (~1.8e308). */
 
@@ -89,42 +88,40 @@ extend Int32 <: Formattable {
      * @throws IllegalArgumentException if the `fmt` does not match the expected int format pattern
      */
     public func format(fmt: String): String {
-        return Int64(this).format(fmt)
+        let value = Int64(this)
+        return value.format(fmt)
     }
 }
 
 extend Int16 <: Formattable {
 
     /**
-     * Formatting the Int16 Type.
+     * Formats this Int16 value using an integer format pattern.
      *
-     * @param fmt formatting string.
+     * @param fmt format pattern.
      * @return formatted string.
      *
-     * @throws IllegalArgumentException if fmt is not a valid format pattern.
+     * @throws IllegalArgumentException if the pattern is not valid for integer values.
      *
      * @since 0.17.4
-     *
-     * @throws IllegalArgumentException if the `fmt` does not match the expected int format pattern
      */
     public func format(fmt: String): String {
-        return Int64(this).format(fmt)
+        let value = Int64(this)
+        return value.format(fmt)
     }
 }
 
 extend Int8 <: Formattable {
 
     /**
-     * Formatting the Int8 Type.
+     * Formats this Int8 value through the Int64 formatter.
      *
-     * @param fmt formatting string.
+     * @param fmt format pattern.
      * @return formatted string.
      *
-     * @throws IllegalArgumentException if fmt is not a valid format pattern.
+     * @throws IllegalArgumentException if the pattern is not valid for integer values.
      *
      * @since 0.17.4
-     *
-     * @throws IllegalArgumentException if the `fmt` does not match the expected int format pattern
      */
     public func format(fmt: String): String {
         return Int64(this).format(fmt)
@@ -171,42 +168,40 @@ extend UInt32 <: Formattable {
      * @throws IllegalArgumentException if the `fmt` does not match the expected unit format pattern
      */
     public func format(fmt: String): String {
-        return UInt64(this).format(fmt)
+        let value = UInt64(this)
+        return value.format(fmt)
     }
 }
 
 extend UInt16 <: Formattable {
 
     /**
-     * Formatting the UInt16 Type.
+     * Formats this UInt16 value using an unsigned integer format pattern.
      *
-     * @param fmt formatting string.
+     * @param fmt format pattern.
      * @return formatted string.
      *
-     * @throws IllegalArgumentException if fmt is not a valid format pattern.
+     * @throws IllegalArgumentException if the pattern is not valid for unsigned integer values.
      *
      * @since 0.17.4
-     *
-     * @throws IllegalArgumentException if the `fmt` does not match the expected unit format pattern
      */
     public func format(fmt: String): String {
-        return UInt64(this).format(fmt)
+        let value = UInt64(this)
+        return value.format(fmt)
     }
 }
 
 extend UInt8 <: Formattable {
 
     /**
-     * Formatting the UInt8 Type.
+     * Formats this UInt8 value through the UInt64 formatter.
      *
-     * @param fmt formatting string.
+     * @param fmt format pattern.
      * @return formatted string.
      *
-     * @throws IllegalArgumentException if fmt is not a valid format pattern.
+     * @throws IllegalArgumentException if the pattern is not valid for unsigned integer values.
      *
      * @since 0.17.4
-     *
-     * @throws IllegalArgumentException if the `fmt` does not match the expected unit format pattern
      */
     public func format(fmt: String): String {
         return UInt64(this).format(fmt)
@@ -257,19 +252,18 @@ extend Float32 <: Formattable {
 extend Float16 <: Formattable {
 
     /**
-     * Formatting the Float16 Type
+     * Formats this Float16 value through the Float64 formatter.
      *
-     * @param fmt formatting string.
-     * @return formatted string
+     * @param fmt float format pattern.
+     * @return formatted string.
      *
-     * @throws IllegalArgumentException if fmt is not a valid format pattern.
+     * @throws IllegalArgumentException if the pattern is not valid for floating-point values.
      *
      * @since 0.17.4
-     *
-     * @throws IllegalArgumentException if the `fmt` does not match the expected float format pattern
      */
     public func format(fmt: String): String {
-        return Float64(this).format(fmt)
+        let value = Float64(this)
+        return value.format(fmt)
     }
 }
 
@@ -730,7 +724,8 @@ class FormatSpecifier {
      */
     func fmtFloat(arg: Float64): String {
         if (precision > MAX_FLOAT_PRECISION) {
-            throw IllegalArgumentException("Format precision ${precision} exceeds maximum allowed value ${MAX_FLOAT_PRECISION}.")
+            throw IllegalArgumentException(
+                "Format precision ${precision} exceeds maximum allowed value ${MAX_FLOAT_PRECISION}.")
         }
         var negative = false
         var str = "${arg}".toRuneArray()

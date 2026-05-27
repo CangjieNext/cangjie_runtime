@@ -9,25 +9,23 @@
 package std.net
 
 /**
- * TCP server socket providing a way to listen for TCP incoming connections.
+ * TCP listener for accepting incoming network stream connections.
  *
- * Once created, could be configured via corresponding properties (e.g. reusePort) or setSocketOptionXX functions.
+ * A new instance is configurable until bind() starts listening on the selected local IP endpoint. The operating system
+ * owns the pending connection queue, and accept() returns TcpSocket instances taken from that queue.
  *
- * To start listening, use bind() function that does bind socket on a local port and start listening for connections.
- *
- * Receiving an incoming connection is provided via accept() function that does wait for the next connection or returns immediately
- * if there is already pending connection.
- *
- * Instances of this type should be explicitly closed even when the bind() hasn't been invoked.
+ * Close instances explicitly even if bind() has not been called.
  */
 public class TcpServerSocket <: ServerSocket {
     private let impl: SocketCommon<ActualTcpPlatformSocket>
     private var backlogSize_: Int32 = SOCKET_DEFAULT_BACKLOG
 
     /**
-     * Local address the socket will be or is currently bound at.
+     * Local IP endpoint configured for this TCP listener.
      *
-     * @throws SocketException is the socket is already closed.
+     * If bindAt used port zero, the actual port becomes visible after bind succeeds.
+     *
+     * @throws SocketException if the socket is already closed.
      */
     public override prop localAddress: SocketAddress {
         get() {
@@ -103,51 +101,23 @@ public class TcpServerSocket <: ServerSocket {
         }
     }
 
-    /**
-     * SO_SNDBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired outgoing buffer size.
-     *
-     * Changing this option is not guaranteed to have any effect since it's
-     * completely up to the operating system.
-     *
-     * Reading this property could also provide non-realistic values on some systems in
-     * some cases so no logic should strictly rely on this value.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** Gets or sets this TcpServerSocket SO_SNDBUF size; non-positive updates throw IllegalArgumentException. */
     public mut prop sendBufferSize: Int64 {
         get() {
-            Int64(impl.getSocketOptionIntNative(SOL_SOCKET, SOCK_SNDBUF))
+            socketSendBufferSize(impl)
         }
         set(newSize) {
-            if (newSize <= 0) {
-                throw IllegalArgumentException("Buffer size should be positive, got ${newSize}.")
-            }
-            impl.setSocketOptionIntNative(SOL_SOCKET, SOCK_SNDBUF, IntNative(newSize))
+            socketSendBufferSize(impl, newSize)
         }
     }
 
-    /**
-     * SO_RCVBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired receive buffer size.
-     *
-     * Changing this option is not guaranteed to have any effect since it's
-     * completely up to the operating system.
-     *
-     * Reading this property could also provide non-realistic values on some systems in
-     * some cases so no logic should strictly rely on this value.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** Gets or sets this TcpServerSocket SO_RCVBUF size; non-positive updates throw IllegalArgumentException. */
     public mut prop receiveBufferSize: Int64 {
         get() {
-            Int64(impl.getSocketOptionIntNative(SOL_SOCKET, SOCK_RCVBUF))
+            socketReceiveBufferSize(impl)
         }
         set(newSize) {
-            if (newSize <= 0) {
-                throw IllegalArgumentException("Buffer size should be positive, got ${newSize}.")
-            }
-            impl.setSocketOptionIntNative(SOL_SOCKET, SOCK_RCVBUF, IntNative(newSize))
+            socketReceiveBufferSize(impl, newSize)
         }
     }
 
@@ -175,13 +145,7 @@ public class TcpServerSocket <: ServerSocket {
             Int64(backlogSize_)
         }
         set(newSize) {
-            impl.checkNotBound()
-            impl.checkNotClosed()
-            backlogSize_ = match {
-                case newSize <= 0 => throw IllegalArgumentException("BacklogSize should be positive: ${newSize}.")
-                case newSize >= Int64(Int32.Max) => Int32.Max - 1
-                case _ => Int32(newSize)
-            }
+            backlogSize_ = checkedSocketBacklogSize(impl, newSize)
         }
     }
 
@@ -195,21 +159,12 @@ public class TcpServerSocket <: ServerSocket {
     }
 
     /**
-     * Accept a client TCP socket, waiting for one if there are no pending connection requests.
+     * Accepts the next TCP client socket, waiting up to the specified timeout.
      *
-     * The OS implementation usually provides an incoming connection requests queue (called backlog),
-     * so calling accept() does takes a candidate from the queue
-     * or wait until we get some request if the queue is empty.
+     * The listening backlog is consumed one connection at a time. If no accepted connection is ready, this call waits
+     * until a client is available or the timeout expires.
      *
-     * Usually, a TCP client is waiting for connection until we get it from server.accept() function. If the server don't
-     * get it in time then the client may fail to connect with error (e.g. connection timeout error). If the backlog queue is full
-     * due to the missing accept() invocations then the operating system usually start rejecting new incoming connections that don't fit
-     * the backlog queue capacity.
-     * This fact could be used for backpressure control so if a server detects that no requests could be processed for some reason
-     * then it may stop doing accept() to keep client in the queue and limit workload.
-     *
-     * The specified timeout is applied to accept operation
-     * @throws SocketTimeoutException when the specified timeout is over
+     * @throws SocketTimeoutException when the specified timeout is over.
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public override func accept(timeout!: ?Duration): TcpSocket {
@@ -218,128 +173,68 @@ public class TcpServerSocket <: ServerSocket {
     }
 
     /**
-     * Accept a client TCP socket, waiting for one if there are no pending connection requests.
+     * Accepts the next TCP client socket without a library-side timeout.
      *
-     * The OS implementation usually provides an incoming connection requests queue (called backlog),
-     * so calling accept() does takes a candidate from the queue
-     * or wait until we get some request if the queue is empty.
-     *
-     * Usually, a TCP client is waiting for connection until we get it from server.accept() function. If the server don't
-     * get it in time then the client may fail to connect with error (e.g. connection timeout error). If the backlog queue is full
-     * due to the missing accept() invocations then the operating system usually start rejecting new incoming connections that don't fit
-     * the backlog queue capacity.
-     * This fact could be used for backpressure control so if a server detects that no requests could be processed for some reason
-     * then it may stop doing accept() to keep client in the queue and limit workload.
+     * When the backlog queue is empty, this call waits until the platform reports a pending connection.
      */
     public override func accept(): TcpSocket {
         accept(timeout: None)
     }
 
     /**
-     * Close the socket releasing all resources. All operations except for close() and isClose() are no longer available.
-     * This function is reentrant.
+     * Closes this TCP listener and releases the underlying socket resource.
+     *
+     * Calling close more than once is allowed; after closing, operations other than close and isClosed are unavailable.
      **/
     public override func close(): Unit {
         impl.close()
     }
 
     /**
-     * Checks whether this socket has been explicitly closed via close()
+     * Returns whether this TCP listener has been explicitly closed.
      **/
     public override func isClosed(): Bool {
         impl.isClosed()
     }
 
-    /**
-     * Read the specified socket option writing the result to value buffer
-     * of the specified valueLength (in bytes).
-     * Before invoking this function valueLength should be initialized with the buffer size
-     * After invoking this function valueLength will contain the actual result
-     * size in bytes.
-     *
-     * Throws an exception if failed (when getsockopt returns -1).
-     */
+    /** Reads a TcpServerSocket raw option into `value`; failures are reported as SocketException. */
     public func getSocketOption(
         level: Int32,
         option: Int32,
         value: CPointer<Unit>,
         valueLength: CPointer<UIntNative>
     ): Unit {
-        unsafe { impl.getSocketOption(level, option, value, valueLength) }
+        socketGetOption(impl, level, option, value, valueLength)
     }
 
-    /**
-     * Write the specified socket option from value buffer having valueLength
-     * size in bytes.
-     *
-     * Throws an exception if failed (when setsockopt returns -1).
-     */
+    /** Writes a TcpServerSocket raw option from `value`; failures are reported as SocketException. */
     public func setSocketOption(
         level: Int32,
         option: Int32,
         value: CPointer<Unit>,
         valueLength: UIntNative
     ): Unit {
-        unsafe { impl.setSocketOption(level, option, value, valueLength) }
+        socketSetOption(impl, level, option, value, valueLength)
     }
 
-    /**
-     * Read the specified socket option returning it's value as IntNative result.
-     *
-     * Throws an exception if failed (when getsockopt returns -1) or if the result
-     * has size different from IntNative.
-     */
-    public func getSocketOptionIntNative(
-        level: Int32,
-        option: Int32
-    ): IntNative {
-        impl.getSocketOptionIntNative(level, option)
+    /** Reads a TcpServerSocket option represented as IntNative. */
+    public func getSocketOptionIntNative(level: Int32, option: Int32): IntNative {
+        socketGetOptionIntNative(impl, level, option)
     }
 
-    /**
-     * Write a numeric IntNative value to the specified socket option.
-     *
-     * Throws an exception if failed (when setsockopt returns -1), for example
-     * when the option size is different from IntNative.
-     */
-    public func setSocketOptionIntNative(
-        level: Int32,
-        option: Int32,
-        value: IntNative
-    ): Unit {
-        impl.setSocketOptionIntNative(level, option, value)
+    /** Writes a TcpServerSocket option represented as IntNative. */
+    public func setSocketOptionIntNative(level: Int32, option: Int32, value: IntNative): Unit {
+        socketSetOptionIntNative(impl, level, option, value)
     }
 
-    /**
-     * Read the specified socket option returning it's value as a boolean value
-     * converting it from an IntNative.
-     *
-     * The conversion is defined as 0 => false, other values => true.
-     *
-     * Throws an exception if failed (when getsockopt returns -1) or if the result
-     * has size different from IntNative.
-     */
-    public func getSocketOptionBool(
-        level: Int32,
-        option: Int32
-    ): Bool {
-        impl.getSocketOptionBool(level, option)
+    /** Reads a TcpServerSocket option represented as Bool. */
+    public func getSocketOptionBool(level: Int32, option: Int32): Bool {
+        socketGetOptionBool(impl, level, option)
     }
 
-    /**
-     * Write a boolean value to the specified socket option converting it to IntNative.
-     *
-     * The conversion is defined as false => 0, true => 1
-     *
-     * Throws an exception if failed (when setsockopt returns -1), for example
-     * when the option size is different from IntNative.
-     */
-    public func setSocketOptionBool(
-        level: Int32,
-        option: Int32,
-        value: Bool
-    ): Unit {
-        impl.setSocketOptionBool(level, option, value)
+    /** Writes a TcpServerSocket option represented as Bool. */
+    public func setSocketOptionBool(level: Int32, option: Int32, value: Bool): Unit {
+        socketSetOptionBool(impl, level, option, value)
     }
 
     public override func toString(): String {
