@@ -29,18 +29,7 @@ struct Linger {
     static const size: UIntNative = 4
 
     static func use<R>(block: (CPointer<Linger>) -> R): R {
-        unsafe {
-            let ptr = LibC.malloc<Linger>()
-            if (ptr.isNull()) {
-                throw IllegalMemoryException("Malloc failed.")
-            }
-
-            try {
-                block(ptr)
-            } finally {
-                LibC.free(ptr)
-            }
-        }
+        useLingerPointer(block)
     }
 }
 
@@ -65,17 +54,21 @@ struct Linger {
     static let size: UIntNative = 8
 
     static func use<R>(block: (CPointer<Linger>) -> R): R {
-        unsafe {
-            let ptr = LibC.malloc<Linger>()
-            if (ptr.isNull()) {
-                throw IllegalMemoryException("Malloc failed.")
-            }
+        useLingerPointer(block)
+    }
+}
 
-            try {
-                block(ptr)
-            } finally {
-                LibC.free(ptr)
-            }
+private func useLingerPointer<R>(block: (CPointer<Linger>) -> R): R {
+    unsafe {
+        let ptr = LibC.malloc<Linger>()
+        if (ptr.isNull()) {
+            throw IllegalMemoryException("Malloc failed.")
+        }
+
+        try {
+            block(ptr)
+        } finally {
+            LibC.free(ptr)
         }
     }
 }
