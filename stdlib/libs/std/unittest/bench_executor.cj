@@ -27,6 +27,9 @@ func MeasurementNewToArrayList(m : MeasurementNew) : ArrayList <BenchRawMeasurem
             ans.add((Float64(t * m.batchSize), m.distribution[t].x[i], 0.0, m.distribution[t].w[i]))
         }
     }
+    for (i in 0..m.distribution[2].sz) {
+        ans.add((Float64(0), m.distribution[2].x[i], 1.0, m.distribution[2].w[i]))
+    }
     return ans
 }
 
@@ -85,7 +88,6 @@ class Distribution {
         }
     }
 }
-
 class MeasurementNew <: Measurement {
     var distribution = [Distribution(), Distribution(), Distribution()]
     var batchSizeInConfiguration : Bool = false
@@ -384,8 +386,8 @@ protected class BenchmarkResult {
     }}              
 
     var data: ArrayList<BenchRawMeasurement> = ArrayList()
-    protected BenchmarkResult(var data: ArrayList <BenchRawMeasurement>) {}
-    init(data_: ArrayList<BenchRawMeasurement>) {
+    protected init() {}    
+    protected init(data_: ArrayList<BenchRawMeasurement>) {
         data = data_
     }
 
@@ -397,7 +399,6 @@ protected class BenchmarkResult {
             data = bench.data
         }
     }
-
 
     protected func calculate(measurement: MeasurementInfo) {
         if (finished) { return }

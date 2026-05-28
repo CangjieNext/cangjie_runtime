@@ -17,7 +17,8 @@ import std.collection.*
  * Interface for all kinds of data that can be collected and analyzed during benchmarking.
  */ 
 public interface Measurement {
-    func setup(): Unit {}
+    @Frozen
+    func setup(): Unit {} 
 
     /**
      * @return representation of the measurement data that will be used for statistical analisys
