@@ -1114,7 +1114,7 @@ extend BenchmarkResult {
         }
         let maxx = this.data.iterator().maxBy{ x => x[0] }[0]
         let miny = this.data.iterator().minBy{ x => x[1] }[1]
-        let (maxyPos, maxy, _) = this.data.iterator().maxBy { x => x[1] }
+        let (maxyPos, maxy, _, weight) = this.data.iterator().maxBy { x => x[1] }
         let max98 = Sample(this.data |> map { x: BenchRawMeasurement => x[1] } |> collectArrayList).percentile(0.98)
         let result = bootstrapped.medianStats.median
         let overhead = bootstrapped.medianOverheadStats.mean
@@ -1124,7 +1124,7 @@ extend BenchmarkResult {
         let lowerBound = miny*0.99
 
         let dataFile = File.createTemp(into.parent)
-        for ((batchSize, timeNanos, gc) in this.data) {
+        for ((batchSize, timeNanos, gc, weight) in this.data) {
             dataFile.write("${Int64(batchSize)} ${Int64(min(timeNanos, upperBound))} ${gc}\n".toArray())
         }
         dataFile.close()

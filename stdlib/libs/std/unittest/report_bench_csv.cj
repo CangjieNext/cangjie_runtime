@@ -77,7 +77,7 @@ extend TestSuiteResult {
 
                 match (raw) {
                     case true =>
-                        for ((batchSize, value, _) in resultPiece.result.data) {
+                        for ((batchSize, value, _, weight) in resultPiece.result.data) {
                             let (adjustedValue, unit) = conversionTable.minToNonAdjustedPair(value)
                             sb.appendCsvCell(caseName)
                             sb.appendCsvCell(args)
