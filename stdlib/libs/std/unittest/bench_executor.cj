@@ -15,22 +15,105 @@ import std.random.Random
 import std.runtime.ProcessorInfo
 import std.runtime.getProcessorCount
 import std.unittest.common.PrettyText
+import std.time.*
 
+type BenchRawMeasurement = (Float64, Float64, Float64, Int64) // (batchSize, value, GC time, weight)
 
-type BenchRawMeasurement = (Float64, Float64, Float64)
+func MeasurementNewToArrayList(m : MeasurementNew) : ArrayList <BenchRawMeasurement> {
+    var ans : ArrayList <BenchRawMeasurement> = ArrayList <BenchRawMeasurement>()
+    for (t in 0..2) {
+        for (i in 0..m.distribution[t].sz) {
+            ans.add((Float64(t * m.batchSize), m.distribution[t].x[i], 0.0, m.distribution[t].w[i]))
+        }
+    }
+    return ans
+}
+
+let maxSize : Int64 = 200
+class Distribution {
+    var x : Array <Float64> = Array <Float64> (maxSize, {_ => 0.0})
+    var w : Array <Int64> = Array <Int64> (maxSize, {_ => 0})
+    public var sz : Int64 = 0
+    private func choose(i : Int64, newx : Float64) : Unit {
+        x[i] = (x[i] * Float64(w[i]) + newx) / Float64(w[i] + 1)
+        w[i]++
+    }    
+    public func clear() : Unit {
+        for (i in 0..sz) {
+            x[i] = 0.0
+            w[i] = 0
+        }
+        sz = 0
+    }
+    public func addPoint(newx: Float64) : Unit {
+        if (sz < maxSize) {
+            var i : Int64 = sz
+            while (i > 0 && newx < x[i - 1]) {
+                x[i] = x[i - 1]
+                w[i] = w[i - 1]
+                i--
+            }
+            x[i] = newx
+            w[i] = 1
+            sz++
+        }
+        else {
+            var lo : Int64 = -1
+            var hi : Int64 = maxSize
+            while (lo < hi - 1) {
+                let m : Int64 = (lo + hi) / 2
+                if (x[m] < newx) {
+                    lo = m
+                }
+                else {
+                    hi = m
+                }
+            }
+            if (lo == -1) {
+                choose(0, newx)
+            }
+            else if (hi == maxSize) {
+                choose(maxSize - 1, newx)
+            }
+            else if (Float64(w[lo]) * (newx - x[lo]) * (newx - x[lo]) < Float64(w[hi]) * (x[hi] - newx) * (x[hi] - newx)) {
+                choose(lo, newx)
+            }
+            else {
+                choose(hi, newx)
+            }
+        }
+    }
+}
+
+class MeasurementNew <: Measurement {
+    var distribution = [Distribution(), Distribution()]
+    var batchSizeInConfiguration : Bool = false
+    MeasurementNew (let arg : Measurement, let batchSize : Int64) {}
+    var start: ?MonoTime = None
+    public override func setup(): Unit {}    
+    public override func addPoint(batchSize : Int64, result : Float64): Unit {
+        if (batchSize > 0) {
+            distribution[1].addPoint(result)
+        }
+        else {
+            distribution[0].addPoint(result)
+        }
+    }
+    public override func measure() {
+        return arg.measure()
+    }
+}
 
 class BenchExecutor<T> <: Executor {
     var step = 0
-
+    
     BenchExecutor(
         private let strategy: DataStrategyProcessor<T>,
         private let measurement: Measurement,
         private let doRun: (T, Int64, Int64, Int64, Measurement) -> Float64
-    ) {
-    }
+    ) {}
 
     public func execute(suiteInfo: TestSuiteReportInfo, tcase: TestCaseResult, configuration: Configuration): Unit {
-
         let progress = ProgressOutput(configuration)
         let benchRunner = BenchRunner(configuration, progress)
         strategy.nextIteration(configuration)
@@ -75,16 +158,25 @@ class BenchExecutor<T> <: Executor {
 
         let mockOptForBenchEnabled = configuration.get(KeyOptimizeMocksForBench.optimizeMocksForBench) ?? false
 
+        let wrapper: Measurement
+        if (let Some(bs) <- configuration.get<Int64>(KeyBatchSize.batchSize)) {
+            wrapper = MeasurementNew(measurement, bs)
+        }
+        else {
+            wrapper = ArrayListWrapper(measurement)
+        }
         benchRunner.benchmark = if (mockOptForBenchEnabled) {
-            MockBenchWrapper<T>(value, caseId.caseName, measurement, doRun)
+            MockBenchWrapper<T>(value, caseId.caseName, wrapper, doRun)
         } else {
-            SimpleBenchWrapper<T>(value, measurement, doRun)
+            SimpleBenchWrapper<T>(value, wrapper, doRun)
         }
 
         benchRunner.measurements = ArrayList()
         let stepKind = CaseStep(ArgumentDescription(args, step, 0, None))
-        Framework.runStepBody(stepKind, StepInfo.Bench(BenchmarkResult(benchRunner.measurements)), caseId.caseName) {
+        let bench: BenchmarkResult = BenchmarkResult()
+        Framework.runStepBody(stepKind, StepInfo.Bench(bench), caseId.caseName) {
             benchRunner.runBench()
+            bench.build(wrapper)
         }
     }
 
@@ -280,9 +372,22 @@ class BenchmarkResult {
         } else {
             error / result * 100.0
         }
-    }}
+    }}              
 
-    BenchmarkResult(var data: ArrayList<BenchRawMeasurement>) {}
+    var data: ArrayList<BenchRawMeasurement> = ArrayList()
+    BenchmarkResult() {}
+    init(data_: ArrayList<BenchRawMeasurement>) {
+        data = data_
+    }
+
+    public func build(bench : Measurement) {
+        if (let Some(bench) <- (bench as MeasurementNew)) {
+            data = MeasurementNewToArrayList(bench)
+        }
+        if (let Some(bench) <- (bench as ArrayListWrapper)) {
+            data = bench.data
+        }
+    }
 
     func calculate(measurement: MeasurementInfo) {
         if (finished) { return }

@@ -76,14 +76,14 @@ extend StepKind <: Serializable<StepKind> {
     }
 }
 
-type SavedBenchData = HListOfTuples<Float64,HListOfTuples<Float64, HListOfTuples<Float64, End>>>
+type SavedBenchData = HListOfTuples<Float64,HListOfTuples<Float64, HListOfTuples<Float64, HListOfTuples <Int64, End>>>>
 extend StepInfo <: Serializable<StepInfo> {
     public func serializeInternal(): DataModel {
         let dms = DataModelStruct()
         match (this) {
             case Test(args) => dms.add(field<Int64>("test", args))
             case Bench(rawMeasurements) =>
-                dms.add(field<SavedBenchData>("bench", rawMeasurements.data |> collToHlist3))
+                dms.add(field<SavedBenchData>("bench", rawMeasurements.data |> collToHlist4))
             case Failure(checks) => dms.add(field<Array<CheckResult>>("failure", checks))
         }
         dms
@@ -95,7 +95,7 @@ extend StepInfo <: Serializable<StepInfo> {
             return Test(Int64.deserialize(testArgs))
         }
         if (let Some(bench) <- dms.tryGet("bench")) {
-            return Bench(BenchmarkResult(ArrayList(SavedBenchData.deserialize(bench) |> hlistToColl3)))
+            return Bench(BenchmarkResult(ArrayList(SavedBenchData.deserialize(bench) |> hlistToColl4)))
         }
         if (let Some(failure) <- dms.tryGet("failure")) {
             return Failure(Array<CheckResult>.deserialize(failure))
@@ -313,6 +313,23 @@ func collToHlist3<A,B,C>(col: Collection<(A, B, C)>): HListOfTuples<A, HListOfTu
     HListOfTuples(left, HListOfTuples(right, HListOfTuples(end, End())))       
 }
 
+func collToHlist4<A,B,C,D>(col: Collection<(A, B, C, D)>): HListOfTuples<A, HListOfTuples<B, HListOfTuples<C, HListOfTuples<D, End>>>> {
+    let data = col.toArray()
+    let left = Array(data.size) { i =>
+        data[i][0]
+    }
+    let right = Array(data.size) { i =>
+        data[i][1]
+    }
+    let end = Array(data.size) { i =>
+        data[i][2]
+    }
+    let fourth = Array(data.size) { i =>
+        data[i][3]
+    }
+    HListOfTuples(left, HListOfTuples(right, HListOfTuples(end, HListOfTuples(fourth, End()))))       
+}
+
 func hlistToColl2<A,B>(hlist: HListOfTuples<A, HListOfTuples<B, End>>): Array<(A, B)> {
     let a = hlist.data
     let b = hlist.tail.data
@@ -324,4 +341,12 @@ func hlistToColl3<A,B,C>(hlist: HListOfTuples<A, HListOfTuples<B, HListOfTuples<
     let b = hlist.tail.data
     let c = hlist.tail.tail.data
     a |> zip(b) |> zip(c) |> map { x => (x[0][0], x[0][1], x[1])} |> collectArray
+}
+
+func hlistToColl4<A,B,C,D>(hlist: HListOfTuples<A, HListOfTuples<B, HListOfTuples<C, HListOfTuples<D, End>>>>): Array<(A, B, C, D)> {
+    let a = hlist.data
+    let b = hlist.tail.data
+    let c = hlist.tail.tail.data
+    let d = hlist.tail.tail.tail.data
+    a |> zip(b) |> zip(c) |> zip(d) |> map { x => (x[0][0][0], x[0][0][1], x[0][1], x[1])} |> collectArray
 }

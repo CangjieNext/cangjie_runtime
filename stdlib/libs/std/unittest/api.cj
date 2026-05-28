@@ -19,8 +19,7 @@ public class TestSuite {
         let afterEachs: Array<(String) -> Unit>,
         let afterAlls: Array<() -> Unit>,
         let template: ?TestSuite
-    ) {
-    }
+    ) {}
 
     public prop name: String {
         get() { _name }
@@ -447,7 +446,7 @@ public class BenchReport <: Report {
             case csv: CsvReporter => BenchReportFormat.CSV(csv.directory).report(groupResult)
             case csvRaw: CsvRawReporter => BenchReportFormat.CSV_RAW(csvRaw.directory).report(groupResult)
             case rawStatsReporter: RawStatsReporter => rawStatsReporter.benchResultsAsMap(groupResult)
-            case _ => throw Exception("Unkown reporter")
+            case _ => throw Exception("Unknown reporter")
         }
     }
 }
