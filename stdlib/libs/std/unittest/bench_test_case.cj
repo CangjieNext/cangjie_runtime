@@ -502,17 +502,6 @@ Warning: Too many objects survive GC which causes unexpectedly long GC times.
 
         let dur = benchmark.measureLoopOnce(times, max, batchSizeArg)
         waitGCFinish()
-        /*
-        let gcPolluted = getGCCount() - gcCount
-        let result = (Float64(times), dur, Float64(gcPolluted))
-
-        if (measurements.size > MEASUREMENTS_LIMIT) {
-            let randomIdx = abs(random.nextInt64()) % measurements.size
-            measurements[randomIdx] = result
-        } else {
-            measurements.add(result)
-        }
-        */
     }
 }
 
