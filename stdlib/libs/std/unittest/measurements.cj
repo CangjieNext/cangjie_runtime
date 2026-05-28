@@ -17,9 +17,7 @@ import std.collection.*
  * Interface for all kinds of data that can be collected and analyzed during benchmarking.
  */ 
 public interface Measurement {
-
-    @Frozen
-    func setup(): Unit {} 
+    func setup(): Unit
 
     /**
      * @return representation of the measurement data that will be used for statistical analisys
@@ -57,6 +55,8 @@ public interface Measurement {
             )
         }
     }
+
+    func addPoint(batchSize : Int64, result : Float64): Unit  
 }
 
 /**
@@ -170,7 +170,7 @@ extend MeasurementUnitTable {
  */
 public struct TimeNow <: Measurement {
     var unit: ?TimeUnit = None
-    private static let START: MonoTime = MonoTime.now()
+    private static let startTime: MonoTime = MonoTime.now()
     
     /**
      * @param unit Allows to specify a unit of time that will be used for printing results.
@@ -187,7 +187,7 @@ public struct TimeNow <: Measurement {
 
     @Frozen
     public func measure(): Float64 {
-        Float64((MonoTime.now() - START).toNanoseconds())
+        Float64((MonoTime.now() - startTime).toNanoseconds())
     }
 
     public prop conversionTable: MeasurementUnitTable {
@@ -211,10 +211,12 @@ public struct TimeNow <: Measurement {
 
     public prop textDescription: String {
         get() {
-            "Measures execution time using std.time.DateTime"
+            "Measures execution time using std.time.MonoTime"
         }
     }
 
+    public func setup(): Unit {}
+    public func addPoint(batchSize : Int64, result : Float64): Unit {}
 }
 
 /**
@@ -279,6 +281,8 @@ public struct CpuCycles <: Measurement {
             "Measures how many CPU cycles are taken by function execution using baremetal x86 RDTSCP instruction"
         }
     }
+
+    public func addPoint(batchSize : Int64, result : Float64): Unit {}    
 }
 
 @When[os=="Linux"]
@@ -336,6 +340,8 @@ On systemd distributions it can be done with:
             "For more details about specific counter see documentation for perf_event_open linux syscall" 
         }
     }
+
+    public func addPoint(batchSize : Int64, result : Float64): Unit {}
 }
 
 
@@ -528,6 +534,8 @@ public struct Runtime <: Measurement {
             case _ => false
         }
     }
+
+    public func addPoint(batchSize : Int64, result : Float64): Unit {}
 }
 
 

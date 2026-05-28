@@ -183,6 +183,23 @@ func waitGCFinish() {
 @When[env == "ohos"]
 func waitGCFinish() { }
 
+class ArrayListWrapper <: Measurement {
+    var data: ArrayList<BenchRawMeasurement> = ArrayList<BenchRawMeasurement>()
+    var gcCount : Int64 = 0
+    ArrayListWrapper(let measurement: Measurement) {}
+    public override func setup(): Unit {
+        gcCount = getGCCount()
+        measurement.setup()
+    }
+    public func measure(): Float64 { 
+        return measurement.measure()    
+    }
+    public override func addPoint(count : Int64, duration : Float64): Unit {
+        let gcPolluted = getGCCount() - gcCount
+        data.add((Float64(count), duration, Float64(gcPolluted), 1))
+    }
+}
+
 class BenchRunner {
     var benchmark: BenchmarkWrapper = EmptyBenchmark()
     var measurements: ArrayList<BenchRawMeasurement> = ArrayList()
@@ -474,18 +491,17 @@ Warning: Too many objects survive GC which causes unexpectedly long GC times.
         var times = min(t.ceilTo(maxMeasureBatch), max) // to fix rounding errors
     
         let gcCount = getGCCount()
-        let dur = benchmark.measureLoopOnce(times, max, this.batchSize.end)
-        waitGCFinish()
 
-        let gcPolluted = getGCCount() - gcCount
-        let result = (Float64(times), dur, Float64(gcPolluted))
-
-        if (measurements.size > MEASUREMENTS_LIMIT) {
-            let randomIdx = abs(random.nextInt64()) % measurements.size
-            measurements[randomIdx] = result
-        } else {
-            measurements.add(result)
+        let batchSizeArg : Int64
+        if (configuration.get<Int64>(KeyBatchSize.batchSize).isSome()) {
+            batchSizeArg = this.batchSize.end
         }
+        else {
+            batchSizeArg = max
+        }
+
+        let dur = benchmark.measureLoopOnce(times, max, batchSizeArg)
+        waitGCFinish()
     }
 }
 
