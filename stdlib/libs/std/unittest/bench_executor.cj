@@ -19,11 +19,11 @@ import std.time.*
 
 type BenchRawMeasurement = (Float64, Float64, Float64, Int64) // (batchSize, value, GC time, weight)
 
-func Convert(m : MeasurementNew) : ArrayList <BenchRawMeasurement> {
+func MeasurementNewToArrayList(m : MeasurementNew) : ArrayList <BenchRawMeasurement> {
     var ans : ArrayList <BenchRawMeasurement> = ArrayList <BenchRawMeasurement>()
     for (t in 0..2) {
-        for (i in 0..m.ds[t].sz) {
-            ans.add((Float64(t * m.batchSize), m.ds[t].x[i], 0.0, m.ds[t].w[i]))
+        for (i in 0..m.distribution[t].sz) {
+            ans.add((Float64(t * m.batchSize), m.distribution[t].x[i], 0.0, m.distribution[t].w[i]))
         }
     }
     return ans
@@ -86,18 +86,17 @@ class Distribution {
 }
 
 class MeasurementNew <: Measurement {
-    var ds = [Distribution(), Distribution()]
+    var distribution = [Distribution(), Distribution()]
     var batchSizeInConfiguration : Bool = false
-    MeasurementNew (let arg : Measurement, let batchSize : Int64) {
-    }
+    MeasurementNew (let arg : Measurement, let batchSize : Int64) {}
     var start: ?MonoTime = None
     public override func setup(): Unit {}    
     public override func addPoint(batchSize : Int64, result : Float64): Unit {
         if (batchSize > 0) {
-            ds[1].addPoint(result)
+            distribution[1].addPoint(result)
         }
         else {
-            ds[0].addPoint(result)
+            distribution[0].addPoint(result)
         }
     }
     public override func measure() {
@@ -112,11 +111,9 @@ class BenchExecutor<T> <: Executor {
         private let strategy: DataStrategyProcessor<T>,
         private let measurement: Measurement,
         private let doRun: (T, Int64, Int64, Int64, Measurement) -> Float64
-    ) {
-    }
+    ) {}
 
     public func execute(suiteInfo: TestSuiteReportInfo, tcase: TestCaseResult, configuration: Configuration): Unit {
-    
         let progress = ProgressOutput(configuration)
         let benchRunner = BenchRunner(configuration, progress)
         strategy.nextIteration(configuration)
@@ -181,7 +178,6 @@ class BenchExecutor<T> <: Executor {
             benchRunner.runBench()
             bench.build(wrapper)
         }
-
     }
 
     private func formatArgs(inputs: Array<InputParameter>): ?PrettyText {
@@ -386,7 +382,7 @@ class BenchmarkResult {
 
     public func build(bench : Measurement) {
         if (let Some(bench) <- (bench as MeasurementNew)) {
-            data = Convert(bench)
+            data = MeasurementNewToArrayList(bench)
         }
         if (let Some(bench) <- (bench as ArrayListWrapper)) {
             data = bench.data
