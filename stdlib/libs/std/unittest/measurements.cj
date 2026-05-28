@@ -170,7 +170,7 @@ extend MeasurementUnitTable {
  */
 public struct TimeNow <: Measurement {
     var unit: ?TimeUnit = None
-    private static let START: MonoTime = MonoTime.now()
+    private static let startTime: MonoTime = MonoTime.now()
     
     /**
      * @param unit Allows to specify a unit of time that will be used for printing results.
@@ -187,7 +187,7 @@ public struct TimeNow <: Measurement {
 
     @Frozen
     public func measure(): Float64 {
-        Float64((MonoTime.now() - START).toNanoseconds())
+        Float64((MonoTime.now() - startTime).toNanoseconds())
     }
 
     public prop conversionTable: MeasurementUnitTable {
@@ -211,7 +211,7 @@ public struct TimeNow <: Measurement {
 
     public prop textDescription: String {
         get() {
-            "Measures execution time using std.time.DateTime"
+            "Measures execution time using std.time.MonoTime"
         }
     }
 
