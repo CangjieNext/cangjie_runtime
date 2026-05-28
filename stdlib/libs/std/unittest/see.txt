@@ -1,0 +1,1309 @@
+Reading config file: /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test/testsuites/LLT/configs/cjnative/cjnative_test.cfg
+
+--------
+TestCase Failed: 
+Name           : new_bench/bench_measure_cycles.cj
+CMD list       : 
+--------
+PASS           :{'exit_code': 0, 'PIPE': False, 'cmd': 'cjc -j4 --error-count-limit=10000 --diagnostic-format=noColor -o bench_measure_cycles.out bench_measure_cycles.cj --test'}
+PASS           :{'exit_code': 0, 'PIPE': True, 'cmd': '  bench_measure_cycles.out  --no-color --bench '}
+FAIL           :{'cmd': '  /usr/bin/python3 /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/maple_test/compare.py --comment=//  --condition="\'Unix\', \'x86\', \'Linux\', \'CJNATIVE\'" bench_measure_cycles.cj', 'PIPE': False, 'exit_code': 0}
+--------
+Output         : 
+
+CMD            : cjc -j4 --error-count-limit=10000 --diagnostic-format=noColor -o bench_measure_cycles.out bench_measure_cycles.cj --test
+Return code    : 0
+Stdout         : 
+Stderr         : warning: unused import 'std.time.*'
+  ==> bench_measure_cycles.cj:15:1:
+   | 
+15 | import std.time.*
+   | ^^^^^^^^^^^^^^^^^ unused import
+   | 
+   # note: this warning can be suppressed by setting the compiler option `-Woff unused`
+
+warning: unused variable:'a'
+  ==> bench_measure_cycles.cj:39:24:
+   | 
+39 |     func parameterized(a: Bool) {
+   |                        ^ unused variable
+   | 
+   # note: this warning can be suppressed by setting the compiler option `-Woff unused`
+note: the warning occurs after the macro is expanded
+  ==> bench_measure_cycles.cj:19:1:
+   | 
+19 |   @Test
+   |  _^
+20 | | @Measure[CpuCycles()]
+   | | ...
+42 | | }
+   | |_^
+   | 
+note: the code after the macro is expanded as follows
+    | 
+    |   /* 19.1 */@Attribute[TEST_GENERATED] class BenchClass <: TestClass {
+    |  _^
+    | | /* 19.2 */    @Attribute[BeforeEach_0]
+    | | /* 19.3 */    func beforeEach() {
+    | | /* 19.4 */        counter = 0.0
+    | | /* 19.5 */    }
+    | | /* 19.6 */    
+    | | /* 19.7 */    @Attribute[Bench_1]
+    | | /* 19.8 */    func foo() {
+    | | /* 19.9 */        counter += 1.0
+    | | /* 19.10 */    }
+    | | /* 19.11 */    
+    | | /* 19.12 */    @Attribute[Bench_2]
+    | | /* 19.13 */    func bar() {
+    | | /* 19.14 */        counter += 2.0
+    | | /* 19.15 */    }
+    | | /* 19.16 */    
+    | | /* 19.17 */    @Attribute[Bench_3]
+    | | /* 19.18 */    func parameterized(a: Bool) {
+    | | /* 19.19 */        counter += 3.0
+    | | /* 19.20 */    }
+    | | /* 19.21 */    
+    | | /* 19.22 */    init() {
+    | | /* 19.23 */    }
+    | | /* 19.24 */    private func classConfiguration(): Configuration {
+    | | /* 19.25 */        let configuration = Configuration()
+    | | /* 19.26 */        configuration.set(KeyMinDuration.minDuration, Duration.nanosecond)
+    | | /* 19.27 */        configuration.set(KeyWarmup.warmup, Duration.nanosecond)
+    | | /* 19.28 */        
+    | | /* 19.29 */        return configuration
+    | | /* 19.30 */    }
+    | | /* 19.31 */    public override func asTestSuite(): TestSuite {
+    | | /* 19.32 */        
+    | | /* 19.33 */        let suiteConfiguration = classConfiguration()
+    | | /* 19.34 */        let suiteBuilder = TestSuite.builder("BenchClass").configure(suiteConfiguration)
+    | | /* 19.35 */        let m__: Array < Measurement >=[CpuCycles()]
+    | | /* 19.36 */        for(m___ in m__) {
+    | | /* 19.37 */            
+    | | /* 19.38 */            { => let caseConfig = Configuration()
+    | | /* 19.39 */                caseConfig.set(KeyMeasurementInfo.measurementInfo, m___.info)
+    | | /* 19.40 */                let fooBenchDataStrategy = DataStrategyProcessor < Unit >.start({ =>[()] }, "")
+    | | /* 19.41 */                
+    | | /* 19.42 */                suiteBuilder.add(
+    | | /* 19.43 */                fooBenchDataStrategy.intoBenchmark(
+    | | /* 19.44 */                caseName: "foo",
+    | | /* 19.45 */                doRun: { prov___, count___: Int64, max___: Int64 =>
+    | | /* 19.46 */                    
+    | | /* 19.47 */                    m___.setup()
+    | | /* 19.48 */                    let _ = prov___
+    | | /* 19.49 */                    do {
+    | | /* 19.50 */                        
+    | | /* 19.51 */                        let tmp_ = m___.measure()
+    | | /* 19.52 */                        for(q___ in 0 .. max___) {
+    | | /* 19.53 */                            
+    | | /* 19.54 */                            if(q___ < count___) {
+    | | /* 19.55 */                                foo()
+    | | /* 19.56 */                            }
+    | | /* 19.57 */                        }
+    | | /* 19.58 */                        return m___.measure() - tmp_
+    | | /* 19.59 */                    } while(false)
+    | | /* 19.60 */                    0.0
+    | | /* 19.61 */                },
+    | | /* 19.62 */                configuration: caseConfig
+    | | /* 19.63 */                )
+    | | /* 19.64 */                )
+    | | /* 19.65 */                
+    | | /* 19.66 */            }()
+    | | /* 19.67 */        }
+    | | /* 19.68 */        
+    | | /* 19.69 */        for(m___ in m__) {
+    | | /* 19.70 */            
+    | | /* 19.71 */            { => let caseConfig = Configuration()
+    | | /* 19.72 */                caseConfig.set(KeyMeasurementInfo.measurementInfo, m___.info)
+    | | /* 19.73 */                let barBenchDataStrategy = DataStrategyProcessor < Unit >.start({ =>[()] }, "")
+    | | /* 19.74 */                
+    | | /* 19.75 */                suiteBuilder.add(
+    | | /* 19.76 */                barBenchDataStrategy.intoBenchmark(
+    | | /* 19.77 */                caseName: "bar",
+    | | /* 19.78 */                doRun: { prov___, count___: Int64, max___: Int64 =>
+    | | /* 19.79 */                    
+    | | /* 19.80 */                    m___.setup()
+    | | /* 19.81 */                    let _ = prov___
+    | | /* 19.82 */                    do {
+    | | /* 19.83 */                        
+    | | /* 19.84 */                        let tmp_ = m___.measure()
+    | | /* 19.85 */                        for(q___ in 0 .. max___) {
+    | | /* 19.86 */                            
+    | | /* 19.87 */                            if(q___ < count___) {
+    | | /* 19.88 */                                bar()
+    | | /* 19.89 */                            }
+    | | /* 19.90 */                        }
+    | | /* 19.91 */                        return m___.measure() - tmp_
+    | | /* 19.92 */                    } while(false)
+    | | /* 19.93 */                    0.0
+    | | /* 19.94 */                },
+    | | /* 19.95 */                configuration: caseConfig
+    | | /* 19.96 */                )
+    | | /* 19.97 */                )
+    | | /* 19.98 */                
+    | | /* 19.99 */            }()
+    | | /* 19.100 */        }
+    | | /* 19.101 */        
+    | | /* 19.102 */        for(m___ in m__) {
+    | | /* 19.103 */            
+    | | /* 19.104 */            { => let caseConfig = Configuration()
+    | | /* 19.105 */                caseConfig.set(KeyMeasurementInfo.measurementInfo, m___.info)
+    | | /* 19.106 */                let parameterizedBenchDataStrategy = DataStrategyProcessor < Bool >.start({ =>[true, false] }, "a")
+    | | /* 19.107 */                
+    | | /* 19.108 */                suiteBuilder.add(
+    | | /* 19.109 */                parameterizedBenchDataStrategy.intoBenchmark(
+    | | /* 19.110 */                caseName: "parameterized",
+    | | /* 19.111 */                doRun: { prov___, count___: Int64, max___: Int64 =>
+    | | /* 19.112 */                    
+    | | /* 19.113 */                    m___.setup()
+    | | /* 19.114 */                    let a = prov___
+    | | /* 19.115 */                    do {
+    | | /* 19.116 */                        
+    | | /* 19.117 */                        var a = ImmutableInputProvider < Bool >.createOrExisting(a)
+    | | /* 19.118 */                        a.reset(max___)
+    | | /* 19.119 */                        
+    | | /* 19.120 */                        let tmp_ = m___.measure()
+    | | /* 19.121 */                        for(q___ in 0 .. max___) {
+    | | /* 19.122 */                            
+    | | /* 19.123 */                            var a = a.get(q___)
+    | | /* 19.124 */                            
+    | | /* 19.125 */                            if(q___ < count___) {
+    | | /* 19.126 */                                parameterized(a)
+    | | /* 19.127 */                            }
+    | | /* 19.128 */                        }
+    | | /* 19.129 */                        return m___.measure() - tmp_
+    | | /* 19.130 */                    } while(false)
+    | | /* 19.131 */                    0.0
+    | | /* 19.132 */                },
+    | | /* 19.133 */                configuration: caseConfig
+    | | /* 19.134 */                )
+    | | /* 19.135 */                )
+    | | /* 19.136 */                
+    | | /* 19.137 */            }()
+    | | /* 19.138 */        }
+    | | /* 19.139 */        
+    | | /* 19.140 */        suiteBuilder.beforeEach {
+    | | /* 19.141 */            => beforeEach()
+    | | /* 19.142 */            
+    | | /* 19.143 */        }
+    | | /* 19.144 */        return suiteBuilder.build()
+    | | /* 19.145 */    }
+    | | /* 19.146 */    private func inheritedFromClassAnnotatedByTestTemplate < T >(): TestSuite where T <: TestClass {
+    | | /* 19.147 */        throw Exception("Unreachable code")
+    | | /* 19.148 */    }
+    | | /* 19.149 */}
+    | | /* 19.150 */
+    | | /* 19.151 */
+    | | /* 19.152 */interface TestPackageExtension_BenchClass {
+    | | /* 19.153 */    func registerBenchClass(): Unit
+    | | /* 19.154 */}
+    | | /* 19.155 */extend TestPackage <: TestPackageExtension_BenchClass {
+    | | /* 19.156 */    @Attribute[TEST_REGISTER]
+    | | /* 19.157 */    public func registerBenchClass() {
+    | | /* 19.158 */        registerSuite({ => BenchClass().asTestSuite() })
+    | | /* 19.159 */    }
+    | | /* 19.160 */}
+    | | /* 19.161 */
+    | |____________^
+    | 
+note: which is expanded as follows
+   | 
+   | /* 19.18 */    func parameterized(a: Bool) {
+   |                                   ^ 
+   | 
+
+2 warnings generated, 2 warnings printed.
+
+
+CMD            :   bench_measure_cycles.out  --no-color --bench 
+Return code    : 0
+Stdout         : Starting the benchmark `BenchClass.foo()`.
+    Warming up for 1.000 ns.
+    Starting measurements of 10 batches. Measuring CpuCycles.
+    Max batch size: 1, estimated execution time: 5.830 us.
+
+Starting the benchmark `BenchClass.bar()`.
+    Warming up for 1.000 ns.
+    Starting measurements of 10 batches. Measuring CpuCycles.
+    Max batch size: 1, estimated execution time: 1.780 us.
+
+Starting the benchmark `BenchClass.parameterized(true)`.
+    Warming up for 1.000 ns.
+    Starting measurements of 10 batches. Measuring CpuCycles.
+    Max batch size: 1, estimated execution time: 29.45 us.
+
+Starting the benchmark `BenchClass.parameterized(false)`.
+    Warming up for 1.000 ns.
+    Starting measurements of 10 batches. Measuring CpuCycles.
+    Max batch size: 1, estimated execution time: 6.850 us.
+
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 527521 ns, RESULT:
+    TCS: BenchClass, time elapsed: 524760 ns, RESULT:
+    | Case          | Args   |       Median |           Err |     Err% |         Mean |
+    |:--------------|:-------|-------------:|--------------:|---------:|-------------:|
+    | parameterized | true   | 34.00 cycles | ±636.4 cycles | ±1871.7% | 333.2 cycles |
+    | parameterized | false  | 21.00 cycles | ±13.49 cycles |   ±64.3% | 4.992 cycles |
+    |               |        |              |               |          |              |
+    | foo           | -      | 12.00 cycles | ±8.575 cycles |   ±71.5% | 5.606 cycles |
+    | bar           | -      | 16.00 cycles | ±15.14 cycles |   ±94.6% | 7.051 cycles |
+Summary: TOTAL: 3
+    PASSED: 3, SKIPPED: 0, ERROR: 0
+    FAILED: 0
+--------------------------------------------------------------------------------------------------
+
+Stderr         : 
+
+CMD            :   /usr/bin/python3 /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/maple_test/compare.py --comment=//  --condition="'Unix', 'x86', 'Linux', 'CJNATIVE'" bench_measure_cycles.cj
+Return code    : 1
+Stdout         : compare.py input:
+	Starting the benchmark `BenchClass.foo()`.
+	    Warming up for 1.000 ns.
+	    Starting measurements of 10 batches. Measuring CpuCycles.
+	    Max batch size: 1, estimated execution time: 5.830 us.
+	
+	Starting the benchmark `BenchClass.bar()`.
+	    Warming up for 1.000 ns.
+	    Starting measurements of 10 batches. Measuring CpuCycles.
+	    Max batch size: 1, estimated execution time: 1.780 us.
+	
+	Starting the benchmark `BenchClass.parameterized(true)`.
+	    Warming up for 1.000 ns.
+	    Starting measurements of 10 batches. Measuring CpuCycles.
+	    Max batch size: 1, estimated execution time: 29.45 us.
+	
+	Starting the benchmark `BenchClass.parameterized(false)`.
+	    Warming up for 1.000 ns.
+	    Starting measurements of 10 batches. Measuring CpuCycles.
+	    Max batch size: 1, estimated execution time: 6.850 us.
+	
+	--------------------------------------------------------------------------------------------------
+	TP: default, time elapsed: 527521 ns, RESULT:
+	    TCS: BenchClass, time elapsed: 524760 ns, RESULT:
+	    | Case          | Args   |       Median |           Err |     Err% |         Mean |
+	    |:--------------|:-------|-------------:|--------------:|---------:|-------------:|
+	    | parameterized | true   | 34.00 cycles | ±636.4 cycles | ±1871.7% | 333.2 cycles |
+	    | parameterized | false  | 21.00 cycles | ±13.49 cycles |   ±64.3% | 4.992 cycles |
+	    |               |        |              |               |          |              |
+	    | foo           | -      | 12.00 cycles | ±8.575 cycles |   ±71.5% | 5.606 cycles |
+	    | bar           | -      | 16.00 cycles | ±15.14 cycles |   ±94.6% | 7.051 cycles |
+	Summary: TOTAL: 3
+	    PASSED: 3, SKIPPED: 0, ERROR: 0
+	    FAILED: 0
+	--------------------------------------------------------------------------------------------------
+
+compare.py input end
+
+Starting SingleLine Compare:
+b"It's a assert, flag: scan-52, pattern: cycles , result: False, matched at output line: 0 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan, pattern: PASSED: 3, , result: True, matched at output line: 0 "
+back reference dict:{}
+SingleLine Compare End
+[Compare Fail]
+
+Stderr         : 
+--------
+
+Running test cases: 11.90% (5/42) 
+--------
+TestCase Failed: 
+Name           : new_bench/bench_progress_output.cj
+CMD list       : 
+--------
+PASS           :{'exit_code': 0, 'PIPE': False, 'cmd': 'cjc -j4 --error-count-limit=10000 --diagnostic-format=noColor bench_progress_output.cj -o bench_progress_output.out --test'}
+PASS           :{'exit_code': 0, 'PIPE': True, 'cmd': '  bench_progress_output.out --no-progress --bench --no-color '}
+FAIL           :{'cmd': '  /usr/bin/python3 /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/maple_test/compare.py --comment=//  --condition="\'Unix\', \'x86\', \'Linux\', \'CJNATIVE\'" bench_progress_output.cj', 'PIPE': False, 'exit_code': 0}
+--------
+Output         : 
+
+CMD            : cjc -j4 --error-count-limit=10000 --diagnostic-format=noColor bench_progress_output.cj -o bench_progress_output.out --test
+Return code    : 0
+Stdout         : 
+Stderr         : warning: unused import 'std.time.*'
+ ==> bench_progress_output.cj:5:1:
+  | 
+5 | import std.time.*
+  | ^^^^^^^^^^^^^^^^^ unused import
+  | 
+  # note: this warning can be suppressed by setting the compiler option `-Woff unused`
+
+warning: unused import 'std.sync.*'
+ ==> bench_progress_output.cj:6:1:
+  | 
+6 | import std.sync.*
+  | ^^^^^^^^^^^^^^^^^ unused import
+  | 
+  # note: this warning can be suppressed by setting the compiler option `-Woff unused`
+
+2 warnings generated, 2 warnings printed.
+
+
+CMD            :   bench_progress_output.out --no-progress --bench --no-color 
+Return code    : 0
+Stdout         : Starting the benchmark `Test_Configure_Baseline_01.case01()`.
+    Warming up for 1.000 ns.
+    Starting measurements of 10 batches. Measuring Measurement.
+    Max batch size: 1, estimated execution time: 185.3 ms.
+
+Starting the benchmark `Test_Configure_Baseline_01.case02()`.
+    Warming up for 1.000 ns.
+    Starting measurements of 10 batches. Measuring Measurement.
+    Max batch size: 1, estimated execution time: 198.8 ms.
+
+Starting the benchmark `Test_Configure_Baseline_01.case03()`.
+    Warming up for 1.000 ns.
+    Starting measurements of 10 batches. Measuring Measurement.
+    Max batch size: 1, estimated execution time: 200.2 ms.
+
+Starting the benchmark `Test_Configure_Baseline_01.case04()`.
+    Warming up for 1.000 ns.
+    Starting measurements of 10 batches. Measuring Measurement.
+    Max batch size: 1, estimated execution time: 199.8 ms.
+
+Starting the benchmark `Test_Configure_Baseline_01.case05()`.
+    Warming up for 1.000 ns.
+    Starting measurements of 10 batches. Measuring Measurement.
+    Max batch size: 1, estimated execution time: 199.2 ms.
+
+Starting the benchmark `Test_Configure_Baseline_01.case06()`.
+    Warming up for 1.000 ns.
+    Starting measurements of 10 batches. Measuring Measurement.
+    Max batch size: 1, estimated execution time: 199.6 ms.
+
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 824128051 ns, RESULT:
+    TCS: Test_Configure_Baseline_01, time elapsed: 824121704 ns, RESULT:
+    | Case   | Median |    Err |   Err% |   Mean |    Ratio |
+    |:-------|-------:|-------:|-------:|-------:|---------:|
+    | case01 |  1.000 |     ±0 |  ±0.0% |  1.000 |     100% |
+    | case02 |  1.000 |     ±0 |  ±0.0% |  1.000 |    +0.0% |
+    | case03 |  1.000 |     ±0 |  ±0.0% |  1.000 |    +0.0% |
+    |        |        |        |        |        |          |
+    | case02 |  1.000 |     ±0 |  ±0.0% |  1.000 |     100% |
+    | case04 |  1.000 |     ±0 |  ±0.0% |  1.000 |    +0.0% |
+    |        |        |        |        |        |          |
+    | case03 |  1.000 |     ±0 |  ±0.0% |  1.000 |     100% |
+    | case06 |  1.000 |     ±0 |  ±0.0% |  1.000 |    +0.0% |
+    |        |        |        |        |        |          |
+    | case05 |  1.000 |     ±0 |  ±0.0% |  1.000 | NotFound |
+Summary: TOTAL: 6
+    PASSED: 6, SKIPPED: 0, ERROR: 0
+    FAILED: 0
+--------------------------------------------------------------------------------------------------
+
+Stderr         : 
+
+CMD            :   /usr/bin/python3 /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/maple_test/compare.py --comment=//  --condition="'Unix', 'x86', 'Linux', 'CJNATIVE'" bench_progress_output.cj
+Return code    : 1
+Stdout         : compare.py input:
+	Starting the benchmark `Test_Configure_Baseline_01.case01()`.
+	    Warming up for 1.000 ns.
+	    Starting measurements of 10 batches. Measuring Measurement.
+	    Max batch size: 1, estimated execution time: 185.3 ms.
+	
+	Starting the benchmark `Test_Configure_Baseline_01.case02()`.
+	    Warming up for 1.000 ns.
+	    Starting measurements of 10 batches. Measuring Measurement.
+	    Max batch size: 1, estimated execution time: 198.8 ms.
+	
+	Starting the benchmark `Test_Configure_Baseline_01.case03()`.
+	    Warming up for 1.000 ns.
+	    Starting measurements of 10 batches. Measuring Measurement.
+	    Max batch size: 1, estimated execution time: 200.2 ms.
+	
+	Starting the benchmark `Test_Configure_Baseline_01.case04()`.
+	    Warming up for 1.000 ns.
+	    Starting measurements of 10 batches. Measuring Measurement.
+	    Max batch size: 1, estimated execution time: 199.8 ms.
+	
+	Starting the benchmark `Test_Configure_Baseline_01.case05()`.
+	    Warming up for 1.000 ns.
+	    Starting measurements of 10 batches. Measuring Measurement.
+	    Max batch size: 1, estimated execution time: 199.2 ms.
+	
+	Starting the benchmark `Test_Configure_Baseline_01.case06()`.
+	    Warming up for 1.000 ns.
+	    Starting measurements of 10 batches. Measuring Measurement.
+	    Max batch size: 1, estimated execution time: 199.6 ms.
+	
+	--------------------------------------------------------------------------------------------------
+	TP: default, time elapsed: 824128051 ns, RESULT:
+	    TCS: Test_Configure_Baseline_01, time elapsed: 824121704 ns, RESULT:
+	    | Case   | Median |    Err |   Err% |   Mean |    Ratio |
+	    |:-------|-------:|-------:|-------:|-------:|---------:|
+	    | case01 |  1.000 |     ±0 |  ±0.0% |  1.000 |     100% |
+	    | case02 |  1.000 |     ±0 |  ±0.0% |  1.000 |    +0.0% |
+	    | case03 |  1.000 |     ±0 |  ±0.0% |  1.000 |    +0.0% |
+	    |        |        |        |        |        |          |
+	    | case02 |  1.000 |     ±0 |  ±0.0% |  1.000 |     100% |
+	    | case04 |  1.000 |     ±0 |  ±0.0% |  1.000 |    +0.0% |
+	    |        |        |        |        |        |          |
+	    | case03 |  1.000 |     ±0 |  ±0.0% |  1.000 |     100% |
+	    | case06 |  1.000 |     ±0 |  ±0.0% |  1.000 |    +0.0% |
+	    |        |        |        |        |        |          |
+	    | case05 |  1.000 |     ±0 |  ±0.0% |  1.000 | NotFound |
+	Summary: TOTAL: 6
+	    PASSED: 6, SKIPPED: 0, ERROR: 0
+	    FAILED: 0
+	--------------------------------------------------------------------------------------------------
+
+compare.py input end
+
+Starting SingleLine Compare:
+b"It's a assert, flag: scan-begin, pattern: Starting the benchmark , result: True, matched at output line: 0 "
+back reference dict:{}
+SingleLine Compare End
+b"It's a assert, flag: scan-after, pattern:  percentiles: , result: False, matched at output line: 1 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-after, pattern:  time: , result: True, matched at output line: 1 "
+back reference dict:{}
+SingleLine Compare End
+b"It's a assert, flag: scan-after, pattern:  mean: , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-after, pattern:  median: , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: regex-after, pattern: R(?:\\N{SUPERSCRIPT TWO}|\\^2): , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-after, pattern:  stddev: , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-begin, pattern: Starting the benchmark , result: True, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare End
+b"It's a assert, flag: scan-after, pattern:  percentiles: , result: False, matched at output line: 1 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-after, pattern:  time: , result: True, matched at output line: 1 "
+back reference dict:{}
+SingleLine Compare End
+b"It's a assert, flag: scan-after, pattern:  mean: , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-after, pattern:  median: , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: regex-after, pattern: R(?:\\N{SUPERSCRIPT TWO}|\\^2): , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-after, pattern:  stddev: , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-begin, pattern: Starting the benchmark , result: True, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare End
+b"It's a assert, flag: scan-after, pattern:  percentiles: , result: False, matched at output line: 1 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-after, pattern:  time: , result: True, matched at output line: 1 "
+back reference dict:{}
+SingleLine Compare End
+b"It's a assert, flag: scan-after, pattern:  mean: , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-after, pattern:  median: , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: regex-after, pattern: R(?:\\N{SUPERSCRIPT TWO}|\\^2): , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-after, pattern:  stddev: , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-begin, pattern: Starting the benchmark , result: True, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare End
+b"It's a assert, flag: scan-after, pattern:  percentiles: , result: False, matched at output line: 1 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-after, pattern:  time: , result: True, matched at output line: 1 "
+back reference dict:{}
+SingleLine Compare End
+b"It's a assert, flag: scan-after, pattern:  mean: , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-after, pattern:  median: , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: regex-after, pattern: R(?:\\N{SUPERSCRIPT TWO}|\\^2): , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-after, pattern:  stddev: , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-begin, pattern: Starting the benchmark , result: True, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare End
+b"It's a assert, flag: scan-after, pattern:  percentiles: , result: False, matched at output line: 1 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-after, pattern:  time: , result: True, matched at output line: 1 "
+back reference dict:{}
+SingleLine Compare End
+b"It's a assert, flag: scan-after, pattern:  mean: , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-after, pattern:  median: , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: regex-after, pattern: R(?:\\N{SUPERSCRIPT TWO}|\\^2): , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-after, pattern:  stddev: , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-begin, pattern: Starting the benchmark , result: True, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare End
+b"It's a assert, flag: scan-after, pattern:  percentiles: , result: False, matched at output line: 1 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-after, pattern:  time: , result: True, matched at output line: 1 "
+back reference dict:{}
+SingleLine Compare End
+b"It's a assert, flag: scan-after, pattern:  mean: , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-after, pattern:  median: , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: regex-after, pattern: R(?:\\N{SUPERSCRIPT TWO}|\\^2): , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+b"It's a assert, flag: scan-after, pattern:  stddev: , result: False, matched at output line: 4 "
+back reference dict:{}
+SingleLine Compare Failed
+[Compare Fail]
+
+Stderr         : 
+--------
+
+Running test cases: 26.19% (11/42) Running test cases: 45.24% (19/42) 
+--------
+TestCase Failed: 
+Name           : new_bench/bench_explicit_gc.cj
+CMD list       : 
+--------
+FAIL           :{'exit_code': 0, 'PIPE': False, 'cmd': 'cjc -j4 --error-count-limit=10000 --diagnostic-format=noColor -O2 -o bench_explicit_gc.out bench_explicit_gc.cj --test'}
+NOT_RUN        :{'exit_code': 0, 'PIPE': True, 'cmd': 'export cjHeapSize=4gb &&   bench_explicit_gc.out --no-progress  --bench --no-color '}
+NOT_RUN        :{'cmd': '  /usr/bin/python3 /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/maple_test/compare.py --comment=//  --condition="\'Unix\', \'x86\', \'Linux\', \'CJNATIVE\'" bench_explicit_gc.cj', 'PIPE': False, 'exit_code': 0}
+--------
+Output         : 
+
+CMD            : cjc -j4 --error-count-limit=10000 --diagnostic-format=noColor -O2 -o bench_explicit_gc.out bench_explicit_gc.cj --test
+Return code    : 1
+Stdout         : 
+Stderr         : error: undeclared identifier 'isGCRunning'
+  ==> bench_explicit_gc.cj:27:18:
+   | 
+27 |         @Assert(!isGCRunning())
+   |                  ^ 
+   | 
+note: which is expanded as follows
+   | 
+   |         /* 27.1 */assertEqual("! isGCRunning()", "true", ! isGCRunning(), true, isDelta: false,)
+   |                                                            ^^^^^^^^^^^ 
+   | 
+note: the error occurs after the macro is expanded
+  ==> bench_explicit_gc.cj:27:9:
+   | 
+27 |         @Assert(!isGCRunning())
+   |         ^^^^^^^^^^^^^^^^^^^^^^^ 
+   | 
+note: the code after the macro is expanded as follows
+   | 
+   |         /* 27.1 */assertEqual("! isGCRunning()", "true", ! isGCRunning(), true, isDelta: false,)
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ 
+   | 
+
+warning: unused import 'std.time.*'
+  ==> bench_explicit_gc.cj:14:1:
+   | 
+14 | import std.time.*
+   | ^^^^^^^^^^^^^^^^^ unused import
+   | 
+   # note: this warning can be suppressed by setting the compiler option `-Woff unused`
+
+1 error generated, 1 error printed.
+1 warning generated, 1 warning printed.
+
+--------
+
+Running test cases: 54.76% (23/42) 
+--------
+TestCase Failed: 
+Name           : new_bench/bench_explicit_gc_disabled.cj
+CMD list       : 
+--------
+FAIL           :{'exit_code': 0, 'PIPE': False, 'cmd': 'cjc -j4 --error-count-limit=10000 --diagnostic-format=noColor -O2 -o bench_explicit_gc_disabled.out bench_explicit_gc_disabled.cj --test'}
+NOT_RUN        :{'exit_code': 0, 'PIPE': True, 'cmd': 'export cjHeapSize=16gb &&   bench_explicit_gc_disabled.out --no-progress  --bench --no-color '}
+NOT_RUN        :{'cmd': '  /usr/bin/python3 /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/maple_test/compare.py --comment=//  --condition="\'Unix\', \'x86\', \'Linux\', \'CJNATIVE\'" bench_explicit_gc_disabled.cj', 'PIPE': False, 'exit_code': 0}
+--------
+Output         : 
+
+CMD            : cjc -j4 --error-count-limit=10000 --diagnostic-format=noColor -O2 -o bench_explicit_gc_disabled.out bench_explicit_gc_disabled.cj --test
+Return code    : 1
+Stdout         : 
+Stderr         : error: undeclared identifier 'isGCRunning'
+  ==> bench_explicit_gc_disabled.cj:32:18:
+   | 
+32 |         @Assert(!isGCRunning())
+   |                  ^ 
+   | 
+note: which is expanded as follows
+   | 
+   |         /* 32.1 */assertEqual("! isGCRunning()", "true", ! isGCRunning(), true, isDelta: false,)
+   |                                                            ^^^^^^^^^^^ 
+   | 
+note: the error occurs after the macro is expanded
+  ==> bench_explicit_gc_disabled.cj:32:9:
+   | 
+32 |         @Assert(!isGCRunning())
+   |         ^^^^^^^^^^^^^^^^^^^^^^^ 
+   | 
+note: the code after the macro is expanded as follows
+   | 
+   |         /* 32.1 */assertEqual("! isGCRunning()", "true", ! isGCRunning(), true, isDelta: false,)
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ 
+   | 
+
+warning: unused import 'std.time.*'
+  ==> bench_explicit_gc_disabled.cj:14:1:
+   | 
+14 | import std.time.*
+   | ^^^^^^^^^^^^^^^^^ unused import
+   | 
+   # note: this warning can be suppressed by setting the compiler option `-Woff unused`
+
+1 error generated, 1 error printed.
+1 warning generated, 1 warning printed.
+
+--------
+
+
+--------
+TestCase Failed: 
+Name           : new_bench/bench_batchsize2.cj
+CMD list       : 
+--------
+PASS           :{'exit_code': 0, 'PIPE': False, 'cmd': 'cjc -j4 --error-count-limit=10000 --diagnostic-format=noColor bench_batchsize2.cj -o bench_batchsize2.out --test'}
+PASS           :{'exit_code': 0, 'PIPE': True, 'cmd': '  bench_batchsize2.out --no-progress --bench --no-color '}
+FAIL           :{'cmd': '  /usr/bin/python3 /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/maple_test/compare.py --comment=//  --condition="\'Unix\', \'x86\', \'Linux\', \'CJNATIVE\'" bench_batchsize2.cj', 'PIPE': False, 'exit_code': 0}
+--------
+Output         : 
+
+CMD            : cjc -j4 --error-count-limit=10000 --diagnostic-format=noColor bench_batchsize2.cj -o bench_batchsize2.out --test
+Return code    : 0
+Stdout         : 
+Stderr         : warning: unused import 'std.time.*'
+  ==> bench_batchsize2.cj:12:1:
+   | 
+12 | import std.time.*
+   | ^^^^^^^^^^^^^^^^^ unused import
+   | 
+   # note: this warning can be suppressed by setting the compiler option `-Woff unused`
+
+1 warning generated, 1 warning printed.
+
+
+CMD            :   bench_batchsize2.out --no-progress --bench --no-color 
+Return code    : 0
+Stdout         : Starting the benchmark `Test_Configure_Running_Case_01.case01()`.
+    Warming up for 1.000 s.
+    Starting measurements of 5 batches. Measuring Duration(us).
+    Max batch size: 5, estimated execution time: 252.8 ms.
+
+Starting the benchmark `Test_Configure_Running_Case_01.case02()`.
+    Warming up for 1.000 s.
+    Starting measurements of 10 batches. Measuring Duration(us).
+    Max batch size: 10, estimated execution time: 1.006 s.
+
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 3282721809 ns, RESULT:
+    TCS: Test_Configure_Running_Case_01, time elapsed: 3282719054 ns, RESULT:
+    | Case   |   Median |       Err |   Err% |     Mean |
+    |:-------|---------:|----------:|-------:|---------:|
+    | case01 | 10062 us | ±3.092 us |  ±0.0% | 10061 us |
+    | case02 | 10062 us | ±2.333 us |  ±0.0% | 10063 us |
+Summary: TOTAL: 2
+    PASSED: 2, SKIPPED: 0, ERROR: 0
+    FAILED: 0
+--------------------------------------------------------------------------------------------------
+
+Stderr         : 
+
+CMD            :   /usr/bin/python3 /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/maple_test/compare.py --comment=//  --condition="'Unix', 'x86', 'Linux', 'CJNATIVE'" bench_batchsize2.cj
+Return code    : 1
+Stdout         : compare.py input:
+	Starting the benchmark `Test_Configure_Running_Case_01.case01()`.
+	    Warming up for 1.000 s.
+	    Starting measurements of 5 batches. Measuring Duration(us).
+	    Max batch size: 5, estimated execution time: 252.8 ms.
+	
+	Starting the benchmark `Test_Configure_Running_Case_01.case02()`.
+	    Warming up for 1.000 s.
+	    Starting measurements of 10 batches. Measuring Duration(us).
+	    Max batch size: 10, estimated execution time: 1.006 s.
+	
+	--------------------------------------------------------------------------------------------------
+	TP: default, time elapsed: 3282721809 ns, RESULT:
+	    TCS: Test_Configure_Running_Case_01, time elapsed: 3282719054 ns, RESULT:
+	    | Case   |   Median |       Err |   Err% |     Mean |
+	    |:-------|---------:|----------:|-------:|---------:|
+	    | case01 | 10062 us | ±3.092 us |  ±0.0% | 10061 us |
+	    | case02 | 10062 us | ±2.333 us |  ±0.0% | 10063 us |
+	Summary: TOTAL: 2
+	    PASSED: 2, SKIPPED: 0, ERROR: 0
+	    FAILED: 0
+	--------------------------------------------------------------------------------------------------
+
+compare.py input end
+
+Starting SingleLine Compare:
+b"It's a assert, flag: scan-not, pattern: Exception , result: True, matched at output line: 0 "
+back reference dict:{}
+SingleLine Compare End
+b"It's a assert, flag: scan-28, pattern: us , result: False, matched at output line: 1 "
+back reference dict:{}
+SingleLine Compare Failed
+[Compare Fail]
+
+Stderr         : 
+--------
+
+Running test cases: 66.67% (28/42) 
+--------
+TestCase Failed: 
+Name           : new_bench/bench_batchsize.cj
+CMD list       : 
+--------
+PASS           :{'exit_code': 0, 'PIPE': False, 'cmd': 'cjc -j4 --error-count-limit=10000 --diagnostic-format=noColor bench_batchsize.cj -o bench_batchsize.out --test'}
+FAIL           :{'exit_code': 0, 'PIPE': True, 'cmd': '  bench_batchsize.out --no-progress --bench --no-color '}
+NOT_RUN        :{'cmd': '  /usr/bin/python3 /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/maple_test/compare.py --comment=//  --condition="\'Unix\', \'x86\', \'Linux\', \'CJNATIVE\'" bench_batchsize.cj', 'PIPE': False, 'exit_code': 0}
+--------
+Output         : 
+
+CMD            : cjc -j4 --error-count-limit=10000 --diagnostic-format=noColor bench_batchsize.cj -o bench_batchsize.out --test
+Return code    : 0
+Stdout         : 
+Stderr         : warning: unused import 'std.time.*'
+  ==> bench_batchsize.cj:14:1:
+   | 
+14 | import std.time.*
+   | ^^^^^^^^^^^^^^^^^ unused import
+   | 
+   # note: this warning can be suppressed by setting the compiler option `-Woff unused`
+
+warning: unused import 'std.sync.*'
+  ==> bench_batchsize.cj:15:1:
+   | 
+15 | import std.sync.*
+   | ^^^^^^^^^^^^^^^^^ unused import
+   | 
+   # note: this warning can be suppressed by setting the compiler option `-Woff unused`
+
+warning: unused variable:'i'
+   ==> bench_batchsize.cj:120:21:
+    | 
+120 |     public func get(i: Int64) {}
+    |                     ^ unused variable
+    | 
+    # note: this warning can be suppressed by setting the compiler option `-Woff unused`
+
+warning: unused variable:'x'
+   ==> bench_batchsize.cj:130:16:
+    | 
+130 |     func test5(x: Unit) {
+    |                ^ unused variable
+    | 
+    # note: this warning can be suppressed by setting the compiler option `-Woff unused`
+note: the warning occurs after the macro is expanded
+   ==> bench_batchsize.cj:125:1:
+    | 
+125 |   @Test
+    |  _^
+126 | | @Measure[TestMeasurement2()]
+    | | ...
+147 | | }
+    | |_^
+    | 
+note: the code after the macro is expanded as follows
+    | 
+    |   /* 125.1 */@Attribute[TEST_GENERATED] class StrategyTest <: TestClass {
+    |  _^
+    | | /* 125.2 */    @Attribute[Bench_14, Configure_13]
+    | | /* 125.3 */    func test5(x: Unit) {
+    | | /* 125.4 */        callsCounter += 1
+    | | /* 125.5 */        sleep(10 * Duration.millisecond)
+    | | /* 125.6 */    }
+    | | /* 125.7 */    
+    | | /* 125.8 */    @Attribute[Bench_16, Configure_15]
+    | | /* 125.9 */    func test6(x: Unit) {
+    | | /* 125.10 */        callsCounter += 1
+    | | /* 125.11 */        sleep(10 * Duration.millisecond)
+    | | /* 125.12 */    }
+    | | /* 125.13 */    
+    | | /* 125.14 */    @Attribute[AfterEach_17]
+    | | /* 125.15 */    func check(name: String) {
+    | | /* 125.16 */        expectEqual("checker.batchCounter", "34", checker.batchCounter, 34, isDelta: false)
+    | | /* 125.17 */        checker.batchCounter = 0
+    | | /* 125.18 */    }
+    | | /* 125.19 */    
+    | | /* 125.20 */    init() {
+    | | /* 125.21 */    }
+    | | /* 125.22 */    private func classConfiguration(): Configuration {
+    | | /* 125.23 */        let configuration = Configuration()
+    | | /* 125.24 */        
+    | | /* 125.25 */        return configuration
+    | | /* 125.26 */    }
+    | | /* 125.27 */    public override func asTestSuite(): TestSuite {
+    | | /* 125.28 */        
+    | | /* 125.29 */        let suiteConfiguration = classConfiguration()
+    | | /* 125.30 */        let suiteBuilder = TestSuite.builder("StrategyTest").configure(suiteConfiguration)
+    | | /* 125.31 */        let m__: Array < Measurement >=[TestMeasurement2()]
+    | | /* 125.32 */        for(m___ in m__) {
+    | | /* 125.33 */            
+    | | /* 125.34 */            { => let caseConfig = Configuration()
+    | | /* 125.35 */                caseConfig.set(KeyMinBatches.minBatches, 20)
+    | | /* 125.36 */                caseConfig.set(KeyBatchSize.batchSize, CheckBatchInputProvider.BATCH_SIZE)
+    | | /* 125.37 */                caseConfig.set(KeyWarmup.warmup, 10)
+    | | /* 125.38 */                caseConfig.set(KeyMinDuration.minDuration, 0.5 * Duration.second)
+    | | /* 125.39 */                caseConfig.set(KeyMeasurementInfo.measurementInfo, m___.info)
+    | | /* 125.40 */                let test5BenchDataStrategy = DataStrategyProcessor < Unit >.start({ =>[checker] }, "x")
+    | | /* 125.41 */                
+    | | /* 125.42 */                suiteBuilder.add(
+    | | /* 125.43 */                test5BenchDataStrategy.intoBenchmark(
+    | | /* 125.44 */                caseName: "test5",
+    | | /* 125.45 */                doRun: { prov___, count___: Int64, max___: Int64 =>
+    | | /* 125.46 */                    
+    | | /* 125.47 */                    m___.setup()
+    | | /* 125.48 */                    let x = prov___
+    | | /* 125.49 */                    do {
+    | | /* 125.50 */                        
+    | | /* 125.51 */                        var x = ImmutableInputProvider < Unit >.createOrExisting(x)
+    | | /* 125.52 */                        x.reset(max___)
+    | | /* 125.53 */                        
+    | | /* 125.54 */                        let tmp_ = m___.measure()
+    | | /* 125.55 */                        for(q___ in 0 .. max___) {
+    | | /* 125.56 */                            
+    | | /* 125.57 */                            var x = x.get(q___)
+    | | /* 125.58 */                            
+    | | /* 125.59 */                            if(q___ < count___) {
+    | | /* 125.60 */                                test5(x)
+    | | /* 125.61 */                            }
+    | | /* 125.62 */                        }
+    | | /* 125.63 */                        return m___.measure() - tmp_
+    | | /* 125.64 */                    } while(false)
+    | | /* 125.65 */                    0.0
+    | | /* 125.66 */                },
+    | | /* 125.67 */                configuration: caseConfig
+    | | /* 125.68 */                )
+    | | /* 125.69 */                )
+    | | /* 125.70 */                
+    | | /* 125.71 */            }()
+    | | /* 125.72 */        }
+    | | /* 125.73 */        
+    | | /* 125.74 */        for(m___ in m__) {
+    | | /* 125.75 */            
+    | | /* 125.76 */            { => let caseConfig = Configuration()
+    | | /* 125.77 */                caseConfig.set(KeyMinBatches.minBatches, 20)
+    | | /* 125.78 */                caseConfig.set(KeyBatchSize.batchSize, CheckBatchInputProvider.BATCH_SIZE)
+    | | /* 125.79 */                caseConfig.set(KeyWarmup.warmup, 10)
+    | | /* 125.80 */                caseConfig.set(KeyMinDuration.minDuration, Duration.Zero)
+    | | /* 125.81 */                caseConfig.set(KeyMeasurementInfo.measurementInfo, m___.info)
+    | | /* 125.82 */                let test6BenchDataStrategy = DataStrategyProcessor < Unit >.start({ =>[checker] }, "x")
+    | | /* 125.83 */                
+    | | /* 125.84 */                suiteBuilder.add(
+    | | /* 125.85 */                test6BenchDataStrategy.intoBenchmark(
+    | | /* 125.86 */                caseName: "test6",
+    | | /* 125.87 */                doRun: { prov___, count___: Int64, max___: Int64 =>
+    | | /* 125.88 */                    
+    | | /* 125.89 */                    m___.setup()
+    | | /* 125.90 */                    let x = prov___
+    | | /* 125.91 */                    do {
+    | | /* 125.92 */                        
+    | | /* 125.93 */                        var x = ImmutableInputProvider < Unit >.createOrExisting(x)
+    | | /* 125.94 */                        x.reset(max___)
+    | | /* 125.95 */                        
+    | | /* 125.96 */                        let tmp_ = m___.measure()
+    | | /* 125.97 */                        for(q___ in 0 .. max___) {
+    | | /* 125.98 */                            
+    | | /* 125.99 */                            var x = x.get(q___)
+    | | /* 125.100 */                            
+    | | /* 125.101 */                            if(q___ < count___) {
+    | | /* 125.102 */                                test6(x)
+    | | /* 125.103 */                            }
+    | | /* 125.104 */                        }
+    | | /* 125.105 */                        return m___.measure() - tmp_
+    | | /* 125.106 */                    } while(false)
+    | | /* 125.107 */                    0.0
+    | | /* 125.108 */                },
+    | | /* 125.109 */                configuration: caseConfig
+    | | /* 125.110 */                )
+    | | /* 125.111 */                )
+    | | /* 125.112 */                
+    | | /* 125.113 */            }()
+    | | /* 125.114 */        }
+    | | /* 125.115 */        
+    | | /* 125.116 */        suiteBuilder.afterEach {
+    | | /* 125.117 */            __testCaseName: String => check(__testCaseName)
+    | | /* 125.118 */            
+    | | /* 125.119 */        }
+    | | /* 125.120 */        return suiteBuilder.build()
+    | | /* 125.121 */    }
+    | | /* 125.122 */    private func inheritedFromClassAnnotatedByTestTemplate < T >(): TestSuite where T <: TestClass {
+    | | /* 125.123 */        throw Exception("Unreachable code")
+    | | /* 125.124 */    }
+    | | /* 125.125 */}
+    | | /* 125.126 */
+    | | /* 125.127 */
+    | | /* 125.128 */interface TestPackageExtension_StrategyTest {
+    | | /* 125.129 */    func registerStrategyTest(): Unit
+    | | /* 125.130 */}
+    | | /* 125.131 */extend TestPackage <: TestPackageExtension_StrategyTest {
+    | | /* 125.132 */    @Attribute[TEST_REGISTER]
+    | | /* 125.133 */    public func registerStrategyTest() {
+    | | /* 125.134 */        registerSuite({ => StrategyTest().asTestSuite() })
+    | | /* 125.135 */    }
+    | | /* 125.136 */}
+    | | /* 125.137 */
+    | |_____________^
+    | 
+note: which is expanded as follows
+    | 
+    | /* 125.3 */    func test5(x: Unit) {
+    |                           ^ 
+    | 
+
+warning: unused variable:'x'
+   ==> bench_batchsize.cj:137:16:
+    | 
+137 |     func test6(x: Unit) {
+    |                ^ unused variable
+    | 
+    # note: this warning can be suppressed by setting the compiler option `-Woff unused`
+note: the warning occurs after the macro is expanded
+   ==> bench_batchsize.cj:125:1:
+    | 
+125 |   @Test
+    |  _^
+126 | | @Measure[TestMeasurement2()]
+    | | ...
+147 | | }
+    | |_^
+    | 
+note: which is expanded as follows
+    | 
+    | /* 125.9 */    func test6(x: Unit) {
+    |                           ^ 
+    | 
+
+warning: unused variable:'name'
+   ==> bench_batchsize.cj:143:16:
+    | 
+143 |     func check(name: String) {
+    |                ^ unused variable
+    | 
+    # note: this warning can be suppressed by setting the compiler option `-Woff unused`
+note: the warning occurs after the macro is expanded
+   ==> bench_batchsize.cj:125:1:
+    | 
+125 |   @Test
+    |  _^
+126 | | @Measure[TestMeasurement2()]
+    | | ...
+147 | | }
+    | |_^
+    | 
+note: which is expanded as follows
+    | 
+    | /* 125.15 */    func check(name: String) {
+    |                            ^^^^ 
+    | 
+
+6 warnings generated, 6 warnings printed.
+
+
+CMD            :   bench_batchsize.out --no-progress --bench --no-color 
+Return code    : 1
+Stdout         : Starting the benchmark `FooTest.testBatch1_1()`.
+    Warming up for 10 iterations.
+    Starting measurements of 40 batches. Measuring Measurement.
+    Max batch size: 1, estimated execution time: 0.503 s.
+
+batches = 50
+Starting the benchmark `FooTest.testBatch1_2(1)`.
+    Warming up for 10 iterations.
+    Starting measurements of 44 batches. Measuring Measurement.
+    Max batch size: 1, estimated execution time: 0.500 s.
+
+batches = 54
+Starting the benchmark `FooTest.testBatch2()`.
+    Warming up for 10 iterations.
+    Starting measurements of 24 batches. Measuring Measurement.
+    Max batch size: 2, estimated execution time: 0.513 s.
+
+batches = 29
+Starting the benchmark `FooTest.test3()`.
+    Warming up for 10 iterations.
+batches = 0
+Starting the benchmark `FooTest.test4()`.
+    Warming up for 10 iterations.
+batches = 0
+Starting the benchmark `StrategyTest.test5(x[0])`.
+    Warming up for 10 iterations.
+    Starting measurements of 20 batches. Measuring Measurement.
+    Max batch size: 5, estimated execution time: 1.006 s.
+
+Starting the benchmark `StrategyTest.test6(x[0])`.
+    Warming up for 10 iterations.
+    Starting measurements of 20 batches. Measuring Measurement.
+    Max batch size: 5, estimated execution time: 1.006 s.
+
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 4385635751 ns, RESULT:
+    TCS: FooTest, time elapsed: 2044951386 ns, RESULT:
+    | Case         | Args   | Median |    Err |   Err% |   Mean |  Ratio |
+    |:-------------|:-------|-------:|-------:|-------:|-------:|-------:|
+    | testBatch1_1 | -      |  2.000 |     ±0 |  ±0.0% |  2.000 |   100% |
+    | testBatch2   | -      |  1.000 |     ±0 |  ±0.0% |  1.000 | -50.0% |
+    |              |        |        |        |        |        |        |
+    | testBatch1_2 | 1      |  2.000 |     ±0 |  ±0.0% |  2.000 |      - |
+    [ FAILED ] CASE: test3 (130809721 ns)
+    Assert Failed: `(check() == true)`
+       left: false
+      right: true
+
+    [ FAILED ] CASE: test4 (110587377 ns)
+    Assert Failed: `(check() == true)`
+       left: false
+      right: true
+
+    TCS: StrategyTest, time elapsed: 2340648163 ns, RESULT:
+    | Case   | Args   | Median |    Err |   Err% |   Mean |
+    |:-------|:-------|-------:|-------:|-------:|-------:|
+    | test5  | x[0]   |  1.000 |     ±0 |  ±0.0% |  1.000 |
+    | test6  | x[0]   |  1.000 |     ±0 |  ±0.0% |  1.000 |
+    [ FAILED ] CASE: test5 (29758 ns)
+    REASON: After each step failed.
+    Expect Failed: `(checker.batchCounter == 34)`
+       left: 25
+      right: 34
+
+    [ FAILED ] CASE: test6 (12072 ns)
+    REASON: After each step failed.
+    Expect Failed: `(checker.batchCounter == 34)`
+       left: 25
+      right: 34
+
+Summary: TOTAL: 7
+    PASSED: 3, SKIPPED: 0, ERROR: 0
+    FAILED: 4, listed below:
+            TCS: FooTest, CASE: test3
+            TCS: FooTest, CASE: test4
+            TCS: StrategyTest, CASE: test5
+            TCS: StrategyTest, CASE: test6
+--------------------------------------------------------------------------------------------------
+
+Stderr         : 
+--------
+
+
+--------
+TestCase Failed: 
+Name           : new_bench/bench_finalizers.cj
+CMD list       : 
+--------
+PASS           :{'exit_code': 0, 'PIPE': False, 'cmd': 'cjc -j4 --error-count-limit=10000 --diagnostic-format=noColor -o bench_finalizers.out bench_finalizers.cj --test'}
+FAIL           :{'exit_code': 0, 'PIPE': True, 'cmd': '  bench_finalizers.out --no-progress  --bench --no-color '}
+NOT_RUN        :{'cmd': '  /usr/bin/python3 /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test_framework/maple_test/compare.py --comment=//  --condition="\'Unix\', \'x86\', \'Linux\', \'CJNATIVE\'" bench_finalizers.cj', 'PIPE': False, 'exit_code': 0}
+--------
+Output         : 
+
+CMD            : cjc -j4 --error-count-limit=10000 --diagnostic-format=noColor -o bench_finalizers.out bench_finalizers.cj --test
+Return code    : 0
+Stdout         : 
+Stderr         : warning: unused variable:'repeat'
+  ==> bench_finalizers.cj:29:15:
+   | 
+29 | func checkFin(repeat: Int64): Unit {
+   |               ^ unused variable
+   | 
+   # note: this warning can be suppressed by setting the compiler option `-Woff unused`
+note: the warning occurs after the macro is expanded
+  ==> bench_finalizers.cj:28:1:
+   | 
+28 |   @Strategy[repeat in 0..3]
+   |  _^
+29 | | func checkFin(repeat: Int64): Unit {
+   | | ...
+31 | | }
+   | |_^
+   | 
+note: the code after the macro is expanded as follows
+   | 
+   |   /* 28.1 */@Attribute[Strategy] let checkFin: DataStrategyProcessor < Unit >= DataStrategyProcessor < Int64 >.start({ => 0 .. 3 }, "repeat")
+   |  _^
+   | | /* 28.2 */.map < Unit > { x___ =>
+   | | /* 28.3 */    func checkFin(repeat: Int64): Unit {
+   | | /* 28.4 */        firstInvocation = true
+   | | /* 28.5 */    }
+   | | /* 28.6 */    
+   | | /* 28.7 */    let repeat = x___
+   | | /* 28.8 */    checkFin(repeat)
+   | | /* 28.9 */}
+   | |___________^
+   | 
+note: which is expanded as follows
+   | 
+   | /* 28.3 */    func checkFin(repeat: Int64): Unit {
+   |                             ^^^^^^ 
+   | 
+
+warning: unused variable:'q'
+  ==> bench_finalizers.cj:37:14:
+   | 
+37 |     func foo(q: Unit) {
+   |              ^ unused variable
+   | 
+   # note: this warning can be suppressed by setting the compiler option `-Woff unused`
+note: the warning occurs after the macro is expanded
+  ==> bench_finalizers.cj:33:1:
+   | 
+33 |   @Test
+   |  _^
+34 | | class Fin {
+   | | ...
+44 | | }
+   | |_^
+   | 
+note: the code after the macro is expanded as follows
+    | 
+    |   /* 33.1 */@Attribute[TEST_GENERATED] class Fin <: TestClass {
+    |  _^
+    | | /* 33.2 */    @Attribute[Bench_1, Configure_0]
+    | | /* 33.3 */    func foo(q: Unit) {
+    | | /* 33.4 */        if(firstInvocation) {
+    | | /* 33.5 */            firstInvocation = false
+    | | /* 33.6 */            expectEqual("x == 0", "true", x == 0, true, isDelta: false)
+    | | /* 33.7 */        }
+    | | /* 33.8 */        o = Finalizer()
+    | | /* 33.9 */    }
+    | | /* 33.10 */    
+    | | /* 33.11 */    init() {
+    | | /* 33.12 */    }
+    | | /* 33.13 */    private func classConfiguration(): Configuration {
+    | | /* 33.14 */        let configuration = Configuration()
+    | | /* 33.15 */        
+    | | /* 33.16 */        return configuration
+    | | /* 33.17 */    }
+    | | /* 33.18 */    public override func asTestSuite(): TestSuite {
+    | | /* 33.19 */        
+    | | /* 33.20 */        let suiteConfiguration = classConfiguration()
+    | | /* 33.21 */        let suiteBuilder = TestSuite.builder("Fin").configure(suiteConfiguration)
+    | | /* 33.22 */        let m__: Array < Measurement >=[TimeNow()]
+    | | /* 33.23 */        for(m___ in m__) {
+    | | /* 33.24 */            
+    | | /* 33.25 */            { => let caseConfig = Configuration()
+    | | /* 33.26 */                caseConfig.set(KeyWarmup.warmup, 100)
+    | | /* 33.27 */                caseConfig.set(KeyMinDuration.minDuration, Duration.second * 0.2)
+    | | /* 33.28 */                caseConfig.set(KeyExplicitGC.explicitGC, Heavy)
+    | | /* 33.29 */                caseConfig.set(KeyMeasurementInfo.measurementInfo, m___.info)
+    | | /* 33.30 */                let fooBenchDataStrategy = DataStrategyProcessor < Unit >.start({ => checkFin }, "q")
+    | | /* 33.31 */                
+    | | /* 33.32 */                suiteBuilder.add(
+    | | /* 33.33 */                fooBenchDataStrategy.intoBenchmark(
+    | | /* 33.34 */                caseName: "foo",
+    | | /* 33.35 */                doRun: { prov___, count___: Int64, max___: Int64 =>
+    | | /* 33.36 */                    
+    | | /* 33.37 */                    m___.setup()
+    | | /* 33.38 */                    let q = prov___
+    | | /* 33.39 */                    do {
+    | | /* 33.40 */                        
+    | | /* 33.41 */                        var q = ImmutableInputProvider < Unit >.createOrExisting(q)
+    | | /* 33.42 */                        q.reset(max___)
+    | | /* 33.43 */                        
+    | | /* 33.44 */                        let tmp_ = m___.measure()
+    | | /* 33.45 */                        for(q___ in 0 .. max___) {
+    | | /* 33.46 */                            
+    | | /* 33.47 */                            var q = q.get(q___)
+    | | /* 33.48 */                            
+    | | /* 33.49 */                            if(q___ < count___) {
+    | | /* 33.50 */                                foo(q)
+    | | /* 33.51 */                            }
+    | | /* 33.52 */                        }
+    | | /* 33.53 */                        return m___.measure() - tmp_
+    | | /* 33.54 */                    } while(false)
+    | | /* 33.55 */                    0.0
+    | | /* 33.56 */                },
+    | | /* 33.57 */                configuration: caseConfig
+    | | /* 33.58 */                )
+    | | /* 33.59 */                )
+    | | /* 33.60 */                
+    | | /* 33.61 */            }()
+    | | /* 33.62 */        }
+    | | /* 33.63 */        
+    | | /* 33.64 */        return suiteBuilder.build()
+    | | /* 33.65 */    }
+    | | /* 33.66 */    private func inheritedFromClassAnnotatedByTestTemplate < T >(): TestSuite where T <: TestClass {
+    | | /* 33.67 */        throw Exception("Unreachable code")
+    | | /* 33.68 */    }
+    | | /* 33.69 */}
+    | | /* 33.70 */
+    | | /* 33.71 */
+    | | /* 33.72 */interface TestPackageExtension_Fin {
+    | | /* 33.73 */    func registerFin(): Unit
+    | | /* 33.74 */}
+    | | /* 33.75 */extend TestPackage <: TestPackageExtension_Fin {
+    | | /* 33.76 */    @Attribute[TEST_REGISTER]
+    | | /* 33.77 */    public func registerFin() {
+    | | /* 33.78 */        registerSuite({ => Fin().asTestSuite() })
+    | | /* 33.79 */    }
+    | | /* 33.80 */}
+    | | /* 33.81 */
+    | |___________^
+    | 
+note: which is expanded as follows
+   | 
+   | /* 33.3 */    func foo(q: Unit) {
+   |                        ^ 
+   | 
+
+2 warnings generated, 2 warnings printed.
+
+
+CMD            :   bench_finalizers.out --no-progress  --bench --no-color 
+Return code    : 1
+Stdout         : Starting the benchmark `Fin.foo(0)`.
+    Warming up for 100 iterations.
+    Starting measurements of 200 batches. Measuring Duration.
+    Max batch size: 12342, estimated execution time: 200.0 ms.
+
+Starting the benchmark `Fin.foo(1)`.
+    Warming up for 100 iterations.
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 474406310 ns, RESULT:
+    TCS: Fin, time elapsed: 474401933 ns, RESULT:
+    | Case   | Args   |   Median |       Err |   Err% |     Mean |
+    |:-------|:-------|---------:|----------:|-------:|---------:|
+    | foo    | 0      | 0.504 us | ±0.130 us | ±25.9% | 0.576 us |
+    [ FAILED ] CASE: foo (65240 ns)
+    REASON: After 2 generation steps:
+        1Expect Failed: `(x == 0 == true)`
+       left: false
+      right: true
+
+Summary: TOTAL: 1
+    PASSED: 0, SKIPPED: 0, ERROR: 0
+    FAILED: 1, listed below:
+            TCS: Fin, CASE: foo (failed after 2 steps)
+--------------------------------------------------------------------------------------------------
+
+Stderr         : 
+--------
+
+Running test cases: 90.48% (38/42) Running test cases: 95.24% (40/42) Running test cases: 95.24% (40/42) Running test cases: 95.24% (40/42) Running test cases: 95.24% (40/42) Running test cases: 95.24% (40/42) Running test cases: 97.62% (41/42) Running test cases: 97.62% (41/42) Running test cases: 97.62% (41/42) Running test cases: 97.62% (41/42) Running test cases: 100.00% (42/42) INFO: cost time info write in /home/huawei/compiler/cangjie/cangjie_runtime/stdlib/libs/std/unittest/cangjie_test/testsuites/LLT/configs/cjnative/cost_time.csv!

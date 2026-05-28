@@ -94,7 +94,16 @@ class InstrumentedBench <: InstrumentedFunction {
                         $doCall
                     }
 
-                    result += m___.measure() - tmp_
+                    let newresult = m___.measure() - tmp_       
+
+                    if (start < count___) {
+                        m___.addPoint(min(batchSize___, count___), newresult)
+                    }
+                    else {
+                        m___.addPoint(0, newresult)
+                    }
+
+                    result += newresult  
                     start += batchSize___
                 }
                 return result
