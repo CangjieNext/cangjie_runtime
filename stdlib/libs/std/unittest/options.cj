@@ -122,6 +122,8 @@ public struct KeyMinBatches <: KeyFor<Int64> {
     }
 }
 
+// configuration.get(KeyBatchSize.batchSize)
+
 public struct KeyBatchSize <: KeyFor<Int64> & KeyFor<Range<Int64>> {
     public static prop batchSize: KeyBatchSize {
         get() {
