@@ -38,7 +38,7 @@ public:
     void RunTaskLoop();
     // Notify that GC has finished.
     // Must be called by gc thread only
-    void NotifyGCFinished(uint64_t gcIndex);
+    void NotifyGCFinished(uint64_t gcIndex, GCReason reason = GC_REASON_INVALID);
     int32_t GetGCThreadCount(const bool isConcurrent) const;
 
     GCThreadPool* GetThreadPool() const { return gcThreadPool; }
@@ -67,6 +67,7 @@ private:
     // Called by mutator.
     // reason: The reason for this GC.
     void RequestAsyncGC(GCReason reason);
+    void RequestFullGCAndWait();
     void RequestGCAndWait(GCReason reason);
     void PostIgnoredGcRequest(GCReason reason);
 
@@ -86,6 +87,7 @@ private:
     std::mutex gcFinishedCondMutex;
     // notified when GC finished, requires gcFinishedCondMutex
     std::condition_variable gcFinishedCondVar;
+    std::atomic<uint64_t> finishedFullGcCount = { 0 };
 
     // Indicate whether GC is already started.
     // NOTE: When GC finishes, it clears isGcStarted, must be over-written only by gc thread.

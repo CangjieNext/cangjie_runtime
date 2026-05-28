@@ -36,6 +36,8 @@ extern "C" MRT_EXPORT bool CJ_MCC_AtomicCompareAndSwapReference(const ObjectPtr 
     __attribute__((alias("MCC_AtomicCompareSwapReference")));
 extern "C" MRT_EXPORT void CJ_MCC_InvokeGCImpl(bool sync) __attribute__((alias("MCC_InvokeGCImpl")));
 extern "C" MRT_EXPORT void CJ_MCC_InvokeFullGCImpl() __attribute__((alias("MCC_InvokeFullGCImpl")));
+extern "C" MRT_EXPORT void CJ_MCC_WaitForAllCJThreadsToFinishImpl()
+    __attribute__((alias("MCC_WaitForAllCJThreadsToFinishImpl")));
 extern "C" MRT_EXPORT ssize_t CJ_MCC_GetRealHeapSize()
     __attribute__((alias("MCC_GetRealHeapSize")));
 extern "C" MRT_EXPORT size_t CJ_MCC_GetAllocatedHeapSize() __attribute__((alias("MCC_GetAllocatedHeapSize")));

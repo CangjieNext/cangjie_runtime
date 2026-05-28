@@ -300,5 +300,11 @@ _CJ_MCC_NewArrayGeneric:
 _CJ_MCC_DumpCJHeapData:
     CalleeSavedRegistersStub MCC_DumpCJHeapData
 
+    .text
+    .align 2
+    .global _CJ_MCC_WaitForAllCJThreadsToFinish
+_CJ_MCC_WaitForAllCJThreadsToFinish:
+    CalleeSavedRegistersStub MCC_WaitForAllCJThreadsToFinishImpl
+
 .global _unwindPCForC2RStubEnd
 _unwindPCForC2RStubEnd:

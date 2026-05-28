@@ -136,6 +136,25 @@ void CollectorResources::RequestAsyncGC(GCReason reason)
     taskQueue->EnqueueAsync(gcTask);
 }
 
+void CollectorResources::RequestFullGCAndWait()
+{
+    // Full GC must stay in asyncTaskQueue so it keeps the same priority ordering as user_async GC.
+    ScopedEnterSaferegion enterSaferegion(false);
+    GCExecutor gcTask(GCTask::TaskType::TASK_TYPE_INVOKE_GC, GC_REASON_FULL);
+
+    std::unique_lock<std::mutex> lock(gcFinishedCondMutex);
+    uint64_t curFinishedFullGcCount = finishedFullGcCount.load(std::memory_order_relaxed);
+    bool isFullGCRunning = IsGcStarted() && collectorProxy.GetCurrentCollector().GetGCReason() == GC_REASON_FULL;
+    if (!isFullGCRunning) {
+        taskQueue->EnqueueAsync(gcTask);
+    }
+    std::function<bool()> pred = [this, curFinishedFullGcCount] {
+        return (finishedFullGcCount.load(std::memory_order_relaxed) > curFinishedFullGcCount) ||
+               (finishedGcIndex == GCTask::TASK_INDEX_FOR_EXIT);
+    };
+    gcFinishedCondVar.wait(lock, pred);
+}
+
 void CollectorResources::RequestGCAndWait(GCReason reason)
 {
     // Enter saferegion since current thread may blocked by locks.
@@ -176,6 +195,8 @@ void CollectorResources::RequestGC(GCReason reason, bool async)
     if (collectorProxy.ShouldIgnoreRequest(request)) {
         DLOG(ALLOC, "ignore gc request");
         PostIgnoredGcRequest(reason);
+    } else if (reason == GC_REASON_FULL) {
+        RequestFullGCAndWait();
     } else if (async) {
         RequestAsyncGC(reason);
     } else {
@@ -183,12 +204,15 @@ void CollectorResources::RequestGC(GCReason reason, bool async)
     }
 }
 
-void CollectorResources::NotifyGCFinished(uint64_t gcIndex)
+void CollectorResources::NotifyGCFinished(uint64_t gcIndex, GCReason reason)
 {
     std::unique_lock<std::mutex> lock(gcFinishedCondMutex);
     isGcStarted.store(false, std::memory_order_relaxed);
     if (gcIndex != GCTask::ASYNC_TASK_INDEX) { // sync gc, need set taskIndex
         finishedGcIndex.store(gcIndex);
+    }
+    if (reason == GC_REASON_FULL) {
+        finishedFullGcCount.fetch_add(1, std::memory_order_relaxed);
     }
     gcFinishedCondVar.notify_all();
     BroadcastGCCompletion();

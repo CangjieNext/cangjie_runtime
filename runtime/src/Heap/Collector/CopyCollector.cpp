@@ -52,9 +52,6 @@ void CopyCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
     isFullGC = (reason == GC_REASON_FULL);
 
     if (isFullGC) {
-        printf("====== Waiting for other CJThreads to finish running work ======\n");
-        ScheduleWaitUntilOtherCJThreadsFinishRunningWork();
-        printf("====== Other CJThreads finished running work ======\n");
         ScopedStopTheWorld4FullGC stw("Full GC");
         DoGarbageCollection();
     } else {

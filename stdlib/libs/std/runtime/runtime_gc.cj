@@ -35,6 +35,10 @@ func getCjGCFreedSize(): UIntNative
 @Intrinsic
 func setCjGCThreshold(value: UInt64): Unit
 
+@When[backend == "cjnative"]
+@Intrinsic
+func waitForAllCJThreadsToFinish(): Unit
+
 @Deprecated[message: "Use 'public func gc(heavy!: Bool = false): Unit' instead."]
 public func GC(heavy!: Bool = false): Unit {
     return gc(heavy: heavy)
@@ -76,6 +80,11 @@ public func getGCFreedSize(): Int64 {
 @When[backend == "cjnative"]
 public func waitUntilGCFinished(): Int64 {
     unsafe{ return Int64(waitForGC()) }
+}
+
+@When[backend == "cjnative"]
+public func waitForAllThreadsToFinish(): Unit {
+    unsafe { waitForAllCJThreadsToFinish() }
 }
 
 @When[backend == "cjnative"]

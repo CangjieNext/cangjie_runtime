@@ -14,6 +14,7 @@
 
 // module interfaces
 #include "ObjectManager.inline.h"
+#include "schedule_rename.h"
 #if defined(CANGJIE_SANITIZER_SUPPORT) || defined(CANGJIE_GWPASAN_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
 #endif
@@ -232,7 +233,18 @@ extern "C" void MCC_InvokeGCImpl(bool sync) {
     HeapManager::RequestGC(sync ? GC_REASON_USER_SYNC : GC_REASON_USER_ASYNC, !sync); }
 
 extern "C" void MCC_InvokeFullGCImpl() {
-    HeapManager::RequestGC(GC_REASON_FULL, false);
+    HeapManager::RequestGC(GC_REASON_FULL, true);
+}
+
+// Block the caller until every other Cangjie thread has fully terminated
+// (cjthread->state == CJTHREAD_IDLE). Cooperative: when invoked on a CJThread
+// the wait yields back to the M:N scheduler so timer-driven wakeups can fire
+// even on single-processor configurations.
+extern "C" void MCC_WaitForAllCJThreadsToFinishImpl()
+{
+    printf("====== Waiting for other CJThreads to finish running work ======\n");
+    ScheduleWaitUntilOtherCJThreadsFinish();
+    printf("====== Other CJThreads finished running work ======\n");
 }
 
 extern "C" ssize_t MCC_GetRealHeapSize() { return Heap::GetHeap().GetHeapPhysicalMemorySize(); }

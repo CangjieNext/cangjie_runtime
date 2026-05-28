@@ -53,6 +53,9 @@ extern "C" void MCC_InvokeGCImpl(bool sync);
 
 extern "C" void MCC_InvokeFullGCImpl();
 
+// Wait until every Cangjie thread other than the caller has terminated.
+extern "C" void MCC_WaitForAllCJThreadsToFinishImpl();
+
 extern "C" ssize_t MCC_GetRealHeapSize();
 extern "C" size_t MCC_GetAllocatedHeapSize();
 extern "C" size_t MCC_GetMaxHeapSize();

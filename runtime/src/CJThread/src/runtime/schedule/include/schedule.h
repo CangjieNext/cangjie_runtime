@@ -1387,12 +1387,18 @@ unsigned long long ScheduleCJThreadCountPublic(CJthreadStatePublic state);
 
 /**
  * @ingroup schedule
- * @brief Spin until no CJThread other than the caller is in READY, RUNNING, or SYSCALL.
- *        Intended to let other cooperative cjthreads drain their current runnable work before
- *        a full stop-the-world (e.g. Full GC). If the caller has no CJThread handle, every
- *        cjthread is considered. Yields with sched_yield between checks.
+ * @brief Block the caller until every CJThread other than itself has fully terminated
+ *        (state == CJTHREAD_IDLE, i.e. exited; the cjthread struct may still sit on a
+ *        freelist for reuse). When invoked on a CJThread the wait is cooperative: it
+ *        yields via CJThreadResched so timer-driven wakeups (sleep/park) can fire even
+ *        with a single processor. When invoked outside any CJThread, every cjthread on
+ *        the global list is considered and sched_yield is used between checks.
+ *
+ * @note  This function will not return while another CJThread is permanently running,
+ *        permanently parked, or transitively waiting on the caller; such situations are
+ *        application-level deadlocks and are out of scope for this primitive.
  */
-void ScheduleWaitUntilOtherCJThreadsFinishRunningWork(void);
+void ScheduleWaitUntilOtherCJThreadsFinish(void);
 
 /**
  * @ingroup schedule

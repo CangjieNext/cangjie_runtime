@@ -8,6 +8,7 @@
 #include <cstring>
 #include <unistd.h>
 #include <cstdlib>
+#include "Cangjie.h"
 #include "schedule_impl.h"
 #include "log.h"
 #include "schmon.h"
@@ -1672,14 +1673,14 @@ unsigned long long ScheduleCJThreadCountPublic(CJthreadStatePublic state)
     return cjthreadNum;
 }
 
-void ScheduleWaitUntilOtherCJThreadsFinishRunningWork(void)
+void ScheduleWaitUntilOtherCJThreadsFinish(void)
 {
     if (!g_scheduleManager.initFlag) {
         return;
     }
     struct CJThread *self = static_cast<struct CJThread*>(CJThreadGetHandle());
     for (;;) {
-        bool otherActive = false;
+        bool otherAlive = false;
         pthread_mutex_lock(&g_scheduleManager.allCJThreadListLock);
         struct Dulink *scheduleCJThreadNode = nullptr;
         DULINK_FOR_EACH_ITEM(scheduleCJThreadNode, &g_scheduleManager.allCJThreadList) {
@@ -1687,17 +1688,27 @@ void ScheduleWaitUntilOtherCJThreadsFinishRunningWork(void)
             if (self != nullptr && cjthread == self) {
                 continue;
             }
-            CJThreadState st = cjthread->state.load(std::memory_order_relaxed);
-            if (st == CJTHREAD_READY || st == CJTHREAD_RUNNING || st == CJTHREAD_SYSCALL) {
-                otherActive = true;
+            // CJTHREAD_IDLE means the cjthread already exited (and may sit on a freelist
+            // for reuse). Anything else (READY / RUNNING / SYSCALL / PENDING) means it is
+            // still alive and we must keep waiting.
+            if (cjthread->state.load(std::memory_order_relaxed) != CJTHREAD_IDLE) {
+                otherAlive = true;
                 break;
             }
         }
         pthread_mutex_unlock(&g_scheduleManager.allCJThreadListLock);
-        if (!otherActive) {
+        if (!otherAlive) {
             return;
         }
-        (void)sched_yield();
+        // Cooperative yield: when running on a CJThread, hand control back to the
+        // M:N scheduler so PENDING (sleep/park) cjthreads can be woken via timers
+        // even on single-processor configurations. Falling back to sched_yield()
+        // keeps things working when called from a non-CJThread context.
+        if (self != nullptr) {
+            (void)CJThreadResched();
+        } else {
+            (void)sched_yield();
+        }
     }
 }
 

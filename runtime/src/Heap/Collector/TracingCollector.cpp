@@ -119,6 +119,9 @@ public:
             DCHECK(obj->IsValidObject());
 
             bool wasMarked = collector.MarkObject(obj);
+            if (std::strcmp(objType->GetName(), "default:Word") == 0) {
+                PRINT_INFO("Marking object %p of type %s value %zu\n", obj, objType != nullptr ? objType->GetName() : "unknown", ((size_t*)obj)[1]);
+            }
             if (!wasMarked) {
                 nNewlyMarked++;
                 if (!obj->HasRefField()) {
@@ -691,7 +694,7 @@ void TracingCollector::PostGarbageCollection(uint64_t gcIndex)
     TransitionToGCPhase(GCPhase::GC_PHASE_RECLAIM_SATB_NODE, true);
     SatbBuffer::Instance().ReclaimALLPages();
     PagePool::Instance().Trim();
-    collectorResources.NotifyGCFinished(gcIndex);
+    collectorResources.NotifyGCFinished(gcIndex, gcReason);
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     DumpAfterGC();

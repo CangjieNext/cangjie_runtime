@@ -127,7 +127,10 @@ void TraceBarrier::WriteReference(BaseObject* obj, RefField<false>& field, BaseO
 void TraceBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) const
 {
     std::atomic_thread_fence(std::memory_order_seq_cst);
+    TypeInfo* ty = ref != nullptr ? ref->GetTypeInfo() : nullptr;
+    (void)ty;
     RefField<> newField = theCollector.GetAndTryTagRefField(ref);
+    
     field.SetFieldValue(newField.GetFieldValue());
 }
 
