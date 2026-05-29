@@ -157,12 +157,14 @@ public class UnixSocket <: StreamingSocket {
      * Please note that this function doesn't do retry so if the server peer does reject connection, we get error despite the timeout duration.
      *
      * This function also does bind first before doing connect so there is no need to invoke bind
+     * Unix sockets connect through a filesystem-style socket address rather than an IP endpoint.
      *
      * @throws SocketException if the connection cannot be established.
      * @throws SocketTimeoutException if the waiting time has expired.
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public func connect(timeout!: ?Duration = None): Unit {
+        // Unix domain sockets use the same timeout validation as TCP, but delegate to Unix socket storage.
         impl.connect(timeout?.throwIfNegative("Timeout"))
     }
 
@@ -553,22 +555,26 @@ public class UnixServerSocket <: ServerSocket {
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public override func accept(timeout!: ?Duration): UnixSocket {
+        // The accepted platform socket is wrapped as a UnixSocket for callers.
         let accepted = this.impl.accept(timeout) ?? SocketException.throwClosedException()
         return UnixSocket(accepted)
     }
 
     /** Accept a client socket without a timeout. */
     public override func accept(): UnixSocket {
+        // The deprecated server overload keeps the no-timeout accept behavior.
         accept(timeout: None)
     }
 
     /** Close this socket and release its resources. This function is reentrant. */
     public override func close(): Unit {
+        // Close releases the server-side Unix socket descriptor held by the shared implementation.
         this.impl.close()
     }
 
     /** Return whether close() has already been invoked for this socket. */
     public override func isClosed(): Bool {
+        // The closed state is tracked by the shared socket implementation.
         this.impl.isClosed()
     }
 
@@ -738,11 +744,13 @@ public class UnixServerSocket <: ServerSocket {
 
     /** Close this socket and release its resources. This function is reentrant. */
     public override func close(): Unit {
+        // Deprecated server sockets delegate close state to the same implementation object.
         this.impl.close()
     }
 
     /** Return whether close() has already been invoked for this socket. */
     public override func isClosed(): Bool {
+        // Keep the deprecated branch consistent with the primary Unix server socket.
         this.impl.isClosed()
     }
 

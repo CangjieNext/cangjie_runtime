@@ -165,6 +165,7 @@ public class UnixDatagramSocket <: DatagramSocket {
      * @throws SocketException if the connection cannot be established.
      */
     public func disconnect(): Unit {
+        // Unix datagram disconnect clears the peer association on the underlying socket.
         impl.disconnect()
     }
 
@@ -177,11 +178,13 @@ public class UnixDatagramSocket <: DatagramSocket {
      * Unlike read in streams, this function requires a buffer of proper size (big enough),
      * otherwise a datagram that is bigger than the provided buffer will be
      * truncated and the returned datagram size will be greater that the buffer size.
+     * Unix datagram sockets also return the sender address with each received packet.
      *
      * @throws SocketException if buffer is empty or if it is not possible to read the data.
      * @throws SocketTimeoutException if reading time has expired.
      */
     public override func receiveFrom(buffer: Array<Byte>): (SocketAddress, Int64) {
+        // A missing native result means the socket reached the closed state.
         impl.receiveFrom(buffer) ?? SocketException.throwClosedException()
     }
 

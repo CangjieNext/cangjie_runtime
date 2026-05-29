@@ -1163,6 +1163,20 @@ public class AtomicOptionReference<T> where T <: Object {
         successOrder!: MemoryOrder,
         failureOrder!: MemoryOrder
     ): Bool {
-        return compareAndSwap(old, new)
+        // The deprecated overload preserves the legacy signature while using the default memory order.
+        return compareAndSwap<AtomicOptionReference<T>, Option<Object>>(
+            this,
+            match (old) {
+                case Some(v) => Option<Object>.Some(v)
+                case _ => Option<Object>.None
+            },
+            // Convert Option<T> to the object-typed representation used by the native primitive.
+            match (new) {
+                case Some(v) => Option<Object>.Some(v)
+                case _ => Option<Object>.None
+            },
+            DefaultMemoryOrder,
+            DefaultMemoryOrder
+        )
     }
 }

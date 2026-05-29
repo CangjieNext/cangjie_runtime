@@ -19,6 +19,7 @@ import std.io.*
 @When[os != "iOS"]
 public class SubProcess <: Process {
     var _stdIn: OutputStream
+    // Non-iOS exposes streams from fields initialized by the constructor.
     var _stdOut: InputStream
     var _stdErr: InputStream
 
@@ -28,6 +29,7 @@ public class SubProcess <: Process {
         command: ?String,
         arguments: ?Array<String>,
         commandLine: ?Array<String>,
+        // Non-iOS stores directory and environment metadata directly on Process.
         workingDirectory: ?Path,
         environment: ?Map<String, String>,
         stdIn: OutputStream,
@@ -35,6 +37,7 @@ public class SubProcess <: Process {
         stdErr: InputStream
     ) {
         super(pid, name, command, arguments, commandLine, workingDirectory, environment)
+        // Non-iOS stores stream objects directly on the process wrapper.
         this._stdIn = stdIn
         this._stdOut = stdOut
         this._stdErr = stdErr
@@ -116,6 +119,7 @@ public class SubProcess <: Process {
         stdErr: InputStream
     ) {
         super(pid, name, command, arguments, commandLine, workingDirectory, environment)
+        // iOS stores stream objects through native accessors for the deprecated wrapper.
         setSubProcessStreams(this, stdIn, stdOut, stdErr)
     }
 

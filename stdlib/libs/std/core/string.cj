@@ -869,10 +869,20 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         return res == 0
     }
 
-    private func getPaddingLength(totalWidth: Int64, padding: String): (Int64, Int64) {
+    /**
+     * @return a new string which is the result of padding zero or more `padding` to this string on the left.
+     * @throws IllegalArgumentException if `totalWidth` < 0.
+     */
+    @Frozen
+    public func padStart(totalWidth: Int64, padding!: String = " "): String {
+        // Left padding validates width before inspecting the padding bytes.
         if (totalWidth < 0) {
             throw IllegalArgumentException("Negative totalWidth.")
         }
+        if (totalWidth == 0 || this.size > totalWidth) {
+            return this
+        }
+        // Padding length is based on the UTF-8 byte count stored by String.
         let runeLen = padding.size
         if (runeLen == 0) {
             throw IllegalArgumentException("Padding string cannot be empty.")
@@ -885,28 +895,8 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         if (totalBytes > Int64(UInt32.Max)) {
             throw IllegalArgumentException("The size of String is too large.")
         }
-        return (padLen, totalBytes)
-    }
 
-    private func shouldPad(totalWidth: Int64): Bool {
-        if (totalWidth < 0) {
-            throw IllegalArgumentException("Negative totalWidth.")
-        }
-        totalWidth != 0 && this.size <= totalWidth
-    }
-
-    /**
-     * @return a new string which is the result of padding zero or more `padding` to this string on the left.
-     * @throws IllegalArgumentException if `totalWidth` < 0.
-     */
-    @Frozen
-    public func padStart(totalWidth: Int64, padding!: String = " "): String {
-        if (!shouldPad(totalWidth)) {
-            return this
-        }
-        let (padLen, totalBytes) = getPaddingLength(totalWidth, padding)
-        let runeLen = padding.size
-
+        // Build the prefix padding before appending the receiver bytes.
         var itemBytes: Array<UInt8> = Array<UInt8>(totalBytes, repeat: 0)
         var k: Int64 = 0
         let paddingdata = unsafe { padding.rawData() }
@@ -924,12 +914,28 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
      */
     @Frozen
     public func padEnd(totalWidth: Int64, padding!: String = " "): String {
-        if (!shouldPad(totalWidth)) {
+        // Right padding keeps the receiver bytes at the beginning of the result.
+        if (totalWidth < 0) {
+            throw IllegalArgumentException("Negative totalWidth.")
+        }
+        if (totalWidth == 0 || this.size > totalWidth) {
             return this
         }
-        let (padLen, totalBytes) = getPaddingLength(totalWidth, padding)
+        // Padding is measured in bytes because String stores UTF-8 data.
         let runeLen = padding.size
+        if (runeLen == 0) {
+            throw IllegalArgumentException("Padding string cannot be empty.")
+        }
+        if (totalWidth > Int64(UInt32.Max)) {
+            throw IllegalArgumentException("The size of String is too large.")
+        }
+        let padLen: Int64 = (totalWidth - this.size + runeLen - 1) / runeLen
+        let totalBytes: Int64 = runeLen * padLen + size
+        if (totalBytes > Int64(UInt32.Max)) {
+            throw IllegalArgumentException("The size of String is too large.")
+        }
 
+        // Copy the original bytes first, then append repeated padding bytes.
         var itemBytes: Array<UInt8> = Array<UInt8>(totalBytes, repeat: 0)
         itemBytes[..size] = unsafe { this.rawData() }
         var k: Int64 = size
@@ -990,16 +996,6 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
-    static const func compareByteOrder(b1: Byte, b2: Byte): Int64 {
-        return if (b1 > b2) {
-            1
-        } else {
-            -1
-        }
-    }
-
-    @Frozen
-    @OverflowWrapping
     static const func compareBytesCommon(ptr1: RawArray<Byte>, start1: Int64, ptr2: RawArray<Byte>, start2: Int64,
         num: Int64): Int64 {
         var offset1 = start1
@@ -1008,7 +1004,11 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             let b1 = arrayGetUnchecked(ptr1, offset1)
             let b2 = arrayGetUnchecked(ptr2, offset2)
             if (b1 != b2) {
-                return compareByteOrder(b1, b2)
+                return if (b1 > b2) {
+                    1
+                } else {
+                    -1
+                }
             }
             offset1++
             offset2++
@@ -1029,7 +1029,11 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             if (vecCmpRes != 32) {
                 let b1 = arrayGetUnchecked(ptr1, offset1 + vecCmpRes)
                 let b2 = arrayGetUnchecked(ptr2, offset2 + vecCmpRes)
-                return compareByteOrder(b1, b2)
+                return if (b1 > b2) {
+                    1
+                } else {
+                    -1
+                }
             }
             i += VECTOR_OFFSET_32
             offset1 += VECTOR_OFFSET_32
@@ -1040,7 +1044,11 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             let b1 = arrayGetUnchecked(ptr1, offset1)
             let b2 = arrayGetUnchecked(ptr2, offset2)
             if (b2 != b1) {
-                return compareByteOrder(b1, b2)
+                return if (b1 > b2) {
+                    1
+                } else {
+                    -1
+                }
             }
             offset1++
             offset2++

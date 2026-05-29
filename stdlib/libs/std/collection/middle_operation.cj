@@ -173,19 +173,26 @@ class FlattenIterator<T, R> <: Iterator<R> where T <: Iterable<R> {
      */
     @Frozen
     public func next(): Option<R> {
+        /**
+         * Check whether subIt is consumed.
+         * If yes, return the resulting value.
+         * If not, reset subIt and continue to check from the beginning.
+         * FlattenIterator reuses the nested iterator supplied by each source element.
+         */
         while (true) {
-            // Drain the current nested iterator before pulling another source element.
-            if (let Some(result) <- subIt) {
-                if (let Some(v) <- result.next()) {
-                    return Some(v)
+            match (subIt) {
+                case Some(result) => match (result.next()) {
+                    case Some(v) => return Some(v)
+                    case _ => ()
                 }
+                case _ => ()
             }
 
-            if (let Some(sub) <- it.next()) {
-                subIt = Some(sub.iterator())
-                continue
+            // Pull the next iterable only after the current nested iterator is exhausted.
+            match (it.next()) {
+                case Some(sub) => subIt = Some(sub.iterator())
+                case _ => return None
             }
-            return None
         }
         return None
     }
@@ -212,18 +219,26 @@ class FlatMapIterator<T, R> <: Iterator<R> {
      */
     @Frozen
     public func next(): Option<R> {
+        /**
+         * Check whether subIt is consumed.
+         * If yes, return the resulting value.
+         * If not, reset subIt and continue to check from the beginning.
+         * FlatMapIterator creates each nested iterator by applying transform.
+         */
         while (true) {
-            if (let Some(result) <- subIt) {
-                if (let Some(v) <- result.next()) {
-                    return Some(v)
+            match (subIt) {
+                case Some(result) => match (result.next()) {
+                    case Some(v) => return Some(v)
+                    case _ => ()
                 }
+                case _ => ()
             }
 
-            if (let Some(sub) <- it.next()) {
-                subIt = Some(transform(sub).iterator())
-                continue
+            // Transform is evaluated lazily for one source element at a time.
+            match (it.next()) {
+                case Some(sub) => subIt = Some(transform(sub).iterator())
+                case _ => return None
             }
-            return None
         }
         return None
     }
