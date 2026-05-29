@@ -635,6 +635,7 @@ make_cangjie_lib(
         std-sync
         std-unittest.prop_test
         std-unittest.common
+        std-unittest.concurrent
         std-unittest.diff
         std-unittest.mock.internal
         std-unittest.mock
@@ -685,6 +686,26 @@ make_cangjie_lib(
 add_library(cangjie-std-unittest.common STATIC ${output_cj_object_dir}/std/unittest.common.o)
 set_target_properties(cangjie-std-unittest.common PROPERTIES LINKER_LANGUAGE C)
 install(TARGETS cangjie-std-unittest.common DESTINATION lib/${output_triple_name}_${CJNATIVE_BACKEND}${SANITIZER_SUBPATH})
+
+make_cangjie_lib(
+    std-unittest.concurrent IS_SHARED
+    DEPENDS cangjie${BACKEND_TYPE}UnittestConcurrent
+    CANGJIE_STD_LIB_DEPENDS
+        std-core
+        std-math
+        std-time
+        std-runtime
+        std-random
+        std-collection
+        std-collection.concurrent
+        std-unittest.common
+    CANGJIE_STD_LIB_INDIRECT_DEPENDS 
+        std-sync
+    OBJECTS ${output_cj_object_dir}/std/unittest.concurrent.o)
+
+add_library(cangjie-std-unittest.concurrent STATIC ${output_cj_object_dir}/std/unittest.concurrent.o)
+set_target_properties(cangjie-std-unittest.concurrent PROPERTIES LINKER_LANGUAGE C)
+install(TARGETS cangjie-std-unittest.concurrent DESTINATION lib/${output_triple_name}_${CJNATIVE_BACKEND}${SANITIZER_SUBPATH})
 
 make_cangjie_lib(
     std-unittest.diff IS_SHARED
@@ -1334,6 +1355,17 @@ add_cangjie_library(
     MODULE_NAME "std"
     SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/std/unittest/common
     DEPENDS ${UNITTEST_COMMON_DEPENDENCIES})
+
+add_cangjie_library(
+    cangjie${BACKEND_TYPE}UnittestConcurrent
+    NO_SUB_PKG
+    IS_STDLIB
+    IS_PACKAGE
+    IS_CJNATIVE_BACKEND
+    PACKAGE_NAME "unittest.concurrent"
+    MODULE_NAME "std"
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/std/unittest/concurrent
+    DEPENDS ${UNITTEST_CONCURRENT_DEPENDENCIES})
 
 add_cangjie_library(
     cangjie${BACKEND_TYPE}UnittestMock

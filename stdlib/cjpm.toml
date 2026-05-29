@@ -1,0 +1,12 @@
+[dependencies]
+
+[package]
+  cjc-version = "1.0.0"
+  description = "nothing here"
+  name = "std"
+  output-type = "staticlib"
+  override-compile-option = ""
+  src-dir = "libs/std"
+  version = "1.0.0"
+  [package.package-configuration]
+  [package.scripts]

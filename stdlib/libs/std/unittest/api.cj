@@ -8,6 +8,8 @@
 package std.unittest
 
 import std.collection.*
+import std.unittest.concurrent.ConcurrentScenario
+import std.unittest.concurrent.ScenarioBuilder
 
 public class TestSuite {
     TestSuite(
@@ -147,6 +149,11 @@ public class TestGroupBuilder {
         this
     }
 
+    public func add(concurrent: ConcurrentTestCase): TestGroupBuilder {
+        add(fakeSuite(Concurrent(concurrent)))
+        this
+    }
+
     public func add(suite: TestSuite): TestGroupBuilder {
         enableOptimizedMockForBenchIfNeeded(suite)
         add({ => suite })
@@ -233,6 +240,11 @@ public class TestSuiteBuilder {
 
     public func add(benchmark: Benchmark): TestSuiteBuilder {
         tests.add(Bench(benchmark))
+        this
+    }
+
+    public func add(concurrent: ConcurrentTestCase): TestSuiteBuilder {
+        tests.add(Concurrent(concurrent))
         this
     }
 
@@ -387,6 +399,53 @@ public class Benchmark {
     }
 }
 
+public class ConcurrentTestCase {
+    ConcurrentTestCase(
+        private let _name: String,
+        let caseConfiguration: Configuration,
+        let executor: Executor
+    ) {}
+
+    public prop name: String { get() { _name } }
+
+    public func run(): TestReport {
+        fakeGroup(fakeSuite(Concurrent(this))).run(Configuration(), OnlyTests).asTestReport(caseConfiguration)
+    }
+
+    public static func create(
+        name: String,
+        scenario!: ConcurrentScenario,
+        configuration!: Configuration = Configuration()
+    ): ConcurrentTestCase {
+        let executor = ConcurrentExecutor(scenario: scenario)
+        ConcurrentTestCase(name, configuration, executor)
+    }
+
+    public static func createFromBuilder(
+        name: String,
+        builder!: ScenarioBuilder,
+        configuration!: Configuration = Configuration()
+    ): ConcurrentTestCase {
+        create(name, scenario: builder.build(), configuration: configuration)
+    }
+}
+
+public func concurrentTest(
+    name: String,
+    scenario!: ConcurrentScenario,
+    configuration!: Configuration = Configuration()
+): ConcurrentTestCase {
+    ConcurrentTestCase.create(name, scenario: scenario, configuration: configuration)
+}
+
+public func concurrentTest(
+    name: String,
+    builder!: ScenarioBuilder,
+    configuration!: Configuration = Configuration()
+): ConcurrentTestCase {
+    ConcurrentTestCase.createFromBuilder(name, builder: builder, configuration: configuration)
+}
+
 public struct TestCaseInfo {
     TestCaseInfo(
         public let groupName: String,
@@ -504,12 +563,14 @@ enum ExecutionMode {
 enum CaseOrBench {
     | Case(UnitTestCase)
     | Bench(Benchmark)
+    | Concurrent(ConcurrentTestCase)
 
     prop caseConfiguration: Configuration {
         get() {
             match (this) {
                 case Case(testCase) => testCase.caseConfiguration
                 case Bench(benchmark) => benchmark.benchmarkConfiguration
+                case Concurrent(ct) => ct.caseConfiguration
             }
         }
     }
@@ -519,6 +580,7 @@ enum CaseOrBench {
             match (this) {
                 case Case(testCase) => testCase.name
                 case Bench(benchmark) => benchmark.name
+                case Concurrent(ct) => ct.name
             }
         }
     }
@@ -528,6 +590,7 @@ enum CaseOrBench {
             match (this) {
                 case Case(_) => false
                 case Bench(_) => true
+                case Concurrent(_) => false
             }
         }
     }
@@ -537,6 +600,7 @@ enum CaseOrBench {
             match (this) {
                 case Case(testCase) => testCase.executor
                 case Bench(benchmark) => benchmark.executor
+                case Concurrent(ct) => ct.executor
             }
         }
     }
@@ -548,6 +612,10 @@ private func fakeSuite(test: CaseOrBench): () -> TestSuite {
             [], [], [], [], None
         )
     }
+}
+
+private func fakeSuite(concurrent: ConcurrentTestCase): () -> TestSuite {
+    fakeSuite(Concurrent(concurrent))
 }
 
 private func fakeGroup(testSuite: () -> TestSuite): TestGroup {

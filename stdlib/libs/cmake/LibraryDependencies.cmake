@@ -366,6 +366,7 @@ set(UNITTEST_DEPENDENCIES
     cangjie${BACKEND_TYPE}Fs
     cangjie${BACKEND_TYPE}UnittestPropTest
     cangjie${BACKEND_TYPE}UnittestCommon
+    cangjie${BACKEND_TYPE}UnittestConcurrent
     cangjie${BACKEND_TYPE}UnittestDiff
     cangjie${BACKEND_TYPE}UnittestMock
     cangjie${BACKEND_TYPE}Convert
@@ -382,6 +383,14 @@ set(UNITTEST_PROPTEST_DEPENDENCIES
 
 set(UNITTEST_DIFF_DEPENDENCIES
     ${UNITTEST_COMMON_DEPENDENCIES}
+    cangjie${BACKEND_TYPE}UnittestCommon)
+
+set(UNITTEST_CONCURRENT_DEPENDENCIES
+    ${UNITTEST_COMMON_DEPENDENCIES}
+    cangjie${BACKEND_TYPE}Time
+    cangjie${BACKEND_TYPE}Random
+    cangjie${BACKEND_TYPE}ConcurrentCollection
+    cangjie${BACKEND_TYPE}Runtime
     cangjie${BACKEND_TYPE}UnittestCommon)
 
 set(TESTMACRO_DEPENDENCIES

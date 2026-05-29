@@ -7,7 +7,9 @@
  */
 package std.unittest
 
+import std.collection.ArrayList
 import std.unittest.common.*
+import std.unittest.concurrent.ScenarioIterationResult
 
 enum CheckResultKind <: Serializable<CheckResultKind> {
     Assert | Expect
@@ -40,8 +42,9 @@ abstract class CheckResult <: Serializable<CheckResult> {
             DiffCheckResult.tryToDeserialize(dms) ?? CustomCheckResult.tryToDeserialize(dms) ??
             ExceptionThrownCheckResult.tryToDeserialize(dms) ?? MockFrameworkCheckResult.tryToDeserialize(dms) ??
             NoParametersProvidedResult.tryToDeserialize(dms) ?? CrashedCheckResult.tryToDeserialize(dms) ??
-            TimeoutCheckResult.tryToDeserialize(dms) ?? PlainDeltaCompareCheckResult.tryToDeserialize(dms) ??
-            throw Exception("Expected valid CheckResult value.")
+            TimeoutCheckResult.tryToDeserialize(dms) ?? ConcurrentTestCheckResult.tryToDeserialize(dms) ??
+            PlainDeltaCompareCheckResult.tryToDeserialize(dms) ??
+            throw Exception("Can not deserialize Invalid check result")
     }
 }
 
@@ -317,5 +320,81 @@ class TimeoutCheckResult <: CheckResult {
 
     static func tryToDeserialize(dms: DataModelStruct): ?TimeoutCheckResult {
         TimeoutCheckResult(PrettyText.deserialize(dms.tryGet("timeout") ?? return None))
+    }
+}
+
+class ConcurrentTestCheckResult <: CheckResult {
+    ConcurrentTestCheckResult(
+        let iterationIndex: Int64,
+        let message: PrettyText,
+        let actorFailureDetails!: ?String = None,
+        let consistencyValidationDetails!: ?String = None
+    ) {}
+    
+    init(
+        iterationResult: ScenarioIterationResult
+    ) {
+        iterationIndex = iterationResult.iteration
+        message = if (iterationResult.failureCount > 0) {
+            PrettyText("Concurrent iteration ${iterationResult.iteration} failed: ${iterationResult.failureCount} failures")
+        } else {
+            PrettyText("Concurrent iteration ${iterationResult.iteration} verification failed")
+        }
+        
+        actorFailureDetails = buildActorFailureDetails(iterationResult)
+        consistencyValidationDetails = buildConsistencyValidationDetails(iterationResult)
+    }
+    
+    private static func buildActorFailureDetails(iterationResult: ScenarioIterationResult): ?String {
+        let failedActors = ArrayList<String>()
+        for (r in iterationResult.actorResults) {
+            if (!r.isSuccess) {
+                failedActors.add("  Actor ${r.actorName}: ${r.getExceptionMessage()}")
+            }
+        }
+        if (failedActors.isEmpty()) {
+            None
+        } else {
+            String.join(failedActors.toArray(), delimiter: "\n")
+        }
+    }
+    
+    private static func buildConsistencyValidationDetails(iterationResult: ScenarioIterationResult): ?String {
+        match (iterationResult.consistencyValidation) {
+            case Some(consResult) => Some(consResult.report())
+            case None => None
+        }
+    }
+
+    public func serializeInternal(): DataModel {
+        let dms = DataModelStruct()
+            .add(field<Int64>("iterationIndex", iterationIndex))
+            .add(field<PrettyText>("message", message))
+        if (let Some(details) <- actorFailureDetails) {
+            dms.add(field<String>("actorFailureDetails", details))
+        }
+        if (let Some(details) <- consistencyValidationDetails) {
+            dms.add(field<String>("consistencyValidationDetails", details))
+        }
+        dms
+    }
+
+    static func tryToDeserialize(dms: DataModelStruct): ?ConcurrentTestCheckResult {
+        let actorDetails: ?String = if (let Some(dm) <- dms.tryGet("actorFailureDetails")) {
+            Some(String.deserialize(dm))
+        } else {
+            None
+        }
+        let consDetails: ?String = if (let Some(dm) <- dms.tryGet("consistencyValidationDetails")) {
+            Some(String.deserialize(dm))
+        } else {
+            None
+        }
+        ConcurrentTestCheckResult(
+            Int64.deserialize(dms.tryGet("iterationIndex") ?? return None),
+            PrettyText.deserialize(dms.tryGet("message") ?? return None),
+            actorFailureDetails: actorDetails,
+            consistencyValidationDetails: consDetails
+        )
     }
 }

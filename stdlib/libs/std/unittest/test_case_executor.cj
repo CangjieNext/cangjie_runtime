@@ -310,6 +310,8 @@ extend Exception {
             case e: UnittestTimeoutException => None
             // should have been already reported when thrown originally
             case _: BenchmarkStoppedError => None
+            case e: ConcurrentTestFailure =>
+                ConcurrentTestCheckResult(e.iterationResult)
             case anyOther: Exception => ExceptionThrownCheckResult(
                 PrettyText(anyOther.toString()), renderException(anyOther, None)
             )

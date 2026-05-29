@@ -19,7 +19,7 @@ type UnmatchedChains = ArrayList<(StubChain, MatchStatus)>
 public class MockFramework {
     private let sessions: ArrayList<MockSession> = ArrayList.of(MockSession(GLOBAL_SESSION_NAME, Stateless))
     private var recording: Option<RecordingHandler> = None
-    private let globalLock = ReentrantMutex()
+    private let globalLock = Mutex()
     private let objCounter = AtomicUInt64(0)
     private let stackTraceCache = HashMap<RawStackTraceElement, StackTraceElement>()
 
