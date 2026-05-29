@@ -103,14 +103,7 @@ public class TcpServerSocket <: ServerSocket {
         }
     }
 
-    /**
-     * SO_SNDBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired outgoing buffer size.
-     *
-     * The operating system may clamp, ignore, or report advisory values for this option.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** SO_SNDBUF hint for outgoing data; throws IllegalArgumentException for non-positive sizes. */
     public mut prop sendBufferSize: Int64 {
         get() {
             tcpServerImpl.getSendBufferSize()
@@ -120,14 +113,7 @@ public class TcpServerSocket <: ServerSocket {
         }
     }
 
-    /**
-     * SO_RCVBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired receive buffer size.
-     *
-     * The operating system may clamp, ignore, or report advisory values for this option.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** SO_RCVBUF hint for incoming data; throws IllegalArgumentException for non-positive sizes. */
     public mut prop receiveBufferSize: Int64 {
         get() {
             tcpServerImpl.getReceiveBufferSize()
@@ -216,29 +202,17 @@ public class TcpServerSocket <: ServerSocket {
         accept(timeout: None)
     }
 
-    /**
-     * Close the socket releasing all resources. All operations except for close() and isClose() are no longer available.
-     * This function is reentrant.
-     **/
+    /** Close this socket and release its resources. This function is reentrant. */
     public override func close(): Unit {
         tcpServerImpl.close()
     }
 
-    /**
-     * Checks whether this socket has been explicitly closed via close()
-     **/
+    /** Return whether close() has already been invoked for this socket. */
     public override func isClosed(): Bool {
         tcpServerImpl.isClosed()
     }
 
-    /**
-     * Read a raw TCP server socket option.
-     *
-     * Callers must initialize valueLength with the byte size of value. The native call updates
-     * it to the byte size of the returned option value.
-     *
-     * @throws SocketException if getsockopt fails.
-     */
+    /** Read a raw TCP server socket option; valueLength is updated with the native result size. */
     public func getSocketOption(
         level: Int32,
         option: Int32,

@@ -101,10 +101,8 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
     }
 
     /**
-     * Read operation time limit or `None` for infinite read attempts.
-     * The value specified here is actually the minimal amount of time before a read operation cancelled.
-     * The actual time is not guaranteed but it will be never cancelled earlier than the specified timeout value.
-     * If the duration is too big than it can be bumped to the infinite. When it's too small then if will be bumped to the minimal clock granularity.
+     * TCP read timeout, or `None` for no limit.
+     * The platform may round the value but must not cancel earlier than requested.
      *
      * The default value is None.
      * @throws IllegalArgumentException if the specified timeout duration is negative.
@@ -119,11 +117,9 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
     }
 
     /**
-     * Write operation time limit or `None` for infinite read attempts.
+     * TCP write timeout, or `None` for no limit.
      *
-     * The value specified here is actually the minimal amount of time before a write operation cancelled.
-     * The actual time is not guaranteed but it will be never cancelled earlier than the specified timeout value.
-     * If the duration is too big than it can be bumped to the infinite. When it's too small then if will be bumped to the minimal clock granularity.
+     * Very small or large values may be rounded to platform-supported durations.
      *
      * The default value is None.
      * @throws IllegalArgumentException if the specified timeout duration is negative.
@@ -254,14 +250,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
         }
     }
 
-    /**
-     * SO_SNDBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired outgoing buffer size.
-     *
-     * The operating system may clamp, ignore, or report advisory values for this option.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** SO_SNDBUF hint for outgoing data; throws IllegalArgumentException for non-positive sizes. */
     public mut prop sendBufferSize: Int64 {
         get() {
             tcpImpl.getSendBufferSize()
@@ -271,14 +260,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
         }
     }
 
-    /**
-     * SO_RCVBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired receive buffer size.
-     *
-     * The operating system may clamp, ignore, or report advisory values for this option.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** SO_RCVBUF hint for incoming data; throws IllegalArgumentException for non-positive sizes. */
     public mut prop receiveBufferSize: Int64 {
         get() {
             tcpImpl.getReceiveBufferSize()
@@ -345,14 +327,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
         tcpImpl.connect(timeout?.throwIfNegative("Timeout"))
     }
 
-    /**
-     * Read a raw TCP socket option.
-     *
-     * The memory referenced by valueLength must contain the size of value before the call.
-     * On return it is overwritten with the number of bytes written by the native call.
-     *
-     * @throws SocketException if getsockopt fails.
-     */
+    /** Read a raw TCP socket option; valueLength is updated with the native result size. */
     public func getSocketOption(
         level: Int32,
         option: Int32,
@@ -410,17 +385,12 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
         tcpImpl.setSocketOptionBool(level, option, value)
     }
 
-    /**
-     * Close the socket releasing all resources. All operations except for close() and isClose() are no longer available.
-     * This function is reentrant.
-     **/
+    /** Close this socket and release its resources. This function is reentrant. */
     public func close(): Unit {
         tcpImpl.close()
     }
 
-    /**
-     * Checks whether this socket has been explicitly closed via close()
-     **/
+    /** Return whether close() has already been invoked for this socket. */
     public func isClosed(): Bool {
         tcpImpl.isClosed()
     }

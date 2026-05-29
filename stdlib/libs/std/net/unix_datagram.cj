@@ -104,17 +104,12 @@ public class UnixDatagramSocket <: DatagramSocket {
         }
     }
 
-    /**
-     * Close the socket releasing all resources. All operations except for close() and isClose() are no longer available.
-     * This function is reentrant.
-     **/
+    /** Close this socket and release its resources. This function is reentrant. */
     public override func close(): Unit {
         unixDatagramImpl.close()
     }
 
-    /**
-     * Checks whether this socket has been explicitly closed via close()
-     **/
+    /** Return whether close() has already been invoked for this socket. */
     public override func isClosed(): Bool {
         unixDatagramImpl.isClosed()
     }
@@ -228,14 +223,7 @@ public class UnixDatagramSocket <: DatagramSocket {
         return size
     }
 
-    /**
-     * SO_SNDBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired outgoing buffer size.
-     *
-     * The operating system may clamp, ignore, or report advisory values for this option.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** Unix datagram SO_SNDBUF hint for outgoing messages; rejects non-positive sizes. */
     public mut prop sendBufferSize: Int64 {
         get() {
             unixDatagramImpl.getSendBufferSize()
@@ -245,14 +233,7 @@ public class UnixDatagramSocket <: DatagramSocket {
         }
     }
 
-    /**
-     * SO_RCVBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired receive buffer size.
-     *
-     * The operating system may clamp, ignore, or report advisory values for this option.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** Unix datagram SO_RCVBUF hint for incoming messages; rejects non-positive sizes. */
     public mut prop receiveBufferSize: Int64 {
         get() {
             unixDatagramImpl.getReceiveBufferSize()
@@ -262,14 +243,24 @@ public class UnixDatagramSocket <: DatagramSocket {
         }
     }
 
-    /**
-     * Read a raw Unix datagram socket option.
-     *
-     * Set valueLength to value's byte capacity before the call. The native call stores the
-     * returned option length back through the same pointer.
-     *
-     * @throws SocketException if getsockopt fails.
-     */
+    /** Read a Unix datagram Bool option using IntNative conversion. */
+    public func getSocketOptionBool(
+        level: Int32,
+        option: Int32
+    ): Bool {
+        unixDatagramImpl.getSocketOptionBool(level, option)
+    }
+
+    /** Write a Unix datagram Bool option using IntNative conversion. */
+    public func setSocketOptionBool(
+        level: Int32,
+        option: Int32,
+        value: Bool
+    ): Unit {
+        unixDatagramImpl.setSocketOptionBool(level, option, value)
+    }
+
+    /** Read a Unix datagram raw option and update valueLength with the result size. */
     public func getSocketOption(
         level: Int32,
         option: Int32,
@@ -279,7 +270,7 @@ public class UnixDatagramSocket <: DatagramSocket {
         unsafe { unixDatagramImpl.getSocketOption(level, option, value, valueLength) }
     }
 
-    /** Write a raw Unix datagram socket option; native setsockopt failures are reported as exceptions. */
+    /** Write a Unix datagram raw option; native failures become SocketException. */
     public func setSocketOption(
         level: Int32,
         option: Int32,
@@ -289,7 +280,7 @@ public class UnixDatagramSocket <: DatagramSocket {
         unsafe { unixDatagramImpl.setSocketOption(level, option, value, valueLength) }
     }
 
-    /** Read a Unix datagram socket option as IntNative, requiring the native result size to match. */
+    /** Read a Unix datagram IntNative option and verify the native size. */
     public func getSocketOptionIntNative(
         level: Int32,
         option: Int32
@@ -297,30 +288,13 @@ public class UnixDatagramSocket <: DatagramSocket {
         unixDatagramImpl.getSocketOptionIntNative(level, option)
     }
 
-    /** Write an IntNative value to a Unix datagram socket option. */
+    /** Write a Unix datagram IntNative option value. */
     public func setSocketOptionIntNative(
         level: Int32,
         option: Int32,
         value: IntNative
     ): Unit {
         unixDatagramImpl.setSocketOptionIntNative(level, option, value)
-    }
-
-    /** Read a Unix datagram socket option as Bool using IntNative zero/nonzero conversion. */
-    public func getSocketOptionBool(
-        level: Int32,
-        option: Int32
-    ): Bool {
-        unixDatagramImpl.getSocketOptionBool(level, option)
-    }
-
-    /** Write a Bool value to a Unix datagram socket option using IntNative conversion. */
-    public func setSocketOptionBool(
-        level: Int32,
-        option: Int32,
-        value: Bool
-    ): Unit {
-        unixDatagramImpl.setSocketOptionBool(level, option, value)
     }
 
     public override func toString(): String {
@@ -355,61 +329,58 @@ public class UnixDatagramSocket <: DatagramSocket {
     }
 
     /**
-     * Remote address the socket is connected to or `None` if the socket is unconnected.
+     * Unix domain peer selected by connect(), or `None` while datagrams may arrive
+     * from any sender.
      *
-     * @throws SocketException is the socket is already closed.
+     * @throws SocketException if the socket is already closed.
      */
     public override prop remoteAddress: ?SocketAddress {
         get() {
-            legacyDatagramImpl.remoteAddress
+            this.legacyDatagramImpl.remoteAddress
         }
     }
 
     /**
-     * Local address the socket will be or is currently bound at.
+     * Unix domain path where this datagram socket is or will be bound.
      *
-     * @throws SocketException is the socket is already closed.
+     * @throws SocketException if the socket is closed or no local binding is available.
      */
     public override prop localAddress: SocketAddress {
         get() {
-            legacyDatagramImpl.localAddress ?? SocketException.notYetBoundNeedBind()
+            this.legacyDatagramImpl.localAddress ?? SocketException.notYetBoundNeedBind()
         }
     }
 
     /**
-     * Receive/ReceiveFrom operation time limit or `None` for infinite read attempts.
-     * The value specified here is actually the minimal amount of time before a read operation cancelled.
-     * The actual time is not guaranteed but it will be never cancelled earlier than the specified timeout value.
-     * If the duration is too big than it can be bumped to the infinite. When it's too small then if will be bumped to the minimal clock granularity.
+     * Timeout used by Unix datagram receive operations, or `None` for no limit.
+     * The platform may round the value, but it must not cancel earlier than requested.
      *
      * The default value is None.
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public override mut prop receiveTimeout: ?Duration {
         get() {
-            legacyDatagramImpl.readTimeout
+            this.legacyDatagramImpl.readTimeout
         }
         set(timeout) {
-            legacyDatagramImpl.readTimeout = timeout?.throwIfNegative("Receive timeout").toNanosecondGranularity()
+            this.legacyDatagramImpl.readTimeout = timeout?.throwIfNegative("Receive timeout").toNanosecondGranularity()
         }
     }
 
     /**
-     * Send/SendTo operation time limit or `None` for infinite read attempts.
+     * Timeout used by Unix datagram send operations, or `None` for no limit.
      *
-     * The value specified here is actually the minimal amount of time before a write operation cancelled.
-     * The actual time is not guaranteed but it will be never cancelled earlier than the specified timeout value.
-     * If the duration is too big than it can be bumped to the infinite. When it's too small then if will be bumped to the minimal clock granularity.
+     * The operating system may round durations to supported timeout values.
      *
      * The default value is None.
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public override mut prop sendTimeout: ?Duration {
         get() {
-            legacyDatagramImpl.writeTimeout
+            this.legacyDatagramImpl.writeTimeout
         }
         set(timeout) {
-            legacyDatagramImpl.writeTimeout = timeout?.throwIfNegative("Send timeout").toNanosecondGranularity()
+            this.legacyDatagramImpl.writeTimeout = timeout?.throwIfNegative("Send timeout").toNanosecondGranularity()
         }
     }
 
@@ -418,14 +389,14 @@ public class UnixDatagramSocket <: DatagramSocket {
      * This function is reentrant.
      **/
     public override func close(): Unit {
-        legacyDatagramImpl.close()
+        this.legacyDatagramImpl.close()
     }
 
     /**
      * Checks whether this deprecated Windows-compatible socket was closed.
      **/
     public override func isClosed(): Bool {
-        legacyDatagramImpl.isClosed()
+        this.legacyDatagramImpl.isClosed()
     }
 
     /**
@@ -436,7 +407,7 @@ public class UnixDatagramSocket <: DatagramSocket {
      * @throws SocketException if the socket is already bound or path already exists.
      */
     public func bind(): Unit {
-        legacyDatagramImpl.bind(None)
+        this.legacyDatagramImpl.bind(None)
     }
 
     /**
@@ -460,10 +431,10 @@ public class UnixDatagramSocket <: DatagramSocket {
     public func connect(remote: SocketAddress): Unit {
         checkUnixSocketAddress(remote, "remote")
         try {
-            legacyDatagramImpl.remoteAddress = remote
-            legacyDatagramImpl.connect(None, shouldBeBound: true)
+            this.legacyDatagramImpl.remoteAddress = remote
+            this.legacyDatagramImpl.connect(None, shouldBeBound: true)
         } catch (e: Exception) {
-            legacyDatagramImpl.remoteAddress = None
+            this.legacyDatagramImpl.remoteAddress = None
             throw e
         }
     }
@@ -476,7 +447,7 @@ public class UnixDatagramSocket <: DatagramSocket {
      * @throws SocketException if the connection cannot be established.
      */
     public func disconnect(): Unit {
-        legacyDatagramImpl.disconnect()
+        this.legacyDatagramImpl.disconnect()
     }
 
     /**
@@ -493,7 +464,17 @@ public class UnixDatagramSocket <: DatagramSocket {
      * @throws SocketTimeoutException if reading time has expired.
      */
     public override func receiveFrom(buffer: Array<Byte>): (SocketAddress, Int64) {
-        legacyDatagramImpl.receiveFrom(buffer) ?? SocketException.throwClosedException()
+        this.legacyDatagramImpl.receiveFrom(buffer) ?? SocketException.throwClosedException()
+    }
+
+    /**
+     * Receive a datagram from the peer configured by connect().
+     * Fails when no peer is configured; otherwise it follows receiveFrom(buffer) semantics.
+     */
+    public func receive(buffer: Array<Byte>): Int64 {
+        let _ = this.legacyDatagramImpl.remoteAddress ?? SocketException.notYetConnected()
+        let (_, size) = receiveFrom(buffer)
+        return size
     }
 
     /**
@@ -506,7 +487,7 @@ public class UnixDatagramSocket <: DatagramSocket {
     public override func sendTo(recipient: SocketAddress, payload: Array<Byte>): Unit {
         checkUnixSocketAddress(recipient, "recipient")
 
-        legacyDatagramImpl.send(payload, recipient)
+        this.legacyDatagramImpl.send(payload, recipient)
     }
 
     /**
@@ -517,69 +498,61 @@ public class UnixDatagramSocket <: DatagramSocket {
      */
     public func send(payload: Array<Byte>): Unit {
         if (OS == "macOS") {
-            legacyDatagramImpl.write(payload)
+            this.legacyDatagramImpl.write(payload)
         } else {
-            sendTo(legacyDatagramImpl.remoteAddress ?? SocketException.notYetConnected(), payload)
+            sendTo(this.legacyDatagramImpl.remoteAddress ?? SocketException.notYetConnected(), payload)
         }
     }
 
-    /**
-     * Receive a datagram from the peer configured by connect().
-     * Fails when no peer is configured; otherwise it follows receiveFrom(buffer) semantics.
-     */
-    public func receive(buffer: Array<Byte>): Int64 {
-        let _ = legacyDatagramImpl.remoteAddress ?? SocketException.notYetConnected()
-        let (_, size) = receiveFrom(buffer)
-        return size
+    public override func toString(): String {
+        "UnixDatagramSocket(${this.legacyDatagramImpl.toString()})"
     }
 
-    /**
-     * SO_SNDBUF hint used by the deprecated Windows-compatible Unix datagram socket.
-     *
-     * The operating system may clamp, ignore, or report advisory values for this option.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** Deprecated Unix datagram SO_SNDBUF hint; rejects non-positive sizes. */
     public mut prop sendBufferSize: Int64 {
         get() {
-            legacyDatagramImpl.getSendBufferSize()
+            this.legacyDatagramImpl.getSendBufferSize()
         }
         set(newSize) {
-            legacyDatagramImpl.setSendBufferSize(newSize)
+            this.legacyDatagramImpl.setSendBufferSize(newSize)
         }
     }
 
-    /**
-     * SO_RCVBUF hint used by the deprecated Windows-compatible Unix datagram socket.
-     *
-     * The operating system may clamp, ignore, or report advisory values for this option.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** Deprecated Unix datagram SO_RCVBUF hint; rejects non-positive sizes. */
     public mut prop receiveBufferSize: Int64 {
         get() {
-            legacyDatagramImpl.getReceiveBufferSize()
+            this.legacyDatagramImpl.getReceiveBufferSize()
         }
         set(newSize) {
-            legacyDatagramImpl.setReceiveBufferSize(newSize)
+            this.legacyDatagramImpl.setReceiveBufferSize(newSize)
         }
     }
 
-    /**
-     * Read a raw Unix datagram socket option.
-     *
-     * valueLength is updated in place: it starts as the value buffer size and ends as the
-     * result length reported by getsockopt.
-     *
-     * @throws SocketException if getsockopt fails.
-     */
+    /** Read a Unix datagram socket option as Bool using IntNative zero/nonzero conversion. */
+    public func getSocketOptionBool(
+        level: Int32,
+        option: Int32
+    ): Bool {
+        this.legacyDatagramImpl.getSocketOptionBool(level, option)
+    }
+
+    /** Write a Bool value to a Unix datagram socket option using IntNative conversion. */
+    public func setSocketOptionBool(
+        level: Int32,
+        option: Int32,
+        value: Bool
+    ): Unit {
+        this.legacyDatagramImpl.setSocketOptionBool(level, option, value)
+    }
+
+    /** Read a raw Unix datagram socket option; valueLength is updated with the native result size. */
     public func getSocketOption(
         level: Int32,
         option: Int32,
         value: CPointer<Unit>,
         valueLength: CPointer<UIntNative>
     ): Unit {
-        unsafe { legacyDatagramImpl.getSocketOption(level, option, value, valueLength) }
+        unsafe { this.legacyDatagramImpl.getSocketOption(level, option, value, valueLength) }
     }
 
     /** Write a raw Unix datagram socket option; native setsockopt failures are reported as exceptions. */
@@ -589,7 +562,7 @@ public class UnixDatagramSocket <: DatagramSocket {
         value: CPointer<Unit>,
         valueLength: UIntNative
     ): Unit {
-        unsafe { legacyDatagramImpl.setSocketOption(level, option, value, valueLength) }
+        unsafe { this.legacyDatagramImpl.setSocketOption(level, option, value, valueLength) }
     }
 
     /** Read a Unix datagram socket option as IntNative, requiring the native result size to match. */
@@ -597,7 +570,7 @@ public class UnixDatagramSocket <: DatagramSocket {
         level: Int32,
         option: Int32
     ): IntNative {
-        legacyDatagramImpl.getSocketOptionIntNative(level, option)
+        this.legacyDatagramImpl.getSocketOptionIntNative(level, option)
     }
 
     /** Write an IntNative value to a Unix datagram socket option. */
@@ -606,27 +579,6 @@ public class UnixDatagramSocket <: DatagramSocket {
         option: Int32,
         value: IntNative
     ): Unit {
-        legacyDatagramImpl.setSocketOptionIntNative(level, option, value)
-    }
-
-    /** Read a Unix datagram socket option as Bool using IntNative zero/nonzero conversion. */
-    public func getSocketOptionBool(
-        level: Int32,
-        option: Int32
-    ): Bool {
-        legacyDatagramImpl.getSocketOptionBool(level, option)
-    }
-
-    /** Write a Bool value to a Unix datagram socket option using IntNative conversion. */
-    public func setSocketOptionBool(
-        level: Int32,
-        option: Int32,
-        value: Bool
-    ): Unit {
-        legacyDatagramImpl.setSocketOptionBool(level, option, value)
-    }
-
-    public override func toString(): String {
-        "UnixDatagramSocket(${legacyDatagramImpl.toString()})"
+        this.legacyDatagramImpl.setSocketOptionIntNative(level, option, value)
     }
 }

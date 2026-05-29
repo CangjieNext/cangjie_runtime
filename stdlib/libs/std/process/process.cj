@@ -188,57 +188,7 @@ public open class Process {
         stdOut!: ProcessRedirect = Inherit,
         stdErr!: ProcessRedirect = Inherit
     ): SubProcess {
-        var std_redirects: Array<ProcessRedirect> = [stdIn, stdOut, stdErr]
-        // check command, arguments and environment, can not be empty or Null.
-        // workingDirectory must be directory.
-        if (command.contains("\0")) {
-            throw IllegalArgumentException("Command \"${command}\" cannot contains null character.")
-        }
-
-        for (arg in arguments) {
-            if (arg.contains("\0")) {
-                throw IllegalArgumentException("Argument \"${arg}\" cannot contains null character.")
-            }
-        }
-
-        if (let Some(envMap) <- environment) {
-            for (envEntry in envMap) {
-                if (envEntry[0].contains("\0") || envEntry[0].contains("=") || envEntry[1].contains("\0")) {
-                    throw IllegalArgumentException(
-                        "Environment \"${envEntry[0]}\" entry cannot contains invalid character.")
-                }
-            }
-        }
-
-        if (let Some(dir) <- workingDirectory) {
-            try {
-                if (!FileInfo(dir).isDirectory()) {
-                    throw IllegalArgumentException("WorkingDirectory \"${dir}\" must be directory.")
-                }
-            } catch (_: FSException) {
-                throw IllegalArgumentException("WorkingDirectory \"${dir}\" not exist in the file system.")
-            }
-        }
-
-        if (getNulFileHandle().isNone() && hasDiscardMode(std_redirects)) {
-            throw IllegalArgumentException("Failed to open null file, can not redirect stdio to discard mode.")
-        }
-
-        // convert attribute from String to CString
-        // if workingDir is None, it means exec the command in current dir.
-        let workingDir_c: CString = match (workingDirectory) {
-            case Some(dir) => unsafe { LibC.mallocCString(dir.toString()) }
-            case _ => CString(CPointer())
-        }
-
-        return try {
-            buildSubProcess(command, arguments, workingDir_c, environment, std_redirects)
-        } finally {
-            // release malloc space
-            unsafe {
-                workingDir_c.asResource().close()
-            }
-        }
+        launchImpl(command, arguments, workingDirectory, environment, stdIn, stdOut, stdErr)
     }
 
     /**

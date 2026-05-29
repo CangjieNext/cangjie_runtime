@@ -1952,13 +1952,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
             }
             j--
         }
-        if (!needMod) {
-            return (rInt, normalize(rArr), 0, EMPTY_ARRAY)
-        }
-        // unnormalize
-        let remArr = shiftRightInSitu(normalizedDividend, l)
-        let remInt = UInt64(remArr[0]) + (UInt64(remArr[1]) << 32)
-        return (rInt, normalize(rArr), remInt, normalize(remArr[2..]))
+        return finishKnuthDivAndMod(normalizedDividend, l, rInt, rArr, needMod)
     }
 
     // if the bit length of the abs of divisor exceeds 32 bits but does not exceed 64 bits
@@ -1986,13 +1980,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
             }
             offset--
         }
-        if (!needMod) {
-            return (quotientTail, normalize(quotientWords), 0, EMPTY_ARRAY)
-        }
-        // unnormalize
-        let remArr = shiftRightInSitu(normalizedDividend, shift)
-        let remInt = UInt64(remArr[0]) + (UInt64(remArr[1]) << 32)
-        return (quotientTail, normalize(quotientWords), remInt, normalize(remArr[2..]))
+        return finishKnuthDivAndMod(normalizedDividend, shift, quotientTail, quotientWords, needMod)
     }
 
     func compareMagnitude(that: BigInt): Int64 {
@@ -2017,6 +2005,22 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
     func isOdd() {
         return (this.int & 1) == 1
     }
+}
+
+func finishKnuthDivAndMod(
+    normalizedDividend: Array<UInt32>,
+    shift: Int64,
+    quotientTail: UInt64,
+    quotientWords: Array<UInt32>,
+    needMod: Bool
+): (UInt64, Array<UInt32>, UInt64, Array<UInt32>) {
+    let normalizedQuotientWords = normalize(quotientWords)
+    if (!needMod) {
+        return (quotientTail, normalizedQuotientWords, 0, EMPTY_ARRAY)
+    }
+    let remArr = shiftRightInSitu(normalizedDividend, shift)
+    let remInt = UInt64(remArr[0]) + (UInt64(remArr[1]) << 32)
+    return (quotientTail, normalizedQuotientWords, remInt, normalize(remArr[2..]))
 }
 
 /**
