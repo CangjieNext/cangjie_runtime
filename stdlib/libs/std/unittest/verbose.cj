@@ -27,6 +27,12 @@ class ProgressOutput {
         }
     }
 
+    func verbose(message: () -> String) {
+        if (isVerbose) {
+            corePrint(message())
+        }
+    }
+
     func verbose(message: String) {
         if (isVerbose) {
             corePrint(message)
