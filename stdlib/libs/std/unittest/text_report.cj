@@ -629,6 +629,16 @@ extend CheckResult <: PrettyPrintable {
                 pp.append("Found assert that was not attached to a specific test case:")
                     .newLine()
                     .append(cr.inner)
+            case cr: ConcurrentTestCheckResult =>
+                pp.append("Concurrent test iteration ${cr.iterationIndex} failed: ")
+                    .append(cr.message)
+                    .newLine()
+                if (let Some(actorDetails) <- cr.actorFailureDetails) {
+                    pp.append(actorDetails).newLine()
+                }
+                if (let Some(consDetails) <- cr.consistencyValidationDetails) {
+                    pp.append("Consistency validation: ").append(consDetails).newLine()
+                }
             case _ => throw Exception("Required due to bug in compiler")
         }
         pp
