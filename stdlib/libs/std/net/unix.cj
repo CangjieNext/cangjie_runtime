@@ -523,6 +523,7 @@ public class UnixServerSocket <: ServerSocket {
             Int64(backlogSize_)
         }
         set(newSize) {
+            // Deprecated Windows branch keeps the same validation before binding.
             this.impl.checkNotBound()
             this.impl.checkNotClosed()
             backlogSize_ = match {

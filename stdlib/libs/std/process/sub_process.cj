@@ -111,12 +111,12 @@ public class SubProcess <: Process {
         commandLine: ?Array<String>,
         workingDirectory: ?Path,
         environment: ?Map<String, String>,
-        stdInPipe: OutputStream,
-        stdOutPipe: InputStream,
-        stdErrPipe: InputStream
+        stdIn: OutputStream,
+        stdOut: InputStream,
+        stdErr: InputStream
     ) {
         super(pid, name, command, arguments, commandLine, workingDirectory, environment)
-        setSubProcessStreams(this, stdInPipe, stdOutPipe, stdErrPipe)
+        setSubProcessStreams(this, stdIn, stdOut, stdErr)
     }
 
     @When[os == "Windows"]
