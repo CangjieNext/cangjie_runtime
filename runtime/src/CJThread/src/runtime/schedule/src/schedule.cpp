@@ -8,6 +8,7 @@
 #include <cstring>
 #include <unistd.h>
 #include <cstdlib>
+#include <stddef.h>
 #include "schedule_impl.h"
 #include "log.h"
 #include "schmon.h"
@@ -511,6 +512,29 @@ int ScheduleManagerInit(void)
     g_scheduleManager.cjthreadIdGen = 1;
     g_scheduleManager.processorIdGen = 1;
     g_scheduleManager.initFlag = true;
+#ifdef __OHOS__
+    HILOG_ERROR(0, "CJThreadLayoutOffsets for aarch64:");
+    HILOG_ERROR(0, "  offset_of_ScheduleManager_dot_allCJThreadList = %zu",
+                offsetof(struct ScheduleManager, allCJThreadList));
+    HILOG_ERROR(0, "  offset_of_CJThread_dot_allCJThreadDulink = %zu",
+                offsetof(struct CJThread, allCJThreadDulink));
+    HILOG_ERROR(0, "  offset_of_CJThread_dot_context = %zu",
+                offsetof(struct CJThread, context));
+    HILOG_ERROR(0, "  offset_of_CJThread_dot_thread = %zu",
+                offsetof(struct CJThread, thread));
+    HILOG_ERROR(0, "  offset_of_CJThread_dot_state = %zu",
+                offsetof(struct CJThread, state));
+    HILOG_ERROR(0, "  offset_of_CJThread_dot_id = %zu",
+                offsetof(struct CJThread, id));
+    HILOG_ERROR(0, "  offset_of_CJThread_dot_name = %zu",
+                offsetof(struct CJThread, name));
+    HILOG_ERROR(0, "  offset_of_Thread_dot_tid = %zu",
+                offsetof(struct Thread, tid));
+    HILOG_ERROR(0, "  offset_of_CJThread_dot_boundThread = %zu",
+                offsetof(struct CJThread, boundThread));
+    HILOG_ERROR(0, "  offset_of_Thread_dot_boundCJThread = %zu",
+                offsetof(struct Thread, boundCJThread));
+#endif
     memset_s(&g_scheduleManager.trace, sizeof(struct Trace), 0, sizeof(struct Trace));
     // Init SchdfdManager
     struct SchdfdManager *schdfdManager = SchdfdManagerInit();
