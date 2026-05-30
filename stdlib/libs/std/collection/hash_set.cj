@@ -171,10 +171,11 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
     }
 
     /**
-     * Transfer specified elements for traversal and assign values in sequence.
-     * If you map a mapping that previously contained a key, the old value is replaced.
+     * Adds each element from the supplied collection into this HashSet.
      *
-     * @param elements the element passing in for traversal assignment.
+     * Existing equal elements remain represented by a single set entry.
+     *
+     * @param elements collection whose elements are inserted.
      *
      * @since 0.18.4
      */
@@ -186,9 +187,9 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
     }
 
     /**
-     * Traverse the set of transferred keys and delete them based on the traversal result.
+     * Removes every element that is present in the supplied collection.
      *
-     * @param elements keys pass in the collection to traverse.
+     * @param elements collection of elements to remove from this HashSet.
      *
      * @since 0.18.4
      */
@@ -198,9 +199,9 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
     }
 
     /**
-     * Transfer a lambda expression and delete the corresponding key value if the condition is met.
+     * Removes each element accepted by the predicate.
      *
-     * @param predicate transfer a lambda expression for judgment.
+     * @param predicate condition used to select elements for deletion.
      *
      * @since 0.18.4
      */
@@ -266,7 +267,7 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
 
     /**
      * @description Maps all elements of type T in the current HashSet to elements of type R using the transform function, and returns them as a new HashSet.
-     * 
+     *
      * @param transform The mapping closure to apply to each element.
      * @returns A new HashSet containing the transformed elements from the original HashSet.
      */
@@ -285,7 +286,7 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
 
     /**
      * @description Returns a new HashSet<T> containing elements that satisfy the filtering condition.
-     * 
+     *
      * @param predicate the given condition.
      * @returns a new HashSet containing elements that satisfy the filtering condition.
      */
@@ -304,7 +305,7 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
 
     /**
      * @description Performs filtering and mapping operations simultaneously, returning a new HashSet.
-     * 
+     *
      * @param transform the given mapping function.
      * @returns a new HashSet after filtering and mapping.
      */
@@ -325,9 +326,9 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
     }
 
     /**
-     * @description Iterates over all elements and performs the given operation.
-     * 
-     * @param action the given operation function.
+     * @description Applies an action to every live element stored in the HashSet.
+     *
+     * @param action operation invoked once for each element.
      */
     @When[env != "ohos"]
     public func forEach(action: (T) -> Unit): Unit {
@@ -341,10 +342,10 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
     }
 
     /**
-     * @description Determine whether all elements in the HashSet satisfy the condition.
-     * 
-     * @param predicate the given condition.
-     * @returns true if all elements in the HashSet satisfy the condition, otherwise returns false.
+     * @description Checks whether every element in this HashSet satisfies the predicate.
+     *
+     * @param predicate condition evaluated against each element.
+     * @returns true when all live elements match the predicate.
      */
     @When[env != "ohos"]
     public func all(predicate: (T) -> Bool): Bool {
@@ -359,10 +360,10 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
     }
 
     /**
-     * @description Determine whether there is any element in the HashSet that satisfies the condition.
-     * 
-     * @param predicate the given condition.
-     * @returns Whether there is any element that satisfies the condition.
+     * @description Searches this HashSet for an element accepted by the predicate.
+     *
+     * @param predicate condition evaluated against each live element.
+     * @returns true after the first matching element is found.
      */
     @When[env != "ohos"]
     public func any(predicate: (T) -> Bool): Bool {
@@ -377,10 +378,10 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
     }
 
     /**
-     * @description Determine whether all elements in the HashSet do not satisfy the condition.
-     * 
-     * @param predicate the given condition.
-     * @returns Whether all elements in the current HashSet do not satisfy the condition.
+     * @description Tests that no element in this HashSet satisfies the predicate.
+     *
+     * @param predicate condition applied to every stored element.
+     * @returns true if the predicate is false for every element.
      */
     @When[env != "ohos"]
     public func none(predicate: (T) -> Bool): Bool {
@@ -395,11 +396,11 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
     }
 
     /**
-     * @description Computes from left to right using the specified initial value.
-     * 
-     * @param initial the given initial value of type R.
-     * @param operation the given computation function.
-     * @returns the final computed value.
+     * @description Accumulates HashSet elements from left to right with the supplied initial value.
+     *
+     * @param initial initial accumulator value.
+     * @param operation function used to combine the accumulator with each element.
+     * @returns final accumulator value.
      */
     @When[env != "ohos"]
     public func fold<R>(initial: R, operation: (R, T) -> R): R {
@@ -415,10 +416,10 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
     }
 
     /**
-     * @description Compute from left to right using the first element as the initial value.
-     * 
-     * @param operation the given computation function.
-     * @returns the final computed value.
+     * @description Combines HashSet elements using the first live element as the initial value.
+     *
+     * @param operation function that merges the current result with the next element.
+     * @returns None if the set is empty; otherwise, the reduced element.
      */
     @When[env != "ohos"]
     public func reduce(operation: (T, T) -> T): Option<T> {
@@ -473,9 +474,9 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
     }
 
     /**
-     * Returns sizes of key-value.
+     * Returns the number of distinct elements in this HashSet.
      *
-     * @return sizes of key-value.
+     * @return current element count.
      *
      * @since 0.18.4
      */
@@ -487,9 +488,9 @@ public class HashSet<T> <: Set<T> where T <: Hashable & Equatable<T> {
     }
 
     /**
-     * Check whether the size is empty. If yes, true is returned. Otherwise, false is returned.
+     * Reports whether this HashSet has no elements.
      *
-     * @return bool if yes, true is returned. Otherwise, false is returned.
+     * @return true when the set is empty.
      *
      * @since 0.18.4
      */

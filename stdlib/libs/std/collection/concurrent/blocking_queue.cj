@@ -44,7 +44,6 @@ public class LinkedBlockingQueue<E> {
     @Deprecated[message: "Use the other version of `init` instead."]
     public init(capacity: Int64, elements: Array<E>) {
         this(capacity)
-
         if (capacity < elements.size) {
             throw IllegalArgumentException("Size of BlockingQueue should be equal or greater than ${elements.size}.")
         }
@@ -57,7 +56,6 @@ public class LinkedBlockingQueue<E> {
     @Deprecated[message: "Use the other version of `init` instead."]
     public init(capacity: Int64, elements: Collection<E>) {
         this(capacity)
-
         if (capacity < elements.size) {
             throw IllegalArgumentException("Size of BlockingQueue should be equal or greater than ${elements.size}.")
         }
@@ -68,12 +66,9 @@ public class LinkedBlockingQueue<E> {
     }
 
     /**
-     * Returns the number of elements in the BlockingQueue.
+     * Returns a sequential snapshot of the number of elements in the linked queue.
      *
-     * It ensures to return the accurate number of elements in the BlockingQueue in sequential.
-     * Note that getting 'size' prop is not atomic!
-     * So, if elements are added or removed during execution of getting 'size',
-     * the 'size' may be inaccurate.
+     * The value is not atomic with concurrent producers or consumers, so it may be stale as soon as it is observed.
      */
     public prop size: Int64 {
         get() {
@@ -111,7 +106,6 @@ public class LinkedBlockingQueue<E> {
     }
 
     private func waitForWritableElement(): Unit {
-
         receiveMonitor.lock()
         sendQSize.fetchAdd(1)
         if (isFull()) {
@@ -189,7 +183,6 @@ public class LinkedBlockingQueue<E> {
     }
 
     private func waitForReadableElement(): Unit {
-
         sendMonitor.lock()
         receiveQSize.fetchAdd(1)
         if (size == 0) {
@@ -240,12 +233,11 @@ public class LinkedBlockingQueue<E> {
     }
 
     /**
-     * Gets the head of the queue, but does not remove it.
-     * Such method is non-blocking.
+     * Returns the current head element without removing it.
      *
-     * @return:
-     * - Some(v): if we successfully gets the element at the head of the queue.
-     * - None: if the queue is empty, and we fails to get the head of the queue.
+     * The operation is non-blocking and observes the linked queue at the time of the call.
+     *
+     * @return Some(element) when a head element is available, otherwise None.
      */
     @Deprecated[message: "Use member function `public func peek(): Option<E>` instead."]
     public func head(): Option<E> {

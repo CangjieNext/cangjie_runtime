@@ -323,16 +323,13 @@ public func `open`(path: String, oflag: Int32): Int32 {
 }
 
 /**
- * Open a file and returns a new file descriptor for it, or -1 on an error.
- * When the O_CREAT parameter is present, the permission can be set via flag.
- * Binding POSIX API is [open](https://man7.org/linux/man-pages/man2/open.2.html).
+ * Open a file through the platform open64 entry and return its descriptor, or -1 on error.
  *
- * @param path the file path.
- * @param oflag it's the way to open,O_RDONLY,O_RDWR,O_WRONLY is a mutually exclusive condition
- *        and can be used together with other operations such as the O_APPEND process | operation.
- * @param flag if O_CREAT is also set and a new file needs to be created, flag indicates the permission on the new file.
+ * @param path file path passed to open64.
+ * @param oflag open flags such as O_RDONLY, O_RDWR, O_WRONLY, O_APPEND, or O_CREAT.
+ * @param flag permission bits used when a new file is created.
  * @throws IllegalArgumentException while path contains null character.
- * @return a file descriptor.
+ * @return opened file descriptor, or -1 when the native call fails.
  *
  * @since 0.16.5
  */
@@ -343,14 +340,12 @@ public func open64(path: String, oflag: Int32, flag: UInt32): Int32 {
 }
 
 /**
- * Open a file and returns a new file descriptor for it, or -1 on error.
- * Binding POSIX API is [open](https://man7.org/linux/man-pages/man2/open.2.html).
+ * Open an existing file through open64 and return its descriptor, or -1 on error.
  *
- * @param path the file path.
- * @param oflag it's the way to open,O_RDONLY,O_RDWR,O_WRONLY is a mutually exclusive condition
- *        and can be used together with other operations such as the O_APPEND process | operation.
+ * @param path file path passed to open64.
+ * @param oflag open flags without a separate creation mode argument.
  * @throws IllegalArgumentException while path contains null character.
- * @return a file descriptor.
+ * @return opened file descriptor, or -1 when the native call fails.
  *
  * @since 0.16.5
  */
@@ -361,16 +356,14 @@ public func open64(path: String, oflag: Int32): Int32 {
 }
 
 /**
- * Open a file relative to a directory file descriptor,on error, -1 is returned and errno is set to indicate the error.
- * Binding POSIX API is [openat](https://man7.org/linux/man-pages/man2/openat.2.html).
+ * Open a path relative to a directory descriptor with an explicit creation mode.
  *
- * @param fd a file descriptor.
- * @param path the file path.
- * @param oflag it's the way to open,O_RDONLY,O_RDWR,O_WRONLY is a mutually exclusive condition
- *        and can be used together with other operations such as the O_APPEND process | operation.
- * @param flag if O_CREAT is also set and a new file needs to be created, flag indicates the permission on the new file.
+ * @param fd directory file descriptor used as the base for relative paths.
+ * @param path relative or absolute file path.
+ * @param oflag open flags such as O_RDONLY, O_RDWR, O_WRONLY, O_APPEND, or O_CREAT.
+ * @param flag permission bits used when a new file is created.
  * @throws IllegalArgumentException while path contains null character.
- * @return a file descriptor.
+ * @return opened file descriptor, or -1 when openat fails.
  *
  * @since 0.16.5
  */
@@ -381,15 +374,13 @@ public func openat(fd: Int32, path: String, oflag: Int32, flag: UInt32): Int32 {
 }
 
 /**
- * Open a file relative to a directory file descriptor,on error, -1 is returned and errno is set to indicate the error.
- * Binding POSIX API is [openat](https://man7.org/linux/man-pages/man2/openat.2.html).
+ * Open a path relative to a directory descriptor without a separate creation mode.
  *
- * @param fd a file descriptor.
- * @param path the file path.
- * @param oflag it's the way to open,O_RDONLY,O_RDWR,O_WRONLY is a mutually exclusive condition
- *        and can be used together with other operations such as the O_APPEND process | operation.
+ * @param fd directory file descriptor used as the base for relative paths.
+ * @param path relative or absolute file path.
+ * @param oflag open flags passed to openat.
  * @throws IllegalArgumentException while path contains null character.
- * @return a file descriptor.
+ * @return opened file descriptor, or -1 when openat fails.
  *
  * @since 0.16.5
  */
@@ -400,16 +391,14 @@ public func openat(fd: Int32, path: String, oflag: Int32): Int32 {
 }
 
 /**
- * Open a file relative to a directory file descriptor,on error, -1 is returned and errno is set to indicate the error.
- * Binding POSIX API is [openat](https://man7.org/linux/man-pages/man2/openat.2.html).
+ * Open a path relative to a directory descriptor through the openat64 entry.
  *
- * @param fd a file descriptor.
- * @param path the file path.
- * @param oflag it's the way to open,O_RDONLY,O_RDWR,O_WRONLY is a mutually exclusive condition
- *        and can be used together with other operations such as the O_APPEND process | operation.
- * @param flag if O_CREAT is also set and a new file needs to be created, flag indicates the permission on the new file.
+ * @param fd directory file descriptor used as the base for relative paths.
+ * @param path relative or absolute file path.
+ * @param oflag open flags passed to openat64.
+ * @param flag permission bits used when a new file is created.
  * @throws IllegalArgumentException while path contains null character.
- * @return a file descriptor.
+ * @return opened file descriptor, or -1 when openat64 fails.
  *
  * @since 0.16.5
  */
@@ -420,15 +409,13 @@ public func openat64(fd: Int32, path: String, oflag: Int32, flag: UInt32): Int32
 }
 
 /**
- * Open a file relative to a directory file descriptor,on error, -1 is returned and errno is set to indicate the error.
- * Binding POSIX API is [openat](https://man7.org/linux/man-pages/man2/openat.2.html).
+ * Open a path relative to a directory descriptor through openat64 without a creation mode argument.
  *
- * @param fd a file descriptor.
- * @param path the file path.
- * @param oflag it's the way to open,O_RDONLY,O_RDWR,O_WRONLY is a mutually exclusive condition
- *        and can be used together with other operations such as the O_APPEND process | operation.
+ * @param fd directory file descriptor used as the base for relative paths.
+ * @param path relative or absolute file path.
+ * @param oflag open flags passed to openat64.
  * @throws IllegalArgumentException while path contains null character.
- * @return a file descriptor.
+ * @return opened file descriptor, or -1 when openat64 fails.
  *
  * @since 0.16.5
  */

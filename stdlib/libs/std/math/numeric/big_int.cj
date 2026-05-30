@@ -1958,15 +1958,18 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
     // if the bit length of the abs of divisor exceeds 32 bits but does not exceed 64 bits
     private func knuthDivAndMod(that: UInt64, needMod!: Bool = true): (UInt64, Array<UInt32>, UInt64, Array<UInt32>) {
         let normalizedSize = intArr.size + 1 + 2
+        // normalize, let the most significant UInt32 larger than 0x8000_0000
         let shift = leadingZeros(that)
         let normalizedDividend = knuthNormalize(normalizedSize, this.int, this.intArr, shift)
         let normalizedDivisor = that << shift
+        // initialize j
         var offset = intArr.size
         var quotientWords: Array<UInt32> = EMPTY_ARRAY
         var quotientTail: UInt64 = 0
         if (offset >= 2) {
             quotientWords = Array<UInt32>(offset - 1, repeat: 0)
         }
+        // loop
         while (offset >= 0) {
             let q = knuthDivGuessQ(normalizedDividend, normalizedDivisor, offset)
             if (offset >= 2) {

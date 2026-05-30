@@ -108,7 +108,6 @@ extend<ActualPlatformSocket> SocketCommon<ActualPlatformSocket> {
                     case _ => Linger(false, 0)
                 }
                 ptr.write(lingerValue)
-
                 setSocketOption(SOL_SOCKET, SOCK_LINGER, CPointer(ptr), Linger.size)
             }
         }

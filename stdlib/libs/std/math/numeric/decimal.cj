@@ -551,7 +551,9 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
             throw IllegalArgumentException("Float value cannot be Inf or NaN.")
         }
         let f64Bits: Int64 = reinterpretAsInt(val)
+        // float32 exponent is 11 bits, abs for exponent will never overflow.
         var (f64Sign, f64Exponent, f64Fraction): (Int64, Int64, Int64) = parseFloat64Bits(f64Bits)
+        // fraction is 0, means Decimal value is 0
         if (f64Fraction == 0) {
             this._precision = 1
             this._scale = 0
@@ -560,6 +562,7 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
             return
         }
 
+        // remove the tailing zero.
         while (f64Fraction % 2 == 0) {
             f64Fraction = f64Fraction >> 1
             f64Exponent++
@@ -570,6 +573,7 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
         }
 
         var f64Value: BigInt = BigInt(f64Sign * f64Fraction)
+        // calculate val_bigint
         var f64Scale: Int32 = 0
         if (f64Exponent > 0) {
             f64Value = f64Value * (BigInt(2) ** (UInt64(f64Exponent)))
@@ -631,11 +635,9 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
     }
 
     /**
-     * Overloading r'+' operator.
-     * Return a Decimal, whose value is (this + @p d),
-     * with the precision is 0 which means unlimited precision,
-     * the specific precision is determined by the calculation result.
-     * The result has scale = max(this.scale, @p d.scale).
+     * Overloads the `+` operator for Decimal addition.
+     * The operator delegates to add(d), so the resulting precision is determined
+     * by the computed value and the resulting scale is max(this.scale, @p d.scale).
      *
      * @param d: the value to be added to this Decimal;
      *

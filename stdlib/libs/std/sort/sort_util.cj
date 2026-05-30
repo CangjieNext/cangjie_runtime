@@ -391,6 +391,7 @@ extend<T> Array<T> where T <: Comparable<T> {
 }
 
 extend<T> Array<T> {
+    // the element range of the parameter: 0 <= i1 < i2 <= array.size - 1
     func compareSwap2(i1: Int64, i2: Int64, order: (T, T) -> Ordering) {
         let firstItem: T = this[i1]
         let lo: T = this[i2]
@@ -402,6 +403,9 @@ extend<T> Array<T> {
         }
     }
 
+    // the element range of the parameter: 0 <= i1 < i2 < i3 <= array.size - 1
+    // Ordering.LT/EQ: firstItem <= lo <= thirdItem
+    // Ordering.GT   : firstItem >= lo >= thirdItem
     func compareSwap3(i1: Int64, i2: Int64, i3: Int64, order: (T, T) -> Ordering) {
         var firstItem: T = this[i1]
         var lo: T = this[i2]
@@ -437,6 +441,7 @@ extend<T> Array<T> {
         return runSize + upperBound
     }
 
+    // Introsort uses this bound to decide when to fall back to heap sort.
     @OverflowWrapping
     func depth(): Int64 {
         var x: Int64 = this.size
@@ -448,7 +453,7 @@ extend<T> Array<T> {
         return res * 2
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the element range of the parameter: 0 <= from < to <= array.size - 1
     @OverflowWrapping
     func insertionSort(from: Int64, to: Int64, order: (T, T) -> Ordering): Unit {
         var pos: Int64 = from + 1
@@ -468,14 +473,15 @@ extend<T> Array<T> {
         }
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
-    // end - begin >= 1
+    // the element range of the parameter: 0 <= from < to <= array.size - 1
+    // to - from >= 1
     @OverflowWrapping
     func getSequenceLength(from: Int64, to: Int64, workspace: TempArray<T>, order: (T, T) -> Ordering): Int64 {
         var lo: Int64 = from
         var sameCount: Int64 = 1
         var increasing: Bool = true
 
+        // Obtains the length of firstItem sequence with the same element.
         match (order(this[lo], this[lo + 1])) {
             case LT => increasing = true
             case GT => increasing = false
@@ -530,6 +536,7 @@ extend<T> Array<T> {
                 }
             }
 
+            // reverse sequence
             if (sameCount == 1) {
                 var pos = from
                 var cursor = from + runSize // from + sameCount + runSize - 1
@@ -596,7 +603,7 @@ extend<T> Array<T> {
     }
 
     // the original relative positions of equal elements are not guaranteed.
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the element range of the parameter: 0 <= from < to <= array.size - 1
     @OverflowWrapping
     func binaryInsertionSort(from: Int64, to: Int64, order: (T, T) -> Ordering, runSize: Int64) {
         var pos = from + runSize
@@ -620,12 +627,13 @@ extend<T> Array<T> {
         }
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the element range of the parameter: 0 <= from < to <= array.size - 1
     @OverflowWrapping
     func heapify(from: Int64, to: Int64, root: Int64, order: (T, T) -> Ordering): Unit {
         var rootIndex: Int64 = root
         var leafIndex = (rootIndex << 1) + 1 // rootIndex * 2 + 1
         while (from + leafIndex <= to) {
+            // leafIndex or (leafIndex + 1) is taken only once
             let chosen = if (from + leafIndex + 1 <= to) {
                 let s1 = this[from + leafIndex]
                 let s2 = this[from + leafIndex + 1]
@@ -650,26 +658,29 @@ extend<T> Array<T> {
         }
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the element range of the parameter: 0 <= from < to <= array.size - 1
     @OverflowWrapping
     func heapSort(from: Int64, to: Int64, order: (T, T) -> Ordering): Unit {
         let width = to - from + 1
         var pos = (width >> 1) - 1
 
+        // build maxSize or min heap
         while (pos >= 0) {
             this.heapify(from, to, pos, order)
             pos--
         }
         pos = to
         while (pos > from) {
+            // swap top and bottom items
             this.swap(from, pos)
 
+            // reset maxSize or min heap
             this.heapify(from, pos - 1, 0, order)
             pos--
         }
     }
 
-    // The queried position is just greater than and equal the previous value.
+    // The queried position is just greater than and equal the previous element.
     @OverflowWrapping
     func binaryQueryGT(insertValue: T, from: Int64, width: Int64, order: (T, T) -> Ordering): Int64 {
         var lowerBound = from
@@ -684,7 +695,7 @@ extend<T> Array<T> {
         return lowerBound
     }
 
-    // The queried position is just less than and equal the next value.
+    // The queried position is just less than and equal the next element.
     @OverflowWrapping
     func binaryQueryLT(insertValue: T, from: Int64, width: Int64, order: (T, T) -> Ordering): Int64 {
         var lowerBound = from
@@ -699,7 +710,7 @@ extend<T> Array<T> {
         return lowerBound
     }
 
-    // The queried position is just greater than and equal the previous value.
+    // The queried position is just greater than and equal the previous element.
     @OverflowWrapping
     func queryGT(insertValue: T, from: Int64, width: Int64, order: (T, T) -> Ordering, upperBound: Bool) {
         var searchLimit = width
@@ -753,7 +764,7 @@ extend<T> Array<T> {
         }
     }
 
-    // The queried position is just less than and equal the next value.
+    // The queried position is just less than and equal the next element.
     @OverflowWrapping
     func queryLT(insertValue: T, from: Int64, width: Int64, order: (T, T) -> Ordering, upperBound: Bool) {
         var searchLimit = width
