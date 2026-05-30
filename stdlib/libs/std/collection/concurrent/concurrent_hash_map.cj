@@ -657,18 +657,15 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
     }
 
     /**
-     * Associates the specified @p value with the specified @p key in this concurrent map,
-     * if @p key does not in the concurrent map, before calling this method.
-     * Otherwise, just returns the value that @p key maps to and does nothing.
+     * Adds a mapping only when the key is currently absent.
      *
-     * Such method is atomic (linearizable) in concurrency.
+     * The check and insertion are linearizable. If another value is already associated with the key, that value is
+     * returned and the map is left unchanged.
      *
-     * @param key: the key to put.
-     * @param value: the value to assign.
+     * @param key key to insert.
+     * @param value value to associate with the key.
      *
-     * @return:
-     * - Some(v): if the pair of @p key and v exists before putting;
-     * - None: if @p key does not exist in the concurrent map.
+     * @return Some(existing) when the key was present, or None when the new value was inserted.
      */
     @Deprecated[message: "Use member function `public func addIfAbsent(key: K, value: V): ?V` instead."]
     public func putIfAbsent(key: K, value: V): ?V {
@@ -749,19 +746,14 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
     }
 
     /**
-     * Replaces the value associated with @p key to eval(v),
-     * if there exists a pair of @p key and v in the concurrent hashmap.
-     * Otherwise, just returns 'Option<V>.None' and does nothing.
+     * Updates the value for an existing key by evaluating the current value.
      *
-     * Such method is atomic (linearizable) in concurrency.
+     * The replacement is linearizable. A missing key leaves the map unchanged.
      *
-     * @param key: the key to put.
-     * @param eval: function to evaluate the value to put.
-     * @p eval evaluates the value according to the old value v.
+     * @param key key whose value should be updated.
+     * @param eval function that receives the old value and returns the replacement.
      *
-     * @return:
-     * - Some(v): if the pair of @p key and v exists in concurrent map before invoking this method.
-     * - None: if @p key is not in the concurrent map.
+     * @return Some(oldValue) when the key existed, or None when the key was absent.
      */
     @Deprecated[message: "Use member function `public func entryView(key: K, fn: (MapEntryView<K, V>)->Unit): ?V` instead."]
     public func replace(key: K, eval: (V) -> V): ?V {
@@ -769,18 +761,16 @@ public class ConcurrentHashMap<K, V> <: ConcurrentMap<K, V> & Collection<(K, V)>
     }
 
     /**
-     * Replaces the value associated with @p key to eval(v),
-     * if the pair of @p key and v in the concurrent map, and @p predicate(v) holds.
+     * Conditionally replaces the value for an existing key.
      *
-     * Such method is atomic (linearizable) in concurrency.
+     * The current value is replaced with eval(oldValue) only when predicate(oldValue) is true. The operation is
+     * linearizable with other concurrent map operations.
      *
-     * @param key: the key of the key-value pair, whose value needs to be replaced.
-     * @param predicate: the function justifies whether @p key-v pair in the concurrent map should be replaced.
-     * @param eval: the function evaluates the new value to replace the old value.
+     * @param key key whose mapping is considered.
+     * @param predicate condition checked against the current value.
+     * @param eval function that produces the replacement from the current value.
      *
-     * @return:
-     * - Some(v): if the pair of @p key and v exists in concurrent map before replacing;
-     * - None: if @p key does not exist in concurrent map.
+     * @return Some(oldValue) when the key existed, or None when it was absent.
      */
     @Deprecated[message: "Use member function `public func entryView(key: K, fn: (MapEntryView<K, V>)->Unit): ?V` instead."]
     public func replace(key: K, predicate: (V) -> Bool, eval: (V) -> V): ?V {
