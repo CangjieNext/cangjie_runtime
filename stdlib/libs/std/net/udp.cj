@@ -112,6 +112,10 @@ public class UdpSocket <: DatagramSocket {
         }
     }
 
+    public func bind(): Unit {
+        impl.bind(None)
+    }
+
     /**
      * Close the socket releasing all resources. All operations except for close() and isClose() are no longer available.
      * This function is reentrant.
@@ -125,13 +129,6 @@ public class UdpSocket <: DatagramSocket {
      **/
     public override func isClosed(): Bool {
         impl.isClosed()
-    }
-
-    /**
-     * Bind UDP socket at local port
-     */
-    public func bind(): Unit {
-        impl.bind(None)
     }
 
     /**
@@ -154,8 +151,7 @@ public class UdpSocket <: DatagramSocket {
 
         if (remote.family != localAddress.family) {
             throw IllegalArgumentException(
-                "remote address kind (${remote.family}) should have the same address family as local (${localAddress.family})"
-            )
+                "remote address kind (${remote.family}) should have the same address family as local (${localAddress.family})")
         }
 
         impl.remoteAddress = remote
@@ -308,13 +304,10 @@ public class UdpSocket <: DatagramSocket {
      */
     public mut prop sendBufferSize: Int64 {
         get() {
-            Int64(impl.getSocketOptionIntNative(SOL_SOCKET, SOCK_SNDBUF))
+            impl.getSendBufferSize()
         }
         set(newSize) {
-            if (newSize <= 0) {
-                throw IllegalArgumentException("Buffer size should be positive, got ${newSize}.")
-            }
-            impl.setSocketOptionIntNative(SOL_SOCKET, SOCK_SNDBUF, IntNative(newSize))
+            impl.setSendBufferSize(newSize)
         }
     }
 
@@ -332,13 +325,10 @@ public class UdpSocket <: DatagramSocket {
      */
     public mut prop receiveBufferSize: Int64 {
         get() {
-            Int64(impl.getSocketOptionIntNative(SOL_SOCKET, SOCK_RCVBUF))
+            impl.getReceiveBufferSize()
         }
         set(newSize) {
-            if (newSize <= 0) {
-                throw IllegalArgumentException("Buffer size should be positive, got ${newSize}.")
-            }
-            impl.setSocketOptionIntNative(SOL_SOCKET, SOCK_RCVBUF, IntNative(newSize))
+            impl.setReceiveBufferSize(newSize)
         }
     }
 

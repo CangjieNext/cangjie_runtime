@@ -490,32 +490,26 @@ extend UIntNative <: SaturatingOp<UIntNative> {
     }
 
     public func saturatingShl(y: UInt64): UIntNative {
-        if (isNative64) {
-            return if (y >= 64) {
-                this << 63
-            } else {
-                this << y
-            }
-        }
-        return if (y >= 32) {
-            this << 31
+        let maxShift: UInt64 = if (isNative64) {
+            63
         } else {
-            this << y
+            31
         }
+        if (y > maxShift) {
+            return this << maxShift
+        }
+        return this << y
     }
 
     public func saturatingShr(y: UInt64): UIntNative {
-        if (isNative64) {
-            return if (y >= 64) {
-                this >> 63
-            } else {
-                this >> y
-            }
-        }
-        return if (y >= 32) {
-            this >> 31
+        let maxShift: UInt64 = if (isNative64) {
+            63
         } else {
-            this >> y
+            31
         }
+        if (y > maxShift) {
+            return this >> maxShift
+        }
+        return this >> y
     }
 }

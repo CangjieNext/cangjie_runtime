@@ -81,9 +81,11 @@ public func sort<T>(data: Array<T>, by!: (T, T) -> Ordering, stable!: Bool = fal
  *
  */
 public func sort<T>(data: Array<T>, lessThan!: (T, T) -> Bool, stable!: Bool = false, descending!: Bool = false): Unit {
-    let comparator = {l: T, r: T => match (lessThan(l, r)) {
+    let comparator = {
+        l: T, r: T => match (lessThan(l, r)) {
             case true => LT
-            case false => if (lessThan(r, l)) {
+            case false =>
+                if (lessThan(r, l)) {
                     GT
                 } else {
                     EQ
