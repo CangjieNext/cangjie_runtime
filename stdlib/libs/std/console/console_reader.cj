@@ -43,6 +43,8 @@ const defaultCapacity: Int64 = 32
 public class ConsoleReader <: InputStream {
     private static let MUTEX: Mutex = Mutex()
     private var buffer: Array<Byte> = Array<Byte>(defaultCapacity, repeat: 0) /* stdin read buffer */
+
+    // The deprecated reader keeps separate indices for buffered stdin bytes.
     private var endIndex: Int64 = 0
     private var startIndex: Int64 = 0
     init() {}
@@ -79,23 +81,17 @@ public class ConsoleReader <: InputStream {
         return None
     }
 
-    /** Read all line */
+    /** Reads all remaining console input. */
     public func readToEnd(): ?String {
         return readUntil({_ => return false})
     }
 
-    /**
-     * Reads until some contents is encountered, or the end of the stream is reached.
-     * ch is included in the result
-     */
+    /** Reads through ch or to the end of the stream. */
     public func readUntil(ch: Rune): ?String {
         return readUntil({it => it == ch})
     }
 
-    /**
-     * Reads until predicate is encountered, or the end of the stream is reached.
-     * ch is included in the result
-     */
+    /** Reads until predicate matches or the end of the stream is reached. */
     public func readUntil(predicate: (Rune) -> Bool): ?String {
         let result: StringBuilder = StringBuilder()
         synchronized(MUTEX) {
