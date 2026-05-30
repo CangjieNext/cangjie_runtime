@@ -32,6 +32,7 @@ CMAKE_BUILD_DIR = os.path.join(BUILD_DIR, "build")
 CMAKE_OUTPUT_DIR = os.path.join(HOME_DIR, "output")
 LOG_DIR = os.path.join(BUILD_DIR, "logs")
 LOG_FILE = os.path.join(LOG_DIR, "cangjie.log")
+BUILD_TIME_LOG = os.path.join(LOG_DIR, "build_time.log")
 
 IS_WINDOWS = platform.system() == "Windows"
 IS_MACOS = platform.system() == "Darwin"
@@ -61,6 +62,35 @@ def resolve_path(path):
     if os.path.isabs(path):
         return path
     return os.path.abspath(path)
+
+def format_duration(seconds):
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    if hours > 0:
+        return "{}h {}m {}s".format(hours, minutes, secs)
+    if minutes > 0:
+        return "{}m {}s".format(minutes, secs)
+    return "{}s".format(secs)
+
+def log_build_time(command, build_type, version, target, product, elapsed_seconds, time_log_path):
+    if not os.path.exists(os.path.dirname(time_log_path)):
+        os.makedirs(os.path.dirname(time_log_path), exist_ok=True)
+    duration_str = format_duration(elapsed_seconds)
+    LOG.info("[%s] build_type=%s version=%s target=%s product=%s elapsed=%s",
+             command, build_type, version, target, product, duration_str)
+    entry = {
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "command": command,
+        "build_type": build_type,
+        "version": version,
+        "target": target or "native",
+        "product": product or "all",
+        "elapsed_seconds": round(elapsed_seconds, 2),
+        "elapsed_human": duration_str,
+    }
+    with open(time_log_path, "a") as f:
+        f.write(json.dumps(entry) + "\n")
 
 def log_output(output, checker=None, args=[]):
     """log command output"""
@@ -149,6 +179,7 @@ def generate_cmake_defs(args):
     return result
 
 def build(args):
+    start_time = time.time()
 
     if args.target:
         args.target = TARGET_DICTIONARY[args.target]
@@ -220,10 +251,15 @@ def build(args):
     if output.returncode != 0:
         LOG.fatal("build failed")
 
-    LOG.info("end build")
+    elapsed = time.time() - start_time
+    build_type_str = args.build_type.value if args.build_type else "unknown"
+    target_str = args.target if args.target else "native"
+    log_build_time("build", build_type_str, "", target_str, "", elapsed, args.time_log)
+    LOG.info("end build (elapsed %s)", format_duration(elapsed))
 
 def install(args):
     """install targets"""
+    start_time = time.time()
     LOG.info("begin install targets...")
     
     if args.host:
@@ -280,7 +316,10 @@ def install(args):
                 bin_path = os.path.join(mingw_bin_path, bin)
                 if os.path.isfile(bin_path) and not bin.endswith(".exe"):
                     os.remove(bin_path)
-    LOG.info("end install targets...")
+    elapsed = time.time() - start_time
+    host_str = args.host if args.host else "native"
+    log_build_time("install", "", "", host_str, "", elapsed, BUILD_TIME_LOG)
+    LOG.info("end install targets (elapsed %s)...", format_duration(elapsed))
 
 
 def redo_with_write(redo_func, path, err):
@@ -421,6 +460,10 @@ def main():
         dest="build_args",
         action='append', default=[],
         help="ther arguments directly passed to cjc"
+    )
+    parser_build.add_argument(
+        "--time-log", dest="time_log", type=str, default=BUILD_TIME_LOG,
+        help="Path to build time log file (default: build/logs/build_time.log)"
     )
     parser_build.set_defaults(func=build)
 

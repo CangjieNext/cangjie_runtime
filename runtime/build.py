@@ -14,9 +14,41 @@ import platform
 import re
 import shutil
 import argparse
+import json
+import time
 
 # Get the directory where the script is located as the execution directory
 script_path = os.path.dirname(os.path.abspath(__file__))
+BUILD_TIME_LOG = os.path.join(script_path, "CMakebuild", "logs", "build_time.log")
+
+def format_duration(seconds):
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    if hours > 0:
+        return "{}h {}m {}s".format(hours, minutes, secs)
+    if minutes > 0:
+        return "{}m {}s".format(minutes, secs)
+    return "{}s".format(secs)
+
+def log_build_time(command, build_type, version, target, product, elapsed_seconds, time_log_path):
+    if not os.path.exists(os.path.dirname(time_log_path)):
+        os.makedirs(os.path.dirname(time_log_path), exist_ok=True)
+    duration_str = format_duration(elapsed_seconds)
+    print("[{}] build_type={} version={} target={} product={} elapsed={}".format(
+        command, build_type, version, target, product, duration_str))
+    entry = {
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "command": command,
+        "build_type": build_type,
+        "version": version,
+        "target": target or "native",
+        "product": product or "all",
+        "elapsed_seconds": round(elapsed_seconds, 2),
+        "elapsed_human": duration_str,
+    }
+    with open(time_log_path, "a") as f:
+        f.write(json.dumps(entry) + "\n")
 
 def do_clean(args):
     # Remove specified directories
@@ -31,6 +63,7 @@ def do_clean(args):
     sys.exit(0)
 
 def do_build(args):
+    start_time = time.time()
     # Get script arguments
     target_args = args.target
     mode = args.build_type
@@ -318,6 +351,12 @@ def do_build(args):
                ios-aarch64, ios-simulator-aarch64, ios-simulator-x86_64")
         sys.exit(1)
 
+    elapsed = time.time() - start_time
+    build_type_str = args.build_type
+    target_str = args.target
+    log_build_time("build", build_type_str, args.version, target_str, "", elapsed, args.time_log)
+    print("build completed (elapsed {})".format(format_duration(elapsed)))
+
 def build_target(cmake_command):
     try:
         subprocess.run(cmake_command, check=True)
@@ -338,6 +377,7 @@ def build_target(cmake_command):
         os.chdir(script_path)
 
 def do_install(args):
+    start_time = time.time()
     try:
         build_dir = os.path.join(script_path, "CMakebuild")
         os.makedirs(build_dir, exist_ok=True)
@@ -350,7 +390,9 @@ def do_install(args):
         else:
             subprocess.run(["cmake", "-DCMAKE_INSTALL_PREFIX={}".format(args.prefix), "-P", "cmake_install.cmake"], check=True)
 
-        print("Install completed successfully.")
+        elapsed = time.time() - start_time
+        log_build_time("install", "", "", "native", "", elapsed, BUILD_TIME_LOG)
+        print("Install completed successfully (elapsed {}).".format(format_duration(elapsed)))
     except subprocess.CalledProcessError as e:
         print(f"Error during install : {e}")
         sys.exit(1)
@@ -428,6 +470,10 @@ if __name__ == "__main__":
         action="store_true",
         dest="euler_flag",
         help="Enable feature on euler os."
+    )
+    b.add_argument(
+        "--time-log", dest="time_log", type=str, default=BUILD_TIME_LOG,
+        help="Path to build time log file"
     )
 
     i = sub.add_parser("install", help="install the project")
