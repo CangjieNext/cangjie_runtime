@@ -923,7 +923,7 @@ extend<T> Array<T> {
             return
         }
 
-        // init temp data
+        // init workspace data
         let mrl = this.getMinRunLength()
         var workspace = TempArray(this.size, this[0])
         let stackLen = Int64(log2(Float64(this.size) / Float64(mrl) + 2.0)) + 1

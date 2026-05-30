@@ -247,15 +247,13 @@ public class Matcher {
     }
 
     /**
-     * Split the input sequence by all subsequence that matches the pattern as the delimiters
+     * Split this matcher's input by subsequences that match the pattern as delimiters.
      *
-     * if limit n is greater than zero then it will separate the string at most n times
-     * if limit n is non-positive, it will separate the string as many times as possible
+     * If @p limit is greater than zero, at most @p limit pieces are produced.
+     * If @p limit is non-positive, all matching delimiters are applied.
      *
-     * @param input The the input sequence.
-     * @param limit The limit of split
-     * @return The array of strings computed by splitting the input
-     * around matches of this pattern
+     * @param limit The limit of split.
+     * @return The array of strings computed by splitting this matcher's input around matches of this pattern.
      */
     public func split(limit: Int64): Array<String> {
         return regex.split(input, limit)

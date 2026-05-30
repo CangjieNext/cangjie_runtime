@@ -31,6 +31,7 @@ public struct SocketDomain <: Equatable<SocketDomain> & ToString & Hashable {
         this.val = domain
     }
 
+    // SocketDomain equality compares the raw platform domain value.
     public operator func ==(r: SocketDomain): Bool {
         return this.val == r.val
     }
