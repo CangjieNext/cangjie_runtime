@@ -27,7 +27,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
     /**
      * Creates an internally precreated socket. See TcpServerSocket.accept.
      */
-    TcpSocket(private let tcpImpl: SocketCommon<ActualTcpPlatformSocket>) {
+    TcpSocket(private let impl: SocketCommon<ActualTcpPlatformSocket>) {
         noDelay = true
     }
 
@@ -67,10 +67,10 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
         }
         throwIfIPv4ZeroOnWindows(address)
 
-        this.tcpImpl = SocketCommon(SocketNet.TCP, address.family, SocketMode.StreamingMode)
-        tcpImpl.remoteAddress = address
+        this.impl = SocketCommon(SocketNet.TCP, address.family, SocketMode.StreamingMode)
+        impl.remoteAddress = address
         if (let Some(localAddress) <- localAddress) {
-            tcpImpl.localAddress = localAddress
+            impl.localAddress = localAddress
             setSocketOptionBool(SOL_SOCKET, SOCK_REUSEADDR, true)
         }
 
@@ -84,7 +84,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
      */
     public override prop remoteAddress: SocketAddress {
         get() {
-            tcpImpl.remoteAddress ?? SocketException.notYetConnected()
+            impl.remoteAddress ?? SocketException.notYetConnected()
         }
     }
 
@@ -96,7 +96,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
      */
     public override prop localAddress: SocketAddress {
         get() {
-            tcpImpl.localAddress ?? SocketException.notYetConnected()
+            impl.localAddress ?? SocketException.notYetConnected()
         }
     }
 
@@ -109,10 +109,11 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
      */
     public override mut prop readTimeout: ?Duration {
         get() {
-            tcpImpl.readTimeout
+            // Read timeout is stored in the shared socket implementation.
+            impl.readTimeout
         }
         set(timeout) {
-            tcpImpl.readTimeout = timeout?.throwIfNegative("Read timeout").toNanosecondGranularity()
+            impl.readTimeout = timeout?.throwIfNegative("Read timeout").toNanosecondGranularity()
         }
     }
 
@@ -126,10 +127,11 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
      */
     public override mut prop writeTimeout: ?Duration {
         get() {
-            tcpImpl.writeTimeout
+            // TCP write operations share timeout storage with the socket implementation.
+            impl.writeTimeout
         }
         set(timeout) {
-            tcpImpl.writeTimeout = timeout?.throwIfNegative("Write timeout").toNanosecondGranularity()
+            impl.writeTimeout = timeout?.throwIfNegative("Write timeout").toNanosecondGranularity()
         }
     }
 
@@ -146,10 +148,10 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
      */
     public mut prop bindToDevice: ?String {
         get() {
-            tcpImpl.bindToDevice
+            impl.bindToDevice
         }
         set(newDevice) {
-            tcpImpl.bindToDevice = newDevice
+            impl.bindToDevice = newDevice
         }
     }
 
@@ -161,10 +163,10 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
      */
     public mut prop keepAlive: ?SocketKeepAliveConfig {
         get() {
-            tcpImpl.keepAlive
+            impl.keepAlive
         }
         set(newConfig) {
-            tcpImpl.keepAlive = newConfig
+            impl.keepAlive = newConfig
         }
     }
 
@@ -183,10 +185,10 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
      */
     public mut prop noDelay: Bool {
         get() {
-            tcpImpl.getSocketOptionBool(IPPROTO_TCP, SOCK_TCP_NODELAY)
+            impl.getSocketOptionBool(IPPROTO_TCP, SOCK_TCP_NODELAY)
         }
         set(newState) {
-            tcpImpl.setSocketOptionBool(IPPROTO_TCP, SOCK_TCP_NODELAY, newState)
+            impl.setSocketOptionBool(IPPROTO_TCP, SOCK_TCP_NODELAY, newState)
         }
     }
 
@@ -210,10 +212,10 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
     @When[os == "Linux"]
     public mut prop quickAcknowledge: Bool {
         get() {
-            tcpImpl.getSocketOptionBool(IPPROTO_TCP, SOCK_TCP_QUICKACK)
+            impl.getSocketOptionBool(IPPROTO_TCP, SOCK_TCP_QUICKACK)
         }
         set(newState) {
-            tcpImpl.setSocketOptionBool(IPPROTO_TCP, SOCK_TCP_QUICKACK, newState)
+            impl.setSocketOptionBool(IPPROTO_TCP, SOCK_TCP_QUICKACK, newState)
         }
     }
 
@@ -221,10 +223,10 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
     @Deprecated
     public mut prop quickAcknowledge: Bool {
         get() {
-            tcpImpl.getSocketOptionBool(IPPROTO_TCP, SOCK_TCP_QUICKACK)
+            impl.getSocketOptionBool(IPPROTO_TCP, SOCK_TCP_QUICKACK)
         }
         set(newState) {
-            tcpImpl.setSocketOptionBool(IPPROTO_TCP, SOCK_TCP_QUICKACK, newState)
+            impl.setSocketOptionBool(IPPROTO_TCP, SOCK_TCP_QUICKACK, newState)
         }
     }
 
@@ -243,30 +245,31 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
      */
     public mut prop linger: ?Duration {
         get() {
-            tcpImpl.getLinger()
+            impl.getLinger()
         }
         set(newLinger) {
-            tcpImpl.setLinger(newLinger)
+            impl.setLinger(newLinger)
         }
     }
 
     /** SO_SNDBUF hint for outgoing data; throws IllegalArgumentException for non-positive sizes. */
     public mut prop sendBufferSize: Int64 {
         get() {
-            tcpImpl.getSendBufferSize()
+            impl.getSendBufferSize()
         }
         set(newSize) {
-            tcpImpl.setSendBufferSize(newSize)
+            // TCP client sockets apply this hint before or after connect depending on platform support.
+            impl.setSendBufferSize(newSize)
         }
     }
 
     /** SO_RCVBUF hint for incoming data; throws IllegalArgumentException for non-positive sizes. */
     public mut prop receiveBufferSize: Int64 {
         get() {
-            tcpImpl.getReceiveBufferSize()
+            impl.getReceiveBufferSize()
         }
         set(newSize) {
-            tcpImpl.setReceiveBufferSize(newSize)
+            impl.setReceiveBufferSize(newSize)
         }
     }
 
@@ -281,7 +284,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
      * @throws SocketException when the connection is broken
      */
     public override func read(buffer: Array<Byte>): Int64 {
-        tcpImpl.read(buffer)
+        impl.read(buffer)
     }
 
     /**
@@ -309,7 +312,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
      * @throws SocketException when the socket is closed or the connection is broken
      */
     public override func write(payload: Array<Byte>): Unit {
-        tcpImpl.write(payload)
+        impl.write(payload)
     }
 
     /**
@@ -324,7 +327,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public func connect(timeout!: ?Duration = None): Unit {
-        tcpImpl.connect(timeout?.throwIfNegative("Timeout"))
+        impl.connect(timeout?.throwIfNegative("Timeout"))
     }
 
     /** Read a raw TCP socket option; valueLength is updated with the native result size. */
@@ -335,7 +338,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
         valueLength: CPointer<UIntNative>
     ): Unit {
         unsafe {
-            tcpImpl.getSocketOption(level, option, value, valueLength)
+            impl.getSocketOption(level, option, value, valueLength)
         }
     }
 
@@ -347,7 +350,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
         valueLength: UIntNative
     ): Unit {
         unsafe {
-            tcpImpl.setSocketOption(level, option, value, valueLength)
+            impl.setSocketOption(level, option, value, valueLength)
         }
     }
 
@@ -356,7 +359,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
         level: Int32,
         option: Int32
     ): IntNative {
-        tcpImpl.getSocketOptionIntNative(level, option)
+        impl.getSocketOptionIntNative(level, option)
     }
 
     /** Write an IntNative value to a TCP socket option. */
@@ -365,7 +368,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
         option: Int32,
         value: IntNative
     ): Unit {
-        tcpImpl.setSocketOptionIntNative(level, option, value)
+        impl.setSocketOptionIntNative(level, option, value)
     }
 
     /** Read a TCP socket option as Bool using IntNative zero/nonzero conversion. */
@@ -373,7 +376,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
         level: Int32,
         option: Int32
     ): Bool {
-        tcpImpl.getSocketOptionBool(level, option)
+        impl.getSocketOptionBool(level, option)
     }
 
     /** Write a Bool value to a TCP socket option using IntNative conversion. */
@@ -382,17 +385,18 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
         option: Int32,
         value: Bool
     ): Unit {
-        tcpImpl.setSocketOptionBool(level, option, value)
+        // Bool options use the same native conversion path as typed socket options.
+        impl.setSocketOptionBool(level, option, value)
     }
 
     /** Close this socket and release its resources. This function is reentrant. */
     public func close(): Unit {
-        tcpImpl.close()
+        impl.close()
     }
 
     /** Return whether close() has already been invoked for this socket. */
     public func isClosed(): Bool {
-        tcpImpl.isClosed()
+        impl.isClosed()
     }
 
     public override operator func ==(other: TcpSocket): Bool {
@@ -408,7 +412,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
     }
 
     public override func toString(): String {
-        "TcpSocket(${tcpImpl.toString()})"
+        "TcpSocket(${impl.toString()})"
     }
 
     private static func checkAddress(address: SocketAddress, name: String): SocketAddress {

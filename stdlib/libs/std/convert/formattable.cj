@@ -111,10 +111,12 @@ extend Int16 <: Formattable {
 
 extend Int8 <: Formattable {
 
+    // Int8 formatting is normalized through the Int64 implementation.
     /**
      * Formats this Int8 value through the Int64 formatter.
      *
      * The value is widened before the integer format pattern is applied.
+     * This keeps signed byte formatting consistent with other signed integers.
      *
      * @param fmt format pattern.
      * @return formatted string.
@@ -191,10 +193,12 @@ extend UInt16 <: Formattable {
 
 extend UInt8 <: Formattable {
 
+    // UInt8 formatting is normalized through the UInt64 implementation.
     /**
      * Formats this UInt8 value through the UInt64 formatter.
      *
      * The value is widened before the unsigned integer format pattern is applied.
+     * This keeps byte formatting consistent with other unsigned integers.
      *
      * @param fmt format pattern.
      * @return formatted string.

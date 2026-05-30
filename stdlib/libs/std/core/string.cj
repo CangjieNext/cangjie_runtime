@@ -289,11 +289,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         if (fromIndex >= size) {
             return None
         }
-        let start = if (fromIndex < 0) {
-            0
-        } else {
-            fromIndex
-        }
+        let start = if (fromIndex < 0) { 0 } else { fromIndex }
         return match (indexOfImpl(b, start)) {
             case -1 => None
             case val => Some(val)
@@ -818,8 +814,8 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         }
         if (strLen < STRING_C_THRESHOLD) {
             for (i in 0..strLen) {
-                if (arrayGetUnchecked(this.myData, Int64(start) + i) != arrayGetUnchecked(prefix.myData,
-                    Int64(prefix.start) + i)) {
+                if (arrayGetUnchecked(this.myData, Int64(start) + i) !=
+                    arrayGetUnchecked(prefix.myData, Int64(prefix.start) + i)) {
                     return false
                 }
             }
@@ -850,8 +846,8 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         let distance: Int64 = size - strLen
         if (strLen < STRING_C_THRESHOLD) {
             for (i in 0..strLen) {
-                if (arrayGetUnchecked(this.myData, Int64(start) + distance + i) != arrayGetUnchecked(suffix.myData,
-                    Int64(suffix.start) + i)) {
+                if (arrayGetUnchecked(this.myData, Int64(start) + distance + i) !=
+                    arrayGetUnchecked(suffix.myData, Int64(suffix.start) + i)) {
                     return false
                 }
             }
@@ -884,6 +880,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         }
         // Padding length is based on the UTF-8 byte count stored by String.
         let runeLen = padding.size
+        // Empty padding cannot advance the prefix fill loop.
         if (runeLen == 0) {
             throw IllegalArgumentException("Padding string cannot be empty.")
         }
@@ -896,6 +893,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             throw IllegalArgumentException("The size of String is too large.")
         }
 
+        // padStart reserves the whole result before writing padding and source bytes.
         // Build the prefix padding before appending the receiver bytes.
         var itemBytes: Array<UInt8> = Array<UInt8>(totalBytes, repeat: 0)
         var k: Int64 = 0
@@ -996,19 +994,15 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
-    static const func compareBytesCommon(ptr1: RawArray<Byte>, start1: Int64, ptr2: RawArray<Byte>, start2: Int64,
-        num: Int64): Int64 {
+    static const func compareBytesCommon(ptr1: RawArray<Byte>, start1: Int64,
+                                    ptr2: RawArray<Byte>, start2: Int64, num: Int64): Int64 {
         var offset1 = start1
         var offset2 = start2
         for (_ in 0..num) {
             let b1 = arrayGetUnchecked(ptr1, offset1)
             let b2 = arrayGetUnchecked(ptr2, offset2)
             if (b1 != b2) {
-                return if (b1 > b2) {
-                    1
-                } else {
-                    -1
-                }
+                return if (b1 > b2) { 1 } else { -1 }
             }
             offset1++
             offset2++
@@ -1018,8 +1012,8 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
-    static const func compareBytesFast(ptr1: RawArray<Byte>, start1: Int64, ptr2: RawArray<Byte>, start2: Int64,
-        num: Int64): Int64 {
+    static const func compareBytesFast(ptr1: RawArray<Byte>, start1: Int64,
+                                    ptr2: RawArray<Byte>, start2: Int64, num: Int64): Int64 {
         var i = 0
         var offset1 = start1
         var offset2 = start2
@@ -1029,11 +1023,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             if (vecCmpRes != 32) {
                 let b1 = arrayGetUnchecked(ptr1, offset1 + vecCmpRes)
                 let b2 = arrayGetUnchecked(ptr2, offset2 + vecCmpRes)
-                return if (b1 > b2) {
-                    1
-                } else {
-                    -1
-                }
+                return if (b1 > b2) { 1 } else { -1 }
             }
             i += VECTOR_OFFSET_32
             offset1 += VECTOR_OFFSET_32
@@ -1044,11 +1034,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             let b1 = arrayGetUnchecked(ptr1, offset1)
             let b2 = arrayGetUnchecked(ptr2, offset2)
             if (b2 != b1) {
-                return if (b1 > b2) {
-                    1
-                } else {
-                    -1
-                }
+                return if (b1 > b2) { 1 } else { -1 }
             }
             offset1++
             offset2++

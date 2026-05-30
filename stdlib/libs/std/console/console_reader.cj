@@ -43,6 +43,8 @@ const defaultCapacity: Int64 = 32
 public class ConsoleReader <: InputStream {
     private static let MUTEX: Mutex = Mutex()
     private var buffer: Array<Byte> = Array<Byte>(defaultCapacity, repeat: 0) /* stdin read buffer */
+
+    // The deprecated reader keeps separate indices for buffered stdin bytes.
     private var endIndex: Int64 = 0
     private var startIndex: Int64 = 0
     init() {}
@@ -122,7 +124,7 @@ public class ConsoleReader <: InputStream {
     public func read(arr: Array<Byte>): Int64 {
         let requested = arr.size
         synchronized(MUTEX) {
-            while (requested > availableSize()) {
+            while (requested > endIndex - startIndex) {
                 if (!readFromConsole()) {
                     return consumeAvailable(arr)
                 }
@@ -133,12 +135,8 @@ public class ConsoleReader <: InputStream {
         return requested
     }
 
-    private func availableSize(): Int64 {
-        endIndex - startIndex
-    }
-
     private func consumeAvailable(arr: Array<Byte>): Int64 {
-        let copied = availableSize()
+        let copied = endIndex - startIndex
         buffer.copyTo(arr, startIndex, 0, copied)
         startIndex = 0
         endIndex = 0

@@ -923,7 +923,7 @@ extend<T> Array<T> {
             return
         }
 
-        // init workspace items
+        // init workspace data
         let mrl = this.getMinRunLength()
         var workspace = TempArray(this.size, this[0])
         let stackLen = Int64(log2(Float64(this.size) / Float64(mrl) + 2.0)) + 1
@@ -958,29 +958,29 @@ extend<T> Array<T> {
 }
 
 class TempArray<T> {
-    private var items: Array<T>
-    private let seedValue: T
-    private let maxSize: Int64
+    private var data: Array<T>
+    private let zero: T
+    private let max: Int64
 
     init(runSize: Int64, z: T) {
-        this.items = Array<T>()
-        this.maxSize = runSize >> 1
-        this.seedValue = z
+        this.data = Array<T>()
+        this.max = runSize >> 1
+        this.zero = z
     }
 
     @OverflowWrapping
     func getArray(runSize: Int64): Array<T> {
-        if (items.size >= runSize) {
-            return this.items
+        if (data.size >= runSize) {
+            return this.data
         }
-        var grownSize = items.size * 2
+        var grownSize = data.size * 2
         if (grownSize < runSize) {
             grownSize = runSize
         }
-        if (grownSize > this.maxSize) {
-            grownSize = this.maxSize
+        if (grownSize > this.max) {
+            grownSize = this.max
         }
-        this.items = Array<T>(grownSize, repeat: this.seedValue)
-        return this.items
+        this.data = Array<T>(grownSize, repeat: this.zero)
+        return this.data
     }
 }

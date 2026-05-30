@@ -173,6 +173,7 @@ public class UdpSocket <: DatagramSocket {
      */
     public func disconnect(): Unit {
         // Restore the datagram socket to an unconnected peer filter.
+        // UDP keeps the socket open and only clears the remote peer association.
         impl.disconnect()
     }
 

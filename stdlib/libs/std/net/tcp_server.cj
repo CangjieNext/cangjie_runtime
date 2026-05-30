@@ -21,7 +21,7 @@ package std.net
  * Instances of this type should be explicitly closed even when the bind() hasn't been invoked.
  */
 public class TcpServerSocket <: ServerSocket {
-    private let tcpServerImpl: SocketCommon<ActualTcpPlatformSocket>
+    private let impl: SocketCommon<ActualTcpPlatformSocket>
     private var backlogSize_: Int32 = SOCKET_DEFAULT_BACKLOG
 
     /**
@@ -31,7 +31,7 @@ public class TcpServerSocket <: ServerSocket {
      */
     public override prop localAddress: SocketAddress {
         get() {
-            tcpServerImpl.localAddress ?? SocketException.notYetBound()
+            impl.localAddress ?? SocketException.notYetBound()
         }
     }
 
@@ -50,8 +50,8 @@ public class TcpServerSocket <: ServerSocket {
     public init(bindAt!: SocketAddress) {
         checkAddress(bindAt, "bindAt")
 
-        tcpServerImpl = SocketCommon(SocketNet.TCP, bindAt.family, SocketMode.StreamingMode)
-        tcpServerImpl.localAddress = bindAt
+        impl = SocketCommon(SocketNet.TCP, bindAt.family, SocketMode.StreamingMode)
+        impl.localAddress = bindAt
 
         setSocketOptionBool(SOL_SOCKET, SOCK_REUSEADDR, true)
     }
@@ -65,10 +65,10 @@ public class TcpServerSocket <: ServerSocket {
      */
     public mut prop reuseAddress: Bool {
         get() {
-            tcpServerImpl.getSocketOptionBool(SOL_SOCKET, SOCK_REUSEADDR)
+            impl.getSocketOptionBool(SOL_SOCKET, SOCK_REUSEADDR)
         }
         set(enabled) {
-            tcpServerImpl.setSocketOptionBool(SOL_SOCKET, SOCK_REUSEADDR, enabled)
+            impl.setSocketOptionBool(SOL_SOCKET, SOCK_REUSEADDR, enabled)
         }
     }
 
@@ -85,10 +85,10 @@ public class TcpServerSocket <: ServerSocket {
     @When[os != "Windows"]
     public mut prop reusePort: Bool {
         get() {
-            tcpServerImpl.getSocketOptionBool(SOL_SOCKET, SOCK_REUSEPORT)
+            impl.getSocketOptionBool(SOL_SOCKET, SOCK_REUSEPORT)
         }
         set(enabled) {
-            tcpServerImpl.setSocketOptionBool(SOL_SOCKET, SOCK_REUSEPORT, enabled)
+            impl.setSocketOptionBool(SOL_SOCKET, SOCK_REUSEPORT, enabled)
         }
     }
 
@@ -96,30 +96,32 @@ public class TcpServerSocket <: ServerSocket {
     @Deprecated
     public mut prop reusePort: Bool {
         get() {
-            tcpServerImpl.getSocketOptionBool(SOL_SOCKET, SOCK_REUSEPORT)
+            impl.getSocketOptionBool(SOL_SOCKET, SOCK_REUSEPORT)
         }
         set(enabled) {
-            tcpServerImpl.setSocketOptionBool(SOL_SOCKET, SOCK_REUSEPORT, enabled)
+            impl.setSocketOptionBool(SOL_SOCKET, SOCK_REUSEPORT, enabled)
         }
     }
 
     /** SO_SNDBUF hint for outgoing data; throws IllegalArgumentException for non-positive sizes. */
     public mut prop sendBufferSize: Int64 {
         get() {
-            tcpServerImpl.getSendBufferSize()
+            // Server sockets expose the accepted sockets' outgoing buffer hint through the listening descriptor.
+            impl.getSendBufferSize()
         }
         set(newSize) {
-            tcpServerImpl.setSendBufferSize(newSize)
+            impl.setSendBufferSize(newSize)
         }
     }
 
     /** SO_RCVBUF hint for incoming data; throws IllegalArgumentException for non-positive sizes. */
     public mut prop receiveBufferSize: Int64 {
         get() {
-            tcpServerImpl.getReceiveBufferSize()
+            impl.getReceiveBufferSize()
         }
         set(newSize) {
-            tcpServerImpl.setReceiveBufferSize(newSize)
+            // The configured value is a platform hint and may be rounded by the OS.
+            impl.setReceiveBufferSize(newSize)
         }
     }
 
@@ -130,10 +132,10 @@ public class TcpServerSocket <: ServerSocket {
      */
     public mut prop bindToDevice: ?String {
         get() {
-            tcpServerImpl.bindToDevice
+            impl.bindToDevice
         }
         set(newDevice) {
-            tcpServerImpl.bindToDevice = newDevice
+            impl.bindToDevice = newDevice
         }
     }
 
@@ -144,11 +146,12 @@ public class TcpServerSocket <: ServerSocket {
      **/
     public mut prop backlogSize: Int64 {
         get() {
+            // The public type exposes backlog as Int64 while the native call stores Int32.
             Int64(backlogSize_)
         }
         set(newSize) {
-            tcpServerImpl.checkNotBound()
-            tcpServerImpl.checkNotClosed()
+            impl.checkNotBound()
+            impl.checkNotClosed()
             backlogSize_ = match {
                 case newSize <= 0 => throw IllegalArgumentException("BacklogSize should be positive: ${newSize}.")
                 case newSize >= Int64(Int32.Max) => Int32.Max - 1
@@ -163,7 +166,7 @@ public class TcpServerSocket <: ServerSocket {
      * This function also does listen just after binding creating an incoming connections queue that could be accessed via "accept()" function.
      */
     public override func bind(): Unit {
-        tcpServerImpl.bind(backlogSize_)
+        impl.bind(backlogSize_)
     }
 
     /**
@@ -185,7 +188,7 @@ public class TcpServerSocket <: ServerSocket {
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public override func accept(timeout!: ?Duration): TcpSocket {
-        let accepted = tcpServerImpl.accept(timeout) ?? SocketException.throwClosedException()
+        let accepted = impl.accept(timeout) ?? SocketException.throwClosedException()
         return TcpSocket(accepted)
     }
 
@@ -204,12 +207,13 @@ public class TcpServerSocket <: ServerSocket {
 
     /** Close this socket and release its resources. This function is reentrant. */
     public override func close(): Unit {
-        tcpServerImpl.close()
+        // Closing the listener leaves already accepted TcpSocket instances independent.
+        impl.close()
     }
 
     /** Return whether close() has already been invoked for this socket. */
     public override func isClosed(): Bool {
-        tcpServerImpl.isClosed()
+        impl.isClosed()
     }
 
     /** Read a raw TCP server socket option; valueLength is updated with the native result size. */
@@ -219,7 +223,7 @@ public class TcpServerSocket <: ServerSocket {
         value: CPointer<Unit>,
         valueLength: CPointer<UIntNative>
     ): Unit {
-        unsafe { tcpServerImpl.getSocketOption(level, option, value, valueLength) }
+        unsafe { impl.getSocketOption(level, option, value, valueLength) }
     }
 
     /** Write a raw TCP server socket option; native setsockopt failures are reported as exceptions. */
@@ -229,7 +233,7 @@ public class TcpServerSocket <: ServerSocket {
         value: CPointer<Unit>,
         valueLength: UIntNative
     ): Unit {
-        unsafe { tcpServerImpl.setSocketOption(level, option, value, valueLength) }
+        unsafe { impl.setSocketOption(level, option, value, valueLength) }
     }
 
     /** Read a TCP server socket option as IntNative, requiring the native result size to match. */
@@ -237,7 +241,7 @@ public class TcpServerSocket <: ServerSocket {
         level: Int32,
         option: Int32
     ): IntNative {
-        tcpServerImpl.getSocketOptionIntNative(level, option)
+        impl.getSocketOptionIntNative(level, option)
     }
 
     /** Write an IntNative value to a TCP server socket option. */
@@ -246,7 +250,7 @@ public class TcpServerSocket <: ServerSocket {
         option: Int32,
         value: IntNative
     ): Unit {
-        tcpServerImpl.setSocketOptionIntNative(level, option, value)
+        impl.setSocketOptionIntNative(level, option, value)
     }
 
     /** Read a TCP server socket option as Bool using IntNative zero/nonzero conversion. */
@@ -254,7 +258,8 @@ public class TcpServerSocket <: ServerSocket {
         level: Int32,
         option: Int32
     ): Bool {
-        tcpServerImpl.getSocketOptionBool(level, option)
+        // Server socket bool options are represented by native integer values.
+        impl.getSocketOptionBool(level, option)
     }
 
     /** Write a Bool value to a TCP server socket option using IntNative conversion. */
@@ -263,11 +268,11 @@ public class TcpServerSocket <: ServerSocket {
         option: Int32,
         value: Bool
     ): Unit {
-        tcpServerImpl.setSocketOptionBool(level, option, value)
+        impl.setSocketOptionBool(level, option, value)
     }
 
     public override func toString(): String {
-        "TcpServerSocket(${tcpServerImpl.toString()})"
+        "TcpServerSocket(${impl.toString()})"
     }
 
     private static func checkAddress(address: SocketAddress, name: String): SocketAddress {

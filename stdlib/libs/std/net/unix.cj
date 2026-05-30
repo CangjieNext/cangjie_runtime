@@ -219,6 +219,7 @@ public class UnixSocket <: StreamingSocket {
         option: Int32,
         value: Bool
     ): Unit {
+        // Unix stream sockets route raw option writes through the shared implementation.
         impl.setSocketOptionBool(level, option, value)
     }
 
@@ -229,6 +230,7 @@ public class UnixSocket <: StreamingSocket {
 
     /** Return whether close() has already been invoked for this socket. */
     public func isClosed(): Bool {
+        // The closed state is tracked by the platform socket wrapper.
         impl.isClosed()
     }
 
