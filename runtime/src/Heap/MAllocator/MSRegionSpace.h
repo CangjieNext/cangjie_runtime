@@ -79,8 +79,9 @@ public:
     size_t PinnedSpaceSize() const;
 
     // Scavenge-related queries (used by BackgroundScavengeLoop).
-    // heapInUse  = totalMSRegionBytes - emptySweptBytes  (live-ish memory)
-    // heapRetained = totalMSRegionBytes + hotFreeBytes    (committed RSS-cost)
+    // totalMSRegionBytes includes largeHotCache while it remains under central-pool ownership.
+    // heapInUse    = totalMSRegionBytes - emptySweptBytes - largeHotCacheBytes
+    // heapRetained = totalMSRegionBytes + hotFreeBytes
     size_t GetHeapInUseBytes() const;
     size_t GetHeapRetainedBytes() const;
     size_t GetHeapThresholdBytes() const;
@@ -89,13 +90,14 @@ public:
     bool HasEmptySweptRegions() const;
     // Step A (on-demand): flush half of emptySweptCache → FreeManager hot-free supply.
     size_t FlushHalfEmptySweptToHotFree();
+    size_t FlushAllEmptySweptToHotFree();
     // Step B: release up to quantumBytes of hot-free regions to OS. Returns bytes released.
     size_t BackgroundScavenge(size_t quantumBytes);
     // Step C: shrink committed heap end after scavenging.
     void BackgroundShrinkHeap();
     // True when heapRetained > heapThreshold (scavenge work remains).
     bool HasPendingScavengeWork() const;
-    // Trigger scavenge if heapRetained > heapThreshold * (1 + kHysteresis).
+    // Trigger scavenge when heapRetained exceeds heapThreshold.
     void MaybeNotifyScavenge();
 
     inline size_t GetTargetSize() const

@@ -268,29 +268,10 @@ void MSRegionManager::MaybeNotifyScavenge()
         return;
     }
 
-    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
     size_t totalBytes = pool->GetTotalMSRegionBytes();
     size_t hotFree = freeManager_.GetHotFreeBytes();
-    size_t largeCache = pool->GetLargeHotCacheBytes();
-    size_t heapRetained = totalBytes + hotFree + largeCache;
-
-    size_t emptySwept = space.GetEmptySweptBytes();
-    size_t releasableSupply = hotFree + emptySwept + largeCache;
-
-    // Do not wake BackgroundScavengeLoop when releasable supply is insufficient to
-    // produce a meaningful slice *after* preserving the mark-window reserve buffer.
-    // The guard is the larger of the reserve bytes and the minimum slice size.
-    {
-        size_t reserveBytes = gcStats.markWindowReserveBytes;
-        size_t wakeGuard = std::max(reserveBytes,
-                                    static_cast<size_t>(DEFAULT_MS_SCAVENGE_WAKE_BYTES));
-        if (releasableSupply <= wakeGuard) {
-            return;
-        }
-    }
-
-    static constexpr double kHysteresis = 0.1;
-    if (heapRetained <= static_cast<size_t>(static_cast<double>(threshold) * (1.0 + kHysteresis))) {
+    size_t heapRetained = totalBytes + hotFree;
+    if (heapRetained <= threshold) {
         return;
     }
 

@@ -1527,6 +1527,8 @@ void MarkSweepCollector::ConcurrentSweep()
              cycleStats_.eagerSweepBatchRegions, totalUnswept);
     }
 
+    Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().NotifyToScavenge();
+
     // Mark-Sweep: generation flip now happens at the tail of MarkTermination's
     // STW, before mutators resume. ConcurrentSweep only kicks off background
     // sweeping and reclaim after the new generation is already visible.

@@ -419,6 +419,9 @@ public:
     // Release all hot-cached entries back to MSRegionManager (called at GC start).
     void FlushLargeHotCache();
 
+    // Drain the entire large hot cache into FreeManager (releasedTree).
+    size_t FlushLargeHotCacheToFreeManager();
+
     // Lock-free approximate read of total bytes held in the large hot cache.
     size_t GetLargeHotCacheBytes() const
     {
@@ -502,11 +505,12 @@ private:
     std::atomic<size_t> activeLazySweepCount_{0};     // In-flight lazy sweep counter
     MSSweepStats sweepStats_;
 
-    // Total bytes of MS regions currently committed (GetFreshRegion +, ReleaseRegion -).
+    // Total bytes of MS regions currently tracked by the allocator.
     // This is a region-level metric, NOT object-level:
-    //   - Includes live objects, dead objects in unswept regions, and intra-region fragmentation.
-    //   - After GC ends but before sweep completes, it remains inflated.
-    //   - Only decreases when sweep reclaims regions back to MSRegionManager.
+    //   - Includes active regions, emptySwept cache, and largeHotCache.
+    //   - Excludes hotFree / releasedTree bytes after they leave central-pool ownership.
+    //   - After GC ends but before sweep completes, it remains inflated by unswept dead bytes
+    //     and intra-region fragmentation.
     // The GC trigger (MSRegionManager::TakeRegion) uses the O1 effective-allocation
     // formula to compensate for this semantic gap vs trueLiveBytes.
     std::atomic<size_t> totalMSRegionBytes_{0};
@@ -528,6 +532,9 @@ private:
         uintptr_t regionStart;
         size_t    regionBytes;
     };
+    size_t GetMaxLargeHotCacheBytes() const;
+    size_t GetMaxEmptySweptBytes() const;
+    size_t GetMaxEmptySweptRegions() const;
     std::mutex largeHotCacheLock_;
     std::atomic<size_t> largeHotCacheTotalBytes_{0};
     std::unordered_map<size_t, std::vector<LargeHotEntry>> largeHotCache_; // key = regionCount

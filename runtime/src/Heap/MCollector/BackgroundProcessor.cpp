@@ -29,7 +29,8 @@ constexpr U32 DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_ROUNDS = 4;
 constexpr uint64_t DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_US = 12000;
 constexpr size_t DEFAULT_MS_FEED_TARGET_CACHED_PER_BUFFER = 5;
 constexpr size_t DEFAULT_MS_SCAVENGE_ROUNDS = 8;
-constexpr size_t DEFAULT_MS_SCAVENGE_MIN_SLICE_BYTES = 4 * MS_REGION_SIZE;
+constexpr size_t DEFAULT_MS_SCAVENGE_AGGRESSIVE_ROUNDS = 2;
+constexpr size_t DEFAULT_MS_SCAVENGE_AGGRESSIVE_THRESHOLD_RATIO = 2;
 
 bool EqualsIgnoreCase(const char* lhs, const char* rhs)
 {
@@ -100,6 +101,60 @@ bool IsBackgroundScavengeEnabled()
         return true;
     }();
     return enabled;
+}
+
+size_t GetBackgroundScavengeRounds()
+{
+    static const size_t rounds = []() {
+        const char* env = std::getenv("CJ_MS_SCAVENGE_ROUNDS");
+        if (env == nullptr || env[0] == '\0') {
+            return DEFAULT_MS_SCAVENGE_ROUNDS;
+        }
+        if (CString::IsPosNumber(env)) {
+            size_t parsed = static_cast<size_t>(std::strtoull(env, nullptr, 10));
+            if (parsed > 0) {
+                return parsed;
+            }
+        }
+        return DEFAULT_MS_SCAVENGE_ROUNDS;
+    }();
+    return rounds;
+}
+
+size_t GetBackgroundScavengeAggressiveRounds()
+{
+    static const size_t rounds = []() {
+        const char* env = std::getenv("CJ_MS_SCAVENGE_AGGRESSIVE_ROUNDS");
+        if (env == nullptr || env[0] == '\0') {
+            return DEFAULT_MS_SCAVENGE_AGGRESSIVE_ROUNDS;
+        }
+        if (CString::IsPosNumber(env)) {
+            size_t parsed = static_cast<size_t>(std::strtoull(env, nullptr, 10));
+            if (parsed > 0) {
+                return parsed;
+            }
+        }
+        return DEFAULT_MS_SCAVENGE_AGGRESSIVE_ROUNDS;
+    }();
+    return rounds;
+}
+
+size_t GetBackgroundScavengeAggressiveRatio()
+{
+    static const size_t ratio = []() {
+        const char* env = std::getenv("CJ_MS_SCAVENGE_AGGRESSIVE_THRESHOLD_RATIO");
+        if (env == nullptr || env[0] == '\0') {
+            return DEFAULT_MS_SCAVENGE_AGGRESSIVE_THRESHOLD_RATIO;
+        }
+        if (CString::IsPosNumber(env)) {
+            size_t parsed = static_cast<size_t>(std::strtoull(env, nullptr, 10));
+            if (parsed > 0) {
+                return parsed;
+            }
+        }
+        return DEFAULT_MS_SCAVENGE_AGGRESSIVE_THRESHOLD_RATIO;
+    }();
+    return ratio;
 }
 }
 
@@ -432,6 +487,8 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     CentralRegionPool* pool = space.GetCentralPool();            // for large hot cache ops
     size_t retained = space.GetHeapRetainedBytes();
     size_t threshold = space.GetHeapThresholdBytes();
+    size_t aggressiveRatio = GetBackgroundScavengeAggressiveRatio();
+    bool aggressive = threshold != 0 && retained > threshold * aggressiveRatio;
 
     if (threshold == 0 || retained <= threshold) {
         shouldScavengeHeap_.store(false, std::memory_order_release);
@@ -452,7 +509,6 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     size_t targetBytes = retained - threshold;
     size_t sliceTargetBytes = targetBytes;
     uint64_t t0 = TimeUtil::MicroSeconds();
-    size_t refilledHotFree = 0;
     size_t released = 0;
 
     // Step A (on-demand): if hot-free supply is below the current target and
@@ -460,7 +516,11 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     if (space.HasEmptySweptRegions()) {
         size_t hotFree = space.GetHotFreeBytes();
         if (hotFree < targetBytes) {
-            refilledHotFree = space.FlushHalfEmptySweptToHotFree();
+            if (aggressive) {
+                (void)space.FlushAllEmptySweptToHotFree();
+            } else {
+                (void)space.FlushHalfEmptySweptToHotFree();
+            }
         }
     }
 
@@ -470,7 +530,11 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     if (pool != nullptr && pool->HasLargeFreeCache()) {
         size_t hotFree = space.GetHotFreeBytes();
         if (hotFree < targetBytes) {
-            refilledHotFree += pool->FlushHalfLargeFreeCacheToFreeManager();
+            if (aggressive) {
+                (void)pool->FlushLargeHotCacheToFreeManager();
+            } else {
+                (void)pool->FlushHalfLargeFreeCacheToFreeManager();
+            }
         }
     }
 
@@ -481,30 +545,13 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     // Snapshot large cache residual after Step A2 (any flushed bytes are now in releasedTree).
     size_t largeResidualBytes = (pool != nullptr) ? pool->GetLargeHotCacheBytes() : 0;
 
-    // Guard: abort this slice if the total free buffer (hotFree + emptySwept + large cache)
-    // does not exceed the larger of (a) the mark-window reserve and (b) the minimum slice.
-    // emptySwept and large cache count toward the reserve.
-    {
-        const GCStats& gcStats = Heap::GetHeap().GetCollector().GetGCStats();
-        size_t reserveBytes = gcStats.markWindowReserveBytes;
-        size_t scavengeGuard = std::max(reserveBytes,
-                                        static_cast<size_t>(DEFAULT_MS_SCAVENGE_MIN_SLICE_BYTES));
-        size_t totalFreeAfterFlush = hotFreeAfterFlush + emptySweptAfterFlush + largeResidualBytes;
-        if (totalFreeAfterFlush <= scavengeGuard) {
-            if (pendingScavengeStats_.HasWork()) {
-                pendingScavengeStats_.Reset();
-            }
-            shouldScavengeHeap_.store(false, std::memory_order_release);
-            return false;
-        }
-    }
-
     // Step B: release at most one round of the target.
     // Reserve is satisfied first by emptySwept + large cache residual (pages already
     // managed or staged for release).  Only if that combined reserve < reserveBytes
     // is the shortfall carved from hotFree.
+    size_t scavengeRounds = aggressive ? GetBackgroundScavengeAggressiveRounds() : GetBackgroundScavengeRounds();
     size_t roundTarget = std::max(
-        (sliceTargetBytes + DEFAULT_MS_SCAVENGE_ROUNDS - 1) / DEFAULT_MS_SCAVENGE_ROUNDS,
+        (sliceTargetBytes + scavengeRounds - 1) / scavengeRounds,
         static_cast<size_t>(MS_REGION_SIZE));
     {
         const GCStats& gcStats2 = Heap::GetHeap().GetCollector().GetGCStats();

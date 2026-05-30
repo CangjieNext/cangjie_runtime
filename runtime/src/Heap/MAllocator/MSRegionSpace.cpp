@@ -259,6 +259,14 @@ size_t RegionSpaceMS::FlushHalfEmptySweptToHotFree()
     return msCentralPool_->ReclaimEmptyRegion(targetRegions);
 }
 
+size_t RegionSpaceMS::FlushAllEmptySweptToHotFree()
+{
+    if (msCentralPool_ == nullptr) {
+        return 0;
+    }
+    return msCentralPool_->ReclaimEmptyRegion(std::numeric_limits<size_t>::max());
+}
+
 size_t RegionSpaceMS::BackgroundScavenge(size_t quantumBytes)
 {
     if (msRegionManager_ == nullptr) {
