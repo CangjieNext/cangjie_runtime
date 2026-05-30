@@ -106,6 +106,7 @@ public class UnixDatagramSocket <: DatagramSocket {
 
     /** Close this socket and release its resources. This function is reentrant. */
     public override func close(): Unit {
+        // Datagram close releases any local Unix socket path binding held by the descriptor.
         impl.close()
     }
 

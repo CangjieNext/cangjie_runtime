@@ -109,6 +109,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
      */
     public override mut prop readTimeout: ?Duration {
         get() {
+            // Read timeout is stored in the shared socket implementation.
             impl.readTimeout
         }
         set(timeout) {
@@ -126,6 +127,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
      */
     public override mut prop writeTimeout: ?Duration {
         get() {
+            // TCP write operations share timeout storage with the socket implementation.
             impl.writeTimeout
         }
         set(timeout) {
@@ -256,6 +258,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
             impl.getSendBufferSize()
         }
         set(newSize) {
+            // TCP client sockets apply this hint before or after connect depending on platform support.
             impl.setSendBufferSize(newSize)
         }
     }
@@ -382,6 +385,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
         option: Int32,
         value: Bool
     ): Unit {
+        // Bool options use the same native conversion path as typed socket options.
         impl.setSocketOptionBool(level, option, value)
     }
 

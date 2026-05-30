@@ -200,6 +200,7 @@ class IPv6Prefix <: IPPrefix & Equatable<IPv6Prefix> & Hashable & ToString {
         _prefixLength = prefixLength
     }
 
+    // IPv6 keeps the stored address widened through the shared IPPrefix interface.
     public prop address: IPAddress {
         get() {
             return _ip

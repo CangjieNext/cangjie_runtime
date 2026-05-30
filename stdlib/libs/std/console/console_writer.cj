@@ -48,12 +48,14 @@ public class ConsoleWriter <: OutputStream {
 
     public func write(buffer: Array<Byte>): Unit {
         synchronized(mutex) {
+            // ConsoleWriter keeps byte-array writes serialized on the legacy fd.
             directWrite(buffer, buffer.size)
         }
     }
 
     public func writeln(buffer: Array<Byte>): Unit {
         synchronized(mutex) {
+            // writeln appends the newline in the chunked native write path.
             directWrite(buffer, buffer.size, newline: true)
         }
     }
@@ -62,6 +64,7 @@ public class ConsoleWriter <: OutputStream {
         if (v.isEmpty()) {
             return
         }
+        // Deprecated console writer still forwards UTF-8 bytes directly.
         write(unsafe { v.rawData() })
     }
 
@@ -122,6 +125,7 @@ public class ConsoleWriter <: OutputStream {
     }
 
     public func writeln(v: String): Unit {
+        // Line-oriented string output delegates to the byte-array overload.
         writeln(unsafe { v.rawData() })
     }
 

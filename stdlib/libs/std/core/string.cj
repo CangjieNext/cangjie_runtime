@@ -880,6 +880,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         }
         // Padding length is based on the UTF-8 byte count stored by String.
         let runeLen = padding.size
+        // Empty padding cannot advance the prefix fill loop.
         if (runeLen == 0) {
             throw IllegalArgumentException("Padding string cannot be empty.")
         }
@@ -892,6 +893,7 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             throw IllegalArgumentException("The size of String is too large.")
         }
 
+        // padStart reserves the whole result before writing padding and source bytes.
         // Build the prefix padding before appending the receiver bytes.
         var itemBytes: Array<UInt8> = Array<UInt8>(totalBytes, repeat: 0)
         var k: Int64 = 0

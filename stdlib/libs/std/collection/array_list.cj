@@ -1615,7 +1615,7 @@ extend<T> Array<T> {
             return
         }
 
-        // init scratch storage
+        // init scratch data
         let mrl = this.getMinRunLength()
         var scratch = TempArray(this.size, this[0])
         let stackLen = Int64(log2(Float64(this.size) / Float64(mrl) + 2.0)) + 1
@@ -2143,17 +2143,17 @@ extend<T> Array<T> {
         let span = finish - start + 1
         var idx = (span >> 1) - 1
 
-            // build limit or min heap
+        // build max or min heap
         while (idx >= 0) {
             this.heapify(start, finish, idx, compare)
             idx--
         }
         idx = finish
         while (idx > start) {
-            // swap top and bottom storage
+            // swap top and bottom data
             this.swap(start, idx)
 
-            // reset limit or min heap
+            // reset max or min heap
             this.heapify(start, idx - 1, 0, compare)
             idx--
         }

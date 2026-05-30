@@ -441,6 +441,7 @@ extend<T> Array<T> {
         return runSize + upperBound
     }
 
+    // Introsort uses this bound to decide when to fall back to heap sort.
     @OverflowWrapping
     func depth(): Int64 {
         var x: Int64 = this.size

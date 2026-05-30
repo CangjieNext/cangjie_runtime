@@ -43,6 +43,8 @@ const defaultCapacity: Int64 = 32
 public class ConsoleReader <: InputStream {
     private static let MUTEX: Mutex = Mutex()
     private var buffer: Array<Byte> = Array<Byte>(defaultCapacity, repeat: 0) /* stdin read buffer */
+
+    // The deprecated reader keeps separate indices for buffered stdin bytes.
     private var endIndex: Int64 = 0
     private var startIndex: Int64 = 0
     init() {}

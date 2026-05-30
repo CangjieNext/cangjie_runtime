@@ -106,6 +106,7 @@ public class TcpServerSocket <: ServerSocket {
     /** SO_SNDBUF hint for outgoing data; throws IllegalArgumentException for non-positive sizes. */
     public mut prop sendBufferSize: Int64 {
         get() {
+            // Server sockets expose the accepted sockets' outgoing buffer hint through the listening descriptor.
             impl.getSendBufferSize()
         }
         set(newSize) {
@@ -119,6 +120,7 @@ public class TcpServerSocket <: ServerSocket {
             impl.getReceiveBufferSize()
         }
         set(newSize) {
+            // The configured value is a platform hint and may be rounded by the OS.
             impl.setReceiveBufferSize(newSize)
         }
     }
@@ -144,6 +146,7 @@ public class TcpServerSocket <: ServerSocket {
      **/
     public mut prop backlogSize: Int64 {
         get() {
+            // The public type exposes backlog as Int64 while the native call stores Int32.
             Int64(backlogSize_)
         }
         set(newSize) {
@@ -204,6 +207,7 @@ public class TcpServerSocket <: ServerSocket {
 
     /** Close this socket and release its resources. This function is reentrant. */
     public override func close(): Unit {
+        // Closing the listener leaves already accepted TcpSocket instances independent.
         impl.close()
     }
 
@@ -254,6 +258,7 @@ public class TcpServerSocket <: ServerSocket {
         level: Int32,
         option: Int32
     ): Bool {
+        // Server socket bool options are represented by native integer values.
         impl.getSocketOptionBool(level, option)
     }
 
