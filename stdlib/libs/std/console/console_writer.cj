@@ -21,14 +21,6 @@ foreign func CJ_CONSOLE_Write(fd: Int32, c: CPointer<UInt8>, len: Int64, newLine
 
 foreign func CJ_CONSOLE_Flush(fd: Int32): Unit
 
-private func consoleBoolToString(v: Bool): String {
-    if (v) {
-        "true"
-    } else {
-        "false"
-    }
-}
-
 @Deprecated[message: "This class migrate to the std.env."]
 public class ConsoleWriter <: OutputStream {
     private let mutex: ReentrantMutex = ReentrantMutex()
@@ -88,7 +80,7 @@ public class ConsoleWriter <: OutputStream {
     }
 
     public func write(v: Bool): Unit {
-        write(consoleBoolToString(v))
+        write(v.toString())
     }
 
     public func write(v: Int8): Unit {
@@ -148,7 +140,7 @@ public class ConsoleWriter <: OutputStream {
     }
 
     public func writeln(v: Bool): Unit {
-        writeln(consoleBoolToString(v))
+        writeln(v.toString())
     }
 
     public func writeln(v: Int8): Unit {
