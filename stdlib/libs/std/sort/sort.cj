@@ -53,8 +53,7 @@ public func sort<T>(data: Array<T>, stable!: Bool = false, descending!: Bool = f
 public func sort<T>(data: Array<T>, by!: (T, T) -> Ordering, stable!: Bool = false, descending!: Bool = false): Unit {
     var comparator = by
     if (descending) {
-        comparator = {
-            l: T, r: T => match (by(l, r)) {
+        comparator = {l: T, r: T => match (by(l, r)) {
                 case GT => LT
                 case LT => GT
                 case _ => EQ

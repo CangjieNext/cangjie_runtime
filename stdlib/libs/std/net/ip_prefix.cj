@@ -125,15 +125,15 @@ class IPv4Prefix <: IPPrefix & Equatable<IPv4Prefix> & Hashable & ToString {
         _prefixLength = prefixLength
     }
 
-    public prop prefixLength: UInt8 {
-        get() {
-            _prefixLength
-        }
-    }
-
     public prop address: IPAddress {
         get() {
             return _ip
+        }
+    }
+
+    public prop prefixLength: UInt8 {
+        get() {
+            _prefixLength
         }
     }
     public func contains(rhs: IPv4Address): Bool {

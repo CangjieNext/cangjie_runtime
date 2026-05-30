@@ -47,17 +47,15 @@ public class ConsoleWriter <: OutputStream {
     }
 
     public func write(buffer: Array<Byte>): Unit {
-        writeBytes(buffer, newline: false)
-    }
-
-    private func writeBytes(buffer: Array<Byte>, newline!: Bool): Unit {
         synchronized(mutex) {
-            directWrite(buffer, buffer.size, newline: newline)
+            directWrite(buffer, buffer.size)
         }
     }
 
     public func writeln(buffer: Array<Byte>): Unit {
-        writeBytes(buffer, newline: true)
+        synchronized(mutex) {
+            directWrite(buffer, buffer.size, newline: true)
+        }
     }
 
     public func write(v: String): Unit {
@@ -193,15 +191,6 @@ public class ConsoleWriter <: OutputStream {
         }
     }
 
-    private func directWriteFormatted(writePos: Int64, newline: Bool): Unit {
-        var end = writePos
-        if (newline) {
-            this.buffer_[end] = b'\n'
-            end++
-        }
-        directWrite(this.buffer_, end)
-    }
-
     private func writeSigned(v: Int64, newline!: Bool): Unit {
         synchronized(mutex) {
             var writePos: Int64
@@ -210,7 +199,11 @@ public class ConsoleWriter <: OutputStream {
                 writePos = CJ_BUFFER_Int64ToCPointer(v, cp.pointer, this.bufferSize)
                 releaseArrayRawData(cp)
             }
-            directWriteFormatted(writePos, newline)
+            if (newline) {
+                this.buffer_[writePos] = b'\n'
+                writePos++
+            }
+            directWrite(this.buffer_, writePos)
         }
     }
 
@@ -222,7 +215,11 @@ public class ConsoleWriter <: OutputStream {
                 writePos = CJ_BUFFER_UInt64ToCPointer(v, cp.pointer, this.bufferSize)
                 releaseArrayRawData(cp)
             }
-            directWriteFormatted(writePos, newline)
+            if (newline) {
+                this.buffer_[writePos] = b'\n'
+                writePos++
+            }
+            directWrite(this.buffer_, writePos)
         }
     }
 
@@ -234,7 +231,11 @@ public class ConsoleWriter <: OutputStream {
                 writePos = CJ_BUFFER_Float64ToCPointer(v, cp.pointer, this.bufferSize)
                 releaseArrayRawData(cp)
             }
-            directWriteFormatted(writePos, newline)
+            if (newline) {
+                this.buffer_[writePos] = b'\n'
+                writePos++
+            }
+            directWrite(this.buffer_, writePos)
         }
     }
 

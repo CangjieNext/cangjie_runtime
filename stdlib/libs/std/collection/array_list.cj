@@ -1179,11 +1179,11 @@ func max(a: Int64, b: Int64): Int64 {
 }
 
 // Temporary code, deleted when @Deprecated ends
-func stableSort<T>(storage: Array<T>, compare: (T, T) -> Ordering): Unit {
-    if (storage.size < 2) {
+func stableSort<T>(data: Array<T>, compare: (T, T) -> Ordering): Unit {
+    if (data.size < 2) {
         return
     }
-    storage.timSort(compare)
+    data.timSort(compare)
 }
 // Temporary code, deleted when @Deprecated ends
 extend<T> Array<T> {
@@ -1650,39 +1650,39 @@ extend<T> Array<T> {
 }
 // Temporary code, deleted when @Deprecated ends
 class TempArray<T> {
-    private var storage: Array<T>
-    private let initialValue: T
-    private let limit: Int64
+    private var data: Array<T>
+    private let zero: T
+    private let max: Int64
 
     init(runLength: Int64, z: T) {
-        this.storage = Array<T>()
-        this.limit = runLength >> 1
-        this.initialValue = z
+        this.data = Array<T>()
+        this.max = runLength >> 1
+        this.zero = z
     }
 
     @OverflowWrapping
     func getArray(runLength: Int64): Array<T> {
-        if (storage.size >= runLength) {
-            return this.storage
+        if (data.size >= runLength) {
+            return this.data
         }
-        var expandedSize = storage.size * 2
+        var expandedSize = data.size * 2
         if (expandedSize < runLength) {
             expandedSize = runLength
         }
-        if (expandedSize > this.limit) {
-            expandedSize = this.limit
+        if (expandedSize > this.max) {
+            expandedSize = this.max
         }
-        this.storage = Array<T>(expandedSize, repeat: this.initialValue)
-        return this.storage
+        this.data = Array<T>(expandedSize, repeat: this.zero)
+        return this.data
     }
 }
 
 // Temporary code, deleted when @Deprecated ends
-func unstableSort<T>(storage: Array<T>, compare: (T, T) -> Ordering): Unit {
-    if (storage.size < 2) {
+func unstableSort<T>(data: Array<T>, compare: (T, T) -> Ordering): Unit {
+    if (data.size < 2) {
         return
     }
-    storage.introSort(0, storage.size - 1, storage.depth(), compare)
+    data.introSort(0, data.size - 1, data.depth(), compare)
 }
 
 // Temporary code, deleted when @Deprecated ends
@@ -2143,7 +2143,7 @@ extend<T> Array<T> {
         let span = finish - start + 1
         var idx = (span >> 1) - 1
 
-        // build limit or min heap
+            // build limit or min heap
         while (idx >= 0) {
             this.heapify(start, finish, idx, compare)
             idx--
