@@ -231,8 +231,8 @@ extend<T> Array<T> where T <: Comparable<T> {
 }
 
 extend<T> Array<T> {
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
-    // end - begin >= 1
+    // the element range of the parameter: 0 <= from < to <= array.size - 1
+    // to - from >= 1
     @OverflowWrapping
     private func getPartition(from: Int64, to: Int64, order: (T, T) -> Ordering): (Int64, Int64) {
         let width: Int64 = to - from + 1
@@ -245,6 +245,7 @@ extend<T> Array<T> {
         this.compareSwap3(from, center, to, order)
         let selectedPivot: T = this[center]
 
+        // swap center and to
         let workspace = this[to]
         this[to] = selectedPivot
         this[center] = workspace
@@ -252,6 +253,7 @@ extend<T> Array<T> {
         var lo = from
         var hi = to - 1
 
+        // query the firstSame element equal to selectedPivot
         var firstSame: Int64 = lo
         while (lo < hi) {
             let frontValue = this[lo]
@@ -291,6 +293,7 @@ extend<T> Array<T> {
             }
         }
 
+        // find partition selectedPivot
         while (lo < hi) {
             var frontValue: T = selectedPivot
             while (lo < hi) {
@@ -331,6 +334,8 @@ extend<T> Array<T> {
         if (lo - firstSame >= samePivotCount * samePivotCount) {
             return (lo - 1, lo + 1)
         } else {
+            // When the number of traversal times is less than the square of the number of selectedPivot
+            // merge firstItem large number of values that are the same as selectedPivot
             let highPart = lo
             lo = firstSame
             hi = highPart - 1
@@ -367,7 +372,7 @@ extend<T> Array<T> {
         }
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the element range of the parameter: 0 <= from < to <= array.size - 1
     @OverflowWrapping
     func introSort(from: Int64, to: Int64, depth: Int64, order: (T, T) -> Ordering): Unit {
         var lo: Int64 = from
@@ -394,6 +399,8 @@ extend<T> Array<T> {
             depthLeft--
             let (lowPart, highPart) = this.getPartition(lo, hi, order)
 
+            // Let the smaller side do recursion
+            // Let the bigger side do loop
             if (lowPart - lo < hi - highPart) {
                 this.introSort(lo, lowPart, depthLeft, order)
                 lo = highPart

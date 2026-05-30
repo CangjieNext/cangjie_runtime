@@ -48,12 +48,14 @@ public class ConsoleWriter <: OutputStream {
 
     public func write(buffer: Array<Byte>): Unit {
         synchronized(mutex) {
+            // ConsoleWriter keeps byte-array writes serialized on the legacy fd.
             directWrite(buffer, buffer.size)
         }
     }
 
     public func writeln(buffer: Array<Byte>): Unit {
         synchronized(mutex) {
+            // writeln appends the newline in the chunked native write path.
             directWrite(buffer, buffer.size, newline: true)
         }
     }
@@ -62,6 +64,7 @@ public class ConsoleWriter <: OutputStream {
         if (v.isEmpty()) {
             return
         }
+        // Deprecated console writer still forwards UTF-8 bytes directly.
         write(unsafe { v.rawData() })
     }
 
@@ -122,6 +125,7 @@ public class ConsoleWriter <: OutputStream {
     }
 
     public func writeln(v: String): Unit {
+        // Line-oriented string output delegates to the byte-array overload.
         writeln(unsafe { v.rawData() })
     }
 
@@ -239,17 +243,7 @@ public class ConsoleWriter <: OutputStream {
         }
     }
 
-    /**
-     * Write buffer data into stdOut.
-     *
-     * @param arr write Array.
-     * @param off The write data is placed into b from the index.
-     * @param cnt write cnt bytes.
-     *
-     * @return Int64
-     *
-     * @since 0.24.1
-     */
+    // Writes raw bytes to the console fd in Int32-sized chunks.
     private func directWrite(arr: Array<UInt8>, cnt: Int64, newline!: Bool = false): Int64 {
         unsafe {
             var pos: Int64 = 0

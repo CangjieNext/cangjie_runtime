@@ -9,7 +9,7 @@
 /**
  * @file
  *
- * This is a class for ConsoleWriter.
+ * This file provides the environment console writer implementation.
  */
 
 package std.env

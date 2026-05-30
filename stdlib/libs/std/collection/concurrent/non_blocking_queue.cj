@@ -123,14 +123,14 @@ class Block<E> {
         while (true) {
             let index = reserved.load()
 
-            // all of the entries in the buffer have been consumed.
+            // The reader has already moved beyond the committed part of this block.
             if (index >= BUF_SIZE) {
                 return BlockDone
             }
 
             let currentCommitted = committed.load()
             if (currentCommitted != BUF_SIZE) {
-                // Retry: existing unfinished senders in this block.
+                // Wait until in-flight writers either commit or move the block forward.
                 if (currentCommitted != allocated.load()) {
                     continue
                 }
