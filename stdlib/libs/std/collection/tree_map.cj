@@ -296,27 +296,27 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
      */
     @When[env != "ohos"]
     public func mapValues<R>(transform: (V) -> R): TreeMap<K, R> {
-        let curNode: Node<K, V> = this.root
-        var deque = ArrayDeque<Node<K, V>>()
-        deque.addLast(curNode)
-        var arr: Array<(K, R)> = unsafe { Array<(K, R)>(this.size, repeat: zeroValue<(K, R)>()) }
-        var index = 0
-        while (!deque.isEmpty()) {
-            var node = deque.removeFirst().getOrThrow()
-            for (i in 0..node.entries.size) {
-                var key = node.entries[i].key
-                var value = node.entries[i].value
-                arr[index] = (key, transform(value))
-                index++
+        let startNode: Node<K, V> = this.root
+        var nodes = ArrayDeque<Node<K, V>>()
+        nodes.addLast(startNode)
+        var resultPairs: Array<(K, R)> = unsafe { Array<(K, R)>(this.size, repeat: zeroValue<(K, R)>()) }
+        var position = 0
+        while (!nodes.isEmpty()) {
+            var current = nodes.removeFirst().getOrThrow()
+            for (i in 0..current.entries.size) {
+                var entryKey = current.entries[i].key
+                var entryValue = current.entries[i].value
+                resultPairs[position] = (entryKey, transform(entryValue))
+                position++
             }
-            if (!node.isLeaf()) {
-                var childs = node.children
-                for (i in 0..childs.size) {
-                    deque.addLast(childs[i])
+            if (!current.isLeaf()) {
+                var childNodes = current.children
+                for (i in 0..childNodes.size) {
+                    nodes.addLast(childNodes[i])
                 }
             }
         }
-        return TreeMap<K, R>(arr.slice(0, index))
+        return TreeMap<K, R>(resultPairs.slice(0, position))
     }
 
     /**
@@ -416,22 +416,22 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
      */
     @When[env != "ohos"]
     public func any(predicate: (K, V) -> Bool): Bool {
-        let curNode: Node<K, V> = this.root
-        var deque = ArrayDeque<Node<K, V>>()
-        deque.addLast(curNode)
-        while (!deque.isEmpty()) {
-            var node = deque.removeFirst().getOrThrow()
-            for (i in 0..node.entries.size) {
-                var key = node.entries[i].key
-                var value = node.entries[i].value
-                if (predicate(key, value)) {
+        let startNode: Node<K, V> = this.root
+        var nodes = ArrayDeque<Node<K, V>>()
+        nodes.addLast(startNode)
+        while (!nodes.isEmpty()) {
+            var current = nodes.removeFirst().getOrThrow()
+            for (i in 0..current.entries.size) {
+                var entryKey = current.entries[i].key
+                var entryValue = current.entries[i].value
+                if (predicate(entryKey, entryValue)) {
                     return true
                 }
             }
-            if (!node.isLeaf()) {
-                var childs = node.children
-                for (i in 0..childs.size) {
-                    deque.addLast(childs[i])
+            if (!current.isLeaf()) {
+                var childNodes = current.children
+                for (i in 0..childNodes.size) {
+                    nodes.addLast(childNodes[i])
                 }
             }
         }
@@ -446,22 +446,22 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
      */
     @When[env != "ohos"]
     public func none(predicate: (K, V) -> Bool): Bool {
-        let curNode: Node<K, V> = this.root
-        var deque = ArrayDeque<Node<K, V>>()
-        deque.addLast(curNode)
-        while (!deque.isEmpty()) {
-            var node = deque.removeFirst().getOrThrow()
-            for (i in 0..node.entries.size) {
-                var key = node.entries[i].key
-                var value = node.entries[i].value
-                if (predicate(key, value)) {
+        let rootNode: Node<K, V> = this.root
+        var pendingNodes = ArrayDeque<Node<K, V>>()
+        pendingNodes.addLast(rootNode)
+        while (!pendingNodes.isEmpty()) {
+            var visitedNode = pendingNodes.removeFirst().getOrThrow()
+            for (i in 0..visitedNode.entries.size) {
+                var currentKey = visitedNode.entries[i].key
+                var currentValue = visitedNode.entries[i].value
+                if (predicate(currentKey, currentValue)) {
                     return false
                 }
             }
-            if (!node.isLeaf()) {
-                var childs = node.children
-                for (i in 0..childs.size) {
-                    deque.addLast(childs[i])
+            if (!visitedNode.isLeaf()) {
+                var children = visitedNode.children
+                for (i in 0..children.size) {
+                    pendingNodes.addLast(children[i])
                 }
             }
         }
@@ -478,20 +478,20 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
     @When[env != "ohos"]
     public func fold<R>(initial: R, operation: (R, K, V) -> R): R {
         var result = initial
-        let curNode: Node<K, V> = this.root
-        var deque = ArrayDeque<Node<K, V>>()
-        deque.addLast(curNode)
-        while (!deque.isEmpty()) {
-            var node = deque.removeFirst().getOrThrow()
-            for (i in 0..node.entries.size) {
-                var key = node.entries[i].key
-                var value = node.entries[i].value
-                result = operation(result, key, value)
+        let firstNode: Node<K, V> = this.root
+        var pending = ArrayDeque<Node<K, V>>()
+        pending.addLast(firstNode)
+        while (!pending.isEmpty()) {
+            var currentNode = pending.removeFirst().getOrThrow()
+            for (i in 0..currentNode.entries.size) {
+                var entryKey = currentNode.entries[i].key
+                var entryValue = currentNode.entries[i].value
+                result = operation(result, entryKey, entryValue)
             }
-            if (!node.isLeaf()) {
-                var childs = node.children
-                for (i in 0..childs.size) {
-                    deque.addLast(childs[i])
+            if (!currentNode.isLeaf()) {
+                var nextNodes = currentNode.children
+                for (i in 0..nextNodes.size) {
+                    pending.addLast(nextNodes[i])
                 }
             }
         }
@@ -675,8 +675,8 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
             let sr: SearchResult<K, V> = getLastEntry()
             match (sr.replaceNode) {
                 case Some(v) =>
-                    let item = v.getEntry(sr.index).getOrThrow()
-                    return (item.key, item.value)
+                    let entry = v.getEntry(sr.index).getOrThrow()
+                    return (entry.key, entry.value)
                 case None => None
             }
         }
@@ -853,13 +853,13 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
                 var childNode: Node<K, V> = node.getChild(sr.index).getOrThrow()
                 if (childNode.entrySize == MAX_ENTRY_SIZE) {
                     splitNode(node, childNode, sr.index)
-                    match(node.searchEntry(entry.key).replaceNode){
+                    match (node.searchEntry(entry.key).replaceNode) {
                         case Some(node) =>
                             let tmp = node.getEntry(sr.index).getOrThrow()
                             let oldValue = tmp.value
                             tmp.value = entry.value
                             return oldValue
-                         case None => ()
+                        case None => ()
                     }
                     if (entry.key > node.getEntry(sr.index).getOrThrow().key) {
                         childNode = node.getChild(sr.index + 1).getOrThrow()
@@ -1386,7 +1386,7 @@ class TreeMapKeys<K, V> <: EquatableCollection<K> where K <: Comparable<K> {
      */
     public prop size: Int64 {
         get() {
-            return this.map.size
+            this.map.size
         }
     }
 

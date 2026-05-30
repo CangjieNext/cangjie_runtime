@@ -62,7 +62,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
             if (address.family != localAddress.family) {
                 throw IllegalArgumentException(
                     "remote address kind (${address.family}) should have the same address " +
-                    " family as local (${localAddress.family})")
+                        " family as local (${localAddress.family})")
             }
         }
         throwIfIPv4ZeroOnWindows(address)
@@ -268,13 +268,10 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
      */
     public mut prop sendBufferSize: Int64 {
         get() {
-            Int64(impl.getSocketOptionIntNative(SOL_SOCKET, SOCK_SNDBUF))
+            impl.getSendBufferSize()
         }
         set(newSize) {
-            if (newSize <= 0) {
-                throw IllegalArgumentException("Buffer size should be positive, got ${newSize}.")
-            }
-            impl.setSocketOptionIntNative(SOL_SOCKET, SOCK_SNDBUF, IntNative(newSize))
+            impl.setSendBufferSize(newSize)
         }
     }
 
@@ -292,13 +289,10 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
      */
     public mut prop receiveBufferSize: Int64 {
         get() {
-            Int64(impl.getSocketOptionIntNative(SOL_SOCKET, SOCK_RCVBUF))
+            impl.getReceiveBufferSize()
         }
         set(newSize) {
-            if (newSize <= 0) {
-                throw IllegalArgumentException("Buffer size should be positive, got ${newSize}.")
-            }
-            impl.setSocketOptionIntNative(SOL_SOCKET, SOCK_RCVBUF, IntNative(newSize))
+            impl.setReceiveBufferSize(newSize)
         }
     }
 
