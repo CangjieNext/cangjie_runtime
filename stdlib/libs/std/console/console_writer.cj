@@ -41,10 +41,6 @@ public class ConsoleWriter <: OutputStream {
     }
 
     public func flush(): Unit {
-        flushWriter()
-    }
-
-    private func flushWriter(): Unit {
         synchronized(mutex) {
             unsafe { CJ_CONSOLE_Flush(this.fd_) }
         }
@@ -65,10 +61,6 @@ public class ConsoleWriter <: OutputStream {
     }
 
     public func write(v: String): Unit {
-        writeString(v)
-    }
-
-    private func writeString(v: String): Unit {
         if (v.isEmpty()) {
             return
         }
