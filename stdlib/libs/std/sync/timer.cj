@@ -175,12 +175,12 @@ public class Timer <: Equatable<Timer> & Hashable {
             throw IllegalArgumentException("Interval cannot be less than or equal to Duration.Zero.")
         }
 
-        let innerTick = match (style) {
+        let timesTick = match (style) {
             case Delay => delayStyleTick(interval)
             case Burst => burstStyleTick(delay, interval)
             case Skip => skipStyleTick(delay, interval)
         }
-        let nextTick = tickTimes(count, innerTick)
+        let nextTick = tickTimes(count, timesTick)
 
         Timer(delay) {
             task()
@@ -269,21 +269,21 @@ func burstStyleTick(delay: Duration, interval: Duration): () -> ?Duration {
 
     return {
         =>
-        let now = MonoTime.now()
+            let now = MonoTime.now()
 
         // calculate the next tick time
-        let nextTime = lastTime.value + interval
+            let nextTime = lastTime.value + interval
 
         // `nextTime - now` is the next interval
-        if (nextTime >= now) {
-            lastTime.value = nextTime
-            return nextTime - now
-        }
+            if (nextTime >= now) {
+                lastTime.value = nextTime
+                return nextTime - now
+            }
 
         // catchup step by step
-        lastTime.value = nextTime
+            lastTime.value = nextTime
         // tick immediately
-        return Duration.Zero
+            return Duration.Zero
     }
 }
 
@@ -295,10 +295,9 @@ func burstStyleTick(delay: Duration, interval: Duration): () -> ?Duration {
  * Tick Time: |  delay  | task ---| very very long task | task -| task ---| task ---| task ---|
  */
 func skipStyleTick(delay: Duration, interval: Duration): () -> ?Duration {
-    // the `lastTime' should be at `delay`
-    let lastTime: Box<MonoTime>
+    let previousTick: Box<MonoTime>
     try {
-        lastTime = Box<MonoTime>(MonoTime.now() + delay)
+        previousTick = Box<MonoTime>(MonoTime.now() + delay)
     } catch (e: ArithmeticException) {
         // delay is too large, timer will never tick
         return {=> None}
@@ -306,25 +305,22 @@ func skipStyleTick(delay: Duration, interval: Duration): () -> ?Duration {
 
     return {
         =>
-        let now = MonoTime.now()
+            let currentTime = MonoTime.now()
 
-        // calculate the next tick time
-        var nextTime = lastTime.value + interval
+            var scheduledTick = previousTick.value + interval
 
-        // `nextTime - now` is the next interval
-        if (nextTime >= now) {
-            lastTime.value = nextTime
-            return nextTime - now
-        }
+            if (scheduledTick >= currentTime) {
+                previousTick.value = scheduledTick
+                return scheduledTick - currentTime
+            }
 
-        // skip missed ticks
-        while (nextTime < now) {
-            nextTime += interval
-        }
-        lastTime.value = nextTime - interval
+            while (scheduledTick < currentTime) {
+                scheduledTick += interval
+            }
+            previousTick.value = scheduledTick - interval
 
         // tick immediately
-        return Duration.Zero
+            return Duration.Zero
     }
 }
 
@@ -346,19 +342,19 @@ func tickDuring(delay: Duration, period: Duration, nextTick: () -> ?Duration): (
 
     return {
         =>
-        let now = MonoTime.now()
+            let now = MonoTime.now()
         // last tick time <= finalTime
-        if (now > finalTime) {
-            return None
-        }
-
-        if (let Some(interval) <- nextTick()) {
-            if (now + interval > finalTime) {
+            if (now > finalTime) {
                 return None
             }
-            return interval
-        }
-        return None
+
+            if (let Some(interval) <- nextTick()) {
+                if (now + interval > finalTime) {
+                    return None
+                }
+                return interval
+            }
+            return None
     }
 }
 
@@ -366,11 +362,11 @@ func tickTimes(count: Int64, nextTick: () -> ?Duration): () -> ?Duration {
     let cnt = Box<Int64>(1)
     return {
         =>
-        if (cnt.value >= count) {
-            return None
-        }
-        cnt.value++
-        nextTick()
+            if (cnt.value >= count) {
+                return None
+            }
+            cnt.value++
+            nextTick()
     }
 }
 
@@ -641,24 +637,24 @@ class TimerBlock {
 
     func front(): PopResult {
         while (true) {
-            let index = reserved.load()
+            let peekIndex = reserved.load()
 
-            if (index >= TIMER_BLOCK_BUFFER_SIZE) {
+            if (peekIndex >= TIMER_BLOCK_BUFFER_SIZE) {
                 return BlockDone
             }
 
-            let currentCommitted = committed.load()
-            if (currentCommitted != TIMER_BLOCK_BUFFER_SIZE) {
-                if (currentCommitted != allocated.load()) {
+            let visibleCommitted = committed.load()
+            if (visibleCommitted != TIMER_BLOCK_BUFFER_SIZE) {
+                if (visibleCommitted != allocated.load()) {
                     continue
                 }
             }
 
-            if (index == currentCommitted) {
+            if (peekIndex == visibleCommitted) {
                 return NoEntry
             }
 
-            return Element(buffer[index])
+            return Element(buffer[peekIndex])
         }
 
         return BlockDone
