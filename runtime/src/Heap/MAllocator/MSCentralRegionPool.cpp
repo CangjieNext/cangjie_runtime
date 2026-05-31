@@ -222,7 +222,6 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls, MSRegionAcquireSource* s
     if (!skipLazySweep_.load(std::memory_order_acquire)) {
         // Notify background sweep only when we actually enter unswept paths,
         // rather than speculatively at GetRegion entry.
-        MSAllocBuffer_RecordCentralSweepNotify();
         msRegionManager_->MaybeNotifySweep(this, cls);
         activeLazySweepCount_.fetch_add(1, std::memory_order_relaxed);
         // Double-check after increment to close the race with StopAndWaitForAllSweep

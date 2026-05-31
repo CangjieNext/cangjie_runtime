@@ -21,9 +21,6 @@
 
 namespace MapleRuntime {
 
-void MSAllocBuffer_RecordCentralSweepNotify();
-extern "C" void MSAllocBuffer_DumpAndResetSlowAllocCounters();
-
 struct MSAllocCacheFillStats {
     size_t filledClasses = 0;
     size_t filledRegions = 0;

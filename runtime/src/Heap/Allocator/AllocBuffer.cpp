@@ -9,23 +9,8 @@
 #include "Allocator/RegionSpace.h"
 #include "Collector/FinalizerProcessor.h"
 #include "Heap.h"
-#include <atomic>
-#include <cstdio>
 
 namespace MapleRuntime {
-
-// Lifetime-total counters for CopyGC alloc path (never reset, printed at process exit).
-static std::atomic<uint64_t> g_copyGCFastHitsTotal{0};
-static std::atomic<uint64_t> g_copyGCSlowCallsTotal{0};
-
-extern "C" void DumpAllocCounters_AllocBuffer()
-{
-    uint64_t fastHits  = g_copyGCFastHitsTotal.load(std::memory_order_relaxed);
-    uint64_t slowCalls = g_copyGCSlowCallsTotal.load(std::memory_order_relaxed);
-    fprintf(stderr, "[ALLOC-COUNTER] CopyGC fast_alloc_hits=%llu  slow_alloc_calls=%llu\n",
-            (unsigned long long)fastHits, (unsigned long long)slowCalls);
-}
-
 AllocBuffer* AllocBuffer::GetOrCreateAllocBuffer()
 {
     auto* buffer = AllocBuffer::GetAllocBuffer();
@@ -79,10 +64,7 @@ MAddress AllocBuffer::Allocate(size_t totalSize, AllocType allocType)
     }
 
     if (UNLIKELY(addr == 0)) {
-        g_copyGCSlowCallsTotal.fetch_add(1, std::memory_order_relaxed);
         addr = AllocateImpl(totalSize, allocType);
-    } else {
-        g_copyGCFastHitsTotal.fetch_add(1, std::memory_order_relaxed);
     }
 
     DLOG(ALLOC, "alloc 0x%zx(%zu)", addr, totalSize);

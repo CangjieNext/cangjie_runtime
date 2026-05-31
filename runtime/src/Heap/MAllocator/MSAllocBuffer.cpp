@@ -17,77 +17,10 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
-#include <cstdio>
 
 namespace MapleRuntime {
 
 constexpr uint8_t AllocBufferMS::kCachedRegionSlots;
-
-namespace {
-enum class MSAllocRefillConsumer : uint8_t {
-    SLOW_ALLOC = 0,
-    BACKGROUND_FILL = 1,
-};
-
-enum class MSAllocRefillSource : uint8_t {
-    CACHED_HIT = 0,
-    PARTIAL_SWEPT,
-    PARTIAL_UNSWEPT,
-    FULL_UNSWEPT,
-    EMPTY_REBIND,
-    FRESH,
-    FAILED,
-};
-
-struct MSAllocSlowPathCounters {
-    std::atomic<uint64_t> slowPathCalls {0};
-    std::atomic<uint64_t> fastAllocHits {0};
-    std::atomic<uint64_t> cachedMisses {0};
-    std::atomic<uint64_t> slowSweepNotifyCalls {0};
-    std::atomic<uint64_t> slowFeedNotifyCalls {0};
-    std::atomic<uint64_t> centralSweepNotifyCalls {0};
-    std::atomic<uint64_t> refillCounters[2][7] {};
-};
-
-MSAllocSlowPathCounters g_msAllocSlowPathCounters;
-
-// Lifetime-total counters (never reset, printed at process exit by DumpAllocCounters_MSAllocBuffer).
-static std::atomic<uint64_t> g_msAllocFastHitsTotal{0};
-static std::atomic<uint64_t> g_msAllocSlowCallsTotal{0};
-
-constexpr size_t ToIndex(MSAllocRefillConsumer consumer)
-{
-    return static_cast<size_t>(consumer);
-}
-
-constexpr size_t ToIndex(MSAllocRefillSource source)
-{
-    return static_cast<size_t>(source);
-}
-
-MSAllocRefillSource ToRefillSource(MSRegionAcquireSource source)
-{
-    switch (source) {
-        case MSRegionAcquireSource::PARTIAL_SWEPT:
-            return MSAllocRefillSource::PARTIAL_SWEPT;
-        case MSRegionAcquireSource::PARTIAL_UNSWEPT:
-            return MSAllocRefillSource::PARTIAL_UNSWEPT;
-        case MSRegionAcquireSource::FULL_UNSWEPT:
-            return MSAllocRefillSource::FULL_UNSWEPT;
-        case MSRegionAcquireSource::EMPTY_REBIND:
-            return MSAllocRefillSource::EMPTY_REBIND;
-        case MSRegionAcquireSource::NONE:
-        default:
-            return MSAllocRefillSource::FAILED;
-    }
-}
-
-void RecordRefillSource(MSAllocRefillConsumer consumer, MSAllocRefillSource source)
-{
-    g_msAllocSlowPathCounters.refillCounters[ToIndex(consumer)][ToIndex(source)].fetch_add(1,
-        std::memory_order_relaxed);
-}
-}
 
 static constexpr bool kDisableMutatorAssistProbe = false;
 constexpr uint8_t kWarmCacheHeatThreshold = 3;
@@ -117,64 +50,6 @@ uint16_t SaturatingAddU16(uint16_t value, uint16_t delta)
 {
     return value > UINT16_MAX - delta ? UINT16_MAX : static_cast<uint16_t>(value + delta);
 }
-
-void MSAllocBuffer_RecordCentralSweepNotify()
-{
-    g_msAllocSlowPathCounters.centralSweepNotifyCalls.fetch_add(1, std::memory_order_relaxed);
-}
-
-extern "C" void MSAllocBuffer_DumpAndResetSlowAllocCounters()
-{
-    uint64_t slowPathCalls = g_msAllocSlowPathCounters.slowPathCalls.exchange(0, std::memory_order_relaxed);
-    uint64_t cachedMisses = g_msAllocSlowPathCounters.cachedMisses.exchange(0, std::memory_order_relaxed);
-    uint64_t slowSweepNotifyCalls =
-        g_msAllocSlowPathCounters.slowSweepNotifyCalls.exchange(0, std::memory_order_relaxed);
-    uint64_t slowFeedNotifyCalls =
-        g_msAllocSlowPathCounters.slowFeedNotifyCalls.exchange(0, std::memory_order_relaxed);
-    uint64_t centralSweepNotifyCalls =
-        g_msAllocSlowPathCounters.centralSweepNotifyCalls.exchange(0, std::memory_order_relaxed);
-
-    uint64_t refillCounters[2][7] = {};
-    for (size_t consumer = 0; consumer < 2; ++consumer) {
-        for (size_t source = 0; source < 7; ++source) {
-            refillCounters[consumer][source] =
-                g_msAllocSlowPathCounters.refillCounters[consumer][source].exchange(0, std::memory_order_relaxed);
-        }
-    }
-
-    VLOG(REPORT,
-         "[MS-ALLOC-MISS] slow_calls=%llu cached_hit=%llu cached_miss=%llu slow_sweep_notify=%llu "
-         "slow_feed_notify=%llu central_sweep_notify=%llu slow_partial_swept=%llu "
-         "slow_partial_unswept=%llu slow_full_unswept=%llu slow_empty_rebind=%llu slow_fresh=%llu slow_failed=%llu "
-         "bg_partial_swept=%llu bg_partial_unswept=%llu bg_full_unswept=%llu bg_empty_rebind=%llu bg_fresh=%llu bg_failed=%llu",
-         (unsigned long long)slowPathCalls,
-         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::SLOW_ALLOC)][ToIndex(MSAllocRefillSource::CACHED_HIT)],
-         (unsigned long long)cachedMisses,
-         (unsigned long long)slowSweepNotifyCalls,
-         (unsigned long long)slowFeedNotifyCalls,
-         (unsigned long long)centralSweepNotifyCalls,
-         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::SLOW_ALLOC)][ToIndex(MSAllocRefillSource::PARTIAL_SWEPT)],
-         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::SLOW_ALLOC)][ToIndex(MSAllocRefillSource::PARTIAL_UNSWEPT)],
-         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::SLOW_ALLOC)][ToIndex(MSAllocRefillSource::FULL_UNSWEPT)],
-         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::SLOW_ALLOC)][ToIndex(MSAllocRefillSource::EMPTY_REBIND)],
-         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::SLOW_ALLOC)][ToIndex(MSAllocRefillSource::FRESH)],
-         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::SLOW_ALLOC)][ToIndex(MSAllocRefillSource::FAILED)],
-         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::BACKGROUND_FILL)][ToIndex(MSAllocRefillSource::PARTIAL_SWEPT)],
-         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::BACKGROUND_FILL)][ToIndex(MSAllocRefillSource::PARTIAL_UNSWEPT)],
-         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::BACKGROUND_FILL)][ToIndex(MSAllocRefillSource::FULL_UNSWEPT)],
-         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::BACKGROUND_FILL)][ToIndex(MSAllocRefillSource::EMPTY_REBIND)],
-         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::BACKGROUND_FILL)][ToIndex(MSAllocRefillSource::FRESH)],
-         (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::BACKGROUND_FILL)][ToIndex(MSAllocRefillSource::FAILED)]);
-}
-
-extern "C" void DumpAllocCounters_MSAllocBuffer()
-{
-    uint64_t fastHits  = g_msAllocFastHitsTotal.load(std::memory_order_relaxed);
-    uint64_t slowCalls = g_msAllocSlowCallsTotal.load(std::memory_order_relaxed);
-    fprintf(stderr, "[ALLOC-COUNTER] MSGC  fast_alloc_hits=%llu  slow_alloc_calls=%llu\n",
-            (unsigned long long)fastHits, (unsigned long long)slowCalls);
-}
-
 
 AllocBufferMS::~AllocBufferMS()
 {
@@ -459,8 +334,6 @@ MAddress AllocBufferMS::FastAlloc(uint8_t cls)
             addr = region->AllocFromBitmapFast();
         }
         if (LIKELY(addr != 0)) {
-            g_msAllocSlowPathCounters.fastAllocHits.fetch_add(1, std::memory_order_relaxed);
-            g_msAllocFastHitsTotal.fetch_add(1, std::memory_order_relaxed);
             return static_cast<MAddress>(addr);
         }
     }
@@ -474,9 +347,6 @@ MAddress AllocBufferMS::FastAlloc(uint8_t cls)
 // ============================================================================
 MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
 {
-    g_msAllocSlowPathCounters.slowPathCalls.fetch_add(1, std::memory_order_relaxed);
-    g_msAllocSlowCallsTotal.fetch_add(1, std::memory_order_relaxed);
-
     // Step 1: Return the exhausted Region to the central pool (if any).
     // When the compiler fast path (EnableGCFastPath) is enabled, the mutator
     // bump-allocates inline and never calls Allocate(), so activeRegions_[cls]
@@ -493,9 +363,7 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
             std::memory_order_relaxed);
         BoostCacheHeat(cls, kHeatBoostOnCachedHit);
         ObserveFeedHotness(cls, kFeedHotnessCachedHitDemand);
-        RecordRefillSource(MSAllocRefillConsumer::SLOW_ALLOC, MSAllocRefillSource::CACHED_HIT);
     } else {
-        g_msAllocSlowPathCounters.cachedMisses.fetch_add(1, std::memory_order_relaxed);
         BoostCacheHeat(cls, kHeatBoostOnCacheMiss);
         uint8_t missCount = BumpCacheMiss(cls);
         ObserveFeedHotness(cls, kFeedHotnessMissDemand);
@@ -597,25 +465,19 @@ void AllocBufferMS::ReturnRegionToCentral(MSRegionInfo* region, uint8_t cls)
 // ============================================================================
 MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls, bool backgroundFill)
 {
-    MSAllocRefillConsumer consumer =
-        backgroundFill ? MSAllocRefillConsumer::BACKGROUND_FILL : MSAllocRefillConsumer::SLOW_ALLOC;
+    (void)backgroundFill;
 
     if (UNLIKELY(central_ == nullptr)) {
-        RecordRefillSource(consumer, MSAllocRefillSource::FAILED);
         return nullptr;
     }
 
     MSRegionAcquireSource source = MSRegionAcquireSource::NONE;
     MSRegionInfo* region = central_->GetRegion(cls, &source);
     if (region != nullptr) {
-        RecordRefillSource(consumer, ToRefillSource(source));
         return region;
     }
 
     region = central_->GetFreshRegion(cls);
-
-    RecordRefillSource(consumer,
-        region != nullptr ? MSAllocRefillSource::FRESH : MSAllocRefillSource::FAILED);
     return region;
 }
 

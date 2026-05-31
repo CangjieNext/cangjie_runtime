@@ -132,7 +132,6 @@ void MSRegionManager::Initialize(size_t heapSize, uintptr_t mmapBase, size_t max
                             static_cast<RegionCount>(maxVirtualRegionCount),
                             heapStart_, committedEnd, maxHeapEnd, segmentSize);
     MSBitmapArena::Init(maxVirtualRegionCount, committedRegionCount);
-    statsWindowStartNs_.store(TimeUtil::NanoSeconds(), std::memory_order_relaxed);
 
     VLOG(REPORT, "[MS-GC] MSRegionManager initialized (virtual reserve): mmapBase=0x%zx, "
         "maxMetadata=%zuKB, heapStart=0x%zx, committedEnd=0x%zx, maxHeapEnd=0x%zx, "
@@ -354,8 +353,6 @@ bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx, AllocSource
 {
     (void)allowReleasedTree;
     RegionIndex rawIdx = 0;
-    uint64_t startNs = TimeUtil::NanoSeconds();
-
     MaybeNotifyMark();
 
     while (true) {
@@ -365,16 +362,12 @@ bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx, AllocSource
             if (source != nullptr) {
                 *source = AllocSource::RELEASED;
             }
-            allocFromReleasedCount_.fetch_add(1, std::memory_order_relaxed);
             takeRegionsCallCount_.fetch_add(1, std::memory_order_relaxed);
-            takeRegionsTimeNs_.fetch_add(TimeUtil::NanoSeconds() - startNs, std::memory_order_relaxed);
             MaybeNotifyScavenge();
             return true;
         }
 
         if (!freeManager_.GrowOneSegment(*this)) {
-            takeRegionsCallCount_.fetch_add(1, std::memory_order_relaxed);
-            takeRegionsTimeNs_.fetch_add(TimeUtil::NanoSeconds() - startNs, std::memory_order_relaxed);
             return false;
         }
     }
@@ -388,81 +381,7 @@ void MSRegionManager::ClearUnits(UnitIndex idx, UnitCount num) const
 {
     uintptr_t addr = GetUnitAddress(idx);
     size_t bytes = static_cast<size_t>(num) * unitSize_;
-    uint64_t startNs = TimeUtil::NanoSeconds();
     memset(reinterpret_cast<void*>(addr), 0, bytes);
-    uint64_t endNs = TimeUtil::NanoSeconds();
-    const_cast<MSRegionManager*>(this)->clearUnitsCallCount_.fetch_add(1, std::memory_order_relaxed);
-    const_cast<MSRegionManager*>(this)->clearUnitsBytes_.fetch_add(bytes, std::memory_order_relaxed);
-    const_cast<MSRegionManager*>(this)->clearUnitsTimeNs_.fetch_add(endNs - startNs, std::memory_order_relaxed);
-}
-
-void MSRegionManager::DumpAndResetAllocClearStats()
-{
-    uint64_t nowNs = TimeUtil::NanoSeconds();
-    uint64_t windowStartNs = statsWindowStartNs_.exchange(nowNs, std::memory_order_relaxed);
-    uint64_t windowNs = (nowNs > windowStartNs) ? (nowNs - windowStartNs) : 0;
-
-    uint64_t releasedHits = allocFromReleasedCount_.exchange(0, std::memory_order_relaxed);
-    uint64_t bumpHits = allocFromBumpCount_.exchange(0, std::memory_order_relaxed);
-    uint64_t clearCalls = clearUnitsCallCount_.exchange(0, std::memory_order_relaxed);
-    uint64_t clearBytes = clearUnitsBytes_.exchange(0, std::memory_order_relaxed);
-    uint64_t clearTimeNs = clearUnitsTimeNs_.exchange(0, std::memory_order_relaxed);
-
-    uint64_t totalHits = releasedHits + bumpHits;
-    uint64_t clearPct = (windowNs == 0) ? 0 : (clearTimeNs * 100 / windowNs);
-
-    VLOG(REPORT,
-        "[MS-GC] alloc-hit window: released=%llu, bump=%llu, total=%llu; "
-         "clear: calls=%llu, bytes=%llu, time=%lluns (~%llu%% of window)",
-         static_cast<unsigned long long>(releasedHits),
-         static_cast<unsigned long long>(bumpHits),
-         static_cast<unsigned long long>(totalHits),
-         static_cast<unsigned long long>(clearCalls),
-         static_cast<unsigned long long>(clearBytes),
-         static_cast<unsigned long long>(clearTimeNs),
-         static_cast<unsigned long long>(clearPct));
-}
-
-void MSRegionManager::DumpLifetimeStats() const
-{
-    uint64_t takeRegionsCalls = takeRegionsCallCount_.load(std::memory_order_relaxed);
-    uint64_t takeRegionsTimeNs = takeRegionsTimeNs_.load(std::memory_order_relaxed);
-    uint64_t takeRegionsAvgNs = (takeRegionsCalls == 0) ? 0 : (takeRegionsTimeNs / takeRegionsCalls);
-    FreeManager::FinalStats stats = freeManager_.GetFinalStats();
-
-    fprintf(stderr,
-            "[MS-TAKEREGION] calls=%llu total_ns=%llu total_ms=%.3f avg_ns=%llu\n",
-            static_cast<unsigned long long>(takeRegionsCalls),
-            static_cast<unsigned long long>(takeRegionsTimeNs),
-            static_cast<double>(takeRegionsTimeNs) / 1000000.0,
-            static_cast<unsigned long long>(takeRegionsAvgNs));
-    fprintf(stderr,
-            "[MS-FREEMANAGER] grows=%llu committed_regions=%zu committed_bytes=%zu free_regions=%zu free_bytes=%zu "
-            "hot_free_regions=%zu hot_free_bytes=%zu released_regions=%zu released_bytes=%zu used_regions=%zu "
-            "used_bytes=%zu metadata_bytes=%zu max_free_run_regions=%u max_virtual_regions=%zu\n",
-            static_cast<unsigned long long>(stats.heapGrowCount),
-            stats.committedRegions,
-            stats.committedBytes,
-            stats.freeRegions,
-            stats.freeBytes,
-            stats.hotFreeRegions,
-            stats.hotFreeBytes,
-            stats.scavengedRegions,
-            stats.scavengedBytes,
-            stats.usedRegions,
-            stats.usedBytes,
-            stats.metadataBytes,
-            stats.maxFreeRunRegions,
-            freeManager_.GetMaxVirtualRegionCount());
-}
-
-extern "C" void DumpLifetimeStats_MSRegionManager()
-{
-    auto& allocator = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
-    MSRegionManager* regionManager = allocator.GetMSRegionManager();
-    if (regionManager != nullptr) {
-        regionManager->DumpLifetimeStats();
-    }
 }
 
 // ============================================================================

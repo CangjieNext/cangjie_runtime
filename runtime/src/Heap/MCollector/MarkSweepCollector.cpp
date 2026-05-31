@@ -195,7 +195,6 @@ void MarkSweepCollector::Init()
 
 void MarkSweepCollector::Fini()
 {
-    MSAllocBuffer_DumpAndResetSlowAllocCounters();
     LOG(RTLOG_REPORT, "[MS-GC] MarkSweepCollector::Fini()");
     TracingCollector::Fini();
 }

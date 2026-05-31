@@ -35,9 +35,6 @@
 #ifdef CANGJIE_GWPASAN_SUPPORT
 #include "Sanitizer/SanitizerInterface.h"
 #endif
-
-// Forward declaration for alloc stats (defined in CompilerCalls.cpp)
-extern "C" void MCC_PrintAllocStats();
 namespace MapleRuntime {
 StackGrowConfig CangjieRuntime::stackGrowConfig = StackGrowConfig::UNDEF;
 extern "C" MRT_EXPORT void MRT_LibraryOnLoad(uint64_t address, bool enableGC)
@@ -328,7 +325,6 @@ void CangjieRuntime::Fini()
 {
     // To avoid foreign thread access finalized runtime.
     ThreadLocal::ThreadLocalFini();
-    MCC_PrintAllocStats();
     // since there might be failure during initialization,
     // here we need to check and call fini.
 #ifdef _WIN64

@@ -169,9 +169,6 @@ public:
     size_t GetDirtyTreeBytes() const { return 0; } // stub: no dirty tree in current design
     uint64_t GetHeapGrowCount() const { return freeManager_.GetHeapGrowCount(); }
 
-    void DumpAndResetAllocClearStats();
-    void DumpLifetimeStats() const;
-
     // Unified layer-1 HEU trigger entry. MSGC now only keeps the TAKE_REGIONS path.
     void MaybeNotifyMark();
 
@@ -239,16 +236,7 @@ private:
     // Unified released-span entry for MSGC heap management.
     FreeManager freeManager_;
 
-    // O6 observability: allocation-source hit counts and ClearUnits costs.
-    std::atomic<uint64_t> allocFromReleasedCount_{0};
-    std::atomic<uint64_t> allocFromBumpCount_{0};
-
-    std::atomic<uint64_t> clearUnitsCallCount_{0};
-    std::atomic<uint64_t> clearUnitsBytes_{0};
-    std::atomic<uint64_t> clearUnitsTimeNs_{0};
     std::atomic<uint64_t> takeRegionsCallCount_{0};
-    std::atomic<uint64_t> takeRegionsTimeNs_{0};
-    std::atomic<uint64_t> statsWindowStartNs_{0};
     std::atomic<uint64_t> lastHeuRequestNs_{0};
 };
 
