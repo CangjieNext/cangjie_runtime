@@ -79,14 +79,12 @@ public:
     size_t PinnedSpaceSize() const;
 
     // Scavenge-related queries (used by BackgroundScavengeLoop).
-    // totalMSRegionBytes includes largeHotCache while it remains under central-pool ownership.
-    // heapInUse    = totalMSRegionBytes - emptySweptBytes - largeHotCacheBytes
-    // heapRetained = totalMSRegionBytes + hotFreeBytes
+    // heapInUse    = active central-pool regions + live largeRegionList spans
+    // heapRetained = active + emptySwept + largeHotCache + hotFree
     size_t GetHeapInUseBytes() const;
     size_t GetHeapRetainedBytes() const;
     size_t GetHeapThresholdBytes() const;
     size_t GetHotFreeBytes() const;
-    size_t GetEmptySweptBytes() const;
     bool HasEmptySweptRegions() const;
     // Step A (on-demand): flush half of emptySweptCache → FreeManager hot-free supply.
     size_t FlushHalfEmptySweptToHotFree();

@@ -32,7 +32,7 @@ public:
     size_t UpdateHeapThreshold(size_t liveRegionBytes);
 
     // Snapshots persisted at GC end for pacing / HEU trigger calculations.
-    size_t baselineAllocatedBytes = 0;  // totalMSRegionBytes_ snapshot at GC end
+    size_t baselineAllocatedBytes = 0;  // active region bytes snapshot at GC end
     size_t lastTrueLiveBytes = 0;       // trueLiveBytes from last GC marking
     size_t lastRegionBytes = 0;         // occupied region bytes snapshot at GC end
     size_t lastSurvivingRegionBytes = 0;        // predicted surviving region bytes from last GC end

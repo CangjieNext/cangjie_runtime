@@ -144,7 +144,7 @@ size_t RegionSpaceMS::GetSurvivedSize() const
 size_t RegionSpaceMS::GetUsedPageSize() const
 {
     if (msCentralPool_ != nullptr) {
-        return msCentralPool_->GetTotalMSRegionBytes();
+        return msCentralPool_->GetActiveMSRegionCount() * MS_REGION_SIZE;
     }
     return 0;
 }
@@ -204,9 +204,7 @@ size_t RegionSpaceMS::GetHeapInUseBytes() const
     if (msCentralPool_ == nullptr) {
         return 0;
     }
-    size_t total = msCentralPool_->GetTotalMSRegionBytes();
-    size_t empty = msCentralPool_->GetEmptySweptBytes();
-    return (total > empty) ? (total - empty) : 0;
+    return msCentralPool_->GetActiveMSRegionCount() * MS_REGION_SIZE;
 }
 
 size_t RegionSpaceMS::GetHeapRetainedBytes() const
@@ -214,10 +212,11 @@ size_t RegionSpaceMS::GetHeapRetainedBytes() const
     if (msCentralPool_ == nullptr || msRegionManager_ == nullptr) {
         return 0;
     }
-    size_t total = msCentralPool_->GetTotalMSRegionBytes();
+    size_t active = msCentralPool_->GetActiveMSRegionCount() * MS_REGION_SIZE;
+    size_t empty = msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE;
+    size_t largeCache = msCentralPool_->GetLargeHotCacheRegionCount() * MS_REGION_SIZE;
     size_t hotFree = msRegionManager_->GetHotFreeBytes();
-    size_t largeCache = msCentralPool_->GetLargeHotCacheBytes();
-    return total + hotFree + largeCache;
+    return active + empty + largeCache + hotFree;
 }
 
 size_t RegionSpaceMS::GetHeapThresholdBytes() const
@@ -231,14 +230,6 @@ size_t RegionSpaceMS::GetHotFreeBytes() const
         return 0;
     }
     return msRegionManager_->GetHotFreeBytes();
-}
-
-size_t RegionSpaceMS::GetEmptySweptBytes() const
-{
-    if (msCentralPool_ == nullptr) {
-        return 0;
-    }
-    return msCentralPool_->GetEmptySweptBytes();
 }
 
 bool RegionSpaceMS::HasEmptySweptRegions() const
@@ -355,10 +346,10 @@ MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t allocSize, ThreadLocal
     MSRegionInfo* baseInfo = msRegionManager_->TakeRegionForLarge(unitCount, regionStart, msCentralPool_);
     if (baseInfo == nullptr) {
         LOG(RTLOG_ERROR, "[MS-GC] TryAllocateOnceMS LARGE ALLOC FAILED: "
-            "allocSize=%zu, unitCount=%zu, totalMSRegionBytes=%zu, "
+            "allocSize=%zu, unitCount=%zu, activeMSRegionBytes=%zu, "
             "msRegionManager freeUnits=%u",
             allocSize, unitCount,
-            msCentralPool_ ? msCentralPool_->GetTotalMSRegionBytes() : 0,
+            msCentralPool_ ? msCentralPool_->GetActiveMSRegionCount() * MS_REGION_SIZE : 0,
             msRegionManager_->GetFreeUnitCount());
         return 0;
     }
@@ -399,7 +390,7 @@ void RegionSpaceMS::EnsureThreadLocalAllocBuffer()
 size_t RegionSpaceMS::AllocatedBytes() const
 {
     if (msCentralPool_ != nullptr) {
-        return msCentralPool_->GetTotalMSRegionBytes();
+        return msCentralPool_->GetActiveMSRegionCount() * MS_REGION_SIZE;
     }
     return 0;
 }
@@ -577,7 +568,6 @@ void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t regionBytes)
 
     if (msCentralPool_ != nullptr) {
         msCentralPool_->RegisterLargeRegion(baseInfo);
-        msCentralPool_->AddLargeRegionBytes(regionBytes);
     }
 }
 

@@ -252,15 +252,13 @@ void MSRegionManager::MaybeNotifyScavenge()
         return;
     }
 
-    const CentralRegionPool* pool =
-        static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator()).GetCentralPool();
+    const RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
+    const CentralRegionPool* pool = space.GetCentralPool();
     if (pool == nullptr) {
         return;
     }
 
-    size_t totalBytes = pool->GetTotalMSRegionBytes();
-    size_t hotFree = freeManager_.GetHotFreeBytes();
-    size_t heapRetained = totalBytes + hotFree;
+    size_t heapRetained = space.GetHeapRetainedBytes();
     if (heapRetained <= threshold) {
         return;
     }
@@ -485,7 +483,6 @@ void MSRegionManager::InlineReclaimForBalance(const CentralRegionPool& pool)
     }
 
     ReclaimEmptyRegionToHotFree(region);
-    mutablePool.DecrementTotalMSRegionBytes(MS_REGION_SIZE);
 }
 
 // ============================================================================

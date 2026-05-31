@@ -474,8 +474,8 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     uint64_t t0 = TimeUtil::MicroSeconds();
     size_t released = 0;
     size_t hotFreeBefore = space.GetHotFreeBytes();
-    size_t emptySweptBefore = space.GetEmptySweptBytes();
-    size_t largeCacheBefore = (pool != nullptr) ? pool->GetLargeHotCacheBytes() : 0;
+    size_t emptySweptBefore = (pool != nullptr) ? pool->GetEmptySweptRegionCount() * MS_REGION_SIZE : 0;
+    size_t largeCacheBefore = (pool != nullptr) ? pool->GetLargeHotCacheRegionCount() * MS_REGION_SIZE : 0;
     if (hotFreeBefore == 0 && emptySweptBefore == 0 && largeCacheBefore == 0) {
         if (pool != nullptr && pool->GetTotalUnsweptCount() > 0) {
             NotifyToSweep(kNoPreferredSweepClass);
@@ -517,9 +517,9 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     size_t hotFreeAfterFlush = space.GetHotFreeBytes();
     // Snapshot emptySwept AFTER Step A so that any regions flushed into hotFree are
     // already reflected in hotFreeAfterFlush and not double-counted.
-    size_t emptySweptAfterFlush = space.GetEmptySweptBytes();
+    size_t emptySweptAfterFlush = (pool != nullptr) ? pool->GetEmptySweptRegionCount() * MS_REGION_SIZE : 0;
     // Snapshot large cache residual after Step A2 (any flushed bytes are now in releasedTree).
-    size_t largeResidualBytes = (pool != nullptr) ? pool->GetLargeHotCacheBytes() : 0;
+    size_t largeResidualBytes = (pool != nullptr) ? pool->GetLargeHotCacheRegionCount() * MS_REGION_SIZE : 0;
     if (hotFreeAfterFlush == 0 && emptySweptAfterFlush == 0 && largeResidualBytes == 0) {
         if (pool != nullptr && pool->GetTotalUnsweptCount() > 0) {
             NotifyToSweep(kNoPreferredSweepClass);

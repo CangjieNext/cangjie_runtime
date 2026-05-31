@@ -1637,7 +1637,8 @@ void MarkSweepCollector::LogGCEntry(uint64_t gcIndex, GCReason reason)
     size_t emptyCount = (centralPool != nullptr) ? centralPool->GetEmptySweptRegionCount() : 0;
     size_t hotFreeBytes = (msRegionManager != nullptr) ? msRegionManager->GetHotFreeBytes() : 0;
     size_t hotFreeCount = hotFreeBytes / MS_REGION_SIZE;
-    size_t largeCacheBytes = (centralPool != nullptr) ? centralPool->GetLargeHotCacheBytes() : 0;
+    size_t largeCacheBytes = (centralPool != nullptr)
+        ? centralPool->GetLargeHotCacheRegionCount() * MS_REGION_SIZE : 0;
     size_t largeCacheCount = largeCacheBytes / MS_REGION_SIZE;
     VLOG(REPORT, "[MS-GC] unswept: %zu regions, emptyCache: %zu regions, hotFree: %zu regions, largeCache: %zu regions (%zu KB)",
         unsweptCount, emptyCount, hotFreeCount, largeCacheCount, largeCacheBytes / 1024);
@@ -1710,7 +1711,7 @@ void MarkSweepCollector::DumpRegionStatsMS()
             ? cpForAccounting->GetEmptySweptRegionCount() : 0;
         size_t hotFreeRegionCount = msRegionManager->GetHotFreeBytes() / MS_REGION_SIZE;
         size_t largeCacheRegionCount = (cpForAccounting != nullptr)
-            ? cpForAccounting->GetLargeHotCacheBytes() / MS_REGION_SIZE : 0;
+            ? cpForAccounting->GetLargeHotCacheRegionCount() : 0;
         VLOG(REPORT,
              "[MS-GC]   region-accounting: active=%zu regions, empty=%zu regions, hotFree=%zu regions, largeCache=%zu regions",
              cycleStats_.activeRegionCount,

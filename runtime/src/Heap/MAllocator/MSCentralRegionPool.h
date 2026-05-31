@@ -367,18 +367,12 @@ public:
     bool HasHungryAllocBuffer(uint8_t preferredCls = UINT8_MAX) const;
     BucketPressure GetBucketPressure(uint8_t cls) const;
     void MaybeNotifySweep(uint8_t cls) const;
-    size_t GetEmptySweptRegionCount() const
-    {
-        return emptySweptRegionCount_.load(std::memory_order_relaxed);
-    }
-    size_t GetEmptySweptBytes() const
-    {
-        return emptySweptBytes_.load(std::memory_order_relaxed);
-    }
+    size_t GetActiveMSRegionCount() const;
+    size_t GetEmptySweptRegionCount() const;
+    size_t GetLargeHotCacheRegionCount() const;
 
     // Step 11: inline reclaim support — used by MSRegionManager::InlineReclaimForBalance
     MSRegionInfo* TakeEmptySweptRegionForReclaim();
-    void DecrementTotalMSRegionBytes(size_t bytes);
 
     // ===== DFX: Sweep statistics (persisted across GC cycle) =====
     MSSweepStats& GetSweepStats() { return sweepStats_; }
@@ -390,12 +384,6 @@ public:
     static uint32_t GetGlobalSweepGen()
     {
         return globalSweepGen_.load(std::memory_order_acquire);
-    }
-
-    // Total bytes of MS regions in use (for GC trigger threshold check)
-    size_t GetTotalMSRegionBytes() const
-    {
-        return totalMSRegionBytes_.load(std::memory_order_relaxed);
     }
 
     // Compute true live bytes by walking markBitmaps of all regions.
@@ -427,17 +415,8 @@ public:
     // Drain the entire large hot cache into FreeManager (releasedTree).
     size_t FlushLargeHotCacheToFreeManager();
 
-    // Lock-free approximate read of total bytes held in the large hot cache.
-    size_t GetLargeHotCacheBytes() const
-    {
-        return largeHotCacheTotalBytes_.load(std::memory_order_relaxed);
-    }
-
     // Returns true if the large hot cache is non-empty (lock-free).
-    bool HasLargeFreeCache() const
-    {
-        return largeHotCacheTotalBytes_.load(std::memory_order_relaxed) > 0;
-    }
+    bool HasLargeFreeCache() const;
 
     // Drain approximately half the large hot cache into FreeManager (releasedTree).
     // Called by BackgroundScavengeLoop Step A2. Returns flushed bytes.
@@ -472,16 +451,6 @@ public:
     // Re-enable lazy sweep after MarkSetup bitmap clearing is complete.
     void ReenableLazySweep();
 
-    // Adjust totalMSRegionBytes_ for large region tracking.
-    void AddLargeRegionBytes(size_t bytes)
-    {
-        totalMSRegionBytes_.fetch_add(bytes, std::memory_order_relaxed);
-    }
-    void SubLargeRegionBytes(size_t bytes)
-    {
-        totalMSRegionBytes_.fetch_sub(bytes, std::memory_order_relaxed);
-    }
-
 private:
     struct SizeClassBucket {
         std::mutex lock;              // protects fullSwept, partialUnswept, fullUnswept only
@@ -510,16 +479,6 @@ private:
     std::atomic<size_t> activeLazySweepCount_{0};     // In-flight lazy sweep counter
     MSSweepStats sweepStats_;
 
-    // Total bytes of MS regions currently tracked by the allocator.
-    // This is a region-level metric, NOT object-level:
-    //   - Includes active regions, emptySwept cache, and largeHotCache.
-    //   - Excludes hotFree / releasedTree bytes after they leave central-pool ownership.
-    //   - After GC ends but before sweep completes, it remains inflated by unswept dead bytes
-    //     and intra-region fragmentation.
-    // The GC trigger (MSRegionManager::TakeRegion) uses the O1 effective-allocation
-    // formula to compensate for this semantic gap vs trueLiveBytes.
-    std::atomic<size_t> totalMSRegionBytes_{0};
-
     SizeClassBucket buckets_[kNumSizeClasses];
     MSRegionManager*  msRegionManager_;
 
@@ -541,14 +500,11 @@ private:
     size_t GetMaxEmptySweptBytes() const;
     size_t GetMaxEmptySweptRegions() const;
     std::mutex largeHotCacheLock_;
-    std::atomic<size_t> largeHotCacheTotalBytes_{0};
     std::unordered_map<size_t, std::vector<LargeHotEntry>> largeHotCache_; // key = regionCount
 
     // Global cache of completely-empty small/medium regions.
     std::mutex emptySweptLock_;
     MSRegionList emptySweptCache_;
-    std::atomic<size_t> emptySweptRegionCount_{0};
-    std::atomic<size_t> emptySweptBytes_{0};
 
     // ===== Per-thread AllocBufferMS registry =====
     // Every thread lazily creates an AllocBufferMS and registers it here.
