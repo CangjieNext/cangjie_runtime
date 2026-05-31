@@ -26,10 +26,10 @@ struct MSRegionInfo;
 // Accumulated during a single GC cycle, logged in DumpMSGCLog(), then reset.
 struct MSGCCycleStats {
     // ── Timing (microseconds) ──
-    uint64_t preEnumRootsUs = 0;      // PreEnumRoots wall time: stop sweep, clear bitmaps, reclassify, prepare sweep.
+    uint64_t preEnumRootsUs = 0;      // PreEnumRoots wall time: stop sweep, clear bitmaps, reclassify unswept.
     uint64_t markSetupUs = 0;         // EnumRoots wall time: handshake + EnumAndMarkRoots root discovery.
     uint64_t concurrentMarkUs = 0;    // ConcurrentMark wall time: RunConcurrentMarkLoop and assist snapshot.
-    uint64_t markTerminationUs = 0;   // MarkTermination wall time: STW drain, WB flush, deferred queue drain.
+    uint64_t markTerminationUs = 0;   // MarkTermination wall time: STW drain, WB flush, deferred queue drain, sweep flip.
     uint64_t postMarkUs = 0;          // PostMarkTermination wall time: weak refs, finalizers, large-object reclaim.
     uint64_t concurrentSweepUs = 0;   // ConcurrentSweep wall time: ComputeMarkedBytes and eager sweep sampling.
     uint64_t postGcHookUs = 0;        // PostGarbageCollection hook wall time after UpdateGCStats completes.
@@ -69,7 +69,7 @@ struct MSGCCycleStats {
 
     // ── Eager sweep batch ──
     size_t eagerSweepBatchRegions = 0;   // Actual regions swept by EagerSweepBatch during ConcurrentSweep.
-    size_t eagerSweepEmptiedRegions = 0; // Empty regions produced by eager sweep, derived from empty cache delta.
+    size_t eagerSweepEmptiedRegions = 0; // Empty regions actually produced by EagerSweepBatch.
     size_t eagerSweepTotalUnswept = 0;   // Unswept region count sampled before eager sweep starts.
 
     // ── Region accounting snapshot ──

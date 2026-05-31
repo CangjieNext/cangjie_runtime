@@ -29,8 +29,8 @@ constexpr U32 DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_ROUNDS = 4;
 constexpr uint64_t DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_US = 12000;
 constexpr size_t DEFAULT_MS_FEED_TARGET_CACHED_PER_BUFFER = 5;
 constexpr size_t DEFAULT_MS_SCAVENGE_ROUNDS = 8;
-constexpr size_t DEFAULT_MS_SCAVENGE_AGGRESSIVE_ROUNDS = 2;
-constexpr size_t DEFAULT_MS_SCAVENGE_AGGRESSIVE_THRESHOLD_RATIO = 2;
+constexpr size_t DEFAULT_MS_EMPTY_SWEEPED_FLUSH_ALL_THRESHOLD = 512;
+constexpr size_t DEFAULT_MS_LARGE_CACHE_FLUSH_ALL_BYTES = 16ULL * 1024ULL * 1024ULL;
 
 bool EqualsIgnoreCase(const char* lhs, const char* rhs)
 {
@@ -121,41 +121,6 @@ size_t GetBackgroundScavengeRounds()
     return rounds;
 }
 
-size_t GetBackgroundScavengeAggressiveRounds()
-{
-    static const size_t rounds = []() {
-        const char* env = std::getenv("CJ_MS_SCAVENGE_AGGRESSIVE_ROUNDS");
-        if (env == nullptr || env[0] == '\0') {
-            return DEFAULT_MS_SCAVENGE_AGGRESSIVE_ROUNDS;
-        }
-        if (CString::IsPosNumber(env)) {
-            size_t parsed = static_cast<size_t>(std::strtoull(env, nullptr, 10));
-            if (parsed > 0) {
-                return parsed;
-            }
-        }
-        return DEFAULT_MS_SCAVENGE_AGGRESSIVE_ROUNDS;
-    }();
-    return rounds;
-}
-
-size_t GetBackgroundScavengeAggressiveRatio()
-{
-    static const size_t ratio = []() {
-        const char* env = std::getenv("CJ_MS_SCAVENGE_AGGRESSIVE_THRESHOLD_RATIO");
-        if (env == nullptr || env[0] == '\0') {
-            return DEFAULT_MS_SCAVENGE_AGGRESSIVE_THRESHOLD_RATIO;
-        }
-        if (CString::IsPosNumber(env)) {
-            size_t parsed = static_cast<size_t>(std::strtoull(env, nullptr, 10));
-            if (parsed > 0) {
-                return parsed;
-            }
-        }
-        return DEFAULT_MS_SCAVENGE_AGGRESSIVE_THRESHOLD_RATIO;
-    }();
-    return ratio;
-}
 }
 
 extern "C" MRT_EXPORT void* MRT_ProcessBackgroundWork(void* arg)
@@ -487,8 +452,6 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     CentralRegionPool* pool = space.GetCentralPool();            // for large hot cache ops
     size_t retained = space.GetHeapRetainedBytes();
     size_t threshold = space.GetHeapThresholdBytes();
-    size_t aggressiveRatio = GetBackgroundScavengeAggressiveRatio();
-    bool aggressive = threshold != 0 && retained > threshold * aggressiveRatio;
 
     if (threshold == 0 || retained <= threshold) {
         shouldScavengeHeap_.store(false, std::memory_order_release);
@@ -510,13 +473,26 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     size_t sliceTargetBytes = targetBytes;
     uint64_t t0 = TimeUtil::MicroSeconds();
     size_t released = 0;
+    size_t hotFreeBefore = space.GetHotFreeBytes();
+    size_t emptySweptBefore = space.GetEmptySweptBytes();
+    size_t largeCacheBefore = (pool != nullptr) ? pool->GetLargeHotCacheBytes() : 0;
+    if (hotFreeBefore == 0 && emptySweptBefore == 0 && largeCacheBefore == 0) {
+        if (pool != nullptr && pool->GetTotalUnsweptCount() > 0) {
+            NotifyToSweep(kNoPreferredSweepClass);
+            return true;
+        }
+        shouldScavengeHeap_.store(false, std::memory_order_release);
+        return false;
+    }
 
     // Step A (on-demand): if hot-free supply is below the current target and
     // emptySwept cache is non-empty, move half of emptySwept into hot-free first.
     if (space.HasEmptySweptRegions()) {
         size_t hotFree = space.GetHotFreeBytes();
         if (hotFree < targetBytes) {
-            if (aggressive) {
+            size_t emptyCount = (pool != nullptr) ? pool->GetEmptySweptRegionCount() : 0;
+            if (emptyCount < DEFAULT_MS_EMPTY_SWEEPED_FLUSH_ALL_THRESHOLD ||
+                largeCacheBefore < DEFAULT_MS_LARGE_CACHE_FLUSH_ALL_BYTES) {
                 (void)space.FlushAllEmptySweptToHotFree();
             } else {
                 (void)space.FlushHalfEmptySweptToHotFree();
@@ -530,7 +506,7 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     if (pool != nullptr && pool->HasLargeFreeCache()) {
         size_t hotFree = space.GetHotFreeBytes();
         if (hotFree < targetBytes) {
-            if (aggressive) {
+            if (largeCacheBefore < DEFAULT_MS_LARGE_CACHE_FLUSH_ALL_BYTES) {
                 (void)pool->FlushLargeHotCacheToFreeManager();
             } else {
                 (void)pool->FlushHalfLargeFreeCacheToFreeManager();
@@ -544,12 +520,20 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     size_t emptySweptAfterFlush = space.GetEmptySweptBytes();
     // Snapshot large cache residual after Step A2 (any flushed bytes are now in releasedTree).
     size_t largeResidualBytes = (pool != nullptr) ? pool->GetLargeHotCacheBytes() : 0;
+    if (hotFreeAfterFlush == 0 && emptySweptAfterFlush == 0 && largeResidualBytes == 0) {
+        if (pool != nullptr && pool->GetTotalUnsweptCount() > 0) {
+            NotifyToSweep(kNoPreferredSweepClass);
+            return true;
+        }
+        shouldScavengeHeap_.store(false, std::memory_order_release);
+        return false;
+    }
 
     // Step B: release at most one round of the target.
     // Reserve is satisfied first by emptySwept + large cache residual (pages already
     // managed or staged for release).  Only if that combined reserve < reserveBytes
     // is the shortfall carved from hotFree.
-    size_t scavengeRounds = aggressive ? GetBackgroundScavengeAggressiveRounds() : GetBackgroundScavengeRounds();
+    size_t scavengeRounds = GetBackgroundScavengeRounds();
     size_t roundTarget = std::max(
         (sliceTargetBytes + scavengeRounds - 1) / scavengeRounds,
         static_cast<size_t>(MS_REGION_SIZE));

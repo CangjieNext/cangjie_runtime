@@ -55,28 +55,21 @@ uint64_t ReadEnvTimeUs(const char* name, uint64_t fallbackUs)
 }
 
 // 后台批量处理 region 数
-size_t GetBgSweepMaxRegionsPerSlice()
+size_t GetBgSweepMaxRegionsPerSlice(size_t unsweptBacklog)
 {
-    static const size_t value = ReadEnvCount("CJ_MS_BG_SWEEP_MAX_REGIONS_PER_SLICE", 256);
-    return value;
+    static const size_t baseValue = ReadEnvCount("CJ_MS_BG_SWEEP_MAX_REGIONS_PER_SLICE", 512);
+    static const size_t highValue = ReadEnvCount("CJ_MS_BG_SWEEP_HIGH_MAX_REGIONS_PER_SLICE", 2048);
+    static const size_t highBacklogThreshold = ReadEnvCount("CJ_MS_BG_SWEEP_HIGH_UNSWEPT", 10240);
+    return unsweptBacklog > highBacklogThreshold ? std::max(baseValue, highValue) : baseValue;
 }
 
 // 后台批量处理超时时间
-uint64_t GetBgSweepMaxTimeUs()
+uint64_t GetBgSweepMaxTimeUs(size_t unsweptBacklog)
 {
-    static const uint64_t value = ReadEnvTimeUs("CJ_MS_BG_SWEEP_MAX_TIME", 2000);
-    return value;
-}
-
-uint64_t GetEagerSweepBatchMaxTimeUs(size_t unsweptBacklog)
-{
-    static const uint64_t baseValue = ReadEnvTimeUs("CJ_MS_EAGER_SWEEP_BATCH_MAX_TIME", 10000);
-    static const uint64_t highValue = ReadEnvTimeUs("CJ_MS_EAGER_SWEEP_BATCH_HIGH_MAX_TIME", 100000);
-    static const size_t highBacklogThreshold = ReadEnvCount("CJ_MS_EAGER_SWEEP_BATCH_HIGH_UNSWEPT", 2048);
-    if (unsweptBacklog >= highBacklogThreshold) {
-        return std::max(baseValue, highValue);
-    }
-    return baseValue;
+    static const uint64_t baseValue = ReadEnvTimeUs("CJ_MS_BG_SWEEP_MAX_TIME", 2000);
+    static const uint64_t highValue = ReadEnvTimeUs("CJ_MS_BG_SWEEP_HIGH_MAX_TIME", 20000);
+    static const size_t highBacklogThreshold = ReadEnvCount("CJ_MS_BG_SWEEP_HIGH_UNSWEPT", 10240);
+    return unsweptBacklog > highBacklogThreshold ? std::max(baseValue, highValue) : baseValue;
 }
 
 }
@@ -594,14 +587,14 @@ BackgroundSweepStats CentralRegionPool::BackgroundSweep(uint8_t preferredCls)
 
     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
     uint64_t t0 = TimeUtil::MicroSeconds();
-    size_t maxRegions = GetBgSweepMaxRegionsPerSlice();
     size_t remainingUnswept = GetTotalUnsweptCount();
     if (remainingUnswept == 0) {
         sweepDone_.store(true, std::memory_order_release);
         finish();
         return {};
     }
-    uint64_t deadlineUs = t0 + GetBgSweepMaxTimeUs();
+    size_t maxRegions = GetBgSweepMaxRegionsPerSlice(remainingUnswept);
+    uint64_t deadlineUs = t0 + GetBgSweepMaxTimeUs(remainingUnswept);
     size_t sweptInSlice = 0;
     bool pendingWork = false;
     size_t emptyBefore = sweepStats_.emptiedRegions.load(std::memory_order_relaxed);
@@ -650,7 +643,8 @@ BackgroundSweepStats CentralRegionPool::BackgroundSweep(uint8_t preferredCls)
 }
 
 bool CentralRegionPool::SweepUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint32_t sg,
-                                         size_t& sweptInSlice, size_t maxRegions, uint64_t deadlineUs)
+                                         size_t& sweptInSlice, size_t maxRegions, uint64_t deadlineUs,
+                                         size_t* emptiedInSlice)
 {
     for (;;) {
         // Check stop request per-region for prompt exit
@@ -685,6 +679,9 @@ bool CentralRegionPool::SweepUnsweptList(SizeClassBucket& bucket, MSRegionList& 
                 // become classless empty-cache entries.
                 PushEmptySweptRegion(region);
                 sweepStats_.emptiedRegions.fetch_add(1, std::memory_order_relaxed);
+                if (emptiedInSlice != nullptr) {
+                    (*emptiedInSlice)++;
+                }
             } else if (region->HasFreeSpace()) {
                 sweepStats_.retainedRegions.fetch_add(1, std::memory_order_relaxed);
                 region->regionType = MSRegionType::MS_REGION_PARTIAL;
@@ -1126,17 +1123,15 @@ size_t CentralRegionPool::GetMaxEmptySweptRegions() const
 // Called from ConcurrentSweep() before handing off to the background thread,
 // giving immediate reclaim under high allocation pressure.
 // Uses the same CAS ownership protocol as BackgroundSweep / LazySweep.
-size_t CentralRegionPool::EagerSweepBatch(size_t maxRegions)
+MSEagerSweepBatchStats CentralRegionPool::EagerSweepBatch(uint64_t maxTimeUs)
 {
     size_t unsweptBacklog = GetTotalUnsweptCount();
-    uint64_t maxTimeUs = GetEagerSweepBatchMaxTimeUs(unsweptBacklog);
     if (maxTimeUs == 0) {
-        return 0;
+        return {};
     }
-    (void)maxRegions;
     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
     uint64_t deadlineUs = TimeUtil::MicroSeconds() + maxTimeUs;
-    size_t swept = 0;
+    MSEagerSweepBatchStats stats;
 
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
         if (TimeUtil::MicroSeconds() >= deadlineUs) {
@@ -1144,19 +1139,21 @@ size_t CentralRegionPool::EagerSweepBatch(size_t maxRegions)
         }
         SizeClassBucket& bucket = buckets_[cls];
         // Sweep partialUnswept first (most likely to yield free slots).
-        if (!SweepUnsweptList(bucket, bucket.partialUnswept, sg, swept, SIZE_MAX, deadlineUs)) {
+        if (!SweepUnsweptList(bucket, bucket.partialUnswept, sg, stats.sweptRegions, SIZE_MAX, deadlineUs,
+                              &stats.emptiedRegions)) {
             break;
         }
-        if (!SweepUnsweptList(bucket, bucket.fullUnswept, sg, swept, SIZE_MAX, deadlineUs)) {
+        if (!SweepUnsweptList(bucket, bucket.fullUnswept, sg, stats.sweptRegions, SIZE_MAX, deadlineUs,
+                              &stats.emptiedRegions)) {
             break;
         }
     }
 
-    if (swept > 0) {
-        VLOG(REPORT, "[MS-GC] EagerSweepBatch: swept=%zu unsweptBacklog=%zu (deadline=%zuus)",
-             swept, unsweptBacklog, static_cast<size_t>(maxTimeUs));
+    if (stats.sweptRegions > 0) {
+        VLOG(REPORT, "[MS-GC] EagerSweepBatch: swept=%zu emptied=%zu unsweptBacklog=%zu (deadline=%zuus)",
+             stats.sweptRegions, stats.emptiedRegions, unsweptBacklog, static_cast<size_t>(maxTimeUs));
     }
-    return swept;
+    return stats;
 }
 
 MSLargeSweepStats CentralRegionPool::SweepLargeRegions()

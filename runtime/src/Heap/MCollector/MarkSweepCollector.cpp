@@ -1509,6 +1509,10 @@ void MarkSweepCollector::ConcurrentSweep()
     uint64_t phaseStart = TimeUtil::MicroSeconds();
     VLOG(REPORT, "[MS-GC] --- ConcurrentSweep ---");
 
+    static constexpr uint64_t kDefaultEagerSweepMaxTimeUs = 10ULL * 1000ULL;
+    static constexpr uint64_t kHeavyBacklogEagerSweepMaxTimeUs = 100ULL * 1000ULL;
+    static constexpr size_t kHeavyBacklogToLiveRatio = 10;
+
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
 
     // Compute true live bytes from markBitmaps BEFORE gen flip (bitmaps are stable here).
@@ -1516,19 +1520,21 @@ void MarkSweepCollector::ConcurrentSweep()
     if (centralPool != nullptr) {
         cycleStats_.trueLiveBytes = centralPool->ComputeMarkedBytes();
         size_t totalUnswept = centralPool->GetTotalUnsweptCount();
-        // Kick off an eager sweep batch on the GC thread; the stop condition is
-        // the eager-sweep deadline, not a half-unswept cap.
-        size_t eagerSweepTarget = totalUnswept;
-        size_t emptyBytesBefore = centralPool->GetEmptySweptBytes();
-        cycleStats_.eagerSweepBatchRegions = centralPool->EagerSweepBatch(eagerSweepTarget);
-        size_t emptyBytesAfter = centralPool->GetEmptySweptBytes();
-        size_t eagerSweepEmptyBytes =
-            (emptyBytesAfter > emptyBytesBefore) ? (emptyBytesAfter - emptyBytesBefore) : 0;
-        cycleStats_.eagerSweepEmptiedRegions = eagerSweepEmptyBytes / MS_REGION_SIZE;
+        size_t trueLiveRegions = std::max<size_t>(
+            1, (cycleStats_.trueLiveBytes + MS_REGION_SIZE - 1) / MS_REGION_SIZE);
+        uint64_t eagerSweepMaxTimeUs =
+            (totalUnswept > trueLiveRegions * kHeavyBacklogToLiveRatio)
+                ? kHeavyBacklogEagerSweepMaxTimeUs
+                : kDefaultEagerSweepMaxTimeUs;
+        MSEagerSweepBatchStats eagerSweepStats = centralPool->EagerSweepBatch(eagerSweepMaxTimeUs);
+        cycleStats_.eagerSweepBatchRegions = eagerSweepStats.sweptRegions;
+        cycleStats_.eagerSweepEmptiedRegions = eagerSweepStats.emptiedRegions;
         cycleStats_.eagerSweepTotalUnswept = totalUnswept;
         VLOG(REPORT,
-             "[MS-GC] ConcurrentSweep eager: swept=%zu regions, unsweptBefore=%zu",
-             cycleStats_.eagerSweepBatchRegions, totalUnswept);
+             "[MS-GC] ConcurrentSweep eager: swept=%zu regions, emptied=%zu, unsweptBefore=%zu, "
+             "trueLiveRegions=%zu, budget=%zuus",
+             cycleStats_.eagerSweepBatchRegions, cycleStats_.eagerSweepEmptiedRegions, totalUnswept, trueLiveRegions,
+             static_cast<size_t>(eagerSweepMaxTimeUs));
     }
 
     Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().NotifyToScavenge();

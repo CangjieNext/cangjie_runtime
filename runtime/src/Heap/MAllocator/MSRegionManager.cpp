@@ -199,22 +199,13 @@ double ReadEnvPositiveDecimal(const char* name, double fallback)
 
 uint64_t GetHeuRequestCooldownNs()
 {
-    static const uint64_t value = ReadEnvTimeNs("CJ_MS_HEU_REQUEST_COOLDOWN", 10ULL * 1000ULL * 1000ULL);
+    static const uint64_t value = ReadEnvTimeNs("CJ_MS_HEU_REQUEST_COOLDOWN", 5ULL * 1000ULL * 1000ULL);
     return value;
 }
 
 bool GetInlineReclaimEnabled()
 {
     static const bool value = ReadEnvCount("CJ_MS_INLINE_RECLAIM", 1) != 0;
-    return value;
-}
-
-// GetBgSweepMaxRegionsPerSlice — 后台批量处理 region 数（与 CentralRegionPool 共用同一环境变量）。
-// When the HEU threshold is hit, the system is already under allocation pressure; we reuse the
-// background-sweep slice limit so that sweep-first deferral uses the same knob as the bg-sweep path.
-size_t GetBgSweepMaxRegionsPerSlice()
-{
-    static const size_t value = ReadEnvCount("CJ_MS_BG_SWEEP_MAX_REGIONS_PER_SLICE", 256);
     return value;
 }
 
@@ -310,22 +301,6 @@ void MSRegionManager::MaybeNotifyMark()
         if (heapInUse < effectiveThreshold) {
             return;
         }
-    }
-
-    // Sweep-first deferral: if unswept backlog exceeds one sweep-slice worth of
-    // regions, kick background sweep and skip this GC request.  Sweep will
-    // convert unswept regions into ready/empty regions, potentially bringing
-    // effectiveAlloc back below threshold and avoiding an unnecessary GC cycle.
-    size_t totalUnswept = pool->GetTotalUnsweptCount();
-    size_t sweepSlice = GetBgSweepMaxRegionsPerSlice();
-    if (totalUnswept > sweepSlice) {
-        BackgroundProcessor& bp =
-            Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
-        // Enter pressure mode: MaybeNotifyMark is the only owner of sweep pressure.
-        // Background sweep will keep draining slices until unswept count reaches 0.
-        bp.SetSweepPressureMode(true);
-        bp.NotifyToSweep(kNoPreferredSweepClass);
-        return;
     }
 
     if (!lastHeuRequestNs_.compare_exchange_strong(lastHeuRequestNs, nowNs,

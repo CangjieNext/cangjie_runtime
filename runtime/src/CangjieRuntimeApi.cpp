@@ -239,8 +239,8 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
             .gcThreshold = initHeapSize * MapleRuntime::KB,
             // Default value of garbage ratio is 50%.
             .garbageThreshold = param->gcParam.garbageThreshold < ERRORESTIMATE ? 0.5 : param->gcParam.garbageThreshold,
-            // Default value of GC interval is 20ms.
-            .gcInterval = param->gcParam.gcInterval == 0 ? 20 * MapleRuntime::MILLI_SECOND_TO_NANO_SECOND :
+            // Default value of GC interval is 5ms.
+            .gcInterval = param->gcParam.gcInterval == 0 ? 5 * MapleRuntime::MILLI_SECOND_TO_NANO_SECOND :
                 param->gcParam.gcInterval * MapleRuntime::MILLI_SECOND_TO_NANO_SECOND,
             // Default value of backup GC interval is 240s.
             .backupGCInterval = param->gcParam.backupGCInterval == 0 ? 240 * MapleRuntime::SECOND_TO_NANO_SECOND :

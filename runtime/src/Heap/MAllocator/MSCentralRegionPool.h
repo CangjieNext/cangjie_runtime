@@ -74,6 +74,11 @@ struct MSLargeSweepStats {
     size_t cachedBytes = 0;        // Bytes placed into hot cache.
 };
 
+struct MSEagerSweepBatchStats {
+    size_t sweptRegions = 0;
+    size_t emptiedRegions = 0;
+};
+
 // ============================================================================
 // MSRegionList: lightweight intrusive doubly-linked list over MSRegionInfo
 // ============================================================================
@@ -440,9 +445,8 @@ public:
 
     // Eager synchronous sweep of small regions: GC thread sweeps unswept regions
     // across all size classes until the configured wall-time budget is exhausted.
-    // maxRegions is kept as a caller-side request snapshot for compatibility.
     // Called from ConcurrentSweep() to give immediate reclaim under pressure.
-    size_t EagerSweepBatch(size_t maxRegions);
+    MSEagerSweepBatchStats EagerSweepBatch(uint64_t maxTimeUs);
 
     // ===== Pre-STW bitmap clearing (MarkSetup fast path) =====
 
@@ -494,7 +498,8 @@ private:
                                 size_t& retainedRegions, size_t& freedBytes);
     void ForceFinishAllUnswept();
     bool SweepUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint32_t sg,
-                         size_t& sweptInSlice, size_t maxRegions, uint64_t deadlineUs);
+                         size_t& sweptInSlice, size_t maxRegions, uint64_t deadlineUs,
+                         size_t* emptiedInSlice = nullptr);
     std::array<uint8_t, kNumSizeClasses> BuildBackgroundSweepClassOrder(uint8_t preferredCls) const;
 
     static std::atomic<uint32_t> globalSweepGen_;
