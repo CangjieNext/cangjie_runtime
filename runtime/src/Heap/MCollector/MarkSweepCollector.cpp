@@ -297,15 +297,14 @@ void MarkSweepCollector::PreEnumRoots()
     CentralRegionPool* centralPool = space.GetCentralPool();
     
     // Stop sweep → wait for in-flight sweep to quiesce → clear bitmaps
-    // → reclassify residual unswept entries → freeze this cycle's sweep
-    // snapshot. Lazy sweep stays disabled until MarkTermination completes,
+    // → reclassify residual unswept entries. Lazy sweep stays disabled until
+    // MarkTermination completes and PrepareForSweep flips the sweep generation,
     // because the mark bitmap is not yet final.
     // Safe pre-STW: no SweepRegion running, mark-at-alloc inactive.
     if (centralPool != nullptr) {
         centralPool->StopAndWaitForAllSweep();
         centralPool->ClearAllMarkBitmaps();
         centralPool->ReclassifyUnsweptToSwept();
-        centralPool->PrepareForSweep();
     }
     prevCycleMarkedObjects_.store(markedObjectCount.load(std::memory_order_relaxed), std::memory_order_relaxed);
     // Reset marked object counter (GC-thread-only, no STW needed).
@@ -1173,6 +1172,9 @@ void MarkSweepCollector::MarkTermination()
     // Now that all mutators are frozen, clear activeCollector_.
     activeCollector_.store(nullptr, std::memory_order_release);
 
+    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
+    CentralRegionPool* centralPool = space.GetCentralPool();
+
     GreyWorkQueue mainQueue;
     size_t directSourceEntries = 0;
     size_t pendingWorkEntries = 0;
@@ -1212,7 +1214,12 @@ void MarkSweepCollector::MarkTermination()
             markedObjectCount.load(std::memory_order_relaxed) - beforeMark;
     }
 
-    // Step5: Reset all per-P gcWork and return WorkBufs to pool.
+    // 5. Flip sweep generation only after the final mark closure is complete.
+    if (centralPool != nullptr) {
+        centralPool->PrepareForSweep();
+    }
+
+    // 6. Reset all per-P gcWork and return WorkBufs to pool.
     ResetAllPerPGCWork();
 
     cycleStats_.markTerminationUs = TimeUtil::MicroSeconds() - phaseStart;
@@ -1232,8 +1239,6 @@ void MarkSweepCollector::MarkTermination()
     // but before PostMarkTermination switches the phase.
     TransitionToGCPhase(GCPhase::GC_PHASE_MS_SWEEP, false);
 
-    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
-    CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool != nullptr) {
         centralPool->ReenableLazySweep();
     }
