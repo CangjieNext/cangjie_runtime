@@ -744,6 +744,25 @@ static InterpreterParam InitInterpreterParam()
     };
     return interpreterParam;
 }
+
+static void DestroyInterpreterParam(InterpreterParam& interpreterParam)
+{
+    const char* const* interpreterArgs = interpreterParam.interpreterArgs;
+    if (interpreterArgs != nullptr) {
+        for (int i = 0; i < interpreterParam.interpreterArgsCount && interpreterArgs[i] != nullptr; ++i) {
+            delete[] interpreterArgs[i];
+        }
+        delete[] interpreterArgs;
+    }
+
+    if (interpreterParam.interpreterLibName != nullptr) {
+        std::free(const_cast<char*>(interpreterParam.interpreterLibName));
+    }
+    interpreterParam.interpreterLibName = nullptr;
+    interpreterParam.interpreterArgsCount = 0;
+    interpreterParam.interpreterArgs = nullptr;
+    interpreterParam.appLibHandle = nullptr;
+}
 #endif
 
 void MRT_CjRuntimeInit()
@@ -753,6 +772,7 @@ void MRT_CjRuntimeInit()
 #ifdef INTERPRETER_ENABLED
     InterpreterParam interpreterParam = InitInterpreterParam();
     InitCJInterpreter(&interpreterParam);
+    DestroyInterpreterParam(interpreterParam);
 #endif
     RTErrorCode rtCode = SetRuntimeInitFlag();
     if (rtCode != E_OK) {
