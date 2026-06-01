@@ -6,4 +6,5 @@
 
 set(INTEROP_SRCS
     interop.cj
+    extern.cj
     CACHE INTERNAL "")
