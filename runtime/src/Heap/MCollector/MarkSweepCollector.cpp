@@ -297,14 +297,19 @@ void MarkSweepCollector::PreEnumRoots()
     CentralRegionPool* centralPool = space.GetCentralPool();
     
     // Stop sweep → wait for in-flight sweep to quiesce → clear bitmaps
-    // → reclassify residual unswept entries. Lazy sweep stays disabled until
-    // MarkTermination completes and PrepareForSweep flips the sweep generation,
-    // because the mark bitmap is not yet final.
+    // → reclassify residual unswept entries → flip sweep generation BEFORE
+    // concurrent mark begins. Flipping the generation here (rather than in
+    // MarkTermination) guarantees that every region allocated during this GC
+    // cycle's mark phase carries the NEW sweep generation, so the current
+    // sweep skips them. Otherwise such regions keep the OLD generation and get
+    // swept this cycle, which wrongly reclaims live objects that are only held
+    // by stack/local roots (those never pass through the write barrier).
     // Safe pre-STW: no SweepRegion running, mark-at-alloc inactive.
     if (centralPool != nullptr) {
         centralPool->StopAndWaitForAllSweep();
         centralPool->ClearAllMarkBitmaps();
         centralPool->ReclassifyUnsweptToSwept();
+        centralPool->PrepareForSweep();
     }
     prevCycleMarkedObjects_.store(markedObjectCount.load(std::memory_order_relaxed), std::memory_order_relaxed);
     // Reset marked object counter (GC-thread-only, no STW needed).
@@ -1214,12 +1219,11 @@ void MarkSweepCollector::MarkTermination()
             markedObjectCount.load(std::memory_order_relaxed) - beforeMark;
     }
 
-    // 5. Flip sweep generation only after the final mark closure is complete.
-    if (centralPool != nullptr) {
-        centralPool->PrepareForSweep();
-    }
-
-    // 6. Reset all per-P gcWork and return WorkBufs to pool.
+    // 5. Reset all per-P gcWork and return WorkBufs to pool.
+    // NOTE: sweep generation is flipped in PreEnumRoots (before mark), NOT
+    // here. Flipping after mark would let regions allocated during this
+    // cycle's mark phase keep the old generation and be swept this cycle,
+    // wrongly reclaiming live stack-only objects (not covered by the barrier).
     ResetAllPerPGCWork();
 
     cycleStats_.markTerminationUs = TimeUtil::MicroSeconds() - phaseStart;
