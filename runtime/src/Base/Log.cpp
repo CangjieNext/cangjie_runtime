@@ -167,7 +167,7 @@ Logger::Logger()
 
     GetLogPath("MRT_LOG_PATH", filePath);
 #ifndef __ANDROID__
-    minimumLogLevel = RTLOG_ERROR;
+    minimumLogLevel = RTLOG_INFO;
 #else
     minimumLogLevel = RTLOG_INFO;
 #endif

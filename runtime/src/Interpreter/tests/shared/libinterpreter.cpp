@@ -16,6 +16,11 @@
 MOCK_IMPLEMENTATION mockInstance;
 static void* g_symbol_lookup_handle = nullptr;
 
+#if defined(__APPLE__) && \
+    (defined(__IOS__) || defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__))
+extern "C" __attribute__((weak)) void landingPad() {}
+#endif
+
 #define C2I_STUB_FRAME_SIZE 64
 #define INTERPRETER_FRAMES_SIZE 1024
 

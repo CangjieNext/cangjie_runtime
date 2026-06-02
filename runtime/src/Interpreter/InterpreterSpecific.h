@@ -29,10 +29,10 @@ void IterateFramesWithState(
 void VisitInterpreterGlobalRoots(DYN_RootVisitor visitor);
 
 void VisitInterpreterFrameRootsExpansion(
-    DYN_VisitingState state, FrameInfo frameDesc, DYN_RootVisitor stackPtrVisitor, DYN_RootVisitor derivedPtrVisitor);
+    DYN_VisitingState state, FrameInfo frameDesc, DYN_RootVisitor stackPtrVisitor, DYN_DerivedPtrVisitor derivedPtrVisitor);
 void VisitInterpreterFrameRootsMarking(DYN_VisitingState state, FrameInfo frameDesc, DYN_RootVisitor rootVisitor);
 void VisitInterpreterFrameRootsAdjusting(
-    DYN_VisitingState state, FrameInfo frameDesc, DYN_RootVisitor rootVisitor, DYN_RootVisitor derivedPtrVisitor);
+    DYN_VisitingState state, FrameInfo frameDesc, DYN_RootVisitor rootVisitor, DYN_DerivedPtrVisitor derivedPtrVisitor);
 
 void InterpreterCJThreadStart(DYN_CJThreadSpecificData* mutator);
 void InterpreterCJThreadDestroy(DYN_CJThreadSpecificData* mutator);
@@ -40,7 +40,7 @@ DYN_CJThreadHandle NewCJThread(void* execute, DYN_ObjRef future, void* scheduler
 
 void FillInterpretedFrameInfo(uint64_t fp, uint64_t ip, INT_InterpretedFrameInfo* fInfo);
 
-struct DYN_TypeInfo* TypeInfoProvider(char* sig);
+struct DYN_TypeInfo* TypeInfoProvider(const char* sig);
 uint32_t GetInstanceSize(struct DYN_TypeInfo* typeInfoPtr);
 DYN_FuncPtr* GetMTable(struct DYN_TypeInfo* ti, struct DYN_TypeInfo* itf);
 struct DYN_TypeInfo* GetMethodOuterTI(struct DYN_TypeInfo* ti, struct DYN_TypeInfo* itf, uint64_t index);
@@ -51,7 +51,7 @@ DYN_ObjRef ObjectAllocate(struct DYN_TypeInfo* tpe);
 
 void SafePoint();
 
-bool IsPendingSafePoint(DYN_ThreadLocalData* tlData);
+bool IsPendingSafePoint(DYN_ThreadLocalData tlData);
 
 DYN_ObjRef GetPendingException();
 DYN_ObjRef GetAndClearPendingException();
