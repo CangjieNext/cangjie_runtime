@@ -69,6 +69,23 @@ public:
         return oldTop;
     }
 
+    // PopFull: pop the top buf only when it is a FULL buf (len == kCapacity).
+    // Used by debt-driven assist global pull so each pulled buf accounts for
+    // exactly kCapacity objects of debt. Returns nullptr if the stack is empty
+    // or the top buf is partial.
+    WorkBuf* PopFull()
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        WorkBuf* oldTop = top_;
+        if (oldTop == nullptr || oldTop->len < WorkBuf::kCapacity) {
+            return nullptr;
+        }
+        top_ = oldTop->next;
+        oldTop->next = nullptr;
+        --count_;
+        return oldTop;
+    }
+
     bool Empty() const
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -129,13 +146,68 @@ private:
 };
 
 // ============================================================================
-// PerPGCWork: per-Processor GC work buffer with double-buffering.
-// Go equivalent: runtime.gcWork (per-P, wbuf1/wbuf2).
-// Interfaces with a global LFStack for overflow/refill.
+// WorkBufList: bounded singly-linked list of WorkBuf nodes (LIFO).
+// Reuses WorkBuf::next as the link. Holds at most kMaxNodes nodes.
+// Used by PerPGCWork for the two local lists (list1_ = consume-ready,
+// list2_ = mark-output spill target). Not thread-safe; per-P only.
+// ============================================================================
+struct WorkBufList {
+    static constexpr size_t kMaxNodes = 4;
+
+    WorkBuf* head_ = nullptr;
+    size_t nodeCount_ = 0;
+
+    bool ListEmpty() const { return head_ == nullptr; }
+    bool ListFull() const { return nodeCount_ >= kMaxNodes; }
+    size_t NodeCount() const { return nodeCount_; }
+
+    void PushNode(WorkBuf* buf)
+    {
+        buf->next = head_;
+        head_ = buf;
+        ++nodeCount_;
+    }
+
+    WorkBuf* PopNode()
+    {
+        if (head_ == nullptr) {
+            return nullptr;
+        }
+        WorkBuf* buf = head_;
+        head_ = buf->next;
+        buf->next = nullptr;
+        --nodeCount_;
+        return buf;
+    }
+
+    size_t TotalObjs() const
+    {
+        size_t n = 0;
+        for (WorkBuf* b = head_; b != nullptr; b = b->next) {
+            n += b->len;
+        }
+        return n;
+    }
+};
+
+// ============================================================================
+// PerPGCWork: per-Processor GC work buffers with bounded local lists.
+//
+//   getCur_  : in-use get buffer (Pop side). NOT counted in any list.
+//   putCur_  : in-use put buffer (Push side). NOT counted in any list.
+//   list1_   : consume-ready full bufs (write-barrier output + spill target).
+//   list2_   : mark-output spill target (putCur_ overflow lands here first).
+//
+// Write-barrier overflow → PushWBBuf → list1_ (local-first), else global.
+// Mark output (PutObj) → putCur_ → (full) list2_ → (full) SpillToList1OrGlobal.
+// Get path: getCur_ → list1_ → list2_ → putCur_ → globalFull_ (TryGetObj),
+//           getCur_ → list1_ → list2_ → putCur_           (TryGetObjLocal).
 // ============================================================================
 struct PerPGCWork {
-    WorkBuf* wbuf1_ = nullptr;
-    WorkBuf* wbuf2_ = nullptr;
+    WorkBufList list1_;
+    WorkBufList list2_;
+    WorkBuf* getCur_ = nullptr;
+    WorkBuf* putCur_ = nullptr;
     bool flushedWork_ = false;
 
     // Set at GC cycle start; null between cycles.
@@ -149,53 +221,91 @@ struct PerPGCWork {
         globalFull_ = full;
         workBufPool_ = pool;
         flushedWork_ = false;
-        // wbuf1_ (get buf) allocated lazily on first TryGetObj refill;
-        // wbuf2_ (put buf) allocated lazily on first PutObj.
+        // getCur_/putCur_ allocated lazily on first use.
     }
 
-    // Push a grey object into the put buffer (wbuf2_).
-    // wbuf2_ is the dedicated sink for newly discovered children;
-    // it is separate from wbuf1_ (the get buffer) so that TryGetObj
-    // monotonically drains wbuf1_ without interference from PutObj.
-    // Overflow → push full wbuf2_ to globalFull_, get new empty buf from pool.
+    // Spill a full buf preferentially into list1_ (so it gets consumed locally),
+    // falling back to globalFull_ when list1_ is full.
+    void SpillToList1OrGlobal(WorkBuf* buf)
+    {
+        if (!list1_.ListFull()) {
+            list1_.PushNode(buf);
+        } else {
+            globalFull_->Push(buf);
+            flushedWork_ = true;
+        }
+    }
+
+    // Push a write-barrier-overflow buf into the local list1_ (local-first),
+    // falling back to globalFull_ when list1_ is full.
+    void PushWBBuf(WorkBuf* buf)
+    {
+        if (!list1_.ListFull()) {
+            list1_.PushNode(buf);
+        } else {
+            globalFull_->Push(buf);
+            flushedWork_ = true;
+        }
+    }
+
+    // Push a grey object into the put buffer (putCur_).
+    // putCur_ full → list2_ (if room) → SpillToList1OrGlobal (otherwise).
     void PutObj(BaseObject* obj)
     {
-        if (wbuf2_ == nullptr) {
-            wbuf2_ = workBufPool_->Get();
+        if (putCur_ == nullptr) {
+            putCur_ = workBufPool_->Get();
         }
-        if (!wbuf2_->Full()) {
-            wbuf2_->Push(obj);
+        if (!putCur_->Full()) {
+            putCur_->Push(obj);
             return;
         }
-        // wbuf2 full → push to global, get fresh empty put buf
-        globalFull_->Push(wbuf2_);
-        flushedWork_ = true;
-        wbuf2_ = workBufPool_->Get();
-        wbuf2_->Push(obj);
+        // putCur_ full → spill to list2_ first, else to list1_/global.
+        if (!list2_.ListFull()) {
+            list2_.PushNode(putCur_);
+        } else {
+            SpillToList1OrGlobal(putCur_);
+        }
+        putCur_ = workBufPool_->Get();
+        putCur_->Push(obj);
     }
 
-    // Pop a grey object from the get buffer (wbuf1_).
-    // wbuf1_ is the dedicated source; PutObj never writes here.
-    // Drain order:
-    //   1. wbuf1_ (no lock)
-    //   2. wbuf2_ → promote to wbuf1_ (no lock; avoids globalFull_ mutex)
-    //   3. globalFull_ (mutex; cross-thread refill)
+    // Internal: promote one source buffer to getCur_ and Pop from it.
+    BaseObject* PromoteAndPop(WorkBuf* src)
+    {
+        if (getCur_ != nullptr) {
+            workBufPool_->Put(getCur_);
+        }
+        getCur_ = src;
+        return getCur_->Pop();
+    }
+
+    // TryGetObjLocal: local-only get (no global refill). Used by assist.
+    BaseObject* TryGetObjLocal()
+    {
+        if (getCur_ != nullptr && !getCur_->Empty()) {
+            return getCur_->Pop();
+        }
+        if (!list1_.ListEmpty()) {
+            return PromoteAndPop(list1_.PopNode());
+        }
+        if (!list2_.ListEmpty()) {
+            return PromoteAndPop(list2_.PopNode());
+        }
+        if (putCur_ != nullptr && !putCur_->Empty()) {
+            WorkBuf* src = putCur_;
+            putCur_ = workBufPool_->Get();
+            return PromoteAndPop(src);
+        }
+        return nullptr;
+    }
+
+    // TryGetObj: local-first then global refill. Used by the GC thread loop.
     BaseObject* TryGetObj()
     {
-        // 1. Drain get buffer
-        if (wbuf1_ != nullptr && !wbuf1_->Empty()) {
-            return wbuf1_->Pop();
+        BaseObject* obj = TryGetObjLocal();
+        if (obj != nullptr) {
+            return obj;
         }
-        // 2. wbuf1 empty: promote put buffer to get buffer
-        if (wbuf2_ != nullptr && !wbuf2_->Empty()) {
-            if (wbuf1_ != nullptr) {
-                workBufPool_->Put(wbuf1_);
-            }
-            wbuf1_ = wbuf2_;
-            wbuf2_ = workBufPool_->Get();  // fresh empty put buf
-            return wbuf1_->Pop();
-        }
-        // 3. Both empty: refill from global
         if (globalFull_ == nullptr) {
             return nullptr;
         }
@@ -203,129 +313,64 @@ struct PerPGCWork {
         if (buf == nullptr) {
             return nullptr;
         }
-        if (wbuf1_ != nullptr) {
-            workBufPool_->Put(wbuf1_);
-        }
-        wbuf1_ = buf;
-        return wbuf1_->Pop();
-    }
-
-    // TryGetObjLocal: pop from local wbuf1/wbuf2 ONLY.
-    // Does NOT refill from globalFull_.
-    // Used by GC thread when assist is enabled: leaves globalFull_
-    // work for assist threads to consume, creating true parallelism.
-    BaseObject* TryGetObjLocal()
-    {
-        if (wbuf1_ != nullptr && !wbuf1_->Empty()) {
-            return wbuf1_->Pop();
-        }
-        // Promote put buffer to get buffer (no lock)
-        if (wbuf2_ != nullptr && !wbuf2_->Empty()) {
-            if (wbuf1_ != nullptr) {
-                workBufPool_->Put(wbuf1_);
-            }
-            wbuf1_ = wbuf2_;
-            wbuf2_ = workBufPool_->Get();
-            return wbuf1_->Pop();
-        }
-        return nullptr;
+        return PromoteAndPop(buf);
     }
 
     // Dispose: flush all local work to global (convergence / MarkTermination).
-    // Go equivalent: gcWork.dispose().
     void Dispose()
     {
-        if (wbuf1_ != nullptr && !wbuf1_->Empty()) {
-            globalFull_->Push(wbuf1_);
-            wbuf1_ = workBufPool_->Get();
+        if (getCur_ != nullptr && !getCur_->Empty()) {
+            globalFull_->Push(getCur_);
+            getCur_ = nullptr;
             flushedWork_ = true;
         }
-        if (wbuf2_ != nullptr && !wbuf2_->Empty()) {
-            globalFull_->Push(wbuf2_);
-            wbuf2_ = workBufPool_->Get();
+        if (putCur_ != nullptr && !putCur_->Empty()) {
+            globalFull_->Push(putCur_);
+            putCur_ = nullptr;
             flushedWork_ = true;
         }
-    }
-
-    // FlushAndSplit: share work with globalFull_ for assist threads.
-    // 1. Push wbuf2 to global if non-empty
-    // 2. Split wbuf1 in half -> push half to global, keep half locally
-    // Unlike Dispose(), the GC thread keeps half of wbuf1 so it can
-    // continue draining without an expensive global refill.
-    // Returns number of bufs pushed to global.
-    size_t FlushAndSplit()
-    {
-        size_t pushed = 0;
-        // Share wbuf2 first
-        if (wbuf2_ != nullptr && !wbuf2_->Empty()) {
-            globalFull_->Push(wbuf2_);
-            wbuf2_ = workBufPool_->Get();
-            flushedWork_ = true;
-            pushed++;
-        }
-        // Split wbuf1 if it has enough objects.
-        // DFS frontier is typically narrow (2-8 items with avg 1.0 children),
-        // so use a low threshold to actually trigger sharing.
-        constexpr size_t kMinSplitLen = 4;
-        if (wbuf1_ != nullptr && wbuf1_->len >= kMinSplitLen) {
-            size_t shareCount = wbuf1_->len / 2;
-            size_t keepCount = wbuf1_->len - shareCount;
-            WorkBuf* shareBuf = workBufPool_->Get();
-            // Bulk copy the second half to shareBuf
-            memcpy(shareBuf->objs, &wbuf1_->objs[keepCount],
-                   shareCount * sizeof(BaseObject*));
-            shareBuf->len = shareCount;
-            wbuf1_->len = keepCount;
-            globalFull_->Push(shareBuf);
-            flushedWork_ = true;
-            pushed++;
-        }
-        return pushed;
-    }
-
-    // Balance: share wbuf2 to global when global is empty.
-    // Lets other threads (GC / assist) find work.
-    void Balance()
-    {
-        if (wbuf2_ != nullptr && !wbuf2_->Empty()) {
-            globalFull_->Push(wbuf2_);
-            wbuf2_ = workBufPool_->Get();
+        WorkBuf* b;
+        while ((b = list1_.PopNode()) != nullptr) {
+            globalFull_->Push(b);
             flushedWork_ = true;
         }
-    }
-
-    // LocalLen: return total objects in local wbuf1 + wbuf2 (no lock needed).
-    size_t LocalLen() const
-    {
-        size_t n = 0;
-        if (wbuf1_ != nullptr) { n += wbuf1_->len; }
-        if (wbuf2_ != nullptr) { n += wbuf2_->len; }
-        return n;
+        while ((b = list2_.PopNode()) != nullptr) {
+            globalFull_->Push(b);
+            flushedWork_ = true;
+        }
     }
 
     bool Empty() const
     {
-        return (wbuf1_ == nullptr || wbuf1_->Empty()) &&
-               (wbuf2_ == nullptr || wbuf2_->Empty());
+        return (getCur_ == nullptr || getCur_->Empty()) &&
+               (putCur_ == nullptr || putCur_->Empty()) &&
+               list1_.ListEmpty() && list2_.ListEmpty();
     }
 
-    // Reset: return all bufs to pool, clear state.
-    // Called at end of GC cycle.
+    // Reset: return all bufs to pool, clear state. Called at end of GC cycle.
     void Reset()
     {
-        if (wbuf1_ != nullptr) {
-            workBufPool_->Put(wbuf1_);
-            wbuf1_ = nullptr;
+        if (getCur_ != nullptr) {
+            workBufPool_->Put(getCur_);
+            getCur_ = nullptr;
         }
-        if (wbuf2_ != nullptr) {
-            workBufPool_->Put(wbuf2_);
-            wbuf2_ = nullptr;
+        if (putCur_ != nullptr) {
+            workBufPool_->Put(putCur_);
+            putCur_ = nullptr;
+        }
+        WorkBuf* b;
+        while ((b = list1_.PopNode()) != nullptr) {
+            workBufPool_->Put(b);
+        }
+        while ((b = list2_.PopNode()) != nullptr) {
+            workBufPool_->Put(b);
         }
         flushedWork_ = false;
         globalFull_ = nullptr;
         workBufPool_ = nullptr;
     }
 };
+
 
 } // namespace MapleRuntime
 

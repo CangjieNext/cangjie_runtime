@@ -115,7 +115,6 @@ public:
         return assistWorkPerByteScaled_.load(std::memory_order_acquire);
     }
     static uint64_t GetAssistRatioScale();
-    static double GetAssistRatioMaxMultiplier();
     size_t GetAssistDebtTriggerObjects() const;
     static MarkSweepCollector* GetActiveCollector()
     {
@@ -200,12 +199,14 @@ private:
 
     // ── Step 2.2 internals ──
     void RunConcurrentMarkLoop();
-    // Returns true when true convergence is reached and the loop should break.
-    // Manages convergenceStableRounds_ and flushes localCreditAccum on convergence.
-    bool CheckConvergenceAndBreak(size_t& localCreditAccum);
+    // Returns true when convergence (kConvergenceRequiredRounds consecutive
+    // empty rounds) is reached and the loop should break.
+    bool CheckConvergenceAndBreak();
     void DrainMarkWorkStack(size_t maxObjects, size_t& scannedCount);
     void DrainConcurrentOverflowQueueToMarkWork();
     void DrainGCWork(PerPGCWork& gcw, size_t maxObjects, size_t& scannedCount);
+    // Drain the entire getCur_ buffer of gcw (one round); returns objects scanned.
+    size_t DrainOneBufRound(PerPGCWork& gcw);
     void TraceObjectRefFieldsToGCWork(BaseObject* obj, PerPGCWork& gcw);
     void TraceRefField(BaseObject* obj, RefField<>& field, WorkStack& workStack);
     void TransferRootsToGCWork();
@@ -298,6 +299,18 @@ private:
     std::atomic<size_t> assistFastSkipCount_{0};
     std::atomic<size_t> globalShareCount_{0};
     std::atomic<size_t> bgScanCreditConsumed_{0};
+
+    // ── Step21 assist-path breakdown (diagnostic) ──
+    std::atomic<size_t> assistLocalMarked_{0};     // ① objects marked from local work
+    std::atomic<size_t> assistBgStolen_{0};        // ② credit stolen from bgScanCredit_
+    std::atomic<size_t> assistGlobalPulled_{0};    // ③ debt paid by global PopFull pulls
+    std::atomic<size_t> assistPostPullMarked_{0};  // ④ objects marked after a pull
+    std::atomic<size_t> bgCreditInjected_{0};      // GC-supply credit injected this cycle
+
+    // ── Step21 GC-supply decay schedule (N = round hitting 100ms last cycle) ──
+    size_t prevCycleRoundsTo100ms_ = 0;  // persisted N for next cycle's decay
+    size_t bgCreditStopRound_ = 0;       // N actually used this cycle
+    size_t roundsTo100ms_ = 0;           // this cycle's measured 100ms round
 
     // ── DFX: Per-cycle stats ──
     MSGCCycleStats cycleStats_;
