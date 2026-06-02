@@ -18,12 +18,12 @@ public type BlockingQueue<E> = LinkedBlockingQueue<E>
  * BlockingQueue is a concurrent queue with a blocking mechanism and supports a user-specified upper bound of capacity.
  */
 public class LinkedBlockingQueue<E> {
-    public let capacity: Int64 // the capacity of the queue	 
+    public let capacity: Int64 // the capacity of the queue
     private let takeMonitor = Monitor() // Monitor for blocking consumers when the queue is empty
-    private let putMonitor = Monitor() // Monitor for blocking producers when the queue is full	 
-    private let putQsize = AtomicInt64(0) // Number of elements that are enqueuing.	 
+    private let putMonitor = Monitor() // Monitor for blocking producers when the queue is full
+    private let putQsize = AtomicInt64(0) // Number of elements that are enqueuing.
     private let takeQsize = AtomicInt64(0) // Number of elements that are being dequeued.
-    private let front: AtomicReference<Block<E>> // head of BlockingQueue.	 
+    private let front: AtomicReference<Block<E>> // head of BlockingQueue.
     private let rear: AtomicReference<Block<E>> // tail of BlockingQueue.
     private let count = AtomicInt64(0)
 
