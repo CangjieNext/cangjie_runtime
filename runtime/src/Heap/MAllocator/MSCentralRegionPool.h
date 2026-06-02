@@ -396,6 +396,15 @@ public:
     // Must be called after marking completes and BEFORE PrepareForSweep.
     size_t ComputeMarkedBytes() const;
 
+    // Compute live bytes by region occupancy (used by UpdateGCStats threshold):
+    //   - swept lists (partialSwept + fullSwept): count occupied slots
+    //     (after sweep, occupied == survivors).
+    //   - unswept lists (partialUnswept + fullUnswept): count occupied slots
+    //     (not yet swept, all occupied objects treated as alive).
+    //   - large regions: count all live large regions in full.
+    // Occupancy per small region = (totalSlotCount - freeSlotCount) * slotSize.
+    size_t ComputeLiveBytesByOccupancy() const;
+
     // Diagnostic: visit every currently-marked object (small/medium + large)
     // by walking markBitmaps. Must be called in the same window as
     // ComputeMarkedBytes (marking complete, no sweep started). Used by the

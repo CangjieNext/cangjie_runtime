@@ -676,7 +676,6 @@ bool MarkSweepCollector::CheckConvergenceAndBreak(size_t& localCreditAccum)
 
     // After longer wait, check if new barrier overflow arrived in globalFull_.
     if (!gcThreadWork_.Empty() || !globalFull_.Empty()) {
-        VLOG(REPORT, "[MS-GC] Pre-convergence flush: residual work found, re-draining");
         convergenceStableRounds_ = 0;
         return false;
     }
@@ -1865,13 +1864,22 @@ void MarkSweepCollector::LogGCSummary(uint64_t gcTimeUs)
 void MarkSweepCollector::UpdateGCStats()
 {
     VLOG(REPORT, "[MS-GC] --- UpdateGCStats ---");
+    uint64_t updateStatsStart = TimeUtil::MicroSeconds();
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     GCStats& gcStats = GetGCStats();
 
     size_t oldThreshold = gcStats.GetThreshold();
     size_t oldLastTrueLiveBytes = gcStats.lastTrueLiveBytes;
     size_t preActiveRegionBytes = gcStats.lastRegionBytes;
+    // Live bytes computed by region occupancy:
+    //   swept (partialSwept + fullSwept) -> occupied slots,
+    //   unswept (partialUnswept + fullUnswept) -> all occupied slots as alive,
+    //   large regions -> counted in full.
     size_t liveBytes = cycleStats_.trueLiveBytes;
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    if (centralPool != nullptr) {
+        liveBytes = centralPool->ComputeLiveBytesByOccupancy();
+    }
     size_t activeRegionBytes = space.GetHeapInUseBytes();
 
     gcStats.lastTrueLiveBytes = liveBytes;
@@ -1888,7 +1896,7 @@ void MarkSweepCollector::UpdateGCStats()
     size_t gcThresholdCap = CangjieRuntime::GetGCParam().gcThreshold;
     size_t newThreshold = static_cast<size_t>(static_cast<double>(baseBytes) * (1.0 + heapGrowth));
     // Floor to avoid GC thrash when base is tiny; cap at the configured gcThreshold.
-    size_t minThreshold = std::min(gcThresholdCap, static_cast<size_t>(4) * 1024 * 1024);
+    size_t minThreshold = std::min(gcThresholdCap, static_cast<size_t>(20) * 1024 * 1024);
     if (newThreshold < minThreshold) {
         newThreshold = minThreshold;
     }
@@ -1906,6 +1914,8 @@ void MarkSweepCollector::UpdateGCStats()
     VLOG(REPORT,
          "[MS-GC] live bytes %zu, activeRegion %zu, update gc threshold %zu -> %zu",
          liveBytes, activeRegionBytes, oldThreshold, gcStats.GetThreshold());
+    uint64_t updateStatsUs = TimeUtil::MicroSeconds() - updateStatsStart;
+    VLOG(REPORT, "[MS-GC] UpdateGCStats took %lu us", static_cast<unsigned long>(updateStatsUs));
     TRACE_COUNT("CJRT_post_GC_HeapSize", Heap::GetHeap().GetAllocatedSize());
 }
 

@@ -1335,6 +1335,87 @@ size_t CentralRegionPool::ComputeMarkedBytes() const
 }
 
 // ============================================================================
+// ComputeLiveBytesByOccupancy: live bytes estimate for threshold sizing.
+// ============================================================================
+// Used by UpdateGCStats to size the next heap threshold:
+//   - swept lists (partialSwept + fullSwept): after sweep, occupied slots are
+//     exactly the survivors -> count occupancy (totalSlot - freeSlot) * slotSize.
+//   - unswept lists (partialUnswept + fullUnswept): NOT yet swept, so
+//     freeSlotCount is stale (pre-sweep) and occupancy over-counts. Use the
+//     markBitmap (popcount of marked slots) which reflects true liveness.
+//   - large regions: every live large region counted in full.
+//
+size_t CentralRegionPool::ComputeLiveBytesByOccupancy() const
+{
+    size_t totalLive = 0;
+
+    // 1. Walk all small regions in CentralPool (all 4 lists × all size classes).
+    for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
+        const SizeClassBucket& bucket = buckets_[cls];
+        size_t slotSize = SizeClassInfo::ClassToSize(cls);
+
+        // Swept regions: occupied slots == survivors.
+        auto countOccupancy = [slotSize, &totalLive](MSRegionInfo* region) {
+            if (region->totalSlotCount == 0) {
+                return;
+            }
+            size_t occupied = static_cast<size_t>(region->totalSlotCount) -
+                              static_cast<size_t>(region->freeSlotCount);
+            totalLive += occupied * slotSize;
+        };
+        // Unswept regions: freeSlotCount is stale, count marked slots instead.
+        auto countMarked = [slotSize, &totalLive](MSRegionInfo* region) {
+            if (region->markBitmap == nullptr || region->totalSlotCount == 0) {
+                return;
+            }
+            size_t wordCount = (region->totalSlotCount + 63) / 64;
+            int marked = 0;
+            for (size_t i = 0; i < wordCount; i++) {
+                marked += __builtin_popcountll(region->markBitmap[i]);
+            }
+            totalLive += static_cast<size_t>(marked) * slotSize;
+        };
+
+        bucket.partialSwept.ForEachUnsafe(countOccupancy);
+        const_cast<SizeClassBucket&>(bucket).lock.lock();
+        bucket.fullSwept.ForEach(countOccupancy);
+        bucket.partialUnswept.ForEach(countMarked);
+        bucket.fullUnswept.ForEach(countMarked);
+        const_cast<SizeClassBucket&>(bucket).lock.unlock();
+    }
+
+    // 2. Walk thread-local AllocBufferMS active regions (bump-fill, occupancy).
+    {
+        std::lock_guard<std::mutex> lg(const_cast<std::mutex&>(msAllocBufferLock_));
+        for (AllocBufferMS* buffer : msAllocBuffers_) {
+            if (buffer == nullptr) {
+                continue;
+            }
+            for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
+                MSRegionInfo* region = buffer->GetActiveRegion(cls);
+                if (region == nullptr || region->totalSlotCount == 0) {
+                    continue;
+                }
+                size_t slotSize = SizeClassInfo::ClassToSize(cls);
+                size_t occupied = static_cast<size_t>(region->totalSlotCount) -
+                                  static_cast<size_t>(region->freeSlotCount);
+                totalLive += occupied * slotSize;
+            }
+        }
+    }
+
+    // 3. Live large regions counted in full.
+    {
+        std::lock_guard<std::mutex> lg(const_cast<std::mutex&>(largeLock_));
+        largeRegionList_.ForEach([&totalLive](MSRegionInfo* region) {
+            totalLive += region->regionEnd - region->RegionStart();
+        });
+    }
+
+    return totalLive;
+}
+
+// ============================================================================
 // VisitMarkedObjects: walk markBitmaps and call func() on every marked object.
 // ============================================================================
 // Same validity window as ComputeMarkedBytes: marking complete, no sweep
