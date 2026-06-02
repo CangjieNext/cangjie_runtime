@@ -1335,6 +1335,76 @@ size_t CentralRegionPool::ComputeMarkedBytes() const
 }
 
 // ============================================================================
+// VisitMarkedObjects: walk markBitmaps and call func() on every marked object.
+// ============================================================================
+// Same validity window as ComputeMarkedBytes: marking complete, no sweep
+// started. Used by the mark-completeness verifier to inspect every live object.
+//
+void CentralRegionPool::VisitMarkedObjects(const std::function<void(BaseObject*)>& func) const
+{
+    // Walk one region's markBitmap, emitting each marked slot as a BaseObject*.
+    auto visitRegion = [&func](MSRegionInfo* region, size_t slotSize) {
+        if (region->markBitmap == nullptr || region->totalSlotCount == 0) {
+            return;
+        }
+        uintptr_t base = region->RegionStart();
+        size_t wordCount = (region->totalSlotCount + 63) / 64;
+        for (size_t w = 0; w < wordCount; w++) {
+            uint64_t bits = region->markBitmap[w];
+            while (bits != 0) {
+                size_t bit = static_cast<size_t>(__builtin_ctzll(bits));
+                bits &= (bits - 1);
+                size_t slotIdx = w * 64 + bit;
+                uintptr_t slotAddr = base + slotIdx * slotSize;
+                func(reinterpret_cast<BaseObject*>(slotAddr));
+            }
+        }
+    };
+
+    // 1. All small regions across all 4 lists × size classes.
+    for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
+        const SizeClassBucket& bucket = buckets_[cls];
+        size_t slotSize = SizeClassInfo::ClassToSize(cls);
+        auto countRegion = [&visitRegion, slotSize](MSRegionInfo* region) {
+            visitRegion(region, slotSize);
+        };
+        bucket.partialSwept.ForEachUnsafe(countRegion);
+        const_cast<SizeClassBucket&>(bucket).lock.lock();
+        bucket.fullSwept.ForEach(countRegion);
+        bucket.partialUnswept.ForEach(countRegion);
+        bucket.fullUnswept.ForEach(countRegion);
+        const_cast<SizeClassBucket&>(bucket).lock.unlock();
+    }
+
+    // 2. Thread-local AllocBufferMS active regions.
+    {
+        std::lock_guard<std::mutex> lg(const_cast<std::mutex&>(msAllocBufferLock_));
+        for (AllocBufferMS* buffer : msAllocBuffers_) {
+            if (buffer == nullptr) {
+                continue;
+            }
+            for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
+                MSRegionInfo* region = buffer->GetActiveRegion(cls);
+                if (region == nullptr) {
+                    continue;
+                }
+                visitRegion(region, SizeClassInfo::ClassToSize(cls));
+            }
+        }
+    }
+
+    // 3. Live large regions.
+    {
+        std::lock_guard<std::mutex> lg(const_cast<std::mutex&>(largeLock_));
+        largeRegionList_.ForEach([&func](MSRegionInfo* region) {
+            if (region->IsMarked()) {
+                func(reinterpret_cast<BaseObject*>(region->RegionStart()));
+            }
+        });
+    }
+}
+
+// ============================================================================
 // Pre-STW MarkSetup: Stop all sweeps, clear markBitmaps, reclassify lists
 // ============================================================================
 

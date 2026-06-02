@@ -1207,6 +1207,12 @@ void MarkSweepCollector::MarkTermination()
             markedObjectCount.load(std::memory_order_relaxed) - beforeMark;
     }
 
+    // 4b. Diagnostic: marking is now complete and all mutators are frozen
+    // (STW). This is the authoritative window to verify mark completeness —
+    // no concurrent mutation can produce false positives. No-op unless the
+    // env var CJ_MS_VERIFY_MARK is set.
+    VerifyMarkCompleteness();
+
     // 5. Reset all per-P gcWork and return WorkBufs to pool.
     // NOTE: sweep generation is flipped in PreEnumRoots (before mark), NOT
     // here. Flipping after mark would let regions allocated during this
