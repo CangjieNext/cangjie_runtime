@@ -37,13 +37,6 @@ public:
     size_t lastRegionBytes = 0;         // occupied region bytes snapshot at GC end
     size_t lastSurvivingRegionBytes = 0;        // predicted surviving region bytes from last GC end
 
-    // Reserve region tracking: derived from last GC cycle's concurrent mark window.
-    // Used by BackgroundScavengeLoop / MaybeNotifyScavenge / MaybeNotifyMark to keep
-    // enough free regions available throughout the next concurrent mark phase.
-    size_t markWindowReserveBytes = 0;   // bytes to preserve; updated in UpdateGCStats
-    size_t lastMarkTakeRegionCount = 0;  // TakeRegion calls recorded during last concurrent mark
-    uint64_t lastMarkTimeUs = 0;         // last concurrent mark duration (microseconds)
-
     void Dump() const;
 
     static uint64_t GetPrevGCStartTime() { return prevGcStartTime; }

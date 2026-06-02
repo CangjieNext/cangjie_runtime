@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <algorithm>
 #include <thread>
+#include <functional>
 
 #include "Heap/Allocator/Allocator.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
@@ -26,6 +27,7 @@ namespace MapleRuntime {
 
 class MSRegionManager;
 class AllocBufferMS;
+class BaseObject;
 
 enum class MSRegionAcquireSource : uint8_t {
     NONE = 0,
@@ -367,6 +369,10 @@ public:
     bool HasHungryAllocBuffer(uint8_t preferredCls = UINT8_MAX) const;
     BucketPressure GetBucketPressure(uint8_t cls) const;
     void MaybeNotifySweep(uint8_t cls) const;
+    // Swept-retained region count: partialSwept + fullSwept buckets + large region spans.
+    // Excludes unswept regions; used by MaybeNotifyMark to gate the next GC on the
+    // post-sweep live footprint rather than the transient active-region total.
+    size_t GetSweptMSRegionCount() const;
     size_t GetActiveMSRegionCount() const;
     size_t GetEmptySweptRegionCount() const;
     size_t GetLargeHotCacheRegionCount() const;
@@ -390,6 +396,12 @@ public:
     // Must be called after marking completes and BEFORE PrepareForSweep.
     size_t ComputeMarkedBytes() const;
 
+    // Diagnostic: visit every currently-marked object (small/medium + large)
+    // by walking markBitmaps. Must be called in the same window as
+    // ComputeMarkedBytes (marking complete, no sweep started). Used by the
+    // mark-completeness verifier to detect live objects that were missed.
+    void VisitMarkedObjects(const std::function<void(BaseObject*)>& func) const;
+
     // ===== Large region management (Tier 1: in-heap large objects) =====
 
     // Register a large MSRegionInfo (MS_REGION_LARGE) for GC tracking.
@@ -409,18 +421,14 @@ public:
     // Returns true and sets regionStart if found; false if miss.
     bool TryTakeLargeHotCache(size_t regionBytes, uintptr_t& regionStart);
 
-    // Release all hot-cached entries back to MSRegionManager (called at GC start).
-    void FlushLargeHotCache();
-
-    // Drain the entire large hot cache into FreeManager (releasedTree).
-    size_t FlushLargeHotCacheToFreeManager();
+    // Reclaim large-hot-cache entries back to MSRegionManager (releasedTree),
+    // largest entries first, up to maxBytes (SIZE_MAX = drain all).
+    // This is the single low-level release primitive for the large hot cache;
+    // flush policy lives in RegionSpaceMS. Returns reclaimed bytes.
+    size_t ReclaimLargeHotCache(size_t maxBytes);
 
     // Returns true if the large hot cache is non-empty (lock-free).
     bool HasLargeFreeCache() const;
-
-    // Drain approximately half the large hot cache into FreeManager (releasedTree).
-    // Called by BackgroundScavengeLoop Step A2. Returns flushed bytes.
-    size_t FlushHalfLargeFreeCacheToFreeManager();
 
     // Eager synchronous sweep of small regions: GC thread sweeps unswept regions
     // across all size classes until the configured wall-time budget is exhausted.

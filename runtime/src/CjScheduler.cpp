@@ -529,7 +529,12 @@ void* MCC_NewCJThreadNoReturn(void* executeClosure, void* closurePtr, void* sche
 static RuntimeParam InitRuntimeParam()
 {
     CheckSysmemSize();
+#ifdef MRT_USE_MARK_SWEEP
+    // MS-GC: heap size is fixed to 256MB and is not configurable via cjHeapSize.
+    size_t initHeapSize = 256 * KB;
+#else
     size_t initHeapSize = InitHeapSize(g_sysmemSize > 1 * GB ? 256 * KB : 64 * KB);
+#endif
     RuntimeParam param = {
         .heapParam = {
 #if defined(__OHOS__) || defined(__ANDROID__)
@@ -552,7 +557,7 @@ static RuntimeParam InitRuntimeParam()
              */
             .heapUtilization = InitPercentParameter("cjHeapUtilization", 0.0, 1.0, 0.8),
             // Default heap growth is (1 + 0.25) = 1.25 (allow 25% growth before next GC).
-            .heapGrowth = InitDecParameter("cjHeapGrowth", 0.0, 0.25),
+            .heapGrowth = InitDecParameter("cjHeapGrowth", 0.0, 0.5),
             // Default allocation rate is 10240MB/s.
             .allocationRate = InitDecParameter("cjAllocationRate", 0.0, 10240),
             // Default allocation wait time is 1000ns.

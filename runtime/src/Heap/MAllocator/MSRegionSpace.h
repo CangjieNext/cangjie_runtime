@@ -82,13 +82,22 @@ public:
     // heapInUse    = active central-pool regions + live largeRegionList spans
     // heapRetained = active + emptySwept + largeHotCache + hotFree
     size_t GetHeapInUseBytes() const;
+    // Swept-retained heap bytes = GetSweptMSRegionCount() * MS_REGION_SIZE.
+    size_t GetSweptHeapBytes() const;
     size_t GetHeapRetainedBytes() const;
     size_t GetHeapThresholdBytes() const;
     size_t GetHotFreeBytes() const;
     bool HasEmptySweptRegions() const;
-    // Step A (on-demand): flush half of emptySweptCache → FreeManager hot-free supply.
-    size_t FlushHalfEmptySweptToHotFree();
+    // On-demand flush of the empty-swept cache → FreeManager hot-free supply.
+    // All flush policy for both caches is centralized here; the actual release
+    // is delegated to msCentralPool_->Reclaim* primitives.
     size_t FlushAllEmptySweptToHotFree();
+    // Flush up to maxRegions empty-swept regions into FreeManager hot-free supply.
+    size_t FlushEmptySweptToHotFree(size_t maxRegions);
+    // On-demand flush of the large-hot-cache → FreeManager (releasedTree).
+    size_t FlushAllLargeHotCache();
+    // Flush up to maxBytes (largest entries first) of the large hot cache.
+    size_t FlushLargeHotCacheUpToBytes(size_t maxBytes);
     // Step B: release up to quantumBytes of hot-free regions to OS. Returns bytes released.
     size_t BackgroundScavenge(size_t quantumBytes);
     // Step C: shrink committed heap end after scavenging.

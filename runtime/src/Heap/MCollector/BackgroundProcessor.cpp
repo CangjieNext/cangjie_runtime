@@ -29,8 +29,6 @@ constexpr U32 DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_ROUNDS = 4;
 constexpr uint64_t DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_US = 12000;
 constexpr size_t DEFAULT_MS_FEED_TARGET_CACHED_PER_BUFFER = 5;
 constexpr size_t DEFAULT_MS_SCAVENGE_ROUNDS = 8;
-constexpr size_t DEFAULT_MS_EMPTY_SWEEPED_FLUSH_ALL_THRESHOLD = 512;
-constexpr size_t DEFAULT_MS_LARGE_CACHE_FLUSH_ALL_BYTES = 16ULL * 1024ULL * 1024ULL;
 
 bool EqualsIgnoreCase(const char* lhs, const char* rhs)
 {
@@ -485,31 +483,31 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
         return false;
     }
 
-    // Step A (on-demand): if hot-free supply is below the current target and
-    // emptySwept cache is non-empty, move half of emptySwept into hot-free first.
-    if (space.HasEmptySweptRegions()) {
+    // On-demand flush to make pages visible to BackgroundScavenge (Step B).
+    // Priority: drain the large hot cache FIRST; only touch emptySwept if the large
+    // cache alone cannot cover the remaining gap. For each source: if its cached size
+    // is <= the gap, flush all of it; otherwise flush only the gap amount.
+    {
         size_t hotFree = space.GetHotFreeBytes();
-        if (hotFree < targetBytes) {
-            size_t emptyCount = (pool != nullptr) ? pool->GetEmptySweptRegionCount() : 0;
-            if (emptyCount < DEFAULT_MS_EMPTY_SWEEPED_FLUSH_ALL_THRESHOLD ||
-                largeCacheBefore < DEFAULT_MS_LARGE_CACHE_FLUSH_ALL_BYTES) {
-                (void)space.FlushAllEmptySweptToHotFree();
-            } else {
-                (void)space.FlushHalfEmptySweptToHotFree();
-            }
-        }
-    }
+        size_t gap = (targetBytes > hotFree) ? (targetBytes - hotFree) : 0;
 
-    // Step A2 (on-demand): large hot cache → FreeManager (releasedTree).
-    // If hot-free is still below target after Step A, drain ~half the large cache.
-    // This makes the large cache's pages visible to BackgroundScavenge (Step B).
-    if (pool != nullptr && pool->HasLargeFreeCache()) {
-        size_t hotFree = space.GetHotFreeBytes();
-        if (hotFree < targetBytes) {
-            if (largeCacheBefore < DEFAULT_MS_LARGE_CACHE_FLUSH_ALL_BYTES) {
-                (void)pool->FlushLargeHotCacheToFreeManager();
+        // Priority 1: large hot cache.
+        if (gap > 0 && pool != nullptr && pool->HasLargeFreeCache()) {
+            size_t largeBytes = pool->GetLargeHotCacheRegionCount() * MS_REGION_SIZE;
+            size_t flushed = (largeBytes <= gap)
+                ? space.FlushAllLargeHotCache()             // flush all
+                : space.FlushLargeHotCacheUpToBytes(gap);   // flush only the gap
+            gap = (gap > flushed) ? (gap - flushed) : 0;
+        }
+
+        // Priority 2: emptySwept cache, only if the large cache was insufficient.
+        if (gap > 0 && space.HasEmptySweptRegions()) {
+            size_t emptyBytes = (pool != nullptr) ? pool->GetEmptySweptRegionCount() * MS_REGION_SIZE : 0;
+            if (emptyBytes <= gap) {
+                (void)space.FlushAllEmptySweptToHotFree();      // flush all
             } else {
-                (void)pool->FlushHalfLargeFreeCacheToFreeManager();
+                size_t gapRegions = (gap + MS_REGION_SIZE - 1) / MS_REGION_SIZE;
+                (void)space.FlushEmptySweptToHotFree(gapRegions); // flush only the gap
             }
         }
     }
@@ -529,25 +527,14 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
         return false;
     }
 
-    // Step B: release at most one round of the target.
-    // Reserve is satisfied first by emptySwept + large cache residual (pages already
-    // managed or staged for release).  Only if that combined reserve < reserveBytes
-    // is the shortfall carved from hotFree.
+    // Step B: release at most one round of the target. With no mark-window reserve,
+    // everything currently available in hotFree is eligible for release.
     size_t scavengeRounds = GetBackgroundScavengeRounds();
     size_t roundTarget = std::max(
         (sliceTargetBytes + scavengeRounds - 1) / scavengeRounds,
         static_cast<size_t>(MS_REGION_SIZE));
     {
-        const GCStats& gcStats2 = Heap::GetHeap().GetCollector().GetGCStats();
-        size_t reserveBytes2 = gcStats2.markWindowReserveBytes;
-        // emptySwept + large cache residual satisfy the reserve first.
-        size_t combinedReserve = emptySweptAfterFlush + largeResidualBytes;
-        size_t hotFreeToKeep = (reserveBytes2 > combinedReserve)
-            ? (reserveBytes2 - combinedReserve)
-            : 0;
-        size_t availableToRelease = (hotFreeAfterFlush > hotFreeToKeep)
-            ? (hotFreeAfterFlush - hotFreeToKeep)
-            : 0;
+        size_t availableToRelease = hotFreeAfterFlush;
         if (availableToRelease == 0) {
             shouldScavengeHeap_.store(false, std::memory_order_release);
             return false;

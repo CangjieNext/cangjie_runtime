@@ -582,20 +582,8 @@ void MarkSweepCollector::ConcurrentMark()
                allocSize);
     }
 
-    // Snapshot TakeRegion count at concurrent mark start for reserve computation.
-    MSRegionManager* rmgr = reinterpret_cast<RegionSpaceMS&>(theAllocator).GetMSRegionManager();
-    uint64_t takeRegionAtMarkStart = (rmgr != nullptr) ? rmgr->GetTakeRegionsCallCount() : 0;
-
     // 12. Run concurrent marking loop using gcThreadWork_ + globalFull_.
     RunConcurrentMarkLoop();
-
-    // Record TakeRegion delta during concurrent mark for reserve computation in UpdateGCStats.
-    if (rmgr != nullptr) {
-        uint64_t takeRegionAtMarkEnd = rmgr->GetTakeRegionsCallCount();
-        cycleStats_.takeRegionsDuringMark = (takeRegionAtMarkEnd >= takeRegionAtMarkStart)
-            ? (takeRegionAtMarkEnd - takeRegionAtMarkStart)
-            : 0;
-    }
 
     // 11. Process WeakRefs deferred during concurrent mark, before entering STW.
     ProcessDeferredWeakRefsPreSTW();
@@ -1508,6 +1496,76 @@ void MarkSweepCollector::CollectLargeGarbage()
     }
 }
 
+// ============================================================================
+// VerifyMarkCompleteness: after marking, scan every marked object and report
+// ref edges that point to an unmarked (soon-to-be-swept) target.
+// ============================================================================
+void MarkSweepCollector::VerifyMarkCompleteness()
+{
+    static const bool enabled = (std::getenv("CJ_MS_VERIFY_MARK") != nullptr);
+    if (!enabled) {
+        return;
+    }
+
+    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    if (centralPool == nullptr) {
+        return;
+    }
+
+    constexpr size_t kMaxReport = 32;
+    size_t violations = 0;
+    size_t markedScanned = 0;
+
+    centralPool->VisitMarkedObjects([&](BaseObject* obj) {
+        markedScanned++;
+        if (!IsTraceableObjectAddress(obj) || !obj->IsValidObject()) {
+            return;
+        }
+        auto refFunc = [&](RefField<>& field) {
+            BaseObject* target = field.GetTargetObject();
+            if (target == nullptr ||
+                !IsManagedAddress(reinterpret_cast<MAddress>(target))) {
+                return;
+            }
+            if (IsMarkedObject(target)) {
+                return;
+            }
+            // Marked referrer -> unmarked managed target: target will be swept
+            // while still reachable. This is the missed-mark UAF.
+            if (violations < kMaxReport) {
+                uintptr_t refState = LoadStateWordForDiag(obj);
+                uintptr_t tgtState = LoadStateWordForDiag(target);
+                const char* refType =
+                    (obj->GetTypeInfo() != nullptr && obj->GetTypeInfo()->GetName() != nullptr)
+                        ? obj->GetTypeInfo()->GetName() : "<?>";
+                const char* tgtType =
+                    (IsTraceableObjectAddress(target) && target->IsValidObject() &&
+                     target->GetTypeInfo() != nullptr && target->GetTypeInfo()->GetName() != nullptr)
+                        ? target->GetTypeInfo()->GetName() : "<?>";
+                VLOG(REPORT,
+                     "[MS-GC][VERIFY] missed-mark: referrer=%p type=%s state=0x%zx -> "
+                     "target=%p type=%s state=0x%zx traceable=%d valid=%d",
+                     static_cast<void*>(obj),
+                     refType,
+                     refState,
+                     static_cast<void*>(target),
+                     tgtType,
+                     tgtState,
+                     static_cast<int>(IsTraceableObjectAddress(target)),
+                     static_cast<int>(target->IsValidObject()));
+            }
+            violations++;
+        };
+        ForEachRefFieldGCInline(obj, refFunc);
+    });
+
+    VLOG(REPORT,
+         "[MS-GC][VERIFY] mark-completeness: scanned=%zu markedObjs, violations=%zu",
+         markedScanned,
+         violations);
+}
+
 void MarkSweepCollector::ConcurrentSweep()
 {
     uint64_t phaseStart = TimeUtil::MicroSeconds();
@@ -1814,76 +1872,30 @@ void MarkSweepCollector::UpdateGCStats()
     gcStats.lastRegionBytes = activeRegionBytes;
     gcStats.baselineAllocatedBytes = activeRegionBytes;
 
-    size_t estimatedLiveBytes = activeRegionBytes;
-    {
-        size_t eagerSwept = cycleStats_.eagerSweepBatchRegions;
-        size_t eagerEmptied = cycleStats_.eagerSweepEmptiedRegions;
-        size_t totalUnswept = cycleStats_.eagerSweepTotalUnswept;
-        if (eagerSwept > 0 && totalUnswept > 0 && activeRegionBytes > 0) {
-            double emptyRate = static_cast<double>(eagerEmptied) / static_cast<double>(eagerSwept);
-            if (emptyRate > 1.0) {
-                emptyRate = 1.0;
-            }
-            size_t estimatedTotalEmpty = static_cast<size_t>(static_cast<double>(totalUnswept) * emptyRate);
-            size_t estimatedEmptyBytes = estimatedTotalEmpty * MS_REGION_SIZE;
-            estimatedLiveBytes = (activeRegionBytes > estimatedEmptyBytes)
-                ? (activeRegionBytes - estimatedEmptyBytes)
-                : 0;
-            if (estimatedLiveBytes < liveBytes) {
-                estimatedLiveBytes = liveBytes;
-            }
-            VLOG(REPORT,
-                 "[MS-GC] LiveEstimate: eagerSwept=%zu emptied=%zu totalUnswept=%zu "
-                 "emptyRate=%.2f estimatedEmpty=%zu estimatedLiveBytes=%zuB",
-                 eagerSwept, eagerEmptied, totalUnswept,
-                 emptyRate, estimatedTotalEmpty, estimatedLiveBytes);
-        }
-    }
+    // MS-GC threshold (per spec):
+    //   threshold = trueLive * (1 + heapGrowth)
+    // heapGrowth is the runtime HeapParam value (configurable via cjHeapGrowth,
+    // default 0.5 → 1.5x), shared with GCStats::UpdateHeapThreshold.
+    size_t baseBytes = liveBytes;
 
-    if (estimatedLiveBytes > 0) {
-        size_t threshold = gcStats.UpdateHeapThreshold(estimatedLiveBytes);
-        VLOG(REPORT,
-             "[MS-GC] heapThreshold: oldThreshold=%zuB newThreshold=%zuB "
-                         "prevLive=%zuB curLive=%zuB preActiveRegionBytes=%zuB activeRegion=%zuB estimatedLive=%zuB"
-                         " reserveRegions=%zu(%.1fMB)",
-               oldThreshold, threshold, oldLastTrueLiveBytes, liveBytes, preActiveRegionBytes, activeRegionBytes,
-             estimatedLiveBytes,
-             gcStats.markWindowReserveBytes / MS_REGION_SIZE,
-             static_cast<double>(gcStats.markWindowReserveBytes) / (1024.0 * 1024.0));
-    } else if (activeRegionBytes > 0) {
-        size_t threshold = gcStats.UpdateHeapThreshold(activeRegionBytes);
-        VLOG(REPORT,
-             "[MS-GC] heapThreshold (fallback): oldThreshold=%zuB newThreshold=%zuB "
-                         "preActiveRegionBytes=%zuB activeRegion=%zuB reserveRegions=%zu(%.1fMB)",
-               oldThreshold, threshold, preActiveRegionBytes, activeRegionBytes,
-             gcStats.markWindowReserveBytes / MS_REGION_SIZE,
-             static_cast<double>(gcStats.markWindowReserveBytes) / (1024.0 * 1024.0));
+    double heapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
+    size_t gcThresholdCap = CangjieRuntime::GetGCParam().gcThreshold;
+    size_t newThreshold = static_cast<size_t>(static_cast<double>(baseBytes) * (1.0 + heapGrowth));
+    // Floor to avoid GC thrash when base is tiny; cap at the configured gcThreshold.
+    size_t minThreshold = std::min(gcThresholdCap, static_cast<size_t>(4) * 1024 * 1024);
+    if (newThreshold < minThreshold) {
+        newThreshold = minThreshold;
     }
-
-    // Compute mark-window reserve for the *next* GC cycle, based on this cycle's
-    // concurrent mark duration and TakeRegion call delta.
-    {
-        size_t reserveBytes = 0;
-        if (cycleStats_.takeRegionsDuringMark > 0) {
-            // Use raw region count from last concurrent mark phase as next-cycle reserve.
-            reserveBytes = cycleStats_.takeRegionsDuringMark * MS_REGION_SIZE;
-            // Cap at 25% of the new threshold to prevent premature GC churn.
-            size_t cap = gcStats.GetThreshold() / 4;
-            if (cap > 0 && reserveBytes > cap) {
-                reserveBytes = cap;
-            }
-        }
-        gcStats.markWindowReserveBytes = reserveBytes;
-        gcStats.lastMarkTakeRegionCount = static_cast<size_t>(cycleStats_.takeRegionsDuringMark);
-        gcStats.lastMarkTimeUs = cycleStats_.concurrentMarkUs;
-        VLOG(REPORT,
-             "[MS-GC] markWindowReserve: takeRegionsDuringMark=%llu markTimeUs=%llu"
-             " reserveRegions=%zu reserveBytes=%zuB",
-             (unsigned long long)cycleStats_.takeRegionsDuringMark,
-             (unsigned long long)cycleStats_.concurrentMarkUs,
-             reserveBytes / MS_REGION_SIZE,
-             reserveBytes);
+    if (newThreshold > gcThresholdCap) {
+        newThreshold = gcThresholdCap;
     }
+    gcStats.SetThreshold(newThreshold);
+    gcStats.lastSurvivingRegionBytes = liveBytes;
+    VLOG(REPORT,
+         "[MS-GC] heapThreshold: oldThreshold=%zuB newThreshold=%zuB prevLive=%zuB trueLive=%zuB "
+         "base=%zuB growth=%.2f preActiveRegion=%zuB activeRegion=%zuB",
+         oldThreshold, newThreshold, oldLastTrueLiveBytes, liveBytes,
+         baseBytes, 1.0 + heapGrowth, preActiveRegionBytes, activeRegionBytes);
 
     VLOG(REPORT,
          "[MS-GC] live bytes %zu, activeRegion %zu, update gc threshold %zu -> %zu",

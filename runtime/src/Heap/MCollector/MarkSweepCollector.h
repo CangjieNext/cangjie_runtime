@@ -61,9 +61,6 @@ struct MSGCCycleStats {
     size_t globalShareCount = 0;         // Number of WorkBuf pushes to globalFull_ from WB overflow paths.
     size_t bgScanCreditConsumed = 0;     // bgScanCreditConsumed_ snapshot after concurrent mark convergence.
 
-    // ── TakeRegion delta during concurrent mark (for reserve estimation) ──
-    uint64_t takeRegionsDuringMark = 0;  // TakeRegion call count delta: mark-end minus mark-start snapshot.
-
     // ── True live bytes (computed from markBitmaps after marking) ──
     size_t trueLiveBytes = 0;            // ComputeMarkedBytes() result, used by UpdateGCStats and GC-end logs.
 
@@ -193,6 +190,13 @@ private:
     bool TryEnqueueGreyObject(BaseObject* obj, GreyWorkQueue& queue);
     bool DiscoverObject(BaseObject* obj);
     void DebugVerifyQueuedGreyObject(const BaseObject* obj, const char* queueName) const;
+
+    // Diagnostic: after marking completes (in ConcurrentSweep, before sweep
+    // reclaims anything), walk all marked objects and report any ref edge that
+    // points to an unmarked target. Such a target will be wrongly swept while
+    // still reachable from a live object — the classic missed-mark UAF.
+    // Gated by env CJ_MS_VERIFY_MARK; logs the first N violations only.
+    void VerifyMarkCompleteness();
 
     // ── Step 2.2 internals ──
     void RunConcurrentMarkLoop();

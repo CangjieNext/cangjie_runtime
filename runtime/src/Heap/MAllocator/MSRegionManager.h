@@ -187,12 +187,6 @@ public:
     // release one empty-cache region to keep committed bytes stable.
     void InlineReclaimForBalance(const CentralRegionPool& pool);
 
-    // Cumulative TakeRegion call count (snapshotted at mark start/end for reserve estimation).
-    uint64_t GetTakeRegionsCallCount() const
-    {
-        return takeRegionsCallCount_.load(std::memory_order_relaxed);
-    }
-
 private:
     void InitializeFreshRegions(RegionIndex startIdx, RegionCount count) override;
     void OnCommittedHeapExtended(uintptr_t newCommittedEnd) override;
@@ -236,7 +230,6 @@ private:
     // Unified released-span entry for MSGC heap management.
     FreeManager freeManager_;
 
-    std::atomic<uint64_t> takeRegionsCallCount_{0};
     std::atomic<uint64_t> lastHeuRequestNs_{0};
 };
 

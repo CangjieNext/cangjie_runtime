@@ -24,6 +24,7 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <limits>
 #include <vector>
 
 #include <thread>
@@ -891,6 +892,17 @@ size_t CentralRegionPool::GetAllAllocBufferRegionCount() const
     return GetAllAllocBufferActiveRegionCount() + GetAllAllocBufferCachedRegionCount();
 }
 
+size_t CentralRegionPool::GetSweptMSRegionCount() const
+{
+    size_t total = 0;
+    for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
+        BucketPressure pressure = GetBucketPressure(cls);
+        total += pressure.partialSwept + pressure.fullSwept;
+    }
+    total += GetLargeRegionSpanCount();
+    return total;
+}
+
 size_t CentralRegionPool::GetActiveMSRegionCount() const
 {
     size_t total = 0;
@@ -1013,37 +1025,16 @@ bool CentralRegionPool::TryTakeLargeHotCache(size_t regionBytes, uintptr_t& regi
     return true;
 }
 
-void CentralRegionPool::FlushLargeHotCache()
+size_t CentralRegionPool::ReclaimLargeHotCache(size_t maxBytes)
 {
-    std::vector<LargeHotEntry> toReclaim;
-    {
-        std::lock_guard<std::mutex> lg(largeHotCacheLock_);
-        for (auto& kv : largeHotCache_) {
-            for (auto& entry : kv.second) {
-                toReclaim.push_back(entry);
-            }
-        }
-        largeHotCache_.clear();
-    }
-    for (auto& entry : toReclaim) {
-        msRegionManager_->ReclaimRegionLarge(entry.regionStart, entry.regionBytes);
-    }
-}
-
-size_t CentralRegionPool::FlushHalfLargeFreeCacheToFreeManager()
-{
-    size_t totalBytes = GetLargeHotCacheRegionCount() * MS_REGION_SIZE;
-    if (totalBytes == 0) {
+    if (maxBytes == 0) {
         return 0;
     }
-    size_t targetBytes = (totalBytes + 1) / 2; // flush ~half by bytes
-
     std::vector<LargeHotEntry> toReclaim;
     size_t flushed = 0;
     {
         std::lock_guard<std::mutex> lg(largeHotCacheLock_);
-        // Collect all (regionCount, entries) pairs, sort descending by regionCount
-        // (largest objects first: higher RSS impact, lower reuse probability).
+        // Reclaim largest objects first: higher RSS impact, lower reuse probability.
         std::vector<size_t> keys;
         keys.reserve(largeHotCache_.size());
         for (auto& kv : largeHotCache_) {
@@ -1052,11 +1043,11 @@ size_t CentralRegionPool::FlushHalfLargeFreeCacheToFreeManager()
         std::sort(keys.rbegin(), keys.rend());
 
         for (size_t key : keys) {
-            if (flushed >= targetBytes) {
+            if (flushed >= maxBytes) {
                 break;
             }
             auto& bucket = largeHotCache_[key];
-            while (!bucket.empty() && flushed < targetBytes) {
+            while (!bucket.empty() && flushed < maxBytes) {
                 LargeHotEntry entry = bucket.back();
                 bucket.pop_back();
                 toReclaim.push_back(entry);
@@ -1068,29 +1059,6 @@ size_t CentralRegionPool::FlushHalfLargeFreeCacheToFreeManager()
         msRegionManager_->ReclaimRegionLarge(entry.regionStart, entry.regionBytes);
     }
     return flushed;
-}
-
-size_t CentralRegionPool::FlushLargeHotCacheToFreeManager()
-{
-    size_t totalBytes = GetLargeHotCacheRegionCount() * MS_REGION_SIZE;
-    if (totalBytes == 0) {
-        return 0;
-    }
-
-    std::vector<LargeHotEntry> toReclaim;
-    {
-        std::lock_guard<std::mutex> lg(largeHotCacheLock_);
-        for (auto& kv : largeHotCache_) {
-            for (auto& entry : kv.second) {
-                toReclaim.push_back(entry);
-            }
-        }
-        largeHotCache_.clear();
-    }
-    for (auto& entry : toReclaim) {
-        msRegionManager_->ReclaimRegionLarge(entry.regionStart, entry.regionBytes);
-    }
-    return totalBytes;
 }
 
 bool CentralRegionPool::HasLargeFreeCache() const
@@ -1176,7 +1144,7 @@ MSEagerSweepBatchStats CentralRegionPool::EagerSweepBatch(uint64_t maxTimeUs)
 MSLargeSweepStats CentralRegionPool::SweepLargeRegions()
 {
     // Flush unconsumed hot-cache entries from the previous GC cycle first.
-    FlushLargeHotCache();
+    (void)ReclaimLargeHotCache(std::numeric_limits<size_t>::max());
 
     // Two-pass to avoid holding largeLock_ during ReclaimRegion.
     std::vector<MSRegionInfo*> deadRegions;

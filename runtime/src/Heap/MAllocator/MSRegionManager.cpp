@@ -288,17 +288,14 @@ void MSRegionManager::MaybeNotifyMark()
         return;
     }
 
-    // Use heapThreshold updated at GC end from active-region bytes and eager-sweep sampling.
-    // Subtract the mark-window reserve so GC triggers early enough to leave free regions
-    // available throughout the next concurrent mark phase.
-    size_t heapInUse = space.GetHeapInUseBytes();
+    // Gate the next GC on the swept-retained footprint (partialSwept + fullSwept +
+    // large region spans) rather than the transient active-region total, so the
+    // trigger tracks the post-sweep live heap.
+    size_t sweptBytes = space.GetSweptHeapBytes();
     size_t threshold = gcStats.GetThreshold();
-    {
-        size_t reserveBytes = gcStats.markWindowReserveBytes;
-        size_t effectiveThreshold = (threshold > reserveBytes) ? (threshold - reserveBytes) : 0;
-        if (heapInUse < effectiveThreshold) {
-            return;
-        }
+    // Trigger purely on time (cooldown above) + threshold.
+    if (sweptBytes < threshold) {
+        return;
     }
 
     if (!lastHeuRequestNs_.compare_exchange_strong(lastHeuRequestNs, nowNs,
@@ -309,12 +306,10 @@ void MSRegionManager::MaybeNotifyMark()
 
     collector.RequestGC(GC_REASON_HEU, true);
     VLOG(REPORT,
-         "[MS-GC] HEU trigger (take-regions): active-region bytes=%zuB heapThreshold=%zuB"
-         " effectiveThreshold=%zuB reserveBytes=%zuB reason=GC_REASON_HEU",
-         heapInUse,
-         threshold,
-         (threshold > gcStats.markWindowReserveBytes) ? (threshold - gcStats.markWindowReserveBytes) : 0,
-         gcStats.markWindowReserveBytes);
+         "[MS-GC] HEU trigger (take-regions): swept-region bytes=%zuB heapThreshold=%zuB"
+         " reason=GC_REASON_HEU",
+         sweptBytes,
+         threshold);
 }
 
 // ============================================================================
@@ -335,7 +330,6 @@ bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx, AllocSource
             if (source != nullptr) {
                 *source = AllocSource::RELEASED;
             }
-            takeRegionsCallCount_.fetch_add(1, std::memory_order_relaxed);
             MaybeNotifyScavenge();
             return true;
         }

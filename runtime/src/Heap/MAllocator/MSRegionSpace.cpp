@@ -207,6 +207,14 @@ size_t RegionSpaceMS::GetHeapInUseBytes() const
     return msCentralPool_->GetActiveMSRegionCount() * MS_REGION_SIZE;
 }
 
+size_t RegionSpaceMS::GetSweptHeapBytes() const
+{
+    if (msCentralPool_ == nullptr) {
+        return 0;
+    }
+    return msCentralPool_->GetSweptMSRegionCount() * MS_REGION_SIZE;
+}
+
 size_t RegionSpaceMS::GetHeapRetainedBytes() const
 {
     if (msCentralPool_ == nullptr || msRegionManager_ == nullptr) {
@@ -237,25 +245,36 @@ bool RegionSpaceMS::HasEmptySweptRegions() const
     return msCentralPool_ != nullptr && msCentralPool_->GetEmptySweptRegionCount() > 0;
 }
 
-size_t RegionSpaceMS::FlushHalfEmptySweptToHotFree()
-{
-    if (msCentralPool_ == nullptr) {
-        return 0;
-    }
-    size_t emptyCount = msCentralPool_->GetEmptySweptRegionCount();
-    if (emptyCount == 0) {
-        return 0;
-    }
-    size_t targetRegions = std::max<size_t>(1, emptyCount / 2);
-    return msCentralPool_->ReclaimEmptyRegion(targetRegions);
-}
-
 size_t RegionSpaceMS::FlushAllEmptySweptToHotFree()
 {
     if (msCentralPool_ == nullptr) {
         return 0;
     }
     return msCentralPool_->ReclaimEmptyRegion(std::numeric_limits<size_t>::max());
+}
+
+size_t RegionSpaceMS::FlushEmptySweptToHotFree(size_t maxRegions)
+{
+    if (msCentralPool_ == nullptr || maxRegions == 0) {
+        return 0;
+    }
+    return msCentralPool_->ReclaimEmptyRegion(maxRegions);
+}
+
+size_t RegionSpaceMS::FlushAllLargeHotCache()
+{
+    if (msCentralPool_ == nullptr) {
+        return 0;
+    }
+    return msCentralPool_->ReclaimLargeHotCache(std::numeric_limits<size_t>::max());
+}
+
+size_t RegionSpaceMS::FlushLargeHotCacheUpToBytes(size_t maxBytes)
+{
+    if (msCentralPool_ == nullptr || maxBytes == 0) {
+        return 0;
+    }
+    return msCentralPool_->ReclaimLargeHotCache(maxBytes);
 }
 
 size_t RegionSpaceMS::BackgroundScavenge(size_t quantumBytes)
