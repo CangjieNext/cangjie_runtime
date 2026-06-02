@@ -130,7 +130,7 @@ public class LinkedBlockingQueue<E> {
             }
             enqueueUnsafe(element)
             prevCount = count.fetchAdd(1)
-            if (prevCount + 1 < capacity) {
+            if (prevCount + 1 < capacity && putQsize.load() > 0) {
                 putMonitor.notify()
             }
         } finally {
@@ -184,7 +184,7 @@ public class LinkedBlockingQueue<E> {
             }
             enqueueUnsafe(element)
             prevCount = count.fetchAdd(1)
-            if (prevCount + 1 < capacity) {
+            if (prevCount + 1 < capacity && putQsize.load() > 0) {
                 putMonitor.notify()
             }
         } finally {
@@ -232,7 +232,7 @@ public class LinkedBlockingQueue<E> {
             }
             value = Some(dequeueUnsafe())
             prevCount = count.fetchSub(1)
-            if (prevCount > 1) {
+            if (prevCount > 1 && takeQsize.load() > 0) {
                 takeMonitor.notify()
             }
         } finally {
@@ -287,7 +287,7 @@ public class LinkedBlockingQueue<E> {
             }
             value = Some(dequeueUnsafe())
             prevCount = count.fetchSub(1)
-            if (prevCount > 1) {
+            if (prevCount > 1 && takeQsize.load() > 0) {
                 takeMonitor.notify()
             }
         } finally {
@@ -356,7 +356,7 @@ public class LinkedBlockingQueue<E> {
             }
             enqueueUnsafe(element)
             prevCount = count.fetchAdd(1)
-            if (prevCount + 1 < capacity) {
+            if (prevCount + 1 < capacity && putQsize.load() > 0) {
                 putMonitor.notify()
             }
         } finally {
@@ -395,7 +395,7 @@ public class LinkedBlockingQueue<E> {
             }
             value = Some(dequeueUnsafe())
             prevCount = count.fetchSub(1)
-            if (prevCount > 1) {
+            if (prevCount > 1 && takeQsize.load() > 0) {
                 takeMonitor.notify()
             }
         } finally {
