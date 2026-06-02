@@ -1,7 +1,25 @@
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+
+#if defined(__APPLE__) && \
+    (defined(__IOS__) || defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__) || \
+     (defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE))
+#include "log.h"
+#else
 #include <stdio.h>
+#endif
 #include <unistd.h>
 #include <stdint.h>
 #include <dlfcn.h>
+
+#if defined(__APPLE__) && \
+    (defined(__IOS__) || defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__) || \
+     (defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE))
+#define INTERPRETER_MOCK_LIB_NAME "libinterpreter.dylib"
+#else
+#define INTERPRETER_MOCK_LIB_NAME "libinterpreter.so"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,9 +37,10 @@ void longRunningForeignCall() {
 }
 
 void restoreInterpreterStackReserveSize() {
-    void* handle = dlopen("libinterpreter.so", RTLD_LAZY);
+    void* handle = dlopen(INTERPRETER_MOCK_LIB_NAME, RTLD_LAZY);
     if (handle == NULL) {
-        printf("[foreign] restoreInterpreterStackReserveSize: libinterpreter.so is unavailable: %s\n", dlerror());
+        printf("[foreign] restoreInterpreterStackReserveSize: %s is unavailable: %s\n",
+               INTERPRETER_MOCK_LIB_NAME, dlerror());
         return;
     }
 

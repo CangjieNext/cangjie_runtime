@@ -182,7 +182,7 @@ void WriteLog(bool addPrefix, LogType type, const char* format, ...) noexcept;
 
 #define ENABLE_LOG(type) LogFile::LogIsEnabled(type)
 
-#if defined (__OHOS__) || defined (__ANDROID__)
+#if defined (__OHOS__) || defined (__ANDROID__) || defined (__IOS__)
 #define VLOG(type, format...) \
     if (type == LogType::REPORT || type == LogType::INTERPRETER) { \
         LOG(RTLOG_INFO, format); \
