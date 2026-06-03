@@ -18,7 +18,7 @@ public type BlockingQueue<E> = LinkedBlockingQueue<E>
  * BlockingQueue is a concurrent queue with a blocking mechanism and supports a user-specified upper bound of capacity.
  */
 public class LinkedBlockingQueue<E> {
-    public let capacity: Int64 // the capacity of the queue
+    public let capacity: Int64 // the capacity of the queue	 
     private let takeMonitor = Monitor() // Monitor for blocking consumers when the queue is empty
     private let putMonitor = Monitor() // Monitor for blocking producers when the queue is full
     private let putQsize = AtomicInt64(0) // Number of elements that are enqueuing.
@@ -110,7 +110,6 @@ public class LinkedBlockingQueue<E> {
         add(element)
     }
 
-    @Frozen
     public func add(element: E): Unit {
         var prevCount: Int64 = -1
         putMonitor.lock()
@@ -157,7 +156,6 @@ public class LinkedBlockingQueue<E> {
         return add(element, timeout)
     }
 
-    @Frozen
     public func add(element: E, timeout: Duration): Bool {
         var remaining = timeout
         var prevCount: Int64 = -1
@@ -211,7 +209,6 @@ public class LinkedBlockingQueue<E> {
         return remove()
     }
 
-    @Frozen
     public func remove(): E {
         var prevCount: Int64 = -1
         var value: Option<E> = None
@@ -259,7 +256,6 @@ public class LinkedBlockingQueue<E> {
         return remove(timeout)
     }
 
-    @Frozen
     public func remove(timeout: Duration): Option<E> {
         var remaining = timeout
         var prevCount: Int64 = -1
@@ -312,7 +308,6 @@ public class LinkedBlockingQueue<E> {
         return peek()
     }
 
-    @Frozen
     public func peek(): Option<E> {
         while (true) {
             let headBlock = front.load()
@@ -343,7 +338,6 @@ public class LinkedBlockingQueue<E> {
         return tryAdd(element)
     }
 
-    @Frozen
     public func tryAdd(element: E): Bool {
         if (count.load() == capacity) {
             return false
@@ -381,7 +375,6 @@ public class LinkedBlockingQueue<E> {
         return tryRemove()
     }
 
-    @Frozen
     public func tryRemove(): Option<E> {
         if (count.load() == 0) {
             return None<E>
@@ -407,7 +400,6 @@ public class LinkedBlockingQueue<E> {
         return value
     }
 
-    @Frozen
     private func enqueueUnsafe(element: E): Unit {
         while (true) {
             let tailBlock = rear.load()
@@ -420,7 +412,6 @@ public class LinkedBlockingQueue<E> {
         }
     }
 
-    @Frozen
     private func dequeueUnsafe(): E {
         while (true) {
             let headBlock = front.load()
@@ -436,7 +427,6 @@ public class LinkedBlockingQueue<E> {
         throw Exception("Unreachable code.")
     }
 
-    @Frozen
     private func signalNotEmpty(): Unit {
         takeMonitor.lock()
         try {
@@ -446,7 +436,6 @@ public class LinkedBlockingQueue<E> {
         }
     }
 
-    @Frozen
     private func signalNotFull(): Unit {
         putMonitor.lock()
         try {
