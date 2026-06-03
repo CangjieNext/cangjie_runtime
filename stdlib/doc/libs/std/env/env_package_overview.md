@@ -4,8 +4,6 @@
 
 env 包提供当前进程的相关信息与功能、包括环境变量、命令行参数、标准流、退出程序。也提供标准输入、标准输出、标准错误进行交互的方法。
 
-本包提供多平台统一操控能力，目前支持 Linux 平台，macOS 平台，Windows 平台。
-
 本包提供 [getStdErr()](./env_package_api/env_package_funcs.md#func-getstderr)、[getStdIn()](./env_package_api/env_package_funcs.md#func-getstdin) 、[getStdOut()](./env_package_api/env_package_funcs.md#func-getstdout)，用于获取这三个标准流。
 
 - [ConsoleReader](./env_package_api/env_package_classes.md#class-consolereader) 封装了标准输入流的相关功能，可以通过相关的 `read` 方法从标准输入中读取数据。
@@ -37,7 +35,7 @@ env 包提供当前进程的相关信息与功能、包括环境变量、命令�
 | [getHomeDirectory()](./env_package_api/env_package_funcs.md#func-gethomedirectory) | 获取当前进程 home 目录的路径。 |
 | [getProcessId()](./env_package_api/env_package_funcs.md#func-getprocessid) | 获取当前进程 id。 |
 | [getStdErr()](./env_package_api/env_package_funcs.md#func-getstderr) | 获取当前进程标准错误流。 |
-| [getStdIn()](./env_package_api/env_package_funcs.md#func-getstdin) | 获取当前进程标准错误流。 |
+| [getStdIn()](./env_package_api/env_package_funcs.md#func-getstdin) | 获取当前进程标准输入流。 |
 | [getStdOut()](./env_package_api/env_package_funcs.md#func-getstdout) | 获取当前进程标准输出流。 |
 | [getTempDirectory()](./env_package_api/env_package_funcs.md#func-gettempdirectory) | 获取当前进程临时目录的路径。 |
 | [getVariable()](./env_package_api/env_package_funcs.md#func-getvariablestring) | 获取当前进程指定名称的环境变量值。 |

@@ -24,31 +24,23 @@ class ExtensionData;
 class BaseFile;
 constexpr U8 BITS_FOR_REF = 1;
 constexpr U8 REF_BIT_MASK = 1;
-constexpr U64 SIGN_BIT_64 = (U64)1 << 63;
-constexpr U32 SIGN_BIT_32 = (U32)1 << 31;
+// for arm32: 1 << 31. for aarch64 or x86_64: 1 << 63.
+constexpr ArchUInt SIGN_BIT =  (ArchUInt)1 << (sizeof(void*) * 8 - 1);
 constexpr U16 INVALID_INHERIT_NUM = (1 << 15) - 1;
-
-#ifdef __arm__
-#define SIGN_BIT  SIGN_BIT_32
-using BIT_TYPE = U32;
-#else
-#define SIGN_BIT  SIGN_BIT_64
-using BIT_TYPE = U64;
-#endif
 
 extern const size_t TYPEINFO_PTR_SIZE;
 
 union MTableBitmap {
     using LargeBitmap = std::pair<U32, U8[]>;
-    BIT_TYPE shortBitmap;
+    ArchUInt shortBitmap;
     LargeBitmap* largeBitmap;
-    BIT_TYPE tag;
-    
+    ArchUInt tag;
+
     void ForEachBit(const std::function<void(ExtensionData*)>& visitor, ExtensionData** vExtensionPtr)
     {
         bool isSmallBitmap = tag & SIGN_BIT;
         if (isSmallBitmap) {
-            BIT_TYPE bitInfo = shortBitmap & (~SIGN_BIT);
+            ArchUInt bitInfo = shortBitmap & (~SIGN_BIT);
             while (LIKELY(bitInfo != 0)) {
                 if (bitInfo & 0x1) {
                     visitor(*vExtensionPtr);
@@ -82,6 +74,9 @@ public:
     {}
     InheritFuncTable& operator=(const InheritFuncTable& other)
     {
+        if (this == &other) {
+            return *this;
+        }
         superExtensionData = other.superExtensionData;
         superTypeInfo = other.superTypeInfo;
         cachedTypeInfos = other.cachedTypeInfos;
@@ -93,18 +88,26 @@ public:
         superExtensionData = other.superExtensionData;
         superTypeInfo = other.superTypeInfo;
         cachedTypeInfos = std::move(other.cachedTypeInfos);
+        other.superExtensionData = nullptr;
+        other.superTypeInfo = nullptr;
     }
     InheritFuncTable& operator=(InheritFuncTable&& other)
     {
+        if (this == &other) {
+            return *this;
+        }
         superExtensionData = other.superExtensionData;
         superTypeInfo = other.superTypeInfo;
         cachedTypeInfos = std::move(other.cachedTypeInfos);
+        other.superExtensionData = nullptr;
+        other.superTypeInfo = nullptr;
         return *this;
     }
-    InheritFuncTable(ExtensionData* ed, TypeInfo* super, size_t sz) : superExtensionData(ed), superTypeInfo(super), cachedTypeInfos(sz) {}
+    InheritFuncTable(ExtensionData* ed, TypeInfo* super, size_t sz)
+        : superExtensionData(ed), superTypeInfo(super), cachedTypeInfos(sz) {}
     ExtensionData* GetExtensionData() const { return superExtensionData; }
     TypeInfo* GetSuperTi() const { return superTypeInfo; }
-    void ResetAtomicInfoArray(size_t size) { cachedTypeInfos.Reset(size); }
+    void ResetAtomicInfoArray(size_t size) { cachedTypeInfos = AtomicTypeInfoArray(size); }
     TypeInfo* GetCachedTypeInfo(size_t index) const { return cachedTypeInfos.Get(index); }
     void SetCachedTypeInfo(size_t index, TypeInfo* ti) { cachedTypeInfos.Set(index, ti); }
 private:
@@ -197,26 +200,6 @@ private:
         {
             typeInfos[index].store(ti, std::memory_order_release);
         }
-        void Reset(size_t size)
-        {
-            CHECK_DETAIL(size > cacheSize, "update func table with wrong size %zu->%zu", cacheSize, size);
-            auto* newTypeInfos = new (std::nothrow) std::atomic<TypeInfo*>[size];
-            if (UNLIKELY(newTypeInfos == nullptr)) {
-                LOG(RTLOG_FATAL, "reset func table memory allocation failed, cache size %zu", size);
-            }
-            if (typeInfos != nullptr && cacheSize > 0) {
-                for (size_t i = 0; i < cacheSize; ++i) {
-                    TypeInfo* ti = typeInfos[i].load(std::memory_order_relaxed);
-                    newTypeInfos[i].store(ti, std::memory_order_relaxed);
-                }
-                delete[] typeInfos;
-                for (size_t i = cacheSize; i < size; ++i) {
-                    newTypeInfos[i].store(nullptr, std::memory_order_relaxed);
-                }
-            }
-            typeInfos = newTypeInfos;
-            cacheSize = size;
-        }
     private:
         size_t cacheSize{ 0 };
         std::atomic<TypeInfo*>* typeInfos{ nullptr };
@@ -224,30 +207,30 @@ private:
 
     ExtensionData* superExtensionData { nullptr };
     TypeInfo* superTypeInfo { nullptr };
-    // The size of this array is the same as the virtual function size of virtual function count in this extenstion
-    // data.
+    // The size of this array is the same as the virtual function count in this extension data.
     AtomicTypeInfoArray cachedTypeInfos;
 };
 struct MTableDesc {
     std::unordered_map<U32, InheritFuncTable> mTable;
-    std::vector<BaseFile*> waitedExtensionDatas;
     MTableBitmap mTableBitmap;
     std::recursive_mutex mTableMutex;
     bool pending = false;
     bool needsResolveInner = true;
-    explicit MTableDesc(BIT_TYPE bitmap_);
+    bool needsResolveOuter = true;
+    explicit MTableDesc(ArchUInt bitmap_);
     MTableDesc() = delete;
-    bool IsFullyHandled() const { return !NeedResolveInner() && waitedExtensionDatas.empty(); };
+    bool IsFullyHandled() const { return !NeedResolveInner() && !NeedResolveOuter(); };
     inline bool NeedResolveInner() const { return needsResolveInner; }
+    inline bool NeedResolveOuter() const { return needsResolveOuter; }
 };
 
 typedef TypeInfo* (*GenericFunc)(TypeInfo**);
 struct ShortGCTib {
-    BIT_TYPE bitmap; // lower 63 bits are valid, each bit indicates 8-byte width, 1:ref, 0:no-ref
+    ArchUInt bitmap; // lower 63 bits are valid, each bit indicates 8-byte width, 1:ref, 0:no-ref
 
     void ForEachBitmapWord(MAddress fieldAddr, const RefFieldVisitor& visitor) const
     {
-        BIT_TYPE gcInfo = bitmap & (~SIGN_BIT);
+        ArchUInt gcInfo = bitmap & (~SIGN_BIT);
         while (LIKELY(gcInfo != 0)) {
             if (gcInfo & REF_BIT_MASK) {
                 visitor(*reinterpret_cast<RefField<>*>(fieldAddr));
@@ -259,7 +242,7 @@ struct ShortGCTib {
     void ForEachBitmapWordInRange(MAddress baseAddr, const RefFieldVisitor& visitor, MAddress rangeStart,
                                   MAddress rangeEnd) const
     {
-        BIT_TYPE gcInfo = bitmap & (~SIGN_BIT);
+        ArchUInt gcInfo = bitmap & (~SIGN_BIT);
         U32 startPos = (rangeStart - baseAddr) / sizeof(RefField<>);
         gcInfo >>= startPos;
 
@@ -299,7 +282,7 @@ struct StdGCTib {
     void VisitAllField(U8 &bitmapWord, MAddress &fieldAddr, const RefFieldVisitor &visitor) const
     {
         visitor(*reinterpret_cast<RefField<> *>(fieldAddr));
- 
+
         // go next ref word.
         bitmapWord >>= BITS_FOR_REF;
         fieldAddr += sizeof(RefField<>);
@@ -355,7 +338,7 @@ struct StdGCTib {
 };
 
 union GCTib {
-    BIT_TYPE tag;           // 1: bitmap, 0: gctib
+    ArchUInt tag;           // 1: bitmap, 0: gctib
     ShortGCTib bitmap; // each bit indicates 8-byte width, 1:ref, 0:no-ref
     StdGCTib* gctib;   // valid only when highest bit is 0.
 
@@ -365,7 +348,7 @@ union GCTib {
         // arm32 only use gctib pointer.
         return false;
 #else
-        return static_cast<bool>(tag & SIGN_BIT_64); // 63: Use 64-bit sign bit as flag.
+        return static_cast<bool>(tag & SIGN_BIT); // 63: Use 64-bit sign bit as flag.
 #endif
     }
 
@@ -424,6 +407,7 @@ public:
     void SetDeclaringGenericTypeInfo(GenericTypeInfo* ti) { genericTypeInfo = ti; }
 
     void* GetAnnotations(TypeInfo* arrayTi);
+    U8 GetReflectVersion() const;
 private:
     Uptr GetBaseAddr() const { return reinterpret_cast<Uptr>(base); }
     DataRefOffset64<FieldNames> fieldNamesOffset;
@@ -453,34 +437,62 @@ private:
     };
 };
 
-class EnumInfo {
-public:
-    inline U32 GetModifier() const { return modifier; }
-    inline U32 GetNumOfEnumCtor() const { return enumCtorInfoCnt; }
-    inline U32 GetNumOfInstanceMethodInfos() const { return instanceMethodCnt; }
-    inline U32 GetNumOfStaticMethodInfos() const { return staticMethodCnt; }
-    inline EnumCtorInfo* GetEnumCtor(U32 idx) const;
-    inline TypeInfo* GetCtorTypeInfo(U32 idx) const;
-    void* GetAnnotations(TypeInfo* arrayTi);
-    MethodInfo* GetInstanceMethodInfo(U32 index) const;
-    MethodInfo* GetStaticMethodInfo(U32 index);
-
-    void SetEnumCtors(void* ctors);
-    void SetCtorInfoNum(U32 num) { enumCtorInfoCnt = num; }
-    void SetParsed() { modifier |= MODIFIER_ENUM_PARSED; }
-    bool IsParsed() const { return (modifier & MODIFIER_ENUM_PARSED) != 0; }
-private:
-    Uptr GetBaseAddr() const { return reinterpret_cast<Uptr>(base); }
+struct EnumDebugInfo {
     DataRefOffset64<EnumCtorInfo> enumCtorInfos;
     U32 modifier;
     U32 enumCtorInfoCnt;
+
+    EnumCtorInfo* GetEnumCtor(U32 idx) const;
+    void SetEnumCtors(void* ctors);
+};
+
+class EnumInfo {
+public:
+    inline U32 GetModifier() const { return enumDebugInfo.modifier; }
+    inline U32 GetNumOfEnumCtor() const { return enumDebugInfo.enumCtorInfoCnt; }
+    inline U32 GetNumOfInstanceMethodInfos() const { return instanceMethodCnt; }
+    inline U32 GetNumOfStaticMethodInfos() const { return staticMethodCnt; }
+    EnumCtorInfo* GetEnumCtor(U32 idx) const;
+    TypeInfo* GetCtorTypeInfo(U32 idx) const;
+    void* GetAnnotations(TypeInfo* arrayTi);
+    MethodInfo* GetInstanceMethodInfo(U32 index) const;
+    MethodInfo* GetStaticMethodInfo(U32 index);
+    void SetInstanceMethodInfo(U32 idx, MethodInfo* methodInfo);
+    void SetStaticMethodInfo(U32 idx, MethodInfo* methodInfo);
+
+    void SetCtorInfoNum(U32 num) { enumDebugInfo.enumCtorInfoCnt = num; }
+    void SetParsed() { enumDebugInfo.modifier |= MODIFIER_ENUM_PARSED; }
+    bool IsParsed() const { return (enumDebugInfo.modifier & MODIFIER_ENUM_PARSED) != 0; }
+    bool IsEnumKind0() const { return (enumDebugInfo.modifier & MODIFIER_ENUM_KIND0) != 0; }
+    bool IsEnumKind1() const { return (enumDebugInfo.modifier & MODIFIER_ENUM_KIND1) != 0; }
+    bool IsEnumKind2() const { return (enumDebugInfo.modifier & MODIFIER_ENUM_KIND2) != 0; }
+    bool IsEnumCtor() const { return (enumDebugInfo.modifier & MODIFIER_ENUM_CTOR) != 0; }
+    EnumDebugInfo* GetEnumDebugInfo() { return &enumDebugInfo; }
+    void* GetDeclaringGenericTypeInfo() { return genericTypeInfo; }
+    void SetDeclaringGenericTypeInfo(GenericTypeInfo* ti) { genericTypeInfo = ti; }
+    U8 GetReflectVersion() const;
+private:
+    Uptr GetBaseAddr() const { return reinterpret_cast<Uptr>(base); }
+    EnumDebugInfo enumDebugInfo;
     U32 instanceMethodCnt;
     U32 staticMethodCnt;
     Uptr annotationMethod;
+    void* genericTypeInfo;
     Uptr base[0];
 };
 
-class ATTR_PACKED(4) TypeTemplate {
+class EnumCtorReflectInfo {
+public:
+    void* GetAnnotations(TypeInfo* arrayTi);
+    bool IsEnumCtor() const { return (modifier & MODIFIER_ENUM_CTOR) != 0; }
+    U32 GetModifier() const { return modifier; }
+    Uptr GetAnnotationMethod() const { return annotationMethod; }
+private:
+    Uptr annotationMethod;
+    U32 modifier;
+};
+
+class TypeTemplate {
 public:
     inline bool IsRawArray() const;
     inline bool IsVArray() const;
@@ -513,12 +525,15 @@ public:
     inline U16 GetUUID() const { return uuid.load(); }
     inline void SetUUID(U16 id);
     inline EnumInfo* GetEnumInfo();
+    inline EnumDebugInfo* GetEnumDebugInfo();
+    inline EnumCtorReflectInfo* GetEnumCtorReflectInfo();
     inline bool ReflectInfoIsNull() const;
     bool ReflectIsEnable() const;
+    bool IsEnumCtor() const;
 
     CString GetTypeInfoName(U32 argSize, TypeInfo* args[]);
     ReflectInfo* GetReflectInfo() const { return reflectInfo; }
-    TypeInfo* GetFieldTypeInfo(U16 fieldIdx, U32 argSize, TypeInfo* args[]);
+    TypeInfo* GetFieldType(U16 fieldIdx, U32 argSize, TypeInfo* args[]);
     TypeInfo* GetSuperTypeInfo(U32 argSize, TypeInfo* args[]);
     FuncRef GetFinalizeMethod() const { return finalizerMethod; }
     static void* ExecuteGenericFunc(void* genericFunc, U32 argSize, TypeInfo* args[]);
@@ -537,9 +552,16 @@ private:
     const GenericFunc* fieldFns;
     const GenericFunc superFn;
     FuncRef finalizerMethod;
+    // This union stores different type information based on the type:
+    // - For non-enum types: uses reflectInfo
+    // - For enum types with reflection enabled: uses enumInfo
+    // - For enum types with reflection disabled: uses enumDebugInfo
+    // - For enum constructors: uses enumCtorReflectInfo
     union {
         ReflectInfo* reflectInfo;
         EnumInfo* enumInfo;
+        EnumDebugInfo* enumDebugInfo;
+        EnumCtorReflectInfo* enumCtorReflectInfo;
     };
     ExtensionData **vExtensionDataStart;
     U16 validInheritNum;
@@ -575,6 +597,7 @@ public:
     inline bool IsStruct() const;
     inline bool IsNothing() const;
     inline bool IsUnit() const;
+    inline bool IsBool() const;
     inline bool IsTuple() const;
     inline bool IsEnum() const;
     inline bool IsTempEnum() const;
@@ -586,6 +609,7 @@ public:
     inline bool IsFloat64() const;
     inline bool IsCFunc() const;
     inline bool IsRef() const;
+    inline bool IsUnknownSize() const; // mark structs with unknown compile-time size
     inline bool IsGenericTypeInfo() const; // mark generic instantiation TypeInfo
     inline bool IsGeneric() const; // mark a type of GenericTypeInfo, for reflect
     inline bool IsReflectUnsupportedType() const;
@@ -599,11 +623,11 @@ public:
     inline U32* GetFieldOffsets() const;
     inline U16 GetValidInheritNum() const;
 
+    inline TypeInfo** GetFieldTypes() const { return fields; }
     inline TypeInfo* GetFieldType(U16 idx) const;
     inline TypeInfo* GetComponentTypeInfo() const;
     inline U16 GetTypeArgNum() const { return typeArgsNum; }
-    inline U32 GetFieldOffsets(U16 idx) const { return fieldOffsets[idx]; }
-    inline TypeInfo* GetFieldTypeInfo(U16 idx) const { return fields[idx]; }
+    inline U32 GetFieldOffset(U16 idx) const { return fieldOffsets[idx]; }
     inline TypeInfo** GetTypeArgs() const { return typeArgs; }
     inline TypeTemplate* GetSourceGeneric() const;
     inline ExtensionData** GetvExtensionDataStart() const;
@@ -613,11 +637,18 @@ public:
     inline bool IsMutexClass() const;
     inline bool IsWaitQueueClass() const;
     inline bool HasExtPart() const;
-    inline bool IsBoxClass();
-    U32 GetModifier();
+    inline bool IsBoxClass() const;
+    U32 GetModifier() const;
+    bool IsEnumCtor() const;
+    bool IsOptionLikeRefEnum();
+    bool IsZeroSizedEnum();
+    bool IsOptionLikeUnassociatedCtor();
+    bool IsEnumKind1();
     bool ReflectIsEnable() const;
     bool ReflectInfoIsNull() const;
-    ReflectInfo* GetReflectInfo();
+    inline EnumCtorReflectInfo* GetEnumCtorReflectInfo() const;
+    ReflectInfo* GetReflectInfo() const;
+    U8 GetReflectionVersion() const;
 
     inline const char* GetName() const;
     FuncRef GetFinalizeMethod() const;
@@ -635,9 +666,12 @@ public:
     U32 GetNumOfStaticFieldInfos();
     StaticFieldInfo* GetStaticFieldInfo(U32 index);
 
+    U32 GetNumOfEnumCtor();
+    EnumCtorInfo* GetEnumCtor(U32 idx);
+
     PackageInfo* GetPackageInfo();
     void* GetAnnotations(TypeInfo* arrayTi);
-    inline EnumInfo* GetEnumInfo();
+    inline EnumInfo* GetEnumInfo() const;
     // for generic
     void SetName(const char* name) { this->typeInfoName = name; }
     void SetType(I8 kindType) { this->type = kindType; }
@@ -662,11 +696,12 @@ public:
     void SetReflectInfo(ReflectInfo* info) { this->reflectInfo = info; }
     void SetvExtensionDataStart(ExtensionData **ptr) { this->vExtensionDataStart = ptr; }
     void SetEnumInfo(EnumInfo* ei) { this->enumInfo = ei; }
+    void SetEnumDebugInfo(EnumDebugInfo* enumDebugInfo);
+    void SetEnumCtorReflectInfo(EnumCtorReflectInfo* enumCtorInfo) { this->enumCtorReflectInfo = enumCtorInfo; }
     MTableDesc* GetMTableDesc() const { return mTableDesc; }
     void AddMTable(TypeInfo* ti, ExtensionData* extensionData);
     FuncPtr* GetMTable(TypeInfo* itf);
     TypeInfo* GetMethodOuterTI(TypeInfo* itf, U64 index);
-    TypeInfo* GetMethodOuterTIWithCache(TypeInfo* itf, U64 index);
     U32 GetUUID();
     inline U32 GetClassSize() const;
     inline TypeInfo* GetSuperTypeInfo() const;                     // it can be null
@@ -692,16 +727,24 @@ private:
     // 0: functable, 1: is_sub_type
     std::pair<FuncPtr*, bool> FindMTable(U32 itfUUID);
 
-    inline bool IsMTableDescUnInitialized() { return validInheritNum >> 15 == 1; }
+    inline bool IsMTableDescUnInitialized() {
+
+        return (mTableDesc == nullptr) || (validInheritNum >> 15 == 1)
+        // mtable bitmap optimization will be enabled for non-ARM architectures.
+#ifndef __arm__
+               || (reinterpret_cast<uintptr_t>(mTableDesc) >> 63 == 1)
+#endif
+            ;
+    }
     // This function must be called before mTableDesc is overwritten.
-    inline BIT_TYPE GetResolveBitmapFromMTableDesc()
+    inline ArchUInt GetResolveBitmapFromMTableDesc()
     {
         return reinterpret_cast<uintptr_t>(mTableDesc);
     }
 
     const char* typeInfoName;
     I8 type;
-    U8 flag; // hasRefField, hasFinalize, monitor, waitQueue，use 0-3 bit
+    U8 flag; // hasRefField, hasFinalize, monitor, waitQueue, use 0-3 bit
     U16 fieldNum;
     union {
         MSize instanceSize;
@@ -728,9 +771,16 @@ private:
     };
     ExtensionData **vExtensionDataStart;
     MTableDesc* mTableDesc;
+    // This union stores different type information based on the type:
+    // - For non-enum types: uses reflectInfo
+    // - For enum types with reflection enabled: uses enumInfo
+    // - For enum types with reflection disabled: uses enumDebugInfo
+    // - For enum constructors: uses enumCtorReflectInfo
     union {
         ReflectInfo* reflectInfo;
         EnumInfo* enumInfo;
+        EnumDebugInfo* enumDebugInfo;
+        EnumCtorReflectInfo* enumCtorReflectInfo;
     };
 };
 

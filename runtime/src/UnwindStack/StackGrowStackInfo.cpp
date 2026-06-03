@@ -25,12 +25,12 @@ void StackGrowStackInfo::FillInStackTrace()
 
 #ifdef _WIN64
     // The offset on the window is unchanged.
-    const int firstFrameBaseOffset = 48;
-    while (reinterpret_cast<intptr_t>(uwContext.frameInfo.mFrame.GetFA()) !=
+    const uintptr_t firstFrameBaseOffset = 48;
+    while (reinterpret_cast<uintptr_t>(uwContext.frameInfo.mFrame.GetFA()) !=
            mutator->GetStackBaseAddr() - firstFrameBaseOffset) {
 #else
     // [rbp] of CJ_CJThreadEntry is 0x0.
-    while (reinterpret_cast<intptr_t>(uwContext.frameInfo.mFrame.GetFA()) != 0) {
+    while (reinterpret_cast<uintptr_t>(uwContext.frameInfo.mFrame.GetFA()) != 0) {
 #endif
         AnalyseAndSetFrameType(uwContext);
         stack.emplace_back(uwContext.frameInfo);
@@ -73,7 +73,7 @@ void StackGrowStackInfo::RecordStackPtrs(const StackPtrVisitor& traceAndFixPtrVi
                                          const DerivedPtrVisitor& derivedPtrVisitor, Mutator& mutator)
 {
     RegSlotsMap regSlotsMap;
-    for (auto frame : stack) {
+    for (const auto& frame : stack) {
         ObjectRef* rbp = reinterpret_cast<ObjectRef*>(frame.GetMachineFrame().GetFA());
         fixPtrVisitor(*rbp);
 

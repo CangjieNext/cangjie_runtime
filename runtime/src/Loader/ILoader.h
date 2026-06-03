@@ -34,6 +34,7 @@ public:
     virtual bool FileHasMultiPackage(const char* path) = 0;
     virtual void GetSubPackages(PackageInfo* packageInfo, std::vector<PackageInfo*> &subPackages) = 0;
 
+    virtual bool DoInitImage(BaseFile* baseFile) const = 0;
     virtual bool LibInit(const char*) = 0;
     virtual void* LoadCJLibrary(const char*) = 0;
     virtual int UnloadLibrary(const char*) = 0;
@@ -41,7 +42,6 @@ public:
     virtual BaseFile* GetBaseFile(CString fileName) const = 0;
     virtual void VisitExtensionData(
         TypeInfo* ti, const std::function<bool(ExtensionData* ed)>& f, TypeTemplate* tt) const = 0;
-    virtual void VisitExtensionData(const std::function<void(BaseFile*)>& f) const = 0;
     virtual bool CheckPackageCompatibility(BaseFile* file) = 0;
     virtual void TryThrowException(Uptr fileMetaAddr) = 0;
     virtual BaseFile* CreateFileRefFromAddr(Uptr address) = 0;

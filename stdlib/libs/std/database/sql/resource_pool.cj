@@ -8,25 +8,25 @@
 
 package std.database.sql
 
-import std.collection.{Map, ArrayList}
-import std.collection.concurrent.{BlockingQueue, LinkedBlockingQueue}
+import std.collection.ArrayList
+import std.collection.concurrent.LinkedBlockingQueue
 import std.time.DateTime
-import std.sync.{Timer, CatchupStyle, AtomicBool, ReentrantMutex}
+import std.sync.{Timer, CatchupStyle, AtomicBool, Mutex}
 
 class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
 
-    let mux = ReentrantMutex()
+    let mux = Mutex()
     let entryQueue: LinkedBlockingQueue<Entry<T>>
-    let idleEntry: BlockingQueue<Entry<T>>
+    let idleEntry: LinkedBlockingQueue<Entry<T>>
     var options: Options<T>
     var ticker: Timer
     var entryCount: Int32
     var isclosed = AtomicBool(false)
 
-    public init(options: Options<T>) {
+    init(options: Options<T>) {
         this.options = options
         entryQueue = LinkedBlockingQueue<Entry<T>>(Int64(options.maxSize))
-        idleEntry = BlockingQueue<Entry<T>>(Int64(options.maxSize))
+        idleEntry = LinkedBlockingQueue<Entry<T>>(Int64(options.maxSize))
         entryCount = 0
         ticker = Timer.once(Duration.hour) {=> ()}
         backgroundCheckIdleLife()
@@ -103,7 +103,7 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
         let list = ArrayList<Entry<T>>()
 
         for (_ in 0..idleCount) {
-            let item = idleEntry.tryDequeue()
+            let item = idleEntry.tryRemove()
             match (item) {
                 case Some(v) =>
                     if (v.isValid) {
@@ -120,34 +120,57 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
     }
 
     func getIdleEntry(timeout: Duration): Entry<T> {
-        var item = idleEntry.dequeue(timeout)
-
-        match (item) {
-            case Some(v) =>
+        if (let Some(v) <- idleEntry.remove(timeout)) {
             if (v.isValid) {
                 return v
-            } else {
-                mux.lock()
-                if (entryCount < options.maxSize) {
-                    entryCount++
-                    mux.unlock()
-                    return createEntry()
-                }
-                mux.unlock()
-                throw SqlException("Acquired entries exceed maxSize(${maxSize})")
             }
-            case None => throw SqlException("Acquired entries exceed maxSize(${maxSize})")
+        } else {
+            throw SqlException("Acquired entries exceed maxSize(${maxSize})")
+        }
+
+        let canCreate = synchronized(mux) {
+            if (entryCount >= options.maxSize) {
+                false
+            } else {
+                entryCount++
+                true
+            }
+        }
+
+        if (!canCreate) {
+            throw SqlException("Acquired entries exceed maxSize(${maxSize})")
+        }
+
+        try {
+            return createEntry()
+        } catch (e: Exception) {
+            synchronized(mux) {
+                entryCount--
+            }
+            throw e
         }
     }
 
     public func acquire(timeout: Duration): Option<Entry<T>> {
-        mux.lock()
-        if (idleEntry.size == 0 && entryCount < options.maxSize) {
-            entryCount++
-            mux.unlock()
-            return createEntry()
+        let shouldCreate: Bool
+        synchronized(mux) {
+            shouldCreate = idleEntry.size == 0 && entryCount < options.maxSize
+            if (shouldCreate) {
+                entryCount++
+            }
         }
-        mux.unlock()
+        if (shouldCreate) {
+            try {
+                return createEntry()
+            } catch (e: Exception) {
+                synchronized(mux) {
+                    if (entryCount > 0) {
+                        entryCount--
+                    }
+                }
+                throw e
+            }
+        }
         return getIdleEntry(timeout)
     }
 
@@ -174,7 +197,7 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
             entry.isValid = false
             this.discard(entry)
         } else {
-            idleEntry.enqueue(entry)
+            idleEntry.add(entry)
         }
         return
     }
@@ -204,7 +227,7 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
             return
         }
         for (_ in 0..idleEntry.size) {
-            var item = idleEntry.tryDequeue()
+            var item = idleEntry.tryRemove()
             match (item) {
                 case Some(v) =>
                     if (v.isValid) {
@@ -218,12 +241,12 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
         }
     }
 
-    public operator func !=(rhs: ResourcePool<T>): Bool {
-        return !(this == rhs)
+    public operator func !=(other: ResourcePool<T>): Bool {
+        return !(this == other)
     }
 
-    public operator func ==(rhs: ResourcePool<T>): Bool {
-        return refEq(this, rhs)
+    public operator func ==(other: ResourcePool<T>): Bool {
+        return refEq(this, other)
     }
 
     func appendLegalIdleEntry(v: Entry<T>, idleCount: Int64, list: ArrayList<Entry<T>>): Unit {

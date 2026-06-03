@@ -18,6 +18,10 @@ func f(a: Int64, b: T1, c!: Int64 = 0, d!: Int64 = 0): Int64 { ... }
 
 其限定名称应该为`"Int64, p1.T1, Int64, Int64"`。对于无参函数的限定名称应该为 `""`。
 
+> **注意：**
+>
+> 不支持平台：macOS、iOS。
+
 参数：
 
 - parameters: [String](../../core/core_package_api/core_package_structs.md#struct-string) - 函数参数类型限定名称。
@@ -40,12 +44,17 @@ import std.reflect.*
 class A {}
 
 main(): Unit {
-    println(parseParameterTypes("Int64, String, default.A"))
+    let types = parseParameterTypes("Int64, String, default.A")
+    for (t in types) {
+        println(t)
+    }
 }
 ```
 
 运行结果：
 
 ```text
-[Int64, String, default.A]
+Int64
+String
+default.A
 ```

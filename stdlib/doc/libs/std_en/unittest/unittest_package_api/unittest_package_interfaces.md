@@ -29,7 +29,7 @@ Parameters:
 
 - idx: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The index value of the element.
 
-Return Value:
+Returns:
 
 - T - The element value.
 
@@ -255,11 +255,87 @@ Purpose: This interface enables detection of `BenchInputProvider<T>` when `T` is
 public interface Measurement {
     func setup(): Unit
     func measure(): Float64
+    prop conversionTable: MeasurementUnitTable
+    prop name: String
+    prop textDescription: String
+    prop info: MeasurementInfo
 }
 ```
 
 Purpose: This interface specifies how to measure data during benchmarking and how to display it in reports.
 Instances implementing this interface can be passed as attributes to the `@Measure` macro.
+
+Example:
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+import std.unittest.testmacro.*
+
+var fuel: Float64 = 0.0
+
+class FuelMeasurement <: Measurement {
+    public func setup() {
+        fuel = 0.0
+    }
+
+    public func measure(): Float64 {
+        fuel
+    }
+
+    public prop name: String {
+        get() {
+            "Fuel"
+        }
+    }
+
+    public prop textDescription: String {
+        get() {
+            "Measuring gallons of fuel spent"
+        }
+    }
+
+    public prop conversionTable: MeasurementUnitTable {
+        get() {
+            [(1.0, "gallon")]
+        }
+    }
+}
+
+@Test
+@Measure[FuelMeasurement()]
+@Configure[
+    minDuration: Duration.nanosecond,
+    warmup: Duration.nanosecond,
+    batchSize: 10
+]
+class BenchClass {
+    @Bench
+    func foo() {
+        fuel += 2.0
+    }
+}
+```
+
+Possible output:
+
+```text
+Starting the benchmark `BenchClass.foo()`.
+    Warming up for 1.000 ns.
+    Starting measurements of 10 batches. Measuring Fuel.
+    Max batch size: 10, estimated execution time: 186.6 us.
+
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 400844 ns, RESULT:
+    TCS: BenchClass, time elapsed: 395616 ns, RESULT:
+    | Case   |       Median |       Err |   Err% |         Mean |
+    |:-------|-------------:|----------:|-------:|-------------:|
+    | foo    | 2.000 gallon | ±0 gallon |  ±0.0% | 2.000 gallon |
+Summary: TOTAL: 1
+    PASSED: 1, SKIPPED: 0, ERROR: 0
+    FAILED: 0
+--------------------------------------------------------------------------------------------------
+```
 
 ### prop conversionTable
 
@@ -305,14 +381,14 @@ func measure(): Float64
 
 Purpose: Method for measuring execution time that will be used for statistical analysis.
 
-Return Value:
+Returns:
 
 - [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) - The measured data.
 
 ### func setup()
 
 ```cangjie
-func setup()
+func setup(): Unit
 ```
 
 Purpose: Initialization routine for this measurement. Called before each benchmark step.
@@ -337,6 +413,42 @@ public interface NearEquatable<CT, D> {
 
 Purpose: Determines whether an object is approximately equal based on a given delta.
 
+Example:
+
+<!-- run -->
+```cangjie
+import std.math.*
+import std.unittest.*
+import std.unittest.common.*
+import std.unittest.testmacro.*
+
+struct ApproxArray<T> <: NearEquatable<ApproxArray<T>, Int64> {
+    ApproxArray(let xs: Array<T>) {}
+
+    public func isNear(obj: ApproxArray<T>, delta!: Int64): Bool {
+        abs(this.xs.size - obj.xs.size) <= delta
+    }
+}
+
+@Test
+func test() {
+    @Assert(ApproxArray([1, 2]) == ApproxArray([1]), delta: 1)
+}
+```
+
+Possible output:
+
+```text
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 184149 ns, RESULT:
+    TCS: TestCase_test, time elapsed: 181208 ns, RESULT:
+    [ PASSED ] CASE: test (74214 ns)
+Summary: TOTAL: 1
+    PASSED: 1, SKIPPED: 0, ERROR: 0
+    FAILED: 0
+--------------------------------------------------------------------------------------------------
+```
+
 ### func isNear(CT, D)
 
 ```cangjie
@@ -350,7 +462,7 @@ Parameters:
 - obj: CT - The object being compared.
 - delta!: D - The delta for approximate equality comparison.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether the objects are approximately equal.
 
@@ -371,7 +483,7 @@ Parameters:
 - obj: [Float16](../../core/core_package_api/core_package_intrinsics.md#float16) - The object being compared.
 - delta!: [Float16](../../core/core_package_api/core_package_intrinsics.md#float16) - The delta for approximate equality comparison.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether the objects are approximately equal.
 
@@ -396,7 +508,7 @@ Parameters:
 - obj: [Float16](../../core/core_package_api/core_package_intrinsics.md#float16) - The object being compared.
 - delta!: [RelativeDelta](../unittest_package_api/unittest_package_structs.md#struct-relativedeltat)\<[Float16](../../core/core_package_api/core_package_intrinsics.md#float16)> - The delta for approximate equality comparison.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether the objects are approximately equal.
 
@@ -421,7 +533,7 @@ Parameters:
 - obj: [Float32](../../core/core_package_api/core_package_intrinsics.md#float32) - The object being compared.
 - delta!: [Float32](../../core/core_package_api/core_package_intrinsics.md#float32) - The delta for approximate equality comparison.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether the objects are approximately equal.
 
@@ -446,7 +558,7 @@ Parameters:
 - obj: [Float32](../../core/core_package_api/core_package_intrinsics.md#float32) - The object being compared.
 - delta!: [RelativeDelta](../unittest_package_api/unittest_package_structs.md#struct-relativedeltat)\<[Float32](../../core/core_package_api/core_package_intrinsics.md#float32)> - The delta for approximate equality comparison.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether the objects are approximately equal.
 
@@ -471,7 +583,7 @@ Parameters:
 - obj: [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) - The object being compared.
 - delta!: [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) - The delta for approximate equality comparison.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether the objects are approximately equal.
 
@@ -496,13 +608,15 @@ Parameters:
 - obj: [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) - The object being compared.
 - delta!: [RelativeDelta](../unittest_package_api/unittest_package_structs.md#struct-relativedeltat)\<[Float64](../../core/core_package_api/core_package_intrinsics.md#float64)> - The delta for approximate equality comparison.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether the objects are approximately equal.
 
 Exceptions:
 
-- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if delta is negative or NaN.## interface Reporter
+- [IllegalArgumentException](../../core/core_package_api/core_package_exceptions.md#class-illegalargumentexception) - Thrown if delta is negative or NaN.
+
+## interface Reporter
 
 ```cangjie
 sealed interface Reporter <TReport, TReturn> {}
@@ -528,6 +642,6 @@ func asTestSuite(): TestSuite
 
 Function: Method to create [TestSuite](./unittest_package_classes.md#class-testsuite).
 
-Return value:
+Returns:
 
 - [TestSuite](./unittest_package_classes.md#class-testsuite) - The test suite object.

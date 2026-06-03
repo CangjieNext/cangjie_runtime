@@ -497,7 +497,7 @@ install(TARGETS cangjie-std-database.sql DESTINATION lib/${output_triple_name}_$
 make_cangjie_lib(
     std-runtime IS_SHARED
     DEPENDS cangjie${BACKEND_TYPE}Runtime cangjie-std-runtimeFFI
-    CANGJIE_STD_LIB_DEPENDS std-core std-io std-sync std-fs std-process std-env
+    CANGJIE_STD_LIB_DEPENDS std-core std-io std-sync std-fs std-process std-env std-collection
     OBJECTS ${output_cj_object_dir}/std/runtime.o
 FLAGS -lcangjie-std-runtimeFFI)
 
@@ -527,6 +527,8 @@ endif()
 set(arm32_ast_support)
 if(TRIPLE STREQUAL "arm-linux-ohos")
     set(arm32_ast_support -L$ENV{CANGJIE_HOME}/lib/linux_ohos_arm_cjnative)
+elseif(TRIPLE STREQUAL "arm-linux-android23")
+    set(arm32_ast_support -L$ENV{CANGJIE_HOME}/lib/linux_android23_arm_cjnative)
 endif()
 make_cangjie_lib(
     std-ast IS_SHARED ${STD_AST_ALLOW_UNDEFINED}
@@ -750,7 +752,7 @@ install(TARGETS cangjie-std-deriving.builtins DESTINATION lib/${output_triple_na
 
 
 
-if(NOT CMAKE_CROSSCOMPILING OR MINGW)
+if(NOT CMAKE_CROSSCOMPILING OR MINGW OR OHOS)
     make_cangjie_lib(
         std-unittest.testmacro IS_SHARED
         DEPENDS cangjie${BACKEND_TYPE}UnittestTestmacro

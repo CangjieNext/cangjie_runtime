@@ -255,6 +255,8 @@ For users with a statistical background, raw data can be exported in CSV format 
 
 By default, the framework measures time, which is usually sufficient. However, in some cases, other performance metrics may be needed for deeper investigation. To enable this, we provide the `Measurement` interface and support for several advanced measurement sources. These can be enabled by annotating a test source list with a special `@Measure` class.
 
+Example:
+
 <!-- run -->
 ```cangjie
 @Test
@@ -270,13 +272,15 @@ class Bench {
 
 Out-of-the-box measurement tools provided by the framework include:
 
-- `TimeNow`: Uses `DateTime.now` to measure real-time. Configurable with specific time units to ensure consistent reporting.
+- `TimeNow`: Uses `MonoTime.now` to measure real-time. Configurable with specific time units to ensure consistent reporting.
 - `CpuCycles`: Measures bare-metal CPU instruction cycles. Available only on platforms with such instructions executable in user space.
 - `Perf`: Uses Linux's `perf_event_open` system call to measure various hardware/software CPU counters.
 
 ### Setup Before Each Call
 
 Suppose we want to benchmark the `ArrayList.sort` function. This function modifies its input data, leading to varying benchmark results because, after the first call, `sort` operates on an already sorted array. To address this, we need to regenerate the data before each function call. This is achieved by implementing the `BenchInputProvider` interface via data-returning functions annotated with `@Strategy`.
+
+Example: 
 
 <!-- run -->
 ```cangjie

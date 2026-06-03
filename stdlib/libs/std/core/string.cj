@@ -535,10 +535,13 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         let newArr: Array<UInt8> = unsafe { new.rawData() }
         let newSize: Int64 = new.size
         var total: Int64 = this.count("")
-        var countSize: Int64 = size + newSize * total
-        if (countSize > Int64(UInt32.Max)) {
+
+        let maxSize = Int64(UInt32.Max) - size
+        if (total > 0 && newSize > maxSize / total) {
             throw IllegalArgumentException("The size of String is too large.")
         }
+
+        let countSize: Int64 = size + newSize * total
         var itemArray: Array<UInt8> = Array<UInt8>(countSize, repeat: 0)
         var start: Int64 = 0
         var oneSize: Int64 = 0
@@ -581,10 +584,17 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             if (total == 0) {
                 return this
             }
-            let countSize: Int64 = size + (newSize - oldSize) * total
-            if (countSize > Int64(UInt32.Max)) {
-                throw IllegalArgumentException("The size of String is too large.")
+
+            let diff: Int64 = newSize - oldSize
+            let countSize: Int64
+
+            if (diff > 0) {
+                let maxSize = Int64(UInt32.Max) - size
+                if (diff > maxSize / total) {
+                    throw IllegalArgumentException("The size of String is too large.")
+                }
             }
+            countSize = size + diff * total
             var itemArray: Array<UInt8> = Array<UInt8>(countSize, repeat: 0)
             var itemStart: Int64 = 0
             var orgStart: Int64 = 0
@@ -862,14 +872,25 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     @Frozen
     public func padStart(totalWidth: Int64, padding!: String = " "): String {
         if (totalWidth < 0) {
-            throw IllegalArgumentException("negative totalWidth")
+            throw IllegalArgumentException("Negative totalWidth.")
         }
         if (totalWidth == 0 || this.size > totalWidth) {
             return this
         }
         let runeLen = padding.size
+        if (runeLen == 0) {
+            throw IllegalArgumentException("Padding string cannot be empty.")
+        }
+        if (totalWidth > Int64(UInt32.Max)) {
+            throw IllegalArgumentException("The size of String is too large.")
+        }
         let padLen: Int64 = (totalWidth - this.size + runeLen - 1) / runeLen
-        var itemBytes: Array<UInt8> = Array<UInt8>(runeLen * padLen + size, repeat: 0)
+        let totalBytes: Int64 = runeLen * padLen + size
+        if (totalBytes > Int64(UInt32.Max)) {
+            throw IllegalArgumentException("The size of String is too large.")
+        }
+
+        var itemBytes: Array<UInt8> = Array<UInt8>(totalBytes, repeat: 0)
         var k: Int64 = 0
         let paddingdata = unsafe { padding.rawData() }
         for (_ in 0..padLen) {
@@ -887,14 +908,25 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     @Frozen
     public func padEnd(totalWidth: Int64, padding!: String = " "): String {
         if (totalWidth < 0) {
-            throw IllegalArgumentException("negative totalWidth")
+            throw IllegalArgumentException("Negative totalWidth.")
         }
         if (totalWidth == 0 || this.size > totalWidth) {
             return this
         }
         let runeLen = padding.size
+        if (runeLen == 0) {
+            throw IllegalArgumentException("Padding string cannot be empty.")
+        }
+        if (totalWidth > Int64(UInt32.Max)) {
+            throw IllegalArgumentException("The size of String is too large.")
+        }
         let padLen: Int64 = (totalWidth - this.size + runeLen - 1) / runeLen
-        var itemBytes: Array<UInt8> = Array<UInt8>(runeLen * padLen + size, repeat: 0)
+        let totalBytes: Int64 = runeLen * padLen + size
+        if (totalBytes > Int64(UInt32.Max)) {
+            throw IllegalArgumentException("The size of String is too large.")
+        }
+
+        var itemBytes: Array<UInt8> = Array<UInt8>(totalBytes, repeat: 0)
         itemBytes[..size] = unsafe { this.rawData() }
         var k: Int64 = size
         let paddingdata = unsafe { padding.rawData() }
@@ -907,15 +939,15 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     @OverflowWrapping
-    public func equalsIgnoreAsciiCase(that: String): Bool {
-        if (this.length != that.length) {
+    public func equalsIgnoreAsciiCase(other: String): Bool {
+        if (this.length != other.length) {
             return false
         }
         var idx1 = Int64(this.start)
-        var idx2 = Int64(that.start)
+        var idx2 = Int64(other.start)
         while (idx1 < Int64(this.start + this.length)) {
             let b1 = arrayGetUnchecked(this.myData, idx1)
-            let b2 = arrayGetUnchecked(that.myData, idx2)
+            let b2 = arrayGetUnchecked(other.myData, idx2)
             if (!byteEqualsIgnoreAsciiCase(b1, b2)) {
                 return false
             }
@@ -1041,15 +1073,15 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     // Return a string which is the result of concatenating `left` and `right`.
     @Frozen
     @OverflowWrapping
-    public operator const func +(right: String): String {
-        let newLen = this.size + right.size
+    public operator const func +(other: String): String {
+        let newLen = this.size + other.size
         if (newLen > Int64(UInt32.Max)) {
             throw IllegalArgumentException("The size of String is too large.")
         }
 
         let newData = RawArray<Byte>(newLen, repeat: 0)
         intrinsicBuiltInCopyTo<UInt8>(this.myData, newData, Int64(this.start), 0, this.size)
-        intrinsicBuiltInCopyTo<UInt8>(right.myData, newData, Int64(right.start), this.size, right.size)
+        intrinsicBuiltInCopyTo<UInt8>(other.myData, newData, Int64(other.start), this.size, other.size)
         return String(newData, 0, UInt32(newLen))
     }
 
@@ -1061,11 +1093,12 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         if (this.size == 0 || count == 0) {
             return String.empty
         }
-        let newLen = this.size * count
-        if (newLen > Int64(UInt32.Max)) {
+
+        if (count > Int64(UInt32.Max) / this.size) {
             throw IllegalArgumentException("The size of String is too large.")
         }
 
+        let newLen = this.size * count
         let newData = RawArray<Byte>(newLen, repeat: 0)
         var itemStart: Int64 = 0
         let byteSize: Int64 = size
@@ -1078,8 +1111,8 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     // Returns true if and only if string `left` is less than `right` with the lexicographical order.
     @Frozen
-    public operator const func <(right: String): Bool {
-        return match (this.compare(right)) {
+    public operator const func <(other: String): Bool {
+        return match (this.compare(other)) {
             case LT => return true
             case _ => return false
         }
@@ -1087,8 +1120,8 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     // Returns true if and only if string `left` is less than or equal to `right` with the lexicographical order.
     @Frozen
-    public operator const func <=(right: String): Bool {
-        return match (this.compare(right)) {
+    public operator const func <=(other: String): Bool {
+        return match (this.compare(other)) {
             case GT => return false
             case _ => return true
         }
@@ -1096,8 +1129,8 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     // Returns true if and only if string `left` is greater than `right` with the lexicographical order.
     @Frozen
-    public operator const func >(right: String): Bool {
-        return match (this.compare(right)) {
+    public operator const func >(other: String): Bool {
+        return match (this.compare(other)) {
             case GT => return true
             case _ => return false
         }
@@ -1105,8 +1138,8 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     // Returns true if and only if string `left` is greater than or equal to `right` with the lexicographical order.
     @Frozen
-    public operator const func >=(right: String): Bool {
-        return match (this.compare(right)) {
+    public operator const func >=(other: String): Bool {
+        return match (this.compare(other)) {
             case LT => return false
             case _ => return true
         }
@@ -1114,20 +1147,20 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     // Returns true if and only if the two string are identical.
     @Frozen
-    public operator const func ==(right: String): Bool {
-        if (this.length != right.length) {
+    public operator const func ==(other: String): Bool {
+        if (this.length != other.length) {
             return false
         }
-        if (intrinsicRefEqRawArray(this.myData, right.myData) && this.start == right.start) {
+        if (intrinsicRefEqRawArray(this.myData, other.myData) && this.start == other.start) {
             return true
         }
-        return compareBytes(this.myData, Int64(this.start), right.myData, Int64(right.start), Int64(this.length)) == 0
+        return compareBytes(this.myData, Int64(this.start), other.myData, Int64(other.start), Int64(this.length)) == 0
     }
 
     // Returns true if and only if the two string are not identical.
     @Frozen
-    public operator const func !=(right: String): Bool {
-        return !(this == right)
+    public operator const func !=(other: String): Bool {
+        return !(this == other)
     }
 
     /**
@@ -1201,14 +1234,29 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             return String.empty
         }
         var sizeOfBytes: Int64 = 0
-        /* Back-to-front traversal can reduce boundary checks and improve performance */
         for (i in strArraySize - 1..=0 : -1) {
-            sizeOfBytes += strArray[i].size
+            let strSize = strArray[i].size
+            if (sizeOfBytes > Int64(UInt32.Max) - strSize) {
+                throw IllegalArgumentException("The size of String is too large.")
+            }
+            sizeOfBytes += strSize
         }
-        sizeOfBytes += delimiter.size * (strArraySize - 1)
+
+        let delimiterCount = strArraySize - 1
+        if (delimiterCount > 0 && delimiter.size > Int64(UInt32.Max) / delimiterCount) {
+            throw IllegalArgumentException("The size of String is too large.")
+        }
+
+        let delimiterTotal = delimiter.size * delimiterCount
+        if (sizeOfBytes > Int64(UInt32.Max) - delimiterTotal) {
+            throw IllegalArgumentException("The size of String is too large.")
+        }
+
+        sizeOfBytes += delimiterTotal
+
         if (sizeOfBytes == 0) {
             return String.empty
-        } else if (sizeOfBytes > Int64(Int32.Max)) {
+        } else if (sizeOfBytes > Int64(UInt32.Max)) {
             throw IllegalArgumentException("The size of target string is too large.")
         }
 

@@ -58,7 +58,7 @@ public let expression: String
 
 功能：检查的表达式。
 
-类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)。
+类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)
 
 ### let originalException
 
@@ -68,7 +68,7 @@ public let originalException: Exception
 
 功能：原始的类型信息。
 
-类型：[Exception](../../core/core_package_api/core_package_exceptions.md#class-exception)。
+类型：[Exception](../../core/core_package_api/core_package_exceptions.md#class-exception)
 
 ### func getOriginalStackTrace()
 
@@ -121,8 +121,7 @@ protected open override func getClassName(): String
 ## class UnittestTimeoutException
 
 ```cangjie
-public class UnittestTimeoutException <: Exception {
-}
+public class UnittestTimeoutException <: Exception {}
 ```
 
 功能：运行超时时抛出的异常。仅可被框架使用。

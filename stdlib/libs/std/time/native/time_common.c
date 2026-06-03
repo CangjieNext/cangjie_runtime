@@ -101,7 +101,7 @@ extern int64_t CJ_TIME_ReadAllBytesFromFile(const char* path, int64_t pathLen, c
     return (int64_t)numOfBytesRead;
 }
 
-extern int64_t CJ_TIME_GetLocalTimeOffset()
+extern int64_t CJ_TIME_GetLocalTimeOffset(void)
 {
     DYNAMIC_TIME_ZONE_INFORMATION tzInfo;
 
@@ -167,14 +167,9 @@ extern int64_t CJ_TIME_GetFileSize(const char* path, int64_t pathLen)
     if (ret < 0) {
         return -1;
     }
-    // Check whether `path` refers to a readable file
-    // To utilize "short-circuit evaluation", we list cases heuristically with their usage frequency
-    bool readable = S_ISREG(buf.st_mode) // Regular file
-        || S_ISLNK(buf.st_mode)          // Symlink
-        || S_ISBLK(buf.st_mode)          // Block device
-        || S_ISFIFO(buf.st_mode)         // FIFO (named pipe)
-        || S_ISCHR(buf.st_mode);         // Character device
-    if (!readable) {
+    // Check whether `path` refers to a readable regular file or symbolic link
+    // Only regular files and symbolic links are allowed
+    if (!S_ISREG(buf.st_mode) && !S_ISLNK(buf.st_mode)) {
         return -1;
     }
     return buf.st_size;
@@ -201,15 +196,15 @@ extern int64_t CJ_TIME_ReadAllBytesFromFile(const char* path, int64_t pathLen, c
 }
 
 #include <time.h>
-extern const int64_t CJ_TIME_GetLocalTimeOffset()
+extern int64_t CJ_TIME_GetLocalTimeOffset(void)
 {
     time_t now;
     (void)time(&now);
-    struct tm* tmInfo = localtime(&now);
-    if (tmInfo == NULL) {
+    struct tm tmInfo;
+    if (localtime_r(&now, &tmInfo) == NULL) {
         return 0; // not reachable
     }
-    return tmInfo->tm_gmtoff / 60; // one minute contains 60 seconds
+    return tmInfo.tm_gmtoff / 60; // one minute contains 60 seconds
 }
 #endif
 

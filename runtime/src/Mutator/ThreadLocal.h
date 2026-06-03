@@ -37,12 +37,14 @@ struct ThreadLocalData {
 };
 
 struct CleanThreadLocalData {
+    CleanThreadLocalData() noexcept;
     ~CleanThreadLocalData();
 };
 
 class ThreadLocal { // merge this to ThreadLocalData.
 public:
     static ThreadLocalData* GetThreadLocalData();
+    static void InitializeCleaner();
 
     static void SetMutator(Mutator* newMutator) { GetThreadLocalData()->mutator = newMutator; }
 
@@ -68,7 +70,7 @@ public:
     {
         GetThreadLocalData()->foreignCJThread = cjthread;
     }
-    
+
     static void* GetForeignCJThread()
     {
         return GetThreadLocalData()->foreignCJThread;
@@ -77,6 +79,11 @@ public:
     static void SetCJThread(void* cjthread)
     {
         GetThreadLocalData()->cjthread = reinterpret_cast<uint8_t*>(cjthread);
+    }
+
+    static void* GetSchedule()
+    {
+        return GetThreadLocalData()->schedule;
     }
 
     static void SetSchedule(void* schedule)

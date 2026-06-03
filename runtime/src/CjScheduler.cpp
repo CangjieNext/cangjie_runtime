@@ -375,7 +375,7 @@ void* MCC_NewCJThread(void* execute, void* future, void* scheduler)
     return handle;
 }
 
-bool MRT_TryNewAndRunCJThread()
+bool MRT_NewForeignCJThread()
 {
     if (ThreadLocal::IsCJProcessor() || ThreadLocal::GetMutator() != nullptr) {
         return false;
@@ -420,7 +420,7 @@ bool MRT_TryNewAndRunCJThread()
     return true;
 }
 
-bool MRT_EndCJThread()
+bool MRT_EndForeignCJThread()
 {
     if (ThreadLocal::IsCJProcessor()) {
         return false;
@@ -438,6 +438,136 @@ bool MRT_EndCJThread()
     SetSchedulerState(0);
     TRACE_FINISH();
     return true;
+}
+
+static void* WrapperExclusiveClosure(void* arg, unsigned int len)
+{
+    ASSERT(arg != nullptr);
+    auto lwtData = static_cast<LWTData*>(arg);
+    uintptr_t threadData = MRT_GetThreadLocalData();
+    Mutator* mutator = reinterpret_cast<ThreadLocalData*>(threadData)->mutator;
+    MRT_PreRunManagedCode(mutator, 0, reinterpret_cast<ThreadLocalData*>(threadData));
+    lwtData->threadObject = nullptr;
+    BaseObject* executeClosure = Heap::GetBarrier().ReadStaticRef(reinterpret_cast<RefField<false>&>(lwtData->execute));
+    BaseObject* closureObj = Heap::GetBarrier().ReadStaticRef(reinterpret_cast<RefField<false>&>(lwtData->obj));
+#if defined(__aarch64__)
+    ExecuteExclusiveCangjieStub(closureObj, nullptr, executeClosure, reinterpret_cast<void*>(threadData), &g_ut);
+#elif defined(__x86_64__)
+    ExecuteExclusiveCangjieStub(&g_ut, nullptr, closureObj, executeClosure, reinterpret_cast<void*>(threadData));
+#elif defined(__arm__)
+    TypeInfo* ti = closureObj->GetTypeInfo();
+    ExecuteExclusiveCangjieStub(&g_ut, ti, closureObj, executeClosure, reinterpret_cast<void*>(threadData));
+#endif
+    MutatorManager::Instance().TransitMutatorToExit();
+    return nullptr;
+}
+
+void* MCC_NewExclusiveCJThread(void* executeClosure, void* closurePtr, void* futureTi)
+{
+    LWTData data;
+    data.execute = nullptr;
+    data.obj = nullptr;
+    data.threadObject = futureTi;
+    RefField<>* executeRootField = reinterpret_cast<RefField<>*>(&data.obj);
+    Heap::GetBarrier().WriteStaticRef(*executeRootField, reinterpret_cast<BaseObject*>(closurePtr));
+    RefField<>* objRootField = reinterpret_cast<RefField<>*>(&data.execute);
+    Heap::GetBarrier().WriteStaticRef(*objRootField, reinterpret_cast<BaseObject*>(executeClosure));
+    return ExclusiveCJThreadNew(WrapperExclusiveClosure, &data, sizeof(LWTData));
+}
+
+static void ResetFinalizerThreadLocal()
+{
+    ThreadLocal::SetCJThread(nullptr);
+    ThreadLocal::SetForeignCJThread(nullptr);
+    ThreadLocal::SetSchedule(nullptr);
+    ThreadLocal::SetAllocBuffer(nullptr);
+    ThreadLocal::SetMutator(nullptr);
+    ThreadLocal::SetProtectAddr(nullptr);
+    ThreadLocal::SetCJProcessorFlag(false);
+    ThreadLocal::SetThreadType(ThreadType::CJ_PROCESSOR);
+}
+
+static void FiniAndFreeFinalizerScheduler(ScheduleHandle scheduler)
+{
+    if (scheduler == nullptr) {
+        return;
+    }
+    auto runtime = reinterpret_cast<MapleRuntime::CangjieRuntime*>(&MapleRuntime::Runtime::Current());
+    if (!runtime->FiniSubScheduler(scheduler)) {
+        LOG(RTLOG_ERROR, "failed to fini finalizer sub scheduler");
+    }
+    SetSchedulerState(5); // 5: state is SCHEDULE_EXITED.
+    ScheduleNonDefaultFree(scheduler);
+}
+
+void* NewFinalizerCJThread()
+{
+    // prepare foreign scheduler
+    ScheduleHandle scheduler = nullptr;
+    auto runtime = reinterpret_cast<MapleRuntime::CangjieRuntime*>(&MapleRuntime::Runtime::Current());
+    scheduler = runtime->CreateSubSchedulerAndInit(SCHEDULE_FOREIGN_THREAD);
+    if (scheduler == nullptr) {
+        LOG(RTLOG_ERROR, "failed to create finalizer scheduler");
+        return nullptr;
+    }
+
+    // Init finalizer cjthread
+    CJThreadAttr attr;
+    CJThreadAttrInit(&attr);
+    CJThreadAttrNameSet(&attr, "cangjie");
+    LWTData data = {};
+    CJThreadHandle cjthread = CJThreadNewToSchedule(scheduler, (const struct CJThreadAttr*)(&attr),
+                                                    WrapperTask, &data, sizeof(LWTData),
+                                                    CJTHREAD_CREATE_SOURCE_FINALIZER);
+    if (cjthread == nullptr) {
+        LOG(RTLOG_ERROR, "failed to create finalizer cjthread");
+        FiniAndFreeFinalizerScheduler(scheduler);
+        return nullptr;
+    }
+
+    // Init finalizer thread local
+    ThreadLocal::SetThreadType(ThreadType::FP_THREAD);
+    ThreadLocal::SetCJProcessorFlag(true);
+    ThreadLocal::SetCJThread(cjthread);
+    CJThreadPreemptOffCntAdd();
+    RebindCJThread(cjthread);
+    ThreadLocal::SetForeignCJThread(cjthread);
+    ThreadLocal::SetSchedule(scheduler);
+    ThreadLocal::SetProtectAddr(reinterpret_cast<uint8_t*>(0));
+    ScheduleNetpollInit(); // Initializes netpool only on the first execution.
+
+    // Init finalizer mutator
+    Mutator* mutator = reinterpret_cast<Mutator*>(CJThreadGetMutator());
+    CHECK_DETAIL(mutator != nullptr, "create is null when create finalizer cjthread");
+    MutatorManager::Instance().MutatorManagementRLock();
+    mutator->InitTid();
+    mutator->SetManagedContext(false);
+    MutatorManager::Instance().BindMutator(*mutator);
+    ThreadLocal::SetMutator(mutator);
+    MutatorManager::Instance().MutatorManagementRUnlock();
+    ThreadLocalData* threadData = reinterpret_cast<ThreadLocalData*>(MRT_GetThreadLocalData());
+    // Managed-entry setup may block on sync/STW, so do not hold the mutator
+    // management lock across it.
+    MRT_PreRunManagedCode(mutator, 2, threadData); // 2 layers
+
+    SetSchedulerState(1);
+    return cjthread;
+}
+
+void EndFinalizerCJThread()
+{
+    auto* schedule = reinterpret_cast<ScheduleHandle>(ThreadLocal::GetSchedule());
+    Mutator* mutator = ThreadLocal::GetMutator();
+    CHECK_DETAIL(mutator != nullptr, "EndFinalizerCJThread with null mutator");
+    MutatorManager::Instance().MutatorManagementRLock();
+    (void)mutator->LeaveSaferegion();
+    mutator->ResetMutator();
+    MutatorManager::Instance().UnbindMutator(*mutator);
+    MutatorManager::Instance().MutatorManagementRUnlock();
+
+    // Free finalizer scheduler, cjthread and mutator
+    FiniAndFreeFinalizerScheduler(schedule);
+    ResetFinalizerThreadLocal();
 }
 
 /**

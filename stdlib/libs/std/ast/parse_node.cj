@@ -145,7 +145,7 @@ func generateNode(n: Option<NodeFormat_Node>): Node {
     }
     var astNode = match (astKind) {
         case "file" => createProgram(node.GetRootAsFile())
-        case "features_directive" => createFeatureHeader(node.GetRootAsFeaturesDirective())
+        case "features_directive" => createFeatureHeader(node.GetRootAsFeaturesDirective()) ?? throw ParseASTException("Failed to parse the node: ${astKind}")
         case "package_spec" => createPackageHeader(node.GetRootAsPackageSpec())
         case "import_spec" => createImportList(node.GetRootAsImportSpec())
         case _ => throw ParseASTException("Unsupported parse the node: ${astKind}.\n")
@@ -334,7 +334,7 @@ func createMacroExpand(nodeInvocation: Option<NodeFormat_MacroInvocation>, isDec
     var isCompileTimeVisible = invocation.GetIsCompileTimeVisible()
     var macroInputDecl: Option<Decl> = try {
         Some(generateDeclAST(invocation.GetDecl()))
-    } catch (e: Exception) {
+    } catch (e: ParseASTException) {
         None<Decl>
     }
     if (isDecl) {
@@ -397,19 +397,34 @@ func getPackagePrefixes(prefixPaths: Array<Option<String>>, prefixPoses: Array<N
 func isSamePos(pos1: NodeFormat_Position, pos2: NodeFormat_Position) {
     return pos1.fileId == pos2.fileId && pos1.line == pos2.line && pos1.column == pos2.column
 }
-func createFeatureHeader(ftrHeader: Option<NodeFormat_FeaturesDirective>): FeaturesDirective {
+func createFeatureHeader(ftrHeader: Option<NodeFormat_FeaturesDirective>): Option<FeaturesDirective> {
     return match (ftrHeader) {
         case Some(v) =>
+            let annos = v.GetAnnotations()
+            let annotations = ArrayList<Annotation>()
+            for (item in annos) {
+                annotations.add(createAnnotation(item))
+            }
+            let keyword = Token(TokenKind.FEATURES, "features").addPosition(v.GetFeaturesPos())
+            let featuresSet = createFeaturesSet(v.GetFeaturesSet())
+            FeaturesDirective(annotations, keyword, featuresSet)
+        case _ => None
+    }
+}
+
+func createFeaturesSet(ftrSet: Option<NodeFormat_FeaturesSet>): FeaturesSet {
+    return match (ftrSet) {
+        case Some(v) => 
+            let lCurl = Token(TokenKind.LCURL).addPosition(v.GetLCurlPos())
+            let content = createFeatureContent(v.GetContent())
             let commaPoses = v.GetCommaPoses()
             let commas = Tokens()
-            let nodeBase = v.GetBase() ?? throw ParseASTException()
-            let featureContent = createFeatureContent(v.GetContent())
-            let keyword = Token(TokenKind.FEATURES, "features").addPosition(nodeBase.GetBegin())
-            for (idx in 0..commaPoses.size) {
-                commas.append(Token(TokenKind.COMMA).addPosition(commaPoses[idx]))
+            for (pos in commaPoses) {
+                commas.append(Token(TokenKind.COMMA).addPosition(pos))
             }
-            FeaturesDirective(keyword, commas, featureContent)
-        case None => FeaturesDirective()
+            let rCurl = Token(TokenKind.RCURL).addPosition(v.GetRCurlPos())
+            FeaturesSet(lCurl, content, commas, rCurl)
+        case _ => throw ParseASTException()
     }
 }
  
@@ -455,12 +470,25 @@ func createPackageHeader(pkgHeader: Option<NodeFormat_PackageSpec>): PackageHead
             } else {
                 Token(kind).addPosition(beginPos)
             }
-            let macroKey: Token = Token(TokenKind.MACRO).addPosition(v.GetMacroPos())
+            let macroPos = v.GetMacroPos()
+            let macroKey = if (isValidPosition(macroPos)) {
+                Token(TokenKind.MACRO).addPosition(macroPos)
+            } else {
+                Token()
+            } 
             let keyword: Token = Token(TokenKind.PACKAGE).addPosition(v.GetPackagePos())
             let (prefixPaths, prefixDots) = getPackagePrefixes(v.GetPrefixPaths(), v.GetPrefixPoses(),
                 v.GetPrefixDotPoses())
             let packageIdentifier: Token = getPackageIdentToken(v.GetPackageName()).addPosition(v.GetPackageNamePos())
-            PackageHeader(accessible, macroKey, keyword, prefixPaths, prefixDots, packageIdentifier)
+            // prefixPaths[0] and prefixDots[0] would be orgnization name and position of double colon if double colon exists
+            if (v.GetHasDoubleColon()) {
+                PackageHeader(accessible, macroKey, keyword, prefixPaths[0],
+                    Token(TokenKind.DOUBLE_COLON).addPosition(prefixDots[0].pos.fileID, prefixDots[0].pos.line,
+                        prefixDots[0].pos.column), prefixPaths[1..], prefixDots[1..], packageIdentifier)
+            } else {
+                PackageHeader(accessible, macroKey, keyword, Token(), Token(), prefixPaths, prefixDots,
+                    packageIdentifier)
+            }
         case None => PackageHeader(true)
     }
 }
@@ -508,7 +536,16 @@ func createImportContent(content: Option<NodeFormat_ImportContent>): ImportConte
                 var rCurlPos = v.GetRightCurlPos()
                 rCurl = Token(TokenKind.RCURL, "}", rCurlPos.fileId, rCurlPos.line, rCurlPos.column)
             }
-            ImportContent(kind, prefixPaths, prefixDots, identifier, importAlias, lCurl, items, commas, rCurl)
+            // prefixPaths[0] and prefixDots[0] would be orgnization name and position of double colon if double colon exists
+            if (v.GetHasDoubleColon()) {
+                ImportContent(kind, prefixPaths[0],
+                    Token(TokenKind.DOUBLE_COLON).addPosition(prefixDots[0].pos.fileID, prefixDots[0].pos.line,
+                        prefixDots[0].pos.column), prefixPaths[1..], prefixDots[1..], identifier, importAlias, lCurl, items,
+                    commas, rCurl)
+            } else {
+                ImportContent(kind, Token(), Token(), prefixPaths, prefixDots, identifier, importAlias, lCurl, items,
+                    commas, rCurl)
+            }
         case None => throw ParseASTException()
     }
 }
@@ -544,7 +581,7 @@ func createProgram(file: Option<NodeFormat_File>): Program {
         case Some(v) => v
         case None => throw ParseASTException()
     }
-    var ftrDirective: FeaturesDirective = createFeatureHeader(f.GetFeature())
+    var ftrDirective: Option<FeaturesDirective> = createFeatureHeader(f.GetFeature())
     var pkgHeader: PackageHeader = createPackageHeader(f.GetPackage())
     var imports: ArrayList<ImportList> = ArrayList<ImportList>()
     for (im in f.GetImports()) {
@@ -664,7 +701,6 @@ func createConstructorWithAt(decl: Decl): Constructor {
     var annos: ArrayList<Annotation> = ArrayList<Annotation>()
     var ident = decl.identifier
     var lParen = Token(TokenKind.LPAREN)
-    var params_: ArrayList<TypeNode> = ArrayList<TypeNode>()
     let commas = Tokens()
     var params = ArrayList<TypeNode>()
     var rParen = Token(TokenKind.RPAREN)

@@ -474,7 +474,7 @@ public struct DateTime <: ToString & Hashable & Comparable<DateTime> & Formattab
         return parseTime(str, format)
     }
 
-    @Deprecated[message: "Use member funtion `public static func parse(str: String, format: String): DateTime` instead."]
+    @Deprecated[message: "Use member function `public static func parse(str: String, format: String): DateTime` instead."]
     public static func parse(str: String, format: DateTimeFormat): DateTime {
         return parseTime(str, format.format)
     }
@@ -511,7 +511,7 @@ public struct DateTime <: ToString & Hashable & Comparable<DateTime> & Formattab
      * @throws ArithmeticException if the result of year in Local is outside the range [-999,999,999, 999,999,999]
      */
     public func inTimeZone(timeZone: TimeZone): DateTime {
-        let offset = timeZone.lookup(d.sec + SECS_OF_UNIX_TO_AD1)[1]
+        let offset = timeZone.lookup(d.sec - SECS_OF_UNIX_TO_AD1)[1]
         checkResultYear(d.sec + offset)
         DateTime(d.sec, d.ns, timeZone)
     }
@@ -773,7 +773,7 @@ public struct DateTime <: ToString & Hashable & Comparable<DateTime> & Formattab
             throw ArithmeticException(YEAR_OUT_OF_RANGE)
         }
         let seconds = d.sec + n
-        let offset = this.tz.lookup(second)[1]
+        let offset = this.tz.lookup(seconds - SECS_OF_UNIX_TO_AD1)[1]
         checkResultYear(seconds + offset)
         return DateTime(seconds, d.ns, this.tz)
     }
@@ -913,13 +913,13 @@ public struct DateTime <: ToString & Hashable & Comparable<DateTime> & Formattab
     /**
      * Compare the relationship between two instance of DateTime.
      *
-     * @param rhs Instance of DateTime compared with this.
+     * @param other Instance of DateTime compared with this.
      * @return Value indicating the relationship between two instance of DateTime.
      */
-    public func compare(rhs: DateTime): Ordering {
+    public func compare(other: DateTime): Ordering {
         match {
-            case this < rhs => Ordering.LT
-            case this > rhs => Ordering.GT
+            case this < other => Ordering.LT
+            case this > other => Ordering.GT
             case _ => Ordering.EQ
         }
     }
@@ -2037,7 +2037,10 @@ struct DateTimeParser {
         var slash = false
         for (i in this.index..this.value.size) {
             var character = value[i]
-            if (character.isAsciiLetter() || (!slash && character == r'/') || character >= r'A' || character == r'_') {
+            // Accept only the supported timezone ID character subset here;
+            // full timezone ID validation is delegated to TimeZone.load.
+            if (character.isAsciiLetter() || character.isAsciiNumber() || 
+                (!slash && character == r'/') || character == r'_' || character == r'-') {
                 if (character == r'/') {
                     slash = true
                 }

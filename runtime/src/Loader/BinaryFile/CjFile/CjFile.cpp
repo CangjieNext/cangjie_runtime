@@ -144,14 +144,11 @@ void CJFile::LoadLinuxCJFileMeta()
     cJFileMeta.gcFlagsTbl.hasStackPointerMap =
         reinterpret_cast<CJGCFlagsTable*>(begin + header->tables[GC_FLAGS_TABLE].tableOffset)->hasStackPointerMap;
     cJFileMeta.gcRootsAddr = begin + header->tables[GC_ROOT_TABLE].tableOffset;
-#ifdef __arm__
-    cJFileMeta.gcRootSize = header->tables[GC_ROOT_TABLE].tableSize / sizeof(U32);
-#else
-    cJFileMeta.gcRootSize = header->tables[GC_ROOT_TABLE].tableSize / sizeof(U64);
-#endif
+    cJFileMeta.gcRootSize = header->tables[GC_ROOT_TABLE].tableSize / sizeof(ArchUInt);
     cJFileMeta.packageInfoTbl.packageInfoBasePtr = begin + header->tables[PACKINFO_TABLE].tableOffset;
     cJFileMeta.packageInfoTbl.packageInfoTotalSize = header->tables[PACKINFO_TABLE].tableSize;
-    cJFileMeta.typeExtTbl.typeExtBasePtr = reinterpret_cast<TypeExt*>(begin + header->tables[TYPE_EXT_TABLE].tableOffset);
+    cJFileMeta.typeExtTbl.typeExtBasePtr =
+        reinterpret_cast<TypeExt*>(begin + header->tables[TYPE_EXT_TABLE].tableOffset);
     cJFileMeta.typeExtTbl.typeExtTotalSize = header->tables[TYPE_EXT_TABLE].tableSize;
     Heap::GetHeap().RegisterStaticRoots(cJFileMeta.gcRootsAddr, cJFileMeta.gcRootSize);
 }
@@ -215,7 +212,7 @@ void CJFile::GetGlobalInitFunc(std::vector<Uptr> &globalInitFuncs) const
     }
 #else
     U32 cnt = sectionSize / sizeof(Uptr);
-    for (int i = 0; i < cnt; ++i) {
+    for (U32 i = 0; i < cnt; ++i) {
         auto func = reinterpret_cast<Uptr>(*(globalInitPtr + i));
         CHECK_DETAIL(func != 0, "global init func could not be null");
         globalInitFuncs.emplace_back(func);

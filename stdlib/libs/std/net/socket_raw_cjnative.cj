@@ -8,7 +8,8 @@
 
 package std.net
 
-import std.sync.*
+@When[os == "Windows"]
+import std.sync.AtomicBool
 
 /*
  * This API supplies users with the basic functionality to create and use sockets of different domains and types.
@@ -396,7 +397,7 @@ class RawSocketImpl {
                 sentSize = CJ_MRT_SockSendtoNonBlock(
                     this.sockFd,
                     bufCp.pointer + totalSent,
-                    Int32(sizeToSend),
+                    UInt32(sizeToSend),
                     flags,
                     addrPtr
                 )
@@ -425,7 +426,7 @@ class RawSocketImpl {
                 sentSize = CJ_MRT_SockSendNonBlock(
                     sockFd,
                     bufCp.pointer + totalSent,
-                    Int32(sizeToSend),
+                    UInt32(sizeToSend),
                     flags
                 )
                 releaseArrayRawData(bufCp)
@@ -448,7 +449,7 @@ class RawSocketImpl {
             unsafe {
                 let (handle, addrPtr) = getAddrPointer(addrArr)
                 let bufCp = acquireArrayRawData(buffer)
-                recvSize = CJ_MRT_SockRecvfromNonBlock(sockFd, bufCp.pointer, Int32(buffer.size), flags, addrPtr)
+                recvSize = CJ_MRT_SockRecvfromNonBlock(sockFd, bufCp.pointer, UInt32(buffer.size), flags, addrPtr)
                 releaseArrayRawData(bufCp)
                 releaseAddrPointer(handle, addrPtr)
                 if (recvSize > 0) {
@@ -468,7 +469,7 @@ class RawSocketImpl {
         while (true) {
             unsafe {
                 let bufCp = acquireArrayRawData(buffer)
-                recvSize = CJ_MRT_SockRecvNonBlock(sockFd, bufCp.pointer, Int32(buffer.size), flags)
+                recvSize = CJ_MRT_SockRecvNonBlock(sockFd, bufCp.pointer, UInt32(buffer.size), flags)
                 releaseArrayRawData(bufCp)
                 if (recvSize > 0) {
                     break
@@ -743,13 +744,20 @@ func getSocketOptionInt32(sockFd: Int64, level: Int32, option: Int32): Int32 {
         }
         sockType.write(0)
         var len: Int32 = 4
-        let ret = CJ_SockOptionGet(sockFd, SOL_SOCKET, SOCK_TYPE, CPointer<Unit>(sockType), inout len)
-        LibC.free(sockType)
+        let ret = CJ_SockOptionGet(sockFd, level, option, CPointer<Unit>(sockType), inout len)
         if (ret != 0) {
-            let message = formatError(CJ_SockErrnoGet())
+            LibC.free(sockType)
+            let errno = CJ_SockErrnoGet()
+            let message = if (errno != 0) {
+                formatError(errno)
+            } else {
+                "Socket option get failed with unknown error"
+            }
             throw SocketException(message)
         }
-        return sockType.read()
+        let value = sockType.read()
+        LibC.free(sockType)
+        return value
     }
 }
 

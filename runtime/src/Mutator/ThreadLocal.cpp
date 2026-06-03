@@ -21,6 +21,21 @@ ThreadLocalData* ThreadLocal::GetThreadLocalData()
     return reinterpret_cast<ThreadLocalData*>(threadLocalData);
 }
 
+void ThreadLocal::InitializeCleaner()
+{
+    (void)cleaner;
+}
+
+CleanThreadLocalData::CleanThreadLocalData()
+{
+    // Add a side effect to make sure the constructor wont be optimized out.
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+    static volatile bool isInit = false;
+    if (!isInit) {
+        isInit = true;
+    }
+}
+
 CleanThreadLocalData::~CleanThreadLocalData()
 {
     if (!ThreadLocal::TryGetRdLock()) {
@@ -61,7 +76,7 @@ extern "C" void MCC_CheckThreadLocalDataOffset()
                   "need to modify the offset of this value in llvm-project and cjthread at the same time");
     static_assert(sizeof(ThreadLocalData) == sizeof(void*) * 10 + sizeof(uint64_t) * 2,
                   "need to modify the offset of this value in llvm-project and cjthread at the same time");
-#else    
+#else   
     static_assert(offsetof(ThreadLocalData, tid) == sizeof(void*) * 7,
                   "need to modify the offset of this value in llvm-project and cjthread at the same time");
     static_assert(offsetof(ThreadLocalData, foreignCJThread) == sizeof(void*) * 8,

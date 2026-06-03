@@ -16,7 +16,7 @@ public interface ValueListener<T> {
 
 一般与参数匹配器生成函数 `argThat` 或者 `capture` 配合使用。
 
-值侦听器与参数捕获器一同作为参数匹配器的一种被传入到桩签名中，作为入参。在定义桩签名的参数值范围的同时检查参数值。
+值监听器与参数捕获器一同作为参数匹配器的一种被传入到桩签名中，作为入参。在定义桩签名的参数值范围的同时检查参数值。
 
 举例来说：
 
@@ -36,7 +36,8 @@ abstract class AnimalUi {
 
 let animals = [Animal("Smokey", "Cat, age: 5"), Animal("Daisy", "Dog, age: 9")]
 
-@Test func testAnimal(): Unit {
+@Test
+func testAnimal(): Unit {
     let ui = mock<AnimalUi>()
     // 定义了一个值监听器：检查每个值，当值不满足条件时抛出异常。
     let listener = ValueListener<Animal>.onEach { animal =>
@@ -51,6 +52,33 @@ let animals = [Animal("Smokey", "Cat, age: 5"), Animal("Daisy", "Dog, age: 9")]
         // 此处将捕获传入的 animal 对象，并对其执行值监听器中的检查行为。
         ui.showAnimal(animal)
     }
+}
+```
+
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.mock.*
+import std.unittest.mock.mockmacro.*
+
+class Processor {
+    func process(name: String): String {
+        return name.toAsciiTitle()
+    }
+}
+
+@Test
+func test() {
+    let originalProcessor = Processor()
+    let processor = spy(originalProcessor)
+    let captor = ValueListener<String>.new()
+    @On(processor.process(capture(captor))).callsOriginal()
+    processor.process("hello")
+
+    let argumentValues = captor.allValues()
+    @Assert(argumentValues.size == 1 && argumentValues[0] == "hello")
+    @Assert(captor.lastValue(), "hello")
 }
 ```
 
@@ -72,7 +100,7 @@ func addCallback(callback: (T) -> Unit): Unit
 func allValues(): Array<T>
 ```
 
-功能：返回当前“值监听器”对象已所处理的所有值。
+功能：返回当前“值监听器”对象已处理的所有值。
 
 返回值：
 

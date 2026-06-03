@@ -80,7 +80,7 @@ SemanticVersionInfo::SemanticVersionInfo(CString& version)
     CString coreVersion;
     int dashPos = version.Find('-');
     int plusPos = version.Find('+');
-    int endPos = version.Length() - 1;
+    int endPos = static_cast<int>(version.Length() - 1);
     if (dashPos == endPos || plusPos == endPos) {
         LOG(RTLOG_ERROR, "The version %s is incorrect.", version.Str());
         return;
@@ -103,7 +103,7 @@ SemanticVersionInfo::SemanticVersionInfo(CString& version)
         preRelease = version.SubStr(dashPos + 1);
     }
     auto tokens = CString::Split(coreVersion, '.');
-    // A normal version number MUST consists of three parts, MAJOR.MINOR.PATCH.
+    // 3: A normal version number MUST consists of three parts, MAJOR.MINOR.PATCH.
     if (tokens.size() != 3) {
         LOG(RTLOG_ERROR, "The version %s is incorrect.", version.Str());
         return;

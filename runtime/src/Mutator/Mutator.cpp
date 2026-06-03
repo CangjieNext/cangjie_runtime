@@ -67,14 +67,29 @@ extern "C" void MRT_SetGrowFlag(bool flag)
 
 extern "C" intptr_t MRT_StackGrow(intptr_t frameBase, uint32_t adjustedSize, void* ip)
 {
+    // arm32 only do stack check and try to throw StackOverFlow Expection.
 #ifdef __arm__
-    LOG(RTLOG_FAIL, "Unsupported stack grow for arm32");
-#endif
+    if (adjustedSize != 0) {
+        LOG(RTLOG_FAIL, "Unsupported stack grow for arm32");
+    }
+    uintptr_t threadData = MRT_GetThreadLocalData();
+    uint32_t protectAddr = reinterpret_cast<uint32_t>(reinterpret_cast<ThreadLocalData*>(threadData)->protectAddr);
+    // for runtime we could not add sp asm, keep a PRESERVE_SIZE to avoid stepping on illegal memory
+    constexpr uint32_t PRESERVE_SIZE = 256;
+    if (protectAddr >= frameBase - PRESERVE_SIZE) {
+        void* fa = __builtin_frame_address(0);
+        static_cast<FrameAddress*>(fa)->returnAddress = static_cast<uint32_t*>(ip);
+        ExceptionManager::StackOverflow(adjustedSize, ip);
+        return 0;
+    }
+    return 0;
+#else
     Mutator* mutator = Mutator::GetMutator();
     if (mutator == nullptr) {
         return false;
     }
     return mutator->FixExtendedStack(frameBase, adjustedSize, ip);
+#endif
 }
 
 extern "C" void MRT_FreeOldStack(intptr_t offset)
@@ -451,12 +466,8 @@ intptr_t Mutator::FixExtendedStack(intptr_t frameBase, uint32_t adjustedSize __a
 
 inline void CheckAndPush(BaseObject* obj, std::set<BaseObject*>& rootSet, std::stack<BaseObject*>& rootStack)
 {
-    auto search = rootSet.find(obj);
-    if (search == rootSet.end()) {
-        rootSet.insert(obj);
-        if (obj->IsValidObject() && obj->HasRefField()) {
-            rootStack.push(obj);
-        }
+    if (rootSet.insert(obj).second && obj->IsValidObject() && obj->HasRefField()) {
+        rootStack.push(obj);
     }
 }
 
@@ -503,12 +514,11 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
         BaseObject* oldObj = refFieldAddr.GetTargetObject();
         if (Heap::IsHeapAddress(oldObj) && collector.IsGhostFromObject(oldObj) &&
             !collector.IsUnmovableFromObject(oldObj)) {
-            if (rootFieldSet.find((void*)(&refFieldAddr)) != rootFieldSet.end()) {
+            if (!rootFieldSet.insert((void*)(&refFieldAddr)).second) {
                 return;
             }
             BaseObject* toObj = collector.ForwardObject(oldObj);
             if (oldObj != toObj) { refFieldAddr.SetTargetObject(toObj); }
-            rootFieldSet.insert((void*)(&refFieldAddr));
         } else if (IsStackAddr(reinterpret_cast<uintptr_t>(oldObj))) {
             CheckAndPush(oldObj, rootSet, rootStack);
         }
@@ -518,12 +528,11 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
         BaseObject* oldObj = root.object;
         if (Heap::IsHeapAddress(oldObj) && collector.IsGhostFromObject(oldObj) &&
             !collector.IsUnmovableFromObject(oldObj)) {
-            if (rootFieldSet.find((void*)(&root)) != rootFieldSet.end()) {
+            if (!rootFieldSet.insert((void*)(&root)).second) {
                 return;
             }
             BaseObject* toObj = collector.ForwardObject(oldObj);
             if (oldObj != toObj) { root.object = toObj; }
-            rootFieldSet.insert((void*)(&root));
         } else if (IsStackAddr(reinterpret_cast<uintptr_t>(oldObj))) {
             CheckAndPush(oldObj, rootSet, rootStack);
         }
@@ -566,8 +575,24 @@ inline void Mutator::HandleGCPhase(GCPhase newPhase)
             SatbBuffer::Instance().RetireNode(satbNode);
             satbNode = nullptr;
         }
-    } else if (newPhase == GCPhase::GC_PHASE_IDLE && IsForeignThreadExit()) {
+    } else if (newPhase == GCPhase::GC_PHASE_IDLE) {
+        HandleGCPhaseIDLE();
+    }
+}
+
+inline void Mutator::HandleGCPhaseIDLE()
+{
+    if (IsForeignThreadExit()) {
         ReleaseForeignThread();
+    } else {
+#if defined(__OHOS__) && (__OHOS__ == 1)
+        if (foreignThreadInfo.allocBuffer != nullptr) {
+            auto status = GetUnwindContext().GetUnwindContextStatus();
+            if (status == UnwindContextStatus::RISKY) {
+                foreignThreadInfo.allocBuffer->FlushRegion();
+            }
+        }
+#endif
     }
 }
 
@@ -577,7 +602,7 @@ void Mutator::TransitionToGCPhaseExclusive(GCPhase newPhase)
     SetSafepointActive(false);
     // Clear mutator's suspend request after phase transition
     ClearSuspensionFlag(SUSPENSION_FOR_GC_PHASE);
-    mutatorPhase.store(newPhase, std::memory_order_release); // handshake between muator & mainGC thread
+    mutatorPhase.store(newPhase, std::memory_order_release); // handshake between mutator & mainGC thread
 }
 
 inline void Mutator::HandleCpuProfile()

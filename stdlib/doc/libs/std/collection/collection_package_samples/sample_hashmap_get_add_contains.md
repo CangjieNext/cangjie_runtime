@@ -1,8 +1,8 @@
 # HashMap 的 get/add/contains 函数
 
-此用例展示了 HashMap 的基本使用方法。
+此示例展示了 HashMap 的基本使用方法。
 
-代码如下：
+示例：
 
 <!-- verify -->
 
@@ -16,7 +16,7 @@ main() {
     var a = map.get("a")
     var bool = map.contains("a")
     print("a=${a.getOrThrow()} ")
-    print("bool=${bool.toString()}")
+    print("bool=${bool}")
     return 0
 }
 ```

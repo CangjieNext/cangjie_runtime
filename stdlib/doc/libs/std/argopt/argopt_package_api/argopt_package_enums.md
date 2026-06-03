@@ -14,8 +14,8 @@ public enum ArgumentMode <: ToString & Equatable<ArgumentMode> {
 
 父类型：
 
-- [ToString](../../../std/core/core_package_api/core_package_interfaces.md#interface-tostring)
-- [Equatable](../../../std/core/core_package_api/core_package_interfaces.md#interface-equatablet)\<[ArgumentMode](#enum-argumentmode)>
+- [ToString](../../core/core_package_api/core_package_interfaces.md#interface-tostring)
+- [Equatable](../../core/core_package_api/core_package_interfaces.md#interface-equatablet)\<[ArgumentMode](#enum-argumentmode)>
 
 ### NoValue
 
@@ -51,23 +51,68 @@ public func toString(): String
 
 返回值：
 
-- [String](../../../std/core/core_package_api/core_package_structs.md#struct-string) - 参数模式字符串。
+- [String](../../core/core_package_api/core_package_structs.md#struct-string) - 参数模式字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.argopt.*
+
+main() {
+    let mode = ArgumentMode.NoValue
+    let str = mode.toString()
+    println("ArgumentMode string: ${str}")
+}
+```
+
+运行结果：
+
+```text
+ArgumentMode string: NoValue
+```
 
 ### operator func ==(ArgumentMode)
 
 ```cangjie
-public operator func ==(that: ArgumentMode): Bool
+public operator func ==(other: ArgumentMode): Bool
 ```
 
 功能：比较参数模式是否相同。
 
 参数：
 
-- that: [ArgumentMode](./argopt_package_enums.md#enum-argumentmode) - 参数模式。
+- other: [ArgumentMode](./argopt_package_enums.md#enum-argumentmode) - 参数模式。
 
 返回值：
 
-- [Bool](../../../std/core/core_package_api/core_package_intrinsics.md#bool) - 相同时返回 `true`，否则返回 `false`。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 相同时返回 `true`，否则返回 `false`。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.argopt.*
+
+main() {
+    let mode1 = ArgumentMode.NoValue
+    let mode2 = ArgumentMode.NoValue
+    let mode3 = ArgumentMode.RequiredValue
+
+    let equal = (mode1 == mode2)
+    let notEqual = (mode1 == mode3)
+
+    println("mode1 == mode2: ${equal}")
+    println("mode1 == mode3: ${notEqual}")
+}
+```
+
+运行结果：
+
+```text
+mode1 == mode2: true
+mode1 == mode3: false
+```
 
 ## enum ArgumentSpec
 

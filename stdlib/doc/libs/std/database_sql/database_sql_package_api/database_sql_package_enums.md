@@ -52,42 +52,106 @@ Connecting
 ### operator func !=(ConnectionState)
 
 ```cangjie
-public operator func !=(rhs: ConnectionState): Bool
+public operator func !=(other: ConnectionState): Bool
 ```
 
 功能：判断数据源连接状态是否不同。
 
 参数：
 
-- rhs: [ConnectionState](database_sql_package_enums.md#enum-connectionstate) - 数据源连接状态。
+- other: [ConnectionState](database_sql_package_enums.md#enum-connectionstate) - 数据源连接状态。
 
 返回值：
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 传入数据源连接状态与当前状态相同则返回 `false` ，否则返回 `true`。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.database.sql.*
+
+main() {
+    // 创建两个不同的 ConnectionState 枚举值
+    let state1 = ConnectionState.Broken
+    let state2 = ConnectionState.Closed
+
+    // 使用 != 操作符比较两个不同的枚举值
+    let result1 = state1 != state2
+    println("Broken != Closed: ${result1}")
+
+    // 创建两个相同的 ConnectionState 枚举值
+    let state3 = ConnectionState.Connected
+    let state4 = ConnectionState.Connected
+
+    // 使用 != 操作符比较两个相同的枚举值
+    let result2 = state3 != state4
+    println("Connected != Connected: ${result2}")
+}
+```
+
+运行结果：
+
+```text
+Broken != Closed: true
+Connected != Connected: false
+```
+
 ### operator func ==(ConnectionState)
 
 ```cangjie
-public operator func ==(rhs: ConnectionState): Bool
+public operator func ==(other: ConnectionState): Bool
 ```
 
 功能：判断数据源连接状态是否相同。
 
 参数：
 
-- rhs: [ConnectionState](database_sql_package_enums.md#enum-connectionstate) - 数据源连接状态。
+- other: [ConnectionState](database_sql_package_enums.md#enum-connectionstate) - 数据源连接状态。
 
 返回值：
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 传入数据源连接状态与当前状态相同则返回 `true` ，否则返回 `false`。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.database.sql.*
+
+main() {
+    // 创建两个相同的 ConnectionState 枚举值
+    let state1 = ConnectionState.Broken
+    let state2 = ConnectionState.Broken
+
+    // 使用==操作符比较两个相同的枚举值
+    let result1 = state1 == state2
+    println("Broken == Broken: ${result1}")
+
+    // 创建两个不同的 ConnectionState 枚举值
+    let state3 = ConnectionState.Connecting
+    let state4 = ConnectionState.Connected
+
+    // 使用==操作符比较两个不同的枚举值
+    let result2 = state3 == state4
+    println("Connecting == Connected: ${result2}")
+}
+```
+
+运行结果：
+
+```text
+Broken == Broken: true
+Connecting == Connected: false
+```
+
 ## enum TransactionAccessMode
 
 ```cangjie
 public enum TransactionAccessMode <: ToString & Hashable & Equatable<TransactionAccessMode> {
-    | ReadOnly
-    | ReadWrite
     | Unspecified
+    | ReadWrite
+    | ReadOnly
 }
 ```
 
@@ -135,6 +199,37 @@ public func hashCode(): Int64
 
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 事务读写模式的哈希值。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.database.sql.*
+
+main() {
+    // 创建 TransactionAccessMode 枚举值
+    let mode1 = TransactionAccessMode.ReadOnly
+    let mode2 = TransactionAccessMode.ReadWrite
+    let mode3 = TransactionAccessMode.Unspecified
+
+    // 调用 hashCode() 函数获取哈希值
+    let hash1 = mode1.hashCode()
+    let hash2 = mode2.hashCode()
+    let hash3 = mode3.hashCode()
+
+    println("ReadOnly hashCode: ${hash1}")
+    println("ReadWrite hashCode: ${hash2}")
+    println("Unspecified hashCode: ${hash3}")
+}
+```
+
+运行结果：
+
+```text
+ReadOnly hashCode: 3651810599539534113
+ReadWrite hashCode: -370758141246720744
+Unspecified hashCode: -7448071844418759893
+```
+
 ### func toString()
 
 ```cangjie
@@ -153,45 +248,140 @@ public func toString(): String
 
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - 事务读写模式的字符串。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.database.sql.*
+
+main() {
+    // 创建 TransactionAccessMode 枚举值
+    let mode1 = TransactionAccessMode.ReadOnly
+    let mode2 = TransactionAccessMode.ReadWrite
+    let mode3 = TransactionAccessMode.Unspecified
+
+    // 调用 toString() 函数获取字符串表示
+    let str1 = mode1.toString()
+    let str2 = mode2.toString()
+    let str3 = mode3.toString()
+
+    println("ReadOnly toString: \"${str1}\"")
+    println("ReadWrite toString: \"${str2}\"")
+    println("Unspecified toString: \"${str3}\"")
+}
+```
+
+运行结果：
+
+```text
+ReadOnly toString: "Read Only"
+ReadWrite toString: "Read Write"
+Unspecified toString: "Unspecified"
+```
+
 ### operator func !=(TransactionAccessMode)
 
 ```cangjie
-public operator func != (rhs: TransactionAccessMode): Bool
+public operator func != (other: TransactionAccessMode): Bool
 ```
 
 功能：判断两个 [TransactionAccessMode](database_sql_package_enums.md#enum-transactionaccessmode) 是否不相等。
 
 参数：
 
-- rhs: [TransactionAccessMode](database_sql_package_enums.md#enum-transactionaccessmode) - 传入 [TransactionAccessMode](database_sql_package_enums.md#enum-transactionaccessmode) 的枚举值。
+- other: [TransactionAccessMode](database_sql_package_enums.md#enum-transactionaccessmode) - 传入 [TransactionAccessMode](database_sql_package_enums.md#enum-transactionaccessmode) 的枚举值。
 
 返回值：
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果不相等，则返回 `true`，否则返回 `false`。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.database.sql.*
+
+main() {
+    // 创建两个不同的 TransactionAccessMode 枚举值
+    let mode1 = TransactionAccessMode.ReadOnly
+    let mode2 = TransactionAccessMode.ReadWrite
+
+    // 使用 != 操作符比较两个不同的枚举值
+    let result1 = mode1 != mode2
+    println("ReadOnly != ReadWrite: ${result1}")
+
+    // 创建两个相同的 TransactionAccessMode 枚举值
+    let mode3 = TransactionAccessMode.Unspecified
+    let mode4 = TransactionAccessMode.Unspecified
+
+    // 使用 != 操作符比较两个相同的枚举值
+    let result2 = mode3 != mode4
+    println("Unspecified != Unspecified: ${result2}")
+}
+```
+
+运行结果：
+
+```text
+ReadOnly != ReadWrite: true
+Unspecified != Unspecified: false
+```
+
 ### operator func ==(TransactionAccessMode)
 
 ```cangjie
-public operator func == (rhs: TransactionAccessMode): Bool
+public operator func == (other: TransactionAccessMode): Bool
 ```
 
 功能：判断两个 [TransactionAccessMode](database_sql_package_enums.md#enum-transactionaccessmode) 是否相等。
 
 参数：
 
-- rhs: [TransactionAccessMode](database_sql_package_enums.md#enum-transactionaccessmode) - 传入 [TransactionAccessMode](database_sql_package_enums.md#enum-transactionaccessmode) 的枚举值。
+- other: [TransactionAccessMode](database_sql_package_enums.md#enum-transactionaccessmode) - 传入 [TransactionAccessMode](database_sql_package_enums.md#enum-transactionaccessmode) 的枚举值。
 
 返回值：
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果相等，则返回 `true`，否则返回 `false`。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.database.sql.*
+
+main() {
+    // 创建两个相同的 TransactionAccessMode 枚举值
+    let mode1 = TransactionAccessMode.ReadOnly
+    let mode2 = TransactionAccessMode.ReadOnly
+
+    // 使用==操作符比较两个相同的枚举值
+    let result1 = mode1 == mode2
+    println("ReadOnly == ReadOnly: ${result1}")
+
+    // 创建两个不同的 TransactionAccessMode 枚举值
+    let mode3 = TransactionAccessMode.ReadWrite
+    let mode4 = TransactionAccessMode.Unspecified
+
+    // 使用==操作符比较两个不同的枚举值
+    let result2 = mode3 == mode4
+    println("ReadWrite == Unspecified: ${result2}")
+}
+```
+
+运行结果：
+
+```text
+ReadOnly == ReadOnly: true
+ReadWrite == Unspecified: false
+```
+
 ## enum TransactionDeferrableMode
 
 ```cangjie
 public enum TransactionDeferrableMode <: ToString & Hashable & Equatable<TransactionDeferrableMode> {
+    | Unspecified
     | Deferrable
     | NotDeferrable
-    | Unspecified
 }
 ```
 
@@ -243,6 +433,37 @@ public func hashCode(): Int64
 
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 事务延迟模式的哈希值。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.database.sql.*
+
+main() {
+    // 创建 TransactionDeferrableMode 枚举值
+    let mode1 = TransactionDeferrableMode.Deferrable
+    let mode2 = TransactionDeferrableMode.NotDeferrable
+    let mode3 = TransactionDeferrableMode.Unspecified
+
+    // 调用 hashCode() 函数获取哈希值
+    let hash1 = mode1.hashCode()
+    let hash2 = mode2.hashCode()
+    let hash3 = mode3.hashCode()
+
+    println("Deferrable hashCode: ${hash1}")
+    println("NotDeferrable hashCode: ${hash2}")
+    println("Unspecified hashCode: ${hash3}")
+}
+```
+
+运行结果：
+
+```text
+Deferrable hashCode: 1616694862690435322
+NotDeferrable hashCode: -116461110619119012
+Unspecified hashCode: -7448071844418759893
+```
+
 ### func toString()
 
 ```cangjie
@@ -261,50 +482,145 @@ public func toString(): String
 
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - 事务延迟模式的字符串。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.database.sql.*
+
+main() {
+    // 创建 TransactionDeferrableMode 枚举值
+    let mode1 = TransactionDeferrableMode.Deferrable
+    let mode2 = TransactionDeferrableMode.NotDeferrable
+    let mode3 = TransactionDeferrableMode.Unspecified
+
+    // 调用 toString() 函数获取字符串表示
+    let str1 = mode1.toString()
+    let str2 = mode2.toString()
+    let str3 = mode3.toString()
+
+    println("Deferrable toString: \"${str1}\"")
+    println("NotDeferrable toString: \"${str2}\"")
+    println("Unspecified toString: \"${str3}\"")
+}
+```
+
+运行结果：
+
+```text
+Deferrable toString: "Deferrable"
+NotDeferrable toString: "Not Deferrable"
+Unspecified toString: "Unspecified"
+```
+
 ### operator func !=(TransactionDeferrableMode)
 
 ```cangjie
-public operator func != (rhs: TransactionDeferrableMode): Bool
+public operator func != (other: TransactionDeferrableMode): Bool
 ```
 
 功能：判断两个 [TransactionDeferrableMode](database_sql_package_enums.md#enum-transactiondeferrablemode) 是否不相等。
 
 参数：
 
-- rhs: [TransactionDeferrableMode](database_sql_package_enums.md#enum-transactiondeferrablemode) - 传入 [TransactionDeferrableMode](database_sql_package_enums.md#enum-transactiondeferrablemode) 的枚举值。
+- other: [TransactionDeferrableMode](database_sql_package_enums.md#enum-transactiondeferrablemode) - 传入 [TransactionDeferrableMode](database_sql_package_enums.md#enum-transactiondeferrablemode) 的枚举值。
 
 返回值：
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果不相等，则返回 `true`，否则返回 `false`。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.database.sql.*
+
+main() {
+    // 创建两个不同的 TransactionDeferrableMode 枚举值
+    let mode1 = TransactionDeferrableMode.Deferrable
+    let mode2 = TransactionDeferrableMode.NotDeferrable
+
+    // 使用 != 操作符比较两个不同的枚举值
+    let result1 = mode1 != mode2
+    println("Deferrable != NotDeferrable: ${result1}")
+
+    // 创建两个相同的 TransactionDeferrableMode 枚举值
+    let mode3 = TransactionDeferrableMode.Unspecified
+    let mode4 = TransactionDeferrableMode.Unspecified
+
+    // 使用 != 操作符比较两个相同的枚举值
+    let result2 = mode3 != mode4
+    println("Unspecified != Unspecified: ${result2}")
+}
+```
+
+运行结果：
+
+```text
+Deferrable != NotDeferrable: true
+Unspecified != Unspecified: false
+```
+
 ### operator func ==(TransactionDeferrableMode)
 
 ```cangjie
-public operator func == (rhs: TransactionDeferrableMode): Bool
+public operator func == (other: TransactionDeferrableMode): Bool
 ```
 
 功能：判断两个 [TransactionDeferrableMode](database_sql_package_enums.md#enum-transactiondeferrablemode) 是否相等。
 
 参数：
 
-- rhs: [TransactionDeferrableMode](database_sql_package_enums.md#enum-transactiondeferrablemode) - 传入 [TransactionDeferrableMode](database_sql_package_enums.md#enum-transactiondeferrablemode) 的枚举值。
+- other: [TransactionDeferrableMode](database_sql_package_enums.md#enum-transactiondeferrablemode) - 传入 [TransactionDeferrableMode](database_sql_package_enums.md#enum-transactiondeferrablemode) 的枚举值。
 
 返回值：
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果相等，则返回 `true`，否则返回 `false`。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.database.sql.*
+
+main() {
+    // 创建两个相同的 TransactionDeferrableMode 枚举值
+    let mode1 = TransactionDeferrableMode.Deferrable
+    let mode2 = TransactionDeferrableMode.Deferrable
+
+    // 使用==操作符比较两个相同的枚举值
+    let result1 = mode1 == mode2
+    println("Deferrable == Deferrable: ${result1}")
+
+    // 创建两个不同的 TransactionDeferrableMode 枚举值
+    let mode3 = TransactionDeferrableMode.NotDeferrable
+    let mode4 = TransactionDeferrableMode.Unspecified
+
+    // 使用==操作符比较两个不同的枚举值
+    let result2 = mode3 == mode4
+    println("NotDeferrable == Unspecified: ${result2}")
+}
+```
+
+运行结果：
+
+```text
+Deferrable == Deferrable: true
+NotDeferrable == Unspecified: false
+```
+
 ## enum TransactionIsoLevel
 
 ```cangjie
 public enum TransactionIsoLevel <: ToString & Hashable & Equatable<TransactionIsoLevel> {
-    | Chaos
-    | Linearizable
+    | Unspecified
     | ReadCommitted
     | ReadUncommitted
     | RepeatableRead
-    | Serializable
     | Snapshot
-    | Unspecified
+    | Serializable
+    | Linearizable
+    | Chaos
 }
 ```
 
@@ -400,6 +716,37 @@ public func hashCode(): Int64
 
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 事务隔离级别的哈希值。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.database.sql.*
+
+main() {
+    // 创建 TransactionIsoLevel 枚举值
+    let level1 = TransactionIsoLevel.Serializable
+    let level2 = TransactionIsoLevel.ReadCommitted
+    let level3 = TransactionIsoLevel.Unspecified
+
+    // 调用 hashCode() 函数获取哈希值
+    let hash1 = level1.hashCode()
+    let hash2 = level2.hashCode()
+    let hash3 = level3.hashCode()
+
+    println("Serializable hashCode: ${hash1}")
+    println("ReadCommitted hashCode: ${hash2}")
+    println("Unspecified hashCode: ${hash3}")
+}
+```
+
+运行结果：
+
+```text
+Serializable hashCode: 4819576074386110657
+ReadCommitted hashCode: 4236439733891016631
+Unspecified hashCode: -7448071844418759893
+```
+
 ### func toString()
 
 ```cangjie
@@ -423,34 +770,129 @@ public func toString(): String
 
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - 事务隔离级别的字符串。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.database.sql.*
+
+main() {
+    // 创建 TransactionIsoLevel 枚举值
+    let level1 = TransactionIsoLevel.Serializable
+    let level2 = TransactionIsoLevel.ReadCommitted
+    let level3 = TransactionIsoLevel.Unspecified
+
+    // 调用 toString() 函数获取字符串表示
+    let str1 = level1.toString()
+    let str2 = level2.toString()
+    let str3 = level3.toString()
+
+    println("Serializable toString: \"${str1}\"")
+    println("ReadCommitted toString: \"${str2}\"")
+    println("Unspecified toString: \"${str3}\"")
+}
+```
+
+运行结果：
+
+```text
+Serializable toString: "Serializable"
+ReadCommitted toString: "Read Committed"
+Unspecified toString: "Unspecified"
+```
+
 ### operator func !=(TransactionIsoLevel)
 
 ```cangjie
-public operator func != (rhs: TransactionIsoLevel): Bool
+public operator func != (other: TransactionIsoLevel): Bool
 ```
 
 功能：判断两个 [TransactionIsoLevel](database_sql_package_enums.md#enum-transactionisolevel) 是否不相等。
 
 参数：
 
-- rhs: [TransactionIsoLevel](database_sql_package_enums.md#enum-transactionisolevel) - 传入的 [TransactionIsoLevel](database_sql_package_enums.md#enum-transactionisolevel)。
+- other: [TransactionIsoLevel](database_sql_package_enums.md#enum-transactionisolevel) - 传入的 [TransactionIsoLevel](database_sql_package_enums.md#enum-transactionisolevel)。
 
 返回值：
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果不相等，则返回 `true`，否则返回 `false`。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.database.sql.*
+
+main() {
+    // 创建两个不同的 TransactionIsoLevel 枚举值
+    let level1 = TransactionIsoLevel.Serializable
+    let level2 = TransactionIsoLevel.ReadCommitted
+
+    // 使用 != 操作符比较两个不同的枚举值
+    let result1 = level1 != level2
+    println("Serializable != ReadCommitted: ${result1}")
+
+    // 创建两个相同的 TransactionIsoLevel 枚举值
+    let level3 = TransactionIsoLevel.Unspecified
+    let level4 = TransactionIsoLevel.Unspecified
+
+    // 使用 != 操作符比较两个相同的枚举值
+    let result2 = level3 != level4
+    println("Unspecified != Unspecified: ${result2}")
+}
+```
+
+运行结果：
+
+```text
+Serializable != ReadCommitted: true
+Unspecified != Unspecified: false
+```
+
 ### operator func ==(TransactionIsoLevel)
 
 ```cangjie
-public operator func == (rhs: TransactionIsoLevel): Bool
+public operator func == (other: TransactionIsoLevel): Bool
 ```
 
 功能：判断两个 [TransactionIsoLevel](database_sql_package_enums.md#enum-transactionisolevel) 是否相等。
 
 参数：
 
-- rhs: [TransactionIsoLevel](database_sql_package_enums.md#enum-transactionisolevel) - 传入的 [TransactionIsoLevel](database_sql_package_enums.md#enum-transactionisolevel)。
+- other: [TransactionIsoLevel](database_sql_package_enums.md#enum-transactionisolevel) - 传入的 [TransactionIsoLevel](database_sql_package_enums.md#enum-transactionisolevel)。
 
 返回值：
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 如果相等，则返回 `true`，否则返回 `false`。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.database.sql.*
+
+main() {
+    // 创建两个相同的 TransactionIsoLevel 枚举值
+    let level1 = TransactionIsoLevel.Serializable
+    let level2 = TransactionIsoLevel.Serializable
+
+    // 使用==操作符比较两个相同的枚举值
+    let result1 = level1 == level2
+    println("Serializable == Serializable: ${result1}")
+
+    // 创建两个不同的 TransactionIsoLevel 枚举值
+    let level3 = TransactionIsoLevel.ReadCommitted
+    let level4 = TransactionIsoLevel.Unspecified
+
+    // 使用==操作符比较两个不同的枚举值
+    let result2 = level3 == level4
+    println("ReadCommitted == Unspecified: ${result2}")
+}
+```
+
+运行结果：
+
+```text
+Serializable == Serializable: true
+ReadCommitted == Unspecified: false
+```

@@ -30,7 +30,6 @@ foreign {
     @FastNative
     func CJ_BUFFER_Float64ToCPointer(num: Float64, buf: CPointer<UInt8>, bufferSize: Int64): Int64
 
-    @FastNative
     func CJ_CONSOLE_Readline(): CPointer<StructureString>
 
     @FastNative
@@ -91,7 +90,7 @@ foreign {
 foreign func CJ_OS_HomeDir(): CString
 
 @When[backend == "cjnative"]
-foreign func FiniCJRuntime(): Int64
+foreign func FiniCJRuntime(): Int32
 
 @C
 struct ProcessInfo {

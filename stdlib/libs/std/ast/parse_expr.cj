@@ -277,7 +277,7 @@ func createReturnExpr(expr: NodeFormat_Expr): Expr {
     var keyWord = Token(TokenKind.RETURN).addPosition(retExpr.GetReturnPos())
     var exprNode = try {
         Some<Expr>(generateExprAST(retExpr.GetExpr()))
-    } catch (e: Exception) {
+    } catch (e: ParseASTException) {
         None<Expr>
     }
     return ReturnExpr(keyWord, exprNode)
@@ -397,7 +397,7 @@ func createIfExpr(expr: NodeFormat_Expr): Expr {
     var ifBlock = generateBlock(ie.GetBody())
     var elseExpr = try {
         Some<Expr>(generateExprAST(ie.GetElseBody()))
-    } catch (e: Exception) {
+    } catch (e: ParseASTException) {
         None<Expr>
     }
     return IfExpr(ifTk, lParen, cond, rParen, ifBlock, elseTk, elseExpr)
@@ -436,7 +436,7 @@ func generateMatchCase(mc: Option<NodeFormat_MatchCase>) {
         var pg = generateExprAST(matchCase.GetPatternguard())
         whereTk = Token(TokenKind.WHERE).addPosition(matchCase.GetIfPos())
         Some<Expr>(pg)
-    } catch (e: Exception) {
+    } catch (e: ParseASTException) {
         None<Expr>
     }
     var arrow = Token(TokenKind.DOUBLE_ARROW).addPosition(matchCase.GetArrowPos())
@@ -454,11 +454,8 @@ func generateMatchCaseOther(mco: Option<NodeFormat_MatchCaseOther>) {
         case None => throw ParseASTException()
     }
     var keyWord = Token(TokenKind.CASE).addPosition(base.GetBegin())
-    var expr = try {
-        Some<Expr>(generateExprAST(matchCaseOther.GetMatchExpr()))
-    } catch (e: Exception) {
-        None<Expr>
-    }
+    // in matchCaseOther, a boolean-typed conditional expression is mandatory
+    var expr = Some<Expr>(generateExprAST(matchCaseOther.GetMatchExpr()))
     var arrow = Token(TokenKind.DOUBLE_ARROW).addPosition(matchCaseOther.GetArrowPos())
     var block = generateBlock(matchCaseOther.GetExprOrDecls())
     return MatchCase(keyWord, expr, arrow, block)
@@ -473,14 +470,11 @@ func createMatchExpr(expr: NodeFormat_Expr, exprBase: NodeFormat_NodeBase): Expr
     var lParen: Token = Token()
     var rParen: Token = Token()
     var selector: Option<Expr> = None<Expr>
+    // in pattern matching mode, () and selector are needed
     if (me.GetMatchMode()) {
         lParen = Token(TokenKind.LPAREN).addPosition(me.GetLeftParenPos())
         rParen = Token(TokenKind.RPAREN).addPosition(me.GetRightParenPos())
-        selector = try {
-            Some<Expr>(generateExprAST(me.GetSelector()))
-        } catch (e: Exception) {
-            None<Expr>
-        }
+        selector = Some<Expr>(generateExprAST(me.GetSelector()))
     }
     var lCurl = Token(TokenKind.LCURL).addPosition(me.GetLeftCurlPos())
     var matchcases: ArrayList<MatchCase> = ArrayList<MatchCase>()
@@ -571,7 +565,7 @@ func createSpawnExpr(expr: NodeFormat_Expr): Expr {
         lParen = Token(TokenKind.LPAREN).addPosition(spawnExpr.GetLeftParenPos())
         context = try {
             Some<Expr>(generateExprAST(spawnExpr.GetSpawnArgExpr()))
-        } catch (e: Exception) {
+        } catch (e: ParseASTException) {
             None<Expr>
         }
         rParen = Token(TokenKind.RPAREN).addPosition(spawnExpr.GetRightParenPos())
@@ -634,7 +628,7 @@ func createForInExpr(expr: NodeFormat_Expr): Expr {
         var pg = generateExprAST(forInExpr.GetPatternGuard())
         whereTk = Token(TokenKind.WHERE).addPosition(forInExpr.GetIfPos())
         Some<Expr>(pg)
-    } catch (e: Exception) {
+    } catch (e: ParseASTException) {
         None<Expr>
     }
     var rParen = Token(TokenKind.RPAREN).addPosition(forInExpr.GetRightParenPos())
@@ -698,7 +692,7 @@ func createRangeExpr(expr: NodeFormat_Expr): Expr {
     }
     var start = try {
         Some<Expr>(generateExprAST(rangeExpr.GetStartExpr()))
-    } catch (e: Exception) {
+    } catch (e: ParseASTException) {
         None<Expr>
     }
     var kind = TokenKind.RANGEOP
@@ -708,7 +702,7 @@ func createRangeExpr(expr: NodeFormat_Expr): Expr {
     var rangeOp = Token(kind).addPosition(rangeExpr.GetRangePos())
     var stop = try {
         Some<Expr>(generateExprAST(rangeExpr.GetStopExpr()))
-    } catch (e: Exception) {
+    } catch (e: ParseASTException) {
         None<Expr>
     }
     var colon: Token = Token()
@@ -716,7 +710,7 @@ func createRangeExpr(expr: NodeFormat_Expr): Expr {
         var stepExpr = generateExprAST(rangeExpr.GetStepExpr())
         colon = Token(TokenKind.COLON).addPosition(rangeExpr.GetColonPos())
         Some<Expr>(stepExpr)
-    } catch (e: Exception) {
+    } catch (e: ParseASTException) {
         None<Expr>
     }
     return RangeExpr(start, rangeOp, stop, colon, step)
@@ -823,7 +817,7 @@ func createTryExpr(expr: NodeFormat_Expr, exprBase: NodeFormat_NodeBase): Expr {
         var fb = generateBlock(tryExpr.GetFinallyBlock())
         finTk = Token(TokenKind.FINALLY).addPosition(tryExpr.GetFinallyPos())
         Some<Block>(fb)
-    } catch (e: Exception) {
+    } catch (e: ParseASTException) {
         None<Block>
     }
     return TryExpr(tryToken, resourceSpecLParen, resourceSpec, resourceSpecCommas, resourceSpecRParen, tryBlock, catches,
@@ -854,7 +848,19 @@ func createQuoteToken(expr: NodeFormat_Expr): Expr {
     var tks = Tokens()
     for (tk in tkp.GetTokens()) {
         match (tk) {
-            case Some(v) => tks.append(Token(getTokenKind(v.GetKind()), v.GetValue()).addPosition(v.GetPos()))
+            case Some(v) => 
+                let isSingle = v.GetIsSingleQuote()
+                var tokenKind = getTokenKind(v.GetKind())
+                if (tokenKind == STRING_LITERAL && isSingle == true) {
+                    tokenKind = SINGLE_QUOTED_STRING_LITERAL
+                }
+                var token = Token(tokenKind, v.GetValue()).addPosition(v.GetPos())
+                token.delimiterNum = UInt16(v.GetDelimiterNum())
+                token.isSingleQuote = isSingle
+                if (v.GetHasEscape()) {
+                    tks.append(Token(TokenKind.ILLEGAL, "\\", v.GetPos().fileId, v.GetPos().line, v.GetPos().column - 1))
+                }
+                tks.append(token)
             case None => ()
         }
     }

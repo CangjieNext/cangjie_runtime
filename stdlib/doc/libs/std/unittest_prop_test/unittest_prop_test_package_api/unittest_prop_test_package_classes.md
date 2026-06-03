@@ -20,7 +20,7 @@ public static func generate<T>(l: T, r: T, body: (T, T) -> T): Generator<T>
 
 - l: T - 最小值。
 - r: T - 最大值。
-- body: () -> T - 被调用的生成器闭包。
+- body: (T, T) -> T - 被调用的生成器闭包。
 
 返回值：
 
@@ -95,7 +95,7 @@ public static func mapped<T, R>(random: RandomSource, body: (T) -> R): Generator
 ### static func mapped\<T1, T2, R>(RandomSource, (T1, T2) -> R)
 
 ```cangjie
- public static func mapped<T1, T2, R>(random: RandomSource, body: (T1, T2) -> R): Generator<R> where T1 <: Arbitrary<T1>, T2 <: Arbitrary<T2>
+public static func mapped<T1, T2, R>(random: RandomSource, body: (T1, T2) -> R): Generator<R> where T1 <: Arbitrary<T1>, T2 <: Arbitrary<T2>
 ```
 
 功能：获取 T1，T2 的 [Arbitrary](./unittest_prop_test_package_interfaces.md#interface-arbitraryt) 实例提供的生成器，并使用函数体生成 R 类型的值。
@@ -325,6 +325,10 @@ public override func shrink(value: T): Iterable<T>
 
 功能：将该值缩小为一组可能的“较小”值。
 
+参数：
+
+- value: T - 将被缩减的值。
+
 返回值：
 
 - [Iterable](../../core/core_package_api/core_package_interfaces.md#interface-iterablee)\<T> - 数据迭代器。
@@ -332,7 +336,7 @@ public override func shrink(value: T): Iterable<T>
 ## class RandomDataStrategy\<T>
 
 ```cangjie
-public class RandomDataStrategy<T> <: DataStrategy<T> where T <: Arbitrary<T>{}
+public class RandomDataStrategy<T> <: DataStrategy<T> where T <: Arbitrary<T> {}
 ```
 
 功能：使用随机数据生成的 [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt) 接口的实现。
@@ -349,7 +353,7 @@ public override prop isInfinite: Bool
 
 功能：当该策略为无穷尽时，值为 true, 否则为 false。
 
-类型：[Bool](../../core/core_package_api/core_package_intrinsics.md#bool)。
+类型：[Bool](../../core/core_package_api/core_package_intrinsics.md#bool)
 
 ### func provider(Configuration)
 
@@ -435,14 +439,14 @@ public override prop isInfinite: Bool
 
 功能：当该策略为无穷尽时，值为 true, 否则为 false。
 
-类型：[Bool](../../core/core_package_api/core_package_intrinsics.md#bool)。
+类型：[Bool](../../core/core_package_api/core_package_intrinsics.md#bool)
 
 ## class LazySeq\<T>
 
 ```cangjie
 public class LazySeq<T> <: Iterable<T> {
-    public init()
     public init(element: T) 
+    public init()
 }
 ```
 
@@ -515,7 +519,7 @@ public func iterator(): Iterator<T>
 
 返回值：
 
-- [Iterator](../../core/core_package_api/core_package_interfaces.md#interface-iterablee)\<T> - 序列迭代器。
+- [Iterator](../../core/core_package_api/core_package_classes.md#class-iteratort)\<T> - 序列迭代器。
 
 ### func map\<U>((T) -> U)
 
@@ -561,13 +565,13 @@ public func prepend(element: T): LazySeq<T>
 
 参数：
 
-- other: [LazySeq](#class-lazyseqt)\<T> - 待插入的序列。
+- element: T - 待插入的序列。
 
 返回值：
 
 - [LazySeq](#class-lazyseqt)\<T> - 处理后的序列。
 
-### static func mix(LazySeq\<T>,LazySeq\<T>)
+### static func mix(LazySeq\<T>, LazySeq\<T>)
 
 ```cangjie
 public static func mix(l1: LazySeq<T>, l2: LazySeq<T>): LazySeq<T>
@@ -586,7 +590,7 @@ public static func mix(l1: LazySeq<T>, l2: LazySeq<T>): LazySeq<T>
 
 - [LazySeq](#class-lazyseqt)\<T> - 处理后的序列。
 
-### static func mix(LazySeq\<T>,LazySeq\<T>,LazySeq\<T>)
+### static func mix(LazySeq\<T>, LazySeq\<T>, LazySeq\<T>)
 
 ```cangjie
 public static func mix(l1: LazySeq<T>, l2: LazySeq<T>, l3: LazySeq<T>): LazySeq<T>
@@ -604,7 +608,7 @@ public static func mix(l1: LazySeq<T>, l2: LazySeq<T>, l3: LazySeq<T>): LazySeq<
 
 - [LazySeq](#class-lazyseqt)\<T> - 处理后的序列。
 
-### static func mix(LazySeq\<T>,LazySeq\<T>,LazySeq\<T>,LazySeq\<T>)
+### static func mix(LazySeq\<T>, LazySeq\<T>, LazySeq\<T>, LazySeq\<T>)
 
 ```cangjie
 public static func mix(l1: LazySeq<T>, l2: LazySeq<T>, l3: LazySeq<T>, l4: LazySeq<T>): LazySeq<T>
@@ -623,7 +627,7 @@ public static func mix(l1: LazySeq<T>, l2: LazySeq<T>, l3: LazySeq<T>, l4: LazyS
 
 - [LazySeq](#class-lazyseqt)\<T> - 处理后的序列。
 
-### static func mix(LazySeq\<T>,LazySeq\<T>,LazySeq\<T>,LazySeq\<T>,LazySeq\<T>)
+### static func mix(LazySeq\<T>, LazySeq\<T>, LazySeq\<T>, LazySeq\<T>, LazySeq\<T>)
 
 ```cangjie
 public static func mix(l1: LazySeq<T>, l2: LazySeq<T>, l3: LazySeq<T>, l4: LazySeq<T>, l5: LazySeq<T>): LazySeq<T> 

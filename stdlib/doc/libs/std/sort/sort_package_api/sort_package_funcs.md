@@ -1,5 +1,333 @@
 # 函数
 
+## func sort\<T, K>(Array\<T>, (T) -> K, Bool, Bool) where K <: Comparable\<K>
+
+```cangjie
+public func sort<T, K>(data: Array<T>, key!: (T) -> K, stable!: Bool = false, descending!: Bool = false): Unit where K <: Comparable<K>
+```
+
+功能：对数组按照指定的键（键与键之间可比较）进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
+
+用户需传入数组元素到键的映射函数。
+
+参数：
+
+- data: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<T> - 需要排序的数组。
+- key!: (T) -> K - 元素到键的映射函数。
+- stable!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用稳定排序，默认为否。
+- descending!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用降序排序，默认为否。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.sort.*
+
+class Rectangle <: ToString {
+    var width: Int64
+    var height: Int64
+
+    public init(width: Int64, height: Int64) {
+        this.width = width
+        this.height = height
+    }
+
+    public func toString(): String {
+        return "#width: ${this.width}, height: ${this.height}"
+    }
+}
+
+main() {
+    /* 按照宽降序排序 */
+    var arr = [Rectangle(4, 8), Rectangle(6, 7), Rectangle(2, 6)]
+    sort<Rectangle, Int64>(
+        arr,
+        key: {
+            r: Rectangle => return r.width
+        },
+        stable: true,
+        descending: true
+    )
+    println(arr)
+    return 0
+}
+```
+
+运行结果：
+
+```text
+[#width: 6, height: 7, #width: 4, height: 8, #width: 2, height: 6]
+```
+
+## func sort\<T, K>(ArrayList\<T>, (T) -> K, Bool, Bool) where K <: Comparable\<K>
+
+```cangjie
+public func sort<T, K>(data: ArrayList<T>, key!: (T) -> K, stable!: Bool = false, descending!: Bool = false): Unit where K <: Comparable<K>
+```
+
+功能：对 `ArrayList` 按照指定的键（键与键之间可比较）进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
+
+用户需传入 `ArrayList` 元素到键的映射函数。
+
+参数：
+
+- data: [ArrayList](../../collection/collection_package_api/collection_package_class.md#class-arraylistt)\<T> - 需要排序的 `ArrayList`。
+- key!: (T) -> K - 元素到键的映射函数。
+- stable!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用稳定排序，默认为否。
+- descending!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用降序排序，默认为否。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.sort.*
+import std.collection.*
+
+class Rectangle <: ToString {
+    var width: Int64
+    var height: Int64
+
+    public init(width: Int64, height: Int64) {
+        this.width = width
+        this.height = height
+    }
+
+    public func toString(): String {
+        return "#width: ${this.width}, height: ${this.height}"
+    }
+}
+
+main() {
+    /* 按照宽降序排序 */
+    var arr = ArrayList<Rectangle>([Rectangle(4, 8), Rectangle(6, 7), Rectangle(2, 6)])
+    sort<Rectangle, Int64>(
+        arr,
+        key: {
+            r: Rectangle => return r.width
+        },
+        stable: true,
+        descending: true
+    )
+    println(arr)
+    return 0
+}
+```
+
+运行结果：
+
+```text
+[#width: 6, height: 7, #width: 4, height: 8, #width: 2, height: 6]
+```
+
+## func sort\<T, K>(List\<T>, (T) -> K, Bool, Bool) where K <: Comparable\<K>
+
+```cangjie
+public func sort<T, K>(data: List<T>, key!: (T) -> K, stable!: Bool = false, descending!: Bool = false): Unit where K <: Comparable<K>
+```
+
+功能：对 `List` 按照指定的键（键与键之间可比较）进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
+
+用户需传入 `List` 元素到键的映射函数。
+
+参数：
+
+- data: [List](../../collection/collection_package_api/collection_package_interface.md#interface-listt)\<T> - 需要排序的 `List`。
+- key!: (T) -> K - 元素到键的映射函数。
+- stable!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用稳定排序，默认为否。
+- descending!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用降序排序，默认为否。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.sort.*
+import std.collection.*
+
+class Rectangle <: ToString {
+    var width: Int64
+    var height: Int64
+
+    public init(width: Int64, height: Int64) {
+        this.width = width
+        this.height = height
+    }
+
+    public func toString(): String {
+        return "#width: ${this.width}, height: ${this.height}"
+    }
+}
+
+main() {
+    /* 按照宽降序排序 */
+    let arrayList = ArrayList<Rectangle>()
+    arrayList.add(Rectangle(4, 8))
+    arrayList.add(Rectangle(6, 7))
+    arrayList.add(Rectangle(2, 6))
+    sort<Rectangle, Int64>(
+        arrayList,
+        key: {
+            r: Rectangle => return r.width
+        },
+        stable: true,
+        descending: true
+    )
+    println(arrayList)
+    return 0
+}
+```
+
+运行结果：
+
+```text
+[#width: 6, height: 7, #width: 4, height: 8, #width: 2, height: 6]
+```
+
+## func sort\<T>(Array\<T>, (T, T) -> Bool, Bool, Bool)
+
+```cangjie
+public func sort<T>(data: Array<T>, lessThan!: (T, T) -> Bool, stable!: Bool = false, descending!: Bool = false): Unit
+```
+
+功能：对数组按照比较函数进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
+
+用户需传入自定义的比较函数 `lessThan`。如果 `lessThan` 的返回值为 `true`，排序后 `t1` 在 `t2` 前；如果 `lessThan` 的返回值为`false`，又会分为两种情况，如果 `t1` 和 `t2` 不相等，排序后 `t1` 在 `t2` 后，如果相等，`t1` 与 `t2` 的前后位置关系与是否是稳定排序有关，稳定则较排序前保持不变，否则有可能发生改变。
+
+比较函数必须满足全序关系：
+
+- 反对称性：如果 `lessThan(a, b)` 为 `true`，则 `lessThan(b, a)` 必须为 `false`
+- 传递性：如果 `lessThan(a, b)` 和 `lessThan(b, c)` 都为 `true`，则 `lessThan(a, c)` 必须为 `true`
+- 一致性：多次调用 `lessThan(a, b)` 必须返回相同结果
+
+违反上述要求可能导致未定义行为。
+
+参数：
+
+- data: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<T> - 需要排序的数组。
+- lessThan!: (T, T) ->[Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 传入的比较函数。
+- stable!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用稳定排序，默认为否。
+- descending!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用降序排序，默认为否。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.sort.*
+
+class Rectangle <: ToString {
+    var width: Int64
+    var height: Int64
+
+    public init(width: Int64, height: Int64) {
+        this.width = width
+        this.height = height
+    }
+
+    public func toString(): String {
+        return "#width: ${this.width}, height: ${this.height}"
+    }
+}
+
+main() {
+    /* 按照面积降序排序 */
+    var arr = [Rectangle(4, 8), Rectangle(6, 7), Rectangle(2, 6)]
+    sort<Rectangle>(
+        arr,
+        lessThan: {
+            r1: Rectangle, r2: Rectangle =>
+                let r1Value: Int64 = r1.width * r1.height
+                let r2Value: Int64 = r2.width * r2.height
+                return r1Value < r2Value
+        },
+        stable: true,
+        descending: true
+    )
+    println(arr)
+    return 0
+}
+```
+
+运行结果：
+
+```text
+[#width: 6, height: 7, #width: 4, height: 8, #width: 2, height: 6]
+```
+
+## func sort\<T>(Array\<T>, (T, T) -> Ordering, Bool, Bool)
+
+```cangjie
+public func sort<T>(data: Array<T>, by!: (T, T) -> Ordering, stable!: Bool = false, descending!: Bool = false): Unit
+```
+
+功能：对数组按照比较函数进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
+
+用户需传入自定义的比较函数 `by`。如果 `by` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).GT，排序后 `t1` 在 `t2` 后；如果 `by` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).LT，排序后 `t1` 在 `t2` 前；如果 `by` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).EQ，排序后 `t1` 与 `t2` 的位置与是否是稳定排序有关，稳定则较排序前保持不变，否则有可能发生改变。
+
+比较函数必须满足全序关系：
+
+- 反对称性：如果 `compare(a, b)` 为 `LT`，则 `compare(b, a)` 必须为 `GT`
+- 传递性：如果 `compare(a, b)` 为 `LT` 且 `compare(b, c)` 为 `LT`，则 `compare(a, c)` 必须为 `LT`
+- 一致性：多次调用 `compare(a, b)` 必须返回相同结果
+
+违反上述要求可能导致未定义行为。
+
+参数：
+
+- data: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<T> - 需要排序的数组。
+- by!: (T, T) ->[Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering) - 传入的比较函数。
+- stable!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用稳定排序，默认为否。
+- descending!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用降序排序，默认为否。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.sort.*
+
+class Rectangle <: ToString {
+    var width: Int64
+    var height: Int64
+
+    public init(width: Int64, height: Int64) {
+        this.width = width
+        this.height = height
+    }
+
+    public func toString(): String {
+        return "#width: ${this.width}, height: ${this.height}"
+    }
+}
+
+main() {
+    /* 按照面积降序排序 */
+    var arr = [Rectangle(4, 8), Rectangle(6, 7), Rectangle(2, 6)]
+    sort<Rectangle>(
+        arr,
+        by: {
+            r1: Rectangle, r2: Rectangle =>
+                let r1Value: Int64 = r1.width * r1.height
+                let r2Value: Int64 = r2.width * r2.height
+                if (r1Value > r2Value) {
+                    return Ordering.GT
+                } else if (r1Value == r2Value) {
+                    return Ordering.EQ
+                } else {
+                    return Ordering.LT
+                }
+        },
+        stable: true,
+        descending: true
+    )
+    println(arr)
+    return 0
+}
+```
+
+运行结果：
+
+```text
+[#width: 6, height: 7, #width: 4, height: 8, #width: 2, height: 6]
+```
+
 ## func sort\<T>(Array\<T>, Bool, Bool) where T <: Comparable\<T>
 
 ```cangjie
@@ -61,87 +389,27 @@ main() {
 [#width: 6, height: 7, #width: 4, height: 8, #width: 2, height: 6]
 ```
 
-## func sort\<T>(Array\<T>, (T, T) -> Ordering, Bool, Bool)
+## func sort\<T>(ArrayList\<T>, (T, T) -> Bool, Bool, Bool)
 
 ```cangjie
-public func sort<T>(data: Array<T>, by!: (T, T) -> Ordering, stable!: Bool = false, descending!: Bool = false): Unit
+public func sort<T>(data: ArrayList<T>, lessThan!: (T, T) -> Bool, stable!: Bool = false, descending!: Bool = false): Unit
 ```
 
-功能：对数组按照比较函数进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
-
-用户需传入自定义的比较函数 `by`。如果 `by` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).GT，排序后 `t1` 在 `t2` 后；如果 `by` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).LT，排序后 `t1` 在 `t2` 前；如果 `by` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).EQ，排序后 `t1` 与 `t2` 的位置与是否是稳定排序有关，稳定则较排序前保持不变，否则有可能发生改变。
-
-参数：
-
-- data: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<T> - 需要排序的数组。
-- by!: (T, T) ->[Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering) - 传入的比较函数。
-- stable!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用稳定排序，默认为否。
-- descending!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用降序排序，默认为否。
-
-示例：
-
-<!-- verify -->
-```cangjie
-import std.sort.*
-
-class Rectangle <: ToString {
-    var width: Int64
-    var height: Int64
-
-    public init(width: Int64, height: Int64) {
-        this.width = width
-        this.height = height
-    }
-
-    public func toString(): String {
-        return "#width: ${this.width}, height: ${this.height}"
-    }
-}
-
-main() {
-    /* 按照面积降序排序 */
-    var arr = [Rectangle(4, 8), Rectangle(6, 7), Rectangle(2, 6)]
-    sort<Rectangle>(
-        arr,
-        by: {
-            r1: Rectangle, r2: Rectangle =>
-            let r1Value: Int64 = r1.width * r1.height
-            let r2Value: Int64 = r2.width * r2.height
-            if (r1Value > r2Value) {
-                return Ordering.GT
-            } else if (r1Value == r2Value) {
-                return Ordering.EQ
-            } else {
-                return Ordering.LT
-            }
-        },
-        stable: true,
-        descending: true
-    )
-    println(arr)
-    return 0
-}
-```
-
-运行结果：
-
-```text
-[#width: 6, height: 7, #width: 4, height: 8, #width: 2, height: 6]
-```
-
-## func sort\<T>(Array\<T>, (T, T) -> Bool, Bool, Bool)
-
-```cangjie
-public func sort<T>(data: Array<T>, lessThan!: (T, T) -> Bool, stable!: Bool = false, descending!: Bool = false): Unit
-```
-
-功能：对数组按照比较函数进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
+功能：对 `ArrayList` 按照比较函数进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
 
 用户需传入自定义的比较函数 `lessThan`。如果 `lessThan` 的返回值为 `true`，排序后 `t1` 在 `t2` 前；如果 `lessThan` 的返回值为`false`，又会分为两种情况，如果 `t1` 和 `t2` 不相等，排序后 `t1` 在 `t2` 后，如果相等，`t1` 与 `t2` 的前后位置关系与是否是稳定排序有关，稳定则较排序前保持不变，否则有可能发生改变。
 
+比较函数必须满足全序关系：
+
+- 反对称性：如果 `lessThan(a, b)` 为 `true`，则 `lessThan(b, a)` 必须为 `false`
+- 传递性：如果 `lessThan(a, b)` 和 `lessThan(b, c)` 都为 `true`，则 `lessThan(a, c)` 必须为 `true`
+- 一致性：多次调用 `lessThan(a, b)` 必须返回相同结果
+
+违反上述要求可能导致未定义行为。
+
 参数：
 
-- data: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<T> - 需要排序的数组。
+- data: [ArrayList](../../collection/collection_package_api/collection_package_class.md#class-arraylistt)\<T> - 需要排序的 `ArrayList`。
 - lessThan!: (T, T) ->[Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 传入的比较函数。
 - stable!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用稳定排序，默认为否。
 - descending!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用降序排序，默认为否。
@@ -151,6 +419,7 @@ public func sort<T>(data: Array<T>, lessThan!: (T, T) -> Bool, stable!: Bool = f
 <!-- verify -->
 ```cangjie
 import std.sort.*
+import std.collection.*
 
 class Rectangle <: ToString {
     var width: Int64
@@ -168,14 +437,14 @@ class Rectangle <: ToString {
 
 main() {
     /* 按照面积降序排序 */
-    var arr = [Rectangle(4, 8), Rectangle(6, 7), Rectangle(2, 6)]
+    var arr = ArrayList<Rectangle>([Rectangle(4, 8), Rectangle(6, 7), Rectangle(2, 6)])
     sort<Rectangle>(
         arr,
         lessThan: {
             r1: Rectangle, r2: Rectangle =>
-            let r1Value: Int64 = r1.width * r1.height
-            let r2Value: Int64 = r2.width * r2.height
-            return r1Value < r2Value
+                let r1Value: Int64 = r1.width * r1.height
+                let r2Value: Int64 = r2.width * r2.height
+                return r1Value < r2Value
         },
         stable: true,
         descending: true
@@ -191,20 +460,28 @@ main() {
 [#width: 6, height: 7, #width: 4, height: 8, #width: 2, height: 6]
 ```
 
-## func sort\<T, K>(Array\<T>, (T) -> K, Bool, Bool) where K <: Comparable\<K>
+## func sort\<T>(ArrayList\<T>, (T, T) -> Ordering, Bool, Bool)
 
 ```cangjie
-public func sort<T, K>(data: Array<T>, key!: (T) -> K, stable!: Bool = false, descending!: Bool = false): Unit where K <: Comparable<K>
+public func sort<T>(data: ArrayList<T>, by!: (T, T) -> Ordering, stable!: Bool = false, descending!: Bool = false): Unit
 ```
 
-功能：对数组按照指定的键（键与键之间可比较）进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
+功能：对 `ArrayList` 按照比较函数进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
 
-用户需传入数组元素到键的映射函数。
+用户需传入自定义的比较函数 `by`。如果 `by` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).GT，排序后 `t1` 在 `t2` 后；如果 `by` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).LT，排序后 `t1` 在 `t2` 前；如果 `by` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).EQ，排序后 `t1` 与 `t2` 的位置与是否是稳定排序有关，稳定则较排序前保持不变，否则有可能发生改变。
+
+比较函数必须满足全序关系：
+
+- 反对称性：如果 `compare(a, b)` 为 `LT`，则 `compare(b, a)` 必须为 `GT`
+- 传递性：如果 `compare(a, b)` 为 `LT` 且 `compare(b, c)` 为 `LT`，则 `compare(a, c)` 必须为 `LT`
+- 一致性：多次调用 `compare(a, b)` 必须返回相同结果
+
+违反上述要求可能导致未定义行为。
 
 参数：
 
-- data: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<T> - 需要排序的数组。
-- key!: (T) -> K - 元素到键的映射函数。
+- data: [ArrayList](../../collection/collection_package_api/collection_package_class.md#class-arraylistt)\<T> - 需要排序的 `ArrayList`。
+- by!: (T, T) ->[Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering) - 传入的比较函数。
 - stable!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用稳定排序，默认为否。
 - descending!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用降序排序，默认为否。
 
@@ -213,6 +490,7 @@ public func sort<T, K>(data: Array<T>, key!: (T) -> K, stable!: Bool = false, de
 <!-- verify -->
 ```cangjie
 import std.sort.*
+import std.collection.*
 
 class Rectangle <: ToString {
     var width: Int64
@@ -229,12 +507,21 @@ class Rectangle <: ToString {
 }
 
 main() {
-    /* 按照宽降序排序 */
-    var arr = [Rectangle(4, 8), Rectangle(6, 7), Rectangle(2, 6)]
-    sort<Rectangle, Int64>(
+    /* 按照面积降序排序 */
+    var arr = ArrayList<Rectangle>([Rectangle(4, 8), Rectangle(6, 7), Rectangle(2, 6)])
+    sort<Rectangle>(
         arr,
-        key: {
-            r: Rectangle => return r.width
+        by: {
+            r1: Rectangle, r2: Rectangle =>
+                let r1Value: Int64 = r1.width * r1.height
+                let r2Value: Int64 = r2.width * r2.height
+                if (r1Value > r2Value) {
+                    return Ordering.GT
+                } else if (r1Value == r2Value) {
+                    return Ordering.EQ
+                } else {
+                    return Ordering.LT
+                }
         },
         stable: true,
         descending: true
@@ -312,88 +599,27 @@ main() {
 [#width: 6, height: 7, #width: 4, height: 8, #width: 2, height: 6]
 ```
 
-## func sort\<T>(ArrayList\<T>, (T, T) -> Ordering, Bool, Bool)
+## func sort\<T>(List\<T>, (T, T) -> Bool, Bool, Bool)
 
 ```cangjie
-public func sort<T>(data: ArrayList<T>, by!: (T, T) -> Ordering, stable!: Bool = false, descending!: Bool = false): Unit
+public func sort<T>(data: List<T>, lessThan!: (T, T) -> Bool, stable!: Bool = false, descending!: Bool = false): Unit
 ```
 
-功能：对 `ArrayList` 按照比较函数进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
-
-用户需传入自定义的比较函数 `by`。如果 `by` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).GT，排序后 `t1` 在 `t2` 后；如果 `by` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).LT，排序后 `t1` 在 `t2` 前；如果 `by` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).EQ，排序后 `t1` 与 `t2` 的位置与是否是稳定排序有关，稳定则较排序前保持不变，否则有可能发生改变。
-
-参数：
-
-- data: [ArrayList](../../collection/collection_package_api/collection_package_class.md#class-arraylistt)\<T> - 需要排序的 `ArrayList`。
-- by!: (T, T) ->[Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering) - 传入的比较函数。
-- stable!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用稳定排序，默认为否。
-- descending!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用降序排序，默认为否。
-
-示例：
-
-<!-- verify -->
-```cangjie
-import std.sort.*
-import std.collection.*
-
-class Rectangle <: ToString {
-    var width: Int64
-    var height: Int64
-
-    public init(width: Int64, height: Int64) {
-        this.width = width
-        this.height = height
-    }
-
-    public func toString(): String {
-        return "#width: ${this.width}, height: ${this.height}"
-    }
-}
-
-main() {
-    /* 按照面积降序排序 */
-    var arr = ArrayList<Rectangle>([Rectangle(4, 8), Rectangle(6, 7), Rectangle(2, 6)])
-    sort<Rectangle>(
-        arr,
-        by: {
-            r1: Rectangle, r2: Rectangle =>
-            let r1Value: Int64 = r1.width * r1.height
-            let r2Value: Int64 = r2.width * r2.height
-            if (r1Value > r2Value) {
-                return Ordering.GT
-            } else if (r1Value == r2Value) {
-                return Ordering.EQ
-            } else {
-                return Ordering.LT
-            }
-        },
-        stable: true,
-        descending: true
-    )
-    println(arr)
-    return 0
-}
-```
-
-运行结果：
-
-```text
-[#width: 6, height: 7, #width: 4, height: 8, #width: 2, height: 6]
-```
-
-## func sort\<T>(ArrayList\<T>, (T, T) -> Bool, Bool, Bool)
-
-```cangjie
-public func sort<T>(data: ArrayList<T>, lessThan!: (T, T) -> Bool, stable!: Bool = false, descending!: Bool = false): Unit
-```
-
-功能：对 `ArrayList` 按照比较函数进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
+功能：对 `List` 按照比较函数进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
 
 用户需传入自定义的比较函数 `lessThan`。如果 `lessThan` 的返回值为 `true`，排序后 `t1` 在 `t2` 前；如果 `lessThan` 的返回值为`false`，又会分为两种情况，如果 `t1` 和 `t2` 不相等，排序后 `t1` 在 `t2` 后，如果相等，`t1` 与 `t2` 的前后位置关系与是否是稳定排序有关，稳定则较排序前保持不变，否则有可能发生改变。
 
+比较函数必须满足全序关系：
+
+- 反对称性：如果 `lessThan(a, b)` 为 `true`，则 `lessThan(b, a)` 必须为 `false`
+- 传递性：如果 `lessThan(a, b)` 和 `lessThan(b, c)` 都为 `true`，则 `lessThan(a, c)` 必须为 `true`
+- 一致性：多次调用 `lessThan(a, b)` 必须返回相同结果
+
+违反上述要求可能导致未定义行为。
+
 参数：
 
-- data: [ArrayList](../../collection/collection_package_api/collection_package_class.md#class-arraylistt)\<T> - 需要排序的 `ArrayList`。
+- data: [List](../../collection/collection_package_api/collection_package_interface.md#interface-listt)\<T> - 需要排序的 `List`。
 - lessThan!: (T, T) ->[Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 传入的比较函数。
 - stable!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用稳定排序，默认为否。
 - descending!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用降序排序，默认为否。
@@ -421,19 +647,22 @@ class Rectangle <: ToString {
 
 main() {
     /* 按照面积降序排序 */
-    var arr = ArrayList<Rectangle>([Rectangle(4, 8), Rectangle(6, 7), Rectangle(2, 6)])
+    let arrayList = ArrayList<Rectangle>()
+    arrayList.add(Rectangle(4, 8))
+    arrayList.add(Rectangle(6, 7))
+    arrayList.add(Rectangle(2, 6))
     sort<Rectangle>(
-        arr,
+        arrayList,
         lessThan: {
             r1: Rectangle, r2: Rectangle =>
-            let r1Value: Int64 = r1.width * r1.height
-            let r2Value: Int64 = r2.width * r2.height
-            return r1Value < r2Value
+                let r1Value: Int64 = r1.width * r1.height
+                let r2Value: Int64 = r2.width * r2.height
+                return r1Value < r2Value
         },
         stable: true,
         descending: true
     )
-    println(arr)
+    println(arrayList)
     return 0
 }
 ```
@@ -444,20 +673,28 @@ main() {
 [#width: 6, height: 7, #width: 4, height: 8, #width: 2, height: 6]
 ```
 
-## func sort\<T, K>(ArrayList\<T>, (T) -> K, Bool, Bool) where K <: Comparable\<K>
+## func sort\<T>(List\<T>, (T, T) -> Ordering, Bool, Bool)
 
 ```cangjie
-public func sort<T, K>(data: ArrayList<T>, key!: (T) -> K, stable!: Bool = false, descending!: Bool = false): Unit where K <: Comparable<K>
+public func sort<T>(data: List<T>, by!: (T, T) -> Ordering, stable!: Bool = false, descending!: Bool = false): Unit
 ```
 
-功能：对 `ArrayList` 按照指定的键（键与键之间可比较）进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
+功能：对 `List` 按照比较函数进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
 
-用户需传入 `ArrayList` 元素到键的映射函数。
+用户需传入自定义的比较函数 `by`。如果 `by` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).GT，排序后 `t1` 在 `t2` 后；如果 `by` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).LT，排序后 `t1` 在 `t2` 前；如果 `by` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).EQ，排序后 `t1` 与 `t2` 的位置与是否是稳定排序有关，稳定则较排序前保持不变，否则有可能发生改变。
+
+比较函数必须满足全序关系：
+
+- 反对称性：如果 `compare(a, b)` 为 `LT`，则 `compare(b, a)` 必须为 `GT`
+- 传递性：如果 `compare(a, b)` 为 `LT` 且 `compare(b, c)` 为 `LT`，则 `compare(a, c)` 必须为 `LT`
+- 一致性：多次调用 `compare(a, b)` 必须返回相同结果
+
+违反上述要求可能导致未定义行为。
 
 参数：
 
-- data: [ArrayList](../../collection/collection_package_api/collection_package_class.md#class-arraylistt)\<T> - 需要排序的 `ArrayList`。
-- key!: (T) -> K - 元素到键的映射函数。
+- data: [List](../../collection/collection_package_api/collection_package_interface.md#interface-listt)\<T> - 需要排序的 `List`。
+- by!: (T, T) ->[Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering) - 传入的比较函数。
 - stable!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用稳定排序，默认为否。
 - descending!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用降序排序，默认为否。
 
@@ -483,17 +720,29 @@ class Rectangle <: ToString {
 }
 
 main() {
-    /* 按照宽降序排序 */
-    var arr = ArrayList<Rectangle>([Rectangle(4, 8), Rectangle(6, 7), Rectangle(2, 6)])
-    sort<Rectangle, Int64>(
-        arr,
-        key: {
-            r: Rectangle => return r.width
+    /* 按照面积降序排序 */
+    let arrayList = ArrayList<Rectangle>()
+    arrayList.add(Rectangle(4, 8))
+    arrayList.add(Rectangle(6, 7))
+    arrayList.add(Rectangle(2, 6))
+    sort<Rectangle>(
+        arrayList,
+        by: {
+            r1: Rectangle, r2: Rectangle =>
+                let r1Value: Int64 = r1.width * r1.height
+                let r2Value: Int64 = r2.width * r2.height
+                if (r1Value > r2Value) {
+                    return Ordering.GT
+                } else if (r1Value == r2Value) {
+                    return Ordering.EQ
+                } else {
+                    return Ordering.LT
+                }
         },
         stable: true,
         descending: true
     )
-    println(arr)
+    println(arrayList)
     return 0
 }
 ```
@@ -518,56 +767,56 @@ public func sort<T>(data: List<T>, stable!: Bool = false, descending!: Bool = fa
 - stable!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用稳定排序，默认为否。
 - descending!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用降序排序，默认为否。
 
-## func sort\<T>(List\<T>, (T, T) -> Ordering, Bool, Bool)
+示例：
 
+<!-- verify -->
 ```cangjie
-public func sort<T>(data: List<T>, by!: (T, T) -> Ordering, stable!: Bool = false, descending!: Bool = false): Unit
+import std.sort.*
+import std.collection.*
+
+class Rectangle <: Comparable<Rectangle> & ToString {
+    var width: Int64
+    var height: Int64
+
+    public init(width: Int64, height: Int64) {
+        this.width = width
+        this.height = height
+    }
+
+    public func compare(r: Rectangle) {
+        let tValue: Int64 = this.width * this.height
+        let rValue: Int64 = r.width * r.height
+        if (tValue > rValue) {
+            return Ordering.GT
+        } else if (tValue == rValue) {
+            return Ordering.EQ
+        } else {
+            return Ordering.LT
+        }
+    }
+
+    public func toString(): String {
+        return "#width: ${this.width}, height: ${this.height}"
+    }
+}
+
+main() {
+    /* 按照面积降序排序 */
+    let arrayList = ArrayList<Rectangle>()
+    arrayList.add(Rectangle(4, 8))
+    arrayList.add(Rectangle(6, 7))
+    arrayList.add(Rectangle(2, 6))
+    sort<Rectangle>(arrayList, stable: true, descending: true)
+    println(arrayList)
+    return 0
+}
 ```
 
-功能：对 `List` 按照比较函数进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
+运行结果：
 
-用户需传入自定义的比较函数 `by`。如果 `by` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).GT，排序后 `t1` 在 `t2` 后；如果 `by` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).LT，排序后 `t1` 在 `t2` 前；如果 `by` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).EQ，排序后 `t1` 与 `t2` 的位置与是否是稳定排序有关，稳定则较排序前保持不变，否则有可能发生改变。
-
-参数：
-
-- data: [List](../../collection/collection_package_api/collection_package_interface.md#interface-listt)\<T> - 需要排序的 `List`。
-- by!: (T, T) ->[Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering) - 传入的比较函数。
-- stable!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用稳定排序，默认为否。
-- descending!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用降序排序，默认为否。
-
-## func sort\<T>(List\<T>, (T, T) -> Bool, Bool, Bool)
-
-```cangjie
-public func sort<T>(data: List<T>, lessThan!: (T, T) -> Bool, stable!: Bool = false, descending!: Bool = false): Unit
+```text
+[#width: 6, height: 7, #width: 4, height: 8, #width: 2, height: 6]
 ```
-
-功能：对 `List` 按照比较函数进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
-
-用户需传入自定义的比较函数 `lessThan`。如果 `lessThan` 的返回值为 `true`，排序后 `t1` 在 `t2` 前；如果 `lessThan` 的返回值为`false`，又会分为两种情况，如果 `t1` 和 `t2` 不相等，排序后 `t1` 在 `t2` 后，如果相等，`t1` 与 `t2` 的前后位置关系与是否是稳定排序有关，稳定则较排序前保持不变，否则有可能发生改变。
-
-参数：
-
-- data: [List](../../collection/collection_package_api/collection_package_interface.md#interface-listt)\<T> - 需要排序的 `List`。
-- lessThan!: (T, T) ->[Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 传入的比较函数。
-- stable!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用稳定排序，默认为否。
-- descending!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用降序排序，默认为否。
-
-## func sort\<T, K>(List\<T>, (T) -> K, Bool, Bool) where K <: Comparable\<K>
-
-```cangjie
-public func sort<T, K>(data: List<T>, key!: (T) -> K, stable!: Bool = false, descending!: Bool = false): Unit where K <: Comparable<K>
-```
-
-功能：对 `List` 按照指定的键（键与键之间可比较）进行排序。可根据入参指定是否要进行稳定排序，是升序还是降序。
-
-用户需传入 `List` 元素到键的映射函数。
-
-参数：
-
-- data: [List](../../collection/collection_package_api/collection_package_interface.md#interface-listt)\<T> - 需要排序的 `List`。
-- key!: (T) -> K - 元素到键的映射函数。
-- stable!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用稳定排序，默认为否。
-- descending!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否使用降序排序，默认为否。
 
 ## func stableSort\<T>(Array\<T>) where T <: Comparable\<T> <sup>(deprecated)</sup>
 
@@ -585,6 +834,53 @@ public func stableSort<T>(data: Array<T>): Unit where T <: Comparable<T>
 
 - data: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<T> - 需要排序的数组。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.sort.*
+
+class Rectangle <: Comparable<Rectangle> & ToString {
+    var width: Int64
+    var height: Int64
+
+    public init(width: Int64, height: Int64) {
+        this.width = width
+        this.height = height
+    }
+
+    public func compare(r: Rectangle) {
+        let tValue: Int64 = this.width * this.height
+        let rValue: Int64 = r.width * r.height
+        if (tValue > rValue) {
+            return Ordering.GT
+        } else if (tValue == rValue) {
+            return Ordering.EQ
+        } else {
+            return Ordering.LT
+        }
+    }
+
+    public func toString(): String {
+        return "#width: ${this.width}, height: ${this.height}"
+    }
+}
+
+main() {
+    /* 按照面积升序稳定排序 */
+    var arr = [Rectangle(4, 8), Rectangle(6, 7), Rectangle(2, 6)]
+    stableSort<Rectangle>(arr)
+    println(arr)
+    return 0
+}
+```
+
+运行结果：
+
+```text
+[#width: 2, height: 6, #width: 4, height: 8, #width: 6, height: 7]
+```
+
 ## func stableSort\<T>(Array\<T>, (T, T) -> Ordering) <sup>(deprecated)</sup>
 
 ```cangjie
@@ -595,6 +891,14 @@ public func stableSort<T>(data: Array<T>, comparator: (T, T) -> Ordering): Unit
 
 用户可传入自定义的比较函数 `comparator`，如果 `comparator` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).GT，排序后 `t1` 在 `t2` 后；如果 `comparator` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).LT，排序后 `t1` 在 `t2` 前；如果 `comparator` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).EQ，排序后 `t1` 与 `t2` 的位置较排序前保持不变。
 
+比较函数必须满足全序关系：
+
+- 反对称性：如果 `compare(a, b)` 为 `LT`，则 `compare(b, a)` 必须为 `GT`
+- 传递性：如果 `compare(a, b)` 为 `LT` 且 `compare(b, c)` 为 `LT`，则 `compare(a, c)` 必须为 `LT`
+- 一致性：多次调用 `compare(a, b)` 必须返回相同结果
+
+违反上述要求可能导致未定义行为。
+
 > **注意：**
 >
 > 未来版本即将废弃，使用 [sort](sort_package_funcs.md#func-sorttarrayt-t-t---ordering-bool-bool) 替代。
@@ -603,6 +907,55 @@ public func stableSort<T>(data: Array<T>, comparator: (T, T) -> Ordering): Unit
 
 - data: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<T> - 需要排序的数组。
 - comparator: (T, T) ->[Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering) - 用户传入的比较函数。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.sort.*
+
+class Rectangle <: ToString {
+    var width: Int64
+    var height: Int64
+
+    public init(width: Int64, height: Int64) {
+        this.width = width
+        this.height = height
+    }
+
+    public func toString(): String {
+        return "#width: ${this.width}, height: ${this.height}"
+    }
+}
+
+main() {
+    /* 按照面积升序稳定排序 */
+    var arr = [Rectangle(4, 8), Rectangle(6, 7), Rectangle(2, 6)]
+    stableSort<Rectangle>(
+        arr,
+        {
+            r1: Rectangle, r2: Rectangle =>
+                let r1Value: Int64 = r1.width * r1.height
+                let r2Value: Int64 = r2.width * r2.height
+                if (r1Value > r2Value) {
+                    return Ordering.GT
+                } else if (r1Value == r2Value) {
+                    return Ordering.EQ
+                } else {
+                    return Ordering.LT
+                }
+        }
+    )
+    println(arr)
+    return 0
+}
+```
+
+运行结果：
+
+```text
+[#width: 2, height: 6, #width: 4, height: 8, #width: 6, height: 7]
+```
 
 ## func unstableSort\<T>(Array\<T>) where T <: Comparable\<T> <sup>(deprecated)</sup>
 
@@ -620,6 +973,53 @@ public func unstableSort<T>(data: Array<T>): Unit where T <: Comparable<T>
 
 - data: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<T> - 需要排序的数组。
 
+示例：
+
+<!-- verify -->
+```cangjie
+import std.sort.*
+
+class Rectangle <: Comparable<Rectangle> & ToString {
+    var width: Int64
+    var height: Int64
+
+    public init(width: Int64, height: Int64) {
+        this.width = width
+        this.height = height
+    }
+
+    public func compare(r: Rectangle) {
+        let tValue: Int64 = this.width * this.height
+        let rValue: Int64 = r.width * r.height
+        if (tValue > rValue) {
+            return Ordering.GT
+        } else if (tValue == rValue) {
+            return Ordering.EQ
+        } else {
+            return Ordering.LT
+        }
+    }
+
+    public func toString(): String {
+        return "#width: ${this.width}, height: ${this.height}"
+    }
+}
+
+main() {
+    /* 按照面积升序不稳定排序 */
+    var arr = [Rectangle(4, 8), Rectangle(6, 7), Rectangle(2, 6)]
+    unstableSort<Rectangle>(arr)
+    println(arr)
+    return 0
+}
+```
+
+运行结果：
+
+```text
+[#width: 2, height: 6, #width: 4, height: 8, #width: 6, height: 7]
+```
+
 ## func unstableSort\<T>(Array\<T>, (T, T) -> Ordering) <sup>(deprecated)</sup>
 
 ```cangjie
@@ -630,6 +1030,14 @@ public func unstableSort<T>(data: Array<T>, comparator: (T, T) -> Ordering): Uni
 
 用户可传入自定义的比较函数 `comparator`，如果 `comparator` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).GT，排序后 `t1` 在 `t2` 后；如果 `comparator` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).LT，排序后 `t1` 在 `t2` 前；如果 `comparator` 的返回值为 [Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering).EQ，排序后 `t1` 与 `t2` 的位置较排序前保持不变。
 
+比较函数必须满足全序关系：
+
+- 反对称性：如果 `compare(a, b)` 为 `LT`，则 `compare(b, a)` 必须为 `GT`
+- 传递性：如果 `compare(a, b)` 为 `LT` 且 `compare(b, c)` 为 `LT`，则 `compare(a, c)` 必须为 `LT`
+- 一致性：多次调用 `compare(a, b)` 必须返回相同结果
+
+违反上述要求可能导致未定义行为。
+
 > **注意：**
 >
 > 未来版本即将废弃，使用 [sort](sort_package_funcs.md#func-sorttarrayt-t-t---ordering-bool-bool) 替代。
@@ -638,3 +1046,52 @@ public func unstableSort<T>(data: Array<T>, comparator: (T, T) -> Ordering): Uni
 
 - data: [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<T> - 需要排序的数组。
 - comparator: (T, T) ->[Ordering](../../core/core_package_api/core_package_enums.md#enum-ordering) - 用户传入的比较函数。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.sort.*
+
+class Rectangle <: ToString {
+    var width: Int64
+    var height: Int64
+
+    public init(width: Int64, height: Int64) {
+        this.width = width
+        this.height = height
+    }
+
+    public func toString(): String {
+        return "#width: ${this.width}, height: ${this.height}"
+    }
+}
+
+main() {
+    /* 按照面积升序不稳定排序 */
+    var arr = [Rectangle(4, 8), Rectangle(6, 7), Rectangle(2, 6)]
+    unstableSort<Rectangle>(
+        arr,
+        {
+            r1: Rectangle, r2: Rectangle =>
+                let r1Value: Int64 = r1.width * r1.height
+                let r2Value: Int64 = r2.width * r2.height
+                if (r1Value > r2Value) {
+                    return Ordering.GT
+                } else if (r1Value == r2Value) {
+                    return Ordering.EQ
+                } else {
+                    return Ordering.LT
+                }
+        }
+    )
+    println(arr)
+    return 0
+}
+```
+
+运行结果：
+
+```text
+[#width: 2, height: 6, #width: 4, height: 8, #width: 6, height: 7]
+```

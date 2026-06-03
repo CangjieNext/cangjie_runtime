@@ -573,7 +573,7 @@ public:
 
 #elif defined(__APPLE__)
         MemorySet(reinterpret_cast<uintptr_t>(unitAddress), size, 0, size);
-        void* ret = mmap(unitAddress, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1 ,0);
+        void* ret = mmap(unitAddress, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
         if (ret == MAP_FAILED) {
             LOG(RTLOG_ERROR, "region mmmap fixed failed");
         } else if (ret != reinterpret_cast<void*>(unitAddress)) {
@@ -719,7 +719,7 @@ public:
     void CheckAndClearLiveInfo(LiveInfo* liveInfo)
     {
         // Garbage region may be reused by other thread. For the sake of safety, we don't clean it here.
-        // We will clean it before the region is accessable.
+        // We will clean it before the region is accessible.
         if (IsGarbageRegion()) {
             return;
         }
@@ -898,7 +898,7 @@ public:
             return;
         }
         size_t prevIdx = r->GetUnitIdx();
-        MRT_ASSERT(prevIdx < NULLPTR_IDX, "exceeds the maxinum limit for region info");
+        MRT_ASSERT(prevIdx < NULLPTR_IDX, "exceeds the maximum limit for region info");
         metadata.prevRegionIdx = static_cast<uint32_t>(prevIdx);
     }
 
@@ -927,7 +927,7 @@ public:
             return;
         }
         size_t nextIdx = r->GetUnitIdx();
-        MRT_ASSERT(nextIdx < NULLPTR_IDX, "exceeds the maxinum limit for region info");
+        MRT_ASSERT(nextIdx < NULLPTR_IDX, "exceeds the maximum limit for region info");
         metadata.nextRegionIdx = static_cast<uint32_t>(nextIdx);
     }
 
@@ -1169,7 +1169,7 @@ private:
             UnitInfo& operator[](size_t index)
             {
                 CHECK(index >= 0 && index < size);
-                return unitArray[size-index-1];
+                return unitArray[size - index - 1];
             }
         };
 

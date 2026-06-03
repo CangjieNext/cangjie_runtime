@@ -47,6 +47,8 @@ Uptr STACK_ADDR_MAX = ULLONG_MAX;
 #endif
 Uptr StackManager::rtStartAddr = STACK_ADDR_MAX;
 Uptr StackManager::rtEndAddr = 0;
+Uptr StackManager::cjThreadStartAddr = STACK_ADDR_MAX;
+Uptr StackManager::cjThreadEndAddr = 0;
 Uptr StackManager::cjcSoStartAddr = STACK_ADDR_MAX;
 Uptr StackManager::cjcSoEndAddr = 0;
 Uptr StackManager::traceSoStartAddr = STACK_ADDR_MAX;
@@ -60,6 +62,10 @@ extern "C" Uptr* g_runtimeDynamicEnd;
 #else
 extern "C" Uptr* g_runtimeStaticStart;
 extern "C" Uptr* g_runtimeStaticEnd;
+#ifdef _WIN64
+extern "C" uintptr_t g_cjThreadStaticStart;
+extern "C" uintptr_t g_cjThreadStaticEnd;
+#endif
 #endif
 
 StackManager::StackManager() {}
@@ -101,7 +107,7 @@ void StackManager::PrintStackTraceForCpuProfile(UnwindContext* unContext, unsign
     std::vector<uint64_t> funcDescRefs;
     std::vector<FrameType> frameTypes;
     std::vector<uint32_t> lineNumbers;
-    for (auto& frame : stacks) {
+    for (const auto& frame : stacks) {
 #ifdef __APPLE__
         FuncDescRef funcDesc = MFuncDesc::GetFuncDesc(frame.mFrame.GetFA());
 #else
@@ -327,9 +333,13 @@ void StackManager::InitAddressScope()
     StackManager::rtEndAddr = reinterpret_cast<Uptr>(&g_runtimeDynamicEnd);
 #endif
 #else                  // !COMPILE_DYNAMIC
-#if defined(__APPLE__) // MacOS, iOS
+#if defined(__APPLE__) || defined(_WIN64) // MacOS, iOS, Windows
     StackManager::rtStartAddr = reinterpret_cast<Uptr>(g_runtimeStaticStart);
     StackManager::rtEndAddr = reinterpret_cast<Uptr>(g_runtimeStaticEnd);
+#ifdef _WIN64
+    StackManager::cjThreadStartAddr = static_cast<Uptr>(g_cjThreadStaticStart);
+    StackManager::cjThreadEndAddr = static_cast<Uptr>(g_cjThreadStaticEnd);
+#endif
 #else
     StackManager::rtStartAddr = reinterpret_cast<Uptr>(&g_runtimeStaticStart);
     StackManager::rtEndAddr = reinterpret_cast<Uptr>(&g_runtimeStaticEnd);
@@ -413,10 +423,10 @@ bool StackManager::IsRuntimeFrame(Uptr pc)
     }
     return false;
 #else // Otherwise.
-    // For platforms that do not support macro expansion, such as iOS and HOS, the second condition will always be true
+    // For platforms that do not support macro expansion, such as iOS and HOS, second condition will always be true
     // because there is no display setting for the address info of cjc. The same logic applies to cjthread-trace.
-    return (pc > rtStartAddr && pc < rtEndAddr) || (pc > cjcSoStartAddr && pc < cjcSoEndAddr) ||
-        (pc > traceSoStartAddr && pc < traceSoEndAddr);
+    return (pc > rtStartAddr && pc < rtEndAddr) || (pc > cjThreadStartAddr && pc < cjThreadEndAddr) ||
+           (pc > cjcSoStartAddr && pc < cjcSoEndAddr) || (pc > traceSoStartAddr && pc < traceSoEndAddr);
 #endif
 }
 } // namespace MapleRuntime

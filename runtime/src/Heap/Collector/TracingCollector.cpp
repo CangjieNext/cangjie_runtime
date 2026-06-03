@@ -44,10 +44,9 @@ void StaticRootTable::VisitRoots(const RefFieldVisitor& visitor)
         for (USize i = 0; i < gcRootsSize; i++) {
             RefField<>* root = array->content[i];
             // make sure to visit each static root only once time.
-            if (visitedSet.find(root) != visitedSet.end()) {
+            if (!visitedSet.insert(root).second) {
                 continue;
             }
-            visitedSet.insert(root);
             visitor(*root);
         }
     }
@@ -113,9 +112,6 @@ public:
             workStack.pop_back();
 
             // skip dangling object (such as: object already released).
-            if (!obj->IsValidObject()) {
-                void(0);
-            }
             DCHECK(obj->IsValidObject());
 
             bool wasMarked = collector.MarkObject(obj);
@@ -170,10 +166,6 @@ public:
             // get next object from work stack.
             BaseObject* obj = workStack.back();
             workStack.pop_back();
-
-            // skip dangling object (such as: object already released).
-            DCHECK(obj->IsValidObject());
-
             bool wasMarked = collector.MarkObject(obj);
             if (!wasMarked) {
                 collector.DFSTraceExportObject(obj);
@@ -460,12 +452,9 @@ bool TracingCollector::MarkSatbBuffer(WorkStack& workStack)
     if (!workStack.empty()) {
         workStack.clear();
     }
-#ifdef __arm__
-    uint64_t maxIterationTime = 120ULL * 1000 * 1000 * 1000; // 2 mins.
-#else
-    constexpr size_t maxIterationTime = 120ULL * 1000 * 1000 * 1000; // 2 mins.
-#endif
-    constexpr size_t maxIterationLoopNum = 1000;
+
+    constexpr uint64_t maxIterationTime = 120ULL * 1000 * 1000 * 1000; // 2 mins.
+    constexpr uint64_t maxIterationLoopNum = 1000;
     auto visitSatbObj = [this, &workStack]() {
         WorkStack remarkStack;
         auto func = [&remarkStack](Mutator& mutator) {
@@ -488,7 +477,7 @@ bool TracingCollector::MarkSatbBuffer(WorkStack& workStack)
     };
 
     visitSatbObj();
-    size_t iterationCnt = 0;
+    uint64_t iterationCnt = 0;
     uint64_t iterationStartTime = TimeUtil::NanoSeconds();
     do {
         if (++iterationCnt > maxIterationLoopNum && (TimeUtil::NanoSeconds() - iterationStartTime) > maxIterationTime) {

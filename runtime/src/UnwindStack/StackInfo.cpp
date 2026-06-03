@@ -119,12 +119,15 @@ void StackInfo::AnalyseAndSetFrameType(UnwindContext& uwContext)
     } else if (mFrame.IsStackGrowStubFrame()) {
         isReliableN2CStub = false;
         frameInfo.SetFrameType(FrameType::STACKGROW);
+    } else if (mFrame.IsExclusiveStubFrame()) {
+        frameInfo.SetFrameType(FrameType::EXSLUSIVE);
+        isReliableN2CStub = false;
     } else if (mFrame.IsRuntimeFrame()) {
         frameInfo.SetFrameType(FrameType::RUNTIME);
         isReliableN2CStub = false;
     } else {
         // The judgment is mainly to identify the credible native call the managed code
-        // through n2c in the macor. The so of macor is a mixed code library, which cannot
+        // through n2c in the macro. The so of macor is a mixed code library, which cannot
         // be directly identified by the runtime library address.
         if (isReliableN2CStub) {
             frameInfo.SetFrameType(FrameType::RUNTIME);
@@ -169,7 +172,7 @@ uint32_t* StackInfo::GetAnchorFAFromMutatorContext() const
 void StackInfo::ExtractLiteFrameInfoFromStack(std::vector<uint64_t>& liteFrameInfos, size_t steps) const
 {
     size_t count = 1;
-    for (auto frameInfo : stack) {
+    for (const auto& frameInfo : stack) {
         if (count <= steps) {
             liteFrameInfos.push_back(reinterpret_cast<uint64_t>(frameInfo.mFrame.GetIP()));
             liteFrameInfos.push_back(reinterpret_cast<uint64_t>(frameInfo.GetFuncStartPC()));

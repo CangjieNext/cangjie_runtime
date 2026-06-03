@@ -64,6 +64,9 @@ set(AST_SUPPORT_LIB_DIR)
 # using CANGJIE_HOME or cangjie source directory
 if(DEFINED ENV{CANGJIE_HOME})
     string(TOLOWER ${TARGET_TRIPLE_DIRECTORY_PREFIX}_${CJNATIVE_BACKEND} output_cj_lib_dir)
+    if(TRIPLE STREQUAL "arm-linux-android23")
+        set(output_cj_lib_dir linux_android23_arm_cjnative)
+    endif()
     set(AST_SUPPORT_LIB_DIR $ENV{CANGJIE_HOME}/lib/${output_cj_lib_dir})
     set(CANGJIE_INC_DIR $ENV{CANGJIE_HOME}/include)
     if(NOT EXISTS "${CANGJIE_INC_DIR}/cangjie")
@@ -105,14 +108,9 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy 
         $ENV{CANGJIE_HOME}/lib/${output_cj_lib_dir}/libcangjie-ast-support.a
         ${AST_FFI_LIB}
-    COMMAND ${TARGET_AR} q ${AST_FFI_LIB} $<TARGET_OBJECTS:${libname}-objs>
+    COMMAND ${TARGET_AR} qD ${AST_FFI_LIB} $<TARGET_OBJECTS:${libname}-objs>
     DEPENDS ${libname}-objs
 )
-
-if(CANGJIE_BUILD_STDLIB_WITH_COVERAGE)
-    target_compile_options(${libname} PUBLIC "-fno-exceptions")
-    target_compile_definitions(${libname} PRIVATE CANGJIE_ENABLE_GCOV)
-endif()
 
 add_custom_target(AST_SUPPORT ALL DEPENDS ${AST_FFI_LIB})
 

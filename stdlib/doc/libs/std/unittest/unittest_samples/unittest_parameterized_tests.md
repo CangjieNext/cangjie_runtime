@@ -242,9 +242,9 @@ import std.sort.*
 
 @Test[array in [
  [ ],
- [ "1","2","3" ],
- [ "1","2","3","4","5" ],
- [ "5","4","3","2","1" ]
+ [ "1", "2", "3" ],
+ [ "1", "2", "3", "4", "5" ],
+ [ "5", "4", "3", "2", "1" ]
  ]
 ]
 func testDifferentArraysString(array: Array<String>) {
@@ -392,8 +392,8 @@ func generateUniqArray(len: Int64, start: UInt64) {
         len,
         {
             _ =>
-            counter += rng.nextInt64() % step
-            counter
+                counter += rng.nextInt64() % step
+                counter
         }
     )
 }
@@ -431,8 +431,8 @@ func generateUniqArray(start: UInt64): ArrayList<Int64> {
         len,
         {
             _ =>
-            counter += rng.nextInt64() % step
-            counter
+                counter += rng.nextInt64() % step
+                counter
         }
     )
 }
@@ -499,7 +499,7 @@ Summary: TOTAL: 1
 使用覆盖率引导的单元测试，需要执行以下步骤：
 
 - 该项目必须在编译器支持 `SanitizerCoverage` 的情况下进行编译。具体需要以下两个选项：`--sanitizer-coverage-trace-pc-guard` 和 `--sanitizer-coverage-trace-compares` 。
-- 用例可执行文件必须配置 [--coverage-guided](./unittest_basics.md#coverage-guided) 选项。
+- 用例可执行文件必须配置 [--coverage-guided](./unittest_basics.md#--coverage-guided) 选项。
 - 测试的生成步骤参数必须根据代码的复杂性增加，以允许覆盖引导算法继续进行。
 
 如果我们使用编译器选项 `--sanitizer-coverage-trace-pc-guard` 和 `--sanitizer-coverage-trace-compares` 编译上面的示例，然后使用 `--coverage-guided` 选项运行它，我们得到类似于以下内容的结果：

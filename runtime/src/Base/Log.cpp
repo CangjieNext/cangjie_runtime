@@ -60,6 +60,38 @@ size_t Logger::GetLogFileSize()
     return DEFAULT_MAX_FILE_SIZE;
 }
 
+void ATraceBeginAsync(const char* name, int32_t taskId)
+{
+#if __ANDROID_API__ >= 28
+    ATrace_beginAsyncSection(name, taskId);
+#else
+    // ATrace_beginAsyncSection were offically added to the android NDK only in API level 28.
+    (void)name;
+    (void)taskId;
+#endif
+}
+
+void ATraceEndAsync(const char* name, int32_t taskId) {
+#if __ANDROID_API__ >= 28
+    ATrace_endAsyncSection(name, taskId);
+#else
+    // ATrace_endAsyncSection were offically added to the android NDK only in API level 28.
+    (void)name;
+    (void)taskId;
+#endif
+}
+
+void ATraceSetCounter(const char* name, int64_t value)
+{
+#if __ANDROID_API__ >= 28
+    ATrace_setCounter(name, value);
+#else
+    // ATrace_setCounter were offically added to the android NDK only in API level 28.
+    (void)name;
+    (void)value;
+#endif
+}
+
 bool IsHaveCommandInjection(const CString& logPath)
 {
 #if defined(_WIN64)
@@ -83,7 +115,8 @@ void Logger::GetLogPath(const char* env, CString& logPath)
     }
     CString s = CString(envPath).RemoveBlankSpace();
     envPath = s.Str();
-    if (strlen(envPath) < 2 || (strlen(envPath) >= PATH_MAX)) { // 2 is path minimum size
+    size_t envPathLen = strlen(envPath);
+    if (envPathLen < 2 || envPathLen >= PATH_MAX) { // 2 is path minimum size
         LOG(RTLOG_ERROR, "Unsupported %s parameter. The length should be in [2, 4096).\n", env);
         return;
     }
@@ -100,13 +133,14 @@ void Logger::GetLogPath(const char* env, CString& logPath)
     }
 
     char pathBuf[PATH_MAX + 1] = { 0x00 };
-    if (pos != (strlen(envPath) - 1)) {
+    if (pos != static_cast<int>(envPathLen - 1)) {
         // path ends with name (could be a directory or a file)
         CString path = CString(envPath).SubStr(0, pos + 1);
         CString name = CString(envPath).SubStr(pos + 1);
         if ((!name.IsEmpty()) && Os::Path::GetRealPath(path.Str(), pathBuf)) {
             logPath = CString(pathBuf);
-            if (logPath.RFind(separator) != (logPath.Length() - 1)) {
+            int separatorPos = logPath.RFind(separator);
+            if (separatorPos < 0 || separatorPos != static_cast<int>(logPath.Length() - 1)) {
                 logPath.Append(separator);
             }
             logPath.Append(name);
@@ -278,7 +312,7 @@ static inline void WriteLogOnAndroid(RTLogLevel level, const char* buf)
 #endif
 
 #if defined(__IOS__)
-static inline void WriteLogOnIOS(RTLogLevel level, const char* buf)
+static inline void WriteLogOnIos(RTLogLevel level, const char* buf)
 {
     switch (level) {
         case RTLOG_DEBUG:
@@ -327,7 +361,11 @@ void Logger::FormatLog(RTLogLevel level, bool notInSigHandler, const char* forma
     int ret = vsprintf_s(buf + index, sizeof(buf) - index, format, args);
     if (ret == -1) {
         char errMsg[ERROR_MSG_SIZE];
-        (void)sprintf_s(errMsg, ERROR_MSG_SIZE, "FormatLog vsprintf_s failed. msg: %s\n", strerror(errno));
+        int errMsgRet = sprintf_s(errMsg, ERROR_MSG_SIZE, "FormatLog vsprintf_s failed. msg: %s\n", strerror(errno));
+        if (errMsgRet == -1) {
+            PRINT_ERROR("FormatLog sprintf_s failed\n");
+            return;
+        }
         WriteStr(STDOUT_FILENO, errMsg, notInSigHandler);
         return;
     }
@@ -338,7 +376,7 @@ void Logger::FormatLog(RTLogLevel level, bool notInSigHandler, const char* forma
 #elif defined(__ANDROID__)
     WriteLogOnAndroid(level, buf);
 #elif defined (__IOS__)
-    WriteLogOnIOS(level, buf);
+    WriteLogOnIos(level, buf);
 #else
     if (filePath.IsEmpty()) {
         std::lock_guard<std::recursive_mutex> lock(logMutex);
@@ -390,7 +428,11 @@ void HiLogForCJThread(RTLogLevel level, const char* format, va_list args)
     int ret = vsprintf_s(buf, sizeof(buf), format, args);
     if (ret == -1) {
         char errMsg[ERROR_MSG_SIZE];
-        (void)sprintf_s(errMsg, ERROR_MSG_SIZE, "FormatLog vsprintf_s failed. msg: %s\n", strerror(errno));
+        int errMsgRet = sprintf_s(errMsg, ERROR_MSG_SIZE, "FormatLog vsprintf_s failed. msg: %s\n", strerror(errno));
+        if (errMsgRet == -1) {
+            PRINT_ERROR("FormatLog sprintf_s failed\n");
+            return;
+        }
         WriteStr(STDOUT_FILENO, errMsg, true);
         return;
     }
@@ -398,6 +440,8 @@ void HiLogForCJThread(RTLogLevel level, const char* format, va_list args)
     WriteLogOnOhos(level, buf, false);
 #elif defined(__ANDROID__)
     WriteLogOnAndroid(level, buf);
+#elif defined (__IOS__)
+    WriteLogOnIos(level, buf);
 #endif
     if (level == RTLOG_FATAL) {
         std::abort();
@@ -433,7 +477,8 @@ const char* TraceInfoFormat(const char* name, unsigned long long id, unsigned in
 #endif
 
 #if defined(__ANDROID__)
-ATraceWrapper::ATraceWrapper() {
+ATraceWrapper::ATraceWrapper()
+{
     libHandle = dlopen("libandroid.so", RTLD_LAZY);
     if (!libHandle) {
         PRINT_ERROR("Failed to dlopen libandroid.so: %s\n", dlerror());
@@ -443,7 +488,6 @@ ATraceWrapper::ATraceWrapper() {
     beginAsyncFunc = reinterpret_cast<ATraceBeginAsyncSectionFunc>(dlsym(libHandle, "ATrace_beginAsyncSection"));
     endAsyncFunc = reinterpret_cast<ATraceEndAsyncSectionFunc>(dlsym(libHandle, "ATrace_endAsyncSection"));
     setCounterFunc = reinterpret_cast<ATraceSetCounterFunc>(dlsym(libHandle, "ATrace_setCounter"));
-
     if (beginAsyncFunc && endAsyncFunc && setCounterFunc) {
         PRINT_ERROR("ATrace functions all loaded successfully \n");
     } else {
@@ -452,7 +496,8 @@ ATraceWrapper::ATraceWrapper() {
     }
 }
 
-ATraceWrapper::~ATraceWrapper() {
+ATraceWrapper::~ATraceWrapper()
+{
     if (libHandle) {
         dlclose(libHandle);
         libHandle = nullptr;
@@ -463,32 +508,37 @@ ATraceWrapper::~ATraceWrapper() {
     setCounterFunc = nullptr;
 }
 
-ATraceWrapper& ATraceWrapper::GetInstance() {
+ATraceWrapper& ATraceWrapper::GetInstance()
+{
     static ATraceWrapper instance;
     return instance;
 }
 
-void ATraceWrapper::BeginAsyncSection(const char* name, int32_t taskId) {
+void ATraceWrapper::BeginAsyncSection(const char* name, int32_t taskId)
+{
     if (beginAsyncFunc) {
         beginAsyncFunc(name, taskId);
     }
 }
 
-void ATraceWrapper::EndAsyncSection(const char* name, int32_t taskId) {
+void ATraceWrapper::EndAsyncSection(const char* name, int32_t taskId)
+{
     if (endAsyncFunc) {
         endAsyncFunc(name, taskId);
     }
 }
 
-void ATraceWrapper::SetCounter(const char* name, int64_t count) {
+void ATraceWrapper::SetCounter(const char* name, int64_t count)
+{
     if (setCounterFunc) {
         setCounterFunc(name, count);
     }
 }
 #endif
-    
+
 #if defined(__IOS__)
-SignpostWrapper::SignpostWrapper() {
+SignpostWrapper::SignpostWrapper()
+{
     libHandle = dlopen("libSystem.dylib", RTLD_LAZY);
     if (!libHandle) {
         PRINT_ERROR("Failed to dlopen libSystem.dylib: %{public}s \n", dlerror());
@@ -498,10 +548,9 @@ SignpostWrapper::SignpostWrapper() {
     emitWithNameImplFunc = reinterpret_cast<EmitWithNameImplFunc>(dlsym(libHandle, "_os_signpost_emit_with_name_impl"));
     idGenerateFunc = reinterpret_cast<IdGenerateFunc>(dlsym(libHandle, "os_signpost_id_generate"));
     idMakeWithPointerFunc = reinterpret_cast<IdMakeWithPointerFunc>(dlsym(libHandle,
-                                                                    "os_signpost_id_make_with_pointer"));
+                                                                          "os_signpost_id_make_with_pointer"));
     osSignpostEnabledFunc = reinterpret_cast<OsSignpostEnabledFunc>(dlsym(libHandle, "os_signpost_enabled"));
-
-     if (emitWithNameImplFunc && idGenerateFunc && idMakeWithPointerFunc && osSignpostEnabledFunc) {
+    if (emitWithNameImplFunc && idGenerateFunc && idMakeWithPointerFunc && osSignpostEnabledFunc) {
         isAvailable = true;
         PRINT_ERROR("signpost functions all loaded successfully \n");
     } else {
@@ -510,7 +559,9 @@ SignpostWrapper::SignpostWrapper() {
     }
 }
 
-SignpostWrapper::~SignpostWrapper() {
+SignpostWrapper::~SignpostWrapper()
+{
+    isAvailable = false;
     if (libHandle) {
         dlclose(libHandle);
         libHandle = nullptr;
@@ -523,12 +574,14 @@ SignpostWrapper::~SignpostWrapper() {
     endName = nullptr;
 }
 
-SignpostWrapper& SignpostWrapper::GetInstance() {
+SignpostWrapper& SignpostWrapper::GetInstance()
+{
     static SignpostWrapper instance;
     return instance;
 }
 
-bool SignpostWrapper::IsIdValid(os_signpost_id_t spId) {
+bool SignpostWrapper::IsIdValid(os_signpost_id_t spId)
+{
     if (spId == OS_SIGNPOST_ID_NULL || spId == OS_SIGNPOST_ID_INVALID) {
         PRINT_WARN("id is null or invalid \n");
         return false;
@@ -536,7 +589,8 @@ bool SignpostWrapper::IsIdValid(os_signpost_id_t spId) {
     return true;
 }
 
-bool SignpostWrapper::IsLogValid(os_log_t osLog) {
+bool SignpostWrapper::IsLogValid(os_log_t osLog)
+{
     if (osSignpostEnabledFunc(osLog)) {
         return true;
     }
@@ -544,7 +598,8 @@ bool SignpostWrapper::IsLogValid(os_log_t osLog) {
     return false;
 }
 
-std::pair<size_t, void *> SignpostWrapper::FormatArgs(SignpostType type, const char* name, int64_t value) {
+std::pair<size_t, void *> SignpostWrapper::FormatArgs(SignpostType type, const char* name, int64_t value)
+{
     size_t alignment = 16;
     size_t bufferSize = 0;
     void *buffer = nullptr;
@@ -617,7 +672,8 @@ std::pair<size_t, void *> SignpostWrapper::FormatArgs(SignpostType type, const c
     return {bufferSize, buffer};
 }
 
-void SignpostWrapper::IntervalBegin(const char* name) {
+void SignpostWrapper::IntervalBegin(const char* name)
+{
     if (!isAvailable) {
         return;
     }
@@ -642,7 +698,8 @@ void SignpostWrapper::IntervalBegin(const char* name) {
     std::free(buffer);
 }
 
-void SignpostWrapper::IntervalEnd() {
+void SignpostWrapper::IntervalEnd()
+{
     if (!isAvailable) {
         return;
     }
@@ -666,7 +723,8 @@ void SignpostWrapper::IntervalEnd() {
     std::free(buffer);
 }
 
-void SignpostWrapper::IntervalBeginAsync(const char* name, int32_t taskId) {
+void SignpostWrapper::IntervalBeginAsync(const char* name, int32_t taskId)
+{
     if (!isAvailable) {
         return;
     }
@@ -691,7 +749,8 @@ void SignpostWrapper::IntervalBeginAsync(const char* name, int32_t taskId) {
     std::free(buffer);
 }
 
-void SignpostWrapper::IntervalEndAsync(const char* name, int32_t taskId) {
+void SignpostWrapper::IntervalEndAsync(const char* name, int32_t taskId)
+{
     if (!isAvailable) {
         return;
     }
@@ -716,7 +775,8 @@ void SignpostWrapper::IntervalEndAsync(const char* name, int32_t taskId) {
     std::free(buffer);
 }
 
-void SignpostWrapper::EventEmit(const char* name, int64_t count) {
+void SignpostWrapper::EventEmit(const char* name, int64_t count)
+{
     if (!isAvailable) {
         return;
     }

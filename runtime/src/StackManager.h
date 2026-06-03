@@ -28,6 +28,8 @@ public:
 #ifdef __arm__
     static uint32_t rtStartAddr;
     static uint32_t rtEndAddr;
+    static uint32_t cjThreadStartAddr;
+    static uint32_t cjThreadEndAddr;
     static uint32_t coreSoStartAddr;
     static uint32_t coreSoEndAddr;
     static uint32_t cjcSoStartAddr;
@@ -37,6 +39,8 @@ public:
 #else
     static uint64_t rtStartAddr;
     static uint64_t rtEndAddr;
+    static uint64_t cjThreadStartAddr;
+    static uint64_t cjThreadEndAddr;
     static uint64_t coreSoStartAddr;
     static uint64_t coreSoEndAddr;
     static uint64_t cjcSoStartAddr;
@@ -48,7 +52,7 @@ public:
     // debug interface for runtime to get all stack trace.
     static void PrintStackTrace(UnwindContext* unContext = nullptr);
 
-    static void PrintSignalStackTrace(UnwindContext* unContext, uintptr_t pc, uintptr_t fa);
+    static void PrintSignalStackTrace(UnwindContext* uwContext, uintptr_t pc, uintptr_t fa);
 
     static void PrintStackTraceForCpuProfile(UnwindContext* unContext, unsigned long long int cjThreadId);
 
@@ -57,7 +61,7 @@ public:
     static void GetStackTraceByLiteFrameInfos(const std::vector<uint64_t>& liteFrameInfos,
                                               std::vector<StackTraceElement>& stackTrace);
 
-    static void GetStackTraceByLiteFrameInfo(const uint64_t ip, const uint64_t pc, const uint64_t fa,
+    static void GetStackTraceByLiteFrameInfo(const uint64_t ip, const uint64_t pc, const uint64_t funcDesc,
                                              StackTraceElement& ste);
 
     // visit GC roots of current managed thread for tracing GC.

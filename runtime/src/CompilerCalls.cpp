@@ -11,12 +11,16 @@
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "Common/BaseObject.h"
+#include "ObjectModel/FieldInfo.h"
 
 // module interfaces
 #include "ObjectManager.inline.h"
-#include "schedule_rename.h"
+#include "ObjectModel/MethodInfo.h"
 #if defined(CANGJIE_SANITIZER_SUPPORT) || defined(CANGJIE_GWPASAN_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
+#endif
+#if defined(CANGJIE_SANITIZER_SUPPORT)
+#include "timer.h"
 #endif
 #if defined(__linux__) || defined(hongmeng) || defined(__APPLE__)
 #include "SignalManager.h"
@@ -45,6 +49,136 @@
 #endif
 
 namespace MapleRuntime {
+
+static bool IsGlobalStruct(const ObjectPtr basePtr, MAddress field)
+{
+#if defined(__aarch64__) && !defined(__ANDROID__)
+    // On aarch64, flag of the global variable is recorded on the highest bit of "field".
+    // This has no impact on the consistency of versions.
+    constexpr uintptr_t globalFlag = 1ULL << 63;
+    return (static_cast<uintptr_t>(field) & globalFlag) != 0;
+#else
+    // On other platforms, base pointer of the field with value "1" means it's a global struct.
+    constexpr uintptr_t globalFlag = 0x1;
+    return (reinterpret_cast<uintptr_t>(basePtr) & globalFlag) != 0;
+#endif
+}
+#if defined(CANGJIE_SANITIZER_SUPPORT)
+// These interfaces are used to detect whether the acquireArrayRawData is released in time.
+class PinnedArrayRecorder {
+public:
+    PinnedArrayRecorder() = default;
+    size_t RegisterBtInfo(void* rawPtr, Mutator* mutator, const std::vector<uint64_t>& stackInfo)
+    {
+        std::lock_guard<std::mutex> lg(safeMutex);
+        auto it = stackInfos.find(rawPtr);
+        if (it == stackInfos.end()) {
+            std::unordered_map<Mutator*, std::vector<std::vector<uint64_t>>> mutatorStackMap {
+                { mutator, std::vector<std::vector<uint64_t>>({ stackInfo }) }
+            };
+            stackInfos.emplace(rawPtr, mutatorStackMap);
+            return 0;
+        } else {
+            auto& mutatorStackMap = it->second;
+            auto mutatorIt = mutatorStackMap.find(mutator);
+            if (mutatorIt == mutatorStackMap.end()) {
+                mutatorStackMap.insert({ mutator, std::vector<std::vector<uint64_t>>({ stackInfo }) });
+                return 0;
+            } else {
+                auto& vec = mutatorIt->second;
+                size_t pos = vec.size();
+                vec.push_back(stackInfo);
+                return pos;
+            }
+        }
+    }
+
+    void RemoveBtInfo(void* rawPtr, Mutator* mutator, const std::vector<uint64_t>& stackInfo)
+    {
+        std::lock_guard<std::mutex> lg(safeMutex);
+        auto it = stackInfos.find(rawPtr);
+        if (it == stackInfos.end()) {
+            std::vector<StackTraceElement> stackTraces;
+            StackManager::GetStackTraceByLiteFrameInfos(stackInfo, stackTraces);
+            LOG(RTLOG_ERROR, "Call too many releaseArrayRawData");
+            for (const auto& ste : stackTraces) {
+                LOG(RTLOG_ERROR, "\t at %s%s%s(%s:%ld)", ste.className.Str(),
+                    ste.className.Length() > 0 ? "." : "", ste.methodName.Str(), ste.fileName.Str(),
+                    ste.lineNumber);
+            }
+            return;
+        }
+        auto& mutatorStackMap = it->second;
+        auto mutatorIt = mutatorStackMap.find(mutator);
+        if (mutatorIt == mutatorStackMap.end()) {
+            std::vector<StackTraceElement> stackTraces;
+            StackManager::GetStackTraceByLiteFrameInfos(stackInfo, stackTraces);
+            LOG(RTLOG_ERROR, "Call too many releaseArrayRawData");
+            for (const auto& ste : stackTraces) {
+                LOG(RTLOG_ERROR, "\t at %s%s%s(%s:%ld)", ste.className.Str(),
+                    ste.className.Length() > 0 ? "." : "", ste.methodName.Str(), ste.fileName.Str(),
+                    ste.lineNumber);
+            }
+            return;
+        }
+        auto& vec = mutatorIt->second;
+        vec.pop_back();
+        if (vec.empty()) {
+            mutatorStackMap.erase(mutatorIt);
+        }
+    }
+
+    bool CheckStackInfo(void* rawPtr, Mutator* mutator, size_t pos, std::vector<StackTraceElement>& stackTraces)
+    {
+        std::lock_guard<std::mutex> lg(safeMutex);
+        auto rawPtrIt = stackInfos.find(rawPtr);
+        if (rawPtrIt == stackInfos.end()) {
+            return true;
+        }
+        auto& mutatorStackMap = rawPtrIt->second;
+        auto mutatorIt = mutatorStackMap.find(mutator);
+        if (mutatorIt == mutatorStackMap.end()) {
+            return true;
+        }
+        auto& vec = mutatorIt->second;
+        if (pos >= vec.size()) {
+            return true;
+        }
+        std::vector<uint64_t>& frames = vec[pos];
+        StackManager::GetStackTraceByLiteFrameInfos(frames, stackTraces);
+        return false;
+    }
+private:
+    std::mutex safeMutex;
+    std::unordered_map<void*, std::unordered_map<Mutator*, std::vector<std::vector<uint64_t>>>> stackInfos;
+};
+
+PinnedArrayRecorder pinnedArrayRecorder;
+
+struct DataClosure {
+    void* rawPtr = nullptr;
+    Mutator* mutator = nullptr;
+    size_t pos = 0;
+};
+
+void RawPtrCheckerTimerEntry(void* arg)
+{
+    DataClosure* dataClosure = reinterpret_cast<DataClosure*>(arg);
+    void* rawPtr = dataClosure->rawPtr;
+    Mutator* mutator = dataClosure->mutator;
+    size_t pos = dataClosure->pos;
+    NativeAllocator::NativeFree(dataClosure, sizeof(DataClosure));
+    std::vector<StackTraceElement> stackTraces;
+    if (!pinnedArrayRecorder.CheckStackInfo(rawPtr, mutator, pos, stackTraces)) {
+        LOG(RTLOG_ERROR, "acquireArrayRawData lasted too long");
+        for (const auto& ste : stackTraces) {
+            LOG(RTLOG_ERROR, "\t at %s%s%s(%s:%ld) misses releaseArrayRawData", ste.className.Str(),
+                ste.className.Length() > 0 ?
+                "." : "", ste.methodName.Str(), ste.fileName.Str(), ste.lineNumber);
+        }
+    }
+}
+#endif
 // runtime interfaces provided to compiler for code generation.
 // The compiler should only call MCC_* to access runtime functions.
 // MCC_* calls follows C standard calling convention.
@@ -54,6 +188,7 @@ extern "C" ObjRef MCC_NewObject(const TypeInfo* klass, MSize size)
     DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
     ObjRef obj = ObjectManager::NewObject(klass, size);
     if (obj == nullptr) {
+        VLOG(REPORT, "Allocating object %s (%zu B) failed and throw OutOfMemoryError", klass->GetName(), size);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewObject return nullptr");
     }
     return obj;
@@ -64,6 +199,7 @@ extern "C" ObjRef MCC_NewWeakRefObject(const TypeInfo* klass, MSize size)
     DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
     ObjRef obj = ObjectManager::NewWeakRefObject(klass, size);
     if (obj == nullptr) {
+        VLOG(REPORT, "Allocating weak reference %s (%zu B) failed and throw OutOfMemoryError", klass->GetName(), size);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewWeakRefObject return nullptr");
     }
     return obj;
@@ -74,6 +210,7 @@ extern "C" ObjRef MCC_NewPinnedObject(const TypeInfo* klass, MSize size, bool is
     DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
     ObjRef obj = ObjectManager::NewPinnedObject(klass, size, isFinalizer);
     if (obj == nullptr) {
+        VLOG(REPORT, "Allocating object %s (%zu B) failed and throw OutOfMemoryError", klass->GetName(), size);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewPinnedObject return nullptr");
     }
     return obj;
@@ -84,6 +221,8 @@ extern "C" ObjRef MCC_NewFinalizer(const TypeInfo* klass, MSize size)
     DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
     ObjRef obj = ObjectManager::NewFinalizer(klass, size);
     if (obj == nullptr) {
+        VLOG(REPORT, "Allocating object with ~init %s (%zu B) failed and throw OutOfMemoryError",
+            klass->GetName(), size);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewFinalizer return nullptr");
     }
     return obj;
@@ -98,6 +237,7 @@ extern "C" ArrayRef MCC_NewArray(const TypeInfo* arrayInfo, MIndex nElems)
 {
     ArrayRef array = ObjectManager::NewArray(static_cast<MIndex>(nElems), arrayInfo);
     if (array == nullptr) {
+        VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewArray return nullptr");
     }
     return array;
@@ -107,6 +247,7 @@ extern "C" ArrayRef MCC_NewObjArray(const TypeInfo* arrayInfo, MIndex nElems)
 {
     ArrayRef array = ObjectManager::NewObjArray(nElems, arrayInfo);
     if (array == nullptr) {
+        VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewObjArray return nullptr");
     }
     return array;
@@ -116,6 +257,7 @@ extern "C" ArrayRef MCC_NewArray8(const TypeInfo* arrayInfo, MIndex nElems)
 {
     ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_8B);
     if (array == nullptr) {
+        VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray return nullptr");
     }
     return array;
@@ -125,6 +267,7 @@ extern "C" ArrayRef MCC_NewArray16(const TypeInfo* arrayInfo, MIndex nElems)
 {
     ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_16B);
     if (array == nullptr) {
+        VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray(16B) return nullptr");
     }
     return array;
@@ -134,6 +277,7 @@ extern "C" ArrayRef MCC_NewArray32(const TypeInfo* arrayInfo, MIndex nElems)
 {
     ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_32B);
     if (array == nullptr) {
+        VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray(32B) return nullptr");
     }
     return array;
@@ -143,6 +287,7 @@ extern "C" ArrayRef MCC_NewArray64(const TypeInfo* arrayInfo, MIndex nElems)
 {
     ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_64B);
     if (array == nullptr) {
+        VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray(64B) return nullptr");
     }
     return array;
@@ -150,6 +295,11 @@ extern "C" ArrayRef MCC_NewArray64(const TypeInfo* arrayInfo, MIndex nElems)
 
 extern "C" void MCC_WriteRefField(const ObjectPtr ref, const ObjectPtr obj, RefField<false>* field)
 {
+    if (IsGlobalStruct(obj, reinterpret_cast<MAddress>(field))) {
+        VLOG(REPORT, "found and writing a global struct ref field");
+        Heap::GetBarrier().WriteStaticRef(*field, ref);
+        return;
+    }
     if (!Heap::IsHeapAddress(obj)) {
         field->SetTargetObject(ref);
         return;
@@ -157,9 +307,14 @@ extern "C" void MCC_WriteRefField(const ObjectPtr ref, const ObjectPtr obj, RefF
     Heap::GetBarrier().WriteReference(obj, *field, ref);
 }
 
-extern "C" void MCC_WriteStructField(ObjectPtr obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen)
+extern "C" void MCC_WriteStructField(ObjectPtr obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen,
+                                     GCTib gctib)
 {
     CHECK_DETAIL((dst != 0u && src != 0u), "MCC_WriteStructField wrong parameter, dst: %p src: %p", dst, src);
+    if (IsGlobalStruct(obj, dst)) {
+        Heap::GetBarrier().WriteStaticStruct(dst, dstLen, src, srcLen, gctib);
+        return;
+    }
     if (UNLIKELY(!Heap::IsHeapAddress(obj))) {
         CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), dstLen, reinterpret_cast<void*>(src), srcLen) == EOK,
                      "memcpy_s failed");
@@ -186,6 +341,20 @@ extern "C" TypeInfo* MCC_GetObjClass(const ObjectPtr obj)
 }
 
 extern "C" TypeInfo* MCC_GetTypeForAny(const ObjectPtr obj) { return obj->GetTypeInfo(); }
+
+extern "C" bool MCC_IsWrapperClassForAutoEnv(const TypeInfo* ti)
+{
+    const char* tiName = ti->GetName();
+    const char* targetPattern = ":$Cw$";
+    const char *p = strchr(tiName, ':');
+    if (p == nullptr) {
+        return false;
+    } else if (strncmp(p, targetPattern, strlen(targetPattern)) == 0) {
+        return true;
+    } else {
+        return false;
+    }
+}
 
 extern "C" void CJ_MCC_ArrayCopyRef(const ObjectPtr dstObj, MAddress dstField, size_t dstSize, const ObjectPtr srcObj,
                                     MAddress srcField, size_t srcSize)
@@ -252,6 +421,8 @@ extern "C" ssize_t MCC_GetRealHeapSize() { return Heap::GetHeap().GetHeapPhysica
 extern "C" size_t MCC_GetAllocatedHeapSize() { return Heap::GetHeap().GetAllocatedSize(); }
 
 extern "C" size_t MCC_GetMaxHeapSize() { return Heap::GetHeap().GetMaxCapacity(); }
+
+extern "C" bool MCC_IsGCRunning() { return Heap::GetHeap().IsGcStarted(); }
 
 extern "C" bool MCC_DumpCJHeapData(int fd)
 {
@@ -343,6 +514,20 @@ extern "C" void CJ_MCC_SignalRaise(int sig)
 }
 extern "C" void CJ_MCC_AddSignalHandler(int signal, struct SignalAction* sa)
 {
+    if (signal == SIGABRT || signal == SIGILL) {
+        SignalStack::GetStacks()[signal].SetUserSigHandler(true);
+    }
+    // By default, block the SIGPIPE signal, and take no action on the SIGPIPE signal;
+    // when the user registers a handler, unblock the SIGPIPE signal,
+    // allowing the user to take action on the SIGPIPE signal.
+    if (signal == SIGPIPE) {
+        sigset_t set;
+        CHECK_SIGNAL_CALL(sigemptyset, (&set), "sigemptyset failed in AddHandlerToSignalStack");
+        CHECK_SIGNAL_CALL(sigaddset, (&set, SIGPIPE), "sigaddset failed in AddHandlerToSignalStack");
+        CHECK_SIGNAL_CALL(pthread_sigmask, (SIG_UNBLOCK, &set, nullptr),
+                          "pthread_sigmask failed in AddHandlerToSignalStack");
+    }
+
     AddHandlerToSignalStack(signal, sa);
 }
 extern "C" void CJ_MCC_RemoveSignalHandler(int signal, bool (*fn)(int, siginfo_t*, void*))
@@ -361,6 +546,12 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
     std::vector<uint64_t>& liteFrameInfos = eWrapper.GetLiteFrameInfos();
     liteFrameInfos.clear();
     StackManager::RecordLiteFrameInfos(liteFrameInfos);
+#if defined(__OHOS__) && (__OHOS__ == 1)
+    auto callback = ExceptionManager::GetExceptionCallback();
+    if (callback != nullptr) {
+        callback();
+    }
+#endif
     constexpr int frameInfoPairLen = 3; // function PC and startpc form one pair in liteFrameInfos
     if (eWrapper.IsThrowingSOFE()) {
         constexpr int defaultSize = 32;
@@ -381,10 +572,12 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
         sofSize *= frameInfoPairLen;
         // When a stack is folded, an additional element is added behind liteFrameInfos to record the folding.
         // At this time, the size of liteFrameInfos is changed to 3n+1.
-        if (sofSize > 0 && liteFrameInfos.size() > sofSize + coreOrFiltFuncSize + topFiltFrameSize) {
+        if (sofSize > 0 &&
+            liteFrameInfos.size() > static_cast<size_t>(sofSize + coreOrFiltFuncSize + topFiltFrameSize)) {
             liteFrameInfos.erase(liteFrameInfos.begin() + sofSize + coreOrFiltFuncSize, liteFrameInfos.end());
             liteFrameInfos.push_back(static_cast<uint64_t>(SofStackFlag::BOTTOM_FOLDED));
-        } else if (sofSize < 0 && liteFrameInfos.size() > coreOrFiltFuncSize + topFiltFrameSize - sofSize) {
+        } else if (sofSize < 0 &&
+                   liteFrameInfos.size() > static_cast<size_t>(coreOrFiltFuncSize + topFiltFrameSize - sofSize)) {
             sofSize -= topFiltFrameSize;
             liteFrameInfos.erase(liteFrameInfos.begin(), liteFrameInfos.end() + sofSize);
             liteFrameInfos.push_back(static_cast<uint64_t>(SofStackFlag::TOP_FOLDED));
@@ -420,6 +613,8 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
         DLOG(EXCEPTION, "BuildEHFrameInfo");
 #endif
+        VLOG(REPORT, "Fill in stack trace %s length %zu failed and throw OutOfMemoryError",
+            arrayInfo->GetName(), size);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray return nullptr");
         return nullptr;
     }
@@ -433,7 +628,10 @@ extern "C" StackTraceData MCC_DecodeStackTraceImpl(const uint64_t ip, const uint
                                                    const TypeInfo* charArray)
 {
     StackTraceElement stackTrace;
-    StackManager::GetStackTraceByLiteFrameInfo(ip, pc, funcDesc, stackTrace);
+    {
+        ScopedEnterSaferegion checkpoint(true);
+        StackManager::GetStackTraceByLiteFrameInfo(ip, pc, funcDesc, stackTrace);
+    }
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     DLOG(EXCEPTION, "get stack frame info");
     DLOG(EXCEPTION, "   framePc:0x%lx\t frameFuncStart:0x%lx", ip, pc);
@@ -451,6 +649,8 @@ extern "C" StackTraceData MCC_DecodeStackTraceImpl(const uint64_t ip, const uint
             std.className->SetPrimitiveElement(i, static_cast<int8_t>(stackTrace.className[i]));
         }
     } else {
+        VLOG(REPORT, "Decoding stack trace class name %s length %zu failed and throw OutOfMemoryError",
+            charArray->GetName(), stackTrace.className.Length());
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray return nullptr");
     }
 
@@ -461,6 +661,8 @@ extern "C" StackTraceData MCC_DecodeStackTraceImpl(const uint64_t ip, const uint
             std.fileName->SetPrimitiveElement(i, static_cast<int8_t>(stackTrace.fileName[i]));
         }
     } else {
+        VLOG(REPORT, "Decoding stack trace file name %s length %zu failed and throw OutOfMemoryError",
+            charArray->GetName(), stackTrace.fileName.Length());
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray return nullptr");
     }
 
@@ -472,6 +674,8 @@ extern "C" StackTraceData MCC_DecodeStackTraceImpl(const uint64_t ip, const uint
             std.methodName->SetPrimitiveElement(i, static_cast<int8_t>(stackTrace.methodName[i]));
         }
     } else {
+        VLOG(REPORT, "Decoding stack trace method name %s length %zu failed and throw OutOfMemoryError",
+            charArray->GetName(), stackTrace.methodName.Length());
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewKnownWidthArray return nullptr");
     }
 
@@ -550,7 +754,7 @@ static ArrayRef GetAllThreadSnapshot(const TypeInfo* arraySnapshot, const TypeIn
                                      const TypeInfo* charArray)
 {
     std::vector<std::unique_ptr<RecordStackInfo>> records;
-    MutatorManager::Instance().VisitAllMutators([&records](Mutator &mutator) {
+    MutatorManager::Instance().VisitAllMutatorsExceptFinalizer([&records](Mutator &mutator) {
         if (!mutator.IsVaildCJThread()) {
             return;
         }
@@ -603,7 +807,7 @@ static ArrayRef GetAllThreadSnapshot(const TypeInfo* arraySnapshot, const TypeIn
 }
 
 extern "C" ArrayRef MCC_GetAllThreadSnapshotImpl(const TypeInfo* arraySnapshot, const TypeInfo* arrayStackTrace,
-                                                const TypeInfo* charArray)
+                                                 const TypeInfo* charArray)
 {
     ScopedEnterSaferegion enterSaferegion(false);
     ArrayRef allRecords = nullptr;
@@ -621,6 +825,10 @@ extern "C" ThreadSnapshot MCC_GetCurrentThreadSnapshotImpl(const TypeInfo* array
     Mutator* mutator = Mutator::GetMutator();
     CHECK_DETAIL(mutator != nullptr, "Can not get mutator");
     CHECK_DETAIL(mutator->IsVaildCJThread(), "Get invalid mutator");
+    if (mutator->GetTid() == Heap::GetHeap().GetFinalizerProcessor().GetTid()) {
+        LOG(RTLOG_WARNING, "Current thread is an internal finalizer thread, not a user thread. "
+                           "Thread snapshot output may be difficult to interpret.");
+    }
     mutator->EnterSaferegion(true);
 
     uint32_t threadId = static_cast<uint32_t>(mutator->GetCJThreadId());
@@ -688,6 +896,23 @@ extern "C" void* MCC_AcquireRawData(const ArrayRef array, bool* isCopy)
     }
     (void)CJThreadPreemptOffCntAdd();
     ArrayRef pArray = PinArray(array);
+#if defined(GENERAL_ASAN_SUPPORT_INTERFACE)
+    auto* rawPtr = pArray->ConvertToCArray();
+    std::vector<uint64_t> frame;
+    StackManager::RecordLiteFrameInfos(frame, 4); // record 4 frames
+    size_t pos = pinnedArrayRecorder.RegisterBtInfo(rawPtr, Mutator::GetMutator(), frame);
+    DataClosure* dataClosure = new (NativeAllocator::NativeAlloc(sizeof(DataClosure))) DataClosure();
+    if (dataClosure != nullptr) {
+        dataClosure->rawPtr = rawPtr;
+        dataClosure->mutator = Mutator::GetMutator();
+        dataClosure->pos = pos;
+        auto timer = TimerNew(30ULL * SECOND_TO_NANO_SECOND, 0, &RawPtrCheckerTimerEntry,
+                              reinterpret_cast<void*>(dataClosure));
+        if (timer != nullptr) {
+            TimerRelease(timer);
+        }
+    }
+#endif
 #if defined(GENERAL_ASAN_SUPPORT_INTERFACE) || defined(CANGJIE_GWPASAN_SUPPORT)
     return Sanitizer::ArrayAcquireMemoryRegion(pArray, pArray->ConvertToCArray(), pArray->GetContentSize());
 #else
@@ -718,6 +943,11 @@ extern "C" void MCC_ReleaseRawData(ArrayRef array, void* rawPtr)
     // sanitizer will convert alias/colorized pointer to real pointer for runtime
     rawPtr = Sanitizer::ArrayReleaseMemoryRegion(array, rawPtr, array->GetContentSize());
 #endif
+#if defined(GENERAL_ASAN_SUPPORT_INTERFACE)
+    std::vector<uint64_t> frame;
+    StackManager::RecordLiteFrameInfos(frame, 4); // record 4 frames
+    pinnedArrayRecorder.RemoveBtInfo(rawPtr, Mutator::GetMutator(), frame);
+#endif
     auto regionInfo = RegionInfo::GetRegionInfoAt(reinterpret_cast<uintptr_t>(rawPtr));
     (void)regionInfo->DecRawPointerObjectCount();
     (void)CJThreadPreemptOffCntSub();
@@ -737,24 +967,25 @@ extern "C" void* MCC_LoadPackage(const char* path)
     if (path == nullptr || *path == '\0') {
         return reinterpret_cast<void*>(LOAD_FAIL);
     }
-    if (LoaderManager::GetInstance()->FileHasLoaded(path)) {
+    LoaderManager* loaderMgr = LoaderManager::GetInstance();
+    if (loaderMgr->FileHasLoaded(path)) {
         return reinterpret_cast<void*>(LOAD_FILENAME_REPEATED);
     }
     if (LoadCJLibrary(path) != E_OK) {
         return reinterpret_cast<void*>(LOAD_FAIL);
     }
-    if (LoaderManager::GetInstance()->GetPackageInfoByPath(path) == nullptr) {
-        LoaderManager::GetInstance()->RemovePackageInfo(path);
+    if (loaderMgr->GetPackageInfoByPath(path) == nullptr) {
+        loaderMgr->RemovePackageInfo(path);
         return reinterpret_cast<void*>(LOAD_PACKAGE_REPEATED);
     }
-    if (LoaderManager::GetInstance()->FileHasMultiPackage(path)) {
-        LoaderManager::GetInstance()->RemovePackageInfo(path);
+    if (loaderMgr->FileHasMultiPackage(path)) {
+        loaderMgr->RemovePackageInfo(path);
         return reinterpret_cast<void*>(HAS_MULTI_PACKAGE);
     }
     if (InitCJLibrary(path) != E_OK) {
         return reinterpret_cast<void*>(LOAD_FAIL);
     }
-    return LoaderManager::GetInstance()->GetPackageInfoByPath(path);
+    return loaderMgr->GetPackageInfoByPath(path);
 }
 
 extern "C" PackageInfo* MCC_GetPackageByQualifiedName(const char* packageName)
@@ -776,7 +1007,7 @@ extern "C" ObjectPtr MCC_GetSubPackages(PackageInfo* packageInfo, TypeInfo* arra
     LoaderManager::GetInstance()->GetSubPackages(packageInfo, subPackages);
     size_t subPkgCnt = subPackages.size();
     // Array<CPointer<Unit>> layout likes { Rarray<CPointer<Unit>>, Int64, Int64 }
-    TypeInfo* rawArrayTi = arrayTi->GetFieldTypeInfo(0); // 0: first field type RawArray<CPointer<Unit>>.ti
+    TypeInfo* rawArrayTi = arrayTi->GetFieldType(0); // 0: first field type RawArray<CPointer<Unit>>.ti
     ArrayRef rawArrayObj = ObjectManager::NewKnownWidthArray(subPkgCnt, rawArrayTi,
         ObjectManager::ArrayElemBits::ELEM_64B, AllocType::RAW_POINTER_OBJECT);
     for (size_t idx = 0; idx < subPkgCnt; ++idx) {
@@ -843,6 +1074,10 @@ extern "C" bool MCC_MethodEntryPointIsNull(MethodInfo* methodInfo) { return meth
 
 extern "C" void* MCC_ApplyCJInstanceMethod(MethodInfo* methodInfo, ObjRef obj, void* args)
 {
+    if (methodInfo == nullptr) {
+        DynamicMethodInfo mthInfo(obj);
+        return mthInfo.ApplyCangjieMethod(args);
+    }
     return methodInfo->ApplyCJMethod(obj, nullptr, args, nullptr);
 }
 
@@ -940,6 +1175,9 @@ static TypeInfo* GetActualTypeFromGenericType(GenericTypeInfo* genericTi, void* 
     CJArray* cjArray = static_cast<CJArray*>(args);
     TypeInfo** actualTypeInfos = reinterpret_cast<TypeInfo**>(&(cjArray->rawPtr->data));
     U64 len = genericTi->GetGenericArgsNum();
+    if (len == 0) {
+        return nullptr;
+    }
     void* mem = calloc(len, TYPEINFO_PTR_SIZE);
     CHECK_DETAIL(mem != nullptr, "GetActualTypeFromGenericType calloc failed");
     TypeInfo** typeInfos = static_cast<TypeInfo**>(mem);
@@ -951,7 +1189,8 @@ static TypeInfo* GetActualTypeFromGenericType(GenericTypeInfo* genericTi, void* 
             }
         }
     }
-    TypeInfo* ti = TypeInfoManager::GetTypeInfoManager().GetOrCreateTypeInfo(genericTi->GetSourceGeneric(), len, typeInfos);
+    TypeInfo* ti = TypeInfoManager::GetTypeInfoManager().GetOrCreateTypeInfo(
+        genericTi->GetSourceGeneric(), len, typeInfos);
     free(mem);
     mem = nullptr;
     return ti;
@@ -965,7 +1204,7 @@ static bool CheckGenericConstraint(GenericTypeInfo* genericTi, TypeInfo* ti, voi
             constraintTi =
                 GetActualTypeFromGenericType(reinterpret_cast<GenericTypeInfo*>(constraintTi), args, genericArgs);
         }
-        if (!ti->IsSubType(constraintTi)) {
+        if (constraintTi == nullptr || !ti->IsSubType(constraintTi)) {
             return false;
         }
     }
@@ -979,6 +1218,9 @@ extern "C" TypeInfo* MCC_GetOrCreateTypeInfoForReflect(TypeTemplate* tt, void* a
     }
     CJArray* cjArray = static_cast<CJArray*>(args);
     U64 len = cjArray->rawPtr->len;
+    if (len == 0) {
+        return nullptr;
+    }
 
     if (tt->IsRawArray() || tt->IsVArray() || tt->IsCPointer()) {
         if (len != 1) {
@@ -993,6 +1235,7 @@ extern "C" TypeInfo* MCC_GetOrCreateTypeInfoForReflect(TypeTemplate* tt, void* a
     Uptr base = reinterpret_cast<Uptr>(&(cjArray->rawPtr->data));
     void* mem = calloc(len, TYPEINFO_PTR_SIZE);
     TypeInfo** typeInfos = static_cast<TypeInfo**>(mem);
+    CHECK_DETAIL(mem != nullptr, "MCC_GetOrCreateTypeInfoForReflect calloc failed");
     GenericTypeInfo* genericArgs = reinterpret_cast<GenericTypeInfo*>(
         tt->GetReflectInfo()->GetDeclaringGenericTypeInfo());
     for (U64 idx = 0; idx < len; ++idx) {
@@ -1022,7 +1265,226 @@ extern "C" bool MCC_IsPrimitive(TypeInfo* ti) { return ti->IsPrimitiveType(); }
 
 extern "C" bool MCC_IsGeneric(TypeInfo* ti) { return ti->IsGeneric(); }
 
+extern "C" bool MCC_IsEnum(TypeInfo* ti) { return ti->IsEnum() || ti->IsTempEnum(); }
+
+extern "C" bool MCC_IsFunction(TypeInfo* ti)
+{
+    if (ti->IsFunc()) {
+        return true;
+    }
+    auto super = ti->GetSuperTypeInfo();
+    if (super == nullptr) {
+        return false;
+    }
+    return super->IsFunc();
+}
+
+extern "C" bool MCC_IsTuple(TypeInfo* ti) { return ti->IsTuple(); }
+
 extern "C" bool MCC_IsReflectUnsupportedType(TypeInfo* ti) { return ti->IsReflectUnsupportedType(); }
+
+// reflect support enum
+extern "C" U32 MCC_GetNumOfEnumConstructorInfos(TypeInfo* ti)
+{
+    if (!ti->IsEnum() && !ti->IsTempEnum()) {
+        return 0;
+    }
+    return ti->GetNumOfEnumCtor();
+}
+
+extern "C" EnumCtorInfo* MCC_GetEnumConstructorInfo(TypeInfo* ti, U32 idx)
+{
+    return ti->GetEnumCtor(idx);
+}
+
+extern "C" const char* MCC_GetEnumConstructorName(EnumCtorInfo* ti)
+{
+    return ti->GetName();
+}
+
+extern "C" EnumCtorInfo* MCC_GetEnumConstructorInfoFromAny(ObjRef obj)
+{
+    TypeInfo* ti = obj->GetTypeInfo();
+    if (!ti->IsEnum() && !ti->IsTempEnum()) {
+        return nullptr;
+    }
+    EnumInfo* enumInfo = ti->GetEnumInfo();
+    if (ti->IsEnumCtor()) {
+        enumInfo = ti->GetSuperTypeInfo()->GetEnumInfo();
+    }
+
+    I32 tag = FieldInitializer::GetEnumTag(obj, ti);
+    return enumInfo->GetEnumCtor(tag);
+}
+
+extern "C" bool MCC_IsBox(TypeInfo* ti)
+{
+    return ti->IsBoxClass();
+}
+
+extern "C" TypeInfo** MCC_GetTypeArgs(TypeInfo* ti)
+{
+    return ti->GetTypeArgs();
+}
+
+// reflect support function
+extern "C" U32 MCC_GetNumOfFunctionSignatureTypes(TypeInfo* funcTi)
+{
+    TypeInfo* ti = nullptr;
+    auto super = funcTi->GetSuperTypeInfo();
+    if (funcTi->IsFunc()) {
+        ti = funcTi;
+    } else if (super != nullptr && super->IsFunc()) {
+        ti = super;
+    } else {
+        return 0;
+    }
+
+    // Now, `super` both are Closure type.
+    // Get function type from Closure type, i.e., typeArgs[0]:
+    TypeInfo* funcType = ti->GetTypeArgs()[0];
+    U16 typeArgNum = funcType->GetTypeArgNum();
+
+    return typeArgNum;
+}
+
+extern "C" TypeInfo** MCC_GetFunctionSignatureTypes(TypeInfo* funcTi)
+{
+    TypeInfo* ti = nullptr;
+    auto super = funcTi->GetSuperTypeInfo();
+    if (funcTi->IsFunc()) {
+        ti = funcTi;
+    } else if (super != nullptr && super->IsFunc()) {
+        ti = super;
+    } else {
+        return nullptr;
+    }
+
+    // Now, `super` both are Closure type.
+    // Get function type from Closure type, i.e., typeArgs[0]:
+    TypeInfo* funcType = ti->GetTypeArgs()[0];
+
+    TypeInfo** params = funcType->GetTypeArgs();
+    return params;
+}
+
+// for tuple
+extern "C" U32 MCC_GetNumOfFieldTypes(TypeInfo* ti)
+{
+    U32 num = ti->GetFieldNum();
+    if ((ti->IsEnum() || ti->IsTempEnum()) && !ti->IsZeroSizedEnum()) {
+        if (ti->IsOptionLikeUnassociatedCtor()) {
+            return num - 2;
+        }
+        return num - 1;
+    }
+    return num;
+}
+
+extern "C" TypeInfo** MCC_GetFieldTypes(TypeInfo* ti)
+{
+    TypeInfo** fieldTypes = ti->GetFieldTypes();
+    if ((ti->IsEnum() || ti->IsTempEnum()) && !ti->IsZeroSizedEnum()) {
+        if (ti->IsOptionLikeUnassociatedCtor()) {
+            return nullptr;
+        }
+        return fieldTypes + 1;
+    }
+    return fieldTypes;
+}
+
+// MCC_NewAndInitEnumTupleObject - Creates and initializes objects for enum and tuple types
+// This function is specifically designed to handle object creation for:
+// 1. Enum types (including temporary enums)
+// 2. Tuple types
+extern "C" ObjRef MCC_NewAndInitEnumTupleObject(TypeInfo* ti, void* args)
+{
+    if (args == nullptr) {
+        return nullptr;
+    }
+    MSize size = MRT_ALIGN(ti->GetInstanceSize() + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+    ObjRef obj = nullptr;
+
+    // Need set tag for enum and temp enum.
+    if (ti->IsEnum() || ti->IsTempEnum()) {
+        obj = FieldInitializer::CreateEnumObject(ti, size);
+    } else if (ti->IsTuple()) {
+        obj = ObjectManager::NewObject(ti, size, AllocType::RAW_POINTER_OBJECT);
+        if (obj == nullptr) {
+            VLOG(REPORT, "MCC_NewAndInitEnumTupleObject new tuple object failed and throw OutOfMemoryError");
+            ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewObject return nullptr");
+        }
+    } else {
+        LOG(RTLOG_FATAL, "MCC_NewAndInitEnumTupleObject: unsupported type %s", ti->GetName());
+    }
+
+    if (obj == nullptr) {
+        VLOG(REPORT, "Allocating object %s (%zu B) failed and throw OutOfMemoryError",
+             ti->GetName(), size);
+        ExceptionManager::CheckAndThrowPendingException("MCC_NewAndInitEnumTupleObject: Object creation failed");
+        return nullptr;
+    }
+
+    // Parse fields from args and store them into obj.
+    FieldInitializer::SetFieldFromArgs(obj, ti, args);
+    AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
+    if (buffer != nullptr) {
+        buffer->CommitRawPointerRegions();
+    }
+    return obj;
+}
+
+extern "C" ObjRef MCC_GetAssociatedValues(ObjRef obj, TypeInfo* arrayTi)
+{
+    TypeInfo* ti = obj->GetTypeInfo();
+    U16 fieldNum = ti->GetFieldNum();
+    // For enum and temp enum, fields include the tag,
+    // but the tag is not part of associated values.
+    if (ti->IsEnum() || ti->IsTempEnum()) {
+        if (!ti->IsEnumCtor()) {
+            // The object's TypeInfo(ti) is the enum's TypeInfo.
+            // Read the tag, and get constructor's TypeInfo based on the tag.
+            EnumInfo* enumInfo = ti->GetEnumInfo();
+            I32 tag = FieldInitializer::GetEnumTag(obj, ti);
+            ti = enumInfo->GetCtorTypeInfo(tag);
+            fieldNum = ti->GetFieldNum();
+        }
+        if (!ti->IsZeroSizedEnum()) {
+            if (ti->IsOptionLikeUnassociatedCtor()) {
+                fieldNum -= 2;
+            } else {
+                fieldNum -= 1;
+            }
+        }
+    }
+
+    TypeInfo* rawArrayTi = arrayTi->GetFieldType(0);
+    ArrayRef array = ObjectManager::NewArray(fieldNum, rawArrayTi, AllocType::RAW_POINTER_OBJECT);
+    if (array == nullptr) {
+        VLOG(REPORT, "MCC_GetAssociatedValues new array failed and throw OutOfMemoryError");
+        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewArray return nullptr");
+    }
+    // Extract fields from obj and put them into array.
+    FieldInitializer::SetElementFromObject(array, obj, ti, fieldNum);
+
+    U32 size = arrayTi->GetInstanceSize();
+    MSize arrayObjSize = MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+    ObjRef arrayObj = ObjectManager::NewObject(arrayTi, arrayObjSize, AllocType::RAW_POINTER_OBJECT);
+    if (arrayObj == nullptr) {
+        VLOG(REPORT, "MCC_GetAssociatedValues new object failed and throw OutOfMemoryError");
+        ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewObject return nullptr");
+    }
+    Heap::GetBarrier().WriteReference(
+        arrayObj, arrayObj->GetRefField(TYPEINFO_PTR_SIZE), static_cast<BaseObject*>(array));
+    CJArray* cjArray = reinterpret_cast<CJArray*>(reinterpret_cast<Uptr>(arrayObj) + TYPEINFO_PTR_SIZE);
+    cjArray->start = 0;
+    cjArray->length = fieldNum;
+    AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
+    if (buffer != nullptr) {
+        buffer->CommitRawPointerRegions();
+    }
+    return arrayObj;
+}
 
 // @deprecated
 extern "C" U32 MCC_GetQualifiedNameLength(TypeInfo* ti) { return 0; }
@@ -1147,16 +1609,19 @@ extern "C" void* MCC_GetParameterAnnotations(ParameterInfo* parameterInfo, TypeI
     return parameterInfo->GetAnnotations(arrayTi);
 }
 
-extern "C" ObjectPtr CJ_MCC_ReadRefField(ObjectPtr obj, RefField<false>* field)
+extern "C" ObjectPtr CJ_MCC_ReadRefField(const ObjectPtr obj, RefField<false>* field)
 {
-    return Heap::GetHeap().GetBarrier().ReadReference(obj, *field);
+    if (IsGlobalStruct(obj, reinterpret_cast<MAddress>(field))) {
+        return Heap::GetBarrier().ReadStaticRef(*field);
+    }
+    return Heap::GetBarrier().ReadReference(obj, *field);
 }
 
-extern "C" ObjectPtr CJ_MCC_ReadWeakRef(ObjectPtr obj, RefField<false>* field)
+extern "C" ObjectPtr CJ_MCC_ReadWeakRef(const ObjectPtr obj, RefField<false>* field)
 {
-    return Heap::GetHeap().GetBarrier().ReadWeakRef(obj, *field);
+    return Heap::GetBarrier().ReadWeakRef(obj, *field);
 }
-extern "C" void CJ_MCC_ReadStructField(MAddress dstPtr, ObjectPtr obj, MAddress srcField, size_t size)
+extern "C" void CJ_MCC_ReadStructField(MAddress dstPtr, ObjectPtr obj, MAddress srcField, size_t size, GCTib gctib)
 {
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     if (Heap::IsHeapAddress((void*)dstPtr)) {
@@ -1166,15 +1631,19 @@ extern "C" void CJ_MCC_ReadStructField(MAddress dstPtr, ObjectPtr obj, MAddress 
     if (size == 0) {
         return;
     }
-    Heap::GetHeap().GetBarrier().ReadStruct(dstPtr, obj, srcField, size);
+    if (IsGlobalStruct(obj, srcField)) {
+        Heap::GetBarrier().ReadStaticStruct(dstPtr, srcField, size, gctib);
+        return;
+    }
+    Heap::GetBarrier().ReadStruct(dstPtr, obj, srcField, size);
 }
 extern "C" ObjectPtr CJ_MCC_ReadStaticRef(RefField<false>* field)
 {
-    return Heap::GetHeap().GetBarrier().ReadStaticRef(*field);
+    return Heap::GetBarrier().ReadStaticRef(*field);
 }
 extern "C" void CJ_MCC_ReadStaticStruct(MAddress dstPtr, size_t dstSize, MAddress srcPtr, size_t srcSize, GCTib gctib)
 {
-    Heap::GetHeap().GetBarrier().ReadStaticStruct(dstPtr, srcPtr, dstSize, gctib);
+    Heap::GetBarrier().ReadStaticStruct(dstPtr, srcPtr, dstSize, gctib);
 }
 extern "C" void* MCC_GetTypeInfoAnnotations(TypeInfo* cls, TypeInfo* arrayTi) { return cls->GetAnnotations(arrayTi); }
 
@@ -1192,7 +1661,7 @@ extern "C" bool CJ_MCC_IsSubType(TypeInfo* typeInfo, TypeInfo* superTypeInfo)
     if (typeInfo == superTypeInfo) {
         return true;
     }
-    
+
     bool isSub = typeInfo->IsSubType(superTypeInfo);
     return isSub;
 }
@@ -1213,13 +1682,16 @@ static bool IsTupleTypeOf(ObjectPtr obj, TypeInfo* typeInfo, TypeInfo* targetTyp
     if (ti == nullptr) {
         LOG(RTLOG_FATAL, "IsTupleTypeOf: get typeInfo failed");
     }
+    if (ti->GetUUID() == targetTypeInfo->GetUUID()) {
+        return true;
+    }
     if (ti->GetFieldNum() != targetTypeInfo->GetFieldNum()) {
         return false;
     }
     for (U16 idx = 0; idx < ti->GetFieldNum(); ++idx) {
         TypeInfo* fieldTypeInfo = ti->GetFieldType(idx);
         TypeInfo* fieldTargetTI = targetTypeInfo->GetFieldType(idx);
-        U32 offset = ti->GetFieldOffsets(idx) + base;
+        U32 offset = ti->GetFieldOffset(idx) + base;
         ObjectPtr curObj = nullptr;
         if (fieldTargetTI->IsRef()) {
             if (!fieldTypeInfo->IsClass() && !fieldTypeInfo->IsInterface()) {
@@ -1304,6 +1776,25 @@ extern "C" void CJ_MCC_ReadGeneric(const ObjectPtr dstPtr, ObjectPtr obj, void* 
     if (size == 0) {
         return;
     }
+    if (IsGlobalStruct(obj, reinterpret_cast<MAddress>(fieldPtr))) {
+        constexpr size_t stackCache = 256;
+        if (size < stackCache) {
+            char stackMem[stackCache]{ 0 };
+            Heap::GetBarrier().ReadStaticStruct(reinterpret_cast<MAddress>(stackMem),
+                reinterpret_cast<MAddress>(fieldPtr), size, dstPtr->GetGCTib());
+            Heap::GetBarrier().ReadGeneric(dstPtr, nullptr, stackMem, size);
+            return;
+        } else {
+            char* nativeHeapMem = (char*)malloc(size);
+            CHECK_DETAIL(nativeHeapMem != nullptr, "malloc failed when read generic %p -> %p(%p) size %zu",
+                         dstPtr, obj, fieldPtr, size);
+            Heap::GetBarrier().ReadStaticStruct(reinterpret_cast<MAddress>(nativeHeapMem),
+                reinterpret_cast<MAddress>(fieldPtr), size, dstPtr->GetGCTib());
+            Heap::GetBarrier().ReadGeneric(dstPtr, nullptr, nativeHeapMem, size);
+            free(nativeHeapMem);
+            return;
+        }
+    }
     Heap::GetBarrier().ReadGeneric(dstPtr, obj, fieldPtr, size);
 }
 
@@ -1319,13 +1810,16 @@ extern "C" TypeInfo* CJ_MCC_GetMethodOuterTI(TypeInfo* ti, TypeInfo* itf, U64 in
 
 extern "C" void CJ_MCC_UpdateVMT(TypeInfo* ti, TypeInfo* itf, ExtensionData* extensionData)
 {
-    return ti->TryUpdateExtensionData(itf, extensionData);
+    if (UNLIKELY(!extensionData->IsFuncTableUpdated())) {
+        return ti->TryUpdateExtensionData(itf, extensionData);
+    }
 }
 
 extern "C" ObjRef MCC_NewGenericObject(const TypeInfo* klass, MSize size)
 {
     ObjRef obj = ObjectManager::NewObject(klass, size);
     if (obj == nullptr) {
+        VLOG(REPORT, "Allocation generic object %s (%zu B) failed and throw OutOfMemoryError", klass->GetName(), size);
         ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewObject return nullptr");
     }
     return obj;
@@ -1394,6 +1888,8 @@ extern "C" ArrayRef MCC_NewArrayGeneric(const TypeInfo* arrayInfo, MIndex nElems
             break;
     }
     if (array == nullptr) {
+        VLOG(REPORT, "Allocation generic array %s length %zu failed and throw OutOfMemoryError",
+             arrayInfo->GetName(), nElems);
         ExceptionManager::CheckAndThrowPendingException("NewArrayGeneric return nullptr");
     }
     return array;
@@ -1492,6 +1988,30 @@ void CJ_MCC_RemoveExportedRef(U64 id)
     Heap::GetHeap().RemoveExportObject(id);
 }
 
+// Object memory layout for CJ_MCC_GetJSLambdaAddr obj parameter:
+// struct AutoEnvObj {
+//     TypeInfo* ti;             // [0:TYPEINFO_PTR_SIZE] - object header
+//     uintptr_t func1;          // [TYPEINFO_PTR_SIZE], universal function
+//     uintptr_t func2;          // [TYPEINFO_PTR_SIZE+8], no generic parameter closure exists, the variable exists
+//     ObjectPtr realAutoEnvObj; // [TYPEINFO_PTR_SIZE+16] - for wrapper classes
+// };
+
+extern "C" uintptr_t CJ_MCC_GetJSLambdaAddr(const ObjectPtr obj)
+{
+    ObjectPtr currentObj = obj;
+    // offset of realAutoEnvObj in instance data (func1: 8 bytes + func2: 8 bytes)
+    constexpr size_t realAutoEnvObjOffset = 16;
+
+    // Loop to check if it's a wrapper class, if so, get realAutoEnvObj until finding a non-wrapper class
+    while (MCC_IsWrapperClassForAutoEnv(currentObj->GetTypeInfo())) {
+        currentObj = Heap::GetBarrier().ReadReference(currentObj,
+            currentObj->GetRefField(TYPEINFO_PTR_SIZE + realAutoEnvObjOffset));
+    }
+
+    // Access func1 directly from currentObj
+    uintptr_t func1 = *reinterpret_cast<uintptr_t*>(reinterpret_cast<Uptr>(currentObj) + TYPEINFO_PTR_SIZE);
+    return func1;
+}
 
 #if defined(__OHOS__)
 void* ARKTS_CreateEngine = nullptr;
@@ -1543,10 +2063,13 @@ extern "C" void* CJ_MRT_ARKTS_CreateEngine()
     }
     RegisterArkVMInRuntime(arkVm);
     RegisterStackInfoCallbacks(((UpdateStackInfoFunc)ARKTS_UpdateStackInfo));
-    if (!IsForeignThread()) {
-        UpdateArkVMStackInfo(arkVm);
-    }
+
     return res;
+}
+
+extern "C" void CJ_MRT_RegisterExceptionCallback(void(*callback)())
+{
+    ExceptionManager::RegisterExceptionCallback(callback);
 }
 #endif
 } // namespace MapleRuntime

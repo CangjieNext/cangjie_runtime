@@ -7,6 +7,7 @@ public enum ExplicitGcType <: ToString {
     | Disabled
     | Light
     | Heavy
+    | Auto
 }
 ```
 
@@ -38,7 +39,15 @@ Function: [std.runtime.GC](../../runtime/runtime_package_api/runtime_package_fun
 Light
 ```
 
-Function: [std.runtime.GC](../../runtime/runtime_package_api/runtime_package_funcs.md#func-gcbool)(heavy: false) will be explicitly invoked by the framework during Benchmark function execution. This is the default setting.
+Function: [std.runtime.GC](../../runtime/runtime_package_api/runtime_package_funcs.md#func-gcbool)(heavy: false) will be explicitly invoked by the framework during Benchmark function execution.
+
+### Auto
+
+```cangjie
+Auto
+```
+
+Function: GC will be invoked by the framework during Benchmark function execution, and the strategy is choosed by framework. This is the default setting.
 
 ### func toString()
 
@@ -48,9 +57,85 @@ public func toString(): String
 
 Function: String representation of the three different [GC](../../runtime/runtime_package_api/runtime_package_funcs.md#func-gcbool) execution modes.
 
-Return Value:
+Returns:
 
 - [String](../../../std_en/core/core_package_api/core_package_structs.md#struct-string) - String representation of the three different GC execution modes.
+
+Example:
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+import std.unittest.testmacro.*
+import std.time.*
+import std.runtime.*
+import std.collection.*
+
+var counter: Float64 = 0.0
+var prevGC = 0
+var o = Object()
+
+class TestNoGcRunning <: Measurement {
+    static var callCounter = 0
+    let result: Float64 = 0.0
+
+    public func setup() {
+        @Assert(!isGCRunning())
+    }
+
+    public func measure(): Float64 {
+        counter
+    }
+}
+
+@Test
+@Configure[explicitGC: Light]
+class BenchGCLight {
+    @BeforeAll
+    func before() {
+        prevGC = getGCCount()
+    } 
+
+    @Bench
+    func foo() {
+        for (i in 0..1000000) {
+            o = ArrayList<Int64>(8)
+        }
+        counter += 1.0
+    }
+
+    @AfterAll
+    func after() {
+        let diff = getGCCount() - prevGC
+        @Assert(diff >= 35) 
+        @Assert(diff <= 60)
+    }
+}
+
+@Test
+@Configure[explicitGC: Heavy]
+class BenchGCWait {
+    @BeforeAll
+    func before() {
+        prevGC = getGCCount()
+    } 
+
+    @Bench
+    func foo() {
+        for (i in 0..1000000) {
+            o = ArrayList<Int64>(8)
+        }
+        counter += 1.0
+    }
+
+    @AfterAll
+    func after() {
+        let diff = getGCCount() - prevGC
+        @Assert(diff >= 45)
+    }
+}
+
+```
 
 ## enum TimeUnit
 
@@ -105,9 +190,44 @@ public func toString(): String
 
 Function: Converts time to string representation.
 
-Return Value:
+Returns:
 
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - String composed of four different time representations.
+
+Example:
+
+<!-- run -->
+```cangjie
+import std.time.*
+import std.sync.*
+
+@Test
+@Measure[TimeNow(TimeUnit.Micros)]
+class Test_Configure_Running_Case_01 {
+    var count1 = AtomicInt64(0)
+    var count2 = AtomicInt64(0)
+
+    @AfterAll
+    func afterAll(): Unit {
+        @Assert(count1.load() >= 26)
+        @Assert(count2.load() >= 101)
+    }
+
+    @Bench
+    func case01(): Unit {
+        sleep(0.95 * Duration.millisecond)
+        count1.fetchAdd(1)
+    }
+
+    @Bench
+    @Configure[batchSize: 10, minBatches: 10]
+    func case02(): Unit {
+        sleep(0.25 * Duration.millisecond)
+        count2.fetchAdd(1)
+    }
+}
+
+```
 
 ## enum PerfCounter
 
@@ -141,6 +261,50 @@ For detailed information about specific CPU counters, refer to the documentation
 Parent Type:
 
 - [ToString](../../core/core_package_api/core_package_interfaces.md#interface-tostring)
+
+Example:
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+import std.unittest.testmacro.*
+import std.time.*
+
+var counter: Float64 = 0.0
+
+let perf0 = Perf(PerfCounter.HW_CPU_CYCLES)
+let perf1 = Perf(PerfCounter.HW_INSTRUCTIONS)
+let perf2 = Perf(PerfCounter.HW_CACHE_REFERENCES)
+let perf3 = Perf(PerfCounter.HW_CACHE_MISSES)
+let perf4 = Perf(PerfCounter.HW_BRANCH_INSTRUCTIONS)
+let perf5 = Perf(PerfCounter.HW_BRANCH_MISSES)
+let perf6 = Perf(PerfCounter.HW_BUS_CYCLES)
+let perf8 = Perf(PerfCounter.HW_STALLED_CYCLES_BACKEND)
+let perf9 = Perf(PerfCounter.HW_REF_CPU_CYCLES)
+let perf10 = Perf(PerfCounter.SW_CPU_CLOCK)
+let perf11 = Perf(PerfCounter.SW_TASK_CLOCK)
+let perf12 = Perf(PerfCounter.SW_PAGE_FAULTS)
+let perf13 = Perf(PerfCounter.SW_CONTEXT_SWITCHES)
+let perf14 = Perf(PerfCounter.SW_CPU_MIGRATIONS)
+let perf15 = Perf(PerfCounter.SW_PAGE_FAULTS_MIN)
+let perf16 = Perf(PerfCounter.SW_PAGE_FAULTS_MAJ)
+let perf17 = Perf(PerfCounter.SW_EMULATION_FAULTS)
+
+@Test
+@Measure[perf0, perf1, perf2, perf3, perf4, perf5, perf6, perf8, perf9, perf10, perf11, perf12, perf13, perf14, perf15, perf16, perf17]
+class Test_CPU_01 {
+    @BeforeEach
+    func beforeEach() {
+        counter = 0.0
+    }
+    
+    @Bench
+    func foo() {
+        counter += 1.0
+    }
+}
+
+```
 
 ### HW_CPU_CYCLES
 
@@ -294,6 +458,6 @@ public func toString(): String
 
 Function: Converts counter to string representation.
 
-Return Value:
+Returns:
 
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - String representation of the processor counter.

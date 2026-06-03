@@ -46,12 +46,15 @@ public class PackageInfo <: Equatable<PackageInfo> & Hashable & ToString {
 
     // Return a specified packageInfo from the loaded dynamic module
     public static func get(qualifiedName: String): PackageInfo {
+        if (qualifiedName.contains("/")) {
+            throw InfoNotFoundException("TypeInfo '${qualifiedName}' not found.")
+        }
         synchronized(mutex) {
             if (let Some(info) <- qualifiedNameMap.get(qualifiedName)) {
                 return info
             }
-
-            let cname = unsafe { LibC.mallocCString(qualifiedName) }
+            let replacedName = qualifiedName.replace("::", "/")
+            let cname = unsafe { LibC.mallocCString(replacedName) }
             var infoPointer = CPointer<Unit>()
             try {
                 infoPointer = getPackageByQualifiedName(cname.getChars())
@@ -140,6 +143,16 @@ public class PackageInfo <: Equatable<PackageInfo> & Hashable & ToString {
         }
     }
 
+    public prop organizationName: String {
+        get() {
+            if (let Some(index) <- qualifiedName.indexOf("::")) {
+                qualifiedName[..index]
+            } else {
+                ""
+            }
+        }
+    }
+
     prop noPublicInfos: ArrayList<TypeInfo> {
         get() {
             _noPublicInfoList
@@ -214,9 +227,9 @@ public class PackageInfo <: Equatable<PackageInfo> & Hashable & ToString {
 
             HashMap<String, PackageInfo>(infos.size) {
                 idx =>
-                let info = PackageInfo(infos[idx])
-                qualifiedNameMap.add(info.qualifiedName, info)
-                (info.qualifiedName, info)
+                    let info = PackageInfo(infos[idx])
+                    qualifiedNameMap.add(info.qualifiedName, info)
+                    (info.qualifiedName, info)
             }
         }
     }
@@ -340,12 +353,12 @@ public class PackageInfo <: Equatable<PackageInfo> & Hashable & ToString {
         fns.toArray()
     }
 
-    public operator func ==(that: PackageInfo): Bool {
-        this.hashCode() == that.hashCode()
+    public operator func ==(other: PackageInfo): Bool {
+        this.hashCode() == other.hashCode()
     }
 
-    public operator func !=(that: PackageInfo): Bool {
-        this.hashCode() != that.hashCode()
+    public operator func !=(other: PackageInfo): Bool {
+        this.hashCode() != other.hashCode()
     }
 
     public func hashCode(): Int64 {

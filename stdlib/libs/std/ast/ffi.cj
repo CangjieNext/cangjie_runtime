@@ -31,7 +31,7 @@ foreign {
 
     func CJ_AST_ParseAnnotationArguments(tokensBytes: CPointer<UInt8>): CPointer<ParseRes>
 
-    func CJ_AST_Lex(fptr: CPointer<Unit>, code: CString): CPointer<UInt8>
+    func CJ_AST_Lex(fptr: CPointer<Unit>, code: CString, codeLen: Int64): CPointer<ParseRes>
 
     func CJ_CheckParentContext(fptr: CPointer<Unit>, parent: CString, report: Bool): Bool
 
@@ -168,6 +168,9 @@ func genNodeFormatNode(pNode: CPointer<UInt8>, pTokensBytes: CPointer<UInt8>) {
 }
 
 func getTokensFromBytes(pTokenArray: CPointer<UInt8>): Tokens {
+    if (pTokenArray.isNull()) {
+        throw IllegalArgumentException("Token array is null.\n")
+    }
     var length: Int64 = Int64(getInt32FromUnsafePointer(pTokenArray))
     if (length <= 0) {
         throw IllegalArgumentException("Negative or zero length.\n")
@@ -201,17 +204,27 @@ public func cangjieLex(code: String, truncated: Bool): Tokens {
     if (let Some(macroObjPtr) <- MACRO_OBJECT.get()) {
         fPtr = macroObjPtr
     }
-    var pTokenArray: CPointer<UInt8> = unsafe { CJ_AST_Lex(fPtr, pCode) }
-    if (pTokenArray.isNull()) {
-        unsafe { LibC.free(pCode) }
-        throw IllegalMemoryException("malloc failed.")
-    }
-    let tokens: Tokens = try {
-        getTokensFromBytes(pTokenArray)
-    } finally {
-        unsafe {
-            LibC.free(pTokenArray)
+    let tokens = unsafe {
+        let lexResultRaw: CPointer<ParseRes> = CJ_AST_Lex(fPtr, pCode, code.size)
+        if (lexResultRaw.isNull()) {
             LibC.free(pCode)
+            throw IllegalMemoryException("Unable to get lexResult.")
+        }
+        let pTokens = lexResultRaw.read().node
+        let pErrorMsg = lexResultRaw.read().errMsg
+        try {
+            if (!pErrorMsg.isNull()) {
+                let errorMsg = pErrorMsg.toString()
+                if (errorMsg.size > 0) {
+                    throw IllegalArgumentException(errorMsg)
+                }
+            }
+            getTokensFromBytes(pTokens)
+        } finally {
+            LibC.free(pCode)
+            LibC.free(lexResultRaw)
+            LibC.free(pErrorMsg)
+            LibC.free(pTokens)
         }
     }
     if (!truncated) {

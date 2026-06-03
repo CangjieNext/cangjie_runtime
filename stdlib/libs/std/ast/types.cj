@@ -47,6 +47,7 @@ public open class TypeNode <: Node {
     }
     public open func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
         return
     }
 
@@ -100,6 +101,7 @@ public class PrimitiveType <: TypeNode {
 
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
         return
     }
 
@@ -215,6 +217,7 @@ public class RefType <: TypeNode {
 
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
         if (v.needBreakTraverse()) {
             return
         }
@@ -362,6 +365,7 @@ public class QualifiedType <: TypeNode {
 
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
         if (v.needBreakTraverse()) {
             return
         }
@@ -454,6 +458,7 @@ public class ParenType <: TypeNode {
 
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
         if (v.needBreakTraverse()) {
             return
         }
@@ -552,6 +557,7 @@ public class TupleType <: TypeNode {
 
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
         if (v.needBreakTraverse()) {
             return
         }
@@ -621,6 +627,7 @@ public class ThisType <: TypeNode {
 
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
         return
     }
 
@@ -687,6 +694,7 @@ public class PrefixType <: TypeNode {
 
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
         if (v.needBreakTraverse()) {
             return
         }
@@ -837,6 +845,7 @@ public class FuncType <: TypeNode {
 
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
         if (v.needBreakTraverse()) {
             return
         }
@@ -975,6 +984,7 @@ public class VArrayType <: TypeNode {
 
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
         if (v.needBreakTraverse()) {
             return
         }

@@ -25,7 +25,7 @@ func dumpAllThreadsInfo(): RawArray<ThreadSnapshotInfo>
 func dumpCurrentThreadInfo(): ThreadSnapshotInfo
 
 @FastNative
-foreign func CJ_MRT_SetCJThreadName(handle: CPointer<Unit>, name: CPointer<UInt8>, len: Int64): Unit
+foreign func CJ_MRT_SetCJThreadName(handle: CPointer<Unit>, name: CPointer<UInt8>, len: UIntNative): Unit
 
 @FastNative
 foreign func CJ_MRT_GetCJThreadId(handle: CPointer<Unit>): Int64
@@ -186,6 +186,7 @@ public class ThreadSnapshot <: ToString {
 
 public class Thread {
     static let exceptionHandler = AtomicBox<Option<(Thread, Exception) -> Unit>>(None)
+    static let errorHandler = AtomicBox<Option<(Error) -> Unit>>(None)
 
     private let _name = AtomicBox<String>("")
     private let _hasCancellation = AtomicBool(false)
@@ -317,11 +318,11 @@ public class Thread {
         set(newName) {
             _name.store(newName)
             // Assign the name to the underlying CJ thread if possible.
-            let handle = unsafe { acquireArrayRawData(name.rawData()) }
+            let handle = unsafe { acquireArrayRawData(newName.rawData()) }
             let rtCJThreadHandle = acquireCJThreadHandle()
             if (!rtCJThreadHandle.isNull()) {
                 unsafe {
-                    CJ_MRT_SetCJThreadName(rtCJThreadHandle, handle.pointer, name.size)
+                    CJ_MRT_SetCJThreadName(rtCJThreadHandle, handle.pointer, UIntNative(newName.size))
                 }
                 releaseCJThreadHandle()
             }
@@ -346,6 +347,11 @@ public class Thread {
     public static func handleUncaughtExceptionBy(exHandler: (Thread, Exception) -> Unit): Unit {
         Thread.exceptionHandler.store(exHandler)
     }
+
+    @When[env != "ohos"]
+    public static func handleUncaughtErrorBy(erHandler: (Error) -> Unit): Unit {
+        Thread.errorHandler.store(erHandler)
+    }
     
     /**
      * Get thread state
@@ -357,11 +363,12 @@ public class Thread {
      */
     public prop state: ThreadState {
         get() {
-            let handle = _rtCJThreadHandle
+            let handle = acquireCJThreadHandle()
             if (handle.isNull()) {
                 return ThreadState.Terminated
             }
             let state = unsafe { CJ_MRT_GetCJThreadState(handle) }
+            releaseCJThreadHandle()
 
             return ThreadState.parse(state)
         }

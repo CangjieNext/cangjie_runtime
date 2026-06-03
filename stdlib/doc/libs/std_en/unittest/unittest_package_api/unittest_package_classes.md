@@ -50,7 +50,7 @@ Parameters:
 
 - key: [String](../../core/core_package_api/core_package_structs.md#struct-string) - The identifier in the function parameter list.
 
-Return Value:
+Returns:
 
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - The string representation of the parameter value corresponding to the identifier.
 
@@ -122,6 +122,83 @@ public class Benchmark {}
 
 Function: This class provides methods for creating and running individual performance test cases.
 
+Example:
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+
+main() {
+    let conf = Configuration()
+    conf.set(KeyWarmup.warmup, Duration.Zero)
+    conf.set(KeyMinDuration.minDuration, Duration.nanosecond)
+    let bench = Benchmark.create("ordinary", configuration: conf, body: {=>})
+
+    println("Running ${bench.name}...") // Prints: Running ordinary...
+    bench.run().reportTo(ConsoleReporter())
+    let parametrized = Benchmark.createParameterized(
+        "parametrized",
+        [1, 2, 3],
+        configuration: conf,
+        body: {_ =>}
+    )
+
+    println("Running ${parametrized.name}...")
+    parametrized.run().reportTo(ConsoleReporter())
+}
+```
+
+Possible output:
+
+```text
+Running ordinary...
+Starting the benchmark `TestCase_ordinary.ordinary()`.
+    Warming up for 0 ns.
+    Starting measurements of 10 batches. Measuring Duration.
+    Max batch size: 1, estimated execution time: 5.670 us.
+
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 275407 ns, RESULT:
+    TCS: TestCase_ordinary, time elapsed: 270977 ns, RESULT:
+    | Case     | Median |    Err |   Err% |   Mean |
+    |:---------|-------:|-------:|-------:|-------:|
+    | ordinary |   0 ns |  ±0 ns |  ±0.0% |   0 ns |
+    [ PASSED ] CASE: ordinary (48166 ns)
+Summary: TOTAL: 1
+    PASSED: 1, SKIPPED: 0, ERROR: 0
+    FAILED: 0
+--------------------------------------------------------------------------------------------------
+Running parametrized...
+Starting the benchmark `TestCase_parametrized.parametrized(1)`.
+    Warming up for 0 ns.
+    Starting measurements of 10 batches. Measuring Duration.
+    Max batch size: 1, estimated execution time: 13.42 us.
+
+Starting the benchmark `TestCase_parametrized.parametrized(2)`.
+    Warming up for 0 ns.
+    Starting measurements of 10 batches. Measuring Duration.
+    Max batch size: 1, estimated execution time: 11.85 us.
+
+Starting the benchmark `TestCase_parametrized.parametrized(3)`.
+    Warming up for 0 ns.
+    Starting measurements of 10 batches. Measuring Duration.
+    Max batch size: 1, estimated execution time: 0.910 us.
+
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 202400 ns, RESULT:
+    TCS: TestCase_parametrized, time elapsed: 198092 ns, RESULT:
+    | Case         | Args   | Median |       Err |   Err% |     Mean |
+    |:-------------|:-------|-------:|----------:|-------:|---------:|
+    | parametrized | 1      |   0 ns | ±206.0 ns |  ±inf% | 112.9 ns |
+    | parametrized | 2      |   0 ns | ±35.23 ns |  ±inf% | 7.549 ns |
+    | parametrized | 3      |   0 ns | ±46.55 ns |  ±inf% | 25.53 ns |
+    [ PASSED ] CASE: parametrized (13302 ns)
+Summary: TOTAL: 1
+    PASSED: 1, SKIPPED: 0, ERROR: 0
+    FAILED: 0
+--------------------------------------------------------------------------------------------------
+```
+
 ### prop name
 
 ```cangjie
@@ -140,7 +217,7 @@ public func run(): BenchReport
 
 Function: Runs the performance test case.
 
-Return Value:
+Returns:
 
 - [BenchReport](#class-benchreport) - The execution result report.
 
@@ -164,7 +241,7 @@ Parameters:
 - measurement: [Measurement](unittest_package_interfaces.md#interface-measurement) - The measurement method information.
 - body: () -> Unit - The test case execution body.
 
-Return Value:
+Returns:
 
 - [Benchmark](#class-benchmark) - The performance test case object.
 
@@ -190,7 +267,7 @@ Parameters:
 - measurement!: [Measurement](unittest_package_interfaces.md#interface-measurement) - The measurement method information.
 - body: () -> Unit - The test case execution body.
 
-Return Value:
+Returns:
 
 - [Benchmark](#class-benchmark) - The performance test case object.
 
@@ -216,7 +293,7 @@ Parameters:
 - measurement: [Measurement](unittest_package_interfaces.md#interface-measurement) - The measurement method information.
 - body: () -> Unit - The test case execution body.
 
-Return Value:
+Returns:
 
 - [Benchmark](#class-benchmark) - The performance test case object.
 
@@ -232,6 +309,37 @@ Parent Type:
 
 - [Report](#class-report)
 
+Example:
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+import std.unittest.testmacro.*
+import std.time.*
+import std.sync.*
+
+foreign func usleep(arg: UIntNative): UIntNative
+
+@Test
+class FooTest {
+    @Bench[x in [ 1 ]]
+    @Configure[minDuration: Duration.second]
+    func testSleep(x: Int64): Unit {
+        unsafe { usleep(30000) }
+    }
+}
+
+main() {
+    let startTime = DateTime.now()
+    let report: BenchReport = FooTest().asTestSuite().runBenchmarks()
+    let duration = DateTime.now() - startTime
+    report.reportTo(ConsoleReporter(colored: false))
+
+    let results = report.reportTo(RawStatsReporter())["testSleep1"]
+    @Assert(results[0] < 50_000000.0 && results[0] > 25_000000.0)
+}
+```
+
 ### func reportTo\<T>(Reporter\<BenchReport, T>)
 
 ```cangjie
@@ -244,7 +352,7 @@ Parameters:
 
 - reporter: [Reporter](#class-report)\<[BenchReport](#class-benchreport), T> - The performance test case result report.
 
-Return Value:
+Returns:
 
 - T: The return value of the print operation. Typically of type Unit.
 
@@ -290,6 +398,38 @@ Parent Types:
 - [Reporter](unittest_package_interfaces.md#interface-reporter)\<[TestReport](#class-testreport), [Unit](../../core/core_package_api/core_package_intrinsics.md#unit)>
 - [Reporter](unittest_package_interfaces.md#interface-reporter)\<[BenchReport](#class-benchreport), [Unit](../../core/core_package_api/core_package_intrinsics.md#unit)>
 
+Example:
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+import std.unittest.testmacro.*
+
+main() {
+    let testCase = UnitTestCase.create("testCase", body: {
+        => @Fail("failing test")
+    })
+    let report = testCase.run()
+    report.reportTo(ConsoleReporter())
+}
+```
+
+Possible output:
+
+```text
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 323478 ns, RESULT:
+    TCS: TestCase_testCase, time elapsed: 317308 ns, RESULT:
+    [ FAILED ] CASE: testCase (53267 ns)
+    Assert Failed: `(failing test)`
+
+Summary: TOTAL: 1
+    PASSED: 0, SKIPPED: 0, ERROR: 0
+    FAILED: 1, listed below:
+            TCS: TestCase_testCase, CASE: testCase
+--------------------------------------------------------------------------------------------------
+```
+
 ### ConsoleReporter(Bool)
 
 ```cangjie
@@ -317,6 +457,41 @@ Parent Types:
 - [Reporter](unittest_package_interfaces.md#interface-reporter)\<[TestReport](#class-testreport), PP>
 - [Reporter](unittest_package_interfaces.md#interface-reporter)\<[BenchReport](#class-benchreport), PP>
 
+Example:
+
+<!-- run -->
+```cangjie
+import std.unittest.common.*
+import std.unittest.*
+import std.unittest.testmacro.*
+
+main() {
+    let testCase = UnitTestCase.create("testCase", body: {
+        => @Fail("failing test")
+    })
+    let report = testCase.run()
+    let pp = PrettyText()
+    report.reportTo(TextReporter(into: pp))
+    println(pp.toString())
+}
+```
+
+Possible output:
+
+```text
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 331021 ns, RESULT:
+    TCS: TestCase_testCase, time elapsed: 322025 ns, RESULT:
+    [ FAILED ] CASE: testCase (41768 ns)
+    Assert Failed: `(failing test)`
+
+Summary: TOTAL: 1
+    PASSED: 0, SKIPPED: 0, ERROR: 0
+    FAILED: 1, listed below:
+            TCS: TestCase_testCase, CASE: testCase
+--------------------------------------------------------------------------------------------------
+```
+
 ### TextReporter(PP)
 
 ```cangjie
@@ -343,6 +518,36 @@ Parent Type:
 
 - [Reporter](unittest_package_interfaces.md#interface-reporter)\<[BenchReport](#class-benchreport), [Unit](../../core/core_package_api/core_package_intrinsics.md#unit)>
 
+Example:
+
+<!-- run -->
+```cangjie
+import std.fs.*
+import std.unittest.*
+
+main() {
+    let conf = Configuration()
+    conf.set(KeyWarmup.warmup, Duration.Zero)
+    conf.set(KeyMinDuration.minDuration, Duration.nanosecond)
+    let bench = Benchmark.create("bench", configuration: conf, body: {=>})
+    bench.run().reportTo(CsvReporter(Path(".")))
+    let report = File.readFrom("./benchmarks/bench-default.TestCase_bench.csv") |> String.fromUtf8
+    println(report)
+}
+```
+
+Possible output:
+
+```text
+Starting the benchmark `TestCase_bench.bench()`.
+    Warming up for 0 ns.
+    Starting measurements of 10 batches. Measuring Duration.
+    Max batch size: 1, estimated execution time: 6.000 us.
+
+Case,Args,Median,Err,Err%,Mean,Unit,Measurement
+"bench",,"0.000000","38.153846","inf","7.576368","ns","Duration"
+```
+
 ### CsvReporter(Path)
 
 ```cangjie
@@ -368,6 +573,56 @@ Function: Prints performance test case result data containing only raw measureme
 Parent Type:
 
 - [Reporter](unittest_package_interfaces.md#interface-reporter)\<[BenchReport](#class-benchreport), [Unit](../../core/core_package_api/core_package_intrinsics.md#unit)>
+
+Example:
+
+<!-- run -->
+```cangjie
+import std.fs.*
+import std.unittest.*
+
+main() {
+    let conf = Configuration()
+    conf.set(KeyWarmup.warmup, Duration.Zero)
+    conf.set(KeyMinDuration.minDuration, Duration.nanosecond)
+    let bench = Benchmark.create("bench", configuration: conf, body: {=>})
+    bench.run().reportTo(CsvRawReporter(Path(".")))
+    let report = File.readFrom("./benchmarks/bench-default.TestCase_bench.csv") |> String.fromUtf8
+    println(report)
+}
+```
+
+Possible output:
+
+```text
+Starting the benchmark `TestCase_bench.bench()`.
+    Warming up for 0 ns.
+    Starting measurements of 10 batches. Measuring Duration.
+    Max batch size: 1, estimated execution time: 7.330 us.
+
+Case,Args,BatchSize,Duration,Unit,Measurement
+"bench",,"1","256.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+"bench",,"1","0.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+"bench",,"1","256.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+"bench",,"1","0.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+"bench",,"1","0.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+"bench",,"1","0.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+"bench",,"1","0.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+"bench",,"1","0.000000","ns","Duration"
+"bench",,"0","256.000000","ns","Duration"
+"bench",,"1","0.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+"bench",,"1","0.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+"bench",,"0","0.000000","ns","Duration"
+```
 
 ### CsvRawReporter(Path)
 
@@ -397,7 +652,9 @@ protected prop isInfinite: Bool
 
 Function: Gets whether this strategy is infinite.
 
-Type: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool).### func intoBenchmark(String, Configuration, (T, Int64, Int64) -> Float64)
+Type: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool).
+
+### func intoBenchmark(String, Configuration, (T, Int64, Int64) -> Float64)
 
 ```cangjie
 public func intoBenchmark(
@@ -415,7 +672,7 @@ Parameters:
 - configuration!: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - Configuration information.
 - doRun!: (T, Int64, Int64) -> Float64 - Performance test case execution body.
 
-Return Value:
+Returns:
 
 - [Benchmark](#class-benchmark) - Performance test case object.
 
@@ -437,7 +694,7 @@ Parameters:
 - configuration!: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - Configuration information.
 - doRun!: (T) -> Unit - Test case execution body.
 
-Return Value:
+Returns:
 
 - [UnitTestCase](#class-unittestcase) - Test case object.
 
@@ -449,7 +706,7 @@ protected func lastItemInfo(): Array<InputParameter>
 
 Function: Retrieves information about the last processed item.
 
-Return Value:
+Returns:
 
 - Array\<[InputParameter](./unittest_package_classes.md#class-inputparameter)> - Information about the last processed item.
 
@@ -465,7 +722,7 @@ Parameters:
 
 - configuration: [Configuration](./../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - Processing strategy configuration information.
 
-Return Value:
+Returns:
 
 - T - The last processed item.
 
@@ -481,7 +738,7 @@ Parameters:
 
 - configuration: [Configuration](./../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - Processing strategy configuration information.
 
-Return Value:
+Returns:
 
 - [Iterable](../../core/core_package_api/core_package_interfaces.md#interface-iterablee)\<T> - Data iterator.
 
@@ -498,7 +755,7 @@ Parameters:
 - configuration: [Configuration](./../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - Configuration information.
 - engine: [LazyCyclicNode](./unittest_package_classes.md#class-lazycyclicnode) - Lazy node.
 
-Return Value:
+Returns:
 
 - [Iterable](../../core/core_package_api/core_package_interfaces.md#interface-iterablee)\<T> - Shrunk data iterator.
 
@@ -515,7 +772,7 @@ Parameters:
 - s: [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt)\<T> - Data strategy.
 - name: [String](../../core/core_package_api/core_package_structs.md#struct-string) - Test case name.
 
-Return Value:
+Returns:
 
 - [SimpleProcessor\<T>](#class-simpleprocessort) - Test case processor.
 
@@ -535,7 +792,7 @@ Parameters:
 - s: () -> [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt)\<U> - Closure that generates a data strategy.
 - name: [String](../../core/core_package_api/core_package_structs.md#struct-string) - Test case name.
 
-Return Value:
+Returns:
 
 - [DataStrategyProcessor](#class-datastrategyprocessort)\<T> - Data strategy processor.
 
@@ -557,7 +814,7 @@ Parameters:
 - name: [String](../../core/core_package_api/core_package_structs.md#struct-string) - Test case name.
 - x!: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - Additional parameter added for refactoring to achieve different return values.
 
-Return Value:
+Returns:
 
 - [SimpleProcessor\<T>](#class-simpleprocessort) - Test case processor.
 
@@ -574,7 +831,7 @@ Parameters:
 - s: () -> [DataStrategyProcessor](#class-datastrategyprocessort)\<T> - Closure that generates a data strategy processor.
 - _: [String](../../core/core_package_api/core_package_structs.md#struct-string) - Test case name.
 
-Return Value:
+Returns:
 
 - [DataStrategyProcessor](#class-datastrategyprocessort)\<T> - Data strategy processor.
 
@@ -596,7 +853,7 @@ Parameters:
 - name: [String](../../core/core_package_api/core_package_structs.md#struct-string) - Test case name.
 - x!: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - Additional parameter added for refactoring to achieve different return values.
 
-Return Value:
+Returns:
 
 - [DataStrategyProcessor](#class-datastrategyprocessort)\<U> where U <: [BenchInputProvider](./unittest_package_interfaces.md#interface-benchinputprovidert)\<T> - Data strategy processor.
 
@@ -618,7 +875,7 @@ Parameters:
 
 - f: (T) -> R - Additional processing logic function to be applied.
 
-Return Value:
+Returns:
 
 - [MapProcessor\<T, R>](#class-mapprocessortr) - Processor after applying `f`.
 
@@ -634,7 +891,7 @@ Parameters:
 
 - f: (T, Configuration) -> R - Additional processing logic function to be applied.
 
-Return Value:
+Returns:
 
 - [MapProcessor\<T, R>](#class-mapprocessortr) - Processor after applying `f`.
 
@@ -650,7 +907,7 @@ Parameters:
 
 - f: (T) -> [DataProvider](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-dataprovidert)\<R> - Additional processing logic function to be applied.
 
-Return Value:
+Returns:
 
 - [FlatMapProcessor\<T, R>](#class-flatmapprocessortr) - Processor after applying `f`.
 
@@ -666,7 +923,7 @@ Parameters:
 
 - f: (T) -> [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt)\<R> - Additional processing logic function to be applied.
 
-Return Value:
+Returns:
 
 - [FlatMapStrategyProcessor\<T, R>](#class-flatmapstrategyprocessortr) - Processor after applying `f`.
 
@@ -684,7 +941,7 @@ Parameters:
 
 - p: [DataStrategyProcessor](#class-datastrategyprocessort)\<R> - Data strategy processor.
 
-Return Value:
+Returns:
 
 - [CartesianProductProcessor\<T, R>](#class-cartesianproductprocessort0t1) - Cartesian product processor.
 
@@ -700,7 +957,7 @@ Parameters:
 
 - p: [P](#class-datastrategyprocessort) - Data strategy processor.
 
-Return Value:
+Returns:
 
 - [MapProcessor\<(T, Unit),T>](../unittest_package_api/unittest_package_classes.md#class-mapprocessortr) - Processor.
 
@@ -752,7 +1009,7 @@ protected open func advance(): ?Unit
 
 Function: Advances one value.
 
-Return Value:
+Returns:
 
 - ?Unit - Returns None when unable to advance, otherwise returns Unit.
 
@@ -816,7 +1073,7 @@ Parameters:
 - exprAsText: [String](../../core/core_package_api/core_package_structs.md#struct-string) - Expression string.
 - position: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - Position information.
 
-Return Value:
+Returns:
 
 - T - Recorded data.
 
@@ -838,7 +1095,7 @@ Parameters:
 - exprAsText: [String](../../core/core_package_api/core_package_structs.md#struct-string) - Expression string.
 - position: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - Position information.
 
-Return Value:
+Returns:
 
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - Recorded data.
 
@@ -860,7 +1117,7 @@ Parameters:
 - exprAsText: [String](../../core/core_package_api/core_package_structs.md#struct-string) - Expression string.
 - position: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - Position information.
 
-Return Value:
+Returns:
 
 - [Rune](../../core/core_package_api/core_package_structs.md#struct-string) - Recorded data.
 
@@ -892,13 +1149,47 @@ Function: Returns a success result when the test case passes; throws an exceptio
 
 Parameters:
 
-- passed: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether the test case passed.## class Report
+- passed: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether the test case passed.
+
+## class Report
 
 ```cangjie
-abstract sealed class Report {}
+sealed abstract class Report {}
 ```
 
 Function: Base class for printing test case result reports.
+
+Example:
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+import std.unittest.testmacro.*
+
+main() {
+    let suite = TestSuite
+        .builder("tests")
+        .add(UnitTestCase.create("case1", body: {=> @Fail("failing case")}))
+        .add(UnitTestCase.create("case2", body: {=> @Assert(1 + 2, 3)}))
+        .build()
+    let report = suite.runTests()
+    println("Cases: ${report.caseCount}")
+    println("Skipped: ${report.skippedCount}")
+    println("Passed: ${report.passedCount}")
+    println("Errors: ${report.errorCount}")
+    println("Failed: ${report.failedCount}")
+}
+```
+
+Possible output:
+
+```text
+Cases: 2
+Skipped: 0
+Passed: 1
+Errors: 0
+Failed: 1
+```
 
 ### prop errorCount
 
@@ -1007,6 +1298,68 @@ public class TestGroup {}
 
 Function: Provides methods for building and running test groups.
 
+Example:
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+import std.unittest.testmacro.*
+
+main() {
+    let suite1 = TestSuite
+        .builder("tests")
+        .add(UnitTestCase.create("case1", body: {=> @Fail("failing case")}))
+        .add(UnitTestCase.create("case2", body: {=> @Assert(1 + 2, 3)}))
+        .build()
+    let suite2 = TestSuite.builder("benchmarks").add(Benchmark.create("bench", body: {=>})).build()
+    let group = TestGroup.builder("group").add(suite1).add(suite2).build()
+
+    println("Running ${group.name}...")
+    group.runTests().reportTo(ConsoleReporter())
+
+    let conf = Configuration()
+    conf.set(KeyWarmup.warmup, Duration.Zero)
+    conf.set(KeyMinDuration.minDuration, Duration.nanosecond)
+    group.runBenchmarks(conf).reportTo(ConsoleReporter())
+}
+```
+
+Possible output:
+
+```text
+Running group...
+--------------------------------------------------------------------------------------------------
+TP: group, time elapsed: 298091 ns, RESULT:
+    TCS: tests, time elapsed: 290964 ns, RESULT:
+    [ PASSED ] CASE: case2 (8340 ns)
+    [ FAILED ] CASE: case1 (35797 ns)
+    Assert Failed: `(failing case)`
+
+    TCS: benchmarks, No test functions found
+Summary: TOTAL: 2
+    PASSED: 1, SKIPPED: 0, ERROR: 0
+    FAILED: 1, listed below:
+            TCS: tests, CASE: case1
+--------------------------------------------------------------------------------------------------
+Starting the benchmark `benchmarks.bench()`.
+    Warming up for 0 ns.
+    Starting measurements of 10 batches. Measuring Duration.
+    Max batch size: 1, estimated execution time: 6.410 us.
+
+--------------------------------------------------------------------------------------------------
+TP: group, time elapsed: 83094 ns, RESULT:
+    TCS: tests, No test functions found
+    TCS: benchmarks, time elapsed: 77760 ns, RESULT:
+    | Case   | Median |    Err |   Err% |   Mean |
+    |:-------|-------:|-------:|-------:|-------:|
+    | bench  |   0 ns |  ±0 ns |  ±0.0% |   0 ns |
+    [ PASSED ] CASE: bench (2716 ns)
+Summary: TOTAL: 1
+    PASSED: 1, SKIPPED: 0, ERROR: 0
+    FAILED: 0
+--------------------------------------------------------------------------------------------------
+```
+
 ### prop name
 
 ```cangjie
@@ -1025,7 +1378,7 @@ public func runBenchmarks(): BenchReport
 
 Function: Runs all benchmark test cases.
 
-Return Value:
+Returns:
 
 - [BenchReport](#class-benchreport) - Benchmark test case report.
 
@@ -1041,7 +1394,7 @@ Parameters:
 
 - configuration: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - Runtime configuration.
 
-Return Value:
+Returns:
 
 - [BenchReport](#class-benchreport) - Benchmark test case report.
 
@@ -1053,7 +1406,7 @@ public func runTests(): TestReport
 
 Function: Executes all unit test cases.
 
-Return Value:
+Returns:
 
 - [TestReport](#class-testreport) - Unit test case report.
 
@@ -1069,7 +1422,7 @@ Parameters:
 
 - configuration: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - Runtime configuration.
 
-Return Value:
+Returns:
 
 - [TestReport](#class-testreport) - Unit test case report.
 
@@ -1085,7 +1438,7 @@ Parameters:
 
 - name: [String](../../core/core_package_api/core_package_structs.md#struct-string) - Test group name.
 
-Return Value:
+Returns:
 
 - [TestGroupBuilder](#class-testgroupbuilder) - Test group builder.
 
@@ -1101,7 +1454,7 @@ Parameters:
 
 - group: [TestGroup](#class-testgroup) - Test group.
 
-Return Value:
+Returns:
 
 - [TestGroupBuilder](#class-testgroupbuilder) - Test group builder.
 
@@ -1112,6 +1465,8 @@ public class TestGroupBuilder {}
 ```
 
 Function: Builder that provides methods for configuring test groups.
+
+See example: [TestGroup](#class-testgroup).
 
 ### func add(Benchmark)
 
@@ -1125,7 +1480,7 @@ Parameters:
 
 - benchmark: [Benchmark](#class-benchmark) - Benchmark test case.
 
-Return Value:
+Returns:
 
 - [TestGroupBuilder](#class-testgroupbuilder) - Test group builder.
 
@@ -1141,7 +1496,7 @@ Parameters:
 
 - suite: [TestSuite](#class-testsuite) - Test suite.
 
-Return Value:
+Returns:
 
 - [TestGroupBuilder](#class-testgroupbuilder) - Test group builder.
 
@@ -1157,7 +1512,7 @@ Parameters:
 
 - test: [UnitTestCase](#class-unittestcase) - Unit test case.
 
-Return Value:
+Returns:
 
 - [TestGroupBuilder](#class-testgroupbuilder) - Test group builder.
 
@@ -1169,7 +1524,7 @@ public func build(): TestGroup
 
 Function: Builds the test group object after configuration.
 
-Return Value:
+Returns:
 
 - [TestGroup](#class-testgroup) - Test group.
 
@@ -1185,7 +1540,7 @@ Parameters:
 
 - configuration: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - Configuration information.
 
-Return Value:
+Returns:
 
 - [TestGroupBuilder](#class-testgroupbuilder) - Test group builder.
 
@@ -1201,7 +1556,7 @@ Parameters:
 
 - name: [String](../../core/core_package_api/core_package_structs.md#struct-string) - Name.
 
-Return Value:
+Returns:
 
 - [TestGroupBuilder](#class-testgroupbuilder) - Test group builder.
 
@@ -1295,15 +1650,96 @@ Parameters:
 
 - reporter: [Reporter](#class-report)\<[TestReport](#class-testreport), T> - Unit test report printer.
 
-Return Value:
+Returns:
 
-- T - Print return value, typically Unit.## class TestSuite
+- T - Print return value, typically Unit.
+ 
+## class TestSuite
 
 ```cangjie
 public class TestSuite {}
 ```
 
 Purpose: Provides a class for constructing and executing test suites.
+
+Example:
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+import std.unittest.testmacro.*
+
+main() {
+    let template = TestSuite
+        .builder("template")
+        .beforeEach({=> println("Starting case!")})
+        .afterEach({name => println("Finished with ${name}")})
+        .build()
+    let suite = TestSuite
+        .builder("suite")
+        .template(template)
+        .add(UnitTestCase.create("case1", body: {=> @Fail("failing case")}))
+        .add(UnitTestCase.create("case2", body: {=> @Assert(1 + 2, 3)}))
+        .add(Benchmark.create("bench", body: {=>}))
+        .beforeAll({=> println("All tests are about to run!")})
+        .afterAll({=> println("All tests are finished!")})
+        .build()
+
+    println("Running tests from ${suite.name}...")
+    suite.runTests().reportTo(ConsoleReporter())
+
+    println("Running benchmarks from ${suite.name}...")
+    let conf = Configuration()
+    conf.set(KeyWarmup.warmup, Duration.Zero)
+    conf.set(KeyMinDuration.minDuration, Duration.nanosecond)
+    suite.runBenchmarks(conf).reportTo(ConsoleReporter())
+}
+```
+
+Possible output:
+
+```text
+Running tests from suite...
+All tests are about to run!
+Starting case!
+Finished with case1
+Starting case!
+Finished with case2
+All tests are finished!
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 349990 ns, RESULT:
+    TCS: suite, time elapsed: 344021 ns, RESULT:
+    [ PASSED ] CASE: case2 (10200 ns)
+    [ FAILED ] CASE: case1 (38423 ns)
+    Assert Failed: `(failing case)`
+
+Summary: TOTAL: 2
+    PASSED: 1, SKIPPED: 0, ERROR: 0
+    FAILED: 1, listed below:
+            TCS: suite, CASE: case1
+--------------------------------------------------------------------------------------------------
+Running benchmarks from suite...
+All tests are about to run!
+Starting case!
+Starting the benchmark `suite.bench()`.
+    Warming up for 0 ns.
+    Starting measurements of 10 batches. Measuring Duration.
+    Max batch size: 1, estimated execution time: 15.33 us.
+
+Finished with bench
+All tests are finished!
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 107250 ns, RESULT:
+    TCS: suite, time elapsed: 106224 ns, RESULT:
+    | Case   | Median |       Err |   Err% |     Mean |
+    |:-------|-------:|----------:|-------:|---------:|
+    | bench  |   0 ns | ±42.67 ns |  ±inf% | 15.50 ns |
+    [ PASSED ] CASE: bench (5316 ns)
+Summary: TOTAL: 1
+    PASSED: 1, SKIPPED: 0, ERROR: 0
+    FAILED: 0
+--------------------------------------------------------------------------------------------------
+```
 
 ### prop name
 
@@ -1323,7 +1759,7 @@ public func runBenchmarks(): BenchReport
 
 Purpose: Runs all benchmark test cases.
 
-Return value:
+Returns:
 
 - [BenchReport](#class-benchreport) - Benchmark test execution results.
 
@@ -1339,7 +1775,7 @@ Parameters:
 
 - configuration: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - Execution configuration.
 
-Return value:
+Returns:
 
 - [BenchReport](#class-benchreport) - Benchmark test execution results.
 
@@ -1351,7 +1787,7 @@ public func runTests(): TestReport
 
 Purpose: Executes the test suite.
 
-Return value:
+Returns:
 
 - [TestReport](#class-testreport) - Test suite execution results.
 
@@ -1367,7 +1803,7 @@ Parameters:
 
 - configuration: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - Execution configuration.
 
-Return value:
+Returns:
 
 - [TestReport](#class-testreport) - Test suite execution results.
 
@@ -1383,7 +1819,7 @@ Parameters:
 
 - name: [String](../../core/core_package_api/core_package_structs.md#struct-string) - Test suite name.
 
-Return value:
+Returns:
 
 - [TestSuiteBuilder](#class-testsuitebuilder) - Test suite builder.
 
@@ -1399,7 +1835,7 @@ Parameters:
 
 - suite: [TestSuite](#class-testsuite) - Test suite.
 
-Return value:
+Returns:
 
 - [TestSuiteBuilder](#class-testsuitebuilder) - Test suite builder.
 
@@ -1410,6 +1846,8 @@ public class TestSuiteBuilder {}
 ```
 
 Purpose: Provides a test suite builder for configuring test suite methods.
+
+See example: [TestSuite](#class-testsuite).
 
 ### func add(Benchmark)
 
@@ -1423,7 +1861,7 @@ Parameters:
 
 - benchmark: [Benchmark](#class-benchmark) - Benchmark test case.
 
-Return value:
+Returns:
 
 - [TestSuiteBuilder](#class-testsuitebuilder) - Test suite builder.
 
@@ -1439,7 +1877,7 @@ Parameters:
 
 - test: [UnitTestCase](#class-unittestcase) - Unit test case.
 
-Return value:
+Returns:
 
 - [TestSuiteBuilder](#class-testsuitebuilder) - Test suite builder.
 
@@ -1455,7 +1893,7 @@ Parameters:
 
 - body: () -> Unit - Execution body.
 
-Return value:
+Returns:
 
 - [TestSuiteBuilder](#class-testsuitebuilder) - Test suite builder.
 
@@ -1471,7 +1909,7 @@ Parameters:
 
 - body: () -> Unit - Execution body.
 
-Return value:
+Returns:
 
 - [TestSuiteBuilder](#class-testsuitebuilder) - Test suite builder.
 
@@ -1487,7 +1925,7 @@ Parameters:
 
 - body: (String) -> Unit - Execution body.
 
-Return value:
+Returns:
 
 - [TestSuiteBuilder](#class-testsuitebuilder) - Test suite builder.
 
@@ -1503,7 +1941,7 @@ Parameters:
 
 - body: () -> Unit - Execution body.
 
-Return value:
+Returns:
 
 - [TestSuiteBuilder](#class-testsuitebuilder) - Test suite builder.
 
@@ -1519,7 +1957,7 @@ Parameters:
 
 - body: () -> Unit - Execution body.
 
-Return value:
+Returns:
 
 - [TestSuiteBuilder](#class-testsuitebuilder) - Test suite builder.
 
@@ -1535,7 +1973,7 @@ Parameters:
 
 - body: (String) -> Unit - Execution body.
 
-Return value:
+Returns:
 
 - [TestSuiteBuilder](#class-testsuitebuilder) - Test suite builder.
 
@@ -1551,7 +1989,7 @@ Parameters:
 
 - template: TestSuite - The test suite to use as template.
 
-Return value:
+Returns:
 
 - [TestSuiteBuilder](#class-testsuitebuilder) - Test suite builder.
 
@@ -1563,7 +2001,7 @@ public func build(): TestSuite
 
 Purpose: Constructs the test suite after configuration.
 
-Return value:
+Returns:
 
 - [TestSuite](#class-testsuite) - The test suite.
 
@@ -1579,7 +2017,7 @@ Parameters:
 
 - configuration: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - Test configuration.
 
-Return value:
+Returns:
 
 - [TestSuiteBuilder](#class-testsuitebuilder) - Test suite builder.
 
@@ -1595,7 +2033,7 @@ Parameters:
 
 - name: [String](../../core/core_package_api/core_package_structs.md#struct-string) - Test suite name.
 
-Return value:
+Returns:
 
 - [TestSuiteBuilder](#class-testsuitebuilder) - Test suite builder.
 
@@ -1606,6 +2044,57 @@ public class UnitTestCase {}
 ```
 
 Purpose: Provides methods for creating and executing unit test cases.
+
+Example:
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+import std.unittest.testmacro.*
+
+main() {
+    let testCase = UnitTestCase.create("ordinary", body: {
+        => @Fail("failing test")
+    })
+
+    println("Running ${testCase.name}...")
+    testCase.run().reportTo(ConsoleReporter())
+    let parametrizedTestCase = UnitTestCase.createParameterized(
+        "parametrized",
+        [1, 2, 3],
+        body: {x => @Assert(1 <= x && x <= 3)}
+    )
+
+    println("Running ${parametrizedTestCase.name}...")
+    parametrizedTestCase.run().reportTo(ConsoleReporter())
+}
+```
+
+Possible output:
+
+```text
+Running ordinary...
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 294492 ns, RESULT:
+    TCS: TestCase_ordinary, time elapsed: 289499 ns, RESULT:
+    [ FAILED ] CASE: ordinary (35884 ns)
+    Assert Failed: `(failing test)`
+
+Summary: TOTAL: 1
+    PASSED: 0, SKIPPED: 0, ERROR: 0
+    FAILED: 1, listed below:
+            TCS: TestCase_ordinary, CASE: ordinary
+--------------------------------------------------------------------------------------------------
+Running parametrized...
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 113318 ns, RESULT:
+    TCS: TestCase_parametrized, time elapsed: 111489 ns, RESULT:
+    [ PASSED ] CASE: parametrized (21603 ns)
+Summary: TOTAL: 1
+    PASSED: 1, SKIPPED: 0, ERROR: 0
+    FAILED: 0
+--------------------------------------------------------------------------------------------------
+```
 
 ### prop name
 
@@ -1625,7 +2114,7 @@ public func run(): TestReport
 
 Purpose: Executes the unit test case.
 
-Return value:
+Returns:
 
 - [TestReport](#class-testreport) - Unit test execution report.
 
@@ -1647,7 +2136,7 @@ Parameters:
 - configuration!: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - Test case configuration.
 - body!: () -> Unit - Test case execution body.
 
-Return value:
+Returns:
 
 - [UnitTestCase](#class-unittestcase) - Unit test case object.
 
@@ -1671,7 +2160,7 @@ Parameters:
 - configuration!: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - Test case configuration.
 - body!: () -> Unit - Test case execution body.
 
-Return value:
+Returns:
 
 - [UnitTestCase](#class-unittestcase) - Unit test case object.
 
@@ -1695,9 +2184,11 @@ Parameters:
 - configuration!: [Configuration](../../unittest_common/unittest_common_package_api/unittest_common_package_classes.md#class-configuration) - Test case configuration.
 - body!: () -> Unit - Test case execution body.
 
-Return value:
+Returns:
 
-- [UnitTestCase](#class-unittestcase) - Unit test case object.## class XmlReporter
+- [UnitTestCase](#class-unittestcase) - Unit test case object.
+ 
+## class XmlReporter
 
 ```cangjie
 public class XmlReporter <: Reporter<TestReport, Unit> {
@@ -1710,6 +2201,47 @@ Function: Outputs unit test case result data to XML files.
 Parent Types:
 
 - [Reporter](unittest_package_interfaces.md#interface-reporter)\<[TestReport](#class-testreport), [Unit](../../core/core_package_api/core_package_intrinsics.md#unit)>
+
+Example:
+
+<!-- run -->
+```cangjie
+import std.fs.*
+import std.unittest.*
+import std.unittest.testmacro.*
+
+main() {
+    let testCase = UnitTestCase.create("testCase", body: {
+        => @Fail("failing example")
+    })
+    let suite1 = TestSuite.builder("suite1").add(testCase).build()
+    let suite2 = TestSuite.builder("suite2").build()
+    let group = TestGroup.builder("group").add(suite1).add(suite2).build()
+    group.runTests().reportTo(XmlReporter(Path(".")))
+    let report1 = File.readFrom("./tests/test-group.suite1.xml") |> String.fromUtf8
+    let report2 = File.readFrom("./tests/test-group.suite2.xml") |> String.fromUtf8
+    println(report1)
+    println(report2)
+}
+```
+
+Possible output:
+
+```text
+<?xml version="1.0" encoding="UTF-8"?>
+<>
+        <testsuite name="group.suite1" tests="1" failures="1" errors="0" skipped="0" time="0.000350" timestamp="2025-12-30T16:27:15.005019525+03:00">
+                <testcase name="testCase" classname="group.suite1" assertions="1" time="0.000045">
+                        <failure>Assert Failed: `(failing example)`</failure>
+                </testcase>
+        </testsuite>
+</>
+
+<?xml version="1.0" encoding="UTF-8"?>
+<>
+        <testsuite name="group.suite2" tests="0" failures="0" errors="0" skipped="0" time="0.000000" timestamp="2025-12-30T16:27:15.00537593+03:00"/>
+</>
+```
 
 ### XmlReporter(Path)
 
@@ -1737,6 +2269,41 @@ Function: Outputs unit test case result data to XML files per package.
 Parent Types:
 
 - [Reporter](unittest_package_interfaces.md#interface-reporter)\<[TestReport](#class-testreport), [Unit](../../core/core_package_api/core_package_intrinsics.md#unit)>
+
+Example:
+
+<!-- run -->
+```cangjie
+import std.fs.*
+import std.unittest.*
+import std.unittest.testmacro.*
+
+main() {
+    let testCase = UnitTestCase.create("testCase", body: {
+        => @Fail("failing example")
+    })
+    let suite1 = TestSuite.builder("suite1").add(testCase).build()
+    let suite2 = TestSuite.builder("suite2").build()
+    let group = TestGroup.builder("group").add(suite1).add(suite2).build()
+    group.runTests().reportTo(XmlPerPackageReporter(Path(".")))
+    let report = File.readFrom("./tests/test-group.xml") |> String.fromUtf8
+    println(report)
+}
+```
+
+Possible output:
+
+```text
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="group" tests="1" failures="1" errors="0" skipped="0" time="0.000288" timestamp="2025-12-30T16:28:16.852259739+03:00">
+        <testsuite name="group.suite1" tests="1" failures="1" errors="0" skipped="0" time="0.000280" timestamp="2025-12-30T16:28:16.852264581+03:00">
+                <testcase name="testCase" classname="group.suite1" assertions="1" time="0.000046">
+                        <failure>Assert Failed: `(failing example)`</failure>
+                </testcase>
+        </testsuite>
+        <testsuite name="group.suite2" tests="0" failures="0" errors="0" skipped="0" time="0.000000" timestamp="2025-12-30T16:28:16.852547919+03:00"/>
+</testsuites>
+```
 
 ### XmlPerPackageReporter(Path)
 

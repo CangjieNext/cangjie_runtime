@@ -206,15 +206,15 @@ public class Timer <: Equatable<Timer> & Hashable {
     /**
      * Check if the two Timer instances are the same one actually.
      */
-    public operator func ==(rhs: Timer): Bool {
-        refEq(this, rhs)
+    public operator func ==(other: Timer): Bool {
+        refEq(this, other)
     }
 
     /**
      * Check if the two Timer instances are different actually.
      */
-    public operator func !=(rhs: Timer): Bool {
-        !refEq(this, rhs)
+    public operator func !=(other: Timer): Bool {
+        !refEq(this, other)
     }
 
     /**
@@ -381,7 +381,11 @@ class TimerScheduler {
         schedulers = Array<TimerScheduler>(SCHEDULER_COUNT) {_ => TimerScheduler()}
     }
     static func getScheduler(id: Int64) {
-        schedulers[id % SCHEDULER_COUNT]
+        if (id < 0) {
+            schedulers[(0 - id) % SCHEDULER_COUNT]
+        } else {
+            schedulers[id % SCHEDULER_COUNT]
+        }
     }
 
     private let queue = TimerQueue()

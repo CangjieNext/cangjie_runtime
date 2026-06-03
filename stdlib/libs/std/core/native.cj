@@ -36,7 +36,6 @@ foreign func CJ_CORE_PrintSigned(i: Int64, newLine: Bool, flush: Bool): Unit
 @FastNative
 foreign func CJ_CORE_PrintUnsigned(i: UInt64, newLine: Bool, flush: Bool): Unit
 
-@FastNative
 foreign func CJ_CONSOLE_Readline(): CPointer<StructureString>
 
 @FastNative
@@ -84,3 +83,6 @@ struct StructureString {
     let buffer: CPointer<UInt8> = CPointer<UInt8>()
     let length: UIntNative = 0
 }
+
+@FastNative
+foreign func CJ_CORE_Abort(): Unit

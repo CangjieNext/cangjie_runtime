@@ -39,6 +39,24 @@ IS_ARM = platform.uname().processor in ["aarch64", "arm", "arm64"]
 # Wait for the version of aarch64 libcore to be ready.
 MAKE_JOBS = multiprocessing.cpu_count() + 2
 
+TARGET_DICTIONARY = {
+    "native": None,
+    "ohos-aarch64": "aarch64-linux-ohos",
+    "ohos-x86_64": "x86_64-linux-ohos",
+    "ohos-arm": "arm-linux-ohos",
+    "windows-x86_64": "x86_64-w64-mingw32",
+    "ios-simulator-aarch64": "arm64-apple-ios11-simulator",
+    "ios-simulator-x86_64": "x86_64-apple-ios11-simulator",
+    "ios-aarch64": "arm64-apple-ios11",
+    "android-aarch64": "aarch64-linux-android",
+    "android31-aarch64": "aarch64-linux-android31",
+    "android26-aarch64": "aarch64-linux-android26",
+    "android23-arm": "arm-linux-android23",
+    "android-x86_64": "x86_64-linux-android",
+    "android31-x86_64": "x86_64-linux-android31",
+    "android26-x86_64": "x86_64-linux-android26"
+}
+
 def resolve_path(path):
     if os.path.isabs(path):
         return path
@@ -77,12 +95,16 @@ def generate_cmake_defs(args):
             toolchain_file = "mingw_x86_64_toolchain.cmake"
         elif args.target == "arm64-apple-ios11-simulator":
             toolchain_file = "ios_simulator_arm64_toolchain.cmake"
+        elif args.target == "x86_64-apple-ios11-simulator":
+            toolchain_file = "ios_simulator_x86_64_toolchain.cmake"
         elif args.target == "arm64-apple-ios11":
             toolchain_file = "ios_arm64_toolchain.cmake"
         elif "aarch64-linux-android" in args.target:
             toolchain_file = "android_aarch64_toolchain.cmake"
         elif "x86_64-linux-android" in args.target:
             toolchain_file = "android_x86_64_toolchain.cmake"
+        elif "arm-linux-android" in args.target:
+            toolchain_file = "android_arm_toolchain.cmake"
     else:
         args.target = None
         if IS_WINDOWS:
@@ -109,10 +131,16 @@ def generate_cmake_defs(args):
         "-DCANGJIE_TARGET_SYSROOT=" + (args.target_sysroot if args.target_sysroot else ""),
         "-DCANGJIE_BUILD_ARGS=" + (";".join(args.build_args) if args.build_args else ""),
         "-DCANGJIE_INCLUDE=" + (";".join(args.include) if args.include else ""),
-        "-DCANGJIE_BUILD_STDLIB_WITH_COVERAGE=" + bool_to_opt(args.stdlib_coverage)]
+        "-DCANGJIE_BUILD_STDLIB_WITH_COVERAGE=" + bool_to_opt(args.stdlib_coverage),
+        "-DCANGJIE_ENABLE_ASAN_COV=" + bool_to_opt(args.asancov)]
 
     if args.target and "aarch64-linux-android" in args.target:
         android_api_level = re.match(r'aarch64-linux-android(\d{2})?', args.target).group(1)
+        result.append("-DCMAKE_ANDROID_NDK=" + os.path.join(args.target_toolchain, "../../../../.."))
+        result.append("-DCMAKE_ANDROID_API=" + (android_api_level if android_api_level else ""))
+
+    if args.target and "arm-linux-android" in args.target:
+        android_api_level = "23"
         result.append("-DCMAKE_ANDROID_NDK=" + os.path.join(args.target_toolchain, "../../../../.."))
         result.append("-DCMAKE_ANDROID_API=" + (android_api_level if android_api_level else ""))
 
@@ -122,24 +150,8 @@ def generate_cmake_defs(args):
 
 def build(args):
 
-    if args.target == "native":
-        args.target = None
-    elif args.target == "ohos-aarch64":
-        args.target = "aarch64-linux-ohos"
-    elif args.target == "ohos-arm":
-        args.target = "arm-linux-ohos"
-    elif args.target == "ohos-x86_64":
-        args.target = "x86_64-linux-ohos"
-    elif args.target == "windows-x86_64":
-        args.target = "x86_64-w64-mingw32"
-    elif args.target == "ios-simulator-aarch64":
-        args.target = "arm64-apple-ios11-simulator"
-    elif args.target == "ios-aarch64":
-        args.target = "arm64-apple-ios11"
-    elif args.target == "android-aarch64":
-        args.target = "aarch64-linux-android"
-    elif args.target == "android-x86_64":
-        args.target = "x86_64-linux-android"
+    if args.target:
+        args.target = TARGET_DICTIONARY[args.target]
 
     check_compiler(args)
 
@@ -154,7 +166,7 @@ def build(args):
         # ${OHOS_ROOT}/prebuilts/clang/ohos/linux-x86_64/llvm/bin/. Six /.. can bring us to the root.
         os.environ["OHOS_ROOT"] = os.path.join(args.target_toolchain, "../../../../../..")
 
-    if args.target and "aarch64-linux-android" in args.target:
+    if args.target and "linux-android" in args.target:
         os.environ["ANDROID_NDK_ROOT"] = os.path.join(args.target_toolchain, "../../../../..")
 
     if IS_MACOS:
@@ -215,22 +227,7 @@ def install(args):
     LOG.info("begin install targets...")
     
     if args.host:
-        if args.host == "native":
-            args.host = None
-        elif args.host == "ohos-aarch64":
-            args.host = "aarch64-linux-ohos"
-        elif args.host == "ohos-x86_64":
-            args.host = "x86_64-linux-ohos"
-        elif args.host == "windows-x86_64":
-            args.host = "x86_64-w64-mingw32"
-        elif args.host == "ios-simulator-aarch64":
-            args.host = "arm64-apple-ios11-simulator"
-        elif args.host == "ios-aarch64":
-            args.host = "arm64-apple-ios11"
-        elif args.host == "android-aarch64":
-            args.host = "aarch64-linux-android"
-        elif args.host == "android-x86_64":
-            args.host = "x86_64-linux-android"
+        args.host = TARGET_DICTIONARY[args.host]
 
     targets = []
 
@@ -364,17 +361,6 @@ class BuildType(Enum):
         except KeyError:
             return s.build_type
 
-SupportedTarget = [
-    "native",
-    "ohos-aarch64",
-    "ohos-arm",
-    "ohos-x86_64",
-    "windows-x86_64",
-    "ios-simulator-aarch64",
-    "ios-aarch64",
-    "android-aarch64",
-    "android-x86_64"
-]
 
 def main():
     """build entry"""
@@ -397,7 +383,7 @@ def main():
         "--hwasan", action="store_true", help="build with hardware asan"
     )
     parser_build.add_argument(
-        "--target", dest="target", type=str, choices=SupportedTarget, default="native",
+        "--target", dest="target", type=str, choices=TARGET_DICTIONARY.keys(), default="native",
         help="build a second stdlib for the target triple specified"
     )
     parser_build.add_argument(
@@ -420,6 +406,9 @@ def main():
         help="pass this argument to C/CXX compiler as --sysroot"
     )
     parser_build.add_argument(
+        "--asancov", action="store_true", help="build with asan and sanitize-coverage, used for cjc_fuzz and lsp_test"
+    )
+    parser_build.add_argument(
         "--cjlib-sanitizer-support",
         type=str,
         choices=["asan", "tsan", "hwasan"],
@@ -438,7 +427,7 @@ def main():
     parser_install = subparsers.add_parser("install", help="install targets")
 
     parser_install.add_argument(
-        "--host", dest="host", type=str, choices=SupportedTarget, help="Generate installation package for the host"
+        "--host", dest="host", type=str, choices=TARGET_DICTIONARY.keys(), help="Generate installation package for the host"
     )
     parser_install.add_argument(
         "--prefix", dest="prefix", help="target install prefix"

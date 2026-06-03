@@ -235,9 +235,15 @@ int ScheduleProcessorInit(struct Schedule *schedule, unsigned int processorNum)
         }
     }
 
-    // bind processor0 to thread0.
-    thread = schedule->thread0;
-    thread->processor = &processorGroup[0];
+    // Exclusive scheduler just bind thread to thread0
+    if (schedule->scheduleType == SCHEDULE_EXCLUSIVE) {
+        thread = CJThreadGet()->thread;
+        schedule->thread0 = thread;
+    } else {
+        // bind processor0 to thread0.
+        thread = schedule->thread0;
+        thread->processor = &processorGroup[0];
+    }
     processorGroup[0].thread = thread;
     processorGroup[0].state = PROCESSOR_RUNNING;
     // free num is processor_num - 1, because processor0 is running.
@@ -540,7 +546,8 @@ ScheduleHandle ScheduleNew(ScheduleType scheduleType, const struct ScheduleAttr 
     // When the scheduler is initialized, the created thread is bound to thread0. It is
     // convenient to use CJThreadGet() to obtain the cjthread. Therefore, only one scheduler
     // can be created for a thread.
-    if (scheduleType != SCHEDULE_FOREIGN_THREAD && CJThreadGet() != nullptr) {
+    if (scheduleType != SCHEDULE_FOREIGN_THREAD && scheduleType != SCHEDULE_EXCLUSIVE &&
+        CJThreadGet() != nullptr) {
         LOG_ERROR(ERRNO_SCHD_INIT_FAILED, "schedule has been inited");
         return nullptr;
     }
@@ -584,21 +591,22 @@ ScheduleHandle ScheduleNew(ScheduleType scheduleType, const struct ScheduleAttr 
         ScheduleFini(schedule, FINI_CJTHREAD);
         return nullptr;
     }
-    
-    // Init thread0 and cjthread0
-    error = ScheduleThread0Init(schedule, schedAttr);
-    if (error) {
-        LOG_ERROR(error, "thread0 init failed");
-        ScheduleFini(schedule, FINI_THREAD0);
-        return nullptr;
-    }
-
-    // Init thread structure
-    error = ScheduleThreadInit(&(schedule->schdThread), schedAttr);
-    if (error) {
-        LOG_ERROR(error, "schedule thread control block init failed");
-        ScheduleFini(schedule, FINI_THREAD);
-        return nullptr;
+    // for exclusive schedule, no need to init thread0
+    if (schedule->scheduleType != SCHEDULE_EXCLUSIVE) {
+        // Init thread0 and cjthread0
+        error = ScheduleThread0Init(schedule, schedAttr);
+        if (error) {
+            LOG_ERROR(error, "thread0 init failed");
+            ScheduleFini(schedule, FINI_THREAD0);
+            return nullptr;
+        }
+         // Init thread structure
+        error = ScheduleThreadInit(&(schedule->schdThread), schedAttr);
+        if (error) {
+            LOG_ERROR(error, "schedule thread control block init failed");
+            ScheduleFini(schedule, FINI_THREAD);
+            return nullptr;
+        }
     }
 
     // Init processor group
@@ -631,7 +639,7 @@ void CJRegisterStackInfoCallbacks(UpdateStackInfoFunc uFunc)
     }
     g_scheduleManager.updateStackInfoFunc = uFunc;
 }
- 
+
 void CJRegisterArkVMInRuntime(unsigned long long vm)
 {
     if (!g_scheduleManager.initFlag) {
@@ -671,25 +679,6 @@ void ScheduleNetpollDestroy(void)
 void StoreNativeSPForUIThread(void* sp)
 {
     g_scheduleManager.nativeSPForUIThread = sp;
-}
-
-void UpdateArkVMStackInfo(unsigned long long arkvm)
-{
-    // update stack info for arkts, thus use __OHOS__ macro.
-    UpdateStackInfoFunc UpdateStackInfo = g_scheduleManager.updateStackInfoFunc;
-    if (UpdateStackInfo == nullptr) {
-        HILOG_ERROR(ERRNO_SCHD_UITHREAD_ERROR, "UpdateStackInfoFunc is not registered");
-        return;
-    }
-    CJThread* cjthread = CJThreadGet();
-    if (cjthread == nullptr) {
-        HILOG_ERROR(ERRNO_SCHD_UITHREAD_ERROR, "cjthread is nullptr when UpdateArkVMStackInfo");
-        return;
-    }
-    if (g_scheduleManager.arkVM == 0) {
-        g_scheduleManager.arkVM = arkvm;
-    }
-    UpdateStackInfo(g_scheduleManager.arkVM, &(cjthread->stackInfo), SWITCH_TO_SUB_STACKINFO);
 }
 
 void* GetNativeSPForUIThread()
@@ -968,8 +957,21 @@ bool ScheduleAnyCJThreadRunning(struct Schedule *schedule)
     return false;
 }
 
-void ScheduleNonDefaultFree(struct Schedule *schedule)
+// free exclusive scheduler
+void ExclusiveScheduleFree(struct Schedule *schedule)
 {
+    ScheduleListRemove(schedule);
+    ScheduleProcessorFree(schedule);
+    MapleRuntime::NativeAllocator::NativeFree(schedule, sizeof(struct Schedule));
+}
+
+void ScheduleNonDefaultFree(ScheduleHandle scheduleHandle)
+{
+    auto* schedule = reinterpret_cast<Schedule*>(scheduleHandle);
+    if (schedule == nullptr) {
+        LOG_ERROR(ERRNO_SCHD_INVALID, "schedule is null in ScheduleNonDefaultFree");
+        return;
+    }
     ScheduleListRemove(schedule);
     // The network module exits after the processor stops. Otherwise, the processor is still
     // accessing the network, and problems occur.
@@ -978,10 +980,12 @@ void ScheduleNonDefaultFree(struct Schedule *schedule)
     ScheduleCJThreadFree(schedule);
     // Release processor resources and auxiliary resources, including timers.
     ScheduleProcessorFree(schedule);
-
-    CJThreadMemFree(static_cast<struct CJThread*>(schedule->thread0->cjthread0));
-    free(schedule->thread0);
-    schedule->thread0 = nullptr;
+    // EXCLUSIVE scheduler doesn't have thread0
+    if (schedule->scheduleType != SCHEDULE_EXCLUSIVE && schedule->thread0 != nullptr) {
+        CJThreadMemFree(static_cast<struct CJThread*>(schedule->thread0->cjthread0));
+        free(schedule->thread0);
+        schedule->thread0 = nullptr;
+    }
     MapleRuntime::NativeAllocator::NativeFree(schedule, sizeof(struct Schedule));
 }
 
@@ -1039,7 +1043,8 @@ void ScheduleAllNonDefaultExit(void)
         if (schedule == curschdeule) {
             continue;
         }
-        if (pthread_self() != schedule->thread0->osThread &&
+        if (schedule->scheduleType != SCHEDULE_EXCLUSIVE &&
+            pthread_self() != schedule->thread0->osThread &&
             !ScheduleProcessorSkipFFI(&(schedule->schdProcessor.processorGroup[0]))) {
             pthread_join(schedule->thread0->osThread, nullptr);
             atomic_store(&schedule->schdProcessor.processorGroup[0].state, PROCESSOR_EXITING);
@@ -1050,7 +1055,7 @@ void ScheduleAllNonDefaultExit(void)
         // previous node of the current node.
         scheduleNode = scheduleNode->prev;
         // Releasing Non-Default Scheduler Resources
-        ScheduleNonDefaultFree(schedule);
+        ScheduleNonDefaultFree(reinterpret_cast<ScheduleHandle>(schedule));
     }
     pthread_mutex_unlock(&g_scheduleManager.allScheduleListLock);
 }
@@ -1464,7 +1469,7 @@ void ScheduleAllThreadListAdd(struct Thread *thread, struct Schedule *schedule)
     pthread_mutex_unlock(&(schedule->schdThread.allthreadMutex));
 }
 
-int ScheduleAllCJThreadListAdd(struct CJThread *cjthread)
+int ScheduleAllCJThreadListAdd(struct CJThread *cjthread, CJThreadCreateSource createSource)
 {
     ScheduleState scheduleState = cjthread->schedule->state.load();
     if (scheduleState != SCHEDULE_RUNNING &&
@@ -1477,6 +1482,11 @@ int ScheduleAllCJThreadListAdd(struct CJThread *cjthread)
     }
     cjthread->mutator = MapleRuntime::Mutator::NewMutator();
     cjthread->mutator->MapleRuntime::Mutator::SetCjthreadPtr(static_cast<void*>(cjthread));
+    // Finalizer cjthread is not added to the list to avoid accessing the finalizer mutator twice in
+    // VisitAllMutators, and to prevent cjthread dfx from counting the cjthread of the finalizer
+    if (UNLIKELY(createSource == CJTHREAD_CREATE_SOURCE_FINALIZER)) {
+        return 0;
+    }
     pthread_mutex_lock(&g_scheduleManager.allCJThreadListLock);
     DulinkAdd(&(cjthread->allCJThreadDulink), &(g_scheduleManager.allCJThreadList));
     pthread_mutex_unlock(&g_scheduleManager.allCJThreadListLock);
@@ -1493,7 +1503,7 @@ int AddToCJSingleModeThreadList(struct CJThread *cjthread)
     PostTaskFunc PostTask = g_scheduleManager.postTaskFunc;
     if (PostTask == nullptr) {
         HILOG_ERROR(ERRNO_SCHD_EVENT_HANDLER_FUNC_NULL,
-                  "The event handler function is nullptr when add to cjSingleModeThreadList.");
+                    "The event handler function is nullptr when add to cjSingleModeThreadList.");
         return -1;
     }
 
@@ -1505,44 +1515,6 @@ int AddToCJSingleModeThreadList(struct CJThread *cjthread)
         while (!PostTask(reinterpret_cast<void*>(TryRunCJSingleModeThread))) {}
     }
     return 0;
-}
-
-void RunCJSingleModeThread()
-{
-    pthread_mutex_lock(&g_scheduleManager.cjSingleModeThreadListLock);
-    struct Dulink* scheduleCJUIThreadNode = (&(g_scheduleManager.cjSingleModeThreadList))->prev;
-    struct CJThread* cjthread = DULINK_ENTRY(scheduleCJUIThreadNode, struct CJThread, cjSingleModeThreadDulink);
-    if (cjthread == nullptr) {
-        pthread_mutex_unlock(&g_scheduleManager.cjSingleModeThreadListLock);
-        HILOG_ERROR(ERRNO_SCHD_UITHREAD_ERROR, "cj single mode thread is nullptr");
-        return;
-    }
-    DulinkRemove(&(cjthread->cjSingleModeThreadDulink));
-    pthread_mutex_unlock(&g_scheduleManager.cjSingleModeThreadListLock);
-
-    Schedule* schedule = cjthread->schedule;
-    CJThreadSet(reinterpret_cast<CJThread*>(schedule->thread0->cjthread0));
-    ScheduleSet(schedule);
-    ScheduleGlobalWrite(&cjthread, 1);
-
-#ifdef __OHOS__
-    // update stack info for arkts, thus use __OHOS__ macro.
-    UpdateStackInfoFunc UpdateStackInfo = g_scheduleManager.updateStackInfoFunc;
-    if (UpdateStackInfo != nullptr) {
-        UpdateStackInfo(g_scheduleManager.arkVM, &(cjthread->stackInfo), SWITCH_TO_SUB_STACKINFO);
-    }
-#endif
-
-    ProcessorWake(schedule, nullptr);
-    ScheduleStartNoWait(0);
-
-#ifdef __OHOS__
-    // update stack info for arkts, thus use __OHOS__ macro.
-    if (UpdateStackInfo != nullptr) {
-        UpdateStackInfo(g_scheduleManager.arkVM, &(cjthread->stackInfo), SWITCH_TO_MAIN_STACKINFO);
-    }
-#endif
-    return;
 }
 
 extern "C" void CJ_MRT_RolveCycleRef();
@@ -1576,7 +1548,6 @@ void TryRunCJSingleModeThread()
     }
     pthread_mutex_unlock(&g_scheduleManager.cjSingleModeThreadListLock);
     while (true) {
-        // if have reruned 3 times, just run it directly.
         // if TryRunCJSingleModeThread run for 10ms or 5 times or there are more higher priority tasks,
         // then stop it and trigger event handler func.
         if (g_scheduleManager.cjSingleModeThreadRetryTime.load() < MAX_RETRY_CJSINGLETHREAD_COUNT &&
@@ -1589,7 +1560,18 @@ void TryRunCJSingleModeThread()
         }
         
         g_scheduleManager.cjSingleModeThreadRetryTime.store(0);
-        RunCJSingleModeThread();
+        pthread_mutex_lock(&g_scheduleManager.cjSingleModeThreadListLock);
+        struct Dulink* scheduleCJUIThreadNode = (&(g_scheduleManager.cjSingleModeThreadList))->prev;
+        struct CJThread* cjthread = DULINK_ENTRY(scheduleCJUIThreadNode, struct CJThread, cjSingleModeThreadDulink);
+        DulinkRemove(&(cjthread->cjSingleModeThreadDulink));
+        pthread_mutex_unlock(&g_scheduleManager.cjSingleModeThreadListLock);
+
+        Schedule* schedule = cjthread->schedule;
+        CJThreadSet(reinterpret_cast<CJThread*>(schedule->thread0->cjthread0));
+        ScheduleSet(schedule);
+        ScheduleGlobalWrite(&cjthread, 1);
+        ProcessorWake(schedule, nullptr);
+        ScheduleStartNoWait(0);
         runCount++;
         pthread_mutex_lock(&g_scheduleManager.cjSingleModeThreadListLock);
         if (DulinkIsEmpty(&(g_scheduleManager.cjSingleModeThreadList))) {
@@ -2275,9 +2257,8 @@ int CJ_MRT_GetAllCJThreadStackTrace(void *cjStackTraceBufPtr, unsigned int num)
 {
     unsigned int recordCnt = 0;
     char *cjStackTraceBuffer = reinterpret_cast<char*>(cjStackTraceBufPtr);
-    MapleRuntime::MutatorManager::Instance().VisitAllMutators(
+    MapleRuntime::MutatorManager::Instance().VisitAllMutatorsExceptFinalizer(
         [&recordCnt, num, cjStackTraceBuffer](MapleRuntime::Mutator &mutator) {
-            // skip finalizer
             if (!mutator.IsVaildCJThread() || recordCnt == num ||
                 !IsPendingThread(mutator.GetCjthreadPtr())) {
                 return;

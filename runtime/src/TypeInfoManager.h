@@ -64,6 +64,16 @@ private:
     uintptr_t Allocate(size_t size);
     CString GetGCTibStr(TypeInfo* typeInfo);
     void AddMTable(TypeTemplate* tt, TypeInfo* newTypeInfo, U32 argSize, TypeInfo* args[]);
+    // Helper methods for copying method and parameter information
+    void CopyParameterInfos(MethodInfo* ttMethodInfo, MethodInfo* tiMethodInfo);
+    void CopyMethodInfo(MethodInfo* ttMethodInfo, MethodInfo* tiMethodInfo, TypeInfo* ti);
+
+    bool IsEnumInfoReady(TypeTemplate* tt, TypeInfo* ti);
+    void HandleEnumCtorReflectInfo(TypeTemplate* tt, TypeInfo* ti);
+    EnumInfo* AllocateEnumInfo(EnumInfo* ttEnumInfo);
+    EnumDebugInfo* AllocateEnumDebugInfo(EnumInfo* ttEnumInfo);
+    void SetEnumConstructors(EnumDebugInfo* enumDebugInfo, EnumInfo* ttEnumInfo, U32 argSize, TypeInfo* args[]);
+    void SetMethodInfos(EnumInfo* enumInfo, EnumInfo* ttEnumInfo, TypeInfo* ti);
 
     enum TypeInfoStatus : uint8_t {
         TYPEINFO_NOT_CREATED = 0,
@@ -81,9 +91,7 @@ private:
             tt = desc.tt;
             argSize = desc.argSize;
             hash = desc.hash;
-            for (U32 i = 0; i < argSize; i++) {
-                argsVector.push_back(desc.args[i]);
-            }
+            argsVector.assign(desc.args, desc.args + desc.argSize);
             tid.store(GetTid());
         }
 
@@ -151,8 +159,8 @@ private:
     GenericTiDescHashMap genericTypeInfoDescMap;
     uintptr_t startAddress;
     uintptr_t endAddress;
-    std::atomic<U32> tiUUID { 1 };
-    std::atomic<U16> ttUUID { 1 };
+    std::atomic<U32> tiMaxUUID { 1 };
+    std::atomic<U16> ttMaxUUID { 1 };
     TypeGCInfo typeGCInfo;
     std::vector<std::pair<uintptr_t, size_t>> mmapList;
     std::unordered_map<U32, MTableDesc*> mTableList;

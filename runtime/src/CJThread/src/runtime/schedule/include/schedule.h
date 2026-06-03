@@ -401,6 +401,15 @@ struct CJThreadSpecificDataInner {
 };
 
 /**
+ * @brief Create cjthread reason
+ */
+enum CJThreadCreateSource {
+    CJTHREAD_CREATE_SOURCE_DEFAULT = 0,     /* create cjthread from general use scenarios */
+    CJTHREAD_CREATE_SOURCE_SIGNAL = 1,      /* create cjthread from signal */
+    CJTHREAD_CREATE_SOURCE_FINALIZER = 2,      /* create cjthread from finalizer */
+};
+
+/**
  * @brief Lua cjthread state
  */
 enum LuaCJThreadState {
@@ -416,7 +425,8 @@ enum LuaCJThreadState {
 enum ScheduleType {
     SCHEDULE_DEFAULT = 0,               /* default scheduler */
     SCHEDULE_UI_THREAD,                 /* scheduler for UI thread */
-    SCHEDULE_FOREIGN_THREAD             /* scheduler for foreign thread */
+    SCHEDULE_FOREIGN_THREAD,            /* scheduler for foreign thread */
+    SCHEDULE_EXCLUSIVE                  /* scheduler for exclusive scope */
 };
 
 /**
@@ -491,11 +501,6 @@ enum TraceArgNum {
     TRACE_ARGS_0,
     TRACE_ARGS_1,
     TRACE_ARGS_2,
-};
-
-enum StackInfoOpKind : uint32_t {
-    SWITCH_TO_SUB_STACKINFO = 0,
-    SWITCH_TO_MAIN_STACKINFO,
 };
 
 /**
@@ -586,6 +591,19 @@ void CJThreadAttrCjFromCSet(struct CJThreadAttr *attrUser, bool flag);
 int CJThreadAttrSpecificSet(struct CJThreadAttr *attrUser, unsigned int num, struct CJThreadSpecificDataInner* data);
 
 /**
+ * @brief Create a exclusive cjthread. This interface must be invoked in the cjthread context.
+ * @par Description: Creates a cjthread and returns its handle. created cjthread will not enters
+ * the run schedule queue, but bind to it's os thread
+  * @param func              [IN] User-defined cjthread execution function.
+ * @param argStart          [IN] Parameter start address of the cjthread function.
+ * @param argSize           [IN] Parameter length of the cjthread function.
+ * @retval If the operation is successful, the handle of the cjthread is returned.
+ * NULL indicates that the cjthread fails to be created.
+ */
+CJThreadHandle ExclusiveCJThreadNew(CJThreadFunc func,
+                                    const void *argStart, unsigned int argSize);
+
+/**
  * @brief Create a cjthread. This interface must be invoked in the cjthread context.
  * @par Description: Creates a cjthread and returns its handle. The size of the cjthread
  * stack is automatically aligned to the page size. When the scheduler is started, the
@@ -603,8 +621,9 @@ int CJThreadAttrSpecificSet(struct CJThreadAttr *attrUser, unsigned int num, str
  * @retval If the operation is successful, the handle of the cjthread is returned.
  * NULL indicates that the cjthread fails to be created.
  */
-CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *attrUser, CJThreadFunc func,
-                           const void *argStart, unsigned int argSize, bool isSignal = false);
+CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *attrUser,
+                           CJThreadFunc func, const void *argStart, unsigned int argSize,
+                           CJThreadCreateSource createSource = CJTHREAD_CREATE_SOURCE_DEFAULT);
 
 /**
  * @brief Create a cjthread from outside the scheduling framework to the scheduler.
@@ -626,7 +645,7 @@ CJThreadHandle CJThreadNew(ScheduleHandle schedule, const struct CJThreadAttr *a
  */
 CJThreadHandle CJThreadNewToSchedule(ScheduleHandle schedule, const struct CJThreadAttr *attr,
                                      CJThreadFunc func, const void *argStart, unsigned int argSize,
-                                     bool isSignal = false);
+                                     CJThreadCreateSource createSource = CJTHREAD_CREATE_SOURCE_DEFAULT);
 
 /**
  * @brief Creates a cjthread to the default scheduler. This interface can be invoked from
@@ -895,16 +914,31 @@ int CJThreadStateHookRegister(SchdCJThreadStateHookFunc func, CJThreadStateHook 
 
 #ifdef __OHOS__
 /**
- * @brief Add C2N count in single model cjthread, in order to decide wheater do park in this cjthread.
+ * @brief Get bottom of physical thread stack
  * @attention Only use in OHOS, and only for the spawn(Main) to Native func
+ * @retval success for bottom of stack, 0 for fail or not in OHOS
  */
-void AddSingleModelC2NCount();
+unsigned long long GetThreadStackTop();
 
 /**
- * @brief Dec C2N count in single model cjthread, in order to decide wheater do park in this cjthread.
+ * @brief Get last bottom of physical thread stack from threadStackTopList
+ * @attention Only use in OHOS, and only for the spawn(Main) to Native func
+ * @retval success for bottom of stack, 0 for fail or not in OHOS
+ */
+unsigned long long GetUIThreadStackTop();
+
+/**
+  * @brief Add bottom of physical thread stack in threadStackTopList
+  * @attention Only use in OHOS, and only for the spawn(Main) to Native func
+  * @param  stackTop  thread stack top address
+  */
+void PushUIThreadStackTop(unsigned long long stackTop);
+
+/**
+ * @brief Remove the last bottom of physical thread stack from threadStackTopList.
  * @attention Only use in OHOS, and only for the spawn(Main) to Native func
  */
-void DecSingleModelC2NCount();
+void PopUIThreadStackTop();
 #endif
 
 /**
@@ -934,6 +968,12 @@ void ScheduleStop(ScheduleHandle scheduleHandle);
  * @retval 0 or error code
  */
 int ScheduleStopOutside(ScheduleHandle scheduleHandle);
+
+/**
+ * @brief Free a non-default scheduler.
+ * @param scheduleHandle    [IN] Handle of the scheduler to be freed
+ */
+void ScheduleNonDefaultFree(ScheduleHandle scheduleHandle);
 
 /**
  * @brief Traverse the global cjthread control list and call the input function hook

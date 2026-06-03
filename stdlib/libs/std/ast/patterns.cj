@@ -19,6 +19,7 @@ public open class Pattern <: Node {
     }
     public open func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
     }
     protected open func dump(_: UInt16): String {
         ""
@@ -62,6 +63,7 @@ public class ConstPattern <: Pattern {
 
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
         if (v.needBreakTraverse()) {
             return
         }
@@ -109,6 +111,7 @@ public class WildcardPattern <: Pattern {
 
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
         return
     }
 
@@ -148,6 +151,7 @@ public class VarPattern <: Pattern {
 
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
         return
     }
 
@@ -187,6 +191,7 @@ public class VarOrEnumPattern <: Pattern {
 
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
         return
     }
 
@@ -282,6 +287,7 @@ public class ExceptTypePattern <: Pattern {
 
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
         if (v.needBreakTraverse()) {
             return
         }
@@ -384,6 +390,7 @@ public class CommandTypePattern <: Pattern {
 
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
         if (v.needBreakTraverse()) {
             return
         }
@@ -472,6 +479,7 @@ public class TypePattern <: Pattern {
 
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
         if (v.needBreakTraverse()) {
             return
         }
@@ -592,6 +600,7 @@ public class EnumPattern <: Pattern {
     }
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
         if (v.needBreakTraverse()) {
             return
         }
@@ -705,6 +714,7 @@ public class TuplePattern <: Pattern {
 
     public func traverse(v: Visitor): Unit {
         v.visit(this)
+        super.traverse(v)
         if (v.needBreakTraverse()) {
             return
         }

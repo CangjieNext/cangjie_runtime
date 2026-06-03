@@ -25,8 +25,8 @@ public enum RoundingMode <: Equatable<RoundingMode> & ToString {
 
 父类型：
 
-- [Equatable](../../../std/core/core_package_api/core_package_interfaces.md#interface-equatablet)\<[RoundingMode](#enum-roundingmode)>
-- [ToString](../../../std/core/core_package_api/core_package_interfaces.md#interface-tostring)
+- [Equatable](../../core/core_package_api/core_package_interfaces.md#interface-equatablet)\<[RoundingMode](#enum-roundingmode)>
+- [ToString](../../core/core_package_api/core_package_interfaces.md#interface-tostring)
 
 ### Ceiling
 
@@ -86,20 +86,65 @@ public func toString(): String
 
 返回值：
 
-- [String](../../../std/core/core_package_api/core_package_structs.md#struct-string) - 舍入规则名称字符串。
+- [String](../../core/core_package_api/core_package_structs.md#struct-string) - 舍入规则名称字符串。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.*
+
+main() {
+    let mode = RoundingMode.Ceiling
+    let str = mode.toString()
+    println("RoundingMode string: ${str}")
+}
+```
+
+运行结果：
+
+```text
+RoundingMode string: Ceiling
+```
 
 ### operator func ==(RoundingMode)
 
 ```cangjie
-public operator func ==(that: RoundingMode): Bool
+public operator func ==(other: RoundingMode): Bool
 ```
 
 功能：判等。
 
 参数：
 
-- that: [RoundingMode](#enum-roundingmode) - 被比较的舍入规则。
+- other: [RoundingMode](#enum-roundingmode) - 被比较的舍入规则。
 
 返回值：
 
-- [Bool](../../../std/core/core_package_api/core_package_intrinsics.md#bool) - 若舍入规则相同，返回 true；否则，返回 false。
+- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 若舍入规则相同，返回 true；否则，返回 false。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.math.*
+
+main() {
+    let mode1 = RoundingMode.Ceiling
+    let mode2 = RoundingMode.Ceiling
+    let mode3 = RoundingMode.Down
+
+    let equal = (mode1 == mode2)
+    let notEqual = (mode1 == mode3)
+
+    println("mode1 == mode2: ${equal}")
+    println("mode1 == mode3: ${notEqual}")
+}
+```
+
+运行结果：
+
+```text
+mode1 == mode2: true
+mode1 == mode3: false
+```

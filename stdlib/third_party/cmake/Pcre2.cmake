@@ -16,9 +16,11 @@ if(CANGJIE_HWASAN_SUPPORT OR CANGJIE_ENABLE_HWASAN)
     set(CUSTOM_WARNING_SETTINGS "${CUSTOM_WARNING_SETTINGS} -fsanitize=hwaddress -fno-omit-frame-pointer -fno-emulated-tls")
 endif()
 
-if (BUILD_TYPE STREQUAL "Debug")
+if(BUILD_TYPE STREQUAL "Debug")
     unset(BUILD_TYPE)
 endif()
+
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu14")
 
 execute_process(
     COMMAND

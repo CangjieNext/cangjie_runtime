@@ -15,11 +15,7 @@
 namespace MapleRuntime {
 void TypeGCInfo::FillTypeGCInfo(TypeInfo* ti, CString &gcTibStr, U32 &curSize)
 {
-#ifdef __arm__
-    U32 ptrSize = 4;
-#else
-    U32 ptrSize = 8;
-#endif
+    U32 ptrSize = sizeof(void*);
     U16 tiAlign = ti->IsRef() ? sizeof(BaseObject*) : ti->GetAlign();
     curSize = MRT_ALIGN(curSize, tiAlign);
     if (ti->IsRef()) {
@@ -50,11 +46,7 @@ void TypeGCInfo::FillArrayTypeGCInfo(TypeInfo* ti, CString &gcTibStr, U32 &curSi
 
 CString TypeGCInfo::GetGCTibStr(TypeInfo* ti)
 {
-#ifdef __arm__
-    U32 ptrSize = 4;
-#else
-    U32 ptrSize = 8;
-#endif
+    U32 ptrSize = sizeof(void*);
     CString gcTibStr;
     U32 curSize = 0;
     gcTibStr = CString((ti->GetInstanceSize() + ptrSize - 1) / ptrSize, '0');
@@ -80,20 +72,21 @@ CString TypeGCInfo::GetGCTibStr(TypeInfo* ti)
 
 U32 TypeInfoManager::GenericTiDesc::computeHash()
 {
+    TypeInfoManager& mgr = TypeInfoManager::GetTypeInfoManager();
     U32 H = 1;
     auto update = [&H](U32 val) {
         H = 31 * H + val;
     };
-    U32 ttUUID = tt->GetUUID();
-    if (tt->GetUUID() == 0) {
-        ttUUID = TypeInfoManager::GetTypeInfoManager().GetTypeTemplateUUID(tt);
+    U32 uuidOfTT = tt->GetUUID();
+    if (uuidOfTT == 0) {
+        uuidOfTT = mgr.GetTypeTemplateUUID(tt);
     }
-    update(ttUUID);
+    update(uuidOfTT);
 
     for (U32 idx = 0; idx < argSize; idx++) {
         TypeInfo* ti = args[idx];
         if (ti->IsInitialUUID()) {
-            TypeInfoManager::GetTypeInfoManager().AddTypeInfo(ti);
+            mgr.AddTypeInfo(ti);
         }
         CHECK(!ti->IsInitialUUID());
         update(ti->uuid);
@@ -107,38 +100,36 @@ bool TypeInfoManager::GenericTiDesc::operator==(const GenericTiDesc &other) cons
         return false;
     }
 
-    U16 ttUUID = tt->GetUUID();
-    U16 otherTtUUID = other.tt->GetUUID();
-
-    if (ttUUID == 0) {
-        ttUUID = TypeInfoManager::GetTypeInfoManager().GetTypeTemplateUUID(tt);
-    }
-
-    if (otherTtUUID == 0) {
-        otherTtUUID = TypeInfoManager::GetTypeInfoManager().GetTypeTemplateUUID(other.tt);
-    }
-    if (ttUUID != otherTtUUID) {
-        return false;
-    }
-
     if (argSize != other.argSize) {
         return false;
+    }
+
+    TypeInfoManager& mgr = TypeInfoManager::GetTypeInfoManager();
+    if (tt != other.tt) {
+        U16 ttUUID = tt->GetUUID();
+        U16 otherTtUUID = other.tt->GetUUID();
+        if (ttUUID == 0) {
+            ttUUID = mgr.GetTypeTemplateUUID(tt);
+        }
+        if (otherTtUUID == 0) {
+            otherTtUUID = mgr.GetTypeTemplateUUID(other.tt);
+        }
+        if (ttUUID != otherTtUUID) {
+            return false;
+        }
     }
 
     for (U32 idx = 0; idx < argSize; idx++) {
         TypeInfo* ti = argsVector[idx];
         TypeInfo* otherTi = other.args[idx];
-        U32 tiUUID = ti->GetUUID();
         if (ti->IsInitialUUID()) {
-            TypeInfoManager::GetTypeInfoManager().AddTypeInfo(ti);
-            tiUUID = ti->GetUUID();
+            mgr.AddTypeInfo(ti);
         }
-
-        U32 otherTiUUID = otherTi->GetUUID();
+        U32 tiUUID = ti->GetUUID();
         if (otherTi->IsInitialUUID()) {
-            TypeInfoManager::GetTypeInfoManager().AddTypeInfo(otherTi);
-            otherTiUUID = otherTi->GetUUID();
+            mgr.AddTypeInfo(otherTi);
         }
+        U32 otherTiUUID = otherTi->GetUUID();
         if (tiUUID != otherTiUUID) {
             return false;
         }
@@ -157,11 +148,11 @@ void TypeInfoManager::Init()
 void TypeInfoManager::Fini()
 {
     // release resources
-    for (auto mTable : mTableList) {
+    for (const auto& mTable : mTableList) {
         delete mTable.second;
-        mTable.second = nullptr;
     }
-    for (auto m : mmapList) {
+    mTableList.clear();
+    for (const auto& m : mmapList) {
         FreeMMap(m.first, m.second);
     }
     mmapList.clear();
@@ -208,6 +199,20 @@ void TypeInfoManager::AddTypeInfo(TypeInfo* ti)
     if (!ti->IsInitialUUID()) {
         return;
     }
+    // Let tiDesc/typeInfoName before lock to reduce tiMutex hold time.
+    const bool isGeneric = ti->IsGenericTypeInfo() && !ti->IsVArray();
+    GenericTiDesc* tiDesc = nullptr;
+    const char* typeInfoName = nullptr;
+    if (isGeneric) {
+        if (ti->IsRawArray() || ti->IsCPointer()) {
+            TypeInfo* args[] = { ti->GetComponentTypeInfo() };
+            tiDesc = GetTypeInfo(ti->GetSourceGeneric(), 1, args);
+        } else {
+            tiDesc = GetTypeInfo(ti->GetSourceGeneric(), ti->GetTypeArgNum(), ti->GetTypeArgs());
+        }
+    } else {
+        typeInfoName = ti->GetName();
+    }
     std::lock_guard<std::recursive_mutex> lock(tiMutex);
     if (!ti->IsInitialUUID()) {
         return;
@@ -218,14 +223,7 @@ void TypeInfoManager::AddTypeInfo(TypeInfo* ti)
         // 15: The most significant bit indicates whether the mTable is initialized.
         ti->validInheritNum |= 1 << 15;
     }
-    if (ti->IsGenericTypeInfo() && !ti->IsVArray()) {
-        GenericTiDesc* tiDesc;
-        if (ti->IsRawArray() || ti->IsCPointer()) {
-            TypeInfo* args[] = { ti->GetComponentTypeInfo() };
-            tiDesc = GetTypeInfo(ti->GetSourceGeneric(), 1, args);
-        } else {
-            tiDesc = GetTypeInfo(ti->GetSourceGeneric(), ti->GetTypeArgNum(), ti->GetTypeArgs());
-        }
+    if (isGeneric) {
         bool hasExisted = false;
         if (tiDesc->typeInfo != nullptr && !tiDesc->typeInfo->IsInitialUUID()) {
             ti->SetUUID(tiDesc->typeInfo->uuid);
@@ -234,7 +232,7 @@ void TypeInfoManager::AddTypeInfo(TypeInfo* ti)
             ti->SetReflectInfo(tiDesc->typeInfo->GetReflectInfo());
             hasExisted = true;
         } else {
-            ti->SetUUID(tiUUID.fetch_add(1));
+            ti->SetUUID(tiMaxUUID.fetch_add(1));
             tiDesc->typeInfo = ti;
             ti->TryInitMTableNoLock();
             LoaderManager::GetInstance()->RecordTypeInfo(ti);
@@ -245,7 +243,7 @@ void TypeInfoManager::AddTypeInfo(TypeInfo* ti)
             CHECK(ti->IsObjectType());
             if (LIKELY(hasExisted)) {
                 CHECK(memcpy_s(reinterpret_cast<void*>(ti), sizeof(TypeInfo) - 16U,
-                                reinterpret_cast<void*>(tiDesc->typeInfo), sizeof(TypeInfo) - 16U) == EOK);
+                               reinterpret_cast<void*>(tiDesc->typeInfo), sizeof(TypeInfo) - 16U) == EOK);
             } else {
                 TypeTemplate* tt = ti->sourceGeneric;
                 U16 fieldNum = tt->GetFieldNum();
@@ -257,43 +255,46 @@ void TypeInfoManager::AddTypeInfo(TypeInfo* ti)
                 CalculateGCTib(ti);
             }
         }
-        return;
-    }
-    const char* typeInfoName = ti->GetName();
-    auto it = nonGenericTypeInfos.find(typeInfoName);
-    if (it != nonGenericTypeInfos.end()) {
-        TypeInfo* createdTi = it->second;
-        // To avoid repeated hashmap overhead, set mTable in advance.
-        if (createdTi != ti) {
-            CHECK(createdTi->uuid != 0);
-            ti->SetUUID(createdTi->uuid);
-            createdTi->TryInitMTableNoLock();
-            MTableDesc* mTableDesc = createdTi->GetMTableDesc();
-            ti->SetMTableDesc(mTableDesc);
+    } else {
+        auto it = nonGenericTypeInfos.find(typeInfoName);
+        if (it != nonGenericTypeInfos.end()) {
+            TypeInfo* createdTi = it->second;
+            // To avoid repeated hashmap overhead, set mTable in advance.
+            if (createdTi != ti) {
+                CHECK(createdTi->uuid != 0);
+                ti->SetUUID(createdTi->uuid);
+                createdTi->TryInitMTableNoLock();
+                MTableDesc* mTableDesc = createdTi->GetMTableDesc();
+                ti->SetMTableDesc(mTableDesc);
+            }
+            return;
         }
-        return;
+        nonGenericTypeInfos[typeInfoName] = ti;
+        ti->SetUUID(tiMaxUUID.fetch_add(1));
     }
-    nonGenericTypeInfos[ti->GetName()] = ti;
-    ti->SetUUID(tiUUID.fetch_add(1));
 }
 
 U16 TypeInfoManager::GetTypeTemplateUUID(TypeTemplate* tt)
 {
-    if (tt->GetUUID() != 0) {
-        return tt->GetUUID();
+    U16 ttUUID = tt->GetUUID();
+    if (ttUUID != 0) {
+        return ttUUID;
     }
     std::lock_guard<std::mutex> lock(ttMutex);
-    if (tt->GetUUID() != 0) {
-        return tt->GetUUID();
+    ttUUID = tt->GetUUID();
+    if (ttUUID != 0) {
+        return ttUUID;
     }
-    auto it = typeTemplates.find(tt->GetName());
-    if (it != typeTemplates.end()) {
-        tt->SetUUID(it->second->GetUUID());
-        return tt->GetUUID();
+    auto res = typeTemplates.emplace(tt->GetName(), tt);
+    if (!res.second) {
+        ttUUID = res.first->second->GetUUID();
+        tt->SetUUID(ttUUID);
+        return ttUUID;
     }
-    typeTemplates.emplace(tt->GetName(), tt);
-    tt->SetUUID(ttUUID.fetch_add(1));
-    return tt->GetUUID();
+
+    ttUUID = ttMaxUUID.fetch_add(1);
+    tt->SetUUID(ttUUID);
+    return ttUUID;
 }
 TypeInfoManager::GenericTiDesc* TypeInfoManager::InsertGenericTiDesc(GenericTiDesc& desc)
 {
@@ -306,10 +307,11 @@ TypeInfoManager::GenericTiDesc* TypeInfoManager::GetGenericTiDesc(GenericTiDesc&
 
 TypeInfoManager::GenericTiDesc* TypeInfoManager::GenericTiDescHashMap::GetGenericTiDesc(GenericTiDesc &desc)
 {
-    size_t bucketIdx = desc.GetHash() % buckets.size();
+    const U32 h = desc.GetHash();
+    const size_t bucketIdx = h % buckets.size();
     auto &bucket = buckets[bucketIdx];
     bucket.rwLock.LockRead();
-    auto it = bucket.maps.find(desc.GetHash());
+    auto it = bucket.maps.find(h);
     if (it != bucket.maps.end()) {
         for (auto descIt = it->second.begin(); descIt != it->second.end(); ++descIt) {
             if (**descIt == desc) {
@@ -324,10 +326,11 @@ TypeInfoManager::GenericTiDesc* TypeInfoManager::GenericTiDescHashMap::GetGeneri
 
 TypeInfoManager::GenericTiDesc* TypeInfoManager::GenericTiDescHashMap::InsertGenericTiDesc(GenericTiDesc &desc)
 {
-    size_t bucketIdx = desc.GetHash() % buckets.size();
+    const U32 h = desc.GetHash();
+    const size_t bucketIdx = h % buckets.size();
     auto &bucket = buckets[bucketIdx];
     bucket.rwLock.LockWrite();
-    auto it = bucket.maps.find(desc.GetHash());
+    auto it = bucket.maps.find(h);
     if (it != bucket.maps.end()) {
         for (auto descIt = it->second.begin(); descIt != it->second.end(); ++descIt) {
             if (**descIt == desc) {
@@ -338,7 +341,7 @@ TypeInfoManager::GenericTiDesc* TypeInfoManager::GenericTiDescHashMap::InsertGen
     }
     GenericTiDesc* tiDesc = new (std::nothrow) GenericTiDesc(desc);
     CHECK_DETAIL(tiDesc != nullptr, "fail to allocate GenericTiDesc");
-    bucket.maps[desc.GetHash()].push_back(tiDesc);
+    bucket.maps[h].push_back(tiDesc);
     bucket.rwLock.UnlockWrite();
     return tiDesc;
 }
@@ -356,17 +359,19 @@ TypeInfoManager::GenericTiDesc* TypeInfoManager::GetTypeInfo(TypeTemplate* tt, U
 TypeInfo* TypeInfoManager::GetOrCreateTypeInfo(TypeTemplate* tt, U32 argSize, TypeInfo* args[])
 {
     auto typeInfoDesc = GetTypeInfo(tt, argSize, args);
+    if (typeInfoDesc->IsInited()) {
+        return typeInfoDesc->typeInfo;
+    }
+    const U32 currentTid = static_cast<U32>(GetTid());
     do {
-        if (typeInfoDesc->IsNotCreated() && typeInfoDesc->tid.load() == GetTid()) {
-            CreatedTypeInfo(typeInfoDesc, tt, argSize, args);
-        }
-
-        if (typeInfoDesc->IsIniting() && typeInfoDesc->tid.load() == GetTid()) {
-            return typeInfoDesc->typeInfo;
-        }
-
         if (typeInfoDesc->IsInited()) {
             return typeInfoDesc->typeInfo;
+        }
+        if (typeInfoDesc->IsIniting() && typeInfoDesc->tid.load() == currentTid) {
+            return typeInfoDesc->typeInfo;
+        }
+        if (typeInfoDesc->IsNotCreated() && typeInfoDesc->tid.load() == currentTid) {
+            CreatedTypeInfo(typeInfoDesc, tt, argSize, args);
         }
     } while (true);
 }
@@ -376,11 +381,7 @@ void TypeInfoManager::CreatedTypeInfoImpl(GenericTiDesc* &tiDesc, TypeTemplate* 
     CString typeInfoName = tt->GetTypeInfoName(argSize, args);
     TypeInfo* newTypeInfo = reinterpret_cast<TypeInfo*>(Allocate(sizeof(TypeInfo)));
     size_t nameSize = typeInfoName.Length() + 1;
-#ifdef __arm__
-    uintptr_t nameAddr = Allocate(MRT_ALIGN(nameSize,sizeof(TypeInfo*)));
-#else
     uintptr_t nameAddr = Allocate(nameSize);
-#endif
     MapleRuntime::MemoryCopy(nameAddr, nameSize, reinterpret_cast<uintptr_t>(typeInfoName.Str()), nameSize);
     newTypeInfo->SetName(reinterpret_cast<const char*>(nameAddr));
 
@@ -399,22 +400,30 @@ void TypeInfoManager::CreatedTypeInfoImpl(GenericTiDesc* &tiDesc, TypeTemplate* 
 
     U16 fieldNum = tt->GetFieldNum();
     U16 typeArgNum = tt->GetTypeArgNum();
-    if (tt->IsTuple() || tt->IsFunc() || tt->IsRawArray()) {
+    if (tt->IsCFunc()) {
+        typeArgNum = argSize;
+    } else if (tt->IsTuple() || tt->IsFunc() || tt->IsRawArray()) {
         fieldNum = argSize;
         typeArgNum = argSize;
     } else if (tt->IsVArray()) {
         LOG(RTLOG_FATAL, "Instantiate TypeInfo for VArray is not supported");
     }
+
+    U32 ptrSize = sizeof(void*);
     newTypeInfo->SetFieldNum(fieldNum);
     newTypeInfo->SetTypeArgNum(typeArgNum);
     if (tt->IsArrayType() || tt->IsCPointer()) {
         // args stores the component typeInfo of the array or cpointer.
         TypeInfo* componentTypeTi = args[0];
         newTypeInfo->SetComponentTypeInfo(componentTypeTi);
-        newTypeInfo->SetInstanceSize(8U);
-        newTypeInfo->SetAlign(8U);
+        newTypeInfo->SetInstanceSize(ptrSize);
+        newTypeInfo->SetAlign(ptrSize);
         AddTypeInfo(newTypeInfo);
         tiDesc->SetTypeInfoStatus(TypeInfoStatus::TYPEINFO_INITED);
+        return;
+    } else if (tt->IsCFunc()) {
+        newTypeInfo->SetInstanceSize(ptrSize);
+        newTypeInfo->SetAlign(ptrSize);
         return;
     }
     U32* offsets = reinterpret_cast<U32*>(Allocate(fieldNum * sizeof(U32)));
@@ -424,7 +433,7 @@ void TypeInfoManager::CreatedTypeInfoImpl(GenericTiDesc* &tiDesc, TypeTemplate* 
 
 void TypeInfoManager::FillRemainingField(GenericTiDesc* &tiDesc, TypeTemplate* tt, U32 argSize, TypeInfo* args[])
 {
-    if (tt->IsArrayType()) {
+    if (tt->IsArrayType() || tt->IsCFunc()) {
         return;
     }
     TypeInfo* newTypeInfo = tiDesc->typeInfo;
@@ -444,6 +453,37 @@ void TypeInfoManager::FillRemainingField(GenericTiDesc* &tiDesc, TypeTemplate* t
         FillReflectInfo(tt, newTypeInfo);
     }
     tiDesc->SetTypeInfoStatus(TypeInfoStatus::TYPEINFO_INITED);
+}
+
+// Helper method to copy parameter information
+void TypeInfoManager::CopyParameterInfos(MethodInfo* ttMethodInfo, MethodInfo* tiMethodInfo)
+{
+    U16 actualParamNum = ttMethodInfo->GetNumOfActualParameterInfos();
+    if (actualParamNum == 0) {
+        return;
+    }
+    uintptr_t paramInfosAddr = Allocate(sizeof(ParameterInfo) * actualParamNum);
+    Uptr ttParamInfoStart = ttMethodInfo->GetActualParameterInfos();
+    MapleRuntime::MemoryCopy(paramInfosAddr, sizeof(ParameterInfo) * actualParamNum,
+        ttParamInfoStart, sizeof(ParameterInfo) * actualParamNum);
+    ParameterInfo* tiParamInfos = reinterpret_cast<ParameterInfo*>(paramInfosAddr);
+    tiMethodInfo->SetActualParameterInfos(reinterpret_cast<Uptr>(tiParamInfos));
+    for (U32 paraIdx = 0; paraIdx < actualParamNum; ++paraIdx) {
+        ParameterInfo* ttParamInfo = ttMethodInfo->GetActualParameterInfo(paraIdx, true);
+        ParameterInfo* tiParamInfo = tiMethodInfo->GetActualParameterInfo(paraIdx, true);
+        tiParamInfo->SetName(ttParamInfo->GetName());
+    }
+}
+
+// Helper method to copy method information
+void TypeInfoManager::CopyMethodInfo(MethodInfo* ttMethodInfo, MethodInfo* tiMethodInfo, TypeInfo* ti)
+{
+    MapleRuntime::MemoryCopy(reinterpret_cast<uintptr_t>(tiMethodInfo), sizeof(MethodInfo),
+        reinterpret_cast<uintptr_t>(ttMethodInfo), sizeof(MethodInfo));
+    tiMethodInfo->SetDeclaringTypeInfo(ti);
+    tiMethodInfo->SetMethodName(ttMethodInfo->GetMethodName());
+    tiMethodInfo->SetGenericParameterInfos(reinterpret_cast<Uptr>(ttMethodInfo->GetGenericParameterInfos()));
+    CopyParameterInfos(ttMethodInfo, tiMethodInfo);
 }
 
 void TypeInfoManager::FillReflectInfo(TypeTemplate *tt, TypeInfo *ti)
@@ -473,55 +513,17 @@ void TypeInfoManager::FillReflectInfo(TypeTemplate *tt, TypeInfo *ti)
     for (U32 idx = 0; idx < ttReflectInfo->GetNumOfInstanceMethodInfos(); ++idx) {
         uintptr_t methodInfoAddr = Allocate(sizeof(MethodInfo));
         MethodInfo* ttMethodInfo = ttReflectInfo->GetInstanceMethodInfo(idx);
-        MapleRuntime::MemoryCopy(methodInfoAddr, sizeof(MethodInfo),
-            reinterpret_cast<uintptr_t>(ttMethodInfo), sizeof(MethodInfo));
         MethodInfo* tiMethodInfo = reinterpret_cast<MethodInfo*>(methodInfoAddr);
+        CopyMethodInfo(ttMethodInfo, tiMethodInfo, ti);
         tiReflectInfo->SetInstanceMethodInfo(idx, tiMethodInfo);
-        tiMethodInfo->SetDeclaringTypeInfo(ti);
-        tiMethodInfo->SetMethodName(ttMethodInfo->GetMethodName());
-        tiMethodInfo->SetGenericParameterInfos(reinterpret_cast<Uptr>(ttMethodInfo->GetGenericParameterInfos()));
-        U16 actualParamNum = ttMethodInfo->GetNumOfActualParameterInfos();
-        if (actualParamNum == 0) {
-            continue;
-        }
-        uintptr_t paramInfosAddr = Allocate(sizeof(ParameterInfo) * actualParamNum);
-        Uptr ttParamInfoStart = ttMethodInfo->GetActualParameterInfos();
-        MapleRuntime::MemoryCopy(paramInfosAddr, sizeof(ParameterInfo) * actualParamNum,
-            ttParamInfoStart, sizeof(ParameterInfo) * actualParamNum);
-        ParameterInfo* tiParamInfos = reinterpret_cast<ParameterInfo*>(paramInfosAddr);
-        tiMethodInfo->SetActualParameterInfos(reinterpret_cast<Uptr>(tiParamInfos));
-        for (U32 paraIdx = 0; paraIdx < actualParamNum; ++paraIdx) {
-            ParameterInfo* ttParamInfo = ttMethodInfo->GetActualParameterInfo(paraIdx, true);
-            ParameterInfo* tiParamInfo = tiMethodInfo->GetActualParameterInfo(paraIdx, true);
-            tiParamInfo->SetName(ttParamInfo->GetName());
-        }
     }
 
     for (U32 idx = 0; idx < ttReflectInfo->GetNumOfStaticMethodInfos(); ++idx) {
         uintptr_t methodInfoAddr = Allocate(sizeof(MethodInfo));
         MethodInfo* ttMethodInfo = ttReflectInfo->GetStaticMethodInfo(idx);
-        MapleRuntime::MemoryCopy(methodInfoAddr, sizeof(MethodInfo),
-            reinterpret_cast<uintptr_t>(ttMethodInfo), sizeof(MethodInfo));
         MethodInfo* tiMethodInfo = reinterpret_cast<MethodInfo*>(methodInfoAddr);
+        CopyMethodInfo(ttMethodInfo, tiMethodInfo, ti);
         tiReflectInfo->SetStaticMethodInfo(idx, tiMethodInfo);
-        tiMethodInfo->SetDeclaringTypeInfo(ti);
-        tiMethodInfo->SetMethodName(ttMethodInfo->GetMethodName());
-        U16 actualParamNum = ttMethodInfo->GetNumOfActualParameterInfos();
-        tiMethodInfo->SetGenericParameterInfos(reinterpret_cast<Uptr>(ttMethodInfo->GetGenericParameterInfos()));
-        if (actualParamNum == 0) {
-            continue;
-        }
-        uintptr_t paramInfosAddr = Allocate(sizeof(ParameterInfo) * actualParamNum);
-        Uptr ttParamInfoStart = ttMethodInfo->GetActualParameterInfos();
-        MapleRuntime::MemoryCopy(paramInfosAddr, sizeof(ParameterInfo) * actualParamNum,
-            ttParamInfoStart, sizeof(ParameterInfo) * actualParamNum);
-        ParameterInfo* tiParamInfos = reinterpret_cast<ParameterInfo*>(paramInfosAddr);
-        tiMethodInfo->SetActualParameterInfos(reinterpret_cast<Uptr>(tiParamInfos));
-        for (U32 paraIdx = 0; paraIdx < actualParamNum; ++paraIdx) {
-            ParameterInfo* ttParamInfo = ttMethodInfo->GetActualParameterInfo(paraIdx, true);
-            ParameterInfo* tiParamInfo = tiMethodInfo->GetActualParameterInfo(paraIdx, true);
-            tiParamInfo->SetName(ttParamInfo->GetName());
-        }
     }
     ti->SetReflectInfo(tiReflectInfo);
 }
@@ -551,27 +553,60 @@ void TypeInfoManager::CreatedTypeInfo(GenericTiDesc* &tiDesc, TypeTemplate* tt, 
     }
 }
 
-void TypeInfoManager::ParseEnumInfo(TypeTemplate* tt, U32 argSize, TypeInfo* args[], TypeInfo* ti)
+bool TypeInfoManager::IsEnumInfoReady(TypeTemplate* tt, TypeInfo* ti)
 {
-#ifdef __arm__
-    return;
-#endif
-    EnumInfo* ttEi = tt->GetEnumInfo();
-    if (ttEi == nullptr || (ti->GetEnumInfo() != nullptr && ti->GetEnumInfo()->IsParsed())) {
-        return;
+    if (ti->GetEnumInfo() != nullptr && ti->GetEnumInfo()->IsParsed()) {
+        return true;
     }
-    U32 enumCtorNum = ttEi->GetNumOfEnumCtor();
-    EnumInfo* enumInfo = reinterpret_cast<EnumInfo*>(Allocate(sizeof(EnumInfo)));
-    MapleRuntime::MemoryCopy(reinterpret_cast<Uptr>(enumInfo), sizeof(EnumInfo),
-        reinterpret_cast<uintptr_t>(ttEi), sizeof(EnumInfo));
+    if (tt->IsEnumCtor() && ti->GetReflectInfo() != nullptr) {
+        return true;
+    }
+    return false;
+}
+
+void TypeInfoManager::HandleEnumCtorReflectInfo(TypeTemplate* tt, TypeInfo* ti)
+{
+    EnumCtorReflectInfo* ttEnumCtorInfo = tt->GetEnumCtorReflectInfo();
+    EnumCtorReflectInfo* enumCtorInfo =
+        reinterpret_cast<EnumCtorReflectInfo*>(Allocate(sizeof(EnumCtorReflectInfo)));
+    MapleRuntime::MemoryCopy(reinterpret_cast<Uptr>(enumCtorInfo), sizeof(EnumCtorReflectInfo),
+        reinterpret_cast<uintptr_t>(ttEnumCtorInfo), sizeof(EnumCtorReflectInfo));
+    ti->SetEnumCtorReflectInfo(enumCtorInfo);
+}
+
+EnumInfo* TypeInfoManager::AllocateEnumInfo(EnumInfo* ttEnumInfo)
+{
+    size_t enumInfoSize = sizeof(EnumInfo);
+    enumInfoSize += ttEnumInfo->GetNumOfInstanceMethodInfos() * sizeof(DataRefOffset64<MethodInfo>);
+    enumInfoSize += ttEnumInfo->GetNumOfStaticMethodInfos() * sizeof(DataRefOffset64<MethodInfo>);
+    uintptr_t enumInfoAddr = Allocate(enumInfoSize);
+    MapleRuntime::MemoryCopy(enumInfoAddr, enumInfoSize,
+        reinterpret_cast<uintptr_t>(ttEnumInfo), enumInfoSize);
+    return reinterpret_cast<EnumInfo*>(enumInfoAddr);
+}
+
+EnumDebugInfo* TypeInfoManager::AllocateEnumDebugInfo(EnumInfo* ttEnumInfo)
+{
+    size_t enumDebugInfoSize = sizeof(EnumDebugInfo);
+    uintptr_t enumDebugInfoAddr = Allocate(enumDebugInfoSize);
+    MapleRuntime::MemoryCopy(enumDebugInfoAddr, enumDebugInfoSize,
+        reinterpret_cast<uintptr_t>(ttEnumInfo), enumDebugInfoSize);
+    return reinterpret_cast<EnumDebugInfo*>(enumDebugInfoAddr);
+}
+
+void TypeInfoManager::SetEnumConstructors(EnumDebugInfo* enumDebugInfo, EnumInfo* ttEnumInfo,
+                                          U32 argSize, TypeInfo* args[])
+{
+    U32 enumCtorNum = ttEnumInfo->GetNumOfEnumCtor();
     size_t sizeOfEnumCtors = enumCtorNum * sizeof(EnumCtorInfo);
     uintptr_t enumCtorInfoAddr = Allocate(sizeOfEnumCtors);
     MapleRuntime::MemoryCopy(enumCtorInfoAddr, sizeOfEnumCtors,
-        reinterpret_cast<uintptr_t>(ttEi->GetEnumCtor(0)), sizeOfEnumCtors);
-    enumInfo->SetEnumCtors(reinterpret_cast<void*>(enumCtorInfoAddr));
+        reinterpret_cast<uintptr_t>(ttEnumInfo->GetEnumCtor(0)), sizeOfEnumCtors);
+    enumDebugInfo->SetEnumCtors(reinterpret_cast<void*>(enumCtorInfoAddr));
+
     for (U32 idx = 0; idx < enumCtorNum; ++idx) {
-        EnumCtorInfo* ctor = enumInfo->GetEnumCtor(idx);
-        ctor->SetName(ttEi->GetEnumCtor(idx)->GetName());
+        EnumCtorInfo* ctor = enumDebugInfo->GetEnumCtor(idx);
+        ctor->SetName(ttEnumInfo->GetEnumCtor(idx)->GetName());
         void* fn = reinterpret_cast<void*>(ctor->GetCtorFn());
         if (fn == nullptr) {
             continue;
@@ -579,6 +614,56 @@ void TypeInfoManager::ParseEnumInfo(TypeTemplate* tt, U32 argSize, TypeInfo* arg
         TypeInfo* enumTi = reinterpret_cast<TypeInfo*>(TypeTemplate::ExecuteGenericFunc(fn, argSize, args));
         ctor->SetTypeInfo(enumTi);
     }
+}
+
+void TypeInfoManager::SetMethodInfos(EnumInfo* enumInfo, EnumInfo* ttEnumInfo, TypeInfo* ti)
+{
+    for (U32 idx = 0; idx < ttEnumInfo->GetNumOfInstanceMethodInfos(); ++idx) {
+        uintptr_t methodInfoAddr = Allocate(sizeof(MethodInfo));
+        MethodInfo* ttMethodInfo = ttEnumInfo->GetInstanceMethodInfo(idx);
+        MethodInfo* tiMethodInfo = reinterpret_cast<MethodInfo*>(methodInfoAddr);
+        CopyMethodInfo(ttMethodInfo, tiMethodInfo, ti);
+        enumInfo->SetInstanceMethodInfo(idx, tiMethodInfo);
+    }
+
+    for (U32 idx = 0; idx < ttEnumInfo->GetNumOfStaticMethodInfos(); ++idx) {
+        uintptr_t methodInfoAddr = Allocate(sizeof(MethodInfo));
+        MethodInfo* ttMethodInfo = ttEnumInfo->GetStaticMethodInfo(idx);
+        MethodInfo* tiMethodInfo = reinterpret_cast<MethodInfo*>(methodInfoAddr);
+        CopyMethodInfo(ttMethodInfo, tiMethodInfo, ti);
+        enumInfo->SetStaticMethodInfo(idx, tiMethodInfo);
+    }
+}
+
+void TypeInfoManager::ParseEnumInfo(TypeTemplate* tt, U32 argSize, TypeInfo* args[], TypeInfo* ti)
+{
+#ifdef __arm__
+    return;
+#endif
+    EnumInfo* ttEnumInfo = tt->GetEnumInfo();
+    if (ttEnumInfo == nullptr || IsEnumInfoReady(tt, ti)) {
+        return;
+    }
+    if (tt->IsEnumCtor() && ti->GetReflectInfo() == nullptr) {
+        HandleEnumCtorReflectInfo(tt, ti);
+        return;
+    }
+    if (!tt->ReflectIsEnable()) {
+        EnumDebugInfo* enumDebugInfo = AllocateEnumDebugInfo(ttEnumInfo);
+        ti->SetEnumDebugInfo(enumDebugInfo);
+        SetEnumConstructors(enumDebugInfo, ttEnumInfo, argSize, args);
+        return;
+    }
+    EnumInfo* enumInfo = AllocateEnumInfo(ttEnumInfo);
+    SetEnumConstructors(enumInfo->GetEnumDebugInfo(), ttEnumInfo, argSize, args);
+    if (!tt->ReflectIsEnable() || ttEnumInfo->GetReflectVersion() == 0) {
+        enumInfo->SetParsed();
+        ti->SetEnumInfo(enumInfo);
+        return;
+    }
+    enumInfo->SetDeclaringGenericTypeInfo(reinterpret_cast<GenericTypeInfo*>(
+        ttEnumInfo->GetDeclaringGenericTypeInfo()));
+    SetMethodInfos(enumInfo, ttEnumInfo, ti);
     enumInfo->SetParsed();
     ti->SetEnumInfo(enumInfo);
 }
@@ -610,9 +695,9 @@ void TypeInfoManager::CalculateGCTib(TypeInfo* typeInfo)
     CString gcTibStr = typeGCInfo.GetGCTibStr(typeInfo);
     size_t len = gcTibStr.Length();
     GCTib gcTib;
-    constexpr uint8_t alignSize = sizeof(uint32_t);
+    constexpr uint8_t alignSize = sizeof(uint64_t);
     // create StdGCTib
-    U16 num = gcTibStr.Length() / alignSize;
+    U16 num = MRT_ALIGN(gcTibStr.Length(), alignSize) / alignSize;
     U16 needSpace = sizeof(U32) + sizeof(U8) * num;
     StdGCTib* stdGCTib = reinterpret_cast<StdGCTib*>(Allocate(needSpace));
     stdGCTib->nBitmapWords = num;
@@ -626,6 +711,9 @@ void TypeInfoManager::CalculateGCTib(TypeInfo* typeInfo)
             stdGCTib->bitmapWords[curIdx++] = value;
             value = 0;
         }
+    }
+    if (len % alignSize != 0) {
+        stdGCTib->bitmapWords[curIdx] = value;
     }
     gcTib.gctib = stdGCTib;
     typeInfo->SetGCTib(gcTib);
@@ -650,6 +738,8 @@ void TypeInfoManager::CalculateGCTib(TypeInfo* typeInfo)
         typeInfo->SetGCTib(gcTib);
     } else {
         // create StdGCTib
+        // NOTE: If length is not divided by alignSize, special processing
+        // is required for the assignment of num and bitmapWords.
         U16 num = gcTibStr.Length() / alignSize;
         U16 needSpace = sizeof(U32) + sizeof(U8) * num;
         StdGCTib* stdGCTib = reinterpret_cast<StdGCTib*>(Allocate(needSpace));
@@ -698,7 +788,7 @@ void TypeInfoManager::FillOffsets(TypeInfo* newTypeInfo, TypeTemplate* tt, U32 a
     } else {
         U32 fieldNum = tt->GetFieldNum();
         for (U16 fieldIdx = 0; fieldIdx < fieldNum; ++fieldIdx) {
-            TypeInfo* fieldTi = tt->GetFieldTypeInfo(fieldIdx, argSize, args);
+            TypeInfo* fieldTi = tt->GetFieldType(fieldIdx, argSize, args);
             newTypeInfo->SetFieldType(fieldIdx, fieldTi);
             // Nothing and Unit type, size is 0
             if (fieldTi->IsNothing() || fieldTi->IsUnit()) {
@@ -821,6 +911,10 @@ U32 TypeInfoManager::GetTypeSize(TypeInfo* ti)
 
 uintptr_t TypeInfoManager::Allocate(size_t size)
 {
+// TypeInfo related content needs four-byte aligned to prevent fields from being overwritten incorrectly.
+#ifdef __arm__
+    size = MRT_ALIGN(size, sizeof(uint32_t));
+#endif
     uintptr_t addr = position.fetch_add(size);
     if (addr + size > endAddress) {
         NewMMap(mapMemory);

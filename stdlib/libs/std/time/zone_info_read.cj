@@ -279,6 +279,31 @@ func parseFields(arrReader: ArrReader): Array<Int64> {
                                 (UInt32(arrReader.arr[arrReader.index]) << 24))))
         arrReader.skip(4) // Jump 4 bytes of one UInt32
     }
+
+    let (isUTCnt, isStdCnt, leapCnt, timeCnt, typeCnt, charCnt) = (0, 1, 2, 3, 4, 5)
+    let maxTransitions = 20000
+    let maxTypes = 256
+    let maxChars = 100000
+
+    if (fields[timeCnt] > maxTransitions) {
+        throw InvalidDataException("Failed to parse the timezone file: timeCnt exceeds maximum.")
+    }
+    if (fields[typeCnt] > maxTypes) {
+        throw InvalidDataException("Failed to parse the timezone file: typeCnt exceeds maximum.")
+    }
+    if (fields[charCnt] > maxChars) {
+        throw InvalidDataException("Failed to parse the timezone file: charCnt exceeds maximum.")
+    }
+    if (fields[leapCnt] > maxTransitions) {
+        throw InvalidDataException("Failed to parse the timezone file: leapCnt exceeds maximum.")
+    }
+    if (fields[isStdCnt] > maxTypes) {
+        throw InvalidDataException("Failed to parse the timezone file: isStdCnt exceeds maximum.")
+    }
+    if (fields[isUTCnt] > maxTypes) {
+        throw InvalidDataException("Failed to parse the timezone file: isUTCnt exceeds maximum.")
+    }
+
     return fields
 }
 
@@ -380,6 +405,7 @@ func parseZoneTrans(
         return Array<TransTime>(1, repeat: TransTime(Int64.Min, 0))
     }
 
+    var prevTrans: Int64 = Int64.Min
     for (i in 0..timeNum) {
         if (timeSize == 4) {
             let when = ttReader.getNext(4)
@@ -401,8 +427,12 @@ func parseZoneTrans(
             throw InvalidDataException("Failed to parse the timezone file.")
         }
         if (Int64(transTypes[i]) >= zoneNum) {
-            InvalidDataException("Failed to parse the timezone file.")
+            throw InvalidDataException("Failed to parse the timezone file: transition type index out of range.")
         }
+        if (i > 0 && transArr[i].trans <= prevTrans) {
+            throw InvalidDataException("Failed to parse the timezone file: transition times must be strictly increasing.")
+        }
+        prevTrans = transArr[i].trans
         transArr[i].index = transTypes[i]
     }
     return transArr

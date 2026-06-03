@@ -2,7 +2,7 @@
 
 ## 当前进程相关操作
 
-代码如下：
+示例：
 
 <!-- compile -->
 
@@ -12,8 +12,8 @@ import std.env.*
 main(): Int64 {
     println(getProcessId())
     println(getCommand())
-    println(getCommandLine().toString())
-    println(getWorkingDirectory().toString())
+    println(getCommandLine())
+    println(getWorkingDirectory())
     atExit(printText)
     exit(0)
     return 0
@@ -30,7 +30,7 @@ func printText(): Unit {
 28481
 main
 [./main]
-/root/code/workpalce/cangjie
+/root/code/workplace/cangjie
 hello cangjie!
 ```
 

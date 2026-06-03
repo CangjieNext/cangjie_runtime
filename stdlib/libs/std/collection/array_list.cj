@@ -318,7 +318,7 @@ public class ArrayList<T> <: List<T> {
         if (cSize <= 0) {
             return
         }
-        
+
         if (mySize + cSize > myData.size) {
             var newCapacity: Int64 = max(mySize + (mySize >> 1), mySize + cSize)
             let newArray: Array<T> = Array<T>(newCapacity, repeat: unsafe { zeroValue<T>() })
@@ -460,6 +460,279 @@ public class ArrayList<T> <: List<T> {
             mySize = 0
         }
         myVersion++
+    }
+
+    /**
+     * @description Extracts elements from the ArrayList at the specified interval and returns a new ArrayList.
+     * 
+     * @param count the selected interval.
+     * @returns a new ArrayList containing all elements extracted from the source ArrayList at intervals.
+     * @throws IllegalArgumentException, if count < 0.
+     */
+    @When[env != "ohos"]
+    public func step(count: Int64): ArrayList<T> {
+        if (count <= 0) {
+            throw IllegalArgumentException("Step count must be greater than 0!")
+        }
+
+        if (mySize <= 0) {
+            return ArrayList<T>()
+        }
+
+        let newSize: Int64 = (mySize + count - 1) / count
+        var newData: Array<T> = Array<T>(newSize, repeat: unsafe { zeroValue<T>() })
+        let oldLastIndex: Int64 = (newSize - 1) * count
+        var j: Int64 = newSize - 1
+        for (i in oldLastIndex..=0 : -count) {
+            newData[j] = myData[i]
+            j--
+        }
+        return ArrayList<T>(newData)
+    }
+
+    /**
+     * @description Extracts a specific number of elements from the array and returns a new array.
+     * 
+     * @param the number of elements to take.
+     * @returns a new ArrayList with the specified number of elements taken.
+     * @throws IllegalArgumentException, if count < 0.
+     */
+    @When[env != "ohos"]
+    public func take(count: Int64): ArrayList<T> {
+        if (count == 0) {
+            return ArrayList<T>()
+        }
+
+        if (count < 0) {
+            throw IllegalArgumentException("take count must be greater than 0!")
+        }
+        let newSize = min(count, mySize)
+
+        var newData: Array<T> = Array<T>(newSize, repeat: unsafe { zeroValue<T>() })
+        myData.copyTo(newData, 0, 0, newSize)
+        return ArrayList<T>(newData)
+    }
+
+    /**
+     * @description Skips a specific number of elements and returns a new ArrayList.
+     * 
+     * @param count the number of elements to skip.
+     * @returns a new ArrayList with the specified number of elements skipped.
+     * @throws IllegalArgumentException, if count < 0.
+     */
+    @When[env != "ohos"]
+    public func skip(count: Int64): ArrayList<T> {
+        if (count < 0) {
+            throw IllegalArgumentException("skip count must be greater than 0!")
+        }
+        if (count == 0) {
+            var newData: Array<T> = myData.clone()
+            return ArrayList<T>(newData)
+        }
+        if (mySize - count <= 0) {
+            return ArrayList<T>()
+        }
+
+        var newData: Array<T> = Array<T>(mySize - count, repeat: unsafe { zeroValue<T>() })
+        myData.copyTo(newData, count, 0, mySize - count)
+        return ArrayList<T>(newData)
+    }
+
+    /**
+     * @description Returns a new ArrayList<T> containing elements that satisfy the filtering condition.
+     * 
+     * @param predicate the given condition.
+     * @returns a new collection containing elements that satisfy the filtering condition.
+     */
+    @When[env != "ohos"]
+    public func filter(predicate: (T) -> Bool): ArrayList<T> {
+        if (mySize == 0) {
+            return ArrayList<T>()
+        }
+        var newData: Array<T> = Array<T>(mySize, repeat: unsafe { zeroValue<T>() })
+        var j = 0;
+        for (i in 0..mySize) {
+            if (predicate(myData[i])) {
+                newData[j] = myData[i]
+                j++
+            }
+        }
+        return ArrayList<T>(newData.slice(0,j))
+    }
+
+    /**
+     * @description Performs mapping on this ArrayList and returns a new ArrayList.
+     * 
+     * @param transform the given mapping function.
+     * @returns a new ArrayList.
+     */
+    @When[env != "ohos"]
+    public func map<R>(transform: (T) -> R): ArrayList<R> {
+        if (mySize == 0) {
+            return ArrayList<R>()
+        }
+        var newData: Array<R> = Array<R>(mySize, repeat: unsafe { zeroValue<R>() })
+        for (i in mySize - 1..=0 : -1) {
+            newData[i] = transform(myData[i])
+        }
+        return ArrayList<R>(newData)
+    }
+
+    /**
+     * @description Performs filtering and mapping operations simultaneously, returning a new ArrayList.
+     * 
+     * @param transform the given mapping function.
+     * @returns a new ArrayList after filtering and mapping.
+     */
+    @When[env != "ohos"]
+    public func flatMap<R>(transform: (T) -> ArrayList<R>): ArrayList<R> {
+        var newList :ArrayList<R> = ArrayList<R>()
+        for(i in 0..mySize){
+            var tempData = transform(myData[i])
+            newList.add(all: tempData)
+        }
+        return newList
+    }
+
+    /**
+     * @description Applies a transformation closure (transform) to each element in the ArrayList, where the closure returns a new ArrayList
+                    then "flattens" and concatenates all returned ArrayList into a single result ArrayList.
+     * 
+     * @param transform the given mapping function.
+     * @returns the new ArrayList after being "mapped" and "flattened".
+     */
+    @When[env != "ohos"]
+    public func filterMap<R>(transform: (T) -> ?R): ArrayList<R> {
+        if (mySize == 0) {
+            return ArrayList<R>()
+        }
+        var newData: Array<R> = Array<R>(mySize, repeat: unsafe { zeroValue<R>() })
+        var j = 0;
+        for (i in 0..mySize) {
+            match (transform(myData[i])) {
+                case Some(v) =>
+                    newData[j] = v
+                    j++
+                case None => continue
+            }
+        }
+        return ArrayList<R>(newData.slice(0,j))
+    }
+
+    /**
+     * @description Returns a new ArrayList with the given new element inserted between every two elements.
+     * 
+     * @param separator the given element.
+     * @returns a new ArrayList.
+     */
+    @When[env != "ohos"]
+    public func intersperse(separator: T): ArrayList<T> {
+        if (mySize < 2) {
+            var newData: Array<T> = myData.clone()
+            return ArrayList<T>(newData)
+        }
+        let newSize: Int64 = 2 * mySize - 1
+        var newData: Array<T> = Array<T>(newSize, repeat: unsafe { zeroValue<T>() })
+        for (i in 0..mySize - 1) {
+            newData[2 * i] = myData[i]
+            newData[2 * i + 1] = separator
+        }
+        newData[newSize - 1] = myData[mySize - 1]
+        return ArrayList<T>(newData)
+    }
+
+    /**
+     * @description Iterates over all elements and performs the given operation.
+     * 
+     * @param action the given operation function.
+     */
+    @When[env != "ohos"]
+    public func forEach(action: (T) -> Unit): Unit {
+        for (i in 0..mySize) {
+            action(myData[i])
+        }
+    }
+
+    /**
+     * @description Determine whether all elements in the ArrayList satisfy the condition.
+     * 
+     * @param predicate the given condition.
+     * @returns true if all elements in the ArrayList satisfy the condition, otherwise returns false.
+     */
+    @When[env != "ohos"]
+    public func all(predicate: (T) -> Bool): Bool {
+        for (i in 0..mySize) {
+            if (!predicate(myData[i])) {
+                return false
+            }
+        }
+        return true
+    }
+
+    /**
+     * @description Determine whether there is any element in the ArrayList that satisfies the condition.
+     * 
+     * @param predicate the given condition.
+     * @returns Whether there is any element that satisfies the condition.
+     */
+    @When[env != "ohos"]
+    public func any(predicate: (T) -> Bool): Bool {
+        for (i in 0..mySize) {
+            if (predicate(myData[i])) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /**
+     * @description Determine whether all elements in the ArrayList do not satisfy the condition.
+     * 
+     * @param predicate the given condition.
+     * @returns Whether all elements in the current ArrayList do not satisfy the condition.
+     */
+    @When[env != "ohos"]
+    public func none(predicate: (T) -> Bool): Bool {
+        for (i in 0..mySize) {
+            if (predicate(myData[i])) {
+                return false
+            }
+        }
+        return true
+    }
+
+    /**
+     * @description Computes from left to right using the specified initial value.
+     * 
+     * @param initial the given initial value of type R.
+     * @param operation the given computation function.
+     * @returns the final computed value.
+     */
+    @When[env != "ohos"]
+    public func fold<R>(initial: R, operation: (R, T) -> R): R {
+        var result: R = initial
+        for (i in 0..mySize) {
+            result = operation(result, myData[i])
+        }
+        return result
+    }
+
+    /**
+     * @description Compute from left to right using the first element as the initial value.
+     * 
+     * @param operation the given computation function.
+     * @returns the final computed value.
+     */
+    @When[env != "ohos"]
+    public func reduce(operation: (T, T) -> T): Option<T> {
+        if (mySize == 0) {
+            return None<T>
+        }
+        var result: T = myData[0]
+        for (i in 1..mySize) {
+            result = operation(result, myData[i])
+        }
+        return result
     }
 
     /**
@@ -757,13 +1030,13 @@ public class ArrayList<T> <: List<T> {
 extend<T> ArrayList<T> <: Equatable<ArrayList<T>> where T <: Equatable<T> {
     /** overloaded determination == method. */
     @Frozen
-    public operator func ==(that: ArrayList<T>): Bool {
-        if (this.size != that.size) {
+    public operator func ==(other: ArrayList<T>): Bool {
+        if (this.size != other.size) {
             return false
         }
         /* Back-to-front traversal can reduce boundary checks and improve performance */
         for (i in this.size - 1..=0 : -1) {
-            if (unsafe { this.myData.getUnchecked(i) != that.myData.getUnchecked(i) }) {
+            if (unsafe { this.myData.getUnchecked(i) != other.myData.getUnchecked(i) }) {
                 return false
             }
         }
@@ -772,8 +1045,8 @@ extend<T> ArrayList<T> <: Equatable<ArrayList<T>> where T <: Equatable<T> {
 
     /** overloaded determination != method. */
     @Frozen
-    public operator func !=(that: ArrayList<T>): Bool {
-        return !(this == that)
+    public operator func !=(other: ArrayList<T>): Bool {
+        return !(this == other)
     }
 
     @Frozen
@@ -836,6 +1109,44 @@ extend<T> ArrayList<T> <: ToString where T <: ToString {
     @Frozen
     public func toString(): String {
         return collectionToString<ArrayList<T>, T>(this)
+    }
+}
+
+extend<T> ArrayList<T> {
+    /**
+     * @description Merges two ArrayList into a new ArrayList (the length depends on the shorter ArrayList).
+     * 
+     * @param other one of the ArrayList to be merged.
+     * @returns a new ArrayList.
+     */
+    @When[env != "ohos"]
+    public func zip<R>(other: ArrayList<R>): ArrayList<(T, R)> {
+        let newSize: Int64 = min(mySize, other.size)
+        if (newSize == 0) {
+            return ArrayList<(T, R)>()
+        }
+        var newData: Array<(T, R)> = Array<(T, R)>(newSize, repeat: unsafe { zeroValue<(T, R)>() })
+        for (i in newSize - 1..=0 : -1) {
+            newData[i] = (myData[i], other[i])
+        }
+        return ArrayList<(T, R)>(newData)
+    }
+
+    /**
+     * @description Used to obtain an ArrayList with indices.
+     * 
+     * @returns a new ArrayList with indices.
+     */
+    @When[env != "ohos"]
+    public func enumerate(): ArrayList<(Int64, T)> {
+        if (mySize == 0) {
+            return ArrayList<(Int64, T)>()
+        }
+        var newData: Array<(Int64, T)> = Array<(Int64, T)>(mySize, repeat: unsafe { zeroValue<(Int64, T)>() })
+        for (i in mySize - 1..=0 : -1) {
+            newData[i] = (i, myData[i])
+        }
+        return ArrayList<(Int64, T)>(newData)
     }
 }
 
@@ -1578,31 +1889,25 @@ extend<T> Array<T> {
         var a: T = this[i1]
         var b: T = this[i2]
         var c: T = this[i3]
-        var t: T = a
-        match (comparator(a, b)) {
-            case GT =>
-                t = a
-                a = b
-                b = t
-            case _ => ()
+        if (comparator(a, b) == GT) {
+            var temp = a
+            a = b
+            b = temp
         }
-        match (comparator(a, c)) {
-            case GT =>
-                t = a
-                a = c
-                c = t
-            case _ => ()
+        
+        if (comparator(c, a) == LT) {
+            this[i1] = c
+            this[i2] = a
+            this[i3] = b
+        } else if (comparator(c, b) == LT) {
+            this[i1] = a
+            this[i2] = c
+            this[i3] = b
+        } else {
+            this[i1] = a
+            this[i2] = b
+            this[i3] = c
         }
-        match (comparator(b, c)) {
-            case GT =>
-                t = b
-                b = c
-                c = t
-            case _ => ()
-        }
-        this[i1] = a
-        this[i2] = b
-        this[i3] = c
     }
 
     @OverflowWrapping

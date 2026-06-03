@@ -38,7 +38,7 @@ Parameters:
 
 - idx: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The index value of the element.
 
-Return Value:
+Returns:
 
 - T - The element value.
 
@@ -95,7 +95,7 @@ Parameters:
 
 - _: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The index value of the element.
 
-Return Value:
+Returns:
 
 - T - The element value.
 
@@ -122,6 +122,31 @@ Function: Measures CPU cycle count using the native `rdtscp` instruction. Only a
 Parent Types:
 
 - [Measurement](unittest_package_interfaces.md#interface-measurement)
+
+Example:
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+import std.unittest.testmacro.*
+import std.time.*
+
+var counter: Float64 = 0.0
+
+@Test
+@Measure[CpuCycles()]
+class BenchClass {
+    @BeforeEach
+    func beforeEach() {
+        counter = 0.0
+    }
+
+    @Bench
+    func foo() {
+        counter += 1.0
+    }
+}
+```
 
 ### prop conversionTable
 
@@ -162,7 +187,7 @@ public func measure(): Float64
 
 Function: Returns the number of CPU cycles executed.
 
-Return Value:
+Returns:
 
 - [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) - The computed data for statistical analysis.
 
@@ -213,7 +238,7 @@ Parameters:
 
 - _: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The index value of the element.
 
-Return Value:
+Returns:
 
 - T - The element value.
 
@@ -267,7 +292,7 @@ Parameters:
 
 - _: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The index value of the element.
 
-Return Value:
+Returns:
 
 - T - The element value.
 
@@ -284,7 +309,7 @@ Parameters:
 - arg: T - The parameter to be copied by the provider.
 - x!: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - An additional parameter for implementing overloading.
 
-Return Value:
+Returns:
 
 - ImmutableInputProvider\<T> - The input provider.
 
@@ -300,7 +325,7 @@ Parameters:
 
 - arg: T - The parameter to be copied by the provider.
 
-Return Value:
+Returns:
 
 - U - The input provider.
 
@@ -316,8 +341,10 @@ Example:
 
 <!-- compile -->
 ```cangjie
-let conf = Configuration()
-conf.set(KeyBaseline.baseline, "baseline")
+func example() {
+    let conf = Configuration()
+    conf.set(KeyBaseline.baseline, "baseline")
+}
 ```
 
 Parent Types:
@@ -1383,10 +1410,45 @@ Function: Supports specifying a timeout handler in configuration information.
 
 Example:
 
-<!-- compile -->
+<!-- run -->
 ```cangjie
-let conf = Configuration()
-conf.set(KeyTimeoutHandler.timeoutHandler, { info => /*...*/ })
+import std.unittest.*
+import std.unittest.testmacro.*
+
+@Test
+class Test {
+    @TestCase
+    @Timeout[Duration.second]
+    func assertIsACancellationPoint() {
+        sleep(Duration.second * 2)
+        @Assert(false)
+    }
+}
+
+main(): Unit {
+    let config = Configuration()
+    config.set(
+        KeyTimeoutHandler.timeoutHandler,
+        {info: TestCaseInfo => println("Timeout in ${info.suiteName}.${info.caseName}!")}
+    )
+    Test().asTestSuite().runTests(config).reportTo(ConsoleReporter())
+}
+```
+
+Possible output:
+
+```text
+Timeout in Test.assertIsACancellationPoint!
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 2006440952 ns, RESULT:
+    TCS: Test, time elapsed: 2006435848 ns, RESULT:
+    [ FAILED ] CASE: assertIsACancellationPoint (2005625479 ns)
+    Execution time exceeded specified timeout.
+Summary: TOTAL: 1
+    PASSED: 0, SKIPPED: 0, ERROR: 0
+    FAILED: 1, listed below:
+            TCS: Test, CASE: assertIsACancellationPoint
+--------------------------------------------------------------------------------------------------
 ```
 
 Parent Types:
@@ -1451,7 +1513,8 @@ Function: Used as a key for corresponding configuration items in [Configuration]
 
 Parent Types:
 
-- [KeyFor](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-keyfort)
+- [KeyFor](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-keyfort)\<[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)>
+- [KeyFor](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-keyfort)\<[Duration](../../core/core_package_api/core_package_structs.md#struct-duration)>
 
 ### prop warmup
 
@@ -1521,8 +1584,8 @@ Type: [String](../../core/core_package_api/core_package_structs.md#struct-string
 
 ```cangjie
 public struct Perf <: Measurement {
-    public init()
     public Perf(var counter: PerfCounter)
+    public init()
 }
 ```
 
@@ -1531,6 +1594,10 @@ Function: Measures various hardware and software CPU counters using the Linux sy
 Parent Types:
 
 - [Measurement](unittest_package_interfaces.md#interface-measurement)
+
+Example:
+
+- See [enum PerfCounter](unittest_package_enums.md#enum-perfcounter)
 
 ### prop conversionTable
 
@@ -1590,7 +1657,7 @@ public func measure(): Float64
 
 Function: Returns the value of the specified CPU counter.
 
-Return Value:
+Returns:
 
 - [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) - The computed data for statistical analysis.
 
@@ -1627,6 +1694,8 @@ Parameters:
 - absolute!: T - The delta value for the absolute comparison part.
 - relative!: T - The delta value for the relative comparison part.
 
+see Example: [approximate-equality](../../unittest//unittest_samples/unittest_basics.md#approximate-equality)
+
 ## struct TestCaseInfo
 
 ```cangjie
@@ -1638,6 +1707,8 @@ public struct TestCaseInfo {
 ```
 
 Function: Information about the currently running test case. Typically used in timeout handlers for dynamic APIs.
+
+Example: see [KeyTimeoutHandler](./unittest_package_structs.md#struct-keytimeouthandler).
 
 ### let caseName
 
@@ -1667,7 +1738,9 @@ public let suiteName: String
 
 Function: Test suite name for the case.
 
-Type: [String](../../core/core_package_api/core_package_structs.md#struct-string).## struct TimeNow
+Type: [String](../../core/core_package_api/core_package_structs.md#struct-string).
+
+## struct TimeNow
 
 ```cangjie
 public struct TimeNow <: Measurement {
@@ -1681,6 +1754,23 @@ Function: An implementation of [Measurement](../../unittest/unittest_package_api
 Parent Types:
 
 - [Measurement](unittest_package_interfaces.md#interface-measurement)
+
+Example:
+
+<!-- run -->
+```cangjie
+import std.time.*
+
+@Test
+@Measure[TimeNow(Nanos)]
+public class Test_Residentsleeper {
+
+    @Bench
+    func case01(): Unit {
+        sleep(0.95 * Duration.millisecond)
+    }
+}
+```
 
 ### prop conversionTable
 
@@ -1741,6 +1831,6 @@ public func measure(): Float64
 
 Function: Obtains the current time for statistical analysis.
 
-Return Value:
+Returns:
 
 - [Float64](../../core/core_package_api/core_package_intrinsics.md#float64) - The calculated data for statistical analysis.

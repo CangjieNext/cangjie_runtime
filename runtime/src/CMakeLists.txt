@@ -54,8 +54,32 @@ if (BUILD_RUNTIME)
         "arch/x86_64_macos/CalleeSavedStub.S"
         "arch/x86_64_macos/StackGrowStub.S"
         "arch/x86_64_macos/HandleSafepointStub.S"
+        "arch/x86_64_macos/ExclusiveScope.S"
         "os/Linux/Loader.cpp"
         "os/Linux/Path.cpp"
+    )
+elseif ((CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64" AND IOS_FLAG MATCHES 1) OR IOS_SIMULATOR_FLAG MATCHES 2)
+    set(SRC_LIST
+        "CompilerCalls.cpp"
+        "ExceptionManager.cpp"
+        "StackManager.cpp"
+        "HeapManager.cpp"
+        "LoaderManager.cpp"
+        "SignalManager.cpp"
+        "TypeInfoManager.cpp"
+        "LogManager.cpp"
+        "CangjieRuntime.cpp"
+        "CjScheduler.cpp"
+        "CjTimer.cpp"
+        "CangjieRuntimeApi.cpp"
+        "arch/x86_64_ios/N2CStub.S"
+        "arch/x86_64_ios/C2NStub.S"
+        "arch/x86_64_ios/CalleeSavedStub.S"
+        "arch/x86_64_ios/StackGrowStub.S"
+        "arch/x86_64_ios/HandleSafepointStub.S"
+        "arch/x86_64_ios/ExclusiveScope.S"
+        "Os/Linux/Loader.cpp"
+        "Os/Linux/Path.cpp"
     )
 elseif ((CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64") AND (WINDOWS_FLAG MATCHES 0) AND (IOS_FLAG MATCHES 0) AND (IOS_SIMULATOR_FLAG MATCHES 0))
     set(SRC_LIST
@@ -73,6 +97,7 @@ elseif ((CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64") AND (WINDOWS_FLAG MATCHES 0) A
         "CangjieRuntimeApi.cpp"
         "arch/x86_64_linux/N2CStub.S"
         "arch/x86_64_linux/C2NStub.S"
+        "arch/x86_64_linux/ExclusiveScope.S"
         "arch/x86_64_linux/CalleeSavedStub.S"
         "arch/x86_64_linux/StackGrowStub.S"
         "arch/x86_64_linux/HandleSafepointStub.S"
@@ -98,10 +123,11 @@ elseif ((CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64") AND (MACOS_FLAG MATCHES 1))
         "arch/aarch64_macos/CalleeSavedStub.S"
         "arch/aarch64_macos/StackGrowStub.S"
         "arch/aarch64_macos/HandleSafepointStub.S"
+        "arch/aarch64_macos/ExclusiveScope.S"
         "os/Linux/Loader.cpp"
         "os/Linux/Path.cpp"
     )
-elseif (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1)
+elseif ((IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1) AND (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64"))
     set(SRC_LIST
         "CompilerCalls.cpp"
         "ExceptionManager.cpp"
@@ -115,11 +141,12 @@ elseif (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1)
         "CjScheduler.cpp"
         "CjTimer.cpp"
         "CangjieRuntimeApi.cpp"
-        "arch/ios/N2CStub.S"
-        "arch/ios/C2NStub.S"
-        "arch/ios/CalleeSavedStub.S"
-        "arch/ios/StackGrowStub.S"
-        "arch/ios/HandleSafepointStub.S"
+        "arch/aarch64_ios/N2CStub.S"
+        "arch/aarch64_ios/C2NStub.S"
+        "arch/aarch64_ios/CalleeSavedStub.S"
+        "arch/aarch64_ios/StackGrowStub.S"
+        "arch/aarch64_ios/HandleSafepointStub.S"
+        "arch/aarch64_ios/ExclusiveScope.S"
         "Os/Linux/Loader.cpp"
         "Os/Linux/Path.cpp"
     )
@@ -139,6 +166,7 @@ elseif ((CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64") AND (WINDOWS_FLAG MATCHES 0))
         "CangjieRuntimeApi.cpp"
         "arch/aarch64_linux/N2CStub.S"
         "arch/aarch64_linux/C2NStub.S"
+        "arch/aarch64_linux/ExclusiveScope.S"
         "arch/aarch64_linux/CalleeSavedStub.S"
         "arch/aarch64_linux/StackGrowStub.S"
         "arch/aarch64_linux/HandleSafepointStub.S"
@@ -164,6 +192,7 @@ elseif (CMAKE_SYSTEM_PROCESSOR MATCHES "arm")
         "arch/arm_linux/CalleeSavedStub.S"
         "arch/arm_linux/StackGrowStub.S"
         "arch/arm_linux/HandleSafepointStub.S"
+        "arch/arm_linux/ExclusiveScope.S"
         "os/Linux/Loader.cpp"
         "os/Linux/Path.cpp"
     )
@@ -187,6 +216,7 @@ elseif (WINDOWS_FLAG MATCHES 1)
         "arch/x86_64_windows/HandleSafepointStub.S"
         "arch/x86_64_windows/ThrowStackOverflowStub.S"
         "arch/x86_64_windows/StackGrowStub.S"
+        "arch/x86_64_windows/ExclusiveScope.S"
         "os/Windows/Loader.cpp"
         "os/Windows/Path.cpp"
         "os/Windows/UnwindWin.cpp"
@@ -195,6 +225,18 @@ elseif (WINDOWS_FLAG MATCHES 1)
 endif()
     add_library(runtime STATIC ${SRC_LIST})
     add_library(cangjie-runtime SHARED ${SRC_LIST})
+    if (((IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1) AND (CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")) OR
+        ((CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64" AND IOS_FLAG MATCHES 1) OR IOS_SIMULATOR_FLAG MATCHES 2))
+	target_compile_options(cangjie-runtime PRIVATE -Wno-elaborated-enum-base)
+	target_compile_options(cangjie-runtime PRIVATE -Wno-availability)
+	target_compile_options(runtime PRIVATE -Wno-elaborated-enum-base)
+	target_compile_options(runtime PRIVATE -Wno-availability)
+	find_library(COREFOUNDATION_FRAMEWORK CoreFoundation)
+    if (COREFOUNDATION_FRAMWORK)
+	    target_link_libraries(cangjie-runtime ${COREFOUNDATION_FRAMEWORK}/CoreFoundation.tbd)
+	    target_link_libraries(runtime ${COREFOUNDATION_FRAMEWORK}/CoreFoundation.tbd)
+    endif()
+endif()
 
 elseif (BUILD_DEMANGLE)
     add_subdirectory(Demangler)

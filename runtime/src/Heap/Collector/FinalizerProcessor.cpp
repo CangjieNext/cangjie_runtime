@@ -12,6 +12,7 @@
 #include "ExceptionManager.inline.h"
 #include "Mutator/Mutator.h"
 #include "ObjectModel/MObject.h"
+#include "CjScheduler.h"
 
 namespace MapleRuntime {
 constexpr U32 DEFAULT_FINALIZER_TIMEOUT_MS = 2000;
@@ -35,8 +36,9 @@ void FinalizerProcessor::Start()
     size_t stackSize = CangjieRuntime::GetConcurrencyParam().thStackSize * KB; // default 1MB stacksize
 #if defined(__linux__) || defined(hongmeng) || defined(__APPLE__)
     // PTHREAD_STACK_MIN is not supported in Windows.
-    if (stackSize < PTHREAD_STACK_MIN) {
-        stackSize = PTHREAD_STACK_MIN;
+    const size_t minStackSize = static_cast<size_t>(PTHREAD_STACK_MIN);
+    if (stackSize < minStackSize) {
+        stackSize = minStackSize;
     }
 #endif
     CHECK_PTHREAD_CALL(pthread_attr_init, (&attr), "init pthread attr");
@@ -81,31 +83,45 @@ void FinalizerProcessor::Run()
     Init();
     NotifyStarted();
     while (running) {
-        if (hasFinalizableJob.load(std::memory_order_relaxed)) {
+        bool hasPendingFinalizableJob = false;
+        bool hasPendingReclaimHeapGarbage = false;
+        bool hasPendingFeedHungryBuffers = false;
+        {
+            MRT_PHASE_TIMER("finalizerProcessor waitting time", FINALIZE);
+            while (running) {
+                hasPendingFinalizableJob = hasFinalizableJob.load(std::memory_order_relaxed);
+                hasPendingReclaimHeapGarbage = shouldReclaimHeapGarbage.load(std::memory_order_relaxed);
+                hasPendingFeedHungryBuffers = shouldFeedHungryBuffers.load(std::memory_order_relaxed);
+                if (hasPendingFinalizableJob || hasPendingReclaimHeapGarbage || hasPendingFeedHungryBuffers) {
+                    break;
+                }
+                Wait(iterationWaitTime);
+            }
+        }
+
+        if (!running) {
+            break;
+        }
+
+        if (UNLIKELY(!finalizerCJThreadInitialized)) {
+            // Delay finalizer CJThread creation until the worker really has something to do,
+            // but make all finalizer-side job types share the same one-time initialization.
+            InitFinalizerCJThread();
+        }
+
+        if (hasPendingFinalizableJob) {
             ProcessFinalizables();
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
             LogAfterProcess();
 #endif
         }
 
-        if (shouldFeedHungryBuffers.load(std::memory_order_relaxed)) {
+        if (hasPendingFeedHungryBuffers) {
             FeedHungryBuffers();
         }
 
-        if (shouldReclaimHeapGarbage.load(std::memory_order_relaxed)) {
+        if (hasPendingReclaimHeapGarbage) {
             ReclaimHeapGarbage();
-        }
-
-        {
-            MRT_PHASE_TIMER("finalizerProcessor waitting time", FINALIZE);
-            while (running) {
-                Wait(iterationWaitTime);
-                if (hasFinalizableJob.load(std::memory_order_relaxed) ||
-                    shouldReclaimHeapGarbage.load(std::memory_order_relaxed) ||
-                    shouldFeedHungryBuffers.load(std::memory_order_relaxed)) {
-                    break;
-                }
-            }
         }
     }
     Fini();
@@ -113,16 +129,14 @@ void FinalizerProcessor::Run()
 
 void FinalizerProcessor::Init()
 {
-    Mutator* mutator = MutatorManager::Instance().CreateRuntimeMutator(ThreadType::FP_THREAD);
-    (void)mutator->EnterSaferegion(true);
-    tid = mutator->GetTid();
-    ThreadLocal::SetProtectAddr(reinterpret_cast<uint8_t*>(0));
+    // Only start the finalizer worker thread here. Its CJThread identity is created on demand
+    // so it does not consume the earliest CJThread id before any finalize work exists.
+    MutatorManager::Instance().MutatorManagementRLock();
+    fpMutator = nullptr;
+    MutatorManager::Instance().MutatorManagementRUnlock();
     running = true;
     timeProcessorBegin = TimeUtil::MicroSeconds();
     timeProcessUsed = 0;
-    MutatorManager::Instance().MutatorManagementRLock();
-    fpMutator = mutator;
-    MutatorManager::Instance().MutatorManagementRUnlock();
     LOG(RTLOG_INFO, "FinalizerProcessor thread started");
 }
 
@@ -131,7 +145,12 @@ void FinalizerProcessor::Fini()
     MutatorManager::Instance().MutatorManagementRLock();
     fpMutator = nullptr;
     MutatorManager::Instance().MutatorManagementRUnlock();
-    MutatorManager::Instance().DestroyRuntimeMutator(ThreadType::FP_THREAD);
+    // Finalizer may exit without ever running a finalize task, so only tear down the CJThread
+    // context if it was really materialized.
+    if (finalizerCJThreadInitialized) {
+        EndFinalizerCJThread();
+        finalizerCJThreadInitialized = false;
+    }
     LOG(RTLOG_INFO, "FinalizerProcessor thread stopped");
 }
 
@@ -207,7 +226,7 @@ void FinalizerProcessor::ProcessFinalizableList()
         ScopedObjectAccess soa;
         CHECK_DETAIL(ExceptionManager::GetPendingException() == nullptr, "should not exist pending exception");
         RefField<> tmpField(reinterpret_cast<MAddress>(*itor));
-        BaseObject* finalizeObjAddr = Heap::GetHeap().GetBarrier().ReadStaticRef(tmpField);
+        BaseObject* finalizeObjAddr = Heap::GetBarrier().ReadStaticRef(tmpField);
 
         TypeInfo* classInfo = reinterpret_cast<MObject*>(finalizeObjAddr)->GetTypeInfo();
         FuncRef finalizerMethod = classInfo->GetFinalizeMethod();
@@ -255,6 +274,26 @@ void FinalizerProcessor::ProcessFinalizables()
     }
 }
 
+void FinalizerProcessor::InitFinalizerCJThread()
+{
+    // Bind the existing finalizer OS thread to a CJThread/scheduler so operations like
+    // CJThreadPark can work, but delay this until there is real finalizer-side work to do.
+    void* cjthread = NewFinalizerCJThread();
+    CHECK_DETAIL(cjthread != nullptr, "create finalizer cjthread failed");
+    Mutator* mutator = ThreadLocal::GetMutator();
+    CHECK_DETAIL(mutator != nullptr, "create finalizer mutator failed");
+    // NewFinalizerCJThread prepares the thread for managed execution. We immediately re-enter
+    // saferegion here because the finalizer main loop itself stays idle most of the time and
+    // only leaves saferegion again through ScopedObjectAccess when work is processed.
+    (void)mutator->EnterSaferegion(true);
+    tid = mutator->GetTid();
+
+    MutatorManager::Instance().MutatorManagementRLock();
+    fpMutator = mutator;
+    MutatorManager::Instance().MutatorManagementRUnlock();
+    finalizerCJThreadInitialized = true;
+}
+
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
 void FinalizerProcessor::LogAfterProcess()
 {
@@ -274,7 +313,7 @@ void FinalizerProcessor::LogAfterProcess()
 void FinalizerProcessor::RegisterFinalizer(BaseObject* obj)
 {
     RefField<> tmpField(nullptr);
-    Heap::GetHeap().GetBarrier().WriteStaticRef(tmpField, obj);
+    Heap::GetBarrier().WriteStaticRef(tmpField, obj);
     std::lock_guard<std::mutex> l(listLock);
     finalizers.push_back(reinterpret_cast<BaseObject*>(tmpField.GetFieldValue()));
 }

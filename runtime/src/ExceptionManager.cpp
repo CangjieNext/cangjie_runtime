@@ -3,20 +3,38 @@
 // with Runtime Library Exception.
 //
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
-
-
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "Common/Runtime.h"
 #include "Exception/ExceptionCApi.h"
+#ifdef __APPLE__
+#include "Exception/CFException.h"
+#endif
 #include "ExceptionManager.inline.h"
 #include "Mutator/Mutator.h"
 #include "ObjectModel/MObject.h"
 #include "UnwindStack/MangleNameHelper.h"
 #include "Heap/Collector/CollectorResources.h"
 #include "Heap/Collector/GcRequest.h"
+#include "Inspector/CjHeapData.h"
 namespace MapleRuntime {
 std::mutex ExceptionManager::gUncaughtExceptionHandlerMtx;
+#if defined(__OHOS__) && (__OHOS__ == 1)
+std::mutex ExceptionManager::gEventMtx;
+CJEventReportInfo ExceptionManager::eventReportHandler = {nullptr, nullptr};
+ExceptionCallbackFunc ExceptionManager::exceptionCallback = nullptr;
+
+void ExceptionManager::RegisterExceptionCallback(ExceptionCallbackFunc callback)
+{
+    exceptionCallback = callback;
+}
+
+ExceptionCallbackFunc ExceptionManager::GetExceptionCallback()
+{
+    return exceptionCallback;
+}
+#endif
+
 void ExceptionManager::OutOfMemory()
 {
     ExceptionWrapper& eWrapper = Mutator::GetMutator()->GetExceptionWrapper();
@@ -24,15 +42,63 @@ void ExceptionManager::OutOfMemory()
         eWrapper.SetThrowingOOME(true);
         eWrapper.SetFatalException(false);
         eWrapper.SetExceptionType(ExceptionWrapper::ExceptionType::OUT_OF_MEMORY);
-        {
-            // HeapDump before throwing OOM
-            const char* env = std::getenv("cjHeapDumpOnOOM");
-            CString s = CString(env).RemoveBlankSpace();
-            env = s.Str();
-            if (env && !strcmp(env, "on")) { // env variable: cjHeapDumpOnOOM=on/off
-                Heap::GetHeap().GetCollectorResources().RequestHeapDump(GCTask::TaskType::TASK_TYPE_DUMP_HEAP_OOM);
+
+        // ohos Fork child process to perform heap dump asynchronously
+        // check environment variable cjHeapDumpOnOOM=on/off
+        const char* env = std::getenv("cjHeapDumpOnOOM");
+        CString s = CString(env).RemoveBlankSpace();
+        env = s.Str();
+        if (env && !strcmp(env, "on")) {
+#if defined(__OHOS__) && (__OHOS__ == 1)
+            // Check cjHeapDumpLog environment variable to trigger oom file dump event
+            LOG(RTLOG_INFO, "Check cjHeapDumpLog environment variable to trigger oom file dump event");
+            const char* cjHeapDumpLogEnv = std::getenv("cjHeapDumpLog");
+            if (cjHeapDumpLogEnv == nullptr || strlen(cjHeapDumpLogEnv) == 0) {
+                LOG(RTLOG_INFO, "prepare to report OOM FILEDUMPTASK");
+                const char* domain = "FRAMEWORK";
+                const char* event = "ARK_STATS_DUMP";
+                
+                std::map<std::string, std::string> params;
+                params["TYPE"] = "hidumper";
+                params["FILE_TYPE"] = "HEAP_DUMP";
+                params["DUMP_REASON"] = "OOM";
+                params["DUMP_LOG_PATH"] = "EMPTY";
+
+                TriggerEventReport(domain, event, HiSysEventType::FAULT, params);
+                LOG(RTLOG_ERROR, "finish reporting OOM FILEDUMPTASK");
+                LOG(RTLOG_INFO, "start sleep 5s to wait filedump event to heapdump");
+                std::this_thread::sleep_for(std::chrono::seconds(5)); // wait 5s for child process to dump heap
+            } else {
+                LOG(RTLOG_INFO, "start child process for OOM heap dump");
+                pid_t childPid = CjHeapData::ForkAndDumpHeap(-1, true);
+                if (childPid < 0) {
+                    LOG(RTLOG_ERROR, "Failed to start child process for OOM heap dump");
+                } else {
+                    LOG(RTLOG_INFO, "start sleep 5s to wait child process finishing OOM heapdump");
+                    std::this_thread::sleep_for(std::chrono::seconds(5)); // wait 5s for child process to dump heap
+                }
             }
+#else
+            Heap::GetHeap().GetCollectorResources().RequestHeapDump(GCTask::TaskType::TASK_TYPE_DUMP_HEAP_OOM);
+#endif
         }
+#if defined(__OHOS__) && (__OHOS__ == 1)
+        // Trigger OOM event reporting
+        const char* domain = "FRAMEWORK";
+        const char* event = "CJ_OOM";
+        Heap& heap = Heap::GetHeap();
+        size_t activeMemory = heap.GetCurrentCapacity();
+        size_t limitSize = heap.GetMaxCapacity();
+        LOG(RTLOG_INFO, "OOM: activeMemory=%zu, limitSize=%zu", activeMemory, limitSize);
+        
+        std::map<std::string, std::string> params;
+        params["LIMIT_SIZE"] = std::to_string(limitSize);
+        params["ACTIVE_MEMORY"] = std::to_string(activeMemory);
+        params["TYPE"] = "OOMDump";
+        params["EVENT_CONFIG"] = "event";
+        TriggerEventReport(domain, event, HiSysEventType::FAULT, params);
+        LOG(RTLOG_INFO, "OOM event reporting finished");
+#endif
         ThrowImplicitException(OOM);
     } else {
         std::vector<uint64_t>& liteFrameInfos = eWrapper.GetLiteFrameInfos();
@@ -42,7 +108,6 @@ void ExceptionManager::OutOfMemory()
     }
     eWrapper.SetThrowingOOME(false);
 }
-
 MRT_OPTIONAL_DISABLE_TAIL_CALL
 void ExceptionManager::StackOverflow(uint32_t adjustedSize __attribute__((unused)), void* ip)
 {
@@ -91,12 +156,36 @@ void ExceptionManager::RegisterUncaughtExceptionHandler(const CJUncaughtExceptio
     std::lock_guard<std::mutex> lock(gUncaughtExceptionHandlerMtx);
     uncaughtExceptionHandler = handler;
 }
+
+void ExceptionManager::RegisterEventHandler(const CJEventReportInfo& handler)
+{
+    std::lock_guard<std::mutex> lock(gEventMtx);
+    eventReportHandler = handler;
+}
+
+void ExceptionManager::TriggerEventReport(const char* domain, const char* event, size_t hiSysEventType,
+    const std::map<std::string, std::string>& params)
+{
+    std::lock_guard<std::mutex> lock(gEventMtx);
+    if (eventReportHandler.reportInfoTask != nullptr) {
+        eventReportHandler.reportInfoTask(domain, event, hiSysEventType, params);
+    }
+}
 #endif
 
-#ifdef __APPLE__
+#ifdef __IOS__
 void ExceptionManager::DefaultUncaughtTask(const char* sunmary, const CJErrorObject errorObj)
 {
     (void)sunmary;
+    (void)errorObj;
+    abort();
+}
+#endif
+
+#if defined(__ANDROID__)
+void ExceptionManager::AndroidDefaultUncaughtTask(const char* summary, const CJErrorObject errorObj)
+{
+    (void)summary;
     (void)errorObj;
     abort();
 }
@@ -119,10 +208,13 @@ void ExceptionManager::DumpException()
     // Otherwise, dump the exception information.
     std::lock_guard<std::mutex> lock(gUncaughtExceptionHandlerMtx);
     if (Runtime::Current().GetExceptionManager().GetUncaughtExceptionHandler().uncaughtTask) {
-#if defined(__OHOS__) && (__OHOS__ == 1) || (__APPLE__)
+#if defined(__OHOS__) && (__OHOS__ == 1) || (__APPLE__) || (__ANDROID__)
         const char* summary = "Uncaught exception was found.";
         CString exceptionMsg(eWrapper.GetExceptionMessage());
-#if defined(__APPLE__)
+#if defined(__APPLE__) && (__IOS__ == 1)
+        CFException::ReportBacktraceToIosIpsLog(eWrapper);
+#endif
+#if defined(__APPLE__) && (__IOS__ == 1) || (__ANDROID__)
         LOG(RTLOG_ERROR, summary);
         LOG(RTLOG_ERROR, exceptionMsg.Str());
 #endif
@@ -132,7 +224,7 @@ void ExceptionManager::DumpException()
         if (str == nullptr) {
             LOG(RTLOG_FATAL, "Alloca memory failed when Cangjie dump uncaught exception.");
         }
-        for (auto ste : stackTrace) {
+        for (const auto& ste : stackTrace) {
             const int strLen = 10;
             char* str = static_cast<char*>(malloc(strLen * sizeof(char)));
             sprintf_s(str, strLen, "%ld", ste.lineNumber);
@@ -145,7 +237,7 @@ void ExceptionManager::DumpException()
             exceptionStack += +":";
             exceptionStack += str;
             exceptionStack += ")\n";
-#if defined(__APPLE__)
+#if defined(__APPLE__) || (__ANDROID__)
             LOG(RTLOG_ERROR, exceptionStack.Str());
             exceptionStack = "";
 #endif
@@ -187,10 +279,10 @@ void ExceptionManager::DumpException()
 #endif
             LOG(RTLOG_ERROR, "\t ... Some frames are not displayed ...\n");
         }
-        for (auto ste : stackTrace) {
+        for (const auto& ste : stackTrace) {
 #ifdef __APPLE__
             PRINT_ERROR("\t at %s%s%s(%s:%lld)\n", ste.className.Str(), ste.className.Length() > 0 ? "." : "",
-                       ste.methodName.Str(), ste.fileName.Str(), ste.lineNumber);
+                        ste.methodName.Str(), ste.fileName.Str(), ste.lineNumber);
 #endif
             LOG(RTLOG_ERROR, "\t at %s%s%s(%s:%ld)\n", ste.className.Str(), ste.className.Length() > 0 ? "." : "",
                 ste.methodName.Str(), ste.fileName.Str(), ste.lineNumber);

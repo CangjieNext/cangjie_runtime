@@ -23,45 +23,14 @@
 #include "Flags.h"
 
 namespace MapleRuntime {
-
-class ThreadSafeOuterTypeInfoCache {
-public:
-    static ThreadSafeOuterTypeInfoCache& GetInstance()
-    { 
-        static ThreadSafeOuterTypeInfoCache instance; 
-        return instance; 
-    }
-
-    void Insert(U32 objTypeUUID, U32 introTypeUUID, U64 methodIdx, TypeInfo* methodOuterTypeInfo)
-    {
-        U64 kk = ((U64)objTypeUUID << 31) | introTypeUUID;
-        rwLock.LockWrite();
-        cacheMap[kk][methodIdx] = methodOuterTypeInfo;
-        rwLock.UnlockWrite();
-    }
-
-    TypeInfo* Get(U32 objTypeUUID, U32 introTypeUUID, U64 methodIdx)
-    {
-        U64 kk = ((U64)objTypeUUID << 31) | introTypeUUID;
-        rwLock.LockRead();
-        auto it1 = cacheMap.find(kk);
-        if (it1 != cacheMap.end()) {
-            auto it2 = it1->second.find(methodIdx);
-            if (it2 != it1->second.end()) {
-                rwLock.UnlockRead();
-                return it2->second;
-            }
-        }
-        rwLock.UnlockRead();
-        return nullptr;
-    }
-
-private:
-    std::unordered_map<U64, std::unordered_map<U64, TypeInfo*>> cacheMap;
-    RwLock rwLock;
-};
+#ifdef __arm__
+const size_t TYPEINFO_PTR_SIZE = sizeof(TypeInfo*) + 4;
+#else
+const size_t TYPEINFO_PTR_SIZE = sizeof(TypeInfo*);
+#endif
 
 typedef void *(*GenericiFn)(U32 size, TypeInfo* args[]);
+
 TypeInfo* ExtensionData::GetInterfaceTypeInfo(U32 argsNum, TypeInfo** args) const
 {
     if (isInterfaceTypeInfo) {
@@ -71,12 +40,6 @@ TypeInfo* ExtensionData::GetInterfaceTypeInfo(U32 argsNum, TypeInfo** args) cons
     TypeInfo* itf = reinterpret_cast<TypeInfo*>(TypeTemplate::ExecuteGenericFunc(iFn, argsNum, args));
     return itf;
 }
-
-#ifdef __arm__
-const size_t TYPEINFO_PTR_SIZE = sizeof(TypeInfo*) + 4;
-#else
-const size_t TYPEINFO_PTR_SIZE = sizeof(TypeInfo*);
-#endif
 
 CString TypeTemplate::GetTypeInfoName(U32 argSize, TypeInfo *args[])
 {
@@ -116,15 +79,31 @@ void* TypeTemplate::ExecuteGenericFunc(void* genericFunc, U32 argSize, TypeInfo*
     return ((GenericiFn)genericFunc)(argSize, args);
 }
 
-ReflectInfo* TypeInfo::GetReflectInfo()
+ReflectInfo* TypeInfo::GetReflectInfo() const
 {
-    if (reflectInfo != nullptr) {
-        return reflectInfo;
-    }
     return reflectInfo;
 }
 
-TypeInfo* TypeTemplate::GetFieldTypeInfo(U16 fieldIdx, U32 argSize, TypeInfo* args[])
+U8 TypeInfo::GetReflectionVersion() const
+{
+    if (!ReflectIsEnable()) {
+        return 0;
+    }
+    if (IsEnum() || IsTempEnum()) {
+        EnumInfo* enumInfo = GetEnumInfo();
+        if (enumInfo != nullptr) {
+            return enumInfo->GetReflectVersion();
+        }
+    } else {
+        ReflectInfo* reflectInfo = GetReflectInfo();
+        if (reflectInfo != nullptr) {
+            return reflectInfo->GetReflectVersion();
+        }
+    }
+    return 0;
+}
+
+TypeInfo* TypeTemplate::GetFieldType(U16 fieldIdx, U32 argSize, TypeInfo* args[])
 {
     GenericFunc genericFunc = GetFieldGenericFunc(fieldIdx);
     void* ret = ExecuteGenericFunc(reinterpret_cast<void*>(genericFunc), argSize, args);
@@ -157,8 +136,14 @@ void TypeInfo::SetGCTib(GCTib gctib)
 void TypeInfo::SetMTableDesc(MTableDesc* desc)
 {
     this->mTableDesc = desc;
+    std::atomic_thread_fence(std::memory_order_seq_cst);
     // 15: The most significant bit indicates whether the mTable is initialized.
     validInheritNum = validInheritNum & ((1ULL << 15) - 1);
+}
+
+void TypeInfo::SetEnumDebugInfo(EnumDebugInfo* enumDebugInfo)
+{
+    this->enumDebugInfo = enumDebugInfo;
 }
 
 void TypeInfo::TryInitMTable()
@@ -170,12 +155,9 @@ void TypeInfo::TryInitMTable()
     }
 }
 
-MTableDesc::MTableDesc(BIT_TYPE bitmap_)
+MTableDesc::MTableDesc(ArchUInt bitmap_)
 {
     mTableBitmap.tag = bitmap_;
-    LoaderManager::GetInstance()->GetLoader()->VisitExtensionData(
-        [this](BaseFile* baseFile) { waitedExtensionDatas.emplace_back(baseFile); }
-    );
 }
 
 void TypeInfo::TryInitMTableNoLock()
@@ -185,7 +167,7 @@ void TypeInfo::TryInitMTableNoLock()
         auto& tim = TypeInfoManager::GetTypeInfoManager();
         auto desc = tim.GetMTableDesc(tiUUID);
         if (desc == nullptr) {
-            BIT_TYPE bitmap = GetResolveBitmapFromMTableDesc();
+            ArchUInt bitmap = GetResolveBitmapFromMTableDesc();
             desc = new (std::nothrow) MTableDesc(bitmap);
             CHECK_DETAIL(desc != nullptr, "fail to allocate MTableDesc");
             tim.RecordMTableDesc(tiUUID, desc);
@@ -202,7 +184,7 @@ inline bool IsSameRootPackage(TypeInfo* itf1, TypeInfo* itf2)
     U32 pos = 0U;
     char ch = name1[pos];
     while (ch == name2[pos]) {
-        if (ch == '.' | ch == ':') {
+        if (ch == '.' || ch == ':') {
             return true;
         }
         ++pos;
@@ -247,77 +229,77 @@ void TypeInfo::TryUpdateExtensionData(TypeInfo* itf, ExtensionData* extensionDat
     if (this->GetUUID() == itfUUID) {
         return;
     }
-
-    /* change to check module name */
-    auto thisName = GetName();
-    auto itfName = itf->GetName();
-    U32 pos = 0U;	 
-    char ch = thisName[pos];
-    while (ch == itfName[pos]) {
-        if (ch == '.' | ch == ':') {
+    do {
+        if (LIKELY(extensionData->IsFuncTableUpdated())) {
             return;
         }
-        ++pos;
-        ch = thisName[pos];
-        if ((ch == ':' && itfName[pos] == '.') || (ch == '.' && itfName[pos] == ':')) {
-            return;
-        }
-    }
 
-    auto itfExtData = itf->FindExtensionData(itf);
-    if (itfExtData) {
+        auto itfVExtensionDataStart = itf->GetvExtensionDataStart();
+        CHECK_DETAIL(itfVExtensionDataStart != nullptr, "itfVExtensionDataStart is nullptr, ti: %s, itf: %s",
+                     GetName(), itf->GetName());
+        auto itfExtData = itf->IsInterface() ? *itfVExtensionDataStart
+                                            : *(itfVExtensionDataStart + itf->GetValidInheritNum() - 1);
         auto ftSize = extensionData->GetFuncTableSize();
         auto itfFtSize = itfExtData->GetFuncTableSize();
         auto incrementalSize = itfFtSize - ftSize;
-        if (incrementalSize > 0) {
-            TryInitMTable();
-            TraverseInnerExtensionDefs();
-            auto& mTable = mTableDesc->mTable;
-            for (auto& superTypePair : mTable) {
-                auto superTi = superTypePair.second.GetSuperTi();
-                // make sure super is the subtype of itf, and super is the direct super type of this type.
-                if (!superTypePair.second.GetExtensionData()->IsDirect()) {
-                    continue;
+        if (incrementalSize == 0) {
+            extensionData->SetFuncTableUpdated();
+            return;
+        }
+        CHECK_DETAIL(incrementalSize > 0, "An incompatible module is imported.");
+
+        if (!extensionData->TryLockFuncTable()) {
+            continue;
+        }
+
+        TryInitMTable();
+        TraverseInnerExtensionDefs();
+        auto& mTable = mTableDesc->mTable;
+        for (const auto& superTypePair : mTable) {
+            auto superTi = superTypePair.second.GetSuperTi();
+            // make sure super is the subtype of itf, and super is the direct super type of this type.
+            if (!superTypePair.second.GetExtensionData()->IsDirect()) {
+                continue;
+            }
+            auto edOfSuper = superTi->FindExtensionData(itf);
+            if (edOfSuper) {
+                if (UNLIKELY(!edOfSuper->IsFuncTableUpdated())) {
+                    superTi->TryUpdateExtensionData(itf, edOfSuper);
                 }
-                auto edOfSuper = superTi->FindExtensionData(itf);
-                if (edOfSuper) {
-                    if (edOfSuper->GetFuncTableSize() != itfFtSize) {
-                        superTi->TryUpdateExtensionData(itf, edOfSuper);
-                    }
-                    bool hasOuterTiFast = extensionData->HasOuterTiFastPath();
-                    size_t newFtSize = hasOuterTiFast ? itfFtSize * sizeof(FuncPtr) + itfFtSize * sizeof(OuterTiUnion)
-                                        : itfFtSize * sizeof(FuncPtr);
-                    FuncPtr* newFt = reinterpret_cast<FuncPtr*>(
-                        TypeInfoManager::GetTypeInfoManager().Allocate(newFtSize));
-                    if (ftSize > 0) {
-                        CHECK(memcpy_s(reinterpret_cast<void*>(newFt),
-                                            sizeof(FuncPtr) * ftSize,
-                                            reinterpret_cast<void*>(extensionData->GetFuncTable()),
-                                            sizeof(FuncPtr) * ftSize) == EOK);
-                    }
-                    CHECK(memcpy_s(reinterpret_cast<void*>(newFt + ftSize),
-                                    sizeof(FuncPtr) * incrementalSize,
-                                    reinterpret_cast<void*>(edOfSuper->GetFuncTable() + ftSize),
-                                    sizeof(FuncPtr) * incrementalSize) == EOK);
-                    if (!hasOuterTiFast) {
-                        break;
-                    }
-                    if (ftSize > 0) {
-                            CHECK(memcpy_s(reinterpret_cast<void*>(newFt + itfFtSize),
-                                        sizeof(OuterTiUnion) * ftSize,
-                                        reinterpret_cast<void*>(extensionData->GetFuncTable() + ftSize),
-                                        sizeof(OuterTiUnion) * ftSize) == EOK);
-                    }
-                    CHECK(memset_s(reinterpret_cast<void*>(newFt + itfFtSize + ftSize),
-                                    sizeof(OuterTiUnion) * incrementalSize,
-                                    0, sizeof(OuterTiUnion) * incrementalSize) == EOK);
-                    extensionData->UpdateFuncTable(itfFtSize, newFt);
+                bool hasOuterTiFast = extensionData->HasOuterTiFastPath();
+                size_t newFtSize = hasOuterTiFast ? itfFtSize * sizeof(FuncPtr) + itfFtSize * sizeof(OuterTiUnion)
+                                     : itfFtSize * sizeof(FuncPtr);
+                FuncPtr* newFt = reinterpret_cast<FuncPtr*>(
+                    TypeInfoManager::GetTypeInfoManager().Allocate(newFtSize));
+                if (ftSize > 0) {
+                    CHECK(memcpy_s(reinterpret_cast<void*>(newFt),
+                                   sizeof(FuncPtr) * ftSize,
+                                   reinterpret_cast<void*>(extensionData->GetFuncTable()),
+                                   sizeof(FuncPtr) * ftSize) == EOK);
+                }
+                CHECK(memcpy_s(reinterpret_cast<void*>(newFt + ftSize),
+                               sizeof(FuncPtr) * incrementalSize,
+                               reinterpret_cast<void*>(edOfSuper->GetFuncTable() + ftSize),
+                               sizeof(FuncPtr) * incrementalSize) == EOK);
+                if (!hasOuterTiFast) {
                     break;
                 }
+                if (ftSize > 0) {
+                        CHECK(memcpy_s(reinterpret_cast<void*>(newFt + itfFtSize),
+                                       sizeof(OuterTiUnion) * ftSize,
+                                       reinterpret_cast<void*>(extensionData->GetFuncTable() + ftSize),
+                                       sizeof(OuterTiUnion) * ftSize) == EOK);
+                }
+                CHECK(memset_s(reinterpret_cast<void*>(newFt + itfFtSize + ftSize),
+                               sizeof(OuterTiUnion) * incrementalSize,
+                               0, sizeof(OuterTiUnion) * incrementalSize) == EOK);
+                extensionData->UpdateFuncTable(itfFtSize, newFt);
+                break;
             }
-            mTable.find(itfUUID)->second.ResetAtomicInfoArray(itfFtSize);
         }
-    }
+        mTable.find(itfUUID)->second.ResetAtomicInfoArray(itfFtSize);
+        extensionData->SetFuncTableUpdated();
+    } while (true);
 }
 
 // This interface mustn't be invoked locklessly.
@@ -470,6 +452,9 @@ void TypeInfo::TraverseInnerExtensionDefs(const std::function<void(TypeInfo*)> g
 
 void TypeInfo::TraverseOuterExtensionDefs(const std::function<void(TypeInfo*)> getInterface)
 {
+    if (!this->mTableDesc->NeedResolveOuter()) {
+        return;
+    }
     U16 typeArgNum = GetTypeArgNum();
     TypeInfo** typeArgs = nullptr;
     TypeInfo* componentTypeInfo = GetComponentTypeInfo();
@@ -504,21 +489,22 @@ void TypeInfo::TraverseOuterExtensionDefs(const std::function<void(TypeInfo*)> g
             return false;
         },
         sourceGeneric);
+    this->mTableDesc->needsResolveOuter = false;
 }
 
 void TypeInfo::GetInterfaces(std::vector<TypeInfo*> &itfs)
 {
     TryInitMTable();
     TraverseInnerExtensionDefs();
-	if (IsGenericTypeInfo()) {
-		TraverseOuterExtensionDefs();
-	}
-    for (auto& pair : mTableDesc->mTable) {
-		auto super = pair.second.GetSuperTi();
-		if (super->IsInterface()) {
-			itfs.emplace_back(super);
-		}
-	}
+    if (IsGenericTypeInfo()) {
+        TraverseOuterExtensionDefs();
+    }
+    for (const auto& pair : mTableDesc->mTable) {
+        auto super = pair.second.GetSuperTi();
+        if (super->IsInterface()) {
+            itfs.emplace_back(super);
+        }
+    }
 }
 
 ExtensionData* TypeInfo::FindExtensionDataRecursively(TypeInfo* itf)
@@ -528,7 +514,7 @@ ExtensionData* TypeInfo::FindExtensionDataRecursively(TypeInfo* itf)
     }
 
     std::lock_guard<std::recursive_mutex> lock(mTableDesc->mTableMutex);
-    for (auto& pair : mTableDesc->mTable) {
+    for (const auto& pair : mTableDesc->mTable) {
         if (pair.first == GetUUID()) {
             // Avoid infinite recursion. The mTAble may contain itself.
             continue;
@@ -581,31 +567,51 @@ ExtensionData* TypeInfo::FindExtensionData(TypeInfo* itf, bool searchRecursively
 
 FuncPtr* TypeInfo::GetMTable(TypeInfo* itf)
 {
-    if (IsTempEnum() && GetSuperTypeInfo()) {
+    if (GetUUID() == 0) {
+        TypeInfoManager::GetTypeInfoManager().AddTypeInfo(this);
+    }
+    if (UNLIKELY(IsTempEnum() && GetSuperTypeInfo())) {
         return GetSuperTypeInfo()->GetMTable(itf);
     }
-    auto extensionData = FindExtensionData(itf, true);
-	if (extensionData == nullptr) {
-        LOG(RTLOG_FATAL, "funcTable is nullptr, ti: %s, itf: %s", GetName(), itf->GetName());
+    // Fast path: mTable ready and entry found with func table already updated
+    if (LIKELY(!IsMTableDescUnInitialized() && mTableDesc->IsFullyHandled())) {
+        const U32 itfUUID = itf->GetUUID();
+        auto it = mTableDesc->mTable.find(itfUUID);
+        if (it != mTableDesc->mTable.end()) {
+            ExtensionData* ed = it->second.GetExtensionData();
+            if (LIKELY(ed->IsFuncTableUpdated())) {
+                return ed->GetFuncTable();
+            }
+        }
     }
-	TryUpdateExtensionData(itf, extensionData);
-	FuncPtr* funcTable = extensionData->GetFuncTable();
-	CHECK(funcTable);
+    auto extensionData = FindExtensionData(itf, true);
+    if (UNLIKELY(extensionData == nullptr)) {
+        LOG(RTLOG_FATAL, "extensionData is nullptr, ti: %s, itf: %s", GetName(), itf->GetName());
+    }
+    if (UNLIKELY(!extensionData->IsFuncTableUpdated())) {
+        TryUpdateExtensionData(itf, extensionData);
+    }
+    FuncPtr* funcTable = extensionData->GetFuncTable();
+    CHECK(funcTable);
     return funcTable;
 }
 
-TypeInfo* TypeInfo::GetMethodOuterTIWithCache(TypeInfo* itf, U64 index)
+TypeInfo* TypeInfo::GetMethodOuterTI(TypeInfo* itf, U64 index)
 {
-    // mTableDesc is not initialized yet, or mTableDesc is initialized,
-    // but mTable is not fully handled yet.
+    U32 itfUUID = itf->GetUUID();
+    if (this == itf || this->GetUUID() == itfUUID) {
+        return this;
+    }
+    TypeInfo* superTi = GetSuperTypeInfo();
+    if (UNLIKELY(IsTempEnum() && superTi != nullptr)) {
+        return superTi->GetMethodOuterTI(itf, index);
+    }
     if (UNLIKELY(IsMTableDescUnInitialized() || !mTableDesc->IsFullyHandled())) {
         (void)FindExtensionData(itf, true);
     }
-
     auto& mTable = mTableDesc->mTable;
-    auto it = mTable.find(itf->GetUUID());
+    auto it = mTable.find(itfUUID);
     if (it == mTable.end()) {
-        // We must find the itf in mTable here, or the virtual function is not in VTable.
         LOG(RTLOG_FATAL, "expected interface %s is not in class %s", itf->GetName(), GetName());
         return nullptr;
     }
@@ -613,66 +619,44 @@ TypeInfo* TypeInfo::GetMethodOuterTIWithCache(TypeInfo* itf, U64 index)
     if (LIKELY(outerTi != nullptr)) {
         return outerTi;
     }
-    // The outer ti is not cached yet.
     auto* ed = it->second.GetExtensionData();
-    // The extension data can't be nullptr here.
     CHECK(ed != nullptr);
     outerTi = ed->GetOuterTi(this, index);
     if (outerTi != nullptr) {
         it->second.SetCachedTypeInfo(index, outerTi);
+        return outerTi;
     }
-    return outerTi;
-}
-
-TypeInfo* TypeInfo::GetMethodOuterTI(TypeInfo* itf, U64 index)
-{
-	if (this == itf || this->GetUUID() == itf->GetUUID()) {
-		return this;
-	}
-    TypeInfo* superTi = GetSuperTypeInfo();
-	if (UNLIKELY(IsTempEnum() && superTi != nullptr)) {
-		return superTi->GetMethodOuterTI(itf, index);
-	}
-    auto* outerTiFromCache = GetMethodOuterTIWithCache(itf, index);
-    if (LIKELY(outerTiFromCache != nullptr)) {
-        return outerTiFromCache;
-    }
-	auto extensionData = FindExtensionData(itf);
-	if (extensionData == nullptr) {
-        LOG(RTLOG_FATAL, "funcTable is nullptr, ti: %s, itf: %s", GetName(), itf->GetName());
-	}
-    auto& mTable = mTableDesc->mTable;
-    auto it = mTable.find(itf->GetUUID());
-	FuncPtr* funcTable = extensionData->GetFuncTable();
-	auto funcPtr = funcTable[index];
-	for (auto& superTypePair : mTableDesc->mTable) {
-        ExtensionData* extensionData = superTypePair.second.GetExtensionData();
-        if (!extensionData->IsTargetHasSameSourceWith(this)) {
+    // Cache miss and GetOuterTi returned null: resolve by walking supers.
+    FuncPtr* funcTable = ed->GetFuncTable();
+    FuncPtr funcPtr = funcTable[index];
+    for (const auto& superTypePair : mTable) {
+        ExtensionData* thisEdSuper = superTypePair.second.GetExtensionData();
+        if (!thisEdSuper->IsTargetHasSameSourceWith(this)) {
             continue;
         }
-        auto superTi = superTypePair.second.GetSuperTi();
-        // Avoid infinite recursion. The mTAble may contain itself.
-		if (superTi == this || superTi->GetUUID() == GetUUID()) {
+        TypeInfo* superTi = superTypePair.second.GetSuperTi();
+        if (superTi == this || superTi->GetUUID() == GetUUID()) {
             continue;
-		}
-		auto edOfSuper = superTi->FindExtensionData(itf);
-		if (edOfSuper == nullptr) {
+        }
+        auto* superEdItf = superTi->FindExtensionData(itf);
+        if (superEdItf == nullptr) {
             continue;
-		}
-        auto funcPtrInSuper = edOfSuper->GetFuncTable()[index];
+        }
+        FuncPtr funcPtrInSuper = superEdItf->GetFuncTable()[index];
         if (funcPtrInSuper == nullptr) {
             continue;
         }
-		if (funcPtrInSuper == funcPtr) {
-            auto res = superTi->GetMethodOuterTI(itf, index);
-			it->second.SetCachedTypeInfo(index, res);
-			return res;
-		} else if (extensionData->IsDirect()) {
-			break;
-		}
-	}
-	it->second.SetCachedTypeInfo(index, this);
-	return this;
+        if (funcPtrInSuper == funcPtr) {
+            TypeInfo* res = superTi->GetMethodOuterTI(itf, index);
+            it->second.SetCachedTypeInfo(index, res);
+            return res;
+        }
+        if (thisEdSuper->IsDirect()) {
+            break;
+        }
+    }
+    it->second.SetCachedTypeInfo(index, this);
+    return this;
 }
 
 bool TypeInfo::IsSubType(TypeInfo* typeInfo)
@@ -729,7 +713,7 @@ bool TypeInfo::IsSubType(TypeInfo* typeInfo)
             return false;
         }
         TypeInfo* objectTi = TypeInfoManager::GetTypeInfoManager().GetObjectTypeInfo();
-		CHECK(objectTi != nullptr);
+        CHECK(objectTi != nullptr);
         if (typeInfo == objectTi) {
             return true;
         }
@@ -816,9 +800,35 @@ MethodInfo* ReflectInfo::GetStaticMethodInfo(U32 index)
     return reinterpret_cast<DataRefOffset64<MethodInfo>*>(baseAddr)->GetDataRef();
 }
 
+static U8 GetReflectVersionFromModifier(U32 modifier)
+{
+    U8 version = 0;
+    if (modifier & MODIFIER_REFLECT_VER_BIT1) {
+        version |= 1;
+    }
+    if (modifier & MODIFIER_REFLECT_VER_BIT2) {
+        version |= 2;
+    }
+    if (modifier & MODIFIER_REFLECT_VER_BIT3) {
+        version |= 4;
+    }
+    return version;
+}
+
+U8 ReflectInfo::GetReflectVersion() const
+{
+    return GetReflectVersionFromModifier(GetModifier());
+}
+
+U8 EnumInfo::GetReflectVersion() const
+{
+    return GetReflectVersionFromModifier(GetModifier());
+}
+
 static void* GetAnnotations(Uptr annotationMethod, TypeInfo* arrayTi)
 {
     CHECK_DETAIL(arrayTi != nullptr, "arrayTi is nullptr");
+    ScopedAllocBuffer scopedAllocBuffer;
     U32 size = arrayTi->GetInstanceSize();
     MSize objSize = MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
     MObject* obj = ObjectManager::NewObject(arrayTi, objSize, AllocType::RAW_POINTER_OBJECT);
@@ -841,10 +851,6 @@ static void* GetAnnotations(Uptr annotationMethod, TypeInfo* arrayTi)
 #endif
     Heap::GetBarrier().WriteStruct(obj, reinterpret_cast<Uptr>(obj) + TYPEINFO_PTR_SIZE,
         size, reinterpret_cast<Uptr>(structRet), size);
-    AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
-    if (buffer != nullptr) {
-        buffer->CommitRawPointerRegions();
-    }
     return obj;
 }
 
@@ -852,17 +858,119 @@ bool TypeInfo::ReflectIsEnable() const { return static_cast<bool>(flag & FLAG_RE
 
 bool TypeTemplate::ReflectIsEnable() const { return static_cast<bool>(flag & FLAG_REFLECTION); }
 
+bool TypeTemplate::IsEnumCtor() const
+{
+    if (!IsEnum() && !IsTempEnum()) {
+        return false;
+    }
+    if (enumInfo == nullptr) {
+        return true;
+    }
+    return false;
+}
+
 void* ReflectInfo::GetAnnotations(TypeInfo* arrayTi)
 {
     return MapleRuntime::GetAnnotations(annotationMethod, arrayTi);
 }
 
-U32 TypeInfo::GetModifier()
+U32 TypeInfo::GetModifier() const
 {
     if ((IsGenericTypeInfo() && !GetSourceGeneric()->ReflectIsEnable()) || !ReflectIsEnable()) {
         return MODIFIER_INVALID;
     }
-    return GetReflectInfo()->GetModifier();
+    if (IsEnum()) {
+        return enumInfo != nullptr ? enumInfo->GetModifier() : MODIFIER_INVALID;
+    } else {
+        ReflectInfo* reflectInfo = GetReflectInfo();
+        return reflectInfo != nullptr ? reflectInfo->GetModifier() : MODIFIER_INVALID;
+    }
+}
+bool TypeInfo::IsEnumCtor() const
+{
+    if (!IsEnum() && !IsTempEnum()) {
+        return false;
+    }
+    if (enumInfo == nullptr) {
+        return true;
+    }
+    return false;
+}
+
+bool TypeInfo::IsOptionLikeRefEnum()
+{
+    if (!IsEnum() && !IsTempEnum()) {
+        return false;
+    }
+    EnumInfo* enumInfo = GetEnumInfo();
+    if (IsEnumCtor()) {
+        enumInfo = GetSuperTypeInfo()->GetEnumInfo();
+    }
+    if (!enumInfo->IsEnumKind2()) {
+        return false;
+    }
+    if (!GetFieldType(0)->IsBool()) {
+        return true;
+    }
+    return false;
+}
+
+bool TypeInfo::IsZeroSizedEnum()
+{
+    if (!IsEnum() && !IsTempEnum()) {
+        return false;
+    }
+    if (IsEnumCtor()) {
+        return GetInstanceSize() == 0;
+    }
+    EnumInfo* enumInfo = GetEnumInfo();
+    if (!enumInfo->IsEnumKind0()) {
+        return false;
+    }
+    U32 ctorNum = enumInfo->GetNumOfEnumCtor();
+    if (ctorNum != 1) {
+        return false;
+    }
+    TypeInfo* ctorTypeInfo = enumInfo->GetCtorTypeInfo(0);
+    if (ctorTypeInfo->GetInstanceSize() == 0) {
+        return true;
+    }
+    return false;
+}
+
+bool TypeInfo::IsOptionLikeUnassociatedCtor()
+{
+    if (!IsEnumCtor()) {
+        return false;
+    }
+    EnumInfo* enumInfo = GetSuperTypeInfo()->GetEnumInfo();
+    if (!enumInfo->IsEnumKind2()) {
+        return false;
+    }
+    U32 num = enumInfo->GetNumOfEnumCtor();
+    for (U32 idx = 0; idx < num; idx++) {
+        TypeInfo* ctorTi = enumInfo->GetCtorTypeInfo(idx);
+        if (ctorTi->GetUUID() == GetUUID()) {
+            CString ctorName = CString(enumInfo->GetEnumCtor(idx)->GetName());
+            return ctorName.StartWith("N$_");
+        }
+    }
+    return false;
+}
+
+bool TypeInfo::IsEnumKind1()
+{
+    if (!IsEnum() && !IsTempEnum()) {
+        return false;
+    }
+    EnumInfo* enumInfo = nullptr;
+    if (IsEnumCtor()) {
+        enumInfo = GetSuperTypeInfo()->GetEnumInfo();
+    } else {
+        enumInfo = GetEnumInfo();
+    }
+    CHECK_DETAIL(enumInfo != nullptr, "EnumInfo is nullptr.");
+    return enumInfo->IsEnumKind1();
 }
 
 U32 TypeInfo::GetNumOfInstanceFieldInfos()
@@ -900,6 +1008,9 @@ U32 TypeInfo::GetNumOfInstanceMethodInfos()
     if ((IsGenericTypeInfo() && !GetSourceGeneric()->ReflectIsEnable()) || !ReflectIsEnable()) {
         return 0;
     }
+    if (IsEnum() || IsTempEnum()) {
+        return GetEnumInfo()->GetNumOfInstanceMethodInfos();
+    }
     return GetReflectInfo()->GetNumOfInstanceMethodInfos();
 }
 
@@ -907,6 +1018,9 @@ U32 TypeInfo::GetNumOfStaticMethodInfos()
 {
     if ((IsGenericTypeInfo() && !GetSourceGeneric()->ReflectIsEnable()) || !ReflectIsEnable()) {
         return 0;
+    }
+    if (IsEnum() || IsTempEnum()) {
+        return GetEnumInfo()->GetNumOfStaticMethodInfos();
     }
     return GetReflectInfo()->GetNumOfStaticMethodInfos();
 }
@@ -928,15 +1042,49 @@ StaticFieldInfo* TypeInfo::GetStaticFieldInfo(U32 index)
 
 MethodInfo* TypeInfo::GetInstanceMethodInfo(U32 index)
 {
+    if (IsEnum() || IsTempEnum()) {
+        return GetEnumInfo()->GetInstanceMethodInfo(index);
+    }
     return GetReflectInfo()->GetInstanceMethodInfo(index);
 }
 
 MethodInfo* TypeInfo::GetStaticMethodInfo(U32 index)
 {
+    if (IsEnum() || IsTempEnum()) {
+        return GetEnumInfo()->GetStaticMethodInfo(index);
+    }
     return GetReflectInfo()->GetStaticMethodInfo(index);
 }
 
-void* TypeInfo::GetAnnotations(TypeInfo* arrayTi) { return GetReflectInfo()->GetAnnotations(arrayTi); }
+U32 TypeInfo::GetNumOfEnumCtor()
+{
+    CHECK_DETAIL(IsEnum() || IsTempEnum(), "To get the number of constructors, but the type is not Enum.");
+    if ((IsGenericTypeInfo() && !GetSourceGeneric()->ReflectIsEnable()) || !ReflectIsEnable()) {
+        return 0;
+    }
+    return GetEnumInfo()->GetNumOfEnumCtor();
+}
+
+EnumCtorInfo* TypeInfo::GetEnumCtor(U32 idx)
+{
+    CHECK_DETAIL(IsEnum() || IsTempEnum(), "To get the Enum's constructor, but the type is not Enum.");
+    return GetEnumInfo()->GetEnumCtor(idx);
+}
+
+void* TypeInfo::GetAnnotations(TypeInfo* arrayTi)
+{
+    if ((IsGenericTypeInfo() && !GetSourceGeneric()->ReflectIsEnable()) || !ReflectIsEnable()) {
+        // reflect is not enabled, return empty array.
+        return MapleRuntime::GetAnnotations(0, arrayTi);
+    }
+    if (IsEnum() || IsTempEnum()) {
+        if (IsEnumCtor()) {
+            return GetEnumCtorReflectInfo()->GetAnnotations(arrayTi);
+        }
+        return GetEnumInfo()->GetAnnotations(arrayTi);
+    }
+    return GetReflectInfo()->GetAnnotations(arrayTi);
+}
 
 FuncRef TypeInfo::GetFinalizeMethod() const
 {
@@ -949,36 +1097,57 @@ FuncRef TypeInfo::GetFinalizeMethod() const
 
 bool TypeInfo::NeedRefresh()
 {
-	// TypeInfo refresh is exclusively required for classes with type arguments.
-	if (type != TypeKind::TYPE_KIND_CLASS || typeArgsNum == 0) {
-		return false;
-	}
+    // TypeInfo refresh is exclusively required for classes with type arguments.
+    if (type != TypeKind::TYPE_KIND_CLASS || typeArgsNum == 0) {
+        return false;
+    }
 
-	// For class:
-	// 1) if this TypeInfo has the same number of fields with its TypeTemplate, it means no
-	// need to be refreshed.
-	if (GetFieldNum() == GetSourceGeneric()->GetFieldNum()) {
-		return false;
-	}
-	// 2) if its TypeInfo does not set extension part bit, it may be compiled by previous SDK,
-	// so always refresh the TypeInfo for correctness.
-	if (!HasExtPart()) {
-		return true;
-	}
-	// 3) if this TypeInfo does not have extension part, refresh the TypeInfo.
-	auto typeExt = LoaderManager::GetInstance()->GetLoader()->GetTypeExt(this);
-	if (typeExt == nullptr) {
-		return true;
-	}
-	// 4) if its TypeInfo has extension part, but the first byte of content is `0`, it means the
+    // For class:
+    // 1) if this TypeInfo has the same number of fields with its TypeTemplate, it means no
+    // need to be refreshed.
+    if (GetFieldNum() == GetSourceGeneric()->GetFieldNum()) {
+        return false;
+    }
+    // 2) if its TypeInfo does not set extension part bit, it may be compiled by previous SDK,
+    // so always refresh the TypeInfo for correctness.
+    if (!HasExtPart()) {
+        return true;
+    }
+    // 3) if this TypeInfo does not have extension part, refresh the TypeInfo.
+    auto typeExt = LoaderManager::GetInstance()->GetLoader()->GetTypeExt(this);
+    if (typeExt == nullptr) {
+        return true;
+    }
+    // 4) if its TypeInfo has extension part, but the first byte of content is `0`, it means the
     // TypeInfo needs to be refreshed.
-	if (*reinterpret_cast<uint8_t*>(typeExt->content) == 0) {
-		return true;
-	}
-	return false;
+    if (*reinterpret_cast<uint8_t*>(typeExt->content) == 0) {
+        return true;
+    }
+    return false;
 }
 
-void EnumInfo::SetEnumCtors(void* ctors)
+EnumCtorInfo* EnumInfo::GetEnumCtor(U32 idx) const
+{
+    CHECK(idx < GetNumOfEnumCtor());
+    EnumCtorInfo* enumCtorInfo = enumDebugInfo.enumCtorInfos.GetDataRef();
+    return enumCtorInfo + idx;
+}
+
+TypeInfo* EnumInfo::GetCtorTypeInfo(U32 idx) const
+{
+    CHECK(idx < GetNumOfEnumCtor());
+    EnumCtorInfo* enumCtorInfo = GetEnumCtor(idx);
+    return enumCtorInfo->GetTypeInfo();
+}
+
+EnumCtorInfo* EnumDebugInfo::GetEnumCtor(U32 idx) const
+{
+    CHECK(idx < enumCtorInfoCnt);
+    EnumCtorInfo* enumCtorInfo = enumCtorInfos.GetDataRef();
+    return enumCtorInfo + idx;
+}
+
+void EnumDebugInfo::SetEnumCtors(void* ctors)
 {
     enumCtorInfos.refOffset = reinterpret_cast<Uptr>(ctors) - reinterpret_cast<Uptr>(this);
 }
@@ -994,7 +1163,6 @@ MethodInfo* EnumInfo::GetInstanceMethodInfo(U32 index) const
     baseAddr += index * sizeof(DataRefOffset64<MethodInfo>);
     return reinterpret_cast<DataRefOffset64<MethodInfo>*>(baseAddr)->GetDataRef();
 }
-
 MethodInfo* EnumInfo::GetStaticMethodInfo(U32 index)
 {
     Uptr baseAddr = GetBaseAddr();
@@ -1003,8 +1171,29 @@ MethodInfo* EnumInfo::GetStaticMethodInfo(U32 index)
     return reinterpret_cast<DataRefOffset64<MethodInfo>*>(baseAddr)->GetDataRef();
 }
 
+void EnumInfo::SetInstanceMethodInfo(U32 idx, MethodInfo* methodInfo)
+{
+    Uptr baseAddr = GetBaseAddr();
+    baseAddr += idx * sizeof(DataRefOffset64<MethodInfo>);
+    I64* addr = reinterpret_cast<I64*>(baseAddr);
+    *addr = reinterpret_cast<Uptr>(methodInfo) - reinterpret_cast<Uptr>(addr);
+}
+
+void EnumInfo::SetStaticMethodInfo(U32 idx, MethodInfo* methodInfo)
+{
+    Uptr baseAddr = GetBaseAddr();
+    baseAddr += instanceMethodCnt * sizeof(DataRefOffset64<MethodInfo>);
+    baseAddr += idx * sizeof(DataRefOffset64<MethodInfo>);
+    I64* addr = reinterpret_cast<I64*>(baseAddr);
+    *addr = reinterpret_cast<Uptr>(methodInfo) - reinterpret_cast<Uptr>(addr);
+}
 void EnumCtorInfo::SetName(const char* pName)
 {
     name.refOffset = reinterpret_cast<Uptr>(pName) - reinterpret_cast<Uptr>(this);
+}
+
+void* EnumCtorReflectInfo::GetAnnotations(TypeInfo* arrayTi)
+{
+    return MapleRuntime::GetAnnotations(0, arrayTi);
 }
 } // namespace MapleRuntime

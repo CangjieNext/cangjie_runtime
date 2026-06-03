@@ -61,7 +61,7 @@ extern char* CJ_SOCKET_GetErrMessage(int n)
 extern int32_t CJ_GetOptionInt(int64_t sock, int32_t level, int32_t optname)
 {
     int32_t optval = 0; // windows may update bytes only partially leaving garbage so we have to pass 0 here
-    socklen_t optlen = (socklen_t)sizeof(optval);
+    int optlen = (int)sizeof(optval);
     int32_t ret = CJ_SockOptionGet(sock, level, optname, &optval, &optlen);
     if (ret != 0) {
         return -1;
@@ -71,7 +71,7 @@ extern int32_t CJ_GetOptionInt(int64_t sock, int32_t level, int32_t optname)
 
 extern int32_t CJ_SetOptionInt(int64_t sock, int32_t level, int32_t optname, int32_t optval)
 {
-    socklen_t optlen = (socklen_t)sizeof(optval);
+    int optlen = (int)sizeof(optval);
     int32_t ret = CJ_SockOptionSet(sock, level, optname, &optval, optlen);
     return ret;
 }
@@ -87,7 +87,12 @@ extern struct SockAddr* CJ_RawAddressCreate(struct sockaddr_storage* arr, sockle
     if (sockaddr == NULL) {
         return NULL;
     }
-    sockaddr->sockaddr = arr;
+    sockaddr->sockaddr = malloc(size);
+    if (sockaddr->sockaddr == NULL) {
+        free(sockaddr);
+        return NULL;
+    }
+    memcpy_s(sockaddr->sockaddr, size, arr, size);
     sockaddr->addrLen = size;
     return sockaddr;
 }
@@ -100,6 +105,10 @@ extern socklen_t CJ_RawAddressLenGet(struct SockAddr* addrPtr)
 extern void CJ_RawAddressDestroy(struct SockAddr* addrPtr)
 {
     if (addrPtr != NULL) {
+        if (addrPtr->sockaddr != NULL) {
+            free(addrPtr->sockaddr);
+            addrPtr->sockaddr = NULL;
+        }
         free(addrPtr);
     }
     return;

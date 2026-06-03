@@ -34,7 +34,27 @@ public:
     void UpdateFuncTable(U16 ftSize, FuncPtr* newFt) { funcTableSize  = ftSize; funcTable = newFt; }
     U16 GetFuncTableSize() const { return funcTableSize; }
     bool IsDirect() const { return flag & 0b10000000; }
-    bool HasOuterTiFastPath() const { return (flag & 0b1) != 0; } // "bit-0 is 1" means codegen has computed the outer ti.
+    bool IsFuncTableUpdated() const
+    {
+        return __atomic_load_n(&flag, __ATOMIC_ACQUIRE) &
+               0b00000110; // "bit-1&2 is 11" means updated already
+    }
+    bool TryLockFuncTable()
+    {
+        U8 expectedFlag = flag & 0b11111001;
+        return __atomic_compare_exchange_n(&flag, &expectedFlag,
+                                           flag | 0b00000100,    // "bit-1&2 is 10" means funcTable is locked
+                                           false, __ATOMIC_RELEASE, __ATOMIC_ACQUIRE);
+    }
+    void SetFuncTableUpdated()
+    {
+        __atomic_store_n(
+            &flag, flag | 0b00000110,    // "bit-1&2 is 11" means updated already
+            __ATOMIC_RELEASE);
+    }
+
+    // "bit-0 is 1" means codegen has computed the outer ti.
+    bool HasOuterTiFastPath() const { return (flag & 0b1) != 0; }
     TypeInfo* GetOuterTi(TypeInfo* childTi, U64 index) const
     {
         CHECK(index < funcTableSize);
@@ -42,7 +62,7 @@ public:
             return nullptr;
         }
         if (!IsTargetHasSameSourceWith(childTi)) {
-            for (auto pair : childTi->GetMTableDesc()->mTable) {
+            for (const auto& pair : childTi->GetMTableDesc()->mTable) {
                 auto superTi = pair.second.GetSuperTi();
                 if (IsTargetHasSameSourceWith(superTi)) {
                     void* fn = reinterpret_cast<void*>(whereCondFn);

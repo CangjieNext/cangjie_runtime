@@ -166,10 +166,12 @@ Mutator* MutatorManager::CreateRuntimeMutator(ThreadType threadType)
     ThreadLocal::SetMutator(mutator);
     ThreadLocal::SetThreadType(threadType);
     ThreadLocal::SetCJProcessorFlag(true);
+    MutatorManagementRUnlock();
     ThreadLocalData* threadData = reinterpret_cast<ThreadLocalData*>(MRT_GetThreadLocalData());
+    // Managed-entry setup may block on sync/STW, so do not hold the mutator
+    // management lock across it.
     MRT_PreRunManagedCode(mutator, 2, threadData); // 2 layers
     // only running mutator can enter saferegion.
-    MutatorManagementRUnlock();
     return mutator;
 }
 
@@ -244,6 +246,11 @@ void MutatorManager::VisitAllMutators(MutatorVisitor func)
     if (mutator != nullptr) {
         func(*mutator);
     }
+}
+
+void MutatorManager::VisitAllMutatorsExceptFinalizer(MutatorVisitor func)
+{
+    ScheduleAllCJThreadVisitMutator(VisitMuatorHelper, &func);
 }
 
 void MutatorManager::StopTheWorld4FullGC()
@@ -611,9 +618,8 @@ void MutatorManager::TransitionAllMutatorsToCpuProfile()
         }
     }
     std::list<Mutator*> undoneMutators;
-    VisitAllMutators([&undoneMutators](Mutator& mutator) {
-        if (mutator.GetTid() != Heap::GetHeap().GetFinalizerProcessor().GetTid() &&
-            mutator.GetCjthreadPtr() == MutatorManager::Instance().GetMainThreadHandle()) {
+    VisitAllMutatorsExceptFinalizer([&undoneMutators](Mutator& mutator) {
+        if (mutator.GetCjthreadPtr() == MutatorManager::Instance().GetMainThreadHandle()) {
             mutator.SetSuspensionFlag(Mutator::SuspensionType::SUSPENSION_FOR_CPU_PROFILE);
             mutator.SetSafepointActive(true);
             undoneMutators.push_back(&mutator);

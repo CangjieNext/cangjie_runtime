@@ -72,6 +72,28 @@ std::string ParseWithError(
     return outStr;
 }
 
+std::string LexWithError(void* fptr, const std::string code)
+{
+    DiagnosticEngine diag;
+    diag.EnableCheckRangeErrorCodeRatherICE();
+    SourceManager sm;
+    auto fileID = sm.AddSource("generate by tokens", code);
+    diag.SetSourceManager(&sm);
+    diag.SetDiagnoseStatus(true);
+
+    diag.SetDisableWarning(true);
+    Lexer lex(fileID, code, diag, sm, false);
+    auto tokens = lex.GetTokens();
+
+    std::string outStr;
+    auto ret = diag.GetCategoryDiagnosticsString(DiagCategory::LEX, outStr);
+    if (ret != DiagEngineErrorCode::NO_ERRORS) {
+        diag.DisableCheckRangeErrorCodeRatherICE();
+        return "DiagnEngineError occurs";
+    }
+    return outStr;
+}
+
 static char* CloneString(const std::string s, const size_t size)
 {
     auto ret = (char*)malloc(size * sizeof(char));
@@ -83,10 +105,32 @@ static char* CloneString(const std::string s, const size_t size)
     return ret;
 }
 
+void TryCombineDoubleArrow(MacroCall* macCall, std::vector<Token> inputTokens, std::vector<Token>& outputTokens)
+{
+    auto token0 = inputTokens[0];
+    auto token1 = inputTokens[1];
+    if (token0.End().column == token1.Begin().column) {
+        // >= > trans to > =>
+        if (token0.kind == TokenKind::GE) {
+            token0 = Token(TokenKind::GT, ">", token0.Begin(), token0.Begin() + Len(TokenKind::GT));
+            token1 = Token(TokenKind::DOUBLE_ARROW, "=>", token0.Begin() + Len(TokenKind::GT), token1.End());
+        } else { // >>= > trans to >> =>
+            token0 = Token(TokenKind::RSHIFT, ">>", token0.Begin(), token0.Begin() + Len(TokenKind::RSHIFT));
+            token1 = Token(TokenKind::DOUBLE_ARROW, "=>", token0.Begin() + Len(TokenKind::RSHIFT), token1.End());
+        }
+    }
+    if (macCall != nullptr) {
+        token0 = Token(token0.kind, token0.Value(), macCall->GetBeginPos(), macCall->GetEndPos());
+        token1 = Token(token1.kind, token1.Value(), macCall->GetBeginPos(), macCall->GetEndPos());
+    }
+    outputTokens.emplace_back(token0);
+    outputTokens.emplace_back(token1);
+    return;
+}
 } // namespace
 
 extern "C" {
-uint8_t* CJ_AST_Lex(void* fptr, const char* code)
+ParseRes* CJ_AST_Lex(void* fptr, const char* code, int64_t codeLen)
 {
     Cangjie::ICE::TriggerPointSetter iceSetter(CompileStage::PARSE);
     DiagnosticEngine diag;
@@ -94,35 +138,50 @@ uint8_t* CJ_AST_Lex(void* fptr, const char* code)
     diag.SetSourceManager(&sm);
     diag.SetDiagnoseStatus(true);
     diag.SetDisableWarning(true);
-    std::string cangjieCode(code);
+    std::string cangjieCode(code, static_cast<size_t>(codeLen));
     Lexer lex(cangjieCode, diag, sm, false, false);
     std::vector<Token> tokens{};
-    Token token = lex.Next();
 
-    auto pos = token.Begin();
-    auto end = token.End();
-    auto inMacCall = false;
+    MacroCall* macCall = nullptr;
     if (fptr != nullptr) {
-        auto macCall = reinterpret_cast<MacroCall*>(fptr);
-        pos = macCall->GetBeginPos();
-        end = macCall->GetEndPos();
-        inMacCall = true;
+        macCall = reinterpret_cast<MacroCall*>(fptr);
     }
-    while (token.kind != TokenKind::END) {
-        auto tk = Token(token.kind, token.Value(), pos, end);
-        tk.isSingleQuote = token.isSingleQuote;
-        if (token.kind == TokenKind::MULTILINE_RAW_STRING) {
-            tk.delimiterNum = token.delimiterNum;
+    while (true) {
+        if (lex.Seeing({TokenKind::GE, TokenKind::GT}, false, false) || lex.Seeing({TokenKind::RSHIFT_ASSIGN, TokenKind::GT}, false, false)) {
+            auto geToken = lex.Next();
+            auto gtToken = lex.Next();
+            TryCombineDoubleArrow(macCall, {geToken, gtToken}, tokens);
         }
-        tokens.emplace_back(tk);
-        token = lex.Next();
-        if (!inMacCall) {
-            pos = token.Begin();
-            end = token.End();
+        Token token = lex.Next();
+        if (macCall == nullptr) {
+            tokens.emplace_back(token);
+        } else {
+            auto tk = Token(token.kind, token.Value(), macCall->GetBeginPos(), macCall->GetEndPos());
+            tk.isSingleQuote = token.isSingleQuote;
+            if (token.kind == TokenKind::MULTILINE_RAW_STRING) {
+                tk.delimiterNum = token.delimiterNum;
+            }
+            tokens.emplace_back(tk);
+        }
+        if (token.kind == TokenKind::END) {
+            break;
         }
     }
-    tokens.emplace_back(token.kind, token.Value(), pos, end);
-    return TokenSerialization::GetTokensBytesWithHead(tokens);
+
+    ParseRes* result = (ParseRes*)malloc(sizeof(ParseRes));
+    if (result == nullptr) {
+        return nullptr;
+    }
+    if (diag.GetErrorCount()) {
+        std::string errMsg;
+        result->node = nullptr;
+        errMsg = LexWithError(fptr, cangjieCode);
+        result->eMsg = CloneString(errMsg, errMsg.size() + 1);
+        return result;
+    }
+    result->node = TokenSerialization::GetTokensBytesWithHead(tokens);
+    result->eMsg = nullptr;
+    return result;
 }
 
 ParseRes* CJ_AST_ParseExpr(void* fptr, const uint8_t* tokensBytes, int64_t* tokenCounter)
@@ -451,7 +510,7 @@ uint8_t CJ_AST_DiagReport(
     auto invocation = macCall->GetInvocation().get();
 
     auto begin = invocation->atPos;
-    auto end = invocation->identifierPos + invocation->fullName.size();
+    auto end = invocation->macroCallDiagInfo.identifierPos + invocation->macroCallDiagInfo.fullName.size();
     // we optimize the display length because the printout doesn't look good caused by the last NL token.
     auto tokensEndPos = (tokens.empty()) ? end : tokens.back().End();
     if (!tokens.empty() && tokens.back().kind == TokenKind::NL) {

@@ -35,7 +35,7 @@ public func spy<T>(objectToSpyOn: T): T
 @On(storage.getComments(testId)).returns(testComments)
 ```
 
-示例中，如果 mock 对象 `storage` *接收*到 `getComments` 方法的调用，并且指定了参数 `testId` ，则返回 `testComment` 。
+示例中，如果 mock 对象 `storage` *接收*到 `getComments` 方法的调用，并且指定了参数 `testId` ，则返回 `testComments` 。
 
 如上行为即为**打桩**，桩（Stub， 模拟还未实现或无法在测试环境中执行的组件）需在测试用例主体内部先定义。
 
@@ -190,15 +190,18 @@ let p = mock<Printer>() // 假设 print 采用 ToString 类型的单个参数。
 @On(p.print(_)) // 可以使用“_”特殊字符代替 any() 。
 
 @On(p.print(eq("foo"))) // 只匹配“foo”参数。
+
 @On(p.print("foo")) // 常量字符串可以省略显式匹配器。
 
 let predefined = "foo" // 可以传递单个标识符，而不是参数匹配器。
+
 @On(p.print(predefined)) // 如果类型相等，则使用结构相等来匹配。
 
 @On(p.print(ofType<Bar>())) // 仅匹配 Bar 类型的参数。
 
 // 对于更复杂的匹配器，鼓励使用以下模式。
-let hasQuestionMark = { arg: String => arg.contains("?") }
+let hasQuestionMark = {arg: String => arg.contains("?")}
+
 @On(p.print(argThat(hasQuestionMark))) // 只匹配包含问号的字符串。
 ```
 
@@ -213,6 +216,7 @@ let hasQuestionMark = { arg: String => arg.contains("?") }
 @On(foo.bar(calculateArgument())) // 不正确，calculateArgument() 不是匹配器。
 
 let expectedArgument = calculateArgument()
+
 @On(foo.bar(expectedArgument)) // 正确，只要 'expectedArgument' 是可等价的和/或引用类型。
 ```
 
@@ -254,7 +258,7 @@ mock 框架提供 API 来指定桩操作。触发桩后，打桩声明会执行�
 <!-- code_no_check -->
 
 ```cangjie
-@On(foo.bar()).returns(2) // 返回 0
+@On(foo.bar()).returns(2) // 返回 2
 @On(foo.bar()).returnsConsecutively(1, 2, 3) // 依次返回 1，2，3
 ```
 
@@ -294,7 +298,7 @@ import std.unittest.mock.*
 import std.unittest.mock.mockmacro.*
 
 class Foo {
-    func bar() { }
+    func bar() {}
 }
 
 @Test

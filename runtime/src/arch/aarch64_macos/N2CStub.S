@@ -90,7 +90,7 @@
 //                 | arg9         |
 //   stub sp  -->  | arg8         | <== MCC_N2CStub frame ends at here
 
-    .text
+    .section __TEXT,__cjrt_text,regular
     .align 2
     .global _CJ_MCC_N2CStub
 _CJ_MCC_N2CStub:
@@ -165,7 +165,7 @@ _CJ_MCC_N2CStub:
     mov  x29, sp
     cfi_def_cfa_register (x29)
 
-    bl _MRT_TryNewAndRunCJThread
+    bl _MRT_NewForeignCJThread
     str  x0, [sp, #SafeStateOffset+0x8]
   
     // mutator mustn't be in safe region before setting context.
@@ -251,7 +251,7 @@ _unwindPCForN2CStub:
     ldr x0, [x29, #SafeStateOffset+0x8]
     cmp x0,  #0
     beq .L_no_need_end
-    bl _MRT_EndCJThread
+    bl _MRT_EndForeignCJThread
     cmp x0,  #1
     beq .L_none_enter
 .L_no_need_end:
@@ -305,7 +305,7 @@ _unwindPCForN2CStub:
     ret
     .cfi_endproc
 
-.text
+.section __TEXT,__cjrt_text,regular
 .align 2
 .global  _ExecuteCangjieStub
 _ExecuteCangjieStub:
@@ -318,7 +318,7 @@ _ExecuteCangjieStub:
     ret
     .cfi_endproc
 
-.text
+.section __TEXT,__cjrt_text,regular
 .align 2
 .global  _ApplyCangjieMethodStub
 .global  _ApplyCangjieMethodStubFloat32

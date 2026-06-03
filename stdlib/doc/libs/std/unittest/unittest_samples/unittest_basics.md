@@ -16,6 +16,7 @@
 func add(a: Int64, b: Int64) {
     a + b
 }
+
 @Test
 class AddTests {
     @TestCase
@@ -58,6 +59,7 @@ cjpm test success
 func add(a: Int64, b: Int64) {
     a + b
 }
+
 @Test
 func testAddIncorrect() {
     @Expect(add(3, 3), 5)
@@ -81,6 +83,7 @@ func testAddIncorrect() {
 func add(a: Int64, b: Int64) {
     a + b
 }
+
 @Test
 func testAddIncorrect() {
     @Expect(add(3, 3), 5)
@@ -110,6 +113,7 @@ func testAddIncorrect() {
 func add(a: Int64, b: Int64) {
     a + b
 }
+
 @Test
 func testAddIncorrectAssert() {
     @Assert(add(3, 3), 5)
@@ -186,19 +190,19 @@ func validate_even_number_generator() {
 ```cangjie
 // No.1
 @AssertThrows(throw Exception())
- 
+
 // 语义上与 No.1 相同
 @AssertThrows[Exception](throw Exception())
- 
+
 @AssertThrows[IllegalStateException | NoneValueException](random.seed = 42u64)
- 
+
 @ExpectThrows[OutOfMemoryError](foo())
- 
+
 @ExpectThrows({
     foo()
     boo()
 })
- 
+
 @ExpectThrows[OutOfMemoryError]({
     for (i in list) {
         foo(i)
@@ -244,7 +248,7 @@ let e: ?Exception = @ExpectThrows[NoneValueException | IllegalMemoryException](f
 
 一些被比较的参数类型可能不能准确计算，例如浮点数，此时我们可以使用近似计算获得其是否相等的结果。
 
-本包提供了近似计算相关的接口 [NearEqutable](../unittest_package_api/unittest_package_interfaces.md#interface-nearequatablect-d) ，对于需要判断近似相等的类型，可通过扩展该接口，并在 `@Assert` `@Expect` `@PowerAssert` 等宏中使用 delta 参数，使能近似相等功能。
+本包提供了近似计算相关的接口 [NearEquatable](../unittest_package_api/unittest_package_interfaces.md#interface-nearequatablect-d) ，对于需要判断近似相等的类型，可通过扩展该接口，并在 `@Assert` `@Expect` `@PowerAssert` 等宏中使用 delta 参数，使能近似相等功能。
 
 近似相等的计算逻辑如下：
 
@@ -275,7 +279,7 @@ func test1() {
 }
 // 自定义类型
 class Point <: NearEquatable<Point, Point> {
-    Point(let x: Int64, let y: Int64) { }
+    Point(let x: Int64, let y: Int64) {}
 
     public func isNear(obj: Point, delta!: Point): Bool {
         if (x < 0 || y < 0) {
@@ -422,7 +426,7 @@ class Foo {
 >
 > 如果没有符合指定标签类别的测试用例。框架将不运行任何内容。
 >
-> 可以与 `exclude-tags` 结合。详见 [`--exclude-tags`](#-exclude-tags)。
+> 可以与 `exclude-tags` 结合。详见 [`--exclude-tags`](#--exclude-tags)。
 
 ### `--exclude-tags`
 

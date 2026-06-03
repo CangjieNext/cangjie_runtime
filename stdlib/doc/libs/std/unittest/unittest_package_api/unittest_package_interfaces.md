@@ -107,7 +107,7 @@ func minBatches(x: Int64): Unit
 
 参数：
 
-- [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 需配置的最小批次个数。
+- x: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 需配置的最小批次个数。
 
 ### func minDuration(Duration)
 
@@ -119,7 +119,7 @@ func minDuration(x: Duration): Unit
 
 参数：
 
-- x: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 需配置的性能测试最小执行时间。
+- x: [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) - 需配置的性能测试最小执行时间。
 
 ### func warmup(Int64)
 
@@ -143,7 +143,7 @@ func warmup(x: Duration): Unit
 
 参数：
 
-- x: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 需配置的预热期的执行时间。
+- x: [Duration](../../core/core_package_api/core_package_structs.md#struct-duration) - 需配置的预热期的执行时间。
 
 ### extend Configuration <: BenchmarkConfig
 
@@ -179,7 +179,7 @@ public func batchSize(x: Range<Int64>)
 
 参数：
 
-- b: [Range](../../core/core_package_api/core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<Int64> - 执行次数范围。
+- x: [Range](../../core/core_package_api/core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<Int64> - 执行次数范围。
 
 #### func explicitGC(ExplicitGcType)
 
@@ -255,11 +255,87 @@ public interface BenchmarkInputMarker {}
 public interface Measurement {
     func setup(): Unit
     func measure(): Float64
+    prop conversionTable: MeasurementUnitTable
+    prop name: String
+    prop textDescription: String
+    prop info: MeasurementInfo
 }
 ```
 
 功能：该接口指定如何在性能测试期间测量数据以及如何在报告中显示数据。
 实现接口的实例可以作为宏 `@Measure` 的属性传递。
+
+示例：
+
+<!-- run -->
+```cangjie
+import std.unittest.*
+import std.unittest.testmacro.*
+
+var fuel: Float64 = 0.0
+
+class FuelMeasurement <: Measurement {
+    public func setup() {
+        fuel = 0.0
+    }
+
+    public func measure(): Float64 {
+        fuel
+    }
+
+    public prop name: String {
+        get() {
+            "Fuel"
+        }
+    }
+
+    public prop textDescription: String {
+        get() {
+            "Measuring gallons of fuel spent"
+        }
+    }
+
+    public prop conversionTable: MeasurementUnitTable {
+        get() {
+            [(1.0, "gallon")]
+        }
+    }
+}
+
+@Test
+@Measure[FuelMeasurement()]
+@Configure[
+    minDuration: Duration.nanosecond,
+    warmup: Duration.nanosecond,
+    batchSize: 10
+]
+class BenchClass {
+    @Bench
+    func foo() {
+        fuel += 2.0
+    }
+}
+```
+
+可能的运行结果：
+
+```text
+Starting the benchmark `BenchClass.foo()`.
+    Warming up for 1.000 ns.
+    Starting measurements of 10 batches. Measuring Fuel.
+    Max batch size: 10, estimated execution time: 186.6 us.
+
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 400844 ns, RESULT:
+    TCS: BenchClass, time elapsed: 395616 ns, RESULT:
+    | Case   |       Median |       Err |   Err% |         Mean |
+    |:-------|-------------:|----------:|-------:|-------------:|
+    | foo    | 2.000 gallon | ±0 gallon |  ±0.0% | 2.000 gallon |
+Summary: TOTAL: 1
+    PASSED: 1, SKIPPED: 0, ERROR: 0
+    FAILED: 0
+--------------------------------------------------------------------------------------------------
+```
 
 ### prop conversionTable
 
@@ -273,7 +349,7 @@ prop conversionTable: MeasurementUnitTable
 对于 CSV 格式报告，始终选择下限以简化结果处理。
 默认值为 `[(1.0, "")]`。
 
-类型：[MeasurementUnitTable](../unittest_package_api/unittest_package_types.md#type-measurementunittable)。
+类型：[MeasurementUnitTable](../unittest_package_api/unittest_package_types.md#type-measurementunittable)
 
 ### prop name
 
@@ -285,7 +361,7 @@ prop name: String
 有助于区分报告表中的不同测量类型。
 默认值为 `Measurement`。
 
-类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)。
+类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)
 
 ### prop textDescription
 
@@ -295,7 +371,7 @@ prop textDescription: String
 
 功能：描述此测量的简单文本将显示在某些报告中。
 
-类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)。
+类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)
 
 ### func measure()
 
@@ -312,7 +388,7 @@ func measure(): Float64
 ### func setup()
 
 ```cangjie
-func setup()
+func setup(): Unit
 ```
 
 功能：此测量的初始化例程。在每个基准步骤之前调用。
@@ -332,10 +408,46 @@ prop info: MeasurementInfo
 ```cangjie
 public interface NearEquatable<CT, D> {
     func isNear(obj: CT, delta!: D): Bool
-} 
+}
 ```
 
 功能：判断某个对象是否基于这个 delta 近似相等。
+
+示例：
+
+<!-- run -->
+```cangjie
+import std.math.*
+import std.unittest.*
+import std.unittest.common.*
+import std.unittest.testmacro.*
+
+struct ApproxArray<T> <: NearEquatable<ApproxArray<T>, Int64> {
+    ApproxArray(let xs: Array<T>) {}
+
+    public func isNear(obj: ApproxArray<T>, delta!: Int64): Bool {
+        abs(this.xs.size - obj.xs.size) <= delta
+    }
+}
+
+@Test
+func test() {
+    @Assert(ApproxArray([1, 2]) == ApproxArray([1]), delta: 1)
+}
+```
+
+可能的运行结果：
+
+```text
+--------------------------------------------------------------------------------------------------
+TP: default, time elapsed: 184149 ns, RESULT:
+    TCS: TestCase_test, time elapsed: 181208 ns, RESULT:
+    [ PASSED ] CASE: test (74214 ns)
+Summary: TOTAL: 1
+    PASSED: 1, SKIPPED: 0, ERROR: 0
+    FAILED: 0
+--------------------------------------------------------------------------------------------------
+```
 
 ### func isNear(CT, D)
 
@@ -507,7 +619,7 @@ public func isNear(obj: Float64, delta!: RelativeDelta<Float64>): Bool
 ## interface Reporter\<TReport, TReturn>
 
 ```cangjie
-sealed interface Reporter <TReport, TReturn> {}
+sealed interface Reporter<TReport, TReturn> {}
 ```
 
 功能：报告器基础接口。

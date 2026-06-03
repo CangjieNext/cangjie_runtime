@@ -107,7 +107,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -203,7 +203,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -306,7 +306,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -405,7 +405,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -504,7 +504,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -599,7 +599,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -689,7 +689,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -786,7 +786,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -899,7 +899,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -1012,7 +1012,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -1112,7 +1112,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -1187,7 +1187,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -1297,7 +1297,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -1491,7 +1491,7 @@ Parameters:
 
 - indent: [UInt16](../../core/core_package_api/core_package_intrinsics.md#uint16) - The number of indentation spaces for formatted output.
 
-Return Value:
+Returns:
 
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - The formatted output content.
 
@@ -1503,7 +1503,7 @@ public func getAttrs(): Tokens
 
 Function: Gets the attributes of the current node (typically set via the built-in `Attribute` to assign attribute values to a declaration).
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The attributes of the current node.
 
@@ -1519,7 +1519,7 @@ Parameters:
 
 - attr: [String](../../core/core_package_api/core_package_structs.md#struct-string) - The attribute to check for presence in the current node.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if the current node has the attribute; otherwise, false.
 
@@ -1531,7 +1531,7 @@ public open func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -1670,7 +1670,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -1835,7 +1835,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -1962,7 +1962,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -2061,7 +2061,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -2103,7 +2103,7 @@ Parameters:
 
 - _: [UInt16](../../core/core_package_api/core_package_intrinsics.md#uint16) - The number of indentation spaces for formatted output.
 
-Return Value:
+Returns:
 
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - The formatted output content.
 
@@ -2115,7 +2115,7 @@ protected open func precedence(): Int64
 
 Function: Returns the precedence of the current expression node.
 
-Return Value:
+Returns:
 
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) -The precedence of the current expression node.
 
@@ -2127,7 +2127,7 @@ public open func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -2264,7 +2264,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -2353,7 +2353,7 @@ Parameters:
 
 ```cangjie
 public class FeaturesDirective <: Node {
-    public init(input: Tokens)
+    public init(inputs: Tokens)
     public init()
 }
 ```
@@ -2362,7 +2362,7 @@ Function: Represents a features directive node.
 
 A [FeaturesDirective](ast_package_classes.md#class-featuresdirective) node: `feature define`.
 
-> **Node:**
+> **Note:**
 >
 > Features directive declaration must start with keyword `features`, followed by the [features set](), and must appear before the package header of the source file.
 
@@ -2370,29 +2370,25 @@ Parent Type:
 
 - [Node](#class-node)
 
-### prop commas
+### prop annotations
 
 ```cangjie
-public mut prop commas: Tokens 
+public mut prop annotations: ArrayList<Annotation>
 ```
 
-Function: Gets or sets the sequence of `,` lexical units in the [MemberAccess](ast_package_classes.md#class-memberaccess) node, which may be empty.
+Function: Gets or sets the list of annotations applied to the [FeaturesDirective](ast_package_classes.md#class-featuresdirective) node.
 
-Type: [Tokens](ast_package_classes.md#class-tokens)
+Type: [ArrayList](../../collection/collection_package_api/collection_package_class.md#class-arraylistt)\<[Annotation](ast_package_classes.md#class-annotation)>
 
-Exceptions:
-
-- [ASTException](ast_package_exceptions.md#class-astexception) - Thrown when the set [Tokens](ast_package_classes.md#class-tokens) is not a sequence of "," lexical units.
-
-### prop content
+### prop featuresSet
 
 ```cangjie
-public mut prop content: ArrayList<FeatureId> 
+public mut prop featuresSet: FeaturesSet
 ```
 
-Function: Gets of sets the content of the node.
+Function: Gets or sets the [FeaturesDirective](ast_package_classes.md#class-featuresdirective) node with features names.
 
-Type: [ArrayList](../../collection/collection_package_api/collection_package_class.md#class-arraylistt)\<[featuresId](ast_package_classes.md#class-featureid)>
+Type: [FeaturesSet](ast_package_classes.md#class-featuresset)
 
 ### prop keyword
 
@@ -2432,17 +2428,109 @@ Exceptions:
 
 - [ASTException](ast_package_exceptions.md#class-astexception) - Thrown when the input [Tokens](ast_package_classes.md#class-tokens) type cannot be constructed as a [PackageHeader](ast_package_classes.md#class-featuresdirective) node.
 
-### func isEmpty()
+### func toTokens()
 
 ```cangjie
-public func isEmpty(): Bool
+public func toTokens(): Tokens
 ```
 
-Function: if `content` is empty.
+Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-returntype:
+Returns:
 
-- [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - content is empty.
+- [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
+
+### func traverse(Visitor)
+
+```cangjie
+public func traverse(v: Visitor): Unit
+```
+
+Function: Traverses the current syntax tree node and its child nodes. To terminate child node traversal early, override the `visit` function and call the `breakTraverse` function to terminate traversal behavior. See [Custom Visitor Function for Traversing AST Objects Example](../ast_samples/traverse.md).
+
+Parameters:
+
+- v: [Visitor](ast_package_classes.md#class-visitor) - An instance of the [Visitor](ast_package_classes.md#class-visitor) type.
+
+## class FeaturesSet
+
+```cangjie
+public class FeaturesSet <: Node {
+    public init()
+}
+```
+
+Function: Represents a features set which contains names of featurs.
+
+A [FeaturesSet](ast_package_classes.md#class-featuresset) node: `features set define`.
+
+> **Note:**
+>
+> Features set must start with `{` and end with `}`. Features set contains set of [featuresId](ast_package_classes.md#class-featureid).
+
+Parent Type:
+
+- [Node](#class-node)
+
+### prop commas
+
+```cangjie
+public mut prop commas: Tokens 
+```
+
+Function: Gets or sets the sequence of `,` lexical units in the [MemberAccess](ast_package_classes.md#class-memberaccess) node, which may be empty.
+
+Type: [Tokens](ast_package_classes.md#class-tokens)
+
+Exceptions:
+
+- [ASTException](ast_package_exceptions.md#class-astexception) - Thrown when the set [Tokens](ast_package_classes.md#class-tokens) is not a sequence of "," lexical units.
+
+### prop content
+
+```cangjie
+public mut prop content: ArrayList<FeatureId> 
+```
+
+Function: Gets of sets the content of the [FeaturesSet](ast_package_classes.md#class-featureset) node.
+
+Type: [ArrayList](../../collection/collection_package_api/collection_package_class.md#class-arraylistt)\<[featuresId](ast_package_classes.md#class-featureid)>
+
+### prop lCurl
+
+```cangjie
+public mut prop lCurl: Token
+```
+
+Function: Gets or sets the `{` in the [FeaturesSet](ast_package_classes.md#class-featureset) node.
+
+Type: [Token](ast_package_structs.md#struct-token)
+
+Exceptions:
+
+- [ASTException](ast_package_exceptions.md#class-astexception) - Thrown when the set [Token](ast_package_structs.md#struct-token) is not `{`.
+
+### prop rCurl
+
+```cangjie
+public mut prop rCurl: Token
+```
+
+Function: Gets or sets the `}` in the [FeaturesSet](ast_package_classes.md#class-featureset) node.
+
+Type: [Token](ast_package_structs.md#struct-token)
+
+Exceptions:
+
+- [ASTException](ast_package_exceptions.md#class-astexception) - Thrown when the set [Token](ast_package_structs.md#struct-token) is not `}`.
+
+### init()
+
+```cangjie
+public init()
+```
+
+Function: Constructs a default [FeaturesSet](ast_package_classes.md#class-featuresset) object.
 
 ### func toTokens()
 
@@ -2452,7 +2540,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -2631,7 +2719,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -2782,7 +2870,7 @@ public func isConst(): Bool
 
 Purpose: Determines whether the node is of `Const` type.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns `true` if it is a `Const` type node; otherwise, returns `false`.
 
@@ -2794,7 +2882,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -2929,7 +3017,7 @@ Parameters:
 
 - indent: [UInt16](../../core/core_package_api/core_package_intrinsics.md#uint16) - The number of indentation spaces for formatted output.
 
-Return Value:
+Returns:
 
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - The formatted output content.
 
@@ -2941,7 +3029,7 @@ public func isMemberParam(): Bool
 
 Purpose: Determines whether the current function parameter is a parameter in the primary constructor.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns `true` if it is a parameter in the primary constructor.
 
@@ -2953,7 +3041,7 @@ public open func toTokens(): Tokens
 
 Purpose: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -3104,7 +3192,7 @@ public func toTokens(): Tokens
 
 Purpose: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -3218,7 +3306,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -3321,7 +3409,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -3488,7 +3576,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -3586,6 +3674,34 @@ Exceptions:
 
 - [ASTException](ast_package_exceptions.md#class-astexception) - Thrown when the set [Token](ast_package_structs.md#struct-token) is not the "{" operator.
 
+### prop orgName
+
+```cangjie
+public mut prop orgName: Token
+```
+
+Function: Gets or sets the lexical unit representing organization name in the [ImportContent](ast_package_classes.md#class-importcontent) node, setter would check if orgSeparator is "::" operator lexeme, set it to "::" if not.
+
+Type: [Token](ast_package_structs.md#struct-token)
+
+Exceptions:
+
+- [ASTException](ast_package_exceptions.md#class-astexception) - Thrown when the set [Token](ast_package_structs.md#struct-token) has a value of empty string.
+
+### prop orgSeparator
+
+```cangjie
+public mut prop orgSeparator: Token
+```
+
+Function: Gets or sets the "::" operator lexeme in the [ImportContent](ast_package_classes.md#class-importcontent) node, setter would check if orgName has a value of empty string, throw exception if it does.
+
+Type: [Token](ast_package_structs.md#struct-token)
+
+Exceptions:
+
+- [ASTException](ast_package_exceptions.md#class-astexception) - Thrown when the set [Token](ast_package_structs.md#struct-token) is not the "::" operator or orgName has a value of empty string.
+
 ### prop prefixPaths
 
 ```cangjie
@@ -3640,7 +3756,7 @@ public func isImportAlias(): Bool
 
 Function: Determines whether the [ImportContent](ast_package_classes.md#class-importcontent) node has an alias for the imported item.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Whether the [ImportContent](ast_package_classes.md#class-importcontent) node has an alias for## class ImportList
 
@@ -3652,7 +3768,7 @@ public func isImportAll(): Bool
 
 Function: Determines whether the [ImportContent](ast_package_classes.md#class-importcontent) node is a wildcard import.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Indicates whether the [ImportContent](ast_package_classes.md#class-importcontent) node is a wildcard import.
 
@@ -3664,7 +3780,7 @@ public func isImportMulti(): Bool
 
 Function: Determines whether the [ImportContent](ast_package_classes.md#class-importcontent) node imports multiple top-level definitions or declarations.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Indicates whether the [ImportContent](ast_package_classes.md#class-importcontent) node imports multiple top-level definitions or declarations.
 
@@ -3676,7 +3792,7 @@ public func isImportSingle(): Bool
 
 Function: Determines whether the [ImportContent](ast_package_classes.md#class-importcontent) node is a single import.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Indicates whether the [ImportContent](ast_package_classes.md#class-importcontent) node is a single import.
 
@@ -3688,7 +3804,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -3787,7 +3903,7 @@ public func isImportMulti(): Bool
 
 Function: Determines whether the [ImportList](ast_package_classes.md#class-importlist) node imports multiple top-level definitions or declarations.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if the [ImportList](ast_package_classes.md#class-importlist) node imports multiple top-level definitions or declarations; otherwise, returns false.
 
@@ -3799,7 +3915,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -3882,7 +3998,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -3995,7 +4111,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -4094,7 +4210,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -4167,7 +4283,7 @@ public func toTokens(): Tokens
 
 Purpose: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -4294,7 +4410,7 @@ public func toTokens(): Tokens
 
 Purpose: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -4407,7 +4523,7 @@ public func toTokens(): Tokens
 
 Purpose: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -4482,7 +4598,7 @@ public func toTokens(): Tokens
 
 Purpose: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -4623,7 +4739,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -4662,9 +4778,17 @@ Parent Type:
 public mut prop fullIdentifier: Token
 ```
 
-Function: Gets or sets the full identifier of the macro expansion node.
+Function: Gets or sets the complete identifier of the macro invocation node, such as `pkg.m` in `@pkg.m class a{}`.
 
 Type: [Token](ast_package_structs.md#struct-token)
+
+### prop identifier
+
+```cangjie
+public override mut prop identifier: Token 
+```
+
+Function: This property is inherited from the [Decl](ast_package_classes.md#class-decl) node and represents the identifier of the macro invocation node, such as `m` in `@pkg.m class a{}`.
 
 ### prop lParen
 
@@ -4788,7 +4912,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -4953,7 +5077,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -4991,9 +5115,17 @@ Parent Type:
 public mut prop fullIdentifier: Token
 ```
 
-Function: Gets or sets the full identifier of the macro expansion node.
+Function: Gets or sets the complete identifier of the macro invocation node, such as `pkg.m` in `func bar (@pkg.m a: Int64)`.	 
 
-Type: [Token](ast_package_structs.md#struct-token)
+Type: [Token](ast_package_structs.md#struct-token) 
+
+### prop identifier 
+
+```cangjie 
+public override mut prop identifier: Token 
+``` 
+
+Function: This property is inherited from the [Decl](ast_package_classes.md#class-decl) node, representing the identifier of the macro invocation node, such as `m` in `func bar (@pkg.m a: Int64)`.
 
 ### prop lParen
 
@@ -5101,7 +5233,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -5137,7 +5269,7 @@ Parameters:
 
 - key: [String](../../core/core_package_api/core_package_structs.md#struct-string) - The name of the keyword used for retrieval.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns the [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) type information corresponding to the given key.
 
@@ -5157,7 +5289,7 @@ Parameters:
 
 - key: [String](../../core/core_package_api/core_package_structs.md#struct-string) - The name of the keyword used for retrieval.
 
-Return Value:
+Returns:
 
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - Returns the [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) type information corresponding to the given key.
 
@@ -5177,7 +5309,7 @@ Parameters:
 
 - key: [String](../../core/core_package_api/core_package_structs.md#struct-string) - The name of the keyword used for retrieval.
 
-Return Value:
+Returns:
 
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - Returns the [String](../../core/core_package_api/core_package_structs.md#struct-string) type information corresponding to the given key.
 
@@ -5197,7 +5329,7 @@ Parameters:
 
 - key: [String](../../core/core_package_api/core_package_structs.md#struct-string) - The name of the keyword used for retrieval.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - Returns the [Tokens](ast_package_classes.md#class-tokens) type information corresponding to the given key.
 
@@ -5217,7 +5349,7 @@ Parameters:
 
 - key: [String](../../core/core_package_api/core_package_structs.md#struct-string) - The name of the keyword used for retrieval.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if information corresponding to the key exists; otherwise, returns false.
 
@@ -5346,7 +5478,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -5503,7 +5635,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -5662,7 +5794,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -5813,7 +5945,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -5884,7 +6016,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -5958,7 +6090,7 @@ public func toTokens(): Tokens
 
 Function: Converts the syntax tree node into the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -6047,7 +6179,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -6122,6 +6254,34 @@ Exceptions:
 
 - [ASTException](ast_package_exceptions.md#class-astexception) - Thrown when the set [Token](ast_package_structs.md#struct-token) is not the `package` keyword.
 
+### prop orgName
+
+```cangjie
+public mut prop orgName: Token
+```
+
+Function: Gets or sets the lexical unit representing organization name in the [PackageHeader](ast_package_classes.md#class-packageheader) node, setter would check if orgSeparator is "::" operator lexeme, set it to "::" if not.
+
+Type: [Token](ast_package_structs.md#struct-token)
+
+Exceptions:
+
+- [ASTException](ast_package_exceptions.md#class-astexception) - Thrown when the set [Token](ast_package_structs.md#struct-token) has a value of empty string.
+
+### prop orgSeparator
+
+```cangjie
+public mut prop orgSeparator: Token
+```
+
+Function: Gets or sets the "::" operator lexeme in the [PackageHeader](ast_package_classes.md#class-packageheader) node, setter would check if orgName has a value of empty string, throw exception if it does.
+
+Type: [Token](ast_package_structs.md#struct-token)
+
+Exceptions:
+
+- [ASTException](ast_package_exceptions.md#class-astexception) - Thrown when the set [Token](ast_package_structs.md#struct-token) is not the "::" operator or orgName has a value of empty string.
+
 ### prop prefixPaths
 
 ```cangjie
@@ -6188,7 +6348,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -6291,7 +6451,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -6394,7 +6554,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -6434,7 +6594,7 @@ Parameters:
 
 - _: [UInt16](../../core/core_package_api/core_package_intrinsics.md#uint16) - The number of indentation spaces for formatted output.
 
-Return Value:
+Returns:
 
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - The formatted output content.
 
@@ -6446,7 +6606,7 @@ public open func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -6525,7 +6685,7 @@ Parameters:
 
 Exceptions:
 
-- [ASTException](ast_package_exceptions.md#class-astexception) — Thrown when the input [Tokens](ast_package_classes.md#class-tokens) cannot be parsed into a [PerformExpr](ast_package_classes.md#class-performexpr) node.
+- [ASTException](ast_package_exceptions.md#class-astexception) — Thrown when the input [Tokens](ast_package_classes.md#class-tokens) cannot be parsed into a [PerformExpr](ast_package_classes.md#class-performexpr) node, or compile options for `Effect Handlers` experimental features not given.
 
 ### func toTokens()
 
@@ -6535,7 +6695,7 @@ public open func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -6620,7 +6780,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -6733,7 +6893,7 @@ public func isConst(): Bool
 
 Function: Determines whether the node is of `Const` type.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if the current node is of `Const` type; otherwise, returns false.
 
@@ -6745,7 +6905,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -6820,7 +6980,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -6895,7 +7055,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -6945,12 +7105,12 @@ Type: [ArrayList](../../collection/collection_package_api/collection_package_cla
 ### prop featuresDirective
 
 ```cangjie
-public mut prop featuresDirective: FeaturesDirective
+public mut prop featuresDirective: Option<FeaturesDirective>
 ```
 
 Function: Gets or sets the features directive node defined within the TopLevel scope of the Cangjie source code file.
 
-Type: [FeaturesDirective](ast_package_classes.md#class-featuresdirective)
+Type: [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[FeaturesDirective](ast_package_classes.md#class-featuresdirective)>
 
 ### prop importLists
 
@@ -7004,7 +7164,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -7149,7 +7309,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -7300,7 +7460,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted node of type [Tokens](ast_package_classes.md#class-tokens).
 
@@ -7417,7 +7577,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted node of type [Tokens](ast_package_classes.md#class-tokens).
 
@@ -7463,7 +7623,7 @@ public func toTokens(): Tokens
 
 Purpose: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted node of [Tokens](ast_package_classes.md#class-tokens) type.
 
@@ -7594,7 +7754,7 @@ public func toTokens(): Tokens
 
 Purpose: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted node of [Tokens](ast_package_classes.md#class-tokens) type.
 
@@ -7721,7 +7881,7 @@ public func toTokens(): Tokens
 
 Purpose: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted node of [Tokens](ast_package_classes.md#class-tokens) type.
 
@@ -7848,7 +8008,7 @@ public func toTokens(): Tokens
 
 Purpose: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted node of [Tokens](ast_package_classes.md#class-tokens) type.
 
@@ -7966,7 +8126,7 @@ Parameters:
 
 Exceptions:
 
-- [ASTException](ast_package_exceptions.md#class-astexception) — Thrown when the input [Tokens](ast_package_classes.md#class-tokens) cannot be parsed as a valid [ResumeExpr](ast_package_classes.md#class-resumeexpr) node.
+- [ASTException](ast_package_exceptions.md#class-astexception) — Thrown when the input [Tokens](ast_package_classes.md#class-tokens) cannot be parsed as a valid [ResumeExpr](ast_package_classes.md#class-resumeexpr) node, or compile options for `Effect Handlers` experimental features not given.
 
 ### func toTokens()
 
@@ -7976,7 +8136,7 @@ public func toTokens(): Tokens
 
 Purpose: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted node of [Tokens](ast_package_classes.md#class-tokens) type.
 
@@ -8069,7 +8229,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -8200,7 +8360,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -8313,7 +8473,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -8426,7 +8586,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -8553,7 +8713,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -8626,7 +8786,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -8715,7 +8875,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -8814,7 +8974,7 @@ Parameters:
 
 - node: [Node](ast_package_classes.md#class-node) - The [Node](ast_package_classes.md#class-node) object to be concatenated.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The concatenated [Tokens](ast_package_classes.md#class-tokens) type.
 
@@ -8830,7 +8990,7 @@ Parameters:
 
 - token: [Token](ast_package_structs.md#struct-token) - The [Token](ast_package_structs.md#struct-token) object to be concatenated.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The concatenated [Tokens](ast_package_classes.md#class-tokens) type.
 
@@ -8846,7 +9006,7 @@ Parameters:
 
 - tokens: [Tokens](ast_package_classes.md#class-tokens) - The [Tokens](ast_package_classes.md#class-tokens) object to be concatenated.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The concatenated [Tokens](ast_package_classes.md#class-tokens) type.
 
@@ -8862,7 +9022,7 @@ Parameters:
 
 - tokens: [Tokens](ast_package_classes.md#class-tokens) - The [Tokens](ast_package_classes.md#class-tokens) object to be concatenated.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The concatenated [Tokens](ast_package_classes.md#class-tokens).
 
@@ -8886,7 +9046,7 @@ Parameters:
 
 - index: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The index value.
 
-Return Value:
+Returns:
 
 - [Token](ast_package_structs.md#struct-token) - The [Token](ast_package_structs.md#struct-token) at the specified index.
 
@@ -8902,7 +9062,7 @@ public func iterator(): TokensIterator
 
 Function: Gets an iterator object for the [Tokens](ast_package_classes.md#class-tokens) object.
 
-Return Value:
+Returns:
 
 - [TokensIterator](ast_package_classes.md#class-tokensiterator) - The iterator object of the [Tokens](ast_package_classes.md#class-tokens) object.
 
@@ -8918,7 +9078,7 @@ Parameters:
 
 - index: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The index of the [Token](ast_package_structs.md#struct-token) to be removed.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The [Tokens](ast_package_classes.md#class-tokens) object after removing the [Token](ast_package_structs.md#struct-token) at the specified position.
 
@@ -8930,7 +9090,7 @@ public func toBytes(): Array<UInt8>
 
 Function: Serializes the Tokens type.
 
-Return Value:
+Returns:
 
 - [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<[UInt8](../../core/core_package_api/core_package_intrinsics.md#uint8)> - The serialized byte sequence.
 
@@ -8942,7 +9102,7 @@ public func toString(): String
 
 Function: Converts [Tokens](ast_package_classes.md#class-tokens) to the [String](../../core/core_package_api/core_package_structs.md#struct-string) type.
 
-Return Value:
+Returns:
 
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - The converted string.
 
@@ -8958,7 +9118,7 @@ Parameters:
 
 - r: [Token](ast_package_structs.md#struct-token) - The other [Token](ast_package_structs.md#struct-token) object to be operated on.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The newly concatenated collection of lexical units after [Tokens](ast_package_classes.md#class-tokens).
 
@@ -8974,7 +9134,7 @@ Parameters:
 
 - r: [Tokens](ast_package_classes.md#class-tokens) - A set of [Tokens](ast_package_classes.md#class-tokens) objects to be operated on.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The newly concatenated collection of lexical units after [Tokens](ast_package_classes.md#class-tokens).
 
@@ -8990,7 +9150,7 @@ Parameters:
 
 - index: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The numerical value to be indexed.
 
-Return Value:
+Returns:
 
 - [Token](ast_package_structs.md#struct-token) - Returns the [Token](ast_package_structs.md#struct-token) corresponding to the index.
 
@@ -9010,7 +9170,7 @@ Parameters:
 
 - range: [Range](../../core/core_package_api/core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet)\<[Int64](../../core/core_package_api/core_package_intrinsics.md#int64)> - The slice range to be indexed.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - Returns the [Tokens](ast_package_classes.md#class-tokens) corresponding to the slice index.
 
@@ -9053,7 +9213,7 @@ public func next(): Option<Token>
 
 Function: Gets the next value in the iterator.
 
-Return Value:
+Returns:
 
 - [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[Token](ast_package_structs.md#struct-token)> - Returns [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[Token](ast_package_structs.md#struct-token)> type. Returns None when iteration completes.
 
@@ -9065,7 +9225,7 @@ public func peek(): Option<Token>
 
 Function: Gets the current value in the iterator.
 
-Return Value:
+Returns:
 
 - [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[Token](ast_package_structs.md#struct-token)> - Returns [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[Token](ast_package_structs.md#struct-token)> type. Returns None when iteration completes.
 
@@ -9081,7 +9241,7 @@ Parameters:
 
 - kind: [TokenKind](ast_package_enums.md#enum-tokenkind) - The [TokenKind](ast_package_enums.md#enum-tokenkind) type to compare.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if the current node's [TokenKind](ast_package_enums.md#enum-tokenkind) matches the input type, otherwise returns false.
 
@@ -9154,7 +9314,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -9325,7 +9485,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -9428,7 +9588,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -9545,7 +9705,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -9648,7 +9808,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -9741,7 +9901,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -9854,7 +10014,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node to the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -9914,7 +10074,7 @@ public open func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -9942,7 +10102,7 @@ Parameters:
 
 - indent: [UInt16](../../core/core_package_api/core_package_intrinsics.md#uint16) - The number of indentation spaces for formatted output.
 
-Return Value:
+Returns:
 
 - [String](../../core/core_package_api/core_package_structs.md#struct-string) - The formatted output content.
 
@@ -10029,7 +10189,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -10112,7 +10272,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -10225,7 +10385,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -10362,7 +10522,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into a [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -10501,7 +10661,7 @@ public func isConst(): Bool
 
 Function: Determines whether this is a `Const` type node.
 
-Return Value:
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if it is a `Const` type node; otherwise, returns false.
 
@@ -10513,7 +10673,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -10588,7 +10748,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -10663,7 +10823,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into the [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -10691,6 +10851,7 @@ Function: An abstract class that internally defines default `visit` functions fo
 >
 > - The `visit` function is used in conjunction with `traverse` to enable node access and modification. All `visit` functions have empty default implementations and can be implemented as needed.
 > - This class must be inherited and allows subclasses to redefine visitor functions.
+> - For node types that have a parent class, `traverse` visits the current node first, then the parent node, and lastly the child nodes. For parentless node types, it traverses the current node first, followed by its child nodes.
 
 ### func breakTraverse()
 
@@ -10708,7 +10869,11 @@ protected func needBreakTraverse(): Bool
 
 Function: Determines whether traversal should be stopped.
 
-Return Value:
+> **Note:**
+>
+> - This function will reset the flag used for judgment after determining that the traversal needs to be stopped. Consequently, if this function is called after invoking `breakTraverse()`, the previous call to `breakTraverse()` may become invalid, which will affect the termination of the traversal.
+
+Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if traversal should be stopped; otherwise, returns false.
 
@@ -10951,6 +11116,43 @@ Parameters:
 
 - _: [ExtendDecl](ast_package_classes.md#class-extenddecl) - The node being traversed of type [ExtendDecl](ast_package_classes.md#class-extenddecl).
 
+
+### func visit(FeatureId)
+
+```cangjie
+protected open func visit(_: FeatureId): Unit
+```
+
+Function: Defines the operation when visiting a node, requires override.
+
+Parameters:
+
+- _: [FeatureId](ast_package_classes.md#class-featureid) - The node being traversed of type [FeatureId](ast_package_classes.md#class-featureid).
+
+### func visit(FeaturesDirective)
+
+```cangjie
+protected open func visit(_: FeaturesDirective): Unit
+```
+
+Function: Defines the operation when visiting a node, requires override.
+
+Parameters:
+
+- _: [FeaturesDirective](ast_package_classes.md#class-featuresdirective) - The node being traversed of type [FeaturesDirective](ast_package_classes.md#class-featuresdirective).
+
+### func visit(FeaturesSet)
+
+```cangjie
+protected open func visit(_: FeaturesSet): Unit
+```
+
+Function: Defines the operation when visiting a node, requires override.
+
+Parameters:
+
+- _: [FeaturesSet](ast_package_classes.md#class-featuresset) - The node being traversed of type [FeaturesSet](ast_package_classes.md#class-featuresset).
+
 ### func visit(ForInExpr)
 
 ```cangjie
@@ -11178,6 +11380,18 @@ Function: Defines the operation when visiting a node, requires override.
 Parameters:
 
 - _: [MacroExpandExpr](ast_package_classes.md#class-macroexpandexpr) - The node being traversed of type [MacroExpandExpr](ast_package_classes.md#class-macroexpandexpr).
+
+### func visit(MacroExpandParam)
+
+```cangjie
+protected open func visit(_: MacroExpandParam): Unit
+```
+
+Function: Defines the operation when visiting a node, requires override.
+
+Parameters:
+
+- _: [MacroExpandParam](ast_package_classes.md#class-macroexpandparam) - The node being traversed of type [MacroExpandParam](ast_package_classes.md#class-macroexpandparam).
 
 ### func visit(MainDecl)
 
@@ -11418,6 +11632,18 @@ Purpose: Defines the operation when visiting a node, requires override.
 Parameters:
 
 - _: [QuoteExpr](ast_package_classes.md#class-quoteexpr) - The node being traversed of type [QuoteExpr](ast_package_classes.md#class-quoteexpr).
+
+### func visit(QuoteToken)
+
+```cangjie
+protected open func visit(_: QuoteToken): Unit
+```
+
+Function: Defines the operation when visiting a node, requires override.
+
+Parameters:
+
+- _: [QuoteToken](ast_package_classes.md#class-quotetoken) - The node being traversed of type [QuoteToken](ast_package_classes.md#class-quotetoken).
 
 ### func visit(RangeExpr)
 
@@ -11878,7 +12104,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -11955,7 +12181,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 
@@ -12034,7 +12260,7 @@ public func toTokens(): Tokens
 
 Function: Converts the current syntax tree node into [Tokens](ast_package_classes.md#class-tokens) type.
 
-Return Value:
+Returns:
 
 - [Tokens](ast_package_classes.md#class-tokens) - The converted [Tokens](ast_package_classes.md#class-tokens) type node.
 

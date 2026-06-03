@@ -17,7 +17,7 @@ Parameters:
 
 - arr: [Array](./core_package_structs.md#struct-arrayt)\<T> - The array from which to obtain the raw pointer.
 
-Return Value:
+Returns:
 
 - [CPointerHandle](core_package_structs.md#struct-cpointerhandlet-where-t--ctype)\<T> - The raw pointer instance of the array.
 
@@ -51,7 +51,7 @@ public func alignOf<T>(): UIntNative where T <: CType
 
 Function: Obtains the memory alignment value for type T.
 
-Return Value:
+Returns:
 
 - [UIntNative](core_package_intrinsics.md#uintnative) - The number of bytes required for type T to satisfy memory alignment.
 
@@ -257,6 +257,55 @@ Output:
 width: 10, height: 20
 ```
 
+## func exclusiveScope\<T>(( ) -> T)
+
+```cangjie
+public func exclusiveScope<T>(fn: () -> T): T
+```
+
+Function: Executes a closure in an exclusive scope, ensuring that the closure runs in an isolated context and handling any results or exceptions appropriately. When executing fn, a switch from the cangjie thread stack to the OS thread stack will occur, and the underlying OS thread cannot be preempted by other cangjie threads. After fn returns, it will switch back to the cangjie thread stack, and the preemption will be permitted.
+
+> **Note:**
+>
+> This function is not available on Windows, macOS, OpenHarmony.
+
+Parameters:
+
+- fn: () -> T - The function/closure to be executed in the exclusive scope.
+
+Return values:
+
+- T - The result of the function execution.
+
+Throws:
+
+- [ExclusiveScopeException](core_package_exceptions.md#class-exclusivescopeexception) - if an exception occurs during execution.
+
+Example:
+
+<!-- verify -->
+```cangjie
+main() {
+    let result = exclusiveScope<Int64> {
+        // Execute code in exclusive scope
+        return 42
+    }
+    println("Result: ${result}")
+    
+    // Can also execute operations without return value
+    exclusiveScope<Unit> {
+        println("Executing in exclusive scope")
+    }
+}
+```
+
+Output:
+
+```text
+Result: 42
+Executing in exclusive scope
+```
+
 ## func ifNone\<T>(Option\<T>, () -> Unit)
 
 ```cangjie
@@ -330,7 +379,7 @@ Parameters:
 - b: T - The second value to compare.
 - others: [Array](./core_package_structs.md#struct-arrayt)\<T> - Other values to compare.
 
-Return Value:
+Returns:
 
 - T - The maximum value among the parameters.
 
@@ -397,7 +446,7 @@ Parameters:
 - b: T - The second value to compare.
 - others: [Array](./core_package_structs.md#struct-arrayt)\<T> - Other values to compare.
 
-Return Value:
+Returns:
 
 - T - The minimum value among the parameters.
 
@@ -1469,7 +1518,7 @@ public func readln(): String
 
 Function: Accepts console input until encountering a newline or EOF.
 
-Return Value:
+Returns:
 
 - [String](core_package_structs.md#struct-string) - The received string.
 
@@ -1502,7 +1551,7 @@ Parameters:
 - a: [Object](core_package_classes.md#class-object) - An [Object](core_package_classes.md#class-object) instance.
 - b: [Object](core_package_classes.md#class-object) - Another [Object](core_package_classes.md#class-object) instance.
 
-Return Value:
+Returns:
 
 - [Bool](core_package_intrinsics.md#bool) - Returns true if the two [Object](core_package_classes.md#class-object) instances share the same memory address, otherwise returns false.
 
@@ -1578,7 +1627,7 @@ public func sizeOf<T>(): UIntNative where T <: CType
 
 Function: Retrieves the memory size occupied by type T.
 
-Return Value:
+Returns:
 
 - [UIntNative](core_package_intrinsics.md#uintnative) - The number of bytes occupied by type T in memory.
 
@@ -1677,7 +1726,7 @@ Function: Retrieves a zero-initialized instance of type T.
 >
 > The instance obtained through this function must be assigned a properly initialized value before use; otherwise, it will cause program crashes.
 
-Return Value:
+Returns:
 
 - T - A zero-initialized instance of type T.
 

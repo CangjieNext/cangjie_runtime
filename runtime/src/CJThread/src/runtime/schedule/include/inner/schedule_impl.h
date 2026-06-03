@@ -467,12 +467,15 @@ void ScheduleListAdd(struct Schedule *schedule);
  */
 void ScheduleListRemove(struct Schedule *schedule);
 
+
+void ExclusiveScheduleFree(struct Schedule *schedule);
+
 /**
  * @brief Add the cjthread to the global cjthread control queue.
  * @param cjthread [IN] cjthread to be added
  * @retval 0 or -1
  */
-int ScheduleAllCJThreadListAdd(struct CJThread *cjthread);
+int ScheduleAllCJThreadListAdd(struct CJThread *cjthread, CJThreadCreateSource createSource);
 
 /**
  * @brief  Add cjSingleModeThread to cjSingleModeThreadList.

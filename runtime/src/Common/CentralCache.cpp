@@ -10,7 +10,7 @@
 #include "PageCache.h"
 
 namespace MapleRuntime {
-CentralCache CentralCache::instance;
+ImmortalWrapper<CentralCache> CentralCache::instance;
 
 // Retrieve a non-empty Span from a specific SpanList.
 Span* CentralCache::GetOneSpan(SpanList& list, size_t alignBytes)
@@ -92,6 +92,10 @@ void CentralCache::ReleaseListToSpans(void* start, size_t index)
     while (start) {
         void* next = NextObj(start);
         Span* span = PageCache::GetInstance()->MapObjectToSpan(start);
+        if (span == nullptr) {
+            start = next;
+            continue;
+        }
         NextObj(start) = span->freeBlocks;
         span->freeBlocks = start;
         --span->useCount;

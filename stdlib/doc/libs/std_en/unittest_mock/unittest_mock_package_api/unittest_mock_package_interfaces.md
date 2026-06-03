@@ -12,7 +12,7 @@ public interface ValueListener<T> {
 }
 ```
 
-Functionality: This interface provides multiple member functions to support "listening" to parameters passed to stub signatures. It performs specified operations on parameters passed to stub signatures during each invocation (the closure functions in `addCallback()` or `onEach` define the operations performed on the parameters).
+Function: This interface provides multiple member functions to support "listening" to parameters passed to stub signatures. It performs specified operations on parameters passed to stub signatures during each invocation (the closure functions in `addCallback()` or `onEach` define the operations performed on the parameters).
 
 Typically used in conjunction with argument matcher generator functions `argThat` or `capture`.
 
@@ -52,13 +52,38 @@ let animals = [Animal("Smokey", "Cat, age: 5"), Animal("Daisy", "Dog, age: 9")]
 }
 ```
 
+Example:
+
+<!-- run -->
+```cangjie
+import std.unittest.mock.*
+import std.unittest.mock.mockmacro.*
+
+class Processor {
+    func process(name: String): String { return name.toAsciiTitle() }
+}
+
+@Test
+func test() {
+    let originalProcessor = Processor()
+    let processor = spy(originalProcessor)
+    let captor = ValueListener<String>.new()
+    @On(processor.process(capture(captor))).callsOriginal()
+    processor.process("hello")
+
+    let argumentValues = captor.allValues()
+    @Assert(argumentValues.size == 1 && argumentValues[0] == "hello")
+    @Assert(captor.lastValue(), "hello")
+}
+```
+
 ### func addCallback((T) -> Unit)
 
 ```cangjie
 func addCallback(callback: (T) -> Unit): Unit
 ```
 
-Functionality: Adds a closure function to the current "value listener" object, which will process the incoming parameter values.
+Function: Adds a closure function to the current "value listener" object, which will process the incoming parameter values.
 
 Parameters:
 
@@ -70,9 +95,9 @@ Parameters:
 func allValues(): Array<T>
 ```
 
-Functionality: Returns all values processed by the current "value listener" object.
+Function: Returns all values processed by the current "value listener" object.
 
-Return Value:
+Returns:
 
 - [Array](../../core/core_package_api/core_package_structs.md#struct-arrayt)\<T> - Returns a list of all values processed by the "value listener" object.
 
@@ -82,9 +107,9 @@ Return Value:
 func lastValue(): Option<T>
 ```
 
-Functionality: Returns the last value processed by the current "value listener" object.
+Function: Returns the last value processed by the current "value listener" object.
 
-Return Value:
+Returns:
 
 - [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<T> - Returns the last value processed by the "value listener" object, or None if no value exists.
 
@@ -94,9 +119,9 @@ Return Value:
 static func new(): ValueListener<T>
 ```
 
-Functionality: Creates a new "value listener" object without any closure methods for processing parameters.
+Function: Creates a new "value listener" object without any closure methods for processing parameters.
 
-Return Value:
+Returns:
 
 - [ValueListener](unittest_mock_package_interfaces.md#interface-valuelistenert)\<T> - The "value listener" object.
 
@@ -106,12 +131,12 @@ Return Value:
 static func onEach(callback: (T) -> Unit): ValueListener<T>
 ```
 
-Functionality: Creates a new "value listener" object with a closure method for processing parameters.
+Function: Creates a new "value listener" object with a closure method for processing parameters.
 
 Parameters:
 
 - callback: (T) ->[Unit](../../core/core_package_api/core_package_intrinsics.md#unit) - The closure function that processes parameter values.
 
-Return Value:
+Returns:
 
 - [ValueListener](unittest_mock_package_interfaces.md#interface-valuelistenert)\<T> - The "value listener" object.

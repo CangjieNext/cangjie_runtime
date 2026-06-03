@@ -171,7 +171,7 @@ public enum TokenKind <: ToString {
     | AT_EXCL /*  "@!"               */
     | ILLEGAL
     | COMMON /*  "common"       */
-    | PLATFORM /*  "platform"     */
+    | SPECIFIC /*  "specific"     */
     | HANDLE /*  "handle"           */
     | PERFORM /*  "perform"          */
     | RESUME /*  "resume"           */
@@ -818,8 +818,8 @@ public enum TokenKind <: ToString {
                 case COMMON => true
                 case _ => false
             }
-            case PLATFORM => match (right) {
-                case PLATFORM => true
+            case SPECIFIC => match (right) {
+                case SPECIFIC => true
                 case _ => false
             }
             case HANDLE => match (right) {
@@ -1015,7 +1015,7 @@ public enum TokenKind <: ToString {
             case DOLLAR_IDENTIFIER => return "DOLLAR_IDENTIFIER"
             case ANNOTATION => return "ANNOTATION"
             case COMMON => return "COMMON"
-            case PLATFORM => return "PLATFORM"
+            case SPECIFIC => return "SPECIFIC"
             case HANDLE => return "HANDLE"
             case PERFORM => return "PERFORM"
             case RESUME => return "RESUME"
@@ -1221,7 +1221,7 @@ let PATTERNS: Array<(TokenKind, String, String)> = [
     (TokenKind.ANNOTATION, "annotation", ""),
     (TokenKind.AT_EXCL, "at_exclamation", "@!"),
     (TokenKind.COMMON, "common", "common"),
-    (TokenKind.PLATFORM, "platform", "platform"),
+    (TokenKind.SPECIFIC, "specific", "specific"),
     (TokenKind.PERFORM, "perform", "perform"),
     (TokenKind.RESUME, "resume", "resume"),
     (TokenKind.THROWING, "throwing", "throwing"),
@@ -1394,7 +1394,7 @@ func getTokenID(tk: TokenKind): UInt16 {
         case TokenKind.ANNOTATION => return 154
         case TokenKind.AT_EXCL => return 155
         case TokenKind.COMMON => return 156
-        case TokenKind.PLATFORM => return 157
+        case TokenKind.SPECIFIC => return 157
         case TokenKind.PERFORM => return 158
         case TokenKind.RESUME => return 159
         case TokenKind.THROWING => return 160
@@ -1413,9 +1413,9 @@ public func getTokenKind(no: UInt16): TokenKind {
     let index = Int64(no)
     if (index >= maxSize) {
         /* Return ILLEGAL Token. */
-        return PATTERNS[maxSize - 1][0]
+        return TokenKind.ILLEGAL
     }
-    return PATTERNS[index][0];
+    return PATTERNS[index][0]
 }
 
 @When[os == "Windows"]

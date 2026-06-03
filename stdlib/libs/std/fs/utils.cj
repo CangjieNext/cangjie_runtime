@@ -11,10 +11,6 @@
  */
 package std.fs
 
-import std.collection.*
-import std.io.*
-import std.time.*
-
 const NULL_BYTE = "\0"
 const DOT_CHAR = r'.'
 const CURRENT_PATH_STRING = "."
@@ -59,7 +55,8 @@ func isAbsolutePath(path: String): Bool {
 
 @When[os != "Windows"]
 func toAbsolutePath(path: Path): Path {
-    path.checkPath()
+    PathValidator.throwIfEmptyOrContainsNullByte("path", path, true)
+
     let raw = path.toString()
     if (isAbsolutePath(raw)) {
         return path
@@ -138,7 +135,8 @@ func isAbsolutePath(path: String): Bool {
 
 @When[os == "Windows"]
 func toAbsolutePath(path: Path): Path {
-    path.checkPath()
+    PathValidator.throwIfEmptyOrContainsNullByte("path", path, true)
+
     let raw = path.toString()
     if (isAbsolutePath(raw) || raw.size == 2 && raw[1] == b':') {
         return path
@@ -379,7 +377,7 @@ func callNativeFunc(path: String, nativeFunc: CFunc<(CString) -> CPointer<FsErro
         if (result.rtnCode < 0) {
             try {
                 let errMessage = result.msg.toString()
-                throw FSException("${errMsgPrefix}: \"${errMessage.trimAscii()}\".")
+                throw FSException("${errMsgPrefix} return ${result.rtnCode}: \"${errMessage.trimAscii()}\".")
             } finally {
                 LibC.free(result.msg)
             }
@@ -397,13 +395,14 @@ func callNativeFunc(
         try (cPath1 = LibC.mallocCString(path1).asResource(), cPath2 = LibC.mallocCString(path2).asResource()) {
             var ret: Int8 = nativeFunction(cPath1.value, cPath2.value)
             if (ret < 0) {
-                throw FSException("${msg}, native function error.")
+                throw FSException("${msg} input paths are `${path1}` and `${path2}`, native function error return ${ret}.")
             }
         }
     }
 }
 
 extend Array<Byte> {
+    @When[os == "Windows"]
     func equalsIgnoreCaseAndSlash(that: String): Bool {
         // size is the same, and not 0
         var (b1, b2): (Byte, Byte)

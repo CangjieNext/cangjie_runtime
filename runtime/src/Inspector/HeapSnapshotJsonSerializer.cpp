@@ -42,6 +42,7 @@ bool CjHeapDataForIDE::Serialize()
     writer->WriteString(",\"result\":{}");
     writer->End();
     delete writer;
+    writer = nullptr;
     return true;
 }
 
@@ -67,7 +68,7 @@ void CjHeapDataForIDE::SerializeString()
 {
     writer->WriteString("\\\"STRING\\\":[");
     bool isFirstElement = true;
-    for (auto string : strings) {
+    for (const auto& string : strings) {
         if (!isFirstElement) {
             writer->WriteChar(',');
         } else {
@@ -92,7 +93,7 @@ void CjHeapDataForIDE::SerializeAllClassLoad()
 {
     writer->WriteContinueString("\\\"CLASSLOAD\\\":[");
     bool isFirstElement = true;
-    for (auto klassInfo : dumpClassMap) {
+    for (const auto& klassInfo : dumpClassMap) {
         if (!isFirstElement) {
             writer->WriteChar(',');
         } else {
@@ -108,7 +109,7 @@ void CjHeapDataForIDE::SerializeAllClass()
 {
     writer->WriteContinueString("\\\"CLASS\\\":[");
     bool isFirstElement = true;
-    for (auto klassInfo : dumpClassMap) {
+    for (const auto& klassInfo : dumpClassMap) {
         if (!isFirstElement) {
             writer->WriteChar(',');
         } else {
@@ -124,7 +125,7 @@ void CjHeapDataForIDE::SerializeAllStructClass()
 {
     writer->WriteContinueString("\\\"STRUCTCLASS\\\":[");
     bool isFirstElement = true;
-    for (auto klassInfo : dumpStructClassMap) {
+    for (const auto& klassInfo : dumpStructClassMap) {
         if (!isFirstElement) {
             writer->WriteChar(',');
         } else {
@@ -149,7 +150,7 @@ void CjHeapDataForIDE::SerializeAllStructClassLoad()
 {
     writer->WriteContinueString("\\\"STRUCTCLASSLOAD\\\":[");
     bool isFirstElement = true;
-    for (auto klassInfo : dumpStructClassMap) {
+    for (const auto& klassInfo : dumpStructClassMap) {
         if (!isFirstElement) {
             writer->WriteChar(',');
         } else {
@@ -265,7 +266,7 @@ void CjHeapDataForIDE::SerializeAllObjects()
 {
     writer->WriteContinueString("\\\"OBJECTS\\\":[");
     bool isFirstElement = true;
-    for (auto objectInfo : dumpObjects) {
+    for (auto& objectInfo : dumpObjects) {
         if (!isFirstElement) {
             writer->WriteChar(',');
         } else {
@@ -285,15 +286,24 @@ void CjHeapDataForIDE::SerializeAllObjects()
                 SerializeUnknownRoot(objectInfo.obj, objectInfo.tag);
                 break;
             case TAG_OBJECT_ARRAY_DUMP:
+            case TAG_LARGE_OBJECT_ARRAY_DUMP:
+            case TAG_UNMOVABLE_OBJECT_ARRAY_DUMP:
                 SerializeObjectArray(objectInfo.obj, objectInfo.tag);
                 break;
-            case  TAG_STRUCT_ARRAY_DUMP:
+            case TAG_STRUCT_ARRAY_DUMP:
+            case TAG_LARGE_STRUCT_ARRAY_DUMP:
+            case TAG_UNMOVABLE_STRUCT_ARRAY_DUMP:
                 SerializeStructArray(objectInfo.obj, objectInfo.tag);
                 break;
             case TAG_PRIMITIVE_ARRAY_DUMP:
+            case TAG_LARGE_PRIMITIVE_ARRAY_DUMP:
+            case TAG_UNMOVABLE_PRIMITIVE_ARRAY_DUMP:
                 SerializePrimitiveArray(objectInfo.obj, objectInfo.tag);
                 break;
             case TAG_INSTANCE_DUMP:
+            case TAG_PINNED_INSTANCE_DUMP:
+            case TAG_LARGE_INSTANCE_DUMP:
+            case TAG_UNMOVABLE_INSTANCE_DUMP:
                 SerializeInstance(objectInfo.obj, objectInfo.tag);
                 break;
             default:
@@ -347,7 +357,7 @@ void CjHeapDataForIDE::SerializeUnknownRoot(BaseObject*& obj, const u1 tag)
  *     u4 threadIdx;   // thread serial number
  *     u4 frame;       // frame number in stack trace (-1 for empty)
  */
-void CjHeapDataForIDE::SerializeLocalRoot(BaseObject*& obj, const u1 tag, const u4 tid, const u1 depth)
+void CjHeapDataForIDE::SerializeLocalRoot(BaseObject*& obj, const u1 tag, const u4 tid, const u4 depth)
 {
     writer->WriteChar('[');
     writer->WriteNumber(tag);

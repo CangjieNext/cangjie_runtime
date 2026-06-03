@@ -36,6 +36,9 @@ func getCjGCFreedSize(): UIntNative
 func setCjGCThreshold(value: UInt64): Unit
 
 @When[backend == "cjnative"]
+foreign func CJ_MCC_IsGCRunning(): Bool
+
+@When[backend == "cjnative"]
 @Intrinsic
 func waitForAllCJThreadsToFinish(): Unit
 
@@ -75,6 +78,16 @@ public func getGCTime(): Int64 {
 @When[backend == "cjnative"]
 public func getGCFreedSize(): Int64 {
     return Int64(getCjGCFreedSize())
+}
+
+@When[backend == "cjnative"]
+public func isGCRunning(): Bool {
+    unsafe { CJ_MCC_IsGCRunning() }
+}
+
+@When[backend == "cjnative"]
+public func isGCRunning(): Bool {
+    unsafe { CJ_MCC_IsGCRunning() }
 }
 
 @When[backend == "cjnative"]
