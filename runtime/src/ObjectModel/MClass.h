@@ -14,6 +14,7 @@
 
 #include "Base/AtomicSpinLock.h"
 #include "Common/TypeDef.h"
+#include "Interpreter/Options.h"
 #include "MethodInfo.h"
 #include "FieldInfo.h"
 #include "Flags.h"

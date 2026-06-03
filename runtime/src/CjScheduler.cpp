@@ -35,6 +35,7 @@
 #include "Mutator/Mutator.inline.h"
 #include "schedule.h"
 #include "Interpreter/InterpreterSpecific.h"
+#include "Interpreter/RuntimeAPI.h"
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
 #endif
