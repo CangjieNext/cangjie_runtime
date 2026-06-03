@@ -1,0 +1,1477 @@
+diff --git a/runtime/src/Heap/MAllocator/MSAllocBuffer.cpp b/runtime/src/Heap/MAllocator/MSAllocBuffer.cpp
+index c7d0de26..3f8b2ff2 100644
+--- a/runtime/src/Heap/MAllocator/MSAllocBuffer.cpp
++++ b/runtime/src/Heap/MAllocator/MSAllocBuffer.cpp
+@@ -76,8 +76,6 @@ MAddress AllocBufferMS::Allocate(size_t size)
+         Mutator* mutator = Mutator::GetMutator();
+         GCPhase phase = mutator->GetMutatorPhase();
+         if (UNLIKELY(IsMSMarkingPhase(phase))) {
+-            Heap::GetHeap().GetCollector().MarkNewObject(reinterpret_cast<BaseObject*>(addr));
+-
+             // Mutator assist: only accumulate debt during marking phases, and
+             // only pay it down when there is visible pending mark work.
+             gcAssistBytes_ += size;
+diff --git a/runtime/src/Heap/MAllocator/MSCentralRegionPool.cpp b/runtime/src/Heap/MAllocator/MSCentralRegionPool.cpp
+index b455b2d3..c0571091 100644
+--- a/runtime/src/Heap/MAllocator/MSCentralRegionPool.cpp
++++ b/runtime/src/Heap/MAllocator/MSCentralRegionPool.cpp
+@@ -367,14 +367,12 @@ MSRegionInfo* CentralRegionPool::GetFreshRegion(uint8_t cls)
+ void CentralRegionPool::ReturnPartialRegion(MSRegionInfo* region, uint8_t cls)
+ {
+     SizeClassBucket& bucket = buckets_[cls];
+-    // O3: preserve region type (BUMP or PARTIAL) — don't force PARTIAL
+     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
+-    if (region->GetSweepGen() == sg) {
+-        bucket.partialSwept.Push(region);  // O1: lock-free
+-    } else {
+-        std::lock_guard<std::mutex> lg(bucket.lock);
+-        bucket.partialUnswept.Prepend(region);
+-    }
++    // A region returned from a mutator/local cache was not in the MarkSetup
++    // sweep snapshot. Stamp it with the current generation so it escapes the
++    // current sweep and becomes a normal candidate at the next snapshot flip.
++    region->SetSweepGen(sg);
++    bucket.partialSwept.Push(region);  // O1: lock-free
+ }
+ 
+ void CentralRegionPool::ReturnFullRegion(MSRegionInfo* region, uint8_t cls)
+@@ -383,11 +381,10 @@ void CentralRegionPool::ReturnFullRegion(MSRegionInfo* region, uint8_t cls)
+     std::lock_guard<std::mutex> lg(bucket.lock);
+     region->regionType = MSRegionType::MS_REGION_FULL;
+     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
+-    if (region->GetSweepGen() == sg) {
+-        bucket.fullSwept.Prepend(region);
+-    } else {
+-        bucket.fullUnswept.Prepend(region);
+-    }
++    // See ReturnPartialRegion: returned active regions are outside the current
++    // sweep snapshot and must not be linked into the current unswept backlog.
++    region->SetSweepGen(sg);
++    bucket.fullSwept.Prepend(region);
+ }
+ 
+ void CentralRegionPool::ReturnEmptyRegion(MSRegionInfo* region)
+@@ -589,8 +586,11 @@ void CentralRegionPool::PrepareForSweep()
+ {
+     sweepStats_.Reset();
+ 
+-    // At this point MarkSetup has already stopped sweep and promoted any residual
+-    // unswept regions to swept. FlushAllAllocBuffers returns TL regions to swept.
++    // MarkSetup has stopped previous sweep and promoted residual unswept regions
++    // to swept. This flip snapshots the current central-pool regions as this
++    // cycle's sweep candidates. Regions returned by mutators after this point
++    // are stamped with the new generation and remain in swept lists until the
++    // next MarkSetup snapshot.
+     // O(1) per-bucket flip:
+     //   partialSwept → partialUnswept (StealChainTo: head pointer transfer)
+     //   fullSwept    ↔ fullUnswept    (Swap: head/count exchange)
+@@ -933,6 +933,7 @@ MSLargeSweepStats CentralRegionPool::SweepLargeRegions()
+     // Two-pass to avoid holding largeLock_ during ReclaimRegion.
+     std::vector<MSRegionInfo*> deadRegions;
+     MSLargeSweepStats stats;
++    uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
+ 
+     {
+         std::lock_guard<std::mutex> lg(largeLock_);
+@@ -940,10 +941,15 @@ MSLargeSweepStats CentralRegionPool::SweepLargeRegions()
+         int32_t idx = largeRegionList_.IsEmpty() ? MSRegionInfo::INVALID_IDX : 0;
+         // We need to iterate using ForEach and collect dead ones
+         std::vector<MSRegionInfo*> toRemove;
+-        largeRegionList_.ForEach([&toRemove](MSRegionInfo* region) {
++        largeRegionList_.ForEach([&toRemove, sg](MSRegionInfo* region) {
++            if (region->GetSweepGen() == sg) {
++                return;
++            }
+             if (!region->IsMarked()) {
+                 toRemove.push_back(region);
++                return;
+             }
++            region->SetSweepGen(sg);
+         });
+         for (MSRegionInfo* region : toRemove) {
+             largeRegionList_.Remove(region);
+@@ -1031,7 +1037,8 @@ void CentralRegionPool::BackgroundFillAllocCaches()
+ // ============================================================================
+ // ComputeMarkedBytes: walk markBitmaps to count true live bytes
+ // ============================================================================
+-// Called after marking completes, before PrepareForSweep (gen flip).
++// Called after marking completes. The sweep snapshot generation has already
++// been flipped in MarkSetup, but markBitmaps are stable until sweep resumes.
+ // At this point markBitmaps are stable: marking is done, no sweep has started.
+ //
+ size_t CentralRegionPool::ComputeMarkedBytes() const
+diff --git a/runtime/src/Heap/MAllocator/MSCentralRegionPool.h b/runtime/src/Heap/MAllocator/MSCentralRegionPool.h
+index 2674c374..9055d81e 100644
+--- a/runtime/src/Heap/MAllocator/MSCentralRegionPool.h
++++ b/runtime/src/Heap/MAllocator/MSCentralRegionPool.h
+@@ -293,6 +293,9 @@ public:
+     MSRegionInfo* GetFreshRegion(uint8_t cls);
+ 
+     // ===== Thread-local Region return =====
++    // Returned active/cache regions were not in the MarkSetup sweep snapshot.
++    // They are stamped with the current globalSweepGen and linked to swept
++    // lists, then become normal candidates at the next PrepareForSweep flip.
+ 
+     void ReturnPartialRegion(MSRegionInfo* region, uint8_t cls);
+     void ReturnFullRegion(MSRegionInfo* region, uint8_t cls);
+diff --git a/runtime/src/Heap/MAllocator/MSRegionSpace.cpp b/runtime/src/Heap/MAllocator/MSRegionSpace.cpp
+index 5db37267..a6b13344 100644
+--- a/runtime/src/Heap/MAllocator/MSRegionSpace.cpp
++++ b/runtime/src/Heap/MAllocator/MSRegionSpace.cpp
+@@ -435,6 +435,7 @@ void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t regionBytes)
+ 
+     baseInfo->InitForLargeObject(start, end);
+     baseInfo->reserved = static_cast<uint64_t>(baseIdx);
++    baseInfo->SetSweepGen(CentralRegionPool::GetGlobalSweepGen());
+ 
+     for (size_t i = 1; i < spanCount; i++) {
+         MSRegionInfo* spanInfo = MSRegionInfoArray::GetRegionInfoByIdx(baseIdx + i);
+@@ -444,19 +445,10 @@ void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t regionBytes)
+         spanInfo->totalSlotCount = 0;
+         spanInfo->freeSlotCount = 0;
+         spanInfo->flags_ = 0;
++        spanInfo->SetSweepGen(baseInfo->GetSweepGen());
+         spanInfo->reserved = static_cast<uint64_t>(baseIdx);
+     }
+ 
+-    baseInfo->AtomicSetMarked();
+-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+-    baseInfo->AtomicSetScanned();
+-#endif
+-
+-    // BLACK allocation for large objects during marking: the hybrid write
+-    // barrier (SATB + insertion) ensures children are independently
+-    // discovered when fields are written. No need to enqueue. In debug
+-    // builds we also tag the object as scanned for protocol validation.
+-
+     if (msCentralPool_ != nullptr) {
+         msCentralPool_->RegisterLargeRegion(baseInfo);
+         msCentralPool_->AddLargeRegionBytes(regionBytes);
+diff --git a/runtime/src/Heap/MCollector/MarkSweepCollector.cpp b/runtime/src/Heap/MCollector/MarkSweepCollector.cpp
+index 9ccedbc8..8e2875ba 100644
+--- a/runtime/src/Heap/MCollector/MarkSweepCollector.cpp
++++ b/runtime/src/Heap/MCollector/MarkSweepCollector.cpp
+@@ -241,10 +241,10 @@ void MarkSweepCollector::DoGarbageCollection(uint64_t gcIndex)
+ // ============================================================================
+ // Step 2.1a: PreEnumRoots  (GC thread only, no STW)
+ //   Stop all sweeps, wait for in-flight bg/lazy sweep to quiesce, clear
+-//   markBitmaps, then stamp/reclassify any residual unswept regions as swept.
+-//   TL-region flush is deferred to MarkTermination's STW (FlushAll +
+-//   PrepareForSweep), because marking is address-based and does not
+-//   require regions to be in CentralRegionPool's lists.
++//   markBitmaps, stamp/reclassify any residual unswept regions as swept,
++//   then snapshot the current central-pool regions as this cycle's sweep
++//   candidates. TL-region flush is deferred to MarkTermination's STW; returned
++//   active regions are stamped as swept and escape this snapshot.
+ // ============================================================================
+ 
+ void MarkSweepCollector::PreEnumRoots()
+@@ -265,7 +265,7 @@ void MarkSweepCollector::PreEnumRoots()
+         centralPool->StopAndWaitForAllSweep();
+         centralPool->ClearAllMarkBitmaps();
+         centralPool->ReclassifyUnsweptToSwept();
+-        centralPool->ReenableLazySweep();
++        centralPool->PrepareForSweep();
+     }
+     // Reset marked object counter (GC-thread-only, no STW needed).
+     markedObjectCount.store(0, std::memory_order_relaxed);
+@@ -845,9 +845,11 @@ void MarkSweepCollector::MarkTermination()
+     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
+     CentralRegionPool* centralPool = space.GetCentralPool();
+     if (centralPool != nullptr) {
+-        // Finalize the next sweep generation before mutators resume.
++        // Return active TL/cache regions after the MarkSetup sweep snapshot.
++        // CentralRegionPool stamps them with the current sweep generation so
++        // they stay out of this cycle's unswept backlog.
+         centralPool->FlushAllAllocBuffers();
+-        centralPool->PrepareForSweep();
++        centralPool->ReenableLazySweep();
+     }
+ 
+     cycleStats_.wbBufEntriesTotal = directSourceEntries + pendingWorkEntries;
+@@ -1098,23 +1100,12 @@ void MarkSweepCollector::ConcurrentSweep()
+ }
+ 
+ // ============================================================================
+-// MarkNewObject: mark newly allocated objects during marking phases
++// MarkNewObject: no alloc-black in Mark-Sweep snapshot mode
+ // ============================================================================
+ 
+ void MarkSweepCollector::MarkNewObject(BaseObject* obj)
+ {
+-    GCPhase phase = Mutator::GetMutator()->GetMutatorPhase();
+-    if (UNLIKELY(phase == GCPhase::GC_PHASE_MS_MARK_SETUP) ||
+-        UNLIKELY(phase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK) ||
+-        UNLIKELY(phase == GCPhase::GC_PHASE_MS_MARK_TERMINATION)) {
+-        // Go-style alloc-black: mark the new object so it is treated as live
+-        // and not eligible for grey-work production. The hybrid write barrier
+-        // still discovers any child references written during construction.
+-        // In debug builds we additionally record the object as black via the
+-        // scanned bit, but runtime control flow no longer depends on scanned.
+-        MarkObject(obj);
+-        DebugRecordBlackObject(obj);
+-    }
++    (void)obj;
+ }
+ 
+ // ============================================================================
+diff --git "a/MSGC_RESULT/Implementation/Step2_Mark\345\256\236\347\216\260\350\257\246\350\247\243.md" "b/MSGC_RESULT/Implementation/Step2_Mark\345\256\236\347\216\260\350\257\246\350\247\243.md"
+new file mode 100644
+index 00000000..8723be80
+--- /dev/null
++++ "b/MSGC_RESULT/Implementation/Step2_Mark\345\256\236\347\216\260\350\257\246\350\247\243.md"
+@@ -0,0 +1,621 @@
++# Step2 Mark 实现详解
++
++> 位置：MSGC Step2 的实现说明文档。
++> 目的：只按**当前 runtime 代码**描述 MSGC 的标记流程。
++> 口径：当前实现是 **mark-only + queue protocol**。对象状态只使用 mark 位；grey / black 由队列协议表达。
++
++---
++
++## 目录
++
++1. [总览](#1-总览)
++2. [核心结构与状态模型](#2-核心结构与状态模型)
++3. [PreEnumRoots](#3-preenumroots)
++4. [EnumRoots 与 Root Staging](#4-enumroots-与-root-staging)
++5. [发现对象与唯一 Grey 生产入口](#5-发现对象与唯一-grey-生产入口)
++6. [ConcurrentMark](#6-concurrentmark)
++7. [写屏障与 Assist](#7-写屏障与-assist)
++8. [MarkTermination](#8-marktermination)
++9. [PostMarkTermination 与 ConcurrentSweep](#9-postmarktermination-与-concurrentsweep)
++10. [新对象与对象状态总结](#10-新对象与对象状态总结)
++11. [参数与可观测性](#11-参数与可观测性)
++12. [当前回归验证](#12-当前回归验证)
++
++---
++
++## 1. 总览
++
++当前 MSGC 的标记阶段不是单独一个 `mark()` 函数，而是 `MarkSweepCollector::DoGarbageCollection()` 里连续串起来的一条阶段流水线：
++
++```text
++DoGarbageCollection
++    -> PreEnumRoots
++    -> EnumRoots
++    -> ConcurrentMark
++    -> MarkTermination
++    -> PostMarkTermination
++    -> ConcurrentSweep
++```
++
++按运行时语义，可以把这条链看成下面 6 段：
++
++| 阶段 | 入口函数 | 是否 STW | 主要职责 |
++| --- | --- | --- | --- |
++| 1 | `PreEnumRoots()` | 否 | 停 sweep、清 mark 状态、冻结本轮 sweep snapshot |
++| 2 | `EnumRoots()` | 否，handshake | 让每个 mutator 自扫栈根，GC 线程 merge 根并建立初始 grey 集合 |
++| 3 | `ConcurrentMark()` | 否 | GC 线程和 mutator assist 并发 drain grey work |
++| 4 | `MarkTermination()` | 是 | STW 收口，把所有残留 grey work 汇总并做最后闭包 |
++| 5 | `PostMarkTermination()` | 否 | 处理 weak ref、finalizer、large object eager reclaim |
++| 6 | `ConcurrentSweep()` | 否 | 计算 true live bytes，并启动后台 sweep |
++
++当前实现的标记模型可以直接记成：
++
++1. `white`：对象未被 mark。
++2. `grey`：对象已经 mark，并且已经进入 grey work 系统，等待被 trace。
++3. `black`：对象已经 mark，而且它的引用字段已经被当前 drain 处理完，不再停留在任何 grey queue 中。
++
++这里最关键的一点是：`black` 不落在对象状态位上。  
++grey / black 的区别完全由**队列协议**表达。
++
++---
++
++## 2. 核心结构与状态模型
++
++### 2.1 关键运行时结构
++
++| 结构 | 当前职责 |
++| --- | --- |
++| `markWorkStack_` | GC 线程的本地 grey work 栈；根枚举阶段建立，ConcurrentMark 阶段消费 |
++| `globalWorkQueue_` | GC 线程与 mutator assist 共享的全局 grey work 队列 |
++| `assistLocalWork_` | 每个 mutator 自己持有的本地 assist work，允许跨多次 assist 调用保留 |
++| `deferredMainThreadQueue_` | assist 不能处理、必须交由 GC 主线程处理的特殊项队列 |
++| `WriteBarrierBuffer` | 每个 mutator 一个固定容量屏障缓冲，保存新产生的 grey work |
++| `mainQueue` | `MarkTermination()` 内部构造的 STW 收口队列 |
++| `WeakRefBuffer` | 记录弱引用对象，供 `PostMarkTermination()` 统一清理 |
++
++### 2.2 `GreyWorkQueue` 的语义边界
++
++当前灰对象队列不再直接暴露裸 `MarkStack<BaseObject*>` 作为主接口，而是包了一层 `GreyWorkQueue`。
++
++这层包装的目的很明确：
++
++1. 新 grey 对象只能通过 collector 提供的 helper 进入队列。
++2. 队列之间的搬运是 `move` 语义，不是新的 grey 生产。
++3. `GreyWorkQueue` 对外暴露的是 `insert / split / AdoptSplitBuffers / PushMovedGrey` 这类搬运接口。
++4. `PushNewlyGrey()` 是私有接口，只允许 `MarkSweepCollector` 调用。
++
++因此当前代码有一条很清晰的约束：
++
++```text
++新 grey 对象 -> TryEnqueueGreyObject
++队列间搬运 -> GreyWorkQueue 的 move 接口
++```
++
++### 2.3 当前对象状态位
++
++当前小对象 region 的 sidecar bitmap 只有两张：
++
++1. `allocBitmap`：`1=free, 0=allocated`
++2. `markBitmap`：`1=alive(marked), 0=dead(unmarked)`
++
++large object 则只保留 `FLAG_MARKED` 作为并发安全的 mark 位。
++
++也就是说，当前 Step2 的对象状态基础只有：
++
++```text
++small object: allocBitmap + markBitmap
++large object: FLAG_MARKED
++```
++
++---
++
++## 3. PreEnumRoots
++
++`PreEnumRoots()` 在 GC 线程独占执行，但不是 STW。它的任务是给新一轮 mark 准备一套稳定的 heap 视图。
++
++当前主流程是：
++
++1. `activeCollector_.store(this)`，让写屏障和 assist 能看到本轮 collector。
++2. 调 `CentralRegionPool::StopAndWaitForAllSweep()`，停掉后台和 lazy sweep，等待 in-flight sweep 退出。
++3. 调 `CentralRegionPool::ClearAllMarkBitmaps()`，清掉上一轮的 mark 状态。
++4. 调 `CentralRegionPool::ReclassifyUnsweptToSwept()`，把残留 unswept region 的链表视图改成 swept。
++5. 调 `CentralRegionPool::PrepareForSweep()`，把当前 central pool 中的 swept region 翻入 unswept，冻结本轮 sweep snapshot。
++6. `markedObjectCount` 清零。
++
++这里需要记住两个实现细节：
++
++1. `ClearAllMarkBitmaps()` 现在只清 **mark**。
++   - small/medium region：`ClearMarkBitmap()`
++   - large region：`ClearMarkedFlag()`
++2. `PrepareForSweep()` 会在 MarkSetup 阶段递增 `globalSweepGen`，此后 mutator 归还的 active region 会按当前 generation 放入 swept 队列，绕过本轮 sweep。
++3. `PreEnumRoots()` 只处理当前 mark 状态，不维护额外的黑态状态位。
++
++因此这一阶段的本质是：
++
++```text
++停止 sweep 并等待退场
++    -> 清当前 mark 状态
++    -> 修正 region 列表视图
++    -> 冻结本轮 sweep 候选集合
++    -> 为新一轮 mark 打开 activeCollector_
++```
++
++`StopAndWaitForAllSweep()` 会保持 lazy sweep 关闭；它不会在 `PreEnumRoots()` 末尾立即恢复。lazy sweep 要等 `MarkTermination()` 完成最后闭包、归还 active TL region 后才重新打开，避免在 mark 尚未完成时消费本轮 unswept snapshot。
++
++---
++
++## 4. EnumRoots 与 Root Staging
++
++`EnumRoots()` 先切到 `GC_PHASE_MS_MARK_SETUP`，这一步是 handshake 风格的 phase transition，不是长时间 STW。
++
++### 4.1 Mutator 侧做什么
++
++每个 mutator 在 `GC_PHASE_MS_MARK_SETUP` 下会执行自己的栈根扫描，并把发现的堆对象根暂存到 alloc buffer 的 root buffer。
++
++这里的 root buffer 只是 **staging buffer**，不是 grey queue。
++
++也就是说：
++
++```text
++PushRootToBuffer()
++```
++
++只表示“先把 root 暂存起来”，还不表示对象已经进入 grey work 系统。
++
++### 4.2 GC 线程做什么
++
++GC 线程接着做：
++
++1. `markWorkStack_.clear()`
++2. `EnumAndMarkRoots(markWorkStack_.UnsafeRaw())`
++
++`EnumAndMarkRoots()` 当前是串行实现，内部会做：
++
++1. `EnumAllCommonRootsSerial()`
++2. `EnumAllExportRoots()`
++
++其中 `EnumAllCommonRootsSerial()` 里最关键的一步是 `MergeMutatorRoots()`。它会把每个 alloc buffer 里暂存的 root 合并出来，再逐个调用：
++
++```text
++DiscoverAndPushObject(root, workStack)
++```
++
++也就是说，root 真正变成 grey work 的时刻，不是 mutator 扫描栈时，而是 GC 线程 merge 这些 staged roots 时。
++
++因此当前根枚举的数据流应该记成：
++
++```text
++Mutator scan stack
++    -> PushRootToBuffer (staging)
++    -> GC merge roots
++    -> DiscoverAndPushObject
++    -> markWorkStack_
++```
++
++---
++
++## 5. 发现对象与唯一 Grey 生产入口
++
++当前 mark 阶段的核心协议，是“先 mark，再 enqueue”。
++
++### 5.1 `MarkObject()` / `DiscoverObject()`
++
++`MarkObject(obj)` 是底层 mark 原语：
++
++1. 如果地址在 heap 内，走 `MSRegionInfoArray::MarkObjectInHeap(addr)`。
++2. small object：原子 `fetch_or` 对应 slot 的 `markBitmap`。
++3. large object：原子置 `FLAG_MARKED`。
++4. 返回值语义是：
++   - `true`：之前已经 mark 过
++   - `false`：这次是第一次 mark
++
++`DiscoverObject(obj)` 在此之上再加一层 collector 语义：
++
++1. 调 `MarkObject(obj)`。
++2. 只有第一次 `white -> grey` 成功时才返回 `true`。
++3. 同时递增 `markedObjectCount`。
++
++当前实现默认由外层调用点保证传进来的对象已经满足：
++
++1. 非空
++2. 属于 managed heap
++
++### 5.2 `TryEnqueueGreyObject()`
++
++当前唯一的新 grey 生产入口是：
++
++```text
++TryEnqueueGreyObject(BaseObject* obj, GreyWorkSink& sink)
++TryEnqueueGreyObject(BaseObject* obj, GreyWorkQueue& queue)
++```
++
++它的固定协议是：
++
++```text
++DiscoverObject(obj)
++    -> success 才 enqueue
++```
++
++这意味着：
++
++1. 新 grey 对象一定先完成 `white -> grey` 的原子状态转换。
++2. 只有第一次成功的人，才有资格把对象放入 grey queue。
++3. 队列本身不负责去重，去重发生在 enqueue 前。
++
++`DiscoverAndPushObject()` 是这条协议在普通 `WorkStack` 上的包装，它内部仍然经由统一的 enqueue helper 把 newly-grey 对象送进 `WorkStack`。
++
++### 5.3 `TraceRefField()` 的发现逻辑
++
++对象 trace 时，`TraceRefField()` 会：
++
++1. 读出引用字段目标。
++2. release 构建下直接调用 `DiscoverAndPushObject(target, workStack)`。
++3. debug 构建下先读一次 `IsMarkedObject(target)` 做快路径判断；如果目标当前还没 mark，再调用 `DiscoverAndPushObject(target, workStack)`。
++
++这里真正的语义是：
++
++```text
++release:
++    child discovery
++        -> DiscoverObject
++        -> enqueue on first white -> grey
++
++debug:
++    child discovery
++        -> DiscoverObject when target still looks white
++```
++
++当前实现的核心仍然是 **mark-before-enqueue**。  
++release 路径不依赖 `IsMarkedObject(target)` 这类预检查，真正的唯一判定仍然在 `DiscoverObject()` 里完成。
++
++### 5.4 consumer 默认相信协议
++
++当前 `RunCollectorDrainSlice()`、`MSMarkAssist()`、`ExecuteLikeDrainMainQueue()` 在 pop 出对象之后，默认相信这条协议：
++
++```text
++凡是出现在 grey queue 里的对象，都应该已经是 marked 的 grey work
++```
++
++debug 模式下，会通过 `DebugVerifyQueuedGreyObject()` 显式校验这个不变量。
++
++---
++
++## 6. ConcurrentMark
++
++`ConcurrentMark()` 会先切到 `GC_PHASE_MS_CONCURRENT_MARK`，然后做三件事：
++
++1. 清零 assist / global queue 相关统计。
++2. `assistEnabled_ = true`
++3. 调 `RunConcurrentMarkLoop(markWorkStack_)`
++
++### 6.1 GC 线程主循环
++
++`RunConcurrentMarkLoop()` 的主循环很直接：
++
++1. 本地 work 足够多时，`ShareWorkToGlobal()`，把一半 buffer share 给全局队列。
++2. 如果本地 backlog 仍然明显大于共享阈值，并且全局队列为空，GC 线程才会额外暴露 1 个 buffer 到 global，给 mutator assist 留一个可见的偷取窗口。
++3. 本地不空时，`RunCollectorDrainSlice()` 消费一个 slice。
++4. 本地空时，`PopFromGlobal()` 从全局补货；如果 global 里只剩下刚为 assist 暴露的保留 buffer，GC 会先短暂让步，再决定是否取回。
++5. 本地和全局都空时，累计 `convergenceStableRounds_`。
++6. 连续空到 `kConvergenceRequiredRounds`，才认为并发标记收敛。
++
++因此当前收敛判断依赖的是：
++
++```text
++GC local work empty
++    && global work empty
++    && 连续多轮稳定为空
++```
++
++### 6.2 `RunCollectorDrainSlice()`
++
++GC 线程 drain 一个对象时的当前语义是：
++
++1. pop 一个对象。
++2. 过滤空指针和非 heap 地址。
++3. fatal 校验对象 `stateWord` 必须有效。
++4. debug 校验该对象必须已经 marked。
++5. 没有引用字段就结束。
++6. `WeakRef` 走专门分支。
++7. 普通对象走 `TraceObjectRefFields(obj, workStack.UnsafeRaw())`。
++
++这里有两个要点：
++
++1. pop 出来后不会再做 mark。
++2. 对象 trace 完后直接退出当前 grey work 系统。
++
++当前的 black 语义就是：
++
++```text
++这个对象已经被 pop 出来并完成了字段 trace
++```
++
++而不是“对象头/bitmap 上有一个 black 位”。
++
++---
++
++## 7. 写屏障与 Assist
++
++### 7.1 `MSMarkBarrier`
++
++当前写屏障是混合屏障，写引用时的顺序是：
++
++```text
++discover(old)
++    -> EnqueueRef(oldRef)
++store(new)
++    -> field.SetTargetObject(ref)
++discover(new)
++    -> EnqueueRef(newRef)
++```
++
++`EnqueueRef()` 的流程是：
++
++1. 过滤空指针和非 heap 地址。
++2. 取当前 mutator 的 `WriteBarrierBuffer`。
++3. 如果 buffer 已满，先通过 `activeCollector_` 把旧 buffer 批量 flush 到 `globalWorkQueue_`。
++4. 再通过 collector 的统一 enqueue helper，把首次 discover 成功的对象写入 `WriteBarrierBuffer`。
++
++因此写屏障缓冲里放的不是“所有写过的对象”，而是“当前这次写第一次 discover 成功的 grey 对象”。
++
++### 7.2 `WriteBarrierBuffer`
++
++`WriteBarrierBuffer` 是第一层临时缓冲：
++
++1. 每 mutator 一个。
++2. 容量固定。
++3. `Push()` 是单写者追加。
++4. `Flush()` 是批量搬运到目标 work stack。
++
++它本身不负责判断对象是否首次被发现；首次发现由 `TryEnqueueGreyObject()` 保证。
++
++### 7.3 `MSMarkAssist()`
++
++assist 不是独立线程，而是由分配路径被动触发。
++
++当前小对象分配成功后，如果 mutator phase 处在：
++
++1. `GC_PHASE_MS_MARK_SETUP`
++2. `GC_PHASE_MS_CONCURRENT_MARK`
++3. `GC_PHASE_MS_MARK_TERMINATION`
++
++则不会再对新对象执行 alloc-black。新对象所在的 active/fresh region 不属于 MarkSetup 冻结的本轮 sweep snapshot；该 region 归还 central pool 时会按当前 `globalSweepGen` 进入 swept 队列，留到下一轮 GC 再成为 sweep 候选。
++
++分配路径仍会累计 mutator assist 债务；债务达到阈值后，才会考虑触发 `MSMarkAssist()`。
++
++assist 的当前规则是：
++
++1. 优先继续处理本地残留 `assistLocalWork_`。
++2. 本地空时才尝试从 `globalWorkQueue_` 补货。
++3. 只有 collector 已经把 reserve work 暴露到 `globalWorkQueue_`，或者全局本来就有共享 work 时，assist 才会真正进入 drain。
++4. 单次 assist 最多处理 `kAssistMaxObjectsPerCall` 个对象。
++5. 本地 work 堆积过多时，`ShareWorkToGlobal()` 分流给共享队列。
++
++### 7.4 assist 里的特殊项处理
++
++assist 与 GC 线程最大的差别，是它不能处理所有对象类型。
++
++当前明确被单独剥离出来的，是 `WeakRef`：
++
++1. assist 遇到 `WeakRef`，不会继续走共享 grey queue。
++2. 它会把对象转存到 `deferredMainThreadQueue_`。
++3. 等 `MarkTermination()` 再由 GC 主线程统一处理。
++
++所以当前并发标记的数据流实际上是：
++
++```text
++newly discovered grey
++    -> markWorkStack_ / WriteBarrierBuffer / assistLocalWork_
++    -> 必要时搬运到 globalWorkQueue_
++    -> assist 不能处理的特殊项转到 deferredMainThreadQueue_
++```
++
++---
++
++## 8. MarkTermination
++
++`MarkTermination()` 是当前 Step2 唯一明确的 STW 收口点。
++
++进入 `ScopedStopTheWorld(...)` 之后，第一件事就是：
++
++```text
++activeCollector_ = nullptr
++```
++
++这表示并发标记窗口已经关闭，后续不会再有新的 assist / barrier 并发路径加入当前 collector。
++
++### 8.1 `mainQueue` 的三类来源
++
++当前 `mainQueue` 的输入明确分成三类：
++
++1. **direct source**
++   - `FlushAllWriteBarrierBuffers(mainQueue)`
++2. **pending concurrent work**
++   - `FlushAllAssistLocalWorks(mainQueue)`
++   - `DrainGlobalWorkQueueToMainQueue(mainQueue)`
++   - `DrainDeferredMainThreadQueueToMainQueue(mainQueue)`
++3. **resurrection / finalizer related candidates**
++   - `CollectResurrectionCandidatesToMain(mainQueue)`
++   - 以及其他需要通过 `TryEnqueueGreyObject()` 补进主队列的候选项
++
++这套分类很重要，因为它对应了当前 `MarkTermination total` 日志里的含义：
++
++1. `flushed`：direct source + pending concurrent work
++2. `resurrection`：额外补入的 resurrection/finalizer candidates
++3. `processed`：本次 STW drain 实际弹出的对象数
++4. `newlyMarked`：STW 阶段新完成 `white -> grey` 的对象数
++
++### 8.2 `ExecuteLikeDrainMainQueue()`
++
++STW 收口时并不会切换到另一套 trace 算法，而是沿用和并发阶段同一套协议：
++
++1. pop 一个 grey item。
++2. debug 校验它必须已 mark。
++3. 没有引用字段就结束。
++4. `WeakRef` 走专门分支。
++5. 普通对象继续 `TraceObjectRefFields(obj, mainQueue.UnsafeRaw())`。
++
++因此当前 `MarkTermination()` 的本质不是“改用另一种标记模型”，而是：
++
++```text
++把并发阶段没来得及消费完的 grey work 汇总起来
++    -> 用同一套 queue protocol 做最后闭包
++```
++
++### 8.3 allocator 侧收尾
++
++mark 收口之后，termination 还会立刻做两件 allocator 相关工作：
++
++1. `FlushAllAllocBuffers()`
++2. `ReenableLazySweep()`
++
++`FlushAllAllocBuffers()` 归还的 active TL/cache region 不进入本轮 unswept backlog，而是被 `CentralRegionPool` 盖上当前 `globalSweepGen` 后放入 swept 队列。这样它们绕过当前 sweep snapshot，但在下一次 MarkSetup 的 `PrepareForSweep()` 中仍会正常翻入 unswept，参与下一轮 sweep。
++
++### 8.4 `GC_PHASE_MS_SWEEP` 在 STW 内切换
++
++当前 phase 切换到 `GC_PHASE_MS_SWEEP` 发生在 STW 内部。
++
++这样做的效果是：
++
++1. mutator 恢复时看到的已经是 `MS_SWEEP`
++2. 不会出现“mutator 已恢复，但最后一批 mark work 还没收口”的相位空窗
++
++---
++
++## 9. PostMarkTermination 与 ConcurrentSweep
++
++### 9.1 `PostMarkTermination()`
++
++当前 `PostMarkTermination()` 只做 mark 结果的后处理，顺序固定为：
++
++1. `WeakRefBuffer::Instance().ClearWeakRefBuffer()`
++2. `ProcessFinalizers()`
++3. `CollectLargeGarbage()`
++
++其中：
++
++1. weak ref 清理基于已经稳定下来的 mark 结果进行。
++2. finalizer 只负责把不可达 finalizable 对象送到处理器，不在这里直接执行 finalizer。
++3. large object 清理走 `CentralRegionPool::SweepLargeRegions()`。
++
++### 9.2 `ConcurrentSweep()`
++
++`ConcurrentSweep()` 已经不再参与 Step2 的标记收敛，它做的是：
++
++1. 基于稳定的 mark 状态计算 `trueLiveBytes`
++2. 通知 `MSRegionManager` / `CentralRegionPool` 启动后台 sweep
++
++因此它是“消费 mark 结果”的开始，不再是 mark 的一部分。
++
++---
++
++## 10. 新对象与对象状态总结
++
++### 10.1 `MarkNewObject()`
++
++当前新对象在标记相关 phase 下不再使用 alloc-black：
++
++1. `AllocBufferMS::Allocate()` 不再调用 `MarkNewObject(obj)`。
++2. `MarkSweepCollector::MarkNewObject()` 保留为空实现，避免新对象仅因分配而设置 mark bit。
++3. `RegionSpaceMS::RegisterLargeObjectMS()` 也不再给新 large object 设置 `FLAG_MARKED`。
++4. 新对象依赖 region snapshot 逃逸本轮 sweep：GC 开始后的 fresh / TL region 以当前 `globalSweepGen` 进入 swept 队列，下一轮 MarkSetup 才会被翻入 unswept。
++
++因此当前新对象的语义是：
++
++```text
++new object during marking
++    -> not marked by allocation
++    -> protected by region generation from current sweep
++    -> becomes next-cycle sweep candidate when MarkSetup flips swept lists
++```
++
++### 10.2 当前 Step2 的最终状态模型
++
++把当前代码压缩成一句话，就是：
++
++```text
++发现对象时先原子 mark
++    -> 第一次成功的人负责 enqueue
++    -> consumer pop 后直接 trace
++    -> trace 完成后对象自然退出 grey work 系统
++```
++
++换成对象状态表示，就是：
++
++| 状态 | 当前表达方式 |
++| --- | --- |
++| white | 未 mark |
++| grey | 已 mark，并且当前停留在 grey queue / grey work 系统中 |
++| black | 已 mark，且已经被 drain 完，不再位于任何 grey queue 中 |
++
++这就是当前 Step2 的完整语义边界。
++
++---
++
++## 11. 参数与可观测性
++
++当前实现里和 mark 直接相关的关键常量包括：
++
++| 常量 | 当前值 | 含义 |
++| --- | --- | --- |
++| `kSliceMaxObjects` | `256` | GC 线程单次 drain slice 最多处理的对象数 |
++| `kShareWorkBufs` | `2` | GC 本地 work stack 达到该 buffer 数时，share 一半到全局 |
++| `kAssistMaxObjectsPerCall` | `256` | 单次 assist 最多处理对象数 |
++| `kAssistLocalFlushBufs` | `2` | assist 本地工作超过该 buffer 数时开始 share |
++| `kAssistProbeIntervalCalls` | `8` | 全局看起来为空时，每 8 次 assist 做一次强制 probe |
++| `kConvergenceRequiredRounds` | `3` | 本地与全局连续空 3 轮才判定并发标记收敛 |
++| `AllocBufferMS::kGCAssistTriggerBytes` | `64KB` | 分配债务达到阈值后才考虑触发 assist |
++
++当前排查 mark 阶段时，最值得看的可观测项是：
++
++1. `MSGCCycleStats`
++   - `preEnumRootsUs`
++   - `markSetupUs`
++   - `enumRootsUs`
++   - `concurrentMarkUs`
++   - `markTerminationUs`
++   - `postMarkUs`
++   - `assistCallCount / assistProcessedObjects / assistTracedObjects`
++   - `markTermProcessedObjects / markTermNewlyMarkedObjects`
++2. `MarkTermination total` 日志
++   - `flushed`
++   - `resurrection`
++   - `processed`
++   - `newlyMarked`
++3. `MSMarkBarrier_DumpAndResetCounters()`
++   - 观察混合写屏障在一个 GC 周期内的 discover 计数
++4. `AssistObs` 日志
++   - `debtHits / noCollector / noVisibleWork`
++   - `visible(local/global)`
++   - `entryLocal / refill(attempt/empty)`
++   - `markAlloc(small/large)`
++   - `localPeak`
++
++如果要继续沿着代码看下去，当前最推荐的阅读顺序是：
++
++1. `DoGarbageCollection()`
++2. `PreEnumRoots()` / `EnumRoots()`
++3. `DiscoverObject()` / `TryEnqueueGreyObject()`
++4. `RunConcurrentMarkLoop()` / `RunCollectorDrainSlice()`
++5. `MSMarkBarrier::EnqueueRef()` / `MSMarkAssist()`
++6. `MarkTermination()` / `ExecuteLikeDrainMainQueue()`
++7. `PostMarkTermination()` / `ConcurrentSweep()`
++
++---
++
++## 12. 当前回归验证
++
++本轮 snapshot/no-alloc-black 调整后，已完成一次 seed5 case2 回归：
++
++```text
++Result dir: MSGC_RESULT/Result/case2_50x_pressure/20260426_snapshot_no_allocblack_seed5
++cjHeapSize: 4gb
++CJ_MS_FORCE_ENQUEUE_MARKED: unset
++CJ_MS_SWEEP_DIAG: unset
++Functional: 5/5 passed
++F5_HashMap: PASS 8034 ms (1000 rounds)
++Benchmark exit code: 0
++Peak RSS: 117.8 MB
++```
++
++这说明当前修复路径已经能覆盖 case2/F5 的直接失败场景，且不依赖“已 marked 对象也强制入队”的诊断开关。
+diff --git a/MSGC_RESULT/bugfix/20260426_case2_f5_bitmap_slot_stride.md b/MSGC_RESULT/bugfix/20260426_case2_f5_bitmap_slot_stride.md
+new file mode 100644
+index 00000000..c669d3e8
+--- /dev/null
++++ b/MSGC_RESULT/bugfix/20260426_case2_f5_bitmap_slot_stride.md
+@@ -0,0 +1,350 @@
++# case2 F5_HashMap 与 bitmap slot stride 排查记录
++
++## 基本信息
++
++- 标题：MSGC case2 在 2-slot bitmap sidecar 下 F5_HashMap 失败，`kBitmapSlotBytes=*3` 可恢复通过
++- 日期：2026-04-26
++- 提交/分支：主观察对象为 `209bda2d4` 附近实现；验证工作主要在 `runtime_wt_209_patch1/runtime` 上进行
++- 平台：macOS aarch64
++
++## 现象与复现
++
++- 现象：`MSGC_RESULT/Result/case2_50x_pressure/benchmark.cj` 在 MSGC 下执行到 `F5_HashMap` 时抛出
++  `IndexOutOfBoundsException: index: 0, size: 0`
++- 失败位置：`benchF5_HashMap()` 中 `v[0]` / `v[1]` 读取，说明 `HashMap<Int64, ArrayList<Int64>>` 中取出的 `ArrayList` 已变为空或内容被破坏
++- 最小复现条件（当前稳定复现口径）：
++  1. 使用 MarkSweep runtime
++  2. `seed5.env`
++  3. `cjHeapSize=4gb`
++  4. 运行 `case2_50x_pressure/benchmark.cj`
++- 实际结果：
++  - 2-slot 实现下，`F1-F4` 通过，`F5_HashMap` 失败
++  - 将 `MSBitmapArena::kBitmapSlotBytes` 从 `*2` 改回 `*3` 后，可恢复 `5/5 passed`
++- 期望结果：2-slot 与 3-slot 都应通过，且 2-slot 不应依赖额外物理槽位才能正确运行
++
++## 关键复现命令
++
++### 编译 runtime
++
++```bash
++cd /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime_MSGC/runtime_wt_209_patch1/runtime
++/Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime_MSGC/runtime/.venv/bin/python build.py build --gc-mode marksweep
++```
++
++### 替换 SDK runtime 并重签名
++
++```bash
++cp output/temp/lib/aarch64_Release/libcangjie-runtime.dylib \
++  /Users/lipeisheng/code/cangjie/cangjie-pkg/dev/20260421/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
++codesign -f -s - \
++  /Users/lipeisheng/code/cangjie/cangjie-pkg/dev/20260421/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
++```
++
++### 复现 case2
++
++```bash
++source /Users/lipeisheng/code/cangjie/cangjie-pkg/dev/20260421/cangjie/envsetup.sh
++cd /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime_MSGC/runtime/MSGC_RESULT/Result/case2_50x_pressure
++cjc benchmark.cj -o <result_dir>/benchmark
++source /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime_MSGC/runtime/MSGC_RESULT/Result/seed/seed5.env
++export MRT_REPORT=<result_dir>/gc.log
++export cjHeapSize=4gb
++python3 /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime_MSGC/runtime/MSGC/benchmark/rss_monitor.py \
++  --binary <result_dir>/benchmark \
++  --label MSGC \
++  --interval 200 \
++  --vmmap-interval 0 \
++  --csv <result_dir>/rss.csv \
++  --output <result_dir>/rss.png \
++  --event-csv <result_dir>/bench_events.csv \
++  --stdout-file <result_dir>/stdout.txt
++```
++
++## 已确认的关键结果
++
++### 1. 旧的“第三槽位被直接访问”证明无效
++
++- 早期曾出现一次“3-slot guard 未被破坏且用例通过”的结果，但该轮验证遗漏了 `cjHeapSize=4gb`
++- 这会改变触发条件，因此该轮结果已作废，不能作为根因依据
++
++### 2. 在正确 4GB 条件下，未观测到直接第三槽位访问
++
++- 正确结果目录：
++  - `MSGC_RESULT/Result/case2_50x_pressure/result/20260426_170000_probe_real_thirdslot_guard_4gb_exec2/`
++- 结果：
++  - `F1-F4` 通过
++  - `F5_HashMap` 抛 `IndexOutOfBoundsException`
++  - 未出现第三槽位 canary 损坏
++  - 未出现 mark/alloc fast-path 越界探针命中
++- 结论：`*3` 能修复问题，但当前证据不支持“存在明确的 direct third-slot read/write”
++
++### 3. “heap shrink 后残留越界 region 指针”假设在当前复现中未获支持
++
++- 已新增 STW 探针：在 `EnumRoots()` 后扫描 CentralPool / AllocBuffer 中是否存在 `regionIdx >= committedRegionCount` 的陈旧引用
++- 结果目录：
++  - `MSGC_RESULT/Result/case2_50x_pressure/20260426_170722_probe_committed_range_slot2/`
++- 关键结果：
++  - 仍在 `F5_HashMap` 失败
++  - 未出现 `region beyond committed range`
++  - `gc.log` 中 `committedRegions` 一直为 `16384`
++- 结论：本轮失败不是由 heap shrink 后的 stale region 引用直接触发
++
++### 4. sweep 诊断确认失败表象是可达图被欠标，随后被清扫
++
++- 结果目录：
++  - `MSGC_RESULT/Result/case2_50x_pressure/20260426_173424_sweep_diag_slot2/`
++- 运行条件：2-slot、`seed5.env`、`cjHeapSize=4gb`、`CJ_MS_SWEEP_DIAG=1`
++- 结果：
++  - 仍在 `F5_HashMap` 失败
++  - 异常前 sweep 连续清理大量仍带有效 `TypeInfo` 的 `RawArray<Int64>` 槽位
++  - 失败点仍是 `ArrayList<...>::[](Int64)` 报 `index: 0, size: 0`
++- 这说明症状不是读写第三槽位时直接崩溃，而是某些仍会被 F5 容器图访问到的对象/子对象没有在本轮标记闭包中留下 mark bit，最终被 `SweepRegion()` 当作 dead slot 清零。
++
++### 5. 强制扫描已标对象后，2-slot 在同条件下通过
++
++- 验证 patch：在 `MSMarkBarrier::EnqueueRef()` 中加入运行时开关 `CJ_MS_FORCE_ENQUEUE_MARKED=1`
++  - 原行为：`TryEnqueueGreyObject(ref, sink)` 如果发现 `ref` 已经 marked，会直接返回 false，不再入队扫描
++  - 验证行为：若 `ref` 已 marked 但对象仍有效，则仍推入写屏障 buffer，使其后续被扫描一次
++- 结果目录：
++  - `MSGC_RESULT/Result/case2_50x_pressure/20260426_force_enqueue_marked_slot2/`
++- 运行条件：2-slot、`seed5.env`、`cjHeapSize=4gb`、`CJ_MS_FORCE_ENQUEUE_MARKED=1`
++- 结果：
++  - `F1_TreeIntegrity` PASS
++  - `F2_Generational` PASS
++  - `F3_LargeObject` PASS
++  - `F4_LinkedList` PASS
++  - `F5_HashMap` PASS
++  - `Functional: 5/5 passed`
++  - 未出现 `IndexOutOfBoundsException`
++  - 未出现 canary / alloc fast-path / mark bit / committed-range 诊断
++- 结论：当前失败的直接原因是 mark 协议把“已经 marked”误当成“已经完成扫描”，导致 marked-but-not-scanned 对象不会再次入队。打开“已标对象也扫描”后，同一 2-slot 物理布局不再失败，说明根因落在灰/黑状态区分缺失，而不是直接第三槽位访问。
++
++## 当前定位结论
++
++## 标准库写屏障排查补充
++
++### 1. `ArrayList.add` 不是简单裸写漏屏障
++
++对 SDK 中 `libcangjie-std-collection.dylib` 反汇编后，`ArrayList.add` 的关键写入是 aarch64 inline barrier fast path：
++
++```asm
++1eef4: lsr x9, x28, #56
++1eef8: cmp w9, #0x9
++1eefc: b.ge 0x1ef08
++1ef00: str x20, [x21]
++1ef08: mov x0, x20
++1ef0c: mov x1, x23
++1ef10: mov x2, x21
++1ef14: bl 0x6b434
++```
++
++其中 `0x6b434` 对应 `_CJ_MCC_WriteRefField`。`x28` 高 8 位来自 `MRT_GetThreadLocalData()` 中的 `GCPhase << 56`。MSGC 的 marking phase 值为 20/21/22，均大于 `GC_PHASE_ENUM=9`，理论上会走慢路径屏障。
++
++因此，不能仅凭 `str x20, [x21]` 断定 `ArrayList.add` 漏屏障。除非后续运行时验证发现 managed code 中 `x28 >> 56` 在 MSGC marking 期间仍为旧值，否则该路径不是当前最强根因。
++
++### 2. `HashMap.add` 的常规 key/value 写入有屏障
++
++对 `__CNac7HashMapIG_G0_E3addHG_G0_` 反汇编，stub 映射如下：
++
++- `0x6b410` -> `_CJ_MCC_AssignGeneric`
++- `0x6b434` -> `_CJ_MCC_WriteRefField`
++- `0x6b4ac` -> `_CJ_MCC_WriteGeneric`
++
++在 `HashMap.add` 范围内观察到：
++
++- `_CJ_MCC_WriteRefField` 调用 2 次：约 `0x16024`、`0x16078`
++- `_CJ_MCC_WriteGeneric` 调用 3 次：约 `0x15f2c`、`0x16010`、`0x16050`
++- 未观察到 `_CJ_MCC_AssignGeneric` / ArrayCopy 类调用
++
++关键片段：
++
++```asm
++15ee8: bl 0x6acf4        ; _CJ_MCC_NewObjectFast, 分配新 Entry
++15ef4: mov x25, x0       ; x25 = new Entry
++15ef8: str x9, [x8, #0x8]!
++15f08: str x21, [x9, #0x8]
++
++15f20: mov x0, x25
++15f24: mov x1, x21
++15f28: mov x2, x20
++15f2c: bl 0x6b4ac        ; _CJ_MCC_WriteGeneric
++
++15f34: lsr x9, x28, #56
++15f38: cmp w9, #0x9
++15f3c: b.ge 0x16018
++15f40: str x20, [x21]    ; inline fast path，marking phase 应跳过
++
++1604c: mov x2, x22
++16050: bl 0x6b4ac        ; _CJ_MCC_WriteGeneric
++16078: bl 0x6b434        ; _CJ_MCC_WriteRefField
++```
++
++这说明 `HashMapEntry` 的常规 key/value 写入并非完全绕过 barrier。尤其是 `HashMap<Int64, ArrayList<Int64>>` 的 value 写入路径已有 `_CJ_MCC_WriteGeneric` / `_CJ_MCC_WriteRefField`。
++
++### 3. 当前查到的真正危险点：新对象初始化 raw store
++
++反汇编中仍存在紧跟 `_CJ_MCC_NewObjectFast` 之后的 direct store：
++
++```asm
++15ee8: bl 0x6acf4        ; _CJ_MCC_NewObjectFast
++15ef4: mov x25, x0       ; new Entry
++15ef8: str x9, [x8, #0x8]!
++15f08: str x21, [x9, #0x8]
++```
++
++这类 store 是编译器按“新对象尚未发布，初始化写可省屏障”的假设生成的。这个假设在 stop-the-world 或 precise initialized-before-visible 模型中通常成立，但和当前 MSGC 的 alloc-black/mark-only 实现存在冲突：
++
++1. 新对象在 marking phase 由 `MarkNewObject()` 直接 `MarkObject(obj)`。
++2. `MarkNewObject()` 不把对象入 grey queue，release 下也没有独立 scanned 状态参与控制流。
++3. 后续 `TryEnqueueGreyObject()` 遇到 already marked 对象会直接 skip。
++4. 如果 direct store 写入的是引用字段，例如新 `HashMapEntry` 的 `next`、或构造期间写入的 backing array / child object，且该 child 不是通过其他 barrier 或 root 已被 discover，本轮标记闭包就可能漏掉它。
++
++所以目前能静态查到的“漏屏障”不是 `HashMap.add` 的普通 key/value 更新，而是 compiler new-object initialization write barrier elision 与 MSGC alloc-black 协议不兼容。换句话说，这些 raw store 在当前协议下不是天然安全的。
++
++### 4. CopyGC 为什么没有同类问题
++
++CopyGC 不是靠“新对象被 mark 后一定会扫描”来保证这类初始化写安全。源码里普通对象分配路径 `RegionSpace::Allocate()` 只是返回新地址，并不会调用 `WCollector::MarkNewObject()`；`WCollector::MarkNewObject()` 主要由 `BaseObject::OnFinalizerCreated()` 触发，用于 finalizer 对象登记时的特殊保活。
++
++CopyGC 的安全边界在 region/collection-set 层：
++
++1. GC 开始时 `AssembleGarbageCandidates()` 只把当时已经在 `recentFullRegionList` 等列表里的 region 合入 `fromRegionList`，这些才是本轮可能被搬移/回收的候选。
++2. Mutator 当前还在分配的 `tlRegionList` 不进入本轮 `fromRegionList`；如果它在本轮 GC 过程中变满，会被放到 `recentFullRegionList`，注释明确说明这类 full region 会 escape current GC，留到下一轮处理。
++3. Trace 期间新申请的 TL / large region 会带 `traceRegion` 标记，满后进入 `fullTraceRegions` / `largeTraceRegions`，`PostTrace::HandleTraceRegions()` 再把它们合回 recent list，并清掉 trace flag。也就是说，trace 期间新分配 region 不会成为当前轮 from-space。
++4. `Allocator::ShouldEnqueue()` 对 `IsTraceRegion()` 直接返回 false，避免把 trace 期间新 region 的对象塞进 SATB，保证并发 tracing 可以收敛。
++
++因此，CopyGC 下新对象初始化 raw store 写入的新分配子对象通常不需要当前轮扫描：父对象和子对象所在的新 region 本轮都不会被回收。若 raw store 写入的是旧对象引用，CopyGC 依赖 SATB 删除屏障维持 snapshot-at-the-beginning：旧对象要么已在 root/对象图快照中，要么在被覆盖时进入 SATB；TraceBarrier 的普通写只记 old ref 也正是这个模型。
++
++MSGC 当前不同：它是对象粒度 sweep，mark bit 同时承担 live/queue 去重语义；alloc-black 把新对象直接设为 marked，但该对象仍在会被 sweep 观察的 MS heap 中。后续写屏障发现同一个 already-marked 对象时，`TryEnqueueGreyObject()` 会跳过扫描，于是“marked 但未扫描”的对象可能留下未闭合的子引用。这也是 `CJ_MS_FORCE_ENQUEUE_MARKED=1` 能绕过 case2 的协议层解释。
++
++### 5. 仍需运行时验证的两个分支
++
++1. 验证 `x28` phase 是否 stale：如果 marking 中 `x28 >> 56 < 9`，则 `ArrayList.add` / `HashMap.add` 的 inline fast path 会实际裸写，这是明确漏屏障。
++2. 验证 new-object raw store 是否写 ref 且 child 未被其他路径 discover：重点看 `HashMapEntry.next`、`ArrayList` 构造时 backing array 字段、以及 `RawArray<HashMapEntry<...>>` 中 entry value 的 `WriteGeneric` 是否实际进入 `MSMarkBarrier::WriteStruct` 并 enqueue new ref。
++
++目前已有的 `CJ_MS_FORCE_ENQUEUE_MARKED=1` 通过，说明即使没有唯一定位到某条机器指令，协议层面确实存在“已 marked 但仍需要扫描”的对象。上述 raw initialization store 是与该现象最吻合的静态候选。
++
++### 已排除项
++
++- `TraceRefField` 本身不是修复点
++- “必须设置 `kBitmapSlotBytes=*3` 才能满足显式第三段访问”尚未被证实
++- “heap shrink / committed range 收缩导致过期 region 指针”在当前 seed5 + 4GB 复现里未命中
++
++### 当前最可靠的事实
++
++- 2-slot 失败不是由 direct third-slot read/write、bitmap fast-path 越界或 heap shrink stale region 直接触发
++- 2-slot 失败可以通过“已 marked 对象也入队扫描”恢复通过
++- 因此当前根因不是“少了一块可随意浪费的 padding”，而是实现上缺少独立的灰/黑状态：
++  - `markBitmap` 只能表示对象 live/marked
++  - mark queue 需要知道对象是否已经 scanned
++  - alloc-black 会把新对象直接设为 marked
++  - 写屏障后续发现这个对象时，`TryEnqueueGreyObject()` 因 marked bit 已经存在而跳过入队
++  - 如果这个 marked 对象还没有被扫描过，它的子引用不会进入本轮闭包，子对象最终可能被 sweep 清零
++
++### 当前最可能的方向
++
++1. 已实现新的验证方向：把本轮 sweep snapshot 前移到 MarkSetup，GC 开始后归还的 TL/fresh region 盖当前 `globalSweepGen` 后进入 swept 队列，绕过本轮 sweep。
++2. 同步移除 new-time alloc-black：小对象分配不再调用 `MarkNewObject()`，large object 注册不再设置 `FLAG_MARKED`。
++3. 该方案使用现有 sweep generation 表达“本轮候选集合”：当前 central pool 中的 swept region 在 MarkSetup 被翻入 unswept；之后归还/新建的 region 保持当前 generation，下一轮 MarkSetup 才会被翻入 unswept。
++4. 仍需回归验证：如果 case2 仍失败，则说明问题不只是“新 region 被本轮 sweep 卷入”，还存在从新对象指向旧 sweep-candidate region 的漏标边，需要恢复“marked”和“scanned/black”的独立状态。
++
++## 本轮新增探针与代码记录
++
++### 已验证的探针
++
++- `MSRegionInfo.cpp`
++  - padding / real-third-slot canary
++  - `SetMarkBit` / `GetMarkBit` / `TestAndSetMarkBit` 越界日志
++- `MSCentralRegionPool.cpp`
++  - `LogRegionsBeyondCommittedRange()`
++- `MarkSweepCollector.cpp`
++  - 在 `EnumRoots()` 后调用 committed-range 探针
++
++### 已完成的新探针
++
++- 在 `runtime_wt_209_patch1/runtime/src/Heap/MAllocator/MSRegionInfo.cpp` 中新增了一个局部 sweep 诊断：
++  - 在 `SweepRegion()` 清零 dead slot 之前
++  - 若槽位内容看起来仍像 `HashMap` / `HashMapEntry` / `ArrayList` / `RawArray`
++  - 则输出一次诊断日志
++- 验证结果：`20260426_173424_sweep_diag_slot2` 中命中大量 `RawArray<Int64>`，并最终在 `F5_HashMap` 失败
++
++### 已完成的协议验证 patch
++
++- 在 `runtime_wt_209_patch1/runtime/src/Heap/MBarrier/MSMarkBarrier.cpp` 中加入 `CJ_MS_FORCE_ENQUEUE_MARKED`
++- 目的：验证“marked-but-not-scanned 被跳过”是否是漏标根因
++- 验证结果：`20260426_force_enqueue_marked_slot2` 在 2-slot 下通过 `Functional: 5/5 passed`
++- 注意：该 patch 只是诊断手段，不应作为正式修复直接合入；它会带来大量重复扫描，正确方向是恢复 scanned/black 状态或等价状态位
++
++### 正式修复验证：region snapshot + no alloc-black
++
++- 修复路径：本轮 sweep snapshot 前移到 MarkSetup；GC-active 期间归还的 TL/fresh region 盖当前 `globalSweepGen` 后进入 swept 队列，跳过本轮 sweep；同时移除小对象和 large object 的 new-time alloc-black。
++- 验证目录：`MSGC_RESULT/Result/case2_50x_pressure/20260426_snapshot_no_allocblack_seed5`
++- 验证环境：seed5，`cjHeapSize=4gb`，未设置 `CJ_MS_FORCE_ENQUEUE_MARKED`，未设置 sweep diag。
++- 验证结果：`Functional: 5/5 passed`，`F5_HashMap PASS 8034 ms (1000 rounds)`，benchmark exit code 为 0，峰值 RSS 约 117.8 MB。
++- 结论：case2/F5 的直接回归已通过；当前修复不依赖“已 marked 也强制入队”的诊断 patch。
++
++## 关键函数/调用链
++
++- bitmap sidecar / stride
++  - `src/Heap/MAllocator/MSBitmapArena.h`
++  - `src/Heap/MAllocator/MSBitmapArena.cpp`
++- per-region bitmap 布局与分配/清扫
++  - `src/Heap/MAllocator/MSRegionInfo.h`
++  - `src/Heap/MAllocator/MSRegionInfo.cpp`
++- 全局 mark bitmap 清理与 sweep 协调
++  - `src/Heap/MAllocator/MSCentralRegionPool.cpp`
++  - `src/Heap/MCollector/MarkSweepCollector.cpp`
++- 失败业务点
++  - `MSGC_RESULT/Result/case2_50x_pressure/benchmark.cj`
++  - `benchF5_HashMap()`
++
++## 代表性日志
++
++### stdout / monitor
++
++```text
++[BENCH] F1_TreeIntegrity         PASS
++[BENCH] F2_Generational          PASS
++[BENCH] F3_LargeObject           PASS
++[BENCH] F4_LinkedList            PASS
++IndexOutOfBoundsException: index: 0, size: 0
++    at default::benchF5_HashMap()
++```
++
++### gc.log（committed-range 探针那一轮）
++
++```text
++[MS-GC] ClearAllMarkBitmaps: ... committedRegions=16384
++[MS-GC] ReclassifyUnsweptToSwept: partial=0 regions, full=0 regions, total=0
++```
++
++未出现：
++
++```text
++[MS-GC] region beyond committed range: ...
++```
++
++## 当前结论状态
++
++- 根因：已通过验证收敛到 mark 协议缺少独立 scanned/black 状态
++- 已确认：
++  - 直接第三槽位访问不是当前最强解释
++  - stale region after shrink 不是当前最强解释
++  - F5 失败对应“仍会被访问的对象图没有完成标记闭包，随后被 sweep 清零”
++  - 强制已 marked 对象也入队扫描后，同一 2-slot 布局通过 case2
++- 后续修复方向：
++  - 保留三份物理 bitmap 槽位并恢复 `scannedBitmap` 的协议语义；或
++  - 在不使用第三物理槽位的前提下，为每个对象/slot 提供等价的 scanned/black 状态
++
++## 验证与回归
++
++- 已验证命令：见“关键复现命令”章节
++- 已验证结果：
++  - 2-slot：稳定在 `F5_HashMap` 失败
++  - `kBitmapSlotBytes=*3`：可恢复通过
++  - committed-range 探针：未命中 stale region
++  - real-third-slot guard：在正确 4GB 条件下未命中 direct third-slot 访问
++  - sweep 诊断：失败前命中大量 `RawArray<Int64>` 被当作 dead slot 清零
++  - `CJ_MS_FORCE_ENQUEUE_MARKED=1`：2-slot 在同条件下恢复 `Functional: 5/5 passed`
++- 回归风险：
++  - 如果直接把“重复扫描所有已 marked 对象”当作正式修复，会引入明显性能风险
++  - 如果只把 `*3` 理解为 padding，而不恢复 scanned/black 语义，后续优化 mark/sweep/alloc 路径时仍可能重新漏扫
+\ No newline at end of file
+diff --git a/MSGC_RESULT/bugfix/20260426_case2_f5_snapshot_no_allocblack_fix.md b/MSGC_RESULT/bugfix/20260426_case2_f5_snapshot_no_allocblack_fix.md
+new file mode 100644
+index 00000000..28109377
+--- /dev/null
++++ b/MSGC_RESULT/bugfix/20260426_case2_f5_snapshot_no_allocblack_fix.md
+@@ -0,0 +1,269 @@
++# case2 F5_HashMap 正式修复记录：MarkSetup snapshot + no alloc-black
++
++## 1. 问题概述
++
++- 问题场景：MSGC 下运行 `MSGC_RESULT/Result/case2_50x_pressure/benchmark.cj`，在 `seed5.env + cjHeapSize=4gb` 条件下，`F5_HashMap` 稳定失败。
++- 失败现象：`HashMap<Int64, ArrayList<Int64>>` 中取出的 `ArrayList` 被破坏为 size=0，最终抛出 `IndexOutOfBoundsException: index: 0, size: 0`。
++- 旧观察：把 `MSBitmapArena::kBitmapSlotBytes` 从 `*2` 改回 `*3` 可以恢复通过，但后续探针证明根因并不是“明确存在 direct third-slot 访问”。
++
++## 2. 根因判断
++
++结合 sweep 诊断、`CJ_MS_FORCE_ENQUEUE_MARKED=1` 验证 patch 和 CopyGC 行为对比，当前问题可以归纳为两点叠加：
++
++1. MSGC 旧实现把本轮 small-region sweep snapshot 放在 `MarkTermination()` 之后。
++   - 这意味着 GC-active 期间 mutator 正在使用的 TL/fresh region，等 `FlushAllAllocBuffers()` 归还后，会被立即卷入本轮 unswept backlog。
++2. 新对象路径仍带 alloc-black 语义。
++   - 小对象分配阶段会调用 `MarkNewObject()`。
++   - large object 注册阶段直接设置 `FLAG_MARKED`。
++   - 对象因此可能出现“已经 marked，但并没有被真正 trace/scanned”的窗口。
++
++旧协议把 `marked` 近似当成“已经安全处理过”，而不是“已经发现但可能尚未扫描”。
++在 case2/F5 这种容器图里，这会表现为：
++
++- 某些对象在 GC 周期内被提早盖上 mark bit。
++- 与此同时，它们所在 region 又在本轮结束前被纳入 sweep 候选集合。
++- 闭包没有完整收敛到对象子图，最终部分仍可达子对象在 `SweepRegion()` 中被清零。
++
++这也是为什么仅开启 `CJ_MS_FORCE_ENQUEUE_MARKED=1` 就能让 2-slot 版本通过：它暴露了“marked-but-not-scanned”缺口，而不是物理第三槽位本身。
++
++## 3. 修复方案
++
++本轮修复采用“CopyGC 风格的 collection-set 边界思路”，但不新增新的 per-object 标记位，只复用现有 `globalSweepGen_`：
++
++1. 将本轮 sweep snapshot 前移到 MarkSetup。
++   - 在 `PreEnumRoots()` 中先停掉 sweep、清空 mark bitmap、重分类残留 unswept，再调用 `PrepareForSweep()`。
++   - 这样本轮 central-pool 的 sweep 候选集合在真正开始 root 枚举前就冻结。
++2. GC-active 期间归还的 TL/fresh region 不进入本轮 unswept backlog。
++   - `ReturnPartialRegion()` / `ReturnFullRegion()` 统一盖当前 `globalSweepGen`，放回 swept 队列。
++   - 下一轮 `PrepareForSweep()` 再把它们翻入 unswept。
++3. 移除 new-time alloc-black。
++   - 小对象分配路径不再调用 `MarkNewObject()`。
++   - `MarkSweepCollector::MarkNewObject()` 变为 no-op。
++   - large object 注册不再 `AtomicSetMarked()`，而是给 large region 设置当前 sweep generation。
++4. large object sweep 与 small region 语义保持一致。
++   - `SweepLargeRegions()` 跳过“当前 generation”的 large region。
++   - 只有旧 generation 且未标记的大对象才会在本轮回收。
++
++一句话总结当前修复语义：
++
++```text
++本轮回收对象集合在 MarkSetup 冻结；GC 开始后新分配/新归还 region 统一逃过本轮 sweep；
++对象本身不再因为 new 而直接标黑。
++```
++
++## 4. 关键 patch 摘要
++
++下面只保留本次修复最关键的 patch 片段，不展开无关上下文。
++
++### 4.1 在 MarkSetup 冻结本轮 sweep snapshot
++
++文件：`src/Heap/MCollector/MarkSweepCollector.cpp`
++
++```diff
++ void MarkSweepCollector::PreEnumRoots()
++ {
++     ...
++     if (centralPool != nullptr) {
++-        centralPool->StopAndWaitForAllSweep();
++-        centralPool->ClearAllMarkBitmaps();
++-        centralPool->ReclassifyUnsweptToSwept();
+++        centralPool->StopAndWaitForAllSweep();
+++        centralPool->ClearAllMarkBitmaps();
+++        centralPool->ReclassifyUnsweptToSwept();
+++        centralPool->PrepareForSweep();
++     }
++     ...
++ }
++```
++
++这一步把“本轮允许被 sweep 的 central-pool region 集合”提前冻结，而不是等到 `MarkTermination()` 后再冻结。
++
++### 4.2 Flush TL region 后只重新开启 lazy sweep，不再做本轮快照
++
++文件：`src/Heap/MCollector/MarkSweepCollector.cpp`
++
++```diff
++     if (centralPool != nullptr) {
++         // Return active TL/cache regions after the MarkSetup sweep snapshot.
++         // CentralRegionPool stamps them with the current sweep generation so
++         // they stay out of this cycle's unswept backlog.
++         centralPool->FlushAllAllocBuffers();
++-        centralPool->PrepareForSweep();
++         centralPool->ReenableLazySweep();
++     }
++```
++
++这保证了 GC-active 期间 mutator 用过的 active/cache region，即使在 `MarkTermination()` 被归还，也不会被本轮 sweep 立刻拿去清扫。
++
++### 4.3 归还的 TL/fresh region 只用当前 generation 表达“逃过本轮”
++
++文件：`src/Heap/MAllocator/MSCentralRegionPool.cpp`
++
++```diff
++ void CentralRegionPool::ReturnPartialRegion(MSRegionInfo* region, uint8_t cls)
++ {
++     SizeClassBucket& bucket = buckets_[cls];
++-    bucket.partialUnswept.Push(region);
+++    uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
+++    region->SetSweepGen(sg);
+++    bucket.partialSwept.Push(region);
++ }
++
++ void CentralRegionPool::ReturnFullRegion(MSRegionInfo* region, uint8_t cls)
++ {
++     SizeClassBucket& bucket = buckets_[cls];
++     std::lock_guard<std::mutex> lg(bucket.lock);
++     region->regionType = MSRegionType::MS_REGION_FULL;
++-    bucket.fullUnswept.Prepend(region);
+++    uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
+++    region->SetSweepGen(sg);
+++    bucket.fullSwept.Prepend(region);
++ }
++```
++
++没有新增“本轮豁免”标记位，只是把“当前 generation”的 region 留在 swept 队列，等下一轮 `PrepareForSweep()` 再翻进 unswept。
++
++### 4.4 `PrepareForSweep()` 的语义改成“翻转当前 snapshot”
++
++文件：`src/Heap/MAllocator/MSCentralRegionPool.cpp`
++
++```diff
++ void CentralRegionPool::PrepareForSweep()
++ {
++     sweepStats_.Reset();
++
++-    // old: called after marking completes
+++    // new: MarkSetup freezes this cycle's central-pool sweep candidates
++     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
++         SizeClassBucket& bucket = buckets_[cls];
++         std::lock_guard<std::mutex> lg(bucket.lock);
++         bucket.partialSwept.StealChainTo(bucket.partialUnswept);
++         bucket.fullSwept.Swap(bucket.fullUnswept);
++     }
++
++     globalSweepGen_.fetch_add(2, std::memory_order_release);
++     sweepDone_.store(false, std::memory_order_release);
++ }
++```
++
++### 4.5 小对象移除 alloc-black
++
++文件：`src/Heap/MAllocator/MSAllocBuffer.cpp`
++
++```diff
++     if (UNLIKELY(addr != 0)) {
++         Mutator* mutator = Mutator::GetMutator();
++         GCPhase phase = mutator->GetMutatorPhase();
++         if (UNLIKELY(IsMSMarkingPhase(phase))) {
++-            Heap::GetHeap().GetCollector().MarkNewObject(reinterpret_cast<BaseObject*>(addr));
++             gcAssistBytes_ += size;
++             ...
++         }
++     }
++```
++
++文件：`src/Heap/MCollector/MarkSweepCollector.cpp`
++
++```diff
++-// MarkNewObject: mark newly allocated objects during marking phases
+++// MarkNewObject: no alloc-black in Mark-Sweep snapshot mode
++ void MarkSweepCollector::MarkNewObject(BaseObject* obj)
++ {
++-    ... old mark-at-alloc logic ...
+++    (void)obj;
++ }
++```
++
++### 4.6 large object 也移除 alloc-black，并用 generation 保护本轮不被 sweep
++
++文件：`src/Heap/MAllocator/MSRegionSpace.cpp`
++
++```diff
++ void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t regionBytes)
++ {
++     ...
++     baseInfo->InitForLargeObject(start, end);
++     baseInfo->reserved = static_cast<uint64_t>(baseIdx);
++-    baseInfo->AtomicSetMarked();
++-    baseInfo->AtomicSetScanned();
+++    baseInfo->SetSweepGen(CentralRegionPool::GetGlobalSweepGen());
++
++     for (size_t i = 1; i < spanCount; i++) {
++         MSRegionInfo* spanInfo = MSRegionInfoArray::GetRegionInfoByIdx(baseIdx + i);
++         ...
++-        spanInfo->flags_ = FLAG_MARKED;
+++        spanInfo->flags_ = 0;
+++        spanInfo->SetSweepGen(baseInfo->GetSweepGen());
++         spanInfo->reserved = static_cast<uint64_t>(baseIdx);
++     }
++ }
++```
++
++文件：`src/Heap/MAllocator/MSCentralRegionPool.cpp`
++
++```diff
++ MSLargeSweepStats CentralRegionPool::SweepLargeRegions()
++ {
++     ...
++     largeRegionList_.ForEach([&toRemove, sg](MSRegionInfo* region) {
+++        if (region->GetSweepGen() == sg) {
+++            return;
+++        }
++         if (!region->IsMarked()) {
++             toRemove.push_back(region);
++             return;
++         }
+++        region->SetSweepGen(sg);
++     });
++     ...
++ }
++```
++
++## 5. 验证结果
++
++### 5.1 构建验证
++
++- 命令：`python3 build.py build --gc-mode marksweep`
++- 结果：构建成功，`Build and preinstall completed successfully.`
++
++### 5.2 case2 正式回归
++
++- 结果目录：`MSGC_RESULT/Result/case2_50x_pressure/20260426_snapshot_no_allocblack_seed5`
++- 平台：macOS aarch64
++- SDK runtime：已替换 `libcangjie-runtime.dylib` 并执行 `codesign -f -s -`
++- 重新编译：已重新 `cjc benchmark.cj -o <run_dir>/benchmark`，未复用旧 binary
++- 环境：
++  - `seed5.env`
++  - `cjHeapSize=4gb`
++  - `CJ_MS_FORCE_ENQUEUE_MARKED` 未设置
++  - `CJ_MS_SWEEP_DIAG` 未设置
++
++关键结果：
++
++```text
++[BENCH] F1_TreeIntegrity         PASS  9279 ms
++[BENCH] F2_Generational          PASS  27653 ms
++[BENCH] F3_LargeObject           PASS  100458 ms
++[BENCH] F4_LinkedList            PASS  6892 ms
++[BENCH] F5_HashMap               PASS  8034 ms
++
++[BENCH] Functional: 5/5 passed
++[BENCH] Total wall time:    332962 ms
++Peak RSS: 117.8 MB
++```
++
++结论：
++
++- 当前正式修复已经覆盖 case2/F5 的直接失败场景。
++- 修复不依赖 `CJ_MS_FORCE_ENQUEUE_MARKED=1` 这个诊断开关。
++- “把 sweep snapshot 前移 + 用现有 generation 让 GC-active region 逃过本轮 + 移除 alloc-black” 这一组改动，在当前回归上是成立的。
++
++## 6. 当前结论
++
++这次问题的正式修复方向，不是恢复物理第三 bitmap 槽位，也不是继续保留 alloc-black 后再打补丁兜底，而是：
++
++1. 明确本轮 sweep 候选集合的冻结时刻；
++2. 用已有 `globalSweepGen_` 表达“本轮之后才加入的 region”；
++3. 取消 new-time alloc-black，避免对象只因分配而进入“已标记但未真正扫描”的危险状态。
++
++如果未来又出现“新对象直接引用旧 sweep candidate，且没有经过任何后续 trace/屏障补齐”的新场景，再考虑是否需要恢复显式 scanned/black 状态位；但至少在当前 case2/F5 的失败链路上，这一轮修复已经闭环。
+\ No newline at end of file

@@ -1,0 +1,333 @@
+From 011e18c0103702d88d792c63ee86d339a40c9360 Mon Sep 17 00:00:00 2001
+From: lipeisheng <lipeisheng1@huawei.com>
+Date: Wed, 22 Apr 2026 23:09:49 +0800
+Subject: [PATCH] =?UTF-8?q?=E4=BC=98=E5=8C=96typeinfo=E8=BF=99=E6=9D=A1?=
+ =?UTF-8?q?=E8=B7=AF=E7=BA=BF?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ runtime/src/Heap/MBarrier/MSMarkBarrier.cpp  |  19 ++-
+ runtime/src/Heap/WCollector/EnumBarrier.cpp  |   3 +-
+ runtime/src/Heap/WCollector/TraceBarrier.cpp |   3 +-
+ runtime/src/TypeInfoManager.cpp              | 160 ++++++++++++++++---
+ runtime/src/TypeInfoManager.h                |  12 +-
+ 5 files changed, 171 insertions(+), 26 deletions(-)
+
+diff --git a/runtime/src/Heap/MBarrier/MSMarkBarrier.cpp b/runtime/src/Heap/MBarrier/MSMarkBarrier.cpp
+index 933b40f2..83c45387 100644
+--- a/runtime/src/Heap/MBarrier/MSMarkBarrier.cpp
++++ b/runtime/src/Heap/MBarrier/MSMarkBarrier.cpp
+@@ -58,6 +58,22 @@ static std::atomic<uint64_t> g_newAtomicWriteCount{0};
+ static std::atomic<uint64_t> g_newAtomicSwapCount{0};
+ static std::atomic<uint64_t> g_newCasCount{0};
+ 
++static constexpr size_t ZERO_DST_FAST_PATH_MAX_BYTES = 64;
++
++static bool IsZeroedStructDestination(MAddress dst, size_t len)
++{
++    if (len == 0 || len > ZERO_DST_FAST_PATH_MAX_BYTES) {
++        return false;
++    }
++    const uint8_t* bytes = reinterpret_cast<const uint8_t*>(dst);
++    for (size_t index = 0; index < len; ++index) {
++        if (bytes[index] != 0) {
++            return false;
++        }
++    }
++    return true;
++}
++
+ 
+ extern "C" void MSMarkBarrier_DumpAndResetCounters()
+ {
+@@ -205,7 +221,8 @@ void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MA
+ {
+     // discover(old): preserve all existing reference fields in the destination struct
+     // Guard: skip shade if TypeInfo is NULL (prematurely reclaimed / uninitialized object)
+-    if (obj != nullptr && obj->GetTypeInfo() != nullptr) {
++    bool skipOldRefScan = obj != nullptr && obj->GetTypeInfo() != nullptr && IsZeroedStructDestination(dst, dstLen);
++    if (obj != nullptr && obj->GetTypeInfo() != nullptr && !skipOldRefScan) {
+         obj->ForEachRefInStruct(
+             [](RefField<false>& refField) {
+                 BaseObject* oldRef = refField.GetTargetObject();
+diff --git a/runtime/src/Heap/WCollector/EnumBarrier.cpp b/runtime/src/Heap/WCollector/EnumBarrier.cpp
+index 18834a1f..94509849 100644
+--- a/runtime/src/Heap/WCollector/EnumBarrier.cpp
++++ b/runtime/src/Heap/WCollector/EnumBarrier.cpp
+@@ -332,7 +332,8 @@ void EnumBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex
+ 
+ void EnumBarrier::WriteGeneric(const ObjectPtr obj, void* fieldPtr, const ObjectPtr src, size_t size) const
+ {
+-    if ((obj != nullptr && !obj->HasRefField()) || (!Heap::IsHeapAddress(obj) && !Heap::IsHeapAddress(src))) {
++    if ((obj != nullptr && !obj->HasRefField()) ||
++        (!Heap::IsHeapAddress(obj) && !Heap::IsHeapAddress(src))) {
+         CHECK_DETAIL(memcpy_s(fieldPtr, size,
+                               reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(src) + TYPEINFO_PTR_SIZE),
+                               size) == EOK,
+diff --git a/runtime/src/Heap/WCollector/TraceBarrier.cpp b/runtime/src/Heap/WCollector/TraceBarrier.cpp
+index b72c3a6b..cc087db4 100644
+--- a/runtime/src/Heap/WCollector/TraceBarrier.cpp
++++ b/runtime/src/Heap/WCollector/TraceBarrier.cpp
+@@ -306,7 +306,8 @@ void TraceBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex
+ 
+ void TraceBarrier::WriteGeneric(const ObjectPtr obj, void* fieldPtr, const ObjectPtr src, size_t size) const
+ {
+-    if ((obj != nullptr && !obj->HasRefField()) || (!Heap::IsHeapAddress(obj) && !Heap::IsHeapAddress(src))) {
++    if ((obj != nullptr && !obj->HasRefField()) ||
++        (!Heap::IsHeapAddress(obj) && !Heap::IsHeapAddress(src))) {
+         CHECK_DETAIL(memcpy_s(fieldPtr, size,
+                               reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(src) + TYPEINFO_PTR_SIZE),
+                               size) == EOK,
+diff --git a/runtime/src/TypeInfoManager.cpp b/runtime/src/TypeInfoManager.cpp
+index 52fb5f69..4b37c26e 100644
+--- a/runtime/src/TypeInfoManager.cpp
++++ b/runtime/src/TypeInfoManager.cpp
+@@ -13,6 +13,98 @@
+ #include "Sync/Sync.h"
+ 
+ namespace MapleRuntime {
++namespace {
++struct GenericTypeInfoLastHitCacheEntry {
++    static constexpr U32 INLINE_ARG_LIMIT = 2;
++
++    TypeTemplate* typeTemplate { nullptr };
++    U32 argSize { 0 };
++    TypeInfo* inlineArgs[INLINE_ARG_LIMIT] { nullptr, nullptr };
++    std::vector<TypeInfo*> overflowArgs {};
++    TypeInfo* typeInfo { nullptr };
++    U32 stamp { 0 };
++
++    bool Match(TypeTemplate* tt, U32 size, TypeInfo* args[]) const
++    {
++        if (typeInfo == nullptr || typeTemplate != tt || argSize != size) {
++            return false;
++        }
++        if (size <= INLINE_ARG_LIMIT) {
++            for (U32 idx = 0; idx < size; ++idx) {
++                if (inlineArgs[idx] != args[idx]) {
++                    return false;
++                }
++            }
++            return true;
++        }
++        if (overflowArgs.size() != size) {
++            return false;
++        }
++        for (U32 idx = 0; idx < size; ++idx) {
++            if (overflowArgs[idx] != args[idx]) {
++                return false;
++            }
++        }
++        return true;
++    }
++
++    void Update(TypeTemplate* tt, U32 size, TypeInfo* args[], TypeInfo* cachedTypeInfo, U32 currentStamp)
++    {
++        typeTemplate = tt;
++        argSize = size;
++        typeInfo = cachedTypeInfo;
++        stamp = currentStamp;
++        for (U32 idx = 0; idx < INLINE_ARG_LIMIT; ++idx) {
++            inlineArgs[idx] = idx < size ? args[idx] : nullptr;
++        }
++        if (size <= INLINE_ARG_LIMIT) {
++            overflowArgs.clear();
++            return;
++        }
++        overflowArgs.assign(args, args + size);
++    }
++};
++
++struct GenericTypeInfoLastHitCache {
++    static constexpr U32 CACHE_SIZE = 4;
++
++    GenericTypeInfoLastHitCacheEntry entries[CACHE_SIZE] {};
++    U32 nextStamp { 1 };
++
++    TypeInfo* Lookup(TypeTemplate* tt, U32 size, TypeInfo* args[])
++    {
++        for (U32 idx = 0; idx < CACHE_SIZE; ++idx) {
++            auto &entry = entries[idx];
++            if (!entry.Match(tt, size, args)) {
++                continue;
++            }
++            entry.stamp = nextStamp++;
++            return entry.typeInfo;
++        }
++        return nullptr;
++    }
++
++    void Update(TypeTemplate* tt, U32 size, TypeInfo* args[], TypeInfo* cachedTypeInfo)
++    {
++        GenericTypeInfoLastHitCacheEntry* target = &entries[0];
++        for (U32 idx = 0; idx < CACHE_SIZE; ++idx) {
++            auto &entry = entries[idx];
++            if (entry.Match(tt, size, args) || entry.typeInfo == nullptr) {
++                target = &entry;
++                target->Update(tt, size, args, cachedTypeInfo, nextStamp++);
++                return;
++            }
++            if (entry.stamp < target->stamp) {
++                target = &entry;
++            }
++        }
++        target->Update(tt, size, args, cachedTypeInfo, nextStamp++);
++    }
++};
++
++thread_local GenericTypeInfoLastHitCache genericTypeInfoLastHitCache;
++} // namespace
++
+ void TypeGCInfo::FillTypeGCInfo(TypeInfo* ti, CString &gcTibStr, U32 &curSize)
+ {
+ #ifdef __arm__
+@@ -85,19 +177,25 @@ U32 TypeInfoManager::GenericTiDesc::computeHash()
+     auto update = [&H](U32 val) {
+         H = 31 * H + val;
+     };
+-    U32 uuidOfTT = tt->GetUUID();
+-    if (uuidOfTT == 0) {
+-        uuidOfTT = mgr.GetTypeTemplateUUID(tt);
++    ttUUID = tt->GetUUID();
++    if (ttUUID == 0) {
++        ttUUID = mgr.GetTypeTemplateUUID(tt);
+     }
+-    update(uuidOfTT);
++    update(ttUUID);
+ 
++    inlineArgUUIDs[0] = 0;
++    inlineArgUUIDs[1] = 0;
+     for (U32 idx = 0; idx < argSize; idx++) {
+         TypeInfo* ti = args[idx];
+         if (ti->IsInitialUUID()) {
+             mgr.AddTypeInfo(ti);
+         }
+         CHECK(!ti->IsInitialUUID());
+-        update(ti->uuid);
++        U32 argUUID = ti->uuid;
++        update(argUUID);
++        if (idx < INLINE_ARG_LIMIT) {
++            inlineArgUUIDs[idx] = argUUID;
++        }
+     }
+     return H;
+ }
+@@ -112,22 +210,32 @@ bool TypeInfoManager::GenericTiDesc::operator==(const GenericTiDesc &other) cons
+         return false;
+     }
+ 
+-    TypeInfoManager& mgr = TypeInfoManager::GetTypeInfoManager();
+-    if (tt != other.tt) {
+-        U16 ttUUID = tt->GetUUID();
+-        U16 otherTtUUID = other.tt->GetUUID();
+-        if (ttUUID == 0) {
+-            ttUUID = mgr.GetTypeTemplateUUID(tt);
+-        }
+-        if (otherTtUUID == 0) {
+-            otherTtUUID = mgr.GetTypeTemplateUUID(other.tt);
+-        }
+-        if (ttUUID != otherTtUUID) {
+-            return false;
+-        }
++    if (ttUUID != other.ttUUID) {
++        return false;
+     }
+ 
+-    for (U32 idx = 0; idx < argSize; idx++) {
++    if (argSize == 0) {
++        return true;
++    }
++
++    if (inlineArgUUIDs[0] != other.inlineArgUUIDs[0]) {
++        return false;
++    }
++
++    if (argSize == 1) {
++        return true;
++    }
++
++    if (inlineArgUUIDs[1] != other.inlineArgUUIDs[1]) {
++        return false;
++    }
++
++    if (argSize == INLINE_ARG_LIMIT) {
++        return true;
++    }
++
++    TypeInfoManager& mgr = TypeInfoManager::GetTypeInfoManager();
++    for (U32 idx = INLINE_ARG_LIMIT; idx < argSize; ++idx) {
+         TypeInfo* ti = argsVector[idx];
+         TypeInfo* otherTi = other.args[idx];
+         if (ti->IsInitialUUID()) {
+@@ -366,17 +474,25 @@ TypeInfoManager::GenericTiDesc* TypeInfoManager::GetTypeInfo(TypeTemplate* tt, U
+ 
+ TypeInfo* TypeInfoManager::GetOrCreateTypeInfo(TypeTemplate* tt, U32 argSize, TypeInfo* args[])
+ {
++    if (TypeInfo* cachedTypeInfo = genericTypeInfoLastHitCache.Lookup(tt, argSize, args); cachedTypeInfo != nullptr) {
++        return cachedTypeInfo;
++    }
++
+     auto typeInfoDesc = GetTypeInfo(tt, argSize, args);
++    auto cacheAndReturn = [tt, argSize, args](TypeInfo* typeInfo) {
++        genericTypeInfoLastHitCache.Update(tt, argSize, args, typeInfo);
++        return typeInfo;
++    };
+     if (typeInfoDesc->IsInited()) {
+-        return typeInfoDesc->typeInfo;
++        return cacheAndReturn(typeInfoDesc->typeInfo);
+     }
+     const U32 currentTid = static_cast<U32>(GetTid());
+     do {
+         if (typeInfoDesc->IsInited()) {
+-            return typeInfoDesc->typeInfo;
++            return cacheAndReturn(typeInfoDesc->typeInfo);
+         }
+         if (typeInfoDesc->IsIniting() && typeInfoDesc->tid.load() == currentTid) {
+-            return typeInfoDesc->typeInfo;
++            return cacheAndReturn(typeInfoDesc->typeInfo);
+         }
+         if (typeInfoDesc->IsNotCreated() && typeInfoDesc->tid.load() == currentTid) {
+             CreatedTypeInfo(typeInfoDesc, tt, argSize, args);
+diff --git a/runtime/src/TypeInfoManager.h b/runtime/src/TypeInfoManager.h
+index 29fbc437..b342547a 100644
+--- a/runtime/src/TypeInfoManager.h
++++ b/runtime/src/TypeInfoManager.h
+@@ -82,15 +82,23 @@ private:
+     };
+     class GenericTiDesc {
+     public:
++        static constexpr U32 INLINE_ARG_LIMIT = 2;
++
+         GenericTiDesc(TypeTemplate* pTypeTemplate, U32 pArgSize, TypeInfo* pArgs[])
+-            : tt(pTypeTemplate), argSize(pArgSize), args(pArgs), hash(computeHash()) {
++            : tt(pTypeTemplate), argSize(pArgSize), args(pArgs)
++        {
++            hash = computeHash();
+         }
+ 
+         GenericTiDesc(GenericTiDesc &desc)
+         {
+             tt = desc.tt;
+             argSize = desc.argSize;
++            args = nullptr;
+             hash = desc.hash;
++            ttUUID = desc.ttUUID;
++            inlineArgUUIDs[0] = desc.inlineArgUUIDs[0];
++            inlineArgUUIDs[1] = desc.inlineArgUUIDs[1];
+             argsVector.assign(desc.args, desc.args + desc.argSize);
+             tid.store(GetTid());
+         }
+@@ -113,6 +121,8 @@ private:
+         TypeInfo** args;
+         U32 hash;
+     private:
++        U32 ttUUID { 0 };
++        U32 inlineArgUUIDs[INLINE_ARG_LIMIT] { 0, 0 };
+         std::vector<TypeInfo*> argsVector = { };
+         std::atomic<TypeInfoStatus> status { TypeInfoStatus::TYPEINFO_NOT_CREATED };
+     };
+-- 
+2.39.5 (Apple Git-154)
+

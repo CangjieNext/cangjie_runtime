@@ -1,0 +1,594 @@
+diff --git a/runtime/src/Heap/MAllocator/MSAllocBuffer.cpp b/runtime/src/Heap/MAllocator/MSAllocBuffer.cpp
+index 1a8fb45e..8bc946ef 100644
+--- a/runtime/src/Heap/MAllocator/MSAllocBuffer.cpp
++++ b/runtime/src/Heap/MAllocator/MSAllocBuffer.cpp
+@@ -439,7 +439,8 @@ MAddress AllocBufferMS::FastAlloc(uint8_t cls)
+         if (region->regionType == MSRegionType::MS_REGION_BUMP) {
+             addr = region->AllocBump();
+         } else {
+-            addr = region->AllocFromBitmapFast();
++            // Opt-B: serve from per-class magazine (avoids pointer-chase on each alloc)
++            addr = AllocFromMagazine(cls, region);
+         }
+         if (LIKELY(addr != 0)) {
+             g_msAllocSlowPathCounters.fastAllocHits.fetch_add(1, std::memory_order_relaxed);
+@@ -520,7 +521,8 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
+     if (newRegion->regionType == MSRegionType::MS_REGION_BUMP) {
+         addr = newRegion->AllocBump();
+     } else {
+-        addr = newRegion->AllocFromBitmapFast();
++        // Opt-B: magazine for the new region is empty (just flushed old one)
++        addr = AllocFromMagazine(cls, newRegion);
+     }
+     return static_cast<MAddress>(addr);
+ }
+@@ -535,6 +537,10 @@ void AllocBufferMS::ReturnRegion(uint8_t cls)
+         return;
+     }
+ 
++    // Opt-B: push any pre-popped magazine slots back into region's freelist
++    // before classifying and returning the region to the central pool.
++    FlushMagazine(cls);
++
+     ReturnRegionToCentral(region, cls);
+     activeRegions_[cls] = nullptr;
+ }
+@@ -550,6 +556,56 @@ MSRegionInfo* AllocBufferMS::TakeCachedRegion(uint8_t cls)
+     return nullptr;
+ }
+ 
++// ============================================================================
++// Opt-B: AllocFromMagazine / FlushMagazine
++// ============================================================================
++
++// Serve one slot from the per-class magazine; refill from region's freelist when empty.
++uintptr_t AllocBufferMS::AllocFromMagazine(uint8_t cls, MSRegionInfo* region)
++{
++    if (LIKELY(magHead_[cls] < magSize_[cls])) {
++        return magazine_[cls][magHead_[cls]++];
++    }
++    // Magazine empty: batch-drain up to kMagazineSize slots from the freelist.
++    // All these accesses happen in a tight loop; prefetch inside AllocFromFreelistFast
++    // hides the per-node cache-miss latency for the subsequent iteration (Opt-C).
++    magHead_[cls] = 0;
++    uint8_t n = 0;
++    while (n < kMagazineSize) {
++        uintptr_t slot = region->AllocFromFreelistFast();
++        if (slot == 0) break;
++        magazine_[cls][n++] = slot;
++    }
++    magSize_[cls] = n;
++    if (n == 0) return 0;
++    return magazine_[cls][magHead_[cls]++];
++}
++
++// Push remaining magazine items back into the active region's freelist (prepend).
++// Called by ReturnRegion before handing the region back to CentralRegionPool so
++// that freeSlotCount and freeHead remain consistent for pool classification.
++void AllocBufferMS::FlushMagazine(uint8_t cls)
++{
++    MSRegionInfo* region = activeRegions_[cls];
++    uint8_t head = magHead_[cls];
++    uint8_t size = magSize_[cls];
++    if (head >= size) {
++        // Nothing to flush
++        magHead_[cls] = magSize_[cls] = 0;
++        return;
++    }
++    if (LIKELY(region != nullptr)) {
++        while (head < size) {
++            uintptr_t slot = magazine_[cls][head++];
++            *reinterpret_cast<uintptr_t*>(slot) = region->freeHead;
++            region->freeHead = slot;
++            region->freeSlotCount++;
++        }
++    }
++    magHead_[cls] = 0;
++    magSize_[cls] = 0;
++}
++
+ bool AllocBufferMS::TryCacheRegion(uint8_t cls, MSRegionInfo* region, uint8_t slotLimit)
+ {
+     slotLimit = std::min(slotLimit, kCachedRegionSlots);
+diff --git a/runtime/src/Heap/MAllocator/MSAllocBuffer.h b/runtime/src/Heap/MAllocator/MSAllocBuffer.h
+index 877ed5c6..3b781f90 100644
+--- a/runtime/src/Heap/MAllocator/MSAllocBuffer.h
++++ b/runtime/src/Heap/MAllocator/MSAllocBuffer.h
+@@ -159,6 +159,8 @@ private:
+     static constexpr uint8_t kNoPreferredHotClass = UINT8_MAX;
+     static constexpr uint8_t kCachedRegionSlots = 5;
+     static constexpr uint8_t kBaseCachedRegionSlots = 2;
++    // Opt-B: per-size-class magazine (pre-popped slots, served from L1 cache).
++    static constexpr uint8_t kMagazineSize = 16;
+ 
+     // LLVM fast-path compatibility: must be at offset 0 (same as AllocBuffer::tlRegion).
+     // Set to NullRegion() so fast-path allocation always fails → slow path.
+@@ -206,6 +208,14 @@ private:
+     // Return current active Region to CentralRegionPool
+     void ReturnRegion(uint8_t cls);
+ 
++    // Opt-B: batch-pop up to kMagazineSize slots from region's freelist into magazine_,
++    // then return one slot.  Returns 0 if region's freelist is fully exhausted.
++    uintptr_t AllocFromMagazine(uint8_t cls, MSRegionInfo* region);
++
++    // Opt-B: push remaining magazine items back into the active region's freelist
++    // before the region is returned to CentralRegionPool.
++    void FlushMagazine(uint8_t cls);
++
+     // Per-size-class active Region (nullptr = no active Region for this class)
+     MSRegionInfo* activeRegions_[kNumSizeClasses] = {};
+ 
+@@ -223,6 +233,12 @@ private:
+     std::atomic<uint8_t> hotHintCls_{kNoPreferredHotClass};
+     std::atomic<uint8_t> cacheConsumed_[kNumSizeClasses] = {};
+ 
++    // Opt-B: per-size-class magazine — pre-popped slot addresses served from L1.
++    // Flushed back to the region's freelist before ReturnRegion.
++    uintptr_t magazine_[kNumSizeClasses][kMagazineSize] = {};
++    uint8_t   magHead_[kNumSizeClasses] = {};
++    uint8_t   magSize_[kNumSizeClasses] = {};
++
+     // Back-pointer to global CentralRegionPool
+     CentralRegionPool* central_ = nullptr;
+ 
+diff --git a/runtime/src/Heap/MAllocator/MSBitmapArena.h b/runtime/src/Heap/MAllocator/MSBitmapArena.h
+index 95dcff14..71c6bcd1 100644
+--- a/runtime/src/Heap/MAllocator/MSBitmapArena.h
++++ b/runtime/src/Heap/MAllocator/MSBitmapArena.h
+@@ -17,7 +17,7 @@ namespace MapleRuntime {
+ class MSBitmapArena {
+ public:
+     static constexpr size_t kMaxBitmapWords = 64;
+-    static constexpr size_t kBitmapSlotBytes = kMaxBitmapWords * sizeof(uint64_t) * 2;
++    static constexpr size_t kBitmapSlotBytes = kMaxBitmapWords * sizeof(uint64_t) * 1; // freelist: only markBitmap, no allocBitmap
+     static constexpr size_t kRegionsPerChunk = 256;
+     static constexpr size_t kChunkBytes = kRegionsPerChunk * kBitmapSlotBytes;
+ 
+diff --git a/runtime/src/Heap/MAllocator/MSCentralRegionPool.cpp b/runtime/src/Heap/MAllocator/MSCentralRegionPool.cpp
+index bd551f55..24d266df 100644
+--- a/runtime/src/Heap/MAllocator/MSCentralRegionPool.cpp
++++ b/runtime/src/Heap/MAllocator/MSCentralRegionPool.cpp
+@@ -181,12 +181,12 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls, MSRegionAcquireSource* s
+         size_t regionIdx = MSRegionInfoArray::GetRegionIdx(region);
+         uintptr_t regionStart = MSRegionInfoArray::GetRegionAddress(regionIdx);
+ 
+-        if (region->sizeClass == cls && region->allocBitmap != nullptr) {
++        if (region->sizeClass == cls && region->markBitmap != nullptr) {
+             region->ResetToBump();
+         } else {
+             region->ResetToEmptyCache();
+             region->InitForSizeClass(cls);
+-            CHECK_DETAIL(region->allocBitmap != nullptr,
++            CHECK_DETAIL(region->markBitmap != nullptr,
+                          "GetRegion: InitForSizeClass failed for cls=%u idx=%zu",
+                          static_cast<unsigned>(cls), regionIdx);
+         }
+@@ -209,10 +209,10 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls, MSRegionAcquireSource* s
+             if (UNLIKELY(region->regionEnd != expectedEnd)) {
+                 LOG(RTLOG_FATAL, "[MS-GC] GetRegion P1: partialSwept region has wrong regionEnd! "
+                     "regionEnd=0x%zx, expected=0x%zx, allocPtr=0x%zx, cls=%u, "
+-                    "sizeClass=%u, allocBitmap=%p, this=%p (idx=%zu)",
++                    "sizeClass=%u, freeHead=0x%zx, this=%p (idx=%zu)",
+                     region->regionEnd, expectedEnd, region->allocPtr,
+                     (unsigned)cls, (unsigned)region->sizeClass,
+-                    (void*)region->allocBitmap, (void*)region, ridx);
++                    (uintptr_t)region->freeHead, (void*)region, ridx);
+             }
+             return region;
+         }
+@@ -376,12 +376,12 @@ MSRegionInfo* CentralRegionPool::GetFreshRegion(uint8_t cls)
+     // Debug: check MSRegionInfo state BEFORE InitForSizeClass
+     if (UNLIKELY(msInfo->regionType != MSRegionType::MS_REGION_FREE)) {
+         LOG(RTLOG_FATAL, "[MS-GC] GetFreshRegion: TakeRegion returned non-FREE region! "
+-            "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, "
++            "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, freeHead=0x%zx, "
+             "sizeClass=%u, sweepState=%d, sweepGen=%u, "
+             "nextIdx=%d, prevIdx=%d, reserved=0x%llx, "
+             "cls=%u, regionIdx=%zu, regionStart=0x%zx, this=%p",
+             (int)msInfo->regionType, msInfo->allocPtr, msInfo->regionEnd,
+-            (void*)msInfo->allocBitmap, (unsigned)msInfo->sizeClass,
++            (uintptr_t)msInfo->freeHead, (unsigned)msInfo->sizeClass,
+             (int)msInfo->sweepState, msInfo->sweepGen,
+             msInfo->nextRegionIdx, msInfo->prevRegionIdx,
+             (unsigned long long)msInfo->reserved,
+@@ -392,7 +392,7 @@ MSRegionInfo* CentralRegionPool::GetFreshRegion(uint8_t cls)
+     msInfo->InitForSizeClass(cls);
+ 
+     // Debug: verify bitmap allocation succeeded
+-    if (UNLIKELY(msInfo->allocBitmap == nullptr)) {
++    if (UNLIKELY(msInfo->markBitmap == nullptr)) {
+         LOG(RTLOG_FATAL, "[MS-GC] GetFreshRegion: InitForSizeClass failed to alloc bitmap, "
+             "cls=%u, regionIdx=%zu, regionStart=0x%zx, totalSlots=%u, this=%p",
+             (unsigned)cls, regionIdx, regionStart, (unsigned)msInfo->totalSlotCount,
+@@ -499,7 +499,7 @@ MSRegionInfo* CentralRegionPool::TakeEmptySweptRegion(uint8_t cls)
+     size_t regionIdx = MSRegionInfoArray::GetRegionIdx(region);
+     uintptr_t regionStart = MSRegionInfoArray::GetRegionAddress(regionIdx);
+     region->InitForSizeClass(cls);
+-    CHECK_DETAIL(region->allocBitmap != nullptr,
++    CHECK_DETAIL(region->markBitmap != nullptr,
+                  "TakeEmptySweptRegion: InitForSizeClass failed for cls=%u idx=%zu",
+                  static_cast<unsigned>(cls), regionIdx);
+     region->allocPtr = regionStart;
+diff --git a/runtime/src/Heap/MAllocator/MSRegionInfo.cpp b/runtime/src/Heap/MAllocator/MSRegionInfo.cpp
+index 3ff6cd58..015ae7fb 100644
+--- a/runtime/src/Heap/MAllocator/MSRegionInfo.cpp
++++ b/runtime/src/Heap/MAllocator/MSRegionInfo.cpp
+@@ -36,31 +36,23 @@ void MSRegionInfo::InitForSizeClass(uint8_t cls)
+     sweepGen = 0;
+     reserved = 0;  // searchHint = 0
+ 
+-    // Use the fixed sidecar slot for this region:
+-    // [allocBitmap | markBitmap].
++    // Use the fixed sidecar slot for this region: [markBitmap] only (freelist needs no allocBitmap).
+     size_t bitmapWords = (totalSlotCount + 63) / 64;
+     size_t bitmapBytes = bitmapWords * sizeof(uint64_t);
+     size_t regionIdx = MSRegionInfoArray::GetRegionIdx(this);
+     uint64_t* mem = MSBitmapArena::GetSlotBase(regionIdx);
+     if (mem == nullptr) {
+-        allocBitmap = nullptr;
++        freeHead = 0;
+         markBitmap = nullptr;
+         return;
+     }
+ 
+-    allocBitmap = mem;
+-    markBitmap = reinterpret_cast<uint64_t*>(reinterpret_cast<uint8_t*>(mem) + bitmapBytes);
++    freeHead = 0;   // no freelist yet; region starts as BUMP
++    markBitmap = mem;
+ 
+-    // Initialize: all slots free (allocBitmap all-1s), mark bits cleared
+-    memset(allocBitmap, 0xFF, bitmapBytes);
++    // Initialize: mark bits cleared
+     memset(markBitmap, 0, bitmapBytes);
+ 
+-    // Mask out invalid trailing bits in the last word if totalSlotCount % 64 != 0
+-    size_t trailingBits = totalSlotCount % 64;
+-    if (trailingBits != 0) {
+-        allocBitmap[bitmapWords - 1] = (1ULL << trailingBits) - 1;
+-    }
+-
+     // Build summary word (O4): all bitmap words have free slots
+     reserved = (bitmapWords == 64) ? ~0ULL : ((1ULL << bitmapWords) - 1);
+ }
+@@ -72,7 +64,7 @@ void MSRegionInfo::InitForLargeObject(uintptr_t start, uintptr_t end)
+     nextRegionIdx = INVALID_IDX;
+     prevRegionIdx = INVALID_IDX;
+ 
+-    allocBitmap = nullptr;
++    freeHead = 0;
+     markBitmap = nullptr;
+ 
+     totalSlotCount = 1;
+@@ -91,10 +83,10 @@ void MSRegionInfo::InitForLargeObject(uintptr_t start, uintptr_t end)
+ 
+ void MSRegionInfo::ReleaseBitmaps()
+ {
+-    if (allocBitmap != nullptr) {
+-        allocBitmap = nullptr;
++    if (markBitmap != nullptr) {
+         markBitmap = nullptr;
+     }
++    freeHead = 0;
+ }
+ 
+ void MSRegionInfo::Reset()
+@@ -118,8 +110,7 @@ void MSRegionInfo::Reset()
+ 
+ void MSRegionInfo::ResetToBump()
+ {
+-    // Reset a completely-free region back to BUMP for fast reuse (O3).
+-    // Preserves bitmap memory — avoids munmap/mmap cycle.
++    // Reset allocPtr/state for BUMP reuse; preserve markBitmap memory.
+     allocPtr = RegionStart();
+     sweepState = MSSweepState::UNSWEPT;
+     regionType = MSRegionType::MS_REGION_BUMP;
+@@ -127,19 +118,14 @@ void MSRegionInfo::ResetToBump()
+     liveSlotCount = 0;
+     rawPointerObjCount = 0;
+     flags_ = 0;
++    freeHead = 0;  // no freelist; BUMP mode
+ 
+-    // Reset allocBitmap to all-1s (all slots free)
+-    size_t bitmapWords = (totalSlotCount + 63) / 64;
+-    memset(allocBitmap, 0xFF, bitmapWords * sizeof(uint64_t));
+-    size_t trailingBits = totalSlotCount % 64;
+-    if (trailingBits != 0) {
+-        allocBitmap[bitmapWords - 1] = (1ULL << trailingBits) - 1;
+-    }
+     // Clear markBitmap for safety
++    size_t bitmapWords = (totalSlotCount + 63) / 64;
+     memset(markBitmap, 0, bitmapWords * sizeof(uint64_t));
+ 
+-    // Build summary word (O4): all bitmap words have free slots
+-    reserved = (bitmapWords == 64) ? ~0ULL : ((1ULL << bitmapWords) - 1);
++    // reserved no longer used for summary; clear it
++    reserved = 0;
+ }
+ 
+ void MSRegionInfo::ResetToEmptyCache()
+@@ -177,9 +163,9 @@ uintptr_t MSRegionInfo::Alloc()
+                  regionType == MSRegionType::MS_REGION_FREE ||
+                  regionType == MSRegionType::MS_REGION_EMPTY_CACHE)) {
+         LOG(RTLOG_FATAL, "[MS-GC] Alloc() on bad regionType=%d, allocPtr=0x%zx, "
+-            "regionEnd=0x%zx, sizeClass=%u, allocBitmap=%p, this=%p",
++            "regionEnd=0x%zx, sizeClass=%u, freeHead=0x%zx, this=%p",
+             (int)regionType, allocPtr, regionEnd, (unsigned)sizeClass,
+-            (void*)allocBitmap, (void*)this);
++            (uintptr_t)freeHead, (void*)this);
+     }
+ #endif
+ 
+@@ -188,14 +174,13 @@ uintptr_t MSRegionInfo::Alloc()
+ 
+ uintptr_t MSRegionInfo::AllocFromBitmap()
+ {
+-    return AllocFromBitmapFast();
++    return AllocFromFreelistFast();
+ }
+ 
+ uintptr_t MSRegionInfo::AllocFromBitmapSlow(size_t /* hint */)
+ {
+-    // With summary word (O4), AllocFromBitmapFast handles all cases.
+-    // This is kept as a legacy fallback for Alloc().
+-    return AllocFromBitmapFast();
++    // Legacy fallback — freelist handles all cases.
++    return AllocFromFreelistFast();
+ }
+ 
+ // ============================================================================
+@@ -205,59 +190,62 @@ uintptr_t MSRegionInfo::AllocFromBitmapSlow(size_t /* hint */)
+ size_t MSRegionInfo::SweepRegion()
+ {
+     size_t wordCount = (totalSlotCount + 63) / 64;
+-    int liveCount = 0;
+-    uint64_t summary = 0;
+-    uintptr_t base = RegionStart();
++    size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
+ 
++    // ── Phase 1: count live bits only (pure popcount, no memset, no freelist ops) ──
++    int liveCount = 0;
+     for (size_t i = 0; i < wordCount; i++) {
+-        // Core: allocBitmap = ~markBitmap  (one NOT per 64 slots)
+-        allocBitmap[i] = ~markBitmap[i];
+         liveCount += __builtin_popcountll(markBitmap[i]);
+-        if (allocBitmap[i] != 0) {
+-            summary |= (1ULL << i);
+-        }
+     }
+ 
+-    // Mask out invalid trailing bits
+-    size_t trailingBits = totalSlotCount % 64;
+-    if (trailingBits != 0) {
+-        allocBitmap[wordCount - 1] &= (1ULL << trailingBits) - 1;
+-        if (allocBitmap[wordCount - 1] == 0) {
+-            summary &= ~(1ULL << (wordCount - 1));
+-        }
+-    }
++    liveSlotCount = static_cast<uint16_t>(liveCount);
++    freeSlotCount = totalSlotCount - liveSlotCount;
++    sweepState    = MSSweepState::SWEPT;
++    reserved      = 0;
+ 
+-    // Zero dead slots: the compiler assumes freshly-allocated memory is zeroed
+-    // (same as CopyGC's bump allocator from mmap'd pages). Bitmap allocation
+-    // reuses swept slots, so stale object data must be cleared here — not on the
+-    // allocation hot-path — to avoid GC tracing stale reference fields.
++    // ── Opt-A fast exit: 100% dead → skip freelist build; caller sees IsCompletelyFree() ──
+     if (liveCount == 0) {
+-        memset(reinterpret_cast<void*>(base), 0, MS_REGION_SIZE);
+-    } else {
+-        size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
+-        for (size_t i = 0; i < wordCount; i++) {
+-            uint64_t freeBits = allocBitmap[i];
+-            while (freeBits != 0) {
+-                int bit = __builtin_ctzll(freeBits);
+-                size_t slotIdx = i * 64 + static_cast<size_t>(bit);
+-                uintptr_t slotAddr = base + slotIdx * slotSize;
+-                memset(reinterpret_cast<void*>(slotAddr), 0, slotSize);
+-                freeBits &= freeBits - 1;  // clear lowest set bit
++        freeHead = 0;
++        return static_cast<size_t>(freeSlotCount) * slotSize;
++    }
++
++    // ── Opt-A fast exit: 100% alive → no free slots ──
++    if (liveCount == static_cast<int>(totalSlotCount)) {
++        freeHead = 0;
++        return 0;
++    }
++
++    // ── Phase 2: partial region → build intrusive freelist (LIFO order) ──
++    uintptr_t freeListHead = 0;
++    uintptr_t base = RegionStart();
++
++    for (size_t i = 0; i < wordCount; i++) {
++        uint64_t freeBits = ~markBitmap[i];
++
++        // Mask out invalid trailing bits in the last word
++        if (i == wordCount - 1) {
++            size_t trailingBits = totalSlotCount % 64;
++            if (trailingBits != 0) {
++                freeBits &= (1ULL << trailingBits) - 1;
+             }
+         }
++
++        while (freeBits != 0) {
++            int bit = __builtin_ctzll(freeBits);
++            size_t slotIdx = i * 64 + static_cast<size_t>(bit);
++            uintptr_t slotAddr = base + slotIdx * slotSize;
++            // Zero the slot first; then prepend to freelist (writes next ptr into slot[0]).
++            memset(reinterpret_cast<void*>(slotAddr), 0, slotSize);
++            *reinterpret_cast<uintptr_t*>(slotAddr) = freeListHead;
++            freeListHead = slotAddr;
++            freeBits &= freeBits - 1;
++        }
+     }
+ 
+     // markBitmap is cleared by ClearAllMarkBitmaps at next MarkSetup,
+     // not here — avoids redundant memset per-region during sweep.
+ 
+-    liveSlotCount = static_cast<uint16_t>(liveCount);
+-    freeSlotCount = totalSlotCount - liveSlotCount;
+-    sweepState = MSSweepState::SWEPT;
+-
+-    // Store summary word (O4): bit[i]=1 if allocBitmap[i] has free slots
+-    reserved = summary;
+-
+-    size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
++    freeHead = freeListHead;
+     return static_cast<size_t>(freeSlotCount) * slotSize;
+ }
+ 
+diff --git a/runtime/src/Heap/MAllocator/MSRegionInfo.h b/runtime/src/Heap/MAllocator/MSRegionInfo.h
+index f37e7ee8..8114ec7e 100644
+--- a/runtime/src/Heap/MAllocator/MSRegionInfo.h
++++ b/runtime/src/Heap/MAllocator/MSRegionInfo.h
+@@ -71,8 +71,8 @@ struct MSRegionInfo {
+     int32_t     nextRegionIdx;      // +16  linked list next index (4B)
+     int32_t     prevRegionIdx;      // +20  linked list prev index (4B)
+ 
+-    // ========== Bitmap pointers ==========
+-    uint64_t*   allocBitmap;        // +24  allocation bitmap: 1=free, 0=allocated (8B)
++    // ========== Freelist head / Bitmap pointer ==========
++    uintptr_t   freeHead;           // +24  freelist head (intrusive; 0=empty) (8B)
+     uint64_t*   markBitmap;         // +32  mark bitmap: 1=alive, 0=dead (8B)
+ 
+     // ========== Statistics ==========
+@@ -115,7 +115,7 @@ struct MSRegionInfo {
+     uint32_t    sweepGen;           // +52  sweep generation for lazy sweep (4B)
+ 
+     // ========== Reserved for future ==========
+-    uint64_t    reserved;           // +56  summary word (PARTIAL: bit[i]=1 if allocBitmap[i] has free) / large obj base idx (8B)
++    uint64_t    reserved;           // +56  large obj base idx (8B)
+ 
+     // === Constants ===
+     static constexpr int32_t INVALID_IDX = static_cast<int32_t>(0xFFFFFFFF);
+@@ -150,31 +150,25 @@ struct MSRegionInfo {
+         return 0;  // Region full
+     }
+ 
+-    // Bitmap-based allocation for swept regions (inline fast path).
+-    // Uses summary word (reserved) for O(1) lookup: bit[i]=1 means allocBitmap[i] has free slots.
+-    inline uintptr_t AllocFromBitmapFast()
++    // Freelist-based allocation for swept regions (inline fast path).
++    // freeHead (+24) is the intrusive singly-linked list head (0 = empty).
++    // Each free slot stores the next-slot address in its first 8 bytes (cleared on pop).
++    // Opt-C: prefetch next node to hide pointer-chase latency on subsequent pop.
++    inline uintptr_t AllocFromFreelistFast()
+     {
+-        uint64_t summary = reserved;
+-        while (summary != 0) {
+-            size_t wordIdx = static_cast<size_t>(__builtin_ctzll(summary));
+-            uint64_t word = allocBitmap[wordIdx];
+-            if (LIKELY(word != 0)) {
+-                int bit = __builtin_ctzll(word);
+-                allocBitmap[wordIdx] = word & ~(1ULL << bit);
+-                freeSlotCount--;
+-                if (allocBitmap[wordIdx] == 0) {
+-                    reserved = reserved & ~(1ULL << wordIdx);
+-                }
+-                size_t slotIndex = wordIdx * 64 + static_cast<size_t>(bit);
+-                return RegionStart() + slotIndex * SizeClassInfo::ClassToSize(sizeClass);
+-            }
+-            // Summary was stale for this word, self-correct and try next
+-            summary &= ~(1ULL << wordIdx);
+-            reserved = reserved & ~(1ULL << wordIdx);
+-        }
+-        return 0;  // Region full
++        uintptr_t head = freeHead;
++        if (UNLIKELY(head == 0)) return 0;
++        uintptr_t next = *reinterpret_cast<uintptr_t*>(head);  // load next ptr
++        *reinterpret_cast<uintptr_t*>(head) = 0;               // clear next field
++        freeHead = next;                                        // pop
++        freeSlotCount--;
++        if (next != 0) __builtin_prefetch(reinterpret_cast<void*>(next), 0, 1);
++        return head;
+     }
+ 
++    // Legacy entry points (redirect to freelist).
++    inline uintptr_t AllocFromBitmapFast() { return AllocFromFreelistFast(); }
++
+     // Slow path: wrap-around search (legacy, kept for Alloc() backward compat)
+     uintptr_t AllocFromBitmapSlow(size_t hint);
+ 
+@@ -183,7 +177,7 @@ struct MSRegionInfo {
+     uintptr_t AllocFromBitmap();
+ 
+     // === Sweep ===
+-    // Returns bytes freed. Sets allocBitmap = ~markBitmap.
++    // Returns bytes freed. Builds intrusive freelist from dead slots.
+     size_t SweepRegion();
+ 
+     // === Mark ===
+diff --git a/runtime/src/Heap/MAllocator/MSRegionManager.cpp b/runtime/src/Heap/MAllocator/MSRegionManager.cpp
+index ca9948d0..cf92c36b 100644
+--- a/runtime/src/Heap/MAllocator/MSRegionManager.cpp
++++ b/runtime/src/Heap/MAllocator/MSRegionManager.cpp
+@@ -420,12 +420,12 @@ MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool&
+     // Debug: exhaustive check on every TakeRegion return
+     if (UNLIKELY(info->regionType != MSRegionType::MS_REGION_FREE)) {
+         LOG(RTLOG_FATAL, "[MS-GC] TakeRegion: array_[%u] NOT FREE! "
+-            "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, "
++            "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, freeHead=0x%zx, "
+             "sizeClass=%u, sweepState=%d, sweepGen=%u, "
+             "nextIdx=%d, prevIdx=%d, reserved=0x%llx, "
+             "array_=%p, info=%p",
+             regionIdx, (int)info->regionType, info->allocPtr, info->regionEnd,
+-            (void*)info->allocBitmap, (unsigned)info->sizeClass,
++            (uintptr_t)info->freeHead, (unsigned)info->sizeClass,
+             (int)info->sweepState, info->sweepGen,
+             info->nextRegionIdx, info->prevRegionIdx,
+             (unsigned long long)info->reserved,
+@@ -480,10 +480,10 @@ void MSRegionManager::ReclaimRegion(MSRegionInfo* region)
+     // Debug: verify MSRegionInfo was properly Reset BEFORE returning
+     if (UNLIKELY(region->regionType != MSRegionType::MS_REGION_FREE)) {
+         LOG(RTLOG_FATAL, "[MS-GC] ReclaimRegion: region NOT FREE before reclaim! "
+-            "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, "
++            "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, freeHead=0x%zx, "
+             "sizeClass=%u, sweepGen=%u, regionIdx=%zu",
+             (int)region->regionType, region->allocPtr, region->regionEnd,
+-            (void*)region->allocBitmap, (unsigned)region->sizeClass,
++            (uintptr_t)region->freeHead, (unsigned)region->sizeClass,
+             region->sweepGen, regionIdx);
+     }
+ 
+diff --git a/runtime/src/Heap/MAllocator/MSRegionSpace.cpp b/runtime/src/Heap/MAllocator/MSRegionSpace.cpp
+index 5b5e1718..957f79ac 100644
+--- a/runtime/src/Heap/MAllocator/MSRegionSpace.cpp
++++ b/runtime/src/Heap/MAllocator/MSRegionSpace.cpp
+@@ -424,12 +424,12 @@ void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t regionBytes)
+             entry->regionType != MSRegionType::MS_REGION_LARGE) {
+             LOG(RTLOG_FATAL, "[MS-GC] RegisterLargeObjectMS: span[%zu/%zu] (idx=%zu) has "
+                 "non-free regionType=%d! allocPtr=0x%zx, regionEnd=0x%zx, "
+-                "allocBitmap=%p, sizeClass=%u, freeSlots=%u, totalSlots=%u, "
++                "freeHead=0x%zx, sizeClass=%u, freeSlots=%u, totalSlots=%u, "
+                 "sweepState=%d, sweepGen=%u, nextIdx=%d, prevIdx=%d, reserved=0x%llx. "
+                 "Large: start=0x%zx, end=0x%zx, regionBytes=%zu",
+                 i, spanCount, baseIdx + i,
+                 (int)entry->regionType, entry->allocPtr, entry->regionEnd,
+-                (void*)entry->allocBitmap, (unsigned)entry->sizeClass,
++                (uintptr_t)entry->freeHead, (unsigned)entry->sizeClass,
+                 (unsigned)entry->freeSlotCount, (unsigned)entry->totalSlotCount,
+                 (int)entry->sweepState, entry->sweepGen,
+                 entry->nextRegionIdx, entry->prevRegionIdx,
+@@ -445,7 +445,7 @@ void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t regionBytes)
+         MSRegionInfo* spanInfo = MSRegionInfoArray::GetRegionInfoByIdx(baseIdx + i);
+         spanInfo->regionType = MSRegionType::MS_REGION_LARGE;
+         spanInfo->markBitmap = nullptr;
+-        spanInfo->allocBitmap = nullptr;
++        spanInfo->freeHead = 0;
+         spanInfo->totalSlotCount = 0;
+         spanInfo->freeSlotCount = 0;
+         spanInfo->flags_ = 0;
+diff --git a/runtime/src/Mutator/ThreadLocal.cpp b/runtime/src/Mutator/ThreadLocal.cpp
+index 29dcd628..a457ea42 100644
+--- a/runtime/src/Mutator/ThreadLocal.cpp
++++ b/runtime/src/Mutator/ThreadLocal.cpp
+@@ -113,7 +113,7 @@ extern "C" void MCC_CheckThreadLocalDataOffset()
+                   "need to modify the offset of this value in llvm-project at the same time");
+     static_assert(offsetof(MSRegionInfo, regionEnd) == 8,
+                   "need to modify the offset of this value in llvm-project at the same time");
+-    static_assert(offsetof(MSRegionInfo, allocBitmap) == 24,
++    static_assert(offsetof(MSRegionInfo, freeHead) == 24,
+                   "need to modify the offset of this value in llvm-project at the same time");
+     static_assert(offsetof(MSRegionInfo, freeSlotCount) == 42,
+                   "need to modify the offset of this value in llvm-project at the same time");

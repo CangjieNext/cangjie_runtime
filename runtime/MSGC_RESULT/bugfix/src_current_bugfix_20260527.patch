@@ -1,0 +1,787 @@
+diff --git a/runtime/src/CJThread/src/runtime/schedule/include/schedule.h b/runtime/src/CJThread/src/runtime/schedule/include/schedule.h
+index faf8a06f2a2dc52a04a502edbf60457976bfbbf4..9253985bf7f20ee5907819e20e18ebb141397d86 100755
+--- a/runtime/src/CJThread/src/runtime/schedule/include/schedule.h
++++ b/runtime/src/CJThread/src/runtime/schedule/include/schedule.h
+@@ -671,6 +671,8 @@ void CJThreadWait(void);
+  */
+ void CJThreadResumeAndWait(CJThreadHandle readyCJThread);
+ 
++void CJThreadExecuteManaged(struct CJThread *nextCJThread, void **gCJThread, uintptr_t threadData);
++
+ /**
+  * @brief Obtain the ID of the current cjthread.
+  * @par Description: Obtain the ID of the current cjthread. The ID is greater than or equal
+diff --git a/runtime/src/CJThread/src/runtime/schedule/src/cjthread.cpp b/runtime/src/CJThread/src/runtime/schedule/src/cjthread.cpp
+index 43c3d464af8d2464d01d6e3a232c7331639b59e9..1a7575148d15a40964db8466504ae24c1165e738 100644
+--- a/runtime/src/CJThread/src/runtime/schedule/src/cjthread.cpp
++++ b/runtime/src/CJThread/src/runtime/schedule/src/cjthread.cpp
+@@ -15,6 +15,7 @@
+ #include "thread.h"
+ #include "log.h"
+ #include "securec.h"
++#include "RuntimeConfig.h"
+ 
+ #include "Mutator/Mutator.inline.h"
+ 
+@@ -47,6 +48,16 @@ uintptr_t g_cjthreadStackReservedSize = STACK_DEFAULT_REVERSED;
+ constexpr size_t HUGE_PAGE = 2UL * 1024 * 1024; // use mmap when stack size is beyond 2mb.
+ #endif
+ 
++void CJThreadExecuteManaged(struct CJThread *nextCJThread, void **gCJThread, uintptr_t threadData)
++{
++#if defined(MRT_USE_MARK_SWEEP) && defined(__aarch64__)
++    nextCJThread->context.x28 = MapleRuntime::MRT_UpdateThreadLocalDataPhase(threadData);
++#else
++    (void)threadData;
++#endif
++    CJThreadExecute(nextCJThread, gCJThread);
++}
++
+ #ifdef MRT_WINDOWS
+ void CJThreadStackMemFree(struct CJThread *cjthread, char *stackTopAddr, size_t stackSize)
+ {
+@@ -1146,7 +1157,8 @@ void *CJThreadMpark(struct CJThread *parkCJThread)
+ #elif defined(__ANDROID__)
+             TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXEC, parkCJThread->id));
+ #endif
+-            CJThreadExecute(parkCJThread, (void**)&tlData->cjthread);
++            CJThreadExecuteManaged(parkCJThread, (void**)&tlData->cjthread,
++                                   reinterpret_cast<uintptr_t>(tlData));
+         }
+     }
+ 
+@@ -1318,8 +1330,8 @@ void *CJThreadMRAW(struct CJThread *parkCJThread)
+                 SingleCJThreadStoreSP();
+             }
+ #endif
+-
+-            CJThreadExecute(nextCJThread, (void**)&tlData->cjthread);
++            CJThreadExecuteManaged(nextCJThread, (void**)&tlData->cjthread,
++                                   reinterpret_cast<uintptr_t>(tlData));
+         }
+     }
+     /* END COPY */
+diff --git a/runtime/src/CJThread/src/runtime/schedule/src/processor.cpp b/runtime/src/CJThread/src/runtime/schedule/src/processor.cpp
+index 95466d151cd823f45223d3848011023d8330768f..9c25ab8a0e5a077074f18f025cef58af8c0c5b71 100755
+--- a/runtime/src/CJThread/src/runtime/schedule/src/processor.cpp
++++ b/runtime/src/CJThread/src/runtime/schedule/src/processor.cpp
+@@ -782,7 +782,8 @@ void ProcessorSchedule(void)
+                 SingleCJThreadStoreSP();
+             }
+ #endif
+-            CJThreadExecute(nextCJThread, (void**)&tlData->cjthread);
++            CJThreadExecuteManaged(nextCJThread, (void**)&tlData->cjthread,
++                                   reinterpret_cast<uintptr_t>(tlData));
+             continue;
+         }
+         // Finds a dispatchable cjthread and switches its state to RUNNING.
+@@ -817,7 +818,8 @@ void ProcessorSchedule(void)
+ #endif
+             // The execution context of ProcessorWake must be in cjthread0. Do not need to
+             // change the status of the current cjthread and directly switch to nextCJThread.
+-            CJThreadExecute(nextCJThread, (void**)&tlData->cjthread);
++            CJThreadExecuteManaged(nextCJThread, (void**)&tlData->cjthread,
++                                   reinterpret_cast<uintptr_t>(tlData));
+             return;
+         }
+     } while (true);
+diff --git a/runtime/src/CangjieRuntimeApi.cpp b/runtime/src/CangjieRuntimeApi.cpp
+index 8bac7a91432a95a5f80b982fa39ad04b26593776..2888c7d6fd9b91939513362b8c3b226a3768b34a 100644
+--- a/runtime/src/CangjieRuntimeApi.cpp
++++ b/runtime/src/CangjieRuntimeApi.cpp
+@@ -22,6 +22,7 @@
+ #include "ExceptionManager.inline.h"
+ #include "Mutator/Mutator.h"
+ #include "Mutator/MutatorManager.h"
++#include "RuntimeConfig.h"
+ #include "Heap/Collector/CollectorResources.h"
+ #include "RuntimeConfig.h"
+ #include "UnwindStack/MangleNameHelper.h"
+@@ -379,6 +380,7 @@ static void* UserFuncExecutor(void* arg, [[maybe_unused]] unsigned int len)
+     // mutator has been set to a valid pointer before.
+     MapleRuntime::Mutator* mutator = reinterpret_cast<MapleRuntime::ThreadLocalData*>(threadData)->mutator;
+     MapleRuntime::MRT_PreRunManagedCode(mutator, 0, reinterpret_cast<MapleRuntime::ThreadLocalData*>(threadData));
++    threadData = MapleRuntime::MRT_GetManagedEntryThreadData(threadData);
+     void* ptr = MapleRuntime::ExecuteCangjieStub(fi->arg, 0, 0, reinterpret_cast<void*>(fi->fn),
+                                                  reinterpret_cast<void*>(threadData), 0);
+ #ifdef CANGJIE_TSAN_SUPPORT
+@@ -518,6 +520,7 @@ static void* UserFuncWrapper(void* arg)
+     uintptr_t threadData = MapleRuntime::MRT_GetThreadLocalData();
+     MapleRuntime::Mutator* mutator = reinterpret_cast<MapleRuntime::ThreadLocalData*>(threadData)->mutator;
+     MapleRuntime::MRT_PreRunManagedCode(mutator, 0, reinterpret_cast<MapleRuntime::ThreadLocalData*>(threadData));
++    threadData = MapleRuntime::MRT_GetManagedEntryThreadData(threadData);
+     void* ptr = MapleRuntime::ExecuteCangjieStub(fi->arg, 0, 0, reinterpret_cast<void*>(fi->fn),
+                                                  reinterpret_cast<void*>(threadData), 0);
+ 
+diff --git a/runtime/src/CjScheduler.cpp b/runtime/src/CjScheduler.cpp
+index 8554ea2b5cf2784ae975ef2e722f4a6b0ae0d73d..8e4c583bbe04e4b966b0674de1fb7b5acca9c045 100644
+--- a/runtime/src/CjScheduler.cpp
++++ b/runtime/src/CjScheduler.cpp
+@@ -282,6 +282,7 @@ void* StartMainTask(void* arg, unsigned int len)
+     Mutator* mutator = MutatorManager::Instance().CreateMutator();
+     uintptr_t threadData = MRT_GetThreadLocalData();
+     MRT_PreRunManagedCode(mutator, 0, reinterpret_cast<ThreadLocalData*>(threadData));
++    threadData = MRT_GetManagedEntryThreadData(threadData);
+     reinterpret_cast<ThreadLocalData*>(threadData)->isCJProcessor = true;
+     int32_t res = static_cast<int32_t>(
+         reinterpret_cast<uintptr_t>(ExecuteCangjieStub(0, 0, 0, execute, reinterpret_cast<void*>(threadData), 0)));
+@@ -334,6 +335,7 @@ void* WrapperTask(void* arg, unsigned int len)
+     // mutator has been set to a valid pointer before.
+     Mutator* mutator = reinterpret_cast<ThreadLocalData*>(threadData)->mutator;
+     MRT_PreRunManagedCode(mutator, 0, reinterpret_cast<ThreadLocalData*>(threadData));
++    threadData = MRT_GetManagedEntryThreadData(threadData);
+     BaseObject* future = Heap::GetBarrier().ReadStaticRef(*(reinterpret_cast<RefField<>*>(&lwtData->obj)));
+     TypeInfo* typeInfo = future->GetTypeInfo();
+ #if defined(__aarch64__)
+@@ -447,6 +449,7 @@ static void* WrapperExclusiveClosure(void* arg, unsigned int len)
+     uintptr_t threadData = MRT_GetThreadLocalData();
+     Mutator* mutator = reinterpret_cast<ThreadLocalData*>(threadData)->mutator;
+     MRT_PreRunManagedCode(mutator, 0, reinterpret_cast<ThreadLocalData*>(threadData));
++    threadData = MRT_GetManagedEntryThreadData(threadData);
+     lwtData->threadObject = nullptr;
+     BaseObject* executeClosure = Heap::GetBarrier().ReadStaticRef(reinterpret_cast<RefField<false>&>(lwtData->execute));
+     BaseObject* closureObj = Heap::GetBarrier().ReadStaticRef(reinterpret_cast<RefField<false>&>(lwtData->obj));
+@@ -487,6 +490,7 @@ static void* WrapperOfExecuteClosure(void* arg, unsigned int len)
+     // mutator has been set to a valid pointer before.
+     Mutator* mutator = reinterpret_cast<ThreadLocalData*>(threadData)->mutator;
+     MRT_PreRunManagedCode(mutator, 0, reinterpret_cast<ThreadLocalData*>(threadData));
++    threadData = MRT_GetManagedEntryThreadData(threadData);
+     TypeInfo* futureTi = static_cast<TypeInfo*>(lwtData->threadObject);
+     // threadObject is used to pass TypeInfo of future. After use, need set to nullptr.
+     lwtData->threadObject = nullptr;
+diff --git a/runtime/src/CompilerCalls.cpp b/runtime/src/CompilerCalls.cpp
+index ca81f27e3f5577e2c0bfd358c66f687f8229e56a..da0d38fb0ed372afcca18862916f03b86e924ab9 100755
+--- a/runtime/src/CompilerCalls.cpp
++++ b/runtime/src/CompilerCalls.cpp
+@@ -7,6 +7,11 @@
+ 
+ #include "CompilerCalls.h"
+ 
++#include <algorithm>
++#include <cstdlib>
++#include <cstring>
++#include <vector>
++
+ #include "Base/CString.h"
+ #include "Base/Log.h"
+ #include "Base/LogFile.h"
+@@ -174,6 +179,180 @@ void RawPtrCheckerTimerEntry(void* arg)
+ static inline TypeInfo* NormalizeRuntimeTypeInfo(TypeInfo* typeInfo);
+ static inline const TypeInfo* NormalizeRuntimeTypeInfo(const TypeInfo* typeInfo);
+ 
++namespace {
++bool IsSlotTraceEnabled()
++{
++    static bool enabled = []() {
++        const char* env = std::getenv("CJ_MS_SLOT_TRACE");
++        return env != nullptr && env[0] != '\0' && std::strcmp(env, "0") != 0;
++    }();
++    return enabled;
++}
++
++bool SlotTracePermit()
++{
++    static size_t budget = []() -> size_t {
++        const char* env = std::getenv("CJ_MS_SLOT_TRACE_LIMIT");
++        if (env == nullptr || env[0] == '\0') {
++            return 256;
++        }
++        long value = std::strtol(env, nullptr, 10);
++        return value > 0 ? static_cast<size_t>(value) : 256;
++    }();
++    if (budget == 0) {
++        return false;
++    }
++    --budget;
++    return true;
++}
++
++bool IsNullTypeTraceEnabled()
++{
++    static bool enabled = []() {
++        const char* env = std::getenv("CJ_MS_NULL_TI_TRACE");
++        return env != nullptr && env[0] != '\0' && std::strcmp(env, "0") != 0;
++    }();
++    return enabled;
++}
++
++bool NullTypeTracePermit()
++{
++    static size_t budget = []() -> size_t {
++        const char* env = std::getenv("CJ_MS_NULL_TI_TRACE_LIMIT");
++        if (env == nullptr || env[0] == '\0') {
++            return 64;
++        }
++        long value = std::strtol(env, nullptr, 10);
++        return value > 0 ? static_cast<size_t>(value) : 64;
++    }();
++    if (budget == 0) {
++        return false;
++    }
++    --budget;
++    return true;
++}
++
++const char* GetSlotTraceTypeFilter()
++{
++    static const char* filter = []() -> const char* {
++        const char* env = std::getenv("CJ_MS_SLOT_TRACE_TYPE");
++        return (env != nullptr && env[0] != '\0') ? env : nullptr;
++    }();
++    return filter;
++}
++
++const char* GetSlotTraceTypeName(const BaseObject* obj)
++{
++    if (obj == nullptr) {
++        return "<null>";
++    }
++    TypeInfo* typeInfo = obj->GetTypeInfo();
++    if (typeInfo == nullptr || typeInfo->GetName() == nullptr) {
++        return "<unknown>";
++    }
++    return typeInfo->GetName();
++}
++
++bool MatchesSlotTraceType(const BaseObject* obj)
++{
++    const char* filter = GetSlotTraceTypeFilter();
++    if (filter == nullptr) {
++        return true;
++    }
++    return std::strstr(GetSlotTraceTypeName(obj), filter) != nullptr;
++}
++
++void MaybeLogNullStore(const char* op, const void* caller, BaseObject* dstObj, const void* slot,
++                       BaseObject* oldRef, BaseObject* newRef, const void* srcSlot)
++{
++    if (!IsSlotTraceEnabled() || oldRef == nullptr || newRef != nullptr) {
++        return;
++    }
++    if (!MatchesSlotTraceType(dstObj) && !MatchesSlotTraceType(oldRef)) {
++        return;
++    }
++    if (!SlotTracePermit()) {
++        return;
++    }
++    VLOG(REPORT,
++         "[MS-GC] SLOTTRACE bridge=%s caller=%p dstObj=%p dstType=%s slot=%p old=%p oldType=%s new=%p srcSlot=%p",
++         op, caller, static_cast<void*>(dstObj), GetSlotTraceTypeName(dstObj), slot, static_cast<void*>(oldRef),
++         GetSlotTraceTypeName(oldRef), static_cast<void*>(newRef), srcSlot);
++}
++
++void CaptureStructRefRange(BaseObject* obj, MAddress start, MAddress end,
++                           std::vector<const void*>& slots, std::vector<BaseObject*>& refs)
++{
++    if (obj == nullptr || !Heap::IsHeapAddress(obj)) {
++        return;
++    }
++    obj->ForEachRefInStruct(
++        [&slots, &refs](RefField<false>& refField) {
++            slots.push_back(&refField);
++            refs.push_back(refField.GetTargetObject());
++        },
++        start, end);
++}
++
++void LogCapturedStructNullStores(const char* op, const void* caller, BaseObject* dstObj,
++                                 const std::vector<const void*>& slots,
++                                 const std::vector<BaseObject*>& oldRefs,
++                                 MAddress start, MAddress end)
++{
++    if (slots.empty() || oldRefs.empty() || dstObj == nullptr || !Heap::IsHeapAddress(dstObj)) {
++        return;
++    }
++    size_t index = 0;
++    dstObj->ForEachRefInStruct(
++        [&](RefField<false>& refField) {
++            if (index >= slots.size() || index >= oldRefs.size()) {
++                return;
++            }
++            MaybeLogNullStore(op, caller, dstObj, slots[index], oldRefs[index], refField.GetTargetObject(), nullptr);
++            ++index;
++        },
++        start, end);
++}
++
++struct AArch64CallerRegs {
++    uintptr_t x19 = 0;
++    uintptr_t x20 = 0;
++    uintptr_t x21 = 0;
++    uintptr_t x22 = 0;
++    uintptr_t x23 = 0;
++    uintptr_t x24 = 0;
++};
++
++AArch64CallerRegs ReadAArch64CallerRegs()
++{
++    AArch64CallerRegs regs;
++#if defined(__aarch64__)
++    asm volatile(
++        "mov %0, x19\n\t"
++        "mov %1, x20\n\t"
++        "mov %2, x21\n\t"
++        "mov %3, x22\n\t"
++        "mov %4, x23\n\t"
++        "mov %5, x24\n\t"
++        : "=r"(regs.x19), "=r"(regs.x20), "=r"(regs.x21), "=r"(regs.x22), "=r"(regs.x23), "=r"(regs.x24));
++#endif
++    return regs;
++}
++
++void MaybeLogNullTypeInfo(const char* op, const void* caller, const void* rawTi, const void* rawItf)
++{
++    if (!IsNullTypeTraceEnabled() || rawTi != nullptr || !NullTypeTracePermit()) {
++        return;
++    }
++    AArch64CallerRegs regs = ReadAArch64CallerRegs();
++    VLOG(REPORT,
++         "[MS-GC] NULLTI op=%s caller=%p ti=%p itf=%p x19=%p x20=%p x21=%p x22=%p x23=%p x24=%p",
++         op, caller, rawTi, rawItf, reinterpret_cast<void*>(regs.x19), reinterpret_cast<void*>(regs.x20),
++         reinterpret_cast<void*>(regs.x21), reinterpret_cast<void*>(regs.x22), reinterpret_cast<void*>(regs.x23),
++         reinterpret_cast<void*>(regs.x24));
++}
++} // namespace
++
+ extern "C" ObjRef MCC_NewObject(const TypeInfo* klass, MSize size)
+ {
+     klass = NormalizeRuntimeTypeInfo(klass);
+@@ -300,7 +479,9 @@ extern "C" void MCC_WriteRefField(const ObjectPtr ref, const ObjectPtr obj, RefF
+         field->SetTargetObject(ref);
+         return;
+     }
++    BaseObject* oldRef = field->GetTargetObject();
+     Heap::GetBarrier().WriteReference(obj, *field, ref);
++    MaybeLogNullStore("MCC_WriteRefField", __builtin_return_address(0), obj, field, oldRef, ref, nullptr);
+ }
+ 
+ extern "C" void MCC_WriteStructField(ObjectPtr obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen)
+@@ -311,7 +492,14 @@ extern "C" void MCC_WriteStructField(ObjectPtr obj, MAddress dst, size_t dstLen,
+                      "memcpy_s failed");
+         return;
+     }
++    std::vector<const void*> slots;
++    std::vector<BaseObject*> oldRefs;
++    if (IsSlotTraceEnabled()) {
++        CaptureStructRefRange(obj, dst, dst + std::min(dstLen, srcLen), slots, oldRefs);
++    }
+     Heap::GetBarrier().WriteStruct(obj, dst, dstLen, src, srcLen);
++    LogCapturedStructNullStores("MCC_WriteStructField", __builtin_return_address(0), obj, slots, oldRefs,
++                                dst, dst + std::min(dstLen, srcLen));
+ }
+ 
+ extern "C" void MCC_WriteStaticRef(const ObjectPtr ref, RefField<false>* field)
+@@ -328,10 +516,10 @@ extern "C" void MCC_WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src,
+ extern "C" TypeInfo* MCC_GetObjClass(const ObjectPtr obj)
+ {
+     // it may be better by installing load barrier.
+-    return obj->GetTypeInfo();
++    return NormalizeRuntimeTypeInfo(obj->GetTypeInfo());
+ }
+ 
+-extern "C" TypeInfo* MCC_GetTypeForAny(const ObjectPtr obj) { return obj->GetTypeInfo(); }
++extern "C" TypeInfo* MCC_GetTypeForAny(const ObjectPtr obj) { return NormalizeRuntimeTypeInfo(obj->GetTypeInfo()); }
+ 
+ extern "C" bool MCC_IsWrapperClassForAutoEnv(const TypeInfo* ti)
+ {
+@@ -355,7 +543,25 @@ extern "C" void CJ_MCC_ArrayCopyRef(const ObjectPtr dstObj, MAddress dstField, s
+         return;
+     }
+     MRT_ASSERT(dstSize <= SECUREC_MEM_MAX_LEN, "size too big in CJ_MCC_ArrayCopy");
++    const void* caller = __builtin_return_address(0);
++    size_t copySize = std::min(dstSize, srcSize);
++    size_t refCount = copySize / sizeof(MAddress);
++    std::vector<BaseObject*> oldRefs;
++    if (IsSlotTraceEnabled() && refCount != 0) {
++        RefField<false>* dstRefs = reinterpret_cast<RefField<false>*>(dstField);
++        oldRefs.reserve(refCount);
++        for (size_t i = 0; i < refCount; ++i) {
++            oldRefs.push_back(dstRefs[i].GetTargetObject());
++        }
++    }
+     Heap::GetBarrier().CopyRefArray(dstObj, dstField, dstSize, srcObj, srcField, srcSize);
++    if (!oldRefs.empty()) {
++        RefField<false>* dstRefs = reinterpret_cast<RefField<false>*>(dstField);
++        for (size_t i = 0; i < oldRefs.size(); ++i) {
++            MaybeLogNullStore("CJ_MCC_ArrayCopyRef", caller, dstObj, &dstRefs[i], oldRefs[i],
++                              dstRefs[i].GetTargetObject(), reinterpret_cast<void*>(srcField + i * sizeof(MAddress)));
++        }
++    }
+ }
+ 
+ extern "C" void CJ_MCC_ArrayCopyStruct(const ObjectPtr dstObj, MAddress dstField, size_t dstSize,
+@@ -365,7 +571,14 @@ extern "C" void CJ_MCC_ArrayCopyStruct(const ObjectPtr dstObj, MAddress dstField
+         return;
+     }
+     MRT_ASSERT(dstSize <= SECUREC_MEM_MAX_LEN, "size too big in CJ_MCC_ArrayCopy");
++    std::vector<const void*> slots;
++    std::vector<BaseObject*> oldRefs;
++    if (IsSlotTraceEnabled()) {
++        CaptureStructRefRange(dstObj, dstField, dstField + std::min(dstSize, srcSize), slots, oldRefs);
++    }
+     Heap::GetBarrier().CopyStructArray(dstObj, dstField, dstSize, srcObj, srcField, srcSize);
++    LogCapturedStructNullStores("CJ_MCC_ArrayCopyStruct", __builtin_return_address(0), dstObj, slots, oldRefs,
++                                dstField, dstField + std::min(dstSize, srcSize));
+ }
+ extern "C" void MCC_AtomicWriteReference(const ObjectPtr ref, const ObjectPtr obj, RefField<true>* field,
+                                          MemoryOrder order)
+@@ -1303,7 +1516,7 @@ extern "C" const char* MCC_GetEnumConstructorName(EnumCtorInfo* ti)
+ }
+ 
+ extern "C" EnumCtorInfo* MCC_GetEnumConstructorInfoFromAny(ObjRef obj) {
+-    TypeInfo* ti = obj->GetTypeInfo();
++    TypeInfo* ti = NormalizeRuntimeTypeInfo(obj->GetTypeInfo());
+     if (!ti->IsEnum() && !ti->IsTempEnum()) {
+         return nullptr;
+     }
+@@ -1441,7 +1654,7 @@ extern "C" ObjRef MCC_NewAndInitEnumTupleObject(TypeInfo* ti, void* args)
+ extern "C" ObjRef MCC_GetAssociatedValues(ObjRef obj, TypeInfo* arrayTi)
+ {
+     arrayTi = NormalizeRuntimeTypeInfo(arrayTi);
+-    TypeInfo* ti = obj->GetTypeInfo();
++    TypeInfo* ti = NormalizeRuntimeTypeInfo(obj->GetTypeInfo());
+     U16 fieldNum = ti->GetFieldNum();
+     // For enum and temp enum, fields include the tag,
+     // but the tag is not part of associated values.
+@@ -1709,7 +1922,9 @@ static inline const TypeInfo* NormalizeRuntimeTypeInfo(const TypeInfo* typeInfo)
+ 
+ extern "C" bool CJ_MCC_IsSubType(TypeInfo* typeInfo, TypeInfo* superTypeInfo)
+ {
++    MaybeLogNullTypeInfo("CJ_MCC_IsSubType", __builtin_return_address(0), typeInfo, superTypeInfo);
+     typeInfo = NormalizeRuntimeTypeInfo(typeInfo);
++    superTypeInfo = NormalizeRuntimeTypeInfo(superTypeInfo);
+     if (typeInfo == nullptr || superTypeInfo == nullptr) {
+         return false;
+     }
+@@ -1732,7 +1947,7 @@ static bool IsTupleTypeOf(ObjectPtr obj, TypeInfo* typeInfo, TypeInfo* targetTyp
+     TypeInfo* ti = typeInfo;
+     U32 base = 0;
+     if (typeInfo == nullptr) {
+-        ti = obj->GetTypeInfo();
++        ti = NormalizeRuntimeTypeInfo(obj->GetTypeInfo());
+         // 8: typeInfo offset
+         base = 8;
+     }
+@@ -1759,7 +1974,7 @@ static bool IsTupleTypeOf(ObjectPtr obj, TypeInfo* typeInfo, TypeInfo* targetTyp
+             } else {
+                 curObj = obj->GetRefField(offset).GetTargetObject();
+             }
+-            TypeInfo* curti = curObj->GetTypeInfo();
++            TypeInfo* curti = NormalizeRuntimeTypeInfo(curObj->GetTypeInfo());
+             if (!curti->IsSubType(fieldTargetTI)) {
+                 return false;
+             }
+@@ -1812,7 +2027,7 @@ extern "C" void CJ_MCC_AssignGeneric(ObjectPtr dst, ObjectPtr src, TypeInfo* typ
+ 
+ extern "C" void CJ_MCC_WriteGenericPayload(ObjectPtr dst, MAddress srcField, size_t srcSize)
+ {
+-    TypeInfo* typeInfo = dst->GetTypeInfo();
++    TypeInfo* typeInfo = NormalizeRuntimeTypeInfo(dst->GetTypeInfo());
+     if (srcSize == 0) {
+         return;
+     }
+@@ -1825,7 +2040,14 @@ extern "C" void CJ_MCC_WriteGenericPayload(ObjectPtr dst, MAddress srcField, siz
+                      "MCC_WriteGenericPayload memcpy_s failed");
+     } else {
+         MAddress dstAddr = reinterpret_cast<MAddress>(dst) + TYPEINFO_PTR_SIZE;
++        std::vector<const void*> slots;
++        std::vector<BaseObject*> oldRefs;
++        if (IsSlotTraceEnabled()) {
++            CaptureStructRefRange(dst, dstAddr, dstAddr + srcSize, slots, oldRefs);
++        }
+         Heap::GetBarrier().WriteStruct(dst, dstAddr, srcSize, srcField, srcSize);
++        LogCapturedStructNullStores("CJ_MCC_WriteGenericPayload", __builtin_return_address(0), dst, slots, oldRefs,
++                                    dstAddr, dstAddr + srcSize);
+     }
+ }
+ 
+@@ -1839,19 +2061,24 @@ extern "C" void CJ_MCC_ReadGeneric(const ObjectPtr dstPtr, ObjectPtr obj, void*
+ 
+ extern "C" FuncPtr* CJ_MCC_GetMTable(TypeInfo* ti, TypeInfo* itf)
+ {
++    MaybeLogNullTypeInfo("CJ_MCC_GetMTable", __builtin_return_address(0), ti, itf);
+     ti = NormalizeRuntimeTypeInfo(ti);
++    itf = NormalizeRuntimeTypeInfo(itf);
+     return ti->GetMTable(itf);
+ }
+ 
+ extern "C" TypeInfo* CJ_MCC_GetMethodOuterTI(TypeInfo* ti, TypeInfo* itf, U64 index)
+ {
++    MaybeLogNullTypeInfo("CJ_MCC_GetMethodOuterTI", __builtin_return_address(0), ti, itf);
+     ti = NormalizeRuntimeTypeInfo(ti);
++    itf = NormalizeRuntimeTypeInfo(itf);
+     return ti->GetMethodOuterTI(itf, index);
+ }
+ 
+ extern "C" void CJ_MCC_UpdateVMT(TypeInfo* ti, TypeInfo* itf, ExtensionData* extensionData)
+ {
+     ti = NormalizeRuntimeTypeInfo(ti);
++    itf = NormalizeRuntimeTypeInfo(itf);
+     if (UNLIKELY(!extensionData->IsFuncTableUpdated())) {
+         return ti->TryUpdateExtensionData(itf, extensionData);
+     }
+@@ -1946,7 +2173,7 @@ extern "C" void CJ_MCC_ArrayCopyGeneric(const ObjectPtr dstObj, MAddress dstFiel
+         return;
+     }
+     MRT_ASSERT(dstSize <= SECUREC_MEM_MAX_LEN, "size too big in MCC_ArrayCopyGeneric");
+-    TypeInfo* arrayInfo = srcObj->GetTypeInfo();
++    TypeInfo* arrayInfo = NormalizeRuntimeTypeInfo(srcObj->GetTypeInfo());
+ 
+     TypeInfo* componentTypeInfo = arrayInfo->GetComponentTypeInfo();
+     I8 type = componentTypeInfo->GetType();
+@@ -2016,8 +2243,16 @@ extern "C" void CJ_MCC_CopyStructField(BaseObject* dstBase, void* dstField, size
+                      "CJ_MCC_CopyStructField memcpy_s failed");
+         return;
+     }
++    std::vector<const void*> slots;
++    std::vector<BaseObject*> oldRefs;
++    MAddress dstAddr = reinterpret_cast<MAddress>(dstField);
++    if (IsSlotTraceEnabled()) {
++        CaptureStructRefRange(dstBase, dstAddr, dstAddr + std::min(dstLen, srcLen), slots, oldRefs);
++    }
+     Heap::GetBarrier().WriteStruct(dstBase, reinterpret_cast<MAddress>(dstField), dstLen,
+                                    reinterpret_cast<MAddress>(srcField), srcLen);
++    LogCapturedStructNullStores("CJ_MCC_CopyStructField", __builtin_return_address(0), dstBase, slots, oldRefs,
++                                dstAddr, dstAddr + std::min(dstLen, srcLen));
+ }
+ 
+ extern "C" int32_t __ccc_personality_v0() { return 0; }
+diff --git a/runtime/src/ExceptionManager.cpp b/runtime/src/ExceptionManager.cpp
+index 727a6f00a5669b7a70bf914da5f3051522f7bf58..34a3f3a19e6082faa56194ca9cec9b36275b6d46 100644
+--- a/runtime/src/ExceptionManager.cpp
++++ b/runtime/src/ExceptionManager.cpp
+@@ -15,6 +15,7 @@
+ #include "ExceptionManager.inline.h"
+ #include "Mutator/Mutator.h"
+ #include "ObjectModel/MObject.h"
++#include "RuntimeConfig.h"
+ #include "UnwindStack/MangleNameHelper.h"
+ #include "Heap/Collector/CollectorResources.h"
+ #include "Heap/Collector/GcRequest.h"
+@@ -82,6 +83,7 @@ MRT_OPTIONAL_DISABLE_TAIL_CALL void ExceptionManager::IncompatiblePackageExpecti
+         LOG(RTLOG_FATAL, "Cangjie initialization failed, implicit exception is nullptr.");
+     }
+     uintptr_t threadData = MapleRuntime::MRT_GetThreadLocalData();
++    threadData = MapleRuntime::MRT_GetManagedEntryThreadData(threadData);
+     ExecuteCangjieStub(reinterpret_cast<void*>(static_cast<intptr_t>(INCOMP)),  reinterpret_cast<void*>(msg.GetStr()),
+                        0, reinterpret_cast<void*>(func), reinterpret_cast<void*>(threadData), 0);
+ 
+@@ -223,6 +225,7 @@ void ExceptionManager::ThrowImplicitException(ImplicitExceptionType type)
+         LOG(RTLOG_FATAL, "Cangjie initialization failed, implicit exception is nullptr.");
+     }
+     uintptr_t threadData = MapleRuntime::MRT_GetThreadLocalData();
++    threadData = MapleRuntime::MRT_GetManagedEntryThreadData(threadData);
+     ExecuteCangjieStub(reinterpret_cast<void*>(static_cast<intptr_t>(type)), 0, 0, reinterpret_cast<void*>(func),
+                        reinterpret_cast<void*>(threadData), 0);
+ }
+diff --git a/runtime/src/Heap/Collector/FinalizerWorkList.cpp b/runtime/src/Heap/Collector/FinalizerWorkList.cpp
+index 04ae93bef9cd3b83a491cbca81b8e8f98df7676a..250b96b8ede04d5c8f1ab21e8e5cfd8c15d333a1 100644
+--- a/runtime/src/Heap/Collector/FinalizerWorkList.cpp
++++ b/runtime/src/Heap/Collector/FinalizerWorkList.cpp
+@@ -11,6 +11,7 @@
+ #include "Heap/Heap.h"
+ #include "Mutator/Mutator.h"
+ #include "ObjectModel/MObject.h"
++#include "RuntimeConfig.h"
+ 
+ namespace MapleRuntime {
+ U32 FinalizerWorkList::VisitFinalizers(const RootVisitor& visitor)
+@@ -88,6 +89,7 @@ void FinalizerWorkList::ProcessFinalizableList(const std::function<bool()>& shou
+         mutator->SetManagedContext(true);
+         DLOG(FINALIZE, "tid %u finalize object %p", mutator->GetTid(), finalizeObjAddr);
+         uintptr_t threadData = MapleRuntime::MRT_GetThreadLocalData();
++        threadData = MapleRuntime::MRT_GetManagedEntryThreadData(threadData);
+         ExecuteCangjieStub(finalizeObjAddr, finalizeObjAddr->GetTypeInfo(), 0, reinterpret_cast<void*>(finalizer),
+                            reinterpret_cast<void*>(threadData), 0);
+         mutator->SetManagedContext(false);
+diff --git a/runtime/src/Loader/CjFileLoader/CjFileLoader.cpp b/runtime/src/Loader/CjFileLoader/CjFileLoader.cpp
+index d0a0fd3a799d3fa6f6a52180f33953714c8e1cd8..c045d2d9dd70f13d2eb9a9c21ae21acb1860553c 100644
+--- a/runtime/src/Loader/CjFileLoader/CjFileLoader.cpp
++++ b/runtime/src/Loader/CjFileLoader/CjFileLoader.cpp
+@@ -9,6 +9,7 @@
+ 
+ #include "ExceptionManager.inline.h"
+ #include "ObjectManager.inline.h"
++#include "RuntimeConfig.h"
+ #include "TypeInfoManager.h"
+ namespace MapleRuntime {
+ 
+@@ -506,6 +507,7 @@ bool CJFileLoader::DoInitImage(BaseFile* baseFile) const
+                 mutator->SetManagedContext(true);
+             }
+             uintptr_t threadData = MapleRuntime::MRT_GetThreadLocalData();
++            threadData = MapleRuntime::MRT_GetManagedEntryThreadData(threadData);
+             ExecuteCangjieStub(0, 0, 0, reinterpret_cast<void*>(initAddr), reinterpret_cast<void*>(threadData), 0);
+             if (mutator != nullptr) {
+                 mutator->SetManagedContext(false);
+diff --git a/runtime/src/RuntimeConfig.h b/runtime/src/RuntimeConfig.h
+index 2a607ae2c0762cc17fe4c8ee01c7b78b979d7196..3b4b4be53de79e79d31b0c496215981e0f73e4ae 100644
+--- a/runtime/src/RuntimeConfig.h
++++ b/runtime/src/RuntimeConfig.h
+@@ -33,6 +33,14 @@ struct BinLoadApi {
+ MRT_EXPORT uintptr_t MRT_StopGCWork();
+ MRT_EXPORT uintptr_t MRT_GetThreadLocalData();
+ MRT_EXPORT uintptr_t MRT_UpdateThreadLocalDataPhase(uintptr_t tlDataAddr);
++static inline uintptr_t MRT_GetManagedEntryThreadData(uintptr_t threadData)
++{
++#if defined(MRT_USE_MARK_SWEEP) && defined(__aarch64__)
++  return MRT_UpdateThreadLocalDataPhase(threadData);
++#else
++  return threadData;
++#endif
++}
+ MRT_EXPORT void MRT_VisitorCaller(void* argPtr, void* handle);
+ MRT_EXPORT void MRT_DumpLog(const char* message);
+ uintptr_t MRT_GetSafepointProtectedPage();
+diff --git a/runtime/src/SignalManager.cpp b/runtime/src/SignalManager.cpp
+index 1032d82c5039a7a47d7690392565b1e3d37964ef..1193e88d14ef303181a8a5a1ecf46d4a6d69b143 100644
+--- a/runtime/src/SignalManager.cpp
++++ b/runtime/src/SignalManager.cpp
+@@ -114,6 +114,16 @@ void PrintSignalHandlerStack(int sig, const siginfo_t* info, void* context)
+     ucontext_t* ucontext = static_cast<ucontext_t*>(context);
+     uintptr_t sigPc = GetPCFromUContext(*ucontext);
+     uintptr_t sigFa = GetFAFromUContext(*ucontext);
++#if defined(__APPLE__) && defined(__aarch64__)
++    uintptr_t sigSp = static_cast<uintptr_t>(ucontext->uc_mcontext->__ss.__sp);
++    uintptr_t sigLr = static_cast<uintptr_t>(ucontext->uc_mcontext->__ss.__lr);
++    uintptr_t sigX0 = static_cast<uintptr_t>(ucontext->uc_mcontext->__ss.__x[0]);
++    uintptr_t sigX1 = static_cast<uintptr_t>(ucontext->uc_mcontext->__ss.__x[1]);
++    uintptr_t sigX19 = static_cast<uintptr_t>(ucontext->uc_mcontext->__ss.__x[19]);
++    uintptr_t sigX20 = static_cast<uintptr_t>(ucontext->uc_mcontext->__ss.__x[20]);
++    uintptr_t sigX21 = static_cast<uintptr_t>(ucontext->uc_mcontext->__ss.__x[21]);
++    uintptr_t sigX28 = static_cast<uintptr_t>(ucontext->uc_mcontext->__ss.__x[28]);
++#endif
+     pthread_t thread = pthread_self();
+     constexpr uint8_t threadNameLen = 16;
+     constexpr uint32_t simpleSigStrSize = 256;
+@@ -174,6 +184,11 @@ void PrintSignalHandlerStack(int sig, const siginfo_t* info, void* context)
+         CHECK_IN_SIG(sprintf_s(simpleSigStr, simpleSigStrSize, "%s, addr: %p", simpleSigStr, info->si_addr) != -1);
+     }
+     FLOG(RTLOG_ERROR, simpleSigStr);
++#if defined(__APPLE__) && defined(__aarch64__)
++    FLOG(RTLOG_ERROR,
++         "aarch64 regs: x0=0x%lx x1=0x%lx x19=0x%lx x20=0x%lx x21=0x%lx x28=0x%lx fp=0x%lx lr=0x%lx sp=0x%lx",
++         sigX0, sigX1, sigX19, sigX20, sigX21, sigX28, sigFa, sigLr, sigSp);
++#endif
+     StackManager::PrintSignalStackTrace(&uwContext, sigPc, sigFa);
+ }
+ 
+diff --git a/runtime/src/arch/aarch64_ios/N2CStub.S b/runtime/src/arch/aarch64_ios/N2CStub.S
+index b99cf72289807d0f8e55b2b0d37bacfedaa71e74..b3f9d4f71878747e0405afe0f272f84be85ff003 100644
+--- a/runtime/src/arch/aarch64_ios/N2CStub.S
++++ b/runtime/src/arch/aarch64_ios/N2CStub.S
+@@ -314,7 +314,17 @@ _unwindPCForN2CStub:
+ _ExecuteCangjieStub:
+     .cfi_startproc
+     stp x28, x30, [sp, #-16]!
+-    mov x28, x4
++    sub sp, sp, #48
++    stp x0, x1, [sp]
++    stp x2, x3, [sp, #16]
++    stp x4, x5, [sp, #32]
++    mov x0, x4
++    bl _MRT_UpdateThreadLocalDataPhase
++    mov x28, x0
++    ldp x4, x5, [sp, #32]
++    ldp x2, x3, [sp, #16]
++    ldp x0, x1, [sp]
++    add sp, sp, #48
+     mov x8,  x5
+     blr x3
+     ldp x28, x30, [sp], #16
+@@ -386,6 +396,10 @@ _ApplyCangjieMethodStubFloat64:
+     mov  x23, x3 // threadData
+     mov  x8,  x4 // sret
+ 
++    mov  x0, x23
++    bl   _MRT_UpdateThreadLocalDataPhase
++    mov  x23, x0
++
+     // x28 <- previous sp
+     add  x28, sp, #StubFrameContextSize
+ 
+diff --git a/runtime/src/arch/aarch64_linux/ExclusiveScope.S b/runtime/src/arch/aarch64_linux/ExclusiveScope.S
+index 9c35879aa13b47b67f6e1a81d7faea71c7b49b7b..d2edfbd10d3eda9e476f693dd90a662cec55ccdb 100644
+--- a/runtime/src/arch/aarch64_linux/ExclusiveScope.S
++++ b/runtime/src/arch/aarch64_linux/ExclusiveScope.S
+@@ -300,7 +300,9 @@ ExecuteExclusiveCangjieStub:
+     str     x2, [sp, #0x38]     // executeClosure
+     str     x4, [sp, #0x40]     // sret
+ 
+-    mov     x28, x3
++    mov     x0, x3
++    bl      MRT_UpdateThreadLocalDataPhase
++    mov     x28, x0
+     mov     x0, x29
+     bl      MRT_SaveTopManagedContextToN2CStub
+ 
+diff --git a/runtime/src/arch/aarch64_linux/N2CStub.S b/runtime/src/arch/aarch64_linux/N2CStub.S
+index fdd42d4ebb52d412937da6519a84630ed6e9cf87..f7fa977b5b5b3bdff97fe3c1c9b2d86e92f7110b 100644
+--- a/runtime/src/arch/aarch64_linux/N2CStub.S
++++ b/runtime/src/arch/aarch64_linux/N2CStub.S
+@@ -372,7 +372,19 @@ ExecuteCangjieStub:
+     cfi_adjust_cfa_offset (16)
+     cfi_rel_offset (x28, 0)
+     cfi_rel_offset (x30, 8)
+-    mov x28, x4
++    sub sp, sp, #48
++    cfi_adjust_cfa_offset (48)
++    stp x0, x1, [sp]
++    stp x2, x3, [sp, #16]
++    stp x4, x5, [sp, #32]
++    mov x0, x4
++    bl MRT_UpdateThreadLocalDataPhase
++    mov x28, x0
++    ldp x4, x5, [sp, #32]
++    ldp x2, x3, [sp, #16]
++    ldp x0, x1, [sp]
++    add sp, sp, #48
++    cfi_adjust_cfa_offset (-48)
+     mov x8,  x5
+     blr x3
+     ldp x28, x30, [sp], #16
+@@ -515,6 +527,10 @@ ApplyCangjieMethodStubFloat64:
+     mov  x23, x3 // threadData
+     mov  x8,  x4 // sret
+ 
++    mov  x0, x23
++    bl   MRT_UpdateThreadLocalDataPhase
++    mov  x23, x0
++
+     // x28 <- previous sp
+     add  x28, sp, #StubFrameContextSize
+ 
+diff --git a/runtime/src/arch/aarch64_macos/N2CStub.S b/runtime/src/arch/aarch64_macos/N2CStub.S
+index 873ae7749083b4240780edcb50993b9ff7da4ede..4a9b4dbe71edd4f13b4e731a5da9e4852f7e65ab 100644
+--- a/runtime/src/arch/aarch64_macos/N2CStub.S
++++ b/runtime/src/arch/aarch64_macos/N2CStub.S
+@@ -311,7 +311,17 @@ _unwindPCForN2CStub:
+ _ExecuteCangjieStub:
+     .cfi_startproc
+     stp x28, x30, [sp, #-16]!
+-    mov x28, x4
++    sub sp, sp, #48
++    stp x0, x1, [sp]
++    stp x2, x3, [sp, #16]
++    stp x4, x5, [sp, #32]
++    mov x0, x4
++    bl _MRT_UpdateThreadLocalDataPhase
++    mov x28, x0
++    ldp x4, x5, [sp, #32]
++    ldp x2, x3, [sp, #16]
++    ldp x0, x1, [sp]
++    add sp, sp, #48
+     mov x8,  x5
+     blr x3
+     ldp x28, x30, [sp], #16
+@@ -383,6 +393,10 @@ _ApplyCangjieMethodStubFloat64:
+     mov  x23, x3 // threadData
+     mov  x8,  x4 // sret
+ 
++    mov  x0, x23
++    bl   _MRT_UpdateThreadLocalDataPhase
++    mov  x23, x0
++
+     // x28 <- previous sp
+     add  x28, sp, #StubFrameContextSize
+ 

@@ -1,0 +1,294 @@
+diff --git a/runtime/src/Heap/MAllocator/MSCentralRegionPool.cpp b/runtime/src/Heap/MAllocator/MSCentralRegionPool.cpp
+index 646439ebcd4146cec801167d1fb01015a10ecb8e..b98cf3fef99248a5e390f8debd2e619cc17c323e 100644
+--- a/runtime/src/Heap/MAllocator/MSCentralRegionPool.cpp
++++ b/runtime/src/Heap/MAllocator/MSCentralRegionPool.cpp
+@@ -61,6 +61,11 @@ size_t GetBgSweepMaxRegionsPerSlice()
+     return value;
+ }
+ 
++bool IsBgSweepPressureMode()
++{
++    return Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().IsSweepPressureMode();
++}
++
+ // 后台批量处理超时时间
+ uint64_t GetBgSweepMaxTimeUs()
+ {
+@@ -571,14 +576,15 @@ BackgroundSweepStats CentralRegionPool::BackgroundSweep(uint8_t preferredCls)
+ 
+     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
+     uint64_t t0 = TimeUtil::MicroSeconds();
+-    size_t maxRegions = GetBgSweepMaxRegionsPerSlice();
++    bool pressureMode = IsBgSweepPressureMode();
++    size_t maxRegions = pressureMode ? SIZE_MAX : GetBgSweepMaxRegionsPerSlice();
+     size_t remainingUnswept = GetTotalUnsweptCount();
+     if (remainingUnswept == 0) {
+         sweepDone_.store(true, std::memory_order_release);
+         finish();
+         return {};
+     }
+-    uint64_t deadlineUs = t0 + GetBgSweepMaxTimeUs();
++    uint64_t deadlineUs = pressureMode ? UINT64_MAX : (t0 + GetBgSweepMaxTimeUs());
+     size_t sweptInSlice = 0;
+     bool pendingWork = false;
+     size_t emptyBefore = sweepStats_.emptiedRegions.load(std::memory_order_relaxed);
+@@ -974,6 +980,10 @@ bool CentralRegionPool::TryTakeLargeHotCache(size_t regionBytes, uintptr_t& regi
+     regionStart = bucket.back().regionStart;
+     bucket.pop_back();
+     largeHotCacheTotalBytes_.fetch_sub(regionBytes, std::memory_order_relaxed);
++    // The span is leaving the pool-side large cache for immediate reuse.
++    // Drop it from totalMSRegionBytes_ here; RegisterLargeObjectMS will add it back
++    // once the allocation is fully registered as an active large region.
++    SubLargeRegionBytes(regionBytes);
+     return true;
+ }
+ 
+@@ -992,6 +1002,7 @@ void CentralRegionPool::FlushLargeHotCache()
+     }
+     for (auto& entry : toReclaim) {
+         msRegionManager_->ReclaimRegionLarge(entry.regionStart, entry.regionBytes);
++        SubLargeRegionBytes(entry.regionBytes);
+     }
+ }
+ 
+@@ -1032,6 +1043,7 @@ size_t CentralRegionPool::FlushHalfLargeFreeCacheToFreeManager()
+     }
+     for (auto& entry : toReclaim) {
+         msRegionManager_->ReclaimRegionLarge(entry.regionStart, entry.regionBytes);
++        SubLargeRegionBytes(entry.regionBytes);
+     }
+     return flushed;
+ }
+@@ -1125,10 +1137,8 @@ MSLargeSweepStats CentralRegionPool::SweepLargeRegions()
+             stats.cachedBytes += regionBytes;
+         } else {
+             msRegionManager_->ReclaimRegionLarge(regionStart, regionBytes);
++            SubLargeRegionBytes(regionBytes);
+         }
+-
+-        // Adjust byte counter (dead objects no longer count toward GC threshold).
+-        totalMSRegionBytes_.fetch_sub(regionBytes, std::memory_order_relaxed);
+     }
+ 
+     return stats;
+@@ -1296,7 +1306,9 @@ void CentralRegionPool::StopAndWaitForAllSweep()
+     size_t unsweptAfter = GetTotalUnsweptCount();
+     size_t totalMsr = GetTotalMSRegionBytes();
+     size_t emptySwept = GetEmptySweptBytes();
+-    size_t activeBytes = (totalMsr > emptySwept) ? (totalMsr - emptySwept) : 0;
++    size_t largeCache = GetLargeHotCacheBytes();
++    size_t nonActive = emptySwept + largeCache;
++    size_t activeBytes = (totalMsr > nonActive) ? (totalMsr - nonActive) : 0;
+     VLOG(REPORT, "[MS-GC] StopAndWaitForAllSweep: forceSwept=%zu->%zu unswept regions, "
+          "totalMSR=%zuB emptySwept=%zuB activeBytes=%zuB",
+          unsweptBefore, unsweptAfter, totalMsr, emptySwept, activeBytes);
+diff --git a/runtime/src/Heap/MAllocator/MSCentralRegionPool.h b/runtime/src/Heap/MAllocator/MSCentralRegionPool.h
+index 05f922c7fca6783907a310678bf499ce91ce5184..759d60149615cdc0a30fb646f0f0b2f7d369f29c 100644
+--- a/runtime/src/Heap/MAllocator/MSCentralRegionPool.h
++++ b/runtime/src/Heap/MAllocator/MSCentralRegionPool.h
+@@ -502,11 +502,14 @@ private:
+     std::atomic<size_t> activeLazySweepCount_{0};     // In-flight lazy sweep counter
+     MSSweepStats sweepStats_;
+ 
+-    // Total bytes of MS regions currently committed (GetFreshRegion +, ReleaseRegion -).
++    // Total bytes of MS regions currently tracked by the MS allocator.
+     // This is a region-level metric, NOT object-level:
+-    //   - Includes live objects, dead objects in unswept regions, and intra-region fragmentation.
+-    //   - After GC ends but before sweep completes, it remains inflated.
+-    //   - Only decreases when sweep reclaims regions back to MSRegionManager.
++    //   - Includes active small/large regions, emptySwept cache, and largeHotCache.
++    //   - Excludes hotFree / releasedTree bytes after they are reclaimed back to MSRegionManager.
++    //   - After GC ends but before sweep completes, it remains inflated by unswept dead bytes
++    //     and intra-region fragmentation.
++    //   - Large hot-cache reuse subtracts on cache pop and adds back on RegisterLargeObjectMS,
++    //     so externally it still behaves like a pool-wide tracked-byte total.
+     // The GC trigger (MSRegionManager::TakeRegion) uses the O1 effective-allocation
+     // formula to compensate for this semantic gap vs trueLiveBytes.
+     std::atomic<size_t> totalMSRegionBytes_{0};
+diff --git a/runtime/src/Heap/MAllocator/MSRegionManager.cpp b/runtime/src/Heap/MAllocator/MSRegionManager.cpp
+index e766f15ff0a0285fa71b21c364a76006d6e6ca68..d216ef62f8dd1e10f463da3f7053b19b8af56fba 100644
+--- a/runtime/src/Heap/MAllocator/MSRegionManager.cpp
++++ b/runtime/src/Heap/MAllocator/MSRegionManager.cpp
+@@ -28,10 +28,6 @@
+ 
+ namespace MapleRuntime {
+ 
+-namespace {
+-constexpr size_t DEFAULT_MS_SCAVENGE_WAKE_BYTES = 4 * MS_REGION_SIZE;
+-}
+-
+ // External: system page size (defined in RegionManager.cpp).
+ extern const size_t MRT_PAGE_SIZE;
+ 
+@@ -268,26 +264,9 @@ void MSRegionManager::MaybeNotifyScavenge()
+         return;
+     }
+ 
+-    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
+     size_t totalBytes = pool->GetTotalMSRegionBytes();
+     size_t hotFree = freeManager_.GetHotFreeBytes();
+-    size_t largeCache = pool->GetLargeHotCacheBytes();
+-    size_t heapRetained = totalBytes + hotFree + largeCache;
+-
+-    size_t emptySwept = space.GetEmptySweptBytes();
+-    size_t releasableSupply = hotFree + emptySwept + largeCache;
+-
+-    // Do not wake BackgroundScavengeLoop when releasable supply is insufficient to
+-    // produce a meaningful slice *after* preserving the mark-window reserve buffer.
+-    // The guard is the larger of the reserve bytes and the minimum slice size.
+-    {
+-        size_t reserveBytes = gcStats.markWindowReserveBytes;
+-        size_t wakeGuard = std::max(reserveBytes,
+-                                    static_cast<size_t>(DEFAULT_MS_SCAVENGE_WAKE_BYTES));
+-        if (releasableSupply <= wakeGuard) {
+-            return;
+-        }
+-    }
++    size_t heapRetained = totalBytes + hotFree;
+ 
+     static constexpr double kHysteresis = 0.1;
+     if (heapRetained <= static_cast<size_t>(static_cast<double>(threshold) * (1.0 + kHysteresis))) {
+diff --git a/runtime/src/Heap/MAllocator/MSRegionSpace.cpp b/runtime/src/Heap/MAllocator/MSRegionSpace.cpp
+index c280e7232dd124ba80b2e01d4a90aa0c6f5f953f..52df1df27d98e8b1a036312699f85842b78fc04a 100644
+--- a/runtime/src/Heap/MAllocator/MSRegionSpace.cpp
++++ b/runtime/src/Heap/MAllocator/MSRegionSpace.cpp
+@@ -144,7 +144,7 @@ size_t RegionSpaceMS::GetSurvivedSize() const
+ size_t RegionSpaceMS::GetUsedPageSize() const
+ {
+     if (msCentralPool_ != nullptr) {
+-        return msCentralPool_->GetTotalMSRegionBytes();
++        return GetHeapInUseBytes();
+     }
+     return 0;
+ }
+@@ -206,7 +206,9 @@ size_t RegionSpaceMS::GetHeapInUseBytes() const
+     }
+     size_t total = msCentralPool_->GetTotalMSRegionBytes();
+     size_t empty = msCentralPool_->GetEmptySweptBytes();
+-    return (total > empty) ? (total - empty) : 0;
++    size_t largeCache = msCentralPool_->GetLargeHotCacheBytes();
++    size_t nonActive = empty + largeCache;
++    return (total > nonActive) ? (total - nonActive) : 0;
+ }
+ 
+ size_t RegionSpaceMS::GetHeapRetainedBytes() const
+@@ -216,8 +218,7 @@ size_t RegionSpaceMS::GetHeapRetainedBytes() const
+     }
+     size_t total = msCentralPool_->GetTotalMSRegionBytes();
+     size_t hotFree = msRegionManager_->GetHotFreeBytes();
+-    size_t largeCache = msCentralPool_->GetLargeHotCacheBytes();
+-    return total + hotFree + largeCache;
++    return total + hotFree;
+ }
+ 
+ size_t RegionSpaceMS::GetHeapThresholdBytes() const
+@@ -391,7 +392,7 @@ void RegionSpaceMS::EnsureThreadLocalAllocBuffer()
+ size_t RegionSpaceMS::AllocatedBytes() const
+ {
+     if (msCentralPool_ != nullptr) {
+-        return msCentralPool_->GetTotalMSRegionBytes();
++        return GetHeapInUseBytes();
+     }
+     return 0;
+ }
+diff --git a/runtime/src/Heap/MAllocator/MSRegionSpace.h b/runtime/src/Heap/MAllocator/MSRegionSpace.h
+index 001baf8cb41297de763b610b909d2531b78749ac..6451bbe93001661d7229ab9850eb2096106f5db5 100644
+--- a/runtime/src/Heap/MAllocator/MSRegionSpace.h
++++ b/runtime/src/Heap/MAllocator/MSRegionSpace.h
+@@ -79,8 +79,9 @@ public:
+     size_t PinnedSpaceSize() const;
+ 
+     // Scavenge-related queries (used by BackgroundScavengeLoop).
+-    // heapInUse  = totalMSRegionBytes - emptySweptBytes  (live-ish memory)
+-    // heapRetained = totalMSRegionBytes + hotFreeBytes    (committed RSS-cost)
++    // totalMSRegionBytes now keeps largeHotCache bytes in the pool-wide total.
++    // heapInUse    = totalMSRegionBytes - emptySweptBytes - largeHotCacheBytes
++    // heapRetained = totalMSRegionBytes + hotFreeBytes
+     size_t GetHeapInUseBytes() const;
+     size_t GetHeapRetainedBytes() const;
+     size_t GetHeapThresholdBytes() const;
+diff --git a/runtime/src/Heap/MCollector/BackgroundProcessor.cpp b/runtime/src/Heap/MCollector/BackgroundProcessor.cpp
+index cbdb19d28186836a748e96e0ad71b656d74654ec..4abbabbc4c5eccbc83d014a32fda0493dec31335 100644
+--- a/runtime/src/Heap/MCollector/BackgroundProcessor.cpp
++++ b/runtime/src/Heap/MCollector/BackgroundProcessor.cpp
+@@ -23,13 +23,12 @@
+ 
+ namespace MapleRuntime {
+ namespace {
+-constexpr U32 DEFAULT_MS_GC_HELPER_POLL_MS = 2000;
++constexpr U32 DEFAULT_MS_GC_HELPER_POLL_MS = 5;
+ constexpr U32 DEFAULT_MS_GC_HELPER_ACTIVE_BACKOFF_MS = 1;
+ constexpr U32 DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_ROUNDS = 4;
+ constexpr uint64_t DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_US = 12000;
+ constexpr size_t DEFAULT_MS_FEED_TARGET_CACHED_PER_BUFFER = 5;
+ constexpr size_t DEFAULT_MS_SCAVENGE_ROUNDS = 8;
+-constexpr size_t DEFAULT_MS_SCAVENGE_MIN_SLICE_BYTES = 4 * MS_REGION_SIZE;
+ 
+ bool EqualsIgnoreCase(const char* lhs, const char* rhs)
+ {
+@@ -452,7 +451,6 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
+     size_t targetBytes = retained - threshold;
+     size_t sliceTargetBytes = targetBytes;
+     uint64_t t0 = TimeUtil::MicroSeconds();
+-    size_t refilledHotFree = 0;
+     size_t released = 0;
+ 
+     // Step A (on-demand): if hot-free supply is below the current target and
+@@ -460,7 +458,7 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
+     if (space.HasEmptySweptRegions()) {
+         size_t hotFree = space.GetHotFreeBytes();
+         if (hotFree < targetBytes) {
+-            refilledHotFree = space.FlushHalfEmptySweptToHotFree();
++            (void)space.FlushHalfEmptySweptToHotFree();
+         }
+     }
+ 
+@@ -470,7 +468,7 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
+     if (pool != nullptr && pool->HasLargeFreeCache()) {
+         size_t hotFree = space.GetHotFreeBytes();
+         if (hotFree < targetBytes) {
+-            refilledHotFree += pool->FlushHalfLargeFreeCacheToFreeManager();
++            (void)pool->FlushHalfLargeFreeCacheToFreeManager();
+         }
+     }
+ 
+@@ -481,23 +479,9 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
+     // Snapshot large cache residual after Step A2 (any flushed bytes are now in releasedTree).
+     size_t largeResidualBytes = (pool != nullptr) ? pool->GetLargeHotCacheBytes() : 0;
+ 
+-    // Guard: abort this slice if the total free buffer (hotFree + emptySwept + large cache)
+-    // does not exceed the larger of (a) the mark-window reserve and (b) the minimum slice.
+-    // emptySwept and large cache count toward the reserve.
+-    {
+-        const GCStats& gcStats = Heap::GetHeap().GetCollector().GetGCStats();
+-        size_t reserveBytes = gcStats.markWindowReserveBytes;
+-        size_t scavengeGuard = std::max(reserveBytes,
+-                                        static_cast<size_t>(DEFAULT_MS_SCAVENGE_MIN_SLICE_BYTES));
+-        size_t totalFreeAfterFlush = hotFreeAfterFlush + emptySweptAfterFlush + largeResidualBytes;
+-        if (totalFreeAfterFlush <= scavengeGuard) {
+-            if (pendingScavengeStats_.HasWork()) {
+-                pendingScavengeStats_.Reset();
+-            }
+-            shouldScavengeHeap_.store(false, std::memory_order_release);
+-            return false;
+-        }
+-    }
++    // Temporarily disable the pre-slice guard here. Once MaybeNotifyScavenge has
++    // decided to wake the background thread, let the slice run and rely on the
++    // downstream reserve accounting below to cap actual release from hotFree.
+ 
+     // Step B: release at most one round of the target.
+     // Reserve is satisfied first by emptySwept + large cache residual (pages already
+diff --git a/runtime/src/Heap/MCollector/MarkSweepCollector.cpp b/runtime/src/Heap/MCollector/MarkSweepCollector.cpp
+index 5832e99157e46f73b16b1c671ca688b497087b59..3e9c2b0ab5663d7762711577f60cdff627de6068 100644
+--- a/runtime/src/Heap/MCollector/MarkSweepCollector.cpp
++++ b/runtime/src/Heap/MCollector/MarkSweepCollector.cpp
+@@ -1527,6 +1527,8 @@ void MarkSweepCollector::ConcurrentSweep()
+              cycleStats_.eagerSweepBatchRegions, totalUnswept);
+     }
+ 
++    Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().NotifyToScavenge();
++
+     // Mark-Sweep: generation flip now happens at the tail of MarkTermination's
+     // STW, before mutators resume. ConcurrentSweep only kicks off background
+     // sweeping and reclaim after the new generation is already visible.

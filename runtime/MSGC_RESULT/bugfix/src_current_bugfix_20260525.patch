@@ -1,0 +1,469 @@
+diff --git a/runtime/src/Common/BaseObject.h b/runtime/src/Common/BaseObject.h
+index 8cf47070..f13ec34e 100644
+--- a/runtime/src/Common/BaseObject.h
++++ b/runtime/src/Common/BaseObject.h
+@@ -63,7 +63,7 @@ public:
+ 
+     bool IsForwarded() const { return GetObjectState().IsForwardedState(); }
+ 
+-    void SetClassInfo(TypeInfo* klassRef) { stateWord.SetTypeInfo(klassRef); }
++    void SetClassInfo(TypeInfo* klassRef) { stateWord.InitStateWord(klassRef); }
+     void SetStateCode(ObjectState::ObjectStateCode state) { stateWord.SetStateCode(state); }
+ 
+     bool IsInTraceRegion() const;
+@@ -90,7 +90,7 @@ protected:
+     static inline BaseObject* SetClassInfo(MAddress address, TypeInfo* klass)
+     {
+         auto ref = reinterpret_cast<BaseObject*>(address);
+-        ref->stateWord.SetTypeInfo(klass);
++        ref->stateWord.InitStateWord(klass);
+         return ref;
+     }
+ 
+diff --git a/runtime/src/Common/LFStack.h b/runtime/src/Common/LFStack.h
+index 5fe9cc99..b7ad964d 100644
+--- a/runtime/src/Common/LFStack.h
++++ b/runtime/src/Common/LFStack.h
+@@ -22,7 +22,7 @@ class BaseObject;
+ // Go equivalent: runtime.workbuf (256 pointers per buf).
+ // ============================================================================
+ struct alignas(64) WorkBuf {
+-    static constexpr size_t kCapacity = 256;
++    static constexpr size_t kCapacity = 1024;
+ 
+     WorkBuf* next = nullptr;
+     size_t len = 0;
+diff --git a/runtime/src/Common/StateWord.h b/runtime/src/Common/StateWord.h
+index 067d21ce..81641fc8 100644
+--- a/runtime/src/Common/StateWord.h
++++ b/runtime/src/Common/StateWord.h
+@@ -95,8 +95,15 @@ public:
+ #ifdef __arm__
+         uint32_t address = this->typeInfo;
+ #else
+-        uintptr_t low = this->typeInfoLow32;
+-        uintptr_t high = this->typeInfoHigh16;
++        // Fix6: Use a single 64-bit atomic acquire load to match the release
++        // store in InitStateWord().  A non-atomic split read (typeInfoLow32
++        // then typeInfoHigh16) is racy: a concurrent InitStateWord on the same
++        // slot can produce a torn value, yielding a garbage TypeInfo pointer
++        // (e.g. 0x6c616e72657c) that causes SIGSEGV in ExecuteLikeDrainMainQueue.
++        uint64_t word = __atomic_load_n(
++            reinterpret_cast<const uint64_t*>(this), __ATOMIC_ACQUIRE);
++        uintptr_t low  = word & LOW_ADDRESS_MASK;
++        uintptr_t high = (word >> HIGH_ADDRESS_SHIFT) & HIGH_ADDRESS_MASK;
+         uintptr_t address = (high << HIGH_ADDRESS_SHIFT) | low;
+ #endif
+         return reinterpret_cast<TypeInfo*>(address);
+@@ -113,6 +120,32 @@ public:
+ #endif
+     }
+ 
++    // InitStateWord: atomically publish a fully-initialized stateWord (TypeInfo
++    // in the address bits, objectState = NORMAL/0).  Use this instead of
++    // SetTypeInfo when creating a new object so that any concurrent reader
++    // that loads the 64-bit stateWord never observes stale objectState bits
++    // left over from the previous occupant of the memory slot.
++    void InitStateWord(TypeInfo* typeInfo)
++    {
++        uintptr_t address = reinterpret_cast<uintptr_t>(typeInfo);
++#ifdef __arm__
++        // On 32-bit ARM the stateWord is just a 32-bit typeInfo + padding +
++        // objectState.  Zero the whole thing then set typeInfo.
++        this->typeInfo    = static_cast<uint32_t>(address);
++        this->padding     = 0;
++        this->objectState = ObjectState(static_cast<uint16_t>(0));
++#else
++        // Build the clean 64-bit word: TypeInfo in bits 47..0, objectState = 0
++        // in bits 63..48.  Write it with a single release store so that any
++        // thread that subsequently acquires the object sees a consistent header.
++        uint64_t word = ((address >> HIGH_ADDRESS_SHIFT) & HIGH_ADDRESS_MASK) << 32
++                        | ((address >> LOW_ADDRESS_SHIFT) & LOW_ADDRESS_MASK);
++        // objectState occupies the top 16 bits; with objectState=0 the top
++        // 16 bits are already 0, so `word` is ready.
++        __atomic_store_n(reinterpret_cast<uint64_t*>(this), word, __ATOMIC_RELEASE);
++#endif
++    }
++
+     bool IsValidStateWord() const { return GetTypeInfo() != nullptr; }
+     StateWord GetStateWord() const
+     {
+diff --git a/runtime/src/CompilerCalls.cpp b/runtime/src/CompilerCalls.cpp
+index 9c8d3ec0..1a07b685 100755
+--- a/runtime/src/CompilerCalls.cpp
++++ b/runtime/src/CompilerCalls.cpp
+@@ -1714,6 +1714,16 @@ extern "C" TypeInfo* CJ_MCC_GetOrCreateTypeInfo(TypeTemplate* typeTemplate, U32
+ 
+ extern "C" bool CJ_MCC_IsSubType(TypeInfo* typeInfo, TypeInfo* superTypeInfo)
+ {
++    // The Cangjie compiler generates `ldr xN, [obj]` (reads the full 8-byte
++    // stateWord) and passes it directly as the `typeInfo` argument.  In MSGC
++    // the objectState field (bits 63-48 of the stateWord) can be non-zero
++    // (e.g. LOCKED=1, or any transient GC state), which would make the raw
++    // value an invalid kernel-space pointer.  Mask off the top 16 bits to
++    // recover the clean 48-bit TypeInfo address before any dereference.
++    constexpr uintptr_t kTypeInfoMask = 0x0000'FFFF'FFFF'FFFFull;
++    typeInfo = reinterpret_cast<TypeInfo*>(
++        reinterpret_cast<uintptr_t>(typeInfo) & kTypeInfoMask);
++
+     if (typeInfo == nullptr || superTypeInfo == nullptr) {
+         return false;
+     }
+@@ -1725,6 +1735,12 @@ extern "C" bool CJ_MCC_IsSubType(TypeInfo* typeInfo, TypeInfo* superTypeInfo)
+     return isSub;
+ }
+ 
++static inline TypeInfo* MaskRuntimeTypeInfo(TypeInfo* typeInfo)
++{
++    constexpr uintptr_t kTypeInfoMask = 0x0000'FFFF'FFFF'FFFFull;
++    return reinterpret_cast<TypeInfo*>(reinterpret_cast<uintptr_t>(typeInfo) & kTypeInfoMask);
++}
++
+ static bool IsTupleTypeOf(ObjectPtr obj, TypeInfo* typeInfo, TypeInfo* targetTypeInfo)
+ {
+     // targetTypeInfo may not be of the tuple type. In this case, false is returned.
+@@ -1840,11 +1856,13 @@ extern "C" void CJ_MCC_ReadGeneric(const ObjectPtr dstPtr, ObjectPtr obj, void*
+ 
+ extern "C" FuncPtr* CJ_MCC_GetMTable(TypeInfo* ti, TypeInfo* itf)
+ {
++    ti = MaskRuntimeTypeInfo(ti);
+     return ti->GetMTable(itf);
+ }
+ 
+ extern "C" TypeInfo* CJ_MCC_GetMethodOuterTI(TypeInfo* ti, TypeInfo* itf, U64 index)
+ {
++    ti = MaskRuntimeTypeInfo(ti);
+     return ti->GetMethodOuterTI(itf, index);
+ }
+ 
+diff --git a/runtime/src/Heap/MAllocator/MSRegionInfo.cpp b/runtime/src/Heap/MAllocator/MSRegionInfo.cpp
+index 3ff6cd58..3e3e970b 100644
+--- a/runtime/src/Heap/MAllocator/MSRegionInfo.cpp
++++ b/runtime/src/Heap/MAllocator/MSRegionInfo.cpp
+@@ -209,34 +209,31 @@ size_t MSRegionInfo::SweepRegion()
+     uint64_t summary = 0;
+     uintptr_t base = RegionStart();
+ 
++    // --- Pass 1: count live objects ---
+     for (size_t i = 0; i < wordCount; i++) {
+-        // Core: allocBitmap = ~markBitmap  (one NOT per 64 slots)
+-        allocBitmap[i] = ~markBitmap[i];
+         liveCount += __builtin_popcountll(markBitmap[i]);
+-        if (allocBitmap[i] != 0) {
+-            summary |= (1ULL << i);
+-        }
+-    }
+-
+-    // Mask out invalid trailing bits
+-    size_t trailingBits = totalSlotCount % 64;
+-    if (trailingBits != 0) {
+-        allocBitmap[wordCount - 1] &= (1ULL << trailingBits) - 1;
+-        if (allocBitmap[wordCount - 1] == 0) {
+-            summary &= ~(1ULL << (wordCount - 1));
+-        }
+     }
+ 
+-    // Zero dead slots: the compiler assumes freshly-allocated memory is zeroed
+-    // (same as CopyGC's bump allocator from mmap'd pages). Bitmap allocation
+-    // reuses swept slots, so stale object data must be cleared here — not on the
+-    // allocation hot-path — to avoid GC tracing stale reference fields.
++    // --- Pass 2: zero dead slots BEFORE exposing them via allocBitmap ---
++    // This prevents a race where concurrent AllocFromBitmap claims a slot
++    // immediately after allocBitmap[i] is set (Phase 1 in the old code), but
++    // before SweepRegion zeroes the slot.  The result was that a freshly
++    // allocated object's header retained stale objectState bits (e.g. 0x6e65)
++    // from the dead object that previously occupied the slot, corrupting the
++    // TypeInfo word seen by CJ_MCC_IsSubType.  By zeroing first and then
++    // publishing allocBitmap with a release fence, we guarantee any thread
++    // that obtains a slot from the allocator observes clean zeroed memory.
+     if (liveCount == 0) {
+         memset(reinterpret_cast<void*>(base), 0, MS_REGION_SIZE);
+     } else {
+         size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
++        size_t trailingBits = totalSlotCount % 64;
+         for (size_t i = 0; i < wordCount; i++) {
+-            uint64_t freeBits = allocBitmap[i];
++            uint64_t freeBits = ~markBitmap[i];
++            // Mask invalid trailing bits in the last word
++            if (i == wordCount - 1 && trailingBits != 0) {
++                freeBits &= (1ULL << trailingBits) - 1;
++            }
+             while (freeBits != 0) {
+                 int bit = __builtin_ctzll(freeBits);
+                 size_t slotIdx = i * 64 + static_cast<size_t>(bit);
+@@ -247,6 +244,22 @@ size_t MSRegionInfo::SweepRegion()
+         }
+     }
+ 
++    // --- Pass 3: publish free slots to allocator (after zeroing is complete) ---
++    // Publish each bitmap word with release semantics so a mutator that claims a
++    // slot via the CAS in AllocFromBitmapFast cannot observe the slot as free
++    // until the preceding memset() writes are visible.
++    size_t trailingBits = totalSlotCount % 64;
++    for (size_t i = 0; i < wordCount; i++) {
++        uint64_t freeBits = ~markBitmap[i];
++        if (i == wordCount - 1 && trailingBits != 0) {
++            freeBits &= (1ULL << trailingBits) - 1;
++        }
++        __atomic_store_n(&allocBitmap[i], freeBits, __ATOMIC_RELEASE);
++        if (freeBits != 0) {
++            summary |= (1ULL << i);
++        }
++    }
++
+     // markBitmap is cleared by ClearAllMarkBitmaps at next MarkSetup,
+     // not here — avoids redundant memset per-region during sweep.
+ 
+@@ -254,8 +267,8 @@ size_t MSRegionInfo::SweepRegion()
+     freeSlotCount = totalSlotCount - liveSlotCount;
+     sweepState = MSSweepState::SWEPT;
+ 
+-    // Store summary word (O4): bit[i]=1 if allocBitmap[i] has free slots
+-    reserved = summary;
++    // Store summary word (O4): bit[i]=1 if allocBitmap[i] has free slots.
++    __atomic_store_n(&reserved, summary, __ATOMIC_RELEASE);
+ 
+     size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
+     return static_cast<size_t>(freeSlotCount) * slotSize;
+diff --git a/runtime/src/Heap/MAllocator/MSRegionInfo.h b/runtime/src/Heap/MAllocator/MSRegionInfo.h
+index f37e7ee8..2dad16aa 100644
+--- a/runtime/src/Heap/MAllocator/MSRegionInfo.h
++++ b/runtime/src/Heap/MAllocator/MSRegionInfo.h
+@@ -154,23 +154,29 @@ struct MSRegionInfo {
+     // Uses summary word (reserved) for O(1) lookup: bit[i]=1 means allocBitmap[i] has free slots.
+     inline uintptr_t AllocFromBitmapFast()
+     {
+-        uint64_t summary = reserved;
++        uint64_t summary = __atomic_load_n(&reserved, __ATOMIC_ACQUIRE);
+         while (summary != 0) {
+             size_t wordIdx = static_cast<size_t>(__builtin_ctzll(summary));
+-            uint64_t word = allocBitmap[wordIdx];
+-            if (LIKELY(word != 0)) {
++            uint64_t word = __atomic_load_n(&allocBitmap[wordIdx], __ATOMIC_ACQUIRE);
++            while (LIKELY(word != 0)) {
+                 int bit = __builtin_ctzll(word);
+-                allocBitmap[wordIdx] = word & ~(1ULL << bit);
+-                freeSlotCount--;
+-                if (allocBitmap[wordIdx] == 0) {
+-                    reserved = reserved & ~(1ULL << wordIdx);
++                uint64_t desired = word & ~(1ULL << bit);
++                uint64_t expected = word;
++                if (__atomic_compare_exchange_n(
++                        &allocBitmap[wordIdx], &expected, desired, false,
++                        __ATOMIC_ACQ_REL, __ATOMIC_ACQUIRE)) {
++                    freeSlotCount--;
++                    if (desired == 0) {
++                        __atomic_fetch_and(&reserved, ~(1ULL << wordIdx), __ATOMIC_ACQ_REL);
++                    }
++                    size_t slotIndex = wordIdx * 64 + static_cast<size_t>(bit);
++                    return RegionStart() + slotIndex * SizeClassInfo::ClassToSize(sizeClass);
+                 }
+-                size_t slotIndex = wordIdx * 64 + static_cast<size_t>(bit);
+-                return RegionStart() + slotIndex * SizeClassInfo::ClassToSize(sizeClass);
++                word = expected;
+             }
+             // Summary was stale for this word, self-correct and try next
+             summary &= ~(1ULL << wordIdx);
+-            reserved = reserved & ~(1ULL << wordIdx);
++            __atomic_fetch_and(&reserved, ~(1ULL << wordIdx), __ATOMIC_ACQ_REL);
+         }
+         return 0;  // Region full
+     }
+@@ -325,6 +331,33 @@ public:
+         return addr >= heapStartAddress_ && addr < heapEndAddress_;
+     }
+ 
++    // Fast read-only mark check — write barrier pre-filter (Opt-1).
++    // Returns true if the object at addr is already marked (black).
++    // Does NOT perform a CAS; use MarkObjectInHeap for the marking CAS.
++    // For small/medium: reads the mark bitmap (atomic relaxed load + bit test).
++    // For large: reads the flags_ byte (atomic relaxed load).
++    // Returns false conservatively on uninitialized regions (forces full path).
++    static inline bool IsAlreadyMarked(uintptr_t addr)
++    {
++        MSRegionInfo* info = GetRegionInfo(addr);
++        if (UNLIKELY(info->regionType == MSRegionType::MS_REGION_LARGE)) {
++            if (info->regionEnd == 0) {
++                // SPAN entry: reserved = base region index
++                MSRegionInfo* base = GetRegionInfoByIdx(static_cast<size_t>(info->reserved));
++                return base->IsMarked();
++            }
++            return info->IsMarked();
++        }
++        if (LIKELY(info->markBitmap != nullptr && info->totalSlotCount > 0)) {
++            size_t slotSize = SizeClassInfo::ClassToSize(info->sizeClass);
++            size_t slotIdx = (addr - info->RegionStart()) / slotSize;
++            uint64_t bit = 1ULL << (slotIdx & 63);
++            uint64_t word = __atomic_load_n(&info->markBitmap[slotIdx >> 6], __ATOMIC_RELAXED);
++            return (word & bit) != 0;
++        }
++        return false;  // uninitialized or unknown: let full path handle it
++    }
++
+     // Shared MarkObject implementation for heap-internal addresses.
+     // Precondition: IsHeapAddress(addr) == true.
+     // Returns true = already marked (skip), false = newly marked (enqueue).
+diff --git a/runtime/src/Heap/MBarrier/MSMarkBarrier.cpp b/runtime/src/Heap/MBarrier/MSMarkBarrier.cpp
+index d96a9b2e..8052722f 100644
+--- a/runtime/src/Heap/MBarrier/MSMarkBarrier.cpp
++++ b/runtime/src/Heap/MBarrier/MSMarkBarrier.cpp
+@@ -9,6 +9,7 @@
+ #include "MSMarkBarrier.h"
+ #include "Heap/Barrier/Barrier.inline.h"
+ #include "Heap/Heap.h"
++#include "Heap/MAllocator/MSRegionInfo.h"
+ #include "Heap/MCollector/MarkSweepCollector.h"
+ #include "Mutator/Mutator.h"
+ #include "ObjectModel/Field.inline.h"
+@@ -99,6 +100,13 @@ void MSMarkBarrier::EnqueueRef(BaseObject* ref)
+     if (ref == nullptr || !Heap::IsHeapAddress(ref)) {
+         return;
+     }
++    // Opt-1: fast pre-check — skip already-marked (born-black) objects without
++    // acquiring TLS Mutator. MarkNewObject() marks every new allocation black,
++    // so shade(new) for freshly-allocated objects is a no-op in TryEnqueueGreyObject.
++    // Checking the bitmap here avoids the TLS read + entire wbBuf path for that case.
++    if (LIKELY(MSRegionInfoArray::IsAlreadyMarked(reinterpret_cast<uintptr_t>(ref)))) {
++        return;
++    }
+     Mutator* mutator = Mutator::GetMutator();
+     if (mutator == nullptr) {
+         return;
+@@ -167,7 +175,11 @@ void MSMarkBarrier::WriteReference(BaseObject* obj, RefField<false>& field, Base
+     if (IsHashMapCounterEnabled()) {
+         g_oldShadeCount.fetch_add(1, std::memory_order_relaxed);
+     }
+-    EnqueueRef(oldRef);
++    // Opt-3: inline null check — avoids function call for null old refs (common for
++    // newly-constructed objects whose fields are being written for the first time).
++    if (oldRef != nullptr) {
++        EnqueueRef(oldRef);
++    }
+ 
+     // store
+     field.SetTargetObject(ref);
+@@ -177,7 +189,9 @@ void MSMarkBarrier::WriteReference(BaseObject* obj, RefField<false>& field, Base
+         g_newWriteRefCount.fetch_add(1, std::memory_order_relaxed);
+         g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
+     }
+-    EnqueueRef(ref);
++    if (ref != nullptr) {
++        EnqueueRef(ref);
++    }
+ }
+ 
+ void MSMarkBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) const
+@@ -187,7 +201,10 @@ void MSMarkBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) cons
+     if (IsHashMapCounterEnabled()) {
+         g_oldShadeCount.fetch_add(1, std::memory_order_relaxed);
+     }
+-    EnqueueRef(oldRef);
++    // Opt-3: inline null check — avoids function call for null old static refs.
++    if (oldRef != nullptr) {
++        EnqueueRef(oldRef);
++    }
+ 
+     // store
+     field.SetTargetObject(ref);
+@@ -197,7 +214,9 @@ void MSMarkBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) cons
+         g_newWriteStaticRefCount.fetch_add(1, std::memory_order_relaxed);
+         g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
+     }
+-    EnqueueRef(ref);
++    if (ref != nullptr) {
++        EnqueueRef(ref);
++    }
+ }
+ 
+ void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen) const
+diff --git a/runtime/src/Heap/MBarrier/WriteBarrierBuffer.h b/runtime/src/Heap/MBarrier/WriteBarrierBuffer.h
+index f3c2b73f..18f8b15c 100644
+--- a/runtime/src/Heap/MBarrier/WriteBarrierBuffer.h
++++ b/runtime/src/Heap/MBarrier/WriteBarrierBuffer.h
+@@ -38,7 +38,7 @@ class WorkStack;
+ 
+ class WriteBarrierBuffer {
+ public:
+-    static constexpr size_t kCapacity = 256;
++    static constexpr size_t kCapacity = 1024;
+ 
+     WriteBarrierBuffer() : count_(0)
+     {
+@@ -64,13 +64,18 @@ public:
+     // Flush all buffered objects into the given container, then reset.
+     // Container must support push_back(BaseObject*).
+     // Called under STW (MarkTermination) or by the owning Mutator.
++    // Stale entries (from a previous GC cycle whose object was already swept and
++    // zeroed) are silently dropped: SATB correctness only requires that live
++    // old-value objects be retained, so a zeroed stateWord means the object is
++    // already dead and need not be re-marked.
+     template<typename Container>
+     inline void Flush(Container& workStack)
+     {
+         size_t n = count_;
+         for (size_t i = 0; i < n; ++i) {
+-            if (buf_[i] != nullptr) {
+-                workStack.push_back(buf_[i]);
++            BaseObject* obj = buf_[i];
++            if (obj != nullptr && obj->IsValidObject()) {
++                workStack.push_back(obj);
+             }
+         }
+         count_ = 0;
+diff --git a/runtime/src/Heap/MCollector/MarkSweepCollector.cpp b/runtime/src/Heap/MCollector/MarkSweepCollector.cpp
+index b7ab09bc..a10d2eb0 100644
+--- a/runtime/src/Heap/MCollector/MarkSweepCollector.cpp
++++ b/runtime/src/Heap/MCollector/MarkSweepCollector.cpp
+@@ -459,7 +459,7 @@ static double GetAssistRatioCoeff()
+                 return v;
+             }
+         }
+-        return 0.1;
++        return 0.05;
+     }();
+     return coeff;
+ }
+@@ -509,7 +509,7 @@ uint64_t MarkSweepCollector::GetAssistRatioScale()
+ size_t MarkSweepCollector::GetAssistDebtTriggerObjects() const
+ {
+     static size_t trigger = []() -> size_t {
+-        return ReadEnvCount("CJ_MS_ASSIST_DEBT_TRIGGER", 256);
++        return ReadEnvCount("CJ_MS_ASSIST_DEBT_TRIGGER", 512);
+     }();
+     return trigger;
+ }
+@@ -529,7 +529,7 @@ double MarkSweepCollector::GetAssistRatioMaxMultiplier()
+                 return v;
+             }
+         }
+-        return 10.0;
++        return 3.0;
+     }();
+     return mult;
+ }
+@@ -1204,12 +1204,22 @@ void MarkSweepCollector::ExecuteLikeDrainMainQueue(GreyWorkQueue& mainQueue)
+         mainQueue.pop_back();
+         processed++;
+         // Guard: objects in released/reclaimed regions must not appear in
+-        // the mark queue. A zeroed stateWord is a fatal GC invariant violation.
+-        if (!obj->IsValidObject()) {
+-            LOG(RTLOG_FATAL, "[MS-GC] ExecuteLikeDrainMainQueue: FATAL invalid stateWord obj=%p, "
++        // the mark queue.
++        //  (a) !IsTraceableObjectAddress: the region has been freed or the
++        //      address is misaligned/out-of-bounds – skip unconditionally.
++        //  (b) !IsValidObject: the stateWord has been zeroed by concurrent
++        //      sweep – the slot was dead; skip safely.
++        //  Both checks are needed: IsTraceableObjectAddress alone cannot detect
++        //  live-looking but stale entries; IsValidObject alone may pass for
++        //  reallocated slots whose stateWord contains a garbage (torn) typeInfo
++        //  pointer produced by a racing InitStateWord (Fix6 addresses the torn-
++        //  read race in GetTypeInfo, but defence-in-depth here is warranted).
++        if (UNLIKELY(!IsTraceableObjectAddress(obj) || !obj->IsValidObject())) {
++            VLOG(REPORT, "[MS-GC] ExecuteLikeDrainMainQueue: skipping invalid obj=%p, "
+                 "stateWord=0x%zx",
+                 (void*)obj,
+                 *reinterpret_cast<uintptr_t*>(obj));
++            continue;
+         }
+ 
+         if (!obj->HasRefField()) {

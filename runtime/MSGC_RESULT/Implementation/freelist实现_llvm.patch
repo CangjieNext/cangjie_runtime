@@ -1,0 +1,339 @@
+diff --git a/llvm/lib/Target/AArch64/AArch64AsmPrinter.cpp b/llvm/lib/Target/AArch64/AArch64AsmPrinter.cpp
+index b78f2fbd6842..84d0e38c3daf 100644
+--- a/llvm/lib/Target/AArch64/AArch64AsmPrinter.cpp
++++ b/llvm/lib/Target/AArch64/AArch64AsmPrinter.cpp
+@@ -87,7 +87,7 @@ constexpr uint8_t MSGCGCPhaseMSMarkTermination = 22;
+ constexpr uint8_t MSGCRegionBump = 1;
+ constexpr uint8_t MSGCRegionPartial = 2;
+ constexpr int64_t MSGCActiveRegionsOffsetInAllocBuffer = 8;
+-constexpr int64_t MSRegionInfoAllocBitmapOffset = 24;
++constexpr int64_t MSRegionInfoFreeHeadOffset = 24;       // uintptr_t freeHead (+24, replaces allocBitmap*)
+ constexpr int64_t MSRegionInfoMarkBitmapOffset = 32;
+ constexpr int64_t MSRegionInfoFreeSlotCountOffset = 42;
+ constexpr int64_t MSRegionInfoRegionTypeOffset = 50;
+@@ -2169,19 +2169,9 @@ void AArch64AsmPrinter::emitMccNewObjectForCopyGC(
+     MCSymbol *LSlow = OutContext.createTempSymbol("NewObjMSGCSlow", true);
+     MCSymbol *LPartialRetry =
+       OutContext.createTempSymbol("NewObjMSGCPartialRetry", true);
+-    MCSymbol *LPartialRepair =
+-      OutContext.createTempSymbol("NewObjMSGCPartialRepair", true);
+-    MCSymbol *LPartialSummaryDone =
+-      OutContext.createTempSymbol("NewObjMSGCPartialSummaryDone", true);
+ 
+     const MCSymbolRefExpr *BumpExpr = MCSymbolRefExpr::create(LBump, OutContext);
+     const MCSymbolRefExpr *SlowExpr = MCSymbolRefExpr::create(LSlow, OutContext);
+-    const MCSymbolRefExpr *PartialRepairExpr =
+-      MCSymbolRefExpr::create(LPartialRepair, OutContext);
+-    const MCSymbolRefExpr *PartialSummaryDoneExpr =
+-      MCSymbolRefExpr::create(LPartialSummaryDone, OutContext);
+-    const MCSymbolRefExpr *PartialRetryExpr =
+-      MCSymbolRefExpr::create(LPartialRetry, OutContext);
+ 
+     auto EmitFinalizerCreated = [&]() {
+     if (!Param.FastFuncName.equals("CJ_MCC_NewFinalizerFast")) {
+@@ -2373,48 +2363,29 @@ void AArch64AsmPrinter::emitMccNewObjectForCopyGC(
+            MCInstBuilder(Bcc).addImm(AArch64CC::NE).addExpr(SlowExpr));
+ 
+     OutStreamer->emitLabel(LPartialRetry);
++    // ── Freelist pop (9 instr) ──────────────────────────────────────────────
++    // ① x12 = freeHead  (MSRegionInfo+24)
+     EmitToStreamer(*OutStreamer,
+            MCInstBuilder(LDRXui)
+              .addReg(X12)
+              .addReg(X10)
+-             .addImm(MSRegionInfoReservedOffset / 8));
++             .addImm(MSRegionInfoFreeHeadOffset / 8));
++    // ② if freeHead == 0: no free slot → slow path
+     EmitToStreamer(*OutStreamer,
+            MCInstBuilder(CBZX).addReg(X12).addExpr(SlowExpr));
++    // ③ x13 = *(freeHead) = next ptr
+     EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(RBITXr).addReg(X13).addReg(X12));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(CLZXr).addReg(X13).addReg(X13));
++           MCInstBuilder(LDRXui).addReg(X13).addReg(X12).addImm(0));
++    // ④ write klass (x0) into slot[0]  — overwrites the next ptr
+     EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(LDRXui)
+-             .addReg(X14)
+-             .addReg(X10)
+-             .addImm(MSRegionInfoAllocBitmapOffset / 8));
++           MCInstBuilder(STRXui).addReg(X0).addReg(X12).addImm(0));
++    // ⑤ freeHead = next  (pop list)
+     EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(ADDXrs)
+-             .addReg(X14)
+-             .addReg(X14)
++           MCInstBuilder(STRXui)
+              .addReg(X13)
+-             .addImm(3));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(LDRXui).addReg(X16).addReg(X14).addImm(0));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(CBZX).addReg(X16).addExpr(PartialRepairExpr));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(RBITXr).addReg(X17).addReg(X16));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(CLZXr).addReg(X17).addReg(X17));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(MOVZXi).addReg(X11).addImm(1).addImm(0));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(LSLVXr).addReg(X11).addReg(X11).addReg(X17));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(BICXrs)
+-             .addReg(X16)
+-             .addReg(X16)
+-             .addReg(X11)
+-             .addImm(0));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(STRXui).addReg(X16).addReg(X14).addImm(0));
++             .addReg(X10)
++             .addImm(MSRegionInfoFreeHeadOffset / 8));
++    // ⑥⑦⑧ freeSlotCount--
+     EmitToStreamer(*OutStreamer,
+            MCInstBuilder(LDRHHui)
+              .addReg(W11)
+@@ -2431,75 +2402,13 @@ void AArch64AsmPrinter::emitMccNewObjectForCopyGC(
+              .addReg(W11)
+              .addReg(X10)
+              .addImm(MSRegionInfoFreeSlotCountOffset / 2));
++    // ⑨ x0 = obj addr = x12
+     EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(CBNZX)
+-             .addReg(X16)
+-             .addExpr(PartialSummaryDoneExpr));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(MOVZXi).addReg(X11).addImm(1).addImm(0));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(LSLVXr).addReg(X11).addReg(X11).addReg(X13));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(BICXrs)
+-             .addReg(X12)
+-             .addReg(X12)
+-             .addReg(X11)
+-             .addImm(0));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(STRXui)
+-             .addReg(X12)
+-             .addReg(X10)
+-             .addImm(MSRegionInfoReservedOffset / 8));
+-    OutStreamer->emitLabel(LPartialSummaryDone);
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(MOVZXi).addReg(X11).addImm(64).addImm(0));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(MADDXrrr)
+-             .addReg(X13)
+-             .addReg(X13)
+-             .addReg(X11)
+-             .addReg(X17));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(LDRXui).addReg(X14).addReg(X10).addImm(1));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(MOVZXi).addReg(X11).addImm(MSRegionSize).addImm(0));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(SUBXrs)
+-             .addReg(X14)
+-             .addReg(X14)
+-             .addReg(X11)
+-             .addImm(0));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(MADDXrrr)
+-             .addReg(X16)
+-             .addReg(X13)
+-             .addReg(X15)
+-             .addReg(X14));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(STRXui).addReg(X0).addReg(X16).addImm(0));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(ORRXrs).addReg(X0).addReg(XZR).addReg(X16).addImm(0));
+-    EmitMarkNewObjectIfNeeded(X0, true);
++           MCInstBuilder(ORRXrs).addReg(X0).addReg(XZR).addReg(X12).addImm(0));
++    EmitMarkNewObjectIfNeeded(X0, false);
+     EmitFinalizerCreated();
+     EmitToStreamer(*OutStreamer, MCInstBuilder(B).addExpr(Param.FinExpr));
+-
+-    OutStreamer->emitLabel(LPartialRepair);
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(MOVZXi).addReg(X11).addImm(1).addImm(0));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(LSLVXr).addReg(X11).addReg(X11).addReg(X13));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(BICXrs)
+-             .addReg(X12)
+-             .addReg(X12)
+-             .addReg(X11)
+-             .addImm(0));
+-    EmitToStreamer(*OutStreamer,
+-           MCInstBuilder(STRXui)
+-             .addReg(X12)
+-             .addReg(X10)
+-             .addImm(MSRegionInfoReservedOffset / 8));
+-    EmitToStreamer(*OutStreamer, MCInstBuilder(B).addExpr(PartialRetryExpr));
++    // ─── (no LPartialRepair / LPartialSummaryDone; freelist has no retry loop) ──
+ 
+     OutStreamer->emitLabel(LBump);
+     EmitToStreamer(*OutStreamer,
+@@ -2658,21 +2567,11 @@ void AArch64AsmPrinter::emitMccNewObjectForMSGCDynamic(
+   MCSymbol *LSlow = OutContext.createTempSymbol("NewObjMSGCDynSlow", true);
+   MCSymbol *LPartialRetry =
+       OutContext.createTempSymbol("NewObjMSGCDynPRetry", true);
+-  MCSymbol *LPartialRepair =
+-      OutContext.createTempSymbol("NewObjMSGCDynPRepair", true);
+-  MCSymbol *LPartialSummaryDone =
+-      OutContext.createTempSymbol("NewObjMSGCDynPSumDone", true);
+ 
+   const MCSymbolRefExpr *BumpExpr =
+       MCSymbolRefExpr::create(LBump, OutContext);
+   const MCSymbolRefExpr *SlowExpr =
+       MCSymbolRefExpr::create(LSlow, OutContext);
+-  const MCSymbolRefExpr *PartialRepairExpr =
+-      MCSymbolRefExpr::create(LPartialRepair, OutContext);
+-  const MCSymbolRefExpr *PartialSummaryDoneExpr =
+-      MCSymbolRefExpr::create(LPartialSummaryDone, OutContext);
+-  const MCSymbolRefExpr *PartialRetryExpr =
+-      MCSymbolRefExpr::create(LPartialRetry, OutContext);
+ 
+   MCSymbol *SizeClassTableSym =
+       OutContext.getOrCreateSymbol("lCJMSGCSizeClassTable");
+@@ -2956,48 +2855,29 @@ void AArch64AsmPrinter::emitMccNewObjectForMSGCDynamic(
+ 
+   // ─── PARTIAL path ───────────────────────────────────────────────────────────
+   OutStreamer->emitLabel(LPartialRetry);
++  // ── Freelist pop (9 instr) ──────────────────────────────────────────────────
++  // ① x12 = freeHead  (MSRegionInfo+24)
+   EmitToStreamer(*OutStreamer,
+                 MCInstBuilder(LDRXui)
+                     .addReg(X12)
+                     .addReg(X10)
+-                    .addImm(MSRegionInfoReservedOffset / 8));
++                    .addImm(MSRegionInfoFreeHeadOffset / 8));
++  // ② if freeHead == 0: no free slot → slow path
+   EmitToStreamer(*OutStreamer,
+                 MCInstBuilder(CBZX).addReg(X12).addExpr(SlowExpr));
++  // ③ x13 = *(freeHead) = next ptr
+   EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(RBITXr).addReg(X13).addReg(X12));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(CLZXr).addReg(X13).addReg(X13));
++                MCInstBuilder(LDRXui).addReg(X13).addReg(X12).addImm(0));
++  // ④ write klass (x0) into slot[0]  — overwrites the next ptr
+   EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(LDRXui)
+-                    .addReg(X14)
+-                    .addReg(X10)
+-                    .addImm(MSRegionInfoAllocBitmapOffset / 8));
++                MCInstBuilder(STRXui).addReg(X0).addReg(X12).addImm(0));
++  // ⑤ freeHead = next  (pop list)
+   EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(ADDXrs)
+-                    .addReg(X14)
+-                    .addReg(X14)
++                MCInstBuilder(STRXui)
+                     .addReg(X13)
+-                    .addImm(3));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(LDRXui).addReg(X16).addReg(X14).addImm(0));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(CBZX).addReg(X16).addExpr(PartialRepairExpr));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(RBITXr).addReg(X17).addReg(X16));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(CLZXr).addReg(X17).addReg(X17));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(MOVZXi).addReg(X11).addImm(1).addImm(0));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(LSLVXr).addReg(X11).addReg(X11).addReg(X17));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(BICXrs)
+-                    .addReg(X16)
+-                    .addReg(X16)
+-                    .addReg(X11)
+-                    .addImm(0));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(STRXui).addReg(X16).addReg(X14).addImm(0));
++                    .addReg(X10)
++                    .addImm(MSRegionInfoFreeHeadOffset / 8));
++  // ⑥⑦⑧ freeSlotCount--
+   EmitToStreamer(*OutStreamer,
+                 MCInstBuilder(LDRHHui)
+                     .addReg(W11)
+@@ -3010,75 +2890,13 @@ void AArch64AsmPrinter::emitMccNewObjectForMSGCDynamic(
+                     .addReg(W11)
+                     .addReg(X10)
+                     .addImm(MSRegionInfoFreeSlotCountOffset / 2));
++  // ⑨ x0 = obj addr = x12
+   EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(CBNZX).addReg(X16).addExpr(PartialSummaryDoneExpr));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(MOVZXi).addReg(X11).addImm(1).addImm(0));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(LSLVXr).addReg(X11).addReg(X11).addReg(X13));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(BICXrs)
+-                    .addReg(X12)
+-                    .addReg(X12)
+-                    .addReg(X11)
+-                    .addImm(0));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(STRXui)
+-                    .addReg(X12)
+-                    .addReg(X10)
+-                    .addImm(MSRegionInfoReservedOffset / 8));
+-  OutStreamer->emitLabel(LPartialSummaryDone);
+-  // obj_addr = X13 * 64 + X17 * SlotSize + regionStart
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(MOVZXi).addReg(X11).addImm(64).addImm(0));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(MADDXrrr)
+-                    .addReg(X13)
+-                    .addReg(X13)
+-                    .addReg(X11)
+-                    .addReg(X17));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(LDRXui).addReg(X14).addReg(X10).addImm(1));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(MOVZXi).addReg(X11).addImm(MSRegionSize).addImm(0));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(SUBXrs)
+-                    .addReg(X14)
+-                    .addReg(X14)
+-                    .addReg(X11)
+-                    .addImm(0));
+-  // Dynamic: X15 = SlotSize (register); same MADD as static version.
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(MADDXrrr)
+-                    .addReg(X16)
+-                    .addReg(X13)
+-                    .addReg(X15)
+-                    .addReg(X14));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(STRXui).addReg(X0).addReg(X16).addImm(0));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(ORRXrs).addReg(X0).addReg(XZR).addReg(X16).addImm(0));
+-  EmitMarkNewObjectIfNeeded(X0, /*HasSlotIdx=*/true);
++                MCInstBuilder(ORRXrs).addReg(X0).addReg(XZR).addReg(X12).addImm(0));
++  EmitMarkNewObjectIfNeeded(X0, false);
+   EmitFinalizerCreated();
+   EmitToStreamer(*OutStreamer, MCInstBuilder(B).addExpr(Param.FinExpr));
+-
+-  OutStreamer->emitLabel(LPartialRepair);
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(MOVZXi).addReg(X11).addImm(1).addImm(0));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(LSLVXr).addReg(X11).addReg(X11).addReg(X13));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(BICXrs)
+-                    .addReg(X12)
+-                    .addReg(X12)
+-                    .addReg(X11)
+-                    .addImm(0));
+-  EmitToStreamer(*OutStreamer,
+-                MCInstBuilder(STRXui)
+-                    .addReg(X12)
+-                    .addReg(X10)
+-                    .addImm(MSRegionInfoReservedOffset / 8));
+-  EmitToStreamer(*OutStreamer, MCInstBuilder(B).addExpr(PartialRetryExpr));
++  // ─── (no LPartialRepair / LPartialSummaryDone; freelist has no retry loop) ──
+ 
+   // ─── BUMP path ──────────────────────────────────────────────────────────────
+   OutStreamer->emitLabel(LBump);

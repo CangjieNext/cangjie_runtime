@@ -1,0 +1,1594 @@
+From c34e31632183b0db284c602eda8d64a55f1fe733 Mon Sep 17 00:00:00 2001
+From: lipeisheng <lipeisheng1@huawei.com>
+Date: Tue, 26 May 2026 16:50:28 +0800
+Subject: [PATCH] =?UTF-8?q?=E4=BF=AE=E5=A4=8Dhttp=E7=94=A8=E4=BE=8B?=
+ =?UTF-8?q?=E7=9A=84sigv=E9=97=AE=E9=A2=98?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ runtime/src/CangjieRuntime.cpp                |   3 -
+ runtime/src/CompilerCalls.cpp                 | 309 +++++++++---------
+ runtime/src/Heap/Allocator/AllocBuffer.cpp    |  17 -
+ runtime/src/Heap/Allocator/RegionManager.cpp  |  28 --
+ runtime/src/Heap/MAllocator/MSAllocBuffer.cpp |  16 -
+ .../src/Heap/MAllocator/MSRegionManager.cpp   |   9 -
+ runtime/src/Heap/MBarrier/MSMarkBarrier.cpp   | 197 +----------
+ .../Heap/MCollector/MarkSweepCollector.cpp    | 194 +----------
+ 8 files changed, 174 insertions(+), 599 deletions(-)
+
+diff --git a/runtime/src/CangjieRuntime.cpp b/runtime/src/CangjieRuntime.cpp
+index 1da15ef8..1d4dff9e 100644
+--- a/runtime/src/CangjieRuntime.cpp
++++ b/runtime/src/CangjieRuntime.cpp
+@@ -36,8 +36,6 @@
+ #include "Sanitizer/SanitizerInterface.h"
+ #endif
+ 
+-// Forward declaration for alloc stats (defined in CompilerCalls.cpp)
+-extern "C" void MCC_PrintAllocStats();
+ namespace MapleRuntime {
+ StackGrowConfig CangjieRuntime::stackGrowConfig = StackGrowConfig::UNDEF;
+ extern "C" MRT_EXPORT void MRT_LibraryOnLoad(uint64_t address, bool enableGC)
+@@ -328,7 +326,6 @@ void CangjieRuntime::Fini()
+ {
+     // To avoid foreign thread access finalized runtime.
+     ThreadLocal::ThreadLocalFini();
+-    MCC_PrintAllocStats();
+     // since there might be failure during initialization,
+     // here we need to check and call fini.
+ #ifdef _WIN64
+diff --git a/runtime/src/CompilerCalls.cpp b/runtime/src/CompilerCalls.cpp
+index 75260d10..ca81f27e 100755
+--- a/runtime/src/CompilerCalls.cpp
++++ b/runtime/src/CompilerCalls.cpp
+@@ -7,8 +7,6 @@
+ 
+ #include "CompilerCalls.h"
+ 
+-#include <atomic>
+-#include <cstdio>
+ #include "Base/CString.h"
+ #include "Base/Log.h"
+ #include "Base/LogFile.h"
+@@ -52,144 +50,6 @@
+ 
+ namespace MapleRuntime {
+ 
+-// Lifetime counter for MCC_NewObject calls (both MSGC and CopyGC).
+-static std::atomic<uint64_t> g_mccNewObjectCalls{0};
+-
+-#ifdef MRT_USE_MARK_SWEEP
+-// Fast-path failure diagnostic counters.
+-// Check 1: safepointState != 0  (at [x28+0x30])
+-// Check 2: msAllocBuffer == nullptr  (at [x28+0x58])
+-// Check 3: activeRegions_[cls] == nullptr  (at [msAllocBuffer+cls*8+8])
+-// Check 4: regionType not BUMP(1) or PARTIAL(2)  (at [region+0x32])
+-// Check 5: BUMP bump alloc fails (allocPtr+sz > regionEnd)
+-// Check 6: PARTIAL bitmap alloc fails
+-static std::atomic<uint64_t> g_failCheck1{0};
+-static std::atomic<uint64_t> g_failCheck2{0};
+-static std::atomic<uint64_t> g_failCheck3{0};
+-static std::atomic<uint64_t> g_failCheck4{0};
+-static std::atomic<uint64_t> g_failCheckBump{0};    // regionType=BUMP but allocPtr+sz>regionEnd
+-static std::atomic<uint64_t> g_failCheckBitmap{0};  // regionType=PARTIAL
+-static std::atomic<uint64_t> g_failCheckOther{0};   // x28==null or unknown
+-static std::atomic<uint64_t> g_diagSampleN{0};  // sample every N calls
+-
+-// Print at most kMaxPrints times for detailed info
+-static std::atomic<uint32_t> g_detailPrints{0};
+-static constexpr uint32_t kMaxDetailPrints = 5;
+-
+-static void DiagnoseFastPathFailure(size_t size)
+-{
+-    constexpr uint64_t kSampleEvery = 1000000ULL;
+-    uint64_t n = g_diagSampleN.fetch_add(1, std::memory_order_relaxed);
+-    if (n % kSampleEvery != 0) {
+-        return;
+-    }
+-
+-    // Read x28 (Cangjie Thread Pointer)
+-    uintptr_t x28val = 0;
+-    asm volatile("mov %0, x28" : "=r"(x28val));
+-    if (x28val == 0) {
+-        g_failCheckOther.fetch_add(1, std::memory_order_relaxed);
+-        return;
+-    }
+-
+-    // Check 1: safepointState at [x28+0x30]
+-    volatile uint64_t safepointState = *reinterpret_cast<volatile uint64_t*>(x28val + 0x30);
+-    if (safepointState != 0) {
+-        g_failCheck1.fetch_add(1, std::memory_order_relaxed);
+-        return;
+-    }
+-
+-    // Check 2: msAllocBuffer at [x28+0x58]
+-    volatile uintptr_t msAllocBufPtr = *reinterpret_cast<volatile uintptr_t*>(x28val + 0x58);
+-    if (msAllocBufPtr == 0) {
+-        g_failCheck2.fetch_add(1, std::memory_order_relaxed);
+-        return;
+-    }
+-
+-    // Determine size class (mirror SizeClassInfo::SizeToClass)
+-    // For cls1_sz16: size=16, cls=1; cls0_sz8: size=8, cls=0
+-    // Simple mapping: cls = (size - 1) / 8  (approximate, works for small sizes)
+-    constexpr size_t kSlotStep = 8;
+-    uint8_t cls = static_cast<uint8_t>((size <= 8) ? 0 : (size - 1) / kSlotStep);
+-    if (cls > 15) cls = 15;  // cap at max size class
+-
+-    // Check 3: activeRegions_[cls] at [msAllocBuf + 8 + cls*8]
+-    uintptr_t activeRegionPtr = *reinterpret_cast<volatile uintptr_t*>(msAllocBufPtr + 8 + static_cast<uintptr_t>(cls) * 8);
+-    if (activeRegionPtr == 0) {
+-        g_failCheck3.fetch_add(1, std::memory_order_relaxed);
+-        return;
+-    }
+-
+-    // Check 4: regionType at [region + 0x32]
+-    uint8_t regionType = *reinterpret_cast<volatile uint8_t*>(activeRegionPtr + 0x32);
+-    if (regionType != 1 && regionType != 2) {
+-        g_failCheck4.fetch_add(1, std::memory_order_relaxed);
+-        return;
+-    }
+-
+-    // All 4 checks passed. Now determine if it's BUMP or PARTIAL failure.
+-    if (regionType == 1) {
+-        // BUMP: check allocPtr + size vs regionEnd
+-        uintptr_t allocPtr  = *reinterpret_cast<volatile uintptr_t*>(activeRegionPtr + 0x00);
+-        uintptr_t regionEnd = *reinterpret_cast<volatile uintptr_t*>(activeRegionPtr + 0x08);
+-        g_failCheckBump.fetch_add(1, std::memory_order_relaxed);
+-        uint32_t pIdx = g_detailPrints.fetch_add(1, std::memory_order_relaxed);
+-        if (pIdx < kMaxDetailPrints) {
+-            fprintf(stderr, "[BUMP-DETAIL] size=%zu cls=%u allocPtr=0x%zx regionEnd=0x%zx gap=%zd regionBase=0x%zx\n",
+-                size, (unsigned)cls, allocPtr, regionEnd,
+-                (ptrdiff_t)(regionEnd - allocPtr),
+-                activeRegionPtr);
+-        }
+-    } else {
+-        // PARTIAL (bitmap) failure
+-        g_failCheckBitmap.fetch_add(1, std::memory_order_relaxed);
+-        uint32_t pIdx = g_detailPrints.fetch_add(1, std::memory_order_relaxed);
+-        if (pIdx < kMaxDetailPrints) {
+-            uintptr_t freeSlotCount = *reinterpret_cast<volatile uint16_t*>(activeRegionPtr + 0x2A);
+-            fprintf(stderr, "[BITMAP-DETAIL] size=%zu cls=%u freeSlotCount=%zu region=0x%zx\n",
+-                size, (unsigned)cls, freeSlotCount, activeRegionPtr);
+-        }
+-    }
+-}
+-#endif  // MRT_USE_MARK_SWEEP
+-
+-// Forward declarations for per-GC-mode alloc counter dump functions.
+-#ifdef MRT_USE_MARK_SWEEP
+-extern "C" void DumpAllocCounters_MSAllocBuffer();
+-extern "C" void DumpLifetimeStats_MSRegionManager();
+-#else
+-extern "C" void DumpAllocCounters_AllocBuffer();
+-extern "C" void DumpLifetimeStats_CopyGCRegionManager();
+-#endif
+-
+-extern "C" void MCC_PrintAllocStats()
+-{
+-    uint64_t mccCalls = g_mccNewObjectCalls.load(std::memory_order_relaxed);
+-    fprintf(stderr, "[ALLOC-COUNTER] MCC_NewObject_calls=%llu\n", (unsigned long long)mccCalls);
+-#ifdef MRT_USE_MARK_SWEEP
+-    fprintf(stderr, "[FAST-PATH-DIAG] fail_check1(safepointState!=0)=%llu\n",
+-        (unsigned long long)g_failCheck1.load(std::memory_order_relaxed));
+-    fprintf(stderr, "[FAST-PATH-DIAG] fail_check2(msAllocBuf==null)=%llu\n",
+-        (unsigned long long)g_failCheck2.load(std::memory_order_relaxed));
+-    fprintf(stderr, "[FAST-PATH-DIAG] fail_check3(activeRegion==null)=%llu\n",
+-        (unsigned long long)g_failCheck3.load(std::memory_order_relaxed));
+-    fprintf(stderr, "[FAST-PATH-DIAG] fail_check4(bad_regionType)=%llu\n",
+-        (unsigned long long)g_failCheck4.load(std::memory_order_relaxed));
+-    fprintf(stderr, "[FAST-PATH-DIAG] fail_checkBump(allocPtr+sz>regionEnd)=%llu\n",
+-        (unsigned long long)g_failCheckBump.load(std::memory_order_relaxed));
+-    fprintf(stderr, "[FAST-PATH-DIAG] fail_checkBitmap(PARTIAL_noFreeSlot)=%llu\n",
+-        (unsigned long long)g_failCheckBitmap.load(std::memory_order_relaxed));
+-    fprintf(stderr, "[FAST-PATH-DIAG] fail_checkOther(x28null)=%llu\n",
+-        (unsigned long long)g_failCheckOther.load(std::memory_order_relaxed));
+-    uint64_t totalSampled = g_diagSampleN.load(std::memory_order_relaxed) / 1000000ULL;
+-    fprintf(stderr, "[FAST-PATH-DIAG] samples_taken(per_1M)=%llu\n", (unsigned long long)totalSampled);
+-    DumpAllocCounters_MSAllocBuffer();
+-    DumpLifetimeStats_MSRegionManager();
+-#else
+-    DumpAllocCounters_AllocBuffer();
+-    DumpLifetimeStats_CopyGCRegionManager();
+-#endif
+-}
+ #if defined(CANGJIE_SANITIZER_SUPPORT)
+ // These interfaces are used to detect whether the acquireArrayRawData is released in time.
+ class PinnedArrayRecorder {
+@@ -311,12 +171,12 @@ void RawPtrCheckerTimerEntry(void* arg)
+ // The compiler should only call MCC_* to access runtime functions.
+ // MCC_* calls follows C standard calling convention.
+ 
++static inline TypeInfo* NormalizeRuntimeTypeInfo(TypeInfo* typeInfo);
++static inline const TypeInfo* NormalizeRuntimeTypeInfo(const TypeInfo* typeInfo);
++
+ extern "C" ObjRef MCC_NewObject(const TypeInfo* klass, MSize size)
+ {
+-    g_mccNewObjectCalls.fetch_add(1, std::memory_order_relaxed);
+-#ifdef MRT_USE_MARK_SWEEP
+-    DiagnoseFastPathFailure(size);
+-#endif
++    klass = NormalizeRuntimeTypeInfo(klass);
+     DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
+     ObjRef obj = ObjectManager::NewObject(klass, size);
+     if (obj == nullptr) {
+@@ -328,6 +188,7 @@ extern "C" ObjRef MCC_NewObject(const TypeInfo* klass, MSize size)
+ 
+ extern "C" ObjRef MCC_NewWeakRefObject(const TypeInfo* klass, MSize size)
+ {
++    klass = NormalizeRuntimeTypeInfo(klass);
+     DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
+     ObjRef obj = ObjectManager::NewWeakRefObject(klass, size);
+     if (obj == nullptr) {
+@@ -339,6 +200,7 @@ extern "C" ObjRef MCC_NewWeakRefObject(const TypeInfo* klass, MSize size)
+ 
+ extern "C" ObjRef MCC_NewPinnedObject(const TypeInfo* klass, MSize size, bool isFinalizer)
+ {
++    klass = NormalizeRuntimeTypeInfo(klass);
+     DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
+     ObjRef obj = ObjectManager::NewPinnedObject(klass, size, isFinalizer);
+     if (obj == nullptr) {
+@@ -350,6 +212,7 @@ extern "C" ObjRef MCC_NewPinnedObject(const TypeInfo* klass, MSize size, bool is
+ 
+ extern "C" ObjRef MCC_NewFinalizer(const TypeInfo* klass, MSize size)
+ {
++    klass = NormalizeRuntimeTypeInfo(klass);
+     DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
+     ObjRef obj = ObjectManager::NewFinalizer(klass, size);
+     if (obj == nullptr) {
+@@ -367,6 +230,7 @@ extern "C" ObjRef MCC_OnFinalizerCreated(ObjRef ref)
+ }
+ extern "C" ArrayRef MCC_NewArray(const TypeInfo* arrayInfo, MIndex nElems)
+ {
++    arrayInfo = NormalizeRuntimeTypeInfo(arrayInfo);
+     ArrayRef array = ObjectManager::NewArray(static_cast<MIndex>(nElems), arrayInfo);
+     if (array == nullptr) {
+         VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
+@@ -377,6 +241,7 @@ extern "C" ArrayRef MCC_NewArray(const TypeInfo* arrayInfo, MIndex nElems)
+ 
+ extern "C" ArrayRef MCC_NewObjArray(const TypeInfo* arrayInfo, MIndex nElems)
+ {
++    arrayInfo = NormalizeRuntimeTypeInfo(arrayInfo);
+     ArrayRef array = ObjectManager::NewObjArray(nElems, arrayInfo);
+     if (array == nullptr) {
+         VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
+@@ -387,6 +252,7 @@ extern "C" ArrayRef MCC_NewObjArray(const TypeInfo* arrayInfo, MIndex nElems)
+ 
+ extern "C" ArrayRef MCC_NewArray8(const TypeInfo* arrayInfo, MIndex nElems)
+ {
++    arrayInfo = NormalizeRuntimeTypeInfo(arrayInfo);
+     ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_8B);
+     if (array == nullptr) {
+         VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
+@@ -397,6 +263,7 @@ extern "C" ArrayRef MCC_NewArray8(const TypeInfo* arrayInfo, MIndex nElems)
+ 
+ extern "C" ArrayRef MCC_NewArray16(const TypeInfo* arrayInfo, MIndex nElems)
+ {
++    arrayInfo = NormalizeRuntimeTypeInfo(arrayInfo);
+     ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_16B);
+     if (array == nullptr) {
+         VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
+@@ -407,6 +274,7 @@ extern "C" ArrayRef MCC_NewArray16(const TypeInfo* arrayInfo, MIndex nElems)
+ 
+ extern "C" ArrayRef MCC_NewArray32(const TypeInfo* arrayInfo, MIndex nElems)
+ {
++    arrayInfo = NormalizeRuntimeTypeInfo(arrayInfo);
+     ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_32B);
+     if (array == nullptr) {
+         VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
+@@ -417,6 +285,7 @@ extern "C" ArrayRef MCC_NewArray32(const TypeInfo* arrayInfo, MIndex nElems)
+ 
+ extern "C" ArrayRef MCC_NewArray64(const TypeInfo* arrayInfo, MIndex nElems)
+ {
++    arrayInfo = NormalizeRuntimeTypeInfo(arrayInfo);
+     ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_64B);
+     if (array == nullptr) {
+         VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
+@@ -466,6 +335,7 @@ extern "C" TypeInfo* MCC_GetTypeForAny(const ObjectPtr obj) { return obj->GetTyp
+ 
+ extern "C" bool MCC_IsWrapperClassForAutoEnv(const TypeInfo* ti)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     const char* tiName = ti->GetName();
+     const char* targetPattern = ":$Cw$";
+     const char *p = strchr(tiName, ':');
+@@ -638,6 +508,7 @@ extern "C" void CJ_MCC_RemoveSignalHandler(int signal, bool (*fn)(int, siginfo_t
+ 
+ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const ArrayRef excepMsg)
+ {
++    arrayInfo = NormalizeRuntimeTypeInfo(arrayInfo);
+     ExceptionWrapper& eWrapper = Mutator::GetMutator()->GetExceptionWrapper();
+     MIndex msgLength = excepMsg->GetLength();
+     if (msgLength != 0) {
+@@ -719,6 +590,7 @@ extern "C" ArrayRef MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const Ar
+ extern "C" StackTraceData MCC_DecodeStackTraceImpl(const uint64_t ip, const uint64_t pc, const uint64_t funcDesc,
+                                                    const TypeInfo* charArray)
+ {
++    charArray = NormalizeRuntimeTypeInfo(charArray);
+     StackTraceElement stackTrace;
+     StackManager::GetStackTraceByLiteFrameInfo(ip, pc, funcDesc, stackTrace);
+ #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+@@ -777,6 +649,7 @@ extern "C" StackTraceData MCC_DecodeStackTraceImpl(const uint64_t ip, const uint
+ // the new object will be correctly tracked by gc.
+ static ArrayRef CreateCharArrayFromCString(const TypeInfo* charArray, CString name)
+ {
++    charArray = NormalizeRuntimeTypeInfo(charArray);
+     ArrayRef array = ObjectManager::NewKnownWidthArray(
+         name.Length(), charArray, ObjectManager::ArrayElemBits::ELEM_8B, AllocType::RAW_POINTER_OBJECT);
+     if (array == nullptr) {
+@@ -793,6 +666,8 @@ static ArrayRef CreateCharArrayFromCString(const TypeInfo* charArray, CString na
+ static ArrayRef CreateStackTrace(const TypeInfo* arrayStackTrace, const TypeInfo* charArray,
+                                  const std::vector<FrameInfo*> &srcSracks)
+ {
++    arrayStackTrace = NormalizeRuntimeTypeInfo(arrayStackTrace);
++    charArray = NormalizeRuntimeTypeInfo(charArray);
+     // fix size after discard native frame
+     MSize size = 0;
+     for (auto frame : srcSracks) {
+@@ -839,6 +714,9 @@ static ArrayRef CreateStackTrace(const TypeInfo* arrayStackTrace, const TypeInfo
+ static ArrayRef GetAllThreadSnapshot(const TypeInfo* arraySnapshot, const TypeInfo* arrayStackTrace,
+                                      const TypeInfo* charArray)
+ {
++    arraySnapshot = NormalizeRuntimeTypeInfo(arraySnapshot);
++    arrayStackTrace = NormalizeRuntimeTypeInfo(arrayStackTrace);
++    charArray = NormalizeRuntimeTypeInfo(charArray);
+     std::vector<std::unique_ptr<RecordStackInfo>> records;
+     MutatorManager::Instance().VisitAllMutators([&records](Mutator &mutator) {
+         if (!mutator.IsVaildCJThread()) {
+@@ -892,6 +770,9 @@ static ArrayRef GetAllThreadSnapshot(const TypeInfo* arraySnapshot, const TypeIn
+ extern "C" ArrayRef MCC_GetAllThreadSnapshotImpl(const TypeInfo* arraySnapshot, const TypeInfo* arrayStackTrace,
+                                                  const TypeInfo* charArray)
+ {
++    arraySnapshot = NormalizeRuntimeTypeInfo(arraySnapshot);
++    arrayStackTrace = NormalizeRuntimeTypeInfo(arrayStackTrace);
++    charArray = NormalizeRuntimeTypeInfo(charArray);
+     ScopedEnterSaferegion enterSaferegion(false);
+     ArrayRef allRecords = nullptr;
+     if (MutatorManager::Instance().WorldStopped()) {
+@@ -905,6 +786,8 @@ extern "C" ArrayRef MCC_GetAllThreadSnapshotImpl(const TypeInfo* arraySnapshot,
+ 
+ extern "C" ThreadSnapshot MCC_GetCurrentThreadSnapshotImpl(const TypeInfo* arrayStackTrace, const TypeInfo* charArray)
+ {
++    arrayStackTrace = NormalizeRuntimeTypeInfo(arrayStackTrace);
++    charArray = NormalizeRuntimeTypeInfo(charArray);
+     Mutator* mutator = Mutator::GetMutator();
+     CHECK_DETAIL(mutator != nullptr, "Can not get mutator");
+     CHECK_DETAIL(mutator->IsVaildCJThread(), "Get invalid mutator");
+@@ -1079,6 +962,7 @@ extern "C" const char* MCC_GetPackageVersion(PackageInfo* packageInfo)
+ 
+ extern "C" ObjectPtr MCC_GetSubPackages(PackageInfo* packageInfo, TypeInfo* arrayTi)
+ {
++    arrayTi = NormalizeRuntimeTypeInfo(arrayTi);
+     std::vector<PackageInfo*> subPackages = {};
+     LoaderManager::GetInstance()->GetSubPackages(packageInfo, subPackages);
+     size_t subPkgCnt = subPackages.size();
+@@ -1156,6 +1040,7 @@ extern "C" void* MCC_ApplyCJInstanceMethod(MethodInfo* methodInfo, ObjRef obj, v
+ 
+ extern "C" void* MCC_ApplyCJStaticMethod(MethodInfo* methodInfo, void* args, TypeInfo* thisTi)
+ {
++    thisTi = NormalizeRuntimeTypeInfo(thisTi);
+     return methodInfo->ApplyCJMethod(nullptr, nullptr, args, thisTi);
+ }
+ 
+@@ -1167,6 +1052,7 @@ extern "C" void* MCC_ApplyCJGenericInstanceMethod(MethodInfo* methodInfo, ObjRef
+ extern "C" void* MCC_ApplyCJGenericStaticMethod(MethodInfo* methodInfo, void* genericArgs,
+                                                 void* args, TypeInfo* thisTi)
+ {
++    thisTi = NormalizeRuntimeTypeInfo(thisTi);
+     return methodInfo->ApplyCJMethod(nullptr, genericArgs, args, thisTi);
+ }
+ 
+@@ -1196,6 +1082,7 @@ extern "C" bool MCC_CheckMethodActualArgs(MethodInfo* methodInfo, void* genericA
+ 
+ extern "C" void* MCC_GetMethodAnnotations(MethodInfo* methodInfo, TypeInfo* arrayTi)
+ {
++    arrayTi = NormalizeRuntimeTypeInfo(arrayTi);
+     return methodInfo->GetAnnotations(arrayTi);
+ }
+ 
+@@ -1258,7 +1145,7 @@ static TypeInfo* GetActualTypeFromGenericType(GenericTypeInfo* genericTi, void*
+         void* genericArg = genericTi->GetGenericArg(idx);
+         for (U64 argIdx = 0; argIdx < cjArray->rawPtr->len; ++argIdx) {
+             if (genericArg == genericArgs->GetGenericArg(argIdx)) {
+-                typeInfos[idx] = actualTypeInfos[argIdx];
++                typeInfos[idx] = NormalizeRuntimeTypeInfo(actualTypeInfos[argIdx]);
+             }
+         }
+     }
+@@ -1271,12 +1158,14 @@ static TypeInfo* GetActualTypeFromGenericType(GenericTypeInfo* genericTi, void*
+ 
+ static bool CheckGenericConstraint(GenericTypeInfo* genericTi, TypeInfo* ti, void* args, GenericTypeInfo* genericArgs)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     for (U64 constraintIdx = 0; constraintIdx < genericTi->GetGenericConstraintNum(); ++constraintIdx) {
+         TypeInfo* constraintTi = genericTi->GetGenericConstraint(constraintIdx);
+         if (constraintTi->IsGeneric()) {
+             constraintTi =
+                 GetActualTypeFromGenericType(reinterpret_cast<GenericTypeInfo*>(constraintTi), args, genericArgs);
+         }
++        constraintTi = NormalizeRuntimeTypeInfo(constraintTi);
+         if (constraintTi == nullptr || !ti->IsSubType(constraintTi)) {
+             return false;
+         }
+@@ -1312,7 +1201,7 @@ extern "C" TypeInfo* MCC_GetOrCreateTypeInfoForReflect(TypeTemplate* tt, void* a
+     GenericTypeInfo* genericArgs = reinterpret_cast<GenericTypeInfo*>(
+         tt->GetReflectInfo()->GetDeclaringGenericTypeInfo());
+     for (U64 idx = 0; idx < len; ++idx) {
+-        typeInfos[idx] = *reinterpret_cast<TypeInfo**>(base + idx * TYPEINFO_PTR_SIZE);
++        typeInfos[idx] = NormalizeRuntimeTypeInfo(*reinterpret_cast<TypeInfo**>(base + idx * TYPEINFO_PTR_SIZE));
+         GenericTypeInfo* genericArg = static_cast<GenericTypeInfo*>(genericArgs->GetGenericArg(idx));
+         if (!CheckGenericConstraint(genericArg, typeInfos[idx], args, genericArgs)) {
+             free(mem);
+@@ -1326,21 +1215,50 @@ extern "C" TypeInfo* MCC_GetOrCreateTypeInfoForReflect(TypeTemplate* tt, void* a
+     return ti;
+ }
+ 
+-extern "C" const char* MCC_GetTypeName(TypeInfo* ti) { return ti->GetName(); }
++extern "C" const char* MCC_GetTypeName(TypeInfo* ti)
++{
++    ti = NormalizeRuntimeTypeInfo(ti);
++    return ti->GetName();
++}
+ 
+-extern "C" bool MCC_IsInterface(TypeInfo* ti) { return ti->IsInterface(); }
++extern "C" bool MCC_IsInterface(TypeInfo* ti)
++{
++    ti = NormalizeRuntimeTypeInfo(ti);
++    return ti->IsInterface();
++}
+ 
+-extern "C" bool MCC_IsClass(TypeInfo* ti) { return ti->IsClass(); }
++extern "C" bool MCC_IsClass(TypeInfo* ti)
++{
++    ti = NormalizeRuntimeTypeInfo(ti);
++    return ti->IsClass();
++}
+ 
+-extern "C" bool MCC_IsStruct(TypeInfo* ti) { return ti->IsStruct(); }
++extern "C" bool MCC_IsStruct(TypeInfo* ti)
++{
++    ti = NormalizeRuntimeTypeInfo(ti);
++    return ti->IsStruct();
++}
+ 
+-extern "C" bool MCC_IsPrimitive(TypeInfo* ti) { return ti->IsPrimitiveType(); }
++extern "C" bool MCC_IsPrimitive(TypeInfo* ti)
++{
++    ti = NormalizeRuntimeTypeInfo(ti);
++    return ti->IsPrimitiveType();
++}
+ 
+-extern "C" bool MCC_IsGeneric(TypeInfo* ti) { return ti->IsGeneric(); }
++extern "C" bool MCC_IsGeneric(TypeInfo* ti)
++{
++    ti = NormalizeRuntimeTypeInfo(ti);
++    return ti->IsGeneric();
++}
+ 
+-extern "C" bool MCC_IsEnum(TypeInfo* ti) { return ti->IsEnum() || ti->IsTempEnum(); }
++extern "C" bool MCC_IsEnum(TypeInfo* ti)
++{
++    ti = NormalizeRuntimeTypeInfo(ti);
++    return ti->IsEnum() || ti->IsTempEnum();
++}
+ 
+ extern "C" bool MCC_IsFunction(TypeInfo* ti) {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     if (ti->IsFunc()) {
+         return true;
+     }
+@@ -1351,13 +1269,22 @@ extern "C" bool MCC_IsFunction(TypeInfo* ti) {
+     return super->IsFunc();
+ }
+ 
+-extern "C" bool MCC_IsTuple(TypeInfo* ti) { return ti->IsTuple(); }
++extern "C" bool MCC_IsTuple(TypeInfo* ti)
++{
++    ti = NormalizeRuntimeTypeInfo(ti);
++    return ti->IsTuple();
++}
+ 
+-extern "C" bool MCC_IsReflectUnsupportedType(TypeInfo* ti) { return ti->IsReflectUnsupportedType(); }
++extern "C" bool MCC_IsReflectUnsupportedType(TypeInfo* ti)
++{
++    ti = NormalizeRuntimeTypeInfo(ti);
++    return ti->IsReflectUnsupportedType();
++}
+ 
+ // reflect support enum
+ extern "C" U32 MCC_GetNumOfEnumConstructorInfos(TypeInfo* ti)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     if (!ti->IsEnum() && !ti->IsTempEnum()) {
+         return 0;
+     }
+@@ -1366,6 +1293,7 @@ extern "C" U32 MCC_GetNumOfEnumConstructorInfos(TypeInfo* ti)
+ 
+ extern "C" EnumCtorInfo* MCC_GetEnumConstructorInfo(TypeInfo* ti, U32 idx)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     return ti->GetEnumCtor(idx);
+ }
+ 
+@@ -1390,17 +1318,20 @@ extern "C" EnumCtorInfo* MCC_GetEnumConstructorInfoFromAny(ObjRef obj) {
+ 
+ extern "C" bool MCC_IsBox(TypeInfo* ti)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     return ti->IsBoxClass();
+ }
+ 
+ extern "C" TypeInfo** MCC_GetTypeArgs(TypeInfo* ti)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     return ti->GetTypeArgs();
+ }
+ 
+ // reflect support function
+ extern "C" U32 MCC_GetNumOfFunctionSignatureTypes(TypeInfo* funcTi)
+ {
++    funcTi = NormalizeRuntimeTypeInfo(funcTi);
+     TypeInfo* ti = nullptr;
+     auto super = funcTi->GetSuperTypeInfo();
+     if (funcTi->IsFunc()) {
+@@ -1421,6 +1352,7 @@ extern "C" U32 MCC_GetNumOfFunctionSignatureTypes(TypeInfo* funcTi)
+ 
+ extern "C" TypeInfo** MCC_GetFunctionSignatureTypes(TypeInfo* funcTi)
+ {
++    funcTi = NormalizeRuntimeTypeInfo(funcTi);
+     TypeInfo* ti = nullptr;
+     auto super = funcTi->GetSuperTypeInfo();
+     if (funcTi->IsFunc()) {
+@@ -1442,6 +1374,7 @@ extern "C" TypeInfo** MCC_GetFunctionSignatureTypes(TypeInfo* funcTi)
+ // for tuple
+ extern "C" U32 MCC_GetNumOfFieldTypes(TypeInfo* ti)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     U32 num = ti->GetFieldNum();
+     if ((ti->IsEnum() || ti->IsTempEnum()) && !ti->IsZeroSizedEnum()) {
+         if (ti->IsOptionLikeUnassociatedCtor()) {
+@@ -1454,6 +1387,7 @@ extern "C" U32 MCC_GetNumOfFieldTypes(TypeInfo* ti)
+ 
+ extern "C" TypeInfo** MCC_GetFieldTypes(TypeInfo* ti)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     TypeInfo** fieldTypes = ti->GetFieldTypes();
+     if ((ti->IsEnum() || ti->IsTempEnum()) && !ti->IsZeroSizedEnum()) {
+         if (ti->IsOptionLikeUnassociatedCtor()) {
+@@ -1471,6 +1405,7 @@ extern "C" TypeInfo** MCC_GetFieldTypes(TypeInfo* ti)
+ // 2. Tuple types
+ extern "C" ObjRef MCC_NewAndInitEnumTupleObject(TypeInfo* ti, void* args)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     if (args == nullptr) {
+         return nullptr;
+     }
+@@ -1505,6 +1440,7 @@ extern "C" ObjRef MCC_NewAndInitEnumTupleObject(TypeInfo* ti, void* args)
+ 
+ extern "C" ObjRef MCC_GetAssociatedValues(ObjRef obj, TypeInfo* arrayTi)
+ {
++    arrayTi = NormalizeRuntimeTypeInfo(arrayTi);
+     TypeInfo* ti = obj->GetTypeInfo();
+     U16 fieldNum = ti->GetFieldNum();
+     // For enum and temp enum, fields include the tag,
+@@ -1560,65 +1496,84 @@ extern "C" void MCC_GetQualifiedName(TypeInfo* ti, char* qualifiedName) {}
+ // member functions
+ extern "C" U32 MCC_GetNumOfInstanceMethodInfos(TypeInfo* ti)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     return ti->GetNumOfInstanceMethodInfos();
+ }
+ 
+ extern "C" MethodInfo* MCC_GetInstanceMethodInfo(TypeInfo* ti, U32 index)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     return ti->GetInstanceMethodInfo(index);
+ }
+ 
+ // static member functions
+ extern "C" U32 MCC_GetNumOfStaticMethodInfos(TypeInfo* ti)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     return ti->GetNumOfStaticMethodInfos();
+ }
+ 
+ extern "C" MethodInfo* MCC_GetStaticMethodInfo(TypeInfo* ti, U32 index)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     return ti->GetStaticMethodInfo(index);
+ }
+ 
+ // member variables
+ extern "C" U32 MCC_GetNumOfInstanceFieldInfos(TypeInfo* ti)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     return ti->GetNumOfInstanceFieldInfos();
+ }
+ 
+ extern "C" InstanceFieldInfo* MCC_GetInstanceFieldInfo(TypeInfo* ti, U32 index)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     return ti->GetInstanceFieldInfo(index);
+ }
+ 
+ // static member functions
+ extern "C" U32 MCC_GetNumOfStaticFieldInfos(TypeInfo* ti)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     return ti->GetNumOfStaticFieldInfos();
+ }
+ 
+ extern "C" StaticFieldInfo* MCC_GetStaticFieldInfo(TypeInfo* ti, U32 index)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     return ti->GetStaticFieldInfo(index);
+ }
+ 
+-extern "C" U32 MCC_GetTypeInfoModifier(TypeInfo* ti) { return ti->GetModifier(); }
++extern "C" U32 MCC_GetTypeInfoModifier(TypeInfo* ti)
++{
++    ti = NormalizeRuntimeTypeInfo(ti);
++    return ti->GetModifier();
++}
+ 
+ 
+-extern "C" TypeInfo* MCC_GetSuperTypeInfo(TypeInfo* ti) { return ti->GetSuperTypeInfo(); }
++extern "C" TypeInfo* MCC_GetSuperTypeInfo(TypeInfo* ti)
++{
++    ti = NormalizeRuntimeTypeInfo(ti);
++    return ti->GetSuperTypeInfo();
++}
+ 
+ extern "C" U32 MCC_GetNumOfInterface(TypeInfo* ti)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     return LoaderManager::GetInstance()->GetNumOfInterface(ti);
+ }
+ 
+ extern "C" TypeInfo* MCC_GetInterface(TypeInfo* ti, U32 idx)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     return LoaderManager::GetInstance()->GetInterface(ti, idx);
+ }
+ 
+ // field
+ extern "C" const char* MCC_GetInstanceFieldName(InstanceFieldInfo* fieldInfo, TypeInfo* declaringTypeInfo)
+ {
++    declaringTypeInfo = NormalizeRuntimeTypeInfo(declaringTypeInfo);
+     return fieldInfo->GetName(declaringTypeInfo);
+ }
+ 
+@@ -1626,6 +1581,7 @@ extern "C" const char* MCC_GetStaticFieldName(StaticFieldInfo* fieldInfo) { retu
+ 
+ extern "C" TypeInfo* MCC_GetInstanceFieldType(InstanceFieldInfo* fieldInfo, TypeInfo* declaringTypeInfo)
+ {
++    declaringTypeInfo = NormalizeRuntimeTypeInfo(declaringTypeInfo);
+     return fieldInfo->GetFieldType(declaringTypeInfo);
+ }
+ 
+@@ -1637,12 +1593,14 @@ extern "C" U32 MCC_GetStaticFieldModifier(StaticFieldInfo* fieldInfo) { return f
+ 
+ extern "C" void* MCC_GetInstanceFieldValue(InstanceFieldInfo* fieldInfo, TypeInfo* declaringTypeInfo, ObjRef obj)
+ {
++    declaringTypeInfo = NormalizeRuntimeTypeInfo(declaringTypeInfo);
+     return fieldInfo->GetValue(declaringTypeInfo, obj);
+ }
+ 
+ extern "C" void MCC_SetInstanceFieldValue(InstanceFieldInfo* fieldInfo, TypeInfo* declaringTypeInfo,
+                                           ObjRef obj, ObjRef newValue)
+ {
++    declaringTypeInfo = NormalizeRuntimeTypeInfo(declaringTypeInfo);
+     fieldInfo->SetValue(declaringTypeInfo, obj, newValue);
+ }
+ 
+@@ -1655,11 +1613,13 @@ extern "C" void MCC_SetStaticFieldValue(StaticFieldInfo* fieldInfo, ObjRef newVa
+ 
+ extern "C" void* MCC_GetInstanceFieldAnnotations(InstanceFieldInfo* fieldInfo, TypeInfo* arrayTi)
+ {
++    arrayTi = NormalizeRuntimeTypeInfo(arrayTi);
+     return fieldInfo->GetAnnotations(arrayTi);
+ }
+ 
+ extern "C" void* MCC_GetStaticFieldAnnotations(StaticFieldInfo* fieldInfo, TypeInfo* arrayTi)
+ {
++    arrayTi = NormalizeRuntimeTypeInfo(arrayTi);
+     return fieldInfo->GetAnnotations(arrayTi);
+ }
+ 
+@@ -1672,6 +1632,7 @@ extern "C" TypeInfo* MCC_GetParameterType(ParameterInfo* parameterInfo) { return
+ 
+ extern "C" void* MCC_GetParameterAnnotations(ParameterInfo* parameterInfo, TypeInfo* arrayTi)
+ {
++    arrayTi = NormalizeRuntimeTypeInfo(arrayTi);
+     return parameterInfo->GetAnnotations(arrayTi);
+ }
+ 
+@@ -1704,12 +1665,26 @@ extern "C" void CJ_MCC_ReadStaticStruct(MAddress dstPtr, size_t dstSize, MAddres
+ {
+     Heap::GetHeap().GetBarrier().ReadStaticStruct(dstPtr, srcPtr, dstSize, gctib);
+ }
+-extern "C" void* MCC_GetTypeInfoAnnotations(TypeInfo* cls, TypeInfo* arrayTi) { return cls->GetAnnotations(arrayTi); }
++extern "C" void* MCC_GetTypeInfoAnnotations(TypeInfo* cls, TypeInfo* arrayTi)
++{
++    cls = NormalizeRuntimeTypeInfo(cls);
++    arrayTi = NormalizeRuntimeTypeInfo(arrayTi);
++    return cls->GetAnnotations(arrayTi);
++}
+ 
+ // for generic
+ extern "C" TypeInfo* CJ_MCC_GetOrCreateTypeInfo(TypeTemplate* typeTemplate, U32 argSize, TypeInfo* typeArgs[])
+ {
+-    return TypeInfoManager::GetTypeInfoManager().GetOrCreateTypeInfo(typeTemplate, argSize, typeArgs);
++    if (argSize == 0 || typeArgs == nullptr) {
++        return TypeInfoManager::GetTypeInfoManager().GetOrCreateTypeInfo(typeTemplate, argSize, typeArgs);
++    }
++
++    std::vector<TypeInfo*> normalizedTypeArgs(argSize);
++    for (U32 idx = 0; idx < argSize; ++idx) {
++        normalizedTypeArgs[idx] = NormalizeRuntimeTypeInfo(typeArgs[idx]);
++    }
++    return TypeInfoManager::GetTypeInfoManager().GetOrCreateTypeInfo(typeTemplate, argSize,
++                                                                     normalizedTypeArgs.data());
+ }
+ 
+ static inline TypeInfo* NormalizeRuntimeTypeInfo(TypeInfo* typeInfo)
+@@ -1722,6 +1697,16 @@ static inline TypeInfo* NormalizeRuntimeTypeInfo(TypeInfo* typeInfo)
+ #endif
+ }
+ 
++static inline const TypeInfo* NormalizeRuntimeTypeInfo(const TypeInfo* typeInfo)
++{
++#ifdef MRT_USE_MARK_SWEEP
++    constexpr uintptr_t kTypeInfoMask = 0x0000FFFFffffFFFFull;
++    return reinterpret_cast<const TypeInfo*>(reinterpret_cast<uintptr_t>(typeInfo) & kTypeInfoMask);
++#else
++    return typeInfo;
++#endif
++}
++
+ extern "C" bool CJ_MCC_IsSubType(TypeInfo* typeInfo, TypeInfo* superTypeInfo)
+ {
+     typeInfo = NormalizeRuntimeTypeInfo(typeInfo);
+@@ -1738,6 +1723,8 @@ extern "C" bool CJ_MCC_IsSubType(TypeInfo* typeInfo, TypeInfo* superTypeInfo)
+ 
+ static bool IsTupleTypeOf(ObjectPtr obj, TypeInfo* typeInfo, TypeInfo* targetTypeInfo)
+ {
++    typeInfo = NormalizeRuntimeTypeInfo(typeInfo);
++    targetTypeInfo = NormalizeRuntimeTypeInfo(targetTypeInfo);
+     // targetTypeInfo may not be of the tuple type. In this case, false is returned.
+     if (!targetTypeInfo->IsTuple()) {
+         return false;
+@@ -1806,6 +1793,7 @@ extern "C" void CJ_MCC_WriteGeneric(const ObjectPtr obj, void* fieldPtr, const O
+ 
+ extern "C" void CJ_MCC_AssignGeneric(ObjectPtr dst, ObjectPtr src, TypeInfo* typeInfo)
+ {
++    typeInfo = NormalizeRuntimeTypeInfo(typeInfo);
+     size_t instanceSize = typeInfo->GetInstanceSize();
+     if (instanceSize == 0) {
+         return;
+@@ -1863,6 +1851,7 @@ extern "C" TypeInfo* CJ_MCC_GetMethodOuterTI(TypeInfo* ti, TypeInfo* itf, U64 in
+ 
+ extern "C" void CJ_MCC_UpdateVMT(TypeInfo* ti, TypeInfo* itf, ExtensionData* extensionData)
+ {
++    ti = NormalizeRuntimeTypeInfo(ti);
+     if (UNLIKELY(!extensionData->IsFuncTableUpdated())) {
+         return ti->TryUpdateExtensionData(itf, extensionData);
+     }
+@@ -1870,6 +1859,7 @@ extern "C" void CJ_MCC_UpdateVMT(TypeInfo* ti, TypeInfo* itf, ExtensionData* ext
+ 
+ extern "C" ObjRef MCC_NewGenericObject(const TypeInfo* klass, MSize size)
+ {
++    klass = NormalizeRuntimeTypeInfo(klass);
+     ObjRef obj = ObjectManager::NewObject(klass, size);
+     if (obj == nullptr) {
+         VLOG(REPORT, "Allocation generic object %s (%zu B) failed and throw OutOfMemoryError", klass->GetName(), size);
+@@ -1880,6 +1870,7 @@ extern "C" ObjRef MCC_NewGenericObject(const TypeInfo* klass, MSize size)
+ 
+ extern "C" ArrayRef MCC_NewArrayGeneric(const TypeInfo* arrayInfo, MIndex nElems)
+ {
++    arrayInfo = NormalizeRuntimeTypeInfo(arrayInfo);
+     ArrayRef array = nullptr;
+     if (!arrayInfo->IsArrayType()) {
+         return array;
+diff --git a/runtime/src/Heap/Allocator/AllocBuffer.cpp b/runtime/src/Heap/Allocator/AllocBuffer.cpp
+index c9359f25..4dba2878 100644
+--- a/runtime/src/Heap/Allocator/AllocBuffer.cpp
++++ b/runtime/src/Heap/Allocator/AllocBuffer.cpp
+@@ -9,23 +9,9 @@
+ #include "Allocator/RegionSpace.h"
+ #include "Collector/FinalizerProcessor.h"
+ #include "Heap.h"
+-#include <atomic>
+-#include <cstdio>
+ 
+ namespace MapleRuntime {
+ 
+-// Lifetime-total counters for CopyGC alloc path (never reset, printed at process exit).
+-static std::atomic<uint64_t> g_copyGCFastHitsTotal{0};
+-static std::atomic<uint64_t> g_copyGCSlowCallsTotal{0};
+-
+-extern "C" void DumpAllocCounters_AllocBuffer()
+-{
+-    uint64_t fastHits  = g_copyGCFastHitsTotal.load(std::memory_order_relaxed);
+-    uint64_t slowCalls = g_copyGCSlowCallsTotal.load(std::memory_order_relaxed);
+-    fprintf(stderr, "[ALLOC-COUNTER] CopyGC fast_alloc_hits=%llu  slow_alloc_calls=%llu\n",
+-            (unsigned long long)fastHits, (unsigned long long)slowCalls);
+-}
+-
+ AllocBuffer* AllocBuffer::GetOrCreateAllocBuffer()
+ {
+     auto* buffer = AllocBuffer::GetAllocBuffer();
+@@ -79,10 +65,7 @@ MAddress AllocBuffer::Allocate(size_t totalSize, AllocType allocType)
+     }
+ 
+     if (UNLIKELY(addr == 0)) {
+-        g_copyGCSlowCallsTotal.fetch_add(1, std::memory_order_relaxed);
+         addr = AllocateImpl(totalSize, allocType);
+-    } else {
+-        g_copyGCFastHitsTotal.fetch_add(1, std::memory_order_relaxed);
+     }
+ 
+     DLOG(ALLOC, "alloc 0x%zx(%zu)", addr, totalSize);
+diff --git a/runtime/src/Heap/Allocator/RegionManager.cpp b/runtime/src/Heap/Allocator/RegionManager.cpp
+index bdfe8703..e3856789 100644
+--- a/runtime/src/Heap/Allocator/RegionManager.cpp
++++ b/runtime/src/Heap/Allocator/RegionManager.cpp
+@@ -7,10 +7,8 @@
+ 
+ #include "Allocator/RegionManager.h"
+ 
+-#include <atomic>
+ #include <cmath>
+ #include <unistd.h>
+-#include <cstdio>
+ 
+ #include "Allocator/RegionSpace.h"
+ #include "Base/CString.h"
+@@ -32,22 +30,6 @@ const size_t RegionManager::MAX_UNIT_COUNT_PER_REGION = (128 * KB) / MapleRuntim
+ // size of huge page is 2048KB.
+ const size_t RegionManager::HUGE_PAGE = (2048 * KB) / MapleRuntime::MRT_PAGE_SIZE;;
+ 
+-static std::atomic<uint64_t> g_copyGCTakeRegionCallsTotal{0};
+-static std::atomic<uint64_t> g_copyGCTakeRegionTimeNsTotal{0};
+-
+-extern "C" void DumpLifetimeStats_CopyGCRegionManager()
+-{
+-    uint64_t calls = g_copyGCTakeRegionCallsTotal.load(std::memory_order_relaxed);
+-    uint64_t totalNs = g_copyGCTakeRegionTimeNsTotal.load(std::memory_order_relaxed);
+-    uint64_t avgNs = (calls == 0) ? 0 : (totalNs / calls);
+-    fprintf(stderr,
+-            "[COPYGC-TAKEREGION] calls=%llu total_ns=%llu total_ms=%.3f avg_ns=%llu\n",
+-            static_cast<unsigned long long>(calls),
+-            static_cast<unsigned long long>(totalNs),
+-            static_cast<double>(totalNs) / 1000000.0,
+-            static_cast<unsigned long long>(avgNs));
+-}
+-
+ class ForwardTask : public HeapWork {
+ public:
+     ForwardTask(RegionManager& manager, RegionList& fromSpace)
+@@ -541,12 +523,6 @@ void RegionManager::MaybeNotifyMark()
+ 
+ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, bool expectPhysicalMem)
+ {
+-    uint64_t startNs = TimeUtil::NanoSeconds();
+-    auto recordTakeRegion = [startNs]() {
+-        g_copyGCTakeRegionCallsTotal.fetch_add(1, std::memory_order_relaxed);
+-        g_copyGCTakeRegionTimeNsTotal.fetch_add(TimeUtil::NanoSeconds() - startNs, std::memory_order_relaxed);
+-    };
+-
+     // a chance to invoke heuristic gc.
+     MaybeNotifyMark();
+ 
+@@ -561,7 +537,6 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
+             auto idx = head->GetUnitIdx();
+             RegionInfo::ClearUnits(idx, num);
+             DLOG(REGION, "reuse garbage region %p@[%#zx, %#zx)", head, head->GetRegionStart(), head->GetRegionEnd());
+-            recordTakeRegion();
+             return RegionInfo::InitRegion(idx, num, type);
+         } else {
+             DLOG(REGION, "reclaim garbage region %p@[%#zx, %#zx)", head, head->GetRegionStart(), head->GetRegionEnd());
+@@ -574,7 +549,6 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
+         if (num >= HUGE_PAGE) {
+             TagHugePage(region, num);
+         }
+-        recordTakeRegion();
+         return region;
+     }
+ 
+@@ -597,14 +571,12 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
+             if (expectPhysicalMem) {
+                 RegionInfo::ClearUnits(idx, num);
+             }
+-            recordTakeRegion();
+             return region;
+         } else {
+             (void)inactiveZone.fetch_sub(size);
+         }
+     }
+ 
+-    recordTakeRegion();
+     return nullptr;
+ }
+ 
+diff --git a/runtime/src/Heap/MAllocator/MSAllocBuffer.cpp b/runtime/src/Heap/MAllocator/MSAllocBuffer.cpp
+index f05da880..11f74258 100644
+--- a/runtime/src/Heap/MAllocator/MSAllocBuffer.cpp
++++ b/runtime/src/Heap/MAllocator/MSAllocBuffer.cpp
+@@ -17,7 +17,6 @@
+ #include <algorithm>
+ #include <array>
+ #include <cstdint>
+-#include <cstdio>
+ 
+ namespace MapleRuntime {
+ 
+@@ -51,10 +50,6 @@ struct MSAllocSlowPathCounters {
+ 
+ MSAllocSlowPathCounters g_msAllocSlowPathCounters;
+ 
+-// Lifetime-total counters (never reset, printed at process exit by DumpAllocCounters_MSAllocBuffer).
+-static std::atomic<uint64_t> g_msAllocFastHitsTotal{0};
+-static std::atomic<uint64_t> g_msAllocSlowCallsTotal{0};
+-
+ constexpr size_t ToIndex(MSAllocRefillConsumer consumer)
+ {
+     return static_cast<size_t>(consumer);
+@@ -167,15 +162,6 @@ extern "C" void MSAllocBuffer_DumpAndResetSlowAllocCounters()
+          (unsigned long long)refillCounters[ToIndex(MSAllocRefillConsumer::BACKGROUND_FILL)][ToIndex(MSAllocRefillSource::FAILED)]);
+ }
+ 
+-extern "C" void DumpAllocCounters_MSAllocBuffer()
+-{
+-    uint64_t fastHits  = g_msAllocFastHitsTotal.load(std::memory_order_relaxed);
+-    uint64_t slowCalls = g_msAllocSlowCallsTotal.load(std::memory_order_relaxed);
+-    fprintf(stderr, "[ALLOC-COUNTER] MSGC  fast_alloc_hits=%llu  slow_alloc_calls=%llu\n",
+-            (unsigned long long)fastHits, (unsigned long long)slowCalls);
+-}
+-
+-
+ AllocBufferMS::~AllocBufferMS()
+ {
+     Fini();
+@@ -460,7 +446,6 @@ MAddress AllocBufferMS::FastAlloc(uint8_t cls)
+         }
+         if (LIKELY(addr != 0)) {
+             g_msAllocSlowPathCounters.fastAllocHits.fetch_add(1, std::memory_order_relaxed);
+-            g_msAllocFastHitsTotal.fetch_add(1, std::memory_order_relaxed);
+             return static_cast<MAddress>(addr);
+         }
+     }
+@@ -475,7 +460,6 @@ MAddress AllocBufferMS::FastAlloc(uint8_t cls)
+ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
+ {
+     g_msAllocSlowPathCounters.slowPathCalls.fetch_add(1, std::memory_order_relaxed);
+-    g_msAllocSlowCallsTotal.fetch_add(1, std::memory_order_relaxed);
+ 
+     // Step 1: Return the exhausted Region to the central pool (if any).
+     // When the compiler fast path (EnableGCFastPath) is enabled, the mutator
+diff --git a/runtime/src/Heap/MAllocator/MSRegionManager.cpp b/runtime/src/Heap/MAllocator/MSRegionManager.cpp
+index e766f15f..606f7624 100644
+--- a/runtime/src/Heap/MAllocator/MSRegionManager.cpp
++++ b/runtime/src/Heap/MAllocator/MSRegionManager.cpp
+@@ -475,15 +475,6 @@ void MSRegionManager::DumpLifetimeStats() const
+             freeManager_.GetMaxVirtualRegionCount());
+ }
+ 
+-extern "C" void DumpLifetimeStats_MSRegionManager()
+-{
+-    auto& allocator = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
+-    MSRegionManager* regionManager = allocator.GetMSRegionManager();
+-    if (regionManager != nullptr) {
+-        regionManager->DumpLifetimeStats();
+-    }
+-}
+-
+ // ============================================================================
+ // TakeRegion — allocate one MS_REGION_SIZE region
+ // ============================================================================
+diff --git a/runtime/src/Heap/MBarrier/MSMarkBarrier.cpp b/runtime/src/Heap/MBarrier/MSMarkBarrier.cpp
+index 693855ba..873d450d 100644
+--- a/runtime/src/Heap/MBarrier/MSMarkBarrier.cpp
++++ b/runtime/src/Heap/MBarrier/MSMarkBarrier.cpp
+@@ -16,9 +16,6 @@
+ #if defined(CANGJIE_TSAN_SUPPORT)
+ #include "Sanitizer/SanitizerInterface.h"
+ #endif
+-#include <atomic>
+-#include <cstdlib>
+-#include <cstring>
+ 
+ namespace MapleRuntime {
+ 
+@@ -37,113 +34,6 @@ private:
+ };
+ } // namespace
+ 
+-static bool IsHashMapCounterEnabled()
+-{
+-    static bool enabled = []() {
+-        const char* env = std::getenv("CJ_MS_HASHMAP_COUNTERS");
+-        return env != nullptr && env[0] != '\0' && std::strcmp(env, "0") != 0;
+-    }();
+-    return enabled;
+-}
+-
+-static std::atomic<uint64_t> g_oldShadeCount{0};
+-static std::atomic<uint64_t> g_newEnqueueCount{0};
+-static std::atomic<uint64_t> g_newWriteRefCount{0};
+-static std::atomic<uint64_t> g_newWriteStaticRefCount{0};
+-static std::atomic<uint64_t> g_newWriteStructCount{0};
+-static std::atomic<uint64_t> g_newWriteStaticStructCount{0};
+-static std::atomic<uint64_t> g_newCopyRefArrayCount{0};
+-static std::atomic<uint64_t> g_newCopyStructArrayCount{0};
+-static std::atomic<uint64_t> g_newAtomicWriteCount{0};
+-static std::atomic<uint64_t> g_newAtomicSwapCount{0};
+-static std::atomic<uint64_t> g_newCasCount{0};
+-static std::atomic<int32_t> g_invalidBarrierRefLogBudget{64};
+-
+-static const char* GetBarrierDiagTypeName(const BaseObject* obj)
+-{
+-    if (obj == nullptr || obj->GetTypeInfo() == nullptr || obj->GetTypeInfo()->GetName() == nullptr) {
+-        return "<null>";
+-    }
+-    return obj->GetTypeInfo()->GetName();
+-}
+-
+-static uintptr_t LoadBarrierDiagStateWord(const BaseObject* obj)
+-{
+-    return obj == nullptr ? 0 : *reinterpret_cast<const uintptr_t*>(obj);
+-}
+-
+-static void EnqueueRefWithDiag(const char* source, const BaseObject* holder, const void* slot, BaseObject* ref)
+-{
+-    if (ref != nullptr && Heap::IsHeapAddress(ref)) {
+-        bool traceable = true;
+-        uintptr_t stateWord = traceable ? LoadBarrierDiagStateWord(ref) : 0;
+-        if (UNLIKELY(!traceable || stateWord == 0 || !ref->IsValidObject())) {
+-            int32_t budget = g_invalidBarrierRefLogBudget.fetch_sub(1, std::memory_order_relaxed);
+-            if (budget > 0) {
+-                VLOG(REPORT,
+-                     "[MS-GC] Barrier invalid-ref source=%s holder=%p holderType=%s slot=%p ref=%p stateWord=0x%zx",
+-                     source,
+-                     static_cast<const void*>(holder),
+-                     GetBarrierDiagTypeName(holder),
+-                     slot,
+-                     static_cast<void*>(ref),
+-                     stateWord);
+-            }
+-        }
+-    }
+-    if (ref == nullptr || !Heap::IsHeapAddress(ref)) {
+-        return;
+-    }
+-    Mutator* mutator = Mutator::GetMutator();
+-    if (mutator == nullptr) {
+-        return;
+-    }
+-    WriteBarrierBuffer& wbBuf = mutator->GetWriteBarrierBuffer();
+-    if (UNLIKELY(wbBuf.IsFull())) {
+-        MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
+-        if (collector != nullptr) {
+-            collector->FlushWriteBarrierOverflow(wbBuf);
+-        } else {
+-            wbBuf.Clear();
+-        }
+-    }
+-    MarkSweepCollector& collector = static_cast<MarkSweepCollector&>(Heap::GetHeap().GetCollector());
+-    WriteBarrierBufferGreySink sink(wbBuf);
+-    (void)collector.TryEnqueueGreyObject(ref, sink);
+-}
+-
+-extern "C" void MSMarkBarrier_DumpAndResetCounters()
+-{
+-    if (!IsHashMapCounterEnabled()) {
+-        return;
+-    }
+-    uint64_t oldShade = g_oldShadeCount.exchange(0, std::memory_order_relaxed);
+-    uint64_t newEnqueue = g_newEnqueueCount.exchange(0, std::memory_order_relaxed);
+-    uint64_t writeRef = g_newWriteRefCount.exchange(0, std::memory_order_relaxed);
+-    uint64_t writeStaticRef = g_newWriteStaticRefCount.exchange(0, std::memory_order_relaxed);
+-    uint64_t writeStruct = g_newWriteStructCount.exchange(0, std::memory_order_relaxed);
+-    uint64_t writeStaticStruct = g_newWriteStaticStructCount.exchange(0, std::memory_order_relaxed);
+-    uint64_t copyRef = g_newCopyRefArrayCount.exchange(0, std::memory_order_relaxed);
+-    uint64_t copyStruct = g_newCopyStructArrayCount.exchange(0, std::memory_order_relaxed);
+-    uint64_t atomicWrite = g_newAtomicWriteCount.exchange(0, std::memory_order_relaxed);
+-    uint64_t atomicSwap = g_newAtomicSwapCount.exchange(0, std::memory_order_relaxed);
+-    uint64_t cas = g_newCasCount.exchange(0, std::memory_order_relaxed);
+-
+-    VLOG(REPORT, "[MS-HM-COUNT] old=%llu new=%llu wr=%llu wsr=%llu wst=%llu wsst=%llu cra=%llu csa=%llu aw=%llu as=%llu cas=%llu",
+-         (unsigned long long)oldShade,
+-         (unsigned long long)newEnqueue,
+-         (unsigned long long)writeRef,
+-         (unsigned long long)writeStaticRef,
+-         (unsigned long long)writeStruct,
+-         (unsigned long long)writeStaticStruct,
+-         (unsigned long long)copyRef,
+-         (unsigned long long)copyStruct,
+-         (unsigned long long)atomicWrite,
+-         (unsigned long long)atomicSwap,
+-         (unsigned long long)cas);
+-
+-}
+-
+ // ============================================================================
+ // Core helpers
+ // ============================================================================
+@@ -218,40 +108,26 @@ void MSMarkBarrier::WriteReference(BaseObject* obj, RefField<false>& field, Base
+ 
+     // discover(old)
+     BaseObject* oldRef = field.GetTargetObject();
+-    if (IsHashMapCounterEnabled()) {
+-        g_oldShadeCount.fetch_add(1, std::memory_order_relaxed);
+-    }
+-    EnqueueRefWithDiag("WriteReference.old", obj, &field, oldRef);
++    EnqueueRef(oldRef);
+ 
+     // store
+     field.SetTargetObject(ref);
+ 
+     // discover(new): ensure the newly linked graph becomes visible this cycle
+-    if (IsHashMapCounterEnabled()) {
+-        g_newWriteRefCount.fetch_add(1, std::memory_order_relaxed);
+-        g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
+-    }
+-    EnqueueRefWithDiag("WriteReference.new", obj, &field, ref);
++    EnqueueRef(ref);
+ }
+ 
+ void MSMarkBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) const
+ {
+     // discover(old)
+     BaseObject* oldRef = field.GetTargetObject();
+-    if (IsHashMapCounterEnabled()) {
+-        g_oldShadeCount.fetch_add(1, std::memory_order_relaxed);
+-    }
+-    EnqueueRefWithDiag("WriteStaticRef.old", nullptr, &field, oldRef);
++    EnqueueRef(oldRef);
+ 
+     // store
+     field.SetTargetObject(ref);
+ 
+     // discover(new)
+-    if (IsHashMapCounterEnabled()) {
+-        g_newWriteStaticRefCount.fetch_add(1, std::memory_order_relaxed);
+-        g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
+-    }
+-    EnqueueRefWithDiag("WriteStaticRef.new", nullptr, &field, ref);
++    EnqueueRef(ref);
+ }
+ 
+ void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen) const
+@@ -262,7 +138,7 @@ void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MA
+         obj->ForEachRefInStruct(
+             [obj](RefField<false>& refField) {
+                 BaseObject* oldRef = refField.GetTargetObject();
+-                EnqueueRefWithDiag("WriteStruct.old", obj, &refField, oldRef);
++                EnqueueRef(oldRef);
+             },
+             dst, dst + dstLen);
+     }
+@@ -282,12 +158,8 @@ void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MA
+     if (obj != nullptr && obj->GetTypeInfo() != nullptr) {
+         obj->ForEachRefInStruct(
+             [obj](RefField<false>& refField) {
+-                if (IsHashMapCounterEnabled()) {
+-                    g_newWriteStructCount.fetch_add(1, std::memory_order_relaxed);
+-                    g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
+-                }
+                 BaseObject* newRef = refField.GetTargetObject();
+-                EnqueueRefWithDiag("WriteStruct.new", obj, &refField, newRef);
++                EnqueueRef(newRef);
+             },
+             dst, dst + dstLen);
+     }
+@@ -299,7 +171,7 @@ void MSMarkBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src,
+     // discover(old): preserve all existing reference fields via GCTib bitmap
+     gctib.ForEachBitmapWord(dst, [](RefField<>& refField) {
+         BaseObject* oldRef = refField.GetTargetObject();
+-        EnqueueRefWithDiag("WriteStaticStruct.old", nullptr, &refField, oldRef);
++        EnqueueRef(oldRef);
+     });
+ 
+     // memcpy
+@@ -314,12 +186,8 @@ void MSMarkBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src,
+ 
+     // discover(new): traverse the newly-written fields after the copy.
+     gctib.ForEachBitmapWord(dst, [](RefField<>& refField) {
+-        if (IsHashMapCounterEnabled()) {
+-            g_newWriteStaticStructCount.fetch_add(1, std::memory_order_relaxed);
+-            g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
+-        }
+         BaseObject* newRef = refField.GetTargetObject();
+-        EnqueueRefWithDiag("WriteStaticStruct.new", nullptr, &refField, newRef);
++        EnqueueRef(newRef);
+     });
+ }
+ 
+@@ -338,7 +206,7 @@ void MSMarkBarrier::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex d
+     RefField<false>* dstRefs = reinterpret_cast<RefField<false>*>(dstField);
+     for (size_t i = 0; i < refCount; ++i) {
+         BaseObject* oldRef = dstRefs[i].GetTargetObject();
+-        EnqueueRefWithDiag("CopyRefArray.old", dstObj, &dstRefs[i], oldRef);
++        EnqueueRef(oldRef);
+     }
+ 
+     // memmove
+@@ -353,12 +221,8 @@ void MSMarkBarrier::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex d
+ 
+     // discover(new): preserve the newly-copied references for this cycle's closure.
+     for (size_t i = 0; i < refCount; ++i) {
+-        if (IsHashMapCounterEnabled()) {
+-            g_newCopyRefArrayCount.fetch_add(1, std::memory_order_relaxed);
+-            g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
+-        }
+         BaseObject* newRef = dstRefs[i].GetTargetObject();
+-        EnqueueRefWithDiag("CopyRefArray.new", dstObj, &dstRefs[i], newRef);
++        EnqueueRef(newRef);
+     }
+ }
+ 
+@@ -372,7 +236,7 @@ void MSMarkBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MInde
+         dstObj->ForEachRefInStruct(
+             [dstObj](RefField<false>& refField) {
+                 BaseObject* oldRef = refField.GetTargetObject();
+-                EnqueueRefWithDiag("CopyStructArray.old", dstObj, &refField, oldRef);
++                EnqueueRef(oldRef);
+             },
+             dstField, dstField + dstSize);
+     }
+@@ -391,12 +255,8 @@ void MSMarkBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MInde
+     if (dstObj != nullptr) {
+         dstObj->ForEachRefInStruct(
+             [dstObj](RefField<false>& refField) {
+-                if (IsHashMapCounterEnabled()) {
+-                    g_newCopyStructArrayCount.fetch_add(1, std::memory_order_relaxed);
+-                    g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
+-                }
+                 BaseObject* newRef = refField.GetTargetObject();
+-                EnqueueRefWithDiag("CopyStructArray.new", dstObj, &refField, newRef);
++                EnqueueRef(newRef);
+             },
+             dstField, dstField + dstSize);
+     }
+@@ -422,20 +282,13 @@ void MSMarkBarrier::AtomicWriteReference(BaseObject* obj, RefField<true>& field,
+     // discover(old)
+     RefField<false> oldField(field.GetFieldValue(std::memory_order_relaxed));
+     BaseObject* oldRef = oldField.GetTargetObject();
+-    if (IsHashMapCounterEnabled()) {
+-        g_oldShadeCount.fetch_add(1, std::memory_order_relaxed);
+-    }
+-    EnqueueRefWithDiag("AtomicWriteReference.old", obj, &field, oldRef);
++    EnqueueRef(oldRef);
+ 
+     // atomic store
+     field.SetTargetObject(ref, order);
+ 
+     // discover(new)
+-    if (IsHashMapCounterEnabled()) {
+-        g_newAtomicWriteCount.fetch_add(1, std::memory_order_relaxed);
+-        g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
+-    }
+-    EnqueueRefWithDiag("AtomicWriteReference.new", obj, &field, ref);
++    EnqueueRef(ref);
+ }
+ 
+ BaseObject* MSMarkBarrier::AtomicSwapReference(BaseObject* obj, RefField<true>& field,
+@@ -449,16 +302,9 @@ BaseObject* MSMarkBarrier::AtomicSwapReference(BaseObject* obj, RefField<true>&
+     BaseObject* oldRef = oldField.GetTargetObject();
+ 
+     // discover(old): the swapped-out reference
+-    if (IsHashMapCounterEnabled()) {
+-        g_oldShadeCount.fetch_add(1, std::memory_order_relaxed);
+-    }
+-    EnqueueRefWithDiag("AtomicSwapReference.old", obj, &field, oldRef);
++    EnqueueRef(oldRef);
+     // discover(new)
+-    if (IsHashMapCounterEnabled()) {
+-        g_newAtomicSwapCount.fetch_add(1, std::memory_order_relaxed);
+-        g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
+-    }
+-    EnqueueRefWithDiag("AtomicSwapReference.new", obj, &field, newRef);
++    EnqueueRef(newRef);
+ 
+     return oldRef;
+ }
+@@ -472,15 +318,8 @@ bool MSMarkBarrier::CompareAndSwapReference(BaseObject* obj, RefField<true>& fie
+     bool success = field.CompareExchange(oldRef, newRef, succOrder, failOrder);
+     if (success) {
+         // CAS succeeded: discover the old edge and the new edge.
+-        if (IsHashMapCounterEnabled()) {
+-            g_oldShadeCount.fetch_add(1, std::memory_order_relaxed);
+-        }
+-        EnqueueRefWithDiag("CompareAndSwapReference.old", obj, &field, oldRef);
+-        if (IsHashMapCounterEnabled()) {
+-            g_newCasCount.fetch_add(1, std::memory_order_relaxed);
+-            g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
+-        }
+-        EnqueueRefWithDiag("CompareAndSwapReference.new", obj, &field, newRef);
++        EnqueueRef(oldRef);
++        EnqueueRef(newRef);
+     }
+     return success;
+ }
+diff --git a/runtime/src/Heap/MCollector/MarkSweepCollector.cpp b/runtime/src/Heap/MCollector/MarkSweepCollector.cpp
+index 5832e991..bda252fb 100644
+--- a/runtime/src/Heap/MCollector/MarkSweepCollector.cpp
++++ b/runtime/src/Heap/MCollector/MarkSweepCollector.cpp
+@@ -75,8 +75,6 @@ private:
+ };
+ }
+ 
+-extern "C" void MSMarkBarrier_DumpAndResetCounters();
+-
+ static bool IsHashMapTraceEnabled()
+ {
+     static bool enabled = []() {
+@@ -111,11 +109,6 @@ static const char* GetDiagTypeName(const BaseObject* obj)
+     return obj->GetTypeInfo()->GetName();
+ }
+ 
+-static uintptr_t LoadStateWordForDiag(const BaseObject* obj)
+-{
+-    return obj == nullptr ? 0 : *reinterpret_cast<const uintptr_t*>(obj);
+-}
+-
+ static bool IsInterestingDiagType(const BaseObject* obj)
+ {
+     const char* name = GetDiagTypeName(obj);
+@@ -919,39 +912,14 @@ void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
+     // Objects in wbBuf are already marked (DiscoverObject was called in EnqueueRef).
+     WorkBuf* buf = workBufPool_.Get();
+     size_t bufsUsed = 0;
+-    size_t queued = 0;
+-    size_t dropped = 0;
+     for (size_t i = 0; i < n; i++) {
+-        BaseObject* obj = data[i];
+-        if (obj == nullptr) {
+-            continue;
+-        }
+-        if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
+-            dropped++;
+-            VLOG(REPORT,
+-                 "[MS-GC] Enqueue source=WBBOverflow drop non-traceable obj=%p idx=%zu",
+-                 static_cast<void*>(obj),
+-                 i);
+-            continue;
+-        }
+-        uintptr_t stateWord = LoadStateWordForDiag(obj);
+-        if (UNLIKELY(!obj->IsValidObject())) {
+-            dropped++;
+-            VLOG(REPORT,
+-                 "[MS-GC] Enqueue source=WBBOverflow drop invalid obj=%p idx=%zu stateWord=0x%zx markBit=%d",
+-                 static_cast<void*>(obj),
+-                 i,
+-                 stateWord,
+-                 static_cast<int>(IsMarkedObject(obj)));
+-            continue;
+-        }
++        if (data[i] == nullptr) continue;
+         if (buf->Full()) {
+             globalFull_.Push(buf);
+             bufsUsed++;
+             buf = workBufPool_.Get();
+         }
+-        buf->Push(obj);
+-        queued++;
++        buf->Push(data[i]);
+     }
+     if (!buf->Empty()) {
+         globalFull_.Push(buf);
+@@ -963,13 +931,6 @@ void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
+     if (bufsUsed > 0) {
+         globalShareCount_.fetch_add(bufsUsed, std::memory_order_relaxed);
+     }
+-    if (dropped > 0) {
+-        VLOG(REPORT,
+-             "[MS-GC] Enqueue source=WBBOverflow queued=%zu dropped=%zu workBufs=%zu",
+-             queued,
+-             dropped,
+-             bufsUsed);
+-    }
+ }
+ 
+ void MarkSweepCollector::PushSingleToDeferredMainThread(BaseObject* obj)
+@@ -977,21 +938,6 @@ void MarkSweepCollector::PushSingleToDeferredMainThread(BaseObject* obj)
+     if (obj == nullptr) {
+         return;
+     }
+-    if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
+-        VLOG(REPORT,
+-             "[MS-GC] Enqueue source=DeferredMain drop non-traceable obj=%p",
+-             static_cast<void*>(obj));
+-        return;
+-    }
+-    uintptr_t stateWord = LoadStateWordForDiag(obj);
+-    if (UNLIKELY(!obj->IsValidObject())) {
+-        VLOG(REPORT,
+-             "[MS-GC] Enqueue source=DeferredMain drop invalid obj=%p stateWord=0x%zx markBit=%d",
+-             static_cast<void*>(obj),
+-             stateWord,
+-             static_cast<int>(IsMarkedObject(obj)));
+-        return;
+-    }
+     std::lock_guard<std::mutex> lock(deferredMainThreadMutex_);
+     deferredMainThreadQueue_.PushMovedGrey(obj);
+ }
+@@ -1002,55 +948,16 @@ void MarkSweepCollector::PushSingleToDeferredMainThread(BaseObject* obj)
+ 
+ void MarkSweepCollector::DrainGlobalLFStackToMainQueue(GreyWorkQueue& mainQueue)
+ {
+-    size_t moved = 0;
+-    size_t dropped = 0;
+-    size_t buffers = 0;
+     while (true) {
+         WorkBuf* buf = globalFull_.Pop();
+         if (buf == nullptr) {
+             break;
+         }
+-        buffers++;
+         for (size_t i = 0; i < buf->len; i++) {
+-            BaseObject* obj = buf->objs[i];
+-            if (obj == nullptr) {
+-                continue;
+-            }
+-            if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
+-                dropped++;
+-                VLOG(REPORT,
+-                     "[MS-GC] MarkTermination source=globalFull drop non-traceable obj=%p buf=%p slot=%zu len=%zu",
+-                     static_cast<void*>(obj),
+-                     static_cast<void*>(buf),
+-                     i,
+-                     buf->len);
+-                continue;
+-            }
+-            uintptr_t stateWord = LoadStateWordForDiag(obj);
+-            if (UNLIKELY(!obj->IsValidObject())) {
+-                dropped++;
+-                VLOG(REPORT,
+-                     "[MS-GC] MarkTermination source=globalFull drop invalid obj=%p stateWord=0x%zx markBit=%d buf=%p slot=%zu len=%zu",
+-                     static_cast<void*>(obj),
+-                     stateWord,
+-                     static_cast<int>(IsMarkedObject(obj)),
+-                     static_cast<void*>(buf),
+-                     i,
+-                     buf->len);
+-                continue;
+-            }
+-            mainQueue.PushMovedGrey(obj);
+-            moved++;
++            mainQueue.PushMovedGrey(buf->objs[i]);
+         }
+         workBufPool_.Put(buf);
+     }
+-    if (dropped > 0) {
+-        VLOG(REPORT,
+-             "[MS-GC] MarkTermination source=globalFull moved=%zu dropped=%zu buffers=%zu",
+-             moved,
+-             dropped,
+-             buffers);
+-    }
+ }
+ 
+ size_t MarkSweepCollector::TryStealBgCreditPartial(size_t debtObjects)
+@@ -1217,7 +1124,6 @@ void MarkSweepCollector::MarkTermination()
+     ResetAllPerPGCWork();
+ 
+     cycleStats_.markTerminationUs = TimeUtil::MicroSeconds() - phaseStart;
+-    MSMarkBarrier_DumpAndResetCounters();
+     VLOG(REPORT,
+          "[MS-GC] MarkTermination total: %sus, flushed=%zu entries, resurrection=%zu entries, "
+          "processed=%zu objects, newlyMarked=%zu",
+@@ -1251,104 +1157,16 @@ void MarkSweepCollector::CollectUnmarkedToMainQueue(GreyWorkQueue& mainQueue)
+ 
+ void MarkSweepCollector::FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue)
+ {
+-    size_t totalMoved = 0;
+-    size_t totalDropped = 0;
+-    size_t droppedMutators = 0;
+-    auto func = [this, &mainQueue, &totalMoved, &totalDropped, &droppedMutators](Mutator& mutator) {
+-        WriteBarrierBuffer& wbBuf = mutator.GetWriteBarrierBuffer();
+-        BaseObject** data = wbBuf.Data();
+-        size_t n = wbBuf.Count();
+-        size_t localMoved = 0;
+-        size_t localDropped = 0;
+-        for (size_t i = 0; i < n; ++i) {
+-            BaseObject* obj = data[i];
+-            if (obj == nullptr) {
+-                continue;
+-            }
+-            if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
+-                localDropped++;
+-                VLOG(REPORT,
+-                     "[MS-GC] MarkTermination source=WBB drop non-traceable obj=%p mutatorTid=%u idx=%zu",
+-                     static_cast<void*>(obj),
+-                     mutator.GetTid(),
+-                     i);
+-                continue;
+-            }
+-            uintptr_t stateWord = LoadStateWordForDiag(obj);
+-            if (UNLIKELY(!obj->IsValidObject())) {
+-                localDropped++;
+-                VLOG(REPORT,
+-                     "[MS-GC] MarkTermination source=WBB drop invalid obj=%p stateWord=0x%zx markBit=%d mutatorTid=%u idx=%zu",
+-                     static_cast<void*>(obj),
+-                     stateWord,
+-                     static_cast<int>(IsMarkedObject(obj)),
+-                     mutator.GetTid(),
+-                     i);
+-                continue;
+-            }
+-            mainQueue.PushMovedGrey(obj);
+-            localMoved++;
+-        }
+-        wbBuf.Clear();
+-        totalMoved += localMoved;
+-        totalDropped += localDropped;
+-        if (localDropped > 0) {
+-            droppedMutators++;
+-            VLOG(REPORT,
+-                 "[MS-GC] MarkTermination source=WBB mutatorTid=%u buffered=%zu moved=%zu dropped=%zu",
+-                 mutator.GetTid(),
+-                 n,
+-                 localMoved,
+-                 localDropped);
+-        }
++    auto func = [&mainQueue](Mutator& mutator) {
++        mutator.GetWriteBarrierBuffer().Flush(mainQueue.UnsafeRaw());
+     };
+     MutatorManager::Instance().VisitAllMutators(func);
+-    if (totalDropped > 0) {
+-        VLOG(REPORT,
+-             "[MS-GC] MarkTermination source=WBB totalMoved=%zu totalDropped=%zu mutatorsWithDrops=%zu",
+-             totalMoved,
+-             totalDropped,
+-             droppedMutators);
+-    }
+ }
+ 
+ void MarkSweepCollector::DrainDeferredMainThreadQueueToMainQueue(GreyWorkQueue& mainQueue)
+ {
+-    size_t moved = 0;
+-    size_t dropped = 0;
+     std::lock_guard<std::mutex> lock(deferredMainThreadMutex_);
+-    while (!deferredMainThreadQueue_.empty()) {
+-        BaseObject* obj = deferredMainThreadQueue_.back();
+-        deferredMainThreadQueue_.pop_back();
+-        if (obj == nullptr) {
+-            continue;
+-        }
+-        if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
+-            dropped++;
+-            VLOG(REPORT,
+-                 "[MS-GC] MarkTermination source=deferredMain drop non-traceable obj=%p",
+-                 static_cast<void*>(obj));
+-            continue;
+-        }
+-        uintptr_t stateWord = LoadStateWordForDiag(obj);
+-        if (UNLIKELY(!obj->IsValidObject())) {
+-            dropped++;
+-            VLOG(REPORT,
+-                 "[MS-GC] MarkTermination source=deferredMain drop invalid obj=%p stateWord=0x%zx markBit=%d",
+-                 static_cast<void*>(obj),
+-                 stateWord,
+-                 static_cast<int>(IsMarkedObject(obj)));
+-            continue;
+-        }
+-        mainQueue.PushMovedGrey(obj);
+-        moved++;
+-    }
+-    if (dropped > 0) {
+-        VLOG(REPORT,
+-             "[MS-GC] MarkTermination source=deferredMain moved=%zu dropped=%zu",
+-             moved,
+-             dropped);
+-    }
++    mainQueue.insert(deferredMainThreadQueue_);
+ }
+ 
+ void MarkSweepCollector::CollectExternCandidatesToMain(GreyWorkQueue& mainQueue)
+-- 
+2.39.5 (Apple Git-154)
+
