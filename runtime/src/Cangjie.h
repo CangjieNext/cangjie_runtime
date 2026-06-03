@@ -27,8 +27,6 @@
 #endif
 #endif
 
-#include "Interpreter/Options.h"
-
 /* C++ needs to know that types and declarations are C, not C++. */
 #ifdef __cplusplus
 #define CANGJIE_RT_API_DECLS_BEGIN extern "C" {
@@ -330,23 +328,6 @@ struct ConcurrencyParam {
     uint32_t processorNum;
 };
 
-#ifdef INTERPRETER_ENABLED
-/*
- * @struct InterpreterParam
- * @brief Data structure for interpreter configuration parameters.
- */
-struct InterpreterParam {
-    /* Interpreter dynamic library name. */
-    const char* interpreterLibName;
-    /* Number of startup arguments passed to interpreter. */
-    int interpreterArgsCount;
-    /* Startup argument list passed to interpreter. */
-    const char* const* interpreterArgs;
-    /* Optional app library handle used by interpreter to resolve application symbols. */
-    void* appLibHandle;
-};
-#endif
-
 /*
  * @struct RuntimeParam
  * @brief Data structure for Cangjie runtime parameters,\n
@@ -371,16 +352,6 @@ CANGJIE_RT_API_DECLS_BEGIN
  * @retval Return 0 if OK. Otherwise, return an error code.
  */
 MRT_EXPORT enum RTErrorCode InitCJRuntime(const struct RuntimeParam* param);
-
-#ifdef INTERPRETER_ENABLED
-/*
- * @brief Initialize interpreter part of Cangjie runtime environment.
- * @attention This API should be invoked after InitCJRuntime succeeds.
- * @param param [IN] a structure pointer to interpreter configuration parameters.
- * @retval Return 0 if OK. Otherwise, return an error code.
- */
-MRT_EXPORT enum RTErrorCode InitCJInterpreter(const struct InterpreterParam* param);
-#endif
 
 /*
  * @brief register arkVM in Runtime

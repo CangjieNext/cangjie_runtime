@@ -9,7 +9,7 @@
 #define MRT_INTERPRETER_SPECIFIC_H
 
 #include "Options.h"
-#include "Cangjie.h"
+#include "Interpreter/RuntimeAPI.h"
 #ifdef INTERPRETER_ENABLED
 
 #include <stdio.h>

@@ -28,6 +28,7 @@
 #include "Loader/CjFileLoader/CjFileLoader.h"
 #include "LoaderManager.h"
 #include "Interpreter/InterpreterSpecific.h"
+#include "Interpreter/RuntimeAPI.h"
 #if defined(__OHOS__) && (__OHOS__ == 1)
 #include "Inspector/FileStream.h"
 #include "Inspector/ProfilerAgentImpl.h"
