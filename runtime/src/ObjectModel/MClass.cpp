@@ -360,7 +360,7 @@ static bool ResolveExtensionData(
         } else {
             if (rSourceGeneric == nullptr ||
                 manager.GetTypeTemplateUUID(reinterpret_cast<TypeTemplate*>(targetType)) !=
-                    manager.GetTypeTemplateUUID(rSourceGeneric)) {
+                manager.GetTypeTemplateUUID(rSourceGeneric)) {
                 return false;
             }
         }
