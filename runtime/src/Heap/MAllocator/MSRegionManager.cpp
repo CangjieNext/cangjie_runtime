@@ -26,7 +26,17 @@
 #include "Collector/Collector.h"
 #include "Collector/CollectorResources.h"
 
+#include <cstdio>
+
 namespace MapleRuntime {
+namespace {
+std::atomic<uint64_t> g_MSGCTakeRegionCnt{0};
+__attribute__((destructor)) void DumpMSGCTakeRegionStats() {
+    fprintf(stderr, "[REGION-STATS][MSGC] TakeRegion=%llu\n",
+        (unsigned long long)g_MSGCTakeRegionCnt.load(std::memory_order_relaxed));
+    fflush(stderr);
+}
+}
 
 namespace {
 constexpr size_t DEFAULT_MS_SCAVENGE_WAKE_BYTES = 4 * MS_REGION_SIZE;
@@ -357,6 +367,7 @@ void MSRegionManager::ClearUnits(UnitIndex idx, UnitCount num) const
 
 MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& centralPool)
 {
+    g_MSGCTakeRegionCnt.fetch_add(1, std::memory_order_relaxed);
     RegionIndex regionIdx = 0;
     AllocSource source = AllocSource::BUMP;
     if (!TakeRegions(1, regionIdx, &source, false)) {
