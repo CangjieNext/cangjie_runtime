@@ -30,10 +30,10 @@ struct TYPE_INFO_ATTRS DYN_ExtensionData;
 typedef void* DYN_MTableDesc;
 typedef void* DYN_FuncPtr;
 
-union DYN_GCTib {
+typedef union DYN_GCTib {
     uintptr_t raw; // higher bit - 1: raw, 0: ptr
     void *ptr;
-};
+} DYN_GCTib;
 
 struct TYPE_INFO_ATTRS DYN_TypeInfo {
     const char* typeInfoName;

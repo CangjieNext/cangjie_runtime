@@ -36,7 +36,7 @@ void InitPtrAuthRAMod(FrameInfo& callerFrameInfo, FrameInfo& calleeFrameInfo)
     if (calleeFrameInfo.GetFrameType() == FrameType::MANAGED) {
         FuncDescRef funcDesc = MFuncDesc::GetFuncDesc(
             reinterpret_cast<Uptr>(FrameInfo::GetFuncStartPCFromFrameAddress(
-            reinterpret_cast<FrameAddress*>(calleeFrameInfo.mFrame.GetFA()))));
+                reinterpret_cast<FrameAddress*>(calleeFrameInfo.mFrame.GetFA()))));
         Uptr* stackMapEntry = funcDesc->GetStackMap();
         uint32_t validPos = 0;
         auto fa = calleeFrameInfo.mFrame.GetFA();
@@ -100,9 +100,7 @@ void StackInfo::AnalyseAndSetFrameType(UnwindContext& uwContext)
     if (mFrame.IsN2CStubFrame()) {
         MRT_Check(lastFrameType == FrameType::MANAGED, "");
         N2CSlotData* n2cSlotData = N2CFrame::GetSlotData(mFrame.GetFA());
-        if (n2cSlotData->status == UnwindContextStatus::RELIABLE) {
-            isReliableN2CStub = true;
-        }
+        isReliableN2CStub |= (n2cSlotData->status == UnwindContextStatus::RELIABLE);
         frameInfo.SetFrameType(FrameType::N2C_STUB);
     } else if (mFrame.IsSafepointHandlerStubFrame()) {
         isReliableN2CStub = false;

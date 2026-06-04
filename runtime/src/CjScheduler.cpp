@@ -34,6 +34,7 @@
 #include "Mutator/Mutator.inline.h"
 #include "Interpreter/InterpreterSpecific.h"
 #include "Interpreter/RuntimeAPI.h"
+#include "securec.h"
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
 #endif
@@ -223,8 +224,8 @@ static size_t InitCoStackSize()
 #elif defined(CANGJIE_SANITIZER_SUPPORT)
     // cus sanitizer calls tons of instrumentation, which use more stack memory than normal does
     size_t defaultStackSize = 2048; // default 2MB in sanitizer version, measured in KB
-#elif defined(__OHOS__) || defined(__ANDROID__) || defined(__APPLE__)
-    size_t defaultStackSize = 1024; // default 1MB in OHOS/ANDROID/MACOS, measured in KB
+#elif defined(__OHOS__) || defined(__BIONIC__) || defined(__APPLE__)
+    size_t defaultStackSize = 1024; // default 1MB on OHOS, Bionic, and macOS, measured in KB
 #else
     size_t defaultStackSize = 128; // default 128KB, measured in KB
 #endif
@@ -284,7 +285,7 @@ static uint32_t InitProcessorNum()
 // Parse INTERPRETER_ARGS env variable and return null-terminated array of strings.
 // params:
 // - tokenCount - will be set to the number of strings in the array
-static const char* const* InitInterpreterArgs(int& tokenCount)
+static INT_InterpreterArgs InitInterpreterArgs(int& tokenCount)
 {
     tokenCount = 0;
     const char* env = std::getenv("INTERPRETER_ARGS");
@@ -301,14 +302,14 @@ static const char* const* InitInterpreterArgs(int& tokenCount)
         return nullptr;
     }
 
-    const char** tokens = new (std::nothrow) const char*[tokenCount + 1];
+    INT_InterpreterArg* tokens = new (std::nothrow) INT_InterpreterArg[tokenCount + 1];
     CHECK_DETAIL(tokens != nullptr, "new tokens array failed: size=%d", tokenCount + 1);
 
     for (int i = 0; i < tokenCount; ++i) {
         size_t tokenLen = tempTokens[i].Length();
         char* token = new (std::nothrow) char[tokenLen + 1];
         CHECK_DETAIL(token != nullptr, "new token #%d failed: size=%zu bytes", i, tokenLen + 1);
-        std::strcpy(token, tempTokens[i].Str());
+        CHECK_DETAIL(strcpy_s(token, tokenLen + 1, tempTokens[i].Str()) == EOK, "strcpy_s failed");
         tokens[i] = token;
     }
     tokens[tokenCount] = nullptr;
@@ -736,7 +737,7 @@ static RuntimeParam InitRuntimeParam()
 static InterpreterParam InitInterpreterParam()
 {
     int interpreterArgsCount = 0;
-    const char* const* interpreterArgs = InitInterpreterArgs(interpreterArgsCount);
+    INT_InterpreterArgs interpreterArgs = InitInterpreterArgs(interpreterArgsCount);
     InterpreterParam interpreterParam = {
         .interpreterLibName = InitInterpreterLibName(),
         .interpreterArgsCount = interpreterArgsCount,
@@ -748,7 +749,7 @@ static InterpreterParam InitInterpreterParam()
 
 static void DestroyInterpreterParam(InterpreterParam& interpreterParam)
 {
-    const char* const * interpreterArgs = interpreterParam.interpreterArgs;
+    INT_InterpreterArgs interpreterArgs = interpreterParam.interpreterArgs;
     if (interpreterArgs != nullptr) {
         for (int i = 0; i < interpreterParam.interpreterArgsCount && interpreterArgs[i] != nullptr; ++i) {
             delete[] interpreterArgs[i];

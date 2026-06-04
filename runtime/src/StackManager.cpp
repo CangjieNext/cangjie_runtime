@@ -420,7 +420,7 @@ void StackManager::InitAddressScope()
 #endif
 
 // Init cjc address info.
-#if defined(__linux__) // Linux, ANDROID, OHOS
+#if defined(__linux__)
     std::vector<CString> cjcSoNameVec = {"cjc\n"};
     GetEachSoAddrScope(cjcSoNameVec);
 #elif defined(_WIN64)                         // Windows
@@ -433,7 +433,7 @@ void StackManager::InitAddressScope()
 #ifdef INTERPRETER_ENABLED
 void StackManager::InitAddressScopeForInterpreter(const char* libName)
 {
-#if defined(__linux__) // Linux, ANDROID, OHOS
+#if defined(__linux__)
     std::vector<CString> interpreterSoName = {CString(libName).Combine("\n").Str()};
     GetEachSoAddrScope(interpreterSoName);
 #elif defined(__APPLE__) && !defined(__IOS__) // MacOS

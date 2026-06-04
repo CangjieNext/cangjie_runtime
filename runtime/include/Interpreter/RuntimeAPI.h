@@ -10,12 +10,15 @@
 #include "Cangjie.h"
 
 #ifndef INTERPRETER_ENABLED
-#if (defined(__ANDROID__) || defined(__linux__)) && (defined(__x86_64__) || defined(__aarch64__))
+#if defined(__linux__) && (defined(__x86_64__) || defined(__aarch64__))
 #define INTERPRETER_ENABLED
 #endif
 #endif
 
 #ifdef INTERPRETER_ENABLED
+typedef const char* INT_InterpreterArg;
+typedef const INT_InterpreterArg* INT_InterpreterArgs;
+
 /*
  * @struct InterpreterParam
  * @brief Data structure for interpreter configuration parameters.
@@ -26,7 +29,7 @@ struct InterpreterParam {
     /* Number of startup arguments passed to interpreter. */
     int interpreterArgsCount;
     /* Startup argument list passed to interpreter. */
-    const char* const* interpreterArgs;
+    INT_InterpreterArgs interpreterArgs;
     /* Optional app library handle used by interpreter to resolve application symbols. */
     void* appLibHandle;
 };

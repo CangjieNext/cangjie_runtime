@@ -108,40 +108,8 @@ void ExceptionHandling::BuildEHFrameInfo()
 #endif
     std::vector<std::unique_ptr<IEHFrameInfo>>& ehFrameInfos = eWrapper->GetEHFrameInfos();
     for (const auto& frame : stackInfo) {
-        if (frame.GetFrameType() == FrameType::MANAGED) {
-            ehFrameInfos.push_back(std::make_unique<EHFrameInfo>(frame, *eWrapper));
-            if (ehFrameInfos.back()->IsCatchException()) {
-                eWrapper->SetIsCaught(true);
-                eWrapper->SetTypeIndex(ehFrameInfos.back()->GetTTypeIndex() & 0xFFFFFFFF);
-                eWrapper->SetLandingPad(ehFrameInfos.back()->GetLandingPad());
-                break;
-            }
-#ifdef __arm__
-        } else if (frame.GetFrameType() == FrameType::STACKGROW) {
-            continue;
-#endif
-#ifdef INTERPRETER_ENABLED
-        } else if (frame.GetFrameType() == FrameType::INTERPRETER) {
-            ehFrameInfos.push_back(std::make_unique<InterpreterEHFrameInfo>(frame, GetCommonInterpreterLandingPad()));
-            eWrapper->SetIsCaught(true);
-            eWrapper->SetTypeIndex(0);
-            eWrapper->SetLandingPad(ehFrameInfos.back()->GetLandingPad());
+        if (ProcessEHFrame(frame, ehFrameInfos)) {
             break;
-        } else if (frame.GetFrameType() == FrameType::INTERPRETER_I2I ||
-            frame.GetFrameType() == FrameType::INTERPRETER_I2N) {
-            MRT_ASSERT(false, "should not reach here: did not met interpreted frame before I2I/I2N frame");
-        } else if (frame.GetFrameType() == FrameType::INTERPRETER_PROLOGUE ||
-            frame.GetFrameType() == FrameType::INTERPRETER_C2I) {
-            // This is neither a managed nor a runtime frame.
-            // Since we didn`t met interpreted frame before, exception must be stack overflow, happened in C2I/I2I
-            // transition.
-            MRT_ASSERT(eWrapper->GetExceptionType() == ExceptionWrapper::ExceptionType::STACK_OVERFLOW,
-                "expected StackOverflowError when meeting interpreter transition stub frame without meeting "
-                "interpreted frame");
-            lastRuntimeFrame = frame;
-#endif
-        } else {
-            lastRuntimeFrame = frame;
         }
     }
 
@@ -155,6 +123,51 @@ void ExceptionHandling::BuildEHFrameInfo()
                 ehFrameInfos[i]->IsCatchException());
         }
     }
+}
+
+bool ExceptionHandling::ProcessEHFrame(const FrameInfo& frame, std::vector<std::unique_ptr<IEHFrameInfo>>& ehFrameInfos)
+{
+    if (frame.GetFrameType() == FrameType::MANAGED) {
+        ehFrameInfos.push_back(std::make_unique<EHFrameInfo>(frame, *eWrapper));
+        if (!ehFrameInfos.back()->IsCatchException()) {
+            return false;
+        }
+        eWrapper->SetIsCaught(true);
+        eWrapper->SetTypeIndex(ehFrameInfos.back()->GetTTypeIndex() & 0xFFFFFFFF);
+        eWrapper->SetLandingPad(ehFrameInfos.back()->GetLandingPad());
+        return true;
+    }
+#ifdef __arm__
+    if (frame.GetFrameType() == FrameType::STACKGROW) {
+        return false;
+    }
+#endif
+#ifdef INTERPRETER_ENABLED
+    if (frame.GetFrameType() == FrameType::INTERPRETER) {
+        ehFrameInfos.push_back(std::make_unique<InterpreterEHFrameInfo>(frame, GetCommonInterpreterLandingPad()));
+        eWrapper->SetIsCaught(true);
+        eWrapper->SetTypeIndex(0);
+        eWrapper->SetLandingPad(ehFrameInfos.back()->GetLandingPad());
+        return true;
+    }
+    if (frame.GetFrameType() == FrameType::INTERPRETER_I2I || frame.GetFrameType() == FrameType::INTERPRETER_I2N) {
+        MRT_ASSERT(false, "should not reach here: did not met interpreted frame before I2I/I2N frame");
+        return false;
+    }
+    if (frame.GetFrameType() == FrameType::INTERPRETER_PROLOGUE ||
+        frame.GetFrameType() == FrameType::INTERPRETER_C2I) {
+        // This is neither a managed nor a runtime frame.
+        // Since we didn`t met interpreted frame before, exception must be stack overflow, happened in C2I/I2I
+        // transition.
+        MRT_ASSERT(eWrapper->GetExceptionType() == ExceptionWrapper::ExceptionType::STACK_OVERFLOW,
+            "expected StackOverflowError when meeting interpreter transition stub frame without meeting interpreted "
+            "frame");
+        lastRuntimeFrame = frame;
+        return false;
+    }
+#endif
+    lastRuntimeFrame = frame;
+    return false;
 }
 
 void ExceptionHandling::ChangeEHStackInfoLR() const

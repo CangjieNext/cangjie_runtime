@@ -14,10 +14,10 @@
 #include "Common/StackType.h"
 #include "Interpreter/RTInterface.h"
 #include "Mutator/Mutator.h"
+#include <cstdio>
 #include <cstdlib>
-#include <stdio.h>
 
-namespace MapleRuntime { // TODO introduce separate namespace for interpreter-related functions
+namespace MapleRuntime {
 
 void IterateFramesWithState(
     DYN_CJThreadSpecificData cjThreadData, void (*callback)(DYN_VisitingState, void*), void* ctx);
@@ -57,6 +57,7 @@ RTErrorCode InitInterpreter(const InterpreterParam& interpreterParam);
 
 bool IsC2IStubAddr(const uintptr_t addr);
 bool IsI2IAdapterStartAddr(const uintptr_t addr);
+bool IsI2NStubAddr(const uintptr_t addr);
 bool IsInterpreterPrologueAddr(const uintptr_t addr);
 
 uintptr_t GetCommonInterpreterLandingPad();

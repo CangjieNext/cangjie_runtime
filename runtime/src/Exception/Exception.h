@@ -235,6 +235,7 @@ public:
 
 private:
     bool IsFromSignal() const { return sigContext != nullptr; }
+    bool ProcessEHFrame(const FrameInfo& frame, std::vector<std::unique_ptr<IEHFrameInfo>>& ehFrameInfos);
 
     FrameInfo lastRuntimeFrame;
     ExceptionWrapper* eWrapper;
