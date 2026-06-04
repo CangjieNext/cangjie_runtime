@@ -139,8 +139,8 @@ run_side() {
     return $rc
 }
 
-# CopyGC 先跑（基线），用端口 18227 (18225 被历史 UE 进程占用)
-run_side "CopyGC" "$COPYGC_DIR" "$COPYGC_SDK" "$COPYGC_STDX" 18227
+# CopyGC 先跑（基线），用端口 18225
+run_side "CopyGC" "$COPYGC_DIR" "$COPYGC_SDK" "$COPYGC_STDX" 18225
 COPYGC_RC=$?
 
 # MSGC 再跑，用端口 18228 (18226/18227 被历史 UE 进程占用)
