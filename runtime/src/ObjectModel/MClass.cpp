@@ -284,16 +284,16 @@ void TypeInfo::TryUpdateExtensionData(TypeInfo* itf, ExtensionData* extensionDat
                 }
                 CHECK(memcpy_s(reinterpret_cast<void*>(newFt + ftSize),
                                sizeof(FuncPtr) * incrementalSize,
-                          reinterpret_cast<void*>(edOfSuper->GetFuncTable() + ftSize),
-                          sizeof(FuncPtr) * incrementalSize) == EOK);
+                               reinterpret_cast<void*>(edOfSuper->GetFuncTable() + ftSize),
+                               sizeof(FuncPtr) * incrementalSize) == EOK);
                 if (!hasOuterTiFast) {
                     break;
                 }
                 if (ftSize > 0) {
                         CHECK(memcpy_s(reinterpret_cast<void*>(newFt + itfFtSize),
                                        sizeof(OuterTiUnion) * ftSize,
-                              reinterpret_cast<void*>(extensionData->GetFuncTable() + ftSize),
-                              sizeof(OuterTiUnion) * ftSize) == EOK);
+                                       reinterpret_cast<void*>(extensionData->GetFuncTable() + ftSize),
+                                       sizeof(OuterTiUnion) * ftSize) == EOK);
                 }
                 CHECK(memset_s(reinterpret_cast<void*>(newFt + itfFtSize + ftSize),
                                sizeof(OuterTiUnion) * incrementalSize,

@@ -721,8 +721,8 @@ static RuntimeParam InitRuntimeParam()
                 .gcThreads = 2,
             },
         .logParam = {
-                .logLevel = LogFile::GetLogLevel(),
-            },
+            .logLevel = LogFile::GetLogLevel(),
+        },
         .coParam = {
                 // Default thread stack size is 1 * KB KB = 1MB.
                 .thStackSize = 1 * KB,
