@@ -224,8 +224,8 @@ static size_t InitCoStackSize()
 #elif defined(CANGJIE_SANITIZER_SUPPORT)
     // cus sanitizer calls tons of instrumentation, which use more stack memory than normal does
     size_t defaultStackSize = 2048; // default 2MB in sanitizer version, measured in KB
-#elif defined(__OHOS__) || defined(__BIONIC__) || defined(__APPLE__)
-    size_t defaultStackSize = 1024; // default 1MB on OHOS, Bionic, and macOS, measured in KB
+#elif defined(__OHOS__) || defined(__ANDROID__) || defined(__APPLE__)
+    size_t defaultStackSize = 1024; // default 1MB in OHOS/ANDROID/MACOS, measured in KB
 #else
     size_t defaultStackSize = 128; // default 128KB, measured in KB
 #endif

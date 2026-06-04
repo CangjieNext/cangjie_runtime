@@ -49,13 +49,14 @@ public:
         if (!EHTable::IsAbnormalEHTable(lsdaStart)) {
             auto pc = mFrame.GetIP();
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
-            pc = reinterpret_cast<uint32_t*>(
-                PtrauthAuthWithInstAkey(reinterpret_cast<Uptr>(pc), reinterpret_cast<Uptr>(mFrame.GetPtrAuthRAMod())));
+            pc = reinterpret_cast<uint32_t*>(PtrauthAuthWithInstAkey(reinterpret_cast<Uptr>(pc),
+                reinterpret_cast<Uptr>(mFrame.GetPtrAuthRAMod())));
 #endif
             EHTable ehTable(pc, eWrapper, startProc, lsdaStart, result);
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
-            result.landingPad = reinterpret_cast<Uptr>(PtrauthSignWithInstAkey(
-                reinterpret_cast<Uptr>(result.landingPad), reinterpret_cast<Uptr>(mFrame.GetPtrAuthRAMod())));
+            result.landingPad = reinterpret_cast<Uptr>(
+                                    PtrauthSignWithInstAkey(reinterpret_cast<Uptr>(result.landingPad),
+                                    reinterpret_cast<Uptr>(mFrame.GetPtrAuthRAMod())));
 #endif
         }
     }
@@ -80,23 +81,94 @@ public:
 
     void RestoreToCallerContext(CalleeSavedRegisterContext& context, uint32_t adjustedSize = 0) const override
     {
+        constexpr uint8_t sizeOfAddr = sizeof(void*);       // arm32 is 4, aarch64 is 8
         constexpr uint8_t sizeOfStackHead = sizeOfAddr * 2; // callee rbp + return addr
-        RestoreStackPointer(context, sizeOfStackHead);
-
+#if defined(__x86_64__)
+        context.rsp = context.rbp + sizeOfStackHead;
+#elif defined(__aarch64__)
+        context.sp = context.x29 + sizeOfStackHead;
+        uint32_t calleeCount = 0;
+#elif defined(__arm__)
+        context.sp = context.r11 + sizeOfStackHead;
+#endif
         Uptr calleeFrameAddress = reinterpret_cast<Uptr>(mFrame.GetFA());
         if (adjustedSize > 0) {
-            RestoreFramePointer(context, calleeFrameAddress);
+#if defined(__x86_64__)
+            context.rbp = *reinterpret_cast<uint64_t*>(calleeFrameAddress);
+#elif defined(__aarch64__)
+            context.x29 = *reinterpret_cast<uint64_t*>(calleeFrameAddress);
+#elif defined(__arm__)
+            context.r11 = *reinterpret_cast<uint32_t*>(calleeFrameAddress);
+#endif
             return;
         }
-
-        Uptr* stackMapEntry = GetStackMapEntry();
+#ifdef __APPLE__
+        FuncDescRef funcDesc = MFuncDesc::GetFuncDesc(mFrame.GetFA());
+#else
+        FuncDescRef funcDesc = MFuncDesc::GetFuncDesc(reinterpret_cast<Uptr>(startProc));
+#endif
+        Uptr* stackMapEntry = funcDesc->GetStackMap();
         uint32_t validPos = 0;
-        SkipStackMapHeader(&stackMapEntry, validPos);
+
+        // Skip the stackmap header.
+        (void)ReadVarInt(&stackMapEntry, validPos);
+        (void)ReadVarInt(&stackMapEntry, validPos);
+
         uint32_t calleeSavedBitmap = ReadVarInt(&stackMapEntry, validPos);
-        uint32_t calleeCount = 0;
-        RestoreCalleeSavedRegisters(
-            context, calleeFrameAddress, &stackMapEntry, validPos, calleeSavedBitmap, calleeCount);
-        FinishContextRestore(context, calleeFrameAddress, calleeCount);
+        for (uint32_t idx = 0; idx < CALLEE_SAVE_NUMBERS; idx++) {
+            if ((calleeSavedBitmap & (static_cast<uint32_t>(1) << idx)) == 0) {
+                continue;
+            }
+            uint32_t offset = ReadVarInt(&stackMapEntry, validPos);
+#if defined(_WIN64)
+            if (idx < calleeSaveXMMIdxStart) {
+                uint64_t* slotAddr = reinterpret_cast<uint64_t*>(calleeFrameAddress + SLOT_SIZE_FACTOR * offset);
+                context.SetValueByIdx(idx, *slotAddr);
+            } else {
+                XMMReg* slotAddr = reinterpret_cast<XMMReg*>(calleeFrameAddress + SLOT_SIZE_FACTOR * offset);
+                context.SetXMMValueByIdx(idx - calleeSaveXMMIdxStart, slotAddr);
+            }
+#elif defined(__aarch64__)
+#if defined(__APPLE__)
+            if (offset == 0 || offset == 1) {
+                uint64_t* slotAddr = reinterpret_cast<uint64_t*>(calleeFrameAddress - SLOT_SIZE_FACTOR * offset);
+                context.SetValueByIdx(idx, *slotAddr);
+            } else {
+                uint64_t* slotAddr = reinterpret_cast<uint64_t*>(calleeFrameAddress + SLOT_SIZE_FACTOR * offset);
+                context.SetValueByIdx(idx, *slotAddr);
+            }
+#else // __APPLE__
+            if (offset != 0 && offset != 1) {
+                ++calleeCount;
+            }
+            uint64_t* slotAddr = reinterpret_cast<uint64_t*>(calleeFrameAddress + SLOT_SIZE_FACTOR * offset);
+            context.SetValueByIdx(idx, *slotAddr);
+#endif // __APPLE__
+#elif defined(__arm__)
+            uint32_t* slotAddr = reinterpret_cast<uint32_t*>(calleeFrameAddress + SLOT_SIZE_FACTOR * offset);
+            context.SetValueByIdx(idx, *slotAddr);
+#else // not (_WIN64 || __aarch64__)
+            uint64_t* slotAddr = reinterpret_cast<uint64_t*>(calleeFrameAddress + SLOT_SIZE_FACTOR * offset);
+            context.SetValueByIdx(idx, *slotAddr);
+#endif
+        }
+#if defined(__x86_64__)
+        context.rbp = *reinterpret_cast<uint64_t*>(calleeFrameAddress);
+#elif defined(__aarch64__)
+        context.x29 = *reinterpret_cast<uint64_t*>(calleeFrameAddress);
+        constexpr uint8_t alignSize = 2;
+        calleeCount = (calleeCount % alignSize != 0) ? calleeCount + 1 : calleeCount;
+        context.sp += calleeCount * sizeOfAddr;
+#elif defined(__arm__)
+        context.r11 = *reinterpret_cast<uint32_t*>(calleeFrameAddress);
+#endif
+
+#if defined(_WIN64)
+        Runtime& runtime = Runtime::Current();
+        WinModuleManager& winModuleManager = runtime.GetWinModuleManager();
+        context.rsp = GetCallerRsp(winModuleManager, mFrame);
+#endif
+
 #if defined(CANGJIE_TSAN_SUPPORT)
         // update tsan's function trace
         Sanitizer::TsanFuncRestoreContext(reinterpret_cast<const void*>(mFrame.GetIP()));
@@ -161,110 +233,6 @@ public:
     }
 
 private:
-    static constexpr uint8_t sizeOfAddr = sizeof(void*); // arm32 is 4, aarch64 is 8
-
-    void RestoreStackPointer(CalleeSavedRegisterContext& context, uint8_t sizeOfStackHead) const
-    {
-#if defined(__x86_64__)
-        context.rsp = context.rbp + sizeOfStackHead;
-#elif defined(__aarch64__)
-        context.sp = context.x29 + sizeOfStackHead;
-#elif defined(__arm__)
-        context.sp = context.r11 + sizeOfStackHead;
-#endif
-    }
-
-    void RestoreFramePointer(CalleeSavedRegisterContext& context, Uptr calleeFrameAddress) const
-    {
-#if defined(__x86_64__)
-        context.rbp = *reinterpret_cast<uint64_t*>(calleeFrameAddress);
-#elif defined(__aarch64__)
-        context.x29 = *reinterpret_cast<uint64_t*>(calleeFrameAddress);
-#elif defined(__arm__)
-        context.r11 = *reinterpret_cast<uint32_t*>(calleeFrameAddress);
-#endif
-    }
-
-    Uptr* GetStackMapEntry() const
-    {
-#ifdef __APPLE__
-        FuncDescRef funcDesc = MFuncDesc::GetFuncDesc(mFrame.GetFA());
-#else
-        FuncDescRef funcDesc = MFuncDesc::GetFuncDesc(reinterpret_cast<Uptr>(startProc));
-#endif
-        return funcDesc->GetStackMap();
-    }
-
-    static void SkipStackMapHeader(Uptr** stackMapEntry, uint32_t& validPos)
-    {
-        (void)ReadVarInt(stackMapEntry, validPos);
-        (void)ReadVarInt(stackMapEntry, validPos);
-    }
-
-    void RestoreCalleeSavedRegisters(CalleeSavedRegisterContext& context, Uptr calleeFrameAddress, Uptr** stackMapEntry,
-        uint32_t& validPos, uint32_t calleeSavedBitmap, uint32_t& calleeCount) const
-    {
-        (void)calleeCount;
-        for (uint32_t idx = 0; idx < CALLEE_SAVE_NUMBERS; idx++) {
-            if ((calleeSavedBitmap & (static_cast<uint32_t>(1) << idx)) == 0) {
-                continue;
-            }
-            uint32_t offset = ReadVarInt(stackMapEntry, validPos);
-#if defined(_WIN64)
-            if (idx < calleeSaveXMMIdxStart) {
-                uint64_t* slotAddr = reinterpret_cast<uint64_t*>(calleeFrameAddress + SLOT_SIZE_FACTOR * offset);
-                context.SetValueByIdx(idx, *slotAddr);
-            } else {
-                XMMReg* slotAddr = reinterpret_cast<XMMReg*>(calleeFrameAddress + SLOT_SIZE_FACTOR * offset);
-                context.SetXMMValueByIdx(idx - calleeSaveXMMIdxStart, slotAddr);
-            }
-#elif defined(__aarch64__)
-#if defined(__APPLE__)
-            if (offset == 0 || offset == 1) {
-                uint64_t* slotAddr = reinterpret_cast<uint64_t*>(calleeFrameAddress - SLOT_SIZE_FACTOR * offset);
-                context.SetValueByIdx(idx, *slotAddr);
-            } else {
-                uint64_t* slotAddr = reinterpret_cast<uint64_t*>(calleeFrameAddress + SLOT_SIZE_FACTOR * offset);
-                context.SetValueByIdx(idx, *slotAddr);
-            }
-#else  // __APPLE__
-            if (offset != 0 && offset != 1) {
-                ++calleeCount;
-            }
-            uint64_t* slotAddr = reinterpret_cast<uint64_t*>(calleeFrameAddress + SLOT_SIZE_FACTOR * offset);
-            context.SetValueByIdx(idx, *slotAddr);
-#endif // __APPLE__
-#elif defined(__arm__)
-            uint32_t* slotAddr = reinterpret_cast<uint32_t*>(calleeFrameAddress + SLOT_SIZE_FACTOR * offset);
-            context.SetValueByIdx(idx, *slotAddr);
-#else // not (_WIN64 || __aarch64__)
-            uint64_t* slotAddr = reinterpret_cast<uint64_t*>(calleeFrameAddress + SLOT_SIZE_FACTOR * offset);
-            context.SetValueByIdx(idx, *slotAddr);
-#endif
-        }
-    }
-
-    void FinishContextRestore(CalleeSavedRegisterContext& context, Uptr calleeFrameAddress, uint32_t calleeCount) const
-    {
-        (void)calleeCount;
-#if defined(__x86_64__)
-        context.rbp = *reinterpret_cast<uint64_t*>(calleeFrameAddress);
-#elif defined(__aarch64__)
-        context.x29 = *reinterpret_cast<uint64_t*>(calleeFrameAddress);
-        constexpr uint8_t alignSize = 2;
-        calleeCount = (calleeCount % alignSize != 0) ? calleeCount + 1 : calleeCount;
-        context.sp += calleeCount * sizeOfAddr;
-#elif defined(__arm__)
-        context.r11 = *reinterpret_cast<uint32_t*>(calleeFrameAddress);
-#endif
-
-#if defined(_WIN64)
-        Runtime& runtime = Runtime::Current();
-        WinModuleManager& winModuleManager = runtime.GetWinModuleManager();
-        context.rsp = GetCallerRsp(winModuleManager, mFrame);
-#endif
-    }
-
     ScanResult result;
 #if defined(__linux__) && defined(__x86_64__)
     static constexpr size_t CALLEE_SAVE_NUMBERS = 5;

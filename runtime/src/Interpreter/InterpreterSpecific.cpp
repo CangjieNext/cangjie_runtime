@@ -61,7 +61,6 @@ struct {
         LOG(RTLOG_FATAL, "Usage of uninitialized interpreter interface\n");
         return nullptr;
     }
-
 } g_interpreterInterface;
 
 void FillInterpretedFrameInfo(uint64_t fp, uint64_t ip, INT_InterpretedFrameInfo* fInfo)
