@@ -4,7 +4,6 @@
 //
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-
 #include "GcStackInfo.h"
 
 #include <stack>
@@ -68,7 +67,8 @@ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) con
         for (const auto& frame : stack) {
             switch (frame.GetFrameType()) {
                 case FrameType::INTERPRETER_I2N:
-                    // all roots are saved in interpreted frame producing I2N call, I2N adapter does not save any references
+                    // all roots are saved in interpreted frame producing I2N call, I2N adapter does not save any
+                    // references
                     break;
                 case FrameType::INTERPRETER:
                     VisitInterpreterFrameRootsMarking(state, frame, &func);
@@ -77,10 +77,13 @@ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) con
         }
     };
 
-    IterateFramesWithState(mutator.interpreterCJThreadData, [](DYN_VisitingState state, void* ctx) {
-        auto closure = reinterpret_cast<decltype(markingStackVisitor)*>(ctx);
-        (*closure)(state);
-    }, &markingStackVisitor);
+    IterateFramesWithState(
+        mutator.interpreterCJThreadData,
+        [](DYN_VisitingState state, void* ctx) {
+            auto closure = reinterpret_cast<decltype(markingStackVisitor)*>(ctx);
+            (*closure)(state);
+        },
+        &markingStackVisitor);
 #endif
 }
 
@@ -124,10 +127,13 @@ void GCStackInfo::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, con
         }
     };
 
-    IterateFramesWithState(mutator.interpreterCJThreadData, [](DYN_VisitingState state, void* ctx) {
-        auto closure = reinterpret_cast<decltype(adjustingStackVisitor)*>(ctx);
-        (*closure)(state);
-    }, &adjustingStackVisitor);
+    IterateFramesWithState(
+        mutator.interpreterCJThreadData,
+        [](DYN_VisitingState state, void* ctx) {
+            auto closure = reinterpret_cast<decltype(adjustingStackVisitor)*>(ctx);
+            (*closure)(state);
+        },
+        &adjustingStackVisitor);
 #endif
 }
 
@@ -206,9 +212,9 @@ char* CJThreadStackInfo::GetFuncOrFileNameStr(CString originName)
 {
     CString name;
     if (originName.Length() > maxStrSize) {
-            name = originName.SubStr(originName.Length() - maxStrSize);
-        } else {
-            name = originName;
+        name = originName.SubStr(originName.Length() - maxStrSize);
+    } else {
+        name = originName;
     }
     char* nameStr = reinterpret_cast<char*>(malloc(name.Length() + 1));
     int ret = strcpy_s(nameStr, name.Length() + 1, name.Str());

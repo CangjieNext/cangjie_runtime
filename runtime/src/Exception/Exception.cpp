@@ -13,11 +13,11 @@
 #include "Base/Panic.h"
 #include "StackManager.h"
 #include "ExceptionCApi.h"
+#include "Interpreter/InterpreterEHFrameInfo.h"
+#include "Interpreter/InterpreterSpecific.h"
 #include "Mutator/MutatorManager.h"
 #include "UnwindStack/EhStackInfo.h"
 #include "schedule.h"
-#include "Interpreter/InterpreterEHFrameInfo.h"
-#include "Interpreter/InterpreterSpecific.h"
 
 namespace MapleRuntime {
 // Use the prologue info in stackmap to restore the registers layer by layer.
@@ -51,11 +51,11 @@ void ExceptionWrapper::RestoreContext(CalleeSavedRegisterContext& context)
 {
 #ifdef GENERAL_ASAN_SUPPORT_INTERFACE
 #if defined(__x86_64__)
-        auto oldRsp = context.rsp;
+    auto oldRsp = context.rsp;
 #elif defined(__aarch64__)
-        auto oldRsp = context.sp;
+    auto oldRsp = context.sp;
 #elif defined(__arm__)
-        auto oldRsp = context.sp;
+    auto oldRsp = context.sp;
 #endif
 #endif
     for (const auto& framePtr : ehFrameInfos) {
@@ -79,11 +79,11 @@ void ExceptionWrapper::RestoreContext(CalleeSavedRegisterContext& context)
     }
 #ifdef GENERAL_ASAN_SUPPORT_INTERFACE
 #if defined(__x86_64__)
-        Sanitizer::HandleNoReturn(oldRsp, context.rsp);
+    Sanitizer::HandleNoReturn(oldRsp, context.rsp);
 #elif defined(__aarch64__)
-        Sanitizer::HandleNoReturn(oldRsp, context.sp);
+    Sanitizer::HandleNoReturn(oldRsp, context.sp);
 #elif defined(__arm__)
-        Sanitizer::HandleNoReturn(oldRsp, context.sp);
+    Sanitizer::HandleNoReturn(oldRsp, context.sp);
 #endif
 #endif
 }
@@ -100,9 +100,9 @@ void ExceptionHandling::BuildEHFrameInfo()
         DLOG(EXCEPTION, "layer\tFrameType\tFA\t\tIP\t\tStartProc\tLSDAStart\t");
         for (int i = 0; i < stackInfo.size(); ++i) {
             DLOG(EXCEPTION, "#%x\t%x\t\t%x\t%x\t0x%x\t0x%x", i, stackInfo[i].GetFrameType(),
-                 stackInfo[i].mFrame.GetFA(), stackInfo[i].mFrame.GetIP(),
-                 reinterpret_cast<uintptr_t>(stackInfo[i].GetStartProc()),
-                 reinterpret_cast<uintptr_t>(stackInfo[i].GetLsdaProc()));
+                stackInfo[i].mFrame.GetFA(), stackInfo[i].mFrame.GetIP(),
+                reinterpret_cast<uintptr_t>(stackInfo[i].GetStartProc()),
+                reinterpret_cast<uintptr_t>(stackInfo[i].GetLsdaProc()));
         }
     }
 #endif
@@ -128,14 +128,16 @@ void ExceptionHandling::BuildEHFrameInfo()
             eWrapper->SetLandingPad(ehFrameInfos.back()->GetLandingPad());
             break;
         } else if (frame.GetFrameType() == FrameType::INTERPRETER_I2I ||
-                    frame.GetFrameType() == FrameType::INTERPRETER_I2N) {
-                MRT_ASSERT(false, "should not reach here: did not met interpreted frame before I2I/I2N frame");
+            frame.GetFrameType() == FrameType::INTERPRETER_I2N) {
+            MRT_ASSERT(false, "should not reach here: did not met interpreted frame before I2I/I2N frame");
         } else if (frame.GetFrameType() == FrameType::INTERPRETER_PROLOGUE ||
-                    frame.GetFrameType() == FrameType::INTERPRETER_C2I) {
+            frame.GetFrameType() == FrameType::INTERPRETER_C2I) {
             // This is neither a managed nor a runtime frame.
-            // Since we didn`t met interpreted frame before, exception must be stack overflow, happened in C2I/I2I transition.
+            // Since we didn`t met interpreted frame before, exception must be stack overflow, happened in C2I/I2I
+            // transition.
             MRT_ASSERT(eWrapper->GetExceptionType() == ExceptionWrapper::ExceptionType::STACK_OVERFLOW,
-                    "expected StackOverflowError when meeting interpreter transition stub frame without meeting interpreted frame");
+                "expected StackOverflowError when meeting interpreter transition stub frame without meeting "
+                "interpreted frame");
             lastRuntimeFrame = frame;
 #endif
         } else {
@@ -148,12 +150,9 @@ void ExceptionHandling::BuildEHFrameInfo()
         DLOG(EXCEPTION, "EHFrameInfos size : %zu", ehFrameInfos.size());
         DLOG(EXCEPTION, "Layer\tFA\t\tIP\t\tTTpyeIndex\t\tLandingPad\tCatch\t");
         for (size_t i = 0; i < ehFrameInfos.size(); ++i) {
-            DLOG(EXCEPTION, "#%zx\t%x\t%x\t%x\t0x%p\t%x", i,
-                    ehFrameInfos[i]->GetFA(),
-                    ehFrameInfos[i]->GetIP(),
-                    ehFrameInfos[i]->GetTTypeIndex(),
-                    reinterpret_cast<void*>(ehFrameInfos[i]->GetLandingPad()),
-                    ehFrameInfos[i]->IsCatchException());
+            DLOG(EXCEPTION, "#%zx\t%x\t%x\t%x\t0x%p\t%x", i, ehFrameInfos[i]->GetFA(), ehFrameInfos[i]->GetIP(),
+                ehFrameInfos[i]->GetTTypeIndex(), reinterpret_cast<void*>(ehFrameInfos[i]->GetLandingPad()),
+                ehFrameInfos[i]->IsCatchException());
         }
     }
 }
@@ -181,13 +180,14 @@ void ExceptionHandling::ChangeEHStackInfoLR() const
 
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
     auto mod = reinterpret_cast<uint64_t>(lastRuntimeFrame.mFrame.GetFA()) +
-                GetRuntimeFrameSize((MachineFrame&)lastRuntimeFrame.mFrame);
+        GetRuntimeFrameSize((MachineFrame&)lastRuntimeFrame.mFrame);
     auto pc = PtrauthSignWithInstAkey(reinterpret_cast<Uptr>(RestoreContextForEH), reinterpret_cast<Uptr>(mod));
     lastRuntimeFrame.mFrame.GetFA()->returnAddress = reinterpret_cast<uint32_t*>(pc);
 #else
     lastRuntimeFrame.mFrame.GetFA()->returnAddress = reinterpret_cast<uint32_t*>(RestoreContextForEH);
 #endif
 
-    DLOG(EXCEPTION, "  Last runtime frame (fa=%p, ip=%p) redirected to RestoreContextForEH", lastRuntimeFrame.mFrame.GetFA(), lastRuntimeFrame.mFrame.GetIP());
+    DLOG(EXCEPTION, "  Last runtime frame (fa=%p, ip=%p) redirected to RestoreContextForEH",
+        lastRuntimeFrame.mFrame.GetFA(), lastRuntimeFrame.mFrame.GetIP());
 }
 } // namespace MapleRuntime

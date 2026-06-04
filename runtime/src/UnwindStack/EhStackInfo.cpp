@@ -4,7 +4,6 @@
 //
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-
 #include "EhStackInfo.h"
 
 #include <stack>
@@ -18,7 +17,8 @@ void EHStackInfo::FillInStackTrace()
     UnwindContext uwContext;
     // Top unwind context can only be runtime or Cangjie context.
     CheckTopUnwindContextAndInit(uwContext);
-    DLOG(INTERPRETER, "EHStackInfo::FillInStackTrace, top frame type: %d, name: %s", uwContext.frameInfo.GetFrameType(), uwContext.frameInfo.GetFuncName().Str());
+    DLOG(INTERPRETER, "EHStackInfo::FillInStackTrace, top frame type: %d, name: %s", uwContext.frameInfo.GetFrameType(),
+        uwContext.frameInfo.GetFuncName().Str());
 
     while (!uwContext.frameInfo.mFrame.IsAnchorFrame(anchorFA)) {
         AnalyseAndSetFrameType(uwContext);
@@ -27,7 +27,8 @@ void EHStackInfo::FillInStackTrace()
         }
 
         stack.emplace_back(uwContext.frameInfo);
-        DLOG(INTERPRETER, "  Added frame to EH stack info, frame type: %d, name: %s", uwContext.frameInfo.GetFrameType(), uwContext.frameInfo.GetFuncName().Str());
+        DLOG(INTERPRETER, "  Added frame to EH stack info, frame type: %d, name: %s",
+            uwContext.frameInfo.GetFrameType(), uwContext.frameInfo.GetFuncName().Str());
 
         UnwindContext caller;
         lastFrameType = uwContext.frameInfo.GetFrameType();

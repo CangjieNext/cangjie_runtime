@@ -6,26 +6,26 @@
 #include "InterpreterSpecific.h"
 #ifdef INTERPRETER_ENABLED
 
-#include "dlfcn.h"
-#include <stdint.h>
-#include <cstring>
-#include "Interpreter/RTInterface.h"
-#include "ObjectManager.inline.h"
+#include "Base/LogFile.h"
+#include "CjScheduler.h"
+#include "Common/BaseObject.h"
+#include "Common/ScopedObjectAccess.h"
+#include "Common/TypeDef.h"
 #include "ExceptionManager.inline.h"
+#include "Heap/Barrier/Barrier.h"
+#include "Heap/Collector/Collector.h"
+#include "Interpreter/RTInterface.h"
+#include "LoaderManager.h"
 #include "Mutator/Mutator.h"
 #include "Mutator/ThreadLocal.h"
-#include "Base/LogFile.h"
-#include "Common/ScopedObjectAccess.h"
-#include "Common/BaseObject.h"
-#include "Common/TypeDef.h"
-#include "Heap/Barrier/Barrier.h"
-#include "TypeInfoManager.h"
+#include "ObjectManager.inline.h"
 #include "ObjectModel/MArray.h"
 #include "ObjectModel/MClass.h"
-#include "Heap/Collector/Collector.h"
 #include "StackManager.h"
-#include "LoaderManager.h"
-#include "CjScheduler.h"
+#include "TypeInfoManager.h"
+#include "dlfcn.h"
+#include <cstring>
+#include <stdint.h>
 
 namespace MapleRuntime {
 
@@ -47,7 +47,10 @@ struct {
         initialized = true;
     }
 
-    operator bool() { return initialized; }
+    operator bool()
+    {
+        return initialized;
+    }
 
     INT_InterpreterInterface* operator->()
     {
@@ -72,7 +75,8 @@ void FillInterpretedFrameInfo(uint64_t fp, uint64_t ip, INT_InterpretedFrameInfo
     }
 }
 
-void IterateFramesWithState(DYN_CJThreadSpecificData cjThreadData, void (*callback)(DYN_VisitingState, void*), void* ctx)
+void IterateFramesWithState(
+    DYN_CJThreadSpecificData cjThreadData, void (*callback)(DYN_VisitingState, void*), void* ctx)
 {
     if (interpreterInterfaceInstance) {
         interpreterInterfaceInstance->iterateFramesWithState(cjThreadData, callback, ctx);
@@ -87,7 +91,8 @@ INT_FrameDesc toFrameDesc(FrameInfo frameInfo)
     };
 }
 
-void VisitInterpreterFrameRootsExpansion(DYN_VisitingState state, FrameInfo frameDesc, DYN_RootVisitor stackPtrVisitor, DYN_DerivedPtrVisitor derivedPtrVisitor)
+void VisitInterpreterFrameRootsExpansion(DYN_VisitingState state, FrameInfo frameDesc, DYN_RootVisitor stackPtrVisitor,
+    DYN_DerivedPtrVisitor derivedPtrVisitor)
 {
     if (interpreterInterfaceInstance) {
         INT_FrameDesc fd = toFrameDesc(frameDesc);
@@ -103,7 +108,8 @@ void VisitInterpreterFrameRootsMarking(DYN_VisitingState state, FrameInfo frameD
     }
 }
 
-void VisitInterpreterFrameRootsAdjusting(DYN_VisitingState state, FrameInfo frameDesc, DYN_RootVisitor rootVisitor, DYN_DerivedPtrVisitor derivedPtrVisitor)
+void VisitInterpreterFrameRootsAdjusting(
+    DYN_VisitingState state, FrameInfo frameDesc, DYN_RootVisitor rootVisitor, DYN_DerivedPtrVisitor derivedPtrVisitor)
 {
     if (interpreterInterfaceInstance) {
         INT_FrameDesc fd = toFrameDesc(frameDesc);
@@ -148,21 +154,24 @@ void VisitRootFromInterpreter(DYN_RootVisitor _visitor, DYN_Placeholder _placeho
     (*visitor)(*placeholder);
 }
 
-void VisitDerivedPtrFromInterpreter(DYN_DerivedPtrVisitor _visitor, DYN_Placeholder _basePtrHolder, DYN_Placeholder _derivedPtrHolder)
+void VisitDerivedPtrFromInterpreter(
+    DYN_DerivedPtrVisitor _visitor, DYN_Placeholder _basePtrHolder, DYN_Placeholder _derivedPtrHolder)
 {
     const DerivedPtrVisitor* visitor = static_cast<const DerivedPtrVisitor*>(_visitor);
     BasePtrType* basePtrLocation = static_cast<BasePtrType*>(_basePtrHolder);
     DerivedPtrType* derivedPtrLocation = static_cast<DerivedPtrType*>(_derivedPtrHolder);
 
-    DLOG(INTERPRETER, "VisitDerivedPtrFromInterpreter: visitor=[%p], placeholder=[%p]", (void*)visitor, (void*) derivedPtrLocation);
+    DLOG(INTERPRETER, "VisitDerivedPtrFromInterpreter: visitor=[%p], placeholder=[%p]", (void*)visitor,
+        (void*)derivedPtrLocation);
 
     (*visitor)(*basePtrLocation, *derivedPtrLocation);
 }
 
-struct DYN_TypeInfo* TypeInfoProvider(const char * sig)
+struct DYN_TypeInfo* TypeInfoProvider(const char* sig)
 {
     DLOG(INTERPRETER, "TypeInfoProvider: %s", sig);
-    auto *result = reinterpret_cast<struct DYN_TypeInfo*>(LoaderManager::GetInstance()->FindTypeInfoFromLoadedFiles(sig));
+    auto* result =
+        reinterpret_cast<struct DYN_TypeInfo*>(LoaderManager::GetInstance()->FindTypeInfoFromLoadedFiles(sig));
     DLOG(INTERPRETER, "FindTypeInfoFromLoadedFiles(%s) return %p", sig, result);
 
     return result;
@@ -177,15 +186,13 @@ DYN_TypeTemplate FindTypeTemplate(const char* mangledName)
     return result;
 }
 
-struct DYN_TypeInfo* GetOrCreateTypeInfo(DYN_TypeTemplate typeTemplate, uint32_t typeArgsCount, struct DYN_TypeInfo** typeArgs)
+struct DYN_TypeInfo* GetOrCreateTypeInfo(
+    DYN_TypeTemplate typeTemplate, uint32_t typeArgsCount, struct DYN_TypeInfo** typeArgs)
 {
     DLOG(INTERPRETER, "GetOrCreateTypeInfo: template=%p size=%u", typeTemplate, typeArgsCount);
 
     return reinterpret_cast<struct DYN_TypeInfo*>(TypeInfoManager::GetTypeInfoManager().GetOrCreateTypeInfo(
-        static_cast<TypeTemplate*>(typeTemplate),
-        typeArgsCount,
-        reinterpret_cast<TypeInfo**>(typeArgs)
-    ));
+        static_cast<TypeTemplate*>(typeTemplate), typeArgsCount, reinterpret_cast<TypeInfo**>(typeArgs)));
 }
 
 uint32_t GetInstanceSize(struct DYN_TypeInfo* typeInfoPtr)
@@ -204,8 +211,7 @@ DYN_FuncPtr* GetMTable(struct DYN_TypeInfo* ti, struct DYN_TypeInfo* itf)
 
 struct DYN_TypeInfo* GetMethodOuterTI(struct DYN_TypeInfo* ti, struct DYN_TypeInfo* itf, uint64_t index)
 {
-    DLOG(INTERPRETER, "GetMethodOuterTI: ti=%p, itf=%p, index=%llu", ti, itf,
-         static_cast<unsigned long long>(index));
+    DLOG(INTERPRETER, "GetMethodOuterTI: ti=%p, itf=%p, index=%llu", ti, itf, static_cast<unsigned long long>(index));
     return reinterpret_cast<struct DYN_TypeInfo*>(
         CJ_MCC_GetMethodOuterTI(reinterpret_cast<TypeInfo*>(ti), reinterpret_cast<TypeInfo*>(itf), index));
 }
@@ -214,7 +220,7 @@ void UpdateVMT(struct DYN_TypeInfo* ti, struct DYN_TypeInfo* itf, struct DYN_Ext
 {
     DLOG(INTERPRETER, "UpdateVMT: ti=%p, itf=%p, extensionData=%p", ti, itf, extensionData);
     CJ_MCC_UpdateVMT(reinterpret_cast<TypeInfo*>(ti), reinterpret_cast<TypeInfo*>(itf),
-                     reinterpret_cast<ExtensionData*>(extensionData));
+        reinterpret_cast<ExtensionData*>(extensionData));
 }
 
 uint32_t GetTypeInfoUUID(struct DYN_TypeInfo* ti)
@@ -267,9 +273,9 @@ bool IsPendingSafePoint(DYN_ThreadLocalData tlData)
 void ThrowException(DYN_ObjRef exception)
 {
     ExceptionRef exceptionRef = static_cast<ExceptionRef>(exception);
-    const char* exceptionTypeName =
-        (exceptionRef != nullptr && exceptionRef->GetTypeInfo() != nullptr) ? exceptionRef->GetTypeInfo()->GetName()
-                                                                             : "<null>";
+    const char* exceptionTypeName = (exceptionRef != nullptr && exceptionRef->GetTypeInfo() != nullptr)
+        ? exceptionRef->GetTypeInfo()->GetName()
+        : "<null>";
     DLOG(INTERPRETER, "ThrowException: exception=%p, type=%s", exceptionRef, exceptionTypeName);
     ExceptionManager::ThrowException(exceptionRef);
 }
@@ -303,7 +309,7 @@ bool InstanceOf(DYN_ObjRef ref, struct DYN_TypeInfo* ti)
 {
     DLOG(INTERPRETER, "InstanceOf: ref=%p, typeInfo=%p", ref, ti);
 
-    MObject* obj    = static_cast<MObject*>(ref);
+    MObject* obj = static_cast<MObject*>(ref);
     TypeInfo* tinfo = reinterpret_cast<TypeInfo*>(ti);
 
     DLOG(INTERPRETER, "  obj type is %s", obj->GetTypeInfo()->GetName());
@@ -365,7 +371,6 @@ DYN_ObjRef GetArrayElement(DYN_ObjRef source, U64 index)
     return static_cast<DYN_ObjRef>(array->GetRefElement(index));
 }
 
-
 void SetArrayElement(DYN_ObjRef source, U64 index, DYN_ObjRef new_value)
 {
     DLOG(INTERPRETER, "SetArrayElement %p %llu %p", source, index, new_value);
@@ -387,8 +392,8 @@ void WriteStructFieldOfObject(DYN_ObjRef obj, MAddress dst, MAddress src, size_t
     DLOG(INTERPRETER, "WriteStructFieldOfObject %p %p %p %zu", obj, dst, src, size);
     CHECK_DETAIL((dst != 0u && src != 0u), "MCC_WriteStructField wrong parameter, dst: %p src: %p", dst, src);
     if (UNLIKELY(!Heap::IsHeapAddress(obj))) {
-        CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), size, reinterpret_cast<void*>(src), size) == EOK,
-                     "memcpy_s failed");
+        CHECK_DETAIL(
+            memcpy_s(reinterpret_cast<void*>(dst), size, reinterpret_cast<void*>(src), size) == EOK, "memcpy_s failed");
         return;
     }
     Heap::GetBarrier().WriteStruct(static_cast<BaseObject*>(obj), dst, size, src, size);
@@ -396,8 +401,8 @@ void WriteStructFieldOfObject(DYN_ObjRef obj, MAddress dst, MAddress src, size_t
 
 void ReadStaticStructField(uintptr_t dstPtr, size_t dstSize, uintptr_t srcPtr, size_t srcSize, DYN_GCTib tib)
 {
-    DLOG(INTERPRETER, "ReadStaticStructField dst=%p size=%zu src=%p size=%zu tib_val=%zx",
-        dstPtr, dstSize, srcPtr, srcSize, static_cast<size_t>(tib.raw));
+    DLOG(INTERPRETER, "ReadStaticStructField dst=%p size=%zu src=%p size=%zu tib_val=%zx", dstPtr, dstSize, srcPtr,
+        srcSize, static_cast<size_t>(tib.raw));
 
     GCTib gcTib = *reinterpret_cast<GCTib*>(&tib);
     Heap::GetHeap().GetBarrier().ReadStaticStruct(dstPtr, srcPtr, dstSize, gcTib);
@@ -405,8 +410,8 @@ void ReadStaticStructField(uintptr_t dstPtr, size_t dstSize, uintptr_t srcPtr, s
 
 void WriteStaticStructField(uintptr_t dst, size_t dstLen, uintptr_t src, size_t srcLen, DYN_GCTib tib)
 {
-    DLOG(INTERPRETER, "WriteStaticStructField dst=%p size=%zu src=%p size=%zu tib_val=%zx",
-        dst, dstLen, src, srcLen, static_cast<size_t>(tib.raw));
+    DLOG(INTERPRETER, "WriteStaticStructField dst=%p size=%zu src=%p size=%zu tib_val=%zx", dst, dstLen, src, srcLen,
+        static_cast<size_t>(tib.raw));
 
     CHECK_DETAIL((dst != 0u && src != 0u), "WriteStaticStructField wrong parameter, dst: %p src: %p", dst, src);
 
@@ -423,11 +428,7 @@ void ReadGenericField(DYN_ObjRef dst, DYN_ObjRef srcObj, uintptr_t srcField, siz
     }
 
     Heap::GetBarrier().ReadGeneric(
-        static_cast<BaseObject*>(dst),
-        static_cast<BaseObject*>(srcObj),
-        reinterpret_cast<void*>(srcField),
-        size
-    );
+        static_cast<BaseObject*>(dst), static_cast<BaseObject*>(srcObj), reinterpret_cast<void*>(srcField), size);
 }
 
 void WriteGenericField(DYN_ObjRef dstObj, uintptr_t dstField, DYN_ObjRef src, size_t size)
@@ -439,11 +440,7 @@ void WriteGenericField(DYN_ObjRef dstObj, uintptr_t dstField, DYN_ObjRef src, si
     }
 
     Heap::GetBarrier().WriteGeneric(
-        static_cast<BaseObject*>(dstObj),
-        reinterpret_cast<void*>(dstField),
-        static_cast<BaseObject*>(src),
-        size
-    );
+        static_cast<BaseObject*>(dstObj), reinterpret_cast<void*>(dstField), static_cast<BaseObject*>(src), size);
 }
 
 DYN_ThreadLocalData GetThreadLocalData()
@@ -485,11 +482,15 @@ void NativeLogger(int logLevel, char* tag, char* message)
 size_t ComputeCJThreadDataOffset()
 {
     union MutatorTmpContainer {
-        MutatorTmpContainer() {}
-        ~MutatorTmpContainer() {}
+        MutatorTmpContainer()
+        {
+        }
+        ~MutatorTmpContainer()
+        {
+        }
         Mutator mutator;
     } tmp;
-    return ((size_t) &tmp.mutator.interpreterCJThreadData) - ((size_t) &tmp.mutator);
+    return ((size_t)&tmp.mutator.interpreterCJThreadData) - ((size_t)&tmp.mutator);
 }
 
 RTErrorCode InitInterpreter(const InterpreterParam& interpreterParam)
@@ -524,7 +525,7 @@ RTErrorCode InitInterpreter(const InterpreterParam& interpreterParam)
 
     StackManager::InitAddressScopeForInterpreter(libName);
 
-    void *sym = dlsym(interpreterLibHandle, "interpreter_bridge_init");
+    void* sym = dlsym(interpreterLibHandle, "interpreter_bridge_init");
     INT_InitInterpreter init = (INT_InitInterpreter)sym;
     if (sym == 0) {
         DLOG(INTERPRETER, "dlsym failed: %s", dlerror());
@@ -535,7 +536,7 @@ RTErrorCode InitInterpreter(const InterpreterParam& interpreterParam)
         .version = DYN_CJNATIVE_INTERFACE_VERSION,
         .appLibHandle = symbolHandle,
         .carrierSpecificOffset = offsetof(ThreadLocalData, mutator),
-        .cjThreadSpecificOffset   = ComputeCJThreadDataOffset(),
+        .cjThreadSpecificOffset = ComputeCJThreadDataOffset(),
         .newCJThread = &NewCJThread,
         .typeInfo = &TypeInfoProvider,
         .typeTemplate = &FindTypeTemplate,
@@ -584,11 +585,10 @@ RTErrorCode InitInterpreter(const InterpreterParam& interpreterParam)
         .nativeLogger = &NativeLogger,
     };
 
-    INT_InterpreterInterface interpreterInterface {};
+    INT_InterpreterInterface interpreterInterface{};
     interpreterInterface.version = INT_INTERPRETER_INTERFACE_VERSION;
 
-    int code = init(&interpreterInterface, &cjnativeInterface,
-        interpreterParam.interpreterArgsCount,
+    int code = init(&interpreterInterface, &cjnativeInterface, interpreterParam.interpreterArgsCount,
         interpreterParam.interpreterArgs);
     if (code != 0) {
         DLOG(INTERPRETER, "interpreter_bridge_init failed, return code: %d", code);
@@ -608,10 +608,11 @@ bool IsC2IStubAddr(const uintptr_t address)
     if (!interpreterInterfaceInstance) {
         return false;
     }
-    bool res = interpreterInterfaceInstance->c2iStubStartAddr <= address && address < interpreterInterfaceInstance->c2iStubEndAddr;
+    bool res = interpreterInterfaceInstance->c2iStubStartAddr <= address &&
+        address < interpreterInterfaceInstance->c2iStubEndAddr;
     DLOG(INTERPRETER, "Checking c2i virtual executor borders: is %p in [%p, %p)? -- %s", address,
-        interpreterInterfaceInstance->c2iStubStartAddr,
-        interpreterInterfaceInstance->c2iStubEndAddr, res ? "true" : "false");
+        interpreterInterfaceInstance->c2iStubStartAddr, interpreterInterfaceInstance->c2iStubEndAddr,
+        res ? "true" : "false");
     return res;
 }
 
@@ -620,10 +621,11 @@ bool IsI2IAdapterStartAddr(const uintptr_t address)
     if (!interpreterInterfaceInstance) {
         return false;
     }
-    bool res = interpreterInterfaceInstance->i2iAdapterStartAddr <= address && address < interpreterInterfaceInstance->i2iAdapterEndAddr;
+    bool res = interpreterInterfaceInstance->i2iAdapterStartAddr <= address &&
+        address < interpreterInterfaceInstance->i2iAdapterEndAddr;
     DLOG(INTERPRETER, "Checking i2i function borders: is %p in [%p, %p)? -- %s", address,
-        interpreterInterfaceInstance->i2iAdapterStartAddr,
-        interpreterInterfaceInstance->i2iAdapterEndAddr, res ? "true" : "false");
+        interpreterInterfaceInstance->i2iAdapterStartAddr, interpreterInterfaceInstance->i2iAdapterEndAddr,
+        res ? "true" : "false");
     return res;
 }
 
@@ -636,8 +638,8 @@ bool IsInterpreterPrologueAddr(const uintptr_t address)
     uintptr_t endAddr = interpreterInterfaceInstance->interpreterPrologueEndAddr;
     bool hasRange = startAddr != 0 && startAddr < endAddr;
     bool res = hasRange && startAddr <= address && address < endAddr;
-    DLOG(INTERPRETER, "Checking interpreter prologue borders: is %p in [%p, %p)? -- %s", address,
-        startAddr, endAddr, res ? "true" : "false");
+    DLOG(INTERPRETER, "Checking interpreter prologue borders: is %p in [%p, %p)? -- %s", address, startAddr, endAddr,
+        res ? "true" : "false");
     return res;
 }
 
@@ -650,6 +652,6 @@ uintptr_t GetCommonInterpreterLandingPad()
     return reinterpret_cast<uintptr_t>(interpreterInterfaceInstance->landingPad);
 }
 
-}
+} // namespace MapleRuntime
 
 #endif // INTERPRETER_ENABLED

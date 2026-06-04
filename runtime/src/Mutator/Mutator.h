@@ -574,11 +574,11 @@ public:
     DYN_CJThreadSpecificData interpreterCJThreadData;
     bool isRuntimeMutator = false;
 
-    void markAsRuntimeMutator() {
+    void markAsRuntimeMutator()
+    {
         isRuntimeMutator = true;
     }
 #endif
-
 };
 
 // This function is mainly used to initialize the context of mutator.

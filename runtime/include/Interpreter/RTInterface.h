@@ -7,8 +7,8 @@
 #ifndef RT_INTERFACE_H
 #define RT_INTERFACE_H
 
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 #include "RuntimeTypes.h"
 
@@ -21,48 +21,48 @@ extern "C" {
 ////////////////////////////////////////////////////////////////////////////////////
 
 // Pointer to traceable object reference. Binary layout of object is defined by CJNative runtime.
-typedef void *DYN_ObjRef;
+typedef void* DYN_ObjRef;
 
 // Pointer to RefField
-typedef void *DYN_FieldRef;
+typedef void* DYN_FieldRef;
 
 // Pointer to the place that contains traceable object reference.
-typedef void *DYN_Placeholder;
+typedef void* DYN_Placeholder;
 
 // State that's passed during visiting stack frames.
-typedef void *DYN_VisitingState;
+typedef void* DYN_VisitingState;
 
 // Pointer to TypeTemplate. Binary layout of this structure is defined by CJNative runtime.
-typedef void *DYN_TypeTemplate;
+typedef void* DYN_TypeTemplate;
 
 // Pointer to ThreadLocalData that is currently executing current cjThread.
-typedef void *DYN_ThreadLocalData;
+typedef void* DYN_ThreadLocalData;
 
 // Pointer to cjThread specific data that is used by interpreter during execution.
 // This pointer is stored in cjThread specific storage.
-typedef void *DYN_CJThreadSpecificData;
+typedef void* DYN_CJThreadSpecificData;
 
 // Handle of a cjThread.
-typedef void *DYN_CJThreadHandle;
+typedef void* DYN_CJThreadHandle;
 
 // This is alias for frame pointer. CJNative runtime should pass this pointer to `INT_FrameInfoProviderFn` function.
 // Interpreter would return description of corresponding frame (e.g. fileName, lineNumber).
-typedef const void *DYN_FramePointer;
+typedef const void* DYN_FramePointer;
 
-// This is alias for instruction pointer. CJNative runtime should pass this pointer to `INT_FrameInfoProviderFn` function.
-// Interpreter would return description of corresponding frame (e.g. fileName, lineNumber).
-typedef const void *DYN_InstructionPointer;
+// This is alias for instruction pointer. CJNative runtime should pass this pointer to `INT_FrameInfoProviderFn`
+// function. Interpreter would return description of corresponding frame (e.g. fileName, lineNumber).
+typedef const void* DYN_InstructionPointer;
 
 // Visitor of interpreter pointer placeholders.
 // Interpreter cannot use this data directly but should pass it to the callbacks defined in `DYN_CJNativeInterface`.
-typedef const void *DYN_RootVisitor;
+typedef const void* DYN_RootVisitor;
 
 // Visitor of placeholders that contain derived pointers (intrapointers).
 // Interpreter cannot use this data directly but should pass it to the callbacks defined in `DYN_CJNativeInterface`.
-typedef const void *DYN_DerivedPtrVisitor;
+typedef const void* DYN_DerivedPtrVisitor;
 
 // Pointer to ExceptionWrapper.
-typedef void *DYN_ExceptionWrapper;
+typedef void* DYN_ExceptionWrapper;
 
 // Frame description used by interpreter frame visitors.
 struct INT_FrameDesc {
@@ -73,9 +73,9 @@ struct INT_FrameDesc {
 // This struct describes frame. Interpreter would fill this structure in `INT_FrameInfoProviderFn` function.
 struct INT_InterpretedFrameInfo {
     size_t lineNumber;
-    char*  methodName;
-    char*  className;
-    char*  fileName;
+    char* methodName;
+    char* className;
+    char* fileName;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////
@@ -92,15 +92,14 @@ struct INT_InterpretedFrameInfo {
 //
 
 // Managed Cangjie Calling convention (ManagedCall)
-//   This is default calling convention used by compiled Cangjie code. Parameter passing is similar to CCall but there are some
-//   differences. For example, there is dedicated non-volatile register that holds pointer to thread local data (e.g. r15 on x86_64).
-//   Take care of this calling convention when making C2I or I2C transitions.
+//   This is default calling convention used by compiled Cangjie code. Parameter passing is similar to CCall but there
+//   are some differences. For example, there is dedicated non-volatile register that holds pointer to thread local data
+//   (e.g. r15 on x86_64). Take care of this calling convention when making C2I or I2C transitions.
 //
 
 ////////////////////////////////////////////////////////////////////////////////////
 // endregion Calling Conventions
 ////////////////////////////////////////////////////////////////////////////////////
-
 
 // Collection of callbacks implemented by interpreter. See detailed description below.
 struct INT_InterpreterInterface;
@@ -125,95 +124,106 @@ struct DYN_CJNativeInterface;
 //                     Pointer owned by caller, callee should copy the content.
 // return: 0 on success.
 //
-typedef int (*INT_InitInterpreter)(struct INT_InterpreterInterface *interpreterInterface,
-                      struct DYN_CJNativeInterface *cjnativeInterface,
-                      int interpreterArgsCount,
-                      const char* const* interpreterArgs);
+typedef int (*INT_InitInterpreter)(struct INT_InterpreterInterface* interpreterInterface,
+    struct DYN_CJNativeInterface* cjnativeInterface, int interpreterArgsCount, const char* const* interpreterArgs);
 
-// Prepares state and calls callback with initialized state and provided context. After callback returns, performs necessary cleanup of the state.
+// Prepares state and calls callback with initialized state and provided context. After callback returns, performs
+// necessary cleanup of the state.
 //
 // params:
 // - cjThreadData - pointer to interpreter data for current cjThread.
 // - callback - continuation that expects initialized state and context.
 // - ctx - context that should be passed to callback.
 //
-typedef void (*INT_IterateFramesWithStateFn)(DYN_CJThreadSpecificData cjThreadData, void (*callback)(DYN_VisitingState, void*), void* ctx);
-
+typedef void (*INT_IterateFramesWithStateFn)(
+    DYN_CJThreadSpecificData cjThreadData, void (*callback)(DYN_VisitingState, void*), void* ctx);
 
 // Visit all frame slots that contain pointers to stack using provided visitor.
 //
 // params:
-// - state - visiting state that was initialized in iterateFramesWithState callback. This state is passed between consecutive calls to this function for different frames.
+// - state - visiting state that was initialized in iterateFramesWithState callback. This state is passed between
+// consecutive calls to this function for different frames.
 // - frameDesc - description of the frame which slots are being visited.
 // - stackPtrVisitor - visitor callback provided by CJNative runtime for processing slots with stack pointers.
-// - derivedPtrVisitor - derived pointers visitor callback provided by CJNative runtime for processing slots with intrapointers (which point to stack).
+// - derivedPtrVisitor - derived pointers visitor callback provided by CJNative runtime for processing slots with
+// intrapointers (which point to stack).
 //
 // Notes:
-// Provided visitors cannot be called directly by interpreter. Interpreter should pass visitor to the callbacks defined in `DYN_CJNativeInterface` to process slots.
+// Provided visitors cannot be called directly by interpreter. Interpreter should pass visitor to the callbacks defined
+// in `DYN_CJNativeInterface` to process slots.
 //
-typedef void (*INT_VisitFrameRootsExpansionFn)(DYN_VisitingState state, INT_FrameDesc frameDesc, DYN_RootVisitor stackPtrVisitor, DYN_DerivedPtrVisitor derivedPtrVisitor);
-
+typedef void (*INT_VisitFrameRootsExpansionFn)(DYN_VisitingState state, INT_FrameDesc frameDesc,
+    DYN_RootVisitor stackPtrVisitor, DYN_DerivedPtrVisitor derivedPtrVisitor);
 
 // Visit frame roots (local variables) of interpreted code with marking visitor.
 //
 // params:
-// - state - visiting state that was initialized in iterateFramesWithState callback. This state is passed between consecutive calls to this function for different frames.
+// - state - visiting state that was initialized in iterateFramesWithState callback. This state is passed between
+// consecutive calls to this function for different frames.
 // - frameDesc - description of the frame which roots are being visited.
-// - rootVisitor - marking root visitor callback provided by CJNative runtime. Interpreter should call this callback for each root it needs to process.
+// - rootVisitor - marking root visitor callback provided by CJNative runtime. Interpreter should call this callback for
+// each root it needs to process.
 //
 // Notes:
-// Root visitor cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `DYN_CJNativeInterface` to process roots.
+// Root visitor cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined
+// in `DYN_CJNativeInterface` to process roots.
 //
-typedef void (*INT_VisitFrameRootsMarkingFn)(DYN_VisitingState state, INT_FrameDesc frameDesc, DYN_RootVisitor rootVisitor);
-
+typedef void (*INT_VisitFrameRootsMarkingFn)(
+    DYN_VisitingState state, INT_FrameDesc frameDesc, DYN_RootVisitor rootVisitor);
 
 // Visit frame roots (local variables) of interpreted code with adjusting visitor.
 //
 // params:
-// - state - visiting state that was initialized in iterateFramesWithState callback. This state is passed between consecutive calls to this function for different frames.
+// - state - visiting state that was initialized in iterateFramesWithState callback. This state is passed between
+// consecutive calls to this function for different frames.
 // - frameDesc - description of the frame which roots are being visited.
-// - rootVisitor - adjusting root visitor callback provided by CJNative runtime. Interpreter should call this callback for each root it needs to process.
+// - rootVisitor - adjusting root visitor callback provided by CJNative runtime. Interpreter should call this callback
+// for each root it needs to process.
 // - derivedPtrVisitor - derived pointers visitor callback provided by CJNative runtime.
 //
 // Notes:
-// Root visitors cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `DYN_CJNativeInterface` to process roots.
+// Root visitors cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined
+// in `DYN_CJNativeInterface` to process roots.
 //
-typedef void (*INT_VisitFrameRootsAdjustingFn)(DYN_VisitingState state, INT_FrameDesc frameDesc, DYN_RootVisitor rootVisitor, DYN_DerivedPtrVisitor derivedPtrVisitor);
-
+typedef void (*INT_VisitFrameRootsAdjustingFn)(DYN_VisitingState state, INT_FrameDesc frameDesc,
+    DYN_RootVisitor rootVisitor, DYN_DerivedPtrVisitor derivedPtrVisitor);
 
 // Visit static roots (global variables) of interpreted code with some visitor.
 // Can be used to add interpreted roots for GC root-set or for references adjusting.
 //
 // params:
-// - visitor - root visitor callback provided by CJNative runtime. Interpreter should call this callback for each root it needs to process.
+// - visitor - root visitor callback provided by CJNative runtime. Interpreter should call this callback for each root
+// it needs to process.
 //
 // Notes:
-// Root visitor cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined in `DYN_CJNativeInterface` to process roots.
+// Root visitor cannot be called directly by interpreter. Interpreter should pass root visitor to the callbacks defined
+// in `DYN_CJNativeInterface` to process roots.
 //
 typedef void (*INT_VisitGlobalRootsFn)(DYN_RootVisitor visitor);
 
-
-// Registers newly created cjThread in interpreter. This method could be called by any thread (e.g. auxiliary scheduler thread) to notify interpreter about creation of new cjThread.
+// Registers newly created cjThread in interpreter. This method could be called by any thread (e.g. auxiliary scheduler
+// thread) to notify interpreter about creation of new cjThread.
 //
 // params:
 // - Pointer to CJThreadSpecificData
 //
 // Notes:
-//  Interpreter will save auxiliary metadata in [DYN_CJThreadSpecificData + offsetToCJThreadSpecificMemory] memory area to simplify support of interpretation and Garbage collection.
+//  Interpreter will save auxiliary metadata in [DYN_CJThreadSpecificData + offsetToCJThreadSpecificMemory] memory area
+//  to simplify support of interpretation and Garbage collection.
 //
 typedef void (*INT_CJThreadOnStartFn)(DYN_CJThreadSpecificData*);
 
-
-// Unregisters cjThread in interpreter. This method could be called by any thread (e.g. auxiliary scheduler thread) to notify interpreter about termination of some completed cjThread.
+// Unregisters cjThread in interpreter. This method could be called by any thread (e.g. auxiliary scheduler thread) to
+// notify interpreter about termination of some completed cjThread.
 //
 // params:
 // - Pointer to CJThreadSpecificData
 //
 typedef void (*INT_CJThreadOnDestroyFn)(DYN_CJThreadSpecificData*);
 
-
 // Provides information about given frame which could be used for precise stack trace generation.
-// This method could be called by any thread (e.g. auxiliary stack dumper thread) to query information about interpreter frames.
+// This method could be called by any thread (e.g. auxiliary stack dumper thread) to query information about interpreter
+// frames.
 //
 // Important: this function may invoke "long-running" tasks (fseek, pthread_mutex_lock) so CJNative runtime
 //            should treat this method as "foreign" code.
@@ -223,8 +233,8 @@ typedef void (*INT_CJThreadOnDestroyFn)(DYN_CJThreadSpecificData*);
 // - ip - Instruction pointer in frame (callsite position).
 // - frameInfo - [OUT] Pointer to INT_InterpretedFrameInfo. Fields of this struct will be initialized by interpreter.
 //
-typedef void (*INT_FrameInfoProviderFn)(DYN_FramePointer fp, DYN_InstructionPointer ip, INT_InterpretedFrameInfo* frameInfo);
-
+typedef void (*INT_FrameInfoProviderFn)(
+    DYN_FramePointer fp, DYN_InstructionPointer ip, INT_InterpretedFrameInfo* frameInfo);
 
 // Landing pad which handles pending exception.
 // If there is suitable catch block in current last interpreted frame, interprets catch block.
@@ -235,7 +245,6 @@ typedef void (*INT_LandingPadFn)();
 ////////////////////////////////////////////////////////////////////////////////////
 // endregion interpreter interface
 ////////////////////////////////////////////////////////////////////////////////////
-
 
 ////////////////////////////////////////////////////////////////////////////////////
 // region CJNative interface
@@ -293,7 +302,7 @@ typedef bool (*DYN_IsPendingSafePointFn)(DYN_ThreadLocalData);
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef struct DYN_TypeInfo* (*DYN_TypeInfoProviderFn)(const char *);
+typedef struct DYN_TypeInfo* (*DYN_TypeInfoProviderFn)(const char*);
 
 // Provide a TypeTemplate for type with given signature.
 //
@@ -305,7 +314,7 @@ typedef struct DYN_TypeInfo* (*DYN_TypeInfoProviderFn)(const char *);
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef DYN_TypeTemplate (*DYN_TypeTemplateFn)(const char *);
+typedef DYN_TypeTemplate (*DYN_TypeTemplateFn)(const char*);
 
 // Get or create specialized TypeInfo from a TypeTemplate and type arguments.
 //
@@ -319,7 +328,8 @@ typedef DYN_TypeTemplate (*DYN_TypeTemplateFn)(const char *);
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef struct DYN_TypeInfo* (*DYN_GetOrCreateTypeInfoFn)(DYN_TypeTemplate typeTemplate, uint32_t argSize, struct DYN_TypeInfo** typeArgs);
+typedef struct DYN_TypeInfo* (*DYN_GetOrCreateTypeInfoFn)(
+    DYN_TypeTemplate typeTemplate, uint32_t argSize, struct DYN_TypeInfo** typeArgs);
 
 // Get the instance size of a type from its TypeInfo.
 //
@@ -389,7 +399,6 @@ typedef void (*DYN_UpdateVMTFn)(
 //
 typedef uint32_t (*DYN_GetTypeInfoUUIDFn)(struct DYN_TypeInfo* ti);
 
-
 // Throw OutOfMemoryError exception.
 //
 // Notes:
@@ -427,7 +436,6 @@ typedef DYN_ObjRef (*DYN_GetPendingExceptionFn)();
 //
 typedef DYN_ObjRef (*DYN_GetAndClearPendingExceptionFn)();
 
-
 // Check that given object is an instance of given type.
 //
 // params:
@@ -456,7 +464,8 @@ typedef bool (*DYN_IsSubTypeFn)(struct DYN_TypeInfo* typeInfo, struct DYN_TypeIn
 // Applies visitor to the given placeholder.
 //
 // params:
-// - visitor - root visitor callback provided by CJNative runtime. Interpreter should call this callback for each root it needs to process.
+// - visitor - root visitor callback provided by CJNative runtime. Interpreter should call this callback for each root
+// it needs to process.
 // - placeholder - pointer to the place that contains reference which should be visited.
 //
 typedef void (*DYN_VisitRootFromInterpreterFn)(DYN_RootVisitor visitor, DYN_Placeholder placeholder);
@@ -468,7 +477,8 @@ typedef void (*DYN_VisitRootFromInterpreterFn)(DYN_RootVisitor visitor, DYN_Plac
 // - basePtrHolder - pointer to the place that contains base pointer.
 // - derivedPtrHolder - pointer to the place that contains derived pointer (intrapointer).
 //
-typedef void (*DYN_VisitDerivedPtrFromInterpreterFn)(DYN_DerivedPtrVisitor visitor, DYN_Placeholder basePtrHolder, DYN_Placeholder derivedPtrHolder);
+typedef void (*DYN_VisitDerivedPtrFromInterpreterFn)(
+    DYN_DerivedPtrVisitor visitor, DYN_Placeholder basePtrHolder, DYN_Placeholder derivedPtrHolder);
 
 // Read reference from static field.
 //
@@ -556,7 +566,8 @@ typedef void (*DYN_WriteStructFieldFn)(DYN_ObjRef obj, uintptr_t dst, uintptr_t 
 // Notes:
 // This method will be invoked by interpreter as a part of interpretation loop.
 //
-typedef void (*DYN_ReadStaticStructFieldFn)(uintptr_t dstPtr, size_t dstSize, uintptr_t srcPtr, size_t srcSize, DYN_GCTib tib);
+typedef void (*DYN_ReadStaticStructFieldFn)(
+    uintptr_t dstPtr, size_t dstSize, uintptr_t srcPtr, size_t srcSize, DYN_GCTib tib);
 
 // Write a static value type field (struct).
 //
@@ -698,7 +709,8 @@ typedef void (*DYN_StackGrowStubFn)();
 //
 // Notes:
 // - The function can be null on platforms that do not provide an I2N stub.
-// - The concrete register/stack mapping is architecture-dependent and defined by the corresponding assembly implementation.
+// - The concrete register/stack mapping is architecture-dependent and defined by the corresponding assembly
+// implementation.
 typedef void (*DYN_I2NStubFn)();
 
 // Retrieves the current ExceptionWrapper.
@@ -734,7 +746,6 @@ typedef void (*DYN_NativeLoggerFn)(int logLevel, char* tag, char* message);
 // endregion CJNative interface
 ////////////////////////////////////////////////////////////////////////////////////
 
-
 // region Interfaces
 
 struct INT_InterpreterInterface {
@@ -764,7 +775,6 @@ struct INT_InterpreterInterface {
     INT_FrameInfoProviderFn frameInfoProvider;
     INT_LandingPadFn landingPad;
 };
-
 
 struct DYN_CJNativeInterface {
     // current supported version is DYN_CJNATIVE_INTERFACE_VERSION

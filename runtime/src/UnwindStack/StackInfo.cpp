@@ -4,7 +4,6 @@
 //
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-
 #include "StackInfo.h"
 
 #include <cstdint>
@@ -14,10 +13,10 @@
 #include "Collector/TracingCollector.h"
 #include "Common/StackType.h"
 #include "Common/TypeDef.h"
+#include "Interpreter/InterpreterSpecific.h"
 #include "MangleNameHelper.h"
 #include "StackMap/StackMap.h"
 #include "UnwindStack/StackMetadataHelper.h"
-#include "Interpreter/InterpreterSpecific.h"
 #ifdef _WIN64
 #include "UnwindWin.h"
 #endif
@@ -37,7 +36,7 @@ void InitPtrAuthRAMod(FrameInfo& callerFrameInfo, FrameInfo& calleeFrameInfo)
     if (calleeFrameInfo.GetFrameType() == FrameType::MANAGED) {
         FuncDescRef funcDesc = MFuncDesc::GetFuncDesc(
             reinterpret_cast<Uptr>(FrameInfo::GetFuncStartPCFromFrameAddress(
-                reinterpret_cast<FrameAddress*>(calleeFrameInfo.mFrame.GetFA()))));
+            reinterpret_cast<FrameAddress*>(calleeFrameInfo.mFrame.GetFA()))));
         Uptr* stackMapEntry = funcDesc->GetStackMap();
         uint32_t validPos = 0;
         auto fa = calleeFrameInfo.mFrame.GetFA();
@@ -215,9 +214,11 @@ void StackInfo::ExtractLiteFrameInfoFromStack(std::vector<uint64_t>& liteFrameIn
             case FrameType::INTERPRETER_I2I:
             case FrameType::INTERPRETER_I2N:
             case FrameType::INTERPRETER_PROLOGUE: {
-                liteFrameInfos.push_back(reinterpret_cast<uint64_t>(frameInfo.mFrame.GetIP())); // consumed by interpreter frame info provider
-                liteFrameInfos.push_back(reinterpret_cast<uint64_t>(frameInfo.mFrame.GetFA())); // consumed by interpreter frame info provider
-                liteFrameInfos.push_back(INTERPRETED_FRAME_FDESC);                              // marks this triple as "non-cjnative"
+                liteFrameInfos.push_back(reinterpret_cast<uint64_t>(
+                    frameInfo.mFrame.GetIP())); // consumed by interpreter frame info provider
+                liteFrameInfos.push_back(reinterpret_cast<uint64_t>(
+                    frameInfo.mFrame.GetFA()));                    // consumed by interpreter frame info provider
+                liteFrameInfos.push_back(INTERPRETED_FRAME_FDESC); // marks this triple as "non-cjnative"
                 break;
             }
 #endif

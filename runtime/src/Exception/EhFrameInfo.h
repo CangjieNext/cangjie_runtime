@@ -4,7 +4,6 @@
 //
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-
 #ifndef MRT_EH_FRAMEINFO_H
 #define MRT_EH_FRAMEINFO_H
 
@@ -39,7 +38,6 @@ public:
     virtual MachineFrame GetMachineFrame() const = 0;
 
     virtual const CString GetFunctionName() const = 0;
-
 };
 
 class EHFrameInfo : public FrameInfo, public IEHFrameInfo {
@@ -66,15 +64,24 @@ public:
     EHFrameInfo() = delete;
     ~EHFrameInfo() override = default;
 
-    bool IsCatchException() const override { return result.isCaught; }
+    bool IsCatchException() const override
+    {
+        return result.isCaught;
+    }
 
-    uint64_t GetTTypeIndex() const override { return result.typeIndex; }
+    uint64_t GetTTypeIndex() const override
+    {
+        return result.typeIndex;
+    }
 
-    uintptr_t GetLandingPad() const override { return result.landingPad; }
+    uintptr_t GetLandingPad() const override
+    {
+        return result.landingPad;
+    }
 
     void RestoreToCallerContext(CalleeSavedRegisterContext& context, uint32_t adjustedSize = 0) const override
     {
-        constexpr uint8_t sizeOfAddr = sizeof(void*);  // arm32 is 4, aarch64 is 8
+        constexpr uint8_t sizeOfAddr = sizeof(void*);       // arm32 is 4, aarch64 is 8
         constexpr uint8_t sizeOfStackHead = sizeOfAddr * 2; // callee rbp + return addr
 #if defined(__x86_64__)
         context.rsp = context.rbp + sizeOfStackHead;
@@ -205,13 +212,25 @@ public:
         return res;
     }
 
-    const uint32_t* GetIP() const override { return mFrame.GetIP(); }
+    const uint32_t* GetIP() const override
+    {
+        return mFrame.GetIP();
+    }
 
-    FrameAddress* GetFA() const override { return mFrame.GetFA(); }
+    FrameAddress* GetFA() const override
+    {
+        return mFrame.GetFA();
+    }
 
-    MachineFrame GetMachineFrame() const override { return mFrame; }
+    MachineFrame GetMachineFrame() const override
+    {
+        return mFrame;
+    }
 
-    const CString GetFunctionName() const override { return FrameInfo::GetFuncName(); }
+    const CString GetFunctionName() const override
+    {
+        return FrameInfo::GetFuncName();
+    }
 
 private:
     ScanResult result;

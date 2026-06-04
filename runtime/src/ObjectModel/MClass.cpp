@@ -10,6 +10,7 @@
 #include "Base/Globals.h"
 #include "Common/TypeDef.h"
 #include "ExceptionManager.inline.h"
+#include "Interpreter/Options.h"
 #include "LoaderManager.h"
 #include "Loader/ILoader.h"
 #include "MClass.inline.h" // module internal header
@@ -21,7 +22,6 @@
 #include "Utils/CycleQueue.h" // Common header
 #include "Utils/Demangler.h"
 #include "Flags.h"
-#include "Interpreter/Options.h"
 
 #ifdef INTERPRETER_ENABLED
 #include "Interpreter/RuntimeTypes.h"
@@ -273,7 +273,7 @@ void TypeInfo::TryUpdateExtensionData(TypeInfo* itf, ExtensionData* extensionDat
                 }
                 bool hasOuterTiFast = extensionData->HasOuterTiFastPath();
                 size_t newFtSize = hasOuterTiFast ? itfFtSize * sizeof(FuncPtr) + itfFtSize * sizeof(OuterTiUnion)
-                                     : itfFtSize * sizeof(FuncPtr);
+                                                  : itfFtSize * sizeof(FuncPtr);
                 FuncPtr* newFt = reinterpret_cast<FuncPtr*>(
                     TypeInfoManager::GetTypeInfoManager().Allocate(newFtSize));
                 if (ftSize > 0) {
@@ -284,16 +284,16 @@ void TypeInfo::TryUpdateExtensionData(TypeInfo* itf, ExtensionData* extensionDat
                 }
                 CHECK(memcpy_s(reinterpret_cast<void*>(newFt + ftSize),
                                sizeof(FuncPtr) * incrementalSize,
-                               reinterpret_cast<void*>(edOfSuper->GetFuncTable() + ftSize),
-                               sizeof(FuncPtr) * incrementalSize) == EOK);
+                          reinterpret_cast<void*>(edOfSuper->GetFuncTable() + ftSize),
+                          sizeof(FuncPtr) * incrementalSize) == EOK);
                 if (!hasOuterTiFast) {
                     break;
                 }
                 if (ftSize > 0) {
                         CHECK(memcpy_s(reinterpret_cast<void*>(newFt + itfFtSize),
                                        sizeof(OuterTiUnion) * ftSize,
-                                       reinterpret_cast<void*>(extensionData->GetFuncTable() + ftSize),
-                                       sizeof(OuterTiUnion) * ftSize) == EOK);
+                              reinterpret_cast<void*>(extensionData->GetFuncTable() + ftSize),
+                              sizeof(OuterTiUnion) * ftSize) == EOK);
                 }
                 CHECK(memset_s(reinterpret_cast<void*>(newFt + itfFtSize + ftSize),
                                sizeof(OuterTiUnion) * incrementalSize,
@@ -360,7 +360,7 @@ static bool ResolveExtensionData(
         } else {
             if (rSourceGeneric == nullptr ||
                 manager.GetTypeTemplateUUID(reinterpret_cast<TypeTemplate*>(targetType)) !=
-                manager.GetTypeTemplateUUID(rSourceGeneric)) {
+                    manager.GetTypeTemplateUUID(rSourceGeneric)) {
                 return false;
             }
         }
@@ -850,7 +850,7 @@ static void* GetAnnotations(Uptr annotationMethod, TypeInfo* arrayTi)
     uintptr_t threadData = MapleRuntime::MRT_GetThreadLocalData();
 #if defined(__aarch64__)
     ApplyCangjieMethodStub(values.GetData(), reinterpret_cast<void*>(values.GetStackSize()),
-                           reinterpret_cast<void*>(annotationMethod), reinterpret_cast<void*>(threadData), structRet);
+        reinterpret_cast<void*>(annotationMethod), reinterpret_cast<void*>(threadData), structRet);
 #else
     ApplyCangjieMethodStub(values.GetData(), values.GetStackSize(), annotationMethod, threadData);
 #endif
@@ -1205,26 +1205,48 @@ void* EnumCtorReflectInfo::GetAnnotations(TypeInfo* arrayTi)
 #ifdef INTERPRETER_ENABLED
 struct TypeInfoLayoutCheck {
     // Static layout checks: DYN_TypeInfo is a binary mirror of TypeInfo.
-    static void CheckInterpreterMirror() {
+    static void CheckInterpreterMirror()
+    {
         static_assert(sizeof(DYN_TypeInfo) == sizeof(TypeInfo), "DYN_TypeInfo size must match TypeInfo");
-        static_assert(__builtin_offsetof(DYN_TypeInfo, typeInfoName) == __builtin_offsetof(TypeInfo, typeInfoName), "typeInfoName offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfo, type) == __builtin_offsetof(TypeInfo, type), "type offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfo, flag) == __builtin_offsetof(TypeInfo, flag), "flag offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfo, fieldNum) == __builtin_offsetof(TypeInfo, fieldNum), "fieldNum offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfo, instanceSize) == __builtin_offsetof(TypeInfo, instanceSize), "instanceSize offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfo, gctib) == __builtin_offsetof(TypeInfo, gctib), "gctib offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfo, uuid) == __builtin_offsetof(TypeInfo, uuid), "uuid offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfo, align) == __builtin_offsetof(TypeInfo, align), "align offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfo, typeArgsNum) == __builtin_offsetof(TypeInfo, typeArgsNum), "typeArgsNum offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfo, validInheritNum) == __builtin_offsetof(TypeInfo, validInheritNum), "validInheritNum offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfo, fieldOffsets) == __builtin_offsetof(TypeInfo, fieldOffsets), "fieldOffsets offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfo, finalizerMethod) == __builtin_offsetof(TypeInfo, finalizerMethod), "finalizerMethod offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfo, typeArgs) == __builtin_offsetof(TypeInfo, typeArgs), "typeArgs offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfo, fields) == __builtin_offsetof(TypeInfo, fields), "fields offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfo, superTypeInfo) == __builtin_offsetof(TypeInfo, superTypeInfo), "superTypeInfo offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfo, vExtensionDataStart) == __builtin_offsetof(TypeInfo, vExtensionDataStart),"vExtensionDataStart offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfo, mTableDesc) == __builtin_offsetof(TypeInfo, mTableDesc), "mTableDesc offset mismatch");
-        static_assert(__builtin_offsetof(DYN_TypeInfo, reflectOrDebugInfo) == __builtin_offsetof(TypeInfo, reflectInfo), "reflectInfo offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, typeInfoName) == __builtin_offsetof(TypeInfo, typeInfoName),
+            "typeInfoName offset mismatch");
+        static_assert(
+            __builtin_offsetof(DYN_TypeInfo, type) == __builtin_offsetof(TypeInfo, type), "type offset mismatch");
+        static_assert(
+            __builtin_offsetof(DYN_TypeInfo, flag) == __builtin_offsetof(TypeInfo, flag), "flag offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, fieldNum) == __builtin_offsetof(TypeInfo, fieldNum),
+            "fieldNum offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, instanceSize) == __builtin_offsetof(TypeInfo, instanceSize),
+            "instanceSize offset mismatch");
+        static_assert(
+            __builtin_offsetof(DYN_TypeInfo, gctib) == __builtin_offsetof(TypeInfo, gctib), "gctib offset mismatch");
+        static_assert(
+            __builtin_offsetof(DYN_TypeInfo, uuid) == __builtin_offsetof(TypeInfo, uuid), "uuid offset mismatch");
+        static_assert(
+            __builtin_offsetof(DYN_TypeInfo, align) == __builtin_offsetof(TypeInfo, align), "align offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, typeArgsNum) == __builtin_offsetof(TypeInfo, typeArgsNum),
+            "typeArgsNum offset mismatch");
+        static_assert(
+            __builtin_offsetof(DYN_TypeInfo, validInheritNum) == __builtin_offsetof(TypeInfo, validInheritNum),
+            "validInheritNum offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, fieldOffsets) == __builtin_offsetof(TypeInfo, fieldOffsets),
+            "fieldOffsets offset mismatch");
+        static_assert(
+            __builtin_offsetof(DYN_TypeInfo, finalizerMethod) == __builtin_offsetof(TypeInfo, finalizerMethod),
+            "finalizerMethod offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, typeArgs) == __builtin_offsetof(TypeInfo, typeArgs),
+            "typeArgs offset mismatch");
+        static_assert(
+            __builtin_offsetof(DYN_TypeInfo, fields) == __builtin_offsetof(TypeInfo, fields), "fields offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, superTypeInfo) == __builtin_offsetof(TypeInfo, superTypeInfo),
+            "superTypeInfo offset mismatch");
+        static_assert(
+            __builtin_offsetof(DYN_TypeInfo, vExtensionDataStart) == __builtin_offsetof(TypeInfo, vExtensionDataStart),
+            "vExtensionDataStart offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, mTableDesc) == __builtin_offsetof(TypeInfo, mTableDesc),
+            "mTableDesc offset mismatch");
+        static_assert(__builtin_offsetof(DYN_TypeInfo, reflectOrDebugInfo) == __builtin_offsetof(TypeInfo, reflectInfo),
+            "reflectInfo offset mismatch");
     }
 };
 #endif

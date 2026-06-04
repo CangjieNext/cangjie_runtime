@@ -32,11 +32,11 @@ struct ThreadLocalData {
     uint64_t safepointState;
     uint64_t tid;
     void* foreignCJThread;
-# ifdef INTERPRETER_ENABLED
+#ifdef INTERPRETER_ENABLED
     // Duplicate of Mutator::interpreterCJThreadData for fast access.
     // Should be updated together with mutator field.
     DYN_CJThreadSpecificData interpreterCJThreadData;
-# endif
+#endif
     // Internal thread local var.
     ThreadType threadType;
     bool isCJProcessor;
@@ -44,7 +44,6 @@ struct ThreadLocalData {
 
 public:
     void SetMutator(Mutator* newMutator);
-
 };
 
 struct CleanThreadLocalData {
@@ -127,6 +126,7 @@ public:
     {
         tlEnableLock.UnlockRead();
     }
+
 private:
     static RwLock tlEnableLock;
 };

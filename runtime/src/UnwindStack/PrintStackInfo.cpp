@@ -4,7 +4,6 @@
 //
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-
 #include "PrintStackInfo.h"
 
 #include "Common/StackType.h"
@@ -23,8 +22,7 @@ void PrintStackInfo::FillInStackTrace()
             stack.emplace_back(uwContext.frameInfo);
         }
 #ifdef INTERPRETER_ENABLED
-        if (currentFrameType == FrameType::INTERPRETER_I2I || 
-            currentFrameType == FrameType::INTERPRETER_C2I ||
+        if (currentFrameType == FrameType::INTERPRETER_I2I || currentFrameType == FrameType::INTERPRETER_C2I ||
             currentFrameType == FrameType::INTERPRETER_PROLOGUE) {
             stack.emplace_back(uwContext.frameInfo);
         }

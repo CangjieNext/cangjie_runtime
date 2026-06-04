@@ -4,14 +4,13 @@
 //
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "Base/MemUtils.h"
 #include "Common/StackType.h"
+#include "Interpreter/InterpreterSpecific.h"
 #include "StackManager.h"
 #include "securec.h"
-#include "Interpreter/InterpreterSpecific.h"
 #ifdef _WIN64
 #include "Common/Runtime.h"
 #include "UnwindWin.h"
@@ -43,11 +42,11 @@ bool MachineFrame::IsN2CStubFrame() const
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
     uintptr_t strippedIP = PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip));
     return strippedIP == reinterpret_cast<uintptr_t>(&unwindPCForN2CStub) ||
-           strippedIP == reinterpret_cast<uintptr_t>(&unwindPCForExclusiveStubFull);
+        strippedIP == reinterpret_cast<uintptr_t>(&unwindPCForExclusiveStubFull);
 #else
     uintptr_t ipAddr = reinterpret_cast<uintptr_t>(ip);
     return ipAddr == reinterpret_cast<uintptr_t>(&unwindPCForN2CStub) ||
-           ipAddr == reinterpret_cast<uintptr_t>(&unwindPCForExclusiveStubFull);
+        ipAddr == reinterpret_cast<uintptr_t>(&unwindPCForExclusiveStubFull);
 #endif
 }
 
@@ -61,18 +60,24 @@ bool MachineFrame::IsExclusiveStubFrame() const
 #endif
 }
 
-bool MachineFrame::IsRuntimeFrame() const { return StackManager::IsRuntimeFrame(reinterpret_cast<uintptr_t>(ip)); }
+bool MachineFrame::IsRuntimeFrame() const
+{
+    return StackManager::IsRuntimeFrame(reinterpret_cast<uintptr_t>(ip));
+}
 
 #ifdef INTERPRETER_ENABLED
-bool MachineFrame::IsInterpreterFrame() const {
+bool MachineFrame::IsInterpreterFrame() const
+{
     return StackManager::IsInterpreterCodeAddr(reinterpret_cast<uintptr_t>(ip));
 }
 
-bool MachineFrame::IsC2IStubFrame() const {
+bool MachineFrame::IsC2IStubFrame() const
+{
     return IsC2IStubAddr(reinterpret_cast<uintptr_t>(ip));
 }
 
-bool MachineFrame::IsI2IFrame() const {
+bool MachineFrame::IsI2IFrame() const
+{
     return IsI2IAdapterStartAddr(reinterpret_cast<uintptr_t>(ip));
 }
 
@@ -83,8 +88,8 @@ bool MachineFrame::IsI2NFrame() const
     uintptr_t i2nStubStartAddr = reinterpret_cast<uintptr_t>(&CJ_MCC_I2NStub);
     uintptr_t i2nStubEndAddr = reinterpret_cast<uintptr_t>(&CJ_MCC_I2NStubEnd);
     bool res = i2nStubStartAddr <= address && address < i2nStubEndAddr;
-    DLOG(INTERPRETER, "Checking I2N stub borders: is %p in [%p, %p)? -- %s", address,
-        i2nStubStartAddr, i2nStubEndAddr, res ? "true" : "false");
+    DLOG(INTERPRETER, "Checking I2N stub borders: is %p in [%p, %p)? -- %s", address, i2nStubStartAddr, i2nStubEndAddr,
+        res ? "true" : "false");
     return res;
 #else
     DLOG(INTERPRETER, "Checking I2N stub borders: I2N not supported on this architecture");
@@ -111,7 +116,7 @@ bool MachineFrame::IsStackGrowStubFrame() const
 {
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
     return PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip)) ==
-            reinterpret_cast<uintptr_t>(&unwindPCForStackGrowStub);
+        reinterpret_cast<uintptr_t>(&unwindPCForStackGrowStub);
 #else
     return reinterpret_cast<uintptr_t>(ip) == reinterpret_cast<uintptr_t>(&unwindPCForStackGrowStub);
 #endif
@@ -121,7 +126,7 @@ bool MachineFrame::IsC2RStubFrame() const
 {
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
     return PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip)) >
-            reinterpret_cast<uintptr_t>(&unwindPCForC2RStubStart) &&
+        reinterpret_cast<uintptr_t>(&unwindPCForC2RStubStart) &&
         PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip)) < reinterpret_cast<uintptr_t>(&unwindPCForC2RStubEnd);
 #else
     return reinterpret_cast<uintptr_t>(ip) > reinterpret_cast<uintptr_t>(&unwindPCForC2RStubStart) &&
@@ -133,7 +138,7 @@ bool MachineFrame::IsC2RStubFrame() const
 bool MachineFrame::IsC2NExceptionStubFrame() const
 {
     return PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip)) ==
-            reinterpret_cast<uintptr_t>(&unwindPCForC2NStubExceptionReturn);
+        reinterpret_cast<uintptr_t>(&unwindPCForC2NStubExceptionReturn);
 }
 #endif
 
@@ -141,7 +146,7 @@ bool MachineFrame::IsSafepointHandlerStubFrame() const
 {
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
     return PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip)) ==
-            reinterpret_cast<uintptr_t>(&unwindPCForSafepointHandlerStub);
+        reinterpret_cast<uintptr_t>(&unwindPCForSafepointHandlerStub);
 #else
     return reinterpret_cast<uintptr_t>(ip) == reinterpret_cast<uintptr_t>(&unwindPCForSafepointHandlerStub);
 #endif
