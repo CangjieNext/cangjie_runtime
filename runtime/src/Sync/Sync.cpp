@@ -144,13 +144,13 @@ void MCC_FutureNotifyAll(const void* ptr)
 int MCC_MutexInit(void* ptr)
 {
     CJMutex* mutex = reinterpret_cast<CJMutex*>(ptr);
+    mutex->ownerThreadId.store(INVALID_THREAD_ID, std::memory_order_relaxed);
+    mutex->ownCount = 0;
+    mutex->state.store(0, std::memory_order_relaxed);
+    mutex->isSemaInit = false;
     int ret = MRT_NewSem(&mutex->sema);
-    if (ret != 0) {
-        mutex->isSemaInit = false;
-    } else {
+    if (ret == 0) {
         mutex->isSemaInit = true;
-        mutex->ownerThreadId = INVALID_THREAD_ID;
-        mutex->ownCount = 0;
     }
     return ret;
 }

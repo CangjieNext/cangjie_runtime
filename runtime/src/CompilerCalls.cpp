@@ -1825,6 +1825,78 @@ extern "C" ArrayRef MCC_NewArrayGeneric(const TypeInfo* arrayInfo, MIndex nElems
     return array;
 }
 
+extern "C" MRT_EXPORT ArrayRef MCC_NewArrayGenericFast3_MSGC(const TypeInfo* arrayInfo, MIndex nElems,
+                                                             MSize totalSize)
+{
+    (void)totalSize;
+    ArrayRef array = nullptr;
+    if (!arrayInfo->IsArrayType()) {
+        return array;
+    }
+    TypeInfo* componentTypeInfo = arrayInfo->GetComponentTypeInfo();
+    I8 type = componentTypeInfo->GetType();
+    switch (type) {
+        case TypeKind::TYPE_KIND_CLASS:
+        case TypeKind::TYPE_KIND_EXPORTED_REF:
+        case TypeKind::TYPE_KIND_FOREIGN_PROXY:
+        case TypeKind::TYPE_KIND_WEAKREF_CLASS:
+        case TypeKind::TYPE_KIND_INTERFACE:
+        case TypeKind::TYPE_KIND_TEMP_ENUM:
+        case TypeKind::TYPE_KIND_RAWARRAY:
+        case TypeKind::TYPE_KIND_FUNC: {
+            array = ObjectManager::NewObjArray(nElems, arrayInfo);
+            break;
+        }
+        case TypeKind::TYPE_KIND_UNIT:
+        case TypeKind::TYPE_KIND_NOTHING:
+        case TypeKind::TYPE_KIND_VARRAY:
+        case TypeKind::TYPE_KIND_TUPLE:
+        case TypeKind::TYPE_KIND_STRUCT:
+        case TypeKind::TYPE_KIND_ENUM: {
+            array = ObjectManager::NewArray(nElems, arrayInfo);
+            break;
+        }
+        case TypeKind::TYPE_KIND_BOOL:
+        case TypeKind::TYPE_KIND_UINT8:
+        case TypeKind::TYPE_KIND_INT8: {
+            array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_8B);
+            break;
+        }
+        case TypeKind::TYPE_KIND_UINT16:
+        case TypeKind::TYPE_KIND_INT16:
+        case TypeKind::TYPE_KIND_FLOAT16: {
+            array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_16B);
+            break;
+        }
+        case TypeKind::TYPE_KIND_UINT32:
+        case TypeKind::TYPE_KIND_INT32:
+        case TypeKind::TYPE_KIND_RUNE:
+        case TypeKind::TYPE_KIND_FLOAT32: {
+            array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_32B);
+            break;
+        }
+        case TypeKind::TYPE_KIND_INT_NATIVE:
+        case TypeKind::TYPE_KIND_UINT_NATIVE:
+        case TypeKind::TYPE_KIND_UINT64:
+        case TypeKind::TYPE_KIND_INT64:
+        case TypeKind::TYPE_KIND_FLOAT64:
+        case TypeKind::TYPE_KIND_CSTRING:
+        case TypeKind::TYPE_KIND_CPOINTER:
+        case TypeKind::TYPE_KIND_CFUNC: {
+            array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_64B);
+            break;
+        }
+        default:
+            break;
+    }
+    if (array == nullptr) {
+        VLOG(REPORT, "Allocation generic array %s length %zu failed and throw OutOfMemoryError",
+             arrayInfo->GetName(), nElems);
+        ExceptionManager::CheckAndThrowPendingException("NewArrayGenericFast3_MSGC return nullptr");
+    }
+    return array;
+}
+
 extern "C" void CJ_MCC_ArrayCopyGeneric(const ObjectPtr dstObj, MAddress dstField, size_t dstSize,
                                         const ObjectPtr srcObj, MAddress srcField, size_t srcSize)
 {

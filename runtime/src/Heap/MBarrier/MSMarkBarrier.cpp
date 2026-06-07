@@ -9,6 +9,7 @@
 #include "MSMarkBarrier.h"
 #include "Heap/Barrier/Barrier.inline.h"
 #include "Heap/Heap.h"
+#include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MCollector/MarkSweepCollector.h"
 #include "Mutator/Mutator.h"
 #include "ObjectModel/Field.inline.h"
@@ -39,11 +40,14 @@ private:
 
 static bool IsHashMapCounterEnabled()
 {
+#if 0
     static bool enabled = []() {
         const char* env = std::getenv("CJ_MS_HASHMAP_COUNTERS");
         return env != nullptr && env[0] != '\0' && std::strcmp(env, "0") != 0;
     }();
     return enabled;
+#endif
+    return false;
 }
 
 static std::atomic<uint64_t> g_oldShadeCount{0};
@@ -59,7 +63,16 @@ static std::atomic<uint64_t> g_newAtomicSwapCount{0};
 static std::atomic<uint64_t> g_newCasCount{0};
 static std::atomic<int32_t> g_invalidBarrierRefLogBudget{64};
 
-static const char* GetBarrierDiagTypeName(const BaseObject* obj)
+static __attribute__((unused)) bool IsBarrierInvalidRefDiagEnabled()
+{
+    static bool enabled = []() {
+        const char* env = std::getenv("CJ_MS_BARRIER_INVALID_REF_DIAG");
+        return env != nullptr && env[0] != '\0' && std::strcmp(env, "0") != 0;
+    }();
+    return enabled;
+}
+
+static __attribute__((unused)) const char* GetBarrierDiagTypeName(const BaseObject* obj)
 {
     if (obj == nullptr || obj->GetTypeInfo() == nullptr || obj->GetTypeInfo()->GetName() == nullptr) {
         return "<null>";
@@ -67,30 +80,13 @@ static const char* GetBarrierDiagTypeName(const BaseObject* obj)
     return obj->GetTypeInfo()->GetName();
 }
 
-static uintptr_t LoadBarrierDiagStateWord(const BaseObject* obj)
+static __attribute__((unused)) uintptr_t LoadBarrierDiagStateWord(const BaseObject* obj)
 {
     return obj == nullptr ? 0 : *reinterpret_cast<const uintptr_t*>(obj);
 }
 
-static void EnqueueRefWithDiag(const char* source, const BaseObject* holder, const void* slot, BaseObject* ref)
+static inline void EnqueueRefFast(BaseObject* ref)
 {
-    if (ref != nullptr && Heap::IsHeapAddress(ref)) {
-        bool traceable = true;
-        uintptr_t stateWord = traceable ? LoadBarrierDiagStateWord(ref) : 0;
-        if (UNLIKELY(!traceable || stateWord == 0 || !ref->IsValidObject())) {
-            int32_t budget = g_invalidBarrierRefLogBudget.fetch_sub(1, std::memory_order_relaxed);
-            if (budget > 0) {
-                VLOG(REPORT,
-                     "[MS-GC] Barrier invalid-ref source=%s holder=%p holderType=%s slot=%p ref=%p stateWord=0x%zx",
-                     source,
-                     static_cast<const void*>(holder),
-                     GetBarrierDiagTypeName(holder),
-                     slot,
-                     static_cast<void*>(ref),
-                     stateWord);
-            }
-        }
-    }
     if (ref == nullptr || !Heap::IsHeapAddress(ref)) {
         return;
     }
@@ -110,6 +106,52 @@ static void EnqueueRefWithDiag(const char* source, const BaseObject* holder, con
     MarkSweepCollector& collector = static_cast<MarkSweepCollector&>(Heap::GetHeap().GetCollector());
     WriteBarrierBufferGreySink sink(wbBuf);
     (void)collector.TryEnqueueGreyObject(ref, sink);
+}
+
+static __attribute__((unused)) void EnqueueRefWithDiag(
+    const char* source, const BaseObject* holder, const void* slot, BaseObject* ref)
+{
+    // Keep invalid-ref diagnostics available, but default writes to the shared
+    // fast path so we do not duplicate DiscoverObject validation on every
+    // barrier hit.
+    if (LIKELY(!IsBarrierInvalidRefDiagEnabled())) {
+        EnqueueRefFast(ref);
+        return;
+    }
+
+    if (ref != nullptr && Heap::IsHeapAddress(ref)) {
+        bool traceable = true;
+        // GetRegionInfoValidated checks if ref is in a live (mapped) region
+        // without dereferencing the pointer. IsHeapAddress only checks the
+        // virtual address range; a scavenged region can be unmapped, causing
+        // SIGBUS on dereference.
+        uintptr_t refAddr = reinterpret_cast<uintptr_t>(ref);
+        MSRegionInfo* msInfo = MSRegionInfoArray::GetRegionInfoValidated(refAddr);
+        if (msInfo == nullptr) {
+            traceable = false;
+        }
+        uintptr_t stateWord = 0;
+        if (traceable) {
+            stateWord = LoadBarrierDiagStateWord(ref);
+            if (UNLIKELY(stateWord == 0 || !ref->IsValidObject())) {
+                traceable = false;
+            }
+        }
+        if (UNLIKELY(!traceable)) {
+            int32_t budget = g_invalidBarrierRefLogBudget.fetch_sub(1, std::memory_order_relaxed);
+            if (budget > 0) {
+                VLOG(REPORT,
+                     "[MS-GC] Barrier invalid-ref source=%s holder=%p holderType=%s slot=%p ref=%p stateWord=0x%zx",
+                     source,
+                     static_cast<const void*>(holder),
+                     GetBarrierDiagTypeName(holder),
+                     slot,
+                     static_cast<void*>(ref),
+                     stateWord);
+            }
+        }
+    }
+    EnqueueRefFast(ref);
 }
 
 extern "C" void MSMarkBarrier_DumpAndResetCounters()
@@ -150,25 +192,7 @@ extern "C" void MSMarkBarrier_DumpAndResetCounters()
 
 void MSMarkBarrier::EnqueueRef(BaseObject* ref)
 {
-    if (ref == nullptr || !Heap::IsHeapAddress(ref)) {
-        return;
-    }
-    Mutator* mutator = Mutator::GetMutator();
-    if (mutator == nullptr) {
-        return;
-    }
-    WriteBarrierBuffer& wbBuf = mutator->GetWriteBarrierBuffer();
-    if (UNLIKELY(wbBuf.IsFull())) {
-        MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
-        if (collector != nullptr) {
-            collector->FlushWriteBarrierOverflow(wbBuf);
-        } else {
-            wbBuf.Clear();
-        }
-    }
-    MarkSweepCollector& collector = static_cast<MarkSweepCollector&>(Heap::GetHeap().GetCollector());
-    WriteBarrierBufferGreySink sink(wbBuf);
-    (void)collector.TryEnqueueGreyObject(ref, sink);
+    EnqueueRefFast(ref);
 }
 
 // ============================================================================
@@ -221,7 +245,7 @@ void MSMarkBarrier::WriteReference(BaseObject* obj, RefField<false>& field, Base
     if (IsHashMapCounterEnabled()) {
         g_oldShadeCount.fetch_add(1, std::memory_order_relaxed);
     }
-    EnqueueRefWithDiag("WriteReference.old", obj, &field, oldRef);
+    EnqueueRefFast(oldRef);
 
     // store
     field.SetTargetObject(ref);
@@ -231,7 +255,7 @@ void MSMarkBarrier::WriteReference(BaseObject* obj, RefField<false>& field, Base
         g_newWriteRefCount.fetch_add(1, std::memory_order_relaxed);
         g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
     }
-    EnqueueRefWithDiag("WriteReference.new", obj, &field, ref);
+    EnqueueRefFast(ref);
 }
 
 void MSMarkBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) const
@@ -241,7 +265,7 @@ void MSMarkBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) cons
     if (IsHashMapCounterEnabled()) {
         g_oldShadeCount.fetch_add(1, std::memory_order_relaxed);
     }
-    EnqueueRefWithDiag("WriteStaticRef.old", nullptr, &field, oldRef);
+    EnqueueRefFast(oldRef);
 
     // store
     field.SetTargetObject(ref);
@@ -251,7 +275,7 @@ void MSMarkBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) cons
         g_newWriteStaticRefCount.fetch_add(1, std::memory_order_relaxed);
         g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
     }
-    EnqueueRefWithDiag("WriteStaticRef.new", nullptr, &field, ref);
+    EnqueueRefFast(ref);
 }
 
 void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen) const
@@ -262,7 +286,7 @@ void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MA
         obj->ForEachRefInStruct(
             [obj](RefField<false>& refField) {
                 BaseObject* oldRef = refField.GetTargetObject();
-                EnqueueRefWithDiag("WriteStruct.old", obj, &refField, oldRef);
+                EnqueueRefFast(oldRef);
             },
             dst, dst + dstLen);
     }
@@ -287,7 +311,7 @@ void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MA
                     g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
                 }
                 BaseObject* newRef = refField.GetTargetObject();
-                EnqueueRefWithDiag("WriteStruct.new", obj, &refField, newRef);
+                EnqueueRefFast(newRef);
             },
             dst, dst + dstLen);
     }
@@ -299,7 +323,7 @@ void MSMarkBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src,
     // discover(old): preserve all existing reference fields via GCTib bitmap
     gctib.ForEachBitmapWord(dst, [](RefField<>& refField) {
         BaseObject* oldRef = refField.GetTargetObject();
-        EnqueueRefWithDiag("WriteStaticStruct.old", nullptr, &refField, oldRef);
+        EnqueueRefFast(oldRef);
     });
 
     // memcpy
@@ -319,7 +343,7 @@ void MSMarkBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src,
             g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
         }
         BaseObject* newRef = refField.GetTargetObject();
-        EnqueueRefWithDiag("WriteStaticStruct.new", nullptr, &refField, newRef);
+        EnqueueRefFast(newRef);
     });
 }
 
@@ -338,7 +362,7 @@ void MSMarkBarrier::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex d
     RefField<false>* dstRefs = reinterpret_cast<RefField<false>*>(dstField);
     for (size_t i = 0; i < refCount; ++i) {
         BaseObject* oldRef = dstRefs[i].GetTargetObject();
-        EnqueueRefWithDiag("CopyRefArray.old", dstObj, &dstRefs[i], oldRef);
+        EnqueueRefFast(oldRef);
     }
 
     // memmove
@@ -358,7 +382,7 @@ void MSMarkBarrier::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex d
             g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
         }
         BaseObject* newRef = dstRefs[i].GetTargetObject();
-        EnqueueRefWithDiag("CopyRefArray.new", dstObj, &dstRefs[i], newRef);
+        EnqueueRefFast(newRef);
     }
 }
 
@@ -372,7 +396,7 @@ void MSMarkBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MInde
         dstObj->ForEachRefInStruct(
             [dstObj](RefField<false>& refField) {
                 BaseObject* oldRef = refField.GetTargetObject();
-                EnqueueRefWithDiag("CopyStructArray.old", dstObj, &refField, oldRef);
+                EnqueueRefFast(oldRef);
             },
             dstField, dstField + dstSize);
     }
@@ -396,7 +420,7 @@ void MSMarkBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MInde
                     g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
                 }
                 BaseObject* newRef = refField.GetTargetObject();
-                EnqueueRefWithDiag("CopyStructArray.new", dstObj, &refField, newRef);
+                EnqueueRefFast(newRef);
             },
             dstField, dstField + dstSize);
     }
@@ -425,7 +449,7 @@ void MSMarkBarrier::AtomicWriteReference(BaseObject* obj, RefField<true>& field,
     if (IsHashMapCounterEnabled()) {
         g_oldShadeCount.fetch_add(1, std::memory_order_relaxed);
     }
-    EnqueueRefWithDiag("AtomicWriteReference.old", obj, &field, oldRef);
+    EnqueueRefFast(oldRef);
 
     // atomic store
     field.SetTargetObject(ref, order);
@@ -435,7 +459,7 @@ void MSMarkBarrier::AtomicWriteReference(BaseObject* obj, RefField<true>& field,
         g_newAtomicWriteCount.fetch_add(1, std::memory_order_relaxed);
         g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
     }
-    EnqueueRefWithDiag("AtomicWriteReference.new", obj, &field, ref);
+    EnqueueRefFast(ref);
 }
 
 BaseObject* MSMarkBarrier::AtomicSwapReference(BaseObject* obj, RefField<true>& field,
@@ -452,13 +476,13 @@ BaseObject* MSMarkBarrier::AtomicSwapReference(BaseObject* obj, RefField<true>& 
     if (IsHashMapCounterEnabled()) {
         g_oldShadeCount.fetch_add(1, std::memory_order_relaxed);
     }
-    EnqueueRefWithDiag("AtomicSwapReference.old", obj, &field, oldRef);
+    EnqueueRefFast(oldRef);
     // discover(new)
     if (IsHashMapCounterEnabled()) {
         g_newAtomicSwapCount.fetch_add(1, std::memory_order_relaxed);
         g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
     }
-    EnqueueRefWithDiag("AtomicSwapReference.new", obj, &field, newRef);
+    EnqueueRefFast(newRef);
 
     return oldRef;
 }
@@ -475,12 +499,12 @@ bool MSMarkBarrier::CompareAndSwapReference(BaseObject* obj, RefField<true>& fie
         if (IsHashMapCounterEnabled()) {
             g_oldShadeCount.fetch_add(1, std::memory_order_relaxed);
         }
-        EnqueueRefWithDiag("CompareAndSwapReference.old", obj, &field, oldRef);
+        EnqueueRefFast(oldRef);
         if (IsHashMapCounterEnabled()) {
             g_newCasCount.fetch_add(1, std::memory_order_relaxed);
             g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
         }
-        EnqueueRefWithDiag("CompareAndSwapReference.new", obj, &field, newRef);
+        EnqueueRefFast(newRef);
     }
     return success;
 }

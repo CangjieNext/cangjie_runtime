@@ -65,6 +65,9 @@ extern "C" MRT_EXPORT void CJ_MCC_EndCatch() __attribute__((alias("MCC_EndCatch"
 
 extern "C" MRT_EXPORT ArrayRef CJ_MCC_FillInStackTraceImpl(const TypeInfo* arrayInfo, const ArrayRef exceptionMessage)
     __attribute__((alias("MCC_FillInStackTraceImpl")));
+extern "C" MRT_EXPORT ArrayRef CJ_MCC_NewArrayGenericFast3_MSGC(const TypeInfo* arrayInfo, MIndex nElems,
+                                                                MSize totalSize)
+    __attribute__((alias("MCC_NewArrayGenericFast3_MSGC")));
 extern "C" MRT_EXPORT void CJ_MCC_ReleaseRawData(ArrayRef array, void* rawPtr)
     __attribute__((alias("MCC_ReleaseRawData")));
 
