@@ -2,13 +2,13 @@
 
 set -eo pipefail
 
-if [[ ! -v CJNATIVE_TOOLCHAIN ]]; then
+if [ -z "${CJNATIVE_TOOLCHAIN+x}" ]; then
     echo "Error: variable CJNATIVE_TOOLCHAIN is unset."
     exit 1
 fi
 source "$CJNATIVE_TOOLCHAIN/envsetup.sh"
 
-if [[ ! -v ANDROID_NDK_ROOT ]]; then
+if [ -z "${ANDROID_NDK_ROOT+x}" ]; then
     echo "Error: variable ANDROID_NDK_ROOT is unset."
     echo "Set ANDROID_NDK_ROOT in env.sh first."
     exit 1
@@ -29,8 +29,13 @@ HOST_ARCH="$(uname -m)"
 HOST_TAG="${HOST_OS}-${HOST_ARCH}"
 NDK_BIN="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$HOST_TAG/bin"
 if [ ! -d "$NDK_BIN" ]; then
-    echo "Error: NDK toolchain bin directory not found: $NDK_BIN"
-    exit 1
+    if [ "$HOST_OS" = "darwin" ] && [ -d "$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/darwin-x86_64/bin" ]; then
+        HOST_TAG="darwin-x86_64"
+        NDK_BIN="$ANDROID_NDK_ROOT/toolchains/llvm/prebuilt/$HOST_TAG/bin"
+    else
+        echo "Error: NDK toolchain bin directory not found: $NDK_BIN"
+        exit 1
+    fi
 fi
 
 if [ "$ANDROID_TARGET_ARCH" = "aarch64" ] || [ "$ANDROID_TARGET_ARCH" = "arm64" ]; then
