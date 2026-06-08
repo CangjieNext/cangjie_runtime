@@ -118,11 +118,11 @@ public func sort<T, K>(data: Array<T>, key!: (T) -> K, stable!: Bool = false, de
 }
 
 /**
- * Sorting element T.
+ * Sorts a List in place by the natural order of its elements.
  *
- * @param data List of elements to be sorted.
- * @param stable Whether to use stable sorting.
- * @param descending Indicates whether to use descending sorting.
+ * @param data List whose current elements are reordered.
+ * @param stable Whether equal elements keep their original relative order.
+ * @param descending Whether the final order is descending.
  *
  */
 public func sort<T>(data: List<T>, stable!: Bool = false, descending!: Bool = false): Unit where T <: Comparable<T> {
@@ -135,16 +135,16 @@ public func sort<T>(data: List<T>, stable!: Bool = false, descending!: Bool = fa
 }
 
 /**
- * Sorting element T.
+ * Sorts a List in place with an Ordering comparator.
  *
- * @param data List of elements to be sorted.
- * @param by Comparator. The comparator must establish a total order:
+ * @param data List whose current elements are reordered.
+ * @param by Comparator used to order two elements. The comparator must establish a total order:
  *        - Antisymmetry: if compare(a, b) is LT, then compare(b, a) must be GT
  *        - Transitivity: if compare(a, b) is LT and compare(b, c) is LT, then compare(a, c) must be LT
  *        - Consistency: multiple invocations of compare(a, b) must return the same result
  *        Violating these requirements may result in undefined behavior.
- * @param stable Whether to use stable sorting.
- * @param descending Indicates whether to use descending sorting.
+ * @param stable Whether equivalent elements keep their original relative order.
+ * @param descending Whether to reverse the comparator result for descending order.
  *
  */
 public func sort<T>(data: List<T>, by!: (T, T) -> Ordering, stable!: Bool = false, descending!: Bool = false): Unit {
@@ -157,16 +157,16 @@ public func sort<T>(data: List<T>, by!: (T, T) -> Ordering, stable!: Bool = fals
 }
 
 /**
- * Sorting element T.
+ * Sorts a List in place with a less-than predicate.
  *
- * @param data List of elements to be sorted.
- * @param lessThan Comparator. The comparator must establish a total order:
+ * @param data List whose current elements are reordered.
+ * @param lessThan Predicate used to compare two elements. It must establish a total order:
  *        - Antisymmetry: if lessThan(a, b) is true, then lessThan(b, a) must be false
  *        - Transitivity: if lessThan(a, b) and lessThan(b, c), then lessThan(a, c) must be true
  *        - Consistency: multiple invocations of lessThan(a, b) must return the same result
  *        Violating these requirements may result in undefined behavior.
- * @param stable Whether to use stable sorting.
- * @param descending Indicates whether to use descending sorting.
+ * @param stable Whether equivalent elements keep their original relative order.
+ * @param descending Whether to invert the predicate order for descending output.
  *
  */
 public func sort<T>(data: List<T>, lessThan!: (T, T) -> Bool, stable!: Bool = false, descending!: Bool = false): Unit {
@@ -179,12 +179,12 @@ public func sort<T>(data: List<T>, lessThan!: (T, T) -> Bool, stable!: Bool = fa
 }
 
 /**
- * Sorting element T.
+ * Sorts a List in place by keys derived from its elements.
  *
- * @param data List of elements to be sorted.
- * @param key Mapping of elements T to K.
- * @param stable Whether to use stable sorting.
- * @param descending Indicates whether to use descending sorting.
+ * @param data List whose current elements are reordered.
+ * @param key Mapping from each element to a comparable key.
+ * @param stable Whether elements with equal keys keep their original relative order.
+ * @param descending Whether the key order is descending.
  *
  */
 public func sort<T, K>(data: List<T>, key!: (T) -> K, stable!: Bool = false, descending!: Bool = false): Unit where K <: Comparable<K> {
@@ -197,11 +197,11 @@ public func sort<T, K>(data: List<T>, key!: (T) -> K, stable!: Bool = false, des
 }
 
 /**
- * Sorting element T.
+ * Sorts an ArrayList in place by the natural order of its elements.
  *
- * @param data List of elements to be sorted.
- * @param stable Whether to use stable sorting.
- * @param descending Indicates whether to use descending sorting.
+ * @param data ArrayList whose current elements are reordered through its raw storage.
+ * @param stable Whether equal elements keep their original relative order.
+ * @param descending Whether the final order is descending.
  *
  */
 public func sort<T>(data: ArrayList<T>, stable!: Bool = false, descending!: Bool = false): Unit where T <: Comparable<T> {
@@ -213,16 +213,16 @@ public func sort<T>(data: ArrayList<T>, stable!: Bool = false, descending!: Bool
 }
 
 /**
- * Sorting element T.
+ * Sorts an ArrayList in place with an Ordering comparator.
  *
- * @param data List of elements to be sorted.
- * @param by Comparator. The comparator must establish a total order:
+ * @param data ArrayList whose current elements are reordered through its raw storage.
+ * @param by Comparator used to order two elements. The comparator must establish a total order:
  *        - Antisymmetry: if compare(a, b) is LT, then compare(b, a) must be GT
  *        - Transitivity: if compare(a, b) is LT and compare(b, c) is LT, then compare(a, c) must be LT
  *        - Consistency: multiple invocations of compare(a, b) must return the same result
  *        Violating these requirements may result in undefined behavior.
- * @param stable Whether to use stable sorting.
- * @param descending Indicates whether to use descending sorting.
+ * @param stable Whether equivalent elements keep their original relative order.
+ * @param descending Whether to reverse the comparator result for descending order.
  *
  */
 public func sort<T>(data: ArrayList<T>, by!: (T, T) -> Ordering, stable!: Bool = false, descending!: Bool = false): Unit {
@@ -234,16 +234,16 @@ public func sort<T>(data: ArrayList<T>, by!: (T, T) -> Ordering, stable!: Bool =
 }
 
 /**
- * Sorting element T.
+ * Sorts an ArrayList in place with a less-than predicate.
  *
- * @param data List of elements to be sorted.
- * @param lessThan Comparator. The comparator must establish a total order:
+ * @param data ArrayList whose current elements are reordered through its raw storage.
+ * @param lessThan Predicate used to compare two elements. It must establish a total order:
  *        - Antisymmetry: if lessThan(a, b) is true, then lessThan(b, a) must be false
  *        - Transitivity: if lessThan(a, b) and lessThan(b, c), then lessThan(a, c) must be true
  *        - Consistency: multiple invocations of lessThan(a, b) must return the same result
  *        Violating these requirements may result in undefined behavior.
- * @param stable Whether to use stable sorting.
- * @param descending Indicates whether to use descending sorting.
+ * @param stable Whether equivalent elements keep their original relative order.
+ * @param descending Whether to invert the predicate order for descending output.
  *
  */
 public func sort<T>(data: ArrayList<T>, lessThan!: (T, T) -> Bool, stable!: Bool = false, descending!: Bool = false): Unit {
@@ -255,12 +255,12 @@ public func sort<T>(data: ArrayList<T>, lessThan!: (T, T) -> Bool, stable!: Bool
 }
 
 /**
- * Sorting element T.
+ * Sorts an ArrayList in place by keys derived from its elements.
  *
- * @param data List of elements to be sorted.
- * @param key Mapping of elements T to K.
- * @param stable Whether to use stable sorting.
- * @param descending Indicates whether to use descending sorting.
+ * @param data ArrayList whose current elements are reordered through its raw storage.
+ * @param key Mapping from each element to a comparable key.
+ * @param stable Whether elements with equal keys keep their original relative order.
+ * @param descending Whether the key order is descending.
  *
  */
 public func sort<T, K>(data: ArrayList<T>, key!: (T) -> K, stable!: Bool = false, descending!: Bool = false): Unit where K <: Comparable<K> {
