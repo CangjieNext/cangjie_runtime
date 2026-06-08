@@ -12,27 +12,28 @@ func test(producer: () -> Unit, msg: String): Unit {
         println(msg)
 
         producer()
-        println("Before GC: ${testField}")
+        println("[AOT] Before GC: ${testField}")
 
 		gc(heavy: false)
 		sleep(Duration.second * 1)
 
-        println("After GC: ${testField}")
+        println("[AOT] After GC: ${testField}")
 	}
 }
 
 public func do_test() {
-    println(testField)
+    println("[AOT] Initial value: ${testField}")
 
     c2i.invoke0() // init static string literal
 
-    test(c2i.invoke1, "[App] call produceSlow1")
-    test(c2i.invoke2, "[App] call produceSlow2")
+    test(c2i.invoke1, "[AOT] call produceSlow1")
+    test(c2i.invoke2, "[AOT] call produceSlow2")
 
-    test(c2i.invoke3, "[App] call produceFast1")
-    test(c2i.invoke4, "[App] call produceFast2")
+    test(c2i.invoke3, "[AOT] call produceFast1")
+    test(c2i.invoke4, "[AOT] call produceFast2")
 
-    println("GC count: ${getGCCount()}")
+    println("[AOT] GC count: ${getGCCount()}")
+    println("[AOT] finish main")
 }
 
 main() {
