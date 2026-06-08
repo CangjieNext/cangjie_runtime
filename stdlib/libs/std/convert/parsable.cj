@@ -1146,7 +1146,7 @@ func doParseFloat<T>(data: String): ConvertResult<T> where T <: FloatParsable<T>
     if (digitCount > FLOAT64_MAX_DECIMAL_DIGITS) {
         return doParseFloatFromCffi<T>(trimmedStr)
     }
-    
+
     var df = inputStr.size - pointIndex - 1
     var leftMove: Float64 = 1.0
     for (_ in 0..df) {
