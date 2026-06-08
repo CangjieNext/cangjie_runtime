@@ -2300,7 +2300,6 @@ let COMBINING_MARK_RANGES: Array<UnicodeRange> = [
     UnicodeRange(0x1E8D0, 0x1E8D6),
     UnicodeRange(0x1E944, 0x1E94A)
 ]
-
 let CASE_IGNORABLE_RANGES: Array<UnicodeRange> = [
     UnicodeRange(0X0027, 0X0027),
     UnicodeRange(0X002E, 0X002E),
