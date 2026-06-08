@@ -114,18 +114,15 @@ func checkedShl(x: UInt64, y: UInt64): Option<UInt64> {
 }
 
 func checkedShl(x: UIntNative, y: UInt64): Option<UIntNative> {
-    if (isNative64) {
-        if (y >= 64) {
-            return None
-        } else {
-            return Some(x << y)
-        }
+    let bitWidth: UInt64 = if (isNative64) {
+        64
     } else {
-        if (y >= 32) {
-            return None
-        } else {
-            return Some(x << y)
-        }
+        32
+    }
+    if (y >= bitWidth) {
+        None
+    } else {
+        Some(x << y)
     }
 }
 
@@ -210,17 +207,14 @@ func checkedShr(x: UInt64, y: UInt64): Option<UInt64> {
 }
 
 func checkedShr(x: UIntNative, y: UInt64): Option<UIntNative> {
-    if (isNative64) {
-        if (y >= 64) {
-            return None
-        } else {
-            return Some(x >> y)
-        }
+    let bitWidth: UInt64 = if (isNative64) {
+        64
     } else {
-        if (y >= 32) {
-            return None
-        } else {
-            return Some(x >> y)
-        }
+        32
+    }
+    if (y >= bitWidth) {
+        None
+    } else {
+        Some(x >> y)
     }
 }

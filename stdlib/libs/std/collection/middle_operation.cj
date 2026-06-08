@@ -177,6 +177,7 @@ class FlattenIterator<T, R> <: Iterator<R> where T <: Iterable<R> {
          * Check whether subIt is consumed.
          * If yes, return the resulting value.
          * If not, reset subIt and continue to check from the beginning.
+         * FlattenIterator reuses the nested iterator supplied by each source element.
          */
         while (true) {
             match (subIt) {
@@ -187,6 +188,7 @@ class FlattenIterator<T, R> <: Iterator<R> where T <: Iterable<R> {
                 case _ => ()
             }
 
+            // Pull the next iterable only after the current nested iterator is exhausted.
             match (it.next()) {
                 case Some(sub) => subIt = Some(sub.iterator())
                 case _ => return None
@@ -197,17 +199,15 @@ class FlattenIterator<T, R> <: Iterator<R> where T <: Iterable<R> {
 }
 
 class FlatMapIterator<T, R> <: Iterator<R> {
-    private var subIt: Option<Iterator<R>> = None
     private let transform: (T) -> Iterable<R>
     private let it: Iterator<T>
+    private var subIt: Option<Iterator<R>> = None
 
     /*
-     * All elements are converted to Iterator<R> by transform func.
+     * Builds an iterator that expands each source element through transform.
      *
-     * @param it Iterable.
-     * @param transform Transform func.
-     *
-     * @return Option<R> The return type of Option<R>.
+     * @param it Source iterable.
+     * @param transform Function that supplies the nested iterable for one element.
      */
     init(it: Iterable<T>, transform: (T) -> Iterable<R>) {
         this.it = it.iterator()
@@ -215,9 +215,7 @@ class FlatMapIterator<T, R> <: Iterator<R> {
     }
 
     /*
-     * Get FlatMap Iterator next.
-     *
-     * @return Option<R> The return type of Option<R>.
+     * Returns the next flattened element produced by transform.
      */
     @Frozen
     public func next(): Option<R> {
@@ -225,6 +223,7 @@ class FlatMapIterator<T, R> <: Iterator<R> {
          * Check whether subIt is consumed.
          * If yes, return the resulting value.
          * If not, reset subIt and continue to check from the beginning.
+         * FlatMapIterator creates each nested iterator by applying transform.
          */
         while (true) {
             match (subIt) {
@@ -235,6 +234,7 @@ class FlatMapIterator<T, R> <: Iterator<R> {
                 case _ => ()
             }
 
+            // Transform is evaluated lazily for one source element at a time.
             match (it.next()) {
                 case Some(sub) => subIt = Some(transform(sub).iterator())
                 case _ => return None

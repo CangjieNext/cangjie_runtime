@@ -69,9 +69,9 @@ public class UnixSocket <: StreamingSocket {
     }
 
     /**
-     * Remote address the socket will be or is currently connected to.
+     * Unix domain peer address configured for this stream socket.
      *
-     * @throws SocketException is the socket is already closed.
+     * @throws SocketException if the socket has no connected peer or is already closed.
      */
     public override prop remoteAddress: SocketAddress {
         get() {
@@ -80,10 +80,9 @@ public class UnixSocket <: StreamingSocket {
     }
 
     /**
-     * Local address the socket will be or currently is bound at.
+     * Unix domain local address used by this stream socket.
      *
-     * @throws SocketException is the socket is already closed
-     * or no local address is available (local address was not provided during creation and the socket is not connected).
+     * @throws SocketException if the socket is already closed or no local address is available.
      */
     public override prop localAddress: SocketAddress {
         get() {
@@ -92,10 +91,8 @@ public class UnixSocket <: StreamingSocket {
     }
 
     /**
-     * Read operation time limit or `None` for infinite read attempts.
-     * The value specified here is actually the minimal amount of time before a read operation cancelled.
-     * The actual time is not guaranteed but it will be never cancelled earlier than the specified timeout value.
-     * If the duration is too big than it can be bumped to the infinite. When it's too small then if will be bumped to the minimal clock granularity.
+     * Read timeout for Unix domain stream operations, or `None` for no limit.
+     * The platform may round the duration but must not cancel earlier than requested.
      *
      * The default value is None.
      * @throws IllegalArgumentException if the specified timeout duration is negative.
@@ -110,11 +107,9 @@ public class UnixSocket <: StreamingSocket {
     }
 
     /**
-     * Write operation time limit or `None` for infinite read attempts.
+     * Write timeout for Unix domain stream operations, or `None` for no limit.
      *
-     * The value specified here is actually the minimal amount of time before a write operation cancelled.
-     * The actual time is not guaranteed but it will be never cancelled earlier than the specified timeout value.
-     * If the duration is too big than it can be bumped to the infinite. When it's too small then if will be bumped to the minimal clock granularity.
+     * Very small or very large durations may be rounded to platform-supported values.
      *
      * The default value is None.
      * @throws IllegalArgumentException if the specified timeout duration is negative.
@@ -128,51 +123,23 @@ public class UnixSocket <: StreamingSocket {
         }
     }
 
-    /**
-     * SO_SNDBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired outgoing buffer size.
-     *
-     * Changing this option is not guaranteed to have any effect since it's
-     * completely up to the operating system.
-     *
-     * Reading this property could also provide non-realistic values on some systems in
-     * some cases so no logic should strictly rely on this value.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** Unix stream SO_SNDBUF hint for outgoing bytes; rejects non-positive sizes. */
     public mut prop sendBufferSize: Int64 {
         get() {
-            Int64(impl.getSocketOptionIntNative(SOL_SOCKET, SOCK_SNDBUF))
+            impl.getSendBufferSize()
         }
         set(newSize) {
-            if (newSize <= 0) {
-                throw IllegalArgumentException("Buffer size should be positive, got ${newSize}.")
-            }
-            impl.setSocketOptionIntNative(SOL_SOCKET, SOCK_SNDBUF, IntNative(newSize))
+            impl.setSendBufferSize(newSize)
         }
     }
 
-    /**
-     * SO_RCVBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired receive buffer size.
-     *
-     * Changing this option is not guaranteed to have any effect since it's
-     * completely up to the operating system.
-     *
-     * Reading this property could also provide non-realistic values on some systems in
-     * some cases so no logic should strictly rely on this value.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** Unix stream SO_RCVBUF hint for incoming bytes; rejects non-positive sizes. */
     public mut prop receiveBufferSize: Int64 {
         get() {
-            Int64(impl.getSocketOptionIntNative(SOL_SOCKET, SOCK_RCVBUF))
+            impl.getReceiveBufferSize()
         }
         set(newSize) {
-            if (newSize <= 0) {
-                throw IllegalArgumentException("Buffer size should be positive, got ${newSize}.")
-            }
-            impl.setSocketOptionIntNative(SOL_SOCKET, SOCK_RCVBUF, IntNative(newSize))
+            impl.setReceiveBufferSize(newSize)
         }
     }
 
@@ -190,24 +157,18 @@ public class UnixSocket <: StreamingSocket {
      * Please note that this function doesn't do retry so if the server peer does reject connection, we get error despite the timeout duration.
      *
      * This function also does bind first before doing connect so there is no need to invoke bind
+     * Unix sockets connect through a filesystem-style socket address rather than an IP endpoint.
      *
      * @throws SocketException if the connection cannot be established.
      * @throws SocketTimeoutException if the waiting time has expired.
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public func connect(timeout!: ?Duration = None): Unit {
+        // Unix domain sockets use the same timeout validation as TCP, but delegate to Unix socket storage.
         impl.connect(timeout?.throwIfNegative("Timeout"))
     }
 
-    /**
-     * Read the specified socket option writing the result to value buffer
-     * of the specified valueLength (in bytes).
-     * Before invoking this function valueLength should be initialized with the buffer size
-     * After invoking this function valueLength will contain the actual result
-     * size in bytes.
-     *
-     * Throws an exception if failed (when getsockopt returns -1).
-     */
+    /** Read a raw Unix socket option; valueLength is updated with the native result size. */
     public func getSocketOption(
         level: Int32,
         option: Int32,
@@ -217,14 +178,7 @@ public class UnixSocket <: StreamingSocket {
         unsafe { impl.getSocketOption(level, option, value, valueLength) }
     }
 
-    /**
-     * Write the specified socket option from value buffer having valueLength
-     * size in bytes.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when setsockopt returns -1).
-     */
+    /** Write a raw Unix socket option; native setsockopt failures are reported as exceptions. */
     public func setSocketOption(
         level: Int32,
         option: Int32,
@@ -234,14 +188,7 @@ public class UnixSocket <: StreamingSocket {
         unsafe { impl.setSocketOption(level, option, value, valueLength) }
     }
 
-    /**
-     * Read the specified socket option returning it's value as IntNative result.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when getsockopt returns -1) or if the result
-     * has size different from IntNative.
-     */
+    /** Read a Unix socket option as IntNative, requiring the native result size to match. */
     public func getSocketOptionIntNative(
         level: Int32,
         option: Int32
@@ -249,14 +196,7 @@ public class UnixSocket <: StreamingSocket {
         impl.getSocketOptionIntNative(level, option)
     }
 
-    /**
-     * Write a numeric IntNative value to the specified socket option.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when setsockopt returns -1), for example
-     * when the option size is different from IntNative.
-     */
+    /** Write an IntNative value to a Unix socket option. */
     public func setSocketOptionIntNative(
         level: Int32,
         option: Int32,
@@ -265,17 +205,7 @@ public class UnixSocket <: StreamingSocket {
         impl.setSocketOptionIntNative(level, option, value)
     }
 
-    /**
-     * Read the specified socket option returning it's value as a boolean value
-     * converting it from an IntNative.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * The conversion is defined as 0 => false, other values => true.
-     *
-     * Throws an exception if failed (when getsockopt returns -1) or if the result
-     * has size different from IntNative.
-     */
+    /** Read a Unix socket option as Bool using IntNative zero/nonzero conversion. */
     public func getSocketOptionBool(
         level: Int32,
         option: Int32
@@ -283,36 +213,24 @@ public class UnixSocket <: StreamingSocket {
         impl.getSocketOptionBool(level, option)
     }
 
-    /**
-     * Write a boolean value to the specified socket option converting it to IntNative.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * The conversion is defined as false => 0, true => 1
-     *
-     * Throws an exception if failed (when setsockopt returns -1), for example
-     * when the option size is different from IntNative.
-     */
+    /** Write a Unix socket Bool option using IntNative conversion. */
     public func setSocketOptionBool(
         level: Int32,
         option: Int32,
         value: Bool
     ): Unit {
+        // Unix stream sockets route raw option writes through the shared implementation.
         impl.setSocketOptionBool(level, option, value)
     }
 
-    /**
-     * Close the socket releasing all resources. All operations except for close() and isClose() are no longer available.
-     * This function is reentrant.
-     **/
+    /** Close this socket and release its resources. This function is reentrant. */
     public func close(): Unit {
         impl.close()
     }
 
-    /**
-     * Checks whether this socket has been explicitly closed via close()
-     **/
+    /** Return whether close() has already been invoked for this socket. */
     public func isClosed(): Bool {
+        // The closed state is tracked by the platform socket wrapper.
         impl.isClosed()
     }
 
@@ -332,287 +250,201 @@ public class UnixSocket <: StreamingSocket {
     }
 
     /**
-     * Create an unconnected Unix domain socket ready to connect to the specified socket path
+     * Create a deprecated Windows-compatible Unix domain socket for the target path.
      *
-     * @param path to connect to
+     * @param path remote path used when connect() is invoked.
      */
     public init(path: String, localPath!: ?String = None) {
         this(UnixSocketAddress(path))
-        if (let Some(_localPath) <- localPath) {
-            setLocalAddress(UnixSocketAddress(_localPath))
+        if (let Some(legacyLocalPath) <- localPath) {
+            setLocalAddress(UnixSocketAddress(legacyLocalPath))
         }
     }
 
     /**
-     * Create an unconnected Unix domain socket ready to connect to the specified socket path
-     * @param address to connect to
+     * Create a deprecated Windows-compatible Unix domain socket for the target address.
+     *
+     * @param address remote address used when connect() is invoked.
      */
     public init(address: SocketAddress, localAddress!: ?SocketAddress = None) {
         checkUnixSocketAddress(address, "address")
         this.impl = SocketCommon(SocketNet.UNIX, AddressFamily.UNIX, StreamingMode)
-        impl.remoteAddress = address
-        if (let Some(_localAddress) <- localAddress) {
-            setLocalAddress(_localAddress)
+        this.impl.remoteAddress = address
+        if (let Some(legacyLocalAddress) <- localAddress) {
+            setLocalAddress(legacyLocalAddress)
         }
     }
 
     /**
-     * Creates an internally precreated socket. See UnixServerSocket.accept.
+     * Wraps a precreated socket accepted by the deprecated Windows branch.
      */
     init(impl: SocketCommon<ActualPlatformSocket>) {
         this.impl = impl
     }
 
     /**
-     * Remote address the socket will be or is currently connected to.
+     * Remote address configured for the deprecated Windows-compatible socket.
      *
      * @throws SocketException is the socket is already closed.
      */
     public override prop remoteAddress: SocketAddress {
         get() {
-            impl.remoteAddress ?? SocketException.notYetConnected()
+            this.impl.remoteAddress ?? SocketException.notYetConnected()
         }
     }
 
     /**
-     * Local address the socket will be or currently is bound at.
+     * Local address configured for the deprecated Windows-compatible socket.
      *
      * @throws SocketException is the socket is already closed
      * or no local address is available (local address was not provided during creation and the socket is not connected).
      */
     public override prop localAddress: SocketAddress {
         get() {
-            impl.localAddress ?? SocketException.notYetConnected()
+            this.impl.localAddress ?? SocketException.notYetConnected()
         }
     }
 
     /**
-     * Read operation time limit or `None` for infinite read attempts.
-     * The value specified here is actually the minimal amount of time before a read operation cancelled.
-     * The actual time is not guaranteed but it will be never cancelled earlier than the specified timeout value.
-     * If the duration is too big than it can be bumped to the infinite. When it's too small then if will be bumped to the minimal clock granularity.
+     * Read operation timeout for the deprecated Windows-compatible Unix socket, or `None` for no limit.
+     * Cancellation is never earlier than the requested duration, though the platform may round the value.
      *
      * The default value is None.
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public override mut prop readTimeout: ?Duration {
         get() {
-            impl.readTimeout
+            this.impl.readTimeout
         }
         set(timeout) {
-            impl.readTimeout = timeout?.throwIfNegative("Read timeout").toNanosecondGranularity()
+            this.impl.readTimeout = timeout?.throwIfNegative("Read timeout").toNanosecondGranularity()
         }
     }
 
     /**
-     * Write operation time limit or `None` for infinite read attempts.
+     * Write operation timeout for the deprecated Windows-compatible Unix socket, or `None` for no limit.
      *
-     * The value specified here is actually the minimal amount of time before a write operation cancelled.
-     * The actual time is not guaranteed but it will be never cancelled earlier than the specified timeout value.
-     * If the duration is too big than it can be bumped to the infinite. When it's too small then if will be bumped to the minimal clock granularity.
+     * The platform may round very small or very large durations to supported timeout values.
      *
      * The default value is None.
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public override mut prop writeTimeout: ?Duration {
         get() {
-            impl.writeTimeout
+            this.impl.writeTimeout
         }
         set(timeout) {
-            impl.writeTimeout = timeout?.throwIfNegative("Write timeout").toNanosecondGranularity()
+            this.impl.writeTimeout = timeout?.throwIfNegative("Write timeout").toNanosecondGranularity()
         }
     }
 
-    /**
-     * SO_SNDBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired outgoing buffer size.
-     *
-     * Changing this option is not guaranteed to have any effect since it's
-     * completely up to the operating system.
-     *
-     * Reading this property could also provide non-realistic values on some systems in
-     * some cases so no logic should strictly rely on this value.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** Deprecated Unix socket SO_SNDBUF hint; rejects non-positive sizes. */
     public mut prop sendBufferSize: Int64 {
         get() {
-            Int64(impl.getSocketOptionIntNative(SOL_SOCKET, SOCK_SNDBUF))
+            this.impl.getSendBufferSize()
         }
         set(newSize) {
-            if (newSize <= 0) {
-                throw IllegalArgumentException("Buffer size should be positive, got ${newSize}.")
-            }
-            impl.setSocketOptionIntNative(SOL_SOCKET, SOCK_SNDBUF, IntNative(newSize))
+            this.impl.setSendBufferSize(newSize)
         }
     }
 
-    /**
-     * SO_RCVBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired receive buffer size.
-     *
-     * Changing this option is not guaranteed to have any effect since it's
-     * completely up to the operating system.
-     *
-     * Reading this property could also provide non-realistic values on some systems in
-     * some cases so no logic should strictly rely on this value.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** Deprecated Unix socket SO_RCVBUF hint; rejects non-positive sizes. */
     public mut prop receiveBufferSize: Int64 {
         get() {
-            Int64(impl.getSocketOptionIntNative(SOL_SOCKET, SOCK_RCVBUF))
+            this.impl.getReceiveBufferSize()
         }
         set(newSize) {
-            if (newSize <= 0) {
-                throw IllegalArgumentException("Buffer size should be positive, got ${newSize}.")
-            }
-            impl.setSocketOptionIntNative(SOL_SOCKET, SOCK_RCVBUF, IntNative(newSize))
+            this.impl.setReceiveBufferSize(newSize)
         }
     }
 
     public override func read(buffer: Array<Byte>): Int64 {
-        impl.read(buffer)
+        this.impl.read(buffer)
     }
 
     public override func write(buffer: Array<Byte>): Unit {
-        impl.write(buffer)
+        this.impl.write(buffer)
     }
 
     /**
-     * Connects to the remote peer within the specified timeout.
-     * If the timeout is `None`, then connection attempts will continue without time limit.
-     * Please note that this function doesn't do retry so if the server peer does reject connection, we get error despite the timeout duration.
-     *
-     * This function also does bind first before doing connect so there is no need to invoke bind
+     * Connects this deprecated Windows-compatible socket to the configured peer.
+     * `None` keeps the connection attempt without a time limit; failures are not retried.
+     * The socket binds first when a local address was supplied.
      *
      * @throws SocketException if the connection cannot be established.
      * @throws SocketTimeoutException if the waiting time has expired.
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public func connect(timeout!: ?Duration = None): Unit {
-        impl.connect(timeout?.throwIfNegative("Timeout"))
+        this.impl.connect(timeout?.throwIfNegative("Timeout"))
     }
 
-    /**
-     * Read the specified socket option writing the result to value buffer
-     * of the specified valueLength (in bytes).
-     * Before invoking this function valueLength should be initialized with the buffer size
-     * After invoking this function valueLength will contain the actual result
-     * size in bytes.
-     *
-     * Throws an exception if failed (when getsockopt returns -1).
-     */
+    /** Close this socket and release its resources. This function is reentrant. */
+    public func close(): Unit {
+        this.impl.close()
+    }
+
+    /** Return whether close() has already been invoked for this socket. */
+    public func isClosed(): Bool {
+        this.impl.isClosed()
+    }
+
+    public override func toString(): String {
+        "UnixSocket(${this.impl.toString()})"
+    }
+
+    /** Write a Bool value to a Unix socket option using IntNative conversion. */
+    public func setSocketOptionBool(
+        level: Int32,
+        option: Int32,
+        value: Bool
+    ): Unit {
+        this.impl.setSocketOptionBool(level, option, value)
+    }
+
+    /** Read a deprecated Unix socket Bool option using IntNative conversion. */
+    public func getSocketOptionBool(
+        level: Int32,
+        option: Int32
+    ): Bool {
+        this.impl.getSocketOptionBool(level, option)
+    }
+
+    /** Read a deprecated Unix socket raw option and update valueLength with the result size. */
     public func getSocketOption(
         level: Int32,
         option: Int32,
         value: CPointer<Unit>,
         valueLength: CPointer<UIntNative>
     ): Unit {
-        unsafe { impl.getSocketOption(level, option, value, valueLength) }
+        unsafe { this.impl.getSocketOption(level, option, value, valueLength) }
     }
 
-    /**
-     * Write the specified socket option from value buffer having valueLength
-     * size in bytes.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when setsockopt returns -1).
-     */
+    /** Write a deprecated Unix socket raw option; native failures become SocketException. */
     public func setSocketOption(
         level: Int32,
         option: Int32,
         value: CPointer<Unit>,
         valueLength: UIntNative
     ): Unit {
-        unsafe { impl.setSocketOption(level, option, value, valueLength) }
+        unsafe { this.impl.setSocketOption(level, option, value, valueLength) }
     }
 
-    /**
-     * Read the specified socket option returning it's value as IntNative result.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when getsockopt returns -1) or if the result
-     * has size different from IntNative.
-     */
+    /** Read a deprecated Unix socket IntNative option and verify the native size. */
     public func getSocketOptionIntNative(
         level: Int32,
         option: Int32
     ): IntNative {
-        impl.getSocketOptionIntNative(level, option)
+        this.impl.getSocketOptionIntNative(level, option)
     }
 
-    /**
-     * Write a numeric IntNative value to the specified socket option.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when setsockopt returns -1), for example
-     * when the option size is different from IntNative.
-     */
+    /** Write a deprecated Unix socket IntNative option value. */
     public func setSocketOptionIntNative(
         level: Int32,
         option: Int32,
         value: IntNative
     ): Unit {
-        impl.setSocketOptionIntNative(level, option, value)
-    }
-
-    /**
-     * Read the specified socket option returning it's value as a boolean value
-     * converting it from an IntNative.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * The conversion is defined as 0 => false, other values => true.
-     *
-     * Throws an exception if failed (when getsockopt returns -1) or if the result
-     * has size different from IntNative.
-     */
-    public func getSocketOptionBool(
-        level: Int32,
-        option: Int32
-    ): Bool {
-        impl.getSocketOptionBool(level, option)
-    }
-
-    /**
-     * Write a boolean value to the specified socket option converting it to IntNative.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * The conversion is defined as false => 0, true => 1
-     *
-     * Throws an exception if failed (when setsockopt returns -1), for example
-     * when the option size is different from IntNative.
-     */
-    public func setSocketOptionBool(
-        level: Int32,
-        option: Int32,
-        value: Bool
-    ): Unit {
-        impl.setSocketOptionBool(level, option, value)
-    }
-
-    /**
-     * Close the socket releasing all resources. All operations except for close() and isClose() are no longer available.
-     * This function is reentrant.
-     **/
-    public func close(): Unit {
-        impl.close()
-    }
-
-    /**
-     * Checks whether this socket has been explicitly closed via close()
-     **/
-    public func isClosed(): Bool {
-        impl.isClosed()
-    }
-
-    public override func toString(): String {
-        "UnixSocket(${impl.toString()})"
+        this.impl.setSocketOptionIntNative(level, option, value)
     }
 }
 
@@ -641,7 +473,7 @@ public class UnixServerSocket <: ServerSocket {
      */
     public override prop localAddress: SocketAddress {
         get() {
-            impl.localAddress ?? SocketException.notYetBound()
+            this.impl.localAddress ?? SocketException.notYetBound()
         }
     }
 
@@ -665,51 +497,23 @@ public class UnixServerSocket <: ServerSocket {
         this.impl = impl
     }
 
-    /**
-     * SO_SNDBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired outgoing buffer size.
-     *
-     * Changing this option is not guaranteed to have any effect since it's
-     * completely up to the operating system.
-     *
-     * Reading this property could also provide non-realistic values on some systems in
-     * some cases so no logic should strictly rely on this value.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** Unix server SO_SNDBUF hint for accepted streams; rejects non-positive sizes. */
     public mut prop sendBufferSize: Int64 {
         get() {
-            Int64(impl.getSocketOptionIntNative(SOL_SOCKET, SOCK_SNDBUF))
+            this.impl.getSendBufferSize()
         }
         set(newSize) {
-            if (newSize <= 0) {
-                throw IllegalArgumentException("Buffer size should be positive, got ${newSize}.")
-            }
-            impl.setSocketOptionIntNative(SOL_SOCKET, SOCK_SNDBUF, IntNative(newSize))
+            this.impl.setSendBufferSize(newSize)
         }
     }
 
-    /**
-     * SO_RCVBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired receive buffer size.
-     *
-     * Changing this option is not guaranteed to have any effect since it's
-     * completely up to the operating system.
-     *
-     * Reading this property could also provide non-realistic values on some systems in
-     * some cases so no logic should strictly rely on this value.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** Unix server SO_RCVBUF hint for accepted streams; rejects non-positive sizes. */
     public mut prop receiveBufferSize: Int64 {
         get() {
-            Int64(impl.getSocketOptionIntNative(SOL_SOCKET, SOCK_RCVBUF))
+            this.impl.getReceiveBufferSize()
         }
         set(newSize) {
-            if (newSize <= 0) {
-                throw IllegalArgumentException("Buffer size should be positive, got ${newSize}.")
-            }
-            impl.setSocketOptionIntNative(SOL_SOCKET, SOCK_RCVBUF, IntNative(newSize))
+            this.impl.setReceiveBufferSize(newSize)
         }
     }
 
@@ -723,8 +527,9 @@ public class UnixServerSocket <: ServerSocket {
             Int64(backlogSize_)
         }
         set(newSize) {
-            impl.checkNotBound()
-            impl.checkNotClosed()
+            // Deprecated Windows branch keeps the same validation before binding.
+            this.impl.checkNotBound()
+            this.impl.checkNotClosed()
             backlogSize_ = match {
                 case newSize <= 0 => throw IllegalArgumentException("BacklogSize should be positive: ${newSize}.")
                 case newSize >= Int64(Int32.Max) => Int32.Max - 1
@@ -742,156 +547,95 @@ public class UnixServerSocket <: ServerSocket {
      * If the path is already existing then bind() fails with SocketException.
      */
     public override func bind(): Unit {
-        impl.bind(backlogSize_)
+        this.impl.bind(backlogSize_)
     }
 
     /**
-     * Accept a client socket, waiting for one if there are no pending connection requests.
-     *
-     * The OS implementation usually provides an incoming connection requests queue,
-     * so calling accept() does takes a candidate from the queue
-     * or wait until we get some request if the queue is empty.
+     * Accept a client socket, waiting until one is pending or the timeout expires.
      *
      * @throws SocketTimeoutException if the spcified timeout allapsed before got pending connection request
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public override func accept(timeout!: ?Duration): UnixSocket {
-        let accepted = impl.accept(timeout) ?? SocketException.throwClosedException()
+        // The accepted platform socket is wrapped as a UnixSocket for callers.
+        let accepted = this.impl.accept(timeout) ?? SocketException.throwClosedException()
         return UnixSocket(accepted)
     }
 
-    /**
-     * Accept a client socket, waiting for one if there are no pending connection requests.
-     *
-     * The OS implementation usually provides an incoming connection requests queue,
-     * so calling accept() does takes a candidate from the queue
-     * or wait until we get some request if the queue is empty.
-     */
+    /** Accept a client socket without a timeout. */
     public override func accept(): UnixSocket {
+        // The deprecated server overload keeps the no-timeout accept behavior.
         accept(timeout: None)
     }
 
-    /**
-     * Close the socket releasing all resources. All operations except for close() and isClose() are no longer available.
-     * This function is reentrant.
-     **/
+    /** Close this socket and release its resources. This function is reentrant. */
     public override func close(): Unit {
-        impl.close()
+        // Close releases the server-side Unix socket descriptor held by the shared implementation.
+        this.impl.close()
     }
 
-    /**
-     * Checks whether this socket has been explicitly closed via close()
-     **/
+    /** Return whether close() has already been invoked for this socket. */
     public override func isClosed(): Bool {
-        impl.isClosed()
+        // The closed state is tracked by the shared socket implementation.
+        this.impl.isClosed()
     }
 
-    /**
-     * Read the specified socket option writing the result to value buffer
-     * of the specified valueLength (in bytes).
-     * Before invoking this function valueLength should be initialized with the buffer size
-     * After invoking this function valueLength will contain the actual result
-     * size in bytes.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when getsockopt returns -1).
-     */
+    /** Read a Unix socket option as IntNative, requiring the native result size to match. */
+    public func getSocketOptionIntNative(
+        level: Int32,
+        option: Int32
+    ): IntNative {
+        this.impl.getSocketOptionIntNative(level, option)
+    }
+
+    /** Write an IntNative value to a Unix socket option. */
+    public func setSocketOptionIntNative(
+        level: Int32,
+        option: Int32,
+        value: IntNative
+    ): Unit {
+        this.impl.setSocketOptionIntNative(level, option, value)
+    }
+
+    /** Read a raw Unix server socket option; valueLength is updated with the native result size. */
     public func getSocketOption(
         level: Int32,
         option: Int32,
         value: CPointer<Unit>,
         valueLength: CPointer<UIntNative>
     ): Unit {
-        unsafe { impl.getSocketOption(level, option, value, valueLength) }
+        unsafe { this.impl.getSocketOption(level, option, value, valueLength) }
     }
 
-    /**
-     * Write the specified socket option from value buffer having valueLength
-     * size in bytes.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when setsockopt returns -1).
-     */
+    /** Write a Unix server raw option; native failures become SocketException. */
     public func setSocketOption(
         level: Int32,
         option: Int32,
         value: CPointer<Unit>,
         valueLength: UIntNative
     ): Unit {
-        unsafe { impl.setSocketOption(level, option, value, valueLength) }
+        unsafe { this.impl.setSocketOption(level, option, value, valueLength) }
     }
 
-    /**
-     * Read the specified socket option returning it's value as IntNative result.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when getsockopt returns -1) or if the result
-     * has size different from IntNative.
-     */
-    public func getSocketOptionIntNative(
-        level: Int32,
-        option: Int32
-    ): IntNative {
-        impl.getSocketOptionIntNative(level, option)
-    }
-
-    /**
-     * Write a numeric IntNative value to the specified socket option.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when setsockopt returns -1), for example
-     * when the option size is different from IntNative.
-     */
-    public func setSocketOptionIntNative(
-        level: Int32,
-        option: Int32,
-        value: IntNative
-    ): Unit {
-        impl.setSocketOptionIntNative(level, option, value)
-    }
-
-    /**
-     * Read the specified socket option returning it's value as a boolean value
-     * converting it from an IntNative.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * The conversion is defined as 0 => false, other values => true.
-     *
-     * Throws an exception if failed (when getsockopt returns -1) or if the result
-     * has size different from IntNative.
-     */
+    /** Read a Unix socket option as Bool using IntNative zero/nonzero conversion. */
     public func getSocketOptionBool(
         level: Int32,
         option: Int32
     ): Bool {
-        impl.getSocketOptionBool(level, option)
+        this.impl.getSocketOptionBool(level, option)
     }
 
-    /**
-     * Write a boolean value to the specified socket option converting it to IntNative.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * The conversion is defined as false => 0, true => 1
-     *
-     * Throws an exception if failed (when setsockopt returns -1), for example
-     * when the option size is different from IntNative.
-     */
+    /** Write a Bool value to a Unix socket option using IntNative conversion. */
     public func setSocketOptionBool(
         level: Int32,
         option: Int32,
         value: Bool
     ): Unit {
-        impl.setSocketOptionBool(level, option, value)
+        this.impl.setSocketOptionBool(level, option, value)
     }
 
     public override func toString(): String {
-        "UnixServerSocket(${impl.toString()})"
+        "UnixServerSocket(${this.impl.toString()})"
     }
 }
 
@@ -902,27 +646,29 @@ public class UnixServerSocket <: ServerSocket {
     private var backlogSize_: Int32 = SOCKET_DEFAULT_BACKLOG
 
     /**
-     * Local address the socket will be or is currently bound at.
+     * Local address configured for the deprecated Windows-compatible server socket.
      *
      * @throws SocketException is the socket is already closed.
      */
     public override prop localAddress: SocketAddress {
         get() {
-            impl.localAddress ?? SocketException.notYetBound()
+            this.impl.localAddress ?? SocketException.notYetBound()
         }
     }
 
     /**
-     * Creates an anbound Unix server streaming socket configured to bind at the specified path
-     * @param bindAt path for the unix server socket
+     * Creates a deprecated Windows-compatible Unix server socket for a local path.
+     *
+     * @param bindAt path used when bind() is invoked.
      **/
     public init(bindAt!: String) {
         this(bindAt: UnixSocketAddress(bindAt))
     }
 
     /**
-     * Creates an anbound Unix server streaming socket configured to bind at the specified path
-     * @param bindAt path for the unix server socket
+     * Creates a deprecated Windows-compatible Unix server socket for a local address.
+     *
+     * @param bindAt address used when bind() is invoked.
      **/
     public init(bindAt!: SocketAddress) {
         checkUnixSocketAddress(bindAt, "bindAt")
@@ -932,66 +678,37 @@ public class UnixServerSocket <: ServerSocket {
         this.impl = impl
     }
 
-    /**
-     * SO_SNDBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired outgoing buffer size.
-     *
-     * Changing this option is not guaranteed to have any effect since it's
-     * completely up to the operating system.
-     *
-     * Reading this property could also provide non-realistic values on some systems in
-     * some cases so no logic should strictly rely on this value.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** Deprecated Unix server SO_SNDBUF hint; rejects non-positive sizes. */
     public mut prop sendBufferSize: Int64 {
         get() {
-            Int64(impl.getSocketOptionIntNative(SOL_SOCKET, SOCK_SNDBUF))
+            this.impl.getSendBufferSize()
         }
         set(newSize) {
-            if (newSize <= 0) {
-                throw IllegalArgumentException("Buffer size should be positive, got ${newSize}.")
-            }
-            impl.setSocketOptionIntNative(SOL_SOCKET, SOCK_SNDBUF, IntNative(newSize))
+            this.impl.setSendBufferSize(newSize)
         }
     }
 
-    /**
-     * SO_RCVBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired receive buffer size.
-     *
-     * Changing this option is not guaranteed to have any effect since it's
-     * completely up to the operating system.
-     *
-     * Reading this property could also provide non-realistic values on some systems in
-     * some cases so no logic should strictly rely on this value.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** Deprecated Unix server SO_RCVBUF hint; rejects non-positive sizes. */
     public mut prop receiveBufferSize: Int64 {
         get() {
-            Int64(impl.getSocketOptionIntNative(SOL_SOCKET, SOCK_RCVBUF))
+            this.impl.getReceiveBufferSize()
         }
         set(newSize) {
-            if (newSize <= 0) {
-                throw IllegalArgumentException("Buffer size should be positive, got ${newSize}.")
-            }
-            impl.setSocketOptionIntNative(SOL_SOCKET, SOCK_RCVBUF, IntNative(newSize))
+            this.impl.setReceiveBufferSize(newSize)
         }
     }
 
     /**
-     * Configure incoming connections backlog size. This only works before binding socket.
-     * Changing this value is not guaranteed to be actually applied since the operating system may decide to
-     * change or bump it, or simply ignore.
+     * Configure the incoming connection backlog before this deprecated server socket is bound.
+     * The operating system may clamp the requested value or ignore it.
      **/
     public mut prop backlogSize: Int64 {
         get() {
             Int64(backlogSize_)
         }
         set(newSize) {
-            impl.checkNotBound()
-            impl.checkNotClosed()
+            this.impl.checkNotBound()
+            this.impl.checkNotClosed()
             backlogSize_ = match {
                 case newSize <= 0 => throw IllegalArgumentException("BacklogSize should be positive: ${newSize}.")
                 case newSize >= Int64(Int32.Max) => Int32.Max - 1
@@ -1001,163 +718,99 @@ public class UnixServerSocket <: ServerSocket {
     }
 
     /**
-     * Bind a streaming UNIX domain socket.
+     * Bind the deprecated Windows-compatible streaming Unix server socket.
      *
-     * This function also does listen just after binding creating an incoming connections queue that could be accessed via "accept()" function.
-     *
-     * This operation does atomically create a socket file at the local path.
-     * If the path is already existing then bind() fails with SocketException.
+     * The call creates the socket file and starts listening with the configured backlog.
      */
     public override func bind(): Unit {
-        impl.bind(backlogSize_)
+        this.impl.bind(backlogSize_)
     }
 
     /**
-     * Accept a client socket, waiting for one if there are no pending connection requests.
+     * Accept a client socket from the deprecated Windows-compatible server branch.
      *
-     * The OS implementation usually provides an incoming connection requests queue,
-     * so calling accept() does takes a candidate from the queue
-     * or wait until we get some request if the queue is empty.
+     * The call waits until the platform reports a pending request or the timeout expires.
      *
      * @throws SocketTimeoutException if the spcified timeout allapsed before got pending connection request
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public override func accept(timeout!: ?Duration): UnixSocket {
-        let accepted = impl.accept(timeout) ?? SocketException.throwClosedException()
+        let accepted = this.impl.accept(timeout) ?? SocketException.throwClosedException()
         return UnixSocket(accepted)
     }
 
-    /**
-     * Accept a client socket, waiting for one if there are no pending connection requests.
-     *
-     * The OS implementation usually provides an incoming connection requests queue,
-     * so calling accept() does takes a candidate from the queue
-     * or wait until we get some request if the queue is empty.
-     */
+    /** Accept a client socket from the deprecated Windows-compatible server without a timeout. */
     public override func accept(): UnixSocket {
         accept(timeout: None)
     }
 
-    /**
-     * Close the socket releasing all resources. All operations except for close() and isClose() are no longer available.
-     * This function is reentrant.
-     **/
+    /** Close this socket and release its resources. This function is reentrant. */
     public override func close(): Unit {
-        impl.close()
+        // Deprecated server sockets delegate close state to the same implementation object.
+        this.impl.close()
     }
 
-    /**
-     * Checks whether this socket has been explicitly closed via close()
-     **/
+    /** Return whether close() has already been invoked for this socket. */
     public override func isClosed(): Bool {
-        impl.isClosed()
+        // Keep the deprecated branch consistent with the primary Unix server socket.
+        this.impl.isClosed()
     }
 
-    /**
-     * Read the specified socket option writing the result to value buffer
-     * of the specified valueLength (in bytes).
-     * Before invoking this function valueLength should be initialized with the buffer size
-     * After invoking this function valueLength will contain the actual result
-     * size in bytes.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when getsockopt returns -1).
-     */
+    /** Read a deprecated Unix server raw option and update valueLength with the result size. */
     public func getSocketOption(
         level: Int32,
         option: Int32,
         value: CPointer<Unit>,
         valueLength: CPointer<UIntNative>
     ): Unit {
-        unsafe { impl.getSocketOption(level, option, value, valueLength) }
+        unsafe { this.impl.getSocketOption(level, option, value, valueLength) }
     }
 
-    /**
-     * Write the specified socket option from value buffer having valueLength
-     * size in bytes.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when setsockopt returns -1).
-     */
+    /** Write a raw Unix socket option; native setsockopt failures are reported as exceptions. */
     public func setSocketOption(
         level: Int32,
         option: Int32,
         value: CPointer<Unit>,
         valueLength: UIntNative
     ): Unit {
-        unsafe { impl.setSocketOption(level, option, value, valueLength) }
+        unsafe { this.impl.setSocketOption(level, option, value, valueLength) }
     }
 
-    /**
-     * Read the specified socket option returning it's value as IntNative result.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when getsockopt returns -1) or if the result
-     * has size different from IntNative.
-     */
+    /** Read a deprecated Unix server IntNative option and verify the native size. */
     public func getSocketOptionIntNative(
         level: Int32,
         option: Int32
     ): IntNative {
-        impl.getSocketOptionIntNative(level, option)
+        this.impl.getSocketOptionIntNative(level, option)
     }
 
-    /**
-     * Write a numeric IntNative value to the specified socket option.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when setsockopt returns -1), for example
-     * when the option size is different from IntNative.
-     */
+    /** Write a deprecated Unix server IntNative option value. */
     public func setSocketOptionIntNative(
         level: Int32,
         option: Int32,
         value: IntNative
     ): Unit {
-        impl.setSocketOptionIntNative(level, option, value)
+        this.impl.setSocketOptionIntNative(level, option, value)
     }
 
-    /**
-     * Read the specified socket option returning it's value as a boolean value
-     * converting it from an IntNative.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * The conversion is defined as 0 => false, other values => true.
-     *
-     * Throws an exception if failed (when getsockopt returns -1) or if the result
-     * has size different from IntNative.
-     */
+    /** Read a deprecated Unix server Bool option using IntNative conversion. */
     public func getSocketOptionBool(
         level: Int32,
         option: Int32
     ): Bool {
-        impl.getSocketOptionBool(level, option)
+        this.impl.getSocketOptionBool(level, option)
     }
 
-    /**
-     * Write a boolean value to the specified socket option converting it to IntNative.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * The conversion is defined as false => 0, true => 1
-     *
-     * Throws an exception if failed (when setsockopt returns -1), for example
-     * when the option size is different from IntNative.
-     */
+    /** Write a deprecated Unix server Bool option using IntNative conversion. */
     public func setSocketOptionBool(
         level: Int32,
         option: Int32,
         value: Bool
     ): Unit {
-        impl.setSocketOptionBool(level, option, value)
+        this.impl.setSocketOptionBool(level, option, value)
     }
 
     public override func toString(): String {
-        "UnixServerSocket(${impl.toString()})"
+        "UnixServerSocket(${this.impl.toString()})"
     }
 }

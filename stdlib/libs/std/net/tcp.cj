@@ -62,7 +62,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
             if (address.family != localAddress.family) {
                 throw IllegalArgumentException(
                     "remote address kind (${address.family}) should have the same address " +
-                    " family as local (${localAddress.family})")
+                        " family as local (${localAddress.family})")
             }
         }
         throwIfIPv4ZeroOnWindows(address)
@@ -101,16 +101,15 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
     }
 
     /**
-     * Read operation time limit or `None` for infinite read attempts.
-     * The value specified here is actually the minimal amount of time before a read operation cancelled.
-     * The actual time is not guaranteed but it will be never cancelled earlier than the specified timeout value.
-     * If the duration is too big than it can be bumped to the infinite. When it's too small then if will be bumped to the minimal clock granularity.
+     * TCP read timeout, or `None` for no limit.
+     * The platform may round the value but must not cancel earlier than requested.
      *
      * The default value is None.
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public override mut prop readTimeout: ?Duration {
         get() {
+            // Read timeout is stored in the shared socket implementation.
             impl.readTimeout
         }
         set(timeout) {
@@ -119,17 +118,16 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
     }
 
     /**
-     * Write operation time limit or `None` for infinite read attempts.
+     * TCP write timeout, or `None` for no limit.
      *
-     * The value specified here is actually the minimal amount of time before a write operation cancelled.
-     * The actual time is not guaranteed but it will be never cancelled earlier than the specified timeout value.
-     * If the duration is too big than it can be bumped to the infinite. When it's too small then if will be bumped to the minimal clock granularity.
+     * Very small or large values may be rounded to platform-supported durations.
      *
      * The default value is None.
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public override mut prop writeTimeout: ?Duration {
         get() {
+            // TCP write operations share timeout storage with the socket implementation.
             impl.writeTimeout
         }
         set(timeout) {
@@ -254,51 +252,24 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
         }
     }
 
-    /**
-     * SO_SNDBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired outgoing buffer size.
-     *
-     * Changing this option is not guaranteed to have any effect since it's
-     * completely up to the operating system.
-     *
-     * Reading this property could also provide non-realistic values on some systems in
-     * some cases so no logic should strictly rely on this value.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** SO_SNDBUF hint for outgoing data; throws IllegalArgumentException for non-positive sizes. */
     public mut prop sendBufferSize: Int64 {
         get() {
-            Int64(impl.getSocketOptionIntNative(SOL_SOCKET, SOCK_SNDBUF))
+            impl.getSendBufferSize()
         }
         set(newSize) {
-            if (newSize <= 0) {
-                throw IllegalArgumentException("Buffer size should be positive, got ${newSize}.")
-            }
-            impl.setSocketOptionIntNative(SOL_SOCKET, SOCK_SNDBUF, IntNative(newSize))
+            // TCP client sockets apply this hint before or after connect depending on platform support.
+            impl.setSendBufferSize(newSize)
         }
     }
 
-    /**
-     * SO_RCVBUF option, providing a way to specify hint for the underlying
-     * native socket implementation about the desired receive buffer size.
-     *
-     * Changing this option is not guaranteed to have any effect since it's
-     * completely up to the operating system.
-     *
-     * Reading this property could also provide non-realistic values on some systems in
-     * some cases so no logic should strictly rely on this value.
-     *
-     * @throws IllegalArgumentException if the specified buffer size is negative or 0.
-     */
+    /** SO_RCVBUF hint for incoming data; throws IllegalArgumentException for non-positive sizes. */
     public mut prop receiveBufferSize: Int64 {
         get() {
-            Int64(impl.getSocketOptionIntNative(SOL_SOCKET, SOCK_RCVBUF))
+            impl.getReceiveBufferSize()
         }
         set(newSize) {
-            if (newSize <= 0) {
-                throw IllegalArgumentException("Buffer size should be positive, got ${newSize}.")
-            }
-            impl.setSocketOptionIntNative(SOL_SOCKET, SOCK_RCVBUF, IntNative(newSize))
+            impl.setReceiveBufferSize(newSize)
         }
     }
 
@@ -359,17 +330,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
         impl.connect(timeout?.throwIfNegative("Timeout"))
     }
 
-    /**
-     * Read the specified socket option writing the result to value buffer
-     * of the specified valueLength (in bytes).
-     * Before invoking this function valueLength should be initialized with the buffer size
-     * After invoking this function valueLength will contain the actual result
-     * size in bytes.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when getsockopt returns -1).
-     */
+    /** Read a raw TCP socket option; valueLength is updated with the native result size. */
     public func getSocketOption(
         level: Int32,
         option: Int32,
@@ -381,14 +342,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
         }
     }
 
-    /**
-     * Write the specified socket option from value buffer having valueLength
-     * size in bytes.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when setsockopt returns -1).
-     */
+    /** Write a raw TCP socket option; native setsockopt failures are reported as exceptions. */
     public func setSocketOption(
         level: Int32,
         option: Int32,
@@ -400,14 +354,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
         }
     }
 
-    /**
-     * Read the specified socket option returning it's value as IntNative result.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when getsockopt returns -1) or if the result
-     * has size different from IntNative.
-     */
+    /** Read a TCP socket option as IntNative, requiring the native result size to match. */
     public func getSocketOptionIntNative(
         level: Int32,
         option: Int32
@@ -415,14 +362,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
         impl.getSocketOptionIntNative(level, option)
     }
 
-    /**
-     * Write a numeric IntNative value to the specified socket option.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * Throws an exception if failed (when setsockopt returns -1), for example
-     * when the option size is different from IntNative.
-     */
+    /** Write an IntNative value to a TCP socket option. */
     public func setSocketOptionIntNative(
         level: Int32,
         option: Int32,
@@ -431,17 +371,7 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
         impl.setSocketOptionIntNative(level, option, value)
     }
 
-    /**
-     * Read the specified socket option returning it's value as a boolean value
-     * converting it from an IntNative.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * The conversion is defined as 0 => false, other values => true.
-     *
-     * Throws an exception if failed (when getsockopt returns -1) or if the result
-     * has size different from IntNative.
-     */
+    /** Read a TCP socket option as Bool using IntNative zero/nonzero conversion. */
     public func getSocketOptionBool(
         level: Int32,
         option: Int32
@@ -449,35 +379,22 @@ public class TcpSocket <: StreamingSocket & Equatable<TcpSocket> & Hashable {
         impl.getSocketOptionBool(level, option)
     }
 
-    /**
-     * Write a boolean value to the specified socket option converting it to IntNative.
-     *
-     * See SocketOptions for popular option constants.
-     *
-     * The conversion is defined as false => 0, true => 1
-     *
-     * Throws an exception if failed (when setsockopt returns -1), for example
-     * when the option size is different from IntNative.
-     */
+    /** Write a Bool value to a TCP socket option using IntNative conversion. */
     public func setSocketOptionBool(
         level: Int32,
         option: Int32,
         value: Bool
     ): Unit {
+        // Bool options use the same native conversion path as typed socket options.
         impl.setSocketOptionBool(level, option, value)
     }
 
-    /**
-     * Close the socket releasing all resources. All operations except for close() and isClose() are no longer available.
-     * This function is reentrant.
-     **/
+    /** Close this socket and release its resources. This function is reentrant. */
     public func close(): Unit {
         impl.close()
     }
 
-    /**
-     * Checks whether this socket has been explicitly closed via close()
-     **/
+    /** Return whether close() has already been invoked for this socket. */
     public func isClosed(): Bool {
         impl.isClosed()
     }

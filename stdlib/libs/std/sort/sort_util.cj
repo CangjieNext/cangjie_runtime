@@ -391,56 +391,57 @@ extend<T> Array<T> where T <: Comparable<T> {
 }
 
 extend<T> Array<T> {
-    // the value range of the parameter: 0 <= i1 < i2 <= array.size - 1
-    func compareSwap2(i1: Int64, i2: Int64, comparator: (T, T) -> Ordering) {
-        let a: T = this[i1]
-        let b: T = this[i2]
-        match (comparator(a, b)) {
+    // the element range of the parameter: 0 <= i1 < i2 <= array.size - 1
+    func compareSwap2(i1: Int64, i2: Int64, order: (T, T) -> Ordering) {
+        let firstItem: T = this[i1]
+        let lo: T = this[i2]
+        match (order(firstItem, lo)) {
             case GT =>
-                this[i1] = b
-                this[i2] = a
+                this[i1] = lo
+                this[i2] = firstItem
             case _ => ()
         }
     }
 
-    // the value range of the parameter: 0 <= i1 < i2 < i3 <= array.size - 1
-    // Ordering.LT/EQ: a <= b <= c
-    // Ordering.GT   : a >= b >= c
-    func compareSwap3(i1: Int64, i2: Int64, i3: Int64, comparator: (T, T) -> Ordering) {
-        var a: T = this[i1]
-        var b: T = this[i2]
-        var c: T = this[i3]
-        if (comparator(a, b) == GT) {
-            var temp = a
-            a = b
-            b = temp
+    // the element range of the parameter: 0 <= i1 < i2 < i3 <= array.size - 1
+    // Ordering.LT/EQ: firstItem <= lo <= thirdItem
+    // Ordering.GT   : firstItem >= lo >= thirdItem
+    func compareSwap3(i1: Int64, i2: Int64, i3: Int64, order: (T, T) -> Ordering) {
+        var firstItem: T = this[i1]
+        var lo: T = this[i2]
+        var thirdItem: T = this[i3]
+        if (order(firstItem, lo) == GT) {
+            var workspace = firstItem
+            firstItem = lo
+            lo = workspace
         }
-        if (comparator(c, a) == LT) {
-            this[i1] = c
-            this[i2] = a
-            this[i3] = b
-        } else if (comparator(c, b) == LT) {
-            this[i1] = a
-            this[i2] = c
-            this[i3] = b
+        if (order(thirdItem, firstItem) == LT) {
+            this[i1] = thirdItem
+            this[i2] = firstItem
+            this[i3] = lo
+        } else if (order(thirdItem, lo) == LT) {
+            this[i1] = firstItem
+            this[i2] = thirdItem
+            this[i3] = lo
         } else {
-            this[i1] = a
-            this[i2] = b
-            this[i3] = c
+            this[i1] = firstItem
+            this[i2] = lo
+            this[i3] = thirdItem
         }
     }
 
     @OverflowWrapping
     func getMinRunLength() {
-        var n = this.size
-        var r: Int64 = 0
-        while (n >= 64) {
-            r = r | (n & 1)
-            n = n >> 1
+        var runSize = this.size
+        var upperBound: Int64 = 0
+        while (runSize >= 64) {
+            upperBound = upperBound | (runSize & 1)
+            runSize = runSize >> 1
         }
-        return n + r
+        return runSize + upperBound
     }
 
+    // Introsort uses this bound to decide when to fall back to heap sort.
     @OverflowWrapping
     func depth(): Int64 {
         var x: Int64 = this.size
@@ -452,368 +453,368 @@ extend<T> Array<T> {
         return res * 2
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the element range of the parameter: 0 <= from < to <= array.size - 1
     @OverflowWrapping
-    func insertionSort(begin: Int64, end: Int64, comparator: (T, T) -> Ordering): Unit {
-        var i: Int64 = begin + 1
-        while (i <= end) {
-            var point = this[i]
-            var j = i - 1
-            while (j >= begin) {
-                var temp = this[j]
-                match (comparator(temp, point)) {
-                    case GT => this[j + 1] = temp
+    func insertionSort(from: Int64, to: Int64, order: (T, T) -> Ordering): Unit {
+        var pos: Int64 = from + 1
+        while (pos <= to) {
+            var insertValue = this[pos]
+            var cursor = pos - 1
+            while (cursor >= from) {
+                var workspace = this[cursor]
+                match (order(workspace, insertValue)) {
+                    case GT => this[cursor + 1] = workspace
                     case _ => break
                 }
-                j--
+                cursor--
             }
-            this[j + 1] = point
-            i++
+            this[cursor + 1] = insertValue
+            pos++
         }
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
-    // end - begin >= 1
+    // the element range of the parameter: 0 <= from < to <= array.size - 1
+    // to - from >= 1
     @OverflowWrapping
-    func getSequenceLength(begin: Int64, end: Int64, temp: TempArray<T>, comparator: (T, T) -> Ordering): Int64 {
-        var b: Int64 = begin
-        var equalNum: Int64 = 1
-        var isAscending: Bool = true
+    func getSequenceLength(from: Int64, to: Int64, workspace: TempArray<T>, order: (T, T) -> Ordering): Int64 {
+        var lo: Int64 = from
+        var sameCount: Int64 = 1
+        var increasing: Bool = true
 
-        // Obtains the length of a sequence with the same value.
-        match (comparator(this[b], this[b + 1])) {
-            case LT => isAscending = true
-            case GT => isAscending = false
+        // Obtains the length of firstItem sequence with the same element.
+        match (order(this[lo], this[lo + 1])) {
+            case LT => increasing = true
+            case GT => increasing = false
             case EQ =>
-                equalNum++
-                b++
-                while (b + 1 <= end) {
-                    match (comparator(this[b], this[b + 1])) {
+                sameCount++
+                lo++
+                while (lo + 1 <= to) {
+                    match (order(this[lo], this[lo + 1])) {
                         case LT =>
-                            isAscending = true
+                            increasing = true
                             break
                         case GT =>
-                            isAscending = false
+                            increasing = false
                             break
                         case EQ =>
-                            equalNum++
-                            b++
+                            sameCount++
+                            lo++
                     }
                 }
         }
-        if (b >= end) {
-            return equalNum
-        } else if (end - b == 1) {
-            if (isAscending) {
-                return equalNum + 1
+        if (lo >= to) {
+            return sameCount
+        } else if (to - lo == 1) {
+            if (increasing) {
+                return sameCount + 1
             } else {
-                let te = this[end]
-                this.copyTo(this, begin, begin + 1, equalNum)
-                this[begin] = te
-                return equalNum + 1
+                let backValue = this[to]
+                this.copyTo(this, from, from + 1, sameCount)
+                this[from] = backValue
+                return sameCount + 1
             }
         }
-        b++
-        var n: Int64 = 1
-        if (isAscending) {
-            while (b + 1 <= end) {
-                match (comparator(this[b], this[b + 1])) {
+        lo++
+        var runSize: Int64 = 1
+        if (increasing) {
+            while (lo + 1 <= to) {
+                match (order(this[lo], this[lo + 1])) {
                     case GT => break
                     case _ =>
-                        n++
-                        b++
+                        runSize++
+                        lo++
                 }
             }
-            return equalNum + n
+            return sameCount + runSize
         } else {
-            while (b + 1 <= end) {
-                match (comparator(this[b], this[b + 1])) {
+            while (lo + 1 <= to) {
+                match (order(this[lo], this[lo + 1])) {
                     case GT =>
-                        n++
-                        b++
+                        runSize++
+                        lo++
                     case _ => break
                 }
             }
 
             // reverse sequence
-            if (equalNum == 1) {
-                var i = begin
-                var j = begin + n // begin + equalNum + n - 1
-                while (i < j) {
-                    this.swap(i, j)
-                    i++
-                    j--
+            if (sameCount == 1) {
+                var pos = from
+                var cursor = from + runSize // from + sameCount + runSize - 1
+                while (pos < cursor) {
+                    this.swap(pos, cursor)
+                    pos++
+                    cursor--
                 }
-                return equalNum + n
+                return sameCount + runSize
             } else {
-                var i = begin + equalNum
-                var j = i + n - 1
-                while (i < j) {
-                    this.swap(i, j)
-                    i++
-                    j--
+                var pos = from + sameCount
+                var cursor = pos + runSize - 1
+                while (pos < cursor) {
+                    this.swap(pos, cursor)
+                    pos++
+                    cursor--
                 }
             }
 
-            if (equalNum == 2) {
-                let t1 = this[begin]
-                let t2 = this[begin + 1]
-                if (n == 1) {
-                    this[begin] = this[begin + 2]
-                    this[begin + 1] = t1
-                    this[begin + 2] = t2
-                } else if (n == 2) {
-                    this[begin] = this[begin + 2]
-                    this[begin + 1] = this[begin + 3]
-                    this[begin + 2] = t1
-                    this[begin + 3] = t2
+            if (sameCount == 2) {
+                let savedLeft = this[from]
+                let savedRight = this[from + 1]
+                if (runSize == 1) {
+                    this[from] = this[from + 2]
+                    this[from + 1] = savedLeft
+                    this[from + 2] = savedRight
+                } else if (runSize == 2) {
+                    this[from] = this[from + 2]
+                    this[from + 1] = this[from + 3]
+                    this[from + 2] = savedLeft
+                    this[from + 3] = savedRight
                 } else {
-                    this.copyTo(this, begin + 2, begin, n)
-                    this[begin + equalNum + n - 2] = t1
-                    this[begin + equalNum + n - 1] = t2
+                    this.copyTo(this, from + 2, from, runSize)
+                    this[from + sameCount + runSize - 2] = savedLeft
+                    this[from + sameCount + runSize - 1] = savedRight
                 }
             } else {
-                if (n == 1) {
-                    let t = this[begin + equalNum]
-                    this.copyTo(this, begin, begin + 1, equalNum)
-                    this[begin] = t
-                } else if (n == 2) {
-                    let t1 = this[begin + equalNum]
-                    let t2 = this[begin + equalNum + 1]
-                    this.copyTo(this, begin, begin + 2, equalNum)
-                    this[begin] = t1
-                    this[begin + 1] = t2
+                if (runSize == 1) {
+                    let t = this[from + sameCount]
+                    this.copyTo(this, from, from + 1, sameCount)
+                    this[from] = t
+                } else if (runSize == 2) {
+                    let savedLeft = this[from + sameCount]
+                    let savedRight = this[from + sameCount + 1]
+                    this.copyTo(this, from, from + 2, sameCount)
+                    this[from] = savedLeft
+                    this[from + 1] = savedRight
                 } else {
-                    if (n < equalNum) {
-                        let arr = temp.getArray(n)
-                        this.copyTo(arr, begin + equalNum, 0, n)
-                        this.copyTo(this, begin, begin + n, equalNum)
-                        arr.copyTo(this, 0, begin, n)
+                    if (runSize < sameCount) {
+                        let tmpArray = workspace.getArray(runSize)
+                        this.copyTo(tmpArray, from + sameCount, 0, runSize)
+                        this.copyTo(this, from, from + runSize, sameCount)
+                        tmpArray.copyTo(this, 0, from, runSize)
                     } else {
-                        let arr = temp.getArray(equalNum)
-                        this.copyTo(arr, begin, 0, equalNum)
-                        this.copyTo(this, begin + equalNum, begin, n)
-                        arr.copyTo(this, 0, begin + n, equalNum)
+                        let tmpArray = workspace.getArray(sameCount)
+                        this.copyTo(tmpArray, from, 0, sameCount)
+                        this.copyTo(this, from + sameCount, from, runSize)
+                        tmpArray.copyTo(this, 0, from + runSize, sameCount)
                     }
                 }
             }
-            return equalNum + n
+            return sameCount + runSize
         }
     }
 
     // the original relative positions of equal elements are not guaranteed.
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the element range of the parameter: 0 <= from < to <= array.size - 1
     @OverflowWrapping
-    func binaryInsertionSort(begin: Int64, end: Int64, comparator: (T, T) -> Ordering, n: Int64) {
-        var i = begin + n
-        while (i <= end) {
-            let point = this[i]
-            let l = this.binaryQueryGT(point, begin, i - begin, comparator)
-            let moveN = i - l
-            if (moveN == 0) {
-                i++
+    func binaryInsertionSort(from: Int64, to: Int64, order: (T, T) -> Ordering, runSize: Int64) {
+        var pos = from + runSize
+        while (pos <= to) {
+            let insertValue = this[pos]
+            let lowerBound = this.binaryQueryGT(insertValue, from, pos - from, order)
+            let shiftCount = pos - lowerBound
+            if (shiftCount == 0) {
+                pos++
                 continue
             }
-            match (moveN) {
-                case 1 => this[i] = this[i - 1]
+            match (shiftCount) {
+                case 1 => this[pos] = this[pos - 1]
                 case 2 =>
-                    this[i] = this[i - 1]
-                    this[i - 1] = this[i - 2]
-                case _ => this.copyTo(this, l, l + 1, moveN)
+                    this[pos] = this[pos - 1]
+                    this[pos - 1] = this[pos - 2]
+                case _ => this.copyTo(this, lowerBound, lowerBound + 1, shiftCount)
             }
-            this[l] = point
-            i++
+            this[lowerBound] = insertValue
+            pos++
         }
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the element range of the parameter: 0 <= from < to <= array.size - 1
     @OverflowWrapping
-    func heapify(begin: Int64, end: Int64, root: Int64, comparator: (T, T) -> Ordering): Unit {
-        var fi: Int64 = root
-        var si = (fi << 1) + 1 // fi * 2 + 1
-        while (begin + si <= end) {
-            // si or (si + 1) is taken only once
-            let s = if (begin + si + 1 <= end) {
-                let s1 = this[begin + si]
-                let s2 = this[begin + si + 1]
-                match (comparator(s1, s2)) {
+    func heapify(from: Int64, to: Int64, root: Int64, order: (T, T) -> Ordering): Unit {
+        var rootIndex: Int64 = root
+        var leafIndex = (rootIndex << 1) + 1 // rootIndex * 2 + 1
+        while (from + leafIndex <= to) {
+            // leafIndex or (leafIndex + 1) is taken only once
+            let chosen = if (from + leafIndex + 1 <= to) {
+                let s1 = this[from + leafIndex]
+                let s2 = this[from + leafIndex + 1]
+                match (order(s1, s2)) {
                     case LT =>
-                        si++
+                        leafIndex++
                         s2
                     case _ => s1
                 }
             } else {
-                this[begin + si]
+                this[from + leafIndex]
             }
-            let f = this[begin + fi]
-            match (comparator(f, s)) {
+            let rootValue = this[from + rootIndex]
+            match (order(rootValue, chosen)) {
                 case LT =>
-                    this[begin + fi] = s
-                    this[begin + si] = f
+                    this[from + rootIndex] = chosen
+                    this[from + leafIndex] = rootValue
                 case _ => return
             }
-            fi = si
-            si = (fi << 1) + 1
+            rootIndex = leafIndex
+            leafIndex = (rootIndex << 1) + 1
         }
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the element range of the parameter: 0 <= from < to <= array.size - 1
     @OverflowWrapping
-    func heapSort(begin: Int64, end: Int64, comparator: (T, T) -> Ordering): Unit {
-        let len = end - begin + 1
-        var i = (len >> 1) - 1
+    func heapSort(from: Int64, to: Int64, order: (T, T) -> Ordering): Unit {
+        let width = to - from + 1
+        var pos = (width >> 1) - 1
 
-        // build max or min heap
-        while (i >= 0) {
-            this.heapify(begin, end, i, comparator)
-            i--
+        // build maxSize or min heap
+        while (pos >= 0) {
+            this.heapify(from, to, pos, order)
+            pos--
         }
-        i = end
-        while (i > begin) {
-            // swap top and bottom data
-            this.swap(begin, i)
+        pos = to
+        while (pos > from) {
+            // swap top and bottom items
+            this.swap(from, pos)
 
-            // reset max or min heap
-            this.heapify(begin, i - 1, 0, comparator)
-            i--
+            // reset maxSize or min heap
+            this.heapify(from, pos - 1, 0, order)
+            pos--
         }
     }
 
-    // The queried position is just greater than and equal the previous value.
+    // The queried position is just greater than and equal the previous element.
     @OverflowWrapping
-    func binaryQueryGT(point: T, start: Int64, len: Int64, comparator: (T, T) -> Ordering): Int64 {
-        var l = start
-        var r = start + len
-        while (l < r) {
-            let m = l + ((r - l) >> 1)
-            match (comparator(point, this[m])) {
-                case LT => r = m
-                case _ => l = m + 1
+    func binaryQueryGT(insertValue: T, from: Int64, width: Int64, order: (T, T) -> Ordering): Int64 {
+        var lowerBound = from
+        var upperBound = from + width
+        while (lowerBound < upperBound) {
+            let midIndex = lowerBound + ((upperBound - lowerBound) >> 1)
+            match (order(insertValue, this[midIndex])) {
+                case LT => upperBound = midIndex
+                case _ => lowerBound = midIndex + 1
             }
         }
-        return l
+        return lowerBound
     }
 
-    // The queried position is just less than and equal the next value.
+    // The queried position is just less than and equal the next element.
     @OverflowWrapping
-    func binaryQueryLT(point: T, start: Int64, len: Int64, comparator: (T, T) -> Ordering): Int64 {
-        var l = start
-        var r = start + len
-        while (l < r) {
-            let m = l + ((r - l) >> 1)
-            match (comparator(point, this[m])) {
-                case GT => l = m + 1
-                case _ => r = m
+    func binaryQueryLT(insertValue: T, from: Int64, width: Int64, order: (T, T) -> Ordering): Int64 {
+        var lowerBound = from
+        var upperBound = from + width
+        while (lowerBound < upperBound) {
+            let midIndex = lowerBound + ((upperBound - lowerBound) >> 1)
+            match (order(insertValue, this[midIndex])) {
+                case GT => lowerBound = midIndex + 1
+                case _ => upperBound = midIndex
             }
         }
-        return l
+        return lowerBound
     }
 
-    // The queried position is just greater than and equal the previous value.
+    // The queried position is just greater than and equal the previous element.
     @OverflowWrapping
-    func queryGT(point: T, start: Int64, len: Int64, comparator: (T, T) -> Ordering, r: Bool) {
-        var gallopMax = len
-        if (r) {
-            let end = start + len - 1
-            if (len > 64) {
-                let gallopMid = Int64(sqrt(Float64(len)))
-                match (comparator(point, this[end - gallopMid])) {
-                    case LT => return this.binaryQueryGT(point, start, len - gallopMid, comparator)
-                    case _ => gallopMax = gallopMid
+    func queryGT(insertValue: T, from: Int64, width: Int64, order: (T, T) -> Ordering, upperBound: Bool) {
+        var searchLimit = width
+        if (upperBound) {
+            let to = from + width - 1
+            if (width > 64) {
+                let searchProbe = Int64(sqrt(Float64(width)))
+                match (order(insertValue, this[to - searchProbe])) {
+                    case LT => return this.binaryQueryGT(insertValue, from, width - searchProbe, order)
+                    case _ => searchLimit = searchProbe
                 }
             }
-            var ofs = 1
-            var lastOfs = 0
-            while (ofs < gallopMax) {
-                let t = this[end - ofs]
-                match (comparator(point, t)) {
+            var step = 1
+            var prevOffset = 0
+            while (step < searchLimit) {
+                let t = this[to - step]
+                match (order(insertValue, t)) {
                     case LT =>
-                        lastOfs = ofs
-                        ofs = (ofs << 1) + 1
+                        prevOffset = step
+                        step = (step << 1) + 1
                     case _ => break
                 }
             }
-            if (ofs > gallopMax) {
-                ofs = gallopMax
+            if (step > searchLimit) {
+                step = searchLimit
             }
-            return this.binaryQueryGT(point, start + len - ofs, ofs - lastOfs, comparator)
+            return this.binaryQueryGT(insertValue, from + width - step, step - prevOffset, order)
         } else {
-            if (len > 64) {
-                let gallopMid = Int64(sqrt(Float64(len)))
-                match (comparator(point, this[start + gallopMid])) {
-                    case LT => gallopMax = gallopMid
-                    case _ => return this.binaryQueryGT(point, start + gallopMid, len - gallopMid, comparator)
+            if (width > 64) {
+                let searchProbe = Int64(sqrt(Float64(width)))
+                match (order(insertValue, this[from + searchProbe])) {
+                    case LT => searchLimit = searchProbe
+                    case _ => return this.binaryQueryGT(insertValue, from + searchProbe, width - searchProbe, order)
                 }
             }
-            var ofs = 1
-            var lastOfs = 0
-            while (ofs < gallopMax) {
-                let t = this[start + ofs]
-                match (comparator(point, t)) {
+            var step = 1
+            var prevOffset = 0
+            while (step < searchLimit) {
+                let t = this[from + step]
+                match (order(insertValue, t)) {
                     case LT => break
                     case _ =>
-                        lastOfs = ofs
-                        ofs = (ofs << 1) + 1
+                        prevOffset = step
+                        step = (step << 1) + 1
                 }
             }
-            if (ofs > gallopMax) {
-                ofs = gallopMax
+            if (step > searchLimit) {
+                step = searchLimit
             }
-            return this.binaryQueryGT(point, start + lastOfs, ofs - lastOfs, comparator)
+            return this.binaryQueryGT(insertValue, from + prevOffset, step - prevOffset, order)
         }
     }
 
-    // The queried position is just less than and equal the next value.
+    // The queried position is just less than and equal the next element.
     @OverflowWrapping
-    func queryLT(point: T, start: Int64, len: Int64, comparator: (T, T) -> Ordering, r: Bool) {
-        var gallopMax = len
-        if (r) {
-            let end = start + len - 1
-            if (len > 64) {
-                let gallopMid = Int64(sqrt(Float64(len)))
-                match (comparator(point, this[end - gallopMid])) {
-                    case GT => gallopMax = gallopMid
-                    case _ => return this.binaryQueryLT(point, start, len - gallopMid, comparator)
+    func queryLT(insertValue: T, from: Int64, width: Int64, order: (T, T) -> Ordering, upperBound: Bool) {
+        var searchLimit = width
+        if (upperBound) {
+            let to = from + width - 1
+            if (width > 64) {
+                let searchProbe = Int64(sqrt(Float64(width)))
+                match (order(insertValue, this[to - searchProbe])) {
+                    case GT => searchLimit = searchProbe
+                    case _ => return this.binaryQueryLT(insertValue, from, width - searchProbe, order)
                 }
             }
-            var ofs = 1
-            var lastOfs = 0
-            while (ofs < gallopMax) {
-                let t = this[end - ofs]
-                match (comparator(point, t)) {
+            var step = 1
+            var prevOffset = 0
+            while (step < searchLimit) {
+                let t = this[to - step]
+                match (order(insertValue, t)) {
                     case GT => break
                     case _ =>
-                        lastOfs = ofs
-                        ofs = (ofs << 1) + 1
+                        prevOffset = step
+                        step = (step << 1) + 1
                 }
             }
-            if (ofs > gallopMax) {
-                ofs = gallopMax
+            if (step > searchLimit) {
+                step = searchLimit
             }
-            return this.binaryQueryLT(point, start + len - ofs, ofs - lastOfs, comparator)
+            return this.binaryQueryLT(insertValue, from + width - step, step - prevOffset, order)
         } else {
-            if (len > 64) {
-                let gallopMid = Int64(sqrt(Float64(len)))
-                match (comparator(point, this[start + gallopMid])) {
-                    case GT => return this.binaryQueryLT(point, start + gallopMid, len - gallopMid, comparator)
-                    case _ => gallopMax = gallopMid
+            if (width > 64) {
+                let searchProbe = Int64(sqrt(Float64(width)))
+                match (order(insertValue, this[from + searchProbe])) {
+                    case GT => return this.binaryQueryLT(insertValue, from + searchProbe, width - searchProbe, order)
+                    case _ => searchLimit = searchProbe
                 }
             }
-            var ofs = 1
-            var lastOfs = 0
-            while (ofs < gallopMax) {
-                let t = this[start + ofs]
-                match (comparator(point, t)) {
+            var step = 1
+            var prevOffset = 0
+            while (step < searchLimit) {
+                let t = this[from + step]
+                match (order(insertValue, t)) {
                     case GT =>
-                        lastOfs = ofs
-                        ofs = (ofs << 1) + 1
+                        prevOffset = step
+                        step = (step << 1) + 1
                     case _ => break
                 }
             }
-            if (ofs > gallopMax) {
-                ofs = gallopMax
+            if (step > searchLimit) {
+                step = searchLimit
             }
-            return this.binaryQueryLT(point, start + lastOfs, ofs - lastOfs, comparator)
+            return this.binaryQueryLT(insertValue, from + prevOffset, step - prevOffset, order)
         }
     }
 }
