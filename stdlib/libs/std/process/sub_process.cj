@@ -45,7 +45,9 @@ public class SubProcess <: Process {
 
     @When[os == "Windows"]
     ~init() {
-        closeSubProcessHandle(this)
+        if (this._handle != INVALID_HANDLE) {
+            unsafe { CJ_OS_CloseProcessHandle(this._handle) }
+        }
     }
 
     public prop stdInPipe: OutputStream {
