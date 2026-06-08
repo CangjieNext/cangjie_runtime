@@ -496,12 +496,14 @@ extend UIntNative <: WrappingOp<UIntNative> {
     @Frozen
     public func wrappingShl(y: UInt64): UIntNative {
         if (isNative64) {
+            // On 64-bit native integers, the low six bits determine the wrapped shift.
             if (y >= 64) {
                 return this << (y & 0b111111)
             } else {
                 return this << y
             }
         } else {
+            // On 32-bit native integers, the low five bits determine the wrapped shift.
             if (y >= 32) {
                 return this << (y & 0b11111)
             } else {
