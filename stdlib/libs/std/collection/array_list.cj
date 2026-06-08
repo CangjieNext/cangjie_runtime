@@ -464,7 +464,7 @@ public class ArrayList<T> <: List<T> {
 
     /**
      * @description Extracts elements from the ArrayList at the specified interval and returns a new ArrayList.
-     * 
+     *
      * @param count the selected interval.
      * @returns a new ArrayList containing all elements extracted from the source ArrayList at intervals.
      * @throws IllegalArgumentException, if count < 0.
@@ -492,7 +492,7 @@ public class ArrayList<T> <: List<T> {
 
     /**
      * @description Extracts a specific number of elements from the array and returns a new array.
-     * 
+     *
      * @param the number of elements to take.
      * @returns a new ArrayList with the specified number of elements taken.
      * @throws IllegalArgumentException, if count < 0.
@@ -515,7 +515,7 @@ public class ArrayList<T> <: List<T> {
 
     /**
      * @description Skips a specific number of elements and returns a new ArrayList.
-     * 
+     *
      * @param count the number of elements to skip.
      * @returns a new ArrayList with the specified number of elements skipped.
      * @throws IllegalArgumentException, if count < 0.
@@ -540,7 +540,7 @@ public class ArrayList<T> <: List<T> {
 
     /**
      * @description Returns a new ArrayList<T> containing elements that satisfy the filtering condition.
-     * 
+     *
      * @param predicate the given condition.
      * @returns a new collection containing elements that satisfy the filtering condition.
      */
@@ -562,7 +562,7 @@ public class ArrayList<T> <: List<T> {
 
     /**
      * @description Performs mapping on this ArrayList and returns a new ArrayList.
-     * 
+     *
      * @param transform the given mapping function.
      * @returns a new ArrayList.
      */
@@ -580,7 +580,7 @@ public class ArrayList<T> <: List<T> {
 
     /**
      * @description Performs filtering and mapping operations simultaneously, returning a new ArrayList.
-     * 
+     *
      * @param transform the given mapping function.
      * @returns a new ArrayList after filtering and mapping.
      */
@@ -597,7 +597,7 @@ public class ArrayList<T> <: List<T> {
     /**
      * @description Applies a transformation closure (transform) to each element in the ArrayList, where the closure returns a new ArrayList
                     then "flattens" and concatenates all returned ArrayList into a single result ArrayList.
-     * 
+     *
      * @param transform the given mapping function.
      * @returns the new ArrayList after being "mapped" and "flattened".
      */
@@ -621,7 +621,7 @@ public class ArrayList<T> <: List<T> {
 
     /**
      * @description Returns a new ArrayList with the given new element inserted between every two elements.
-     * 
+     *
      * @param separator the given element.
      * @returns a new ArrayList.
      */
@@ -643,7 +643,7 @@ public class ArrayList<T> <: List<T> {
 
     /**
      * @description Iterates over all elements and performs the given operation.
-     * 
+     *
      * @param action the given operation function.
      */
     @When[env != "ohos"]
@@ -655,7 +655,7 @@ public class ArrayList<T> <: List<T> {
 
     /**
      * @description Determine whether all elements in the ArrayList satisfy the condition.
-     * 
+     *
      * @param predicate the given condition.
      * @returns true if all elements in the ArrayList satisfy the condition, otherwise returns false.
      */
@@ -671,7 +671,7 @@ public class ArrayList<T> <: List<T> {
 
     /**
      * @description Determine whether there is any element in the ArrayList that satisfies the condition.
-     * 
+     *
      * @param predicate the given condition.
      * @returns Whether there is any element that satisfies the condition.
      */
@@ -686,10 +686,10 @@ public class ArrayList<T> <: List<T> {
     }
 
     /**
-     * @description Determine whether all elements in the ArrayList do not satisfy the condition.
-     * 
-     * @param predicate the given condition.
-     * @returns Whether all elements in the current ArrayList do not satisfy the condition.
+     * @description Checks that the predicate rejects every occupied slot in this ArrayList.
+     *
+     * @param predicate condition evaluated against each stored element.
+     * @returns true when no element matches the predicate.
      */
     @When[env != "ohos"]
     public func none(predicate: (T) -> Bool): Bool {
@@ -702,11 +702,11 @@ public class ArrayList<T> <: List<T> {
     }
 
     /**
-     * @description Computes from left to right using the specified initial value.
-     * 
-     * @param initial the given initial value of type R.
-     * @param operation the given computation function.
-     * @returns the final computed value.
+     * @description Walks the ArrayList in index order and updates an accumulator for each element.
+     *
+     * @param initial accumulator value used before the first element is visited.
+     * @param operation function that combines the accumulator with the current element.
+     * @returns accumulator value after all elements have been processed.
      */
     @When[env != "ohos"]
     public func fold<R>(initial: R, operation: (R, T) -> R): R {
@@ -718,10 +718,10 @@ public class ArrayList<T> <: List<T> {
     }
 
     /**
-     * @description Compute from left to right using the first element as the initial value.
-     * 
-     * @param operation the given computation function.
-     * @returns the final computed value.
+     * @description Reduces this ArrayList from the first element to the last element.
+     *
+     * @param operation function used to combine two accumulated elements.
+     * @returns None for an empty list; otherwise, the reduced value.
      */
     @When[env != "ohos"]
     public func reduce(operation: (T, T) -> T): Option<T> {
@@ -1115,7 +1115,7 @@ extend<T> ArrayList<T> <: ToString where T <: ToString {
 extend<T> ArrayList<T> {
     /**
      * @description Merges two ArrayList into a new ArrayList (the length depends on the shorter ArrayList).
-     * 
+     *
      * @param other one of the ArrayList to be merged.
      * @returns a new ArrayList.
      */
@@ -1134,7 +1134,7 @@ extend<T> ArrayList<T> {
 
     /**
      * @description Used to obtain an ArrayList with indices.
-     * 
+     *
      * @returns a new ArrayList with indices.
      */
     @When[env != "ohos"]
@@ -1178,6 +1178,7 @@ func max(a: Int64, b: Int64): Int64 {
     }
 }
 
+// Temporary code, deleted when @Deprecated ends
 func stableSort<T>(data: Array<T>, compare: (T, T) -> Ordering): Unit {
     if (data.size < 2) {
         return
@@ -1186,7 +1187,7 @@ func stableSort<T>(data: Array<T>, compare: (T, T) -> Ordering): Unit {
 }
 // Temporary code, deleted when @Deprecated ends
 extend<T> Array<T> {
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the value range of the parameter: 0 <= start < finish <= array.size - 1
     @OverflowWrapping
     private func shortSort(start: Int64, finish: Int64, compare: (T, T) -> Ordering): Unit {
         let span = this.size
@@ -1614,7 +1615,7 @@ extend<T> Array<T> {
             return
         }
 
-        // init temp data
+        // init scratch data
         let mrl = this.getMinRunLength()
         var scratch = TempArray(this.size, this[0])
         let stackLen = Int64(log2(Float64(this.size) / Float64(mrl) + 2.0)) + 1
@@ -1676,6 +1677,7 @@ class TempArray<T> {
     }
 }
 
+// Temporary code, deleted when @Deprecated ends
 func unstableSort<T>(data: Array<T>, compare: (T, T) -> Ordering): Unit {
     if (data.size < 2) {
         return
@@ -1685,8 +1687,8 @@ func unstableSort<T>(data: Array<T>, compare: (T, T) -> Ordering): Unit {
 
 // Temporary code, deleted when @Deprecated ends
 extend<T> Array<T> {
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
-    // end - begin >= 1
+    // the value range of the parameter: 0 <= start < finish <= array.size - 1
+    // finish - start >= 1
     @OverflowWrapping
     private func getPartition(start: Int64, finish: Int64, compare: (T, T) -> Ordering): (Int64, Int64) {
         let span: Int64 = finish - start + 1
@@ -1699,6 +1701,7 @@ extend<T> Array<T> {
         this.compareSwap3(start, middle, finish, compare)
         let pivotValue: T = this[middle]
 
+        // swap middle and finish
         let scratch = this[finish]
         this[finish] = pivotValue
         this[middle] = scratch
@@ -1706,6 +1709,7 @@ extend<T> Array<T> {
         var left = start
         var right = finish - 1
 
+        // query the firstEqual value equal to pivotValue
         var firstEqual: Int64 = left
         while (left < right) {
             let leftValue = this[left]
@@ -1745,6 +1749,7 @@ extend<T> Array<T> {
             }
         }
 
+        // find partition pivotValue
         while (left < right) {
             var leftValue: T = pivotValue
             while (left < right) {
@@ -1785,6 +1790,8 @@ extend<T> Array<T> {
         if (left - firstEqual >= pivotEqualCount * pivotEqualCount) {
             return (left - 1, left + 1)
         } else {
+            // When the number of traversal times is less than the square of the number of pivotValue
+            // merge leftItem large number of values that are the same as pivotValue
             let upper = left
             left = firstEqual
             right = upper - 1
@@ -1821,7 +1828,7 @@ extend<T> Array<T> {
         }
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the value range of the parameter: 0 <= start < finish <= array.size - 1
     @OverflowWrapping
     func introSort(start: Int64, finish: Int64, depth: Int64, compare: (T, T) -> Ordering): Unit {
         var left: Int64 = start
@@ -1848,6 +1855,8 @@ extend<T> Array<T> {
             remainingDepth--
             let (lower, upper) = this.getPartition(left, right, compare)
 
+            // Let the smaller side do recursion
+            // Let the bigger side do loop
             if (lower - left < right - upper) {
                 this.introSort(left, lower, remainingDepth, compare)
                 left = upper
@@ -1861,6 +1870,7 @@ extend<T> Array<T> {
 
 // Temporary code, deleted when @Deprecated ends
 extend<T> Array<T> {
+    // the value range of the parameter: 0 <= i1 < i2 <= array.size - 1
     func compareSwap2(i1: Int64, i2: Int64, compare: (T, T) -> Ordering) {
         let leftItem: T = this[i1]
         let left: T = this[i2]
@@ -1872,6 +1882,9 @@ extend<T> Array<T> {
         }
     }
 
+    // the value range of the parameter: 0 <= i1 < i2 < i3 <= array.size - 1
+    // Ordering.LT/EQ: leftItem <= left <= rightItem
+    // Ordering.GT   : leftItem >= left >= rightItem
     func compareSwap3(i1: Int64, i2: Int64, i3: Int64, compare: (T, T) -> Ordering) {
         var leftItem: T = this[i1]
         var left: T = this[i2]
@@ -1919,7 +1932,7 @@ extend<T> Array<T> {
         return res * 2
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the value range of the parameter: 0 <= start < finish <= array.size - 1
     @OverflowWrapping
     func insertionSort(start: Int64, finish: Int64, compare: (T, T) -> Ordering): Unit {
         var idx: Int64 = start + 1
@@ -1939,14 +1952,15 @@ extend<T> Array<T> {
         }
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
-    // end - begin >= 1
+    // the value range of the parameter: 0 <= start < finish <= array.size - 1
+    // finish - start >= 1
     @OverflowWrapping
     func getSequenceLength(start: Int64, finish: Int64, scratch: TempArray<T>, compare: (T, T) -> Ordering): Int64 {
         var left: Int64 = start
         var equalCount: Int64 = 1
         var ascending: Bool = true
 
+        // Obtains the length of leftItem sequence with the same value.
         match (compare(this[left], this[left + 1])) {
             case LT => ascending = true
             case GT => ascending = false
@@ -2001,6 +2015,7 @@ extend<T> Array<T> {
                 }
             }
 
+            // reverse sequence
             if (equalCount == 1) {
                 var idx = start
                 var scan = start + runLength // start + equalCount + runLength - 1
@@ -2067,7 +2082,7 @@ extend<T> Array<T> {
     }
 
     // the original relative positions of equal elements are not guaranteed.
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the value range of the parameter: 0 <= start < finish <= array.size - 1
     @OverflowWrapping
     func binaryInsertionSort(start: Int64, finish: Int64, compare: (T, T) -> Ordering, runLength: Int64) {
         var idx = start + runLength
@@ -2091,12 +2106,13 @@ extend<T> Array<T> {
         }
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the value range of the parameter: 0 <= start < finish <= array.size - 1
     @OverflowWrapping
     func heapify(start: Int64, finish: Int64, root: Int64, compare: (T, T) -> Ordering): Unit {
         var parentIndex: Int64 = root
         var childIndex = (parentIndex << 1) + 1 // parentIndex * 2 + 1
         while (start + childIndex <= finish) {
+            // childIndex or (childIndex + 1) is taken only once
             let selected = if (start + childIndex + 1 <= finish) {
                 let s1 = this[start + childIndex]
                 let s2 = this[start + childIndex + 1]
@@ -2121,20 +2137,23 @@ extend<T> Array<T> {
         }
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the value range of the parameter: 0 <= start < finish <= array.size - 1
     @OverflowWrapping
     func heapSort(start: Int64, finish: Int64, compare: (T, T) -> Ordering): Unit {
         let span = finish - start + 1
         var idx = (span >> 1) - 1
 
+        // build max or min heap
         while (idx >= 0) {
             this.heapify(start, finish, idx, compare)
             idx--
         }
         idx = finish
         while (idx > start) {
+            // swap top and bottom data
             this.swap(start, idx)
 
+            // reset max or min heap
             this.heapify(start, idx - 1, 0, compare)
             idx--
         }
