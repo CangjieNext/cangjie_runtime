@@ -35,10 +35,6 @@ public struct SocketDomain <: Equatable<SocketDomain> & ToString & Hashable {
         return this.val == r.val
     }
 
-    public operator func !=(r: SocketDomain): Bool {
-        return !(this == r)
-    }
-
     public func toString(): String {
         return match {
             case val == Int32(AF_INET) => "IPv4"
@@ -48,6 +44,10 @@ public struct SocketDomain <: Equatable<SocketDomain> & ToString & Hashable {
             case val == Int32(AF_PACKET) => "packet"
             case _ => "Domain(${val})"
         }
+    }
+
+    public operator func !=(r: SocketDomain): Bool {
+        return !(this == r)
     }
 
     public func hashCode(): Int64 {
