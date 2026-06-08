@@ -271,18 +271,18 @@ func burstStyleTick(delay: Duration, interval: Duration): () -> ?Duration {
         =>
             let now = MonoTime.now()
 
-        // calculate the next tick time
+            // calculate the next tick time
             let nextTime = lastTime.value + interval
 
-        // `nextTime - now` is the next interval
+            // `nextTime - now` is the next interval
             if (nextTime >= now) {
                 lastTime.value = nextTime
                 return nextTime - now
             }
 
-        // catchup step by step
+            // catchup step by step
             lastTime.value = nextTime
-        // tick immediately
+            // tick immediately
             return Duration.Zero
     }
 }
@@ -295,11 +295,12 @@ func burstStyleTick(delay: Duration, interval: Duration): () -> ?Duration {
  * Tick Time: |  delay  | task ---| very very long task | task -| task ---| task ---| task ---|
  */
 func skipStyleTick(delay: Duration, interval: Duration): () -> ?Duration {
+    // the previous tick anchor should be at `delay`
     let previousTick: Box<MonoTime>
     try {
         previousTick = Box<MonoTime>(MonoTime.now() + delay)
     } catch (e: ArithmeticException) {
-        // delay is too large, timer will never tick
+        // an overflowing delay means this timer cannot produce a tick
         return {=> None}
     }
 
@@ -307,19 +308,22 @@ func skipStyleTick(delay: Duration, interval: Duration): () -> ?Duration {
         =>
             let currentTime = MonoTime.now()
 
+            // calculate the next tick time
             var scheduledTick = previousTick.value + interval
 
+            // `scheduledTick - currentTime` is the next interval
             if (scheduledTick >= currentTime) {
                 previousTick.value = scheduledTick
                 return scheduledTick - currentTime
             }
 
+            // skip missed ticks
             while (scheduledTick < currentTime) {
                 scheduledTick += interval
             }
             previousTick.value = scheduledTick - interval
 
-        // tick immediately
+            // tick immediately
             return Duration.Zero
     }
 }
@@ -343,7 +347,7 @@ func tickDuring(delay: Duration, period: Duration, nextTick: () -> ?Duration): (
     return {
         =>
             let now = MonoTime.now()
-        // last tick time <= finalTime
+            // last tick time <= finalTime
             if (now > finalTime) {
                 return None
             }
