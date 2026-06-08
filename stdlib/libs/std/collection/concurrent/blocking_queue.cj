@@ -20,10 +20,10 @@ public type BlockingQueue<E> = LinkedBlockingQueue<E>
 public class LinkedBlockingQueue<E> {
     public let capacity: Int64 // the capacity of the queue	 
     private let takeMonitor = Monitor() // Monitor for blocking consumers when the queue is empty
-    private let putMonitor = Monitor() // Monitor for blocking producers when the queue is full
-    private let putQsize = AtomicInt64(0) // Number of elements that are enqueuing.
+    private let putMonitor = Monitor() // Monitor for blocking producers when the queue is full	 
+    private let putQsize = AtomicInt64(0) // Number of elements that are enqueuing.	 
     private let takeQsize = AtomicInt64(0) // Number of elements that are being dequeued.
-    private let front: AtomicReference<Block<E>> // head of BlockingQueue.
+    private let front: AtomicReference<Block<E>> // head of BlockingQueue.	 
     private let rear: AtomicReference<Block<E>> // tail of BlockingQueue.
     private let count = AtomicInt64(0)
 
@@ -58,7 +58,7 @@ public class LinkedBlockingQueue<E> {
         rear = AtomicReference<Block<E>>(block)
 
         for (e in elements) {
-            let _ = tryEnqueue(e)
+            tryEnqueue(e)
         }
     }
 
@@ -78,7 +78,7 @@ public class LinkedBlockingQueue<E> {
         rear = AtomicReference<Block<E>>(block)
 
         for (e in elements) {
-            let _ = tryEnqueue(e)
+            tryEnqueue(e)
         }
     }
 
@@ -129,13 +129,13 @@ public class LinkedBlockingQueue<E> {
             }
             enqueueUnsafe(element)
             prevCount = count.fetchAdd(1)
-            if (prevCount + 1 < capacity && putQsize.load() > 0) {
+            if (prevCount + 1 < capacity) {
                 putMonitor.notify()
             }
         } finally {
             putMonitor.unlock()
         }
-        if (prevCount == 0 && takeQsize.load() > 0) {
+        if (prevCount == 0) {
             signalNotEmpty()
         }
     }
@@ -182,13 +182,13 @@ public class LinkedBlockingQueue<E> {
             }
             enqueueUnsafe(element)
             prevCount = count.fetchAdd(1)
-            if (prevCount + 1 < capacity && putQsize.load() > 0) {
+            if (prevCount + 1 < capacity) {
                 putMonitor.notify()
             }
         } finally {
             putMonitor.unlock()
         }
-        if (prevCount == 0 && takeQsize.load() > 0) {
+        if (prevCount == 0) {
             signalNotEmpty()
         }
         return true
@@ -229,13 +229,13 @@ public class LinkedBlockingQueue<E> {
             }
             value = dequeueUnsafe()
             prevCount = count.fetchSub(1)
-            if (prevCount > 1 && takeQsize.load() > 0) {
+            if (prevCount > 1) {
                 takeMonitor.notify()
             }
         } finally {
             takeMonitor.unlock()
         }
-        if (prevCount == capacity && putQsize.load() > 0) {
+        if (prevCount == capacity) {
             signalNotFull()
         }
         return value
@@ -283,13 +283,13 @@ public class LinkedBlockingQueue<E> {
             }
             value = Some(dequeueUnsafe())
             prevCount = count.fetchSub(1)
-            if (prevCount > 1 && takeQsize.load() > 0) {
+            if (prevCount > 1) {
                 takeMonitor.notify()
             }
         } finally {
             takeMonitor.unlock()
         }
-        if (prevCount == capacity && putQsize.load() > 0) {
+        if (prevCount == capacity) {
             signalNotFull()
         }
         return value
@@ -350,13 +350,13 @@ public class LinkedBlockingQueue<E> {
             }
             enqueueUnsafe(element)
             prevCount = count.fetchAdd(1)
-            if (prevCount + 1 < capacity && putQsize.load() > 0) {
+            if (prevCount + 1 < capacity) {
                 putMonitor.notify()
             }
         } finally {
             putMonitor.unlock()
         }
-        if (prevCount == 0 && takeQsize.load() > 0) {
+        if (prevCount == 0) {
             signalNotEmpty()
         }
         return true
@@ -388,13 +388,13 @@ public class LinkedBlockingQueue<E> {
             }
             value = Some(dequeueUnsafe())
             prevCount = count.fetchSub(1)
-            if (prevCount > 1 && takeQsize.load() > 0) {
+            if (prevCount > 1) {
                 takeMonitor.notify()
             }
         } finally {
             takeMonitor.unlock()
         }
-        if (prevCount == capacity && putQsize.load() > 0) {
+        if (prevCount == capacity) {
             signalNotFull()
         }
         return value
