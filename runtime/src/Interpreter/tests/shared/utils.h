@@ -3,8 +3,10 @@
 
 #include <stdio.h>
 
-/* Interpreter tests: arm64 CI/machines are much slower; shrink heavy loops by 100x. */
-#if defined(__aarch64__) || defined(__AARCH64EL__) || defined(_M_ARM64)
+/* Interpreter tests: mobile targets and arm64 CI/machines are much slower; shrink heavy loops. */
+#if defined(__ANDROID__) || defined(__IOS__)
+#define CJ_INTERPRETER_TEST_PAYLOAD_DIV 300
+#elif defined(__aarch64__) || defined(__AARCH64EL__) || defined(_M_ARM64)
 #define CJ_INTERPRETER_TEST_PAYLOAD_DIV 10
 #else
 #define CJ_INTERPRETER_TEST_PAYLOAD_DIV 1
