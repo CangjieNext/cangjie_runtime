@@ -45,6 +45,8 @@ CleanThreadLocalData::CleanThreadLocalData()
     }
 }
 
+extern "C" int8_t MRT_StopSubScheduler(void* schedule);
+
 CleanThreadLocalData::~CleanThreadLocalData()
 {
     if (!ThreadLocal::TryGetRdLock()) {
@@ -58,6 +60,7 @@ CleanThreadLocalData::~CleanThreadLocalData()
         return;
     }
 
+    MRT_StopSubScheduler(local->schedule);
     CJForeignThreadExit(reinterpret_cast<CJThreadHandle>(local->foreignCJThread));
     ThreadLocal::UnlockRdLock();
 }
