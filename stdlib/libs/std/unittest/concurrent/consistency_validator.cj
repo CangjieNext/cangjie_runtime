@@ -9,7 +9,6 @@
 package std.unittest.concurrent
 
 import std.collection.ArrayList
-import std.collection.HashMap
 import std.collection.HashSet
 import std.time.DateTime
 
@@ -19,35 +18,31 @@ public class ConsistencyValidator {
         private let createFreshInstance!: () -> Any,
         private let reExecuteOperation!: (Any, OperationInvocation) -> EquatableObj
     ) {}
-    
+
     private var operationChecks: Int64 = 0
+    private var cacheChecks: Int64 = 0
     private var prunedBranches: Int64 = 0
-    private var cachedCount: Int64 = 0
     private var foundPermutation: ?ArrayList<Int64> = None
-    private var history: ?ConcurrentHistory = None
-    private var partialOrder: ?PartialOrder = None
-    private var permutationResultCache: HashMap<String, ArrayList<EquatableObj>> = HashMap<String, ArrayList<EquatableObj>>()
-    private var cachedPermutationList: ArrayList<ArrayList<Int64>> = ArrayList<ArrayList<Int64>>()
-    private var cachedCommonPrefixLengths: ArrayList<Int64> = ArrayList<Int64>()
-    private var cachedPartialOrder: ?PartialOrder = None
-    
+    private var cachedTreeRoot: ?PermutationNode = None
+    private var cachedTreeSize: Int64 = -1
+    private var currentRunId: Int64 = 0
+
     public func validate(history: ConcurrentHistory): ConsistencyValidationResult {
-        this.history = history
         operationChecks = 0
+        cacheChecks = 0
         prunedBranches = 0
-        cachedCount = 0
         foundPermutation = None
-        
+        currentRunId += 1
+
         let po = computePartialOrder(history, consistencyModel)
-        this.partialOrder = po
-        
+
         if (let Serializability <- consistencyModel && po.size > 10) {
             return ConsistencyValidationResult(
                 consistencyModel: consistencyModel,
                 matchingPermutation: None,
                 operationChecks: 0,
                 prunedBranches: 0,
-                cachedPermutations: 0,
+                cacheHits: 0,
                 history: history,
                 partialOrder: po,
                 exception: Some(IllegalArgumentException(
@@ -59,176 +54,113 @@ public class ConsistencyValidator {
                 ))
             )
         }
-        
-        let isCacheableModel = match (consistencyModel) {
-            case SequentialConsistency => true
-            case Serializability => true
-            case _ => false
-        }
-        let start = DateTime.now()
-        
-        if (isCacheableModel) {
-            var useCache = false
-            if (cachedPermutationList.size > 0) {
-                match (cachedPartialOrder) {
-                    case Some(cachedPO) =>
-                        if (cachedPO.size == po.size && cachedPO.predecessorPairCount == po.predecessorPairCount) {
-                            useCache = true
-                        }
-                    case None => ()
-                }
-            }
-            
-            if (useCache) {
-                validateWithCachedList(history, po)
-                println("Operation checks: ${operationChecks}, pruned: ${prunedBranches}, cache hits: ${cachedCount} (permutation list cached, ${cachedPermutationList.size} total).")
-            } else {
-                cachedCommonPrefixLengths = ArrayList<Int64>()
-                cachedPermutationList = TopologicalPermutationGenerator.generateAll(po, cachedCommonPrefixLengths)
-                cachedPartialOrder = Some(po)
-                validateWithCachedList(history, po)
-                println("Operation checks: ${operationChecks}, pruned: ${prunedBranches}, cache hits: ${cachedCount} (permutation list fresh, ${cachedPermutationList.size} total).")
-            }
+
+        var treeRoot: PermutationNode
+        if (let Some(root) <- cachedTreeRoot && cachedTreeSize == po.size) {
+            treeRoot = root
         } else {
-            pruningDFSValidate(history, po)
-            println("Operation checks: ${operationChecks}, pruned: ${prunedBranches}, cache hits: ${cachedCount} (pruning DFS for linearizability).")
+            treeRoot = PermutationNode(operation: None, depth: 0)
+            cachedTreeRoot = Some(treeRoot)
+            cachedTreeSize = po.size
         }
-        
-        if (operationChecks > 0) {
-            println("Time per operation check ${(DateTime.now() - start) / operationChecks}.")
+
+        let start = DateTime.now()
+
+        let placed = HashSet<Int64>()
+        let prefixOps = ArrayList<Int64>()
+        pruningTreeDFSRecursive(treeRoot, po, history, placed, prefixOps, None, 0)
+
+        let totalChecks = operationChecks + cacheChecks
+        println("Operation checks: ${operationChecks}, cache hits: ${cacheChecks}, pruned: ${prunedBranches} (pruning DFS on permutation tree).")
+        if (totalChecks > 0) {
+            println("Time per check ${(DateTime.now() - start) / totalChecks}.")
         }
-        
+
         ConsistencyValidationResult(
             consistencyModel: consistencyModel,
             matchingPermutation: foundPermutation,
             operationChecks: operationChecks,
             prunedBranches: prunedBranches,
-            cachedPermutations: cachedCount,
+            cacheHits: cacheChecks,
             history: history,
             partialOrder: po
         )
     }
-    
-    private func pruningDFSValidate(hist: ConcurrentHistory, po: PartialOrder): Unit {
-        let state = createFreshInstance()
-        let placed = HashSet<Int64>()
-        let prefixOps = ArrayList<Int64>()
-        pruningDFSRecursive(po, hist, placed, prefixOps, state, 0)
-    }
-    
-    private func pruningDFSRecursive(
+
+    private func pruningTreeDFSRecursive(
+        node: PermutationNode,
         po: PartialOrder,
         hist: ConcurrentHistory,
         placed: HashSet<Int64>,
         prefixOps: ArrayList<Int64>,
-        state: Any,
+        state: ?Any,
         depth: Int64
     ): Bool {
         let available = po.getAvailableOperations(placed)
-        
+
         if (available.size == 0) {
             if (prefixOps.size > 0) {
                 foundPermutation = copyPermutation(prefixOps)
-                cacheSuccessfulPermutation(prefixOps, hist)
                 return true
             }
             return false
         }
-        
-        var currentState = state
-        for (i in 0..available.size) {
-            let opId = available[i]
-            
-            if (i > 0) {
-                currentState = createFreshInstance()
-                for (j in 0..prefixOps.size) {
-                    let prefixOpId = prefixOps[j]
-                    match (hist.getInvocation(prefixOpId / 1000, prefixOpId % 1000)) {
-                        case Some(inv) => reExecuteOperation(currentState, inv)
-                        case None => return false
-                    }
-                }
+        var currentState: ?Any = state
+        for (opId in available) {
+            let child = node.ensureChild(opId)
+
+            if (child.runId != currentRunId) {
+                child.runId = currentRunId
             }
-            
+
             let actorId = opId / 1000
             let opIndex = opId % 1000
-            match (hist.getInvocation(actorId, opIndex)) {
-                case Some(inv) =>
-                    let actualResult = reExecuteOperation(currentState, inv)
-                    operationChecks += 1
-                    
-                    if (!actualResult.eq(inv.result)) {
-                        prunedBranches += 1
-                        continue
+            let inv = hist.getInvocation(actorId, opIndex) ?? return false
+
+            var recurseState: ?Any = None
+            var isMatch = false
+            var consumedState = false
+
+            if (let Some(cachedRes) <- child.cachedResult) {
+                isMatch = cachedRes.eq(inv.result)
+                cacheChecks += 1
+            } else {
+                let builtState = currentState.getOrDefault {
+                    let s = createFreshInstance()
+                    for (prefixOpId in prefixOps) {
+                        let prefixInv = hist.getInvocation(prefixOpId / 1000, prefixOpId % 1000) ?? return false
+                        reExecuteOperation(s, prefixInv)
                     }
-                case None => return false
+                    s
+                }
+
+                let actualResult = reExecuteOperation(builtState, inv)
+                child.cachedResult = actualResult
+                operationChecks += 1
+                isMatch = actualResult.eq(inv.result)
+                recurseState = Some(builtState)
+                consumedState = true
             }
-            
+
+            if (!isMatch) {
+                prunedBranches += 1
+                if (consumedState) { currentState = None }
+                continue
+            }
+
             placed.add(opId)
             prefixOps.add(opId)
-            
-            if (pruningDFSRecursive(po, hist, placed, prefixOps, currentState, depth + 1)) {
+            if (pruningTreeDFSRecursive(child, po, hist, placed, prefixOps, recurseState, depth + 1)) {
                 return true
             }
-            
+            if (consumedState) { currentState = None }
             placed.remove(opId)
             prefixOps.remove(at: prefixOps.size - 1)
         }
-        
+
         return false
     }
-    
-    private func validateWithCachedList(hist: ConcurrentHistory, po: PartialOrder): Unit {
-        for (i in 0..cachedPermutationList.size) {
-            let perm = cachedPermutationList[i]
-            let commonPrefixLen = cachedCommonPrefixLengths[i]
-            
-            let key = permutationKey(perm)
-            var actualResults: ArrayList<EquatableObj> = ArrayList<EquatableObj>()
-            var fromCache = false
-            
-            match (permutationResultCache.get(key)) {
-                case Some(cached) =>
-                    cachedCount += 1
-                    actualResults = cached
-                    fromCache = true
-                case None => ()
-            }
-            
-            if (!fromCache) {
-                let state = createFreshInstance()
-                for (opId in perm) {
-                    match (hist.getInvocation(opId / 1000, opId % 1000)) {
-                        case Some(inv) =>
-                            let result = reExecuteOperation(state, inv)
-                            actualResults.add(result)
-                        case None => return
-                    }
-                }
-                permutationResultCache[key] = actualResults
-            }
-            
-            var allMatch = true
-            for (j in commonPrefixLen..perm.size) {
-                operationChecks += 1
-                let opId = perm[j]
-                match (hist.getInvocation(opId / 1000, opId % 1000)) {
-                    case Some(inv) =>
-                        if (!actualResults[j].eq(inv.result)) {
-                            allMatch = false
-                            break
-                        }
-                    case None => return
-                }
-            }
-            
-            if (allMatch) {
-                foundPermutation = Some(perm)
-                return
-            }
-        }
-    }
-    
+
     private func copyPermutation(permutation: ArrayList<Int64>): ArrayList<Int64> {
         let copy = ArrayList<Int64>()
         for (opId in permutation) {
@@ -236,36 +168,7 @@ public class ConsistencyValidator {
         }
         copy
     }
-    
-    private func cacheSuccessfulPermutation(permutation: ArrayList<Int64>, hist: ConcurrentHistory): Unit {
-        let key = permutationKey(permutation)
-        if (permutationResultCache.contains(key)) {
-            return
-        }
-        let state = createFreshInstance()
-        let results = ArrayList<EquatableObj>()
-        for (opId in permutation) {
-            match (hist.getInvocation(opId / 1000, opId % 1000)) {
-                case Some(inv) =>
-                    let result = reExecuteOperation(state, inv)
-                    results.add(result)
-                case None => return
-            }
-        }
-        permutationResultCache[key] = results
-    }
-    
-    private func permutationKey(permutation: ArrayList<Int64>): String {
-        let sb = StringBuilder()
-        for (i in 0..permutation.size) {
-            if (i > 0) {
-                sb.append("_")
-            }
-            sb.append("${permutation[i]}")
-        }
-        sb.toString()
-    }
-    
+
     private func factorial(n: Int64): Int64 {
         if (n <= 1) { return 1 }
         var result: Int64 = 1

@@ -15,6 +15,7 @@ set(UNITTEST_CONCURRENT_SRCS
     hbclock.cj
     operation.cj
     partial_order.cj
+    permutation_node.cj
     permutation_generator.cj
     scenario.cj
     scenario_builder.cj
