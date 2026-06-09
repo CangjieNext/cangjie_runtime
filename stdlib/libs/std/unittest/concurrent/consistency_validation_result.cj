@@ -16,7 +16,7 @@ public class ConsistencyValidationResult {
         public let matchingPermutation!: ?ArrayList<Int64>,
         public let operationChecks!: Int64,
         public let prunedBranches!: Int64,
-        public let cachedPermutations!: Int64,
+        public let cacheHits!: Int64,
         public let history!: ConcurrentHistory,
         public let partialOrder!: PartialOrder,
         public let exception!: ?Exception = None
@@ -30,29 +30,27 @@ public class ConsistencyValidationResult {
         if (let Some(e) <- exception) {
             "${modelCapitalizedName(consistencyModel)} validation error: ${e.message}"
         } else if (isConsistent) {
-            "${modelCapitalizedName(consistencyModel)} - found matching ordering after ${operationChecks} operation checks (${prunedBranches} branches pruned, ${cachedPermutations} from cache)"
+            "${modelCapitalizedName(consistencyModel)} - found matching ordering after ${operationChecks} operation checks (${prunedBranches} branches pruned, ${cacheHits} cache hits)"
         } else {
-            "${modelNotName(consistencyModel)} - no valid ordering found after ${operationChecks} operation checks (${prunedBranches} branches pruned, ${cachedPermutations} from cache)"
+            "${modelNotName(consistencyModel)} - no valid ordering found after ${operationChecks} operation checks (${prunedBranches} branches pruned, ${cacheHits} cache hits)"
         }
     }
     
     public func getMatchingSequence(): ?String {
-        if (let Some(permutation) <- matchingPermutation) {
-            let sb = StringBuilder()
-            sb.append("Matching ${modelDisplayName(consistencyModel)} sequence:\n")
-            
-            for (opId in permutation) {
-                let actorId = opId / 1000
-                let opIndex = opId % 1000
-                match (history.getInvocation(actorId, opIndex)) {
-                    case Some(inv) =>
-                        sb.append("  Actor ${inv.actorId} op[${inv.operationIndex}] '${inv.operationName}' -> result\n")
-                    case None => ()
-                }
+        let permutation = matchingPermutation ?? return None
+
+        let sb = StringBuilder()
+        sb.append("Matching ${modelDisplayName(consistencyModel)} sequence:\n")
+        
+        for (opId in permutation) {
+            let actorId = opId / 1000
+            let opIndex = opId % 1000
+            match (history.getInvocation(actorId, opIndex)) {
+                case Some(inv) =>
+                    sb.append("  Actor ${inv.actorId} op[${inv.operationIndex}] '${inv.operationName}' -> result\n")
+                case None => ()
             }
-            sb.toString()
-        } else {
-            None
         }
+        sb.toString()
     }
 }
