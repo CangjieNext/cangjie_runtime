@@ -37,6 +37,7 @@ protected class ScenarioRunner {
             return
         }
         
+        // todo: consider running iterations in parallel for better performance
         for (iter in 1..iterations) {
             let iterResult = runIteration(iter)
             if (!callback(iterResult, iter)) {
@@ -53,19 +54,13 @@ protected class ScenarioRunner {
         let history = ConcurrentHistory()
         let futures = ArrayList<Future<ArrayList<OperationInvocation>>>()
         
-        let needsVC = match (scenario.consistencyModel) {
-            case Linearizability => true
-            case _ => false
-        }
-        
-        let counters: ?Array<Int64> = if (needsVC) {
+        let counters: ?Array<Int64> = if (let Linearizability <- scenario.consistencyModel) {
             Some(Array<Int64>(scenario.threadCount, { _ => 0 }))
         } else {
             None
         }
         
-        for (i in 0..scenario.threadCount) {
-            let actor = scenario.actors[i]
+        for (actor in scenario.actors) {
             let backoff = backoffGenerator.next()
             
             futures.add(spawn {
@@ -104,7 +99,7 @@ protected class ScenarioRunner {
                 matchingPermutation: None,
                 operationChecks: 0,
                 prunedBranches: 0,
-                cachedPermutations: 0,
+                cacheHits: 0,
                 history: history,
                 partialOrder: PartialOrder(),
                 exception: Some(e)
@@ -166,21 +161,25 @@ protected class ScenarioRunner {
         
         let invocations = ArrayList<OperationInvocation>()
         var localCounter: Int64 = 0
+        var previousResponseVC: ?Array<Int64> = None
+        
+        if (let Some(sharedCounters) <- counters) {
+            localCounter++
+            sharedCounters[actor.id] = localCounter
+            let startVC = Array<Int64>(actorCount, { j => sharedCounters[j] })
+            previousResponseVC = Some(startVC)
+        }
         
         for (i in 0..actor.operations.size) {
-            let invocationVC: ?Array<Int64>
-            let responseVC: ?Array<Int64>
-            
             if (let Some(sharedCounters) <- counters) {
-                localCounter++
-                sharedCounters[actor.id] = localCounter
-                invocationVC = Some(Array<Int64>(actorCount, { j => sharedCounters[j] }))
+                let invocationVC = previousResponseVC
                 
                 let result = actor.operations[i]()
                 
                 localCounter++
                 sharedCounters[actor.id] = localCounter
-                responseVC = Some(Array<Int64>(actorCount, { j => sharedCounters[j] }))
+                let responseVC = Array<Int64>(actorCount, { j => sharedCounters[j] })
+                previousResponseVC = Some(responseVC)
                 
                 invocations.add(OperationInvocation(
                     actorId: actor.id,
@@ -188,7 +187,7 @@ protected class ScenarioRunner {
                     operationName: actor.operationNames[i],
                     result: result,
                     invocationVC: invocationVC,
-                    responseVC: responseVC
+                    responseVC: Some(responseVC)
                 ))
             } else {
                 let result = actor.operations[i]()
