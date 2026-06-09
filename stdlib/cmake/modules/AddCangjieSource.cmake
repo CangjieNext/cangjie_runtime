@@ -255,12 +255,23 @@ function(add_cangjie_library target_name)
         BYPRODUCTS ${output_full_name}
         DEPENDS ${CANGJIELIB_DEPENDS} ${CANGJIELIB_SOURCE_DIR}
         COMMENT "Generating ${target_name}")
+
+    add_custom_target(
+        ${target_name} ALL
+        DEPENDS ${output_full_name} ${CANGJIELIB_DEPENDS})
+
+    set_target_properties(${target_name} PROPERTIES CJ_OUTPUT_FILE ${output_full_name})
+
+    set(generate_lto_bc OFF)
     if(CANGJIE_CODEGEN_CJNATIVE_BACKEND
        AND NOT WIN32
-       AND NOT CANGJIE_SANITIZER_SUPPORT_ENABLED
-       AND NOT DARWIN)
-        add_custom_target(
-            ${target_name}_bc ALL
+       AND NOT CANGJIE_SANITIZER_SUPPORT_ENABLED)
+        set(generate_lto_bc ON)
+    endif()
+
+    if(generate_lto_bc)
+        add_custom_command(
+            OUTPUT ${output_lto_bc_full_name}
             COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/${output_bc_dir}
             COMMAND ${CMAKE_COMMAND} -E env "CANGJIE_PATH=${CMAKE_BINARY_DIR}/modules/${output_cj_lib_dir}" "LIBRARY_PATH=${CMAKE_BINARY_DIR}/lib"
                      ${COMPILE_BC_CMD}
@@ -319,9 +330,7 @@ function(add_cangjie_library target_name)
         list(APPEND install_files "${CMAKE_BINARY_DIR}/${output_dir}/${file_name}.pdba")
     endif()
 
-    if(CANGJIE_CODEGEN_CJNATIVE_BACKEND
-       AND NOT WIN32
-       AND NOT DARWIN)
+    if(generate_lto_bc)
         list(APPEND install_files ${output_lto_bc_full_name})
     endif()
     if(CANGJIE_CODEGEN_CJNATIVE_BACKEND)
