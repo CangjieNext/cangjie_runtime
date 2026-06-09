@@ -120,12 +120,10 @@ private func perActorAndVCOrder(history: ConcurrentHistory): PartialOrder {
     
     let allOps = ArrayList<OperationInvocation>()
     for (actorId in 0..history.actorCount) {
-        match (history.getActorInvocations(actorId)) {
-            case Some(invocations) =>
-                for (inv in invocations) {
-                    allOps.add(inv)
-                }
-            case None => ()
+        if (let Some(invocations) <- history.getActorInvocations(actorId)) {
+            for (inv in invocations) {
+                allOps.add(inv)
+            }
         }
     }
     
@@ -171,12 +169,10 @@ private func vcHappensBefore(opA: OperationInvocation, opB: OperationInvocation)
 private func emptyOrder(history: ConcurrentHistory): PartialOrder {
     let po = PartialOrder()
     for (actorId in 0..history.actorCount) {
-        match (history.getActorInvocations(actorId)) {
-            case Some(invocations) =>
-                for (opIndex in 0..invocations.size) {
-                    po.addOperation(actorId * 1000 + opIndex)
-                }
-            case None => ()
+        if (let Some(invocations) <- history.getActorInvocations(actorId)) {
+            for (opIndex in 0..invocations.size) {
+                po.addOperation(actorId * 1000 + opIndex)
+            }
         }
     }
     po
