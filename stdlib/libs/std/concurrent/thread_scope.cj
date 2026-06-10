@@ -22,7 +22,7 @@ public class ThreadGroup<T> <: Iterable<T> {
     private let completed = LinkedBlockingQueue<Result<T>>()
     private var unconsumed: AtomicUInt64 = AtomicUInt64(0)
 
-    public func add(task: () -> T): Unit {
+    public func launch(task: () -> T): Unit {
         unconsumed.fetchAdd(1)
         let future = spawn {
             try {
