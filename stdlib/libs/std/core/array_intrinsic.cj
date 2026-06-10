@@ -37,3 +37,9 @@ func arraySize<T>(rawArr: RawArray<T>): Int64
 
 @Intrinsic
 func arrayClone<T>(rawArr: RawArray<T>): RawArray<T>
+
+@Intrinsic
+func rawArrayAllocate<T>(size: Int64): RawArray<T>
+
+@Intrinsic
+func rawArrayInitByValue<T>(rawArr: RawArray<T>, size: Int64, initValue: T): Unit

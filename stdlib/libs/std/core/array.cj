@@ -17,9 +17,10 @@ public struct Array<T> {
     @Frozen
     func toRawArray() {
         if (len == 0) {
-            return RawArray<T>()
+            return rawArrayAllocate<T>(0)
         }
-        let newRawPtr = RawArray<T>(len, repeat: unsafe { zeroValue<T>() })
+        let newRawPtr = rawArrayAllocate<T>(len)
+        rawArrayInitByValue(newRawPtr, len, unsafe { zeroValue<T>() })
         intrinsicBuiltInCopyTo<T>(this.rawptr, newRawPtr, this.start, 0, len)
         return newRawPtr
     }
@@ -27,28 +28,34 @@ public struct Array<T> {
     @Frozen
     public const init() {
         this.start = 0
-        this.rawptr = RawArray<T>()
+        this.rawptr = rawArrayAllocate<T>(0)
         this.len = 0
     }
 
     @Frozen
     public init(size: Int64, repeat!: T) {
         this.start = 0
-        this.rawptr = RawArray<T>(size, repeat: repeat)
+        let raw = rawArrayAllocate<T>(size)
+        rawArrayInitByValue(raw, size, repeat)
+        this.rawptr = raw
         this.len = size
     }
 
     @Frozen
     init(elements: Collection<T>) {
         this.start = 0
-        this.rawptr = RawArray<T>(elements)
-        this.len = arraySize(rawptr)
+        let raw = rawArrayAllocate<T>(elements.size)
+        arrayInitByCollection(raw, elements)
+        this.rawptr = raw
+        this.len = arraySize(raw)
     }
 
     @Frozen
     public init(size: Int64, initElement: (Int64) -> T) {
         this.start = 0
-        this.rawptr = RawArray<T>(size, initElement)
+        let raw = rawArrayAllocate<T>(size)
+        arrayInitByFunction(raw, initElement)
+        this.rawptr = raw
         this.len = size
     }
 
@@ -274,7 +281,8 @@ public struct Array<T> {
         if (len == 0) {
             return Array<T>()
         }
-        let newRawPtr = RawArray<T>(len, repeat: unsafe { zeroValue<T>() })
+        let newRawPtr = rawArrayAllocate<T>(len)
+        rawArrayInitByValue(newRawPtr, len, unsafe { zeroValue<T>() })
         intrinsicBuiltInCopyTo<T>(this.rawptr, newRawPtr, this.start, 0, len)
         return Array<T>(newRawPtr, 0, len)
     }
@@ -420,7 +428,8 @@ public struct Array<T> {
             return this
         }
         let newLen = this.len * n
-        let newRawPtr = RawArray<T>(newLen, repeat: unsafe { zeroValue<T>() })
+        let newRawPtr = rawArrayAllocate<T>(newLen)
+        rawArrayInitByValue(newRawPtr, newLen, unsafe { zeroValue<T>() })
         for (i in 0..n) {
             intrinsicBuiltInCopyTo<T>(this.rawptr, newRawPtr, this.start, this.len * i, this.len)
         }
@@ -447,7 +456,8 @@ public struct Array<T> {
 
         if (len > 0) {
             let newSize: Int64 = (len + count - 1) / count
-            var newRawPtr = RawArray<T>(newSize, repeat: unsafe { zeroValue<T>() })
+            var newRawPtr = rawArrayAllocate<T>(newSize)
+            rawArrayInitByValue(newRawPtr, newSize, unsafe { zeroValue<T>() })
             let oldLastIndex: Int64 = (newSize - 1) * count
             var j: Int64 = newSize - 1
             for (i in oldLastIndex..=0 : -count) {
@@ -476,7 +486,8 @@ public struct Array<T> {
             throw IllegalArgumentException("take count must be greater than 0!")
         }
         let newLen = min(count, this.len)
-        let newRawPtr = RawArray<T>(newLen, repeat: unsafe { zeroValue<T>() })
+        let newRawPtr = rawArrayAllocate<T>(newLen)
+        rawArrayInitByValue(newRawPtr, newLen, unsafe { zeroValue<T>() })
         intrinsicBuiltInCopyTo<T>(this.rawptr, newRawPtr, this.start, 0, newLen)
         return Array<T>(newRawPtr, 0, newLen)
     }
@@ -501,7 +512,8 @@ public struct Array<T> {
             return Array<T>()
         }
 
-        let newRawPtr = RawArray<T>(newLen, repeat: unsafe { zeroValue<T>() })
+        let newRawPtr = rawArrayAllocate<T>(newLen)
+        rawArrayInitByValue(newRawPtr, newLen, unsafe { zeroValue<T>() })
         intrinsicBuiltInCopyTo<T>(this.rawptr, newRawPtr, this.start + count, 0, newLen)
         return Array<T>(newRawPtr, 0, newLen)
     }
@@ -517,7 +529,8 @@ public struct Array<T> {
         if (this.len == 0) {
             return Array<T>()
         }
-        var newRawPtr = RawArray<T>(this.len, repeat: unsafe { zeroValue<T>() })
+        var newRawPtr = rawArrayAllocate<T>(this.len)
+        rawArrayInitByValue(newRawPtr, this.len, unsafe { zeroValue<T>() })
         var t = 0
         for (i in 0..this.len) {
             let value = unsafe { getUnchecked(i) }
@@ -557,7 +570,8 @@ public struct Array<T> {
             return Array<R>()
         }
 
-        let newRawPtr = RawArray<R>(this.len, repeat: unsafe { zeroValue<R>() })
+        let newRawPtr = rawArrayAllocate<R>(this.len)
+        rawArrayInitByValue(newRawPtr, this.len, unsafe { zeroValue<R>() })
         var j = 0
         for (i in 0..this.len) {
             let value = unsafe { getUnchecked(i) }
@@ -583,7 +597,8 @@ public struct Array<T> {
             return this.clone()
         }
         let newSize: Int64 = 2 * this.len - 1
-        let newRawPtr = RawArray<T>(newSize, repeat: unsafe { zeroValue<T>() })
+        let newRawPtr = rawArrayAllocate<T>(newSize)
+        rawArrayInitByValue(newRawPtr, newSize, unsafe { zeroValue<T>() })
 
         for (i in 0..this.len - 1) {
             arraySet(newRawPtr, 2*i, unsafe { getUnchecked(i) })
@@ -701,7 +716,8 @@ extend<T> Array<T> {
         if (newSize == 0) {
             return Array<(T, R)>()
         }
-        let newRawPtr = RawArray<(T,R)>(newSize, repeat: unsafe { zeroValue<(T,R)>() })
+        let newRawPtr = rawArrayAllocate<(T,R)>(newSize)
+        rawArrayInitByValue(newRawPtr, newSize, unsafe { zeroValue<(T,R)>() })
         for (i in newSize - 1..=0 : -1) {
             arraySet(newRawPtr,i,unsafe{(getUnchecked(i),other.getUnchecked(i))})
         }
@@ -718,7 +734,8 @@ extend<T> Array<T> {
         if (this.len == 0) {
             return Array<(Int64, T)>()
         }
-        let newRawPtr = RawArray<(Int64,T)>(this.len, repeat: unsafe { zeroValue<(Int64,T)>() })
+        let newRawPtr = rawArrayAllocate<(Int64,T)>(this.len)
+        rawArrayInitByValue(newRawPtr, this.len, unsafe { zeroValue<(Int64,T)>() })
         for (i in this.len - 1..=0 : -1) {
             arraySet(newRawPtr,i,(i,unsafe{getUnchecked(i)}))
         }
@@ -733,7 +750,8 @@ extend<T> Array<Array<T>> {
         for (i in 0..this.len) {
             newLen += this[i].len
         }
-        let newRawPtr = RawArray<T>(newLen, repeat: unsafe { zeroValue<T>() })
+        let newRawPtr = rawArrayAllocate<T>(newLen)
+        rawArrayInitByValue(newRawPtr, newLen, unsafe { zeroValue<T>() })
 
         var newIdx = 0
         for (i in 0..this.len) {

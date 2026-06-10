@@ -94,14 +94,16 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         if (cSize == 0) {
             (myData, start, length) = (EMPTY_UINT8_RAW_ARRAY, 0u32, 0u32)
         } else if (cSize < STRING_C_THRESHOLD) {
-            this.myData = RawArray<UInt8>(cSize, repeat: 0)
+            this.myData = rawArrayAllocate<UInt8>(cSize)
+            rawArrayInitByValue(this.myData, cSize, 0)
             for (i in 0..cSize) {
                 arraySetUnchecked(myData, i, unsafe { ptr.read(i) })
             }
             this.start = 0
             this.length = UInt32(cSize)
         } else {
-            this.myData = RawArray<UInt8>(cSize, repeat: 0)
+            this.myData = rawArrayAllocate<UInt8>(cSize)
+            rawArrayInitByValue(this.myData, cSize, 0)
             unsafe {
                 let itemP: CPointer<UInt8> = acquireRawData(myData)
                 memcpy_s(itemP, UIntNative(cSize), ptr, UIntNative(cSize))
@@ -166,7 +168,8 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     public func toArray(): Array<Byte> {
-        let newRawPtr = RawArray<UInt8>(this.size, repeat: 0)
+        let newRawPtr = rawArrayAllocate<UInt8>(this.size)
+        rawArrayInitByValue(newRawPtr, this.size, 0)
         intrinsicBuiltInCopyTo<Byte>(this.myData, newRawPtr, Int64(this.start), 0, Int64(length))
         return Array<Byte>(newRawPtr, 0, size)
     }
@@ -236,7 +239,8 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
 
     @Frozen
     public func clone(): String {
-        let newRawPtr = RawArray<UInt8>(this.size, repeat: 0)
+        let newRawPtr = rawArrayAllocate<UInt8>(this.size)
+        rawArrayInitByValue(newRawPtr, this.size, 0)
         intrinsicBuiltInCopyTo<UInt8>(this.myData, newRawPtr, Int64(start), 0, Int64(length))
         return String(newRawPtr, 0, length)
     }
@@ -619,7 +623,8 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     @Frozen
     @OverflowWrapping
     public func toAsciiLower(): String {
-        let newRawPtr = RawArray<UInt8>(this.size, repeat: 0)
+        let newRawPtr = rawArrayAllocate<UInt8>(this.size)
+        rawArrayInitByValue(newRawPtr, this.size, 0)
         /* Back-to-front traversal can reduce boundary checks and improve performance */
         for (i in Int64(length) - 1..=0 : -1) {
             var c: UInt8 = arrayGetUnchecked(this.myData, i + Int64(start))
@@ -635,7 +640,8 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     @Frozen
     @OverflowWrapping
     public func toAsciiUpper(): String {
-        let newRawPtr = RawArray<UInt8>(this.size, repeat: 0)
+        let newRawPtr = rawArrayAllocate<UInt8>(this.size)
+        rawArrayInitByValue(newRawPtr, this.size, 0)
         /* Back-to-front traversal can reduce boundary checks and improve performance */
         for (i in Int64(length) - 1..=0 : -1) {
             var c: UInt8 = arrayGetUnchecked(this.myData, i + Int64(start))
@@ -652,7 +658,8 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
     @OverflowWrapping
     public func toAsciiTitle(): String {
         var i: Int64 = 0
-        let newRawPtr = RawArray<UInt8>(this.size, repeat: 0)
+        let newRawPtr = rawArrayAllocate<UInt8>(this.size)
+        rawArrayInitByValue(newRawPtr, this.size, 0)
         var next: Bool = true
         while (i < size) {
             var c: UInt8 = arrayGetUnchecked(this.myData, i + Int64(start))
@@ -1079,7 +1086,8 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
             throw IllegalArgumentException("The size of String is too large.")
         }
 
-        let newData = RawArray<Byte>(newLen, repeat: 0)
+        let newData = rawArrayAllocate<Byte>(newLen)
+        rawArrayInitByValue(newData, newLen, 0)
         intrinsicBuiltInCopyTo<UInt8>(this.myData, newData, Int64(this.start), 0, this.size)
         intrinsicBuiltInCopyTo<UInt8>(other.myData, newData, Int64(other.start), this.size, other.size)
         return String(newData, 0, UInt32(newLen))
@@ -1099,7 +1107,8 @@ public struct String <: Collection<Byte> & Comparable<String> & Hashable & ToStr
         }
 
         let newLen = this.size * count
-        let newData = RawArray<Byte>(newLen, repeat: 0)
+        let newData = rawArrayAllocate<Byte>(newLen)
+        rawArrayInitByValue(newData, newLen, 0)
         var itemStart: Int64 = 0
         let byteSize: Int64 = size
         for (_ in 0..count) {

@@ -10,7 +10,7 @@ package std.core
 
 @Frozen
 @OverflowWrapping
-private func arrayInitByCollection<T>(array: RawArray<T>, elements: Collection<T>): RawArray<T> {
+func arrayInitByCollection<T>(array: RawArray<T>, elements: Collection<T>): RawArray<T> {
     var i: Int64 = 0
     let it: Iterator<T> = elements.iterator()
     while (true) {
@@ -28,7 +28,7 @@ private func arrayInitByCollection<T>(array: RawArray<T>, elements: Collection<T
  */
 @Frozen
 @OverflowWrapping
-private func arrayInitByFunction<T>(array: RawArray<T>, initElement: (Int64) -> T): RawArray<T> {
+func arrayInitByFunction<T>(array: RawArray<T>, initElement: (Int64) -> T): RawArray<T> {
     var i: Int64 = 0
     while (i < arraySize(array)) {
         arraySet(array, i, initElement(i))

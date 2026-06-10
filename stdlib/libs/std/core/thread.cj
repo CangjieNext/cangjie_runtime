@@ -83,7 +83,7 @@ public enum ThreadState <: ToString {
 struct ThreadSnapshotInfo {
     let name: RawArray<UInt8> = EMPTY_UINT8_RAW_ARRAY
     let id: Int64 = 0
-    let stackTrace: RawArray<StackTraceData> = RawArray<StackTraceData>()
+    let stackTrace: RawArray<StackTraceData> = rawArrayAllocate<StackTraceData>(0)
     let state: Int64 = 0
 }
 

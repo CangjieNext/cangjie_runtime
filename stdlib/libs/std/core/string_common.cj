@@ -45,7 +45,7 @@ const HIGH_6_UInt8: UInt8 = 0b11111100 // 0xfc
 @ConstSafe
 const EMPTY_UINT8_ARRAY: Array<UInt8> = Array<UInt8>()
 @ConstSafe
-const EMPTY_UINT8_RAW_ARRAY: RawArray<UInt8> = RawArray<UInt8>()
+const EMPTY_UINT8_RAW_ARRAY: RawArray<UInt8> = rawArrayAllocate<UInt8>(0)
 let EMPTY_INT64_ARRAY: Array<Int64> = Array<Int64>()
 let EMPTY_STRING_ARRAY: Array<String> = Array<String>()
 const STRING_C_THRESHOLD = 32
