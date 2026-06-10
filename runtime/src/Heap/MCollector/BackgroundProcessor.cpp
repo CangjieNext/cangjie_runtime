@@ -24,6 +24,9 @@
 namespace MapleRuntime {
 namespace {
 constexpr U32 DEFAULT_MS_GC_HELPER_POLL_MS = 2000;
+constexpr U32 DEFAULT_MS_ALLOC_PRESSURE_POLL_MS = 5;
+constexpr uint64_t DEFAULT_MS_ALLOC_PRESSURE_POLL_US =
+    static_cast<uint64_t>(DEFAULT_MS_ALLOC_PRESSURE_POLL_MS) * 1000ULL;
 constexpr U32 DEFAULT_MS_GC_HELPER_ACTIVE_BACKOFF_MS = 1;
 constexpr U32 DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_ROUNDS = 4;
 constexpr uint64_t DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_US = 12000;
@@ -119,6 +122,28 @@ size_t GetBackgroundScavengeRounds()
     return rounds;
 }
 
+void PollMSAllocationPressure()
+{
+    Allocator& allocator = Heap::GetHeap().GetAllocator();
+    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(allocator);
+    MSRegionManager* manager = space.GetMSRegionManager();
+    if (manager == nullptr) {
+        return;
+    }
+
+    manager->MaybeNotifyMark();
+    manager->MaybeNotifyScavenge();
+}
+
+bool ShouldPollMSAllocationPressure(uint64_t nowUs, uint64_t& lastPollUs)
+{
+    if (lastPollUs != 0 && nowUs - lastPollUs < DEFAULT_MS_ALLOC_PRESSURE_POLL_US) {
+        return false;
+    }
+    lastPollUs = nowUs;
+    return true;
+}
+
 }
 
 extern "C" MRT_EXPORT void* MRT_ProcessBackgroundWork(void* arg)
@@ -182,7 +207,12 @@ void BackgroundProcessor::Run()
     NotifyStarted();
     uint32_t backgroundBurstRounds = 0;
     uint64_t backgroundBurstStartUs = 0;
+    uint64_t lastAllocPressurePollUs = 0;
     while (running.load(std::memory_order_acquire)) {
+        uint64_t nowUs = TimeUtil::MicroSeconds();
+        if (ShouldPollMSAllocationPressure(nowUs, lastAllocPressurePollUs)) {
+            PollMSAllocationPressure();
+        }
         bool shouldContinueImmediate = false;
         if (finalizerWorkList.HasFinalizableJob()) {
             finalizerWorkList.ProcessFinalizables([this] { return running.load(std::memory_order_acquire); });
@@ -222,18 +252,32 @@ void BackgroundProcessor::Run()
 
         backgroundBurstRounds = 0;
         backgroundBurstStartUs = 0;
+        uint64_t feedCheckStartUs = TimeUtil::MicroSeconds();
         while (running.load(std::memory_order_acquire)) {
             if (HasPendingWakeWork()) {
                 break;
             }
-            Wait(iterationWaitTime);
+            Wait(DEFAULT_MS_ALLOC_PRESSURE_POLL_MS);
             if (!running.load(std::memory_order_acquire)) {
                 break;
             }
-            if (!HasPendingWakeWork() && ShouldStartPeriodicFeed()) {
+            if (!HasPendingWakeWork()) {
+                uint64_t idleNowUs = TimeUtil::MicroSeconds();
+                if (ShouldPollMSAllocationPressure(idleNowUs, lastAllocPressurePollUs)) {
+                    PollMSAllocationPressure();
+                }
+            }
+            if (!HasPendingWakeWork() &&
+                TimeUtil::MicroSeconds() - feedCheckStartUs >=
+                    static_cast<uint64_t>(iterationWaitTime) * 1000ULL &&
+                ShouldStartPeriodicFeed()) {
                 shouldFeedHungryBuffers.store(true, std::memory_order_release);
                 preferredFeedCls_.store(kNoPreferredFeedClass, std::memory_order_release);
                 break;
+            }
+            if (TimeUtil::MicroSeconds() - feedCheckStartUs >=
+                static_cast<uint64_t>(iterationWaitTime) * 1000ULL) {
+                feedCheckStartUs = TimeUtil::MicroSeconds();
             }
         }
     }
@@ -473,7 +517,7 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     size_t released = 0;
     size_t hotFreeBefore = space.GetHotFreeBytes();
     size_t emptySweptBefore = (pool != nullptr) ? pool->GetEmptySweptRegionCount() * MS_REGION_SIZE : 0;
-    size_t largeCacheBefore = (pool != nullptr) ? pool->GetLargeHotCacheRegionCount() * MS_REGION_SIZE : 0;
+    size_t largeCacheBefore = (pool != nullptr) ? pool->GetLargeHotCacheBytes() : 0;
     if (hotFreeBefore == 0 && emptySweptBefore == 0 && largeCacheBefore == 0) {
         if (pool != nullptr && pool->GetTotalUnsweptCount() > 0) {
             NotifyToSweep(kNoPreferredSweepClass);
@@ -492,8 +536,8 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
         size_t gap = (targetBytes > hotFree) ? (targetBytes - hotFree) : 0;
 
         // Priority 1: large hot cache.
-        if (gap > 0 && pool != nullptr && pool->HasLargeFreeCache()) {
-            size_t largeBytes = pool->GetLargeHotCacheRegionCount() * MS_REGION_SIZE;
+        if (gap > 0 && pool != nullptr) {
+            size_t largeBytes = pool->GetLargeHotCacheBytes();
             size_t flushed = (largeBytes <= gap)
                 ? space.FlushAllLargeHotCache()             // flush all
                 : space.FlushLargeHotCacheUpToBytes(gap);   // flush only the gap
@@ -517,7 +561,7 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     // already reflected in hotFreeAfterFlush and not double-counted.
     size_t emptySweptAfterFlush = (pool != nullptr) ? pool->GetEmptySweptRegionCount() * MS_REGION_SIZE : 0;
     // Snapshot large cache residual after Step A2 (any flushed bytes are now in releasedTree).
-    size_t largeResidualBytes = (pool != nullptr) ? pool->GetLargeHotCacheRegionCount() * MS_REGION_SIZE : 0;
+    size_t largeResidualBytes = (pool != nullptr) ? pool->GetLargeHotCacheBytes() : 0;
     if (hotFreeAfterFlush == 0 && emptySweptAfterFlush == 0 && largeResidualBytes == 0) {
         if (pool != nullptr && pool->GetTotalUnsweptCount() > 0) {
             NotifyToSweep(kNoPreferredSweepClass);

@@ -106,7 +106,11 @@ public:
     virtual bool ForEachObj(const std::function<void(BaseObject*)>&, bool safe) const = 0;
 
     // release physical pages of garbage memory.
-    virtual size_t ReclaimGarbageMemory(bool releaseAll) = 0;
+    virtual size_t ReclaimGarbageMemory(bool releaseAll)
+    {
+        (void)releaseAll;
+        return 0;
+    }
 #if defined(__EULER__)
     virtual void TryReclaimGarbageMemory() = 0;
 #endif

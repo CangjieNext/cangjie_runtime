@@ -80,6 +80,13 @@ void AllocBufferMS::Init(CentralRegionPool* central)
 void AllocBufferMS::Fini()
 {
     if (central_ != nullptr) {
+        std::vector<MSRegionInfo*> drained;
+        (void)DrainAllLocalEmptyRegions(drained);
+        for (MSRegionInfo* region : drained) {
+            central_->ReturnEmptyRegion(region);
+        }
+    }
+    if (central_ != nullptr) {
         central_->RemoveAllocBufferMS(this);
     }
     central_ = nullptr;
@@ -133,6 +140,11 @@ size_t AllocBufferMS::CountCachedRegions() const
         total += CountCachedRegions(cls);
     }
     return total;
+}
+
+size_t AllocBufferMS::CountLocalEmptyRegions() const
+{
+    return localEmptyRegionCount_.load(std::memory_order_acquire);
 }
 
 uint16_t AllocBufferMS::GetHotClassScore(uint8_t cls) const
@@ -420,6 +432,126 @@ void AllocBufferMS::ReturnRegion(uint8_t cls)
     activeRegions_[cls] = nullptr;
 }
 
+MSRegionInfo* AllocBufferMS::TakeLocalEmptyRegion(uint8_t cls)
+{
+    MSRegionInfo* region = nullptr;
+    {
+        std::lock_guard<std::mutex> lg(localEmptyRegionLock_);
+        region = localEmptyRegionCache_.TakeHead();
+    }
+    if (region == nullptr) {
+        return nullptr;
+    }
+    localEmptyRegionCount_.fetch_sub(1, std::memory_order_release);
+
+    CHECK_DETAIL(region->regionType == MSRegionType::MS_REGION_EMPTY_CACHE,
+                 "TakeLocalEmptyRegion got bad regionType=%u",
+                 static_cast<unsigned>(region->regionType));
+
+    size_t regionIdx = MSRegionInfoArray::GetRegionIdx(region);
+    uintptr_t regionStart = MSRegionInfoArray::GetRegionAddress(regionIdx);
+    region->InitForSizeClass(cls);
+    CHECK_DETAIL(region->allocBitmap != nullptr,
+                 "TakeLocalEmptyRegion: InitForSizeClass failed for cls=%u idx=%zu",
+                 static_cast<unsigned>(cls), regionIdx);
+    region->allocPtr = regionStart;
+    region->regionEnd = regionStart + MS_REGION_SIZE;
+    region->SetSweepGen(CentralRegionPool::GetGlobalSweepGen());
+    return region;
+}
+
+void AllocBufferMS::RefillLocalEmptyRegionsFromGlobal(std::vector<MSRegionInfo*>& refill)
+{
+    refill.clear();
+    if (central_ == nullptr) {
+        return;
+    }
+
+    size_t globalCount = central_->GetEmptySweptGlobalCount();
+    size_t refillThreshold = std::max<size_t>(1, central_->GetAllocBufferCount()) * kLocalEmptyRegionCap;
+    if (globalCount <= refillThreshold) {
+        return;
+    }
+
+    size_t refillCount = std::min(kLocalEmptyRegionCap, globalCount - refillThreshold);
+    if (refillCount == 0) {
+        return;
+    }
+
+    central_->DrainEmptySweptGlobal(refillCount, refill);
+    if (refill.size() <= 1) {
+        return;
+    }
+
+    size_t cachedCount = 0;
+    {
+        std::lock_guard<std::mutex> lg(localEmptyRegionLock_);
+        while (refill.size() > 1) {
+            localEmptyRegionCache_.Prepend(refill.back());
+            refill.pop_back();
+            ++cachedCount;
+        }
+    }
+    if (cachedCount > 0) {
+        localEmptyRegionCount_.fetch_add(cachedCount, std::memory_order_release);
+    }
+}
+
+size_t AllocBufferMS::DrainAllLocalEmptyRegions(std::vector<MSRegionInfo*>& out)
+{
+    size_t drained = 0;
+    {
+        std::lock_guard<std::mutex> lg(localEmptyRegionLock_);
+        for (;;) {
+            MSRegionInfo* region = localEmptyRegionCache_.TakeHead();
+            if (region == nullptr) {
+                break;
+            }
+            out.push_back(region);
+            ++drained;
+        }
+    }
+    if (drained > 0) {
+        localEmptyRegionCount_.fetch_sub(drained, std::memory_order_release);
+    }
+    return drained;
+}
+
+MSRegionInfo* AllocBufferMS::RefillEmptyRegionFromCaches(uint8_t cls)
+{
+    MSRegionInfo* region = TakeLocalEmptyRegion(cls);
+    if (region != nullptr) {
+        return region;
+    }
+
+    std::vector<MSRegionInfo*> refill;
+    RefillLocalEmptyRegionsFromGlobal(refill);
+    if (!refill.empty()) {
+        region = refill.back();
+        refill.pop_back();
+    } else if (central_ != nullptr) {
+        region = central_->TakeEmptySweptRegionFromGlobalOnly();
+    }
+    if (region == nullptr) {
+        return nullptr;
+    }
+
+    CHECK_DETAIL(region->regionType == MSRegionType::MS_REGION_EMPTY_CACHE,
+                 "RefillEmptyRegionFromCaches got bad regionType=%u",
+                 static_cast<unsigned>(region->regionType));
+
+    size_t regionIdx = MSRegionInfoArray::GetRegionIdx(region);
+    uintptr_t regionStart = MSRegionInfoArray::GetRegionAddress(regionIdx);
+    region->InitForSizeClass(cls);
+    CHECK_DETAIL(region->allocBitmap != nullptr,
+                 "RefillEmptyRegionFromCaches: InitForSizeClass failed for cls=%u idx=%zu",
+                 static_cast<unsigned>(cls), regionIdx);
+    region->allocPtr = regionStart;
+    region->regionEnd = regionStart + MS_REGION_SIZE;
+    region->SetSweepGen(CentralRegionPool::GetGlobalSweepGen());
+    return region;
+}
+
 MSRegionInfo* AllocBufferMS::TakeCachedRegion(uint8_t cls)
 {
     return cachedRegion_[cls].exchange(nullptr, std::memory_order_acquire);
@@ -465,8 +597,6 @@ void AllocBufferMS::ReturnRegionToCentral(MSRegionInfo* region, uint8_t cls)
 // ============================================================================
 MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls, bool backgroundFill)
 {
-    (void)backgroundFill;
-
     if (UNLIKELY(central_ == nullptr)) {
         return nullptr;
     }
@@ -477,26 +607,32 @@ MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls, bool backgroundFill)
         return region;
     }
 
+    if (!backgroundFill) {
+        region = RefillEmptyRegionFromCaches(cls);
+        if (region != nullptr) {
+            return region;
+        }
+    } else {
+        region = central_->TakeEmptySweptRegionFromGlobalOnly();
+        if (region != nullptr) {
+            CHECK_DETAIL(region->regionType == MSRegionType::MS_REGION_EMPTY_CACHE,
+                         "RefillFromCentral(bg): bad empty regionType=%u",
+                         static_cast<unsigned>(region->regionType));
+            size_t regionIdx = MSRegionInfoArray::GetRegionIdx(region);
+            uintptr_t regionStart = MSRegionInfoArray::GetRegionAddress(regionIdx);
+            region->InitForSizeClass(cls);
+            CHECK_DETAIL(region->allocBitmap != nullptr,
+                         "RefillFromCentral(bg): InitForSizeClass failed for cls=%u idx=%zu",
+                         static_cast<unsigned>(cls), regionIdx);
+            region->allocPtr = regionStart;
+            region->regionEnd = regionStart + MS_REGION_SIZE;
+            region->SetSweepGen(CentralRegionPool::GetGlobalSweepGen());
+            return region;
+        }
+    }
+
     region = central_->GetFreshRegion(cls);
     return region;
-}
-
-// ============================================================================
-// FlushAll — GC STW: return all active Regions to CentralRegionPool
-// ============================================================================
-void AllocBufferMS::FlushAll()
-{
-    for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
-        MSRegionInfo* cached = cachedRegion_[cls].exchange(nullptr, std::memory_order_acquire);
-        if (cached != nullptr) {
-            // markBitmap clearing is now handled by ClearAllMarkBitmaps
-            // before STW, so no per-region ClearMarkBitmap here.
-            ReturnRegionToCentral(cached, cls);
-        }
-
-        // Active region: return to pool (bitmap already cleared pre-STW)
-        ReturnRegion(cls);
-    }
 }
 
 // ============================================================================

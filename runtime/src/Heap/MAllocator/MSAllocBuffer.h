@@ -17,6 +17,7 @@
 #include "Common/MarkWorkStack.h"
 #include "Common/LFStack.h"
 #include <atomic>
+#include <mutex>
 #include <vector>
 
 namespace MapleRuntime {
@@ -86,9 +87,6 @@ public:
     void AccumulatePacingDebt(size_t size);
 
 
-    // GC STW: flush all thread-local Regions back to CentralRegionPool
-    void FlushAll();
-
     // Background: fill empty cachedRegion_ slots for size classes with high miss pressure.
     // Called by gc-helper thread (FinalizerProcessor). Thread-safe via atomic cachedRegion_.
     MSAllocCacheFillStats BackgroundFillCache(uint8_t preferredCls);
@@ -130,6 +128,7 @@ public:
 
     size_t CountActiveRegions() const;
     size_t CountCachedRegions() const;
+    size_t CountLocalEmptyRegions() const;
     bool NeedsBackgroundFill(uint8_t preferredCls) const;
     uint16_t SnapshotHotClassScore(uint8_t cls) const { return GetHotClassScore(cls); }
     HotClassLevel SnapshotHotClassLevel(uint8_t cls) const
@@ -156,6 +155,7 @@ private:
     static constexpr uint8_t kNoPreferredHotClass = UINT8_MAX;
     static constexpr uint8_t kCachedRegionSlots = 1;
     static constexpr uint8_t kBackgroundFeedTopK = 5;
+    static constexpr size_t kLocalEmptyRegionCap = kNumSizeClasses;
 
     // LLVM fast-path compatibility: must be at offset 0 (same as AllocBuffer::tlRegion).
     // Set to NullRegion() so fast-path allocation always fails → slow path.
@@ -169,6 +169,10 @@ private:
 
     // Refill: get a Region from CentralRegionPool
     MSRegionInfo* RefillFromCentral(uint8_t cls, bool backgroundFill = false);
+    MSRegionInfo* RefillEmptyRegionFromCaches(uint8_t cls);
+    MSRegionInfo* TakeLocalEmptyRegion(uint8_t cls);
+    void RefillLocalEmptyRegionsFromGlobal(std::vector<MSRegionInfo*>& refill);
+    size_t DrainAllLocalEmptyRegions(std::vector<MSRegionInfo*>& out);
 
     uint8_t BumpCacheMiss(uint8_t cls);
     void SetCacheMiss(uint8_t cls, uint8_t value);
@@ -209,6 +213,12 @@ private:
     // Written by gc-helper (BackgroundFillCache), consumed by mutator (SlowAlloc).
     // Base capacity stays at 2; a few hot classes may temporarily expand to 3 or 4.
     std::atomic<MSRegionInfo*> cachedRegion_[kNumSizeClasses] = {};
+
+    // Per-AllocBuffer cache of classless empty regions. These shells are rebound
+    // to a size class on demand after the typed central lists miss.
+    mutable std::mutex localEmptyRegionLock_;
+    MSRegionList localEmptyRegionCache_;
+    std::atomic<size_t> localEmptyRegionCount_{0};
 
     // O9: Per-size-class cache miss / heat heuristics.
     // cacheMiss_ tracks current refill pressure; cacheHeat_ keeps a short-lived

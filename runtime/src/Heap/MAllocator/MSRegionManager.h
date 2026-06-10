@@ -89,8 +89,7 @@ public:
     // Take N units for large object (Tier 1, > threshold but <= 4MB).
     // unitCount = ceil(allocSize, UNIT_SIZE).
     // Returns pair: (MSRegionInfo* baseInfo, uintptr_t regionStart), or (nullptr, 0).
-    MSRegionInfo* TakeRegionForLarge(size_t unitCount, uintptr_t& regionStart,
-                                     const CentralRegionPool* centralPool = nullptr);
+    MSRegionInfo* TakeRegionForLarge(size_t unitCount, uintptr_t& regionStart);
 
     // Reclaim a large Region spanning regionBytes.
     // regionStart is the actual start address of the allocation (from TakeRegionForLarge).
@@ -182,10 +181,6 @@ public:
 
     // Return bytes in hot-free regions (free but pages not yet returned to OS).
     size_t GetHotFreeBytes() const;
-
-    // Inline reclaim: when TakeRegion expands the heap via BUMP, synchronously
-    // release one empty-cache region to keep committed bytes stable.
-    void InlineReclaimForBalance(const CentralRegionPool& pool);
 
 private:
     void InitializeFreshRegions(RegionIndex startIdx, RegionCount count) override;

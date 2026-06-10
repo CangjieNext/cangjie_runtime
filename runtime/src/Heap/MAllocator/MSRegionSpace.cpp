@@ -164,25 +164,6 @@ size_t RegionSpaceMS::PinnedSpaceSize() const
     return 0;
 }
 
-size_t RegionSpaceMS::ReclaimGarbageMemory(bool releaseAll)
-{
-    if (msRegionManager_ == nullptr) {
-        return 0;
-    }
-    if (!releaseAll) {
-        // Background incremental reclaim path is removed; BackgroundScavengeLoop
-        // now handles heap shrinking via BackgroundScavenge().
-        return 0;
-    }
-    // STW full reclaim: flush all emptySweptCache → FreeManager → OS → shrink.
-    if (msCentralPool_ != nullptr) {
-        (void)msCentralPool_->ReclaimEmptyRegion(std::numeric_limits<size_t>::max());
-    }
-    size_t released = msRegionManager_->ScavengeFreeRegions(true);
-    msRegionManager_->ShrinkHeap();
-    return released;
-}
-
 BackgroundReclaimStats RegionSpaceMS::BackgroundReclaim()
 {
     // Incremental reclaim is replaced by BackgroundScavengeLoop; this path is a no-op.
@@ -222,7 +203,7 @@ size_t RegionSpaceMS::GetHeapRetainedBytes() const
     }
     size_t active = msCentralPool_->GetActiveMSRegionCount() * MS_REGION_SIZE;
     size_t empty = msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE;
-    size_t largeCache = msCentralPool_->GetLargeHotCacheRegionCount() * MS_REGION_SIZE;
+    size_t largeCache = msCentralPool_->GetLargeHotCacheBytes();
     size_t hotFree = msRegionManager_->GetHotFreeBytes();
     return active + empty + largeCache + hotFree;
 }
@@ -346,8 +327,8 @@ MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t allocSize, ThreadLocal
                          / MS_REGION_SIZE * MS_REGION_SIZE;
 
     // Hot cache fast path: reuse a recently-freed large region whose physical
-    // pages are still resident — avoids TakeRegions + InlineReclaimForBalance
-    // overhead and eliminates page-fault cycles for the common churn pattern.
+    // pages are still resident — avoids fresh TakeRegions work and eliminates
+    // page-fault cycles for the common churn pattern.
     uintptr_t hotCacheStart = 0;
     if (msCentralPool_ != nullptr &&
         msCentralPool_->TryTakeLargeHotCache(regionBytes, hotCacheStart)) {
@@ -362,7 +343,7 @@ MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t allocSize, ThreadLocal
     }
 
     uintptr_t regionStart = 0;
-    MSRegionInfo* baseInfo = msRegionManager_->TakeRegionForLarge(unitCount, regionStart, msCentralPool_);
+    MSRegionInfo* baseInfo = msRegionManager_->TakeRegionForLarge(unitCount, regionStart);
     if (baseInfo == nullptr) {
         LOG(RTLOG_ERROR, "[MS-GC] TryAllocateOnceMS LARGE ALLOC FAILED: "
             "allocSize=%zu, unitCount=%zu, activeMSRegionBytes=%zu, "

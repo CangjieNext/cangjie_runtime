@@ -25,18 +25,7 @@
 #include "Heap.h"
 #include "Collector/Collector.h"
 #include "Collector/CollectorResources.h"
-
-#include <cstdio>
-
 namespace MapleRuntime {
-namespace {
-std::atomic<uint64_t> g_MSGCTakeRegionCnt{0};
-__attribute__((destructor)) void DumpMSGCTakeRegionStats() {
-    fprintf(stderr, "[REGION-STATS][MSGC] TakeRegion=%llu\n",
-        (unsigned long long)g_MSGCTakeRegionCnt.load(std::memory_order_relaxed));
-    fflush(stderr);
-}
-}
 
 namespace {
 constexpr size_t DEFAULT_MS_SCAVENGE_WAKE_BYTES = 4 * MS_REGION_SIZE;
@@ -213,12 +202,6 @@ uint64_t GetHeuRequestCooldownNs()
     return value;
 }
 
-bool GetInlineReclaimEnabled()
-{
-    static const bool value = ReadEnvCount("CJ_MS_INLINE_RECLAIM", 1) != 0;
-    return value;
-}
-
 size_t GetReleasedBusyRetryLimit()
 {
     static const size_t value = ReadEnvCount("CJ_MS_RELEASED_BUSY_RETRY_LIMIT", 8);
@@ -331,7 +314,9 @@ bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx, AllocSource
 {
     (void)allowReleasedTree;
     RegionIndex rawIdx = 0;
-    MaybeNotifyMark();
+    // MaybeNotifyMark() is now polled by gc-helper periodically instead of
+    // running on every mutator TakeRegions slow path.
+    // MaybeNotifyMark();
 
     while (true) {
         FreeManager::TryTakeResult result = freeManager_.TryTakeRegions(num, rawIdx);
@@ -340,7 +325,9 @@ bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx, AllocSource
             if (source != nullptr) {
                 *source = AllocSource::RELEASED;
             }
-            MaybeNotifyScavenge();
+            // MaybeNotifyScavenge() is now polled by gc-helper periodically
+            // instead of running on every mutator TakeRegions success path.
+            // MaybeNotifyScavenge();
             return true;
         }
 
@@ -367,7 +354,6 @@ void MSRegionManager::ClearUnits(UnitIndex idx, UnitCount num) const
 
 MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& centralPool)
 {
-    g_MSGCTakeRegionCnt.fetch_add(1, std::memory_order_relaxed);
     RegionIndex regionIdx = 0;
     AllocSource source = AllocSource::BUMP;
     if (!TakeRegions(1, regionIdx, &source, false)) {
@@ -399,8 +385,7 @@ MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& 
 // TakeRegionForLarge — allocate N units for a large object
 // ============================================================================
 
-MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& regionStart,
-                                                   const CentralRegionPool* centralPool)
+MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& regionStart)
 {
     // Convert unit count to region count (round up to full regions).
     RegionCount regionCount = static_cast<RegionCount>(
@@ -411,16 +396,6 @@ MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& r
     if (!TakeRegions(regionCount, regionIdx, &source, true)) {
         regionStart = 0;
         return nullptr;
-    }
-
-    // Inline reclaim: when allocating a large object, synchronously release
-    // regionCount empty-cache regions to offset the RSS growth from the new
-    // large span (whether from BUMP or RELEASED, both will be touched and
-    // consume physical pages).
-    if (GetInlineReclaimEnabled() && centralPool != nullptr) {
-        for (RegionCount i = 0; i < regionCount; ++i) {
-            InlineReclaimForBalance(*centralPool);
-        }
     }
 
     regionStart = RegionIdxToAddr(regionIdx);
@@ -468,26 +443,6 @@ size_t MSRegionManager::ScavengeFreeRegions(bool releaseAll)
 size_t MSRegionManager::ScavengeFreeRegionsUpTo(size_t maxBytes)
 {
     return freeManager_.ScavengeFreeRegionsUpTo(maxBytes);
-}
-
-// ============================================================================
-// InlineReclaimForBalance — synchronously release one empty-cache region
-// to offset a BUMP allocation, keeping committed bytes stable.
-// ============================================================================
-
-void MSRegionManager::InlineReclaimForBalance(const CentralRegionPool& pool)
-{
-    if (pool.GetEmptySweptRegionCount() == 0) {
-        return;
-    }
-
-    CentralRegionPool& mutablePool = const_cast<CentralRegionPool&>(pool);
-    MSRegionInfo* region = mutablePool.TakeEmptySweptRegionForReclaim();
-    if (region == nullptr) {
-        return;
-    }
-
-    ReclaimEmptyRegionToHotFree(region);
 }
 
 // ============================================================================

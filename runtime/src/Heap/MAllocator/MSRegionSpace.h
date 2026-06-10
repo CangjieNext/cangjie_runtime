@@ -54,7 +54,6 @@ public:
     size_t GetUsedPageSize() const override;
     size_t AllocatedBytes() const override;
     size_t LargeObjectBytes() const override;
-    size_t ReclaimGarbageMemory(bool releaseAll) override;
     BackgroundReclaimStats BackgroundReclaim() override;
     bool ForEachObj(const std::function<void(BaseObject*)>& visitor, bool safe) const override;
     void FeedHungryBuffers() override;

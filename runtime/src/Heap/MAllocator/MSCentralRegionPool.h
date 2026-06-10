@@ -14,7 +14,7 @@
 #include <mutex>
 #include <cstdint>
 #include <vector>
-#include <unordered_map>
+#include <map>
 #include <algorithm>
 #include <thread>
 #include <functional>
@@ -283,6 +283,8 @@ private:
 //
 class CentralRegionPool {
 public:
+    friend class AllocBufferMS;
+
     struct BucketPressure {
         size_t partialSwept = 0;
         size_t partialUnswept = 0;
@@ -307,7 +309,7 @@ public:
 
     // Get a Region with free slots for the given size class.
     // Priority: partialSwept → partialUnswept (lazy sweep) → fullUnswept (lazy sweep)
-    //        → emptySweptCache(rebind) → fresh.
+    //        → fresh. AllocBufferMS owns any EmptyRegion local/global fallback.
     MSRegionInfo* GetRegion(uint8_t cls, MSRegionAcquireSource* source = nullptr);
 
     // Get a fresh mutator Region from RegionManager after central lists miss.
@@ -336,8 +338,8 @@ public:
                GetTotalUnsweptCount() > 0;
     }
 
-    // Reclaim up to maxRegions empty regions from emptySweptCache into released state.
-    // Passing a very large maxRegions value releases all currently cached empty regions.
+    // Reclaim up to maxRegions empty regions from the empty-region caches into released
+    // state. Passing a very large maxRegions value releases all currently cached empty regions.
     size_t ReclaimEmptyRegion(size_t maxRegions);
 
     // Check whether previous-cycle sweep work is globally quiescent.
@@ -376,9 +378,6 @@ public:
     size_t GetActiveMSRegionCount() const;
     size_t GetEmptySweptRegionCount() const;
     size_t GetLargeHotCacheRegionCount() const;
-
-    // Step 11: inline reclaim support — used by MSRegionManager::InlineReclaimForBalance
-    MSRegionInfo* TakeEmptySweptRegionForReclaim();
 
     // ===== DFX: Sweep statistics (persisted across GC cycle) =====
     MSSweepStats& GetSweepStats() { return sweepStats_; }
@@ -420,10 +419,9 @@ public:
     // Called after MarkTerminate / in PostMarkTermination.
     MSLargeSweepStats SweepLargeRegions();
 
-    // Large object hot cache: try to cache a freshly-freed large region so
-    // its physical pages remain resident for fast reuse on the next allocation.
-    // Returns true if accepted; false if the cache bucket is full (caller should
-    // call ReclaimRegionLarge instead).
+    // Large object hot cache: cache a freshly-freed large region so its
+    // physical pages remain resident for fast reuse on the next allocation.
+    // Returns false only when regionBytes is invalid.
     bool TryPutLargeHotCache(uintptr_t regionStart, size_t regionBytes);
 
     // Pop a cached entry matching regionBytes from the hot cache.
@@ -438,6 +436,10 @@ public:
 
     // Returns true if the large hot cache is non-empty (lock-free).
     bool HasLargeFreeCache() const;
+    size_t GetLargeHotCacheBytes() const
+    {
+        return largeHotCacheBytes_.load(std::memory_order_acquire);
+    }
 
     // Eager synchronous sweep of small regions: GC thread sweeps unswept regions
     // across all size classes until the configured wall-time budget is exhausted.
@@ -478,7 +480,12 @@ private:
     };
 
     void PushEmptySweptRegion(MSRegionInfo* region);
-    MSRegionInfo* TakeEmptySweptRegion(uint8_t cls);
+    MSRegionInfo* TakeEmptySweptRegionFromGlobalOnly();
+    size_t DrainEmptySweptGlobal(size_t maxRegions, std::vector<MSRegionInfo*>& drained);
+    size_t GetEmptySweptGlobalCount() const
+    {
+        return emptySweptGlobalCount_.load(std::memory_order_acquire);
+    }
     void ForceFinishUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint8_t cls, uint32_t sg,
                                 size_t& sweptRegions, size_t& emptiedRegions,
                                 size_t& retainedRegions, size_t& freedBytes);
@@ -513,23 +520,22 @@ private:
         uintptr_t regionStart;
         size_t    regionBytes;
     };
-    size_t GetMaxLargeHotCacheBytes() const;
-    size_t GetMaxEmptySweptBytes() const;
-    size_t GetMaxEmptySweptRegions() const;
     std::mutex largeHotCacheLock_;
-    std::unordered_map<size_t, std::vector<LargeHotEntry>> largeHotCache_; // key = regionCount
+    std::map<size_t, std::vector<LargeHotEntry>> largeHotCache_; // key = regionCount
+    std::atomic<size_t> largeHotCacheRegionCount_{0};
+    std::atomic<size_t> largeHotCacheBytes_{0};
 
-    // Global cache of completely-empty small/medium regions.
+    // Global cache of classless empty regions. AllocBufferMS owns any local empty
+    // cache and may batch-refill from this global queue.
     std::mutex emptySweptLock_;
     MSRegionList emptySweptCache_;
+    std::atomic<size_t> emptySweptGlobalCount_{0};
 
     // ===== Per-thread AllocBufferMS registry =====
     // Every thread lazily creates an AllocBufferMS and registers it here.
-    // GC STW uses FlushAllAllocBuffers() to drain all thread-local Regions.
 public:
     void RegisterAllocBufferMS(AllocBufferMS* buffer);
     void RemoveAllocBufferMS(AllocBufferMS* buffer);
-    void FlushAllAllocBuffers();
 
     // O9: Background fill of hungry per-thread alloc caches.
     // Called by gc-helper thread. Iterates all AllocBufferMS and fills

@@ -8,6 +8,7 @@
 #include "Allocator/RegionManager.h"
 
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <unistd.h>
 
@@ -25,17 +26,7 @@
 #endif
 #include "Sync/Sync.h"
 
-#include <cstdio>
-
 namespace MapleRuntime {
-namespace {
-std::atomic<uint64_t> g_CopyGCTakeRegionCnt{0};
-__attribute__((destructor)) void DumpCopyGCTakeRegionStats() {
-    fprintf(stderr, "[REGION-STATS][CopyGC] TakeRegion=%llu\n",
-        (unsigned long long)g_CopyGCTakeRegionCnt.load(std::memory_order_relaxed));
-    fflush(stderr);
-}
-}
 // max size of per region is 128KB.
 const size_t RegionManager::MAX_UNIT_COUNT_PER_REGION = (128 * KB) / MapleRuntime::MRT_PAGE_SIZE;
 // size of huge page is 2048KB.
@@ -534,7 +525,6 @@ void RegionManager::MaybeNotifyMark()
 
 RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, bool expectPhysicalMem)
 {
-    g_CopyGCTakeRegionCnt.fetch_add(1, std::memory_order_relaxed);
     // a chance to invoke heuristic gc.
     MaybeNotifyMark();
 
