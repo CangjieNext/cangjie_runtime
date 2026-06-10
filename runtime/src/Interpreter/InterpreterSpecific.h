@@ -29,7 +29,8 @@ void IterateFramesWithState(
 void VisitInterpreterGlobalRoots(DYN_RootVisitor visitor);
 
 void VisitInterpreterFrameRootsExpansion(
-    DYN_VisitingState state, FrameInfo frameDesc, DYN_RootVisitor stackPtrVisitor, DYN_DerivedPtrVisitor derivedPtrVisitor);
+    DYN_VisitingState state, FrameInfo frameDesc, DYN_RootVisitor stackPtrVisitor,
+    DYN_DerivedPtrVisitor derivedPtrVisitor);
 void VisitInterpreterFrameRootsMarking(DYN_VisitingState state, FrameInfo frameDesc, DYN_RootVisitor rootVisitor);
 void VisitInterpreterFrameRootsAdjusting(
     DYN_VisitingState state, FrameInfo frameDesc, DYN_RootVisitor rootVisitor, DYN_DerivedPtrVisitor derivedPtrVisitor);
