@@ -217,14 +217,59 @@ func createBinaryExpr(expr: NodeFormat_Expr): Expr {
     return resultExpr
 }
 
+/**
+ * Build the Cangjie AST for a (potentially deeply right-nested) unary
+ * expression like `!!!...!e` from its flatbuffer representation.
+ *
+ * Recursing through `generateExprAST(unExpr.GetExpr())` once per level would
+ * overflow the small Cangjie coroutine stack on inputs with thousands of
+ * operators, so the operator chain is walked iteratively first and the AST is
+ * rebuilt bottom-up (same approach as createBinaryExpr). Inner levels get the
+ * position info `generateExprAST` would have applied on the recursive path;
+ * the outermost level is still positioned by the caller.
+ *
+ * @throws ParseASTException when any level of the chain is missing its
+ *     `UnaryExpr` payload or `NodeBase`.
+ */
 func createUnaryExpr(expr: NodeFormat_Expr): Expr {
-    var unExpr = match (expr.GetExprAsUnaryExpr()) {
-        case Some(v) => v
-        case None => throw ParseASTException()
+    let chainExprs: ArrayList<NodeFormat_UnaryExpr> = ArrayList<NodeFormat_UnaryExpr>()
+    let chainBases: ArrayList<NodeFormat_NodeBase> = ArrayList<NodeFormat_NodeBase>()
+    var current = expr
+    var done = false
+    while (!done) {
+        let un = match (current.GetExprAsUnaryExpr()) {
+            case Some(v) => v
+            case None => throw ParseASTException()
+        }
+        let base = match (current.GetBase()) {
+            case Some(v) => v
+            case None => throw ParseASTException()
+        }
+        chainExprs.add(un)
+        chainBases.add(base)
+        done = true
+        if (let Some(childE) <- un.GetExpr()) {
+            if (let Some(childBase) <- childE.GetBase()) {
+                if (childBase.GetAstKind() == "unary_expr") {
+                    current = childE
+                    done = false
+                }
+            }
+        }
     }
-    var childExpr = generateExprAST(unExpr.GetExpr())
-    var op = Token(getTokenKind(unExpr.GetOperatorKind())).addPosition(unExpr.GetOperatorPos())
-    return UnaryExpr(op, childExpr)
+    var resultExpr = generateExprAST(chainExprs[chainExprs.size - 1].GetExpr())
+    var i = chainExprs.size - 1
+    while (i >= 0) {
+        let un = chainExprs[i]
+        let op = Token(getTokenKind(un.GetOperatorKind())).addPosition(un.GetOperatorPos())
+        let unNode = UnaryExpr(op, resultExpr)
+        if (i > 0) {
+            addPositionInfo(unNode, chainBases[i])
+        }
+        resultExpr = unNode
+        i = i - 1
+    }
+    return resultExpr
 }
 
 func createIsExpr(expr: NodeFormat_Expr): Expr {
@@ -336,18 +381,69 @@ func generateRefExpr(ref: Option<NodeFormat_RefExpr>) {
     return RefExpr(identifier, lAngle, typeArgs, commas, rAngle)
 }
 
+/**
+ * Build the Cangjie AST for a (potentially deeply right-nested) return
+ * expression like `return return ... e` from its flatbuffer representation.
+ *
+ * Recursing through `generateExprAST(retExpr.GetExpr())` once per level would
+ * overflow the small Cangjie coroutine stack on inputs with thousands of
+ * `return` tokens, so the chain is walked iteratively first and the AST is
+ * rebuilt bottom-up (same approach as createBinaryExpr). The chain only walks
+ * into children that carry a well-formed `return_expr` payload, so a broken
+ * innermost child still decodes to `None` through the try-catch below, exactly
+ * as each recursion level used to do. Inner levels get the position info
+ * `generateExprAST` would have applied on the recursive path; the outermost
+ * level is still positioned by the caller.
+ *
+ * @throws ParseASTException when the outermost node is missing its
+ *     `ReturnExpr` payload or `NodeBase`.
+ */
 func createReturnExpr(expr: NodeFormat_Expr): Expr {
-    var retExpr = match (expr.GetExprAsReturnExpr()) {
-        case Some(v) => v
-        case None => throw ParseASTException()
+    let chainExprs: ArrayList<NodeFormat_ReturnExpr> = ArrayList<NodeFormat_ReturnExpr>()
+    let chainBases: ArrayList<NodeFormat_NodeBase> = ArrayList<NodeFormat_NodeBase>()
+    var current = expr
+    var done = false
+    while (!done) {
+        let ret = match (current.GetExprAsReturnExpr()) {
+            case Some(v) => v
+            case None => throw ParseASTException()
+        }
+        let base = match (current.GetBase()) {
+            case Some(v) => v
+            case None => throw ParseASTException()
+        }
+        chainExprs.add(ret)
+        chainBases.add(base)
+        done = true
+        if (let Some(childE) <- ret.GetExpr()) {
+            if (let Some(childBase) <- childE.GetBase()) {
+                if (childBase.GetAstKind() == "return_expr" && !childE.GetExprAsReturnExpr().isNone()) {
+                    current = childE
+                    done = false
+                }
+            }
+        }
     }
-    var keyWord = Token(TokenKind.RETURN).addPosition(retExpr.GetReturnPos())
-    var exprNode = try {
-        Some<Expr>(generateExprAST(retExpr.GetExpr()))
+    var resultExpr = try {
+        Some<Expr>(generateExprAST(chainExprs[chainExprs.size - 1].GetExpr()))
     } catch (e: ParseASTException) {
         None<Expr>
     }
-    return ReturnExpr(keyWord, exprNode)
+    var i = chainExprs.size - 1
+    while (i >= 0) {
+        let ret = chainExprs[i]
+        let keyWord = Token(TokenKind.RETURN).addPosition(ret.GetReturnPos())
+        let retNode = ReturnExpr(keyWord, resultExpr)
+        if (i > 0) {
+            addPositionInfo(retNode, chainBases[i])
+        }
+        resultExpr = Some<Expr>(retNode)
+        i = i - 1
+    }
+    match (resultExpr) {
+        case Some(v) => return v
+        case None => throw ParseASTException()
+    }
 }
 
 func createThrowExpr(expr: NodeFormat_Expr): Expr {
