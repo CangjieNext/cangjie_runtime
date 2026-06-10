@@ -125,8 +125,9 @@ unwindPCForC2NStub:
     pop     %rdi
     mov     %r15, %rdx
     callq   MRT_C2N_Enter@PLT      // merged: SaveC2NContext + EnterSaferegion
-    movq    %rax, -232(%rbp)
+    movb    %al, -232(%rbp)
 #ifdef __OHOS__
+    movl    $0, -228(%rbp)        // stack top updated flag
     movq    %rsp, %rdi
     callq   MRT_UpdateStackTop@PLT
 .L_setstack_end:
@@ -193,7 +194,7 @@ unwindPCForC2NStub:
 
     // Restore the value of rsp before coping arg6, arg7...
     movq    -240(%rbp), %rsp
-    movl    -232(%rbp), %edi
+    movzbl  -232(%rbp), %edi
 #ifdef __OHOS__
     movl    -228(%rbp), %esi
 #endif
