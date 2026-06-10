@@ -8,6 +8,7 @@
 
 #include "ast_api.h"
 
+#include <algorithm>
 #include <cmath>
 #include <functional>
 #ifdef _WIN32
@@ -136,11 +137,44 @@ void TryCombineDoubleArrow(MacroCall* macCall, std::vector<Token> inputTokens, s
 }
 
 // These entries are reached through C2N FFI on a Cangjie coroutine stack (128 KB by
-// default on Linux), while MAX_PARSER_NESTING_DEPTH is calibrated for cjc's main-thread
-// stack. Run the recursive-descent parser (and the recursive node serialization) on a
-// dedicated thread with the same headroom as cjc so the depth guard fires before the
-// stack runs out (see UsersForum issue 3128).
-constexpr size_t PARSE_THREAD_STACK_SIZE = 8UL * 1024 * 1024;
+// default on Linux), far smaller than the cjc main-thread stack the recursive-descent
+// parser was written against. Run the parser (and the recursive node serialization) on
+// a dedicated thread whose stack is sized from the input: nesting depth is bounded by
+// the token count (every nesting level consumes at least one token), so reserving
+// PARSE_STACK_BYTES_PER_TOKEN per token over-approximates the deepest possible
+// recursion. The deepest measured consumer is the ParseExpr->ParseAtom->ParseReturnExpr
+// cycle at 2-4 KB of native frames per `return` token; 8 KB keeps a 2x margin. The
+// reservation is virtual memory the OS commits lazily, page by page. Token count is
+// only an upper bound on depth -- large flat inputs are common and legitimate -- so
+// requests beyond PARSE_THREAD_MAX_STACK_SIZE are clamped, never rejected (see
+// UsersForum issue 3128).
+constexpr size_t PARSE_STACK_BYTES_PER_TOKEN = 8UL * 1024;
+constexpr size_t PARSE_THREAD_MIN_STACK_SIZE = 8UL * 1024 * 1024;
+constexpr size_t PARSE_THREAD_MAX_STACK_SIZE = 512UL * 1024 * 1024;
+// Inputs this small cannot recurse past the coroutine stack even in the worst case;
+// parse them inline so the many small parse calls issued during macro expansion skip
+// the thread-spawn cost.
+constexpr size_t PARSE_INLINE_TOKEN_LIMIT = 32;
+
+// The serialized token stream starts with a uint32_t token count
+// (see TokenSerialization::GetTokensFromBytes).
+size_t PeekTokenCount(const uint8_t* tokensBytes)
+{
+    if (tokensBytes == nullptr) {
+        return 0;
+    }
+    uint32_t numberOfTokens = 0;
+    (void)std::copy(tokensBytes, tokensBytes + sizeof(uint32_t), reinterpret_cast<uint8_t*>(&numberOfTokens));
+    return numberOfTokens;
+}
+
+size_t ParseThreadStackSize(size_t tokenCount)
+{
+    if (tokenCount > PARSE_THREAD_MAX_STACK_SIZE / PARSE_STACK_BYTES_PER_TOKEN) {
+        return PARSE_THREAD_MAX_STACK_SIZE;
+    }
+    return std::max(PARSE_THREAD_MIN_STACK_SIZE, tokenCount * PARSE_STACK_BYTES_PER_TOKEN);
+}
 
 #ifdef _WIN32
 unsigned __stdcall ParseThreadEntry(void* arg)
@@ -156,31 +190,45 @@ void* ParseThreadEntry(void* arg)
 }
 #endif
 
-ParseRes* RunParseOnLargeStack(const std::function<ParseRes*()>& parse)
+bool TryRunOnThread(size_t stackSize, std::function<void()>& job)
 {
-    ParseRes* result = nullptr;
-    std::function<void()> job = [&parse, &result]() { result = parse(); };
 #ifdef _WIN32
-    auto handle = reinterpret_cast<HANDLE>(_beginthreadex(
-        nullptr, PARSE_THREAD_STACK_SIZE, ParseThreadEntry, &job, STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr));
+    auto handle = reinterpret_cast<HANDLE>(_beginthreadex(nullptr, static_cast<unsigned>(stackSize),
+        ParseThreadEntry, &job, STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr));
     if (handle != nullptr) {
         (void)WaitForSingleObject(handle, INFINITE);
         (void)CloseHandle(handle);
-        return result;
+        return true;
     }
 #else
     pthread_attr_t attr;
     if (pthread_attr_init(&attr) == 0) {
         pthread_t tid{};
-        bool started = pthread_attr_setstacksize(&attr, PARSE_THREAD_STACK_SIZE) == 0 &&
+        bool started = pthread_attr_setstacksize(&attr, stackSize) == 0 &&
             pthread_create(&tid, &attr, ParseThreadEntry, &job) == 0;
         (void)pthread_attr_destroy(&attr);
         if (started) {
             (void)pthread_join(tid, nullptr);
-            return result;
+            return true;
         }
     }
 #endif
+    return false;
+}
+
+ParseRes* RunParseOnLargeStack(const uint8_t* tokensBytes, const std::function<ParseRes*()>& parse)
+{
+    size_t tokenCount = PeekTokenCount(tokensBytes);
+    if (tokenCount <= PARSE_INLINE_TOKEN_LIMIT) {
+        return parse();
+    }
+    size_t stackSize = ParseThreadStackSize(tokenCount);
+    ParseRes* result = nullptr;
+    std::function<void()> job = [&parse, &result]() { result = parse(); };
+    if (TryRunOnThread(stackSize, job) ||
+        (stackSize > PARSE_THREAD_MIN_STACK_SIZE && TryRunOnThread(PARSE_THREAD_MIN_STACK_SIZE, job))) {
+        return result;
+    }
     return parse(); // thread creation failed; parse on the current stack as a last resort
 }
 } // namespace
@@ -292,7 +340,7 @@ static ParseRes* ParseExprImpl(void* fptr, const uint8_t* tokensBytes, int64_t* 
 ParseRes* CJ_AST_ParseExpr(void* fptr, const uint8_t* tokensBytes, int64_t* tokenCounter)
 {
     return RunParseOnLargeStack(
-        [fptr, tokensBytes, tokenCounter]() { return ParseExprImpl(fptr, tokensBytes, tokenCounter); });
+        tokensBytes, [fptr, tokensBytes, tokenCounter]() { return ParseExprImpl(fptr, tokensBytes, tokenCounter); });
 }
 
 static ParseRes* ParseAnnotationArgumentsImpl(const uint8_t* tokensBytes)
@@ -322,7 +370,7 @@ static ParseRes* ParseAnnotationArgumentsImpl(const uint8_t* tokensBytes)
 
 ParseRes* CJ_AST_ParseAnnotationArguments(const uint8_t* tokensBytes)
 {
-    return RunParseOnLargeStack([tokensBytes]() { return ParseAnnotationArgumentsImpl(tokensBytes); });
+    return RunParseOnLargeStack(tokensBytes, [tokensBytes]() { return ParseAnnotationArgumentsImpl(tokensBytes); });
 }
 
 static ParseRes* ParsePatternImpl(void* fptr, const uint8_t* tokensBytes, int64_t* tokenCounter)
@@ -375,7 +423,7 @@ static ParseRes* ParsePatternImpl(void* fptr, const uint8_t* tokensBytes, int64_
 ParseRes* CJ_AST_ParsePattern(void* fptr, const uint8_t* tokensBytes, int64_t* tokenCounter)
 {
     return RunParseOnLargeStack(
-        [fptr, tokensBytes, tokenCounter]() { return ParsePatternImpl(fptr, tokensBytes, tokenCounter); });
+        tokensBytes, [fptr, tokensBytes, tokenCounter]() { return ParsePatternImpl(fptr, tokensBytes, tokenCounter); });
 }
 
 static ParseRes* ParseTypeImpl(void* fptr, const uint8_t* tokensBytes, int64_t* tokenCounter)
@@ -422,7 +470,7 @@ static ParseRes* ParseTypeImpl(void* fptr, const uint8_t* tokensBytes, int64_t* 
 ParseRes* CJ_AST_ParseType(void* fptr, const uint8_t* tokensBytes, int64_t* tokenCounter)
 {
     return RunParseOnLargeStack(
-        [fptr, tokensBytes, tokenCounter]() { return ParseTypeImpl(fptr, tokensBytes, tokenCounter); });
+        tokensBytes, [fptr, tokensBytes, tokenCounter]() { return ParseTypeImpl(fptr, tokensBytes, tokenCounter); });
 }
 
 static ParseRes* ParseDeclCommonImpl(void* fptr, const uint8_t* tokensBytes, ScopeKind scopeKind, int64_t* tokenCounter)
@@ -479,21 +527,21 @@ static ParseRes* ParseDeclCommonImpl(void* fptr, const uint8_t* tokensBytes, Sco
 
 ParseRes* CJ_AST_ParseDecl(void* fptr, const uint8_t* tokensBytes, int64_t* tokenCounter)
 {
-    return RunParseOnLargeStack([fptr, tokensBytes, tokenCounter]() {
+    return RunParseOnLargeStack(tokensBytes, [fptr, tokensBytes, tokenCounter]() {
         return ParseDeclCommonImpl(fptr, tokensBytes, ScopeKind::UNKNOWN_SCOPE, tokenCounter);
     });
 }
 
 ParseRes* CJ_AST_ParsePropMemberDecl(void* fptr, const uint8_t* tokensBytes)
 {
-    return RunParseOnLargeStack([fptr, tokensBytes]() {
+    return RunParseOnLargeStack(tokensBytes, [fptr, tokensBytes]() {
         return ParseDeclCommonImpl(fptr, tokensBytes, ScopeKind::PROP_MEMBER_GETTER_BODY, nullptr);
     });
 }
 
 ParseRes* CJ_AST_ParsePrimaryConstructor(void* fptr, const uint8_t* tokensBytes)
 {
-    return RunParseOnLargeStack([fptr, tokensBytes]() {
+    return RunParseOnLargeStack(tokensBytes, [fptr, tokensBytes]() {
         return ParseDeclCommonImpl(fptr, tokensBytes, ScopeKind::CLASS_BODY, nullptr);
     });
 }
@@ -543,7 +591,7 @@ static ParseRes* ParseTopLevelImpl(void* fptr, const uint8_t* tokensBytes)
 
 ParseRes* CJ_AST_ParseTopLevel(void* fptr, const uint8_t* tokensBytes)
 {
-    return RunParseOnLargeStack([fptr, tokensBytes]() { return ParseTopLevelImpl(fptr, tokensBytes); });
+    return RunParseOnLargeStack(tokensBytes, [fptr, tokensBytes]() { return ParseTopLevelImpl(fptr, tokensBytes); });
 }
 
 bool CJ_CheckParentContext(void* fptr, char* parent, bool report)
