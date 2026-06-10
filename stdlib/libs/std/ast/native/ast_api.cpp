@@ -9,6 +9,13 @@
 #include "ast_api.h"
 
 #include <cmath>
+#include <functional>
+#ifdef _WIN32
+#include <windows.h>
+#include <process.h>
+#else
+#include <pthread.h>
+#endif
 
 #include "cangjie/Basic/DiagnosticEmitter.h"
 #include "cangjie/Basic/Print.h"
@@ -127,6 +134,55 @@ void TryCombineDoubleArrow(MacroCall* macCall, std::vector<Token> inputTokens, s
     outputTokens.emplace_back(token1);
     return;
 }
+
+// These entries are reached through C2N FFI on a Cangjie coroutine stack (128 KB by
+// default on Linux), while MAX_PARSER_NESTING_DEPTH is calibrated for cjc's main-thread
+// stack. Run the recursive-descent parser (and the recursive node serialization) on a
+// dedicated thread with the same headroom as cjc so the depth guard fires before the
+// stack runs out (see UsersForum issue 3128).
+constexpr size_t PARSE_THREAD_STACK_SIZE = 8UL * 1024 * 1024;
+
+#ifdef _WIN32
+unsigned __stdcall ParseThreadEntry(void* arg)
+{
+    (*static_cast<std::function<void()>*>(arg))();
+    return 0;
+}
+#else
+void* ParseThreadEntry(void* arg)
+{
+    (*static_cast<std::function<void()>*>(arg))();
+    return nullptr;
+}
+#endif
+
+ParseRes* RunParseOnLargeStack(const std::function<ParseRes*()>& parse)
+{
+    ParseRes* result = nullptr;
+    std::function<void()> job = [&parse, &result]() { result = parse(); };
+#ifdef _WIN32
+    auto handle = reinterpret_cast<HANDLE>(_beginthreadex(
+        nullptr, PARSE_THREAD_STACK_SIZE, ParseThreadEntry, &job, STACK_SIZE_PARAM_IS_A_RESERVATION, nullptr));
+    if (handle != nullptr) {
+        (void)WaitForSingleObject(handle, INFINITE);
+        (void)CloseHandle(handle);
+        return result;
+    }
+#else
+    pthread_attr_t attr;
+    if (pthread_attr_init(&attr) == 0) {
+        pthread_t tid{};
+        bool started = pthread_attr_setstacksize(&attr, PARSE_THREAD_STACK_SIZE) == 0 &&
+            pthread_create(&tid, &attr, ParseThreadEntry, &job) == 0;
+        (void)pthread_attr_destroy(&attr);
+        if (started) {
+            (void)pthread_join(tid, nullptr);
+            return result;
+        }
+    }
+#endif
+    return parse(); // thread creation failed; parse on the current stack as a last resort
+}
 } // namespace
 
 extern "C" {
@@ -184,7 +240,7 @@ ParseRes* CJ_AST_Lex(void* fptr, const char* code, int64_t codeLen)
     return result;
 }
 
-ParseRes* CJ_AST_ParseExpr(void* fptr, const uint8_t* tokensBytes, int64_t* tokenCounter)
+static ParseRes* ParseExprImpl(void* fptr, const uint8_t* tokensBytes, int64_t* tokenCounter)
 {
     Cangjie::ICE::TriggerPointSetter iceSetter(CompileStage::PARSE);
     std::vector<Token> tokens = TokenSerialization::GetTokensFromBytes(tokensBytes);
@@ -233,7 +289,13 @@ ParseRes* CJ_AST_ParseExpr(void* fptr, const uint8_t* tokensBytes, int64_t* toke
     return result;
 }
 
-ParseRes* CJ_AST_ParseAnnotationArguments(const uint8_t* tokensBytes)
+ParseRes* CJ_AST_ParseExpr(void* fptr, const uint8_t* tokensBytes, int64_t* tokenCounter)
+{
+    return RunParseOnLargeStack(
+        [fptr, tokensBytes, tokenCounter]() { return ParseExprImpl(fptr, tokensBytes, tokenCounter); });
+}
+
+static ParseRes* ParseAnnotationArgumentsImpl(const uint8_t* tokensBytes)
 {
     Cangjie::ICE::TriggerPointSetter iceSetter(CompileStage::PARSE);
     std::vector<Token> tokens = TokenSerialization::GetTokensFromBytes(tokensBytes);
@@ -258,7 +320,12 @@ ParseRes* CJ_AST_ParseAnnotationArguments(const uint8_t* tokensBytes)
     return result;
 }
 
-ParseRes* CJ_AST_ParsePattern(void* fptr, const uint8_t* tokensBytes, int64_t* tokenCounter)
+ParseRes* CJ_AST_ParseAnnotationArguments(const uint8_t* tokensBytes)
+{
+    return RunParseOnLargeStack([tokensBytes]() { return ParseAnnotationArgumentsImpl(tokensBytes); });
+}
+
+static ParseRes* ParsePatternImpl(void* fptr, const uint8_t* tokensBytes, int64_t* tokenCounter)
 {
     Cangjie::ICE::TriggerPointSetter iceSetter(CompileStage::PARSE);
     std::vector<Token> tokens = TokenSerialization::GetTokensFromBytes(tokensBytes);
@@ -305,7 +372,13 @@ ParseRes* CJ_AST_ParsePattern(void* fptr, const uint8_t* tokensBytes, int64_t* t
     return result;
 }
 
-ParseRes* CJ_AST_ParseType(void* fptr, const uint8_t* tokensBytes, int64_t* tokenCounter)
+ParseRes* CJ_AST_ParsePattern(void* fptr, const uint8_t* tokensBytes, int64_t* tokenCounter)
+{
+    return RunParseOnLargeStack(
+        [fptr, tokensBytes, tokenCounter]() { return ParsePatternImpl(fptr, tokensBytes, tokenCounter); });
+}
+
+static ParseRes* ParseTypeImpl(void* fptr, const uint8_t* tokensBytes, int64_t* tokenCounter)
 {
     Cangjie::ICE::TriggerPointSetter iceSetter(CompileStage::PARSE);
     std::vector<Token> tokens = TokenSerialization::GetTokensFromBytes(tokensBytes);
@@ -346,7 +419,13 @@ ParseRes* CJ_AST_ParseType(void* fptr, const uint8_t* tokensBytes, int64_t* toke
     return result;
 }
 
-ParseRes* CJ_ParseDeclCommon(void* fptr, const uint8_t* tokensBytes, ScopeKind scopeKind, int64_t* tokenCounter)
+ParseRes* CJ_AST_ParseType(void* fptr, const uint8_t* tokensBytes, int64_t* tokenCounter)
+{
+    return RunParseOnLargeStack(
+        [fptr, tokensBytes, tokenCounter]() { return ParseTypeImpl(fptr, tokensBytes, tokenCounter); });
+}
+
+static ParseRes* ParseDeclCommonImpl(void* fptr, const uint8_t* tokensBytes, ScopeKind scopeKind, int64_t* tokenCounter)
 {
     Cangjie::ICE::TriggerPointSetter iceSetter(CompileStage::PARSE);
     std::vector<Token> tokens = TokenSerialization::GetTokensFromBytes(tokensBytes);
@@ -400,20 +479,26 @@ ParseRes* CJ_ParseDeclCommon(void* fptr, const uint8_t* tokensBytes, ScopeKind s
 
 ParseRes* CJ_AST_ParseDecl(void* fptr, const uint8_t* tokensBytes, int64_t* tokenCounter)
 {
-    return CJ_ParseDeclCommon(fptr, tokensBytes, ScopeKind::UNKNOWN_SCOPE, tokenCounter);
+    return RunParseOnLargeStack([fptr, tokensBytes, tokenCounter]() {
+        return ParseDeclCommonImpl(fptr, tokensBytes, ScopeKind::UNKNOWN_SCOPE, tokenCounter);
+    });
 }
 
 ParseRes* CJ_AST_ParsePropMemberDecl(void* fptr, const uint8_t* tokensBytes)
 {
-    return CJ_ParseDeclCommon(fptr, tokensBytes, ScopeKind::PROP_MEMBER_GETTER_BODY, nullptr);
+    return RunParseOnLargeStack([fptr, tokensBytes]() {
+        return ParseDeclCommonImpl(fptr, tokensBytes, ScopeKind::PROP_MEMBER_GETTER_BODY, nullptr);
+    });
 }
 
 ParseRes* CJ_AST_ParsePrimaryConstructor(void* fptr, const uint8_t* tokensBytes)
 {
-    return CJ_ParseDeclCommon(fptr, tokensBytes, ScopeKind::CLASS_BODY, nullptr);
+    return RunParseOnLargeStack([fptr, tokensBytes]() {
+        return ParseDeclCommonImpl(fptr, tokensBytes, ScopeKind::CLASS_BODY, nullptr);
+    });
 }
 
-ParseRes* CJ_AST_ParseTopLevel(void* fptr, const uint8_t* tokensBytes)
+static ParseRes* ParseTopLevelImpl(void* fptr, const uint8_t* tokensBytes)
 {
     Cangjie::ICE::TriggerPointSetter iceSetter(CompileStage::PARSE);
     std::vector<Token> tokens = TokenSerialization::GetTokensFromBytes(tokensBytes);
@@ -454,6 +539,11 @@ ParseRes* CJ_AST_ParseTopLevel(void* fptr, const uint8_t* tokensBytes)
     result->node = nodeWriter.ExportNode();
     result->eMsg = nullptr;
     return result;
+}
+
+ParseRes* CJ_AST_ParseTopLevel(void* fptr, const uint8_t* tokensBytes)
+{
+    return RunParseOnLargeStack([fptr, tokensBytes]() { return ParseTopLevelImpl(fptr, tokensBytes); });
 }
 
 bool CJ_CheckParentContext(void* fptr, char* parent, bool report)

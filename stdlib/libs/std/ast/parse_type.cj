@@ -104,11 +104,8 @@ func createPrimitiveType(tyNode: NodeFormat_Type, nodeBase: NodeFormat_NodeBase)
     return PrimitiveType(typeName, colon, kind)
 }
 
-func createRefType(tyNode: Option<NodeFormat_RefType>, nodeBase: NodeFormat_NodeBase): TypeNode {
-    var refType = match (tyNode) {
-        case Some(v) => v
-        case None => throw ParseASTException()
-    }
+func buildRefTypeLevel(refType: NodeFormat_RefType, nodeBase: NodeFormat_NodeBase, types: ArrayList<TypeNode>,
+    commas: Tokens): TypeNode {
     var typeName: Token = match (refType.GetBase()) {
         case Some(v) =>
             if (!v.GetTypeParameterName().isEmpty()) {
@@ -127,9 +124,58 @@ func createRefType(tyNode: Option<NodeFormat_RefType>, nodeBase: NodeFormat_Node
         case None => throw ParseASTException()
     }
     var lAngle: Token = Token(TokenKind.LT).addPosition(refType.GetLeftAnglePos())
+    var rAngle: Token = Token(TokenKind.GT).addPosition(refType.GetRightAnglePos())
+    return RefType(typeName, colon, identifier, lAngle, types, commas, rAngle)
+}
+
+func createRefType(tyNode: Option<NodeFormat_RefType>, nodeBase: NodeFormat_NodeBase): TypeNode {
+    /*
+     * Deeply nested generic types like `S<S<...<Int64>>>` (up to
+     * MAX_PARSER_NESTING_DEPTH levels pass the parser) used to recurse through
+     * generateTypeAST/createRefType once per level and overflow the small
+     * Cangjie coroutine stack with StackOverflowError after parsing succeeded.
+     * Walk single-argument ref_type chains iteratively first, then build the
+     * AST bottom-up so stack usage stays O(1) per level (same approach as
+     * createBinaryExpr).
+     */
+    var refType = match (tyNode) {
+        case Some(v) => v
+        case None => throw ParseASTException()
+    }
+    var chainRefs: ArrayList<NodeFormat_RefType> = ArrayList<NodeFormat_RefType>()
+    var chainNodeBases: ArrayList<NodeFormat_NodeBase> = ArrayList<NodeFormat_NodeBase>()
+    // chainArgTypes[i] is the single type argument of chainRefs[i], i.e. the
+    // NodeFormat_Type wrapping chainRefs[i + 1]
+    var chainArgTypes: ArrayList<NodeFormat_Type> = ArrayList<NodeFormat_Type>()
+    chainRefs.add(refType)
+    chainNodeBases.add(nodeBase)
+    var done = false
+    while (!done) {
+        done = true
+        let args = chainRefs[chainRefs.size - 1].GetTypeArguments()
+        if (args.size != 1) {
+            continue
+        }
+        if (let Some(argTy) <- args[0]) {
+            if (let Some(argTyBase) <- argTy.GetBase()) {
+                if (let Some(argNodeBase) <- argTyBase.GetBase()) {
+                    if (argNodeBase.GetAstKind() == "ref_type") {
+                        if (let Some(argRef) <- argTy.GetTypeAsRefType()) {
+                            chainArgTypes.add(argTy)
+                            chainRefs.add(argRef)
+                            chainNodeBases.add(argNodeBase)
+                            done = false
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // decode the innermost link's type arguments with the regular recursion
+    var idx = chainRefs.size - 1
     var types: ArrayList<TypeNode> = ArrayList<TypeNode>()
     let commas = Tokens()
-    for (tp in refType.GetTypeArguments()) {
+    for (tp in chainRefs[idx].GetTypeArguments()) {
         types.add(generateTypeAST(tp))
         match (tp?.GetBase()?.GetCommaPos()) {
             case Some(position) where isValidPosition(position) => commas.append(
@@ -137,8 +183,24 @@ func createRefType(tyNode: Option<NodeFormat_RefType>, nodeBase: NodeFormat_Node
             case _ => ()
         }
     }
-    var rAngle: Token = Token(TokenKind.GT).addPosition(refType.GetRightAnglePos())
-    return RefType(typeName, colon, identifier, lAngle, types, commas, rAngle)
+    var result = buildRefTypeLevel(chainRefs[idx], chainNodeBases[idx], types, commas)
+    while (idx > 0) {
+        // `result` becomes the single type argument of the enclosing level; set the
+        // position info generateTypeAST would have applied on the recursive path
+        // (the outermost node's position info is added by the caller as before)
+        addPositionInfo(result, chainNodeBases[idx])
+        idx = idx - 1
+        var wrapTypes: ArrayList<TypeNode> = ArrayList<TypeNode>()
+        wrapTypes.add(result)
+        let wrapCommas = Tokens()
+        match (chainArgTypes[idx].GetBase()?.GetCommaPos()) {
+            case Some(position) where isValidPosition(position) => wrapCommas.append(
+                Token(TokenKind.COMMA).addPosition(position))
+            case _ => ()
+        }
+        result = buildRefTypeLevel(chainRefs[idx], chainNodeBases[idx], wrapTypes, wrapCommas)
+    }
+    return result
 }
 
 func createQualifiedType(tyNode: NodeFormat_Type, nodeBase: NodeFormat_NodeBase): TypeNode {
