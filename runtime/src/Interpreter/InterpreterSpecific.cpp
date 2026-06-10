@@ -42,6 +42,7 @@ extern "C" void CJ_MCC_I2NStubEnd(...);
 extern "C" FuncPtr* CJ_MCC_GetMTable(TypeInfo* ti, TypeInfo* itf);
 extern "C" TypeInfo* CJ_MCC_GetMethodOuterTI(TypeInfo* ti, TypeInfo* itf, U64 index);
 extern "C" void CJ_MCC_UpdateVMT(TypeInfo* ti, TypeInfo* itf, ExtensionData* extensionData);
+extern "C" ObjRef MCC_NewPinnedObject(const TypeInfo* klass, MSize size, bool isFinalizer);
 
 struct {
     bool initialized = false;
@@ -149,6 +150,14 @@ DYN_CJThreadHandle NewCJThread(void* execute, DYN_ObjRef future, void* scheduler
     return MCC_NewCJThread(execute, future, scheduler);
 }
 
+DYN_CJThreadHandle NewCJThreadNoReturn(
+    void* executeClosure, DYN_ObjRef closurePtr, void* scheduler, struct DYN_TypeInfo* futureTi)
+{
+    DLOG(INTERPRETER, "NewCJThreadNoReturn: executeClosure=%p, closurePtr=%p, scheduler=%p, futureTi=%p",
+        executeClosure, closurePtr, scheduler, futureTi);
+    return MCC_NewCJThreadNoReturn(executeClosure, closurePtr, scheduler, futureTi);
+}
+
 void VisitRootFromInterpreter(DYN_RootVisitor _visitor, DYN_Placeholder _placeholder)
 {
     const RootVisitor* visitor = static_cast<const RootVisitor*>(_visitor);
@@ -244,6 +253,17 @@ DYN_ObjRef ObjectAllocate(struct DYN_TypeInfo* tpe)
 
     DLOG(INTERPRETER, "ObjectAllocate: type=%p (%s), addr=%p, size=%u", tpe, typeInfo->GetName(), obj, size);
 
+    return (DYN_ObjRef)obj;
+}
+
+DYN_ObjRef NewPinnedObject(struct DYN_TypeInfo* tpe, bool isFinalizer)
+{
+    TypeInfo* typeInfo = reinterpret_cast<TypeInfo*>(tpe);
+    MSize size = AlignUp<MSize>(typeInfo->GetInstanceSize(), 8) + sizeof(TypeInfo*);
+    DLOG(INTERPRETER, "NewPinnedObject: type=%p (%s), size=%u, isFinalizer=%d", tpe,
+        typeInfo->GetName(), size, static_cast<int>(isFinalizer));
+
+    ObjRef obj = MCC_NewPinnedObject(typeInfo, size, isFinalizer);
     return (DYN_ObjRef)obj;
 }
 
@@ -557,6 +577,7 @@ DYN_CJNativeInterface CreateCJNativeInterface(void* symbolHandle)
         .carrierSpecificOffset = offsetof(ThreadLocalData, mutator),
         .cjThreadSpecificOffset = ComputeCJThreadDataOffset(),
         .newCJThread = &NewCJThread,
+        .newCJThreadNoReturn = &NewCJThreadNoReturn,
         .typeInfo = &TypeInfoProvider,
         .typeTemplate = &FindTypeTemplate,
         .getOrCreateTypeInfo = &GetOrCreateTypeInfo,
@@ -566,6 +587,7 @@ DYN_CJNativeInterface CreateCJNativeInterface(void* symbolHandle)
         .updateVMT = &UpdateVMT,
         .getTypeInfoUUID = &GetTypeInfoUUID,
         .objectAlloc = &ObjectAllocate,
+        .newPinnedObject = &NewPinnedObject,
         .arrayAlloc = &ArrayAllocate,
         .safePoint = &SafePoint,
         .isPendingSafePoint = &IsPendingSafePoint,

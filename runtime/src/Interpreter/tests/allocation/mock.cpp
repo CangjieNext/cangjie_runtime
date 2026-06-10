@@ -40,6 +40,21 @@ void AllocationMock::allocationTest()
     interface.writeStaticField(addr, obj);
     printf("[Mock] wrote object to static field: %p\n", static_cast<void*>(addr));
 
+    DYN_ObjRef pinnedObj = interface.newPinnedObject(ti, false);
+    if (!pinnedObj) {
+        printf("[Mock] error: failed to allocate pinned std.core:Object\n");
+        return;
+    } else {
+        printf("[Mock] allocated pinned object: %p\n", static_cast<void*>(pinnedObj));
+    }
+    void* pinnedObjAddr = get_symbol_address("_CN4test10pinned_objE");
+    if (!pinnedObjAddr) {
+        printf("[Mock] error: symbol _CN4test10pinned_objE not found\n");
+        return;
+    }
+    interface.writeStaticField(pinnedObjAddr, pinnedObj);
+    printf("[Mock] wrote pinned object to static field: %p\n", static_cast<void*>(pinnedObjAddr));
+
     auto ti2 = interface.typeInfo("RawArray<test:TestData>");
     printf("[Mock] type info RawArray<test:TestData> = %p\n", static_cast<void*>(ti2));
 
@@ -82,4 +97,3 @@ void AllocationMock::allocationTest()
 
     return;
 }
-

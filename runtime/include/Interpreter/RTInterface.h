@@ -111,7 +111,7 @@ struct INT_InterpreterInterface;
 struct DYN_CJNativeInterface;
 
 #define INT_INTERPRETER_INTERFACE_VERSION 1
-#define DYN_CJNATIVE_INTERFACE_VERSION 1
+#define DYN_CJNATIVE_INTERFACE_VERSION 2
 
 // region interpreter interface
 
@@ -229,6 +229,15 @@ typedef void (*INT_LandingPadFn)();
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
 typedef DYN_ObjRef (*DYN_ObjAllocFn)(struct DYN_TypeInfo*);
+
+// Allocate new pinned object.
+// params:
+// - Pointer to TypeInfo describing the object to be allocated
+// - isFinalizer - true if the allocated object has finalizer metadata
+// return: allocated object or NULL
+// Notes:
+//  This method will be invoked by interpreter as a part of interpretation loop.
+typedef DYN_ObjRef (*DYN_NewPinnedObjectFn)(struct DYN_TypeInfo*, bool isFinalizer);
 
 // Allocate new array.
 // params:
@@ -522,6 +531,16 @@ typedef DYN_ThreadLocalData (*DYN_GetThreadLocalDataFn)();
 // return: opaque cjThread handle for the created thread, or null if creation or scheduling fails.
 typedef DYN_CJThreadHandle (*DYN_NewCJThreadFn)(void* execute, DYN_ObjRef future, void* scheduler);
 
+// Creates and schedules a new Cangjie thread that executes a managed closure without returning a value.
+// params:
+// - executeClosure - managed-call entry pointer for closure execution. Must be non-null.
+// - closurePtr - closure object passed to `executeClosure`. Must be a non-null valid object reference.
+// - scheduler - target scheduler handle, or null to use the current runtime scheduler.
+// - futureTi - TypeInfo passed to the managed call as the future/result type metadata.
+// return: opaque cjThread handle for the created thread, or null if creation or scheduling fails.
+typedef DYN_CJThreadHandle (*DYN_NewCJThreadNoReturnFn)(
+    void* executeClosure, DYN_ObjRef closurePtr, void* scheduler, struct DYN_TypeInfo* futureTi);
+
 // Returns true if the GC is in an "active" phase.
 // In active phase fast-path write barriers can`t be used.
 typedef bool (*DYN_IsActiveGcPhaseFn)(DYN_ThreadLocalData);
@@ -628,6 +647,7 @@ struct DYN_CJNativeInterface {
     size_t carrierSpecificOffset;
     size_t cjThreadSpecificOffset;
     DYN_NewCJThreadFn newCJThread;
+    DYN_NewCJThreadNoReturnFn newCJThreadNoReturn;
 
     DYN_TypeInfoProviderFn typeInfo;
     DYN_TypeTemplateFn typeTemplate;
@@ -639,6 +659,7 @@ struct DYN_CJNativeInterface {
     DYN_GetTypeInfoUUIDFn getTypeInfoUUID;
 
     DYN_ObjAllocFn objectAlloc;
+    DYN_NewPinnedObjectFn newPinnedObject;
     DYN_ArrayAllocFn arrayAlloc;
     DYN_SafePointFn safePoint;
     DYN_IsPendingSafePointFn isPendingSafePoint;
