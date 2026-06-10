@@ -7,6 +7,7 @@ import std.reflect.*
 import common.*
 
 public var to_be_set_in_mock: Option<Object> = None
+public var pinned_obj: Option<Object> = None
 public var placeholder_array: Array<TestData> = Array<TestData>()
 
 public class TestData {
@@ -27,6 +28,18 @@ public func do_test() {
             println("Type is: " + info.toString())
             if (info.toString() != "Object") {
                 throw Exception("error: global variable has unexpected type: " + info.toString())
+            }
+    }
+    gc(heavy: false)
+
+    match (pinned_obj) {
+        case None => throw Exception("error: pinned object is unset, should be set by mock")
+        case Some(x) =>
+            let info = TypeInfo.of(x);
+            println("ok: pinned object is set");
+            println("Pinned type is: " + info.toString())
+            if (info.toString() != "Object") {
+                throw Exception("error: pinned object has unexpected type: " + info.toString())
             }
     }
     gc(heavy: false)
