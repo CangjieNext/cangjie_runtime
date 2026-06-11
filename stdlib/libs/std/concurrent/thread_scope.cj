@@ -14,7 +14,8 @@ class ThreadGroupIterator<T> <: Iterator<T> {
 
 enum Result<T> {
     | Ok(T)
-    | Err(Exception)
+    | Ex(Exception)
+    | Err(Error)
 }
 
 public class ThreadGroup<T> <: Iterable<T> {
@@ -28,6 +29,8 @@ public class ThreadGroup<T> <: Iterable<T> {
             try {
                 completed.add(Ok(task()))
             } catch (e: Exception) {
+                completed.add(Ex(e))
+            } catch (e: Error) {
                 completed.add(Err(e))
             }
         }
@@ -65,6 +68,7 @@ public class ThreadGroup<T> <: Iterable<T> {
 
         match (result) {
             case Ok(v) => return v
+            case Ex(e) => throw e
             case Err(e) => throw e
         }
     }
@@ -77,6 +81,10 @@ public func ThreadScope<T, R>(fn: (ThreadGroup<T>) -> R): R {
         group.waitForAll()
         return result
     } catch (e: Exception) {
+        group.cancelAll()
+        group.silentWaitForAll()
+        throw e
+    } catch (e: Error) {
         group.cancelAll()
         group.silentWaitForAll()
         throw e
