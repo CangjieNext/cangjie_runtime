@@ -606,38 +606,61 @@ TypeInfo* TypeInfo::GetMethodOuterTI(TypeInfo* itf, U64 index)
     if (UNLIKELY(IsTempEnum() && superTi != nullptr)) {
         return superTi->GetMethodOuterTI(itf, index);
     }
-    if (UNLIKELY(IsMTableDescUnInitialized() || !mTableDesc->IsFullyHandled())) {
-        (void)FindExtensionData(itf, true);
+
+    if (LIKELY(!IsMTableDescUnInitialized() && mTableDesc->IsFullyHandled())) {
+        auto it = mTableDesc->mTable.find(itfUUID);
+        if (it != mTableDesc->mTable.end()) {
+            auto* outerTi = it->second.GetCachedTypeInfo(index);
+            if (LIKELY(outerTi != nullptr)) {
+                return outerTi;
+            }
+        }
     }
-    auto& mTable = mTableDesc->mTable;
-    auto it = mTable.find(itfUUID);
-    if (it == mTable.end()) {
-        LOG(RTLOG_FATAL, "expected interface %s is not in class %s", itf->GetName(), GetName());
+
+    auto* ed = FindExtensionData(itf, true);
+    if (UNLIKELY(ed == nullptr)) {
+        LOG(RTLOG_FATAL, "extensionData is nullptr in GetMethodOuterTI, ti: %s, itf: %s", GetName(), itf->GetName());
         return nullptr;
     }
-    auto* outerTi = it->second.GetCachedTypeInfo(index);
-    if (LIKELY(outerTi != nullptr)) {
-        return outerTi;
-    }
-    auto* ed = it->second.GetExtensionData();
-    CHECK(ed != nullptr);
-    outerTi = ed->GetOuterTi(this, index);
-    if (outerTi != nullptr) {
-        it->second.SetCachedTypeInfo(index, outerTi);
-        return outerTi;
-    }
-    // Cache miss and GetOuterTi returned null: resolve by walking supers.
-    FuncPtr* funcTable = ed->GetFuncTable();
-    FuncPtr funcPtr = funcTable[index];
-    for (const auto& superTypePair : mTable) {
-        ExtensionData* thisEdSuper = superTypePair.second.GetExtensionData();
-        if (!thisEdSuper->IsTargetHasSameSourceWith(this)) {
-            continue;
+
+    FuncPtr funcPtr = nullptr;
+    std::vector<std::pair<TypeInfo*, bool>> superTis;
+    {
+        std::lock_guard<std::recursive_mutex> lock(mTableDesc->mTableMutex);
+        auto& mTable = mTableDesc->mTable;
+        auto it = mTable.find(itfUUID);
+        if (it == mTable.end()) {
+            it = mTable.emplace(itfUUID, InheritFuncTable(ed, itf, ed->GetFuncTableSize())).first;
         }
-        TypeInfo* superTi = superTypePair.second.GetSuperTi();
-        if (superTi == this || superTi->GetUUID() == GetUUID()) {
-            continue;
+        auto* outerTi = it->second.GetCachedTypeInfo(index);
+        if (LIKELY(outerTi != nullptr)) {
+            return outerTi;
         }
+        ed = it->second.GetExtensionData();
+        CHECK(ed != nullptr);
+        outerTi = ed->GetOuterTi(this, index);
+        if (outerTi != nullptr) {
+            it->second.SetCachedTypeInfo(index, outerTi);
+            return outerTi;
+        }
+        // Cache miss and GetOuterTi returned null: resolve by walking supers outside this lock.
+        FuncPtr* funcTable = ed->GetFuncTable();
+        funcPtr = funcTable[index];
+        for (const auto& superTypePair : mTable) {
+            ExtensionData* thisEdSuper = superTypePair.second.GetExtensionData();
+            if (!thisEdSuper->IsTargetHasSameSourceWith(this)) {
+                continue;
+            }
+            TypeInfo* superTi = superTypePair.second.GetSuperTi();
+            if (superTi == this || superTi->GetUUID() == GetUUID()) {
+                continue;
+            }
+            superTis.emplace_back(superTi, thisEdSuper->IsDirect());
+        }
+    }
+
+    for (const auto& superTiPair : superTis) {
+        TypeInfo* superTi = superTiPair.first;
         auto* superEdItf = superTi->FindExtensionData(itf);
         if (superEdItf == nullptr) {
             continue;
@@ -648,14 +671,22 @@ TypeInfo* TypeInfo::GetMethodOuterTI(TypeInfo* itf, U64 index)
         }
         if (funcPtrInSuper == funcPtr) {
             TypeInfo* res = superTi->GetMethodOuterTI(itf, index);
-            it->second.SetCachedTypeInfo(index, res);
+            std::lock_guard<std::recursive_mutex> lock(mTableDesc->mTableMutex);
+            auto it = mTableDesc->mTable.find(itfUUID);
+            if (it != mTableDesc->mTable.end()) {
+                it->second.SetCachedTypeInfo(index, res);
+            }
             return res;
         }
-        if (thisEdSuper->IsDirect()) {
+        if (superTiPair.second) {
             break;
         }
     }
-    it->second.SetCachedTypeInfo(index, this);
+    std::lock_guard<std::recursive_mutex> lock(mTableDesc->mTableMutex);
+    auto it = mTableDesc->mTable.find(itfUUID);
+    if (it != mTableDesc->mTable.end()) {
+        it->second.SetCachedTypeInfo(index, this);
+    }
     return this;
 }
 
