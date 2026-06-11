@@ -150,7 +150,7 @@ void TryCombineDoubleArrow(MacroCall* macCall, std::vector<Token> inputTokens, s
 // UsersForum issue 3128).
 constexpr size_t PARSE_STACK_BYTES_PER_TOKEN = 8UL * 1024;
 constexpr size_t PARSE_THREAD_MIN_STACK_SIZE = 8UL * 1024 * 1024;
-constexpr size_t PARSE_THREAD_MAX_STACK_SIZE = 512UL * 1024 * 1024;
+constexpr size_t PARSE_THREAD_MAX_STACK_SIZE = 2UL * 1024 * 1024 * 1024;
 // Inputs this small cannot recurse past the coroutine stack even in the worst case;
 // parse them inline so the many small parse calls issued during macro expansion skip
 // the thread-spawn cost.
@@ -216,6 +216,20 @@ bool TryRunOnThread(size_t stackSize, std::function<void()>& job)
     return false;
 }
 
+ParseRes* MakeParseErrorRes(const std::string& msg)
+{
+    // ParseRes ownership passes to the Cangjie side, which releases it with LibC.free,
+    // so it must come from malloc.
+    // NOLINTNEXTLINE(cppcoreguidelines-no-malloc, hicpp-no-malloc)
+    auto result = static_cast<ParseRes*>(malloc(sizeof(ParseRes)));
+    if (result == nullptr) {
+        return nullptr;
+    }
+    result->node = nullptr;
+    result->eMsg = CloneString(msg, msg.size() + 1);
+    return result;
+}
+
 ParseRes* RunParseOnLargeStack(const uint8_t* tokensBytes, const std::function<ParseRes*()>& parse)
 {
     size_t tokenCount = PeekTokenCount(tokensBytes);
@@ -229,7 +243,10 @@ ParseRes* RunParseOnLargeStack(const uint8_t* tokensBytes, const std::function<P
         (stackSize > PARSE_THREAD_MIN_STACK_SIZE && TryRunOnThread(PARSE_THREAD_MIN_STACK_SIZE, job))) {
         return result;
     }
-    return parse(); // thread creation failed; parse on the current stack as a last resort
+    // Thread creation failed and the input is too large to parse safely on the caller's
+    // small coroutine stack; report a clean error instead of risking an uncatchable
+    // native stack overflow.
+    return MakeParseErrorRes("failed to allocate a parsing thread for a large input.");
 }
 } // namespace
 

@@ -25,7 +25,7 @@ public func parsePattern(input: Tokens): Pattern {
         }
     }
     /* Get decl info from flatbuffer */
-    var astNode = generatePatternAST(node.GetRootAsPattern())
+    var astNode = decodeAST {=> generatePatternAST(node.GetRootAsPattern())}
     return astNode
 }
 
@@ -47,7 +47,7 @@ public func parsePatternFragment(input: Tokens, startFrom!: Int64 = 0): (Pattern
             throw ParseASTException("\n" + e.message + "parsing pattern fragment error.")
         }
     }
-    var astNode = generatePatternAST(node.GetRootAsPattern())
+    var astNode = decodeAST {=> generatePatternAST(node.GetRootAsPattern())}
     return (astNode, count)
 }
 

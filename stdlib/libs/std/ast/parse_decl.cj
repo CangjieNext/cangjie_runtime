@@ -12,7 +12,7 @@ import std.collection.ArrayList
 
 public func parseDecl(input: Tokens, astKind!: String = ""): Decl {
     /* Get node info from flatbuffer */
-    var node = try {
+    let node = try {
         match (astKind) {
             case "PrimaryCtorDecl" => unsafe {
                 parse(
@@ -45,7 +45,7 @@ public func parseDecl(input: Tokens, astKind!: String = ""): Decl {
     }
 
     /* Get decl info from flatbuffer */
-    var astNode = generateDeclAST(node.GetRootAsDecl())
+    var astNode = decodeAST {=> generateDeclAST(node.GetRootAsDecl())}
     return astNode
 }
 
@@ -67,7 +67,7 @@ public func parseDeclFragment(input: Tokens, startFrom!: Int64 = 0): (Decl, Int6
             throw ParseASTException("\n" + e.message + "parsing decl fragment error.")
         }
     }
-    var astNode = generateDeclAST(node.GetRootAsDecl())
+    var astNode = decodeAST {=> generateDeclAST(node.GetRootAsDecl())}
     return (astNode, count)
 }
 

@@ -109,7 +109,8 @@ public func parseProgram(input: Tokens): Program {
             throw ParseASTException("\n" + e.message + "parsing program error.")
         }
     }
-    return match (createProgram(node.GetRootAsFile()) as Program) {
+    let decoded = decodeAST {=> createProgram(node.GetRootAsFile())}
+    return match (decoded as Program) {
         case Some(v) => v
         case None => throw ParseASTException("Illegal argument was encountered while obtaining the Program node.")
     }

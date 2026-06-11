@@ -102,6 +102,20 @@ unsafe func parse(input: Tokens, nativeParse: (CPointer<UInt8>) -> CPointer<Pars
     return node
 }
 
+/*
+ * Decoding a deeply nested flatbuffer tree back into Cangjie AST recurses once
+ * per level through the generate*AST decoders and can exhaust the coroutine
+ * stack. Surface that as the documented ParseASTException instead of a bare
+ * StackOverflowError.
+ */
+func decodeAST<T>(decode: () -> T): T {
+    try {
+        return decode()
+    } catch (e: StackOverflowError) {
+        throw ParseASTException("the parsed syntax tree nests too deeply to decode.")
+    }
+}
+
 unsafe func parseFragment(
     input: Tokens,
     startFrom: Int64,

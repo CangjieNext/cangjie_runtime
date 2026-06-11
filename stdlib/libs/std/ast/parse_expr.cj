@@ -25,7 +25,7 @@ public func parseExpr(input: Tokens): Expr {
         }
     }
     /* Get decl info from flatbuffer */
-    var astNode = generateExprAST(node.GetRootAsExpr())
+    var astNode = decodeAST {=> generateExprAST(node.GetRootAsExpr())}
     return astNode
 }
 
@@ -47,7 +47,7 @@ public func parseExprFragment(input: Tokens, startFrom!: Int64 = 0): (Expr, Int6
             throw ParseASTException("\n" + e.message + "parsing expr fragment error.")
         }
     }
-    var astNode = generateExprAST(node.GetRootAsExpr())
+    var astNode = decodeAST {=> generateExprAST(node.GetRootAsExpr())}
     return (astNode, count)
 }
 

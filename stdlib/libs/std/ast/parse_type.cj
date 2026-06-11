@@ -25,7 +25,7 @@ public func parseType(input: Tokens): TypeNode {
         }
     }
     /* Get decl info from flatbuffer */
-    var astNode = generateTypeAST(node.GetRootAsType())
+    var astNode = decodeAST {=> generateTypeAST(node.GetRootAsType())}
     return astNode
 }
 
@@ -47,7 +47,7 @@ public func parseTypeFragment(input: Tokens, startFrom!: Int64 = 0): (TypeNode, 
             throw ParseASTException("parsing type fragment error.")
         }
     }
-    var astNode = generateTypeAST(node.GetRootAsType())
+    var astNode = decodeAST {=> generateTypeAST(node.GetRootAsType())}
     return (astNode, count)
 }
 
