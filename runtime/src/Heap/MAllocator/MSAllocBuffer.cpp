@@ -142,11 +142,6 @@ size_t AllocBufferMS::CountCachedRegions() const
     return total;
 }
 
-size_t AllocBufferMS::CountLocalEmptyRegions() const
-{
-    return localEmptyRegionCount_.load(std::memory_order_acquire);
-}
-
 uint16_t AllocBufferMS::GetHotClassScore(uint8_t cls) const
 {
     uint16_t stable = feedHotness_[cls].load(std::memory_order_relaxed);
@@ -442,7 +437,7 @@ MSRegionInfo* AllocBufferMS::TakeLocalEmptyRegion(uint8_t cls)
     if (region == nullptr) {
         return nullptr;
     }
-    localEmptyRegionCount_.fetch_sub(1, std::memory_order_release);
+    central_->DecrementEmptySweptCount();
 
     CHECK_DETAIL(region->regionType == MSRegionType::MS_REGION_EMPTY_CACHE,
                  "TakeLocalEmptyRegion got bad regionType=%u",
@@ -493,7 +488,7 @@ void AllocBufferMS::RefillLocalEmptyRegionsFromGlobal(std::vector<MSRegionInfo*>
         }
     }
     if (cachedCount > 0) {
-        localEmptyRegionCount_.fetch_add(cachedCount, std::memory_order_release);
+        central_->IncrementEmptySweptCount(cachedCount);
     }
 }
 
@@ -512,7 +507,7 @@ size_t AllocBufferMS::DrainAllLocalEmptyRegions(std::vector<MSRegionInfo*>& out)
         }
     }
     if (drained > 0) {
-        localEmptyRegionCount_.fetch_sub(drained, std::memory_order_release);
+        central_->DecrementEmptySweptCount(drained);
     }
     return drained;
 }

@@ -211,15 +211,14 @@ size_t GetReleasedBusyRetryLimit()
 
 void MSRegionManager::MaybeNotifySweep(const CentralRegionPool* centralPool, uint8_t cls)
 {
-    if (centralPool == nullptr) {
-        return;
-    }
-
-    BackgroundProcessor& backgroundProcessor = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
-
     if (Heap::GetHeap().IsGcStarted()) {
         return;
     }
+
+    if (centralPool == nullptr) {
+        return;
+    }
+    BackgroundProcessor& backgroundProcessor = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
 
     CentralRegionPool::BucketPressure pressure = centralPool->GetBucketPressure(cls);
     if (pressure.UnsweptCount() > 0) {
@@ -314,9 +313,7 @@ bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx, AllocSource
 {
     (void)allowReleasedTree;
     RegionIndex rawIdx = 0;
-    // MaybeNotifyMark() is now polled by gc-helper periodically instead of
-    // running on every mutator TakeRegions slow path.
-    // MaybeNotifyMark();
+    MaybeNotifyMark();
 
     while (true) {
         FreeManager::TryTakeResult result = freeManager_.TryTakeRegions(num, rawIdx);
@@ -325,9 +322,7 @@ bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx, AllocSource
             if (source != nullptr) {
                 *source = AllocSource::RELEASED;
             }
-            // MaybeNotifyScavenge() is now polled by gc-helper periodically
-            // instead of running on every mutator TakeRegions success path.
-            // MaybeNotifyScavenge();
+            MaybeNotifyScavenge();
             return true;
         }
 

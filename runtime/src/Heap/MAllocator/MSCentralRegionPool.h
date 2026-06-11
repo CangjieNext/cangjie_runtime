@@ -100,7 +100,7 @@ public:
             MSRegionInfoArray::GetRegionInfoByIdx(headIdx_)->prevRegionIdx = idx;
         }
         headIdx_ = idx;
-        count_++;
+        count_.fetch_add(1, std::memory_order_relaxed);
     }
 
     MSRegionInfo* TakeHead()
@@ -116,7 +116,7 @@ public:
         headIdx_ = nextIdx;
         head->nextRegionIdx = MSRegionInfo::INVALID_IDX;
         head->prevRegionIdx = MSRegionInfo::INVALID_IDX;
-        count_--;
+        count_.fetch_sub(1, std::memory_order_relaxed);
         return head;
     }
 
@@ -137,16 +137,19 @@ public:
 
         region->nextRegionIdx = MSRegionInfo::INVALID_IDX;
         region->prevRegionIdx = MSRegionInfo::INVALID_IDX;
-        count_--;
+        count_.fetch_sub(1, std::memory_order_relaxed);
     }
 
     bool IsEmpty() const { return headIdx_ == MSRegionInfo::INVALID_IDX; }
-    size_t Count() const { return count_; }
+    size_t Count() const { return count_.load(std::memory_order_relaxed); }
 
     void Swap(MSRegionList& other)
     {
         std::swap(headIdx_, other.headIdx_);
-        std::swap(count_, other.count_);
+        size_t thisCount = count_.load(std::memory_order_relaxed);
+        size_t otherCount = other.count_.load(std::memory_order_relaxed);
+        count_.store(otherCount, std::memory_order_relaxed);
+        other.count_.store(thisCount, std::memory_order_relaxed);
     }
 
     // O(1) accept a single-linked chain (nextRegionIdx only, prev NOT set).
@@ -154,7 +157,7 @@ public:
     void AcceptSingleLinkedChain(int32_t headIdx, size_t count)
     {
         headIdx_ = headIdx;
-        count_ = count;
+        count_.store(count, std::memory_order_relaxed);
     }
 
     // Iterate all elements, calling visitor(MSRegionInfo*) for each.
@@ -173,7 +176,7 @@ public:
 
 private:
     int32_t headIdx_ = MSRegionInfo::INVALID_IDX;
-    size_t  count_   = 0;
+    std::atomic<size_t> count_{0};
 };
 
 // ============================================================================
@@ -471,12 +474,135 @@ public:
     void ReenableLazySweep();
 
 private:
-    struct SizeClassBucket {
-        std::mutex lock;              // protects fullSwept, partialUnswept, fullUnswept only
-        LockFreeRegionStack partialSwept;  // O1: lock-free CAS stack for P1 hot path
-        MSRegionList fullSwept;
-        MSRegionList partialUnswept;
-        MSRegionList fullUnswept;
+    class SizeClassBucket {
+    public:
+        enum class UnsweptListKind : uint8_t {
+            PARTIAL,
+            FULL,
+        };
+
+        MSRegionInfo* TakePartialSwept()
+        {
+            return partialSwept_.Pop();
+        }
+
+        MSRegionInfo* TakeUnswept(UnsweptListKind kind)
+        {
+            std::lock_guard<std::mutex> lg(lock_);
+            return GetUnsweptList(kind).TakeHead();
+        }
+
+        void PushPartialSwept(MSRegionInfo* region)
+        {
+            partialSwept_.Push(region);
+        }
+
+        void PushPartialUnswept(MSRegionInfo* region)
+        {
+            std::lock_guard<std::mutex> lg(lock_);
+            partialUnswept_.Prepend(region);
+        }
+
+        void PushFullSwept(MSRegionInfo* region)
+        {
+            std::lock_guard<std::mutex> lg(lock_);
+            fullSwept_.Prepend(region);
+        }
+
+        void PushFullUnswept(MSRegionInfo* region)
+        {
+            std::lock_guard<std::mutex> lg(lock_);
+            fullUnswept_.Prepend(region);
+        }
+
+        void FlipSweptToUnswept()
+        {
+            std::lock_guard<std::mutex> lg(lock_);
+            partialSwept_.StealChainTo(partialUnswept_);
+            fullSwept_.Swap(fullUnswept_);
+        }
+
+        void ReclassifyUnsweptToSwept(size_t& partialMoved, size_t& fullMoved)
+        {
+            std::lock_guard<std::mutex> lg(lock_);
+            MSRegionInfo* region = nullptr;
+            while ((region = partialUnswept_.TakeHead()) != nullptr) {
+                partialSwept_.Push(region);
+                partialMoved++;
+            }
+            while ((region = fullUnswept_.TakeHead()) != nullptr) {
+                fullSwept_.Prepend(region);
+                fullMoved++;
+            }
+        }
+
+        size_t CountPartialSwept() const
+        {
+            return partialSwept_.Count();
+        }
+
+        size_t CountFullSwept() const
+        {
+            return fullSwept_.Count();
+        }
+
+        size_t CountPartialUnswept() const
+        {
+            return partialUnswept_.Count();
+        }
+
+        size_t CountFullUnswept() const
+        {
+            return fullUnswept_.Count();
+        }
+
+        BucketPressure GetPressure() const
+        {
+            BucketPressure pressure;
+            pressure.partialSwept = CountPartialSwept();
+            pressure.fullSwept = CountFullSwept();
+            pressure.partialUnswept = CountPartialUnswept();
+            pressure.fullUnswept = CountFullUnswept();
+            return pressure;
+        }
+
+        template<typename Visitor>
+        void VisitPartialSweptUnsafe(Visitor&& visitor) const
+        {
+            partialSwept_.ForEachUnsafe(visitor);
+        }
+
+        template<typename Visitor>
+        void VisitAllLocked(Visitor&& visitor) const
+        {
+            std::lock_guard<std::mutex> lg(lock_);
+            fullSwept_.ForEach(visitor);
+            partialUnswept_.ForEach(visitor);
+            fullUnswept_.ForEach(visitor);
+        }
+
+        template<typename FullSweptVisitor, typename PartialUnsweptVisitor, typename FullUnsweptVisitor>
+        void VisitLockedLists(FullSweptVisitor&& fullSweptVisitor,
+                              PartialUnsweptVisitor&& partialUnsweptVisitor,
+                              FullUnsweptVisitor&& fullUnsweptVisitor) const
+        {
+            std::lock_guard<std::mutex> lg(lock_);
+            fullSwept_.ForEach(fullSweptVisitor);
+            partialUnswept_.ForEach(partialUnsweptVisitor);
+            fullUnswept_.ForEach(fullUnsweptVisitor);
+        }
+
+    private:
+        MSRegionList& GetUnsweptList(UnsweptListKind kind)
+        {
+            return kind == UnsweptListKind::PARTIAL ? partialUnswept_ : fullUnswept_;
+        }
+
+        mutable std::mutex lock_;              // protects fullSwept_, partialUnswept_, fullUnswept_
+        LockFreeRegionStack partialSwept_;     // O1: lock-free CAS stack for P1 hot path
+        MSRegionList fullSwept_;
+        MSRegionList partialUnswept_;
+        MSRegionList fullUnswept_;
     };
 
     void PushEmptySweptRegion(MSRegionInfo* region);
@@ -484,16 +610,25 @@ private:
     size_t DrainEmptySweptGlobal(size_t maxRegions, std::vector<MSRegionInfo*>& drained);
     size_t GetEmptySweptGlobalCount() const
     {
-        return emptySweptGlobalCount_.load(std::memory_order_acquire);
+        return emptySweptCache_.Count();
     }
-    void ForceFinishUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint8_t cls, uint32_t sg,
+    void ForceFinishUnsweptList(SizeClassBucket& bucket, SizeClassBucket::UnsweptListKind listKind,
+                                uint8_t cls, uint32_t sg,
                                 size_t& sweptRegions, size_t& emptiedRegions,
                                 size_t& retainedRegions, size_t& freedBytes);
     void ForceFinishAllUnswept();
-    bool SweepUnsweptList(SizeClassBucket& bucket, MSRegionList& list, uint32_t sg,
+    bool SweepUnsweptList(SizeClassBucket& bucket, SizeClassBucket::UnsweptListKind listKind, uint32_t sg,
                          size_t& sweptInSlice, size_t maxRegions, uint64_t deadlineUs,
                          size_t* emptiedInSlice = nullptr);
     std::array<uint8_t, kNumSizeClasses> BuildBackgroundSweepClassOrder(uint8_t preferredCls) const;
+    void IncrementEmptySweptCount(size_t count = 1)
+    {
+        emptySweptCount_.fetch_add(count, std::memory_order_release);
+    }
+    void DecrementEmptySweptCount(size_t count = 1)
+    {
+        emptySweptCount_.fetch_sub(count, std::memory_order_release);
+    }
 
     static std::atomic<uint32_t> globalSweepGen_;
     std::atomic<bool> sweepDone_{true};
@@ -509,6 +644,15 @@ private:
     // Large region tracking (Tier 1: in-heap large objects, MS_REGION_LARGE)
     std::mutex largeLock_;
     MSRegionList largeRegionList_;
+    std::atomic<size_t> largeLiveSpanCount_{0};
+    void AddLargeLiveRegion(MSRegionInfo* region);
+    void CollectDeadLargeRegions(std::vector<MSRegionInfo*>& deadRegions);
+    template<typename Visitor>
+    void VisitLargeRegionsLocked(Visitor&& visitor) const
+    {
+        std::lock_guard<std::mutex> lg(const_cast<std::mutex&>(largeLock_));
+        largeRegionList_.ForEach(visitor);
+    }
 
     // Large object hot cache: recently-freed large regions whose physical pages
     // are still resident. Allows reuse without page-fault overhead on next alloc.
@@ -526,10 +670,11 @@ private:
     std::atomic<size_t> largeHotCacheBytes_{0};
 
     // Global cache of classless empty regions. AllocBufferMS owns any local empty
-    // cache and may batch-refill from this global queue.
+    // cache and may batch-refill from this global queue. emptySweptCount_ tracks
+    // the total number of empty-cache regions across both global and local caches.
     std::mutex emptySweptLock_;
     MSRegionList emptySweptCache_;
-    std::atomic<size_t> emptySweptGlobalCount_{0};
+    std::atomic<size_t> emptySweptCount_{0};
 
     // ===== Per-thread AllocBufferMS registry =====
     // Every thread lazily creates an AllocBufferMS and registers it here.
@@ -566,11 +711,8 @@ void CentralRegionPool::VisitAllRegions(Visitor&& visitor)
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
         SizeClassBucket& bucket = buckets_[cls];
         // partialSwept is lock-free; ForEachUnsafe is safe during STW
-        bucket.partialSwept.ForEachUnsafe(visitor);
-        std::lock_guard<std::mutex> lg(bucket.lock);
-        bucket.fullSwept.ForEach(visitor);
-        bucket.partialUnswept.ForEach(visitor);
-        bucket.fullUnswept.ForEach(visitor);
+        bucket.VisitPartialSweptUnsafe(visitor);
+        bucket.VisitAllLocked(visitor);
     }
 }
 

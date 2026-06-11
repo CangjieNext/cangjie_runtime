@@ -128,7 +128,6 @@ public:
 
     size_t CountActiveRegions() const;
     size_t CountCachedRegions() const;
-    size_t CountLocalEmptyRegions() const;
     bool NeedsBackgroundFill(uint8_t preferredCls) const;
     uint16_t SnapshotHotClassScore(uint8_t cls) const { return GetHotClassScore(cls); }
     HotClassLevel SnapshotHotClassLevel(uint8_t cls) const
@@ -218,7 +217,6 @@ private:
     // to a size class on demand after the typed central lists miss.
     mutable std::mutex localEmptyRegionLock_;
     MSRegionList localEmptyRegionCache_;
-    std::atomic<size_t> localEmptyRegionCount_{0};
 
     // O9: Per-size-class cache miss / heat heuristics.
     // cacheMiss_ tracks current refill pressure; cacheHeat_ keeps a short-lived

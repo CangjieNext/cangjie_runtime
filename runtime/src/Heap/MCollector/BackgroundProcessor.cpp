@@ -24,9 +24,6 @@
 namespace MapleRuntime {
 namespace {
 constexpr U32 DEFAULT_MS_GC_HELPER_POLL_MS = 2000;
-constexpr U32 DEFAULT_MS_ALLOC_PRESSURE_POLL_MS = 5;
-constexpr uint64_t DEFAULT_MS_ALLOC_PRESSURE_POLL_US =
-    static_cast<uint64_t>(DEFAULT_MS_ALLOC_PRESSURE_POLL_MS) * 1000ULL;
 constexpr U32 DEFAULT_MS_GC_HELPER_ACTIVE_BACKOFF_MS = 1;
 constexpr U32 DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_ROUNDS = 4;
 constexpr uint64_t DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_US = 12000;
@@ -122,28 +119,6 @@ size_t GetBackgroundScavengeRounds()
     return rounds;
 }
 
-void PollMSAllocationPressure()
-{
-    Allocator& allocator = Heap::GetHeap().GetAllocator();
-    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(allocator);
-    MSRegionManager* manager = space.GetMSRegionManager();
-    if (manager == nullptr) {
-        return;
-    }
-
-    manager->MaybeNotifyMark();
-    manager->MaybeNotifyScavenge();
-}
-
-bool ShouldPollMSAllocationPressure(uint64_t nowUs, uint64_t& lastPollUs)
-{
-    if (lastPollUs != 0 && nowUs - lastPollUs < DEFAULT_MS_ALLOC_PRESSURE_POLL_US) {
-        return false;
-    }
-    lastPollUs = nowUs;
-    return true;
-}
-
 }
 
 extern "C" MRT_EXPORT void* MRT_ProcessBackgroundWork(void* arg)
@@ -207,12 +182,7 @@ void BackgroundProcessor::Run()
     NotifyStarted();
     uint32_t backgroundBurstRounds = 0;
     uint64_t backgroundBurstStartUs = 0;
-    uint64_t lastAllocPressurePollUs = 0;
     while (running.load(std::memory_order_acquire)) {
-        uint64_t nowUs = TimeUtil::MicroSeconds();
-        if (ShouldPollMSAllocationPressure(nowUs, lastAllocPressurePollUs)) {
-            PollMSAllocationPressure();
-        }
         bool shouldContinueImmediate = false;
         if (finalizerWorkList.HasFinalizableJob()) {
             finalizerWorkList.ProcessFinalizables([this] { return running.load(std::memory_order_acquire); });
@@ -257,15 +227,9 @@ void BackgroundProcessor::Run()
             if (HasPendingWakeWork()) {
                 break;
             }
-            Wait(DEFAULT_MS_ALLOC_PRESSURE_POLL_MS);
+            Wait(DEFAULT_MS_GC_HELPER_POLL_MS);
             if (!running.load(std::memory_order_acquire)) {
                 break;
-            }
-            if (!HasPendingWakeWork()) {
-                uint64_t idleNowUs = TimeUtil::MicroSeconds();
-                if (ShouldPollMSAllocationPressure(idleNowUs, lastAllocPressurePollUs)) {
-                    PollMSAllocationPressure();
-                }
             }
             if (!HasPendingWakeWork() &&
                 TimeUtil::MicroSeconds() - feedCheckStartUs >=
