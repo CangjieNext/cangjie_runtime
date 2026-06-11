@@ -29,16 +29,9 @@
 
 namespace MapleRuntime {
 
-#if (defined(__linux__) || (defined(__APPLE__) && defined(__IOS__))) && \
-    (defined(__x86_64__) || defined(__aarch64__))
-#define INTERPRETER_HAS_I2N_STUB 1
-#endif
-
 extern "C" void CJ_MCC_StackGrowStub(...);
-#if defined(INTERPRETER_HAS_I2N_STUB)
 extern "C" void CJ_MCC_I2NStub(...);
 extern "C" void CJ_MCC_I2NStubEnd(...);
-#endif
 extern "C" FuncPtr* CJ_MCC_GetMTable(TypeInfo* ti, TypeInfo* itf);
 extern "C" TypeInfo* CJ_MCC_GetMethodOuterTI(TypeInfo* ti, TypeInfo* itf, U64 index);
 extern "C" void CJ_MCC_UpdateVMT(TypeInfo* ti, TypeInfo* itf, ExtensionData* extensionData);
@@ -545,11 +538,7 @@ INT_InitInterpreter ResolveInterpreterInit(void* interpreterLibHandle)
 
 DYN_CJNativeInterface CreateCJNativeInterface(void* symbolHandle)
 {
-#if defined(INTERPRETER_HAS_I2N_STUB)
     DYN_I2NStubFn i2nStub = reinterpret_cast<DYN_I2NStubFn>(&CJ_MCC_I2NStub);
-#else
-    DYN_I2NStubFn i2nStub = nullptr;
-#endif
 
     DYN_CJNativeInterface cjnativeInterface = {
         .version = DYN_CJNATIVE_INTERFACE_VERSION,
@@ -675,17 +664,12 @@ bool IsI2IAdapterStartAddr(const uintptr_t address)
 
 bool IsI2NStubAddr(const uintptr_t address)
 {
-#if defined(INTERPRETER_HAS_I2N_STUB)
     uintptr_t i2nStubStartAddr = reinterpret_cast<uintptr_t>(&CJ_MCC_I2NStub);
     uintptr_t i2nStubEndAddr = reinterpret_cast<uintptr_t>(&CJ_MCC_I2NStubEnd);
     bool res = i2nStubStartAddr <= address && address < i2nStubEndAddr;
     DLOG(INTERPRETER, "Checking I2N stub borders: is %p in [%p, %p)? -- %s", address, i2nStubStartAddr, i2nStubEndAddr,
         res ? "true" : "false");
     return res;
-#else
-    DLOG(INTERPRETER, "Checking I2N stub borders: I2N not supported on this architecture");
-    return false;
-#endif
 }
 
 bool IsInterpreterPrologueAddr(const uintptr_t address)
