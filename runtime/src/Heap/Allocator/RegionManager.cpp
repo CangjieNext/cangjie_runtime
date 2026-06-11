@@ -136,16 +136,91 @@ bool RegionInfo::VisitLiveObjectsUntilFalse(const std::function<bool(BaseObject*
         return func(reinterpret_cast<BaseObject*>(GetRegionStart()));
     }
     if (IsSmallRegion()) {
-        uintptr_t position = GetRegionStart();
-        size_t offset = 0;
-        uintptr_t allocPtr = GetRegionAllocPtr();
+        RegionBitmap* markBitmap = GetMarkBitmap();
+        RegionBitmap* resurrectBitmap = GetResurrectBitmap();
+        if (markBitmap == nullptr && resurrectBitmap == nullptr) {
+            return true;
+        }
 
-        while (position < allocPtr) {
-            BaseObject* obj = reinterpret_cast<BaseObject*>(position);
-            size_t allocSize = RegionSpace::GetAllocSize(*obj);
-            position += allocSize;
-            if (IsSurvivedObject(offset) && !func(obj)) { return false; }
-            offset += allocSize;
+        uintptr_t allocPtr = GetRegionAllocPtr();
+        uintptr_t regionStart = GetRegionStart();
+        uintptr_t regionEnd = GetRegionEnd();
+        size_t regionAllocatedSize = allocPtr - regionStart;
+        size_t wordCnt = 0;
+        if (markBitmap != nullptr) {
+            wordCnt = markBitmap->wordCnt.load(std::memory_order_acquire);
+        }
+        if (resurrectBitmap != nullptr) {
+            size_t resurrectWordCnt = resurrectBitmap->wordCnt.load(std::memory_order_acquire);
+            wordCnt = (wordCnt > resurrectWordCnt) ? wordCnt : resurrectWordCnt;
+        }
+
+        auto getLiveWord = [&](size_t idx) -> uint64_t {
+            uint64_t markWord =
+                (markBitmap != nullptr) ? markBitmap->markWords[idx].load(std::memory_order_acquire) : 0;
+            uint64_t resurrectWord =
+                (resurrectBitmap != nullptr) ? resurrectBitmap->markWords[idx].load(std::memory_order_acquire) : 0;
+            return markWord | resurrectWord;
+        };
+
+        // Do not linearly scan [regionStart, allocPtr) and decode every object header.
+        // The old implementation did that, which implicitly required dead objects to keep
+        // valid headers. In practice, a non-survived slot may already contain zeroed or
+        // otherwise invalid data, so calling GetAllocSize() before checking liveness can
+        // crash in forwarding/routing.
+        //
+        // RegionBitmap marks object coverage, not object starts. Therefore we first merge
+        // consecutive live bits into runs, then walk objects linearly only inside each
+        // live run.
+        size_t totalBits = wordCnt * kBitsPerWord;
+        size_t globalBitIdx = 0;
+        while (globalBitIdx < totalBits) {
+            size_t wordIdx = globalBitIdx / kBitsPerWord;
+            size_t bitIdx = globalBitIdx % kBitsPerWord;
+            uint64_t liveWord = getLiveWord(wordIdx);
+            liveWord &= ~((static_cast<uint64_t>(1) << bitIdx) - 1);
+            while (wordIdx < wordCnt && liveWord == 0) {
+                ++wordIdx;
+                bitIdx = 0;
+                if (wordIdx < wordCnt) {
+                    liveWord = getLiveWord(wordIdx);
+                }
+            }
+            if (wordIdx >= wordCnt) {
+                break;
+            }
+
+            size_t runStartBit = wordIdx * kBitsPerWord + __builtin_ctzll(liveWord);
+            size_t runEndBit = runStartBit;
+            while (runEndBit < totalBits) {
+                size_t curWordIdx = runEndBit / kBitsPerWord;
+                size_t curBitIdx = runEndBit % kBitsPerWord;
+                uint64_t curLiveWord = getLiveWord(curWordIdx);
+                if (((curLiveWord >> curBitIdx) & 0x1) == 0) {
+                    break;
+                }
+                ++runEndBit;
+            }
+
+            size_t runStartOffset = runStartBit * kMarkedBytesPerBit;
+            size_t runEndOffset = runEndBit * kMarkedBytesPerBit;
+            CHECK(runStartOffset < regionAllocatedSize);
+            runEndOffset = std::min(runEndOffset, regionAllocatedSize);
+
+            for (size_t offset = runStartOffset; offset < runEndOffset;) {
+                uintptr_t position = regionStart + offset;
+                BaseObject* obj = reinterpret_cast<BaseObject*>(position);
+                size_t allocSize = RegionSpace::GetAllocSize(*obj);
+                CHECK(allocSize != 0);
+                CHECK((allocSize & (AllocatorUtils::ALLOC_ALIGNMENT - 1)) == 0);
+                CHECK(position + allocSize <= allocPtr);
+                CHECK(position + allocSize <= regionEnd);
+                CHECK(offset + allocSize <= runEndOffset);
+
+                if (!func(obj)) { return false; }
+                offset += allocSize;
+            }
+            globalBitIdx = runEndBit;
         }
     }
     return true;
