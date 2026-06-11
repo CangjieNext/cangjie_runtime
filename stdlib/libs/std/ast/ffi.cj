@@ -112,7 +112,9 @@ func decodeAST<T>(decode: () -> T): T {
     try {
         return decode()
     } catch (e: StackOverflowError) {
-        throw ParseASTException("the parsed syntax tree nests too deeply to decode.")
+        throw ParseASTException(
+            "the parsed syntax tree nests too deeply to decode; " +
+            "increasing the cjthread stack size (cjStackSize) may allow deeper inputs.")
     }
 }
 
