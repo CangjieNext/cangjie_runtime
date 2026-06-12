@@ -97,22 +97,11 @@ extern "C" ThreadLocalData* MRT_C2N_Leave(bool safeState, unsigned long long sta
     if (UNLIKELY(mutator == nullptr)) {
         return tlData;
     }
-    // if (!safeState) {
-    //     ExceptionWrapper& exceptionWrapper = mutator->GetExceptionWrapper();
-    //     if (UNLIKELY(exceptionWrapper.GetExceptionRef() != nullptr)) {
-    //         MRT_ThrowPendingException(nullptr);
-    //     }
-    //     return tlData;
-    // }
 
     if (safeState) {
         mutator->LeaveSaferegion();
     }
 
-    // Step 1: LeaveSaferegion - includes suspension request check
-    //mutator->LeaveSaferegion();
-
-    // Step 2: DeleteC2NContext - restore unwind context status to RELIABLE
     UnwindContext& uwContext = mutator->GetUnwindContext();
     uwContext.GoIntoManagedCode();
 
