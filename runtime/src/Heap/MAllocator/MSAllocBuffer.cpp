@@ -626,7 +626,8 @@ MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls, bool backgroundFill)
         }
     }
 
-    region = central_->GetFreshRegion(cls);
+    uint16_t homeShardId = central_->ResolveHomeShardId();
+    region = central_->GetFreshRegion(cls, homeShardId);
     return region;
 }
 

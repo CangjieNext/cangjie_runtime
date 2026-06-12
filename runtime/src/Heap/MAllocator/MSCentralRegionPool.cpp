@@ -315,11 +315,11 @@ MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls, MSRegionAcquireSource* s
 // ============================================================================
 // GetFreshRegion — allocate a brand-new Region from MSRegionManager
 // ============================================================================
-MSRegionInfo* CentralRegionPool::GetFreshRegion(uint8_t cls)
+MSRegionInfo* CentralRegionPool::GetFreshRegion(uint8_t cls, uint16_t shardHint)
 {
     // MSRegionManager::TakeRegion allocates one MS_REGION_SIZE region
     // and returns the corresponding MSRegionInfo* directly (one-level).
-    MSRegionInfo* msInfo = msRegionManager_->TakeRegion(cls, *this);
+    MSRegionInfo* msInfo = msRegionManager_->TakeRegion(cls, *this, shardHint);
     if (msInfo == nullptr) {
         return nullptr;
     }
@@ -362,6 +362,11 @@ MSRegionInfo* CentralRegionPool::GetFreshRegion(uint8_t cls)
     msInfo->SetSweepGen(globalSweepGen_.load(std::memory_order_acquire));
 
     return msInfo;
+}
+
+uint16_t CentralRegionPool::ResolveHomeShardId(uint16_t shardHint) const
+{
+    return msRegionManager_ != nullptr ? msRegionManager_->ResolveHomeShardId(shardHint) : 0;
 }
 
 // ============================================================================
@@ -482,10 +487,18 @@ size_t CentralRegionPool::ReclaimEmptyRegion(size_t maxRegions)
     }
 
     size_t promotedBytes = 0;
+    std::vector<FreeManager::RegionSpan> spans;
+    spans.reserve(reclaimed.size());
     for (MSRegionInfo* region : reclaimed) {
-        msRegionManager_->ReclaimEmptyRegionToHotFree(region);
+        size_t regionIdx = MSRegionInfoArray::GetRegionIdx(region);
+        CHECK_DETAIL(region->regionType == MSRegionType::MS_REGION_EMPTY_CACHE,
+                     "[MS-GC] ReclaimEmptyRegion: bad regionType=%u idx=%zu",
+                     static_cast<unsigned>(region->regionType), regionIdx);
+        region->Reset();
+        spans.push_back({ static_cast<FreeManager::RegionIndex>(regionIdx), 1 });
         promotedBytes += MS_REGION_SIZE;
     }
+    msRegionManager_->ReclaimReleasedRegionsToHotFreeBatch(spans);
 
     return promotedBytes;
 }
@@ -1020,9 +1033,15 @@ size_t CentralRegionPool::ReclaimLargeHotCache(size_t maxBytes)
         largeHotCacheRegionCount_.fetch_sub(reclaimedRegions, std::memory_order_release);
         largeHotCacheBytes_.fetch_sub(flushed, std::memory_order_release);
     }
+    std::vector<FreeManager::RegionSpan> spans;
+    spans.reserve(toReclaim.size());
     for (auto& entry : toReclaim) {
-        msRegionManager_->ReclaimRegionLarge(entry.regionStart, entry.regionBytes);
+        auto regionIdx = static_cast<FreeManager::RegionIndex>(
+            (entry.regionStart - msRegionManager_->GetHeapStart()) / MS_REGION_SIZE);
+        auto regionCount = static_cast<FreeManager::RegionCount>(entry.regionBytes / MS_REGION_SIZE);
+        spans.push_back({ regionIdx, regionCount });
     }
+    msRegionManager_->ReclaimReleasedRegionsToHotFreeBatch(spans);
     return flushed;
 }
 

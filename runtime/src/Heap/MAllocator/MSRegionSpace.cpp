@@ -343,7 +343,10 @@ MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t allocSize, ThreadLocal
     }
 
     uintptr_t regionStart = 0;
-    MSRegionInfo* baseInfo = msRegionManager_->TakeRegionForLarge(unitCount, regionStart);
+    uint16_t homeShardId = msRegionManager_ != nullptr
+        ? msRegionManager_->ResolveHomeShardId()
+        : kMSInvalidShardId;
+    MSRegionInfo* baseInfo = msRegionManager_->TakeRegionForLarge(unitCount, regionStart, homeShardId);
     if (baseInfo == nullptr) {
         LOG(RTLOG_ERROR, "[MS-GC] TryAllocateOnceMS LARGE ALLOC FAILED: "
             "allocSize=%zu, unitCount=%zu, activeMSRegionBytes=%zu, "

@@ -11,10 +11,12 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <deque>
 #include <mutex>
 #include <vector>
 
 #include "Base/Panic.h"
+#include "Heap/MAllocator/MSShardRouting.h"
 
 namespace MapleRuntime {
 
@@ -31,6 +33,12 @@ public:
     };
 
     struct RegionSpan {
+        RegionIndex idx = 0;
+        RegionCount num = 0;
+    };
+
+    struct BorrowedSpan {
+        uint16_t ownerShardId = 0;
         RegionIndex idx = 0;
         RegionCount num = 0;
     };
@@ -66,24 +74,32 @@ public:
     };
 
     FreeManager() = default;
-    ~FreeManager();
+    ~FreeManager() = default;
 
     void Initialize(UnitCount maxUnitCount, size_t unitSize, size_t unitsPerRegion,
                     RegionCount committedRegionCount, RegionCount maxVirtualRegionCount,
                     uintptr_t heapStart, uintptr_t committedEnd, uintptr_t maxHeapEnd,
-                    size_t segmentSize);
+                    size_t segmentSize, uint32_t shardCount);
 
-    TryTakeResult TryTakeRegions(RegionCount num, RegionIndex& idx);
+    TryTakeResult TryTakeRegions(RegionCount num, uint16_t homeShardId, RegionIndex& idx);
     void RecordTakeBusyFallback() {}
     bool TryIncreaseInactiveZone(RegionCount num, RegionIndex& idx);
     void ReclaimRegionsReleased(RegionIndex idx, RegionCount num);
-    bool GrowOneSegment(HeapRangeHandler& handler);
+    void ReclaimRegionsReleasedBatch(const std::vector<RegionSpan>& spans);
+    bool GrowOneSegment(uint16_t ownerShardId, HeapRangeHandler& handler);
     void ShrinkHeap();
     size_t ScavengeFreeRegions(bool releaseAll);
 
     UnitCount GetReleasedUnitCount() const;
     UnitCount GetFreeUnitCount() const;
     size_t GetReleasedBytes() const;
+    size_t GetOwnedFreeRegionCount(uint16_t ownerShardId) const;
+    size_t GetScavengedRegionCount(uint16_t ownerShardId) const;
+    size_t GetHotFreeRegionCount(uint16_t ownerShardId) const;
+    size_t GetBorrowedRegionCount(uint16_t receiverShardId) const;
+    size_t GetOwnedSegmentCount(uint16_t ownerShardId) const;
+    RegionIndex GetShardTakeCursor(uint16_t ownerShardId) const;
+    RegionIndex GetShardReclaimCursor(uint16_t ownerShardId) const;
     uint32_t GetNodeCount() const { return 0; }
     uint32_t GetMaxBlockRegions() const;
     size_t GetMetadataBytesInUse() const;
@@ -108,6 +124,7 @@ public:
     size_t GetMaxVirtualRegionCount() const { return maxVirtualRegionCount_; }
     size_t GetMaxVirtualUnitCount() const { return maxVirtualUnitCount_; }
     uint64_t GetHeapGrowCount() const { return heapGrowCount_; }
+    uint16_t ResolveOwnerShardId(RegionIndex idx) const;
 
     UnitIndex RegionToUnitIdx(RegionIndex regionIdx) const;
     UnitCount RegionCountToUnitCount(RegionCount regionCount) const;
@@ -115,10 +132,45 @@ public:
     RegionCount UnitCountToRegionCount(UnitCount unitCount) const;
 
 private:
+    static constexpr RegionCount kSingleRegionStealBatch = 4;
+    static constexpr uint32_t kMaxSingleRegionStealAttempts = 2;
+
     struct ChunkSummary {
         uint16_t start = 0;
         uint16_t max = 0;
         uint16_t end = 0;
+    };
+
+    struct OwnedSegmentView {
+        size_t segmentIdx_ = 0;
+        RegionIndex regionStart_ = 0;
+        RegionIndex regionEnd_ = 0;
+        size_t bitmapWordCount_ = 0;
+        size_t summaryChunkCount_ = 0;
+        std::vector<uint64_t> allocBits_;
+        std::vector<uint64_t> scavengedBits_;
+        std::vector<ChunkSummary> chunkSummaries_;
+    };
+
+    struct FreeManagerShard {
+        mutable std::mutex shardMutex_;
+        size_t freeRegionCount_ = 0;
+        size_t scavengedRegionCount_ = 0;
+        RegionIndex takeCursor_ = 0;
+        RegionIndex reclaimCursor_ = 0;
+        uint16_t nextStealDonorShard_ = 0;
+        size_t borrowedRegionCount_ = 0;
+        std::vector<size_t> ownedSegments_;
+        std::vector<OwnedSegmentView> ownedViews_;
+        std::deque<BorrowedSpan> borrowedSpans_;
+        size_t bitmapWordCountInUse_ = 0;
+        size_t summaryChunkCountInUse_ = 0;
+        uint32_t maxOwnedFreeRun_ = 0;
+        std::atomic<uint32_t> snapMaxFreeRun_{0};
+        std::atomic<uint32_t> snapHotFreeRegions_{0};
+        bool fastTakeHintValid_ = false;
+        size_t fastTakeViewIdx_ = 0;
+        size_t fastTakeWordOffset_ = 0;
     };
 
     static constexpr size_t kChunkBits = 64;
@@ -143,19 +195,57 @@ private:
         return (regionCount + kChunkBits - 1) / kChunkBits;
     }
 
+    OwnedSegmentView BuildOwnedSegmentView(size_t segmentIdx, RegionCount regionCount) const;
+    void AttachOwnedSegmentLocked(FreeManagerShard& shard, size_t segmentIdx, RegionCount regionCount);
+    void DetachOwnedSegmentLocked(FreeManagerShard& shard);
+    FreeManagerShard& GetShard(uint16_t ownerShardId);
+    const FreeManagerShard& GetShard(uint16_t ownerShardId) const;
+    OwnedSegmentView* FindOwnedSegmentViewBySegmentIdxLocked(FreeManagerShard& shard, size_t segmentIdx);
+    const OwnedSegmentView* FindOwnedSegmentViewBySegmentIdxLocked(const FreeManagerShard& shard, size_t segmentIdx) const;
+    OwnedSegmentView* FindOwnedSegmentViewByRegionLocked(FreeManagerShard& shard, RegionIndex idx);
+    const OwnedSegmentView* FindOwnedSegmentViewByRegionLocked(const FreeManagerShard& shard, RegionIndex idx) const;
     bool IsRegionFreeLocked(RegionIndex idx) const;
     bool IsRegionScavengedLocked(RegionIndex idx) const;
+    uint16_t ResolveOwnerShardIdLocked(RegionIndex idx) const;
     RegionIndex FindNextFreeRegionLocked(RegionIndex start) const;
+    RegionIndex FindNextOwnedFreeRegionLocked(const FreeManagerShard& shard, RegionIndex start) const;
+    RegionIndex FindFirstFreeRegionInViewLocked(const OwnedSegmentView& view, RegionIndex start) const;
     bool PreciseFitFromLocked(RegionIndex start, RegionCount num) const;
-    bool FindFreeRunLocked(RegionCount num, RegionIndex& idx) const;
-    size_t CountScavengedInRangeLocked(RegionIndex idx, RegionCount num) const;
-    size_t CountFreeInRangeLocked(RegionIndex idx, RegionCount num) const;
-    void MarkAllocatedLocked(RegionIndex idx, RegionCount num, bool& reusedScavenged);
-    void MarkFreeLocked(RegionIndex idx, RegionCount num);
-    void MarkScavengedLocked(RegionIndex idx, RegionCount num);
-    void MarkUnavailableLocked(RegionIndex idx, RegionCount num);
-    void UpdateChunkSummaryLocked(size_t chunkIdx);
-    void UpdateChunkSummaryRangeLocked(RegionIndex idx, RegionCount num);
+    bool TryTakeBorrowedRegionLocked(FreeManagerShard& shard, RegionIndex& idx);
+    bool FindFreeRunInRangeLocked(RegionIndex start, RegionIndex end, RegionCount num, RegionIndex& idx) const;
+    bool FindFreeRunLocked(RegionIndex cursor, RegionCount num, RegionIndex& idx) const;
+    bool FindOwnedFreeRunLocked(const FreeManagerShard& shard, RegionIndex cursor, RegionCount num, RegionIndex& idx) const;
+    RegionCount CountContiguousFreeRegionsLocked(RegionIndex start, RegionIndex end, RegionCount maxCount) const;
+    size_t ScavengeOwnedFreeRegionsLocked(FreeManagerShard& shard, uint16_t ownerShardId, size_t regionBudget);
+    void AppendGroupedOwnerSpansLocked(std::vector<std::vector<RegionSpan>>& groupedSpans,
+                                       RegionIndex idx,
+                                       RegionCount num) const;
+    void ApplyGroupedOwnerReclaim(std::vector<std::vector<RegionSpan>>& groupedSpans);
+    bool TryTakeLocalRegionsLocked(FreeManagerShard& shard, RegionCount num, RegionIndex& idx, bool& reusedScavenged);
+    bool TryTakeOneRegionFastLocked(FreeManagerShard& shard, RegionIndex& idx, bool& reusedScavenged);
+    bool TryTakeOneRegionFromOwnedViewsLocked(FreeManagerShard& shard,
+                                              size_t startViewIdx,
+                                              RegionIndex startRegion,
+                                              RegionIndex& idx,
+                                              bool& reusedScavenged);
+    void MarkAllocatedOneLocked(FreeManagerShard& shard,
+                                OwnedSegmentView& view,
+                                size_t localIdx,
+                                bool& reusedScavenged);
+    bool TryStealSingleRegionBatchLocked(uint16_t receiverShardId, RegionIndex& idx, RegionSpan& reusedSpan);
+    bool TryStealOwnedRunLocked(uint16_t receiverShardId, RegionCount num, RegionIndex& idx, RegionSpan& reusedSpan);
+    bool SelectBestDonorShardForRun(uint16_t receiverShardId,
+                                    uint16_t startDonorShardId,
+                                    RegionCount num,
+                                    uint16_t& donorShardId);
+    size_t CountScavengedInViewRangeLocked(const OwnedSegmentView& view, size_t localStart, RegionCount num) const;
+    size_t CountFreeInViewRangeLocked(const OwnedSegmentView& view, size_t localStart, RegionCount num) const;
+    void MarkAllocatedLocked(FreeManagerShard& shard, RegionIndex idx, RegionCount num, bool& reusedScavenged);
+    void MarkFreeLocked(FreeManagerShard& shard, RegionIndex idx, RegionCount num);
+    void MarkScavengedLocked(FreeManagerShard& shard, RegionIndex idx, RegionCount num);
+    void MarkUnavailableLocked(FreeManagerShard& shard, RegionIndex idx, RegionCount num);
+    void UpdateChunkSummaryLocked(OwnedSegmentView& view, size_t chunkIdx);
+    void UpdateChunkSummaryRangeLocked(OwnedSegmentView& view, size_t localStart, RegionCount num);
     size_t CountTrailingFreeRegionsLocked() const;
     void ReleaseUnits(UnitIndex idx, UnitCount num) const;
     void ReuseUnits(UnitIndex idx, UnitCount num) const;
@@ -163,19 +253,11 @@ private:
     size_t GetRegionSizeBytes() const;
     RegionIndex AddrToRegionIdx(uintptr_t addr) const;
     uintptr_t RegionIdxToAddr(RegionIndex regionIdx) const;
-    void ReserveMetadataStorage(size_t bitmapWordCapacity, size_t summaryChunkCapacity);
-    void ReleaseMetadataStorage();
-    void EnsureMetadataInitializedForRegionCount(size_t regionCount);
+    uint32_t ComputeMaxFreeRunInViewLocked(const OwnedSegmentView& view) const;
+    void RefreshShardMaxOwnedFreeRunLocked(FreeManagerShard& shard);
 
     mutable std::mutex pageHeapMutex_;
     mutable std::mutex growMutex_;
-    uint64_t* allocBits_ = nullptr;
-    uint64_t* scavengedBits_ = nullptr;
-    ChunkSummary* chunkSummaries_ = nullptr;
-    size_t bitmapWordCapacity_ = 0;
-    size_t bitmapWordCountInUse_ = 0;
-    size_t summaryChunkCapacity_ = 0;
-    size_t summaryChunkCountInUse_ = 0;
     size_t unitSize_ = 0;
     size_t unitsPerRegion_ = 0;
     uintptr_t heapStart_ = 0;
@@ -186,10 +268,12 @@ private:
     size_t maxVirtualRegionCount_ = 0;
     size_t maxVirtualUnitCount_ = 0;
     size_t segmentSize_ = 0;
-    size_t freeRegionCount_ = 0;
-    size_t scavengedRegionCount_ = 0;
-    RegionIndex searchIdx_ = 0;
+    uint32_t shardCount_ = 1;
+    size_t segmentRegionCount_ = 0;
     uint64_t heapGrowCount_ = 0;
+    std::deque<FreeManagerShard> shards_;
+    std::vector<uint16_t> segmentOwnerShard_;
+    uint16_t nextScavengeShard_ = 0;
 };
 
 } // namespace MapleRuntime

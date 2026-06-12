@@ -21,6 +21,7 @@
 
 #include "Heap/Allocator/Allocator.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
+#include "Heap/MAllocator/MSShardRouting.h"
 #include "Heap/MAllocator/MSSizeClass.h"
 
 namespace MapleRuntime {
@@ -317,7 +318,8 @@ public:
 
     // Get a fresh mutator Region from RegionManager after central lists miss.
     // This path skips releasedTree and goes directly to bump/grow.
-    MSRegionInfo* GetFreshRegion(uint8_t cls);
+    MSRegionInfo* GetFreshRegion(uint8_t cls, uint16_t shardHint = kMSInvalidShardId);
+    uint16_t ResolveHomeShardId(uint16_t shardHint = kMSInvalidShardId) const;
 
     // ===== Thread-local Region return =====
 

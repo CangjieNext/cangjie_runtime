@@ -16,6 +16,7 @@
 
 #include "Heap/MAllocator/MSFreeManager.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
+#include "Heap/MAllocator/MSShardRouting.h"
 #include "Common/ScopedObjectAccess.h"
 #include "Base/LogFile.h"
 #include "Base/Panic.h"
@@ -83,13 +84,15 @@ public:
     void Initialize(size_t heapSize, uintptr_t mmapBase, size_t maxVirtualHeapSize);
 
     // Take one MS Region for mutator fresh allocation.
-    // This path skips releasedTree and only uses bump/grow after central lists miss.
-    MSRegionInfo* TakeRegion(uint8_t cls, const CentralRegionPool& centralPool);
+    // This path consults CentralRegionPool first, then falls back to FreeManager/grow.
+    MSRegionInfo* TakeRegion(uint8_t cls, const CentralRegionPool& centralPool,
+                             uint16_t homeShardId = kMSInvalidShardId);
 
     // Take N units for large object (Tier 1, > threshold but <= 4MB).
     // unitCount = ceil(allocSize, UNIT_SIZE).
     // Returns pair: (MSRegionInfo* baseInfo, uintptr_t regionStart), or (nullptr, 0).
-    MSRegionInfo* TakeRegionForLarge(size_t unitCount, uintptr_t& regionStart);
+    MSRegionInfo* TakeRegionForLarge(size_t unitCount, uintptr_t& regionStart,
+                                     uint16_t homeShardId = kMSInvalidShardId);
 
     // Reclaim a large Region spanning regionBytes.
     // regionStart is the actual start address of the allocation (from TakeRegionForLarge).
@@ -97,6 +100,7 @@ public:
     // Move a classless empty-cache region to FreeManager as hot-free supply.
     // Physical pages are released later by BackgroundScavengeLoop Step B.
     void ReclaimEmptyRegionToHotFree(MSRegionInfo* region);
+    void ReclaimReleasedRegionsToHotFreeBatch(const std::vector<FreeManager::RegionSpan>& spans);
 
     // Compatibility hook for allocator reclaim. MSGC small-region reclaim is
     // handled by CentralRegionPool empty-cache scavenging, so this is a no-op.
@@ -112,7 +116,7 @@ public:
     // Used by BackgroundScavengeLoop for per-quantum budget control.
     size_t ScavengeFreeRegionsUpTo(size_t maxBytes);
 
-    // Shrink the committed heap after scavenging empty-cache / releasedTree.
+    // Shrink the committed heap after background reclaim/scavenge has exposed trailing hot-free space.
     // The actual trailing-tail reclaim and committed-end update are managed by FreeManager.
     void ShrinkHeap();
 
@@ -152,7 +156,7 @@ public:
     // Total unit count for the full virtual reservation.
     size_t GetMaxVirtualUnitCount() const { return freeManager_.GetMaxVirtualUnitCount(); }
 
-    // Free unit count across releasedTree + unallocated zone (within committed region).
+    // Free unit count currently tracked by FreeManager inside the committed heap.
     uint32_t GetFreeUnitCount() const
     {
         return static_cast<uint32_t>(freeManager_.GetFreeUnitCount());
@@ -181,17 +185,16 @@ public:
 
     // Return bytes in hot-free regions (free but pages not yet returned to OS).
     size_t GetHotFreeBytes() const;
+    uint16_t ResolveHomeShardId(uint16_t shardHint = kMSInvalidShardId) const;
 
 private:
     void InitializeFreshRegions(RegionIndex startIdx, RegionCount count) override;
     void OnCommittedHeapExtended(uintptr_t newCommittedEnd) override;
 
-    // Take contiguous regions from inactiveZone bump, optionally trying
-    // releasedTree first depending on the caller policy.
+    // Take contiguous regions from FreeManager, growing the committed heap on demand.
     // High-level orchestration stays in MSRegionManager; FreeManager only exposes
     // the primitive heap-state operations used by this path.
-    bool TakeRegions(RegionCount num, RegionIndex& idx, AllocSource* source = nullptr,
-                     bool allowReleasedTree = true);
+    bool TakeRegions(RegionCount num, uint16_t homeShardId, RegionIndex& idx, AllocSource* source = nullptr);
 
     // Clear units (zero-fill) at given index/count.
     void ClearUnits(UnitIndex idx, UnitCount num) const;

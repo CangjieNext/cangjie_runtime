@@ -20,11 +20,15 @@
 #include "Heap/MAllocator/MSBitmapArena.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSRegionSpace.h"
+#include "Concurrency/ConcurrencyModel.h"
 #include "CangjieRuntime.h"
+#include "Base/SysCall.h"
 #include "Common/ScopedObjectAccess.h"
 #include "Heap.h"
 #include "Collector/Collector.h"
 #include "Collector/CollectorResources.h"
+#include "Mutator/ThreadLocal.h"
+#include "schedule.h"
 namespace MapleRuntime {
 
 namespace {
@@ -91,6 +95,9 @@ void MSRegionManager::Initialize(size_t heapSize, uintptr_t mmapBase, size_t max
 {
     unitSize_ = MRT_PAGE_SIZE;
     unitsPerMSRegion_ = MS_REGION_SIZE / unitSize_;
+    uint32_t shardCount = Runtime::CurrentRef() != nullptr
+        ? Runtime::Current().GetConcurrencyModel().GetProcessorNum()
+        : 1;
 
     // --- Max virtual capacity (full mmap reservation) ---
     size_t maxMetadataSize = GetMetadataSize(maxVirtualHeapSize);
@@ -98,16 +105,14 @@ void MSRegionManager::Initialize(size_t heapSize, uintptr_t mmapBase, size_t max
     size_t maxVirtualRegionCount = maxHeapAligned / MS_REGION_SIZE;
     size_t maxVirtualUnitCount = maxHeapAligned / unitSize_;
 
-    // --- Initial committed segment ---
-    size_t committedHeapSize = RoundUp<size_t>(heapSize, MS_REGION_SIZE);
+    // --- Initial committed heap: one 64MB segment per shard/P ---
+    size_t segmentSize = RoundUp<size_t>(kMSShardSegmentBytes, MS_REGION_SIZE);
+    size_t committedHeapSize = RoundUp<size_t>(ComputeMSInitialCommittedHeapBytes(shardCount), MS_REGION_SIZE);
+    CHECK_DETAIL(committedHeapSize <= maxHeapAligned,
+                 "[MS-GC] initial committed heap exceeds max virtual heap: committed=%zu maxVirtual=%zu shardCount=%u",
+                 committedHeapSize, maxHeapAligned, shardCount);
     size_t committedRegionCount = committedHeapSize / MS_REGION_SIZE;
     size_t committedUnitCount = committedHeapSize / unitSize_;
-
-    // Segment size for future growth: clamp to [64MB, 512MB], aligned to MS_REGION_SIZE.
-    static constexpr size_t MIN_SEGMENT_SIZE = 64ULL * 1024 * 1024;
-    static constexpr size_t MAX_SEGMENT_SIZE = 512ULL * 1024 * 1024;
-    size_t clampedSegmentSize = std::min(std::max(heapSize, MIN_SEGMENT_SIZE), MAX_SEGMENT_SIZE);
-    size_t segmentSize = RoundUp<size_t>(clampedSegmentSize, MS_REGION_SIZE);
 
     // Memory layout: [MSRegionInfo[maxVirtualRegionCount] | Heap[maxHeapAligned]]
     //                ^mmapBase                            ^heapStart             ^maxHeapEnd
@@ -129,16 +134,16 @@ void MSRegionManager::Initialize(size_t heapSize, uintptr_t mmapBase, size_t max
     freeManager_.Initialize(static_cast<UnitCount>(maxVirtualUnitCount), unitSize_, unitsPerMSRegion_,
                             static_cast<RegionCount>(committedRegionCount),
                             static_cast<RegionCount>(maxVirtualRegionCount),
-                            heapStart_, committedEnd, maxHeapEnd, segmentSize);
+                            heapStart_, committedEnd, maxHeapEnd, segmentSize, shardCount);
     MSBitmapArena::Init(maxVirtualRegionCount, committedRegionCount);
 
     VLOG(REPORT, "[MS-GC] MSRegionManager initialized (virtual reserve): mmapBase=0x%zx, "
         "maxMetadata=%zuKB, heapStart=0x%zx, committedEnd=0x%zx, maxHeapEnd=0x%zx, "
-        "committedRegions=%zu, maxVirtualRegions=%zu, segmentSize=%zuMB, "
+        "committedRegions=%zu, maxVirtualRegions=%zu, shardCount=%u, segmentSize=%zuMB, "
         "committedUnits=%zu, maxVirtualUnits=%zu, unitsPerMSRegion=%zu",
         mmapBase, maxMetadataSize / 1024,
         heapStart_, committedEnd, maxHeapEnd,
-        committedRegionCount, maxVirtualRegionCount,
+        committedRegionCount, maxVirtualRegionCount, shardCount,
         segmentSize / (1024 * 1024),
         committedUnitCount, maxVirtualUnitCount, unitsPerMSRegion_);
 }
@@ -231,6 +236,20 @@ size_t MSRegionManager::GetHotFreeBytes() const
     return freeManager_.GetHotFreeBytes();
 }
 
+uint16_t MSRegionManager::ResolveHomeShardId(uint16_t shardHint) const
+{
+    MSShardRouteContext context {};
+    if (Runtime::CurrentRef() != nullptr) {
+        context.shardCount = Runtime::Current().GetConcurrencyModel().GetProcessorNum();
+    }
+    context.hasBoundProcessor = ThreadLocal::IsCJProcessor();
+    context.tid = static_cast<uint64_t>(GetTid());
+    if (context.hasBoundProcessor) {
+        context.processorId = ProcessorId();
+    }
+    return ResolveMSHomeShardId(shardHint, context);
+}
+
 void MSRegionManager::MaybeNotifyScavenge()
 {
     if (Heap::GetHeap().IsGcStarted()) {
@@ -308,15 +327,13 @@ void MSRegionManager::MaybeNotifyMark()
 // TakeRegions — allocate contiguous regions from the unified page-heap manager.
 // ============================================================================
 
-bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx, AllocSource* source,
-                                  bool allowReleasedTree)
+bool MSRegionManager::TakeRegions(RegionCount num, uint16_t homeShardId, RegionIndex& idx, AllocSource* source)
 {
-    (void)allowReleasedTree;
     RegionIndex rawIdx = 0;
     MaybeNotifyMark();
 
     while (true) {
-        FreeManager::TryTakeResult result = freeManager_.TryTakeRegions(num, rawIdx);
+        FreeManager::TryTakeResult result = freeManager_.TryTakeRegions(num, homeShardId, rawIdx);
         if (result == FreeManager::TryTakeResult::SUCCESS) {
             idx = rawIdx;
             if (source != nullptr) {
@@ -326,7 +343,7 @@ bool MSRegionManager::TakeRegions(RegionCount num, RegionIndex& idx, AllocSource
             return true;
         }
 
-        if (!freeManager_.GrowOneSegment(*this)) {
+        if (!freeManager_.GrowOneSegment(homeShardId, *this)) {
             return false;
         }
     }
@@ -347,11 +364,14 @@ void MSRegionManager::ClearUnits(UnitIndex idx, UnitCount num) const
 // TakeRegion — allocate one MS_REGION_SIZE region
 // ============================================================================
 
-MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& centralPool)
+MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& centralPool,
+                                          uint16_t homeShardId)
 {
+    (void)centralPool;
     RegionIndex regionIdx = 0;
     AllocSource source = AllocSource::BUMP;
-    if (!TakeRegions(1, regionIdx, &source, false)) {
+    homeShardId = ResolveHomeShardId(homeShardId);
+    if (!TakeRegions(1, homeShardId, regionIdx, &source)) {
         return nullptr;
     }
 
@@ -380,7 +400,8 @@ MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& 
 // TakeRegionForLarge — allocate N units for a large object
 // ============================================================================
 
-MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& regionStart)
+MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& regionStart,
+                                                  uint16_t homeShardId)
 {
     // Convert unit count to region count (round up to full regions).
     RegionCount regionCount = static_cast<RegionCount>(
@@ -388,7 +409,8 @@ MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& r
 
     RegionIndex regionIdx = 0;
     AllocSource source = AllocSource::BUMP;
-    if (!TakeRegions(regionCount, regionIdx, &source, true)) {
+    homeShardId = ResolveHomeShardId(homeShardId);
+    if (!TakeRegions(regionCount, homeShardId, regionIdx, &source)) {
         regionStart = 0;
         return nullptr;
     }
@@ -401,7 +423,9 @@ MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& r
 }
 
 // ============================================================================
-// ReclaimRegionLarge — reclaim a large Region spanning regionBytes
+// ReclaimRegionLarge — reclaim a large Region spanning regionBytes back to
+// FreeManager hot-free supply. Physical page release is deferred to
+// BackgroundScavengeLoop Step B.
 // regionStart must be the actual allocation start address (saved before Reset).
 // ============================================================================
 
@@ -410,24 +434,34 @@ void MSRegionManager::ReclaimRegionLarge(uintptr_t regionStart, size_t regionByt
     RegionIndex regionIdx = AddrToRegionIdx(regionStart);
     RegionCount regionCount = static_cast<RegionCount>(
         (regionBytes + MS_REGION_SIZE - 1) / MS_REGION_SIZE);
+    uint16_t ownerShardId = freeManager_.ResolveOwnerShardId(regionIdx);
 
-    DLOG(REGION, "[MS-GC] ReclaimRegionLarge->releasedTree: regionStart=0x%zx, regionIdx=%u, regionCount=%u, bytes=%zuKB",
-         regionStart, regionIdx, regionCount, regionBytes / 1024);
+    DLOG(REGION, "[MS-GC] ReclaimRegionLarge->hotFree: regionStart=0x%zx, regionIdx=%u, regionCount=%u, "
+                 "ownerShard=%u, bytes=%zuKB",
+         regionStart, regionIdx, regionCount, ownerShardId, regionBytes / 1024);
 
-    // Large objects (>= MS_REGION_SIZE) release physical pages immediately
-    // and go to releasedTree, avoiding dirty cache bloat.
+    // Large objects return to FreeManager first; BackgroundScavengeLoop decides
+    // when those hot-free pages are actually released to the OS.
     freeManager_.ReclaimRegionsReleased(regionIdx, regionCount);
 }
 
 void MSRegionManager::ReclaimEmptyRegionToHotFree(MSRegionInfo* region)
 {
     size_t regionIdx = static_cast<size_t>(region - array_);
+    uint16_t ownerShardId = freeManager_.ResolveOwnerShardId(static_cast<RegionIndex>(regionIdx));
     CHECK_DETAIL(region->regionType == MSRegionType::MS_REGION_EMPTY_CACHE,
                  "[MS-GC] ReclaimEmptyRegionToHotFree: bad regionType=%u idx=%zu",
                  static_cast<unsigned>(region->regionType), regionIdx);
 
     region->Reset();
+    DLOG(REGION, "[MS-GC] ReclaimEmptyRegionToHotFree: regionIdx=%zu ownerShard=%u",
+         regionIdx, ownerShardId);
     freeManager_.ReclaimRegionsReleased(static_cast<RegionIndex>(regionIdx), 1);
+}
+
+void MSRegionManager::ReclaimReleasedRegionsToHotFreeBatch(const std::vector<FreeManager::RegionSpan>& spans)
+{
+    freeManager_.ReclaimRegionsReleasedBatch(spans);
 }
 
 size_t MSRegionManager::ScavengeFreeRegions(bool releaseAll)
@@ -442,8 +476,9 @@ size_t MSRegionManager::ScavengeFreeRegionsUpTo(size_t maxBytes)
 
 // ============================================================================
 // ReleaseGarbageRegions — no-op for MSGC.
-// Small regions are kept in CentralRegionPool empty cache and scavenged from
-// there. Large regions are reclaimed eagerly to releasedTree.
+// Small regions are kept in CentralRegionPool empty cache and reclaimed from
+// there. Large regions are returned through ReclaimRegionLarge() into
+// FreeManager hot-free supply, then scavenged later by BackgroundScavengeLoop.
 // ============================================================================
 
 size_t MSRegionManager::ReleaseGarbageRegions(size_t targetCachedSize)
@@ -460,7 +495,7 @@ size_t MSRegionManager::ReleaseGarbageRegions(size_t targetCachedSize)
 
 bool MSRegionManager::GrowOneSegment()
 {
-    return freeManager_.GrowOneSegment(*this);
+    return freeManager_.GrowOneSegment(ResolveHomeShardId(), *this);
 }
 
 // ============================================================================
