@@ -550,8 +550,13 @@ if (CMAKE_BUILD_TYPE MATCHES "^(Release|MinSizeRel)$")
             COMPONENT cangjie-trace)
         endif()
     else()
-        install(CODE "execute_process(COMMAND ${STRIP_PROGRAM} ${CMAKE_INSTALL_PREFIX}/runtime/lib/${TARGET_ARCH}${SANITIZER_SUBPATH}/libcangjie-runtime.so)"
-                COMPONENT cangjie-runtime)
+        if (ANDROID_FLAG MATCHES 3)
+            install(CODE "execute_process(COMMAND ${STRIP_PROGRAM} --strip-debug ${CMAKE_INSTALL_PREFIX}/runtime/lib/${TARGET_ARCH}${SANITIZER_SUBPATH}/libcangjie-runtime.so)"
+                    COMPONENT cangjie-runtime)
+        else()
+            install(CODE "execute_process(COMMAND ${STRIP_PROGRAM} ${CMAKE_INSTALL_PREFIX}/runtime/lib/${TARGET_ARCH}${SANITIZER_SUBPATH}/libcangjie-runtime.so)"
+                    COMPONENT cangjie-runtime)
+        endif()
         install(CODE "execute_process(COMMAND ${STRIP_PROGRAM} -g ${CMAKE_INSTALL_PREFIX}/lib/${TARGET_ARCH}/cjstart.o)"
                 COMPONENT cjstart)
         if (OHOS_FLAG IN_LIST OHOS_FLAG_LIST)
