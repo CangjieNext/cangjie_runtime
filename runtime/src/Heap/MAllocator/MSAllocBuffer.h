@@ -149,6 +149,9 @@ public:
     // Initialized by MarkSweepCollector::InitAllPerPGCWork() at GC start.
     PerPGCWork& GetGCWork() { return gcWork_; }
 
+    uint16_t GetCachedHomeShardId() const { return cachedHomeShardId_; }
+    void SetCachedHomeShardId(uint16_t id) { cachedHomeShardId_ = id; }
+
 private:
     friend class CentralRegionPool;
     static constexpr uint8_t kNoPreferredHotClass = UINT8_MAX;
@@ -230,6 +233,11 @@ private:
 
     // Back-pointer to global CentralRegionPool
     CentralRegionPool* central_ = nullptr;
+
+    // Cached home shard id for this per-P buffer.
+    // Resolved once on first TakeRegion call and reused thereafter.
+    // Safe to cache because AllocBufferMS is per-OS-thread (per-P).
+    uint16_t cachedHomeShardId_ = kMSInvalidShardId;
 
     // Per-thread stack roots buffer (populated by Mutator::GcPhaseEnum)
     std::vector<BaseObject*> stackRoots_;

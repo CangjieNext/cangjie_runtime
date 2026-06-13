@@ -68,6 +68,9 @@ AllocBufferMS::AllocBufferMS()
 void AllocBufferMS::Init(CentralRegionPool* central)
 {
     central_ = central;
+    cachedHomeShardId_ = (central_ != nullptr)
+        ? central_->ResolveHomeShardId()
+        : kMSInvalidShardId;
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
         activeRegions_[cls] = nullptr;
     }
@@ -626,8 +629,7 @@ MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls, bool backgroundFill)
         }
     }
 
-    uint16_t homeShardId = central_->ResolveHomeShardId();
-    region = central_->GetFreshRegion(cls, homeShardId);
+    region = central_->GetFreshRegion(cls, cachedHomeShardId_);
     return region;
 }
 

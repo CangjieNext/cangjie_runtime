@@ -141,6 +141,14 @@ public:
     // Units per MS Region (= MS_REGION_SIZE / UNIT_SIZE).
     size_t GetUnitsPerMSRegion() const { return unitsPerMSRegion_; }
 
+    // Shard-related queries (delegated to FreeManager).
+    size_t GetOwnedSegmentCount(uint16_t ownerShardId) const { return freeManager_.GetOwnedSegmentCount(ownerShardId); }
+    size_t GetOwnedTotalRegionCount(uint16_t ownerShardId) const { return freeManager_.GetOwnedTotalRegionCount(ownerShardId); }
+    size_t GetOwnedFreeRegionCount(uint16_t ownerShardId) const { return freeManager_.GetOwnedFreeRegionCount(ownerShardId); }
+    size_t GetScavengedRegionCount(uint16_t ownerShardId) const { return freeManager_.GetScavengedRegionCount(ownerShardId); }
+    size_t GetHotFreeRegionCount(uint16_t ownerShardId) const { return freeManager_.GetHotFreeRegionCount(ownerShardId); }
+    size_t GetBorrowedRegionCount(uint16_t ownerShardId) const { return freeManager_.GetBorrowedRegionCount(ownerShardId); }
+
     // Large object threshold (= MS_REGION_SIZE for MS mode).
     size_t GetLargeObjectThreshold() const { return MS_REGION_SIZE; }
 
@@ -155,6 +163,8 @@ public:
 
     // Total unit count for the full virtual reservation.
     size_t GetMaxVirtualUnitCount() const { return freeManager_.GetMaxVirtualUnitCount(); }
+
+    uint32_t GetShardCount() const { return freeManager_.GetShardCount(); }
 
     // Free unit count currently tracked by FreeManager inside the committed heap.
     uint32_t GetFreeUnitCount() const

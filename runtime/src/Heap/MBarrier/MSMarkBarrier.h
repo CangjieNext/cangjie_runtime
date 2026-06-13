@@ -61,11 +61,6 @@ public:
     bool CompareAndSwapReference(BaseObject* obj, RefField<true>& field,
                                  BaseObject* oldRef, BaseObject* newRef,
                                  MemoryOrder succOrder, MemoryOrder failOrder) const override;
-
-private:
-    // Try to discover a referenced object and enqueue it into the per-mutator
-    // concurrent mark queue. Already-discovered objects are skipped.
-    static void EnqueueRef(BaseObject* ref);
 };
 
 } // namespace MapleRuntime

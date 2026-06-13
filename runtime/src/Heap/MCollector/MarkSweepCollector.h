@@ -263,7 +263,7 @@ private:
     //                                     cycles while keeping short GC cycles assist-free.
     // ============================================================
     static constexpr size_t   kCreditFlushThreshold     = 1024;
-    static constexpr size_t   kSliceMaxObjects          = 256;
+    static constexpr size_t   kSliceMaxObjects          = 1024;
     static constexpr size_t   kConvergenceRequiredRounds     = 3;
     static constexpr uint64_t kConvergenceYieldUs            = 50;
     static constexpr uint64_t kConvergenceFlushWaitUs        = 200;
@@ -306,11 +306,6 @@ private:
     std::atomic<size_t> assistGlobalPulled_{0};    // ③ debt paid by global PopFull pulls
     std::atomic<size_t> assistPostPullMarked_{0};  // ④ objects marked after a pull
     std::atomic<size_t> bgCreditInjected_{0};      // GC-supply credit injected this cycle
-
-    // ── Step21 GC-supply decay schedule (N = round hitting 100ms last cycle) ──
-    size_t prevCycleRoundsTo100ms_ = 0;  // persisted N for next cycle's decay
-    size_t bgCreditStopRound_ = 0;       // N actually used this cycle
-    size_t roundsTo100ms_ = 0;           // this cycle's measured 100ms round
 
     // ── DFX: Per-cycle stats ──
     MSGCCycleStats cycleStats_;

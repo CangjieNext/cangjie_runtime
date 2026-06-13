@@ -30,6 +30,20 @@
 
 namespace MapleRuntime {
 
+// Reads CJ_MS_PIN_HOT_FREE once; mirrors the helper in BackgroundProcessor.cpp.
+static bool IsMSHotFreePinned()
+{
+    static const bool pinned = []() {
+        const char* env = std::getenv("CJ_MS_PIN_HOT_FREE");
+        if (env == nullptr || env[0] == '\0') {
+            return false;
+        }
+        return std::strcmp(env, "1") == 0 || std::strcmp(env, "true") == 0 ||
+               std::strcmp(env, "on") == 0 || std::strcmp(env, "yes") == 0;
+    }();
+    return pinned;
+}
+
 static inline bool IsMSMarkingPhase(GCPhase phase)
 {
     return phase == GCPhase::GC_PHASE_MS_MARK_SETUP ||
@@ -204,7 +218,9 @@ size_t RegionSpaceMS::GetHeapRetainedBytes() const
     size_t active = msCentralPool_->GetActiveMSRegionCount() * MS_REGION_SIZE;
     size_t empty = msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE;
     size_t largeCache = msCentralPool_->GetLargeHotCacheBytes();
-    size_t hotFree = msRegionManager_->GetHotFreeBytes();
+    // When hotFree is pinned it is treated as permanently resident and excluded
+    // from retained-bytes so it does not drive scavenge pressure.
+    size_t hotFree = IsMSHotFreePinned() ? 0 : msRegionManager_->GetHotFreeBytes();
     return active + empty + largeCache + hotFree;
 }
 
@@ -343,9 +359,10 @@ MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t allocSize, ThreadLocal
     }
 
     uintptr_t regionStart = 0;
-    uint16_t homeShardId = msRegionManager_ != nullptr
-        ? msRegionManager_->ResolveHomeShardId()
-        : kMSInvalidShardId;
+    AllocBufferMS* msBuffer2 = ThreadLocal::GetAllocBufferMS();
+    uint16_t homeShardId = (msBuffer2 != nullptr)
+        ? msBuffer2->GetCachedHomeShardId()
+        : static_cast<uint16_t>(static_cast<uint32_t>(GetTid()) % msRegionManager_->GetShardCount());
     MSRegionInfo* baseInfo = msRegionManager_->TakeRegionForLarge(unitCount, regionStart, homeShardId);
     if (baseInfo == nullptr) {
         LOG(RTLOG_ERROR, "[MS-GC] TryAllocateOnceMS LARGE ALLOC FAILED: "

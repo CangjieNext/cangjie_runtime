@@ -28,12 +28,35 @@
 #include "Collector/Collector.h"
 #include "Collector/CollectorResources.h"
 #include "Mutator/ThreadLocal.h"
+#include "Heap/MAllocator/MSAllocBuffer.h"
 #include "schedule.h"
+#include <cstdio>
 namespace MapleRuntime {
+
+// ---------------------------------------------------------------------------
+// TakeRegions stats
+// ---------------------------------------------------------------------------
+static std::atomic<uint64_t> g_takeRegions_count{0};
+static std::atomic<uint64_t> g_takeRegions_ns{0};
 
 namespace {
 constexpr size_t DEFAULT_MS_SCAVENGE_WAKE_BYTES = 4 * MS_REGION_SIZE;
-}
+
+struct TakeRegionsStatsPrinter {
+    ~TakeRegionsStatsPrinter()
+    {
+        uint64_t cnt = g_takeRegions_count.load(std::memory_order_relaxed);
+        uint64_t ns  = g_takeRegions_ns.load(std::memory_order_relaxed);
+        double avg_us = (cnt > 0) ? (static_cast<double>(ns) / cnt / 1000.0) : 0.0;
+        fprintf(stderr,
+                "[MS-GC][STATS] TakeRegions: calls=%lu totalTime=%.3fms avgTime=%.3fus\n",
+                static_cast<unsigned long>(cnt),
+                static_cast<double>(ns) / 1e6,
+                avg_us);
+    }
+};
+static TakeRegionsStatsPrinter g_takeRegions_printer;
+} // namespace
 
 // External: system page size (defined in RegionManager.cpp).
 extern const size_t MRT_PAGE_SIZE;
@@ -329,6 +352,7 @@ void MSRegionManager::MaybeNotifyMark()
 
 bool MSRegionManager::TakeRegions(RegionCount num, uint16_t homeShardId, RegionIndex& idx, AllocSource* source)
 {
+    uint64_t t0 = TimeUtil::NanoSeconds();
     RegionIndex rawIdx = 0;
     MaybeNotifyMark();
 
@@ -340,10 +364,14 @@ bool MSRegionManager::TakeRegions(RegionCount num, uint16_t homeShardId, RegionI
                 *source = AllocSource::RELEASED;
             }
             MaybeNotifyScavenge();
+            g_takeRegions_ns.fetch_add(TimeUtil::NanoSeconds() - t0, std::memory_order_relaxed);
+            g_takeRegions_count.fetch_add(1, std::memory_order_relaxed);
             return true;
         }
 
-        if (!freeManager_.GrowOneSegment(homeShardId, *this)) {
+        if (!freeManager_.GrowForRegions(num, homeShardId, *this)) {
+            g_takeRegions_ns.fetch_add(TimeUtil::NanoSeconds() - t0, std::memory_order_relaxed);
+            g_takeRegions_count.fetch_add(1, std::memory_order_relaxed);
             return false;
         }
     }
@@ -370,7 +398,6 @@ MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& 
     (void)centralPool;
     RegionIndex regionIdx = 0;
     AllocSource source = AllocSource::BUMP;
-    homeShardId = ResolveHomeShardId(homeShardId);
     if (!TakeRegions(1, homeShardId, regionIdx, &source)) {
         return nullptr;
     }
@@ -409,7 +436,6 @@ MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& r
 
     RegionIndex regionIdx = 0;
     AllocSource source = AllocSource::BUMP;
-    homeShardId = ResolveHomeShardId(homeShardId);
     if (!TakeRegions(regionCount, homeShardId, regionIdx, &source)) {
         regionStart = 0;
         return nullptr;
@@ -495,7 +521,11 @@ size_t MSRegionManager::ReleaseGarbageRegions(size_t targetCachedSize)
 
 bool MSRegionManager::GrowOneSegment()
 {
-    return freeManager_.GrowOneSegment(ResolveHomeShardId(), *this);
+    AllocBufferMS* buf = ThreadLocal::GetAllocBufferMS();
+    uint16_t shardId = (buf != nullptr && buf->GetCachedHomeShardId() != kMSInvalidShardId)
+        ? buf->GetCachedHomeShardId()
+        : static_cast<uint16_t>(static_cast<uint32_t>(GetTid()) % freeManager_.GetShardCount());
+    return freeManager_.GrowOneSegment(shardId, *this);
 }
 
 // ============================================================================

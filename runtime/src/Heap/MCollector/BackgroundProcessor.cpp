@@ -101,6 +101,25 @@ bool IsBackgroundScavengeEnabled()
     return enabled;
 }
 
+// When enabled (CJ_MS_PIN_HOT_FREE=1/true/on/yes), hot-free regions are never
+// released to the OS and are excluded from the retained-bytes calculation so they
+// do not trigger scavenge pressure.
+bool IsHotFreePinned()
+{
+    static const bool pinned = []() {
+        const char* env = std::getenv("CJ_MS_PIN_HOT_FREE");
+        if (env == nullptr || env[0] == '\0') {
+            return false;
+        }
+        if (std::strcmp(env, "1") == 0 || EqualsIgnoreCase(env, "true") ||
+            EqualsIgnoreCase(env, "on") || EqualsIgnoreCase(env, "yes")) {
+            return true;
+        }
+        return false;
+    }();
+    return pinned;
+}
+
 size_t GetBackgroundScavengeRounds()
 {
     static const size_t rounds = []() {
@@ -496,8 +515,11 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     // cache alone cannot cover the remaining gap. For each source: if its cached size
     // is <= the gap, flush all of it; otherwise flush only the gap amount.
     {
-        size_t hotFree = space.GetHotFreeBytes();
-        size_t gap = (targetBytes > hotFree) ? (targetBytes - hotFree) : 0;
+        // When hotFree is pinned it will never be released, so treat it as zero for
+        // gap accounting — this ensures emptySwept/largeCache are still flushed even
+        // when a large pinned hotFree pool exists.
+        size_t hotFreeForGap = IsHotFreePinned() ? 0 : space.GetHotFreeBytes();
+        size_t gap = (targetBytes > hotFreeForGap) ? (targetBytes - hotFreeForGap) : 0;
 
         // Priority 1: large hot cache.
         if (gap > 0 && pool != nullptr) {
@@ -547,8 +569,10 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
             shouldScavengeHeap_.store(false, std::memory_order_release);
             return false;
         }
-        size_t quantum = std::min(roundTarget, availableToRelease);
-        released = space.BackgroundScavenge(quantum);
+        if (!IsHotFreePinned()) {
+            size_t quantum = std::min(roundTarget, availableToRelease);
+            released = space.BackgroundScavenge(quantum);
+        }
     }
     uint64_t elapsed = TimeUtil::MicroSeconds() - t0;
 

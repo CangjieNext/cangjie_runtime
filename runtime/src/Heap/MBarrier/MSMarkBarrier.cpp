@@ -20,9 +20,34 @@
 #include <atomic>
 #include <cstdlib>
 #include <cstring>
+#include <cstdio>
 
 namespace MapleRuntime {
 
+// ---------------------------------------------------------------------------
+// EnqueueRefFast stats — thread-local count to avoid cache-line bouncing on
+// the hot write-barrier path; summed into a global atomic only at thread exit.
+// ---------------------------------------------------------------------------
+static thread_local uint64_t tl_enqueueRefFast_count = 0;
+static std::atomic<uint64_t> g_enqueueRefFast_count{0};
+
+namespace {
+struct EnqueueRefFastStatsPrinter {
+    ~EnqueueRefFastStatsPrinter()
+    {
+        // Flush this thread's local counter into the global sum.
+        g_enqueueRefFast_count.fetch_add(tl_enqueueRefFast_count, std::memory_order_relaxed);
+        tl_enqueueRefFast_count = 0;
+        // Only the last destructor to run will see the full total; that is
+        // acceptable for a diagnostic counter.
+        uint64_t cnt = g_enqueueRefFast_count.load(std::memory_order_relaxed);
+        fprintf(stderr,
+                "[MS-GC][STATS] EnqueueRefFast: calls=%lu\n",
+                static_cast<unsigned long>(cnt));
+    }
+};
+static EnqueueRefFastStatsPrinter g_enqueueRefFast_printer;
+} // namespace
 namespace {
 class WriteBarrierBufferGreySink final : public MarkSweepCollector::GreyWorkSink {
 public:
@@ -38,29 +63,6 @@ private:
 };
 } // namespace
 
-static bool IsHashMapCounterEnabled()
-{
-#if 0
-    static bool enabled = []() {
-        const char* env = std::getenv("CJ_MS_HASHMAP_COUNTERS");
-        return env != nullptr && env[0] != '\0' && std::strcmp(env, "0") != 0;
-    }();
-    return enabled;
-#endif
-    return false;
-}
-
-static std::atomic<uint64_t> g_oldShadeCount{0};
-static std::atomic<uint64_t> g_newEnqueueCount{0};
-static std::atomic<uint64_t> g_newWriteRefCount{0};
-static std::atomic<uint64_t> g_newWriteStaticRefCount{0};
-static std::atomic<uint64_t> g_newWriteStructCount{0};
-static std::atomic<uint64_t> g_newWriteStaticStructCount{0};
-static std::atomic<uint64_t> g_newCopyRefArrayCount{0};
-static std::atomic<uint64_t> g_newCopyStructArrayCount{0};
-static std::atomic<uint64_t> g_newAtomicWriteCount{0};
-static std::atomic<uint64_t> g_newAtomicSwapCount{0};
-static std::atomic<uint64_t> g_newCasCount{0};
 static std::atomic<int32_t> g_invalidBarrierRefLogBudget{64};
 
 static __attribute__((unused)) bool IsBarrierInvalidRefDiagEnabled()
@@ -87,6 +89,7 @@ static __attribute__((unused)) uintptr_t LoadBarrierDiagStateWord(const BaseObje
 
 static inline void EnqueueRefFast(BaseObject* ref)
 {
+    ++tl_enqueueRefFast_count;
     if (ref == nullptr || !Heap::IsHeapAddress(ref)) {
         return;
     }
@@ -106,93 +109,6 @@ static inline void EnqueueRefFast(BaseObject* ref)
     MarkSweepCollector& collector = static_cast<MarkSweepCollector&>(Heap::GetHeap().GetCollector());
     WriteBarrierBufferGreySink sink(wbBuf);
     (void)collector.TryEnqueueGreyObject(ref, sink);
-}
-
-static __attribute__((unused)) void EnqueueRefWithDiag(
-    const char* source, const BaseObject* holder, const void* slot, BaseObject* ref)
-{
-    // Keep invalid-ref diagnostics available, but default writes to the shared
-    // fast path so we do not duplicate DiscoverObject validation on every
-    // barrier hit.
-    if (LIKELY(!IsBarrierInvalidRefDiagEnabled())) {
-        EnqueueRefFast(ref);
-        return;
-    }
-
-    if (ref != nullptr && Heap::IsHeapAddress(ref)) {
-        bool traceable = true;
-        // GetRegionInfoValidated checks if ref is in a live (mapped) region
-        // without dereferencing the pointer. IsHeapAddress only checks the
-        // virtual address range; a scavenged region can be unmapped, causing
-        // SIGBUS on dereference.
-        uintptr_t refAddr = reinterpret_cast<uintptr_t>(ref);
-        MSRegionInfo* msInfo = MSRegionInfoArray::GetRegionInfoValidated(refAddr);
-        if (msInfo == nullptr) {
-            traceable = false;
-        }
-        uintptr_t stateWord = 0;
-        if (traceable) {
-            stateWord = LoadBarrierDiagStateWord(ref);
-            if (UNLIKELY(stateWord == 0 || !ref->IsValidObject())) {
-                traceable = false;
-            }
-        }
-        if (UNLIKELY(!traceable)) {
-            int32_t budget = g_invalidBarrierRefLogBudget.fetch_sub(1, std::memory_order_relaxed);
-            if (budget > 0) {
-                VLOG(REPORT,
-                     "[MS-GC] Barrier invalid-ref source=%s holder=%p holderType=%s slot=%p ref=%p stateWord=0x%zx",
-                     source,
-                     static_cast<const void*>(holder),
-                     GetBarrierDiagTypeName(holder),
-                     slot,
-                     static_cast<void*>(ref),
-                     stateWord);
-            }
-        }
-    }
-    EnqueueRefFast(ref);
-}
-
-extern "C" void MSMarkBarrier_DumpAndResetCounters()
-{
-    if (!IsHashMapCounterEnabled()) {
-        return;
-    }
-    uint64_t oldShade = g_oldShadeCount.exchange(0, std::memory_order_relaxed);
-    uint64_t newEnqueue = g_newEnqueueCount.exchange(0, std::memory_order_relaxed);
-    uint64_t writeRef = g_newWriteRefCount.exchange(0, std::memory_order_relaxed);
-    uint64_t writeStaticRef = g_newWriteStaticRefCount.exchange(0, std::memory_order_relaxed);
-    uint64_t writeStruct = g_newWriteStructCount.exchange(0, std::memory_order_relaxed);
-    uint64_t writeStaticStruct = g_newWriteStaticStructCount.exchange(0, std::memory_order_relaxed);
-    uint64_t copyRef = g_newCopyRefArrayCount.exchange(0, std::memory_order_relaxed);
-    uint64_t copyStruct = g_newCopyStructArrayCount.exchange(0, std::memory_order_relaxed);
-    uint64_t atomicWrite = g_newAtomicWriteCount.exchange(0, std::memory_order_relaxed);
-    uint64_t atomicSwap = g_newAtomicSwapCount.exchange(0, std::memory_order_relaxed);
-    uint64_t cas = g_newCasCount.exchange(0, std::memory_order_relaxed);
-
-    VLOG(REPORT, "[MS-HM-COUNT] old=%llu new=%llu wr=%llu wsr=%llu wst=%llu wsst=%llu cra=%llu csa=%llu aw=%llu as=%llu cas=%llu",
-         (unsigned long long)oldShade,
-         (unsigned long long)newEnqueue,
-         (unsigned long long)writeRef,
-         (unsigned long long)writeStaticRef,
-         (unsigned long long)writeStruct,
-         (unsigned long long)writeStaticStruct,
-         (unsigned long long)copyRef,
-         (unsigned long long)copyStruct,
-         (unsigned long long)atomicWrite,
-         (unsigned long long)atomicSwap,
-         (unsigned long long)cas);
-
-}
-
-// ============================================================================
-// Core helpers
-// ============================================================================
-
-void MSMarkBarrier::EnqueueRef(BaseObject* ref)
-{
-    EnqueueRefFast(ref);
 }
 
 // ============================================================================
@@ -242,40 +158,20 @@ void MSMarkBarrier::WriteReference(BaseObject* obj, RefField<false>& field, Base
 
     // discover(old)
     BaseObject* oldRef = field.GetTargetObject();
-    if (IsHashMapCounterEnabled()) {
-        g_oldShadeCount.fetch_add(1, std::memory_order_relaxed);
-    }
     EnqueueRefFast(oldRef);
 
     // store
     field.SetTargetObject(ref);
-
-    // discover(new): ensure the newly linked graph becomes visible this cycle
-    if (IsHashMapCounterEnabled()) {
-        g_newWriteRefCount.fetch_add(1, std::memory_order_relaxed);
-        g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
-    }
-    EnqueueRefFast(ref);
 }
 
 void MSMarkBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) const
 {
     // discover(old)
     BaseObject* oldRef = field.GetTargetObject();
-    if (IsHashMapCounterEnabled()) {
-        g_oldShadeCount.fetch_add(1, std::memory_order_relaxed);
-    }
     EnqueueRefFast(oldRef);
 
     // store
     field.SetTargetObject(ref);
-
-    // discover(new)
-    if (IsHashMapCounterEnabled()) {
-        g_newWriteStaticRefCount.fetch_add(1, std::memory_order_relaxed);
-        g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
-    }
-    EnqueueRefFast(ref);
 }
 
 void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen) const
@@ -300,21 +196,6 @@ void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MA
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dst), dstLen);
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(src), srcLen);
 #endif
-
-    // discover(new): traverse the newly-written reference fields in the
-    // destination struct after the copy.
-    if (obj != nullptr && obj->GetTypeInfo() != nullptr) {
-        obj->ForEachRefInStruct(
-            [obj](RefField<false>& refField) {
-                if (IsHashMapCounterEnabled()) {
-                    g_newWriteStructCount.fetch_add(1, std::memory_order_relaxed);
-                    g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
-                }
-                BaseObject* newRef = refField.GetTargetObject();
-                EnqueueRefFast(newRef);
-            },
-            dst, dst + dstLen);
-    }
 }
 
 void MSMarkBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, size_t srcLen,
@@ -335,16 +216,6 @@ void MSMarkBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src,
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dst), copyLen);
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(src), copyLen);
 #endif
-
-    // discover(new): traverse the newly-written fields after the copy.
-    gctib.ForEachBitmapWord(dst, [](RefField<>& refField) {
-        if (IsHashMapCounterEnabled()) {
-            g_newWriteStaticStructCount.fetch_add(1, std::memory_order_relaxed);
-            g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
-        }
-        BaseObject* newRef = refField.GetTargetObject();
-        EnqueueRefFast(newRef);
-    });
 }
 
 // ============================================================================
@@ -374,16 +245,6 @@ void MSMarkBarrier::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex d
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dstField), copyLen);
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(srcField), copyLen);
 #endif
-
-    // discover(new): preserve the newly-copied references for this cycle's closure.
-    for (size_t i = 0; i < refCount; ++i) {
-        if (IsHashMapCounterEnabled()) {
-            g_newCopyRefArrayCount.fetch_add(1, std::memory_order_relaxed);
-            g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
-        }
-        BaseObject* newRef = dstRefs[i].GetTargetObject();
-        EnqueueRefFast(newRef);
-    }
 }
 
 void MSMarkBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
@@ -410,20 +271,6 @@ void MSMarkBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MInde
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dstField), copyLen);
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(srcField), copyLen);
 #endif
-
-    // discover(new): preserve all newly-copied reference fields in the destination range.
-    if (dstObj != nullptr) {
-        dstObj->ForEachRefInStruct(
-            [dstObj](RefField<false>& refField) {
-                if (IsHashMapCounterEnabled()) {
-                    g_newCopyStructArrayCount.fetch_add(1, std::memory_order_relaxed);
-                    g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
-                }
-                BaseObject* newRef = refField.GetTargetObject();
-                EnqueueRefFast(newRef);
-            },
-            dstField, dstField + dstSize);
-    }
 }
 
 // ============================================================================
@@ -446,20 +293,10 @@ void MSMarkBarrier::AtomicWriteReference(BaseObject* obj, RefField<true>& field,
     // discover(old)
     RefField<false> oldField(field.GetFieldValue(std::memory_order_relaxed));
     BaseObject* oldRef = oldField.GetTargetObject();
-    if (IsHashMapCounterEnabled()) {
-        g_oldShadeCount.fetch_add(1, std::memory_order_relaxed);
-    }
     EnqueueRefFast(oldRef);
 
     // atomic store
     field.SetTargetObject(ref, order);
-
-    // discover(new)
-    if (IsHashMapCounterEnabled()) {
-        g_newAtomicWriteCount.fetch_add(1, std::memory_order_relaxed);
-        g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
-    }
-    EnqueueRefFast(ref);
 }
 
 BaseObject* MSMarkBarrier::AtomicSwapReference(BaseObject* obj, RefField<true>& field,
@@ -473,16 +310,7 @@ BaseObject* MSMarkBarrier::AtomicSwapReference(BaseObject* obj, RefField<true>& 
     BaseObject* oldRef = oldField.GetTargetObject();
 
     // discover(old): the swapped-out reference
-    if (IsHashMapCounterEnabled()) {
-        g_oldShadeCount.fetch_add(1, std::memory_order_relaxed);
-    }
     EnqueueRefFast(oldRef);
-    // discover(new)
-    if (IsHashMapCounterEnabled()) {
-        g_newAtomicSwapCount.fetch_add(1, std::memory_order_relaxed);
-        g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
-    }
-    EnqueueRefFast(newRef);
 
     return oldRef;
 }
@@ -495,16 +323,8 @@ bool MSMarkBarrier::CompareAndSwapReference(BaseObject* obj, RefField<true>& fie
 
     bool success = field.CompareExchange(oldRef, newRef, succOrder, failOrder);
     if (success) {
-        // CAS succeeded: discover the old edge and the new edge.
-        if (IsHashMapCounterEnabled()) {
-            g_oldShadeCount.fetch_add(1, std::memory_order_relaxed);
-        }
+        // CAS succeeded: discover the old edge (SATB deletion barrier).
         EnqueueRefFast(oldRef);
-        if (IsHashMapCounterEnabled()) {
-            g_newCasCount.fetch_add(1, std::memory_order_relaxed);
-            g_newEnqueueCount.fetch_add(1, std::memory_order_relaxed);
-        }
-        EnqueueRefFast(newRef);
     }
     return success;
 }
