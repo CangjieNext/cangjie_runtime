@@ -132,5 +132,7 @@ for file in "$TEST_NAME"/*.cpp; do
 done
 mv "$TEST_NAME"/*.o "$LIB"
 
-"$IOS_CXX" "${TARGET_FLAGS[@]}" -dynamiclib -o "$TEST_NAME/out/libcangjie-interpreter.dylib" "$LIB"/*.o \
+"$IOS_CXX" "${TARGET_FLAGS[@]}" -dynamiclib \
+    -Wl,-install_name,@rpath/libcangjie-interpreter.dylib \
+    -o "$TEST_NAME/out/libcangjie-interpreter.dylib" "$LIB"/*.o \
     -Wno-attributes -g -fPIC $IOS_LDFLAGS

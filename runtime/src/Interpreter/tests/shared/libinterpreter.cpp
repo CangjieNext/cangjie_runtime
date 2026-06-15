@@ -5,9 +5,16 @@
 #include <dlfcn.h>
 #include <dirent.h>
 #include <errno.h>
+#include <stdio.h>
 #include <string.h>
 #include <string>
 #include <sys/stat.h>
+#include <vector>
+
+#if defined(__APPLE__) && \
+    (defined(__IOS__) || defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__))
+#include <mach-o/dyld.h>
+#endif
 
 #ifndef MOCK_IMPLEMENTATION
 #define MOCK_IMPLEMENTATION Mock
@@ -15,6 +22,129 @@
 
 MOCK_IMPLEMENTATION mockInstance;
 static void* g_symbol_lookup_handle = nullptr;
+
+#if defined(__APPLE__) && \
+    (defined(__IOS__) || defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__))
+static bool HasCbcExtension(const char* fileName)
+{
+    const char* extension = strrchr(fileName, '.');
+    return extension != nullptr && strcmp(extension, ".cbc") == 0;
+}
+
+static bool EnsureDirectory(const std::string& path)
+{
+    if (mkdir(path.c_str(), 0755) == 0 || errno == EEXIST) {
+        return true;
+    }
+    log("[Interpreter] Failed to create directory '%s': errno=%d (%s)", path.c_str(), errno, strerror(errno));
+    return false;
+}
+
+static bool CopyFile(const std::string& sourcePath, const std::string& destinationPath)
+{
+    FILE* source = fopen(sourcePath.c_str(), "rb");
+    if (source == nullptr) {
+        log("[Interpreter] Failed to open bundled CBC '%s': errno=%d (%s)",
+            sourcePath.c_str(), errno, strerror(errno));
+        return false;
+    }
+
+    FILE* destination = fopen(destinationPath.c_str(), "wb");
+    if (destination == nullptr) {
+        log("[Interpreter] Failed to create CBC '%s': errno=%d (%s)",
+            destinationPath.c_str(), errno, strerror(errno));
+        fclose(source);
+        return false;
+    }
+
+    bool success = true;
+    char buffer[16 * 1024];
+    size_t bytesRead = 0;
+    while ((bytesRead = fread(buffer, 1, sizeof(buffer), source)) > 0) {
+        if (fwrite(buffer, 1, bytesRead, destination) != bytesRead) {
+            log("[Interpreter] Failed to write CBC '%s': errno=%d (%s)",
+                destinationPath.c_str(), errno, strerror(errno));
+            success = false;
+            break;
+        }
+    }
+    if (ferror(source) != 0) {
+        log("[Interpreter] Failed to read bundled CBC '%s': errno=%d (%s)",
+            sourcePath.c_str(), errno, strerror(errno));
+        success = false;
+    }
+
+    if (fclose(destination) != 0) {
+        success = false;
+    }
+    fclose(source);
+    return success;
+}
+
+static std::string GetExecutableDirectory()
+{
+    char initialBuffer[1];
+    uint32_t pathSize = sizeof(initialBuffer);
+    if (_NSGetExecutablePath(initialBuffer, &pathSize) == 0) {
+        return {};
+    }
+
+    std::vector<char> pathBuffer(pathSize);
+    if (_NSGetExecutablePath(pathBuffer.data(), &pathSize) != 0) {
+        return {};
+    }
+
+    std::string executablePath(pathBuffer.data());
+    size_t separator = executablePath.find_last_of('/');
+    return separator == std::string::npos ? std::string() : executablePath.substr(0, separator);
+}
+
+static void PrepareBundledCbcFiles(const char* interpreterRoot)
+{
+    const std::string executableDirectory = GetExecutableDirectory();
+    if (executableDirectory.empty()) {
+        log("[Interpreter] Failed to resolve application bundle path");
+        return;
+    }
+
+    const std::string sourceDirectory = executableDirectory + "/cbc";
+    DIR* sourceDir = opendir(sourceDirectory.c_str());
+    if (sourceDir == nullptr) {
+        log("[Interpreter] Bundled CBC directory '%s' is unavailable: errno=%d (%s)",
+            sourceDirectory.c_str(), errno, strerror(errno));
+        return;
+    }
+
+    const std::string rootDirectory(interpreterRoot);
+    const std::string destinationDirectory = rootDirectory + "/cbc";
+    if (!EnsureDirectory(rootDirectory) || !EnsureDirectory(destinationDirectory)) {
+        closedir(sourceDir);
+        return;
+    }
+
+    int copiedFiles = 0;
+    struct dirent* entry = nullptr;
+    while ((entry = readdir(sourceDir)) != nullptr) {
+        if (!HasCbcExtension(entry->d_name)) {
+            continue;
+        }
+
+        const std::string sourcePath = sourceDirectory + "/" + entry->d_name;
+        struct stat statBuffer {};
+        if (stat(sourcePath.c_str(), &statBuffer) != 0 || !S_ISREG(statBuffer.st_mode)) {
+            continue;
+        }
+
+        const std::string destinationPath = destinationDirectory + "/" + entry->d_name;
+        if (CopyFile(sourcePath, destinationPath)) {
+            ++copiedFiles;
+            log("[Interpreter] Prepared bundled CBC: %s", destinationPath.c_str());
+        }
+    }
+    closedir(sourceDir);
+    log("[Interpreter] Prepared %d bundled CBC file(s) in '%s'", copiedFiles, destinationDirectory.c_str());
+}
+#endif
 
 #if defined(__APPLE__) && \
     (defined(__IOS__) || defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__))
@@ -108,6 +238,10 @@ PUBLIC int interpreter_bridge_init(INT_InterpreterInterface* interpreter_interf,
         if (interpreter_args_count > 0 && interpreter_args != nullptr && interpreter_args[0] != nullptr && interpreter_args[0][0] == '/') {
             const char* dirPath = interpreter_args[0];
             log("[Interpreter] First argument looks like an absolute path: %s", dirPath);
+#if defined(__APPLE__) && \
+    (defined(__IOS__) || defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__))
+            PrepareBundledCbcFiles(dirPath);
+#endif
             DIR* dir = opendir(dirPath);
             if (dir == nullptr) {
                 log("[Interpreter] Failed to open directory '%s': errno=%d (%s)", dirPath, errno, strerror(errno));
