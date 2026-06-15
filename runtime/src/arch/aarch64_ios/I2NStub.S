@@ -9,7 +9,8 @@
 #define cfi_restore(reg)                .cfi_restore reg
 #define cfi_def_cfa_register(reg)       .cfi_def_cfa_register reg
 
-#define I2NStubFrameSize                (8 * 24)
+#define I2NStubFrameSize                (8 * 26)
+#define SafeStateOffset                 0xC0
 
 // Frame layout after
 //     stp x29, x30, [sp, #-I2NStubFrameSize]!
@@ -35,6 +36,8 @@
 //                  | q5 save area              |
 //                  | q6 save area              | [x29 + 0xA0]
 //                  | q7 save area              |
+//                  | saferegion state          | [x29 + 0xC0]
+//                  | padding                   | [x29 + 0xC8]
 //   stub sp -->    | ...                       |
 
     .section __TEXT,__cjrt_text,regular
@@ -52,18 +55,18 @@ _CJ_MCC_I2NStub:
     str  x28, [sp, #0x10]
     cfi_rel_offset (x28, 0x10)
 
-    // Save integer argument registers.
+    // Save integer argument registers
     str  x4, [sp, #0x18]
     stp  x0, x1, [sp, #0x20]
     stp  x2, x3, [sp, #0x30]
 
-    // Save floating-point argument registers.
+    // Save floating-point argument registers
     stp  q0, q1, [sp, #0x40]
     stp  q2, q3, [sp, #0x60]
     stp  q4, q5, [sp, #0x80]
     stp  q6, q7, [sp, #0xA0]
 
-    // Keep thread-local data in x28 for transition calls.
+    // Keep thread-local data in x28 for transition calls
     mov  x28, x5
 
     // SaveC2NContext(pc, fa, threadLocalData).
@@ -73,15 +76,16 @@ _CJ_MCC_I2NStub:
     mov  x2, x28
     bl   _MRT_SaveC2NContext
 
-    // EnterSaferegion(false).
+    // EnterSaferegion(false)
     mov  x0, #0
     bl   _MRT_EnterSaferegion
+    str  x0, [sp, #SafeStateOffset]
 
     // Restore argument registers.
     ldp  x0, x1, [sp, #0x20]
     ldp  x2, x3, [sp, #0x30]
 
-    // Restore floating-point argument registers.
+    // Restore floating-point argument registers
     ldp  q0, q1, [sp, #0x40]
     ldp  q2, q3, [sp, #0x60]
     ldp  q4, q5, [sp, #0x80]
@@ -91,21 +95,25 @@ _CJ_MCC_I2NStub:
     ldr  x9, [sp, #0x18]
     blr  x9
 
-    // Save potential return values.
+    // Save potential return values
     stp  x0, x1, [sp, #0x20]
     stp  x2, x3, [sp, #0x30]
     str  x8, [sp, #0x18]
     stp  d0, d1, [sp, #0x40]
     stp  d2, d3, [sp, #0x50]
 
-    // LeaveSaferegion().
+    // LeaveSaferegion() only if EnterSaferegion changed state
+    ldr  x9, [sp, #SafeStateOffset]
+    cmp  x9, #0
+    beq  .L_no_leave_saferegion
     bl   _MRT_LeaveSaferegion
+.L_no_leave_saferegion:
 
-    // DeleteC2NContext(threadLocalData). x28 carries current thread-local data.
-    mov  x0, x28
+    // DeleteC2NContext(threadLocalData)
+    bl   _MRT_GetThreadLocalData
     bl   _MRT_DeleteC2NContext
 
-    // ThrowPendingException(nullptr).
+    // ThrowPendingException(nullptr)
     mov  x0, #0
     bl   _MRT_ThrowPendingException
 
