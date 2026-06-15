@@ -86,11 +86,6 @@ public func isGCRunning(): Bool {
 }
 
 @When[backend == "cjnative"]
-public func isGCRunning(): Bool {
-    unsafe { CJ_MCC_IsGCRunning() }
-}
-
-@When[backend == "cjnative"]
 public func waitUntilGCFinished(): Int64 {
     unsafe{ return Int64(waitForGC()) }
 }

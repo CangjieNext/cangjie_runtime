@@ -1196,21 +1196,28 @@ uintptr_t RegionManager::AllocPinnedFromFreeList(size_t size)
 
 void RegionManager::RevokeThreadLocalRegions()
 {
+    auto revokeRegion = [this](RegionInfo* region) {
+        if (region == nullptr || region == RegionInfo::NullRegion()) {
+            return;
+        }
+        CHECK(region->IsThreadLocalRegion());
+        RemoveThreadLocalRegion(region);
+        this->EnlistFullThreadLocalRegion(region);
+    };
+
     // Iterate over all alloc buffers
-    AllocBufferVisitor visitor = [this](AllocBuffer& buffer) {
+    AllocBufferVisitor visitor = [&revokeRegion](AllocBuffer& buffer) {
         RegionInfo* region = buffer.GetRegion();
         if (region != RegionInfo::NullRegion()) {
             buffer.ClearRegion();
-            CHECK(region->IsThreadLocalRegion());
-            {
-                RemoveThreadLocalRegion(region);
-            }
-            this->EnlistFullThreadLocalRegion(region);
+            revokeRegion(region);
         }
+
+        RegionInfo* preparedRegion = buffer.TakePreparedRegion();
+        revokeRegion(preparedRegion);
     };
     Heap::GetHeap().GetAllocator().VisitAllocBuffers(visitor);
 }
 
 } // namespace MapleRuntime
-
 
