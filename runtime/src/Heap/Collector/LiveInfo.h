@@ -10,6 +10,8 @@
 #include "Base/Log.h"
 #include "Base/MemUtils.h"
 #include "Base/SysCall.h"
+#include "Heap/Allocator/ForwardingTable.h"
+#include "Heap/Allocator/RegionFreeSlotList.h"
 #include "Heap/Heap.h"
 #if defined(__linux__) || defined(hongmeng) || defined(__APPLE__)
 #include <sys/mman.h>
@@ -197,7 +199,7 @@ struct LiveInfo {
     }
 };
 
-struct RouteInfo {
+struct CopyRouteInfo {
     static constexpr uint32_t INVALID_VALUE = std::numeric_limits<uint32_t>::max();
     uintptr_t toRegion1StartAddress = 0;
     uint32_t toRegion1UsedBytes = 0;
@@ -210,6 +212,64 @@ struct RouteInfo {
         toRegion1StartAddress = to1;
         toRegion1UsedBytes = to1used;
         toRegion2Idx = to2;
+    }
+};
+
+struct RouteInfo {
+    static constexpr uint32_t INVALID_VALUE = std::numeric_limits<uint32_t>::max();
+
+    enum class RouteKind : uint8_t {
+        COPY_ROUTE,
+        FORWARDING_TABLE,
+        FREE_SLOT_LIST,
+    };
+
+    RouteKind kind = RouteKind::COPY_ROUTE;
+    union {
+        CopyRouteInfo copyRoute;
+        ForwardingTable* forwardingTable;
+        RegionFreeSlotList* freeSlotList;
+    };
+
+    RouteInfo() : copyRoute() {}
+
+    uintptr_t GetRoute(uint64_t preLiveBytes)
+    {
+        return copyRoute.GetRoute(preLiveBytes);
+    }
+
+    void SetRouteInfo(uintptr_t to1, uint32_t to1used = 0, uint32_t to2 = INVALID_VALUE)
+    {
+        kind = RouteKind::COPY_ROUTE;
+        copyRoute.SetRouteInfo(to1, to1used, to2);
+    }
+
+    void SetForwardingTable(ForwardingTable* table)
+    {
+        kind = RouteKind::FORWARDING_TABLE;
+        forwardingTable = table;
+    }
+
+    ForwardingTable* GetForwardingTable() const
+    {
+        if (kind == RouteKind::FORWARDING_TABLE) {
+            return forwardingTable;
+        }
+        return nullptr;
+    }
+
+    void SetFreeSlotList(RegionFreeSlotList* list)
+    {
+        kind = RouteKind::FREE_SLOT_LIST;
+        freeSlotList = list;
+    }
+
+    RegionFreeSlotList* GetFreeSlotList() const
+    {
+        if (kind == RouteKind::FREE_SLOT_LIST) {
+            return freeSlotList;
+        }
+        return nullptr;
     }
 };
 } // namespace MapleRuntime

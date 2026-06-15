@@ -9,14 +9,28 @@
 
 #include <unordered_map>
 #include "Common/BaseObject.h"
+
 namespace MapleRuntime {
+
 using ForwardingHashTable = std::unordered_map<BaseObject*, BaseObject*>;
+
 struct ForwardingTable {
-    BaseObject* GetRoute(BaseObject*) const {}
-    void SetForwardingAddr(BaseObject*, BaseObject*) {}
-    // WIP: This container should be optimized or replaced with runtime implementation.
+    BaseObject* GetRoute(BaseObject* fromObj) const
+    {
+        auto it = hashTable.find(fromObj);
+        if (it != hashTable.end()) {
+            return it->second;
+        }
+        return nullptr;
+    }
+
+    void SetForwardingAddr(BaseObject* fromObj, BaseObject* toObj)
+    {
+        hashTable[fromObj] = toObj;
+    }
+
     ForwardingHashTable hashTable;
 };
 
-}
+} // namespace MapleRuntime
 #endif // MRT_FORWARDING_TABLE_H
