@@ -4,7 +4,8 @@
 //
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-#define I2NStubFrameSize (8 * 30)
+#define I2NStubFrameSize (8 * 32)
+#define SafeStateOffset -248
 #define CALLEE_ADDR %r8
 #define THREAD_LOCAL_DATA %r9
 
@@ -29,6 +30,8 @@
 //   rbp - 208:  rdx (return value)
 //   rbp - 224:  xmm0 (return value, 16 bytes)
 //   rbp - 240:  xmm1 (return value, 16 bytes)
+//   rbp - 248:  saferegion state
+//   rbp - 256:  padding for stack alignment
 
     .section __TEXT,__cjrt_text,regular
     .align 2
@@ -72,6 +75,7 @@ _CJ_MCC_I2NStub:
     // EnterSaferegion(false)
     movq    $0, %rdi
     callq   _MRT_EnterSaferegion
+    movq    %rax, SafeStateOffset(%rbp)
 
     // Restore argument registers
     movq    -8(%rbp), %rdi
@@ -100,10 +104,15 @@ _CJ_MCC_I2NStub:
     movapd  %xmm0, -224(%rbp)
     movapd  %xmm1, -240(%rbp)
 
-    // LeaveSaferegion()
+    // LeaveSaferegion() only if EnterSaferegion changed state
+    cmpq    $0, SafeStateOffset(%rbp)
+    je      .L_no_leave_saferegion
     callq   _MRT_LeaveSaferegion
+    callq   _MRT_GetThreadLocalData
+    movq    %rax, -48(%rbp)
+.L_no_leave_saferegion:
 
-    // DeleteC2NContext(threadLocalData).
+    // DeleteC2NContext(threadLocalData)
     movq    -48(%rbp), %rdi
     callq   _MRT_DeleteC2NContext
 
@@ -111,7 +120,7 @@ _CJ_MCC_I2NStub:
     movq    $0, %rdi
     callq   _MRT_ThrowPendingException
 
-    // Restore return values.
+    // Restore return values
     movq    -200(%rbp), %rax
     movq    -208(%rbp), %rdx
     movapd  -224(%rbp), %xmm0
