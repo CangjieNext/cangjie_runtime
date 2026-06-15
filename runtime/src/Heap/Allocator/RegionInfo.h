@@ -487,6 +487,9 @@ public:
         RECENT_LARGE_REGION,
 
         GARBAGE_REGION,
+
+        OBJECT_MOVE_REGION,
+        SWEEP_REGION,
     };
 
     static void Initialize(size_t nUnit, uintptr_t heapAddress)
@@ -652,6 +655,17 @@ public:
         MAddress toAddr = metadata.routeInfo.GetRoute(preLiveBytes);
         return reinterpret_cast<BaseObject*>(toAddr);
     }
+
+    void SetForwardingTable(ForwardingTable* table)
+    {
+        metadata.routeInfo.SetForwardingTable(table);
+    }
+
+    ForwardingTable* GetForwardingTable() const { return metadata.routeInfo.GetForwardingTable(); }
+
+    void SetFreeSlotList(RegionFreeSlotList* list) { metadata.routeInfo.SetFreeSlotList(list); }
+
+    RegionFreeSlotList* GetFreeSlotList() const { return metadata.routeInfo.GetFreeSlotList(); }
 
     void PrepareForwardableRegion()
     {
@@ -945,6 +959,14 @@ public:
     bool IsToRegion() const { return static_cast<RegionType>(metadata.regionType) == RegionType::TO_REGION; }
 
     bool IsGarbageRegion() const { return static_cast<RegionType>(metadata.regionType) == RegionType::GARBAGE_REGION; }
+    bool IsObjectMoveRegion() const
+    {
+        return static_cast<RegionType>(metadata.regionType) == RegionType::OBJECT_MOVE_REGION;
+    }
+    bool IsSweepRegion() const
+    {
+        return static_cast<RegionType>(metadata.regionType) == RegionType::SWEEP_REGION;
+    }
     bool IsFreeRegion() const { return static_cast<UnitRole>(metadata.unitRole) == UnitRole::FREE_UNITS; }
 
     bool IsValidRegion() const
@@ -978,7 +1000,7 @@ public:
 
 private:
     static constexpr int32_t MAX_RAW_POINTER_COUNT = std::numeric_limits<int32_t>::max();
-    static constexpr int32_t BIT_LENGTH = 4;
+    static constexpr int32_t BIT_LENGTH = 5;
     enum RegionStateBitPos : uint8_t {
         REGION_TYPE_FLAG = 0,
         TRACE_REGION_FLAG = BIT_LENGTH,

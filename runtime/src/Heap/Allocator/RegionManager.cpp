@@ -97,15 +97,19 @@ const char* RegionInfo::GetTypeName() const
         "thread local region",
         "recent fullregion",
         "from region",
+        "lone from region",
         "unmovable from region",
         "to region",
         "full pinned region",
         "recent pinned region",
         "raw pointer pinned region",
         "tl raw pointer region",
+        "tl large raw pointer region",
         "large region",
         "recent large region",
         "garbage region",
+        "object move region",
+        "sweep region",
     };
     return regionNames[static_cast<uint8_t>(GetRegionType())];
 }
