@@ -249,14 +249,14 @@ DYN_ObjRef ObjectAllocate(struct DYN_TypeInfo* tpe)
     return (DYN_ObjRef)obj;
 }
 
-DYN_ObjRef NewPinnedObject(struct DYN_TypeInfo* tpe, bool isFinalizer)
+DYN_ObjRef NewPinnedObject(struct DYN_TypeInfo* tpe, int isFinalizer)
 {
     TypeInfo* typeInfo = reinterpret_cast<TypeInfo*>(tpe);
     MSize size = AlignUp<MSize>(typeInfo->GetInstanceSize(), 8) + sizeof(TypeInfo*);
     DLOG(INTERPRETER, "NewPinnedObject: type=%p (%s), size=%u, isFinalizer=%d", tpe,
-        typeInfo->GetName(), size, static_cast<int>(isFinalizer));
+        typeInfo->GetName(), size, isFinalizer);
 
-    ObjRef obj = MCC_NewPinnedObject(typeInfo, size, isFinalizer);
+    ObjRef obj = MCC_NewPinnedObject(typeInfo, size, isFinalizer != 0);
     return (DYN_ObjRef)obj;
 }
 
@@ -277,14 +277,14 @@ void SafePoint()
     ScopedEnterSaferegion gcpoint(true);
 }
 
-bool IsPendingSafePoint(DYN_ThreadLocalData tlData)
+int IsPendingSafePoint(DYN_ThreadLocalData tlData)
 {
     if (tlData == nullptr) {
         LOG(RTLOG_ERROR, "[Interpreter] IsPendingSafePoint called with null DYN_ThreadLocalData");
-        return false;
+        return 0;
     }
     ThreadLocalData* threadLocalData = reinterpret_cast<ThreadLocalData*>(tlData);
-    return threadLocalData->safepointState != 0;
+    return threadLocalData->safepointState != 0 ? 1 : 0;
 }
 
 void ThrowException(DYN_ObjRef exception)
@@ -322,7 +322,7 @@ DYN_ObjRef GetAndClearPendingException()
     return ref;
 }
 
-bool InstanceOf(DYN_ObjRef ref, struct DYN_TypeInfo* ti)
+int InstanceOf(DYN_ObjRef ref, struct DYN_TypeInfo* ti)
 {
     DLOG(INTERPRETER, "InstanceOf: ref=%p, typeInfo=%p", ref, ti);
 
@@ -332,22 +332,22 @@ bool InstanceOf(DYN_ObjRef ref, struct DYN_TypeInfo* ti)
     DLOG(INTERPRETER, "  obj type is %s", obj->GetTypeInfo()->GetName());
     DLOG(INTERPRETER, "  type to check is %s", tinfo->GetName());
 
-    return obj->IsSubType(*tinfo);
+    return obj->IsSubType(*tinfo) ? 1 : 0;
 }
 
-bool IsSubType(struct DYN_TypeInfo* typeInfo, struct DYN_TypeInfo* superTypeInfo)
+int IsSubType(struct DYN_TypeInfo* typeInfo, struct DYN_TypeInfo* superTypeInfo)
 {
     DLOG(INTERPRETER, "IsSubType: ti=%p, sti=%p", typeInfo, superTypeInfo);
     if (typeInfo == nullptr || superTypeInfo == nullptr) {
-        return false;
+        return 0;
     }
     if (typeInfo == superTypeInfo) {
-        return true;
+        return 1;
     }
 
     TypeInfo* tInfo = reinterpret_cast<TypeInfo*>(typeInfo);
     TypeInfo* sInfo = reinterpret_cast<TypeInfo*>(superTypeInfo);
-    return tInfo->IsSubType(sInfo);
+    return tInfo->IsSubType(sInfo) ? 1 : 0;
 }
 
 DYN_ObjRef ReadStaticField(DYN_FieldRef source)
@@ -465,11 +465,11 @@ DYN_ThreadLocalData GetThreadLocalData()
     return reinterpret_cast<DYN_ThreadLocalData>(MRT_GetThreadLocalData());
 }
 
-bool IsActiveGCPhase(DYN_ThreadLocalData tld)
+int IsActiveGCPhase(DYN_ThreadLocalData tld)
 {
     ThreadLocalData* threadLocalData = static_cast<ThreadLocalData*>(tld);
     Mutator* mutator = threadLocalData->mutator;
-    return mutator->GetMutatorPhase() >= GCPhase::GC_PHASE_ENUM;
+    return mutator->GetMutatorPhase() >= GCPhase::GC_PHASE_ENUM ? 1 : 0;
 }
 
 DYN_ExceptionWrapper GetExceptionWrapper()

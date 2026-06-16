@@ -31,7 +31,7 @@ typedef int (*INT_InitInterpreter)(struct INT_InterpreterInterface *interpreterI
 
 The interpreter should copy the runtime callback table (`cjnativeInterface`) and additional arguments (`interpreterArgs`) if it will use them after initialization.
 
-Both interface tables start with an `int64_t version` field. The current supported version is `1` for both `INT_InterpreterInterface` and `DYN_CJNativeInterface`. Runtime sets `DYN_CJNativeInterface::version` before calling `INT_InitInterpreter`; the interpreter should reject unsupported runtime table versions by returning non-zero. After `INT_InitInterpreter` returns successfully, runtime checks `INT_InterpreterInterface::version` and fails initialization if it is not the supported interpreter table version.
+Both interface tables start with an `int64_t version` field. The current supported version is `1` for `INT_InterpreterInterface` and `3` for `DYN_CJNativeInterface`. Runtime sets `DYN_CJNativeInterface::version` before calling `INT_InitInterpreter`; the interpreter should reject unsupported runtime table versions by returning non-zero. After `INT_InitInterpreter` returns successfully, runtime checks `INT_InterpreterInterface::version` and fails initialization if it is not the supported interpreter table version.
 
 `INT_InitInterpreter` returns `0` on success.
 
@@ -296,8 +296,8 @@ typedef void (*DYN_UpdateVMTFn)(
     struct DYN_TypeInfo* ownerTi,
     struct DYN_ExtensionData* extensionData);
 typedef uint32_t (*DYN_GetTypeInfoUUIDFn)(struct DYN_TypeInfo* ti);
-typedef bool (*DYN_InstanceOfFn)(DYN_ObjRef obj, struct DYN_TypeInfo* ti);
-typedef bool (*DYN_IsSubTypeFn)(
+typedef int (*DYN_InstanceOfFn)(DYN_ObjRef obj, struct DYN_TypeInfo* ti);
+typedef int (*DYN_IsSubTypeFn)(
     struct DYN_TypeInfo* typeInfo,
     struct DYN_TypeInfo* superTypeInfo);
 ```
@@ -426,7 +426,7 @@ typedef void (*DYN_SetArrayRefElementFn)(
     uint64_t index,
     DYN_ObjRef newValue);
 
-typedef bool (*DYN_IsActiveGcPhaseFn)(DYN_ThreadLocalData);
+typedef int (*DYN_IsActiveGcPhaseFn)(DYN_ThreadLocalData);
 ```
 
 For static struct fields, `DYN_GCTib` describes which parts of the value contain references so runtime barriers can trace or update them correctly.
@@ -597,7 +597,7 @@ The interpreter polls runtime safepoints while executing interpreted code.
 
 ```c
 typedef void (*DYN_SafePointFn)();
-typedef bool (*DYN_IsPendingSafePointFn)(DYN_ThreadLocalData);
+typedef int (*DYN_IsPendingSafePointFn)(DYN_ThreadLocalData);
 typedef void (*DYN_StackGrowStubFn)();
 ```
 
