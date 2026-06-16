@@ -112,6 +112,7 @@ public:
 protected:
     virtual void RequestGCInternal(GCReason, bool) { std::abort(); }
 
+    bool isFullGC = false; // whether current gc is full gc.(Only for GC Test)
     CollectorType collectorType = CollectorType::NO_COLLECTOR;
     std::atomic<GCPhase> gcPhase = { GCPhase::GC_PHASE_IDLE };
 };

@@ -242,6 +242,8 @@ public:
         tlRegionList.DeleteRegion(region);
     }
 
+    void RevokeThreadLocalRegions();
+
     void RestoreToSpaceStateWords();
 
     void CountLiveObject(const BaseObject* obj);
@@ -333,6 +335,7 @@ public:
     // Ignore dynamic pinned regions and from regions whose garbage objects are quite few, return the garbage size that
     // can be reclaimed.
     size_t ExemptFromRegions();
+    size_t RefineFullGCFromRegions();
     void ReassembleFromSpace();
 
     void ForEachObjUnsafe(const std::function<void(BaseObject*)>& visitor) const;
@@ -392,6 +395,26 @@ public:
             recentPinnedRegionList.GetAllocatedSize() + rawPointerPinnedRegionList.GetAllocatedSize() +
             largeTraceRegions.GetAllocatedSize() + fullTraceRegions.GetAllocatedSize() +
             threadLocalSize;
+    }
+
+    size_t GetAllocatedSizeForGCTest() const
+    {
+        size_t threadLocalSize = 0;
+        AllocBufferVisitor visitor = [&threadLocalSize](AllocBuffer& regionBuffer) {
+            RegionInfo* region = regionBuffer.GetRegion();
+            if (UNLIKELY(region == RegionInfo::NullRegion())) {
+                return;
+            }
+            threadLocalSize += region->GetRegionAllocatedSize();
+        };
+        Heap::GetHeap().GetAllocator().VisitAllocBuffers(visitor);
+        // exclude garbageRegionList for live object set.
+        return fromRegionList.GetAllocatedSize(true) + unmovableFromRegionList.GetAllocatedSize(true) +
+            recentFullRegionList.GetAllocatedSize(true) + oldLargeRegionList.GetAllocatedSize(true) +
+            recentLargeRegionList.GetAllocatedSize(true) + oldPinnedRegionList.GetAllocatedSize(true) +
+            recentPinnedRegionList.GetAllocatedSize(true) + rawPointerPinnedRegionList.GetAllocatedSize(true) +
+            largeTraceRegions.GetAllocatedSize(true) + fullTraceRegions.GetAllocatedSize(true)
+            + threadLocalSize;
     }
 
     inline size_t GetFromSpaceSize() const { return fromRegionList.GetAllocatedSize(); }
@@ -522,6 +545,10 @@ public:
         ClearLiveInfo(oldLargeRegionList);
         ClearLiveInfo(recentLargeRegionList);
         ClearLiveInfo(largeTraceRegions);
+    }
+
+    size_t GetTlRegionListSize() {
+        return tlRegionList.GetRegionCount();
     }
 
 private:

@@ -309,6 +309,7 @@ public:
 
     virtual void UpdateGCStats();
     virtual uint16_t GetCurrentTagID() { std::abort(); }
+    GCReason GetGCReason() const { return gcReason; }
 
     static const size_t MAX_MARKING_WORK_SIZE;
     static const size_t MIN_MARKING_WORK_SIZE;

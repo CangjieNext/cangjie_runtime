@@ -1427,6 +1427,21 @@ unsigned long long ScheduleCJThreadCountPublic(CJthreadStatePublic state);
 
 /**
  * @ingroup schedule
+ * @brief Block the caller until every CJThread other than itself has fully terminated
+ *        (state == CJTHREAD_IDLE, i.e. exited; the cjthread struct may still sit on a
+ *        freelist for reuse). When invoked on a CJThread the wait is cooperative: it
+ *        yields via CJThreadResched so timer-driven wakeups (sleep/park) can fire even
+ *        with a single processor. When invoked outside any CJThread, every cjthread on
+ *        the global list is considered and sched_yield is used between checks.
+ *
+ * @note  This function will not return while another CJThread is permanently running,
+ *        permanently parked, or transitively waiting on the caller; such situations are
+ *        application-level deadlocks and are out of scope for this primitive.
+ */
+void ScheduleWaitUntilOtherCJThreadsFinish(void);
+
+/**
+ * @ingroup schedule
  * @brief Obtain the number of running OS threads in the scheduling framework.
  * @retval If g_scheduleManager is not initialized, 0xffffffff is returned. The total number
  * of running OS threads is returned.

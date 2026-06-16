@@ -13,6 +13,10 @@ func invokeGC(heavy: Bool): Unit
 
 @When[backend == "cjnative"]
 @Intrinsic
+func invokeFullGC(): Unit
+
+@When[backend == "cjnative"]
+@Intrinsic
 func getCjGCCount(): UIntNative
 
 @When[backend == "cjnative"]
@@ -29,6 +33,10 @@ func setCjGCThreshold(value: UInt64): Unit
 
 @When[backend == "cjnative"]
 foreign func CJ_MCC_IsGCRunning(): Bool
+
+@When[backend == "cjnative"]
+@Intrinsic
+func waitForAllCJThreadsToFinish(): Unit
 
 @Deprecated[message: "Use 'public func gc(heavy!: Bool = false): Unit' instead."]
 public func GC(heavy!: Bool = false): Unit {
@@ -71,4 +79,15 @@ public func getGCFreedSize(): Int64 {
 @When[backend == "cjnative"]
 public func isGCRunning(): Bool {
     unsafe { CJ_MCC_IsGCRunning() }
+}
+
+
+@When[backend == "cjnative"]
+public func waitForAllThreadsToFinish(): Unit {
+    unsafe { waitForAllCJThreadsToFinish() }
+}
+
+@When[backend == "cjnative"]
+public func fullGC(): Unit {
+    unsafe{ invokeFullGC() }
 }

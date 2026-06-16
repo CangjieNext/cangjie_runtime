@@ -400,6 +400,19 @@ extern "C" bool MCC_AtomicCompareSwapReference(const ObjectPtr oldRef, const Obj
 
 extern "C" void MCC_InvokeGCImpl(bool sync) { HeapManager::RequestGC(GC_REASON_USER, !sync); }
 
+extern "C" void MCC_InvokeFullGCImpl() {
+    HeapManager::RequestGC(GC_REASON_FULL, true);
+}
+
+// Block the caller until every other Cangjie thread has fully terminated
+// (cjthread->state == CJTHREAD_IDLE). Cooperative: when invoked on a CJThread
+// the wait yields back to the M:N scheduler so timer-driven wakeups can fire
+// even on single-processor configurations.
+extern "C" void MCC_WaitForAllCJThreadsToFinishImpl()
+{
+    ScheduleWaitUntilOtherCJThreadsFinish();
+}
+
 extern "C" ssize_t MCC_GetRealHeapSize() { return Heap::GetHeap().GetHeapPhysicalMemorySize(); }
 
 extern "C" size_t MCC_GetAllocatedHeapSize() { return Heap::GetHeap().GetAllocatedSize(); }

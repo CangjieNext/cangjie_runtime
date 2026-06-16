@@ -554,6 +554,10 @@ void TracingCollector::DoResurrection(WorkStack& workStack)
             TraceObjectRefFields(obj, workStack);
         }
     }
+
+    if (isFullGC && resurrectdObjects > 0) {
+        printf("Warning: Full GC resurrected %zu objects\n", resurrectdObjects);
+    }
     markedObjectCount.fetch_add(resurrectdObjects, std::memory_order_relaxed);
     VLOG(REPORT, "resurrected objects %zu", resurrectdObjects);
 }

@@ -517,6 +517,32 @@ size_t RegionManager::ExemptFromRegions()
     return newFromBytes - forwardBytes;
 }
 
+size_t RegionManager::RefineFullGCFromRegions()
+{
+    size_t floatingGarbage = 0;
+    size_t oldFromBytes = fromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
+    auto visitor = [this, &floatingGarbage](RegionInfo* fromRegion) {
+        long rawPtrCnt = fromRegion->GetRawPointerObjectCount();
+        if (rawPtrCnt <= 0) {
+            return;
+        }
+        RegionInfo* del = fromRegion;
+        DLOG(REGION, "region %p @[0x%zx+%zu, 0x%zx) pinned by full gc: %zu units, %u live bytes rawPtr cnt %ld",
+            del, del->GetRegionStart(), del->GetRegionAllocatedSize(), del->GetRegionEnd(),
+            del->GetUnitCount(), del->GetLiveByteCount(), rawPtrCnt);
+        CHECK(del->IsFromRegion());
+        RemoveRegionLocked(&fromRegionList, del);
+        rawPointerPinnedRegionList.PrependRegion(del, RegionInfo::RegionType::RAW_POINTER_PINNED_REGION);
+        floatingGarbage += (del->GetRegionSize() - del->GetLiveByteCount());
+    };
+    fromRegionList.VisitAllRegions(visitor);
+
+    size_t newFromBytes = fromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
+    VLOG(REPORT, "full gc refine from-space: %zu B -> %zu B, %zu B floating garbage",
+         oldFromBytes, newFromBytes, floatingGarbage);
+    return newFromBytes;
+}
+
 void RegionManager::ForEachObjUnsafe(const std::function<void(BaseObject*)>& visitor) const
 {
     for (uintptr_t regionAddr = regionHeapStart; regionAddr < inactiveZone;) {
@@ -1193,4 +1219,30 @@ uintptr_t RegionManager::AllocPinnedFromFreeList(size_t size)
     (reinterpret_cast<CopyCollector*>(&Heap::GetHeap().GetCollector()))->MarkObject(object);
     return allocPtr;
 }
+
+void RegionManager::RevokeThreadLocalRegions()
+{
+    auto revokeRegion = [this](RegionInfo* region) {
+        if (region == nullptr || region == RegionInfo::NullRegion()) {
+            return;
+        }
+        CHECK(region->IsThreadLocalRegion());
+        RemoveThreadLocalRegion(region);
+        this->EnlistFullThreadLocalRegion(region);
+    };
+
+    // Iterate over all alloc buffers
+    AllocBufferVisitor visitor = [&revokeRegion](AllocBuffer& buffer) {
+        RegionInfo* region = buffer.GetRegion();
+        if (region != RegionInfo::NullRegion()) {
+            buffer.ClearRegion();
+            revokeRegion(region);
+        }
+
+        RegionInfo* preparedRegion = buffer.TakePreparedRegion();
+        revokeRegion(preparedRegion);
+    };
+    Heap::GetHeap().GetAllocator().VisitAllocBuffers(visitor);
+}
+
 } // namespace MapleRuntime

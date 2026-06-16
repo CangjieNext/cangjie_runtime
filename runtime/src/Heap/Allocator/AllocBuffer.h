@@ -8,6 +8,7 @@
 #ifndef MRT_ALLOC_BUFFER_H
 #define MRT_ALLOC_BUFFER_H
 
+#include <atomic>
 #include <functional>
 
 #include "Common/MarkWorkStack.h"
@@ -28,6 +29,7 @@ public:
     MAddress Allocate(size_t size, AllocType allocType);
     RegionInfo* GetRegion() { return tlRegion; }
     RegionInfo* GetPreparedRegion() { return preparedRegion.load(std::memory_order_relaxed); }
+    RegionInfo* TakePreparedRegion() { return preparedRegion.exchange(nullptr, std::memory_order_acq_rel); }
     void SetRegion(RegionInfo* newRegion) { tlRegion = newRegion; }
     inline void ClearRegion()
     {

@@ -379,6 +379,7 @@
 #define ScheduleAnyCJThread                     CJ_ScheduleAnyCJThread
 #define ScheduleCJThreadCount                   CJ_ScheduleCJThreadCount
 #define ScheduleCJThreadCountPublic             CJ_ScheduleCJThreadCountPublic
+#define ScheduleWaitUntilOtherCJThreadsFinish   CJ_ScheduleWaitUntilOtherCJThreadsFinish
 #define ScheduleRunningOSThreadCount            CJ_ScheduleRunningOSThreadCount
 #define SchdProcessorHookRegister               CJ_SchdProcessorHookRegister
 #define SchdSchmonHookRegister                  CJ_SchdSchmonHookRegister

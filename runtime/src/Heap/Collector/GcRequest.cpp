@@ -52,6 +52,7 @@ bool GCRequest::ShouldBeIgnored() const
 
 GCRequest g_gcRequests[] = {
     { GC_REASON_USER, "user", false, true, 0, 0 },
+    { GC_REASON_FULL, "full-gc", false, false, 0, 0 },
     { GC_REASON_OOM, "oom", true, false, 0, 0 },
     { GC_REASON_BACKUP, "backup", true, false, 0, 0 },
     { GC_REASON_HEU, "heuristic", false, true, LONG_MIN_HEU_GC_INTERVAL_NS, g_initHeuTriggerTimestamp },

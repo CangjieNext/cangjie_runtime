@@ -50,11 +50,22 @@ void CopyCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
     GCStats& gcStats = GetGCStats();
     gcStats.collectedBytes = 0;
     gcStats.gcStartTime = TimeUtil::NanoSeconds();
+    isFullGC = (reason == GC_REASON_FULL);
 
-    DoGarbageCollection();
+    if (isFullGC) {
+        ScopedStopTheWorld4FullGC stw("Full GC");
+        DoFullGarbageCollection();
+    } else {
+        DoGarbageCollection();
+    }
+
 
     if (reason == GC_REASON_OOM) {
         Heap::GetHeap().GetAllocator().ReclaimGarbageMemory(true);
+    }
+
+    if (reason == GC_REASON_FULL) {
+        Heap::GetHeap().GetAllocator().ReclaimGarbageMemory(false);
     }
 
     PostGarbageCollection(gcIndex);
@@ -68,6 +79,9 @@ void CopyCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
     g_gcTotalTimeUs += (gcTimeNs / NS_PER_US);
     g_gcCollectedTotalBytes += gcStats.collectedBytes;
     gcStats.collectionRate = rate;
+    if (isFullGC) {
+        collectorResources.NotifyFullGCFinished();
+    }
 }
 
 void CopyCollector::ForwardFromSpace()

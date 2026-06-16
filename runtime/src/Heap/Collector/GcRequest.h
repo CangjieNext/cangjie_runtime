@@ -25,6 +25,7 @@ constexpr uint64_t LONG_MIN_HEU_GC_INTERVAL_NS = 200 * MapleRuntime::MILLI_SECON
 // async: Collector::RequestGC returns immediately and caller continues to run.
 enum GCReason : uint32_t {
     GC_REASON_USER = 0,    // Triggered by user explicitly.
+    GC_REASON_FULL,          // Special GC for the whole heap.
     GC_REASON_OOM,         // Out of memory. Failed to allocate object.
     GC_REASON_BACKUP,      // backup gc is triggered if no other reason triggers gc for a long time.
     GC_REASON_HEU,         // Statistics show it is worth doing GC. Does not have to be immediate.

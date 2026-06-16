@@ -7,6 +7,10 @@
 
 #include "WCollector.h"
 
+#include <algorithm>
+#include <cctype>
+#include <cstdlib>
+
 #include "Concurrency/Concurrency.h"
 #include "Mutator/MutatorManager.h"
 
@@ -409,6 +413,75 @@ void WCollector::PostTrace()
     fwdTable.PrepareForwardTable();
 }
 
+void WCollector::DoFullGarbageCollection()
+{
+    MRT_ASSERT(isFullGC, "DoFullGarbageCollection called but isFullGC is false");
+    preTrace();
+    TraceHeap();
+    PostTraceForFullGC();
+
+    PreforwardForFullGC();
+
+    ForwardFromSpace();
+
+    TransitionToGCPhase(GCPhase::GC_PHASE_IDLE, true);
+    MergeResurrectExportObjects();
+    PostResolveCycleTask();
+    FlipTagID();
+    ForwardDataManager::GetForwardDataManager().SetTagID(currentTagID);
+
+    CollectSmallSpace();
+    ForwardDataManager::GetForwardDataManager().UnbindPreviousLiveInfo();
+}
+
+void WCollector::preTrace()
+{
+    MRT_ASSERT(isFullGC, "preTrace called but isFullGC is false");
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
+    space.GetRegionManager().RevokeThreadLocalRegions();
+    MRT_ASSERT(space.GetRegionManager().GetTlRegionListSize() == 0, "thread local region list is not empty");
+}
+
+void WCollector::PostTraceForFullGC()
+{
+    MRT_PHASE_TIMER("PostTraceForFullGC");
+    TransitionToGCPhase(GC_PHASE_POST_TRACE, true);
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
+    space.GetRegionManager().HandleTraceRegions();
+    // clear weakRef List, set the referent as null
+    WeakRefBuffer::Instance().ClearWeakRefBuffer();
+    // clear satb buffer when gc finish tracing.
+    SatbBuffer::Instance().ClearBuffer();
+    // reclaim large objects immediately after tracing is done.
+    PrepareCycleRef();
+    CollectLargeGarbage();
+    CollectPinnedGarbage();
+    GCStats& stats = GetGCStats();
+    stats.smallGarbageSize = space.RefineFromSpaceForFullGC();
+    fwdTable.PrepareForwardTable();
+}
+
+
+void WCollector::PreforwardForFullGC()
+{
+    ScopedEntryTrace trace("CJRT_GC_PREFORWARD");
+    MRT_PHASE_TIMER("PreforwardForFullGC");
+    TransitionToGCPhase(GCPhase::GC_PHASE_PREFORWARD, true);
+
+    GCThreadPool* threadPool = GetThreadPool();
+    MRT_ASSERT(threadPool != nullptr, "thread pool is null");
+    // forward and fix cj future objects
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardConcurrencyModelRoots(); }));
+
+    // forward and fix finalizer roots.
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardFinalizerProcessorRoots(); }));
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardAllExportFromRoots(); }));
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardDiscoveredExternObjects(); }));
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardAllResurrectExportFromObjects(); }));
+    threadPool->Start();
+    threadPool->WaitFinish();
+}
+
 void WCollector::Preforward()
 {
     ScopedEntryTrace trace("CJRT_GC_PREFORWARD");
@@ -628,6 +701,65 @@ BaseObject* WCollector::ForwardObjectExclusive(BaseObject* obj)
     return toObj;
 }
 
+std::vector<WCollector::LiveTypeSummary> WCollector::SummarizeLiveObjectsByType() const
+{
+    std::unordered_map<std::string, std::pair<size_t, size_t>> summaryMap;
+    auto summarizeVisitor = [&summaryMap](BaseObject* obj) {
+        if (obj == nullptr) {
+            return;
+        }
+
+        TypeInfo* typeInfo = obj->GetTypeInfo();
+        const char* rawName = (typeInfo != nullptr) ? typeInfo->GetName() : nullptr;
+        const std::string typeName = (rawName != nullptr) ? rawName : "anonymous";
+        auto& stat = summaryMap[typeName];
+        stat.first++;
+        stat.second += obj->GetSize();
+    };
+
+    bool ret = Heap::GetHeap().ForEachObj(summarizeVisitor, false);
+    CHECK_E(UNLIKELY(!ret), "theAllocator.ForEachObj() in SummarizeLiveObjectsByType() return false.");
+
+    std::vector<LiveTypeSummary> summaries;
+    summaries.reserve(summaryMap.size());
+    for (const auto& item : summaryMap) {
+        summaries.emplace_back(item.first, item.second.first, item.second.second);
+    }
+
+    std::sort(summaries.begin(), summaries.end(),
+        [](const LiveTypeSummary& left, const LiveTypeSummary& right) {
+            if (std::get<2>(left) != std::get<2>(right)) {
+                return std::get<2>(left) > std::get<2>(right);
+            }
+            if (std::get<1>(left) != std::get<1>(right)) {
+                return std::get<1>(left) > std::get<1>(right);
+            }
+            return std::get<0>(left) < std::get<0>(right);
+        });
+    return summaries;
+}
+
+bool WCollector::ShouldPrintLiveTypeSummary() const
+{
+    const char* env = std::getenv("cjPrintLiveTypeSummary");
+    if (env == nullptr || *env == '\0') {
+        return false;
+    }
+
+    std::string value(env);
+    std::transform(value.begin(), value.end(), value.begin(),
+        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    return value == "1" || value == "true" || value == "on" || value == "yes" || value == "y";
+}
+
+void WCollector::PrintLiveTypeSummary(const std::vector<LiveTypeSummary>& summaries) const
+{
+    printf("Live object type summary (typename, number, bytes), type count: %zu\n", summaries.size());
+    for (const auto& item : summaries) {
+        printf("<%s, %zu, %zu>\n", std::get<0>(item).c_str(), std::get<1>(item), std::get<2>(item));
+    }
+}
+
 void WCollector::CollectSmallSpace()
 {
     GCStats& stats = GetGCStats();
@@ -643,6 +775,18 @@ void WCollector::CollectSmallSpace()
 
     stats.liveBytesAfterGC = space.AllocatedBytes();
 
+    if (isFullGC) {
+        std::vector<LiveTypeSummary> liveTypeSummaries = SummarizeLiveObjectsByType();
+        size_t totalLiveBytes = 0;
+        for (const auto& summary : liveTypeSummaries) {
+            totalLiveBytes += std::get<2>(summary);
+        }
+        printf("After Full GC, Live %zu B.\n", totalLiveBytes);
+
+        if (ShouldPrintLiveTypeSummary()) {
+            PrintLiveTypeSummary(liveTypeSummaries);
+        }
+    }
     VLOG(REPORT,
          "collect %zu B: old small %zu - %zu B, old pinned %zu - %zu B, old large %zu - %zu B. garbage ratio %.2f%%",
          stats.collectedBytes, stats.fromSpaceSize, stats.smallGarbageSize, stats.pinnedSpaceSize,

@@ -7,7 +7,10 @@
 
 #ifndef MRT_WCOLLECTOR_H
 #define MRT_WCOLLECTOR_H
+#include <string>
+#include <tuple>
 #include <unordered_map>
+#include <vector>
 
 #include "Allocator/RegionSpace.h"
 #include "Collector/CopyCollector.h"
@@ -42,6 +45,8 @@ using CrossRefHandler = void(*)(BaseObject*, BaseObject*);
 
 class WCollector : public CopyCollector {
 public:
+    using LiveTypeSummary = std::tuple<std::string, size_t, size_t>; // <typename, object number, live bytes>
+
     explicit WCollector(Allocator& allocator, CollectorResources& resources)
         : CopyCollector(allocator, resources), fwdTable(reinterpret_cast<RegionSpace&>(allocator))
     {
@@ -185,17 +190,25 @@ protected:
 
     void CollectSmallSpace();
 
+    void DoFullGarbageCollection() override;
     void DoGarbageCollection() override;
     void ProcessFinalizers() override;
     void EnumAndTagRawRoot(ObjectRef& ref, RootSet& rootSet) const override;
 
 private:
+    std::vector<LiveTypeSummary> SummarizeLiveObjectsByType() const;
+    bool ShouldPrintLiveTypeSummary() const;
+    void PrintLiveTypeSummary(const std::vector<LiveTypeSummary>& summaries) const;
+
     template<bool forward>
     bool TryUpdateRefFieldImpl(BaseObject* obj, RefField<>& ref, BaseObject*& oldRef, BaseObject*& newRef) const;
+    void preTrace();
     void TraceHeap();
     void PreforwardConcurrencyModelRoots();
     void PostTrace();
+    void PostTraceForFullGC();
     void Preforward();
+    void PreforwardForFullGC();
     void PreforwardAllExportFromRoots();
     void PreforwardFinalizerProcessorRoots();
     void PreforwardDiscoveredExternObjects();
