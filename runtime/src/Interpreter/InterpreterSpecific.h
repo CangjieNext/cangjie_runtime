@@ -51,7 +51,7 @@ void UpdateVMT(struct DYN_TypeInfo* ti, struct DYN_TypeInfo* itf, struct DYN_Ext
 uint32_t GetTypeInfoUUID(struct DYN_TypeInfo* ti);
 
 DYN_ObjRef ObjectAllocate(struct DYN_TypeInfo* tpe);
-DYN_ObjRef NewPinnedObject(struct DYN_TypeInfo* tpe, int isFinalizer);
+DYN_ObjRef NewPinnedObject(struct DYN_TypeInfo* tpe, int hasFinalizer);
 
 void SafePoint();
 
