@@ -448,9 +448,10 @@ void RegionManager::AssembleSmallGarbageCandidates()
 {
     fromRegionList.MergeRegionList(rawPointerPinnedRegionList, RegionInfo::RegionType::FROM_REGION);
     fromRegionList.MergeRegionList(recentFullRegionList, RegionInfo::RegionType::FROM_REGION);
-    fromRegionList.MergeRegionList(unmovableFromRegionList, RegionInfo::RegionType::FROM_REGION);
+    // fromRegionList.MergeRegionList(unmovableFromRegionList, RegionInfo::RegionType::FROM_REGION);
 
     fromRegionList.VisitAllRegions([](RegionInfo* region) { region->ClearLiveInfo(); });
+    unmovableFromRegionList.VisitAllRegions([](RegionInfo* region) { region->ClearLiveInfo(); });
 }
 
 void RegionManager::AssembleLargeGarbageCandidates()
