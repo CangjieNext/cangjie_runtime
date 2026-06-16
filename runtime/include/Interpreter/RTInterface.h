@@ -9,9 +9,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#ifndef __cplusplus
-#include <stdbool.h>
-#endif
 
 #include "RuntimeTypes.h"
 
@@ -111,7 +108,7 @@ struct INT_InterpreterInterface;
 struct DYN_CJNativeInterface;
 
 #define INT_INTERPRETER_INTERFACE_VERSION 1
-#define DYN_CJNATIVE_INTERFACE_VERSION 2
+#define DYN_CJNATIVE_INTERFACE_VERSION 3
 
 // region interpreter interface
 
@@ -233,11 +230,11 @@ typedef DYN_ObjRef (*DYN_ObjAllocFn)(struct DYN_TypeInfo*);
 // Allocate new pinned object.
 // params:
 // - Pointer to TypeInfo describing the object to be allocated
-// - isFinalizer - true if the allocated object has finalizer metadata
+// - isFinalizer - non-zero if the allocated object has finalizer metadata
 // return: allocated object or NULL
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
-typedef DYN_ObjRef (*DYN_NewPinnedObjectFn)(struct DYN_TypeInfo*, bool isFinalizer);
+typedef DYN_ObjRef (*DYN_NewPinnedObjectFn)(struct DYN_TypeInfo*, int isFinalizer);
 
 // Allocate new array.
 // params:
@@ -256,10 +253,10 @@ typedef void (*DYN_SafePointFn)();
 // Check if safepoint is pending.
 // params:
 // - threadLocalData - pointer to current `ThreadLocalData`.
-// return: true if safepoint is pending, false otherwise.
+// return: non-zero if safepoint is pending, zero otherwise.
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
-typedef bool (*DYN_IsPendingSafePointFn)(DYN_ThreadLocalData);
+typedef int (*DYN_IsPendingSafePointFn)(DYN_ThreadLocalData);
 
 // Provide a TypeInfo for type with given signature.
 // params:
@@ -371,18 +368,18 @@ typedef DYN_ObjRef (*DYN_GetAndClearPendingExceptionFn)();
 // params:
 // - object which type will be checked
 // - pointer to TypeInfo
-// return: true if object's type is a subtype of `ti`, false otherwise.
+// return: non-zero if object's type is a subtype of `ti`, zero otherwise.
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
-typedef bool (*DYN_InstanceOfFn)(DYN_ObjRef obj, struct DYN_TypeInfo* ti);
+typedef int (*DYN_InstanceOfFn)(DYN_ObjRef obj, struct DYN_TypeInfo* ti);
 
 // Check that typeInfo is a subtype of superTypeInfo.
 // params:
 // - typeInfo - type to check
 // - superTypeInfo - base type
-// return: true if typeInfo is a subtype of superTypeInfo.
+// return: non-zero if typeInfo is a subtype of superTypeInfo.
 // Notes:
-typedef bool (*DYN_IsSubTypeFn)(struct DYN_TypeInfo* typeInfo, struct DYN_TypeInfo* superTypeInfo);
+typedef int (*DYN_IsSubTypeFn)(struct DYN_TypeInfo* typeInfo, struct DYN_TypeInfo* superTypeInfo);
 
 // Applies visitor to the given placeholder.
 // params:
@@ -541,9 +538,9 @@ typedef DYN_CJThreadHandle (*DYN_NewCJThreadFn)(void* execute, DYN_ObjRef future
 typedef DYN_CJThreadHandle (*DYN_NewCJThreadNoReturnFn)(
     void* executeClosure, DYN_ObjRef closurePtr, void* scheduler, struct DYN_TypeInfo* futureTi);
 
-// Returns true if the GC is in an "active" phase.
+// Returns non-zero if the GC is in an "active" phase.
 // In active phase fast-path write barriers can`t be used.
-typedef bool (*DYN_IsActiveGcPhaseFn)(DYN_ThreadLocalData);
+typedef int (*DYN_IsActiveGcPhaseFn)(DYN_ThreadLocalData);
 
 // Runtime stack-growth entry used by interpreter-owned transition/prologue stubs.
 // `DYN_CJNativeInterface::stackGrowStub` is initialized by runtime with
