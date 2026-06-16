@@ -57,6 +57,13 @@ endif ()
 
 # project name: CangjieRuntime
 project(CangjieRuntime C CXX ASM)
+
+if(BUILD_GCC_TOOLCHAIN AND (CMAKE_C_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang"))
+    message(STATUS "Add compile option for clang, --gcc-toolchain=${BUILD_GCC_TOOLCHAIN}")
+    add_compile_options(--gcc-toolchain=${BUILD_GCC_TOOLCHAIN})
+    add_link_options(--gcc-toolchain=${BUILD_GCC_TOOLCHAIN})
+endif()
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/config.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/SetupAr.cmake)
 
@@ -199,6 +206,7 @@ endif() # BUILD_CJTHREAD
 
 if (BUILD_RUNTIME)
 include_directories(${DOPRA_INCLUDE})
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 if (DOPRA_FLAG MATCHES 1)
     add_definitions(-DMRT_USE_CJTHREAD_RENAME)
@@ -348,10 +356,10 @@ endif ()
 # Signal processing use sigaction() as signal-catching function currently, it`s linux related, which can get context when signal was triggered. In Windows, signal() is the only function we can use, but there is no context.
 if (WINDOWS_FLAG MATCHES 1)
     list(APPEND LINK_LIBS "boundscheck" "Base" "Common" "Concurrency" "Loader" "Inspector" "Exception" "Heap" "Mutator" "ObjectModel" "UnwindStack"
-    "Allocator" "Barrier" "Collector" "WCollector" "BinaryFile" "CjFile" "CjFileLoader" "CjSemanticVersion" "Sync" "dbghelp" "ws2_32" "shlwapi" "CpuProfiler" ${SANITIZER_LIB})
+    "Allocator" "Barrier" "Collector" "WCollector" "BinaryFile" "CjFile" "CjFileLoader" "CjSemanticVersion" "Sync" "dbghelp" "ws2_32" "shlwapi" "CpuProfiler" "Interpreter" ${SANITIZER_LIB})
 elseif (WINDOWS_FLAG MATCHES 0)
     list(APPEND LINK_LIBS "boundscheck" "Base" "Common" "Concurrency" "Loader" "Inspector" "Exception" "Heap" "Mutator" "ObjectModel" "UnwindStack" "Signal"
-    "Allocator" "Barrier" "Collector" "WCollector" "BinaryFile" "CjFile" "CjFileLoader" "CjSemanticVersion" "Sync" "CpuProfiler" ${SANITIZER_LIB})
+    "Allocator" "Barrier" "Collector" "WCollector" "BinaryFile" "CjFile" "CjFileLoader" "CjSemanticVersion" "Sync" "CpuProfiler" "Interpreter" ${SANITIZER_LIB})
 endif()
 
 if (DOPRA_FLAG MATCHES 1)
@@ -388,9 +396,15 @@ if (DOPRA_FLAG MATCHES 1 AND OHOS_FLAG MATCHES 0 AND WINDOWS_FLAG MATCHES 0) # l
             "-lstdc++ -lpthread -ldl" ${LINK_LIBS} "cjNativeStartAndEnd" "-Wl,--end-group")
     else ()
         if (ANDROID_FLAG IN_LIST ANDROID_FLAG_LIST) # android
-            target_link_libraries(cangjie-runtime
-                "-Wl,--start-group -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/src/local_export.map"
-                ${LINK_LIBS} "-Wl,--end-group -nodefaultlibs -Wl,-Bdynamic -lc++ -lunwind -lm -lc -ldl -landroid -llog")
+            if (ANDROID_FLAG MATCHES 3) # arm
+                target_link_libraries(cangjie-runtime
+                    "-Wl,--start-group -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/src/arm_local_export.map"
+                    ${LINK_LIBS} "-Wl,--end-group -nodefaultlibs -Wl,-Bdynamic -lc++ -lunwind -lm -lc -ldl -landroid -llog")
+            else()
+                target_link_libraries(cangjie-runtime
+                    "-Wl,--start-group -Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/src/local_export.map"
+                    ${LINK_LIBS} "-Wl,--end-group -nodefaultlibs -Wl,-Bdynamic -lc++ -lunwind -lm -lc -ldl -landroid -llog")
+            endif()
         elseif (MACOS_FLAG MATCHES 1 OR IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 2) # macos,ios
             target_link_libraries(cangjie-runtime ${LINK_LIBS} "-Wl,-no_compact_unwind -nodefaultlibs -lc++ -lm -lc -lpthread -ldl")
         else() # normal
@@ -435,6 +449,8 @@ install(TARGETS cangjie-runtime DESTINATION runtime/lib/${TARGET_ARCH}${SANITIZE
 
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/RuntimeConfig.h
         ${CMAKE_CURRENT_SOURCE_DIR}/src/Cangjie.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/Interpreter/RuntimeAPI.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/include/Interpreter/RTInterface.h
         DESTINATION include)
 
 if (EULER_FLAG MATCHES 1)
@@ -599,6 +615,7 @@ if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MAT
             $<TARGET_OBJECTS:cjthreadmodel>
             $<TARGET_OBJECTS:CjSemanticVersion>
             $<TARGET_OBJECTS:CpuProfiler>
+            $<TARGET_OBJECTS:Interpreter>
             ${SANITIZER_LIB_STATIC}
         )
     else()
@@ -626,6 +643,7 @@ if (IOS_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MATCHES 1 OR IOS_SIMULATOR_FLAG MAT
             $<TARGET_OBJECTS:cjthreadmodel>
             $<TARGET_OBJECTS:CjSemanticVersion>
             $<TARGET_OBJECTS:CpuProfiler>
+            $<TARGET_OBJECTS:Interpreter>
             ${SANITIZER_LIB_STATIC}
         )
     endif()

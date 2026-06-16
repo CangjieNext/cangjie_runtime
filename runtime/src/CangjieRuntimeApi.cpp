@@ -27,6 +27,8 @@
 #include "UnwindStack/MangleNameHelper.h"
 #include "Loader/CjFileLoader/CjFileLoader.h"
 #include "LoaderManager.h"
+#include "Interpreter/InterpreterSpecific.h"
+#include "Interpreter/RuntimeAPI.h"
 #if defined(__OHOS__) && (__OHOS__ == 1)
 #include "Inspector/FileStream.h"
 #include "Inspector/ProfilerAgentImpl.h"
@@ -295,6 +297,28 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
 #endif
     return E_OK;
 }
+
+#ifdef INTERPRETER_ENABLED
+RTErrorCode InitCJInterpreter(const struct InterpreterParam* param)
+{
+    if (g_runtimeFinished.load()) {
+        LOG(RTLOG_ERROR, "Interpreter initialization started too late, runtime is already fully initialized.");
+        return E_STATE;
+    }
+    if (MapleRuntime::Runtime::CurrentRef() == nullptr) {
+        LOG(RTLOG_ERROR, "Cangjie runtime should be initialized before interpreter initialization.");
+        return E_STATE;
+    }
+    if (param == nullptr) {
+        LOG(RTLOG_ERROR, "Interpreter initialization parameter is null.");
+        return E_ARGS;
+    }
+#if defined(GENERAL_ASAN_SUPPORT_INTERFACE)
+    MapleRuntime::Sanitizer::AsanRead(param, sizeof(struct InterpreterParam));
+#endif
+    return MapleRuntime::InitInterpreter(*param);
+}
+#endif
 
 void* InitUIScheduler()
 {
@@ -783,13 +807,14 @@ int InitCJLibrary(const char* libName)
         LOG(RTLOG_ERROR, "InitCJLibrary fail. as RunCJTask return null\n");
         return E_ARGS;
     }
-    void* ret = nullptr;
-    GetTaskRet(future, reinterpret_cast<void**>(&ret));
+    union {
+        bool asBool;
+        void* asPtr;
+    } ret = {};
+    ret.asPtr = nullptr;
+    GetTaskRet(future, reinterpret_cast<void**>(&ret.asPtr));
     ReleaseHandle(future);
-    if (ret != nullptr) {
-        return E_OK;
-    }
-    return E_ARGS;
+    return ret.asBool ? E_OK : E_ARGS;
 #endif
 }
 

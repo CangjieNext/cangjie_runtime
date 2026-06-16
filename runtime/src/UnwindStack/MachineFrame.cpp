@@ -4,10 +4,11 @@
 //
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-
 #include "Base/Log.h"
+#include "Base/LogFile.h"
 #include "Base/MemUtils.h"
 #include "Common/StackType.h"
+#include "Interpreter/InterpreterSpecific.h"
 #include "StackManager.h"
 #include "securec.h"
 #ifdef _WIN64
@@ -20,6 +21,10 @@ extern uintptr_t unwindPCForN2CStub;
 extern uintptr_t unwindPCForC2NStub;
 extern uintptr_t unwindPCForC2RStubStart;
 extern uintptr_t unwindPCForC2RStubEnd;
+#ifdef __arm__
+extern uintptr_t unwindPCForC2RStackArgsStubStart;
+extern uintptr_t unwindPCForC2RStackArgsStubEnd;
+#endif
 extern uintptr_t unwindPCForStackGrowStub;
 extern uintptr_t unwindPCForExclusiveStubFull;
 extern uintptr_t unwindPCForExclusiveStub;
@@ -30,18 +35,17 @@ extern uintptr_t unwindPCForC2NStubExceptionReturn;
 extern uintptr_t CalleeSavedStubFrameSize;
 extern uintptr_t C2NStubFrameSize;
 #endif
-
 namespace MapleRuntime {
 bool MachineFrame::IsN2CStubFrame() const
 {
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
     uintptr_t strippedIP = PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip));
     return strippedIP == reinterpret_cast<uintptr_t>(&unwindPCForN2CStub) ||
-           strippedIP == reinterpret_cast<uintptr_t>(&unwindPCForExclusiveStubFull);
+        strippedIP == reinterpret_cast<uintptr_t>(&unwindPCForExclusiveStubFull);
 #else
     uintptr_t ipAddr = reinterpret_cast<uintptr_t>(ip);
     return ipAddr == reinterpret_cast<uintptr_t>(&unwindPCForN2CStub) ||
-           ipAddr == reinterpret_cast<uintptr_t>(&unwindPCForExclusiveStubFull);
+        ipAddr == reinterpret_cast<uintptr_t>(&unwindPCForExclusiveStubFull);
 #endif
 }
 
@@ -55,7 +59,37 @@ bool MachineFrame::IsExclusiveStubFrame() const
 #endif
 }
 
-bool MachineFrame::IsRuntimeFrame() const { return StackManager::IsRuntimeFrame(reinterpret_cast<uintptr_t>(ip)); }
+bool MachineFrame::IsRuntimeFrame() const
+{
+    return StackManager::IsRuntimeFrame(reinterpret_cast<uintptr_t>(ip));
+}
+
+#ifdef INTERPRETER_ENABLED
+bool MachineFrame::IsInterpreterFrame() const
+{
+    return StackManager::IsInterpreterCodeAddr(reinterpret_cast<uintptr_t>(ip));
+}
+
+bool MachineFrame::IsC2IStubFrame() const
+{
+    return IsC2IStubAddr(reinterpret_cast<uintptr_t>(ip));
+}
+
+bool MachineFrame::IsI2IFrame() const
+{
+    return IsI2IAdapterStartAddr(reinterpret_cast<uintptr_t>(ip));
+}
+
+bool MachineFrame::IsI2NFrame() const
+{
+    return IsI2NStubAddr(reinterpret_cast<uintptr_t>(ip));
+}
+
+bool MachineFrame::IsInterpreterPrologueFrame() const
+{
+    return IsInterpreterPrologueAddr(reinterpret_cast<uintptr_t>(ip));
+}
+#endif
 
 bool MachineFrame::IsC2NStubFrame() const
 {
@@ -70,7 +104,7 @@ bool MachineFrame::IsStackGrowStubFrame() const
 {
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
     return PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip)) ==
-            reinterpret_cast<uintptr_t>(&unwindPCForStackGrowStub);
+        reinterpret_cast<uintptr_t>(&unwindPCForStackGrowStub);
 #else
     return reinterpret_cast<uintptr_t>(ip) == reinterpret_cast<uintptr_t>(&unwindPCForStackGrowStub);
 #endif
@@ -80,7 +114,7 @@ bool MachineFrame::IsC2RStubFrame() const
 {
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
     return PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip)) >
-            reinterpret_cast<uintptr_t>(&unwindPCForC2RStubStart) &&
+        reinterpret_cast<uintptr_t>(&unwindPCForC2RStubStart) &&
         PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip)) < reinterpret_cast<uintptr_t>(&unwindPCForC2RStubEnd);
 #else
     return reinterpret_cast<uintptr_t>(ip) > reinterpret_cast<uintptr_t>(&unwindPCForC2RStubStart) &&
@@ -88,11 +122,19 @@ bool MachineFrame::IsC2RStubFrame() const
 #endif
 }
 
+#ifdef __arm__
+bool MachineFrame::IsC2RStackArgsStubFrame() const
+{
+    return reinterpret_cast<uintptr_t>(ip) > reinterpret_cast<uintptr_t>(&unwindPCForC2RStackArgsStubStart) &&
+        reinterpret_cast<uintptr_t>(ip) < reinterpret_cast<uintptr_t>(&unwindPCForC2RStackArgsStubEnd);
+}
+#endif
+
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
 bool MachineFrame::IsC2NExceptionStubFrame() const
 {
     return PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip)) ==
-            reinterpret_cast<uintptr_t>(&unwindPCForC2NStubExceptionReturn);
+        reinterpret_cast<uintptr_t>(&unwindPCForC2NStubExceptionReturn);
 }
 #endif
 
@@ -100,7 +142,7 @@ bool MachineFrame::IsSafepointHandlerStubFrame() const
 {
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
     return PtrauthStripInstPointer(reinterpret_cast<Uptr>(ip)) ==
-            reinterpret_cast<uintptr_t>(&unwindPCForSafepointHandlerStub);
+        reinterpret_cast<uintptr_t>(&unwindPCForSafepointHandlerStub);
 #else
     return reinterpret_cast<uintptr_t>(ip) == reinterpret_cast<uintptr_t>(&unwindPCForSafepointHandlerStub);
 #endif
