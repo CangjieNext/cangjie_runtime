@@ -230,11 +230,11 @@ typedef DYN_ObjRef (*DYN_ObjAllocFn)(struct DYN_TypeInfo*);
 // Allocate new pinned object.
 // params:
 // - Pointer to TypeInfo describing the object to be allocated
-// - isFinalizer - non-zero if the allocated object has finalizer metadata
+// - hasFinalizer - non-zero if the allocated object has finalizer metadata
 // return: allocated object or NULL
 // Notes:
 //  This method will be invoked by interpreter as a part of interpretation loop.
-typedef DYN_ObjRef (*DYN_NewPinnedObjectFn)(struct DYN_TypeInfo*, int isFinalizer);
+typedef DYN_ObjRef (*DYN_NewPinnedObjectFn)(struct DYN_TypeInfo*, int hasFinalizer);
 
 // Allocate new array.
 // params:

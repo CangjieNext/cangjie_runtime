@@ -249,14 +249,14 @@ DYN_ObjRef ObjectAllocate(struct DYN_TypeInfo* tpe)
     return (DYN_ObjRef)obj;
 }
 
-DYN_ObjRef NewPinnedObject(struct DYN_TypeInfo* tpe, int isFinalizer)
+DYN_ObjRef NewPinnedObject(struct DYN_TypeInfo* tpe, int hasFinalizer)
 {
     TypeInfo* typeInfo = reinterpret_cast<TypeInfo*>(tpe);
     MSize size = AlignUp<MSize>(typeInfo->GetInstanceSize(), 8) + sizeof(TypeInfo*);
-    DLOG(INTERPRETER, "NewPinnedObject: type=%p (%s), size=%u, isFinalizer=%d", tpe,
-        typeInfo->GetName(), size, isFinalizer);
+    DLOG(INTERPRETER, "NewPinnedObject: type=%p (%s), size=%u, hasFinalizer=%d", tpe,
+        typeInfo->GetName(), size, hasFinalizer);
 
-    ObjRef obj = MCC_NewPinnedObject(typeInfo, size, isFinalizer != 0);
+    ObjRef obj = MCC_NewPinnedObject(typeInfo, size, hasFinalizer != 0);
     return (DYN_ObjRef)obj;
 }
 
