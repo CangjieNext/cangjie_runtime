@@ -56,6 +56,8 @@ extern "C" void MCC_InvokeGCImpl(bool sync);
 
 extern "C" void MCC_InvokeFullGCImpl();
 
+extern "C" void MCC_ReachFullGCImpl(I64 participants);
+
 // Wait until every Cangjie thread other than the caller has terminated.
 extern "C" void MCC_WaitForAllCJThreadsToFinishImpl();
 

@@ -29,6 +29,7 @@
 #include "ExceptionManager.inline.h"
 #include "Heap/Barrier/Barrier.h"
 #include "Heap/Collector/CollectorResources.h"
+#include "Heap/Collector/FullGCBarrier.h"
 #include "Heap/Heap.h"
 #include "HeapManager.inline.h"
 #include "LoaderManager.h"
@@ -403,6 +404,11 @@ extern "C" void MCC_InvokeGCImpl(bool sync) {
 
 extern "C" void MCC_InvokeFullGCImpl() {
     HeapManager::RequestGC(GC_REASON_FULL, true);
+}
+
+extern "C" void MCC_ReachFullGCImpl(I64 participants)
+{
+    FullGCBarrier::Instance().Reach(participants);
 }
 
 // Block the caller until every other Cangjie thread has fully terminated

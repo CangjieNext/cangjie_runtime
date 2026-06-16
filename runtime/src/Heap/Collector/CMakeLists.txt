@@ -14,6 +14,7 @@ set(SRC_LIST
     "TaskQueue.cpp"
     "FinalizerProcessor.cpp"
     "CopyCollector.cpp"
+    "FullGCBarrier.cpp"
     "LiveInfo.cpp"
     "ForwardDataManager.cpp"
 )
