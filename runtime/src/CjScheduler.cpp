@@ -30,8 +30,6 @@
 #include "ExceptionManager.h"
 #include "ExceptionManager.inline.h"
 #include "Mutator/Mutator.inline.h"
-#include "Interpreter/InterpreterSpecific.h"
-#include "Interpreter/RuntimeAPI.h"
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
 #endif
@@ -693,34 +691,11 @@ static RuntimeParam InitRuntimeParam()
     return param;
 }
 
-#ifdef INTERPRETER_ENABLED
-#if defined(__IOS__)
-static constexpr const char* INTERPRETER_LIB_NAME = "libcangjie-interpreter.dylib";
-#else
-static constexpr const char* INTERPRETER_LIB_NAME = "libcangjie-interpreter.so";
-#endif
-
-static InterpreterParam InitInterpreterParam()
-{
-    static const INT_InterpreterArg interpreterArgs[] = { nullptr };
-    InterpreterParam interpreterParam = {
-        .interpreterLibName = INTERPRETER_LIB_NAME,
-        .interpreterArgsCount = 0,
-        .interpreterArgs = interpreterArgs,
-        .appLibHandle = nullptr,
-    };
-    return interpreterParam;
-}
-#endif
 
 void MRT_CjRuntimeInit()
 {
     RuntimeParam param = InitRuntimeParam();
     CangjieRuntime::CreateAndInit(param);
-#ifdef INTERPRETER_ENABLED
-    InterpreterParam interpreterParam = InitInterpreterParam();
-    InitCJInterpreter(&interpreterParam);
-#endif
     RTErrorCode rtCode = SetRuntimeInitFlag();
     if (rtCode != E_OK) {
         LOG(RTLOG_FATAL, "Init cj runtime failed for %d\n", rtCode);
