@@ -14,7 +14,6 @@ abstract class Location {
     public func getEntry(): Option<TraceEntry>
 }
 
-let UNKNOWN_LOCATION = LocationImpl.unknown()
 let UNKNOWN_LOCATION_STRING = "<unknown location>"
 
 struct TraceEntry {
@@ -27,11 +26,26 @@ struct TraceEntry {
 class LocationImpl <: Location {
     private static let MOCKED_CLASS_NAME_FRAGMENT = "$Mocked"
 
+    @When[env != "ohos"]
     static func fromTrace(): Location {
         return LocationImpl(getRawStackTrace())
     }
 
-    static func unknown(): Location {
+    @When[env == "ohos"]
+    static func fromTrace(): Location {
+        let stackTrace = Exception().getStackTrace()
+        for ((index, element) in stackTrace |> enumerate) {
+            if (element.methodName.contains(MOCKED_CLASS_NAME_FRAGMENT)) {
+                let relevantElement = if (element.lineNumber == 0) {
+                    stackTrace.get(index + 1) ?? return UNKNOWN_LOCATION
+                } else {
+                    element
+                }
+                let loc = LocationImpl()
+                loc.entry = relevantElement.toEntry()
+                return loc
+            }
+        }
         return LocationImpl()
     }
 
@@ -42,15 +56,22 @@ class LocationImpl <: Location {
         this.rawStackTrace = rawStackTrace
         this.entry = Option<TraceEntry>.None
     }
-
+    
+    @When[env == "ohos"]
     private init() {
         this.rawStackTrace = []
         this.entry = Option<TraceEntry>.None
     }
 
+    @When[env == "ohos"]
+    public func getEntry(): Option<TraceEntry> {
+        return this.entry
+    }    
+
+    @When[env != "ohos"]
     public func getEntry(): Option<TraceEntry> {
         if (let Some(entry) <- this.entry) {
-            return this.entry
+            return entry
         }
         if (this.rawStackTrace.isEmpty()) {
             return this.entry
