@@ -80,21 +80,19 @@ extend<T> CPointer<T> {
 
 public struct CPointerResource<T> <: Resource where T <: CType {
     public let value: CPointer<T>
-    private let isFree: Box<Bool> = Box(false)
+    private let isFree: AtomicInt64 = AtomicInt64(0)
 
     init(p: CPointer<T>) {
         this.value = p
     }
 
     public func isClosed(): Bool {
-        return isFree.value
+        return isFree.load() != 0
     }
 
     public func close(): Unit {
-        if (isFree.value) {
-            return
+        if (isFree.compareAndSwap(0, 1)) {
+            unsafe { LibC.free<T>(value) }
         }
-        unsafe { LibC.free<T>(value) }
-        isFree.value = true
     }
 }
