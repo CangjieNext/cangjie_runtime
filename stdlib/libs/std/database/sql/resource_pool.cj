@@ -14,10 +14,9 @@ import std.time.DateTime
 import std.sync.{Timer, CatchupStyle, AtomicBool, Mutex}
 
 class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
-
     let mux = Mutex()
-    let entryQueue: LinkedBlockingQueue<Entry<T>>
-    let idleEntry: LinkedBlockingQueue<Entry<T>>
+    var entryQueue: LinkedBlockingQueue<Entry<T>>
+    var idleEntry: LinkedBlockingQueue<Entry<T>>
     var options: Options<T>
     var ticker: Timer
     var entryCount: Int32
@@ -41,10 +40,31 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
             options.maxSize
         }
         set(value) {
-            if (value <= 0) {
-                options.maxSize = Int32.Max
-            } else {
-                options.maxSize = value
+            synchronized(mux) {
+                let newValue = if (value <= 0) {
+                    Int32.Max
+                } else {
+                    value
+                }
+                if (newValue > options.maxSize) {
+                    let newEntryQueue = LinkedBlockingQueue<Entry<T>>(Int64(newValue))
+                    let newIdleEntry = LinkedBlockingQueue<Entry<T>>(Int64(newValue))
+                    while (true) {
+                        match (entryQueue.tryRemove()) {
+                            case Some(e) => newEntryQueue.add(e)
+                            case None => break
+                        }
+                    }
+                    while (true) {
+                        match (idleEntry.tryRemove()) {
+                            case Some(e) => newIdleEntry.add(e)
+                            case None => break
+                        }
+                    }
+                    entryQueue = newEntryQueue
+                    idleEntry = newIdleEntry
+                }
+                options.maxSize = newValue
             }
         }
     }
@@ -83,11 +103,11 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
         for (_ in 0..count) {
             let item = entryQueue.tryRemove()
             match (item) {
-                case Some(v) => 
-                     if (v.isValid && DateTime.now().toUnixTimeStamp() - v.creationTime > options.maxLifeTime) {
+                case Some(v) =>
+                    if (v.isValid && DateTime.now().toUnixTimeStamp() - v.creationTime > options.maxLifeTime) {
                         v.isValid = false
                         this.discard(v)
-                     }
+                    }
                 case _ =>
                     eprintln("can not try get idle entry")
                     break
@@ -187,9 +207,10 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
 
     public func release(entry: Entry<T>): Option<Unit> {
         match (entry.pool as ResourcePool<T>) {
-            case Some(p) => if (p != this) {
-                throw SqlException("the entry is owned by another pool")
-            }
+            case Some(p) =>
+                if (p != this) {
+                    throw SqlException("the entry is owned by another pool")
+                }
             case None => throw SqlException("the entry is not owned by any pool")
         }
 
@@ -204,9 +225,10 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
 
     public func discard(entry: Entry<T>): Option<Unit> {
         match (entry.pool as ResourcePool<T>) {
-            case Some(p) => if (p != this) {
-                throw SqlException("the entry is owned by another pool")
-            }
+            case Some(p) =>
+                if (p != this) {
+                    throw SqlException("the entry is owned by another pool")
+                }
             case None => throw SqlException("the entry is not owned by any pool")
         }
         synchronized(mux) {
@@ -223,7 +245,7 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
     }
 
     public func close() {
-        if (!isclosed.compareAndSwap(false, true)) {    // compareAndSwap return true if the value equal first parameter.
+        if (!isclosed.compareAndSwap(false, true)) { // compareAndSwap return true if the value equal first parameter.
             return
         }
         for (_ in 0..idleEntry.size) {
@@ -232,7 +254,7 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
                 case Some(v) =>
                     if (v.isValid) {
                         v.isValid = false
-                       this.discard(v)
+                        this.discard(v)
                     }
                 case None =>
                     eprintln("can not try get idle entry")
@@ -251,8 +273,9 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
 
     func appendLegalIdleEntry(v: Entry<T>, idleCount: Int64, list: ArrayList<Entry<T>>): Unit {
         var idle = v.idleDuration()
-        if ((idle > options.idleTimeout || Int32(idleCount) > options.maxIdleSize) || (DateTime.now().
-            toUnixTimeStamp() - v.creationTime > options.maxLifeTime)) {
+        if ((idle > options.idleTimeout || Int32(idleCount) > options.maxIdleSize) || (DateTime
+            .now()
+            .toUnixTimeStamp() - v.creationTime > options.maxLifeTime)) {
             try {
                 v.isValid = false
                 this.discard(v)
