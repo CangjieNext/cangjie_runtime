@@ -102,12 +102,23 @@ PUBLIC int interpreter_bridge_init(INT_InterpreterInterface* interpreter_interf,
             return 1;
         }
         log("[Interpreter] Interpreter arguments count: %d", interpreter_args_count);
-        for (int i = 0; i < interpreter_args_count; ++i) {
-            log("[Interpreter] Interpreter argument #%d: %s", i, interpreter_args[i]);
+        const char* dirPath = nullptr;
+        const char* storagePathPrefix = "app.storage.path=";
+        const size_t storagePathPrefixLen = strlen(storagePathPrefix);
+        for (int i = 0; i < interpreter_args_count && interpreter_args != nullptr; ++i) {
+            const char* arg = interpreter_args[i];
+            log("[Interpreter] Interpreter argument #%d: %s", i, arg != nullptr ? arg : "<null>");
+            if (arg != nullptr && strncmp(arg, storagePathPrefix, storagePathPrefixLen) == 0) {
+                dirPath = arg + storagePathPrefixLen;
+                log("[Interpreter] Using app storage path argument as directory: %s", dirPath);
+            }
         }
-        if (interpreter_args_count > 0 && interpreter_args != nullptr && interpreter_args[0] != nullptr && interpreter_args[0][0] == '/') {
-            const char* dirPath = interpreter_args[0];
+        if (dirPath == nullptr && interpreter_args_count > 0 && interpreter_args != nullptr &&
+            interpreter_args[0] != nullptr && interpreter_args[0][0] == '/') {
+            dirPath = interpreter_args[0];
             log("[Interpreter] First argument looks like an absolute path: %s", dirPath);
+        }
+        if (dirPath != nullptr) {
             DIR* dir = opendir(dirPath);
             if (dir == nullptr) {
                 log("[Interpreter] Failed to open directory '%s': errno=%d (%s)", dirPath, errno, strerror(errno));
