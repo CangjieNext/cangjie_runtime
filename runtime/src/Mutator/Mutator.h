@@ -22,6 +22,7 @@
 #endif
 #include "Interpreter/Options.h"
 #include "Interpreter/RTInterface.h"
+#include "ObjectModel/RefField.h"
 
 
 namespace MapleRuntime {
@@ -430,7 +431,10 @@ public:
 
     void AddLocalFinalizer(BaseObject* obj)
     {
-        localFinalizers.push_back(obj);
+        CHECK_DETAIL(!Heap::GetHeap().GetCollector().IsFromObject(obj), "finalizer object %p is a from object");
+        RefField<> tmpField(nullptr);
+        Heap::GetBarrier().WriteStaticRef(tmpField, obj);
+        localFinalizers.push_back(reinterpret_cast<BaseObject*>(tmpField.GetFieldValue()));
     }
 
     void MutatorLock() { mutatorLock.lock(); }

@@ -15,6 +15,7 @@
 #include "Common/ScopedObjectAccess.h"
 #include "Concurrency/ConcurrencyModel.h"
 #include "Heap/Collector/FinalizerProcessor.h"
+#include "Heap/WCollector/WCollector.h"
 #include "ObjectModel/RefField.inline.h"
 #include "MutatorManager.h"
 #include "StackManager.h"
@@ -605,6 +606,11 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
         }
     };
     VisitHeapReferences(visitor, derivedPtrVisitor);
+    WCollector& wcollector = reinterpret_cast<WCollector&>(collector);
+    RootVisitor localFinVisitor = [&wcollector](ObjectRef& root) { wcollector.ForwardUpdateRawRef(root); };
+    for (BaseObject*& obj : localFinalizers) {
+        localFinVisitor(reinterpret_cast<ObjectRef&>(obj));
+    }
 }
 
 inline void Mutator::HandleGCPhase(GCPhase newPhase)
