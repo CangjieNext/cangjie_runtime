@@ -66,4 +66,4 @@ do
 done
 mv $TEST_NAME/*.o $LIB
 
-$CXX -shared -o "$TEST_NAME/out/libinterpreter.so" $LIB/*.o -Wno-attributes -g -fPIC
+$CXX -shared -o "$TEST_NAME/out/libcangjie-interpreter.so" $LIB/*.o -Wno-attributes -g -fPIC

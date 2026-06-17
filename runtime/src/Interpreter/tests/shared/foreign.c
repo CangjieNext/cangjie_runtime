@@ -16,9 +16,9 @@
 #if defined(__APPLE__) && \
     (defined(__IOS__) || defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__) || \
      (defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE))
-#define INTERPRETER_MOCK_LIB_NAME "libinterpreter.dylib"
+#define INTERPRETER_MOCK_LIB_NAME "libcangjie-interpreter.dylib"
 #else
-#define INTERPRETER_MOCK_LIB_NAME "libinterpreter.so"
+#define INTERPRETER_MOCK_LIB_NAME "libcangjie-interpreter.so"
 #endif
 
 #ifdef __cplusplus

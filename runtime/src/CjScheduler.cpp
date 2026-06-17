@@ -8,9 +8,7 @@
 
 #include <cstdlib>
 #include <cstring>
-#include <new>
 #include <thread>
-#include <vector>
 #if defined(_WIN64)
 #include <windows.h>
 #elif defined(__APPLE__)
@@ -34,7 +32,6 @@
 #include "Mutator/Mutator.inline.h"
 #include "Interpreter/InterpreterSpecific.h"
 #include "Interpreter/RuntimeAPI.h"
-#include "securec.h"
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
 #endif
@@ -289,54 +286,6 @@ static uint32_t InitProcessorNum()
     }
     return defaultProcs;
 }
-
-#ifdef INTERPRETER_ENABLED
-// Parse INTERPRETER_ARGS env variable and return null-terminated array of strings.
-// params:
-// - tokenCount - will be set to the number of strings in the array
-static INT_InterpreterArgs InitInterpreterArgs(int& tokenCount)
-{
-    tokenCount = 0;
-    const char* env = std::getenv("INTERPRETER_ARGS");
-
-    if (!env) {
-        return nullptr;
-    }
-
-    CString source(env);
-    std::vector<CString> tempTokens = CString::Split(source, ' ');
-
-    tokenCount = static_cast<int>(tempTokens.size());
-    if (tokenCount == 0) {
-        return nullptr;
-    }
-
-    INT_InterpreterArg* tokens = new (std::nothrow) INT_InterpreterArg[tokenCount + 1];
-    CHECK_DETAIL(tokens != nullptr, "new tokens array failed: size=%d", tokenCount + 1);
-
-    for (int i = 0; i < tokenCount; ++i) {
-        size_t tokenLen = tempTokens[i].Length();
-        char* token = new (std::nothrow) char[tokenLen + 1];
-        CHECK_DETAIL(token != nullptr, "new token #%d failed: size=%zu bytes", i, tokenLen + 1);
-        CHECK_DETAIL(strcpy_s(token, tokenLen + 1, tempTokens[i].Str()) == EOK, "strcpy_s failed");
-        tokens[i] = token;
-    }
-    tokens[tokenCount] = nullptr;
-
-    return tokens;
-}
-
-static const char* InitInterpreterLibName()
-{
-    const char* env = std::getenv("INTERPRETER_LIB_NAME");
-    if (env == nullptr || std::strlen(env) == 0) {
-        DLOG(INTERPRETER, "INTERPRETER_LIB_NAME is not set or empty");
-        return nullptr;
-    }
-    DLOG(INTERPRETER, "INTERPRETER_LIB_NAME is set to %s", env);
-    return strdup(env);
-}
-#endif
 
 void* StartMainTask(void* arg, unsigned int len)
 {
@@ -745,36 +694,22 @@ static RuntimeParam InitRuntimeParam()
 }
 
 #ifdef INTERPRETER_ENABLED
+#if defined(__IOS__)
+static constexpr const char* INTERPRETER_LIB_NAME = "libcangjie-interpreter.dylib";
+#else
+static constexpr const char* INTERPRETER_LIB_NAME = "libcangjie-interpreter.so";
+#endif
+
 static InterpreterParam InitInterpreterParam()
 {
-    int interpreterArgsCount = 0;
-    INT_InterpreterArgs interpreterArgs = InitInterpreterArgs(interpreterArgsCount);
+    static const INT_InterpreterArg interpreterArgs[] = { nullptr };
     InterpreterParam interpreterParam = {
-        .interpreterLibName = InitInterpreterLibName(),
-        .interpreterArgsCount = interpreterArgsCount,
+        .interpreterLibName = INTERPRETER_LIB_NAME,
+        .interpreterArgsCount = 0,
         .interpreterArgs = interpreterArgs,
         .appLibHandle = nullptr,
     };
     return interpreterParam;
-}
-
-static void DestroyInterpreterParam(InterpreterParam& interpreterParam)
-{
-    INT_InterpreterArgs interpreterArgs = interpreterParam.interpreterArgs;
-    if (interpreterArgs != nullptr) {
-        for (int i = 0; i < interpreterParam.interpreterArgsCount && interpreterArgs[i] != nullptr; ++i) {
-            delete[] interpreterArgs[i];
-        }
-        delete[] interpreterArgs;
-    }
-
-    if (interpreterParam.interpreterLibName != nullptr) {
-        std::free(const_cast<char*>(interpreterParam.interpreterLibName));
-    }
-    interpreterParam.interpreterLibName = nullptr;
-    interpreterParam.interpreterArgsCount = 0;
-    interpreterParam.interpreterArgs = nullptr;
-    interpreterParam.appLibHandle = nullptr;
 }
 #endif
 
@@ -785,7 +720,6 @@ void MRT_CjRuntimeInit()
 #ifdef INTERPRETER_ENABLED
     InterpreterParam interpreterParam = InitInterpreterParam();
     InitCJInterpreter(&interpreterParam);
-    DestroyInterpreterParam(interpreterParam);
 #endif
     RTErrorCode rtCode = SetRuntimeInitFlag();
     if (rtCode != E_OK) {
