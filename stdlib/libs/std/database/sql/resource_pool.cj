@@ -16,8 +16,8 @@ import std.sync.{Timer, CatchupStyle, AtomicBool, Mutex}
 class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
 
     let mux = Mutex()
-    let entryQueue: LinkedBlockingQueue<Entry<T>>
-    let idleEntry: LinkedBlockingQueue<Entry<T>>
+    var entryQueue: LinkedBlockingQueue<Entry<T>>
+    var idleEntry: LinkedBlockingQueue<Entry<T>>
     var options: Options<T>
     var ticker: Timer
     var entryCount: Int32
@@ -41,10 +41,27 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
             options.maxSize
         }
         set(value) {
-            if (value <= 0) {
-                options.maxSize = Int32.Max
-            } else {
-                options.maxSize = value
+            let newValue = if (value <= 0) { Int32.Max } else { value }
+            synchronized(mux) {
+                if (newValue > options.maxSize) {
+                    let newEntryQueue = LinkedBlockingQueue<Entry<T>>(Int64(newValue))
+                    let newIdleEntry = LinkedBlockingQueue<Entry<T>>(Int64(newValue))
+                    while (true) {
+                        match (entryQueue.tryRemove()) {
+                            case Some(e) => newEntryQueue.add(e)
+                            case None => break
+                        }
+                    }
+                    while (true) {
+                        match (idleEntry.tryRemove()) {
+                            case Some(e) => newIdleEntry.add(e)
+                            case None => break
+                        }
+                    }
+                    entryQueue = newEntryQueue
+                    idleEntry = newIdleEntry
+                }
+                options.maxSize = newValue
             }
         }
     }
@@ -179,7 +196,9 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
         match (value) {
             case Some(v) =>
                 let entry = Entry<T>(this, v)
-                entryQueue.add(entry)
+                synchronized(mux) {
+                    entryQueue.add(entry)
+                }
                 return entry
             case None => throw Exception("constructor entry failed")
         }
@@ -197,7 +216,9 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
             entry.isValid = false
             this.discard(entry)
         } else {
-            idleEntry.add(entry)
+            synchronized(mux) {
+                idleEntry.add(entry)
+            }
         }
         return
     }
