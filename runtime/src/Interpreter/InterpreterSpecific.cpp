@@ -37,6 +37,15 @@ extern "C" TypeInfo* CJ_MCC_GetMethodOuterTI(TypeInfo* ti, TypeInfo* itf, U64 in
 extern "C" void CJ_MCC_UpdateVMT(TypeInfo* ti, TypeInfo* itf, ExtensionData* extensionData);
 extern "C" ObjRef MCC_NewPinnedObject(const TypeInfo* klass, MSize size, bool isFinalizer);
 
+namespace {
+static_assert(sizeof(uintptr_t) == sizeof(MAddress), "uintptr_t must be able to carry MAddress");
+
+MAddress ToMAddress(uintptr_t address)
+{
+    return static_cast<MAddress>(address);
+}
+} // namespace
+
 struct {
     bool initialized = false;
     INT_InterpreterInterface interpreterInterface;
@@ -395,7 +404,7 @@ void SetArrayElement(DYN_ObjRef source, U64 index, DYN_ObjRef new_value)
     array->SetRefElement(index, static_cast<BaseObject*>(new_value));
 }
 
-void ReadStructFieldOfObject(MAddress dstPtr, DYN_ObjRef obj, MAddress srcField, size_t size)
+void ReadStructFieldOfObjectImpl(MAddress dstPtr, DYN_ObjRef obj, MAddress srcField, size_t size)
 {
     DLOG(INTERPRETER, "ReadStructFieldOfObject %p %p %p %zu", dstPtr, obj, srcField, size);
     if (size == 0) {
@@ -404,7 +413,12 @@ void ReadStructFieldOfObject(MAddress dstPtr, DYN_ObjRef obj, MAddress srcField,
     Heap::GetHeap().GetBarrier().ReadStruct(dstPtr, static_cast<BaseObject*>(obj), srcField, size);
 }
 
-void WriteStructFieldOfObject(DYN_ObjRef obj, MAddress dst, MAddress src, size_t size)
+void ReadStructFieldOfObject(uintptr_t dstPtr, DYN_ObjRef obj, uintptr_t srcField, size_t size)
+{
+    ReadStructFieldOfObjectImpl(ToMAddress(dstPtr), obj, ToMAddress(srcField), size);
+}
+
+void WriteStructFieldOfObjectImpl(DYN_ObjRef obj, MAddress dst, MAddress src, size_t size)
 {
     DLOG(INTERPRETER, "WriteStructFieldOfObject %p %p %p %zu", obj, dst, src, size);
     CHECK_DETAIL((dst != 0u && src != 0u), "MCC_WriteStructField wrong parameter, dst: %p src: %p", dst, src);
@@ -416,7 +430,12 @@ void WriteStructFieldOfObject(DYN_ObjRef obj, MAddress dst, MAddress src, size_t
     Heap::GetBarrier().WriteStruct(static_cast<BaseObject*>(obj), dst, size, src, size);
 }
 
-void ReadStaticStructField(MAddress dstPtr, size_t dstSize, MAddress srcPtr, size_t srcSize, DYN_GCTib tib)
+void WriteStructFieldOfObject(DYN_ObjRef obj, uintptr_t dst, uintptr_t src, size_t size)
+{
+    WriteStructFieldOfObjectImpl(obj, ToMAddress(dst), ToMAddress(src), size);
+}
+
+void ReadStaticStructFieldImpl(MAddress dstPtr, size_t dstSize, MAddress srcPtr, size_t srcSize, DYN_GCTib tib)
 {
     DLOG(INTERPRETER, "ReadStaticStructField dst=%p size=%zu src=%p size=%zu tib_val=%zx", dstPtr, dstSize, srcPtr,
         srcSize, static_cast<size_t>(tib.raw));
@@ -425,7 +444,12 @@ void ReadStaticStructField(MAddress dstPtr, size_t dstSize, MAddress srcPtr, siz
     Heap::GetHeap().GetBarrier().ReadStaticStruct(dstPtr, srcPtr, dstSize, gcTib);
 }
 
-void WriteStaticStructField(MAddress dst, size_t dstLen, MAddress src, size_t srcLen, DYN_GCTib tib)
+void ReadStaticStructField(uintptr_t dstPtr, size_t dstSize, uintptr_t srcPtr, size_t srcSize, DYN_GCTib tib)
+{
+    ReadStaticStructFieldImpl(ToMAddress(dstPtr), dstSize, ToMAddress(srcPtr), srcSize, tib);
+}
+
+void WriteStaticStructFieldImpl(MAddress dst, size_t dstLen, MAddress src, size_t srcLen, DYN_GCTib tib)
 {
     DLOG(INTERPRETER, "WriteStaticStructField dst=%p size=%zu src=%p size=%zu tib_val=%zx", dst, dstLen, src, srcLen,
         static_cast<size_t>(tib.raw));
@@ -434,6 +458,11 @@ void WriteStaticStructField(MAddress dst, size_t dstLen, MAddress src, size_t sr
 
     GCTib gcTib = *reinterpret_cast<GCTib*>(&tib);
     Heap::GetBarrier().WriteStaticStruct(dst, dstLen, src, srcLen, gcTib);
+}
+
+void WriteStaticStructField(uintptr_t dst, size_t dstLen, uintptr_t src, size_t srcLen, DYN_GCTib tib)
+{
+    WriteStaticStructFieldImpl(ToMAddress(dst), dstLen, ToMAddress(src), srcLen, tib);
 }
 
 void ReadGenericField(DYN_ObjRef dst, DYN_ObjRef srcObj, uintptr_t srcField, size_t size)
