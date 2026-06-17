@@ -11,13 +11,9 @@ if [ -z "$1" ]; then
 fi
 TEST_NAME="$1"
 
-export INTERPRETER_ENABLED=true
-export INTERPRETER_LIB_NAME="libinterpreter.so"
 export LD_LIBRARY_PATH=./$TEST_NAME/out:$LD_LIBRARY_PATH
 
 export cjHeapSize=256mb
-
-export INTERPRETER_ARGS="--a --b --c"
 
 # export MRT_LOG_INTERPRETER=1
 # export MRT_LOG_EXCEPTION=1
