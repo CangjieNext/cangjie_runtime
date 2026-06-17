@@ -76,9 +76,12 @@ public class CurrentProcess <: Process {
 
     public prop homeDirectory: Path {
         get() {
-            var homeDir: CString = unsafe { CJ_OS_HomeDir() } // Note: no need to free.
-            var dir: Path = Path(homeDir.toString())
-            return dir
+            unsafe {
+                let homeDir: CString = CJ_OS_HomeDir()
+                let dir: Path = Path(homeDir.toString())
+                LibC.free(homeDir)
+                return dir
+            }
         }
     }
 

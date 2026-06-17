@@ -506,14 +506,18 @@ extern void CJ_OS_FreeProcessRtnData(ProcessRtnData* data)
 extern char* CJ_OS_HomeDir(void)
 {
 #ifdef __ios__
-    return getenv("HOME");
+    char* home = getenv("HOME");
+    if (home == NULL) {
+        return NULL;
+    }
+    return strdup(home);
 #else
     struct passwd* pw = getpwuid(getuid());
     if (pw == NULL) {
         return NULL;
     }
 
-    return pw->pw_dir;
+    return strdup(pw->pw_dir);
 #endif
 }
 
