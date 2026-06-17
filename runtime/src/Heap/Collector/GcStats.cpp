@@ -7,13 +7,52 @@
 
 #include "GcStats.h"
 
+#include <cstdlib>
+#include <limits>
+
+#include "Base/CString.h"
+#include "Base/Log.h"
 #include "Base/LogFile.h"
+#include "CangjieRuntime.h"
 #include "Heap/Heap.h"
 
 namespace MapleRuntime {
 size_t g_gcCount = 0;
 uint64_t g_gcTotalTimeUs = 0;
 size_t g_gcCollectedTotalBytes = 0;
+
+namespace {
+double ReadEnvPosDec(const char* name, double fallback)
+{
+    const char* env = std::getenv(name);
+    if (env == nullptr) {
+        return fallback;
+    }
+    double value = CString::ParsePosDecFromEnv(env);
+    if (value > 0.0) {
+        return value;
+    }
+    LOG(RTLOG_ERROR, "Unsupported %s parameter. Valid %s range must be greater than 0.\n", name, name);
+    return fallback;
+}
+
+size_t ComputeScavengeThresholdBytes(size_t heapThresholdBytes)
+{
+    if (heapThresholdBytes == 0) {
+        return 0;
+    }
+    double heapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
+    double scavengeGrowth = ReadEnvPosDec("cjScavengeGrowth", heapGrowth);
+    if (scavengeGrowth <= 0.0) {
+        return heapThresholdBytes;
+    }
+    long double scaled = static_cast<long double>(heapThresholdBytes) * static_cast<long double>(scavengeGrowth);
+    if (scaled >= static_cast<long double>(std::numeric_limits<size_t>::max())) {
+        return std::numeric_limits<size_t>::max();
+    }
+    return static_cast<size_t>(scaled);
+}
+} // namespace
 
 uint64_t GCStats::prevGcStartTime = TimeUtil::NanoSeconds() - LONG_MIN_HEU_GC_INTERVAL_NS;
 uint64_t GCStats::prevGcFinishTime = TimeUtil::NanoSeconds() - LONG_MIN_HEU_GC_INTERVAL_NS;
@@ -26,6 +65,7 @@ size_t GCStats::UpdateHeapThreshold(size_t liveRegionBytes)
     threshold = std::min(threshold, gcThresholdCap);
     lastSurvivingRegionBytes = liveRegionBytes;
     heapThreshold.store(threshold, std::memory_order_release);
+    scavengeThreshold.store(ComputeScavengeThresholdBytes(threshold), std::memory_order_release);
     return threshold;
 }
 
@@ -61,6 +101,7 @@ void GCStats::Init()
     // 0.2:set 20% heap size as intial value
     initThreshold = std::min(static_cast<size_t>(Heap::GetHeap().GetMaxCapacity() * 0.2), initThreshold);
     heapThreshold.store(initThreshold, std::memory_order_relaxed);
+    scavengeThreshold.store(ComputeScavengeThresholdBytes(initThreshold), std::memory_order_relaxed);
 }
 
 void GCStats::Dump() const

@@ -122,6 +122,9 @@ public:
     }
     // Flush an overflowed WriteBarrierBuffer to the global LFStack.
     void FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf);
+    // Flush a mutator-exit WriteBarrierBuffer directly to globalFull_ so the
+    // work survives even after the mutator is removed from the scheduler list.
+    void FlushExitedMutatorWriteBarrierBuffer(WriteBarrierBuffer& wbBuf);
 
     // Per-P GCWork accessors for initialization during concurrent mark.
     LFStack& GetGlobalFull() { return globalFull_; }
@@ -182,14 +185,10 @@ private:
     void ConcurrentSweep();     // Step 3 (stub)
 
     // ── Step 2.1 internals ──
-    void ClearAllMarkBitmaps();
-    void EnsureSweepDone();
     void EnumAndMarkRoots(WorkStack& workStack);
     void DiscoverAndPushObject(BaseObject* obj, WorkStack& workStack);
     bool TryEnqueueGreyObject(BaseObject* obj, GreyWorkQueue& queue);
     bool DiscoverObject(BaseObject* obj);
-    void DebugVerifyQueuedGreyObject(const BaseObject* obj, const char* queueName) const;
-
     // Diagnostic: after marking completes (in ConcurrentSweep, before sweep
     // reclaims anything), walk all marked objects and report any ref edge that
     // points to an unmarked target. Such a target will be wrongly swept while
@@ -203,7 +202,6 @@ private:
     // empty rounds) is reached and the loop should break.
     bool CheckConvergenceAndBreak();
     void DrainMarkWorkStack(size_t maxObjects, size_t& scannedCount);
-    void DrainConcurrentOverflowQueueToMarkWork();
     void DrainGCWork(PerPGCWork& gcw, size_t maxObjects, size_t& scannedCount);
     // Drain the entire getCur_ buffer of gcw (one round); returns objects scanned.
     size_t DrainOneBufRound(PerPGCWork& gcw);
@@ -220,7 +218,6 @@ private:
     void ResetAllPerPGCWork();
 
     // ── Step 2.3 internals ──
-    void CollectUnmarkedToMainQueue(GreyWorkQueue& mainQueue);
     void FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue);
 
     void DrainDeferredMainThreadQueueToMainQueue(GreyWorkQueue& mainQueue);

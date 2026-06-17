@@ -184,8 +184,14 @@ private:
 // LockFreeRegionStack: CAS-based lock-free stack for partialSwept (O1)
 // ============================================================================
 // Single-linked stack using MSRegionInfo::nextRegionIdx.
-// No ABA risk: a region is exclusively owned by one thread after Pop,
-// so the same region cannot be concurrently Pushed by another thread.
+//
+// ABA SAFETY: the earlier "exclusive ownership after Pop" argument was WRONG —
+// a region can be popped, filled, emptied and re-pushed by other threads while
+// one thread's Pop CAS on the same head is still in flight. With a bare index
+// head the value can return to its original (ABA), the stale CAS wrongly
+// succeeds, and the same region is handed to two owners (→ two objects share a
+// slot → use-after-free). To prevent this the head is a 64-bit value packing
+// { tag:32 | regionIndex:32 }; every Push/Pop bumps the tag.
 //
 class LockFreeRegionStack {
 public:
@@ -194,24 +200,34 @@ public:
     void Push(MSRegionInfo* region)
     {
         int32_t idx = static_cast<int32_t>(MSRegionInfoArray::GetRegionIdx(region));
-        int32_t oldHead = head_.load(std::memory_order_relaxed);
+        uint64_t oldVal = taggedHead_.load(std::memory_order_relaxed);
+        uint64_t newVal;
         do {
-            region->nextRegionIdx = oldHead;
-        } while (!head_.compare_exchange_weak(oldHead, idx,
+            region->nextRegionIdx = IdxOf(oldVal);
+            newVal = Pack(idx, TagOf(oldVal) + 1);
+        } while (!taggedHead_.compare_exchange_weak(oldVal, newVal,
                      std::memory_order_release, std::memory_order_relaxed));
         count_.fetch_add(1, std::memory_order_relaxed);
     }
 
     MSRegionInfo* Pop()
     {
-        int32_t oldHead = head_.load(std::memory_order_acquire);
+        uint64_t oldVal = taggedHead_.load(std::memory_order_acquire);
         MSRegionInfo* headRegion;
+        uint64_t newVal;
         do {
+            int32_t oldHead = IdxOf(oldVal);
             if (oldHead == MSRegionInfo::INVALID_IDX) {
                 return nullptr;
             }
             headRegion = MSRegionInfoArray::GetRegionInfoByIdx(oldHead);
-        } while (!head_.compare_exchange_weak(oldHead, headRegion->nextRegionIdx,
+            // Bump the tag on every successful Pop so that a region which is
+            // popped, reused and re-pushed while this CAS is in flight cannot
+            // make the head value compare equal again (ABA). Reading
+            // nextRegionIdx of a concurrently-recycled region is harmless: the
+            // tag will have changed and the CAS below simply retries.
+            newVal = Pack(headRegion->nextRegionIdx, TagOf(oldVal) + 1);
+        } while (!taggedHead_.compare_exchange_weak(oldVal, newVal,
                      std::memory_order_release, std::memory_order_relaxed));
         headRegion->nextRegionIdx = MSRegionInfo::INVALID_IDX;
         headRegion->prevRegionIdx = MSRegionInfo::INVALID_IDX;
@@ -219,13 +235,21 @@ public:
         return headRegion;
     }
 
-    bool IsEmpty() const { return head_.load(std::memory_order_acquire) == MSRegionInfo::INVALID_IDX; }
+    bool IsEmpty() const
+    {
+        return IdxOf(taggedHead_.load(std::memory_order_acquire)) == MSRegionInfo::INVALID_IDX;
+    }
     size_t Count() const { return count_.load(std::memory_order_relaxed); }
 
     // O(n) drain all elements into an MSRegionList (under external synchronization, e.g. STW).
     void DrainTo(MSRegionList& dest)
     {
-        int32_t idx = head_.exchange(MSRegionInfo::INVALID_IDX, std::memory_order_acquire);
+        uint64_t oldVal = taggedHead_.load(std::memory_order_acquire);
+        while (!taggedHead_.compare_exchange_weak(oldVal,
+                   Pack(MSRegionInfo::INVALID_IDX, TagOf(oldVal) + 1),
+                   std::memory_order_acquire, std::memory_order_relaxed)) {
+        }
+        int32_t idx = IdxOf(oldVal);
         size_t drained = 0;
         while (idx != MSRegionInfo::INVALID_IDX) {
             MSRegionInfo* region = MSRegionInfoArray::GetRegionInfoByIdx(idx);
@@ -244,18 +268,18 @@ public:
     // consumers only use TakeHead (which fixes prev lazily).
     void StealChainTo(MSRegionList& dest)
     {
-        int32_t h = head_.load(std::memory_order_relaxed);
+        uint64_t v = taggedHead_.load(std::memory_order_relaxed);
         size_t cnt = count_.load(std::memory_order_relaxed);
-        head_.store(MSRegionInfo::INVALID_IDX, std::memory_order_relaxed);
+        taggedHead_.store(Pack(MSRegionInfo::INVALID_IDX, TagOf(v) + 1), std::memory_order_relaxed);
         count_.store(0, std::memory_order_relaxed);
-        dest.AcceptSingleLinkedChain(h, cnt);
+        dest.AcceptSingleLinkedChain(IdxOf(v), cnt);
     }
 
     // Unsafe iteration for GC (STW only). Visitor must NOT modify the stack.
     template<typename Visitor>
     void ForEachUnsafe(Visitor&& visitor) const
     {
-        int32_t idx = head_.load(std::memory_order_acquire);
+        int32_t idx = IdxOf(taggedHead_.load(std::memory_order_acquire));
         while (idx != MSRegionInfo::INVALID_IDX) {
             MSRegionInfo* info = MSRegionInfoArray::GetRegionInfoByIdx(idx);
             int32_t next = info->nextRegionIdx;
@@ -265,7 +289,17 @@ public:
     }
 
 private:
-    std::atomic<int32_t> head_{MSRegionInfo::INVALID_IDX};
+    // taggedHead_ packs { tag:high32 | regionIndex:low32 }. The tag is bumped on
+    // every Push/Pop so a recycled region index never makes the head compare
+    // equal to a stale snapshot — this is what makes the stack ABA-safe.
+    static int32_t IdxOf(uint64_t v) { return static_cast<int32_t>(static_cast<uint32_t>(v)); }
+    static uint32_t TagOf(uint64_t v) { return static_cast<uint32_t>(v >> 32); }
+    static uint64_t Pack(int32_t idx, uint32_t tag)
+    {
+        return (static_cast<uint64_t>(tag) << 32) | static_cast<uint64_t>(static_cast<uint32_t>(idx));
+    }
+
+    std::atomic<uint64_t> taggedHead_{Pack(MSRegionInfo::INVALID_IDX, 0)};
     std::atomic<size_t>  count_{0};
 };
 
@@ -329,8 +363,11 @@ public:
 
     // ===== GC operations =====
 
-    // Generation flip: globalSweepGen_ += 2.
-    // All swept Regions logically become unswept.
+    // Prepare the next sweep epoch.
+    // 1) Flip central swept lists into unswept supply for the coming cycle.
+    // 2) Normalize any residual old-generation unswept/large regions to the
+    //    current generation before advancing globalSweepGen_.
+    // 3) globalSweepGen_ += 2 so subsequent allocations carry the new epoch.
     void PrepareForSweep();
 
     // Background sweep: iterate all size classes, sweep one slice of unswept Regions.
@@ -346,6 +383,8 @@ public:
     // Reclaim up to maxRegions empty regions from the empty-region caches into released
     // state. Passing a very large maxRegions value releases all currently cached empty regions.
     size_t ReclaimEmptyRegion(size_t maxRegions);
+    bool HasIdleSegmentCachedRegions(size_t startRegionIdx, size_t endRegionIdx) const;
+    size_t ReclaimIdleSegmentCaches(size_t startRegionIdx, size_t endRegionIdx);
 
     // Check whether previous-cycle sweep work is globally quiescent.
     bool IsSweepDone() const
@@ -360,14 +399,8 @@ public:
     void VisitAllRegions(Visitor&& visitor);
 
     // ===== Monitoring =====
-    size_t GetTotalPartialCount() const;
-    size_t GetTotalFullCount() const;
     size_t GetTotalUnsweptCount() const;
-    size_t GetTotalSweptCount() const;
-    size_t GetTotalPartialSweptCount() const;
-    size_t GetTotalFullUnsweptCount() const;
     size_t GetLargeRegionCount() const;
-    size_t GetLargeRegionSpanCount() const;
     size_t CountTLActiveRegions() const;
     size_t GetAllocBufferCount() const;
     size_t GetAllAllocBufferRegionCount() const;
@@ -400,15 +433,6 @@ public:
     // Must be called after marking completes and BEFORE PrepareForSweep.
     size_t ComputeMarkedBytes() const;
 
-    // Compute live bytes by region occupancy (used by UpdateGCStats threshold):
-    //   - swept lists (partialSwept + fullSwept): count occupied slots
-    //     (after sweep, occupied == survivors).
-    //   - unswept lists (partialUnswept + fullUnswept): count occupied slots
-    //     (not yet swept, all occupied objects treated as alive).
-    //   - large regions: count all live large regions in full.
-    // Occupancy per small region = (totalSlotCount - freeSlotCount) * slotSize.
-    size_t ComputeLiveBytesByOccupancy() const;
-
     // Diagnostic: visit every currently-marked object (small/medium + large)
     // by walking markBitmaps. Must be called in the same window as
     // ComputeMarkedBytes (marking complete, no sweep started). Used by the
@@ -439,8 +463,6 @@ public:
     // flush policy lives in RegionSpaceMS. Returns reclaimed bytes.
     size_t ReclaimLargeHotCache(size_t maxBytes);
 
-    // Returns true if the large hot cache is non-empty (lock-free).
-    bool HasLargeFreeCache() const;
     size_t GetLargeHotCacheBytes() const
     {
         return largeHotCacheBytes_.load(std::memory_order_acquire);
@@ -462,14 +484,12 @@ public:
     void StopAndWaitForAllSweep();
 
     // Clear markBitmaps for all active small/medium regions in MSRegionInfoArray.
-    // CAS-stamps any residual unswept regions (sg-2 -> sg) to prevent future
-    // lazy sweep from observing stale markBitmaps.
+    // Large regions clear their mark flag here as well.
     // Must be called after StopAndWaitForAllSweep().
     void ClearAllMarkBitmaps();
 
-    // Drain any residual unswept lists into swept lists after stamping regions
-    // as swept in ClearAllMarkBitmaps(). This is logical list reclassification,
-    // not a real sweep pass.
+    // Drain any residual unswept lists into swept lists before the next epoch
+    // flip. This is logical list reclassification, not a real sweep pass.
     void ReclassifyUnsweptToSwept();
 
     // Re-enable lazy sweep after MarkSetup bitmap clearing is complete.
@@ -629,7 +649,17 @@ private:
     }
     void DecrementEmptySweptCount(size_t count = 1)
     {
-        emptySweptCount_.fetch_sub(count, std::memory_order_release);
+        if (count == 0) {
+            return;
+        }
+        size_t oldCount = emptySweptCount_.load(std::memory_order_acquire);
+        for (;;) {
+            size_t newCount = oldCount > count ? oldCount - count : 0;
+            if (emptySweptCount_.compare_exchange_weak(oldCount, newCount,
+                std::memory_order_acq_rel, std::memory_order_acquire)) {
+                return;
+            }
+        }
     }
 
     static std::atomic<uint32_t> globalSweepGen_;

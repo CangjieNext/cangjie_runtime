@@ -474,26 +474,35 @@ inline void Mutator::GcPhaseEnum(GCPhase newPhase)
 {
     std::set<BaseObject*> rootSet;
     std::stack<BaseObject*> rootStack;
+    auto checkAndPush = [&rootSet, &rootStack](BaseObject* obj) -> bool {
+        if (rootSet.insert(obj).second && obj->IsValidObject() && obj->HasRefField()) {
+            rootStack.push(obj);
+            return true;
+        }
+        return false;
+    };
     auto pushRoot = [](BaseObject* obj) {
         Allocator::PushRootToBuffer(obj);
     };
-    RefFieldVisitor refVisitor = [&rootSet, &rootStack, this, &pushRoot](RefField<>& refFieldAddr) {
+    RefFieldVisitor refVisitor =
+        [&checkAndPush, this, &pushRoot](RefField<>& refFieldAddr) {
         BaseObject* obj = refFieldAddr.GetTargetObject();
         if (Heap::IsHeapAddress(obj)) {
             pushRoot(obj);
             DLOG(ENUM, "enum stack root RefField @%p: %p", &refFieldAddr, obj);
         } else if (IsStackAddr(reinterpret_cast<uintptr_t>(obj))) {
-            CheckAndPush(obj, rootSet, rootStack);
+            (void)checkAndPush(obj);
         }
     };
 
-    RootVisitor visitor = [&rootSet, &rootStack, this, &refVisitor, &pushRoot](ObjectRef& root) {
+    RootVisitor visitor =
+        [&checkAndPush, this, &refVisitor, &pushRoot, &rootStack](ObjectRef& root) {
         BaseObject* obj = root.object;
         if (Heap::IsHeapAddress(obj)) {
             pushRoot(obj);
             DLOG(ENUM, "enum stack root @%p: %p", &root, obj);
         } else if (IsStackAddr(reinterpret_cast<uintptr_t>(obj))) {
-            CheckAndPush(obj, rootSet, rootStack);
+            (void)checkAndPush(obj);
         }
         while (!rootStack.empty()) {
             BaseObject* obj = rootStack.top();

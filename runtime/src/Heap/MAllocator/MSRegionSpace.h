@@ -83,8 +83,11 @@ public:
     size_t GetHeapInUseBytes() const;
     // Swept-retained heap bytes = GetSweptMSRegionCount() * MS_REGION_SIZE.
     size_t GetSweptHeapBytes() const;
+    // Central-pool cache bytes = emptySwept + largeHotCache.
+    size_t GetCentralCacheBytes() const;
     size_t GetHeapRetainedBytes() const;
     size_t GetHeapThresholdBytes() const;
+    size_t GetScavengeThresholdBytes() const;
     size_t GetHotFreeBytes() const;
     bool HasEmptySweptRegions() const;
     // On-demand flush of the empty-swept cache → FreeManager hot-free supply.
@@ -97,14 +100,23 @@ public:
     size_t FlushAllLargeHotCache();
     // Flush up to maxBytes (largest entries first) of the large hot cache.
     size_t FlushLargeHotCacheUpToBytes(size_t maxBytes);
+    // Batch-flush central-pool caches into hot-free / releasedTree until the
+    // remaining cache footprint is <= thresholdBytes. Large cache is drained first.
+    size_t FlushCentralCacheToThreshold(size_t thresholdBytes);
     // Step B: release up to quantumBytes of hot-free regions to OS. Returns bytes released.
     size_t BackgroundScavenge(size_t quantumBytes);
-    // Step C: shrink committed heap end after scavenging.
-    void BackgroundShrinkHeap();
-    // True when heapRetained > heapThreshold (scavenge work remains).
+    // Release one fully-idle segment worth of pages while keeping the current
+    // committed/owned-segment topology intact. Returns newly released bytes.
+    size_t BackgroundShrinkOneSegment();
+    // True when heapRetained > scavengeThreshold (scavenge work remains).
     bool HasPendingScavengeWork() const;
-    // Trigger scavenge when heapRetained exceeds heapThreshold.
+    // True when at least one segment has no in-use regions and still holds
+    // unreleased physical pages or central-pool cached regions.
+    bool HasPendingShrinkWork() const;
+    // Trigger scavenge when heapRetained exceeds scavengeThreshold.
     void MaybeNotifyScavenge();
+    // Trigger shrink when an idle segment can release physical pages.
+    void MaybeNotifyShrink();
 
     inline size_t GetTargetSize() const
     {

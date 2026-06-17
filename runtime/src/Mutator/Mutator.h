@@ -350,18 +350,8 @@ public:
         local->encodedGCPhase = EncodeThreadLocalGCPhaseByte(phase);
     }
 
-    void TransitionToGCPhaseExclusive(GCPhase newPhase);
-
-    void TransitionToCpuProfileExclusive();
-
-    // Ensure that mutator phase is changed only once by mutator itself or GC
-    __attribute__((always_inline)) inline bool TransitionGCPhase(bool bySelf);
-
-    __attribute__((always_inline)) inline bool TransitionToCpuProfile(bool bySelf);
-
-    __attribute__((always_inline)) inline void SetMutatorPhase(const GCPhase newPhase)
+    __attribute__((always_inline)) inline void PublishThreadLocalGCPhase(const GCPhase newPhase)
     {
-        mutatorPhase.store(newPhase, std::memory_order_release);
         ThreadLocalData* local = ThreadLocal::GetThreadLocalData();
         if (local->mutator == this) {
             SetThreadLocalGCPhase(local, newPhase);
@@ -376,6 +366,21 @@ public:
                 SetThreadLocalGCPhase(targetLocal, newPhase);
             }
         }
+    }
+
+    void TransitionToGCPhaseExclusive(GCPhase newPhase);
+
+    void TransitionToCpuProfileExclusive();
+
+    // Ensure that mutator phase is changed only once by mutator itself or GC
+    __attribute__((always_inline)) inline bool TransitionGCPhase(bool bySelf);
+
+    __attribute__((always_inline)) inline bool TransitionToCpuProfile(bool bySelf);
+
+    __attribute__((always_inline)) inline void SetMutatorPhase(const GCPhase newPhase)
+    {
+        mutatorPhase.store(newPhase, std::memory_order_release);
+        PublishThreadLocalGCPhase(newPhase);
     }
 
     __attribute__((always_inline)) inline GCPhase GetMutatorPhase() const

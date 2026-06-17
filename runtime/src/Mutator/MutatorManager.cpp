@@ -20,9 +20,40 @@
 #include "CpuProfiler/CpuProfiler.h"
 #ifdef MRT_USE_MARK_SWEEP
 #include "Heap/MAllocator/MSAllocBuffer.h"
+#include "Heap/MCollector/MarkSweepCollector.h"
 #endif
 
 namespace MapleRuntime {
+namespace {
+#ifdef MRT_USE_MARK_SWEEP
+bool IsMSMarkPhase(GCPhase phase)
+{
+    return phase == GCPhase::GC_PHASE_MS_MARK_SETUP ||
+           phase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK ||
+           phase == GCPhase::GC_PHASE_MS_MARK_TERMINATION;
+}
+
+void MaybeFlushPendingMSMarkWorkOnMutatorExit(Mutator* mutator)
+{
+    if (mutator == nullptr) {
+        return;
+    }
+    GCPhase phase = Heap::GetHeap().GetGCPhase();
+    if (!IsMSMarkPhase(phase)) {
+        return;
+    }
+
+    WriteBarrierBuffer& wbBuf = mutator->GetWriteBarrierBuffer();
+    if (wbBuf.Count() == 0) {
+        return;
+    }
+
+    auto& collector = static_cast<MarkSweepCollector&>(Heap::GetHeap().GetCollector());
+    collector.FlushExitedMutatorWriteBarrierBuffer(wbBuf);
+}
+#endif
+} // namespace
+
 extern "C" uintptr_t MRT_GetSafepointProtectedPage()
 {
     return static_cast<uintptr_t>(true);
@@ -75,14 +106,14 @@ void MutatorManager::BindMutator(Mutator& mutator) const
     Allocator::EnsureThreadLocalBuffer();
     mutator.SetSafepointStatePtr(&tlData->safepointState);
     mutator.SetSafepointActive(false);
-    tlData->mutator = &mutator;
+    ThreadLocal::SetMutator(&mutator);
 }
 
 void MutatorManager::UnbindMutator(Mutator& mutator) const
 {
     ThreadLocalData* tlData = ThreadLocal::GetThreadLocalData();
     MRT_ASSERT(tlData->mutator == &mutator, "mutator in ThreadLocalData doesn't match in cjthread");
-    tlData->mutator = nullptr;
+    ThreadLocal::SetMutator(nullptr);
     mutator.SetSafepointStatePtr(nullptr);
 }
 
@@ -115,6 +146,9 @@ void MutatorManager::TransitMutatorToExit()
     CHECK_DETAIL(mutator != nullptr, "Mutator has not initialized or has been fini: %p", mutator);
     // Enter saferegion to avoid blocking gc stw
     mutator->MutatorLock();
+#ifdef MRT_USE_MARK_SWEEP
+    MaybeFlushPendingMSMarkWorkOnMutatorExit(mutator);
+#endif
     mutator->ResetMutator();
     mutator->MutatorUnlock();
     (void)mutator->EnterSaferegion(false);
@@ -135,6 +169,9 @@ void MutatorManager::DestroyExpiredMutators()
 
 void MutatorManager::DestroyMutator(Mutator* mutator)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    MaybeFlushPendingMSMarkWorkOnMutatorExit(mutator);
+#endif
     if (TryAcquireMutatorManagementRLock()) {
         delete mutator; // call ~Mutator() under mutatorListLock
         MutatorManagementRUnlock();
@@ -182,6 +219,9 @@ void MutatorManager::DestroyRuntimeMutator(ThreadType threadType)
 
     MutatorManagementRLock();
     (void)mutator->LeaveSaferegion();
+#ifdef MRT_USE_MARK_SWEEP
+    MaybeFlushPendingMSMarkWorkOnMutatorExit(mutator);
+#endif
     // fp mutator is a static instance, we can't delete it, we reset the mutator to avoid invalid memory
     // access when static instance destruction.
     if (threadType != ThreadType::FP_THREAD) {
@@ -505,11 +545,11 @@ void MutatorManager::TransitionAllMutatorsToGCPhase(GCPhase phase)
     Heap::GetHeap().InstallBarrier(phase);
 #ifdef MRT_USE_MARK_SWEEP
     // MSGC compiler fast paths read the phase from mutator TLS. Publish the
-    // target phase to TLS before the global phase changes, while still keeping
-    // the normal handshake below for phase-specific mutator work such as stack
-    // root enumeration.
+    // target phase to TLS before the global phase changes, but do not update
+    // mutatorPhase here. mutatorPhase is the completion marker for the
+    // handshake below; setting it early can make MarkSetup skip GcPhaseEnum().
     VisitAllMutators([phase](Mutator& mutator) {
-        mutator.SetMutatorPhase(phase);
+        mutator.PublishThreadLocalGCPhase(phase);
     });
 #endif
     Heap::GetHeap().SetGCPhase(phase);

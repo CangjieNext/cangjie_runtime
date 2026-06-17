@@ -11,9 +11,11 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <string>
 #include "Base/CString.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
+#include "Common/BaseObject.h"
 #include "CangjieRuntime.h"
 #include "Common/GCRefFieldScan.inline.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
@@ -28,6 +30,7 @@
 #include "Heap/Collector/ForwardDataManager.h"
 #include "Heap/Heap.h"
 #include "Mutator/MutatorManager.h"
+#include "TypeInfoManager.h"
 
 #ifndef _WIN32
 #include <unistd.h>  // usleep
@@ -56,9 +59,19 @@ size_t ReadEnvCount(const char* name, size_t fallback)
     return value == 0 ? fallback : value;
 }
 
-bool IsMSMarkingFastState(uint8_t gcFastState)
+size_t ComputeScavengeThresholdBytes(size_t heapThresholdBytes, double scavengeGrowth)
 {
-    return (gcFastState & ThreadLocal::GC_FAST_STATE_MS_MARKING) != 0;
+    if (heapThresholdBytes == 0) {
+        return 0;
+    }
+    if (scavengeGrowth <= 0.0) {
+        return heapThresholdBytes;
+    }
+    long double scaled = static_cast<long double>(heapThresholdBytes) * static_cast<long double>(scavengeGrowth);
+    if (scaled >= static_cast<long double>(std::numeric_limits<size_t>::max())) {
+        return std::numeric_limits<size_t>::max();
+    }
+    return static_cast<size_t>(scaled);
 }
 
 class WorkStackGreySink final : public MarkSweepCollector::GreyWorkSink {
@@ -73,32 +86,6 @@ public:
 private:
     MarkSweepCollector::WorkStack& workStack_;
 };
-}
-
-static bool IsHashMapTraceEnabled()
-{
-    static bool enabled = []() {
-        const char* env = std::getenv("CJ_MS_HASHMAP_TRACE");
-        return env != nullptr && env[0] != '\0' && std::strcmp(env, "0") != 0;
-    }();
-    return enabled;
-}
-
-static bool HashMapTracePermit()
-{
-    static size_t budget = []() -> size_t {
-        const char* env = std::getenv("CJ_MS_HASHMAP_TRACE_LIMIT");
-        if (env == nullptr || env[0] == '\0') {
-            return 256;
-        }
-        long v = std::strtol(env, nullptr, 10);
-        return v > 0 ? static_cast<size_t>(v) : 256;
-    }();
-    if (budget == 0) {
-        return false;
-    }
-    --budget;
-    return true;
 }
 
 static const char* GetDiagTypeName(const BaseObject* obj)
@@ -120,13 +107,152 @@ static bool IsInterestingDiagType(const BaseObject* obj)
     return std::strstr(name, "HashMap") != nullptr ||
            std::strstr(name, "HashMapEntry") != nullptr ||
            std::strstr(name, "ArrayList") != nullptr ||
+           std::strstr(name, "Timer") != nullptr ||
            std::strstr(name, "RawArray") != nullptr;
+}
+
+static bool IsVerifyDetailEnabled()
+{
+    static bool enabled = []() {
+        const char* env = std::getenv("CJ_MS_VERIFY_MARK_DETAIL");
+        return env != nullptr && env[0] != '\0' && std::strcmp(env, "0") != 0;
+    }();
+    return enabled;
+}
+
+static std::string HexForDiag(uintptr_t value)
+{
+    char buf[32];
+    std::snprintf(buf, sizeof(buf), "0x%zx", value);
+    return std::string(buf);
+}
+
+static std::string DescribeTypeLayoutForDiag(TypeInfo* ti)
+{
+    if (ti == nullptr) {
+        return "type=<null>";
+    }
+
+    TypeGCInfo gcInfo;
+    CString gcTibStr = gcInfo.GetGCTibStr(ti);
+    std::string desc = "type=";
+    desc += (ti->GetName() != nullptr) ? ti->GetName() : "<?>";
+    desc += " kind=" + std::to_string(static_cast<int>(ti->GetType()));
+    desc += " inst=" + std::to_string(static_cast<size_t>(ti->GetInstanceSize()));
+    desc += " align=" + std::to_string(static_cast<size_t>(ti->GetAlign()));
+    desc += " hasRef=" + std::to_string(static_cast<int>(ti->HasRefField()));
+    desc += " fieldNum=" + std::to_string(static_cast<unsigned>(ti->GetFieldNum()));
+    desc += " gctib=" + std::string(gcTibStr.Str());
+
+    if (ti->IsRawArray()) {
+        desc += " component={";
+        desc += DescribeTypeLayoutForDiag(ti->GetComponentTypeInfo());
+        desc += "}";
+        return desc;
+    }
+
+    if (ti->GetFieldNum() == 0) {
+        return desc;
+    }
+
+    desc += " fields=[";
+    U32* offsets = ti->GetFieldOffsets();
+    for (U16 i = 0; i < ti->GetFieldNum(); ++i) {
+        if (i != 0) {
+            desc += ", ";
+        }
+        TypeInfo* fieldTi = ti->GetFieldType(i);
+        desc += std::to_string(static_cast<unsigned>(i));
+        desc += ":off=" + std::to_string(static_cast<unsigned>(offsets[i]));
+        desc += ":";
+        desc += (fieldTi != nullptr && fieldTi->GetName() != nullptr) ? fieldTi->GetName() : "<?>";
+    }
+    desc += "]";
+    return desc;
+}
+
+static std::string DescribeSlotForDiag(BaseObject* obj, RefField<>& field)
+{
+    uintptr_t objAddr = reinterpret_cast<uintptr_t>(obj);
+    uintptr_t slotAddr = reinterpret_cast<uintptr_t>(&field);
+    std::string desc = "slotAddr=" + HexForDiag(slotAddr) +
+                       " slotObjOff=" + std::to_string(static_cast<size_t>(slotAddr - objAddr));
+
+    TypeInfo* ti = obj != nullptr ? obj->GetTypeInfo() : nullptr;
+    if (ti == nullptr) {
+        return desc;
+    }
+
+    if (ti->IsRawArray()) {
+        MArray* array = reinterpret_cast<MArray*>(obj);
+        uintptr_t contentAddr = objAddr + MArray::GetContentOffset();
+        uintptr_t contentOff = slotAddr - contentAddr;
+        TypeInfo* componentTi = array->GetComponentTypeInfo();
+        desc += " contentOff=" + std::to_string(static_cast<size_t>(contentOff));
+        if (componentTi != nullptr && componentTi->IsStructType()) {
+            size_t elemSize = array->GetElementSize();
+            size_t elemIndex = elemSize == 0 ? 0 : static_cast<size_t>(contentOff / elemSize);
+            size_t elemOff = elemSize == 0 ? 0 : static_cast<size_t>(contentOff % elemSize);
+            desc += " elemIndex=" + std::to_string(elemIndex);
+            desc += " elemOff=" + std::to_string(elemOff);
+            U32* offsets = componentTi->GetFieldOffsets();
+            for (U16 i = 0; i < componentTi->GetFieldNum(); ++i) {
+                if (offsets[i] != elemOff) {
+                    continue;
+                }
+                TypeInfo* fieldTi = componentTi->GetFieldType(i);
+                desc += " field=" + std::to_string(static_cast<unsigned>(i));
+                desc += ":";
+                desc += (fieldTi != nullptr && fieldTi->GetName() != nullptr) ? fieldTi->GetName() : "<?>";
+                break;
+            }
+        } else {
+            desc += " elemIndex=" +
+                    std::to_string(static_cast<size_t>(contentOff / sizeof(RefField<>)));
+        }
+        return desc;
+    }
+
+    uintptr_t payloadAddr = objAddr + TYPEINFO_PTR_SIZE;
+    uintptr_t payloadOff = slotAddr - payloadAddr;
+    desc += " payloadOff=" + std::to_string(static_cast<size_t>(payloadOff));
+    U32* offsets = ti->GetFieldOffsets();
+    for (U16 i = 0; i < ti->GetFieldNum(); ++i) {
+        if (offsets[i] != payloadOff) {
+            continue;
+        }
+        TypeInfo* fieldTi = ti->GetFieldType(i);
+        desc += " field=" + std::to_string(static_cast<unsigned>(i));
+        desc += ":";
+        desc += (fieldTi != nullptr && fieldTi->GetName() != nullptr) ? fieldTi->GetName() : "<?>";
+        break;
+    }
+    return desc;
 }
 
 // Helper: GC tracing paths only treat main-heap addresses as managed.
 static inline bool IsManagedAddress(MAddress addr)
 {
     return Heap::IsHeapAddress(addr);
+}
+
+static inline bool IsCurrentSweepGenObject(BaseObject* obj, uint32_t currentSweepGen)
+{
+    if (obj == nullptr) {
+        return false;
+    }
+
+    uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
+    if (!MSRegionInfoArray::IsHeapAddress(addr)) {
+        return false;
+    }
+
+    MSRegionInfo* msInfo = MSRegionInfoArray::GetRegionInfoValidated(addr);
+    if (msInfo == nullptr) {
+        return false;
+    }
+
+    return msInfo->GetSweepGen() == currentSweepGen;
 }
 
 static inline bool IsTraceableObjectAddress(BaseObject* obj)
@@ -168,6 +294,10 @@ static inline bool IsTraceableObjectAddress(BaseObject* obj)
         return false;
     }
     if (((addr - regionStart) % slotSize) != 0) {
+        return false;
+    }
+    size_t slotIdx = (addr - regionStart) / slotSize;
+    if (slotIdx >= msInfo->totalSlotCount) {
         return false;
     }
     if (msInfo->regionType == MSRegionType::MS_REGION_BUMP && addr >= msInfo->allocPtr) {
@@ -275,12 +405,11 @@ void MarkSweepCollector::DoGarbageCollection(uint64_t gcIndex)
 }
 
 // ============================================================================
-// Step 2.1a: PreEnumRoots  (GC thread only, no STW)
+// Step 2.1a: PreEnumRoots  (GC thread only)
 //   Stop all sweeps, wait for in-flight bg/lazy sweep to quiesce, clear
-//   markBitmaps, then stamp/reclassify any residual unswept regions as swept,
-//   and freeze this cycle's sweep snapshot. Regions returned by mutators after
-//   this point are stamped into the new sweep generation and will be swept in
-//   the next GC cycle.
+//   markBitmaps, then briefly stop the world for reclassify + generation flip
+//   that freezes this cycle's sweep snapshot.
+//
 // ============================================================================
 
 void MarkSweepCollector::PreEnumRoots()
@@ -294,20 +423,36 @@ void MarkSweepCollector::PreEnumRoots()
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
     
-    // Stop sweep → wait for in-flight sweep to quiesce → clear bitmaps
-    // → reclassify residual unswept entries → flip sweep generation BEFORE
-    // concurrent mark begins. Flipping the generation here (rather than in
-    // MarkTermination) guarantees that every region allocated during this GC
-    // cycle's mark phase carries the NEW sweep generation, so the current
+    // Stop sweep → wait for in-flight sweep to quiesce → under STW clear
+    // bitmaps / reclassify residual unswept entries / flip sweep generation
+    // BEFORE concurrent mark begins. Flipping the generation here (rather than
+    // in MarkTermination) guarantees that every region allocated during this
+    // GC cycle's mark phase carries the NEW sweep generation, so the current
     // sweep skips them. Otherwise such regions keep the OLD generation and get
     // swept this cycle, which wrongly reclaims live objects that are only held
     // by stack/local roots (those never pass through the write barrier).
-    // Safe pre-STW: no SweepRegion running, mark-at-alloc inactive.
+    // Safe pre-mark: no SweepRegion running, mark-at-alloc inactive.
     if (centralPool != nullptr) {
+        uint64_t stopSweepT0 = TimeUtil::MicroSeconds();
         centralPool->StopAndWaitForAllSweep();
-        centralPool->ClearAllMarkBitmaps();
-        centralPool->ReclassifyUnsweptToSwept();
-        centralPool->PrepareForSweep();
+        uint64_t stopSweepUs = TimeUtil::MicroSeconds() - stopSweepT0;
+
+        uint64_t clearBitmapUs = 0;
+        uint64_t stwT0 = TimeUtil::MicroSeconds();
+        {
+            ScopedStopTheWorld stw("MS PreEnumRoots clear/reclassify/prepare STW");
+            uint64_t clearBitmapT0 = TimeUtil::MicroSeconds();
+            centralPool->ClearAllMarkBitmaps();
+            clearBitmapUs = TimeUtil::MicroSeconds() - clearBitmapT0;
+            centralPool->ReclassifyUnsweptToSwept();
+            centralPool->PrepareForSweep();
+        }
+        uint64_t stwUs = TimeUtil::MicroSeconds() - stwT0;
+        VLOG(REPORT,
+             "[MS-GC] PreEnumRoots: stage-times stopSweep=%sus clearBitmaps=%sus stw=%sus",
+             Pretty(stopSweepUs).Str(),
+             Pretty(clearBitmapUs).Str(),
+             Pretty(stwUs).Str());
     }
     prevCycleMarkedObjects_.store(markedObjectCount.load(std::memory_order_relaxed), std::memory_order_relaxed);
     // Reset marked object counter (GC-thread-only, no STW needed).
@@ -343,18 +488,6 @@ void MarkSweepCollector::EnumRoots()
     cycleStats_.markSetupUs = TimeUtil::MicroSeconds() - phaseStart;
     VLOG(REPORT, "[MS-GC] EnumRoots: %sus, roots=%zu",
          Pretty(cycleStats_.markSetupUs).Str(), cycleStats_.rootsCount);
-}
-
-void MarkSweepCollector::ClearAllMarkBitmaps()
-{
-    // Mark bitmaps are now cleared in MarkSetup via CentralRegionPool::VisitAllRegions.
-    // This function is a no-op stub for interface compatibility.
-}
-
-void MarkSweepCollector::EnsureSweepDone()
-{
-    // Sweep completion is now ensured in MarkSetup via StopAndWaitForAllSweep().
-    // This function is a no-op stub for interface compatibility.
 }
 
 // ============================================================================
@@ -412,19 +545,6 @@ void MarkSweepCollector::DiscoverAndPushObject(BaseObject* obj, WorkStack& workS
     (void)TryEnqueueGreyObject(obj, sink);
 }
 
-void MarkSweepCollector::DebugVerifyQueuedGreyObject(const BaseObject* obj, const char* queueName) const
-{
-#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
-    CHECK_DETAIL(IsMarkedObject(obj),
-                 "[MS-GC] protocol violation: queue %s contains unmarked obj=%p",
-                 queueName, static_cast<const void*>(obj));
-#else
-    (void)obj;
-    (void)queueName;
-#endif
-}
-
-
 void MarkSweepCollector::EnumAndMarkRoots(WorkStack& workStack)
 {
     // MSGC does not need the parallel root-enumeration thread pool used by
@@ -439,7 +559,9 @@ void MarkSweepCollector::MergeRootsFromAllocBuffers(WorkStack& workStack)
     CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool != nullptr) {
         WorkStack mutatorRoots = NewWorkStack();
-        centralPool->VisitAllocBufferMS([&mutatorRoots](AllocBufferMS& buffer) { buffer.MergeRoots(mutatorRoots); });
+        centralPool->VisitAllocBufferMS([&mutatorRoots](AllocBufferMS& buffer) {
+            buffer.MergeRoots(mutatorRoots);
+        });
         while (!mutatorRoots.empty()) {
             BaseObject* obj = mutatorRoots.back();
             mutatorRoots.pop_back();
@@ -654,12 +776,6 @@ bool MarkSweepCollector::CheckConvergenceAndBreak()
     return true;
 }
 
-void MarkSweepCollector::DrainConcurrentOverflowQueueToMarkWork()
-{
-    std::lock_guard<std::mutex> lock(concurrentOverflowQueueMutex_);
-    markWorkStack_.insert(concurrentOverflowQueue_);
-}
-
 void MarkSweepCollector::DrainMarkWorkStack(size_t maxObjects, size_t& scannedCount)
 {
     scannedCount = 0;
@@ -671,7 +787,6 @@ void MarkSweepCollector::DrainMarkWorkStack(size_t maxObjects, size_t& scannedCo
         BaseObject* obj = markWorkStack_.back();
         markWorkStack_.pop_back();
         if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-            VLOG(REPORT, "[MS-GC] DrainMarkWorkStack: drop invalid obj=%p", static_cast<void*>(obj));
             continue;
         }
 
@@ -708,6 +823,7 @@ void MarkSweepCollector::ProcessDeferredWeakRefsPreSTW()
     // Drain items pushed by PushSingleToDeferredMainThread (from assist threads).
     // Assists are now disabled (ratio = 0), so no concurrent writers.
     GreyWorkQueue localQueue;
+    GreyWorkQueue keepForMarkTermination;
     {
         std::lock_guard<std::mutex> lock(deferredMainThreadMutex_);
         localQueue.insert(deferredMainThreadQueue_);
@@ -733,9 +849,15 @@ void MarkSweepCollector::ProcessDeferredWeakRefsPreSTW()
             processed++;
             continue;
         }
-        // Non-WeakRef deferred items (defensive): trace normally.
-        TraceObjectRefFields(obj, markWorkStack_.UnsafeRaw());
-        processed++;
+        // Non-WeakRef deferred items may still be under construction (for
+        // example newly-created finalizer objects). Keep them for
+        // MarkTermination so the GC main thread scans them under STW after
+        // mutator initialization stores have quiesced.
+        keepForMarkTermination.PushMovedGrey(obj);
+    }
+    if (!keepForMarkTermination.empty()) {
+        std::lock_guard<std::mutex> lock(deferredMainThreadMutex_);
+        deferredMainThreadQueue_.insert(keepForMarkTermination);
     }
     while (!markWorkStack_.empty()) {
         size_t scannedCount = 0;
@@ -764,7 +886,6 @@ void MarkSweepCollector::DrainGCWork(PerPGCWork& gcw, size_t maxObjects,
         }
 
         if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-            VLOG(REPORT, "[MS-GC] DrainGCWork: drop invalid obj=%p", static_cast<void*>(obj));
             continue;
         }
 
@@ -893,30 +1014,15 @@ void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
 
     WorkBuf* buf = workBufPool_.Get();
     size_t bufsUsed = 0;
-    size_t queued = 0;
-    size_t dropped = 0;
     for (size_t i = 0; i < n; i++) {
         BaseObject* obj = data[i];
         if (obj == nullptr) {
             continue;
         }
         if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-            dropped++;
-            VLOG(REPORT,
-                 "[MS-GC] Enqueue source=WBBOverflow drop non-traceable obj=%p idx=%zu",
-                 static_cast<void*>(obj),
-                 i);
             continue;
         }
-        uintptr_t stateWord = LoadStateWordForDiag(obj);
         if (UNLIKELY(!obj->IsValidObject())) {
-            dropped++;
-            VLOG(REPORT,
-                 "[MS-GC] Enqueue source=WBBOverflow drop invalid obj=%p idx=%zu stateWord=0x%zx markBit=%d",
-                 static_cast<void*>(obj),
-                 i,
-                 stateWord,
-                 static_cast<int>(IsMarkedObject(obj)));
             continue;
         }
         if (buf->Full()) {
@@ -925,7 +1031,6 @@ void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
             buf = workBufPool_.Get();
         }
         buf->Push(obj);
-        queued++;
     }
     if (!buf->Empty()) {
         flushBuf(buf);
@@ -937,12 +1042,45 @@ void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
     if (bufsUsed > 0) {
         globalShareCount_.fetch_add(bufsUsed, std::memory_order_relaxed);
     }
-    if (dropped > 0) {
-        VLOG(REPORT,
-             "[MS-GC] Enqueue source=WBBOverflow queued=%zu dropped=%zu workBufs=%zu",
-             queued,
-             dropped,
-             bufsUsed);
+}
+
+void MarkSweepCollector::FlushExitedMutatorWriteBarrierBuffer(WriteBarrierBuffer& wbBuf)
+{
+    size_t n = wbBuf.Count();
+    if (n == 0) {
+        return;
+    }
+
+    BaseObject** data = wbBuf.Data();
+    WorkBuf* buf = workBufPool_.Get();
+    size_t bufsUsed = 0;
+    for (size_t i = 0; i < n; ++i) {
+        BaseObject* obj = data[i];
+        if (obj == nullptr) {
+            continue;
+        }
+        if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
+            continue;
+        }
+        if (UNLIKELY(!obj->IsValidObject())) {
+            continue;
+        }
+        if (buf->Full()) {
+            globalFull_.Push(buf);
+            bufsUsed++;
+            buf = workBufPool_.Get();
+        }
+        buf->Push(obj);
+    }
+    if (!buf->Empty()) {
+        globalFull_.Push(buf);
+        bufsUsed++;
+    } else {
+        workBufPool_.Put(buf);
+    }
+    wbBuf.Clear();
+    if (bufsUsed > 0) {
+        globalShareCount_.fetch_add(bufsUsed, std::memory_order_relaxed);
     }
 }
 
@@ -952,18 +1090,9 @@ void MarkSweepCollector::PushSingleToDeferredMainThread(BaseObject* obj)
         return;
     }
     if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-        VLOG(REPORT,
-             "[MS-GC] Enqueue source=DeferredMain drop non-traceable obj=%p",
-             static_cast<void*>(obj));
         return;
     }
-    uintptr_t stateWord = LoadStateWordForDiag(obj);
     if (UNLIKELY(!obj->IsValidObject())) {
-        VLOG(REPORT,
-             "[MS-GC] Enqueue source=DeferredMain drop invalid obj=%p stateWord=0x%zx markBit=%d",
-             static_cast<void*>(obj),
-             stateWord,
-             static_cast<int>(IsMarkedObject(obj)));
         return;
     }
     std::lock_guard<std::mutex> lock(deferredMainThreadMutex_);
@@ -976,54 +1105,25 @@ void MarkSweepCollector::PushSingleToDeferredMainThread(BaseObject* obj)
 
 void MarkSweepCollector::DrainGlobalLFStackToMainQueue(GreyWorkQueue& mainQueue)
 {
-    size_t moved = 0;
-    size_t dropped = 0;
-    size_t buffers = 0;
     while (true) {
         WorkBuf* buf = globalFull_.Pop();
         if (buf == nullptr) {
             break;
         }
-        buffers++;
         for (size_t i = 0; i < buf->len; i++) {
             BaseObject* obj = buf->objs[i];
             if (obj == nullptr) {
                 continue;
             }
             if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-                dropped++;
-                VLOG(REPORT,
-                     "[MS-GC] MarkTermination source=globalFull drop non-traceable obj=%p buf=%p slot=%zu len=%zu",
-                     static_cast<void*>(obj),
-                     static_cast<void*>(buf),
-                     i,
-                     buf->len);
                 continue;
             }
-            uintptr_t stateWord = LoadStateWordForDiag(obj);
             if (UNLIKELY(!obj->IsValidObject())) {
-                dropped++;
-                VLOG(REPORT,
-                     "[MS-GC] MarkTermination source=globalFull drop invalid obj=%p stateWord=0x%zx markBit=%d buf=%p slot=%zu len=%zu",
-                     static_cast<void*>(obj),
-                     stateWord,
-                     static_cast<int>(IsMarkedObject(obj)),
-                     static_cast<void*>(buf),
-                     i,
-                     buf->len);
                 continue;
             }
             mainQueue.PushMovedGrey(obj);
-            moved++;
         }
         workBufPool_.Put(buf);
-    }
-    if (dropped > 0) {
-        VLOG(REPORT,
-             "[MS-GC] MarkTermination source=globalFull moved=%zu dropped=%zu buffers=%zu",
-             moved,
-             dropped,
-             buffers);
     }
 }
 
@@ -1111,7 +1211,6 @@ size_t MarkSweepCollector::DrainOneBufRound(PerPGCWork& gcw)
     while (gcw.getCur_ != nullptr && !gcw.getCur_->Empty()) {
         BaseObject* obj = gcw.getCur_->Pop();
         if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-            VLOG(REPORT, "[MS-GC] DrainOneBufRound: drop invalid obj=%p", static_cast<void*>(obj));
             continue;
         }
         if (UNLIKELY(!obj->IsValidObject())) {
@@ -1239,42 +1338,51 @@ void MarkSweepCollector::MarkTermination()
     CentralRegionPool* centralPool = space.GetCentralPool();
 
     GreyWorkQueue mainQueue;
-    size_t directSourceEntries = 0;
-    size_t pendingWorkEntries = 0;
+    size_t pendingSourceEntries = 0;
     size_t resurrectionEntries = 0;
 
-    // 1. Collect direct mutator/barrier sources:
-    //    WriteBarrierBuffer only.
-    {
+    auto collectPendingMarkWork = [this, &mainQueue]() -> size_t {
         size_t before = mainQueue.size();
         FlushAllWriteBarrierBuffers(mainQueue);
-        (void)before;
-
-        directSourceEntries = mainQueue.size();
-    }
-
-    // 2. Collect pending concurrent-mark work:
-    //    Step5: Dispose all per-P gcWork + global LFStack +
-    //    deferred main-thread-only special work.
-    {
         DisposeAllPerPGCWork();
         DrainGlobalLFStackToMainQueue(mainQueue);
         DrainDeferredMainThreadQueueToMainQueue(mainQueue);
-        pendingWorkEntries = mainQueue.size() - directSourceEntries;
-    }
+        return mainQueue.size() - before;
+    };
 
-    // 3. Collect resurrection/finalizer-related candidates.
+    // 1. Collect pending mutator/barrier/concurrent-mark work. Some paths can
+    // publish grey work very close to the STW boundary, so MarkTermination drains
+    // all sources to a fixed point instead of relying on a single snapshot.
+    pendingSourceEntries += collectPendingMarkWork();
+
+    // 2. Collect resurrection/finalizer-related candidates.
     {
         CollectResurrectionCandidatesToMain(mainQueue);
-        resurrectionEntries = mainQueue.size() - (directSourceEntries + pendingWorkEntries);
+        resurrectionEntries = mainQueue.size() - pendingSourceEntries;
     }
 
-    // 4. Drain main queue with Execute-like loop (same as concurrent mark logic)
+    // 3. Drain main queue with Execute-like loop (same as concurrent mark logic)
+    // and re-check all external work sources until no delayed grey work remains.
     {
         size_t beforeMark = markedObjectCount.load(std::memory_order_relaxed);
-        ExecuteLikeDrainMainQueue(mainQueue);
+        cycleStats_.markTermProcessedObjects = 0;
+        size_t lateSourceEntries = 0;
+        size_t drainRounds = 0;
+        do {
+            drainRounds++;
+            ExecuteLikeDrainMainQueue(mainQueue);
+            size_t added = collectPendingMarkWork();
+            lateSourceEntries += added;
+            pendingSourceEntries += added;
+        } while (!mainQueue.empty());
         cycleStats_.markTermNewlyMarkedObjects =
             markedObjectCount.load(std::memory_order_relaxed) - beforeMark;
+        if (lateSourceEntries != 0 || drainRounds > 1) {
+            VLOG(REPORT,
+                 "[MS-GC] MarkTermination fixed-point drain: rounds=%zu lateEntries=%zu",
+                 drainRounds,
+                 lateSourceEntries);
+        }
     }
 
     // 4b. Diagnostic: marking is now complete and all mutators are frozen
@@ -1295,7 +1403,7 @@ void MarkSweepCollector::MarkTermination()
          "[MS-GC] MarkTermination total: %sus, flushed=%zu entries, resurrection=%zu entries, "
          "processed=%zu objects, newlyMarked=%zu",
          Pretty(cycleStats_.markTerminationUs).Str(),
-         directSourceEntries + pendingWorkEntries,
+         pendingSourceEntries,
          resurrectionEntries,
          cycleStats_.markTermProcessedObjects,
          cycleStats_.markTermNewlyMarkedObjects);
@@ -1311,82 +1419,32 @@ void MarkSweepCollector::MarkTermination()
     }
 }
 
-void MarkSweepCollector::CollectUnmarkedToMainQueue(GreyWorkQueue& mainQueue)
-{
-    // Collect extern (foreign) object candidates
-    CollectExternCandidatesToMain(mainQueue);
-
-    // Collect finalizer resurrection candidates
-    CollectResurrectionCandidatesToMain(mainQueue);
-}
-
 void MarkSweepCollector::FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue)
 {
-    size_t totalMoved = 0;
-    size_t totalDropped = 0;
-    size_t droppedMutators = 0;
-    auto func = [this, &mainQueue, &totalMoved, &totalDropped, &droppedMutators](Mutator& mutator) {
+    auto func = [this, &mainQueue](Mutator& mutator) {
         WriteBarrierBuffer& wbBuf = mutator.GetWriteBarrierBuffer();
         BaseObject** data = wbBuf.Data();
         size_t n = wbBuf.Count();
-        size_t localMoved = 0;
-        size_t localDropped = 0;
         for (size_t i = 0; i < n; ++i) {
             BaseObject* obj = data[i];
             if (obj == nullptr) {
                 continue;
             }
             if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-                localDropped++;
-                VLOG(REPORT,
-                     "[MS-GC] MarkTermination source=WBB drop non-traceable obj=%p mutatorTid=%u idx=%zu",
-                     static_cast<void*>(obj),
-                     mutator.GetTid(),
-                     i);
                 continue;
             }
-            uintptr_t stateWord = LoadStateWordForDiag(obj);
             if (UNLIKELY(!obj->IsValidObject())) {
-                localDropped++;
-                VLOG(REPORT,
-                     "[MS-GC] MarkTermination source=WBB drop invalid obj=%p stateWord=0x%zx markBit=%d mutatorTid=%u idx=%zu",
-                     static_cast<void*>(obj),
-                     stateWord,
-                     static_cast<int>(IsMarkedObject(obj)),
-                     mutator.GetTid(),
-                     i);
                 continue;
             }
             mainQueue.PushMovedGrey(obj);
-            localMoved++;
         }
         wbBuf.Clear();
-        totalMoved += localMoved;
-        totalDropped += localDropped;
-        if (localDropped > 0) {
-            droppedMutators++;
-            VLOG(REPORT,
-                 "[MS-GC] MarkTermination source=WBB mutatorTid=%u buffered=%zu moved=%zu dropped=%zu",
-                 mutator.GetTid(),
-                 n,
-                 localMoved,
-                 localDropped);
-        }
     };
     MutatorManager::Instance().VisitAllMutators(func);
-    if (totalDropped > 0) {
-        VLOG(REPORT,
-             "[MS-GC] MarkTermination source=WBB totalMoved=%zu totalDropped=%zu mutatorsWithDrops=%zu",
-             totalMoved,
-             totalDropped,
-             droppedMutators);
-    }
 }
 
 void MarkSweepCollector::DrainDeferredMainThreadQueueToMainQueue(GreyWorkQueue& mainQueue)
 {
-    size_t moved = 0;
-    size_t dropped = 0;
     std::lock_guard<std::mutex> lock(deferredMainThreadMutex_);
     while (!deferredMainThreadQueue_.empty()) {
         BaseObject* obj = deferredMainThreadQueue_.back();
@@ -1395,30 +1453,12 @@ void MarkSweepCollector::DrainDeferredMainThreadQueueToMainQueue(GreyWorkQueue& 
             continue;
         }
         if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-            dropped++;
-            VLOG(REPORT,
-                 "[MS-GC] MarkTermination source=deferredMain drop non-traceable obj=%p",
-                 static_cast<void*>(obj));
             continue;
         }
-        uintptr_t stateWord = LoadStateWordForDiag(obj);
         if (UNLIKELY(!obj->IsValidObject())) {
-            dropped++;
-            VLOG(REPORT,
-                 "[MS-GC] MarkTermination source=deferredMain drop invalid obj=%p stateWord=0x%zx markBit=%d",
-                 static_cast<void*>(obj),
-                 stateWord,
-                 static_cast<int>(IsMarkedObject(obj)));
             continue;
         }
         mainQueue.PushMovedGrey(obj);
-        moved++;
-    }
-    if (dropped > 0) {
-        VLOG(REPORT,
-             "[MS-GC] MarkTermination source=deferredMain moved=%zu dropped=%zu",
-             moved,
-             dropped);
     }
 }
 
@@ -1480,7 +1520,7 @@ void MarkSweepCollector::ExecuteLikeDrainMainQueue(GreyWorkQueue& mainQueue)
         TraceObjectRefFields(obj, mainQueue.UnsafeRaw());
     }
 
-    cycleStats_.markTermProcessedObjects = processed;
+    cycleStats_.markTermProcessedObjects += processed;
 }
 
 // ============================================================================
@@ -1591,6 +1631,12 @@ void MarkSweepCollector::VerifyMarkCompleteness()
     constexpr size_t kMaxReport = 32;
     size_t violations = 0;
     size_t markedScanned = 0;
+    size_t benignCurrentSweepGenTargets = 0;
+    size_t staleManagedTargets = 0;
+    size_t staleNonTraceableTargets = 0;
+    size_t staleInvalidTargets = 0;
+    size_t staleReported = 0;
+    const uint32_t currentSweepGen = CentralRegionPool::GetGlobalSweepGen();
 
     centralPool->VisitMarkedObjects([&](BaseObject* obj) {
         markedScanned++;
@@ -1603,11 +1649,59 @@ void MarkSweepCollector::VerifyMarkCompleteness()
                 !IsManagedAddress(reinterpret_cast<MAddress>(target))) {
                 return;
             }
+
+            const bool targetTraceable = IsTraceableObjectAddress(target);
+            const bool targetValid = targetTraceable && target->IsValidObject();
+            if (!targetTraceable || !targetValid) {
+                staleManagedTargets++;
+                if (!targetTraceable) {
+                    staleNonTraceableTargets++;
+                } else {
+                    staleInvalidTargets++;
+                }
+                if (staleReported < kMaxReport &&
+                    UNLIKELY(IsVerifyDetailEnabled() && IsInterestingDiagType(obj))) {
+                    uintptr_t refState = LoadStateWordForDiag(obj);
+                    uintptr_t tgtState = LoadStateWordForDiag(target);
+                    const char* refType =
+                        (obj->GetTypeInfo() != nullptr && obj->GetTypeInfo()->GetName() != nullptr)
+                            ? obj->GetTypeInfo()->GetName() : "<?>";
+                    VLOG(REPORT,
+                         "[MS-GC][VERIFY] stale-ref: referrer=%p type=%s state=0x%zx -> "
+                         "target=%p state=0x%zx traceable=%d valid=%d",
+                         static_cast<void*>(obj),
+                         refType,
+                         refState,
+                         static_cast<void*>(target),
+                         tgtState,
+                         static_cast<int>(targetTraceable),
+                         static_cast<int>(targetValid));
+                    std::string slotDesc = DescribeSlotForDiag(obj, field);
+                    std::string refLayout = DescribeTypeLayoutForDiag(obj->GetTypeInfo());
+                    VLOG(REPORT,
+                         "[MS-GC][VERIFY] stale-ref-detail: referrer=%p %s layout={%s}",
+                         static_cast<void*>(obj),
+                         slotDesc.c_str(),
+                         refLayout.c_str());
+                    staleReported++;
+                }
+                return;
+            }
             if (IsMarkedObject(target)) {
                 return;
             }
-            // Marked referrer -> unmarked managed target: target will be swept
-            // while still reachable. This is the missed-mark UAF.
+            // Regions allocated/rebound after PreEnumRoots carry the current
+            // sweep generation and are treated as "already swept" for this
+            // cycle. Unmarked objects there are not reclaim candidates in the
+            // current sweep, so do not count them as missed-mark violations.
+            if (IsCurrentSweepGenObject(target, currentSweepGen)) {
+                benignCurrentSweepGenTargets++;
+                return;
+            }
+
+            // Marked referrer -> unmarked managed target in an older sweepGen:
+            // target is a real reclaim candidate this cycle, so this is the
+            // missed-mark UAF we want to catch.
             if (violations < kMaxReport) {
                 uintptr_t refState = LoadStateWordForDiag(obj);
                 uintptr_t tgtState = LoadStateWordForDiag(target);
@@ -1615,8 +1709,7 @@ void MarkSweepCollector::VerifyMarkCompleteness()
                     (obj->GetTypeInfo() != nullptr && obj->GetTypeInfo()->GetName() != nullptr)
                         ? obj->GetTypeInfo()->GetName() : "<?>";
                 const char* tgtType =
-                    (IsTraceableObjectAddress(target) && target->IsValidObject() &&
-                     target->GetTypeInfo() != nullptr && target->GetTypeInfo()->GetName() != nullptr)
+                    (target->GetTypeInfo() != nullptr && target->GetTypeInfo()->GetName() != nullptr)
                         ? target->GetTypeInfo()->GetName() : "<?>";
                 VLOG(REPORT,
                      "[MS-GC][VERIFY] missed-mark: referrer=%p type=%s state=0x%zx -> "
@@ -1627,8 +1720,17 @@ void MarkSweepCollector::VerifyMarkCompleteness()
                      static_cast<void*>(target),
                      tgtType,
                      tgtState,
-                     static_cast<int>(IsTraceableObjectAddress(target)),
-                     static_cast<int>(target->IsValidObject()));
+                     static_cast<int>(targetTraceable),
+                     static_cast<int>(targetValid));
+                if (UNLIKELY(IsVerifyDetailEnabled() && IsInterestingDiagType(obj))) {
+                    std::string slotDesc = DescribeSlotForDiag(obj, field);
+                    std::string refLayout = DescribeTypeLayoutForDiag(obj->GetTypeInfo());
+                    VLOG(REPORT,
+                         "[MS-GC][VERIFY] missed-mark-detail: referrer=%p %s layout={%s}",
+                         static_cast<void*>(obj),
+                         slotDesc.c_str(),
+                         refLayout.c_str());
+                }
             }
             violations++;
         };
@@ -1636,9 +1738,10 @@ void MarkSweepCollector::VerifyMarkCompleteness()
     });
 
     VLOG(REPORT,
-         "[MS-GC][VERIFY] mark-completeness: scanned=%zu markedObjs, violations=%zu",
-         markedScanned,
-         violations);
+         "[MS-GC][VERIFY] mark-completeness: scanned=%zu markedObjs, violations=%zu, "
+         "benignCurrentSg=%zu, staleManaged=%zu, staleNonTraceable=%zu, staleInvalid=%zu",
+         markedScanned, violations, benignCurrentSweepGenTargets,
+         staleManagedTargets, staleNonTraceableTargets, staleInvalidTargets);
 }
 
 void MarkSweepCollector::ConcurrentSweep()
@@ -1674,7 +1777,9 @@ void MarkSweepCollector::ConcurrentSweep()
              static_cast<size_t>(eagerSweepMaxTimeUs));
     }
 
-    Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor().NotifyToScavenge();
+    BackgroundProcessor& backgroundProcessor = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
+    backgroundProcessor.NotifyToSweep(kNoPreferredSweepClass);
+    backgroundProcessor.NotifyToScavenge();
 
     // Mark-Sweep: generation flip now happens at the tail of MarkTermination's
     // STW, before mutators resume. ConcurrentSweep only kicks off background
@@ -1698,6 +1803,7 @@ void MarkSweepCollector::MarkNewObject(BaseObject* obj)
     }
 
     MarkObject(obj);
+    PushSingleToDeferredMainThread(obj);
 }
 
 // ============================================================================
@@ -1955,16 +2061,14 @@ void MarkSweepCollector::UpdateGCStats()
     GCStats& gcStats = GetGCStats();
 
     size_t oldThreshold = gcStats.GetThreshold();
+    size_t oldScavengeThreshold = gcStats.GetScavengeThreshold();
     size_t oldLastTrueLiveBytes = gcStats.lastTrueLiveBytes;
     size_t preActiveRegionBytes = gcStats.lastRegionBytes;
-    // Use mark-bit based live bytes (ComputeMarkedBytes, computed in PostMarkTermination).
-    // ComputeLiveBytesByOccupancy uses occupancy for partialSwept and TL regions,
-    // which counts objects allocated DURING the marking phase as "live".  This
-    // inflates the threshold each cycle, causing GC to fire less and less often.
-    // ComputeMarkedBytes counts only truly marked objects (new allocations have no
-    // mark bits), giving a stable and accurate live-heap estimate.
+    // Use mark-bit based live bytes (ComputeMarkedBytes, computed in
+    // PostMarkTermination). This counts only truly marked objects, so
+    // allocations made during the current marking phase do not inflate the
+    // next-cycle threshold.
     size_t liveBytes = cycleStats_.trueLiveBytes;
-    CentralRegionPool* centralPool = space.GetCentralPool();
     size_t activeRegionBytes = space.GetHeapInUseBytes();
 
     gcStats.lastTrueLiveBytes = liveBytes;
@@ -1974,10 +2078,11 @@ void MarkSweepCollector::UpdateGCStats()
     // MS-GC threshold (per spec):
     //   threshold = trueLive * (1 + heapGrowth)
     // heapGrowth is the runtime HeapParam value (configurable via cjHeapGrowth,
-    // default 0.5 → 1.5x), shared with GCStats::UpdateHeapThreshold.
+    // default 1.0 → 2.0x), shared with GCStats::UpdateHeapThreshold.
     size_t baseBytes = liveBytes;
 
     double heapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
+    double scavengeGrowth = ReadEnvPosDec("cjScavengeGrowth", heapGrowth);
     size_t gcThresholdCap = CangjieRuntime::GetGCParam().gcThreshold;
     size_t newThreshold = static_cast<size_t>(static_cast<double>(baseBytes) * (1.0 + heapGrowth));
     // Floor to avoid GC thrash when base is tiny; cap at the configured gcThreshold.
@@ -1988,13 +2093,17 @@ void MarkSweepCollector::UpdateGCStats()
     if (newThreshold > gcThresholdCap) {
         newThreshold = gcThresholdCap;
     }
+    size_t newScavengeThreshold = ComputeScavengeThresholdBytes(newThreshold, scavengeGrowth);
     gcStats.SetThreshold(newThreshold);
+    gcStats.SetScavengeThreshold(newScavengeThreshold);
     gcStats.lastSurvivingRegionBytes = liveBytes;
     VLOG(REPORT,
-         "[MS-GC] heapThreshold: oldThreshold=%zuB newThreshold=%zuB prevLive=%zuB trueLive=%zuB "
-         "base=%zuB growth=%.2f preActiveRegion=%zuB activeRegion=%zuB",
-         oldThreshold, newThreshold, oldLastTrueLiveBytes, liveBytes,
-         baseBytes, 1.0 + heapGrowth, preActiveRegionBytes, activeRegionBytes);
+         "[MS-GC] heapThreshold: oldThreshold=%zuB newThreshold=%zuB "
+         "oldScavengeThreshold=%zuB newScavengeThreshold=%zuB "
+         "prevLive=%zuB trueLive=%zuB base=%zuB growth=%.2f scavengeGrowth=%.2f "
+         "preActiveRegion=%zuB activeRegion=%zuB",
+         oldThreshold, newThreshold, oldScavengeThreshold, newScavengeThreshold, oldLastTrueLiveBytes, liveBytes,
+         baseBytes, 1.0 + heapGrowth, scavengeGrowth, preActiveRegionBytes, activeRegionBytes);
 
     VLOG(REPORT,
          "[MS-GC] live bytes %zu, activeRegion %zu, update gc threshold %zu -> %zu",

@@ -556,8 +556,13 @@ static RuntimeParam InitRuntimeParam()
              * the maximum is 100% of heap, default to 80% of heap.
              */
             .heapUtilization = InitPercentParameter("cjHeapUtilization", 0.0, 1.0, 0.8),
+#ifdef MRT_USE_MARK_SWEEP
+            // MSGC default heap growth is (1 + 1.0) = 2.0.
+            .heapGrowth = InitDecParameter("cjHeapGrowth", 0.0, 1.0),
+#else
             // Default heap growth is (1 + 0.25) = 1.25 (allow 25% growth before next GC).
-            .heapGrowth = InitDecParameter("cjHeapGrowth", 0.0, 0.5),
+            .heapGrowth = InitDecParameter("cjHeapGrowth", 0.0, 0.25),
+#endif
             // Default allocation rate is 10240MB/s.
             .allocationRate = InitDecParameter("cjAllocationRate", 0.0, 10240),
             // Default allocation wait time is 1000ns.

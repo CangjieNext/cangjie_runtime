@@ -42,6 +42,22 @@ static std::atomic<uint64_t> g_takeRegions_ns{0};
 namespace {
 constexpr size_t DEFAULT_MS_SCAVENGE_WAKE_BYTES = 4 * MS_REGION_SIZE;
 
+bool IsSegmentRegionTypeInUse(MSRegionType type)
+{
+    switch (type) {
+        case MSRegionType::MS_REGION_BUMP:
+        case MSRegionType::MS_REGION_PARTIAL:
+        case MSRegionType::MS_REGION_FULL:
+        case MSRegionType::MS_REGION_LARGE:
+        case MSRegionType::MS_REGION_SPAN:
+            return true;
+        case MSRegionType::MS_REGION_FREE:
+        case MSRegionType::MS_REGION_EMPTY_CACHE:
+            return false;
+    }
+    return true;
+}
+
 struct TakeRegionsStatsPrinter {
     ~TakeRegionsStatsPrinter()
     {
@@ -247,11 +263,9 @@ void MSRegionManager::MaybeNotifySweep(const CentralRegionPool* centralPool, uin
         return;
     }
     BackgroundProcessor& backgroundProcessor = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
-
-    CentralRegionPool::BucketPressure pressure = centralPool->GetBucketPressure(cls);
-    if (pressure.UnsweptCount() > 0) {
-        backgroundProcessor.NotifyToSweep(cls);
-    }
+    // Always notify background sweep once mutators start probing unswept supply.
+    // The helper side decides whether more slices are still worthwhile.
+    backgroundProcessor.NotifyToSweep(cls);
 }
 
 size_t MSRegionManager::GetHotFreeBytes() const
@@ -281,8 +295,8 @@ void MSRegionManager::MaybeNotifyScavenge()
 
     Collector& collector = Heap::GetHeap().GetCollector();
     const GCStats& gcStats = collector.GetGCStats();
-    size_t threshold = gcStats.GetThreshold();
-    if (threshold == 0) {
+    size_t scavengeThreshold = gcStats.GetScavengeThreshold();
+    if (scavengeThreshold == 0) {
         return;
     }
 
@@ -293,12 +307,28 @@ void MSRegionManager::MaybeNotifyScavenge()
     }
 
     size_t heapRetained = space.GetHeapRetainedBytes();
-    if (heapRetained <= threshold) {
+    if (heapRetained <= scavengeThreshold) {
         return;
     }
 
     BackgroundProcessor& bp = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
     bp.NotifyToScavenge();
+}
+
+void MSRegionManager::MaybeNotifyShrink()
+{
+    if (Heap::GetHeap().IsGcStarted()) {
+        return;
+    }
+
+    const RegionSpaceMS& space = static_cast<const RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
+    const CentralRegionPool* pool = space.GetCentralPool();
+    if (pool == nullptr || !HasPendingShrinkWork(pool)) {
+        return;
+    }
+
+    BackgroundProcessor& bp = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
+    bp.NotifyToShrink();
 }
 
 void MSRegionManager::MaybeNotifyMark()
@@ -374,6 +404,7 @@ bool MSRegionManager::TakeRegions(RegionCount num, uint16_t homeShardId, RegionI
             g_takeRegions_count.fetch_add(1, std::memory_order_relaxed);
             return false;
         }
+        MaybeNotifyShrink();
     }
 }
 
@@ -406,7 +437,7 @@ MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& 
     MRT_ASSERT(regionIdx < freeManager_.GetMaxVirtualRegionCount(), "region index out of bounds");
 
     MSRegionInfo* info = &array_[regionIdx];
-    // Debug: exhaustive check on every TakeRegion return
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     if (UNLIKELY(info->regionType != MSRegionType::MS_REGION_FREE)) {
         LOG(RTLOG_FATAL, "[MS-GC] TakeRegion: array_[%u] NOT FREE! "
             "regionType=%d, allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, "
@@ -420,6 +451,7 @@ MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& 
             (unsigned long long)info->reserved,
             (void*)array_, (void*)info);
     }
+#endif
     return info;
 }
 
@@ -540,6 +572,105 @@ void MSRegionManager::ShrinkHeap()
     if (newCommittedRegionCount < oldCommittedRegionCount) {
         MSBitmapArena::ShrinkToCommittedRegionCount(newCommittedRegionCount);
     }
+}
+
+bool MSRegionManager::HasPendingShrinkWork(const CentralRegionPool* centralPool) const
+{
+    if (centralPool == nullptr) {
+        return false;
+    }
+
+    size_t segmentRegionCount = freeManager_.GetSegmentRegionCount();
+    size_t committedSegmentCount = freeManager_.GetCommittedSegmentCount();
+    size_t committedRegionCount = freeManager_.GetCommittedRegionCount();
+    if (segmentRegionCount == 0 || committedSegmentCount == 0 || committedRegionCount == 0) {
+        return false;
+    }
+
+    for (size_t segmentIdx = 0; segmentIdx < committedSegmentCount; ++segmentIdx) {
+        size_t startRegionIdx = segmentIdx * segmentRegionCount;
+        size_t endRegionIdx = std::min(startRegionIdx + segmentRegionCount, committedRegionCount);
+        if (startRegionIdx >= endRegionIdx) {
+            continue;
+        }
+
+        bool hasInUseRegion = false;
+        bool hasEmptyCacheRegion = false;
+        for (size_t regionIdx = startRegionIdx; regionIdx < endRegionIdx; ++regionIdx) {
+            MSRegionType type = array_[regionIdx].regionType;
+            if (IsSegmentRegionTypeInUse(type)) {
+                hasInUseRegion = true;
+                break;
+            }
+            if (type == MSRegionType::MS_REGION_EMPTY_CACHE) {
+                hasEmptyCacheRegion = true;
+            }
+        }
+        if (hasInUseRegion) {
+            continue;
+        }
+
+        if (hasEmptyCacheRegion || centralPool->HasIdleSegmentCachedRegions(startRegionIdx, endRegionIdx)) {
+            return true;
+        }
+
+        FreeManager::SegmentFreeSnapshot snapshot = freeManager_.GetSegmentFreeSnapshot(segmentIdx);
+        if (snapshot.validRegions != 0 && snapshot.freeRegions > snapshot.scavengedRegions) {
+            return true;
+        }
+    }
+    return false;
+}
+
+size_t MSRegionManager::ShrinkOneIdleSegment(CentralRegionPool* centralPool)
+{
+    if (centralPool == nullptr) {
+        return 0;
+    }
+
+    size_t segmentRegionCount = freeManager_.GetSegmentRegionCount();
+    size_t committedSegmentCount = freeManager_.GetCommittedSegmentCount();
+    size_t committedRegionCount = freeManager_.GetCommittedRegionCount();
+    if (segmentRegionCount == 0 || committedSegmentCount == 0 || committedRegionCount == 0) {
+        return 0;
+    }
+
+    for (size_t segmentIdx = 0; segmentIdx < committedSegmentCount; ++segmentIdx) {
+        size_t startRegionIdx = segmentIdx * segmentRegionCount;
+        size_t endRegionIdx = std::min(startRegionIdx + segmentRegionCount, committedRegionCount);
+        if (startRegionIdx >= endRegionIdx) {
+            continue;
+        }
+
+        bool hasInUseRegion = false;
+        for (size_t regionIdx = startRegionIdx; regionIdx < endRegionIdx; ++regionIdx) {
+            if (IsSegmentRegionTypeInUse(array_[regionIdx].regionType)) {
+                hasInUseRegion = true;
+                break;
+            }
+        }
+        if (hasInUseRegion) {
+            continue;
+        }
+
+        (void)centralPool->ReclaimIdleSegmentCaches(startRegionIdx, endRegionIdx);
+
+        FreeManager::SegmentFreeSnapshot snapshot = freeManager_.GetSegmentFreeSnapshot(segmentIdx);
+        if (snapshot.validRegions == 0 || snapshot.freeRegions != snapshot.validRegions) {
+            continue;
+        }
+
+        size_t released = freeManager_.ReleaseCompletelyFreeSegment(segmentIdx);
+        if (released != 0) {
+            VLOG(REPORT,
+                 "[MS-GC] shrink segment: seg=%zu regions=%zu released=%zuB",
+                 segmentIdx,
+                 snapshot.validRegions,
+                 released);
+            return released;
+        }
+    }
+    return 0;
 }
 
 } // namespace MapleRuntime

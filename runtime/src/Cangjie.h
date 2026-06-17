@@ -213,7 +213,7 @@ struct HeapParam {
     /*
      * The ratio to expand heap after each GC.
      * GC is probably triggered more often if this value is set to an improperly small number.
-        * Default to 0.25, must > 0.
+     * Default to 0.25 in CopyGC and 1.0 in MSGC, must > 0.
      * It will be set to default value if assigned with 0.
      */
     double heapGrowth;

@@ -167,7 +167,7 @@ private:
     ExportRootTable exportRootsTable;
     Barrier stwBarrier;
 #ifdef MRT_USE_MARK_SWEEP
-    // MS mode: zero-overhead idle barrier + pure SATB deletion barrier
+    // MS mode: zero-overhead idle barrier + hybrid mark barrier
     MSIdleBarrier msIdleBarrier;
     MSMarkBarrier msMarkBarrier;
 #else

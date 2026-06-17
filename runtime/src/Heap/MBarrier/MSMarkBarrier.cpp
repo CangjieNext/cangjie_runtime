@@ -13,41 +13,15 @@
 #include "Heap/MCollector/MarkSweepCollector.h"
 #include "Mutator/Mutator.h"
 #include "ObjectModel/Field.inline.h"
+#include "ObjectModel/MArray.h"
 #include "ObjectModel/RefField.inline.h"
 #if defined(CANGJIE_TSAN_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
 #endif
-#include <atomic>
 #include <cstdlib>
 #include <cstring>
-#include <cstdio>
 
 namespace MapleRuntime {
-
-// ---------------------------------------------------------------------------
-// EnqueueRefFast stats — thread-local count to avoid cache-line bouncing on
-// the hot write-barrier path; summed into a global atomic only at thread exit.
-// ---------------------------------------------------------------------------
-static thread_local uint64_t tl_enqueueRefFast_count = 0;
-static std::atomic<uint64_t> g_enqueueRefFast_count{0};
-
-namespace {
-struct EnqueueRefFastStatsPrinter {
-    ~EnqueueRefFastStatsPrinter()
-    {
-        // Flush this thread's local counter into the global sum.
-        g_enqueueRefFast_count.fetch_add(tl_enqueueRefFast_count, std::memory_order_relaxed);
-        tl_enqueueRefFast_count = 0;
-        // Only the last destructor to run will see the full total; that is
-        // acceptable for a diagnostic counter.
-        uint64_t cnt = g_enqueueRefFast_count.load(std::memory_order_relaxed);
-        fprintf(stderr,
-                "[MS-GC][STATS] EnqueueRefFast: calls=%lu\n",
-                static_cast<unsigned long>(cnt));
-    }
-};
-static EnqueueRefFastStatsPrinter g_enqueueRefFast_printer;
-} // namespace
 namespace {
 class WriteBarrierBufferGreySink final : public MarkSweepCollector::GreyWorkSink {
 public:
@@ -63,38 +37,21 @@ private:
 };
 } // namespace
 
-static std::atomic<int32_t> g_invalidBarrierRefLogBudget{64};
-
-static __attribute__((unused)) bool IsBarrierInvalidRefDiagEnabled()
-{
-    static bool enabled = []() {
-        const char* env = std::getenv("CJ_MS_BARRIER_INVALID_REF_DIAG");
-        return env != nullptr && env[0] != '\0' && std::strcmp(env, "0") != 0;
-    }();
-    return enabled;
-}
-
-static __attribute__((unused)) const char* GetBarrierDiagTypeName(const BaseObject* obj)
-{
-    if (obj == nullptr || obj->GetTypeInfo() == nullptr || obj->GetTypeInfo()->GetName() == nullptr) {
-        return "<null>";
-    }
-    return obj->GetTypeInfo()->GetName();
-}
-
-static __attribute__((unused)) uintptr_t LoadBarrierDiagStateWord(const BaseObject* obj)
-{
-    return obj == nullptr ? 0 : *reinterpret_cast<const uintptr_t*>(obj);
-}
-
 static inline void EnqueueRefFast(BaseObject* ref)
 {
-    ++tl_enqueueRefFast_count;
     if (ref == nullptr || !Heap::IsHeapAddress(ref)) {
         return;
     }
     Mutator* mutator = Mutator::GetMutator();
     if (mutator == nullptr) {
+        MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
+        if (collector == nullptr) {
+            return;
+        }
+        WriteBarrierBuffer wbBuf;
+        WriteBarrierBufferGreySink sink(wbBuf);
+        (void)collector->TryEnqueueGreyObject(ref, sink);
+        collector->FlushWriteBarrierOverflow(wbBuf);
         return;
     }
     WriteBarrierBuffer& wbBuf = mutator->GetWriteBarrierBuffer();
@@ -109,6 +66,56 @@ static inline void EnqueueRefFast(BaseObject* ref)
     MarkSweepCollector& collector = static_cast<MarkSweepCollector&>(Heap::GetHeap().GetCollector());
     WriteBarrierBufferGreySink sink(wbBuf);
     (void)collector.TryEnqueueGreyObject(ref, sink);
+}
+
+static inline void EnqueueStructRefsInRange(BaseObject* obj, MAddress start, size_t size)
+{
+    if (obj == nullptr || obj->GetTypeInfo() == nullptr || size == 0) {
+        return;
+    }
+    obj->ForEachRefInStruct(
+        [](RefField<false>& refField) {
+            EnqueueRefFast(refField.GetTargetObject());
+        },
+        start, start + size);
+}
+
+static inline void EnqueueStructArrayRefsInRange(BaseObject* obj, MAddress start, size_t size)
+{
+    if (obj == nullptr || obj->GetTypeInfo() == nullptr || size == 0 || !obj->HasRefField()) {
+        return;
+    }
+    if (!obj->IsRawArray()) {
+        EnqueueStructRefsInRange(obj, start, size);
+        return;
+    }
+
+    MArray* array = static_cast<MArray*>(obj);
+    TypeInfo* component = array->GetComponentTypeInfo();
+    if (component == nullptr || !component->IsStructType() || !component->HasRefField()) {
+        return;
+    }
+    array->ForEachRefFieldInRange(
+        [](RefField<false>& refField) {
+            EnqueueRefFast(refField.GetTargetObject());
+        },
+        start, start + size);
+}
+
+static inline void EnqueueStaticStructRefs(MAddress start, const GCTib gctib)
+{
+    gctib.ForEachBitmapWord(start, [](RefField<>& refField) {
+        EnqueueRefFast(refField.GetTargetObject());
+    });
+}
+
+static inline void EnqueueRefArrayRange(MAddress start, size_t size)
+{
+    size_t refCount = size / sizeof(MAddress);
+    RefField<false>* refs = reinterpret_cast<RefField<false>*>(start);
+    for (size_t i = 0; i < refCount; ++i) {
+        EnqueueRefFast(refs[i].GetTargetObject());
+    }
 }
 
 // ============================================================================
@@ -149,7 +156,7 @@ void MSMarkBarrier::ReadStaticStruct(MAddress dst, MAddress src, size_t size, co
 }
 
 // ============================================================================
-// Writes: pure SATB — shade(old) + store
+// Writes: deletion barrier only — discover(old) + store
 // ============================================================================
 
 void MSMarkBarrier::WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref) const
@@ -178,14 +185,7 @@ void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MA
 {
     // discover(old): preserve all existing reference fields in the destination struct
     // Guard: skip shade if TypeInfo is NULL (prematurely reclaimed / uninitialized object)
-    if (obj != nullptr && obj->GetTypeInfo() != nullptr) {
-        obj->ForEachRefInStruct(
-            [obj](RefField<false>& refField) {
-                BaseObject* oldRef = refField.GetTargetObject();
-                EnqueueRefFast(oldRef);
-            },
-            dst, dst + dstLen);
-    }
+    EnqueueStructRefsInRange(obj, dst, dstLen);
 
     // memcpy (overwrites dst with src)
     CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), dstLen,
@@ -196,16 +196,14 @@ void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MA
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dst), dstLen);
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(src), srcLen);
 #endif
+
 }
 
 void MSMarkBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, size_t srcLen,
                                       const GCTib gctib) const
 {
     // discover(old): preserve all existing reference fields via GCTib bitmap
-    gctib.ForEachBitmapWord(dst, [](RefField<>& refField) {
-        BaseObject* oldRef = refField.GetTargetObject();
-        EnqueueRefFast(oldRef);
-    });
+    EnqueueStaticStructRefs(dst, gctib);
 
     // memcpy
     CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), dstLen,
@@ -216,10 +214,11 @@ void MSMarkBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src,
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dst), copyLen);
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(src), copyLen);
 #endif
+
 }
 
 // ============================================================================
-// Array copy: shade all overwritten refs (deletion barrier only)
+// Array copy: discover overwritten refs only
 // ============================================================================
 
 void MSMarkBarrier::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
@@ -229,12 +228,7 @@ void MSMarkBarrier::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex d
     (void)srcObj;
 
     // discover(old): preserve all existing references in the destination range
-    size_t refCount = dstSize / sizeof(MAddress);
-    RefField<false>* dstRefs = reinterpret_cast<RefField<false>*>(dstField);
-    for (size_t i = 0; i < refCount; ++i) {
-        BaseObject* oldRef = dstRefs[i].GetTargetObject();
-        EnqueueRefFast(oldRef);
-    }
+    EnqueueRefArrayRange(dstField, dstSize);
 
     // memmove
     CHECK_DETAIL(memmove_s(reinterpret_cast<void*>(dstField), dstSize,
@@ -245,22 +239,17 @@ void MSMarkBarrier::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex d
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dstField), copyLen);
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(srcField), copyLen);
 #endif
+
 }
 
 void MSMarkBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
                                     BaseObject* srcObj, MAddress srcField, MIndex srcSize) const
 {
     (void)srcObj;
+    size_t copiedLen = (dstSize < srcSize ? dstSize : srcSize);
 
     // discover(old): preserve all existing reference fields in the destination range
-    if (dstObj != nullptr) {
-        dstObj->ForEachRefInStruct(
-            [dstObj](RefField<false>& refField) {
-                BaseObject* oldRef = refField.GetTargetObject();
-                EnqueueRefFast(oldRef);
-            },
-            dstField, dstField + dstSize);
-    }
+    EnqueueStructArrayRefsInRange(dstObj, dstField, copiedLen);
 
     // memmove
     CHECK_DETAIL(memmove_s(reinterpret_cast<void*>(dstField), dstSize,
@@ -271,10 +260,11 @@ void MSMarkBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MInde
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dstField), copyLen);
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(srcField), copyLen);
 #endif
+
 }
 
 // ============================================================================
-// Atomic operations: shade(old) only
+// Atomic operations: discover(old) only
 // ============================================================================
 
 BaseObject* MSMarkBarrier::AtomicReadReference(BaseObject* obj, RefField<true>& field,
@@ -323,7 +313,7 @@ bool MSMarkBarrier::CompareAndSwapReference(BaseObject* obj, RefField<true>& fie
 
     bool success = field.CompareExchange(oldRef, newRef, succOrder, failOrder);
     if (success) {
-        // CAS succeeded: discover the old edge (SATB deletion barrier).
+        // CAS succeeded: preserve the deleted edge only.
         EnqueueRefFast(oldRef);
     }
     return success;

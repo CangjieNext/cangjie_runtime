@@ -9,9 +9,7 @@
 #include "Heap/MAllocator/MSBitmapArena.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 
-#include <cstdlib>
 #include <cstring>
-
 #include "Base/Log.h"
 
 namespace MapleRuntime {

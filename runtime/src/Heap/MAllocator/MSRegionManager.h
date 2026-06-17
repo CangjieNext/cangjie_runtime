@@ -119,6 +119,8 @@ public:
     // Shrink the committed heap after background reclaim/scavenge has exposed trailing hot-free space.
     // The actual trailing-tail reclaim and committed-end update are managed by FreeManager.
     void ShrinkHeap();
+    bool HasPendingShrinkWork(const CentralRegionPool* centralPool) const;
+    size_t ShrinkOneIdleSegment(CentralRegionPool* centralPool);
 
     // O(1) address → MSRegionInfo lookup (region index = (addr - heapStart) / MS_REGION_SIZE).
     MSRegionInfo* GetRegionInfoAt(uintptr_t addr) const
@@ -192,6 +194,7 @@ public:
     // Layer-4 trigger: notify gc-helper to scavenge heap when retained exceeds
     // threshold and enough releasable supply is available.
     void MaybeNotifyScavenge();
+    void MaybeNotifyShrink();
 
     // Return bytes in hot-free regions (free but pages not yet returned to OS).
     size_t GetHotFreeBytes() const;

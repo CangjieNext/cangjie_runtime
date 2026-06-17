@@ -101,23 +101,20 @@ bool IsBackgroundScavengeEnabled()
     return enabled;
 }
 
-// When enabled (CJ_MS_PIN_HOT_FREE=1/true/on/yes), hot-free regions are never
-// released to the OS and are excluded from the retained-bytes calculation so they
-// do not trigger scavenge pressure.
-bool IsHotFreePinned()
+bool IsBackgroundShrinkEnabled()
 {
-    static const bool pinned = []() {
-        const char* env = std::getenv("CJ_MS_PIN_HOT_FREE");
+    static const bool enabled = []() {
+        const char* env = std::getenv("CJ_MS_BG_SHRINK");
         if (env == nullptr || env[0] == '\0') {
-            return false;
-        }
-        if (std::strcmp(env, "1") == 0 || EqualsIgnoreCase(env, "true") ||
-            EqualsIgnoreCase(env, "on") || EqualsIgnoreCase(env, "yes")) {
             return true;
         }
-        return false;
+        if (std::strcmp(env, "0") == 0 || EqualsIgnoreCase(env, "false") ||
+            EqualsIgnoreCase(env, "off") || EqualsIgnoreCase(env, "no")) {
+            return false;
+        }
+        return true;
     }();
-    return pinned;
+    return enabled;
 }
 
 size_t GetBackgroundScavengeRounds()
@@ -159,6 +156,7 @@ BackgroundProcessor::BackgroundProcessor()
     shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
     shouldBackgroundSweep_.store(false, std::memory_order_relaxed);
     shouldScavengeHeap_.store(false, std::memory_order_relaxed);
+    shouldShrinkHeap_.store(false, std::memory_order_relaxed);
     preferredSweepCls_.store(kNoPreferredSweepClass, std::memory_order_relaxed);
     preferredFeedCls_.store(kNoPreferredFeedClass, std::memory_order_relaxed);
     sweepPressureMode_.store(false, std::memory_order_relaxed);
@@ -201,7 +199,14 @@ void BackgroundProcessor::Run()
     NotifyStarted();
     uint32_t backgroundBurstRounds = 0;
     uint64_t backgroundBurstStartUs = 0;
+    uint64_t lastPeriodicCheckUs = TimeUtil::MicroSeconds();
     while (running.load(std::memory_order_acquire)) {
+        uint64_t nowUs = TimeUtil::MicroSeconds();
+        if (nowUs - lastPeriodicCheckUs >= static_cast<uint64_t>(iterationWaitTime) * 1000ULL) {
+            MaybeSchedulePeriodicWork();
+            lastPeriodicCheckUs = nowUs;
+        }
+
         bool shouldContinueImmediate = false;
         if (finalizerWorkList.HasFinalizableJob()) {
             finalizerWorkList.ProcessFinalizables([this] { return running.load(std::memory_order_acquire); });
@@ -214,6 +219,10 @@ void BackgroundProcessor::Run()
 
         if (shouldScavengeHeap_.load(std::memory_order_relaxed)) {
             shouldContinueImmediate = BackgroundScavengeLoop() || shouldContinueImmediate;
+        }
+
+        if (shouldShrinkHeap_.load(std::memory_order_relaxed)) {
+            shouldContinueImmediate = BackgroundShrinkLoop() || shouldContinueImmediate;
         }
 
         if (shouldFeedHungryBuffers.load(std::memory_order_acquire)) {
@@ -241,26 +250,18 @@ void BackgroundProcessor::Run()
 
         backgroundBurstRounds = 0;
         backgroundBurstStartUs = 0;
-        uint64_t feedCheckStartUs = TimeUtil::MicroSeconds();
         while (running.load(std::memory_order_acquire)) {
             if (HasPendingWakeWork()) {
                 break;
             }
-            Wait(DEFAULT_MS_GC_HELPER_POLL_MS);
+            Wait(iterationWaitTime);
             if (!running.load(std::memory_order_acquire)) {
                 break;
             }
-            if (!HasPendingWakeWork() &&
-                TimeUtil::MicroSeconds() - feedCheckStartUs >=
-                    static_cast<uint64_t>(iterationWaitTime) * 1000ULL &&
-                ShouldStartPeriodicFeed()) {
-                shouldFeedHungryBuffers.store(true, std::memory_order_release);
-                preferredFeedCls_.store(kNoPreferredFeedClass, std::memory_order_release);
+            if (!HasPendingWakeWork()) {
+                // Timeout without explicit notify: return to the outer loop so the
+                // periodic inspection path can schedule fallback work uniformly.
                 break;
-            }
-            if (TimeUtil::MicroSeconds() - feedCheckStartUs >=
-                static_cast<uint64_t>(iterationWaitTime) * 1000ULL) {
-                feedCheckStartUs = TimeUtil::MicroSeconds();
             }
         }
     }
@@ -349,7 +350,26 @@ bool BackgroundProcessor::HasPendingWakeWork() const
     return finalizerWorkList.HasFinalizableJob() ||
            shouldFeedHungryBuffers.load(std::memory_order_relaxed) ||
            shouldBackgroundSweep_.load(std::memory_order_relaxed) ||
-           shouldScavengeHeap_.load(std::memory_order_relaxed);
+           shouldScavengeHeap_.load(std::memory_order_relaxed) ||
+           shouldShrinkHeap_.load(std::memory_order_relaxed);
+}
+
+void BackgroundProcessor::MaybeSchedulePeriodicWork()
+{
+    if (!shouldBackgroundSweep_.load(std::memory_order_relaxed) && ShouldStartPeriodicSweep()) {
+        shouldBackgroundSweep_.store(true, std::memory_order_release);
+        preferredSweepCls_.store(kNoPreferredSweepClass, std::memory_order_release);
+    }
+    if (!shouldScavengeHeap_.load(std::memory_order_relaxed) && ShouldStartPeriodicScavenge()) {
+        shouldScavengeHeap_.store(true, std::memory_order_release);
+    }
+    if (!shouldShrinkHeap_.load(std::memory_order_relaxed) && ShouldStartPeriodicShrink()) {
+        shouldShrinkHeap_.store(true, std::memory_order_release);
+    }
+    if (!shouldFeedHungryBuffers.load(std::memory_order_relaxed) && ShouldStartPeriodicFeed()) {
+        shouldFeedHungryBuffers.store(true, std::memory_order_release);
+        preferredFeedCls_.store(kNoPreferredFeedClass, std::memory_order_release);
+    }
 }
 
 bool BackgroundProcessor::ShouldStartPeriodicFeed() const
@@ -373,6 +393,32 @@ bool BackgroundProcessor::ShouldStartPeriodicFeed() const
     return cachedCount < halfFullThreshold && pool->HasHungryAllocBuffer(kNoPreferredFeedClass);
 }
 
+bool BackgroundProcessor::ShouldStartPeriodicSweep() const
+{
+    if (!IsBackgroundSweepEnabled()) {
+        return false;
+    }
+    return Heap::GetHeap().GetAllocator().HasPendingSweepWork();
+}
+
+bool BackgroundProcessor::ShouldStartPeriodicScavenge() const
+{
+    if (!IsBackgroundScavengeEnabled()) {
+        return false;
+    }
+    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
+    return space.HasPendingScavengeWork();
+}
+
+bool BackgroundProcessor::ShouldStartPeriodicShrink() const
+{
+    if (!IsBackgroundShrinkEnabled()) {
+        return false;
+    }
+    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
+    return space.HasPendingShrinkWork();
+}
+
 void BackgroundProcessor::NotifyToSweep(uint8_t cls)
 {
     if (!IsBackgroundSweepEnabled()) {
@@ -394,15 +440,29 @@ void BackgroundProcessor::NotifyToScavenge()
     RequestWork(shouldScavengeHeap_);
 }
 
+void BackgroundProcessor::NotifyToShrink()
+{
+    if (!IsBackgroundShrinkEnabled()) {
+        shouldShrinkHeap_.store(false, std::memory_order_release);
+        return;
+    }
+    RequestWork(shouldShrinkHeap_);
+}
+
 bool BackgroundProcessor::BackgroundSweepLoop()
 {
     Allocator& allocator = Heap::GetHeap().GetAllocator();
     uint8_t preferredCls = preferredSweepCls_.exchange(kNoPreferredSweepClass, std::memory_order_acq_rel);
     BackgroundSweepStats sliceStats = allocator.BackgroundSweep(preferredCls);
+    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(allocator);
+    size_t thresholdBytes = space.GetHeapThresholdBytes();
+    if (thresholdBytes != 0) {
+        (void)space.FlushCentralCacheToThreshold(thresholdBytes);
+    }
     pendingSweepStats_.Merge(sliceStats);
     bool hasMore = HasPendingSweepWork();
     if (!hasMore && pendingSweepStats_.HasWork()) {
-        CentralRegionPool* pool = static_cast<RegionSpaceMS&>(allocator).GetCentralPool();
+        CentralRegionPool* pool = space.GetCentralPool();
         size_t remaining = pool ? pool->GetTotalUnsweptCount() : 0;
         VLOG(REPORT,
              "[MS-GC] sweep done: slices=%zu swept=%zu empty=%zu unswept=%zu elapsed=%zuus",
@@ -424,6 +484,15 @@ bool BackgroundProcessor::HasPendingSweepWork()
         sweepPressureMode_.store(false, std::memory_order_release);
         shouldBackgroundSweep_.store(false, std::memory_order_release);
         return false;
+    }
+
+    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(allocator);
+    if (space.GetCentralPool() != nullptr) {
+        size_t thresholdBytes = space.GetHeapThresholdBytes();
+        size_t sweptHeapBytes = space.GetSweptHeapBytes();
+        if (thresholdBytes > sweptHeapBytes) {
+            return true;
+        }
     }
 
     // Still has pending work. In pressure mode, keep re-entering the outer
@@ -476,25 +545,27 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
     CentralRegionPool* pool = space.GetCentralPool();            // for large hot cache ops
     size_t retained = space.GetHeapRetainedBytes();
-    size_t threshold = space.GetHeapThresholdBytes();
+    size_t scavengeThreshold = space.GetScavengeThresholdBytes();
 
-    if (threshold == 0 || retained <= threshold) {
+    if (!space.HasPendingScavengeWork()) {
         shouldScavengeHeap_.store(false, std::memory_order_release);
         if (pendingScavengeStats_.HasWork()) {
             VLOG(REPORT,
                  "[MS-GC] scavenge done (goal met): slices=%zu regions=%zu bytes=%zuB elapsed=%zuus "
-                 "retained=%zuB threshold=%zuB",
+                 "retained=%zuB scavengeThreshold=%zuB",
                  pendingScavengeStats_.slices,
                  pendingScavengeStats_.releasedRegions,
                  pendingScavengeStats_.releasedBytes,
                  static_cast<size_t>(pendingScavengeStats_.elapsedUs),
-                 retained, threshold);
+                 retained, scavengeThreshold);
             pendingScavengeStats_.Reset();
         }
         return false;
     }
 
-    size_t targetBytes = retained - threshold;
+    retained = space.GetHeapRetainedBytes();
+    scavengeThreshold = space.GetScavengeThresholdBytes();
+    size_t targetBytes = (retained > scavengeThreshold) ? (retained - scavengeThreshold) : 0;
     size_t sliceTargetBytes = targetBytes;
     uint64_t t0 = TimeUtil::MicroSeconds();
     size_t released = 0;
@@ -515,10 +586,7 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     // cache alone cannot cover the remaining gap. For each source: if its cached size
     // is <= the gap, flush all of it; otherwise flush only the gap amount.
     {
-        // When hotFree is pinned it will never be released, so treat it as zero for
-        // gap accounting — this ensures emptySwept/largeCache are still flushed even
-        // when a large pinned hotFree pool exists.
-        size_t hotFreeForGap = IsHotFreePinned() ? 0 : space.GetHotFreeBytes();
+        size_t hotFreeForGap = space.GetHotFreeBytes();
         size_t gap = (targetBytes > hotFreeForGap) ? (targetBytes - hotFreeForGap) : 0;
 
         // Priority 1: large hot cache.
@@ -569,10 +637,8 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
             shouldScavengeHeap_.store(false, std::memory_order_release);
             return false;
         }
-        if (!IsHotFreePinned()) {
-            size_t quantum = std::min(roundTarget, availableToRelease);
-            released = space.BackgroundScavenge(quantum);
-        }
+        size_t quantum = std::min(roundTarget, availableToRelease);
+        released = space.BackgroundScavenge(quantum);
     }
     uint64_t elapsed = TimeUtil::MicroSeconds() - t0;
 
@@ -588,8 +654,7 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     // Check whether we still have work.
     bool hasMore = space.HasPendingScavengeWork();
     if (!hasMore) {
-        // Step C: shrink committed heap end.
-        space.BackgroundShrinkHeap();
+        NotifyToShrink();
         if (pendingScavengeStats_.HasWork()) {
             VLOG(REPORT,
                  "[MS-GC] scavenge done: slices=%zu regions=%zu bytes=%zuB elapsed=%zuus",
@@ -600,6 +665,48 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
             pendingScavengeStats_.Reset();
         }
         shouldScavengeHeap_.store(false, std::memory_order_release);
+    }
+    return hasMore;
+}
+
+bool BackgroundProcessor::HasPendingShrinkWork()
+{
+    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
+    if (!space.HasPendingShrinkWork()) {
+        shouldShrinkHeap_.store(false, std::memory_order_release);
+        return false;
+    }
+    return true;
+}
+
+bool BackgroundProcessor::BackgroundShrinkLoop()
+{
+    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
+    uint64_t t0 = TimeUtil::MicroSeconds();
+    size_t released = space.BackgroundShrinkOneSegment();
+    uint64_t elapsed = TimeUtil::MicroSeconds() - t0;
+
+    if (released > 0) {
+        BackgroundReclaimStats slice;
+        slice.slices = 1;
+        slice.releasedRegions = released / MS_REGION_SIZE;
+        slice.releasedBytes = released;
+        slice.elapsedUs = elapsed;
+        pendingShrinkStats_.Merge(slice);
+    }
+
+    bool hasMore = HasPendingShrinkWork();
+    if (!hasMore) {
+        if (pendingShrinkStats_.HasWork()) {
+            VLOG(REPORT,
+                 "[MS-GC] shrink done: slices=%zu regions=%zu bytes=%zuB elapsed=%zuus",
+                 pendingShrinkStats_.slices,
+                 pendingShrinkStats_.releasedRegions,
+                 pendingShrinkStats_.releasedBytes,
+                 static_cast<size_t>(pendingShrinkStats_.elapsedUs));
+            pendingShrinkStats_.Reset();
+        }
+        shouldShrinkHeap_.store(false, std::memory_order_release);
     }
     return hasMore;
 }

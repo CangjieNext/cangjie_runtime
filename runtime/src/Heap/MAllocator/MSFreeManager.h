@@ -38,6 +38,12 @@ public:
         RegionCount num = 0;
     };
 
+    struct SegmentFreeSnapshot {
+        size_t validRegions = 0;
+        size_t freeRegions = 0;
+        size_t scavengedRegions = 0;
+    };
+
     struct FinalStats {
         size_t committedRegions = 0;
         size_t committedBytes = 0;
@@ -123,6 +129,13 @@ public:
     size_t GetMaxVirtualUnitCount() const { return maxVirtualUnitCount_; }
     uint64_t GetHeapGrowCount() const { return heapGrowCount_; }
     uint16_t ResolveOwnerShardId(RegionIndex idx) const;
+    size_t GetSegmentRegionCount() const { return segmentRegionCount_; }
+    size_t GetCommittedSegmentCount() const
+    {
+        return segmentRegionCount_ == 0 ? 0 : (committedRegionCount_ + segmentRegionCount_ - 1) / segmentRegionCount_;
+    }
+    SegmentFreeSnapshot GetSegmentFreeSnapshot(size_t segmentIdx) const;
+    size_t ReleaseCompletelyFreeSegment(size_t segmentIdx);
 
     UnitIndex RegionToUnitIdx(RegionIndex regionIdx) const;
     UnitCount RegionCountToUnitCount(RegionCount regionCount) const;
@@ -166,6 +179,8 @@ private:
         size_t summaryChunkCountInUse_ = 0;
         uint32_t maxOwnedFreeRun_ = 0;
         std::atomic<uint32_t> snapMaxFreeRun_{0};
+        std::atomic<uint32_t> snapFreeRegions_{0};
+        std::atomic<uint32_t> snapScavengedRegions_{0};
         std::atomic<uint32_t> snapHotFreeRegions_{0};
         bool fastTakeHintValid_ = false;
         size_t fastTakeViewIdx_ = 0;
@@ -225,6 +240,7 @@ private:
     // Opt2: chunk-summary guided run search within a single view
     static bool FindFreeRunInViewLocked(const OwnedSegmentView& view, size_t localStart, size_t localEnd,
                                         size_t num, size_t& localIdx);
+    static void RefreshRegionSnapshotsLocked(FreeManagerShard& shard);
     size_t ScavengeOwnedFreeRegionsLocked(FreeManagerShard& shard, uint16_t ownerShardId, size_t regionBudget);
     void AppendGroupedOwnerSpansLocked(std::vector<std::vector<RegionSpan>>& groupedSpans,
                                        RegionIndex idx,

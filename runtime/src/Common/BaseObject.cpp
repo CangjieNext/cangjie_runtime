@@ -5,7 +5,9 @@
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 #include "BaseObject.h"
+#include "Heap/Allocator/Allocator.h"
 #include "Heap/Allocator/RegionInfo.h"
+#include "Heap/Collector/Collector.h"
 #include "Heap/Collector/FinalizerProcessor.h"
 #include "ObjectModel/MArray.h"
 #include "ObjectModel/MArray.inline.h"

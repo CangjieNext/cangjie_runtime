@@ -96,6 +96,7 @@ public:
     // later when MarkSweepCollector merges these buffered roots through
     // TryEnqueueGreyObject / DiscoverAndPushObject.
     void PushRoot(BaseObject* root) { stackRoots_.emplace_back(root); }
+    size_t GetBufferedRootCount() const { return stackRoots_.size(); }
 
     // MS-GC: all objects (including RAW_POINTER_OBJECT) are managed by CentralRegionPool directly.
     // No separate thread-local raw pointer regions exist, so this is a no-op.
@@ -128,6 +129,8 @@ public:
 
     size_t CountActiveRegions() const;
     size_t CountCachedRegions() const;
+    size_t DrainCachedRegionsToCentral();
+    size_t ReturnAllRegionsToCentral();
     bool NeedsBackgroundFill(uint8_t preferredCls) const;
     uint16_t SnapshotHotClassScore(uint8_t cls) const { return GetHotClassScore(cls); }
     HotClassLevel SnapshotHotClassLevel(uint8_t cls) const
@@ -170,11 +173,16 @@ private:
     MAddress SlowAlloc(uint8_t cls);
 
     // Refill: get a Region from CentralRegionPool
-    MSRegionInfo* RefillFromCentral(uint8_t cls, bool backgroundFill = false);
+    MSRegionInfo* RefillFromCentral(uint8_t cls, bool backgroundFill = false,
+                                    MSRegionAcquireSource* sourceOut = nullptr);
     MSRegionInfo* RefillEmptyRegionFromCaches(uint8_t cls);
     MSRegionInfo* TakeLocalEmptyRegion(uint8_t cls);
     void RefillLocalEmptyRegionsFromGlobal(std::vector<MSRegionInfo*>& refill);
+    size_t DrainLocalEmptyRegions(std::vector<MSRegionInfo*>& out, size_t maxRegions);
     size_t DrainAllLocalEmptyRegions(std::vector<MSRegionInfo*>& out);
+    bool HasLocalEmptyRegionInRange(size_t startRegionIdx, size_t endRegionIdx) const;
+    size_t ExtractLocalEmptyRegionsInRange(std::vector<MSRegionInfo*>& out, size_t startRegionIdx,
+                                           size_t endRegionIdx, size_t maxRegions);
 
     uint8_t BumpCacheMiss(uint8_t cls);
     void SetCacheMiss(uint8_t cls, uint8_t value);

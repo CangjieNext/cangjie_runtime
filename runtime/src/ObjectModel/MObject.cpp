@@ -29,9 +29,6 @@ MObject* MObject::NewObject(TypeInfo* ti, MSize size, AllocType allocType)
                 addr, size, (int)allocType, (void*)ti);
         }
         (void)SetClassInfo(addr, ti);
-// #ifdef MRT_USE_MARK_SWEEP
-//         Heap::GetHeap().GetCollector().MarkNewObject(reinterpret_cast<BaseObject*>(addr));
-// #endif
     } else {
         return nullptr;
     }
@@ -54,9 +51,6 @@ MObject* MObject::NewPinnedObject(TypeInfo* ti, MSize size)
 #endif
     if (LIKELY(addr != NULL_ADDRESS)) {
         (void)SetClassInfo(addr, ti);
-// #ifdef MRT_USE_MARK_SWEEP
-//         Heap::GetHeap().GetCollector().MarkNewObject(reinterpret_cast<BaseObject*>(addr));
-// #endif
     } else {
         return nullptr;
     }

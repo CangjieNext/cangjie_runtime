@@ -30,20 +30,6 @@
 
 namespace MapleRuntime {
 
-// Reads CJ_MS_PIN_HOT_FREE once; mirrors the helper in BackgroundProcessor.cpp.
-static bool IsMSHotFreePinned()
-{
-    static const bool pinned = []() {
-        const char* env = std::getenv("CJ_MS_PIN_HOT_FREE");
-        if (env == nullptr || env[0] == '\0') {
-            return false;
-        }
-        return std::strcmp(env, "1") == 0 || std::strcmp(env, "true") == 0 ||
-               std::strcmp(env, "on") == 0 || std::strcmp(env, "yes") == 0;
-    }();
-    return pinned;
-}
-
 static inline bool IsMSMarkingPhase(GCPhase phase)
 {
     return phase == GCPhase::GC_PHASE_MS_MARK_SETUP ||
@@ -210,6 +196,16 @@ size_t RegionSpaceMS::GetSweptHeapBytes() const
     return msCentralPool_->GetSweptMSRegionCount() * MS_REGION_SIZE;
 }
 
+size_t RegionSpaceMS::GetCentralCacheBytes() const
+{
+    if (msCentralPool_ == nullptr) {
+        return 0;
+    }
+    size_t emptySwept = msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE;
+    size_t largeCache = msCentralPool_->GetLargeHotCacheBytes();
+    return emptySwept + largeCache;
+}
+
 size_t RegionSpaceMS::GetHeapRetainedBytes() const
 {
     if (msCentralPool_ == nullptr || msRegionManager_ == nullptr) {
@@ -218,15 +214,18 @@ size_t RegionSpaceMS::GetHeapRetainedBytes() const
     size_t active = msCentralPool_->GetActiveMSRegionCount() * MS_REGION_SIZE;
     size_t empty = msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE;
     size_t largeCache = msCentralPool_->GetLargeHotCacheBytes();
-    // When hotFree is pinned it is treated as permanently resident and excluded
-    // from retained-bytes so it does not drive scavenge pressure.
-    size_t hotFree = IsMSHotFreePinned() ? 0 : msRegionManager_->GetHotFreeBytes();
+    size_t hotFree = msRegionManager_->GetHotFreeBytes();
     return active + empty + largeCache + hotFree;
 }
 
 size_t RegionSpaceMS::GetHeapThresholdBytes() const
 {
     return Heap::GetHeap().GetCollector().GetGCStats().GetThreshold();
+}
+
+size_t RegionSpaceMS::GetScavengeThresholdBytes() const
+{
+    return Heap::GetHeap().GetCollector().GetGCStats().GetScavengeThreshold();
 }
 
 size_t RegionSpaceMS::GetHotFreeBytes() const
@@ -274,6 +273,42 @@ size_t RegionSpaceMS::FlushLargeHotCacheUpToBytes(size_t maxBytes)
     return msCentralPool_->ReclaimLargeHotCache(maxBytes);
 }
 
+size_t RegionSpaceMS::FlushCentralCacheToThreshold(size_t thresholdBytes)
+{
+    if (msCentralPool_ == nullptr) {
+        return 0;
+    }
+
+    size_t cacheBytes = GetCentralCacheBytes();
+    if (cacheBytes <= thresholdBytes) {
+        return 0;
+    }
+
+    size_t bytesToFlush = cacheBytes - thresholdBytes;
+    size_t flushedBytes = 0;
+
+    size_t largeCacheBytes = msCentralPool_->GetLargeHotCacheBytes();
+    if (bytesToFlush != 0 && largeCacheBytes != 0) {
+        size_t flushedLarge = (largeCacheBytes <= bytesToFlush)
+            ? FlushAllLargeHotCache()
+            : FlushLargeHotCacheUpToBytes(bytesToFlush);
+        flushedBytes += flushedLarge;
+        bytesToFlush = (bytesToFlush > flushedLarge) ? (bytesToFlush - flushedLarge) : 0;
+    }
+
+    if (bytesToFlush != 0) {
+        size_t emptySweptBytes = msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE;
+        if (emptySweptBytes != 0) {
+            size_t flushedEmpty = (emptySweptBytes <= bytesToFlush)
+                ? FlushAllEmptySweptToHotFree()
+                : FlushEmptySweptToHotFree((bytesToFlush + MS_REGION_SIZE - 1) / MS_REGION_SIZE);
+            flushedBytes += flushedEmpty;
+        }
+    }
+
+    return flushedBytes;
+}
+
 size_t RegionSpaceMS::BackgroundScavenge(size_t quantumBytes)
 {
     if (msRegionManager_ == nullptr) {
@@ -282,26 +317,42 @@ size_t RegionSpaceMS::BackgroundScavenge(size_t quantumBytes)
     return msRegionManager_->ScavengeFreeRegionsUpTo(quantumBytes);
 }
 
-void RegionSpaceMS::BackgroundShrinkHeap()
+size_t RegionSpaceMS::BackgroundShrinkOneSegment()
 {
-    if (msRegionManager_ != nullptr) {
-        msRegionManager_->ShrinkHeap();
+    if (msRegionManager_ == nullptr || msCentralPool_ == nullptr) {
+        return 0;
     }
+    return msRegionManager_->ShrinkOneIdleSegment(msCentralPool_);
 }
 
 bool RegionSpaceMS::HasPendingScavengeWork() const
 {
-    size_t threshold = GetHeapThresholdBytes();
-    if (threshold == 0) {
+    size_t scavengeThreshold = GetScavengeThresholdBytes();
+    if (scavengeThreshold == 0) {
         return false;
     }
-    return GetHeapRetainedBytes() > threshold;
+    return GetHeapRetainedBytes() > scavengeThreshold;
+}
+
+bool RegionSpaceMS::HasPendingShrinkWork() const
+{
+    if (msRegionManager_ == nullptr || msCentralPool_ == nullptr) {
+        return false;
+    }
+    return msRegionManager_->HasPendingShrinkWork(msCentralPool_);
 }
 
 void RegionSpaceMS::MaybeNotifyScavenge()
 {
     if (msRegionManager_ != nullptr) {
         msRegionManager_->MaybeNotifyScavenge();
+    }
+}
+
+void RegionSpaceMS::MaybeNotifyShrink()
+{
+    if (msRegionManager_ != nullptr) {
+        msRegionManager_->MaybeNotifyShrink();
     }
 }
 
@@ -374,6 +425,9 @@ MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t allocSize, ThreadLocal
         return 0;
     }
     MAddress addr = static_cast<MAddress>(regionStart);
+    // Large arrays rely on zero-filled content after only their header is initialized.
+    // TakeRegionForLarge may return hot-free pages that were not scavenged by the OS.
+    ::memset(reinterpret_cast<void*>(regionStart), 0, regionBytes);
     RegisterLargeObjectMS(addr, regionBytes);
     // Pacing debt: large objects bypass AllocBufferMS::Allocate, so we must
     // accumulate assist debt explicitly here to keep GC pacing correct.

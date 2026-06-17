@@ -227,8 +227,13 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
             // Default value of heap utilization is 80%.
             .heapUtilization = param->heapParam.heapUtilization < ERRORESTIMATE ? \
                 0.8 : param->heapParam.heapUtilization,
+#ifdef MRT_USE_MARK_SWEEP
+            // MSGC default heap growth is 1 + 1.0.
+            .heapGrowth = param->heapParam.heapGrowth < ERRORESTIMATE ? 1.0 : param->heapParam.heapGrowth,
+#else
             // Default value of heap growth is 1 + 0.25.
             .heapGrowth = param->heapParam.heapGrowth < ERRORESTIMATE ? 0.25 : param->heapParam.heapGrowth,
+#endif
             // Default value of allocation rate is 1024MB/s.
             .allocationRate = param->heapParam.allocationRate < ERRORESTIMATE ? 10240 : param->heapParam.allocationRate,
             // Default value of allocation wait time is 1000ns.
