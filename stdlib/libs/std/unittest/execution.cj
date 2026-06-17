@@ -216,7 +216,8 @@ class WorkerProcess {
         private let transportChannel: ?TransportChannel,
         private let progressQueue: ?ConcurrentLinkedQueue<UTProgress>,
         private let outputReporter: TestOutputReporter,
-        private let workerId: Int64
+        private let workerId: Int64,
+        private let wasKilledByFramework!: Bool = false
     ) {}
 
     /**
@@ -264,14 +265,23 @@ class WorkerProcess {
             case ParsedComplete(results) where code == EXIT_CODE_ON_TIMEOUT =>
                 let nonTestOutputs = NonTestOutputs(merge(results, output))
                 BunchExecutionResult(results, InProgressTimeout, nonTestOutputs)
-            case ParsedComplete(results) => 
+            case ParsedComplete(results) where wasKilledByFramework =>
+                let nonTestOutputs = NonTestOutputs(merge(results, output))
+                let error = TestProcessError.killedByFramework(code)
+                BunchExecutionResult(results, OutOfProgressCrashed(error), nonTestOutputs)
+            case ParsedComplete(results) =>
                 let nonTestOutputs = NonTestOutputs(merge(results, output))
                 let error = TestProcessError(code)
                 BunchExecutionResult(results, OutOfProgressCrashed(error), nonTestOutputs)
+            case ParsedIncomplete(results, header) where wasKilledByFramework =>
+                let (beforeTests, lastOutput) = merge(results, output)
+                let nonTestsOutput = NonTestOutputs(beforeTests, CapturedOutput())
+                let status = InProgressCrashed(mkCrashResult(header, lastOutput, KilledByFrameworkCheckResult(code)))
+                BunchExecutionResult(results, status, nonTestsOutput)
             case ParsedIncomplete(results, header) =>
                 let (beforeTests, lastOutput) = merge(results, output)
                 let nonTestsOutput = NonTestOutputs(beforeTests, CapturedOutput())
-                let status = InProgressCrashed(mkCrashResult(header, lastOutput, code))
+                let status = InProgressCrashed(mkCrashResult(header, lastOutput, CrashedCheckResult(code)))
                 BunchExecutionResult(results, status, nonTestsOutput)
         }
     }
@@ -316,14 +326,16 @@ class WorkerProcess {
     static func create(ctx: MainExecutionCtx, workerId: Int64, progressQueue: ?ConcurrentLinkedQueue<UTProgress>,
         connect: () -> TransportChannel): WorkerProcess {
         let process = Process.start(ctx)
+        var wasKilledByFramework = false
         let connection: ?TransportChannel = try {
             connect()
         } catch (_: Exception) {
             process.terminate()
+            wasKilledByFramework = true
             None
         }
 
-        return WorkerProcess(process, connection, progressQueue, ctx.outputReporter, workerId)
+        return WorkerProcess(process, connection, progressQueue, ctx.outputReporter, workerId, wasKilledByFramework: wasKilledByFramework)
     }
 
     static func createAndRegister(workerId: Int64, ctx: MainExecutionCtx): WorkerProcess {
@@ -415,8 +427,8 @@ class WorkerProcess {
         }
     }
 
-    private static func mkCrashResult(header: ExecutionResultHeader, output: CapturedOutput, code: Int64): ExecutionResult {
-        let crash = RunStepResult(0, header.startTime, crashStepKindOf(header), Failure([CrashedCheckResult(code)]))
+    private static func mkCrashResult(header: ExecutionResultHeader, output: CapturedOutput, checkResult: CheckResult): ExecutionResult {
+        let crash = RunStepResult(0, header.startTime, crashStepKindOf(header), Failure([checkResult]))
         let caseResult = match (header) {
             case lHeader: LifecycleExecutionResultHeader =>
                 let id = TestCaseId(lHeader.suiteId, lHeader.step.toString(), isBench: false)

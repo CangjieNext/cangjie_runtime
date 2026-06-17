@@ -40,7 +40,8 @@ abstract class CheckResult <: Serializable<CheckResult> {
             DiffCheckResult.tryToDeserialize(dms) ?? CustomCheckResult.tryToDeserialize(dms) ??
             ExceptionThrownCheckResult.tryToDeserialize(dms) ?? MockFrameworkCheckResult.tryToDeserialize(dms) ??
             NoParametersProvidedResult.tryToDeserialize(dms) ?? CrashedCheckResult.tryToDeserialize(dms) ??
-            TimeoutCheckResult.tryToDeserialize(dms) ?? PlainDeltaCompareCheckResult.tryToDeserialize(dms) ??
+            KilledByFrameworkCheckResult.tryToDeserialize(dms) ?? TimeoutCheckResult.tryToDeserialize(dms) ??
+            PlainDeltaCompareCheckResult.tryToDeserialize(dms) ??
             throw Exception("Can not deserialize Invalid check result")
     }
 }
@@ -305,6 +306,24 @@ class CrashedCheckResult <: CheckResult {
         CrashedCheckResult(
             Int64.deserialize(dms.tryGet("exitCode") ?? return None),
         )
+    }
+}
+
+class KilledByFrameworkCheckResult <: CheckResult {
+    KilledByFrameworkCheckResult(
+        let exitCode: Int64
+    ) {}
+
+    public func serializeInternal(): DataModel {
+        DataModelStruct()
+            .add(field<Int64>("killExitCode", exitCode))
+
+    }
+
+    static func tryToDeserialize(dms: DataModelStruct): ?KilledByFrameworkCheckResult {
+            KilledByFrameworkCheckResult(
+                Int64.deserialize(dms.tryGet("killExitCode") ?? return None)
+            )
     }
 }
 

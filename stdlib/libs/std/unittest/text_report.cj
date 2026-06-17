@@ -162,7 +162,7 @@ class PackageTextReport {
                         if (outputReporter.verbose || !allSkipped(suiteResult)) {
                             printTestSuite(suiteResult)
                         }
-                    case ProcessError(err) => pp.appendLine("REASON: failed to run package (exit code = ${err.code})")
+                    case ProcessError(err) => pp.appendLine("REASON: failed to run package (${err.description})")
                 }
             }
         }
@@ -464,7 +464,7 @@ class ProjectTextReport {
                 .timeElapsed(packageResult.details, config).appendLine(", RESULT:")
             packageResult.visitAll<TestProcessError>{ err =>
                 pp.indent {
-                    pp.appendLine("REASON: failed to run package (exit code = ${err.code})")
+                    pp.appendLine("REASON: failed to run package (${err.description})")
                 }
             }
         }
@@ -623,6 +623,8 @@ extend CheckResult <: PrettyPrintable {
             case cr: MockFrameworkCheckResult =>
                 pp.append(cr.mockFrameworkMessage).newLine()
             case cr: CrashedCheckResult => pp.append("Crashed with exit code ${cr.exitCode}.").newLine()
+            case cr: KilledByFrameworkCheckResult =>
+                pp.append(TestProcessError.killedByFramework(cr.exitCode).description).newLine()
             case cr: TimeoutCheckResult => pp.append(cr.msg).newLine()
             case cr: NoParametersProvidedResult => pp.append("Test case body was never executed. Provided strategy has zero elements.").newLine()
             case cr: UnattachedCheckResult =>

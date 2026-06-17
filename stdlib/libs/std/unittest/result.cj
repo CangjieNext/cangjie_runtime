@@ -395,13 +395,27 @@ enum GroupResultPart <: Result {
 class TestProcessError <: Result & Hashable {
     let _details = Details()
 
-    TestProcessError(let code: Int64) {
+    TestProcessError(let code: Int64, private let killReason!: ?String = None) {
         _details.add(Details(ERROR, true))
+    }
+
+    static func killedByFramework(code: Int64): TestProcessError {
+        TestProcessError(code, killReason:
+            "Test process was killed by the test framework  (exit code ${code}). " +
+            "This usually means it got stuck during static initialization " +
+            "and could not connect to the main process within the timeout.")
+    }
+
+    prop description: String {
+        get() {
+            killReason ?? "exit code ${code}"
+        }
     }
 
     public func hashCode(): Int64 {
         var hasher = DefaultHasher()
         hasher.write(code)
+        hasher.write(killReason ?? "")
         return hasher.finish()
     }
 
