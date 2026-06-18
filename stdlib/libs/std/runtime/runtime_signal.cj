@@ -33,14 +33,6 @@ private let mtx = Mutex()
 class SignalManager {
     static const MAX_SIG_NUM: Int32 = 32
     static let sigSlot = Array<ArrayList<SignalHandlerFunc>>(Int64(MAX_SIG_NUM), { _ => ArrayList<SignalHandlerFunc>()})
-    // This memory allocation is globally unique and will only be released along with the program upon termination.
-    static let ptrAction = LibC.malloc<SignalAction>(count: 1)
-    static init() {
-        let action = SignalAction(signalHandler)
-        unsafe {
-            ptrAction.write(action)
-        }
-    }
 }
 
 /**
@@ -131,7 +123,7 @@ func signalHandler(sig: Int32, _: CPointer<Unit>, _: CPointer<Unit>): Bool {
 @When[os != "Windows"]
 func regSigChain(sig: Signal) {
     unsafe {
-        CJ_MCC_AddSignalHandler(sig.value, SignalManager.ptrAction)
+        CJ_MCC_AddCangjieSignalHandler(sig.value, signalHandler)
     }
 }
 
@@ -146,18 +138,7 @@ func unregSigChain(sig: Signal) {
 type SigHandlerCFunc = CFunc<(Int32, CPointer<Unit>, CPointer<Unit>) -> Bool>
 
 @When[os != "Windows"]
-@C
-struct SignalAction {
-    let saHandler: SigHandlerCFunc
-    let scMask = 0u64
-    let scFlags = 0u64
-    init(fn: SigHandlerCFunc) {
-        saHandler = fn
-    }
-}
-
-@When[os != "Windows"]
-foreign func CJ_MCC_AddSignalHandler(signal: Int32, sa: CPointer<SignalAction>): Unit
+foreign func CJ_MCC_AddCangjieSignalHandler(signal: Int32, fn: SigHandlerCFunc): Unit
 
 @When[os != "Windows"]
 foreign func CJ_MCC_RemoveSignalHandler(signal: Int32, fn: SigHandlerCFunc): Unit

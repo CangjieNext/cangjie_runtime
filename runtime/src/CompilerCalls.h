@@ -140,6 +140,7 @@ extern "C" MRT_EXPORT int CJ_MCC_SignalProcMask(int how, const sigset_t* newSet,
 extern "C" MRT_EXPORT void CJ_MCC_SignalKill(pid_t pid, int sig);
 extern "C" MRT_EXPORT void CJ_MCC_SignalRaise(int sig);
 extern "C" MRT_EXPORT void CJ_MCC_AddSignalHandler(int signal, struct SignalAction* sa);
+extern "C" MRT_EXPORT void CJ_MCC_AddCangjieSignalHandler(int signal, bool (*fn)(int, siginfo_t*, void*));
 extern "C" MRT_EXPORT void CJ_MCC_RemoveSignalHandler(int signal, bool (*fn)(int, siginfo_t*, void*));
 #endif
 

@@ -508,6 +508,28 @@ extern "C" void CJ_MCC_AddSignalHandler(int signal, struct SignalAction* sa)
 
     AddHandlerToSignalStack(signal, sa);
 }
+
+extern "C" void CJ_MCC_AddCangjieSignalHandler(int signal, bool (*fn)(int, siginfo_t*, void*))
+{
+    SignalAction sa = {};
+    sa.saSignalAction = fn;
+    sigemptyset(&sa.scMask);
+    sa.scFlags = 0;
+
+    if (signal == SIGABRT || signal == SIGILL) {
+        SignalStack::GetStacks()[signal].SetUserSigHandler(true);
+    }
+    if (signal == SIGPIPE) {
+        sigset_t set;
+        CHECK_SIGNAL_CALL(sigemptyset, (&set), "sigemptyset failed in CJ_MCC_AddCangjieSignalHandler");
+        CHECK_SIGNAL_CALL(sigaddset, (&set, SIGPIPE), "sigaddset failed in CJ_MCC_AddCangjieSignalHandler");
+        CHECK_SIGNAL_CALL(pthread_sigmask, (SIG_UNBLOCK, &set, nullptr),
+                          "pthread_sigmask failed in CJ_MCC_AddCangjieSignalHandler");
+    }
+
+    AddHandlerToSignalStack(signal, &sa);
+}
+
 extern "C" void CJ_MCC_RemoveSignalHandler(int signal, bool (*fn)(int, siginfo_t*, void*))
 {
     RemoveHandlerFromSignalStack(signal, fn);
