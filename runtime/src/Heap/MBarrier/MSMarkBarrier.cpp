@@ -9,9 +9,9 @@
 #include "MSMarkBarrier.h"
 #include "Heap/Barrier/Barrier.inline.h"
 #include "Heap/Heap.h"
+#include "Heap/MAllocator/MSAllocBuffer.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MCollector/MarkSweepCollector.h"
-#include "Mutator/Mutator.h"
 #include "ObjectModel/Field.inline.h"
 #include "ObjectModel/MArray.h"
 #include "ObjectModel/RefField.inline.h"
@@ -22,39 +22,13 @@
 #include <cstring>
 
 namespace MapleRuntime {
-namespace {
-class WriteBarrierBufferGreySink final : public MarkSweepCollector::GreyWorkSink {
-public:
-    explicit WriteBarrierBufferGreySink(WriteBarrierBuffer& wbBuf) : wbBuf_(wbBuf) {}
-
-    void PushGrey(BaseObject* obj) override
-    {
-        wbBuf_.Push(obj);
-    }
-
-private:
-    WriteBarrierBuffer& wbBuf_;
-};
-} // namespace
-
 static inline void EnqueueRefFast(BaseObject* ref)
 {
     if (ref == nullptr || !Heap::IsHeapAddress(ref)) {
         return;
     }
-    Mutator* mutator = Mutator::GetMutator();
-    if (mutator == nullptr) {
-        MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
-        if (collector == nullptr) {
-            return;
-        }
-        WriteBarrierBuffer wbBuf;
-        WriteBarrierBufferGreySink sink(wbBuf);
-        (void)collector->TryEnqueueGreyObject(ref, sink);
-        collector->FlushWriteBarrierOverflow(wbBuf);
-        return;
-    }
-    WriteBarrierBuffer& wbBuf = mutator->GetWriteBarrierBuffer();
+    AllocBufferMS* allocBuf = AllocBufferMS::GetOrCreateAllocBufferMS();
+    WriteBarrierBuffer& wbBuf = allocBuf->GetWriteBarrierBuffer();
     if (UNLIKELY(wbBuf.IsFull())) {
         MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
         if (collector != nullptr) {
@@ -63,9 +37,7 @@ static inline void EnqueueRefFast(BaseObject* ref)
             wbBuf.Clear();
         }
     }
-    MarkSweepCollector& collector = static_cast<MarkSweepCollector&>(Heap::GetHeap().GetCollector());
-    WriteBarrierBufferGreySink sink(wbBuf);
-    (void)collector.TryEnqueueGreyObject(ref, sink);
+    wbBuf.Push(ref);
 }
 
 static inline void EnqueueStructRefsInRange(BaseObject* obj, MAddress start, size_t size)
@@ -156,41 +128,40 @@ void MSMarkBarrier::ReadStaticStruct(MAddress dst, MAddress src, size_t size, co
 }
 
 // ============================================================================
-// Writes: hybrid barrier — discover(old) + store + discover(new)
+// Writes: hybrid barrier — log(old) + store + log(new)
 // ============================================================================
 
 void MSMarkBarrier::WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref) const
 {
     (void)obj;
 
-    // discover(old)
+    // log(old)
     BaseObject* oldRef = field.GetTargetObject();
     EnqueueRefFast(oldRef);
 
     // store
     field.SetTargetObject(ref);
 
-    // discover(new)
+    // log(new)
     EnqueueRefFast(ref);
 }
 
 void MSMarkBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) const
 {
-    // discover(old)
+    // log(old)
     BaseObject* oldRef = field.GetTargetObject();
     EnqueueRefFast(oldRef);
 
     // store
     field.SetTargetObject(ref);
 
-    // discover(new)
+    // log(new)
     EnqueueRefFast(ref);
 }
 
 void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen) const
 {
-    // discover(old): preserve all existing reference fields in the destination struct
-    // Guard: skip shade if TypeInfo is NULL (prematurely reclaimed / uninitialized object)
+    // log(old): preserve all existing reference fields in the destination struct
     EnqueueStructRefsInRange(obj, dst, dstLen);
 
     // memcpy (overwrites dst with src)
@@ -202,14 +173,14 @@ void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MA
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dst), dstLen);
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(src), srcLen);
 #endif
-    // discover(new): trace the newly installed destination refs
+    // log(new): trace the newly installed destination refs
     EnqueueStructRefsInRange(obj, dst, dstLen);
 }
 
 void MSMarkBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, size_t srcLen,
                                       const GCTib gctib) const
 {
-    // discover(old): preserve all existing reference fields via GCTib bitmap
+    // log(old): preserve all existing reference fields via GCTib bitmap
     EnqueueStaticStructRefs(dst, gctib);
 
     // memcpy
@@ -221,7 +192,7 @@ void MSMarkBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src,
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dst), copyLen);
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(src), copyLen);
 #endif
-    // discover(new): trace the newly installed destination refs
+    // log(new): trace the newly installed destination refs
     EnqueueStaticStructRefs(dst, gctib);
 }
 

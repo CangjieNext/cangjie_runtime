@@ -113,9 +113,9 @@ public:
     }
     // Flush an overflowed WriteBarrierBuffer to the global LFStack.
     void FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf);
-    // Flush a mutator-exit WriteBarrierBuffer directly to globalFull_ so the
-    // work survives even after the mutator is removed from the scheduler list.
-    void FlushExitedMutatorWriteBarrierBuffer(WriteBarrierBuffer& wbBuf);
+    // Flush an owner-exit WriteBarrierBuffer directly to globalFull_ so the
+    // work survives even after the local owner is removed.
+    void FlushExitedWriteBarrierBuffer(WriteBarrierBuffer& wbBuf);
 
     // Per-P GCWork accessors for initialization during concurrent mark.
     LFStack& GetGlobalFull() { return globalFull_; }

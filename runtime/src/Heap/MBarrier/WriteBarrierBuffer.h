@@ -20,20 +20,20 @@ namespace MapleRuntime {
 // Forward declarations
 class WorkStack;
 
-// WriteBarrierBuffer — Per-Mutator buffer for hybrid write barrier
+// WriteBarrierBuffer — per-owner log buffer for the hybrid write barrier
 //
-// During concurrent marking, the write barrier shades (marks) old and new
-// reference targets. Newly-grey objects are buffered here to avoid contention
-// on the GC thread's central work stack.
+// During concurrent marking, the write barrier records old and new reference
+// targets here. Flushing the buffer performs the actual discover/mark step and
+// forwards newly-grey objects into collector work queues.
 //
 // Layout: fixed-size inline array (256 entries = 2 KB on 64-bit).
-//   - Push is O(1) lock-free (single writer per Mutator).
-//   - When full, Flush drains to a caller-provided WorkStack.
-//   - At MarkTermination STW, each Mutator flushes its buffer.
+//   - Push is O(1) lock-free (single writer per owner).
+//   - When full, the collector flush path drains and shades the logged refs.
+//   - At MarkTermination STW, the collector flushes every live owner buffer.
 //
 // Thread-safety:
-//   - Push: called only from the owning Mutator's thread (single writer).
-//   - Flush/Clear: called under STW or by the owning Mutator.
+//   - Push: called only from the owning thread-local execution context (single writer).
+//   - Flush/Clear: called under STW or by the owning thread.
 //   - No lock needed.
 
 class WriteBarrierBuffer {
@@ -49,7 +49,7 @@ public:
 
     ~WriteBarrierBuffer() = default;
 
-    // Push a grey object into the buffer.
+    // Push a logged heap reference into the buffer.
     // Caller MUST check IsFull() before calling if overflow handling is needed
     // (see MSMarkBarrier::EnqueueNew for the overflow-to-global-queue path).
     inline void Push(BaseObject* obj)

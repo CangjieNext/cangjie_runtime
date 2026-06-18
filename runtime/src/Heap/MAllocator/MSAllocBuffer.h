@@ -13,6 +13,7 @@
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSSizeClass.h"
+#include "Heap/MBarrier/WriteBarrierBuffer.h"
 #include "Common/TypeDef.h"
 #include "Common/MarkWorkStack.h"
 #include "Common/LFStack.h"
@@ -150,6 +151,7 @@ public:
 
     // Per-P GC Work buffer (Step5): used by Mutator assist during concurrent mark.
     // Initialized by MarkSweepCollector::InitAllPerPGCWork() at GC start.
+    WriteBarrierBuffer& GetWriteBarrierBuffer() { return wbBuf_; }
     PerPGCWork& GetGCWork() { return gcWork_; }
 
     uint16_t GetCachedHomeShardId() const { return cachedHomeShardId_; }
@@ -252,6 +254,10 @@ private:
     // Mutator assist debt in fixed-point "object" units.
     // debtScaled / AssistRatioScale = debtObjects.
     uint64_t gcAssistDebtScaled_ = 0;
+
+    // Per-owner write-barrier buffer. This is intentionally colocated with
+    // gcWork_ so writes overflow into the same local GC work owner.
+    WriteBarrierBuffer wbBuf_;
 
     // Step5: Per-P GC work buffer for mutator assist
     PerPGCWork gcWork_;

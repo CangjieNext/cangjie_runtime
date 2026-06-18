@@ -992,11 +992,10 @@ void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
     }
     BaseObject** data = wbBuf.Data();
     // Route barrier overflow into THIS mutator's per-P list1_ (local-first) so
-    // the grey objects it just produced can be consumed by its own assist
-    // without crossing the globalFull_ mutex. PushWBBuf falls back to
-    // globalFull_ when list1_ is full. If this thread has no AllocBufferMS
+    // the grey objects produced while flushing the log can be consumed by its
+    // own assist without crossing the globalFull_ mutex. PushWBBuf falls back
+    // to globalFull_ when list1_ is full. If this thread has no AllocBufferMS
     // (no per-P work), fall back to pushing directly to globalFull_.
-    // Objects in wbBuf are already marked (DiscoverObject was called in EnqueueRefs).
     AllocBufferMS* allocBuf = ThreadLocal::GetAllocBufferMS();
     PerPGCWork* gcw = nullptr;
     if (allocBuf != nullptr) {
@@ -1020,10 +1019,7 @@ void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
         if (obj == nullptr) {
             continue;
         }
-        if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-            continue;
-        }
-        if (UNLIKELY(!obj->IsValidObject())) {
+        if (!DiscoverObject(obj)) {
             continue;
         }
         if (buf->Full()) {
@@ -1045,7 +1041,7 @@ void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
     }
 }
 
-void MarkSweepCollector::FlushExitedMutatorWriteBarrierBuffer(WriteBarrierBuffer& wbBuf)
+void MarkSweepCollector::FlushExitedWriteBarrierBuffer(WriteBarrierBuffer& wbBuf)
 {
     size_t n = wbBuf.Count();
     if (n == 0) {
@@ -1060,10 +1056,7 @@ void MarkSweepCollector::FlushExitedMutatorWriteBarrierBuffer(WriteBarrierBuffer
         if (obj == nullptr) {
             continue;
         }
-        if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-            continue;
-        }
-        if (UNLIKELY(!obj->IsValidObject())) {
+        if (!DiscoverObject(obj)) {
             continue;
         }
         if (buf->Full()) {
@@ -1422,8 +1415,14 @@ void MarkSweepCollector::MarkTermination()
 
 void MarkSweepCollector::FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue)
 {
-    auto func = [this, &mainQueue](Mutator& mutator) {
-        WriteBarrierBuffer& wbBuf = mutator.GetWriteBarrierBuffer();
+    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    if (centralPool == nullptr) {
+        return;
+    }
+
+    centralPool->VisitAllocBufferMS([this, &mainQueue](AllocBufferMS& buffer) {
+        WriteBarrierBuffer& wbBuf = buffer.GetWriteBarrierBuffer();
         BaseObject** data = wbBuf.Data();
         size_t n = wbBuf.Count();
         for (size_t i = 0; i < n; ++i) {
@@ -1431,17 +1430,10 @@ void MarkSweepCollector::FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue)
             if (obj == nullptr) {
                 continue;
             }
-            if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-                continue;
-            }
-            if (UNLIKELY(!obj->IsValidObject())) {
-                continue;
-            }
-            mainQueue.PushMovedGrey(obj);
+            (void)TryEnqueueGreyObject(obj, mainQueue);
         }
         wbBuf.Clear();
-    };
-    MutatorManager::Instance().VisitAllMutators(func);
+    });
 }
 
 void MarkSweepCollector::DrainDeferredMainThreadQueueToMainQueue(GreyWorkQueue& mainQueue)

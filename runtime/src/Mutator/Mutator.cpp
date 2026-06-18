@@ -596,8 +596,8 @@ inline void Mutator::HandleGCPhase(GCPhase newPhase)
         GcPhaseEnum(newPhase);
     }
     // MS_MARK_TERMINATION, MS_CONCURRENT_MARK, MS_SWEEP:
-    // No Mutator-side action needed. Barrier switching is handled by InstallBarrier().
-    // WriteBarrierBuffer flush is done by the collector in STW (FlushAllWriteBarrierBuffers).
+    // No Mutator-side action needed. Barrier switching and per-AllocBufferMS
+    // write-barrier-buffer flushing are handled by the collector.
 #endif // MRT_USE_MARK_SWEEP
 }
 

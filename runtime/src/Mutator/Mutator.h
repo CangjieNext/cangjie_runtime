@@ -18,7 +18,6 @@
 #include "Mutator/ThreadLocal.h"
 #include "SatbBuffer.h"
 #include "schedule.h"
-#include "Heap/MBarrier/WriteBarrierBuffer.h"
 #include "Common/MarkWorkStack.h"
 #ifdef _WIN64
 #include "UnwindWin.h"
@@ -99,7 +98,6 @@ public:
             SatbBuffer::Instance().RetireNode(satbNode);
             satbNode = nullptr;
         }
-        wbBuf_.Clear();
         assistLocalWork_.clear();
         uwContext.Reset();
         exceptionWrapper.ClearInfo();
@@ -451,7 +449,6 @@ public:
         satbNode->Clear();
     }
 
-    WriteBarrierBuffer& GetWriteBarrierBuffer() { return wbBuf_; }
     AssistWorkStack& GetAssistLocalWork() { return assistLocalWork_; }
 
     inline uintptr_t GetStackTopAddr() { return stackTopAddr; }
@@ -596,7 +593,6 @@ private:
     ObjectRef rawObject{ nullptr };
 
     SatbBuffer::Node* satbNode = nullptr;
-    WriteBarrierBuffer wbBuf_;  // Always present to keep Mutator layout consistent across CJThread and runtime
     AssistWorkStack assistLocalWork_;  // Persistent assist-local mark work, drained explicitly at MarkTermination
 #if defined(GCINFO_DEBUG) && GCINFO_DEBUG
     GCInfos gcInfos;

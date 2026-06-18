@@ -88,6 +88,22 @@ void AllocBufferMS::Init(CentralRegionPool* central)
 
 void AllocBufferMS::Fini()
 {
+    MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
+    if (collector != nullptr) {
+        if (!wbBuf_.IsEmpty()) {
+            collector->FlushExitedWriteBarrierBuffer(wbBuf_);
+        }
+        if (gcWork_.IsInitialized()) {
+            gcWork_.Dispose();
+            gcWork_.Reset();
+        }
+    } else {
+        wbBuf_.Clear();
+        if (gcWork_.IsInitialized()) {
+            gcWork_.Reset();
+        }
+    }
+
     if (central_ != nullptr) {
         (void)ReturnAllRegionsToCentral();
         std::vector<MSRegionInfo*> drained;
