@@ -45,15 +45,6 @@ struct MSGCCycleStats {
     size_t losCachedRegionCount = 0;      // Region spans placed into hot cache.
     uint64_t losCollectUs = 0;            // Timer around CollectLargeGarbage.
 
-    // ── Previous cycle sweep summary (persisted from last cycle) ──
-    size_t prevSweptSmallRegions = 0;         // Previous cycle TotalSweptRegions() snapshot used by LogSweepSummary.
-    size_t prevSweptSmallEmptiedRegions = 0;  // Previous cycle emptiedRegions snapshot used by LogSweepSummary.
-    size_t prevSweptLargeCount = 0;           // Previous cycle large-object reclaim count used by LogSweepSummary.
-    size_t prevSweptLargeRegions = 0;         // Previous cycle large-object reclaimed region spans.
-    size_t prevSweptLargeFreedBytes = 0;      // Previous cycle large-object reclaimed bytes.
-    size_t prevBgSweepRegions = 0;            // Previous cycle background-swept small-region count.
-    size_t prevLazySweepRegions = 0;          // Previous cycle lazy-swept small-region count.
-
     // ── Mutator assist stats (Step 2.2 §4) ──
     size_t assistCallCount = 0;          // assistCallTotal_ snapshot at ConcurrentMark end.
     size_t assistProcessedObjects = 0;   // assistProcessedCount_ snapshot at ConcurrentMark end.
@@ -313,13 +304,7 @@ private:
     void LogGCEntry(uint64_t gcIndex, GCReason reason);           // Block ①
     void DumpRegionStatsMS();                                     // Block ⑤
     void LogGCSummary(uint64_t gcTimeUs);                         // Block ⑥
-    void SnapshotPreviousCycleSweepStats();                       // Persist previous sweep stats
-    void LogSweepSummary();                                       // Block ④
     void DumpGCStateSnapshot(const char* stage);
-
-    size_t prevCycleLargeFreedCount_ = 0;
-    size_t prevCycleLargeFreedRegionCount_ = 0;
-    size_t prevCycleLargeFreedBytes_ = 0;
 };
 
 } // namespace MapleRuntime

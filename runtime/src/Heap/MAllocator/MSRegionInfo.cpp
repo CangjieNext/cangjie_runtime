@@ -20,6 +20,9 @@ namespace MapleRuntime {
 
 void MSRegionInfo::InitForSizeClass(uint8_t cls)
 {
+    uintptr_t regionStart = MSRegionInfoArray::GetRegionAddress(MSRegionInfoArray::GetRegionIdx(this));
+    allocPtr = regionStart;
+    regionEnd = regionStart + MS_REGION_SIZE;
     sizeClass = cls;
     sweepState = MSSweepState::UNSWEPT;
     regionType = MSRegionType::MS_REGION_BUMP;

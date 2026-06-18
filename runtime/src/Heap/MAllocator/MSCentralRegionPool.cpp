@@ -166,172 +166,106 @@ std::array<uint8_t, kNumSizeClasses> CentralRegionPool::BuildBackgroundSweepClas
 }
 
 // ============================================================================
-// GetRegion — five-priority Region acquisition
-// Priority: partialSwept -> unswept(lazy sweep) -> emptySweptCache(rebind)
-//         -> fresh
+// TakePartialSweptRegion — fastest central-pool acquisition path.
 // ============================================================================
-MSRegionInfo* CentralRegionPool::GetRegion(uint8_t cls, MSRegionAcquireSource* source)
+MSRegionInfo* CentralRegionPool::TakePartialSweptRegion(uint8_t cls)
+{
+    SizeClassBucket& bucket = buckets_[cls];
+    MSRegionInfo* region = bucket.TakePartialSwept();
+    if (region == nullptr) {
+        return nullptr;
+    }
+
+    size_t ridx = MSRegionInfoArray::GetRegionIdx(region);
+    uintptr_t expectedEnd = MSRegionInfoArray::GetRegionAddress(ridx) + MS_REGION_SIZE;
+    if (UNLIKELY(region->regionEnd != expectedEnd)) {
+        LOG(RTLOG_FATAL, "[MS-GC] TakePartialSweptRegion: partialSwept region has wrong regionEnd! "
+            "regionEnd=0x%zx, expected=0x%zx, allocPtr=0x%zx, cls=%u, "
+            "sizeClass=%u, allocBitmap=%p, this=%p (idx=%zu)",
+            region->regionEnd, expectedEnd, region->allocPtr,
+            (unsigned)cls, (unsigned)region->sizeClass,
+            (void*)region->allocBitmap, (void*)region, ridx);
+    }
+    return region;
+}
+
+// ============================================================================
+// TakeUnsweptRegion — lazily sweep unswept lists and return a usable region.
+// Covers partialUnswept first, then fullUnswept.
+// ============================================================================
+MSRegionInfo* CentralRegionPool::TakeUnsweptRegion(uint8_t cls)
 {
     SizeClassBucket& bucket = buckets_[cls];
     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
+    using UnsweptListKind = SizeClassBucket::UnsweptListKind;
 
-    if (source != nullptr) {
-        *source = MSRegionAcquireSource::NONE;
-    }
+    auto SweepUnsweptList = [&](UnsweptListKind kind) -> MSRegionInfo* {
+        for (;;) {
+            MSRegionInfo* region = bucket.TakeUnswept(kind);
+            if (region == nullptr) {
+                return nullptr;
+            }
 
-    auto RebindEmptyRegionForClass = [&](MSRegionInfo* region) -> MSRegionInfo* {
-        size_t regionIdx = MSRegionInfoArray::GetRegionIdx(region);
-        uintptr_t regionStart = MSRegionInfoArray::GetRegionAddress(regionIdx);
-        ClearSmallRegionPayload(regionStart);
+            // CAS to claim sweep ownership: sg-2 → sg-1 (sweeping)
+            if (!region->CasSweepGen(sg - 2, sg - 1)) {
+                // CAS failed: region was stamped by MarkSetup or swept by another thread.
+                // Return to the corresponding swept list to avoid leaking the region.
+                if (kind == UnsweptListKind::PARTIAL) {
+                    bucket.PushPartialSwept(region);
+                } else {
+                    bucket.PushFullSwept(region);
+                }
+                continue;
+            }
 
-        if (region->sizeClass == cls && region->allocBitmap != nullptr) {
-            region->ResetToBump();
-        } else {
-            region->ResetToEmptyCache();
-            region->InitForSizeClass(cls);
-            CHECK_DETAIL(region->allocBitmap != nullptr,
-                         "GetRegion: InitForSizeClass failed for cls=%u idx=%zu",
-                         static_cast<unsigned>(cls), regionIdx);
+            region->SweepRegion();
+            region->SetSweepGen(sg);
+
+            if (region->IsCompletelyFree()) {
+                region->ResetToBump();
+                return region;
+            }
+
+            if (kind == UnsweptListKind::PARTIAL || region->HasFreeSpace()) {
+                region->regionType = MSRegionType::MS_REGION_PARTIAL;
+                return region;
+            }
+
+            // Still full after sweeping a full-unswept region → move to fullSwept
+            region->regionType = MSRegionType::MS_REGION_FULL;
+            bucket.PushFullSwept(region);
         }
-
-        region->allocPtr = regionStart;
-        region->regionEnd = regionStart + MS_REGION_SIZE;
-        region->SetSweepGen(sg);
-        return region;
     };
 
-    // ---- Priority 1: partialSwept — already swept, fastest path ----
-    {
-        MSRegionInfo* region = bucket.TakePartialSwept();
-        if (region != nullptr) {
-            if (source != nullptr) {
-                *source = MSRegionAcquireSource::PARTIAL_SWEPT;
-            }
-            size_t ridx = MSRegionInfoArray::GetRegionIdx(region);
-            uintptr_t expectedEnd = MSRegionInfoArray::GetRegionAddress(ridx) + MS_REGION_SIZE;
-            if (UNLIKELY(region->regionEnd != expectedEnd)) {
-                LOG(RTLOG_FATAL, "[MS-GC] GetRegion P1: partialSwept region has wrong regionEnd! "
-                    "regionEnd=0x%zx, expected=0x%zx, allocPtr=0x%zx, cls=%u, "
-                    "sizeClass=%u, allocBitmap=%p, this=%p (idx=%zu)",
-                    region->regionEnd, expectedEnd, region->allocPtr,
-                    (unsigned)cls, (unsigned)region->sizeClass,
-                    (void*)region->allocBitmap, (void*)region, ridx);
-            }
-            return region;
-        }
+    if (skipLazySweep_.load(std::memory_order_acquire)) {
+        return nullptr;
     }
 
-    // ---- Priority 2: partialUnswept — sweep first, likely has free slots ----
-    if (!skipLazySweep_.load(std::memory_order_acquire)) {
-        // Notify background sweep only when we actually enter unswept paths,
-        // rather than speculatively at GetRegion entry.
-        msRegionManager_->MaybeNotifySweep(this, cls);
-        activeLazySweepCount_.fetch_add(1, std::memory_order_relaxed);
-        // Double-check after increment to close the race with StopAndWaitForAllSweep.
-        // The increment (a store to activeLazySweepCount_) and this skip re-load form
-        // a StoreLoad pair against StopAndWaitForAllSweep's skip-store / count-load.
-        // acquire/release alone does NOT order StoreLoad across two different atomics,
-        // so without this seq_cst fence the increment can sink below the skip load:
-        // Stop then observes count==0, runs ClearAllMarkBitmaps concurrently with this
-        // thread's SweepRegion, and ~markBitmap frees LIVE objects (corrupting e.g. the
-        // JSON parse buffer). The matching fence lives in StopAndWaitForAllSweep.
-        std::atomic_thread_fence(std::memory_order_seq_cst);
-        if (skipLazySweep_.load(std::memory_order_acquire)) {
-            activeLazySweepCount_.fetch_sub(1, std::memory_order_relaxed);
-        } else {
-            MSRegionInfo* sweptRegion = nullptr;
-            for (;;) {
-                MSRegionInfo* region = bucket.TakeUnswept(SizeClassBucket::UnsweptListKind::PARTIAL);
-                if (region == nullptr) {
-                    break;
-                }
+    // Notify background sweep only when we actually enter unswept paths,
+    // rather than speculatively at central acquisition entry.
+    msRegionManager_->MaybeNotifySweep(this, cls);
+    activeLazySweepCount_.fetch_add(1, std::memory_order_relaxed);
 
-                // CAS to claim sweep ownership: sg-2 → sg-1 (sweeping)
-                if (region->CasSweepGen(sg - 2, sg - 1)) {
-                    size_t freedBytes = region->SweepRegion();
-                    region->SetSweepGen(sg);
-                    sweepStats_.lazySweptRegions.fetch_add(1, std::memory_order_relaxed);
-                    sweepStats_.sweptByClass[cls].fetch_add(1, std::memory_order_relaxed);
-                    sweepStats_.sweptFreedBytes.fetch_add(freedBytes, std::memory_order_relaxed);
+    // Double-check after increment to close the race with StopAndWaitForAllSweep.
+    // The increment (a store to activeLazySweepCount_) and this skip re-load form
+    // a StoreLoad pair against StopAndWaitForAllSweep's skip-store / count-load.
+    // acquire/release alone does NOT order StoreLoad across two different atomics,
+    // so without this seq_cst fence the increment can sink below the skip load:
+    // Stop then observes count==0, runs ClearAllMarkBitmaps concurrently with this
+    // thread's SweepRegion, and ~markBitmap frees LIVE objects (corrupting e.g. the
+    // JSON parse buffer). The matching fence lives in StopAndWaitForAllSweep.
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+    if (skipLazySweep_.load(std::memory_order_acquire)) {
+        activeLazySweepCount_.fetch_sub(1, std::memory_order_relaxed);
+        return nullptr;
+    }
 
-                    if (region->IsCompletelyFree()) {
-                        sweepStats_.emptiedRegions.fetch_add(1, std::memory_order_relaxed);
-                        sweptRegion = RebindEmptyRegionForClass(region);
-                        break;
-                    }
-                    sweepStats_.retainedRegions.fetch_add(1, std::memory_order_relaxed);
-                    region->regionType = MSRegionType::MS_REGION_PARTIAL;
-                    sweptRegion = region;
-                    break;
-                }
-                // CAS failed: region was stamped by MarkSetup or swept by another thread.
-                // Return to partialSwept to avoid leaking the region.
-                bucket.PushPartialSwept(region);
-            }
-            activeLazySweepCount_.fetch_sub(1, std::memory_order_relaxed);
-            if (sweptRegion != nullptr) {
-                if (source != nullptr) {
-                    *source = MSRegionAcquireSource::PARTIAL_UNSWEPT;
-                }
-                return sweptRegion;
-            }
-        } // end double-check else
-    } // end skipLazySweep check
-
-    // ---- Priority 3: fullUnswept — sweep, may produce free slots ----
-    if (!skipLazySweep_.load(std::memory_order_acquire)) {
-        activeLazySweepCount_.fetch_add(1, std::memory_order_relaxed);
-        // seq_cst fence: same StoreLoad ordering requirement as Priority 2 above —
-        // pairs with StopAndWaitForAllSweep so a claimed lazy sweep can never run
-        // concurrently with ClearAllMarkBitmaps.
-        std::atomic_thread_fence(std::memory_order_seq_cst);
-        if (skipLazySweep_.load(std::memory_order_acquire)) {
-            activeLazySweepCount_.fetch_sub(1, std::memory_order_relaxed);
-        } else {
-            MSRegionInfo* sweptRegion = nullptr;
-            for (;;) {
-                MSRegionInfo* region = bucket.TakeUnswept(SizeClassBucket::UnsweptListKind::FULL);
-                if (region == nullptr) {
-                    break;
-                }
-
-                if (region->CasSweepGen(sg - 2, sg - 1)) {
-                    size_t freedBytes = region->SweepRegion();
-                    region->SetSweepGen(sg);
-                    sweepStats_.lazySweptRegions.fetch_add(1, std::memory_order_relaxed);
-                    sweepStats_.sweptByClass[cls].fetch_add(1, std::memory_order_relaxed);
-                    sweepStats_.sweptFreedBytes.fetch_add(freedBytes, std::memory_order_relaxed);
-
-                    if (region->IsCompletelyFree()) {
-                        sweepStats_.emptiedRegions.fetch_add(1, std::memory_order_relaxed);
-                        sweptRegion = RebindEmptyRegionForClass(region);
-                        break;
-                    }
-                    sweepStats_.retainedRegions.fetch_add(1, std::memory_order_relaxed);
-                    if (region->HasFreeSpace()) {
-                        region->regionType = MSRegionType::MS_REGION_PARTIAL;
-                        sweptRegion = region;
-                        break;
-                    }
-                    // Still full after sweep → move to fullSwept
-                    bucket.PushFullSwept(region);
-                    continue;
-                }
-                // CAS failed: region was stamped. Return to fullSwept.
-                bucket.PushFullSwept(region);
-            }
-            activeLazySweepCount_.fetch_sub(1, std::memory_order_relaxed);
-            if (sweptRegion != nullptr) {
-                if (source != nullptr) {
-                    *source = MSRegionAcquireSource::FULL_UNSWEPT;
-                }
-                return sweptRegion;
-            }
-        } // end double-check else
-    } // end skipLazySweep check
-
-    // ---- Priority 4: no cached Regions available, caller should GetFreshRegion ----
-    return nullptr;
+    MSRegionInfo* sweptRegion = SweepUnsweptList(UnsweptListKind::PARTIAL);
+    if (sweptRegion == nullptr) {
+        sweptRegion = SweepUnsweptList(UnsweptListKind::FULL);
+    }
+    activeLazySweepCount_.fetch_sub(1, std::memory_order_relaxed);
+    return sweptRegion;
 }
 
 // ============================================================================
@@ -378,10 +312,6 @@ MSRegionInfo* CentralRegionPool::GetFreshRegion(uint8_t cls, uint16_t shardHint)
             (void*)msInfo);
     }
 #endif
-
-    // Set addresses that InitForSizeClass does not set
-    msInfo->allocPtr = regionStart;
-    msInfo->regionEnd = regionStart + MS_REGION_SIZE;
 
     // Stamp the current sweep generation so this Region is seen as "already swept"
     msInfo->SetSweepGen(globalSweepGen_.load(std::memory_order_acquire));
@@ -438,7 +368,7 @@ void CentralRegionPool::PushEmptySweptRegion(MSRegionInfo* region)
     IncrementEmptySweptCount();
 }
 
-MSRegionInfo* CentralRegionPool::TakeEmptySweptRegionFromGlobalOnly()
+MSRegionInfo* CentralRegionPool::TakeGlobalEmptyRegion()
 {
     MSRegionInfo* region = nullptr;
     {
@@ -687,8 +617,6 @@ size_t CentralRegionPool::ReclaimIdleSegmentCaches(size_t startRegionIdx, size_t
 
 void CentralRegionPool::PrepareForSweep()
 {
-    sweepStats_.Reset();
-
     // At this point MarkSetup has already stopped sweep and promoted any residual
     // unswept regions to swept. FlushAllAllocBuffers returns TL regions to swept.
     // O(1) per-bucket flip:
@@ -735,8 +663,8 @@ BackgroundSweepStats CentralRegionPool::BackgroundSweep(uint8_t preferredCls)
     size_t maxRegions = GetBgSweepMaxRegionsPerSlice(remainingUnswept);
     uint64_t deadlineUs = t0 + GetBgSweepMaxTimeUs(remainingUnswept);
     size_t sweptInSlice = 0;
+    size_t emptyInSlice = 0;
     bool pendingWork = false;
-    size_t emptyBefore = sweepStats_.emptiedRegions.load(std::memory_order_relaxed);
 
     auto SweepBucket = [&](uint8_t cls) -> bool {
         if (stopSweepRequested_.load(std::memory_order_acquire)) {
@@ -749,12 +677,12 @@ BackgroundSweepStats CentralRegionPool::BackgroundSweep(uint8_t preferredCls)
 
         SizeClassBucket& bucket = buckets_[cls];
         if (!SweepUnsweptList(bucket, SizeClassBucket::UnsweptListKind::PARTIAL,
-                              sg, sweptInSlice, maxRegions, deadlineUs)) {
+                              sg, sweptInSlice, maxRegions, deadlineUs, &emptyInSlice)) {
             pendingWork = !stopSweepRequested_.load(std::memory_order_acquire);
             return false;
         }
         if (!SweepUnsweptList(bucket, SizeClassBucket::UnsweptListKind::FULL,
-                              sg, sweptInSlice, maxRegions, deadlineUs)) {
+                              sg, sweptInSlice, maxRegions, deadlineUs, &emptyInSlice)) {
             pendingWork = !stopSweepRequested_.load(std::memory_order_acquire);
             return false;
         }
@@ -772,9 +700,6 @@ BackgroundSweepStats CentralRegionPool::BackgroundSweep(uint8_t preferredCls)
     }
 
     uint64_t elapsed = TimeUtil::MicroSeconds() - t0;
-    sweepStats_.bgSweepTimeUs.fetch_add(elapsed, std::memory_order_relaxed);
-
-    size_t emptyInSlice = sweepStats_.emptiedRegions.load(std::memory_order_relaxed) - emptyBefore;
 
     if (!pendingWork && !stopSweepRequested_.load(std::memory_order_acquire)) {
         sweepDone_.store(true, std::memory_order_release);
@@ -805,27 +730,21 @@ bool CentralRegionPool::SweepUnsweptList(SizeClassBucket& bucket, SizeClassBucke
 
         // CAS to claim sweep ownership (coordinate with Lazy Sweep / BackgroundSweep)
         if (region->CasSweepGen(sg - 2, sg - 1)) {
-            size_t freedBytes = region->SweepRegion();
+            region->SweepRegion();
             region->SetSweepGen(sg);
             sweptInSlice++;
-            sweepStats_.bgSweptRegions.fetch_add(1, std::memory_order_relaxed);
-            sweepStats_.sweptByClass[region->sizeClass].fetch_add(1, std::memory_order_relaxed);
-            sweepStats_.sweptFreedBytes.fetch_add(freedBytes, std::memory_order_relaxed);
 
             if (region->IsCompletelyFree()) {
                 // Completely empty regions leave the class-local supply and
                 // become classless empty-cache entries.
                 PushEmptySweptRegion(region);
-                sweepStats_.emptiedRegions.fetch_add(1, std::memory_order_relaxed);
                 if (emptiedInSlice != nullptr) {
                     (*emptiedInSlice)++;
                 }
             } else if (region->HasFreeSpace()) {
-                sweepStats_.retainedRegions.fetch_add(1, std::memory_order_relaxed);
                 region->regionType = MSRegionType::MS_REGION_PARTIAL;
                 bucket.PushPartialSwept(region);
             } else {
-                sweepStats_.retainedRegions.fetch_add(1, std::memory_order_relaxed);
                 region->regionType = MSRegionType::MS_REGION_FULL;
                 bucket.PushFullSwept(region);
             }

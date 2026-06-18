@@ -30,44 +30,6 @@ class MSRegionManager;
 class AllocBufferMS;
 class BaseObject;
 
-enum class MSRegionAcquireSource : uint8_t {
-    NONE = 0,
-    PARTIAL_SWEPT,
-    PARTIAL_UNSWEPT,
-    FULL_UNSWEPT,
-    EMPTY_REBIND,
-};
-
-// Sweep statistics accumulated across a GC cycle, persisted until next GC.
-struct MSSweepStats {
-    std::atomic<size_t> bgSweptRegions{0};    // regions swept by background sweep
-    std::atomic<size_t> lazySweptRegions{0};  // regions swept by lazy sweep (GetRegion)
-    std::atomic<size_t> sweptFreedBytes{0};   // total bytes freed by small-object sweep
-    std::atomic<size_t> emptiedRegions{0};    // completely-free small regions reset and returned to swept cache
-    std::atomic<size_t> retainedRegions{0};   // swept small regions that still remain active
-    std::atomic<uint64_t> bgSweepTimeUs{0};   // BackgroundSweep wall-clock time (us)
-
-    // O3: per-sizeClass sweep region count for fragmentation diagnostics
-    std::atomic<size_t> sweptByClass[kNumSizeClasses]{};
-
-    void Reset() {
-        bgSweptRegions.store(0, std::memory_order_relaxed);
-        lazySweptRegions.store(0, std::memory_order_relaxed);
-        sweptFreedBytes.store(0, std::memory_order_relaxed);
-        emptiedRegions.store(0, std::memory_order_relaxed);
-        retainedRegions.store(0, std::memory_order_relaxed);
-        bgSweepTimeUs.store(0, std::memory_order_relaxed);
-        for (size_t i = 0; i < kNumSizeClasses; i++) {
-            sweptByClass[i].store(0, std::memory_order_relaxed);
-        }
-    }
-
-    size_t TotalSweptRegions() const {
-        return bgSweptRegions.load(std::memory_order_relaxed) +
-               lazySweptRegions.load(std::memory_order_relaxed);
-    }
-};
-
 struct MSLargeSweepStats {
     size_t objectCount = 0;
     size_t regionCount = 0;
@@ -345,10 +307,11 @@ public:
 
     // ===== Thread-local Region acquisition =====
 
-    // Get a Region with free slots for the given size class.
-    // Priority: partialSwept → partialUnswept (lazy sweep) → fullUnswept (lazy sweep)
-    //        → fresh. AllocBufferMS owns any EmptyRegion local/global fallback.
-    MSRegionInfo* GetRegion(uint8_t cls, MSRegionAcquireSource* source = nullptr);
+    // Fast path: take an already-swept partial region for the given size class.
+    MSRegionInfo* TakePartialSweptRegion(uint8_t cls);
+
+    // Slow path: lazily sweep partial/full unswept lists and return a usable region.
+    MSRegionInfo* TakeUnsweptRegion(uint8_t cls);
 
     // Get a fresh mutator Region from RegionManager after central lists miss.
     // This path skips releasedTree and goes directly to bump/grow.
@@ -416,10 +379,6 @@ public:
     size_t GetActiveMSRegionCount() const;
     size_t GetEmptySweptRegionCount() const;
     size_t GetLargeHotCacheRegionCount() const;
-
-    // ===== DFX: Sweep statistics (persisted across GC cycle) =====
-    MSSweepStats& GetSweepStats() { return sweepStats_; }
-    const MSSweepStats& GetSweepStats() const { return sweepStats_; }
 
     // Dump CentralRegionPool 4-list statistics (block ⑤ in DFX design)
     void DumpPoolStats() const;
@@ -628,7 +587,7 @@ private:
     };
 
     void PushEmptySweptRegion(MSRegionInfo* region);
-    MSRegionInfo* TakeEmptySweptRegionFromGlobalOnly();
+    MSRegionInfo* TakeGlobalEmptyRegion();
     size_t DrainEmptySweptGlobal(size_t maxRegions, std::vector<MSRegionInfo*>& drained);
     size_t GetEmptySweptGlobalCount() const
     {
@@ -668,7 +627,6 @@ private:
     std::atomic<bool> stopSweepRequested_{false};    // Signal bg sweep to stop early
     std::atomic<bool> skipLazySweep_{false};          // Disable lazy sweep in GetRegion P2/P3
     std::atomic<size_t> activeLazySweepCount_{0};     // In-flight lazy sweep counter
-    MSSweepStats sweepStats_;
 
     SizeClassBucket buckets_[kNumSizeClasses];
     MSRegionManager*  msRegionManager_;

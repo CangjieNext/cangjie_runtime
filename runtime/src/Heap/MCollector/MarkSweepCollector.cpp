@@ -120,6 +120,15 @@ static bool IsVerifyDetailEnabled()
     return enabled;
 }
 
+static bool IsVerifyMarkEnabled()
+{
+    static bool enabled = []() {
+        const char* env = std::getenv("CJ_MS_VERIFY_MARK");
+        return env != nullptr && env[0] != '\0' && std::strcmp(env, "0") != 0;
+    }();
+    return enabled;
+}
+
 static std::string HexForDiag(uintptr_t value)
 {
     char buf[32];
@@ -363,10 +372,6 @@ void MarkSweepCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
     // Block ①: GC Entry
     LogGCEntry(gcIndex, reason);
 
-    // Block ④: Sweep summary from PREVIOUS cycle (output at start of new cycle)
-    SnapshotPreviousCycleSweepStats();
-    LogSweepSummary();
-
     PreGarbageCollection(/* isConcurrent */ true);
     DumpGCStateSnapshot("preGCMark");
     DoGarbageCollection(gcIndex);
@@ -382,10 +387,6 @@ void MarkSweepCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
 
     // Block ⑥: GC Summary
     LogGCSummary(gcTimeUs);
-
-    prevCycleLargeFreedCount_ = cycleStats_.losFreedCount;
-    prevCycleLargeFreedRegionCount_ = cycleStats_.losFreedRegionCount;
-    prevCycleLargeFreedBytes_ = cycleStats_.losFreedBytes;
 
     g_gcCount++;
     g_gcTotalTimeUs += gcTimeUs;
@@ -1617,8 +1618,7 @@ void MarkSweepCollector::CollectLargeGarbage()
 // ============================================================================
 void MarkSweepCollector::VerifyMarkCompleteness()
 {
-    static const bool enabled = (std::getenv("CJ_MS_VERIFY_MARK") != nullptr);
-    if (!enabled) {
+    if (!IsVerifyMarkEnabled()) {
         return;
     }
 
@@ -1885,44 +1885,6 @@ void MarkSweepCollector::LogGCEntry(uint64_t gcIndex, GCReason reason)
     size_t largeCacheCount = largeCacheBytes / MS_REGION_SIZE;
     VLOG(REPORT, "[MS-GC] unswept: %zu regions, emptyCache: %zu regions, hotFree: %zu regions, largeCache: %zu regions (%zu KB)",
         unsweptCount, emptyCount, hotFreeCount, largeCacheCount, largeCacheBytes / 1024);
-}
-
-// Snapshot previous cycle's sweep stats before PrepareForSweep resets them.
-void MarkSweepCollector::SnapshotPreviousCycleSweepStats()
-{
-    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
-    CentralRegionPool* centralPool = space.GetCentralPool();
-    if (centralPool != nullptr) {
-        const MSSweepStats& ss = centralPool->GetSweepStats();
-        cycleStats_.prevBgSweepRegions = ss.bgSweptRegions.load(std::memory_order_relaxed);
-        cycleStats_.prevLazySweepRegions = ss.lazySweptRegions.load(std::memory_order_relaxed);
-        cycleStats_.prevSweptSmallRegions = ss.TotalSweptRegions();
-        cycleStats_.prevSweptSmallEmptiedRegions = ss.emptiedRegions.load(std::memory_order_relaxed);
-    }
-    cycleStats_.prevSweptLargeCount = prevCycleLargeFreedCount_;
-    cycleStats_.prevSweptLargeRegions = prevCycleLargeFreedRegionCount_;
-    cycleStats_.prevSweptLargeFreedBytes = prevCycleLargeFreedBytes_;
-}
-
-// Block ④: Sweep Summary — output at START of next cycle with persisted stats
-void MarkSweepCollector::LogSweepSummary()
-{
-    // Only output if this is not the first GC cycle
-    if (gcCycle_ <= 1) {
-        return;
-    }
-
-    size_t totalSwept = cycleStats_.prevSweptSmallRegions;
-    size_t bgRegions = cycleStats_.prevBgSweepRegions;
-    size_t lazyRegions = cycleStats_.prevLazySweepRegions;
-
-    VLOG(REPORT, "[MS-GC] --- Previous-Cycle Sweep Summary (cycle=%llu) ---",
-         static_cast<unsigned long long>(gcCycle_ - 1));
-        VLOG(REPORT, "[MS-GC] swept small: %zu regions, empty=%zu, bg=%zu lazy=%zu",
-            totalSwept, cycleStats_.prevSweptSmallEmptiedRegions, bgRegions, lazyRegions);
-    VLOG(REPORT, "[MS-GC] large reclaimed in previous cycle: %zu objects / %zu regions, freed %s B",
-         cycleStats_.prevSweptLargeCount, cycleStats_.prevSweptLargeRegions,
-         Pretty(cycleStats_.prevSweptLargeFreedBytes).Str());
 }
 
 // Block ⑤: Region Statistics (CentralRegionPool 4-list view)

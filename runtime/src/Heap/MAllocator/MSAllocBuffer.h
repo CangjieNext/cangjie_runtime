@@ -173,10 +173,9 @@ private:
     MAddress SlowAlloc(uint8_t cls);
 
     // Refill: get a Region from CentralRegionPool
-    MSRegionInfo* RefillFromCentral(uint8_t cls, bool backgroundFill = false,
-                                    MSRegionAcquireSource* sourceOut = nullptr);
-    MSRegionInfo* RefillEmptyRegionFromCaches(uint8_t cls);
-    MSRegionInfo* TakeLocalEmptyRegion(uint8_t cls);
+    MSRegionInfo* RefillFromCentral(uint8_t cls, bool backgroundFill = false);
+    MSRegionInfo* GetCacheRegion(uint8_t cls);
+    MSRegionInfo* TakeLocalEmptyRegion();
     void RefillLocalEmptyRegionsFromGlobal(std::vector<MSRegionInfo*>& refill);
     size_t DrainLocalEmptyRegions(std::vector<MSRegionInfo*>& out, size_t maxRegions);
     size_t DrainAllLocalEmptyRegions(std::vector<MSRegionInfo*>& out);

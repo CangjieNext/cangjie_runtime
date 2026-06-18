@@ -433,7 +433,6 @@ MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& 
         return nullptr;
     }
 
-
     MRT_ASSERT(regionIdx < freeManager_.GetMaxVirtualRegionCount(), "region index out of bounds");
 
     MSRegionInfo* info = &array_[regionIdx];
