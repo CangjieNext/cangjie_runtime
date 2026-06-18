@@ -79,6 +79,7 @@ _CJ_MCC_I2NStub:
     // EnterSaferegion(false)
     mov  x0, #0
     bl   _MRT_EnterSaferegion
+    and  x0, x0, #0xff
     str  x0, [sp, #SafeStateOffset]
 
     // Restore argument registers.
