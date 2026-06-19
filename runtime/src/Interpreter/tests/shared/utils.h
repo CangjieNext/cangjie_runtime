@@ -2,6 +2,7 @@
 #define UTILS_H
 
 #include <stdio.h>
+#include <stdlib.h>
 
 /* Interpreter tests: mobile targets and arm64 CI/machines are much slower; shrink heavy loops. */
 #define CJ_INTERPRETER_TEST_IOS_SIMULATOR_PAYLOAD_DIV 3000

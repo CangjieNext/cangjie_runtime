@@ -38,6 +38,7 @@ if [ "$ARCH" = "x86_64" ]; then
     nasm -f elf64 $ASM_DIR/I2C_Stub.s         -o $LIB/I2C_Stub.o
     nasm -f elf64 $ASM_DIR/I2I_Stub.s         -o $LIB/I2I_Stub.o
     nasm -f elf64 $ASM_DIR/ExceptionHandling.s -o $LIB/ExceptionHandling.o
+    nasm -f elf64 $ASM_DIR/StackCheck.s       -o $LIB/StackCheck.o
     ARCH_INCLUDE="-I../../../src/CJThread/src/runtime/schedule/include/inner/gas/x86/x86_64/"
 elif [ "$ARCH" = "aarch64" ]; then
     export ASM_DIR="shared/asm/arm64"
@@ -45,6 +46,7 @@ elif [ "$ARCH" = "aarch64" ]; then
     ${CC:-gcc} -x assembler-with-cpp -c $ASM_DIR/I2C_Stub.S         -o $LIB/I2C_Stub.o
     ${CC:-gcc} -x assembler-with-cpp -c $ASM_DIR/I2I_Stub.S         -o $LIB/I2I_Stub.o
     ${CC:-gcc} -x assembler-with-cpp -c $ASM_DIR/ExceptionHandling.S -o $LIB/ExceptionHandling.o
+    ${CC:-gcc} -x assembler-with-cpp -c $ASM_DIR/StackCheck.S -o $LIB/StackCheck.o
     ARCH_INCLUDE="-I../../../src/CJThread/src/runtime/schedule/include/inner/gas/arm/arm64/"
 else
     echo "Error: unsupported architecture: $ARCH"

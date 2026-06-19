@@ -44,6 +44,8 @@ extern "C" {
 
     __attribute__((noreturn))
     extern void unwindInterpretedFrameAndRethrowException(void* exception_obj);
+
+    extern void StackCheck(void* tld);
 }
 
 // Mock concrete signature for invoking opaque DYN_CJNativeInterface::i2nStub.
