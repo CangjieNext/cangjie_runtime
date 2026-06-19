@@ -15,7 +15,9 @@ class ExceptionsMock : public Mock {
 
         static int  doOnEntrypoint(char* func_name);
         static void doOnCJThreadStart(DYN_CJThreadSpecificData* data);
+        static uint32_t getFrameSize(DYN_FramePointer fp);
         static void getInterpretedFrameInfo(DYN_FramePointer fp, DYN_InstructionPointer ip, INT_InterpretedFrameInfo* frameInfo);
+        static void getInterpretedFrameDesc(INT_FunctionHandle fuh, INT_BytecodePos pos, INT_InterpretedFrameDesc* frameDesc);
         static void throwOutException();
         static void throwAndCatchException();
         static void testCompiledThrower();

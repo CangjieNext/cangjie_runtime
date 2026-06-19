@@ -79,6 +79,7 @@ if [ "$ANDROID_TARGET_ARCH" = "aarch64" ] || [ "$ANDROID_TARGET_ARCH" = "arm64" 
     "$ANDROID_CC" -x assembler-with-cpp -c "$ASM_DIR/I2C_Stub.S"          -o "$LIB/I2C_Stub.o"
     "$ANDROID_CC" -x assembler-with-cpp -c "$ASM_DIR/I2I_Stub.S"          -o "$LIB/I2I_Stub.o"
     "$ANDROID_CC" -x assembler-with-cpp -c "$ASM_DIR/ExceptionHandling.S" -o "$LIB/ExceptionHandling.o"
+    "$ANDROID_CC" -x assembler-with-cpp -c "$ASM_DIR/StackCheck.S"        -o "$LIB/StackCheck.o"
 elif [ "$ANDROID_TARGET_ARCH" = "x86_64" ]; then
     if ! command -v nasm >/dev/null 2>&1; then
         echo "Error: nasm is required for x86_64 interpreter asm build."
@@ -88,6 +89,7 @@ elif [ "$ANDROID_TARGET_ARCH" = "x86_64" ]; then
     nasm -f elf64 "$ASM_DIR/I2C_Stub.s"           -o "$LIB/I2C_Stub.o"
     nasm -f elf64 "$ASM_DIR/I2I_Stub.s"           -o "$LIB/I2I_Stub.o"
     nasm -f elf64 "$ASM_DIR/ExceptionHandling.s"  -o "$LIB/ExceptionHandling.o"
+    nasm -f elf64 "$ASM_DIR/StackCheck.s"         -o "$LIB/StackCheck.o"
 fi
 
 CJTHREAD_INCLUDES=$(find ../../../src/CJThread/src -type d -name "include" | sed 's/^/-I/' | tr '\n' ' ')

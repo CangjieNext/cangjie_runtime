@@ -48,9 +48,6 @@ Mock::Mock(INT_InterpreterInterface* interpreter_interf, DYN_CJNativeInterface* 
     interpreter_interf->i2iAdapterStartAddr = (uintptr_t) I2I_Stub;
     interpreter_interf->i2iAdapterEndAddr = (uintptr_t) I2I_Stub_End;
 
-    interpreter_interf->interpreterPrologueStartAddr = 0; // mocks does not have interpreter prologue
-    interpreter_interf->interpreterPrologueEndAddr = 0;
-
     interpreter_interf->landingPad = &LandingPadWrapper;
 
     interpreter_interf->iterateFramesWithState = (INT_IterateFramesWithStateFn)+[]() {

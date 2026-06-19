@@ -6,9 +6,11 @@
 #include "cangjieUtils.h"
 #include "log.h"
 #include "libinterpreter.h"
+#include "utils.h"
 
 extern MOCK_IMPLEMENTATION mockInstance;
 
+#define STRING_SIZE 64
 #define FRAME_ROOTS_N  8
 
 using Ref = void*;
@@ -36,6 +38,8 @@ ExceptionsMock::ExceptionsMock(INT_InterpreterInterface* interpreter_interf, DYN
     interpreter_interf->visitFrameRootsMarking = &markFrameRoots;
     interpreter_interf->visitFrameRootsAdjusting = &adjustFrameRoots;
 
+    interpreter_interf->getFrameSize      = &getFrameSize; 
+    interpreter_interf->frameDescProvider = &getInterpretedFrameDesc;
     interpreter_interf->frameInfoProvider = &getInterpretedFrameInfo;
 
     registerC2I(0, reinterpret_cast<uintptr_t>(throwOutException));
@@ -60,6 +64,13 @@ void scanRefArray(DYN_RootVisitor visitor, Ref* roots, int size, std::function<v
         visit(visitor, ph);
         ph++;
     }
+}
+
+uint32_t ExceptionsMock::getFrameSize(DYN_FramePointer fp) {
+    uint32_t frameSize = 1024 * 1024 * 1024;
+
+    printf("[Mock] simulate allocation of very big frame: size = %u\n", frameSize);
+    return frameSize;
 }
 
 void ExceptionsMock::IterateFramesWithState(DYN_CJThreadSpecificData cjThreadData, void (*callback)(DYN_VisitingState, void*), void* ctx) {
@@ -211,10 +222,35 @@ extern "C" void landingPad() {
 
 void ExceptionsMock::getInterpretedFrameInfo(DYN_FramePointer fp, DYN_InstructionPointer ip, INT_InterpretedFrameInfo* frameInfo) {
     printf("[Mock] getInterpretedFrameInfo called for (fp=%p, ip=%p)\n", fp, ip);
-    frameInfo->lineNumber = 42;
-    frameInfo->className = const_cast<char*>("UnknownClass");
-    frameInfo->methodName = const_cast<char*>("unknownMethod");
-    frameInfo->fileName = const_cast<char*>("unknown.cj");
+    frameInfo->fuh = reinterpret_cast<INT_FunctionHandle>(0xDEAD);
+    frameInfo->bcPos = reinterpret_cast<INT_BytecodePos>(0xBEEF);
+}
+
+void freeResources(char* className, char* methodName, char* fileName) {
+    delete[] className;
+    delete[] methodName;
+    delete[] fileName;
+}
+
+void ExceptionsMock::getInterpretedFrameDesc(INT_FunctionHandle fuh, INT_BytecodePos pos, INT_InterpretedFrameDesc* frameDesc) {
+    printf("[Mock] getInterpretedFrameDesc called for (fuh=%p, pos=%p)\n", fuh, pos);
+    check(reinterpret_cast<uint64_t>(fuh) == 0xDEAD, "incorrect fuh");
+    check(reinterpret_cast<uint64_t>(pos) == 0xBEEF, "incorrect pos");
+
+    char* className = new char[STRING_SIZE];
+    snprintf(className, STRING_SIZE, "UnknownClass");
+
+    char* methodName = new char[STRING_SIZE];
+    snprintf(methodName, STRING_SIZE, "unknownMethod");
+
+    char* fileName = new char[STRING_SIZE];
+    snprintf(fileName, STRING_SIZE, "unknown.cj");
+
+    frameDesc->lineNumber = 42;
+    frameDesc->className = className;
+    frameDesc->methodName = methodName;
+    frameDesc->fileName = fileName;
+    frameDesc->freeResources = freeResources;
 }
 
 void ExceptionsMock::throwOutException() {
@@ -292,5 +328,12 @@ void ExceptionsMock::testStackOverflowPrepare() {
 }
 
 void ExceptionsMock::testStackOverflow() {
+    // Stack checks are done in prologue of all interpreted functions
+    // Emulate it here manually
+    StackCheck(mockInstance.cjNativeInterface.getThreadLocalData());
+
+    // Exception will be thrown in stack check, frame will be unwound
+    // by exception handing code in common landing pad
+
     printf("[Mock] testStackOverflow: error, should not reach here\n");
 }
