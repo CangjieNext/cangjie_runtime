@@ -41,7 +41,9 @@ DYN_CJThreadHandle NewCJThread(void* execute, DYN_ObjRef future, void* scheduler
 DYN_CJThreadHandle NewCJThreadNoReturn(
     void* executeClosure, DYN_ObjRef closurePtr, void* scheduler, struct DYN_TypeInfo* futureTi);
 
+uint32_t GetFrameSize(uintptr_t fp);
 void FillInterpretedFrameInfo(uint64_t fp, uint64_t ip, INT_InterpretedFrameInfo* fInfo);
+void FillInterpretedFrameDesc(uint64_t dataWord1, uint64_t dataWord2, StackTraceElement& ste);
 
 struct DYN_TypeInfo* TypeInfoProvider(const char* sig);
 uint32_t GetInstanceSize(struct DYN_TypeInfo* typeInfoPtr);
@@ -66,7 +68,6 @@ RTErrorCode InitInterpreter(const InterpreterParam& interpreterParam);
 bool IsC2IStubAddr(const uintptr_t addr);
 bool IsI2IAdapterStartAddr(const uintptr_t addr);
 bool IsI2NStubAddr(const uintptr_t addr);
-bool IsInterpreterPrologueAddr(const uintptr_t addr);
 
 uintptr_t GetCommonInterpreterLandingPad();
 

@@ -150,19 +150,12 @@ bool ExceptionHandling::ProcessEHFrame(const FrameInfo& frame, std::vector<std::
         eWrapper->SetLandingPad(ehFrameInfos.back()->GetLandingPad());
         return true;
     }
-    if (frame.GetFrameType() == FrameType::INTERPRETER_I2I || frame.GetFrameType() == FrameType::INTERPRETER_I2N) {
-        MRT_ASSERT(false, "should not reach here: did not met interpreted frame before I2I/I2N frame");
+    if (UNLIKELY(frame.GetFrameType() == FrameType::INTERPRETER_I2I || frame.GetFrameType() == FrameType::INTERPRETER_I2N)) {
+        LOG(RTLOG_ERROR, "should not reach here: did not met interpreted frame before I2I/I2N frame");
         return false;
     }
-    if (frame.GetFrameType() == FrameType::INTERPRETER_PROLOGUE ||
-        frame.GetFrameType() == FrameType::INTERPRETER_C2I) {
-        // This is neither a managed nor a runtime frame.
-        // Since we didn`t met interpreted frame before, exception must be stack overflow, happened in C2I/I2I
-        // transition.
-        MRT_ASSERT(eWrapper->GetExceptionType() == ExceptionWrapper::ExceptionType::STACK_OVERFLOW,
-            "expected StackOverflowError when meeting interpreter transition stub frame without meeting interpreted "
-            "frame");
-        lastRuntimeFrame = frame;
+    if (UNLIKELY(frame.GetFrameType() == FrameType::INTERPRETER_C2I)) {
+        LOG(RTLOG_ERROR, "should not reach here: did not met interpreted frame before C2I frame");
         return false;
     }
 #endif
