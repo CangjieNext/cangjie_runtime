@@ -6,7 +6,17 @@
 public func ThreadScope<T, R>(fn: (ThreadGroup<T>) -> R): R
 ```
 
-Function: Runs concurrent tasks in a scope and waits for all launched tasks before returning.
+Function: Runs concurrent tasks in a scope and waits for all tasks launched by the scope before returning.
+
+`ThreadScope` creates a [ThreadGroup\<T>](./concurrent_package_classes.md#class-threadgroupt) and passes it to `fn`. Tasks launched with the group are associated with the scope.
+
+If `fn` returns normally, `ThreadScope` waits for every unconsumed task result in the group before returning the value returned by `fn`. Task values that have not been consumed inside `fn` are consumed and discarded while the scope is waiting. If any unconsumed task result is an [Exception](../../core/core_package_api/core_package_exceptions.md#class-exception) or [Error](../../core/core_package_api/core_package_exceptions.md#class-error), the group iterator rethrows that failure while `ThreadScope` is waiting.
+
+If `fn` throws, or if consuming a launched task result throws and the failure is not handled inside `fn`, `ThreadScope` sends cancellation requests to all launched tasks, drains outstanding task results, and rethrows the original failure.
+
+> **Note:**
+>
+> Cancellation is cooperative. A task that should stop early after cancellation should check [Thread.currentThread.hasPendingCancellation](../../core/core_package_api/core_package_classes.md#prop-haspendingcancellation).
 
 Parameters:
 
@@ -18,5 +28,5 @@ Returns:
 
 Exceptions:
 
-- [Exception](../../core/core_package_api/core_package_exceptions.md#class-exception) - Propagates exceptions thrown by `fn` or launched tasks.
-- [Error](../../core/core_package_api/core_package_exceptions.md#class-error) - Propagates errors thrown by `fn` or launched tasks.
+- [Exception](../../core/core_package_api/core_package_exceptions.md#class-exception) - Thrown if `fn` throws an exception or if an unhandled launched task result is an exception.
+- [Error](../../core/core_package_api/core_package_exceptions.md#class-error) - Thrown if `fn` throws an error or if an unhandled launched task result is an error.
