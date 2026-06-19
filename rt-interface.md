@@ -96,10 +96,16 @@ struct INT_FrameDesc {
 };
 
 struct INT_InterpretedFrameInfo {
+    INT_FunctionHandle fuh;
+    INT_BytecodePos bcPos;
+};
+
+struct INT_InterpretedFrameDesc {
     size_t lineNumber;
     char*  methodName;
     char*  className;
     char*  fileName;
+    void (*freeResources)(char* methodName, char* className, char* fileName);
 };
 ```
 
@@ -187,9 +193,6 @@ struct INT_InterpreterInterface {
 
     uintptr_t i2iAdapterStartAddr;
     uintptr_t i2iAdapterEndAddr;
-
-    uintptr_t interpreterPrologueStartAddr;
-    uintptr_t interpreterPrologueEndAddr;
 
     INT_IterateFramesWithStateFn iterateFramesWithState;
     INT_VisitFrameRootsExpansionFn visitFrameRootsExpansion;
@@ -637,9 +640,6 @@ uintptr_t c2iStubEndAddr;
 
 uintptr_t i2iAdapterStartAddr;
 uintptr_t i2iAdapterEndAddr;
-
-uintptr_t interpreterPrologueStartAddr;
-uintptr_t interpreterPrologueEndAddr;
 ```
 
 Runtime-provided native-call stub:
@@ -697,9 +697,14 @@ Interpreter-provided EH and stack-trace callbacks:
 
 ```c
 typedef void (*INT_FrameInfoProviderFn)(
-    DYN_FramePointer fp,
-    DYN_InstructionPointer ip,
+    DYN_InstructionPointer ip, 
+    DYN_FramePointer fp, 
     INT_InterpretedFrameInfo* frameInfo);
+
+typedef void (*INT_FrameDescProviderFn)(
+    INT_FunctionHandle fuh, 
+    INT_BytecodePos pos, 
+    INT_InterpretedFrameDesc* frameDesc);
 
 typedef void (*INT_LandingPadFn)();
 ```
@@ -716,7 +721,7 @@ Typical thrown-exception flow:
 
 The interpreter landing-pad implementation is responsible for mapping the thrown object and current interpreted PC to interpreter catch metadata, then either resuming at a matching interpreted catch block or rethrowing through runtime.
 
-`frameInfoProvider` is used for precise stack traces. Runtime supplies an interpreted frame pointer and instruction pointer; interpreter fills `INT_InterpretedFrameInfo` with source line, method, class, and file names.
+`frameDescProvider` is used for precise stack traces. Runtime supplies an interpreted frame pointer and instruction pointer; interpreter fills `INT_InterpretedFrameDesc` with source line, method, class, and file names.
 
 ```mermaid
 sequenceDiagram
@@ -738,8 +743,8 @@ sequenceDiagram
     else no interpreted catch
         I->>R: rethrow through runtime
     end
-    R->>I: frameInfoProvider(fp, ip, [OUT] info)
-    I-->>R: fill INT_InterpretedFrameInfo fields
+    R->>I: frameDescProvider(fp, ip, [OUT] info)
+    I-->>R: fill INT_InterpretedFrameDesc fields
     Note left of R: Stack traces use method, class, file, and line metadata.
 ```
 
