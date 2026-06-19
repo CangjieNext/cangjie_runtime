@@ -108,6 +108,7 @@ if [ "$IOS_TARGET_ARCH" = "aarch64" ] || [ "$IOS_TARGET_ARCH" = "arm64" ]; then
     "$IOS_CC" "${TARGET_FLAGS[@]}" -x assembler-with-cpp -c "$ASM_DIR/I2C_Stub.S"          -o "$LIB/I2C_Stub.o"
     "$IOS_CC" "${TARGET_FLAGS[@]}" -x assembler-with-cpp -c "$ASM_DIR/I2I_Stub.S"          -o "$LIB/I2I_Stub.o"
     "$IOS_CC" "${TARGET_FLAGS[@]}" -x assembler-with-cpp -c "$ASM_DIR/ExceptionHandling.S" -o "$LIB/ExceptionHandling.o"
+    "$IOS_CC" "${TARGET_FLAGS[@]}" -x assembler-with-cpp -c "$ASM_DIR/StackCheck.S"        -o "$LIB/StackCheck.o"
 elif [ "$IOS_TARGET_ARCH" = "x86_64" ]; then
     if ! command -v nasm >/dev/null 2>&1; then
         echo "Error: nasm is required for x86_64 iOS interpreter asm build."
@@ -117,6 +118,7 @@ elif [ "$IOS_TARGET_ARCH" = "x86_64" ]; then
     nasm -f macho64 "$ASM_DIR/I2C_Stub.s"          -o "$LIB/I2C_Stub.o"
     nasm -f macho64 "$ASM_DIR/I2I_Stub.s"          -o "$LIB/I2I_Stub.o"
     nasm -f macho64 "$ASM_DIR/ExceptionHandling.s" -o "$LIB/ExceptionHandling.o"
+    nasm -f macho64 "$ASM_DIR/StackCheck.s" -o "$LIB/StackCheck.o"
 fi
 
 CJTHREAD_INCLUDES=$(find ../../../src/CJThread/src -type d -name "include" | sed 's/^/-I/' | tr '\n' ' ')

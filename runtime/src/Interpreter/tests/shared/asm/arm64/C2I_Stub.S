@@ -61,9 +61,7 @@ trampolinesStart:
 
 
     .global C2I_Stub
-    .extern g_CJ_MCC_StackGrowStubPtr
     .extern g_GetThreadLocalDataPtr
-    .extern g_InterpreterStackReserveSize
     .align 4
 C2I_Stub:
     // x0  = CALLEE_ADDR (interpreter function, set by trampoline).
@@ -73,16 +71,6 @@ C2I_Stub:
     stp     x29, x30, [sp, #-StubFrameContextSize]!
     mov     x29, sp
 
-    // Stack overflow check: ThreadLocalData::protectAddr is at offset 40 from TLD.
-    ldr     x9,  [x28, #40]
-    adrp    x10, :got:g_InterpreterStackReserveSize
-    ldr     x10, [x10, :got_lo12:g_InterpreterStackReserveSize]
-    ldr     x10, [x10]
-    add     x9,  x9, x10        // x9 = stack_limit + reserve_size
-    cmp     sp,  x9
-    bls     .Lstack_overflow
-
-.Lstack_check_end:
     // Save x19-x28 corresponding to layout of RecordStubCalleeSaved.
     stp     x19, x20, [x29, #StubCalleeSaveAreaSize]
     stp     x21, x22, [x29, #StubCalleeSaveAreaSize + 0x10]
@@ -90,7 +78,6 @@ C2I_Stub:
     stp     x25, x26, [x29, #StubCalleeSaveAreaSize + 0x30]
     stp     x27, x28, [x29, #StubCalleeSaveAreaSize + 0x40]
 
-.Lcall_interpreter:
     // Call interpreter function with TLD as the first argument.
     mov     x9,  x0             // stash CALLEE_ADDR before overwriting x0
     mov     x0,  x28            // arg0 = TLD
@@ -121,57 +108,6 @@ C2I_Stub:
 
     ldp     x29, x30, [sp], #StubFrameContextSize
     ret
-
-.Lstack_overflow:
-    // Full frame kept: x29 is still C2I's frame pointer.
-    // In case of SOE, with the frame in the x29 chain, BuildEHFrameInfo sees C2I and makes it
-    // lastRuntimeFrame; ChangeEHStackInfoLR patches C2I's saved x30 ([x29+8])
-    // to RestoreContextForEH. StackGrowStub is NOT patched and returns here.
-
-    // Save x19-x28 so the callee-save area is initialised before StackGrowStub
-    // calls RecordStackPtrs (which reads these slots via RecordStubCalleeSaved).
-    // Without this, the area would contain garbage and corrupt regSlotsMap for
-    // derived-pointer adjustment in managed frames below C2I.
-    stp     x19, x20, [x29, #StubCalleeSaveAreaSize]
-    stp     x21, x22, [x29, #StubCalleeSaveAreaSize + 0x10]
-    stp     x23, x24, [x29, #StubCalleeSaveAreaSize + 0x20]
-    stp     x25, x26, [x29, #StubCalleeSaveAreaSize + 0x30]
-    stp     x27, x28, [x29, #StubCalleeSaveAreaSize + 0x40]
-
-    // CJ_MCC_StackGrowStub (AArch64) reads the required size from its saved-x9
-    // slot at [sp+0x58] in its own frame; load the value into x9 before the call.
-    mov     x9,  #StubFrameContextSize
-    adrp    x10, :got:g_InterpreterStackReserveSize
-    ldr     x10, [x10, :got_lo12:g_InterpreterStackReserveSize]
-    ldr     x10, [x10]
-    add     x9,  x9,  x10
-
-    // CJ_MCC_StackGrowStub saves and restores all registers (including x0 =
-    // CALLEE_ADDR), so CALLEE_ADDR survives the call.
-    adrp    x10, :got:g_CJ_MCC_StackGrowStubPtr
-    ldr     x10, [x10, :got_lo12:g_CJ_MCC_StackGrowStubPtr]
-    ldr     x10, [x10]
-    blr     x10
-
-    // Check for pending SOE (sp = C2I.x29 after StackGrowStub returns).
-    str     x0,  [sp, #-16]!               // save CALLEE_ADDR
-    adrp    x10, :got:g_getPendingExceptionPtr
-    ldr     x10, [x10, :got_lo12:g_getPendingExceptionPtr]
-    ldr     x10, [x10]
-    blr     x10                            // x0 = pending exception or null
-    mov     x11, x0                        // preserve pending exception result
-    ldr     x0,  [sp], #16                 // restore CALLEE_ADDR; sp = C2I.x29
-    cbnz    x11, .Lsoe_return
-
-    // No SOE: callee-saves already written above; jump past the stp block.
-    b       .Lcall_interpreter
-
-.Lsoe_return:
-    // C2I[x29+8] was patched to RestoreContextForEH by ChangeEHStackInfoLR.
-    // Restoring the frame sets x29=caller.x29, x30=RestoreContextForEH, sp=original_sp.
-    // x19-x28 are already the caller's values (overflow path never modified them).
-    ldp     x29, x30, [sp], #StubFrameContextSize
-    ret                                     // RestoreContextForEH
 
     .global C2I_Stub_End
 C2I_Stub_End:
