@@ -20,9 +20,9 @@ namespace MapleRuntime {
 // Forward declarations
 class WorkStack;
 
-// WriteBarrierBuffer — per-owner log buffer for the hybrid write barrier
+// WriteBarrierBuffer — per-owner log buffer for the mark barrier
 //
-// During concurrent marking, the write barrier records old and new reference
+// During concurrent marking, the write barrier records overwritten reference
 // targets here. Flushing the buffer performs the actual discover/mark step and
 // forwards newly-grey objects into collector work queues.
 //

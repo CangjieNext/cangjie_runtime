@@ -128,7 +128,7 @@ void MSMarkBarrier::ReadStaticStruct(MAddress dst, MAddress src, size_t size, co
 }
 
 // ============================================================================
-// Writes: hybrid barrier — log(old) + store + log(new)
+// Writes: deletion-style barrier — log(old) + store
 // ============================================================================
 
 void MSMarkBarrier::WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref) const
@@ -142,8 +142,6 @@ void MSMarkBarrier::WriteReference(BaseObject* obj, RefField<false>& field, Base
     // store
     field.SetTargetObject(ref);
 
-    // log(new)
-    EnqueueRefFast(ref);
 }
 
 void MSMarkBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) const
@@ -155,8 +153,6 @@ void MSMarkBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) cons
     // store
     field.SetTargetObject(ref);
 
-    // log(new)
-    EnqueueRefFast(ref);
 }
 
 void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen) const
@@ -173,8 +169,6 @@ void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MA
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dst), dstLen);
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(src), srcLen);
 #endif
-    // log(new): trace the newly installed destination refs
-    EnqueueStructRefsInRange(obj, dst, dstLen);
 }
 
 void MSMarkBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, size_t srcLen,
@@ -192,12 +186,10 @@ void MSMarkBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src,
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dst), copyLen);
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(src), copyLen);
 #endif
-    // log(new): trace the newly installed destination refs
-    EnqueueStaticStructRefs(dst, gctib);
 }
 
 // ============================================================================
-// Array copy: discover overwritten refs, then the newly installed refs
+// Array copy: discover overwritten refs before they are replaced
 // ============================================================================
 
 void MSMarkBarrier::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
@@ -218,7 +210,6 @@ void MSMarkBarrier::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex d
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dstField), copyLen);
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(srcField), copyLen);
 #endif
-    EnqueueRefArrayRange(dstField, (dstSize < srcSize ? dstSize : srcSize));
 }
 
 void MSMarkBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
@@ -239,11 +230,10 @@ void MSMarkBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MInde
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dstField), copyLen);
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(srcField), copyLen);
 #endif
-    EnqueueStructArrayRefsInRange(dstObj, dstField, copiedLen);
 }
 
 // ============================================================================
-// Atomic operations: discover(old) + discover(new)
+// Atomic operations: discover(old)
 // ============================================================================
 
 BaseObject* MSMarkBarrier::AtomicReadReference(BaseObject* obj, RefField<true>& field,
@@ -267,8 +257,6 @@ void MSMarkBarrier::AtomicWriteReference(BaseObject* obj, RefField<true>& field,
     // atomic store
     field.SetTargetObject(ref, order);
 
-    // discover(new)
-    EnqueueRefFast(ref);
 }
 
 BaseObject* MSMarkBarrier::AtomicSwapReference(BaseObject* obj, RefField<true>& field,
@@ -284,9 +272,6 @@ BaseObject* MSMarkBarrier::AtomicSwapReference(BaseObject* obj, RefField<true>& 
     // discover(old): the swapped-out reference
     EnqueueRefFast(oldRef);
 
-    // discover(new): the installed reference
-    EnqueueRefFast(newRef);
-
     return oldRef;
 }
 
@@ -298,9 +283,8 @@ bool MSMarkBarrier::CompareAndSwapReference(BaseObject* obj, RefField<true>& fie
 
     bool success = field.CompareExchange(oldRef, newRef, succOrder, failOrder);
     if (success) {
-        // CAS succeeded: preserve the deleted edge and discover the new edge.
+        // CAS succeeded: preserve the deleted edge.
         EnqueueRefFast(oldRef);
-        EnqueueRefFast(newRef);
     }
     return success;
 }
