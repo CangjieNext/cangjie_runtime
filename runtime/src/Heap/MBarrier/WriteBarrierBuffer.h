@@ -19,6 +19,7 @@ namespace MapleRuntime {
 
 // Forward declarations
 class WorkStack;
+struct WriteBarrierBufferLayoutAccess;
 
 // WriteBarrierBuffer — per-owner log buffer for the mark barrier
 //
@@ -89,8 +90,29 @@ public:
     BaseObject** Data() { return buf_; }
 
 private:
+    friend struct WriteBarrierBufferLayoutAccess;
+
     BaseObject* buf_[kCapacity];
     size_t count_;
+};
+
+// Expose layout facts for backend/runtime ABI checks without making the buffer
+// payload fields public.
+struct WriteBarrierBufferLayoutAccess {
+    static constexpr size_t BufOffset()
+    {
+        return offsetof(WriteBarrierBuffer, buf_);
+    }
+
+    static constexpr size_t CountOffset()
+    {
+        return offsetof(WriteBarrierBuffer, count_);
+    }
+
+    static constexpr size_t LayoutSize()
+    {
+        return sizeof(WriteBarrierBuffer);
+    }
 };
 
 } // namespace MapleRuntime

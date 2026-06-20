@@ -48,20 +48,6 @@
 #include <dlfcn.h>
 #endif
 
-#include <atomic>
-#include <cstdio>
-
-namespace {
-std::atomic<uint64_t> g_NewObjectCnt{0};
-std::atomic<uint64_t> g_NewArrayCnt{0};
-__attribute__((destructor)) void DumpAllocCallStats() {
-    fprintf(stderr, "[ALLOC-STATS] NewObject=%llu NewArray=%llu\n",
-        (unsigned long long)g_NewObjectCnt.load(std::memory_order_relaxed),
-        (unsigned long long)g_NewArrayCnt.load(std::memory_order_relaxed));
-    fflush(stderr);
-}
-}
-
 namespace MapleRuntime {
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 // These interfaces are used to detect whether the acquireArrayRawData is released in time.
@@ -186,7 +172,6 @@ void RawPtrCheckerTimerEntry(void* arg)
 
 extern "C" ObjRef MCC_NewObject(const TypeInfo* klass, MSize size)
 {
-    g_NewObjectCnt.fetch_add(1, std::memory_order_relaxed);
     DCHECK(size == (AlignUp<size_t>(klass->GetInstanceSize(), 8) + TYPEINFO_PTR_SIZE)); // 8-byte alignment
     ObjRef obj = ObjectManager::NewObject(klass, size);
     if (obj == nullptr) {
@@ -237,7 +222,6 @@ extern "C" ObjRef MCC_OnFinalizerCreated(ObjRef ref)
 }
 extern "C" ArrayRef MCC_NewArray(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    g_NewArrayCnt.fetch_add(1, std::memory_order_relaxed);
     ArrayRef array = ObjectManager::NewArray(static_cast<MIndex>(nElems), arrayInfo);
     if (array == nullptr) {
         VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
@@ -248,7 +232,6 @@ extern "C" ArrayRef MCC_NewArray(const TypeInfo* arrayInfo, MIndex nElems)
 
 extern "C" ArrayRef MCC_NewObjArray(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    g_NewArrayCnt.fetch_add(1, std::memory_order_relaxed);
     ArrayRef array = ObjectManager::NewObjArray(nElems, arrayInfo);
     if (array == nullptr) {
         VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
@@ -259,7 +242,6 @@ extern "C" ArrayRef MCC_NewObjArray(const TypeInfo* arrayInfo, MIndex nElems)
 
 extern "C" ArrayRef MCC_NewArray8(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    g_NewArrayCnt.fetch_add(1, std::memory_order_relaxed);
     ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_8B);
     if (array == nullptr) {
         VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
@@ -270,7 +252,6 @@ extern "C" ArrayRef MCC_NewArray8(const TypeInfo* arrayInfo, MIndex nElems)
 
 extern "C" ArrayRef MCC_NewArray16(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    g_NewArrayCnt.fetch_add(1, std::memory_order_relaxed);
     ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_16B);
     if (array == nullptr) {
         VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
@@ -281,7 +262,6 @@ extern "C" ArrayRef MCC_NewArray16(const TypeInfo* arrayInfo, MIndex nElems)
 
 extern "C" ArrayRef MCC_NewArray32(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    g_NewArrayCnt.fetch_add(1, std::memory_order_relaxed);
     ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_32B);
     if (array == nullptr) {
         VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
@@ -292,7 +272,6 @@ extern "C" ArrayRef MCC_NewArray32(const TypeInfo* arrayInfo, MIndex nElems)
 
 extern "C" ArrayRef MCC_NewArray64(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    g_NewArrayCnt.fetch_add(1, std::memory_order_relaxed);
     ArrayRef array = ObjectManager::NewKnownWidthArray(nElems, arrayInfo, ObjectManager::ArrayElemBits::ELEM_64B);
     if (array == nullptr) {
         VLOG(REPORT, "Allocating array %s length %zu failed and throw OutOfMemoryError", arrayInfo->GetName(), nElems);
@@ -1756,7 +1735,6 @@ extern "C" ObjRef MCC_NewGenericObject(const TypeInfo* klass, MSize size)
 
 extern "C" ArrayRef MCC_NewArrayGeneric(const TypeInfo* arrayInfo, MIndex nElems)
 {
-    g_NewArrayCnt.fetch_add(1, std::memory_order_relaxed);
     ArrayRef array = nullptr;
     if (!arrayInfo->IsArrayType()) {
         return array;

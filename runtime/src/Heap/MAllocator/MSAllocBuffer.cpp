@@ -68,6 +68,18 @@ AllocBufferMS::AllocBufferMS()
     // LLVM fast-path reads *(buffer + 0) as RegionInfo* and calls Alloc().
     static_assert(offsetof(AllocBufferMS, tlRegion_) == 0,
                   "tlRegion_ must be at offset 0 for LLVM fast-path compatibility");
+    // AArch64 MSGC write-barrier fast path directly accesses wbBuf_ via a
+    // fixed offset from AllocBufferMS. Keep this layout contract explicit.
+    static_assert(offsetof(AllocBufferMS, wbBuf_) == 896,
+                  "wbBuf_ offset changed; update AArch64 MSGC write-barrier fast path");
+    static_assert(WriteBarrierBufferLayoutAccess::BufOffset() == 0,
+                  "WriteBarrierBuffer entries must start at offset 0");
+    static_assert(WriteBarrierBufferLayoutAccess::CountOffset() ==
+                      WriteBarrierBuffer::kCapacity * sizeof(BaseObject*),
+                  "WriteBarrierBuffer count_ layout changed; update AArch64 MSGC write-barrier fast path");
+    static_assert(WriteBarrierBufferLayoutAccess::LayoutSize() ==
+                      WriteBarrierBufferLayoutAccess::CountOffset() + sizeof(size_t),
+                  "WriteBarrierBuffer trailing layout changed; update AArch64 MSGC write-barrier fast path");
     tlRegion_ = RegionInfo::NullRegion();
 }
 
