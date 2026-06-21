@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <thread>
 
 #ifndef _WIN64
 #include <sys/mman.h>
@@ -206,6 +207,8 @@ FreeManager::TryTakeResult FreeManager::TryTakeRegions(RegionCount num, uint16_t
 
     if (!found && num == 1) {
         found = TryStealSingleRegionBatchLocked(homeShardId, idx, reusedSpan);
+    } else if (!found && num > 1) {
+        found = TryStealContiguousRegionRunLocked(homeShardId, num, idx, reusedSpan);
     }
 
     if (!found) {
@@ -309,9 +312,17 @@ bool FreeManager::GrowOneSegmentLocked(uint16_t ownerShardId, HeapRangeHandler& 
     handler.InitializeFreshRegions(oldRegionCount, growRegions);
 
     FreeManagerShard& shardState = GetShard(ownerShardId);
-    std::lock_guard<std::mutex> shardLock(shardState.shardMutex_);
-    {
-        std::lock_guard<std::mutex> pageLock(pageHeapMutex_);
+    while (true) {
+        // Grow still probes page metadata first, but if the owner shard is busy
+        // we must not pin pageHeapMutex_ while waiting. Retry after yielding so
+        // background shrink/feed helpers cannot block large-object growth.
+        std::unique_lock<std::mutex> pageLock(pageHeapMutex_);
+        std::unique_lock<std::mutex> shardLock(shardState.shardMutex_, std::try_to_lock);
+        if (!shardLock.owns_lock()) {
+            pageLock.unlock();
+            std::this_thread::yield();
+            continue;
+        }
         committedRegionCount_ = newCommittedRegionCount;
         committedUnitCount_ += static_cast<size_t>(growUnits);
         committedEnd_ = oldCommittedEnd + growBytes;
@@ -343,6 +354,7 @@ bool FreeManager::GrowOneSegmentLocked(uint16_t ownerShardId, HeapRangeHandler& 
         shardState.reclaimCursor_ = std::min(shardState.reclaimCursor_,
                                              static_cast<RegionIndex>(committedRegionCount_));
         shardState.fastTakeHintValid_ = false;
+        break;
     }
 
     handler.OnCommittedHeapExtended(committedEnd_);
@@ -606,22 +618,34 @@ FreeManager::SegmentFreeSnapshot FreeManager::GetSegmentFreeSnapshot(size_t segm
         return snapshot;
     }
 
-    std::lock_guard<std::mutex> pageLock(pageHeapMutex_);
     size_t segmentStart = segmentIdx * segmentRegionCount_;
-    if (segmentStart >= committedRegionCount_ || segmentIdx >= segmentOwnerShard_.size()) {
-        return snapshot;
+    size_t committedRegionCountSnapshot = 0;
+    uint16_t ownerShardId = 0;
+    {
+        std::lock_guard<std::mutex> pageLock(pageHeapMutex_);
+        if (segmentStart >= committedRegionCount_ || segmentIdx >= segmentOwnerShard_.size()) {
+            return snapshot;
+        }
+        committedRegionCountSnapshot = committedRegionCount_;
+        ownerShardId = segmentOwnerShard_[segmentIdx];
     }
 
-    uint16_t ownerShardId = segmentOwnerShard_[segmentIdx];
     const FreeManagerShard& shardState = GetShard(ownerShardId);
-    std::lock_guard<std::mutex> shardLock(shardState.shardMutex_);
+    std::unique_lock<std::mutex> shardLock(shardState.shardMutex_, std::try_to_lock);
+    if (!shardLock.owns_lock()) {
+        return snapshot;
+    }
     const OwnedSegmentView* view = FindOwnedSegmentViewBySegmentIdxLocked(shardState, segmentIdx);
     if (view == nullptr) {
         return snapshot;
     }
 
+    if (static_cast<size_t>(view->regionStart_) >= committedRegionCountSnapshot) {
+        return snapshot;
+    }
+
     snapshot.validRegions = std::min(
-        committedRegionCount_ - static_cast<size_t>(view->regionStart_),
+        committedRegionCountSnapshot - static_cast<size_t>(view->regionStart_),
         segmentRegionCount_);
     if (snapshot.validRegions == 0) {
         return snapshot;
@@ -640,22 +664,34 @@ size_t FreeManager::ReleaseCompletelyFreeSegment(size_t segmentIdx)
         return 0;
     }
 
-    std::lock_guard<std::mutex> pageLock(pageHeapMutex_);
     size_t segmentStart = segmentIdx * segmentRegionCount_;
-    if (segmentStart >= committedRegionCount_ || segmentIdx >= segmentOwnerShard_.size()) {
-        return 0;
+    size_t committedRegionCountSnapshot = 0;
+    uint16_t ownerShardId = 0;
+    {
+        std::lock_guard<std::mutex> pageLock(pageHeapMutex_);
+        if (segmentStart >= committedRegionCount_ || segmentIdx >= segmentOwnerShard_.size()) {
+            return 0;
+        }
+        committedRegionCountSnapshot = committedRegionCount_;
+        ownerShardId = segmentOwnerShard_[segmentIdx];
     }
 
-    uint16_t ownerShardId = segmentOwnerShard_[segmentIdx];
     FreeManagerShard& shardState = GetShard(ownerShardId);
-    std::lock_guard<std::mutex> shardLock(shardState.shardMutex_);
+    std::unique_lock<std::mutex> shardLock(shardState.shardMutex_, std::try_to_lock);
+    if (!shardLock.owns_lock()) {
+        return 0;
+    }
     OwnedSegmentView* view = FindOwnedSegmentViewBySegmentIdxLocked(shardState, segmentIdx);
     if (view == nullptr) {
         return 0;
     }
 
+    if (static_cast<size_t>(view->regionStart_) >= committedRegionCountSnapshot) {
+        return 0;
+    }
+
     size_t validRegions = std::min(
-        committedRegionCount_ - static_cast<size_t>(view->regionStart_),
+        committedRegionCountSnapshot - static_cast<size_t>(view->regionStart_),
         segmentRegionCount_);
     if (validRegions == 0) {
         return 0;
@@ -1000,8 +1036,10 @@ bool FreeManager::FindFreeRunInViewLocked(const OwnedSegmentView& view,
 
     size_t probe = localStart;
     while (probe + num <= localEnd) {
-        // Chunk-summary skip: at chunk boundary, skip consecutive chunks with max < num.
-        if (probe % kChunkBits == 0 && !view.chunkSummaries_.empty()) {
+        // Chunk-summary skip is only valid when the requested run fits within a
+        // single summary chunk. For larger runs, a view can satisfy the request
+        // via a cross-chunk free span even when every per-chunk max is smaller.
+        if (num <= kChunkBits && probe % kChunkBits == 0 && !view.chunkSummaries_.empty()) {
             size_t chunkIdx = probe / kChunkBits;
             while (chunkIdx < view.chunkSummaries_.size() &&
                    static_cast<size_t>(view.chunkSummaries_[chunkIdx].max) < num) {
@@ -1521,6 +1559,90 @@ bool FreeManager::TryStealSingleRegionBatchLocked(uint16_t receiverShardId,
     }
 
     return false;
+}
+
+bool FreeManager::TryStealContiguousRegionRunLocked(uint16_t receiverShardId,
+                                                    RegionCount num,
+                                                    RegionIndex& idx,
+                                                    RegionSpan& reusedSpan)
+{
+    if (receiverShardId >= shardCount_ || shardCount_ <= 1 || num == 0) {
+        return false;
+    }
+
+    FreeManagerShard& receiverShard = GetShard(receiverShardId);
+    uint16_t rawStart = receiverShard.nextStealDonorShard_.fetch_add(1, std::memory_order_relaxed);
+    uint32_t start = static_cast<uint32_t>(rawStart % shardCount_);
+    uint16_t bestDonorShardId = receiverShardId;
+    size_t bestFreeRun = 0;
+    size_t bestFreeRegions = 0;
+
+    for (uint32_t offset = 0; offset < shardCount_; ++offset) {
+        uint16_t donorShardId = static_cast<uint16_t>((start + offset) % shardCount_);
+        if (donorShardId == receiverShardId) {
+            continue;
+        }
+
+        {
+            const FreeManagerShard& donorShard = GetShard(donorShardId);
+            std::lock_guard<std::mutex> donorLock(donorShard.shardMutex_);
+            RegionIndex candidateIdx = 0;
+            if (!FindOwnedFreeRunLocked(donorShard, donorShard.takeCursor_, num, candidateIdx) &&
+                !(donorShard.reclaimCursor_ < donorShard.takeCursor_ &&
+                  FindOwnedFreeRunLocked(donorShard, donorShard.reclaimCursor_, num, candidateIdx))) {
+                continue;
+            }
+            const OwnedSegmentView* view = FindOwnedSegmentViewByRegionLocked(donorShard, candidateIdx);
+            if (view == nullptr) {
+                continue;
+            }
+            size_t freeRun = CountContiguousFreeInViewLocked(
+                *view, candidateIdx, static_cast<RegionCount>(view->regionEnd_ - candidateIdx));
+            if (freeRun > bestFreeRun ||
+                (freeRun == bestFreeRun && donorShard.freeRegionCount_ > bestFreeRegions)) {
+                bestDonorShardId = donorShardId;
+                bestFreeRun = freeRun;
+                bestFreeRegions = donorShard.freeRegionCount_;
+            }
+        }
+    }
+
+    if (bestDonorShardId == receiverShardId) {
+        return false;
+    }
+
+    FreeManagerShard& donorShard = GetShard(bestDonorShardId);
+    RegionIndex donorIdx = 0;
+    bool reusedScavenged = false;
+    bool fromTakeSide = false;
+    bool fromReclaimSide = false;
+    {
+        std::lock_guard<std::mutex> donorLock(donorShard.shardMutex_);
+        if (FindOwnedFreeRunLocked(donorShard, donorShard.takeCursor_, num, donorIdx)) {
+            fromTakeSide = true;
+        } else if (donorShard.reclaimCursor_ < donorShard.takeCursor_ &&
+                   FindOwnedFreeRunLocked(donorShard, donorShard.reclaimCursor_, num, donorIdx)) {
+            fromReclaimSide = true;
+        } else {
+            return false;
+        }
+
+        MarkAllocatedLocked(donorShard, donorIdx, num, reusedScavenged);
+        if (fromTakeSide && donorIdx == donorShard.takeCursor_) {
+            donorShard.takeCursor_ = FindNextOwnedFreeRegionLocked(donorShard, donorIdx + num);
+        }
+        if (fromReclaimSide && donorIdx == donorShard.reclaimCursor_) {
+            donorShard.reclaimCursor_ = FindNextOwnedFreeRegionLocked(donorShard, donorIdx + num);
+        }
+    }
+
+    idx = donorIdx;
+    if (reusedScavenged) {
+        reusedSpan.idx = donorIdx;
+        reusedSpan.num = num;
+    }
+
+    return true;
 }
 
 size_t FreeManager::CountScavengedInViewRangeLocked(const OwnedSegmentView& view, size_t localStart, RegionCount num) const

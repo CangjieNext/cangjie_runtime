@@ -30,14 +30,7 @@
 #include "Mutator/ThreadLocal.h"
 #include "Heap/MAllocator/MSAllocBuffer.h"
 #include "schedule.h"
-#include <cstdio>
 namespace MapleRuntime {
-
-// ---------------------------------------------------------------------------
-// TakeRegions stats
-// ---------------------------------------------------------------------------
-static std::atomic<uint64_t> g_takeRegions_count{0};
-static std::atomic<uint64_t> g_takeRegions_ns{0};
 
 namespace {
 constexpr size_t DEFAULT_MS_SCAVENGE_WAKE_BYTES = 4 * MS_REGION_SIZE;
@@ -58,20 +51,6 @@ bool IsSegmentRegionTypeInUse(MSRegionType type)
     return true;
 }
 
-struct TakeRegionsStatsPrinter {
-    ~TakeRegionsStatsPrinter()
-    {
-        uint64_t cnt = g_takeRegions_count.load(std::memory_order_relaxed);
-        uint64_t ns  = g_takeRegions_ns.load(std::memory_order_relaxed);
-        double avg_us = (cnt > 0) ? (static_cast<double>(ns) / cnt / 1000.0) : 0.0;
-        fprintf(stderr,
-                "[MS-GC][STATS] TakeRegions: calls=%lu totalTime=%.3fms avgTime=%.3fus\n",
-                static_cast<unsigned long>(cnt),
-                static_cast<double>(ns) / 1e6,
-                avg_us);
-    }
-};
-static TakeRegionsStatsPrinter g_takeRegions_printer;
 } // namespace
 
 // External: system page size (defined in RegionManager.cpp).
@@ -322,11 +301,14 @@ void MSRegionManager::MaybeNotifyShrink()
     }
 
     const RegionSpaceMS& space = static_cast<const RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
-    const CentralRegionPool* pool = space.GetCentralPool();
-    if (pool == nullptr || !HasPendingShrinkWork(pool)) {
+    if (space.GetCentralPool() == nullptr) {
         return;
     }
 
+    // Keep the mutator grow path non-blocking. The full shrink-work probe scans
+    // committed segments and CentralRegionPool caches, and can contend with the
+    // background shrink thread on central-pool locks during large-object bursts.
+    // Request the helper thread once and let it perform the heavyweight check.
     BackgroundProcessor& bp = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
     bp.NotifyToShrink();
 }
@@ -382,7 +364,6 @@ void MSRegionManager::MaybeNotifyMark()
 
 bool MSRegionManager::TakeRegions(RegionCount num, uint16_t homeShardId, RegionIndex& idx, AllocSource* source)
 {
-    uint64_t t0 = TimeUtil::NanoSeconds();
     RegionIndex rawIdx = 0;
     MaybeNotifyMark();
 
@@ -394,14 +375,10 @@ bool MSRegionManager::TakeRegions(RegionCount num, uint16_t homeShardId, RegionI
                 *source = AllocSource::RELEASED;
             }
             MaybeNotifyScavenge();
-            g_takeRegions_ns.fetch_add(TimeUtil::NanoSeconds() - t0, std::memory_order_relaxed);
-            g_takeRegions_count.fetch_add(1, std::memory_order_relaxed);
             return true;
         }
 
         if (!freeManager_.GrowForRegions(num, homeShardId, *this)) {
-            g_takeRegions_ns.fetch_add(TimeUtil::NanoSeconds() - t0, std::memory_order_relaxed);
-            g_takeRegions_count.fetch_add(1, std::memory_order_relaxed);
             return false;
         }
         MaybeNotifyShrink();

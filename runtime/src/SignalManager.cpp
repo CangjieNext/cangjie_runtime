@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <unistd.h>
 
 #include "Base/Log.h"
 #include "Base/LogFile.h"
@@ -25,6 +26,48 @@
 extern "C" void __gcov_flush(void);
 #endif
 namespace MapleRuntime {
+
+namespace {
+thread_local volatile sig_atomic_t g_fatalSignalDumpDepth = 0;
+
+class ScopedFatalSignalDump {
+public:
+    ScopedFatalSignalDump() : nested_(g_fatalSignalDumpDepth != 0)
+    {
+        ++g_fatalSignalDumpDepth;
+    }
+
+    ~ScopedFatalSignalDump()
+    {
+        --g_fatalSignalDumpDepth;
+    }
+
+    bool IsNested() const
+    {
+        return nested_;
+    }
+
+private:
+    bool nested_;
+};
+
+[[noreturn]] void ExitNestedFatalSignal(int sig, const siginfo_t* info, void* context)
+{
+    ucontext_t* ucontext = static_cast<ucontext_t*>(context);
+    uintptr_t sigPc = GetPCFromUContext(*ucontext);
+    const char* frameTypeStr = StackManager::IsRuntimeFrame(sigPc) ? "runtime" : "managed";
+    constexpr uint32_t simpleSigStrSize = 320;
+    char simpleSigStr[simpleSigStrSize];
+    CHECK_IN_SIG(sprintf_s(simpleSigStr, simpleSigStrSize,
+                 "nested fatal signal while dumping previous crash: %s (%s) from %s frame, signal pc: 0x%lx",
+                 SignalManager::GetSignalName(sig), strsignal(sig), frameTypeStr, sigPc) != -1);
+    if (sig == SIGSEGV) {
+        CHECK_IN_SIG(sprintf_s(simpleSigStr, simpleSigStrSize, "%s, addr: %p", simpleSigStr, info->si_addr) != -1);
+    }
+    FLOG(RTLOG_ERROR, simpleSigStr);
+    _exit(128 + sig);
+}
+} // namespace
 
 void SignalManager::Init()
 {
@@ -108,6 +151,11 @@ static void CheckSuspendState()
 
 void PrintSignalHandlerStack(int sig, const siginfo_t* info, void* context)
 {
+    ScopedFatalSignalDump fatalSignalDump;
+    if (fatalSignalDump.IsNested()) {
+        ExitNestedFatalSignal(sig, info, context);
+    }
+
     DLOG(SIGNAL, "Unexpected signal:\n%s", PrintSignalInfo(*info).Str());
     MRT_FlushGCInfo();
 

@@ -258,6 +258,10 @@ private:
                                 size_t localIdx,
                                 bool& reusedScavenged);
     bool GrowOneSegmentLocked(uint16_t ownerShardId, HeapRangeHandler& handler);
+    bool TryStealContiguousRegionRunLocked(uint16_t receiverShardId,
+                                           RegionCount num,
+                                           RegionIndex& idx,
+                                           RegionSpan& reusedSpan);
     bool TryStealSingleRegionBatchLocked(uint16_t receiverShardId, RegionIndex& idx, RegionSpan& reusedSpan);
     size_t CountScavengedInViewRangeLocked(const OwnedSegmentView& view, size_t localStart, RegionCount num) const;
     size_t CountFreeInViewRangeLocked(const OwnedSegmentView& view, size_t localStart, RegionCount num) const;
