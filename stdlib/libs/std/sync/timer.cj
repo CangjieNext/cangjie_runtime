@@ -175,12 +175,12 @@ public class Timer <: Equatable<Timer> & Hashable {
             throw IllegalArgumentException("Interval cannot be less than or equal to Duration.Zero.")
         }
 
-        let timesTick = match (style) {
+        let innerTick = match (style) {
             case Delay => delayStyleTick(interval)
             case Burst => burstStyleTick(delay, interval)
             case Skip => skipStyleTick(delay, interval)
         }
-        let nextTick = tickTimes(count, timesTick)
+        let nextTick = tickTimes(count, innerTick)
 
         Timer(delay) {
             task()
@@ -295,6 +295,7 @@ func burstStyleTick(delay: Duration, interval: Duration): () -> ?Duration {
  * Tick Time: |  delay  | task ---| very very long task | task -| task ---| task ---| task ---|
  */
 func skipStyleTick(delay: Duration, interval: Duration): () -> ?Duration {
+    // `previousTick` starts at the first delayed tick.
     let previousTick: Box<MonoTime>
     try {
         previousTick = Box<MonoTime>(MonoTime.now() + delay)
