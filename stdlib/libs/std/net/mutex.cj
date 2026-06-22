@@ -46,11 +46,11 @@ struct NonReentrantReadLock <: Lock {
 
     public override func lock(): Unit {
         if (!tryLock()) {
-            lockSlowpath()
+            lockAsReaderSlowpath()
         }
     }
 
-    private func lockSlowpath(): Unit {
+    private func lockAsReaderSlowpath(): Unit {
         synchronized(m) {
             while (!tryLock()) {
                 condition.wait()
