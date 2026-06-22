@@ -702,7 +702,7 @@ static constexpr const char* INTERPRETER_LIB_NAME = "libcangjie-interpreter.so";
 
 static InterpreterParam InitInterpreterParam()
 {
-    static const INT_InterpreterArg interpreterArgs[] = { nullptr };
+    static const char** interpreterArgs = { nullptr };
     InterpreterParam interpreterParam = {
         .interpreterLibName = INTERPRETER_LIB_NAME,
         .interpreterArgsCount = 0,

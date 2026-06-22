@@ -62,9 +62,6 @@ typedef const void* DYN_DerivedPtrVisitor;
 // Pointer to ExceptionWrapper.
 typedef void* DYN_ExceptionWrapper;
 
-typedef const char* INT_InterpreterArg;
-typedef const INT_InterpreterArg* INT_InterpreterArgs;
-
 // Frame description used by interpreter frame visitors.
 typedef struct INT_FrameDesc {
     DYN_FramePointer fp;
@@ -114,7 +111,7 @@ struct DYN_CJNativeInterface;
 //                     Pointer owned by caller, callee should copy the content.
 // return: 0 on success.
 typedef int (*INT_InitInterpreter)(struct INT_InterpreterInterface* interpreterInterface,
-    struct DYN_CJNativeInterface* cjnativeInterface, int interpreterArgsCount, INT_InterpreterArgs interpreterArgs);
+    struct DYN_CJNativeInterface* cjnativeInterface, int interpreterArgsCount, const char** interpreterArgs);
 
 // Prepares state and calls callback with initialized state and provided context. After callback returns, performs
 // necessary cleanup of the state.

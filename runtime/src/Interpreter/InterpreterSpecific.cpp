@@ -545,7 +545,7 @@ void LogInterpreterParam(const InterpreterParam& interpreterParam)
 {
     const char* libName = interpreterParam.interpreterLibName;
     const int argsCount = interpreterParam.interpreterArgsCount;
-    INT_InterpreterArgs args = interpreterParam.interpreterArgs;
+    const char** args = interpreterParam.interpreterArgs;
 
     VLOG(INTERPRETER, "Interpreter parameter:\n\tInterpreter library: %s\n\tInterpreter arguments count: %d",
         libName != nullptr ? libName : "(null)", argsCount);
