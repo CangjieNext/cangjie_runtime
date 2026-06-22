@@ -2,7 +2,7 @@ package std.concurrent
 
 import std.collection.ArrayList
 import std.collection.concurrent.LinkedBlockingQueue
-import std.sync.AtomicUInt64
+import std.sync.{AtomicUInt64, Mutex}
 
 class ThreadGroupIterator<T> <: Iterator<T> {
     public ThreadGroupIterator(let group: ThreadGroup<T>) {}
@@ -22,26 +22,31 @@ public class ThreadGroup<T> <: Iterable<T> {
     private let futures = ArrayList<Future<Unit>>()
     private let completed = LinkedBlockingQueue<Result<T>>()
     private var unconsumed: AtomicUInt64 = AtomicUInt64(0)
+    private let mtx = Mutex()
     
     init() {}
 
     public func launch(task: () -> T): Unit {
-        unconsumed.fetchAdd(1)
-        let future = spawn {
-            try {
-                completed.add(Ok(task()))
-            } catch (e: Exception) {
-                completed.add(Ex(e))
-            } catch (e: Error) {
-                completed.add(Err(e))
+        synchronized(mtx) {
+            unconsumed.fetchAdd(1)
+            let future = spawn {
+                try {
+                    completed.add(Ok(task()))
+                } catch (e: Exception) {
+                    completed.add(Ex(e))
+                } catch (e: Error) {
+                    completed.add(Err(e))
+                }
             }
+            futures.add(future)
         }
-        futures.add(future)
     }
 
     public func cancelAll() {
-        for (future in futures) {
-            future.cancel()
+        synchronized(mtx) {
+            for (future in futures) {
+                future.cancel()
+            }
         }
     }
 
