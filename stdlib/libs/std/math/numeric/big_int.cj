@@ -14,6 +14,7 @@ import std.random.*
 const DIGIT_DIFF: UInt8 = 0x30
 const LETTER_UPPER_DIFF: UInt8 = 0x41 - 0x0A
 const LETTER_LOWER_DIFF: UInt8 = 0x61 - 0x0A
+const UINT32_BIT_WIDTH: Int64 = 32
 let EMPTY_ARRAY: Array<UInt32> = Array<UInt32>()
 
 public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
@@ -2016,7 +2017,7 @@ func finishKnuthDivAndMod(
         return (quotientTail, normalizedQuotientWords, 0, EMPTY_ARRAY)
     }
     let remArr = shiftRightInSitu(normalizedDividend, shift)
-    let remInt = UInt64(remArr[0]) + (UInt64(remArr[1]) << 32)
+    let remInt = UInt64(remArr[0]) + (UInt64(remArr[1]) << UINT32_BIT_WIDTH)
     return (quotientTail, normalizedQuotientWords, remInt, normalize(remArr[2..]))
 }
 

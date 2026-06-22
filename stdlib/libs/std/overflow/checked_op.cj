@@ -8,6 +8,13 @@
 
 package std.overflow
 
+const NATIVE_64_BIT_WIDTH: UInt64 = 64
+const NATIVE_32_BIT_WIDTH: UInt64 = 32
+const NATIVE_64_MAX_SHIFT: UInt64 = NATIVE_64_BIT_WIDTH - 1
+const NATIVE_32_MAX_SHIFT: UInt64 = NATIVE_32_BIT_WIDTH - 1
+const NATIVE_64_SHIFT_MASK: UInt64 = 0b111111
+const NATIVE_32_SHIFT_MASK: UInt64 = 0b11111
+
 let isNative64 = if (UInt64(!UIntNative(0)) == UInt64.Max) {
     true
 } else if (UInt64(!UIntNative(0)) == UInt64(UInt32.Max)) {
@@ -115,9 +122,9 @@ func checkedShl(x: UInt64, y: UInt64): Option<UInt64> {
 
 func checkedShl(x: UIntNative, y: UInt64): Option<UIntNative> {
     let bitWidth: UInt64 = if (isNative64) {
-        64
+        NATIVE_64_BIT_WIDTH
     } else {
-        32
+        NATIVE_32_BIT_WIDTH
     }
     if (y >= bitWidth) {
         None
@@ -208,9 +215,9 @@ func checkedShr(x: UInt64, y: UInt64): Option<UInt64> {
 
 func checkedShr(x: UIntNative, y: UInt64): Option<UIntNative> {
     let bitWidth: UInt64 = if (isNative64) {
-        64
+        NATIVE_64_BIT_WIDTH
     } else {
-        32
+        NATIVE_32_BIT_WIDTH
     }
     if (y >= bitWidth) {
         None
