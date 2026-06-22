@@ -252,15 +252,8 @@ public class Regex {
      * @return Option<MatchData> indicates the match.
      */
     public func find(input: String, group!: Bool = false): Option<MatchData> {
-        let inputCString = unsafe { LibC.mallocCString(input) }
-        if (inputCString.isNull()) {
-            throw RegexException("Failed to mallocCString.")
-        }
-        let pcre2md = unsafe { CJ_REGEX_CreateMatchData(this.re) }
-        if (pcre2md.isNull()) {
-            release(inputCString)
-            throw RegexException("Create match_data for pattern `${pattern}` failed.")
-        }
+        let inputCString = createInputCString(input)
+        let pcre2md = createMatchData(inputCString)
         let result: Option<MatchData>
         try {
             result = find(input, inputCString, pcre2md, 0, group: group)
@@ -414,15 +407,8 @@ public class Regex {
             StringBuilder(input.size)
         }
         var offset = 0
-        let inputCString = unsafe { LibC.mallocCString(input) }
-        if (inputCString.isNull()) {
-            throw RegexException("Failed to mallocCString.")
-        }
-        let pcre2md = unsafe { CJ_REGEX_CreateMatchData(this.re) }
-        if (pcre2md.isNull()) {
-            release(inputCString)
-            throw RegexException("Create match_data for pattern `${pattern}` failed.")
-        }
+        let inputCString = createInputCString(input)
+        let pcre2md = createMatchData(inputCString)
         try {
             if (let Some(md) <- find(input, inputCString, pcre2md, index, group: false)) {
                 let position = md.matchPosition()
