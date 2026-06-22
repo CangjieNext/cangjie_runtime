@@ -20,6 +20,9 @@ A `ThreadGroup<T>` records one result for every thread launched by [launch(() ->
 >
 > Results are yielded as threads complete. 
 
+> **Warning:**
+> The API of `ThreadGroup` itself is not thread-safe. In particular, concurrent iteration over a single `ThreadGroup` is explicitly not supported. In general, do not use `spawn` inside a `ThreadScope`.
+
 ### func launch(() -> T)
 
 ```cangjie
@@ -28,7 +31,7 @@ public func launch(task: () -> T): Unit
 
 Launches a concurrent task in this [ThreadGroup](./concurrent_package_classes.md#class-threadgroupt).
 
-The task runs in a Cangjie thread created by `spawn`. When the task returns normally, its value is stored as a result of this group. When the task throws an [Exception](../../core/core_package_api/core_package_exceptions.md#class-exception) or [Error](../../core/core_package_api/core_package_exceptions.md#class-error), that failure is stored and rethrown when the result is consumed through the group iterator.
+The task runs in a new Cangjie thread. When the task returns normally, its value is stored as a result of this group. When the task throws an [Exception](../../core/core_package_api/core_package_exceptions.md#class-exception) or [Error](../../core/core_package_api/core_package_exceptions.md#class-error), that failure is stored and rethrown when the result is consumed through the group iterator.
 
 #### Parameters:
 

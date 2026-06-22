@@ -18,6 +18,9 @@ public class ThreadGroup<T> <: Iterable<T>
 >
 > 结果按线程完成的先后顺序产出。
 
+> **警告：**
+> `ThreadGroup` 自身的 API 不是线程安全的。特别是，明确不支持对同一个 `ThreadGroup` 进行并发迭代。通常不要在 `ThreadScope` 内使用 `spawn`。
+
 ### func launch(() -> T)
 
 ```cangjie
@@ -26,7 +29,7 @@ public func launch(task: () -> T): Unit
 
 功能：在此 [ThreadGroup](./concurrent_package_classes.md#class-threadgroupt) 中启动一个并发任务。
 
-该任务运行在由 `spawn` 创建的仓颉线程中。当任务正常返回时，其值会作为该组的结果保存。当任务抛出 [Exception](../../core/core_package_api/core_package_exceptions.md#class-exception) 或 [Error](../../core/core_package_api/core_package_exceptions.md#class-error) 时，该失败会被保存，并在通过组迭代器消费该结果时重新抛出。
+该任务运行在新的仓颉线程中。当任务正常返回时，其值会作为该组的结果保存。当任务抛出 [Exception](../../core/core_package_api/core_package_exceptions.md#class-exception) 或 [Error](../../core/core_package_api/core_package_exceptions.md#class-error) 时，该失败会被保存，并在通过组迭代器消费该结果时重新抛出。
 
 #### 参数：
 
