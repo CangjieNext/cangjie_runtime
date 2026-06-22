@@ -1848,6 +1848,8 @@ extend<T> Array<T> {
             remainingDepth--
             let (lower, upper) = this.getPartition(left, right, compare)
 
+            // Let the smaller side do recursion
+            // Let the bigger side do loop
             if (lower - left < right - upper) {
                 this.introSort(left, lower, remainingDepth, compare)
                 left = upper

@@ -257,6 +257,29 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
         return TreeMap<K, V>(this)
     }
 
+    private func traverseEntries(visit: (K, V) -> Bool): Bool {
+        let curNode: Node<K, V> = this.root
+        var deque = ArrayDeque<Node<K, V>>()
+        deque.addLast(curNode)
+        while (!deque.isEmpty()) {
+            var node = deque.removeFirst().getOrThrow()
+            for (i in 0..node.entries.size) {
+                var key = node.entries[i].key
+                var value = node.entries[i].value
+                if (visit(key, value)) {
+                    return true
+                }
+            }
+            if (!node.isLeaf()) {
+                var childs = node.children
+                for (i in 0..childs.size) {
+                    deque.addLast(childs[i])
+                }
+            }
+        }
+        return false
+    }
+
     /**
      * @description Performs mapping on this TreeMap and returns a new TreeMap.
      *
@@ -265,25 +288,12 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
      */
     @When[env != "ohos"]
     public func mapValues<R>(transform: (K, V) -> R): TreeMap<K, R> {
-        let curNode: Node<K, V> = this.root
-        var deque = ArrayDeque<Node<K, V>>()
-        deque.addLast(curNode)
         var arr: Array<(K, R)> = unsafe { Array<(K, R)>(this.size, repeat: zeroValue<(K, R)>()) }
         var index = 0
-        while (!deque.isEmpty()) {
-            var node = deque.removeFirst().getOrThrow()
-            for (i in 0..node.entries.size) {
-                var key = node.entries[i].key
-                var value = node.entries[i].value
-                arr[index] = (key, transform(key, value))
-                index++
-            }
-            if (!node.isLeaf()) {
-                var childs = node.children
-                for (i in 0..childs.size) {
-                    deque.addLast(childs[i])
-                }
-            }
+        let _ = traverseEntries {key: K, value: V =>
+            arr[index] = (key, transform(key, value))
+            index++
+            false
         }
         return TreeMap<K, R>(arr.slice(0, index))
     }
@@ -296,27 +306,14 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
      */
     @When[env != "ohos"]
     public func mapValues<R>(transform: (V) -> R): TreeMap<K, R> {
-        let startNode: Node<K, V> = this.root
-        var nodes = ArrayDeque<Node<K, V>>()
-        nodes.addLast(startNode)
-        var resultPairs: Array<(K, R)> = unsafe { Array<(K, R)>(this.size, repeat: zeroValue<(K, R)>()) }
-        var position = 0
-        while (!nodes.isEmpty()) {
-            var current = nodes.removeFirst().getOrThrow()
-            for (i in 0..current.entries.size) {
-                var entryKey = current.entries[i].key
-                var entryValue = current.entries[i].value
-                resultPairs[position] = (entryKey, transform(entryValue))
-                position++
-            }
-            if (!current.isLeaf()) {
-                var childNodes = current.children
-                for (i in 0..childNodes.size) {
-                    nodes.addLast(childNodes[i])
-                }
-            }
+        var arr: Array<(K, R)> = unsafe { Array<(K, R)>(this.size, repeat: zeroValue<(K, R)>()) }
+        var index = 0
+        let _ = traverseEntries {key: K, value: V =>
+            arr[index] = (key, transform(value))
+            index++
+            false
         }
-        return TreeMap<K, R>(resultPairs.slice(0, position))
+        return TreeMap<K, R>(arr.slice(0, index))
     }
 
     /**
@@ -327,27 +324,14 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
      */
     @When[env != "ohos"]
     public func filter(predicate: (K, V) -> Bool): TreeMap<K, V> {
-        let curNode: Node<K, V> = this.root
-        var deque = ArrayDeque<Node<K, V>>()
-        deque.addLast(curNode)
         var arr: Array<(K, V)> = unsafe { Array<(K, V)>(this.size, repeat: zeroValue<(K, V)>()) }
         var index = 0
-        while (!deque.isEmpty()) {
-            var node = deque.removeFirst().getOrThrow()
-            for (i in 0..node.entries.size) {
-                var key = node.entries[i].key
-                var value = node.entries[i].value
-                if (predicate(key, value)) {
-                    arr[index] = (key, value)
-                    index++
-                }
+        let _ = traverseEntries {key: K, value: V =>
+            if (predicate(key, value)) {
+                arr[index] = (key, value)
+                index++
             }
-            if (!node.isLeaf()) {
-                var childs = node.children
-                for (i in 0..childs.size) {
-                    deque.addLast(childs[i])
-                }
-            }
+            false
         }
         return TreeMap<K, V>(arr.slice(0, index))
     }
@@ -359,22 +343,9 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
      */
     @When[env != "ohos"]
     public func forEach(action: (K, V) -> Unit): Unit {
-        let curNode: Node<K, V> = this.root
-        var deque = ArrayDeque<Node<K, V>>()
-        deque.addLast(curNode)
-        while (!deque.isEmpty()) {
-            var node = deque.removeFirst().getOrThrow()
-            for (i in 0..node.entries.size) {
-                var key = node.entries[i].key
-                var value = node.entries[i].value
-                action(key, value)
-            }
-            if (!node.isLeaf()) {
-                var childs = node.children
-                for (i in 0..childs.size) {
-                    deque.addLast(childs[i])
-                }
-            }
+        let _ = traverseEntries {key: K, value: V =>
+            action(key, value)
+            false
         }
     }
 
@@ -386,26 +357,7 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
      */
     @When[env != "ohos"]
     public func all(predicate: (K, V) -> Bool): Bool {
-        let curNode: Node<K, V> = this.root
-        var deque = ArrayDeque<Node<K, V>>()
-        deque.addLast(curNode)
-        while (!deque.isEmpty()) {
-            var node = deque.removeFirst().getOrThrow()
-            for (i in 0..node.entries.size) {
-                var key = node.entries[i].key
-                var value = node.entries[i].value
-                if (!predicate(key, value)) {
-                    return false
-                }
-            }
-            if (!node.isLeaf()) {
-                var childs = node.children
-                for (i in 0..childs.size) {
-                    deque.addLast(childs[i])
-                }
-            }
-        }
-        return true
+        return !traverseEntries {key: K, value: V => !predicate(key, value)}
     }
 
     /**
@@ -416,26 +368,7 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
      */
     @When[env != "ohos"]
     public func any(predicate: (K, V) -> Bool): Bool {
-        let startNode: Node<K, V> = this.root
-        var nodes = ArrayDeque<Node<K, V>>()
-        nodes.addLast(startNode)
-        while (!nodes.isEmpty()) {
-            var current = nodes.removeFirst().getOrThrow()
-            for (i in 0..current.entries.size) {
-                var entryKey = current.entries[i].key
-                var entryValue = current.entries[i].value
-                if (predicate(entryKey, entryValue)) {
-                    return true
-                }
-            }
-            if (!current.isLeaf()) {
-                var childNodes = current.children
-                for (i in 0..childNodes.size) {
-                    nodes.addLast(childNodes[i])
-                }
-            }
-        }
-        return false
+        return traverseEntries {key: K, value: V => predicate(key, value)}
     }
 
     /**
@@ -446,26 +379,7 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
      */
     @When[env != "ohos"]
     public func none(predicate: (K, V) -> Bool): Bool {
-        let rootNode: Node<K, V> = this.root
-        var pendingNodes = ArrayDeque<Node<K, V>>()
-        pendingNodes.addLast(rootNode)
-        while (!pendingNodes.isEmpty()) {
-            var visitedNode = pendingNodes.removeFirst().getOrThrow()
-            for (i in 0..visitedNode.entries.size) {
-                var currentKey = visitedNode.entries[i].key
-                var currentValue = visitedNode.entries[i].value
-                if (predicate(currentKey, currentValue)) {
-                    return false
-                }
-            }
-            if (!visitedNode.isLeaf()) {
-                var children = visitedNode.children
-                for (i in 0..children.size) {
-                    pendingNodes.addLast(children[i])
-                }
-            }
-        }
-        return true
+        return !traverseEntries {key: K, value: V => predicate(key, value)}
     }
 
     /**
@@ -478,22 +392,9 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
     @When[env != "ohos"]
     public func fold<R>(initial: R, operation: (R, K, V) -> R): R {
         var result = initial
-        let firstNode: Node<K, V> = this.root
-        var pending = ArrayDeque<Node<K, V>>()
-        pending.addLast(firstNode)
-        while (!pending.isEmpty()) {
-            var currentNode = pending.removeFirst().getOrThrow()
-            for (i in 0..currentNode.entries.size) {
-                var entryKey = currentNode.entries[i].key
-                var entryValue = currentNode.entries[i].value
-                result = operation(result, entryKey, entryValue)
-            }
-            if (!currentNode.isLeaf()) {
-                var nextNodes = currentNode.children
-                for (i in 0..nextNodes.size) {
-                    pending.addLast(nextNodes[i])
-                }
-            }
+        let _ = traverseEntries {key: K, value: V =>
+            result = operation(result, key, value)
+            false
         }
         return result
     }
