@@ -16,9 +16,6 @@
 #endif
 
 #ifdef INTERPRETER_ENABLED
-typedef const char* INT_InterpreterArg;
-typedef const INT_InterpreterArg* INT_InterpreterArgs;
-
 /*
  * @struct InterpreterParam
  * @brief Data structure for interpreter configuration parameters.
@@ -29,7 +26,7 @@ struct InterpreterParam {
     /* Number of startup arguments passed to interpreter. */
     int interpreterArgsCount;
     /* Startup argument list passed to interpreter. */
-    INT_InterpreterArgs interpreterArgs;
+    const char** interpreterArgs;
     /* Optional app library handle used by interpreter to resolve application symbols. */
     void* appLibHandle;
 };

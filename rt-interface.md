@@ -26,7 +26,7 @@ The runtime loads the interpreter dynamic library and resolves `interpreter_brid
 typedef int (*INT_InitInterpreter)(struct INT_InterpreterInterface *interpreterInterface,
                       struct DYN_CJNativeInterface *cjnativeInterface,
                       int interpreterArgsCount,
-                      const char* const* interpreterArgs);
+                      const char** interpreterArgs);
 ```
 
 The interpreter should copy the runtime callback table (`cjnativeInterface`) and additional arguments (`interpreterArgs`) if it will use them after initialization.

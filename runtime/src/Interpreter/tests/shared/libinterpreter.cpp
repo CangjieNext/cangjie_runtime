@@ -89,7 +89,8 @@ Mock::Mock(INT_InterpreterInterface* interpreter_interf, DYN_CJNativeInterface* 
 
 // Public library API
 
-PUBLIC int interpreter_bridge_init(INT_InterpreterInterface* interpreter_interf, DYN_CJNativeInterface* cjnative_interf, int interpreter_args_count, const char* const* interpreter_args) {
+PUBLIC int interpreter_bridge_init(INT_InterpreterInterface* interpreter_interf, DYN_CJNativeInterface* cjnative_interf,
+    int interpreter_args_count, const char** interpreter_args) {
         initLogs();
         log("[Interpreter] Start interfaces exchange");
         if (cjnative_interf == nullptr) {
