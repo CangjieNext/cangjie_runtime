@@ -34,6 +34,5 @@ This package provides the following structured concurrency API:
 ## Examples
 
 - [ThreadScope Usage Example](./concurrent_samples/thread_scope_sample.md)
-- [ThreadGroup Iteration Example](./concurrent_samples/thread_group_iteration_sample.md)
 - [ThreadScope Exception Handling Example](./concurrent_samples/thread_scope_exception_sample.md)
 - [ThreadScope Cancellation Example](./concurrent_samples/thread_scope_cancellation_sample.md)

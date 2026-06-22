@@ -12,7 +12,7 @@ public class ThreadGroup<T> <: Iterable<T>
 
 Allows launching of concurrent threads, request cancellation for all launched threads, and consumption of thread results.
 
-A `ThreadGroup<T>` records one result for every thread launched by [launch(() -> T)](#func-launch---t). The result is the thread return value. The group implements [Iterable\<T>](../../core/core_package_api/core_package_interfaces.md#interface-iterablet), and iteration is the mechanism for waiting on and consuming thread results.
+A `ThreadGroup<T>` records one result for every thread launched by [launch(() -> T)](#func-launch---t). The result is the thread return value. The group implements [Iterable\<T>](../../core/core_package_api/core_package_interfaces.md#interface-iterablee), and iteration is the mechanism for waiting on and consuming thread results.
 
 
 
@@ -20,7 +20,7 @@ A `ThreadGroup<T>` records one result for every thread launched by [launch(() ->
 >
 > Results are yielded as threads complete. 
 
-### func launch(() -> T): Unit
+### func launch(() -> T)
 
 ```cangjie
 public func launch(task: () -> T): Unit
@@ -34,7 +34,7 @@ The task runs in a Cangjie thread created by `spawn`. When the task returns norm
 
 - task: () -> T - The task to launch.
 
-### func cancelAll(): Unit
+### func cancelAll()
 
 ```cangjie
 public func cancelAll(): Unit
@@ -45,7 +45,7 @@ Function: Sends a cancellation request to every thread launched by this [ThreadG
 This function requests cancellation through each thread's underlying [Future](../../core/core_package_api/core_package_classes.md#class-futuret). It does not immediately stop task execution. A thread can observe the request through [Thread.currentThread.hasPendingCancellation](../../core/core_package_api/core_package_classes.md#prop-haspendingcancellation) and decide how and if to stop. A thread is free to ignore cancellation requests.
 
 
-### func iterator() : Iterator<T>
+### func iterator()
 
 ```cangjie
 public func iterator(): Iterator<T>
@@ -57,7 +57,7 @@ Calling `next` on the iterator returns the next completed task result. If no com
 
 Returns:
 
-- [Iterator\<T>](../../core/core_package_api/core_package_interfaces.md#interface-iteratort) - An iterator over task results.
+- [Iterator\<T>](../../core/core_package_api/core_package_classes.md#class-iteratort) - An iterator over task results.
 
 Exceptions:
 
