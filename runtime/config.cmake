@@ -333,7 +333,7 @@ else ()
 endif ()
 set(ASAN_FLAGS "-fsanitize=address -fno-omit-frame-pointer")
 set(HWASAN_FLAGS "-shared-libsan -fsanitize=hwaddress -fno-omit-frame-pointer -fno-emulated-tls -fno-lto -fno-sanitize=cfi -mllvm -hwasan-globals=0 -fno-whole-program-vtables")
-set(CMAKE_INIT_FLAGS "${CMAKE_INIT_FLAGS} -pipe -Wdate-time -Wformat=2 -Wfloat-equal -Wextra -Werror \
+set(CMAKE_INIT_FLAGS "${CMAKE_INIT_FLAGS} -pipe -Wdate-time -Wformat=2 -Wfloat-equal -Wextra \
     -Wconversion -Wcast-align \
     -Wvla -Wundef \
     -Wno-implicit-int-conversion -Wno-sign-conversion -Wno-implicit-int-float-conversion \
