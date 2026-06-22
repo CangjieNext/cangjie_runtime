@@ -273,7 +273,9 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
     }
 
     private func traverseEntries(visit: (K, V) -> Bool): Bool {
-        var deque = newTraversalDeque()
+        let curNode: Node<K, V> = this.root
+        var deque = ArrayDeque<Node<K, V>>()
+        deque.addLast(curNode)
         while (!deque.isEmpty()) {
             var node = deque.removeFirst().getOrThrow()
             for (i in 0..node.entries.size) {
@@ -283,7 +285,12 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
                     return true
                 }
             }
-            appendChildren(deque, node)
+            if (!node.isLeaf()) {
+                var childs = node.children
+                for (i in 0..childs.size) {
+                    deque.addLast(childs[i])
+                }
+            }
         }
         return false
     }
@@ -322,21 +329,6 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
             appendChildren(deque, node)
         }
         return arr.slice(0, index)
-    }
-
-    private func foldEntries<R>(initial: R, operation: (R, K, V) -> R): R {
-        var result = initial
-        var deque = newTraversalDeque()
-        while (!deque.isEmpty()) {
-            var node = deque.removeFirst().getOrThrow()
-            for (i in 0..node.entries.size) {
-                var key = node.entries[i].key
-                var value = node.entries[i].value
-                result = operation(result, key, value)
-            }
-            appendChildren(deque, node)
-        }
-        return result
     }
 
     /**
@@ -427,7 +419,25 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
      */
     @When[env != "ohos"]
     public func fold<R>(initial: R, operation: (R, K, V) -> R): R {
-        return foldEntries<R>(initial, operation)
+        var result = initial
+        let curNode: Node<K, V> = this.root
+        var deque = ArrayDeque<Node<K, V>>()
+        deque.addLast(curNode)
+        while (!deque.isEmpty()) {
+            var node = deque.removeFirst().getOrThrow()
+            for (i in 0..node.entries.size) {
+                var key = node.entries[i].key
+                var value = node.entries[i].value
+                result = operation(result, key, value)
+            }
+            if (!node.isLeaf()) {
+                var childs = node.children
+                for (i in 0..childs.size) {
+                    deque.addLast(childs[i])
+                }
+            }
+        }
+        return result
     }
 
     /**
@@ -448,14 +458,24 @@ public class TreeMap<K, V> <: OrderedMap<K, V> where K <: Comparable<K> {
             result = operation(result, value)
         }
         var deque = ArrayDeque<Node<K, V>>()
-        appendChildren(deque, curNode)
+        if (!curNode.isLeaf()) {
+            var childs = curNode.children
+            for (i in 0..childs.size) {
+                deque.addLast(childs[i])
+            }
+        }
         while (!deque.isEmpty()) {
             var node = deque.removeFirst().getOrThrow()
             for (i in 0..node.entries.size) {
                 var value = node.entries[i].value
                 result = operation(result, value)
             }
-            appendChildren(deque, node)
+            if (!node.isLeaf()) {
+                var childs = node.children
+                for (i in 0..childs.size) {
+                    deque.addLast(childs[i])
+                }
+            }
         }
         return result
     }
