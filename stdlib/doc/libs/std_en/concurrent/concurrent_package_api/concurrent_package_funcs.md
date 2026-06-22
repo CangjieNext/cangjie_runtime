@@ -6,13 +6,13 @@
 public func ThreadScope<T, R>(fn: (ThreadGroup<T>) -> R): R
 ```
 
-Function: Runs concurrent tasks in a scope and waits for all tasks launched by the scope before returning.
+Introduces a scoped [ThreadGroup\<T>](./concurrent_package_classes.md#class-threadgroupt)waits for all tasks launched by the group to complete before returning.
 
-`ThreadScope` creates a [ThreadGroup\<T>](./concurrent_package_classes.md#class-threadgroupt) and passes it to `fn`. Tasks launched with the group are associated with the scope.
+`ThreadScope` creates a [ThreadGroup\<T>](./concurrent_package_classes.md#class-threadgroupt) and passes it to `fn`.
 
-If `fn` returns normally, `ThreadScope` waits for every unconsumed task result in the group before returning the value returned by `fn`. Task values that have not been consumed inside `fn` are consumed and discarded while the scope is waiting. If any unconsumed task result is an [Exception](../../core/core_package_api/core_package_exceptions.md#class-exception) or [Error](../../core/core_package_api/core_package_exceptions.md#class-error), the group iterator rethrows that failure while `ThreadScope` is waiting.
+If `fn` returns normally, `ThreadScope` waits for every unconsumed task result in the group before returning the value returned by `fn`. Task values that have not been consumed inside `fn` are consumed and discarded while the scope is waiting. If any unconsumed task throws an [Exception](../../core/core_package_api/core_package_exceptions.md#class-exception) or [Error](../../core/core_package_api/core_package_exceptions.md#class-error), the group iterator rethrows that failure while `ThreadScope` is waiting. Only the first `Exception` or `Error` is rethrown; the rest are silently discarded.
 
-If `fn` throws, or if consuming a launched task result throws and the failure is not handled inside `fn`, `ThreadScope` sends cancellation requests to all launched tasks, drains outstanding task results, and rethrows the original failure.
+If `fn` throws, or if consuming a launched task result throws and the failure is not handled inside `fn`, `ThreadScope` sends cancellation requests to all launched tasks, drains outstanding task results, and rethrows the original failure. As above, only the first `Exception` or `Error` is rethrown; the rest are silently discarded.
 
 > **Note:**
 >

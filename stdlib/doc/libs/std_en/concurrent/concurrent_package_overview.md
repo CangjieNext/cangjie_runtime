@@ -2,19 +2,20 @@
 
 ## Feature Overview
 
-The `concurrent` package provides APIs for structured concurrent task execution.
+The `concurrent` package provides APIs for structured concurrency.
 
-Use [ThreadScope\<T, R>](./concurrent_package_api/concurrent_package_funcs.md#func-threadscopet-rthreadgroupt---r) to create a scope for related Cangjie threads. The scope receives a [ThreadGroup\<T>](./concurrent_package_api/concurrent_package_classes.md#class-threadgroupt), launches tasks through the group, and does not return until all tasks launched in the group have completed or a failure has been handled.
+Use [ThreadScope\<T, R>](./concurrent_package_api/concurrent_package_funcs.md#func-threadscopet-rthreadgroupt---r) to create a scope for groups of Cangjie threads. The scope receives a [ThreadGroup\<T>](./concurrent_package_api/concurrent_package_classes.md#class-threadgroupt) instance, launches threads through the group, and does not return until all threads launched in the group have completed, successfully or otherwise.
 
-`ThreadGroup<T>` stores the result of each launched task. The group implements [Iterable\<T>](../core/core_package_api/core_package_interfaces.md#interface-iterablet), so task results can be consumed with a `for` loop. Results are yielded as tasks complete; the iteration order is not guaranteed to match launch order.
+`ThreadGroup<T>` stores the eventual result of each launched thread. The group implements [Iterable\<T>](../core/core_package_api/core_package_interfaces.md#interface-iterablee), and thread results are consumed by iteration. Results are yielded as threads complete; the iteration order is the same as the order that the threads complete.
 
-If the scoped function throws an [Exception](../core/core_package_api/core_package_exceptions.md#class-exception) or [Error](../core/core_package_api/core_package_exceptions.md#class-error), or if an unhandled task failure is rethrown while consuming task results, `ThreadScope` sends cancellation requests to the tasks launched in the group, waits for outstanding task results to be drained, and then rethrows the failure. Cancellation is cooperative. A task that needs to stop early should check [Thread.currentThread.hasPendingCancellation](../core/core_package_api/core_package_classes.md#prop-haspendingcancellation).
+If the scope itself throws an [Exception](../core/core_package_api/core_package_exceptions.md#class-exception) or [Error](../core/core_package_api/core_package_exceptions.md#class-error), or if an unhandled thread `Exception` or `Error` is thrown while consuming task results, `ThreadScope` sends cancellation requests to the remaining threads launched in the group, waits for outstanding thread results to be drained, and then rethrows the failure. 
+As with `Future<T>`, cancellation is cooperative. A thread that wishes to respond to cancellation requests must check [Thread.currentThread.hasPendingCancellation](../core/core_package_api/core_package_classes.md#prop-haspendingcancellation). 
 
-This package provides the following concurrency APIs:
+This package provides the following structured concurrency API:
 
-- [ThreadGroup\<T>](./concurrent_package_api/concurrent_package_classes.md#class-threadgroupt): A group used to launch, cancel, and collect results from concurrent tasks.
+- [ThreadGroup\<T>](./concurrent_package_api/concurrent_package_classes.md#class-threadgroupt): A group used to launch, cancel, and collect results from grouped concurrent threads.
 
-- [ThreadScope\<T, R>((ThreadGroup\<T>) -> R)](./concurrent_package_api/concurrent_package_funcs.md#func-threadscopet-rthreadgroupt---r): Runs concurrent tasks in a scope and waits for all launched tasks before returning.
+- [ThreadScope\<T, R>((ThreadGroup\<T>) -> R)](./concurrent_package_api/concurrent_package_funcs.md#func-threadscopet-rthreadgroupt---r): Runs concurrent threads in a scope and waits for all launched threads to complete before returning.
 
 ## API List
 
@@ -22,15 +23,15 @@ This package provides the following concurrency APIs:
 
 | Function Name | Description |
 | ------------- | ----------- |
-| [ThreadScope\<T, R>((ThreadGroup\<T>) -> R)](./concurrent_package_api/concurrent_package_funcs.md#func-threadscopet-rthreadgroupt---r) | Runs concurrent tasks in a scope and waits for all launched tasks before returning. |
+| [ThreadScope\<T, R>((ThreadGroup\<T>) -> R)](./concurrent_package_api/concurrent_package_funcs.md#func-threadscopet-rthreadgroupt---r) | Runs concurrent threads in a scope and waits for all launched threads before returning. |
 
 ### Classes
 
 | Class | Description |
 | ----- | ----------- |
-| [ThreadGroup\<T>](./concurrent_package_api/concurrent_package_classes.md#class-threadgroupt) | Provides APIs to launch, cancel, and collect results from concurrent tasks. |
+| [ThreadGroup\<T>](./concurrent_package_api/concurrent_package_classes.md#class-threadgroupt) | Provides API to launch, cancel, and collect results from grouped concurrent threads. |
 
-## Tutorial Examples
+## Examples
 
 - [ThreadScope Usage Example](./concurrent_samples/thread_scope_sample.md)
 - [ThreadGroup Iteration Example](./concurrent_samples/thread_group_iteration_sample.md)
