@@ -388,31 +388,31 @@ class SocketHolder<NS> <: Resource where NS <: PlatformSocket<NS> {
 
     @OverflowWrapping
     private func leaveRead(): Unit {
-        var doDispose: Bool = false
+        var shouldDispose: Bool = false
 
         while (true) {
-            let before = SocketState(useCounter.load())
-            if (before.useCounter == 0) {
+            let state = SocketState(useCounter.load())
+            if (state.useCounter == 0) {
                 throwLeaveWithoutEnter()
             }
 
-            var new: SocketState
-            if (before.disposedOrShuttingDown && before.useCounter == 1) {
-                doDispose = true
-                new = SocketState.Terminal
+            var nextState: SocketState
+            if (state.disposedOrShuttingDown && state.useCounter == 1) {
+                shouldDispose = true
+                nextState = SocketState.Terminal
             } else {
-                doDispose = false
-                new = before
-                new.useCounter--
-                new.hasReaders = false
+                shouldDispose = false
+                nextState = state
+                nextState.useCounter--
+                nextState.hasReaders = false
             }
 
-            if (useCounter.compareAndSwap(before.value, new.value)) {
+            if (useCounter.compareAndSwap(state.value, nextState.value)) {
                 break
             }
         }
 
-        if (doDispose) {
+        if (shouldDispose) {
             // we had replaced -1 to Int64.Min
             // so we are the last one
             dispose()
@@ -425,23 +425,23 @@ class SocketHolder<NS> <: Resource where NS <: PlatformSocket<NS> {
         var shouldDispose: Bool = false
 
         while (true) {
-            let previous = SocketState(useCounter.load())
-            if (previous.useCounter == 0) {
+            let state = SocketState(useCounter.load())
+            if (state.useCounter == 0) {
                 throwLeaveWithoutEnter()
             }
 
-            var next: SocketState
-            if (previous.disposedOrShuttingDown && previous.useCounter == 1) {
+            var nextState: SocketState
+            if (state.disposedOrShuttingDown && state.useCounter == 1) {
                 shouldDispose = true
-                next = SocketState.Terminal
+                nextState = SocketState.Terminal
             } else {
                 shouldDispose = false
-                next = previous
-                next.useCounter--
-                next.hasWriters = false
+                nextState = state
+                nextState.useCounter--
+                nextState.hasWriters = false
             }
 
-            if (useCounter.compareAndSwap(previous.value, next.value)) {
+            if (useCounter.compareAndSwap(state.value, nextState.value)) {
                 break
             }
         }
@@ -455,30 +455,30 @@ class SocketHolder<NS> <: Resource where NS <: PlatformSocket<NS> {
 
     @OverflowWrapping
     private func leave(): Unit {
-        var disposeAfterLeave: Bool = false
+        var shouldDispose: Bool = false
 
         while (true) {
-            let observedState = SocketState(useCounter.load())
-            if (observedState.useCounter == 0) {
+            let state = SocketState(useCounter.load())
+            if (state.useCounter == 0) {
                 throwLeaveWithoutEnter()
             }
 
-            var updatedState: SocketState
-            if (observedState.disposedOrShuttingDown && observedState.useCounter == 1) {
-                disposeAfterLeave = true
-                updatedState = SocketState.Terminal
+            var nextState: SocketState
+            if (state.disposedOrShuttingDown && state.useCounter == 1) {
+                shouldDispose = true
+                nextState = SocketState.Terminal
             } else {
-                disposeAfterLeave = false
-                updatedState = observedState
-                updatedState.useCounter--
+                shouldDispose = false
+                nextState = state
+                nextState.useCounter--
             }
 
-            if (useCounter.compareAndSwap(observedState.value, updatedState.value)) {
+            if (useCounter.compareAndSwap(state.value, nextState.value)) {
                 break
             }
         }
 
-        if (disposeAfterLeave) {
+        if (shouldDispose) {
             // we had replaced 1 to the terminal state
             // so we are the last one
             dispose()

@@ -112,10 +112,6 @@ public class UdpSocket <: DatagramSocket {
         }
     }
 
-    public func bind(): Unit {
-        impl.bind(None)
-    }
-
     /**
      * Close the socket releasing all resources. All operations except for close() and isClose() are no longer available.
      * This function is reentrant.
@@ -129,6 +125,13 @@ public class UdpSocket <: DatagramSocket {
      **/
     public override func isClosed(): Bool {
         impl.isClosed()
+    }
+
+    /**
+     * Bind UDP socket at local port
+     */
+    public func bind(): Unit {
+        impl.bind(None)
     }
 
     /**

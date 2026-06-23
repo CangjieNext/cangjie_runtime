@@ -499,6 +499,11 @@ public class UnixDatagramSocket <: DatagramSocket {
         this.impl.receiveFrom(buffer) ?? SocketException.throwClosedException()
     }
 
+    /**
+     * Receive a datagram message from the preconfigured peer address.
+     * This only works if the address has been specified via connect() otherwise will fail.
+     * In other aspects, it works the same as regular `receiveFrom(buffer).
+     */
     public func receive(buffer: Array<Byte>): Int64 {
         let _ = this.impl.remoteAddress ?? SocketException.notYetConnected()
         let (_, size) = receiveFrom(buffer)
