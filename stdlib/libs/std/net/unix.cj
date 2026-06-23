@@ -740,8 +740,8 @@ public class UnixServerSocket <: ServerSocket {
 @When[os == "Windows"]
 @Deprecated
 public class UnixServerSocket <: ServerSocket {
-    private let impl: SocketCommon<ActualPlatformSocket>
-    private var backlogSize_: Int32 = SOCKET_DEFAULT_BACKLOG
+    private let legacyImpl: SocketCommon<ActualPlatformSocket>
+    private var legacyBacklogSize: Int32 = SOCKET_DEFAULT_BACKLOG
 
     /**
      * Local address the socket will be or is currently bound at.
@@ -750,7 +750,7 @@ public class UnixServerSocket <: ServerSocket {
      */
     public override prop localAddress: SocketAddress {
         get() {
-            this.impl.localAddress ?? SocketException.notYetBound()
+            this.legacyImpl.localAddress ?? SocketException.notYetBound()
         }
     }
 
@@ -769,9 +769,9 @@ public class UnixServerSocket <: ServerSocket {
     public init(bindAt!: SocketAddress) {
         checkUnixSocketAddress(bindAt, "bindAt")
 
-        let impl = SocketCommon<ActualPlatformSocket>(UNIX, AddressFamily.UNIX, SocketMode.StreamingMode)
-        impl.localAddress = bindAt
-        this.impl = impl
+        let socketImpl = SocketCommon<ActualPlatformSocket>(UNIX, AddressFamily.UNIX, SocketMode.StreamingMode)
+        socketImpl.localAddress = bindAt
+        this.legacyImpl = socketImpl
     }
 
     /**
@@ -787,8 +787,8 @@ public class UnixServerSocket <: ServerSocket {
      * @throws IllegalArgumentException if the specified buffer size is negative or 0.
      */
     public mut prop sendBufferSize: Int64 {
-        get() { this.impl.getSendBufferSize() }
-        set(newSize) { this.impl.setSendBufferSize(newSize) }
+        get() { this.legacyImpl.getSendBufferSize() }
+        set(newSize) { this.legacyImpl.setSendBufferSize(newSize) }
     }
 
     /**
@@ -804,8 +804,8 @@ public class UnixServerSocket <: ServerSocket {
      * @throws IllegalArgumentException if the specified buffer size is negative or 0.
      */
     public mut prop receiveBufferSize: Int64 {
-        get() { this.impl.getReceiveBufferSize() }
-        set(newSize) { this.impl.setReceiveBufferSize(newSize) }
+        get() { this.legacyImpl.getReceiveBufferSize() }
+        set(newSize) { this.legacyImpl.setReceiveBufferSize(newSize) }
     }
 
     /**
@@ -815,12 +815,12 @@ public class UnixServerSocket <: ServerSocket {
      **/
     public mut prop backlogSize: Int64 {
         get() {
-            Int64(backlogSize_)
+            Int64(legacyBacklogSize)
         }
         set(newSize) {
-            this.impl.checkNotBound()
-            this.impl.checkNotClosed()
-            backlogSize_ = match {
+            this.legacyImpl.checkNotBound()
+            this.legacyImpl.checkNotClosed()
+            legacyBacklogSize = match {
                 case newSize <= 0 => throw IllegalArgumentException("BacklogSize should be positive: ${newSize}.")
                 case newSize >= Int64(Int32.Max) => Int32.Max - 1
                 case _ => Int32(newSize)
@@ -837,7 +837,7 @@ public class UnixServerSocket <: ServerSocket {
      * If the path is already existing then bind() fails with SocketException.
      */
     public override func bind(): Unit {
-        this.impl.bind(backlogSize_)
+        this.legacyImpl.bind(legacyBacklogSize)
     }
 
     /**
@@ -851,8 +851,8 @@ public class UnixServerSocket <: ServerSocket {
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public override func accept(timeout!: ?Duration): UnixSocket {
-        let accepted = this.impl.accept(timeout) ?? SocketException.throwClosedException()
-        return UnixSocket(accepted)
+        let acceptedSocket = this.legacyImpl.accept(timeout) ?? SocketException.throwClosedException()
+        return UnixSocket(acceptedSocket)
     }
 
     /**
@@ -871,14 +871,14 @@ public class UnixServerSocket <: ServerSocket {
      * This function is reentrant.
      **/
     public override func close(): Unit {
-        this.impl.close()
+        this.legacyImpl.close()
     }
 
     /**
      * Checks whether this socket has been explicitly closed via close()
      **/
     public override func isClosed(): Bool {
-        this.impl.isClosed()
+        this.legacyImpl.isClosed()
     }
 
     /**
@@ -893,7 +893,7 @@ public class UnixServerSocket <: ServerSocket {
      * Throws an exception if failed (when getsockopt returns -1).
      */
     public func getSocketOption(level: Int32, option: Int32, value: CPointer<Unit>, valueLength: CPointer<UIntNative>): Unit {
-        unsafe { this.impl.getSocketOption(level, option, value, valueLength) }
+        unsafe { this.legacyImpl.getSocketOption(level, option, value, valueLength) }
     }
 
     /**
@@ -905,7 +905,7 @@ public class UnixServerSocket <: ServerSocket {
      * Throws an exception if failed (when setsockopt returns -1).
      */
     public func setSocketOption(level: Int32, option: Int32, value: CPointer<Unit>, valueLength: UIntNative): Unit {
-        unsafe { this.impl.setSocketOption(level, option, value, valueLength) }
+        unsafe { this.legacyImpl.setSocketOption(level, option, value, valueLength) }
     }
 
     /**
@@ -917,7 +917,7 @@ public class UnixServerSocket <: ServerSocket {
      * has size different from IntNative.
      */
     public func getSocketOptionIntNative(level: Int32, option: Int32): IntNative {
-        this.impl.getSocketOptionIntNative(level, option)
+        this.legacyImpl.getSocketOptionIntNative(level, option)
     }
 
     /**
@@ -929,7 +929,7 @@ public class UnixServerSocket <: ServerSocket {
      * when the option size is different from IntNative.
      */
     public func setSocketOptionIntNative(level: Int32, option: Int32, value: IntNative): Unit {
-        this.impl.setSocketOptionIntNative(level, option, value)
+        this.legacyImpl.setSocketOptionIntNative(level, option, value)
     }
 
     /**
@@ -944,7 +944,7 @@ public class UnixServerSocket <: ServerSocket {
      * has size different from IntNative.
      */
     public func getSocketOptionBool(level: Int32, option: Int32): Bool {
-        this.impl.getSocketOptionBool(level, option)
+        this.legacyImpl.getSocketOptionBool(level, option)
     }
 
     /**
@@ -958,10 +958,10 @@ public class UnixServerSocket <: ServerSocket {
      * when the option size is different from IntNative.
      */
     public func setSocketOptionBool(level: Int32, option: Int32, value: Bool): Unit {
-        this.impl.setSocketOptionBool(level, option, value)
+        this.legacyImpl.setSocketOptionBool(level, option, value)
     }
 
     public override func toString(): String {
-        "UnixServerSocket(${this.impl.toString()})"
+        "UnixServerSocket(${this.legacyImpl.toString()})"
     }
 }
