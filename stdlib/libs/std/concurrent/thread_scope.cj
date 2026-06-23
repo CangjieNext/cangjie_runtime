@@ -23,6 +23,7 @@ public class ThreadGroup<T> <: Iterable<T> {
     private let completed = LinkedBlockingQueue<Result<T>>()
     private var unconsumed: AtomicUInt64 = AtomicUInt64(0)
     private let mtx = Mutex()
+    private var cancelled = false
     
     init() {}
 
@@ -39,11 +40,15 @@ public class ThreadGroup<T> <: Iterable<T> {
                 }
             }
             futures.add(future)
+            if (cancelled) {
+                future.cancel()
+            }
         }
     }
 
     public func cancelAll() {
         synchronized(mtx) {
+            cancelled = true
             for (future in futures) {
                 future.cancel()
             }
