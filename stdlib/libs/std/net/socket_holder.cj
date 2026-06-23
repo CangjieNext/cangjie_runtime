@@ -388,73 +388,22 @@ class SocketHolder<NS> <: Resource where NS <: PlatformSocket<NS> {
 
     @OverflowWrapping
     private func leaveRead(): Unit {
-        var shouldDispose: Bool = false
-
-        while (true) {
-            let state = SocketState(useCounter.load())
-            if (state.useCounter == 0) {
-                throwLeaveWithoutEnter()
-            }
-
-            var nextState: SocketState
-            if (state.disposedOrShuttingDown && state.useCounter == 1) {
-                shouldDispose = true
-                nextState = SocketState.Terminal
-            } else {
-                shouldDispose = false
-                nextState = state
-                nextState.useCounter--
-                nextState.hasReaders = false
-            }
-
-            if (useCounter.compareAndSwap(state.value, nextState.value)) {
-                break
-            }
-        }
-
-        if (shouldDispose) {
-            // we had replaced -1 to Int64.Min
-            // so we are the last one
-            dispose()
-        }
+        leaveSession(true, false)
     }
 
     // this should be only invoked from WriteSession.close()
     @OverflowWrapping
     private func leaveWrite(): Unit {
-        var shouldDispose: Bool = false
-
-        while (true) {
-            let state = SocketState(useCounter.load())
-            if (state.useCounter == 0) {
-                throwLeaveWithoutEnter()
-            }
-
-            var nextState: SocketState
-            if (state.disposedOrShuttingDown && state.useCounter == 1) {
-                shouldDispose = true
-                nextState = SocketState.Terminal
-            } else {
-                shouldDispose = false
-                nextState = state
-                nextState.useCounter--
-                nextState.hasWriters = false
-            }
-
-            if (useCounter.compareAndSwap(state.value, nextState.value)) {
-                break
-            }
-        }
-
-        if (shouldDispose) {
-            // we had replaced -1 to Int64.Min
-            // so we are the last one
-            dispose()
-        }
+        leaveSession(false, true)
     }
 
     @OverflowWrapping
     private func leave(): Unit {
+        leaveSession(false, false)
+    }
+
+    @OverflowWrapping
+    private func leaveSession(clearReaders: Bool, clearWriters: Bool): Unit {
         var shouldDispose: Bool = false
 
         while (true) {
@@ -471,6 +420,12 @@ class SocketHolder<NS> <: Resource where NS <: PlatformSocket<NS> {
                 shouldDispose = false
                 nextState = state
                 nextState.useCounter--
+                if (clearReaders) {
+                    nextState.hasReaders = false
+                }
+                if (clearWriters) {
+                    nextState.hasWriters = false
+                }
             }
 
             if (useCounter.compareAndSwap(state.value, nextState.value)) {
