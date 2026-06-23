@@ -157,13 +157,7 @@ public class UnixDatagramSocket <: DatagramSocket {
      */
     public func connect(remote: SocketAddress): Unit {
         checkUnixSocketAddress(remote, "remote")
-        try {
-            impl.remoteAddress = remote
-            impl.connect(None, shouldBeBound: true)
-        } catch (e: Exception) {
-            impl.remoteAddress = None
-            throw e
-        }
+        impl.connectToRemote(remote)
     }
 
     /**
@@ -462,13 +456,7 @@ public class UnixDatagramSocket <: DatagramSocket {
      */
     public func connect(remote: SocketAddress): Unit {
         checkUnixSocketAddress(remote, "remote")
-        try {
-            this.impl.remoteAddress = remote
-            this.impl.connect(None, shouldBeBound: true)
-        } catch (e: Exception) {
-            this.impl.remoteAddress = None
-            throw e
-        }
+        this.impl.connectToRemote(remote)
     }
 
     /**

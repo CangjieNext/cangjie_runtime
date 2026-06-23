@@ -157,13 +157,7 @@ public class UdpSocket <: DatagramSocket {
                 "remote address kind (${remote.family}) should have the same address family as local (${localAddress.family})")
         }
 
-        impl.remoteAddress = remote
-        try {
-            impl.connect(None, shouldBeBound: true)
-        } catch (e: Exception) {
-            impl.remoteAddress = None
-            throw e
-        }
+        impl.connectToRemote(remote)
     }
 
     /**

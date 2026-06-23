@@ -328,6 +328,16 @@ class SocketCommon<NS> <: Resource & ToString where NS <: PlatformSocket<NS> {
         } ?? SocketException.throwClosedException()
     }
 
+    func connectToRemote(remote: SocketAddress): Unit {
+        remoteAddress = remote
+        try {
+            connect(None, shouldBeBound: true)
+        } catch (e: Exception) {
+            remoteAddress = None
+            throw e
+        }
+    }
+
     // should be only invoked under addressLock
     private func connectImpl(socket: NS, state: SocketState, timeout: ?Duration): Unit {
         let address = remoteAddress_.directValue |> unwrapOption |> getOrFail<SocketAddress> {
