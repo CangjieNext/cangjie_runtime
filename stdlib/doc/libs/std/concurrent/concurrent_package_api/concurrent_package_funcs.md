@@ -22,6 +22,10 @@ public func ThreadScope<T, R>(fn: (ThreadGroup<T>) -> R): R
 
 - fn: ([ThreadGroup\<T>](./concurrent_package_classes.md#class-threadgroupt)) -> R - 接收线程组的作用域函数。
 
+> **注意：**
+>
+> 不要允许 `ThreadGroup` 实例逃逸出其 `ThreadScope`。
+
 返回值：
 
 - R - `fn` 的返回值。

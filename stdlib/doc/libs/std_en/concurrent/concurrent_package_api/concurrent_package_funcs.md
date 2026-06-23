@@ -18,9 +18,14 @@ If `fn` throws, or if consuming a launched task result throws and the failure is
 >
 > Cancellation is cooperative. A task that should stop early after cancellation should check [Thread.currentThread.hasPendingCancellation](../../core/core_package_api/core_package_classes.md#prop-haspendingcancellation).
 
+
 Parameters:
 
 - fn: ([ThreadGroup\<T>](./concurrent_package_classes.md#class-threadgroupt)) -> R - The scoped function that receives a thread group.
+
+> **Note:**
+>
+> Do not allow the `ThreadGroup` instance to escape its `ThreadScope`
 
 Returns:
 
