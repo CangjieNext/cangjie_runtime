@@ -556,9 +556,9 @@ public class UnixServerSocket <: ServerSocket {
     public init(bindAt!: SocketAddress) {
         checkUnixSocketAddress(bindAt, "bindAt")
 
-        let impl = SocketCommon<ActualPlatformSocket>(UNIX, AddressFamily.UNIX, SocketMode.StreamingMode)
-        impl.localAddress = bindAt
-        this.impl = impl
+        let socketImpl = SocketCommon<ActualPlatformSocket>(UNIX, AddressFamily.UNIX, SocketMode.StreamingMode)
+        socketImpl.localAddress = bindAt
+        this.impl = socketImpl
     }
 
     /**
@@ -638,8 +638,8 @@ public class UnixServerSocket <: ServerSocket {
      * @throws IllegalArgumentException if the specified timeout duration is negative.
      */
     public override func accept(timeout!: ?Duration): UnixSocket {
-        let accepted = this.impl.accept(timeout) ?? SocketException.throwClosedException()
-        return UnixSocket(accepted)
+        let acceptedSocket = this.impl.accept(timeout) ?? SocketException.throwClosedException()
+        return UnixSocket(acceptedSocket)
     }
 
     /**
