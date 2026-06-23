@@ -222,6 +222,8 @@ void HeapImpl::InstallBarrier(const GCPhase phase)
 #ifdef MRT_USE_MARK_SWEEP
     switch (phase) {
         case GCPhase::GC_PHASE_IDLE:
+        case GCPhase::GC_PHASE_FINISH:
+        case GCPhase::GC_PHASE_RECLAIM_SATB_NODE:
         case GCPhase::GC_PHASE_MS_SWEEP:
             currentBarrier = &msIdleBarrier;
             break;
@@ -231,7 +233,7 @@ void HeapImpl::InstallBarrier(const GCPhase phase)
             currentBarrier = &msMarkBarrier;
             break;
         default:
-            // fallback to STW barrier for unknown phases
+            // Keep unknown phases conservative until they are audited.
             currentBarrier = &stwBarrier;
             break;
     }

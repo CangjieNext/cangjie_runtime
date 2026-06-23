@@ -681,6 +681,10 @@ void TracingCollector::PostGarbageCollection(uint64_t gcIndex)
     TransitionToGCPhase(GCPhase::GC_PHASE_RECLAIM_SATB_NODE, true);
     SatbBuffer::Instance().ReclaimALLPages();
     PagePool::Instance().Trim();
+    // Post-GC cleanup is a no-barrier phase. Once SATB/page-pool reclamation
+    // completes, return the runtime to the normal idle state so subsequent
+    // fastpaths do not observe a stale cleanup phase.
+    TransitionToGCPhase(GCPhase::GC_PHASE_IDLE, true);
     collectorResources.NotifyGCFinished(gcIndex);
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
