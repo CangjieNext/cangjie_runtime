@@ -166,10 +166,10 @@ Logger::Logger()
     maxFileSize = GetLogFileSize();
 
     GetLogPath("MRT_LOG_PATH", filePath);
-#ifndef __ANDROID__
+#if defined(__ANDROID__) || defined(__IOS__)
     minimumLogLevel = RTLOG_INFO;
 #else
-    minimumLogLevel = RTLOG_INFO;
+    minimumLogLevel = RTLOG_ERROR;
 #endif
 }
 
