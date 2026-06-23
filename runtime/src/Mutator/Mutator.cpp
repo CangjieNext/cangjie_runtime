@@ -164,6 +164,20 @@ void Mutator::InitProtectStackAddr()
     ThreadLocal::SetProtectAddr(reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(stackBoundAddr) + reversedSize));
 }
 
+void Mutator::ResetMutator()
+{
+    rawObject.object = nullptr;
+    if (satbNode != nullptr) {
+        SatbBuffer::Instance().RetireNode(satbNode);
+        satbNode = nullptr;
+    }
+    if (!localFinalizers.empty()) {
+        Heap::GetHeap().GetFinalizerProcessor().RegisterFinalizers(localFinalizers);
+    }
+    uwContext.Reset();
+    exceptionWrapper.ClearInfo();
+}
+
 void Mutator::SetManagedContext(bool isManagedContext)
 {
     inManagedContext.store(isManagedContext, std::memory_order_release);
