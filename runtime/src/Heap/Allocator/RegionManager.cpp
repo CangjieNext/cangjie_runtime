@@ -145,6 +145,19 @@ bool RegionInfo::VisitLiveObjectsUntilFalse(const std::function<bool(BaseObject*
             BaseObject* obj = reinterpret_cast<BaseObject*>(position);
             size_t allocSize = RegionSpace::GetAllocSize(*obj);
             position += allocSize;
+            uint64_t nextAddr = *reinterpret_cast<uint64_t*>(position);
+            // A valid state word holds a heap-aligned TypeInfo pointer, which
+            // must be far greater than 0x1000. A tiny value implies corruption.
+            if (nextAddr < 0x1000) {
+                LOG(RTLOG_FATAL,
+                    "heap corruption detected while scanning previous object: "
+                    "name %s, obj %p, allocSize %zu, offset %zu, "
+                    "TypeInfo %p, instanceSize %u, next position %p, suspicious next addr 0x%llx",
+                    obj->GetTypeInfo()->GetName(), static_cast<const void*>(obj), allocSize,
+                    offset, static_cast<const void*>(obj->GetTypeInfo()),
+                    obj->GetTypeInfo()->GetInstanceSize(), reinterpret_cast<void*>(position),
+                    static_cast<unsigned long long>(nextAddr));
+            }
             if (IsSurvivedObject(offset) && !func(obj)) { return false; }
             offset += allocSize;
         }
