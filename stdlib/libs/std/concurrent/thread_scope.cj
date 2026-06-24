@@ -26,15 +26,31 @@ enum Result<T> {
     | Err(Error)
 }
 
+/**
+ * A group of tasks launched within a threadScope.
+ *
+ * Each launched task contributes one result. Iterating the group waits for
+ * those results and yields them in completion order.
+ *
+ * ThreadGroup<T> is scoped and is not safe for concurrent iteration.
+ */
 public class ThreadGroup<T> <: Iterable<T> {
     private let futures = ArrayList<Future<Unit>>()
     private let completed = LinkedBlockingQueue<Result<T>>()
     private var unconsumed: AtomicUInt64 = AtomicUInt64(0)
     private let mtx = Mutex()
     private var cancelled = false
-    
+
     init() {}
 
+    /**
+     * Launches task in a new Cangjie thread and records its result.
+     *
+     * Exceptions and errors raised by task are captured and re-thrown when the
+     * result is consumed during iteration.
+     *
+     * @param task the work to run on the new thread, producing one result.
+     */
     public func launch(task: () -> T): Unit {
         synchronized(mtx) {
             unconsumed.fetchAdd(1)
@@ -54,6 +70,10 @@ public class ThreadGroup<T> <: Iterable<T> {
         }
     }
 
+    /**
+     * Requests cancellation for every task launched by this group, and causes
+     * subsequently launched tasks to be cancelled as well.
+     */
     public func cancelAll(): Unit {
         synchronized(mtx) {
             cancelled = true
@@ -63,6 +83,12 @@ public class ThreadGroup<T> <: Iterable<T> {
         }
     }
 
+    /**
+     * Returns an iterator that waits for and consumes task results.
+     *
+     * The returned iterator's next() re-throws the exception or error of a
+     * consumed task if that task failed.
+     */
     public func iterator(): Iterator<T> {
         ThreadGroupIterator<T>(this)
     }
@@ -94,6 +120,19 @@ public class ThreadGroup<T> <: Iterable<T> {
     }
 }
 
+/**
+ * Runs fn with a scoped ThreadGroup<T>.
+ *
+ * Before returning, this function waits for all tasks launched by the group.
+ * Unconsumed task values are discarded. If fn fails, or if an unconsumed task
+ * result fails, all launched tasks are cancelled and the first failure is rethrown.
+ *
+ * Do not let the ThreadGroup<T> escape the scope.
+ *
+ * @param fn the body to run with the scoped group; it may launch tasks on the group.
+ * @return The return value of fn.
+ * @throws Exception or Error if fn fails or an unconsumed task result fails.
+ */
 public func threadScope<T, R>(fn: (ThreadGroup<T>) -> R): R {
     let group = ThreadGroup<T>()
     try {
