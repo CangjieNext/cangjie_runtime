@@ -480,52 +480,55 @@ protected func parseFormat(fmt: String): (Flags, Int64, Int64, Rune) {
     if (flags != Flags.NoFlag && end > 1) {
         idx = 1
     }
-    /* width */
-    if (fmtCharArray[idx].isAsciiNumber() && idx < end) {
-        var start: Int64 = idx
-        var len: Int64 = 0
-        for (i in idx..end) {
-            var c = fmtCharArray[i]
-            if (c.isAsciiLetter() || c == r'.') {
-                idx = i
-                break
-            }
-            len++
-        }
-        if (len > 0) {
-            idx = start + len
-        }
-        var str = fmt[start..start + len]
-        width = Int64.parse(str)
-        if (width > MAX_FORMAT_WIDTH) {
-            throw IllegalArgumentException("Format width ${width} exceeds maximum allowed value ${MAX_FORMAT_WIDTH}.")
-        }
-    }
-    /* precision */
-    if (idx < end && fmtCharArray[idx] == r'.') {
-        idx++
-        var start = idx
-        var len = 0
-        for (i in idx..end) {
-            var c = fmtCharArray[i]
-            if (c.isAsciiLetter()) {
-                idx = i
-                break
-            }
-            len++
-        }
-        if (len == 0) {
-            throw IllegalArgumentException("Empty precision string in format.")
-        }
-        idx = start + len
-        var str = fmt[start..start + len]
-        precision = Int64.parse(str)
-    }
-    /* specifier */
-    if (idx < end && fmtCharArray[idx].isAsciiLetter()) {
-        specifier = fmtCharArray[idx]
-    }
+    (width, idx) = parseFormatWidth(fmt, fmtCharArray, idx, end)
+    (precision, idx) = parseFormatPrecision(fmt, fmtCharArray, idx, end)
+    specifier = parseFormatSpecifier(fmtCharArray, idx, end)
     return (flags, width, precision, specifier)
+}
+
+func parseFormatWidth(fmt: String, fmtCharArray: Array<Rune>, idx: Int64, end: Int64): (Int64, Int64) {
+    if (idx >= end || !fmtCharArray[idx].isAsciiNumber()) {
+        return (-1, idx)
+    }
+    var len: Int64 = 0
+    for (i in idx..end) {
+        var c = fmtCharArray[i]
+        if (c.isAsciiLetter() || c == r'.') {
+            break
+        }
+        len++
+    }
+    let width = Int64.parse(fmt[idx..idx + len])
+    if (width > MAX_FORMAT_WIDTH) {
+        throw IllegalArgumentException("Format width ${width} exceeds maximum allowed value ${MAX_FORMAT_WIDTH}.")
+    }
+    return (width, idx + len)
+}
+
+func parseFormatPrecision(fmt: String, fmtCharArray: Array<Rune>, idx: Int64, end: Int64): (Int64, Int64) {
+    if (idx >= end || fmtCharArray[idx] != r'.') {
+        return (-1, idx)
+    }
+    let start = idx + 1
+    var len = 0
+    for (i in start..end) {
+        if (fmtCharArray[i].isAsciiLetter()) {
+            break
+        }
+        len++
+    }
+    if (len == 0) {
+        throw IllegalArgumentException("Empty precision string in format.")
+    }
+    return (Int64.parse(fmt[start..start + len]), start + len)
+}
+
+func parseFormatSpecifier(fmtCharArray: Array<Rune>, idx: Int64, end: Int64): Rune {
+    if (idx < end && fmtCharArray[idx].isAsciiLetter()) {
+        fmtCharArray[idx]
+    } else {
+        r' '
+    }
 }
 
 func getFlags(c: Rune): Flags {
@@ -732,57 +735,65 @@ class FormatSpecifier {
         if (precision > MAX_FLOAT_PRECISION) {
             throw IllegalArgumentException("Format precision ${precision} exceeds maximum allowed value ${MAX_FLOAT_PRECISION}.")
         }
+        let (negative, value) = getFloatSignInfo(arg)
+        var val = convertFloatValue(value, getFloatPrecision())
+        val = addFloatPrefix(val, negative)
+        return writePadding(val)
+    }
+
+    func getFloatSignInfo(arg: Float64): (Bool, Float64) {
         var negative = false
         var str = "${arg}".toRuneArray()
         /* Negative numbers, including -0.0 */
         if (str[0] == r'-') {
             negative = true
         }
-        var u = arg
         if (negative) {
-            u = -u
+            (negative, -arg)
+        } else {
+            (negative, arg)
         }
-        var prec = precision
+    }
+
+    func getFloatPrecision(): Int64 {
         if (precision == -1) {
-            prec = 6
+            6
+        } else {
+            precision
         }
-        var val = match (specifier) {
-            case r'g' => toGeneralString(u, false, prec)
-            case r'G' => toGeneralString(u, true, prec)
-            case r'e' => toScientificString(u, false, prec)
-            case r'E' => toScientificString(u, true, prec)
-            case r' ' => toDecimalString(u, prec)
+    }
+
+    func convertFloatValue(value: Float64, prec: Int64): String {
+        match (specifier) {
+            case r'g' => toGeneralString(value, false, prec)
+            case r'G' => toGeneralString(value, true, prec)
+            case r'e' => toScientificString(value, false, prec)
+            case r'E' => toScientificString(value, true, prec)
+            case r' ' => toDecimalString(value, prec)
             case _ => ""
         }
-        if (negative && val.size > 0 && val[0] == 45) {
-            negative = false
+    }
+
+    func addFloatPrefix(val: String, negative: Bool): String {
+        var isNegative = negative
+        if (isNegative && val.size > 0 && val[0] == 45) {
+            isNegative = false
         }
-        var prefix = ""
-        var len = val.size
+        var result = getFloatPrefix(val.size, isNegative) + val
+        if (isNegative) {
+            result = "-" + result
+        }
+        return result
+    }
+
+    func getFloatPrefix(len: Int64, negative: Bool): String {
         if ((flags == Flags.Plus) && !negative) {
-            prefix = "+"
+            return "+"
         }
         if (flags == Flags.Zero) {
-            var sp = 0
-            if (negative) {
-                sp = width - len - 1
-            } else {
-                sp = width - len
-            }
-            var tmp = ""
-            if (sp > 0) {
-                for (_ in 0..sp) {
-                    tmp = tmp + "0"
-                }
-                prefix = tmp
-            }
+            return paddingZero(negative, len)
         }
-        val = prefix + val
-        if (negative) {
-            val = "-" + val
-        }
-        val = writePadding(val)
-        return val
+        return ""
     }
 
     func fmtCharacter(arg: Rune): String {
