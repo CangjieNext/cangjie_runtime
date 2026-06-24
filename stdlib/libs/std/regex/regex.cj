@@ -320,46 +320,32 @@ public class Regex {
      */
     public func findAll(input: String, group!: Bool = false): Array<MatchData> {
         let list = ArrayList<MatchData>()
-        unsafe {
-            let inputCString = createInputCString(input)
-            let pcre2md = createMatchData(inputCString)
-            try {
-                var offset = 0
-                while (true) {
-                    let rc = CJ_REGEX_Match(this.re, inputCString, UIntNative(input.size), UIntNative(offset), pcre2md)
-                    throwIfMatchError(rc)
-                    if (rc < 0) {
-                        break
-                    }
-                    // ovector cannot be `free()` because it's not created by `malloc`
-                    let ovector: CPointer<UIntNative> = CJ_REGEX_GetOvector(pcre2md)
-                    if (ovector.isNull()) {
-                        throw RegexException("Processing matched data failed.")
-                    }
-                    let positions: Array<Position>
-                    if (group) {
-                        positions = Array<Position>(rc, {i => Position(ovector.read(2 * i), ovector.read(2 * i + 1))})
-                        list.add(MatchData(input, positions, rc, nameToIndex: nameToIndex))
-                    } else {
-                        positions = [Position(ovector.read(0), ovector.read(1))]
-                        list.add(MatchData(input, positions, rc))
-                    }
-                    if (offset == positions[0].end) {
-                        offset = positions[0].end + 1
-                    } else {
-                        offset = positions[0].end
-                    }
+        let inputCString = createInputCString(input)
+        let pcre2md = createMatchData(inputCString)
+        try {
+            var offset = 0
+            while (true) {
+                match (find(input, inputCString, pcre2md, offset, group: group)) {
+                    case Some(md) =>
+                        list.add(md)
+                        let end = md.matchPosition().end
+                        if (offset == end) {
+                            offset = end + 1
+                        } else {
+                            offset = end
+                        }
+                    case None => break
                 }
-                keepAlive(this)
-                return if (list.size == list.capacity) {
-                    list.getRawArray()
-                } else {
-                    list.toArray()
-                }
-            } finally {
-                release(inputCString)
-                release(pcre2md)
             }
+            keepAlive(this)
+        } finally {
+            release(inputCString)
+            release(pcre2md)
+        }
+        return if (list.size == list.capacity) {
+            unsafe { list.getRawArray() }
+        } else {
+            list.toArray()
         }
     }
 
