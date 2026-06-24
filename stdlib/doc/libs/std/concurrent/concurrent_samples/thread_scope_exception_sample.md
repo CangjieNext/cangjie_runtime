@@ -1,6 +1,6 @@
 # ThreadScope 异常处理示例
 
-下面示例展示已启动任务抛出的异常会在从 [ThreadGroup](../concurrent_package_api/concurrent_package_classes.md#class-threadgroupt) 消费该任务结果时重新抛出。
+下面示例展示了已启动任务抛出的异常会在通过 [ThreadGroup](../concurrent_package_api/concurrent_package_classes.md#class-threadgroupt) 消费该任务结果时重新抛出。
 
 <!-- verify -->
 ```cangjie

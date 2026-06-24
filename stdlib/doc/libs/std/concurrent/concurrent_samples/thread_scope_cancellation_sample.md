@@ -1,6 +1,6 @@
 # ThreadScope 取消示例
 
-下面示例展示当某个任务失败时，[ThreadScope](../concurrent_package_api/concurrent_package_funcs.md#func-threadscopet-rthreadgroupt---r) 会向组中的任务发送取消请求。长时间运行的任务检查 [Thread.currentThread.hasPendingCancellation](../../core/core_package_api/core_package_classes.md#prop-haspendingcancellation)，并在收到取消请求后停止。
+下面示例展示了当某个任务失败时，[ThreadScope](../concurrent_package_api/concurrent_package_funcs.md#func-threadscopet-rthreadgroupt---r) 会向组中的任务发送取消请求。长时间运行的任务检查 [Thread.currentThread.hasPendingCancellation](../../core/core_package_api/core_package_classes.md#prop-haspendingcancellation)，并在收到取消请求后停止。
 
 <!-- verify -->
 ```cangjie
