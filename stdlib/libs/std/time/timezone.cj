@@ -16,27 +16,19 @@ package std.time
 
 import std.convert.*
 
-
 @When[os == "Windows"]
 const SEPARATOR = ";"
 @When[os == "Windows"]
 const SLASH_CHAR = "\\"
-
 @When[os != "Windows"]
 const SEPARATOR = ":"
 @When[os != "Windows"]
 const SLASH_CHAR = "/"
-
 let TZIF_SOURCE: Array<String> = ["/usr/share/zoneinfo", "/system/etc/zoneinfo", "/system/usr/share/zoneinfo/"]
-
 let ANDROID_TZDATA = "/system/usr/share/zoneinfo/tzdata"
-
 const TZIF_SOUTCE_LINUX = "/usr/share/zoneinfo/"
-
 const LOCALTIME_SRC: String = "/etc/localtime"
-
 const TZPATH = "CJ_TZPATH"
-
 const MAXPATHLEN = 4096
 
 @FastNative
@@ -550,7 +542,7 @@ public class TimeZone <: ToString & Equatable<TimeZone> {
  *
  * @since 0.19.3
  */
-func parseTZ(footer: String, end: Int64, epochSecond: Int64): (String, Int64, Int64, Int64) {
+func parseTZHeader(footer: String): (String, Int64, String, Int64, String) {
     var stdName: String = ""
     var dstName: String = ""
     var stdOffset = 0
@@ -559,9 +551,6 @@ func parseTZ(footer: String, end: Int64, epochSecond: Int64): (String, Int64, In
     (stdName, rest) = parseTZName(rest)
     (stdOffset, rest) = parseTZOffset(rest)
     stdOffset = -stdOffset
-    if (rest.size == 0) {
-        return (stdName, stdOffset, end, Int64.Max)
-    }
 
     (dstName, rest) = parseTZName(rest)
     if (rest.size == 0 || rest[0] == b',') {
@@ -570,34 +559,72 @@ func parseTZ(footer: String, end: Int64, epochSecond: Int64): (String, Int64, In
         (dstOffset, rest) = parseTZOffset(rest)
         dstOffset = -dstOffset
     }
+    (stdName, stdOffset, dstName, dstOffset, rest)
+}
 
+func parseTZRules(rest: String): (ZoneRule, ZoneRule) {
+    var ruleRest = rest
     if (rest.size == 0) {
-        rest = ",M3.2.0,M11.1.0"
+        ruleRest = ",M3.2.0,M11.1.0"
     }
-    if (rest[0] != b',') {
+    if (ruleRest[0] != b',') {
         throw InvalidDataException("Failed to parse the timezone data.")
     }
 
     var startRule: ZoneRule = ZoneRule()
     var endRule: ZoneRule = ZoneRule()
-    (startRule, rest) = parseTZRule(rest[1..])
-    if (rest.size == 0 || rest[0] != b',') {
+    (startRule, ruleRest) = parseTZRule(ruleRest[1..])
+    if (ruleRest.size == 0 || ruleRest[0] != b',') {
         throw InvalidDataException("Failed to parse the timezone data.")
     }
-    (endRule, rest) = parseTZRule(rest[1..])
-    if (rest.size > 0) {
+    (endRule, ruleRest) = parseTZRule(ruleRest[1..])
+    if (ruleRest.size > 0) {
         throw InvalidDataException("Failed to parse the timezone data.")
     }
+    (startRule, endRule)
+}
+
+func getNormalYearEnd(year: Int64, unixSec: Int64): Int64 {
+    if (isLeapYear(year)) {
+        return unixSec + SECS_OF_LEAP_YEAR
+    }
+    unixSec + SECS_OF_NORMAL_YEAR
+}
+
+func getTZLookupResult(
+    stdInfo: (String, Int64),
+    dstInfo: (String, Int64),
+    yearInfo: (Int64, Int64, Int64),
+    transition: (Int64, Int64)
+): (String, Int64, Int64, Int64) {
+    let (stdName, stdOffset) = stdInfo
+    let (dstName, dstOffset) = dstInfo
+    let (year, ysec, unixSec) = yearInfo
+    let (startSec, endSec) = transition
+
+    if (ysec < startSec) {
+        return (stdName, stdOffset, unixSec, startSec + unixSec)
+    } else if (ysec >= endSec) {
+        return (stdName, stdOffset, endSec + unixSec, getNormalYearEnd(year, unixSec))
+    } else {
+        return (dstName, dstOffset, startSec + unixSec, endSec + unixSec)
+    }
+}
+
+func parseTZ(footer: String, end: Int64, epochSecond: Int64): (String, Int64, Int64, Int64) {
+    var (stdName, stdOffset, dstName, dstOffset, rest) = parseTZHeader(footer)
+    if (rest.size == 0) {
+        return (stdName, stdOffset, end, Int64.Max)
+    }
+
+    let (startRule, endRule) = parseTZRules(rest)
 
     var (year, ysec) = toYearAndSecond(epochSecond + SECS_OF_UNIX_TO_AD1)
 
     /* Calculate the start unix second of current year. */
     let unixSec = daysSinceUnix(year) * SECS_PER_DAY
     if (year <= 0) {
-        if (isLeapYear(year)) {
-            return (stdName, stdOffset, unixSec, unixSec + SECS_OF_LEAP_YEAR)
-        }
-        return (stdName, stdOffset, unixSec, unixSec + SECS_OF_NORMAL_YEAR)
+        return (stdName, stdOffset, unixSec, getNormalYearEnd(year, unixSec))
     }
 
     var startSec = transToSecOfYear(year, startRule, stdOffset)
@@ -608,16 +635,7 @@ func parseTZ(footer: String, end: Int64, epochSecond: Int64): (String, Int64, In
         (stdOffset, dstOffset) = swap(stdOffset, dstOffset)
     }
 
-    if (Int64(ysec) < startSec) {
-        return (stdName, stdOffset, unixSec, startSec + unixSec)
-    } else if (Int64(ysec) >= endSec) {
-        if (isLeapYear(year)) {
-            return (stdName, stdOffset, endSec + unixSec, unixSec + SECS_OF_LEAP_YEAR)
-        }
-        return (stdName, stdOffset, endSec + unixSec, unixSec + SECS_OF_NORMAL_YEAR)
-    } else {
-        return (dstName, dstOffset, startSec + unixSec, endSec + unixSec)
-    }
+    return getTZLookupResult((stdName, stdOffset), (dstName, dstOffset), (year, Int64(ysec), unixSec), (startSec, endSec))
 }
 
 /**
@@ -815,8 +833,8 @@ func transToSecOfYear(year: Int64, rule: ZoneRule, off: Int64): Int64 {
             var dayOfYear = dayOfMonBefore
 
             // Use the Zeiller formula variant to calculate the day of the week the first day of the month.
-            let firstDayOfMon = ((year - 1) + ((year - 1) / 4) - ((year - 1) / 100) + ((year - 1) / 400) +
-                dayOfMonBefore + 1) % DAYS_PER_WEEK
+            let firstDayOfMon = ((year - 1) + ((year - 1) / 4) - ((year - 1) / 100) + ((year - 1) / 400) + dayOfMonBefore +
+                1) % DAYS_PER_WEEK
 
             // Days in month from January to December
             var daysInMon = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
