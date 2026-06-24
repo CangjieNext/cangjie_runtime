@@ -37,7 +37,7 @@ enum Result<T> {
 public class ThreadGroup<T> <: Iterable<T> {
     private let futures = ArrayList<Future<Unit>>()
     private let completed = LinkedBlockingQueue<Result<T>>()
-    private var unconsumed: AtomicUInt64 = AtomicUInt64(0)
+    private let unconsumed: AtomicUInt64 = AtomicUInt64(0)
     private let mtx = Mutex()
     private var cancelled = false
 
