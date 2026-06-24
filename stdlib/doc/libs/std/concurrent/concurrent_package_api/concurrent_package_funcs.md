@@ -1,18 +1,18 @@
 # 函数
 
-## func ThreadScope\<T, R>((ThreadGroup\<T>) -> R)
+## func threadScope\<T, R>((ThreadGroup\<T>) -> R)
 
 ```cangjie
-public func ThreadScope<T, R>(fn: (ThreadGroup<T>) -> R): R
+public func threadScope<T, R>(fn: (ThreadGroup<T>) -> R): R
 ```
 
 功能：引入一个受作用域约束的 [ThreadGroup\<T>](./concurrent_package_classes.md#class-threadgroupt)，并在返回前等待该组启动的所有任务完成。
 
-`ThreadScope` 会创建一个 [ThreadGroup\<T>](./concurrent_package_classes.md#class-threadgroupt) 并将其传递给 `fn`。
+`threadScope` 会创建一个 [ThreadGroup\<T>](./concurrent_package_classes.md#class-threadgroupt) 并将其传递给 `fn`。
 
-如果 `fn` 正常返回，`ThreadScope` 会在返回 `fn` 的返回值之前，等待该组中每个未消费的任务结果。未在 `fn` 中消费的任务返回值会在作用域等待期间被消费并丢弃。如果任何未消费的任务抛出 [Exception](../../core/core_package_api/core_package_exceptions.md#class-exception) 或 [Error](../../core/core_package_api/core_package_exceptions.md#class-error)，该组的迭代器会在 `ThreadScope` 等待期间重新抛出该失败。只会重新抛出第一个 `Exception` 或 `Error`，其余失败会被静默丢弃。
+如果 `fn` 正常返回，`threadScope` 会在返回 `fn` 的返回值之前，等待该组中每个未消费的任务结果。未在 `fn` 中消费的任务返回值会在作用域等待期间被消费并丢弃。如果任何未消费的任务抛出 [Exception](../../core/core_package_api/core_package_exceptions.md#class-exception) 或 [Error](../../core/core_package_api/core_package_exceptions.md#class-error)，该组的迭代器会在 `threadScope` 等待期间重新抛出该失败。只会重新抛出第一个 `Exception` 或 `Error`，其余失败会被静默丢弃。
 
-如果 `fn` 抛出异常，或者在消费已启动任务的结果时抛出失败，且该失败未在 `fn` 内处理，`ThreadScope` 会向所有已启动任务发送取消请求，清空尚未处理的任务结果，并重新抛出原始失败。与上文相同，只会重新抛出第一个 `Exception` 或 `Error`，其余失败会被静默丢弃。
+如果 `fn` 抛出异常，或者在消费已启动任务的结果时抛出失败，且该失败未在 `fn` 内处理，`threadScope` 会向所有已启动任务发送取消请求，清空尚未处理的任务结果，并重新抛出原始失败。与上文相同，只会重新抛出第一个 `Exception` 或 `Error`，其余失败会被静默丢弃。
 
 > **注意：**
 >
@@ -24,7 +24,7 @@ public func ThreadScope<T, R>(fn: (ThreadGroup<T>) -> R): R
 
 > **注意：**
 >
-> 不要允许 `ThreadGroup` 实例逃逸出其 `ThreadScope`。
+> 不要允许 `ThreadGroup` 实例逃逸出其 `threadScope`。
 
 返回值：
 

@@ -8,7 +8,7 @@ public class ThreadGroup<T> <: Iterable<T>
 
 > **注意：**
 >
-> `ThreadGroup<T>` 没有公开构造函数。[ThreadScope](./concurrent_package_funcs.md#func-threadscopet-rthreadgroupt---r) 是唯一支持的实例创建方式。
+> `ThreadGroup<T>` 没有公开构造函数。[threadScope](./concurrent_package_funcs.md#func-threadscopet-rthreadgroupt---r) 是唯一支持的实例创建方式。
 
 允许启动并发线程、向所有已启动线程发送取消请求，并消费线程结果。
 
@@ -19,7 +19,7 @@ public class ThreadGroup<T> <: Iterable<T>
 > 结果按线程完成的先后顺序产出。
 
 > **警告：**
-> `ThreadGroup` 自身的 API 不是线程安全的。特别是，明确不支持对同一个 `ThreadGroup` 进行并发迭代。通常不要在 `ThreadScope` 内调用 `spawn`。
+> `ThreadGroup` 自身的 API 不是线程安全的。特别是，明确不支持对同一个 `ThreadGroup` 进行并发迭代。通常不要在 `threadScope` 内调用 `spawn`。
 
 ### func launch(() -> T)
 
