@@ -61,5 +61,5 @@ public func iterator(): Iterator<T>
 
 异常：
 
-- [Exception](../../core/core_package_api/core_package_exceptions.md#class-exception) - 如果消费到的任务结果为异常，则抛出
+- [Exception](../../core/core_package_api/core_package_exceptions.md#class-exception) - 如果消费到的任务结果为异常，则抛出。
 - [Error](../../core/core_package_api/core_package_exceptions.md#class-error) - 如果消费到的任务结果为错误，则抛出。
