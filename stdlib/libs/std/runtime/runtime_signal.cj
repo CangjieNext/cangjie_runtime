@@ -13,13 +13,13 @@ import std.collection.*
 
 @When[backend == "cjnative"]
 @Intrinsic
-func intrinsicRefEqFunc<A,R>(a: (A)->R, b: (A)->R): Bool
+func intrinsicRefEqFunc<A, R>(a: (A) -> R, b: (A) -> R): Bool
 
 /**
  * Check Whether two functions are the same
  */
 @When[backend == "cjnative"]
-func refEq<A,R>(a: (A)->R, b: (A)->R): Bool {
+func refEq<A, R>(a: (A) -> R, b: (A) -> R): Bool {
     return intrinsicRefEqFunc(a, b)
 }
 
@@ -32,7 +32,7 @@ private let mtx = Mutex()
 @When[os != "Windows"]
 class SignalManager {
     static const MAX_SIG_NUM: Int32 = 32
-    static let sigSlot = Array<ArrayList<SignalHandlerFunc>>(Int64(MAX_SIG_NUM), { _ => ArrayList<SignalHandlerFunc>()})
+    static let sigSlot = Array<ArrayList<SignalHandlerFunc>>(Int64(MAX_SIG_NUM), {_ => ArrayList<SignalHandlerFunc>()})
     // This memory allocation is globally unique and will only be released along with the program upon termination.
     static let ptrAction = LibC.malloc<SignalAction>(count: 1)
     static init() {
@@ -45,7 +45,7 @@ class SignalManager {
 
 /**
  * Provides a way to register signal handlers in Cangjie.
- * It uses a mutex to ensure thread safety when accessing the signal slots. 
+ * It uses a mutex to ensure thread safety when accessing the signal slots.
  */
 @When[os != "Windows"]
 public func registerSignalHandler(sig: Signal, handler: SignalHandlerFunc): Unit {
@@ -68,7 +68,7 @@ public func registerSignalHandler(sig: Signal, handler: SignalHandlerFunc): Unit
 
 /**
  * Provides a way to unregister signal handlers in Cangjie.
- * It uses a mutex to ensure thread safety when accessing the signal slots. 
+ * It uses a mutex to ensure thread safety when accessing the signal slots.
  */
 @When[os != "Windows"]
 public func unregisterSignalHandler(sig: Signal, handler: SignalHandlerFunc): Unit {
@@ -86,26 +86,36 @@ public func unregisterSignalHandler(sig: Signal, handler: SignalHandlerFunc): Un
 
 /**
  * Provides a way to reset signal handlers in Cangjie.
- * It uses a mutex to ensure thread safety when accessing the signal slots. 
+ * It uses a mutex to ensure thread safety when accessing the signal slots.
  */
+@When[os != "Windows"]
+private func resetAllSignalHandlers(): Unit {
+    for (i in 0..SignalManager.sigSlot.size) {
+        if (!SignalManager.sigSlot[i].isEmpty()) {
+            SignalManager.sigSlot[i].clear()
+            unregSigChain(Signal(Int32(i), ""))
+        }
+    }
+}
+
+@When[os != "Windows"]
+private func resetSelectedSignalHandlers(sigs: Array<Signal>): Unit {
+    for (sig in sigs) {
+        if (sig.value <= 0 || sig.value >= SignalManager.MAX_SIG_NUM) {
+            throw IllegalArgumentException("Signal value must > 0 and < ${SignalManager.MAX_SIG_NUM}.")
+        }
+        SignalManager.sigSlot[Int64(sig.value)].clear()
+        unregSigChain(sig)
+    }
+}
+
 @When[os != "Windows"]
 public func resetSignalHandler(sigs: Array<Signal>): Unit {
     synchronized(mtx) {
         if (sigs.size == 0) {
-            for (i in 0..SignalManager.sigSlot.size) {
-                if (!SignalManager.sigSlot[i].isEmpty()) {
-                    SignalManager.sigSlot[i].clear()
-                    unregSigChain(Signal(Int32(i), ""))
-                }
-            }
+            resetAllSignalHandlers()
         } else {
-            for (sig in sigs) {
-                if (sig.value <= 0 || sig.value >= SignalManager.MAX_SIG_NUM) {
-                    throw IllegalArgumentException("Signal value must > 0 and < ${SignalManager.MAX_SIG_NUM}.")
-                }
-                SignalManager.sigSlot[Int64(sig.value)].clear()
-                unregSigChain(sig)
-            }
+            resetSelectedSignalHandlers(sigs)
         }
     }
 }
