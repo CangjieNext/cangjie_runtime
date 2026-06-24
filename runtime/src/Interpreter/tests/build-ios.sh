@@ -133,6 +133,6 @@ done
 mv "$TEST_NAME"/*.o "$LIB"
 
 "$IOS_CXX" "${TARGET_FLAGS[@]}" -dynamiclib \
-    -Wl,-install_name,@rpath/libcangjie-interpreter.dylib \
-    -o "$TEST_NAME/out/libcangjie-interpreter.dylib" "$LIB"/*.o \
+    -Wl,-install_name,@rpath/libcbcengine.dylib \
+    -o "$TEST_NAME/out/libcbcengine.dylib" "$LIB"/*.o \
     -Wno-attributes -g -fPIC $IOS_LDFLAGS

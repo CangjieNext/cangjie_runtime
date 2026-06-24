@@ -695,9 +695,9 @@ static RuntimeParam InitRuntimeParam()
 
 #ifdef INTERPRETER_ENABLED
 #if defined(__IOS__)
-static constexpr const char* INTERPRETER_LIB_NAME = "libcangjie-interpreter.dylib";
+static constexpr const char* INTERPRETER_LIB_NAME = "libcbcengine.dylib";
 #else
-static constexpr const char* INTERPRETER_LIB_NAME = "libcangjie-interpreter.so";
+static constexpr const char* INTERPRETER_LIB_NAME = "libcbcengine.so";
 #endif
 
 static InterpreterParam InitInterpreterParam()
