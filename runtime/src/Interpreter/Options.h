@@ -10,6 +10,9 @@
 #if (defined(__linux__) || defined(__IOS__)) && (defined(__x86_64__) || defined(__aarch64__))
 #define INTERPRETER_ENABLED
 #endif
+
+#if defined(INTERPRETER_ENABLED) && defined(MRT_DEBUG)
 #define TEST
+#endif
 
 #endif // MRT_INTERPRETER_OPTIONS_H
