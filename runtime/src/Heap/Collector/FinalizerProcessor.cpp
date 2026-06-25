@@ -194,7 +194,8 @@ void FinalizerProcessor::WaitStarted()
 
 void FinalizerProcessor::EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit)
 {
-    std::lock_guard<std::mutex> l(listLock);
+    std::lock_guard<std::mutex> l(finalizersLock);
+    std::lock_guard<std::mutex> l2(finalizablesLock);
     auto it = finalizers.begin();
     while (it != finalizers.end() && countLimit != 0) {
         RefField<> tmpField(reinterpret_cast<MAddress>(*it));
@@ -250,7 +251,7 @@ void FinalizerProcessor::ProcessFinalizableList()
         }
         ExceptionManager::ClearPendingException();
         {
-            std::lock_guard<std::mutex> l(listLock);
+            std::lock_guard<std::mutex> l(finalizablesLock);
             itor = workingFinalizables.erase(itor);
         }
     }
@@ -262,7 +263,7 @@ void FinalizerProcessor::ProcessFinalizables()
     {
         // we leave saferegion to avoid GC visit those changing queues.
         ScopedObjectAccess soa;
-        std::lock_guard<std::mutex> l(listLock);
+        std::lock_guard<std::mutex> l(finalizablesLock);
         // FP will not come here before cleaning up workingFinalizables
         // workingFinalizables is expected empty, thus we could use std::swap here
         workingFinalizables.swap(finalizables);
@@ -314,7 +315,7 @@ void FinalizerProcessor::RegisterFinalizer(BaseObject* obj)
 {
     RefField<> tmpField(nullptr);
     Heap::GetBarrier().WriteStaticRef(tmpField, obj);
-    std::lock_guard<std::mutex> l(listLock);
+    std::lock_guard<std::mutex> l(finalizersLock);
     finalizers.push_back(reinterpret_cast<BaseObject*>(tmpField.GetFieldValue()));
 }
 
@@ -323,7 +324,7 @@ void FinalizerProcessor::RegisterFinalizers(ManagedList<BaseObject*>& objs)
     if (objs.empty()) {
         return;
     }
-    std::lock_guard<std::mutex> l(listLock);
+    std::lock_guard<std::mutex> l(finalizersLock);
     finalizers.splice(finalizers.end(), objs);
 }
 
