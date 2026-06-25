@@ -1,6 +1,6 @@
 # threadScope 使用示例
 
-下面示例在 [threadScope](../concurrent_package_api/concurrent_package_funcs.md#func-threadscopet-rthreadgroupt---r) 中启动多个任务，消费它们的结果，并从作用域返回聚合值。
+下面示例在 [threadScope](../concurrent_package_api/concurrent_package_funcs.md#func-threadscopet-rthreadgroupt---r) 中启动多个任务，消费这些任务的结果，并从作用域返回聚合后的值。
 
 <!-- verify -->
 ```cangjie
