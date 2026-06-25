@@ -189,6 +189,40 @@ extend<T> Array<T> where T <: Comparable<T> {
     }
 
     @OverflowWrapping
+    private func moveLeftBufferPrefix(arr: Array<T>, state: MergeFromLeftState, count: Int64, point: T): Unit {
+        match (count) {
+            case 0 => this[state.target] = point
+            case 1 =>
+                this[state.target] = arr[state.leftCursor]
+                this[state.target + 1] = point
+            case 2 =>
+                this[state.target] = arr[state.leftCursor]
+                this[state.target + 1] = arr[state.leftCursor + 1]
+                this[state.target + 2] = point
+            case _ =>
+                arr.copyTo(this, state.leftCursor, state.target, count)
+                this[state.target + count] = point
+        }
+    }
+
+    @OverflowWrapping
+    private func moveRightRunPrefix(state: MergeFromLeftState, count: Int64, point: T): Unit {
+        match (count) {
+            case 0 => this[state.target] = point
+            case 1 =>
+                this[state.target] = this[state.rightCursor]
+                this[state.target + 1] = point
+            case 2 =>
+                this[state.target] = this[state.rightCursor]
+                this[state.target + 1] = this[state.rightCursor + 1]
+                this[state.target + 2] = point
+            case _ =>
+                this.copyTo(this, state.rightCursor, state.target, count)
+                this[state.target + count] = point
+        }
+    }
+
+    @OverflowWrapping
     private func mergeFromLeftOneByOne(arr: Array<T>, state: MergeFromLeftState): Unit {
         state.resetCounts()
         var t1 = arr[state.leftCursor]
@@ -278,6 +312,51 @@ extend<T> Array<T> where T <: Comparable<T> {
             }
         }
         this.finishMergeFromLeft(arr, state)
+    }
+
+    @OverflowWrapping
+    private func finishMergeFromLeft(arr: Array<T>, state: MergeFromLeftState): Unit {
+        if (state.rightRest == 0) {
+            arr.copyTo(this, state.leftCursor, state.target, state.leftRest)
+        }
+        if (state.leftRest == 1) {
+            this.copyTo(this, state.rightCursor, state.target, state.rightRest)
+            this[state.target + state.rightRest] = arr[state.leftCursor]
+        }
+    }
+
+    @OverflowWrapping
+    private func moveRightBufferSuffix(rightBuffer: Array<T>, state: MergeFromRightState, count: Int64, point: T): Unit {
+        match (count) {
+            case 0 => this[state.target] = point
+            case 1 =>
+                this[state.target] = rightBuffer[state.rightTail]
+                this[state.target - 1] = point
+            case 2 =>
+                this[state.target] = rightBuffer[state.rightTail]
+                this[state.target - 1] = rightBuffer[state.rightTail - 1]
+                this[state.target - 2] = point
+            case _ =>
+                rightBuffer.copyTo(this, state.rightTail - count + 1, state.target - count + 1, count)
+                this[state.target - count] = point
+        }
+    }
+
+    @OverflowWrapping
+    private func moveLeftRunSuffix(state: MergeFromRightState, count: Int64, point: T): Unit {
+        match (count) {
+            case 0 => this[state.target] = point
+            case 1 =>
+                this[state.target] = this[state.leftTail]
+                this[state.target - 1] = point
+            case 2 =>
+                this[state.target] = this[state.leftTail]
+                this[state.target - 1] = this[state.leftTail - 1]
+                this[state.target - 2] = point
+            case _ =>
+                this.copyTo(this, state.leftTail - count + 1, state.target - count + 1, count)
+                this[state.target - count] = point
+        }
     }
 
     @OverflowWrapping
@@ -372,6 +451,17 @@ extend<T> Array<T> where T <: Comparable<T> {
             }
         }
         this.finishMergeFromRight(start1, rightBuffer, state)
+    }
+
+    @OverflowWrapping
+    private func finishMergeFromRight(start1: Int64, rightBuffer: Array<T>, state: MergeFromRightState): Unit {
+        if (state.leftRest == 0) {
+            rightBuffer.copyTo(this, 0, state.target - state.rightRest + 1, state.rightRest)
+        }
+        if (state.rightRest == 1) {
+            this.copyTo(this, start1, start1 + 1, state.leftRest)
+            this[start1] = rightBuffer[state.rightTail]
+        }
     }
 
     @OverflowWrapping
