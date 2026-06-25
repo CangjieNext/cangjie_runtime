@@ -189,40 +189,6 @@ extend<T> Array<T> where T <: Comparable<T> {
     }
 
     @OverflowWrapping
-    private func moveLeftBufferPrefix(arr: Array<T>, state: MergeFromLeftState, count: Int64, point: T): Unit {
-        match (count) {
-            case 0 => this[state.target] = point
-            case 1 =>
-                this[state.target] = arr[state.leftCursor]
-                this[state.target + 1] = point
-            case 2 =>
-                this[state.target] = arr[state.leftCursor]
-                this[state.target + 1] = arr[state.leftCursor + 1]
-                this[state.target + 2] = point
-            case _ =>
-                arr.copyTo(this, state.leftCursor, state.target, count)
-                this[state.target + count] = point
-        }
-    }
-
-    @OverflowWrapping
-    private func moveRightRunPrefix(state: MergeFromLeftState, count: Int64, point: T): Unit {
-        match (count) {
-            case 0 => this[state.target] = point
-            case 1 =>
-                this[state.target] = this[state.rightCursor]
-                this[state.target + 1] = point
-            case 2 =>
-                this[state.target] = this[state.rightCursor]
-                this[state.target + 1] = this[state.rightCursor + 1]
-                this[state.target + 2] = point
-            case _ =>
-                this.copyTo(this, state.rightCursor, state.target, count)
-                this[state.target + count] = point
-        }
-    }
-
-    @OverflowWrapping
     private func mergeFromLeftOneByOne(arr: Array<T>, state: MergeFromLeftState): Unit {
         state.resetCounts()
         var t1 = arr[state.leftCursor]
@@ -288,17 +254,6 @@ extend<T> Array<T> where T <: Comparable<T> {
     }
 
     @OverflowWrapping
-    private func finishMergeFromLeft(arr: Array<T>, state: MergeFromLeftState): Unit {
-        if (state.rightRest == 0) {
-            arr.copyTo(this, state.leftCursor, state.target, state.leftRest)
-        }
-        if (state.leftRest == 1) {
-            this.copyTo(this, state.rightCursor, state.target, state.rightRest)
-            this[state.target + state.rightRest] = arr[state.leftCursor]
-        }
-    }
-
-    @OverflowWrapping
     private func mergeFromLeft(
         start1: Int64,
         len1: Int64,
@@ -323,40 +278,6 @@ extend<T> Array<T> where T <: Comparable<T> {
             }
         }
         this.finishMergeFromLeft(arr, state)
-    }
-
-    @OverflowWrapping
-    private func moveRightBufferSuffix(rightBuffer: Array<T>, state: MergeFromRightState, count: Int64, point: T): Unit {
-        match (count) {
-            case 0 => this[state.target] = point
-            case 1 =>
-                this[state.target] = rightBuffer[state.rightTail]
-                this[state.target - 1] = point
-            case 2 =>
-                this[state.target] = rightBuffer[state.rightTail]
-                this[state.target - 1] = rightBuffer[state.rightTail - 1]
-                this[state.target - 2] = point
-            case _ =>
-                rightBuffer.copyTo(this, state.rightTail - count + 1, state.target - count + 1, count)
-                this[state.target - count] = point
-        }
-    }
-
-    @OverflowWrapping
-    private func moveLeftRunSuffix(state: MergeFromRightState, count: Int64, point: T): Unit {
-        match (count) {
-            case 0 => this[state.target] = point
-            case 1 =>
-                this[state.target] = this[state.leftTail]
-                this[state.target - 1] = point
-            case 2 =>
-                this[state.target] = this[state.leftTail]
-                this[state.target - 1] = this[state.leftTail - 1]
-                this[state.target - 2] = point
-            case _ =>
-                this.copyTo(this, state.leftTail - count + 1, state.target - count + 1, count)
-                this[state.target - count] = point
-        }
     }
 
     @OverflowWrapping
@@ -423,17 +344,6 @@ extend<T> Array<T> where T <: Comparable<T> {
             if (state.leftBatch < 4 || state.rightBatch < 4) {
                 break
             }
-        }
-    }
-
-    @OverflowWrapping
-    private func finishMergeFromRight(start1: Int64, rightBuffer: Array<T>, state: MergeFromRightState): Unit {
-        if (state.leftRest == 0) {
-            rightBuffer.copyTo(this, 0, state.target - state.rightRest + 1, state.rightRest)
-        }
-        if (state.rightRest == 1) {
-            this.copyTo(this, start1, start1 + 1, state.leftRest)
-            this[start1] = rightBuffer[state.rightTail]
         }
     }
 
@@ -671,7 +581,7 @@ extend<T> Array<T> {
     }
 
     @OverflowWrapping
-    private func moveCmpLeftBufferPrefix(arr: Array<T>, state: MergeFromLeftState, count: Int64, point: T): Unit {
+    private func moveLeftBufferPrefix(arr: Array<T>, state: MergeFromLeftState, count: Int64, point: T): Unit {
         match (count) {
             case 0 => this[state.target] = point
             case 1 =>
@@ -688,7 +598,7 @@ extend<T> Array<T> {
     }
 
     @OverflowWrapping
-    private func moveCmpRightRunPrefix(state: MergeFromLeftState, count: Int64, point: T): Unit {
+    private func moveRightRunPrefix(state: MergeFromLeftState, count: Int64, point: T): Unit {
         match (count) {
             case 0 => this[state.target] = point
             case 1 =>
@@ -750,7 +660,7 @@ extend<T> Array<T> {
         while (true) {
             var probe = this[state.rightCursor]
             state.leftCount = arr.queryGT(probe, state.leftCursor, state.leftRest, compareBy, false) - state.leftCursor
-            this.moveCmpLeftBufferPrefix(arr, state, state.leftCount, probe)
+            this.moveLeftBufferPrefix(arr, state, state.leftCount, probe)
             state.target = state.target + state.leftCount + 1
             state.leftCursor += state.leftCount
             state.leftRest -= state.leftCount
@@ -763,7 +673,7 @@ extend<T> Array<T> {
             probe = arr[state.leftCursor]
             state.rightCount = this.queryLT(probe, state.rightCursor, state.rightRest, compareBy, false) - state
                 .rightCursor
-            this.moveCmpRightRunPrefix(state, state.rightCount, probe)
+            this.moveRightRunPrefix(state, state.rightCount, probe)
             state.target = state.target + state.rightCount + 1
             state.rightCursor += state.rightCount
             state.rightRest -= state.rightCount
@@ -780,7 +690,7 @@ extend<T> Array<T> {
     }
 
     @OverflowWrapping
-    private func finishCmpMergeFromLeft(arr: Array<T>, state: MergeFromLeftState): Unit {
+    private func finishMergeFromLeft(arr: Array<T>, state: MergeFromLeftState): Unit {
         if (state.rightRest == 0) {
             arr.copyTo(this, state.leftCursor, state.target, state.leftRest)
         }
@@ -791,7 +701,7 @@ extend<T> Array<T> {
     }
 
     @OverflowWrapping
-    private func moveCmpRightBufferSuffix(rightBuffer: Array<T>, state: MergeFromRightState, count: Int64, point: T): Unit {
+    private func moveRightBufferSuffix(rightBuffer: Array<T>, state: MergeFromRightState, count: Int64, point: T): Unit {
         match (count) {
             case 0 => this[state.target] = point
             case 1 =>
@@ -808,7 +718,7 @@ extend<T> Array<T> {
     }
 
     @OverflowWrapping
-    private func moveCmpLeftRunSuffix(state: MergeFromRightState, count: Int64, point: T): Unit {
+    private func moveLeftRunSuffix(state: MergeFromRightState, count: Int64, point: T): Unit {
         match (count) {
             case 0 => this[state.target] = point
             case 1 =>
@@ -872,7 +782,7 @@ extend<T> Array<T> {
             var tailProbe = this[state.leftTail]
             let ltIndex = rightBuffer.queryLT(tailProbe, 0, state.rightRest, compareBy, true)
             state.rightBatch = state.rightRest - ltIndex
-            this.moveCmpRightBufferSuffix(rightBuffer, state, state.rightBatch, tailProbe)
+            this.moveRightBufferSuffix(rightBuffer, state, state.rightBatch, tailProbe)
             state.target = state.target - state.rightBatch - 1
             state.rightTail -= state.rightBatch
             state.rightRest -= state.rightBatch
@@ -885,7 +795,7 @@ extend<T> Array<T> {
             tailProbe = rightBuffer[state.rightTail]
             let gtIndex = this.queryGT(tailProbe, start1, state.leftRest, compareBy, true)
             state.leftBatch = state.leftTail - gtIndex + 1
-            this.moveCmpLeftRunSuffix(state, state.leftBatch, tailProbe)
+            this.moveLeftRunSuffix(state, state.leftBatch, tailProbe)
             state.target = state.target - state.leftBatch - 1
             state.leftTail -= state.leftBatch
             state.leftRest -= state.leftBatch
@@ -902,7 +812,7 @@ extend<T> Array<T> {
     }
 
     @OverflowWrapping
-    private func finishCmpMergeFromRight(start1: Int64, rightBuffer: Array<T>, state: MergeFromRightState): Unit {
+    private func finishMergeFromRight(start1: Int64, rightBuffer: Array<T>, state: MergeFromRightState): Unit {
         if (state.leftRest == 0) {
             rightBuffer.copyTo(this, 0, state.target - state.rightRest + 1, state.rightRest)
         }
@@ -937,7 +847,7 @@ extend<T> Array<T> {
                 break
             }
         }
-        this.finishCmpMergeFromLeft(cmpBuffer, state)
+        this.finishMergeFromLeft(cmpBuffer, state)
     }
 
     @OverflowWrapping
@@ -965,7 +875,7 @@ extend<T> Array<T> {
                 break
             }
         }
-        this.finishCmpMergeFromRight(start1, rightCmpBuffer, state)
+        this.finishMergeFromRight(start1, rightCmpBuffer, state)
     }
 
     @OverflowWrapping
@@ -1037,6 +947,9 @@ class TempArray<T> {
     }
 }
 
+// MergeFromLeftState is scoped to a single mergeFromLeft call; not shared across
+// threads or recursive calls. Its mutable fields replace former locals only to
+// reduce stack traffic and are not observed outside that one invocation.
 class MergeFromLeftState {
     var target: Int64
     var leftCursor: Int64
@@ -1078,6 +991,9 @@ class MergeFromLeftState {
     }
 }
 
+// MergeFromRightState is scoped to a single mergeFromRight call; not shared
+// across threads or recursive calls. Its mutable fields replace former locals
+// only to reduce stack traffic and are not observed outside that one invocation.
 class MergeFromRightState {
     var target: Int64
     var leftTail: Int64
