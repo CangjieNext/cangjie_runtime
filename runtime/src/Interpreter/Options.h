@@ -11,7 +11,9 @@
 #define INTERPRETER_ENABLED
 #endif
 
-#if defined(INTERPRETER_ENABLED) && defined(MRT_DEBUG)
+#if defined(INTERPRETER_ENABLED) && \
+    defined(MRT_INTERPRETER_TEST_SUPPORT) && \
+    (MRT_INTERPRETER_TEST_SUPPORT == 1)
 #define TEST
 #endif
 
