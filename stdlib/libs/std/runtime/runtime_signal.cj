@@ -84,10 +84,7 @@ public func unregisterSignalHandler(sig: Signal, handler: SignalHandlerFunc): Un
     }
 }
 
-/**
- * Provides a way to reset signal handlers in Cangjie.
- * It uses a mutex to ensure thread safety when accessing the signal slots.
- */
+/// Internal helper: reset all signal handlers to default.
 @When[os != "Windows"]
 private func resetAllSignalHandlers(): Unit {
     for (i in 0..SignalManager.sigSlot.size) {
@@ -109,6 +106,10 @@ private func resetSelectedSignalHandlers(sigs: Array<Signal>): Unit {
     }
 }
 
+/**
+ * Provides a way to reset signal handlers in Cangjie.
+ * It uses a mutex to ensure thread safety when accessing the signal slots.
+ */
 @When[os != "Windows"]
 public func resetSignalHandler(sigs: Array<Signal>): Unit {
     synchronized(mtx) {
