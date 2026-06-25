@@ -711,6 +711,12 @@ static InterpreterParam InitInterpreterParam()
     };
     return interpreterParam;
 }
+
+static bool ShouldInitCJInterpreter()
+{
+    auto env = std::getenv("ENABLE_INTERPRETER");
+    return env != nullptr && std::strcmp(env, "true") == 0;
+}
 #endif
 
 void MRT_CjRuntimeInit()
@@ -718,8 +724,10 @@ void MRT_CjRuntimeInit()
     RuntimeParam param = InitRuntimeParam();
     CangjieRuntime::CreateAndInit(param);
 #ifdef INTERPRETER_ENABLED
-    InterpreterParam interpreterParam = InitInterpreterParam();
-    InitCJInterpreter(&interpreterParam);
+    if (ShouldInitCJInterpreter()) {
+        InterpreterParam interpreterParam = InitInterpreterParam();
+        InitCJInterpreter(&interpreterParam);
+    }
 #endif
     RTErrorCode rtCode = SetRuntimeInitFlag();
     if (rtCode != E_OK) {

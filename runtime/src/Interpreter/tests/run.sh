@@ -17,6 +17,8 @@ export cjHeapSize=256mb
 
 # export MRT_LOG_INTERPRETER=1
 # export MRT_LOG_EXCEPTION=1
- 
+
+export ENABLE_INTERPRETER=true
+
 ./$TEST_NAME/out/test
 exit
