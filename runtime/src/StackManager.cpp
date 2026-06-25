@@ -9,6 +9,7 @@
 #include <cstdint>
 
 #include "Base/SysCall.h"
+#include "Base/EnvParam.h"
 #include "Common/StackType.h"
 #include "ExceptionManager.inline.h"
 #include "Mutator/Mutator.h"
@@ -164,26 +165,13 @@ void StackManager::VisitStackPtrMap(const UnwindContext& topFrame, const StackPt
 
 void StackManager::InitStackGrowConfig()
 {
-    auto cjStackGrow = std::getenv("cjStackGrow");
-    if (cjStackGrow == nullptr) {
+    CString value;
+    if (!TryReadEnv("cjStackGrow", value)) {
         return;
     }
-    if (strlen(cjStackGrow) != 1) {
-        LOG(RTLOG_ERROR, "unsupported cjStackGrow, cjStackGrow should be 0 or 1.\n");
-        return;
-    }
-
-    switch (cjStackGrow[0]) {
-        case '0':
-            CangjieRuntime::stackGrowConfig = StackGrowConfig::STACK_GROW_OFF;
-            return;
-        case '1':
-            CangjieRuntime::stackGrowConfig = StackGrowConfig::STACK_GROW_ON;
-            return;
-        default:
-            LOG(RTLOG_ERROR, "unsupported cjStackGrow, cjStackGrow should be 0 or 1.\n");
-    }
-    return;
+    CangjieRuntime::stackGrowConfig = ReadBoolParameter("cjStackGrow", false)
+        ? StackGrowConfig::STACK_GROW_ON
+        : StackGrowConfig::STACK_GROW_OFF;
 }
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)

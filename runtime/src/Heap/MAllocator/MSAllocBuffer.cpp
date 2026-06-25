@@ -16,10 +16,7 @@
 #include "Heap/MCollector/MarkSweepCollector.h"
 #include "Common/BaseObject.h"
 #include "ObjectModel/MClass.inline.h"
-#include <algorithm>
-#include <array>
 #include <cstdint>
-#include <cstdlib>
 #include <functional>
 #include <limits>
 #include <thread>
@@ -29,32 +26,42 @@ namespace MapleRuntime {
 constexpr uint8_t AllocBufferMS::kCachedRegionSlots;
 
 static constexpr bool kDisableMutatorAssistProbe = false;
-constexpr uint8_t kWarmCacheHeatThreshold = 3;
-constexpr uint8_t kHotCacheHeatThreshold = 6;
-constexpr uint8_t kHeatBoostOnCacheMiss = 2;
-constexpr uint8_t kHeatBoostOnCachedHit = 1;
-constexpr uint8_t kHeatBoostOnCentralRefill = 1;
-constexpr uint8_t kHeatCoolOnSaturatedCache = 1;
-constexpr uint8_t kHeatCoolOnIdleScan = 1;
-constexpr uint8_t kPrimaryFeedNotifyCachedLimit = 0;
-constexpr uint8_t kFeedHotnessDecayShift = 3;
-constexpr uint8_t kFeedHotnessMissDemand = 48;
-constexpr uint8_t kFeedHotnessCachedHitDemand = 8;
-constexpr uint8_t kFeedHotnessCentralRefillDemand = 16;
 
-uint8_t SaturatingAddU8(uint8_t value, uint8_t delta)
+uintptr_t AllocateFromRefilledRegion(MSRegionInfo* region)
 {
-    return value > UINT8_MAX - delta ? UINT8_MAX : static_cast<uint8_t>(value + delta);
+    if (region == nullptr) {
+        return 0;
+    }
+    return region->regionType == MSRegionType::MS_REGION_BUMP
+        ? region->AllocBump()
+        : region->AllocFromBitmapFast();
 }
 
-uint8_t SaturatingSubU8(uint8_t value, uint8_t delta)
+void LogRefillRegionAllocationFailure(const char* stage, uint8_t cls, const MSRegionInfo* region)
 {
-    return value < delta ? 0 : static_cast<uint8_t>(value - delta);
-}
+    if (region == nullptr) {
+        LOG(RTLOG_ERROR, "[MS-GC] %s: refill region is null, cls=%u",
+            stage, static_cast<unsigned>(cls));
+        return;
+    }
 
-uint16_t SaturatingAddU16(uint16_t value, uint16_t delta)
-{
-    return value > UINT16_MAX - delta ? UINT16_MAX : static_cast<uint16_t>(value + delta);
+    LOG(RTLOG_ERROR,
+        "[MS-GC] %s: refill region unusable, cls=%u, region=%p, regionType=%u, "
+        "sweepState=%u, sizeClass=%u, freeSlots=%u/%u, sweepGen=%u, "
+        "allocPtr=0x%zx, regionEnd=0x%zx, allocBitmap=%p, reserved=0x%llx",
+        stage,
+        static_cast<unsigned>(cls),
+        static_cast<const void*>(region),
+        static_cast<unsigned>(region->regionType),
+        static_cast<unsigned>(region->sweepState),
+        static_cast<unsigned>(region->sizeClass),
+        static_cast<unsigned>(region->freeSlotCount),
+        static_cast<unsigned>(region->totalSlotCount),
+        static_cast<unsigned>(region->GetSweepGen()),
+        region->allocPtr,
+        region->regionEnd,
+        static_cast<void*>(region->allocBitmap),
+        static_cast<unsigned long long>(region->reserved));
 }
 
 AllocBufferMS::~AllocBufferMS()
@@ -91,6 +98,7 @@ void AllocBufferMS::Init(CentralRegionPool* central)
         : kMSInvalidShardId;
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
         activeRegions_[cls] = nullptr;
+        cachedRegionOrigin_[cls].store(static_cast<uint8_t>(RegionAcquireOrigin::NONE), std::memory_order_relaxed);
     }
     // Register with CentralRegionPool so GC can FlushAll
     if (central_ != nullptr) {
@@ -130,31 +138,6 @@ void AllocBufferMS::Fini()
     central_ = nullptr;
 }
 
-uint8_t AllocBufferMS::BumpCacheMiss(uint8_t cls)
-{
-    uint8_t miss = cacheMiss_[cls].load(std::memory_order_relaxed);
-    miss = SaturatingAddU8(miss, 1);
-    cacheMiss_[cls].store(miss, std::memory_order_relaxed);
-    return miss;
-}
-
-void AllocBufferMS::SetCacheMiss(uint8_t cls, uint8_t value)
-{
-    cacheMiss_[cls].store(value, std::memory_order_relaxed);
-}
-
-void AllocBufferMS::BoostCacheHeat(uint8_t cls, uint8_t delta)
-{
-    uint8_t heat = cacheHeat_[cls].load(std::memory_order_relaxed);
-    cacheHeat_[cls].store(SaturatingAddU8(heat, delta), std::memory_order_relaxed);
-}
-
-void AllocBufferMS::CoolCacheHeat(uint8_t cls, uint8_t delta)
-{
-    uint8_t heat = cacheHeat_[cls].load(std::memory_order_relaxed);
-    cacheHeat_[cls].store(SaturatingSubU8(heat, delta), std::memory_order_relaxed);
-}
-
 uint8_t AllocBufferMS::CountCachedRegions(uint8_t cls) const
 {
     return cachedRegion_[cls].load(std::memory_order_relaxed) != nullptr ? 1 : 0;
@@ -180,171 +163,24 @@ size_t AllocBufferMS::CountCachedRegions() const
     return total;
 }
 
-uint16_t AllocBufferMS::GetHotClassScore(uint8_t cls) const
-{
-    uint16_t stable = feedHotness_[cls].load(std::memory_order_relaxed);
-    uint8_t heat = cacheHeat_[cls].load(std::memory_order_relaxed);
-    uint8_t miss = cacheMiss_[cls].load(std::memory_order_relaxed);
-    uint32_t score = static_cast<uint32_t>(stable) + static_cast<uint32_t>(heat) * 16 +
-                     static_cast<uint32_t>(miss) * 8;
-    return score > UINT16_MAX ? UINT16_MAX : static_cast<uint16_t>(score);
-}
-
-void AllocBufferMS::ObserveFeedHotness(uint8_t cls, uint8_t demand)
-{
-    uint16_t old = feedHotness_[cls].load(std::memory_order_relaxed);
-    uint16_t decay = static_cast<uint16_t>(old >> kFeedHotnessDecayShift);
-    if (old != 0 && decay == 0) {
-        decay = 1;
-    }
-    uint16_t base = old > decay ? static_cast<uint16_t>(old - decay) : 0;
-    feedHotness_[cls].store(SaturatingAddU16(base, demand), std::memory_order_relaxed);
-}
-
-void AllocBufferMS::DecayFeedHotness(uint8_t cls, uint8_t floor)
-{
-    uint16_t old = feedHotness_[cls].load(std::memory_order_relaxed);
-    uint16_t decay = static_cast<uint16_t>(old >> kFeedHotnessDecayShift);
-    if (old != 0 && decay == 0) {
-        decay = 1;
-    }
-    uint16_t next = old > decay ? static_cast<uint16_t>(old - decay) : 0;
-    if (next < floor) {
-        next = floor;
-    }
-    feedHotness_[cls].store(next, std::memory_order_relaxed);
-}
-
-uint8_t AllocBufferMS::GetHotClassRank(uint8_t cls) const
-{
-    uint16_t myScore = GetHotClassScore(cls);
-    if (myScore == 0) {
-        return kNumSizeClasses;
-    }
-
-    uint8_t rank = 0;
-    for (uint8_t other = 0; other < kNumSizeClasses; ++other) {
-        if (other == cls) {
-            continue;
-        }
-        uint16_t otherScore = GetHotClassScore(other);
-        if (otherScore > myScore || (otherScore == myScore && other < cls)) {
-            ++rank;
-        }
-    }
-    return rank;
-}
-
-uint8_t AllocBufferMS::GetHotHintClass() const
-{
-    return hotHintCls_.load(std::memory_order_relaxed);
-}
-
-bool AllocBufferMS::IsPrimaryHotClass(uint8_t cls) const
-{
-    uint8_t rank = GetHotClassRank(cls);
-    return rank == 0;
-}
-
-bool AllocBufferMS::IsSecondaryHotClass(uint8_t cls) const
-{
-    uint8_t rank = GetHotClassRank(cls);
-    return rank > 0 && rank < kBackgroundFeedTopK && GetHotClassScore(cls) != 0;
-}
-
-uint8_t AllocBufferMS::GetTargetCachedSlots(uint8_t cls) const
-{
-    return IsTopFeedHotClass(cls, GetHotHintClass()) ? kCachedRegionSlots : 0;
-}
-
-bool AllocBufferMS::ShouldNotifyBackgroundFeed(uint8_t cls) const
-{
-    return IsTopFeedHotClass(cls, cls) && CountCachedRegions(cls) <= kPrimaryFeedNotifyCachedLimit;
-}
-
-uint8_t AllocBufferMS::GetCacheFillThreshold(uint8_t cls) const
-{
-    return IsTopFeedHotClass(cls, cls) ? 1 : UINT8_MAX;
-}
-
-uint16_t AllocBufferMS::GetBackgroundFillPriority(uint8_t cls) const
-{
-    uint8_t preferredCls = GetHotHintClass();
-    if (!IsTopFeedHotClass(cls, preferredCls)) {
-        return 0;
-    }
-    if (CountCachedRegions(cls) >= kCachedRegionSlots) {
-        return 0;
-    }
-    uint16_t score = GetHotClassScore(cls);
-    if (score == 0) {
-        return 0;
-    }
-    uint16_t miss = cacheMiss_[cls].load(std::memory_order_relaxed);
-    uint16_t preferredBias = preferredCls < kNumSizeClasses && cls == preferredCls ? 4096 : 0;
-    return static_cast<uint16_t>(std::min<uint32_t>(UINT16_MAX, preferredBias + score + miss * 64));
-}
-
-bool AllocBufferMS::IsTopFeedHotClass(uint8_t cls, uint8_t preferredCls) const
-{
-    uint16_t score = GetHotClassScore(cls);
-    bool selfPreferred = preferredCls < kNumSizeClasses && cls == preferredCls;
-    if (score == 0 && !selfPreferred) {
-        return false;
-    }
-
-    uint8_t outrank = 0;
-    for (uint8_t other = 0; other < kNumSizeClasses; ++other) {
-        if (other == cls) {
-            continue;
-        }
-        bool otherPreferred = preferredCls < kNumSizeClasses && other == preferredCls;
-        uint16_t otherScore = GetHotClassScore(other);
-        if (otherScore == 0 && !otherPreferred) {
-            continue;
-        }
-        if (otherPreferred != selfPreferred) {
-            if (otherPreferred) {
-                ++outrank;
-            }
-            continue;
-        }
-        if (otherScore > score || (otherScore == score && other < cls)) {
-            ++outrank;
-        }
-        if (outrank >= kBackgroundFeedTopK) {
-            return false;
-        }
-    }
-    return true;
-}
-
 void AllocBufferMS::TrimExtraCachedRegions(uint8_t cls, uint8_t targetSlots)
 {
     if (targetSlots == 0) {
         MSRegionInfo* extra = cachedRegion_[cls].exchange(nullptr, std::memory_order_acquire);
         if (extra != nullptr) {
+            (void)cachedRegionOrigin_[cls].exchange(static_cast<uint8_t>(RegionAcquireOrigin::NONE),
+                                                    std::memory_order_acq_rel);
             ReturnRegionToCentral(extra, cls);
         }
     }
 }
 
-bool AllocBufferMS::NeedsBackgroundFill(uint8_t preferredCls) const
+bool AllocBufferMS::NeedsBackgroundFill() const
 {
-    if (preferredCls >= kNumSizeClasses) {
-        preferredCls = GetHotHintClass();
-    }
     for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
-        if (!IsTopFeedHotClass(cls, preferredCls)) {
-            continue;
+        if (activeRegions_[cls] != nullptr && CountCachedRegions(cls) == 0) {
+            return true;
         }
-        if (CountCachedRegions(cls) != 0) {
-            continue;
-        }
-        if (GetHotClassScore(cls) == 0) {
-            continue;
-        }
-        return true;
     }
     return false;
 }
@@ -401,29 +237,29 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
         ReturnRegion(cls);
     }
 
-    // O2: Check thread-local cache before going to CentralRegionPool
-    MSRegionInfo* newRegion = TakeCachedRegion(cls);
-    if (newRegion != nullptr) {
-        cacheConsumed_[cls].store(SaturatingAddU8(cacheConsumed_[cls].load(std::memory_order_relaxed), 1),
-            std::memory_order_relaxed);
-        BoostCacheHeat(cls, kHeatBoostOnCachedHit);
-        ObserveFeedHotness(cls, kFeedHotnessCachedHitDemand);
-    } else {
-        BoostCacheHeat(cls, kHeatBoostOnCacheMiss);
-        uint8_t missCount = BumpCacheMiss(cls);
-        ObserveFeedHotness(cls, kFeedHotnessMissDemand);
-        if (missCount >= GetCacheFillThreshold(cls) && ShouldNotifyBackgroundFeed(cls)) {
-            hotHintCls_.store(cls, std::memory_order_relaxed);
-        }
-        // Step 2: Get a new Region from CentralRegionPool
-        newRegion = RefillFromCentral(cls, false);
-        if (newRegion != nullptr) {
-            BoostCacheHeat(cls, kHeatBoostOnCentralRefill);
-            ObserveFeedHotness(cls, kFeedHotnessCentralRefillDemand);
-        }
-    }
+    // O2: Refill directly from central / local empty-region caches.
+    MSRegionInfo* newRegion = RefillFromCentral(cls, false, nullptr);
     if (UNLIKELY(newRegion == nullptr)) {
         return 0;  // OOM or GC needed — caller handles
+    }
+
+    uintptr_t addr = AllocateFromRefilledRegion(newRegion);
+    if (UNLIKELY(addr == 0)) {
+        // Protect against a region that was handed out by cache/central lists
+        // but cannot satisfy even one real allocation attempt.
+        LogRefillRegionAllocationFailure("SlowAlloc primary", cls, newRegion);
+        central_->ReturnFullRegion(newRegion, cls);
+
+        newRegion = central_->GetFreshRegion(cls, cachedHomeShardId_);
+        if (UNLIKELY(newRegion == nullptr)) {
+            return 0;
+        }
+        addr = AllocateFromRefilledRegion(newRegion);
+        if (UNLIKELY(addr == 0)) {
+            LogRefillRegionAllocationFailure("SlowAlloc fresh-retry", cls, newRegion);
+            central_->ReturnFullRegion(newRegion, cls);
+            return 0;
+        }
     }
 
     // Step 3: Set as active Region and record pacing debt for the consumed region.
@@ -436,18 +272,10 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
     activeRegions_[cls] = newRegion;
     AccumulatePacingDebt(MS_REGION_SIZE);
 
-    // Backup cache refill is handled by BackgroundFillCache after repeated misses.
     // Avoid doing another synchronous central-pool acquisition here: on case1 this
     // can turn one SlowAlloc miss into two central refills, and the second refill
     // may also fall into lazy sweep on the mutator thread.
 
-    // Step 4: Allocate from the new Region (respect region type)
-    uintptr_t addr;
-    if (newRegion->regionType == MSRegionType::MS_REGION_BUMP) {
-        addr = newRegion->AllocBump();
-    } else {
-        addr = newRegion->AllocFromBitmapFast();
-    }
     return static_cast<MAddress>(addr);
 }
 
@@ -477,6 +305,27 @@ MSRegionInfo* AllocBufferMS::TakeLocalEmptyRegion()
     }
     central_->DecrementEmptySweptCount();
     return region;
+}
+
+bool AllocBufferMS::TryPushLocalEmptyRegion(MSRegionInfo* region, size_t slotLimit)
+{
+    if (region == nullptr || central_ == nullptr || slotLimit == 0) {
+        return false;
+    }
+
+    region->ResetToEmptyCache();
+    bool inserted = false;
+    {
+        std::lock_guard<std::mutex> lg(localEmptyRegionLock_);
+        if (localEmptyRegionCache_.Count() < slotLimit) {
+            localEmptyRegionCache_.Prepend(region);
+            inserted = true;
+        }
+    }
+    if (inserted) {
+        central_->IncrementEmptySweptCount();
+    }
+    return inserted;
 }
 
 void AllocBufferMS::RefillLocalEmptyRegionsFromGlobal(std::vector<MSRegionInfo*>& refill)
@@ -606,7 +455,7 @@ size_t AllocBufferMS::ExtractLocalEmptyRegionsInRange(std::vector<MSRegionInfo*>
     return extracted;
 }
 
-MSRegionInfo* AllocBufferMS::GetCacheRegion(uint8_t cls)
+MSRegionInfo* AllocBufferMS::GetCacheRegion(uint8_t cls, RegionAcquireOrigin* originOut)
 {
     MSRegionInfo* region = TakeLocalEmptyRegion();
     if (region == nullptr) {
@@ -623,6 +472,10 @@ MSRegionInfo* AllocBufferMS::GetCacheRegion(uint8_t cls)
         }
     }
 
+    if (originOut != nullptr) {
+        *originOut = RegionAcquireOrigin::EMPTY_CACHE;
+    }
+
     CHECK_DETAIL(region->regionType == MSRegionType::MS_REGION_EMPTY_CACHE,
                  "GetCacheRegion got bad regionType=%u",
                  static_cast<unsigned>(region->regionType));
@@ -632,26 +485,25 @@ MSRegionInfo* AllocBufferMS::GetCacheRegion(uint8_t cls)
     return region;
 }
 
-MSRegionInfo* AllocBufferMS::TakeCachedRegion(uint8_t cls)
-{
-    MSRegionInfo* region = cachedRegion_[cls].exchange(nullptr, std::memory_order_acquire);
-    if (region != nullptr) {
-        // Cached regions are detached from central lists. Refresh the generation
-        // at consumption time so objects allocated after a GC boundary are not
-        // treated as reclaim candidates of the previous cycle.
-        region->SetSweepGen(CentralRegionPool::GetGlobalSweepGen());
-    }
-    return region;
-}
-
-bool AllocBufferMS::TryCacheRegion(uint8_t cls, MSRegionInfo* region, uint8_t slotLimit)
+bool AllocBufferMS::TryCacheRegion(uint8_t cls, MSRegionInfo* region, RegionAcquireOrigin origin,
+                                   uint8_t slotLimit)
 {
     if (slotLimit == 0) {
         return false;
     }
+    uint8_t expectedOrigin = static_cast<uint8_t>(RegionAcquireOrigin::NONE);
+    if (!cachedRegionOrigin_[cls].compare_exchange_strong(expectedOrigin, static_cast<uint8_t>(origin),
+            std::memory_order_relaxed, std::memory_order_relaxed)) {
+        return false;
+    }
+
     MSRegionInfo* expected = nullptr;
-    return cachedRegion_[cls].compare_exchange_strong(expected, region,
-        std::memory_order_release, std::memory_order_relaxed);
+    if (!cachedRegion_[cls].compare_exchange_strong(expected, region,
+            std::memory_order_release, std::memory_order_relaxed)) {
+        cachedRegionOrigin_[cls].store(static_cast<uint8_t>(RegionAcquireOrigin::NONE), std::memory_order_relaxed);
+        return false;
+    }
+    return true;
 }
 
 void AllocBufferMS::ReturnRegionToCentral(MSRegionInfo* region, uint8_t cls)
@@ -691,6 +543,8 @@ size_t AllocBufferMS::DrainCachedRegionsToCentral()
         if (region == nullptr) {
             continue;
         }
+        (void)cachedRegionOrigin_[cls].exchange(static_cast<uint8_t>(RegionAcquireOrigin::NONE),
+                                                std::memory_order_acq_rel);
         ReturnRegionToCentral(region, cls);
         ++drained;
     }
@@ -719,112 +573,91 @@ size_t AllocBufferMS::ReturnAllRegionsToCentral()
 // ============================================================================
 // RefillFromCentral — get a Region from CentralRegionPool
 // ============================================================================
-MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls, bool backgroundFill)
+MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls, bool backgroundFill,
+                                               RegionAcquireOrigin* originOut)
 {
     if (UNLIKELY(central_ == nullptr)) {
         return nullptr;
+    }
+    if (originOut != nullptr) {
+        *originOut = RegionAcquireOrigin::NONE;
     }
 
     MSRegionInfo* region = nullptr;
     if (!backgroundFill) {
         region = central_->TakePartialSweptRegion(cls);
         if (region != nullptr) {
+            if (originOut != nullptr) {
+                *originOut = RegionAcquireOrigin::SWEPT_READY;
+            }
             return region;
         }
 
-        region = GetCacheRegion(cls);
+        region = GetCacheRegion(cls, originOut);
         if (region != nullptr) {
             return region;
         }
 
         region = central_->TakeUnsweptRegion(cls);
         if (region != nullptr) {
+            if (originOut != nullptr) {
+                *originOut = RegionAcquireOrigin::UNSWEPT;
+            }
             return region;
         }
     } else {
         region = central_->TakeUnsweptRegion(cls);
         if (region != nullptr) {
+            if (originOut != nullptr) {
+                *originOut = RegionAcquireOrigin::UNSWEPT;
+            }
             return region;
         }
 
-        region = GetCacheRegion(cls);
+        region = GetCacheRegion(cls, originOut);
         if (region != nullptr) {
             return region;
         }
     }
 
+    if (!backgroundFill) {
+        (void)central_->AssistSweepForFreshRegions(1, cls, this);
+    }
     region = central_->GetFreshRegion(cls, cachedHomeShardId_);
+    if (region != nullptr && originOut != nullptr) {
+        *originOut = RegionAcquireOrigin::FRESH;
+    }
     return region;
 }
 
 // ============================================================================
-// BackgroundFillCache — O9: adaptive prefetch by gc-helper thread
+// BackgroundFillCache — prefill one spare cached region for active size classes
 // ============================================================================
-MSAllocCacheFillStats AllocBufferMS::BackgroundFillCache(uint8_t preferredCls)
+MSAllocCacheFillStats AllocBufferMS::BackgroundFillCache()
 {
     MSAllocCacheFillStats stats;
     if (UNLIKELY(central_ == nullptr)) {
         return stats;
     }
 
-    uint8_t localHintCls = GetHotHintClass();
-    if (preferredCls >= kNumSizeClasses) {
-        preferredCls = localHintCls;
-    }
-    std::array<uint8_t, kNumSizeClasses> classOrder {};
     for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
-        classOrder[cls] = cls;
-    }
-    std::sort(classOrder.begin(), classOrder.end(), [this, preferredCls](uint8_t lhs, uint8_t rhs) {
-        bool lhsPrimary = preferredCls < kNumSizeClasses && lhs == preferredCls;
-        bool rhsPrimary = preferredCls < kNumSizeClasses && rhs == preferredCls;
-        if (lhsPrimary != rhsPrimary) {
-            return lhsPrimary;
-        }
-        bool lhsHot = IsPrimaryHotClass(lhs);
-        bool rhsHot = IsPrimaryHotClass(rhs);
-        if (lhsHot != rhsHot) {
-            return lhsHot;
-        }
-        uint16_t lhsPriority = GetBackgroundFillPriority(lhs);
-        uint16_t rhsPriority = GetBackgroundFillPriority(rhs);
-        if (lhsPriority != rhsPriority) {
-            return lhsPriority > rhsPriority;
-        }
-        return lhs < rhs;
-    });
-
-    for (uint8_t cls : classOrder) {
         bool clsFilled = false;
-
-        bool topHot = IsTopFeedHotClass(cls, preferredCls);
-        uint8_t targetSlots = topHot ? kCachedRegionSlots : 0;
+        uint8_t targetSlots = activeRegions_[cls] != nullptr ? kCachedRegionSlots : 0;
         TrimExtraCachedRegions(cls, targetSlots);
         uint8_t cachedBefore = CountCachedRegions(cls);
         if (targetSlots == 0) {
-            SetCacheMiss(cls, 0);
-            CoolCacheHeat(cls, kHeatCoolOnIdleScan);
-            DecayFeedHotness(cls);
             continue;
         }
         if (cachedBefore >= targetSlots) {
-            SetCacheMiss(cls, 0);
-            CoolCacheHeat(cls, kHeatCoolOnSaturatedCache);
-            DecayFeedHotness(cls, 1);
-            continue;
-        }
-
-        if (GetBackgroundFillPriority(cls) == 0) {
-            CoolCacheHeat(cls, kHeatCoolOnIdleScan);
-            DecayFeedHotness(cls);
             continue;
         }
 
         bool cacheFull = cachedBefore >= targetSlots;
         if (cachedBefore == 0) {
-            MSRegionInfo* region = RefillFromCentral(cls, true);
+            RegionAcquireOrigin origin = RegionAcquireOrigin::NONE;
+            MSRegionInfo* region = RefillFromCentral(cls, true, &origin);
             if (region != nullptr) {
-                if (TryCacheRegion(cls, region, targetSlots)) {
+                if (TryCacheRegion(cls, region, origin, targetSlots)) {
                     stats.filledRegions++;
                     clsFilled = true;
                     cacheFull = true;
@@ -837,22 +670,8 @@ MSAllocCacheFillStats AllocBufferMS::BackgroundFillCache(uint8_t preferredCls)
             stats.filledClasses++;
         }
         if (cacheFull) {
-            SetCacheMiss(cls, 0);
-            CoolCacheHeat(cls, kHeatCoolOnSaturatedCache);
             continue;
         }
-
-        uint8_t cachedAfter = CountCachedRegions(cls);
-
-        if (cachedAfter >= targetSlots) {
-            SetCacheMiss(cls, 0);
-            cacheConsumed_[cls].store(0, std::memory_order_relaxed);
-            CoolCacheHeat(cls, kHeatCoolOnSaturatedCache);
-        }
-    }
-
-    if (preferredCls < kNumSizeClasses && !NeedsBackgroundFill(preferredCls)) {
-        hotHintCls_.store(kNoPreferredHotClass, std::memory_order_relaxed);
     }
     return stats;
 }

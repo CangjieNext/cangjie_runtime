@@ -28,111 +28,30 @@ constexpr U32 DEFAULT_MS_GC_HELPER_ACTIVE_BACKOFF_MS = 1;
 constexpr U32 DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_ROUNDS = 4;
 constexpr uint64_t DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_US = 12000;
 constexpr size_t DEFAULT_MS_FEED_TARGET_CACHED_PER_BUFFER = 5;
-constexpr size_t DEFAULT_MS_SCAVENGE_ROUNDS = 8;
-
-bool EqualsIgnoreCase(const char* lhs, const char* rhs)
-{
-    if (lhs == nullptr || rhs == nullptr) {
-        return false;
-    }
-    while (*lhs != '\0' && *rhs != '\0') {
-        char lc = *lhs;
-        char rc = *rhs;
-        if (lc >= 'A' && lc <= 'Z') {
-            lc = static_cast<char>(lc - 'A' + 'a');
-        }
-        if (rc >= 'A' && rc <= 'Z') {
-            rc = static_cast<char>(rc - 'A' + 'a');
-        }
-        if (lc != rc) {
-            return false;
-        }
-        ++lhs;
-        ++rhs;
-    }
-    return *lhs == '\0' && *rhs == '\0';
-}
 
 bool IsBackgroundSweepEnabled()
 {
-    static const bool enabled = []() {
-        const char* env = std::getenv("CJ_MS_BG_SWEEP");
-        if (env == nullptr || env[0] == '\0') {
-            return true;
-        }
-        if (std::strcmp(env, "0") == 0 || EqualsIgnoreCase(env, "false") ||
-            EqualsIgnoreCase(env, "off") || EqualsIgnoreCase(env, "no")) {
-            return false;
-        }
-        return true;
-    }();
-    return enabled;
+    return CangjieRuntime::GetGCParam().msBackgroundSweep != 0;
 }
 
 bool IsBackgroundFeedEnabled()
 {
-    static const bool enabled = []() {
-        const char* env = std::getenv("CJ_MS_BG_FEED");
-        if (env == nullptr || env[0] == '\0') {
-            return true;
-        }
-        if (std::strcmp(env, "0") == 0 || EqualsIgnoreCase(env, "false") ||
-            EqualsIgnoreCase(env, "off") || EqualsIgnoreCase(env, "no")) {
-            return false;
-        }
-        return true;
-    }();
-    return enabled;
+    return CangjieRuntime::GetGCParam().msBackgroundFeed != 0;
 }
 
 bool IsBackgroundScavengeEnabled()
 {
-    static const bool enabled = []() {
-        const char* env = std::getenv("CJ_MS_BG_SCAVENGE");
-        if (env == nullptr || env[0] == '\0') {
-            return true;
-        }
-        if (std::strcmp(env, "0") == 0 || EqualsIgnoreCase(env, "false") ||
-            EqualsIgnoreCase(env, "off") || EqualsIgnoreCase(env, "no")) {
-            return false;
-        }
-        return true;
-    }();
-    return enabled;
+    return CangjieRuntime::GetGCParam().msBackgroundScavenge != 0;
 }
 
 bool IsBackgroundShrinkEnabled()
 {
-    static const bool enabled = []() {
-        const char* env = std::getenv("CJ_MS_BG_SHRINK");
-        if (env == nullptr || env[0] == '\0') {
-            return true;
-        }
-        if (std::strcmp(env, "0") == 0 || EqualsIgnoreCase(env, "false") ||
-            EqualsIgnoreCase(env, "off") || EqualsIgnoreCase(env, "no")) {
-            return false;
-        }
-        return true;
-    }();
-    return enabled;
+    return CangjieRuntime::GetGCParam().msBackgroundShrink != 0;
 }
 
 size_t GetBackgroundScavengeRounds()
 {
-    static const size_t rounds = []() {
-        const char* env = std::getenv("CJ_MS_SCAVENGE_ROUNDS");
-        if (env == nullptr || env[0] == '\0') {
-            return DEFAULT_MS_SCAVENGE_ROUNDS;
-        }
-        if (CString::IsPosNumber(env)) {
-            size_t parsed = static_cast<size_t>(std::strtoull(env, nullptr, 10));
-            if (parsed > 0) {
-                return parsed;
-            }
-        }
-        return DEFAULT_MS_SCAVENGE_ROUNDS;
-    }();
-    return rounds;
+    return CangjieRuntime::GetGCParam().msScavengeRounds;
 }
 
 }
@@ -158,7 +77,6 @@ BackgroundProcessor::BackgroundProcessor()
     shouldScavengeHeap_.store(false, std::memory_order_relaxed);
     shouldShrinkHeap_.store(false, std::memory_order_relaxed);
     preferredSweepCls_.store(kNoPreferredSweepClass, std::memory_order_relaxed);
-    preferredFeedCls_.store(kNoPreferredFeedClass, std::memory_order_relaxed);
     sweepPressureMode_.store(false, std::memory_order_relaxed);
 }
 
@@ -368,7 +286,6 @@ void BackgroundProcessor::MaybeSchedulePeriodicWork()
     }
     if (!shouldFeedHungryBuffers.load(std::memory_order_relaxed) && ShouldStartPeriodicFeed()) {
         shouldFeedHungryBuffers.store(true, std::memory_order_release);
-        preferredFeedCls_.store(kNoPreferredFeedClass, std::memory_order_release);
     }
 }
 
@@ -390,7 +307,7 @@ bool BackgroundProcessor::ShouldStartPeriodicFeed() const
     if (halfFullThreshold == 0) {
         halfFullThreshold = 1;
     }
-    return cachedCount < halfFullThreshold && pool->HasHungryAllocBuffer(kNoPreferredFeedClass);
+    return cachedCount < halfFullThreshold && pool->HasHungryAllocBuffer();
 }
 
 bool BackgroundProcessor::ShouldStartPeriodicSweep() const
@@ -479,29 +396,32 @@ bool BackgroundProcessor::BackgroundSweepLoop()
 bool BackgroundProcessor::HasPendingSweepWork()
 {
     Allocator& allocator = Heap::GetHeap().GetAllocator();
-    if (!allocator.HasPendingSweepWork()) {
-        // All unswept work done: clear flag and exit pressure mode.
+    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(allocator);
+    CentralRegionPool* pool = space.GetCentralPool();
+    size_t unsweptRegions = pool->GetTotalUnsweptCount();
+    if (!allocator.HasPendingSweepWork() || pool == nullptr || unsweptRegions == 0) {
         sweepPressureMode_.store(false, std::memory_order_release);
         shouldBackgroundSweep_.store(false, std::memory_order_release);
         return false;
     }
 
-    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(allocator);
-    if (space.GetCentralPool() != nullptr) {
-        size_t thresholdBytes = space.GetHeapThresholdBytes();
-        size_t sweptHeapBytes = space.GetSweptHeapBytes();
-        if (thresholdBytes > sweptHeapBytes) {
-            return true;
-        }
-    }
-
-    // Still has pending work. In pressure mode, keep re-entering the outer
-    // Run() loop until all unswept regions are gone.
-    if (sweepPressureMode_.load(std::memory_order_acquire)) {
+    size_t thresholdBytes = space.GetHeapThresholdBytes();
+    size_t sweptBytes = space.GetSweptHeapBytes();
+    size_t remainingRunwayBytes = thresholdBytes > sweptBytes ? (thresholdBytes - sweptBytes) : 0;
+    if (remainingRunwayBytes == 0) {
+        sweepPressureMode_.store(true, std::memory_order_release);
+        shouldBackgroundSweep_.store(true, std::memory_order_release);
         return true;
     }
 
-    // Normal mode: stop self-rescheduling; wait for next NotifyToSweep.
+    size_t remainingRunwayRegions = (remainingRunwayBytes + MS_REGION_SIZE - 1) / MS_REGION_SIZE;
+    if (unsweptRegions > remainingRunwayRegions) {
+        sweepPressureMode_.store(false, std::memory_order_release);
+        shouldBackgroundSweep_.store(true, std::memory_order_release);
+        return true;
+    }
+
+    sweepPressureMode_.store(false, std::memory_order_release);
     shouldBackgroundSweep_.store(false, std::memory_order_release);
     return false;
 }
@@ -509,10 +429,9 @@ bool BackgroundProcessor::HasPendingSweepWork()
 bool BackgroundProcessor::BackgroundFeedLoop()
 {
     Allocator& allocator = Heap::GetHeap().GetAllocator();
-    uint8_t preferredCls = preferredFeedCls_.exchange(kNoPreferredFeedClass, std::memory_order_acq_rel);
-    BackgroundFeedStats sliceStats = allocator.BackgroundFillAllocCaches(preferredCls);
+    BackgroundFeedStats sliceStats = allocator.BackgroundFillAllocCaches();
     pendingFeedStats_.Merge(sliceStats);
-    bool hasMore = HasPendingFeedWork(preferredCls);
+    bool hasMore = HasPendingFeedWork();
     if (!hasMore && pendingFeedStats_.HasWork()) {
         VLOG(REPORT,
              "[MS-GC] feed done: slices=%zu buffers=%zu classes=%zu regions=%zu elapsed=%zuus",
@@ -526,14 +445,14 @@ bool BackgroundProcessor::BackgroundFeedLoop()
     return hasMore;
 }
 
-bool BackgroundProcessor::HasPendingFeedWork(uint8_t preferredCls)
+bool BackgroundProcessor::HasPendingFeedWork()
 {
     CentralRegionPool* pool = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator()).GetCentralPool();
     if (pool == nullptr) {
         shouldFeedHungryBuffers.store(false, std::memory_order_release);
         return false;
     }
-    if (!pool->HasHungryAllocBuffer(preferredCls)) {
+    if (!pool->HasHungryAllocBuffer()) {
         shouldFeedHungryBuffers.store(false, std::memory_order_release);
         return false;
     }

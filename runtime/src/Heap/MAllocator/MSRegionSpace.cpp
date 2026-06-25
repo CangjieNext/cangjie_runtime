@@ -369,10 +369,10 @@ BackgroundSweepStats RegionSpaceMS::BackgroundSweep(uint8_t preferredCls)
     return {};
 }
 
-BackgroundFeedStats RegionSpaceMS::BackgroundFillAllocCaches(uint8_t preferredCls)
+BackgroundFeedStats RegionSpaceMS::BackgroundFillAllocCaches()
 {
     if (msCentralPool_ != nullptr) {
-        return msCentralPool_->BackgroundFillAllocCaches(preferredCls);
+        return msCentralPool_->BackgroundFillAllocCaches();
     }
     return {};
 }

@@ -8,6 +8,7 @@
 #include "CjScheduler.h"
 
 #include <thread>
+#include <limits>
 #if defined(_WIN64)
 #include <windows.h>
 #elif defined(__APPLE__)
@@ -17,6 +18,7 @@
 #endif
 
 #include "Base/CString.h"
+#include "Base/EnvParam.h"
 #include "Sync/Sync.h"
 #include "Base/Panic.h"
 #include "Cangjie.h"
@@ -86,12 +88,6 @@ static void CheckSysmemSize()
  */
 static size_t InitHeapSize(size_t defaultParam)
 {
-    auto env = std::getenv("cjHeapSize");
-    if (env == nullptr) {
-        return defaultParam;
-    }
-    size_t size = CString::ParseSizeFromEnv(env);
-
 #if defined(__OHOS__) || defined(__ANDROID__)
     // 64UL * KB: The minimum heap size in OHOS, measured in KB, the value is 64MB.
     size_t minSize = 64UL * KB;
@@ -100,108 +96,18 @@ static size_t InitHeapSize(size_t defaultParam)
     size_t minSize = 4UL * KB;
 #endif
     size_t maxSize = g_sysmemSize / KB;
-    if (size >= minSize && size <= maxSize) {
-        return size;
-    } else {
-        LOG(RTLOG_ERROR, "Unsupported cjHeapSize parameter. The unit must be added when configuring, "
-            "it supports 'kb', 'mb', 'gb'. Valid cjHeapSize range is [%zuMB, system memory size].\n", minSize / KB);
-    }
-    return defaultParam;
+    return ReadSizeParameter("cjHeapSize", defaultParam, minSize, EnvBoundKind::CLOSED,
+                             maxSize, EnvBoundKind::CLOSED);
 }
 
 static size_t InitRegionSize(size_t defaultParam)
 {
-    auto env = std::getenv("cjRegionSize");
-    if (env == nullptr) {
-        return defaultParam;
-    }
-    size_t size = CString::ParseSizeFromEnv(env);
     // The minimum region size is system page size, measured in KB.
     size_t minSize = MapleRuntime::MRT_PAGE_SIZE / KB;
     // 64UL: The maximum region size, measured in KB, the value is 2048 KB.
     size_t maxSize = 2 * 1024UL;
-    if (size >= minSize && size <= maxSize) {
-        return size;
-    } else {
-        LOG(RTLOG_ERROR, "Unsupported cjRegionSize parameter. Valid cjRegionSize range is [%zuKB, 2048KB].\n", minSize);
-    }
-    return defaultParam;
-}
-
-static double InitPercentParameterIncl(const char* name, double minSize, double maxSize, double defaultParam)
-{
-    auto env = std::getenv(name);
-    if (env == nullptr) {
-        return defaultParam;
-    }
-    double size = CString::ParseValidFromEnv(env);
-    if (size - minSize >= 0 && maxSize - size >= 0) {
-        return size;
-    } else {
-        LOG(RTLOG_ERROR, "Unsupported %s parameter.Valid %s range is [%f, %f].\n",
-            name, name, minSize, maxSize);
-    }
-    return defaultParam;
-}
-
-static double InitPercentParameter(const char* name, double minSize, double maxSize, double defaultParam)
-{
-    auto env = std::getenv(name);
-    if (env != nullptr) {
-        double parameter = CString::ParsePosDecFromEnv(env);
-        if (parameter - minSize > 0 && maxSize - parameter >= 0) {
-            return parameter;
-        } else {
-            LOG(RTLOG_ERROR, "Unsupported %s parameter.Valid %s range is (%f, %f].\n",
-                name, name, minSize, maxSize);
-        }
-    }
-    return defaultParam;
-}
-
-static size_t InitSizeParameter(const char* name, size_t minSize, size_t defaultParam)
-{
-    auto env = std::getenv(name);
-    if (env != nullptr) {
-        size_t parameter = CString::ParseSizeFromEnv(env);
-        if (parameter > minSize) {
-            return parameter;
-        } else {
-            LOG(RTLOG_ERROR, "Unsupported %s parameter. Valid %s range must be greater than %zu.\n",
-                name, name, minSize);
-        }
-    }
-    return defaultParam;
-}
-
-static uint64_t InitTimeParameter(const char* name, uint64_t minSize, uint64_t defaultParam)
-{
-    auto env = std::getenv(name);
-    if (env != nullptr) {
-        uint64_t parameter = CString::ParseTimeFromEnv(env);
-        if (parameter > minSize) {
-            return parameter;
-        } else {
-            LOG(RTLOG_ERROR, "Unsupported %s parameter. Valid %s range must be greater than %zu.\n",
-                name, name, minSize);
-        }
-    }
-    return defaultParam;
-}
-
-static double InitDecParameter(const char* name, double minSize, double defaultParam)
-{
-    auto env = std::getenv(name);
-    if (env != nullptr) {
-        double parameter = CString::ParsePosDecFromEnv(env);
-        if (parameter - minSize > 0) {
-            return parameter;
-        } else {
-            LOG(RTLOG_ERROR, "Unsupported %s parameter. Valid %s range must be greater than %f.\n",
-                name, name, minSize);
-        }
-    }
-    return defaultParam;
+    return ReadSizeParameter("cjRegionSize", defaultParam, minSize, EnvBoundKind::CLOSED,
+                             maxSize, EnvBoundKind::CLOSED);
 }
 
 /**
@@ -223,26 +129,15 @@ static size_t InitCoStackSize()
 #else
     size_t defaultStackSize = 128; // default 128KB, measured in KB
 #endif
-    size_t stackSize = 0;
-    auto env = std::getenv("cjStackSize");
-    if (env == nullptr) {
-        return defaultStackSize;
-    }
-    stackSize = CString::ParseSizeFromEnv(env);
+    size_t stackSize = defaultStackSize;
 #ifdef _WIN64
     const size_t minStackSize = 128; // min: 128KB.
 #else
     const size_t minStackSize = 64; // min: 64KB.
 #endif
     const size_t maxStackSize = 1UL * MB; // max: 1GB.
-    if (stackSize >= minStackSize && stackSize <= maxStackSize) {
-        return stackSize;
-    } else {
-        LOG(RTLOG_ERROR, "Unsupported cjStackSize parameter. The unit must be added when configuring, "
-        "it supports 'kb', 'mb', 'gb'. "
-        "Valid cjStackSize range is [128kb, 1gb] in Windows or [64kb, 1gb] in other system.\n");
-    }
-    return defaultStackSize;
+    return ReadSizeParameter("cjStackSize", defaultStackSize, minStackSize, EnvBoundKind::CLOSED,
+                             maxStackSize, EnvBoundKind::CLOSED);
 }
 
 /**
@@ -255,22 +150,9 @@ static uint32_t InitProcessorNum()
 {
     unsigned int cpus = std::thread::hardware_concurrency();
     uint32_t defaultProcs = cpus != 0 ? static_cast<uint32_t>(cpus) : 8;
-    auto env = CString(std::getenv("cjProcessorNum"));
-    if (env.Str() == nullptr) {
-        return defaultProcs;
-    }
-    CString s = env.RemoveBlankSpace();
-    if (CString::IsPosNumber(s)) {
-        uint32_t custom = std::strtol(s.Str(), nullptr, 0);
-        const unsigned int maxMultiple = 2;
-        if (custom > 0 && custom <= (cpus * maxMultiple)) {
-            return custom;
-        } else {
-            LOG(RTLOG_ERROR, "Unsupported cjProcessorNum parameter. Valid cjProcessorNum range is"
-            "(0, 2 * hardware_concurrency].\n");
-        }
-    }
-    return defaultProcs;
+    const unsigned int maxMultiple = 2;
+    return static_cast<uint32_t>(ReadCountParameter("cjProcessorNum", defaultProcs, 0, EnvBoundKind::OPEN,
+                                                    cpus * maxMultiple, EnvBoundKind::CLOSED));
 }
 
 void* StartMainTask(void* arg, unsigned int len)
@@ -532,9 +414,14 @@ static RuntimeParam InitRuntimeParam()
 #ifdef MRT_USE_MARK_SWEEP
     // MS-GC: heap size is fixed to 256MB and is not configurable via cjHeapSize.
     size_t initHeapSize = 256 * KB;
+    double heapGrowth = ReadDoubleParameter("cjHeapGrowth", 1.0, 0.0, EnvBoundKind::OPEN,
+                                            std::numeric_limits<double>::max(), EnvBoundKind::CLOSED);
 #else
     size_t initHeapSize = InitHeapSize(g_sysmemSize > 1 * GB ? 256 * KB : 64 * KB);
+    double heapGrowth = ReadDoubleParameter("cjHeapGrowth", 0.25, 0.0, EnvBoundKind::OPEN,
+                                            std::numeric_limits<double>::max(), EnvBoundKind::CLOSED);
 #endif
+    uint64_t gcInterval = ReadTimeParameter("cjGCInterval", 0, 0, EnvBoundKind::OPEN, true);
     RuntimeParam param = {
         .heapParam = {
 #if defined(__OHOS__) || defined(__ANDROID__)
@@ -550,35 +437,57 @@ static RuntimeParam InitRuntimeParam()
              * The minimux live region threshold is 0% of region,
              * the maximum is 100% of region, default to 80% of region.
              */
-            .exemptionThreshold = InitPercentParameter("cjExemptionThreshold", 0.0, 1.0, 0.8),
+            .exemptionThreshold = ReadDoubleParameter("cjExemptionThreshold", 0.8, 0.0, EnvBoundKind::OPEN,
+                                                      1.0, EnvBoundKind::CLOSED),
             /*
              * The minimux heap utilization is 0% of heap,
              * the maximum is 100% of heap, default to 80% of heap.
              */
-            .heapUtilization = InitPercentParameter("cjHeapUtilization", 0.0, 1.0, 0.8),
-#ifdef MRT_USE_MARK_SWEEP
-            // MSGC default heap growth is (1 + 1.0) = 2.0.
-            .heapGrowth = InitDecParameter("cjHeapGrowth", 0.0, 1.0),
-#else
-            // Default heap growth is (1 + 0.25) = 1.25 (allow 25% growth before next GC).
-            .heapGrowth = InitDecParameter("cjHeapGrowth", 0.0, 0.25),
-#endif
+            .heapUtilization = ReadDoubleParameter("cjHeapUtilization", 0.8, 0.0, EnvBoundKind::OPEN,
+                                                   1.0, EnvBoundKind::CLOSED),
+            .heapGrowth = heapGrowth,
             // Default allocation rate is 10240MB/s.
-            .allocationRate = InitDecParameter("cjAllocationRate", 0.0, 10240),
+            .allocationRate = ReadDoubleParameter("cjAllocationRate", 10240, 0.0, EnvBoundKind::OPEN,
+                                                  std::numeric_limits<double>::max(), EnvBoundKind::CLOSED),
             // Default allocation wait time is 1000ns.
-            .allocationWaitTime = static_cast<size_t>(InitTimeParameter("cjAllocationWaitTime", 0, 1000)),
+            .allocationWaitTime = static_cast<size_t>(ReadTimeParameter("cjAllocationWaitTime", 1000, 0,
+                                                                        EnvBoundKind::OPEN)),
         },
         .gcParam = {
             // gcThreshold is derived from the current heap size and is not externally configurable.
             .gcThreshold = initHeapSize * KB,
             // Default garbage ration is 50% of from space.
-            .garbageThreshold = InitPercentParameterIncl("cjGarbageThreshold", 0.0, 1.0, 0.5),
-            // Default GC interval is 5ms.
-            .gcInterval = InitTimeParameter("cjGCInterval", 0, 5 * MILLI_SECOND_TO_NANO_SECOND),
+            .garbageThreshold = ReadDoubleParameter("cjGarbageThreshold", 0.5, 0.0, EnvBoundKind::CLOSED,
+                                                    1.0, EnvBoundKind::CLOSED),
+            // Default GC interval is 0, which disables the interval gate.
+            .gcInterval = gcInterval,
             // Default backup GC interval is 240s.
-            .backupGCInterval = InitTimeParameter("cjBackupGCInterval", 0, 240 * SECOND_TO_NANO_SECOND),
+            .backupGCInterval = ReadTimeParameter("cjBackupGCInterval", 240 * SECOND_TO_NANO_SECOND, 0,
+                                                  EnvBoundKind::OPEN),
             // Default GC thread factor is 2.
             .gcThreads = 2,
+            .scavengeGrowth = ReadDoubleParameter("cjScavengeGrowth", heapGrowth, 0.0, EnvBoundKind::OPEN,
+                                                  std::numeric_limits<double>::max(), EnvBoundKind::CLOSED),
+            .msBackgroundSweepMaxTime = ReadTimeParameter("cjGCBGSweepMaxTime", 2 * MILLI_SECOND_TO_NANO_SECOND,
+                                                          0, EnvBoundKind::OPEN, true),
+            .msMarkTimeBudget = ReadTimeParameter("cjMSMarkTimeBudget", 20 * SECOND_TO_NANO_SECOND,
+                                                  0, EnvBoundKind::OPEN, true),
+            .msAssistRatioScale = ReadCountParameter("cjMSAssistRatioScale", 1024, 0, EnvBoundKind::OPEN),
+            .msAssistDebtTrigger = ReadCountParameter("cjMSAssistDebtTrigger", 128, 0, EnvBoundKind::OPEN),
+            .msAssistSweepMaxRegionsPerCall = ReadCountParameter("cjMSAssistSweepMaxRegionsPerCall", 10, 0,
+                                                                 EnvBoundKind::OPEN),
+            .msReleasedBusyRetryLimit = ReadCountParameter("cjMSReleasedBusyRetryLimit", 8, 0,
+                                                           EnvBoundKind::OPEN),
+            .msScavengeRounds = ReadCountParameter("cjMSScavengeRounds", 8, 0, EnvBoundKind::OPEN),
+            .msBackgroundSweep = static_cast<uint8_t>(ReadBoolParameter("cjMSBackgroundSweep", true) ? 1U : 0U),
+            .msBackgroundFeed = static_cast<uint8_t>(ReadBoolParameter("cjMSBackgroundFeed", false) ? 1U : 0U),
+            .msBackgroundScavenge =
+                static_cast<uint8_t>(ReadBoolParameter("cjMSBackgroundScavenge", true) ? 1U : 0U),
+            .msBackgroundShrink =
+                static_cast<uint8_t>(ReadBoolParameter("cjMSBackgroundShrink", true) ? 1U : 0U),
+            .msVerifyMark = static_cast<uint8_t>(ReadBoolParameter("cjMSVerifyMark", false) ? 1U : 0U),
+            .msVerifyMarkDetail =
+                static_cast<uint8_t>(ReadBoolParameter("cjMSVerifyMarkDetail", false) ? 1U : 0U),
         },
         .logParam = {
             .logLevel = LogFile::GetLogLevel(),

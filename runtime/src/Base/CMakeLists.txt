@@ -8,6 +8,7 @@ set(SRC_LIST
     "Log.cpp"
     "SysCall.cpp"
     "CString.cpp"
+    "EnvParam.cpp"
     "FixedCString.cpp"
     "TimeUtils.cpp"
     "LogFile.cpp"

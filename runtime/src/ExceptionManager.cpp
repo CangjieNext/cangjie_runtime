@@ -7,6 +7,7 @@
 
 #include "Base/Log.h"
 #include "Base/LogFile.h"
+#include "Base/EnvParam.h"
 #include "Common/Runtime.h"
 #include "Exception/ExceptionCApi.h"
 #ifdef __APPLE__
@@ -29,10 +30,7 @@ void ExceptionManager::OutOfMemory()
         eWrapper.SetExceptionType(ExceptionWrapper::ExceptionType::OUT_OF_MEMORY);
         {
             // HeapDump before throwing OOM
-            const char* env = std::getenv("cjHeapDumpOnOOM");
-            CString s = CString(env).RemoveBlankSpace();
-            env = s.Str();
-            if (env && !strcmp(env, "on")) { // env variable: cjHeapDumpOnOOM=on/off
+            if (ReadBoolParameter("cjHeapDumpOnOOM", false)) {
                 Heap::GetHeap().GetCollectorResources().RequestHeapDump(GCTask::TaskType::TASK_TYPE_DUMP_HEAP_OOM);
             }
         }

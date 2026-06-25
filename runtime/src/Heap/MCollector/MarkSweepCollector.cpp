@@ -39,26 +39,6 @@
 namespace MapleRuntime {
 
 namespace {
-double ReadEnvPosDec(const char* name, double fallback)
-{
-    const char* env = std::getenv(name);
-    if (env == nullptr) {
-        return fallback;
-    }
-    double value = CString::ParsePosDecFromEnv(env);
-    return value <= 0 ? fallback : value;
-}
-
-size_t ReadEnvCount(const char* name, size_t fallback)
-{
-    const char* env = std::getenv(name);
-    if (env == nullptr) {
-        return fallback;
-    }
-    size_t value = CString::ParsePosNumFromEnv(env);
-    return value == 0 ? fallback : value;
-}
-
 size_t ComputeScavengeThresholdBytes(size_t heapThresholdBytes, double scavengeGrowth)
 {
     if (heapThresholdBytes == 0) {
@@ -113,20 +93,12 @@ static bool IsInterestingDiagType(const BaseObject* obj)
 
 static bool IsVerifyDetailEnabled()
 {
-    static bool enabled = []() {
-        const char* env = std::getenv("CJ_MS_VERIFY_MARK_DETAIL");
-        return env != nullptr && env[0] != '\0' && std::strcmp(env, "0") != 0;
-    }();
-    return enabled;
+    return CangjieRuntime::GetGCParam().msVerifyMarkDetail != 0;
 }
 
 static bool IsVerifyMarkEnabled()
 {
-    static bool enabled = []() {
-        const char* env = std::getenv("CJ_MS_VERIFY_MARK");
-        return env != nullptr && env[0] != '\0' && std::strcmp(env, "0") != 0;
-    }();
-    return enabled;
+    return CangjieRuntime::GetGCParam().msVerifyMark != 0;
 }
 
 static std::string HexForDiag(uintptr_t value)
@@ -368,6 +340,11 @@ void MarkSweepCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
     gcStats.reason = reason;
     gcStats.collectedBytes = 0;
     gcStats.gcStartTime = TimeUtil::NanoSeconds();
+    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    if (centralPool != nullptr) {
+        centralPool->ResetSweepCounts();
+    }
 
     // Block ①: GC Entry
     LogGCEntry(gcIndex, reason);
@@ -575,24 +552,18 @@ void MarkSweepCollector::MergeRootsFromAllocBuffers(WorkStack& workStack)
 // Step 2.2: ConcurrentMark
 // ============================================================================
 
-// Fixed-point scale denominator for assist ratio (configurable via CJ_MS_ASSIST_RATIO_SCALE).
+// Fixed-point scale denominator for assist ratio (configurable via cjMSAssistRatioScale).
 uint64_t MarkSweepCollector::GetAssistRatioScale()
 {
-    static uint64_t scale = []() -> uint64_t {
-        return static_cast<uint64_t>(ReadEnvCount("CJ_MS_ASSIST_RATIO_SCALE", 1024));
-    }();
-    return scale;
+    return CangjieRuntime::GetGCParam().msAssistRatioScale;
 }
 
-// Per-assist-call debt trigger (configurable via CJ_MS_ASSIST_DEBT_TRIGGER).
+// Per-assist-call debt trigger (configurable via cjMSAssistDebtTrigger).
 // Default = 128 objects (1/8 of a WorkBuf): fires more frequently for tighter
 // pacing; lower values mean more assist calls but smaller work quanta per call.
 size_t MarkSweepCollector::GetAssistDebtTriggerObjects() const
 {
-    static size_t trigger = []() -> size_t {
-        return ReadEnvCount("CJ_MS_ASSIST_DEBT_TRIGGER", 128);
-    }();
-    return trigger;
+    return CangjieRuntime::GetGCParam().msAssistDebtTrigger;
 }
 
 void MarkSweepCollector::ConcurrentMark()
@@ -675,9 +646,10 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
     // force-converge and hand the residual grey work to MarkTermination (STW).
     // Under STW all mutators are frozen, so no new objects are allocated and the
     // remaining work set is bounded and guaranteed to drain — no missed marks.
-    // Configurable via CJ_MS_MARK_TIME_BUDGET_MS (milliseconds, default 20000;
+    // Configurable via cjMSMarkTimeBudget (default 20s;
     // 0 disables the budget and restores pure convergence-based exit).
-    const uint64_t markBudgetUs = ReadEnvCount("CJ_MS_MARK_TIME_BUDGET_MS", 20000) * 1000;
+    uint64_t markBudgetNs = CangjieRuntime::GetGCParam().msMarkTimeBudget;
+    const uint64_t markBudgetUs = markBudgetNs == 0 ? 0 : std::max<uint64_t>(1, markBudgetNs / 1000ULL);
     bool forceConverged = false;
 
     while (true) {
@@ -1382,7 +1354,7 @@ void MarkSweepCollector::MarkTermination()
     // 4b. Diagnostic: marking is now complete and all mutators are frozen
     // (STW). This is the authoritative window to verify mark completeness —
     // no concurrent mutation can produce false positives. No-op unless the
-    // env var CJ_MS_VERIFY_MARK is set.
+    // env var cjMSVerifyMark is set.
     VerifyMarkCompleteness();
 
     // 5. Reset all per-P gcWork and return WorkBufs to pool.
@@ -1741,32 +1713,12 @@ void MarkSweepCollector::ConcurrentSweep()
     uint64_t phaseStart = TimeUtil::MicroSeconds();
     VLOG(REPORT, "[MS-GC] --- ConcurrentSweep ---");
 
-    static constexpr uint64_t kDefaultEagerSweepMaxTimeUs = 10ULL * 1000ULL;
-    static constexpr uint64_t kHeavyBacklogEagerSweepMaxTimeUs = 100ULL * 1000ULL;
-    static constexpr size_t kHeavyBacklogToLiveRatio = 10;
-
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
 
     // Compute true live bytes from markBitmaps BEFORE gen flip (bitmaps are stable here).
     CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool != nullptr) {
         cycleStats_.trueLiveBytes = centralPool->ComputeMarkedBytes();
-        size_t totalUnswept = centralPool->GetTotalUnsweptCount();
-        size_t trueLiveRegions = std::max<size_t>(
-            1, (cycleStats_.trueLiveBytes + MS_REGION_SIZE - 1) / MS_REGION_SIZE);
-        uint64_t eagerSweepMaxTimeUs =
-            (totalUnswept > trueLiveRegions * kHeavyBacklogToLiveRatio)
-                ? kHeavyBacklogEagerSweepMaxTimeUs
-                : kDefaultEagerSweepMaxTimeUs;
-        MSEagerSweepBatchStats eagerSweepStats = centralPool->EagerSweepBatch(eagerSweepMaxTimeUs);
-        cycleStats_.eagerSweepBatchRegions = eagerSweepStats.sweptRegions;
-        cycleStats_.eagerSweepEmptiedRegions = eagerSweepStats.emptiedRegions;
-        cycleStats_.eagerSweepTotalUnswept = totalUnswept;
-        VLOG(REPORT,
-             "[MS-GC] ConcurrentSweep eager: swept=%zu regions, emptied=%zu, unsweptBefore=%zu, "
-             "trueLiveRegions=%zu, budget=%zuus",
-             cycleStats_.eagerSweepBatchRegions, cycleStats_.eagerSweepEmptiedRegions, totalUnswept, trueLiveRegions,
-             static_cast<size_t>(eagerSweepMaxTimeUs));
     }
 
     BackgroundProcessor& backgroundProcessor = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
@@ -1936,6 +1888,11 @@ void MarkSweepCollector::DumpRegionStatsMS()
     // CentralRegionPool 4-list breakdown
     CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool != nullptr) {
+        MSSweepCounts sweepCounts = centralPool->GetSweepCounts();
+        VLOG(REPORT, "[MS-GC]   sweep-counts: bg=%zu regions, lazy=%zu regions, assist=%zu regions",
+             sweepCounts.backgroundSweptRegions,
+             sweepCounts.lazySweptRegions,
+             sweepCounts.assistSweptRegions);
         centralPool->DumpPoolStats();
         uint32_t processorNum = Runtime::CurrentRef() != nullptr
             ? Runtime::Current().GetConcurrencyModel().GetProcessorNum()
@@ -2036,7 +1993,7 @@ void MarkSweepCollector::UpdateGCStats()
     size_t baseBytes = liveBytes;
 
     double heapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
-    double scavengeGrowth = ReadEnvPosDec("cjScavengeGrowth", heapGrowth);
+    double scavengeGrowth = CangjieRuntime::GetGCParam().scavengeGrowth;
     size_t gcThresholdCap = CangjieRuntime::GetGCParam().gcThreshold;
     size_t newThreshold = static_cast<size_t>(static_cast<double>(baseBytes) * (1.0 + heapGrowth));
     // Floor to avoid GC thrash when base is tiny; cap at the configured gcThreshold.

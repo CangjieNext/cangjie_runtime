@@ -57,12 +57,6 @@ struct ThreadLocalData;
 //
 class AllocBufferMS {
 public:
-    enum class HotClassLevel : uint8_t {
-        NONE = 0,
-        SECONDARY,
-        PRIMARY,
-    };
-
     // Mirror of AllocBuffer::GetOrCreateAllocBuffer / GetAllocBuffer for MS mode.
     static AllocBufferMS* GetOrCreateAllocBufferMS();
     static AllocBufferMS* GetOrCreateAllocBufferMS(ThreadLocalData* local);
@@ -88,9 +82,9 @@ public:
     void AccumulatePacingDebt(size_t size);
 
 
-    // Background: fill empty cachedRegion_ slots for size classes with high miss pressure.
-    // Called by gc-helper thread (FinalizerProcessor). Thread-safe via atomic cachedRegion_.
-    MSAllocCacheFillStats BackgroundFillCache(uint8_t preferredCls);
+    // Background: fill one spare cachedRegion_ slot for size classes that
+    // already have an active region. Thread-safe via atomic cachedRegion_.
+    MSAllocCacheFillStats BackgroundFillCache();
 
     // Record stack root (called from Mutator::GcPhaseEnum during root enumeration).
     // This is root staging only, not grey-work production. Objects become grey
@@ -132,21 +126,7 @@ public:
     size_t CountCachedRegions() const;
     size_t DrainCachedRegionsToCentral();
     size_t ReturnAllRegionsToCentral();
-    bool NeedsBackgroundFill(uint8_t preferredCls) const;
-    uint16_t SnapshotHotClassScore(uint8_t cls) const { return GetHotClassScore(cls); }
-    HotClassLevel SnapshotHotClassLevel(uint8_t cls) const
-    {
-        if (cls >= kNumSizeClasses) {
-            return HotClassLevel::NONE;
-        }
-        if (IsPrimaryHotClass(cls)) {
-            return HotClassLevel::PRIMARY;
-        }
-        if (IsSecondaryHotClass(cls)) {
-            return HotClassLevel::SECONDARY;
-        }
-        return HotClassLevel::NONE;
-    }
+    bool NeedsBackgroundFill() const;
     size_t CountTotalRegions() const { return CountActiveRegions() + CountCachedRegions(); }
 
     // Per-P GC Work buffer (Step5): used by Mutator assist during concurrent mark.
@@ -158,10 +138,16 @@ public:
     void SetCachedHomeShardId(uint16_t id) { cachedHomeShardId_ = id; }
 
 private:
+    enum class RegionAcquireOrigin : uint8_t {
+        NONE = 0,
+        SWEPT_READY,
+        EMPTY_CACHE,
+        UNSWEPT,
+        FRESH,
+    };
+
     friend class CentralRegionPool;
-    static constexpr uint8_t kNoPreferredHotClass = UINT8_MAX;
     static constexpr uint8_t kCachedRegionSlots = 1;
-    static constexpr uint8_t kBackgroundFeedTopK = 5;
     static constexpr size_t kLocalEmptyRegionCap = kNumSizeClasses;
 
     // LLVM fast-path compatibility: must be at offset 0 (same as AllocBuffer::tlRegion).
@@ -175,9 +161,11 @@ private:
     MAddress SlowAlloc(uint8_t cls);
 
     // Refill: get a Region from CentralRegionPool
-    MSRegionInfo* RefillFromCentral(uint8_t cls, bool backgroundFill = false);
-    MSRegionInfo* GetCacheRegion(uint8_t cls);
+    MSRegionInfo* RefillFromCentral(uint8_t cls, bool backgroundFill = false,
+                                    RegionAcquireOrigin* originOut = nullptr);
+    MSRegionInfo* GetCacheRegion(uint8_t cls, RegionAcquireOrigin* originOut = nullptr);
     MSRegionInfo* TakeLocalEmptyRegion();
+    bool TryPushLocalEmptyRegion(MSRegionInfo* region, size_t slotLimit = kLocalEmptyRegionCap);
     void RefillLocalEmptyRegionsFromGlobal(std::vector<MSRegionInfo*>& refill);
     size_t DrainLocalEmptyRegions(std::vector<MSRegionInfo*>& out, size_t maxRegions);
     size_t DrainAllLocalEmptyRegions(std::vector<MSRegionInfo*>& out);
@@ -185,30 +173,12 @@ private:
     size_t ExtractLocalEmptyRegionsInRange(std::vector<MSRegionInfo*>& out, size_t startRegionIdx,
                                            size_t endRegionIdx, size_t maxRegions);
 
-    uint8_t BumpCacheMiss(uint8_t cls);
-    void SetCacheMiss(uint8_t cls, uint8_t value);
-    void BoostCacheHeat(uint8_t cls, uint8_t delta);
-    void CoolCacheHeat(uint8_t cls, uint8_t delta);
     uint8_t CountCachedRegions(uint8_t cls) const;
-    void ObserveFeedHotness(uint8_t cls, uint8_t demand);
-    void DecayFeedHotness(uint8_t cls, uint8_t floor = 0);
-    uint16_t GetHotClassScore(uint8_t cls) const;
-    uint8_t GetHotClassRank(uint8_t cls) const;
-    uint8_t GetHotHintClass() const;
-    bool IsPrimaryHotClass(uint8_t cls) const;
-    bool IsSecondaryHotClass(uint8_t cls) const;
-    bool ShouldNotifyBackgroundFeed(uint8_t cls) const;
-    uint8_t GetTargetCachedSlots(uint8_t cls) const;
-    uint8_t GetCacheFillThreshold(uint8_t cls) const;
-    uint16_t GetBackgroundFillPriority(uint8_t cls) const;
-    bool IsTopFeedHotClass(uint8_t cls, uint8_t preferredCls) const;
     void TrimExtraCachedRegions(uint8_t cls, uint8_t targetSlots = kCachedRegionSlots);
 
-    // Consume one cached backup Region for the given size class.
-    MSRegionInfo* TakeCachedRegion(uint8_t cls);
-
     // Try to store a backup Region into one empty cache slot.
-    bool TryCacheRegion(uint8_t cls, MSRegionInfo* region, uint8_t slotLimit = kCachedRegionSlots);
+    bool TryCacheRegion(uint8_t cls, MSRegionInfo* region, RegionAcquireOrigin origin,
+                        uint8_t slotLimit = kCachedRegionSlots);
 
     // Return a cached/active region back to the central pool using the same
     // classification as ReturnRegion.
@@ -220,25 +190,13 @@ private:
     // Per-size-class active Region (nullptr = no active Region for this class)
     MSRegionInfo* activeRegions_[kNumSizeClasses] = {};
 
-    // O2/O9: Per-size-class cached backup Regions.
-    // Written by gc-helper (BackgroundFillCache), consumed by mutator (SlowAlloc).
-    // Base capacity stays at 2; a few hot classes may temporarily expand to 3 or 4.
+    // Per-size-class cached backup Regions maintained by background feed.
     std::atomic<MSRegionInfo*> cachedRegion_[kNumSizeClasses] = {};
 
     // Per-AllocBuffer cache of classless empty regions. These shells are rebound
     // to a size class on demand after the typed central lists miss.
     mutable std::mutex localEmptyRegionLock_;
     MSRegionList localEmptyRegionCache_;
-
-    // O9: Per-size-class cache miss / heat heuristics.
-    // cacheMiss_ tracks current refill pressure; cacheHeat_ keeps a short-lived
-    // notion of hot classes so the background worker can prefill spare regions
-    // for a few hot classes instead of sweeping all classes uniformly.
-    std::atomic<uint8_t> cacheMiss_[kNumSizeClasses] = {};
-    std::atomic<uint8_t> cacheHeat_[kNumSizeClasses] = {};
-    std::atomic<uint16_t> feedHotness_[kNumSizeClasses] = {};
-    std::atomic<uint8_t> hotHintCls_{kNoPreferredHotClass};
-    std::atomic<uint8_t> cacheConsumed_[kNumSizeClasses] = {};
 
     // Back-pointer to global CentralRegionPool
     CentralRegionPool* central_ = nullptr;
@@ -255,12 +213,22 @@ private:
     // debtScaled / AssistRatioScale = debtObjects.
     uint64_t gcAssistDebtScaled_ = 0;
 
+    // Preserve the historical AArch64 MSGC fast-path ABI for wbBuf_.
+    // We removed the old hot-class heuristic fields ahead of wbBuf_, but the
+    // compiler and prebuilt SDK code still hard-code wbBuf_ at offset 896.
+    uint8_t wbBufAbiReserved_[184] = {};
+
     // Per-owner write-barrier buffer. This is intentionally colocated with
     // gcWork_ so writes overflow into the same local GC work owner.
     WriteBarrierBuffer wbBuf_;
 
     // Step5: Per-P GC work buffer for mutator assist
     PerPGCWork gcWork_;
+
+    // Auxiliary metadata for backup cachedRegion_ slots. Keep these fields
+    // after wbBuf_/gcWork_ so the AArch64 write-barrier fast-path offset stays
+    // stable.
+    std::atomic<uint8_t> cachedRegionOrigin_[kNumSizeClasses] = {};
 };
 
 } // namespace MapleRuntime

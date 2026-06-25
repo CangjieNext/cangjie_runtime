@@ -53,7 +53,6 @@ public:
     void NotifyToScavenge();
     void NotifyToShrink();
     bool IsSweepPressureMode() const { return sweepPressureMode_.load(std::memory_order_acquire); }
-    void SetSweepPressureMode(bool val) { sweepPressureMode_.store(val, std::memory_order_release); }
 
 private:
     void Notify();
@@ -69,7 +68,7 @@ private:
     bool ShouldStartPeriodicFeed() const;
     bool HasPendingWakeWork() const;
     bool HasPendingSweepWork();    // check pending sweep work; updates pressure state and shouldBackgroundSweep_
-    bool HasPendingFeedWork(uint8_t preferredCls); // check if topK hot classes still need a single cached spare
+    bool HasPendingFeedWork();
     bool HasPendingShrinkWork();
     bool BackgroundSweepLoop();
     bool BackgroundFeedLoop();
@@ -90,7 +89,6 @@ private:
     std::atomic<bool> shouldScavengeHeap_{false};
     std::atomic<bool> shouldShrinkHeap_{false};
     std::atomic<uint8_t> preferredSweepCls_{kNoPreferredSweepClass};
-    std::atomic<uint8_t> preferredFeedCls_{kNoPreferredFeedClass};
     std::atomic<bool> sweepPressureMode_{false};
     BackgroundFeedStats pendingFeedStats_{};
     BackgroundSweepStats pendingSweepStats_{};

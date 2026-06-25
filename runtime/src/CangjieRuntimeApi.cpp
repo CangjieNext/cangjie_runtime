@@ -199,6 +199,12 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
     unsigned int cpus = std::thread::hardware_concurrency();
     uint32_t defaultProcs = cpus != 0 ? static_cast<uint32_t>(cpus) : 8;
     size_t initHeapSize = param->heapParam.heapSize == 0 ? 64 * 1024 : param->heapParam.heapSize;
+#ifdef MRT_USE_MARK_SWEEP
+    double defaultHeapGrowth = 1.0;
+#else
+    double defaultHeapGrowth = 0.25;
+#endif
+    double resolvedHeapGrowth = param->heapParam.heapGrowth < ERRORESTIMATE ? defaultHeapGrowth : param->heapParam.heapGrowth;
 #if defined(__OHOS__)
     // use limited heap size in OHOS devices --
     // (   , 2GB] -- 128MB
@@ -229,10 +235,10 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
                 0.8 : param->heapParam.heapUtilization,
 #ifdef MRT_USE_MARK_SWEEP
             // MSGC default heap growth is 1 + 1.0.
-            .heapGrowth = param->heapParam.heapGrowth < ERRORESTIMATE ? 1.0 : param->heapParam.heapGrowth,
+            .heapGrowth = resolvedHeapGrowth,
 #else
             // Default value of heap growth is 1 + 0.25.
-            .heapGrowth = param->heapParam.heapGrowth < ERRORESTIMATE ? 0.25 : param->heapParam.heapGrowth,
+            .heapGrowth = resolvedHeapGrowth,
 #endif
             // Default value of allocation rate is 1024MB/s.
             .allocationRate = param->heapParam.allocationRate < ERRORESTIMATE ? 10240 : param->heapParam.allocationRate,
@@ -244,14 +250,36 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
             .gcThreshold = initHeapSize * MapleRuntime::KB,
             // Default value of garbage ratio is 50%.
             .garbageThreshold = param->gcParam.garbageThreshold < ERRORESTIMATE ? 0.5 : param->gcParam.garbageThreshold,
-            // Default value of GC interval is 5ms.
-            .gcInterval = param->gcParam.gcInterval == 0 ? 5 * MapleRuntime::MILLI_SECOND_TO_NANO_SECOND :
+            // Default value of GC interval is 0, which disables the interval gate.
+            .gcInterval = param->gcParam.gcInterval == 0 ? 0 :
                 param->gcParam.gcInterval * MapleRuntime::MILLI_SECOND_TO_NANO_SECOND,
             // Default value of backup GC interval is 240s.
             .backupGCInterval = param->gcParam.backupGCInterval == 0 ? 240 * MapleRuntime::SECOND_TO_NANO_SECOND :
                 param->gcParam.backupGCInterval * MapleRuntime::SECOND_TO_NANO_SECOND,
             // Default GC threads factor is 2.
             .gcThreads = param->gcParam.gcThreads == 0 ? 2 : param->gcParam.gcThreads,
+            .scavengeGrowth = param->gcParam.scavengeGrowth < ERRORESTIMATE ?
+                resolvedHeapGrowth : param->gcParam.scavengeGrowth,
+            .msBackgroundSweepMaxTime = param->gcParam.msBackgroundSweepMaxTime == 0 ?
+                2 * MapleRuntime::MILLI_SECOND_TO_NANO_SECOND : param->gcParam.msBackgroundSweepMaxTime,
+            .msMarkTimeBudget = param->gcParam.msMarkTimeBudget == 0 ?
+                20 * MapleRuntime::SECOND_TO_NANO_SECOND : param->gcParam.msMarkTimeBudget,
+            .msAssistRatioScale = param->gcParam.msAssistRatioScale == 0 ? 1024 : param->gcParam.msAssistRatioScale,
+            .msAssistDebtTrigger = param->gcParam.msAssistDebtTrigger == 0 ? 128 : param->gcParam.msAssistDebtTrigger,
+            .msAssistSweepMaxRegionsPerCall = param->gcParam.msAssistSweepMaxRegionsPerCall == 0 ?
+                10 : param->gcParam.msAssistSweepMaxRegionsPerCall,
+            .msReleasedBusyRetryLimit = param->gcParam.msReleasedBusyRetryLimit == 0 ?
+                8 : param->gcParam.msReleasedBusyRetryLimit,
+            .msScavengeRounds = param->gcParam.msScavengeRounds == 0 ? 8 : param->gcParam.msScavengeRounds,
+            .msBackgroundSweep = static_cast<uint8_t>(
+                param->gcParam.msBackgroundSweep == 0 ? 1 : param->gcParam.msBackgroundSweep),
+            .msBackgroundFeed = param->gcParam.msBackgroundFeed,
+            .msBackgroundScavenge = static_cast<uint8_t>(
+                param->gcParam.msBackgroundScavenge == 0 ? 1 : param->gcParam.msBackgroundScavenge),
+            .msBackgroundShrink = static_cast<uint8_t>(
+                param->gcParam.msBackgroundShrink == 0 ? 1 : param->gcParam.msBackgroundShrink),
+            .msVerifyMark = param->gcParam.msVerifyMark,
+            .msVerifyMarkDetail = param->gcParam.msVerifyMarkDetail,
         },
         .logParam = {
             .logLevel = param->logParam.logLevel,

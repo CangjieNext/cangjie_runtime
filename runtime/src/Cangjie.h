@@ -281,6 +281,84 @@ struct GCParam {
      * It will be set default value if the value is 0.
      */
     int32_t gcThreads;
+
+    /*
+     * Multiplier used to derive the scavenge threshold from the heap threshold.
+     * Default to heapGrowth. Must be > 0.
+     */
+    double scavengeGrowth;
+
+    /*
+     * Background sweep slice time budget for MSGC.
+     * Measured in ns. 0 means disable the budget.
+     */
+    uint64_t msBackgroundSweepMaxTime;
+
+    /*
+     * Concurrent mark wall-clock time budget for MSGC.
+     * Measured in ns. 0 means disable the budget.
+     */
+    uint64_t msMarkTimeBudget;
+
+    /*
+     * Fixed-point scale denominator for MSGC assist ratio.
+     * Must be > 0.
+     */
+    uint64_t msAssistRatioScale;
+
+    /*
+     * Object-count trigger threshold for MSGC mark assist.
+     * Must be > 0.
+     */
+    size_t msAssistDebtTrigger;
+
+    /*
+     * Maximum regions swept by one MSGC assist-sweep call under normal pressure.
+     * Must be > 0.
+     */
+    size_t msAssistSweepMaxRegionsPerCall;
+
+    /*
+     * Retry limit when probing released-busy regions in MSGC.
+     * Must be > 0.
+     */
+    size_t msReleasedBusyRetryLimit;
+
+    /*
+     * Number of rounds performed by one background scavenge slice in MSGC.
+     * Must be > 0.
+     */
+    size_t msScavengeRounds;
+
+    /*
+     * MSGC background sweep switch. 0 = off, 1 = on.
+     */
+    uint8_t msBackgroundSweep;
+
+    /*
+     * MSGC background feed switch. 0 = off, 1 = on.
+     */
+    uint8_t msBackgroundFeed;
+
+    /*
+     * MSGC background scavenge switch. 0 = off, 1 = on.
+     */
+    uint8_t msBackgroundScavenge;
+
+    /*
+     * MSGC background shrink switch. 0 = off, 1 = on.
+     */
+    uint8_t msBackgroundShrink;
+
+    /*
+     * MSGC verify-mark switch. 0 = off, 1 = on.
+     */
+    uint8_t msVerifyMark;
+
+    /*
+     * MSGC detailed verify-mark switch. 0 = off, 1 = on.
+     */
+    uint8_t msVerifyMarkDetail;
 };
 
 /*

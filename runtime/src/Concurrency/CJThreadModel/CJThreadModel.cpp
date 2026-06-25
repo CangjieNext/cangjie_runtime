@@ -10,6 +10,7 @@
 #include <pthread.h>
 #include <thread>
 
+#include "Base/EnvParam.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "Cki.h"
@@ -81,14 +82,7 @@ static void RegisterCJThreadHooks()
 
 static bool GetStackGuardFlagEnv()
 {
-    const char* env = std::getenv("MRT_STACK_CHECK");
-    if (env != nullptr) {
-        if (CString::ParseFlagFromEnv(env)) {
-            return true;
-        }
-        LOG(RTLOG_ERROR, "unsupported MRT_STACK_CHECK. Should set variable to 1 or true or TRUE\n");
-    }
-    return false;
+    return ReadBoolParameter("MRT_STACK_CHECK", false);
 }
 
 // ConcurrencyParam.processorNum set the processor number of scheduler, it is set as following ways:

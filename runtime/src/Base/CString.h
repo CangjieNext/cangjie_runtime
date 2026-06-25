@@ -133,7 +133,6 @@ public:
     static size_t ParsePosNumFromEnv(const CString& env);
     static double ParseValidFromEnv(const CString& env);
     static double ParsePosDecFromEnv(const CString& env);
-    static bool ParseFlagFromEnv(const CString& s);
 
     // Check whether the CString `s` can convert to a positive number.
     static bool IsPosNumber(const CString& s);

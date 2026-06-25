@@ -13,7 +13,6 @@
 #include "Heap/Heap.h"
 
 namespace MapleRuntime {
-constexpr uint8_t kNoPreferredFeedClass = UINT8_MAX;
 
 struct BackgroundFeedStats {
     size_t slices = 0;
@@ -119,11 +118,7 @@ public:
     virtual bool HasPendingSweepWork() const { return false; }
     virtual BackgroundReclaimStats BackgroundReclaim() { return {}; }
     virtual BackgroundSweepStats BackgroundSweep(uint8_t preferredCls) { (void)preferredCls; return {}; }
-    virtual BackgroundFeedStats BackgroundFillAllocCaches(uint8_t preferredCls = UINT8_MAX)
-    {
-        (void)preferredCls;
-        return {};
-    }
+    virtual BackgroundFeedStats BackgroundFillAllocCaches() { return {}; }
 
     // returns the total size of live large objects, excluding alignment/roundup/header, ...
     // LargeObjects() is missing.

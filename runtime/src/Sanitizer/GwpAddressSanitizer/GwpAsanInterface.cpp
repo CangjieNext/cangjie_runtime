@@ -10,6 +10,7 @@
 #include <random>
 #include <set>
 
+#include "Base/EnvParam.h"
 #include "Base/Log.h"
 #include "Base/SpinLock.h"
 #include "Heap/Allocator/Allocator.h"
@@ -51,10 +52,7 @@ static void PrintGwpAsanHelpMessage()
 
 void SetupGwpAsanAsNeeded()
 {
-    auto enabled = std::getenv("cjEnableGwpAsan");
-    if (enabled != nullptr) {
-        g_gwpEnabled = CString::ParseFlagFromEnv(enabled);
-    }
+    g_gwpEnabled = ReadBoolParameter("cjEnableGwpAsan", false);
 
     auto sampling = std::getenv("cjGwpAsanSampleRate");
     if (sampling != nullptr) {
@@ -69,8 +67,7 @@ void SetupGwpAsanAsNeeded()
     }
 
     // to show the configured value correctly, this must be the last one to do
-    auto help = std::getenv("cjGwpAsanHelp");
-    if (help != nullptr && CString::ParseFlagFromEnv(help)) {
+    if (ReadBoolParameter("cjGwpAsanHelp", false)) {
         PrintGwpAsanHelpMessage();
     }
 }

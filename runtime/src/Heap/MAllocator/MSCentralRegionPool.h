@@ -20,6 +20,7 @@
 #include <functional>
 
 #include "Heap/Allocator/Allocator.h"
+#include "Base/Log.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSShardRouting.h"
 #include "Heap/MAllocator/MSSizeClass.h"
@@ -39,9 +40,10 @@ struct MSLargeSweepStats {
     size_t cachedBytes = 0;        // Bytes placed into hot cache.
 };
 
-struct MSEagerSweepBatchStats {
-    size_t sweptRegions = 0;
-    size_t emptiedRegions = 0;
+struct MSSweepCounts {
+    size_t backgroundSweptRegions = 0;
+    size_t lazySweptRegions = 0;
+    size_t assistSweptRegions = 0;
 };
 
 // ============================================================================
@@ -81,6 +83,14 @@ public:
         head->prevRegionIdx = MSRegionInfo::INVALID_IDX;
         count_.fetch_sub(1, std::memory_order_relaxed);
         return head;
+    }
+
+    MSRegionInfo* PeekHead() const
+    {
+        if (headIdx_ == MSRegionInfo::INVALID_IDX) {
+            return nullptr;
+        }
+        return MSRegionInfoArray::GetRegionInfoByIdx(headIdx_);
     }
 
     void Remove(MSRegionInfo* region)
@@ -336,6 +346,12 @@ public:
     // Background sweep: iterate all size classes, sweep one slice of unswept Regions.
     // Thread-safe (CAS ownership). Called by gc-helper thread.
     BackgroundSweepStats BackgroundSweep(uint8_t preferredCls = kNumSizeClasses);
+    void ResetSweepCounts();
+    MSSweepCounts GetSweepCounts() const;
+    size_t ComputeAssistSweepRegions(size_t unsweptRegions, uint32_t processorNum,
+                                     bool hardPressure) const;
+    size_t AssistSweepForFreshRegions(size_t requestedRegions, uint8_t preferredCls,
+                                      AllocBufferMS* preferredOwner);
 
     bool HasPendingSweepWork() const
     {
@@ -369,7 +385,7 @@ public:
     size_t GetAllAllocBufferRegionCount() const;
     size_t GetAllAllocBufferActiveRegionCount() const;
     size_t GetAllAllocBufferCachedRegionCount() const;
-    bool HasHungryAllocBuffer(uint8_t preferredCls = UINT8_MAX) const;
+    bool HasHungryAllocBuffer() const;
     BucketPressure GetBucketPressure(uint8_t cls) const;
     void MaybeNotifySweep(uint8_t cls) const;
     // Swept-retained region count: partialSwept + fullSwept buckets + large region spans.
@@ -427,11 +443,6 @@ public:
         return largeHotCacheBytes_.load(std::memory_order_acquire);
     }
 
-    // Eager synchronous sweep of small regions: GC thread sweeps unswept regions
-    // across all size classes until the configured wall-time budget is exhausted.
-    // Called from ConcurrentSweep() to give immediate reclaim under pressure.
-    MSEagerSweepBatchStats EagerSweepBatch(uint64_t maxTimeUs);
-
     // ===== Pre-STW bitmap clearing (MarkSetup fast path) =====
 
     // Stop background sweep and disable lazy sweep, then wait for all
@@ -471,6 +482,58 @@ private:
         {
             std::lock_guard<std::mutex> lg(lock_);
             return GetUnsweptList(kind).TakeHead();
+        }
+
+        MSRegionInfo* ClaimUnsweptHeadForSweep(UnsweptListKind kind, uint32_t sg)
+        {
+            std::lock_guard<std::mutex> lg(lock_);
+            MSRegionList& list = GetUnsweptList(kind);
+            for (;;) {
+                MSRegionInfo* head = list.PeekHead();
+                if (head == nullptr) {
+                    return nullptr;
+                }
+
+                uint32_t headSweepGen = head->GetSweepGen();
+                if (headSweepGen == sg) {
+                    (void)list.TakeHead();
+                    continue;
+                }
+
+                if (UNLIKELY(headSweepGen == sg - 1)) {
+                    LOG(RTLOG_FATAL,
+                        "[MS-GC] ClaimUnsweptHeadForSweep: observed in-list sweeping region, "
+                        "cls=%u region=%p sweepGen=%u type=%u",
+                        static_cast<unsigned>(head->sizeClass), static_cast<void*>(head),
+                        static_cast<unsigned>(headSweepGen),
+                        static_cast<unsigned>(head->regionType));
+                }
+
+                if (UNLIKELY(headSweepGen != sg - 2)) {
+                    LOG(RTLOG_FATAL,
+                        "[MS-GC] ClaimUnsweptHeadForSweep: unexpected in-list sweepGen, "
+                        "cls=%u region=%p sweepGen=%u expectedUnswept=%u type=%u",
+                        static_cast<unsigned>(head->sizeClass), static_cast<void*>(head),
+                        static_cast<unsigned>(headSweepGen),
+                        static_cast<unsigned>(sg - 2),
+                        static_cast<unsigned>(head->regionType));
+                }
+
+                if (!head->CasSweepGen(sg - 2, sg - 1)) {
+                    continue;
+                }
+
+                MSRegionInfo* claimed = list.TakeHead();
+                if (UNLIKELY(claimed != head)) {
+                    LOG(RTLOG_FATAL,
+                        "[MS-GC] ClaimUnsweptHeadForSweep: head changed under bucket lock, "
+                        "expected=%p actual=%p cls=%u kind=%u",
+                        static_cast<void*>(head), static_cast<void*>(claimed),
+                        static_cast<unsigned>(head->sizeClass),
+                        static_cast<unsigned>(kind));
+                }
+                return claimed;
+            }
         }
 
         void PushPartialSwept(MSRegionInfo* region)
@@ -598,6 +661,10 @@ private:
                                 size_t& sweptRegions, size_t& emptiedRegions,
                                 size_t& retainedRegions, size_t& freedBytes);
     void ForceFinishAllUnswept();
+    size_t AssistSweep(size_t targetRegions, uint8_t preferredCls, AllocBufferMS* preferredOwner);
+    bool SweepOneUnsweptRegionForAssist(SizeClassBucket& bucket, SizeClassBucket::UnsweptListKind listKind,
+                                        uint32_t sg, AllocBufferMS* preferredOwner,
+                                        size_t* emptiedInSlice = nullptr);
     bool SweepUnsweptList(SizeClassBucket& bucket, SizeClassBucket::UnsweptListKind listKind, uint32_t sg,
                          size_t& sweptInSlice, size_t maxRegions, uint64_t deadlineUs,
                          size_t* emptiedInSlice = nullptr);
@@ -620,13 +687,35 @@ private:
             }
         }
     }
-
+    void RecordBackgroundSweep(size_t sweptRegions)
+    {
+        if (sweptRegions != 0) {
+            backgroundSweptRegions_.fetch_add(sweptRegions, std::memory_order_relaxed);
+        }
+    }
+    void RecordLazySweep(size_t sweptRegions)
+    {
+        if (sweptRegions != 0) {
+            lazySweptRegions_.fetch_add(sweptRegions, std::memory_order_relaxed);
+        }
+    }
+    void RecordAssistSweep(size_t sweptRegions)
+    {
+        if (sweptRegions != 0) {
+            assistSweptRegions_.fetch_add(sweptRegions, std::memory_order_relaxed);
+        }
+    }
     static std::atomic<uint32_t> globalSweepGen_;
     std::atomic<bool> sweepDone_{true};
     std::atomic<bool> bgSweepRunning_{false};
     std::atomic<bool> stopSweepRequested_{false};    // Signal bg sweep to stop early
     std::atomic<bool> skipLazySweep_{false};          // Disable lazy sweep in GetRegion P2/P3
+    std::atomic<bool> skipAssistSweep_{false};        // Disable mutator assist sweep before STW
     std::atomic<size_t> activeLazySweepCount_{0};     // In-flight lazy sweep counter
+    std::atomic<size_t> activeAssistSweepCount_{0};   // In-flight mutator assist sweep counter
+    std::atomic<size_t> backgroundSweptRegions_{0};
+    std::atomic<size_t> lazySweptRegions_{0};
+    std::atomic<size_t> assistSweptRegions_{0};
 
     SizeClassBucket buckets_[kNumSizeClasses];
     MSRegionManager*  msRegionManager_;
@@ -672,10 +761,10 @@ public:
     void RegisterAllocBufferMS(AllocBufferMS* buffer);
     void RemoveAllocBufferMS(AllocBufferMS* buffer);
 
-    // O9: Background fill of hungry per-thread alloc caches.
+    // Background fill of hungry per-thread alloc caches.
     // Called by gc-helper thread. Iterates all AllocBufferMS and fills
-    // cachedRegion_ slots for size classes with high miss pressure.
-    BackgroundFeedStats BackgroundFillAllocCaches(uint8_t preferredCls = kNoPreferredFeedClass);
+    // one spare cachedRegion_ for size classes that are currently active.
+    BackgroundFeedStats BackgroundFillAllocCaches();
 
     // Visit all registered AllocBufferMS instances (under lock)
     template<typename Visitor>

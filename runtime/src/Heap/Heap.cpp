@@ -8,6 +8,7 @@
 #include "Heap.h"
 
 #include "CangjieRuntime.h"
+#include "Base/EnvParam.h"
 #include "Collector/CollectorProxy.h"
 #include "Collector/CollectorResources.h"
 #include "ObjectModel/RefField.inline.h"
@@ -49,24 +50,7 @@ void Heap::OnHeapExtended(MAddress newEnd)
 
 static bool InitEnabledGCParam()
 {
-    auto enableGC = std::getenv("cjEnableGC");
-    if (enableGC == nullptr) {
-        return true;
-    }
-    if (strlen(enableGC) != 1) {
-        LOG(RTLOG_ERROR, "Unsupported cjEnableGC, cjEnableGC should be 0 or 1.\n");
-        return true;
-    }
-
-    switch (enableGC[0]) {
-        case '0':
-            return false;
-        case '1':
-            return true;
-        default:
-            LOG(RTLOG_ERROR, "Unsupported cjEnableGC, cjEnableGC should be 0 or 1.\n");
-    }
-    return true;
+    return ReadBoolParameter("cjEnableGC", true);
 }
 
 class HeapImpl : public Heap {

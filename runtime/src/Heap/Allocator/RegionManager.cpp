@@ -14,6 +14,7 @@
 
 #include "Allocator/RegionSpace.h"
 #include "Base/CString.h"
+#include "Base/EnvParam.h"
 #include "Collector/Collector.h"
 #include "Collector/CopyCollector.h"
 #include "Common/ScopedObjectAccess.h"
@@ -280,40 +281,24 @@ void RegionManager::SetMaxUnitCountForRegion()
 
 void RegionManager::SetMaxUnitCountForPinnedRegion()
 {
-    auto env = std::getenv("cjPinnedRegionSize");
-    if (env == nullptr) {
-        maxUnitCountPerPinnedRegion = maxUnitCountPerRegion;
-        return;
-    }
-    size_t size = CString::ParseSizeFromEnv(env);
     // The minimum region size is system page size, measured in KB.
     size_t minSize = MapleRuntime::MRT_PAGE_SIZE / KB;
-    if (size >= minSize && size <= CangjieRuntime::GetHeapParam().regionSize) {
-        maxUnitCountPerPinnedRegion = size * KB / RegionInfo::UNIT_SIZE;
-    } else {
-        LOG(RTLOG_ERROR, "Unsupported cjPinnedRegionSize parameter. Valid cjPinnedRegionSize"
-            "range is [%zuKB, %zuKB].\n", minSize, CangjieRuntime::GetHeapParam().regionSize);
-    }
+    size_t size = ReadSizeParameter("cjPinnedRegionSize", CangjieRuntime::GetHeapParam().regionSize,
+                                    minSize, EnvBoundKind::CLOSED,
+                                    CangjieRuntime::GetHeapParam().regionSize, EnvBoundKind::CLOSED);
+    maxUnitCountPerPinnedRegion = size * KB / RegionInfo::UNIT_SIZE;
 }
 
 void RegionManager::SetLargeObjectThreshold()
 {
-    auto env = std::getenv("cjLargeThresholdSize");
-    if (env == nullptr) {
-        // default value is 32 KB
-        largeObjectThreshold = 32 * KB;
-    }
-    size_t size = CString::ParseSizeFromEnv(env);
+    // default value is 32 KB
     // The minimum region size is system page size, measured in KB.
     size_t minSize = MapleRuntime::MRT_PAGE_SIZE / KB;
     // 64UL: The maximum region size, measured in KB, the value is 2048 KB.
     size_t maxSize = 10 * 1024UL;
-    if (size >= minSize && size <= maxSize) {
-        largeObjectThreshold = size * KB;
-    } else if (size != 0) {
-        LOG(RTLOG_ERROR, "Unsupported cjLargeThresholdSize parameter. Valid cjLargeThresholdSize"
-            "range is [%zuKB, 2048KB].\n", minSize);
-    }
+    size_t size = ReadSizeParameter("cjLargeThresholdSize", 32, minSize, EnvBoundKind::CLOSED,
+                                    maxSize, EnvBoundKind::CLOSED);
+    largeObjectThreshold = size * KB;
     size_t regionSize = CangjieRuntime::GetHeapParam().regionSize * KB;
     largeObjectThreshold = largeObjectThreshold > regionSize ? regionSize :  largeObjectThreshold;
 }
@@ -326,20 +311,8 @@ void RegionManager::SetGarbageThreshold()
 #if defined(__EULER__)
 void RegionManager::SetCacheRatio(double minSize, double maxSize, double defaultParam)
 {
-    auto env = std::getenv("cjCacheRatio");
-    if (env == nullptr) {
-        cacheRatio = defaultParam;
-        return;
-    }
-    double size = CString::ParsePosDecFromEnv(env);
-    if (size - minSize >= 0 && maxSize - size >= 0) {
-        cacheRatio = size;
-        return;
-    } else {
-        LOG(RTLOG_ERROR, "Unsupported cjCacheRatio parameter.Valid cjCacheRatio range is [%f, %f].\n",
-            minSize, maxSize);
-    }
-    cacheRatio = defaultParam;
+    cacheRatio = ReadDoubleParameter("cjCacheRatio", defaultParam, minSize, EnvBoundKind::CLOSED,
+                                     maxSize, EnvBoundKind::CLOSED);
 }
 #endif
 

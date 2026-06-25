@@ -189,46 +189,14 @@ void MSRegionManager::OnCommittedHeapExtended(uintptr_t newCommittedEnd)
 // ============================================================================
 
 namespace {
-uint64_t ReadEnvTimeNs(const char* name, uint64_t fallback)
-{
-    const char* env = std::getenv(name);
-    if (env == nullptr) {
-        return fallback;
-    }
-    uint64_t value = CString::ParseTimeFromEnv(env);
-    return value == 0 ? fallback : value;
-}
-
-size_t ReadEnvCount(const char* name, size_t fallback)
-{
-    const char* env = std::getenv(name);
-    if (env == nullptr) {
-        return fallback;
-    }
-    size_t value = CString::ParsePosNumFromEnv(env);
-    return value == 0 ? fallback : value;
-}
-
-double ReadEnvPositiveDecimal(const char* name, double fallback)
-{
-    const char* env = std::getenv(name);
-    if (env == nullptr) {
-        return fallback;
-    }
-    double value = CString::ParsePosDecFromEnv(env);
-    return value == 0.0 ? fallback : value;
-}
-
 uint64_t GetHeuRequestCooldownNs()
 {
-    static const uint64_t value = ReadEnvTimeNs("CJ_MS_HEU_REQUEST_COOLDOWN", 5ULL * 1000ULL * 1000ULL);
-    return value;
+    return CangjieRuntime::GetGCParam().gcInterval;
 }
 
 size_t GetReleasedBusyRetryLimit()
 {
-    static const size_t value = ReadEnvCount("CJ_MS_RELEASED_BUSY_RETRY_LIMIT", 8);
-    return value;
+    return CangjieRuntime::GetGCParam().msReleasedBusyRetryLimit;
 }
 }
 
@@ -441,6 +409,13 @@ MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& r
     // Convert unit count to region count (round up to full regions).
     RegionCount regionCount = static_cast<RegionCount>(
         (unitCount + unitsPerMSRegion_ - 1) / unitsPerMSRegion_);
+
+    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
+    CentralRegionPool* pool = space.GetCentralPool();
+    if (pool != nullptr) {
+        AllocBufferMS* owner = AllocBufferMS::GetAllocBufferMS();
+        (void)pool->AssistSweepForFreshRegions(regionCount, kNoPreferredSweepClass, owner);
+    }
 
     RegionIndex regionIdx = 0;
     AllocSource source = AllocSource::BUMP;

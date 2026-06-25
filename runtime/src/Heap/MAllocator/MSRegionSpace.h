@@ -68,7 +68,7 @@ public:
     MSRegionManager* GetMSRegionManager() const { return msRegionManager_; }
     bool HasPendingSweepWork() const override;
     BackgroundSweepStats BackgroundSweep(uint8_t preferredCls) override;
-    BackgroundFeedStats BackgroundFillAllocCaches(uint8_t preferredCls = kNoPreferredFeedClass) override;
+    BackgroundFeedStats BackgroundFillAllocCaches() override;
     void EnsureThreadLocalAllocBuffer();
 
     // MS-specific metrics

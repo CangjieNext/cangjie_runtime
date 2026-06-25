@@ -7,10 +7,8 @@
 
 #include "GcStats.h"
 
-#include <cstdlib>
 #include <limits>
 
-#include "Base/CString.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "CangjieRuntime.h"
@@ -22,27 +20,12 @@ uint64_t g_gcTotalTimeUs = 0;
 size_t g_gcCollectedTotalBytes = 0;
 
 namespace {
-double ReadEnvPosDec(const char* name, double fallback)
-{
-    const char* env = std::getenv(name);
-    if (env == nullptr) {
-        return fallback;
-    }
-    double value = CString::ParsePosDecFromEnv(env);
-    if (value > 0.0) {
-        return value;
-    }
-    LOG(RTLOG_ERROR, "Unsupported %s parameter. Valid %s range must be greater than 0.\n", name, name);
-    return fallback;
-}
-
 size_t ComputeScavengeThresholdBytes(size_t heapThresholdBytes)
 {
     if (heapThresholdBytes == 0) {
         return 0;
     }
-    double heapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
-    double scavengeGrowth = ReadEnvPosDec("cjScavengeGrowth", heapGrowth);
+    double scavengeGrowth = CangjieRuntime::GetGCParam().scavengeGrowth;
     if (scavengeGrowth <= 0.0) {
         return heapThresholdBytes;
     }

@@ -31,7 +31,7 @@ struct MSGCCycleStats {
     uint64_t concurrentMarkUs = 0;    // ConcurrentMark wall time: RunConcurrentMarkLoop and assist snapshot.
     uint64_t markTerminationUs = 0;   // MarkTermination wall time: STW drain, WB flush, deferred queue drain, sweep flip.
     uint64_t postMarkUs = 0;          // PostMarkTermination wall time: weak refs, finalizers, large-object reclaim.
-    uint64_t concurrentSweepUs = 0;   // ConcurrentSweep wall time: ComputeMarkedBytes and eager sweep sampling.
+    uint64_t concurrentSweepUs = 0;   // ConcurrentSweep wall time: ComputeMarkedBytes and background handoff.
     uint64_t postGcHookUs = 0;        // PostGarbageCollection hook wall time after UpdateGCStats completes.
 
     // ── Counting ──
@@ -54,11 +54,6 @@ struct MSGCCycleStats {
 
     // ── True live bytes (computed from markBitmaps after marking) ──
     size_t trueLiveBytes = 0;            // ComputeMarkedBytes() result, used by UpdateGCStats and GC-end logs.
-
-    // ── Eager sweep batch ──
-    size_t eagerSweepBatchRegions = 0;   // Actual regions swept by EagerSweepBatch during ConcurrentSweep.
-    size_t eagerSweepEmptiedRegions = 0; // Empty regions actually produced by EagerSweepBatch.
-    size_t eagerSweepTotalUnswept = 0;   // Unswept region count sampled before eager sweep starts.
 
     // ── Region accounting snapshot ──
     size_t activeRegionCount = 0;        // activeRegionBytes / MS_REGION_SIZE, emitted in DumpRegionStatsMS.
@@ -184,7 +179,7 @@ private:
     // reclaims anything), walk all marked objects and report any ref edge that
     // points to an unmarked target. Such a target will be wrongly swept while
     // still reachable from a live object — the classic missed-mark UAF.
-    // Gated by env CJ_MS_VERIFY_MARK; logs the first N violations only.
+    // Gated by env cjMSVerifyMark; logs the first N violations only.
     void VerifyMarkCompleteness();
 
     // ── Step 2.2 internals ──
@@ -236,19 +231,10 @@ private:
     //   kConvergenceFlushWaitUs    - usleep before per-P flush to let in-flight assists finish.
     //
     // Environment variables (runtime):
-    //   CJ_MS_ASSIST_RATIO_COEFF        - Escalation coefficient per loop iteration.
-    //                                     ratio *= (1 + coeff) each iteration.
-    //                                     Range: (0, 10], default 0.1.
-    //   CJ_MS_ASSIST_RATIO_SCALE        - Fixed-point scale denominator (positive integer).
+    //   cjMSAssistRatioScale            - Fixed-point scale denominator (positive integer).
     //                                     Default 1024.
-    //   CJ_MS_ASSIST_DEBT_TRIGGER       - Objects per assist call trigger threshold.
-    //                                     Default 256.
-    //   CJ_MS_ASSIST_RATIO_MAX_MULT     - Maximum ratio escalation multiplier over the initial
-    //                                     value. Controls how much assist participates in long
-    //                                     GC cycles. Range: (0, 100], default 10.
-    //                                     Example: 1.5 means ratio can grow at most 1.5x the
-    //                                     initial value, yielding moderate assist for long GC
-    //                                     cycles while keeping short GC cycles assist-free.
+    //   cjMSAssistDebtTrigger           - Objects per assist call trigger threshold.
+    //                                     Default 128.
     // ============================================================
     static constexpr size_t   kCreditFlushThreshold     = 1024;
     static constexpr size_t   kSliceMaxObjects          = 1024;

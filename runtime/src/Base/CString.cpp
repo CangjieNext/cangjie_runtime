@@ -487,10 +487,6 @@ double CString::ParseValidFromEnv(const CString& env)
     return temp;
 }
 
-// If `s` is "1" or "true" or "TRUE", return true.
-// Otherwise return false.
-bool CString::ParseFlagFromEnv(const CString& s) { return s == "1" || s == "true" || s == "TRUE"; }
-
 bool CString::IsPosNumber(const CString& s)
 {
     if (s.Length() == 0 || s == "+" || s == "0") {
