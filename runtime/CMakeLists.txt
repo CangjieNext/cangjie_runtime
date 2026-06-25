@@ -63,6 +63,12 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/SetupAr.cmake)
 message("-- BUILD_CJTHREAD: " ${BUILD_CJTHREAD})
 message("-- BUILD_RUNTIME: "   ${BUILD_RUNTIME})
 
+option(ENABLE_INTERPRETER_TEST_SUPPORT "Enable interpreter test support" OFF)
+message("-- ENABLE_INTERPRETER_TEST_SUPPORT: " ${ENABLE_INTERPRETER_TEST_SUPPORT})
+if (ENABLE_INTERPRETER_TEST_SUPPORT)
+    add_compile_definitions(MRT_INTERPRETER_TEST_SUPPORT=1)
+endif()
+
 if (SANITIZER_SUPPORT_FLAG MATCHES 1)
     add_compile_definitions(CANGJIE_SANITIZER_SUPPORT)
 endif()

@@ -121,6 +121,7 @@ def do_build(args):
         os.environ["ZERO_AR_DATE"] = "1"
     hwasan_flag = 1 if args.hwasan == True else 0
     euler_flag = 1 if args.euler_flag == True else 0
+    interpreter_test_support_flag = 1 if args.enable_interpreter_test_support == True else 0
     # Perform different build actions based on the target_args
     if target_args == "native":
         cmake_command = [
@@ -143,6 +144,7 @@ def do_build(args):
             "-DDUMPADDRESS_FLAG=0",
             "-DCJ_SDK_VERSION={}".format(version),
             "-DDISABLE_VERSION_CHECK=1",
+            "-DENABLE_INTERPRETER_TEST_SUPPORT={}".format(interpreter_test_support_flag),
             "-DCMAKE_C_COMPILER=clang",
             "-DCMAKE_CXX_COMPILER=clang++",
             "-DCMAKE_AR_PATH=ar",
@@ -181,6 +183,7 @@ def do_build(args):
             "-DDUMPADDRESS_FLAG=0",
             "-DCJ_SDK_VERSION={}".format(version),
             "-DDISABLE_VERSION_CHECK=1",
+            "-DENABLE_INTERPRETER_TEST_SUPPORT={}".format(interpreter_test_support_flag),
             "-DCMAKE_C_COMPILER=clang",
             "-DCMAKE_CXX_COMPILER=clang++",
             "-DCMAKE_AR_PATH=ar",
@@ -227,6 +230,7 @@ def do_build(args):
             "-DDUMPADDRESS_FLAG=0",
             "-DCJ_SDK_VERSION={}".format(version),
             "-DDISABLE_VERSION_CHECK=1",
+            "-DENABLE_INTERPRETER_TEST_SUPPORT={}".format(interpreter_test_support_flag),
             "-S", ".", "-B", "CMakebuild"
         ] + ptrauth_flags
         build_target(cmake_command)
@@ -267,6 +271,7 @@ def do_build(args):
             "-DCJ_SDK_VERSION={}".format(version),
             "-DDISABLE_VERSION_CHECK=1",
             "-DCMAKE_ANDROID_API={}".format(android_api_level if android_api_level else "31"),
+            "-DENABLE_INTERPRETER_TEST_SUPPORT={}".format(interpreter_test_support_flag),
             "-DCMAKE_SHARED_LINKER_FLAGS={}".format(shared_linker_flags),
             "-DCMAKE_EXE_LINKER_FLAGS={}".format(exe_linker_flags),
             "-S", ".", "-B", "CMakebuild"
@@ -308,6 +313,7 @@ def do_build(args):
             "-DDUMPADDRESS_FLAG=0",
             "-DCJ_SDK_VERSION={}".format(version),
             "-DDISABLE_VERSION_CHECK=1",
+            "-DENABLE_INTERPRETER_TEST_SUPPORT={}".format(interpreter_test_support_flag),
             "-S", ".", "-B", "CMakebuild"
         ]
         build_target(cmake_command)
@@ -428,6 +434,12 @@ if __name__ == "__main__":
         action="store_true",
         dest="euler_flag",
         help="Enable feature on euler os."
+    )
+    b.add_argument(
+        "--enable-interpreter-test-support",
+        action="store_true",
+        dest="enable_interpreter_test_support",
+        help="Enable interpreter test support."
     )
 
     i = sub.add_parser("install", help="install the project")

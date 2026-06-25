@@ -35,7 +35,7 @@ echo "Starting Cangjie runtime build..."
 python3 build.py clean
 
 # Run the build script
-python3 build.py build --build-type $BUILD_TYPE -v "1.0.0"
+python3 build.py build --build-type $BUILD_TYPE -v "1.0.0" --enable-interpreter-test-support
 
 # Install the built artifacts
 python3 build.py install
@@ -48,4 +48,3 @@ echo "Output files are located in: $WORKSPACE/runtime/output/common"
 . "$WORKSPACE/env.sh"
 
 cp -R $WORKSPACE/runtime/output/common/linux_${BUILD_TYPE}_${ARCH}/{lib,runtime} $CJNATIVE_TOOLCHAIN && echo "Cangjie runtime copied to toolchain directory: $CJNATIVE_TOOLCHAIN"
-

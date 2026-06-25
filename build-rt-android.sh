@@ -35,6 +35,7 @@ python3 build.py clean;
 python3 build.py build -t $BUILD_TYPE \
     --target android-aarch64 \
     --target-toolchain ${ANDROID_NDK_ROOT}/toolchains/ \
+    --enable-interpreter-test-support \
     -v ${CANGJIE_VERSION};
 
 # Install the built artifacts
