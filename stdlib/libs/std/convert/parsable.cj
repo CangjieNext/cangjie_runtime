@@ -1161,6 +1161,13 @@ func normalizeDecimalFloat(result: Float64, pointIndex: Int64, inputSize: Int64,
     }
 }
 
+// NOTE: This function body was extracted/refactored from an inline block in the
+// previous version during the std.convert function-metrics split. The refactor is
+// behavior-preserving: same inputs -> outputs, error paths, and side-effect ordering
+// (trimFloatInput -> stripFloatSign -> scanDecimalFloat -> normalizeDecimalFloat /
+// doParseFloatFromCffi). It is reached by @Frozen parse -> parseFloat -> doParseFloat
+// for Float16/Float32/Float64; semantic compatibility should be confirmed by running
+// std.convert LLT float-parse cases before merge.
 func doParseFloat<T>(data: String): ConvertResult<T> where T <: FloatParsable<T> {
     let trimmedStr = match (trimFloatInput(data)) {
         case Success(str) => str
