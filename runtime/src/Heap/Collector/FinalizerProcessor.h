@@ -36,7 +36,7 @@ public:
     U32 VisitFinalizers(const RootVisitor& visitor)
     {
         U32 count = 0;
-        std::lock_guard<std::mutex> l(listLock);
+        std::lock_guard<std::mutex> l(finalizersLock);
         for (BaseObject*& obj : finalizers) {
             visitor(reinterpret_cast<ObjectRef&>(obj));
             ++count;
@@ -47,27 +47,41 @@ public:
     // for : *finalizers* are not proper gc roots.
     void VisitGCRoots(const RootVisitor& visitor)
     {
-        std::lock_guard<std::mutex> l(listLock);
-        for (BaseObject*& obj : finalizables) {
-            visitor(reinterpret_cast<ObjectRef&>(obj));
+        {
+            std::lock_guard<std::mutex> l(finalizablesLock);
+            for (BaseObject*& obj : finalizables) {
+                visitor(reinterpret_cast<ObjectRef&>(obj));
+            }
         }
-        for (BaseObject*& obj : workingFinalizables) {
-            visitor(reinterpret_cast<ObjectRef&>(obj));
+        {
+            std::lock_guard<std::mutex> l(finalizablesLock);
+            for (BaseObject*& obj : workingFinalizables) {
+                visitor(reinterpret_cast<ObjectRef&>(obj));
+            }
         }
     }
 
     // mainly for fixing old pointers
     void VisitRawPointers(const RootVisitor& visitor)
     {
-        std::lock_guard<std::mutex> l(listLock);
-        for (BaseObject*& obj : finalizables) {
-            visitor(reinterpret_cast<ObjectRef&>(obj));
+        
+        {
+            std::lock_guard<std::mutex> l(finalizablesLock);
+            for (BaseObject*& obj : finalizables) {
+                visitor(reinterpret_cast<ObjectRef&>(obj));
+            }
         }
-        for (BaseObject*& obj : workingFinalizables) {
-            visitor(reinterpret_cast<ObjectRef&>(obj));
+        {
+            std::lock_guard<std::mutex> l(finalizablesLock);
+            for (BaseObject*& obj : workingFinalizables) {
+                visitor(reinterpret_cast<ObjectRef&>(obj));
+            }
         }
-        for (BaseObject*& obj : finalizers) {
-            visitor(reinterpret_cast<ObjectRef&>(obj));
+        {
+            std::lock_guard<std::mutex> l(finalizersLock);
+            for (BaseObject*& obj : finalizers) {
+                visitor(reinterpret_cast<ObjectRef&>(obj));
+            }
         }
     }
 
@@ -118,7 +132,11 @@ private:
     U32 iterationWaitTime;
 
     // finalization
-    std::mutex listLock;                 // lock for finalizers & finalizables & workingFinalizables
+    //std::mutex listLock;                 // lock for finalizers & finalizables & workingFinalizables
+    
+    std::mutex finalizersLock;
+    std::mutex finalizablesLock;
+    std::mutex workingFinalizablesLock;
     ManagedList<BaseObject*> finalizers; // created finalizer record, accessed by mutator & GC
 
     // a dead finalizer is moved into finalizable by GC, then run finalize method by FP thread
