@@ -5,5 +5,5 @@
 # See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 set(CONCURRENT_SRCS
-    thread_scope.cj
+    thread_group.cj
     CACHE INTERNAL "")
