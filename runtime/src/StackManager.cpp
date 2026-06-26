@@ -4,9 +4,9 @@
 //
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-
 #include "StackManager.h"
 #include <cstdint>
+#include <cstring>
 
 #include "Base/SysCall.h"
 #include "Common/StackType.h"
@@ -21,6 +21,10 @@
 #ifdef _WIN64
 #include "UnwindWin.h"
 #endif
+#if (defined(__linux__) || defined(__OHOS__) || defined(__ANDROID__)) && !defined(_WIN64)
+#include <dlfcn.h>
+#include <link.h>
+#endif
 #ifdef __APPLE__
 #include <dlfcn.h>
 #ifndef __IOS__
@@ -34,6 +38,8 @@
 #include "StackMap/StackMap.h"
 #endif
 #include "CpuProfiler/CpuProfiler.h"
+#include "Interpreter/InterpreterSpecific.h"
+#include "Interpreter/Options.h"
 
 #define LIBCANGJIE_RUNTIME "libcangjie-runtime"
 #define LIBCANGJIE_STD_CORE "libcangjie-std-core"
@@ -53,9 +59,13 @@ Uptr StackManager::cjcSoStartAddr = STACK_ADDR_MAX;
 Uptr StackManager::cjcSoEndAddr = 0;
 Uptr StackManager::traceSoStartAddr = STACK_ADDR_MAX;
 Uptr StackManager::traceSoEndAddr = 0;
+#ifdef INTERPRETER_ENABLED
+Uptr StackManager::interpreterSoStartAddr = ULLONG_MAX;
+Uptr StackManager::interpreterSoEndAddr = 0;
+#endif
 
-#if defined (COMPILE_DYNAMIC)
-#if !defined (__APPLE__)
+#if defined(COMPILE_DYNAMIC)
+#if !defined(__APPLE__)
 extern "C" Uptr* g_runtimeDynamicStart;
 extern "C" Uptr* g_runtimeDynamicEnd;
 #endif
@@ -67,6 +77,8 @@ extern "C" uintptr_t g_cjThreadStaticStart;
 extern "C" uintptr_t g_cjThreadStaticEnd;
 #endif
 #endif
+
+extern "C" void MRT_LibraryOnLoad(uint64_t address, bool enableGC);
 
 StackManager::StackManager() {}
 
@@ -151,7 +163,7 @@ void StackManager::VisitStackRoots(const UnwindContext& topFrame, const RootVisi
 }
 
 void StackManager::VisitHeapReferencesOnStack(const UnwindContext& topFrame, const RootVisitor& rootVisitor,
-                                              const DerivedPtrVisitor& derivedPtrVisitor, Mutator& mutator)
+    const DerivedPtrVisitor& derivedPtrVisitor, Mutator& mutator)
 {
     GCStackInfo gcStackInfo(&topFrame);
     gcStackInfo.FillInStackTrace();
@@ -217,7 +229,7 @@ std::vector<FrameInfo> GetCurrentStack(StackMode mode)
 }
 #endif
 
-#if defined(__linux__) || defined(hongmeng) || defined(__arm__)
+#if defined(__linux__) || defined(hongmeng) || defined(__arm__) || defined(__OHOS__) || defined(__ANDROID__)
 static void GetSoAddrScope(const CString& str, Uptr& startAddr, Uptr& endAddr)
 {
     int pos1 = str.Find('-');
@@ -232,7 +244,6 @@ static void GetSoAddrScope(const CString& str, Uptr& startAddr, Uptr& endAddr)
     endAddr = end > endAddr ? end : endAddr;
 }
 
-
 static void GetEachSoAddrScope(std::vector<CString>& soNameVec)
 {
     FILE* file = fopen("/proc/self/maps", "r");
@@ -241,7 +252,7 @@ static void GetEachSoAddrScope(std::vector<CString>& soNameVec)
         return;
     }
     const int bufSize = 1024;
-    char buf[bufSize] = { '\0' };
+    char buf[bufSize] = {'\0'};
     while (fgets(buf, bufSize, file) != nullptr) {
         CString lineStr(buf);
         int protPos = lineStr.Find(' ');
@@ -257,13 +268,73 @@ static void GetEachSoAddrScope(std::vector<CString>& soNameVec)
         if (it != soNameVec.end()) {
             if (strcmp(baseName, LIBCANGJIE_RUNTIME ".so\n") == 0) {
                 GetSoAddrScope(lineStr, StackManager::rtStartAddr, StackManager::rtEndAddr);
-            } else if  (strcmp(baseName, "cjc\n") == 0) {
+            } else if (strcmp(baseName, "cjc\n") == 0) {
                 GetSoAddrScope(lineStr, StackManager::cjcSoStartAddr, StackManager::cjcSoEndAddr);
+#ifdef INTERPRETER_ENABLED
+            } else {
+                GetSoAddrScope(lineStr, StackManager::interpreterSoStartAddr, StackManager::interpreterSoEndAddr);
+#endif
             }
         }
     }
     std::fclose(file);
 }
+
+#if defined(__OHOS__) || defined(__ANDROID__)
+// The runtime does not support static linking on OHOS and Android.
+// On Android, extractNativeLibs=false lets bionic map the shared object directly
+// from APK. /proc/self/maps then records the APK path instead of a plain so path,
+// so basename matching cannot reliably find libcangjie-runtime.so. Use a known
+// exported runtime symbol as an anchor to locate the loaded ELF image instead.
+static bool GetSoTextAddrScopeFromSymbol(const void* symbol, Uptr& startAddr, Uptr& endAddr)
+{
+    Dl_info info;
+    if (dladdr(symbol, &info) == 0 || info.dli_fbase == nullptr) {
+        return false;
+    }
+
+    // dli_fbase is the runtime load base of the shared object that owns symbol.
+    // Program headers are mapped at base + e_phoff for ET_DYN objects, so they can
+    // be parsed directly from process memory without reopening the so file.
+    const auto baseAddr = reinterpret_cast<Uptr>(info.dli_fbase);
+    const auto* ehdr = reinterpret_cast<const ElfW(Ehdr)*>(baseAddr);
+    if (memcmp(ehdr->e_ident, ELFMAG, SELFMAG) != 0 || ehdr->e_phoff == 0 || ehdr->e_phnum == 0) {
+        return false;
+    }
+
+    // Runtime frame detection only needs the executable code mapping. ELF loaders
+    // describe this mapping as PT_LOAD with PF_X; it corresponds to the text segment,
+    // not necessarily to the section named ".text".
+    Uptr textStart = STACK_ADDR_MAX;
+    Uptr textEnd = 0;
+    const auto* phdr = reinterpret_cast<const ElfW(Phdr)*>(baseAddr + ehdr->e_phoff);
+    for (uint16_t i = 0; i < ehdr->e_phnum; ++i) {
+        if (phdr[i].p_type != PT_LOAD || (phdr[i].p_flags & PF_X) == 0) {
+            continue;
+        }
+        Uptr segStart = baseAddr + static_cast<Uptr>(phdr[i].p_vaddr);
+        Uptr segEnd = segStart + static_cast<Uptr>(phdr[i].p_memsz);
+        textStart = segStart < textStart ? segStart : textStart;
+        textEnd = segEnd > textEnd ? segEnd : textEnd;
+    }
+
+    Uptr symbolAddr = reinterpret_cast<Uptr>(symbol);
+#if defined(__arm__)
+    // ARM32 may use the low bit to mark Thumb state. Clear it before comparing
+    // the function pointer against the executable segment address range.
+    symbolAddr &= ~static_cast<Uptr>(1);
+#endif
+    // Guard against accidentally using a symbol resolved from another object or a
+    // malformed ELF image. The anchor symbol must live inside the executable load.
+    if (textStart == STACK_ADDR_MAX || textEnd == 0 || symbolAddr < textStart || symbolAddr >= textEnd) {
+        return false;
+    }
+
+    startAddr = textStart;
+    endAddr = textEnd;
+    return true;
+}
+#endif
 #endif
 
 #if defined(__APPLE__) and !(defined(__IOS__) && !defined(COMPILE_DYNAMIC))
@@ -326,8 +397,11 @@ void StackManager::InitAddressScope()
 #endif
 // For iOS, use `dladdr` to obtain the dylib name and perform string comparison.
 #elif defined(__OHOS__) || defined(__ANDROID__) // OHOS, ANDROID
-    std::vector<CString> rtSoNameVec = { LIBCANGJIE_RUNTIME ".so\n" };
-    GetEachSoAddrScope(rtSoNameVec);
+    if (!GetSoTextAddrScopeFromSymbol(reinterpret_cast<const void*>(&MRT_LibraryOnLoad),
+        StackManager::rtStartAddr, StackManager::rtEndAddr)) {
+        std::vector<CString> rtSoNameVec = { LIBCANGJIE_RUNTIME ".so\n" };
+        GetEachSoAddrScope(rtSoNameVec);
+    }
 #else                                                            // Linux
     StackManager::rtStartAddr = reinterpret_cast<Uptr>(&g_runtimeDynamicStart);
     StackManager::rtEndAddr = reinterpret_cast<Uptr>(&g_runtimeDynamicEnd);
@@ -347,8 +421,8 @@ void StackManager::InitAddressScope()
 #endif
 
 // Init cjc address info.
-#if defined(__linux__) // Linux, ANDROID, OHOS
-    std::vector<CString> cjcSoNameVec = { "cjc\n" };
+#if defined(__linux__)
+    std::vector<CString> cjcSoNameVec = {"cjc\n"};
     GetEachSoAddrScope(cjcSoNameVec);
 #elif defined(_WIN64)                         // Windows
     InitAddressInfoOnWindows("cjc.exe", StackManager::cjcSoStartAddr, StackManager::cjcSoEndAddr);
@@ -356,6 +430,21 @@ void StackManager::InitAddressScope()
     InitAddressInfoOnDarwin("/cjc", StackManager::cjcSoStartAddr, StackManager::cjcSoEndAddr);
 #endif
 }
+
+#ifdef INTERPRETER_ENABLED
+void StackManager::InitAddressScopeForInterpreter(const char* libName)
+{
+#if defined(__linux__)
+    std::vector<CString> interpreterSoName = {CString(libName).Combine("\n").Str()};
+    GetEachSoAddrScope(interpreterSoName);
+#elif defined(__APPLE__) && !defined(__IOS__) // MacOS
+    InitAddressInfoOnDarwin(
+        CString(libName).Str(), StackManager::interpreterSoStartAddr, StackManager::interpreterSoEndAddr);
+#else
+    LOG(RTLOG_FATAL, "Unsupported platform for interpreter");
+#endif
+}
+#endif
 
 void InitAddressScopeForCJthreadTrace()
 {
@@ -397,7 +486,7 @@ void InitAddressScopeForCJthreadTrace()
             GetSoAddrScope(lineStr, StackManager::traceSoStartAddr, StackManager::traceSoEndAddr);
         }
     }
-    
+
     std::fclose(file);
     if (StackManager::traceSoStartAddr == STACK_ADDR_MAX && StackManager::traceSoEndAddr == 0) {
         LOG(RTLOG_FATAL, "can not find Runtime trace so");
@@ -418,7 +507,7 @@ bool StackManager::IsRuntimeFrame(Uptr pc)
     const void* addr = reinterpret_cast<const void*>(pc);
     if (dladdr(addr, &info) &&
         (EndWith(info.dli_fname, "/" LIBCANGJIE_RUNTIME ".dylib") ||
-         EndWith(info.dli_fname, "/" LIBCANGJIE_CJTHREAD_TRACE ".dylib"))) {
+            EndWith(info.dli_fname, "/" LIBCANGJIE_CJTHREAD_TRACE ".dylib"))) {
         return true;
     }
     return false;
@@ -426,7 +515,15 @@ bool StackManager::IsRuntimeFrame(Uptr pc)
     // For platforms that do not support macro expansion, such as iOS and HOS, second condition will always be true
     // because there is no display setting for the address info of cjc. The same logic applies to cjthread-trace.
     return (pc > rtStartAddr && pc < rtEndAddr) || (pc > cjThreadStartAddr && pc < cjThreadEndAddr) ||
-           (pc > cjcSoStartAddr && pc < cjcSoEndAddr) || (pc > traceSoStartAddr && pc < traceSoEndAddr);
+        (pc > cjcSoStartAddr && pc < cjcSoEndAddr) || (pc > traceSoStartAddr && pc < traceSoEndAddr);
 #endif
 }
+
+#ifdef INTERPRETER_ENABLED
+bool StackManager::IsInterpreterCodeAddr(Uptr addr)
+{
+    return interpreterSoStartAddr <= addr && addr < interpreterSoEndAddr;
+}
+#endif
+
 } // namespace MapleRuntime

@@ -164,10 +164,10 @@ public:
         return regionManager.ExemptFromRegions();
     }
 
-    size_t DontRefineFromSpace()
+    size_t RefineFromSpaceForFullGC()
     {
-        MRT_PHASE_TIMER("CalculateFromSpaceGarbage");
-        return regionManager.ExemptFromRegions(false);
+        MRT_PHASE_TIMER("RefineFullGCFromRegions");
+        return regionManager.RefineFullGCFromRegions();
     }
 
     BaseObject* RouteObject(BaseObject* fromObj) { return regionManager.RouteObject(fromObj); }

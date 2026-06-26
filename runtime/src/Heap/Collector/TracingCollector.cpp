@@ -281,6 +281,23 @@ void TracingCollector::RecordStubCalleeSaved(RegSlotsMap& regSlotsMap, Uptr fp)
     RegRoot::RecordStubCalleeSaved(regSlotsMap, fp);
 }
 
+#ifdef __arm__
+void TracingCollector::RecordC2NStubCalleeSaved(RegSlotsMap& regSlotsMap, Uptr fp)
+{
+    RegRoot::RecordC2NStubCalleeSaved(regSlotsMap, fp);
+}
+
+void TracingCollector::RecordC2RStackArgsStubCalleeSaved(RegSlotsMap& regSlotsMap, Uptr fp)
+{
+    RegRoot::RecordC2RStackArgsStubCalleeSaved(regSlotsMap, fp);
+}
+
+void TracingCollector::RecordExclusiveStubCalleeSaved(RegSlotsMap& regSlotsMap, Uptr fp)
+{
+    RegRoot::RecordExclusiveStubCalleeSaved(regSlotsMap, fp);
+}
+#endif
+
 void TracingCollector::RecordStubAllRegister(RegSlotsMap& regSlotsMap, Uptr fp)
 {
     RegRoot::RecordStubAllRegister(regSlotsMap, fp);
@@ -683,7 +700,7 @@ void TracingCollector::PostGarbageCollection(uint64_t gcIndex)
     TransitionToGCPhase(GCPhase::GC_PHASE_RECLAIM_SATB_NODE, true);
     SatbBuffer::Instance().ReclaimALLPages();
     PagePool::Instance().Trim();
-    collectorResources.NotifyGCFinished(gcIndex, gcReason);
+    collectorResources.NotifyGCFinished(gcIndex);
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     DumpAfterGC();

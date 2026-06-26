@@ -204,18 +204,22 @@ void CollectorResources::RequestGC(GCReason reason, bool async)
     }
 }
 
-void CollectorResources::NotifyGCFinished(uint64_t gcIndex, GCReason reason)
+void CollectorResources::NotifyGCFinished(uint64_t gcIndex)
 {
     std::unique_lock<std::mutex> lock(gcFinishedCondMutex);
     isGcStarted.store(false, std::memory_order_relaxed);
     if (gcIndex != GCTask::ASYNC_TASK_INDEX) { // sync gc, need set taskIndex
         finishedGcIndex.store(gcIndex);
     }
-    if (reason == GC_REASON_FULL) {
-        finishedFullGcCount.fetch_add(1, std::memory_order_relaxed);
-    }
     gcFinishedCondVar.notify_all();
     BroadcastGCCompletion();
+}
+
+void CollectorResources::NotifyFullGCFinished()
+{
+    std::unique_lock<std::mutex> lock(gcFinishedCondMutex);
+    finishedFullGcCount.fetch_add(1, std::memory_order_relaxed);
+    gcFinishedCondVar.notify_all();
 }
 
 void CollectorResources::WaitForGCFinish()
@@ -236,27 +240,6 @@ void CollectorResources::WaitForGCFinish()
     uint64_t stopTime = TimeUtil::MicroSeconds();
     uint64_t diffTime = stopTime - startTime;
     VLOG(REPORT, "WaitForGCFinish cost %zu us", diffTime);
-}
-
-void CollectorResources::WaitUntilUserGCFinished()
-{
-    
-    std::unique_lock<std::mutex> lock(gcFinishedCondMutex);
-    if (!IsGcStarted()) {
-        return;
-    }
-
-    if (collectorProxy.GetCurrentCollector().GetGCReason() != GC_REASON_USER_SYNC) {
-        return;
-    }
-    
-    ScopedEnterSaferegion enterSaferegion(false);
-    uint64_t curWaitGcIndex = finishedGcIndex.load();
-    std::function<bool()> pred = [this, curWaitGcIndex] {
-        return (!IsGcStarted() || (curWaitGcIndex != finishedGcIndex) ||
-                (finishedGcIndex == GCTask::TASK_INDEX_FOR_EXIT));
-    };
-    gcFinishedCondVar.wait(lock, pred);
 }
 
 void CollectorResources::StartGCThreads()

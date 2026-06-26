@@ -183,6 +183,11 @@ public:
                                            RegSlotsMap& regSlotsMap, const FrameInfo& frame, Mutator& mutator);
 
     static void RecordStubCalleeSaved(RegSlotsMap& regSlotsMap, Uptr fp);
+#ifdef __arm__
+    static void RecordC2NStubCalleeSaved(RegSlotsMap& regSlotsMap, Uptr fp);
+    static void RecordC2RStackArgsStubCalleeSaved(RegSlotsMap& regSlotsMap, Uptr fp);
+    static void RecordExclusiveStubCalleeSaved(RegSlotsMap& regSlotsMap, Uptr fp);
+#endif
     static void RecordStubAllRegister(RegSlotsMap& regSlotsMap, Uptr fp);
     // Types, so that we don't confuse root sets and working stack.
     // The policy is: we simply `push_back` into root set,
@@ -323,7 +328,7 @@ protected:
     U32 snapshotFinalizerNum = 0;
 
     // reason for current GC.
-    GCReason gcReason = GC_REASON_USER_ASYNC;
+    GCReason gcReason = GC_REASON_USER;
 
     // indicate whether to fix references (including global roots and reference fields).
     // this member field is useful for optimizing concurrent copying gc.

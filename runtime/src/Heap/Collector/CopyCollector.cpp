@@ -54,14 +54,18 @@ void CopyCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
 
     if (isFullGC) {
         ScopedStopTheWorld4FullGC stw("Full GC");
-        DoGarbageCollection();
+        DoFullGarbageCollection();
     } else {
         DoGarbageCollection();
     }
-    
 
-    if (reason == GC_REASON_OOM  || reason == GC_REASON_USER_SYNC || reason == GC_REASON_FULL) {
+
+    if (reason == GC_REASON_OOM  || reason == GC_REASON_USER || reason == GC_REASON_FULL) {
         Heap::GetHeap().GetAllocator().ReclaimGarbageMemory(true);
+    }
+
+    if (reason == GC_REASON_FULL) {
+        Heap::GetHeap().GetAllocator().ReclaimGarbageMemory(false);
     }
 
     PostGarbageCollection(gcIndex);
@@ -75,6 +79,9 @@ void CopyCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
     g_gcTotalTimeUs += (gcTimeNs / NS_PER_US);
     g_gcCollectedTotalBytes += gcStats.collectedBytes;
     gcStats.collectionRate = rate;
+    if (isFullGC) {
+        collectorResources.NotifyFullGCFinished();
+    }
 }
 
 void CopyCollector::ForwardFromSpace()
@@ -96,7 +103,7 @@ void CopyCollector::RefineFromSpace()
     if (!isFullGC) {
         stats.smallGarbageSize = space.RefineFromSpace();
     } else {
-        stats.smallGarbageSize = space.DontRefineFromSpace();
+        stats.smallGarbageSize = space.RefineFromSpaceForFullGC();
     }
 }
 } // namespace MapleRuntime

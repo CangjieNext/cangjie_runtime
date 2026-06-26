@@ -271,14 +271,7 @@ public:
     {
         while (true) {
             T task = Dequeue();
-            if (task.GetGCReason() == GCReason::GC_REASON_USER_SYNC) {
-                // printf("GC task dequeue: type %u, reason %u\n", task.GetType(), task.GetGCReason());
-            } else if (task.GetGCReason() == GCReason::GC_REASON_USER_ASYNC) {
-                static int gcTaskCount = 0;
-                if (gcTaskCount++ % 1000 == 0) {
-                    printf("This is an async gc task\n");
-                }
-            } else if (task.GetGCReason() == GCReason::GC_REASON_FULL) {
+            if (task.GetGCReason() == GCReason::GC_REASON_FULL) {
                 printf("This is a full gc task\n");
             }
             // if (task.GetGCReason() == GCReason::GC_REASON_HEU) continue;
