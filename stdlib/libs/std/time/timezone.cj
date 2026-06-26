@@ -552,6 +552,9 @@ func parseTZHeader(footer: String): (String, Int64, String, Int64, String) {
     (stdOffset, rest) = parseTZOffset(rest)
     stdOffset = -stdOffset
 
+    if (rest.size == 0) {
+        return (stdName, stdOffset, "", Int64.Max, rest)
+    }
     (dstName, rest) = parseTZName(rest)
     if (rest.size == 0 || rest[0] == b',') {
         dstOffset = stdOffset + SECS_PER_HOUR
@@ -655,6 +658,9 @@ func swap<T>(left: T, right: T): (T, T) {
  */
 func parseTZName(footer: String): (String, String) {
     // The size of the footer is determined to be greater than zero
+    if (footer.size == 0) {
+        throw InvalidDataException("Failed to parse the timezone data.")
+    }
     let strLen = footer.size
     if (footer[0] == b'<') {
         for (i in 0..strLen) {

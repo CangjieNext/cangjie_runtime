@@ -1187,7 +1187,7 @@ func stableSort<T>(data: Array<T>, compare: (T, T) -> Ordering): Unit {
 // Temporary code, deleted when @Deprecated ends
 extend<T> Array<T> {
     @OverflowWrapping
-    func reverseRange(start: Int64, finish: Int64): Unit {
+    private func reverseRange(start: Int64, finish: Int64): Unit {
         var i = start
         var j = finish
         while (i < j) {
@@ -1198,7 +1198,7 @@ extend<T> Array<T> {
     }
 
     @OverflowWrapping
-    func moveEqualPrefixAfterDescendingRun(start: Int64, equalCount: Int64, runLength: Int64, scratch: TempArray<T>): Unit {
+    private func moveEqualPrefixAfterDescendingRun(start: Int64, equalCount: Int64, runLength: Int64, scratch: TempArray<T>): Unit {
         if (equalCount == 1) {
             reverseRange(start, start + runLength)
             return
@@ -2077,7 +2077,7 @@ extend<T> Array<T> {
 // Temporary code, deleted when @Deprecated ends
 extend<T> Array<T> {
     // the value range of the parameter: 0 <= i1 < i2 <= array.size - 1
-    func compareSwap2(i1: Int64, i2: Int64, compare: (T, T) -> Ordering) {
+    private func compareSwap2(i1: Int64, i2: Int64, compare: (T, T) -> Ordering) {
         let a: T = this[i1]
         let left: T = this[i2]
         match (compare(a, left)) {
@@ -2091,7 +2091,7 @@ extend<T> Array<T> {
     // the value range of the parameter: 0 <= i1 < i2 < i3 <= array.size - 1
     // Ordering.LT/EQ: a <= left <= c
     // Ordering.GT   : a >= left >= c
-    func compareSwap3(i1: Int64, i2: Int64, i3: Int64, compare: (T, T) -> Ordering) {
+    private func compareSwap3(i1: Int64, i2: Int64, i3: Int64, compare: (T, T) -> Ordering) {
         var a: T = this[i1]
         var left: T = this[i2]
         var c: T = this[i3]
@@ -2117,7 +2117,7 @@ extend<T> Array<T> {
     }
 
     @OverflowWrapping
-    func getMinRunLength() {
+    private func getMinRunLength() {
         var runLength = this.size
         var r: Int64 = 0
         while (runLength >= 64) {
@@ -2140,7 +2140,7 @@ extend<T> Array<T> {
 
     // the value range of the parameter: 0 <= start < finish <= array.size - 1
     @OverflowWrapping
-    func insertionSort(start: Int64, finish: Int64, compare: (T, T) -> Ordering): Unit {
+    private func insertionSort(start: Int64, finish: Int64, compare: (T, T) -> Ordering): Unit {
         var i: Int64 = start + 1
         while (i <= finish) {
             var candidate = this[i]
@@ -2159,7 +2159,7 @@ extend<T> Array<T> {
     }
 
     @OverflowWrapping
-    func getEqualPrefixInfoByComparator(
+    private func getEqualPrefixInfoByComparator(
         start: Int64,
         finish: Int64,
         compare: (T, T) -> Ordering
@@ -2192,7 +2192,7 @@ extend<T> Array<T> {
     }
 
     @OverflowWrapping
-    func handleShortSequenceByComparator(start: Int64, finish: Int64, equalCount: Int64, ascending: Bool): Int64 {
+    private func handleShortSequenceByComparator(start: Int64, finish: Int64, equalCount: Int64, ascending: Bool): Int64 {
         if (!ascending) {
             let te = this[finish]
             this.copyTo(this, start, start + 1, equalCount)
@@ -2202,7 +2202,7 @@ extend<T> Array<T> {
     }
 
     @OverflowWrapping
-    func countAscendingRunByComparator(start: Int64, finish: Int64, compare: (T, T) -> Ordering): Int64 {
+    private func countAscendingRunByComparator(start: Int64, finish: Int64, compare: (T, T) -> Ordering): Int64 {
         var left = start
         var runLength: Int64 = 1
         while (left + 1 <= finish) {
@@ -2217,7 +2217,7 @@ extend<T> Array<T> {
     }
 
     @OverflowWrapping
-    func countDescendingRunByComparator(start: Int64, finish: Int64, compare: (T, T) -> Ordering): Int64 {
+    private func countDescendingRunByComparator(start: Int64, finish: Int64, compare: (T, T) -> Ordering): Int64 {
         var left = start
         var runLength: Int64 = 1
         while (left + 1 <= finish) {
@@ -2234,7 +2234,7 @@ extend<T> Array<T> {
     // the value range of the parameter: 0 <= start < finish <= array.size - 1
     // finish - start >= 1
     @OverflowWrapping
-    func getSequenceLength(start: Int64, finish: Int64, scratch: TempArray<T>, compare: (T, T) -> Ordering): Int64 {
+    private func getSequenceLength(start: Int64, finish: Int64, scratch: TempArray<T>, compare: (T, T) -> Ordering): Int64 {
         var (left, equalCount, ascending) = getEqualPrefixInfoByComparator(start, finish, compare)
         if (left >= finish) {
             return equalCount
@@ -2254,7 +2254,7 @@ extend<T> Array<T> {
     // the original relative positions of equal elements are not guaranteed.
     // the value range of the parameter: 0 <= start < finish <= array.size - 1
     @OverflowWrapping
-    func binaryInsertionSort(start: Int64, finish: Int64, compare: (T, T) -> Ordering, runLength: Int64) {
+    private func binaryInsertionSort(start: Int64, finish: Int64, compare: (T, T) -> Ordering, runLength: Int64) {
         var i = start + runLength
         while (i <= finish) {
             let candidate = this[i]
@@ -2278,7 +2278,7 @@ extend<T> Array<T> {
 
     // the value range of the parameter: 0 <= start < finish <= array.size - 1
     @OverflowWrapping
-    func heapify(start: Int64, finish: Int64, root: Int64, compare: (T, T) -> Ordering): Unit {
+    private func heapify(start: Int64, finish: Int64, root: Int64, compare: (T, T) -> Ordering): Unit {
         var parentIndex: Int64 = root
         var childIndex = (parentIndex << 1) + 1 // parentIndex * 2 + 1
         while (start + childIndex <= finish) {
@@ -2309,7 +2309,7 @@ extend<T> Array<T> {
 
     // the value range of the parameter: 0 <= start < finish <= array.size - 1
     @OverflowWrapping
-    func heapSort(start: Int64, finish: Int64, compare: (T, T) -> Ordering): Unit {
+    private func heapSort(start: Int64, finish: Int64, compare: (T, T) -> Ordering): Unit {
         let span = finish - start + 1
         var i = (span >> 1) - 1
 
@@ -2331,7 +2331,7 @@ extend<T> Array<T> {
 
     // The queried position is just greater than and equal the previous value.
     @OverflowWrapping
-    func binaryQueryGT(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
+    private func binaryQueryGT(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
         var l = start
         var r = start + span
         while (l < r) {
@@ -2346,7 +2346,7 @@ extend<T> Array<T> {
 
     // The queried position is just less than and equal the next value.
     @OverflowWrapping
-    func binaryQueryLT(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
+    private func binaryQueryLT(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
         var l = start
         var r = start + span
         while (l < r) {
@@ -2361,7 +2361,7 @@ extend<T> Array<T> {
 
     // The queried position is just greater than and equal the previous value.
     @OverflowWrapping
-    func queryGTFromRight(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
+    private func queryGTFromRight(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
         var gallopMax = span
         let finish = start + span - 1
         if (span > 64) {
@@ -2389,7 +2389,7 @@ extend<T> Array<T> {
     }
 
     @OverflowWrapping
-    func queryGTFromLeft(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
+    private func queryGTFromLeft(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
         var gallopMax = span
         if (span > 64) {
             let gallopMid = Int64(sqrt(Float64(span)))
@@ -2416,7 +2416,7 @@ extend<T> Array<T> {
     }
 
     @OverflowWrapping
-    func queryGT(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering, r: Bool) {
+    private func queryGT(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering, r: Bool) {
         if (r) {
             return queryGTFromRight(candidate, start, span, compare)
         }
@@ -2425,7 +2425,7 @@ extend<T> Array<T> {
 
     // The queried position is just less than and equal the next value.
     @OverflowWrapping
-    func queryLTFromRight(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
+    private func queryLTFromRight(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
         var gallopMax = span
         let finish = start + span - 1
         if (span > 64) {
@@ -2453,7 +2453,7 @@ extend<T> Array<T> {
     }
 
     @OverflowWrapping
-    func queryLTFromLeft(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
+    private func queryLTFromLeft(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
         var gallopMax = span
         if (span > 64) {
             let gallopMid = Int64(sqrt(Float64(span)))
@@ -2480,7 +2480,7 @@ extend<T> Array<T> {
     }
 
     @OverflowWrapping
-    func queryLT(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering, r: Bool) {
+    private func queryLT(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering, r: Bool) {
         if (r) {
             return queryLTFromRight(candidate, start, span, compare)
         }
