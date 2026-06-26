@@ -758,14 +758,14 @@ func initStdStream(processRtnData: ProcessRtnData): (OutputStream, InputStream, 
 }
 
 @When[os != "Windows"]
-func buildCommandCStringArray(command: String, arguments: Array<String>): Array<CString> {
+private func buildCommandCStringArray(command: String, arguments: Array<String>): Array<CString> {
     let cmdArgCombinList: ArrayList<String> = ArrayList<String>.of(command)
     cmdArgCombinList.add(all: arguments)
     return cmdArgCombinList |> map {arg: String => unsafe { LibC.mallocCString(arg) }} |> collectCStringArray
 }
 
 @When[os != "Windows"]
-func buildEnvironmentCStringArray(environment: ?Map<String, String>): Array<CString> {
+private func buildEnvironmentCStringArray(environment: ?Map<String, String>): Array<CString> {
     // if environment is None, it will be use current environment which from it's parent's process.
     return match (environment) {
         case Some(env) => env |> map<(String, String), CString> {
@@ -780,7 +780,7 @@ func buildEnvironmentCStringArray(environment: ?Map<String, String>): Array<CStr
 }
 
 @When[os != "Windows"]
-func freeCStringArray(cStringArr: Array<CString>) {
+private func freeCStringArray(cStringArr: Array<CString>) {
     unsafe {
         for (cStr in cStringArr) {
             LibC.free(cStr)
@@ -789,7 +789,10 @@ func freeCStringArray(cStringArr: Array<CString>) {
 }
 
 @When[os != "Windows"]
-func getEnvironmentPointer(environment: ?Map<String, String>, environment_cpHandle: CPointerHandle<CString>): CPointer<CString> {
+private func getEnvironmentPointer(
+    environment: ?Map<String, String>,
+    environment_cpHandle: CPointerHandle<CString>
+): CPointer<CString> {
     if (let Some(_) <- environment) {
         environment_cpHandle.pointer
     } else {
@@ -798,7 +801,7 @@ func getEnvironmentPointer(environment: ?Map<String, String>, environment_cpHand
 }
 
 @When[os != "Windows"]
-func checkedProcessRtnData(processRtnData_cp: CPointer<ProcessRtnData>): ProcessRtnData {
+private func checkedProcessRtnData(processRtnData_cp: CPointer<ProcessRtnData>): ProcessRtnData {
     if (processRtnData_cp.isNull()) {
         throw ProcessException("Created process failed.")
     }
@@ -810,7 +813,7 @@ func checkedProcessRtnData(processRtnData_cp: CPointer<ProcessRtnData>): Process
 }
 
 @When[os != "Windows"]
-func checkedProcessInfo(processRtnData: ProcessRtnData): CPointer<ProcessInfo> {
+private func checkedProcessInfo(processRtnData: ProcessRtnData): CPointer<ProcessInfo> {
     let processInfo_cp = unsafe { CJ_OS_GetProcessInfoByPid(processRtnData.pid) }
     if (processInfo_cp.isNull()) {
         throw ProcessException("Created process failed.")
@@ -819,7 +822,7 @@ func checkedProcessInfo(processRtnData: ProcessRtnData): CPointer<ProcessInfo> {
 }
 
 @When[os != "Windows"]
-func buildSubProcessFromInfo(processRtnData: ProcessRtnData, processInfo: ProcessInfo): SubProcess {
+private func buildSubProcessFromInfo(processRtnData: ProcessRtnData, processInfo: ProcessInfo): SubProcess {
     let pid: Int32 = processRtnData.pid
     let (commandInfo, name, workDirPath, argumentsInfo, commandLine, environments) = getProcessInfo(processInfo)
     let (stdInStream, stdOutStream, stdErrStream) = initStdStream(processRtnData)
@@ -828,7 +831,7 @@ func buildSubProcessFromInfo(processRtnData: ProcessRtnData, processInfo: Proces
 }
 
 @When[os != "Windows"]
-func waitStartedProcessOnFailure(processRtnData_cp: CPointer<ProcessRtnData>) {
+private func waitStartedProcessOnFailure(processRtnData_cp: CPointer<ProcessRtnData>) {
     if (!processRtnData_cp.isNull()) {
         let processRtnData: ProcessRtnData = unsafe { processRtnData_cp.read() }
         if (processRtnData.pid != 0) {
@@ -838,15 +841,12 @@ func waitStartedProcessOnFailure(processRtnData_cp: CPointer<ProcessRtnData>) {
 }
 
 @When[os != "Windows"]
-func releaseSubProcessBuildResources(
+private func releaseSubProcessCStringResources(
     command_c: CString,
     cmdArg_cArr: Array<CString>,
     cmdArg_cpHandle: CPointerHandle<CString>,
     environment_cArr: Array<CString>,
-    environment_cpHandle: CPointerHandle<CString>,
-    processInfo_cp: CPointer<ProcessInfo>,
-    processRtnData_cp: CPointer<ProcessRtnData>,
-    processStartInfo_cp: CPointer<ProcessStartInfo>
+    environment_cpHandle: CPointerHandle<CString>
 ) {
     unsafe {
         if (!command_c.isNull()) {
@@ -856,6 +856,16 @@ func releaseSubProcessBuildResources(
         releaseArrayRawData<CString>(cmdArg_cpHandle)
         freeCStringArray(environment_cArr)
         releaseArrayRawData<CString>(environment_cpHandle)
+    }
+}
+
+@When[os != "Windows"]
+private func releaseSubProcessNativeResources(
+    processInfo_cp: CPointer<ProcessInfo>,
+    processRtnData_cp: CPointer<ProcessRtnData>,
+    processStartInfo_cp: CPointer<ProcessStartInfo>
+) {
+    unsafe {
         CJ_OS_FreeProcessInfo(processInfo_cp)
         CJ_OS_FreeProcessRtnData(processRtnData_cp)
         CJ_OS_FreeProcessStartInfo(processStartInfo_cp)
@@ -903,8 +913,9 @@ func buildSubProcess(command: String, arguments: Array<String>, workingDir_c: CS
         waitStartedProcessOnFailure(processRtnData_cp)
         throw e
     } finally {
-        releaseSubProcessBuildResources(command_c, cmdArg_cArr, cmdArg_cpHandle, environment_cArr, environment_cpHandle,
-            processInfo_cp, processRtnData_cp, processStartInfo_cp)
+        releaseSubProcessCStringResources(command_c, cmdArg_cArr, cmdArg_cpHandle, environment_cArr,
+            environment_cpHandle)
+        releaseSubProcessNativeResources(processInfo_cp, processRtnData_cp, processStartInfo_cp)
     }
 
     return subProcess

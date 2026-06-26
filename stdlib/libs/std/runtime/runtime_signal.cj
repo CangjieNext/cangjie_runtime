@@ -85,7 +85,7 @@ public func unregisterSignalHandler(sig: Signal, handler: SignalHandlerFunc): Un
 }
 
 @When[os != "Windows"]
-private func resetAllSignalHandlers(): Unit {
+private func resetAllSignalHandlersLocked(): Unit {
     for (i in 0..SignalManager.sigSlot.size) {
         if (!SignalManager.sigSlot[i].isEmpty()) {
             SignalManager.sigSlot[i].clear()
@@ -95,7 +95,7 @@ private func resetAllSignalHandlers(): Unit {
 }
 
 @When[os != "Windows"]
-private func resetSelectedSignalHandlers(sigs: Array<Signal>): Unit {
+private func resetSelectedSignalHandlersLocked(sigs: Array<Signal>): Unit {
     for (sig in sigs) {
         if (sig.value <= 0 || sig.value >= SignalManager.MAX_SIG_NUM) {
             throw IllegalArgumentException("Signal value must > 0 and < ${SignalManager.MAX_SIG_NUM}.")
@@ -113,9 +113,9 @@ private func resetSelectedSignalHandlers(sigs: Array<Signal>): Unit {
 public func resetSignalHandler(sigs: Array<Signal>): Unit {
     synchronized(mtx) {
         if (sigs.size == 0) {
-            resetAllSignalHandlers()
+            resetAllSignalHandlersLocked()
         } else {
-            resetSelectedSignalHandlers(sigs)
+            resetSelectedSignalHandlersLocked(sigs)
         }
     }
 }
