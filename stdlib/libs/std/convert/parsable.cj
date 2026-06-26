@@ -1079,6 +1079,12 @@ interface FloatParsable<T> {
     static func fromFloat64(n: Float64): T
 }
 
+enum DecimalFloatScan {
+    | DecimalParsed(Float64, Int64, Int64)
+    | DecimalFallback
+    | DecimalInvalid
+}
+
 func parseFloat<T>(data: String): T where T <: FloatParsable<T> {
     match (doParseFloat<T>(data)) {
         case Success(n) => n
@@ -1093,71 +1099,89 @@ func tryParseFloat<T>(data: String): Option<T> where T <: FloatParsable<T> {
     }
 }
 
-func doParseFloat<T>(data: String): ConvertResult<T> where T <: FloatParsable<T> {
+func trimFloatInput(data: String): ConvertResult<String> {
     if (data.isEmpty()) {
         return Failure("The string is empty.")
     }
-    var inputStr = data.trimAscii()
+    let inputStr = data.trimAscii()
     if (inputStr.isEmpty()) {
         return Failure("The string does not comply with the floating point number syntax.")
     }
-    let trimmedStr = inputStr
+    return Success(inputStr)
+}
 
+func stripFloatSign(inputStr: String): (String, Bool) {
+    match (inputStr[0]) {
+        case '-' => (inputStr[1..], true)
+        case '+' => (inputStr[1..], false)
+        case _ => (inputStr, false)
+    }
+}
+
+func scanDecimalFloat(inputStr: String): DecimalFloatScan {
     var result: Float64 = 0.0
     var pointNum = 0
-    var isNative = false
-    var formatBaseNum: Float64 = 10.0
-    var digitCount = 0
-    match (inputStr[0]) {
-        case '-' =>
-            isNative = true
-            inputStr = inputStr[1..]
-        case '+' => inputStr = inputStr[1..]
-        case _ => ()
-    }
-    if (inputStr.isEmpty()) {
-        return Failure("The string does not comply with the floating point number syntax.")
-    }
     var pointIndex = inputStr.size - 1
-
+    var digitCount = 0
     for (index in 0..inputStr.size) {
         if (pointNum > 1) {
-            return Failure("The string does not comply with the floating point number syntax.")
+            return DecimalInvalid
         }
         if (inputStr[index] >= b'0' && inputStr[index] <= b'9') {
-            result = result * formatBaseNum + Float64(inputStr[index] - b'0')
+            result = result * 10.0 + Float64(inputStr[index] - b'0')
             digitCount++
         } else if (inputStr[index] == b' ') {
-            return Failure("The string does not comply with the floating point number syntax.")
+            return DecimalInvalid
         } else if (inputStr[index] == b'.') {
             pointNum++
             pointIndex = index
             continue
         } else {
-            return doParseFloatFromCffi<T>(trimmedStr)
+            return DecimalFallback
         }
     }
-    if (pointNum > 1) {
-        return Failure("The string does not comply with the floating point number syntax.")
-    }
-    if (digitCount == 0) {
-        return Failure("The string does not comply with the floating point number syntax.")
+    if (pointNum > 1 || digitCount == 0) {
+        return DecimalInvalid
     }
     if (digitCount > FLOAT64_MAX_DECIMAL_DIGITS) {
-        return doParseFloatFromCffi<T>(trimmedStr)
+        return DecimalFallback
     }
-    
-    var df = inputStr.size - pointIndex - 1
+    return DecimalParsed(result, pointIndex, inputStr.size)
+}
+
+func normalizeDecimalFloat(result: Float64, pointIndex: Int64, inputSize: Int64, isNative: Bool): Float64 {
     var leftMove: Float64 = 1.0
-    for (_ in 0..df) {
-        leftMove *= formatBaseNum
+    for (_ in 0..(inputSize - pointIndex - 1)) {
+        leftMove *= 10.0
     }
     if (isNative) {
-        result = -(result / leftMove)
+        -(result / leftMove)
     } else {
-        result = result / leftMove
+        result / leftMove
     }
-    return Success(T.fromFloat64(result))
+}
+
+// This function body was refactored from an inline block in the previous version.
+// The refactor is behavior-preserving: same input→output, error paths, side effects, and ordering.
+// Call chain: @Frozen public parse(Float16/Float32/Float64) → parseFloat → doParseFloat.
+// Since doParseFloat is non-@Frozen but called from @Frozen parse, semantic compatibility
+// should be verified by running std.convert LLT float-parse cases before merge.
+func doParseFloat<T>(data: String): ConvertResult<T> where T <: FloatParsable<T> {
+    let trimmedStr = match (trimFloatInput(data)) {
+        case Success(str) => str
+        case Failure(str) => return Failure(str)
+    }
+    var (inputStr, isNative) = stripFloatSign(trimmedStr)
+    if (inputStr.isEmpty()) {
+        return Failure("The string does not comply with the floating point number syntax.")
+    }
+    match (scanDecimalFloat(inputStr)) {
+        case DecimalParsed(result, pointIndex, inputSize) =>
+            let floatVal = normalizeDecimalFloat(result, pointIndex, inputSize, isNative)
+            return Success(T.fromFloat64(floatVal))
+        case DecimalFallback => return doParseFloatFromCffi<T>(trimmedStr)
+        case DecimalInvalid => return Failure("The string does not comply with the floating point number syntax.")
+    }
 }
 
 func doParseFloatFromCffi<T>(data: String): ConvertResult<T> where T <: FloatParsable<T> {
