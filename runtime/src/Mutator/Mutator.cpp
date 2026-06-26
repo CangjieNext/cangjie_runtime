@@ -568,6 +568,15 @@ inline void Mutator::GcPhaseEnum(GCPhase newPhase)
     VisitMutatorRoots(visitor);
 }
 
+inline void Mutator::ForwardLocalFinalizers(Collector& collector)
+{
+    WCollector& wcollector = reinterpret_cast<WCollector&>(collector);
+    RootVisitor visitor = [&wcollector](ObjectRef& root) { wcollector.ForwardUpdateRawRef(root); };
+    for (BaseObject*& obj : localFinalizers) {
+        visitor(reinterpret_cast<ObjectRef&>(obj));
+    }
+}
+
 inline void Mutator::GCPhasePreForward(GCPhase newPhase)
 {
     std::set<BaseObject*> rootSet;
@@ -621,15 +630,6 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
     };
     VisitHeapReferences(visitor, derivedPtrVisitor);
     ForwardLocalFinalizers(collector);
-}
-
-void Mutator::ForwardLocalFinalizers(Collector& collector)
-{
-    WCollector& wcollector = reinterpret_cast<WCollector&>(collector);
-    RootVisitor visitor = [&wcollector](ObjectRef& root) { wcollector.ForwardUpdateRawRef(root); };
-    for (BaseObject*& obj : localFinalizers) {
-        visitor(reinterpret_cast<ObjectRef&>(obj));
-    }
 }
 
 inline void Mutator::HandleGCPhase(GCPhase newPhase)
