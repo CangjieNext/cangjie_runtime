@@ -14,6 +14,7 @@
 #include "Collector/CopyCollector.h"
 #include "Common/ScopedObjectAccess.h"
 #include "Concurrency/ConcurrencyModel.h"
+#include "CangjieRuntime.h"
 #include "ObjectModel/RefField.inline.h"
 #include "MutatorManager.h"
 #include "StackManager.h"
@@ -26,6 +27,7 @@
 #include "WinModuleManager.h"
 #endif
 #include "CpuProfiler/CpuProfiler.h"
+#include <vector>
 
 namespace MapleRuntime {
 namespace {
@@ -148,12 +150,20 @@ void Mutator::HandleSuspensionRequest()
         SetInSaferegion(SAFE_REGION_TRUE);
         if (HasSuspensionRequest(SUSPENSION_FOR_GC_PHASE)) {
             TransitionGCPhase(true);
+#ifdef MRT_USE_MARK_SWEEP
+        } else if (HasSuspensionRequest(SUSPENSION_FOR_GC_ENUM_ASSIST)) {
+            HandleEnumAssist();
+#endif
         } else if (HasSuspensionRequest(SUSPENSION_FOR_CPU_PROFILE)) {
             TransitionToCpuProfile(true);
         } else if (HasSuspensionRequest(SUSPENSION_FOR_SYNC)) {
             SuspendForSync();
             if (HasSuspensionRequest(SUSPENSION_FOR_GC_PHASE)) {
                 TransitionGCPhase(true);
+#ifdef MRT_USE_MARK_SWEEP
+            } else if (HasSuspensionRequest(SUSPENSION_FOR_GC_ENUM_ASSIST)) {
+                HandleEnumAssist();
+#endif
             } else if (HasSuspensionRequest(SUSPENSION_FOR_CPU_PROFILE)) {
                 TransitionToCpuProfile(true);
             }
@@ -174,6 +184,14 @@ void Mutator::HandleSuspensionRequest()
             // safe region.
             SetSuspensionFlag(SUSPENSION_FOR_SYNC);
         }
+#ifdef MRT_USE_MARK_SWEEP
+        if (deferEnumAssistUntilNextSafepoint_) {
+            deferEnumAssistUntilNextSafepoint_ = false;
+            if (GetSuspensionFlag() == SUSPENSION_FOR_GC_ENUM_ASSIST && !HasObserver()) {
+                return;
+            }
+        }
+#endif
         // Leave saferegion if current mutator has no suspend request, otherwise try again
         if (LIKELY(!HasAnySuspensionRequest() && !HasObserver())) {
             return;
@@ -601,14 +619,67 @@ inline void Mutator::HandleGCPhase(GCPhase newPhase)
 #endif // MRT_USE_MARK_SWEEP
 }
 
-void Mutator::TransitionToGCPhaseExclusive(GCPhase newPhase)
+void Mutator::TransitionToGCPhaseExclusive(GCPhase newPhase, bool bySelf)
 {
     HandleGCPhase(newPhase);
     SetSafepointActive(false);
     // Clear mutator's suspend request after phase transition
     ClearSuspensionFlag(SUSPENSION_FOR_GC_PHASE);
     SetMutatorPhase(newPhase); // handshake between muator & mainGC thread
+#ifdef MRT_USE_MARK_SWEEP
+    if (bySelf && newPhase == GCPhase::GC_PHASE_MS_MARK_SETUP &&
+        MutatorManager::Instance().HasPendingEnumAssist(newPhase)) {
+        SetSuspensionFlag(SUSPENSION_FOR_GC_ENUM_ASSIST);
+        SetSafepointActive(true);
+        deferEnumAssistUntilNextSafepoint_ = true;
+    }
+#endif
 }
+
+#ifdef MRT_USE_MARK_SWEEP
+void Mutator::HandleEnumAssist()
+{
+    GCPhase phase = Heap::GetHeap().GetGCPhase();
+    if (phase != GCPhase::GC_PHASE_MS_MARK_SETUP) {
+        ClearSuspensionFlag(SUSPENSION_FOR_GC_ENUM_ASSIST);
+        if (!HasAnySuspensionRequest() && !HasObserver()) {
+            SetSafepointActive(false);
+        }
+        return;
+    }
+
+    size_t batchSize = CangjieRuntime::GetGCParam().msEnumAssistBatchSize;
+    if (batchSize == 0) {
+        batchSize = 10;
+    }
+
+    std::vector<Mutator*> claimed;
+    claimed.reserve(batchSize);
+    if (MutatorManager::Instance().ClaimEnumAssistBatch(phase, batchSize, claimed) == 0) {
+        if (!MutatorManager::Instance().HasPendingEnumAssist(phase)) {
+            ClearSuspensionFlag(SUSPENSION_FOR_GC_ENUM_ASSIST);
+            if (!HasAnySuspensionRequest() && !HasObserver()) {
+                SetSafepointActive(false);
+            }
+        }
+        return;
+    }
+
+    for (Mutator* candidate : claimed) {
+        if (candidate == nullptr || candidate == this || !candidate->InSaferegion()) {
+            continue;
+        }
+        (void)candidate->TransitionGCPhase(false);
+    }
+
+    if (!MutatorManager::Instance().HasPendingEnumAssist(phase)) {
+        ClearSuspensionFlag(SUSPENSION_FOR_GC_ENUM_ASSIST);
+        if (!HasAnySuspensionRequest() && !HasObserver()) {
+            SetSafepointActive(false);
+        }
+    }
+}
+#endif
 
 inline void Mutator::HandleCpuProfile()
 {

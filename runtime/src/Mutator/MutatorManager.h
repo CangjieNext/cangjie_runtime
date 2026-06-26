@@ -12,6 +12,7 @@
 #include <list>
 #include <mutex>
 #include <unordered_set>
+#include <vector>
 
 #include "Base/AtomicSpinLock.h"
 #include "Base/Globals.h"
@@ -166,6 +167,13 @@ public:
     void EnsurePhaseTransition(GCPhase phase, std::list<Mutator*> &undoneMutators);
     void TransitionAllMutatorsToGCPhase(GCPhase phase);
 
+#ifdef MRT_USE_MARK_SWEEP
+    bool HasPendingEnumAssist(GCPhase phase);
+    size_t ClaimEnumAssistBatch(GCPhase phase, size_t batchSize, std::vector<Mutator*>& claimed);
+    void UpdateEnumAssistRemaining(GCPhase phase, size_t remaining);
+    void FinalizeEnumAssistContext(GCPhase phase);
+#endif
+
     void EnsureCpuProfileFinish(std::list<Mutator*> &undoneMutators);
     void TransitionAllMutatorsToCpuProfile();
 
@@ -253,6 +261,17 @@ private:
     std::atomic<bool> worldStopped = { false };
     std::list<Mutator*> undoneLightSyncMutators;
     GCPhase lightSyncGCPhase;
+
+#ifdef MRT_USE_MARK_SWEEP
+    struct EnumAssistContext {
+        std::mutex lock;
+        GCPhase phase = GCPhase::GC_PHASE_UNDEF;
+        bool active = false;
+        size_t claimCursor = 0;
+        size_t remaining = 0;
+        std::vector<Mutator*> candidates;
+    } enumAssistContext_;
+#endif
 
 #if defined(_WIN64) || defined (__APPLE__)
     std::condition_variable mutatorSuspensionCV;

@@ -476,6 +476,7 @@ static RuntimeParam InitRuntimeParam()
             .msAssistDebtTrigger = ReadCountParameter("cjMSAssistDebtTrigger", 128, 0, EnvBoundKind::OPEN),
             .msAssistSweepMaxRegionsPerCall = ReadCountParameter("cjMSAssistSweepMaxRegionsPerCall", 10, 0,
                                                                  EnvBoundKind::OPEN),
+            .msEnumAssistBatchSize = ReadCountParameter("cjMSEnumAssistBatchSize", 10, 0, EnvBoundKind::OPEN),
             .msReleasedBusyRetryLimit = ReadCountParameter("cjMSReleasedBusyRetryLimit", 8, 0,
                                                            EnvBoundKind::OPEN),
             .msScavengeRounds = ReadCountParameter("cjMSScavengeRounds", 8, 0, EnvBoundKind::OPEN),

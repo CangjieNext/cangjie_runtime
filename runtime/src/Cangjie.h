@@ -319,6 +319,12 @@ struct GCParam {
     size_t msAssistSweepMaxRegionsPerCall;
 
     /*
+     * Maximum mutators claimed by one MSGC enum-assist safepoint pass.
+     * Must be > 0.
+     */
+    size_t msEnumAssistBatchSize;
+
+    /*
      * Retry limit when probing released-busy regions in MSGC.
      * Must be > 0.
      */

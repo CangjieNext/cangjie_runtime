@@ -40,6 +40,9 @@ public:
         SUSPENSION_FOR_SYNC = 2,
         SUSPENSION_FOR_EXIT = 4,
         SUSPENSION_FOR_CPU_PROFILE = 8,
+#ifdef MRT_USE_MARK_SWEEP
+        SUSPENSION_FOR_GC_ENUM_ASSIST = 16,
+#endif
     };
 
     enum GCPhaseTransitionState : uint32_t {
@@ -69,6 +72,7 @@ public:
         mutatorPhase.store(GCPhase::GC_PHASE_IDLE);
         inManagedContext.store(true);
         assistLocalWork_.clear();
+        deferEnumAssistUntilNextSafepoint_ = false;
     }
 
     ~Mutator()
@@ -99,6 +103,7 @@ public:
             satbNode = nullptr;
         }
         assistLocalWork_.clear();
+        deferEnumAssistUntilNextSafepoint_ = false;
         uwContext.Reset();
         exceptionWrapper.ClearInfo();
     }
@@ -192,6 +197,9 @@ public:
     void HandleSuspensionRequest();
     // Called if current mutator should handle stw request
     void SuspendForSync();
+#ifdef MRT_USE_MARK_SWEEP
+    void HandleEnumAssist();
+#endif
     void SuspendForPreempt()
     {
         uwContext.SetUnwindContextStatus(UnwindContextStatus::RELIABLE);
@@ -366,7 +374,7 @@ public:
         }
     }
 
-    void TransitionToGCPhaseExclusive(GCPhase newPhase);
+    void TransitionToGCPhaseExclusive(GCPhase newPhase, bool bySelf);
 
     void TransitionToCpuProfileExclusive();
 
@@ -608,6 +616,7 @@ private:
     uintptr_t stackSize = 0;
 
     std::atomic<CpuProfileState> cpuProfileState = { NO_CPUPROFILE };
+    bool deferEnumAssistUntilNextSafepoint_ = false;
     struct ForeignThreadInfo {
         bool isForeignThread = { false };
         bool isExit = { false };

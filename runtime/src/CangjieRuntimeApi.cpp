@@ -268,6 +268,8 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
             .msAssistDebtTrigger = param->gcParam.msAssistDebtTrigger == 0 ? 128 : param->gcParam.msAssistDebtTrigger,
             .msAssistSweepMaxRegionsPerCall = param->gcParam.msAssistSweepMaxRegionsPerCall == 0 ?
                 10 : param->gcParam.msAssistSweepMaxRegionsPerCall,
+            .msEnumAssistBatchSize = param->gcParam.msEnumAssistBatchSize == 0 ?
+                10 : param->gcParam.msEnumAssistBatchSize,
             .msReleasedBusyRetryLimit = param->gcParam.msReleasedBusyRetryLimit == 0 ?
                 8 : param->gcParam.msReleasedBusyRetryLimit,
             .msScavengeRounds = param->gcParam.msScavengeRounds == 0 ? 8 : param->gcParam.msScavengeRounds,
