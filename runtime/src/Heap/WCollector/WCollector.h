@@ -207,7 +207,9 @@ private:
     void TinyTrace();
     void PreforwardConcurrencyModelRoots();
     void PostTrace();
+    void PostTraceForFullGC();
     void Preforward();
+    void PreforwardForFullGC();
     void PreforwardAllExportFromRoots();
     void PreforwardFinalizerProcessorRoots();
     void PreforwardDiscoveredExternObjects();

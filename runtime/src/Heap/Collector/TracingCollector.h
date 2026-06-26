@@ -328,7 +328,7 @@ protected:
     U32 snapshotFinalizerNum = 0;
 
     // reason for current GC.
-    GCReason gcReason = GC_REASON_USER_ASYNC;
+    GCReason gcReason = GC_REASON_USER;
 
     // indicate whether to fix references (including global roots and reference fields).
     // this member field is useful for optimizing concurrent copying gc.

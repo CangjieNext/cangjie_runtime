@@ -256,7 +256,7 @@ void MutatorManager::VisitAllMutatorsExceptFinalizer(MutatorVisitor func)
     ScheduleAllCJThreadVisitMutator(VisitMuatorHelper, &func);
 }
 
-void MutatorManager::StopTheWorld4FullGC()
+void MutatorManager::StopTheWorldForFullGC()
 {
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     bool saferegionEntered = false;
@@ -298,7 +298,7 @@ void MutatorManager::StopTheWorld4FullGC()
     return;
 }
 
-void MutatorManager::StartTheWorld4FullGC() noexcept
+void MutatorManager::StartTheWorldForFullGC() noexcept
 {
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     bool shouldLeaveSaferegion = saferegionStateChanged;

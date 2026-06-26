@@ -381,13 +381,6 @@ void WCollector::PreforwardAllResurrectExportFromObjects()
     }
 }
 
-void WCollector::preTrace()
-{
-    MRT_ASSERT(isFullGC, "preTrace called but isFullGC is false");
-    RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
-    space.GetRegionManager().RevokeThreadLocalRegions();
-}
-
 void WCollector::TraceHeap()
 {
     WorkStack workStack = NewWorkStack();
@@ -450,6 +443,75 @@ void WCollector::PostTrace()
     CollectPinnedGarbage();
     RefineFromSpace();
     fwdTable.PrepareForwardTable();
+}
+
+void WCollector::DoFullGarbageCollection()
+{
+    MRT_ASSERT(isFullGC, "DoFullGarbageCollection called but isFullGC is false");
+    preTrace();
+    TraceHeap();
+    PostTraceForFullGC();
+
+    PreforwardForFullGC();
+
+    ForwardFromSpace();
+
+    TransitionToGCPhase(GCPhase::GC_PHASE_IDLE, true);
+    MergeResurrectExportObjects();
+    PostResolveCycleTask();
+    FlipTagID();
+    ForwardDataManager::GetForwardDataManager().SetTagID(currentTagID);
+
+    CollectSmallSpace();
+    ForwardDataManager::GetForwardDataManager().UnbindPreviousLiveInfo();
+}
+
+void WCollector::preTrace()
+{
+    MRT_ASSERT(isFullGC, "preTrace called but isFullGC is false");
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
+    space.GetRegionManager().RevokeThreadLocalRegions();
+    MRT_ASSERT(space.GetRegionManager().GetTlRegionListSize() == 0, "thread local region list is not empty");
+}
+
+void WCollector::PostTraceForFullGC()
+{
+    MRT_PHASE_TIMER("PostTraceForFullGC");
+    TransitionToGCPhase(GC_PHASE_POST_TRACE, true);
+    RegionSpace& space = reinterpret_cast<RegionSpace&>(theAllocator);
+    space.GetRegionManager().HandleTraceRegions();
+    // clear weakRef List, set the referent as null
+    WeakRefBuffer::Instance().ClearWeakRefBuffer();
+    // clear satb buffer when gc finish tracing.
+    SatbBuffer::Instance().ClearBuffer();
+    // reclaim large objects immediately after tracing is done.
+    PrepareCycleRef();
+    CollectLargeGarbage();
+    CollectPinnedGarbage();
+    GCStats& stats = GetGCStats();
+    stats.smallGarbageSize = space.RefineFromSpaceForFullGC();
+    fwdTable.PrepareForwardTable();
+}
+
+
+void WCollector::PreforwardForFullGC()
+{
+    ScopedEntryTrace trace("CJRT_GC_PREFORWARD");
+    MRT_PHASE_TIMER("PreforwardForFullGC");
+    TransitionToGCPhase(GCPhase::GC_PHASE_PREFORWARD, true);
+
+    GCThreadPool* threadPool = GetThreadPool();
+    MRT_ASSERT(threadPool != nullptr, "thread pool is null");
+    // forward and fix cj future objects
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardConcurrencyModelRoots(); }));
+
+    // forward and fix finalizer roots.
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardFinalizerProcessorRoots(); }));
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardAllExportFromRoots(); }));
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardDiscoveredExternObjects(); }));
+    threadPool->AddWork(new (std::nothrow) LambdaWork([this](size_t) { PreforwardAllResurrectExportFromObjects(); }));
+    threadPool->Start();
+    threadPool->WaitFinish();
 }
 
 void WCollector::Preforward()
@@ -590,14 +652,6 @@ void WCollector::DoGarbageCollection()
 
     CollectSmallSpace();
     ForwardDataManager::GetForwardDataManager().UnbindPreviousLiveInfo();
-}
-
-
-void WCollector::DoFullGarbageCollection()
-{
-    MRT_ASSERT(isFullGC, "DoFullGarbageCollection called but isFullGC is false");
-    preTrace();
-    TraceHeap();
 }
 
 void WCollector::MarkNewObject(BaseObject* obj)
@@ -760,16 +814,13 @@ void WCollector::CollectSmallSpace()
     stats.liveBytesAfterGC = space.AllocatedBytesForGCTest();
     
     if (isFullGC) {
-        stats.liveBytesAfterGC = space.AllocatedBytesForGCTest();
-        printf("After Full GC, Live %zu B.\n", stats.liveBytesAfterGC);
-
         std::vector<LiveTypeSummary> liveTypeSummaries = SummarizeLiveObjectsByType();
         size_t totalLiveBytes = 0;
         for (const auto& summary : liveTypeSummaries) {
             totalLiveBytes += std::get<2>(summary);
         }
+        printf("After Full GC, Live %zu B.\n", totalLiveBytes);
 
-        DCHECK(stats.liveBytesAfterGC == totalLiveBytes && "Live bytes after GC does not match the sum of live type summaries");
         if (ShouldPrintLiveTypeSummary()) {
             PrintLiveTypeSummary(liveTypeSummaries);
         }

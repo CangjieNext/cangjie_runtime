@@ -33,12 +33,12 @@ public:
     void StopGCWork();
     void RequestGC(GCReason reason, bool async);
     void WaitForGCFinish();
-    void WaitUntilUserGCFinished();
     // gc main loop
     void RunTaskLoop();
     // Notify that GC has finished.
     // Must be called by gc thread only
-    void NotifyGCFinished(uint64_t gcIndex, GCReason reason = GC_REASON_INVALID);
+    void NotifyGCFinished(uint64_t gcIndex);
+    void NotifyFullGCFinished();
     int32_t GetGCThreadCount(const bool isConcurrent) const;
 
     GCThreadPool* GetThreadPool() const { return gcThreadPool; }

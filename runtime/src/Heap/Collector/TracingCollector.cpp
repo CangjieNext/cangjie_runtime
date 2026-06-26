@@ -700,7 +700,7 @@ void TracingCollector::PostGarbageCollection(uint64_t gcIndex)
     TransitionToGCPhase(GCPhase::GC_PHASE_RECLAIM_SATB_NODE, true);
     SatbBuffer::Instance().ReclaimALLPages();
     PagePool::Instance().Trim();
-    collectorResources.NotifyGCFinished(gcIndex, gcReason);
+    collectorResources.NotifyGCFinished(gcIndex);
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     DumpAfterGC();

@@ -477,18 +477,18 @@ void RemoveRegionLocked(RegionList* regionList, RegionInfo* region)
 }
 
 // forward only regions whose garbage bytes is greater than or equal to exemptedRegionThreshold.
-size_t RegionManager::ExemptFromRegions(bool reclaim)
+size_t RegionManager::ExemptFromRegions()
 {
     size_t forwardBytes = 0;
     size_t floatingGarbage = 0;
     size_t oldFromBytes = fromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
     double exempt = exemptedRegionThreshold;
     // printf("exempt threshold: %.2f%%\n", exempt * 100);
-    auto visitor = [this, exempt, &floatingGarbage, reclaim](RegionInfo* fromRegion) {
+    auto visitor = [this, exempt, &floatingGarbage](RegionInfo* fromRegion) {
         size_t threshold = static_cast<size_t>(exempt * fromRegion->GetRegionSize());
         size_t liveBytes = fromRegion->GetLiveByteCount();
         long rawPtrCnt = fromRegion->GetRawPointerObjectCount();
-        if (reclaim && liveBytes > threshold) { // ignore this region
+        if (liveBytes > threshold) { // ignore this region
             RegionInfo* del = fromRegion;
             DLOG(REGION, "region %p @[0x%zx+%zu, 0x%zx) exempted by forwarding: %zu units, %u live bytes", del,
                 del->GetRegionStart(), del->GetRegionAllocatedSize(), del->GetRegionEnd(),
@@ -516,6 +516,32 @@ size_t RegionManager::ExemptFromRegions(bool reclaim)
     VLOG(REPORT, "exempt from-space: %zu B - %zu B -> %zu B, %zu B floating garbage, %zu B to forward",
          oldFromBytes, exemptedFromBytes, newFromBytes, floatingGarbage, forwardBytes);
     return newFromBytes - forwardBytes;
+}
+
+size_t RegionManager::RefineFullGCFromRegions()
+{
+    size_t floatingGarbage = 0;
+    size_t oldFromBytes = fromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
+    auto visitor = [this, &floatingGarbage](RegionInfo* fromRegion) {
+        long rawPtrCnt = fromRegion->GetRawPointerObjectCount();
+        if (rawPtrCnt <= 0) {
+            return;
+        }
+        RegionInfo* del = fromRegion;
+        DLOG(REGION, "region %p @[0x%zx+%zu, 0x%zx) pinned by full gc: %zu units, %u live bytes rawPtr cnt %ld",
+            del, del->GetRegionStart(), del->GetRegionAllocatedSize(), del->GetRegionEnd(),
+            del->GetUnitCount(), del->GetLiveByteCount(), rawPtrCnt);
+        CHECK(del->IsFromRegion());
+        RemoveRegionLocked(&fromRegionList, del);
+        rawPointerPinnedRegionList.PrependRegion(del, RegionInfo::RegionType::RAW_POINTER_PINNED_REGION);
+        floatingGarbage += (del->GetRegionSize() - del->GetLiveByteCount());
+    };
+    fromRegionList.VisitAllRegions(visitor);
+
+    size_t newFromBytes = fromRegionList.GetUnitCount() * RegionInfo::UNIT_SIZE;
+    VLOG(REPORT, "full gc refine from-space: %zu B -> %zu B, %zu B floating garbage",
+         oldFromBytes, newFromBytes, floatingGarbage);
+    return newFromBytes;
 }
 
 void RegionManager::ForEachObjUnsafe(const std::function<void(BaseObject*)>& visitor) const

@@ -334,7 +334,8 @@ public:
 
     // Ignore dynamic pinned regions and from regions whose garbage objects are quite few, return the garbage size that
     // can be reclaimed.
-    size_t ExemptFromRegions(bool reclaim=true);
+    size_t ExemptFromRegions();
+    size_t RefineFullGCFromRegions();
     void ReassembleFromSpace();
 
     void ForEachObjUnsafe(const std::function<void(BaseObject*)>& visitor) const;

@@ -78,7 +78,6 @@ public:
     bool IsGcStarted() const override { return collectorResources.IsGcStarted(); }
 
     void WaitForGCFinish() override { return collectorResources.WaitForGCFinish(); }
-    void WaitUntilUserGCFinished() override { return collectorResources.WaitUntilUserGCFinished(); }
 
     bool IsGCEnabled() const override { return isGCEnabled.load(); }
 
