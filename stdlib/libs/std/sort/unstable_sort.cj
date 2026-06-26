@@ -88,7 +88,7 @@ extend<T> Array<T> where T <: Comparable<T> {
     }
 
     @OverflowWrapping
-    private func getPartition(begin: Int64, end: Int64): (Int64, Int64) {
+    private func selectPartitionPivot(begin: Int64, end: Int64): T {
         let len: Int64 = end - begin + 1
         let mid: Int64 = (len >> 1) + begin
         if (len >= 64) {
@@ -103,6 +103,11 @@ extend<T> Array<T> where T <: Comparable<T> {
         let temp = this[end]
         this[end] = pivot
         this[mid] = temp
+        return pivot
+    }
+
+    @OverflowWrapping
+    private func findFirstPartitionPivot(begin: Int64, end: Int64, pivot: T): (Int64, Int64, Int64, Int64) {
         var pointNum = 0
         var b = begin
         var e = end - 1
@@ -146,7 +151,14 @@ extend<T> Array<T> where T <: Comparable<T> {
                 }
             }
         }
+        return (b, e, first, pointNum)
+    }
 
+    @OverflowWrapping
+    private func partitionAroundPivot(begin: Int64, end: Int64, pointNumArg: Int64, pivot: T): (Int64, Int64, Int64) {
+        var pointNum = pointNumArg
+        var b = begin
+        var e = end
         // find partition pivot
         while (b < e) {
             var tb: T = pivot
@@ -181,52 +193,63 @@ extend<T> Array<T> where T <: Comparable<T> {
             b++
             e--
         }
+        return (b, e, pointNum)
+    }
 
-        if (this[b] <= pivot) {
-            b++
+    @OverflowWrapping
+    private func mergePartitionPivots(partitionIndex: Int64, first: Int64, pointNum: Int64, pivot: T): (Int64, Int64) {
+        if (partitionIndex - first >= pointNum * pointNum) {
+            return (partitionIndex - 1, partitionIndex + 1)
         }
-        this.swap(b, end)
-
-        if (b - first >= pointNum * pointNum) {
-            return (b - 1, b + 1)
-        } else {
-            // When the number of traversal times is less than the square of the number of pivot
-            // merge a large number of values that are the same as pivot
-            let hi = b
-            b = first
-            e = hi - 1
+        // When the number of traversal times is less than the square of the number of pivot
+        // merge a large number of values that are the same as pivot
+        let hi = partitionIndex
+        var b = first
+        var e = hi - 1
+        while (b < e) {
+            var te: T = pivot
             while (b < e) {
-                var te: T = pivot
-                while (b < e) {
-                    te = this[e]
-                    if (te == pivot) {
-                        e--
-                    } else {
-                        break
-                    }
-                }
-                var leftPivotCandidate: T = pivot
-                while (b < e) {
-                    leftPivotCandidate = this[b]
-                    if (leftPivotCandidate != pivot) {
-                        b++
-                    } else {
-                        break
-                    }
-                }
-                if (b >= e) {
+                te = this[e]
+                if (te == pivot) {
+                    e--
+                } else {
                     break
                 }
-                this[b] = te
-                this[e] = leftPivotCandidate
-                b++
-                e--
             }
-            if (this[b] == pivot) {
-                b--
+            var leftPivotCandidate: T = pivot
+            while (b < e) {
+                leftPivotCandidate = this[b]
+                if (leftPivotCandidate != pivot) {
+                    b++
+                } else {
+                    break
+                }
             }
-            return (b, hi + 1)
+            if (b >= e) {
+                break
+            }
+            this[b] = te
+            this[e] = leftPivotCandidate
+            b++
+            e--
         }
+        if (this[b] == pivot) {
+            b--
+        }
+        return (b, hi + 1)
+    }
+
+    @OverflowWrapping
+    private func getPartition(begin: Int64, end: Int64): (Int64, Int64) {
+        let pivot = this.selectPartitionPivot(begin, end)
+        let (scanBegin, scanEnd, first, pointNum) = this.findFirstPartitionPivot(begin, end, pivot)
+        let (partitionIndex, _, equalCount) = this.partitionAroundPivot(scanBegin, scanEnd, pointNum, pivot)
+        var pivotIndex = partitionIndex
+        if (this[pivotIndex] <= pivot) {
+            pivotIndex++
+        }
+        this.swap(pivotIndex, end)
+        return this.mergePartitionPivots(pivotIndex, first, equalCount, pivot)
     }
 }
 
@@ -234,7 +257,7 @@ extend<T> Array<T> {
     // the value range of the parameter: 0 <= begin < end <= array.size - 1
     // end - begin >= 1
     @OverflowWrapping
-    private func getPartition(begin: Int64, end: Int64, compareBy: (T, T) -> Ordering): (Int64, Int64) {
+    private func selectPartitionPivotByComparator(begin: Int64, end: Int64, compareBy: (T, T) -> Ordering): T {
         let spanLen: Int64 = end - begin + 1
         let pivotIndex: Int64 = (spanLen >> 1) + begin
         if (spanLen >= 64) {
@@ -249,6 +272,16 @@ extend<T> Array<T> {
         let savedValue = this[end]
         this[end] = pivotValue
         this[pivotIndex] = savedValue
+        return pivotValue
+    }
+
+    @OverflowWrapping
+    private func findFirstPartitionPivotByComparator(
+        begin: Int64,
+        end: Int64,
+        pivotValue: T,
+        compareBy: (T, T) -> Ordering
+    ): (Int64, Int64, Int64, Int64) {
         var pivotEqualCount = 0
         var leftScan = begin
         var rightScan = end - 1
@@ -292,7 +325,20 @@ extend<T> Array<T> {
                     }
             }
         }
+        return (leftScan, rightScan, firstPivotEqual, pivotEqualCount)
+    }
 
+    @OverflowWrapping
+    private func partitionAroundPivotByComparator(
+        begin: Int64,
+        end: Int64,
+        pivotEqualCountArg: Int64,
+        pivotValue: T,
+        compareBy: (T, T) -> Ordering
+    ): (Int64, Int64, Int64) {
+        var pivotEqualCount = pivotEqualCountArg
+        var leftScan = begin
+        var rightScan = end
         // find partition pivotValue
         while (leftScan < rightScan) {
             var leftValue: T = pivotValue
@@ -325,51 +371,71 @@ extend<T> Array<T> {
             leftScan++
             rightScan--
         }
+        return (leftScan, rightScan, pivotEqualCount)
+    }
 
-        match (compareBy(this[leftScan], pivotValue)) {
-            case GT => ()
-            case _ => leftScan++
+    @OverflowWrapping
+    private func mergePartitionPivotsByComparator(
+        partitionIndex: Int64,
+        firstPivotEqual: Int64,
+        pivotEqualCount: Int64,
+        pivotValue: T,
+        compareBy: (T, T) -> Ordering
+    ): (Int64, Int64) {
+        if (partitionIndex - firstPivotEqual >= pivotEqualCount * pivotEqualCount) {
+            return (partitionIndex - 1, partitionIndex + 1)
         }
-        this.swap(leftScan, end)
-        if (leftScan - firstPivotEqual >= pivotEqualCount * pivotEqualCount) {
-            return (leftScan - 1, leftScan + 1)
-        } else {
-            // When the number of traversal times is less than the square of the number of pivotValue
-            // merge a large number of values that are the same as pivotValue
-            let upperPivotBound = leftScan
-            leftScan = firstPivotEqual
-            rightScan = upperPivotBound - 1
+        // When the number of traversal times is less than the square of the number of pivotValue
+        // merge a large number of values that are the same as pivotValue
+        let upperPivotBound = partitionIndex
+        var leftScan = firstPivotEqual
+        var rightScan = upperPivotBound - 1
+        while (leftScan < rightScan) {
+            var rightValue: T = pivotValue
             while (leftScan < rightScan) {
-                var rightValue: T = pivotValue
-                while (leftScan < rightScan) {
-                    rightValue = this[rightScan]
-                    match (compareBy(pivotValue, rightValue)) {
-                        case EQ => rightScan--
-                        case _ => break
-                    }
+                rightValue = this[rightScan]
+                match (compareBy(pivotValue, rightValue)) {
+                    case EQ => rightScan--
+                    case _ => break
                 }
-                var leftPivotCandidate: T = pivotValue
-                while (leftScan < rightScan) {
-                    leftPivotCandidate = this[leftScan]
-                    match (compareBy(leftPivotCandidate, pivotValue)) {
-                        case EQ => break
-                        case _ => leftScan++
-                    }
-                }
-                if (leftScan >= rightScan) {
-                    break
-                }
-                this[leftScan] = rightValue
-                this[rightScan] = leftPivotCandidate
-                leftScan++
-                rightScan--
             }
-            match (compareBy(this[leftScan], pivotValue)) {
-                case EQ => leftScan--
-                case _ => ()
+            var leftPivotCandidate: T = pivotValue
+            while (leftScan < rightScan) {
+                leftPivotCandidate = this[leftScan]
+                match (compareBy(leftPivotCandidate, pivotValue)) {
+                    case EQ => break
+                    case _ => leftScan++
+                }
             }
-            return (leftScan, upperPivotBound + 1)
+            if (leftScan >= rightScan) {
+                break
+            }
+            this[leftScan] = rightValue
+            this[rightScan] = leftPivotCandidate
+            leftScan++
+            rightScan--
         }
+        match (compareBy(this[leftScan], pivotValue)) {
+            case EQ => leftScan--
+            case _ => ()
+        }
+        return (leftScan, upperPivotBound + 1)
+    }
+
+    @OverflowWrapping
+    private func getPartition(begin: Int64, end: Int64, compareBy: (T, T) -> Ordering): (Int64, Int64) {
+        let pivotValue = this.selectPartitionPivotByComparator(begin, end, compareBy)
+        let (scanBegin, scanEnd, firstPivotEqual, pivotEqualCount) = this.findFirstPartitionPivotByComparator(begin, end,
+            pivotValue, compareBy)
+        let (partitionIndex, _, equalCount) = this.partitionAroundPivotByComparator(scanBegin, scanEnd, pivotEqualCount,
+            pivotValue, compareBy)
+        var pivotIndex = partitionIndex
+        match (compareBy(this[pivotIndex], pivotValue)) {
+            case GT => ()
+            case _ => pivotIndex++
+        }
+        this.swap(pivotIndex, end)
+        return this.mergePartitionPivotsByComparator(pivotIndex, firstPivotEqual, equalCount, pivotValue, compareBy)
     }
 
     // the value range of the parameter: 0 <= begin < end <= array.size - 1
