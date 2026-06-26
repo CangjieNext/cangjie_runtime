@@ -189,6 +189,71 @@ extend<T> Array<T> where T <: Comparable<T> {
     }
 
     @OverflowWrapping
+    private func mergeFromLeftOneByOne(arr: Array<T>, state: MergeFromLeftState): Unit {
+        state.resetCounts()
+        var t1 = arr[state.leftCursor]
+        var t2 = this[state.rightCursor]
+        while (true) {
+            if (t1 > t2) {
+                this[state.target] = t2
+                state.takeRight()
+                if (state.rightRest == 0) {
+                    state.shouldStop = true
+                    break
+                }
+                if (state.rightCount > 4) {
+                    break
+                }
+                t2 = this[state.rightCursor]
+            } else {
+                this[state.target] = t1
+                state.takeLeft()
+                if (state.leftRest == 1) {
+                    state.shouldStop = true
+                    break
+                }
+                if (state.leftCount > 4) {
+                    break
+                }
+                t1 = arr[state.leftCursor]
+            }
+        }
+    }
+
+    @OverflowWrapping
+    private func mergeFromLeftByRange(arr: Array<T>, state: MergeFromLeftState): Unit {
+        while (true) {
+            var point = this[state.rightCursor]
+            state.leftCount = arr.queryGT(point, state.leftCursor, state.leftRest, false) - state.leftCursor
+            moveLeftBufferPrefix(this, arr, state, state.leftCount, point)
+            state.target = state.target + state.leftCount + 1
+            state.leftCursor += state.leftCount
+            state.leftRest -= state.leftCount
+            state.rightCursor++
+            state.rightRest--
+            if (state.leftRest == 1 || state.rightRest == 0) {
+                state.shouldStop = true
+                break
+            }
+            point = arr[state.leftCursor]
+            state.rightCount = this.queryLT(point, state.rightCursor, state.rightRest, false) - state.rightCursor
+            moveRightRunPrefix(this, state, state.rightCount, point)
+            state.target = state.target + state.rightCount + 1
+            state.rightCursor += state.rightCount
+            state.rightRest -= state.rightCount
+            state.leftCursor++
+            state.leftRest--
+            if (state.rightRest == 0 || state.leftRest == 1) {
+                state.shouldStop = true
+                break
+            }
+            if (state.leftCount < 4 || state.rightCount < 4) {
+                break
+            }
+        }
+    }
+
+    @OverflowWrapping
     private func mergeFromLeft(
         start1: Int64,
         len1: Int64,
@@ -198,124 +263,87 @@ extend<T> Array<T> where T <: Comparable<T> {
     ) {
         let arr = temp.getArray(len1)
         this.copyTo(arr, start1, 0, len1)
-        var ti = start1
-        var s1 = 0
-        var l1 = len1
-        var s2 = start2
-        var l2 = len2
-        this[ti] = this[s2]
-        ti++
-        s2++
-        l2--
-        var c1 = 0
-        var c2 = 0
-        var continueBreak = false
+        let state = MergeFromLeftState(start1, 0, len1, start2, len2)
+        this[state.target] = this[state.rightCursor]
+        state.takeRight()
         while (true) {
-            c1 = 0
-            c2 = 0
-            continueBreak = false
-            var t1 = arr[s1]
-            var t2 = this[s2]
-            while (true) {
-                if (t1 > t2) {
-                    this[ti] = t2
-                    ti++
-                    s2++
-                    l2--
-                    c2++
-                    c1 = 0
-                    if (l2 == 0) {
-                        continueBreak = true
-                        break
-                    }
-                    if (c2 > 4) {
-                        break
-                    }
-                    t2 = this[s2]
-                } else {
-                    this[ti] = t1
-                    ti++
-                    s1++
-                    l1--
-                    c1++
-                    c2 = 0
-                    if (l1 == 1) {
-                        continueBreak = true
-                        break
-                    }
-                    if (c1 > 4) {
-                        break
-                    }
-                    t1 = arr[s1]
-                }
-            }
-            if (continueBreak) {
+            this.mergeFromLeftOneByOne(arr, state)
+            if (state.shouldStop) {
                 break
             }
-            continueBreak = false
-            while (true) {
-                var point = this[s2]
-                c1 = arr.queryGT(point, s1, l1, false) - s1
-                match (c1) {
-                    case 0 => this[ti] = point
-                    case 1 =>
-                        this[ti] = arr[s1]
-                        this[ti + 1] = point
-                    case 2 =>
-                        this[ti] = arr[s1]
-                        this[ti + 1] = arr[s1 + 1]
-                        this[ti + 2] = point
-                    case _ =>
-                        arr.copyTo(this, s1, ti, c1)
-                        this[ti + c1] = point
-                }
-                ti = ti + c1 + 1
-                s1 += c1
-                l1 -= c1
-                s2++
-                l2--
-                if (l1 == 1 || l2 == 0) {
-                    continueBreak = true
-                    break
-                }
-                point = arr[s1]
-                c2 = this.queryLT(point, s2, l2, false) - s2
-                match (c2) {
-                    case 0 => this[ti] = point
-                    case 1 =>
-                        this[ti] = this[s2]
-                        this[ti + 1] = point
-                    case 2 =>
-                        this[ti] = this[s2]
-                        this[ti + 1] = this[s2 + 1]
-                        this[ti + 2] = point
-                    case _ =>
-                        this.copyTo(this, s2, ti, c2)
-                        this[ti + c2] = point
-                }
-                ti = ti + c2 + 1
-                s2 += c2
-                l2 -= c2
-                s1++
-                l1--
-                if (l2 == 0 || l1 == 1) {
-                    continueBreak = true
-                    break
-                }
-                if (c1 < 4 || c2 < 4) {
-                    break
-                }
-            }
-            if (continueBreak) {
+            state.shouldStop = false
+            this.mergeFromLeftByRange(arr, state)
+            if (state.shouldStop) {
                 break
             }
         }
-        if (l2 == 0) {
-            arr.copyTo(this, s1, ti, l1)
+        finishMergeFromLeft(this, arr, state)
+    }
+
+    @OverflowWrapping
+    private func mergeFromRightOneByOne(rightBuffer: Array<T>, state: MergeFromRightState): Unit {
+        state.resetCounts()
+        var leftTailValue = this[state.leftTail]
+        var rightTailValue = rightBuffer[state.rightTail]
+        while (true) {
+            if (leftTailValue > rightTailValue) {
+                this[state.target] = leftTailValue
+                state.takeLeftTail()
+                if (state.leftRest == 0) {
+                    state.shouldStop = true
+                    break
+                }
+                if (state.leftBatch > 4) {
+                    break
+                }
+                leftTailValue = this[state.leftTail]
+            } else {
+                this[state.target] = rightTailValue
+                state.takeRightTail()
+                if (state.rightRest == 1) {
+                    state.shouldStop = true
+                    break
+                }
+                if (state.rightBatch > 4) {
+                    break
+                }
+                rightTailValue = rightBuffer[state.rightTail]
+            }
         }
-        if (l1 == 1) {
-            this.copyTo(this, s2, ti, l2)
-            this[ti + l2] = arr[s1]
+    }
+
+    @OverflowWrapping
+    private func mergeFromRightByRange(start1: Int64, rightBuffer: Array<T>, state: MergeFromRightState): Unit {
+        while (true) {
+            var tailProbe = this[state.leftTail]
+            let ltIndex = rightBuffer.queryLT(tailProbe, 0, state.rightRest, true)
+            state.rightBatch = state.rightRest - ltIndex
+            moveRightBufferSuffix(this, rightBuffer, state, state.rightBatch, tailProbe)
+            state.target = state.target - state.rightBatch - 1
+            state.rightTail -= state.rightBatch
+            state.rightRest -= state.rightBatch
+            state.leftTail--
+            state.leftRest--
+            if (state.rightRest == 1 || state.leftRest == 0) {
+                state.shouldStop = true
+                break
+            }
+            tailProbe = rightBuffer[state.rightTail]
+            let gtIndex = this.queryGT(tailProbe, start1, state.leftRest, true)
+            state.leftBatch = state.leftTail - gtIndex + 1
+            moveLeftRunSuffix(this, state, state.leftBatch, tailProbe)
+            state.target = state.target - state.leftBatch - 1
+            state.leftTail -= state.leftBatch
+            state.leftRest -= state.leftBatch
+            state.rightTail--
+            state.rightRest--
+            if (state.leftRest == 0 || state.rightRest == 1) {
+                state.shouldStop = true
+                break
+            }
+            if (state.leftBatch < 4 || state.rightBatch < 4) {
+                break
+            }
         }
     }
 
@@ -329,128 +357,21 @@ extend<T> Array<T> where T <: Comparable<T> {
     ) {
         let rightBuffer = temp.getArray(len2)
         this.copyTo(rightBuffer, start2, 0, len2)
-        var rightTarget = start2 + len2 - 1
-        var leftTail = start1 + len1 - 1
-        var leftRest = len1
-        var rightTail = len2 - 1
-        var rightRest = len2
-        this[rightTarget] = this[leftTail]
-        rightTarget--
-        leftTail--
-        leftRest--
-        var leftBatch = 0
-        var rightBatch = 0
-        var stopFromRight = false
+        let state = MergeFromRightState(start2 + len2 - 1, start1 + len1 - 1, len1, len2 - 1, len2)
+        this[state.target] = this[state.leftTail]
+        state.takeLeftTail()
         while (true) {
-            leftBatch = 0
-            rightBatch = 0
-            stopFromRight = false
-            var leftTailValue = this[leftTail]
-            var rightTailValue = rightBuffer[rightTail]
-            while (true) {
-                if (leftTailValue > rightTailValue) {
-                    this[rightTarget] = leftTailValue
-                    rightTarget--
-                    leftTail--
-                    leftRest--
-                    leftBatch++
-                    rightBatch = 0
-                    if (leftRest == 0) {
-                        stopFromRight = true
-                        break
-                    }
-                    if (leftBatch > 4) {
-                        break
-                    }
-
-                    leftTailValue = this[leftTail]
-                } else {
-                    this[rightTarget] = rightTailValue
-                    rightTarget--
-                    rightTail--
-                    rightRest--
-                    rightBatch++
-                    leftBatch = 0
-                    if (rightRest == 1) {
-                        stopFromRight = true
-                        break
-                    }
-                    if (rightBatch > 4) {
-                        break
-                    }
-                    rightTailValue = rightBuffer[rightTail]
-                }
-            }
-            if (stopFromRight) {
+            this.mergeFromRightOneByOne(rightBuffer, state)
+            if (state.shouldStop) {
                 break
             }
-            stopFromRight = false
-            while (true) {
-                var tailProbe = this[leftTail]
-                let ltIndex = rightBuffer.queryLT(tailProbe, 0, rightRest, true)
-                rightBatch = rightRest - ltIndex
-                match (rightBatch) {
-                    case 0 => this[rightTarget] = tailProbe
-                    case 1 =>
-                        this[rightTarget] = rightBuffer[rightTail]
-                        this[rightTarget - 1] = tailProbe
-                    case 2 =>
-                        this[rightTarget] = rightBuffer[rightTail]
-                        this[rightTarget - 1] = rightBuffer[rightTail - 1]
-                        this[rightTarget - 2] = tailProbe
-                    case _ =>
-                        rightBuffer.copyTo(this, ltIndex, rightTarget - rightBatch + 1, rightBatch)
-                        this[rightTarget - rightBatch] = tailProbe
-                }
-                rightTarget = rightTarget - rightBatch - 1
-                rightTail -= rightBatch
-                rightRest -= rightBatch
-                leftTail--
-                leftRest--
-                if (rightRest == 1 || leftRest == 0) {
-                    stopFromRight = true
-                    break
-                }
-                tailProbe = rightBuffer[rightTail]
-                let gtIndex = this.queryGT(tailProbe, start1, leftRest, true)
-                leftBatch = leftTail - gtIndex + 1
-                match (leftBatch) {
-                    case 0 => this[rightTarget] = tailProbe
-                    case 1 =>
-                        this[rightTarget] = this[leftTail]
-                        this[rightTarget - 1] = tailProbe
-                    case 2 =>
-                        this[rightTarget] = this[leftTail]
-                        this[rightTarget - 1] = this[leftTail - 1]
-                        this[rightTarget - 2] = tailProbe
-                    case _ =>
-                        this.copyTo(this, gtIndex, rightTarget - leftBatch + 1, leftBatch)
-                        this[rightTarget - leftBatch] = tailProbe
-                }
-                rightTarget = rightTarget - leftBatch - 1
-                leftTail -= leftBatch
-                leftRest -= leftBatch
-                rightTail--
-                rightRest--
-                if (leftRest == 0 || rightRest == 1) {
-                    stopFromRight = true
-                    break
-                }
-                if (leftBatch < 4 || rightBatch < 4) {
-                    break
-                }
-            }
-            if (stopFromRight) {
+            state.shouldStop = false
+            this.mergeFromRightByRange(start1, rightBuffer, state)
+            if (state.shouldStop) {
                 break
             }
         }
-        if (leftRest == 0) {
-            rightBuffer.copyTo(this, 0, rightTarget - rightRest + 1, rightRest)
-        }
-        if (rightRest == 1) {
-            this.copyTo(this, start1, start1 + 1, leftRest)
-            this[start1] = rightBuffer[rightTail]
-        }
+        finishMergeFromRight(this, start1, rightBuffer, state)
     }
 
     @OverflowWrapping
@@ -520,6 +441,48 @@ extend<T> Array<T> {
     }
 
     @OverflowWrapping
+    private func maybeMergeOneRun(
+        cmpRunStartArr: Array<Int64>,
+        cmpRunLengthArr: Array<Int64>,
+        cmpIndex: Int64,
+        cmpTemp: TempArray<T>,
+        compareBy: (T, T) -> Ordering
+    ): (Int64, Bool) {
+        let cmpSlot: Int64 = cmpIndex - 1
+        let cmpCurrStart = cmpRunStartArr[cmpSlot]
+        let cmpNextStart = cmpRunStartArr[cmpSlot + 1]
+        let cmpCurrLen = cmpRunLengthArr[cmpSlot]
+        let cmpNextLen = cmpRunLengthArr[cmpSlot + 1]
+        if (cmpSlot == 0) {
+            if (cmpCurrLen <= cmpNextLen) {
+                this.merge(cmpCurrStart, cmpCurrLen, cmpNextStart, cmpNextLen, cmpTemp, compareBy)
+                cmpRunLengthArr[cmpSlot] = cmpCurrLen + cmpNextLen
+                return (cmpIndex - 1, true)
+            }
+            return (cmpIndex, true)
+        }
+        let cmpPrevStart = cmpRunStartArr[cmpSlot - 1]
+        let cmpPrevLen = cmpRunLengthArr[cmpSlot - 1]
+        if (cmpPrevLen <= cmpCurrLen + cmpNextLen) {
+            if (cmpPrevLen < cmpNextLen) {
+                this.merge(cmpPrevStart, cmpPrevLen, cmpCurrStart, cmpCurrLen, cmpTemp, compareBy)
+                recordMergedLeftRunAndKeepRightRun(cmpRunStartArr, cmpRunLengthArr, cmpSlot, cmpNextStart, cmpNextLen,
+                    cmpPrevLen + cmpCurrLen)
+                return (cmpIndex - 1, false)
+            }
+            this.merge(cmpCurrStart, cmpCurrLen, cmpNextStart, cmpNextLen, cmpTemp, compareBy)
+            cmpRunLengthArr[cmpSlot] = cmpCurrLen + cmpNextLen
+            return (cmpIndex - 1, false)
+        }
+        if (cmpCurrLen <= cmpNextLen) {
+            this.merge(cmpCurrStart, cmpCurrLen, cmpNextStart, cmpNextLen, cmpTemp, compareBy)
+            cmpRunLengthArr[cmpSlot] = cmpCurrLen + cmpNextLen
+            return (cmpIndex - 1, false)
+        }
+        return (cmpIndex, true)
+    }
+
+    @OverflowWrapping
     private func maybeMerge(
         cmpRunStartArr: Array<Int64>,
         cmpRunLengthArr: Array<Int64>,
@@ -529,36 +492,9 @@ extend<T> Array<T> {
     ): Int64 {
         var cmpIndex: Int64 = cmpStackTop
         while (cmpIndex > 0) {
-            var cmpSlot: Int64 = cmpIndex - 1
-            let cmpCurrStart = cmpRunStartArr[cmpSlot]
-            let cmpNextStart = cmpRunStartArr[cmpSlot + 1]
-            let cmpCurrLen = cmpRunLengthArr[cmpSlot]
-            let cmpNextLen = cmpRunLengthArr[cmpSlot + 1]
-            if (cmpSlot == 0) {
-                if (cmpCurrLen <= cmpNextLen) {
-                    this.merge(cmpCurrStart, cmpCurrLen, cmpNextStart, cmpNextLen, cmpTemp, compareBy)
-                    cmpRunLengthArr[cmpSlot] = cmpCurrLen + cmpNextLen
-                    cmpIndex--
-                }
-                break
-            }
-            let cmpPrevStart = cmpRunStartArr[cmpSlot - 1]
-            let cmpPrevLen = cmpRunLengthArr[cmpSlot - 1]
-            if (cmpPrevLen <= cmpCurrLen + cmpNextLen) {
-                if (cmpPrevLen < cmpNextLen) {
-                    this.merge(cmpPrevStart, cmpPrevLen, cmpCurrStart, cmpCurrLen, cmpTemp, compareBy)
-                    recordMergedLeftRunAndKeepRightRun(cmpRunStartArr, cmpRunLengthArr, cmpSlot, cmpNextStart, cmpNextLen, cmpPrevLen + cmpCurrLen)
-                    cmpIndex--
-                } else {
-                    this.merge(cmpCurrStart, cmpCurrLen, cmpNextStart, cmpNextLen, cmpTemp, compareBy)
-                    cmpRunLengthArr[cmpSlot] = cmpCurrLen + cmpNextLen
-                    cmpIndex--
-                }
-            } else if (cmpCurrLen <= cmpNextLen) {
-                this.merge(cmpCurrStart, cmpCurrLen, cmpNextStart, cmpNextLen, cmpTemp, compareBy)
-                cmpRunLengthArr[cmpSlot] = cmpCurrLen + cmpNextLen
-                cmpIndex--
-            } else {
+            let (newIndex, shouldBreak) = maybeMergeOneRun(cmpRunStartArr, cmpRunLengthArr, cmpIndex, cmpTemp, compareBy)
+            cmpIndex = newIndex
+            if (shouldBreak) {
                 break
             }
         }
@@ -588,7 +524,14 @@ extend<T> Array<T> {
             let cmpPrevLen = cmpRunLengthArr[cmpSlot - 1]
             if (cmpPrevLen < cmpNextLen) {
                 this.merge(cmpPrevStart, cmpPrevLen, cmpCurrStart, cmpCurrLen, cmpTemp, compareBy)
-                recordMergedLeftRunAndKeepRightRun(cmpRunStartArr, cmpRunLengthArr, cmpSlot, cmpNextStart, cmpNextLen, cmpPrevLen + cmpCurrLen)
+                recordMergedLeftRunAndKeepRightRun(
+                    cmpRunStartArr,
+                    cmpRunLengthArr,
+                    cmpSlot,
+                    cmpNextStart,
+                    cmpNextLen,
+                    cmpPrevLen + cmpCurrLen
+                )
                 cmpIndex--
             } else {
                 this.merge(cmpCurrStart, cmpCurrLen, cmpNextStart, cmpNextLen, cmpTemp, compareBy)
@@ -638,6 +581,158 @@ extend<T> Array<T> {
     }
 
     @OverflowWrapping
+    private func mergeFromLeftOneByOne(
+        arr: Array<T>,
+        state: MergeFromLeftState,
+        compareBy: (T, T) -> Ordering
+    ): Unit {
+        state.resetCounts()
+        var leftValue = arr[state.leftCursor]
+        var rightValue = this[state.rightCursor]
+        while (true) {
+            match (compareBy(leftValue, rightValue)) {
+                case GT =>
+                    this[state.target] = rightValue
+                    state.takeRight()
+                    if (state.rightRest == 0) {
+                        state.shouldStop = true
+                        break
+                    }
+                    if (state.rightCount > 4) {
+                        break
+                    }
+                    rightValue = this[state.rightCursor]
+                case _ =>
+                    this[state.target] = leftValue
+                    state.takeLeft()
+                    if (state.leftRest == 1) {
+                        state.shouldStop = true
+                        break
+                    }
+                    if (state.leftCount > 4) {
+                        break
+                    }
+                    leftValue = arr[state.leftCursor]
+            }
+        }
+    }
+
+    @OverflowWrapping
+    private func mergeFromLeftByRange(
+        arr: Array<T>,
+        state: MergeFromLeftState,
+        compareBy: (T, T) -> Ordering
+    ): Unit {
+        while (true) {
+            var probe = this[state.rightCursor]
+            state.leftCount = arr.queryGT(probe, state.leftCursor, state.leftRest, compareBy, false) - state.leftCursor
+            moveLeftBufferPrefix(this, arr, state, state.leftCount, probe)
+            state.target = state.target + state.leftCount + 1
+            state.leftCursor += state.leftCount
+            state.leftRest -= state.leftCount
+            state.rightCursor++
+            state.rightRest--
+            if (state.leftRest == 1 || state.rightRest == 0) {
+                state.shouldStop = true
+                break
+            }
+            probe = arr[state.leftCursor]
+            state.rightCount = this.queryLT(probe, state.rightCursor, state.rightRest, compareBy, false) - state
+                .rightCursor
+            moveRightRunPrefix(this, state, state.rightCount, probe)
+            state.target = state.target + state.rightCount + 1
+            state.rightCursor += state.rightCount
+            state.rightRest -= state.rightCount
+            state.leftCursor++
+            state.leftRest--
+            if (state.rightRest == 0 || state.leftRest == 1) {
+                state.shouldStop = true
+                break
+            }
+            if (state.leftCount < 4 || state.rightCount < 4) {
+                break
+            }
+        }
+    }
+
+    @OverflowWrapping
+    private func mergeFromRightOneByOne(
+        rightBuffer: Array<T>,
+        state: MergeFromRightState,
+        compareBy: (T, T) -> Ordering
+    ): Unit {
+        state.resetCounts()
+        var leftTailValue = this[state.leftTail]
+        var rightTailValue = rightBuffer[state.rightTail]
+        while (true) {
+            match (compareBy(leftTailValue, rightTailValue)) {
+                case GT =>
+                    this[state.target] = leftTailValue
+                    state.takeLeftTail()
+                    if (state.leftRest == 0) {
+                        state.shouldStop = true
+                        break
+                    }
+                    if (state.leftBatch > 4) {
+                        break
+                    }
+                    leftTailValue = this[state.leftTail]
+                case _ =>
+                    this[state.target] = rightTailValue
+                    state.takeRightTail()
+                    if (state.rightRest == 1) {
+                        state.shouldStop = true
+                        break
+                    }
+                    if (state.rightBatch > 4) {
+                        break
+                    }
+                    rightTailValue = rightBuffer[state.rightTail]
+            }
+        }
+    }
+
+    @OverflowWrapping
+    private func mergeFromRightByRange(
+        start1: Int64,
+        rightBuffer: Array<T>,
+        state: MergeFromRightState,
+        compareBy: (T, T) -> Ordering
+    ): Unit {
+        while (true) {
+            var tailProbe = this[state.leftTail]
+            let ltIndex = rightBuffer.queryLT(tailProbe, 0, state.rightRest, compareBy, true)
+            state.rightBatch = state.rightRest - ltIndex
+            moveRightBufferSuffix(this, rightBuffer, state, state.rightBatch, tailProbe)
+            state.target = state.target - state.rightBatch - 1
+            state.rightTail -= state.rightBatch
+            state.rightRest -= state.rightBatch
+            state.leftTail--
+            state.leftRest--
+            if (state.rightRest == 1 || state.leftRest == 0) {
+                state.shouldStop = true
+                break
+            }
+            tailProbe = rightBuffer[state.rightTail]
+            let gtIndex = this.queryGT(tailProbe, start1, state.leftRest, compareBy, true)
+            state.leftBatch = state.leftTail - gtIndex + 1
+            moveLeftRunSuffix(this, state, state.leftBatch, tailProbe)
+            state.target = state.target - state.leftBatch - 1
+            state.leftTail -= state.leftBatch
+            state.leftRest -= state.leftBatch
+            state.rightTail--
+            state.rightRest--
+            if (state.leftRest == 0 || state.rightRest == 1) {
+                state.shouldStop = true
+                break
+            }
+            if (state.leftBatch < 4 || state.rightBatch < 4) {
+                break
+            }
+        }
+    }
+
+    @OverflowWrapping
     private func mergeFromLeft(
         start1: Int64,
         len1: Int64,
@@ -648,128 +743,21 @@ extend<T> Array<T> {
     ) {
         let cmpBuffer = cmpTemp.getArray(len1)
         this.copyTo(cmpBuffer, start1, 0, len1)
-        var targetIndex = start1
-        var leftCursor = 0
-        var leftRemain = len1
-        var rightCursor = start2
-        var rightRemain = len2
-        this[targetIndex] = this[rightCursor]
-        targetIndex++
-        rightCursor++
-        rightRemain--
-        var leftCount = 0
-        var rightCount = 0
-        var shouldStop = false
+        let state = MergeFromLeftState(start1, 0, len1, start2, len2)
+        this[state.target] = this[state.rightCursor]
+        state.takeRight()
         while (true) {
-            leftCount = 0
-            rightCount = 0
-            shouldStop = false
-            var leftValue = cmpBuffer[leftCursor]
-            var rightValue = this[rightCursor]
-            while (true) {
-                match (compareBy(leftValue, rightValue)) {
-                    case GT =>
-                        this[targetIndex] = rightValue
-                        targetIndex++
-                        rightCursor++
-                        rightRemain--
-                        rightCount++
-                        leftCount = 0
-                        if (rightRemain == 0) {
-                            shouldStop = true
-                            break
-                        }
-                        if (rightCount > 4) {
-                            break
-                        }
-
-                        rightValue = this[rightCursor]
-                    case _ =>
-                        this[targetIndex] = leftValue
-                        targetIndex++
-                        leftCursor++
-                        leftRemain--
-                        leftCount++
-                        rightCount = 0
-                        if (leftRemain == 1) {
-                            shouldStop = true
-                            break
-                        }
-                        if (leftCount > 4) {
-                            break
-                        }
-
-                        leftValue = cmpBuffer[leftCursor]
-                }
-            }
-            if (shouldStop) {
+            this.mergeFromLeftOneByOne(cmpBuffer, state, compareBy)
+            if (state.shouldStop) {
                 break
             }
-            shouldStop = false
-            while (true) {
-                var probe = this[rightCursor]
-                leftCount = cmpBuffer.queryGT(probe, leftCursor, leftRemain, compareBy, false) - leftCursor
-                match (leftCount) {
-                    case 0 => this[targetIndex] = probe
-                    case 1 =>
-                        this[targetIndex] = cmpBuffer[leftCursor]
-                        this[targetIndex + 1] = probe
-                    case 2 =>
-                        this[targetIndex] = cmpBuffer[leftCursor]
-                        this[targetIndex + 1] = cmpBuffer[leftCursor + 1]
-                        this[targetIndex + 2] = probe
-                    case _ =>
-                        cmpBuffer.copyTo(this, leftCursor, targetIndex, leftCount)
-                        this[targetIndex + leftCount] = probe
-                }
-                targetIndex = targetIndex + leftCount + 1
-                leftCursor += leftCount
-                leftRemain -= leftCount
-                rightCursor++
-                rightRemain--
-                if (leftRemain == 1 || rightRemain == 0) {
-                    shouldStop = true
-                    break
-                }
-                probe = cmpBuffer[leftCursor]
-                rightCount = this.queryLT(probe, rightCursor, rightRemain, compareBy, false) - rightCursor
-                match (rightCount) {
-                    case 0 => this[targetIndex] = probe
-                    case 1 =>
-                        this[targetIndex] = this[rightCursor]
-                        this[targetIndex + 1] = probe
-                    case 2 =>
-                        this[targetIndex] = this[rightCursor]
-                        this[targetIndex + 1] = this[rightCursor + 1]
-                        this[targetIndex + 2] = probe
-                    case _ =>
-                        this.copyTo(this, rightCursor, targetIndex, rightCount)
-                        this[targetIndex + rightCount] = probe
-                }
-                targetIndex = targetIndex + rightCount + 1
-                rightCursor += rightCount
-                rightRemain -= rightCount
-                leftCursor++
-                leftRemain--
-                if (rightRemain == 0 || leftRemain == 1) {
-                    shouldStop = true
-                    break
-                }
-                if (leftCount < 4 || rightCount < 4) {
-                    break
-                }
-            }
-            if (shouldStop) {
+            state.shouldStop = false
+            this.mergeFromLeftByRange(cmpBuffer, state, compareBy)
+            if (state.shouldStop) {
                 break
             }
         }
-        if (rightRemain == 0) {
-            cmpBuffer.copyTo(this, leftCursor, targetIndex, leftRemain)
-        }
-        if (leftRemain == 1) {
-            this.copyTo(this, rightCursor, targetIndex, rightRemain)
-            this[targetIndex + rightRemain] = cmpBuffer[leftCursor]
-        }
+        finishMergeFromLeft(this, cmpBuffer, state)
     }
 
     @OverflowWrapping
@@ -783,129 +771,21 @@ extend<T> Array<T> {
     ) {
         let rightCmpBuffer = cmpTemp.getArray(len2)
         this.copyTo(rightCmpBuffer, start2, 0, len2)
-        var cmpRightTarget = start2 + len2 - 1
-        var cmpLeftTail = start1 + len1 - 1
-        var cmpLeftRest = len1
-        var cmpRightTail = len2 - 1
-        var cmpRightRest = len2
-        this[cmpRightTarget] = this[cmpLeftTail]
-        cmpRightTarget--
-        cmpLeftTail--
-        cmpLeftRest--
-        var cmpLeftBatch = 0
-        var cmpRightBatch = 0
-        var cmpStopFromRight = false
+        let state = MergeFromRightState(start2 + len2 - 1, start1 + len1 - 1, len1, len2 - 1, len2)
+        this[state.target] = this[state.leftTail]
+        state.takeLeftTail()
         while (true) {
-            cmpLeftBatch = 0
-            cmpRightBatch = 0
-            cmpStopFromRight = false
-            var cmpLeftTailValue = this[cmpLeftTail]
-            var cmpRightTailValue = rightCmpBuffer[cmpRightTail]
-            while (true) {
-                match (compareBy(cmpLeftTailValue, cmpRightTailValue)) {
-                    case GT =>
-                        this[cmpRightTarget] = cmpLeftTailValue
-                        cmpRightTarget--
-                        cmpLeftTail--
-                        cmpLeftRest--
-                        cmpLeftBatch++
-                        cmpRightBatch = 0
-                        if (cmpLeftRest == 0) {
-                            cmpStopFromRight = true
-                            break
-                        }
-                        if (cmpLeftBatch > 4) {
-                            break
-                        }
-
-                        cmpLeftTailValue = this[cmpLeftTail]
-                    case _ =>
-                        this[cmpRightTarget] = cmpRightTailValue
-                        cmpRightTarget--
-                        cmpRightTail--
-                        cmpRightRest--
-                        cmpRightBatch++
-                        cmpLeftBatch = 0
-                        if (cmpRightRest == 1) {
-                            cmpStopFromRight = true
-                            break
-                        }
-                        if (cmpRightBatch > 4) {
-                            break
-                        }
-                        cmpRightTailValue = rightCmpBuffer[cmpRightTail]
-                }
-            }
-            if (cmpStopFromRight) {
+            this.mergeFromRightOneByOne(rightCmpBuffer, state, compareBy)
+            if (state.shouldStop) {
                 break
             }
-            cmpStopFromRight = false
-            while (true) {
-                var cmpTailProbe = this[cmpLeftTail]
-                let cmpLtIndex = rightCmpBuffer.queryLT(cmpTailProbe, 0, cmpRightRest, compareBy, true)
-                cmpRightBatch = cmpRightRest - cmpLtIndex
-                match (cmpRightBatch) {
-                    case 0 => this[cmpRightTarget] = cmpTailProbe
-                    case 1 =>
-                        this[cmpRightTarget] = rightCmpBuffer[cmpRightTail]
-                        this[cmpRightTarget - 1] = cmpTailProbe
-                    case 2 =>
-                        this[cmpRightTarget] = rightCmpBuffer[cmpRightTail]
-                        this[cmpRightTarget - 1] = rightCmpBuffer[cmpRightTail - 1]
-                        this[cmpRightTarget - 2] = cmpTailProbe
-                    case _ =>
-                        rightCmpBuffer.copyTo(this, cmpLtIndex, cmpRightTarget - cmpRightBatch + 1, cmpRightBatch)
-                        this[cmpRightTarget - cmpRightBatch] = cmpTailProbe
-                }
-                cmpRightTarget = cmpRightTarget - cmpRightBatch - 1
-                cmpRightTail -= cmpRightBatch
-                cmpRightRest -= cmpRightBatch
-                cmpLeftTail--
-                cmpLeftRest--
-                if (cmpRightRest == 1 || cmpLeftRest == 0) {
-                    cmpStopFromRight = true
-                    break
-                }
-                cmpTailProbe = rightCmpBuffer[cmpRightTail]
-                let cmpGtIndex = this.queryGT(cmpTailProbe, start1, cmpLeftRest, compareBy, true)
-                cmpLeftBatch = cmpLeftTail - cmpGtIndex + 1
-                match (cmpLeftBatch) {
-                    case 0 => this[cmpRightTarget] = cmpTailProbe
-                    case 1 =>
-                        this[cmpRightTarget] = this[cmpLeftTail]
-                        this[cmpRightTarget - 1] = cmpTailProbe
-                    case 2 =>
-                        this[cmpRightTarget] = this[cmpLeftTail]
-                        this[cmpRightTarget - 1] = this[cmpLeftTail - 1]
-                        this[cmpRightTarget - 2] = cmpTailProbe
-                    case _ =>
-                        this.copyTo(this, cmpGtIndex, cmpRightTarget - cmpLeftBatch + 1, cmpLeftBatch)
-                        this[cmpRightTarget - cmpLeftBatch] = cmpTailProbe
-                }
-                cmpRightTarget = cmpRightTarget - cmpLeftBatch - 1
-                cmpLeftTail -= cmpLeftBatch
-                cmpLeftRest -= cmpLeftBatch
-                cmpRightTail--
-                cmpRightRest--
-                if (cmpLeftRest == 0 || cmpRightRest == 1) {
-                    cmpStopFromRight = true
-                    break
-                }
-                if (cmpLeftBatch < 4 || cmpRightBatch < 4) {
-                    break
-                }
-            }
-            if (cmpStopFromRight) {
+            state.shouldStop = false
+            this.mergeFromRightByRange(start1, rightCmpBuffer, state, compareBy)
+            if (state.shouldStop) {
                 break
             }
         }
-        if (cmpLeftRest == 0) {
-            rightCmpBuffer.copyTo(this, 0, cmpRightTarget - cmpRightRest + 1, cmpRightRest)
-        }
-        if (cmpRightRest == 1) {
-            this.copyTo(this, start1, start1 + 1, cmpLeftRest)
-            this[start1] = rightCmpBuffer[cmpRightTail]
-        }
+        finishMergeFromRight(this, start1, rightCmpBuffer, state)
     }
 
     @OverflowWrapping
@@ -974,5 +854,186 @@ class TempArray<T> {
         }
         this.data = Array<T>(newSize, repeat: this.zero)
         return this.data
+    }
+}
+
+// MergeFromLeftState is scoped to a single mergeFromLeft call; not shared across
+// threads or recursive calls. Its mutable fields replace former locals only to
+// reduce stack traffic and are not observed outside that one invocation.
+class MergeFromLeftState {
+    var target: Int64
+    var leftCursor: Int64
+    var leftRest: Int64
+    var rightCursor: Int64
+    var rightRest: Int64
+    var leftCount: Int64 = 0
+    var rightCount: Int64 = 0
+    var shouldStop: Bool = false
+
+    init(target: Int64, leftCursor: Int64, leftRest: Int64, rightCursor: Int64, rightRest: Int64) {
+        this.target = target
+        this.leftCursor = leftCursor
+        this.leftRest = leftRest
+        this.rightCursor = rightCursor
+        this.rightRest = rightRest
+    }
+
+    func resetCounts(): Unit {
+        leftCount = 0
+        rightCount = 0
+        shouldStop = false
+    }
+
+    func takeLeft(): Unit {
+        target++
+        leftCursor++
+        leftRest--
+        leftCount++
+        rightCount = 0
+    }
+
+    func takeRight(): Unit {
+        target++
+        rightCursor++
+        rightRest--
+        rightCount++
+        leftCount = 0
+    }
+}
+
+// MergeFromRightState is scoped to a single mergeFromRight call; not shared
+// across threads or recursive calls. Its mutable fields replace former locals
+// only to reduce stack traffic and are not observed outside that one invocation.
+class MergeFromRightState {
+    var target: Int64
+    var leftTail: Int64
+    var leftRest: Int64
+    var rightTail: Int64
+    var rightRest: Int64
+    var leftBatch: Int64 = 0
+    var rightBatch: Int64 = 0
+    var shouldStop: Bool = false
+
+    init(target: Int64, leftTail: Int64, leftRest: Int64, rightTail: Int64, rightRest: Int64) {
+        this.target = target
+        this.leftTail = leftTail
+        this.leftRest = leftRest
+        this.rightTail = rightTail
+        this.rightRest = rightRest
+    }
+
+    func resetCounts(): Unit {
+        leftBatch = 0
+        rightBatch = 0
+        shouldStop = false
+    }
+
+    func takeLeftTail(): Unit {
+        target--
+        leftTail--
+        leftRest--
+        leftBatch++
+        rightBatch = 0
+    }
+
+    func takeRightTail(): Unit {
+        target--
+        rightTail--
+        rightRest--
+        rightBatch++
+        leftBatch = 0
+    }
+}
+
+// Package-level merge helpers shared by both Array<T> extend blocks.
+// Extracted as free functions to avoid cross-extend-block private method visibility limits.
+
+@OverflowWrapping
+private func moveLeftBufferPrefix<T>(dest: Array<T>, arr: Array<T>, state: MergeFromLeftState, count: Int64, point: T): Unit {
+    match (count) {
+        case 0 => dest[state.target] = point
+        case 1 =>
+            dest[state.target] = arr[state.leftCursor]
+            dest[state.target + 1] = point
+        case 2 =>
+            dest[state.target] = arr[state.leftCursor]
+            dest[state.target + 1] = arr[state.leftCursor + 1]
+            dest[state.target + 2] = point
+        case _ =>
+            arr.copyTo(dest, state.leftCursor, state.target, count)
+            dest[state.target + count] = point
+    }
+}
+
+@OverflowWrapping
+private func moveRightRunPrefix<T>(dest: Array<T>, state: MergeFromLeftState, count: Int64, point: T): Unit {
+    match (count) {
+        case 0 => dest[state.target] = point
+        case 1 =>
+            dest[state.target] = dest[state.rightCursor]
+            dest[state.target + 1] = point
+        case 2 =>
+            dest[state.target] = dest[state.rightCursor]
+            dest[state.target + 1] = dest[state.rightCursor + 1]
+            dest[state.target + 2] = point
+        case _ =>
+            dest.copyTo(dest, state.rightCursor, state.target, count)
+            dest[state.target + count] = point
+    }
+}
+
+@OverflowWrapping
+private func finishMergeFromLeft<T>(dest: Array<T>, arr: Array<T>, state: MergeFromLeftState): Unit {
+    if (state.rightRest == 0) {
+        arr.copyTo(dest, state.leftCursor, state.target, state.leftRest)
+    }
+    if (state.leftRest == 1) {
+        dest.copyTo(dest, state.rightCursor, state.target, state.rightRest)
+        dest[state.target + state.rightRest] = arr[state.leftCursor]
+    }
+}
+
+@OverflowWrapping
+private func moveRightBufferSuffix<T>(dest: Array<T>, rightBuffer: Array<T>, state: MergeFromRightState, count: Int64, point: T): Unit {
+    match (count) {
+        case 0 => dest[state.target] = point
+        case 1 =>
+            dest[state.target] = rightBuffer[state.rightTail]
+            dest[state.target - 1] = point
+        case 2 =>
+            dest[state.target] = rightBuffer[state.rightTail]
+            dest[state.target - 1] = rightBuffer[state.rightTail - 1]
+            dest[state.target - 2] = point
+        case _ =>
+            rightBuffer.copyTo(dest, state.rightTail - count + 1, state.target - count + 1, count)
+            dest[state.target - count] = point
+    }
+}
+
+@OverflowWrapping
+private func moveLeftRunSuffix<T>(dest: Array<T>, state: MergeFromRightState, count: Int64, point: T): Unit {
+    match (count) {
+        case 0 => dest[state.target] = point
+        case 1 =>
+            dest[state.target] = dest[state.leftTail]
+            dest[state.target - 1] = point
+        case 2 =>
+            dest[state.target] = dest[state.leftTail]
+            dest[state.target - 1] = dest[state.leftTail - 1]
+            dest[state.target - 2] = point
+        case _ =>
+            dest.copyTo(dest, state.leftTail - count + 1, state.target - count + 1, count)
+            dest[state.target - count] = point
+    }
+}
+
+@OverflowWrapping
+private func finishMergeFromRight<T>(dest: Array<T>, start1: Int64, rightBuffer: Array<T>, state: MergeFromRightState): Unit {
+    if (state.leftRest == 0) {
+        rightBuffer.copyTo(dest, 0, state.target - state.rightRest + 1, state.rightRest)
+    }
+    if (state.rightRest == 1) {
+        dest.copyTo(dest, start1, start1 + 1, state.leftRest)
+        dest[start1] = rightBuffer[state.rightTail]
     }
 }
