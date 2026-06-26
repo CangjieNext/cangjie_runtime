@@ -299,7 +299,7 @@ if (OHOS_FLAG IN_LIST OHOS_FLAG_LIST)
         -Wno-unused-lambda-capture -Wno-null-pointer-arithmetic -Wno-enum-compare-switch \
         -fdata-sections -g2 -ggnu-pubnames -fno-common -Wheader-hygiene ${OHOS_COMPILE_OPTION} \
         -Wstring-conversion -Wtautological-overlap-compare -Wl,--allow-shlib-undefined \
-        -Wno-unused-command-line-argument -fno-omit-frame-pointer -fvisibility=default -fno-exceptions -fno-rtti \
+        -Wno-unused-command-line-argument -fno-omit-frame-pointer -fvisibility=hidden -fno-exceptions -fno-rtti \
         -ffunction-sections -Wall -fstack-protector-strong -fno-emulated-tls \
         -Wl,--hash-style=gnu \
         --sysroot=${OHOS_ROOT}/out/sdk/obj/third_party/musl/sysroot ${OHOS_INCLUDE}"
@@ -320,16 +320,16 @@ elseif (ANDROID_FLAG MATCHES 3)
         -fstack-protector-strong -fPIC -fno-strict-aliasing -fno-common ${ANDROID_COMPILE_OPTION} ${ANDROID_INCLUDE}"
     )
 elseif (IOS_SIMULATOR_FLAG MATCHES 2)
-    set(CMAKE_INIT_FLAGS "-Wno-unused-command-line-argument -fno-omit-frame-pointer -fvisibility=default -fno-exceptions \
+    set(CMAKE_INIT_FLAGS "-Wno-unused-command-line-argument -fno-omit-frame-pointer -fvisibility=hidden -fno-exceptions \
             -fno-rtti -Wall -fstack-protector-strong -fPIC -fno-strict-aliasing -fno-common -target x86_64-apple-ios11-simulator")
 elseif (IOS_SIMULATOR_FLAG MATCHES 1)
-    set(CMAKE_INIT_FLAGS "-Wno-unused-command-line-argument -fno-omit-frame-pointer -fvisibility=default -fno-exceptions \
+    set(CMAKE_INIT_FLAGS "-Wno-unused-command-line-argument -fno-omit-frame-pointer -fvisibility=hidden -fno-exceptions \
             -fno-rtti -Wall -fstack-protector-strong -fPIC -fno-strict-aliasing -fno-common -target arm64-apple-ios11-simulator")
 elseif (IOS_FLAG MATCHES 1)
-    set(CMAKE_INIT_FLAGS "-Wno-unused-command-line-argument -fno-omit-frame-pointer -fvisibility=default -fno-exceptions \
+    set(CMAKE_INIT_FLAGS "-Wno-unused-command-line-argument -fno-omit-frame-pointer -fvisibility=hidden -fno-exceptions \
         -fno-rtti -Wall -fstack-protector-strong -fPIC -fno-strict-aliasing -fno-common -target arm64-apple-ios11")
 else ()
-    set(CMAKE_INIT_FLAGS "-Wno-unused-command-line-argument -fno-omit-frame-pointer -fvisibility=default -fno-exceptions \
+    set(CMAKE_INIT_FLAGS "-Wno-unused-command-line-argument -fno-omit-frame-pointer -fvisibility=hidden -fno-exceptions \
         -fno-rtti -ffunction-sections -Wall -fstack-protector-strong -fPIC -fno-strict-aliasing -fno-common")
 endif ()
 set(ASAN_FLAGS "-fsanitize=address -fno-omit-frame-pointer")
