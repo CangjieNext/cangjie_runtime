@@ -722,6 +722,22 @@ class FormatSpecifier {
         return ""
     }
 
+    func paddingFloatZero(negative: Bool, len: Int64): String {
+        var sp = 0
+        if (negative) {
+            sp = width - len - 1
+        } else {
+            sp = width - len
+        }
+        var tmp = ""
+        if (sp > 0) {
+            for (_ in 0..sp) {
+                tmp = tmp + "0"
+            }
+        }
+        return tmp
+    }
+
     /**
      * Formats floating-point number.
      *
@@ -792,7 +808,7 @@ class FormatSpecifier {
             return "+"
         }
         if (flags == Flags.Zero) {
-            return paddingZero(negative, len)
+            return paddingFloatZero(negative, len)
         }
         return ""
     }
