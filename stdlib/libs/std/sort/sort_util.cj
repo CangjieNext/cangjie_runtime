@@ -197,15 +197,12 @@ extend<T> Array<T> where T <: Comparable<T> {
         }
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
-    // end - begin >= 1
     @OverflowWrapping
-    func getSequenceLength(begin: Int64, end: Int64, temp: TempArray<T>): Int64 {
+    func getEqualPrefixInfo(begin: Int64, end: Int64): (Int64, Int64, Bool) {
         var b: Int64 = begin
         var equalNum: Int64 = 1
         var isAscending: Bool = true
 
-        // Obtains the length of a sequence with the same value.
         if (this[b] < this[b + 1]) {
             isAscending = true
         } else if (this[b] > this[b + 1]) {
@@ -226,34 +223,60 @@ extend<T> Array<T> where T <: Comparable<T> {
                 }
             }
         }
+        (b, equalNum, isAscending)
+    }
+
+    @OverflowWrapping
+    func handleShortSequence(begin: Int64, end: Int64, equalNum: Int64, isAscending: Bool): Int64 {
+        if (!isAscending) {
+            let te = this[end]
+            this.copyTo(this, begin, begin + 1, equalNum)
+            this[begin] = te
+        }
+        return equalNum + 1
+    }
+
+    @OverflowWrapping
+    func countAscendingRun(begin: Int64, end: Int64): Int64 {
+        var b = begin
+        var n: Int64 = 1
+        while (b + 1 <= end && this[b] <= this[b + 1]) {
+            n++
+            b++
+        }
+        n
+    }
+
+    @OverflowWrapping
+    func countDescendingRun(begin: Int64, end: Int64): Int64 {
+        var b = begin
+        var n: Int64 = 1
+        while (b + 1 <= end && this[b] > this[b + 1]) {
+            n++
+            b++
+        }
+        n
+    }
+
+    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // end - begin >= 1
+    @OverflowWrapping
+    func getSequenceLength(begin: Int64, end: Int64, temp: TempArray<T>): Int64 {
+        var (b, equalNum, isAscending) = getEqualPrefixInfo(begin, end)
 
         if (b >= end) {
             return equalNum
         } else if (end - b == 1) {
-            if (!isAscending) {
-                let te = this[end]
-                this.copyTo(this, begin, begin + 1, equalNum)
-                this[begin] = te
-            }
-            return equalNum + 1
+            return handleShortSequence(begin, end, equalNum, isAscending)
         }
         b++
-        var n: Int64 = 1
         if (isAscending) {
-            while (b + 1 <= end && this[b] <= this[b + 1]) {
-                n++
-                b++
-            }
-            return equalNum + n
-        } else {
-            while (b + 1 <= end && this[b] > this[b + 1]) {
-                n++
-                b++
-            }
-
-            moveEqualPrefixAfterDescendingRun(begin, equalNum, n, temp)
-            return equalNum + n
+            return equalNum + countAscendingRun(b, end)
         }
+
+        let n = countDescendingRun(b, end)
+        moveEqualPrefixAfterDescendingRun(begin, equalNum, n, temp)
+        return equalNum + n
     }
 
     @OverflowWrapping
@@ -306,110 +329,130 @@ extend<T> Array<T> where T <: Comparable<T> {
 
     // The queried position is just greater than and equal the previous value.
     @OverflowWrapping
-    func queryGT(point: T, start: Int64, len: Int64, r: Bool) {
+    func queryGTFromRight(point: T, start: Int64, len: Int64): Int64 {
         var gallopMax = len
-        if (r) {
-            let end = start + len - 1
-            if (len > 64) {
-                let gallopMid = Int64(sqrt(Float64(len)))
-                if (point < this[end - gallopMid]) {
-                    return this.binaryQueryGT(point, start, len - gallopMid)
-                } else {
-                    gallopMax = gallopMid
-                }
+        let end = start + len - 1
+        if (len > 64) {
+            let gallopMid = Int64(sqrt(Float64(len)))
+            if (point < this[end - gallopMid]) {
+                return this.binaryQueryGT(point, start, len - gallopMid)
+            } else {
+                gallopMax = gallopMid
             }
-            var ofs = 1
-            var lastOfs = 0
-            while (ofs < gallopMax) {
-                if (point < this[end - ofs]) {
-                    lastOfs = ofs
-                    ofs = (ofs << 1) + 1
-                } else {
-                    break
-                }
-            }
-            if (ofs > gallopMax) {
-                ofs = gallopMax
-            }
-            return this.binaryQueryGT(point, start + len - ofs, ofs - lastOfs)
-        } else {
-            if (len > 64) {
-                let gallopMid = Int64(sqrt(Float64(len)))
-                if (point < this[start + gallopMid]) {
-                    gallopMax = gallopMid
-                } else {
-                    return this.binaryQueryGT(point, start + gallopMid, len - gallopMid)
-                }
-            }
-            var ofs = 1
-            var lastOfs = 0
-            while (ofs < gallopMax) {
-                if (point < this[start + ofs]) {
-                    break
-                } else {
-                    lastOfs = ofs
-                    ofs = (ofs << 1) + 1
-                }
-            }
-            if (ofs > gallopMax) {
-                ofs = gallopMax
-            }
-            return this.binaryQueryGT(point, start + lastOfs, ofs - lastOfs)
         }
+        var ofs = 1
+        var lastOfs = 0
+        while (ofs < gallopMax) {
+            if (point < this[end - ofs]) {
+                lastOfs = ofs
+                ofs = (ofs << 1) + 1
+            } else {
+                break
+            }
+        }
+        if (ofs > gallopMax) {
+            ofs = gallopMax
+        }
+        return this.binaryQueryGT(point, start + len - ofs, ofs - lastOfs)
+    }
+
+    @OverflowWrapping
+    func queryGTFromLeft(point: T, start: Int64, len: Int64): Int64 {
+        var gallopMax = len
+        if (len > 64) {
+            let gallopMid = Int64(sqrt(Float64(len)))
+            if (point < this[start + gallopMid]) {
+                gallopMax = gallopMid
+            } else {
+                return this.binaryQueryGT(point, start + gallopMid, len - gallopMid)
+            }
+        }
+        var ofs = 1
+        var lastOfs = 0
+        while (ofs < gallopMax) {
+            if (point < this[start + ofs]) {
+                break
+            } else {
+                lastOfs = ofs
+                ofs = (ofs << 1) + 1
+            }
+        }
+        if (ofs > gallopMax) {
+            ofs = gallopMax
+        }
+        return this.binaryQueryGT(point, start + lastOfs, ofs - lastOfs)
+    }
+
+    @OverflowWrapping
+    func queryGT(point: T, start: Int64, len: Int64, r: Bool) {
+        if (r) {
+            return queryGTFromRight(point, start, len)
+        }
+        return queryGTFromLeft(point, start, len)
     }
 
     // The queried position is just less than and equal the next value.
     @OverflowWrapping
-    func queryLT(point: T, start: Int64, len: Int64, r: Bool) {
+    func queryLTFromRight(point: T, start: Int64, len: Int64): Int64 {
         var gallopMax = len
-        if (r) {
-            let end = start + len - 1
-            if (len > 64) {
-                let gallopMid = Int64(sqrt(Float64(len)))
-                if (point > this[end - gallopMid]) {
-                    gallopMax = gallopMid
-                } else {
-                    return this.binaryQueryLT(point, start, len - gallopMid)
-                }
+        let end = start + len - 1
+        if (len > 64) {
+            let gallopMid = Int64(sqrt(Float64(len)))
+            if (point > this[end - gallopMid]) {
+                gallopMax = gallopMid
+            } else {
+                return this.binaryQueryLT(point, start, len - gallopMid)
             }
-            var ofs = 1
-            var lastOfs = 0
-            while (ofs < gallopMax) {
-                if (point > this[end - ofs]) {
-                    break
-                } else {
-                    lastOfs = ofs
-                    ofs = (ofs << 1) + 1
-                }
-            }
-            if (ofs > gallopMax) {
-                ofs = gallopMax
-            }
-            return this.binaryQueryLT(point, start + len - ofs, ofs - lastOfs)
-        } else {
-            if (len > 64) {
-                let gallopMid = Int64(sqrt(Float64(len)))
-                if (point > this[start + gallopMid]) {
-                    return this.binaryQueryLT(point, start + gallopMid, len - gallopMid)
-                } else {
-                    gallopMax = gallopMid
-                }
-            }
-            var ofs = 1
-            var lastOfs = 0
-            while (ofs < gallopMax) {
-                if (point > this[start + ofs]) {
-                    lastOfs = ofs
-                    ofs = (ofs << 1) + 1
-                } else {
-                    break
-                }
-            }
-            if (ofs > gallopMax) {
-                ofs = gallopMax
-            }
-            return this.binaryQueryLT(point, start + lastOfs, ofs - lastOfs)
         }
+        var ofs = 1
+        var lastOfs = 0
+        while (ofs < gallopMax) {
+            if (point > this[end - ofs]) {
+                break
+            } else {
+                lastOfs = ofs
+                ofs = (ofs << 1) + 1
+            }
+        }
+        if (ofs > gallopMax) {
+            ofs = gallopMax
+        }
+        return this.binaryQueryLT(point, start + len - ofs, ofs - lastOfs)
+    }
+
+    @OverflowWrapping
+    func queryLTFromLeft(point: T, start: Int64, len: Int64): Int64 {
+        var gallopMax = len
+        if (len > 64) {
+            let gallopMid = Int64(sqrt(Float64(len)))
+            if (point > this[start + gallopMid]) {
+                return this.binaryQueryLT(point, start + gallopMid, len - gallopMid)
+            } else {
+                gallopMax = gallopMid
+            }
+        }
+        var ofs = 1
+        var lastOfs = 0
+        while (ofs < gallopMax) {
+            if (point > this[start + ofs]) {
+                lastOfs = ofs
+                ofs = (ofs << 1) + 1
+            } else {
+                break
+            }
+        }
+        if (ofs > gallopMax) {
+            ofs = gallopMax
+        }
+        return this.binaryQueryLT(point, start + lastOfs, ofs - lastOfs)
+    }
+
+    @OverflowWrapping
+    func queryLT(point: T, start: Int64, len: Int64, r: Bool) {
+        if (r) {
+            return queryLTFromRight(point, start, len)
+        }
+        return queryLTFromLeft(point, start, len)
     }
 }
 
@@ -495,15 +538,16 @@ extend<T> Array<T> {
         }
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
-    // end - begin >= 1
     @OverflowWrapping
-    func getSequenceLength(begin: Int64, end: Int64, temp: TempArray<T>, comparator: (T, T) -> Ordering): Int64 {
+    func getEqualPrefixInfoByComparator(
+        begin: Int64,
+        end: Int64,
+        comparator: (T, T) -> Ordering
+    ): (Int64, Int64, Bool) {
         var b: Int64 = begin
         var equalNum: Int64 = 1
         var isAscending: Bool = true
 
-        // Obtains the length of a sequence with the same value.
         match (comparator(this[b], this[b + 1])) {
             case LT => isAscending = true
             case GT => isAscending = false
@@ -524,43 +568,67 @@ extend<T> Array<T> {
                     }
                 }
         }
+        (b, equalNum, isAscending)
+    }
+
+    @OverflowWrapping
+    func handleShortSequenceByComparator(begin: Int64, end: Int64, equalNum: Int64, isAscending: Bool): Int64 {
+        if (!isAscending) {
+            let te = this[end]
+            this.copyTo(this, begin, begin + 1, equalNum)
+            this[begin] = te
+        }
+        return equalNum + 1
+    }
+
+    @OverflowWrapping
+    func countAscendingRunByComparator(begin: Int64, end: Int64, comparator: (T, T) -> Ordering): Int64 {
+        var b = begin
+        var n: Int64 = 1
+        while (b + 1 <= end) {
+            match (comparator(this[b], this[b + 1])) {
+                case GT => break
+                case _ =>
+                    n++
+                    b++
+            }
+        }
+        n
+    }
+
+    @OverflowWrapping
+    func countDescendingRunByComparator(begin: Int64, end: Int64, comparator: (T, T) -> Ordering): Int64 {
+        var b = begin
+        var n: Int64 = 1
+        while (b + 1 <= end) {
+            match (comparator(this[b], this[b + 1])) {
+                case GT =>
+                    n++
+                    b++
+                case _ => break
+            }
+        }
+        n
+    }
+
+    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // end - begin >= 1
+    @OverflowWrapping
+    func getSequenceLength(begin: Int64, end: Int64, temp: TempArray<T>, comparator: (T, T) -> Ordering): Int64 {
+        var (b, equalNum, isAscending) = getEqualPrefixInfoByComparator(begin, end, comparator)
         if (b >= end) {
             return equalNum
         } else if (end - b == 1) {
-            if (isAscending) {
-                return equalNum + 1
-            } else {
-                let te = this[end]
-                this.copyTo(this, begin, begin + 1, equalNum)
-                this[begin] = te
-                return equalNum + 1
-            }
+            return handleShortSequenceByComparator(begin, end, equalNum, isAscending)
         }
         b++
-        var n: Int64 = 1
         if (isAscending) {
-            while (b + 1 <= end) {
-                match (comparator(this[b], this[b + 1])) {
-                    case GT => break
-                    case _ =>
-                        n++
-                        b++
-                }
-            }
-            return equalNum + n
-        } else {
-            while (b + 1 <= end) {
-                match (comparator(this[b], this[b + 1])) {
-                    case GT =>
-                        n++
-                        b++
-                    case _ => break
-                }
-            }
-
-            moveEqualPrefixAfterDescendingRun(begin, equalNum, n, temp)
-            return equalNum + n
+            return equalNum + countAscendingRunByComparator(b, end, comparator)
         }
+
+        let n = countDescendingRunByComparator(b, end, comparator)
+        moveEqualPrefixAfterDescendingRun(begin, equalNum, n, temp)
+        return equalNum + n
     }
 
     // the original relative positions of equal elements are not guaranteed.
@@ -666,109 +734,129 @@ extend<T> Array<T> {
 
     // The queried position is just greater than and equal the previous value.
     @OverflowWrapping
-    func queryGT(point: T, start: Int64, len: Int64, comparator: (T, T) -> Ordering, r: Bool) {
+    func queryGTFromRight(point: T, start: Int64, len: Int64, comparator: (T, T) -> Ordering): Int64 {
         var gallopMax = len
-        if (r) {
-            let end = start + len - 1
-            if (len > 64) {
-                let gallopMid = Int64(sqrt(Float64(len)))
-                match (comparator(point, this[end - gallopMid])) {
-                    case LT => return this.binaryQueryGT(point, start, len - gallopMid, comparator)
-                    case _ => gallopMax = gallopMid
-                }
+        let end = start + len - 1
+        if (len > 64) {
+            let gallopMid = Int64(sqrt(Float64(len)))
+            match (comparator(point, this[end - gallopMid])) {
+                case LT => return this.binaryQueryGT(point, start, len - gallopMid, comparator)
+                case _ => gallopMax = gallopMid
             }
-            var ofs = 1
-            var lastOfs = 0
-            while (ofs < gallopMax) {
-                let t = this[end - ofs]
-                match (comparator(point, t)) {
-                    case LT =>
-                        lastOfs = ofs
-                        ofs = (ofs << 1) + 1
-                    case _ => break
-                }
-            }
-            if (ofs > gallopMax) {
-                ofs = gallopMax
-            }
-            return this.binaryQueryGT(point, start + len - ofs, ofs - lastOfs, comparator)
-        } else {
-            if (len > 64) {
-                let gallopMid = Int64(sqrt(Float64(len)))
-                match (comparator(point, this[start + gallopMid])) {
-                    case LT => gallopMax = gallopMid
-                    case _ => return this.binaryQueryGT(point, start + gallopMid, len - gallopMid, comparator)
-                }
-            }
-            var ofs = 1
-            var lastOfs = 0
-            while (ofs < gallopMax) {
-                let t = this[start + ofs]
-                match (comparator(point, t)) {
-                    case LT => break
-                    case _ =>
-                        lastOfs = ofs
-                        ofs = (ofs << 1) + 1
-                }
-            }
-            if (ofs > gallopMax) {
-                ofs = gallopMax
-            }
-            return this.binaryQueryGT(point, start + lastOfs, ofs - lastOfs, comparator)
         }
+        var ofs = 1
+        var lastOfs = 0
+        while (ofs < gallopMax) {
+            let t = this[end - ofs]
+            match (comparator(point, t)) {
+                case LT =>
+                    lastOfs = ofs
+                    ofs = (ofs << 1) + 1
+                case _ => break
+            }
+        }
+        if (ofs > gallopMax) {
+            ofs = gallopMax
+        }
+        return this.binaryQueryGT(point, start + len - ofs, ofs - lastOfs, comparator)
+    }
+
+    @OverflowWrapping
+    func queryGTFromLeft(point: T, start: Int64, len: Int64, comparator: (T, T) -> Ordering): Int64 {
+        var gallopMax = len
+        if (len > 64) {
+            let gallopMid = Int64(sqrt(Float64(len)))
+            match (comparator(point, this[start + gallopMid])) {
+                case LT => gallopMax = gallopMid
+                case _ => return this.binaryQueryGT(point, start + gallopMid, len - gallopMid, comparator)
+            }
+        }
+        var ofs = 1
+        var lastOfs = 0
+        while (ofs < gallopMax) {
+            let t = this[start + ofs]
+            match (comparator(point, t)) {
+                case LT => break
+                case _ =>
+                    lastOfs = ofs
+                    ofs = (ofs << 1) + 1
+            }
+        }
+        if (ofs > gallopMax) {
+            ofs = gallopMax
+        }
+        return this.binaryQueryGT(point, start + lastOfs, ofs - lastOfs, comparator)
+    }
+
+    @OverflowWrapping
+    func queryGT(point: T, start: Int64, len: Int64, comparator: (T, T) -> Ordering, r: Bool) {
+        if (r) {
+            return queryGTFromRight(point, start, len, comparator)
+        }
+        return queryGTFromLeft(point, start, len, comparator)
     }
 
     // The queried position is just less than and equal the next value.
     @OverflowWrapping
-    func queryLT(point: T, start: Int64, len: Int64, comparator: (T, T) -> Ordering, r: Bool) {
+    func queryLTFromRight(point: T, start: Int64, len: Int64, comparator: (T, T) -> Ordering): Int64 {
         var gallopMax = len
-        if (r) {
-            let end = start + len - 1
-            if (len > 64) {
-                let gallopMid = Int64(sqrt(Float64(len)))
-                match (comparator(point, this[end - gallopMid])) {
-                    case GT => gallopMax = gallopMid
-                    case _ => return this.binaryQueryLT(point, start, len - gallopMid, comparator)
-                }
+        let end = start + len - 1
+        if (len > 64) {
+            let gallopMid = Int64(sqrt(Float64(len)))
+            match (comparator(point, this[end - gallopMid])) {
+                case GT => gallopMax = gallopMid
+                case _ => return this.binaryQueryLT(point, start, len - gallopMid, comparator)
             }
-            var ofs = 1
-            var lastOfs = 0
-            while (ofs < gallopMax) {
-                let t = this[end - ofs]
-                match (comparator(point, t)) {
-                    case GT => break
-                    case _ =>
-                        lastOfs = ofs
-                        ofs = (ofs << 1) + 1
-                }
-            }
-            if (ofs > gallopMax) {
-                ofs = gallopMax
-            }
-            return this.binaryQueryLT(point, start + len - ofs, ofs - lastOfs, comparator)
-        } else {
-            if (len > 64) {
-                let gallopMid = Int64(sqrt(Float64(len)))
-                match (comparator(point, this[start + gallopMid])) {
-                    case GT => return this.binaryQueryLT(point, start + gallopMid, len - gallopMid, comparator)
-                    case _ => gallopMax = gallopMid
-                }
-            }
-            var ofs = 1
-            var lastOfs = 0
-            while (ofs < gallopMax) {
-                let t = this[start + ofs]
-                match (comparator(point, t)) {
-                    case GT =>
-                        lastOfs = ofs
-                        ofs = (ofs << 1) + 1
-                    case _ => break
-                }
-            }
-            if (ofs > gallopMax) {
-                ofs = gallopMax
-            }
-            return this.binaryQueryLT(point, start + lastOfs, ofs - lastOfs, comparator)
         }
+        var ofs = 1
+        var lastOfs = 0
+        while (ofs < gallopMax) {
+            let t = this[end - ofs]
+            match (comparator(point, t)) {
+                case GT => break
+                case _ =>
+                    lastOfs = ofs
+                    ofs = (ofs << 1) + 1
+            }
+        }
+        if (ofs > gallopMax) {
+            ofs = gallopMax
+        }
+        return this.binaryQueryLT(point, start + len - ofs, ofs - lastOfs, comparator)
+    }
+
+    @OverflowWrapping
+    func queryLTFromLeft(point: T, start: Int64, len: Int64, comparator: (T, T) -> Ordering): Int64 {
+        var gallopMax = len
+        if (len > 64) {
+            let gallopMid = Int64(sqrt(Float64(len)))
+            match (comparator(point, this[start + gallopMid])) {
+                case GT => return this.binaryQueryLT(point, start + gallopMid, len - gallopMid, comparator)
+                case _ => gallopMax = gallopMid
+            }
+        }
+        var ofs = 1
+        var lastOfs = 0
+        while (ofs < gallopMax) {
+            let t = this[start + ofs]
+            match (comparator(point, t)) {
+                case GT =>
+                    lastOfs = ofs
+                    ofs = (ofs << 1) + 1
+                case _ => break
+            }
+        }
+        if (ofs > gallopMax) {
+            ofs = gallopMax
+        }
+        return this.binaryQueryLT(point, start + lastOfs, ofs - lastOfs, comparator)
+    }
+
+    @OverflowWrapping
+    func queryLT(point: T, start: Int64, len: Int64, comparator: (T, T) -> Ordering, r: Bool) {
+        if (r) {
+            return queryLTFromRight(point, start, len, comparator)
+        }
+        return queryLTFromLeft(point, start, len, comparator)
     }
 }
