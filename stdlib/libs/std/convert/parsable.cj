@@ -1079,12 +1079,6 @@ interface FloatParsable<T> {
     static func fromFloat64(n: Float64): T
 }
 
-enum DecimalFloatScan {
-    | DecimalParsed(Float64, Int64, Int64)
-    | DecimalFallback
-    | DecimalInvalid
-}
-
 func parseFloat<T>(data: String): T where T <: FloatParsable<T> {
     match (doParseFloat<T>(data)) {
         case Success(n) => n
@@ -1099,84 +1093,71 @@ func tryParseFloat<T>(data: String): Option<T> where T <: FloatParsable<T> {
     }
 }
 
-func trimFloatInput(data: String): ConvertResult<String> {
+func doParseFloat<T>(data: String): ConvertResult<T> where T <: FloatParsable<T> {
     if (data.isEmpty()) {
         return Failure("The string is empty.")
     }
-    let inputStr = data.trimAscii()
+    var inputStr = data.trimAscii()
     if (inputStr.isEmpty()) {
         return Failure("The string does not comply with the floating point number syntax.")
     }
-    return Success(inputStr)
-}
+    let trimmedStr = inputStr
 
-func stripFloatSign(inputStr: String): (String, Bool) {
-    match (inputStr[0]) {
-        case '-' => (inputStr[1..], true)
-        case '+' => (inputStr[1..], false)
-        case _ => (inputStr, false)
-    }
-}
-
-func scanDecimalFloat(inputStr: String): DecimalFloatScan {
     var result: Float64 = 0.0
     var pointNum = 0
-    var pointIndex = inputStr.size - 1
+    var isNative = false
+    var formatBaseNum: Float64 = 10.0
     var digitCount = 0
+    match (inputStr[0]) {
+        case '-' =>
+            isNative = true
+            inputStr = inputStr[1..]
+        case '+' => inputStr = inputStr[1..]
+        case _ => ()
+    }
+    if (inputStr.isEmpty()) {
+        return Failure("The string does not comply with the floating point number syntax.")
+    }
+    var pointIndex = inputStr.size - 1
+
     for (index in 0..inputStr.size) {
         if (pointNum > 1) {
-            return DecimalInvalid
+            return Failure("The string does not comply with the floating point number syntax.")
         }
         if (inputStr[index] >= b'0' && inputStr[index] <= b'9') {
-            result = result * 10.0 + Float64(inputStr[index] - b'0')
+            result = result * formatBaseNum + Float64(inputStr[index] - b'0')
             digitCount++
         } else if (inputStr[index] == b' ') {
-            return DecimalInvalid
+            return Failure("The string does not comply with the floating point number syntax.")
         } else if (inputStr[index] == b'.') {
             pointNum++
             pointIndex = index
             continue
         } else {
-            return DecimalFallback
+            return doParseFloatFromCffi<T>(trimmedStr)
         }
     }
-    if (pointNum > 1 || digitCount == 0) {
-        return DecimalInvalid
-    }
-    if (digitCount > FLOAT64_MAX_DECIMAL_DIGITS) {
-        return DecimalFallback
-    }
-    return DecimalParsed(result, pointIndex, inputStr.size)
-}
-
-func normalizeDecimalFloat(result: Float64, pointIndex: Int64, inputSize: Int64, isNative: Bool): Float64 {
-    var leftMove: Float64 = 1.0
-    for (_ in 0..(inputSize - pointIndex - 1)) {
-        leftMove *= 10.0
-    }
-    if (isNative) {
-        -(result / leftMove)
-    } else {
-        result / leftMove
-    }
-}
-
-func doParseFloat<T>(data: String): ConvertResult<T> where T <: FloatParsable<T> {
-    let trimmedStr = match (trimFloatInput(data)) {
-        case Success(str) => str
-        case Failure(str) => return Failure(str)
-    }
-    var (inputStr, isNative) = stripFloatSign(trimmedStr)
-    if (inputStr.isEmpty()) {
+    if (pointNum > 1) {
         return Failure("The string does not comply with the floating point number syntax.")
     }
-    match (scanDecimalFloat(inputStr)) {
-        case DecimalParsed(result, pointIndex, inputSize) =>
-            let floatVal = normalizeDecimalFloat(result, pointIndex, inputSize, isNative)
-            return Success(T.fromFloat64(floatVal))
-        case DecimalFallback => return doParseFloatFromCffi<T>(trimmedStr)
-        case DecimalInvalid => return Failure("The string does not comply with the floating point number syntax.")
+    if (digitCount == 0) {
+        return Failure("The string does not comply with the floating point number syntax.")
     }
+    if (digitCount > FLOAT64_MAX_DECIMAL_DIGITS) {
+        return doParseFloatFromCffi<T>(trimmedStr)
+    }
+
+    var df = inputStr.size - pointIndex - 1
+    var leftMove: Float64 = 1.0
+    for (_ in 0..df) {
+        leftMove *= formatBaseNum
+    }
+    if (isNative) {
+        result = -(result / leftMove)
+    } else {
+        result = result / leftMove
+    }
+    return Success(T.fromFloat64(result))
 }
 
 func doParseFloatFromCffi<T>(data: String): ConvertResult<T> where T <: FloatParsable<T> {
