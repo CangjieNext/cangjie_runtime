@@ -758,38 +758,135 @@ func initStdStream(processRtnData: ProcessRtnData): (OutputStream, InputStream, 
 }
 
 @When[os != "Windows"]
-func buildSubProcess(command: String, arguments: Array<String>, workingDir_c: CString, environment: ?Map<String, String>,
-    std_redirects: Array<ProcessRedirect>): SubProcess {
+private func buildCommandCStringArray(command: String, arguments: Array<String>): Array<CString> {
     let cmdArgCombinList: ArrayList<String> = ArrayList<String>.of(command)
     cmdArgCombinList.add(all: arguments)
-    var cmdArg_cArr: Array<CString> = cmdArgCombinList |> map {arg: String => unsafe { LibC.mallocCString(arg) }} |>
-        collectCStringArray
+    return cmdArgCombinList |> map {arg: String => unsafe { LibC.mallocCString(arg) }} |> collectCStringArray
+}
+
+@When[os != "Windows"]
+private func buildEnvironmentCStringArray(environment: ?Map<String, String>): Array<CString> {
+    // if environment is None, it will be use current environment which from it's parent's process.
+    return match (environment) {
+        case Some(env) => env |> map<(String, String), CString> {
+            envEntry: (String, String) =>
+                let sb: StringBuilder = StringBuilder(envEntry[0])
+                sb.append(r'=')
+                sb.append(envEntry[1])
+                unsafe { LibC.mallocCString(sb.toString()) }
+        } |> collectCStringArray
+        case _ => Array<CString>()
+    }
+}
+
+@When[os != "Windows"]
+private func freeCStringArray(cStringArr: Array<CString>) {
+    unsafe {
+        for (cStr in cStringArr) {
+            LibC.free(cStr)
+        }
+    }
+}
+
+@When[os != "Windows"]
+private func getEnvironmentPointer(
+    environment: ?Map<String, String>,
+    environment_cpHandle: CPointerHandle<CString>
+): CPointer<CString> {
+    if (let Some(_) <- environment) {
+        environment_cpHandle.pointer
+    } else {
+        CPointer<CString>()
+    }
+}
+
+@When[os != "Windows"]
+private func checkedProcessRtnData(processRtnData_cp: CPointer<ProcessRtnData>): ProcessRtnData {
+    if (processRtnData_cp.isNull()) {
+        throw ProcessException("Created process failed.")
+    }
+    let processRtnData: ProcessRtnData = unsafe { processRtnData_cp.read() }
+    if (processRtnData.errCode != 0) {
+        throw ProcessException("Created process failed, errMessage: \"${processRtnData.errMessage}\".")
+    }
+    return processRtnData
+}
+
+@When[os != "Windows"]
+private func checkedProcessInfo(processRtnData: ProcessRtnData): CPointer<ProcessInfo> {
+    let processInfo_cp = unsafe { CJ_OS_GetProcessInfoByPid(processRtnData.pid) }
+    if (processInfo_cp.isNull()) {
+        throw ProcessException("Created process failed.")
+    }
+    return processInfo_cp
+}
+
+@When[os != "Windows"]
+private func buildSubProcessFromInfo(processRtnData: ProcessRtnData, processInfo: ProcessInfo): SubProcess {
+    let pid: Int32 = processRtnData.pid
+    let (commandInfo, name, workDirPath, argumentsInfo, commandLine, environments) = getProcessInfo(processInfo)
+    let (stdInStream, stdOutStream, stdErrStream) = initStdStream(processRtnData)
+    return SubProcess(Int64(pid), name, commandInfo, argumentsInfo, commandLine, workDirPath, environments,
+        stdInStream, stdOutStream, stdErrStream)
+}
+
+@When[os != "Windows"]
+private func waitStartedProcessOnFailure(processRtnData_cp: CPointer<ProcessRtnData>) {
+    if (!processRtnData_cp.isNull()) {
+        let processRtnData: ProcessRtnData = unsafe { processRtnData_cp.read() }
+        if (processRtnData.pid != 0) {
+            unsafe { CJ_OS_WaitSubProcessExit(processRtnData.pid) }
+        }
+    }
+}
+
+@When[os != "Windows"]
+private func releaseSubProcessCStringResources(
+    command_c: CString,
+    cmdArg_cArr: Array<CString>,
+    cmdArg_cpHandle: CPointerHandle<CString>,
+    environment_cArr: Array<CString>,
+    environment_cpHandle: CPointerHandle<CString>
+) {
+    unsafe {
+        if (!command_c.isNull()) {
+            LibC.free(command_c)
+        }
+        freeCStringArray(cmdArg_cArr)
+        releaseArrayRawData<CString>(cmdArg_cpHandle)
+        freeCStringArray(environment_cArr)
+        releaseArrayRawData<CString>(environment_cpHandle)
+    }
+}
+
+@When[os != "Windows"]
+private func releaseSubProcessNativeResources(
+    processInfo_cp: CPointer<ProcessInfo>,
+    processRtnData_cp: CPointer<ProcessRtnData>,
+    processStartInfo_cp: CPointer<ProcessStartInfo>
+) {
+    unsafe {
+        CJ_OS_FreeProcessInfo(processInfo_cp)
+        CJ_OS_FreeProcessRtnData(processRtnData_cp)
+        CJ_OS_FreeProcessStartInfo(processStartInfo_cp)
+    }
+}
+
+@When[os != "Windows"]
+func buildSubProcess(command: String, arguments: Array<String>, workingDir_c: CString, environment: ?Map<String, String>,
+    std_redirects: Array<ProcessRedirect>): SubProcess {
+    var cmdArg_cArr = buildCommandCStringArray(command, arguments)
     var environment_cArr: Array<CString> = Array<CString>()
     try {
-        // if environment is None, it will be use current environment which from it's parent's process.
-        environment_cArr = match (environment) {
-            case Some(env) => env |> map<(String, String), CString> {
-                envEntry: (String, String) =>
-                    let sb: StringBuilder = StringBuilder(envEntry[0])
-                    sb.append(r'=')
-                    sb.append(envEntry[1])
-                    unsafe { LibC.mallocCString(sb.toString()) }
-            } |> collectCStringArray
-            case _ => Array<CString>()
-        }
+        environment_cArr = buildEnvironmentCStringArray(environment)
     } catch (e: IllegalMemoryException) {
-        for (arg_cStr in cmdArg_cArr) {
-            unsafe { LibC.free(arg_cStr) }
-        }
+        freeCStringArray(cmdArg_cArr)
         throw e
     }
 
     let cmdArg_cpHandle: CPointerHandle<CString> = unsafe { acquireArrayRawData<CString>(cmdArg_cArr) }
     let environment_cpHandle: CPointerHandle<CString> = unsafe { acquireArrayRawData<CString>(environment_cArr) }
-    var environment_pt: CPointer<CString> = CPointer<CString>()
-    if (let Some(_) <- environment) {
-        environment_pt = environment_cpHandle.pointer
-    }
+    let environment_pt = getEnvironmentPointer(environment, environment_cpHandle)
     let subProcess: SubProcess
     var processRtnData_cp: CPointer<ProcessRtnData> = CPointer<ProcessRtnData>()
     var processInfo_cp: CPointer<ProcessInfo> = CPointer<ProcessInfo>()
@@ -808,53 +905,17 @@ func buildSubProcess(command: String, arguments: Array<String>, workingDir_c: CS
         processStartInfo_cp = unsafe { CJ_OS_CreateProcessStartInfo() }
         unsafe { processStartInfo_cp.write(processStartInfo) }
         processRtnData_cp = unsafe { CJ_OS_StartProcess(processStartInfo_cp) }
-        // processRtnData errcode not 0 means not success, and it's should not go on.
-        // should deal with the errcode give detail message.
-        if (processRtnData_cp.isNull()) {
-            throw ProcessException("Created process failed.")
-        }
-
-        let processRtnData: ProcessRtnData = unsafe { processRtnData_cp.read() }
-        if (processRtnData.errCode != 0) {
-            throw ProcessException("Created process failed, errMessage: \"${processRtnData.errMessage}\".")
-        }
-
-        processInfo_cp = unsafe { CJ_OS_GetProcessInfoByPid(processRtnData.pid) }
-        if (processInfo_cp.isNull()) {
-            throw ProcessException("Created process failed.")
-        }
-
+        let processRtnData = checkedProcessRtnData(processRtnData_cp)
+        processInfo_cp = checkedProcessInfo(processRtnData)
         let processInfo = unsafe { processInfo_cp.read() }
-        let pid: Int32 = processRtnData.pid
-        let (commandInfo, name, workDirPath, argumentsInfo, commandLine, environments) = getProcessInfo(processInfo)
-        let (stdInStream, stdOutStream, stdErrStream) = initStdStream(processRtnData)
-        subProcess = SubProcess(Int64(pid), name, commandInfo, argumentsInfo, commandLine, workDirPath, environments,
-            stdInStream, stdOutStream, stdErrStream)
+        subProcess = buildSubProcessFromInfo(processRtnData, processInfo)
     } catch (e: Exception) {
-        if (!processRtnData_cp.isNull()) {
-            let processRtnData: ProcessRtnData = unsafe { processRtnData_cp.read() }
-            if (processRtnData.pid != 0) {
-                unsafe { CJ_OS_WaitSubProcessExit(processRtnData.pid) }
-            }
-        }
+        waitStartedProcessOnFailure(processRtnData_cp)
         throw e
     } finally {
-        unsafe {
-            if (!command_c.isNull()) {
-                LibC.free(command_c)
-            }
-            for (arg_cStr in cmdArg_cArr) {
-                LibC.free(arg_cStr)
-            }
-            releaseArrayRawData<CString>(cmdArg_cpHandle)
-            for (env_cStr in environment_cArr) {
-                LibC.free(env_cStr)
-            }
-            releaseArrayRawData<CString>(environment_cpHandle)
-            CJ_OS_FreeProcessInfo(processInfo_cp)
-            CJ_OS_FreeProcessRtnData(processRtnData_cp)
-            CJ_OS_FreeProcessStartInfo(processStartInfo_cp)
-        }
+        releaseSubProcessCStringResources(command_c, cmdArg_cArr, cmdArg_cpHandle, environment_cArr,
+            environment_cpHandle)
+        releaseSubProcessNativeResources(processInfo_cp, processRtnData_cp, processStartInfo_cp)
     }
 
     return subProcess
@@ -897,6 +958,49 @@ public func findProcess(pid: Int64): Process {
     return Process.buildProcess(Int32(pid))
 }
 
+private func checkCommand(command: String) {
+    if (command.contains("\0")) {
+        throw IllegalArgumentException("Command \"${command}\" cannot contains null character.")
+    }
+}
+
+private func checkArguments(arguments: Array<String>) {
+    for (arg in arguments) {
+        if (arg.contains("\0")) {
+            throw IllegalArgumentException("Argument \"${arg}\" cannot contains null character.")
+        }
+    }
+}
+
+private func checkEnvironment(environment: ?Map<String, String>) {
+    if (let Some(envMap) <- environment) {
+        for (envEntry in envMap) {
+            if (envEntry[0].contains("\0") || envEntry[0].contains("=") || envEntry[1].contains("\0")) {
+                throw IllegalArgumentException(
+                    "Environment \"${envEntry[0]}\" entry cannot contains invalid character.")
+            }
+        }
+    }
+}
+
+private func checkWorkingDirectory(workingDirectory: ?Path) {
+    if (let Some(dir) <- workingDirectory) {
+        try {
+            if (!FileInfo(dir).isDirectory()) {
+                throw IllegalArgumentException("WorkingDirectory \"${dir}\" must be directory.")
+            }
+        } catch (_: FSException) {
+            throw IllegalArgumentException("WorkingDirectory \"${dir}\" not exist in the file system.")
+        }
+    }
+}
+
+private func checkDiscardRedirect(stdRedirects: Array<ProcessRedirect>) {
+    if (getNulFileHandle().isNone() && Process.hasDiscardMode(stdRedirects)) {
+        throw IllegalArgumentException("Failed to open null file, can not redirect stdio to discard mode.")
+    }
+}
+
 private func launchImpl(
     command: String,
     arguments: Array<String>,
@@ -909,38 +1013,11 @@ private func launchImpl(
     var std_redirects: Array<ProcessRedirect> = [stdIn, stdOut, stdErr]
     // check command, arguments and environment, can not be empty or Null.
     // workingDirectory must be directory.
-    if (command.contains("\0")) {
-        throw IllegalArgumentException("Command \"${command}\" cannot contains null character.")
-    }
-
-    for (arg in arguments) {
-        if (arg.contains("\0")) {
-            throw IllegalArgumentException("Argument \"${arg}\" cannot contains null character.")
-        }
-    }
-
-    if (let Some(envMap) <- environment) {
-        for (envEntry in envMap) {
-            if (envEntry[0].contains("\0") || envEntry[0].contains("=") || envEntry[1].contains("\0")) {
-                throw IllegalArgumentException(
-                    "Environment \"${envEntry[0]}\" entry cannot contains invalid character.")
-            }
-        }
-    }
-
-    if (let Some(dir) <- workingDirectory) {
-        try {
-            if (!FileInfo(dir).isDirectory()) {
-                throw IllegalArgumentException("WorkingDirectory \"${dir}\" must be directory.")
-            }
-        } catch (_: FSException) {
-            throw IllegalArgumentException("WorkingDirectory \"${dir}\" not exist in the file system.")
-        }
-    }
-
-    if (getNulFileHandle().isNone() && Process.hasDiscardMode(std_redirects)) {
-        throw IllegalArgumentException("Failed to open null file, can not redirect stdio to discard mode.")
-    }
+    checkCommand(command)
+    checkArguments(arguments)
+    checkEnvironment(environment)
+    checkWorkingDirectory(workingDirectory)
+    checkDiscardRedirect(std_redirects)
 
     // convert attribute from String to CString
     // if workingDir is None, it means exec the command in current dir.

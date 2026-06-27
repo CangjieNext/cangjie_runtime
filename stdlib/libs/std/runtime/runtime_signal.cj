@@ -45,7 +45,7 @@ class SignalManager {
 
 /**
  * Provides a way to register signal handlers in Cangjie.
- * It uses a mutex to ensure thread safety when accessing the signal slots. 
+ * It uses a mutex to ensure thread safety when accessing the signal slots.
  */
 @When[os != "Windows"]
 public func registerSignalHandler(sig: Signal, handler: SignalHandlerFunc): Unit {
@@ -68,7 +68,7 @@ public func registerSignalHandler(sig: Signal, handler: SignalHandlerFunc): Unit
 
 /**
  * Provides a way to unregister signal handlers in Cangjie.
- * It uses a mutex to ensure thread safety when accessing the signal slots. 
+ * It uses a mutex to ensure thread safety when accessing the signal slots.
  */
 @When[os != "Windows"]
 public func unregisterSignalHandler(sig: Signal, handler: SignalHandlerFunc): Unit {
@@ -86,7 +86,7 @@ public func unregisterSignalHandler(sig: Signal, handler: SignalHandlerFunc): Un
 
 /**
  * Provides a way to reset signal handlers in Cangjie.
- * It uses a mutex to ensure thread safety when accessing the signal slots. 
+ * It uses a mutex to ensure thread safety when accessing the signal slots.
  */
 @When[os != "Windows"]
 public func resetSignalHandler(sigs: Array<Signal>): Unit {
