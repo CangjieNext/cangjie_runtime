@@ -652,58 +652,81 @@ func toSecNsBase(num: UInt64): (UInt32, UInt32, UInt32) {
     return (UInt32(res2), res1, res0)
 }
 
+func durDivByTwoDigitDivisor(
+    divisor1: UInt32,
+    divisor0: UInt32,
+    sec2: UInt32,
+    sec1: UInt32,
+    sec0: UInt32,
+    nanos: UInt32
+): (Int64, Int64) {
+    let times = DUR_BASE / (divisor1 + 1)
+    var (ds1, ds0) = (divisor1, divisor0)
+    let (dd4, dd3, dd2, dd1, dd0) = if (times == 1) {
+        (UInt32(0), sec2, sec1, sec0, nanos)
+    } else {
+        (_, ds1, ds0) = u32TwoMul(divisor1, divisor0, times)
+        u32DividendMul(sec2, sec1, sec0, nanos, times)
+    }
+    let dividend2 = UInt64(dd4) * DUR_BASE + UInt64(dd3)
+    let res2 = divAndMod(dividend2, dd2, ds1, ds0)
+    var (p2, p1, p0) = u32TwoMul(ds1, ds0, res2)
+    var (c2, c1, c0) = (Int64(dd4) - Int64(p2), Int64(dd3) - Int64(p1), Int64(dd2) - Int64(p0))
+    var (_, d1, d0) = getDifference(c2, c1, c0)
+    let dividend1 = UInt64(d1) * DUR_BASE + UInt64(d0)
+    let res1 = divAndMod(dividend1, dd1, ds1, ds0)
+    (p2, p1, p0) = u32TwoMul(ds1, ds0, res1)
+    (c2, c1, c0) = (Int64(d1) - Int64(p2), Int64(d0) - Int64(p1), Int64(dd1) - Int64(p0))
+    (_, d1, d0) = getDifference(c2, c1, c0)
+    let dividend0 = UInt64(d1) * DUR_BASE + UInt64(d0)
+    let res0 = divAndMod(dividend0, dd0, ds1, ds0)
+    return (Int64(res2) * NS_PER_SEC + Int64(res1), Int64(res0))
+}
+
+func durDivByThreeDigitDivisor(
+    divisor2: UInt32,
+    divisor1: UInt32,
+    divisor0: UInt32,
+    sec2: UInt32,
+    sec1: UInt32,
+    sec0: UInt32,
+    nanos: UInt32
+): (Int64, Int64) {
+    let times = DUR_BASE / UInt32(divisor2 + 1)
+    let (dd4, dd3, dd2, dd1, dd0) = u32DividendMul(sec2, sec1, sec0, nanos, times)
+    let (_, ds2, ds1, ds0) = u32ThreeMul(divisor2, divisor1, divisor0, times)
+    let dividend2 = UInt64(dd4) * DUR_BASE + UInt64(dd3)
+    var res1 = divAndMod(dividend2, dd2, ds2, ds1)
+    var (p3, p2, p1, p0) = u32ThreeMul(ds2, ds1, ds0, res1)
+    var (c3, c2, c1, c0) = (Int64(dd4) - Int64(p3), Int64(dd3) - Int64(p2), Int64(dd2) - Int64(p1),
+        Int64(dd1) - Int64(p0))
+    var (d3, d2, d1, d0) = getDifference(c3, c2, c1, c0)
+    if (d3 < 0) {
+        res1--
+        (p3, p2, p1, p0) = u32ThreeMul(ds2, ds1, ds0, res1)
+        (c3, c2, c1, c0) = (Int64(dd4) - Int64(p3), Int64(dd3) - Int64(p2), Int64(dd2) - Int64(p1),
+            Int64(dd1) - Int64(p0))
+        (d3, d2, d1, d0) = getDifference(c3, c2, c1, c0)
+    }
+    let dividend1 = UInt64(d2) * DUR_BASE + UInt64(d1)
+    var res0 = divAndMod(dividend1, UInt32(d0), ds2, ds1)
+    (p3, p2, p1, p0) = u32ThreeMul(ds2, ds1, ds0, res0)
+    (c3, c2, c1, c0) = (Int64(d2) - Int64(p3), Int64(d1) - Int64(p2), Int64(d0) - Int64(p1),
+        Int64(dd0) - Int64(p0))
+    (d3, d2, d1, d0) = getDifference(c3, c2, c1, c0)
+    if (d3 < 0) {
+        res0--
+    }
+    return (Int64(res1), Int64(res0))
+}
+
 func durDiv(secs: UInt64, nanos: UInt32, divisor: UInt64): (Int64, Int64) {
     let (divisor2, divisor1, divisor0) = toSecNsBase(divisor)
     let (sec2, sec1, sec0) = toSecNsBase(secs)
     if (divisor2 == 0) {
-        let times = DUR_BASE / (divisor1 + 1)
-        var (ds1, ds0) = (divisor1, divisor0)
-        let (dd4, dd3, dd2, dd1, dd0) = if (times == 1) {
-            (UInt32(0), sec2, sec1, sec0, nanos)
-        } else {
-            (_, ds1, ds0) = u32TwoMul(divisor1, divisor0, times)
-            u32DividendMul(sec2, sec1, sec0, nanos, times)
-        }
-        let dividend2 = UInt64(dd4) * DUR_BASE + UInt64(dd3)
-        let res2 = divAndMod(dividend2, dd2, ds1, ds0)
-        var (p2, p1, p0) = u32TwoMul(ds1, ds0, res2)
-        var (c2, c1, c0) = (Int64(dd4) - Int64(p2), Int64(dd3) - Int64(p1), Int64(dd2) - Int64(p0))
-        var (_, d1, d0) = getDifference(c2, c1, c0)
-        let dividend1 = UInt64(d1) * DUR_BASE + UInt64(d0)
-        let res1 = divAndMod(dividend1, dd1, ds1, ds0)
-        (p2, p1, p0) = u32TwoMul(ds1, ds0, res1)
-        (c2, c1, c0) = (Int64(d1) - Int64(p2), Int64(d0) - Int64(p1), Int64(dd1) - Int64(p0))
-        (_, d1, d0) = getDifference(c2, c1, c0)
-        let dividend0 = UInt64(d1) * DUR_BASE + UInt64(d0)
-        let res0 = divAndMod(dividend0, dd0, ds1, ds0)
-        return (Int64(res2) * NS_PER_SEC + Int64(res1), Int64(res0))
-    } else {
-        let times = DUR_BASE / UInt32(divisor2 + 1)
-        let (dd4, dd3, dd2, dd1, dd0) = u32DividendMul(sec2, sec1, sec0, nanos, times)
-        let (_, ds2, ds1, ds0) = u32ThreeMul(divisor2, divisor1, divisor0, times)
-        let dividend2 = UInt64(dd4) * DUR_BASE + UInt64(dd3)
-        var res1 = divAndMod(dividend2, dd2, ds2, ds1)
-        var (p3, p2, p1, p0) = u32ThreeMul(ds2, ds1, ds0, res1)
-        var (c3, c2, c1, c0) = (Int64(dd4) - Int64(p3), Int64(dd3) - Int64(p2), Int64(dd2) - Int64(p1), Int64(dd1) -
-                Int64(p0))
-        var (d3, d2, d1, d0) = getDifference(c3, c2, c1, c0)
-        if (d3 < 0) {
-            res1--
-            (p3, p2, p1, p0) = u32ThreeMul(ds2, ds1, ds0, res1)
-            (c3, c2, c1, c0) = (Int64(dd4) - Int64(p3), Int64(dd3) - Int64(p2), Int64(dd2) - Int64(p1), Int64(dd1) -
-                    Int64(p0))
-            (d3, d2, d1, d0) = getDifference(c3, c2, c1, c0)
-        }
-        let dividend1 = UInt64(d2) * DUR_BASE + UInt64(d1)
-        var res0 = divAndMod(dividend1, UInt32(d0), ds2, ds1)
-        (p3, p2, p1, p0) = u32ThreeMul(ds2, ds1, ds0, res0)
-        (c3, c2, c1, c0) = (Int64(d2) - Int64(p3), Int64(d1) - Int64(p2), Int64(d0) - Int64(p1), Int64(dd0) - Int64(p0))
-        (d3, d2, d1, d0) = getDifference(c3, c2, c1, c0)
-        if (d3 < 0) {
-            res0--
-        }
-        return (Int64(res1), Int64(res0))
+        return durDivByTwoDigitDivisor(divisor1, divisor0, sec2, sec1, sec0, nanos)
     }
+    return durDivByThreeDigitDivisor(divisor2, divisor1, divisor0, sec2, sec1, sec0, nanos)
 }
 
 func getDifference(num3: Int64, num2: Int64, num1: Int64, num0: Int64): (Int64, Int64, Int64, Int64) {
