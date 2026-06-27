@@ -6,6 +6,7 @@
 
 
 #include <cmath>
+#include <string>
 #include "MFuncdesc.h"
 #include "Utils/SLRUCache.h"
 
@@ -134,24 +135,12 @@ void Split(const char *str, uint64_t targetSeg,
 
 CString Merge(const std::vector<SingleStr> &segments, size_t totalLen)
 {
-    auto size = totalLen + 1;
-    char* res = static_cast<char*>(malloc(size));
-    if (res == nullptr) {
-        LOG(RTLOG_FATAL, "string decode: malloc failed! (size: %zu)", size);
-    }
-    char *dst = res;
+    std::string res;
+    res.reserve(totalLen);
     for (const auto &seg : segments) {
-        auto ret = memcpy_s(dst, size, seg.start, seg.len);
-        if (ret != EOK) {
-            LOG(RTLOG_FATAL, "string decode: memcpy_s failed!");
-        }
-        dst += seg.len;
-        size -= seg.len;
+        res.append(seg.start, seg.len);
     }
-    res[totalLen] = '\0';
-    CString result = res;
-    free(res);
-    return result;
+    return CString(res.c_str());
 }
 
 CString FastULEBDecode(CString &bytes, Uptr offset)
