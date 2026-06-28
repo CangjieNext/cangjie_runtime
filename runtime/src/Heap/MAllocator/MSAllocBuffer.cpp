@@ -583,6 +583,8 @@ MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls, bool backgroundFill,
         *originOut = RegionAcquireOrigin::NONE;
     }
 
+    (void)central_->AssistSweepCredit(1, cls, this);
+
     MSRegionInfo* region = nullptr;
     if (!backgroundFill) {
         region = central_->TakePartialSweptRegion(cls);
@@ -620,9 +622,6 @@ MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls, bool backgroundFill,
         }
     }
 
-    if (!backgroundFill) {
-        (void)central_->AssistSweepForFreshRegions(1, cls, this);
-    }
     region = central_->GetFreshRegion(cls, cachedHomeShardId_);
     if (region != nullptr && originOut != nullptr) {
         *originOut = RegionAcquireOrigin::FRESH;

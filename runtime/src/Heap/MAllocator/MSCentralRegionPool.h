@@ -352,6 +352,11 @@ public:
                                      bool hardPressure) const;
     size_t AssistSweepForFreshRegions(size_t requestedRegions, uint8_t preferredCls,
                                       AllocBufferMS* preferredOwner);
+    // Proportional sweep-assist: repay sweep debt in proportion to allocation
+    // progress, crediting work already done by background/lazy sweep. Replaces the
+    // threshold-triggered AssistSweepForFreshRegions on the fresh-region paths.
+    size_t AssistSweepCredit(size_t requestedRegions, uint8_t preferredCls,
+                             AllocBufferMS* preferredOwner);
 
     bool HasPendingSweepWork() const
     {
@@ -445,12 +450,12 @@ public:
 
     // ===== Pre-STW bitmap clearing (MarkSetup fast path) =====
 
-    // Stop background sweep and disable lazy sweep, then wait for all
-    // in-flight sweeps (bg + lazy) to fully quiesce. Any remaining central
-    // unswept backlog is synchronously finished before bitmap clearing, so the
-    // next mark setup does not reclassify central unswept lists without a real sweep.
-    // Must be called before clearing markBitmaps to avoid data races with
-    // SweepRegion reading markBitmap.
+    // Stop background sweep and disable lazy/assist sweep, then wait for all
+    // in-flight sweeps (bg + lazy + assist) to fully quiesce. Any remaining
+    // central unswept backlog is synchronously finished before bitmap clearing,
+    // so the next mark setup does not reclassify central unswept lists without
+    // a real sweep. Must be called before clearing markBitmaps to avoid data
+    // races with SweepRegion reading them.
     void StopAndWaitForAllSweep();
 
     // Clear markBitmaps for all active small/medium regions in MSRegionInfoArray.
@@ -462,7 +467,7 @@ public:
     // flip. This is logical list reclassification, not a real sweep pass.
     void ReclassifyUnsweptToSwept();
 
-    // Re-enable lazy sweep after MarkSetup bitmap clearing is complete.
+    // Re-enable lazy/assist sweep after MarkSetup bitmap clearing is complete.
     void ReenableLazySweep();
 
 private:
@@ -691,18 +696,21 @@ private:
     {
         if (sweptRegions != 0) {
             backgroundSweptRegions_.fetch_add(sweptRegions, std::memory_order_relaxed);
+            sweptRegionsThisCycle_.fetch_add(sweptRegions, std::memory_order_relaxed);
         }
     }
     void RecordLazySweep(size_t sweptRegions)
     {
         if (sweptRegions != 0) {
             lazySweptRegions_.fetch_add(sweptRegions, std::memory_order_relaxed);
+            sweptRegionsThisCycle_.fetch_add(sweptRegions, std::memory_order_relaxed);
         }
     }
     void RecordAssistSweep(size_t sweptRegions)
     {
         if (sweptRegions != 0) {
             assistSweptRegions_.fetch_add(sweptRegions, std::memory_order_relaxed);
+            sweptRegionsThisCycle_.fetch_add(sweptRegions, std::memory_order_relaxed);
         }
     }
     static std::atomic<uint32_t> globalSweepGen_;
@@ -716,6 +724,17 @@ private:
     std::atomic<size_t> backgroundSweptRegions_{0};
     std::atomic<size_t> lazySweptRegions_{0};
     std::atomic<size_t> assistSweptRegions_{0};
+
+    // ===== Proportional sweep-assist pacing (Go-style ratio + credit) =====
+    // sweepRegionsPerAlloc_ is fixed once per cycle in PrepareForSweep() and is
+    // read-only during the cycle: ratio = totalUnswept / runwayRegions. The two
+    // counters below are the cycle-local pacing basis, reset at PrepareForSweep().
+    //   allocFreshRegionsThisCycle_ — allocation progress (regions consumed)
+    //   sweptRegionsThisCycle_      — sweep progress, shared by background/lazy/assist
+    //                                 so background work auto-credits mutator debt.
+    double sweepRegionsPerAlloc_{0.0};
+    std::atomic<size_t> allocFreshRegionsThisCycle_{0};
+    std::atomic<size_t> sweptRegionsThisCycle_{0};
 
     SizeClassBucket buckets_[kNumSizeClasses];
     MSRegionManager*  msRegionManager_;

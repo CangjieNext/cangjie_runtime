@@ -405,25 +405,17 @@ bool BackgroundProcessor::HasPendingSweepWork()
         return false;
     }
 
+    // Keep background sweep running whenever there is unswept backlog, so the
+    // cycle's sweep work is drained allocation-independently (Go bgsweep semantics)
+    // instead of spilling into ForceFinishAllUnswept at the next GC. Pressure mode
+    // (10x per-slice time budget, see GetBgSweepMaxTimeUs) still engages only once
+    // the allocation runway is exhausted, so we don't burn the larger budget early.
     size_t thresholdBytes = space.GetHeapThresholdBytes();
     size_t sweptBytes = space.GetSweptHeapBytes();
     size_t remainingRunwayBytes = thresholdBytes > sweptBytes ? (thresholdBytes - sweptBytes) : 0;
-    if (remainingRunwayBytes == 0) {
-        sweepPressureMode_.store(true, std::memory_order_release);
-        shouldBackgroundSweep_.store(true, std::memory_order_release);
-        return true;
-    }
-
-    size_t remainingRunwayRegions = (remainingRunwayBytes + MS_REGION_SIZE - 1) / MS_REGION_SIZE;
-    if (unsweptRegions > remainingRunwayRegions) {
-        sweepPressureMode_.store(false, std::memory_order_release);
-        shouldBackgroundSweep_.store(true, std::memory_order_release);
-        return true;
-    }
-
-    sweepPressureMode_.store(false, std::memory_order_release);
-    shouldBackgroundSweep_.store(false, std::memory_order_release);
-    return false;
+    sweepPressureMode_.store(remainingRunwayBytes == 0, std::memory_order_release);
+    shouldBackgroundSweep_.store(true, std::memory_order_release);
+    return true;
 }
 
 bool BackgroundProcessor::BackgroundFeedLoop()

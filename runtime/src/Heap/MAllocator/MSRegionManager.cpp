@@ -414,7 +414,7 @@ MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& r
     CentralRegionPool* pool = space.GetCentralPool();
     if (pool != nullptr) {
         AllocBufferMS* owner = AllocBufferMS::GetAllocBufferMS();
-        (void)pool->AssistSweepForFreshRegions(regionCount, kNoPreferredSweepClass, owner);
+        (void)pool->AssistSweepCredit(regionCount, kNoPreferredSweepClass, owner);
     }
 
     RegionIndex regionIdx = 0;

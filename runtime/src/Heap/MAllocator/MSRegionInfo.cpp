@@ -121,6 +121,9 @@ void MSRegionInfo::ResetToBump()
 {
     // Reset a completely-free region back to BUMP for fast reuse (O3).
     // Preserves bitmap memory — avoids munmap/mmap cycle.
+    bool sweptEmpty = sweepState == MSSweepState::SWEPT &&
+                      freeSlotCount == totalSlotCount &&
+                      liveSlotCount == 0;
     allocPtr = RegionStart();
     sweepState = MSSweepState::UNSWEPT;
     regionType = MSRegionType::MS_REGION_BUMP;
@@ -128,6 +131,14 @@ void MSRegionInfo::ResetToBump()
     liveSlotCount = 0;
     rawPointerObjCount = 0;
     flags_ = 0;
+    if (sweptEmpty) {
+        // SweepRegion() already produced a fully-zero payload and a clear mark bitmap.
+        // Bump allocation does not consult allocBitmap/reserved, so avoid rebuilding
+        // the swept bitmap state when lazy sweep immediately hands this region back
+        // to the mutator as a fresh BUMP region.
+        reserved = 0;
+        return;
+    }
 
     // Reset allocBitmap to all-1s (all slots free)
     size_t bitmapWords = (totalSlotCount + 63) / 64;
@@ -207,15 +218,32 @@ size_t MSRegionInfo::SweepRegion()
 {
     size_t wordCount = (totalSlotCount + 63) / 64;
     int liveCount = 0;
-    uint64_t summary = 0;
-    uintptr_t base = RegionStart();
+    uint64_t markWords[MSBitmapArena::kMaxBitmapWords] = { 0 };
+    CHECK_DETAIL(wordCount <= MSBitmapArena::kMaxBitmapWords,
+                 "[MS-GC] SweepRegion wordCount overflow: wordCount=%zu", wordCount);
+    for (size_t i = 0; i < wordCount; i++) {
+        uint64_t markWord = markBitmap[i];
+        markWords[i] = markWord;
+        liveCount += __builtin_popcountll(markWord);
+    }
 
+    size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
+    uintptr_t base = RegionStart();
+    if (liveCount == 0) {
+        memset(reinterpret_cast<void*>(base), 0, MS_REGION_SIZE);
+        liveSlotCount = 0;
+        freeSlotCount = totalSlotCount;
+        sweepState = MSSweepState::SWEPT;
+        reserved = 0;
+        return static_cast<size_t>(freeSlotCount) * slotSize;
+    }
+
+    uint64_t summary = 0;
     for (size_t i = 0; i < wordCount; i++) {
         // Sweep ownership is serialized by CasSweepGen on unswept lists. The
         // region is not returned to mutators until SweepRegion() completes, so
         // allocBitmap publication does not race with allocation on this region.
-        allocBitmap[i] = ~markBitmap[i];
-        liveCount += __builtin_popcountll(markBitmap[i]);
+        allocBitmap[i] = ~markWords[i];
         if (allocBitmap[i] != 0) {
             summary |= (1ULL << i);
         }
@@ -231,19 +259,14 @@ size_t MSRegionInfo::SweepRegion()
 
     // Zero dead slots before the region is put back into swept lists. This
     // keeps allocation fast-path free of per-slot clearing.
-    if (liveCount == 0) {
-        memset(reinterpret_cast<void*>(base), 0, MS_REGION_SIZE);
-    } else {
-        size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
-        for (size_t i = 0; i < wordCount; i++) {
-            uint64_t freeBits = allocBitmap[i];
-            while (freeBits != 0) {
-                int bit = __builtin_ctzll(freeBits);
-                size_t slotIdx = i * 64 + static_cast<size_t>(bit);
-                uintptr_t slotAddr = base + slotIdx * slotSize;
-                memset(reinterpret_cast<void*>(slotAddr), 0, slotSize);
-                freeBits &= freeBits - 1;  // clear lowest set bit
-            }
+    for (size_t i = 0; i < wordCount; i++) {
+        uint64_t freeBits = allocBitmap[i];
+        while (freeBits != 0) {
+            int bit = __builtin_ctzll(freeBits);
+            size_t slotIdx = i * 64 + static_cast<size_t>(bit);
+            uintptr_t slotAddr = base + slotIdx * slotSize;
+            memset(reinterpret_cast<void*>(slotAddr), 0, slotSize);
+            freeBits &= freeBits - 1;  // clear lowest set bit
         }
     }
 
@@ -257,7 +280,6 @@ size_t MSRegionInfo::SweepRegion()
     // Store summary word (O4): bit[i]=1 if allocBitmap[i] has free slots
     reserved = summary;
 
-    size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
     return static_cast<size_t>(freeSlotCount) * slotSize;
 }
 
