@@ -291,6 +291,7 @@ size_t FreeRegionManager::ReleaseGarbageRegions(size_t targetCachedSize)
         Index idx = node->GetIndex();
         UnitCount num = node->GetCount();
         dirtyUnitTree.ReleaseRootNode();
+        dirtyBitmap.Clear(idx, num);
 
         std::lock_guard<std::mutex> lock2(releasedUnitTreeMutex);
         CHECK_DETAIL(releasedUnitTree.MergeInsert(idx, num, true), "tid %d: failed to release garbage units[%u+%u, %u)",
@@ -553,8 +554,21 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
     size_t size = num * RegionInfo::UNIT_SIZE;
     RequestForRegion(size);
 
-    // garbageList bypassed — garbage regions go directly to freeTree now.
-    // No need to check garbageRegionList here.
+    // Try garbageList first: O(1) exact-size reuse avoids dirtyTree insert overhead.
+    RegionInfo* garbageHead = garbageRegionList.TakeHeadRegion();
+    if (garbageHead != nullptr) {
+        if (garbageHead->GetUnitCount() == num) {
+            size_t idx = garbageHead->GetUnitIdx();
+            RegionInfo::ClearUnits(idx, num);
+            RegionInfo* result = RegionInfo::InitRegion(idx, num, type);
+            if (num >= HUGE_PAGE) {
+                TagHugePage(result, num);
+            }
+            return result;
+        }
+        // Size mismatch: spill into dirtyTree.
+        ReclaimRegion(garbageHead);
+    }
 
     RegionInfo* region = freeRegionManager.TakeRegion(num, type, expectPhysicalMem);
     if (region != nullptr) {
