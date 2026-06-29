@@ -393,6 +393,7 @@ void RegionManager::Initialize(size_t nUnit, uintptr_t regionInfoAddr)
     // propagate region heap layout
     RegionInfo::Initialize(nUnit, regionHeapStart);
     freeRegionManager.Initialize(nUnit);
+    garbageBitmap.Init(nUnit, maxUnitCountPerRegion);
     this->exemptedRegionThreshold = CangjieRuntime::GetHeapParam().exemptionThreshold;
     DLOG(REPORT, "region info @0x%zx+%zu, heap [0x%zx, 0x%zx), unit count %zu", regionInfoAddr, metadataSize,
          regionHeapStart, regionHeapEnd, nUnit);
@@ -553,8 +554,18 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
     size_t size = num * RegionInfo::UNIT_SIZE;
     RequestForRegion(size);
 
-    // garbageList bypassed — garbage regions go directly to freeTree now.
-    // No need to check garbageRegionList here.
+    // Try normal garbage bitmap first: low-address-first reuse for fixed-size normal regions.
+    size_t garbageIdx = 0;
+    if (type == RegionInfo::UnitRole::SMALL_SIZED_UNITS) {
+        if (garbageBitmap.TakeUnitsLowAddr(num, garbageIdx)) {
+            RegionInfo::ClearUnits(garbageIdx, num);
+            RegionInfo* result = RegionInfo::InitRegion(garbageIdx, num, type);
+            if (num >= HUGE_PAGE) {
+                TagHugePage(result, num);
+            }
+            return result;
+        }
+    }
 
     RegionInfo* region = freeRegionManager.TakeRegion(num, type, expectPhysicalMem);
     if (region != nullptr) {
@@ -563,7 +574,6 @@ RegionInfo* RegionManager::TakeRegion(size_t num, RegionInfo::UnitRole type, boo
         }
         return region;
     }
-
     // when free regions are not enough for allocation
     if (num <= GetInactiveUnitCount()) {
         uintptr_t addr = inactiveZone.fetch_add(size);
@@ -753,10 +763,9 @@ void RegionManager::DumpRegionStats(const char* msg, bool dumpToError) const
     size_t recentFullSize = recentFullUnits * RegionInfo::UNIT_SIZE;
     size_t allocRecentFullSize = recentFullRegionList.GetAllocatedSize();
 
-    size_t garbageRegions = garbageRegionList.GetRegionCount();
-    size_t garbageUnits = garbageRegionList.GetUnitCount();
+    size_t garbageUnits = garbageBitmap.GetTotalCount();
     size_t garbageSize = garbageUnits * RegionInfo::UNIT_SIZE;
-    size_t allocGarbageSize = garbageRegionList.GetAllocatedSize();
+    size_t allocGarbageSize = 0; // bitmap has no per-object allocation tracking
 
     size_t pinnedRegions = oldPinnedRegionList.GetRegionCount();
     size_t pinnedUnits = oldPinnedRegionList.GetUnitCount();
@@ -824,8 +833,8 @@ void RegionManager::DumpRegionStats(const char* msg, bool dumpToError) const
                           allocFromSize);
     DUMP_REGION_STATS_LOG("\trecent-full regions %zu: %zu units (%zu B, alloc %zu)",
                           recentFullRegions, recentFullUnits, recentFullSize, allocRecentFullSize);
-    DUMP_REGION_STATS_LOG("\tgarbage regions %zu: %zu units (%zu B, alloc %zu)",
-                          garbageRegions, garbageUnits, garbageSize, allocGarbageSize);
+    DUMP_REGION_STATS_LOG("\tgarbage bitmap: %zu normal regions, %zu units (%zu B)",
+                          garbageBitmap.GetRegionCount(), garbageUnits, garbageSize);
     DUMP_REGION_STATS_LOG("\tpinned regions %zu: %zu units (%zu B, alloc %zu)",
                           pinnedRegions, pinnedUnits, pinnedSize, allocPinnedSize);
     DUMP_REGION_STATS_LOG("\trecent pinned regions %zu: %zu units (%zu B, alloc %zu)",
@@ -881,10 +890,8 @@ void RegionManager::DumpRegionStats(const char* msg, bool dumpToError) const
     TRACE_COUNT("CJRT_GC_recentFullUnits", recentFullUnits);
     TRACE_COUNT("CJRT_GC_recentFullSize", recentFullSize);
     TRACE_COUNT("CJRT_GC_allocRecentFullSize", allocRecentFullSize);
-    TRACE_COUNT("CJRT_GC_garbageRegions", garbageRegions);
     TRACE_COUNT("CJRT_GC_garbageUnits", garbageUnits);
     TRACE_COUNT("CJRT_GC_garbageSize", garbageSize);
-    TRACE_COUNT("CJRT_GC_allocGarbageSize", allocGarbageSize);
     TRACE_COUNT("CJRT_GC_pinnedRegions", pinnedRegions);
     TRACE_COUNT("CJRT_GC_pinnedUnits", pinnedUnits);
     TRACE_COUNT("CJRT_GC_pinnedSize", pinnedSize);
