@@ -296,8 +296,7 @@ void MSRegionManager::MaybeNotifyMark()
     Collector& collector = Heap::GetHeap().GetCollector();
     const GCStats& gcStats = collector.GetGCStats();
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
-    const CentralRegionPool* pool =
-        space.GetCentralPool();
+    CentralRegionPool* pool = space.GetCentralPool();
     if (pool == nullptr) {
         return;
     }
@@ -307,8 +306,32 @@ void MSRegionManager::MaybeNotifyMark()
     // trigger tracks the post-sweep live heap.
     size_t sweptBytes = space.GetSweptHeapBytes();
     size_t threshold = gcStats.GetThreshold();
+
+    // Refresh the sweep-debt pressure mode on every probe (Step34 §18.2-18.3): below
+    // threshold this latches NORMAL/BACKLOG with the real runway for assist/background
+    // to read; at/above threshold the decision also tells us whether to defer HEU.
+    SweepDebtDecision debt = pool->RefreshSweepDebtSnapshot(threshold, sweptBytes);
+
     // Trigger purely on time (cooldown above) + threshold.
     if (sweptBytes < threshold) {
+        return;
+    }
+
+    // backlog-aware HEU gating: if the previous cycle's unswept backlog is still
+    // large (and sweep is not done), defer this HEU GC and repay debt first, rather
+    // than letting StopAndWaitForAllSweep->ForceFinishAllUnswept drain it serially
+    // inside the next GC's pre-mark STW (the tail-pause source). Only GC_REASON_HEU
+    // is gated; OOM/FORCE/HEU_SYNC are unaffected. The backlog is fixed for the
+    // cycle and is being drained by background/assist at the elevated pressure tier,
+    // so deferral is bounded — once sweepDone or the backlog drops below the exit
+    // waterline, the next probe lets HEU proceed.
+    if (debt.deferHeu) {
+        BackgroundProcessor& backgroundProcessor =
+            Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
+        backgroundProcessor.NotifyToSweep(kNoPreferredSweepClass);
+        VLOG(REPORT,
+             "[MS-GC] HEU deferred by sweep backlog: swept=%zuB threshold=%zuB mode=%d",
+             sweptBytes, threshold, static_cast<int>(debt.mode));
         return;
     }
 

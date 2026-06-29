@@ -45,20 +45,18 @@ uint32_t GetProcessorCountForAssistSweep()
     return processorNum == 0 ? 1 : processorNum;
 }
 
-uint64_t MultiplyByTenClamp(uint64_t value)
-{
-    if (value >= std::numeric_limits<uint64_t>::max() / 10ULL) {
-        return std::numeric_limits<uint64_t>::max();
-    }
-    return value * 10ULL;
-}
-
-// 后台批量处理超时时间
-uint64_t GetBgSweepMaxTimeUs(bool sweepPressureMode)
+// 后台批量处理超时时间。budgetMultiplier 由 sweep-debt tier 决定（NORMAL 1x /
+// BACKLOG 4x / EMERGENCY 10x），用于在 backlog 偏大时放大单次后台 sweep 时间片。
+uint64_t GetBgSweepMaxTimeUs(double budgetMultiplier)
 {
     uint64_t valueNs = CangjieRuntime::GetGCParam().msBackgroundSweepMaxTime;
     uint64_t baseValue = valueNs == 0 ? 0 : std::max<uint64_t>(1, valueNs / 1000ULL);
-    return sweepPressureMode ? MultiplyByTenClamp(baseValue) : baseValue;
+    if (budgetMultiplier <= 1.0) {
+        return baseValue;
+    }
+    double scaled = static_cast<double>(baseValue) * budgetMultiplier;
+    double maxVal = static_cast<double>(std::numeric_limits<uint64_t>::max());
+    return scaled >= maxVal ? std::numeric_limits<uint64_t>::max() : static_cast<uint64_t>(scaled);
 }
 
 void ClearSmallRegionPayload(uintptr_t regionStart)
@@ -594,6 +592,7 @@ void CentralRegionPool::PrepareForSweep()
     // boundaries), so the ratio is fixed here and read without re-computation.
     allocFreshRegionsThisCycle_.store(0, std::memory_order_relaxed);
     sweptRegionsThisCycle_.store(0, std::memory_order_relaxed);
+    sweepPressureMode_.store(static_cast<int>(SweepPressureMode::NORMAL), std::memory_order_relaxed);
     {
         RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
         size_t threshold = space.GetHeapThresholdBytes();
@@ -637,8 +636,10 @@ BackgroundSweepStats CentralRegionPool::BackgroundSweep(uint8_t preferredCls)
         finish();
         return {};
     }
-    BackgroundProcessor& backgroundProcessor = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
-    uint64_t deadlineUs = t0 + GetBgSweepMaxTimeUs(backgroundProcessor.IsSweepPressureMode());
+    // Per-slice time budget scales with the latched sweep-debt tier (Step34 §18.4):
+    // NORMAL 1x, BACKLOG 4x, EMERGENCY 10x, so a large backlog gets drained
+    // allocation-independently before the next GC instead of via ForceFinishAllUnswept.
+    uint64_t deadlineUs = t0 + GetBgSweepMaxTimeUs(SweepTierMultiplier(GetSweepPressureMode()));
     size_t sweptInSlice = 0;
     size_t emptyInSlice = 0;
     bool pendingWork = false;
@@ -740,7 +741,10 @@ size_t CentralRegionPool::AssistSweepCredit(size_t requestedRegions, uint8_t pre
 {
     // ratio is fixed in PrepareForSweep() and read-only this cycle. A zero ratio
     // means there was nothing to sweep; sweepDone_ means the cycle finished.
-    double ratio = sweepRegionsPerAlloc_;
+    // The latched pressure mode scales the repayment slope (Step34 §18.4): when
+    // sweep debt has fallen behind the runway, repay faster per allocation.
+    double tierMul = SweepTierMultiplier(GetSweepPressureMode());
+    double ratio = sweepRegionsPerAlloc_ * tierMul;
     if (ratio <= 0.0 || requestedRegions == 0 ||
         sweepDone_.load(std::memory_order_acquire)) {
         return 0;
@@ -764,12 +768,28 @@ size_t CentralRegionPool::AssistSweepCredit(size_t requestedRegions, uint8_t pre
     // 4) Bound per-call tail latency; remaining debt is repaid on later allocations
     //    because target stays ahead of sweptRegionsThisCycle_.
     size_t owe = target - doneSoFar;
-    size_t maxPerCall = CangjieRuntime::GetGCParam().msAssistSweepMaxRegionsPerCall;
-    size_t toSweep = std::min(owe, maxPerCall);
+    size_t baseMaxPerCall = CangjieRuntime::GetGCParam().msAssistSweepMaxRegionsPerCall;
+    size_t maxPerCall = static_cast<size_t>(static_cast<double>(baseMaxPerCall) * tierMul);
+    size_t toSweep = std::min(owe, std::max<size_t>(maxPerCall, 1));
 
     // AssistSweep carries the activeAssistSweepCount_ guard + seq_cst fence + skip
     // checks that pair with StopAndWaitForAllSweep, so STW correctness is preserved.
     return AssistSweep(toSweep, preferredCls, preferredOwner);
+}
+
+SweepDebtDecision CentralRegionPool::RefreshSweepDebtSnapshot(size_t thresholdBytes, size_t sweptBytes)
+{
+    SweepDebtParams params;  // defaults: backlog 2.0/1.0, emergency 64/16
+    size_t unsweptRegions = GetTotalUnsweptCount();
+    size_t runwayRegions = ComputeRunwayRegions(thresholdBytes, sweptBytes, MS_REGION_SIZE);
+    bool sweepDone = IsSweepDone();
+
+    SweepPressureMode prev = GetSweepPressureMode();
+    SweepPressureMode mode =
+        EvaluateSweepPressure(unsweptRegions, runwayRegions, sweepDone, prev, params);
+    sweepPressureMode_.store(static_cast<int>(mode), std::memory_order_relaxed);
+
+    return BuildSweepDebtDecision(mode, sweepDone);
 }
 
 size_t CentralRegionPool::AssistSweep(size_t targetRegions, uint8_t preferredCls, AllocBufferMS* preferredOwner)

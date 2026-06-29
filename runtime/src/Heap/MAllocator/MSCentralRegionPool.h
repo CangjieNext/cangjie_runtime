@@ -24,6 +24,7 @@
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSShardRouting.h"
 #include "Heap/MAllocator/MSSizeClass.h"
+#include "Heap/MAllocator/MSSweepDebtPolicy.h"
 
 namespace MapleRuntime {
 
@@ -357,6 +358,15 @@ public:
     // threshold-triggered AssistSweepForFreshRegions on the fresh-region paths.
     size_t AssistSweepCredit(size_t requestedRegions, uint8_t preferredCls,
                              AllocBufferMS* preferredOwner);
+
+    // Sweep-debt snapshot (Step34 §14-19): recompute the backlog-vs-runway pressure
+    // mode (with hysteresis) and latch it for AssistSweepCredit / background sweep to
+    // read. Returns the decision used by MaybeNotifyMark to gate GC_REASON_HEU.
+    SweepDebtDecision RefreshSweepDebtSnapshot(size_t thresholdBytes, size_t sweptBytes);
+    SweepPressureMode GetSweepPressureMode() const
+    {
+        return static_cast<SweepPressureMode>(sweepPressureMode_.load(std::memory_order_relaxed));
+    }
 
     bool HasPendingSweepWork() const
     {
@@ -735,6 +745,11 @@ private:
     double sweepRegionsPerAlloc_{0.0};
     std::atomic<size_t> allocFreshRegionsThisCycle_{0};
     std::atomic<size_t> sweptRegionsThisCycle_{0};
+
+    // Latched sweep-debt pressure mode (SweepPressureMode), refreshed by
+    // RefreshSweepDebtSnapshot() and read by AssistSweepCredit / BackgroundSweep.
+    // Stored as int for atomic; doubles as the hysteresis "prev mode".
+    std::atomic<int> sweepPressureMode_{static_cast<int>(SweepPressureMode::NORMAL)};
 
     SizeClassBucket buckets_[kNumSizeClasses];
     MSRegionManager*  msRegionManager_;
