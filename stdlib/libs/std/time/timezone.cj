@@ -532,15 +532,12 @@ public class TimeZone <: ToString & Equatable<TimeZone> {
 }
 
 /**
- * Given a POSIX section time zone string, the end unix time of the last time zone transition, and a time,
- * return values are similar to that of lookup.
+ * Parse the standard and daylight saving time names, offsets, and remaining rule string from
+ * a POSIX section time zone string.
  *
  * @param footer a POSIX section time zone string.
- * @param end the end of the last time zone transition expressed as seconds since 1970.1.1 00:00:00 UTC.
- * @param epochSecond a time expressed the same way as @p end.
- * @return values are similar to that of lookup.
- *
- * @since 0.19.3
+ * @return standard name, standard offset, daylight saving time name, daylight saving time offset,
+ *         and the remaining rule string.
  */
 func parseTZHeader(footer: String): (String, Int64, String, Int64, String) {
     var stdName: String = ""
@@ -614,6 +611,17 @@ func getTZLookupResult(
     }
 }
 
+/**
+ * Given a POSIX section time zone string, the end unix time of the last time zone transition, and a time,
+ * return values are similar to that of lookup.
+ *
+ * @param footer a POSIX section time zone string.
+ * @param end the end of the last time zone transition expressed as seconds since 1970.1.1 00:00:00 UTC.
+ * @param epochSecond a time expressed the same way as @p end.
+ * @return values are similar to that of lookup.
+ *
+ * @since 0.19.3
+ */
 func parseTZ(footer: String, end: Int64, epochSecond: Int64): (String, Int64, Int64, Int64) {
     var (stdName, stdOffset, dstName, dstOffset, rest) = parseTZHeader(footer)
     if (dstName == "") {
