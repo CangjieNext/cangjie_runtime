@@ -9,6 +9,7 @@
 #define MRT_MUTATOR_MANAGER_H
 
 #include <bitset>
+#include <condition_variable>
 #include <list>
 #include <mutex>
 #include <unordered_set>
@@ -170,6 +171,7 @@ public:
 #ifdef MRT_USE_MARK_SWEEP
     bool HasPendingEnumAssist(GCPhase phase);
     size_t ClaimEnumAssistBatch(GCPhase phase, size_t batchSize, std::vector<Mutator*>& claimed);
+    void FinishEnumAssistBatch(GCPhase phase);
     void UpdateEnumAssistRemaining(GCPhase phase, size_t remaining);
     void FinalizeEnumAssistContext(GCPhase phase);
 #endif
@@ -265,10 +267,12 @@ private:
 #ifdef MRT_USE_MARK_SWEEP
     struct EnumAssistContext {
         std::mutex lock;
+        std::condition_variable drained;   // signaled when inFlight reaches 0
         GCPhase phase = GCPhase::GC_PHASE_UNDEF;
         bool active = false;
         size_t claimCursor = 0;
         size_t remaining = 0;
+        size_t inFlight = 0;               // assistants holding a claimed batch
         std::vector<Mutator*> candidates;
     } enumAssistContext_;
 #endif

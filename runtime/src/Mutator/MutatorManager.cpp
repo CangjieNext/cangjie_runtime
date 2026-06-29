@@ -592,7 +592,24 @@ size_t MutatorManager::ClaimEnumAssistBatch(GCPhase phase, size_t batchSize, std
     while (claimed.size() < batchSize && enumAssistContext_.claimCursor < enumAssistContext_.candidates.size()) {
         claimed.push_back(enumAssistContext_.candidates[enumAssistContext_.claimCursor++]);
     }
+    if (!claimed.empty()) {
+        // Mark this assistant as in-flight; FinalizeEnumAssistContext blocks until
+        // every claimed batch is drained, so the global GC phase cannot advance
+        // while an assistant might still drive a candidate transition.
+        enumAssistContext_.inFlight++;
+    }
     return claimed.size();
+}
+
+void MutatorManager::FinishEnumAssistBatch(GCPhase phase)
+{
+    if (phase != GCPhase::GC_PHASE_MS_MARK_SETUP) {
+        return;
+    }
+    std::lock_guard<std::mutex> guard(enumAssistContext_.lock);
+    if (enumAssistContext_.inFlight > 0 && --enumAssistContext_.inFlight == 0) {
+        enumAssistContext_.drained.notify_all();
+    }
 }
 
 void MutatorManager::UpdateEnumAssistRemaining(GCPhase phase, size_t remaining)
@@ -611,11 +628,19 @@ void MutatorManager::FinalizeEnumAssistContext(GCPhase phase)
     if (phase != GCPhase::GC_PHASE_MS_MARK_SETUP) {
         return;
     }
-    std::lock_guard<std::mutex> guard(enumAssistContext_.lock);
+    std::unique_lock<std::mutex> lock(enumAssistContext_.lock);
     if (enumAssistContext_.phase != phase) {
         return;
     }
+    // Close the gate first: no new ClaimEnumAssistBatch can hand out a batch or
+    // bump inFlight once active is false.
     enumAssistContext_.active = false;
+    // Wait until every assistant that already claimed a batch has drained it.
+    // Until this returns the global phase stays at MARK_SETUP, so an assistant's
+    // candidate->TransitionGCPhase(false) can never race a newer heap phase.
+    enumAssistContext_.drained.wait(lock, [this] {
+        return enumAssistContext_.inFlight == 0;
+    });
     enumAssistContext_.phase = GCPhase::GC_PHASE_UNDEF;
     enumAssistContext_.claimCursor = 0;
     enumAssistContext_.remaining = 0;

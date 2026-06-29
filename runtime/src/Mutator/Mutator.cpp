@@ -671,6 +671,11 @@ void Mutator::HandleEnumAssist()
         }
         (void)candidate->TransitionGCPhase(false);
     }
+    // Pair with the inFlight bump inside ClaimEnumAssistBatch. Must run on every
+    // path that claimed a batch (the loop above only ever `continue`s, never
+    // returns), so the count stays balanced and FinalizeEnumAssistContext can
+    // observe inFlight reaching 0.
+    MutatorManager::Instance().FinishEnumAssistBatch(phase);
 
     if (!MutatorManager::Instance().HasPendingEnumAssist(phase)) {
         ClearSuspensionFlag(SUSPENSION_FOR_GC_ENUM_ASSIST);
