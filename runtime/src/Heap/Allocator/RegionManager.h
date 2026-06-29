@@ -257,10 +257,17 @@ public:
 
     void CollectFromSpaceGarbage()
     {
-        // bypass garbageList — reclaim from-regions directly to freeTree.
+        // Route from-regions: mergeable with dirty -> dirtyTree (O(log n)),
+        // non-mergeable -> garbageList (O(1)) to avoid isolated fragmentation.
         RegionInfo* region = fromRegionList.TakeHeadRegion();
         while (region != nullptr) {
-            ReclaimRegion(region);
+            size_t idx = region->GetUnitIdx();
+            size_t num = region->GetUnitCount();
+            if (freeRegionManager.CanMergeWithDirty(idx, num)) {
+                ReclaimRegion(region);
+            } else {
+                garbageRegionList.PrependRegion(region, RegionInfo::RegionType::GARBAGE_REGION);
+            }
             region = fromRegionList.TakeHeadRegion();
         }
     }
@@ -275,16 +282,25 @@ public:
         DLOG(REGION, "collect region %p@[%#zx+%zu, %#zx) type %u", region, region->GetRegionStart(),
              region->GetLiveByteCount(), region->GetRegionEnd(), region->GetRegionType());
 
+        // Save attributes before routing (routing may change region state).
+        bool isLarge = region->IsLargeRegion();
+        size_t regionSize = region->GetRegionSize();
+        size_t liveBytes = isLarge ? 0 : region->GetLiveByteCount();
+        size_t idx = region->GetUnitIdx();
+        size_t num = region->GetUnitCount();
+
         region->LockWriteRegion();
-        // bypass garbageList — reclaim directly to freeTree.
-        ReclaimRegion(region);
+        // Large regions always go to dirtyTree (multi-unit, worth merging).
+        // Small regions: mergeable with existing dirty block -> dirtyTree (O(log n));
+        // non-mergeable -> garbageList (O(1)) to avoid isolated fragmentation.
+        if (isLarge || freeRegionManager.CanMergeWithDirty(idx, num)) {
+            ReclaimRegion(region);
+        } else {
+            garbageRegionList.PrependRegion(region, RegionInfo::RegionType::GARBAGE_REGION);
+        }
         region->UnlockWriteRegion();
 
-        if (region->IsLargeRegion()) {
-            return region->GetRegionSize();
-        } else {
-            return region->GetRegionSize() - region->GetLiveByteCount();
-        }
+        return isLarge ? regionSize : (regionSize - liveBytes);
     }
 
     void AddRawPointerObject(BaseObject* obj)
