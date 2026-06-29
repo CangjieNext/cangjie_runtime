@@ -616,7 +616,7 @@ func getTZLookupResult(
 
 func parseTZ(footer: String, end: Int64, epochSecond: Int64): (String, Int64, Int64, Int64) {
     var (stdName, stdOffset, dstName, dstOffset, rest) = parseTZHeader(footer)
-    if (rest.size == 0) {
+    if (dstName == "") {
         return (stdName, stdOffset, end, Int64.Max)
     }
 
