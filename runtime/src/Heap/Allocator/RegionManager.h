@@ -106,7 +106,7 @@ public:
         : freeRegionManager(*this), tlRegionList("thread local regions"), recentFullRegionList("recent full regions"),
           fullTraceRegions("full trace regions"), fromRegionList("from regions"),
           ghostFromRegionList("ghost from regions"), unmovableFromRegionList("escaped from regions"),
-          garbageRegionList("garbage regions"), recentPinnedRegionList("recent pinned regions"),
+          recentPinnedRegionList("recent pinned regions"),
           oldPinnedRegionList("old pinned regions"), rawPointerPinnedRegionList("raw pointer pinned regions"),
           oldLargeRegionList("old large regions"), recentLargeRegionList("recent large regions"),
           largeTraceRegions("large trace regions")
@@ -257,10 +257,20 @@ public:
 
     void CollectFromSpaceGarbage()
     {
-        // bypass garbageList — reclaim from-regions directly to freeTree.
+        // Fixed-size normal regions use garbageBitmap for low-address-first reuse.
+        // Large and variable-sized regions go to dirtyTree.
         RegionInfo* region = fromRegionList.TakeHeadRegion();
         while (region != nullptr) {
-            ReclaimRegion(region);
+            size_t idx = region->GetUnitIdx();
+            size_t num = region->GetUnitCount();
+            bool useBitmap = !region->IsLargeRegion() && garbageBitmap.IsNormalRegion(idx, num);
+            if (useBitmap) {
+                region->InitFreeUnits();
+                garbageBitmap.Set(idx, num);
+            } else {
+                ReclaimRegion(region);
+            }
+
             region = fromRegionList.TakeHeadRegion();
         }
     }
@@ -275,16 +285,25 @@ public:
         DLOG(REGION, "collect region %p@[%#zx+%zu, %#zx) type %u", region, region->GetRegionStart(),
              region->GetLiveByteCount(), region->GetRegionEnd(), region->GetRegionType());
 
+        // Save attributes before routing (routing may change region state).
+        bool isLarge = region->IsLargeRegion();
+        size_t regionSize = region->GetRegionSize();
+        size_t liveBytes = isLarge ? 0 : region->GetLiveByteCount();
+        size_t idx = region->GetUnitIdx();
+        size_t num = region->GetUnitCount();
+
         region->LockWriteRegion();
-        // bypass garbageList — reclaim directly to freeTree.
-        ReclaimRegion(region);
+        // Fixed-size normal regions stay in garbageBitmap; large and variable-sized regions go to dirtyTree.
+        bool useBitmap = !isLarge && garbageBitmap.IsNormalRegion(idx, num);
+        if (useBitmap) {
+            region->InitFreeUnits();
+            garbageBitmap.Set(idx, num);
+        } else {
+            ReclaimRegion(region);
+        }
         region->UnlockWriteRegion();
 
-        if (region->IsLargeRegion()) {
-            return region->GetRegionSize();
-        } else {
-            return region->GetRegionSize() - region->GetLiveByteCount();
-        }
+        return isLarge ? regionSize : (regionSize - liveBytes);
     }
 
     void AddRawPointerObject(BaseObject* obj)
@@ -315,11 +334,10 @@ public:
 
     void ReclaimGarbageRegions()
     {
-        RegionInfo* garbage = garbageRegionList.TakeHeadRegion();
-        while (garbage != nullptr) {
-            ReclaimRegion(garbage);
-            garbage = garbageRegionList.TakeHeadRegion();
-        }
+        // Drain fixed-size garbage regions as contiguous normal-region ranges.
+        garbageBitmap.DrainAll([this](size_t idx, size_t num) {
+            freeRegionManager.AddGarbageUnits(idx, num);
+        });
     }
 
     size_t CollectLargeGarbage();
@@ -385,7 +403,7 @@ public:
             threadLocalSize += region->GetRegionAllocatedSize();
         };
         Heap::GetHeap().GetAllocator().VisitAllocBuffers(visitor);
-        // exclude garbageRegionList for live object set.
+        // exclude garbageBitmap units for live object set.
         return fromRegionList.GetAllocatedSize() + unmovableFromRegionList.GetAllocatedSize() +
             recentFullRegionList.GetAllocatedSize() + oldLargeRegionList.GetAllocatedSize() +
             recentLargeRegionList.GetAllocatedSize() + oldPinnedRegionList.GetAllocatedSize() +
@@ -562,8 +580,9 @@ private:
     // regions exempted by ExemptFromRegions, which will not be moved during current GC.
     RegionList unmovableFromRegionList;
 
-    // cache for fromRegionList after forwarding.
-    RegionList garbageRegionList;
+    // Bitmap-based garbage region cache (replaces old garbageRegionList).
+    // Set bits represent garbage units available for low-address-first reuse.
+    GarbageBitmap garbageBitmap;
 
     // regions for pinned (small-sized) objects.
     // region lists for small-sized pinned objects which are not be moved during concurrent gc, but
