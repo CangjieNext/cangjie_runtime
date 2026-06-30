@@ -70,7 +70,10 @@ public struct Extern<T> where T <: Runtime<T> {
         // treats this as a special case and doesn't desugar it.
         this.payload = payload
     }
-}
 
-@Intrinsic
-public func getPayload<T>(e: Extern<T>): Any where T<: Runtime<T>
+    public static func getPayload(e: Extern<T>): Any {
+        // Note: this is a normal field access and not a dynamic member access. Compiler
+        // treats this as a special case and doesn't desugar it.
+        e.payload
+    }
+}
