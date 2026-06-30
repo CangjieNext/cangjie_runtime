@@ -1198,7 +1198,7 @@ extend<T> Array<T> {
     }
 
     @OverflowWrapping
-    private func moveEqualPrefixAfterDescendingRun(start: Int64, equalCount: Int64, runLength: Int64, scratch: TempArray<T>): Unit {
+    func moveEqualPrefixAfterDescendingRun(start: Int64, equalCount: Int64, runLength: Int64, scratch: TempArray<T>): Unit {
         if (equalCount == 1) {
             reverseRange(start, start + runLength)
             return
@@ -1862,177 +1862,217 @@ func unstableSort<T>(data: Array<T>, compare: (T, T) -> Ordering): Unit {
 
 // Temporary code, deleted when @Deprecated ends
 extend<T> Array<T> {
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
-    // end - begin >= 1
     @OverflowWrapping
-    private func getPartition(start: Int64, finish: Int64, compare: (T, T) -> Ordering): (Int64, Int64) {
+    private func selectPartitionPivot(start: Int64, finish: Int64, compare: (T, T) -> Ordering): T {
         let span: Int64 = finish - start + 1
-        let middle: Int64 = (span >> 1) + start
+        let mid: Int64 = (span >> 1) + start
         if (span >= 64) {
-            let quarter: Int64 = span >> 2
-            this.compareSwap3(start, start + quarter, middle, compare)
-            this.compareSwap3(middle, middle + quarter, finish, compare)
+            let off: Int64 = span >> 2
+            this.compareSwap3(start, start + off, mid, compare)
+            this.compareSwap3(mid, mid + off, finish, compare)
         }
-        this.compareSwap3(start, middle, finish, compare)
-        let pivotValue: T = this[middle]
-
+        this.compareSwap3(start, mid, finish, compare)
+        let pivot: T = this[mid]
         let scratch = this[finish]
-        this[finish] = pivotValue
-        this[middle] = scratch
-        var pivotEqualCount = 0
-        var left = start
-        var right = finish - 1
+        this[finish] = pivot
+        this[mid] = scratch
+        return pivot
+    }
 
-        var firstEqual: Int64 = left
-        while (left < right) {
-            let leftValue = this[left]
-            match (compare(leftValue, pivotValue)) {
+    @OverflowWrapping
+    private func findFirstPartitionPivot(
+        start: Int64,
+        finish: Int64,
+        pivot: T,
+        compare: (T, T) -> Ordering
+    ): (Int64, Int64, Int64, Int64) {
+        var pointNum = 0
+        var left = start
+        var e = finish - 1
+        var first: Int64 = left
+        while (left < e) {
+            let tb = this[left]
+            match (compare(tb, pivot)) {
                 case LT => left++
                 case EQ =>
-                    pivotEqualCount++
-                    firstEqual = left
+                    pointNum++
+                    first = left
                     left++
                     break
                 case GT =>
-                    var shouldStopPartition = false
-                    while (left < right) {
-                        let rightValue = this[right]
-                        match (compare(pivotValue, rightValue)) {
-                            case LT => right--
+                    var continueBreak = false
+                    while (left < e) {
+                        let te = this[e]
+                        match (compare(pivot, te)) {
+                            case LT => e--
                             case EQ =>
-                                pivotEqualCount++
-                                this[left] = rightValue
-                                this[right] = leftValue
-                                right--
-                                firstEqual = left
+                                pointNum++
+                                this[left] = te
+                                this[e] = tb
+                                e--
+                                first = left
                                 left++
-                                shouldStopPartition = true
+                                continueBreak = true
                                 break
                             case GT =>
-                                this[left] = rightValue
-                                this[right] = leftValue
+                                this[left] = te
+                                this[e] = tb
                                 left++
-                                right--
+                                e--
                                 break
                         }
                     }
-                    if (shouldStopPartition) {
+                    if (continueBreak) {
                         break
                     }
             }
         }
+        return (left, e, pointNum, first)
+    }
 
-        while (left < right) {
-            var leftValue: T = pivotValue
-            while (left < right) {
-                leftValue = this[left]
-                match (compare(leftValue, pivotValue)) {
+    @OverflowWrapping
+    private func partitionAroundPivot(
+        start: Int64,
+        finish: Int64,
+        pointNumArg: Int64,
+        pivot: T,
+        compare: (T, T) -> Ordering
+    ): (Int64, Int64, Int64) {
+        var left = start
+        var e = finish
+        var pointNum = pointNumArg
+        while (left < e) {
+            var tb: T = pivot
+            while (left < e) {
+                tb = this[left]
+                match (compare(tb, pivot)) {
                     case LT => left++
                     case EQ =>
-                        pivotEqualCount++
+                        pointNum++
                         left++
                     case GT => break
                 }
             }
-            var rightValue: T = pivotValue
-            while (left < right) {
-                rightValue = this[right]
-                match (compare(pivotValue, rightValue)) {
-                    case LT => right--
+            var te: T = pivot
+            while (left < e) {
+                te = this[e]
+                match (compare(pivot, te)) {
+                    case LT => e--
                     case EQ =>
-                        pivotEqualCount++
+                        pointNum++
                         break
                     case GT => break
                 }
             }
-            if (left >= right) {
+            if (left >= e) {
                 break
             }
-            this[left] = rightValue
-            this[right] = leftValue
+            this[left] = te
+            this[e] = tb
             left++
-            right--
+            e--
         }
+        return (left, e, pointNum)
+    }
 
-        match (compare(this[left], pivotValue)) {
+    @OverflowWrapping
+    private func mergePartitionPivots(
+        partitionIndex: Int64,
+        first: Int64,
+        pointNum: Int64,
+        pivot: T,
+        compare: (T, T) -> Ordering
+    ): (Int64, Int64) {
+        if (partitionIndex - first >= pointNum * pointNum) {
+            return (partitionIndex - 1, partitionIndex + 1)
+        }
+        let hi = partitionIndex
+        var left = first
+        var e = hi - 1
+        while (left < e) {
+            var te: T = pivot
+            while (left < e) {
+                te = this[e]
+                match (compare(pivot, te)) {
+                    case EQ => e--
+                    case _ => break
+                }
+            }
+            var tb: T = pivot
+            while (left < e) {
+                tb = this[left]
+                match (compare(tb, pivot)) {
+                    case EQ => break
+                    case _ => left++
+                }
+            }
+            if (left >= e) {
+                break
+            }
+            this[left] = te
+            this[e] = tb
+            left++
+            e--
+        }
+        match (compare(this[left], pivot)) {
+            case EQ => left--
+            case _ => ()
+        }
+        return (left, hi + 1)
+    }
+
+    // the value range of the parameter: 0 <= start < finish <= array.size - 1
+    // finish - start >= 1
+    @OverflowWrapping
+    private func getPartition(start: Int64, finish: Int64, compare: (T, T) -> Ordering): (Int64, Int64) {
+        let pivot = selectPartitionPivot(start, finish, compare)
+        var (left, e, pointNum, first) = findFirstPartitionPivot(start, finish, pivot, compare)
+
+        // find partition pivot
+        (left, e, pointNum) = partitionAroundPivot(left, e, pointNum, pivot, compare)
+        match (compare(this[left], pivot)) {
             case GT => ()
             case _ => left++
         }
         this.swap(left, finish)
-        if (left - firstEqual >= pivotEqualCount * pivotEqualCount) {
-            return (left - 1, left + 1)
-        } else {
-            let upper = left
-            left = firstEqual
-            right = upper - 1
-            while (left < right) {
-                var rightValue: T = pivotValue
-                while (left < right) {
-                    rightValue = this[right]
-                    match (compare(pivotValue, rightValue)) {
-                        case EQ => right--
-                        case _ => break
-                    }
-                }
-                var leftValue: T = pivotValue
-                while (left < right) {
-                    leftValue = this[left]
-                    match (compare(leftValue, pivotValue)) {
-                        case EQ => break
-                        case _ => left++
-                    }
-                }
-                if (left >= right) {
-                    break
-                }
-                this[left] = rightValue
-                this[right] = leftValue
-                left++
-                right--
-            }
-            match (compare(this[left], pivotValue)) {
-                case EQ => left--
-                case _ => ()
-            }
-            return (left, upper + 1)
-        }
+        return mergePartitionPivots(left, first, pointNum, pivot, compare)
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the value range of the parameter: 0 <= start < finish <= array.size - 1
     @OverflowWrapping
     func introSort(start: Int64, finish: Int64, depth: Int64, compare: (T, T) -> Ordering): Unit {
         var left: Int64 = start
-        var right: Int64 = finish
-        var remainingDepth: Int64 = depth
-        while (left < right) {
-            let span = right - left + 1
+        var e: Int64 = finish
+        var d: Int64 = depth
+        while (left < e) {
+            let span = e - left + 1
             if (span <= 16) {
                 if (span == 1) {
                     return
                 } else if (span == 2) {
-                    this.compareSwap2(left, right, compare)
+                    this.compareSwap2(left, e, compare)
                 } else if (span == 3) {
-                    this.compareSwap3(left, left + 1, right, compare)
+                    this.compareSwap3(left, left + 1, e, compare)
                 } else {
-                    this.insertionSort(left, right, compare)
+                    this.insertionSort(left, e, compare)
                 }
                 return
             }
-            if (remainingDepth == 0) {
-                this.heapSort(left, right, compare)
+            if (d == 0) {
+                this.heapSort(left, e, compare)
                 return
             }
-            remainingDepth--
-            let (lower, upper) = this.getPartition(left, right, compare)
+            d--
+            let (lo, hi) = this.getPartition(left, e, compare)
 
             // Let the smaller side do recursion
             // Let the bigger side do loop
-            if (lower - left < right - upper) {
-                this.introSort(left, lower, remainingDepth, compare)
-                left = upper
+            if (lo - left < e - hi) {
+                this.introSort(left, lo, d, compare)
+                left = hi
             } else {
-                this.introSort(upper, right, remainingDepth, compare)
-                right = lower
+                this.introSort(hi, e, d, compare)
+                e = lo
             }
         }
     }
@@ -2040,51 +2080,55 @@ extend<T> Array<T> {
 
 // Temporary code, deleted when @Deprecated ends
 extend<T> Array<T> {
+    // the value range of the parameter: 0 <= i1 < i2 <= array.size - 1
     func compareSwap2(i1: Int64, i2: Int64, compare: (T, T) -> Ordering) {
-        let leftItem: T = this[i1]
+        let a: T = this[i1]
         let left: T = this[i2]
-        match (compare(leftItem, left)) {
+        match (compare(a, left)) {
             case GT =>
                 this[i1] = left
-                this[i2] = leftItem
+                this[i2] = a
             case _ => ()
         }
     }
 
+    // the value range of the parameter: 0 <= i1 < i2 < i3 <= array.size - 1
+    // Ordering.LT/EQ: a <= left <= c
+    // Ordering.GT   : a >= left >= c
     func compareSwap3(i1: Int64, i2: Int64, i3: Int64, compare: (T, T) -> Ordering) {
-        var leftItem: T = this[i1]
+        var a: T = this[i1]
         var left: T = this[i2]
-        var rightItem: T = this[i3]
-        if (compare(leftItem, left) == GT) {
-            var scratch = leftItem
-            leftItem = left
+        var c: T = this[i3]
+        if (compare(a, left) == GT) {
+            var scratch = a
+            a = left
             left = scratch
         }
 
-        if (compare(rightItem, leftItem) == LT) {
-            this[i1] = rightItem
-            this[i2] = leftItem
+        if (compare(c, a) == LT) {
+            this[i1] = c
+            this[i2] = a
             this[i3] = left
-        } else if (compare(rightItem, left) == LT) {
-            this[i1] = leftItem
-            this[i2] = rightItem
+        } else if (compare(c, left) == LT) {
+            this[i1] = a
+            this[i2] = c
             this[i3] = left
         } else {
-            this[i1] = leftItem
+            this[i1] = a
             this[i2] = left
-            this[i3] = rightItem
+            this[i3] = c
         }
     }
 
     @OverflowWrapping
     func getMinRunLength() {
         var runLength = this.size
-        var rightBound: Int64 = 0
+        var r: Int64 = 0
         while (runLength >= 64) {
-            rightBound = rightBound | (runLength & 1)
+            r = r | (runLength & 1)
             runLength = runLength >> 1
         }
-        return runLength + rightBound
+        return runLength + r
     }
 
     @OverflowWrapping
@@ -2098,30 +2142,32 @@ extend<T> Array<T> {
         return res * 2
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the value range of the parameter: 0 <= start < finish <= array.size - 1
     @OverflowWrapping
     func insertionSort(start: Int64, finish: Int64, compare: (T, T) -> Ordering): Unit {
-        var idx: Int64 = start + 1
-        while (idx <= finish) {
-            var candidate = this[idx]
-            var scan = idx - 1
-            while (scan >= start) {
-                var scratch = this[scan]
+        var i: Int64 = start + 1
+        while (i <= finish) {
+            var candidate = this[i]
+            var j = i - 1
+            while (j >= start) {
+                var scratch = this[j]
                 match (compare(scratch, candidate)) {
-                    case GT => this[scan + 1] = scratch
+                    case GT => this[j + 1] = scratch
                     case _ => break
                 }
-                scan--
+                j--
             }
-            this[scan + 1] = candidate
-            idx++
+            this[j + 1] = candidate
+            i++
         }
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
-    // end - begin >= 1
     @OverflowWrapping
-    func getSequenceLength(start: Int64, finish: Int64, scratch: TempArray<T>, compare: (T, T) -> Ordering): Int64 {
+    private func getEqualPrefixInfoByComparator(
+        start: Int64,
+        finish: Int64,
+        compare: (T, T) -> Ordering
+    ): (Int64, Int64, Bool) {
         var left: Int64 = start
         var equalCount: Int64 = 1
         var ascending: Bool = true
@@ -2146,137 +2192,102 @@ extend<T> Array<T> {
                     }
                 }
         }
+        (left, equalCount, ascending)
+    }
+
+    @OverflowWrapping
+    private func handleShortSequenceByComparator(start: Int64, finish: Int64, equalCount: Int64, ascending: Bool): Int64 {
+        if (!ascending) {
+            let te = this[finish]
+            this.copyTo(this, start, start + 1, equalCount)
+            this[start] = te
+        }
+        return equalCount + 1
+    }
+
+    @OverflowWrapping
+    private func countAscendingRunByComparator(start: Int64, finish: Int64, compare: (T, T) -> Ordering): Int64 {
+        var left = start
+        var runLength: Int64 = 1
+        while (left + 1 <= finish) {
+            match (compare(this[left], this[left + 1])) {
+                case GT => break
+                case _ =>
+                    runLength++
+                    left++
+            }
+        }
+        runLength
+    }
+
+    @OverflowWrapping
+    private func countDescendingRunByComparator(start: Int64, finish: Int64, compare: (T, T) -> Ordering): Int64 {
+        var left = start
+        var runLength: Int64 = 1
+        while (left + 1 <= finish) {
+            match (compare(this[left], this[left + 1])) {
+                case GT =>
+                    runLength++
+                    left++
+                case _ => break
+            }
+        }
+        runLength
+    }
+
+    // the value range of the parameter: 0 <= start < finish <= array.size - 1
+    // finish - start >= 1
+    @OverflowWrapping
+    func getSequenceLength(start: Int64, finish: Int64, scratch: TempArray<T>, compare: (T, T) -> Ordering): Int64 {
+        var (left, equalCount, ascending) = getEqualPrefixInfoByComparator(start, finish, compare)
         if (left >= finish) {
             return equalCount
         } else if (finish - left == 1) {
-            if (ascending) {
-                return equalCount + 1
-            } else {
-                let rightValue = this[finish]
-                this.copyTo(this, start, start + 1, equalCount)
-                this[start] = rightValue
-                return equalCount + 1
-            }
+            return handleShortSequenceByComparator(start, finish, equalCount, ascending)
         }
         left++
-        var runLength: Int64 = 1
         if (ascending) {
-            while (left + 1 <= finish) {
-                match (compare(this[left], this[left + 1])) {
-                    case GT => break
-                    case _ =>
-                        runLength++
-                        left++
-                }
-            }
-            return equalCount + runLength
-        } else {
-            while (left + 1 <= finish) {
-                match (compare(this[left], this[left + 1])) {
-                    case GT =>
-                        runLength++
-                        left++
-                    case _ => break
-                }
-            }
-
-            if (equalCount == 1) {
-                var idx = start
-                var scan = start + runLength // start + equalCount + runLength - 1
-                while (idx < scan) {
-                    this.swap(idx, scan)
-                    idx++
-                    scan--
-                }
-                return equalCount + runLength
-            } else {
-                var idx = start + equalCount
-                var scan = idx + runLength - 1
-                while (idx < scan) {
-                    this.swap(idx, scan)
-                    idx++
-                    scan--
-                }
-            }
-
-            if (equalCount == 2) {
-                let savedFirst = this[start]
-                let savedSecond = this[start + 1]
-                if (runLength == 1) {
-                    this[start] = this[start + 2]
-                    this[start + 1] = savedFirst
-                    this[start + 2] = savedSecond
-                } else if (runLength == 2) {
-                    this[start] = this[start + 2]
-                    this[start + 1] = this[start + 3]
-                    this[start + 2] = savedFirst
-                    this[start + 3] = savedSecond
-                } else {
-                    this.copyTo(this, start + 2, start, runLength)
-                    this[start + equalCount + runLength - 2] = savedFirst
-                    this[start + equalCount + runLength - 1] = savedSecond
-                }
-            } else {
-                if (runLength == 1) {
-                    let t = this[start + equalCount]
-                    this.copyTo(this, start, start + 1, equalCount)
-                    this[start] = t
-                } else if (runLength == 2) {
-                    let savedFirst = this[start + equalCount]
-                    let savedSecond = this[start + equalCount + 1]
-                    this.copyTo(this, start, start + 2, equalCount)
-                    this[start] = savedFirst
-                    this[start + 1] = savedSecond
-                } else {
-                    if (runLength < equalCount) {
-                        let buffer = scratch.getArray(runLength)
-                        this.copyTo(buffer, start + equalCount, 0, runLength)
-                        this.copyTo(this, start, start + runLength, equalCount)
-                        buffer.copyTo(this, 0, start, runLength)
-                    } else {
-                        let buffer = scratch.getArray(equalCount)
-                        this.copyTo(buffer, start, 0, equalCount)
-                        this.copyTo(this, start + equalCount, start, runLength)
-                        buffer.copyTo(this, 0, start + runLength, equalCount)
-                    }
-                }
-            }
-            return equalCount + runLength
+            return equalCount + countAscendingRunByComparator(left, finish, compare)
         }
+
+        let runLength = countDescendingRunByComparator(left, finish, compare)
+        moveEqualPrefixAfterDescendingRun(start, equalCount, runLength, scratch)
+        return equalCount + runLength
     }
 
     // the original relative positions of equal elements are not guaranteed.
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the value range of the parameter: 0 <= start < finish <= array.size - 1
     @OverflowWrapping
     func binaryInsertionSort(start: Int64, finish: Int64, compare: (T, T) -> Ordering, runLength: Int64) {
-        var idx = start + runLength
-        while (idx <= finish) {
-            let candidate = this[idx]
-            let leftBound = this.binaryQueryGT(candidate, start, idx - start, compare)
-            let moveCount = idx - leftBound
-            if (moveCount == 0) {
-                idx++
+        var i = start + runLength
+        while (i <= finish) {
+            let candidate = this[i]
+            let l = this.binaryQueryGT(candidate, start, i - start, compare)
+            let moveN = i - l
+            if (moveN == 0) {
+                i++
                 continue
             }
-            match (moveCount) {
-                case 1 => this[idx] = this[idx - 1]
+            match (moveN) {
+                case 1 => this[i] = this[i - 1]
                 case 2 =>
-                    this[idx] = this[idx - 1]
-                    this[idx - 1] = this[idx - 2]
-                case _ => this.copyTo(this, leftBound, leftBound + 1, moveCount)
+                    this[i] = this[i - 1]
+                    this[i - 1] = this[i - 2]
+                case _ => this.copyTo(this, l, l + 1, moveN)
             }
-            this[leftBound] = candidate
-            idx++
+            this[l] = candidate
+            i++
         }
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the value range of the parameter: 0 <= start < finish <= array.size - 1
     @OverflowWrapping
-    func heapify(start: Int64, finish: Int64, root: Int64, compare: (T, T) -> Ordering): Unit {
+    private func heapify(start: Int64, finish: Int64, root: Int64, compare: (T, T) -> Ordering): Unit {
         var parentIndex: Int64 = root
         var childIndex = (parentIndex << 1) + 1 // parentIndex * 2 + 1
         while (start + childIndex <= finish) {
-            let selected = if (start + childIndex + 1 <= finish) {
+            // childIndex or (childIndex + 1) is taken only once
+            let s = if (start + childIndex + 1 <= finish) {
                 let s1 = this[start + childIndex]
                 let s2 = this[start + childIndex + 1]
                 match (compare(s1, s2)) {
@@ -2288,11 +2299,11 @@ extend<T> Array<T> {
             } else {
                 this[start + childIndex]
             }
-            let parent = this[start + parentIndex]
-            match (compare(parent, selected)) {
+            let f = this[start + parentIndex]
+            match (compare(f, s)) {
                 case LT =>
-                    this[start + parentIndex] = selected
-                    this[start + childIndex] = parent
+                    this[start + parentIndex] = s
+                    this[start + childIndex] = f
                 case _ => return
             }
             parentIndex = childIndex
@@ -2300,160 +2311,183 @@ extend<T> Array<T> {
         }
     }
 
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    // the value range of the parameter: 0 <= start < finish <= array.size - 1
     @OverflowWrapping
     func heapSort(start: Int64, finish: Int64, compare: (T, T) -> Ordering): Unit {
         let span = finish - start + 1
-        var idx = (span >> 1) - 1
+        var i = (span >> 1) - 1
 
-        while (idx >= 0) {
-            this.heapify(start, finish, idx, compare)
-            idx--
+        // build max or min heap
+        while (i >= 0) {
+            this.heapify(start, finish, i, compare)
+            i--
         }
-        idx = finish
-        while (idx > start) {
-            this.swap(start, idx)
+        i = finish
+        while (i > start) {
+            // swap top and bottom data
+            this.swap(start, i)
 
-            this.heapify(start, idx - 1, 0, compare)
-            idx--
+            // reset max or min heap
+            this.heapify(start, i - 1, 0, compare)
+            i--
         }
     }
 
     // The queried position is just greater than and equal the previous value.
     @OverflowWrapping
-    func binaryQueryGT(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
-        var leftBound = start
-        var rightBound = start + span
-        while (leftBound < rightBound) {
-            let middleIndex = leftBound + ((rightBound - leftBound) >> 1)
-            match (compare(candidate, this[middleIndex])) {
-                case LT => rightBound = middleIndex
-                case _ => leftBound = middleIndex + 1
+    private func binaryQueryGT(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
+        var l = start
+        var r = start + span
+        while (l < r) {
+            let m = l + ((r - l) >> 1)
+            match (compare(candidate, this[m])) {
+                case LT => r = m
+                case _ => l = m + 1
             }
         }
-        return leftBound
+        return l
     }
 
     // The queried position is just less than and equal the next value.
     @OverflowWrapping
-    func binaryQueryLT(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
-        var leftBound = start
-        var rightBound = start + span
-        while (leftBound < rightBound) {
-            let middleIndex = leftBound + ((rightBound - leftBound) >> 1)
-            match (compare(candidate, this[middleIndex])) {
-                case GT => leftBound = middleIndex + 1
-                case _ => rightBound = middleIndex
+    private func binaryQueryLT(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
+        var l = start
+        var r = start + span
+        while (l < r) {
+            let m = l + ((r - l) >> 1)
+            match (compare(candidate, this[m])) {
+                case GT => l = m + 1
+                case _ => r = m
             }
         }
-        return leftBound
+        return l
     }
 
     // The queried position is just greater than and equal the previous value.
     @OverflowWrapping
-    func queryGT(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering, rightBound: Bool) {
-        var gallopLimit = span
-        if (rightBound) {
-            let finish = start + span - 1
-            if (span > 64) {
-                let gallopProbe = Int64(sqrt(Float64(span)))
-                match (compare(candidate, this[finish - gallopProbe])) {
-                    case LT => return this.binaryQueryGT(candidate, start, span - gallopProbe, compare)
-                    case _ => gallopLimit = gallopProbe
-                }
+    private func queryGTFromRight(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
+        var gallopMax = span
+        let finish = start + span - 1
+        if (span > 64) {
+            let gallopMid = Int64(sqrt(Float64(span)))
+            match (compare(candidate, this[finish - gallopMid])) {
+                case LT => return this.binaryQueryGT(candidate, start, span - gallopMid, compare)
+                case _ => gallopMax = gallopMid
             }
-            var offset = 1
-            var previousOffset = 0
-            while (offset < gallopLimit) {
-                let t = this[finish - offset]
-                match (compare(candidate, t)) {
-                    case LT =>
-                        previousOffset = offset
-                        offset = (offset << 1) + 1
-                    case _ => break
-                }
-            }
-            if (offset > gallopLimit) {
-                offset = gallopLimit
-            }
-            return this.binaryQueryGT(candidate, start + span - offset, offset - previousOffset, compare)
-        } else {
-            if (span > 64) {
-                let gallopProbe = Int64(sqrt(Float64(span)))
-                match (compare(candidate, this[start + gallopProbe])) {
-                    case LT => gallopLimit = gallopProbe
-                    case _ => return this.binaryQueryGT(candidate, start + gallopProbe, span - gallopProbe, compare)
-                }
-            }
-            var offset = 1
-            var previousOffset = 0
-            while (offset < gallopLimit) {
-                let t = this[start + offset]
-                match (compare(candidate, t)) {
-                    case LT => break
-                    case _ =>
-                        previousOffset = offset
-                        offset = (offset << 1) + 1
-                }
-            }
-            if (offset > gallopLimit) {
-                offset = gallopLimit
-            }
-            return this.binaryQueryGT(candidate, start + previousOffset, offset - previousOffset, compare)
         }
+        var ofs = 1
+        var lastOfs = 0
+        while (ofs < gallopMax) {
+            let t = this[finish - ofs]
+            match (compare(candidate, t)) {
+                case LT =>
+                    lastOfs = ofs
+                    ofs = (ofs << 1) + 1
+                case _ => break
+            }
+        }
+        if (ofs > gallopMax) {
+            ofs = gallopMax
+        }
+        return this.binaryQueryGT(candidate, start + span - ofs, ofs - lastOfs, compare)
+    }
+
+    @OverflowWrapping
+    private func queryGTFromLeft(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
+        var gallopMax = span
+        if (span > 64) {
+            let gallopMid = Int64(sqrt(Float64(span)))
+            match (compare(candidate, this[start + gallopMid])) {
+                case LT => gallopMax = gallopMid
+                case _ => return this.binaryQueryGT(candidate, start + gallopMid, span - gallopMid, compare)
+            }
+        }
+        var ofs = 1
+        var lastOfs = 0
+        while (ofs < gallopMax) {
+            let t = this[start + ofs]
+            match (compare(candidate, t)) {
+                case LT => break
+                case _ =>
+                    lastOfs = ofs
+                    ofs = (ofs << 1) + 1
+            }
+        }
+        if (ofs > gallopMax) {
+            ofs = gallopMax
+        }
+        return this.binaryQueryGT(candidate, start + lastOfs, ofs - lastOfs, compare)
+    }
+
+    @OverflowWrapping
+    func queryGT(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering, r: Bool) {
+        if (r) {
+            return queryGTFromRight(candidate, start, span, compare)
+        }
+        return queryGTFromLeft(candidate, start, span, compare)
     }
 
     // The queried position is just less than and equal the next value.
     @OverflowWrapping
-    func queryLT(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering, rightBound: Bool) {
-        var gallopLimit = span
-        if (rightBound) {
-            let finish = start + span - 1
-            if (span > 64) {
-                let gallopProbe = Int64(sqrt(Float64(span)))
-                match (compare(candidate, this[finish - gallopProbe])) {
-                    case GT => gallopLimit = gallopProbe
-                    case _ => return this.binaryQueryLT(candidate, start, span - gallopProbe, compare)
-                }
+    private func queryLTFromRight(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
+        var gallopMax = span
+        let finish = start + span - 1
+        if (span > 64) {
+            let gallopMid = Int64(sqrt(Float64(span)))
+            match (compare(candidate, this[finish - gallopMid])) {
+                case GT => gallopMax = gallopMid
+                case _ => return this.binaryQueryLT(candidate, start, span - gallopMid, compare)
             }
-            var offset = 1
-            var previousOffset = 0
-            while (offset < gallopLimit) {
-                let t = this[finish - offset]
-                match (compare(candidate, t)) {
-                    case GT => break
-                    case _ =>
-                        previousOffset = offset
-                        offset = (offset << 1) + 1
-                }
-            }
-            if (offset > gallopLimit) {
-                offset = gallopLimit
-            }
-            return this.binaryQueryLT(candidate, start + span - offset, offset - previousOffset, compare)
-        } else {
-            if (span > 64) {
-                let gallopProbe = Int64(sqrt(Float64(span)))
-                match (compare(candidate, this[start + gallopProbe])) {
-                    case GT => return this.binaryQueryLT(candidate, start + gallopProbe, span - gallopProbe, compare)
-                    case _ => gallopLimit = gallopProbe
-                }
-            }
-            var offset = 1
-            var previousOffset = 0
-            while (offset < gallopLimit) {
-                let t = this[start + offset]
-                match (compare(candidate, t)) {
-                    case GT =>
-                        previousOffset = offset
-                        offset = (offset << 1) + 1
-                    case _ => break
-                }
-            }
-            if (offset > gallopLimit) {
-                offset = gallopLimit
-            }
-            return this.binaryQueryLT(candidate, start + previousOffset, offset - previousOffset, compare)
         }
+        var ofs = 1
+        var lastOfs = 0
+        while (ofs < gallopMax) {
+            let t = this[finish - ofs]
+            match (compare(candidate, t)) {
+                case GT => break
+                case _ =>
+                    lastOfs = ofs
+                    ofs = (ofs << 1) + 1
+            }
+        }
+        if (ofs > gallopMax) {
+            ofs = gallopMax
+        }
+        return this.binaryQueryLT(candidate, start + span - ofs, ofs - lastOfs, compare)
+    }
+
+    @OverflowWrapping
+    private func queryLTFromLeft(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering): Int64 {
+        var gallopMax = span
+        if (span > 64) {
+            let gallopMid = Int64(sqrt(Float64(span)))
+            match (compare(candidate, this[start + gallopMid])) {
+                case GT => return this.binaryQueryLT(candidate, start + gallopMid, span - gallopMid, compare)
+                case _ => gallopMax = gallopMid
+            }
+        }
+        var ofs = 1
+        var lastOfs = 0
+        while (ofs < gallopMax) {
+            let t = this[start + ofs]
+            match (compare(candidate, t)) {
+                case GT =>
+                    lastOfs = ofs
+                    ofs = (ofs << 1) + 1
+                case _ => break
+            }
+        }
+        if (ofs > gallopMax) {
+            ofs = gallopMax
+        }
+        return this.binaryQueryLT(candidate, start + lastOfs, ofs - lastOfs, compare)
+    }
+
+    @OverflowWrapping
+    func queryLT(candidate: T, start: Int64, span: Int64, compare: (T, T) -> Ordering, r: Bool) {
+        if (r) {
+            return queryLTFromRight(candidate, start, span, compare)
+        }
+        return queryLTFromLeft(candidate, start, span, compare)
     }
 }
