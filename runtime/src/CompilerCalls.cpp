@@ -953,6 +953,16 @@ extern "C" void* MCC_LoadPackage(const char* path)
         return reinterpret_cast<void*>(LOAD_FAIL);
     }
     if (loaderMgr->GetPackageInfoByPath(path) == nullptr) {
+        // Distinguish a file without package info from a genuinely repeated
+        // package: a file whose pkgTotalSize is 0 simply has no package info
+        // to register, which is a load failure rather than a repeat.
+        ILoader* loader = loaderMgr->GetLoader();
+        BaseFile* baseFile = (loader != nullptr) ? loader->GetBaseFile(CString(path)) : nullptr;
+        if (baseFile == nullptr || baseFile->GetPackageInfoTotalSize() == 0) {
+            LOG(RTLOG_ERROR, "MCC_LoadPackage fail: file %s has no package info", path);
+            loaderMgr->RemovePackageInfo(path);
+            return reinterpret_cast<void*>(LOAD_FAIL);
+        }
         loaderMgr->RemovePackageInfo(path);
         return reinterpret_cast<void*>(LOAD_PACKAGE_REPEATED);
     }

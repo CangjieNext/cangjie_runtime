@@ -77,6 +77,12 @@ void CJFileLoader::AddPackageInfos(BaseFile* baseFile)
 {
     Uptr packageInfoBase = baseFile->GetPackageInfoBase();
     U32 pkgTotalSize = baseFile->GetPackageInfoTotalSize();
+    if (pkgTotalSize == 0 || packageInfoBase == 0) {
+        LOG(RTLOG_WARNING, "AddPackageInfos skip: file %s has no package info, pkgTotalSize=%u, "
+            "packageInfoBase=0x%lx", baseFile->GetBaseName().Str(), pkgTotalSize,
+            static_cast<unsigned long>(packageInfoBase));
+        return;
+    }
     while (pkgTotalSize > 0) {
         PackageInfo* packageInfo = reinterpret_cast<PackageInfo*>(packageInfoBase);
         const char* pkgName = packageInfo->GetPackageName();
