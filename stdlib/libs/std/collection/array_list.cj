@@ -1186,7 +1186,69 @@ func stableSort<T>(data: Array<T>, compare: (T, T) -> Ordering): Unit {
 }
 // Temporary code, deleted when @Deprecated ends
 extend<T> Array<T> {
-    // the value range of the parameter: 0 <= begin < end <= array.size - 1
+    @OverflowWrapping
+    private func reverseRange(start: Int64, finish: Int64): Unit {
+        var i = start
+        var j = finish
+        while (i < j) {
+            this.swap(i, j)
+            i++
+            j--
+        }
+    }
+
+    @OverflowWrapping
+    private func moveEqualPrefixAfterDescendingRun(start: Int64, equalCount: Int64, runLength: Int64, scratch: TempArray<T>): Unit {
+        if (equalCount == 1) {
+            reverseRange(start, start + runLength)
+            return
+        }
+        reverseRange(start + equalCount, start + equalCount + runLength - 1)
+        if (equalCount == 2) {
+            let savedFirst = this[start]
+            let savedSecond = this[start + 1]
+            if (runLength == 1) {
+                this[start] = this[start + 2]
+                this[start + 1] = savedFirst
+                this[start + 2] = savedSecond
+            } else if (runLength == 2) {
+                this[start] = this[start + 2]
+                this[start + 1] = this[start + 3]
+                this[start + 2] = savedFirst
+                this[start + 3] = savedSecond
+            } else {
+                this.copyTo(this, start + 2, start, runLength)
+                this[start + equalCount + runLength - 2] = savedFirst
+                this[start + equalCount + runLength - 1] = savedSecond
+            }
+            return
+        }
+        if (runLength == 1) {
+            let t = this[start + equalCount]
+            this.copyTo(this, start, start + 1, equalCount)
+            this[start] = t
+        } else if (runLength == 2) {
+            let savedFirst = this[start + equalCount]
+            let savedSecond = this[start + equalCount + 1]
+            this.copyTo(this, start, start + 2, equalCount)
+            this[start] = savedFirst
+            this[start + 1] = savedSecond
+        } else {
+            if (runLength < equalCount) {
+                let buffer = scratch.getArray(runLength)
+                this.copyTo(buffer, start + equalCount, 0, runLength)
+                this.copyTo(this, start, start + runLength, equalCount)
+                buffer.copyTo(this, 0, start, runLength)
+            } else {
+                let buffer = scratch.getArray(equalCount)
+                this.copyTo(buffer, start, 0, equalCount)
+                this.copyTo(this, start + equalCount, start, runLength)
+                buffer.copyTo(this, 0, start + runLength, equalCount)
+            }
+        }
+    }
+
+    // the value range of the parameter: 0 <= start < finish <= array.size - 1
     @OverflowWrapping
     private func shortSort(start: Int64, finish: Int64, compare: (T, T) -> Ordering): Unit {
         let span = this.size
@@ -1234,12 +1296,12 @@ extend<T> Array<T> {
                 break
             }
 
-            let selected = runStarts[runLength - 1]
-            let leftBound = runLengths[runLength - 1]
-            if (leftBound <= currentLength + nextLength) {
-                if (leftBound < nextLength) {
-                    this.merge(selected, leftBound, currentStart, currentLength, scratch, compare)
-                    runLengths[runLength - 1] = leftBound + currentLength
+            let s = runStarts[runLength - 1]
+            let l = runLengths[runLength - 1]
+            if (l <= currentLength + nextLength) {
+                if (l < nextLength) {
+                    this.merge(s, l, currentStart, currentLength, scratch, compare)
+                    runLengths[runLength - 1] = l + currentLength
                     runStarts[runLength] = nextStart
                     runLengths[runLength] = nextLength
                     index--
@@ -1279,11 +1341,11 @@ extend<T> Array<T> {
                 break
             }
 
-            let selected = runStarts[runLength - 1]
-            let leftBound = runLengths[runLength - 1]
-            if (leftBound < nextLength) {
-                this.merge(selected, leftBound, currentStart, currentLength, scratch, compare)
-                runLengths[runLength - 1] = leftBound + currentLength
+            let s = runStarts[runLength - 1]
+            let l = runLengths[runLength - 1]
+            if (l < nextLength) {
+                this.merge(s, l, currentStart, currentLength, scratch, compare)
+                runLengths[runLength - 1] = l + currentLength
                 runStarts[runLength] = nextStart
                 runLengths[runLength] = nextLength
                 index--
@@ -1322,17 +1384,138 @@ extend<T> Array<T> {
         }
 
         if (l1 == 1) {
-            let t0 = this[s1]
+            let saved = this[s1]
             this.copyTo(this, s2, s2 - 1, l2)
-            this[s1 + l2] = t0
+            this[s1 + l2] = saved
         } else if (l2 == 1) {
-            let t0 = this[s2]
+            let saved = this[s2]
             this.copyTo(this, s1, s1 + 1, l1)
-            this[s1] = t0
+            this[s1] = saved
         } else if (l1 <= l2) {
             mergeFromLeft(s1, l1, s2, l2, scratch, compare)
         } else {
             mergeFromRight(s1, l1, s2, l2, scratch, compare)
+        }
+    }
+
+    @OverflowWrapping
+    private func moveLeftBufferPrefix(buffer: Array<T>, state: MergeFromLeftState, count: Int64, candidate: T): Unit {
+        match (count) {
+            case 0 => this[state.target] = candidate
+            case 1 =>
+                this[state.target] = buffer[state.leftCursor]
+                this[state.target + 1] = candidate
+            case 2 =>
+                this[state.target] = buffer[state.leftCursor]
+                this[state.target + 1] = buffer[state.leftCursor + 1]
+                this[state.target + 2] = candidate
+            case _ =>
+                buffer.copyTo(this, state.leftCursor, state.target, count)
+                this[state.target + count] = candidate
+        }
+    }
+
+    @OverflowWrapping
+    private func moveRightRunPrefix(state: MergeFromLeftState, count: Int64, candidate: T): Unit {
+        match (count) {
+            case 0 => this[state.target] = candidate
+            case 1 =>
+                this[state.target] = this[state.rightCursor]
+                this[state.target + 1] = candidate
+            case 2 =>
+                this[state.target] = this[state.rightCursor]
+                this[state.target + 1] = this[state.rightCursor + 1]
+                this[state.target + 2] = candidate
+            case _ =>
+                this.copyTo(this, state.rightCursor, state.target, count)
+                this[state.target + count] = candidate
+        }
+    }
+
+    @OverflowWrapping
+    private func mergeFromLeftOneByOne(
+        buffer: Array<T>,
+        state: MergeFromLeftState,
+        compare: (T, T) -> Ordering
+    ): Unit {
+        state.resetCounts()
+        var leftValue = buffer[state.leftCursor]
+        var rightValue = this[state.rightCursor]
+        while (true) {
+            match (compare(leftValue, rightValue)) {
+                case GT =>
+                    this[state.target] = rightValue
+                    state.takeRight()
+                    if (state.rightRest == 0) {
+                        state.shouldStop = true
+                        break
+                    }
+                    if (state.rightCount > 4) {
+                        break
+                    }
+                    rightValue = this[state.rightCursor]
+                case _ =>
+                    this[state.target] = leftValue
+                    state.takeLeft()
+                    if (state.leftRest == 1) {
+                        state.shouldStop = true
+                        break
+                    }
+                    if (state.leftCount > 4) {
+                        break
+                    }
+                    leftValue = buffer[state.leftCursor]
+            }
+        }
+    }
+
+    @OverflowWrapping
+    private func mergeFromLeftByRange(
+        buffer: Array<T>,
+        state: MergeFromLeftState,
+        compare: (T, T) -> Ordering
+    ): Unit {
+        while (true) {
+            var candidate = this[state.rightCursor]
+            state.leftCount = buffer.queryGT(candidate, state.leftCursor, state.leftRest, compare, false) - state
+                .leftCursor
+            this.moveLeftBufferPrefix(buffer, state, state.leftCount, candidate)
+            state.target = state.target + state.leftCount + 1
+            state.leftCursor += state.leftCount
+            state.leftRest -= state.leftCount
+            state.rightCursor++
+            state.rightRest--
+            if (state.leftRest == 1 || state.rightRest == 0) {
+                state.shouldStop = true
+                break
+            }
+            candidate = buffer[state.leftCursor]
+            state.rightCount = this.queryLT(candidate, state.rightCursor, state.rightRest, compare, false) - state
+                .rightCursor
+            this.moveRightRunPrefix(state, state.rightCount, candidate)
+            state.target = state.target + state.rightCount + 1
+            state.rightCursor += state.rightCount
+            state.rightRest -= state.rightCount
+            state.leftCursor++
+            state.leftRest--
+            if (state.rightRest == 0 || state.leftRest == 1) {
+                state.shouldStop = true
+                break
+            }
+            if (state.leftCount < 4 || state.rightCount < 4) {
+                break
+            }
+        }
+    }
+
+    @OverflowWrapping
+    private func finishMergeFromLeft(buffer: Array<T>, state: MergeFromLeftState): Unit {
+        if (state.rightRest == 0) {
+            buffer.copyTo(this, state.leftCursor, state.target, state.leftRest)
+        }
+        if (state.leftRest == 1) {
+            this.copyTo(this, state.rightCursor, state.target, state.rightRest)
+            this[state.target + state.rightRest] = buffer[state.leftCursor]
         }
     }
 
@@ -1347,127 +1530,142 @@ extend<T> Array<T> {
     ) {
         let buffer = scratch.getArray(len1)
         this.copyTo(buffer, start1, 0, len1)
-        var ti = start1
-        var s1 = 0
-        var l1 = len1
-        var s2 = start2
-        var l2 = len2
-        this[ti] = this[s2]
-        ti++
-        s2++
-        l2--
-        var c1 = 0
-        var c2 = 0
-        var shouldStopPartition = false
+        let state = MergeFromLeftState(start1, 0, len1, start2, len2)
+        this[state.target] = this[state.rightCursor]
+        state.takeRight()
         while (true) {
-            c1 = 0
-            c2 = 0
-            shouldStopPartition = false
-            var savedFirst = buffer[s1]
-            var savedSecond = this[s2]
-            while (true) {
-                match (compare(savedFirst, savedSecond)) {
-                    case GT =>
-                        this[ti] = savedSecond
-                        ti++
-                        s2++
-                        l2--
-                        c2++
-                        c1 = 0
-                        if (l2 == 0) {
-                            shouldStopPartition = true
-                            break
-                        }
-                        if (c2 > 4) {
-                            break
-                        }
-
-                        savedSecond = this[s2]
-                    case _ =>
-                        this[ti] = savedFirst
-                        ti++
-                        s1++
-                        l1--
-                        c1++
-                        c2 = 0
-                        if (l1 == 1) {
-                            shouldStopPartition = true
-                            break
-                        }
-                        if (c1 > 4) {
-                            break
-                        }
-
-                        savedFirst = buffer[s1]
-                }
-            }
-            if (shouldStopPartition) {
+            this.mergeFromLeftOneByOne(buffer, state, compare)
+            if (state.shouldStop) {
                 break
             }
-            shouldStopPartition = false
-            while (true) {
-                var candidate = this[s2]
-                c1 = buffer.queryGT(candidate, s1, l1, compare, false) - s1
-                match (c1) {
-                    case 0 => this[ti] = candidate
-                    case 1 =>
-                        this[ti] = buffer[s1]
-                        this[ti + 1] = candidate
-                    case 2 =>
-                        this[ti] = buffer[s1]
-                        this[ti + 1] = buffer[s1 + 1]
-                        this[ti + 2] = candidate
-                    case _ =>
-                        buffer.copyTo(this, s1, ti, c1)
-                        this[ti + c1] = candidate
-                }
-                ti = ti + c1 + 1
-                s1 += c1
-                l1 -= c1
-                s2++
-                l2--
-                if (l1 == 1 || l2 == 0) {
-                    shouldStopPartition = true
-                    break
-                }
-                candidate = buffer[s1]
-                c2 = this.queryLT(candidate, s2, l2, compare, false) - s2
-                match (c2) {
-                    case 0 => this[ti] = candidate
-                    case 1 =>
-                        this[ti] = this[s2]
-                        this[ti + 1] = candidate
-                    case 2 =>
-                        this[ti] = this[s2]
-                        this[ti + 1] = this[s2 + 1]
-                        this[ti + 2] = candidate
-                    case _ =>
-                        this.copyTo(this, s2, ti, c2)
-                        this[ti + c2] = candidate
-                }
-                ti = ti + c2 + 1
-                s2 += c2
-                l2 -= c2
-                s1++
-                l1--
-                if (l2 == 0 || l1 == 1) {
-                    shouldStopPartition = true
-                    break
-                }
-                if (c1 < 4 || c2 < 4) {
-                    break
-                }
-            }
-            if (shouldStopPartition) {
+            state.shouldStop = false
+            this.mergeFromLeftByRange(buffer, state, compare)
+            if (state.shouldStop) {
                 break
             }
         }
-        if (l2 == 0) {
-            buffer.copyTo(this, s1, ti, l1)
+        this.finishMergeFromLeft(buffer, state)
+    }
+
+    @OverflowWrapping
+    private func moveRightBufferSuffix(buffer: Array<T>, state: MergeFromRightState, count: Int64, candidate: T): Unit {
+        match (count) {
+            case 0 => this[state.target] = candidate
+            case 1 =>
+                this[state.target] = buffer[state.rightTail]
+                this[state.target - 1] = candidate
+            case 2 =>
+                this[state.target] = buffer[state.rightTail]
+                this[state.target - 1] = buffer[state.rightTail - 1]
+                this[state.target - 2] = candidate
+            case _ =>
+                buffer.copyTo(this, state.rightTail - count + 1, state.target - count + 1, count)
+                this[state.target - count] = candidate
         }
-        if (l1 == 1) {
-            this.copyTo(this, s2, ti, l2)
-            this[ti + l2] = buffer[s1]
+    }
+
+    @OverflowWrapping
+    private func moveLeftRunSuffix(state: MergeFromRightState, count: Int64, candidate: T): Unit {
+        match (count) {
+            case 0 => this[state.target] = candidate
+            case 1 =>
+                this[state.target] = this[state.leftTail]
+                this[state.target - 1] = candidate
+            case 2 =>
+                this[state.target] = this[state.leftTail]
+                this[state.target - 1] = this[state.leftTail - 1]
+                this[state.target - 2] = candidate
+            case _ =>
+                this.copyTo(this, state.leftTail - count + 1, state.target - count + 1, count)
+                this[state.target - count] = candidate
+        }
+    }
+
+    @OverflowWrapping
+    private func mergeFromRightOneByOne(
+        buffer: Array<T>,
+        state: MergeFromRightState,
+        compare: (T, T) -> Ordering
+    ): Unit {
+        state.resetCounts()
+        var leftValue = this[state.leftTail]
+        var rightValue = buffer[state.rightTail]
+        while (true) {
+            match (compare(leftValue, rightValue)) {
+                case GT =>
+                    this[state.target] = leftValue
+                    state.takeLeftTail()
+                    if (state.leftRest == 0) {
+                        state.shouldStop = true
+                        break
+                    }
+                    if (state.leftBatch > 4) {
+                        break
+                    }
+                    leftValue = this[state.leftTail]
+                case _ =>
+                    this[state.target] = rightValue
+                    state.takeRightTail()
+                    if (state.rightRest == 1) {
+                        state.shouldStop = true
+                        break
+                    }
+                    if (state.rightBatch > 4) {
+                        break
+                    }
+                    rightValue = buffer[state.rightTail]
+            }
+        }
+    }
+
+    @OverflowWrapping
+    private func mergeFromRightByRange(
+        start1: Int64,
+        buffer: Array<T>,
+        state: MergeFromRightState,
+        compare: (T, T) -> Ordering
+    ): Unit {
+        while (true) {
+            var candidate = this[state.leftTail]
+            let lt = buffer.queryLT(candidate, 0, state.rightRest, compare, true)
+            state.rightBatch = state.rightRest - lt
+            this.moveRightBufferSuffix(buffer, state, state.rightBatch, candidate)
+            state.target = state.target - state.rightBatch - 1
+            state.rightTail -= state.rightBatch
+            state.rightRest -= state.rightBatch
+            state.leftTail--
+            state.leftRest--
+            if (state.rightRest == 1 || state.leftRest == 0) {
+                state.shouldStop = true
+                break
+            }
+            candidate = buffer[state.rightTail]
+            let gt = this.queryGT(candidate, start1, state.leftRest, compare, true)
+            state.leftBatch = state.leftTail - gt + 1
+            this.moveLeftRunSuffix(state, state.leftBatch, candidate)
+            state.target = state.target - state.leftBatch - 1
+            state.leftTail -= state.leftBatch
+            state.leftRest -= state.leftBatch
+            state.rightTail--
+            state.rightRest--
+            if (state.leftRest == 0 || state.rightRest == 1) {
+                state.shouldStop = true
+                break
+            }
+            if (state.leftBatch < 4 || state.rightBatch < 4) {
+                break
+            }
+        }
+    }
+
+    @OverflowWrapping
+    private func finishMergeFromRight(start1: Int64, buffer: Array<T>, state: MergeFromRightState): Unit {
+        if (state.leftRest == 0) {
+            buffer.copyTo(this, 0, state.target - state.rightRest + 1, state.rightRest)
+        }
+        if (state.rightRest == 1) {
+            this.copyTo(this, start1, start1 + 1, state.leftRest)
+            this[start1] = buffer[state.rightTail]
         }
     }
 
@@ -1482,129 +1680,21 @@ extend<T> Array<T> {
     ) {
         let buffer = scratch.getArray(len2)
         this.copyTo(buffer, start2, 0, len2)
-        var ti = start2 + len2 - 1
-        var s1 = start1 + len1 - 1
-        var l1 = len1
-        var s2 = len2 - 1
-        var l2 = len2
-        this[ti] = this[s1]
-        ti--
-        s1--
-        l1--
-        var c1 = 0
-        var c2 = 0
-        var shouldStopPartition = false
+        let state = MergeFromRightState(start2 + len2 - 1, start1 + len1 - 1, len1, len2 - 1, len2)
+        this[state.target] = this[state.leftTail]
+        state.takeLeftTail()
         while (true) {
-            c1 = 0
-            c2 = 0
-            shouldStopPartition = false
-            var savedFirst = this[s1]
-            var savedSecond = buffer[s2]
-            while (true) {
-                match (compare(savedFirst, savedSecond)) {
-                    case GT =>
-                        this[ti] = savedFirst
-                        ti--
-                        s1--
-                        l1--
-                        c1++
-                        c2 = 0
-                        if (l1 == 0) {
-                            shouldStopPartition = true
-                            break
-                        }
-                        if (c1 > 4) {
-                            break
-                        }
-
-                        savedFirst = this[s1]
-                    case _ =>
-                        this[ti] = savedSecond
-                        ti--
-                        s2--
-                        l2--
-                        c2++
-                        c1 = 0
-                        if (l2 == 1) {
-                            shouldStopPartition = true
-                            break
-                        }
-                        if (c2 > 4) {
-                            break
-                        }
-                        savedSecond = buffer[s2]
-                }
-            }
-            if (shouldStopPartition) {
+            this.mergeFromRightOneByOne(buffer, state, compare)
+            if (state.shouldStop) {
                 break
             }
-            shouldStopPartition = false
-            while (true) {
-                var candidate = this[s1]
-                let lt = buffer.queryLT(candidate, 0, l2, compare, true)
-                c2 = l2 - lt
-                match (c2) {
-                    case 0 => this[ti] = candidate
-                    case 1 =>
-                        this[ti] = buffer[s2]
-                        this[ti - 1] = candidate
-                    case 2 =>
-                        this[ti] = buffer[s2]
-                        this[ti - 1] = buffer[s2 - 1]
-                        this[ti - 2] = candidate
-                    case _ =>
-                        buffer.copyTo(this, lt, ti - c2 + 1, c2)
-                        this[ti - c2] = candidate
-                }
-                ti = ti - c2 - 1
-                s2 -= c2
-                l2 -= c2
-                s1--
-                l1--
-                if (l2 == 1 || l1 == 0) {
-                    shouldStopPartition = true
-                    break
-                }
-                candidate = buffer[s2]
-                let gt = this.queryGT(candidate, start1, l1, compare, true)
-                c1 = s1 - gt + 1
-                match (c1) {
-                    case 0 => this[ti] = candidate
-                    case 1 =>
-                        this[ti] = this[s1]
-                        this[ti - 1] = candidate
-                    case 2 =>
-                        this[ti] = this[s1]
-                        this[ti - 1] = this[s1 - 1]
-                        this[ti - 2] = candidate
-                    case _ =>
-                        this.copyTo(this, gt, ti - c1 + 1, c1)
-                        this[ti - c1] = candidate
-                }
-                ti = ti - c1 - 1
-                s1 -= c1
-                l1 -= c1
-                s2--
-                l2--
-                if (l1 == 0 || l2 == 1) {
-                    shouldStopPartition = true
-                    break
-                }
-                if (c1 < 4 || c2 < 4) {
-                    break
-                }
-            }
-            if (shouldStopPartition) {
+            state.shouldStop = false
+            this.mergeFromRightByRange(start1, buffer, state, compare)
+            if (state.shouldStop) {
                 break
             }
         }
-        if (l1 == 0) {
-            buffer.copyTo(this, 0, ti - l2 + 1, l2)
-        }
-        if (l2 == 1) {
-            this.copyTo(this, start1, start1 + 1, l1)
-            this[start1] = buffer[s2]
-        }
+        this.finishMergeFromRight(start1, buffer, state)
     }
 
     @OverflowWrapping
@@ -1614,10 +1704,10 @@ extend<T> Array<T> {
             return
         }
 
-        // init temp data
-        let mrl = this.getMinRunLength()
+        // init scratch data
+        let minRunLength = this.getMinRunLength()
         var scratch = TempArray(this.size, this[0])
-        let stackLen = Int64(log2(Float64(this.size) / Float64(mrl) + 2.0)) + 1
+        let stackLen = Int64(log2(Float64(this.size) / Float64(minRunLength) + 2.0)) + 1
         let runStarts = Array<Int64>(stackLen, repeat: 0)
         let runLengths = Array<Int64>(stackLen, repeat: 0)
         var runTop = -1
@@ -1628,13 +1718,13 @@ extend<T> Array<T> {
             var seqLen = length
             if (length > 1) {
                 seqLen = getSequenceLength(start, this.size - 1, scratch, compare)
-                if (seqLen < mrl) {
-                    if (length < mrl) {
+                if (seqLen < minRunLength) {
+                    if (length < minRunLength) {
                         binaryInsertionSort(start, start + length - 1, compare, seqLen)
                         seqLen = length
                     } else {
-                        binaryInsertionSort(start, start + mrl - 1, compare, seqLen)
-                        seqLen = mrl
+                        binaryInsertionSort(start, start + minRunLength - 1, compare, seqLen)
+                        seqLen = minRunLength
                     }
                 }
             }
@@ -1676,6 +1766,93 @@ class TempArray<T> {
     }
 }
 
+class MergeFromLeftState {
+    var target: Int64
+    var leftCursor: Int64
+    var leftRest: Int64
+    var rightCursor: Int64
+    var rightRest: Int64
+    var leftCount: Int64 = 0
+    var rightCount: Int64 = 0
+    var shouldStop: Bool = false
+
+    init(target: Int64, leftCursor: Int64, leftRest: Int64, rightCursor: Int64, rightRest: Int64) {
+        this.target = target
+        this.leftCursor = leftCursor
+        this.leftRest = leftRest
+        this.rightCursor = rightCursor
+        this.rightRest = rightRest
+    }
+
+    func resetCounts(): Unit {
+        leftCount = 0
+        rightCount = 0
+        shouldStop = false
+    }
+
+    @OverflowWrapping
+    func takeLeft(): Unit {
+        target++
+        leftCursor++
+        leftRest--
+        leftCount++
+        rightCount = 0
+    }
+
+    @OverflowWrapping
+    func takeRight(): Unit {
+        target++
+        rightCursor++
+        rightRest--
+        rightCount++
+        leftCount = 0
+    }
+}
+
+class MergeFromRightState {
+    var target: Int64
+    var leftTail: Int64
+    var leftRest: Int64
+    var rightTail: Int64
+    var rightRest: Int64
+    var leftBatch: Int64 = 0
+    var rightBatch: Int64 = 0
+    var shouldStop: Bool = false
+
+    init(target: Int64, leftTail: Int64, leftRest: Int64, rightTail: Int64, rightRest: Int64) {
+        this.target = target
+        this.leftTail = leftTail
+        this.leftRest = leftRest
+        this.rightTail = rightTail
+        this.rightRest = rightRest
+    }
+
+    func resetCounts(): Unit {
+        leftBatch = 0
+        rightBatch = 0
+        shouldStop = false
+    }
+
+    @OverflowWrapping
+    func takeLeftTail(): Unit {
+        target--
+        leftTail--
+        leftRest--
+        leftBatch++
+        rightBatch = 0
+    }
+
+    @OverflowWrapping
+    func takeRightTail(): Unit {
+        target--
+        rightTail--
+        rightRest--
+        rightBatch++
+        leftBatch = 0
+    }
+}
+
+// Temporary code, deleted when @Deprecated ends
 func unstableSort<T>(data: Array<T>, compare: (T, T) -> Ordering): Unit {
     if (data.size < 2) {
         return
