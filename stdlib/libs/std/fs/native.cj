@@ -77,6 +77,12 @@ foreign {
     func CJ_FS_ReadLink(path: CString): CPointer<FsError> // false errcode < 0, true: errcode == 0, errmsg is path
 }
 
+@When[os == "Windows"]
+foreign func CJ_FS_OpenOsFileHandle(handle: FileHandle): Int32 // -1: failed, (>= 0): POSIX fd
+
+@When[os == "Windows"]
+foreign func CJ_FS_CloseOsFd(fd: Int32): Int32 // -1: failed, 0: success
+
 /**
  * If the c function succeeds, the rtnCode is zero and the msg is a null pointer.
  * If the c function fails, the rtnCode is less than zero and the msg is a cstring.

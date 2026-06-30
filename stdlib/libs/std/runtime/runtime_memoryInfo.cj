@@ -28,7 +28,7 @@ func dumpCjHeapData(fd: Int32): Bool
 @Frozen
 @Intrinsic
 public func blackBox<T>(input: T): T
- 
+
 class MemoryInfoException <: Exception {
     init(message: String) {
         super(message)
@@ -114,7 +114,7 @@ func resolvePath(path: Path): Path {
     } else {
         canonicalize(Path(".")).join(path)
     }
-    
+
     let resolvedPath = try {
         let parentDir = absolutePath.parent
         if (exists(parentDir)) {
@@ -131,21 +131,47 @@ func resolvePath(path: Path): Path {
     } catch (e: Exception) {
         absolutePath
     }
-    
+
     return resolvedPath
 }
 
-@When[backend == "cjnative"]
+@When[backend == "cjnative" && os != "Windows"]
 public func dumpHeapData(path: Path): Unit {
     let pathStr = path.toString()
     if (!validatePathString(pathStr)) {
-        throw IllegalArgumentException("Heap dump path is invalid or contains forbidden characters for security reasons.")
+        throw IllegalArgumentException(
+            "Heap dump path is invalid or contains forbidden characters for security reasons.")
     }
-    
+
     let resolvedPath = resolvePath(path)
-    
+
     try (file = File(resolvedPath, ReadWrite)) {
         let success = dumpCjHeapData(Int32(file.fileDescriptor.fileHandle))
+        if (!success) {
+            throw MemoryInfoException("Failed to dump heap data.")
+        }
+    }
+    return
+}
+
+@When[backend == "cjnative" && os == "Windows"]
+public func dumpHeapData(path: Path): Unit {
+    let pathStr = path.toString()
+    if (!validatePathString(pathStr)) {
+        throw IllegalArgumentException(
+            "Heap dump path is invalid or contains forbidden characters for security reasons.")
+    }
+
+    let resolvedPath = resolvePath(path)
+
+    try (file = File(resolvedPath, ReadWrite)) {
+        let osfd = CJ_FS_OpenOsFileHandle(file.fileDescriptor.fileHandle)
+        if (osfd == -1) {
+            throw MemoryInfoException("Failed to dump heap data.")
+        }
+        let success = dumpCjHeapData(osfd)
+        CJ_FS_CloseOsFd(osfd)
+        file.fileHandle = InvalidHandle
         if (!success) {
             throw MemoryInfoException("Failed to dump heap data.")
         }

@@ -1365,3 +1365,15 @@ extern FsError* CJ_FS_Truncate(HANDLE hFile, int64_t length)
 
     return GetDefaultResult();
 }
+
+extern int32_t CJ_FS_OpenOsFileHandle(HANDLE handle)
+{
+    int osFlags = _O_RDWR | _O_BINARY;
+    int fd = _open_osfhandle((intptr_t)handle, osFlags);
+    return (fd == -1) ? -1 : fd;
+}
+
+extern int32_t CJ_FS_CloseOsFd(int32_t fd)
+{
+    return (_close(fd) == 0) ? 0 : -1;
+}
