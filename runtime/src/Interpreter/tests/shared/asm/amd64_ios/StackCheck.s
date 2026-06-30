@@ -4,7 +4,7 @@
 
 section .text  align=16
 
-global StackCheck
+global _StackCheck
     extern _g_CJ_MCC_StackGrowStubPtr
     extern _g_InterpreterStackReserveSize
 _StackCheck:

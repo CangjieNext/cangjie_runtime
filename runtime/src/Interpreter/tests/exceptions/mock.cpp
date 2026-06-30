@@ -207,7 +207,7 @@ extern "C" void landingPad() {
     auto exceptionWrapper = interface.getExceptionWrapper();
     printf("[Mock]   got exception wrapper %p\n", exceptionWrapper);
     frameRoots[1] = interface.postThrowException(exceptionWrapper); // exception object
-    printf("[Mock]   got exception object %lx\n", (uint64_t)frameRoots[1]);
+    printf("[Mock]   got exception object %p\n", frameRoots[1]);
 
     if (interpretExceptionHandling(getTopInterpretedFramePC(), frameRoots[1])) {
         printf("[Mock]   exception was handled, returning to normal execution\n");

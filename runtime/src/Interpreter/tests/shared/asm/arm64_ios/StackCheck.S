@@ -3,10 +3,10 @@
     .text
     .align 4
 
-.global StackCheck
+.global _StackCheck
     .extern _g_CJ_MCC_StackGrowStubPtr
     .extern _g_InterpreterStackReserveSize
-StackCheck:
+_StackCheck:
     stp     x29, x30, [sp, #-16]!
     mov     x29, sp
 
