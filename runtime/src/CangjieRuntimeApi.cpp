@@ -301,6 +301,7 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
 #ifdef INTERPRETER_ENABLED
 RTErrorCode InitCJInterpreter(const struct InterpreterParam* param)
 {
+    DLOG(INTERPRETER, "InitCJInterpreter called");
     if (g_runtimeFinished.load()) {
         LOG(RTLOG_ERROR, "Interpreter initialization started too late, runtime is already fully initialized.");
         return E_STATE;
