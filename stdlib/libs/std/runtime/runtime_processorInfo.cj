@@ -55,10 +55,27 @@ public func startCPUProfiling(): Unit {
     return
 }
 
-@When[backend == "cjnative"]
+@When[backend == "cjnative" && os != "Windows"]
 public func stopCPUProfiling(path: Path): Unit {
     try (file = File(path, ReadWrite)) {
         let success = stopCjCPUProfiling(Int32(file.fileDescriptor.fileHandle))
+        if (!success) {
+            throw ProfilingInfoException("Failed to stop cpu profiling.")
+        }
+    }
+    return
+}
+
+@When[backend == "cjnative" && os == "Windows"]
+public func stopCPUProfiling(path: Path): Unit {
+    try (file = File(path, ReadWrite)) {
+        let osfd = CJ_FS_OpenOsFileHandle(file.fileDescriptor.fileHandle)
+        if (osfd == -1) {
+            throw ProfilingInfoException("Failed to convert Windows file handle to POSIX fd.")
+        }
+        let success = stopCjCPUProfiling(osfd)
+        CJ_FS_CloseOsFd(osfd)
+        file.fileHandle = InvalidHandle
         if (!success) {
             throw ProfilingInfoException("Failed to stop cpu profiling.")
         }
