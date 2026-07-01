@@ -95,13 +95,13 @@ void EHTable::BuildEHTable(const uint8_t* lsda)
     uint8_t lpStartEncoding = *curPtr++;
     ttypeEncoding = curPtr++;
 #ifdef _WIN64
-    MRT_ASSERT(*ttypeEncoding == static_cast<uint8_t>(TTypeEncoding::ABS_PTR), "Unsupported ttype enconding!");
+    MRT_ASSERT(*ttypeEncoding == static_cast<uint8_t>(TTypeEncoding::ABS_PTR), "Unsupported ttype encoding!");
 #else
     MRT_ASSERT(*ttypeEncoding == static_cast<uint8_t>(TTypeEncoding::ABS_PTR) ||
                    *ttypeEncoding == static_cast<uint8_t>(TTypeEncoding::U_DATA_4) ||
                    *ttypeEncoding == static_cast<uint8_t>(TTypeEncoding::INDIR_PC_REL_S_DATA_8) ||
                    *ttypeEncoding == static_cast<uint8_t>(TTypeEncoding::INDIR_PC_REL_S_DATA_4),
-               "Unsupported ttype enconding!");
+               "Unsupported ttype encoding!");
 #endif
     uint64_t classInfoOffset = EHTable::ReadULEB128(&curPtr);
     exceptionTypeStart = curPtr + classInfoOffset;
@@ -190,7 +190,7 @@ uint8_t EHTable::MatchActionTable(uint64_t actionEntryIdx, const ExceptionRef& e
                     catchType = ReadIndirPcRelSData8(exceptionTypeStart - typeIndex * sizeof(uint64_t));
                     break;
                 default:
-                    LOG(RTLOG_FATAL, "Unsupported ttype enconding!");
+                    LOG(RTLOG_FATAL, "Unsupported ttype encoding!");
                     break;
             }
             // Nullptr means matched all exception.

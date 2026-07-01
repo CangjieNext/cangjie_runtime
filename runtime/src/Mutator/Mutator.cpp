@@ -66,7 +66,7 @@ extern "C" void MRT_SetGrowFlag(bool flag)
     if (!CJThreadSetStackGrow(flag)) {
         return;
     }
-    LOG(RTLOG_ERROR, "Set flag of GROWStack faild.");
+    LOG(RTLOG_ERROR, "Set flag of GROWStack failed.");
 }
 
 extern "C" intptr_t MRT_StackGrow(intptr_t frameBase, uint32_t adjustedSize, void* ip)

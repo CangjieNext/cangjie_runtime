@@ -137,7 +137,7 @@ void ProfilerAgentImpl(const std::string &message, SendMsgCB sendMsg)
     } else if (message.find("collectGarbage", 0) != std::string::npos) {
         CollectGarbage(message, sendMsg);
     } else {
-        LOG(RTLOG_ERROR, "invaild request\n");
+        LOG(RTLOG_ERROR, "invalid request\n");
     }
 }
 }
