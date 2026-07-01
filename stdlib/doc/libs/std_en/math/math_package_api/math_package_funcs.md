@@ -1728,7 +1728,13 @@ Returns:
 public func countOnes(x: Int16): Int64
 ```
 
-Function: Counts the number of 1 bits in the binary representation of a 16-bit integer.Parameters:
+Function: Counts the number of 1 bits in the binary representation of a 16-bit integer.
+
+> **Note:**
+>
+> For negative numbers, this function uses sign-magnitude representation to count the number of 1s, rather than two's complement representation. It takes the absolute value for counting and then adds the sign bit.
+
+Parameters:
 
 - x: [Int16](../../core/core_package_api/core_package_intrinsics.md#int16) - The input 16-bit signed integer.
 
@@ -1781,6 +1787,10 @@ public func countOnes(x: Int32): Int64
 ```
 
 Function: Counts the number of set bits (1s) in the binary representation of a 32-bit integer.
+
+> **Note:**
+>
+> For negative numbers, this function uses sign-magnitude representation to count the number of 1s, rather than two's complement representation. It takes the absolute value for counting and then adds the sign bit.
 
 Parameters:
 
@@ -1836,6 +1846,10 @@ public func countOnes(x: Int64): Int64
 
 Function: Counts the number of set bits (1s) in the binary representation of a 64-bit integer.
 
+> **Note:**
+>
+> For negative numbers, this function uses sign-magnitude representation to count the number of 1s, rather than two's complement representation. It takes the absolute value for counting and then adds the sign bit.
+
 Parameters:
 
 - x: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The input 64-bit signed integer.
@@ -1887,6 +1901,10 @@ public func countOnes(x: Int8): Int64
 ```
 
 Function: Counts the number of '1' bits in the binary representation of an 8-bit integer.
+
+> **Note:**
+>
+> For negative numbers, this function uses sign-magnitude representation to count the number of 1s, rather than two's complement representation. It takes the absolute value for counting and then adds the sign bit.
 
 Parameters:
 
