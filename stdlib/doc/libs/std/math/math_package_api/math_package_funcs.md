@@ -2083,6 +2083,10 @@ public func countOnes(x: Int16): Int64
 
 功能：求 16 位整型的二进制表达中 1 的个数。
 
+> **说明：**
+>
+> 对于负数，本函数采用符号-幅度（sign-magnitude）表示计算 1 的个数，而非二进制补码（two's complement）表示。即先取绝对值进行计数，再加上符号位的 1。
+
 参数：
 
 - x: [Int16](../../core/core_package_api/core_package_intrinsics.md#int16) - 传入的 16 位有符号整数。
@@ -2116,6 +2120,10 @@ public func countOnes(x: Int32): Int64
 ```
 
 功能：求 32 位整型的二进制表达中 1 的个数。
+
+> **说明：**
+>
+> 对于负数，本函数采用符号-幅度（sign-magnitude）表示计算 1 的个数，而非二进制补码（two's complement）表示。即先取绝对值进行计数，再加上符号位的 1。
 
 参数：
 
@@ -2151,6 +2159,10 @@ public func countOnes(x: Int64): Int64
 
 功能：求 64 位整型的二进制表达中 1 的个数。
 
+> **说明：**
+>
+> 对于负数，本函数采用符号-幅度（sign-magnitude）表示计算 1 的个数，而非二进制补码（two's complement）表示。即先取绝对值进行计数，再加上符号位的 1。
+
 参数：
 
 - x: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 传入的 64 位有符号整数。
@@ -2184,6 +2196,10 @@ public func countOnes(x: Int8): Int64
 ```
 
 功能：求 8 位整型的二进制表达中 1 的个数。
+
+> **说明：**
+>
+> 对于负数，本函数采用符号-幅度（sign-magnitude）表示计算 1 的个数，而非二进制补码（two's complement）表示。即先取绝对值进行计数，再加上符号位的 1。
 
 参数：
 
