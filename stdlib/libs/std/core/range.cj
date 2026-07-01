@@ -39,6 +39,9 @@ public struct Range<T> <: Iterable<T> where T <: Countable<T> & Comparable<T> & 
     }
 
     public const func isEmpty(): Bool {
+        if (!hasStart || !hasEnd) {
+            return false
+        }
         if (isClosed) {
             if (step > 0) {
                 return start > end
