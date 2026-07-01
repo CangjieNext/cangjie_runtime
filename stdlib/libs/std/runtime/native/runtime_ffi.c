@@ -47,12 +47,26 @@ extern int64_t CJ_OS_ProcessorCount(void)
 #else
 
 #include <windows.h>
+#include <io.h>
+#include <fcntl.h>
 
 extern int64_t CJ_OS_ProcessorCount(void)
 {
     SYSTEM_INFO sysInfo;
     GetSystemInfo(&sysInfo);
     return (int64_t)sysInfo.dwNumberOfProcessors;
+}
+
+extern int32_t CJ_Runtime_OpenOsFileHandle(intptr_t handle)
+{
+    int osFlags = _O_RDWR | _O_BINARY;
+    int fd = _open_osfhandle(handle, osFlags);
+    return (fd == -1) ? -1 : fd;
+}
+
+extern int32_t CJ_Runtime_CloseOsFd(int32_t fd)
+{
+    return (_close(fd) == 0) ? 0 : -1;
 }
 
 #endif
