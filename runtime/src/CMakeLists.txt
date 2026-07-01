@@ -16,7 +16,7 @@ if (BUILD_RUNTIME)
     add_subdirectory(Common)
     add_subdirectory(Concurrency)
     add_subdirectory(Demangler)
-    add_subdirectory(Loader)
+    add_subdirectory(Loader)COREFOUNDATION_FRAMEWORK
     add_subdirectory(Inspector)
     add_subdirectory(Exception)
     add_subdirectory(Heap)
