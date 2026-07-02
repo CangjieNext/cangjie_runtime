@@ -197,8 +197,7 @@ protected:
 
 private:
     std::vector<LiveTypeSummary> SummarizeLiveObjectsByType() const;
-    bool ShouldPrintLiveTypeSummary() const;
-    void PrintLiveTypeSummary(const std::vector<LiveTypeSummary>& summaries) const;
+    void DumpLiveTypeSummary(size_t totalLiveBytes, const std::vector<LiveTypeSummary>& summaries) const;
 
     template<bool forward>
     bool TryUpdateRefFieldImpl(BaseObject* obj, RefField<>& ref, BaseObject*& oldRef, BaseObject*& newRef) const;

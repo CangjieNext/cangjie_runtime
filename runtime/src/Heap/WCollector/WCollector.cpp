@@ -8,11 +8,100 @@
 #include "WCollector.h"
 
 #include <algorithm>
+#include <atomic>
+#include <cerrno>
 #include <cctype>
+#include <climits>
+#include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include <string>
 
+#include "Base/Log.h"
 #include "Concurrency/Concurrency.h"
 #include "Mutator/MutatorManager.h"
+
+namespace {
+
+constexpr uint64_t DEFAULT_LIVE_TYPE_SUMMARY_DUMP_LIMIT = 10;
+std::atomic<uint64_t> g_liveTypeSummaryDumpIndex { 0 };
+
+uint64_t ParseLiveTypeSummaryDumpLimit()
+{
+    const char* env = std::getenv("cjDumpLiveTypeSummaryLimit");
+    if (env == nullptr || *env == '\0') {
+        return DEFAULT_LIVE_TYPE_SUMMARY_DUMP_LIMIT;
+    }
+
+    errno = 0;
+    char* end = nullptr;
+    unsigned long long limit = std::strtoull(env, &end, 10);
+    if (errno == ERANGE || end == env || *end != '\0') {
+        LOG(RTLOG_ERROR, "Unsupported cjDumpLiveTypeSummaryLimit parameter. Use default value %llu.",
+            static_cast<unsigned long long>(DEFAULT_LIVE_TYPE_SUMMARY_DUMP_LIMIT));
+        return DEFAULT_LIVE_TYPE_SUMMARY_DUMP_LIMIT;
+    }
+    return static_cast<uint64_t>(limit);
+}
+
+uint64_t GetLiveTypeSummaryDumpLimit()
+{
+    static const uint64_t limit = ParseLiveTypeSummaryDumpLimit();
+    return limit;
+}
+
+std::string BuildLiveTypeSummaryDumpPath(const MapleRuntime::CString& dumpDir, uint64_t dumpIndex)
+{
+    std::string path(dumpDir.Str());
+    if (!path.empty() && path.back() != '/' && path.back() != '\\') {
+#if defined(_WIN64)
+        path += "\\";
+#else
+        path += "/";
+#endif
+    }
+
+    return path + "live_summary_" + std::to_string(dumpIndex) + ".json";
+}
+
+void WriteJsonString(FILE* fp, const std::string& value)
+{
+    fputc('"', fp);
+    for (char c : value) {
+        switch (c) {
+            case '"':
+                fputs("\\\"", fp);
+                break;
+            case '\\':
+                fputs("\\\\", fp);
+                break;
+            case '\b':
+                fputs("\\b", fp);
+                break;
+            case '\f':
+                fputs("\\f", fp);
+                break;
+            case '\n':
+                fputs("\\n", fp);
+                break;
+            case '\r':
+                fputs("\\r", fp);
+                break;
+            case '\t':
+                fputs("\\t", fp);
+                break;
+            default:
+                if (std::iscntrl(static_cast<unsigned char>(c))) {
+                    fprintf(fp, "\\u%04x", static_cast<unsigned char>(c));
+                } else {
+                    fputc(c, fp);
+                }
+        }
+    }
+    fputc('"', fp);
+}
+
+} // namespace
 
 namespace MapleRuntime {
 bool WCollector::IsUnmovableFromObject(BaseObject* obj) const
@@ -777,24 +866,62 @@ std::vector<WCollector::LiveTypeSummary> WCollector::SummarizeLiveObjectsByType(
     return summaries;
 }
 
-bool WCollector::ShouldPrintLiveTypeSummary() const
+void WCollector::DumpLiveTypeSummary(size_t totalLiveBytes, const std::vector<LiveTypeSummary>& summaries) const
 {
-    const char* env = std::getenv("cjPrintLiveTypeSummary");
-    if (env == nullptr || *env == '\0') {
-        return false;
+    CString dumpDir;
+    Logger::GetLogPath("cjDumpLiveTypeSummaryPath", dumpDir);
+    if (dumpDir.IsEmpty()) {
+        return;
     }
 
-    std::string value(env);
-    std::transform(value.begin(), value.end(), value.begin(),
-        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
-    return value == "1" || value == "true" || value == "on" || value == "yes" || value == "y";
-}
+    uint64_t dumpLimit = GetLiveTypeSummaryDumpLimit();
+    if (dumpLimit == 0) {
+        return;
+    }
 
-void WCollector::PrintLiveTypeSummary(const std::vector<LiveTypeSummary>& summaries) const
-{
-    printf("Live object type summary (typename, number, bytes), type count: %zu\n", summaries.size());
-    for (const auto& item : summaries) {
-        printf("<%s, %zu, %zu>\n", std::get<0>(item).c_str(), std::get<1>(item), std::get<2>(item));
+    uint64_t dumpIndex = g_liveTypeSummaryDumpIndex.fetch_add(1, std::memory_order_relaxed) + 1;
+    if (dumpIndex > dumpLimit) {
+        return;
+    }
+
+    std::string outputPath = BuildLiveTypeSummaryDumpPath(dumpDir, dumpIndex);
+    if (outputPath.length() >= PATH_MAX) {
+        LOG(RTLOG_ERROR, "Live type summary dump file path is too long.");
+        return;
+    }
+
+    FILE* fp = fopen(outputPath.c_str(), "w");
+    if (fp == nullptr) {
+        LOG(RTLOG_ERROR, "Failed to open live type summary dump file %s: %s",
+            outputPath.c_str(), strerror(errno));
+        return;
+    }
+
+    fprintf(fp, "{\n");
+    fprintf(fp, "  \"schemaVersion\": 1,\n");
+    fprintf(fp, "  \"dumpIndex\": %llu,\n", static_cast<unsigned long long>(dumpIndex));
+    fprintf(fp, "  \"gcType\": \"full\",\n");
+    fprintf(fp, "  \"totalLiveBytes\": %zu,\n", totalLiveBytes);
+    fprintf(fp, "  \"typeCount\": %zu,\n", summaries.size());
+    fprintf(fp, "  \"types\": [\n");
+
+    for (size_t i = 0; i < summaries.size(); ++i) {
+        const auto& item = summaries[i];
+        fprintf(fp, "    {\n");
+        fprintf(fp, "      \"name\": ");
+        WriteJsonString(fp, std::get<0>(item));
+        fprintf(fp, ",\n");
+        fprintf(fp, "      \"count\": %zu,\n", std::get<1>(item));
+        fprintf(fp, "      \"bytes\": %zu\n", std::get<2>(item));
+        fprintf(fp, "    }%s\n", (i + 1 == summaries.size()) ? "" : ",");
+    }
+
+    fprintf(fp, "  ]\n");
+    fprintf(fp, "}\n");
+
+    if (fclose(fp) != 0) {
+        LOG(RTLOG_ERROR, "Failed to close live type summary dump file %s: %s",
+            outputPath.c_str(), strerror(errno));
     }
 }
 
@@ -821,9 +948,7 @@ void WCollector::CollectSmallSpace()
         }
         printf("After Full GC, Live %zu B.\n", totalLiveBytes);
 
-        if (ShouldPrintLiveTypeSummary()) {
-            PrintLiveTypeSummary(liveTypeSummaries);
-        }
+        DumpLiveTypeSummary(totalLiveBytes, liveTypeSummaries);
     }
     VLOG(REPORT,
          "collect %zu B: old small %zu - %zu B, old pinned %zu - %zu B, old large %zu - %zu B. garbage ratio %.2f%%",
