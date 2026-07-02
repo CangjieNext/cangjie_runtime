@@ -416,9 +416,8 @@ public class ConcurrentTestCase {
         name: String,
         scenario!: ConcurrentScenario<S>,
         configuration!: Configuration = Configuration()
-    ): ConcurrentTestCase where S <: Any {
-        let executor = ConcurrentExecutor<S>(scenario: scenario)
-        ConcurrentTestCase(name, configuration, executor)
+    ): ConcurrentTestCase {
+        createParameterized<Unit, S>(name, noArgsProcessor(), body: { _: Unit => scenario })
     }
 
     public static func createFromBuilder<S>(
@@ -427,6 +426,16 @@ public class ConcurrentTestCase {
         configuration!: Configuration = Configuration()
     ): ConcurrentTestCase where S <: Any {
         create(name, scenario: builder.build(), configuration: configuration)
+    }
+
+    public static func createParameterized<T, S>(
+        name: String,
+        strategy: DataStrategyProcessor<T>, 
+        body!: (T) -> ConcurrentScenario<S>,
+        configuration!: Configuration = Configuration()
+    ): ConcurrentTestCase where S <: Any {
+        let executor = ConcurrentExecutor<S>(strategy: strategy, body: body)
+        ConcurrentTestCase(name, configuration, executor)
     }
 }
 
