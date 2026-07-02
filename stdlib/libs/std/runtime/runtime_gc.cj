@@ -36,6 +36,10 @@ foreign func CJ_MCC_IsGCRunning(): Bool
 
 @When[backend == "cjnative"]
 @Intrinsic
+public func reachFullGC(participants: Int64): Unit
+
+@When[backend == "cjnative"]
+@Intrinsic
 func waitForAllCJThreadsToFinish(): Unit
 
 @Deprecated[message: "Use 'public func gc(heavy!: Bool = false): Unit' instead."]
