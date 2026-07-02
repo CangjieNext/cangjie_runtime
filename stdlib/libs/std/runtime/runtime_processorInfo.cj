@@ -19,6 +19,12 @@ func startCjCPUProfiling(): Bool
 @Intrinsic
 func stopCjCPUProfiling(fd: Int32): Bool
 
+@When[os == "Windows"]
+foreign func CJ_Runtime_OpenFileForFd(path: CString): Int32
+
+@When[os == "Windows"]
+foreign func CJ_Runtime_CloseFd(fd: Int32): Int32
+
 @FastNative
 foreign func CJ_OS_ProcessorCount(): Int64
 
@@ -55,10 +61,34 @@ public func startCPUProfiling(): Unit {
     return
 }
 
-@When[backend == "cjnative"]
+@When[backend == "cjnative" && os != "Windows"]
 public func stopCPUProfiling(path: Path): Unit {
     try (file = File(path, ReadWrite)) {
         let success = stopCjCPUProfiling(Int32(file.fileDescriptor.fileHandle))
+        if (!success) {
+            throw ProfilingInfoException("Failed to stop cpu profiling.")
+        }
+    }
+    return
+}
+
+@When[backend == "cjnative" && os == "Windows"]
+public func stopCPUProfiling(path: Path): Unit {
+    let pathStr = path.toString()
+    if (!validatePathString(pathStr)) {
+        throw IllegalArgumentException(
+            "CPU profiling path is invalid or contains forbidden characters for security reasons.")
+    }
+
+    let resolvedPath = resolvePath(path)
+
+    try (cPath = unsafe { LibC.mallocCString(resolvedPath.toString()).asResource() }) {
+        let fd = CJ_Runtime_OpenFileForFd(cPath)
+        if (fd == -1) {
+            throw ProfilingInfoException("Failed to stop cpu profiling.")
+        }
+        let success = stopCjCPUProfiling(fd)
+        CJ_Runtime_CloseFd(fd)
         if (!success) {
             throw ProfilingInfoException("Failed to stop cpu profiling.")
         }
