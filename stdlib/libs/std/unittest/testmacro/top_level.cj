@@ -30,6 +30,9 @@ func topLevelMacroDriver(key: MacroKey, input: Tokens,
     if (let Some(_) <- decl.loadSingle(TEST_TEMPLATE_MACRO)) {
         return InstrumentedClass.fromDecl(TEST_TEMPLATE_MACRO, decl, input).toTokens()
     }
+    if (let Some(_) <- decl.loadSingle(CONCURRENT_TEST_MACRO)) {
+        return InstrumentedClass.fromDecl(CONCURRENT_TEST_MACRO, decl, input).toTokens()
+    }
     if (let Some(_) <- decl.loadSingle(ASSERTION_MACRO)) {
         return emitCustomAssertionBuilder(decl)
     }

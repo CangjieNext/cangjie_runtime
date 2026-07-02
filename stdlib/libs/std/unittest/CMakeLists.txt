@@ -23,6 +23,7 @@ set(UNITTEST_SRCS
     framework.cj
     id.cj
     json_strategy.cj
+    operations_manager.cj
     options.cj
     parallel.cj
     parameter_test_case.cj

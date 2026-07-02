@@ -17,10 +17,32 @@ let TEST_BUILDER_MACRO = MacroKey.create("@TestBuilder", Function, TestEntity, c
 let TEST_TEMPLATE_MACRO = MacroKey.create("@TestTemplate", Class, TestEntity, conflicts: [TEST_MACRO],
     placement: TopLevel, allowedModifiers: [ABSTRACT])
 
+// NOTE: Maybe allow to use on functions:
+// ```cangjie
+// @ConcurrentTest
+// func concurrentTest(scenario: ScenarioBuilder) {
+//     let x: Int64 = 0
+//
+//     @Operation[arg in [-1, 1]]
+//     func add(arg: Int64) { x += arg }
+//
+//     @Operation
+//     func sum(arg: Int64) { x -= arg }
+//   
+//     scenario.iterations(1000)
+// }
+// ```
+let CONCURRENT_TEST_MACRO = MacroKey.create("@ConcurrentTest", Class, TestEntity, placement: TopLevel, conflicts: [TEST_MACRO])
+// FIXME: What's right kind for these?
+let OPERATION_MACRO = MacroKey.create("@Operation", Function, Lifecycle, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [])
+let GROUP_MACRO = MacroKey.create("@Group", Function, Lifecycle, placement: InsideParent([CONCURRENT_TEST_MACRO]), conflicts: [])
+
 // actual keys that are written to @Attribute section
 let SKIP_MACRO = MacroKey.create("@Skip", ClassOrFunction, Configuration)
 let TESTCASE_MACRO = MacroKey.create("@TestCase", Function, TestEntity,
-    placement: InsideParent([TEST_MACRO, TEST_TEMPLATE_MACRO]))
+    placement: InsideParent([TEST_MACRO, TEST_TEMPLATE_MACRO, CONCURRENT_TEST_MACRO]))
+let STRESS_TEST_MACRO = MacroKey.create("@StressTest", Function, TestEntity,
+    placement: InsideParent([CONCURRENT_TEST_MACRO]))
 let CONFIGURE_MACRO = MacroKey.create("@Configure", ClassOrFunction, Configuration, repeatable: true)
 let TYPES_MACRO = MacroKey.create("@Types", ClassOrFunction, Configuration,
     conflicts: [TEST_BUILDER_MACRO, TEST_TEMPLATE_MACRO])
@@ -310,6 +332,7 @@ enum MacroTarget <: ToString {
     | Class
     | Function
     | ClassOrFunction
+    | Variable
 
     func accepts(decl: Decl): Bool {
         match ((this, decl)) {
@@ -317,6 +340,7 @@ enum MacroTarget <: ToString {
             case (Function, f: FuncDecl) where !f.isConstructor => true
             case (ClassOrFunction, _: ClassDecl) => true
             case (Class, _: ClassDecl) => true
+            case (Variable, _: VarDecl) => true
             case _ => false
         }
     }
@@ -326,6 +350,7 @@ enum MacroTarget <: ToString {
             case Class => "class"
             case Function => "function"
             case ClassOrFunction => "class or function"
+            case Variable => "variable"
         }
     }
 }

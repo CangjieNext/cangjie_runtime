@@ -109,6 +109,41 @@ class InstrumentedBench <: InstrumentedFunction {
     }
 }
 
+class InstrumentedStressTest <: InstrumentedFunction {
+    init(
+        original: FuncDecl
+    ) {
+        super(
+            original,
+            prefix: "StressTest"
+        )
+
+        let testCaseDslSize = original.loadSingle(TESTCASE_MACRO)?.size ?? 0
+        if (testCaseDslSize > 0) {
+            throw MacroException("For stressTests only ${STRESS_TEST_MACRO} can contain strategies.")
+        }
+    }
+
+    public open func caseInitializerName(strategyVar: Tokens): Tokens {
+        quote( $strategyVar.intoStressTestCase)
+    }
+
+    public open func creationArgs(funIdent: Tokens, argNames: Array<String>, argTypes: Array<Tokens>): Tokens {
+        // FIXME: Allow ScenarioBuilder argument somewhere else, or even without it?
+        if (argTypes.size < 1 || argTypes[0].size < 1 || argTypes[0][0].value != "ScenarioBuilder") {
+            throw MacroException("StressTest must explicitly declare scenario builder parameter of type ScenarioBuilder. @StressTest[scenario in scenarios()]")
+        }
+        let namesTokens = argNames |> map{ x => Token(IDENTIFIER, x) } |> collectArray<Token>
+        let argType = nestedTuple(argTypes).ifEmpty(quote(Unit))
+        let destructuring = nestedTuple(namesTokens).ifEmpty(quote(_))
+        quote(doRun: { x___: $argType =>
+                let $destructuring = x___
+                $funIdent($(commaSeparated(namesTokens)))
+                $(namesTokens[0]).build()
+            })
+    }
+}
+
 open class InstrumentedFunction {
     let original: FuncDecl
     var dataDSL: ArrayList<(String, Tokens)> = ArrayList()
@@ -126,8 +161,9 @@ open class InstrumentedFunction {
         this.types = loadTypesDSL(original)
 
         this.dataDSL.add(all: parseDSLMacro(original.loadSingle(TESTCASE_MACRO)))
-        // @Bench contains DSL if benchmarking
+        // @Bench, @StressTest contains DSL
         this.dataDSL.add(all: parseDSLMacro(original.loadSingle(BENCH_MACRO)))
+        this.dataDSL.add(all: parseDSLMacro(original.loadSingle(STRESS_TEST_MACRO)))
     }
 
     func isGeneric(): Bool {
@@ -316,13 +352,17 @@ class InstrumentedClass {
         let typeParameters: Tokens,
         let genericConstraints: ArrayList<GenericConstraint>,
         let types: Array<(String, Array<Tokens>)>,
-        let measurements: Array<Expr>
+        let measurements: Array<Expr>,
+        // FIXME: Probably should be extracted to separate class
+        let memberVariables: Array<VarDecl>,
+        let concurrentOperations: Array<FuncDecl>,
     ) {}
 
     init(original: ClassDecl) {
         this.original = ClassDescriptor(original)
         this.configuration = loadClassConfiguration(original)
         this.measurements = loadMeasurements(original)
+        (this.memberVariables, this.concurrentOperations) = loadConcurrentConfiguration(original)
 
         this.testFunctions = ArrayList()
 
@@ -338,6 +378,9 @@ class InstrumentedClass {
         let className = Token(IDENTIFIER, "TestCase_" + original.identifier.value)
         let fakeClass = ClassDescriptor(className: className, modifiers: Tokens(), members: ArrayList<Decl>(), inject: [originalTokens], superTypes: [])
         this.original = fakeClass
+        // TODO: Maybe allow for functions
+        this.memberVariables = []
+        this.concurrentOperations = []
 
         this.configuration = loadFuncConfiguration(original)
         this.measurements = loadMeasurements(original)
@@ -378,6 +421,10 @@ class InstrumentedClass {
             }
             if (funcDecl.has(BENCH_MACRO)) {
                 testFunctions.add(InstrumentedBench(funcDecl))
+            }
+            // FIXME: Move to another class
+            if (funcDecl.has(STRESS_TEST_MACRO)) {
+                testFunctions.add(InstrumentedStressTest(funcDecl))
             }
         }
     }
@@ -519,6 +566,101 @@ class InstrumentedClass {
         }
     }
 
+    private func buildScenarios(tb: TokensBuilder): TokensBuilder {
+        tb.append(quote(private func scenarios(): DataStrategy<ScenarioBuilder>)).curlyBraces { tb => 
+            tb.append(quote(
+                let suiteConfiguration = classConfiguration()
+                let operationsManager = createOperationsManager()
+                operationsManager.scenarios(suiteConfiguration)
+            ))
+        }
+    }
+
+    private func buildConcurrentStateClass(tb: TokensBuilder): TokensBuilder {
+        // FIXME: Unifying state class name construction
+        let stateClassNameTokens = Token(TokenKind.IDENTIFIER, original.className.value + "___State")
+
+        tb.append(quote(private class $stateClassNameTokens)).curlyBraces { tb => 
+            for (varDecl in memberVariables) {
+                tb.append(varDecl.toTokens())
+            }
+
+            for (operation in concurrentOperations) {
+                tb.append(operation.toTokens())
+            }
+        }
+        return tb
+    }
+
+    private func buildCreateOperationsManager(tb: TokensBuilder): TokensBuilder {
+        tb.append(quote(private func createOperationsManager(): OperationsManager)).curlyBraces { tb => 
+            // FIXME: Unifying state class name construction
+            let stateClassNameTokens = Token(TokenKind.IDENTIFIER, original.className.value + "___State")
+
+            tb.append(quote(
+                let state = Box($stateClassNameTokens())
+                let opManager = OperationsManager(
+                    scenario()
+                        .consistencyModel(Linearizability)
+                        .reset { => state.value = $stateClassNameTokens() }
+                )
+            ))
+
+            for (operationFunc in concurrentOperations) {
+                let groupLitTokens = if (let Some(tokens) <- operationFunc.loadSingle(GROUP_MACRO)) {
+                    if (tokens.size != 1) {
+                        // FIXME: handle properly
+                        throw Exception("@Group macro must have exactly one string argument")
+                    }
+                    let groupIdent = Token(TokenKind.STRING_LITERAL, tokens[0].value)
+                    quote(Option<String>.Some($groupIdent))
+                } else { quote(Option<String>.None) }
+
+                let operation = operationFunc.identifier.value
+                let operationTokens = Token(TokenKind.IDENTIFIER, operation)
+                let operationLitTokens = Token(TokenKind.STRING_LITERAL, operation)
+
+
+                let dataDSL = ArrayList<(String, Tokens)>()
+                dataDSL.add(all: parseDSLMacro(operationFunc.loadSingle(OPERATION_MACRO)))
+
+                if (!dataDSL.isEmpty()) {
+                    let argNames = operationFunc.funcParams |> map { param => param.identifier.value } |> collectArray
+                    let argTypes = operationFunc.funcParams |> map { param => param.paramType.toTokens() } |> collectArray
+                    let strategyVariableName = Token(TokenKind.IDENTIFIER, operation + "DataStrategy")
+                    buildDataStrategy(dataDSL, argNames, argTypes, strategyVariableName, builder: tb)
+
+                    let namesTokens = argNames |> map{ x => Token(IDENTIFIER, x) } |> collectArray<Token>
+                    let argType = nestedTuple(argTypes).ifEmpty(quote(Unit))
+                    let destructuring = nestedTuple(namesTokens).ifEmpty(quote(_))
+
+                    tb.append(quote(
+                        opManager.addOperation(
+                            group: $groupLitTokens,
+                            name: $operationLitTokens,
+                            operation: { x___: $argType =>
+                                let $destructuring = x___
+                                state.value.$operationTokens($(commaSeparated(namesTokens))) 
+                            },
+                            dataStrategy: $strategyVariableName,
+                        )
+                    ))
+                } else {
+                    tb.append(quote(
+                        opManager.addOperation(
+                            group: $groupLitTokens,
+                            name: $operationLitTokens,
+                            operation: { => state.value.$operationTokens() },
+                        )
+                    ))
+                }
+            }
+
+            tb.append(quote(return opManager))
+        }
+        return tb
+    }
+
     private func transformBodyDecl(
         tb: TokensBuilder,
         bodyDecl: Decl,
@@ -576,6 +718,11 @@ class InstrumentedClass {
 
         MacroStorage.markTestGenerated(tb)
 
+        // FIXME: Check ConcurrentTest macro on class
+        if (!concurrentOperations.isEmpty()) {
+            buildConcurrentStateClass(tb)
+        }
+
         tb.append(modifiers).append(quote(class)).append(ident)
         if (this.typeParameters.size != 0) {
             tb.append(TokenKind.LT).append(commaSeparated(this.typeParameters)).append(TokenKind.GT)
@@ -592,6 +739,12 @@ class InstrumentedClass {
         }
         tb.curlyBraces { tb =>
             let numConstructors = Box(0)
+
+            // FIXME: Check ConcurrentTest macro on class
+            if (!concurrentOperations.isEmpty()) {
+                buildCreateOperationsManager(tb)
+                buildScenarios(tb)
+            }
 
             buildAsTestSuiteFunction(body, tb)
 
@@ -667,6 +820,29 @@ private func loadConfiguration(original: Decl, configs: ArrayList<(Token, Expr)>
         let token = Token(TokenKind.IDENTIFIER, "tags")
         configs.add((token, parseExpr(tokens)))
     }
+}
+
+// FIXME: (init, [(operation_name, group)])
+private func loadConcurrentConfiguration(concurrentTest: ClassDecl): (Array<VarDecl>, Array<FuncDecl>) {
+    let operations = ArrayList<FuncDecl>()
+    let memberVariables = ArrayList<VarDecl>()
+
+    for (decl in concurrentTest.body.decls) {
+        if (let decl : VarDecl <- decl) {
+            memberVariables.add(decl)
+        }
+        // FIXME: Probably also static methods. Instance methods cannot be called in fields initializers
+        // Also there must be a noargs consturctor
+        if (decl.has(OPERATION_MACRO)) {
+            match (decl) {
+                case funcDecl : FuncDecl => operations.add(funcDecl)
+                // FIXME: handle properly
+                case _ => throw Exception("unreachable")
+            }
+        }
+    }
+
+    return (memberVariables.toArray(), operations.toArray())
 }
 
 func loadClassConfiguration(original: Decl): Array<(Token, Expr)> {

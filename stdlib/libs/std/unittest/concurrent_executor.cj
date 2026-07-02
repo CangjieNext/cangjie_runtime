@@ -25,68 +25,120 @@ class ConcurrentTestFailure <: Exception {
 }
 
 class ConcurrentExecutor<S> <: Executor where S <: Any {
-    private let executor: ScenarioRunner<S>
+    private var generationStep = 0
 
     ConcurrentExecutor(
-        private let scenario!: ConcurrentScenario<S>
-    ) {
-        executor = ScenarioRunner<S>(scenario)
-    }
+        private let strategy!: DataStrategyProcessor<T>,
+        private let body!: (T) -> ConcurrentScenario<S>
+    ) {}
 
     public func execute(
         suiteInfo: TestSuiteReportInfo,
-        tcase: TestCaseResult,
+        result: TestCaseResult,
         configuration: Configuration
     ): Unit {
-        let progress = ProgressOutput(configuration)
-
-        let iterations = scenario.iterations
-
-        progress.verbose {
-            "Starting concurrent scenario '${tcase.caseId.caseName}' " +
-            "with ${scenario.threadCount} threads, ${iterations} iterations."
+        let lastInput = Box(Array<InputParameter>())
+        let lastScenario: Box<Option<ConcurrentScenario>> = Box(None)
+        let executeBody = { arg: T, input: Array<InputParameter> =>
+            let scenario = body(arg)
+            lastInput.value = input
+            lastScenario.value = Some(scenario)
+            executeScenario(suiteInfo, result, configuration, scenario, input)
         }
 
-        let verbose = configuration.verbose
-        executor.executeIterationsWithCallback(iterations, verbose: verbose) { iterResult, iterIndex =>
-            handleIterationResult(tcase, configuration, iterResult, iterIndex)
-        }
+        strategy.nextIteration(configuration)
 
-        if (!tcase.hasFailures()) {
-            progress.verbose {
-                "Concurrent scenario '${tcase.caseId.caseName}' completed successfully."
+        // FIXME: Copypasta (almost) from TestCaseExecutor
+        while (generationStep < configuration.generationSteps || !strategy.isInfinite) {
+            generationStep += 1
+            let processorResult = strategy.processNextWith(configuration, executeBody)
+            let scenario = lastScenario.value.getOrThrow()
+
+            var initialFailure = match (processorResult) {
+                case Success(stepResult) =>
+                    result.addSuccessfullStep(stepResult)
+                    continue
+                case NoItems =>
+                    generationStep -= 1
+                    return
+                case StrategyError(e) =>
+                    result.add(strategyErrorAsResult(e, argDescription(scenario, lastInput.value, configuration)))
+                    return
+                case Failure(input, stepResult) =>
+                    (input, stepResult)
+            }
+
+            let (input, failure) = match (strategy.shrink(configuration, executeBody)) {
+                case None => initialFailure
+                case Some(Failure(input, shrunk)) => (input, shrunk)
+                case Some(StrategyError(e)) =>
+                    result.add(strategyErrorAsResult(e, argDescription(scenario, lastInput.value, configuration)))
+                    return
+                case _ =>
+                    throw Exception("Unexpected shrinking result")
+            }
+
+            // It was decided that we should print full number of reduction steps
+            // instead of reduction step number on which we found latest shrinked failure
+            result.add(failure.withUpdatedStep(CaseStep(argDescription(scenario, lastInput.value, configuration))))
+
+            if (strategy.isInfinite) {
+                break
             }
         }
     }
 
-    private func handleIterationResult(
+    // FIXME: Copypasta (almost) from TestCaseExecutor
+    // FIXME: Currently scenario argument expected to be the first one
+    static func formatArguments(scenario: ConcurrentScenario, inputs: Array<InputParameter>): ?PrettyText {
+        if (inputs.isNoArg()) {
+            return None
+        }
+        let sb = PrettyText()
+        sb.appendLine("Scenario: ${scenario.name}")
+        for (param in inputs.iterator().skip(1)) {
+            sb.append(param.name)
+            sb.append(" = ")
+            sb.appendLine(shieldEscapeSeq(param.repr))
+        }
+        return sb
+    }
+
+    private func argDescription(scenario: ConcurrentScenario, param: Array<InputParameter>, configuration: Configuration) {
+        ArgumentDescription(formatArguments(scenario, param), generationStep - 1, strategy.currentReduction, configuration.randomSeed)
+    }
+    
+    private func executeScenario(
+        suiteInfo: TestSuiteReportInfo,
         tcase: TestCaseResult,
         configuration: Configuration,
-        iterResult: ScenarioIterationResult,
-        iterIndex: Int64
-    ): Bool {
-        let stepKind = CaseStep(ArgumentDescription(
-            None,
-            iterIndex,
-            0,
-            configuration.get(KeyRandomSeed.randomSeed)
-        ))
-
-        if (!iterResult.allSucceeded) {
-            let stepResult = RunStepResult.simpleError(stepKind, ConcurrentTestCheckResult(iterResult))
-            tcase.add(stepResult)
-            return false
+        scenario: ConcurrentScenario,
+        input: Array<InputParameter>,
+    ): RunStepResult {
+        let progress = ProgressOutput(configuration)
+        let executor  = ScenarioRunner<S>(scenario)
+        let iterations = scenario.iterations
+        progress.verbose {
+            "Starting concurrent scenario '${tcase.caseId.caseName}' " +
+            "with ${scenario.threadCount} threads, ${iterations} iterations."
+        }
+        
+        let failures = ArrayList<CheckResult>()
+        let start = DateTime.now()
+        let verbose = configuration.verbose
+        executor.executeIterationsWithCallback(iterations, verbose: verbose) { iterResult, iterIndex =>
+            if (!iterResult.allSucceeded) {
+                failures.add(ConcurrentTestCheckResult(iterResult))
+            }
+            true
+        }
+        if (failures.isEmpty()) {
+            progress.verbose {
+                "Concurrent scenario '${tcase.caseId.caseName}' completed successfully."
+            }
+            return RunStepResult(iterations, start, stepKind, Test(iterations))
         }
 
-        let passedChecks = iterResult.successCount
-        let stepResult = RunStepResult(passedChecks, DateTime.now(), stepKind, Test(1))
-
-        if (tcase.subResults.isEmpty()) {
-            tcase.add(stepResult)
-        } else {
-            tcase.addSuccessfullStep(stepResult)
-        }
-
-        return true
+        return RunStepResult(iterations - failures.size, start, stepKind, Failure(failures.toArray()))
     }
 }
