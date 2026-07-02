@@ -177,7 +177,7 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
     @Deprecated[message: "Use member function `public static func parse(value: String): Decimal` instead."]
     public init(val: String) {
         if (val.isEmpty()) {
-            throw IllegalArgumentException("String value cannot be empty.")
+            throw IllegalArgumentException("Invalid argument: 'val' cannot be empty.")
         }
 
         var val_scale: Int32 = 0
@@ -230,7 +230,7 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
             // 2. process r'.'
             if (c == b'.') {
                 if (hasDot) {
-                    throw IllegalArgumentException("String value not allow contains more than one dot.")
+                    throw IllegalArgumentException("Invalid argument: 'val' cannot contain more than one decimal point.")
                 }
 
                 hasDot = true
@@ -245,7 +245,7 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
             }
 
             throw IllegalArgumentException(
-                "String value not allow contains other character beyond [digit, \'.\', e, sign].")
+                "Invalid argument: 'val' contains invalid character; only digits, '.', 'e', and sign characters are allowed.")
         }
 
         // only has head 0, the value is 0.
@@ -257,7 +257,7 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
 
         // 4. process precision and scale
         if (val_precision == 0) {
-            throw IllegalArgumentException("String value not allow without digits.")
+            throw IllegalArgumentException("Invalid argument: 'val' must contain at least one digit.")
         }
 
         if (exponent != 0) {
@@ -486,7 +486,7 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
      */
     public init(val: Float32) {
         if (val.isNaN() || val.isInf()) {
-            throw IllegalArgumentException("Float value cannot be Inf or NaN.")
+            throw IllegalArgumentException("Invalid argument: 'val' cannot be Inf or NaN.")
         }
         let f32Bits: Int32 = reinterpretAsInt(val)
         // float32 exponent is 8 bits, abs for exponent will never overflow.
@@ -507,7 +507,7 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
         }
 
         if (Int32(Int64(exponent)) != exponent) {
-            throw OverflowException("Scale overflow.")
+            throw OverflowException("Overflow: scale exceeds the representable range of 'Int32'.")
         }
 
         var val_bigint: BigInt = BigInt(f_sign * fraction)
@@ -548,7 +548,7 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
      */
     public init(val: Float64) {
         if (val.isNaN() || val.isInf()) {
-            throw IllegalArgumentException("Float value cannot be Inf or NaN.")
+            throw IllegalArgumentException("Invalid argument: 'val' cannot be Inf or NaN.")
         }
         let f64Bits: Int64 = reinterpretAsInt(val)
         // float32 exponent is 11 bits, abs for exponent will never overflow.
@@ -569,7 +569,7 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
         }
 
         if (Int64(Int32(exponent)) != exponent) {
-            throw OverflowException("Scale overflow.")
+            throw OverflowException("Overflow: scale exceeds the representable range of 'Int32'.")
         }
 
         var val_bigint: BigInt = BigInt(f_sign * fraction)
@@ -779,7 +779,7 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
             return divWithContext(d, roundingMode)
         }
         if (d.sign == 0) {
-            throw ArithmeticException("Divided by zero!")
+            throw ArithmeticException("Division by zero.")
         }
         let expectedScale: Int64 = Int64(this.scale) - Int64(d.scale)
         if (this.sign == 0) {
@@ -1052,7 +1052,7 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
             return Decimal(BIGINT_ONE, 0)
         }
         if ((Int64(Int32.Min) > n || (Int64(Int32.Max) + 1) < n) && this._scale != 0) {
-            throw OverflowException("Scale overflow during calculation.")
+            throw OverflowException("Overflow: scale exceeds the representable range during calculation.")
         }
         let newScl: Int32 = if (this.scale == 0 || n == Int64.Min) {
             0
@@ -1136,7 +1136,7 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
             return Decimal(BIGINT_ZERO, this._scale >> 1)
         }
         if (this._sign < 0) {
-            throw IllegalArgumentException("Negative decimal cannot be squared.")
+            throw IllegalArgumentException("Invalid argument: negative decimal cannot take the square root.")
         }
         let expectedScale: Int32 = this._scale / 2
         var formattedScale: Int32 = checkScaleOverFlow(Int64(this._scale) - this._precision + 1)
@@ -1716,7 +1716,7 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
                 case 3 =>
                     stringBuilder.append("0.0")
                     resultExponent = resultExponent + 3
-                case _ => throw IllegalArgumentException("Unexpected significant digit value: ${significantDigit}.")
+                case _ => throw IllegalArgumentException("Internal error: unexpected significant digit value '${significantDigit}'.")
             }
         } else if (significantDigit > this.precision) {
             stringBuilder.append(String.fromUtf8(valArr))
@@ -1930,7 +1930,7 @@ public struct Decimal <: Comparable<Decimal> & Hashable & ToString {
 
     private func divWithContext(d: Decimal, rdm: RoundingMode): Decimal {
         if (d.sign == 0) {
-            throw ArithmeticException("Divided by zero!")
+            throw ArithmeticException("Division by zero.")
         }
         let expectedScale: Int32 = saturateI32(Int64(this.scale) - Int64(d.scale))
         if (this.sign == 0) {
@@ -1965,7 +1965,7 @@ func parseExponent(val: String, offset: Int64): Int64 {
     expOffset++
     // check for out of bounds.
     if (expOffset >= val.size) {
-        throw IllegalArgumentException("String value not allow without digits after e.")
+        throw IllegalArgumentException("Invalid argument: 'val' must contain at least one digit after the exponent indicator.")
     }
 
     // process sign bit.
@@ -1978,7 +1978,7 @@ func parseExponent(val: String, offset: Int64): Int64 {
 
     // if no digit after sign, throw IllegalArgumentException
     if (expOffset >= val.size) {
-        throw IllegalArgumentException("String value not allow without digits after e.")
+        throw IllegalArgumentException("Invalid argument: 'val' must contain at least one digit after the exponent indicator.")
     }
 
     var exponent: Int64 = 0
@@ -1988,7 +1988,7 @@ func parseExponent(val: String, offset: Int64): Int64 {
     }
     // check val size still greater than Int32.Max length, throw OverflowException.
     if (val.size - expOffset > 10) {
-        throw OverflowException("Exponent overflow.")
+        throw OverflowException("Overflow: exponent exceeds the representable range of 'Int32'.")
     }
 
     while (expOffset < val.size) {
@@ -1999,7 +1999,7 @@ func parseExponent(val: String, offset: Int64): Int64 {
         } else {
             // character range [r'0', r'9'], other character is not allowed.
             throw IllegalArgumentException(
-                "String exponent value not allow contains other character beyond [digit, sign].")
+                "Invalid argument: exponent contains invalid character; only digits and sign characters are allowed.")
         }
     }
 
@@ -2008,7 +2008,7 @@ func parseExponent(val: String, offset: Int64): Int64 {
     }
 
     if (Int64(Int32(exponent)) != exponent) {
-        throw OverflowException("Exponent overflow.")
+        throw OverflowException("Overflow: exponent exceeds the representable range of 'Int32'.")
     }
 
     return exponent
@@ -2018,7 +2018,7 @@ func checkScaleOverFlow(scale: Int64): Int32 {
     try {
         return Int32(scale)
     } catch (e: OverflowException) {
-        throw OverflowException("Scale overflow during calculation.")
+        throw OverflowException("Overflow: scale exceeds the representable range during calculation.")
     }
 }
 
@@ -2026,7 +2026,7 @@ func checkScaleOverFlow(scale: Int64): Int32 {
 func checkAndRtnScale(scale: Int32, adjustScale: Int64): Int32 {
     let newScale = Int64(scale) - adjustScale
     if (Int64(Int32(newScale)) != newScale) {
-        throw OverflowException("Scale overflow.")
+        throw OverflowException("Overflow: scale exceeds the representable range of 'Int32'.")
     }
     return Int32(newScale)
 }
@@ -2261,7 +2261,7 @@ public func sqrt(d: Decimal): Decimal {
         return Decimal(BIGINT_ZERO, d.scale >> 1)
     }
     if (d.sign < 0) {
-        throw IllegalArgumentException("Negative decimal cannot be squared.")
+        throw IllegalArgumentException("Invalid argument: negative decimal cannot take the square root.")
     }
     let expectedScale: Int32 = d.scale / 2
     var formattedScale: Int32 = checkScaleOverFlow(Int64(d.scale) - d.precision + 1)

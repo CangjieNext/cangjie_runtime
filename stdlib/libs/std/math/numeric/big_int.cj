@@ -100,7 +100,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
      */
     public static func randomProbablePrime(bitLen: Int64, certainty: UInt64, rand!: Random = Random()): BigInt {
         if (bitLen <= 1) {
-            throw IllegalArgumentException("The bitLen of the BigInt must > 1.")
+            throw IllegalArgumentException("Invalid argument: 'bitLen' must be greater than 1.")
         }
         var randBig = BigInt(true, bitLen, rand: rand)
         while (!randBig.isProbablePrime(certainty)) {
@@ -120,7 +120,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
      */
     public init(bytes: Array<Byte>) {
         if (bytes.size == 0) {
-            throw IllegalArgumentException("The size of bytes cannot be zero!")
+            throw IllegalArgumentException("Invalid argument: 'bytes' cannot be empty.")
         }
         let negSign: Bool
         let byteArray: Array<Byte>
@@ -160,7 +160,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
                 this.intArr = EMPTY_ARRAY
                 return
             } else {
-                throw IllegalArgumentException("The size or the value of magnitude cannot be zero if sign is true!")
+                throw IllegalArgumentException("Invalid argument: 'magnitude' cannot be zero when 'sign' is negative.")
             }
         }
         if (byteArray.size <= 8) {
@@ -354,7 +354,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
      */
     public init(sign: Bool, bitLen: Int64, rand!: Random = Random()) {
         if (bitLen <= 0) {
-            throw IllegalArgumentException("The bitLen of the BigInt must > 0.")
+            throw IllegalArgumentException("Invalid argument: 'bitLen' must be greater than 0.")
         }
         if (bitLen <= 64) {
             int = rand.nextBits(UInt64(bitLen))
@@ -418,7 +418,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
     @Deprecated[message: "Use member function `public static func parse(value: String, radix!: Int64): BigInt` instead."]
     public init(s: String, base!: Int64 = 10) {
         if (base < 2 || base > 36) {
-            throw IllegalArgumentException("The base should in the range of [2, 36].")
+            throw IllegalArgumentException("Invalid argument: 'base' must be in the range [2, 36].")
         }
         (this.int, this.intArr, this.negSign) = parseString(s, UInt64(base))
     }
@@ -434,7 +434,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
      */
     public func testBit(index: Int64): Bool {
         if (index < 0) {
-            throw IllegalArgumentException("The index must >= 0.")
+            throw IllegalArgumentException("Invalid argument: 'index' must be non-negative.")
         }
         if (sign == 0) {
             return false
@@ -486,7 +486,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
      */
     public func setBit(index: Int64): BigInt {
         if (index < 0) {
-            throw IllegalArgumentException("The index must >= 0.")
+            throw IllegalArgumentException("Invalid argument: 'index' must be non-negative.")
         }
         if (sign == 0) {
             if (index < 64) {
@@ -530,7 +530,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
      */
     public func clearBit(index: Int64): BigInt {
         if (index < 0) {
-            throw IllegalArgumentException("The index must >= 0.")
+            throw IllegalArgumentException("Invalid argument: 'index' must be non-negative.")
         }
         if (sign == 0) {
             return BigInt(0, EMPTY_ARRAY, false)
@@ -567,7 +567,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
      */
     public func flipBit(index: Int64): BigInt {
         if (index < 0) {
-            throw IllegalArgumentException("The index must >= 0.")
+            throw IllegalArgumentException("Invalid argument: 'index' must be non-negative.")
         }
         if (sign == 0) {
             return setBit(index)
@@ -826,7 +826,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
             return BigInt(0, EMPTY_ARRAY, false)
         }
         if (this.sign == 0 || other.sign == 0) {
-            throw IllegalArgumentException("The BigInt is not relatively prime with the input.")
+            throw IllegalArgumentException("Invalid argument: 'this' and 'other' are not relatively prime.")
         }
         let (x, _) = exgcdToInverse(this, other)
         if (this.negSign != x.negSign) {
@@ -896,10 +896,10 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
      */
     public func modPow(n: BigInt, m!: ?BigInt = None): BigInt {
         if (n.sign == -1) {
-            throw IllegalArgumentException("The exponent can not be negative.")
+            throw IllegalArgumentException("Invalid argument: 'n' cannot be negative.")
         }
         if (m?.sign == 0) {
-            throw ArithmeticException("Divided by zero!")
+            throw ArithmeticException("Division by zero.")
         }
         if (m?.int == 1 && m?.intArr.size == 0) {
             return BigInt(0, EMPTY_ARRAY, false)
@@ -1111,7 +1111,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
      */
     public operator func >>(n: Int64): BigInt {
         if (n < 0) {
-            throw ArithmeticException("The parameter n must >= 0.")
+            throw ArithmeticException("Invalid argument: 'n' must be non-negative.")
         }
         if (sign == 0) {
             return BigInt(0, EMPTY_ARRAY, false)
@@ -1170,7 +1170,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
      */
     public operator func <<(n: Int64): BigInt {
         if (n < 0) {
-            throw ArithmeticException("The parameter n must >= 0.")
+            throw ArithmeticException("Invalid argument: 'n' must be non-negative.")
         }
         if (sign == 0) {
             return BigInt(0, EMPTY_ARRAY, false)
@@ -1444,7 +1444,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
             }
         }
         match (overflowHandling) {
-            case Throwing => throw OverflowException("Out of range of the Int8.")
+            case Throwing => throw OverflowException("Overflow: value is out of range of 'Int8'.")
             case Wrapping => toInt8Wrapping()
             case Saturating =>
                 if (this.negSign) {
@@ -1484,7 +1484,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
             }
         }
         match (overflowHandling) {
-            case Throwing => throw OverflowException("Out of range of the Int16.")
+            case Throwing => throw OverflowException("Overflow: value is out of range of 'Int16'.")
             case Wrapping => toInt16Wrapping()
             case Saturating =>
                 if (this.negSign) {
@@ -1524,7 +1524,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
             }
         }
         match (overflowHandling) {
-            case Throwing => throw OverflowException("Out of range of the Int32.")
+            case Throwing => throw OverflowException("Overflow: value is out of range of 'Int32'.")
             case Wrapping => toInt32Wrapping()
             case Saturating =>
                 if (this.negSign) {
@@ -1567,7 +1567,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
             }
         }
         match (overflowHandling) {
-            case Throwing => throw OverflowException("Out of range of the Int64.")
+            case Throwing => throw OverflowException("Overflow: value is out of range of 'Int64'.")
             case Wrapping => toInt64Wrapping()
             case Saturating =>
                 if (this.negSign) {
@@ -1593,7 +1593,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
         return match (len) {
             case 19 => IntNative(this.toInt64(overflowHandling: overflowHandling))
             case 10 => IntNative(this.toInt32(overflowHandling: overflowHandling))
-            case _ => throw Exception("Unrecognized IntNative.")
+            case _ => throw Exception("Internal error: unrecognized 'IntNative' length.")
         }
     }
 
@@ -1633,7 +1633,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
             return UInt8(this.int)
         }
         match (overflowHandling) {
-            case Throwing => throw OverflowException("Out of range of the UInt8.")
+            case Throwing => throw OverflowException("Overflow: value is out of range of 'UInt8'.")
             case Wrapping => toUInt8Wrapping()
             case Saturating =>
                 if (this.negSign) {
@@ -1668,7 +1668,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
             return UInt16(this.int)
         }
         match (overflowHandling) {
-            case Throwing => throw OverflowException("Out of range of the UInt16.")
+            case Throwing => throw OverflowException("Overflow: value is out of range of 'UInt16'.")
             case Wrapping => toUInt16Wrapping()
             case Saturating =>
                 if (this.negSign) {
@@ -1703,7 +1703,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
             return UInt32(this.int)
         }
         match (overflowHandling) {
-            case Throwing => throw OverflowException("Out of range of the UInt32.")
+            case Throwing => throw OverflowException("Overflow: value is out of range of 'UInt32'.")
             case Wrapping => toUInt32Wrapping()
             case Saturating =>
                 if (this.negSign) {
@@ -1738,7 +1738,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
             return this.int
         }
         match (overflowHandling) {
-            case Throwing => throw OverflowException("Out of range of the UInt64.")
+            case Throwing => throw OverflowException("Overflow: value is out of range of 'UInt64'.")
             case Wrapping => toUInt64Wrapping()
             case Saturating =>
                 if (this.negSign) {
@@ -1764,7 +1764,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
         return match (len) {
             case 20 => UIntNative(this.toUInt64(overflowHandling: overflowHandling)) // 18446744073709551615
             case 10 => UIntNative(this.toUInt32(overflowHandling: overflowHandling)) // 4294967295
-            case _ => throw Exception("Unrecognized UIntNative.")
+            case _ => throw Exception("Internal error: unrecognized 'UIntNative' length.")
         }
     }
 
@@ -1815,7 +1815,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
 
     func div(thatInt: UInt64, thatArr: Array<UInt32>, thatNegSign: Bool): (UInt64, Array<UInt32>, Bool) {
         if (thatInt == 0 && thatArr.size == 0) {
-            throw ArithmeticException("Divided by zero!")
+            throw ArithmeticException("Division by zero.")
         }
         if (this.sign == 0) {
             return (0, EMPTY_ARRAY, false)
@@ -1865,7 +1865,7 @@ public struct BigInt <: Comparable<BigInt> & Hashable & ToString {
     private func privateDivAndMod(thatInt: UInt64, thatArr: Array<UInt32>, thatNegSign: Bool): (UInt64, Array<UInt32>, 
         Bool, UInt64, Array<UInt32>, Bool) {
         if (thatInt == 0 && thatArr.size == 0) {
-            throw ArithmeticException("Divided by zero!")
+            throw ArithmeticException("Division by zero.")
         }
         if (this.sign == 0) {
             return (0, EMPTY_ARRAY, false, 0, EMPTY_ARRAY, false)
@@ -2041,7 +2041,7 @@ public func sqrt(i: BigInt): BigInt {
         return BigInt(0, EMPTY_ARRAY, false)
     }
     if (i.negSign) {
-        throw IllegalArgumentException("The BigInt be used to calculate the square root must >= 0.")
+        throw IllegalArgumentException("Invalid argument: 'i' must be non-negative for square root calculation.")
     }
     var xInt = i.int
     if (i.intArr.size == 0) {
@@ -2733,7 +2733,7 @@ func parseString(s: String, base: UInt64): (UInt64, Array<UInt32>, Bool) {
  */
 func parseDigits(s: String, idx: Int64, radix: UInt64): (UInt64, Array<UInt32>) {
     if (idx >= s.size) {
-        throw IllegalArgumentException("Invalid string.")
+        throw IllegalArgumentException("Invalid argument: string format does not match the required pattern.")
     }
     var numberArray = initNumArray(s, idx, UInt8(radix))
     let (digits, _) = calculateLenAndBase(radix)
@@ -2757,7 +2757,7 @@ func parseDigits(s: String, idx: Int64, radix: UInt64): (UInt64, Array<UInt32>) 
  */
 func parseSign(s: String): (Bool, Int64) {
     if (s.size == 0) {
-        throw IllegalArgumentException("Invalid string.")
+        throw IllegalArgumentException("Invalid argument: string cannot be empty.")
     }
     return match (s[0]) {
         case b'-' => (true, 1)
@@ -2771,7 +2771,7 @@ func parseSign(s: String): (Bool, Int64) {
  */
 func parseBase(s: String, idx: Int64): (UInt64, Int64) {
     if (idx >= s.size) {
-        throw IllegalArgumentException("Invalid string.")
+        throw IllegalArgumentException("Invalid argument: string base prefix is malformed.")
     }
     if (s[idx] != b'0' || idx + 1 == s.size) {
         return (10, 0) // no base prefix, default radix is 10
@@ -2846,7 +2846,7 @@ func initNumArray(s: String, index: Int64, base: UInt8): Array<UInt8> {
         } else if (s[i].isAsciiUpperCase() && s[i] - LETTER_UPPER_DIFF < base) {
             numberArray[i] = s[i] - LETTER_UPPER_DIFF
         } else {
-            throw IllegalArgumentException("Invalid string.")
+            throw IllegalArgumentException("Invalid argument: string contains character not valid for the given radix.")
         }
     }
     return numberArray
@@ -3342,7 +3342,7 @@ func exgcdToInverse(thisBig: BigInt, thatBig: BigInt): (BigInt, BigInt) {
     if (thatBig.sign == 0) {
         // the gcd of thisBig and thatBig must be 1
         if (thisBig.int != 1 || thisBig.intArr.size != 0) {
-            throw IllegalArgumentException("The BigInt is not relatively prime with the input.")
+            throw IllegalArgumentException("Invalid argument: 'this' and 'other' are not relatively prime.")
         }
         return (BigInt(1), BigInt(0))
     }
