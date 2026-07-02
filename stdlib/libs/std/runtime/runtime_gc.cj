@@ -36,7 +36,7 @@ foreign func CJ_MCC_IsGCRunning(): Bool
 
 @When[backend == "cjnative"]
 @Intrinsic
-public func reachFullGC(participants: Int64): Unit
+public func invokeReachFullGC(participants: Int64): Unit
 
 @When[backend == "cjnative"]
 @Intrinsic
@@ -94,4 +94,12 @@ public func waitForAllThreadsToFinish(): Unit {
 @When[backend == "cjnative"]
 public func fullGC(): Unit {
     unsafe{ invokeFullGC() }
+}
+
+@When[backend == "cjnative"]
+public func reachFullGC(participants: Int64): Unit {
+    if (participants <= 0) {
+        return;
+    }
+    unsafe { invokeReachFullGC(participants) }
 }
