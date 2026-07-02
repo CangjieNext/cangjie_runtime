@@ -29,5 +29,8 @@ set(UNITTEST_SRCS
     throws_macro.cj
     test_builder_macro.cj
     validator_macro.cj
+    operation_macro.cj
+    concurrent_test_macro.cj
+    group_macro.cj
     util.cj
     CACHE INTERNAL "")
