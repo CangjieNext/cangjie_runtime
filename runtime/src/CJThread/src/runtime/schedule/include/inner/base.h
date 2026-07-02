@@ -112,7 +112,7 @@ static inline int SemaphoreDestroy(struct Semaphore *sem)
     return sem_destroy(&sem->sem);
 }
 
-#if defined (__ANDROID__) && (VOS_WORDSIZE == 32) && (MRT_HARDWARE_PLATFORM == MRT_ARM)
+#if defined (__ANDROID__) && (__ANDROID_API__ < 24)
 struct CJthreadSpinLock {
     pthread_mutex_t lock;
 };

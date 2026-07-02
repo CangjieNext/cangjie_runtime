@@ -117,7 +117,7 @@ void PrintSignalHandlerStack(int sig, const siginfo_t* info, void* context)
     constexpr uint8_t threadNameLen = 16;
     constexpr uint32_t simpleSigStrSize = 256;
     char threadName[threadNameLen];
-#if defined (__arm__) && defined (__ANDROID__)
+#if defined (__ANDROID__)
     prctl(PR_GET_NAME, threadName, 0, 0, 0);
 #else
     pthread_t thread = pthread_self();
