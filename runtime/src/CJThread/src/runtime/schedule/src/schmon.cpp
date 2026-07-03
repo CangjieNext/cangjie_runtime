@@ -259,57 +259,58 @@ void SchmonCJThreadPoolClean(unsigned long long now)
 #endif
 }
 
+static void SchmonAcquireNetpollCJThreads(struct Schedule *schedule, CJThreadHandle buf[],
+                                          unsigned int maxNum, int timeout)
+{
+    if (schedule->netpoll.npfd == nullptr) {
+        return;
+    }
+    int num = SchdpollAcquire(schedule, buf, maxNum, timeout);
+    if (num > 0) {
+        CJThreadAddBatch(buf, num);
+    }
+}
+
 void SchmonCycle(void)
 {
-    int num;
     unsigned long long now;
     unsigned int delay = CYCLE_TIME;
     struct Dulink *scheduleNode;
     struct Schedule *schedule;
     CJThreadHandle buf[SCHDPOLL_ACQUIRE_MAX_NUM];
+
+    // Schmon needs to sleep or wait for 10ms in SchdpollAcquire when checking the default scheduler.
+    // Holding allScheduleListLock during this wait can seriously affect performance. Therefore,
+    // the default scheduler is handled outside the list traversal and no lock is held during the wait.
+    // This is safe because schmon is created only for the default scheduler. SchmonEntry binds it to
+    // TLS, and the default scheduler waits for schmon to exit before destruction.
+    schedule = ScheduleGet();
+    if (LIKELY(schedule != nullptr)) {
+        if (schedule->netpoll.npfd == nullptr) {
+            usleep(delay);
+        } else {
+#ifdef MRT_WINDOWS
+            // IOCP is polled in non-blocking mode below. Keep the scheduler monitor's
+            // periodic cadence on Windows instead of busy-looping when npfd is initialized.
+            usleep(delay);
+            const int netpollWaitTime = 0;
+#else
+            /* Waiting time of schmon waits for a network event is 10ms */
+            const int netpollWaitTime = 10;
+#endif
+            SchmonAcquireNetpollCJThreads(schedule, buf, SCHDPOLL_ACQUIRE_MAX_NUM, netpollWaitTime);
+        }
+    }
+
+    // allScheduleListLock protects traversal of allScheduleList so that non-default schedulers
+    // are not concurrently added to or removed from the list while schmon is iterating them.
     pthread_mutex_lock(&g_scheduleManager.allScheduleListLock);
     DULINK_FOR_EACH_ITEM(scheduleNode, &g_scheduleManager.allScheduleList) {
         schedule = DULINK_ENTRY(scheduleNode, struct Schedule, allScheduleDulink);
-        // Schmon needs to sleep or wait for 10ms in SchdpollAcquire when checking the default
-        // scheduler, and holding a lock at this time can seriously affect performance.
-        // Therefore, no lock is held when checking the default scheduler. When schmon does not
-        // exit, the default scheduler must exist in allScheduleList, so there is no problem of
-        // waiting for schedule changes during the waiting period. And non default schedulers
-        // do not set a timeout when executing SchdpollAcquire, otherwise it will affect the
-        // network task performance of the default scheduler.
         if (schedule->scheduleType == SCHEDULE_DEFAULT) {
-            pthread_mutex_unlock(&g_scheduleManager.allScheduleListLock);
+            continue;
         }
-#ifdef MRT_WINDOWS
-        if (schedule->scheduleType == SCHEDULE_DEFAULT) {
-            usleep(delay);
-        }
-        if (schedule->netpoll.npfd != nullptr) {
-            num = SchdpollAcquire(schedule, buf, SCHDPOLL_ACQUIRE_MAX_NUM, 0);
-            if (num > 0) {
-                CJThreadAddBatch(buf, num);
-            }
-        }
-#else
-        /* Waiting time of schmon waits for a network event is 10ms */
-        const int NETPOLL_WAIT_TIME = 10;
-        if (schedule->netpoll.npfd != nullptr && schedule->scheduleType == SCHEDULE_DEFAULT) {
-            num = SchdpollAcquire(schedule, buf, SCHDPOLL_ACQUIRE_MAX_NUM, NETPOLL_WAIT_TIME);
-            if (num > 0) {
-                CJThreadAddBatch(buf, num);
-            }
-        } else if (schedule->netpoll.npfd == nullptr && schedule->scheduleType == SCHEDULE_DEFAULT) {
-            usleep(delay);
-        } else if (schedule->netpoll.npfd != nullptr && schedule->scheduleType != SCHEDULE_DEFAULT) {
-            num = SchdpollAcquire(schedule, buf, SCHDPOLL_ACQUIRE_MAX_NUM, 0);
-            if (num > 0) {
-                CJThreadAddBatch(buf, num);
-            }
-        }
-#endif
-        if (schedule->scheduleType == SCHEDULE_DEFAULT) {
-            pthread_mutex_lock(&g_scheduleManager.allScheduleListLock);
-        }
+        SchmonAcquireNetpollCJThreads(schedule, buf, SCHDPOLL_ACQUIRE_MAX_NUM, 0);
     }
     now = CurrentNanotimeGet();
     // Timer check.
