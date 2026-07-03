@@ -9,5 +9,8 @@ set(libname cangjie-std-posixFFI)
 
 add_library(${libname}-objs OBJECT ${posix_ffi_src})
 target_compile_options(${libname}-objs PRIVATE ${CMAKE_C_COVERAGE_FLAGS})
+if(ANDROID AND CMAKE_ANDROID_API LESS 24)
+    target_compile_options(${libname}-objs PRIVATE -U_FORTIFY_SOURCE)
+endif()
 add_library(${libname} STATIC $<TARGET_OBJECTS:${libname}-objs>)
 install_cangjie_library_ffi(${libname})
