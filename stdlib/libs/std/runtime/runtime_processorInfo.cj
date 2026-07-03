@@ -55,13 +55,26 @@ public func startCPUProfiling(): Unit {
     return
 }
 
-@When[backend == "cjnative"]
+@When[backend == "cjnative" && os != "Windows"]
 public func stopCPUProfiling(path: Path): Unit {
-    try (file = File(path, ReadWrite)) {
+    let resolvedPath = validateAndResolvePath(path,
+        "CPU profiling path is invalid or contains forbidden characters for security reasons.")
+    try (file = File(resolvedPath, ReadWrite)) {
         let success = stopCjCPUProfiling(Int32(file.fileDescriptor.fileHandle))
         if (!success) {
             throw ProfilingInfoException("Failed to stop cpu profiling.")
         }
     }
-    return
+}
+
+@When[backend == "cjnative" && os == "Windows"]
+public func stopCPUProfiling(path: Path): Unit {
+    let success = executeWithWindowsFd(
+        path,
+        "CPU profiling path is invalid or contains forbidden characters for security reasons.",
+        stopCjCPUProfiling
+    )
+    if (!success) {
+        throw ProfilingInfoException("Failed to stop cpu profiling.")
+    }
 }
