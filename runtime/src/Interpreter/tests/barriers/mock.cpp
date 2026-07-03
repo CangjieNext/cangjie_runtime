@@ -23,6 +23,34 @@ Ref adjustableRoots[SAVED_ROOTS_N];
 Ref frameRoots[FRAME_ROOTS_N];
 Ref globalRoots[GLOBAL_ROOTS_N];
 
+DYN_GCTib RecFieldGCTib()
+{
+    // RecField has 4 Object references.
+    // GCTib = ShortGCTib (Tag Bit 63 set) | Bitmap 0xF (bits 0,1,2,3 set).
+    DYN_GCTib tib = {};
+    tib.raw = 0x800000000000000FULL;
+    return tib;
+}
+
+DYN_ObjRef GlobalStructObject()
+{
+#if defined(__aarch64__) && !defined(__ANDROID__)
+    return nullptr;
+#else
+    return reinterpret_cast<DYN_ObjRef>(0x1);
+#endif
+}
+
+uintptr_t GlobalStructField(uintptr_t field)
+{
+#if defined(__aarch64__) && !defined(__ANDROID__)
+    constexpr uintptr_t globalFlag = 1ULL << 63;
+    return field | globalFlag;
+#else
+    return field;
+#endif
+}
+
 class CJThreadMagicData {
 public:
     uint64_t magicValue;
@@ -125,7 +153,8 @@ void readAndCheckRecField() {
     auto static_obj = interface.readStaticField(static_object_placeholder);
     uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(static_obj) + sizeof(DYN_TypeInfo*); // start of record inside object
     RecFieldMirror record;
-    interface.readStructField(reinterpret_cast<uintptr_t>(&record), static_obj, fieldAddr, sizeof(RecFieldMirror));
+    interface.readStructField(reinterpret_cast<uintptr_t>(&record), static_obj, fieldAddr, sizeof(RecFieldMirror),
+        RecFieldGCTib());
 
     if (!record.obj0 || !record.obj1 || !record.obj2 || !record.obj3) {
         printf("[Mock] error: one or more objects in record are null\n");
@@ -164,7 +193,8 @@ void writeAndCheckRecField() {
     }
 
     uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(static_obj) + sizeof(DYN_TypeInfo*); // start of record inside object
-    interface.writeStructField(static_obj, fieldAddr, reinterpret_cast<uintptr_t>(&record_to_write), sizeof(RecFieldMirror));
+    interface.writeStructField(static_obj, fieldAddr, reinterpret_cast<uintptr_t>(&record_to_write),
+        sizeof(RecFieldMirror), RecFieldGCTib());
 }
 
 // ---------------------------------------------------------
@@ -180,16 +210,21 @@ void readAndCheckStaticRecField() {
     }
 
     RecFieldMirror record;
-    // RecField has 4 Object references.
-    // GCTib = ShortGCTib (Tag Bit 63 set) | Bitmap 0xF (bits 0,1,2,3 set).
-    DYN_GCTib tib = {};
-    tib.raw = 0x800000000000000FULL;
 
     interface.readStaticStructField(reinterpret_cast<uintptr_t>(&record), sizeof(RecFieldMirror),
-                                       reinterpret_cast<uintptr_t>(static_struct_addr), sizeof(RecFieldMirror), tib);
+        reinterpret_cast<uintptr_t>(static_struct_addr), sizeof(RecFieldMirror), RecFieldGCTib());
 
     if (!record.obj0 || !record.obj1 || !record.obj2 || !record.obj3) {
         printf("[Mock] error: one or more objects in static record are null\n");
+    }
+
+    RecFieldMirror record_via_struct_barrier;
+    interface.readStructField(reinterpret_cast<uintptr_t>(&record_via_struct_barrier), GlobalStructObject(),
+        GlobalStructField(reinterpret_cast<uintptr_t>(static_struct_addr)), sizeof(RecFieldMirror), RecFieldGCTib());
+
+    if (!record_via_struct_barrier.obj0 || !record_via_struct_barrier.obj1 || !record_via_struct_barrier.obj2 ||
+        !record_via_struct_barrier.obj3) {
+        printf("[Mock] error: one or more objects in global record are null\n");
     }
 }
 
@@ -218,13 +253,10 @@ void writeAndCheckStaticRecField() {
         return;
     }
 
-    // RecField has 4 Object references.
-    // GCTib = ShortGCTib (Tag Bit 63 set) | Bitmap 0xF (bits 0,1,2,3 set).
-    DYN_GCTib tib = {};
-    tib.raw = 0x800000000000000FULL;
-
     interface.writeStaticStructField(reinterpret_cast<uintptr_t>(static_struct_addr), sizeof(RecFieldMirror),
-                                        reinterpret_cast<uintptr_t>(&record_to_write), sizeof(RecFieldMirror), tib);
+        reinterpret_cast<uintptr_t>(&record_to_write), sizeof(RecFieldMirror), RecFieldGCTib());
+    interface.writeStructField(GlobalStructObject(), GlobalStructField(reinterpret_cast<uintptr_t>(static_struct_addr)),
+        reinterpret_cast<uintptr_t>(&record_to_write), sizeof(RecFieldMirror), RecFieldGCTib());
 }
 
 // ---------------------------------------------------------
@@ -272,7 +304,8 @@ bool readAndCheckGenericField() {
 
     uintptr_t fieldAddr2 = reinterpret_cast<uintptr_t>(frameRoots[1]) + sizeof(DYN_TypeInfo*); // start of record inside box
     RecFieldMirror record;
-    interface.readStructField(reinterpret_cast<uintptr_t>(&record), frameRoots[1], fieldAddr2, sizeof(RecFieldMirror));
+    interface.readStructField(reinterpret_cast<uintptr_t>(&record), frameRoots[1], fieldAddr2, sizeof(RecFieldMirror),
+        RecFieldGCTib());
 
     if (!record.obj0 || !record.obj1 || !record.obj2 || !record.obj3) {
         printf("[Mock] error: one or more objects in generic field record are null\n");
@@ -329,7 +362,8 @@ bool writeAndCheckGenericField() {
 
     // Initialize the source box with the record data
     uintptr_t boxFieldAddr = reinterpret_cast<uintptr_t>(frameRoots[1]) + sizeof(void*);
-    interface.writeStructField(frameRoots[1], boxFieldAddr, reinterpret_cast<uintptr_t>(&record_to_write), sizeof(RecFieldMirror));
+    interface.writeStructField(frameRoots[1], boxFieldAddr, reinterpret_cast<uintptr_t>(&record_to_write),
+        sizeof(RecFieldMirror), RecFieldGCTib());
 
     // Perform the generic field write: copy from box (frameRoots[1]) to wrapper (frameRoots[0])
     interface.writeGenericField(frameRoots[0], fieldAddr, frameRoots[1], sizeof(RecFieldMirror));
@@ -498,11 +532,11 @@ void staticWriteBarrierFast(DYN_ObjRef* static_object_placeholder) {
  * Writes a record from src to dst field of object.
  * Simulates a write barrier with fast path.
  */
-void instanceWriteBarrierRecordFast(DYN_ObjRef object, uintptr_t dst, uintptr_t src, size_t size) {
+void instanceWriteBarrierRecordFast(DYN_ObjRef object, uintptr_t dst, uintptr_t src, size_t size, DYN_GCTib tib) {
     auto interface = mockInstance.cjNativeInterface;
     if (interface.isActiveGcPhase(interface.getThreadLocalData())) {
         // slow path
-        interface.writeStructField(object, dst, src, size);
+        interface.writeStructField(object, dst, src, size, tib);
     } else {
         // fast path
         memcpy(reinterpret_cast<void*>(dst), reinterpret_cast<void*>(src), size);
@@ -541,7 +575,8 @@ void writeAndCheckRecFieldFast() {
     }
 
     uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(frameRoots[0]) + sizeof(DYN_TypeInfo*); // start of record inside object
-    instanceWriteBarrierRecordFast(frameRoots[0], fieldAddr, reinterpret_cast<uintptr_t>(&record_to_write), sizeof(RecFieldMirror));
+    instanceWriteBarrierRecordFast(frameRoots[0], fieldAddr, reinterpret_cast<uintptr_t>(&record_to_write),
+        sizeof(RecFieldMirror), RecFieldGCTib());
 }
 
 void BarriersMock::testBarriersFastPath() {

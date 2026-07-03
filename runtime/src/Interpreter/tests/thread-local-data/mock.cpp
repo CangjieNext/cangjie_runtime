@@ -19,6 +19,15 @@ using Ref = void*;
 Ref frameRoots[FRAME_ROOTS_N];
 Ref globalRoots[GLOBAL_ROOTS_N];
 
+DYN_GCTib RecFieldGCTib()
+{
+    // RecField has 4 Object references.
+    // GCTib = ShortGCTib (Tag Bit 63 set) | Bitmap 0xF (bits 0,1,2,3 set).
+    DYN_GCTib tib = {};
+    tib.raw = 0x800000000000000FULL;
+    return tib;
+}
+
 class CJThreadMagicData {
 public:
     uint64_t magicValue;
@@ -126,7 +135,8 @@ void readAndCheckRecField() {
     auto static_obj = interface.readStaticField(static_object_placeholder);
     uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(static_obj) + sizeof(DYN_TypeInfo*); // start of record inside object
     RecFieldMirror record;
-    interface.readStructField(reinterpret_cast<uintptr_t>(&record), static_obj, fieldAddr, sizeof(RecFieldMirror));
+    interface.readStructField(reinterpret_cast<uintptr_t>(&record), static_obj, fieldAddr, sizeof(RecFieldMirror),
+        RecFieldGCTib());
 
     if (!record.obj0 || !record.obj1 || !record.obj2 || !record.obj3) {
         printf("[Mock] error: one or more objects in record are null\n");
@@ -168,11 +178,12 @@ void staticWriteBarrierFast(DYN_ObjRef* static_object_placeholder, DYN_ThreadLoc
  * Writes a record from src to dst field of object.
  * Simulates a write barrier with fast path.
  */
-void instanceWriteBarrierRecordFast(DYN_ObjRef object, uintptr_t dst, uintptr_t src, size_t size, DYN_ThreadLocalData thread_local_data) {
+void instanceWriteBarrierRecordFast(
+    DYN_ObjRef object, uintptr_t dst, uintptr_t src, size_t size, DYN_GCTib tib, DYN_ThreadLocalData thread_local_data) {
     auto interface = mockInstance.cjNativeInterface;
     if (interface.isActiveGcPhase(thread_local_data)) {
         // slow path
-        interface.writeStructField(object, dst, src, size);
+        interface.writeStructField(object, dst, src, size, tib);
     } else {
         // fast path
         memcpy(reinterpret_cast<void*>(dst), reinterpret_cast<void*>(src), size);
@@ -234,7 +245,8 @@ void writeAndCheckRecFieldFast(DYN_ThreadLocalData& thread_local_data) {
     }
 
     uintptr_t fieldAddr = reinterpret_cast<uintptr_t>(frameRoots[0]) + sizeof(DYN_TypeInfo*); // start of record inside object
-    instanceWriteBarrierRecordFast(frameRoots[0], fieldAddr, reinterpret_cast<uintptr_t>(&record_to_write), sizeof(RecFieldMirror), thread_local_data);
+    instanceWriteBarrierRecordFast(frameRoots[0], fieldAddr, reinterpret_cast<uintptr_t>(&record_to_write),
+        sizeof(RecFieldMirror), RecFieldGCTib(), thread_local_data);
 }
 
 void pollSafepointAndUpdateTLD(DYN_ThreadLocalData& thread_local_data_ref) {

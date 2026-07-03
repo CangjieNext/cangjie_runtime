@@ -31,7 +31,7 @@ typedef int (*INT_InitInterpreter)(struct INT_InterpreterInterface *interpreterI
 
 The interpreter should copy the runtime callback table (`cjnativeInterface`) and additional arguments (`interpreterArgs`) if it will use them after initialization.
 
-Both interface tables start with an `int64_t version` field. The current supported version is `1` for `INT_InterpreterInterface` and `3` for `DYN_CJNativeInterface`. Runtime sets `DYN_CJNativeInterface::version` before calling `INT_InitInterpreter`; the interpreter should reject unsupported runtime table versions by returning non-zero. After `INT_InitInterpreter` returns successfully, runtime checks `INT_InterpreterInterface::version` and fails initialization if it is not the supported interpreter table version.
+Both interface tables start with an `int64_t version` field. The current supported version is `2` for `INT_InterpreterInterface` and `4` for `DYN_CJNativeInterface`. Runtime sets `DYN_CJNativeInterface::version` before calling `INT_InitInterpreter`; the interpreter should reject unsupported runtime table versions by returning non-zero. After `INT_InitInterpreter` returns successfully, runtime checks `INT_InterpreterInterface::version` and fails initialization if it is not the supported interpreter table version.
 
 `INT_InitInterpreter` returns `0` on success.
 
@@ -390,12 +390,14 @@ typedef void (*DYN_ReadStructFieldFn)(
     uintptr_t dstPtr,
     DYN_ObjRef obj,
     uintptr_t srcField,
-    size_t size);
+    size_t size,
+    DYN_GCTib tib);
 typedef void (*DYN_WriteStructFieldFn)(
     DYN_ObjRef obj,
     uintptr_t dst,
     uintptr_t src,
-    size_t size);
+    size_t size,
+    DYN_GCTib tib);
 
 typedef void (*DYN_ReadStaticStructFieldFn)(
     uintptr_t dstPtr,
@@ -432,7 +434,7 @@ typedef void (*DYN_SetArrayRefElementFn)(
 typedef int (*DYN_IsActiveGcPhaseFn)(DYN_ThreadLocalData);
 ```
 
-For static struct fields, `DYN_GCTib` describes which parts of the value contain references so runtime barriers can trace or update them correctly.
+For struct fields, `DYN_GCTib` describes which parts of the value contain references so runtime barriers can trace or update them correctly. It is required for static/global structs and is also accepted by object struct field callbacks for cases where the runtime resolves the field as a global struct.
 
 #### Fast paths (static/instance fields)
 
