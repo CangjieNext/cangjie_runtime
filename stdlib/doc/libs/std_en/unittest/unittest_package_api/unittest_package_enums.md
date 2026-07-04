@@ -47,7 +47,7 @@ Function: [std.runtime.GC](../../runtime/runtime_package_api/runtime_package_fun
 Auto
 ```
 
-Function: GC will be invoked by the framework during Benchmark function execution, and the strategy is choosed by framework. This is the default setting.
+Function: GC will be invoked by the framework during Benchmark function execution, and the strategy is chosen by framework. This is the default setting.
 
 ### func toString()
 
