@@ -152,7 +152,6 @@ Exceptions:
 - [ProcessException](process_package_exceptions.md#class-processexception) - Thrown if the environment variable cannot be removed.
 
 
-
 ### func setEnv(String, String)
 
 ```cangjie
