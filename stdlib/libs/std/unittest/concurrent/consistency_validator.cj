@@ -12,9 +12,9 @@ import std.collection.ArrayList
 import std.collection.HashSet
 import std.time.DateTime
 
-public class ConsistencyValidator {
-    public ConsistencyValidator(
-        public let consistencyModel!: ConsistencyModel,
+protected class ConsistencyValidator {
+    protected ConsistencyValidator(
+        let consistencyModel!: ConsistencyModel,
         private let createFreshInstance!: () -> Any,
         private let reExecuteOperation!: (Any, OperationInvocation) -> EquatableObj
     ) {}
@@ -26,12 +26,18 @@ public class ConsistencyValidator {
     private var cachedTreeRoot: ?PermutationNode = None
     private var cachedTreeSize: Int64 = -1
     private var currentRunId: Int64 = 0
+    private var deepestDeadEndDepth: Int64 = -1
+    private var deepestDeadEndPrefix: ArrayList<Int64> = ArrayList<Int64>()
+    private var deepestDeadEndMismatches: ArrayList<MismatchInfo> = ArrayList<MismatchInfo>()
 
-    public func validate(history: ConcurrentHistory): ConsistencyValidationResult {
+    protected func validate(history: ConcurrentHistory, verbose!: Bool = false): ConsistencyValidationResult {
         operationChecks = 0
         cacheChecks = 0
         prunedBranches = 0
         foundPermutation = None
+        deepestDeadEndDepth = -1
+        deepestDeadEndPrefix = ArrayList<Int64>()
+        deepestDeadEndMismatches = ArrayList<MismatchInfo>()
         currentRunId += 1
 
         let po = computePartialOrder(history, consistencyModel)
@@ -71,9 +77,11 @@ public class ConsistencyValidator {
         pruningTreeDFSRecursive(treeRoot, po, history, placed, prefixOps, None, 0)
 
         let totalChecks = operationChecks + cacheChecks
-        println("Operation checks: ${operationChecks}, cache hits: ${cacheChecks}, pruned: ${prunedBranches} (pruning DFS on permutation tree).")
-        if (totalChecks > 0) {
-            println("Time per check ${(DateTime.now() - start) / totalChecks}.")
+        if (verbose) {
+            println("Operation checks: ${operationChecks}, cache hits: ${cacheChecks}, pruned: ${prunedBranches} (pruning DFS on permutation tree).")
+            if (totalChecks > 0) {
+                println("Time per check ${(DateTime.now() - start) / totalChecks}.")
+            }
         }
 
         ConsistencyValidationResult(
@@ -83,7 +91,10 @@ public class ConsistencyValidator {
             prunedBranches: prunedBranches,
             cacheHits: cacheChecks,
             history: history,
-            partialOrder: po
+            partialOrder: po,
+            deadEndDepth: deepestDeadEndDepth,
+            deadEndPrefix: deepestDeadEndPrefix.toArray(),
+            deadEndMismatches: deepestDeadEndMismatches.toArray()
         )
     }
 
@@ -106,6 +117,7 @@ public class ConsistencyValidator {
             return false
         }
         var currentState: ?Any = state
+        let localMismatches = ArrayList<MismatchInfo>()
         for (opId in available) {
             let child = node.ensureChild(opId)
 
@@ -120,8 +132,10 @@ public class ConsistencyValidator {
             var recurseState: ?Any = None
             var isMatch = false
             var consumedState = false
+            var seqResult: ?EquatableObj = None
 
             if (let Some(cachedRes) <- child.cachedResult) {
+                seqResult = Some(cachedRes)
                 isMatch = cachedRes.eq(inv.result)
                 cacheChecks += 1
             } else {
@@ -135,6 +149,7 @@ public class ConsistencyValidator {
                 }
 
                 let actualResult = reExecuteOperation(builtState, inv)
+                seqResult = Some(actualResult)
                 child.cachedResult = actualResult
                 operationChecks += 1
                 isMatch = actualResult.eq(inv.result)
@@ -143,6 +158,9 @@ public class ConsistencyValidator {
             }
 
             if (!isMatch) {
+                if (let Some(expected) <- seqResult) {
+                    localMismatches.add(MismatchInfo(operation: inv, expectedResult: expected))
+                }
                 prunedBranches += 1
                 if (consumedState) { currentState = None }
                 continue
@@ -156,6 +174,17 @@ public class ConsistencyValidator {
             if (consumedState) { currentState = None }
             placed.remove(opId)
             prefixOps.remove(at: prefixOps.size - 1)
+        }
+
+        if (available.size > 0 && localMismatches.size == available.size) {
+            if (depth > deepestDeadEndDepth) {
+                deepestDeadEndDepth = depth
+                deepestDeadEndPrefix = copyPermutation(prefixOps)
+                deepestDeadEndMismatches = ArrayList<MismatchInfo>()
+                for (m in localMismatches) {
+                    deepestDeadEndMismatches.add(m)
+                }
+            }
         }
 
         return false
