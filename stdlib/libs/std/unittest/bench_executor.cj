@@ -18,7 +18,7 @@ import std.unittest.common.PrettyText
 import std.time.*
 import std.runtime.*
 
-type BenchRawMeasurement = (Float64, Float64, Float64, Int64) // (batchSize, value, GC time, weight)
+protected type BenchRawMeasurement = (Float64, Float64, Float64, Int64) // (batchSize, value, GC time, weight)
 
 func MeasurementNewToArrayList(m : MeasurementNew) : ArrayList <BenchRawMeasurement> {
     var ans : ArrayList <BenchRawMeasurement> = ArrayList <BenchRawMeasurement>()
@@ -216,44 +216,44 @@ class BenchExecutor<T> <: Executor {
     }
 }
 
-struct StatisticsSample {
+protected struct StatisticsSample {
     let _kde: ArrayList<(Float64, Float64)> = ArrayList<(Float64, Float64)>()
-    StatisticsSample(let sample: Sample) {}
+    protected StatisticsSample(let sample: Sample) {}
 
-    init() {
+    protected init() {
         this(Sample(ArrayList()))
     }
 
-    init(cap: Int64) {
+    protected init(cap: Int64) {
         this(Sample(ArrayList(cap)))
     }
 
-    func isEmpty(): Bool {
+    protected func isEmpty(): Bool {
         sample.data.isEmpty()
     }
 
-    func append(data: Float64) {
+    protected func append(data: Float64) {
         sample.data.add(data)
     }
 
-    func finish() {
+    protected func finish() {
         sample.data.removeIf { x => x.isNaN() }
         sample.data.sort()
     }
 
-    prop mean: Float64 { get() {
+    protected prop mean: Float64 { get() {
         sample.mean()
     }}
 
-    prop median: Float64 { get() {
+    protected prop median: Float64 { get() {
         sample.percentile(0.5)
     }}
 
-    prop lowerBound: Float64 { get() {
+    protected prop lowerBound: Float64 { get() {
         sample.percentile(0.01)
     }}
 
-    prop upperBound: Float64 { get() {
+    protected prop upperBound: Float64 { get() {
         sample.percentile(0.99)
     }}
 
@@ -263,17 +263,17 @@ struct StatisticsSample {
         }
     }
 
-    prop kde: ArrayList<(Float64, Float64)> { get() {
+    protected prop kde: ArrayList<(Float64, Float64)> { get() {
         update()
         _kde
     }}
 
-    prop mode: Float64 { get () {
+    protected prop mode: Float64 { get () {
         kde.iterator().maxBy{ a => a[1] }[0]
     }}
 
     // second mode to detect multimodality
-    func mode2(): Float64 {
+    protected func mode2(): Float64 {
         let (modeIdx, (mode, modeDensity)) = kde.iterator().enumerate().maxBy{ a => a[1][1] }
 
         let kdeCopy = _kde.clone()
@@ -313,7 +313,7 @@ private let BOOTSTRAP_ITERATIONS: Int64 = 2000
 private let BOOTSTRAP_PARALLEL: Int64 = 8
 private let EXPECTED_CAP: Int64 = BOOTSTRAP_ITERATIONS / BOOTSTRAP_PARALLEL
 
-enum SeparateGc <: ToString {
+protected enum SeparateGc <: ToString {
     | AllPoints
     | GCOnly
     | WithoutGCOnly
@@ -326,14 +326,14 @@ enum SeparateGc <: ToString {
         }
     }
 
-    func hasSeparation() {
+    protected func hasSeparation() {
         match (this) {
             case AllPoints => false
             case GCOnly | WithoutGCOnly => true
         }
     }
 
-    func toFilter(): (BenchRawMeasurement) -> Bool {
+    protected func toFilter(): (BenchRawMeasurement) -> Bool {
         match (this) {
             case AllPoints => { x => true }
             case GCOnly => { x => x[2] >= 1.0 }
@@ -342,38 +342,38 @@ enum SeparateGc <: ToString {
     }
 }
 
-class BenchmarkResult {
-    var finished = false
+protected class BenchmarkResult {
+    protected var finished = false
 
-    var bootstrapped: BootstrapResult = BootstrapResult(AllPoints)
+    protected var bootstrapped: BootstrapResult = BootstrapResult(AllPoints)
 
-    prop median: Float64 { get() {
+    protected prop median: Float64 { get() {
         bootstrapped.resultSample.sample.percentile(0.5)
     }}
-    prop medianCI99: Float64 { get() {
+    protected prop medianCI99: Float64 { get() {
         (bootstrapped.medianStats.sample.percentile(0.99) - bootstrapped.medianStats.sample.percentile(0.01)) / 2.0
     }}
 
-    prop mean: Float64 { get() {
+    protected prop mean: Float64 { get() {
         bootstrapped.resultSample.sample.mean()
     }}
-    prop meanCI99: Float64 { get() {
+    protected prop meanCI99: Float64 { get() {
         (bootstrapped.meanStats.sample.percentile(0.99) - bootstrapped.meanStats.sample.percentile(0.01)) / 2.0
     }}
 
-    prop overhead: Float64 { get() {
+    protected prop overhead: Float64 { get() {
         bootstrapped.overhead.sample.percentile(0.5)
     }}
 
-    prop mainResult: Float64 { get() {
+    protected prop mainResult: Float64 { get() {
         median
     }}
 
-    prop errorEst: Float64 { get () {
+    protected prop errorEst: Float64 { get () {
         if (meanCI99 < 0.000001) { 0.0 } else { meanCI99 }
     }}
 
-    prop errorEstPercent: Float64 { get() {
+    protected prop errorEstPercent: Float64 { get() {
         let result = this.median
         let error = this.errorEst
         if (error == 0.0 && result == 0.0) {
@@ -384,7 +384,7 @@ class BenchmarkResult {
     }}              
 
     var data: ArrayList<BenchRawMeasurement> = ArrayList()
-    BenchmarkResult() {}
+    protected BenchmarkResult(var data: ArrayList <BenchRawMeasurement>) {}
     init(data_: ArrayList<BenchRawMeasurement>) {
         data = data_
     }
@@ -398,7 +398,8 @@ class BenchmarkResult {
         }
     }
 
-    func calculate(measurement: MeasurementInfo) {
+
+    protected func calculate(measurement: MeasurementInfo) {
         if (finished) { return }
 
         bootstrap(measurement)
@@ -542,20 +543,20 @@ extend<T> Iterator<T> {
 }
 
 
-class BootstrapResult {
-    let meanStats = StatisticsSample(EXPECTED_CAP)
-    let meanOverheadStats = StatisticsSample(EXPECTED_CAP)
-    let medianStats = StatisticsSample(EXPECTED_CAP)
-    let medianOverheadStats = StatisticsSample(EXPECTED_CAP)
-    let r2Stats = StatisticsSample(EXPECTED_CAP)
+protected class BootstrapResult {
+    protected let meanStats = StatisticsSample(EXPECTED_CAP)
+    protected let meanOverheadStats = StatisticsSample(EXPECTED_CAP)
+    protected let medianStats = StatisticsSample(EXPECTED_CAP)
+    protected let medianOverheadStats = StatisticsSample(EXPECTED_CAP)
+    protected let r2Stats = StatisticsSample(EXPECTED_CAP)
     let buffer = ArrayList<Float64>()
     let buffer2 = ArrayList<Float64>()
 
     // if we excluded measurements polluted by GC, do a separate analysis with all points included
-    var allPoints: ?BootstrapResult = None
-    var resultSample = StatisticsSample()
+    protected var allPoints: ?BootstrapResult = None
+    protected var resultSample = StatisticsSample()
 
-    BootstrapResult(
+    protected BootstrapResult(
         let separateGc: SeparateGc
     ){
         if (separateGc.hasSeparation()) {
@@ -563,7 +564,7 @@ class BootstrapResult {
         }
     }
 
-    prop overhead: StatisticsSample {
+    protected prop overhead: StatisticsSample {
         get() {
             let medianOH = medianOverheadStats.median
             let medianIrq = medianOverheadStats.sample.irq()
@@ -586,7 +587,7 @@ class BootstrapResult {
         BootstrapResult(AllPoints)
     }
 
-    func join(other: BootstrapResult): BootstrapResult {
+    protected func join(other: BootstrapResult): BootstrapResult {
         meanStats.sample.data.add(all: other.meanStats.sample.data)
         meanOverheadStats.sample.data.add(all: other.meanOverheadStats.sample.data)
         medianStats.sample.data.add(all: other.medianStats.sample.data)
@@ -596,7 +597,7 @@ class BootstrapResult {
         this
     }
 
-    func finish(rawData: ArrayList<BenchRawMeasurement>): Unit {
+    protected func finish(rawData: ArrayList<BenchRawMeasurement>): Unit {
         var f = None<Future<Unit>>
         if (let Some(all) <- allPoints) {
             f = spawn { all.finish(rawData) }
@@ -613,7 +614,7 @@ class BootstrapResult {
     }
 
     // bootstrap actual values distribution accounting for batch size and overhead
-    func valuesSample(rawData: ArrayList<BenchRawMeasurement>): StatisticsSample {
+    protected func valuesSample(rawData: ArrayList<BenchRawMeasurement>): StatisticsSample {
         let result = ArrayList<Float64>()
 
         let overhead = overhead.sample
@@ -674,7 +675,7 @@ class BootstrapResult {
         StatisticsSample(Sample(result))
     }
 
-    func appendStatisticsFromSample(subsample: ArrayList<BenchRawMeasurement>): Unit {
+    protected func appendStatisticsFromSample(subsample: ArrayList<BenchRawMeasurement>): Unit {
         allPoints?.appendStatisticsFromSample(subsample)
 
         let filtered = subsample.iterator().filter(separateGc.toFilter()).map{ x => (x[0], x[1]) } |> collectArray
