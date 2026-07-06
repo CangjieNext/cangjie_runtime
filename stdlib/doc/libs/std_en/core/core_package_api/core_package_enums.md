@@ -214,18 +214,18 @@ Example:
 main() {
     // Create a Some value
     var someValue: Option<Int64> = Some(5)
-    
+
     // Filter values greater than 3
     var filtered1 = someValue.filter({x => x > 3})
     println("Filter values > 3: ${filtered1}")
-    
+
     // Filter values less than 3
     var filtered2 = someValue.filter({x => x < 3})
     println("Filter values < 3: ${filtered2}")
-    
+
     // Create a None value
     var noneValue: Option<Int64> = None
-    
+
     // Apply filter to None value
     var filtered3 = noneValue.filter({x => x > 3})
     println("Filter None value: ${filtered3}")
@@ -272,21 +272,21 @@ func intToStringOption(x: Int64): Option<String> {
 main() {
     // Create a Some value
     var someValue: Option<Int64> = Some(5)
-    
+
     // Use flatMap to convert Int64 to String
     var flatMapped1 = someValue.flatMap(intToStringOption)
     println("Apply flatMap to Some value: ${flatMapped1}")
-    
+
     // Create a negative Some value
     var someNegativeValue: Option<Int64> = Some(-3)
-    
+
     // Apply flatMap to negative value
     var flatMapped2 = someNegativeValue.flatMap(intToStringOption)
     println("Apply flatMap to negative Some value: ${flatMapped2}")
-    
+
     // Create a None value
     var noneValue: Option<Int64> = None
-    
+
     // Apply flatMap to None value
     var flatMapped3 = noneValue.flatMap(intToStringOption)
     println("Apply flatMap to None value: ${flatMapped3}")
@@ -364,14 +364,14 @@ Example:
 main() {
     // Create a Some value
     var someValue: Option<Int64> = Some(42)
-    
+
     // Apply getOrThrow to Some value, should return the value
     var value1 = someValue.getOrThrow({=> Exception("Value is None")})
     println("Value obtained from Some: ${value1}")
-    
+
     // Create a None value
     var noneValue: Option<Int64> = None
-    
+
     // Apply getOrThrow to None value, should throw exception
     try {
         noneValue.getOrThrow({=> Exception("Value is None")})
@@ -412,14 +412,14 @@ Example:
 main() {
     // Create a Some value
     var someValue: Option<Int64> = Some(42)
-    
+
     // Apply getOrThrow to Some value, should return the value
     var value1 = someValue.getOrThrow()
     println("Value obtained from Some: ${value1}")
-    
+
     // Create a None value
     var noneValue: Option<Int64> = None
-    
+
     // Apply getOrThrow to None value, should throw NoneValueException
     try {
         noneValue.getOrThrow()
@@ -456,13 +456,13 @@ Example:
 main() {
     // Create a Some value
     var someValue: Option<Int64> = Some(42)
-    
+
     // Check if it is None
     println("Some(42) is None: ${someValue.isNone()}")
-    
+
     // Create a None value
     var noneValue: Option<Int64> = None
-    
+
     // Check if it is None
     println("None is None: ${noneValue.isNone()}")
 }
@@ -494,13 +494,13 @@ Example:
 main() {
     // Create a Some value
     var someValue: Option<Int64> = Some(42)
-    
+
     // Check if it is Some
     println("Some(42) is Some: ${someValue.isSome()}")
-    
+
     // Create a None value
     var noneValue: Option<Int64> = None
-    
+
     // Check if it is Some
     println("None is Some: ${noneValue.isSome()}")
 }
@@ -536,14 +536,14 @@ Example:
 main() {
     // Create a Some value
     var someValue: Option<Int64> = Some(42)
-    
+
     // Use map to convert Int64 to String
     var mapped1 = someValue.map({x => "Number: ${x}"})
     println("Applying map to Some value: ${mapped1}")
-    
+
     // Create a None value
     var noneValue: Option<Int64> = None
-    
+
     // Apply map to None value
     var mapped2 = noneValue.map({x => "Number: ${x}"})
     println("Applying map to None value: ${mapped2}")
@@ -593,28 +593,28 @@ main() {
     // Create identical Some values
     var someValue1: Option<Int64> = Some(42)
     var someValue2: Option<Int64> = Some(42)
-    
+
     // Compare two identical Some values
     println("Some(42) != Some(42): ${someValue1 != someValue2}")
-    
+
     // Create different Some values
     var someValue3: Option<Int64> = Some(42)
     var someValue4: Option<Int64> = Some(24)
-    
+
     // Compare two different Some values
     println("Some(42) != Some(24): ${someValue3 != someValue4}")
-    
+
     // Create a Some value and a None value
     var someValue5: Option<Int64> = Some(42)
     var noneValue1: Option<Int64> = None
-    
+
     // Compare Some value with None value
     println("Some(42) != None: ${someValue5 != noneValue1}")
-    
+
     // Create two None values
     var noneValue2: Option<Int64> = None
     var noneValue3: Option<Int64> = None
-    
+
     // Compare two None values
     println("None != None: ${noneValue2 != noneValue3}")
 }
@@ -655,28 +655,28 @@ main() {
     // Create identical Some values
     var someValue1: Option<Int64> = Some(42)
     var someValue2: Option<Int64> = Some(42)
-    
+
     // Compare two identical Some values
     println("Some(42) == Some(42): ${someValue1 == someValue2}")
-    
+
     // Create different Some values
     var someValue3: Option<Int64> = Some(42)
     var someValue4: Option<Int64> = Some(24)
-    
+
     // Compare two different Some values
     println("Some(42) == Some(24): ${someValue3 == someValue4}")
-    
+
     // Create a Some value and a None value
     var someValue5: Option<Int64> = Some(42)
     var noneValue1: Option<Int64> = None
-    
+
     // Compare Some value with None value
     println("Some(42) == None: ${someValue5 == noneValue1}")
-    
+
     // Create two None values
     var noneValue2: Option<Int64> = None
     var noneValue3: Option<Int64> = None
-    
+
     // Compare two None values
     println("None == None: ${noneValue2 == noneValue3}")
 }
@@ -724,28 +724,28 @@ Example:
 main() {
     // Create a Some value
     var someValue: Option<Int64> = Some(42)
-    
+
     // Get the hash code of Some value
     var someHashCode = someValue.hashCode()
     println("Hash code of Some(42): ${someHashCode}")
-    
+
     // Create a None value
     var noneValue: Option<Int64> = None
-    
+
     // Get the hash code of None value
     var noneHashCode = noneValue.hashCode()
     println("Hash code of None: ${noneHashCode}")
-    
+
     // Compare hash codes of two identical Some values
     var someValue1: Option<Int64> = Some(42)
     var someValue2: Option<Int64> = Some(42)
-    
+
     println("Hash codes of Some(42) and Some(42) are equal: ${someValue1.hashCode() == someValue2.hashCode()}")
-    
+
     // Compare hash codes of two different Some values
     var someValue3: Option<Int64> = Some(42)
     var someValue4: Option<Int64> = Some(24)
-    
+
     println("Hash codes of Some(42) and Some(24) are equal: ${someValue3.hashCode() == someValue4.hashCode()}")
 }
 ```
@@ -790,21 +790,21 @@ Example:
 main() {
     // Create a Some value
     var someValue: Option<Int64> = Some(42)
-    
+
     // Convert Some value to string
     var someStr = someValue
     println("Some(42) converted to string: ${someStr}")
-    
+
     // Create a None value
     var noneValue: Option<Int64> = None
-    
+
     // Convert None value to string
     var noneStr = noneValue
     println("None converted to string: ${noneStr}")
-    
+
     // Create a Some value of String type
     var someStringValue: Option<String> = Some("Hello")
-    
+
     // Convert String-type Some value to string
     var someStringStr = someStringValue
     println("Some(\"Hello\") converted to string: ${someStringStr}")
@@ -846,25 +846,25 @@ Example:
 main() {
     // Create a Some(Some(42)) value of Option<Option<Int64>> type
     var nestedSome: Option<Option<Int64>> = Some(Some(42))
-    
+
     // Flatten the nested Option
     var flattened1 = nestedSome.flatten()
     println("Some(Some(42)) flattened: ${flattened1}")
-    
+
     // Create a Some(None) value of Option<Option<Int64>> type
     var someNone: Option<Option<Int64>> = Some(None)
-    
+
     // Flatten the nested Option
     var flattened2 = someNone.flatten()
     println("Some(None) flattened: ${flattened2}")
-    
+
     // Create a None value of Option<Option<Int64>> type
     var noneValue: Option<Option<Int64>> = None
-    
+
     // Flatten the nested Option
     var flattened3 = noneValue.flatten()
     println("None flattened: ${flattened3}")
-    
+
     // Demonstrate chained calls
     var chainedValue: Option<Option<Option<String>>> = Some(Some(Some("Hello")))
     var flattenedChained = chainedValue.flatten().flatten()
@@ -956,19 +956,19 @@ main() {
     var gt: Ordering = GT
     var eq: Ordering = EQ
     var lt: Ordering = LT
-    
+
     // Test comparison between GT and EQ
     var result1 = gt.compare(eq)
     println("GT.compare(EQ): ${result1.toString()}")
-    
+
     // Test comparison between EQ and LT
     var result2 = eq.compare(lt)
     println("EQ.compare(LT): ${result2.toString()}")
-    
+
     // Test comparison between LT and GT
     var result3 = lt.compare(gt)
     println("LT.compare(GT): ${result3.toString()}")
-    
+
     // Test equality case
     var result4 = gt.compare(gt)
     println("GT.compare(GT): ${result4.toString()}")
@@ -1017,12 +1017,12 @@ main() {
     var gt: Ordering = GT
     var eq: Ordering = EQ
     var lt: Ordering = LT
-    
+
     // Compute hash values
     var gtHash = gt.hashCode()
     var eqHash = eq.hashCode()
     var ltHash = lt.hashCode()
-    
+
     println("GT hash value: ${gtHash}")
     println("EQ hash value: ${eqHash}")
     println("LT hash value: ${ltHash}")
@@ -1076,12 +1076,12 @@ main() {
     var gt: Ordering = GT
     var eq: Ordering = EQ
     var lt: Ordering = LT
-    
+
     // Convert to strings
     var gtStr = gt.toString()
     var eqStr = eq.toString()
     var ltStr = lt.toString()
-    
+
     println("GT as string: ${gtStr}")
     println("EQ as string: ${eqStr}")
     println("LT as string: ${ltStr}")
@@ -1103,7 +1103,7 @@ public enum ThreadState <: ToString {
     | Ready
     | Running
     | Pending
-    | Terminated 
+    | Terminated
     | ...
 }
 ```

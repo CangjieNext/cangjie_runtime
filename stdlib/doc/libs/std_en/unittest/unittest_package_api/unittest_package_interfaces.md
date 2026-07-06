@@ -408,7 +408,7 @@ Type: [MeasurementInfo](../unittest_package_api/unittest_package_structs.md#stru
 ```cangjie
 public interface NearEquatable<CT, D> {
     func isNear(obj: CT, delta!: D): Bool
-} 
+}
 ```
 
 Purpose: Determines whether an object is approximately equal based on a given delta.

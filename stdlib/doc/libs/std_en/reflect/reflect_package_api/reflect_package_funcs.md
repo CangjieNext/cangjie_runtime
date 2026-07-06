@@ -8,7 +8,7 @@ public func parseParameterTypes(parameters: String): Array<TypeInfo>
 
 Function: Parses parameter types from a string and converts them into a type array for use by functions such as `getStaticFunction`.
 
-The qualified name of function parameter types refers to the parameter type portion of the function type, excluding parameter names, default values, and the outermost `()`.  
+The qualified name of function parameter types refers to the parameter type portion of the function type, excluding parameter names, default values, and the outermost `()`.
 Therefore, for the following Cangjie function:
 
 ```cangjie

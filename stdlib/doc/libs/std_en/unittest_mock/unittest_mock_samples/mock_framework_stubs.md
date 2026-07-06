@@ -51,7 +51,7 @@ Example:
 @On(storage.get(TEST_ID)).returns(Some(TEST_DATA)) // 2
 ```
 
-In this example, `storage` returns `None` for all parameters except `TEST_ID`.  
+In this example, `storage` returns `None` for all parameters except `TEST_ID`.
 If `get` is never called with the `TEST_ID` parameter, the test fails because stub **2** is unused. If `get` is always called with the `TEST_ID` parameter, the test fails because stub **1** is unused. These constraints ensure test code remains clean, letting developers know when stubs become unused. If this functionality isn't needed, use the `anyTimes()` cardinality specifier to relax these expectations.
 
 <!--compile.onlyformat-->
@@ -83,11 +83,11 @@ let isVisible = { c: Component => c.isVisible }
 
 ## Sharing Mock Objects and Stubs
 
-When tests require extensive use of mock objects, mock objects and/or stubs can be shared across multiple test cases.  
-Mock or spy objects can be created anywhere. However, leaking mock objects from one test case to another may cause order-dependent issues or test instability. Thus, this is not recommended, and the mock framework detects such scenarios.  
+When tests require extensive use of mock objects, mock objects and/or stubs can be shared across multiple test cases.
+Mock or spy objects can be created anywhere. However, leaking mock objects from one test case to another may cause order-dependent issues or test instability. Thus, this is not recommended, and the mock framework detects such scenarios.
 To share mock or spy objects between test cases within the same test class, place them in the class's instance variables.
 
-Stub declarations implicitly include expectations, making shared stubs harder to handle. Expectations cannot be shared between test cases.  
+Stub declarations implicitly include expectations, making shared stubs harder to handle. Expectations cannot be shared between test cases.
 Places where stubs can be declared:
 
 * Test case body (whether in `@Test` functions or `@TestCase` within `@Test` classes): Expectations are checked.
@@ -345,8 +345,8 @@ Stubbing modes reduce boilerplate code when configuring mock objects and can be 
 
 > **Note:**
 >
-> Enabling stubbing modes does not impose expectations on mock object members.  
-> Use caution when testing whether only specific members of a mock object are invoked. The behavior of the system under test may change unexpectedly while tests still pass.  
+> Enabling stubbing modes does not impose expectations on mock object members.
+> Use caution when testing whether only specific members of a mock object are invoked. The behavior of the system under test may change unexpectedly while tests still pass.
 > Current stubbing modes do not support stubbing static members or top-level functions/variables.
 
 ### ReturnsDefaults Mode

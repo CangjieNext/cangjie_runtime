@@ -112,9 +112,9 @@ public static func min(): Float16
 
 ```cangjie
 extend Float32 <: ArbitraryRange<Float32> {
-    public static func min(): Float32 
-    public static func max(): Float32 
-    public static func arbitraryRange(random: RandomSource, min: Float32, max: Float32): Generator<Float32> 
+    public static func min(): Float32
+    public static func max(): Float32
+    public static func arbitraryRange(random: RandomSource, min: Float32, max: Float32): Generator<Float32>
 }
 ```
 
@@ -166,9 +166,9 @@ public static func min(): Float32
 
 ```cangjie
 extend Float64 <: ArbitraryRange<Float64> {
-    public static func min(): Float64 
-    public static func max(): Float64 
-    public static func arbitraryRange(random: RandomSource, min: Float64, max: Float64): Generator<Float64> 
+    public static func min(): Float64
+    public static func max(): Float64
+    public static func arbitraryRange(random: RandomSource, min: Float64, max: Float64): Generator<Float64>
 }
 ```
 
@@ -220,9 +220,9 @@ public static func min(): Float64
 
 ```cangjie
 extend Int16 <: ArbitraryRange<Int16> {
-    public static func min(): Int16 
-    public static func max(): Int16 
-    public static func arbitraryRange(random: RandomSource, min: Int16, max: Int16): Generator<Int16> 
+    public static func min(): Int16
+    public static func max(): Int16
+    public static func arbitraryRange(random: RandomSource, min: Int16, max: Int16): Generator<Int16>
 }
 ```
 
@@ -274,9 +274,9 @@ public static func min(): Int16
 
 ```cangjie
 extend Int32 <: ArbitraryRange<Int32> {
-    public static func min(): Int32 
-    public static func max(): Int32 
-    public static func arbitraryRange(random: RandomSource, min: Int32, max: Int32): Generator<Int32> 
+    public static func min(): Int32
+    public static func max(): Int32
+    public static func arbitraryRange(random: RandomSource, min: Int32, max: Int32): Generator<Int32>
 }
 ```
 
@@ -328,9 +328,9 @@ public static func min(): Int32
 
 ```cangjie
 extend Int64 <: ArbitraryRange<Int64> {
-    public static func min(): Int64 
-    public static func max(): Int64 
-    public static func arbitraryRange(random: RandomSource, min: Int64, max: Int64): Generator<Int64> 
+    public static func min(): Int64
+    public static func max(): Int64
+    public static func arbitraryRange(random: RandomSource, min: Int64, max: Int64): Generator<Int64>
 }
 ```
 
@@ -382,9 +382,9 @@ public staticfunc min(): Int64
 
 ```cangjie
 extend Int8 <: ArbitraryRange<Int8> {
-    public static func min(): Int8 
-    public static func max(): Int8 
-    public static func arbitraryRange(random: RandomSource, min: Int8, max: Int8): Generator<Int8> 
+    public static func min(): Int8
+    public static func max(): Int8
+    public static func arbitraryRange(random: RandomSource, min: Int8, max: Int8): Generator<Int8>
 }
 ```
 
@@ -436,9 +436,9 @@ public staticfunc min(): Int8
 
 ```cangjie
 extend IntNative <: ArbitraryRange<IntNative> {
-    public static func min(): IntNative 
-    public static func max(): IntNative 
-    public static func arbitraryRange(random: RandomSource, min: IntNative, max: IntNative): Generator<IntNative> 
+    public static func min(): IntNative
+    public static func max(): IntNative
+    public static func arbitraryRange(random: RandomSource, min: IntNative, max: IntNative): Generator<IntNative>
 }
 ```
 
@@ -490,9 +490,9 @@ public staticfunc min(): IntNative
 
 ```cangjie
 extend UInt16 <: ArbitraryRange<UInt16> {
-    public static func min(): UInt16 
-    public static func max(): UInt16 
-    public static func arbitraryRange(random: RandomSource, min: UInt16, max: UInt16): Generator<UInt16> 
+    public static func min(): UInt16
+    public static func max(): UInt16
+    public static func arbitraryRange(random: RandomSource, min: UInt16, max: UInt16): Generator<UInt16>
 }
 ```
 
@@ -544,9 +544,9 @@ public staticfunc min(): UInt16
 
 ```cangjie
 extend UInt32 <: ArbitraryRange<UInt32> {
-    public static func min(): UInt32 
-    public static func max(): UInt32 
-    public static func arbitraryRange(random: RandomSource, min: UInt32, max: UInt32): Generator<UInt32> 
+    public static func min(): UInt32
+    public static func max(): UInt32
+    public static func arbitraryRange(random: RandomSource, min: UInt32, max: UInt32): Generator<UInt32>
 }
 ```
 
@@ -598,9 +598,9 @@ public staticfunc min(): UInt32
 
 ```cangjie
 extend UInt64 <: ArbitraryRange<UInt64> {
-    public static func min(): UInt64 
-    public static func max(): UInt64 
-    public static func arbitraryRange(random: RandomSource, min: UInt64, max: UInt64): Generator<UInt64> 
+    public static func min(): UInt64
+    public static func max(): UInt64
+    public static func arbitraryRange(random: RandomSource, min: UInt64, max: UInt64): Generator<UInt64>
 }
 ```
 
@@ -652,9 +652,9 @@ public staticfunc min(): UInt64
 
 ```cangjie
 extend UInt8 <: ArbitraryRange<UInt8> {
-    public static func min(): UInt8 
-    public static func max(): UInt8 
-    public static func arbitraryRange(random: RandomSource, min: UInt8, max: UInt8): Generator<UInt8> 
+    public static func min(): UInt8
+    public static func max(): UInt8
+    public static func arbitraryRange(random: RandomSource, min: UInt8, max: UInt8): Generator<UInt8>
 }
 ```
 
@@ -706,9 +706,9 @@ public staticfunc min(): UInt8
 
 ```cangjie
 extend UIntNative <: ArbitraryRange<UIntNative> {
-    public static func min(): UIntNative 
-    public static func max(): UIntNative 
-    public static func arbitraryRange(random: RandomSource, min: UIntNative, max: UIntNative): Generator<UIntNative> 
+    public static func min(): UIntNative
+    public static func max(): UIntNative
+    public static func arbitraryRange(random: RandomSource, min: UIntNative, max: UIntNative): Generator<UIntNative>
 }
 ```
 
@@ -1345,7 +1345,7 @@ public static func arbitrary(random: RandomSource): Generator<Option<T>>
 ### extend\<T> ArrayList\<T> <: Arbitrary\<ArrayList\<T>> where T <: Arbitrary\<T>
 
 ```cangjie
-extend<T> ArrayList<T> <: Arbitrary<ArrayList<T>> where T <: Arbitrary<T> 
+extend<T> ArrayList<T> <: Arbitrary<ArrayList<T>> where T <: Arbitrary<T>
 ```
 
 功能：为 [ArrayList](../../collection/collection_package_api/collection_package_class.md#class-arraylistt)\<T>  实现了 [Arbitrary](#interface-arbitraryt) 接口，且 T 需实现 [Arbitrary](#interface-arbitraryt)\<T> 接口。

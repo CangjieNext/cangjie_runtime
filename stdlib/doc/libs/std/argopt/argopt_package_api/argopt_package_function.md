@@ -97,7 +97,7 @@ main(): Unit {
 
 ```text
 选项:
-  h: 
+  h:
   output: output.txt
 非选项参数:
   file1.txt

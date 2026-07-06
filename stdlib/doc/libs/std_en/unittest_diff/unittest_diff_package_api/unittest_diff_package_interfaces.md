@@ -168,7 +168,7 @@ Returns:
 ### extend\<T> Option\<T> <: AssertPrintable\<Option\<T>> where T <: Equatable\<T>
 
 ```cangjie
-extend<T> Option<T> <: AssertPrintable<Option<T>> where T <: Equatable<T> 
+extend<T> Option<T> <: AssertPrintable<Option<T>> where T <: Equatable<T>
 ```
 
 Function: Extension for [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<T>.

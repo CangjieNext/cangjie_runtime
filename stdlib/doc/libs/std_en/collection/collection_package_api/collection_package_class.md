@@ -33,14 +33,14 @@ import std.collection.*
 
 main() {
     let deque = ArrayDeque<Int64>()
-    
+
     // Initial capacity is 8
     println("Initial capacity: ${deque.capacity}")  // 8
-    
+
     // Construct with specified capacity
     let deque2 = ArrayDeque<Int64>(16)
     println("Specified capacity: ${deque2.capacity}")  // 16
-    
+
     return 0
 }
 ```
@@ -72,14 +72,14 @@ main() {
     let deque = ArrayDeque<Int64>()
     deque.addLast(1)
     deque.addLast(2)
-    
+
     let first = deque.first
     println("First element: ${first}")  // Some(1)
-    
+
     let emptyDeque = ArrayDeque<String>()
     let noneFirst = emptyDeque.first
     println("First element of empty deque: ${noneFirst}")  // None
-    
+
     return 0
 }
 ```
@@ -111,14 +111,14 @@ main() {
     let deque = ArrayDeque<Int64>()
     deque.addLast(1)
     deque.addLast(2)
-    
+
     let last = deque.last
     println("Last element: ${last}")  // Some(2)
-    
+
     let emptyDeque = ArrayDeque<String>()
     let noneLast = emptyDeque.last
     println("Last element of empty deque: ${noneLast}")  // None
-    
+
     return 0
 }
 ```
@@ -149,14 +149,14 @@ import std.collection.*
 main() {
     let deque = ArrayDeque<Int64>()
     println("Initial size: ${deque.size}")  // 0
-    
+
     deque.addLast(1)
     deque.addLast(2)
     println("Size after adding 2 elements: ${deque.size}")  // 2
-    
+
     deque.removeFirst()
     println("Size after removing 1 element: ${deque.size}")  // 1
-    
+
     return 0
 }
 ```
@@ -226,11 +226,11 @@ main() {
     // Specified capacity greater than default
     let deque1 = ArrayDeque<Int64>(16)
     println("Initial capacity with specified 16: ${deque1.capacity}")  // 16
-    
+
     // Specified capacity less than default
     let deque2 = ArrayDeque<Int64>(4)
     println("Initial capacity with specified 4: ${deque2.capacity}")   // 8
-    
+
     return 0
 }
 ```
@@ -262,16 +262,16 @@ import std.collection.*
 
 main() {
     let deque = ArrayDeque<String>()
-    
+
     // Add elements at the head
     deque.addFirst("world")
     deque.addFirst("hello")
-    
+
     println("Deque contents: ${deque}")
     println("Deque size: ${deque.size}")
     println("First element: ${deque.first}")
     println("Last element: ${deque.last}")
-    
+
     return 0
 }
 ```
@@ -371,7 +371,7 @@ main() {
     deque.addLast(1)
     deque.addLast(2)
     deque.addLast(3)
-    
+
     // Iterate using for loop
     for (element in deque) {
         println(element)
@@ -410,7 +410,7 @@ main() {
     let deque1 = ArrayDeque<Int64>()
     let deque2 = ArrayDeque<Int64>()
     deque2.addLast(1)
-    
+
     println("Is deque1 empty: ${deque1.isEmpty()}")  // true
     println("Is deque2 empty: ${deque2.isEmpty()}")  // false
     return 0
@@ -446,11 +446,11 @@ main() {
     let deque = ArrayDeque<Int64>()
     deque.addLast(1)
     deque.addLast(2)
-    
+
     let first = deque.removeFirst()
     println("Removed element: ${first}")  // Some(1)
     println("Deque after removal: ${deque}")  // [2]
-    
+
     let emptyDeque = ArrayDeque<Int64>()
     let noneElement = emptyDeque.removeFirst()
     println("Element removed from empty deque: ${noneElement}")  // None
@@ -488,11 +488,11 @@ main() {
     let deque = ArrayDeque<Int64>()
     deque.addLast(1)
     deque.addLast(2)
-    
+
     let last = deque.removeLast()
     println("Removed element: ${last}")  // Some(2)
     println("Deque after removal: ${deque}")  // [1]
-    
+
     let emptyDeque = ArrayDeque<Int64>()
     let noneElement = emptyDeque.removeLast()
     println("Element removed from empty deque: ${noneElement}")  // None
@@ -530,21 +530,21 @@ import std.collection.*
 
 main() {
     let deque = ArrayDeque<Int64>()
-    
+
     // Initial capacity is 8
     println("Initial capacity: ${deque.capacity}")  // 8
-    
+
     // Reserve space
     deque.reserve(10)
     println("Capacity after reserving 10 elements: ${deque.capacity}")  // 12
-    
+
     // Add elements
     for (i in 0..5) {
         deque.addLast(i)
     }
     println("Capacity after adding 5 elements: ${deque.capacity}")   // 12
     println("Size after adding 5 elements: ${deque.size}")       // 5
-    
+
     return 0
 }
 ```
@@ -581,7 +581,7 @@ main() {
     deque.addLast(1)
     deque.addLast(2)
     deque.addLast(3)
-    
+
     let array = deque.toArray()
     println(array)  // [1, 2, 3]
     return 0
@@ -686,11 +686,11 @@ import std.collection.*
 main() {
     let list = ArrayList<Int64>()
     println("Initial size: ${list.size}")  // 0
-    
+
     list.add(1)
     list.add(2)
     println("Size after adding 2 elements: ${list.size}")  // 2
-    
+
     return 0
 }
 ```
@@ -721,13 +721,13 @@ import std.collection.*
 main() {
     let list = ArrayList<Int64>()
     println("Initial capacity: ${list.capacity}")  // 16
-    
+
     // Add elements until resizing occurs
     for (i in 0..17) {
         list.add(i)
     }
     println("Capacity after adding 17 elements: ${list.capacity}")  // 24
-    
+
     return 0
 }
 ```
@@ -759,14 +759,14 @@ main() {
     let list = ArrayList<Int64>()
     list.add(1)
     list.add(2)
-    
+
     let first = list.first
     println("First element: ${first}")  // Some(1)
-    
+
     let emptyList = ArrayList<String>()
     let noneFirst = emptyList.first
     println("First element of empty list: ${noneFirst}")  // None
-    
+
     return 0
 }
 ```
@@ -798,14 +798,14 @@ main() {
     let list = ArrayList<Int64>()
     list.add(1)
     list.add(2)
-    
+
     let last = list.last
     println("Last element: ${last}")  // Some(2)
-    
+
     let emptyList = ArrayList<String>()
     let noneLast = emptyList.last
     println("Last element of empty list: ${noneLast}")  // None
-    
+
     return 0
 }
 ```
@@ -908,11 +908,11 @@ main() {
     // Capacity larger than default
     let list1 = ArrayList<Int64>(32)
     println("Initial capacity with 32: ${list1.capacity}")  // 32
-    
+
     // Capacity smaller than default
     let list2 = ArrayList<Int64>(8)
     println("Initial capacity with 8: ${list2.capacity}")   // 8
-    
+
     return 0
 }
 ```
@@ -950,13 +950,13 @@ import std.collection.*
 main() {
     // Create a list with 5 elements, each being the square of its index
     let list = ArrayList<Int64>(5, {
-        index: Int64 => 
+        index: Int64 =>
         index * index
     })
-    
+
     println("List contents: ${list}")  // [0, 1, 4, 9, 16]
     println("List size: ${list.size}")  // 5
-    
+
     return 0
 }
 ```
@@ -997,11 +997,11 @@ import std.collection.*
 main() {
     let array = [1, 2, 3, 4, 5]
     let list = ArrayList<Int64>.of(array)
-    
+
     println("Array: ${array}")      // [1, 2, 3, 4, 5]
     println("List: ${list}")       // [1, 2, 3, 4, 5]
     println("List size: ${list.size}")  // 5
-    
+
     return 0
 }
 ```
@@ -1037,10 +1037,10 @@ main() {
     list.add(1)
     list.add(2)
     list.add(3)
-    
+
     println("List contents: ${list}")  // [1, 2, 3]
     println("List size: ${list.size}")  // 3
-    
+
     return 0
 }
 ```
@@ -1076,19 +1076,19 @@ main() {
     let list = ArrayList<Int64>()
     list.add(1)
     list.add(2)
-    
+
     // Create another list as Collection
     let newElements = ArrayList<Int64>()
     newElements.add(3)
     newElements.add(4)
     newElements.add(5)
-    
+
     // Append new elements to the original list
     list.add(all: newElements)
-    
+
     println("List contents: ${list}")  // [1, 2, 3, 4, 5]
     println("List size: ${list.size}")  // 5
-    
+
     return 0
 }
 ```
@@ -1127,13 +1127,13 @@ main() {
     let list = ArrayList<Int64>()
     list.add(1)
     list.add(3)
-    
+
     // Insert element 2 at index 1
     list.add(2, at: 1)
-    
+
     println("List contents: ${list}")  // [1, 2, 3]
     println("List size: ${list.size}")  // 3
-    
+
     return 0
 }
 ```
@@ -1174,17 +1174,17 @@ main() {
     let list = ArrayList<Int64>()
     list.add(1)
     list.add(5)
-    
+
     // Insert collection [2, 3, 4] at index 1
     let elements = ArrayList<Int64>()
     elements.add(2)
     elements.add(3)
     elements.add(4)
     list.add(all: elements, at: 1)
-    
+
     println("List contents: ${list}")  // [1, 2, 3, 4, 5]
     println("List size: ${list.size}")  // 5
-    
+
     return 0
 }
 ```
@@ -1255,16 +1255,16 @@ main() {
     list.add(1)
     list.add(2)
     list.add(3)
-    
+
     println("List contents before clearing: ${list}")  // [1, 2, 3]
     println("List size before clearing: ${list.size}")  // 3
-    
+
     list.clear()
-    
+
     println("List contents after clearing: ${list}")  // []
     println("List size after clearing: ${list.size}")  // 0
     println("Is list empty: ${list.isEmpty()}")  // true
-    
+
     return 0
 }
 ```
@@ -1302,18 +1302,18 @@ main() {
     originalList.add(1)
     originalList.add(2)
     originalList.add(3)
-    
+
     // Clone the list
     let clonedList = originalList.clone()
-    
+
     println("Original list: ${originalList}")  // [1, 2, 3]
     println("Cloned list: ${clonedList}")    // [1, 2, 3]
-    
+
     // Modifying original list doesn't affect cloned list
     originalList.add(4)
     println("Modified original list: ${originalList}")  // [1, 2, 3, 4]
     println("Cloned list remains unchanged: ${clonedList}")    // [1, 2, 3]
-    
+
     return 0
 }
 ```
@@ -1450,15 +1450,15 @@ main() {
     list.add(10)
     list.add(20)
     list.add(30)
-    
+
     // Get element at valid index
     let element = list.get(1)
     println("Element at index 1: ${element}")  // Some(20)
-    
+
     // Get element at invalid index
     let noneElement = list.get(5)
     println("Element at index 5: ${noneElement}")  // None
-    
+
     return 0
 }
 ```
@@ -1499,14 +1499,14 @@ main() {
     list.add(1)
     list.add(2)
     list.add(3)
-    
+
     // Get raw array
     unsafe {
         let rawArray = list.getRawArray()
         println("Raw array: ${rawArray}")
         println("Raw array size: ${rawArray.size}")  // May be larger than list size
     }
-    
+
     return 0
 }
 ```
@@ -1529,14 +1529,14 @@ main() {
     list.add(1)
     list.add(2)
     list.add(3)
-    
+
     // Get raw array
     unsafe {
         let rawArray = list.getRawArray()
         println("Raw array: ${rawArray}")
         println("Raw array size: ${rawArray.size}")  // May be larger than list size
     }
-    
+
     return 0
 }
 ```
@@ -1551,7 +1551,7 @@ Raw array size: 16
 ### func intersperse(T)
 
 ```cangjie
-public func intersperse(separator: T): ArrayList<T> 
+public func intersperse(separator: T): ArrayList<T>
 ```
 
 Function: Returns a new [ArrayList](collection_package_class.md#class-arraylistt) with the given element inserted between every two existing elements.
@@ -1590,10 +1590,10 @@ main() {
     let emptyList = ArrayList<Int64>()
     let nonEmptyList = ArrayList<Int64>()
     nonEmptyList.add(1)
-    
+
     println("Is empty list empty: ${emptyList.isEmpty()}")      // true
     println("Is non-empty list empty: ${nonEmptyList.isEmpty()}")  // false
-    
+
     return 0
 }
 ```
@@ -1628,13 +1628,13 @@ main() {
     list.add(1)
     list.add(2)
     list.add(3)
-    
+
     // Traverse the list using an iterator
     let iter = list.iterator()
     println(iter.next().getOrThrow())
     println(iter.next().getOrThrow())
     println(iter.next().getOrThrow())
-    
+
     return 0
 }
 ```
@@ -1738,14 +1738,14 @@ main() {
     list.add(1)
     list.add(2)
     list.add(3)
-    
+
     // Remove the element at index 1
     let removedElement = list.remove(at: 1)
-    
+
     println("Removed element: ${removedElement}")  // 2
     println("List after removal: ${list}")         // [1, 3]
     println("List size after removal: ${list.size}") // 2
-    
+
     return 0
 }
 ```
@@ -1791,13 +1791,13 @@ main() {
         list.add(i)
     }
     // list is now [0, 1, 2, 3, 4, 5, 6]
-    
+
     // Remove elements from index 1 to 3 (exclusive)
     list.remove(1..3)
-    
+
     println("List after removal: ${list}")      // [0, 3, 4, 5]
     println("List size after removal: ${list.size}") // 4
-    
+
     return 0
 }
 ```
@@ -1837,15 +1837,15 @@ main() {
         list.add(i)
     }
     // list is now [0, 1, 2, 3, 4, 5, 6]
-    
+
     // Remove all even elements
     list.removeIf({element: Int64 =>
         element % 2 == 0
     })
-    
+
     println("List after removing evens: ${list}")      // [1, 3, 5]
     println("List size after removal: ${list.size}") // 3
-    
+
     return 0
 }
 ```
@@ -1883,21 +1883,21 @@ import std.collection.*
 
 main() {
     let list = ArrayList<Int64>()
-    
+
     // Initial capacity is 16
     println("Initial capacity: ${list.capacity}")  // 16
-    
+
     // Reserve additional space
     list.reserve(20)
     println("Capacity after reserving 20 elements: ${list.capacity}")  // 24
-    
+
     // Add elements
     for (i in 0..10) {
         list.add(i)
     }
     println("Capacity after adding 10 elements: ${list.capacity}")   // 24
     println("Size after adding 10 elements: ${list.size}")       // 10
-    
+
     return 0
 }
 ```
@@ -1932,12 +1932,12 @@ main() {
     }
     // list is now [0, 1, 2, 3]
     println("Before reversal: ${list}")  // [0, 1, 2, 3]
-    
+
     // Reverse the list
     list.reverse()
-    
+
     println("After reversal: ${list}")  // [3, 2, 1, 0]
-    
+
     return 0
 }
 ```
@@ -1989,15 +1989,15 @@ main() {
         list.add(i)
     }
     // list is now [0, 1, 2, 3, 4, 5]
-    
+
     println("Original list: ${list}")  // [0, 1, 2, 3, 4, 5]
-    
+
     // Slice using range operator
     let sliceList = list[1..4]
-    
+
     println("Sliced list: ${sliceList}")     // [1, 2, 3]
     println("Sliced list size: ${sliceList.size}") // 3
-    
+
     return 0
 }
 ```
@@ -2068,9 +2068,9 @@ main() {
     list.add(2)
     // list is now [3, 1, 4, 2]
     println("Before sorting: ${list}")  // [3, 1, 4, 2]
-    
+
     // Sort in descending order
-    list.sortBy(comparator: {a: Int64, b: Int64 => 
+    list.sortBy(comparator: {a: Int64, b: Int64 =>
         if (a > b) {
             return Ordering.GT
         } else if (a < b) {
@@ -2079,9 +2079,9 @@ main() {
             return Ordering.EQ
         }
     })
-    
+
     println("After sorting: ${list}")  // [4, 3, 2, 1]
-    
+
     return 0
 }
 ```
@@ -2126,7 +2126,7 @@ main() {
     list.add(2)
     // list is now [3, 1, 4, 2]
     println("Before sorting: ${list}")  // [3, 1, 4, 2]
-    
+
     // Stable sort in descending order
     list.sortBy(stable: true, comparator: {a: Int64, b: Int64 =>
         if (a < b) {
@@ -2137,9 +2137,9 @@ main() {
             return Ordering.EQ
         }
     })
-    
+
     println("After stable sorting: ${list}")  // [4, 3, 2, 1]
-    
+
     return 0
 }
 ```
@@ -2226,13 +2226,13 @@ main() {
     }
     // list is now [0, 1, 2, 3]
     println("List: ${list}")  // [0, 1, 2, 3]
-    
+
     // Convert to array
     let array = list.toArray()
-    
+
     println("Array: ${array}")      // [0, 1, 2, 3]
     println("Array size: ${array.size}") // 4
-    
+
     return 0
 }
 ```
@@ -2276,16 +2276,16 @@ main() {
     list.add(10)
     list.add(20)
     list.add(30)
-    
+
     // Access element by index
     let element = list[1]
     println("Element at index 1: ${element}")  // 20
-    
+
     // Modify element at index
     list[1] = 25
     println("Modified element at index 1: ${list[1]}")  // 25
     println("Modified list: ${list}")           // [10, 25, 30]
-    
+
     return 0
 }
 ```
@@ -2326,15 +2326,15 @@ main() {
     list.add(10)
     list.add(20)
     list.add(30)
-    
+
     println("List before modification: ${list}")  // [10, 20, 30]
-    
+
     // Modify element by index
     list[1] = 25
-    
+
     println("List after modification: ${list}")  // [10, 25, 30]
     println("Element at index 1: ${list[1]}") // 25
-    
+
     return 0
 }
 ```
@@ -2388,15 +2388,15 @@ main() {
         list.add(i)
     }
     // list is now [0, 1, 2, 3, 4]
-    
+
     println("Original list: ${list}")  // [0, 1, 2, 3, 4]
-    
+
     // Slice using range operator
     let sliceList = list[1..4]
-    
+
     println("Sliced list: ${sliceList}")        // [1, 2, 3]
     println("Sliced list size: ${sliceList.size}") // 3
-    
+
     return 0
 }
 ```
@@ -2489,19 +2489,19 @@ main() {
     list1.add(1)
     list1.add(2)
     list1.add(3)
-    
+
     let list2 = ArrayList<Int64>()
     list2.add(1)
     list2.add(2)
     list2.add(3)
-    
+
     let list3 = ArrayList<Int64>()
     list3.add(1)
     list3.add(2)
-    
+
     println("list1 == list2: ${list1 == list2}")  // true
     println("list1 == list3: ${list1 == list3}")  // false
-    
+
     return 0
 }
 ```
@@ -2540,19 +2540,19 @@ main() {
     list1.add(1)
     list1.add(2)
     list1.add(3)
-    
+
     let list2 = ArrayList<Int64>()
     list2.add(1)
     list2.add(2)
-    
+
     let list3 = ArrayList<Int64>()
     list3.add(1)
     list3.add(2)
     list3.add(3)
-    
+
     println("list1 != list2: ${list1 != list2}")  // true
     println("list1 != list3: ${list1 != list3}")  // false
-    
+
     return 0
 }
 ```
@@ -2591,10 +2591,10 @@ main() {
     list.add(1)
     list.add(2)
     list.add(3)
-    
+
     println("List contains element 2: ${list.contains(2)}")  // true
     println("List contains element 5: ${list.contains(5)}")  // false
-    
+
     return 0
 }
 ```
@@ -2648,12 +2648,12 @@ main() {
     list.add(2)
     // list is now [3, 1, 4, 2]
     println("Before sorting: ${list}")  // [3, 1, 4, 2]
-    
+
     // Sort in ascending order
     list.sort()
-    
+
     println("After sorting: ${list}")  // [1, 2, 3, 4]
-    
+
     return 0
 }
 ```
@@ -2695,12 +2695,12 @@ main() {
     list.add(2)
     // list is now [3, 1, 4, 2]
     println("Before sorting: ${list}")  // [3, 1, 4, 2]
-    
+
     // Sort in ascending order using stable sort
     list.sort(stable: true)
-    
+
     println("After stable sorting: ${list}")  // [1, 2, 3, 4]
-    
+
     return 0
 }
 ```
@@ -2738,12 +2738,12 @@ main() {
     list.add(2)
     // list is now [3, 1, 4, 2]
     println("Before sorting: ${list}")  // [3, 1, 4, 2]
-    
+
     // Sort in descending order
     list.sortDescending()
-    
+
     println("After descending sort: ${list}")  // [4, 3, 2, 1]
-    
+
     return 0
 }
 ```
@@ -2785,12 +2785,12 @@ main() {
     list.add(2)
     // list is now [3, 1, 4, 2]
     println("Before sorting: ${list}")  // [3, 1, 4, 2]
-    
+
     // Sort in descending order using stable sort
     list.sortDescending(stable: true)
-    
+
     println("After stable descending sort: ${list}")  // [4, 3, 2, 1]
-    
+
     return 0
 }
 ```
@@ -2839,13 +2839,13 @@ main() {
     list.add(1)
     list.add(2)
     list.add(3)
-    
+
     let str = list.toString()
-    
+
     println("List: ${list}")     // [1, 2, 3]
     println("String: ${str}")    // [1, 2, 3]
     println("String length: ${str.size}") // 9
-    
+
     return 0
 }
 ```
@@ -2891,14 +2891,14 @@ import std.collection.*
 
 main() {
     let queue = ArrayQueue<Int64>()
-    
+
     // Initial capacity is 8
     println("Initial capacity: ${queue.capacity}")  // 8
-    
+
     // Constructor with specified capacity
     let queue2 = ArrayQueue<Int64>(16)
     println("Specified capacity: ${queue2.capacity}")  // 16
-    
+
     return 0
 }
 ```
@@ -2928,15 +2928,15 @@ import std.collection.*
 
 main() {
     let queue = ArrayQueue<Int64>()
-    
+
     // Initial size is 0
     println("Initial size: ${queue.size}")  // 0
-    
+
     // Size changes after adding elements
     queue.add(1)
     queue.add(2)
     println("Size after adding elements: ${queue.size}")  // 2
-    
+
     return 0
 }
 ```
@@ -2965,11 +2965,11 @@ import std.collection.*
 main() {
     // Create queue using default constructor
     let queue = ArrayQueue<Int64>()
-    
+
     println("Initial size: ${queue.size}")      // 0
     println("Initial capacity: ${queue.capacity}")  // 8
     println("Is empty: ${queue.isEmpty()}") // true
-    
+
     return 0
 }
 ```
@@ -3008,16 +3008,16 @@ main() {
     // Capacity larger than default
     let queue1 = ArrayQueue<Int64>(16)
     println("Queue capacity with specified 16: ${queue1.capacity}")  // 16
-    
+
     // Capacity smaller than default
     let queue2 = ArrayQueue<Int64>(4)
     println("Queue capacity with specified 4: ${queue2.capacity}")   // 8
-    
+
     // Test adding elements
     queue2.add(1)
     queue2.add(2)
     println("Size after adding elements: ${queue2.size}")  // 2
-    
+
     return 0
 }
 ```
@@ -3050,19 +3050,19 @@ import std.collection.*
 
 main() {
     let queue = ArrayQueue<Int64>()
-    
+
     // Add elements to queue tail
     queue.add(1)
     queue.add(2)
     queue.add(3)
-    
+
     println("Queue size: ${queue.size}")      // 3
     println("Queue capacity: ${queue.capacity}")  // 8
-    
+
     // Check head element
     let head = queue.peek()
     println("Head element: ${head}")  // Some(1)
-    
+
     return 0
 }
 ```
@@ -3091,21 +3091,21 @@ import std.collection.*
 
 main() {
     let queue = ArrayQueue<Int64>()
-    
+
     // Add some elements
     queue.add(1)
     queue.add(2)
     queue.add(3)
-    
+
     println("Size before clearing: ${queue.size}")      // 3
     println("Is empty before clearing: ${queue.isEmpty()}") // false
-    
+
     // Clear the queue
     queue.clear()
-    
+
     println("Size after clearing: ${queue.size}")      // 0
     println("Is empty after clearing: ${queue.isEmpty()}") // true
-    
+
     return 0
 }
 ```
@@ -3139,18 +3139,18 @@ import std.collection.*
 
 main() {
     let queue = ArrayQueue<Int64>()
-    
+
     // Add elements
     queue.add(1)
     queue.add(2)
     queue.add(3)
-    
+
     // Iterate through queue
     let iter = queue.iterator()
     println(iter.next())
     println(iter.next())
     println(iter.next())
-    
+
     return 0
 }
 ```
@@ -3183,18 +3183,18 @@ import std.collection.*
 
 main() {
     let queue = ArrayQueue<Int64>()
-    
+
     // Empty queue
     println("Is empty queue empty: ${queue.isEmpty()}")  // true
-    
+
     // After adding elements
     queue.add(1)
     println("Is queue empty after adding: ${queue.isEmpty()}")  // false
-    
+
     // After removing all elements
     queue.remove()
     println("Is queue empty after removing: ${queue.isEmpty()}")  // true
-    
+
     return 0
 }
 ```
@@ -3227,20 +3227,20 @@ import std.collection.*
 
 main() {
     let queue = ArrayQueue<Int64>()
-    
+
     // Peek empty queue
     let emptyPeek = queue.peek()
     println("Head element of empty queue: ${emptyPeek}")  // None
-    
+
     // Peek after adding elements
     queue.add(10)
     queue.add(20)
     let peekValue = queue.peek()
     println("Head element: ${peekValue}")  // Some(10)
-    
+
     // Peek doesn't remove elements
     println("Queue size after peek: ${queue.size}")  // 2
-    
+
     return 0
 }
 ```
@@ -3273,20 +3273,20 @@ import std.collection.*
 
 main() {
     let queue = ArrayQueue<Int64>()
-    
+
     // Remove from empty queue
     let emptyRemove = queue.remove()
     println("Removed from empty queue: ${emptyRemove}")  // None
-    
+
     // Remove after adding elements
     queue.add(10)
     queue.add(20)
     queue.add(30)
-    
+
     let removedElement = queue.remove()
     println("Removed element: ${removedElement}")  // Some(10)
     println("Queue size after removal: ${queue.size}")   // 2
-    
+
     return 0
 }
 ```
@@ -3326,21 +3326,21 @@ import std.collection.*
 
 main() {
     let queue = ArrayQueue<Int64>()
-    
+
     // Initial capacity
     println("Initial capacity: ${queue.capacity}")  // 8
-    
+
     // Reserve additional space
     queue.reserve(10)
     println("Capacity after reservation: ${queue.capacity}")  // 16 (expanded to nearest suitable size near 18)
-    
+
     // Test adding elements
     for (i in 0..15) {
         queue.add(i)
     }
     println("Capacity after adding 16 elements: ${queue.capacity}")  // 16
     println("Size after adding 16 elements: ${queue.size}")    // 16
-    
+
     return 0
 }
 ```
@@ -3374,20 +3374,20 @@ import std.collection.*
 
 main() {
     let queue = ArrayQueue<Int64>()
-    
+
     // Add elements
     queue.add(1)
     queue.add(2)
     queue.add(3)
-    
+
     println("Queue: ${queue}")  // [1, 2, 3]
-    
+
     // Convert to array
     let array = queue.toArray()
-    
+
     println("Array: ${array}")      // [1, 2, 3]
     println("Array size: ${array.size}") // 3
-    
+
     return 0
 }
 ```
@@ -3434,20 +3434,20 @@ import std.collection.*
 
 main() {
     let queue = ArrayQueue<Int64>()
-    
+
     // Empty queue to string
     let emptyStr = queue.toString()
     println("Empty queue string: ${emptyStr}")  // []
-    
+
     // Queue to string after adding elements
     queue.add(1)
     queue.add(2)
     queue.add(3)
-    
+
     let str = queue.toString()
     println("Queue string: ${str}")      // [1, 2, 3]
     println("String length: ${str.size}")  // 9
-    
+
     return 0
 }
 ```
@@ -3495,14 +3495,14 @@ import std.collection.*
 
 main() {
     let stack = ArrayStack<Int64>()
-    
+
     // Initial capacity is 8
     println("Initial capacity: ${stack.capacity}")  // 8
-    
+
     // Construct with specified capacity
     let stack2 = ArrayStack<Int64>(16)
     println("Specified capacity: ${stack2.capacity}")  // 16
-    
+
     return 0
 }
 ```
@@ -3532,15 +3532,15 @@ import std.collection.*
 
 main() {
     let stack = ArrayStack<Int64>()
-    
+
     // Initial size is 0
     println("Initial size: ${stack.size}")  // 0
-    
+
     // Size changes after adding elements
     stack.add(1)
     stack.add(2)
     println("Size after adding elements: ${stack.size}")  // 2
-    
+
     return 0
 }
 ```
@@ -3569,11 +3569,11 @@ import std.collection.*
 main() {
     // Create stack using default constructor
     let stack = ArrayStack<Int64>()
-    
+
     println("Initial size: ${stack.size}")      // 0
     println("Initial capacity: ${stack.capacity}")  // 8
     println("Is empty: ${stack.isEmpty()}") // true
-    
+
     return 0
 }
 ```
@@ -3612,16 +3612,16 @@ main() {
     // Specify capacity greater than default
     let stack1 = ArrayStack<Int64>(16)
     println("Stack capacity with specified 16: ${stack1.capacity}")  // 16
-    
+
     // Specify capacity less than default
     let stack2 = ArrayStack<Int64>(4)
     println("Stack capacity with specified 4: ${stack2.capacity}")   // 8
-    
+
     // Test adding elements
     stack2.add(1)
     stack2.add(2)
     println("Size after adding elements: ${stack2.size}")  // 2
-    
+
     return 0
 }
 ```
@@ -3654,19 +3654,19 @@ import std.collection.*
 
 main() {
     let stack = ArrayStack<Int64>()
-    
+
     // Add elements to stack top
     stack.add(1)
     stack.add(2)
     stack.add(3)
-    
+
     println("Stack size: ${stack.size}")      // 3
     println("Stack capacity: ${stack.capacity}")  // 8
-    
+
     // View top element
     let top = stack.peek()
     println("Top element: ${top}")  // Some(3)
-    
+
     return 0
 }
 ```
@@ -3695,21 +3695,21 @@ import std.collection.*
 
 main() {
     let stack = ArrayStack<Int64>()
-    
+
     // Add some elements
     stack.add(1)
     stack.add(2)
     stack.add(3)
-    
+
     println("Size before clearing: ${stack.size}")      // 3
     println("Is empty before clearing: ${stack.isEmpty()}") // false
-    
+
     // Clear stack
     stack.clear()
-    
+
     println("Size after clearing: ${stack.size}")      // 0
     println("Is empty after clearing: ${stack.isEmpty()}") // true
-    
+
     return 0
 }
 ```
@@ -3743,18 +3743,18 @@ import std.collection.*
 
 main() {
     let stack = ArrayStack<Int64>()
-    
+
     // Empty stack
     println("Is empty stack empty: ${stack.isEmpty()}")  // true
-    
+
     // After adding elements
     stack.add(1)
     println("Is empty after adding elements: ${stack.isEmpty()}")  // false
-    
+
     // After removing all elements
     stack.remove()
     println("Is empty after removing elements: ${stack.isEmpty()}")  // true
-    
+
     return 0
 }
 ```
@@ -3787,18 +3787,18 @@ import std.collection.*
 
 main() {
     let stack = ArrayStack<Int64>()
-    
+
     // Add elements
     stack.add(1)
     stack.add(2)
     stack.add(3)
-    
+
     // Iterate over stack using iterator
     let iter = stack.iterator()
     println(iter.next())
     println(iter.next())
     println(iter.next())
-    
+
     return 0
 }
 ```
@@ -3831,20 +3831,20 @@ import std.collection.*
 
 main() {
     let stack = ArrayStack<Int64>()
-    
+
     // Peek top element of empty stack
     let emptyPeek = stack.peek()
     println("Top element of empty stack: ${emptyPeek}")  // None
-    
+
     // Peek top element after adding elements
     stack.add(10)
     stack.add(20)
     let peekValue = stack.peek()
     println("Top element: ${peekValue}")  // Some(20)
-    
+
     // Peeking doesn't remove elements
     println("Size after peeking: ${stack.size}")  // 2
-    
+
     return 0
 }
 ```
@@ -3877,20 +3877,20 @@ import std.collection.*
 
 main() {
     let stack = ArrayStack<Int64>()
-    
+
     // Remove from empty stack
     let emptyRemove = stack.remove()
     println("Removed from empty stack: ${emptyRemove}")  // None
-    
+
     // Remove after adding elements
     stack.add(10)
     stack.add(20)
     stack.add(30)
-    
+
     let removedElement = stack.remove()
     println("Removed element: ${removedElement}")  // Some(30)
     println("Size after removal: ${stack.size}")   // 2
-    
+
     return 0
 }
 ```
@@ -3923,21 +3923,21 @@ import std.collection.*
 
 main() {
     let stack = ArrayStack<Int64>()
-    
+
     // Initial capacity
     println("Initial capacity: ${stack.capacity}")  // 8
-    
+
     // Reserve additional space
     stack.reserve(10)
     println("Capacity after reservation: ${stack.capacity}")  // 12 (expands to nearest suitable size around 18)
-    
+
     // Test adding elements
     for (i in 0..15) {
         stack.add(i)
     }
     println("Capacity after adding 16 elements: ${stack.capacity}")  // 18
     println("Size after adding 16 elements: ${stack.size}")    // 16
-    
+
     return 0
 }
 ```
@@ -3971,20 +3971,20 @@ import std.collection.*
 
 main() {
     let stack = ArrayStack<Int64>()
-    
+
     // Add elements
     stack.add(1)
     stack.add(2)
     stack.add(3)
-    
+
     println("Stack: ${stack}")  // [3, 2, 1]
-    
+
     // Convert to array
     let array = stack.toArray()
-    
+
     println("Array: ${array}")      // [3, 2, 1]
     println("Array size: ${array.size}") // 3
-    
+
     return 0
 }
 ```
@@ -4031,20 +4031,20 @@ import std.collection.*
 
 main() {
     let stack = ArrayStack<Int64>()
-    
+
     // Empty stack to string
     let emptyStr = stack.toString()
     println("Empty stack string: ${emptyStr}")  // []
-    
+
     // Add elements and convert to string
     stack.add(1)
     stack.add(2)
     stack.add(3)
-    
+
     let str = stack.toString()
     println("Stack string: ${str}")      // [3, 2, 1]
     println("String length: ${str.size}")  // 9
-    
+
     return 0
 }
 ```
@@ -4095,10 +4095,10 @@ main() {
     map["one"] = 1
     map["two"] = 2
     map["three"] = 3
-    
+
     // Create HashMapIterator using HashMap
     let iterator = HashMapIterator<String, Int64>(map)
-    
+
     println("HashMapIterator created successfully")
     return 0
 }
@@ -4138,11 +4138,11 @@ main() {
     map["one"] = 1
     map["two"] = 2
     map["three"] = 3
-    
+
     // Create iterator and get the first element
     let iterator = HashMapIterator<String, Int64>(map)
     let firstElement = iterator.next()
-    
+
     if (firstElement.isSome()) {
         println("Successfully retrieved element")
     } else {
@@ -4185,16 +4185,16 @@ main() {
     let map = HashMap<String, Int64>()
     map["one"] = 1
     map["two"] = 2
-    
+
     // Create iterator, retrieve and remove element
     let iterator = HashMapIterator<String, Int64>(map)
     let element = iterator.next()  // First call next to get element
     let removed = iterator.remove()  // Then call remove to delete element
-    
+
     if (element.isSome()) {
         println("Successfully retrieved element")
     }
-    
+
     if (removed.isSome()) {
         println("Successfully removed element")
     }
@@ -4250,14 +4250,14 @@ import std.collection.*
 main() {
     // Create a default HashMap
     let map = HashMap<String, Int64>()
-    
+
     // Check initial capacity
     println("Initial capacity: ${map.capacity}")  // 16
-    
+
     // Create HashMap with specified capacity
     let map2 = HashMap<String, Int64>(32)
     println("Specified capacity: ${map2.capacity}")  // 32
-    
+
     return 0
 }
 ```
@@ -4288,15 +4288,15 @@ import std.collection.*
 main() {
     // Create a HashMap
     let map = HashMap<String, Int64>()
-    
+
     // Check initial size
     println("Initial size: ${map.size}")  // 0
-    
+
     // Check size after adding elements
     map["one"] = 1
     map["two"] = 2
     println("Size after adding elements: ${map.size}")  // 2
-    
+
     return 0
 }
 ```
@@ -4325,11 +4325,11 @@ import std.collection.*
 main() {
     // Create HashMap using default constructor
     let map = HashMap<String, Int64>()
-    
+
     println("Initial size: ${map.size}")      // 0
     println("Initial capacity: ${map.capacity}")  // 16
     println("Is empty: ${map.isEmpty()}") // true
-    
+
     return 0
 }
 ```
@@ -4366,15 +4366,15 @@ main() {
     // Create HashMap from array
     let elements = [("one", 1), ("two", 2), ("three", 3)]
     let map = HashMap<String, Int64>(elements)
-    
+
     println("HashMap size: ${map.size}")      // 3
     println("HashMap capacity: ${map.capacity}")  // 3
-    
+
     // Check if element exists
     if (map.contains("one")) {
         println("Contains key 'one'")
     }
-    
+
     return 0
 }
 ```
@@ -4411,15 +4411,15 @@ main() {
     // Create HashMap from collection
     let list = ArrayList<(String, Int64)>([("a", 1), ("b", 2), ("c", 3)])
     let map = HashMap<String, Int64>(list)
-    
+
     println("HashMap size: ${map.size}")  // 3
-    
+
     // Check element
     let value = map.get("b")
     if (value.isSome()) {
         println("Value for key 'b': ${value.getOrThrow()}")  // 2
     }
-    
+
     return 0
 }
 ```
@@ -4456,15 +4456,15 @@ import std.collection.*
 main() {
     // Create HashMap with specified capacity
     let map = HashMap<String, Int64>(32)
-    
+
     println("HashMap capacity: ${map.capacity}")  // 32
     println("HashMap size: ${map.size}")      // 0
-    
+
     // Add elements
     map["key1"] = 100
     map["key2"] = 200
     println("Size after adding elements: ${map.size}")    // 2
-    
+
     return 0
 }
 ```
@@ -4504,19 +4504,19 @@ import std.collection.*
 
 main() {
     // Create HashMap using size and initialization function
-    let map = HashMap<String, Int64>(3, {index => 
+    let map = HashMap<String, Int64>(3, {index =>
         let keys = ["first", "second", "third"]
         return (keys[index], index * 10)
     })
-    
+
     println("HashMap size: ${map.size}")  // 3
-    
+
     // Check elements
     let value = map.get("second")
     if (value.isSome()) {
         println("Value for key 'second': ${value.getOrThrow()}")  // 10
     }
-    
+
     return 0
 }
 ```
@@ -4556,19 +4556,19 @@ import std.collection.*
 main() {
     // Create HashMap
     let map = HashMap<String, Int64>()
-    
+
     // Add new key-value pair
     let result1 = map.add("first", 100)
     println("Return value for adding new key 'first': ${result1.isSome()}")  // false
-    
+
     // Replace existing key
     let result2 = map.add("first", 200)
     if (result2.isSome()) {
         println("Old value for replaced key 'first': ${result2.getOrThrow()}")  // 100
     }
-    
+
     println("Current value for 'first': ${map["first"]}")  // 200
-    
+
     return 0
 }
 ```
@@ -4605,19 +4605,19 @@ main() {
     // Create HashMap
     let map = HashMap<String, Int64>()
     map["a"] = 1
-    
+
     // Create collection to add
     let newElements = ArrayList<(String, Int64)>([("b", 2), ("c", 3), ("a", 10)])
-    
+
     println("Size before adding collection: ${map.size}")  // 1
     println("Value for 'a' before adding collection: ${map["a"]}")  // 1
-    
+
     // Add key-value pair collection
     map.add(all: newElements)
-    
+
     println("Size after adding collection: ${map.size}")  // 3
     println("Value for 'a' after adding collection: ${map["a"]}")  // 10
-    
+
     return 0
 }
 ```
@@ -4691,16 +4691,16 @@ main() {
     map["a"] = 1
     map["b"] = 2
     map["c"] = 3
-    
+
     println("Size before clearing: ${map.size}")  // 3
     println("Is empty before clearing: ${map.isEmpty()}")  // false
-    
+
     // Clear all key-value pairs
     map.clear()
-    
+
     println("Size after clearing: ${map.size}")  // 0
     println("Is empty after clearing: ${map.isEmpty()}")  // true
-    
+
     return 0
 }
 ```
@@ -4737,18 +4737,18 @@ main() {
     let originalMap = HashMap<String, Int64>()
     originalMap["a"] = 1
     originalMap["b"] = 2
-    
+
     // Clone HashMap
     let clonedMap = originalMap.clone()
-    
+
     println("Original HashMap size: ${originalMap.size}")  // 2
     println("Cloned HashMap size: ${clonedMap.size}")    // 2
-    
+
     // Modify cloned HashMap
     clonedMap["c"] = 3
     println("Original HashMap size after modification: ${originalMap.size}")  // 2
     println("Cloned HashMap size after modification: ${clonedMap.size}")    // 3
-    
+
     return 0
 }
 ```
@@ -4789,14 +4789,14 @@ main() {
     let map = HashMap<String, Int64>()
     map["apple"] = 1
     map["banana"] = 2
-    
+
     // Check if specified keys exist
     let hasApple = map.contains("apple")
     let hasOrange = map.contains("orange")
-    
+
     println("Contains key 'apple': ${hasApple}")  // true
     println("Contains key 'orange': ${hasOrange}")  // false
-    
+
     return 0
 }
 ```
@@ -4836,16 +4836,16 @@ main() {
     map["a"] = 1
     map["b"] = 2
     map["c"] = 3
-    
+
     // Check if specified key collections exist
     let keys1 = ArrayList<String>(["a", "b"])
     let result1 = map.contains(all: keys1)
     println("Contains keys [a, b]: ${result1}")  // true
-    
+
     let keys2 = ArrayList<String>(["a", "d"])
     let result2 = map.contains(all: keys2)
     println("Contains keys [a, d]: ${result2}")  // false
-    
+
     return 0
 }
 ```
@@ -4883,17 +4883,17 @@ main() {
     // Create HashMap
     let map = HashMap<String, Int64>()
     map["key1"] = 100
-    
+
     // Get reference view for existing key
     let view1 = map.entryView("key1")
     if (view1.value.isSome()) {
         println("Found key 'key1' with value: ${view1.value.getOrThrow()}")  // 100
     }
-    
+
     // Set value via entryView
     view1.value = Some(150)
     println("Modified value for key 'key1': ${map["key1"]}")  // 150
-    
+
     return 0
 }
 ```
@@ -4988,19 +4988,19 @@ main() {
     let map = HashMap<String, Int64>()
     map["name"] = 100
     map["age"] = 25
-    
+
     // Get existing key
     let nameValue = map.get("name")
     if (nameValue.isSome()) {
         println("Value for key 'name': ${nameValue.getOrThrow()}")  // 100
     }
-    
+
     // Get non-existent key
     let heightValue = map.get("height")
     if (heightValue.isNone()) {
         println("Key 'height' does not exist")
     }
-    
+
     return 0
 }
 ```
@@ -5033,18 +5033,18 @@ import std.collection.*
 main() {
     // Create empty HashMap
     let map = HashMap<String, Int64>()
-    
+
     // Check if empty
     println("Is empty HashMap empty: ${map.isEmpty()}")  // true
-    
+
     // Check after adding elements
     map["key"] = 100
     println("Is empty after adding elements: ${map.isEmpty()}")  // false
-    
+
     // Check after clearing
     map.clear()
     println("Is empty after clearing: ${map.isEmpty()}")  // true
-    
+
     return 0
 }
 ```
@@ -5081,10 +5081,10 @@ main() {
     map["a"] = 1
     map["b"] = 2
     map["c"] = 3
-    
+
     // Get iterator
     let iterator = map.iterator()
-    
+
     // Iterate elements
     var count = 0
     while (true) {
@@ -5094,9 +5094,9 @@ main() {
         }
         count += 1
     }
-    
+
     println("Number of elements iterated: ${count}")  // 3
-    
+
     return 0
 }
 ```
@@ -5131,17 +5131,17 @@ main() {
     map["a"] = 1
     map["b"] = 2
     map["c"] = 3
-    
+
     // Get all keys
     let keys = map.keys()
-    
+
     println("Number of keys: ${keys.size}")  // 3
-    
+
     // Check if contains specific key
     if (keys.contains("b")) {
         println("Contains key 'b'")  // Contains key 'b'
     }
-    
+
     return 0
 }
 ```
@@ -5258,19 +5258,19 @@ main() {
     map["b"] = 2
     map["c"] = 3
     map["d"] = 4
-    
+
     println("Size before removal: ${map.size}")  // 4
-    
+
     // Create keys to remove
     let keysToRemove = ArrayList<String>(["a", "c", "e"])
-    
+
     // Remove specified keys
     map.remove(all: keysToRemove)
-    
+
     println("Size after removal: ${map.size}")  // 2
     println("Contains 'b': ${map.contains("b")}")  // true
     println("Contains 'a': ${map.contains("a")}")  // false
-    
+
     return 0
 }
 ```
@@ -5312,23 +5312,23 @@ main() {
     map["x"] = 10
     map["y"] = 20
     map["z"] = 30
-    
+
     println("Size before removal: ${map.size}")  // 3
-    
+
     // Remove existing key
     let removedValue = map.remove("y")
     if (removedValue.isSome()) {
         println("Removed key 'y', returned value: ${removedValue.getOrThrow()}")  // 20
     }
-    
+
     // Remove non-existent key
     let nonExistValue = map.remove("w")
     if (nonExistValue.isNone()) {
         println("Key 'w' doesn't exist, returns None")
     }
-    
+
     println("Size after removal: ${map.size}")  // 2
-    
+
     return 0
 }
 ```
@@ -5373,20 +5373,20 @@ main() {
     map["b"] = 2
     map["c"] = 3
     map["d"] = 4
-    
+
     println("Size before removal: ${map.size}")  // 4
-    
+
     // Remove key-value pairs where value > 2
     map.removeIf({_: String, value: Int64 => value > 2})
-    
+
     println("Size after removal: ${map.size}")  // 2
-    
+
     // Check remaining elements
     let remaining = map.get("b")
     if (remaining.isSome()) {
         println("Key 'b' still exists with value: ${remaining.getOrThrow()}")  // 2
     }
-    
+
     return 0
 }
 ```
@@ -5432,22 +5432,22 @@ import std.collection.*
 main() {
     // Create HashMap
     let map = HashMap<String, Int64>()
-    
+
     println("Initial capacity: ${map.capacity}")  // 16
-    
+
     // Reserve additional space
     map.reserve(20)
-    
+
     println("Capacity after reservation: ${map.capacity}")  // 24 (expanded to appropriate size)
-    
+
     // Add elements for testing
     for (i in 0..30) {
         map["key${i}"] = i
     }
-    
+
     println("Capacity after adding elements: ${map.capacity}")  // 36
     println("Size after adding elements: ${map.size}")    // 30
-    
+
     return 0
 }
 ```
@@ -5485,18 +5485,18 @@ main() {
     map["a"] = 1
     map["b"] = 2
     map["c"] = 3
-    
+
     // Convert to array
     let array = map.toArray()
-    
+
     println("Array size: ${array.size}")  // 3
-    
+
     // Iterate through array elements
     for (i in 0..array.size) {
         let (key, value) = array[i]
         println("Key: ${key}, Value: ${value}")
     }
-    
+
     return 0
 }
 ```
@@ -5534,12 +5534,12 @@ main() {
     map["apple"] = 10
     map["banana"] = 20
     map["orange"] = 30
-    
+
     // Get all values
     let values = map.values()
-    
+
     println("Number of values: ${values.size}")  // 3
-    
+
     // Iterate through all values
     println("All values: ")
     for (i in values) {
@@ -5553,7 +5553,7 @@ Output:
 
 ```text
 Number of values: 3
-All values: 
+All values:
 10
 20
 30
@@ -5581,19 +5581,19 @@ import std.collection.*
 main() {
     // Create HashMap
     let map = HashMap<String, Int64>()
-    
+
     // Use [] operator to set key-value pairs
     map["first"] = 100
     map["second"] = 200
-    
+
     println("Size after setting: ${map.size}")  // 2
-    
+
     // Overwrite existing key
     map["first"] = 150
-    
+
     println("Value of 'first' after overwrite: ${map["first"]}")  // 150
     println("Value of 'second': ${map["second"]}")  // 200
-    
+
     return 0
 }
 ```
@@ -5637,14 +5637,14 @@ main() {
     let map = HashMap<String, Int64>()
     map["data1"] = 100
     map["data2"] = 200
-    
+
     // Use [] operator to get values
     let value1 = map["data1"]
     let value2 = map["data2"]
-    
+
     println("Value of key 'data1': ${value1}")  // 100
     println("Value of key 'data2': ${value2}")  // 200
-    
+
     return 0
 }
 ```
@@ -5697,21 +5697,21 @@ main() {
     let map1 = HashMap<String, Int64>()
     map1["a"] = 1
     map1["b"] = 2
-    
+
     let map2 = HashMap<String, Int64>()
     map2["b"] = 2
     map2["a"] = 1
-    
+
     let map3 = HashMap<String, Int64>()
     map3["a"] = 1
     map3["b"] = 3
-    
+
     // Compare equal HashMaps
     println("map1 == map2: ${map1 == map2}")  // true
-    
+
     // Compare unequal HashMaps
     println("map1 == map3: ${map1 == map3}")  // false
-    
+
     return 0
 }
 ```
@@ -5750,21 +5750,21 @@ main() {
     let map1 = HashMap<String, Int64>()
     map1["x"] = 10
     map1["y"] = 20
-    
+
     let map2 = HashMap<String, Int64>()
     map2["x"] = 10
     map2["y"] = 30
-    
+
     let map3 = HashMap<String, Int64>()
     map3["y"] = 20
     map3["x"] = 10
-    
+
     // Compare unequal HashMaps
     println("map1 != map2: ${map1 != map2}")  // true
-    
+
     // Compare equal HashMaps
     println("map1 != map3: ${map1 != map3}")  // false
-    
+
     return 0
 }
 ```
@@ -5814,13 +5814,13 @@ main() {
     map["apple"] = 5
     map["banana"] = 3
     map["orange"] = 8
-    
+
     // Convert to string
     let mapString = map.toString()
-    
+
     println("String representation of empty collection: ${HashMap<String, Int64>().toString()}")  // []
     println("String representation of HashMap: ${mapString}")
-    
+
     return 0
 }
 ```
@@ -5875,16 +5875,16 @@ import std.collection.*
 main() {
     // Create empty HashSet
     let set = HashSet<String>()
-    
+
     println("Initial size: ${set.size}")  // 0
-    
+
     // Check size after adding elements
     set.add("apple")
     set.add("banana")
     set.add("apple")  // Duplicate element, not added
-    
+
     println("Size after adding elements: ${set.size}")  // 2
-    
+
     return 0
 }
 ```
@@ -5921,18 +5921,18 @@ import std.collection.*
 
 main() {
     // Create HashSet using size and initialization function
-    let set = HashSet<String>(3, {index => 
+    let set = HashSet<String>(3, {index =>
         let fruits = ["apple", "banana", "orange"]
         return fruits[index]
     })
-    
+
     println("HashSet size: ${set.size}")  // 3
-    
+
     // Check if element exists
     if (set.contains("banana")) {
         println("Contains 'banana'")
     }
-    
+
     return 0
 }
 ```
@@ -5961,11 +5961,11 @@ import std.collection.*
 main() {
     // Create HashSet using default constructor
     let set = HashSet<String>()
-    
+
     println("Initial size: ${set.size}")      // 0
     println("Initial capacity: ${set.capacity}")  // 16
     println("Is empty: ${set.isEmpty()}") // true
-    
+
     return 0
 }
 ```
@@ -6000,15 +6000,15 @@ main() {
     // Create HashSet from array
     let elements = ["apple", "banana", "orange", "apple"]  // Contains duplicates
     let set = HashSet<String>(elements)
-    
+
     println("HashSet size: ${set.size}")      // 3 (no duplicates)
     println("HashSet capacity: ${set.capacity}")  // 4 (set based on array size)
-    
+
     // Check if element exists
     if (set.contains("apple")) {
         println("Contains 'apple'")
     }
-    
+
     return 0
 }
 ```
@@ -6043,14 +6043,14 @@ main() {
     // Create HashSet from collection
     let list = ArrayList<String>(["red", "green", "blue", "red"])
     let set = HashSet<String>(list)
-    
+
     println("HashSet size: ${set.size}")  // 3
-    
+
     // Check element
     if (set.contains("green")) {
         println("Contains 'green'")
     }
-    
+
     return 0
 }
 ```
@@ -6087,25 +6087,25 @@ import std.collection.*
 main() {
     // Create HashSet with specified capacity
     let set = HashSet<String>(32)
-    
+
     println("Initial capacity: ${set.capacity}")  // 32
     println("Initial size: ${set.size}")      // 0
     println("Is empty: ${set.isEmpty()}") // true
-    
+
     // Add some elements
     set.add("apple")
     set.add("banana")
     set.add("orange")
-    
+
     println("\nAfter adding elements:")
     println("Capacity: ${set.capacity}")      // 32
     println("Size: ${set.size}")          // 3
     println("Is empty: ${set.isEmpty()}") // false
-    
+
     // Compare with default capacity HashSet
     let defaultSet = HashSet<String>()
     println("\nDefault capacity HashSet: ${defaultSet.capacity}") // 16
-    
+
     return 0
 }
 ```
@@ -6150,17 +6150,17 @@ import std.collection.*
 main() {
     // Create HashSet
     let set = HashSet<String>()
-    
+
     // Add new element
     let result1 = set.add("apple")
     println("Result of adding 'apple': ${result1}")  // true
-    
+
     // Add duplicate element
     let result2 = set.add("apple")
     println("Result of adding 'apple' again: ${result2}")  // false
-    
+
     println("Set size: ${set.size}")  // 1
-    
+
     return 0
 }
 ```
@@ -6195,17 +6195,17 @@ main() {
     // Create HashSet
     let set = HashSet<String>()
     set.add("existing")
-    
+
     // Create collection of elements to add
     let newElements = ArrayList<String>(["apple", "banana", "existing", "orange"])
-    
+
     println("Size before adding collection: ${set.size}")  // 1
-    
+
     // Add element collection
     set.add(all: newElements)
-    
+
     println("Size after adding collection: ${set.size}")  // 4
-    
+
     return 0
 }
 ```
@@ -6280,15 +6280,15 @@ main() {
     // Create a default HashSet
     let set = HashSet<String>()
     println("Default capacity: ${set.capacity}")  // 16
-    
+
     // Create a HashSet with specified capacity
     let set2 = HashSet<String>(32)
     println("Specified capacity: ${set2.capacity}")  // 32
-    
+
     // Capacity remains unchanged after adding elements
     set.add("test")
     println("Capacity after adding elements: ${set.capacity}")  // 16
-    
+
     return 0
 }
 ```
@@ -6321,16 +6321,16 @@ main() {
     set.add("apple")
     set.add("banana")
     set.add("orange")
-    
+
     println("Size before clearing: ${set.size}")  // 3
     println("Is empty before clearing: ${set.isEmpty()}")  // false
-    
+
     // Clear all elements
     set.clear()
-    
+
     println("Size after clearing: ${set.size}")  // 0
     println("Is empty after clearing: ${set.isEmpty()}")  // true
-    
+
     return 0
 }
 ```
@@ -6367,18 +6367,18 @@ main() {
     let originalSet = HashSet<String>()
     originalSet.add("apple")
     originalSet.add("banana")
-    
+
     // Clone the HashSet
     let clonedSet = originalSet.clone()
-    
+
     println("Original HashSet size: ${originalSet.size}")  // 2
     println("Cloned HashSet size: ${clonedSet.size}")    // 2
-    
+
     // Modify the cloned HashSet
     clonedSet.add("orange")
     println("Original HashSet size after modification: ${originalSet.size}")  // 2
     println("Cloned HashSet size after modification: ${clonedSet.size}")    // 3
-    
+
     return 0
 }
 ```
@@ -6420,24 +6420,24 @@ main() {
     set.add("apple")
     set.add("banana")
     set.add("orange")
-    
+
     // Check for existing element
     if (set.contains("apple")) {
         println("Contains 'apple'")
     }
-    
+
     // Check for non-existing element
     if (!set.contains("grape")) {
         println("Does not contain 'grape'")
     }
-    
+
     // Use contains to check multiple elements
     let elements = ["apple", "grape", "banana"]
     for (element in elements) {
         let exists = set.contains(element)
         println("'${element}': ${exists}")
     }
-    
+
     return 0
 }
 ```
@@ -6481,25 +6481,25 @@ main() {
     set.add("banana")
     set.add("orange")
     set.add("grape")
-    
+
     // Check for a subset of elements
     let subset1 = ["apple", "banana"]
     if (set.contains(all: subset1)) {
         println("Contains all elements: ${subset1}")
     }
-    
+
     // Check for a collection with non-existing elements
     let subset2 = ["apple", "cantaloupe"]
     if (!set.contains(all: subset2)) {
         println("Does not contain all elements: ${subset2}")
     }
-    
+
     // Check for an empty collection
     let emptyList = Array<String>()
     if (set.contains(all: emptyList)) {
         println("Contains empty collection")
     }
-    
+
     // Use another HashSet as the check collection
     let otherSet = HashSet<String>()
     otherSet.add("orange")
@@ -6507,7 +6507,7 @@ main() {
     if (set.contains(all: otherSet)) {
         println("Contains all elements from the other HashSet")
     }
-    
+
     return 0
 }
 ```
@@ -6618,22 +6618,22 @@ import std.collection.*
 main() {
     // Create an empty HashSet
     let set = HashSet<String>()
-    
+
     // Check initial state
     println("Initially empty: ${set.isEmpty()}")
     println("Initial size: ${set.size}")
-    
+
     // Check after adding elements
     set.add("apple")
     set.add("banana")
     println("Empty after adding elements: ${set.isEmpty()}")
     println("Size after adding elements: ${set.size}")
-    
+
     // Check after clearing
     set.clear()
     println("Empty after clearing: ${set.isEmpty()}")
     println("Size after clearing: ${set.size}")
-    
+
     return 0
 }
 ```
@@ -6673,7 +6673,7 @@ main() {
     set.add("apple")
     set.add("banana")
     set.add("orange")
-    
+
     // Traverse elements using iterator
     println("Traversing with iterator:")
     let iter = set.iterator()
@@ -6683,13 +6683,13 @@ main() {
             case None => break
         }
     }
-    
+
     // Traverse elements using for-in loop (internally uses iterator)
     println("\nTraversing with for-in loop:")
     for (element in set) {
         println("- ${element}")
     }
-    
+
     return 0
 }
 ```
@@ -6796,25 +6796,25 @@ main() {
     set.add("apple")
     set.add("banana")
     set.add("orange")
-    
+
     println("Initial size: ${set.size}")
-    
+
     // Remove existing element
     let result1 = set.remove("banana")
     println("Result of removing 'banana': ${result1}")
     println("Size after removal: ${set.size}")
-    
+
     // Remove non-existent element
     let result2 = set.remove("grape")
     println("Result of removing 'grape': ${result2}")
     println("Final size: ${set.size}")
-    
+
     // Check remaining elements
     println("Remaining elements:")
     for (element in set) {
         println("- ${element}")
     }
-    
+
     return 0
 }
 ```
@@ -6858,38 +6858,38 @@ main() {
     set.add("orange")
     set.add("grape")
     set.add("cantaloupe")
-    
+
     println("Initial size: ${set.size}")
     println("Initial elements:")
     for (element in set) {
         println("- ${element}")
     }
-    
+
     // Remove elements from array
     let toRemove = ["apple", "grape", "mango"]  // Includes non-existent element
     set.remove(all: toRemove)
-    
+
     println("\nAfter removing ${toRemove}:")
     println("Size after removal: ${set.size}")
     println("Remaining elements:")
     for (element in set) {
         println("- ${element}")
     }
-    
+
     // Remove elements using another HashSet
     let otherSet = HashSet<String>()
     otherSet.add("banana")
     otherSet.add("cantaloupe")
-    
+
     set.remove(all: otherSet)
-    
+
     println("\nAfter further removing ${otherSet}:")
     println("Final size: ${set.size}")
     println("Final elements:")
     for (element in set) {
         println("- ${element}")
     }
-    
+
     return 0
 }
 ```
@@ -6949,31 +6949,31 @@ main() {
     set.add(4)
     set.add(5)
     set.add(6)
-    
+
     println("Initial set:")
     for (element in set) {
         println("- ${element}")
     }
     println("Initial size: ${set.size}")
-    
+
     // Remove even numbers
     set.removeIf({num: Int64 => num % 2 == 0})
-    
+
     println("\nAfter removing even numbers:")
     for (element in set) {
         println("- ${element}")
     }
     println("Size after removal: ${set.size}")
-    
+
     // Remove elements greater than 3
     set.removeIf({num: Int64 => num > 3})
-    
+
     println("\nAfter removing elements > 3:")
     for (element in set) {
         println("- ${element}")
     }
     println("Final size: ${set.size}")
-    
+
     return 0
 }
 ```
@@ -7029,31 +7029,31 @@ main() {
     let set = HashSet<String>()
     set.add("apple")
     set.add("banana")
-    
+
     println("Initial capacity: ${set.capacity}")
     println("Initial size: ${set.size}")
-    
+
     // Reserve additional capacity
     set.reserve(10)
-    
+
     println("Capacity after reservation: ${set.capacity}")
     println("Size after reservation: ${set.size}")
-    
+
     // Add more elements to test expansion
     for (i in 0..5) {
         set.add("item${i}")
     }
-    
+
     println("Capacity after adding elements: ${set.capacity}")
     println("Size after adding elements: ${set.size}")
-    
+
     // Attempt to reserve smaller capacity (no effect)
     let beforeCapacity = set.capacity
     set.reserve(1)
-    
+
     println("Capacity after small reservation: ${set.capacity}")
     println("Whether changed: ${beforeCapacity != set.capacity}")
-    
+
     return 0
 }
 ```
@@ -7097,33 +7097,33 @@ main() {
     set.add("orange")
     set.add("grape")
     set.add("cantaloupe")
-    
+
     println("Original set:")
     for (element in set) {
         println("- ${element}")
     }
     println("Original size: ${set.size}")
-    
+
     // Create set of elements to retain
     let toRetain = HashSet<String>()
     toRetain.add("apple")
     toRetain.add("orange")
     toRetain.add("mango")  // Not present in original set
-    
+
     println("\nElements to retain:")
     for (element in toRetain) {
         println("- ${element}")
     }
-    
+
     // Retain specified elements
     set.retain(all: toRetain)
-    
+
     println("\nSet after retention:")
     for (element in set) {
         println("- ${element}")
     }
     println("Size after retention: ${set.size}")
-    
+
     return 0
 }
 ```
@@ -7179,32 +7179,32 @@ main() {
     superSet.add("banana")
     superSet.add("orange")
     superSet.add("grape")
-    
+
     // Create subset
     let subSet = HashSet<String>()
     subSet.add("apple")
     subSet.add("banana")
-    
+
     println("Parent set: ${superSet}")
     println("Subset: ${subSet}")
     println("Is subset of parent: ${subSet.subsetOf(superSet)}")
-    
+
     // Test non-subset relationship
     let nonSubSet = HashSet<String>()
     nonSubSet.add("apple")
     nonSubSet.add("cantaloupe")  // Not present in parent set
-    
+
     println("\nNon-subset: ${nonSubSet}")
     println("Is non-subset of parent: ${nonSubSet.subsetOf(superSet)}")
-    
+
     // Test empty set (empty set is subset of any set)
     let emptySet = HashSet<String>()
     println("\nEmpty set: ${emptySet}")
     println("Is empty set subset of parent: ${emptySet.subsetOf(superSet)}")
-    
+
     // Test self-subset relationship
     println("Is parent set subset of itself: ${superSet.subsetOf(superSet)}")
-    
+
     return 0
 }
 ```
@@ -7248,18 +7248,18 @@ main() {
     set.add("apple")
     set.add("banana")
     set.add("orange")
-    
+
     println("Set size: ${set.size}")
-    
+
     // Convert to array
     let array = set.toArray()
-    
+
     println("Array size: ${array.size}")
     println("Array elements:")
     for (i in 0..array.size) {
         println("[${i}] = ${array[i]}")
     }
-    
+
     // Verify array contains all set elements
     println("\nElement verification:")
     for (element in set) {
@@ -7272,7 +7272,7 @@ main() {
         }
         println("'${element}' in array: ${found}")
     }
-    
+
     return 0
 }
 ```
@@ -7321,35 +7321,35 @@ main() {
     set1.add("apple")
     set1.add("banana")
     set1.add("orange")
-    
+
     let set2 = HashSet<String>()
     set2.add("banana")
     set2.add("orange")
     set2.add("grape")
-    
+
     println("Set 1: ${set1}")
     println("Set 2: ${set2}")
-    
+
     // Calculate intersection (common elements)
     let intersection = set1 & set2
     println("Intersection (set1 & set2): ${intersection}")
     println("Intersection size: ${intersection.size}")
-    
+
     // Test empty intersection
     let set3 = HashSet<String>()
     set3.add("cantaloupe")
     set3.add("mango")
-    
+
     let emptyIntersection = set1 & set3
     println("\nSet 3: ${set3}")
     println("Empty intersection (set1 & set3): ${emptyIntersection}")
     println("Empty intersection size: ${emptyIntersection.size}")
-    
+
     // Test self-intersection
     let selfIntersection = set1 & set1
     println("\nSelf-intersection (set1 & set1): ${selfIntersection}")
     println("Self-intersection size: ${selfIntersection.size}")
-    
+
     return 0
 }
 ```
@@ -7397,42 +7397,42 @@ main() {
     let set1 = HashSet<String>()
     set1.add("apple")
     set1.add("banana")
-    
+
     let set2 = HashSet<String>()
     set2.add("banana")
     set2.add("orange")
     set2.add("grape")
-    
+
     println("Set 1: ${set1}")
     println("Set 2: ${set2}")
-    
+
     // Calculate union (all elements without duplicates)
     let union = set1 | set2
     println("Union (set1 | set2): ${union}")
     println("Union size: ${union.size}")
-    
+
     // Test union with empty set
     let emptySet = HashSet<String>()
     let unionWithEmpty = set1 | emptySet
     println("\nEmpty set: ${emptySet}")
     println("Union with empty set (set1 | empty): ${unionWithEmpty}")
     println("Union with empty set size: ${unionWithEmpty.size}")
-    
+
     // Test self-union
     let selfUnion = set1 | set1
     println("\nSelf-union (set1 | set1): ${selfUnion}")
     println("Self-union size: ${selfUnion.size}")
-    
+
     // Test completely distinct sets
     let set3 = HashSet<String>()
     set3.add("cantaloupe")
     set3.add("mango")
-    
+
     let disjointUnion = set1 | set3
     println("\nSet 3: ${set3}")
     println("Union of distinct sets (set1 | set3): ${disjointUnion}")
     println("Union of distinct sets size: ${disjointUnion.size}")
-    
+
     return 0
 }
 ```
@@ -7485,36 +7485,36 @@ main() {
     set1.add("apple")
     set1.add("banana")
     set1.add("orange")
-    
+
     let set2 = HashSet<String>()
     set2.add("banana")
     set2.add("grape")
     set2.add("cantaloupe")
-    
+
     println("Set 1: ${set1}")
     println("Set 2: ${set2}")
-    
+
     // Calculate difference (set1 - set2)
     let difference = set1 - set2
     println("Difference (set1 - set2): ${difference}")
     println("Difference size: ${difference.size}")
-    
+
     // Calculate reverse difference (set2 - set1)
     let reverseDifference = set2 - set1
     println("\nReverse difference (set2 - set1): ${reverseDifference}")
     println("Reverse difference size: ${reverseDifference.size}")
-    
+
     // Difference with empty set
     let emptySet = HashSet<String>()
     let diffWithEmpty = set1 - emptySet
     println("\nDifference with empty set (set1 - empty): ${diffWithEmpty}")
     println("Difference with empty set size: ${diffWithEmpty.size}")
-    
+
     // Self-difference
     let selfDiff = set1 - set1
     println("\nSelf-difference (set1 - set1): ${selfDiff}")
     println("Self-difference size: ${selfDiff.size}")
-    
+
     return 0
 }
 ```
@@ -7579,32 +7579,32 @@ main() {
     set1.add("apple")
     set1.add("banana")
     set1.add("orange")
-    
+
     let set2 = HashSet<String>()
     set2.add("banana")
     set2.add("apple")  // Different order but same elements
     set2.add("orange")
-    
+
     // Compare identical sets
     println("Set 1 size: ${set1.size}")
     println("Set 2 size: ${set2.size}")
     println("Set 1 == Set 2: ${set1 == set2}")
-    
+
     // Create different HashSet
     let set3 = HashSet<String>()
     set3.add("apple")
     set3.add("grape")  // Different element
-    
+
     println("\nSet 3 size: ${set3.size}")
     println("Set 1 == Set 3: ${set1 == set3}")
-    
+
     // Test empty sets
     let emptySet1 = HashSet<String>()
     let emptySet2 = HashSet<String>()
-    
+
     println("\nEmpty set 1 == Empty set 2: ${emptySet1 == emptySet2}")
     println("Empty set == Non-empty set: ${emptySet1 == set1}")
-    
+
     return 0
 }
 ```
@@ -7650,32 +7650,32 @@ main() {
     let set1 = HashSet<String>()
     set1.add("apple")
     set1.add("banana")
-    
+
     let set2 = HashSet<String>()
     set2.add("apple")
     set2.add("orange")  // Different element
-    
+
     println("Set 1: [apple, banana]")
     println("Set 2: [apple, orange]")
     println("Set 1 != Set 2: ${set1 != set2}")
-    
+
     // Test identical sets
     let set3 = HashSet<String>()
     set3.add("apple")
     set3.add("banana")
-    
+
     println("\nSet 3: [apple, banana]")
     println("Set 1 != Set 3: ${set1 != set3}")
-    
+
     // Test empty vs non-empty sets
     let emptySet = HashSet<String>()
-    
+
     println("\nEmpty set != Non-empty set: ${emptySet != set1}")
-    
+
     // Test two empty sets
     let anotherEmptySet = HashSet<String>()
     println("Empty set 1 != Empty set 2: ${emptySet != anotherEmptySet}")
-    
+
     return 0
 }
 ```
@@ -7730,31 +7730,31 @@ main() {
     // Create an empty HashSet
     let emptySet = HashSet<String>()
     println("Empty set: ${emptySet.toString()}")
-    
+
     // Create a single-element HashSet
     let singleSet = HashSet<String>()
     singleSet.add("apple")
     println("Single-element set: ${singleSet.toString()}")
-    
+
     // Create a multi-element HashSet
     let multiSet = HashSet<String>()
     multiSet.add("apple")
     multiSet.add("banana")
     multiSet.add("orange")
-    
+
     println("Multi-element set: ${multiSet.toString()}")
-    
+
     // Use numeric type HashSet
     let numSet = HashSet<Int64>()
     numSet.add(1)
     numSet.add(2)
     numSet.add(3)
-    
+
     println("Numeric set: ${numSet.toString()}")
-    
+
     // Direct usage in println (automatically calls toString)
     println("Automatic toString call: ${multiSet}")
-    
+
     return 0
 }
 ```
@@ -7803,12 +7803,12 @@ import std.collection.*
 
 main() {
     let list = LinkedList<Int64>()
-    
+
     // Add elements
     list.addLast(10)
     list.addLast(20)
     list.addLast(30)
-    
+
     // Get first node and check its next property
     let firstNode = list.firstNode
     if (let Some(node) <- firstNode) {
@@ -7821,7 +7821,7 @@ main() {
     } else {
         println("List is empty")
     }
-    
+
     // Get last node and check its next property
     let lastNode = list.lastNode
     if (let Some(node) <- lastNode) {
@@ -7834,7 +7834,7 @@ main() {
     } else {
         println("List is empty")
     }
-    
+
     return 0
 }
 ```
@@ -7868,12 +7868,12 @@ import std.collection.*
 
 main() {
     let list = LinkedList<Int64>()
-    
+
     // Add elements
     list.addLast(10)
     list.addLast(20)
     list.addLast(30)
-    
+
     // Get last node and check its prev property
     let lastNode = list.lastNode
     if (let Some(node) <- lastNode) {
@@ -7886,7 +7886,7 @@ main() {
     } else {
         println("List is empty")
     }
-    
+
     // Get first node and check its prev property
     let firstNode = list.firstNode
     if (let Some(node) <- firstNode) {
@@ -7899,7 +7899,7 @@ main() {
     } else {
         println("List is empty")
     }
-    
+
     return 0
 }
 ```
@@ -7933,29 +7933,29 @@ import std.collection.*
 
 main() {
     let list = LinkedList<Int64>()
-    
+
     // Add elements
     list.addLast(10)
     list.addLast(20)
     list.addLast(30)
-    
+
     // Get first node and access its value property
     let firstNode = list.firstNode
     if (let Some(node) <- firstNode) {
         println("First node value: ${node.value}")
-        
+
         // Modify node's value
         node.value = 100
         println("Modified first node value: ${node.value}")
     } else {
         println("List is empty")
     }
-    
+
     // Verify first node's value was modified
     if (let Some(node) <- list.firstNode) {
         println("Confirmed first node value: ${node.value}")
     }
-    
+
     return 0
 }
 ```
@@ -8007,7 +8007,7 @@ import std.collection.*
 
 main() {
     let list = LinkedList<Int64>()
-    
+
     // Empty list case
     let firstValue1 = list.first
     if (let Some(value) <- firstValue1) {
@@ -8015,19 +8015,19 @@ main() {
     } else {
         println("List is empty")
     }
-    
+
     // After adding elements
     list.addLast(100)
     list.addLast(200)
     list.addLast(300)
-    
+
     let firstValue2 = list.first
     if (let Some(value) <- firstValue2) {
         println("First element: ${value}")
     } else {
         println("List is empty")
     }
-    
+
     return 0
 }
 ```
@@ -8057,7 +8057,7 @@ import std.collection.*
 
 main() {
     let list = LinkedList<Int64>()
-    
+
     // Empty list case
     let firstNode1 = list.firstNode
     if (let Some(node) <- firstNode1) {
@@ -8065,19 +8065,19 @@ main() {
     } else {
         println("List is empty")
     }
-    
+
     // After adding elements
     list.addLast(100)
     list.addLast(200)
     list.addLast(300)
-    
+
     let firstNode2 = list.firstNode
     if (let Some(node) <- firstNode2) {
         println("First node value: ${node.value}")
     } else {
         println("List is empty")
     }
-    
+
     return 0
 }
 ```
@@ -8107,7 +8107,7 @@ import std.collection.*
 
 main() {
     let list = LinkedList<Int64>()
-    
+
     // Empty list case
     let lastValue1 = list.last
     if (let Some(value) <- lastValue1) {
@@ -8115,19 +8115,19 @@ main() {
     } else {
         println("List is empty")
     }
-    
+
     // After adding elements
     list.addLast(10)
     list.addLast(20)
     list.addLast(30)
-    
+
     let lastValue2 = list.last
     if (let Some(value) <- lastValue2) {
         println("Last element: ${value}")
     } else {
         println("List is empty")
     }
-    
+
     return 0
 }
 ```
@@ -8157,7 +8157,7 @@ import std.collection.*
 
 main() {
     let list = LinkedList<Int64>()
-    
+
     // Empty list case
     let lastNode1 = list.lastNode
     if (let Some(node) <- lastNode1) {
@@ -8165,19 +8165,19 @@ main() {
     } else {
         println("List is empty")
     }
-    
+
     // After adding elements
     list.addLast(100)
     list.addLast(200)
     list.addLast(300)
-    
+
     let lastNode2 = list.lastNode
     if (let Some(node) <- lastNode2) {
         println("Last node value: ${node.value}")
     } else {
         println("List is empty")
     }
-    
+
     return 0
 }
 ```
@@ -8207,26 +8207,26 @@ import std.collection.*
 
 main() {
     let list = LinkedList<String>()
-    
+
     // Check size of empty list
     println("Empty list size: ${list.size}")
-    
+
     // Add elements and observe size changes
     list.addLast("First")
     println("Size after adding one element: ${list.size}")
-    
+
     list.addLast("Second")
     list.addLast("Third")
     println("Size after adding three elements: ${list.size}")
-    
+
     // Remove element and observe size change
     list.removeFirst()
     println("Size after removing one element: ${list.size}")
-    
+
     // Clear the list
     list.clear()
     println("Size after clearing: ${list.size}")
-    
+
     return 0
 }
 ```
@@ -8258,22 +8258,22 @@ import std.collection.*
 main() {
     // Create an empty LinkedList
     let list = LinkedList<Int64>()
-    
+
     // Check properties of empty list
     println("Newly created list size: ${list.size}")
     println("Is empty: ${list.isEmpty()}")
-    
+
     let firstValue = list.first
     if (let Some(value) <- firstValue) {
         println("First element: ${value}")
     } else {
         println("List is empty, no first element")
     }
-    
+
     // Validate by adding elements
     list.addLast(42)
     println("Size after adding element: ${list.size}")
-    
+
     return 0
 }
 ```
@@ -8309,28 +8309,28 @@ main() {
     // Create LinkedList from Array
     let arr = [10, 20, 30, 40, 50]
     let list = LinkedList<Int64>(arr)
-    
+
     // Check list properties
     println("List size created from array: ${list.size}")
-    
+
     // Check first and last elements
     let firstValue = list.first
     if (let Some(value) <- firstValue) {
         println("First element: ${value}")
     }
-    
+
     let lastValue = list.last
     if (let Some(value) <- lastValue) {
         println("Last element: ${value}")
     }
-    
+
     // Verify order: iterate all elements
     print("All elements in list: ")
     for (element in list) {
         print("${element} ")
     }
     println()
-    
+
     return 0
 }
 ```
@@ -8341,7 +8341,7 @@ Output:
 List size created from array: 5
 First element: 10
 Last element: 50
-All elements in list: 10 20 30 40 50 
+All elements in list: 10 20 30 40 50
 ```
 
 ### init(Collection\<T>)
@@ -8368,31 +8368,31 @@ main() {
     arrayList.add(100)
     arrayList.add(200)
     arrayList.add(300)
-    
+
     // Create LinkedList from Collection
     let list = LinkedList<Int64>(arrayList)
-    
+
     // Check list properties
     println("List size created from Collection: ${list.size}")
-    
+
     // Check first and last elements
     let firstValue = list.first
     if (let Some(value) <- firstValue) {
         println("First element: ${value}")
     }
-    
+
     let lastValue = list.last
     if (let Some(value) <- lastValue) {
         println("Last element: ${value}")
     }
-    
+
     // Verify order: iterate all elements
     print("All elements in list: ")
     for (element in list) {
         print("${element} ")
     }
     println()
-    
+
     return 0
 }
 ```
@@ -8403,7 +8403,7 @@ Output:
 List size created from Collection: 3
 First element: 100
 Last element: 300
-All elements in list: 100 200 300 
+All elements in list: 100 200 300
 ```
 
 ### init(Int64, (Int64)-> T)
@@ -8432,28 +8432,28 @@ import std.collection.*
 main() {
     // Create LinkedList using lambda function
     let list = LinkedList<Int64>(5, {index: Int64 => index * 10})
-    
+
     // Check list properties
     println("List size created with lambda: ${list.size}")
-    
+
     // Check first and last elements
     let firstValue = list.first
     if (let Some(value) <- firstValue) {
         println("First element: ${value}")
     }
-    
+
     let lastValue = list.last
     if (let Some(value) <- lastValue) {
         println("Last element: ${value}")
     }
-    
+
     // Verify all elements
     print("All elements in list: ")
     for (element in list) {
         print("${element} ")
     }
     println()
-    
+
     return 0
 }
 ```
@@ -8464,7 +8464,7 @@ Output:
 List size created with lambda: 5
 First element: 0
 Last element: 40
-All elements in list: 0 10 20 30 40 
+All elements in list: 0 10 20 30 40
 ```
 
 ### func addLast(T)
@@ -8491,31 +8491,31 @@ import std.collection.*
 
 main() {
     let list = LinkedList<String>()
-    
+
     // Add element to empty list
     let node1 = list.addLast("First")
     println("List size after adding first element: ${list.size}")
     println("Returned node value: ${node1.value}")
-    
+
     // Add more elements
     list.addLast("Second")
     list.addLast("Third")
-    
+
     println("List size after adding three elements: ${list.size}")
-    
+
     // Verify element order
     print("All elements in list: ")
     for (element in list) {
         print("${element} ")
     }
     println()
-    
+
     // Verify last node
     let lastValue = list.last
     if (let Some(value) <- lastValue) {
         println("Last element: ${value}")
     }
-    
+
     return 0
 }
 ```
@@ -8526,7 +8526,7 @@ Output:
 List size after adding first element: 1
 Returned node value: First
 List size after adding three elements: 3
-All elements in list: First Second Third 
+All elements in list: First Second Third
 Last element: Third
 ```
 
@@ -8558,19 +8558,19 @@ import std.collection.*
 
 main() {
     let list = LinkedList<Int64>()
-    
+
     // Add elements
     list.addLast(10)
     list.addLast(20)
     list.addLast(30)
     list.addLast(40)
     list.addLast(50)
-    
+
     // Get a middle node (index 2, value 30)
     let middleNode = list.nodeAt(2)
     if (let Some(node) <- middleNode) {
         println("Backward traversal starting from node value ${node.value}:")
-        
+
         // Use backward method to traverse from middle node to head
         let iterator = list.backward(node)
         for (element in iterator) {
@@ -8578,19 +8578,19 @@ main() {
         }
         println()
     }
-    
+
     // Traverse backward from last node
     let lastNode = list.lastNode
     if (let Some(node) <- lastNode) {
         println("Backward traversal starting from last node value ${node.value}:")
-        
+
         let iterator = list.backward(node)
         for (element in iterator) {
             print("${element} ")
         }
         println()
     }
-    
+
     return 0
 }
 ```
@@ -8599,9 +8599,9 @@ Output:
 
 ```text
 Backward traversal starting from node value 30:
-30 20 10 
+30 20 10
 Backward traversal starting from last node value 50:
-50 40 30 20 10 
+50 40 30 20 10
 ```
 
 ### func clear()
@@ -8620,29 +8620,29 @@ import std.collection.*
 
 main() {
     let list = LinkedList<String>()
-    
+
     // Add some elements
     list.addLast("Element1")
     list.addLast("Element2")
     list.addLast("Element3")
     list.addLast("Element4")
-    
+
     println("List size before clearing: ${list.size}")
     println("Is empty before clearing: ${list.isEmpty()}")
-    
+
     // Display elements before clearing
     print("Elements before clearing: ")
     for (element in list) {
         print("${element} ")
     }
     println()
-    
+
     // Clear all elements
     list.clear()
-    
+
     println("List size after clearing: ${list.size}")
     println("Is empty after clearing: ${list.isEmpty()}")
-    
+
     // Verify first and last elements are null
     let firstValue = list.first
     if (let Some(value) <- firstValue) {
@@ -8650,14 +8650,14 @@ main() {
     } else {
         println("No first element")
     }
-    
+
     let lastValue = list.last
     if (let Some(value) <- lastValue) {
         println("Last element: ${value}")
     } else {
         println("No last element")
     }
-    
+
     return 0
 }
 ```
@@ -8667,7 +8667,7 @@ Execution Result:
 ```text
 List size before clearing: 4
 Is empty before clearing: false
-Elements before clearing: Element1 Element2 Element3 Element4 
+Elements before clearing: Element1 Element2 Element3 Element4
 List size after clearing: 0
 Is empty after clearing: true
 No first element
@@ -8702,31 +8702,31 @@ import std.collection.*
 
 main() {
     let list = LinkedList<Int64>()
-    
+
     // Add elements
     list.addLast(10)
     list.addLast(20)
     list.addLast(30)
     list.addLast(40)
     list.addLast(50)
-    
+
     // Get first node and traverse forward from it
     let firstNode = list.firstNode
     if (let Some(node) <- firstNode) {
         println("Forward traversal starting from node value ${node.value}:")
-        
+
         let iterator = list.forward(node)
         for (element in iterator) {
             print("${element} ")
         }
         println()
     }
-    
+
     // Get a middle node (node at index 2 with value 30)
     let middleNode = list.nodeAt(2)
     if (let Some(node) <- middleNode) {
         println("Forward traversal starting from node value ${node.value}:")
-        
+
         // Use forward method to traverse from middle node to tail
         let iterator = list.forward(node)
         for (element in iterator) {
@@ -8734,7 +8734,7 @@ main() {
         }
         println()
     }
-    
+
     return 0
 }
 ```
@@ -8743,9 +8743,9 @@ Execution Result:
 
 ```text
 Forward traversal starting from node value 10:
-10 20 30 40 50 
+10 20 30 40 50
 Forward traversal starting from node value 30:
-30 40 50 
+30 40 50
 ```
 
 ### func addAfter(LinkedListNode\<T>,T)
@@ -8777,36 +8777,36 @@ import std.collection.*
 
 main() {
     let list = LinkedList<String>()
-    
+
     // Add initial elements
     list.addLast("First")
     list.addLast("Second")
     list.addLast("Fourth")
-    
+
     println("Linked list before insertion:")
     for (element in list) {
         print("${element} ")
     }
     println()
-    
+
     // Get second node (index 1, value "Second")
     let secondNode = list.nodeAt(1)
     if (let Some(node) <- secondNode) {
         println("Insert 'Third' after node '${node.value}'")
-        
+
         // Insert new element after second node
         let newNode = list.addAfter(node, "Third")
         println("Insertion successful, new node value: ${newNode.value}")
     }
-    
+
     println("Linked list after insertion:")
     for (element in list) {
         print("${element} ")
     }
     println()
-    
+
     println("List size: ${list.size}")
-    
+
     return 0
 }
 ```
@@ -8815,11 +8815,11 @@ Execution Result:
 
 ```text
 Linked list before insertion:
-First Second Fourth 
+First Second Fourth
 Insert 'Third' after node 'Second'
 Insertion successful, new node value: Third
 Linked list after insertion:
-First Second Third Fourth 
+First Second Third Fourth
 List size: 4
 ```
 
@@ -8852,36 +8852,36 @@ import std.collection.*
 
 main() {
     let list = LinkedList<String>()
-    
+
     // Add initial elements
     list.addLast("First")
     list.addLast("Third")
     list.addLast("Fourth")
-    
+
     println("Linked list before insertion:")
     for (element in list) {
         print("${element} ")
     }
     println()
-    
+
     // Get second node (index 1, value "Third")
     let thirdNode = list.nodeAt(1)
     if (let Some(node) <- thirdNode) {
         println("Insert 'Second' before node '${node.value}'")
-        
+
         // Insert new element before third node
         let newNode = list.addBefore(node, "Second")
         println("Insertion successful, new node value: ${newNode.value}")
     }
-    
+
     println("Linked list after insertion:")
     for (element in list) {
         print("${element} ")
     }
     println()
-    
+
     println("List size: ${list.size}")
-    
+
     return 0
 }
 ```
@@ -8890,11 +8890,11 @@ Execution Result:
 
 ```text
 Linked list before insertion:
-First Third Fourth 
+First Third Fourth
 Insert 'Second' before node 'Third'
 Insertion successful, new node value: Second
 Linked list after insertion:
-First Second Third Fourth 
+First Second Third Fourth
 List size: 4
 ```
 
@@ -9034,7 +9034,7 @@ Returns:
 ### func flatMap\<R>((T) -> LinkedList\<R>)
 
 ```cangjie
-public func flatMap<R>(transform: (T) -> LinkedList<R>): LinkedList<R> 
+public func flatMap<R>(transform: (T) -> LinkedList<R>): LinkedList<R>
 ```
 
 Function: Applies a transform closure to each element in the linked list, which returns a new linked list, then flattens and concatenates all returned linked lists into a single resulting linked list.
@@ -9111,7 +9111,7 @@ Exceptions:
 ### func intersperse(T)
 
 ```cangjie
-public func intersperse(separator: T): LinkedList<T> 
+public func intersperse(separator: T): LinkedList<T>
 ```
 
 Function: Returns a new [LinkedList](collection_package_class.md#class-linkedlistt) with the given new element inserted between every two existing elements.
@@ -9148,27 +9148,27 @@ import std.collection.*
 
 main() {
     let list = LinkedList<Int64>()
-    
+
     // Check empty linked list
     println("Is the newly created linked list empty: ${list.isEmpty()}")
     println("Linked list size: ${list.size}")
-    
+
     // Add an element
     list.addLast(10)
     println("Is the linked list empty after adding one element: ${list.isEmpty()}")
     println("Linked list size: ${list.size}")
-    
+
     // Add more elements
     list.addLast(20)
     list.addLast(30)
     println("Is the linked list empty after adding more elements: ${list.isEmpty()}")
     println("Linked list size: ${list.size}")
-    
+
     // Clear the linked list
     list.clear()
     println("Is the linked list empty after clearing: ${list.isEmpty()}")
     println("Linked list size: ${list.size}")
-    
+
     return 0
 }
 ```
@@ -9206,34 +9206,34 @@ import std.collection.*
 
 main() {
     let list = LinkedList<String>()
-    
+
     // Add some elements
     list.addLast("Apple")
     list.addLast("Banana")
     list.addLast("Orange")
     list.addLast("Grape")
-    
+
     println("Traversing the linked list using iterator():")
-    
+
     // Get the iterator and traverse all elements
     let iter = list.iterator()
     for (element in iter) {
         print("${element} ")
     }
     println()
-    
+
     // Verify iterator order (from first to last)
     println("Verify iteration order:")
     println("First element: ${list.first}")
     println("Last element: ${list.last}")
-    
+
     // Use for-in syntax (internally uses iterator())
     println("Traversing using for-in syntax:")
     for (fruit in list) {
         print("${fruit} ")
     }
     println()
-    
+
     return 0
 }
 ```
@@ -9242,12 +9242,12 @@ Output:
 
 ```text
 Traversing the linked list using iterator():
-Apple Banana Orange Grape 
+Apple Banana Orange Grape
 Verify iteration order:
 First element: Some(Apple)
 Last element: Some(Grape)
 Traversing using for-in syntax:
-Apple Banana Orange Grape 
+Apple Banana Orange Grape
 ```
 
 ### func map\<R>((T) -> R)
@@ -9296,16 +9296,16 @@ import std.collection.*
 
 main() {
     let list = LinkedList<String>()
-    
+
     // Add some elements
     list.addLast("Index0")
     list.addLast("Index1")
     list.addLast("Index2")
     list.addLast("Index3")
     list.addLast("Index4")
-    
+
     println("Linked list size: ${list.size}")
-    
+
     // Retrieve nodes at valid indices
     let node0 = list.nodeAt(0)
     if (let Some(node) <- node0) {
@@ -9313,21 +9313,21 @@ main() {
     } else {
         println("No node at index 0")
     }
-    
+
     let node2 = list.nodeAt(2)
     if (let Some(node) <- node2) {
         println("Node value at index 2: ${node.value}")
     } else {
         println("No node at index 2")
     }
-    
+
     let node4 = list.nodeAt(4)
     if (let Some(node) <- node4) {
         println("Node value at index 4: ${node.value}")
     } else {
         println("No node at index 4")
     }
-    
+
     // Attempt to retrieve an out-of-bounds index
     let node5 = list.nodeAt(5)
     if (let Some(node) <- node5) {
@@ -9335,7 +9335,7 @@ main() {
     } else {
         println("No node at index 5 (out of bounds)")
     }
-    
+
     // Attempt a negative index
     let nodeNeg = list.nodeAt(-1)
     if (let Some(node) <- nodeNeg) {
@@ -9343,7 +9343,7 @@ main() {
     } else {
         println("No node at index -1 (negative index)")
     }
-    
+
     return 0
 }
 ```
@@ -9419,7 +9419,7 @@ import std.collection.*
 
 main() {
     let list = LinkedList<String>()
-    
+
     // Attempt to remove from an empty linked list
     let removedFromEmpty = list.removeFirst()
     if (let Some(value) <- removedFromEmpty) {
@@ -9427,46 +9427,46 @@ main() {
     } else {
         println("Cannot remove from an empty linked list")
     }
-    
+
     // Add some elements
     list.addLast("First")
     list.addLast("Second")
     list.addLast("Third")
     list.addLast("Fourth")
-    
+
     println("Linked list before removal:")
     for (element in list) {
         print("${element} ")
     }
     println()
     println("Linked list size before removal: ${list.size}")
-    
+
     // Remove the first element
     let removed1 = list.removeFirst()
     if (let Some(value) <- removed1) {
         println("First removed element: ${value}")
     }
-    
+
     println("Linked list after one removal:")
     for (element in list) {
         print("${element} ")
     }
     println()
     println("Linked list size after removal: ${list.size}")
-    
+
     // Remove the first element again
     let removed2 = list.removeFirst()
     if (let Some(value) <- removed2) {
         println("Second removed element: ${value}")
     }
-    
+
     println("Final linked list:")
     for (element in list) {
         print("${element} ")
     }
     println()
     println("Final linked list size: ${list.size}")
-    
+
     return 0
 }
 ```
@@ -9476,15 +9476,15 @@ Output:
 ```text
 Cannot remove from an empty linked list
 Linked list before removal:
-First Second Third Fourth 
+First Second Third Fourth
 Linked list size before removal: 4
 First removed element: First
 Linked list after one removal:
-Second Third Fourth 
+Second Third Fourth
 Linked list size after removal: 3
 Second removed element: Second
 Final linked list:
-Third Fourth 
+Third Fourth
 Final linked list size: 2
 ```
 
@@ -9508,7 +9508,7 @@ import std.collection.*
 
 main() {
     let list = LinkedList<String>()
-    
+
     // Attempt to remove from an empty list
     let removedFromEmpty = list.removeLast()
     if (let Some(value) <- removedFromEmpty) {
@@ -9516,46 +9516,46 @@ main() {
     } else {
         println("Cannot remove from empty list")
     }
-    
+
     // Add some elements
     list.addLast("First")
     list.addLast("Second")
     list.addLast("Third")
     list.addLast("Fourth")
-    
+
     println("List before removal:")
     for (element in list) {
         print("${element} ")
     }
     println()
     println("List size before removal: ${list.size}")
-    
+
     // Remove the last element
     let removed1 = list.removeLast()
     if (let Some(value) <- removed1) {
         println("Removed last element: ${value}")
     }
-    
+
     println("List after first removal:")
     for (element in list) {
         print("${element} ")
     }
     println()
     println("List size after first removal: ${list.size}")
-    
+
     // Remove the last element again
     let removed2 = list.removeLast()
     if (let Some(value) <- removed2) {
         println("Removed last element again: ${value}")
     }
-    
+
     println("Final list:")
     for (element in list) {
         print("${element} ")
     }
     println()
     println("Final list size: ${list.size}")
-    
+
     return 0
 }
 ```
@@ -9565,15 +9565,15 @@ Execution Result:
 ```text
 Cannot remove from empty list
 List before removal:
-First Second Third Fourth 
+First Second Third Fourth
 List size before removal: 4
 Removed last element: Fourth
 List after first removal:
-First Second Third 
+First Second Third
 List size after first removal: 3
 Removed last element again: Third
 Final list:
-First Second 
+First Second
 Final list size: 2
 ```
 
@@ -9601,37 +9601,37 @@ import std.collection.*
 
 main() {
     let list = LinkedList<String>()
-    
+
     // Add first element to empty list
     let node1 = list.addFirst("Third")
     println("List size after adding first element: ${list.size}")
     println("Returned node value: ${node1.value}")
-    
+
     // Add more elements at the head
     list.addFirst("Second")
     list.addFirst("First")
-    
+
     println("List size after adding three elements: ${list.size}")
-    
+
     // Verify element order (last added is first)
     print("All elements in list: ")
     for (element in list) {
         print("${element} ")
     }
     println()
-    
+
     // Verify first node
     let firstValue = list.first
     if (let Some(value) <- firstValue) {
         println("First element: ${value}")
     }
-    
+
     // Verify last node
     let lastValue = list.last
     if (let Some(value) <- lastValue) {
         println("Last element: ${value}")
     }
-    
+
     return 0
 }
 ```
@@ -9642,7 +9642,7 @@ Execution Result:
 List size after adding first element: 1
 Returned node value: Third
 List size after adding three elements: 3
-All elements in list: First Second Third 
+All elements in list: First Second Third
 First element: First
 Last element: Third
 ```
@@ -9675,51 +9675,51 @@ import std.collection.*
 
 main() {
     let list = LinkedList<String>()
-    
+
     // Add some elements
     list.addLast("First")
     list.addLast("Second")
     list.addLast("Third")
     list.addLast("Fourth")
-    
+
     println("List before removal:")
     for (element in list) {
         print("${element} ")
     }
     println()
     println("List size before removal: ${list.size}")
-    
+
     // Get the second node (index 1, value "Second")
     let secondNode = list.nodeAt(1)
     if (let Some(node) <- secondNode) {
         println("Node to be removed: ${node.value}")
-        
+
         // Remove the node
         let removedValue = list.remove(node)
         println("Removed node value: ${removedValue}")
     }
-    
+
     println("List after removal:")
     for (element in list) {
         print("${element} ")
     }
     println()
     println("List size after removal: ${list.size}")
-    
+
     // Remove the first node
     let firstNode = list.firstNode
     if (let Some(node) <- firstNode) {
         let removedValue = list.remove(node)
         println("Removed first node: ${removedValue}")
     }
-    
+
     println("Final list:")
     for (element in list) {
         print("${element} ")
     }
     println()
     println("Final list size: ${list.size}")
-    
+
     return 0
 }
 ```
@@ -9728,16 +9728,16 @@ Execution Result:
 
 ```text
 List before removal:
-First Second Third Fourth 
+First Second Third Fourth
 List size before removal: 4
 Node to be removed: Second
 Removed node value: Second
 List after removal:
-First Third Fourth 
+First Third Fourth
 List size after removal: 3
 Removed first node: First
 Final list:
-Third Fourth 
+Third Fourth
 Final list size: 2
 ```
 
@@ -9765,7 +9765,7 @@ import std.collection.*
 
 main() {
     let list = LinkedList<Int64>()
-    
+
     // Add some elements
     list.addLast(1)
     list.addLast(2)
@@ -9775,34 +9775,34 @@ main() {
     list.addLast(6)
     list.addLast(7)
     list.addLast(8)
-    
+
     println("List before removal:")
     for (element in list) {
         print("${element} ")
     }
     println()
     println("List size before removal: ${list.size}")
-    
+
     // Remove all even numbers
     list.removeIf({x: Int64 => x % 2 == 0})
-    
+
     println("List after removing even numbers:")
     for (element in list) {
         print("${element} ")
     }
     println()
     println("List size after removal: ${list.size}")
-    
+
     // Remove all elements greater than 3
     list.removeIf({x: Int64 => x > 3})
-    
+
     println("List after removing elements > 3:")
     for (element in list) {
         print("${element} ")
     }
     println()
     println("Final list size: ${list.size}")
-    
+
     return 0
 }
 ```
@@ -9811,13 +9811,13 @@ Execution Result:
 
 ```text
 List before removal:
-1 2 3 4 5 6 7 8 
+1 2 3 4 5 6 7 8
 List size before removal: 8
 List after removing even numbers:
-1 3 5 7 
+1 3 5 7
 List size after removal: 4
 List after removing elements > 3:
-1 3 
+1 3
 Final list size: 2
 ```
 
@@ -9837,53 +9837,53 @@ import std.collection.*
 
 main() {
     let list = LinkedList<String>()
-    
+
     // Add some elements
     list.addLast("First")
     list.addLast("Second")
     list.addLast("Third")
     list.addLast("Fourth")
     list.addLast("Fifth")
-    
+
     println("Original list:")
     for (element in list) {
         print("${element} ")
     }
     println()
-    
+
     // Verify original first and last elements
     let firstValue1 = list.first
     if (let Some(value) <- firstValue1) {
         println("Original first element: ${value}")
     }
-    
+
     let lastValue1 = list.last
     if (let Some(value) <- lastValue1) {
         println("Original last element: ${value}")
     }
-    
+
     // Reverse the list
     list.reverse()
-    
+
     println("Reversed list:")
     for (element in list) {
         print("${element} ")
     }
     println()
-    
+
     // Verify reversed first and last elements
     let firstValue2 = list.first
     if (let Some(value) <- firstValue2) {
         println("First element after reversal: ${value}")
     }
-    
+
     let lastValue2 = list.last
     if (let Some(value) <- lastValue2) {
         println("Last element after reversal: ${value}")
     }
-    
+
     println("List size remains unchanged: ${list.size}")
-    
+
     return 0
 }
 ```
@@ -9892,11 +9892,11 @@ Execution Result:
 
 ```text
 Original list:
-First Second Third Fourth Fifth 
+First Second Third Fourth Fifth
 Original first element: First
 Original last element: Fifth
 Reversed list:
-Fifth Fourth Third Second First 
+Fifth Fourth Third Second First
 First element after reversal: Fifth
 Last element after reversal: First
 List size remains unchanged: 5
@@ -9956,7 +9956,7 @@ import std.collection.*
 
 main() {
     let list = LinkedList<Int64>()
-    
+
     // Add some elements
     list.addLast(1)
     list.addLast(2)
@@ -9964,49 +9964,49 @@ main() {
     list.addLast(4)
     list.addLast(5)
     list.addLast(6)
-    
+
     println("Original list before split:")
     for (element in list) {
         print("${element} ")
     }
     println()
     println("Original list size: ${list.size}")
-    
+
     // Get the third node (index 2, value 3) as the split point
     let thirdNode = list.nodeAt(2)
     if (let Some(node) <- thirdNode) {
         println("Splitting list at node ${node.value}")
-        
+
         // Split the list
         let newList = list.splitOff(node)
-        
+
         println("Original list after split:")
         for (element in list) {
             print("${element} ")
         }
         println()
         println("Original list size: ${list.size}")
-        
+
         println("New list:")
         for (element in newList) {
             print("${element} ")
         }
         println()
         println("New list size: ${newList.size}")
-        
+
         // Verify the first element of the new list
         let newFirstValue = newList.first
         if (let Some(value) <- newFirstValue) {
             println("First element of new list: ${value}")
         }
-        
+
         // Verify the last element of the original list
         let originalLastValue = list.last
         if (let Some(value) <- originalLastValue) {
             println("Last element of original list: ${value}")
         }
     }
-    
+
     return 0
 }
 ```
@@ -10015,14 +10015,14 @@ Output:
 
 ```text
 Original list before split:
-1 2 3 4 5 6 
+1 2 3 4 5 6
 Original list size: 6
 Splitting list at node 3
 Original list after split:
-1 2 
+1 2
 Original list size: 2
 New list:
-3 4 5 6 
+3 4 5 6
 New list size: 4
 First element of new list: 3
 Last element of original list: 2
@@ -10098,47 +10098,47 @@ import std.collection.*
 
 main() {
     let list = LinkedList<String>()
-    
+
     // Add some elements
     list.addLast("Apple")
     list.addLast("Banana")
     list.addLast("Orange")
     list.addLast("Grape")
     list.addLast("Strawberry")
-    
+
     println("Original list:")
     for (element in list) {
         print("${element} ")
     }
     println()
     println("List size: ${list.size}")
-    
+
     // Convert list to array
     let array = list.toArray()
     println("Converted array size: ${array.size}")
-    
+
     // Verify array content and order
     println("Array content:")
     for (i in 0..array.size) {
         print("[${i}]: ${array[i]} ")
     }
     println()
-    
+
     // Verify first and last elements
     println("First element of array: ${array[0]}")
     println("Last element of array: ${array[array.size - 1]}")
-    
+
     // Verify consistency with the list
     let listFirst = list.first
     if (let Some(value) <- listFirst) {
         println("First element of list: ${value}")
     }
-    
+
     let listLast = list.last
     if (let Some(value) <- listLast) {
         println("Last element of list: ${value}")
     }
-    
+
     return 0
 }
 ```
@@ -10147,11 +10147,11 @@ Output:
 
 ```text
 Original list:
-Apple Banana Orange Grape Strawberry 
+Apple Banana Orange Grape Strawberry
 List size: 5
 Converted array size: 5
 Array content:
-[0]: Apple [1]: Banana [2]: Orange [3]: Grape [4]: Strawberry 
+[0]: Apple [1]: Banana [2]: Orange [3]: Grape [4]: Strawberry
 First element of array: Apple
 Last element of array: Strawberry
 First element of list: Apple
@@ -10198,56 +10198,56 @@ main() {
     let list1 = LinkedList<Int64>()
     let list2 = LinkedList<Int64>()
     let list3 = LinkedList<Int64>()
-    
+
     // Test equality of empty lists
     println("Two empty lists are equal: ${list1 == list2}")
-    
+
     // Add identical elements to list1 and list2
     list1.addLast(1)
     list1.addLast(2)
     list1.addLast(3)
-    
+
     list2.addLast(1)
     list2.addLast(2)
     list2.addLast(3)
-    
+
     println("Lists with identical elements are equal: ${list1 == list2}")
-    
+
     // Add different elements to list3
     list3.addLast(1)
     list3.addLast(2)
     list3.addLast(4) // Different element
-    
+
     println("Lists with different elements are not equal: ${list1 == list3}")
-    
+
     // Test lists of different sizes
     let list4 = LinkedList<Int64>()
     list4.addLast(1)
     list4.addLast(2)
-    
+
     println("Lists of different sizes are not equal: ${list1 == list4}")
-    
+
     // Test lists with same elements but different order
     let list5 = LinkedList<Int64>()
     list5.addLast(3)
     list5.addLast(2)
     list5.addLast(1)
-    
+
     println("Lists with same elements but different order are not equal: ${list1 == list5}")
-    
+
     // Display list contents for verification
     print("list1: ")
     for (element in list1) {
         print("${element} ")
     }
     println()
-    
+
     print("list5: ")
     for (element in list5) {
         print("${element} ")
     }
     println()
-    
+
     return 0
 }
 ```
@@ -10260,8 +10260,8 @@ Lists with identical elements are equal: true
 Lists with different elements are not equal: false
 Lists of different sizes are not equal: false
 Lists with same elements but different order are not equal: false
-list1: 1 2 3 
-list5: 3 2 1 
+list1: 1 2 3
+list5: 3 2 1
 ```
 
 #### operator func !=(LinkedList\<T>)
@@ -10289,62 +10289,62 @@ import std.collection.*
 main() {
     let list1 = LinkedList<String>()
     let list2 = LinkedList<String>()
-    
+
     // Test inequality of empty lists
     println("Two empty lists are not equal: ${list1 != list2}")
-    
+
     // Add elements to list1
     list1.addLast("First")
     list1.addLast("Second")
-    
+
     // Test lists of different sizes
     println("Lists of different sizes are not equal: ${list1 != list2}")
-    
+
     // Add identical elements to list2
     list2.addLast("First")
     list2.addLast("Second")
-    
+
     println("Lists with identical elements are not equal: ${list1 != list2}")
-    
+
     // Create a list with different elements
     let list3 = LinkedList<String>()
     list3.addLast("First")
     list3.addLast("Third") // Different element
-    
+
     println("Lists with different elements are not equal: ${list1 != list3}")
-    
+
     // Create a list with same elements but different order
     let list4 = LinkedList<String>()
     list4.addLast("Second")
     list4.addLast("First")
-    
+
     println("Lists with same elements but different order are not equal: ${list1 != list4}")
-    
+
     // Display all list contents for verification
     print("list1: ")
     for (element in list1) {
         print("${element} ")
     }
     println()
-    
+
     print("list2: ")
     for (element in list2) {
         print("${element} ")
     }
     println()
-    
+
     print("list3: ")
     for (element in list3) {
         print("${element} ")
     }
     println()
-    
+
     print("list4: ")
     for (element in list4) {
         print("${element} ")
     }
     println()
-    
+
     return 0
 }
 ```
@@ -10357,10 +10357,10 @@ Lists of different sizes are not equal: true
 Lists with identical elements are not equal: false
 Lists with different elements are not equal: true
 Lists with same elements but different order are not equal: true
-list1: First Second 
-list2: First Second 
-list3: First Third 
-list4: Second First 
+list1: First Second
+list2: First Second
+list3: First Third
+list4: Second First
 ```
 
 ### extend\<T> LinkedList\<T>
@@ -10440,12 +10440,12 @@ main() {
     // Test empty list
     let emptyList = LinkedList<Int64>()
     println("toString of empty list: ${emptyList.toString()}")
-    
+
     // Test single-element list
     let singleList = LinkedList<String>()
     singleList.addLast("SingleElement")
     println("toString of single-element list: ${singleList.toString()}")
-    
+
     // Test multiple-element list
     let numberList = LinkedList<Int64>()
     numberList.addLast(10)
@@ -10453,14 +10453,14 @@ main() {
     numberList.addLast(30)
     numberList.addLast(40)
     println("toString of number list: ${numberList.toString()}")
-    
+
     // Test string list
     let stringList = LinkedList<String>()
     stringList.addLast("Apple")
     stringList.addLast("Banana")
     stringList.addLast("Orange")
     println("toString of string list: ${stringList.toString()}")
-    
+
     // Verify toString matches manually constructed string
     print("Manual traversal of number list: [")
     var isFirst = true
@@ -10472,12 +10472,12 @@ main() {
         isFirst = false
     }
     println("]")
-    
+
     // Test modified toString
     numberList.addFirst(5)
     numberList.addLast(50)
     println("Modified number list toString: ${numberList.toString()}")
-    
+
     return 0
 }
 ```
@@ -10532,7 +10532,7 @@ import std.collection.*
 
 main() {
     let map = TreeMap<String, Int64>()
-    
+
     // Case with empty TreeMap
     let firstValue1 = map.first
     if (let Some((key, value)) <- firstValue1) {
@@ -10540,12 +10540,12 @@ main() {
     } else {
         println("TreeMap is empty")
     }
-    
+
     // Add some elements
     map.add("apple", 10)
     map.add("banana", 20)
     map.add("cherry", 30)
-    
+
     // Get first element (sorted by key's lexicographical order)
     let firstValue2 = map.first
     if (let Some((key, value)) <- firstValue2) {
@@ -10553,7 +10553,7 @@ main() {
     } else {
         println("TreeMap is empty")
     }
-    
+
     return 0
 }
 ```
@@ -10583,7 +10583,7 @@ import std.collection.*
 
 main() {
     let map = TreeMap<String, Int64>()
-    
+
     // Case with empty TreeMap
     let lastValue1 = map.last
     if (let Some((key, value)) <- lastValue1) {
@@ -10591,12 +10591,12 @@ main() {
     } else {
         println("TreeMap is empty")
     }
-    
+
     // Add some elements
     map.add("apple", 10)
     map.add("banana", 20)
     map.add("cherry", 30)
-    
+
     // Get last element (sorted by key's lexicographical order)
     let lastValue2 = map.last
     if (let Some((key, value)) <- lastValue2) {
@@ -10604,7 +10604,7 @@ main() {
     } else {
         println("TreeMap is empty")
     }
-    
+
     return 0
 }
 ```
@@ -10634,22 +10634,22 @@ import std.collection.*
 
 main() {
     let map = TreeMap<String, Int64>()
-    
+
     // Size of empty TreeMap
     println("Empty TreeMap size: ${map.size}")
-    
+
     // Add some elements
     map.add("apple", 10)
     println("Size after adding 1 element: ${map.size}")
-    
+
     map.add("banana", 20)
     map.add("cherry", 30)
     println("Size after adding 3 elements: ${map.size}")
-    
+
     // Overwriting existing key doesn't increase size
     map.add("apple", 15)
     println("Size after overwriting: ${map.size}")
-    
+
     return 0
 }
 ```
@@ -10680,17 +10680,17 @@ import std.collection.*
 main() {
     // Create an empty TreeMap
     let map = TreeMap<String, Int64>()
-    
+
     println("Initial size: ${map.size}")
     println("Is empty: ${map.isEmpty()}")
-    
+
     // Add some elements
     map.add("key1", 100)
     map.add("key2", 200)
-    
+
     println("Size after adding elements: ${map.size}")
     println("Is empty after adding: ${map.isEmpty()}")
-    
+
     return 0
 }
 ```
@@ -10728,23 +10728,23 @@ main() {
     // Initialize TreeMap with array
     let array: Array<(String, Int64)> = [("banana", 20), ("apple", 10), ("cherry", 30)]
     let map = TreeMap<String, Int64>(array)
-    
+
     println("Size after initialization: ${map.size}")
-    
+
     // Iterate elements (TreeMap orders elements by key's lexicographical order)
     for ((key, value) in map) {
         println("${key}: ${value}")
     }
-    
+
     // Test overwrite behavior
     let arrayWithDup: Array<(String, Int64)> = [("apple", 5), ("apple", 15), ("banana", 25)]
     let mapWithDup = TreeMap<String, Int64>(arrayWithDup)
-    
+
     println("\nInitialization with duplicate keys:")
     for ((key, value) in mapWithDup) {
         println("${key}: ${value}")
     }
-    
+
     return 0
 }
 ```
@@ -10788,27 +10788,27 @@ main() {
     list.add(("dog", 40))
     list.add(("cat", 30))
     list.add(("bird", 50))
-    
+
     let map = TreeMap<String, Int64>(list)
     println("TreeMap size initialized with ArrayList: ${map.size}")
-    
+
     for ((key, value) in map) {
         println("${key}: ${value}")
     }
-    
+
     // Initialize with another TreeMap
     let originalMap = TreeMap<String, Int64>()
     originalMap.add("x", 100)
     originalMap.add("y", 200)
     originalMap.add("z", 300)
-    
+
     let newMap = TreeMap<String, Int64>(originalMap)
     println("\nNew TreeMap size initialized with TreeMap: ${newMap.size}")
-    
+
     for ((key, value) in newMap) {
         println("${key}: ${value}")
     }
-    
+
     return 0
 }
 ```
@@ -10853,25 +10853,25 @@ import std.collection.*
 main() {
     // Initialize TreeMap with function rule. The function takes an index parameter and returns key-value pairs
     let map = TreeMap<String, Int64>(3, {i: Int64 => ("key${i}", i * 10)})
-    
+
     println("Size after initialization: ${map.size}")
-    
+
     // Iterate all elements
     for ((key, value) in map) {
         println("${key}: ${value}")
     }
-    
+
     // Use more complex function rule
-    let map2 = TreeMap<String, Int64>(4, {i: Int64 => 
+    let map2 = TreeMap<String, Int64>(4, {i: Int64 =>
         let alphabet = ["A", "B", "C", "D"]
         (alphabet[i], (i + 1) * (i + 1))
     })
-    
+
     println("\nSecond map:")
     for ((key, value) in map2) {
         println("${key}: ${value}")
     }
-    
+
     return 0
 }
 ```
@@ -10916,7 +10916,7 @@ import std.collection.*
 
 main() {
     let map = TreeMap<String, Int64>()
-    
+
     // Add new key-value pairs
     let result1 = map.add("apple", 10)
     if (let Some(oldValue) <- result1) {
@@ -10924,14 +10924,14 @@ main() {
     } else {
         println("Added new key: apple")
     }
-    
+
     let result2 = map.add("banana", 20)
     if (let Some(oldValue) <- result2) {
         println("Overwrote old value: ${oldValue}")
     } else {
         println("Added new key: banana")
     }
-    
+
     // Overwrite existing key
     let result3 = map.add("apple", 15)
     if (let Some(oldValue) <- result3) {
@@ -10939,12 +10939,12 @@ main() {
     } else {
         println("Added new key: apple")
     }
-    
+
     println("\nFinal TreeMap:")
     for ((key, value) in map) {
         println("${key}: ${value}")
     }
-    
+
     return 0
 }
 ```
@@ -10981,33 +10981,33 @@ import std.collection.*
 
 main() {
     let map = TreeMap<String, Int64>()
-    
+
     // Initial addition of one element
     map.add("a", 1)
     println("Initial state: size=${map.size}")
-    
+
     // Adding multiple key-value pairs using ArrayList
     let list = ArrayList<(String, Int64)>()
     list.add(("b", 2))
     list.add(("c", 3))
     list.add(("d", 4))
-    
+
     map.add(all: list)
     println("After adding ArrayList: size=${map.size}")
-    
+
     // Adding elements from another TreeMap
     let anotherMap = TreeMap<String, Int64>()
     anotherMap.add("a", 10)  // Overwriting existing key
     anotherMap.add("e", 5)   // New key
-    
+
     map.add(all: anotherMap)
     println("After adding TreeMap: size=${map.size}")
-    
+
     println("\nFinal TreeMap:")
     for ((key, value) in map) {
         println("${key}: ${value}")
     }
-    
+
     return 0
 }
 ```
@@ -11099,37 +11099,37 @@ main() {
     map.add("elderberry", 50)
     map.add("fig", 60)
     map.add("grape", 70)
-    
+
     println("TreeMap contents: ${map}")
-    
+
     // Descending traversal starting from "elderberry" (inclusive)
     println("\nDescending traversal from 'elderberry' (inclusive):")
     let backwardIter1 = map.backward("elderberry", inclusive: true)
     for ((key, value) in backwardIter1) {
         println("${key}: ${value}")
     }
-    
+
     // Descending traversal starting from "elderberry" (exclusive)
     println("\nDescending traversal from 'elderberry' (exclusive):")
     let backwardIter2 = map.backward("elderberry", inclusive: false)
     for ((key, value) in backwardIter2) {
         println("${key}: ${value}")
     }
-    
+
     // Descending traversal starting from "fig" (default inclusive)
     println("\nDescending traversal from 'fig' (default inclusive):")
     let backwardIter3 = map.backward("fig")
     for ((key, value) in backwardIter3) {
         println("${key}: ${value}")
     }
-    
+
     // Descending traversal starting from non-existent key "coconut"
     println("\nDescending traversal from non-existent key 'coconut':")
     let backwardIter4 = map.backward("coconut")
     for ((key, value) in backwardIter4) {
         println("${key}: ${value}")
     }
-    
+
     return 0
 }
 ```
@@ -11182,25 +11182,25 @@ import std.collection.*
 
 main() {
     let map = TreeMap<String, Int64>()
-    
+
     // Add some elements
     map.add("apple", 10)
     map.add("banana", 20)
     map.add("cherry", 30)
-    
+
     println("Size before clearing: ${map.size}")
     println("Is empty before clearing: ${map.isEmpty()}")
-    
+
     // Clear all elements
     map.clear()
-    
+
     println("Size after clearing: ${map.size}")
     println("Is empty after clearing: ${map.isEmpty()}")
-    
+
     // Verify elements can be added again
     map.add("new_key", 100)
     println("Size after re-adding elements: ${map.size}")
-    
+
     return 0
 }
 ```
@@ -11239,28 +11239,28 @@ main() {
     originalMap.add("apple", 10)
     originalMap.add("banana", 20)
     originalMap.add("cherry", 30)
-    
+
     println("Original map size: ${originalMap.size}")
-    
+
     // Clone TreeMap
     let clonedMap = originalMap.clone()
-    
+
     println("Cloned map size: ${clonedMap.size}")
-    
+
     // Verify data independence after cloning
     clonedMap.add("date", 40)
     originalMap.add("elderberry", 50)
-    
+
     println("\nModified original map:")
     for ((key, value) in originalMap) {
         println("${key}: ${value}")
     }
-    
+
     println("\nModified cloned map:")
     for ((key, value) in clonedMap) {
         println("${key}: ${value}")
     }
-    
+
     return 0
 }
 ```
@@ -11311,15 +11311,15 @@ main() {
     map.add("apple", 10)
     map.add("banana", 20)
     map.add("cherry", 30)
-    
+
     // Check existing keys
     println("contains 'apple': ${map.contains("apple")}")
     println("contains 'banana': ${map.contains("banana")}")
-    
+
     // Check non-existent keys
     println("contains 'grape': ${map.contains("grape")}")
     println("contains 'orange': ${map.contains("orange")}")
-    
+
     return 0
 }
 ```
@@ -11362,45 +11362,45 @@ main() {
     map.add("cherry", 30)
     map.add("date", 40)
     map.add("elderberry", 50)
-    
+
     println("TreeMap contents: ${map}")
-    
+
     // Create first key collection to check using ArrayList
     let keysToCheck1 = ArrayList<String>()
     keysToCheck1.add("apple")
     keysToCheck1.add("banana")
     keysToCheck1.add("cherry")
-    
+
     println("\nCheck collection 1: [apple, banana, cherry]")
     let contains1 = map.contains(all: keysToCheck1)
     println("Contains all keys: ${contains1}")
-    
+
     // Check collection with some non-existent keys
     let keysToCheck2 = ArrayList<String>()
     keysToCheck2.add("apple")
     keysToCheck2.add("grape")  // Non-existent key
     keysToCheck2.add("cherry")
-    
+
     println("\nCheck collection 2: [apple, grape, cherry]")
     let contains2 = map.contains(all: keysToCheck2)
     println("Contains all keys: ${contains2}")
-    
+
     // Check collection with all non-existent keys
     let keysToCheck3 = ArrayList<String>()
     keysToCheck3.add("grape")
     keysToCheck3.add("orange")
     keysToCheck3.add("peach")
-    
+
     println("\nCheck collection 3: [grape, orange, peach]")
     let contains3 = map.contains(all: keysToCheck3)
     println("Contains all keys: ${contains3}")
-    
+
     // Check empty collection
     let emptyKeys = ArrayList<String>()
     println("\nCheck empty collection: []")
     let contains4 = map.contains(all: emptyKeys)
     println("Contains all keys: ${contains4}")
-    
+
     return 0
 }
 ```
@@ -11450,23 +11450,23 @@ main() {
     map.add("apple", 10)
     map.add("banana", 20)
     map.add("cherry", 30)
-    
+
     println("TreeMap contents: ${map}")
-    
+
     // Get reference view for existing key
     let entryView1 = map.entryView("apple")
     println("Obtained reference view for apple")
-    
+
     // Get reference view for non-existent key
     let entryView2 = map.entryView("grape")
     println("Obtained reference view for grape")
-    
+
     // Note: MapEntryView is a reference view interface
     // It provides view access to specific key-value pairs
     // If the key exists, the view contains that key-value pair; otherwise, it's an empty view
-    
+
     println("\nentryView provides reference view access to specific key-value pairs in TreeMap")
-    
+
     return 0
 }
 ```
@@ -11569,37 +11569,37 @@ main() {
     map.add("elderberry", 50)
     map.add("fig", 60)
     map.add("grape", 70)
-    
+
     println("TreeMap contents: ${map}")
-    
+
     // Traverse from "cherry" in ascending order (including cherry)
     println("\nTraverse from 'cherry' in ascending order (including cherry):")
     let forwardIter1 = map.forward("cherry", inclusive: true)
     for ((key, value) in forwardIter1) {
         println("${key}: ${value}")
     }
-    
+
     // Traverse from "cherry" in ascending order (excluding cherry)
     println("\nTraverse from 'cherry' in ascending order (excluding cherry):")
     let forwardIter2 = map.forward("cherry", inclusive: false)
     for ((key, value) in forwardIter2) {
         println("${key}: ${value}")
     }
-    
+
     // Traverse from "banana" in ascending order (default inclusive)
     println("\nTraverse from 'banana' in ascending order (default inclusive):")
     let forwardIter3 = map.forward("banana")
     for ((key, value) in forwardIter3) {
         println("${key}: ${value}")
     }
-    
+
     // Traverse from non-existent key "coconut" in ascending order
     println("\nTraverse from non-existent key 'coconut' in ascending order:")
     let forwardIter4 = map.forward("coconut")
     for ((key, value) in forwardIter4) {
         println("${key}: ${value}")
     }
-    
+
     return 0
 }
 ```
@@ -11664,7 +11664,7 @@ main() {
     map.add("apple", 10)
     map.add("banana", 20)
     map.add("cherry", 30)
-    
+
     // Get value for existing key
     let value1 = map.get("apple")
     if (let Some(val) <- value1) {
@@ -11672,14 +11672,14 @@ main() {
     } else {
         println("Apple not found")
     }
-    
+
     let value2 = map.get("banana")
     if (let Some(val) <- value2) {
         println("Value for banana: ${val}")
     } else {
         println("Banana not found")
     }
-    
+
     // Get value for non-existent key
     let value3 = map.get("grape")
     if (let Some(val) <- value3) {
@@ -11687,7 +11687,7 @@ main() {
     } else {
         println("Grape not found")
     }
-    
+
     return 0
 }
 ```
@@ -11720,24 +11720,24 @@ import std.collection.*
 
 main() {
     let map = TreeMap<String, Int64>()
-    
+
     // Initial empty state
     println("Is empty initially: ${map.isEmpty()}")
     println("Initial size: ${map.size}")
-    
+
     // After adding elements
     map.add("apple", 10)
     map.add("banana", 20)
-    
+
     println("Is empty after adding elements: ${map.isEmpty()}")
     println("Size after adding elements: ${map.size}")
-    
+
     // After clearing
     map.clear()
-    
+
     println("Is empty after clearing: ${map.isEmpty()}")
     println("Size after clearing: ${map.size}")
-    
+
     return 0
 }
 ```
@@ -11777,22 +11777,22 @@ main() {
     map.add("apple", 10)
     map.add("banana", 20)
     map.add("date", 40)
-    
+
     // Manual traversal using iterator
     let iter = map.iterator()
-    
+
     println("Manual traversal using iterator:")
     for (entry in iter) {
         let (key, value) = entry
         println("${key}: ${value}")
     }
-    
+
     // Automatic traversal using for-in loop (internally uses iterator)
     println("\nTraversal using for-in loop:")
     for ((key, value) in map) {
         println("${key}: ${value}")
     }
-    
+
     return 0
 }
 ```
@@ -11837,19 +11837,19 @@ main() {
     map.add("apple", 10)
     map.add("banana", 20)
     map.add("date", 40)
-    
+
     // Get all keys
     let keyCollection = map.keys()
-    
+
     println("All keys:")
     for (key in keyCollection) {
         println("Key: ${key}")
     }
-    
+
     // Verify key count
     println("\nKey count: ${keyCollection.size}")
     println("TreeMap size: ${map.size}")
-    
+
     return 0
 }
 ```
@@ -11967,7 +11967,7 @@ import std.collection.*
 
 main() {
     let map = TreeMap<String, Int64>()
-    
+
     // Remove first element from an empty TreeMap
     let result1 = map.removeFirst()
     if (let Some((key, value)) <- result1) {
@@ -11975,33 +11975,33 @@ main() {
     } else {
         println("TreeMap is empty, cannot remove")
     }
-    
+
     // Add some elements
     map.add("cherry", 30)
     map.add("apple", 10)
     map.add("banana", 20)
     map.add("date", 40)
-    
+
     println("\nTreeMap before removal: ${map}")
     println("Size before removal: ${map.size}")
-    
+
     // Remove the first element (first in lexicographical order)
     let result2 = map.removeFirst()
     if (let Some((key, value)) <- result2) {
         println("Removed first element: (${key}, ${value})")
     }
-    
+
     println("TreeMap after removal: ${map}")
     println("Size after removal: ${map.size}")
-    
+
     // Remove the first element again
     let result3 = map.removeFirst()
     if (let Some((key, value)) <- result3) {
         println("Removed first element again: (${key}, ${value})")
     }
-    
+
     println("Final TreeMap: ${map}")
-    
+
     return 0
 }
 ```
@@ -12040,7 +12040,7 @@ import std.collection.*
 
 main() {
     let map = TreeMap<String, Int64>()
-    
+
     // Remove last element from an empty TreeMap
     let result1 = map.removeLast()
     if (let Some((key, value)) <- result1) {
@@ -12048,33 +12048,33 @@ main() {
     } else {
         println("TreeMap is empty, cannot remove")
     }
-    
+
     // Add some elements
     map.add("cherry", 30)
     map.add("apple", 10)
     map.add("banana", 20)
     map.add("date", 40)
-    
+
     println("\nTreeMap before removal: ${map}")
     println("Size before removal: ${map.size}")
-    
+
     // Remove the last element (last in lexicographical order)
     let result2 = map.removeLast()
     if (let Some((key, value)) <- result2) {
         println("Removed last element: (${key}, ${value})")
     }
-    
+
     println("TreeMap after removal: ${map}")
     println("Size after removal: ${map.size}")
-    
+
     // Remove the last element again
     let result3 = map.removeLast()
     if (let Some((key, value)) <- result3) {
         println("Removed last element again: (${key}, ${value})")
     }
-    
+
     println("Final TreeMap: ${map}")
-    
+
     return 0
 }
 ```
@@ -12117,7 +12117,7 @@ import std.collection.*
 
 main() {
     let map = TreeMap<String, Int64>()
-    
+
     // Remove from an empty TreeMap
     let result1 = map.remove("nonexistent")
     if (let Some(value) <- result1) {
@@ -12125,16 +12125,16 @@ main() {
     } else {
         println("Key not found: nonexistent")
     }
-    
+
     // Add some elements
     map.add("apple", 10)
     map.add("banana", 20)
     map.add("cherry", 30)
     map.add("date", 40)
-    
+
     println("\nTreeMap before removal: ${map}")
     println("Size before removal: ${map.size}")
-    
+
     // Remove an existing key
     let result2 = map.remove("banana")
     if (let Some(value) <- result2) {
@@ -12142,10 +12142,10 @@ main() {
     } else {
         println("Key not found: banana")
     }
-    
+
     println("TreeMap after removal: ${map}")
     println("Size after removal: ${map.size}")
-    
+
     // Attempt to remove a non-existent key
     let result3 = map.remove("grape")
     if (let Some(value) <- result3) {
@@ -12153,16 +12153,16 @@ main() {
     } else {
         println("Key not found: grape")
     }
-    
+
     // Remove another existing key
     let result4 = map.remove("apple")
     if (let Some(value) <- result4) {
         println("Removed key 'apple' with value: ${value}")
     }
-    
+
     println("Final TreeMap: ${map}")
     println("Final size: ${map.size}")
-    
+
     return 0
 }
 ```
@@ -12203,51 +12203,51 @@ import std.collection.*
 
 main() {
     let map = TreeMap<String, Int64>()
-    
+
     // Add some elements
     map.add("apple", 10)
     map.add("banana", 20)
     map.add("cherry", 30)
     map.add("date", 40)
     map.add("elderberry", 50)
-    
+
     println("TreeMap before removal: ${map}")
     println("Size before removal: ${map.size}")
-    
+
     // Create a collection of keys to remove using ArrayList
     let keysToRemove = ArrayList<String>()
     keysToRemove.add("banana")
     keysToRemove.add("date")
     keysToRemove.add("nonexistent")  // Non-existent key
-    
+
     println("\nKeys to remove:")
     for (key in keysToRemove) {
         println("  ${key}")
     }
-    
+
     // Remove the keys from the collection
     map.remove(all: keysToRemove)
-    
+
     println("\nTreeMap after removal: ${map}")
     println("Size after removal: ${map.size}")
-    
+
     // Use keys from another TreeMap for removal
     let anotherMap = TreeMap<String, Int64>()
     anotherMap.add("apple", 100)
     anotherMap.add("cherry", 300)
     anotherMap.add("grape", 600)  // This key doesn't exist in the original map
-    
+
     let keysFromAnotherMap = anotherMap.keys()
     println("\nKeys from another TreeMap:")
     for (key in keysFromAnotherMap) {
         println("  ${key}")
     }
-    
+
     map.remove(all: keysFromAnotherMap)
-    
+
     println("\nFinal TreeMap: ${map}")
     println("Final size: ${map.size}")
-    
+
     return 0
 }
 ```
@@ -12299,7 +12299,7 @@ import std.collection.*
 
 main() {
     let map = TreeMap<String, Int64>()
-    
+
     // Add some elements
     map.add("apple", 10)
     map.add("banana", 20)
@@ -12307,40 +12307,40 @@ main() {
     map.add("date", 40)
     map.add("elderberry", 50)
     map.add("fig", 60)
-    
+
     println("TreeMap before removal: ${map}")
     println("Size before removal: ${map.size}")
-    
+
     // Remove key-value pairs where value > 30
     map.removeIf({_: String, value: Int64 => value > 30})
-    
+
     println("\nAfter removing elements with value > 30:")
     println("TreeMap: ${map}")
     println("Size: ${map.size}")
-    
+
     // Remove key-value pairs where key length <= 5
     map.removeIf({key: String, _: Int64 => key.size <= 5})
-    
+
     println("\nAfter removing elements with key length <= 5:")
     println("TreeMap: ${map}")
     println("Size: ${map.size}")
-    
+
     // Add more elements for demonstration
     map.add("avocado", 15)
     map.add("blueberry", 25)
     map.add("coconut", 35)
-    
+
     println("\nAfter adding new elements:")
     println("TreeMap: ${map}")
     println("Size: ${map.size}")
-    
+
     // Remove key-value pairs where key starts with 'b'
     map.removeIf({key: String, _: Int64 => key.startsWith("b")})
-    
+
     println("\nAfter removing elements with keys starting with 'b':")
     println("TreeMap: ${map}")
     println("Size: ${map.size}")
-    
+
     return 0
 }
 ```
@@ -12392,19 +12392,19 @@ main() {
     map.add("apple", 10)
     map.add("banana", 20)
     map.add("date", 40)
-    
+
     // Get all values
     let valueCollection = map.values()
-    
+
     println("All values:")
     for (value in valueCollection) {
         println("Value: ${value}")
     }
-    
+
     // Verify the count of values
     println("\nValue count: ${valueCollection.size}")
     println("TreeMap size: ${map.size}")
-    
+
     return 0
 }
 ```
@@ -12443,36 +12443,36 @@ import std.collection.*
 
 main() {
     let map = TreeMap<String, Int64>()
-    
+
     // Use operator overload to set key-value pairs
     map["apple"] = 10
     map["banana"] = 20
     map["cherry"] = 30
-    
+
     println("TreeMap after setting: ${map}")
     println("Size: ${map.size}")
-    
+
     // Overwrite the value of an existing key
     map["apple"] = 15  // Overwrites the original value 10
-    
+
     println("\nAfter overwriting apple's value:")
     println("TreeMap: ${map}")
-    
+
     // Add new key-value pairs
     map["date"] = 40
     map["elderberry"] = 50
-    
+
     println("\nAfter adding more key-value pairs:")
     println("TreeMap: ${map}")
     println("Size: ${map.size}")
-    
+
     // Overwrite again
     map["banana"] = 25
     map["cherry"] = 35
-    
+
     println("\nAfter modifying values again:")
     println("TreeMap: ${map}")
-    
+
     return 0
 }
 ```
@@ -12522,29 +12522,29 @@ import std.collection.*
 
 main() {
     let map = TreeMap<String, Int64>()
-    
+
     // First, add some key-value pairs
     map.add("apple", 10)
     map.add("banana", 20)
     map.add("cherry", 30)
     map.add("date", 40)
-    
+
     println("TreeMap contents: ${map}")
-    
+
     // Use operator overload to get values
     let appleValue = map["apple"]
     let bananaValue = map["banana"]
     let cherryValue = map["cherry"]
-    
+
     println("\nUsing [] operator to get values:")
     println("apple's value: ${appleValue}")
     println("banana's value: ${bananaValue}")
     println("cherry's value: ${cherryValue}")
-    
+
     // Get all values and calculate the sum
     let total = map["apple"] + map["banana"] + map["cherry"] + map["date"]
     println("\nTotal of all values: ${total}")
-    
+
     // Attempt to access a non-existent key (will throw an exception)
     println("\nAttempting to access a non-existent key:")
     try {
@@ -12553,7 +12553,7 @@ main() {
     } catch (e: Exception) {
         println("Caught exception: ${e}")
     }
-    
+
     return 0
 }
 ```
@@ -12616,43 +12616,43 @@ main() {
     map1.add("apple", 10)
     map1.add("banana", 20)
     map1.add("cherry", 30)
-    
+
     let map2 = TreeMap<String, Int64>()
     map2.add("apple", 10)
     map2.add("banana", 20)
     map2.add("cherry", 30)
-    
+
     println("map1: ${map1}")
     println("map2: ${map2}")
     println("map1 == map2: ${map1 == map2}")
-    
+
     // Create a different TreeMap
     let map3 = TreeMap<String, Int64>()
     map3.add("apple", 10)
     map3.add("banana", 20)
     map3.add("date", 40)  // Different key-value pair
-    
+
     println("\nmap3: ${map3}")
     println("map1 == map3: ${map1 == map3}")
-    
+
     // Create a TreeMap with the same keys but different values
     let map4 = TreeMap<String, Int64>()
     map4.add("apple", 15)  // Different value
     map4.add("banana", 20)
     map4.add("cherry", 30)
-    
+
     println("\nmap4: ${map4}")
     println("map1 == map4: ${map1 == map4}")
-    
+
     // Compare empty TreeMaps
     let emptyMap1 = TreeMap<String, Int64>()
     let emptyMap2 = TreeMap<String, Int64>()
-    
+
     println("\nemptyMap1: ${emptyMap1}")
     println("emptyMap2: ${emptyMap2}")
     println("emptyMap1 == emptyMap2: ${emptyMap1 == emptyMap2}")
     println("map1 == emptyMap1: ${map1 == emptyMap1}")
-    
+
     return 0
 }
 ```
@@ -12704,43 +12704,43 @@ main() {
     map1.add("apple", 10)
     map1.add("banana", 20)
     map1.add("cherry", 30)
-    
+
     let map2 = TreeMap<String, Int64>()
     map2.add("apple", 10)
     map2.add("banana", 20)
     map2.add("cherry", 30)
-    
+
     println("map1: ${map1}")
     println("map2: ${map2}")
     println("map1 != map2: ${map1 != map2}")
-    
+
     // Create a different TreeMap
     let map3 = TreeMap<String, Int64>()
     map3.add("apple", 10)
     map3.add("banana", 20)
     map3.add("date", 40)  // Different key-value pair
-    
+
     println("\nmap3: ${map3}")
     println("map1 != map3: ${map1 != map3}")
-    
+
     // Create a TreeMap with the same keys but different values
     let map4 = TreeMap<String, Int64>()
     map4.add("apple", 15)  // Different value
     map4.add("banana", 20)
     map4.add("cherry", 30)
-    
+
     println("\nmap4: ${map4}")
     println("map1 != map4: ${map1 != map4}")
-    
+
     // Compare empty and non-empty TreeMaps
     let emptyMap = TreeMap<String, Int64>()
     println("\nemptyMap: ${emptyMap}")
     println("map1 != emptyMap: ${map1 != emptyMap}")
-    
+
     // Compare two empty TreeMaps
     let anotherEmptyMap = TreeMap<String, Int64>()
     println("emptyMap != anotherEmptyMap: ${emptyMap != anotherEmptyMap}")
-    
+
     return 0
 }
 ```
@@ -12799,18 +12799,18 @@ main() {
     // String representation of an empty TreeMap
     let emptyMap = TreeMap<String, Int64>()
     println("Empty TreeMap: ${emptyMap.toString()}")
-    
+
     // String representation of a non-empty TreeMap
     let map = TreeMap<String, Int64>()
     map.add("cherry", 30)
     map.add("apple", 10)
     map.add("banana", 20)
-    
+
     println("Non-empty TreeMap: ${map.toString()}")
-    
+
     // Direct printing (automatically calls toString)
     println("Direct print: ${map}")
-    
+
     return 0
 }
 ```
@@ -12863,15 +12863,15 @@ main() {
     // Create an empty TreeSet
     let emptySet = TreeSet<String>()
     println("First element of empty set: ${emptySet.first}")
-    
+
     // Create a TreeSet with elements
     let set = TreeSet<String>()
     set.add("banana")
-    set.add("apple") 
+    set.add("apple")
     set.add("cherry")
-    
+
     println("First element of populated set: ${set.first}")
-    
+
     return 0
 }
 ```
@@ -12903,15 +12903,15 @@ main() {
     // Create an empty TreeSet
     let emptySet = TreeSet<String>()
     println("Last element of empty set: ${emptySet.last}")
-    
+
     // Create a TreeSet with elements
     let set = TreeSet<String>()
     set.add("banana")
-    set.add("apple") 
+    set.add("apple")
     set.add("cherry")
-    
+
     println("Last element of populated set: ${set.last}")
-    
+
     return 0
 }
 ```
@@ -12943,15 +12943,15 @@ main() {
     // Create an empty TreeSet
     let emptySet = TreeSet<String>()
     println("Size of empty set: ${emptySet.size}")
-    
+
     // Create a TreeSet with elements
     let set = TreeSet<String>()
     set.add("banana")
-    set.add("apple") 
+    set.add("apple")
     set.add("cherry")
-    
+
     println("Size of populated set: ${set.size}")
-    
+
     return 0
 }
 ```
@@ -12981,12 +12981,12 @@ main() {
     // Create an empty TreeSet using parameterless constructor
     let set = TreeSet<String>()
     println("Initial size: ${set.size}")
-    
+
     // Add elements
     set.add("hello")
     set.add("world")
     println("Size after adding elements: ${set.size}")
-    
+
     return 0
 }
 ```
@@ -13021,12 +13021,12 @@ import std.collection.*
 main() {
     // Create an array as initial elements
     let arr = ["apple", "banana", "cherry", "apple", "banana"] // Contains duplicates
-    
+
     // Create a set using Collection constructor
     let set = TreeSet<String>(arr)
     println("Set size: ${set.size}")
     println("Set contents: ${set}")
-    
+
     return 0
 }
 ```
@@ -13066,7 +13066,7 @@ main() {
     let set = TreeSet<String>(5, {i => "item${i}"})
     println("TreeSet size: ${set.size}")
     println("TreeSet contents: ${set}")
-    
+
     return 0
 }
 ```
@@ -13110,11 +13110,11 @@ main() {
     // Create a set using static method of
     let arr = ["banana", "apple", "cherry", "apple", "banana"] // Contains duplicates
     let set = TreeSet.of(arr)
-    
+
     println("Original array length: ${arr.size}")
     println("Set size: ${set.size}")
     println("Set contents: ${set}")
-    
+
     return 0
 }
 ```
@@ -13151,22 +13151,22 @@ import std.collection.*
 
 main() {
     let set = TreeSet<String>()
-    
+
     // Add new element (returns true)
     let result1 = set.add("apple")
     println("Added 'apple': ${result1}")
     println("Current set: ${set}")
-    
+
     // Attempt to add existing element (returns false)
     let result2 = set.add("apple")
     println("Added 'apple' again: ${result2}")
     println("Current set: ${set}")
-    
+
     // Add more elements
     set.add("banana")
     set.add("cherry")
     println("Final set: ${set}")
-    
+
     return 0
 }
 ```
@@ -13203,14 +13203,14 @@ main() {
     let set = TreeSet<String>()
     set.add("apple")
     println("Initial set: ${set}")
-    
+
     // Create a collection to add
     let toAdd = ["banana", "cherry", "apple", "date"]
     set.add(all: toAdd)
-    
+
     println("Set after addition: ${set}")
     println("Set size: ${set.size}")
-    
+
     return 0
 }
 ```
@@ -13289,25 +13289,25 @@ import std.collection.*
 main() {
     let set = TreeSet<String>()
     set.add("apple")
-    set.add("banana") 
+    set.add("banana")
     set.add("cherry")
     set.add("date")
     set.add("elderberry")
-    
+
     println("Complete set: ${set}")
-    
+
     // Traverse backward from "cherry" (including cherry)
     println("Backward traversal from cherry (inclusive):")
     for (item in set.backward("cherry", inclusive: true)) {
         println("  ${item}")
     }
-    
+
     // Traverse backward from "cherry" (excluding cherry)
     println("Backward traversal from cherry (exclusive):")
     for (item in set.backward("cherry", inclusive: false)) {
         println("  ${item}")
     }
-    
+
     return 0
 }
 ```
@@ -13342,19 +13342,19 @@ import std.collection.*
 main() {
     let set = TreeSet<String>()
     set.add("apple")
-    set.add("banana") 
+    set.add("banana")
     set.add("cherry")
-    
+
     println("Set before clearing: ${set}")
     println("Size before clearing: ${set.size}")
-    
+
     // Clear all elements
     set.clear()
-    
+
     println("Set after clearing: ${set}")
     println("Size after clearing: ${set.size}")
     println("Is set empty: ${set.isEmpty()}")
-    
+
     return 0
 }
 ```
@@ -13390,22 +13390,22 @@ import std.collection.*
 main() {
     let originalSet = TreeSet<String>()
     originalSet.add("apple")
-    originalSet.add("banana") 
+    originalSet.add("banana")
     originalSet.add("cherry")
-    
+
     println("Original set: ${originalSet}")
-    
+
     // Clone the set
     let clonedSet = originalSet.clone()
     println("Cloned set: ${clonedSet}")
-    
+
     // Modify original and cloned sets to verify independence
     originalSet.add("date")
     clonedSet.add("elderberry")
-    
+
     println("Modified original set: ${originalSet}")
     println("Modified cloned set: ${clonedSet}")
-    
+
     return 0
 }
 ```
@@ -13444,19 +13444,19 @@ import std.collection.*
 main() {
     let set = TreeSet<String>()
     set.add("apple")
-    set.add("banana") 
+    set.add("banana")
     set.add("cherry")
-    
+
     println("Set contents: ${set}")
-    
+
     // Check existing elements
     println("Contains 'apple': ${set.contains("apple")}")
     println("Contains 'banana': ${set.contains("banana")}")
-    
+
     // Check non-existing elements
     println("Contains 'date': ${set.contains("date")}")
     println("Contains 'elderberry': ${set.contains("elderberry")}")
-    
+
     return 0
 }
 ```
@@ -13496,21 +13496,21 @@ import std.collection.*
 main() {
     let set = TreeSet<String>()
     set.add("apple")
-    set.add("banana") 
+    set.add("banana")
     set.add("cherry")
     set.add("date")
-    
+
     println("Main set: ${set}")
-    
+
     // Create test collections
     let checkSet1 = ["apple", "banana"]
     let checkSet2 = ["apple", "elderberry"]
     let checkSet3 = ["fig", "grape"]
-    
+
     println("Contains all ['apple', 'banana']: ${set.contains(all: checkSet1)}")
     println("Contains all ['apple', 'elderberry']: ${set.contains(all: checkSet2)}")
     println("Contains all ['fig', 'grape']: ${set.contains(all: checkSet3)}")
-    
+
     return 0
 }
 ```
@@ -13622,25 +13622,25 @@ import std.collection.*
 main() {
     let set = TreeSet<String>()
     set.add("apple")
-    set.add("banana") 
+    set.add("banana")
     set.add("cherry")
     set.add("date")
     set.add("elderberry")
-    
+
     println("Complete set: ${set}")
-    
+
     // Traverse forward from "cherry" (including cherry)
     println("Forward traversal from cherry (inclusive):")
     for (item in set.forward("cherry", inclusive: true)) {
         println("  ${item}")
     }
-    
+
     // Traverse forward from "cherry" (excluding cherry)
     println("Forward traversal from cherry (exclusive):")
     for (item in set.forward("cherry", inclusive: false)) {
         println("  ${item}")
     }
-    
+
     return 0
 }
 ```
@@ -13681,16 +13681,16 @@ main() {
     // Create empty set
     let emptySet = TreeSet<String>()
     println("Is empty set empty: ${emptySet.isEmpty()}")
-    
+
     // Create non-empty set
     let nonEmptySet = TreeSet<String>()
     nonEmptySet.add("apple")
     println("Is non-empty set empty: ${nonEmptySet.isEmpty()}")
-    
+
     // Check after clearing set
     nonEmptySet.clear()
     println("Is set empty after clearing: ${nonEmptySet.isEmpty()}")
-    
+
     return 0
 }
 ```
@@ -13724,18 +13724,18 @@ import std.collection.*
 main() {
     let set = TreeSet<String>()
     set.add("cherry")
-    set.add("apple") 
+    set.add("apple")
     set.add("banana")
     set.add("date")
-    
+
     println("Set contents: ${set}")
     println("Iterating with iterator:")
-    
+
     // Iterate using iterator
     for (item in set.iterator()) {
         println("  ${item}")
     }
-    
+
     return 0
 }
 ```
@@ -13832,22 +13832,22 @@ import std.collection.*
 main() {
     let set = TreeSet<String>()
     set.add("cherry")
-    set.add("apple") 
+    set.add("apple")
     set.add("banana")
     set.add("date")
-    
+
     println("Original set: ${set}")
-    
+
     // Remove first element
     let first = set.removeFirst()
     println("Removed first element: ${first}")
     println("Set after removal: ${set}")
-    
+
     // Remove next first element
     let second = set.removeFirst()
     println("Removed second element: ${second}")
     println("Set after second removal: ${set}")
-    
+
     return 0
 }
 ```
@@ -13883,22 +13883,22 @@ import std.collection.*
 main() {
     let set = TreeSet<String>()
     set.add("cherry")
-    set.add("apple") 
+    set.add("apple")
     set.add("banana")
     set.add("date")
-    
+
     println("Original set: ${set}")
-    
+
     // Remove last element
     let last = set.removeLast()
     println("Removed last element: ${last}")
     println("Set after removal: ${set}")
-    
+
     // Remove next last element
     let secondLast = set.removeLast()
     println("Removed second last element: ${secondLast}")
     println("Set after second removal: ${set}")
-    
+
     return 0
 }
 ```
@@ -13940,19 +13940,19 @@ main() {
     set.add("apple")
     set.add("banana")
     set.add("cherry")
-    
+
     println("Initial set: ${set}")
-    
+
     // Remove existing element, returns true
     let result1 = set.remove("banana")
     println("Remove 'banana': ${result1}")
     println("Set after removal: ${set}")
-    
+
     // Remove non-existent element, returns false
     let result2 = set.remove("date")
     println("Remove 'date': ${result2}")
     println("Set after removal: ${set}")
-    
+
     return 0
 }
 ```
@@ -13992,17 +13992,17 @@ main() {
     set.add("cherry")
     set.add("date")
     set.add("elderberry")
-    
+
     println("Initial set: ${set}")
-    
+
     // Create collection of elements to remove
     let toRemove = ["banana", "date", "fig"] // "fig" doesn't exist in original set
-    
+
     // Remove elements
     set.remove(all: toRemove)
-    
+
     println("Set after removal: ${set}")
-    
+
     return 0
 }
 ```
@@ -14043,14 +14043,14 @@ main() {
     set.add("cherry")
     set.add("date")
     set.add("elderberry")
-    
+
     println("Initial set: ${set}")
-    
+
     // Remove elements with length > 5
     set.removeIf({s => s.size > 5})
-    
+
     println("Set after removing elements with length > 5: ${set}")
-    
+
     return 0
 }
 ```
@@ -14087,17 +14087,17 @@ main() {
     set.add("cherry")
     set.add("date")
     set.add("elderberry")
-    
+
     println("Initial set: ${set}")
-    
+
     // Create set of elements to retain
     let toRetain = TreeSet.of(["banana", "date", "fig"]) // "fig" doesn't exist in original set
-    
+
     // Retain specified elements
     set.retain(all: toRetain)
-    
+
     println("Set after retaining elements: ${set}")
-    
+
     return 0
 }
 ```
@@ -14135,29 +14135,29 @@ main() {
     let set1 = TreeSet<String>()
     set1.add("apple")
     set1.add("banana")
-    
+
     let set2 = TreeSet<String>()
     set2.add("apple")
     set2.add("banana")
     set2.add("cherry")
     set2.add("date")
-    
+
     println("Set 1: ${set1}")
     println("Set 2: ${set2}")
-    
+
     // Check if set1 is a subset of set2
     let result1 = set1.subsetOf(set2)
     println("set1 is subset of set2: ${result1}")
-    
+
     // Check if set2 is a subset of set1
     let result2 = set2.subsetOf(set1)
     println("set2 is subset of set1: ${result2}")
-    
+
     // Check if empty set is a subset of set1
     let emptySet = TreeSet<String>()
     let result3 = emptySet.subsetOf(set1)
     println("empty set is subset of set1: ${result3}")
-    
+
     return 0
 }
 ```
@@ -14196,21 +14196,21 @@ main() {
     set.add("banana")
     set.add("cherry")
     set.add("date")
-    
+
     println("TreeSet contents: ${set}")
-    
+
     // Convert to array
     let array = set.toArray()
-    
+
     println("Converted array: ${array}")
     println("Array length: ${array.size}")
-    
+
     // Iterate through array
     println("Array elements:")
     for (item in array) {
         println("  ${item}")
     }
-    
+
     return 0
 }
 ```
@@ -14255,21 +14255,21 @@ main() {
     set1.add("apple")
     set1.add("banana")
     set1.add("cherry")
-    
+
     let set2 = TreeSet<String>()
     set2.add("banana")
     set2.add("cherry")
     set2.add("date")
     set2.add("elderberry")
-    
+
     println("Set 1: ${set1}")
     println("Set 2: ${set2}")
-    
+
     // Calculate intersection
     let intersection = set1 & set2
-    
+
     println("Intersection result: ${intersection}")
-    
+
     return 0
 }
 ```
@@ -14309,21 +14309,21 @@ main() {
     set1.add("apple")
     set1.add("banana")
     set1.add("cherry")
-    
+
     let set2 = TreeSet<String>()
     set2.add("banana")
     set2.add("cherry")
     set2.add("date")
     set2.add("elderberry")
-    
+
     println("Set 1: ${set1}")
     println("Set 2: ${set2}")
-    
+
     // Calculate union
     let union = set1 | set2
-    
+
     println("Union result: ${union}")
-    
+
     return 0
 }
 ```
@@ -14363,26 +14363,26 @@ main() {
     set1.add("apple")
     set1.add("banana")
     set1.add("cherry")
-    
+
     let set2 = TreeSet<String>()
     set2.add("banana")
     set2.add("cherry")
     set2.add("date")
     set2.add("elderberry")
-    
+
     println("Set 1: ${set1}")
     println("Set 2: ${set2}")
-    
+
     // Calculate difference (set1 - set2)
     let difference = set1 - set2
-    
+
     println("Difference result (set1 - set2): ${difference}")
-    
+
     // Calculate difference (set2 - set1)
     let difference2 = set2 - set1
-    
+
     println("Difference result (set2 - set1): ${difference2}")
-    
+
     return 0
 }
 ```
@@ -14437,33 +14437,33 @@ main() {
     set1.add("apple")
     set1.add("banana")
     set1.add("cherry")
-    
+
     let set2 = TreeSet<String>()
     set2.add("apple")
     set2.add("banana")
     set2.add("cherry")
-    
+
     let set3 = TreeSet<String>()
     set3.add("apple")
     set3.add("banana")
     set3.add("date")
-    
+
     println("Set 1: ${set1}")
     println("Set 2: ${set2}")
     println("Set 3: ${set3}")
-    
+
     // Compare equal sets
     let result1 = set1 == set2
     println("set1 == set2: ${result1}")
-    
+
     // Compare unequal sets
     let result2 = set1 == set3
     println("set1 == set3: ${result2}")
-    
+
     // Compare with self
     let result3 = set1 == set1
     println("set1 == set1: ${result3}")
-    
+
     return 0
 }
 ```
@@ -14506,33 +14506,33 @@ main() {
     set1.add("apple")
     set1.add("banana")
     set1.add("cherry")
-    
+
     let set2 = TreeSet<String>()
     set2.add("apple")
     set2.add("banana")
     set2.add("cherry")
-    
+
     let set3 = TreeSet<String>()
     set3.add("apple")
     set3.add("banana")
     set3.add("date")
-    
+
     println("Set 1: ${set1}")
     println("Set 2: ${set2}")
     println("Set 3: ${set3}")
-    
+
     // Compare unequal sets
     let result1 = set1 != set3
     println("set1 != set3: ${result1}")
-    
+
     // Compare equal sets
     let result2 = set1 != set2
     println("set1 != set2: ${result2}")
-    
+
     // Compare with self
     let result3 = set1 != set1
     println("set1 != set1: ${result3}")
-    
+
     return 0
 }
 ```
@@ -14585,20 +14585,20 @@ main() {
     set.add("apple")
     set.add("banana")
     set.add("cherry")
-    
+
     println("TreeSet contents: ${set}")
-    
+
     // Convert to string
     let str = set.toString()
-    
+
     println("Converted string: ${str}")
-    
+
     // String representation of an empty set
     let emptySet = TreeSet<String>()
     let emptyStr = emptySet.toString()
-    
+
     println("Empty set string: ${emptyStr}")
-    
+
     return 0
 }
 ```

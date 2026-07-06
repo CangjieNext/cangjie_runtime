@@ -430,7 +430,7 @@ Returns:
 ### prop isInfinite
 
 ```cangjie
-public override prop isInfinite: Bool 
+public override prop isInfinite: Bool
 ```
 
 Function: Returns true if this strategy is infinite, otherwise false.
@@ -441,7 +441,7 @@ Type: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool).
 
 ```cangjie
 public class LazySeq<T> <: Iterable<T> {
-    public init(element: T) 
+    public init(element: T)
     public init()
 }
 ```
@@ -626,7 +626,7 @@ Returns:
 ### static func mix(LazySeq\<T>,LazySeq\<T>,LazySeq\<T>,LazySeq\<T>,LazySeq\<T>)
 
 ```cangjie
-public static func mix(l1: LazySeq<T>, l2: LazySeq<T>, l3: LazySeq<T>, l4: LazySeq<T>, l5: LazySeq<T>): LazySeq<T> 
+public static func mix(l1: LazySeq<T>, l2: LazySeq<T>, l3: LazySeq<T>, l4: LazySeq<T>, l5: LazySeq<T>): LazySeq<T>
 ```
 
 Function: Interleaves five sequences into one.

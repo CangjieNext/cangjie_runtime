@@ -143,7 +143,7 @@ main(): Int64 {
 ```text
 退出码: 0
 标准输出: Hello, World!
-标准错误: 
+标准错误:
 ```
 
 ## func findProcess(Int64)

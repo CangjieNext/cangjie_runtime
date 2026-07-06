@@ -2475,7 +2475,7 @@ Parent Type:
 ### prop commas
 
 ```cangjie
-public mut prop commas: Tokens 
+public mut prop commas: Tokens
 ```
 
 Function: Gets or sets the sequence of `,` lexical units in the [MemberAccess](ast_package_classes.md#class-memberaccess) node, which may be empty.
@@ -2489,7 +2489,7 @@ Exceptions:
 ### prop content
 
 ```cangjie
-public mut prop content: ArrayList<FeatureId> 
+public mut prop content: ArrayList<FeatureId>
 ```
 
 Function: Gets of sets the content of the [FeaturesSet](ast_package_classes.md#class-featureset) node.
@@ -4785,7 +4785,7 @@ Type: [Token](ast_package_structs.md#struct-token)
 ### prop identifier
 
 ```cangjie
-public override mut prop identifier: Token 
+public override mut prop identifier: Token
 ```
 
 Function: This property is inherited from the [Decl](ast_package_classes.md#class-decl) node and represents the identifier of the macro invocation node, such as `m` in `@pkg.m class a{}`.
@@ -5115,15 +5115,15 @@ Parent Type:
 public mut prop fullIdentifier: Token
 ```
 
-Function: Gets or sets the complete identifier of the macro invocation node, such as `pkg.m` in `func bar (@pkg.m a: Int64)`.	 
+Function: Gets or sets the complete identifier of the macro invocation node, such as `pkg.m` in `func bar (@pkg.m a: Int64)`.
 
-Type: [Token](ast_package_structs.md#struct-token) 
+Type: [Token](ast_package_structs.md#struct-token)
 
-### prop identifier 
+### prop identifier
 
-```cangjie 
-public override mut prop identifier: Token 
-``` 
+```cangjie
+public override mut prop identifier: Token
+```
 
 Function: This property is inherited from the [Decl](ast_package_classes.md#class-decl) node, representing the identifier of the macro invocation node, such as `m` in `func bar (@pkg.m a: Int64)`.
 

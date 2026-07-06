@@ -1117,7 +1117,7 @@ main() {
     // Test Float16.Inf property
     let infValue = Float16.Inf
     println("Value of Float16.Inf: ${infValue}")
-    
+
     // Verify it is indeed infinity
     println("Is Float16.Inf infinity: ${infValue.isInf()}")
 }
@@ -1148,7 +1148,7 @@ main() {
     // Test Float16.Max property
     let maxValue = Float16.Max
     println("Value of Float16.Max: ${maxValue}")
-    
+
     // Verify it is indeed the maximum value
     println("Is Float16.Max a normal number: ${maxValue.isNormal()}")
 }
@@ -1179,7 +1179,7 @@ main() {
     // Test Float16.Min property
     let minValue = Float16.Min
     println("Value of Float16.Min: ${minValue}")
-    
+
     // Verify it is indeed the minimum value
     println("Is Float16.Min a normal number: ${minValue.isNormal()}")
 }
@@ -1210,7 +1210,7 @@ main() {
     // Test Float16.MinDenormal property
     let minDenormalValue = Float16.MinDenormal
     println("Value of Float16.MinDenormal: ${minDenormalValue}")
-    
+
     // Verify it is indeed the smallest denormal number
     println("Is Float16.MinDenormal a normal number: ${minDenormalValue.isNormal()}")
 }
@@ -1241,7 +1241,7 @@ main() {
     // Test Float16.MinNormal property
     let minNormalValue = Float16.MinNormal
     println("Value of Float16.MinNormal: ${minNormalValue}")
-    
+
     // Verify it is indeed the smallest normal number
     println("Is Float16.MinNormal a normal number: ${minNormalValue.isNormal()}")
 }
@@ -1272,7 +1272,7 @@ main() {
     // Test Float16.NaN property
     let nanValue = Float16.NaN
     println("Value of Float16.NaN: ${nanValue}")
-    
+
     // Verify it is indeed NaN
     println("Is Float16.NaN Not-a-Number: ${nanValue.isNaN()}")
 }
@@ -1316,11 +1316,11 @@ main() {
     let e: Float16 = 3.4f16
     let f: Float16 = 3.8f16
     let g: Float16 = 3.9f16
-    
+
     // Find the maximum value using max method
     let maxValue = Float16.max(a, b, c, d, e, f, g)
     println("Result of Float16.max(1.5, 2.7, 0.8, 3.2, 3.4, 3.8, 3.9): ${maxValue}")
-    
+
     // Verify the result
     println("Is the maximum value correct: ${maxValue == g}")
 }
@@ -1364,11 +1364,11 @@ main() {
     let e: Float16 = 3.4f16
     let f: Float16 = 3.8f16
     let g: Float16 = 3.9f16
-    
+
     // Find the minimum value using min method
     let minValue = Float16.min(a, b, c, d, e, f, g)
     println("Result of Float16.min(1.5, 2.7, 0.8, 3.2, 3.4, 3.8, 3.9): ${minValue}")
-    
+
     // Verify the result
     println("Is the minimum value correct: ${minValue == c}")
 }
@@ -1402,13 +1402,13 @@ main() {
     let normalValue: Float16 = 1.5f16
     let infValue = Float16.Inf
     let negInfValue = -Float16.Inf
-    
+
     // Check if a normal value is infinity
     println("Result of 1.5f16.isInf(): ${normalValue.isInf()}")
-    
+
     // Check if positive infinity is infinity
     println("Result of Float16.Inf.isInf(): ${infValue.isInf()}")
-    
+
     // Check if negative infinity is infinity
     println("Result of (-Float16.Inf).isInf(): ${negInfValue.isInf()}")
 }
@@ -1442,10 +1442,10 @@ main() {
     // Test Float16.isNaN method
     let normalValue: Float16 = 1.5f16
     let nanValue = Float16.NaN
-    
+
     // Check if a normal value is NaN
     println("Result of 1.5f16.isNaN(): ${normalValue.isNaN()}")
-    
+
     // Check if NaN value is NaN
     println("Result of Float16.NaN.isNaN(): ${nanValue.isNaN()}")
 }
@@ -1480,16 +1480,16 @@ main() {
     let zeroValue: Float16 = 0.0f16
     let infValue = Float16.Inf
     let nanValue = Float16.NaN
-    
+
     // Check if a normal value is normal
     println("Result of 1.5f16.isNormal(): ${normalValue.isNormal()}")
-    
+
     // Check if zero is normal
     println("Result of 0.0f16.isNormal(): ${zeroValue.isNormal()}")
-    
+
     // Check if infinity is normal
     println("Result of Float16.Inf.isNormal(): ${infValue.isNormal()}")
-    
+
     // Check if NaN is normal
     println("Result of Float16.NaN.isNormal(): ${nanValue.isNormal()}")
 }
@@ -1649,16 +1649,16 @@ main() {
     let value1: Float16 = 1.5f16
     let value2: Float16 = 1.5f16
     let value3: Float16 = 2.0f16
-    
+
     // Compute hash values
     let hash1 = value1.hashCode()
     let hash2 = value2.hashCode()
     let hash3 = value3.hashCode()
-    
+
     println("Hash value of 1.5f16: ${hash1}")
     println("Hash value of 1.5f16: ${hash2}")
     println("Hash value of 2.0f16: ${hash3}")
-    
+
     // Verify equal values have the same hash
     println("Do equal values have the same hash: ${hash1 == hash2}")
 }
@@ -1705,16 +1705,16 @@ main() {
     let value1: Float16 = 1.5f16
     let value2: Float16 = 123.456f16
     let value3: Float16 = -0.001f16
-    
+
     // Convert to strings
     let str1 = value1.toString()
     let str2 = value2.toString()
     let str3 = value3.toString()
-    
+
     println("1.5f16 converted to string: \"${str1}\"")
     println("123.456f16 converted to string: \"${str2}\"")
     println("-0.001f16 converted to string: \"${str3}\"")
-    
+
     // Verify type
     println("Is the converted type String: ${str1 is String}")
 }
@@ -1759,7 +1759,7 @@ main() {
     // Test Float32.Inf property
     let infValue = Float32.Inf
     println("Value of Float32.Inf: ${infValue}")
-    
+
     // Verify it is indeed infinity
     println("Is Float32.Inf infinity: ${infValue.isInf()}")
 }
@@ -1790,7 +1790,7 @@ main() {
     // Test Float32.Max property
     let maxValue = Float32.Max
     println("Value of Float32.Max: ${maxValue}")
-    
+
     // Verify it is indeed the maximum value
     println("Is Float32.Max a normal number: ${maxValue.isNormal()}")
 }
@@ -1821,7 +1821,7 @@ main() {
     // Test Float32.Min property
     let minValue = Float32.Min
     println("Value of Float32.Min: ${minValue}")
-    
+
     // Verify it is indeed the minimum value
     println("Is Float32.Min a normal number: ${minValue.isNormal()}")
 }
@@ -1852,7 +1852,7 @@ main() {
     // Test Float32.MinDenormal property
     let minDenormalValue = Float32.MinDenormal
     println("Value of Float32.MinDenormal: ${minDenormalValue}")
-    
+
     // Verify it is indeed the smallest denormal number
     println("Is Float32.MinDenormal a normal number: ${minDenormalValue.isNormal()}")
 }
@@ -1883,7 +1883,7 @@ main() {
     // Test Float32.MinNormal property
     let minNormalValue = Float32.MinNormal
     println("Value of Float32.MinNormal: ${minNormalValue}")
-    
+
     // Verify it is indeed the smallest normal number
     println("Is Float32.MinNormal a normal number: ${minNormalValue.isNormal()}")
 }
@@ -1914,7 +1914,7 @@ main() {
     // Test Float32.NaN property
     let nanValue = Float32.NaN
     println("Value of Float32.NaN: ${nanValue}")
-    
+
     // Verify it is indeed NaN
     println("Is Float32.NaN Not-a-Number: ${nanValue.isNaN()}")
 }
@@ -1955,11 +1955,11 @@ main() {
     let b: Float32 = 2.7f32
     let c: Float32 = 0.8f32
     let d: Float32 = 3.2f32
-    
+
     // Find the maximum value using max method
     let maxValue = Float32.max(a, b, c, d)
     println("Result of Float32.max(1.5, 2.7, 0.8, 3.2): ${maxValue}")
-    
+
     // Verify the result
     println("Is the maximum value correct: ${maxValue == d}")
 }
@@ -2000,11 +2000,11 @@ main() {
     let b: Float32 = 2.7f32
     let c: Float32 = 0.8f32
     let d: Float32 = 3.2f32
-    
+
     // Find the minimum value using min method
     let minValue = Float32.min(a, b, c, d)
     println("Result of Float32.min(1.5, 2.7, 0.8, 3.2): ${minValue}")
-    
+
     // Verify the result
     println("Is the minimum value correct: ${minValue == c}")
 }
@@ -2038,13 +2038,13 @@ main() {
     let normalValue: Float32 = 1.5f32
     let infValue = Float32.Inf
     let negInfValue = -Float32.Inf
-    
+
     // Check if a normal value is infinite
     println("Result of 1.5f32.isInf(): ${normalValue.isInf()}")
-    
+
     // Check if positive infinity is infinite
     println("Result of Float32.Inf.isInf(): ${infValue.isInf()}")
-    
+
     // Check if negative infinity is infinite
     println("Result of (-Float32.Inf).isInf(): ${negInfValue.isInf()}")
 }
@@ -2078,10 +2078,10 @@ main() {
     // Test Float32.isNaN method
     let normalValue: Float32 = 1.5f32
     let nanValue = Float32.NaN
-    
+
     // Check if a normal value is NaN
     println("Result of 1.5f32.isNaN(): ${normalValue.isNaN()}")
-    
+
     // Check if NaN value is NaN
     println("Result of Float32.NaN.isNaN(): ${nanValue.isNaN()}")
 }
@@ -2116,16 +2116,16 @@ main() {
     let zeroValue: Float32 = 0.0f32
     let infValue = Float32.Inf
     let nanValue = Float32.NaN
-    
+
     // Check if a normal value is normal
     println("Result of 1.5f32.isNormal(): ${normalValue.isNormal()}")
-    
+
     // Check if zero is normal
     println("Result of 0.0f32.isNormal(): ${zeroValue.isNormal()}")
-    
+
     // Check if infinity is normal
     println("Result of Float32.Inf.isNormal(): ${infValue.isNormal()}")
-    
+
     // Check if NaN is normal
     println("Result of Float32.NaN.isNormal(): ${nanValue.isNormal()}")
 }
@@ -2285,16 +2285,16 @@ main() {
     let value1: Float32 = 1.5f32
     let value2: Float32 = 1.5f32
     let value3: Float32 = 2.0f32
-    
+
     // Compute hash values
     let hash1 = value1.hashCode()
     let hash2 = value2.hashCode()
     let hash3 = value3.hashCode()
-    
+
     println("Hash value of 1.5f32: ${hash1}")
     println("Hash value of 1.5f32: ${hash2}")
     println("Hash value of 2.0f32: ${hash3}")
-    
+
     // Verify equal values have the same hash value
     println("Do equal values have the same hash: ${hash1 == hash2}")
 }
@@ -2342,16 +2342,16 @@ main() {
     let value1: Float32 = 1.5f32
     let value2: Float32 = 123.456f32
     let value3: Float32 = -0.001f32
-    
+
     // Convert to strings
     let str1 = value1.toString()
     let str2 = value2.toString()
     let str3 = value3.toString()
-    
+
     println("1.5f32 converted to string: \"${str1}\"")
     println("123.456f32 converted to string: \"${str2}\"")
     println("-0.001f32 converted to string: \"${str3}\"")
-    
+
     // Verify type
     println("Is converted type String: ${str1 is String}")
 }
@@ -2396,7 +2396,7 @@ main() {
     // Test Float64.Inf property
     let infValue = Float64.Inf
     println("Value of Float64.Inf: ${infValue}")
-    
+
     // Verify it is indeed infinity
     println("Is Float64.Inf infinite: ${infValue.isInf()}")
 }
@@ -2427,7 +2427,7 @@ main() {
     // Test Float64.Max property
     let maxValue = Float64.Max
     println("Value of Float64.Max: ${maxValue}")
-    
+
     // Verify it is indeed the maximum value
     println("Is Float64.Max a normal number: ${maxValue.isNormal()}")
 }
@@ -2458,7 +2458,7 @@ main() {
     // Test Float64.Min property
     let minValue = Float64.Min
     println("Value of Float64.Min: ${minValue}")
-    
+
     // Verify it is indeed the minimum value
     println("Is Float64.Min a normal number: ${minValue.isNormal()}")
 }
@@ -2489,7 +2489,7 @@ main() {
     // Test Float64.MinDenormal property
     let minDenormalValue = Float64.MinDenormal
     println("Value of Float64.MinDenormal: ${minDenormalValue}")
-    
+
     // Verify it is indeed the smallest denormal number
     println("Is Float64.MinDenormal a normal number: ${minDenormalValue.isNormal()}")
 }
@@ -2520,7 +2520,7 @@ main() {
     // Test Float64.MinNormal property
     let minNormalValue = Float64.MinNormal
     println("Value of Float64.MinNormal: ${minNormalValue}")
-    
+
     // Verify it is indeed the smallest normal number
     println("Is Float64.MinNormal a normal number: ${minNormalValue.isNormal()}")
 }
@@ -2551,7 +2551,7 @@ main() {
     // Test Float64.NaN property
     let nanValue = Float64.NaN
     println("Value of Float64.NaN: ${nanValue}")
-    
+
     // Verify it is indeed NaN
     println("Is Float64.NaN a NaN: ${nanValue.isNaN()}")
 }
@@ -2592,11 +2592,11 @@ main() {
     let b: Float64 = 2.7f64
     let c: Float64 = 0.8f64
     let d: Float64 = 3.2f64
-    
+
     // Use max method to find the maximum value
     let maxValue = Float64.max(a, b, [c, d])
     println("Result of Float64.max(1.5, 2.7, [0.8, 3.2]): ${maxValue}")
-    
+
     // Verify the result
     println("Is the maximum value correct: ${maxValue == d}")
 }
@@ -2637,11 +2637,11 @@ main() {
     let b: Float64 = 2.7f64
     let c: Float64 = 0.8f64
     let d: Float64 = 3.2f64
-    
+
     // Use min method to find the minimum value
     let minValue = Float64.min(a, b, [c, d])
     println("Result of Float64.min(1.5, 2.7, [0.8, 3.2]): ${minValue}")
-    
+
     // Verify the result
     println("Is the minimum value correct: ${minValue == c}")
 }
@@ -2675,13 +2675,13 @@ main() {
     let normalValue: Float64 = 1.5f64
     let infValue = Float64.Inf
     let negInfValue = -Float64.Inf
-    
+
     // Check if a normal value is infinite
     println("Result of 1.5f64.isInf(): ${normalValue.isInf()}")
-    
+
     // Check if positive infinity is infinite
     println("Result of Float64.Inf.isInf(): ${infValue.isInf()}")
-    
+
     // Check if negative infinity is infinite
     println("Result of (-Float64.Inf).isInf(): ${negInfValue.isInf()}")
 }
@@ -2715,10 +2715,10 @@ main() {
     // Test Float64.isNaN method
     let normalValue: Float64 = 1.5f64
     let nanValue = Float64.NaN
-    
+
     // Check if a normal value is NaN
     println("Result of 1.5f64.isNaN(): ${normalValue.isNaN()}")
-    
+
     // Check if NaN value is NaN
     println("Result of Float64.NaN.isNaN(): ${nanValue.isNaN()}")
 }
@@ -2753,16 +2753,16 @@ main() {
     let zeroValue: Float64 = 0.0f64
     let infValue = Float64.Inf
     let nanValue = Float64.NaN
-    
+
     // Check if a normal value is normal
     println("Result of 1.5f64.isNormal(): ${normalValue.isNormal()}")
-    
+
     // Check if zero is normal
     println("Result of 0.0f64.isNormal(): ${zeroValue.isNormal()}")
-    
+
     // Check if infinity is normal
     println("Result of Float64.Inf.isNormal(): ${infValue.isNormal()}")
-    
+
     // Check if NaN is normal
     println("Result of Float64.NaN.isNormal(): ${nanValue.isNormal()}")
 }
@@ -2922,16 +2922,16 @@ main() {
     let value1: Float64 = 1.5f64
     let value2: Float64 = 1.5f64
     let value3: Float64 = 2.0f64
-    
+
     // Compute hash values
     let hash1 = value1.hashCode()
     let hash2 = value2.hashCode()
     let hash3 = value3.hashCode()
-    
+
     println("Hash value of 1.5f64: ${hash1}")
     println("Hash value of 1.5f64: ${hash2}")
     println("Hash value of 2.0f64: ${hash3}")
-    
+
     // Verify that equal values have the same hash value
     println("Do equal values have the same hash: ${hash1 == hash2}")
 }
@@ -2979,16 +2979,16 @@ main() {
     let value1: Float64 = 1.5f64
     let value2: Float64 = 123.456f64
     let value3: Float64 = -0.001f64
-    
+
     // Convert to string
     let str1 = value1.toString()
     let str2 = value2.toString()
     let str3 = value3.toString()
-    
+
     println("1.5f64 converted to string: \"${str1}\"")
     println("123.456f64 converted to string: \"${str2}\"")
     println("-0.001f64 converted to string: \"${str3}\"")
-    
+
     // Verify type
     println("Is converted type String: ${str1 is String}")
 }
@@ -3033,7 +3033,7 @@ main() {
     // Test Int16.Max property
     let maxValue = Int16.Max
     println("Int16.Max value: ${maxValue}")
-    
+
     // Verify it is indeed the maximum value
     println("Is Int16.Max equal to 32767: ${maxValue == 32767}")
 }
@@ -3064,7 +3064,7 @@ main() {
     // Test Int16.Min property
     let minValue = Int16.Min
     println("Int16.Min value: ${minValue}")
-    
+
     // Verify it is indeed the minimum value
     println("Is Int16.Min equal to -32768: ${minValue == -32768}")
 }
@@ -3233,16 +3233,16 @@ main() {
     let value1: Int16 = 42
     let value2: Int16 = 42
     let value3: Int16 = -100
-    
+
     // Compute hash values
     let hash1 = value1.hashCode()
     let hash2 = value2.hashCode()
     let hash3 = value3.hashCode()
-    
+
     println("Hash value of 42: ${hash1}")
     println("Hash value of 42: ${hash2}")
     println("Hash value of -100: ${hash3}")
-    
+
     // Verify equal values have the same hash
     println("Do equal values have the same hash: ${hash1 == hash2}")
 }
@@ -3290,16 +3290,16 @@ main() {
     let value1: Int16 = 42
     let value2: Int16 = -123
     let value3: Int16 = 0
-    
+
     // Convert to strings
     let str1 = value1.toString()
     let str2 = value2.toString()
     let str3 = value3.toString()
-    
+
     println("42 converted to string: \"${str1}\"")
     println("-123 converted to string: \"${str2}\"")
     println("0 converted to string: \"${str3}\"")
-    
+
     // Verify type
     println("Is converted type String: ${str1 is String}")
 }
@@ -3344,7 +3344,7 @@ main() {
     // Test Int32.Max property
     let maxValue = Int32.Max
     println("Int32.Max value: ${maxValue}")
-    
+
     // Verify it is indeed the maximum value
     println("Is Int32.Max equal to 2147483647: ${maxValue == 2147483647}")
 }
@@ -3375,7 +3375,7 @@ main() {
     // Test Int32.Min property
     let minValue = Int32.Min
     println("Int32.Min value: ${minValue}")
-    
+
     // Verify it is indeed the minimum value
     println("Is Int32.Min equal to -2147483648: ${minValue == -2147483648}")
 }
@@ -3538,16 +3538,16 @@ main() {
     let value1: Int32 = 42
     let value2: Int32 = 42
     let value3: Int32 = -100
-    
+
     // Compute hash values
     let hash1 = value1.hashCode()
     let hash2 = value2.hashCode()
     let hash3 = value3.hashCode()
-    
+
     println("Hash value of 42: ${hash1}")
     println("Hash value of 42: ${hash2}")
     println("Hash value of -100: ${hash3}")
-    
+
     // Verify equal values have the same hash
     println("Do equal values have the same hash: ${hash1 == hash2}")
 }
@@ -3595,16 +3595,16 @@ main() {
     let value1: Int32 = 42
     let value2: Int32 = -123
     let value3: Int32 = 0
-    
+
     // Convert to strings
     let str1 = value1.toString()
     let str2 = value2.toString()
     let str3 = value3.toString()
-    
+
     println("42 converted to string: \"${str1}\"")
     println("-123 converted to string: \"${str2}\"")
     println("0 converted to string: \"${str3}\"")
-    
+
     // Verify type
     println("Is converted type String: ${str1 is String}")
 }
@@ -3649,7 +3649,7 @@ main() {
     // Test Int64.Max property
     let maxValue = Int64.Max
     println("Int64.Max value: ${maxValue}")
-    
+
     // Verify it is indeed the maximum value
     println("Is Int64.Max equal to 9223372036854775807: ${maxValue == 9223372036854775807}")
 }
@@ -3680,7 +3680,7 @@ main() {
     // Test Int64.Min property
     let minValue = Int64.Min
     println("Int64.Min value: ${minValue}")
-    
+
     // Verify it is indeed the minimum value
     println("Is Int64.Min equal to -9223372036854775808: ${minValue == -9223372036854775808}")
 }
@@ -3844,13 +3844,13 @@ main() {
     let hash = num.hashCode()
     println("Int64 value: ${num}")
     println("hashCode: ${hash}")
-    
+
     // Test hash codes for different values
     let negativeNum: Int64 = -42
     let negativeHash = negativeNum.hashCode()
     println("Int64 value: ${negativeNum}")
     println("hashCode: ${negativeHash}")
-    
+
     // Test zero value
     let zero: Int64 = 0
     let zeroHash = zero.hashCode()
@@ -3904,25 +3904,25 @@ main() {
     let str = num.toString()
     println("Int64 value: ${num}")
     println("Converted string: ${str}")
-    
+
     // Test negative number
     let negativeNum: Int64 = -42
     let negativeStr = negativeNum.toString()
     println("Int64 value: ${negativeNum}")
     println("Converted string: ${negativeStr}")
-    
+
     // Test zero value
     let zero: Int64 = 0
     let zeroStr = zero.toString()
     println("Int64 value: ${zero}")
     println("Converted string: ${zeroStr}")
-    
+
     // Test maximum and minimum values
     let maxVal = Int64.Max
     let maxStr = maxVal.toString()
     println("Int64 maximum value: ${maxVal}")
     println("Converted string: ${maxStr}")
-    
+
     let minVal = Int64.Min
     let minStr = minVal.toString()
     println("Int64 minimum value: ${minVal}")
@@ -3975,7 +3975,7 @@ main() {
     // Test Int8.Max property
     let maxValue = Int8.Max
     println("Int8.Max value: ${maxValue}")
-    
+
     // Verify it is indeed the maximum value
     println("Is Int8.Max equal to 127: ${maxValue == 127}")
 }
@@ -4006,7 +4006,7 @@ main() {
     // Test Int8.Min property
     let minValue = Int8.Min
     println("Int8.Min value: ${minValue}")
-    
+
     // Verify it is indeed the minimum value
     println("Is Int8.Min equal to -128: ${minValue == -128}")
 }
@@ -4170,25 +4170,25 @@ main() {
     let hash = num.hashCode()
     println("Int8 value: ${num}")
     println("hashCode: ${hash}")
-    
+
     // Test hash codes for different values
     let negativeNum: Int8 = -42
     let negativeHash = negativeNum.hashCode()
     println("Int8 value: ${negativeNum}")
     println("hashCode: ${negativeHash}")
-    
+
     // Test zero value
     let zero: Int8 = 0
     let zeroHash = zero.hashCode()
     println("Int8 value: ${zero}")
     println("hashCode: ${zeroHash}")
-    
+
     // Test maximum and minimum values
     let maxVal = Int8.Max
     let maxHash = maxVal.hashCode()
     println("Int8 maximum value: ${maxVal}")
     println("hashCode: ${maxHash}")
-    
+
     let minVal = Int8.Min
     let minHash = minVal.hashCode()
     println("Int8 minimum value: ${minVal}")
@@ -4245,25 +4245,25 @@ main() {
     let str = num.toString()
     println("Int8 value: ${num}")
     println("Converted string: ${str}")
-    
+
     // Test negative number
     let negativeNum: Int8 = -42
     let negativeStr = negativeNum.toString()
     println("Int8 value: ${negativeNum}")
     println("Converted string: ${negativeStr}")
-    
+
     // Test zero value
     let zero: Int8 = 0
     let zeroStr = zero.toString()
     println("Int8 value: ${zero}")
     println("Converted to string: ${zeroStr}")
-    
+
     // Testing maximum and minimum values
     let maxVal = Int8.Max
     let maxStr = maxVal.toString()
     println("Int8 maximum value: ${maxVal}")
     println("Converted to string: ${maxStr}")
-    
+
     let minVal = Int8.Min
     let minStr = minVal.toString()
     println("Int8 minimum value: ${minVal}")
@@ -4316,7 +4316,7 @@ main() {
     // Test the IntNative.Max property
     let maxValue = IntNative.Max
     println("Value of IntNative.Max: ${maxValue}")
-    
+
     // Verify it is indeed the maximum value (should be 9223372036854775807 on 64-bit systems)
     println("Is IntNative.Max equal to 9223372036854775807: ${maxValue == 9223372036854775807}")
 }
@@ -4347,7 +4347,7 @@ main() {
     // Test the IntNative.Min property
     let minValue = IntNative.Min
     println("Value of IntNative.Min: ${minValue}")
-    
+
     // Verify it is indeed the minimum value (should be -9223372036854775808 on 64-bit systems)
     println("Is IntNative.Min equal to -9223372036854775808: ${minValue == -9223372036854775808}")
 }
@@ -4511,25 +4511,25 @@ main() {
     let hash = num.hashCode()
     println("IntNative value: ${num}")
     println("hashCode: ${hash}")
-    
+
     // Test hash codes for different values
     let negativeNum: IntNative = -42
     let negativeHash = negativeNum.hashCode()
     println("IntNative value: ${negativeNum}")
     println("hashCode: ${negativeHash}")
-    
+
     // Test zero value
     let zero: IntNative = 0
     let zeroHash = zero.hashCode()
     println("IntNative value: ${zero}")
     println("hashCode: ${zeroHash}")
-    
+
     // Test maximum and minimum values
     let maxVal = IntNative.Max
     let maxHash = maxVal.hashCode()
     println("IntNative maximum value: ${maxVal}")
     println("hashCode: ${maxHash}")
-    
+
     let minVal = IntNative.Min
     let minHash = minVal.hashCode()
     println("IntNative minimum value: ${minVal}")
@@ -4586,25 +4586,25 @@ main() {
     let str = num.toString()
     println("IntNative value: ${num}")
     println("Converted string: ${str}")
-    
+
     // Test negative numbers
     let negativeNum: IntNative = -42
     let negativeStr = negativeNum.toString()
     println("IntNative value: ${negativeNum}")
     println("Converted string: ${negativeStr}")
-    
+
     // Test zero value
     let zero: IntNative = 0
     let zeroStr = zero.toString()
     println("IntNative value: ${zero}")
     println("Converted string: ${zeroStr}")
-    
+
     // Test maximum and minimum values
     let maxVal = IntNative.Max
     let maxStr = maxVal.toString()
     println("IntNative maximum value: ${maxVal}")
     println("Converted string: ${maxStr}")
-    
+
     let minVal = IntNative.Min
     let minStr = minVal.toString()
     println("IntNative minimum value: ${minVal}")
@@ -4713,7 +4713,7 @@ main() {
     // Create a byte array containing a Chinese character
     var arr: Array<UInt8> = [72, 101, 108, 108, 111, 231, 136, 177] // UTF-8 encoding for "Hello爱"
     println("Byte array: ${arr}")
-    
+
     // Get the character corresponding to index 7 (the second byte of the Chinese character "爱")
     var tuple = Rune.getPreviousFromUtf8(arr, 7)
     println("Found character: ${tuple[0]}")
@@ -4859,7 +4859,7 @@ main() {
     // Testing Rune.isAscii() method
     var asciiChar: Rune = r'A'  // ASCII character
     var nonAsciiChar: Rune = r'爱'  // Non-ASCII character
-    
+
     println("Is character '${asciiChar}' ASCII? ${asciiChar.isAscii()}")
     println("Is character '${nonAsciiChar}' ASCII? ${nonAsciiChar.isAscii()}")
 }
@@ -4892,7 +4892,7 @@ main() {
     // Testing Rune.isAsciiControl() method
     var controlChar: Rune = r'\n'  // ASCII control character
     var nonControlChar: Rune = r'A'  // Non-control character
-    
+
     println("Is character '${controlChar}' an ASCII control character? ${controlChar.isAsciiControl()}")
     println("Is character '${nonControlChar}' an ASCII control character? ${nonControlChar.isAsciiControl()}")
 }
@@ -4926,7 +4926,7 @@ main() {
     // Testing Rune.isAsciiGraphic() method
     var graphicChar: Rune = r'A'  // ASCII graphic character
     var nonGraphicChar: Rune = r'\n'  // Non-graphic character (control character)
-    
+
     println("Is character '${graphicChar}' an ASCII graphic character? ${graphicChar.isAsciiGraphic()}")
     println("Is character '${nonGraphicChar}' an ASCII graphic character? ${nonGraphicChar.isAsciiGraphic()}")
 }
@@ -4960,7 +4960,7 @@ main() {
     // Testing Rune.isAsciiHex() method
     var hexChar: Rune = r'A'  // ASCII hexadecimal character
     var nonHexChar: Rune = r'G'  // Non-hexadecimal character
-    
+
     println("Is character '${hexChar}' an ASCII hexadecimal character? ${hexChar.isAsciiHex()}")
     println("Is character '${nonHexChar}' an ASCII hexadecimal character? ${nonHexChar.isAsciiHex()}")
 }
@@ -4993,7 +4993,7 @@ main() {
     // Testing Rune.isAsciiLetter() method
     var letterChar: Rune = r'A'  // ASCII alphabetic character
     var nonLetterChar: Rune = r'1'  // Non-alphabetic character
-    
+
     println("Is character '${letterChar}' an ASCII alphabetic character? ${letterChar.isAsciiLetter()}")
     println("Is character '${nonLetterChar}' an ASCII alphabetic character? ${nonLetterChar.isAsciiLetter()}")
 }
@@ -5026,7 +5026,7 @@ main() {
     // Testing Rune.isAsciiLowerCase() method
     var lowerCaseChar: Rune = r'a'  // ASCII lowercase character
     var upperCaseChar: Rune = r'A'  // ASCII uppercase character
-    
+
     println("Is character '${lowerCaseChar}' an ASCII lowercase character? ${lowerCaseChar.isAsciiLowerCase()}")
     println("Is character '${upperCaseChar}' an ASCII lowercase character? ${upperCaseChar.isAsciiLowerCase()}")
 }
@@ -5059,7 +5059,7 @@ main() {
     // Testing Rune.isAsciiNumber() method
     var numberChar: Rune = r'1'  // ASCII numeric character
     var nonNumberChar: Rune = r'A'  // Non-numeric character
-    
+
     println("Is character '${numberChar}' an ASCII numeric character? ${numberChar.isAsciiNumber()}")
     println("Is character '${nonNumberChar}' an ASCII numeric character? ${nonNumberChar.isAsciiNumber()}")
 }
@@ -5093,7 +5093,7 @@ main() {
     var numberChar: Rune = r'1'  // ASCII numeric character
     var letterChar: Rune = r'A'  // ASCII alphabetic character
     var specialChar: Rune = r'!'  // Special character
-    
+
     println("Is character '${numberChar}' an ASCII numeric or alphabetic character? ${numberChar.isAsciiNumberOrLetter()}")
     println("Is character '${letterChar}' an ASCII numeric or alphabetic character? ${letterChar.isAsciiNumberOrLetter()}")
     println("Is character '${specialChar}' an ASCII numeric or alphabetic character? ${specialChar.isAsciiNumberOrLetter()}")
@@ -5128,7 +5128,7 @@ main() {
     // Testing Rune.isAsciiOct() method
     var octChar: Rune = r'7'  // ASCII octal character
     var nonOctChar: Rune = r'8'  // Non-octal character
-    
+
     println("Is character '${octChar}' an ASCII octal character? ${octChar.isAsciiOct()}")
     println("Is character '${nonOctChar}' an ASCII octal character? ${nonOctChar.isAsciiOct()}")
 }
@@ -5161,7 +5161,7 @@ main() {
     // Testing Rune.isAsciiPunctuation() method
     var punctuationChar: Rune = r'!'  // ASCII punctuation character
     var nonPunctuationChar: Rune = r'A'  // Non-punctuation character
-    
+
     println("Is character '${punctuationChar}' an ASCII punctuation character? ${punctuationChar.isAsciiPunctuation()}")
     println("Is character '${nonPunctuationChar}' an ASCII punctuation character? ${nonPunctuationChar.isAsciiPunctuation()}")
 }
@@ -5194,7 +5194,7 @@ main() {
     // Testing Rune.isAsciiUpperCase() method
     var upperCaseChar: Rune = r'A'  // ASCII uppercase character
     var lowerCaseChar: Rune = r'a'  // ASCII lowercase character
-    
+
     println("Is character '${upperCaseChar}' an ASCII uppercase character? ${upperCaseChar.isAsciiUpperCase()}")
     println("Is character '${lowerCaseChar}' an ASCII uppercase character? ${lowerCaseChar.isAsciiUpperCase()}")
 }
@@ -5229,7 +5229,7 @@ main() {
     // Testing Rune.isAsciiWhiteSpace() method
     var whiteSpaceChar: Rune = r' '  // ASCII whitespace character
     var nonWhiteSpaceChar: Rune = r'A'  // Non-whitespace character
-    
+
     println("Is character '${whiteSpaceChar}' an ASCII whitespace? ${whiteSpaceChar.isAsciiWhiteSpace()}")
     println("Is character '${nonWhiteSpaceChar}' an ASCII whitespace? ${nonWhiteSpaceChar.isAsciiWhiteSpace()}")
 }
@@ -5263,11 +5263,11 @@ main() {
     var upperCaseChar: Rune = r'A'  // ASCII uppercase character
     var lowerCaseChar: Rune = r'a'  // ASCII lowercase character
     var nonLetterChar: Rune = r'1'  // Non-letter character
-    
+
     var convertedUpper = upperCaseChar.toAsciiLowerCase()
     var convertedLower = lowerCaseChar.toAsciiLowerCase()
     var convertedNonLetter = nonLetterChar.toAsciiLowerCase()
-    
+
     println("Uppercase '${upperCaseChar}' converted to lowercase: ${convertedUpper}")
     println("Lowercase '${lowerCaseChar}' converted to lowercase: ${convertedLower}")
     println("Non-letter '${nonLetterChar}' converted to lowercase: ${convertedNonLetter}")
@@ -5303,11 +5303,11 @@ main() {
     var lowerCaseChar: Rune = r'a'  // ASCII lowercase character
     var upperCaseChar: Rune = r'A'  // ASCII uppercase character
     var nonLetterChar: Rune = r'1'  // Non-letter character
-    
+
     var convertedLower = lowerCaseChar.toAsciiUpperCase()
     var convertedUpper = upperCaseChar.toAsciiUpperCase()
     var convertedNonLetter = nonLetterChar.toAsciiUpperCase()
-    
+
     println("Lowercase '${lowerCaseChar}' converted to uppercase: ${convertedLower}")
     println("Uppercase '${upperCaseChar}' converted to uppercase: ${convertedUpper}")
     println("Non-letter '${nonLetterChar}' converted to uppercase: ${convertedNonLetter}")
@@ -5411,7 +5411,7 @@ main() {
     var nextChar = char.next(1)
     println("Character: ${char}")
     println("Next character: ${nextChar}")
-    
+
     // Test moving backward
     var prevChar = char.next(-1)
     println("Previous character: ${prevChar}")
@@ -5448,7 +5448,7 @@ main() {
     var position = char.position()
     println("Character: ${char}")
     println("Unicode code point position: ${position}")
-    
+
     // Test Chinese character
     var chineseChar: Rune = r'爱'
     var chinesePosition = chineseChar.position()
@@ -5500,7 +5500,7 @@ main() {
     var hash = char.hashCode()
     println("Character: ${char}")
     println("Hash value: ${hash}")
-    
+
     // Test Chinese character
     var chineseChar: Rune = r'爱'
     var chineseHash = chineseChar.hashCode()
@@ -5552,7 +5552,7 @@ main() {
     var str = char.toString()
     println("Character: ${char}")
     println("Converted string: ${str}")
-    
+
     // Test Chinese character
     var chineseChar: Rune = r'爱'
     var chineseStr = chineseChar.toString()
@@ -5600,7 +5600,7 @@ main() {
     // Test UInt16.Max property
     var maxVal = UInt16.Max
     println("Maximum value of UInt16: ${maxVal}")
-    
+
     // Verify the maximum value
     if (maxVal == 65535) {
         println("Verification passed: UInt16.Max equals 65535")
@@ -5635,7 +5635,7 @@ main() {
     // Test UInt16.Min property
     var minVal = UInt16.Min
     println("Minimum value of UInt16: ${minVal}")
-    
+
     // Verify the minimum value
     if (minVal == 0) {
         println("Verification passed: UInt16.Min equals 0")
@@ -5803,7 +5803,7 @@ main() {
     var hash = num.hashCode()
     println("UInt16 value: ${num}")
     println("Hash value: ${hash}")
-    
+
     // Test maximum value
     var maxNum: UInt16 = UInt16.Max
     var maxHash = maxNum.hashCode()
@@ -5855,7 +5855,7 @@ main() {
     var str = num.toString()
     println("UInt16 value: ${num}")
     println("Converted string: ${str}")
-    
+
     // Test maximum value
     var maxNum: UInt16 = UInt16.Max
     var maxStr = maxNum.toString()

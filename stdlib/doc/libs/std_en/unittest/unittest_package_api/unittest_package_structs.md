@@ -62,7 +62,7 @@ public struct BatchSizeOneInputProvider<T> <: BenchInputProvider<T>{
 }
 ```
 
-Function: A benchmark input provider that generates inputs before each benchmark execution. 
+Function: A benchmark input provider that generates inputs before each benchmark execution.
 The difference from `GenerateEachInputProvider` is that when batch size is 1, we can measure.
 Each benchmark call is independent, so input generation is never included in measurements.
 Should be used when `GenerateEachInputProvider` yields poor quality results. This may occur when input generation takes significantly more time than the actual benchmark, or when input generation execution time is highly unstable.

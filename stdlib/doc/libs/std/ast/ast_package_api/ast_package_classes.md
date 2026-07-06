@@ -4762,7 +4762,7 @@ public class FeaturesSet <: Node {
 ### prop commas
 
 ```cangjie
-public mut prop commas: Tokens 
+public mut prop commas: Tokens
 ```
 
 功能：获取或设置在 [FeaturesSet](ast_package_classes.md#class-featuresset) 节点里的一组 `,`。
@@ -4776,7 +4776,7 @@ public mut prop commas: Tokens
 ### prop content
 
 ```cangjie
-public mut prop content: ArrayList<FeatureId> 
+public mut prop content: ArrayList<FeatureId>
 ```
 
 功能：获取或设置在 [FeaturesSet](ast_package_classes.md#class-featuresset) 节点里的一组 feature id。

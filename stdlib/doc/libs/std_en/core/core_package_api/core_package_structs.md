@@ -32,7 +32,7 @@ main() {
     let arr = [1, 2, 3]
     let first = arr.first
     println(first)
-    
+
     // Test empty array case
     let emptyArr: Array<Int64> = []
     let emptyFirst = emptyArr.first
@@ -65,7 +65,7 @@ main() {
     let arr = [1, 2, 3]
     let last = arr.last
     println(last)
-    
+
     // Test empty array case
     let emptyArr: Array<Int64> = []
     let emptyLast = emptyArr.last
@@ -95,7 +95,7 @@ Example:
 main() {
     let arr: Array<Int64> = Array()
     println("Empty array size: ${arr.size}")
-    
+
     // Create a new array and add elements
     let newArr = [1, 2, 3]
     println("New array: ${newArr}")
@@ -136,7 +136,7 @@ main() {
     // Create an array of length 5 where each element is the square of its index
     let arr = Array<Int64>(5, {index => index * index})
     println("Array with squares: ${arr}")
-    
+
     // Create a string array of length 3 where each element is "Hello"
     let strArr = Array<String>(3, {_ => "Hello"})
     println("String array: ${strArr}")
@@ -179,11 +179,11 @@ main() {
     // Use named parameter repeat to initialize the array
     let arr = Array<Int64>(5, repeat: 42)
     println("Array with repeated value 42: ${arr}")
-    
+
     // Create a string array of length 3 where all elements are initialized to "Hello"
     let strArr = Array<String>(3, repeat: "Hello")
     println("String array with repeated value: ${strArr}")
-    
+
     // Create a boolean array of length 4 where all elements are initialized to true
     let boolArr = Array<Bool>(4, repeat: true)
     println("Boolean array with repeated value: ${boolArr}")
@@ -257,10 +257,10 @@ Example:
 main() {
     let arr = [1, 2, 3, 4, 5]
     let clonedArr = arr.clone()
-    
+
     println("Original array: ${arr}")
     println("Cloned array: ${clonedArr}")
-    
+
     // Verify the cloned array is independent
     clonedArr[0] = 10
     println("After modifying cloned array:")
@@ -381,14 +381,14 @@ Example:
 main() {
     let srcArr = [1, 2, 3, 4, 5]
     let dstArr = [0, 0, 0, 0, 0, 0, 0]
-    
+
     println("Before copy:")
     println("Source array: ${srcArr}")
     println("Destination array: ${dstArr}")
-    
+
     // Copy source array to destination array
     srcArr.copyTo(dstArr)
-    
+
     println("After copy:")
     println("Source array: ${srcArr}")
     println("Destination array: ${dstArr}")
@@ -462,21 +462,21 @@ Example:
 ```cangjie
 main() {
     let arr = [1, 2, 3, 4, 5]
-    
+
     println("Before fill: ${arr}")
-    
+
     // Replace all elements with 0
     arr.fill(0)
-    
+
     println("After fill: ${arr}")
-    
+
     // Create another array and partially fill elements
     let arr2 = [1, 2, 3, 4, 5]
     println("Before partial fill: ${arr2}")
-    
+
     // Only fill elements from index 1 to 3
     arr2[1..4].fill(-1)
-    
+
     println("After partial fill: ${arr2}")
 }
 ```
@@ -493,7 +493,7 @@ After partial fill: [1, -1, -1, -1, 5]
 ### func filter((T) -> Bool)
 
 ```cangjie
-public func filter(predicate: (T) -> Bool): Array<T> 
+public func filter(predicate: (T) -> Bool): Array<T>
 ```
 
 Function: Returns a new array containing elements that satisfy the given predicate.
@@ -666,17 +666,17 @@ Example:
 ```cangjie
 main() {
     let arr = [1, 2, 3, 4, 5]
-    
+
     println("Original array: ${arr}")
-    
+
     // Increment each element by 1
     let mappedArr = arr.map({value => value + 1})
-    
+
     println("Mapped array (each element + 1): ${mappedArr}")
-    
+
     // Convert integer array to string array
     let strArr = arr.map({value => "Number: ${value}"})
-    
+
     println("String array: ${strArr}")
 }
 ```
@@ -755,18 +755,18 @@ Example:
 ```cangjie
 main() {
     let arr = [1, 2, 3]
-    
+
     println("Original array: ${arr}")
-    
+
     // Repeat the array 3 times
     let repeatedArr = arr.repeat(3)
-    
+
     println("Repeated array (3 times): ${repeatedArr}")
-    
+
     // Repeat a string array
     let strArr = ["Hello", "World"]
     let repeatedStrArr = strArr.repeat(2)
-    
+
     println("Repeated string array (2 times): ${repeatedStrArr}")
 }
 ```
@@ -793,20 +793,20 @@ Example:
 ```cangjie
 main() {
     let arr = [1, 2, 3, 4, 5]
-    
+
     println("Original array: ${arr}")
-    
+
     // Reverse the array
     arr.reverse()
-    
+
     println("Reversed array: ${arr}")
-    
+
     // Reverse a string array
     let strArr = ["Hello", "World", "Cangjie"]
     println("Original string array: ${strArr}")
-    
+
     strArr.reverse()
-    
+
     println("Reversed string array: ${strArr}")
 }
 ```
@@ -875,14 +875,14 @@ Example:
 ```cangjie
 main() {
     let arr = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-    
+
     println("Original array: ${arr}")
-    
+
     // Obtain a slice starting from index 2 with a length of 4
     let slice = arr.slice(2, 4)
-    
+
     println("Slice from index 2, length 4: ${slice}")
-    
+
     // Verify the slice is a reference to the original array
     slice[0] = -1
     println("After modifying slice:")
@@ -929,15 +929,15 @@ Example:
 ```cangjie
 main() {
     let arr = [0, 1, 2, 3, 4, 5]
-    
+
     println("Original array: ${arr}")
-    
+
     // Split the array at index 3
     let (left, right) = arr.splitAt(3)
-    
+
     println("Left slice: ${left}")
     println("Right slice: ${right}")
-    
+
     // Verify the slices are references to the original array
     left[0] = -1
     println("After modifying left slice:")
@@ -1010,17 +1010,17 @@ Example:
 ```cangjie
 main() {
     let arr = [1, 2, 3, 4, 5]
-    
+
     println("Original array: ${arr}")
-    
+
     // Swap elements at indices 1 and 3
     arr.swap(1, 3)
-    
+
     println("After swapping indices 1 and 3: ${arr}")
-    
+
     // Swap elements at the same index (no change expected)
     arr.swap(2, 2)
-    
+
     println("After swapping index 2 with itself: ${arr}")
 }
 ```
@@ -1087,14 +1087,14 @@ Example:
 ```cangjie
 main() {
     let arr = [10, 20, 30, 40, 50]
-    
+
     println("Array: ${arr}")
-    
+
     // Retrieve the element at index 2
     let element = arr[2]
-    
+
     println("Element at index 2: ${element}")
-    
+
     // Note: Accessing out-of-bounds elements throws IndexOutOfBoundsException
     // Only normal access is demonstrated here
 }
@@ -1130,17 +1130,17 @@ Example:
 ```cangjie
 main() {
     let arr = [1, 2, 3, 4, 5]
-    
+
     println("Original array: ${arr}")
-    
+
     // Modify the element at index 2
     arr[2] = 100
-    
+
     println("Array after setting index 2 to 100: ${arr}")
-    
+
     // Modify the element at index 0
     arr[0] = -1
-    
+
     println("Array after setting index 0 to -1: ${arr}")
 }
 ```
@@ -1310,19 +1310,19 @@ Example:
 ```cangjie
 main() {
     let arr = [1, 2, 3, 4, 5]
-    
+
     println("Array: ${arr}")
     println("Size of array: ${arr.size}")
-    
+
     // Create an empty array
     let emptyArr: Array<Int64> = []
-    
+
     println("Empty array: ${emptyArr}")
     println("Size of empty array: ${emptyArr.size}")
-    
+
     // Create an array containing strings
     let strArr = ["Hello", "World", "Cangjie", "Language"]
-    
+
     println("String array: ${strArr}")
     println("Size of string array: ${strArr.size}")
 }
@@ -1357,19 +1357,19 @@ Example:
 ```cangjie
 main() {
     let arr = [1, 2, 3, 4, 5]
-    
+
     println("Array: ${arr}")
     println("Is array empty? ${arr.isEmpty()}")
-    
+
     // Create an empty array
     let emptyArr: Array<Int64> = []
-    
+
     println("Empty array: ${emptyArr}")
     println("Is empty array empty? ${emptyArr.isEmpty()}")
-    
+
     // Create an array containing strings
     let strArr = ["Hello", "World"]
-    
+
     println("String array: ${strArr}")
     println("Is string array empty? ${strArr.isEmpty()}")
 }
@@ -1404,14 +1404,14 @@ Example:
 ```cangjie
 main() {
     let arr = [1, 2, 3, 4, 5]
-    
+
     println("Array: ${arr}")
-    
+
     // Get the iterator for the array
     let iter = arr.iterator()
-    
+
     println("Using iterator to traverse the array:")
-    
+
     // Traverse the array using the iterator
     while (true) {
         match (iter.next()) {
@@ -1419,14 +1419,14 @@ main() {
             case None => break
         }
     }
-    
+
     // Create another array and demonstrate other iterator usages
     let arr2 = ["Hello", "World", "Cangjie"]
     let iter2 = arr2.iterator()
-    
+
     println("\nSecond array: ${arr2}")
     println("Using iterator with for-in loop:")
-    
+
     // Alternatively, use a for-in loop to traverse the iterator
     for (element in iter2) {
         println("Element: ${element}")
@@ -1470,27 +1470,27 @@ Example:
 ```cangjie
 main() {
     let arr = [1, 2, 3, 4, 5]
-    
+
     println("Original array: ${arr}")
-    
+
     // Use the toArray() method to create a copy of the array
     let copiedArr = arr.toArray()
-    
+
     println("Copied array: ${copiedArr}")
-    
+
     // Verify that the copied array is independent
     copiedArr[0] = 10
     println("After modifying copied array:")
     println("Original array: ${arr}")
     println("Copied array: ${copiedArr}")
-    
+
     // Create an array containing strings and test toArray()
     let strArr = ["Hello", "World", "Cangjie"]
     let copiedStrArr = strArr.toArray()
-    
+
     println("\nString array: ${strArr}")
     println("Copied string array: ${copiedStrArr}")
-    
+
     // Verify that the copied string array is independent
     copiedStrArr[0] = "Hi"
     println("After modifying copied string array:")
@@ -1657,22 +1657,22 @@ Example:
 ```cangjie
 main() {
     let arr = [1, 2, 3, 4, 2, 5]
-    
+
     println("Array: ${arr}")
-    
+
     // Find the first occurrence of element 2
     let index1 = arr.indexOf(2)
     println("First occurrence of 2: ${index1}")
-    
+
     // Find the first occurrence of element 6 (does not exist)
     let index2 = arr.indexOf(6)
     println("First occurrence of 6: ${index2}")
-    
+
     // Create an array containing strings and test indexOf
     let strArr = ["Hello", "World", "Hello", "Cangjie"]
-    
+
     println("\nString array: ${strArr}")
-    
+
     // Find the first occurrence of the string "Hello"
     let strIndex1 = strArr.indexOf("Hello")
     println("First occurrence of \"Hello\": ${strIndex1}")
@@ -1715,22 +1715,22 @@ Example:
 ```cangjie
 main() {
     let arr = [1, 2, 3, 4, 2, 5]
-    
+
     println("Array: ${arr}")
-    
+
     // Find the first occurrence of element 2 starting from index 2
     let index1 = arr.indexOf(2, 2)
     println("First occurrence of 2 starting from index 2: ${index1}")
-    
+
     // Find the first occurrence of element 2 starting from index 5 (does not exist)
     let index2 = arr.indexOf(2, 5)
     println("First occurrence of 2 starting from index 5: ${index2}")
-    
+
     // Create an array containing strings and test indexOf
     let strArr = ["Hello", "World", "Hello", "Cangjie"]
-    
+
     println("\nString array: ${strArr}")
-    
+
     // Find the first occurrence of the string "Hello" starting from index 1
     let strIndex = strArr.indexOf("Hello", 1)
     println("First occurrence of \"Hello\" starting from index 1: ${strIndex}")
@@ -1789,14 +1789,14 @@ Example:
 main() {
     let arr = [1, 2, 3, 2, 3, 4, 2, 3]
     let subArr = [2, 3]
-    
+
     println("Array: ${arr}")
     println("Sub-array: ${subArr}")
-    
+
     // Find the last occurrence of the subarray [2, 3]
     let lastIndex = arr.lastIndexOf(subArr)
     println("Last occurrence of [2, 3]: ${lastIndex}")
-    
+
     // Find a non-existent subarray
     let notExist = [5, 6]
     let notExistIndex = arr.lastIndexOf(notExist)
@@ -1839,14 +1839,14 @@ Example:
 main() {
     let arr = [1, 2, 3, 2, 3, 4, 3, 3]
     let subArr = [2, 3]
-    
+
     println("Array: ${arr}")
     println("Sub-array: ${subArr}")
-    
+
     // Search backward from index 4 to find the last occurrence of sub-array [2, 3]
     let lastIndex = arr.lastIndexOf(subArr, 4)
     println("Last occurrence of [2, 3] starting from index 4: ${lastIndex}")
-    
+
     // Search backward from index 2 to find the last occurrence of sub-array [2, 3]
     let lastIndex2 = arr.lastIndexOf(subArr, 2)
     println("Last occurrence of [2, 3] starting from index 2: ${lastIndex2}")
@@ -1884,22 +1884,22 @@ Example:
 ```cangjie
 main() {
     let arr = [1, 2, 3, 4, 2, 5, 2]
-    
+
     println("Array: ${arr}")
-    
+
     // Find the last occurrence position of element 2
     let lastIndex = arr.lastIndexOf(2)
     println("Last occurrence of 2: ${lastIndex}")
-    
+
     // Find the last occurrence position of element 6 (does not exist)
     let notExistIndex = arr.lastIndexOf(6)
     println("Last occurrence of 6: ${notExistIndex}")
-    
+
     // Create a string array and test lastIndexOf
     let strArr = ["Hello", "World", "Hello", "Cangjie", "Hello"]
-    
+
     println("\nString array: ${strArr}")
-    
+
     // Find the last occurrence position of string "Hello"
     let strLastIndex = strArr.lastIndexOf("Hello")
     println("Last occurrence of \"Hello\": ${strLastIndex}")
@@ -1942,22 +1942,22 @@ Example:
 ```cangjie
 main() {
     let arr = [1, 2, 3, 4, 2, 5, 3]
-    
+
     println("Array: ${arr}")
-    
+
     // Search backward from index 5 to find the last occurrence of element 2
     let lastIndex = arr.lastIndexOf(2, 5)
     println("Last occurrence of 2 starting from index 5: ${lastIndex}")
-    
+
     // Search backward from index 3 to find the last occurrence of element 2
     let lastIndex2 = arr.lastIndexOf(2, 3)
     println("Last occurrence of 2 starting from index 3: ${lastIndex2}")
-    
+
     // Create a string array and test lastIndexOf
     let strArr = ["Hello", "World", "Hello", "Cangjie", "Hello"]
-    
+
     println("\nString array: ${strArr}")
-    
+
     // Search backward from index 2 to find the last occurrence of string "Hello"
     let strLastIndex = strArr.lastIndexOf("Hello", 2)
     println("Last occurrence of \"Hello\" starting from index 2: ${strLastIndex}")
@@ -2100,18 +2100,18 @@ Example:
 ```cangjie
 main() {
     let arr = [1, 2, 3, 4, 5, 4, 3, 2, 1]
-    
+
     println("Original array: ${arr}")
-    
+
     // Remove all elements less than 4 from the end
     let trimmedArr = arr.trimEnd({x => x < 4})
     println("Array after trimming elements less than 4 from the end: ${trimmedArr}")
-    
+
     // Create a string array and test trimEnd
     let strArr = ["a", "b", "c", "d", "c", "b", "a"]
-    
+
     println("\nString array: ${strArr}")
-    
+
     // Remove all elements not equal to "c" from the end
     let trimmedStrArr = strArr.trimEnd({s => s != "c"})
     println("String array after trimming elements not equal to \"c\" from the end: ${trimmedStrArr}")
@@ -2183,18 +2183,18 @@ Example:
 ```cangjie
 main() {
     let arr = [1, 2, 3, 4, 5, 4, 3, 2, 1]
-    
+
     println("Original array: ${arr}")
-    
+
     // Remove all elements less than 4 from the start
     let trimmedArr = arr.trimStart({x => x < 4})
     println("Array after trimming elements less than 4 from the start: ${trimmedArr}")
-    
+
     // Create a string array and test trimStart
     let strArr = ["a", "b", "c", "d", "c", "b", "a"]
-    
+
     println("\nString array: ${strArr}")
-    
+
     // Remove all elements not equal to "c" from the start
     let trimmedStrArr = strArr.trimStart({s => s != "c"})
     println("String array after trimming elements not equal to \"c\" from the start: ${trimmedStrArr}")
@@ -2240,28 +2240,28 @@ main() {
     println("Array 2: ${arr2}")
     println("Array 3: ${arr3}")
     println("Array 4: ${arr4}")
-    
+
     // Comparing equal arrays
     println("arr1 != arr2: ${arr1 != arr2}")
-    
+
     // Comparing unequal arrays (different elements)
     println("arr1 != arr3: ${arr1 != arr3}")
-    
+
     // Comparing unequal arrays (different lengths)
     println("arr1 != arr4: ${arr1 != arr4}")
-    
+
     // Creating string arrays and testing the != operator
     let strArr1 = ["Hello", "World"]
     let strArr2 = ["Hello", "World"]
     let strArr3 = ["Hello", "Cangjie"]
-    
+
     println("\nString array 1: ${strArr1}")
     println("String array 2: ${strArr2}")
     println("String array 3: ${strArr3}")
-    
+
     // Comparing equal string arrays
     println("strArr1 != strArr2: ${strArr1 != strArr2}")
-    
+
     // Comparing unequal string arrays
     println("strArr1 != strArr3: ${strArr1 != strArr3}")
 }
@@ -2312,33 +2312,33 @@ main() {
     let arr2 = [1, 2, 3, 4, 5]
     let arr3 = [1, 2, 3, 4, 6]
     let arr4 = [1, 2, 3]
-    
+
     println("Array 1: ${arr1}")
     println("Array 2: ${arr2}")
     println("Array 3: ${arr3}")
     println("Array 4: ${arr4}")
-    
+
     // Comparing equal arrays
     println("arr1 == arr2: ${arr1 == arr2}")
-    
+
     // Comparing unequal arrays (different elements)
     println("arr1 == arr3: ${arr1 == arr3}")
-    
+
     // Comparing unequal arrays (different lengths)
     println("arr1 == arr4: ${arr1 == arr4}")
-    
+
     // Creating string arrays and testing the == operator
     let strArr1 = ["Hello", "World"]
     let strArr2 = ["Hello", "World"]
     let strArr3 = ["Hello", "Cangjie"]
-    
+
     println("\nString array 1: ${strArr1}")
     println("String array 2: ${strArr2}")
     println("String array 3: ${strArr3}")
-    
+
     // Comparing equal string arrays
     println("strArr1 == strArr2: ${strArr1 == strArr2}")
-    
+
     // Comparing unequal string arrays
     println("strArr1 == strArr3: ${strArr1 == strArr3}")
 }
@@ -2396,19 +2396,19 @@ main() {
     let arr1 = [1, 2, 3, 4, 5]
     let arr2: Array<Int64> = []
     let arr3 = ["Hello", "World", "Cangjie"]
-    
+
     println("Integer array: ${arr1}")
     println("toString() result: ${arr1.toString()}")
-    
+
     println("\nEmpty array: ${arr2}")
     println("toString() result: ${arr2.toString()}")
-    
+
     println("\nString array: ${arr3}")
     println("toString() result: ${arr3.toString()}")
-    
+
     // Create a 2D array and test toString()
     let arr4 = [[1, 2], [3, 4], [5, 6]]
-    
+
     println("\n2D array: ${arr4}")
     println("toString() result: ${arr4.toString()}")
 }
@@ -2500,7 +2500,7 @@ main() {
     let arr = [1, 2, 3, 4, 5]
     // Obtain a CPointerHandle instance via acquireArrayRawData
     let handle = unsafe { acquireArrayRawData(arr) }
-    
+
     // Get the array itself
     let arrItself = handle.array
     // Modify one element and verify if it's the same array
@@ -2573,10 +2573,10 @@ main() {
     // Create a default CPointerHandle instance
     // Note: This constructor is marked as deprecated and will be removed in future versions
     let handle = CPointerHandle<Int64>()
-    
+
     println("Created a default CPointerHandle instance")
     println("The raw pointer is null and the Cangjie array is empty")
-    
+
     // In practice, use acquireArrayRawData to create CPointerHandle instances
 }
 ```
@@ -2617,12 +2617,12 @@ main() {
     let sizeofInt64: UIntNative = 8
     var p1 = unsafe { malloc(sizeofInt64) }
     var ptr = unsafe { CPointer<Int64>(p1) }
-    
+
     // Initialize a CPointerHandle instance with the pointer and array
     // Note: This constructor is marked as deprecated and will be removed in future versions
     // In practice, use acquireArrayRawData to create CPointerHandle instances
     let handle = CPointerHandle(ptr, arr)
-    
+
     // Get the original array via handle
     let arr1 = handle.array
 
@@ -2916,18 +2916,18 @@ main() {
     // Create a DefaultHasher instance with default initial value 0
     var hasher1 = DefaultHasher()
     println("Created DefaultHasher with default initial value: 0")
-    
+
     // Create a DefaultHasher instance with custom initial value
     var hasher2 = DefaultHasher(res: 12345)
     println("Created DefaultHasher with custom initial value: 12345")
-    
+
     // Perform operations with hasher
     hasher1.write(42)
     hasher2.write(42)
-    
+
     let result1 = hasher1.finish()
     let result2 = hasher2.finish()
-    
+
     println("Hash result 1: ${result1}")
     println("Hash result 2: ${result2}")
 }
@@ -2961,11 +2961,11 @@ Example:
 main() {
     // Create a DefaultHasher instance
     var hasher = DefaultHasher()
-    
+
     // Write some data
     hasher.write(42)
     hasher.write("Hello")
-    
+
     // Get the hash result
     let result = hasher.finish()
     println("Hash result: ${result}")
@@ -2993,15 +2993,15 @@ Example:
 main() {
     // Create a DefaultHasher instance
     var hasher = DefaultHasher()
-    
+
     // Write some data and get the hash result
     hasher.write(42)
     let result1 = hasher.finish()
     println("Hash result 1: ${result1}")
-    
+
     // Reset the hasher
     hasher.reset()
-    
+
     // Write the same data again and get the hash result
     hasher.write(42)
     let result2 = hasher.finish()
@@ -3035,11 +3035,11 @@ Example:
 main() {
     // Create a DefaultHasher instance
     var hasher = DefaultHasher()
-    
+
     // Write boolean values
     hasher.write(true)
     hasher.write(false)
-    
+
     // Get the hash result
     let result = hasher.finish()
     println("Hash result for boolean values: ${result}")
@@ -3071,11 +3071,11 @@ Example:
 main() {
     // Create a DefaultHasher instance
     var hasher = DefaultHasher()
-    
+
     // Write Float16 value
     let f16Value: Float16 = 3.14
     hasher.write(f16Value)
-    
+
     // Get the hash result
     let result = hasher.finish()
     println("Hash result for Float16 value: ${result}")
@@ -3107,11 +3107,11 @@ Example:
 main() {
     // Create a DefaultHasher instance
     var hasher = DefaultHasher()
-    
+
     // Write Float32 value
     let f32Value: Float32 = 3.14159
     hasher.write(f32Value)
-    
+
     // Get the hash result
     let result = hasher.finish()
     println("Hash result for Float32 value: ${result}")
@@ -3143,11 +3143,11 @@ Example:
 main() {
     // Create a DefaultHasher instance
     var hasher = DefaultHasher()
-    
+
     // Write Float64 value
     let f64Value: Float64 = 3.141592653589793
     hasher.write(f64Value)
-    
+
     // Get the hash result
     let result = hasher.finish()
     println("Hash result for Float64 value: ${result}")
@@ -3179,11 +3179,11 @@ Example:
 main() {
     // Create a DefaultHasher instance
     var hasher = DefaultHasher()
-    
+
     // Write Int16 value
     let i16Value: Int16 = 1234
     hasher.write(i16Value)
-    
+
     // Get the hash result
     let result = hasher.finish()
     println("Hash result for Int16 value: ${result}")
@@ -3215,11 +3215,11 @@ Example:
 main() {
     // Create a DefaultHasher instance
     var hasher = DefaultHasher()
-    
+
     // Write an Int32 value
     let i32Value: Int32 = 123456
     hasher.write(i32Value)
-    
+
     // Get the hash result
     let result = hasher.finish()
     println("Hash result for Int32 value: ${result}")
@@ -3251,11 +3251,11 @@ Example:
 main() {
     // Create a DefaultHasher instance
     var hasher = DefaultHasher()
-    
+
     // Write an Int64 value
     let i64Value: Int64 = 123456789
     hasher.write(i64Value)
-    
+
     // Get the hash result
     let result = hasher.finish()
     println("Hash result for Int64 value: ${result}")
@@ -3287,11 +3287,11 @@ Example:
 main() {
     // Create a DefaultHasher instance
     var hasher = DefaultHasher()
-    
+
     // Write an Int8 value
     let i8Value: Int8 = 123
     hasher.write(i8Value)
-    
+
     // Get the hash result
     let result = hasher.finish()
     println("Hash result for Int8 value: ${result}")
@@ -3323,11 +3323,11 @@ Example:
 main() {
     // Create a DefaultHasher instance
     var hasher = DefaultHasher()
-    
+
     // Write a Rune value
     let runeValue: Rune = 'A'
     hasher.write(runeValue)
-    
+
     // Get the hash result
     let result = hasher.finish()
     println("Hash result for Rune value: ${result}")
@@ -3359,10 +3359,10 @@ Example:
 main() {
     // Create a DefaultHasher instance
     var hasher = DefaultHasher()
-    
+
     // Write a string value
     hasher.write("Hello, World!")
-    
+
     // Get the hash result
     let result = hasher.finish()
     println("Hash result for string value: ${result}")
@@ -3394,11 +3394,11 @@ Example:
 main() {
     // Create a DefaultHasher instance
     var hasher = DefaultHasher()
-    
+
     // Write a UInt16 value
     let u16Value: UInt16 = 1234
     hasher.write(u16Value)
-    
+
     // Get the hash result
     let result = hasher.finish()
     println("Hash result for UInt16 value: ${result}")
@@ -3430,11 +3430,11 @@ Example:
 main() {
     // Create a DefaultHasher instance
     var hasher = DefaultHasher()
-    
+
     // Write a UInt32 value
     let u32Value: UInt32 = 123456
     hasher.write(u32Value)
-    
+
     // Get the hash result
     let result = hasher.finish()
     println("Hash result for UInt32 value: ${result}")
@@ -3466,11 +3466,11 @@ Example:
 main() {
     // Create a DefaultHasher instance
     var hasher = DefaultHasher()
-    
+
     // Write a UInt64 value
     let u64Value: UInt64 = 123456789
     hasher.write(u64Value)
-    
+
     // Get the hash result
     let result = hasher.finish()
     println("Hash result for UInt64 value: ${result}")
@@ -3502,11 +3502,11 @@ Example:
 main() {
     // Create a DefaultHasher instance
     var hasher = DefaultHasher()
-    
+
     // Write a UInt8 value
     let u8Value: UInt8 = 123
     hasher.write(u8Value)
-    
+
     // Get the hash result
     let result = hasher.finish()
     println("Hash result for UInt8 value: ${result}")
@@ -3648,7 +3648,7 @@ main() {
     // Using the Duration.day static constant
     let oneDay = Duration.day
     println("One day duration: ${oneDay}")
-    
+
     // Performing calculations with a 1-day duration
     let twoDays = oneDay + oneDay
     println("Two days duration: ${twoDays}")
@@ -3680,7 +3680,7 @@ main() {
     // Using the Duration.hour static constant
     let oneHour = Duration.hour
     println("One hour duration: ${oneHour}")
-    
+
     // Calculating how many hours are in a day
     let hoursInDay = Duration.day / oneHour
     println("Hours in a day: ${hoursInDay}")
@@ -3712,7 +3712,7 @@ main() {
     // Using the Duration.microsecond static constant
     let oneMicrosecond = Duration.microsecond
     println("One microsecond duration: ${oneMicrosecond}")
-    
+
     // Calculating how many microseconds are in a millisecond
     let microsecondsInMillisecond = Duration.millisecond / oneMicrosecond
     println("Microseconds in a millisecond: ${microsecondsInMillisecond}")
@@ -3744,7 +3744,7 @@ main() {
     // Using the Duration.millisecond static constant
     let oneMillisecond = Duration.millisecond
     println("One millisecond duration: ${oneMillisecond}")
-    
+
     // Calculating how many milliseconds are in a second
     let millisecondsInSecond = Duration.second / oneMillisecond
     println("Milliseconds in a second: ${millisecondsInSecond}")
@@ -3776,7 +3776,7 @@ main() {
     // Using the Duration.minute static constant
     let oneMinute = Duration.minute
     println("One minute duration: ${oneMinute}")
-    
+
     // Calculating how many minutes are in an hour
     let minutesInHour = Duration.hour / oneMinute
     println("Minutes in an hour: ${minutesInHour}")
@@ -3808,7 +3808,7 @@ main() {
     // Using the Duration.nanosecond static constant
     let oneNanosecond = Duration.nanosecond
     println("One nanosecond duration: ${oneNanosecond}")
-    
+
     // Calculating how many nanoseconds are in a microsecond
     let nanosecondsInMicrosecond = Duration.microsecond / oneNanosecond
     println("Nanoseconds in a microsecond: ${nanosecondsInMicrosecond}")
@@ -3840,7 +3840,7 @@ main() {
     // Using the Duration.second static constant
     let oneSecond = Duration.second
     println("One second duration: ${oneSecond}")
-    
+
     // Calculating how many seconds are in a minute
     let secondsInMinute = Duration.minute / oneSecond
     println("Seconds in a minute: ${secondsInMinute}")
@@ -3878,12 +3878,12 @@ main() {
     // Creating a duration using Duration.second
     let tenSeconds = Duration.second * 10
     println("Ten seconds duration: ${tenSeconds}")
-    
+
     // Creating a negative duration (via subtraction)
     let zeroDuration = Duration.Zero
     let negativeDuration = zeroDuration - tenSeconds
     println("Negative duration: ${negativeDuration}")
-    
+
     // Using abs() to get the absolute value
     let absoluteDuration = negativeDuration.abs()
     println("Absolute duration: ${absoluteDuration}")
@@ -3922,14 +3922,14 @@ main() {
     // Creating two different durations
     let duration1 = Duration.second * 5  // 5 seconds
     let duration2 = Duration.second * 10  // 10 seconds
-    
+
     println("Duration 1: ${duration1}")
     println("Duration 2: ${duration2}")
-    
+
     // Using compare() to compare the two durations
     let comparison = duration1.compare(duration2)
     println("Comparison result: ${comparison}")
-    
+
     // Checking different comparison results
     if (comparison == Ordering.LT) {
         println("Duration 1 is less than Duration 2")
@@ -3970,21 +3970,21 @@ main() {
     // Creating a duration
     let duration = Duration.second * 30  // 30 seconds
     println("Duration: ${duration}")
-    
+
     // Using hashCode() to get the hash value
     let hash = duration.hashCode()
     println("Hash code: ${hash}")
-    
+
     // Creating another identical duration
     let sameDuration = Duration.second * 30  // 30 seconds
     let sameHash = sameDuration.hashCode()
     println("Same duration hash code: ${sameHash}")
-    
+
     // Verifying that identical durations have the same hash code
     if (hash == sameHash) {
         println("Same durations have the same hash code")
     }
-    
+
     // Creating a different duration
     let differentDuration = Duration.minute * 1  // 1 minute
     let differentHash = differentDuration.hashCode()
@@ -4024,11 +4024,11 @@ main() {
     // Create a duration (3 days and 5 hours)
     let duration = Duration.day * 3 + Duration.hour * 5
     println("Duration: ${duration}")
-    
+
     // Use toDays() to get the number of days
     let days = duration.toDays()
     println("Days: ${days}")
-    
+
     // Create a smaller duration (5 hours)
     let smallDuration = Duration.hour * 5
     println("Small duration: ${smallDuration}")
@@ -4066,11 +4066,11 @@ main() {
     // Create a duration (2 days and 3 hours)
     let duration = Duration.day * 2 + Duration.hour * 3
     println("Duration: ${duration}")
-    
+
     // Use toHours() to get the number of hours
     let hours = duration.toHours()
     println("Hours: ${hours}")
-    
+
     // Create a smaller duration (30 minutes)
     let smallDuration = Duration.minute * 30
     println("Small duration: ${smallDuration}")
@@ -4112,11 +4112,11 @@ main() {
     // Create a duration (5 seconds)
     let duration = Duration.second * 5
     println("Duration: ${duration}")
-    
+
     // Use toMicroseconds() to get the number of microseconds
     let microseconds = duration.toMicroseconds()
     println("Microseconds: ${microseconds}")
-    
+
     // Create a smaller duration (500 milliseconds)
     let smallDuration = Duration.millisecond * 500
     println("Small duration: ${smallDuration}")
@@ -4158,11 +4158,11 @@ main() {
     // Create a duration (3 seconds)
     let duration = Duration.second * 3
     println("Duration: ${duration}")
-    
+
     // Use toMilliseconds() to get the number of milliseconds
     let milliseconds = duration.toMilliseconds()
     println("Milliseconds: ${milliseconds}")
-    
+
     // Create a smaller duration (500000 microseconds)
     let smallDuration = Duration.microsecond * 500000
     println("Small duration: ${smallDuration}")
@@ -4200,11 +4200,11 @@ main() {
     // Create a duration (2 hours)
     let duration = Duration.hour * 2
     println("Duration: ${duration}")
-    
+
     // Use toMinutes() to get the number of minutes
     let minutes = duration.toMinutes()
     println("Minutes: ${minutes}")
-    
+
     // Create a smaller duration (30 seconds)
     let smallDuration = Duration.second * 30
     println("Small duration: ${smallDuration}")
@@ -4246,11 +4246,11 @@ main() {
     // Create a duration (2 seconds)
     let duration = Duration.second * 2
     println("Duration: ${duration}")
-    
+
     // Use toNanoseconds() to get the number of nanoseconds
     let nanoseconds = duration.toNanoseconds()
     println("Nanoseconds: ${nanoseconds}")
-    
+
     // Create a smaller duration (500 microseconds)
     let smallDuration = Duration.microsecond * 500
     println("Small duration: ${smallDuration}")
@@ -4288,11 +4288,11 @@ main() {
     // Create a duration (3 minutes)
     let duration = Duration.minute * 3
     println("Duration: ${duration}")
-    
+
     // Use toSeconds() to get the number of seconds
     let seconds = duration.toSeconds()
     println("Seconds: ${seconds}")
-    
+
     // Create a smaller duration (500 milliseconds)
     let smallDuration = Duration.millisecond * 500
     println("Small duration: ${smallDuration}")
@@ -4328,15 +4328,15 @@ Example:
 ```cangjie
 main() {
     // Create a complex duration
-    let duration = Duration.day * 2 + Duration.hour * 3 + Duration.minute * 30 + 
-                   Duration.second * 45 + Duration.millisecond * 123 + 
+    let duration = Duration.day * 2 + Duration.hour * 3 + Duration.minute * 30 +
+                   Duration.second * 45 + Duration.millisecond * 123 +
                    Duration.microsecond * 456 + Duration.nanosecond * 789
     println("Duration: ${duration}")
-    
+
     // Use toString() to get the string representation
     let durationString = duration.toString()
     println("String representation: ${durationString}")
-    
+
     // Create a simple duration
     let simpleDuration = Duration.hour * 2
     println("Simple duration: ${simpleDuration}")
@@ -4380,18 +4380,18 @@ main() {
     let duration2 = Duration.second * 30
     println("Duration 1: ${duration1}")
     println("Duration 2: ${duration2}")
-    
+
     // Use != operator to compare the two durations
     if (duration1 != duration2) {
         println("Duration 1 is not equal to Duration 2")
     } else {
         println("Duration 1 is equal to Duration 2")
     }
-    
+
     // Create two different durations
     let duration3 = Duration.minute * 1
     println("Duration 3: ${duration3}")
-    
+
     // Use != operator to compare different durations
     if (duration1 != duration3) {
         println("Duration 1 is not equal to Duration 3")
@@ -4439,11 +4439,11 @@ main() {
     // Create a duration
     let duration = Duration.second * 10
     println("Original duration: ${duration}")
-    
+
     // Multiply with Float64 using * operator
     let multipliedDuration = duration * 2.5
     println("Multiplied duration: ${multipliedDuration}")
-    
+
     // Multiply with Float64 (value less than 1)
     let dividedDuration = duration * 0.5
     println("Divided duration: ${dividedDuration}")
@@ -4486,11 +4486,11 @@ main() {
     // Create a duration
     let duration = Duration.minute * 5
     println("Original duration: ${duration}")
-    
+
     // Multiply with Int64 using * operator
     let multipliedDuration = duration * 3
     println("Multiplied duration: ${multipliedDuration}")
-    
+
     // Multiply with Int64
     let dividedDuration = duration * 2
     println("Multiplied duration (2): ${dividedDuration}")
@@ -4535,11 +4535,11 @@ main() {
     let duration2 = Duration.minute * 30
     println("Duration 1: ${duration1}")
     println("Duration 2: ${duration2}")
-    
+
     // Add two durations using + operator
     let sumDuration = duration1 + duration2
     println("Sum duration: ${sumDuration}")
-    
+
     // Create more durations and add them
     let duration3 = Duration.second * 45
     println("Duration 3: ${duration3}")
@@ -4588,11 +4588,11 @@ main() {
     let duration2 = Duration.minute * 30
     println("Duration 1: ${duration1}")
     println("Duration 2: ${duration2}")
-    
+
     // Subtract two durations using - operator
     let diffDuration = duration1 - duration2
     println("Difference duration: ${diffDuration}")
-    
+
     // Create more durations and perform subtraction
     let duration3 = Duration.second * 45
     println("Duration 3: ${duration3}")
@@ -4641,11 +4641,11 @@ main() {
     let duration2 = Duration.minute * 30
     println("Duration 1: ${duration1}")
     println("Duration 2: ${duration2}")
-    
+
     // Divide two durations using / operator
     let quotient = duration1 / duration2
     println("Quotient: ${quotient}")
-    
+
     // Create more durations and perform division
     let duration3 = Duration.second * 45
     let duration4 = Duration.second * 15
@@ -4696,11 +4696,11 @@ main() {
     // Create a duration
     let duration = Duration.hour * 2
     println("Original duration: ${duration}")
-    
+
     // Divide with Float64 using / operator
     let dividedDuration = duration / 2.0
     println("Divided duration: ${dividedDuration}")
-    
+
     // Divide with Float64 (value greater than 1)
     let smallerDuration = duration / 4.0
     println("Smaller duration: ${smallerDuration}")
@@ -4744,11 +4744,11 @@ main() {
     // Create a duration
     let duration = Duration.hour * 3
     println("Original duration: ${duration}")
-    
+
     // Divide with Int64 using / operator
     let dividedDuration = duration / 3
     println("Divided duration: ${dividedDuration}")
-    
+
     // Divide with Int64 (value greater than 1)
     let smallerDuration = duration / 6
     println("Smaller duration: ${smallerDuration}")
@@ -4789,18 +4789,18 @@ main() {
     let duration2 = Duration.hour * 1
     println("Duration 1: ${duration1}")
     println("Duration 2: ${duration2}")
-    
+
     // Compare two durations using < operator
     if (duration1 < duration2) {
         println("Duration 1 is less than Duration 2")
     } else {
         println("Duration 1 is not less than Duration 2")
     }
-    
+
     // Create identical durations and compare
     let duration3 = Duration.minute * 30
     println("Duration 3: ${duration3}")
-    
+
     if (duration1 < duration3) {
         println("Duration 1 is less than Duration 3")
     } else {
@@ -4845,28 +4845,28 @@ main() {
     let duration2 = Duration.hour * 1
     println("Duration 1: ${duration1}")
     println("Duration 2: ${duration2}")
-    
+
     // Compare two durations using <= operator
     if (duration1 <= duration2) {
         println("Duration 1 is less than or equal to Duration 2")
     } else {
         println("Duration 1 is not less than or equal to Duration 2")
     }
-    
+
     // Create identical durations and compare
     let duration3 = Duration.minute * 30
     println("Duration 3: ${duration3}")
-    
+
     if (duration1 <= duration3) {
         println("Duration 1 is less than or equal to Duration 3")
     } else {
         println("Duration 1 is not less than or equal to Duration 3")
     }
-    
+
     // Create a smaller duration and compare
     let duration4 = Duration.minute * 20
     println("Duration 4: ${duration4}")
-    
+
     if (duration1 <= duration4) {
         println("Duration 1 is less than or equal to Duration 4")
     } else {
@@ -4913,18 +4913,18 @@ main() {
     let duration2 = Duration.minute * 30
     println("Duration 1: ${duration1}")
     println("Duration 2: ${duration2}")
-    
+
     // Compare two durations using == operator
     if (duration1 == duration2) {
         println("Duration 1 is equal to Duration 2")
     } else {
         println("Duration 1 is not equal to Duration 2")
     }
-    
+
     // Create different durations and compare
     let duration3 = Duration.hour * 1
     println("Duration 3: ${duration3}")
-    
+
     if (duration1 == duration3) {
         println("Duration 1 is equal to Duration 3")
     } else {
@@ -4969,18 +4969,18 @@ main() {
     let duration2 = Duration.minute * 30
     println("Duration 1: ${duration1}")
     println("Duration 2: ${duration2}")
-    
+
     // Compare the two durations using the > operator
     if (duration1 > duration2) {
         println("Duration 1 is greater than Duration 2")
     } else {
         println("Duration 1 is not greater than Duration 2")
     }
-    
+
     // Create identical durations and compare
     let duration3 = Duration.hour * 2
     println("Duration 3: ${duration3}")
-    
+
     if (duration1 > duration3) {
         println("Duration 1 is greater than Duration 3")
     } else {
@@ -5025,28 +5025,28 @@ main() {
     let duration2 = Duration.minute * 30
     println("Duration 1: ${duration1}")
     println("Duration 2: ${duration2}")
-    
+
     // Compare the two durations using the >= operator
     if (duration1 >= duration2) {
         println("Duration 1 is greater than or equal to Duration 2")
     } else {
         println("Duration 1 is not greater than or equal to Duration 2")
     }
-    
+
     // Create identical durations and compare
     let duration3 = Duration.hour * 2
     println("Duration 3: ${duration3}")
-    
+
     if (duration1 >= duration3) {
         println("Duration 1 is greater than or equal to Duration 3")
     } else {
         println("Duration 1 is not greater than or equal to Duration 3")
     }
-    
+
     // Create a smaller duration and compare
     let duration4 = Duration.hour * 3
     println("Duration 4: ${duration4}")
-    
+
     if (duration1 >= duration4) {
         println("Duration 1 is greater than or equal to Duration 4")
     } else {
@@ -5262,7 +5262,7 @@ Example:
 main() {
     // Create a Range instance
     let range = Range<Int32>(1, 10, 1, true, false, false)
-    
+
     // Access the end property
     println("Range end value: ${range.end}")
 }
@@ -5291,13 +5291,13 @@ Example:
 main() {
     // Create a Range instance with an end value
     let rangeWithEnd = Range<Int32>(1, 10, 1, true, true, false)
-    
+
     // Access the hasEnd property
     println("Range has end value: ${rangeWithEnd.hasEnd}")
-    
+
     // Create a Range instance without an end value
     let rangeWithoutEnd = Range<Int32>(1, 10, 1, true, false, false)
-    
+
     // Access the hasEnd property
     println("Range without end value: ${rangeWithoutEnd.hasEnd}")
 }
@@ -5327,13 +5327,13 @@ Example:
 main() {
     // Create a Range instance with a start value
     let rangeWithStart = Range<Int32>(1, 10, 1, true, true, false)
-    
+
     // Access the hasStart property
     println("Range has start value: ${rangeWithStart.hasStart}")
-    
+
     // Create a Range instance without a start value
     let rangeWithoutStart = Range<Int32>(1, 10, 1, false, true, false)
-    
+
     // Access the hasStart property
     println("Range without start value: ${rangeWithoutStart.hasStart}")
 }
@@ -5363,13 +5363,13 @@ Example:
 main() {
     // Create a closed Range instance
     let closedRange = Range<Int32>(1, 10, 1, true, true, true)
-    
+
     // Access the isClosed property
     println("Closed range: ${closedRange.isClosed}")
-    
+
     // Create an open Range instance
     let openRange = Range<Int32>(1, 10, 1, true, true, false)
-    
+
     // Access the isClosed property
     println("Open range: ${openRange.isClosed}")
 }
@@ -5399,7 +5399,7 @@ Example:
 main() {
     // Create a Range instance
     let range = Range<Int32>(5, 15, 1, true, true, false)
-    
+
     // Access the start property
     println("Range start value: ${range.start}")
 }
@@ -5428,7 +5428,7 @@ Example:
 main() {
     // Create a Range instance with step size 2
     let range = Range<Int32>(1, 10, 2, true, true, false)
-    
+
     // Access the step property
     println("Range step value: ${range.step}")
 }
@@ -5468,7 +5468,7 @@ Example:
 main() {
     // Create a Range instance using the constructor
     let range = Range<Int32>(1, 10, 1, true, true, false)
-    
+
     println("Range start: ${range.start}")
     println("Range end: ${range.end}")
     println("Range step: ${range.step}")
@@ -5509,7 +5509,7 @@ main() {
     // Create a non-empty Range instance
     let nonEmptyRange = Range<Int32>(1, 10, 1, true, true, false)
     println("Non-empty range is empty: ${nonEmptyRange.isEmpty()}")
-    
+
     // Create an empty Range instance (start >= end and step > 0)
     let emptyRange = Range<Int32>(10, 5, 1, true, true, false)
     println("Empty range is empty: ${emptyRange.isEmpty()}")
@@ -5542,7 +5542,7 @@ Example:
 main() {
     // Create a Range instance
     let range = Range<Int32>(1, 5, 1, true, false, false)
-    
+
     // Use a for loop to iterate over the Range (Range implements the Iterable interface)
     println("Range values:")
     for (value in range) {
@@ -5599,17 +5599,17 @@ main() {
     // Create two identical Range instances
     let range1 = Range<Int32>(1, 5, 1, true, false, false)
     let range2 = Range<Int32>(1, 5, 1, true, false, false)
-    
+
     // Use the == operator to compare the two Range instances
     if (range1 == range2) {
         println("Range1 is equal to Range2")
     } else {
         println("Range1 is not equal to Range2")
     }
-    
+
     // Create a different Range instance
     let range3 = Range<Int32>(1, 6, 1, true, false, false)
-    
+
     // Use the == operator to compare two different Range instances
     if (range1 == range3) {
         println("Range1 is equal to Range3")
@@ -5657,16 +5657,16 @@ Example:
 main() {
     // Create a Range instance
     let range = Range<Int32>(1, 5, 1, true, false, false)
-    
+
     // Get the hash value
     let hash = range.hashCode()
     println("Range hash code: ${hash}")
-    
+
     // Create another identical Range instance
     let sameRange = Range<Int32>(1, 5, 1, true, false, false)
     let sameHash = sameRange.hashCode()
     println("Same range hash code: ${sameHash}")
-    
+
     // Verify that identical Range instances have the same hash code
     if (hash == sameHash) {
         println("Same ranges have the same hash code")
@@ -5752,11 +5752,11 @@ main() {
     // Create a string
     let str = "Hello, 世界"
     println("String: '${str}'")
-    
+
     // Get the byte length of the string
     let size = str.size
     println("String size (bytes): ${size}")
-    
+
     // Create an empty string
     let emptyStr = String.empty
     println("Empty string size: ${emptyStr.size}")
@@ -5787,7 +5787,7 @@ main() {
     // Create an empty string
     let str = String()
     println("String: '${str}'")
-    
+
     // Get the byte length of the string
     let size = str.size
     println("String size (bytes): ${size}")
@@ -5824,10 +5824,10 @@ Example:
 main() {
     // Create a Rune array
     let runes = [r'H', r'e', r'l', r'l', r'o', r' ', r'世', r'界']
-    
+
     // Use the init(Array<Rune>) constructor to create a string
     let str = String(runes)
-    
+
     println("String from Rune array: '${str}'")
     println("String size: ${str.size}")
 }
@@ -5863,10 +5863,10 @@ Example:
 main() {
     // Create an Array<Rune> as a Collection<Rune>
     let runeArray: Array<Rune> = [r'H', r'e', r'l', r'l', r'o', r' ', r'世', r'界']
-    
+
     // Use the init(Collection<Rune>) constructor to create a string
     let str = String(runeArray)
-    
+
     println("String from Collection<Rune>: '${str}'")
     println("String size: ${str.size}")
 }
@@ -5922,10 +5922,10 @@ Example:
 main() {
     // Create a UTF-8 encoded byte array representing "Hello 世界"
     let utf8Bytes = [72u8, 101u8, 108u8, 108u8, 111u8, 32u8, 228u8, 184u8, 150u8, 231u8, 149u8, 140u8]
-    
+
     // Use the fromUtf8 function to create a string
     let str = String.fromUtf8(utf8Bytes)
-    
+
     println("String from UTF-8 bytes: '${str}'")
     println("String size: ${str.size}")
 }
@@ -5967,10 +5967,10 @@ Example:
 main() {
     // Create a UTF-8 encoded byte array representing "Hello 世界"
     let utf8Bytes = [72u8, 101u8, 108u8, 108u8, 111u8, 32u8, 228u8, 184u8, 150u8, 231u8, 149u8, 140u8]
-    
+
     // Use the fromUtf8Unchecked function to create a string (without UTF-8 validation)
     let str = unsafe { String.fromUtf8Unchecked(utf8Bytes) }
-    
+
     println("String from UTF-8 bytes (unchecked): '${str}'")
     println("String size: ${str.size}")
 }
@@ -6073,10 +6073,10 @@ Example:
 main() {
     // Create a string
     let originalStr = "Hello, 世界"
-    
+
     // Use the clone function to create a copy of the string
     let clonedStr = originalStr.clone()
-    
+
     println("Original string: '${originalStr}'")
     println("Cloned string: '${clonedStr}'")
     println("Are they equal? ${originalStr == clonedStr}")
@@ -6120,12 +6120,12 @@ main() {
     let str1 = "apple"
     let str2 = "banana"
     let str3 = "apple"
-    
+
     // Compare strings using the compare function
     let result1 = str1.compare(str2)
     let result2 = str2.compare(str1)
     let result3 = str1.compare(str3)
-    
+
     println("Comparing '${str1}' to '${str2}': ${result1}")
     println("Comparing '${str2}' to '${str1}': ${result2}")
     println("Comparing '${str1}' to '${str3}': ${result3}")
@@ -6163,13 +6163,13 @@ Example:
 main() {
     // Create a string
     let str = "Hello, 世界"
-    
+
     // Check if the string contains specific substrings
     let contains1 = str.contains("Hello")
     let contains2 = str.contains("世界")
     let contains3 = str.contains("World")
     let contains4 = str.contains("")
-    
+
     println("String: '${str}'")
     println("Contains 'Hello': ${contains1}")
     println("Contains '世界': ${contains2}")
@@ -6211,13 +6211,13 @@ Example:
 main() {
     // Create a string
     let str = "Hello, Hello, 世界, Hello"
-    
+
     // Count occurrences of substrings in the string
     let count1 = str.count("Hello")
     let count2 = str.count("世界")
     let count3 = str.count("World")
     let count4 = str.count("")
-    
+
     println("String: '${str}'")
     println("Count of 'Hello': ${count1}")
     println("Count of '世界': ${count2}")
@@ -6261,14 +6261,14 @@ main() {
     let str1 = "Hello, 世界"
     let str2 = "world"
     let str3 = ""
-    
+
     // Check if strings end with specific suffixes
     let endsWith1 = str1.endsWith("世界")
     let endsWith2 = str1.endsWith("Hello")
     let endsWith3 = str2.endsWith("world")
     let endsWith4 = str3.endsWith("")
     let endsWith5 = str1.endsWith("")
-    
+
     println("String 1: '${str1}'")
     println("Ends with '世界': ${endsWith1}")
     println("Ends with 'Hello': ${endsWith2}")
@@ -6320,14 +6320,14 @@ main() {
     let str5 = "Hello, world"
     let str6 = "Hello, 世界"
     let str7 = "HELLO, 世界"
-    
+
     // Check if strings are equal (ignoring ASCII case)
     let equals1 = str1.equalsIgnoreAsciiCase(str2)
     let equals2 = str1.equalsIgnoreAsciiCase(str3)
     let equals3 = str4.equalsIgnoreAsciiCase(str5)
     let equals4 = str6.equalsIgnoreAsciiCase(str7)
     let equals5 = str1.equalsIgnoreAsciiCase(str4)
-    
+
     println("String 1: '${str1}'")
     println("String 2: '${str2}'")
     println("Equals ignore case (str1, str2): ${equals1}")
@@ -6383,12 +6383,12 @@ Example:
 main() {
     // Create a string
     let str = "Hello, 世界"
-    
+
     // Get byte values at specified indices
     let byte1 = str.get(0)  // ASCII code of 'H'
     let byte2 = str.get(7)  // First byte of UTF-8 encoding for '世'
     let byte3 = str.get(100)  // Out-of-bounds index
-    
+
     println("String: '${str}'")
     println("Byte at index 0: ${byte1}")
     println("Byte at index 7: ${byte2}")
@@ -6424,7 +6424,7 @@ Example:
 main() {
     // Create a string
     let str = "Hello, 世界"
-    
+
     // Get the hash code
     let hashCode = str.hashCode()
     println("hashCode: ${hashCode}")
@@ -6460,16 +6460,16 @@ Example:
 main() {
     // Create a string
     let str = "Hello, 世界"
-    
+
     // Find the first occurrence of 'l'
     let index1 = str.indexOf(108u8)  // ASCII code of 'l' is 108
-    
+
     // Find the first occurrence of '世'
     let index2 = str.indexOf(228u8)  // First byte of UTF-8 encoding for '世' is 228
-    
+
     // Find a non-existent character
     let index3 = str.indexOf(122u8)  // ASCII code of 'z' is 122
-    
+
     println("String: '${str}'")
     println("Index of 'l' (108u8): ${index1}")
     println("Index of '世' first byte (228u8): ${index2}")
@@ -6510,16 +6510,16 @@ Example:
 main() {
     // Create a string
     let str = "Hello, Hello"
-    
+
     // Find the first occurrence of 'l' starting from index 3
     let index1 = str.indexOf(108u8, 3)  // ASCII code of 'l' is 108
-    
+
     // Find the first occurrence of 'H' starting from index 1
     let index2 = str.indexOf(72u8, 1)  // ASCII code of 'H' is 72
-    
+
     // Find a non-existent character
     let index3 = str.indexOf(122u8, 0)  // ASCII code of 'z' is 122
-    
+
     println("String: '${str}'")
     println("Index of 'l' (108u8) from index 3: ${index1}")
     println("Index of 'H' (72u8) from index 1: ${index2}")
@@ -6559,16 +6559,16 @@ Example:
 main() {
     // Create a string
     let str = "Hello, Hello, 世界"
-    
+
     // Find the first occurrence of substring "Hello"
     let index1 = str.indexOf("Hello")
-    
+
     // Find the first occurrence of substring "世界"
     let index2 = str.indexOf("世界")
-    
+
     // Search for a non-existent substring
     let index3 = str.indexOf("World")
-    
+
     println("String: '${str}'")
     println("Index of 'Hello': ${index1}")
     println("Index of '世界': ${index2}")
@@ -6609,16 +6609,16 @@ Example:
 main() {
     // Create a string
     let str = "Hello, Hello, 世界"
-    
+
     // Find the first occurrence of substring "Hello" starting from index 1
     let index1 = str.indexOf("Hello", 1)
-    
+
     // Find the first occurrence of substring "llo" starting from index 5
     let index2 = str.indexOf("llo", 5)
-    
+
     // Search for a non-existent substring starting from index 0
     let index3 = str.indexOf("World", 0)
-    
+
     println("String: '${str}'")
     println("Index of 'Hello' from index 1: ${index1}")
     println("Index of 'llo' from index 5: ${index2}")
@@ -6657,13 +6657,13 @@ main() {
     let str2 = "Hello, 世界"
     let str3 = ""
     let str4 = "123456"
-    
+
     // Check if strings are ASCII
     let isAscii1 = str1.isAscii()
     let isAscii2 = str2.isAscii()
     let isAscii3 = str3.isAscii()
     let isAscii4 = str4.isAscii()
-    
+
     println("String 1: '${str1}', is ASCII: ${isAscii1}")
     println("String 2: '${str2}', is ASCII: ${isAscii2}")
     println("String 3: '${str3}', is ASCII: ${isAscii3}")
@@ -6703,14 +6703,14 @@ main() {
     let str3 = "\t\n\r"
     let str4 = "Hello"
     let str5 = " \t\n\r "
-    
+
     // Check if strings are empty or contain only ASCII whitespace
     let isAsciiBlank1 = str1.isAsciiBlank()
     let isAsciiBlank2 = str2.isAsciiBlank()
     let isAsciiBlank3 = str3.isAsciiBlank()
     let isAsciiBlank4 = str4.isAsciiBlank()
     let isAsciiBlank5 = str5.isAsciiBlank()
-    
+
     println("String 1: '${str1}', is ASCII blank: ${isAsciiBlank1}")
     println("String 2: '${str2}', is ASCII blank: ${isAsciiBlank2}")
     println("String 3: '${str3}', is ASCII blank: ${isAsciiBlank3}")
@@ -6724,11 +6724,11 @@ Output:
 ```text
 String 1: '', is ASCII blank: true
 String 2: '   ', is ASCII blank: true
-String 3: '	
+String 3: '
 
 ', is ASCII blank: true
 String 4: 'Hello', is ASCII blank: false
-String 5: ' 	
+String 5: '
 
  ', is ASCII blank: true
 ```
@@ -6754,12 +6754,12 @@ main() {
     let str1 = ""
     let str2 = "Hello"
     let str3 = " "
-    
+
     // Check if strings are empty
     let isEmpty1 = str1.isEmpty()
     let isEmpty2 = str2.isEmpty()
     let isEmpty3 = str3.isEmpty()
-    
+
     println("String 1: '${str1}', is empty: ${isEmpty1}")
     println("String 2: '${str2}', is empty: ${isEmpty2}")
     println("String 3: '${str3}', is empty: ${isEmpty3}")
@@ -6831,16 +6831,16 @@ Example:
 main() {
     // Create a string
     let str = "Hello, 世界"
-    
+
     // Find the last occurrence of character 'l'
     let lastIndex1 = str.lastIndexOf(108u8)  // ASCII code for 'l' is 108
-    
+
     // Find the last occurrence of the first byte of '世'
     let lastIndex2 = str.lastIndexOf(228u8)  // First UTF-8 byte of '世' is 228
-    
+
     // Search for a non-existent character
     let lastIndex3 = str.lastIndexOf(122u8)  // ASCII code for 'z' is 122
-    
+
     println("String: '${str}'")
     println("Last index of 'l' (108u8): ${lastIndex1}")
     println("Last index of '世' first byte (228u8): ${lastIndex2}")
@@ -6881,16 +6881,16 @@ Example:
 main() {
     // Create a string
     let str = "Hello, Hello"
-    
+
     // Find the last occurrence of 'l' starting from index 10
     let lastIndex1 = str.lastIndexOf(108u8, 10)  // ASCII code for 'l' is 108
-    
+
     // Find the last occurrence of 'H' starting from index 5
     let lastIndex2 = str.lastIndexOf(72u8, 5)  // ASCII code for 'H' is 72
-    
+
     // Search for a non-existent character starting from index 5
     let lastIndex3 = str.lastIndexOf(122u8, 5)  // ASCII code for 'z' is 122
-    
+
     println("String: '${str}'")
     println("Last index of 'l' (108u8) from index 10: ${lastIndex1}")
     println("Last index of 'H' (72u8) from index 5: ${lastIndex2}")
@@ -6930,16 +6930,16 @@ Example:
 main() {
     // Create a string
     let str = "Hello, Hello, 世界"
-    
+
     // Find the last occurrence of substring "Hello"
     let lastIndex1 = str.lastIndexOf("Hello")
-    
+
     // Find the last occurrence of substring "世界"
     let lastIndex2 = str.lastIndexOf("世界")
-    
+
     // Search for a non-existent substring
     let lastIndex3 = str.lastIndexOf("World")
-    
+
     println("String: '${str}'")
     println("Last index of 'Hello': ${lastIndex1}")
     println("Last index of '世界': ${lastIndex2}")
@@ -6980,16 +6980,16 @@ Example:
 main() {
     // Create a string
     let str = "Hello, Hello, 世界"
-    
+
     // Find the last occurrence of substring "Hello" starting from index 6
     let lastIndex1 = str.lastIndexOf("Hello", 6)
-    
+
     // Find the last occurrence of substring "llo" starting from index 6
     let lastIndex2 = str.lastIndexOf("llo", 6)
-    
+
     // Search for a non-existent substring starting from index 10
     let lastIndex3 = str.lastIndexOf("World", 10)
-    
+
     println("String: '${str}'")
     println("Last index of 'Hello' from index 6: ${lastIndex1}")
     println("Last index of 'llo' from index 6: ${lastIndex2}")
@@ -7164,12 +7164,12 @@ main() {
     // Create test strings
     let str1 = "Hello"
     let str2 = "World"
-    
+
     // Use padEnd for right padding
     let padded1 = str1.padEnd(10, padding: "-")
     let padded2 = str2.padEnd(10, padding: " ")
     let padded3 = str1.padEnd(3, padding: "-")  // Length < original string
-    
+
     println("Original string 1: '${str1}'")
     println("Padded string 1: '${padded1}'")
     println("Original string 2: '${str2}'")
@@ -7219,12 +7219,12 @@ main() {
     // Create test strings
     let str1 = "Hello"
     let str2 = "World"
-    
+
     // Use padStart for left padding
     let padded1 = str1.padStart(10, padding: "-")
     let padded2 = str2.padStart(10, padding: " ")
     let padded3 = str1.padStart(3, padding: "-")  // Length < original string
-    
+
     println("Original string 1: '${str1}'")
     println("Padded string 1: '${padded1}'")
     println("Original string 2: '${str2}'")
@@ -7266,10 +7266,10 @@ Example:
 main() {
     // Create a string
     let str = "Hello, 世界"
-    
+
     // Get the raw byte array
     let rawData = unsafe { str.rawData() }
-    
+
     println("String: '${str}'")
     println("Raw data length: ${rawData.size}")
     println("Raw data bytes:")
@@ -7325,13 +7325,13 @@ main() {
     let str1 = "Hello, World"
     let str2 = "Hello, 世界"
     let str3 = "Hello"
-    
+
     // Use removePrefix to remove prefixes
     let removed1 = str1.removePrefix("Hello")
     let removed2 = str2.removePrefix("Hello")
     let removed3 = str3.removePrefix("Hello")
     let removed4 = str1.removePrefix("World")  // Non-existent prefix
-    
+
     println("Original string 1: '${str1}'")
     println("After removing 'Hello': '${removed1}'")
     println("Original string 2: '${str2}'")
@@ -7381,13 +7381,13 @@ main() {
     let str1 = "Hello, World"
     let str2 = "Hello, 世界"
     let str3 = "World"
-    
+
     // Use removeSuffix function to remove suffixes
     let removed1 = str1.removeSuffix("World")
     let removed2 = str2.removeSuffix("世界")
     let removed3 = str3.removeSuffix("World")
     let removed4 = str1.removeSuffix("Hello")  // Non-existent suffix
-    
+
     println("Original string 1: '${str1}'")
     println("After removing 'World': '${removed1}'")
     println("Original string 2: '${str2}'")
@@ -7442,13 +7442,13 @@ main() {
     let str1 = "Hello, World"
     let str2 = "Hello, Hello, World"
     let str3 = "Hello"
-    
+
     // Use replace function
     let replaced1 = str1.replace("World", "Cangjie")
     let replaced2 = str2.replace("Hello", "Hi")
     let replaced3 = str3.replace("World", "Cangjie")  // Non-existent substring
     let replaced4 = str1.replace("Hello", "")  // Replace with empty string
-    
+
     println("Original string 1: '${str1}'")
     println("After replacing 'World' with 'Cangjie': '${replaced1}'")
     println("Original string 2: '${str2}'")
@@ -7496,13 +7496,13 @@ Example:
 main() {
     // Create a multilingual string
     let str = "Hello, 世界"
-    
+
     // Get Rune iterator
     let runesIter = str.runes()
-    
+
     println("String: '${str}'")
     println("Runes:")
-    
+
     // Iterate and print each rune
     var index = 0
     while (true) {
@@ -7527,7 +7527,7 @@ Runes:
   Index 3: l
   Index 4: o
   Index 5: ,
-  Index 6:  
+  Index 6:
   Index 7: 世
   Index 8: 界
 ```
@@ -7557,19 +7557,19 @@ Example:
 ```cangjie
 main() {
     let str = "apple,banana,,cherry,dates"
-    
+
     // Split keeping empty strings
     let result1 = str.split(",", removeEmpty: false)
-    
+
     // Split removing empty strings
     let result2 = str.split(",", removeEmpty: true)
-    
+
     println("Original string: '${str}'")
     println("Split with empty strings kept:")
     for (i in 0..result1.size) {
         println("  Element ${i}: '${result1[i]}'")
     }
-    
+
     println("Split with empty strings removed:")
     for (i in 0..result2.size) {
         println("  Element ${i}: '${result2[i]}'")
@@ -7625,22 +7625,22 @@ Example:
 ```cangjie
 main() {
     let str = "one,two,three,four,five"
-    
+
     let result1 = str.split(",", 3)  // Max 3 splits
     let result2 = str.split(",", 1)  // Max 1 split
     let result3 = str.split(",", -1) // Complete split
-    
+
     println("Original string: '${str}'")
     println("Split with maxSplits = 3:")
     for (i in 0..result1.size) {
         println("  Element ${i}: '${result1[i]}'")
     }
-    
+
     println("Split with maxSplits = 1:")
     for (i in 0..result2.size) {
         println("  Element ${i}: '${result2[i]}'")
     }
-    
+
     println("Split with maxSplits = -1:")
     for (i in 0..result3.size) {
         println("  Element ${i}: '${result3[i]}'")
@@ -7690,22 +7690,22 @@ main() {
     let str1 = "Hello, World"
     let str2 = "Hello, 世界"
     let str3 = ""
-    
+
     let startsWith1 = str1.startsWith("Hello")
     let startsWith2 = str1.startsWith("World")
     let startsWith3 = str2.startsWith("Hello")
     let startsWith4 = str2.startsWith("世界")
     let startsWith5 = str3.startsWith("")
     let startsWith6 = str1.startsWith("")
-    
+
     println("String 1: '${str1}'")
     println("Starts with 'Hello': ${startsWith1}")
     println("Starts with 'World': ${startsWith2}")
-    
+
     println("String 2: '${str2}'")
     println("Starts with 'Hello': ${startsWith3}")
     println("Starts with '世界': ${startsWith4}")
-    
+
     println("Empty string starts with empty string: ${startsWith5}")
     println("String 1 starts with empty string: ${startsWith6}")
 }
@@ -7743,7 +7743,7 @@ Example:
 main() {
     let str = "Hello, 世界"
     let byteArray = str.toArray()
-    
+
     println("String: '${str}'")
     println("Byte array size: ${byteArray.size}")
     println("Byte array elements:")
@@ -7796,22 +7796,22 @@ main() {
     let str2 = "CANGJIE Programming"
     let str3 = "123ABC456"
     let str4 = "你好World"
-    
+
     // Use toAsciiLower function to convert ASCII uppercase letters to lowercase
     let lower1 = str1.toAsciiLower()
     let lower2 = str2.toAsciiLower()
     let lower3 = str3.toAsciiLower()
     let lower4 = str4.toAsciiLower()
-    
+
     println("Original string 1: '${str1}'")
     println("To ASCII lower 1: '${lower1}'")
-    
+
     println("Original string 2: '${str2}'")
     println("To ASCII lower 2: '${lower2}'")
-    
+
     println("Original string 3: '${str3}'")
     println("To ASCII lower 3: '${lower3}'")
-    
+
     println("Original string 4: '${str4}'")
     println("To ASCII lower 4: '${lower4}'")
 }
@@ -7854,22 +7854,22 @@ main() {
     let str2 = "CANGJIE programming"
     let str3 = "123abc456"
     let str4 = "你好world"
-    
+
     // Use toAsciiTitle function to convert strings to title case
     let title1 = str1.toAsciiTitle()
     let title2 = str2.toAsciiTitle()
     let title3 = str3.toAsciiTitle()
     let title4 = str4.toAsciiTitle()
-    
+
     println("Original string 1: '${str1}'")
     println("To ASCII title 1: '${title1}'")
-    
+
     println("Original string 2: '${str2}'")
     println("To ASCII title 2: '${title2}'")
-    
+
     println("Original string 3: '${str3}'")
     println("To ASCII title 3: '${title3}'")
-    
+
     println("Original string 4: '${str4}'")
     println("To ASCII title 4: '${title4}'")
 }
@@ -7910,22 +7910,22 @@ main() {
     let str2 = "cangjie programming"
     let str3 = "123abc456"
     let str4 = "你好world"
-    
+
     // Use toAsciiUpper function to convert ASCII lowercase letters to uppercase
     let upper1 = str1.toAsciiUpper()
     let upper2 = str2.toAsciiUpper()
     let upper3 = str3.toAsciiUpper()
     let upper4 = str4.toAsciiUpper()
-    
+
     println("Original string 1: '${str1}'")
     println("To ASCII upper 1: '${upper1}'")
-    
+
     println("Original string 2: '${str2}'")
     println("To ASCII upper 2: '${upper2}'")
-    
+
     println("Original string 3: '${str3}'")
     println("To ASCII upper 3: '${upper3}'")
-    
+
     println("Original string 4: '${str4}'")
     println("To ASCII upper 4: '${upper4}'")
 }
@@ -7963,10 +7963,10 @@ Example:
 main() {
     // Create a string containing both English and Chinese characters
     let str = "Hello, 世界"
-    
+
     // Use toRuneArray function to get the Rune array of the string
     let runeArray = str.toRuneArray()
-    
+
     println("String: '${str}'")
     println("Rune array size: ${runeArray.size}")
     println("Rune array elements:")
@@ -7988,7 +7988,7 @@ Rune array elements:
   Index 3: l
   Index 4: o
   Index 5: ,
-  Index 6:  
+  Index 6:
   Index 7: 世
   Index 8: 界
 ```
@@ -8012,10 +8012,10 @@ Example:
 main() {
     // Create a string for testing
     let str = "Hello, World"
-    
+
     // Use toString function to get the string itself
     let strSelf = str.toString()
-    
+
     println("Original string: '${str}'")
     println("String from toString(): '${strSelf}'")
     println("Are they equal? ${str == strSelf}")
@@ -8063,22 +8063,22 @@ main() {
     let str2 = "\t\n Hello, 世界 \r\n"
     let str3 = "Hello"
     let str4 = "   \t\n\r  "
-    
+
     // Use trimAscii function to remove leading and trailing ASCII whitespace characters
     let trimmed1 = str1.trimAscii()
     let trimmed2 = str2.trimAscii()
     let trimmed3 = str3.trimAscii()
     let trimmed4 = str4.trimAscii()
-    
+
     println("Original string 1: '${str1}'")
     println("Trimmed string 1: '${trimmed1}'")
-    
+
     println("Original string 2: '${str2}'")
     println("Trimmed string 2: '${trimmed2}'")
-    
+
     println("Original string 3: '${str3}'")
     println("Trimmed string 3: '${trimmed3}'")
-    
+
     println("Original string 4: '${str4}'")
     println("Trimmed string 4: '${trimmed4}'")
 }
@@ -8089,13 +8089,13 @@ Execution result:
 ```text
 Original string 1: '  Hello, World  '
 Trimmed string 1: 'Hello, World'
-Original string 2: '	
- Hello, 世界 
+Original string 2: '
+ Hello, 世界
 '
 Trimmed string 2: 'Hello, 世界'
 Original string 3: 'Hello'
 Trimmed string 3: 'Hello'
-Original string 4: '   	
+Original string 4: '
 
   '
 Trimmed string 4: ''
@@ -8125,22 +8125,22 @@ main() {
     let str2 = "Hello, 世界\t\n\r"
     let str3 = "Hello"
     let str4 = "   \t\n\r  "
-    
+
     // Use trimAsciiEnd function to remove trailing ASCII whitespace characters
     let trimmed1 = str1.trimAsciiEnd()
     let trimmed2 = str2.trimAsciiEnd()
     let trimmed3 = str3.trimAsciiEnd()
     let trimmed4 = str4.trimAsciiEnd()
-    
+
     println("Original string 1: '${str1}'")
     println("Trimmed end string 1: '${trimmed1}'")
-    
+
     println("Original string 2: '${str2}'")
     println("Trimmed end string 2: '${trimmed2}'")
-    
+
     println("Original string 3: '${str3}'")
     println("Trimmed end string 3: '${trimmed3}'")
-    
+
     println("Original string 4: '${str4}'")
     println("Trimmed end string 4: '${trimmed4}'")
 }
@@ -8151,13 +8151,13 @@ Execution result:
 ```text
 Original string 1: 'Hello, World  '
 Trimmed end string 1: 'Hello, World'
-Original string 2: 'Hello, 世界	
+Original string 2: 'Hello, 世界
 
 '
 Trimmed end string 2: 'Hello, 世界'
 Original string 3: 'Hello'
 Trimmed end string 3: 'Hello'
-Original string 4: '   	
+Original string 4: '
 
   '
 Trimmed end string 4: ''
@@ -8187,22 +8187,22 @@ main() {
     let str2 = "\t\n\rHello, 世界"
     let str3 = "Hello"
     let str4 = "   \t\n\r  "
-    
+
     // Use trimAsciiStart function to remove leading ASCII whitespace characters
     let trimmed1 = str1.trimAsciiStart()
     let trimmed2 = str2.trimAsciiStart()
     let trimmed3 = str3.trimAsciiStart()
     let trimmed4 = str4.trimAsciiStart()
-    
+
     println("Original string 1: '${str1}'")
     println("Trimmed start string 1: '${trimmed1}'")
-    
+
     println("Original string 2: '${str2}'")
     println("Trimmed start string 2: '${trimmed2}'")
-    
+
     println("Original string 3: '${str3}'")
     println("Trimmed start string 3: '${trimmed3}'")
-    
+
     println("Original string 4: '${str4}'")
     println("Trimmed start string 4: '${trimmed4}'")
 }
@@ -8213,13 +8213,13 @@ Execution result:
 ```text
 Original string 1: '  Hello, World'
 Trimmed start string 1: 'Hello, World'
-Original string 2: '	
+Original string 2: '
 
 Hello, 世界'
 Trimmed start string 2: 'Hello, 世界'
 Original string 3: 'Hello'
 Trimmed start string 3: 'Hello'
-Original string 4: '   	
+Original string 4: '
 
   '
 Trimmed start string 4: ''
@@ -8347,11 +8347,11 @@ Example:
 main() {
     // Create a test string
     let str = "123456789"
-    
+
     // Use trimStart to remove characters from the start that satisfy the condition
     // Here we remove all leading digits less than '5'
     let trimmed = str.trimStart({c => c < r'5'})
-    
+
     println("Original string: '${str}'")
     println("Trimmed string: '${trimmed}'")
 }
@@ -8389,11 +8389,11 @@ Example:
 main() {
     // Create a test string
     let str = "12241"
-    
+
     // Use trimStart to remove leading characters present in the array
     // Here we remove all leading '1' and '2' characters
     let trimmed = str.trimStart([r'1', r'2'])
-    
+
     println("Original string: '${str}'")
     println("Trimmed string: '${trimmed}'")
 }
@@ -8431,11 +8431,11 @@ Example:
 main() {
     // Create a test string
     let str = "12241"
-    
+
     // Use trimStart to remove leading characters present in the string
     // Here we remove all leading '1' and '2' characters
     let trimmed = str.trimStart("12")
-    
+
     println("Original string: '${str}'")
     println("Trimmed string: '${trimmed}'")
 }
@@ -8473,11 +8473,11 @@ main() {
     let str1 = "Hello"
     let str2 = "Hello"
     let str3 = "World"
-    
+
     // Use != operator to compare strings
     let result1 = str1 != str2
     let result2 = str1 != str3
-    
+
     println("String 1: '${str1}'")
     println("String 2: '${str2}'")
     println("String 3: '${str3}'")
@@ -8523,12 +8523,12 @@ Example:
 main() {
     // Create a test string
     let str = "Hello"
-    
+
     // Use * operator to repeat the string
     let repeated1 = str * 3
     let repeated2 = str * 0
     let repeated3 = str * 1
-    
+
     println("Original string: '${str}'")
     println("str * 3: '${repeated1}'")
     println("str * 0: '${repeated2}'")
@@ -8574,12 +8574,12 @@ main() {
     let str1 = "Hello"
     let str2 = "World"
     let str3 = ", "
-    
+
     // Use + operator to concatenate strings
     let result1 = str1 + str3 + str2
     let result2 = str1 + " " + str2
     let result3 = "" + str1
-    
+
     println("String 1: '${str1}'")
     println("String 2: '${str2}'")
     println("String 3: '${str3}'")
@@ -8625,12 +8625,12 @@ main() {
     let str1 = "apple"
     let str2 = "banana"
     let str3 = "apple"
-    
+
     // Use < operator to compare strings
     let result1 = str1 < str2
     let result2 = str2 < str1
     let result3 = str1 < str3
-    
+
     println("String 1: '${str1}'")
     println("String 2: '${str2}'")
     println("String 3: '${str3}'")
@@ -8676,12 +8676,12 @@ main() {
     let str1 = "apple"
     let str2 = "banana"
     let str3 = "apple"
-    
+
     // Compare strings using <= operator
     let result1 = str1 <= str2
     let result2 = str2 <= str1
     let result3 = str1 <= str3
-    
+
     println("String 1: '${str1}'")
     println("String 2: '${str2}'")
     println("String 3: '${str3}'")
@@ -8727,11 +8727,11 @@ main() {
     let str1 = "Hello"
     let str2 = "Hello"
     let str3 = "World"
-    
+
     // Compare strings using == operator
     let result1 = str1 == str2
     let result2 = str1 == str3
-    
+
     println("String 1: '${str1}'")
     println("String 2: '${str2}'")
     println("String 3: '${str3}'")
@@ -8775,12 +8775,12 @@ main() {
     let str1 = "banana"
     let str2 = "apple"
     let str3 = "banana"
-    
+
     // Compare strings using > operator
     let result1 = str1 > str2
     let result2 = str2 > str1
     let result3 = str1 > str3
-    
+
     println("String 1: '${str1}'")
     println("String 2: '${str2}'")
     println("String 3: '${str3}'")
@@ -8826,12 +8826,12 @@ main() {
     let str1 = "banana"
     let str2 = "apple"
     let str3 = "banana"
-    
+
     // Compare strings using >= operator
     let result1 = str1 >= str2
     let result2 = str2 >= str1
     let result3 = str1 >= str3
-    
+
     println("String 1: '${str1}'")
     println("String 2: '${str2}'")
     println("String 3: '${str3}'")
@@ -8879,15 +8879,15 @@ Example:
 main() {
     // Create a test string
     let str = "Hello, 世界"
-    
+
     // Retrieve bytes using [] operator
     let byte1 = str[0]
     let byte2 = str[7]
-    
+
     println("String: '${str}'")
     println("str[0]: ${byte1}")
     println("str[7]: ${byte2}")
-    
+
     // Note: Will throw exception if index is out of bounds
     // let byte3 = str[100]  // This line would throw an exception
 }
@@ -8936,15 +8936,15 @@ Example:
 main() {
     // Create a test string
     let str = "Hello, 世界"
-    
+
     // Get substring slices using [] operator
     let slice1 = str[0..5]  // First 5 characters
     let slice2 = str[7..]   // From index 7 to end
-    
+
     println("String: '${str}'")
     println("str[0..5]: '${slice1}'")
     println("str[7..]: '${slice2}'")
-    
+
     // Note: Will throw exception if range is invalid
     // let slice3 = str[0..100]  // This line would throw an exception
 }

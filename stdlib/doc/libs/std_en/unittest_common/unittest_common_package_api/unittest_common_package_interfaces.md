@@ -104,13 +104,13 @@ class Person <: ToString {
     let name: String
     let age: Int64
     let email: String
-    
+
     init(name: String, age: Int64, email: String) {
         this.name = name
         this.age = age
         this.email = email
     }
-    
+
     public func toString(): String {
         return "Person(name='${name}', age=${age}, email='${email}')"
     }
@@ -119,10 +119,10 @@ class Person <: ToString {
 class PersonShrinker <: DataShrinker<Person> {
     public func shrink(value: Person): Iterable<Person> {
         let results = ArrayList<Person>()
-        
+
         // Strategy 1: Empty/default values
         results.add(Person("", 0, ""))
-        
+
         // Strategy 2: Simplify each field individually
         if (value.name.size > 0) {
             results.add(Person("a", value.age, value.email))
@@ -133,18 +133,18 @@ class PersonShrinker <: DataShrinker<Person> {
         if (value.email.size > 0) {
             results.add(Person(value.name, value.age, "a@b"))
         }
-        
+
         // Strategy 3: Halve numeric values
         if (value.age > 1) {
             results.add(Person(value.name, value.age / 2, value.email))
         }
-        
+
         // Strategy 4: Shorten name
         if (value.name.size > 1) {
             let halfName = value.name[0..(value.name.size / 2)]
             results.add(Person(halfName, value.age, value.email))
         }
-        
+
         return results
     }
 }
@@ -157,10 +157,10 @@ extend Person <: Arbitrary<Person> {
         let randomIndex = Int64(random.nextUInt32()) % Int64(sampleNames.size)
         let randomDomainIndex = Int64(random.nextUInt32()) % Int64(sampleDomains.size)
         let randomAge = Int64(random.nextUInt32()) % 80  // Age 0-79
-        
+
         let name = sampleNames[randomIndex] + " Smith"
         let email = sampleNames[randomIndex] + "@" + sampleDomains[randomDomainIndex]
-        
+
         return Generators.generate { Person(name, randomAge, email) }
     }
 }
@@ -168,7 +168,7 @@ extend Person <: Arbitrary<Person> {
 
 class PersonStrategy <: DataStrategy<Person> {
     let samplePeople: Array<Person>
-    
+
     init() {
         this.samplePeople = [
             Person("John Doe", 25, "john@example.com"),
@@ -178,15 +178,15 @@ class PersonStrategy <: DataStrategy<Person> {
             Person("Diana Prince", 35, "diana@justice.com")
         ]
     }
-    
+
     public prop isInfinite: Bool {
         get() { return false }
     }
-    
+
     public func provider(configuration: Configuration): DataProvider<Person> {
         return samplePeople
     }
-    
+
     public func shrinker(configuration: Configuration): DataShrinker<Person> {
         return PersonShrinker()
     }
@@ -198,29 +198,29 @@ class PersonTests {
     func testPersonShrinker() {
         let shrinker = PersonShrinker()
         let original = Person("John Doe", 35, "john.doe@example.com")
-        
+
         println("Original person: ${original}")
         println("Shrunk versions:")
-        
+
         for (shrunk in shrinker.shrink(original)) {
             println("  - ${shrunk}")
-        }   
-        
+        }
+
         @Assert(shrinker.shrink(original).iterator().next().isSome())
     }
-    
+
     @TestCase
     func testPersonWithStrategy() {
         let personStrategy = PersonStrategy()
         let provider = personStrategy.provider(defaultConfiguration())
-        
+
         println("Testing with deterministic strategy:")
         for (person in provider.provide()) {
             println("  - ${person}")
             @Assert(person.age <= 70)
         }
     }
-    
+
     @TestCase
     func testPersonWithRandomData() {
         // Test with multiple random persons using Random
@@ -228,14 +228,14 @@ class PersonTests {
             let random = Random(UInt64(i))  // Use seed for reproducibility
             let generator = Person.arbitrary(random)
             let person = generator.next()  // Call the generator to get a Person
-            
+
             println("Testing random person ${i}: ${person}")
-            
+
             // Test that fails if person is too old
             @Assert(person.age <= 50)
         }
     }
-    
+
     @TestCase[person in random<Person>()]
     func testPersonWithBuiltInRandomSyntax(person: Person) {
         println("Testing person with built-in random syntax: ${person}")

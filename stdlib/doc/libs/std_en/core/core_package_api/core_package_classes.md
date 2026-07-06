@@ -115,10 +115,10 @@ Example:
 ```cangjie
 main() {
     var box: Box<Int64> = Box<Int64>(42)
-    
+
     // Get wrapped value
     println("Box contains: ${box.value}")
-    
+
     // Modify wrapped value
     box.value = 100
     println("Box now contains: ${box.value}")
@@ -152,7 +152,7 @@ main() {
     // Create Box instance with integer
     var intBox: Box<Int64> = Box<Int64>(42)
     println("Integer box contains: ${intBox.value}")
-    
+
     // Create Box instance with string
     var stringBox: Box<String> = Box<String>("Hello, Box!")
     println("String box contains: ${stringBox.value}")
@@ -260,10 +260,10 @@ main() {
     var box1: Box<Int64> = Box<Int64>(42)
     var box2: Box<Int64> = Box<Int64>(42)
     var box3: Box<Int64> = Box<Int64>(100)
-    
+
     // Compare equal Box objects
     println("box1 != box2: ${box1 != box2}")
-    
+
     // Compare unequal Box objects
     println("box1 != box3: ${box1 != box3}")
 }
@@ -299,7 +299,7 @@ Example:
 main() {
     var box1: Box<Int64> = Box<Int64>(42)
     var box2: Box<Int64> = Box<Int64>(100)
-    
+
     // Compare Box object sizes
     println("box1 < box2: ${box1 < box2}")
     println("box2 < box1: ${box2 < box1}")
@@ -339,7 +339,7 @@ main() {
     var box1: Box<Int64> = Box<Int64>(42)
     var box2: Box<Int64> = Box<Int64>(100)
     var box3: Box<Int64> = Box<Int64>(42)
-    
+
     // Compare Box object sizes
     println("box1 <= box2: ${box1 <= box2}")
     println("box2 <= box1: ${box2 <= box1}")
@@ -379,10 +379,10 @@ main() {
     var box1: Box<Int64> = Box<Int64>(42)
     var box2: Box<Int64> = Box<Int64>(42)
     var box3: Box<Int64> = Box<Int64>(100)
-    
+
     // Compare equal Box objects
     println("box1 == box2: ${box1 == box2}")
-    
+
     // Compare unequal Box objects
     println("box1 == box3: ${box1 == box3}")
 }
@@ -418,7 +418,7 @@ Example:
 main() {
     var box1: Box<Int64> = Box<Int64>(42)
     var box2: Box<Int64> = Box<Int64>(100)
-    
+
     // Compare Box object sizes
     println("box1 > box2: ${box1 > box2}")
     println("box2 > box1: ${box2 > box1}")
@@ -458,7 +458,7 @@ main() {
     var box1: Box<Int64> = Box<Int64>(42)
     var box2: Box<Int64> = Box<Int64>(100)
     var box3: Box<Int64> = Box<Int64>(42)
-    
+
     // Compare Box object sizes
     println("box1 >= box2: ${box1 >= box2}")
     println("box2 >= box1: ${box2 >= box1}")
@@ -508,12 +508,12 @@ main() {
     var box1: Box<Int64> = Box<Int64>(42)
     var box2: Box<Int64> = Box<Int64>(42)
     var box3: Box<Int64> = Box<Int64>(100)
-    
+
     // Get hash values of Box objects
     println("box1 hashCode: ${box1.hashCode()}")
     println("box2 hashCode: ${box2.hashCode()}")
     println("box3 hashCode: ${box3.hashCode()}")
-    
+
     // Box objects with same values have same hash codes
     println("box1 and box2 have same hashCode: ${box1.hashCode() == box2.hashCode()}")
 }
@@ -560,7 +560,7 @@ main() {
     var intBox: Box<Int64> = Box<Int64>(42)
     var stringBox: Box<String> = Box<String>("Hello")
     var boolBox: Box<Bool> = Box<Bool>(true)
-    
+
     // Get string representations of Box objects
     println("intBox as string: ${intBox.toString()}")
     println("stringBox as string: ${stringBox.toString()}")
@@ -605,15 +605,15 @@ main(): Int64 {
         =>
         return 42
     }
-    
+
     // Get the Thread instance corresponding to the Future
     let thread: Thread = future.thread
     println("Thread id: ${thread.id}")
-    
+
     // Wait for thread completion
     let result: Int64 = future.get()
     println("Result: ${result}")
-    
+
     return 0
 }
 ```
@@ -851,19 +851,19 @@ main(): Int64 {
     // Create an array and get its iterator
     var arr: Array<Int64> = [10, 20, 30]
     var iter: Iterator<Int64> = arr.iterator()
-    
+
     // Call iterator() to get the iterator itself
     var iter2: Iterator<Int64> = iter.iterator()
-    
+
     // Verify both iterators are the same object
     println("Iterators are the same object")
-    
+
     // Traverse elements using both iterators
     println("First element from iter: ${iter.next()}")
     println("Second element from iter2: ${iter2.next()}")
     println("Third element from iter: ${iter.next()}")
     println("Fourth element from iter2: ${iter2.next()}")
-    
+
     return 0
 }
 ```
@@ -2159,7 +2159,7 @@ main(): Int64 {
     // Create a Range and get its iterator
     let range: Range<Int64> = 1..=5
     var iter = range.iterator()
-    
+
     // Use iterator to traverse all values in the Range
     println("Iterating through range 1..=5:")
     while (true) {
@@ -2168,7 +2168,7 @@ main(): Int64 {
             case None => break
         }
     }
-    
+
     return 0
 }
 ```
@@ -2219,16 +2219,16 @@ Example:
 main(): Int64 {
     // Create a StackTraceElement instance
     let stackTraceElement = StackTraceElement(
-        "MyClass", 
-        "myMethod", 
-        "MyClass.cj", 
+        "MyClass",
+        "myMethod",
+        "MyClass.cj",
         42
     )
-    
+
     // Get and print the class name
     let className: String = stackTraceElement.declaringClass
     println("Class name: ${className}")
-    
+
     return 0
 }
 ```
@@ -2256,16 +2256,16 @@ Example:
 main(): Int64 {
     // Create a StackTraceElement instance
     let stackTraceElement = StackTraceElement(
-        "MyClass", 
-        "myMethod", 
-        "MyClass.cj", 
+        "MyClass",
+        "myMethod",
+        "MyClass.cj",
         42
     )
-    
+
     // Get and print the file name
     let fileName: String = stackTraceElement.fileName
     println("File name: ${fileName}")
-    
+
     return 0
 }
 ```
@@ -2293,16 +2293,16 @@ Example:
 main(): Int64 {
     // Create a StackTraceElement instance
     let stackTraceElement = StackTraceElement(
-        "MyClass", 
-        "myMethod", 
-        "MyClass.cj", 
+        "MyClass",
+        "myMethod",
+        "MyClass.cj",
         42
     )
-    
+
     // Get and print the line number
     let lineNum: Int64 = stackTraceElement.lineNumber
     println("Line number: ${lineNum}")
-    
+
     return 0
 }
 ```
@@ -2330,16 +2330,16 @@ Example:
 main(): Int64 {
     // Create a StackTraceElement instance
     let stackTraceElement = StackTraceElement(
-        "MyClass", 
-        "myMethod", 
-        "MyClass.cj", 
+        "MyClass",
+        "myMethod",
+        "MyClass.cj",
         42
     )
-    
+
     // Get and print the method name
     let methodName: String = stackTraceElement.methodName
     println("Method name: ${methodName}")
-    
+
     return 0
 }
 ```
@@ -2372,18 +2372,18 @@ Example:
 main(): Int64 {
     // Create a StackTraceElement instance
     let stackTraceElement = StackTraceElement(
-        "MyClass", 
-        "myMethod", 
-        "MyClass.cj", 
+        "MyClass",
+        "myMethod",
+        "MyClass.cj",
         42
     )
-    
+
     // Print stack trace element information
     println("Class: ${stackTraceElement.declaringClass}")
     println("Method: ${stackTraceElement.methodName}")
     println("File: ${stackTraceElement.fileName}")
     println("Line: ${stackTraceElement.lineNumber}")
-    
+
     return 0
 }
 ```
@@ -2416,12 +2416,12 @@ Example:
 main(): Int64 {
     // Create a StackTraceElement instance
     let stackTraceElement = StackTraceElement(
-        "MyClass", 
-        "myMethod", 
-        "MyClass.cj", 
+        "MyClass",
+        "myMethod",
+        "MyClass.cj",
         42
     )
-    
+
     // Directly print
     println(stackTraceElement)
     return 0
@@ -2478,18 +2478,18 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder()
-    
+
     // Get initial capacity
     let initialCapacity: Int64 = sb.capacity
     println("Initial capacity: ${initialCapacity}")
-    
+
     // Append some content
     sb.append("Hello, World!")
-    
+
     // Get capacity after appending
     let currentCapacity: Int64 = sb.capacity
     println("Current capacity: ${currentCapacity}")
-    
+
     return 0
 }
 ```
@@ -2518,18 +2518,18 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder()
-    
+
     // Get initial size
     let initialSize: Int64 = sb.size
     println("Initial size: ${initialSize}")
-    
+
     // Append some content
     sb.append("Hello")
-    
+
     // Get size after appending
     let currentSize: Int64 = sb.size
     println("Current size: ${currentSize}")
-    
+
     return 0
 }
 ```
@@ -2556,12 +2556,12 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance using default constructor
     var sb = StringBuilder()
-    
+
     // Verify initial state
     println("Initial capacity: ${sb.capacity}")
     println("Initial size: ${sb.size}")
     println("Initial content: '${sb}'")
-    
+
     return 0
 }
 ```
@@ -2593,15 +2593,15 @@ Example:
 main(): Int64 {
     // Create a Rune array
     let runes: Array<Rune> = [r'H', r'e', r'l', r'l', r'o']
-    
+
     // Create a StringBuilder instance using the Rune array
     var sb = StringBuilder(runes)
-    
+
     // Verify initialization result
     println("Capacity: ${sb.capacity}")
     println("Size: ${sb.size}")
     println("Content: '${sb}'")
-    
+
     return 0
 }
 ```
@@ -2637,17 +2637,17 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance with specified capacity
     var sb = StringBuilder(100)
-    
+
     // Verify initialization result
     println("Capacity: ${sb.capacity}")
     println("Size: ${sb.size}")
     println("Content: '${sb}'")
-    
+
     // Append content
     sb.append("Hello, World!")
     println("After append - Size: ${sb.size}")
     println("After append - Content: '${sb}'")
-    
+
     return 0
 }
 ```
@@ -2686,17 +2686,17 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance with 5 '*' characters
     var sb = StringBuilder(r'*', 5)
-    
+
     // Verify initialization result
     println("Capacity: ${sb.capacity}")
     println("Size: ${sb.size}")
     println("Content: '${sb}'")
-    
+
     // Append more content
     sb.append("Hello")
     println("After append - Size: ${sb.size}")
     println("After append - Content: '${sb}'")
-    
+
     return 0
 }
 ```
@@ -2730,17 +2730,17 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance with initial string
     var sb = StringBuilder("Hello, World!")
-    
+
     // Verify initialization result
     println("Capacity: ${sb.capacity}")
     println("Size: ${sb.size}")
     println("Content: '${sb}'")
-    
+
     // Append more content
     sb.append(" Welcome!")
     println("After append - Size: ${sb.size}")
     println("After append - Content: '${sb}'")
-    
+
     return 0
 }
 ```
@@ -2774,17 +2774,17 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("Hello")
-    
+
     // Create a Rune array
     let runes: Array<Rune> = [r' ', r'W', r'o', r'r', r'l', r'd']
-    
+
     // Append the Rune array to StringBuilder
     sb.append(runes)
-    
+
     // Verify result
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -2815,17 +2815,17 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("Numbers: ")
-    
+
     // Create an integer array
     let numbers: Array<Int64> = [1, 2, 3, 4, 5]
-    
+
     // Append the integer array to StringBuilder
     sb.append(numbers)
-    
+
     // Verify result
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -2856,16 +2856,16 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("Boolean values: ")
-    
+
     // Append boolean values
     sb.append(true)
     sb.append(" and ")
     sb.append(false)
-    
+
     // Verify results
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -2896,18 +2896,18 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("Message: ")
-    
+
     // Create a CString
     let cstr: CString = unsafe { LibC.mallocCString("Hello from C string") }
-    
+
     // Append CString
     sb.append(cstr)
-    
+
     unsafe { LibC.free(cstr) }
     // Verify results
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -2938,14 +2938,14 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("Float16 value: ")
-    
+
     // Append Float16 value
     sb.append(3.14f16)
-    
+
     // Verify results
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -2976,14 +2976,14 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("Float32 value: ")
-    
+
     // Append Float32 value
     sb.append(3.14159f32)
-    
+
     // Verify results
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -3014,14 +3014,14 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("Float64 value: ")
-    
+
     // Append Float64 value
     sb.append(3.141592653589793)
-    
+
     // Verify results
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -3052,14 +3052,14 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("Int16 value: ")
-    
+
     // Append Int16 value
     sb.append(12345i16)
-    
+
     // Verify results
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -3090,14 +3090,14 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("Int32 value: ")
-    
+
     // Append Int32 value
     sb.append(1234567890i32)
-    
+
     // Verify results
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -3128,14 +3128,14 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("Int64 value: ")
-    
+
     // Append Int64 value
     sb.append(123456789012345)
-    
+
     // Verify results
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -3166,14 +3166,14 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("Int8 value: ")
-    
+
     // Append Int8 value
     sb.append(123i8)
-    
+
     // Verify results
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -3204,14 +3204,14 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("Hello")
-    
+
     // Append a character
     sb.append(r'!')
-    
+
     // Verify results
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -3242,14 +3242,14 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("Hello")
-    
+
     // Append a string
     sb.append(", World!")
-    
+
     // Verify results
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -3281,14 +3281,14 @@ main(): Int64 {
     // Create two StringBuilder instances
     var sb1 = StringBuilder("Hello")
     var sb2 = StringBuilder(", World!")
-    
+
     // Append sb2's content to sb1
     sb1.append(sb2)
-    
+
     // Verify the result
     println("Content: '${sb1}'")
     println("Size: ${sb1.size}")
-    
+
     return 0
 }
 ```
@@ -3319,14 +3319,14 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("The answer is: ")
-    
+
     // Append an integer (implements ToString interface)
     sb.append(42)
-    
+
     // Verify the result
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -3357,14 +3357,14 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("UInt16 value: ")
-    
+
     // Append a UInt16 value
     sb.append(12345u16)
-    
+
     // Verify the result
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -3395,14 +3395,14 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("UInt32 value: ")
-    
+
     // Append a UInt32 value
     sb.append(1234567890u32)
-    
+
     // Verify the result
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -3433,14 +3433,14 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("UInt64 value: ")
-    
+
     // Append a UInt64 value
     sb.append(123456789012345u64)
-    
+
     // Verify the result
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -3471,14 +3471,14 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("UInt8 value: ")
-    
+
     // Append a UInt8 value
     sb.append(123u8)
-    
+
     // Verify the result
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -3515,17 +3515,17 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("Hello, ")
-    
+
     // Create a UTF-8 encoded byte array (ASCII codes for "World")
     let utf8Bytes: Array<Byte> = [87, 111, 114, 108, 100] // ASCII for "World"
-    
+
     // Append the UTF-8 byte array
     sb.appendFromUtf8(utf8Bytes)
-    
+
     // Verify the result
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -3558,17 +3558,17 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("Hello, ")
-    
+
     // Create a byte array (ASCII codes for "World")
     let bytes: Array<Byte> = [87, 111, 114, 108, 100] // ASCII for "World"
-    
+
     // Append the byte array (without UTF-8 check)
     unsafe { sb.appendFromUtf8Unchecked(bytes) }
-    
+
     // Verify the result
     println("Content: '${sb}'")
     println("Size: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -3601,18 +3601,18 @@ Example:
 main(): Int64 {
     // Create a StringBuilder instance
     var sb = StringBuilder("Hello")
-    
+
     // Check initial capacity and size
     println("Initial capacity: ${sb.capacity}")
     println("Initial size: ${sb.size}")
-    
+
     // Reserve additional space
     sb.reserve(100)
-    
+
     // Check capacity after reservation
     println("Capacity after reserve: ${sb.capacity}")
     println("Size after reserve: ${sb.size}")
-    
+
     return 0
 }
 ```
@@ -3650,19 +3650,19 @@ main(): Int64 {
     // Create a StringBuilder instance and add some content
     var sb = StringBuilder("Hello, World!")
     println("Before reset - Content: '${sb}', Size: ${sb.size}, Capacity: ${sb.capacity}")
-    
+
     // Reset StringBuilder with default capacity
     sb.reset()
     println("After reset - Content: '${sb}', Size: ${sb.size}, Capacity: ${sb.capacity}")
-    
+
     // Add new content
     sb.append("New content")
     println("After append - Content: '${sb}', Size: ${sb.size}")
-    
+
     // Reset with specified capacity
     sb.reset(capacity: Some(50))
     println("After reset with capacity - Content: '${sb}', Size: ${sb.size}, Capacity: ${sb.capacity}")
-    
+
     return 0
 }
 ```
@@ -3700,15 +3700,15 @@ main(): Int64 {
     // Create a StringBuilder instance and add some content
     var sb = StringBuilder("Hello")
     sb.append(", World!")
-    
+
     // Get the string representation
     let result: String = sb.toString()
     println("Content: '${result}'")
     println("Size: ${sb.size}")
-    
+
     // Verify the return type is String
     println("Type check: ${result is String}")
-    
+
     return 0
 }
 ```
@@ -3748,11 +3748,11 @@ Example:
 main(): Int64 {
     // Get current thread
     let currentThread = Thread.currentThread
-    
+
     // Print thread information
     println("Current thread ID: ${currentThread.id}")
     println("Current thread name: '${currentThread.name}'")
-    
+
     return 0
 }
 ```
@@ -3781,12 +3781,12 @@ Example:
 main(): Int64 {
     // Get current thread
     let currentThread = Thread.currentThread
-    
+
     // Check for cancellation request
     let hasPendingCancellation: Bool = currentThread.hasPendingCancellation
-    
+
     println("Has pending cancellation: ${hasPendingCancellation}")
-    
+
     let future = spawn {
         while (true) {
             if (Thread.currentThread.hasPendingCancellation) {
@@ -3828,12 +3828,12 @@ Example:
 main(): Int64 {
     // Get current thread
     let currentThread = Thread.currentThread
-    
+
     // Get thread ID
     let threadId: Int64 = currentThread.id
-    
+
     println("Current thread ID: ${threadId}")
-    
+
     return 0
 }
 ```
@@ -3861,18 +3861,18 @@ Example:
 main(): Int64 {
     // Get current thread
     let currentThread = Thread.currentThread
-    
+
     // Get current thread name
     let originalName: String = currentThread.name
     println("Original thread name: '${originalName}'")
-    
+
     // Set thread name
     currentThread.name = "MyCustomThread"
-    
+
     // Get updated thread name
     let newName: String = currentThread.name
     println("New thread name: '${newName}'")
-    
+
     return 0
 }
 ```
@@ -3901,7 +3901,7 @@ Example:
 main(): Int64 {
     // Get current thread
     let currentThread = Thread.currentThread
-    
+
     // Get current thread state
     let state = currentThread.state
     println("Current thread state: '${state}'")
@@ -3962,7 +3962,7 @@ func consumeMemory() {
 main(): Int64 {
     // Register uncaught exception handler
     Thread.handleUncaughtErrorBy(handleError)
-    
+
     // Create a thread that throws an errir
     let future = spawn {
         consumeMemory()
@@ -4023,7 +4023,7 @@ func handleException(thread: Thread, exception: Exception): Unit {
 main(): Int64 {
     // Register uncaught exception handler
     Thread.handleUncaughtExceptionBy(handleException)
-    
+
     // Create a thread that throws an exception
     let future = spawn {
         throw Exception("This is a thread exception.")
