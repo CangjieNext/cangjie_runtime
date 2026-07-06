@@ -55,6 +55,9 @@ void CJThreadStackMemFree(struct CJThread *cjthread, char *stackTopAddr, size_t 
     DWORD oldProt = 0;
     int error;
 
+    if (stackTopAddr == nullptr) {
+        return;
+    }
     if (cjthread->schedule->schdCJThread.stackProtect == false) {
         stackFreeAddr = stackTopAddr;
         free(stackFreeAddr);
@@ -87,6 +90,9 @@ void CJThreadStackMemFree(struct CJThread *cjthread, char *stackTopAddr, size_t 
     size_t pageSize;
     int error;
 
+    if (stackTopAddr == nullptr) {
+        return;
+    }
 #if defined(CANGJIE_TSAN_SUPPORT)
     MapleRuntime::Sanitizer::TsanFree(stackTopAddr, stackSize);
 #endif
@@ -409,7 +415,7 @@ struct CJThread *CJThreadMemAlloc(struct Schedule *schedule, struct StackAttr *s
     // for SCHEDULE_EXCLUSIVE cjthread to use osthread
     if (schedule->scheduleType == SCHEDULE_FOREIGN_THREAD || schedule->scheduleType == SCHEDULE_EXCLUSIVE) {
         // should not create new stack when cj thread is created by foreign thread.
-        CJThreadStackAttrInit(cjthread, 0, nullptr, stackAttr);
+        CJThreadStackAttrInit(cjthread, 0, nullptr, stackAttr);        
     } else {
         // Allocate stack memeory of CJThread.
         stackAddr = CJThreadStackMemAlloc(schedule, cjthread, stackAttr->stackSizeAlign, &totalSize);
