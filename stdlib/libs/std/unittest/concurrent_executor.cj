@@ -47,7 +47,8 @@ class ConcurrentExecutor <: Executor {
             "with ${scenario.threadCount} threads, ${iterations} iterations."
         }
         
-        executor.executeIterationsWithCallback(iterations) { iterResult, iterIndex =>
+        let verbose = configuration.verbose
+        executor.executeIterationsWithCallback(iterations, verbose: verbose) { iterResult, iterIndex =>
             handleIterationResult(tcase, configuration, iterResult, iterIndex)
         }
         

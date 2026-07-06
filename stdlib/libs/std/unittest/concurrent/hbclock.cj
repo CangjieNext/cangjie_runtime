@@ -11,9 +11,7 @@ package std.unittest.concurrent
 
 import std.collection.HashMap
 import std.sync.AtomicInt64
-// import std.time.Duration
 import std.time.DateTime
-// import std.unittest.common.AssertException
 
 
 var registry: HashMap<String, Int64> = HashMap()

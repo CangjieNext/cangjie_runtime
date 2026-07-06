@@ -26,7 +26,7 @@ public func operation<T>(name: String, body: () -> T): Operation where T <: Equa
 
 
 public class OperationInvocation {
-    public OperationInvocation(
+    protected OperationInvocation(
         public let actorId!: Int64,
         public let operationIndex!: Int64,
         public let operationName!: String,
