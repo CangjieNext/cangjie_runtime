@@ -1885,3 +1885,64 @@ Path1 == Path2: true
 Path1 == Path3: false
 Path1 == Path4 (normalized): true
 ```
+
+## struct WatchEvent
+
+```cangjie
+public struct WatchEvent {
+    public let kind: WatchEventKind
+    public let path: String
+    public let isDirectory: Bool
+    public init(kind: WatchEventKind, path: String, isDirectory: Bool)
+}
+```
+
+功能：表示一次文件变化事件，包含事件类型、相对路径以及是否为目录等信息。path 为相对于监听根目录的路径。
+
+### prop kind
+
+```cangjie
+public let kind: WatchEventKind
+```
+
+功能：获取事件类型。
+
+类型：[WatchEventKind](fs_package_enums.md#enum-watcheventkind)
+
+### prop path
+
+```cangjie
+public let path: String
+```
+
+功能：获取相对于监听根目录的文件路径。
+
+类型：[String](../../core/core_package_api/core_package_structs.md#struct-string)
+
+### prop isDirectory
+
+```cangjie
+public let isDirectory: Bool
+```
+
+功能：判断事件目标是否为目录。
+
+> **注意：**
+>
+> 在 Windows 环境下，由于 `ReadDirectoryChangesW` 不报告目录属性，`isDirectory` 恒为 false。在 Linux 和 macOS 环境下该属性可正常使用。
+
+类型：[Bool](../../core/core_package_api/core_package_intrinsics.md#bool)
+
+### init(WatchEventKind, String, Bool)
+
+```cangjie
+public init(kind: WatchEventKind, path: String, isDirectory: Bool)
+```
+
+功能：创建 [WatchEvent](fs_package_structs.md#struct-watchevent) 实例。
+
+参数：
+
+- kind: [WatchEventKind](fs_package_enums.md#enum-watcheventkind) - 事件类型。
+- path: [String](../../core/core_package_api/core_package_structs.md#struct-string) - 相对于监听根目录的文件路径。
+- isDirectory: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 事件目标是否为目录。

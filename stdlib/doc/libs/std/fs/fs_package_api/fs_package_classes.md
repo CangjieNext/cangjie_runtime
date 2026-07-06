@@ -2228,3 +2228,120 @@ main(): Unit {
 ```text
 Symbolic link target: ./test_symlink_source.txt
 ```
+
+## class Watcher
+
+```cangjie
+public class Watcher {
+    public init(path: String, recursive!: Bool = true, capacity!: Int64 = 1024)
+    public func start(): Unit
+    public func stop(): Unit
+    public prop events: LinkedBlockingQueue<WatchEvent>
+    public func nextEvent(): Option<WatchEvent>
+    public func nextEvent(timeout: Duration): Option<WatchEvent>
+}
+```
+
+功能：监听文件或目录树的变化，并通过有界队列传递 [WatchEvent](fs_package_structs.md#struct-watchevent) 事件。
+
+生命周期为 `init` -> `start()` -> `[nextEvent 循环]` -> `stop()`。后台工作线程定期轮询原生监听器，将原生事件转换为 [WatchEvent](fs_package_structs.md#struct-watchevent)，经过文件基名过滤后放入队列。
+
+> **说明：**
+>
+> - 当 path 指向单个文件时，Watcher 会自动监听其父目录，并仅传递与该文件基名匹配的事件。
+> - 当 path 指向目录时，可通过 `recursive` 参数控制是否递归监听子目录。
+> - 当内核事件队列溢出时，会产生 [WatchEventKind.overflow](fs_package_enums.md#enum-watcheventkind) 事件。
+> - 当监听根目录自身被删除或移走时，会产生 [WatchEventKind.watchDisappeared](fs_package_enums.md#enum-watcheventkind) 事件。
+
+### init(String, Bool, Int64)
+
+```cangjie
+public init(path: String, recursive!: Bool = true, capacity!: Int64 = 1024)
+```
+
+功能：创建一个 [Watcher](fs_package_classes.md#class-watcher) 实例，用于监听指定路径的文件或目录变化。
+
+参数：
+
+- path: [String](../../core/core_package_api/core_package_structs.md#struct-string) - 待监听的文件或目录路径。
+- recursive!: [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - 是否递归监听子目录，默认 true。
+- capacity!: [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - 事件队列容量，默认 1024。
+
+异常：
+
+- [WatcherException](fs_package_exceptions.md#class-watcherexception) - 路径不存在或原生监听器创建失败时抛出异常。
+
+### func start()
+
+```cangjie
+public func start(): Unit
+```
+
+功能：启动后台工作线程，开始监听文件变化事件。如果已经启动，则不执行任何操作。
+
+### func stop()
+
+```cangjie
+public func stop(): Unit
+```
+
+功能：停止监听，取消后台工作线程。可安全多次调用。
+
+### prop events
+
+```cangjie
+public prop events: LinkedBlockingQueue<WatchEvent>
+```
+
+功能：获取底层事件队列，用于高级消费者直接操作队列。
+
+类型：[LinkedBlockingQueue](../../collection/concurrent/concurrent_package_api/concurrent_package_structs.md)\<[WatchEvent](fs_package_structs.md#struct-watchevent)>
+
+### func nextEvent()
+
+```cangjie
+public func nextEvent(): Option<WatchEvent>
+```
+
+功能：阻塞等待直到有事件可用。当监听器已停止且队列中所有事件已被消费完毕时，返回 None。
+
+返回值：
+
+- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[WatchEvent](fs_package_structs.md#struct-watchevent)> - 有事件时返回 Some(event)，监听器已停止且队列为空时返回 None。
+
+### func nextEvent(Duration)
+
+```cangjie
+public func nextEvent(timeout: Duration): Option<WatchEvent>
+```
+
+功能：阻塞等待最多 `timeout` 时间，等待一个事件。如果在超时时间内没有事件到达，则返回 None。
+
+参数：
+
+- timeout: [Duration](../../time/time_package_api/time_package_structs.md#struct-duration) - 最大等待时间。
+
+返回值：
+
+- [Option](../../core/core_package_api/core_package_enums.md#enum-optiont)\<[WatchEvent](fs_package_structs.md#struct-watchevent)> - 有事件时返回 Some(event)，超时无事件时返回 None。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.fs.Watcher
+import std.time.Duration
+
+main() {
+    let w = Watcher("./src", recursive: true)
+    w.start()
+    let fut = spawn {
+        => while (let Some(ev) <- w.nextEvent()) {
+            println("${ev.kind}: ${ev.path}")
+        }
+    }
+    sleep(10 * Duration.second)
+    w.stop()
+    fut.get()
+}
+```

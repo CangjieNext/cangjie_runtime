@@ -35,12 +35,14 @@ fs（file system）包提供对文件、文件夹、路径、文件元数据信�
 | [File](./fs_package_api/fs_package_classes.md#class-file) | 提供一些对文件进行操作的函数，包括文件的打开、创建、关闭、文件的流式读写操作、查询属性以及一些其他函数。   |
 | [HardLink](./fs_package_api/fs_package_classes.md#class-hardlink) | 提供处理文件系统硬链接相关接口。 |
 | [SymbolicLink](./fs_package_api/fs_package_classes.md#class-symboliclink) | 提供处理文件系统符号链接相关接口。 |
+| [Watcher](./fs_package_api/fs_package_classes.md#class-watcher) | 监听文件或目录树的变化，提供创建、修改、删除等事件。 |
 
 ### 枚举
 
 |              枚举名          |           功能           |
 | --------------------------- | ------------------------ |
 | [OpenMode](./fs_package_api/fs_package_enums.md#enum-openmode) | 表示不同的文件打开模式。 |
+| [WatchEventKind](./fs_package_api/fs_package_enums.md#enum-watcheventkind) | 表示文件/目录变化事件的类型。 |
 
 ### 结构体
 
@@ -49,9 +51,11 @@ fs（file system）包提供对文件、文件夹、路径、文件元数据信�
 | [FileDescriptor](./fs_package_api/fs_package_structs.md#struct-filedescriptor) | 用于获取文件句柄信息。 |
 | [FileInfo](./fs_package_api/fs_package_structs.md#struct-fileinfo) | 对应文件系统中的文件元数据，提供一些文件属性的查询和设置等函数。 |
 | [Path](./fs_package_api/fs_package_structs.md#struct-path) | 提供路径相关的函数。 |
+| [WatchEvent](./fs_package_api/fs_package_structs.md#struct-watchevent) | 表示一次文件变化事件，包含事件类型和路径信息。 |
 
 ### 异常类
 
 |              异常类名          |           功能           |
 | --------------------------- | ------------------------ |
 | [FSException](./fs_package_api/fs_package_exceptions.md#class-fsexception) | 文件流异常类，继承了 IO 流异常类。 |
+| [WatcherException](./fs_package_api/fs_package_exceptions.md#class-watcherexception) | 文件监听异常类，继承了 IO 流异常类。 |
