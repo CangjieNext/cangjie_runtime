@@ -386,7 +386,7 @@ protected class BenchmarkResult {
     protected BenchmarkResult(var data: ArrayList<BenchRawMeasurement>) {}
 
     var data: ArrayList<BenchRawMeasurement> = ArrayList()
-    BenchmarkResult() {}
+    protected BenchmarkResult(var data: ArrayList <BenchRawMeasurement>) {}
     init(data_: ArrayList<BenchRawMeasurement>) {
         data = data_
     }
