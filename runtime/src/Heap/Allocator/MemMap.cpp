@@ -8,10 +8,15 @@
 #include "MemMap.h"
 
 #include <algorithm>
+#include <atomic>
+#include <cerrno>
+#include <cstring>
 #ifdef _WIN64
 #include <errhandlingapi.h>
 #include <handleapi.h>
 #include <memoryapi.h>
+#elif defined(__APPLE__) && defined(__IOS__)
+#include <mach/mach.h>
 #endif
 
 #include "Base/Log.h"
@@ -37,12 +42,29 @@ MemMap* MemMap::MapMemory(size_t reqSize, size_t initSize, const Option& opt)
     mappedAddr = VirtualAlloc(NULL, reqSize, MEM_RESERVE, PAGE_READWRITE);
 #else
     DLOG(ALLOC, "MemMap::MapMemory size %zu", reqSize);
+#if defined(__APPLE__)
+    bool taggedCangjieHeap = false;
+#if defined(__IOS__)
+    taggedCangjieHeap = opt.tag != nullptr && std::strcmp(opt.tag, "cangjie_heap") == 0;
+#endif
+    unsigned int mmapFlags = static_cast<unsigned int>(opt.flags);
+    if (taggedCangjieHeap) {
+        mmapFlags &= ~static_cast<unsigned int>(MAP_NORESERVE);
+    }
+    int mmapFd = MrtAppleMmapFd(-1, opt.tag);
+    // Tagged cangjie_heap: map RW directly (tag passed via fd). Others: PROT_NONE then vm_protect/mprotect.
+    int mmapProt = taggedCangjieHeap ? opt.prot : PROT_NONE;
+    mappedAddr = mmap(opt.reqBase, reqSize, mmapProt, static_cast<int>(mmapFlags), mmapFd, 0);
+#else
     mappedAddr = mmap(opt.reqBase, reqSize, PROT_NONE, opt.flags, -1, 0);
+#endif
 #endif
 
     bool failure = false;
-#if defined(_WIN64) || defined(__APPLE__)
+#if defined(_WIN64)
     if (mappedAddr != NULL) {
+#elif defined(__APPLE__)
+    if (mappedAddr != MAP_FAILED) {
 #else
     if (mappedAddr != MAP_FAILED) {
         (void)madvise(mappedAddr, reqSize, MADV_NOHUGEPAGE);
@@ -50,13 +72,31 @@ MemMap* MemMap::MapMemory(size_t reqSize, size_t initSize, const Option& opt)
 #endif
         // if protAll, all memory is protected at creation, and we never change it (save time)
         size_t protSize = opt.protAll ? reqSize : initSize;
-        if (!ProtectMemInternal(mappedAddr, protSize, opt.prot)) {
+#if defined(__APPLE__)
+        bool needProtect = !taggedCangjieHeap;
+#else
+        bool needProtect = true;
+#endif
+        if (needProtect && !ProtectMemInternal(mappedAddr, protSize, opt.prot)) {
             failure = true;
-            LOG(RTLOG_ERROR, "MemMap::MapMemory mprotect failed");
+            LOG(RTLOG_ERROR, "MemMap::MapMemory protect failed");
             ALLOCUTIL_MEM_UNMAP(mappedAddr, reqSize);
+#if defined(__APPLE__) && defined(__IOS__)
+        } else if (opt.tag != nullptr && std::strcmp(opt.tag, "cangjie_heap") == 0) {
+            static std::atomic<bool> heapTagLogged{false};
+            if (!heapTagLogged.exchange(true)) {
+                LOG(RTLOG_INFO, "[CJ] libcangjie-runtime: cangjie_heap mmap with VM tag %d at %p size=%zu "
+                    "(xctrace: \"VM: Memory Tag %d\")", CANGJIE_HEAP_VM_TAG, mappedAddr, reqSize,
+                    CANGJIE_HEAP_VM_TAG);
+            }
+#endif
         }
     } else {
         failure = true;
+#if !defined(_WIN64)
+        LOG(RTLOG_ERROR, "MemMap::MapMemory mmap failed errno=%d tag=%s", errno,
+            opt.tag != nullptr ? opt.tag : "(null)");
+#endif
     }
     CHECK_DETAIL(!failure, "MemMap::MapMemory failed reqSize: %zu initSize: %zu", reqSize, initSize);
 
@@ -85,6 +125,24 @@ bool MemMap::ProtectMemInternal(void* addr, size_t size, int prot)
 {
     DLOG(ALLOC, "MemMap::ProtectMem %p, size %zu, prot %d", addr, size, prot);
 #ifdef _WIN64
+    return true;
+#elif defined(__APPLE__) && defined(__IOS__)
+    vm_prot_t vmProt = VM_PROT_NONE;
+    if ((prot & PROT_READ) != 0) {
+        vmProt |= VM_PROT_READ;
+    }
+    if ((prot & PROT_WRITE) != 0) {
+        vmProt |= VM_PROT_WRITE;
+    }
+    if ((prot & PROT_EXEC) != 0) {
+        vmProt |= VM_PROT_EXECUTE;
+    }
+    kern_return_t kr = vm_protect(mach_task_self(), reinterpret_cast<vm_address_t>(addr),
+                                  static_cast<vm_size_t>(size), FALSE, vmProt);
+    if (kr != KERN_SUCCESS) {
+        LOG(RTLOG_ERROR, "MemMap::ProtectMem vm_protect failed kr=%d", kr);
+        return false;
+    }
     return true;
 #else
     int ret = mprotect(addr, size, prot);
