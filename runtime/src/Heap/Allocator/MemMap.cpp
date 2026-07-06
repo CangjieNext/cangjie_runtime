@@ -8,6 +8,8 @@
 #include "MemMap.h"
 
 #include <algorithm>
+#include <cerrno>
+#include <cstring>
 #ifdef _WIN64
 #include <errhandlingapi.h>
 #include <handleapi.h>
@@ -22,10 +24,38 @@
 namespace MapleRuntime {
 using namespace std;
 
+#if defined(__APPLE__)
+namespace {
+
+struct AppleMapResult {
+    void* mappedAddr;
+    bool taggedCangjieHeap;
+};
+
+AppleMapResult MapMemoryOnApple(void* reqBase, size_t reqSize, const MemMap::Option& opt)
+{
+    AppleMapResult result = { MAP_FAILED, false };
+    result.taggedCangjieHeap = opt.tag != nullptr && std::strcmp(opt.tag, "cangjie_heap") == 0;
+    unsigned int mmapFlags = static_cast<unsigned int>(opt.flags);
+    if (result.taggedCangjieHeap) {
+        mmapFlags &= ~static_cast<unsigned int>(MAP_NORESERVE);
+    }
+    int mmapFd = MrtAppleMmapFd(-1, opt.tag);
+    // Tagged cangjie_heap: map RW directly (tag passed via fd). Others: PROT_NONE then mprotect.
+    int mmapProt = result.taggedCangjieHeap ? opt.prot : PROT_NONE;
+    result.mappedAddr =
+        mmap(reqBase, reqSize, mmapProt, static_cast<int>(mmapFlags), mmapFd, 0);
+    return result;
+}
+
+} // namespace
+#endif
+
 // not thread safe, do not call from multiple threads
 MemMap* MemMap::MapMemory(size_t reqSize, size_t initSize, const Option& opt)
 {
     void* mappedAddr = nullptr;
+    bool taggedCangjieHeap = false;
     reqSize = AllocUtilRndUp<size_t>(reqSize, ALLOC_UTIL_PAGE_SIZE);
 
 #ifdef _WIN64
@@ -37,26 +67,41 @@ MemMap* MemMap::MapMemory(size_t reqSize, size_t initSize, const Option& opt)
     mappedAddr = VirtualAlloc(NULL, reqSize, MEM_RESERVE, PAGE_READWRITE);
 #else
     DLOG(ALLOC, "MemMap::MapMemory size %zu", reqSize);
+#if defined(__APPLE__)
+    AppleMapResult appleResult = MapMemoryOnApple(opt.reqBase, reqSize, opt);
+    mappedAddr = appleResult.mappedAddr;
+    taggedCangjieHeap = appleResult.taggedCangjieHeap;
+#else
     mappedAddr = mmap(opt.reqBase, reqSize, PROT_NONE, opt.flags, -1, 0);
+#endif
 #endif
 
     bool failure = false;
-#if defined(_WIN64) || defined(__APPLE__)
+#if defined(_WIN64)
     if (mappedAddr != NULL) {
+#elif defined(__APPLE__)
+    if (mappedAddr != MAP_FAILED) {
 #else
     if (mappedAddr != MAP_FAILED) {
         (void)madvise(mappedAddr, reqSize, MADV_NOHUGEPAGE);
         MRT_PRCTL(mappedAddr, reqSize, opt.tag);
 #endif
-        // if protAll, all memory is protected at creation, and we never change it (save time)
         size_t protSize = opt.protAll ? reqSize : initSize;
+#if defined(__APPLE__)
+        if (!taggedCangjieHeap && !ProtectMemInternal(mappedAddr, protSize, opt.prot)) {
+#else
         if (!ProtectMemInternal(mappedAddr, protSize, opt.prot)) {
+#endif
             failure = true;
-            LOG(RTLOG_ERROR, "MemMap::MapMemory mprotect failed");
+            LOG(RTLOG_ERROR, "MemMap::MapMemory protect failed");
             ALLOCUTIL_MEM_UNMAP(mappedAddr, reqSize);
         }
     } else {
         failure = true;
+#if !defined(_WIN64)
+        LOG(RTLOG_ERROR, "MemMap::MapMemory mmap failed errno=%d tag=%s", errno,
+            opt.tag != nullptr ? opt.tag : "(null)");
+#endif
     }
     CHECK_DETAIL(!failure, "MemMap::MapMemory failed reqSize: %zu initSize: %zu", reqSize, initSize);
 
