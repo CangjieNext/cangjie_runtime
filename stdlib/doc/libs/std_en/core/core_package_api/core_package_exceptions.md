@@ -30,7 +30,7 @@ Example:
 main() {
     // Create ArithmeticException using default constructor
     let exception = ArithmeticException()
-    
+
     println("Successfully created ArithmeticException instance")
     println("ArithmeticException's init() constructor is used to create a default arithmetic exception instance")
 }
@@ -62,7 +62,7 @@ Example:
 main() {
     // Create ArithmeticException with message constructor
     let exception = ArithmeticException("Division by zero error")
-    
+
     println("Successfully created ArithmeticException instance")
     println("Exception message: Division by zero error")
     println("ArithmeticException's init(String) constructor is used to create an arithmetic exception instance with message")
@@ -98,11 +98,11 @@ public class MyArithmeticException <: ArithmeticException {
     public init() {
         super()
     }
-    
+
     public init(message: String) {
         super(message)
     }
-    
+
     // Public method to call protected getClassName
     public func getClassNamePublic(): String {
         return getClassName()
@@ -113,7 +113,7 @@ main() {
     let exception = MyArithmeticException("Test exception")
     let className = exception.getClassNamePublic()
     println("Class name: ${className}")
-    
+
     println("ArithmeticException's getClassName() method is used to get the class name")
 }
 ```
@@ -390,7 +390,7 @@ main() {
     // Create Exception instance and access message property
     let exception = Exception("This is an exception message")
     println("Exception message: " + exception.message)
-    
+
     // Create Exception instance using default constructor
     let defaultException = Exception()
     println("Default exception message: '" + defaultException.message + "'")
@@ -605,11 +605,11 @@ class MyException <: Exception {
     public init() {
         super()
     }
-    
+
     public init(message: String) {
         super(message)
     }
-    
+
     // Call protected getClassName()
     public func getExceptionClassName(): String {
         return this.getClassName()
@@ -723,7 +723,7 @@ main() {
     // Create Exception instances
     let exception1 = Exception()
     let exception2 = Exception("Custom exception message")
-    
+
     // Use toString() to get string representation
     println("Default exception string: " + exception1.toString())
     println("Exception with message string: " + exception2.toString())
@@ -831,11 +831,11 @@ class MyException <: IllegalArgumentException {
     public init() {
         super()
     }
-    
+
     public init(message: String) {
         super(message)
     }
-    
+
     // Call protected method getClassName()
     public func getExceptionClassName(): String {
         return this.getClassName()
@@ -862,7 +862,7 @@ public class ExclusiveScopeException <: Exception
 
 Purpose: Custom exception class used to wrap exceptions thrown in an exclusive scope. It preserves the stack trace information of the original exception, does not support actively constructing this exception, but it can be caught.
 
-Parent Type: 
+Parent Type:
 - [Exception](#class-exception)
 
 ### func toString()
@@ -984,11 +984,11 @@ class MyException <: IllegalFormatException {
     public init() {
         super()
     }
-    
+
     public init(message: String) {
         super(message)
     }
-    
+
     // Call protected method getClassName()
     public func getExceptionClassName(): String {
         return this.getClassName()

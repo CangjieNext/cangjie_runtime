@@ -46,7 +46,7 @@ public func level(): Int32
 import std.ast.*
 
 main(): Unit {
-    // 创建 DiagReportLevel 
+    // 创建 DiagReportLevel
     let levelError = DiagReportLevel.ERROR
     let levelWarning = DiagReportLevel.WARNING
 
@@ -131,7 +131,7 @@ public func toString(): String
 import std.ast.*
 
 main(): Unit {
-    // 创建 ImportKind 
+    // 创建 ImportKind
     let kind0 = ImportKind.Alias
     let kind1 = ImportKind.All
     let kind2 = ImportKind.Multi

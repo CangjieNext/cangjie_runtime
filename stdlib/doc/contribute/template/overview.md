@@ -6,7 +6,7 @@
 
 ```text
 libs // 库文档
-  ├── std 
+  ├── std
     ├── xxx // 包名
       ├── figures // 如果有图片，包目录下新建 figures 文件夹
       ├── xxx_package_api // 此包内各类型 API 文档
@@ -149,7 +149,7 @@ abstract sealed class ConfigurationKey <: Equatable<ConfigurationKey> & Hashable
 
   ```text
   xxx 参数取值情况：
-  
+
   - mode1：xxx模式，表示xxx，推荐xxx情况下使用。
   - mode2：xxx模式，表示xxx，推荐xxx情况下使用。
   ```
@@ -286,7 +286,7 @@ cangjie code
 
   ```text
   ## class A
-  ### extend classA<T> <: B where T <: Comparable  
+  ### extend classA<T> <: B where T <: Comparable
   #### func aa()
   #### func bb()
   #### func cc()        // 有默认实现时也要加上

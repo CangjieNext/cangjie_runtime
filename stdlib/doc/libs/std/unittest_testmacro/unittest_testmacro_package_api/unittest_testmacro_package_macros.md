@@ -237,8 +237,8 @@ Starting the benchmark `TestCase_bench.bench()`.
     Warming up for 1.000 ms.
     Starting measurements of 200 batches. Measuring Duration.
     Max batch size: 12395653, estimated execution time: 5.000 s.
-  percentiles:    [   10%        50%        90%        95%        99%        ]  
-  time:           [   0.990 ns   1.001 ns   1.029 ns   1.048 ns   1.146 ns   ]  
+  percentiles:    [   10%        50%        90%        95%        99%        ]
+  time:           [   0.990 ns   1.001 ns   1.029 ns   1.048 ns   1.146 ns   ]
   mean:           0.976 ns .. 1.022 ns  Err ±2.3%
   median:         0.981 ns .. 1.146 ns
   R²:             0.957 .. 0.994

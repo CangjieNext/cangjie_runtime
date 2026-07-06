@@ -57,7 +57,7 @@ Returns:
 ### func fail(String)
 
 ```cangjie
-public func fail(message: String): Nothing 
+public func fail(message: String): Nothing
 ```
 
 Function: Stores failure information and throws [`AssertExpection`](./unittest_package_exceptions.md#class-assertexception) within the user-defined assertion function.
@@ -81,7 +81,7 @@ Parameters:
 ### func failExpect(String)
 
 ```cangjie
-public func failExpect(message: String): Unit 
+public func failExpect(message: String): Unit
 ```
 
 Function: Stores failure information and continues function execution within the user-defined assertion function.
@@ -1062,7 +1062,7 @@ public func r<T>(
     value: T,
     exprAsText: String,
     position: Int64
-): T 
+): T
 ```
 
 Function: Records comparison data.
@@ -1653,7 +1653,7 @@ Parameters:
 Returns:
 
 - T - Print return value, typically Unit.
- 
+
 ## class TestSuite
 
 ```cangjie
@@ -2187,7 +2187,7 @@ Parameters:
 Returns:
 
 - [UnitTestCase](#class-unittestcase) - Unit test case object.
- 
+
 ## class XmlReporter
 
 ```cangjie

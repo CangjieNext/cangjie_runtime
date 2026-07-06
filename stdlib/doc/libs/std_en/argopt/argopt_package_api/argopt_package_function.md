@@ -62,28 +62,28 @@ main(): Unit {
     let helpSpec = ArgumentSpec.Short(r'h', ArgumentMode.NoValue)
     let outputSpec = ArgumentSpec.Long("output", ArgumentMode.RequiredValue)
     let verboseSpec = ArgumentSpec.Short(r'v', ArgumentMode.OptionalValue)
-    
+
     // Create specs array
     let specs = [helpSpec, outputSpec, verboseSpec]
-    
+
     // Create arguments array
     let args = ["-h", "--output", "output.txt", "file1.txt"]
-    
+
     // Parse command line arguments
     let parsed = parseArguments(args, specs)
-    
+
     // Output parsing results
     println("Options:")
     let options = parsed.options
     for (key in options.keys()) {
         println("  ${key}: ${options[key]}")
     }
-    
+
     println("Non-option arguments:")
     for (nonOption in parsed.nonOptions) {
         println("  ${nonOption}")
     }
-    
+
     // Test exception cases
     try {
         parseArguments(["-x", "value"], specs)  // Undefined option
@@ -97,7 +97,7 @@ Possible execution result:
 
 ```text
 Options:
-  h: 
+  h:
   output: output.txt
 Non-option arguments:
   file1.txt

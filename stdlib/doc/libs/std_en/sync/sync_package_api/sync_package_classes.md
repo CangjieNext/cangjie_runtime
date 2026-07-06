@@ -1624,7 +1624,7 @@ public func fetchAdd(val: UInt32, memoryOrder!: MemoryOrder): UInt32
 Function: Performs atomic addition using specified memory ordering.
 
 > **Note:**
-> 
+>
 > Will be deprecated in future versions. Use [fetchAdd(UInt32)](#func-fetchadduint32) instead.
 
 Parameters:

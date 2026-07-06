@@ -189,7 +189,7 @@ Function: Retrieves the hashCode value.
 Returns:
 
 - [Int64](../../core/core_package_api/core_package_intrinsics.md#int64) - The hashCode value.
-  
+
 ### let name
 
 ```cangjie
@@ -236,7 +236,7 @@ Returns:
 
 ```cangjie
 extend ConfigurationKey {
-    static func create<T>(name: String): ConfigurationKey 
+    static func create<T>(name: String): ConfigurationKey
 }
 ```
 
@@ -318,8 +318,8 @@ Possible output:
 ```text
 Start:
 ----------------------------------------
-left                                    
-                centered                
+left
+                centered
                                    right
     isTopLevel: false
 ```

@@ -30,8 +30,8 @@ To run the benchmark, you can pass the `--bench` option to the test executable o
 
 ## Parameterized Benchmarking
 
-The benchmark API syntax is similar to unit testing and integrates as much as possible with existing unit testing features.  
-The `@Bench` macro supports parameterized cases and data strategies, just like the `@TestCase` macro.  
+The benchmark API syntax is similar to unit testing and integrates as much as possible with existing unit testing features.
+The `@Bench` macro supports parameterized cases and data strategies, just like the `@TestCase` macro.
 Additionally, most other macros (e.g., `@BeforeEach`, `@AfterEach`, `@BeforeAll`, `@AfterAll`, `@Types`, `@Configure`) work the same way in benchmarks.
 
 For example, a simple benchmark can be written for the default hash method. Note that the data is created outside the benchmark to ensure it is generated only once before the benchmark starts.
@@ -153,7 +153,7 @@ Now, let's assume the input data cannot be modified by the benchmark to ensure e
 
 ## Achieving Reliable Results
 
-This framework primarily aims to reduce the impact of various factors on execution time variance, ensuring reliable and reproducible results.  
+This framework primarily aims to reduce the impact of various factors on execution time variance, ensuring reliable and reproducible results.
 The `Err%` column in the results table is the primary metric for assessing the reliability of test results. Generally, if `Err%` is below 3%, the results are considered reliable; if it exceeds 10%, further investigation is needed to identify the cause and reduce variance. This isn't a universal standard but serves as a preliminary guideline. In some benchmarks, execution time variations may be significant, leading to higher variance, but the mean tends to stabilize.
 
 However, there are still external factors beyond our control that users must manage themselves. These include:
@@ -280,7 +280,7 @@ Out-of-the-box measurement tools provided by the framework include:
 
 Suppose we want to benchmark the `ArrayList.sort` function. This function modifies its input data, leading to varying benchmark results because, after the first call, `sort` operates on an already sorted array. To address this, we need to regenerate the data before each function call. This is achieved by implementing the `BenchInputProvider` interface via data-returning functions annotated with `@Strategy`.
 
-Example: 
+Example:
 
 <!-- run -->
 ```cangjie

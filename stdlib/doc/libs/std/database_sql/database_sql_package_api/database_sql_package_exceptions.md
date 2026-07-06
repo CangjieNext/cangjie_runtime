@@ -141,7 +141,7 @@ main() {
 
 ```text
 Exception message: errorCode: 0
-SQL state: 
+SQL state:
 Error code: 0
 ```
 
@@ -178,7 +178,7 @@ main() {
 
 ```text
 Exception message: Database connection failed, errorCode: 0
-SQL state: 
+SQL state:
 Error code: 0
 ```
 

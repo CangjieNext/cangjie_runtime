@@ -40,7 +40,7 @@ main(): Unit {
     // Create a ConcurrentModificationException instance using the no-argument constructor
     let exception = ConcurrentModificationException()
     println("Created a no-argument ConcurrentModificationException instance")
-    
+
     // The exception can be thrown and caught
     try {
         throw ConcurrentModificationException()
@@ -80,7 +80,7 @@ main(): Unit {
     let message = "Concurrent modification exception: Container was modified during iteration"
     let exception = ConcurrentModificationException(message)
     println("Created a ConcurrentModificationException instance with message: ${exception.message}")
-    
+
     // Can throw and catch this exception
     try {
         throw ConcurrentModificationException("Container was modified during iteration")

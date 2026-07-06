@@ -86,7 +86,7 @@ public enum MockSessionKind {
 }
 ```
 
-Function: Controls the types of [stubs](../unittest_mock_samples/mock_framework_basics.md#configuration-api) allowed to be used in [MockSession](./unittest_mock_package_classes.md#static-func-opensession).  
+Function: Controls the types of [stubs](../unittest_mock_samples/mock_framework_basics.md#configuration-api) allowed to be used in [MockSession](./unittest_mock_package_classes.md#static-func-opensession).
 Only stubs created in `Verifiable` `Session` can have their expectations verified.
 
 ### Forbidden
@@ -95,7 +95,7 @@ Function: Prohibits the use of [stubs](../unittest_mock_samples/mock_framework_b
 
 ### Stateless
 
-Function: Only allows stateless [stubs](../unittest_mock_samples/mock_framework_basics.md#configuration-api).  
+Function: Only allows stateless [stubs](../unittest_mock_samples/mock_framework_basics.md#configuration-api).
 Prohibits inherently stateful operations such as `returnsConsecutively` and cardinality specifiers (expressions specifying expected execution counts).
 
 ### Verifiable
@@ -161,12 +161,12 @@ func test() {
 
 ### ReturnsDefaults
 
-Function: The `Mock object` will return default values for primitive types. Used to simplify the configuration steps of `mock objects`.  
-These default values are generally null or 0.  
+Function: The `Mock object` will return default values for primitive types. Used to simplify the configuration steps of `mock objects`.
+These default values are generally null or 0.
 Supported primitive types include: Unit, numeric types (e.g., Int64), option types, Bool, String, Array, ArrayList, HashSet, HashMap.
 
 ### SyntheticFields
 
-Function: The `Mock object` will treat its mutable properties and fields as synthetic fields.  
-Similar to directly using SyntheticField but more concise.  
+Function: The `Mock object` will treat its mutable properties and fields as synthetic fields.
+Similar to directly using SyntheticField but more concise.
 Reading uninitialized fields will result in an error.

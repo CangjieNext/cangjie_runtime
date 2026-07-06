@@ -36,7 +36,7 @@ main() {
     // Test isAscii() method
     let byte1: Byte = 65  // ASCII value of 'A'
     let byte2: Byte = 200 // Value outside ASCII range
-    
+
     println("Is byte1 (${byte1}) within ASCII range: ${byte1.isAscii()}")
     println("Is byte2 (${byte2}) within ASCII range: ${byte2.isAscii()}")
 }
@@ -70,7 +70,7 @@ main() {
     let byte1: Byte = 0x09  // Tab '\t', an ASCII control character
     let byte2: Byte = 0x20  // Space ' ', not an ASCII control character
     let byte3: Byte = 0x7F  // DEL, an ASCII control character
-    
+
     println("Is byte1 (0x${byte1}) an ASCII control character: ${byte1.isAsciiControl()}")
     println("Is byte2 (0x${byte2}) an ASCII control character: ${byte2.isAsciiControl()}")
     println("Is byte3 (0x${byte3}) an ASCII control character: ${byte3.isAsciiControl()}")
@@ -106,7 +106,7 @@ main() {
     let byte1: Byte = 0x21  // '!', an ASCII graphic character
     let byte2: Byte = 0x7E  // '~', an ASCII graphic character
     let byte3: Byte = 0x20  // ' ', space, not an ASCII graphic character
-    
+
     println("Is byte1 (0x${byte1}) an ASCII graphic character: ${byte1.isAsciiGraphic()}")
     println("Is byte2 (0x${byte2}) an ASCII graphic character: ${byte2.isAsciiGraphic()}")
     println("Is byte3 (0x${byte3}) an ASCII graphic character: ${byte3.isAsciiGraphic()}")
@@ -142,7 +142,7 @@ main() {
     let byte1: Byte = 0x30  // '0', an ASCII hexadecimal digit
     let byte2: Byte = 0x46  // 'F', an ASCII hexadecimal digit
     let byte3: Byte = 0x67  // 'g', not an ASCII hexadecimal digit
-    
+
     println("Is byte1 (0x${byte1}) an ASCII hexadecimal digit: ${byte1.isAsciiHex()}")
     println("Is byte2 (0x${byte2}) an ASCII hexadecimal digit: ${byte2.isAsciiHex()}")
     println("Is byte3 (0x${byte3}) an ASCII hexadecimal digit: ${byte3.isAsciiHex()}")
@@ -178,7 +178,7 @@ main() {
     let byte1: Byte = 0x41  // 'A', an ASCII Latin letter
     let byte2: Byte = 0x7A  // 'z', an ASCII Latin letter
     let byte3: Byte = 0x30  // '0', digit, not an ASCII Latin letter
-    
+
     println("Is byte1 (0x${byte1}) an ASCII Latin letter: ${byte1.isAsciiLetter()}")
     println("Is byte2 (0x${byte2}) an ASCII Latin letter: ${byte2.isAsciiLetter()}")
     println("Is byte3 (0x${byte3}) an ASCII Latin letter: ${byte3.isAsciiLetter()}")
@@ -214,7 +214,7 @@ main() {
     let byte1: Byte = 0x61  // 'a', an ASCII lowercase Latin letter
     let byte2: Byte = 0x7A  // 'z', an ASCII lowercase Latin letter
     let byte3: Byte = 0x41  // 'A', uppercase letter, not an ASCII lowercase Latin letter
-    
+
     println("Is byte1 (0x${byte1}) an ASCII lowercase Latin letter: ${byte1.isAsciiLowerCase()}")
     println("Is byte2 (0x${byte2}) an ASCII lowercase Latin letter: ${byte2.isAsciiLowerCase()}")
     println("Is byte3 (0x${byte3}) an ASCII lowercase Latin letter: ${byte3.isAsciiLowerCase()}")
@@ -250,7 +250,7 @@ main() {
     let byte1: Byte = 0x30  // '0', an ASCII decimal digit
     let byte2: Byte = 0x39  // '9', an ASCII decimal digit
     let byte3: Byte = 0x41  // 'A', letter, not an ASCII decimal digit
-    
+
     println("Is byte1 (0x${byte1}) an ASCII decimal digit: ${byte1.isAsciiNumber()}")
     println("Is byte2 (0x${byte2}) an ASCII decimal digit: ${byte2.isAsciiNumber()}")
     println("Is byte3 (0x${byte3}) an ASCII decimal digit: ${byte3.isAsciiNumber()}")
@@ -286,7 +286,7 @@ main() {
     let byte1: Byte = 0x30  // '0', digit, within ASCII decimal digit and Latin letter range
     let byte2: Byte = 0x41  // 'A', letter, within ASCII decimal digit and Latin letter range
     let byte3: Byte = 0x20  // ' ', space, not within ASCII decimal digit and Latin letter range
-    
+
     println("Is byte1 (0x${byte1}) an ASCII decimal digit or Latin letter: ${byte1.isAsciiNumberOrLetter()}")
     println("Is byte2 (0x${byte2}) an ASCII decimal digit or Latin letter: ${byte2.isAsciiNumberOrLetter()}")
     println("Is byte3 (0x${byte3}) an ASCII decimal digit or Latin letter: ${byte3.isAsciiNumberOrLetter()}")
@@ -322,7 +322,7 @@ main() {
     let byte1: Byte = 0x30  // '0', an ASCII octal digit
     let byte2: Byte = 0x37  // '7', an ASCII octal digit
     let byte3: Byte = 0x38  // '8', not an ASCII octal digit
-    
+
     println("Is byte1 (0x${byte1}) an ASCII octal digit: ${byte1.isAsciiOct()}")
     println("Is byte2 (0x${byte2}) an ASCII octal digit: ${byte2.isAsciiOct()}")
     println("Is byte3 (0x${byte3}) an ASCII octal digit: ${byte3.isAsciiOct()}")
@@ -358,7 +358,7 @@ main() {
     let byte1: Byte = 0x21  // '!', an ASCII punctuation
     let byte2: Byte = 0x2C  // ',', an ASCII punctuation
     let byte3: Byte = 0x30  // '0', digit, not an ASCII punctuation
-    
+
     println("Is byte1 (0x${byte1}) an ASCII punctuation: ${byte1.isAsciiPunctuation()}")
     println("Is byte2 (0x${byte2}) an ASCII punctuation: ${byte2.isAsciiPunctuation()}")
     println("Is byte3 (0x${byte3}) an ASCII punctuation: ${byte3.isAsciiPunctuation()}")
@@ -394,7 +394,7 @@ main() {
     let byte1: Byte = 0x41  // 'A', an ASCII uppercase Latin letter
     let byte2: Byte = 0x5A  // 'Z', an ASCII uppercase Latin letter
     let byte3: Byte = 0x61  // 'a', lowercase letter, not an ASCII uppercase Latin letter
-    
+
     println("Is byte1 (0x${byte1}) an ASCII uppercase Latin letter: ${byte1.isAsciiUpperCase()}")
     println("Is byte2 (0x${byte2}) an ASCII uppercase Latin letter: ${byte2.isAsciiUpperCase()}")
     println("Is byte3 (0x${byte3}) an ASCII uppercase Latin letter: ${byte3.isAsciiUpperCase()}")
@@ -430,7 +430,7 @@ main() {
     let byte1: Byte = 0x09  // '\t', tab, an ASCII whitespace character
     let byte2: Byte = 0x20  // ' ', space, an ASCII whitespace character
     let byte3: Byte = 0x41  // 'A', letter, not an ASCII whitespace character
-    
+
     println("Is byte1 (0x${byte1}) an ASCII whitespace character: ${byte1.isAsciiWhiteSpace()}")
     println("Is byte2 (0x${byte2}) an ASCII whitespace character: ${byte2.isAsciiWhiteSpace()}")
     println("Is byte3 (0x${byte3}) an ASCII whitespace character: ${byte3.isAsciiWhiteSpace()}")
@@ -466,11 +466,11 @@ main() {
     let byte1: Byte = 0x41  // 'A', uppercase letter
     let byte2: Byte = 0x5A  // 'Z', uppercase letter
     let byte3: Byte = 0x30  // '0', digit, cannot be converted
-    
+
     let lower1 = byte1.toAsciiLowerCase()
     let lower2 = byte2.toAsciiLowerCase()
     let lower3 = byte3.toAsciiLowerCase()
-    
+
     println("byte1 (0x${byte1}) converted to lowercase: 0x${lower1}")
     println("byte2 (0x${byte2}) converted to lowercase: 0x${lower2}")
     println("byte3 (0x${byte3}) converted to lowercase: 0x${lower3} (unchanged)")
@@ -506,11 +506,11 @@ main() {
     let byte1: Byte = 0x61  // 'a', lowercase letter
     let byte2: Byte = 0x7A  // 'z', lowercase letter
     let byte3: Byte = 0x30  // '0', digit, cannot be converted
-    
+
     let upper1 = byte1.toAsciiUpperCase()
     let upper2 = byte2.toAsciiUpperCase()
     let upper3 = byte3.toAsciiUpperCase()
-    
+
     println("byte1 (0x${byte1}) converted to uppercase: 0x${upper1}")
     println("byte2 (0x${byte2}) converted to uppercase: 0x${upper2}")
     println("byte3 (0x${byte3}) converted to uppercase: 0x${upper3} (unchanged)")
@@ -809,9 +809,9 @@ main() {
     // Test Float64 * Duration operation
     let floatVal: Float64 = 2.5
     let duration: Duration = Duration.second
-    
+
     let result = floatVal * duration
-    
+
     println("Float64 value: ${floatVal}")
     println("Duration value: ${duration}")
     println("Operation result: ${result}")
@@ -864,13 +864,13 @@ main() {
     // Test Int64 * Duration operation
     let intVal: Int64 = 3
     let duration: Duration = Duration.second
-    
+
     let result = intVal * duration
-    
+
     println("Int64 value: ${intVal}")
     println("Duration value: ${duration}")
     println("Operation result: ${result}")
-    
+
     // Test example of 2 * Duration.second
     let result2 = 2 * Duration.second
     println("2 * Duration.second = ${result2}")

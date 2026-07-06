@@ -1732,7 +1732,7 @@ main() {
 ### func intersperse(T)
 
 ```cangjie
-public func intersperse(separator: T): ArrayList<T> 
+public func intersperse(separator: T): ArrayList<T>
 ```
 
 功能：返回每两个元素之间插入一个给定的新元素后的新 [ArrayList](collection_package_class.md#class-arraylistt) 。
@@ -6135,7 +6135,7 @@ main() {
 
 ```text
 值的数量: 3
-所有值: 
+所有值:
 10
 20
 30
@@ -9450,7 +9450,7 @@ main() {
 ### func flatMap\<R>((T) -> LinkedList\<R>)
 
 ```cangjie
-public func flatMap<R>(transform: (T) -> LinkedList<R>): LinkedList<R> 
+public func flatMap<R>(transform: (T) -> LinkedList<R>): LinkedList<R>
 ```
 
 功能：对链表中的每个元素应用一个转换闭包（transform），该闭包返回一个新的链表，然后将所有返回的链表“压平”（flatten）并连接成一个单一的结果链表。
@@ -9670,7 +9670,7 @@ main() {
 ### func intersperse(T)
 
 ```cangjie
-public func intersperse(separator: T): LinkedList<T> 
+public func intersperse(separator: T): LinkedList<T>
 ```
 
 功能：返回每两个元素之间插入一个给定的新元素后的新 [LinkedList](collection_package_class.md#class-linkedlistt) 。

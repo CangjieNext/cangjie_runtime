@@ -2,13 +2,13 @@
 
 ## Tests and Test Cases
 
-A test is an entity marked with the `@Test` macro that gets executed during testing.  
-The Cangjie unittest framework supports two types of tests: test classes and test functions.  
-Test functions are relatively simple, with each function containing all the code for test execution.  
+A test is an entity marked with the `@Test` macro that gets executed during testing.
+The Cangjie unittest framework supports two types of tests: test classes and test functions.
+Test functions are relatively simple, with each function containing all the code for test execution.
 Test classes are suitable for introducing deeper structural hierarchies in tests or scenarios involving [test lifecycle behaviors](#test-lifecycle).
 
-Each test class consists of multiple test cases, with each case marked by the `@TestCase` macro.  
-Every test case is a function within the test class.  
+Each test class consists of multiple test cases, with each case marked by the `@TestCase` macro.
+Every test case is a function within the test class.
 The example from the previous section can be rewritten as the following test class:
 
 <!-- run -->
@@ -49,8 +49,8 @@ cjpm test success
 
 ## Assertions
 
-Assertions are individual condition checks executed within test case functions to verify code behavior.  
-There are two types of assertions: `@Expect` and `@Assert`.  
+Assertions are individual condition checks executed within test case functions to verify code behavior.
+There are two types of assertions: `@Expect` and `@Assert`.
 To illustrate their differences, let's create an incorrect test:
 
 <!-- run -->
@@ -102,7 +102,7 @@ Running this test fails with the following output (showing only the relevant par
       right: 9
 ```
 
-Both check results are visible in the output.  
+Both check results are visible in the output.
 However, if we replace `@Expect` with `@Assert`:
 
 <!-- run -->
@@ -127,10 +127,10 @@ The output becomes:
       right: 5
 ```
 
-Only the first `@Assert` check fails; subsequent assertions aren't even executed.  
+Only the first `@Assert` check fails; subsequent assertions aren't even executed.
 This is because the `@Assert` macro follows a *fail-fast* mechanism: upon the first assertion failure, the entire test case fails immediately, skipping remaining checks.
 
-This behavior is crucial for large tests with numerous assertions, especially when assertions are used within loops.  
+This behavior is crucial for large tests with numerous assertions, especially when assertions are used within loops.
 Users don't need to wait for all failures—the first failure provides immediate feedback.
 
 The choice between `@Assert` and `@Expect` depends on test complexity and whether fail-fast behavior is desired.
@@ -146,7 +146,7 @@ The second form `@Assert(c)` can be considered shorthand for `@Assert(c, true)`.
 
 ### Failure Assertions
 
-Failure assertions force test cases to fail. `@Fail` follows the fail-fast mechanism—execution stops immediately, skipping subsequent checks. `@FailExpect` marks the case as failed but continues checking remaining assertions.  
+Failure assertions force test cases to fail. `@Fail` follows the fail-fast mechanism—execution stops immediately, skipping subsequent checks. `@FailExpect` marks the case as failed but continues checking remaining assertions.
 Both macros accept a string parameter describing the failure reason. `@Fail` returns type `Nothing`, while `@FailExpect` returns `Unit`.
 
 Example:
@@ -177,7 +177,7 @@ Outputs the following error:
 
 ### Expected Exception Assertions
 
-These assertions fail if the expected exception type isn't thrown. `@AssertThrows` stops further checks upon failure, while `@ExpectThrows` continues.  
+These assertions fail if the expected exception type isn't thrown. `@AssertThrows` stops further checks upon failure, while `@ExpectThrows` continues.
 The macro attributes specify expected exception types separated by `|`. Without attributes, the base `Exception` class is expected. The parameter is the expression or code block expected to throw.
 
 Examples:
@@ -185,19 +185,19 @@ Examples:
 ```cangjie
 // No.1
 @AssertThrows(throw Exception())
- 
+
 // Semantically identical to No.1
 @AssertThrows[Exception](throw Exception())
- 
+
 @AssertThrows[IllegalStateException | NoneValueException](random.seed = 42u64)
- 
+
 @ExpectThrows[OutOfMemoryError](foo())
- 
+
 @ExpectThrows({
     foo()
     boo()
 })
- 
+
 @ExpectThrows[OutOfMemoryError]({
     for (i in list) {
         foo(i)
@@ -237,7 +237,7 @@ let e: ?Exception = @ExpectThrows[NoneValueException | IllegalMemoryException](f
 
 #### Approximate Equality
 
-Certain parameter types (e.g., floating-point numbers) may require approximate equality checks.  
+Certain parameter types (e.g., floating-point numbers) may require approximate equality checks.
 
 The package provides the [NearEqutable](../unittest_package_api/unittest_package_interfaces.md#interface-nearequatablect-d) interface. Types needing approximate equality can extend this interface and use the `delta` parameter in `@Assert`, `@Expect`, or `@PowerAssert` macros to enable this feature.
 
@@ -366,7 +366,7 @@ For per-parameter setup/cleanup, include the code within the test case body itse
 
 ## Test Configuration
 
-Advanced unittest features may require additional configuration.  
+Advanced unittest features may require additional configuration.
 Three configuration methods are available:
 
 - Using the `@Configure` macro
@@ -412,8 +412,8 @@ To select a subset of tests based on categories specified in the [`@Tag`](../../
 3. `--include-tags=Unittest+Smoke` runs all test cases tagged with both `@Tag[Unittest]` and `@Tag[Smoke]`.
 4. `--include-tags=Unittest+Smoke+JiraTask3271,Backend` runs all test cases tagged with `@Tag[Backend]` and/or `@Tag[Unittest, Smoke, JiraTask3271]`.
 
-> **Note**  
-> If no test cases match the specified tag categories, the framework will not execute anything.  
+> **Note**
+> If no test cases match the specified tag categories, the framework will not execute anything.
 > Can be combined with `exclude-tags`. See [`--exclude-tags`](./unittest_basics.md#--exclude-tags) for details.
 
 ### `--exclude-tags`
@@ -425,7 +425,7 @@ To select a subset of tests based on categories specified in the [`@Tag`](../../
 3. `--exclude-tags=Unittest+Smoke` runs all test cases **not** tagged with both `@Tag[Unittest]` and `@Tag[Smoke]`.
 4. `--include-tags=Unittest --exclude-tags=Smoke` runs all test cases tagged with `@Tag[Unittest]` but **not** tagged with `@Tag[Smoke]`.
 
-> **Note**  
+> **Note**
 > `exclude-tags` takes precedence over `include-tags`. If a test case is excluded, it will not be executed. For example, `--include-tags=Unittest+Smoke --exclude-tags=Smoke` will not execute any test cases tagged with `@Tag[Smoke]`.
 
 ### `--show-tags`
@@ -438,20 +438,20 @@ In `--dry-run` mode with the report format set to `xml`, `Tag` information will 
 
 Using the `--timeout-each=timeout` option is equivalent to applying `@Timeout[timeout]` to all test classes. If `@Timeout[timeout]` is already specified in the code, the in-code timeout configuration will override this option (i.e., the option's timeout has lower priority than the in-code timeout).
 
-The `timeout` value must follow this syntax:  
-    `number ('millis' | 's' | 'm' | 'h')`  
+The `timeout` value must follow this syntax:
+    `number ('millis' | 's' | 'm' | 'h')`
 Examples: `10s`, `9millis`, etc.
 
-- millis: milliseconds  
-- s: seconds  
-- m: minutes  
-- h: hours  
+- millis: milliseconds
+- s: seconds
+- m: minutes
+- h: hours
 
 ### `--parallel`
 
-Enabling `--parallel` will cause the testing framework to execute different test classes in separate parallel processes.  
-Test classes should be independent and not rely on shared mutable state.  
-Static initialization may occur multiple times.  
+Enabling `--parallel` will cause the testing framework to execute different test classes in separate parallel processes.
+Test classes should be independent and not rely on shared mutable state.
+Static initialization may occur multiple times.
 Cannot be used with `--bench`. Since performance tests are sensitive to underlying resources, parallel execution may affect their results, so combining `--parallel` with `--bench` is prohibited.
 
 - `--parallel=<BOOL>` `<BOOL>` can be `true` or `false`. When set to `true`, test classes will run in parallel, with the number of processes controlled by the system's CPU cores. Additionally, `--parallel` can omit `=true`.
@@ -484,7 +484,7 @@ This option specifies the format of the test report generated after execution.
 
 Unittests support:
 
-- `xml`: xml format with files corresponding to test suites, it is the default format. 
+- `xml`: xml format with files corresponding to test suites, it is the default format.
 - `xml-per-package`: xml format with files corresponding to test packages.
 
 Benchmark tests support:
@@ -509,8 +509,8 @@ This option specifies the path to the performance report used for comparison. By
 
 ### `--capture-output`
 
-This option enables capturing of test case print output.  
-By default, capture is enabled during `cjpm test` execution and disabled otherwise.  
+This option enables capturing of test case print output.
+By default, capture is enabled during `cjpm test` execution and disabled otherwise.
 When capture is disabled, print output is immediately propagated to the unit test output. Otherwise, the unit test collects and processes the print output.
 
 Capture is useful in the following scenarios:
@@ -521,14 +521,14 @@ Capture is useful in the following scenarios:
 
 ### `--no-capture-output`
 
-This option disables capturing of test case print output.  
-By default, capture is enabled during `cjpm test` execution and disabled otherwise.  
+This option disables capturing of test case print output.
+By default, capture is enabled during `cjpm test` execution and disabled otherwise.
 
 Test case print output is immediately propagated to the unit test output.
 
 ### `--show-all-output`
 
-The unit test framework will print all output in the report, including output from passed test cases.  
+The unit test framework will print all output in the report, including output from passed test cases.
 This option has no effect if test output capture is disabled.
 
 ### `--coverage-guided`
@@ -541,10 +541,10 @@ Enables a brief (single-line) dynamic progress report for unit tests.
 
 ### `--progress-entries-limit=limit`
 
-Limits the maximum number of entries displayed in the progress output. Valid values for `limit`: non-negative integers.  
+Limits the maximum number of entries displayed in the progress output. Valid values for `limit`: non-negative integers.
 A value of `0` means no limit. Default: unlimited.
 
 ### `--no-progress`
 
-Disables the dynamic progress report.  
+Disables the dynamic progress report.
 If the `--dry-run` option is specified, `--no-progress` is implicitly enabled.

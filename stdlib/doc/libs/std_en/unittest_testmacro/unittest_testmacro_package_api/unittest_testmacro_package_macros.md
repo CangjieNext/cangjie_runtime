@@ -235,8 +235,8 @@ Starting the benchmark `TestCase_bench.bench()`.
     Warming up for 1.000 ms.
     Starting measurements of 200 batches. Measuring Duration.
     Max batch size: 12395653, estimated execution time: 5.000 s.
-  percentiles:    [   10%        50%        90%        95%        99%        ]  
-  time:           [   0.990 ns   1.001 ns   1.029 ns   1.048 ns   1.146 ns   ]  
+  percentiles:    [   10%        50%        90%        95%        99%        ]
+  time:           [   0.990 ns   1.001 ns   1.029 ns   1.048 ns   1.146 ns   ]
   mean:           0.976 ns .. 1.022 ns  Err ±2.3%
   median:         0.981 ns .. 1.146 ns
   R²:             0.957 .. 0.994
@@ -273,7 +273,7 @@ class DatabaseBenchmark {
         let result = simulateDatabaseQuery()
         @Assert(!result.isEmpty())
     }
-    
+
     private func simulateDatabaseQuery(): String {
         sleep(Duration.microsecond * 500)
         "data_result"
@@ -619,10 +619,10 @@ Classes marked with `@Test` must satisfy the following conditions:
 1. They must have a parameterless constructor.
 2. They cannot inherit from other classes.
 
-> Implementation Note: The `@Test` macro introduces a new base class `unittest.TestCases` for any class it marks.  
+> Implementation Note: The `@Test` macro introduces a new base class `unittest.TestCases` for any class it marks.
 All public and protected members of `unittest.TestCases` (see API overview below) become available in classes or functions marked with `@Test`, including two fields:
     1. `ctx`: A `TestContext` instance containing this test.
-    2. `name`: The name of the class.  
+    2. `name`: The name of the class.
 Users of the unit testing framework should not modify these fields, as it may lead to unexpected errors.
 
 Example:
@@ -744,8 +744,8 @@ class MyTestSuite {
 }
 ```
 
-This DSL can be used with the `@Test`, `@Strategy`, `@Bench`, and `@TestCase` macros, where `@Test` is only available for top-level functions. If a test function has both `@Bench` and `@TestCase`, only `@Bench` can include the DSL.  
-In the DSL syntax, the identifiers before `in` (e.g., `x`, `y`, and `z` in the example above) must directly correspond to the function's parameters. The parameter sources (`source1`, `source2`, and `source3` in the example) can be any valid Cangjie expression (the expression type must implement either the [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt)\<T> or [DataStrategyProcessor](../../unittest/unittest_package_api/unittest_package_classes.md#class-datastrategyprocessort)\<T> interface, detailed below).  
+This DSL can be used with the `@Test`, `@Strategy`, `@Bench`, and `@TestCase` macros, where `@Test` is only available for top-level functions. If a test function has both `@Bench` and `@TestCase`, only `@Bench` can include the DSL.
+In the DSL syntax, the identifiers before `in` (e.g., `x`, `y`, and `z` in the example above) must directly correspond to the function's parameters. The parameter sources (`source1`, `source2`, and `source3` in the example) can be any valid Cangjie expression (the expression type must implement either the [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt)\<T> or [DataStrategyProcessor](../../unittest/unittest_package_api/unittest_package_classes.md#class-datastrategyprocessort)\<T> interface, detailed below).
 The element type of the parameter source (provided as the generic parameter `T` to [DataStrategy](../../unittest_common/unittest_common_package_api/unittest_common_package_interfaces.md#interface-datastrategyt)\<T>) must exactly match the type of the corresponding function parameter.
 
 Supported parameter source types include:
@@ -770,7 +770,7 @@ The `random()` function supports the following types by default:
 - Array types of all supported types
 - [Option](../../core/core_package_api/core_package_enums.md#enum-optiont) types of all supported types
 
-> To add support for other types with `random()`, extend the [Arbitrary](../../unittest_prop_test/unittest_prop_test_package_api/unittest_prop_test_package_interfaces.md#interface-arbitraryt) interface.  
+> To add support for other types with `random()`, extend the [Arbitrary](../../unittest_prop_test/unittest_prop_test_package_api/unittest_prop_test_package_interfaces.md#interface-arbitraryt) interface.
 > When multiple parameter values are provided, `beforeEach`/`afterEach` will not execute repeatedly for each value but only once. If initialization and cleanup are needed per value, include them in the test body. For performance testing, `@Strategy` should be used for setup code excluded from benchmarks. No special API is provided for this case, as such code typically depends on specific parameter values.
 
 ## `@TestTemplate` Macro
@@ -783,7 +783,7 @@ Function: The `@Timeout` macro specifies that a test should terminate after a gi
 
 Syntax: `@Timeout[expr]`
 
-Here, `expr` must be of type `std.time.[Duration](../../core/core_package_api/core_package_structs.md#struct-duration)`.  
+Here, `expr` must be of type `std.time.[Duration](../../core/core_package_api/core_package_structs.md#struct-duration)`.
 When applied to a test class, it sets the timeout for each corresponding test case.
 
 Example:
@@ -827,7 +827,7 @@ Summary: TOTAL: 2
 
 Function: The `@Types` macro provides type parameters for test classes or test functions. It can be placed on test classes or test functions.
 
-Syntax: `@Types[Id1 in <Type1, Type2, Type3>, Id2 in <Type4, Type5> ...]`  
+Syntax: `@Types[Id1 in <Type1, Type2, Type3>, Id2 in <Type4, Type5> ...]`
 Here, `Id1`, `Id2`, etc., are valid type parameter identifiers, and `Type1`, `Type2`, etc., are valid Cangjie types.
 
 Restrictions for `@Types`:
@@ -875,7 +875,7 @@ This mechanism can be combined with other testing framework features, such as `@
 
 ## `@UnittestOption` Macro
 
-This macro registers custom configuration options. Only registered options can be used with the unit testing framework. The macro's parameters are the **type**, **option name**, optional **validator callback**, and optional **description**.  
+This macro registers custom configuration options. Only registered options can be used with the unit testing framework. The macro's parameters are the **type**, **option name**, optional **validator callback**, and optional **description**.
 Strict checks on all unit test configuration options ensure correctness for both console input and source code, preventing typos and incorrect value types.
 
 Examples:
