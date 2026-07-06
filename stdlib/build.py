@@ -185,7 +185,7 @@ def build(args):
             output = subprocess.Popen(["ninja", "--version"], stdout=DEVNULL, stderr=DEVNULL)
             output.communicate()
             ninja_valid = output.returncode == 0
-        except:
+        except Exception:
             ninja_valid = False
 
         if ninja_valid:
