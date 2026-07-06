@@ -13,6 +13,8 @@
 #elif defined(__APPLE__)
 #include <pthread.h>
 #include <unistd.h>
+#include <cstring>
+#include <mach/vm_statistics.h>
 #else
 #include <sys/prctl.h>
 #include "linux/futex.h"
@@ -37,6 +39,25 @@ int GetPid();
 // Considering the purpose is for debuging, in windows we just simply remove it.
 #define MRT_PRCTL(base_address, allocated_size, mmtag) \
     (void)prctl(PR_SET_VMA, PR_SET_VMA_ANON_NAME, base_address, allocated_size, mmtag)
+#endif
+
+#if defined(__APPLE__)
+// Apple VM user tags for application-specific anonymous mappings (240-255).
+// Exposed in vmmap/xctrace as "VM: Memory Tag <n>". Linux/Android use MRT_PRCTL instead.
+#if defined(__IOS__)
+constexpr int CANGJIE_HEAP_VM_TAG = 246;
+#endif
+
+inline int MrtAppleMmapFd(int fd, const char* tag) noexcept
+{
+#if defined(__IOS__)
+    if (tag != nullptr && std::strcmp(tag, "cangjie_heap") == 0) {
+        // Darwin: VM_MAKE_TAG goes in mmap's fd argument, not flags (see mmap(2)).
+        return VM_MAKE_TAG(CANGJIE_HEAP_VM_TAG);
+    }
+#endif
+    return fd;
+}
 #endif
 } // namespace MapleRuntime
 #endif // MRT_SYSCALL_H
