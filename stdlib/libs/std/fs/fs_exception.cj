@@ -21,3 +21,15 @@ public class FSException <: IOException {
         return "FSException"
     }
 }
+
+public class WatcherException <: IOException {
+    public init() {
+        super()
+    }
+    public init(message: String) {
+        super(message)
+    }
+    protected override func getClassName(): String {
+        return "WatcherException"
+    }
+}

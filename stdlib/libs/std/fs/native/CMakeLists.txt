@@ -5,9 +5,11 @@
 # See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 if(WIN32)
-    file(GLOB fs_ffi_src ./file_system_win.c)
+    file(GLOB fs_ffi_src ./file_system_win.c ./watcher_win.c)
+elseif(DARWIN)
+    file(GLOB fs_ffi_src ./file_system_unix.c ./watcher_mac.c)
 else()
-    file(GLOB fs_ffi_src ./file_system_unix.c)
+    file(GLOB fs_ffi_src ./file_system_unix.c ./watcher_linux.c)
 endif()
 
 set(libname cangjie-std-fsFFI)
@@ -15,4 +17,9 @@ set(libname cangjie-std-fsFFI)
 add_library(${libname}-objs OBJECT ${fs_ffi_src})
 target_compile_options(${libname}-objs PRIVATE ${CMAKE_C_COVERAGE_FLAGS})
 add_library(${libname} STATIC $<TARGET_OBJECTS:${libname}-objs>)
+
+if(DARWIN)
+    target_link_libraries(${libname}-objs PRIVATE "-framework CoreServices")
+endif()
+
 install_cangjie_library_ffi(${libname})

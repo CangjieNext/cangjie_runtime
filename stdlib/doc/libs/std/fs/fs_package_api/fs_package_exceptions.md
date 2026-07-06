@@ -58,3 +58,62 @@ main() {
     let exception = FSException("自定义异常信息")
 }
 ```
+
+## class WatcherException
+
+```cangjie
+public class WatcherException <: IOException {
+    public init()
+    public init(message: String)
+}
+```
+
+功能：文件监听异常类，继承 IO 流异常类。在监听器创建失败（如路径不存在）或原生监听器初始化失败时抛出。
+
+父类型：
+
+- [IOException](../../io/io_package_api/io_package_exceptions.md#class-ioexception)
+
+### init()
+
+```cangjie
+public init()
+```
+
+功能：构造一个文件监听异常实例，无异常提示信息。
+
+示例：
+
+<!-- run -->
+```cangjie
+import std.fs.*
+
+main() {
+    // 使用默认的构造函数创建 WatcherException 实例
+    let exception = WatcherException()
+}
+```
+
+### init(String)
+
+```cangjie
+public init(message: String)
+```
+
+功能：构造一个文件监听异常实例，有异常提示信息。
+
+参数：
+
+- message: [String](../../core/core_package_api/core_package_structs.md#struct-string) - 错误信息。
+
+示例：
+
+<!-- run -->
+```cangjie
+import std.fs.*
+
+main() {
+    // 使用带消息的构造函数创建 WatcherException 实例
+    let exception = WatcherException("监听器初始化失败")
+}
+```

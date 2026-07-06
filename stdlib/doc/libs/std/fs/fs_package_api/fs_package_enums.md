@@ -184,3 +184,84 @@ main(): Unit {
 Read mode 1 equals Read mode 2: true
 Read mode equals Write mode: false
 ```
+
+## enum WatchEventKind
+
+```cangjie
+public enum WatchEventKind {
+    | create
+    | modify
+    | delete
+    | renameFrom
+    | renameTo
+    | attributeChange
+    | watchDisappeared
+    | overflow
+}
+```
+
+功能：表示文件/目录变化事件的类型。
+
+### create
+
+```cangjie
+create
+```
+
+功能：表示文件或目录被创建。
+
+### modify
+
+```cangjie
+modify
+```
+
+功能：表示文件内容被修改。
+
+### delete
+
+```cangjie
+delete
+```
+
+功能：表示文件或目录被删除。
+
+### renameFrom
+
+```cangjie
+renameFrom
+```
+
+功能：表示重命名/移动操作中的源文件名。
+
+### renameTo
+
+```cangjie
+renameTo
+```
+
+功能：表示重命名/移动操作中的目标文件名。
+
+### attributeChange
+
+```cangjie
+attributeChange
+```
+
+功能：表示文件元数据（如权限、时间戳等）发生变化。
+
+### watchDisappeared
+
+```cangjie
+watchDisappeared
+```
+
+功能：表示监听根目录自身被删除或移走，监听不再有效。
+
+### overflow
+
+```cangjie
+overflow
+```
+
+功能：表示内核事件队列溢出，有事件丢失。
