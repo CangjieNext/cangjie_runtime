@@ -211,9 +211,9 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
         match (entry.pool as ResourcePool<T>) {
             case Some(p) =>
                 if (p != this) {
-                    throw SqlException("The entry is owned by another pool.")
+                    throw SqlException("Cannot release entry: entry is owned by another pool.")
                 }
-            case None => throw SqlException("The entry is not owned by any pool.")
+            case None => throw SqlException("Cannot release entry: entry is not owned by any pool.")
         }
 
         if (DateTime.now().toUnixTimeStamp() - entry.creationTime > options.maxLifeTime) {
@@ -231,9 +231,9 @@ class ResourcePool<T> <: Pool<T> & Equatable<ResourcePool<T>> {
         match (entry.pool as ResourcePool<T>) {
             case Some(p) =>
                 if (p != this) {
-                    throw SqlException("The entry is owned by another pool.")
+                    throw SqlException("Cannot discard entry: entry is owned by another pool.")
                 }
-            case None => throw SqlException("The entry is not owned by any pool.")
+            case None => throw SqlException("Cannot discard entry: entry is not owned by any pool.")
         }
         synchronized(mux) {
             if (entryCount > 0) {
