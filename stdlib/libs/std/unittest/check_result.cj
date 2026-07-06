@@ -335,10 +335,18 @@ class ConcurrentTestCheckResult <: CheckResult {
         iterationResult: ScenarioIterationResult
     ) {
         iterationIndex = iterationResult.iteration
-        message = if (iterationResult.failureCount > 0) {
-            PrettyText("Concurrent iteration ${iterationResult.iteration} failed: ${iterationResult.failureCount} failures")
+        message = if (iterationResult.failedAfter) {
+            let consistencyFailed = match (iterationResult.consistencyValidation) {
+                case Some(consResult) => !consResult.isConsistent
+                case None => false
+            }
+            if (consistencyFailed) {
+                PrettyText("consistency validation failed")
+            } else {
+                PrettyText("verify assertion failed")
+            }
         } else {
-            PrettyText("Concurrent iteration ${iterationResult.iteration} verification failed")
+            PrettyText("${iterationResult.failureCount} actor failures")
         }
         
         actorFailureDetails = buildActorFailureDetails(iterationResult)
@@ -361,7 +369,16 @@ class ConcurrentTestCheckResult <: CheckResult {
     
     private static func buildConsistencyValidationDetails(iterationResult: ScenarioIterationResult): ?String {
         match (iterationResult.consistencyValidation) {
-            case Some(consResult) => Some(consResult.report())
+            case Some(consResult) =>
+                if (!consResult.isConsistent) {
+                    var details = consResult.report() + "\n" + consResult.getOperationHistory()
+                    if (let Some(mismatchDetails) <- consResult.getMismatchDetails()) {
+                        details = details + mismatchDetails
+                    }
+                    Some(details)
+                } else {
+                    None
+                }
             case None => None
         }
     }

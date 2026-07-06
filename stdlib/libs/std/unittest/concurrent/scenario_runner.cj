@@ -28,9 +28,10 @@ protected class ScenarioRunner {
     
     protected func executeIterationsWithCallback(
         iterations: Int64,
-        callback: (ScenarioIterationResult, Int64) -> Bool
+        verbose!: Bool = false,
+        callback!: (ScenarioIterationResult, Int64) -> Bool,
     ): Unit {
-        let firstResult = runIteration(0)
+        let firstResult = runIteration(0, verbose: verbose)
         updateBackoffSigma(firstResult.avgDuration.toNanoseconds())
         
         if (!callback(firstResult, 0)) {
@@ -39,14 +40,14 @@ protected class ScenarioRunner {
         
         // todo: consider running iterations in parallel for better performance
         for (iter in 1..iterations) {
-            let iterResult = runIteration(iter)
+            let iterResult = runIteration(iter, verbose: verbose)
             if (!callback(iterResult, iter)) {
                 return
             }
         }
     }
     
-    protected func runIteration(iteration: Int64): ScenarioIterationResult {
+    protected func runIteration(iteration: Int64, verbose!: Bool = false): ScenarioIterationResult {
         executeReset()
         
         let barrier = Barrier(scenario.threadCount)
@@ -87,7 +88,7 @@ protected class ScenarioRunner {
             verifyFailed = !executeVerify()
             
             if (let Some(validator) <- scenario.consistencyValidator) {
-                let result = validator.validate(history)
+                let result = validator.validate(history, verbose: verbose)
                 consistencyResult = Some(result)
                 if (!result.isConsistent) {
                     verifyFailed = true

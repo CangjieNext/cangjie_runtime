@@ -11,10 +11,12 @@ package std.unittest.concurrent
 import std.collection.ArrayList
 import std.collection.HashMap
 
-public class ConcurrentHistory {
+protected class ConcurrentHistory {
     private let actorInvocations: HashMap<Int64, ArrayList<OperationInvocation>> = HashMap<Int64, ArrayList<OperationInvocation>>()
-    
-    public func recordActorInvocations(
+
+    protected ConcurrentHistory() {}
+
+    protected func recordActorInvocations(
         actorId: Int64,
         invocations: ArrayList<OperationInvocation>
     ): Unit {
@@ -26,15 +28,15 @@ public class ConcurrentHistory {
         }
     }
     
-    public func groupByActor(): HashMap<Int64, ArrayList<OperationInvocation>> {
+    func groupByActor(): HashMap<Int64, ArrayList<OperationInvocation>> {
         actorInvocations
     }
     
-    public func getActorInvocations(actorId: Int64): ?ArrayList<OperationInvocation> {
+    func getActorInvocations(actorId: Int64): ?ArrayList<OperationInvocation> {
         actorInvocations[actorId]
     }
     
-    public func getInvocation(actorId: Int64, index: Int64): ?OperationInvocation {
+    func getInvocation(actorId: Int64, index: Int64): ?OperationInvocation {
         match (actorInvocations.get(actorId)) {
             case Some(ops) =>
                 ops.get(index)
@@ -42,11 +44,11 @@ public class ConcurrentHistory {
         }
     }
     
-    public func clear(): Unit {
+    func clear(): Unit {
         actorInvocations.clear()
     }
     
-    public prop size: Int64 {
+    prop size: Int64 {
         get() {
             var total: Int64 = 0
             for (actorId in actorInvocations.keys()) {
@@ -56,7 +58,7 @@ public class ConcurrentHistory {
         }
     }
     
-    public prop actorCount: Int64 {
+    prop actorCount: Int64 {
         get() { actorInvocations.size }
     }
 }

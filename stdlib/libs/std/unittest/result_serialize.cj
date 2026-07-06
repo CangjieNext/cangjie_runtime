@@ -42,6 +42,7 @@ extend StepKind <: Serializable<StepKind> {
                     .add(field<?Int64>("seed", descr.randomSeed))
                     .add(field<Int64>("step", descr.stepIndex))
                     .add(field<Int64>("reduction", descr.reductionIndex))
+                    .add(field<Bool>("withHeader", descr.withStepHeader))
             case Lifecycle(lStep) => dms.add(field<LStep>("lifecycle", lStep))
             case Skip => dms.add(field<String>("skip", ""))
             case NoRun => dms.add(field<String>("noRun", ""))
@@ -53,11 +54,16 @@ extend StepKind <: Serializable<StepKind> {
     public static func deserialize(dm: DataModel): StepKind {
         let dms = dm.asStruct()
         if (let Some(step) <- dms.tryGet("step")) {
+            let withHeader = match (dms.tryGet("withHeader")) {
+                case Some(v) => Bool.deserialize(v)
+                case None => true
+            }
             return CaseStep(ArgumentDescription(
                 Option<PrettyText>.deserialize(dms.get("args")),
                 Int64.deserialize(step),
                 Int64.deserialize(dms.get("reduction")),
                 Option<Int64>.deserialize(dms.get("seed")),
+                withStepHeader: withHeader
             ))
         }
         if (let Some(lStep) <- dms.tryGet("lifecycle")) {

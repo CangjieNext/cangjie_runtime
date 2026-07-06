@@ -409,7 +409,7 @@ public class ConcurrentTestCase {
     public prop name: String { get() { _name } }
 
     public func run(): TestReport {
-        fakeGroup(fakeSuite(Concurrent(this))).run(Configuration(), OnlyTests).asTestReport(caseConfiguration)
+        fakeGroup(fakeSuite(Concurrent(this))).run(caseConfiguration, OnlyTests).asTestReport(caseConfiguration)
     }
 
     public static func create(

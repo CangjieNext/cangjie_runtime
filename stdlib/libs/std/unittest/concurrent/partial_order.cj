@@ -12,21 +12,21 @@ import std.collection.ArrayList
 import std.collection.HashSet
 import std.collection.HashMap
 
-public class PredecessorPair {
-    public PredecessorPair(
-        public let opId!: Int64,
-        public let predecessorId!: Int64
+protected class PredecessorPair {
+    protected PredecessorPair(
+        let opId!: Int64,
+        let predecessorId!: Int64
     ) {}
 }
 
-public class PartialOrder {
+protected class PartialOrder {
     private let predecessors: ArrayList<PredecessorPair> = ArrayList<PredecessorPair>()
     private let predecessorMap: HashMap<Int64, ArrayList<Int64>> = HashMap<Int64, ArrayList<Int64>>()
     private let allOps: ArrayList<Int64> = ArrayList<Int64>()
     
-    public PartialOrder() {}
+    protected PartialOrder() {}
     
-    public func addPredecessor(opId: Int64, predecessorId: Int64): Unit {
+    func addPredecessor(opId: Int64, predecessorId: Int64): Unit {
         predecessors.add(PredecessorPair(opId: opId, predecessorId: predecessorId))
         if (!predecessorMap.contains(opId)) {
             predecessorMap[opId] = ArrayList<Int64>()
@@ -40,13 +40,13 @@ public class PartialOrder {
         }
     }
     
-    public func addOperation(opId: Int64): Unit {
+    func addOperation(opId: Int64): Unit {
         if (!allOps.contains(opId)) {
             allOps.add(opId)
         }
     }
     
-    public func isAvailable(opId: Int64, placed: HashSet<Int64>): Bool {
+    func isAvailable(opId: Int64, placed: HashSet<Int64>): Bool {
         match (predecessorMap.get(opId)) {
             case Some(predList) =>
                 for (predId in predList) {
@@ -59,7 +59,7 @@ public class PartialOrder {
         true
     }
     
-    public func getAvailableOperations(placed: HashSet<Int64>): ArrayList<Int64> {
+    func getAvailableOperations(placed: HashSet<Int64>): ArrayList<Int64> {
         let available = ArrayList<Int64>()
         for (opId in allOps) {
             if (!placed.contains(opId) && isAvailable(opId, placed)) {
@@ -69,27 +69,27 @@ public class PartialOrder {
         available
     }
     
-    public func predecessorCount(opId: Int64): Int64 {
+    protected func predecessorCount(opId: Int64): Int64 {
         match (predecessorMap.get(opId)) {
             case Some(predList) => predList.size
             case None => 0
         }
     }
     
-    public prop predecessorPairCount: Int64 {
+    prop predecessorPairCount: Int64 {
         get() { predecessors.size }
     }
     
-    public prop size: Int64 {
+    protected prop size: Int64 {
         get() { allOps.size }
     }
     
-    public prop operations: ArrayList<Int64> {
+    protected prop operations: ArrayList<Int64> {
         get() { allOps }
     }
 }
 
-public func computePartialOrder(history: ConcurrentHistory, model: ConsistencyModel): PartialOrder {
+protected func computePartialOrder(history: ConcurrentHistory, model: ConsistencyModel): PartialOrder {
     match (model) {
         case SequentialConsistency => perActorOrder(history)
         case Linearizability => perActorAndVCOrder(history)
@@ -100,16 +100,13 @@ public func computePartialOrder(history: ConcurrentHistory, model: ConsistencyMo
 private func perActorOrder(history: ConcurrentHistory): PartialOrder {
     let po = PartialOrder()
     for (actorId in 0..history.actorCount) {
-        match (history.getActorInvocations(actorId)) {
-            case Some(invocations) =>
-                for (opIndex in 0..invocations.size) {
-                    let opId = actorId * 1000 + opIndex
-                    po.addOperation(opId)
-                    for (prevOpIndex in 0..opIndex) {
-                        po.addPredecessor(opId, actorId * 1000 + prevOpIndex)
-                    }
-                }
-            case None => ()
+        let invocations = history.getActorInvocations(actorId) ?? continue   
+        for (opIndex in 0..invocations.size) {
+            let opId = actorId * 1000 + opIndex
+            po.addOperation(opId)
+            for (prevOpIndex in 0..opIndex) {
+                po.addPredecessor(opId, actorId * 1000 + prevOpIndex)
+            }
         }
     }
     po

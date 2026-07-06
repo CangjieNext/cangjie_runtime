@@ -12,16 +12,16 @@ import std.collection.ArrayList
 import std.core.Duration
 import std.time.DateTime
 
-public class ActorResult {
-    public ActorResult(
-        public let actorId!: Int64,
-        public let actorName!: String,
-        public let exception!: ?Exception,
-        public let startTime!: DateTime,
-        public let endTime!: DateTime
+protected class ActorResult {
+    protected ActorResult(
+        protected let actorId!: Int64,
+        protected let actorName!: String,
+        protected let exception!: ?Exception,
+        protected let startTime!: DateTime,
+        protected let endTime!: DateTime
     ) {}
     
-    public static func success(actor: Actor, startTime: DateTime, endTime: DateTime): ActorResult {
+    protected static func success(actor: Actor, startTime: DateTime, endTime: DateTime): ActorResult {
         ActorResult(
             actorId: actor.id,
             actorName: actor.name,
@@ -31,7 +31,7 @@ public class ActorResult {
         )
     }
     
-    public static func failure(actor: Actor, e: Exception, startTime: DateTime, endTime: DateTime): ActorResult {
+    protected static func failure(actor: Actor, e: Exception, startTime: DateTime, endTime: DateTime): ActorResult {
         ActorResult(
             actorId: actor.id,
             actorName: actor.name,
@@ -41,22 +41,22 @@ public class ActorResult {
         )
     }
     
-    public prop isSuccess: Bool {
+    protected prop isSuccess: Bool {
         get() { this.exception.isNone() }
     }
     
-    public prop duration: Duration {
+    protected prop duration: Duration {
         get() { endTime - startTime }
     }
     
-    public func hasException(): Bool {
+    protected func hasException(): Bool {
         match (exception) {
             case Some(_) => true
             case None => false
         }
     }
     
-    public func getExceptionMessage(): String {
+    protected func getExceptionMessage(): String {
         match (exception) {
             case Some(e) => e.toString()
             case None => ""
@@ -64,15 +64,15 @@ public class ActorResult {
     }
 }
 
-public class ScenarioIterationResult {
-    public ScenarioIterationResult(
-        public let iteration!: Int64, 
-        public let failedAfter!: Bool,
-        public let actorResults!: Array<ActorResult>,
-        public let consistencyValidation!: ?ConsistencyValidationResult
+protected class ScenarioIterationResult {
+    protected ScenarioIterationResult(
+        protected let iteration!: Int64, 
+        protected let failedAfter!: Bool,
+        protected let actorResults!: Array<ActorResult>,
+        protected let consistencyValidation!: ?ConsistencyValidationResult
     ) {}
     
-    public prop avgDuration: Duration {
+    protected prop avgDuration: Duration {
         get() {
             var total: Duration = Duration.Zero
             for (r in actorResults) {
@@ -82,7 +82,7 @@ public class ScenarioIterationResult {
         }
     }
 
-    public prop allSucceeded: Bool {
+    protected prop allSucceeded: Bool {
         get() {
             if (failedAfter) {
                 return false
@@ -104,7 +104,7 @@ public class ScenarioIterationResult {
         }
     }
     
-    public prop successCount: Int64 {
+    protected prop successCount: Int64 {
         get() {
             var count: Int64 = 0
             for (r in actorResults) {
@@ -116,7 +116,7 @@ public class ScenarioIterationResult {
         }
     }
     
-    public prop failureCount: Int64 {
+    protected prop failureCount: Int64 {
         get() {
             var count: Int64 = 0
             if (failedAfter) {
@@ -133,10 +133,10 @@ public class ScenarioIterationResult {
 }
 
 public class ScenarioResult {
-    public ScenarioResult(
+    protected ScenarioResult(
         public let scenarioName!: String,
         public let iterationsExecuted!: Int64,
-        public let iterationResults!: ArrayList<ScenarioIterationResult>,
+        protected let iterationResults!: ArrayList<ScenarioIterationResult>,
         public let totalDuration!: Duration
     ) {}
     
@@ -196,7 +196,7 @@ public class ScenarioResult {
         sb.toString()
     }
     
-    public func getFirstFailure(): ?ActorResult {
+    protected func getFirstFailure(): ?ActorResult {
         for (iter in iterationResults) {
             for (r in iter.actorResults) {
                 if (!r.isSuccess) {

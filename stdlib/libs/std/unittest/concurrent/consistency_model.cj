@@ -14,7 +14,7 @@ public enum ConsistencyModel {
     | Serializability
 }
 
-public func modelDisplayName(model: ConsistencyModel): String {
+protected func modelDisplayName(model: ConsistencyModel): String {
     match (model) {
         case SequentialConsistency => "sequentially consistent"
         case Linearizability => "linearizable"
@@ -22,7 +22,7 @@ public func modelDisplayName(model: ConsistencyModel): String {
     }
 }
 
-public func modelCapitalizedName(model: ConsistencyModel): String {
+protected func modelCapitalizedName(model: ConsistencyModel): String {
     match (model) {
         case SequentialConsistency => "Sequentially consistent"
         case Linearizability => "Linearizable"
@@ -30,7 +30,7 @@ public func modelCapitalizedName(model: ConsistencyModel): String {
     }
 }
 
-public func modelNotName(model: ConsistencyModel): String {
+protected func modelNotName(model: ConsistencyModel): String {
     match (model) {
         case SequentialConsistency => "NOT sequentially consistent"
         case Linearizability => "NOT linearizable"

@@ -13,7 +13,7 @@ import std.time.DateTime
 import std.collection.ArrayList
 
 public class ConcurrentScenario {
-    public ConcurrentScenario(
+    protected ConcurrentScenario(
         protected let name!: String,
         protected let threadCount!: Int64,
         protected let iterations!: Int64,
@@ -36,7 +36,7 @@ public class ConcurrentScenario {
             true
         }
         
-        executor.executeIterationsWithCallback(iterations, callback)
+        executor.executeIterationsWithCallback(iterations, callback: callback)
         
         let endTime = DateTime.now()
         
@@ -58,11 +58,11 @@ public func scenario(): ScenarioBuilder {
 }
 
 
-public class Actor {
-    public Actor(
-        public let id!: Int64,
-        public let operations!: Array<() -> EquatableObj>,
-        public let operationNames!: Array<String>,
-        public let name!: String
+protected class Actor {
+    protected Actor(
+        protected let id!: Int64,
+        protected let operations!: Array<() -> EquatableObj>,
+        protected let operationNames!: Array<String>,
+        protected let name!: String
     ) {}
 }

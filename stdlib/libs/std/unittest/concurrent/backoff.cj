@@ -11,14 +11,14 @@ package std.unittest.concurrent
 import std.random.Random
 import std.math.abs
 
-public class BackoffGenerator {
-    public BackoffGenerator(
-        public var random!: Random = Random(),
-        public var sigma!: Float64 = 1.0,
-        public let maxBackoff!: Int64 = 10000
+protected class BackoffGenerator {
+    protected BackoffGenerator( 
+        protected var random!: Random = Random(),
+        protected var sigma!: Float64 = 1.0,
+        protected let maxBackoff!: Int64 = 10000
     ) {}
     
-    public func next(): Int64 {
+    protected func next(): Int64 {
         let u = random.nextGaussianFloat64(sigma: sigma)
         let value = Int64(abs(u))
         if (value > maxBackoff) {
@@ -27,12 +27,12 @@ public class BackoffGenerator {
         value
     }
     
-    public func nextBounded(min: Int64, max: Int64): Int64 {
+    protected func nextBounded(min: Int64, max: Int64): Int64 {
         let raw = next()
         min + (raw % (max - min + 1))
     }
     
-    public func reset(seed: Int64): Unit {
+    protected func reset(seed: Int64): Unit {
         random = Random(UInt64(seed))
     }
 }
