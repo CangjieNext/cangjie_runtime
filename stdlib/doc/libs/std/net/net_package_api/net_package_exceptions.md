@@ -43,7 +43,7 @@ main(): Int64 {
 运行结果：
 
 ```text
-Caught SocketException: 
+Caught SocketException:
 Exception type: SocketException
 ```
 
@@ -126,7 +126,7 @@ main(): Int64 {
 运行结果：
 
 ```text
-Caught SocketTimeoutException: 
+Caught SocketTimeoutException:
 Exception type: SocketTimeoutException
 ```
 

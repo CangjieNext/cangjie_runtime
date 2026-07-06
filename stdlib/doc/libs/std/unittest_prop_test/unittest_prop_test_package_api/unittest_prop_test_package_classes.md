@@ -434,7 +434,7 @@ public override func shrinker(_: Configuration): RandomDataShrinkerRange<T>
 ### prop isInfinite
 
 ```cangjie
-public override prop isInfinite: Bool 
+public override prop isInfinite: Bool
 ```
 
 功能：当该策略为无穷尽时，值为 true, 否则为 false。
@@ -445,7 +445,7 @@ public override prop isInfinite: Bool
 
 ```cangjie
 public class LazySeq<T> <: Iterable<T> {
-    public init(element: T) 
+    public init(element: T)
     public init()
 }
 ```
@@ -630,7 +630,7 @@ public static func mix(l1: LazySeq<T>, l2: LazySeq<T>, l3: LazySeq<T>, l4: LazyS
 ### static func mix(LazySeq\<T>, LazySeq\<T>, LazySeq\<T>, LazySeq\<T>, LazySeq\<T>)
 
 ```cangjie
-public static func mix(l1: LazySeq<T>, l2: LazySeq<T>, l3: LazySeq<T>, l4: LazySeq<T>, l5: LazySeq<T>): LazySeq<T> 
+public static func mix(l1: LazySeq<T>, l2: LazySeq<T>, l3: LazySeq<T>, l4: LazySeq<T>, l5: LazySeq<T>): LazySeq<T>
 ```
 
 功能：五个序列穿插混合成一个。

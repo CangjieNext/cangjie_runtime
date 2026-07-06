@@ -291,7 +291,7 @@ main() {
         return 42
     }
     println("Result: ${result}")
-    
+
     // Can also execute operations without return value
     exclusiveScope<Unit> {
         println("Executing in exclusive scope")

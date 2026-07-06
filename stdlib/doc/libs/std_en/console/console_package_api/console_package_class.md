@@ -31,7 +31,7 @@ import std.console.*
 main() {
     // Get standard error output stream
     let stderr = Console.stdErr
-    
+
     // Output message using standard error stream
     stderr.write("This is a standard error message")
 }
@@ -62,7 +62,7 @@ import std.console.*
 main() {
     // Get standard input stream
     let stdin = Console.stdIn
-    
+
     // Note: In actual usage, we typically don't directly operate stdin,
     // but use its provided read method to read user input
     println("Standard input stream successfully obtained")
@@ -94,7 +94,7 @@ import std.console.*
 main() {
     // Get standard output stream
     let stdout = Console.stdOut
-    
+
     // Output message using standard output stream
     stdout.write("This is a standard output message")
 }
@@ -114,7 +114,7 @@ public class ConsoleReader <: InputStream
 
 Function: Provides functionality to read data from console and convert it to characters or strings.
 
-This type cannot be instantiated directly; instances can only be obtained through [Console.stdIn](console_package_class.md#static-prop-stdin). 
+This type cannot be instantiated directly; instances can only be obtained through [Console.stdIn](console_package_class.md#static-prop-stdin).
 Read operations are synchronous, with an internal buffer storing console input content. When reaching the end of console input stream, console read functions will return `None`.
 
 [ConsoleReader](console_package_class.md#class-consolereader-deprecated) has only one instance, with all methods sharing the same buffer. Scenarios where related `read` methods return `None` include:
@@ -156,7 +156,7 @@ import std.console.*
 main() {
     // Get standard input stream
     let stdin = Console.stdIn
-    
+
     // Read next character
     // Note: During actual execution, the program waits for user input. Assume user inputs 'H'
     let r = stdin.read()
@@ -199,10 +199,10 @@ import std.console.*
 main() {
     // Get standard input stream
     let stdin = Console.stdIn
-    
+
     // Create byte array for reading data
     let buffer: Array<Byte> = [0, 0 , 0 , 0 , 0]
-    
+
     // Read data from standard input into array
     // Note: During actual execution, the program waits for user input. Assume input is 'abcde'
     stdin.read(buffer)
@@ -239,7 +239,7 @@ import std.console.*
 main() {
     // Get standard input stream
     let stdin = Console.stdIn
-    
+
     // Read all characters from standard input until EOF
     // Note: During actual execution, the program waits for user input until EOF (Ctrl+D or Ctrl+Z)
     // Current example assumes input 'abcde' followed by pressing Ctrl+D twice
@@ -283,7 +283,7 @@ import std.console.*
 main() {
     // Get standard input stream
     let stdin = Console.stdIn
-    
+
     // Read data from standard input until condition is met
     // Note: During actual execution, the program waits for user input. Assume input 'abcdefg' followed by Enter
     let str = stdin.readUntil({r: Rune => r == r'e'})
@@ -324,7 +324,7 @@ import std.console.*
 main() {
     // Get standard input stream
     let stdin = Console.stdIn
-    
+
     // Read data from standard input until specified character is encountered
     // Note: During actual execution, the program waits for user input. Assume input 'abcdefg' followed by Enter
     let str = stdin.readUntil(r'e')
@@ -361,7 +361,7 @@ import std.console.*
 main() {
     // Get standard input stream
     let stdin = Console.stdIn
-    
+
     // Read a line of string from standard input
     // Note: During actual execution, the program waits for user input. Assume input 'abcde' followed by Enter
     let str = stdin.readln()
@@ -411,13 +411,13 @@ import std.console.*
 main() {
     // Get standard output stream
     let stdout = Console.stdOut
-    
+
     // Write some data to standard output
     stdout.write("This is some output data\n")
-    
+
     // Flush output stream to ensure immediate output
     stdout.flush()
-    
+
     println("Data has been flushed to output stream")
 }
 ```
@@ -450,10 +450,10 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Create a byte array
     let buffer: Array<Byte> = [72 , 101 , 108 , 108 , 111]  // ASCII codes for "Hello"
-    
+
     // Write the byte array to standard output
     // Note: In actual usage, this will write the byte array contents to stdout
     stdout.write(buffer)
@@ -487,7 +487,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write boolean values to standard output
     stdout.write(true)
     stdout.write(false)
@@ -521,7 +521,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write a 16-bit floating-point value to standard output
     stdout.write(3.14f16)
 }
@@ -554,7 +554,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write a 32-bit floating-point value to standard output
     stdout.write(3.14159f32)
 }
@@ -587,7 +587,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write a 64-bit floating-point value to standard output
     stdout.write(3.141592653589793)
 }
@@ -620,7 +620,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write a 16-bit signed integer value to standard output
     stdout.write(12345i16)
 }
@@ -653,7 +653,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write a 32-bit signed integer value to standard output
     stdout.write(1234567890i32)
 }
@@ -686,7 +686,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write a 64-bit signed integer value to standard output
     stdout.write(123456789012345)
 }
@@ -719,7 +719,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write an 8-bit signed integer value to standard output
     stdout.write(123i8)
 }
@@ -752,7 +752,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write a Unicode character value to standard output
     stdout.write(r'A')
 }
@@ -785,7 +785,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write a string value to standard output
     stdout.write("Hello, World!")
 }
@@ -818,7 +818,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write a 16-bit unsigned integer value to standard output
     stdout.write(12345u16)
 }
@@ -851,7 +851,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write a 32-bit unsigned integer value to standard output
     stdout.write(1234567890u32)
 }
@@ -884,7 +884,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write a 64-bit unsigned integer value to standard output
     stdout.write(123456789012345u64)
 }
@@ -917,7 +917,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write an 8-bit unsigned integer value to standard output
     stdout.write(123u8)
 }
@@ -950,7 +950,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write a data type implementing the ToString interface to standard output
     stdout.write(MyID())
 }
@@ -989,10 +989,10 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Create a byte array
     let buffer: Array<Byte> = [72 , 101 , 108 , 108 , 111]  // ASCII codes for "Hello"
-    
+
     // Write the byte array to standard output
     stdout.writeln(buffer)
 }
@@ -1025,7 +1025,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write boolean values to standard output
     stdout.writeln(true)
     stdout.writeln(false)
@@ -1060,7 +1060,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write a 16-bit floating-point value to standard output
     stdout.writeln(3.14f16)
 }
@@ -1093,7 +1093,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write a 32-bit floating-point value to standard output
     stdout.writeln(3.14159f32)
 }
@@ -1126,7 +1126,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write a 64-bit floating-point value to standard output
     stdout.writeln(3.141592653589793)
 }
@@ -1159,7 +1159,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write a 16-bit signed integer value to standard output
     stdout.writeln(12345i16)
 }
@@ -1192,7 +1192,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write a 32-bit signed integer value to standard output
     stdout.writeln(1234567890i32)
 }
@@ -1225,7 +1225,7 @@ import std.console.*
 main() {
     // Get the standard output stream
     let stdout = Console.stdOut
-    
+
     // Write a 64-bit signed integer value to standard output
     stdout.writeln(123456789012345)
 }
@@ -1258,7 +1258,7 @@ import std.console.*
 main() {
     // Get standard output stream
     let stdout = Console.stdOut
-    
+
     // Write 8-bit signed integer value to standard output
     stdout.writeln(123i8)
 }
@@ -1291,7 +1291,7 @@ import std.console.*
 main() {
     // Get standard output stream
     let stdout = Console.stdOut
-    
+
     // Write Unicode character value to standard output
     stdout.writeln(r'A')
 }
@@ -1324,7 +1324,7 @@ import std.console.*
 main() {
     // Get standard output stream
     let stdout = Console.stdOut
-    
+
     // Write string value to standard output
     stdout.writeln("Hello, World!")
 }
@@ -1357,7 +1357,7 @@ import std.console.*
 main() {
     // Get standard output stream
     let stdout = Console.stdOut
-    
+
     // Write 16-bit unsigned integer value to standard output
     stdout.writeln(12345u16)
 }
@@ -1390,7 +1390,7 @@ import std.console.*
 main() {
     // Get standard output stream
     let stdout = Console.stdOut
-    
+
     // Write 32-bit unsigned integer value to standard output
     stdout.writeln(1234567890u32)
 }
@@ -1423,7 +1423,7 @@ import std.console.*
 main() {
     // Get standard output stream
     let stdout = Console.stdOut
-    
+
     // Write 64-bit unsigned integer value to standard output
     stdout.writeln(123456789012345u64)
 }
@@ -1456,7 +1456,7 @@ import std.console.*
 main() {
     // Get standard output stream
     let stdout = Console.stdOut
-    
+
     // Write 8-bit unsigned integer value to standard output
     stdout.writeln(123u8)
 }
@@ -1489,7 +1489,7 @@ import std.console.*
 main() {
     // Get standard output stream
     let stdout = Console.stdOut
-    
+
     // Write data type implementing ToString interface to standard output
     stdout.writeln(MyID())
 }

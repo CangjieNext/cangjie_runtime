@@ -31,13 +31,13 @@ main(): Unit {
     let outputSpec = ArgumentSpec.Long("output", ArgumentMode.RequiredValue)
     let specs = [helpSpec, outputSpec]
     let args = ["-h", "--output", "output.txt", "file1.txt", "file2.txt"]
-    
+
     let parsedResult = parseArguments(args, specs)
-    
+
     // Access the nonOptions property
     println("Parsed nonOptions: ${parsedResult.nonOptions}")
     println("nonOptions size: ${parsedResult.nonOptions.size}")
-    
+
     // Iterate through nonOptions
     println("All non-option arguments:")
     for (nonOption in parsedResult.nonOptions) {
@@ -79,25 +79,25 @@ main(): Unit {
     let verboseSpec = ArgumentSpec.Short(r'v', ArgumentMode.OptionalValue)
     let specs = [helpSpec, outputSpec, verboseSpec]
     let args = ["-h", "--output", "output.txt", "-v", "file1.txt"]
-    
+
     let parsedResult = parseArguments(args, specs)
-    
+
     // Access the options property
     println("Parsed options size: ${parsedResult.options.size}")
-    
+
     // Check if specific options exist
     if (parsedResult.options.contains("h")) {
         println("Contains help option h")
     }
-    
+
     if (parsedResult.options.contains("output")) {
         println("Output option value: ${parsedResult.options["output"]}")
     }
-    
+
     if (parsedResult.options.contains("v")) {
         println("Verbose option value: '${parsedResult.options["v"]}'")
     }
-    
+
     // Iterate through all options
     println("All options:")
     for (key in parsedResult.options.keys()) {

@@ -57,7 +57,7 @@ public func arg(key: String): String
 ### func fail(String)
 
 ```cangjie
-public func fail(message: String): Nothing 
+public func fail(message: String): Nothing
 ```
 
 功能：存储失败信息，在用户定义的断言函数中提供并抛出 [`AssertExpection`](./unittest_package_exceptions.md#class-assertexception)。
@@ -81,7 +81,7 @@ public func fail<PP>(pt: PP): Nothing where PP <: PrettyPrintable
 ### func failExpect(String)
 
 ```cangjie
-public func failExpect(message: String): Unit 
+public func failExpect(message: String): Unit
 ```
 
 功能：存储失败信息，在用户定义的断言函数内提供并继续函数执行。
@@ -1015,7 +1015,7 @@ public func r<T>(
     value: T,
     exprAsText: String,
     position: Int64
-): T 
+): T
 ```
 
 功能：记录对比数据。

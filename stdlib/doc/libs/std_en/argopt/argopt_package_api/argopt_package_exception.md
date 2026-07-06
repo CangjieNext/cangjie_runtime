@@ -33,7 +33,7 @@ main(): Unit {
     // Create an exception instance using the no-argument constructor
     let exception = ArgumentParseException()
     println("Created an ArgumentParseException instance with no arguments")
-    
+
     // The exception can be thrown and caught
     try {
         throw ArgumentParseException()
@@ -73,7 +73,7 @@ main(): Unit {
     let message = "Argument parsing failed: unknown option --xyz"
     let exception = ArgumentParseException(message)
     println("Created an ArgumentParseException instance with message: ${exception.message}")
-    
+
     // The exception can be thrown and caught
     try {
         throw ArgumentParseException("Invalid argument format")

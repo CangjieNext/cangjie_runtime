@@ -237,7 +237,7 @@ public override operator func !=(that: ConfigurationKey): Bool
 
 ```cangjie
 extend ConfigurationKey {
-    static func create<T>(name: String): ConfigurationKey 
+    static func create<T>(name: String): ConfigurationKey
 }
 ```
 
@@ -292,8 +292,8 @@ main() {
 ```text
 Start:
 ----------------------------------------
-left                                    
-                centered                
+left
+                centered
                                    right
     isTopLevel: false
 ```

@@ -1728,7 +1728,7 @@ main(): Unit {
 ```text
 11
 Hello World
-buffer after clear: 
+buffer after clear:
 capacity after clear: 11
 ```
 

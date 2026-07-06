@@ -24,7 +24,7 @@ When `@Derive[ToString]` is applied to a class or struct, Deriving collects and 
 For collected fields to be used in Deriving, their types must implement the target interface to combine field results. For example, when processing `ToString`, the generated code will call `toString` on all collected fields, then concatenate the results with corresponding field names into a string. If any field's type doesn't support `ToString`, a compilation error will be thrown and Deriving cannot complete.
 
 > **Note**
-> 
+>
 > Classes marked for derivation should be final: they should not be open, abstract, or `sealed`.
 
 Some fields may have special meanings where their values aren't particularly meaningful. These can be excluded by applying `@DeriveExclude` to such fields:
@@ -165,7 +165,7 @@ struct S {
 Fields and properties being derived cannot be `private`. Therefore, `private` fields or properties should either be excluded or made package-visible.
 
 > **Note**
-> 
+>
 > Static fields and properties are always ignored, so they cannot be modified by `@DeriveInclude` or `@DeriveExclude`.
 
 ## Supported Interfaces

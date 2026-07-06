@@ -9,7 +9,7 @@ The Verification API is part of the mock framework, providing the following func
 
 Verification operates by examining the invocation log built during test execution to run assertions. The invocation log covers all calls made accessible to **mock** and **spy** objects (including static members, top-level functions, and top-level variables) during testing. Only calls made on mock/spy objects (including static members, top-level functions, and top-level variables) can be verified.
 
-The `Verify` class serves as the entry point to the Verification API.  
+The `Verify` class serves as the entry point to the Verification API.
 The **@Called** macro is used to construct assertions about the code.
 
 <!-- Link to the Verify class introduction in the Verification API manual (auto-generated) -->
@@ -186,7 +186,7 @@ Verify.unordered(@Called(foo.bar(_)).times(4))
 
 **Unordered** verification includes **Partial** and **Exhaustive** modes.
 
-By default, **Exhaustive** mode is used, requiring all calls on the mock/spy objects mentioned in the verification statements to be listed.  
+By default, **Exhaustive** mode is used, requiring all calls on the mock/spy objects mentioned in the verification statements to be listed.
 **Partial** mode only lists **some** of the calls.
 
 <!--compile.onlyformat-->
@@ -298,7 +298,7 @@ Failure types include:
 
 Another failure type, **Disjoint statements**, does not necessarily indicate an issue with the test code itself. This error occurs when a call matches multiple statements. Using statements with overlapping argument matchers in a single verification block may cause this error. Ambiguous matching between statements and calls is not allowed.## Examples and Patterns
 
-A common pattern when using the verification API is to validate interactions between the test code (whether it's a function, class, or entire package) and external objects.  
+A common pattern when using the verification API is to validate interactions between the test code (whether it's a function, class, or entire package) and external objects.
 As shown below:
 
 * Create **spy** objects.

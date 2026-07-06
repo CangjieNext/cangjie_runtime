@@ -29,17 +29,17 @@ func isPositive(x: Int64): Bool {
 main() {
     // Create a function to check if all elements are positive
     let allPositive = all<Int64>(isPositive)
-    
+
     // Test case where all elements are positive
     let list1 = ArrayList.of([1, 2, 3, 4, 5])
     let result1 = allPositive(list1)
     println("All elements are positive: ${result1}")
-    
+
     // Test case where not all elements are positive
     let list2 = ArrayList.of([1, -2, 3, 4, 5])
     let result2 = allPositive(list2)
     println("All elements are positive: ${result2}")
-    
+
     return 0
 }
 ```
@@ -80,17 +80,17 @@ func isNegative(x: Int64): Bool {
 main() {
     // Create a function to check if any element is negative
     let hasNegative = any<Int64>(isNegative)
-    
+
     // Test case with no negative elements
     let list1 = ArrayList.of([1, 2, 3, 4, 5])
     let result1 = hasNegative(list1)
     println("Contains negative: ${result1}")
-    
+
     // Test case with negative elements
     let list2 = ArrayList.of([1, -2, 3, 4, 5])
     let result2 = hasNegative(list2)
     println("Contains negative: ${result2}")
-    
+
     return 0
 }
 ```
@@ -127,7 +127,7 @@ import std.collection.*
 main() {
     // Create a function to get element at position 2
     let getElementAt = at<Int64>(2)
-    
+
     // Test case where position exists
     let list1 = ArrayList.of([10, 20, 30, 40, 50])
     let result1 = getElementAt(list1)
@@ -135,7 +135,7 @@ main() {
         case Some(value) => println("Element at position 2: ${value}")
         case None => println("No element at position 2")
     }
-    
+
     // Test case where position doesn't exist
     let list2 = ArrayList.of([10, 20])
     let result2 = getElementAt(list2)
@@ -143,7 +143,7 @@ main() {
         case Some(value) => println("Element at position 2: ${value}")
         case None => println("No element at position 2")
     }
-    
+
     return 0
 }
 ```
@@ -181,12 +181,12 @@ main() {
     // Create an array
     let hashSet = [1, 2, 3, 4, 5]
     let iterator = hashSet.iterator()
-    
+
     // Convert iterator to ArrayList
     let arrayList = collectArrayList<Int64>(iterator)
     println("ArrayList size: ${arrayList.size}")
     println("ArrayList content: ${arrayList}")
-    
+
     return 0
 }
 ```
@@ -224,12 +224,12 @@ main() {
     // Create an ArrayList
     let hashSet = [1, 2, 3, 4, 5]
     let iterator = hashSet.iterator()
-    
+
     // Convert iterator to array
     let array = collectArray<Int64>(iterator)
     println("Array size: ${array.size}")
     println("Array content: ${array}")
-    
+
     return 0
 }
 ```
@@ -267,12 +267,12 @@ main() {
     // Create an array of key-value pairs
     let pairs = [(1, "one"), (2, "two"), (3, "three")]
     let iterator = pairs.iterator()
-    
+
     // Convert iterator to HashMap
     let hashMap = collectHashMap<Int64, String>(iterator)
     println("HashMap size: ${hashMap.size}")
     println("HashMap content: ${hashMap}")
-    
+
     return 0
 }
 ```
@@ -310,12 +310,12 @@ main() {
     // Create an array with duplicate elements
     let array = [1, 2, 2, 3, 3, 4, 5, 5]
     let iterator = array.iterator()
-    
+
     // Convert iterator to HashSet (duplicates removed)
     let hashSet = collectHashSet<Int64>(iterator)
     println("HashSet size: ${hashSet.size}")
     println("HashSet content: ${hashSet}")
-    
+
     return 0
 }
 ```
@@ -352,24 +352,24 @@ import std.collection.*
 main() {
     // Create a function to join elements with comma
     let joinWithComma = collectString<Int64>(delimiter: ", ")
-    
+
     // Create an array
     let array = [1, 2, 3, 4, 5]
     let iterator = array.iterator()
-    
+
     // Convert iterator to string
     let result = joinWithComma(iterator)
     println("Joined result: ${result}")
-    
+
     // Create another array for joining without delimiter
     let array2 = [1, 2, 3, 4, 5]
     let iterator2 = array2.iterator()
-    
+
     // Create a function to join without delimiter
     let joinWithoutDelimiter = collectString<Int64>()
     let result2 = joinWithoutDelimiter(iterator2)
     println("Joined without delimiter: ${result2}")
-    
+
     return 0
 }
 ```
@@ -407,23 +407,23 @@ main() {
     // Create two arrays
     let array1 = [1, 2, 3]
     let array2 = [4, 5, 6]
-    
+
     // Get iterator of first array
     let iterator1 = array1.iterator()
-    
+
     // Create concatenation function
     let concatFunc = concat<Int64>(array2)
-    
+
     // Concatenate iterators
     let concatenated = concatFunc(iterator1)
-    
+
     // Iterate through concatenated iterator
     var result = ""
     for (value in concatenated) {
         result = result + "${value} "
     }
     println("Concatenated result: ${result}")
-    
+
     return 0
 }
 ```
@@ -431,7 +431,7 @@ main() {
 Output:
 
 ```text
-Concatenated result: 1 2 3 4 5 6 
+Concatenated result: 1 2 3 4 5 6
 ```
 
 ## func contains\<T>(T) where T <: Equatable\<T>
@@ -501,18 +501,18 @@ import std.collection.*
 main() {
     // Creates an array
     let array = [1, 2, 3, 4, 5]
-    
+
     // Counts the number of array elements
     let countResult = count<Int64>(array)
     println("Number of array elements: ${countResult}")
-    
+
     // Creates an empty array
     let emptyArray: Array<Int64> = []
-    
+
     // Counts the number of empty array elements
     let emptyCount = count<Int64>(emptyArray)
     println("Number of empty array elements: ${emptyCount}")
-    
+
     return 0
 }
 ```
@@ -549,16 +549,16 @@ import std.collection.*
 main() {
     // Creates an array
     let array = ["a", "b", "c", "d"]
-    
+
     // Obtains an iterator with indices
     let enumIterator = enumerate<String>(array)
-    
+
     // Iterates through the indexed iterator
     println("Elements with indices:")
     for ((index, value) in enumIterator) {
         println("Index: ${index}, Value: ${value}")
     }
-    
+
     return 0
 }
 ```
@@ -603,20 +603,20 @@ main() {
     // Creates an array
     let array = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     let iterator = array.iterator()
-    
+
     // Creates a function to filter even numbers
     let filterEven = filter<Int64>(isEven)
-    
+
     // Filters out even numbers
     let evenIterator = filterEven(iterator)
-    
+
     // Iterates through the filtered results
     var result = "Even numbers: "
     for (value in evenIterator) {
         result = result + "${value} "
     }
     println(result)
-    
+
     return 0
 }
 ```
@@ -624,7 +624,7 @@ main() {
 Execution Result:
 
 ```text
-Even numbers: 2 4 6 8 10 
+Even numbers: 2 4 6 8 10
 ```
 
 ## func filterMap\<T, R>((T) -> ?R)
@@ -673,20 +673,20 @@ main() {
     // Creates a string array
     let array = ["1", "2", "a", "3", "b", "4", "c", "5"]
     let iterator = array.iterator()
-    
+
     // Creates a function to filter and convert
     let parseAndFilter = filterMap<String, Int64>(parseInt)
-    
+
     // Filters and converts strings to integers
     let parsedIterator = parseAndFilter(iterator)
-    
+
     // Iterates through the filtered and converted results
     var result = "Parsed integers: "
     for (value in parsedIterator) {
         result = result + "${value} "
     }
     println(result)
-    
+
     return 0
 }
 ```
@@ -694,7 +694,7 @@ main() {
 Execution Result:
 
 ```text
-Parsed integers: 1 2 3 4 5 
+Parsed integers: 1 2 3 4 5
 ```
 
 ## func first\<T>(Iterable\<T>)
@@ -722,24 +722,24 @@ import std.collection.*
 main() {
     // Creates an array
     let array = [10, 20, 30, 40, 50]
-    
+
     // Retrieves the first element
     let firstElement = first<Int64>(array)
     match (firstElement) {
         case Some(value) => println("First element: ${value}")
         case None => println("Array is empty")
     }
-    
+
     // Creates an empty array
     let emptyArray: Array<Int64> = []
-    
+
     // Attempts to retrieve the first element of an empty array
     let emptyFirst = first<Int64>(emptyArray)
     match (emptyFirst) {
         case Some(value) => println("First element: ${value}")
         case None => println("Array is empty")
     }
-    
+
     return 0
 }
 ```
@@ -814,20 +814,20 @@ func getDivisors(n: Int64): ArrayList<Int64> {
 main() {
     // Creates an array
     let array = [1, 2, 3, 4, 5, 6]
-    
+
     // Creates a flatMap function
     let flatMapFunc = flatMap<Int64, Int64>(getDivisors)
-    
+
     // Applies the flatMap function
     let flatIterator = flatMapFunc(array)
-    
+
     // Iterates through the results
     var result = "All divisors: "
     for (value in flatIterator) {
         result = result + "${value} "
     }
     println(result)
-    
+
     return 0
 }
 ```
@@ -835,7 +835,7 @@ main() {
 Execution Result:
 
 ```text
-All divisors: 1 1 2 1 3 1 2 4 1 5 1 2 3 6 
+All divisors: 1 1 2 1 3 1 2 4 1 5 1 2 3 6
 ```
 
 ## func flatten\<T, R>(Iterable\<T>) where T <: Iterable\<R>
@@ -863,17 +863,17 @@ import std.collection.*
 main() {
     // Create a nested array
     let nestedArray = [[1, 2], [3, 4], [5, 6]]
-    
+
     // Flatten the nested array
     let flattenedIterator = flatten<Array<Int64>, Int64>(nestedArray)
-    
+
     // Iterate through the flattened result
     var result = "Flattened elements: "
     for (value in flattenedIterator) {
         result = result + "${value} "
     }
     println(result)
-    
+
     return 0
 }
 ```
@@ -881,7 +881,7 @@ main() {
 Output:
 
 ```text
-Flattened elements: 1 2 3 4 5 6 
+Flattened elements: 1 2 3 4 5 6
 ```
 
 ## func fold\<T, R>(R, (R, T) -> R)
@@ -918,22 +918,22 @@ func concatOperation(acc: String, value: String): String {
 main() {
     // Create an array
     let array = [1, 2, 3, 4, 5]
-    
+
     // Create a folding function for summation
     let sumFold = fold<Int64, Int64>(0, sumOperation)
-    
+
     // Compute the sum of array elements
     let sumResult = sumFold(array)
     println("Sum of array elements: ${sumResult}")
-    
+
     // Create a folding function for string concatenation
     let stringArray = ["Hello", " ", "World", "!"]
     let concatFold = fold<String, String>("", concatOperation)
-    
+
     // Concatenate strings
     let concatResult = concatFold(stringArray)
     println("Concatenated string: ${concatResult}")
-    
+
     return 0
 }
 ```
@@ -975,14 +975,14 @@ main() {
     // Create an array
     let array = [1, 2, 3, 4, 5]
     let iterator = array.iterator()
-    
+
     // Create a function to iterate and print elements
     let printFunc = forEach<Int64>(printElement)
-    
+
     // Iterate and print all elements
     println("Iterating through array elements:")
     printFunc(iterator)
-    
+
     return 0
 }
 ```
@@ -1031,19 +1031,19 @@ main() {
     // Create an array
     let array = [10, 20, 30, 40, 50]
     let iterator = array.iterator()
-    
+
     // Create an inspection function
     let inspectFunc = inspect<Int64>(inspectElement)
-    
+
     // Apply the inspection function
     let inspectedIterator = inspectFunc(iterator)
-    
+
     // Iterate through the iterator (the inspection function executes on each next() call)
     println("Iterating and inspecting elements:")
     for (value in inspectedIterator) {
         println("Processed element: ${value}")
     }
-    
+
     return 0
 }
 ```
@@ -1089,18 +1089,18 @@ import std.collection.*
 main() {
     // Create a non-empty array
     let array = [1, 2, 3, 4, 5]
-    
+
     // Check if the array is empty
     let isEmptyResult = isEmpty<Int64>(array)
     println("Is array empty: ${isEmptyResult}")
-    
+
     // Create an empty array
     let emptyArray: Array<Int64> = []
-    
+
     // Check if the empty array is empty
     let isEmptyEmpty = isEmpty<Int64>(emptyArray)
     println("Is empty array empty: ${isEmptyEmpty}")
-    
+
     return 0
 }
 ```
@@ -1137,24 +1137,24 @@ import std.collection.*
 main() {
     // Create an array
     let array = [10, 20, 30, 40, 50]
-    
+
     // Get the last element
     let lastElement = last<Int64>(array)
     match (lastElement) {
         case Some(value) => println("Last element: ${value}")
         case None => println("Array is empty")
     }
-    
+
     // Create an empty array
     let emptyArray: Array<Int64> = []
-    
+
     // Attempt to get the last element of an empty array
     let emptyLast = last<Int64>(emptyArray)
     match (emptyLast) {
         case Some(value) => println("Last element: ${value}")
         case None => println("Array is empty")
     }
-    
+
     return 0
 }
 ```
@@ -1196,20 +1196,20 @@ main() {
     // Create an array
     let array = [1, 2, 3, 4, 5]
     let iterator = array.iterator()
-    
+
     // Create a mapping function (computes squares)
     let squareMap = map<Int64, Int64>(square)
-    
+
     // Apply the mapping function
     let squaredIterator = squareMap(iterator)
-    
+
     // Iterate through the mapped result
     var result = "Squared values: "
     for (value in squaredIterator) {
         result = result + "${value} "
     }
     println(result)
-    
+
     return 0
 }
 ```
@@ -1217,7 +1217,7 @@ main() {
 Output:
 
 ```text
-Squared values: 1 4 9 16 25 
+Squared values: 1 4 9 16 25
 ```
 
 ## func max\<T>(Iterable\<T>) where T <: Comparable\<T>
@@ -1245,24 +1245,24 @@ import std.collection.*
 main() {
     // Create an array
     let array = [3, 1, 4, 1, 5, 9, 2, 6, 5, 3]
-    
+
     // Get the maximum element
     let maxElement = max<Int64>(array)
     match (maxElement) {
         case Some(value) => println("Maximum element: ${value}")
         case None => println("Array is empty")
     }
-    
+
     // Create an empty array
     let emptyArray: Array<Int64> = []
-    
+
     // Attempt to get the maximum element of an empty array
     let emptyMax = max<Int64>(emptyArray)
     match (emptyMax) {
         case Some(value) => println("Maximum element: ${value}")
         case None => println("Array is empty")
     }
-    
+
     return 0
 }
 ```
@@ -1299,24 +1299,24 @@ import std.collection.*
 main() {
     // Create an array
     let array = [3, 1, 4, 1, 5, 9, 2, 6, 5, 3]
-    
+
     // Get the smallest element
     let minElement = min<Int64>(array)
     match (minElement) {
         case Some(value) => println("Smallest element: ${value}")
         case None => println("Array is empty")
     }
-    
+
     // Create an empty array
     let emptyArray: Array<Int64> = []
-    
+
     // Attempt to get the smallest element from an empty array
     let emptyMin = min<Int64>(emptyArray)
     match (emptyMin) {
         case Some(value) => println("Smallest element: ${value}")
         case None => println("Array is empty")
     }
-    
+
     return 0
 }
 ```
@@ -1357,17 +1357,17 @@ func isNegative(x: Int64): Bool {
 main() {
     // Create a function to check if all elements are non-negative
     let allNonNegative = none<Int64>(isNegative)
-    
+
     // Test case where all elements are non-negative
     let list1 = ArrayList.of([1, 2, 3, 4, 5])
     let result1 = allNonNegative(list1)
     println("All elements are non-negative: ${result1}")
-    
+
     // Test case with negative elements
     let list2 = ArrayList.of([1, -2, 3, 4, 5])
     let result2 = allNonNegative(list2)
     println("All elements are non-negative: ${result2}")
-    
+
     return 0
 }
 ```
@@ -1408,27 +1408,27 @@ func sumOperation(x: Int64, y: Int64): Int64 {
 main() {
     // Create an array
     let array = [1, 2, 3, 4, 5]
-    
+
     // Create a summation reduction function
     let sumReduce = reduce<Int64>(sumOperation)
-    
+
     // Calculate the sum of array elements
     let sumResult = sumReduce(array)
     match (sumResult) {
         case Some(value) => println("Sum of array elements: ${value}")
         case None => println("Array is empty")
     }
-    
+
     // Create an empty array
     let emptyArray: Array<Int64> = []
-    
+
     // Attempt to calculate the sum of an empty array
     let emptySum = sumReduce(emptyArray)
     match (emptySum) {
         case Some(value) => println("Sum of array elements: ${value}")
         case None => println("Array is empty")
     }
-    
+
     return 0
 }
 ```
@@ -1472,20 +1472,20 @@ main() {
     // Create an array
     let array = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     let iterator = array.iterator()
-    
+
     // Create a function to skip the first 3 elements
     let skipFunc = skip<Int64>(3)
-    
+
     // Skip the first 3 elements
     let skippedIterator = skipFunc(iterator)
-    
+
     // Iterate through remaining elements
     var result = "After skipping first 3 elements: "
     for (value in skippedIterator) {
         result = result + "${value} "
     }
     println(result)
-    
+
     return 0
 }
 ```
@@ -1493,7 +1493,7 @@ main() {
 Execution Result:
 
 ```text
-After skipping first 3 elements: 4 5 6 7 8 9 10 
+After skipping first 3 elements: 4 5 6 7 8 9 10
 ```
 
 ## func step\<T>(Int64)
@@ -1528,20 +1528,20 @@ main() {
     // Create an array
     let array = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     let iterator = array.iterator()
-    
+
     // Create a function to move 2 positions per step
     let stepFunc = step<Int64>(2)
-    
+
     // Apply the function
     let steppedIterator = stepFunc(iterator)
-    
+
     // Iterate through stepped elements
     var result = "Taking every other element: "
     for (value in steppedIterator) {
         result = result + "${value} "
     }
     println(result)
-    
+
     return 0
 }
 ```
@@ -1549,7 +1549,7 @@ main() {
 Execution Result:
 
 ```text
-Taking every other element: 1 3 5 7 9 
+Taking every other element: 1 3 5 7 9
 ```
 
 ## func take\<T>(Int64)
@@ -1584,20 +1584,20 @@ main() {
     // Create an array
     let array = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     let iterator = array.iterator()
-    
+
     // Create a function to take the first 5 elements
     let takeFunc = take<Int64>(5)
-    
+
     // Take the first 5 elements
     let takenIterator = takeFunc(iterator)
-    
+
     // Iterate through taken elements
     var result = "First 5 elements: "
     for (value in takenIterator) {
         result = result + "${value} "
     }
     println(result)
-    
+
     return 0
 }
 ```
@@ -1605,7 +1605,7 @@ main() {
 Execution Result:
 
 ```text
-First 5 elements: 1 2 3 4 5 
+First 5 elements: 1 2 3 4 5
 ```
 
 ## func zip\<T, R>(Iterable\<R>)
@@ -1634,22 +1634,22 @@ main() {
     // Create two arrays
     let numbers = [1, 2, 3, 4, 5]
     let letters = ["a", "b", "c", "d", "e"]
-    
+
     // Get the iterator of the first array
     let numberIterator = numbers.iterator()
-    
+
     // Create a merging function
     let zipFunc = zip<Int64, String>(letters)
-    
+
     // Merge the two iterators
     let zippedIterator = zipFunc(numberIterator)
-    
+
     // Iterate through merged elements
     println("Merged elements:")
     for ((num, letter) in zippedIterator) {
         println("${num}: ${letter}")
     }
-    
+
     return 0
 }
 ```
