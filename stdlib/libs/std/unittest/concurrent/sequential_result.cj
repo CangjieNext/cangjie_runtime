@@ -10,19 +10,19 @@ package std.unittest.concurrent
 
 import std.collection.ArrayList
 
-public class SequentialValidationResult {
-    public SequentialValidationResult(
-        public let matchingPermutation!: ?ArrayList<Int64>,
-        public let testedPermutations!: Int64,
-        public let history!: ConcurrentHistory,
-        public let exception!: ?Exception = None
+protected class SequentialValidationResult {
+    protected SequentialValidationResult(
+        protected let matchingPermutation!: ?ArrayList<Int64>,
+        protected let testedPermutations!: Int64,
+        protected let history!: ConcurrentHistory,
+        protected let exception!: ?Exception = None
     ) {}
     
-    public prop isConsistent: Bool {
+    protected prop isConsistent: Bool {
         get() { matchingPermutation.isSome() }
     }
     
-    public func report(): String {
+    protected func report(): String {
         if (let Some(e) <- exception) {
             "Sequential validation error: ${e.message}"
         } else if (isConsistent) {
@@ -32,7 +32,7 @@ public class SequentialValidationResult {
         }
     }
     
-    public func getMatchingSequence(): ?String {
+    protected func getMatchingSequence(): ?String {
         if (let Some(permutation) <- matchingPermutation) {
             let sb = StringBuilder()
             sb.append("Matching sequential sequence:\n")

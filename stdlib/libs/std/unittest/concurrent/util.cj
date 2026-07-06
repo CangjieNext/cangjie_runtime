@@ -8,7 +8,7 @@
 
 package std.unittest.concurrent
 
-public interface EquatableObj {
+public interface EquatableObj <: ToString {
 
     func eq(other: Any): Bool
 }
@@ -36,6 +36,13 @@ class EqProxy<T> <: EquatableObj {
             }
         }
         return false
+    }
+
+    public func toString(): String {
+        match (value) {
+            case v: ToString => v.toString()
+            case _ => "<non-stringifiable>"
+        }
     }
 
 }
