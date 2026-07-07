@@ -18,6 +18,35 @@ ScopedAllocBuffer::~ScopedAllocBuffer()
     }
 }
 
+class ScopedRawPointerRoot {
+public:
+    ScopedRawPointerRoot() = default;
+    ~ScopedRawPointerRoot()
+    {
+        if (registered) {
+            Heap::GetHeap().RemoveExportObject(id);
+        }
+        if (pinned) {
+            Heap::GetHeap().GetCollector().RemoveRawPointerObject(obj);
+        }
+    }
+
+    void Register(BaseObject* obj)
+    {
+        this->obj = obj;
+        Heap::GetHeap().GetCollector().AddRawPointerObject(obj);
+        pinned = true;
+        id = Heap::GetHeap().RegisterExportRoot(obj);
+        registered = true;
+    }
+
+private:
+    BaseObject* obj = nullptr;
+    U64 id = 0;
+    bool registered = false;
+    bool pinned = false;
+};
+
 void* ParameterInfo::GetAnnotations(TypeInfo* arrayTi)
 {
     ScopedAllocBuffer scopedAllocBuffer;
@@ -510,6 +539,7 @@ void MethodInfo::PrepareSRet(ArgValue* argValues, void* &sret, TypeInfo* retType
 void* MethodInfo::ApplyCJMethod(ObjRef instanceObj, void* genericArgs, void* actualArgs, TypeInfo* thisTypeInfo)
 {
     ScopedAllocBuffer scopedAllocBuffer;
+    ScopedRawPointerRoot scopedStructInitRoot;
     ArgValue argValues;
     void* sret = nullptr;
     Value ret;
@@ -545,8 +575,29 @@ void* MethodInfo::ApplyCJMethod(ObjRef instanceObj, void* genericArgs, void* act
             instanceObj = ObjectManager::NewObject(declaringTi, objSize, AllocType::RAW_POINTER_OBJECT);
             argValues.AddReference(instanceObj);
         } else if (IsInitializer() && declaringTi->IsStruct()) {
-            instanceObj = reinterpret_cast<ObjRef>(MemoryAlloc(1, declaringTi->GetInstanceSize()));
-            argValues.AddInt64(reinterpret_cast<Uptr>(instanceObj));
+            if (declaringTi->HasRefField()) {
+                U32 size = declaringTi->GetInstanceSize();
+                MSize objSize = MRT_ALIGN(size + TYPEINFO_PTR_SIZE, TYPEINFO_PTR_SIZE);
+                instanceObj = ObjectManager::NewObject(declaringTi, objSize, AllocType::RAW_POINTER_OBJECT);
+                if (instanceObj == nullptr) {
+                    VLOG(REPORT, "ApplyCJMethod: new struct object failed and throw OutOfMemoryError");
+                    ExceptionManager::CheckAndThrowPendingException("ObjectManager::NewObject return nullptr");
+                }
+                if (size > 0) {
+                    void* content = reinterpret_cast<void*>(reinterpret_cast<Uptr>(instanceObj) + TYPEINFO_PTR_SIZE);
+                    CHECK_DETAIL(memset_s(content, size, 0, size) == EOK,
+                                 "ApplyCJMethod: clear struct object failed");
+                }
+                AllocBuffer* buffer = AllocBuffer::GetAllocBuffer();
+                if (buffer != nullptr) {
+                    buffer->CommitRawPointerRegions();
+                }
+                scopedStructInitRoot.Register(instanceObj);
+                argValues.AddInt64(reinterpret_cast<Uptr>(instanceObj) + TYPEINFO_PTR_SIZE);
+            } else {
+                instanceObj = reinterpret_cast<ObjRef>(MemoryAlloc(1, declaringTi->GetInstanceSize()));
+                argValues.AddInt64(reinterpret_cast<Uptr>(instanceObj));
+            }
             argValues.AddReference(nullptr); // add bp
         }
     }
@@ -585,6 +636,9 @@ void* MethodInfo::ApplyCJMethod(ObjRef instanceObj, void* genericArgs, void* act
         ((reflectVersion == 0) ? declaringTi->IsGenericTypeInfo() : declaringTi->IsUnknownSize())))) {
         return instanceObj;
     } else if (IsInitializer() && declaringTi->IsStruct()) {
+        if (declaringTi->HasRefField()) {
+            return instanceObj;
+        }
         ret.ref = instanceObj;
         void* any = RetValueToAny(ret, sret, declaringTi);
         MemoryFree(instanceObj);
