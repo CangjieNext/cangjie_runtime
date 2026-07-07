@@ -27,6 +27,11 @@ constexpr uint8_t AllocBufferMS::kCachedRegionSlots;
 
 static constexpr bool kDisableMutatorAssistProbe = false;
 
+uintptr_t OwnerTokenFor(const AllocBufferMS* buffer)
+{
+    return reinterpret_cast<uintptr_t>(buffer);
+}
+
 uintptr_t AllocateFromRefilledRegion(MSRegionInfo* region)
 {
     if (region == nullptr) {
@@ -170,6 +175,12 @@ void AllocBufferMS::TrimExtraCachedRegions(uint8_t cls, uint8_t targetSlots)
         if (extra != nullptr) {
             (void)cachedRegionOrigin_[cls].exchange(static_cast<uint8_t>(RegionAcquireOrigin::NONE),
                                                     std::memory_order_acq_rel);
+            MSRegionInfoArray::TransitionState(extra,
+                                               MSRegionLocation::CACHED_LOCAL,
+                                               MSRegionLocation::TRANSIENT,
+                                               OwnerTokenFor(this),
+                                               0,
+                                               "TrimExtraCachedRegions");
             ReturnRegionToCentral(extra, cls);
         }
     }
@@ -269,6 +280,12 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
     //     was null on entry), so no per-object debt was recorded.
     //   - runtime slow-path: Allocate() no longer tracks per-object debt; all debt
     //     is consolidated here at region-acquisition granularity.
+    MSRegionInfoArray::TransitionState(newRegion,
+                                       MSRegionLocation::TRANSIENT,
+                                       MSRegionLocation::ACTIVE_LOCAL,
+                                       MSRegionInfoArray::ANY_OWNER,
+                                       OwnerTokenFor(this),
+                                       "SlowAlloc publish active");
     activeRegions_[cls] = newRegion;
     AccumulatePacingDebt(MS_REGION_SIZE);
 
@@ -289,8 +306,14 @@ void AllocBufferMS::ReturnRegion(uint8_t cls)
         return;
     }
 
-    ReturnRegionToCentral(region, cls);
     activeRegions_[cls] = nullptr;
+    MSRegionInfoArray::TransitionState(region,
+                                       MSRegionLocation::ACTIVE_LOCAL,
+                                       MSRegionLocation::TRANSIENT,
+                                       OwnerTokenFor(this),
+                                       0,
+                                       "ReturnRegion");
+    ReturnRegionToCentral(region, cls);
 }
 
 MSRegionInfo* AllocBufferMS::TakeLocalEmptyRegion()
@@ -304,6 +327,12 @@ MSRegionInfo* AllocBufferMS::TakeLocalEmptyRegion()
         return nullptr;
     }
     central_->DecrementEmptySweptCount();
+    MSRegionInfoArray::TransitionState(region,
+                                       MSRegionLocation::LOCAL_EMPTY_CACHE,
+                                       MSRegionLocation::TRANSIENT,
+                                       OwnerTokenFor(this),
+                                       0,
+                                       "TakeLocalEmptyRegion");
     return region;
 }
 
@@ -318,6 +347,15 @@ bool AllocBufferMS::TryPushLocalEmptyRegion(MSRegionInfo* region, size_t slotLim
     {
         std::lock_guard<std::mutex> lg(localEmptyRegionLock_);
         if (localEmptyRegionCache_.Count() < slotLimit) {
+            MSRegionLocation current = MSRegionInfoArray::GetLocation(region);
+            MSRegionInfoArray::TransitionState(region,
+                                               current == MSRegionLocation::SWEEP_CLAIMED
+                                                   ? MSRegionLocation::SWEEP_CLAIMED
+                                                   : MSRegionLocation::TRANSIENT,
+                                               MSRegionLocation::LOCAL_EMPTY_CACHE,
+                                               MSRegionInfoArray::ANY_OWNER,
+                                               OwnerTokenFor(this),
+                                               "TryPushLocalEmptyRegion");
             localEmptyRegionCache_.Prepend(region);
             inserted = true;
         }
@@ -356,6 +394,12 @@ void AllocBufferMS::RefillLocalEmptyRegionsFromGlobal(std::vector<MSRegionInfo*>
         std::lock_guard<std::mutex> lg(localEmptyRegionLock_);
         while (refill.size() > 1) {
             MSRegionInfo* region = refill.back();
+            MSRegionInfoArray::TransitionState(region,
+                                               MSRegionLocation::TRANSIENT,
+                                               MSRegionLocation::LOCAL_EMPTY_CACHE,
+                                               MSRegionInfoArray::ANY_OWNER,
+                                               OwnerTokenFor(this),
+                                               "RefillLocalEmptyRegionsFromGlobal");
             localEmptyRegionCache_.Prepend(region);
             refill.pop_back();
             ++cachedCount;
@@ -383,6 +427,12 @@ size_t AllocBufferMS::DrainLocalEmptyRegions(std::vector<MSRegionInfo*>& out, si
             if (region == nullptr) {
                 break;
             }
+            MSRegionInfoArray::TransitionState(region,
+                                               MSRegionLocation::LOCAL_EMPTY_CACHE,
+                                               MSRegionLocation::TRANSIENT,
+                                               OwnerTokenFor(this),
+                                               0,
+                                               "DrainLocalEmptyRegions");
             out.push_back(region);
             ++drained;
         }
@@ -438,6 +488,12 @@ size_t AllocBufferMS::ExtractLocalEmptyRegionsInRange(std::vector<MSRegionInfo*>
             }
             size_t regionIdx = MSRegionInfoArray::GetRegionIdx(region);
             if (extracted < maxRegions && regionIdx >= startRegionIdx && regionIdx < endRegionIdx) {
+                MSRegionInfoArray::TransitionState(region,
+                                                   MSRegionLocation::LOCAL_EMPTY_CACHE,
+                                                   MSRegionLocation::TRANSIENT,
+                                                   OwnerTokenFor(this),
+                                                   0,
+                                                   "ExtractLocalEmptyRegionsInRange");
                 out.push_back(region);
                 ++extracted;
                 continue;
@@ -497,9 +553,21 @@ bool AllocBufferMS::TryCacheRegion(uint8_t cls, MSRegionInfo* region, RegionAcqu
         return false;
     }
 
+    MSRegionInfoArray::TransitionState(region,
+                                       MSRegionLocation::TRANSIENT,
+                                       MSRegionLocation::CACHED_LOCAL,
+                                       MSRegionInfoArray::ANY_OWNER,
+                                       OwnerTokenFor(this),
+                                       "TryCacheRegion publish");
     MSRegionInfo* expected = nullptr;
     if (!cachedRegion_[cls].compare_exchange_strong(expected, region,
             std::memory_order_release, std::memory_order_relaxed)) {
+        MSRegionInfoArray::TransitionState(region,
+                                           MSRegionLocation::CACHED_LOCAL,
+                                           MSRegionLocation::TRANSIENT,
+                                           OwnerTokenFor(this),
+                                           0,
+                                           "TryCacheRegion rollback");
         cachedRegionOrigin_[cls].store(static_cast<uint8_t>(RegionAcquireOrigin::NONE), std::memory_order_relaxed);
         return false;
     }
@@ -517,18 +585,33 @@ void AllocBufferMS::ReturnRegionToCentral(MSRegionInfo* region, uint8_t cls)
     // next GC cycle instead of the current sweep.
     region->SetSweepGen(CentralRegionPool::GetGlobalSweepGen());
 
-    bool isFree = region->IsCompletelyFree();
-    bool hasSpace = region->HasFreeSpace();
-
-    if (isFree) {
-        central_->ReturnEmptyRegion(region);
-    } else if (hasSpace) {
-        // Has free slots → partial list
-        central_->ReturnPartialRegion(region, cls);
-    } else {
-        // Full → full list
-        central_->ReturnFullRegion(region, cls);
+    MSCentralReturnDecision decision = region->PrepareForCentralReturn(cls);
+    if (UNLIKELY(decision.callerClassMismatch)) {
+        LOG(RTLOG_ERROR,
+            "[MS-GC] ReturnRegionToCentral: caller cls=%u mismatches region sizeClass=%u, "
+            "region=%p, normalizedType=%u, freeSlots=%u/%u, allocPtr=0x%zx, regionEnd=0x%zx",
+            static_cast<unsigned>(cls),
+            static_cast<unsigned>(decision.bucketSizeClass),
+            static_cast<void*>(region),
+            static_cast<unsigned>(region->regionType),
+            static_cast<unsigned>(region->freeSlotCount),
+            static_cast<unsigned>(region->totalSlotCount),
+            region->allocPtr,
+            region->regionEnd);
     }
+
+    switch (decision.kind) {
+        case MSCentralReturnKind::EMPTY_CACHE:
+            central_->ReturnEmptyRegion(region);
+            return;
+        case MSCentralReturnKind::PARTIAL:
+            central_->ReturnPartialRegion(region, decision.bucketSizeClass);
+            return;
+        case MSCentralReturnKind::FULL:
+            central_->ReturnFullRegion(region, decision.bucketSizeClass);
+            return;
+    }
+    MRT_ASSERT(false, "unexpected central return kind");
 }
 
 size_t AllocBufferMS::DrainCachedRegionsToCentral()
@@ -545,6 +628,12 @@ size_t AllocBufferMS::DrainCachedRegionsToCentral()
         }
         (void)cachedRegionOrigin_[cls].exchange(static_cast<uint8_t>(RegionAcquireOrigin::NONE),
                                                 std::memory_order_acq_rel);
+        MSRegionInfoArray::TransitionState(region,
+                                           MSRegionLocation::CACHED_LOCAL,
+                                           MSRegionLocation::TRANSIENT,
+                                           OwnerTokenFor(this),
+                                           0,
+                                           "DrainCachedRegionsToCentral");
         ReturnRegionToCentral(region, cls);
         ++drained;
     }
@@ -564,6 +653,12 @@ size_t AllocBufferMS::ReturnAllRegionsToCentral()
             continue;
         }
         activeRegions_[cls] = nullptr;
+        MSRegionInfoArray::TransitionState(region,
+                                           MSRegionLocation::ACTIVE_LOCAL,
+                                           MSRegionLocation::TRANSIENT,
+                                           OwnerTokenFor(this),
+                                           0,
+                                           "ReturnAllRegionsToCentral");
         ReturnRegionToCentral(region, cls);
         ++returned;
     }

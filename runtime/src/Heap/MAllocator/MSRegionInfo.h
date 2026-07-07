@@ -46,6 +46,32 @@ enum class MSSweepState : uint8_t {
     SWEPT    = 2,
 };
 
+enum class MSCentralReturnKind : uint8_t {
+    EMPTY_CACHE = 0,
+    PARTIAL = 1,
+    FULL = 2,
+};
+
+enum class MSRegionLocation : uint8_t {
+    UNKNOWN = 0,
+    FREE,
+    TRANSIENT,
+    ACTIVE_LOCAL,
+    CACHED_LOCAL,
+    LOCAL_EMPTY_CACHE,
+    GLOBAL_EMPTY_CACHE,
+    CENTRAL_PARTIAL,
+    CENTRAL_FULL,
+    SWEEP_CLAIMED,
+    LARGE_ACTIVE,
+};
+
+struct MSCentralReturnDecision {
+    MSCentralReturnKind kind;
+    uint8_t bucketSizeClass;
+    bool callerClassMismatch;
+};
+
 // ============================================================================
 // MSRegionInfo: 64-byte per-Region metadata for Mark-Sweep GC
 // ============================================================================
@@ -214,6 +240,26 @@ struct MSRegionInfo {
     // === Queries ===
     bool IsCompletelyFree() const { return freeSlotCount == totalSlotCount; }
     bool HasFreeSpace() const;
+    MSCentralReturnDecision PrepareForCentralReturn(uint8_t callerCls)
+    {
+        MSCentralReturnDecision decision {
+            MSCentralReturnKind::EMPTY_CACHE,
+            sizeClass,
+            callerCls != sizeClass,
+        };
+        if (IsCompletelyFree()) {
+            regionType = MSRegionType::MS_REGION_EMPTY_CACHE;
+            return decision;
+        }
+        if (HasFreeSpace()) {
+            regionType = MSRegionType::MS_REGION_PARTIAL;
+            decision.kind = MSCentralReturnKind::PARTIAL;
+            return decision;
+        }
+        regionType = MSRegionType::MS_REGION_FULL;
+        decision.kind = MSCentralReturnKind::FULL;
+        return decision;
+    }
     size_t GetSlotSize() const { return SizeClassInfo::ClassToSize(sizeClass); }
     size_t GetAllocatedBytes() const;
     size_t GetLiveBytes() const;
@@ -229,9 +275,24 @@ static_assert(offsetof(MSRegionInfo, allocPtr) == 0, "allocPtr must be at offset
 // ============================================================================
 class MSRegionInfoArray {
 public:
+    static constexpr uintptr_t ANY_OWNER = static_cast<uintptr_t>(-1);
+
     // Initialize with external array pointer (from mmap front) — no malloc.
     // If array is nullptr, falls back to malloc (for backward compatibility).
     static void Init(uintptr_t heapStart, size_t maxRegionCount, MSRegionInfo* array = nullptr);
+
+    static bool TryGetTrackedIdx(const MSRegionInfo* info, size_t& idx);
+    static MSRegionLocation GetLocation(const MSRegionInfo* info);
+    static uintptr_t GetOwnerToken(const MSRegionInfo* info);
+    static void SetState(const MSRegionInfo* info, MSRegionLocation location, uintptr_t ownerToken = 0);
+    static void TransitionState(const MSRegionInfo* info, MSRegionLocation expectedLocation,
+                                MSRegionLocation newLocation, uintptr_t expectedOwnerToken = ANY_OWNER,
+                                uintptr_t newOwnerToken = 0, const char* context = nullptr);
+    static bool IsCentralLocation(MSRegionLocation location)
+    {
+        return location == MSRegionLocation::CENTRAL_PARTIAL ||
+               location == MSRegionLocation::CENTRAL_FULL;
+    }
 
     // O(1) address -> MSRegionInfo lookup (no branching)
     static inline MSRegionInfo* GetRegionInfo(uintptr_t addr)
@@ -359,6 +420,8 @@ private:
     static uintptr_t heapEndAddress_;      // Past-the-end address
     static size_t maxRegionCount_;
     static bool ownedByMalloc_;            // true if array_ was malloc'd (needs free)
+    static std::atomic<uint8_t>* locations_;
+    static std::atomic<uintptr_t>* ownerTokens_;
 };
 
 } // namespace MapleRuntime

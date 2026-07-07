@@ -59,6 +59,13 @@ public:
 
     void Prepend(MSRegionInfo* region)
     {
+        CHECK_DETAIL(region != nullptr, "MSRegionList::Prepend with null region");
+        CHECK_DETAIL(region->nextRegionIdx == MSRegionInfo::INVALID_IDX &&
+                         region->prevRegionIdx == MSRegionInfo::INVALID_IDX,
+                     "[MS-GC] MSRegionList::Prepend: region already linked, region=%p next=%d prev=%d",
+                     static_cast<void*>(region),
+                     region->nextRegionIdx,
+                     region->prevRegionIdx);
         int32_t idx = static_cast<int32_t>(MSRegionInfoArray::GetRegionIdx(region));
         region->prevRegionIdx = MSRegionInfo::INVALID_IDX;
         region->nextRegionIdx = headIdx_;
@@ -172,6 +179,13 @@ public:
 
     void Push(MSRegionInfo* region)
     {
+        CHECK_DETAIL(region != nullptr, "LockFreeRegionStack::Push with null region");
+        CHECK_DETAIL(region->nextRegionIdx == MSRegionInfo::INVALID_IDX &&
+                         region->prevRegionIdx == MSRegionInfo::INVALID_IDX,
+                     "[MS-GC] LockFreeRegionStack::Push: region already linked, region=%p next=%d prev=%d",
+                     static_cast<void*>(region),
+                     region->nextRegionIdx,
+                     region->prevRegionIdx);
         int32_t idx = static_cast<int32_t>(MSRegionInfoArray::GetRegionIdx(region));
         uint64_t oldVal = taggedHead_.load(std::memory_order_relaxed);
         uint64_t newVal;
@@ -547,6 +561,15 @@ private:
                         static_cast<unsigned>(head->sizeClass),
                         static_cast<unsigned>(kind));
                 }
+                MSRegionInfoArray::TransitionState(
+                    claimed,
+                    kind == UnsweptListKind::PARTIAL
+                        ? MSRegionLocation::CENTRAL_PARTIAL
+                        : MSRegionLocation::CENTRAL_FULL,
+                    MSRegionLocation::SWEEP_CLAIMED,
+                    MSRegionInfoArray::ANY_OWNER,
+                    0,
+                    "ClaimUnsweptHeadForSweep");
                 return claimed;
             }
         }

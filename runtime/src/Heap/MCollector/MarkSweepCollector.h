@@ -15,6 +15,7 @@
 
 #include "Heap/Collector/TracingCollector.h"
 #include "Common/LFStack.h"
+#include "Heap/MCollector/MSGCWriteBarrierFlushStats.h"
 
 namespace MapleRuntime {
 
@@ -280,6 +281,9 @@ private:
     std::atomic<size_t> assistGlobalPulled_{0};    // ③ debt paid by global PopFull pulls
     std::atomic<size_t> assistPostPullMarked_{0};  // ④ objects marked after a pull
     std::atomic<size_t> bgCreditInjected_{0};      // GC-supply credit injected this cycle
+
+    // ── Per-cycle write-barrier flush stats ──
+    MSGCWriteBarrierFlushStats wbFlushStats_;
 
     // ── DFX: Per-cycle stats ──
     MSGCCycleStats cycleStats_;

@@ -334,6 +334,7 @@ void MarkSweepCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
 {
     gcCycle_++;
     cycleStats_.Reset();
+    wbFlushStats_.Reset();
     SetGCReason(reason);
 
     GCStats& gcStats = GetGCStats();
@@ -986,6 +987,7 @@ void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
 
     WorkBuf* buf = workBufPool_.Get();
     size_t bufsUsed = 0;
+    size_t forwarded = 0;
     for (size_t i = 0; i < n; i++) {
         BaseObject* obj = data[i];
         if (obj == nullptr) {
@@ -994,6 +996,7 @@ void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
         if (!DiscoverObject(obj)) {
             continue;
         }
+        forwarded++;
         if (buf->Full()) {
             flushBuf(buf);
             bufsUsed++;
@@ -1008,6 +1011,7 @@ void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
         workBufPool_.Put(buf);
     }
     wbBuf.Clear();
+    wbFlushStats_.Record(MSGCWriteBarrierFlushSource::OVERFLOW_FLUSH, n, forwarded);
     if (bufsUsed > 0) {
         globalShareCount_.fetch_add(bufsUsed, std::memory_order_relaxed);
     }
@@ -1023,6 +1027,7 @@ void MarkSweepCollector::FlushExitedWriteBarrierBuffer(WriteBarrierBuffer& wbBuf
     BaseObject** data = wbBuf.Data();
     WorkBuf* buf = workBufPool_.Get();
     size_t bufsUsed = 0;
+    size_t forwarded = 0;
     for (size_t i = 0; i < n; ++i) {
         BaseObject* obj = data[i];
         if (obj == nullptr) {
@@ -1031,6 +1036,7 @@ void MarkSweepCollector::FlushExitedWriteBarrierBuffer(WriteBarrierBuffer& wbBuf
         if (!DiscoverObject(obj)) {
             continue;
         }
+        forwarded++;
         if (buf->Full()) {
             globalFull_.Push(buf);
             bufsUsed++;
@@ -1045,6 +1051,7 @@ void MarkSweepCollector::FlushExitedWriteBarrierBuffer(WriteBarrierBuffer& wbBuf
         workBufPool_.Put(buf);
     }
     wbBuf.Clear();
+    wbFlushStats_.Record(MSGCWriteBarrierFlushSource::EXITED_OWNER, n, forwarded);
     if (bufsUsed > 0) {
         globalShareCount_.fetch_add(bufsUsed, std::memory_order_relaxed);
     }
@@ -1306,6 +1313,7 @@ void MarkSweepCollector::MarkTermination()
     GreyWorkQueue mainQueue;
     size_t pendingSourceEntries = 0;
     size_t resurrectionEntries = 0;
+    MSGCWriteBarrierFlushSnapshot wbFlushSnapshot;
 
     auto collectPendingMarkWork = [this, &mainQueue]() -> size_t {
         size_t before = mainQueue.size();
@@ -1343,6 +1351,7 @@ void MarkSweepCollector::MarkTermination()
         } while (!mainQueue.empty());
         cycleStats_.markTermNewlyMarkedObjects =
             markedObjectCount.load(std::memory_order_relaxed) - beforeMark;
+        wbFlushSnapshot = wbFlushStats_.Snapshot();
         if (lateSourceEntries != 0 || drainRounds > 1) {
             VLOG(REPORT,
                  "[MS-GC] MarkTermination fixed-point drain: rounds=%zu lateEntries=%zu",
@@ -1365,6 +1374,14 @@ void MarkSweepCollector::MarkTermination()
     ResetAllPerPGCWork();
 
     cycleStats_.markTerminationUs = TimeUtil::MicroSeconds() - phaseStart;
+    VLOG(REPORT,
+         "[MS-GC] WriteBarrierFlush: forwarded=%zu objects (overflow=%zu, exit=%zu, final=%zu), "
+         "raw=%zu entries",
+         wbFlushSnapshot.TotalForwardedObjects(),
+         wbFlushSnapshot.forwardedObjects[static_cast<size_t>(MSGCWriteBarrierFlushSource::OVERFLOW_FLUSH)],
+         wbFlushSnapshot.forwardedObjects[static_cast<size_t>(MSGCWriteBarrierFlushSource::EXITED_OWNER)],
+         wbFlushSnapshot.forwardedObjects[static_cast<size_t>(MSGCWriteBarrierFlushSource::FINAL_STW)],
+         wbFlushSnapshot.TotalRawEntries());
     VLOG(REPORT,
          "[MS-GC] MarkTermination total: %sus, flushed=%zu entries, resurrection=%zu entries, "
          "processed=%zu objects, newlyMarked=%zu",
@@ -1397,14 +1414,18 @@ void MarkSweepCollector::FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue)
         WriteBarrierBuffer& wbBuf = buffer.GetWriteBarrierBuffer();
         BaseObject** data = wbBuf.Data();
         size_t n = wbBuf.Count();
+        size_t forwarded = 0;
         for (size_t i = 0; i < n; ++i) {
             BaseObject* obj = data[i];
             if (obj == nullptr) {
                 continue;
             }
-            (void)TryEnqueueGreyObject(obj, mainQueue);
+            if (TryEnqueueGreyObject(obj, mainQueue)) {
+                forwarded++;
+            }
         }
         wbBuf.Clear();
+        wbFlushStats_.Record(MSGCWriteBarrierFlushSource::FINAL_STW, n, forwarded);
     });
 }
 

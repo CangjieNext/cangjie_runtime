@@ -10,9 +10,35 @@
 #include "Heap/MAllocator/MSRegionInfo.h"
 
 #include <cstring>
+#include <new>
 #include "Base/Log.h"
 
 namespace MapleRuntime {
+
+namespace {
+
+bool LocationHasOwner(MSRegionLocation location)
+{
+    return location == MSRegionLocation::ACTIVE_LOCAL ||
+           location == MSRegionLocation::CACHED_LOCAL ||
+           location == MSRegionLocation::LOCAL_EMPTY_CACHE;
+}
+
+void PublishTrackedState(std::atomic<uint8_t>& locationSlot,
+                         std::atomic<uintptr_t>& ownerSlot,
+                         MSRegionLocation newLocation,
+                         uintptr_t newOwnerToken)
+{
+    if (LocationHasOwner(newLocation)) {
+        ownerSlot.store(newOwnerToken, std::memory_order_relaxed);
+        locationSlot.store(static_cast<uint8_t>(newLocation), std::memory_order_release);
+        return;
+    }
+    locationSlot.store(static_cast<uint8_t>(newLocation), std::memory_order_release);
+    ownerSlot.store(newOwnerToken, std::memory_order_relaxed);
+}
+
+} // namespace
 
 // ============================================================================
 // MSRegionInfo — Lifecycle
@@ -100,6 +126,7 @@ void MSRegionInfo::ReleaseBitmaps()
 
 void MSRegionInfo::Reset()
 {
+    MSRegionInfoArray::SetState(this, MSRegionLocation::FREE, 0);
     ReleaseBitmaps();
     allocPtr = 0;
     regionEnd = 0;
@@ -374,6 +401,8 @@ MSRegionInfo* MSRegionInfoArray::array_ = nullptr;
 uintptr_t MSRegionInfoArray::heapStartAddress_ = 0;
 uintptr_t MSRegionInfoArray::heapEndAddress_ = 0;
 size_t MSRegionInfoArray::maxRegionCount_ = 0;
+std::atomic<uint8_t>* MSRegionInfoArray::locations_ = nullptr;
+std::atomic<uintptr_t>* MSRegionInfoArray::ownerTokens_ = nullptr;
 
 void MSRegionInfoArray::Init(uintptr_t heapStart, size_t maxRegionCount, MSRegionInfo* array)
 {
@@ -410,12 +439,122 @@ void MSRegionInfoArray::Init(uintptr_t heapStart, size_t maxRegionCount, MSRegio
             "arraySize=%zuKB (malloc'd)",
             heapStart, maxRegionCount, arrayBytes / 1024);
     }
+
+    delete[] locations_;
+    delete[] ownerTokens_;
+    locations_ = nullptr;
+    ownerTokens_ = nullptr;
+    if (maxRegionCount_ == 0) {
+        return;
+    }
+
+    locations_ = new (std::nothrow) std::atomic<uint8_t>[maxRegionCount_];
+    ownerTokens_ = new (std::nothrow) std::atomic<uintptr_t>[maxRegionCount_];
+    CHECK_DETAIL(locations_ != nullptr && ownerTokens_ != nullptr,
+                 "[MS-GC] MSRegionInfoArray::Init: failed to allocate ownership side tables, "
+                 "maxRegions=%zu",
+                 maxRegionCount_);
+    for (size_t i = 0; i < maxRegionCount_; ++i) {
+        locations_[i].store(static_cast<uint8_t>(MSRegionLocation::FREE), std::memory_order_relaxed);
+        ownerTokens_[i].store(0, std::memory_order_relaxed);
+    }
 }
 
 bool MSRegionInfoArray::ownedByMalloc_ = false;
 
+bool MSRegionInfoArray::TryGetTrackedIdx(const MSRegionInfo* info, size_t& idx)
+{
+    idx = 0;
+    if (info == nullptr || array_ == nullptr || maxRegionCount_ == 0 ||
+        locations_ == nullptr || ownerTokens_ == nullptr) {
+        return false;
+    }
+
+    uintptr_t baseAddr = reinterpret_cast<uintptr_t>(array_);
+    uintptr_t endAddr = baseAddr + maxRegionCount_ * sizeof(MSRegionInfo);
+    uintptr_t infoAddr = reinterpret_cast<uintptr_t>(info);
+    if (infoAddr < baseAddr || infoAddr >= endAddr) {
+        return false;
+    }
+
+    size_t offset = static_cast<size_t>(infoAddr - baseAddr);
+    CHECK_DETAIL(offset % sizeof(MSRegionInfo) == 0,
+                 "[MS-GC] MSRegionInfoArray::TryGetTrackedIdx: misaligned info=%p base=%p",
+                 static_cast<const void*>(info),
+                 static_cast<void*>(array_));
+    idx = offset / sizeof(MSRegionInfo);
+    return idx < maxRegionCount_;
+}
+
+MSRegionLocation MSRegionInfoArray::GetLocation(const MSRegionInfo* info)
+{
+    size_t idx = 0;
+    if (!TryGetTrackedIdx(info, idx)) {
+        return MSRegionLocation::UNKNOWN;
+    }
+    return static_cast<MSRegionLocation>(locations_[idx].load(std::memory_order_acquire));
+}
+
+uintptr_t MSRegionInfoArray::GetOwnerToken(const MSRegionInfo* info)
+{
+    size_t idx = 0;
+    if (!TryGetTrackedIdx(info, idx)) {
+        return 0;
+    }
+    return ownerTokens_[idx].load(std::memory_order_relaxed);
+}
+
+void MSRegionInfoArray::SetState(const MSRegionInfo* info, MSRegionLocation location, uintptr_t ownerToken)
+{
+    size_t idx = 0;
+    if (!TryGetTrackedIdx(info, idx)) {
+        return;
+    }
+    PublishTrackedState(locations_[idx], ownerTokens_[idx], location, ownerToken);
+}
+
+void MSRegionInfoArray::TransitionState(const MSRegionInfo* info, MSRegionLocation expectedLocation,
+                                        MSRegionLocation newLocation, uintptr_t expectedOwnerToken,
+                                        uintptr_t newOwnerToken, const char* context)
+{
+    size_t idx = 0;
+    if (!TryGetTrackedIdx(info, idx)) {
+        return;
+    }
+
+    MSRegionLocation actualLocation =
+        static_cast<MSRegionLocation>(locations_[idx].load(std::memory_order_acquire));
+    uintptr_t actualOwnerToken = ownerTokens_[idx].load(std::memory_order_relaxed);
+    CHECK_DETAIL(actualLocation == expectedLocation,
+                 "[MS-GC] MSRegionInfoArray::TransitionState: location mismatch at %s, "
+                 "region=%p idx=%zu expected=%u actual=%u expectedOwner=%p actualOwner=%p",
+                 context != nullptr ? context : "<unknown>",
+                 static_cast<const void*>(info),
+                 idx,
+                 static_cast<unsigned>(expectedLocation),
+                 static_cast<unsigned>(actualLocation),
+                 reinterpret_cast<void*>(expectedOwnerToken),
+                 reinterpret_cast<void*>(actualOwnerToken));
+    if (expectedOwnerToken != ANY_OWNER) {
+        CHECK_DETAIL(actualOwnerToken == expectedOwnerToken,
+                     "[MS-GC] MSRegionInfoArray::TransitionState: owner mismatch at %s, "
+                     "region=%p idx=%zu location=%u expectedOwner=%p actualOwner=%p",
+                     context != nullptr ? context : "<unknown>",
+                     static_cast<const void*>(info),
+                     idx,
+                     static_cast<unsigned>(actualLocation),
+                     reinterpret_cast<void*>(expectedOwnerToken),
+                     reinterpret_cast<void*>(actualOwnerToken));
+    }
+    PublishTrackedState(locations_[idx], ownerTokens_[idx], newLocation, newOwnerToken);
+}
+
 void MSRegionInfoArray::Cleanup()
 {
+    delete[] locations_;
+    delete[] ownerTokens_;
+    locations_ = nullptr;
+    ownerTokens_ = nullptr;
     if (array_ != nullptr) {
         if (ownedByMalloc_) {
             free(array_);
@@ -423,6 +562,8 @@ void MSRegionInfoArray::Cleanup()
         array_ = nullptr;
     }
     ownedByMalloc_ = false;
+    heapStartAddress_ = 0;
+    heapEndAddress_ = 0;
     maxRegionCount_ = 0;
 }
 

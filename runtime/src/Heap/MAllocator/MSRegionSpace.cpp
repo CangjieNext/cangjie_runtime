@@ -622,6 +622,7 @@ void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t regionBytes)
 
     baseInfo->InitForLargeObject(start, end);
     baseInfo->reserved = static_cast<uint64_t>(baseIdx);
+    MSRegionInfoArray::SetState(baseInfo, MSRegionLocation::LARGE_ACTIVE, 0);
 
     for (size_t i = 1; i < spanCount; i++) {
         MSRegionInfo* spanInfo = MSRegionInfoArray::GetRegionInfoByIdx(baseIdx + i);
@@ -632,6 +633,7 @@ void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t regionBytes)
         spanInfo->freeSlotCount = 0;
         spanInfo->flags_ = 0;
         spanInfo->reserved = static_cast<uint64_t>(baseIdx);
+        MSRegionInfoArray::SetState(spanInfo, MSRegionLocation::LARGE_ACTIVE, 0);
     }
 
     baseInfo->AtomicSetMarked();
