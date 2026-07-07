@@ -19,19 +19,6 @@
 
 namespace MapleRuntime {
 namespace {
-inline uint8_t EncodeThreadLocalGCFastState(GCPhase phase)
-{
-    switch (phase) {
-        case GCPhase::GC_PHASE_MS_MARK_SETUP:
-        case GCPhase::GC_PHASE_MS_MARK_TERMINATION:
-            return ThreadLocal::GC_FAST_STATE_MS_MARKING;
-        case GCPhase::GC_PHASE_MS_CONCURRENT_MARK:
-            return ThreadLocal::GC_FAST_STATE_MS_MARKING | ThreadLocal::GC_FAST_STATE_MS_ASSIST;
-        default:
-            return ThreadLocal::GC_FAST_STATE_NONE;
-    }
-}
-
 inline uint8_t EncodeThreadLocalGCPhaseByte(GCPhase phase)
 {
     // Fix: directly cast phase to uint8_t so GC_PHASE_IDLE(1) encodes to 1,
@@ -51,7 +38,6 @@ void ThreadLocal::SetMutator(Mutator* newMutator)
     ThreadLocalData* local = GetThreadLocalData();
     local->mutator = newMutator;
     GCPhase phase = newMutator != nullptr ? newMutator->GetMutatorPhase() : GCPhase::GC_PHASE_IDLE;
-    local->gcFastState = EncodeThreadLocalGCFastState(phase);
     local->encodedGCPhase = EncodeThreadLocalGCPhaseByte(phase);
 }
 

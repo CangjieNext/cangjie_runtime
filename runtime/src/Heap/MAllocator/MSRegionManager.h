@@ -73,9 +73,9 @@ public:
     // Calculate the number of MS regions that fit in given heap size.
     static size_t GetRegionCount(size_t heapSize);
 
-    // Compute the maximum virtual heap size given the user-requested heapSize.
-    // Capped at 4GB.
-    static size_t ComputeMaxVirtualHeapSize(size_t heapSize);
+    // Compute the maximum virtual heap size given the initial committed heap size
+    // and the user-requested virtual reservation.
+    static size_t ComputeMaxVirtualHeapSize(size_t heapSize, size_t requestedVirtualHeapSize);
 
     // Initialize MSRegionManager with virtual reservation.
     // mmapBase is the start of the whole mmap area (size = GetVirtualReserveSize).

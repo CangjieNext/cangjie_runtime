@@ -36,6 +36,11 @@ Barrier** Heap::currentBarrierPtr = nullptr;
 Barrier* Heap::stwBarrierPtr = nullptr;
 MAddress Heap::heapStartAddr = 0;
 MAddress Heap::heapCurrentEnd = 0;
+MAddress Heap::heapReservedStartAddr = 0;
+MAddress Heap::heapReservedEndAddr = 0;
+#ifdef MRT_USE_MARK_SWEEP
+uint8_t Heap::inlineFastPathGCPhase = 0;
+#endif
 
 void Heap::OnHeapExtended(MAddress newEnd)
 {
@@ -210,15 +215,18 @@ void HeapImpl::InstallBarrier(const GCPhase phase)
         case GCPhase::GC_PHASE_RECLAIM_SATB_NODE:
         case GCPhase::GC_PHASE_MS_SWEEP:
             currentBarrier = &msIdleBarrier;
+            __atomic_store_n(&Heap::inlineFastPathGCPhase, 0, __ATOMIC_RELEASE);
             break;
         case GCPhase::GC_PHASE_MS_MARK_SETUP:
         case GCPhase::GC_PHASE_MS_CONCURRENT_MARK:
         case GCPhase::GC_PHASE_MS_MARK_TERMINATION:
             currentBarrier = &msMarkBarrier;
+            __atomic_store_n(&Heap::inlineFastPathGCPhase, 1, __ATOMIC_RELEASE);
             break;
         default:
             // Keep unknown phases conservative until they are audited.
             currentBarrier = &stwBarrier;
+            __atomic_store_n(&Heap::inlineFastPathGCPhase, 1, __ATOMIC_RELEASE);
             break;
     }
 #else

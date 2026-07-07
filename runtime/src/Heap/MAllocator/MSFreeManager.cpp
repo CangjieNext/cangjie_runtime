@@ -23,6 +23,8 @@
 
 namespace MapleRuntime {
 
+constexpr size_t FreeManager::kChunkBits;
+
 FreeManager::OwnedSegmentView FreeManager::BuildOwnedSegmentView(size_t segmentIdx, RegionCount regionCount) const
 {
     OwnedSegmentView view {};
@@ -567,7 +569,7 @@ size_t FreeManager::GetBorrowedRegionCount(uint16_t receiverShardId) const
 {
     const FreeManagerShard& shardState = GetShard(receiverShardId);
     std::lock_guard<std::mutex> lg(shardState.shardMutex_);
-    return shardState.borrowedNum_;
+    return shardState.borrowedRegionCount_;
 }
 
 size_t FreeManager::GetOwnedSegmentCount(uint16_t ownerShardId) const
@@ -1069,12 +1071,22 @@ bool FreeManager::FindFreeRunInViewLocked(const OwnedSegmentView& view,
 
 bool FreeManager::TryTakeBorrowedRegionLocked(FreeManagerShard& shard, RegionIndex& idx)
 {
-    if (shard.borrowedNum_ == 0) {
-        return false;
+    while (!shard.borrowedSpans_.empty()) {
+        BorrowedSpan& span = shard.borrowedSpans_.front();
+        if (span.num == 0) {
+            shard.borrowedSpans_.pop_front();
+            continue;
+        }
+        idx = span.idx;
+        ++span.idx;
+        --span.num;
+        --shard.borrowedRegionCount_;
+        if (span.num == 0) {
+            shard.borrowedSpans_.pop_front();
+        }
+        return true;
     }
-    idx = shard.borrowedIdx_++;
-    --shard.borrowedNum_;
-    return true;
+    return false;
 }
 
 bool FreeManager::TryTakeOneRegionFromOwnedViewsLocked(FreeManagerShard& shard,
@@ -1172,6 +1184,10 @@ void FreeManager::MarkAllocatedOneLocked(FreeManagerShard& shard,
 {
     bool wasScavenged = TestBit(view.scavengedBits_.data(), localIdx);
     bool wasFree = !TestBit(view.allocBits_.data(), localIdx);
+    CHECK_DETAIL(wasFree,
+                 "[MS-GC] MarkAllocatedOneLocked: region already allocated, segment=%zu localIdx=%zu",
+                 view.segmentIdx_,
+                 localIdx);
     reusedScavenged = wasScavenged;
     if (wasScavenged) {
         --shard.scavengedRegionCount_;
@@ -1546,10 +1562,16 @@ bool FreeManager::TryStealSingleRegionBatchLocked(uint16_t receiverShardId,
         }
 
         idx = donorIdx;
-        // Change 3+6: write directly to receiver's inline borrowed fields (no receiverLock needed)
         if (batchCount > 1) {
-            receiverShard.borrowedIdx_ = static_cast<RegionIndex>(donorIdx + 1);
-            receiverShard.borrowedNum_ = static_cast<RegionCount>(batchCount - 1);
+            // Publish borrowed batches under the receiver lock so consume-side
+            // reads cannot observe a torn (idx, num) pair, and multiple pending
+            // steals queue instead of overwriting each other.
+            std::lock_guard<std::mutex> receiverLock(receiverShard.shardMutex_);
+            receiverShard.borrowedSpans_.push_back(
+                BorrowedSpan { donorShardId,
+                               static_cast<RegionIndex>(donorIdx + 1),
+                               static_cast<RegionCount>(batchCount - 1) });
+            receiverShard.borrowedRegionCount_ += static_cast<size_t>(batchCount - 1);
         }
         if (batchReusedScavenged) {
             reusedSpan.idx = donorIdx;
@@ -1692,6 +1714,10 @@ void FreeManager::MarkAllocatedLocked(FreeManagerShard& shard,
         shard.scavengedRegionCount_ -= scavengedCount;
         shard.freeRegionCount_ -= CountFreeInViewRangeLocked(*view, localStart, chunk);
         for (size_t localIdx = localStart; localIdx < localStart + chunk; ++localIdx) {
+            CHECK_DETAIL(!TestBit(view->allocBits_.data(), localIdx),
+                         "[MS-GC] MarkAllocatedLocked: region already allocated, segment=%zu localIdx=%zu",
+                         view->segmentIdx_,
+                         localIdx);
             SetBit(view->allocBits_.data(), localIdx);
             ClearBit(view->scavengedBits_.data(), localIdx);
         }

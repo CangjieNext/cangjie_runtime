@@ -87,15 +87,11 @@ size_t MSRegionManager::GetHeapMemorySize(size_t heapSize)
     return metadataSize + heapAligned;
 }
 
-size_t MSRegionManager::ComputeMaxVirtualHeapSize(size_t heapSize)
+size_t MSRegionManager::ComputeMaxVirtualHeapSize(size_t heapSize, size_t requestedVirtualHeapSize)
 {
-    // Cap at 512GB virtual reservation.
-    static constexpr size_t MAX_VIRTUAL_HEAP = 512ULL * 1024 * 1024 * 1024;
-    size_t maxVirtual = RoundUp<size_t>(heapSize, MS_REGION_SIZE);
-    if (maxVirtual < MAX_VIRTUAL_HEAP) {
-        maxVirtual = MAX_VIRTUAL_HEAP;
-    }
-    return maxVirtual;
+    size_t minVirtualHeapSize = RoundUp<size_t>(heapSize, MS_REGION_SIZE);
+    size_t configuredVirtualHeapSize = RoundUp<size_t>(requestedVirtualHeapSize, MS_REGION_SIZE);
+    return std::max(minVirtualHeapSize, configuredVirtualHeapSize);
 }
 
 size_t MSRegionManager::GetVirtualReserveSize(size_t maxVirtualHeapSize)
@@ -173,9 +169,10 @@ void MSRegionManager::InitializeFreshRegions(RegionIndex startIdx, RegionCount c
     MSBitmapArena::EnsureRegionRangeCommitted(startRegionIdx, regionCount);
     for (size_t i = 0; i < regionCount; ++i) {
         size_t regionIdx = startRegionIdx + i;
-        array_[regionIdx].regionType = MSRegionType::MS_REGION_FREE;
-        array_[regionIdx].nextRegionIdx = MSRegionInfo::INVALID_IDX;
-        array_[regionIdx].prevRegionIdx = MSRegionInfo::INVALID_IDX;
+        // A grown segment can reuse a previously shrunk virtual range. Reset the
+        // whole region entry, including the tracked location/owner side tables,
+        // so stale CENTRAL_* state cannot survive into the next fresh take.
+        array_[regionIdx].Reset();
     }
 }
 

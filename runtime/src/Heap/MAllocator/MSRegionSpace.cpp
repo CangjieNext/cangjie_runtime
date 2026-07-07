@@ -496,8 +496,9 @@ void RegionSpaceMS::Init(const HeapParam& vmHeapParam)
     MemMap::Option opt = MemMap::DEFAULT_OPTIONS;
     opt.tag = "cangjie_heap";
     size_t heapSize = vmHeapParam.heapSize * 1024;
+    size_t configuredMaxVirtualHeapSize = CangjieRuntime::GetMSMaxVirtualHeapSizeKB() * KB;
 
-    size_t maxVirtualHeapSize = MSRegionManager::ComputeMaxVirtualHeapSize(heapSize);
+    size_t maxVirtualHeapSize = MSRegionManager::ComputeMaxVirtualHeapSize(heapSize, configuredMaxVirtualHeapSize);
     size_t totalSize = MSRegionManager::GetVirtualReserveSize(maxVirtualHeapSize);
     opt.protAll = true;
 #if defined(CANGJIE_ASAN_SUPPORT)
@@ -519,12 +520,13 @@ void RegionSpaceMS::Init(const HeapParam& vmHeapParam)
 
     reservedStart = msRegionManager_->GetHeapStart();
     reservedEnd = msRegionManager_->GetHeapEnd();
+    MAddress reservedLimit = msRegionManager_->GetMaxHeapEnd();
 
 #if defined(MRT_DUMP_ADDRESS)
     VLOG(REPORT, "region metadata@%zx, heap @[0x%zx+%zu, 0x%zx)", metadata, reservedStart, reservedEnd - reservedStart,
          reservedEnd);
 #endif
-    Heap::OnHeapCreated(reservedStart);
+    Heap::OnHeapCreated(reservedStart, reservedLimit);
     Heap::OnHeapExtended(reservedEnd);
 
     SizeClassInfo::Init();
@@ -535,9 +537,9 @@ void RegionSpaceMS::Init(const HeapParam& vmHeapParam)
     CHECK_DETAIL(msCentralPool_ != nullptr, "failed to create CentralRegionPool");
 
     VLOG(REPORT, "[MS-GC] MS subsystem initialized: committedRegions=%zu, maxVirtualRegions=%zu, "
-         "heapRange=[0x%zx, 0x%zx), maxHeapEnd=0x%zx",
+         "committedHeapRange=[0x%zx, 0x%zx), reservedHeapRange=[0x%zx, 0x%zx)",
          msRegionManager_->GetMaxRegionCount(), maxVirtualRegionCount,
-         reservedStart, reservedEnd, msRegionManager_->GetMaxHeapEnd());
+         reservedStart, reservedEnd, reservedStart, reservedLimit);
 }
 
 bool Allocator::MarkObject(const BaseObject* obj)

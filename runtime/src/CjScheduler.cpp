@@ -31,6 +31,9 @@
 #include "ExceptionManager.inline.h"
 #include "Mutator/Mutator.inline.h"
 #include "schedule.h"
+#ifdef MRT_USE_MARK_SWEEP
+#include "Heap/MAllocator/MSShardRouting.h"
+#endif
 #if defined(CANGJIE_SANITIZER_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
 #endif
@@ -86,6 +89,7 @@ static void CheckSysmemSize()
  * for example:
  *     export cjHeapSize = 32GB
  */
+#ifndef MRT_USE_MARK_SWEEP
 static size_t InitHeapSize(size_t defaultParam)
 {
 #if defined(__OHOS__) || defined(__ANDROID__)
@@ -99,6 +103,7 @@ static size_t InitHeapSize(size_t defaultParam)
     return ReadSizeParameter("cjHeapSize", defaultParam, minSize, EnvBoundKind::CLOSED,
                              maxSize, EnvBoundKind::CLOSED);
 }
+#endif
 
 static size_t InitRegionSize(size_t defaultParam)
 {
@@ -109,6 +114,19 @@ static size_t InitRegionSize(size_t defaultParam)
     return ReadSizeParameter("cjRegionSize", defaultParam, minSize, EnvBoundKind::CLOSED,
                              maxSize, EnvBoundKind::CLOSED);
 }
+
+#ifdef MRT_USE_MARK_SWEEP
+static size_t ComputeMSInitialHeapSizeKB(uint32_t processorNum)
+{
+    return ComputeMSInitialCommittedHeapBytes(processorNum) / KB;
+}
+
+static size_t InitMSMaxVirtualHeapSize(size_t minVirtualHeapSizeKB)
+{
+    static constexpr size_t defaultValueKB = 16ULL * GB / KB;
+    return ReadSizeParameter("cjMSMaxVirtualHeapSize", defaultValueKB, minVirtualHeapSizeKB, EnvBoundKind::CLOSED);
+}
+#endif
 
 /**
  * Init light-weight-thread stack size from environment variable.
@@ -129,7 +147,6 @@ static size_t InitCoStackSize()
 #else
     size_t defaultStackSize = 128; // default 128KB, measured in KB
 #endif
-    size_t stackSize = defaultStackSize;
 #ifdef _WIN64
     const size_t minStackSize = 128; // min: 128KB.
 #else
@@ -404,22 +421,26 @@ void* MCC_NewCJThreadNoReturn(void* executeClosure, void* closurePtr, void* sche
 }
 
 /**
- * Determine the default stack size and heap size according to system memory.
- * If system memory size is less then 1GB, heap size is 64MB and stack size is 64KB.
- * Otherwise heap size is 256MB and stack size is 1MB.
+ * Determine the default stack size and initial heap size.
+ * CopyGC derives heap size from system memory and cjHeapSize.
+ * MSGC uses one 64MB segment per processor as the initial committed heap size.
  */
 static RuntimeParam InitRuntimeParam()
 {
     CheckSysmemSize();
+    uint32_t processorNum = InitProcessorNum();
 #ifdef MRT_USE_MARK_SWEEP
-    // MS-GC: heap size is fixed to 256MB and is not configurable via cjHeapSize.
-    size_t initHeapSize = 256 * KB;
+    size_t initHeapSize = ComputeMSInitialHeapSizeKB(processorNum);
     double heapGrowth = ReadDoubleParameter("cjHeapGrowth", 1.0, 0.0, EnvBoundKind::OPEN,
                                             std::numeric_limits<double>::max(), EnvBoundKind::CLOSED);
 #else
     size_t initHeapSize = InitHeapSize(g_sysmemSize > 1 * GB ? 256 * KB : 64 * KB);
     double heapGrowth = ReadDoubleParameter("cjHeapGrowth", 0.25, 0.0, EnvBoundKind::OPEN,
                                             std::numeric_limits<double>::max(), EnvBoundKind::CLOSED);
+#endif
+#ifdef MRT_USE_MARK_SWEEP
+    CangjieRuntime::SetMSMaxVirtualHeapSizeKB(
+        InitMSMaxVirtualHeapSize(initHeapSize));
 #endif
     uint64_t gcInterval = ReadTimeParameter("cjGCInterval", 0, 0, EnvBoundKind::OPEN, true);
     RuntimeParam param = {
@@ -431,7 +452,7 @@ static RuntimeParam InitRuntimeParam()
             // Default region size is 64KB.
             .regionSize = InitRegionSize(64UL),
 #endif
-            // Default heap size is 256MB if system memory size is greater than 1GB, otherwise is 64MB.
+            // Heap size is derived above and represents the initial committed heap size.
             .heapSize = initHeapSize,
             /*
              * The minimux live region threshold is 0% of region,
@@ -485,7 +506,7 @@ static RuntimeParam InitRuntimeParam()
             .msBackgroundScavenge =
                 static_cast<uint8_t>(ReadBoolParameter("cjMSBackgroundScavenge", true) ? 1U : 0U),
             .msBackgroundShrink =
-                static_cast<uint8_t>(ReadBoolParameter("cjMSBackgroundShrink", true) ? 1U : 0U),
+                static_cast<uint8_t>(ReadBoolParameter("cjMSBackgroundShrink", false) ? 1U : 0U),
             .msVerifyMark = static_cast<uint8_t>(ReadBoolParameter("cjMSVerifyMark", false) ? 1U : 0U),
             .msVerifyMarkDetail =
                 static_cast<uint8_t>(ReadBoolParameter("cjMSVerifyMarkDetail", false) ? 1U : 0U),
@@ -497,7 +518,7 @@ static RuntimeParam InitRuntimeParam()
             // Default thread stack size is 1 * KB KB = 1MB.
             .thStackSize = 1 * KB,
             .coStackSize = InitCoStackSize(),
-            .processorNum = InitProcessorNum(),
+            .processorNum = processorNum,
         }
     };
     return param;

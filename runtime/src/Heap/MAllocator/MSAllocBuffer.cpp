@@ -24,6 +24,7 @@
 namespace MapleRuntime {
 
 constexpr uint8_t AllocBufferMS::kCachedRegionSlots;
+constexpr size_t AllocBufferMS::kLocalEmptyRegionCap;
 
 static constexpr bool kDisableMutatorAssistProbe = false;
 

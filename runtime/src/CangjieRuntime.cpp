@@ -37,6 +37,7 @@
 #endif
 namespace MapleRuntime {
 StackGrowConfig CangjieRuntime::stackGrowConfig = StackGrowConfig::UNDEF;
+size_t CangjieRuntime::msMaxVirtualHeapSizeKB = 0;
 extern "C" MRT_EXPORT void MRT_LibraryOnLoad(uint64_t address, bool enableGC)
 {
     ScopedEntryTrace trace("CJRT_LOAD_LIBRARY");

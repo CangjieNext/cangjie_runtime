@@ -16,6 +16,7 @@
 #include "sys/sysinfo.h"
 #endif
 
+#include "Base/EnvParam.h"
 #include "Base/Log.h"
 #include "Cangjie.h"
 #include "Concurrency/Concurrency.h"
@@ -41,6 +42,9 @@
 #include "Common/ScopedObjectAccess.h"
 #include "HeapManager.h"
 #include "HeapManager.inline.h"
+#ifdef MRT_USE_MARK_SWEEP
+#include "Heap/MAllocator/MSShardRouting.h"
+#endif
 
 CANGJIE_RT_API_DECLS_BEGIN
 const double ERRORESTIMATE = 1e-12;
@@ -51,6 +55,8 @@ static std::condition_variable g_conditionVariable;
 static std::mutex g_mtx;
 static size_t g_sysmemSize = 1U * MapleRuntime::GB;
 static std::set<uintptr_t> futureSet;
+
+static constexpr size_t DEFAULT_MS_MAX_VIRTUAL_HEAP_SIZE_KB = 16ULL * MapleRuntime::GB / MapleRuntime::KB;
 
 static void CheckSysmemSize()
 {
@@ -171,6 +177,17 @@ static void* StartCJRuntime(void* arg)
     return nullptr;
 }
 
+static size_t ComputeMSInitialHeapSizeKB(uint32_t processorNum)
+{
+    return MapleRuntime::ComputeMSInitialCommittedHeapBytes(processorNum) / MapleRuntime::KB;
+}
+
+static size_t ResolveMSMaxVirtualHeapSizeKB(size_t minVirtualHeapSizeKB)
+{
+    return MapleRuntime::ReadSizeParameter("cjMSMaxVirtualHeapSize", DEFAULT_MS_MAX_VIRTUAL_HEAP_SIZE_KB,
+                                           minVirtualHeapSizeKB, MapleRuntime::EnvBoundKind::CLOSED);
+}
+
 RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
 {
     if (g_runtimeFinished.load()) {
@@ -198,14 +215,19 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
 #endif
     unsigned int cpus = std::thread::hardware_concurrency();
     uint32_t defaultProcs = cpus != 0 ? static_cast<uint32_t>(cpus) : 8;
+    uint32_t resolvedProcessorNum = param->coParam.processorNum == 0 ? defaultProcs : param->coParam.processorNum;
+#ifdef MRT_USE_MARK_SWEEP
+    size_t initHeapSize = ComputeMSInitialHeapSizeKB(resolvedProcessorNum);
+#else
     size_t initHeapSize = param->heapParam.heapSize == 0 ? 64 * 1024 : param->heapParam.heapSize;
+#endif
 #ifdef MRT_USE_MARK_SWEEP
     double defaultHeapGrowth = 1.0;
 #else
     double defaultHeapGrowth = 0.25;
 #endif
     double resolvedHeapGrowth = param->heapParam.heapGrowth < ERRORESTIMATE ? defaultHeapGrowth : param->heapParam.heapGrowth;
-#if defined(__OHOS__)
+#if defined(__OHOS__) && !defined(MRT_USE_MARK_SWEEP)
     // use limited heap size in OHOS devices --
     // (   , 2GB] -- 128MB
     // (2GB, 4GB] -- 256MB
@@ -221,11 +243,15 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
         initHeapSize = 512 * MapleRuntime::MB / MapleRuntime::KB;
     }
 #endif
+#ifdef MRT_USE_MARK_SWEEP
+    MapleRuntime::CangjieRuntime::SetMSMaxVirtualHeapSizeKB(
+        ResolveMSMaxVirtualHeapSizeKB(initHeapSize));
+#endif
     RuntimeParam config = {
         .heapParam = {
             // Default value of region size is 64KB.
             .regionSize = param->heapParam.regionSize == 0 ? 64 : param->heapParam.regionSize,
-            // Default value of heap size is 64 * 1024KB.
+            // Heap size is the initial committed heap size.
             .heapSize = initHeapSize,
             // Default value of live region threshold is 80%.
             .exemptionThreshold = param->heapParam.exemptionThreshold < ERRORESTIMATE ? \
@@ -278,8 +304,7 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
             .msBackgroundFeed = param->gcParam.msBackgroundFeed,
             .msBackgroundScavenge = static_cast<uint8_t>(
                 param->gcParam.msBackgroundScavenge == 0 ? 1 : param->gcParam.msBackgroundScavenge),
-            .msBackgroundShrink = static_cast<uint8_t>(
-                param->gcParam.msBackgroundShrink == 0 ? 1 : param->gcParam.msBackgroundShrink),
+            .msBackgroundShrink = static_cast<uint8_t>(param->gcParam.msBackgroundShrink != 0 ? 1U : 0U),
             .msVerifyMark = param->gcParam.msVerifyMark,
             .msVerifyMarkDetail = param->gcParam.msVerifyMarkDetail,
         },
@@ -290,7 +315,7 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
             // Default value of thread stack size is 1 * 1024KB
             .thStackSize = param->coParam.thStackSize == 0 ? 1 * 1024 : param->coParam.thStackSize,
             .coStackSize = param->coParam.coStackSize == 0 ? defaultStackSize : param->coParam.coStackSize,
-            .processorNum = param->coParam.processorNum == 0 ? defaultProcs : param->coParam.processorNum,
+            .processorNum = resolvedProcessorNum,
         }
     };
 

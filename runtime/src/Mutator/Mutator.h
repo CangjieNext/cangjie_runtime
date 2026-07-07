@@ -328,19 +328,6 @@ public:
 
     inline void HandleCpuProfile();
 
-    static inline uint8_t EncodeThreadLocalGCFastState(const GCPhase phase)
-    {
-        switch (phase) {
-            case GCPhase::GC_PHASE_MS_MARK_SETUP:
-            case GCPhase::GC_PHASE_MS_MARK_TERMINATION:
-                return ThreadLocal::GC_FAST_STATE_MS_MARKING;
-            case GCPhase::GC_PHASE_MS_CONCURRENT_MARK:
-                return ThreadLocal::GC_FAST_STATE_MS_MARKING | ThreadLocal::GC_FAST_STATE_MS_ASSIST;
-            default:
-                return ThreadLocal::GC_FAST_STATE_NONE;
-        }
-    }
-
     static inline uint8_t EncodeThreadLocalGCPhaseByte(const GCPhase phase)
     {
         // Fix: directly cast phase to uint8_t so GC_PHASE_IDLE(1) encodes to 1,
@@ -352,7 +339,6 @@ public:
 
     static inline void SetThreadLocalGCPhase(ThreadLocalData* local, const GCPhase phase)
     {
-        local->gcFastState = EncodeThreadLocalGCFastState(phase);
         local->encodedGCPhase = EncodeThreadLocalGCPhaseByte(phase);
     }
 

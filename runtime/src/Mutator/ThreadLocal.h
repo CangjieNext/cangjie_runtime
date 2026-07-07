@@ -34,9 +34,10 @@ struct ThreadLocalData {
     // Internal thread local var.
     ThreadType threadType;
     bool isCJProcessor;
-    uint8_t gcFastState;
-    uint8_t encodedGCPhase;
+    // Preserve the historical ABI layout around encodedGCPhase for generated code.
     uint8_t reserved0;
+    uint8_t encodedGCPhase;
+    uint8_t reserved1;
     void* threadCache;
     AllocBufferMS* msAllocBuffer;
 };
@@ -49,10 +50,6 @@ extern thread_local uint64_t threadLocalData[sizeof(ThreadLocalData) / sizeof(ui
 
 class ThreadLocal { // merge this to ThreadLocalData.
 public:
-    static constexpr uint8_t GC_FAST_STATE_NONE = 0;
-    static constexpr uint8_t GC_FAST_STATE_MS_MARKING = 1U << 0;
-    static constexpr uint8_t GC_FAST_STATE_MS_ASSIST = 1U << 1;
-
     static inline ThreadLocalData* GetThreadLocalData()
     {
         return reinterpret_cast<ThreadLocalData*>(threadLocalData);
@@ -81,10 +78,6 @@ public:
     static void SetCJProcessorFlag(bool flag) { GetThreadLocalData()->isCJProcessor = flag; }
 
     static bool IsCJProcessor() { return GetThreadLocalData()->isCJProcessor; }
-
-    static void SetGCFastState(uint8_t state) { GetThreadLocalData()->gcFastState = state; }
-
-    static uint8_t GetGCFastState() { return GetThreadLocalData()->gcFastState; }
 
     static void SetEncodedGCPhase(uint8_t encodedPhase) { GetThreadLocalData()->encodedGCPhase = encodedPhase; }
 

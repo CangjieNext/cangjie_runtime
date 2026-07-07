@@ -322,7 +322,15 @@ void MarkSweepCollector::PreGarbageCollection(bool isConcurrent)
 void MarkSweepCollector::PostGarbageCollection(uint64_t gcIndex)
 {
     uint64_t t0 = TimeUtil::MicroSeconds();
-    TracingCollector::PostGarbageCollection(gcIndex);
+    // MSGC finishes SATB-independent cleanup in MarkTermination/PostMarkTermination.
+    // After UpdateGCStats, the remaining hook work is only the collector-finished
+    // publication and the final return to the idle barrier state.
+    TransitionToGCPhase(GCPhase::GC_PHASE_IDLE, true);
+    collectorResources.NotifyGCFinished(gcIndex);
+
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+    DumpAfterGC();
+#endif
     cycleStats_.postGcHookUs = TimeUtil::MicroSeconds() - t0;
 }
 

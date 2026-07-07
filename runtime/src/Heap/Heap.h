@@ -113,9 +113,11 @@ public:
 
     virtual void StopGCWork() = 0;
 
-    static void OnHeapCreated(MAddress startAddr)
+    static void OnHeapCreated(MAddress startAddr, MAddress reservedEndAddr)
     {
         heapStartAddr = startAddr;
+        heapReservedStartAddr = startAddr;
+        heapReservedEndAddr = reservedEndAddr;
         heapCurrentEnd = 0;
     }
 
@@ -124,8 +126,15 @@ public:
     virtual ~Heap() {}
     static Barrier** currentBarrierPtr; // record ptr for fast access
     static Barrier* stwBarrierPtr;      // record nonGC barrier
-    static MAddress heapStartAddr;
-    static MAddress heapCurrentEnd;
+    MRT_EXPORT static MAddress heapStartAddr;
+    MRT_EXPORT static MAddress heapCurrentEnd;
+    MRT_EXPORT static MAddress heapReservedStartAddr;
+    MRT_EXPORT static MAddress heapReservedEndAddr;
+#ifdef MRT_USE_MARK_SWEEP
+    // AArch64 MSGC inline fast paths consume this exported 0/1 barrier gate:
+    // 0 => msIdleBarrier, 1 => msMarkBarrier / conservative fallback.
+    MRT_EXPORT static uint8_t inlineFastPathGCPhase;
+#endif
 };
 } // namespace MapleRuntime
 #endif // MRT_HEAP_MANAGER_H

@@ -39,6 +39,8 @@ public:
     static ConcurrencyParam GetConcurrencyParam() { return Runtime::Current().GetRuntimeParam().coParam; }
     static GCParam GetGCParam() { return Runtime::Current().GetRuntimeParam().gcParam; }
     static LogParam GetLogParam() { return Runtime::Current().GetRuntimeParam().logParam; }
+    static size_t GetMSMaxVirtualHeapSizeKB() { return msMaxVirtualHeapSizeKB; }
+    static void SetMSMaxVirtualHeapSizeKB(size_t valueKB) { msMaxVirtualHeapSizeKB = valueKB; }
     RuntimeParam GetRuntimeParam() const override { return param; }
     void SetCommandLinesArgs(int argc, const char* argv[])
     {
@@ -74,6 +76,7 @@ private:
     const char** commandLineArgs = nullptr;
     ConcurrencyModelMap subModelMap;
     std::mutex mtx;
+    static size_t msMaxVirtualHeapSizeKB;
 };
 } // namespace MapleRuntime
 #endif // MRT_CJ_RUNTIME_H

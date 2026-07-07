@@ -38,6 +38,12 @@ public:
         RegionCount num = 0;
     };
 
+    struct BorrowedSpan {
+        uint16_t ownerShardId = 0;
+        RegionIndex idx = 0;
+        RegionCount num = 0;
+    };
+
     struct SegmentFreeSnapshot {
         size_t validRegions = 0;
         size_t freeRegions = 0;
@@ -171,10 +177,10 @@ private:
         RegionIndex takeCursor_ = 0;
         RegionIndex reclaimCursor_ = 0;
         std::atomic<uint16_t> nextStealDonorShard_{0};
-        RegionIndex borrowedIdx_ = 0;
-        RegionCount borrowedNum_ = 0;
+        size_t borrowedRegionCount_ = 0;
         std::vector<size_t> ownedSegments_;
         std::vector<OwnedSegmentView> ownedViews_;
+        std::deque<BorrowedSpan> borrowedSpans_;
         size_t bitmapWordCountInUse_ = 0;
         size_t summaryChunkCountInUse_ = 0;
         uint32_t maxOwnedFreeRun_ = 0;

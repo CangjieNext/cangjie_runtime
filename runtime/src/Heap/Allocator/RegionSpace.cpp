@@ -176,7 +176,7 @@ void RegionSpace::Init(const HeapParam& vmHeapParam)
     VLOG(REPORT, "region metadata@%zx, heap @[0x%zx+%zu, 0x%zx)", metadata, reservedStart, reservedEnd - reservedStart,
          reservedEnd);
 #endif
-    Heap::OnHeapCreated(reservedStart);
+    Heap::OnHeapCreated(reservedStart, reservedEnd);
     Heap::OnHeapExtended(reservedEnd);
 }
 
