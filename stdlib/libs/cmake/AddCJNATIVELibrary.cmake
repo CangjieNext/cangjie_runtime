@@ -251,6 +251,8 @@ make_cangjie_lib(
         std-io
         std-time
         std-collection
+        std-sync
+        std-collection.concurrent
     CANGJIE_STD_LIB_INDIRECT_DEPENDS
         std-math
         std-sort
