@@ -135,24 +135,32 @@ void MSMarkBarrier::WriteReference(BaseObject* obj, RefField<false>& field, Base
 {
     (void)obj;
 
-    // log(old)
     BaseObject* oldRef = field.GetTargetObject();
+    if (oldRef == ref) {
+        field.SetTargetObject(ref);
+        return;
+    }
+
+    // log(old)
     EnqueueRefFast(oldRef);
 
     // store
     field.SetTargetObject(ref);
-
 }
 
 void MSMarkBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) const
 {
-    // log(old)
     BaseObject* oldRef = field.GetTargetObject();
+    if (oldRef == ref) {
+        field.SetTargetObject(ref);
+        return;
+    }
+
+    // log(old)
     EnqueueRefFast(oldRef);
 
     // store
     field.SetTargetObject(ref);
-
 }
 
 void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen) const
