@@ -110,6 +110,22 @@ int ScheduleAttrInit(struct ScheduleAttr *usrAttr)
     return 0;
 }
 
+int ScheduleAttrInitWithParams(struct ScheduleAttr *usrAttr, const ConcurrencyParam param,
+                               bool stackProtect, bool stackGrow)
+{
+    struct ScheduleAttrInner *attr = reinterpret_cast<struct ScheduleAttrInner *>(usrAttr);
+
+    if (attr == nullptr) {
+        return ERRNO_SCHD_ATTR_INVALID;
+    }
+    attr->thstackSize = param.thStackSize * 1024;
+    attr->costackSize = param.coStackSize * 1024;
+    attr->stackProtect = stackProtect;
+    attr->stackGrow = stackGrow;
+    attr->processorNum = static_cast<unsigned int>(param.processorNum);
+    return 0;
+}
+
 int ScheduleAttrCostackSizeSet(struct ScheduleAttr *usrAttr, unsigned int size)
 {
     struct ScheduleAttrInner *attr = reinterpret_cast<struct ScheduleAttrInner *>(usrAttr);
