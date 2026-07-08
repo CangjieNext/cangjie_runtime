@@ -31,11 +31,6 @@ func getRealHeapSize(): UIntNative
 func dumpCjHeapData(fd: Int32): Bool
 
 @When[backend == "cjnative"]
-func boxDumpCjHeapData(fd: Int32): Bool {
-    return dumpCjHeapData(fd)
-}
-
-@When[backend == "cjnative"]
 @Frozen
 @Intrinsic
 public func blackBox<T>(input: T): T
@@ -187,7 +182,7 @@ public func dumpHeapData(path: Path): Unit {
 public func dumpHeapData(path: Path): Unit {
     let resolvedPath = validateAndResolvePath(path,
         "Heap dump path is invalid or contains forbidden characters for security reasons.")
-    let success = executeWithWindowsFd(resolvedPath, boxDumpCjHeapData)
+    let success = executeWithWindowsFd(resolvedPath, dumpCjHeapData)
     if (!success) {
         throw MemoryInfoException("Failed to dump heap data.")
     }
