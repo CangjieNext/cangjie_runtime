@@ -49,6 +49,9 @@ struct WarmupInfo {
     var emaGC = Ema(5)
 
     private mut func runMultipleAndEstimateTime(times: Int64, maxMeasureBatch: Int64): Float64 {
+
+        //println("    Running ${times} iterations with max batch size ${maxMeasureBatch} to estimate time per iteration.")
+
         let baseWithRun = benchmark.timeLoopOnce(times, times, maxMeasureBatch)
         let baseLoopOnly = benchmark.timeLoopOnce(0, times, maxMeasureBatch)
         let base = benchmark.timeLoopOnce(0, 0, maxMeasureBatch)
@@ -103,6 +106,8 @@ struct WarmupInfo {
     }
 
     mut func warmupDuration(warmupTime: Duration, maxMeasureBatch: Int64, explicitGC: ExplicitGcType) {
+        println("warmupDuration; maxMeasureBatch = ${maxMeasureBatch}")
+
         beforeWarmup()
         let targetTime = Float64(warmupTime.toNanoseconds())
 
@@ -382,6 +387,8 @@ Warning: Too many objects survive GC which causes unexpectedly long GC times.
         maxMeasureBatch = this.batchSize.start
         let maxBatch = batchRange.end.ceilTo(maxMeasureBatch)
         let benchExecTime: Duration
+
+        println("this.batchSize.start = ${this.batchSize.start}, this.batchSize.end = ${this.batchSize.end}, maxMeasureBatch = ${maxMeasureBatch}, batchRange.start = ${batchRange.start}, batchRange.end = ${batchRange.end}, maxBatch = ${maxBatch}")
 
         if (batchCount < 50 || (benchmark.measurement as Runtime)?.measuresGC() == Some(true)) {
             benchExecTime = doMacroBench(maxBatch, batchCount)
