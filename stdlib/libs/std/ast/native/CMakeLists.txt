@@ -4,11 +4,26 @@
 #
 # See https://cangjie-lang.cn/pages/LICENSE for license information.
 
-# Generate cpp code for ast using flatc with cpp backend.
-set(SCHEMA_SRC ${CMAKE_CURRENT_SOURCE_DIR}/../../../../schema/NodeFormat.fbs)
+# flatc, NodeFormat.fbs and cangjie runtime support come from the compiler SDK.
+set(FLATBUFFERS_TOOLCHAIN_DIR $ENV{CANGJIE_HOME}/third_party/flatbuffers)
+set(FLATBUFFERS_INCLUDE_DIR ${FLATBUFFERS_TOOLCHAIN_DIR}/include)
+set(SCHEMA_SRC ${FLATBUFFERS_TOOLCHAIN_DIR}/NodeFormat.fbs)
 get_filename_component(FILENAME ${SCHEMA_SRC} NAME_WE)
-set(FLATC_EXECUTABLE "${CMAKE_BINARY_DIR}/bin/flatc")
-set(FLATBUFFER_SRC ${CMAKE_CURRENT_SOURCE_DIR}/../../../../third_party/flatbuffers)
+set(FLATC_EXECUTABLE ${FLATBUFFERS_TOOLCHAIN_DIR}/flatc)
+set(FLATBUFFER_DEPEND_CJ_DIR ${FLATBUFFERS_TOOLCHAIN_DIR}/cangjie)
+
+if(NOT EXISTS ${FLATC_EXECUTABLE})
+    message(FATAL_ERROR "flatc not found at ${FLATC_EXECUTABLE}. Build cangjie_compiler and source envsetup.sh first.")
+endif()
+if(NOT EXISTS ${SCHEMA_SRC})
+    message(FATAL_ERROR "NodeFormat.fbs not found at ${SCHEMA_SRC}. Build cangjie_compiler and source envsetup.sh first.")
+endif()
+if(NOT EXISTS ${FLATBUFFER_DEPEND_CJ_DIR})
+    message(FATAL_ERROR "flatbuffers cangjie runtime not found at ${FLATBUFFER_DEPEND_CJ_DIR}. Build cangjie_compiler and source envsetup.sh first.")
+endif()
+if(NOT EXISTS ${FLATBUFFERS_INCLUDE_DIR}/flatbuffers/flatbuffers.h)
+    message(FATAL_ERROR "flatbuffers headers not found at ${FLATBUFFERS_INCLUDE_DIR}. Rebuild and reinstall cangjie_compiler to update third_party/flatbuffers.")
+endif()
 
 if(IOS)
     get_directory_property(SRC_COMPILE_OPTIONS COMPILE_OPTIONS)
@@ -17,22 +32,22 @@ if(IOS)
     add_compile_options(--target=${CXX_COMPATIABLE_TRIPLE})
 endif()
 
-# Generate cangjie code for ast using flatc with cangjie backend.
+# Generate cpp code for ast using flatc with cpp backend.
 set(FLATC_CPP_OUTPUT "${CMAKE_BINARY_DIR}/include/flatbuffers/${FILENAME}_generated.h")
 add_custom_command(
     OUTPUT ${FLATC_CPP_OUTPUT}
     COMMAND ${FLATC_EXECUTABLE} ARGS --no-warnings -c -o "${CMAKE_BINARY_DIR}/include/flatbuffers" ${SCHEMA_SRC}
-    DEPENDS flatbuffers ${SCHEMA_SRC} # flatc defined in flatbuffers project: add_executable(flatc..)
+    DEPENDS ${FLATC_EXECUTABLE} ${SCHEMA_SRC}
     COMMENT "generate cpp file using flatc"
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    WORKING_DIRECTORY ${FLATBUFFERS_TOOLCHAIN_DIR})
 
+# Generate cangjie code for ast using flatc with cangjie backend.
 set(FLATC_CJ_OUTPUT "${CMAKE_BINARY_DIR}/${FILENAME}_generated.cj")
-set(FLATBUFFER_DEPEND_CJ_DIR ${FLATBUFFER_SRC}/cangjie)
 
 add_custom_command(
     OUTPUT ${FLATC_CJ_OUTPUT}
     COMMAND ${FLATC_EXECUTABLE} ARGS --no-warnings --cangjie -o "${CMAKE_BINARY_DIR}" ${SCHEMA_SRC}
-    DEPENDS flatbuffers ${SCHEMA_SRC} # flatc defined in flatbuffers project: add_executable(flatc..)
+    DEPENDS ${FLATC_EXECUTABLE} ${SCHEMA_SRC}
 
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${FLATBUFFER_DEPEND_CJ_DIR}/table.cj
             ${CMAKE_SOURCE_DIR}/libs/std/ast/
@@ -48,7 +63,8 @@ add_custom_command(
             ${CMAKE_SOURCE_DIR}/libs/std/ast/flatc_exception.cj
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_BINARY_DIR}/${FILENAME}_generated.cj
         ${CMAKE_SOURCE_DIR}/libs/std/ast/${FILENAME}_generated.cj
-    COMMENT "Copy cangjie library files to libs")
+    COMMENT "Copy cangjie library files to libs"
+    WORKING_DIRECTORY ${FLATBUFFERS_TOOLCHAIN_DIR})
 
 add_custom_target(FLATC_OUTPUTS ALL DEPENDS ${FLATC_CJ_OUTPUT} ${FLATC_CPP_OUTPUT})
 
@@ -85,7 +101,7 @@ if(CANGJIE_BUILD_STDLIB_WITH_COVERAGE)
     target_compile_options(${libname}-objs PUBLIC "-fno-exceptions")
     target_compile_definitions(${libname}-objs PRIVATE CANGJIE_ENABLE_GCOV)
 endif()
-target_include_directories(${libname}-objs PRIVATE ${CANGJIE_INC_DIR} ${CMAKE_BINARY_DIR}/include)
+target_include_directories(${libname}-objs PRIVATE ${CANGJIE_INC_DIR} ${CMAKE_BINARY_DIR}/include ${FLATBUFFERS_INCLUDE_DIR})
 
 set(TARGET_AR ar)
 if(MINGW OR DARWIN)

@@ -75,7 +75,6 @@ autoconf/autom4te.cache
 **/.gdb_history
 
 third_party/rapidjson
-third_party/flatbuffers
 third_party/boundscheck-v1.1.16
 third_party/context-boost-1.72.0
 third_party/panda
