@@ -81,6 +81,7 @@ set(CMAKE_CXX_FLAGS
     -Wframe-larger-than=10240 \
     -fno-exceptions \
     -fPIC \
+    -mcmodel=large \
     -pipe"
 )
 
