@@ -530,9 +530,14 @@ if(TRIPLE STREQUAL "arm-linux-ohos")
 elseif(TRIPLE STREQUAL "arm-linux-android23")
     set(arm32_ast_support -L$ENV{CANGJIE_HOME}/lib/linux_android23_arm_cjnative)
 endif()
+add_library(cangjie-flatbuffers STATIC ${output_cj_object_dir}/flatbuffers.o)
+set_target_properties(cangjie-flatbuffers PROPERTIES LINKER_LANGUAGE C)
+set_source_files_properties(${output_cj_object_dir}/flatbuffers.o PROPERTIES GENERATED TRUE)
+install(TARGETS cangjie-flatbuffers DESTINATION lib/${output_triple_name}_${CJNATIVE_BACKEND}${SANITIZER_SUBPATH})
+
 make_cangjie_lib(
     std-ast IS_SHARED ${STD_AST_ALLOW_UNDEFINED}
-    DEPENDS cangjie${BACKEND_TYPE}AST cangjie-std-astFFI-objs
+    DEPENDS cangjie${BACKEND_TYPE}AST cangjie-std-astFFI-objs cangjie-flatbuffers cangjie${BACKEND_TYPE}Flatbuffers
     CANGJIE_STD_LIB_DEPENDS
         std-core
         std-collection
@@ -540,6 +545,8 @@ make_cangjie_lib(
     CANGJIE_STD_LIB_INDIRECT_DEPENDS
         std-math
     OBJECTS ${output_cj_object_dir}/std/ast.o
+    FORCE_LINK_ARCHIVES
+        cangjie-flatbuffers
     FLAGS
         $<TARGET_OBJECTS:cangjie-std-astFFI-objs>
         ${arm32_ast_support}
@@ -553,6 +560,7 @@ make_cangjie_lib(
 
 add_library(cangjie-std-ast STATIC ${output_cj_object_dir}/std/ast.o)
 set_target_properties(cangjie-std-ast PROPERTIES LINKER_LANGUAGE C)
+add_dependencies(cangjie-std-ast cangjie${BACKEND_TYPE}AST cangjie-flatbuffers)
 install(TARGETS cangjie-std-ast DESTINATION lib/${output_triple_name}_${CJNATIVE_BACKEND}${SANITIZER_SUBPATH})
 
 make_cangjie_lib(
@@ -1172,6 +1180,19 @@ add_cangjie_library(
     SOURCES ${CJNATIVE_RUNTIME_SRCS}
     SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/std/runtime
     DEPENDS ${RUNTIME_DEPENDENCIES})
+
+add_cangjie_library(
+    cangjie${BACKEND_TYPE}Flatbuffers
+    NO_SUB_PKG
+    IS_STDLIB
+    IS_PACKAGE
+    IS_CJNATIVE_BACKEND
+    NO_SANCOV
+    NO_INSTALL_CJO
+    PACKAGE_NAME "flatbuffers"
+    SOURCE_DIR $ENV{CANGJIE_HOME}/third_party/flatbuffers/cangjie
+    DEPENDS ${FLATBUFFERS_DEPENDENCIES})
+add_dependencies(cangjie-flatbuffers cangjie${BACKEND_TYPE}Flatbuffers)
 
 add_cangjie_library(
     cangjie${BACKEND_TYPE}AST
