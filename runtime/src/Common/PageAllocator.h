@@ -359,13 +359,13 @@ public:
 
     void destroy(pointer p) { p->~value_type(); }
 };
-// vector::swap requires that the allocator defined by ourselves should be comparable during compiling period,
-// so we overload operator == and return true.
+// std::list::splice / vector::swap require allocator equality comparable with const operands.
 template<typename Tp, AllocationTag tag>
 inline bool operator==(const StdContainerAllocator<Tp, tag>&, const StdContainerAllocator<Tp, tag>&) noexcept
 {
     return true;
 }
+
 template<typename Tp, AllocationTag tag>
 inline bool operator!=(const StdContainerAllocator<Tp, tag>&, const StdContainerAllocator<Tp, tag>&) noexcept
 {
