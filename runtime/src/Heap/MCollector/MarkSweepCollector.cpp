@@ -236,8 +236,13 @@ static inline bool IsCurrentSweepGenObject(BaseObject* obj, uint32_t currentSwee
     return msInfo->GetSweepGen() == currentSweepGen;
 }
 
-static inline bool IsTraceableObjectAddress(BaseObject* obj)
+// Validate that `obj` is a live traceable heap object, and on success also hand
+// back the resolved MSRegionInfo* so the caller can mark without re-resolving
+// the region (see MarkObjectInHeapKnown). outInfo is set only when returning
+// true; it is the same pointer GetRegionInfoValidated(addr) yields.
+static inline bool IsTraceableObjectAddressEx(BaseObject* obj, MSRegionInfo*& outInfo)
 {
+    outInfo = nullptr;
     if (obj == nullptr) {
         return false;
     }
@@ -257,7 +262,11 @@ static inline bool IsTraceableObjectAddress(BaseObject* obj)
         if (base->regionEnd == 0) {
             base = MSRegionInfoArray::GetRegionInfoByIdx(static_cast<size_t>(msInfo->reserved));
         }
-        return base->allocPtr == addr && (addr + sizeof(uintptr_t) <= base->regionEnd);
+        if (base->allocPtr == addr && (addr + sizeof(uintptr_t) <= base->regionEnd)) {
+            outInfo = msInfo;
+            return true;
+        }
+        return false;
     }
 
     if (msInfo->regionType == MSRegionType::MS_REGION_FREE ||
@@ -285,7 +294,14 @@ static inline bool IsTraceableObjectAddress(BaseObject* obj)
         return false;
     }
 
+    outInfo = msInfo;
     return true;
+}
+
+static inline bool IsTraceableObjectAddress(BaseObject* obj)
+{
+    MSRegionInfo* unused = nullptr;
+    return IsTraceableObjectAddressEx(obj, unused);
 }
 
 // Static member definition
@@ -492,16 +508,28 @@ bool MarkSweepCollector::MarkObject(BaseObject* obj) const
     return true;
 }
 
-bool MarkSweepCollector::DiscoverObject(BaseObject* obj)
+bool MarkSweepCollector::DiscoverObjectNoCount(BaseObject* obj)
 {
     // Guard against stale pointers to reclaimed/zeroed slots.
     // For such slots stateWord->TypeInfo is null, and they must not be enqueued
     // into mark work queues in concurrent mark.
-    if (UNLIKELY(!IsTraceableObjectAddress(obj) || !obj->IsValidObject())) {
+    // Resolve the region once here and reuse it for the mark step
+    // (MarkObjectInHeapKnown) instead of letting MarkObject re-resolve it.
+    MSRegionInfo* msInfo = nullptr;
+    if (UNLIKELY(!IsTraceableObjectAddressEx(obj, msInfo) || !obj->IsValidObject())) {
         return false;
     }
 
-    if (MarkObject(obj)) {
+    uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
+    if (MSRegionInfoArray::MarkObjectInHeapKnown(msInfo, addr)) {
+        return false;  // already marked
+    }
+    return true;
+}
+
+bool MarkSweepCollector::DiscoverObject(BaseObject* obj)
+{
+    if (!DiscoverObjectNoCount(obj)) {
         return false;
     }
     (void)markedObjectCount.fetch_add(1, std::memory_order_relaxed);
@@ -998,10 +1026,10 @@ void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
     size_t forwarded = 0;
     for (size_t i = 0; i < n; i++) {
         BaseObject* obj = data[i];
-        if (obj == nullptr) {
-            continue;
-        }
-        if (!DiscoverObject(obj)) {
+        // No null check: logged entries are always non-null heap refs (both the
+        // asm fast path and EnqueueRefFast filter null before Push), and
+        // DiscoverObjectNoCount handles null defensively anyway.
+        if (!DiscoverObjectNoCount(obj)) {
             continue;
         }
         forwarded++;
@@ -1020,6 +1048,11 @@ void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
     }
     wbBuf.Clear();
     wbFlushStats_.Record(MSGCWriteBarrierFlushSource::OVERFLOW_FLUSH, n, forwarded);
+    // Batch the mark counter once per flush instead of per object, to avoid a
+    // shared global atomic RMW per entry under concurrent overflow flush.
+    if (forwarded > 0) {
+        markedObjectCount.fetch_add(forwarded, std::memory_order_relaxed);
+    }
     if (bufsUsed > 0) {
         globalShareCount_.fetch_add(bufsUsed, std::memory_order_relaxed);
     }
@@ -1038,10 +1071,8 @@ void MarkSweepCollector::FlushExitedWriteBarrierBuffer(WriteBarrierBuffer& wbBuf
     size_t forwarded = 0;
     for (size_t i = 0; i < n; ++i) {
         BaseObject* obj = data[i];
-        if (obj == nullptr) {
-            continue;
-        }
-        if (!DiscoverObject(obj)) {
+        // See FlushWriteBarrierOverflow: entries are never null; skip the check.
+        if (!DiscoverObjectNoCount(obj)) {
             continue;
         }
         forwarded++;
@@ -1060,6 +1091,9 @@ void MarkSweepCollector::FlushExitedWriteBarrierBuffer(WriteBarrierBuffer& wbBuf
     }
     wbBuf.Clear();
     wbFlushStats_.Record(MSGCWriteBarrierFlushSource::EXITED_OWNER, n, forwarded);
+    if (forwarded > 0) {
+        markedObjectCount.fetch_add(forwarded, std::memory_order_relaxed);
+    }
     if (bufsUsed > 0) {
         globalShareCount_.fetch_add(bufsUsed, std::memory_order_relaxed);
     }
@@ -1425,9 +1459,8 @@ void MarkSweepCollector::FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue)
         size_t forwarded = 0;
         for (size_t i = 0; i < n; ++i) {
             BaseObject* obj = data[i];
-            if (obj == nullptr) {
-                continue;
-            }
+            // Entries are never null (see FlushWriteBarrierOverflow); TryEnqueue
+            // → DiscoverObject also handles null defensively.
             if (TryEnqueueGreyObject(obj, mainQueue)) {
                 forwarded++;
             }

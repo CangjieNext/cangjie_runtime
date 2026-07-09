@@ -395,6 +395,16 @@ public:
         if (msInfo == nullptr) {
             return true;  // released region — treat as already marked
         }
+        return MarkObjectInHeapKnown(msInfo, addr);
+    }
+
+    // Same as MarkObjectInHeap but for a region the caller has already resolved
+    // via GetRegionInfoValidated(addr) (e.g. IsTraceableObjectAddress validated
+    // the very same addr just before). Avoids the duplicate region lookup +
+    // LARGE base resolution on the flush/discover hot path.
+    // Precondition: msInfo != nullptr && msInfo == GetRegionInfoValidated(addr).
+    static inline bool MarkObjectInHeapKnown(MSRegionInfo* msInfo, uintptr_t addr)
+    {
         if (msInfo->regionType == MSRegionType::MS_REGION_LARGE) {
             MSRegionInfo* base = GetRegionInfoByIdx(
                 static_cast<size_t>(msInfo->reserved));

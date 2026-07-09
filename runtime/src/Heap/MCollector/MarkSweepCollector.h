@@ -176,6 +176,11 @@ private:
     void DiscoverAndPushObject(BaseObject* obj, WorkStack& workStack);
     bool TryEnqueueGreyObject(BaseObject* obj, GreyWorkQueue& queue);
     bool DiscoverObject(BaseObject* obj);
+    // Same discover/mark as DiscoverObject but does NOT bump markedObjectCount.
+    // Callers that process a batch (the flush paths) accumulate the newly-grey
+    // count locally and do a single markedObjectCount.fetch_add at the end, to
+    // avoid one global atomic per object under concurrent overflow flush.
+    bool DiscoverObjectNoCount(BaseObject* obj);
     // Diagnostic: after marking completes (in ConcurrentSweep, before sweep
     // reclaims anything), walk all marked objects and report any ref edge that
     // points to an unmarked target. Such a target will be wrongly swept while

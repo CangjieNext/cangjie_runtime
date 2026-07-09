@@ -62,21 +62,6 @@ public:
         }
     }
 
-    // Flush all buffered objects into the given container, then reset.
-    // Container must support push_back(BaseObject*).
-    // Called under STW (MarkTermination) or by the owning Mutator.
-    template<typename Container>
-    inline void Flush(Container& workStack)
-    {
-        size_t n = count_;
-        for (size_t i = 0; i < n; ++i) {
-            if (buf_[i] != nullptr) {
-                workStack.push_back(buf_[i]);
-            }
-        }
-        count_ = 0;
-    }
-
     // Clear the buffer without flushing (e.g., at GC cycle end).
     inline void Clear()
     {
