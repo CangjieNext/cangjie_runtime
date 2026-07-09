@@ -21,6 +21,7 @@ set(CANGJIE_CORE_SRCS
     flow.cj
     hashable.cj
     equatable.cj
+    extern_runtime.cj
     c_pointer_resource.cj
     c_string_resource.cj
     c_type.cj
