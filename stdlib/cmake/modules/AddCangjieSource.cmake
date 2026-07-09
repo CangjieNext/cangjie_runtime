@@ -78,7 +78,8 @@ function(add_cangjie_library target_name)
         IS_JS_BACKEND
         DISABLE_REFLECTION
         NO_SUB_PKG
-        NO_SANCOV)
+        NO_SANCOV
+        NO_INSTALL_CJO)
     set(one_value_args
         OUTPUT_NAME
         OUTPUT_DIR
@@ -350,6 +351,10 @@ function(add_cangjie_library target_name)
     # install
     # sanitizer version only needs library files, cjo, bchir, pdba files are not needed
     if (CANGJIE_SANITIZER_SUPPORT_ENABLED)
+        return()
+    endif()
+    # Skip installing package interface/bitcode into modules/ (still builds them for dependents).
+    if (CANGJIELIB_NO_INSTALL_CJO)
         return()
     endif()
     if(NOT ("${CANGJIELIB_MODULE_NAME}" STREQUAL ""))
