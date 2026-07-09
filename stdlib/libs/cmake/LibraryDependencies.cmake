@@ -64,7 +64,12 @@ set(STD_AST_DEPENDENCIES
     cangjie${BACKEND_TYPE}Core
     cangjie${BACKEND_TYPE}Collection
     cangjie${BACKEND_TYPE}Sort
+    cangjie${BACKEND_TYPE}Flatbuffers
     FLATC_OUTPUTS)
+
+set(FLATBUFFERS_DEPENDENCIES
+    ${STD_CORE_DEPENDENCIES}
+    cangjie${BACKEND_TYPE}Core)
 
 set(IO_DEPENDENCIES
     ${STD_CORE_DEPENDENCIES}
