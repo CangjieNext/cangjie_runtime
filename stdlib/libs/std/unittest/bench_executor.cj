@@ -16,6 +16,7 @@ import std.runtime.ProcessorInfo
 import std.runtime.getProcessorCount
 import std.unittest.common.PrettyText
 import std.time.*
+import std.runtime.*
 
 protected type BenchRawMeasurement = (Float64, Float64, Float64, Int64) // (batchSize, value, GC time, weight)
 
@@ -86,17 +87,25 @@ class Distribution {
 }
 
 class MeasurementNew <: Measurement {
-    var distribution = [Distribution(), Distribution()]
+    var distribution = [Distribution(), Distribution(), Distribution()]
     var batchSizeInConfiguration : Bool = false
     MeasurementNew (let arg : Measurement, let batchSize : Int64) {}
     var start: ?MonoTime = None
     public override func setup(): Unit {}    
     public override func addPoint(batchSize : Int64, result : Float64): Unit {
-        if (batchSize > 0) {
+        if (isGCRunning()) {
+            distribution[2].addPoint(result)
+        }
+        else if (batchSize > 0) {
             distribution[1].addPoint(result)
         }
         else {
             distribution[0].addPoint(result)
+        }
+    }
+    public override func clear() {
+        for (i in 0..3) {
+            distribution[i].clear()
         }
     }
     public override func measure() {
@@ -419,6 +428,11 @@ protected class BenchmarkResult {
             AllPoints
         }
 
+        let pre : ArrayList <Int64> = ArrayList <Int64> (data.size + 1, { _ => 0});
+        for (i in 0..data.size) {
+            pre[i + 1] = pre[i] + data[i][3]
+        }
+
         bootstrapped = (0..workers) |>
             map { _ => ArrayList<BenchRawMeasurement>(data.size) } |>
             mapParallelOrdered(workers) { subsample =>
@@ -427,8 +441,18 @@ protected class BenchmarkResult {
                 for (_ in 0..BOOTSTRAP_ITERATIONS / workers) {
                     subsample.clear()
                     for (_ in 0..data.size) {
-                        let p = random.nextInt64(data.size)
-                        subsample.add(data[p])
+                        let x = random.nextInt64(pre[data.size])
+                        var lo : Int64 = 0
+                        var hi : Int64 = data.size
+                        while (lo < hi - 1) {
+                            let m : Int64 = (lo + hi) / 2
+                            if (x < pre[m]) {
+                                hi = m
+                            } else {
+                                lo = m
+                            }
+                        }
+                        subsample.add(data[lo])
                     }
                     results.appendStatisticsFromSample(subsample)
                 }

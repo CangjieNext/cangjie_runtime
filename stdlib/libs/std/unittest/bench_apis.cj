@@ -172,7 +172,6 @@ struct EmptyBenchmark <: BenchmarkWrapper {}
 // Internal unifying interface for various benchmarks types
 interface BenchmarkWrapper {
     prop measurement: Measurement { get() { TimeNow() }}
-
     func measureLoopOnce(times: Int64, max: Int64, batchSize: Int64): Float64 { 0.0 }
     func timeLoopOnce(times: Int64, max: Int64, batchSize: Int64): Float64 { 0.0 }
 }
