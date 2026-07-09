@@ -49,6 +49,9 @@ struct WarmupInfo {
     var emaGC = Ema(5)
 
     private mut func runMultipleAndEstimateTime(times: Int64, maxMeasureBatch: Int64): Float64 {
+
+        //println("    Running ${times} iterations with max batch size ${maxMeasureBatch} to estimate time per iteration.")
+
         let baseWithRun = benchmark.timeLoopOnce(times, times, maxMeasureBatch)
         let baseLoopOnly = benchmark.timeLoopOnce(0, times, maxMeasureBatch)
         let base = benchmark.timeLoopOnce(0, 0, maxMeasureBatch)
@@ -103,6 +106,8 @@ struct WarmupInfo {
     }
 
     mut func warmupDuration(warmupTime: Duration, maxMeasureBatch: Int64, explicitGC: ExplicitGcType) {
+        println("warmupDuration; maxMeasureBatch = ${maxMeasureBatch}")
+
         beforeWarmup()
         let targetTime = Float64(warmupTime.toNanoseconds())
 
@@ -198,6 +203,9 @@ class ArrayListWrapper <: Measurement {
         let gcPolluted = getGCCount() - gcCount
         data.add((Float64(count), duration, Float64(gcPolluted), 1))
     }
+    public override func clear() : Unit {
+        data.clear()
+    }
 }
 
 class BenchRunner {
@@ -240,7 +248,7 @@ class BenchRunner {
             warmupInfo.aggregateRuns = 1
             warmupInfo.executedBatches = 1
         } else {
-            progress.println { "    Warming up for ${warmupCount} iterations." }
+            progress.println { "Warming up for ${warmupCount} iterations." }
             warmupInfo.warmupFixed(warmupCount, batchSize.start, batchSize.end)
         }
     }
@@ -254,7 +262,7 @@ class BenchRunner {
         let warmupTime = configuration.get<Duration>(KeyWarmup.warmup) ?? Duration.second
         progress.println { "    Warming up for ${printDuration(warmupTime)}."}
 
-        warmupInfo.warmupDuration(warmupTime, maxMeasureBatch, explicitGC)
+        warmupInfo.warmupDuration(warmupTime, batchSize.end, explicitGC)
     }
 
     private func ensureFullGcIfNecessary() {
@@ -380,6 +388,8 @@ Warning: Too many objects survive GC which causes unexpectedly long GC times.
         let maxBatch = batchRange.end.ceilTo(maxMeasureBatch)
         let benchExecTime: Duration
 
+        println("this.batchSize.start = ${this.batchSize.start}, this.batchSize.end = ${this.batchSize.end}, maxMeasureBatch = ${maxMeasureBatch}, batchRange.start = ${batchRange.start}, batchRange.end = ${batchRange.end}, maxBatch = ${maxBatch}")
+
         if (batchCount < 50 || (benchmark.measurement as Runtime)?.measuresGC() == Some(true)) {
             benchExecTime = doMacroBench(maxBatch, batchCount)
         } else {
@@ -408,7 +418,7 @@ Warning: Too many objects survive GC which causes unexpectedly long GC times.
             explicitGC.invoke()
             runMultipleAndMeasure(maxBatch, maxBatch)
         }
-        this.measurements.clear()
+        this.benchmark.measurement.clear()
         
         let start = DateTime.now()
         for (i in 0..batchCount/2) {
@@ -440,7 +450,7 @@ Warning: Too many objects survive GC which causes unexpectedly long GC times.
 
         explicitGC.invoke()
         runMultipleAndMeasure(0, 0)
-        this.measurements.clear()
+        this.benchmark.measurement.clear()
 
         var batch = 0.0
         for (i in 0..batchCount) {
@@ -479,7 +489,7 @@ Warning: Too many objects survive GC which causes unexpectedly long GC times.
 
         // apply all of the constraints on batch size
         let maxBatchSize = Int64(ceil((avgBatchSize - 1.0) * 2.0 + 1.0))
-        let range = 1..=max(maxBatchSize, this.batchSize.start)
+        let range = 1..=max(min(maxBatchSize, this.batchSize.end), this.batchSize.start)
 
         let finalAvgBatchSize = Float64(range.start + range.end) / 2.0
         let finalBatches = max(targetDurationNs / avgOneIterationTime / finalAvgBatchSize, Float64(minBatches))
