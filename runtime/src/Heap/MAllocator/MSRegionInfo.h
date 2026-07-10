@@ -104,8 +104,7 @@ struct MSRegionInfo {
     // ========== Statistics ==========
     uint16_t    totalSlotCount;     // +40  total slots in Region (2B)
     uint16_t    freeSlotCount;      // +42  current free slots (2B)
-    uint16_t    liveSlotCount;      // +44  live slots after last GC (2B)
-    uint16_t    rawPointerObjCount; // +46  weak ref reference count (2B)
+    uint32_t    divMagic;           // +44  ceil(2^32 / slotSize) for division-free slot indexing (4B)
 
     // ========== Classification ==========
     uint8_t      sizeClass;         // +48  Size Class index (1B)

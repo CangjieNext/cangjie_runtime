@@ -147,11 +147,30 @@ public:
         return (slotsPerRegion_[cls] + 63) / 64;
     }
 
+    // Reciprocal magic for dividing a region offset by ClassToSize(cls) without
+    // a hardware division (Route-B / R-2): given magic = ceil(2^32 / slotSize),
+    //   slotIdx = (uint64_t)offset * magic >> 32
+    // is exact for offset < MS_REGION_SIZE (2^15) and slotSize in [8, 16384].
+    // (Error term offset*s/(slotSize*2^32) < 2^-17 < 1/slotSize, so it never
+    //  crosses an integer boundary. See Step37 §5.6.)
+    static inline uint32_t ClassToDivMagic(uint8_t cls)
+    {
+        return slotDivMagic_[cls];
+    }
+
+    // slotIdx = offset / ClassToSize(cls), division-free.
+    static inline size_t OffsetToSlotIndex(uint8_t cls, size_t offset)
+    {
+        return static_cast<size_t>(
+            (static_cast<uint64_t>(offset) * slotDivMagic_[cls]) >> 32);
+    }
+
 private:
     // Lookup tables (populated in Init())
     static uint8_t smallLookup_[kSmallLookupEntries];   // size/8 -> class (size <= 1024)
     static uint8_t largeLookup_[kLargeLookupEntries];   // (size-1024)/256 -> class (size > 1024)
     static size_t  slotsPerRegion_[kNumSizeClasses];    // class -> slots per Region
+    static uint32_t slotDivMagic_[kNumSizeClasses];     // class -> ceil(2^32/slotSize)
 };
 
 } // namespace MapleRuntime

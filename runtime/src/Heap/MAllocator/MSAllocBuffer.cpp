@@ -81,18 +81,19 @@ AllocBufferMS::AllocBufferMS()
     // LLVM fast-path reads *(buffer + 0) as RegionInfo* and calls Alloc().
     static_assert(offsetof(AllocBufferMS, tlRegion_) == 0,
                   "tlRegion_ must be at offset 0 for LLVM fast-path compatibility");
-    // AArch64 MSGC write-barrier fast path directly accesses wbBuf_ via a
-    // fixed offset from AllocBufferMS. Keep this layout contract explicit.
-    static_assert(offsetof(AllocBufferMS, wbBuf_) == 896,
-                  "wbBuf_ offset changed; update AArch64 MSGC write-barrier fast path");
-    static_assert(WriteBarrierBufferLayoutAccess::BufOffset() == 0,
-                  "WriteBarrierBuffer entries must start at offset 0");
-    static_assert(WriteBarrierBufferLayoutAccess::CountOffset() ==
-                      WriteBarrierBuffer::kCapacity * sizeof(BaseObject*),
-                  "WriteBarrierBuffer count_ layout changed; update AArch64 MSGC write-barrier fast path");
-    static_assert(WriteBarrierBufferLayoutAccess::LayoutSize() ==
-                      WriteBarrierBufferLayoutAccess::CountOffset() + sizeof(size_t),
-                  "WriteBarrierBuffer trailing layout changed; update AArch64 MSGC write-barrier fast path");
+    // Route-B (Step37): the AArch64 MSGC write-barrier fast path loads the
+    // WorkBuf pointer activeLog_ (kept at offset 896), then appends the old-ref
+    // into activeLog_->objs[len++]. These offsets are the ABI contract with
+    // AArch64AsmPrinter.cpp (activeLogOffsetInAllocBuffer / WorkBufLenOffset /
+    // WorkBufObjsOffset / WorkBufCapacity). Keep them in sync.
+    static_assert(offsetof(AllocBufferMS, activeLog_) == 896,
+                  "activeLog_ offset changed; update AArch64 MSGC write-barrier fast path");
+    static_assert(offsetof(WorkBuf, len) == 8,
+                  "WorkBuf::len offset changed; update AArch64 MSGC write-barrier fast path");
+    static_assert(offsetof(WorkBuf, objs) == 16,
+                  "WorkBuf::objs offset changed; update AArch64 MSGC write-barrier fast path");
+    static_assert(WorkBuf::kCapacity == 1024,
+                  "WorkBuf capacity changed; update AArch64 MSGC write-barrier fast path");
     tlRegion_ = RegionInfo::NullRegion();
 }
 
@@ -116,15 +117,20 @@ void AllocBufferMS::Fini()
 {
     MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
     if (collector != nullptr) {
-        if (!wbBuf_.IsEmpty()) {
-            collector->FlushExitedWriteBarrierBuffer(wbBuf_);
-        }
+        // Owner exiting mid-mark: publish its partial log so a consumer discovers
+        // it, and hand every cached WorkBuf back to the global pool.
+        collector->PublishExitedLog(*this);
         if (gcWork_.IsInitialized()) {
             gcWork_.Dispose();
             gcWork_.Reset();
         }
     } else {
-        wbBuf_.Clear();
+        // Not marking: nothing to preserve. Between cycles activeLog_/logCache_
+        // are already drained back to the pool by the cycle-end reset, so we
+        // only clear the pointers here.
+        activeLog_ = nullptr;
+        logCache_ = nullptr;
+        logCacheCount_ = 0;
         if (gcWork_.IsInitialized()) {
             gcWork_.Reset();
         }

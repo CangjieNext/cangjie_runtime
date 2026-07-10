@@ -16,12 +16,16 @@ namespace MapleRuntime {
 uint8_t SizeClassInfo::smallLookup_[kSmallLookupEntries] = { 0 };
 uint8_t SizeClassInfo::largeLookup_[kLargeLookupEntries] = { 0 };
 size_t  SizeClassInfo::slotsPerRegion_[kNumSizeClasses] = { 0 };
+uint32_t SizeClassInfo::slotDivMagic_[kNumSizeClasses] = { 0 };
 
 void SizeClassInfo::Init()
 {
-    // 1. Populate slotsPerRegion_
+    // 1. Populate slotsPerRegion_ and the reciprocal magic for slot indexing.
     for (size_t cls = 0; cls < kNumSizeClasses; cls++) {
         slotsPerRegion_[cls] = MS_REGION_SIZE / kSizeClasses[cls];
+        // magic = ceil(2^32 / slotSize); fits in u32 since slotSize >= 8.
+        slotDivMagic_[cls] = static_cast<uint32_t>(
+            (0x100000000ULL + kSizeClasses[cls] - 1) / kSizeClasses[cls]);
     }
 
     // 2. Build small lookup table: for size in [1, 1024], index = ceil(size/8)

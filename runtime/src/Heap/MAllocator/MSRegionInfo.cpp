@@ -56,8 +56,7 @@ void MSRegionInfo::InitForSizeClass(uint8_t cls)
     size_t slotSize = SizeClassInfo::ClassToSize(cls);
     totalSlotCount = static_cast<uint16_t>(MS_REGION_SIZE / slotSize);
     freeSlotCount = totalSlotCount;
-    liveSlotCount = 0;
-    rawPointerObjCount = 0;
+    divMagic = SizeClassInfo::ClassToDivMagic(cls);
 
     flags_ = 0;
     sweepGen = 0;
@@ -104,8 +103,7 @@ void MSRegionInfo::InitForLargeObject(uintptr_t start, uintptr_t end)
 
     totalSlotCount = 1;
     freeSlotCount = 0;
-    liveSlotCount = 1;
-    rawPointerObjCount = 0;
+    divMagic = 0;
 
     sizeClass = 0;  // N/A for large objects
     sweepState = MSSweepState::UNSWEPT;
@@ -134,8 +132,7 @@ void MSRegionInfo::Reset()
     prevRegionIdx = INVALID_IDX;
     totalSlotCount = 0;
     freeSlotCount = 0;
-    liveSlotCount = 0;
-    rawPointerObjCount = 0;
+    divMagic = 0;
     sizeClass = 0;
     sweepState = MSSweepState::UNSWEPT;
     regionType = MSRegionType::MS_REGION_FREE;
@@ -150,13 +147,11 @@ void MSRegionInfo::ResetToBump()
     // Preserves bitmap memory — avoids munmap/mmap cycle.
     bool sweptEmpty = sweepState == MSSweepState::SWEPT &&
                       freeSlotCount == totalSlotCount &&
-                      liveSlotCount == 0;
+                      reserved == 0;
     allocPtr = RegionStart();
     sweepState = MSSweepState::UNSWEPT;
     regionType = MSRegionType::MS_REGION_BUMP;
     freeSlotCount = totalSlotCount;
-    liveSlotCount = 0;
-    rawPointerObjCount = 0;
     flags_ = 0;
     if (sweptEmpty) {
         // SweepRegion() already produced a fully-zero payload and a clear mark bitmap.
@@ -190,8 +185,7 @@ void MSRegionInfo::ResetToEmptyCache()
     prevRegionIdx = INVALID_IDX;
     totalSlotCount = 0;
     freeSlotCount = 0;
-    liveSlotCount = 0;
-    rawPointerObjCount = 0;
+    divMagic = 0;
     sizeClass = INVALID_SIZE_CLASS;
     sweepState = MSSweepState::SWEPT;
     regionType = MSRegionType::MS_REGION_EMPTY_CACHE;
@@ -258,7 +252,6 @@ size_t MSRegionInfo::SweepRegion()
     uintptr_t base = RegionStart();
     if (liveCount == 0) {
         memset(reinterpret_cast<void*>(base), 0, MS_REGION_SIZE);
-        liveSlotCount = 0;
         freeSlotCount = totalSlotCount;
         sweepState = MSSweepState::SWEPT;
         reserved = 0;
@@ -300,8 +293,7 @@ size_t MSRegionInfo::SweepRegion()
     // markBitmap is cleared by ClearAllMarkBitmaps at next MarkSetup,
     // not here — avoids redundant memset per-region during sweep.
 
-    liveSlotCount = static_cast<uint16_t>(liveCount);
-    freeSlotCount = totalSlotCount - liveSlotCount;
+    freeSlotCount = totalSlotCount - static_cast<uint16_t>(liveCount);
     sweepState = MSSweepState::SWEPT;
 
     // Store summary word (O4): bit[i]=1 if allocBitmap[i] has free slots
@@ -350,7 +342,9 @@ bool MSRegionInfo::TestAndSetMarkBit(uintptr_t objAddr)
             (unsigned)sizeClass, (unsigned)regionType, (void*)markBitmap);
         return false;
     }
-    size_t slotIdx = (objAddr - regionStart) / slotSize;
+    // Division-free slot index via reciprocal magic (R-2). Exact because
+    // (objAddr - regionStart) < MS_REGION_SIZE (2^15). See MSSizeClass.h.
+    size_t slotIdx = SizeClassInfo::OffsetToSlotIndex(sizeClass, objAddr - regionStart);
     if (slotIdx >= totalSlotCount) {
         LOG(RTLOG_ERROR, "[MS-GC] TestAndSetMarkBit: slotIdx=%zu >= totalSlots=%u, addr=%p, "
             "regionStart=%p, slotSize=%zu",
@@ -390,7 +384,7 @@ size_t MSRegionInfo::GetAllocatedBytes() const
 size_t MSRegionInfo::GetLiveBytes() const
 {
     size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
-    return static_cast<size_t>(liveSlotCount) * slotSize;
+    return static_cast<size_t>(totalSlotCount - freeSlotCount) * slotSize;
 }
 
 // ============================================================================

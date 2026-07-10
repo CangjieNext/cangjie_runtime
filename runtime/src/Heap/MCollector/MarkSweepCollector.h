@@ -21,7 +21,9 @@ namespace MapleRuntime {
 
 class CentralRegionPool;
 class WriteBarrierBuffer;
+class AllocBufferMS;
 struct MSRegionInfo;
+struct WorkBuf;
 
 // Per-GC-cycle timing and statistics for DFX logging (Step 5).
 // Accumulated during a single GC cycle, logged in DumpMSGCLog(), then reset.
@@ -107,11 +109,23 @@ public:
     {
         return activeCollector_.load(std::memory_order_acquire);
     }
-    // Flush an overflowed WriteBarrierBuffer to the global LFStack.
-    void FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf);
-    // Flush an owner-exit WriteBarrierBuffer directly to globalFull_ so the
-    // work survives even after the local owner is removed.
-    void FlushExitedWriteBarrierBuffer(WriteBarrierBuffer& wbBuf);
+    // Route-B write-barrier log lifecycle (Step37).
+    // Ensure the owner has an activeLog_ WorkBuf to append into; returns it
+    // (nullptr only on pool exhaustion).
+    WorkBuf* EnsureActiveLog(AllocBufferMS& ab);
+    // Overflow: publish the full activeLog_ wholesale (needsDiscover=true) into
+    // the owner's local GC work (list1_) or globalFull_, then install a fresh
+    // empty log. O(1) — no per-object discover/repack on the mutator.
+    void PublishAndSwapLog(AllocBufferMS& ab);
+    // Owner exit: publish the partial activeLog_ to globalFull_ (so a consumer
+    // still discovers it), and return all cached WorkBufs to the pool.
+    void PublishExitedLog(AllocBufferMS& ab);
+
+    // Route-A (Step37 §10): shade (mark) an overwritten old-ref at write time.
+    // Returns true if THIS call won the mark-CAS (object was white → now grey),
+    // meaning the caller should log it for later scanning; false if it was
+    // already grey/black or not a traceable object (perfect dedup at the source).
+    bool ShadeRefForBarrier(BaseObject* ref) { return DiscoverObjectNoCount(ref); }
 
     // Per-P GCWork accessors for initialization during concurrent mark.
     LFStack& GetGlobalFull() { return globalFull_; }

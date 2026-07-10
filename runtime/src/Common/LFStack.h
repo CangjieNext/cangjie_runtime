@@ -26,7 +26,15 @@ struct alignas(64) WorkBuf {
 
     WorkBuf* next = nullptr;
     size_t len = 0;
+    // Layout note: objs is kept at offset 16 (right after next+len) so the
+    // AArch64 MSGC write-barrier fast path can address it with a fixed offset.
+    // needsDiscover is placed AFTER objs on purpose, to avoid shifting objs.
     BaseObject* objs[kCapacity];
+    // Route-B deferred discover flag:
+    //   true  = raw write-barrier log (entries not yet DiscoverObject'd).
+    //           Consumers must DiscoverObject each entry before scanning.
+    //   false = grey objects already discovered (mark-traversal output / roots).
+    bool needsDiscover = false;
 
     bool Full() const { return len >= kCapacity; }
     bool Empty() const { return len == 0; }
@@ -38,6 +46,7 @@ struct alignas(64) WorkBuf {
     {
         len = 0;
         next = nullptr;
+        needsDiscover = false;
     }
 };
 
@@ -133,6 +142,40 @@ public:
     {
         buf->Reset();
         freeList_.Push(buf);
+    }
+
+    // Batch acquire up to n bufs under a single lock pass (falls back to new()
+    // when the free list runs dry). Returns the number actually written to out.
+    // Used by the per-P WorkBuf cache to amortize the global freeList_ mutex.
+    size_t GetN(WorkBuf** out, size_t n)
+    {
+        size_t got = 0;
+        for (; got < n; ++got) {
+            WorkBuf* buf = freeList_.Pop();
+            if (buf == nullptr) {
+                break;
+            }
+            buf->Reset();
+            out[got] = buf;
+        }
+        while (got < n) {
+            WorkBuf* buf = new (std::nothrow) WorkBuf();
+            if (buf == nullptr) {
+                break;
+            }
+            totalAllocated_.fetch_add(1, std::memory_order_relaxed);
+            out[got++] = buf;
+        }
+        return got;
+    }
+
+    // Batch return n bufs to the free list.
+    void PutN(WorkBuf** bufs, size_t n)
+    {
+        for (size_t i = 0; i < n; ++i) {
+            bufs[i]->Reset();
+            freeList_.Push(bufs[i]);
+        }
     }
 
     size_t TotalAllocated() const

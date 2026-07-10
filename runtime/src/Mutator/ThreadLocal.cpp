@@ -103,6 +103,8 @@ extern "C" void MCC_CheckThreadLocalDataOffset()
                   "need to modify the offset of this value in llvm-project at the same time");
     static_assert(offsetof(MSRegionInfo, freeSlotCount) == 42,
                   "need to modify the offset of this value in llvm-project at the same time");
+    static_assert(offsetof(MSRegionInfo, divMagic) == 44,
+                  "need to modify the offset of this value in llvm-project at the same time");
     static_assert(offsetof(MSRegionInfo, regionType) == 50,
                   "need to modify the offset of this value in llvm-project at the same time");
     static_assert(offsetof(MSRegionInfo, reserved) == 56,

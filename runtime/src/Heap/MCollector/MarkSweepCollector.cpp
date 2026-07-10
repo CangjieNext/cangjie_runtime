@@ -889,22 +889,32 @@ void MarkSweepCollector::DrainGCWork(PerPGCWork& gcw, size_t maxObjects,
                                      size_t& scannedCount)
 {
     scannedCount = 0;
+    size_t localForwarded = 0;
     for (size_t i = 0; i < maxObjects; i++) {
         BaseObject* obj = gcw.TryGetObj();
         if (obj == nullptr) {
             break;
         }
 
-        if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-            continue;
-        }
-
-        if (UNLIKELY(!obj->IsValidObject())) {
-            LOG(RTLOG_FATAL, "[MS-GC] DrainGCWork: FATAL invalid stateWord obj=%p, "
-                "stateWord=0x%zx, markBit=%d",
-                (void*)obj,
-                *reinterpret_cast<uintptr_t*>(obj),
-                (int)IsMarkedObject(obj));
+        // Route-B: entries from a raw write-barrier log (needsDiscover) have not
+        // been shaded yet — DiscoverObject here; only the mark-CAS winner scans.
+        // TryGetObj leaves getCur_ pointing at the buffer obj came from.
+        if (gcw.getCur_ != nullptr && gcw.getCur_->needsDiscover) {
+            if (!DiscoverObjectNoCount(obj)) {
+                continue;
+            }
+            ++localForwarded;
+        } else {
+            if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
+                continue;
+            }
+            if (UNLIKELY(!obj->IsValidObject())) {
+                LOG(RTLOG_FATAL, "[MS-GC] DrainGCWork: FATAL invalid stateWord obj=%p, "
+                    "stateWord=0x%zx, markBit=%d",
+                    (void*)obj,
+                    *reinterpret_cast<uintptr_t*>(obj),
+                    (int)IsMarkedObject(obj));
+            }
         }
 
         scannedCount++;
@@ -920,6 +930,9 @@ void MarkSweepCollector::DrainGCWork(PerPGCWork& gcw, size_t maxObjects,
         }
 
         TraceObjectRefFieldsToGCWork(obj, gcw);
+    }
+    if (localForwarded > 0) {
+        markedObjectCount.fetch_add(localForwarded, std::memory_order_relaxed);
     }
 }
 
@@ -993,110 +1006,65 @@ void MarkSweepCollector::TraceRefField(
 // Global work queue helpers (Step5: LFStack-based, lock-free)
 // ============================================================================
 
-void MarkSweepCollector::FlushWriteBarrierOverflow(WriteBarrierBuffer& wbBuf)
+// Route-B (Step37): the write-barrier log is a WorkBuf pointer (activeLog_) that
+// the barrier appends raw old-refs into. Overflow no longer discovers on the
+// mutator — it publishes the full buffer wholesale and installs a fresh one.
+WorkBuf* MarkSweepCollector::EnsureActiveLog(AllocBufferMS& ab)
 {
-    size_t n = wbBuf.Count();
-    if (n == 0) {
-        return;
+    WorkBuf* log = ab.GetActiveLog();
+    if (log == nullptr) {
+        log = ab.AcquireWorkBuf(workBufPool_);
+        ab.ActiveLogRef() = log;
     }
-    BaseObject** data = wbBuf.Data();
-    // Route barrier overflow into THIS mutator's per-P list1_ (local-first) so
-    // the grey objects produced while flushing the log can be consumed by its
-    // own assist without crossing the globalFull_ mutex. PushWBBuf falls back
-    // to globalFull_ when list1_ is full. If this thread has no AllocBufferMS
-    // (no per-P work), fall back to pushing directly to globalFull_.
-    AllocBufferMS* allocBuf = ThreadLocal::GetAllocBufferMS();
-    PerPGCWork* gcw = nullptr;
-    if (allocBuf != nullptr) {
-        gcw = &allocBuf->GetGCWork();
-        if (!gcw->IsInitialized()) {
-            gcw->Init(&globalFull_, &workBufPool_);
-        }
-    }
-    auto flushBuf = [this, gcw](WorkBuf* b) {
-        if (gcw != nullptr) {
-            gcw->PushWBBuf(b);
-        } else {
-            globalFull_.Push(b);
-        }
-    };
-
-    WorkBuf* buf = workBufPool_.Get();
-    size_t bufsUsed = 0;
-    size_t forwarded = 0;
-    for (size_t i = 0; i < n; i++) {
-        BaseObject* obj = data[i];
-        // No null check: logged entries are always non-null heap refs (both the
-        // asm fast path and EnqueueRefFast filter null before Push), and
-        // DiscoverObjectNoCount handles null defensively anyway.
-        if (!DiscoverObjectNoCount(obj)) {
-            continue;
-        }
-        forwarded++;
-        if (buf->Full()) {
-            flushBuf(buf);
-            bufsUsed++;
-            buf = workBufPool_.Get();
-        }
-        buf->Push(obj);
-    }
-    if (!buf->Empty()) {
-        flushBuf(buf);
-        bufsUsed++;
-    } else {
-        workBufPool_.Put(buf);
-    }
-    wbBuf.Clear();
-    wbFlushStats_.Record(MSGCWriteBarrierFlushSource::OVERFLOW_FLUSH, n, forwarded);
-    // Batch the mark counter once per flush instead of per object, to avoid a
-    // shared global atomic RMW per entry under concurrent overflow flush.
-    if (forwarded > 0) {
-        markedObjectCount.fetch_add(forwarded, std::memory_order_relaxed);
-    }
-    if (bufsUsed > 0) {
-        globalShareCount_.fetch_add(bufsUsed, std::memory_order_relaxed);
-    }
+    return log;
 }
 
-void MarkSweepCollector::FlushExitedWriteBarrierBuffer(WriteBarrierBuffer& wbBuf)
+void MarkSweepCollector::PublishAndSwapLog(AllocBufferMS& ab)
 {
-    size_t n = wbBuf.Count();
-    if (n == 0) {
+    WorkBuf* full = ab.GetActiveLog();
+    if (full == nullptr || full->Empty()) {
         return;
     }
+    // Route-A: entries were already shaded (mark-CAS won) by the barrier, so the
+    // buffer holds only grey objects — the consumer scans them directly.
+    full->needsDiscover = false;
+    // Every entry is a newly-grey object (one won mark-CAS), so the whole buffer
+    // is the batch mark count for this publish.
+    markedObjectCount.fetch_add(full->len, std::memory_order_relaxed);
 
-    BaseObject** data = wbBuf.Data();
-    WorkBuf* buf = workBufPool_.Get();
-    size_t bufsUsed = 0;
-    size_t forwarded = 0;
-    for (size_t i = 0; i < n; ++i) {
-        BaseObject* obj = data[i];
-        // See FlushWriteBarrierOverflow: entries are never null; skip the check.
-        if (!DiscoverObjectNoCount(obj)) {
-            continue;
+    // Local-first: route into this owner's list1_ so its own assist can consume
+    // without crossing the globalFull_ mutex; PushWBBuf spills to globalFull_.
+    PerPGCWork& gcw = ab.GetGCWork();
+    if (!gcw.IsInitialized()) {
+        gcw.Init(&globalFull_, &workBufPool_);
+    }
+    size_t published = full->len;
+    gcw.PushWBBuf(full);
+    globalShareCount_.fetch_add(1, std::memory_order_relaxed);
+    wbFlushStats_.Record(MSGCWriteBarrierFlushSource::OVERFLOW_FLUSH, published, published);
+
+    ab.ActiveLogRef() = ab.AcquireWorkBuf(workBufPool_);
+}
+
+void MarkSweepCollector::PublishExitedLog(AllocBufferMS& ab)
+{
+    WorkBuf* log = ab.GetActiveLog();
+    if (log != nullptr) {
+        if (!log->Empty()) {
+            // Owner is leaving: push straight to globalFull_ (no local consumer
+            // survives). Route-A: entries are already grey, consumer scans them.
+            log->needsDiscover = false;
+            markedObjectCount.fetch_add(log->len, std::memory_order_relaxed);
+            size_t published = log->len;
+            globalFull_.Push(log);
+            globalShareCount_.fetch_add(1, std::memory_order_relaxed);
+            wbFlushStats_.Record(MSGCWriteBarrierFlushSource::EXITED_OWNER, published, published);
+        } else {
+            workBufPool_.Put(log);
         }
-        forwarded++;
-        if (buf->Full()) {
-            globalFull_.Push(buf);
-            bufsUsed++;
-            buf = workBufPool_.Get();
-        }
-        buf->Push(obj);
+        ab.ActiveLogRef() = nullptr;
     }
-    if (!buf->Empty()) {
-        globalFull_.Push(buf);
-        bufsUsed++;
-    } else {
-        workBufPool_.Put(buf);
-    }
-    wbBuf.Clear();
-    wbFlushStats_.Record(MSGCWriteBarrierFlushSource::EXITED_OWNER, n, forwarded);
-    if (forwarded > 0) {
-        markedObjectCount.fetch_add(forwarded, std::memory_order_relaxed);
-    }
-    if (bufsUsed > 0) {
-        globalShareCount_.fetch_add(bufsUsed, std::memory_order_relaxed);
-    }
+    ab.DrainLogCacheToPool(workBufPool_);
 }
 
 void MarkSweepCollector::PushSingleToDeferredMainThread(BaseObject* obj)
@@ -1120,25 +1088,42 @@ void MarkSweepCollector::PushSingleToDeferredMainThread(BaseObject* obj)
 
 void MarkSweepCollector::DrainGlobalLFStackToMainQueue(GreyWorkQueue& mainQueue)
 {
+    size_t localForwarded = 0;
     while (true) {
         WorkBuf* buf = globalFull_.Pop();
         if (buf == nullptr) {
             break;
         }
-        for (size_t i = 0; i < buf->len; i++) {
-            BaseObject* obj = buf->objs[i];
-            if (obj == nullptr) {
-                continue;
+        // Route-B: a raw write-barrier log (needsDiscover) holds un-shaded refs —
+        // DiscoverObject each and only enqueue the newly-grey ones. Already-grey
+        // bufs (mark output) are pushed straight through.
+        if (buf->needsDiscover) {
+            for (size_t i = 0; i < buf->len; i++) {
+                BaseObject* obj = buf->objs[i];
+                if (DiscoverObjectNoCount(obj)) {
+                    mainQueue.PushMovedGrey(obj);
+                    ++localForwarded;
+                }
             }
-            if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-                continue;
+        } else {
+            for (size_t i = 0; i < buf->len; i++) {
+                BaseObject* obj = buf->objs[i];
+                if (obj == nullptr) {
+                    continue;
+                }
+                if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
+                    continue;
+                }
+                if (UNLIKELY(!obj->IsValidObject())) {
+                    continue;
+                }
+                mainQueue.PushMovedGrey(obj);
             }
-            if (UNLIKELY(!obj->IsValidObject())) {
-                continue;
-            }
-            mainQueue.PushMovedGrey(obj);
         }
         workBufPool_.Put(buf);
+    }
+    if (localForwarded > 0) {
+        markedObjectCount.fetch_add(localForwarded, std::memory_order_relaxed);
     }
 }
 
@@ -1223,17 +1208,28 @@ size_t MarkSweepCollector::DrainOneBufRound(PerPGCWork& gcw)
     }
 
     size_t nProcessed = 0;
+    size_t localForwarded = 0;
+    // getCur_ is fixed for the whole round, so its raw-log flag is constant here.
+    const bool needsDiscover = (gcw.getCur_ != nullptr) && gcw.getCur_->needsDiscover;
     while (gcw.getCur_ != nullptr && !gcw.getCur_->Empty()) {
         BaseObject* obj = gcw.getCur_->Pop();
-        if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-            continue;
-        }
-        if (UNLIKELY(!obj->IsValidObject())) {
-            LOG(RTLOG_FATAL, "[MS-GC] DrainOneBufRound: FATAL invalid stateWord obj=%p, "
-                "stateWord=0x%zx, markBit=%d",
-                (void*)obj,
-                *reinterpret_cast<uintptr_t*>(obj),
-                (int)IsMarkedObject(obj));
+        if (needsDiscover) {
+            // Route-B raw log: shade first; only the mark-CAS winner scans.
+            if (!DiscoverObjectNoCount(obj)) {
+                continue;
+            }
+            ++localForwarded;
+        } else {
+            if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
+                continue;
+            }
+            if (UNLIKELY(!obj->IsValidObject())) {
+                LOG(RTLOG_FATAL, "[MS-GC] DrainOneBufRound: FATAL invalid stateWord obj=%p, "
+                    "stateWord=0x%zx, markBit=%d",
+                    (void*)obj,
+                    *reinterpret_cast<uintptr_t*>(obj),
+                    (int)IsMarkedObject(obj));
+            }
         }
         nProcessed++;
         if (!obj->HasRefField()) {
@@ -1249,6 +1245,9 @@ size_t MarkSweepCollector::DrainOneBufRound(PerPGCWork& gcw)
     if (gcw.getCur_ != nullptr) {
         gcw.workBufPool_->Put(gcw.getCur_);
         gcw.getCur_ = nullptr;
+    }
+    if (localForwarded > 0) {
+        markedObjectCount.fetch_add(localForwarded, std::memory_order_relaxed);
     }
     return nProcessed;
 }
@@ -1453,20 +1452,33 @@ void MarkSweepCollector::FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue)
     }
 
     centralPool->VisitAllocBufferMS([this, &mainQueue](AllocBufferMS& buffer) {
-        WriteBarrierBuffer& wbBuf = buffer.GetWriteBarrierBuffer();
-        BaseObject** data = wbBuf.Data();
-        size_t n = wbBuf.Count();
-        size_t forwarded = 0;
-        for (size_t i = 0; i < n; ++i) {
-            BaseObject* obj = data[i];
-            // Entries are never null (see FlushWriteBarrierOverflow); TryEnqueue
-            // → DiscoverObject also handles null defensively.
-            if (TryEnqueueGreyObject(obj, mainQueue)) {
+        // Discover the owner's un-published partial log (activeLog_). Already
+        // published logs live in globalFull_/list1_ and are handled by
+        // DisposeAllPerPGCWork + DrainGlobalLFStackToMainQueue.
+        WorkBuf* log = buffer.GetActiveLog();
+        if (log != nullptr) {
+            size_t n = log->len;
+            size_t forwarded = 0;
+            // Route-A: entries are already grey (shaded at write time), so enqueue
+            // them for scanning directly — a re-discover would see them already
+            // marked and wrongly skip scanning their fields.
+            for (size_t i = 0; i < n; ++i) {
+                BaseObject* obj = log->objs[i];
+                if (obj == nullptr) {
+                    continue;
+                }
+                if (UNLIKELY(!IsTraceableObjectAddress(obj) || !obj->IsValidObject())) {
+                    continue;
+                }
+                mainQueue.PushMovedGrey(obj);
                 forwarded++;
             }
+            wbFlushStats_.Record(MSGCWriteBarrierFlushSource::FINAL_STW, n, forwarded);
+            workBufPool_.Put(log);
+            buffer.ActiveLogRef() = nullptr;
         }
-        wbBuf.Clear();
-        wbFlushStats_.Record(MSGCWriteBarrierFlushSource::FINAL_STW, n, forwarded);
+        // Cycle end: return this owner's cached empty WorkBufs to the pool.
+        buffer.DrainLogCacheToPool(workBufPool_);
     });
 }
 

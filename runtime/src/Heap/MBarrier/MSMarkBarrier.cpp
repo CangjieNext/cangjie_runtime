@@ -22,22 +22,61 @@
 #include <cstring>
 
 namespace MapleRuntime {
+// Route-B (Step37): append a raw old-ref into the owner's activeLog_ WorkBuf.
+// No discover here — that happens on the consumer side. On overflow the full
+// buffer is published wholesale (O(1)) and a fresh one installed.
+// Pre-resolved (collector, allocBuf) form so bulk paths resolve the owner once
+// per call instead of once per ref (R-1). collector must be non-null.
+static inline void EnqueueRefInto(MarkSweepCollector* collector,
+                                  AllocBufferMS* allocBuf, BaseObject* ref)
+{
+    if (ref == nullptr || !Heap::IsHeapAddress(ref)) {
+        return;
+    }
+    // Route-A: shade (mark) the old-ref at write time. Only the mark-CAS winner
+    // logs it — already-grey / non-traceable refs are dropped here (perfect
+    // dedup at the source). The logged buffer therefore holds only grey objects,
+    // so the consumer scans them directly (no deferred discover).
+    if (!collector->ShadeRefForBarrier(ref)) {
+        return;
+    }
+    WorkBuf* log = collector->EnsureActiveLog(*allocBuf);
+    if (UNLIKELY(log->Full())) {
+        collector->PublishAndSwapLog(*allocBuf);
+        log = allocBuf->GetActiveLog();
+    }
+    // Matches the existing WorkBufPool::Get() convention: a null buffer only
+    // occurs on true OOM (new failed), where the process is already doomed.
+    log->objs[log->len++] = ref;
+}
+
 static inline void EnqueueRefFast(BaseObject* ref)
 {
     if (ref == nullptr || !Heap::IsHeapAddress(ref)) {
         return;
     }
-    AllocBufferMS* allocBuf = AllocBufferMS::GetOrCreateAllocBufferMS();
-    WriteBarrierBuffer& wbBuf = allocBuf->GetWriteBarrierBuffer();
-    if (UNLIKELY(wbBuf.IsFull())) {
-        MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
-        if (collector != nullptr) {
-            collector->FlushWriteBarrierOverflow(wbBuf);
-        } else {
-            wbBuf.Clear();
-        }
+    // Only log during concurrent mark; outside it there is no SATB snapshot to
+    // preserve, so drop the ref entirely (no buffering/clearing needed).
+    MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
+    if (collector == nullptr) {
+        return;
     }
-    wbBuf.Push(ref);
+    AllocBufferMS* allocBuf = AllocBufferMS::GetOrCreateAllocBufferMS();
+    EnqueueRefInto(collector, allocBuf, ref);
+}
+
+// Bulk paths (struct/array copy) log many old-refs at once. Resolve the active
+// collector + owner AllocBufferMS ONCE here (R-1) and reuse across all refs,
+// instead of paying a TLS lookup per ref inside EnqueueRefFast.
+// Returns false (nothing to log) when not marking.
+static inline bool ResolveBulkLogOwner(MarkSweepCollector*& collector, AllocBufferMS*& allocBuf)
+{
+    collector = MarkSweepCollector::GetActiveCollector();
+    if (collector == nullptr) {
+        return false;
+    }
+    allocBuf = AllocBufferMS::GetOrCreateAllocBufferMS();
+    return true;
 }
 
 static inline void EnqueueStructRefsInRange(BaseObject* obj, MAddress start, size_t size)
@@ -45,9 +84,14 @@ static inline void EnqueueStructRefsInRange(BaseObject* obj, MAddress start, siz
     if (obj == nullptr || obj->GetTypeInfo() == nullptr || size == 0) {
         return;
     }
+    MarkSweepCollector* collector = nullptr;
+    AllocBufferMS* allocBuf = nullptr;
+    if (!ResolveBulkLogOwner(collector, allocBuf)) {
+        return;
+    }
     obj->ForEachRefInStruct(
-        [](RefField<false>& refField) {
-            EnqueueRefFast(refField.GetTargetObject());
+        [collector, allocBuf](RefField<false>& refField) {
+            EnqueueRefInto(collector, allocBuf, refField.GetTargetObject());
         },
         start, start + size);
 }
@@ -67,26 +111,41 @@ static inline void EnqueueStructArrayRefsInRange(BaseObject* obj, MAddress start
     if (component == nullptr || !component->IsStructType() || !component->HasRefField()) {
         return;
     }
+    MarkSweepCollector* collector = nullptr;
+    AllocBufferMS* allocBuf = nullptr;
+    if (!ResolveBulkLogOwner(collector, allocBuf)) {
+        return;
+    }
     array->ForEachRefFieldInRange(
-        [](RefField<false>& refField) {
-            EnqueueRefFast(refField.GetTargetObject());
+        [collector, allocBuf](RefField<false>& refField) {
+            EnqueueRefInto(collector, allocBuf, refField.GetTargetObject());
         },
         start, start + size);
 }
 
 static inline void EnqueueStaticStructRefs(MAddress start, const GCTib gctib)
 {
-    gctib.ForEachBitmapWord(start, [](RefField<>& refField) {
-        EnqueueRefFast(refField.GetTargetObject());
+    MarkSweepCollector* collector = nullptr;
+    AllocBufferMS* allocBuf = nullptr;
+    if (!ResolveBulkLogOwner(collector, allocBuf)) {
+        return;
+    }
+    gctib.ForEachBitmapWord(start, [collector, allocBuf](RefField<>& refField) {
+        EnqueueRefInto(collector, allocBuf, refField.GetTargetObject());
     });
 }
 
 static inline void EnqueueRefArrayRange(MAddress start, size_t size)
 {
+    MarkSweepCollector* collector = nullptr;
+    AllocBufferMS* allocBuf = nullptr;
+    if (!ResolveBulkLogOwner(collector, allocBuf)) {
+        return;
+    }
     size_t refCount = size / sizeof(MAddress);
     RefField<false>* refs = reinterpret_cast<RefField<false>*>(start);
     for (size_t i = 0; i < refCount; ++i) {
-        EnqueueRefFast(refs[i].GetTargetObject());
+        EnqueueRefInto(collector, allocBuf, refs[i].GetTargetObject());
     }
 }
 
