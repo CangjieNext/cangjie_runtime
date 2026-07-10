@@ -9,6 +9,10 @@
 package std.unittest.concurrent
 
 import std.collection.ArrayList
+import std.collection.HashSet
+import std.collection.HashMap
+import std.unittest.common.PrettyTable
+import std.unittest.common.PrettyText
 
 protected class MismatchInfo {
     protected MismatchInfo(
@@ -81,32 +85,250 @@ public class ConsistencyValidationResult {
     }
 
     public func getMismatchDetails(): ?String {
+        getMismatchTable()
+    }
+
+    public func getMismatchTable(): ?String {
         if (deadEndMismatches.isEmpty()) {
             return None
         }
 
-        let sb = StringBuilder()
-        sb.append("Sequentialization failure at depth ${deadEndDepth}:\n")
+        let prefixSet = HashSet<Int64>()
+        for (opId in deadEndPrefix) {
+            prefixSet.add(opId)
+        }
+        let mismatchMap = HashMap<Int64, MismatchInfo>()
+        for (m in deadEndMismatches) {
+            mismatchMap[m.operation.operationId] = m
+        }
 
-        if (deadEndPrefix.isEmpty()) {
-            sb.append("  After []:\n")
-        } else {
-            let parts = ArrayList<String>()
-            for (opId in deadEndPrefix) {
-                let actorId = opId / 1000
-                let opIndex = opId % 1000
-                match (history.getInvocation(actorId, opIndex)) {
+        let actorIds = ArrayList<Int64>()
+        for (actorId in history.groupByActor().keys()) {
+            actorIds.add(actorId)
+        }
+        actorIds.sort()
+
+        let topoOrder = topologicalSort()
+
+        let cliques = buildCliques(topoOrder)
+
+        let pt = PrettyTable(sep: " ", separateColumnsNames: false, leftAligneAll: true, minColumnWidth: 1)
+        for (actorId in actorIds) {
+            pt.addColumn("Actor ${actorId}")
+        }
+
+        let nextUnshownOpIndex = HashMap<Int64, Int64>()
+        for (actorId in actorIds) {
+            nextUnshownOpIndex[actorId] = 0
+        }
+
+        for (clique in cliques) {
+            pt.nextRow()
+            for (actorId in actorIds) {
+                var opInClique: ?OperationInvocation = None
+                for (opId in clique) {
+                    if (opId / 1000 == actorId) {
+                        match (history.getInvocation(actorId, opId % 1000)) {
+                            case Some(inv) => opInClique = Some(inv)
+                            case None => ()
+                        }
+                        break
+                    }
+                }
+
+                match (opInClique) {
                     case Some(inv) =>
-                        parts.add("Actor ${inv.actorId}: ${inv.operationName} -> ${inv.result}")
-                    case None => ()
+                        pt.addCell(formatCell(inv, prefixSet, mismatchMap))
+                        nextUnshownOpIndex[actorId] = inv.operationIndex + 1
+                    case None =>
+                        let nextIdx = nextUnshownOpIndex.get(actorId) ?? 0
+                        if (nextIdx == 0) {
+                            pt.addCell("-------")
+                        } else {
+                            match (history.getInvocation(actorId, nextIdx)) {
+                                case Some(nextInv) =>
+                                    var allPred = true
+                                    for (opId in clique) {
+                                        if (!partialOrder.isPredecessorOf(opId, nextInv.operationId)) {
+                                            allPred = false
+                                            break
+                                        }
+                                    }
+                                    if (allPred) {
+                                        pt.addCell("-------")
+                                    } else {
+                                        pt.addCell("...")
+                                    }
+                                case None =>
+                                    pt.addCell("-------")
+                            }
+                        }
                 }
             }
-            sb.append("  After [${String.join(parts.toArray(), delimiter: ", ")}]:\n")
         }
 
-        for (m in deadEndMismatches) {
-            sb.append("    Actor ${m.operation.actorId}: ${m.operation.operationName} (expected: ${m.expectedResult}, actual: ${m.operation.result})\n")
-        }
+        let sb = StringBuilder()
+        sb.append(partialOrder.formatConstraints(consistencyModel))
+        sb.append("\n")
+        sb.append(PrettyText.of(pt).toString())
         sb.toString()
+    }
+
+    private func formatCell(
+        inv: OperationInvocation,
+        prefixSet: HashSet<Int64>,
+        mismatchMap: HashMap<Int64, MismatchInfo>
+    ): String {
+        let opId = inv.operationId
+        if (prefixSet.contains(opId)) {
+            "${inv.operationName}: ${inv.result} \u{2713}"
+        } else if (let Some(m) <- mismatchMap.get(opId)) {
+            "${inv.operationName}: ${inv.result} \u{2260} ${m.expectedResult} \u{2717}"
+        } else {
+            "${inv.operationName}: ${inv.result}"
+        }
+    }
+
+    private func topologicalSort(): ArrayList<Int64> {
+        let result = ArrayList<Int64>()
+        let placed = HashSet<Int64>()
+        while (result.size < partialOrder.size) {
+            let available = partialOrder.getAvailableOperations(placed)
+            if (available.size == 0) {
+                break
+            }
+            for (opId in available) {
+                result.add(opId)
+                placed.add(opId)
+            }
+        }
+        result
+    }
+
+    private func buildCliques(topoOrder: ArrayList<Int64>): ArrayList<ArrayList<Int64>> {
+        let heights = computeHeights(topoOrder)
+        var maxHeight: Int64 = 0
+        for (opId in topoOrder) {
+            match (heights.get(opId)) {
+                case Some(h) => if (h > maxHeight) { maxHeight = h }
+                case None => ()
+            }
+        }
+        if (maxHeight == 0) {
+            maxHeight = 1
+        }
+
+        let depths = computeDepths(topoOrder)
+
+        let numSlots = maxHeight
+        let slots = ArrayList<ArrayList<Int64>>(Array<ArrayList<Int64>>(numSlots, { _ => ArrayList<Int64>() }))
+
+        let actorOps = HashMap<Int64, ArrayList<Int64>>()
+        for (opId in topoOrder) {
+            let actorId = opId / 1000
+            if (!actorOps.contains(actorId)) {
+                actorOps[actorId] = ArrayList<Int64>()
+            }
+            actorOps[actorId].add(opId)
+        }
+
+        for (opId in topoOrder) {
+            let h = heights.get(opId) ?? 1
+            let d = depths.get(opId) ?? 1
+            let earliest = h
+            var latest = numSlots - d + 1
+            if (latest < earliest) {
+                latest = earliest
+            }
+
+            let actorId = opId / 1000
+            let opsForActor = actorOps.get(actorId) ?? ArrayList<Int64>()
+            let isLastOp = opsForActor.size > 0 && opId == opsForActor[opsForActor.size - 1]
+            let isOnlyOp = opsForActor.size == 1
+
+            let targetSlot = if (isLastOp && !isOnlyOp) {
+                latest
+            } else {
+                earliest
+            }
+
+            var slotIdx = targetSlot
+            while (slotIdx >= earliest && slotIdx >= 1) {
+                let slot = slots[slotIdx - 1]
+                var allConcurrent = true
+                for (memberId in slot) {
+                    if (!partialOrder.areConcurrent(memberId, opId)) {
+                        allConcurrent = false
+                        break
+                    }
+                }
+                if (allConcurrent) {
+                    slot.add(opId)
+                    break
+                }
+                slotIdx--
+            }
+            if (slotIdx < earliest || slotIdx < 1) {
+                slotIdx = targetSlot
+                while (slotIdx <= latest && slotIdx <= numSlots) {
+                    let slot = slots[slotIdx - 1]
+                    var allConcurrent = true
+                    for (memberId in slot) {
+                        if (!partialOrder.areConcurrent(memberId, opId)) {
+                            allConcurrent = false
+                            break
+                        }
+                    }
+                    if (allConcurrent) {
+                        slot.add(opId)
+                        break
+                    }
+                    slotIdx++
+                }
+                if (slotIdx > latest || slotIdx > numSlots) {
+                    slots[earliest - 1].add(opId)
+                }
+            }
+        }
+
+        slots
+    }
+
+    private func computeHeights(topoOrder: ArrayList<Int64>): HashMap<Int64, Int64> {
+        let heights = HashMap<Int64, Int64>()
+        for (opId in topoOrder) {
+            var maxH: Int64 = 0
+            match (partialOrder.getPredecessors(opId)) {
+                case Some(preds) =>
+                    for (predId in preds) {
+                        match (heights.get(predId)) {
+                            case Some(h) => if (h > maxH) { maxH = h }
+                            case None => ()
+                        }
+                    }
+                case None => ()
+            }
+            heights[opId] = maxH + 1
+        }
+        heights
+    }
+
+    private func computeDepths(topoOrder: ArrayList<Int64>): HashMap<Int64, Int64> {
+        let depths = HashMap<Int64, Int64>()
+        let allOps = partialOrder.operations
+        for (i in 0..topoOrder.size) {
+            let opId = topoOrder[topoOrder.size - 1 - i]
+            var maxD: Int64 = 0
+            for (otherId in allOps) {
+                if (partialOrder.isPredecessorOf(opId, otherId)) {
+                    match (depths.get(otherId)) {
+                        case Some(d) => if (d > maxD) { maxD = d }
+                        case None => ()
+                    }
+                }
+            }
+            depths[opId] = maxD + 1
+        }
+        depths
     }
 }

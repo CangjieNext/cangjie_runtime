@@ -634,10 +634,20 @@ extend CheckResult <: PrettyPrintable {
                     .append(cr.message)
                     .newLine()
                 if (let Some(actorDetails) <- cr.actorFailureDetails) {
-                    pp.append(actorDetails).newLine()
+                    for (line in actorDetails.lines()) {
+                        pp.appendLine(line)
+                    }
                 }
                 if (let Some(consDetails) <- cr.consistencyValidationDetails) {
-                    pp.append("Consistency validation: ").append(consDetails).newLine()
+                    var first = true
+                    for (line in consDetails.lines()) {
+                        if (first) {
+                            pp.append("Consistency validation: ").append(line).newLine()
+                            first = false
+                        } else {
+                            pp.appendLine(line)
+                        }
+                    }
                 }
             case _ => throw Exception("Required due to bug in compiler")
         }

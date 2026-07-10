@@ -29,7 +29,6 @@ set(UNITTEST_SRCS
     platform_specific.cj
     power_assert_diagram_builder.cj
     pretty_console.cj
-    pretty_table.cj
     process.cj
     reexport.cj
     render_exception.cj

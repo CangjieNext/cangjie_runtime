@@ -328,13 +328,15 @@ class ConcurrentTestCheckResult <: CheckResult {
         let iterationIndex: Int64,
         let message: PrettyText,
         let actorFailureDetails!: ?String = None,
-        let consistencyValidationDetails!: ?String = None
+        let consistencyValidationDetails!: ?String = None,
+        let isAssertionFailure!: Bool = true
     ) {}
-    
+
     init(
         iterationResult: ScenarioIterationResult
     ) {
         iterationIndex = iterationResult.iteration
+        isAssertionFailure = iterationResult.failedAfter
         message = if (iterationResult.failedAfter) {
             let consistencyFailed = match (iterationResult.consistencyValidation) {
                 case Some(consResult) => !consResult.isConsistent
@@ -371,9 +373,11 @@ class ConcurrentTestCheckResult <: CheckResult {
         match (iterationResult.consistencyValidation) {
             case Some(consResult) =>
                 if (!consResult.isConsistent) {
-                    var details = consResult.report() + "\n" + consResult.getOperationHistory()
-                    if (let Some(mismatchDetails) <- consResult.getMismatchDetails()) {
-                        details = details + mismatchDetails
+                    var details = consResult.report() + "\n"
+                    if (let Some(mismatchTable) <- consResult.getMismatchTable()) {
+                        details = details + mismatchTable
+                    } else {
+                        details = details + consResult.getOperationHistory()
                     }
                     Some(details)
                 } else {
@@ -387,6 +391,7 @@ class ConcurrentTestCheckResult <: CheckResult {
         let dms = DataModelStruct()
             .add(field<Int64>("iterationIndex", iterationIndex))
             .add(field<PrettyText>("message", message))
+            .add(field<Bool>("isAssertionFailure", isAssertionFailure))
         if (let Some(details) <- actorFailureDetails) {
             dms.add(field<String>("actorFailureDetails", details))
         }
@@ -407,11 +412,17 @@ class ConcurrentTestCheckResult <: CheckResult {
         } else {
             None
         }
+        let isAssertFailure = if (let Some(dm) <- dms.tryGet("isAssertionFailure")) {
+            Bool.deserialize(dm)
+        } else {
+            true
+        }
         ConcurrentTestCheckResult(
             Int64.deserialize(dms.tryGet("iterationIndex") ?? return None),
             PrettyText.deserialize(dms.tryGet("message") ?? return None),
             actorFailureDetails: actorDetails,
-            consistencyValidationDetails: consDetails
+            consistencyValidationDetails: consDetails,
+            isAssertionFailure: isAssertFailure
         )
     }
 }
