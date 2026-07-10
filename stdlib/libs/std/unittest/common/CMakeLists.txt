@@ -10,6 +10,7 @@ set(UNITTEST_COMMON_SRCS
     option_validators.cj
     pretty.cj
     pretty_serialization.cj
+    pretty_table.cj
     util.cj
     unicode.cj
     CACHE INTERNAL "")

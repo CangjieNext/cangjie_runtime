@@ -75,6 +75,32 @@ protected class PartialOrder {
             case None => 0
         }
     }
+
+    protected func getPredecessors(opId: Int64): ?ArrayList<Int64> {
+        predecessorMap.get(opId)
+    }
+
+    protected func isPredecessorOf(opId: Int64, targetOpId: Int64): Bool {
+        match (predecessorMap.get(targetOpId)) {
+            case Some(predList) => predList.contains(opId)
+            case None => false
+        }
+    }
+
+    protected func areConcurrent(opIdA: Int64, opIdB: Int64): Bool {
+        if (opIdA == opIdB) {
+            return false
+        }
+        !isPredecessorOf(opIdA, opIdB) && !isPredecessorOf(opIdB, opIdA)
+    }
+
+    protected func formatConstraints(model: ConsistencyModel): String {
+        match (model) {
+            case Serializability => "Ordering: no constraints (all interleavings valid)"
+            case SequentialConsistency => "Ordering: per-actor ordering (------- = barrier, ... = bridge)"
+            case Linearizability => "Ordering: per-actor + real-time (------- = barrier, ... = bridge)"
+        }
+    }
     
     prop predecessorPairCount: Int64 {
         get() { predecessors.size }

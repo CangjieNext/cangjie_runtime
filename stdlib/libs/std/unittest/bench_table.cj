@@ -8,6 +8,7 @@
 package std.unittest
 
 import std.unittest.common.Color
+import std.unittest.common.PrettyTable
 import std.collection.*
 import std.convert.Formattable
 

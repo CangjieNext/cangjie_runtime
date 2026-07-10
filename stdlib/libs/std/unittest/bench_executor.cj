@@ -15,6 +15,7 @@ import std.random.Random
 import std.runtime.ProcessorInfo
 import std.runtime.getProcessorCount
 import std.unittest.common.PrettyText
+import std.unittest.common.PrettyTable
 
 
 protected type BenchRawMeasurement = (Float64, Float64, Float64)

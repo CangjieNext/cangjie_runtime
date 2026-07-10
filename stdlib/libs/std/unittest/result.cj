@@ -231,6 +231,8 @@ class RunStepResult <: Result {
                 case _: AssertExpectCheckResult => FAIL
                 case _: MockFrameworkCheckResult => FAIL
                 case _: TimeoutCheckResult => FAIL
+                case c: ConcurrentTestCheckResult =>
+                    if (c.isAssertionFailure) { FAIL } else { ERROR }
                 case _ => ERROR
             }
 

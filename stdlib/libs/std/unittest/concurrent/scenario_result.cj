@@ -9,6 +9,7 @@
 package std.unittest.concurrent
 
 import std.collection.ArrayList
+import std.collection.collectArrayList
 import std.core.Duration
 import std.time.DateTime
 
@@ -148,6 +149,14 @@ public class ScenarioResult {
                 }
             }
             true
+        }
+    }
+
+    public prop consistencyValidations: ArrayList<ConsistencyValidationResult> {
+        get() {
+            iterationResults
+                .filterMap({ iter => iter.consistencyValidation })
+                |> collectArrayList
         }
     }
     
