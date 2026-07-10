@@ -5215,6 +5215,53 @@ Output:
 8
 ```
 
+## struct Extern\<T> where T <: Runtime\<T>
+
+```cangjie
+public struct Extern<T> where T <: Runtime<T> {
+    public Extern(payload: Any)
+    public static func getPayload(e: Extern<T>): Any
+}
+```
+
+Function: Represents a runtime-specific dynamic value. The generic parameter `T` provides the dynamic runtime behavior by implementing [Runtime](core_package_interfaces.md#interface-runtimet-where-t--runtimet)\<T>.
+
+The compiler recognizes [Extern](core_package_structs.md#struct-externt-where-t--runtimet) and lowers dynamic member access, index access, member update, index update, function call, and conversion operations to the corresponding static functions on `T`. For example, `e.field` is lowered to `T.memberAccess(e, "field")`, and `e(args...)` is lowered to `T.functionCall(e, args)`.
+
+> **Note:**
+>
+> - [Extern](core_package_structs.md#struct-externt-where-t--runtimet) cannot be extended.
+> - Dynamic operations that return [Extern](core_package_structs.md#struct-externt-where-t--runtimet)\<T> are not treated as [Bool](core_package_intrinsics.md#bool). If a boolean value is required, convert the dynamic value explicitly through the runtime.
+> - Static access to members defined on [Extern](core_package_structs.md#struct-externt-where-t--runtimet), such as `Extern<T>.getPayload(e)`, is ordinary static access and is not lowered to dynamic member access.
+
+### init(Any)
+
+```cangjie
+public Extern(payload: Any)
+```
+
+Function: Constructs an [Extern](core_package_structs.md#struct-externt-where-t--runtimet)\<T> value with a runtime-specific payload.
+
+Parameters:
+
+- payload: [Any](core_package_interfaces.md#interface-any) - The runtime-specific payload.
+
+### static func getPayload(Extern\<T>)
+
+```cangjie
+public static func getPayload(e: Extern<T>): Any
+```
+
+Function: Gets the runtime-specific payload of an [Extern](core_package_structs.md#struct-externt-where-t--runtimet)\<T> value.
+
+Parameters:
+
+- e: [Extern](core_package_structs.md#struct-externt-where-t--runtimet)\<T> - The dynamic value.
+
+Returns:
+
+- [Any](core_package_interfaces.md#interface-any) - The runtime-specific payload.
+
 ## struct Range\<T> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>
 
 ```cangjie

@@ -611,6 +611,135 @@ Returns:
 
 - [Array](core_package_structs.md#struct-arrayt)\<T> - The resulting array after conversion.
 
+## interface Runtime\<T> where T <: Runtime\<T>
+
+```cangjie
+public interface Runtime<T> where T <: Runtime<T> {
+    static func memberAccess(e: Extern<T>, field: String): Extern<T>
+    static func indexAccess(e: Extern<T>, arg: Any): Extern<T>
+    static func memberUpdate(e: Extern<T>, field: String, value: Any): Unit
+    static func indexUpdate(e: Extern<T>, field: Any, value: Any): Unit
+    static func functionCall(e: Extern<T>, args: Array<Any>): Extern<T>
+    static func fromExtern<R>(h: Extern<T>): R
+    static func toExtern<R>(v: R): Extern<T>
+}
+```
+
+Function: Defines the runtime operations used by [Extern](core_package_structs.md#struct-externt-where-t--runtimet)\<T>. A type parameter `T` that is used with [Extern](core_package_structs.md#struct-externt-where-t--runtimet) must implement `Runtime<T>`.
+
+The compiler lowers dynamic operations on [Extern](core_package_structs.md#struct-externt-where-t--runtimet) values to the corresponding static functions of `T`.
+
+### static func memberAccess(Extern\<T>, String)
+
+```cangjie
+static func memberAccess(e: Extern<T>, field: String): Extern<T>
+```
+
+Function: Handles dynamic member access, such as `e.field`.
+
+Parameters:
+
+- e: [Extern](core_package_structs.md#struct-externt-where-t--runtimet)\<T> - The dynamic value.
+- field: [String](core_package_structs.md#struct-string) - The member name.
+
+Returns:
+
+- [Extern](core_package_structs.md#struct-externt-where-t--runtimet)\<T> - The dynamic member value.
+
+### static func indexAccess(Extern\<T>, Any)
+
+```cangjie
+static func indexAccess(e: Extern<T>, arg: Any): Extern<T>
+```
+
+Function: Handles dynamic index access, such as `e[arg]`.
+
+Parameters:
+
+- e: [Extern](core_package_structs.md#struct-externt-where-t--runtimet)\<T> - The dynamic value.
+- arg: [Any](core_package_interfaces.md#interface-any) - The index argument.
+
+Returns:
+
+- [Extern](core_package_structs.md#struct-externt-where-t--runtimet)\<T> - The dynamic indexed value.
+
+### static func memberUpdate(Extern\<T>, String, Any)
+
+```cangjie
+static func memberUpdate(e: Extern<T>, field: String, value: Any): Unit
+```
+
+Function: Handles dynamic member update, such as `e.field = value`.
+
+Parameters:
+
+- e: [Extern](core_package_structs.md#struct-externt-where-t--runtimet)\<T> - The dynamic value.
+- field: [String](core_package_structs.md#struct-string) - The member name.
+- value: [Any](core_package_interfaces.md#interface-any) - The assigned value.
+
+### static func indexUpdate(Extern\<T>, Any, Any)
+
+```cangjie
+static func indexUpdate(e: Extern<T>, field: Any, value: Any): Unit
+```
+
+Function: Handles dynamic index update, such as `e[field] = value`.
+
+Parameters:
+
+- e: [Extern](core_package_structs.md#struct-externt-where-t--runtimet)\<T> - The dynamic value.
+- field: [Any](core_package_interfaces.md#interface-any) - The index argument.
+- value: [Any](core_package_interfaces.md#interface-any) - The assigned value.
+
+### static func functionCall(Extern\<T>, Array\<Any>)
+
+```cangjie
+static func functionCall(e: Extern<T>, args: Array<Any>): Extern<T>
+```
+
+Function: Handles dynamic function calls, such as `e(args...)`.
+
+Parameters:
+
+- e: [Extern](core_package_structs.md#struct-externt-where-t--runtimet)\<T> - The dynamic callable value.
+- args: [Array](core_package_structs.md#struct-arrayt)\<[Any](core_package_interfaces.md#interface-any)> - The call arguments.
+
+Returns:
+
+- [Extern](core_package_structs.md#struct-externt-where-t--runtimet)\<T> - The dynamic call result.
+
+### static func fromExtern\<R>(Extern\<T>)
+
+```cangjie
+static func fromExtern<R>(h: Extern<T>): R
+```
+
+Function: Converts an [Extern](core_package_structs.md#struct-externt-where-t--runtimet)\<T> value to a Cangjie value of type `R`.
+
+Parameters:
+
+- h: [Extern](core_package_structs.md#struct-externt-where-t--runtimet)\<T> - The dynamic value.
+
+Returns:
+
+- R - The converted Cangjie value.
+
+### static func toExtern\<R>(R)
+
+```cangjie
+static func toExtern<R>(v: R): Extern<T>
+```
+
+Function: Converts a Cangjie value of type `R` to an [Extern](core_package_structs.md#struct-externt-where-t--runtimet)\<T> value.
+
+Parameters:
+
+- v: R - The Cangjie value.
+
+Returns:
+
+- [Extern](core_package_structs.md#struct-externt-where-t--runtimet)\<T> - The converted dynamic value.
+
 ## interface Comparable\<T>
 
 ```cangjie
