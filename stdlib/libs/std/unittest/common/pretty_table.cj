@@ -5,58 +5,57 @@
  *
  * See https://cangjie-lang.cn/pages/LICENSE for license information.
  */
-package std.unittest
+package std.unittest.common
 
-import std.unittest.common.*
 import std.collection.*
 
 // const MAX_COLUMN_WIDTH = 30
-class PrettyTable <: PrettyPrintable {
-    let columnSizes: ArrayList<Int64>
-    let rows = ArrayList<ArrayList<(String, Color)>>()
-    var column: Int64 = 0
-    let leftAlignedColumns = HashSet<Int64>()
-    let names: ArrayList<String> = ArrayList()
+public class PrettyTable <: PrettyPrintable {
+    public let columnSizes: ArrayList<Int64>
+    public let rows = ArrayList<ArrayList<(String, Color)>>()
+    public var column: Int64 = 0
+    public let leftAlignedColumns = HashSet<Int64>()
+    public let names: ArrayList<String> = ArrayList()
 
-    PrettyTable(let sep!: String = "|", let separateColumnsNames!: Bool = true, let leftAligneAll!: Bool = false, let minColumnWidth!: Int64 = 6) {
+    public PrettyTable(let sep!: String = "|", let separateColumnsNames!: Bool = true, let leftAligneAll!: Bool = false, let minColumnWidth!: Int64 = 6) {
         columnSizes = ArrayList()
         this.nextRow()
         this.nextRow()
     }
 
-    func addColumns<T>(names: T) where T <: Iterable<String> {
+    public func addColumns<T>(names: T) where T <: Iterable<String> {
         for (name in names) {
             addColumn(name)
         }
     }
 
-    func addColumn(name: String) {
+    public func addColumn(name: String) {
         rows[0].add((" ${name} ", DEFAULT_COLOR))
         rows[1].add(("", DEFAULT_COLOR))
         columnSizes.add(max(minColumnWidth, name.runes() |> count))
     }
 
-    func removeLastColumn() {
+    public func removeLastColumn() {
         let rowIdx = columnSizes.size - 1
         columnSizes.remove(at: rowIdx)
         rows[0].remove(at: rowIdx)
         rows[1].remove(at: rowIdx)
     }
 
-    func alignColumnLeft(idx: Int64) {
+    public func alignColumnLeft(idx: Int64) {
         leftAlignedColumns.add(idx)
     }
 
-    func addEmptyRow() {
+    public func addEmptyRow() {
         rows.add(ArrayList<(String, Color)>(columnSizes.size, {_ => ("", DEFAULT_COLOR)}))
     }
 
-    func nextRow() {
+    public func nextRow() {
         this.column = 0
         rows.add(ArrayList())
     }
 
-    func addCell(value: String, color!: Color = DEFAULT_COLOR) {
+    public func addCell(value: String, color!: Color = DEFAULT_COLOR) {
 
         rows[rows.size - 1].add((" ${value} ", color))
         if (column >= columnSizes.size) { return }
