@@ -12,6 +12,7 @@
 #include "Heap/MAllocator/MSAllocBuffer.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MCollector/MarkSweepCollector.h"
+#include "Mutator/ThreadLocal.h"
 #include "ObjectModel/Field.inline.h"
 #include "ObjectModel/MArray.h"
 #include "ObjectModel/RefField.inline.h"
@@ -65,7 +66,10 @@ static inline void EnqueueRefFast(BaseObject* ref)
     if (collector == nullptr) {
         return;
     }
-    AllocBufferMS* allocBuf = AllocBufferMS::GetOrCreateAllocBufferMS();
+    AllocBufferMS* allocBuf = ThreadLocal::GetAllocBufferMS();
+    if (UNLIKELY(allocBuf == nullptr)) {
+        allocBuf = AllocBufferMS::GetOrCreateAllocBufferMS();
+    }
     EnqueueRefInto(collector, allocBuf, ref);
 }
 
@@ -79,7 +83,10 @@ static inline bool ResolveBulkLogOwner(MarkSweepCollector*& collector, AllocBuff
     if (collector == nullptr) {
         return false;
     }
-    allocBuf = AllocBufferMS::GetOrCreateAllocBufferMS();
+    allocBuf = ThreadLocal::GetAllocBufferMS();
+    if (UNLIKELY(allocBuf == nullptr)) {
+        allocBuf = AllocBufferMS::GetOrCreateAllocBufferMS();
+    }
     return true;
 }
 
@@ -290,7 +297,7 @@ void MSMarkBarrier::ReadStaticStruct(MAddress dst, MAddress src, size_t size, co
 // Writes: deletion-style barrier — log(old) + store
 // ============================================================================
 
-void MSMarkBarrier::WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref) const
+void MSBarrierOps::WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref)
 {
     (void)obj;
 
@@ -307,7 +314,7 @@ void MSMarkBarrier::WriteReference(BaseObject* obj, RefField<false>& field, Base
     field.SetTargetObject(ref);
 }
 
-void MSMarkBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) const
+void MSBarrierOps::WriteStaticRef(RefField<false>& field, BaseObject* ref)
 {
     BaseObject* oldRef = field.GetTargetObject();
     if (oldRef == ref) {
@@ -322,7 +329,7 @@ void MSMarkBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) cons
     field.SetTargetObject(ref);
 }
 
-void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen) const
+void MSBarrierOps::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen)
 {
     // log(old): preserve all existing reference fields in the destination struct
     EnqueueStructRefsInRange(obj, dst, dstLen);
@@ -338,8 +345,8 @@ void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MA
 #endif
 }
 
-void MSMarkBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, size_t srcLen,
-                                      const GCTib gctib) const
+void MSBarrierOps::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, size_t srcLen,
+                                     const GCTib gctib)
 {
     // log(old): preserve all existing reference fields via GCTib bitmap
     EnqueueStaticStructRefs(dst, gctib);
@@ -359,8 +366,8 @@ void MSMarkBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src,
 // Array copy: discover overwritten refs before they are replaced
 // ============================================================================
 
-void MSMarkBarrier::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
-                                 BaseObject* srcObj, MAddress srcField, MIndex srcSize) const
+void MSBarrierOps::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
+                                BaseObject* srcObj, MAddress srcField, MIndex srcSize)
 {
     (void)dstObj;
     (void)srcObj;
@@ -379,8 +386,8 @@ void MSMarkBarrier::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex d
 #endif
 }
 
-void MSMarkBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
-                                    BaseObject* srcObj, MAddress srcField, MIndex srcSize) const
+void MSBarrierOps::CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
+                                   BaseObject* srcObj, MAddress srcField, MIndex srcSize)
 {
     (void)srcObj;
     size_t copiedLen = (dstSize < srcSize ? dstSize : srcSize);
@@ -397,6 +404,39 @@ void MSMarkBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MInde
     Sanitizer::TsanWriteMemoryRange(reinterpret_cast<void*>(dstField), copyLen);
     Sanitizer::TsanReadMemoryRange(reinterpret_cast<void*>(srcField), copyLen);
 #endif
+}
+
+void MSMarkBarrier::WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref) const
+{
+    MSBarrierOps::WriteReference(obj, field, ref);
+}
+
+void MSMarkBarrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) const
+{
+    MSBarrierOps::WriteStaticRef(field, ref);
+}
+
+void MSMarkBarrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen) const
+{
+    MSBarrierOps::WriteStruct(obj, dst, dstLen, src, srcLen);
+}
+
+void MSMarkBarrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, size_t srcLen,
+                                      const GCTib gctib) const
+{
+    MSBarrierOps::WriteStaticStruct(dst, dstLen, src, srcLen, gctib);
+}
+
+void MSMarkBarrier::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
+                                 BaseObject* srcObj, MAddress srcField, MIndex srcSize) const
+{
+    MSBarrierOps::CopyRefArray(dstObj, dstField, dstSize, srcObj, srcField, srcSize);
+}
+
+void MSMarkBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
+                                    BaseObject* srcObj, MAddress srcField, MIndex srcSize) const
+{
+    MSBarrierOps::CopyStructArray(dstObj, dstField, dstSize, srcObj, srcField, srcSize);
 }
 
 // ============================================================================

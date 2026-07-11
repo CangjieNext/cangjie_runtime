@@ -30,6 +30,9 @@
 #include "Heap/Barrier/Barrier.h"
 #include "Heap/Collector/CollectorResources.h"
 #include "Heap/Heap.h"
+#ifdef MRT_USE_MARK_SWEEP
+#include "Heap/MBarrier/MSMarkBarrier.h"
+#endif
 #include "HeapManager.inline.h"
 #include "LoaderManager.h"
 #include "TypeInfoManager.h"
@@ -286,7 +289,11 @@ extern "C" void MCC_WriteRefField(const ObjectPtr ref, const ObjectPtr obj, RefF
         field->SetTargetObject(ref);
         return;
     }
+#ifdef MRT_USE_MARK_SWEEP
+    MSBarrierOps::WriteReference(obj, *field, ref);
+#else
     Heap::GetBarrier().WriteReference(obj, *field, ref);
+#endif
 }
 
 extern "C" void MCC_WriteStructField(ObjectPtr obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen)
@@ -300,18 +307,30 @@ extern "C" void MCC_WriteStructField(ObjectPtr obj, MAddress dst, size_t dstLen,
                      "memcpy_s failed");
         return;
     }
+#ifdef MRT_USE_MARK_SWEEP
+    MSBarrierOps::WriteStruct(obj, dst, dstLen, src, srcLen);
+#else
     Heap::GetBarrier().WriteStruct(obj, dst, dstLen, src, srcLen);
+#endif
 }
 
 extern "C" void MCC_WriteStaticRef(const ObjectPtr ref, RefField<false>* field)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    MSBarrierOps::WriteStaticRef(*field, ref);
+#else
     Heap::GetBarrier().WriteStaticRef(*field, ref);
+#endif
 }
 
 extern "C" void MCC_WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, size_t srcLen, const GCTib gcTib)
 {
     CHECK_DETAIL((dst != 0u && src != 0u), "MCC_WriteStaticStruct wrong parameter, dst: %p src: %p", dst, src);
+#ifdef MRT_USE_MARK_SWEEP
+    MSBarrierOps::WriteStaticStruct(dst, dstLen, src, srcLen, gcTib);
+#else
     Heap::GetBarrier().WriteStaticStruct(dst, dstLen, src, srcLen, gcTib);
+#endif
 }
 
 extern "C" TypeInfo* MCC_GetObjClass(const ObjectPtr obj)
@@ -343,7 +362,11 @@ extern "C" void CJ_MCC_ArrayCopyRef(const ObjectPtr dstObj, MAddress dstField, s
         return;
     }
     MRT_ASSERT(dstSize <= SECUREC_MEM_MAX_LEN, "size too big in CJ_MCC_ArrayCopy");
+#ifdef MRT_USE_MARK_SWEEP
+    MSBarrierOps::CopyRefArray(dstObj, dstField, dstSize, srcObj, srcField, srcSize);
+#else
     Heap::GetBarrier().CopyRefArray(dstObj, dstField, dstSize, srcObj, srcField, srcSize);
+#endif
 }
 
 extern "C" void CJ_MCC_ArrayCopyStruct(const ObjectPtr dstObj, MAddress dstField, size_t dstSize,
@@ -353,7 +376,11 @@ extern "C" void CJ_MCC_ArrayCopyStruct(const ObjectPtr dstObj, MAddress dstField
         return;
     }
     MRT_ASSERT(dstSize <= SECUREC_MEM_MAX_LEN, "size too big in CJ_MCC_ArrayCopy");
+#ifdef MRT_USE_MARK_SWEEP
+    MSBarrierOps::CopyStructArray(dstObj, dstField, dstSize, srcObj, srcField, srcSize);
+#else
     Heap::GetBarrier().CopyStructArray(dstObj, dstField, dstSize, srcObj, srcField, srcSize);
+#endif
 }
 extern "C" void MCC_AtomicWriteReference(const ObjectPtr ref, const ObjectPtr obj, RefField<true>* field,
                                          MemoryOrder order)

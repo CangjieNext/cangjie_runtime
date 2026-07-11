@@ -15,6 +15,17 @@ namespace MapleRuntime {
 
 class Mutator;
 
+namespace MSBarrierOps {
+void WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref);
+void WriteStaticRef(RefField<false>& field, BaseObject* ref);
+void WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen);
+void WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, size_t srcLen, const GCTib gctib);
+void CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
+                  BaseObject* srcObj, MAddress srcField, MIndex srcSize);
+void CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
+                     BaseObject* srcObj, MAddress srcField, MIndex srcSize);
+} // namespace MSBarrierOps
+
 // MSMarkBarrier — unified old/new write barrier for MSGC concurrent marking.
 //
 // Semantics:
