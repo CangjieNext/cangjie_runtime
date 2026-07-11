@@ -63,6 +63,9 @@ public:
         buf->next = top_;
         top_ = buf;
         ++count_;
+        if (buf->Full()) {
+            ++fullCount_;
+        }
     }
 
     WorkBuf* Pop()
@@ -75,6 +78,9 @@ public:
         top_ = oldTop->next;
         oldTop->next = nullptr;
         --count_;
+        if (oldTop->Full()) {
+            --fullCount_;
+        }
         return oldTop;
     }
 
@@ -94,6 +100,7 @@ public:
         *link = full->next;
         full->next = nullptr;
         --count_;
+        --fullCount_;
         return full;
     }
 
@@ -109,21 +116,23 @@ public:
         return count_;
     }
 
+    size_t FullCount() const
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return fullCount_;
+    }
+
     bool HasFull() const
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        for (WorkBuf* buf = top_; buf != nullptr; buf = buf->next) {
-            if (buf->Full()) {
-                return true;
-            }
-        }
-        return false;
+        return fullCount_ != 0;
     }
 
 private:
     mutable std::mutex mutex_;
     WorkBuf* top_ = nullptr;
     size_t count_ = 0;
+    size_t fullCount_ = 0;
 };
 
 // ============================================================================

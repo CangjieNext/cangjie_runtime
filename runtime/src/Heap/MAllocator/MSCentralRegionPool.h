@@ -21,6 +21,7 @@
 
 #include "Heap/Allocator/Allocator.h"
 #include "Base/Log.h"
+#include "Heap/MAllocator/MSMarkedStats.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSShardRouting.h"
 #include "Heap/MAllocator/MSSizeClass.h"
@@ -433,13 +434,13 @@ public:
         return globalSweepGen_.load(std::memory_order_acquire);
     }
 
-    // Compute true live bytes by walking markBitmaps of all regions.
+    // Compute marked object count and true live bytes in one bitmap walk.
     // Must be called after marking completes and BEFORE PrepareForSweep.
-    size_t ComputeMarkedBytes() const;
+    MSMarkedStats ComputeMarkedStats() const;
 
     // Diagnostic: visit every currently-marked object (small/medium + large)
     // by walking markBitmaps. Must be called in the same window as
-    // ComputeMarkedBytes (marking complete, no sweep started). Used by the
+    // ComputeMarkedStats (marking complete, no sweep started). Used by the
     // mark-completeness verifier to detect live objects that were missed.
     void VisitMarkedObjects(const std::function<void(BaseObject*)>& func) const;
 

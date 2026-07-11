@@ -457,10 +457,6 @@ void MarkSweepCollector::PreEnumRoots()
              Pretty(clearBitmapUs).Str(),
              Pretty(stwUs).Str());
     }
-    prevCycleMarkedObjects_.store(markedObjectCount.load(std::memory_order_relaxed), std::memory_order_relaxed);
-    // Reset marked object counter (GC-thread-only, no STW needed).
-    markedObjectCount.store(0, std::memory_order_relaxed);
-
     cycleStats_.preEnumRootsUs = TimeUtil::MicroSeconds() - t0;
     VLOG(REPORT, "[MS-GC] PreEnumRoots: %sus",
          Pretty(cycleStats_.preEnumRootsUs).Str());
@@ -550,11 +546,7 @@ bool MarkSweepCollector::ResolveSmallRefForBarrier(BaseObject* ref, MSRegionInfo
 
 bool MarkSweepCollector::DiscoverObject(BaseObject* obj)
 {
-    if (!DiscoverObjectNoCount(obj)) {
-        return false;
-    }
-    (void)markedObjectCount.fetch_add(1, std::memory_order_relaxed);
-    return true;
+    return DiscoverObjectNoCount(obj);
 }
 
 bool MarkSweepCollector::TryEnqueueGreyObject(BaseObject* obj, GreyWorkSink& sink)
@@ -629,10 +621,17 @@ void MarkSweepCollector::ConcurrentMark()
     assistGlobalPulled_.store(0, std::memory_order_relaxed);
     assistPostPullMarked_.store(0, std::memory_order_relaxed);
     bgCreditInjected_.store(0, std::memory_order_relaxed);
+    pendingWorkerScanned_.store(0, std::memory_order_relaxed);
+    helperProcessedCount_.store(0, std::memory_order_relaxed);
+    peakActiveHelpers_ = 0;
+    workerScaleUpCount_ = 0;
+    workerScaleDownCount_ = 0;
+    peakFullBacklog_ = 0;
 
     // 10. Init per-P GCWork for all existing mutators before enabling assist.
     //     New mutators that join later will lazily init in MSMarkAssist.
     InitAllPerPGCWork();
+    markWorkerControl_.Start(0);
 
     // 11. Enable assist: compute base ratio (objects-per-byte) from previous
     //     cycle stats. This ratio is fixed for the whole cycle — it only
@@ -672,6 +671,19 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
     gcThreadWork_.Init(&globalFull_, &workBufPool_);
     TransferRootsToGCWork();
 
+    size_t configuredThreads = std::max<int32_t>(1, CangjieRuntime::GetGCParam().gcThreads);
+    size_t maxHelpers = configuredThreads > 1 ? configuredThreads - 1 : 0;
+    GCThreadPool* threadPool = GetThreadPool();
+    if (threadPool == nullptr) {
+        maxHelpers = 0;
+    } else {
+        maxHelpers = std::min(maxHelpers, static_cast<size_t>(threadPool->GetMaxThreadNum()));
+    }
+    MSMarkWorkerPolicy workerPolicy(maxHelpers);
+    MSMarkWorkerDecision workerDecision = workerPolicy.Update(globalFull_.FullCount());
+    StartMarkWorkers(maxHelpers, workerDecision.activeHelpers);
+    peakActiveHelpers_ = workerDecision.activeHelpers;
+
     convergenceStableRounds_ = 0;
 
     // GC-supply credit with configurable linear decay.
@@ -697,13 +709,27 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
     bool forceConverged = false;
 
     while (true) {
-        // One complete global buffer is one background-mark slice.
+        // One complete global buffer is one GC-main mark slice.
         size_t scannedCount = DrainOneBufRound(gcThreadWork_);
+
+        size_t fullBacklog = globalFull_.FullCount();
+        peakFullBacklog_ = std::max(peakFullBacklog_, fullBacklog);
+        size_t oldHelpers = workerPolicy.GetActiveHelpers();
+        workerDecision = workerPolicy.Update(fullBacklog);
+        if (workerDecision.activeHelpers != oldHelpers) {
+            markWorkerControl_.SetTargetHelpers(workerDecision.activeHelpers);
+            if (workerDecision.activeHelpers > oldHelpers) {
+                ++workerScaleUpCount_;
+            } else {
+                ++workerScaleDownCount_;
+            }
+            peakActiveHelpers_ = std::max(peakActiveHelpers_, workerDecision.activeHelpers);
+        }
 
         // Dynamic assist ratio escalation based on globalFull_ backpressure:
         // Smooth transient queue changes, then increase continuously up to the configured cap.
         if (baseAssistRatio > 0) {
-            size_t backlog = globalFull_.Count();
+            size_t backlog = fullBacklog;
             smoothedBacklog = UpdateMSAssistBacklogEMA(smoothedBacklog, backlog, backlogEMAInitialized);
             backlogEMAInitialized = true;
             uint64_t adjustedRatio = ComputeMSAssistBacklogRatioScaled(
@@ -712,10 +738,12 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
         }
 
         // Per-round decayed GC-supply credit injection.
-        if (roundIdx < creditDecayRounds && scannedCount > 0) {
+        size_t workerScanned = pendingWorkerScanned_.exchange(0, std::memory_order_acq_rel);
+        size_t backgroundScanned = scannedCount + workerScanned;
+        if (roundIdx < creditDecayRounds && backgroundScanned > 0) {
             double w = static_cast<double>(creditDecayRounds - roundIdx) /
                        static_cast<double>(creditDecayRounds);
-            size_t inj = static_cast<size_t>(static_cast<double>(scannedCount) * w);
+            size_t inj = static_cast<size_t>(static_cast<double>(backgroundScanned) * w);
             if (inj > 0) {
                 bgScanCredit_.fetch_add(static_cast<int64_t>(inj), std::memory_order_release);
                 bgCreditInjected_.fetch_add(inj, std::memory_order_relaxed);
@@ -724,9 +752,14 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
 
         roundIdx++;
 
-        if (gcThreadWork_.ConcurrentInputEmpty() && !globalFull_.HasFull()) {
+        if (gcThreadWork_.ConcurrentInputEmpty() && !globalFull_.HasFull() &&
+            markWorkerControl_.GetWorkersInFlight() == 0 &&
+            markWorkerControl_.GetAssistsInFlight() == 0) {
             if (CheckConvergenceAndBreak()) {
-                break;
+                if (QuiesceMarkWorkers(true, workerDecision.activeHelpers)) {
+                    break;
+                }
+                convergenceStableRounds_ = 0;
             }
         } else {
             convergenceStableRounds_ = 0;
@@ -737,6 +770,7 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
         // MarkTermination under STW (bounded work set, no concurrent alloc).
         if (markBudgetUs != 0 && (TimeUtil::MicroSeconds() - t0) >= markBudgetUs) {
             forceConverged = true;
+            (void)QuiesceMarkWorkers(false, 0);
             break;
         }
     }
@@ -750,11 +784,10 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
 
     cycleStats_.concurrentMarkUs = TimeUtil::MicroSeconds() - t0;
     VLOG(REPORT,
-         "[MS-GC] ConcurrentMark time: %sus, marked %zu objects "
+         "[MS-GC] ConcurrentMark time: %sus "
             "(assist: %zu calls, %zu processed, %zu bgCredit-skip; "
             "LFStack: push %zu, bgCredit consumed %zu, forceConverged=%d)",
          Pretty(cycleStats_.concurrentMarkUs).Str(),
-         markedObjectCount.load(std::memory_order_relaxed),
          cycleStats_.assistCallCount,
          cycleStats_.assistProcessedObjects,
          cycleStats_.assistFastSkipCount,
@@ -773,6 +806,74 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
          assistPostPullMarked_.load(std::memory_order_relaxed),
          bgCreditInjected_.load(std::memory_order_relaxed),
          roundIdx);
+    VLOG(REPORT,
+         "[MS-GC] [mark-workers] configured=%zu peakActive=%zu processed=%zu "
+         "scaleUp=%zu scaleDown=%zu backlogPeak=%zu workersInFlight=%zu assistInFlight=%zu",
+         maxHelpers + 1,
+         peakActiveHelpers_ + 1,
+         helperProcessedCount_.load(std::memory_order_relaxed),
+         workerScaleUpCount_,
+         workerScaleDownCount_,
+         peakFullBacklog_,
+         markWorkerControl_.GetWorkersInFlight(),
+         markWorkerControl_.GetAssistsInFlight());
+}
+
+void MarkSweepCollector::StartMarkWorkers(size_t maxHelpers, size_t initialHelpers)
+{
+    markWorkerSlots_.clear();
+    markWorkerSlots_.reserve(maxHelpers);
+    markWorkerControl_.SetTargetHelpers(initialHelpers);
+    if (maxHelpers == 0) {
+        return;
+    }
+
+    GCThreadPool* threadPool = GetThreadPool();
+    for (size_t i = 0; i < maxHelpers; ++i) {
+        std::unique_ptr<MSMarkWorkerSlot> slot(new (std::nothrow) MSMarkWorkerSlot());
+        CHECK_DETAIL(slot != nullptr, "new MSGC mark worker slot failed");
+        slot->work.Init(&globalFull_, &workBufPool_);
+        markWorkerSlots_.push_back(std::move(slot));
+        threadPool->AddWork(new (std::nothrow) LambdaWork([this, i](size_t) { RunMarkWorker(i); }));
+    }
+    threadPool->Start();
+}
+
+void MarkSweepCollector::RunMarkWorker(size_t workerId)
+{
+    MSMarkWorkerSlot& slot = *markWorkerSlots_[workerId];
+    while (markWorkerControl_.WaitUntilEligible(workerId)) {
+        if (!markWorkerControl_.TryEnterWorker(workerId)) {
+            continue;
+        }
+        size_t scanned = DrainOneBufRound(slot.work);
+        if (scanned != 0) {
+            slot.processed.fetch_add(scanned, std::memory_order_relaxed);
+            helperProcessedCount_.fetch_add(scanned, std::memory_order_relaxed);
+            pendingWorkerScanned_.fetch_add(scanned, std::memory_order_release);
+        }
+        markWorkerControl_.ExitWorker();
+        if (scanned == 0) {
+            markWorkerControl_.BackoffWorker();
+        }
+    }
+    slot.work.Dispose();
+}
+
+bool MarkSweepCollector::QuiesceMarkWorkers(bool restartOnLateWork, size_t resumeHelpers)
+{
+    markWorkerControl_.BeginQuiesce();
+    markWorkerControl_.WaitForNoInFlight();
+    if (restartOnLateWork && globalFull_.HasFull()) {
+        markWorkerControl_.Resume(resumeHelpers);
+        return false;
+    }
+
+    markWorkerControl_.Stop();
+    if (!markWorkerSlots_.empty()) {
+        GetThreadPool()->WaitFinish();
+    }
+    return true;
 }
 
 // ============================================================================
@@ -898,7 +999,6 @@ void MarkSweepCollector::DrainGCWork(PerPGCWork& gcw, size_t maxObjects,
                                      size_t& scannedCount)
 {
     scannedCount = 0;
-    size_t localForwarded = 0;
     for (size_t i = 0; i < maxObjects; i++) {
         BaseObject* obj = gcw.TryGetObj();
         if (obj == nullptr) {
@@ -912,7 +1012,6 @@ void MarkSweepCollector::DrainGCWork(PerPGCWork& gcw, size_t maxObjects,
             if (!DiscoverObjectNoCount(obj)) {
                 continue;
             }
-            ++localForwarded;
         } else {
             if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
                 continue;
@@ -939,9 +1038,6 @@ void MarkSweepCollector::DrainGCWork(PerPGCWork& gcw, size_t maxObjects,
         }
 
         TraceObjectRefFieldsToGCWork(obj, gcw);
-    }
-    if (localForwarded > 0) {
-        markedObjectCount.fetch_add(localForwarded, std::memory_order_relaxed);
     }
 }
 
@@ -1037,10 +1133,6 @@ void MarkSweepCollector::PublishAndSwapLog(AllocBufferMS& ab)
     // Route-A: entries were already shaded (mark-CAS won) by the barrier, so the
     // buffer holds only grey objects — the consumer scans them directly.
     full->needsDiscover = false;
-    // Every entry is a newly-grey object (one won mark-CAS), so the whole buffer
-    // is the batch mark count for this publish.
-    markedObjectCount.fetch_add(full->len, std::memory_order_relaxed);
-
     // Make every complete log visible to the GC thread and all assists instead
     // of pinning the first four buffers to the owner P.
     size_t published = full->len;
@@ -1059,7 +1151,6 @@ void MarkSweepCollector::PublishExitedLog(AllocBufferMS& ab)
             // Owner is leaving: push straight to globalFull_ (no local consumer
             // survives). Route-A: entries are already grey, consumer scans them.
             log->needsDiscover = false;
-            markedObjectCount.fetch_add(log->len, std::memory_order_relaxed);
             size_t published = log->len;
             globalFull_.Push(log);
             globalShareCount_.fetch_add(1, std::memory_order_relaxed);
@@ -1093,7 +1184,6 @@ void MarkSweepCollector::PushSingleToDeferredMainThread(BaseObject* obj)
 
 void MarkSweepCollector::DrainGlobalLFStackToMainQueue(GreyWorkQueue& mainQueue)
 {
-    size_t localForwarded = 0;
     while (true) {
         WorkBuf* buf = globalFull_.Pop();
         if (buf == nullptr) {
@@ -1107,7 +1197,6 @@ void MarkSweepCollector::DrainGlobalLFStackToMainQueue(GreyWorkQueue& mainQueue)
                 BaseObject* obj = buf->objs[i];
                 if (DiscoverObjectNoCount(obj)) {
                     mainQueue.PushMovedGrey(obj);
-                    ++localForwarded;
                 }
             }
         } else {
@@ -1126,9 +1215,6 @@ void MarkSweepCollector::DrainGlobalLFStackToMainQueue(GreyWorkQueue& mainQueue)
             }
         }
         workBufPool_.Put(buf);
-    }
-    if (localForwarded > 0) {
-        markedObjectCount.fetch_add(localForwarded, std::memory_order_relaxed);
     }
 }
 
@@ -1175,6 +1261,11 @@ void MarkSweepCollector::DisposeAllPerPGCWork()
     }
     // Also dispose the GC thread's own work
     gcThreadWork_.Dispose();
+    for (const auto& slot : markWorkerSlots_) {
+        if (slot->work.IsInitialized()) {
+            slot->work.Dispose();
+        }
+    }
 }
 
 void MarkSweepCollector::ResetAllPerPGCWork()
@@ -1189,6 +1280,12 @@ void MarkSweepCollector::ResetAllPerPGCWork()
         });
     }
     gcThreadWork_.Reset();
+    for (const auto& slot : markWorkerSlots_) {
+        if (slot->work.IsInitialized()) {
+            slot->work.Reset();
+        }
+    }
+    markWorkerSlots_.clear();
 }
 
 // ============================================================================
@@ -1203,7 +1300,6 @@ size_t MarkSweepCollector::DrainOneBufRound(PerPGCWork& gcw)
     }
 
     size_t nProcessed = 0;
-    size_t localForwarded = 0;
     // getCur_ is fixed for the whole round, so its raw-log flag is constant here.
     const bool needsDiscover = (gcw.getCur_ != nullptr) && gcw.getCur_->needsDiscover;
     while (gcw.getCur_ != nullptr && !gcw.getCur_->Empty()) {
@@ -1213,7 +1309,6 @@ size_t MarkSweepCollector::DrainOneBufRound(PerPGCWork& gcw)
             if (!DiscoverObjectNoCount(obj)) {
                 continue;
             }
-            ++localForwarded;
         } else {
             if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
                 continue;
@@ -1241,9 +1336,6 @@ size_t MarkSweepCollector::DrainOneBufRound(PerPGCWork& gcw)
         gcw.workBufPool_->Put(gcw.getCur_);
         gcw.getCur_ = nullptr;
     }
-    if (localForwarded > 0) {
-        markedObjectCount.fetch_add(localForwarded, std::memory_order_relaxed);
-    }
     return nProcessed;
 }
 
@@ -1259,9 +1351,14 @@ size_t MarkSweepCollector::MSMarkAssist(size_t debtObjects)
 
     assistCallTotal_.fetch_add(1, std::memory_order_relaxed);
 
+    if (!markWorkerControl_.TryEnterAssist()) {
+        return 0;
+    }
+
     // Get per-P gcWork from this thread's AllocBufferMS.
     AllocBufferMS* allocBuf = ThreadLocal::GetAllocBufferMS();
     if (allocBuf == nullptr) {
+        markWorkerControl_.ExitAssist();
         return 0;
     }
     PerPGCWork& gcw = allocBuf->GetGCWork();
@@ -1286,6 +1383,7 @@ size_t MarkSweepCollector::MSMarkAssist(size_t debtObjects)
         }
     }
 
+    markWorkerControl_.ExitAssist();
     return paidByBg + paidByGlobal;
 }
 
@@ -1335,7 +1433,6 @@ void MarkSweepCollector::MarkTermination()
     // 3. Drain main queue with Execute-like loop (same as concurrent mark logic)
     // and re-check all external work sources until no delayed grey work remains.
     {
-        size_t beforeMark = markedObjectCount.load(std::memory_order_relaxed);
         cycleStats_.markTermProcessedObjects = 0;
         size_t lateSourceEntries = 0;
         size_t drainRounds = 0;
@@ -1346,8 +1443,6 @@ void MarkSweepCollector::MarkTermination()
             lateSourceEntries += added;
             pendingSourceEntries += added;
         } while (!mainQueue.empty());
-        cycleStats_.markTermNewlyMarkedObjects =
-            markedObjectCount.load(std::memory_order_relaxed) - beforeMark;
         wbFlushSnapshot = wbFlushStats_.Snapshot();
         if (lateSourceEntries != 0 || drainRounds > 1) {
             VLOG(REPORT,
@@ -1381,12 +1476,11 @@ void MarkSweepCollector::MarkTermination()
          wbFlushSnapshot.TotalRawEntries());
     VLOG(REPORT,
          "[MS-GC] MarkTermination total: %sus, flushed=%zu entries, resurrection=%zu entries, "
-         "processed=%zu objects, newlyMarked=%zu",
+         "processed=%zu objects",
          Pretty(cycleStats_.markTerminationUs).Str(),
          pendingSourceEntries,
          resurrectionEntries,
-         cycleStats_.markTermProcessedObjects,
-         cycleStats_.markTermNewlyMarkedObjects);
+         cycleStats_.markTermProcessedObjects);
 
     // Transition to MS_SWEEP INSIDE STW so that when mutators resume,
     // the phase is MS_SWEEP (idle barrier). This eliminates a gap where
@@ -1745,10 +1839,15 @@ void MarkSweepCollector::ConcurrentSweep()
 
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
 
-    // Compute true live bytes from markBitmaps BEFORE gen flip (bitmaps are stable here).
+    // Compute object count and true live bytes in one stable bitmap walk.
     CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool != nullptr) {
-        cycleStats_.trueLiveBytes = centralPool->ComputeMarkedBytes();
+        MSMarkedStats markedStats = centralPool->ComputeMarkedStats();
+        cycleStats_.markedObjects = markedStats.objectCount;
+        cycleStats_.trueLiveBytes = markedStats.liveBytes;
+        prevCycleMarkedObjects_.store(markedStats.objectCount, std::memory_order_relaxed);
+        VLOG(REPORT, "[MS-GC] Mark bitmap: objects=%zu liveBytes=%zuB",
+             markedStats.objectCount, markedStats.liveBytes);
     }
 
     BackgroundProcessor& backgroundProcessor = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
@@ -2005,7 +2104,7 @@ void MarkSweepCollector::UpdateGCStats()
     size_t oldScavengeThreshold = gcStats.GetScavengeThreshold();
     size_t oldLastTrueLiveBytes = gcStats.lastTrueLiveBytes;
     size_t preActiveRegionBytes = gcStats.lastRegionBytes;
-    // Use mark-bit based live bytes (ComputeMarkedBytes, computed in
+    // Use mark-bit based live bytes (ComputeMarkedStats, computed in
     // PostMarkTermination). This counts only truly marked objects, so
     // allocations made during the current marking phase do not inflate the
     // next-cycle threshold.

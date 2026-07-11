@@ -44,6 +44,7 @@
 #include "HeapManager.inline.h"
 #ifdef MRT_USE_MARK_SWEEP
 #include "Heap/MCollector/MSAssistPacing.h"
+#include "Heap/MCollector/MSMarkWorkerPolicy.h"
 #include "Heap/MAllocator/MSShardRouting.h"
 #endif
 
@@ -283,8 +284,15 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
             // Default value of backup GC interval is 240s.
             .backupGCInterval = param->gcParam.backupGCInterval == 0 ? 240 * MapleRuntime::SECOND_TO_NANO_SECOND :
                 param->gcParam.backupGCInterval * MapleRuntime::SECOND_TO_NANO_SECOND,
-            // Default GC threads factor is 2.
+#ifdef MRT_USE_MARK_SWEEP
+            // Total MSGC mark threads, including the GC main thread.
+            .gcThreads = static_cast<int32_t>(MapleRuntime::ResolveMSMarkTotalThreads(
+                resolvedProcessorNum, param->gcParam.gcThreads > 0 ?
+                    static_cast<size_t>(param->gcParam.gcThreads) : 0)),
+#else
+            // CopyGC keeps its existing two-thread default and API override behavior.
             .gcThreads = param->gcParam.gcThreads == 0 ? 2 : param->gcParam.gcThreads,
+#endif
             .scavengeGrowth = param->gcParam.scavengeGrowth < ERRORESTIMATE ?
                 resolvedHeapGrowth : param->gcParam.scavengeGrowth,
             .msBackgroundSweepMaxTime = param->gcParam.msBackgroundSweepMaxTime == 0 ?

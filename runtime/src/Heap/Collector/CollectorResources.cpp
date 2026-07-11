@@ -7,6 +7,7 @@
 
 #include "CollectorResources.h"
 
+#include <algorithm>
 #include <thread>
 
 #include "Base/EnvParam.h"
@@ -240,8 +241,13 @@ void CollectorResources::StartGCThreads()
     }
     // starts the thread pool.
     if (gcThreadPool == nullptr) {
+#ifdef MRT_USE_MARK_SWEEP
+        gcThreadCount = std::max<int32_t>(1, CangjieRuntime::GetGCParam().gcThreads);
+        int32_t helperThreads = std::max<int32_t>(1, gcThreadCount - 1);
+#else
         int32_t helperThreads = 1;
         gcThreadCount = helperThreads + 1;
+#endif
         VLOG(REPORT, "total gc thread count %d, helper thread count %d", gcThreadCount, helperThreads);
         gcThreadPool = new (std::nothrow) GCThreadPool("gc", helperThreads, GCPoolThread::GC_THREAD_PRIORITY);
         CHECK_DETAIL(gcThreadPool != nullptr, "new GCThreadPool failed");

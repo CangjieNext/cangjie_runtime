@@ -33,6 +33,7 @@
 #include "schedule.h"
 #ifdef MRT_USE_MARK_SWEEP
 #include "Heap/MCollector/MSAssistPacing.h"
+#include "Heap/MCollector/MSMarkWorkerPolicy.h"
 #include "Heap/MAllocator/MSShardRouting.h"
 #endif
 #if defined(CANGJIE_SANITIZER_SUPPORT)
@@ -486,8 +487,15 @@ static RuntimeParam InitRuntimeParam()
             // Default backup GC interval is 240s.
             .backupGCInterval = ReadTimeParameter("cjBackupGCInterval", 240 * SECOND_TO_NANO_SECOND, 0,
                                                   EnvBoundKind::OPEN),
-            // Default GC thread factor is 2.
+#ifdef MRT_USE_MARK_SWEEP
+            // Total MSGC mark threads, including the GC main thread.
+            .gcThreads = static_cast<int32_t>(ReadCountParameter(
+                "cjGCThreads", ResolveMSMarkTotalThreads(processorNum, 0), 0, EnvBoundKind::OPEN,
+                processorNum, EnvBoundKind::CLOSED)),
+#else
+            // CopyGC keeps one GC main thread and one helper thread.
             .gcThreads = 2,
+#endif
             .scavengeGrowth = ReadDoubleParameter("cjScavengeGrowth", heapGrowth, 0.0, EnvBoundKind::OPEN,
                                                   std::numeric_limits<double>::max(), EnvBoundKind::CLOSED),
             .msBackgroundSweepMaxTime = ReadTimeParameter("cjGCBGSweepMaxTime", 2 * MILLI_SECOND_TO_NANO_SECOND,

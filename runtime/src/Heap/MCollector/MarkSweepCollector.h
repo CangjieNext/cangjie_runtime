@@ -10,12 +10,15 @@
 #ifdef MRT_USE_MARK_SWEEP
 
 #include <atomic>
+#include <memory>
 #include <mutex>
 #include <vector>
 
 #include "Heap/Collector/TracingCollector.h"
 #include "Common/LFStack.h"
 #include "Heap/MCollector/MSAssistPacing.h"
+#include "Heap/MCollector/MSMarkWorkerControl.h"
+#include "Heap/MCollector/MSMarkWorkerPolicy.h"
 #include "Heap/MCollector/MSGCWriteBarrierFlushStats.h"
 
 namespace MapleRuntime {
@@ -35,13 +38,13 @@ struct MSGCCycleStats {
     uint64_t concurrentMarkUs = 0;    // ConcurrentMark wall time: RunConcurrentMarkLoop and assist snapshot.
     uint64_t markTerminationUs = 0;   // MarkTermination wall time: STW drain, WB flush, deferred queue drain, sweep flip.
     uint64_t postMarkUs = 0;          // PostMarkTermination wall time: weak refs, finalizers, large-object reclaim.
-    uint64_t concurrentSweepUs = 0;   // ConcurrentSweep wall time: ComputeMarkedBytes and background handoff.
+    uint64_t concurrentSweepUs = 0;   // ConcurrentSweep wall time: ComputeMarkedStats and background handoff.
     uint64_t postGcHookUs = 0;        // PostGarbageCollection hook wall time after UpdateGCStats completes.
 
     // ── Counting ──
     size_t rootsCount = 0;                // markWorkStack_.size() right after EnumAndMarkRoots finishes.
     size_t markTermProcessedObjects = 0;  // Objects drained by ExecuteLikeDrainMainQueue during STW mark termination.
-    size_t markTermNewlyMarkedObjects = 0; // markedObjectCount delta created by the STW final drain.
+    size_t markedObjects = 0;             // Mark bitmap popcount after marking completes.
     size_t losFreedCount = 0;             // Large objects reclaimed in CollectLargeGarbage for this cycle.
     size_t losFreedRegionCount = 0;       // Large-object region spans reclaimed in CollectLargeGarbage.
     size_t losFreedBytes = 0;             // Bytes reclaimed from large-object spans in this cycle.
@@ -57,7 +60,7 @@ struct MSGCCycleStats {
     size_t bgScanCreditConsumed = 0;     // bgScanCreditConsumed_ snapshot after concurrent mark convergence.
 
     // ── True live bytes (computed from markBitmaps after marking) ──
-    size_t trueLiveBytes = 0;            // ComputeMarkedBytes() result, used by UpdateGCStats and GC-end logs.
+    size_t trueLiveBytes = 0;            // ComputeMarkedStats() result, used by UpdateGCStats and GC-end logs.
 
     // ── Region accounting snapshot ──
     size_t activeRegionCount = 0;        // activeRegionBytes / MS_REGION_SIZE, emitted in DumpRegionStatsMS.
@@ -194,10 +197,8 @@ private:
     void DiscoverAndPushObject(BaseObject* obj, WorkStack& workStack);
     bool TryEnqueueGreyObject(BaseObject* obj, GreyWorkQueue& queue);
     bool DiscoverObject(BaseObject* obj);
-    // Same discover/mark as DiscoverObject but does NOT bump markedObjectCount.
-    // Callers that process a batch (the flush paths) accumulate the newly-grey
-    // count locally and do a single markedObjectCount.fetch_add at the end, to
-    // avoid one global atomic per object under concurrent overflow flush.
+    // Shared bitmap-only discover implementation. MSGC derives cycle object
+    // counts from a post-mark bitmap walk instead of updating a hot global counter.
     bool DiscoverObjectNoCount(BaseObject* obj);
     // Diagnostic: after marking completes (in ConcurrentSweep, before sweep
     // reclaims anything), walk all marked objects and report any ref edge that
@@ -218,6 +219,9 @@ private:
     void TraceObjectRefFieldsToGCWork(BaseObject* obj, PerPGCWork& gcw);
     void TraceRefField(BaseObject* obj, RefField<>& field, WorkStack& workStack);
     void TransferRootsToGCWork();
+    void StartMarkWorkers(size_t maxHelpers, size_t initialHelpers);
+    void RunMarkWorker(size_t workerId);
+    bool QuiesceMarkWorkers(bool restartOnLateWork, size_t resumeHelpers);
 
     // ── Step5: LFStack global queue helpers ──
     void PushSingleToDeferredMainThread(BaseObject* obj);
@@ -278,6 +282,18 @@ private:
     LFStack globalFull_;
     WorkBufPool workBufPool_;
     PerPGCWork gcThreadWork_;
+    struct MSMarkWorkerSlot {
+        PerPGCWork work;
+        std::atomic<size_t> processed{0};
+    };
+    std::vector<std::unique_ptr<MSMarkWorkerSlot>> markWorkerSlots_;
+    MSMarkWorkerControl markWorkerControl_;
+    std::atomic<size_t> pendingWorkerScanned_{0};
+    std::atomic<size_t> helperProcessedCount_{0};
+    size_t peakActiveHelpers_ = 0;
+    size_t workerScaleUpCount_ = 0;
+    size_t workerScaleDownCount_ = 0;
+    size_t peakFullBacklog_ = 0;
     std::atomic<int64_t> bgScanCredit_{0};
     std::atomic<uint64_t> assistWorkPerByteScaled_{0};
     std::atomic<size_t> prevCycleMarkedObjects_{0};

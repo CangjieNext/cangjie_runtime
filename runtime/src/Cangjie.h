@@ -275,10 +275,9 @@ struct GCParam {
     uint64_t backupGCInterval;
 
     /*
-     * Parameters for adjusting the number of GC threads.
-     * The number of gc threads is ((the hardware concurrency / this value) - 1).
-     * default to 8, must be > 0.
-     * It will be set default value if the value is 0.
+     * Total number of GC threads, including the GC main thread.
+     * MSGC defaults to min(4, max(1, hardware concurrency / 2)); CopyGC defaults to 2.
+     * A positive value is capped at the hardware concurrency.
      */
     int32_t gcThreads;
 

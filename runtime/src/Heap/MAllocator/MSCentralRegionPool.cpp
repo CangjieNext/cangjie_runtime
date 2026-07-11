@@ -1479,30 +1479,30 @@ BackgroundFeedStats CentralRegionPool::BackgroundFillAllocCaches()
 }
 
 // ============================================================================
-// ComputeMarkedBytes: walk markBitmaps to count true live bytes
+// ComputeMarkedStats: walk markBitmaps once for object count and live bytes
 // ============================================================================
 // Called after marking completes, before PrepareForSweep (gen flip).
 // At this point markBitmaps are stable: marking is done, no sweep has started.
 //
-size_t CentralRegionPool::ComputeMarkedBytes() const
+MSMarkedStats CentralRegionPool::ComputeMarkedStats() const
 {
-    size_t totalLive = 0;
+    MSMarkedStats stats;
 
     // 1. Walk all small regions in CentralPool (all 4 lists × 36 classes)
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
         const SizeClassBucket& bucket = buckets_[cls];
         size_t slotSize = SizeClassInfo::ClassToSize(cls);
 
-        auto countRegion = [slotSize, &totalLive](MSRegionInfo* region) {
+        auto countRegion = [slotSize, &stats](MSRegionInfo* region) {
             if (region->markBitmap == nullptr || region->totalSlotCount == 0) {
                 return;
             }
             size_t wordCount = (region->totalSlotCount + 63) / 64;
-            int marked = 0;
+            size_t marked = 0;
             for (size_t i = 0; i < wordCount; i++) {
                 marked += __builtin_popcountll(region->markBitmap[i]);
             }
-            totalLive += static_cast<size_t>(marked) * slotSize;
+            stats.AddSlots(marked, slotSize);
         };
 
         bucket.VisitPartialSweptUnsafe(countRegion);
@@ -1524,31 +1524,31 @@ size_t CentralRegionPool::ComputeMarkedBytes() const
                 }
                 size_t slotSize = SizeClassInfo::ClassToSize(cls);
                 size_t wordCount = (region->totalSlotCount + 63) / 64;
-                int marked = 0;
+                size_t marked = 0;
                 for (size_t i = 0; i < wordCount; i++) {
                     marked += __builtin_popcountll(region->markBitmap[i]);
                 }
-                totalLive += static_cast<size_t>(marked) * slotSize;
+                stats.AddSlots(marked, slotSize);
             }
         }
     }
 
     // 3. Live large regions (isMarked == 1 after CollectLargeGarbage)
     {
-        VisitLargeRegionsLocked([&totalLive](MSRegionInfo* region) {
+        VisitLargeRegionsLocked([&stats](MSRegionInfo* region) {
             if (region->IsMarked()) {
-                totalLive += region->regionEnd - region->RegionStart();
+                stats.AddLargeObject(region->regionEnd - region->RegionStart());
             }
         });
     }
 
-    return totalLive;
+    return stats;
 }
 
 // ============================================================================
 // VisitMarkedObjects: walk markBitmaps and call func() on every marked object.
 // ============================================================================
-// Same validity window as ComputeMarkedBytes: marking complete, no sweep
+// Same validity window as ComputeMarkedStats: marking complete, no sweep
 // started. Used by the mark-completeness verifier to inspect every live object.
 //
 void CentralRegionPool::VisitMarkedObjects(const std::function<void(BaseObject*)>& func) const
