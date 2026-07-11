@@ -32,6 +32,7 @@
 #include "Mutator/Mutator.inline.h"
 #include "schedule.h"
 #ifdef MRT_USE_MARK_SWEEP
+#include "Heap/MCollector/MSAssistPacing.h"
 #include "Heap/MAllocator/MSShardRouting.h"
 #endif
 #if defined(CANGJIE_SANITIZER_SUPPORT)
@@ -493,8 +494,15 @@ static RuntimeParam InitRuntimeParam()
                                                           0, EnvBoundKind::OPEN, true),
             .msMarkTimeBudget = ReadTimeParameter("cjMSMarkTimeBudget", 20 * SECOND_TO_NANO_SECOND,
                                                   0, EnvBoundKind::OPEN, true),
-            .msAssistRatioScale = ReadCountParameter("cjMSAssistRatioScale", 1024, 0, EnvBoundKind::OPEN),
-            .msAssistDebtTrigger = ReadCountParameter("cjMSAssistDebtTrigger", 128, 0, EnvBoundKind::OPEN),
+            .msAssistBaseRatioPercent = ReadCountParameter(
+                "cjMSAssistBaseRatioPercent", kMSAssistBaseRatioPercentDefault, 0,
+                                                           EnvBoundKind::OPEN),
+            .msAssistBacklogStepBuffers = ReadCountParameter("cjMSAssistBacklogStepBuffers", 16, 0,
+                                                              EnvBoundKind::OPEN),
+            .msAssistMaxMultiplier = ReadCountParameter("cjMSAssistMaxMultiplier", 4, 0,
+                                                         EnvBoundKind::OPEN),
+            .msAssistCreditDecayRounds = ReadCountParameter("cjMSAssistCreditDecayRounds", 100, 0,
+                                                            EnvBoundKind::OPEN),
             .msAssistSweepMaxRegionsPerCall = ReadCountParameter("cjMSAssistSweepMaxRegionsPerCall", 10, 0,
                                                                  EnvBoundKind::OPEN),
             .msEnumAssistBatchSize = ReadCountParameter("cjMSEnumAssistBatchSize", 10, 0, EnvBoundKind::OPEN),

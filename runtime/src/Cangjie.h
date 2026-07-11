@@ -301,16 +301,28 @@ struct GCParam {
     uint64_t msMarkTimeBudget;
 
     /*
-     * Fixed-point scale denominator for MSGC assist ratio.
-     * Must be > 0.
+     * Percentage applied to the MSGC base assist ratio.
+     * Default to 50. Must be > 0.
      */
-    uint64_t msAssistRatioScale;
+    uint64_t msAssistBaseRatioPercent;
 
     /*
-     * Object-count trigger threshold for MSGC mark assist.
-     * Must be > 0.
+     * Number of full global work buffers per MSGC assist-ratio increment.
+     * Default to 16. Must be > 0.
      */
-    size_t msAssistDebtTrigger;
+    size_t msAssistBacklogStepBuffers;
+
+    /*
+     * Maximum multiplier applied to the MSGC base assist ratio.
+     * Default to 4. Must be > 0.
+     */
+    size_t msAssistMaxMultiplier;
+
+    /*
+     * Number of concurrent-mark rounds over which background credit decays.
+     * Default to 100. Must be > 0.
+     */
+    size_t msAssistCreditDecayRounds;
 
     /*
      * Maximum regions swept by one MSGC assist-sweep call under normal pressure.

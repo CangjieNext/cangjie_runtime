@@ -43,6 +43,7 @@
 #include "HeapManager.h"
 #include "HeapManager.inline.h"
 #ifdef MRT_USE_MARK_SWEEP
+#include "Heap/MCollector/MSAssistPacing.h"
 #include "Heap/MAllocator/MSShardRouting.h"
 #endif
 
@@ -290,8 +291,14 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
                 2 * MapleRuntime::MILLI_SECOND_TO_NANO_SECOND : param->gcParam.msBackgroundSweepMaxTime,
             .msMarkTimeBudget = param->gcParam.msMarkTimeBudget == 0 ?
                 20 * MapleRuntime::SECOND_TO_NANO_SECOND : param->gcParam.msMarkTimeBudget,
-            .msAssistRatioScale = param->gcParam.msAssistRatioScale == 0 ? 1024 : param->gcParam.msAssistRatioScale,
-            .msAssistDebtTrigger = param->gcParam.msAssistDebtTrigger == 0 ? 128 : param->gcParam.msAssistDebtTrigger,
+            .msAssistBaseRatioPercent = param->gcParam.msAssistBaseRatioPercent == 0 ?
+                MapleRuntime::kMSAssistBaseRatioPercentDefault : param->gcParam.msAssistBaseRatioPercent,
+            .msAssistBacklogStepBuffers = param->gcParam.msAssistBacklogStepBuffers == 0 ?
+                16 : param->gcParam.msAssistBacklogStepBuffers,
+            .msAssistMaxMultiplier = param->gcParam.msAssistMaxMultiplier == 0 ?
+                4 : param->gcParam.msAssistMaxMultiplier,
+            .msAssistCreditDecayRounds = param->gcParam.msAssistCreditDecayRounds == 0 ?
+                100 : param->gcParam.msAssistCreditDecayRounds,
             .msAssistSweepMaxRegionsPerCall = param->gcParam.msAssistSweepMaxRegionsPerCall == 0 ?
                 10 : param->gcParam.msAssistSweepMaxRegionsPerCall,
             .msEnumAssistBatchSize = param->gcParam.msEnumAssistBatchSize == 0 ?

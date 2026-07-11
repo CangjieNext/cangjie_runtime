@@ -78,21 +78,23 @@ public:
         return oldTop;
     }
 
-    // PopFull: pop the top buf only when it is a FULL buf (len == kCapacity).
-    // Used by debt-driven assist global pull so each pulled buf accounts for
-    // exactly kCapacity objects of debt. Returns nullptr if the stack is empty
-    // or the top buf is partial.
+    // Pop the first full buffer, leaving partial STW/exit buffers in place.
+    // A partial top must not hide full concurrent-mark work below it.
     WorkBuf* PopFull()
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        WorkBuf* oldTop = top_;
-        if (oldTop == nullptr || oldTop->len < WorkBuf::kCapacity) {
+        WorkBuf** link = &top_;
+        while (*link != nullptr && (*link)->len < WorkBuf::kCapacity) {
+            link = &(*link)->next;
+        }
+        WorkBuf* full = *link;
+        if (full == nullptr) {
             return nullptr;
         }
-        top_ = oldTop->next;
-        oldTop->next = nullptr;
+        *link = full->next;
+        full->next = nullptr;
         --count_;
-        return oldTop;
+        return full;
     }
 
     bool Empty() const
@@ -105,6 +107,17 @@ public:
     {
         std::lock_guard<std::mutex> lock(mutex_);
         return count_;
+    }
+
+    bool HasFull() const
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (WorkBuf* buf = top_; buf != nullptr; buf = buf->next) {
+            if (buf->Full()) {
+                return true;
+            }
+        }
+        return false;
     }
 
 private:
@@ -238,13 +251,12 @@ struct WorkBufList {
 //
 //   getCur_  : in-use get buffer (Pop side). NOT counted in any list.
 //   putCur_  : in-use put buffer (Push side). NOT counted in any list.
-//   list1_   : consume-ready full bufs (write-barrier output + spill target).
-//   list2_   : mark-output spill target (putCur_ overflow lands here first).
+//   list1_   : legacy local consume list, retained for rollback.
+//   list2_   : legacy local output list, retained for rollback.
 //
-// Write-barrier overflow → PushWBBuf → list1_ (local-first), else global.
-// Mark output (PutObj) → putCur_ → (full) list2_ → (full) SpillToList1OrGlobal.
-// Get path: getCur_ → list1_ → list2_ → putCur_ → globalFull_ (TryGetObj),
-//           getCur_ → list1_ → list2_ → putCur_           (TryGetObjLocal).
+// Current global-sharing path bypasses both lists: full write-barrier logs and
+// full putCur_ buffers go directly to globalFull_. The legacy methods remain
+// available so the experiment can be rolled back without an ABI/layout change.
 // ============================================================================
 struct PerPGCWork {
     WorkBufList list1_;
@@ -267,8 +279,7 @@ struct PerPGCWork {
         // getCur_/putCur_ allocated lazily on first use.
     }
 
-    // Spill a full buf preferentially into list1_ (so it gets consumed locally),
-    // falling back to globalFull_ when list1_ is full.
+    // Legacy local-first path, retained for rollback.
     void SpillToList1OrGlobal(WorkBuf* buf)
     {
         if (!list1_.ListFull()) {
@@ -279,8 +290,7 @@ struct PerPGCWork {
         }
     }
 
-    // Push a write-barrier-overflow buf into the local list1_ (local-first),
-    // falling back to globalFull_ when list1_ is full.
+    // Legacy local-first write-barrier path, retained for rollback.
     void PushWBBuf(WorkBuf* buf)
     {
         if (!list1_.ListFull()) {
@@ -291,25 +301,39 @@ struct PerPGCWork {
         }
     }
 
-    // Push a grey object into the put buffer (putCur_).
-    // putCur_ full → list2_ (if room) → SpillToList1OrGlobal (otherwise).
+    // Publish complete mark-output buffers globally. Partial output remains in
+    // putCur_ until it fills or MarkTermination disposes per-P work.
     void PutObj(BaseObject* obj)
     {
         if (putCur_ == nullptr) {
             putCur_ = workBufPool_->Get();
         }
-        if (!putCur_->Full()) {
-            putCur_->Push(obj);
-            return;
-        }
-        // putCur_ full → spill to list2_ first, else to list1_/global.
-        if (!list2_.ListFull()) {
-            list2_.PushNode(putCur_);
-        } else {
-            SpillToList1OrGlobal(putCur_);
-        }
-        putCur_ = workBufPool_->Get();
         putCur_->Push(obj);
+        if (putCur_->Full()) {
+            globalFull_->Push(putCur_);
+            flushedWork_ = true;
+            putCur_ = workBufPool_->Get();
+        }
+    }
+
+    // Acquire exactly one full global buffer for one assist/GC slice.
+    bool AcquireOneFullBuffer()
+    {
+        if (getCur_ != nullptr) {
+            if (!getCur_->Empty()) {
+                return true;
+            }
+            workBufPool_->Put(getCur_);
+            getCur_ = nullptr;
+        }
+        getCur_ = globalFull_->PopFull();
+        return getCur_ != nullptr;
+    }
+
+    // Partial putCur_ is deliberately deferred to MarkTermination.
+    bool ConcurrentInputEmpty() const
+    {
+        return getCur_ == nullptr || getCur_->Empty();
     }
 
     // Internal: promote one source buffer to getCur_ and Pop from it.

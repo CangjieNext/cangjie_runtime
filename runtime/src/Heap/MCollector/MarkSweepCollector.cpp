@@ -610,20 +610,6 @@ void MarkSweepCollector::MergeRootsFromAllocBuffers(WorkStack& workStack)
 // Step 2.2: ConcurrentMark
 // ============================================================================
 
-// Fixed-point scale denominator for assist ratio (configurable via cjMSAssistRatioScale).
-uint64_t MarkSweepCollector::GetAssistRatioScale()
-{
-    return CangjieRuntime::GetGCParam().msAssistRatioScale;
-}
-
-// Per-assist-call debt trigger (configurable via cjMSAssistDebtTrigger).
-// Default = 128 objects (1/8 of a WorkBuf): fires more frequently for tighter
-// pacing; lower values mean more assist calls but smaller work quanta per call.
-size_t MarkSweepCollector::GetAssistDebtTriggerObjects() const
-{
-    return CangjieRuntime::GetGCParam().msAssistDebtTrigger;
-}
-
 void MarkSweepCollector::ConcurrentMark()
 {
     // activeCollector_ was already set in MarkSetup (before STW).
@@ -652,18 +638,15 @@ void MarkSweepCollector::ConcurrentMark()
     //     cycle stats. This ratio is fixed for the whole cycle — it only
     //     converts allocated bytes into assist debt; there is no escalation.
     {
-        uint64_t ratioScale = GetAssistRatioScale();
+        uint64_t baseRatioPercent = CangjieRuntime::GetGCParam().msAssistBaseRatioPercent;
         size_t prevMarked = prevCycleMarkedObjects_.load(std::memory_order_relaxed);
         size_t allocSize = Heap::GetHeap().GetAllocatedSize();
-        uint64_t initialRatioScaled = 1;  // minimum non-zero
-        if (prevMarked > 0 && allocSize > 0) {
-            uint64_t computed = static_cast<uint64_t>(prevMarked) * ratioScale / allocSize;
-            initialRatioScaled = std::max((uint64_t)1, computed);
-           }
+        uint64_t initialRatioScaled = ComputeMSAssistBaseRatioScaled(prevMarked, allocSize, baseRatioPercent);
            assistWorkPerByteScaled_.store(initialRatioScaled, std::memory_order_release);
            VLOG(REPORT,
-               "[MS-GC] Assist enabled: ratioScaled=%llu (prevMarked=%zu, allocSize=%zu)",
+               "[MS-GC] Assist enabled: ratioScaled=%llu, basePercent=%llu (prevMarked=%zu, allocSize=%zu)",
                (unsigned long long)initialRatioScaled,
+               (unsigned long long)baseRatioPercent,
                prevMarked,
                allocSize);
     }
@@ -691,11 +674,14 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
 
     convergenceStableRounds_ = 0;
 
-    // GC-supply credit with fixed 30-round linear decay:
-    // w(r) = (30 - r) / 30 for r < 30, 0 for r >= 30.
+    // GC-supply credit with configurable linear decay.
     // Shorter window forces assist to do real marking work sooner.
-    constexpr size_t kCreditDecayRounds = 30;
+    const size_t creditDecayRounds = CangjieRuntime::GetGCParam().msAssistCreditDecayRounds;
+    const size_t backlogStepBuffers = CangjieRuntime::GetGCParam().msAssistBacklogStepBuffers;
+    const size_t maxAssistMultiplier = CangjieRuntime::GetGCParam().msAssistMaxMultiplier;
     size_t roundIdx = 0;
+    double smoothedBacklog = 0.0;
+    bool backlogEMAInitialized = false;
 
     // Capture base assist ratio for dynamic escalation below.
     const uint64_t baseAssistRatio = assistWorkPerByteScaled_.load(std::memory_order_acquire);
@@ -711,22 +697,24 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
     bool forceConverged = false;
 
     while (true) {
-        // Drain a slice via gcThreadWork_ (refills from globalFull_ on empty).
-        size_t scannedCount = 0;
-        DrainGCWork(gcThreadWork_, kSliceMaxObjects, scannedCount);
+        // One complete global buffer is one background-mark slice.
+        size_t scannedCount = DrainOneBufRound(gcThreadWork_);
 
         // Dynamic assist ratio escalation based on globalFull_ backpressure:
-        // every 4 bufs of backlog adds 1x base ratio, capped at 8x.
+        // Smooth transient queue changes, then increase continuously up to the configured cap.
         if (baseAssistRatio > 0) {
             size_t backlog = globalFull_.Count();
-            uint64_t mult = 1 + std::min(backlog / 4, (size_t)7);
-            assistWorkPerByteScaled_.store(baseAssistRatio * mult, std::memory_order_release);
+            smoothedBacklog = UpdateMSAssistBacklogEMA(smoothedBacklog, backlog, backlogEMAInitialized);
+            backlogEMAInitialized = true;
+            uint64_t adjustedRatio = ComputeMSAssistBacklogRatioScaled(
+                baseAssistRatio, smoothedBacklog, backlogStepBuffers, maxAssistMultiplier);
+            assistWorkPerByteScaled_.store(adjustedRatio, std::memory_order_release);
         }
 
-        // Per-round decayed GC-supply credit injection (linear decay over 30 rounds).
-        if (roundIdx < kCreditDecayRounds && scannedCount > 0) {
-            double w = static_cast<double>(kCreditDecayRounds - roundIdx) /
-                       static_cast<double>(kCreditDecayRounds);
+        // Per-round decayed GC-supply credit injection.
+        if (roundIdx < creditDecayRounds && scannedCount > 0) {
+            double w = static_cast<double>(creditDecayRounds - roundIdx) /
+                       static_cast<double>(creditDecayRounds);
             size_t inj = static_cast<size_t>(static_cast<double>(scannedCount) * w);
             if (inj > 0) {
                 bgScanCredit_.fetch_add(static_cast<int64_t>(inj), std::memory_order_release);
@@ -736,7 +724,7 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
 
         roundIdx++;
 
-        if (gcThreadWork_.Empty() && globalFull_.Empty()) {
+        if (gcThreadWork_.ConcurrentInputEmpty() && !globalFull_.HasFull()) {
             if (CheckConvergenceAndBreak()) {
                 break;
             }
@@ -1053,14 +1041,10 @@ void MarkSweepCollector::PublishAndSwapLog(AllocBufferMS& ab)
     // is the batch mark count for this publish.
     markedObjectCount.fetch_add(full->len, std::memory_order_relaxed);
 
-    // Local-first: route into this owner's list1_ so its own assist can consume
-    // without crossing the globalFull_ mutex; PushWBBuf spills to globalFull_.
-    PerPGCWork& gcw = ab.GetGCWork();
-    if (!gcw.IsInitialized()) {
-        gcw.Init(&globalFull_, &workBufPool_);
-    }
+    // Make every complete log visible to the GC thread and all assists instead
+    // of pinning the first four buffers to the owner P.
     size_t published = full->len;
-    gcw.PushWBBuf(full);
+    globalFull_.Push(full);
     globalShareCount_.fetch_add(1, std::memory_order_relaxed);
     wbFlushStats_.Record(MSGCWriteBarrierFlushSource::OVERFLOW_FLUSH, published, published);
 
@@ -1208,24 +1192,14 @@ void MarkSweepCollector::ResetAllPerPGCWork()
 }
 
 // ============================================================================
-// DrainOneBufRound (Step21 §8): drain the ENTIRE getCur_ buffer (one round).
-// If getCur_ is empty/null, take one full buf from list1_ as the new getCur_.
-// Children discovered while scanning go into putCur_/list2_ (PutObj). The round
-// stops when getCur_ is fully drained — it never cascades into list2_.
+// DrainOneBufRound: acquire and drain exactly one full global buffer. Children
+// go to putCur_; only a complete putCur_ is globally published.
 // Returns the number of objects actually scanned this round (<= kCapacity).
 // ============================================================================
 size_t MarkSweepCollector::DrainOneBufRound(PerPGCWork& gcw)
 {
-    // Ensure getCur_ holds a buf to drain.
-    if (gcw.getCur_ == nullptr || gcw.getCur_->Empty()) {
-        WorkBuf* nb = gcw.list1_.PopNode();
-        if (nb == nullptr) {
-            return 0;
-        }
-        if (gcw.getCur_ != nullptr) {
-            gcw.workBufPool_->Put(gcw.getCur_);
-        }
-        gcw.getCur_ = nb;
+    if (!gcw.AcquireOneFullBuffer()) {
+        return 0;
     }
 
     size_t nProcessed = 0;
@@ -1262,7 +1236,7 @@ size_t MarkSweepCollector::DrainOneBufRound(PerPGCWork& gcw)
         }
         TraceObjectRefFieldsToGCWork(obj, gcw);
     }
-    // getCur_ fully drained → return the empty buf to the pool.
+    // Never cascade into partial putCur_ in the same slice.
     if (gcw.getCur_ != nullptr) {
         gcw.workBufPool_->Put(gcw.getCur_);
         gcw.getCur_ = nullptr;
@@ -1274,16 +1248,8 @@ size_t MarkSweepCollector::DrainOneBufRound(PerPGCWork& gcw)
 }
 
 // ============================================================================
-// MSMarkAssist (Step21 §8): local-first marking, debt-driven global pull.
-//
-//   ⓪ move list2_ full bufs into list1_ (until list1_ full / list2_ empty)
-//   ① local-first: if getCur_ has objs or list1_ has a node → drain one round,
-//      return objects marked (pays debt directly), skip ②③④
-//   ② steal bgScanCredit_ (GC supply)
-//   ③ debt-driven global pull: while remainDebt >= 1 buf and list1_ not full,
-//      PopFull from globalFull_ → list1_, each pull pays 1 buf of debt
-//   ④ if any buf pulled → drain one round (mark a freshly pulled buf); the
-//      objects marked here do NOT deduct debt again (already paid in ③)
+// MSMarkAssist: preserve allocation-debt pacing, but consume at most one full
+// global buffer per call. Partial mark output remains in putCur_ until full/STW.
 // ============================================================================
 size_t MarkSweepCollector::MSMarkAssist(size_t debtObjects)
 {
@@ -1303,52 +1269,21 @@ size_t MarkSweepCollector::MSMarkAssist(size_t debtObjects)
         gcw.Init(&globalFull_, &workBufPool_);
     }
 
-    // ⓪ Move accumulated mark output (list2_) into the consume-ready list1_.
-    while (!gcw.list1_.ListFull() && !gcw.list2_.ListEmpty()) {
-        gcw.list1_.PushNode(gcw.list2_.PopNode());
-    }
-
-    // ① Local-first: drain up to 2 buf rounds from local work if available.
-    if ((gcw.getCur_ != nullptr && !gcw.getCur_->Empty()) || gcw.list1_.NodeCount() >= 1) {
-        size_t nLocal = 0;
-        for (int i = 0; i < 2; ++i) {
-            if ((gcw.getCur_ == nullptr || gcw.getCur_->Empty()) && gcw.list1_.NodeCount() == 0) {
-                break;
-            }
-            nLocal += DrainOneBufRound(gcw);
-        }
-        assistLocalMarked_.fetch_add(nLocal, std::memory_order_relaxed);
-        assistProcessedCount_.fetch_add(nLocal, std::memory_order_relaxed);
-        return nLocal;
-    }
-
-    // ② Steal GC-supplied credit.
+    // ① Steal GC-supplied credit.
     size_t paidByBg = TryStealBgCreditPartial(debtObjects);
     assistBgStolen_.fetch_add(paidByBg, std::memory_order_relaxed);
 
-    // ③ Debt-driven global pull (pull-pays-debt).
+    // ② One full global buffer pays exactly one buffer of remaining debt.
     size_t remainDebt = (debtObjects > paidByBg) ? (debtObjects - paidByBg) : 0;
     size_t paidByGlobal = 0;
-    while (remainDebt >= WorkBuf::kCapacity && !gcw.list1_.ListFull()) {
-        WorkBuf* buf = globalFull_.PopFull();
-        if (buf == nullptr) {
-            break;
+    if (remainDebt >= WorkBuf::kCapacity) {
+        size_t nDrained = DrainOneBufRound(gcw);
+        if (nDrained > 0) {
+            paidByGlobal = WorkBuf::kCapacity;
+            assistGlobalPulled_.fetch_add(paidByGlobal, std::memory_order_relaxed);
+            assistPostPullMarked_.fetch_add(nDrained, std::memory_order_relaxed);
+            assistProcessedCount_.fetch_add(nDrained, std::memory_order_relaxed);
         }
-        gcw.list1_.PushNode(buf);
-        remainDebt -= WorkBuf::kCapacity;
-        paidByGlobal += WorkBuf::kCapacity;
-    }
-    assistGlobalPulled_.fetch_add(paidByGlobal, std::memory_order_relaxed);
-
-    // ④ Pulled bufs → drain up to 2 rounds now (debt already paid in ③, no re-deduct).
-    if (paidByGlobal > 0) {
-        size_t nDrained = 0;
-        for (int i = 0; i < 2; ++i) {
-            if (gcw.list1_.NodeCount() == 0) { break; }
-            nDrained += DrainOneBufRound(gcw);
-        }
-        assistPostPullMarked_.fetch_add(nDrained, std::memory_order_relaxed);
-        assistProcessedCount_.fetch_add(nDrained, std::memory_order_relaxed);
     }
 
     return paidByBg + paidByGlobal;

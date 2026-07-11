@@ -15,6 +15,7 @@
 
 #include "Heap/Collector/TracingCollector.h"
 #include "Common/LFStack.h"
+#include "Heap/MCollector/MSAssistPacing.h"
 #include "Heap/MCollector/MSGCWriteBarrierFlushStats.h"
 
 namespace MapleRuntime {
@@ -103,8 +104,7 @@ public:
     {
         return assistWorkPerByteScaled_.load(std::memory_order_acquire);
     }
-    static uint64_t GetAssistRatioScale();
-    size_t GetAssistDebtTriggerObjects() const;
+    static constexpr uint64_t GetAssistRatioScale() { return kMSAssistRatioScale; }
     static MarkSweepCollector* GetActiveCollector()
     {
         return activeCollector_.load(std::memory_order_acquire);
@@ -255,10 +255,10 @@ private:
     //   kConvergenceFlushWaitUs    - usleep before per-P flush to let in-flight assists finish.
     //
     // Environment variables (runtime):
-    //   cjMSAssistRatioScale            - Fixed-point scale denominator (positive integer).
-    //                                     Default 1024.
-    //   cjMSAssistDebtTrigger           - Objects per assist call trigger threshold.
-    //                                     Default 128.
+    //   cjMSAssistBaseRatioPercent      - Percentage applied to the computed base ratio. Default 50.
+    //   cjMSAssistBacklogStepBuffers    - Full backlog buffers per 1x increase. Default 16.
+    //   cjMSAssistMaxMultiplier         - Maximum backlog multiplier. Default 4.
+    //   cjMSAssistCreditDecayRounds     - Background-credit linear decay rounds. Default 100.
     // ============================================================
     static constexpr size_t   kCreditFlushThreshold     = 1024;
     static constexpr size_t   kSliceMaxObjects          = 1024;
