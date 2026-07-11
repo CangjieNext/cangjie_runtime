@@ -216,6 +216,8 @@ struct MSRegionInfo {
     bool GetMarkBit(uintptr_t objAddr) const;
     // Returns true if already marked (previous bit was set).
     bool TestAndSetMarkBit(uintptr_t objAddr);
+    // Atomically marks a bitmap word and returns only bits newly set by this call.
+    uint64_t MarkBitmapWord(size_t wordIdx, uint64_t mask);
     // Clear markBitmap for next GC cycle. Called by FlushAll during MarkSetup STW
     // to clear mark-at-alloc dirty bits on TL regions before returning to pool.
     void ClearMarkBitmap()

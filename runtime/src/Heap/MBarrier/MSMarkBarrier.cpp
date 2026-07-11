@@ -22,6 +22,17 @@
 #include <cstring>
 
 namespace MapleRuntime {
+static inline void AppendMarkedRefInto(MarkSweepCollector* collector,
+                                       AllocBufferMS* allocBuf, BaseObject* ref)
+{
+    WorkBuf* log = collector->EnsureActiveLog(*allocBuf);
+    if (UNLIKELY(log->Full())) {
+        collector->PublishAndSwapLog(*allocBuf);
+        log = allocBuf->GetActiveLog();
+    }
+    log->objs[log->len++] = ref;
+}
+
 // Route-B (Step37): append a raw old-ref into the owner's activeLog_ WorkBuf.
 // No discover here — that happens on the consumer side. On overflow the full
 // buffer is published wholesale (O(1)) and a fresh one installed.
@@ -40,14 +51,7 @@ static inline void EnqueueRefInto(MarkSweepCollector* collector,
     if (!collector->ShadeRefForBarrier(ref)) {
         return;
     }
-    WorkBuf* log = collector->EnsureActiveLog(*allocBuf);
-    if (UNLIKELY(log->Full())) {
-        collector->PublishAndSwapLog(*allocBuf);
-        log = allocBuf->GetActiveLog();
-    }
-    // Matches the existing WorkBufPool::Get() convention: a null buffer only
-    // occurs on true OOM (new failed), where the process is already doomed.
-    log->objs[log->len++] = ref;
+    AppendMarkedRefInto(collector, allocBuf, ref);
 }
 
 static inline void EnqueueRefFast(BaseObject* ref)
@@ -79,6 +83,98 @@ static inline bool ResolveBulkLogOwner(MarkSweepCollector*& collector, AllocBuff
     return true;
 }
 
+class BulkRefMarker {
+public:
+    BulkRefMarker(MarkSweepCollector* collector, AllocBufferMS* allocBuf)
+        : collector_(collector), allocBuf_(allocBuf)
+    {
+    }
+
+    ~BulkRefMarker() { FlushAll(); }
+
+    void Add(BaseObject* ref)
+    {
+        if (ref == nullptr || !Heap::IsHeapAddress(ref)) {
+            return;
+        }
+
+        MSRegionInfo* info = nullptr;
+        size_t wordIdx = 0;
+        uint64_t bitMask = 0;
+        if (!collector_->ResolveSmallRefForBarrier(ref, info, wordIdx, bitMask)) {
+            if (collector_->ShadeRefForBarrier(ref)) {
+                AppendMarkedRefInto(collector_, allocBuf_, ref);
+            }
+            return;
+        }
+
+        Entry* entry = FindOrAllocate(info, wordIdx);
+        unsigned bitIdx = static_cast<unsigned>(__builtin_ctzll(bitMask));
+        if ((entry->mask & bitMask) == 0) {
+            entry->refs[bitIdx] = ref;
+            entry->mask |= bitMask;
+        }
+    }
+
+    void FlushAll()
+    {
+        for (size_t i = 0; i < kEntryCount; ++i) {
+            Flush(entries_[i]);
+        }
+    }
+
+private:
+    static constexpr size_t kEntryCount = 2;
+
+    struct Entry {
+        MSRegionInfo* info = nullptr;
+        size_t wordIdx = 0;
+        uint64_t mask = 0;
+        BaseObject* refs[64] = {};
+    };
+
+    Entry* FindOrAllocate(MSRegionInfo* info, size_t wordIdx)
+    {
+        for (size_t i = 0; i < kEntryCount; ++i) {
+            if (entries_[i].info == info && entries_[i].wordIdx == wordIdx) {
+                return &entries_[i];
+            }
+        }
+        for (size_t i = 0; i < kEntryCount; ++i) {
+            if (entries_[i].info == nullptr) {
+                entries_[i].info = info;
+                entries_[i].wordIdx = wordIdx;
+                return &entries_[i];
+            }
+        }
+        Flush(entries_[nextEvict_]);
+        Entry* entry = &entries_[nextEvict_];
+        nextEvict_ = (nextEvict_ + 1) % kEntryCount;
+        entry->info = info;
+        entry->wordIdx = wordIdx;
+        return entry;
+    }
+
+    void Flush(Entry& entry)
+    {
+        if (entry.info == nullptr) {
+            return;
+        }
+        uint64_t newBits = entry.info->MarkBitmapWord(entry.wordIdx, entry.mask);
+        while (newBits != 0) {
+            unsigned bitIdx = static_cast<unsigned>(__builtin_ctzll(newBits));
+            AppendMarkedRefInto(collector_, allocBuf_, entry.refs[bitIdx]);
+            newBits &= newBits - 1;
+        }
+        entry = Entry {};
+    }
+
+    MarkSweepCollector* collector_;
+    AllocBufferMS* allocBuf_;
+    Entry entries_[kEntryCount];
+    size_t nextEvict_ = 0;
+};
+
 static inline void EnqueueStructRefsInRange(BaseObject* obj, MAddress start, size_t size)
 {
     if (obj == nullptr || obj->GetTypeInfo() == nullptr || size == 0) {
@@ -89,9 +185,10 @@ static inline void EnqueueStructRefsInRange(BaseObject* obj, MAddress start, siz
     if (!ResolveBulkLogOwner(collector, allocBuf)) {
         return;
     }
+    BulkRefMarker marker(collector, allocBuf);
     obj->ForEachRefInStruct(
-        [collector, allocBuf](RefField<false>& refField) {
-            EnqueueRefInto(collector, allocBuf, refField.GetTargetObject());
+        [&marker](RefField<false>& refField) {
+            marker.Add(refField.GetTargetObject());
         },
         start, start + size);
 }
@@ -116,9 +213,10 @@ static inline void EnqueueStructArrayRefsInRange(BaseObject* obj, MAddress start
     if (!ResolveBulkLogOwner(collector, allocBuf)) {
         return;
     }
+    BulkRefMarker marker(collector, allocBuf);
     array->ForEachRefFieldInRange(
-        [collector, allocBuf](RefField<false>& refField) {
-            EnqueueRefInto(collector, allocBuf, refField.GetTargetObject());
+        [&marker](RefField<false>& refField) {
+            marker.Add(refField.GetTargetObject());
         },
         start, start + size);
 }
@@ -130,8 +228,9 @@ static inline void EnqueueStaticStructRefs(MAddress start, const GCTib gctib)
     if (!ResolveBulkLogOwner(collector, allocBuf)) {
         return;
     }
-    gctib.ForEachBitmapWord(start, [collector, allocBuf](RefField<>& refField) {
-        EnqueueRefInto(collector, allocBuf, refField.GetTargetObject());
+    BulkRefMarker marker(collector, allocBuf);
+    gctib.ForEachBitmapWord(start, [&marker](RefField<>& refField) {
+        marker.Add(refField.GetTargetObject());
     });
 }
 
@@ -144,8 +243,9 @@ static inline void EnqueueRefArrayRange(MAddress start, size_t size)
     }
     size_t refCount = size / sizeof(MAddress);
     RefField<false>* refs = reinterpret_cast<RefField<false>*>(start);
+    BulkRefMarker marker(collector, allocBuf);
     for (size_t i = 0; i < refCount; ++i) {
-        EnqueueRefInto(collector, allocBuf, refs[i].GetTargetObject());
+        marker.Add(refs[i].GetTargetObject());
     }
 }
 

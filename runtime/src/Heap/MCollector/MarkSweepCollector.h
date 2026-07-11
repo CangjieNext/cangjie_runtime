@@ -126,6 +126,10 @@ public:
     // meaning the caller should log it for later scanning; false if it was
     // already grey/black or not a traceable object (perfect dedup at the source).
     bool ShadeRefForBarrier(BaseObject* ref) { return DiscoverObjectNoCount(ref); }
+    // Resolves a validated small object to its mark-bitmap word and bit. LARGE
+    // objects return false and retain the dedicated ShadeRefForBarrier path.
+    bool ResolveSmallRefForBarrier(BaseObject* ref, MSRegionInfo*& info,
+                                   size_t& wordIdx, uint64_t& bitMask) const;
 
     // Per-P GCWork accessors for initialization during concurrent mark.
     LFStack& GetGlobalFull() { return globalFull_; }

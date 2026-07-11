@@ -527,6 +527,27 @@ bool MarkSweepCollector::DiscoverObjectNoCount(BaseObject* obj)
     return true;
 }
 
+bool MarkSweepCollector::ResolveSmallRefForBarrier(BaseObject* ref, MSRegionInfo*& info,
+                                                   size_t& wordIdx, uint64_t& bitMask) const
+{
+    info = nullptr;
+    if (UNLIKELY(!IsTraceableObjectAddressEx(ref, info) || !ref->IsValidObject()) ||
+        info->regionType == MSRegionType::MS_REGION_LARGE) {
+        info = nullptr;
+        return false;
+    }
+
+    uintptr_t addr = reinterpret_cast<uintptr_t>(ref);
+    size_t slotIdx = SizeClassInfo::OffsetToSlotIndex(info->sizeClass, addr - info->RegionStart());
+    if (UNLIKELY(slotIdx >= info->totalSlotCount || info->markBitmap == nullptr)) {
+        info = nullptr;
+        return false;
+    }
+    wordIdx = slotIdx / 64;
+    bitMask = 1ULL << (slotIdx % 64);
+    return true;
+}
+
 bool MarkSweepCollector::DiscoverObject(BaseObject* obj)
 {
     if (!DiscoverObjectNoCount(obj)) {

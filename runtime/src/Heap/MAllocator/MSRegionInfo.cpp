@@ -357,6 +357,16 @@ bool MSRegionInfo::TestAndSetMarkBit(uintptr_t objAddr)
     return (old & bit) != 0;  // true if was already marked
 }
 
+uint64_t MSRegionInfo::MarkBitmapWord(size_t wordIdx, uint64_t mask)
+{
+    size_t bitmapWords = (static_cast<size_t>(totalSlotCount) + 63) / 64;
+    if (markBitmap == nullptr || wordIdx >= bitmapWords || mask == 0) {
+        return 0;
+    }
+    uint64_t old = __atomic_fetch_or(&markBitmap[wordIdx], mask, __ATOMIC_RELAXED);
+    return mask & ~old;
+}
+
 // ============================================================================
 // MSRegionInfo — Queries
 // ============================================================================
