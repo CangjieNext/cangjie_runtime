@@ -12,6 +12,7 @@
 #include "Heap/MAllocator/MSAllocBuffer.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MCollector/MarkSweepCollector.h"
+#include "Heap/MCollector/MSMarkQueuePolicy.h"
 #include "Mutator/ThreadLocal.h"
 #include "ObjectModel/Field.inline.h"
 #include "ObjectModel/MArray.h"
@@ -49,10 +50,10 @@ static inline void EnqueueRefInto(MarkSweepCollector* collector,
     // logs it — already-grey / non-traceable refs are dropped here (perfect
     // dedup at the source). The logged buffer therefore holds only grey objects,
     // so the consumer scans them directly (no deferred discover).
-    if (!collector->ShadeRefForBarrier(ref)) {
-        return;
+    bool newlyMarked = collector->ShadeRefForBarrier(ref);
+    if (ShouldEnqueueMSMarkedObject(newlyMarked, newlyMarked && ref->HasRefField())) {
+        AppendMarkedRefInto(collector, allocBuf, ref);
     }
-    AppendMarkedRefInto(collector, allocBuf, ref);
 }
 
 static inline void EnqueueRefFast(BaseObject* ref)
@@ -109,7 +110,8 @@ public:
         size_t wordIdx = 0;
         uint64_t bitMask = 0;
         if (!collector_->ResolveSmallRefForBarrier(ref, info, wordIdx, bitMask)) {
-            if (collector_->ShadeRefForBarrier(ref)) {
+            bool newlyMarked = collector_->ShadeRefForBarrier(ref);
+            if (ShouldEnqueueMSMarkedObject(newlyMarked, newlyMarked && ref->HasRefField())) {
                 AppendMarkedRefInto(collector_, allocBuf_, ref);
             }
             return;
@@ -170,7 +172,10 @@ private:
         uint64_t newBits = entry.info->MarkBitmapWord(entry.wordIdx, entry.mask);
         while (newBits != 0) {
             unsigned bitIdx = static_cast<unsigned>(__builtin_ctzll(newBits));
-            AppendMarkedRefInto(collector_, allocBuf_, entry.refs[bitIdx]);
+            BaseObject* ref = entry.refs[bitIdx];
+            if (ref->HasRefField()) {
+                AppendMarkedRefInto(collector_, allocBuf_, ref);
+            }
             newBits &= newBits - 1;
         }
         entry = Entry {};

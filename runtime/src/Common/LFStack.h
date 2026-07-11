@@ -23,6 +23,11 @@ class BaseObject;
 // ============================================================================
 struct alignas(64) WorkBuf {
     static constexpr size_t kCapacity = 1024;
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+    static constexpr bool kRevalidateTrustedGrey = true;
+#else
+    static constexpr bool kRevalidateTrustedGrey = false;
+#endif
 
     WorkBuf* next = nullptr;
     size_t len = 0;

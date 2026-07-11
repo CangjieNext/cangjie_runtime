@@ -24,6 +24,7 @@
 #include "Heap/MAllocator/MSRegionManager.h"
 #include "Heap/MAllocator/MSRegionSpace.h"
 #include "Heap/MBarrier/WriteBarrierBuffer.h"
+#include "Heap/MCollector/MSMarkQueuePolicy.h"
 #include "Concurrency/ConcurrencyModel.h"
 #include "Heap/Collector/CollectorResources.h"
 #include "Heap/Collector/FinalizerProcessor.h"
@@ -551,20 +552,20 @@ bool MarkSweepCollector::DiscoverObject(BaseObject* obj)
 
 bool MarkSweepCollector::TryEnqueueGreyObject(BaseObject* obj, GreyWorkSink& sink)
 {
-    if (!DiscoverObject(obj)) {
-        return false;
+    bool newlyMarked = DiscoverObject(obj);
+    if (ShouldEnqueueMSMarkedObject(newlyMarked, newlyMarked && obj->HasRefField())) {
+        sink.PushGrey(obj);
     }
-    sink.PushGrey(obj);
-    return true;
+    return newlyMarked;
 }
 
 bool MarkSweepCollector::TryEnqueueGreyObject(BaseObject* obj, GreyWorkQueue& queue)
 {
-    if (!DiscoverObject(obj)) {
-        return false;
+    bool newlyMarked = DiscoverObject(obj);
+    if (ShouldEnqueueMSMarkedObject(newlyMarked, newlyMarked && obj->HasRefField())) {
+        queue.PushNewlyGrey(obj);
     }
-    queue.PushNewlyGrey(obj);
-    return true;
+    return newlyMarked;
 }
 
 void MarkSweepCollector::DiscoverAndPushObject(BaseObject* obj, WorkStack& workStack)
@@ -1012,7 +1013,7 @@ void MarkSweepCollector::DrainGCWork(PerPGCWork& gcw, size_t maxObjects,
             if (!DiscoverObjectNoCount(obj)) {
                 continue;
             }
-        } else {
+        } else if (UNLIKELY(WorkBuf::kRevalidateTrustedGrey)) {
             if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
                 continue;
             }
@@ -1050,7 +1051,8 @@ void MarkSweepCollector::TraceObjectRefFieldsToGCWork(BaseObject* obj, PerPGCWor
     auto refFunc = [this, &gcw](RefField<>& field) {
         BaseObject* target = field.GetTargetObject();
         if (target != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(target))) {
-            if (DiscoverObject(target)) {
+            bool newlyMarked = DiscoverObject(target);
+            if (ShouldEnqueueMSMarkedObject(newlyMarked, newlyMarked && target->HasRefField())) {
                 gcw.PutObj(target);
             }
         }
@@ -1195,21 +1197,24 @@ void MarkSweepCollector::DrainGlobalLFStackToMainQueue(GreyWorkQueue& mainQueue)
         if (buf->needsDiscover) {
             for (size_t i = 0; i < buf->len; i++) {
                 BaseObject* obj = buf->objs[i];
-                if (DiscoverObjectNoCount(obj)) {
+                bool newlyMarked = DiscoverObjectNoCount(obj);
+                if (ShouldEnqueueMSMarkedObject(newlyMarked, newlyMarked && obj->HasRefField())) {
                     mainQueue.PushMovedGrey(obj);
                 }
             }
         } else {
             for (size_t i = 0; i < buf->len; i++) {
                 BaseObject* obj = buf->objs[i];
-                if (obj == nullptr) {
-                    continue;
-                }
-                if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-                    continue;
-                }
-                if (UNLIKELY(!obj->IsValidObject())) {
-                    continue;
+                if (UNLIKELY(WorkBuf::kRevalidateTrustedGrey)) {
+                    if (obj == nullptr) {
+                        continue;
+                    }
+                    if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
+                        continue;
+                    }
+                    if (UNLIKELY(!obj->IsValidObject())) {
+                        continue;
+                    }
                 }
                 mainQueue.PushMovedGrey(obj);
             }
@@ -1309,7 +1314,7 @@ size_t MarkSweepCollector::DrainOneBufRound(PerPGCWork& gcw)
             if (!DiscoverObjectNoCount(obj)) {
                 continue;
             }
-        } else {
+        } else if (UNLIKELY(WorkBuf::kRevalidateTrustedGrey)) {
             if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
                 continue;
             }
@@ -1876,7 +1881,9 @@ void MarkSweepCollector::MarkNewObject(BaseObject* obj)
     }
 
     MarkObject(obj);
-    PushSingleToDeferredMainThread(obj);
+    if (obj->HasRefField()) {
+        PushSingleToDeferredMainThread(obj);
+    }
 }
 
 // ============================================================================
