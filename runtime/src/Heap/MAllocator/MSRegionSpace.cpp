@@ -20,7 +20,6 @@
 #include "ExceptionManager.h"
 #include "Heap.h"
 #include "Heap/MCollector/MarkSweepCollector.h"
-#include "Heap/MBarrier/WriteBarrierBuffer.h"
 #include "Mutator/Mutator.h"
 #include "Mutator/ThreadLocal.h"
 #include <limits>

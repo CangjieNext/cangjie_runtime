@@ -17,6 +17,7 @@
 #include "Heap/Collector/TracingCollector.h"
 #include "Common/LFStack.h"
 #include "Heap/MCollector/MSAssistPacing.h"
+#include "Heap/MCollector/MSMarkLocalStats.h"
 #include "Heap/MCollector/MSMarkWorkerControl.h"
 #include "Heap/MCollector/MSMarkWorkerPolicy.h"
 #include "Heap/MCollector/MSGCWriteBarrierFlushStats.h"
@@ -24,7 +25,6 @@
 namespace MapleRuntime {
 
 class CentralRegionPool;
-class WriteBarrierBuffer;
 class AllocBufferMS;
 struct MSRegionInfo;
 struct WorkBuf;
@@ -53,11 +53,10 @@ struct MSGCCycleStats {
     uint64_t losCollectUs = 0;            // Timer around CollectLargeGarbage.
 
     // ── Mutator assist stats (Step 2.2 §4) ──
-    size_t assistCallCount = 0;          // assistCallTotal_ snapshot at ConcurrentMark end.
-    size_t assistProcessedObjects = 0;   // assistProcessedCount_ snapshot at ConcurrentMark end.
-    size_t assistFastSkipCount = 0;      // assistFastSkipCount_ snapshot for bg-credit short-circuit counts.
-    size_t globalShareCount = 0;         // Number of WorkBuf pushes to globalFull_ from WB overflow paths.
-    size_t bgScanCreditConsumed = 0;     // bgScanCreditConsumed_ snapshot after concurrent mark convergence.
+    size_t assistCallCount = 0;
+    size_t assistProcessedObjects = 0;
+    size_t assistGlobalPaid = 0;
+    size_t bgScanCreditConsumed = 0;
 
     // ── True live bytes (computed from markBitmaps after marking) ──
     size_t trueLiveBytes = 0;            // ComputeMarkedStats() result, used by UpdateGCStats and GC-end logs.
@@ -102,7 +101,7 @@ public:
     // ── Mutator assist interface (Step 2.2 §4) ──
     // Called from AllocBufferMS::Allocate() during concurrent marking.
     // Pays mutator assist debt (in object units) and returns paid objects.
-    size_t MSMarkAssist(size_t debtObjects);
+    size_t MSMarkAssist(AllocBufferMS& allocBuffer, size_t debtObjects);
     uint64_t GetAssistWorkPerByteScaled() const
     {
         return assistWorkPerByteScaled_.load(std::memory_order_acquire);
@@ -212,16 +211,20 @@ private:
     // Returns true when convergence (kConvergenceRequiredRounds consecutive
     // empty rounds) is reached and the loop should break.
     bool CheckConvergenceAndBreak();
-    void DrainMarkWorkStack(size_t maxObjects, size_t& scannedCount);
+    void DrainMarkWorkStack();
     void DrainGCWork(PerPGCWork& gcw, size_t maxObjects, size_t& scannedCount);
-    // Drain the entire getCur_ buffer of gcw (one round); returns objects scanned.
-    size_t DrainOneBufRound(PerPGCWork& gcw);
+    // Claim and drain one published buffer. GC main/helpers accept any length;
+    // mutator assist passes requireFull=true to preserve its credit granularity.
+    size_t DrainOneBufRound(PerPGCWork& gcw, bool requireFull);
     void TraceObjectRefFieldsToGCWork(BaseObject* obj, PerPGCWork& gcw);
     void TraceRefField(BaseObject* obj, RefField<>& field, WorkStack& workStack);
     void TransferRootsToGCWork();
     void StartMarkWorkers(size_t maxHelpers, size_t initialHelpers);
     void RunMarkWorker(size_t workerId);
     bool QuiesceMarkWorkers(bool restartOnLateWork, size_t resumeHelpers);
+    size_t TakePublishedWorkerCredit();
+    void SnapshotAssistStats();
+    void MergeExitedAssistStats(AllocBufferMS& allocBuffer);
 
     // ── Step5: LFStack global queue helpers ──
     void PushSingleToDeferredMainThread(BaseObject* obj);
@@ -250,9 +253,6 @@ private:
     // ============================================================
     //
     // Fixed constants (compile-time):
-    //   kCreditFlushThreshold      - GC thread accumulates bgScanCredit locally
-    //                                and flushes every N objects to reduce atomic traffic.
-    //   kSliceMaxObjects           - GC thread drain slice size per loop iteration.
     //   kConvergenceRequiredRounds - Consecutive empty rounds before triggering
     //                                the per-P flush + convergence check.
     //   kConvergenceYieldUs        - usleep duration when stable rounds < threshold.
@@ -264,8 +264,6 @@ private:
     //   cjMSAssistMaxMultiplier         - Maximum backlog multiplier. Default 4.
     //   cjMSAssistCreditDecayRounds     - Background-credit linear decay rounds. Default 100.
     // ============================================================
-    static constexpr size_t   kCreditFlushThreshold     = 1024;
-    static constexpr size_t   kSliceMaxObjects          = 1024;
     static constexpr size_t   kConvergenceRequiredRounds     = 3;
     static constexpr uint64_t kConvergenceYieldUs            = 50;
     static constexpr uint64_t kConvergenceFlushWaitUs        = 200;
@@ -284,16 +282,14 @@ private:
     PerPGCWork gcThreadWork_;
     struct MSMarkWorkerSlot {
         PerPGCWork work;
-        std::atomic<size_t> processed{0};
+        MSMarkWorkerLocalStats stats{4};
     };
     std::vector<std::unique_ptr<MSMarkWorkerSlot>> markWorkerSlots_;
     MSMarkWorkerControl markWorkerControl_;
-    std::atomic<size_t> pendingWorkerScanned_{0};
-    std::atomic<size_t> helperProcessedCount_{0};
     size_t peakActiveHelpers_ = 0;
     size_t workerScaleUpCount_ = 0;
     size_t workerScaleDownCount_ = 0;
-    size_t peakFullBacklog_ = 0;
+    size_t peakPublishedBacklog_ = 0;
     std::atomic<int64_t> bgScanCredit_{0};
     std::atomic<uint64_t> assistWorkPerByteScaled_{0};
     std::atomic<size_t> prevCycleMarkedObjects_{0};
@@ -307,19 +303,11 @@ private:
 
     // (assist parameters are grouped above with other tuning constants)
 
-    // ── Assist concurrent stats ──
-    std::atomic<size_t> assistCallTotal_{0};
-    std::atomic<size_t> assistProcessedCount_{0};
-    std::atomic<size_t> assistFastSkipCount_{0};
-    std::atomic<size_t> globalShareCount_{0};
-    std::atomic<size_t> bgScanCreditConsumed_{0};
-
-    // ── Step21 assist-path breakdown (diagnostic) ──
-    std::atomic<size_t> assistLocalMarked_{0};     // ① objects marked from local work
-    std::atomic<size_t> assistBgStolen_{0};        // ② credit stolen from bgScanCredit_
-    std::atomic<size_t> assistGlobalPulled_{0};    // ③ debt paid by global PopFull pulls
-    std::atomic<size_t> assistPostPullMarked_{0};  // ④ objects marked after a pull
-    std::atomic<size_t> bgCreditInjected_{0};      // GC-supply credit injected this cycle
+    // Mutators that exit during mark fold their local diagnostics here. Active
+    // mutators are aggregated directly under STW at mark termination.
+    std::mutex exitedAssistStatsMutex_;
+    MSMarkAssistStats exitedAssistStats_;
+    size_t bgCreditInjected_ = 0;
 
     // ── Per-cycle write-barrier flush stats ──
     MSGCWriteBarrierFlushStats wbFlushStats_;

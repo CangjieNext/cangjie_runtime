@@ -62,6 +62,11 @@ struct alignas(64) WorkBuf {
 // ============================================================================
 class LFStack {
 public:
+    struct Counts {
+        size_t total;
+        size_t full;
+    };
+
     void Push(WorkBuf* buf)
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -125,6 +130,12 @@ public:
     {
         std::lock_guard<std::mutex> lock(mutex_);
         return fullCount_;
+    }
+
+    Counts GetCounts() const
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return Counts { count_, fullCount_ };
     }
 
     bool HasFull() const
@@ -344,7 +355,23 @@ struct PerPGCWork {
         return getCur_ != nullptr;
     }
 
-    // Partial putCur_ is deliberately deferred to MarkTermination.
+    // GC main/helpers consume every published buffer as one complete task,
+    // regardless of whether it reached kCapacity before publication.
+    bool AcquireOneBuffer()
+    {
+        if (getCur_ != nullptr) {
+            if (!getCur_->Empty()) {
+                return true;
+            }
+            workBufPool_->Put(getCur_);
+            getCur_ = nullptr;
+        }
+        getCur_ = globalFull_->Pop();
+        return getCur_ != nullptr;
+    }
+
+    // Private putCur_ is deliberately left for MarkTermination. Re-publishing
+    // every partial tail can keep concurrent mark alive under sustained WB load.
     bool ConcurrentInputEmpty() const
     {
         return getCur_ == nullptr || getCur_->Empty();

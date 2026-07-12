@@ -13,7 +13,7 @@
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSSizeClass.h"
-#include "Heap/MBarrier/WriteBarrierBuffer.h"
+#include "Heap/MCollector/MSMarkLocalStats.h"
 #include "Common/TypeDef.h"
 #include "Common/MarkWorkStack.h"
 #include "Common/LFStack.h"
@@ -132,6 +132,7 @@ public:
     // Per-P GC Work buffer (Step5): used by Mutator assist during concurrent mark.
     // Initialized by MarkSweepCollector::InitAllPerPGCWork() at GC start.
     PerPGCWork& GetGCWork() { return gcWork_; }
+    MSMarkAssistStats& GetMarkAssistStats() { return markAssistStats_; }
 
     // Route-B write-barrier log accessors.
     WorkBuf* GetActiveLog() const { return activeLog_; }
@@ -299,6 +300,10 @@ private:
 
     // Step5: Per-P GC work buffer for mutator assist
     PerPGCWork gcWork_;
+
+    // Single-owner assist diagnostics. The collector aggregates these after
+    // stopping mutators, so the assist hot path needs no shared atomics.
+    MSMarkAssistStats markAssistStats_;
 
     // Auxiliary metadata for backup cachedRegion_ slots. Keep these fields
     // after activeLog_/gcWork_ so the AArch64 write-barrier fast-path offset stays

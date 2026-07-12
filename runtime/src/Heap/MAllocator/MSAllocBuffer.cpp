@@ -837,7 +837,7 @@ void AllocBufferMS::AccumulatePacingDebt(size_t size)
     const uint64_t ratioScale = MarkSweepCollector::GetAssistRatioScale();
     size_t debtObjects = static_cast<size_t>(gcAssistDebtScaled_ / ratioScale);
     if (UNLIKELY(debtObjects >= WorkBuf::kCapacity)) {
-        size_t paidObjects = collector->MSMarkAssist(debtObjects);
+        size_t paidObjects = collector->MSMarkAssist(*this, debtObjects);
         size_t accounted = std::min(paidObjects, debtObjects);
         gcAssistDebtScaled_ -= static_cast<uint64_t>(accounted) * ratioScale;
     }
