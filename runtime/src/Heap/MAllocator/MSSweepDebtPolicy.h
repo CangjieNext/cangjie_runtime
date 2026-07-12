@@ -53,6 +53,27 @@ struct SweepDebtDecision {
     double backgroundBudgetMultiplier = 1.0; // scale per-slice background time budget
 };
 
+enum class MSHeuExecutionDecision : uint8_t {
+    RUN = 0,
+    BELOW_THRESHOLD,
+    DEFER_FOR_SWEEP,
+};
+
+// Revalidate an asynchronous HEU request against the current heap state. The
+// request may have waited behind another GC, so the state that enqueued it is
+// not authoritative when the GC thread eventually dequeues it.
+inline MSHeuExecutionDecision EvaluateMSHeuExecution(size_t sweptBytes, size_t thresholdBytes,
+                                                     const SweepDebtDecision& debt)
+{
+    if (sweptBytes < thresholdBytes) {
+        return MSHeuExecutionDecision::BELOW_THRESHOLD;
+    }
+    if (debt.deferHeu) {
+        return MSHeuExecutionDecision::DEFER_FOR_SWEEP;
+    }
+    return MSHeuExecutionDecision::RUN;
+}
+
 // runway in regions on the swept-bytes axis the HEU trigger already uses.
 inline size_t ComputeRunwayRegions(size_t thresholdBytes, size_t sweptBytes, size_t regionSize)
 {

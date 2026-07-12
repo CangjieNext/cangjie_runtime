@@ -14,6 +14,7 @@
 
 #include "Base/Panic.h"
 #include "Common/PageAllocator.h"
+#include "Heap/Collector/AsyncTaskState.h"
 #include "GcRequest.h"
 #include "Heap/Heap.h"
 #include "Inspector/CjHeapData.h"
@@ -153,41 +154,26 @@ public:
     // One higher priority task might erase all lower-priority tasks in queueWord
     void Push(const T& task)
     {
-        bool overriding = task.IsOverriding();
-        uint32_t taskMask = (1U << task.GetPriority());
-        uint32_t oldWord = queueWord.load(std::memory_order_relaxed);
-        uint32_t newWord = 0;
-        do {
-            if (overriding) {
-                newWord = taskMask | ((taskMask - 1) & oldWord);
-            } else {
-                newWord = taskMask | oldWord;
-            }
-        } while (!queueWord.compare_exchange_weak(oldWord, newWord, std::memory_order_relaxed));
+        (void)state_.Push(task.GetPriority(), task.IsOverriding());
     }
 
     // Get the highest priority task in queueWord, or get one invalid task if queueWord is empty
     T Pop()
     {
-        uint32_t oldWord = queueWord.load(std::memory_order_relaxed);
-        uint32_t newWord = 0;
-        uint32_t dequeued = oldWord;
-        do {
-            newWord = oldWord & (oldWord - 1);
-            dequeued = oldWord;
-        } while (!queueWord.compare_exchange_weak(oldWord, newWord, std::memory_order_relaxed));
-        if (oldWord == 0) {
+        uint32_t priority = state_.Pop();
+        if (priority == AsyncTaskState::kInvalidPriority) {
             return T::GetInvalidExecutor();
         }
-        // count the number of trailing zeros
-        return T::GetGCExecutor(__builtin_ctz(dequeued));
+        return T::GetGCExecutor(priority);
     }
 
+    void Complete(const T& task) { state_.Complete(task.GetPriority()); }
+
     // When gc thread exits, clear all tasks in queueWord
-    void Clear() { queueWord.store(0, std::memory_order_relaxed); }
+    void Clear() { state_.Clear(); }
 
 private:
-    std::atomic<uint32_t> queueWord = {};
+    AsyncTaskState state_;
 };
 
 template<typename T>
@@ -271,7 +257,11 @@ public:
     {
         while (true) {
             T task = Dequeue();
-            if (!task.Execute(owner)) {
+            bool shouldContinue = task.Execute(owner);
+            if (task.GetTaskIndex() == GCTask::ASYNC_TASK_INDEX) {
+                asyncTaskQueue.Complete(task);
+            }
+            if (!shouldContinue) {
                 Fini();
                 break;
             }

@@ -354,6 +354,37 @@ void MarkSweepCollector::PostGarbageCollection(uint64_t gcIndex)
 // GC entry point
 // ============================================================================
 
+bool MarkSweepCollector::ShouldExecuteQueuedRequest(GCReason reason)
+{
+    if (reason != GC_REASON_HEU) {
+        return true;
+    }
+
+    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(theAllocator);
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    if (centralPool == nullptr) {
+        return true;
+    }
+
+    size_t sweptBytes = space.GetSweptHeapBytes();
+    size_t threshold = GetGCStats().GetThreshold();
+    SweepDebtDecision debt = centralPool->RefreshSweepDebtSnapshot(threshold, sweptBytes);
+    MSHeuExecutionDecision decision = EvaluateMSHeuExecution(sweptBytes, threshold, debt);
+    if (decision == MSHeuExecutionDecision::RUN) {
+        return true;
+    }
+
+    if (decision == MSHeuExecutionDecision::DEFER_FOR_SWEEP) {
+        BackgroundProcessor& backgroundProcessor =
+            Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
+        backgroundProcessor.NotifyToSweep(kNoPreferredSweepClass);
+    }
+    VLOG(REPORT,
+         "[MS-GC] queued HEU skipped before execute: swept=%zuB threshold=%zuB mode=%d decision=%d",
+         sweptBytes, threshold, static_cast<int>(debt.mode), static_cast<int>(decision));
+    return false;
+}
+
 void MarkSweepCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
 {
     gcCycle_++;

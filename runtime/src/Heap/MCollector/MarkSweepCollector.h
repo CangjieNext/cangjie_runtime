@@ -92,6 +92,7 @@ public:
 
     // ── Core GC entry ──
     void RunGarbageCollection(uint64_t gcIndex, GCReason reason) override;
+    bool ShouldExecuteQueuedRequest(GCReason reason) override;
     void PreGarbageCollection(bool isConcurrent) override;
     void PostGarbageCollection(uint64_t gcIndex) override;
 

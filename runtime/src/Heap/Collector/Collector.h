@@ -81,6 +81,10 @@ public:
 
     virtual void RunGarbageCollection(uint64_t, GCReason) = 0;
 
+    // Async requests can become stale while waiting in the GC task queue.
+    // Collectors that need dequeue-time gating may reject them before GC starts.
+    virtual bool ShouldExecuteQueuedRequest(GCReason) { return true; }
+
     virtual GCStats& GetGCStats() { std::abort(); }
 
     virtual BaseObject* ForwardObject(BaseObject*) { std::abort(); }

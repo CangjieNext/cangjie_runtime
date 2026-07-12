@@ -32,6 +32,9 @@ bool GCExecutor::Execute(void* owner)
             break;
         }
         case GCTask::TaskType::TASK_TYPE_INVOKE_GC: {
+            if (!collectorProxy->ShouldExecuteQueuedRequest(gcReason)) {
+                break;
+            }
             GCStats::SetPrevGCStartTime(TimeUtil::NanoSeconds());
             collectorProxy->RunGarbageCollection(taskIndex, gcReason);
             GCStats::SetPrevGCFinishTime(TimeUtil::NanoSeconds());

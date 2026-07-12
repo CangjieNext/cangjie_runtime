@@ -308,9 +308,10 @@ void MSRegionManager::MaybeNotifyMark()
     // threshold this latches NORMAL/BACKLOG with the real runway for assist/background
     // to read; at/above threshold the decision also tells us whether to defer HEU.
     SweepDebtDecision debt = pool->RefreshSweepDebtSnapshot(threshold, sweptBytes);
+    MSHeuExecutionDecision decision = EvaluateMSHeuExecution(sweptBytes, threshold, debt);
 
     // Trigger purely on time (cooldown above) + threshold.
-    if (sweptBytes < threshold) {
+    if (decision == MSHeuExecutionDecision::BELOW_THRESHOLD) {
         return;
     }
 
@@ -322,7 +323,7 @@ void MSRegionManager::MaybeNotifyMark()
     // cycle and is being drained by background/assist at the elevated pressure tier,
     // so deferral is bounded — once sweepDone or the backlog drops below the exit
     // waterline, the next probe lets HEU proceed.
-    if (debt.deferHeu) {
+    if (decision == MSHeuExecutionDecision::DEFER_FOR_SWEEP) {
         BackgroundProcessor& backgroundProcessor =
             Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
         backgroundProcessor.NotifyToSweep(kNoPreferredSweepClass);
