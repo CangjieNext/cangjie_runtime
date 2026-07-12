@@ -273,7 +273,6 @@ private:
     MSMarkWorkerControl markWorkerControl_;
     size_t peakActiveHelpers_ = 0;
     size_t workerScaleUpCount_ = 0;
-    size_t workerScaleDownCount_ = 0;
     size_t peakPublishedBacklog_ = 0;
     std::atomic<int64_t> bgScanCredit_{0};
     std::atomic<uint64_t> assistWorkPerByteScaled_{0};

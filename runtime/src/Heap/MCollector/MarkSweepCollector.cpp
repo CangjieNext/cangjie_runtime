@@ -23,6 +23,7 @@
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSRegionManager.h"
 #include "Heap/MAllocator/MSRegionSpace.h"
+#include "Heap/MCollector/MSHeapThresholdPolicy.h"
 #include "Heap/MCollector/MSMarkQueuePolicy.h"
 #include "Concurrency/ConcurrencyModel.h"
 #include "Heap/Collector/CollectorResources.h"
@@ -650,7 +651,6 @@ void MarkSweepCollector::ConcurrentMark()
     bgCreditInjected_ = 0;
     peakActiveHelpers_ = 0;
     workerScaleUpCount_ = 0;
-    workerScaleDownCount_ = 0;
     peakPublishedBacklog_ = 0;
 
     // 10. Init per-P GCWork for all existing mutators before enabling assist.
@@ -745,13 +745,11 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
         peakPublishedBacklog_ = std::max(peakPublishedBacklog_, publishedBacklog);
         size_t oldHelpers = workerPolicy.GetActiveHelpers();
         workerDecision = workerPolicy.Update(publishedBacklog);
-        if (workerDecision.activeHelpers != oldHelpers) {
+        MRT_ASSERT(workerDecision.activeHelpers >= oldHelpers,
+                   "MSGC mark helpers must not scale down within a cycle");
+        if (workerDecision.activeHelpers > oldHelpers) {
             markWorkerControl_.SetTargetHelpers(workerDecision.activeHelpers);
-            if (workerDecision.activeHelpers > oldHelpers) {
-                ++workerScaleUpCount_;
-            } else {
-                ++workerScaleDownCount_;
-            }
+            ++workerScaleUpCount_;
             peakActiveHelpers_ = std::max(peakActiveHelpers_, workerDecision.activeHelpers);
         }
 
@@ -829,7 +827,7 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
          peakActiveHelpers_ + 1,
          helperProcessed,
          workerScaleUpCount_,
-         workerScaleDownCount_,
+         static_cast<size_t>(0),
          peakPublishedBacklog_,
          markWorkerControl_.GetWorkersInFlight(),
          markWorkerControl_.GetAssistsInFlight());
@@ -2157,24 +2155,19 @@ void MarkSweepCollector::UpdateGCStats()
     gcStats.lastRegionBytes = activeRegionBytes;
     gcStats.baselineAllocatedBytes = activeRegionBytes;
 
-    // MS-GC threshold (per spec):
-    //   threshold = trueLive * (1 + heapGrowth)
-    // heapGrowth is the runtime HeapParam value (configurable via cjHeapGrowth,
-    // default 1.0 → 2.0x), shared with GCStats::UpdateHeapThreshold.
+    // The raw MSGC target is trueLive * (1 + heapGrowth). Decreases follow the
+    // raw target immediately; increases are rate-limited while preserving 25%
+    // headroom above the current live set to avoid immediate retriggering.
     size_t baseBytes = liveBytes;
 
     double heapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
     double scavengeGrowth = CangjieRuntime::GetGCParam().scavengeGrowth;
     size_t gcThresholdCap = CangjieRuntime::GetGCParam().gcThreshold;
-    size_t newThreshold = static_cast<size_t>(static_cast<double>(baseBytes) * (1.0 + heapGrowth));
     // Floor to avoid GC thrash when base is tiny; cap at the configured gcThreshold.
     size_t minThreshold = std::min(gcThresholdCap, static_cast<size_t>(20) * 1024 * 1024);
-    if (newThreshold < minThreshold) {
-        newThreshold = minThreshold;
-    }
-    if (newThreshold > gcThresholdCap) {
-        newThreshold = gcThresholdCap;
-    }
+    MSHeapThresholdDecision thresholdDecision =
+        EvaluateMSHeapThreshold(oldThreshold, liveBytes, heapGrowth, minThreshold, gcThresholdCap);
+    size_t newThreshold = thresholdDecision.threshold;
     size_t newScavengeThreshold = ComputeScavengeThresholdBytes(newThreshold, scavengeGrowth);
     gcStats.SetThreshold(newThreshold);
     gcStats.SetScavengeThreshold(newScavengeThreshold);
@@ -2183,9 +2176,12 @@ void MarkSweepCollector::UpdateGCStats()
          "[MS-GC] heapThreshold: oldThreshold=%zuB newThreshold=%zuB "
          "oldScavengeThreshold=%zuB newScavengeThreshold=%zuB "
          "prevLive=%zuB trueLive=%zuB base=%zuB growth=%.2f scavengeGrowth=%.2f "
+         "rawTarget=%zuB riseLimit=%zuB liveSafetyFloor=%zuB riseLimited=%d "
          "preActiveRegion=%zuB activeRegion=%zuB",
          oldThreshold, newThreshold, oldScavengeThreshold, newScavengeThreshold, oldLastTrueLiveBytes, liveBytes,
-         baseBytes, 1.0 + heapGrowth, scavengeGrowth, preActiveRegionBytes, activeRegionBytes);
+         baseBytes, 1.0 + heapGrowth, scavengeGrowth, thresholdDecision.rawTarget, thresholdDecision.riseLimit,
+         thresholdDecision.liveSafetyFloor, static_cast<int>(thresholdDecision.riseLimited),
+         preActiveRegionBytes, activeRegionBytes);
 
     VLOG(REPORT,
          "[MS-GC] live bytes %zu, activeRegion %zu, update gc threshold %zu -> %zu",

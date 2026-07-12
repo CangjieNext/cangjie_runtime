@@ -26,7 +26,6 @@ struct MSMarkWorkerDecision {
         PRESSURE_UP,
         TREND_UP,
         EMERGENCY_UP,
-        STABLE_DOWN,
         TAIL_DRAIN,
     };
 
@@ -53,7 +52,6 @@ public:
         if (fullBacklog >= kEmergencyBacklog) {
             activeHelpers_ = maxHelpers_;
             growthSamples_ = 0;
-            lowSamples_ = 0;
             decision = { activeHelpers_, MSMarkWorkerDecision::Reason::EMERGENCY_UP };
         } else {
             if (fullBacklog > previousBacklog_) {
@@ -65,22 +63,11 @@ public:
             size_t activeTotalThreads = activeHelpers_ + 1;
             if (activeHelpers_ < maxHelpers_ && fullBacklog > kBacklogPerThread * activeTotalThreads) {
                 ++activeHelpers_;
-                lowSamples_ = 0;
                 decision = { activeHelpers_, MSMarkWorkerDecision::Reason::PRESSURE_UP };
             } else if (activeHelpers_ < maxHelpers_ && growthSamples_ >= kGrowthSamplesForScaleUp) {
                 ++activeHelpers_;
                 growthSamples_ = 0;
-                lowSamples_ = 0;
                 decision = { activeHelpers_, MSMarkWorkerDecision::Reason::TREND_UP };
-            } else if (fullBacklog <= kScaleDownBacklog) {
-                ++lowSamples_;
-                if (activeHelpers_ > 0 && lowSamples_ >= kLowSamplesForScaleDown) {
-                    --activeHelpers_;
-                    lowSamples_ = 0;
-                    decision = { activeHelpers_, MSMarkWorkerDecision::Reason::STABLE_DOWN };
-                }
-            } else {
-                lowSamples_ = 0;
             }
         }
 
@@ -94,7 +81,6 @@ public:
         tailDraining_ = true;
         activeHelpers_ = maxHelpers_;
         growthSamples_ = 0;
-        lowSamples_ = 0;
         return { activeHelpers_, MSMarkWorkerDecision::Reason::TAIL_DRAIN };
     }
 
@@ -103,15 +89,12 @@ public:
 private:
     static constexpr size_t kBacklogPerThread = 8;
     static constexpr size_t kEmergencyBacklog = 64;
-    static constexpr size_t kScaleDownBacklog = 2;
     static constexpr size_t kGrowthSamplesForScaleUp = 2;
-    static constexpr size_t kLowSamplesForScaleDown = 8;
 
     size_t maxHelpers_ = 0;
     size_t activeHelpers_ = 0;
     size_t previousBacklog_ = 0;
     size_t growthSamples_ = 0;
-    size_t lowSamples_ = 0;
     bool tailDraining_ = false;
 };
 
