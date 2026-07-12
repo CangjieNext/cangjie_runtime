@@ -27,6 +27,7 @@ struct MSMarkWorkerDecision {
         TREND_UP,
         EMERGENCY_UP,
         STABLE_DOWN,
+        TAIL_DRAIN,
     };
 
     size_t activeHelpers = 0;
@@ -40,6 +41,10 @@ public:
     MSMarkWorkerDecision Update(size_t fullBacklog)
     {
         MSMarkWorkerDecision decision { activeHelpers_, MSMarkWorkerDecision::Reason::HOLD };
+        if (tailDraining_) {
+            previousBacklog_ = fullBacklog;
+            return decision;
+        }
         if (maxHelpers_ == 0) {
             previousBacklog_ = fullBacklog;
             return decision;
@@ -84,6 +89,15 @@ public:
         return decision;
     }
 
+    MSMarkWorkerDecision EnterTail()
+    {
+        tailDraining_ = true;
+        activeHelpers_ = maxHelpers_;
+        growthSamples_ = 0;
+        lowSamples_ = 0;
+        return { activeHelpers_, MSMarkWorkerDecision::Reason::TAIL_DRAIN };
+    }
+
     size_t GetActiveHelpers() const { return activeHelpers_; }
 
 private:
@@ -98,6 +112,7 @@ private:
     size_t previousBacklog_ = 0;
     size_t growthSamples_ = 0;
     size_t lowSamples_ = 0;
+    bool tailDraining_ = false;
 };
 
 } // namespace MapleRuntime

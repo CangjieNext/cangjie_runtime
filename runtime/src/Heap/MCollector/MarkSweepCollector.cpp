@@ -678,8 +678,6 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
     StartMarkWorkers(maxHelpers, workerDecision.activeHelpers);
     peakActiveHelpers_ = workerDecision.activeHelpers;
 
-    convergenceStableRounds_ = 0;
-
     // GC-supply credit with configurable linear decay.
     // Shorter window forces assist to do real marking work sooner.
     const size_t creditDecayRounds = CangjieRuntime::GetGCParam().msAssistCreditDecayRounds;
@@ -691,6 +689,10 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
 
     // Capture base assist ratio for dynamic escalation below.
     const uint64_t baseAssistRatio = assistWorkPerByteScaled_.load(std::memory_order_acquire);
+    const uint64_t tailAssistRatio = ComputeMSAssistTailRatioScaled(baseAssistRatio, maxAssistMultiplier);
+    bool tailDraining = false;
+    uint64_t tailStartUs = 0;
+    size_t quiesceResidualBuffers = 0;
 
     // Mark time budget: if concurrent marking exceeds this wall-clock budget,
     // force-converge and hand the residual grey work to MarkTermination (STW).
@@ -724,7 +726,9 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
 
         // Dynamic assist ratio escalation based on globalFull_ backpressure:
         // Smooth transient queue changes, then increase continuously up to the configured cap.
-        if (baseAssistRatio > 0) {
+        if (tailDraining) {
+            assistWorkPerByteScaled_.store(tailAssistRatio, std::memory_order_release);
+        } else if (baseAssistRatio > 0) {
             size_t backlog = fullBacklog;
             smoothedBacklog = UpdateMSAssistBacklogEMA(smoothedBacklog, backlog, backlogEMAInitialized);
             backlogEMAInitialized = true;
@@ -748,17 +752,24 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
 
         roundIdx++;
 
-        if (gcThreadWork_.ConcurrentInputEmpty() && globalFull_.Empty() &&
-            markWorkerControl_.GetWorkersInFlight() == 0 &&
-            markWorkerControl_.GetAssistsInFlight() == 0) {
-            if (CheckConvergenceAndBreak()) {
-                if (QuiesceMarkWorkers(true, workerDecision.activeHelpers)) {
-                    break;
+        bool convergenceCandidate = gcThreadWork_.ConcurrentInputEmpty() && globalFull_.Empty() &&
+                                    markWorkerControl_.GetWorkersInFlight() == 0 &&
+                                    markWorkerControl_.GetAssistsInFlight() == 0;
+        if (convergenceCandidate) {
+            if (!tailDraining) {
+                tailDraining = true;
+                tailStartUs = TimeUtil::MicroSeconds();
+                size_t oldHelpers = workerPolicy.GetActiveHelpers();
+                workerDecision = workerPolicy.EnterTail();
+                markWorkerControl_.SetTargetHelpers(workerDecision.activeHelpers);
+                if (workerDecision.activeHelpers > oldHelpers) {
+                    ++workerScaleUpCount_;
                 }
-                convergenceStableRounds_ = 0;
+                peakActiveHelpers_ = std::max(peakActiveHelpers_, workerDecision.activeHelpers);
+                assistWorkPerByteScaled_.store(tailAssistRatio, std::memory_order_release);
             }
-        } else {
-            convergenceStableRounds_ = 0;
+            quiesceResidualBuffers = QuiesceMarkWorkers();
+            break;
         }
 
         // Time-budget guard: force-converge if marking runs too long. Residual
@@ -766,7 +777,7 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
         // MarkTermination under STW (bounded work set, no concurrent alloc).
         if (markBudgetUs != 0 && (TimeUtil::MicroSeconds() - t0) >= markBudgetUs) {
             forceConverged = true;
-            (void)QuiesceMarkWorkers(false, 0);
+            quiesceResidualBuffers = QuiesceMarkWorkers();
             break;
         }
     }
@@ -791,6 +802,15 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
          peakPublishedBacklog_,
          markWorkerControl_.GetWorkersInFlight(),
          markWorkerControl_.GetAssistsInFlight());
+    uint64_t tailDurationUs = tailDraining ? TimeUtil::MicroSeconds() - tailStartUs : 0;
+    VLOG(REPORT,
+         "[MS-GC] [mark-tail] entered=%d duration=%sus refills=%zu assistRatioScaled=%llu "
+         "quiesceResidualBuffers=%zu",
+         static_cast<int>(tailDraining),
+         Pretty(tailDurationUs).Str(),
+         static_cast<size_t>(0),
+         static_cast<unsigned long long>(tailDraining ? tailAssistRatio : 0),
+         quiesceResidualBuffers);
 }
 
 void MarkSweepCollector::StartMarkWorkers(size_t maxHelpers, size_t initialHelpers)
@@ -844,7 +864,7 @@ size_t MarkSweepCollector::TakePublishedWorkerCredit()
     return total;
 }
 
-bool MarkSweepCollector::QuiesceMarkWorkers(bool restartOnLateWork, size_t resumeHelpers)
+size_t MarkSweepCollector::QuiesceMarkWorkers()
 {
     markWorkerControl_.BeginQuiesce();
     markWorkerControl_.WaitForNoInFlight();
@@ -855,36 +875,12 @@ bool MarkSweepCollector::QuiesceMarkWorkers(bool restartOnLateWork, size_t resum
     // barrier traffic, repeatedly closing those tails concurrently can prevent
     // convergence while every new allocation is conservatively marked live.
     // MarkTermination disposes and drains the bounded tails under STW.
-    if (restartOnLateWork && !globalFull_.Empty()) {
-        markWorkerControl_.Resume(resumeHelpers);
-        return false;
-    }
-
+    size_t residualBuffers = globalFull_.GetCounts().total;
     markWorkerControl_.Stop();
     if (!markWorkerSlots_.empty()) {
         GetThreadPool()->WaitFinish();
     }
-    return true;
-}
-
-// ============================================================================
-// CheckConvergenceAndBreak: convergence gate for RunConcurrentMarkLoop.
-//
-// Called each time gcThreadWork_ and globalFull_ are both empty.
-// Returns true when the loop has observed kConvergenceRequiredRounds
-// consecutive empty rounds and should exit. No long post-gate wait/recheck:
-// any residual grey work is bounded and drained by MarkTermination (STW).
-// ============================================================================
-
-bool MarkSweepCollector::CheckConvergenceAndBreak()
-{
-    convergenceStableRounds_++;
-    if (convergenceStableRounds_ < kConvergenceRequiredRounds) {
-        // Short yield — let in-flight write-barrier flushes arrive in globalFull_.
-        usleep(kConvergenceYieldUs);
-        return false;
-    }
-    return true;
+    return residualBuffers;
 }
 
 void MarkSweepCollector::DrainMarkWorkStack()

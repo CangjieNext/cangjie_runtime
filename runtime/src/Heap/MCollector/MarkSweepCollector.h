@@ -208,9 +208,6 @@ private:
 
     // ── Step 2.2 internals ──
     void RunConcurrentMarkLoop();
-    // Returns true when convergence (kConvergenceRequiredRounds consecutive
-    // empty rounds) is reached and the loop should break.
-    bool CheckConvergenceAndBreak();
     void DrainMarkWorkStack();
     void DrainGCWork(PerPGCWork& gcw, size_t maxObjects, size_t& scannedCount);
     // Claim and drain one published buffer. GC main/helpers accept any length;
@@ -221,7 +218,7 @@ private:
     void TransferRootsToGCWork();
     void StartMarkWorkers(size_t maxHelpers, size_t initialHelpers);
     void RunMarkWorker(size_t workerId);
-    bool QuiesceMarkWorkers(bool restartOnLateWork, size_t resumeHelpers);
+    size_t QuiesceMarkWorkers();
     size_t TakePublishedWorkerCredit();
     void SnapshotAssistStats();
     void MergeExitedAssistStats(AllocBufferMS& allocBuffer);
@@ -252,25 +249,12 @@ private:
     // Assist tuning parameters
     // ============================================================
     //
-    // Fixed constants (compile-time):
-    //   kConvergenceRequiredRounds - Consecutive empty rounds before triggering
-    //                                the per-P flush + convergence check.
-    //   kConvergenceYieldUs        - usleep duration when stable rounds < threshold.
-    //   kConvergenceFlushWaitUs    - usleep before per-P flush to let in-flight assists finish.
-    //
     // Environment variables (runtime):
     //   cjMSAssistBaseRatioPercent      - Percentage applied to the computed base ratio. Default 50.
     //   cjMSAssistBacklogStepBuffers    - Full backlog buffers per 1x increase. Default 16.
     //   cjMSAssistMaxMultiplier         - Maximum backlog multiplier. Default 4.
     //   cjMSAssistCreditDecayRounds     - Background-credit linear decay rounds. Default 100.
     // ============================================================
-    static constexpr size_t   kConvergenceRequiredRounds     = 3;
-    static constexpr uint64_t kConvergenceYieldUs            = 50;
-    static constexpr uint64_t kConvergenceFlushWaitUs        = 200;
-
-    // ── Convergence tracking ──
-    size_t convergenceStableRounds_ = 0;
-
     // ── Work stack (populated in EnumRoots, consumed in ConcurrentMark) ──
     GreyWorkQueue markWorkStack_;
     GreyWorkQueue concurrentOverflowQueue_;

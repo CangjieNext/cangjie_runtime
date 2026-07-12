@@ -102,14 +102,6 @@ public:
         condition_.wait(lock, [this] { return workersInFlight_ == 0 && assistsInFlight_ == 0; });
     }
 
-    void Resume(size_t targetHelpers)
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        targetHelpers_ = targetHelpers;
-        phase_ = Phase::RUNNING;
-        condition_.notify_all();
-    }
-
     void Stop()
     {
         std::lock_guard<std::mutex> lock(mutex_);

@@ -55,6 +55,17 @@ inline uint64_t ComputeMSAssistBacklogRatioScaled(uint64_t baseRatio, double smo
     return static_cast<uint64_t>(adjusted);
 }
 
+inline uint64_t ComputeMSAssistTailRatioScaled(uint64_t baseRatio, size_t maxMultiplier)
+{
+    if (baseRatio == 0 || maxMultiplier == 0) {
+        return baseRatio;
+    }
+    if (baseRatio > std::numeric_limits<uint64_t>::max() / maxMultiplier) {
+        return std::numeric_limits<uint64_t>::max();
+    }
+    return baseRatio * maxMultiplier;
+}
+
 } // namespace MapleRuntime
 
 #endif // MRT_MS_ASSIST_PACING_H
