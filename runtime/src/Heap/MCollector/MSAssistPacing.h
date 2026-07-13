@@ -14,6 +14,65 @@ namespace MapleRuntime {
 
 constexpr uint64_t kMSAssistRatioScale = 65536;
 constexpr uint64_t kMSAssistBaseRatioPercentDefault = 50;
+constexpr uint64_t kMSAssistTargetShareBasisPoints = 2500;
+constexpr uint64_t kMSAssistMinShareBasisPoints = 2000;
+constexpr uint64_t kMSAssistMaxShareBasisPoints = 3000;
+
+struct MSAssistBaseRatioDecision {
+    uint64_t rawRatio = 0;
+    uint64_t previousRatio = 0;
+    uint64_t riseLimit = 0;
+    uint64_t feedbackLimit = 0;
+    uint64_t nextRatio = 0;
+    uint64_t assistShareBasisPoints = 0;
+    bool riseLimited = false;
+    bool shareLimited = false;
+};
+
+inline MSAssistBaseRatioDecision EvaluateMSAssistBaseRatio(uint64_t rawRatio, uint64_t previousRatio,
+                                                           bool initialized, size_t assistProcessed,
+                                                           size_t backgroundProcessed)
+{
+    MSAssistBaseRatioDecision decision;
+    decision.rawRatio = std::max<uint64_t>(1, rawRatio);
+    decision.previousRatio = std::max<uint64_t>(1, previousRatio);
+    decision.riseLimit = decision.rawRatio;
+    decision.feedbackLimit = decision.rawRatio;
+    decision.nextRatio = decision.rawRatio;
+
+    if (!initialized) {
+        return decision;
+    }
+
+    if (decision.rawRatio > decision.previousRatio) {
+        uint64_t rise = std::max<uint64_t>(1, decision.previousRatio / 4);
+        decision.riseLimit = decision.previousRatio > std::numeric_limits<uint64_t>::max() - rise
+            ? std::numeric_limits<uint64_t>::max()
+            : decision.previousRatio + rise;
+        if (decision.nextRatio > decision.riseLimit) {
+            decision.nextRatio = decision.riseLimit;
+            decision.riseLimited = true;
+        }
+    }
+
+    long double totalProcessed = static_cast<long double>(assistProcessed) +
+                                 static_cast<long double>(backgroundProcessed);
+    if (totalProcessed > 0.0L) {
+        long double share = static_cast<long double>(assistProcessed) * 10000.0L / totalProcessed;
+        decision.assistShareBasisPoints = static_cast<uint64_t>(std::min<long double>(share, 10000.0L));
+    }
+    if (decision.assistShareBasisPoints > kMSAssistMaxShareBasisPoints) {
+        long double feedback = static_cast<long double>(decision.previousRatio) *
+                               static_cast<long double>(kMSAssistTargetShareBasisPoints) /
+                               static_cast<long double>(decision.assistShareBasisPoints);
+        decision.feedbackLimit = std::max<uint64_t>(1, static_cast<uint64_t>(feedback));
+        if (decision.nextRatio > decision.feedbackLimit) {
+            decision.nextRatio = decision.feedbackLimit;
+            decision.shareLimited = true;
+        }
+    }
+    return decision;
+}
 
 inline uint64_t ComputeMSAssistBaseRatioScaled(size_t prevMarked, size_t allocatedBytes, uint64_t basePercent)
 {

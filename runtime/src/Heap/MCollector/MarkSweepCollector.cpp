@@ -658,21 +658,43 @@ void MarkSweepCollector::ConcurrentMark()
     InitAllPerPGCWork();
     markWorkerControl_.Start(0);
 
-    // 11. Enable assist: compute base ratio (objects-per-byte) from previous
-    //     cycle stats. This ratio is fixed for the whole cycle — it only
-    //     converts allocated bytes into assist debt; there is no escalation.
+    // 11. Compute this cycle's base ratio from the previous mark density, then
+    //     apply cycle-to-cycle rise limiting and assist-share feedback.
     {
         uint64_t baseRatioPercent = CangjieRuntime::GetGCParam().msAssistBaseRatioPercent;
         size_t prevMarked = prevCycleMarkedObjects_.load(std::memory_order_relaxed);
         size_t allocSize = Heap::GetHeap().GetAllocatedSize();
-        uint64_t initialRatioScaled = ComputeMSAssistBaseRatioScaled(prevMarked, allocSize, baseRatioPercent);
-           assistWorkPerByteScaled_.store(initialRatioScaled, std::memory_order_release);
-           VLOG(REPORT,
-               "[MS-GC] Assist enabled: ratioScaled=%llu, basePercent=%llu (prevMarked=%zu, allocSize=%zu)",
-               (unsigned long long)initialRatioScaled,
-               (unsigned long long)baseRatioPercent,
-               prevMarked,
-               allocSize);
+        uint64_t rawRatio = ComputeMSAssistBaseRatioScaled(prevMarked, allocSize, baseRatioPercent);
+        MSAssistBaseRatioDecision decision = EvaluateMSAssistBaseRatio(
+            rawRatio, previousAssistBaseRatioScaled_, assistBaseRatioInitialized_,
+            previousAssistProcessedObjects_, previousBackgroundProcessedObjects_);
+        uint64_t initialRatioScaled = decision.nextRatio;
+        previousAssistBaseRatioScaled_ = initialRatioScaled;
+        if (prevMarked != 0 && allocSize != 0) {
+            assistBaseRatioInitialized_ = true;
+        }
+        assistWorkPerByteScaled_.store(initialRatioScaled, std::memory_order_release);
+        VLOG(REPORT,
+             "[MS-GC] Assist enabled: ratioScaled=%llu, basePercent=%llu (prevMarked=%zu, allocSize=%zu)",
+             static_cast<unsigned long long>(initialRatioScaled),
+             static_cast<unsigned long long>(baseRatioPercent),
+             prevMarked,
+             allocSize);
+        VLOG(REPORT,
+             "[MS-GC] [assist-pacing] rawBase=%llu prevBase=%llu nextBase=%llu riseLimit=%llu "
+             "feedbackLimit=%llu assistShare=%llu.%02llu%% riseLimited=%d shareLimited=%d "
+             "prevMainHelper=%zu prevAssist=%zu",
+             static_cast<unsigned long long>(decision.rawRatio),
+             static_cast<unsigned long long>(decision.previousRatio),
+             static_cast<unsigned long long>(decision.nextRatio),
+             static_cast<unsigned long long>(decision.riseLimit),
+             static_cast<unsigned long long>(decision.feedbackLimit),
+             static_cast<unsigned long long>(decision.assistShareBasisPoints / 100),
+             static_cast<unsigned long long>(decision.assistShareBasisPoints % 100),
+             static_cast<int>(decision.riseLimited),
+             static_cast<int>(decision.shareLimited),
+             previousBackgroundProcessedObjects_,
+             previousAssistProcessedObjects_);
     }
 
     // 12. Run concurrent marking loop using gcThreadWork_ + globalFull_.
@@ -734,10 +756,12 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
     uint64_t markBudgetNs = CangjieRuntime::GetGCParam().msMarkTimeBudget;
     const uint64_t markBudgetUs = markBudgetNs == 0 ? 0 : std::max<uint64_t>(1, markBudgetNs / 1000ULL);
     bool forceConverged = false;
+    size_t gcMainProcessed = 0;
 
     while (true) {
         // Every published buffer is one GC-main mark slice, regardless of length.
         size_t scannedCount = DrainOneBufRound(gcThreadWork_, false);
+        gcMainProcessed += scannedCount;
 
         LFStack::Counts backlog = globalFull_.GetCounts();
         size_t publishedBacklog = backlog.total;
@@ -820,9 +844,12 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
     for (const auto& slot : markWorkerSlots_) {
         helperProcessed += slot->stats.TotalProcessed();
     }
+    cycleStats_.gcMainProcessedObjects = gcMainProcessed;
+    cycleStats_.helperProcessedObjects = helperProcessed;
     VLOG(REPORT,
          "[MS-GC] [mark-workers] configured=%zu peakActive=%zu processed=%zu "
-         "scaleUp=%zu scaleDown=%zu backlogPeak=%zu workersInFlight=%zu assistInFlight=%zu",
+         "scaleUp=%zu scaleDown=%zu backlogPeak=%zu workersInFlight=%zu assistInFlight=%zu "
+         "mainProcessed=%zu",
          maxHelpers + 1,
          peakActiveHelpers_ + 1,
          helperProcessed,
@@ -830,7 +857,8 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
          static_cast<size_t>(0),
          peakPublishedBacklog_,
          markWorkerControl_.GetWorkersInFlight(),
-         markWorkerControl_.GetAssistsInFlight());
+         markWorkerControl_.GetAssistsInFlight(),
+         gcMainProcessed);
     uint64_t tailDurationUs = tailDraining ? TimeUtil::MicroSeconds() - tailStartUs : 0;
     VLOG(REPORT,
          "[MS-GC] [mark-tail] entered=%d duration=%sus refills=%zu assistRatioScaled=%llu "
@@ -2172,6 +2200,9 @@ void MarkSweepCollector::UpdateGCStats()
     gcStats.SetThreshold(newThreshold);
     gcStats.SetScavengeThreshold(newScavengeThreshold);
     gcStats.lastSurvivingRegionBytes = liveBytes;
+    previousAssistProcessedObjects_ = cycleStats_.assistProcessedObjects;
+    previousBackgroundProcessedObjects_ = cycleStats_.gcMainProcessedObjects +
+                                          cycleStats_.helperProcessedObjects;
     VLOG(REPORT,
          "[MS-GC] heapThreshold: oldThreshold=%zuB newThreshold=%zuB "
          "oldScavengeThreshold=%zuB newScavengeThreshold=%zuB "

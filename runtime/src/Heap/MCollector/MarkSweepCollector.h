@@ -45,6 +45,8 @@ struct MSGCCycleStats {
     size_t rootsCount = 0;                // markWorkStack_.size() right after EnumAndMarkRoots finishes.
     size_t markTermProcessedObjects = 0;  // Objects drained by ExecuteLikeDrainMainQueue during STW mark termination.
     size_t markedObjects = 0;             // Mark bitmap popcount after marking completes.
+    size_t gcMainProcessedObjects = 0;    // Concurrent buffers scanned by the GC main thread.
+    size_t helperProcessedObjects = 0;    // Concurrent buffers scanned by all helper workers.
     size_t losFreedCount = 0;             // Large objects reclaimed in CollectLargeGarbage for this cycle.
     size_t losFreedRegionCount = 0;       // Large-object region spans reclaimed in CollectLargeGarbage.
     size_t losFreedBytes = 0;             // Bytes reclaimed from large-object spans in this cycle.
@@ -277,6 +279,10 @@ private:
     std::atomic<int64_t> bgScanCredit_{0};
     std::atomic<uint64_t> assistWorkPerByteScaled_{0};
     std::atomic<size_t> prevCycleMarkedObjects_{0};
+    uint64_t previousAssistBaseRatioScaled_ = 1;
+    size_t previousAssistProcessedObjects_ = 0;
+    size_t previousBackgroundProcessedObjects_ = 0;
+    bool assistBaseRatioInitialized_ = false;
 
     // ── Main-thread-only deferred work (e.g. weak refs discovered by assist) ──
     GreyWorkQueue deferredMainThreadQueue_;
