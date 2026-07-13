@@ -103,7 +103,7 @@ It includes built-in types (signed integers, unsigned integers, floating-point n
 | [Any](./core_package_api/core_package_interfaces.md#interface-any) | `Any` is the parent type of all types. All `interface`s implicitly inherit it, and all non-`interface` types implicitly implement it. |
 | [Hasher](./core_package_api/core_package_interfaces.md#interface-hasher) | This interface handles hash combination operations. |
 | [ThreadContext](./core_package_api/core_package_interfaces.md#interface-threadcontext) | The Cangjie thread context interface. |
-| [Runtime\<T> where T <: Runtime\<T>](./core_package_api/core_package_interfaces.md#interface-runtimet-where-t--runtimet) | Defines the dynamic runtime operations used by `Extern<T>`. |
+| [ForeignRuntime\<T> where T <: ForeignRuntime\<T>](./core_package_api/core_package_interfaces.md#interface-foreignruntimet-where-t--foreignruntimet) | Defines the dynamic runtime operations used by `Extern<T>`. |
 | [Countable\<T>](./core_package_api/core_package_interfaces.md#interface-countablet) | This interface indicates that a type is countable. |
 | [Collection\<T>](./core_package_api/core_package_interfaces.md#interface-collectiont) | This interface represents a collection; typically, container types should implement it. |
 | [Less\<T>](./core_package_api/core_package_interfaces.md#interface-lesst) | This interface represents a less-than comparison. |
@@ -156,7 +156,7 @@ It includes built-in types (signed integers, unsigned integers, floating-point n
 | [CStringResource](./core_package_api/core_package_structs.md#struct-cstringresource) | This struct represents the resource management type corresponding to `CString`, and its instance can be obtained through the member function `asResource` of `CString`. |
 | [DefaultHasher](./core_package_api/core_package_structs.md#struct-defaulthasher) | This struct provides the default hash algorithm implementation. |
 | [Duration](./core_package_api/core_package_structs.md#struct-duration) | Represents a time interval, which is a time type describing a period of time, providing common static instances as well as calculation and comparison functions. |
-| [Extern\<T> where T <: Runtime\<T>](./core_package_api/core_package_structs.md#struct-externt-where-t--runtimet) | Represents a runtime-specific dynamic value whose operations are implemented by `Runtime<T>`. |
+| [Extern\<T> where T <: ForeignRuntime\<T>](./core_package_api/core_package_structs.md#struct-externt-where-t--foreignruntimet) | Represents a runtime-specific dynamic value whose operations are implemented by `ForeignRuntime<T>`. |
 | [LibC](./core_package_api/core_package_structs.md#struct-libc) | Provides high-frequency used C interfaces in Cangjie, such as allocating and freeing heap-based CType instances. |
 | [Range\<T> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>](./core_package_api/core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) | This class is an interval type used to represent a sequence of `T` with fixed range and step size, requiring `T` to be countable and ordered. |
 | [String](./core_package_api/core_package_structs.md#struct-string) | This struct represents the Cangjie string, providing a series of string operations such as construction, searching, and concatenation. |

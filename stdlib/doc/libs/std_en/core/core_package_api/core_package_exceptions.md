@@ -741,20 +741,20 @@ Exception with message string: Exception: Custom exception message
 
 ```cangjie
 public class MemberAccessException <: Exception {
-    public init(message: String)
+    public MemberAccessException(message: String)
 }
 ```
 
-Function: Represents an exception thrown when dynamic member access or member update on an [Extern](core_package_structs.md#struct-externt-where-t--runtimet) value fails.
+Function: Represents an exception thrown when dynamic member access or member update on an [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet) value fails.
 
 Parent Types:
 
 - [Exception](#class-exception)
 
-### init(String)
+### MemberAccessException(String)
 
 ```cangjie
-public init(message: String)
+public MemberAccessException(message: String)
 ```
 
 Function: Constructs a [MemberAccessException](core_package_exceptions.md#class-memberaccessexception) instance with the specified exception message.
@@ -767,20 +767,20 @@ Parameters:
 
 ```cangjie
 public class FunctionAccessException <: Exception {
-    public init(message: String)
+    public FunctionAccessException(message: String)
 }
 ```
 
-Function: Represents an exception thrown when accessing a dynamic function on an [Extern](core_package_structs.md#struct-externt-where-t--runtimet) value fails.
+Function: Represents an exception thrown when accessing a dynamic function on an [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet) value fails.
 
 Parent Types:
 
 - [Exception](#class-exception)
 
-### init(String)
+### FunctionAccessException(String)
 
 ```cangjie
-public init(message: String)
+public FunctionAccessException(message: String)
 ```
 
 Function: Constructs a [FunctionAccessException](core_package_exceptions.md#class-functionaccessexception) instance with the specified exception message.
@@ -793,20 +793,20 @@ Parameters:
 
 ```cangjie
 public class FunctionCallException <: Exception {
-    public init(message: String)
+    public FunctionCallException(message: String)
 }
 ```
 
-Function: Represents an exception thrown when a dynamic function call on an [Extern](core_package_structs.md#struct-externt-where-t--runtimet) value fails.
+Function: Represents an exception thrown when a dynamic function call on an [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet) value fails.
 
 Parent Types:
 
 - [Exception](#class-exception)
 
-### init(String)
+### FunctionCallException(String)
 
 ```cangjie
-public init(message: String)
+public FunctionCallException(message: String)
 ```
 
 Function: Constructs a [FunctionCallException](core_package_exceptions.md#class-functioncallexception) instance with the specified exception message.
@@ -819,20 +819,20 @@ Parameters:
 
 ```cangjie
 public class IndexAccessException <: Exception {
-    public init(message: String)
+    public IndexAccessException(message: String)
 }
 ```
 
-Function: Represents an exception thrown when dynamic index access or index update on an [Extern](core_package_structs.md#struct-externt-where-t--runtimet) value fails.
+Function: Represents an exception thrown when dynamic index access or index update on an [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet) value fails.
 
 Parent Types:
 
 - [Exception](#class-exception)
 
-### init(String)
+### IndexAccessException(String)
 
 ```cangjie
-public init(message: String)
+public IndexAccessException(message: String)
 ```
 
 Function: Constructs an [IndexAccessException](core_package_exceptions.md#class-indexaccessexception) instance with the specified exception message.
@@ -845,20 +845,20 @@ Parameters:
 
 ```cangjie
 public class ExternDynamicException <: Exception {
-    public init(message: String)
+    public ExternDynamicException(message: String)
 }
 ```
 
-Function: Represents an exception thrown when the runtime backing an [Extern](core_package_structs.md#struct-externt-where-t--runtimet) value reports a dynamic operation failure.
+Function: Represents an exception thrown when the runtime backing an [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet) value reports a dynamic operation failure.
 
 Parent Types:
 
 - [Exception](#class-exception)
 
-### init(String)
+### ExternDynamicException(String)
 
 ```cangjie
-public init(message: String)
+public ExternDynamicException(message: String)
 ```
 
 Function: Constructs an [ExternDynamicException](core_package_exceptions.md#class-externdynamicexception) instance with the specified exception message.
@@ -871,20 +871,20 @@ Parameters:
 
 ```cangjie
 public class ExternConversionException <: Exception {
-    public init(message: String)
+    public ExternConversionException(message: String)
 }
 ```
 
-Function: Represents an exception thrown when converting to or from an [Extern](core_package_structs.md#struct-externt-where-t--runtimet) value fails.
+Function: Represents an exception thrown when converting to or from an [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet) value fails.
 
 Parent Types:
 
 - [Exception](#class-exception)
 
-### init(String)
+### ExternConversionException(String)
 
 ```cangjie
-public init(message: String)
+public ExternConversionException(message: String)
 ```
 
 Function: Constructs an [ExternConversionException](core_package_exceptions.md#class-externconversionexception) instance with the specified exception message.

@@ -575,6 +575,135 @@ func toArray(): Array<T>
 
 - [Array](core_package_structs.md#struct-arrayt)\<T> - 转换得到的数组。
 
+## interface ForeignRuntime\<T> where T <: ForeignRuntime\<T>
+
+```cangjie
+public interface ForeignRuntime<T> where T <: ForeignRuntime<T> {
+    static func memberAccess(e: Extern<T>, field: String): Extern<T>
+    static func indexedAccess(e: Extern<T>, arg: Any): Extern<T>
+    static func memberUpdate(e: Extern<T>, field: String, value: Any): Unit
+    static func indexedUpdate(e: Extern<T>, field: Any, value: Any): Unit
+    static func functionCall(e: Extern<T>, args: Array<Any>): Extern<T>
+    static func fromExtern<R>(h: Extern<T>): R
+    static func toExtern<R>(v: R): Extern<T>
+}
+```
+
+功能：定义 [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet)\<T> 所使用的运行时操作。作为 [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet) 类型参数的 `T` 必须实现 `ForeignRuntime<T>`。
+
+编译器会将 [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet) 值上的动态操作 desugar 为 `T` 上对应的静态函数调用。
+
+### static func memberAccess(Extern\<T>, String)
+
+```cangjie
+static func memberAccess(e: Extern<T>, field: String): Extern<T>
+```
+
+功能：处理动态成员访问，例如 `e.field`。
+
+参数：
+
+- e: [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet)\<T> - 动态值。
+- field: [String](core_package_structs.md#struct-string) - 成员名称。
+
+返回值：
+
+- [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet)\<T> - 动态成员值。
+
+### static func indexedAccess(Extern\<T>, Any)
+
+```cangjie
+static func indexedAccess(e: Extern<T>, arg: Any): Extern<T>
+```
+
+功能：处理动态索引访问，例如 `e[arg]`。
+
+参数：
+
+- e: [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet)\<T> - 动态值。
+- arg: [Any](core_package_interfaces.md#interface-any) - 索引参数。
+
+返回值：
+
+- [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet)\<T> - 动态索引值。
+
+### static func memberUpdate(Extern\<T>, String, Any)
+
+```cangjie
+static func memberUpdate(e: Extern<T>, field: String, value: Any): Unit
+```
+
+功能：处理动态成员更新，例如 `e.field = value`。
+
+参数：
+
+- e: [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet)\<T> - 动态值。
+- field: [String](core_package_structs.md#struct-string) - 成员名称。
+- value: [Any](core_package_interfaces.md#interface-any) - 待赋的值。
+
+### static func indexedUpdate(Extern\<T>, Any, Any)
+
+```cangjie
+static func indexedUpdate(e: Extern<T>, field: Any, value: Any): Unit
+```
+
+功能：处理动态索引更新，例如 `e[field] = value`。
+
+参数：
+
+- e: [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet)\<T> - 动态值。
+- field: [Any](core_package_interfaces.md#interface-any) - 索引参数。
+- value: [Any](core_package_interfaces.md#interface-any) - 待赋的值。
+
+### static func functionCall(Extern\<T>, Array\<Any>)
+
+```cangjie
+static func functionCall(e: Extern<T>, args: Array<Any>): Extern<T>
+```
+
+功能：处理动态函数调用，例如 `e(args...)`。
+
+参数：
+
+- e: [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet)\<T> - 可调用的动态值。
+- args: [Array](core_package_structs.md#struct-arrayt)\<[Any](core_package_interfaces.md#interface-any)> - 调用参数。
+
+返回值：
+
+- [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet)\<T> - 动态调用结果。
+
+### static func fromExtern\<R>(Extern\<T>)
+
+```cangjie
+static func fromExtern<R>(h: Extern<T>): R
+```
+
+功能：将 [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet)\<T> 值转换为类型为 `R` 的仓颉值。
+
+参数：
+
+- h: [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet)\<T> - 动态值。
+
+返回值：
+
+- R - 转换得到的仓颉值。
+
+### static func toExtern\<R>(R)
+
+```cangjie
+static func toExtern<R>(v: R): Extern<T>
+```
+
+功能：将类型为 `R` 的仓颉值转换为 [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet)\<T> 值。
+
+参数：
+
+- v: R - 仓颉值。
+
+返回值：
+
+- [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet)\<T> - 转换得到的动态值。
+
 ## interface Comparable\<T>
 
 ```cangjie

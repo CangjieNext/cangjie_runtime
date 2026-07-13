@@ -103,6 +103,7 @@ core 包是标准库的核心包，提供了适用仓颉语言编程最基本的
 | [Any](./core_package_api/core_package_interfaces.md#interface-any) | `Any` 是所有类型的父类型，所有 `interface` 都默认继承它，所有非 `interface` 类型都默认实现它。 |
 | [Hasher](./core_package_api/core_package_interfaces.md#interface-hasher) | 该接口用于处理哈希组合运算。 |
 | [ThreadContext](./core_package_api/core_package_interfaces.md#interface-threadcontext) | 仓颉线程上下文接口。 |
+| [ForeignRuntime\<T> where T <: ForeignRuntime\<T>](./core_package_api/core_package_interfaces.md#interface-foreignruntimet-where-t--foreignruntimet) | 定义 `Extern<T>` 所使用的动态运行时操作。 |
 | [Countable\<T>](./core_package_api/core_package_interfaces.md#interface-countablet) | 该接口表示类型可数。 |
 | [Collection\<T>](./core_package_api/core_package_interfaces.md#interface-collectiont) | 该接口用来表示集合，通常容器类型应该实现该接口。 |
 | [Less\<T>](./core_package_api/core_package_interfaces.md#interface-lesst) | 该接口表示小于计算。 |
@@ -155,6 +156,7 @@ core 包是标准库的核心包，提供了适用仓颉语言编程最基本的
 | [CStringResource](./core_package_api/core_package_structs.md#struct-cstringresource) | 该结构体表示 `CString` 对应的资源管理类型，其实例可以通过 `CString` 的成员函数 `asResource` 获取。 |
 | [DefaultHasher](./core_package_api/core_package_structs.md#struct-defaulthasher) | 该结构体提供了默认哈希算法实现。 |
 | [Duration](./core_package_api/core_package_structs.md#struct-duration) | 表示时间间隔，是一个描述一段时间的时间类型，提供了常用的静态实例，以及计算、比较等功能。 |
+| [Extern\<T> where T <: ForeignRuntime\<T>](./core_package_api/core_package_structs.md#struct-externt-where-t--foreignruntimet) | 表示特定运行时的动态值，其操作由 `ForeignRuntime<T>` 实现。 |
 | [LibC](./core_package_api/core_package_structs.md#struct-libc) | 提供了仓颉中较为高频使用的 C 接口，如申请、释放堆上 CType 实例。 |
 | [Range\<T> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>](./core_package_api/core_package_structs.md#struct-ranget-where-t--countablet--comparablet--equatablet) | 该类是区间类型，用于表示一个拥有固定范围和步长的 `T` 的序列，要求 `T` 是可数的，有序的。 |
 | [String](./core_package_api/core_package_structs.md#struct-string) | 该结构体表示仓颉字符串，提供了构造、查找、拼接等一系列字符串操作。 |
@@ -166,6 +168,12 @@ core 包是标准库的核心包，提供了适用仓颉语言编程最基本的
 | [ArithmeticException](./core_package_api/core_package_exceptions.md#class-arithmeticexception) | 算术异常类，发生算术异常时使用。 |
 | [Error](./core_package_api/core_package_exceptions.md#class-error) | `Error` 是所有错误类的父类。该类不可被继承，不可初始化，但是可以被捕获到。 |
 | [Exception](./core_package_api/core_package_exceptions.md#class-exception) | `Exception` 是所有异常类的父类。 |
+| [MemberAccessException](./core_package_api/core_package_exceptions.md#class-memberaccessexception) | 对 `Extern<T>` 进行动态成员访问或成员更新失败时的异常类。 |
+| [FunctionAccessException](./core_package_api/core_package_exceptions.md#class-functionaccessexception) | 访问 `Extern<T>` 上动态函数失败时的异常类。 |
+| [FunctionCallException](./core_package_api/core_package_exceptions.md#class-functioncallexception) | 对 `Extern<T>` 进行动态函数调用失败时的异常类。 |
+| [IndexAccessException](./core_package_api/core_package_exceptions.md#class-indexaccessexception) | 对 `Extern<T>` 进行动态索引访问或索引更新失败时的异常类。 |
+| [ExternDynamicException](./core_package_api/core_package_exceptions.md#class-externdynamicexception) | `Extern<T>` 运行时报告动态操作失败时的异常类。 |
+| [ExternConversionException](./core_package_api/core_package_exceptions.md#class-externconversionexception) | 与 `Extern<T>` 之间相互转换失败时的异常类。 |
 | <!--DelRow--> [ExclusiveScopeException](./core_package_api/core_package_exceptions.md#class-exclusivescopeexception) | 自定义异常类，用于包装在独占作用域中抛出的异常。它保留了原始异常的堆栈信息，不支持主动构造该异常，但是可以被捕获到。 |
 | [IllegalArgumentException](./core_package_api/core_package_exceptions.md#class-illegalargumentexception) | 表示参数非法的异常类。 |
 | [IllegalFormatException](./core_package_api/core_package_exceptions.md#class-illegalformatexception) | 表示变量的格式无效或不标准时的异常类。 |

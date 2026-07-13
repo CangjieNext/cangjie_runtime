@@ -590,6 +590,162 @@ main() {
 带消息异常的字符串表示: Exception: 自定义异常信息
 ```
 
+## class MemberAccessException
+
+```cangjie
+public class MemberAccessException <: Exception {
+    public MemberAccessException(message: String)
+}
+```
+
+功能：表示对 [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet) 值进行动态成员访问或成员更新失败时抛出的异常。
+
+父类型：
+
+- [Exception](#class-exception)
+
+### MemberAccessException(String)
+
+```cangjie
+public MemberAccessException(message: String)
+```
+
+功能：根据异常信息构造一个 [MemberAccessException](core_package_exceptions.md#class-memberaccessexception) 实例。
+
+参数：
+
+- message: [String](core_package_structs.md#struct-string) - 异常提示信息。
+
+## class FunctionAccessException
+
+```cangjie
+public class FunctionAccessException <: Exception {
+    public FunctionAccessException(message: String)
+}
+```
+
+功能：表示访问 [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet) 值上的动态函数失败时抛出的异常。
+
+父类型：
+
+- [Exception](#class-exception)
+
+### FunctionAccessException(String)
+
+```cangjie
+public FunctionAccessException(message: String)
+```
+
+功能：根据异常信息构造一个 [FunctionAccessException](core_package_exceptions.md#class-functionaccessexception) 实例。
+
+参数：
+
+- message: [String](core_package_structs.md#struct-string) - 异常提示信息。
+
+## class FunctionCallException
+
+```cangjie
+public class FunctionCallException <: Exception {
+    public FunctionCallException(message: String)
+}
+```
+
+功能：表示对 [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet) 值进行动态函数调用失败时抛出的异常。
+
+父类型：
+
+- [Exception](#class-exception)
+
+### FunctionCallException(String)
+
+```cangjie
+public FunctionCallException(message: String)
+```
+
+功能：根据异常信息构造一个 [FunctionCallException](core_package_exceptions.md#class-functioncallexception) 实例。
+
+参数：
+
+- message: [String](core_package_structs.md#struct-string) - 异常提示信息。
+
+## class IndexAccessException
+
+```cangjie
+public class IndexAccessException <: Exception {
+    public IndexAccessException(message: String)
+}
+```
+
+功能：表示对 [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet) 值进行动态索引访问或索引更新失败时抛出的异常。
+
+父类型：
+
+- [Exception](#class-exception)
+
+### IndexAccessException(String)
+
+```cangjie
+public IndexAccessException(message: String)
+```
+
+功能：根据异常信息构造一个 [IndexAccessException](core_package_exceptions.md#class-indexaccessexception) 实例。
+
+参数：
+
+- message: [String](core_package_structs.md#struct-string) - 异常提示信息。
+
+## class ExternDynamicException
+
+```cangjie
+public class ExternDynamicException <: Exception {
+    public ExternDynamicException(message: String)
+}
+```
+
+功能：表示支撑 [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet) 值的运行时报告动态操作失败时抛出的异常。
+
+父类型：
+
+- [Exception](#class-exception)
+
+### ExternDynamicException(String)
+
+```cangjie
+public ExternDynamicException(message: String)
+```
+
+功能：根据异常信息构造一个 [ExternDynamicException](core_package_exceptions.md#class-externdynamicexception) 实例。
+
+参数：
+
+- message: [String](core_package_structs.md#struct-string) - 异常提示信息。
+
+## class ExternConversionException
+
+```cangjie
+public class ExternConversionException <: Exception {
+    public ExternConversionException(message: String)
+}
+```
+
+功能：表示与 [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet) 值之间相互转换失败时抛出的异常。
+
+父类型：
+
+- [Exception](#class-exception)
+
+### ExternConversionException(String)
+
+```cangjie
+public ExternConversionException(message: String)
+```
+
+功能：根据异常信息构造一个 [ExternConversionException](core_package_exceptions.md#class-externconversionexception) 实例。
+
+参数：
+
+- message: [String](core_package_structs.md#struct-string) - 异常提示信息。
+
 <!--Del-->
 ## class ExclusiveScopeException
 

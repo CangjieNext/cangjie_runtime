@@ -5665,6 +5665,53 @@ main() {
 I like Cangjie
 ```
 
+## struct Extern\<T> where T <: ForeignRuntime\<T>
+
+```cangjie
+public struct Extern<T> where T <: ForeignRuntime<T> {
+    public Extern(payload: Any)
+    public static func getPayload(e: Extern<T>): Any
+}
+```
+
+功能：表示特定运行时的动态值。泛型参数 `T` 通过实现 [ForeignRuntime](core_package_interfaces.md#interface-foreignruntimet-where-t--foreignruntimet)\<T> 提供动态运行时行为。
+
+编译器会识别 [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet)，并将动态成员访问、索引访问、成员更新、索引更新、函数调用以及类型转换等操作 desugar 为 `T` 上对应的静态函数调用。例如，`e.field` 会被 desugar 为 `T.memberAccess(e, "field")`，`e(args...)` 会被 desugar 为 `T.functionCall(e, args)`。
+
+> **注意：**
+>
+> - [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet) 不能被扩展。
+> - 返回 [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet)\<T> 的动态操作不会被当作 [Bool](core_package_intrinsics.md#bool) 处理。如果需要布尔值，请通过运行时对动态值进行显式转换。
+> - 对 [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet) 上已定义成员的静态访问（例如 `Extern<T>.getPayload(e)`）属于普通的静态访问，不会被 desugar 为动态成员访问。
+
+### Extern(Any)
+
+```cangjie
+public Extern(payload: Any)
+```
+
+功能：使用特定运行时的 payload 构造一个 [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet)\<T> 值。
+
+参数：
+
+- payload: [Any](core_package_interfaces.md#interface-any) - 特定运行时的 payload。
+
+### static func getPayload(Extern\<T>)
+
+```cangjie
+public static func getPayload(e: Extern<T>): Any
+```
+
+功能：获取 [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet)\<T> 值中特定运行时的 payload。
+
+参数：
+
+- e: [Extern](core_package_structs.md#struct-externt-where-t--foreignruntimet)\<T> - 动态值。
+
+返回值：
+
+- [Any](core_package_interfaces.md#interface-any) - 特定运行时的 payload。
+
 ## struct Range\<T> where T <: Countable\<T> & Comparable\<T> & Equatable\<T>
 
 ```cangjie
