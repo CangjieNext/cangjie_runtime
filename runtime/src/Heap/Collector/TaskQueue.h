@@ -152,9 +152,9 @@ class LocklessTaskQueue {
 public:
     // Add one async task to asyncTaskQueue
     // One higher priority task might erase all lower-priority tasks in queueWord
-    void Push(const T& task)
+    bool Push(const T& task)
     {
-        (void)state_.Push(task.GetPriority(), task.IsOverriding());
+        return state_.Push(task.GetPriority(), task.IsOverriding());
     }
 
     // Get the highest priority task in queueWord, or get one invalid task if queueWord is empty
@@ -214,11 +214,15 @@ public:
     }
 
     // Add one task to asyncTaskQueue
-    void EnqueueAsync(const T& task)
+    bool EnqueueAsync(const T& task)
     {
-        asyncTaskQueue.Push(task);
+        bool accepted = asyncTaskQueue.Push(task);
+        if (!accepted) {
+            return false;
+        }
         std::unique_lock<std::recursive_mutex> lock(taskQueueLock);
         taskQueueCondVar.notify_all();
+        return true;
     }
 
     // Get one gc task from task queue
@@ -237,7 +241,7 @@ public:
             }
 
             if (cvResult == std::cv_status::timeout && Heap::GetHeap().IsGCEnabled()) {
-                asyncTaskQueue.Push(T(GCTask::TaskType::TASK_TYPE_TIMEOUT_GC));
+                (void)asyncTaskQueue.Push(T(GCTask::TaskType::TASK_TYPE_TIMEOUT_GC));
             }
 
             T task = asyncTaskQueue.Pop();

@@ -22,6 +22,11 @@ class Mutator;
 
 constexpr uint8_t kNoPreferredSweepClass = UINT8_MAX;
 
+enum class DeferredHeuOrigin : uint8_t {
+    SUBMIT_SIDE = 1U << 0,
+    EXECUTE_SIDE = 1U << 1,
+};
+
 class BackgroundProcessor {
 public:
     BackgroundProcessor();
@@ -50,6 +55,12 @@ public:
     void NotifyFinalizerWork() { Notify(); }
 
     void NotifyToSweep(uint8_t cls = kNoPreferredSweepClass);
+    void NotifyToParallelSweep(DeferredHeuOrigin origin);
+    void NotifyDeferredHeuRetry();
+    bool HasDeferredHeuRetryPending() const
+    {
+        return deferredHeuRetryPending_.load(std::memory_order_acquire);
+    }
     void NotifyToScavenge();
     void NotifyToShrink();
     bool IsSweepPressureMode() const { return sweepPressureMode_.load(std::memory_order_acquire); }
@@ -71,6 +82,8 @@ private:
     bool HasPendingFeedWork();
     bool HasPendingShrinkWork();
     bool BackgroundSweepLoop();
+    bool ParallelSweepLoop();
+    void ClearDeferredHeuRequest(uint64_t handledSequence);
     bool BackgroundFeedLoop();
     bool BackgroundScavengeLoop(); // scavengeThreshold-based: Step A (flush emptySwept) + Step B (scavenge)
     bool BackgroundShrinkLoop();   // segment-level shrink: release fully idle segments without changing heap topology
@@ -86,12 +99,18 @@ private:
     U32 iterationWaitTime;
     std::atomic<bool> shouldFeedHungryBuffers;
     std::atomic<bool> shouldBackgroundSweep_;
+    std::atomic<bool> shouldParallelSweep_{false};
+    std::atomic<bool> deferredHeuRetryPending_{false};
+    std::atomic<uint8_t> deferredHeuOriginMask_{0};
+    std::atomic<uint64_t> parallelSweepRequestSeq_{0};
+    std::atomic<uint64_t> parallelSweepRoundRobin_{0};
     std::atomic<bool> shouldScavengeHeap_{false};
     std::atomic<bool> shouldShrinkHeap_{false};
     std::atomic<uint8_t> preferredSweepCls_{kNoPreferredSweepClass};
     std::atomic<bool> sweepPressureMode_{false};
     BackgroundFeedStats pendingFeedStats_{};
     BackgroundSweepStats pendingSweepStats_{};
+    BackgroundSweepStats pendingParallelSweepStats_{};
     BackgroundReclaimStats pendingScavengeStats_{};
     BackgroundReclaimStats pendingShrinkStats_{};
     FinalizerWorkList finalizerWorkList;

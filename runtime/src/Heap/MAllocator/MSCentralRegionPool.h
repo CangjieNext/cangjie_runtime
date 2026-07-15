@@ -22,6 +22,7 @@
 #include "Heap/Allocator/Allocator.h"
 #include "Base/Log.h"
 #include "Heap/MAllocator/MSMarkedStats.h"
+#include "Heap/MAllocator/MSParallelSweepPolicy.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSShardRouting.h"
 #include "Heap/MAllocator/MSSizeClass.h"
@@ -46,6 +47,7 @@ struct MSSweepCounts {
     size_t backgroundSweptRegions = 0;
     size_t lazySweptRegions = 0;
     size_t assistSweptRegions = 0;
+    size_t helperSweptRegions = 0;
 };
 
 // ============================================================================
@@ -362,6 +364,7 @@ public:
     // Background sweep: iterate all size classes, sweep one slice of unswept Regions.
     // Thread-safe (CAS ownership). Called by gc-helper thread.
     BackgroundSweepStats BackgroundSweep(uint8_t preferredCls = kNumSizeClasses);
+    BackgroundSweepStats ParallelSweep(size_t maxRegions, uint8_t preferredCls, uint64_t deadlineUs);
     void ResetSweepCounts();
     MSSweepCounts GetSweepCounts() const;
     size_t ComputeAssistSweepRegions(size_t unsweptRegions, uint32_t processorNum,
@@ -398,9 +401,12 @@ public:
     // Check whether previous-cycle sweep work is globally quiescent.
     bool IsSweepDone() const
     {
-        return sweepDone_.load(std::memory_order_acquire) &&
-               !bgSweepRunning_.load(std::memory_order_acquire) &&
-               activeLazySweepCount_.load(std::memory_order_acquire) == 0;
+        return IsMSSweepQuiescent(
+            sweepDone_.load(std::memory_order_acquire),
+            bgSweepRunning_.load(std::memory_order_acquire),
+            activeLazySweepCount_.load(std::memory_order_acquire),
+            activeAssistSweepCount_.load(std::memory_order_acquire),
+            activeHelperSweepCount_.load(std::memory_order_acquire));
     }
 
     // Visit all Regions across all size classes (for GC root enumeration).
@@ -700,6 +706,7 @@ private:
                                 size_t& sweptRegions, size_t& emptiedRegions,
                                 size_t& retainedRegions, size_t& freedBytes);
     void ForceFinishAllUnswept();
+    bool TryPublishSweepDone();
     size_t AssistSweep(size_t targetRegions, uint8_t preferredCls, AllocBufferMS* preferredOwner);
     bool SweepOneUnsweptRegionForAssist(SizeClassBucket& bucket, SizeClassBucket::UnsweptListKind listKind,
                                         uint32_t sg, AllocBufferMS* preferredOwner,
@@ -747,24 +754,34 @@ private:
             sweptRegionsThisCycle_.fetch_add(sweptRegions, std::memory_order_relaxed);
         }
     }
+    void RecordHelperSweep(size_t sweptRegions)
+    {
+        if (sweptRegions != 0) {
+            helperSweptRegions_.fetch_add(sweptRegions, std::memory_order_relaxed);
+            sweptRegionsThisCycle_.fetch_add(sweptRegions, std::memory_order_relaxed);
+        }
+    }
     static std::atomic<uint32_t> globalSweepGen_;
     std::atomic<bool> sweepDone_{true};
     std::atomic<bool> bgSweepRunning_{false};
     std::atomic<bool> stopSweepRequested_{false};    // Signal bg sweep to stop early
     std::atomic<bool> skipLazySweep_{false};          // Disable lazy sweep in GetRegion P2/P3
     std::atomic<bool> skipAssistSweep_{false};        // Disable mutator assist sweep before STW
+    std::atomic<bool> skipHelperSweep_{false};        // Disable GC-helper pool sweep before STW
     std::atomic<size_t> activeLazySweepCount_{0};     // In-flight lazy sweep counter
     std::atomic<size_t> activeAssistSweepCount_{0};   // In-flight mutator assist sweep counter
+    std::atomic<size_t> activeHelperSweepCount_{0};   // In-flight parallel helper sweep counter
     std::atomic<size_t> backgroundSweptRegions_{0};
     std::atomic<size_t> lazySweptRegions_{0};
     std::atomic<size_t> assistSweptRegions_{0};
+    std::atomic<size_t> helperSweptRegions_{0};
 
     // ===== Proportional sweep-assist pacing (Go-style ratio + credit) =====
     // sweepRegionsPerAlloc_ is fixed once per cycle in PrepareForSweep() and is
     // read-only during the cycle: ratio = totalUnswept / runwayRegions. The two
     // counters below are the cycle-local pacing basis, reset at PrepareForSweep().
     //   allocFreshRegionsThisCycle_ — allocation progress (regions consumed)
-    //   sweptRegionsThisCycle_      — sweep progress, shared by background/lazy/assist
+    //   sweptRegionsThisCycle_      — sweep progress, shared by background/lazy/assist/helper
     //                                 so background work auto-credits mutator debt.
     double sweepRegionsPerAlloc_{0.0};
     std::atomic<size_t> allocFreshRegionsThisCycle_{0};

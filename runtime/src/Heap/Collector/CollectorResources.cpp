@@ -19,6 +19,14 @@
 #include "Mutator/MutatorManager.h"
 
 namespace MapleRuntime {
+namespace {
+bool IsGCDisabledByEnvironment()
+{
+    static const bool gcDisabled = ReadBoolParameter("CJ_GC_DISABLE", false);
+    return gcDisabled;
+}
+} // namespace
+
 extern "C" uintptr_t MRT_StopGCWork()
 {
     Heap::GetHeap().StopGCWork();
@@ -86,6 +94,7 @@ void CollectorResources::Fini()
 void CollectorResources::StopGCWork()
 {
 #ifdef MRT_USE_MARK_SWEEP
+    msgcWorkerPoolController_.BeginStop();
     backgroundProcessor.Stop();
 #else
     finalizerProcessor.Stop();
@@ -93,6 +102,26 @@ void CollectorResources::StopGCWork()
     TerminateGCTask();
     StopGCThreads();
 }
+
+#ifdef MRT_USE_MARK_SWEEP
+bool CollectorResources::TryAcquireMSGCWorkerPoolForSweep()
+{
+    return gcThreadPool != nullptr && msgcWorkerPoolController_.TryAcquireSweep();
+}
+
+bool CollectorResources::AcquireMSGCWorkerPoolForMark()
+{
+    return gcThreadPool != nullptr && msgcWorkerPoolController_.AcquireMark();
+}
+
+void CollectorResources::ReleaseMSGCWorkerPool(MSGCWorkerPoolOwner owner)
+{
+    bool released = msgcWorkerPoolController_.Release(owner);
+    CHECK_DETAIL(released, "invalid MSGC worker-pool owner release: expected=%u actual=%u",
+                 static_cast<unsigned>(owner),
+                 static_cast<unsigned>(msgcWorkerPoolController_.GetOwner()));
+}
+#endif
 
 // Send terminate task to gc thread.
 void CollectorResources::TerminateGCTask()
@@ -140,14 +169,31 @@ void CollectorResources::PostIgnoredGcRequest(GCReason reason)
     }
 }
 
-void CollectorResources::RequestAsyncGC(GCReason reason)
+bool CollectorResources::RequestAsyncGC(GCReason reason)
 {
     // The gc request must be none blocked
     MRT_ASSERT(!g_gcRequests[reason].IsSyncGC(), "trigger from unsafe context must be none blocked");
     GCExecutor gcTask(GCTask::TaskType::TASK_TYPE_INVOKE_GC, reason);
     // we use async enqueue because this doesn't have locks, lowering the risk
     // of timeouts when entering safe region due to thread scheduling
-    taskQueue->EnqueueAsync(gcTask);
+    return taskQueue->EnqueueAsync(gcTask);
+}
+
+AsyncGCEnqueueResult CollectorResources::TryRequestAsyncGC(GCReason reason)
+{
+    if (IsGCDisabledByEnvironment() || !IsGCActive() || taskQueue == nullptr ||
+        !gcThreadRunning.load(std::memory_order_acquire)) {
+        return AsyncGCEnqueueResult::GC_INACTIVE_OR_STOPPING;
+    }
+
+    GCRequest& request = g_gcRequests[reason];
+    MRT_ASSERT(!request.IsSyncGC(), "TryRequestAsyncGC requires an asynchronous GC reason");
+    request.SetPrevRequestTime(TimeUtil::NanoSeconds());
+    if (collectorProxy.ShouldIgnoreRequest(request)) {
+        return AsyncGCEnqueueResult::IGNORED_BY_POLICY;
+    }
+    return RequestAsyncGC(reason) ? AsyncGCEnqueueResult::ACCEPTED
+                                  : AsyncGCEnqueueResult::DUPLICATE_PENDING_OR_RUNNING;
 }
 
 void CollectorResources::RequestGCAndWait(GCReason reason)
@@ -181,11 +227,18 @@ void CollectorResources::RequestGCAndWait(GCReason reason)
 void CollectorResources::RequestGC(GCReason reason, bool async)
 {
     // CJ_GC_DISABLE=1 : suppress all GC requests (for pure-alloc benchmarking).
-    static const bool gcDisabled = ReadBoolParameter("CJ_GC_DISABLE", false);
-    if (gcDisabled) {
+    if (IsGCDisabledByEnvironment()) {
         return;
     }
     if (!IsGCActive()) {
+        return;
+    }
+
+    if (async) {
+        AsyncGCEnqueueResult result = TryRequestAsyncGC(reason);
+        if (result == AsyncGCEnqueueResult::IGNORED_BY_POLICY) {
+            DLOG(ALLOC, "ignore gc request");
+        }
         return;
     }
 
@@ -195,8 +248,6 @@ void CollectorResources::RequestGC(GCReason reason, bool async)
     if (collectorProxy.ShouldIgnoreRequest(request)) {
         DLOG(ALLOC, "ignore gc request");
         PostIgnoredGcRequest(reason);
-    } else if (async) {
-        RequestAsyncGC(reason);
     } else {
         RequestGCAndWait(reason);
     }
@@ -210,6 +261,11 @@ void CollectorResources::NotifyGCFinished(uint64_t gcIndex)
         finishedGcIndex.store(gcIndex);
     }
     gcFinishedCondVar.notify_all();
+#ifdef MRT_USE_MARK_SWEEP
+    if (backgroundProcessor.IsRunning() && backgroundProcessor.HasDeferredHeuRetryPending()) {
+        backgroundProcessor.NotifyDeferredHeuRetry();
+    }
+#endif
     BroadcastGCCompletion();
 }
 

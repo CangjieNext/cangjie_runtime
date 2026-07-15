@@ -322,6 +322,8 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
             .msBackgroundShrink = static_cast<uint8_t>(param->gcParam.msBackgroundShrink != 0 ? 1U : 0U),
             .msVerifyMark = param->gcParam.msVerifyMark,
             .msVerifyMarkDetail = param->gcParam.msVerifyMarkDetail,
+            .msParallelSweepMaxHelpers = param->gcParam.msParallelSweepMaxHelpers,
+            .msParallelSweep = static_cast<uint8_t>(param->gcParam.msParallelSweep != 0 ? 1U : 0U),
         },
         .logParam = {
             .logLevel = param->logParam.logLevel,

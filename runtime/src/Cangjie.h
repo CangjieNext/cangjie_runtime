@@ -376,6 +376,17 @@ struct GCParam {
      * MSGC detailed verify-mark switch. 0 = off, 1 = on.
      */
     uint8_t msVerifyMarkDetail;
+
+    /*
+     * Maximum GC helper threads borrowed by MSGC parallel Sweep.
+     * 0 selects the automatic cap (gcThreads - 1).
+     */
+    size_t msParallelSweepMaxHelpers;
+
+    /*
+     * MSGC dynamic parallel Sweep switch. 0 = off, 1 = on.
+     */
+    uint8_t msParallelSweep;
 };
 
 /*

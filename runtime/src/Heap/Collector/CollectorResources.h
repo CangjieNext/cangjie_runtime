@@ -8,10 +8,13 @@
 #ifndef MRT_COLLECTOR_RESOURCES_H
 #define MRT_COLLECTOR_RESOURCES_H
 
+#include <cstdint>
+
 #include "Base/Macros.h"
 #include "FinalizerProcessor.h"
 #ifdef MRT_USE_MARK_SWEEP
 #include "Heap/MCollector/BackgroundProcessor.h"
+#include "Heap/Collector/MSGCWorkerPoolController.h"
 #endif
 #include "Heap/Collector/TaskQueue.h"
 #include "Heap/GcThreadPool.h"
@@ -20,6 +23,14 @@
 
 namespace MapleRuntime {
 class CollectorProxy;
+
+enum class AsyncGCEnqueueResult : uint8_t {
+    ACCEPTED,
+    DUPLICATE_PENDING_OR_RUNNING,
+    IGNORED_BY_POLICY,
+    GC_INACTIVE_OR_STOPPING,
+};
+
 // CollectorResources provides the resources that a functional collector need,
 // such as gc thread/threadPool, gc task queue...
 class CollectorResources {
@@ -35,6 +46,7 @@ public:
     void Fini();
     void StopGCWork();
     void RequestGC(GCReason reason, bool async);
+    AsyncGCEnqueueResult TryRequestAsyncGC(GCReason reason);
     void WaitForGCFinish();
     // gc main loop
     void RunTaskLoop();
@@ -44,6 +56,13 @@ public:
     int32_t GetGCThreadCount(const bool isConcurrent) const;
 
     GCThreadPool* GetThreadPool() const { return gcThreadPool; }
+
+#ifdef MRT_USE_MARK_SWEEP
+    bool TryAcquireMSGCWorkerPoolForSweep();
+    bool AcquireMSGCWorkerPoolForMark();
+    void ReleaseMSGCWorkerPool(MSGCWorkerPoolOwner owner);
+    MSGCWorkerPoolOwner GetMSGCWorkerPoolOwner() const { return msgcWorkerPoolController_.GetOwner(); }
+#endif
 
     bool IsHeapMarked() const { return isHeapMarked; }
 
@@ -135,7 +154,7 @@ private:
     // Notify the GC thread to start GC, and doesn't wait.
     // Called by mutator.
     // reason: The reason for this GC.
-    void RequestAsyncGC(GCReason reason);
+    bool RequestAsyncGC(GCReason reason);
     void RequestGCAndWait(GCReason reason);
     void PostIgnoredGcRequest(GCReason reason);
 
@@ -187,6 +206,7 @@ private:
     FinalizerProcessor finalizerProcessor;
 #ifdef MRT_USE_MARK_SWEEP
     mutable BackgroundProcessor backgroundProcessor;
+    MSGCWorkerPoolController msgcWorkerPoolController_;
 #endif
     GCStats gcStats;
 };

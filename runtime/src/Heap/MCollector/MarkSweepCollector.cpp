@@ -378,7 +378,7 @@ bool MarkSweepCollector::ShouldExecuteQueuedRequest(GCReason reason)
     if (decision == MSHeuExecutionDecision::DEFER_FOR_SWEEP) {
         BackgroundProcessor& backgroundProcessor =
             Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
-        backgroundProcessor.NotifyToSweep(kNoPreferredSweepClass);
+        backgroundProcessor.NotifyToParallelSweep(DeferredHeuOrigin::EXECUTE_SIDE);
     }
     VLOG(REPORT,
          "[MS-GC] queued HEU skipped before execute: swept=%zuB threshold=%zuB mode=%d decision=%d",
@@ -397,12 +397,6 @@ void MarkSweepCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
     gcStats.reason = reason;
     gcStats.collectedBytes = 0;
     gcStats.gcStartTime = TimeUtil::NanoSeconds();
-    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
-    CentralRegionPool* centralPool = space.GetCentralPool();
-    if (centralPool != nullptr) {
-        centralPool->ResetSweepCounts();
-    }
-
     // Block ①: GC Entry
     LogGCEntry(gcIndex, reason);
 
@@ -726,6 +720,16 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
     } else {
         maxHelpers = std::min(maxHelpers, static_cast<size_t>(threadPool->GetMaxThreadNum()));
     }
+    bool markPoolOwned = false;
+    if (maxHelpers != 0) {
+        markPoolOwned = collectorResources.AcquireMSGCWorkerPoolForMark();
+        if (!markPoolOwned) {
+            // Runtime shutdown may close the pool owner gate while a queued GC is
+            // finishing. Complete the mark serially instead of publishing work
+            // into a pool that is entering STOPPING.
+            maxHelpers = 0;
+        }
+    }
     MSMarkWorkerPolicy workerPolicy(maxHelpers);
     MSMarkWorkerDecision workerDecision = workerPolicy.Update(globalFull_.GetCounts().total);
     StartMarkWorkers(maxHelpers, workerDecision.activeHelpers);
@@ -868,6 +872,9 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
          static_cast<size_t>(0),
          static_cast<unsigned long long>(tailDraining ? tailAssistRatio : 0),
          quiesceResidualBuffers);
+    if (markPoolOwned) {
+        collectorResources.ReleaseMSGCWorkerPool(MSGCWorkerPoolOwner::MARK);
+    }
 }
 
 void MarkSweepCollector::StartMarkWorkers(size_t maxHelpers, size_t initialHelpers)
@@ -2086,10 +2093,12 @@ void MarkSweepCollector::DumpRegionStatsMS()
     CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool != nullptr) {
         MSSweepCounts sweepCounts = centralPool->GetSweepCounts();
-        VLOG(REPORT, "[MS-GC]   sweep-counts: bg=%zu regions, lazy=%zu regions, assist=%zu regions",
+        VLOG(REPORT, "[MS-GC]   sweep-counts: bg=%zu regions, lazy=%zu regions, "
+             "assist=%zu regions, helper=%zu regions",
              sweepCounts.backgroundSweptRegions,
              sweepCounts.lazySweptRegions,
-             sweepCounts.assistSweptRegions);
+             sweepCounts.assistSweptRegions,
+             sweepCounts.helperSweptRegions);
         centralPool->DumpPoolStats();
         uint32_t processorNum = Runtime::CurrentRef() != nullptr
             ? Runtime::Current().GetConcurrencyModel().GetProcessorNum()

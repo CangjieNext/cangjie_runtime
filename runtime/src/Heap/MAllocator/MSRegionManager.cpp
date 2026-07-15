@@ -326,7 +326,7 @@ void MSRegionManager::MaybeNotifyMark()
     if (decision == MSHeuExecutionDecision::DEFER_FOR_SWEEP) {
         BackgroundProcessor& backgroundProcessor =
             Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
-        backgroundProcessor.NotifyToSweep(kNoPreferredSweepClass);
+        backgroundProcessor.NotifyToParallelSweep(DeferredHeuOrigin::SUBMIT_SIDE);
         VLOG(REPORT,
              "[MS-GC] HEU deferred by sweep backlog: swept=%zuB threshold=%zuB mode=%d",
              sweptBytes, threshold, static_cast<int>(debt.mode));

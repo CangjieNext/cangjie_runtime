@@ -98,6 +98,7 @@ void CentralRegionPool::ResetSweepCounts()
     backgroundSweptRegions_.store(0, std::memory_order_relaxed);
     lazySweptRegions_.store(0, std::memory_order_relaxed);
     assistSweptRegions_.store(0, std::memory_order_relaxed);
+    helperSweptRegions_.store(0, std::memory_order_relaxed);
 }
 
 MSSweepCounts CentralRegionPool::GetSweepCounts() const
@@ -106,7 +107,21 @@ MSSweepCounts CentralRegionPool::GetSweepCounts() const
     counts.backgroundSweptRegions = backgroundSweptRegions_.load(std::memory_order_acquire);
     counts.lazySweptRegions = lazySweptRegions_.load(std::memory_order_acquire);
     counts.assistSweptRegions = assistSweptRegions_.load(std::memory_order_acquire);
+    counts.helperSweptRegions = helperSweptRegions_.load(std::memory_order_acquire);
     return counts;
+}
+
+bool CentralRegionPool::TryPublishSweepDone()
+{
+    if (GetTotalUnsweptCount() != 0 ||
+        bgSweepRunning_.load(std::memory_order_acquire) ||
+        activeLazySweepCount_.load(std::memory_order_acquire) != 0 ||
+        activeAssistSweepCount_.load(std::memory_order_acquire) != 0 ||
+        activeHelperSweepCount_.load(std::memory_order_acquire) != 0) {
+        return false;
+    }
+    sweepDone_.store(true, std::memory_order_release);
+    return true;
 }
 
 void CentralRegionPool::MaybeNotifySweep(uint8_t cls) const
@@ -251,7 +266,8 @@ MSRegionInfo* CentralRegionPool::TakeUnsweptRegion(uint8_t cls)
     // JSON parse buffer). The matching fence lives in StopAndWaitForAllSweep.
     std::atomic_thread_fence(std::memory_order_seq_cst);
     if (skipLazySweep_.load(std::memory_order_acquire)) {
-        activeLazySweepCount_.fetch_sub(1, std::memory_order_relaxed);
+        activeLazySweepCount_.fetch_sub(1, std::memory_order_release);
+        (void)TryPublishSweepDone();
         return nullptr;
     }
 
@@ -259,7 +275,8 @@ MSRegionInfo* CentralRegionPool::TakeUnsweptRegion(uint8_t cls)
     if (sweptRegion == nullptr) {
         sweptRegion = SweepUnsweptList(UnsweptListKind::FULL);
     }
-    activeLazySweepCount_.fetch_sub(1, std::memory_order_relaxed);
+    activeLazySweepCount_.fetch_sub(1, std::memory_order_release);
+    (void)TryPublishSweepDone();
     return sweptRegion;
 }
 
@@ -678,6 +695,7 @@ void CentralRegionPool::PrepareForSweep()
     // this cycle from the swept lists into the unswept lists. Counting before the
     // flip would read the previous cycle's residual unswept lists (already drained
     // to ~0 by ForceFinishAllUnswept), yielding totalUnswept==0 and a zero ratio.
+    ResetSweepCounts();
     size_t totalUnswept = 0;
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
         buckets_[cls].FlipSweptToUnswept();
@@ -733,8 +751,8 @@ BackgroundSweepStats CentralRegionPool::BackgroundSweep(uint8_t preferredCls)
     uint64_t t0 = TimeUtil::MicroSeconds();
     size_t remainingUnswept = GetTotalUnsweptCount();
     if (remainingUnswept == 0) {
-        sweepDone_.store(true, std::memory_order_release);
         finish();
+        (void)TryPublishSweepDone();
         return {};
     }
     // Per-slice time budget scales with the latched sweep-debt tier (Step34 §18.4):
@@ -777,11 +795,51 @@ BackgroundSweepStats CentralRegionPool::BackgroundSweep(uint8_t preferredCls)
 
     uint64_t elapsed = TimeUtil::MicroSeconds() - t0;
 
-    if (!pendingWork && !stopSweepRequested_.load(std::memory_order_acquire)) {
-        sweepDone_.store(true, std::memory_order_release);
-    }
     RecordBackgroundSweep(sweptInSlice);
     finish();
+    if (!pendingWork && !stopSweepRequested_.load(std::memory_order_acquire)) {
+        (void)TryPublishSweepDone();
+    }
+    return BackgroundSweepStats{1, sweptInSlice, emptyInSlice, elapsed};
+}
+
+BackgroundSweepStats CentralRegionPool::ParallelSweep(size_t maxRegions, uint8_t preferredCls,
+                                                       uint64_t deadlineUs)
+{
+    if (maxRegions == 0) {
+        return {};
+    }
+
+    activeHelperSweepCount_.fetch_add(1, std::memory_order_relaxed);
+    std::atomic_thread_fence(std::memory_order_seq_cst);
+    if (skipHelperSweep_.load(std::memory_order_acquire) ||
+        stopSweepRequested_.load(std::memory_order_acquire)) {
+        activeHelperSweepCount_.fetch_sub(1, std::memory_order_release);
+        (void)TryPublishSweepDone();
+        return {};
+    }
+
+    uint64_t t0 = TimeUtil::MicroSeconds();
+    uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
+    size_t sweptInSlice = 0;
+    size_t emptyInSlice = 0;
+    auto classOrder = BuildBackgroundSweepClassOrder(preferredCls);
+    for (uint8_t cls : classOrder) {
+        SizeClassBucket& bucket = buckets_[cls];
+        if (!SweepUnsweptList(bucket, SizeClassBucket::UnsweptListKind::PARTIAL,
+                              sg, sweptInSlice, maxRegions, deadlineUs, &emptyInSlice)) {
+            break;
+        }
+        if (!SweepUnsweptList(bucket, SizeClassBucket::UnsweptListKind::FULL,
+                              sg, sweptInSlice, maxRegions, deadlineUs, &emptyInSlice)) {
+            break;
+        }
+    }
+
+    RecordHelperSweep(sweptInSlice);
+    uint64_t elapsed = TimeUtil::MicroSeconds() - t0;
+    activeHelperSweepCount_.fetch_sub(1, std::memory_order_release);
+    (void)TryPublishSweepDone();
     return BackgroundSweepStats{1, sweptInSlice, emptyInSlice, elapsed};
 }
 
@@ -900,19 +958,14 @@ size_t CentralRegionPool::AssistSweep(size_t targetRegions, uint8_t preferredCls
     }
 
     activeAssistSweepCount_.fetch_add(1, std::memory_order_relaxed);
-    struct AssistSweepGuard {
-        std::atomic<size_t>& counter;
-        ~AssistSweepGuard()
-        {
-            counter.fetch_sub(1, std::memory_order_relaxed);
-        }
-    } guard { activeAssistSweepCount_ };
 
     // Pair with StopAndWaitForAllSweep's seq_cst fence so the assist-skip store
     // and activeAssistSweepCount_ load form a sequentially consistent StoreLoad.
     std::atomic_thread_fence(std::memory_order_seq_cst);
     if (skipAssistSweep_.load(std::memory_order_acquire) ||
         stopSweepRequested_.load(std::memory_order_acquire)) {
+        activeAssistSweepCount_.fetch_sub(1, std::memory_order_release);
+        (void)TryPublishSweepDone();
         return 0;
     }
 
@@ -935,6 +988,8 @@ size_t CentralRegionPool::AssistSweep(size_t targetRegions, uint8_t preferredCls
             break;
         }
     }
+    activeAssistSweepCount_.fetch_sub(1, std::memory_order_release);
+    (void)TryPublishSweepDone();
     return sweptRegions;
 }
 
@@ -1622,6 +1677,7 @@ void CentralRegionPool::StopAndWaitForAllSweep()
     // 2. Disable mutator-initiated sweep paths in GetRegion / assist.
     skipLazySweep_.store(true, std::memory_order_release);
     skipAssistSweep_.store(true, std::memory_order_release);
+    skipHelperSweep_.store(true, std::memory_order_release);
 
     // Pair with the seq_cst fences on the lazy-sweep / assist-sweep paths: this
     // makes the skip-store / active*SweepCount-load a sequentially consistent
@@ -1645,8 +1701,12 @@ void CentralRegionPool::StopAndWaitForAllSweep()
     while (activeAssistSweepCount_.load(std::memory_order_acquire) > 0) {
         std::this_thread::yield();
     }
+    while (activeHelperSweepCount_.load(std::memory_order_acquire) > 0) {
+        std::this_thread::yield();
+    }
 
     size_t unsweptBefore = GetTotalUnsweptCount();
+    MSSweepCounts sweepCounts = GetSweepCounts();
     ForceFinishAllUnswept();
     size_t unsweptAfter = GetTotalUnsweptCount();
     size_t activeBytes = GetActiveMSRegionCount() * MS_REGION_SIZE;
@@ -1654,8 +1714,12 @@ void CentralRegionPool::StopAndWaitForAllSweep()
     size_t largeCache = GetLargeHotCacheRegionCount() * MS_REGION_SIZE;
     size_t totalRetained = activeBytes + emptySwept + largeCache;
     VLOG(REPORT, "[MS-GC] StopAndWaitForAllSweep: forceSwept=%zu->%zu unswept regions, "
-         "retained=%zuB activeBytes=%zuB emptySwept=%zuB largeCache=%zuB",
-         unsweptBefore, unsweptAfter, totalRetained, activeBytes, emptySwept, largeCache);
+         "sources(bg=%zu lazy=%zu assist=%zu helper=%zu) retained=%zuB "
+         "activeBytes=%zuB emptySwept=%zuB largeCache=%zuB",
+         unsweptBefore, unsweptAfter,
+         sweepCounts.backgroundSweptRegions, sweepCounts.lazySweptRegions,
+         sweepCounts.assistSweptRegions, sweepCounts.helperSweptRegions,
+         totalRetained, activeBytes, emptySwept, largeCache);
 }
 
 void CentralRegionPool::ClearAllMarkBitmaps()
@@ -1725,6 +1789,7 @@ void CentralRegionPool::ReenableLazySweep()
 {
     skipLazySweep_.store(false, std::memory_order_release);
     skipAssistSweep_.store(false, std::memory_order_release);
+    skipHelperSweep_.store(false, std::memory_order_release);
     stopSweepRequested_.store(false, std::memory_order_release);
 }
 

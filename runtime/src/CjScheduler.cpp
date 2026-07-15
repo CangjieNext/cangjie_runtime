@@ -526,6 +526,10 @@ static RuntimeParam InitRuntimeParam()
             .msVerifyMark = static_cast<uint8_t>(ReadBoolParameter("cjMSVerifyMark", false) ? 1U : 0U),
             .msVerifyMarkDetail =
                 static_cast<uint8_t>(ReadBoolParameter("cjMSVerifyMarkDetail", false) ? 1U : 0U),
+            .msParallelSweepMaxHelpers = ReadCountParameter(
+                "cjMSParallelSweepMaxHelpers", 0, 0, EnvBoundKind::CLOSED),
+            .msParallelSweep =
+                static_cast<uint8_t>(ReadBoolParameter("cjMSParallelSweep", true) ? 1U : 0U),
         },
         .logParam = {
             .logLevel = LogFile::GetLogLevel(),
