@@ -775,7 +775,7 @@ void ProcessorSchedule(void)
 #ifdef __OHOS__
             TRACE_START_ASYNC(TRACE_CJTHREAD_EXEC, nextCJThread->id);
 #elif defined (__ANDROID__)
-            TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXEC, nextCJThread->id));
+            TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXEC, nextCJThread->id).Str());
 #endif
 #ifdef __OHOS__
             if (nextCJThread->schedule->scheduleType == SCHEDULE_UI_THREAD) {
@@ -808,7 +808,7 @@ void ProcessorSchedule(void)
 #ifdef __OHOS__
             TRACE_START_ASYNC(TRACE_CJTHREAD_EXEC, nextCJThread->id);
 #elif defined (__ANDROID__)
-            TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXEC, nextCJThread->id));
+            TRACE_START(MapleRuntime::TraceInfoFormat(TRACE_CJTHREAD_EXEC, nextCJThread->id).Str());
 #endif
 #ifdef __OHOS__
             if (nextCJThread->schedule->scheduleType == SCHEDULE_UI_THREAD) {
