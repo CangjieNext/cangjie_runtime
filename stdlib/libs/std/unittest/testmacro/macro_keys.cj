@@ -105,6 +105,7 @@ enum MacroKind {
     | Configuration // configures an existing runnable entity
     | Lifecycle // controls lifecycle and cannot have any other annotations apart from other lifecycle annotations
     | Assertion // registers custom assertion function and prevents other annotations being put
+    | Concurrent // markers for member declarations for concurrent test configuration
 }
 
 enum MacroPlacement {
@@ -199,6 +200,7 @@ struct MacroKey <: ToString & Equatable<MacroKey> & Hashable {
             case (Configuration, Configuration) => true
             case (Lifecycle, Lifecycle) => true
             case (Assertion, Assertion) => true
+            case (Concurrent, Concurrent) => true
             case _ => false
         }
     }
@@ -250,19 +252,24 @@ struct MacroKey <: ToString & Equatable<MacroKey> & Hashable {
             }
         }
 
-        let lifecycleKeys = attrs.keys() |> filter { it: MacroKey => it.isOfKind(Lifecycle) } |> collectArray
-        let nonLifecycleKeys = attrs.keys() |> filter { it: MacroKey => !it.isOfKind(Lifecycle) } |> collectArray
-        for (lifecycleKey in lifecycleKeys) {
-            for (nonLifecycleKey in nonLifecycleKeys) {
-                errors.add("${lifecycleKey} macro can't be used together with ${nonLifecycleKey}.")
-            }
-        }
+        checkOnlyOfKindIfAny(attrs, errors, MacroKind.Lifecycle)
+        checkOnlyOfKindIfAny(attrs, errors, MacroKind.Concurrent)
 
         let assertionKeys = attrs.keys() |> filter { it: MacroKey => it.isOfKind(Assertion) } |> collectArray
         let nonAssertionKeysCount = attrs.keys() |> filter { it: MacroKey => !it.isOfKind(Assertion) } |> count
 
         if (assertionKeys.size != 0 && nonAssertionKeysCount != 0) {
             errors.add("${assertionKeys[0]} macro can't be used together with any other macro.")
+        }
+    }
+
+    private static func checkOnlyOfKindIfAny(attrs: MacroAttrs, errors: MacroErrors, kind: MacroKind) {
+        let keys = attrs.keys() |> filter { it: MacroKey => it.isOfKind(kind) } |> collectArray
+        let otherKeys = attrs.keys() |> filter { it: MacroKey => !it.isOfKind(kind) } |> collectArray
+        for (key in keys) {
+            for (otherKey in otherKeys) {
+                errors.add("${key} macro can't be used together with ${otherKey}.")
+            }
         }
     }
 
