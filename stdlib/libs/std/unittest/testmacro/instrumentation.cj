@@ -131,7 +131,7 @@ class InstrumentedStressTest <: InstrumentedFunction {
     public open func creationArgs(funIdent: Tokens, argNames: Array<String>, argTypes: Array<Tokens>): Tokens {
         // FIXME: Allow ScenarioBuilder argument somewhere else, or even without it?
         if (argTypes.size < 1 || argTypes[0].size < 1 || argTypes[0][0].value != "ScenarioBuilder") {
-            throw MacroException("StressTest must explicitly declare scenario builder parameter of type ScenarioBuilder. @StressTest[scenario in scenarios()]")
+            throw MacroException("@StressTest declaration must have first parameter of type ScenarioBuilder")
         }
         let namesTokens = argNames |> map{ x => Token(IDENTIFIER, x) } |> collectArray<Token>
         let argType = nestedTuple(argTypes).ifEmpty(quote(Unit))
@@ -353,16 +353,18 @@ class InstrumentedClass {
         let genericConstraints: ArrayList<GenericConstraint>,
         let types: Array<(String, Array<Tokens>)>,
         let measurements: Array<Expr>,
-        // FIXME: Probably should be extracted to separate class
         let memberVariables: Array<VarDecl>,
         let concurrentOperations: Array<FuncDecl>,
+        let isConcurrentTest: Bool,
     ) {}
 
     init(original: ClassDecl) {
         this.original = ClassDescriptor(original)
         this.configuration = loadClassConfiguration(original)
         this.measurements = loadMeasurements(original)
-        (this.memberVariables, this.concurrentOperations) = loadConcurrentConfiguration(original)
+        this.memberVariables = collectMemberVariables(original)
+        this.concurrentOperations = collectConcurrentOperations(original)
+        this.isConcurrentTest = original.has(CONCURRENT_TEST_MACRO)
 
         this.testFunctions = ArrayList()
 
@@ -378,9 +380,9 @@ class InstrumentedClass {
         let className = Token(IDENTIFIER, "TestCase_" + original.identifier.value)
         let fakeClass = ClassDescriptor(className: className, modifiers: Tokens(), members: ArrayList<Decl>(), inject: [originalTokens], superTypes: [])
         this.original = fakeClass
-        // TODO: Maybe allow for functions
         this.memberVariables = []
         this.concurrentOperations = []
+        this.isConcurrentTest = false
 
         this.configuration = loadFuncConfiguration(original)
         this.measurements = loadMeasurements(original)
@@ -409,6 +411,12 @@ class InstrumentedClass {
         }
     }
 
+    private prop concurrentTestStateClassName: Token {
+        get() {
+            Token(TokenKind.IDENTIFIER, original.className.value + "_State")
+        }
+    }
+
     private func instrumentClassItems(items: Iterable<Decl>) {
         for (decl in items) {
             let funcDecl = decl as FuncDecl ?? continue
@@ -422,7 +430,6 @@ class InstrumentedClass {
             if (funcDecl.has(BENCH_MACRO)) {
                 testFunctions.add(InstrumentedBench(funcDecl))
             }
-            // FIXME: Move to another class
             if (funcDecl.has(STRESS_TEST_MACRO)) {
                 testFunctions.add(InstrumentedStressTest(funcDecl))
             }
@@ -577,10 +584,7 @@ class InstrumentedClass {
     }
 
     private func buildConcurrentStateClass(tb: TokensBuilder): TokensBuilder {
-        // FIXME: Unifying state class name construction
-        let stateClassNameTokens = Token(TokenKind.IDENTIFIER, original.className.value + "___State")
-
-        tb.append(quote(private class $stateClassNameTokens)).curlyBraces { tb => 
+        tb.append(quote(private class $concurrentTestStateClassName)).curlyBraces { tb => 
             for (varDecl in memberVariables) {
                 tb.append(varDecl.toTokens())
             }
@@ -594,23 +598,19 @@ class InstrumentedClass {
 
     private func buildCreateOperationsManager(tb: TokensBuilder): TokensBuilder {
         tb.append(quote(private func createOperationsManager(): OperationsManager)).curlyBraces { tb => 
-            // FIXME: Unifying state class name construction
-            let stateClassNameTokens = Token(TokenKind.IDENTIFIER, original.className.value + "___State")
-
             tb.append(quote(
-                let state = Box($stateClassNameTokens())
+                let state = Box($concurrentTestStateClassName())
                 let opManager = OperationsManager(
                     scenario()
                         .consistencyModel(Linearizability)
-                        .reset { => state.value = $stateClassNameTokens() }
+                        .reset { => state.value = $concurrentTestStateClassName() }
                 )
             ))
 
             for (operationFunc in concurrentOperations) {
                 let groupLitTokens = if (let Some(tokens) <- operationFunc.loadSingle(GROUP_MACRO)) {
                     if (tokens.size != 1) {
-                        // FIXME: handle properly
-                        throw Exception("@Group macro must have exactly one string argument")
+                        throw MacroException("@Group macro must have exactly one string argument")
                     }
                     let groupIdent = Token(TokenKind.STRING_LITERAL, tokens[0].value)
                     quote(Option<String>.Some($groupIdent))
@@ -718,8 +718,7 @@ class InstrumentedClass {
 
         MacroStorage.markTestGenerated(tb)
 
-        // FIXME: Check ConcurrentTest macro on class
-        if (!concurrentOperations.isEmpty()) {
+        if (isConcurrentTest) {
             buildConcurrentStateClass(tb)
         }
 
@@ -740,8 +739,7 @@ class InstrumentedClass {
         tb.curlyBraces { tb =>
             let numConstructors = Box(0)
 
-            // FIXME: Check ConcurrentTest macro on class
-            if (!concurrentOperations.isEmpty()) {
+            if (isConcurrentTest) {
                 buildCreateOperationsManager(tb)
                 buildScenarios(tb)
             }
@@ -822,27 +820,30 @@ private func loadConfiguration(original: Decl, configs: ArrayList<(Token, Expr)>
     }
 }
 
-// FIXME: (init, [(operation_name, group)])
-private func loadConcurrentConfiguration(concurrentTest: ClassDecl): (Array<VarDecl>, Array<FuncDecl>) {
-    let operations = ArrayList<FuncDecl>()
+private func collectMemberVariables(concurrentTest: ClassDecl): Array<VarDecl> {
     let memberVariables = ArrayList<VarDecl>()
 
     for (decl in concurrentTest.body.decls) {
         if (let decl : VarDecl <- decl) {
             memberVariables.add(decl)
         }
-        // FIXME: Probably also static methods. Instance methods cannot be called in fields initializers
-        // Also there must be a noargs consturctor
+    }
+    return memberVariables.toArray()
+}
+
+private func collectConcurrentOperations(concurrentTest: ClassDecl): Array<FuncDecl> {
+    let operations = ArrayList<FuncDecl>()
+
+    for (decl in concurrentTest.body.decls) {
         if (decl.has(OPERATION_MACRO)) {
             match (decl) {
                 case funcDecl : FuncDecl => operations.add(funcDecl)
-                // FIXME: handle properly
-                case _ => throw Exception("unreachable")
+                case _ => throw MacroException("Only function declarations can be marked with @Operation")
             }
         }
     }
 
-    return (memberVariables.toArray(), operations.toArray())
+    return operations.toArray()
 }
 
 func loadClassConfiguration(original: Decl): Array<(Token, Expr)> {
