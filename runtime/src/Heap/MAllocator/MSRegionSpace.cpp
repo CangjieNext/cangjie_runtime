@@ -404,6 +404,7 @@ MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t allocSize, ThreadLocal
         RegisterLargeObjectMS(addr, regionBytes);
         if (msBuffer != nullptr) {
             msBuffer->AccumulatePacingDebt(allocSize);
+            msBuffer->AccumulateSweepDebt(regionBytes / MS_REGION_SIZE, kNumSizeClasses);
         }
         return addr;
     }
@@ -432,6 +433,7 @@ MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t allocSize, ThreadLocal
     // accumulate assist debt explicitly here to keep GC pacing correct.
     if (msBuffer != nullptr) {
         msBuffer->AccumulatePacingDebt(allocSize);
+        msBuffer->AccumulateSweepDebt(regionBytes / MS_REGION_SIZE, kNumSizeClasses);
     }
     return addr;
 }

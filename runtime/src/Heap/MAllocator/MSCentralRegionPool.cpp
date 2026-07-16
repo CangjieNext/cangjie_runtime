@@ -702,23 +702,28 @@ void CentralRegionPool::PrepareForSweep()
         totalUnswept += buckets_[cls].CountPartialUnswept() + buckets_[cls].CountFullUnswept();
     }
 
-    // Reset the per-cycle pacing basis and fix the proportional sweep ratio once.
+    // Reset the per-cycle central credit and publish the fixed-point proportional
+    // Sweep ratio once. Allocation progress and debt live in each AllocBufferMS.
     // runway = how much more allocation can happen before the next GC trigger,
     // measured on the swept-region-bytes axis the HEU trigger actually compares
     // against (threshold vs GetSweptHeapBytes), consistent with
     // BackgroundProcessor::HasPendingSweepWork. At cycle start sweptBytes is ~0 so
     // runway ~= threshold. threshold is stable within a cycle (only changed at GC
     // boundaries), so the ratio is fixed here and read without re-computation.
-    allocFreshRegionsThisCycle_.store(0, std::memory_order_relaxed);
-    sweptRegionsThisCycle_.store(0, std::memory_order_relaxed);
     sweepPressureMode_.store(static_cast<int>(SweepPressureMode::NORMAL), std::memory_order_relaxed);
+    sweepCredit_.Reset();
+    {
+        std::lock_guard<std::mutex> lg(msAllocBufferLock_);
+        exitedSweepAssistStats_ = MSSweepAssistStats {};
+    }
     {
         RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
         size_t threshold = space.GetHeapThresholdBytes();
         size_t sweptBytes = space.GetSweptHeapBytes();
-        size_t runwayBytes = threshold > sweptBytes ? (threshold - sweptBytes) : 0;
-        size_t runwayRegions = std::max<size_t>(1, runwayBytes / MS_REGION_SIZE);
-        sweepRegionsPerAlloc_ = static_cast<double>(totalUnswept) / static_cast<double>(runwayRegions);
+        size_t runwayRegions = ComputeRunwayRegions(threshold, sweptBytes, MS_REGION_SIZE);
+        sweepRegionsPerAllocScaled_.store(
+            ComputeMSSweepAssistRatioScaled(totalUnswept, runwayRegions),
+            std::memory_order_relaxed);
     }
 
     globalSweepGen_.fetch_add(2, std::memory_order_release);
@@ -895,45 +900,40 @@ size_t CentralRegionPool::AssistSweepForFreshRegions(size_t requestedRegions, ui
     return AssistSweep(assistRegions, preferredCls, preferredOwner);
 }
 
-size_t CentralRegionPool::AssistSweepCredit(size_t requestedRegions, uint8_t preferredCls,
-                                            AllocBufferMS* preferredOwner)
+MSSweepAssistResult CentralRegionPool::MSSweepAssist(AllocBufferMS& owner, size_t debtRegions,
+                                                     uint8_t preferredCls)
 {
-    // ratio is fixed in PrepareForSweep() and read-only this cycle. A zero ratio
-    // means there was nothing to sweep; sweepDone_ means the cycle finished.
-    // The latched pressure mode scales the repayment slope (Step34 §18.4): when
-    // sweep debt has fallen behind the runway, repay faster per allocation.
-    double tierMul = SweepTierMultiplier(GetSweepPressureMode());
-    double ratio = sweepRegionsPerAlloc_ * tierMul;
-    if (ratio <= 0.0 || requestedRegions == 0 ||
-        sweepDone_.load(std::memory_order_acquire)) {
-        return 0;
+    MSSweepAssistResult result;
+    if (debtRegions == 0 || sweepDone_.load(std::memory_order_acquire)) {
+        result.sweepComplete = sweepDone_.load(std::memory_order_acquire);
+        return result;
     }
 
-    // 1) Advance allocation progress: a large object consumes requestedRegions of
-    //    runway at once, so it owes proportionally more sweep work.
-    size_t allocated = allocFreshRegionsThisCycle_.fetch_add(
-                           requestedRegions, std::memory_order_relaxed) + requestedRegions;
-
-    // 2) Schedule: how many regions "should" have been swept by this allocation point.
-    size_t target = static_cast<size_t>(ratio * static_cast<double>(allocated));
-
-    // 3) sweptRegionsThisCycle_ already includes background/lazy progress, so any
-    //    work others did is auto-credited here.
-    size_t doneSoFar = sweptRegionsThisCycle_.load(std::memory_order_acquire);
-    if (doneSoFar >= target) {
-        return 0;
+    // Background/lazy/helper work is a one-shot global credit. CAS claiming is
+    // the ownership transfer: once one P consumes it, no other P can use the
+    // same swept Region to reduce its local debt.
+    result.creditPaidRegions = sweepCredit_.Take(debtRegions);
+    size_t remainingDebt = debtRegions - result.creditPaidRegions;
+    if (remainingDebt == 0) {
+        result.sweepComplete = sweepDone_.load(std::memory_order_acquire);
+        return result;
     }
 
-    // 4) Bound per-call tail latency; remaining debt is repaid on later allocations
-    //    because target stays ahead of sweptRegionsThisCycle_.
-    size_t owe = target - doneSoFar;
+    // Bound direct repayment per allocation call; fractional and unpaid debt
+    // stays on the owner P for its next successful Region consumption.
     size_t baseMaxPerCall = CangjieRuntime::GetGCParam().msAssistSweepMaxRegionsPerCall;
-    size_t maxPerCall = static_cast<size_t>(static_cast<double>(baseMaxPerCall) * tierMul);
-    size_t toSweep = std::min(owe, std::max<size_t>(maxPerCall, 1));
+    uint64_t scaledMax = ScaleMSSweepAssistRatioScaled(
+        static_cast<uint64_t>(baseMaxPerCall), GetSweepPressureMode());
+    size_t maxPerCall = scaledMax > std::numeric_limits<size_t>::max()
+        ? std::numeric_limits<size_t>::max()
+        : static_cast<size_t>(scaledMax);
+    size_t toSweep = std::min(remainingDebt, std::max<size_t>(maxPerCall, 1));
 
     // AssistSweep carries the activeAssistSweepCount_ guard + seq_cst fence + skip
     // checks that pair with StopAndWaitForAllSweep, so STW correctness is preserved.
-    return AssistSweep(toSweep, preferredCls, preferredOwner);
+    result.assistPaidRegions = AssistSweep(toSweep, preferredCls, &owner);
+    result.sweepComplete = sweepDone_.load(std::memory_order_acquire);
+    return result;
 }
 
 SweepDebtDecision CentralRegionPool::RefreshSweepDebtSnapshot(size_t thresholdBytes, size_t sweptBytes)
@@ -1503,8 +1503,31 @@ void CentralRegionPool::RemoveAllocBufferMS(AllocBufferMS* buffer)
     std::lock_guard<std::mutex> lg(msAllocBufferLock_);
     auto it = std::find(msAllocBuffers_.begin(), msAllocBuffers_.end(), buffer);
     if (it != msAllocBuffers_.end()) {
+        uint32_t currentGeneration = globalSweepGen_.load(std::memory_order_acquire);
+        if (buffer->GetSweepDebtGeneration() == currentGeneration) {
+            exitedSweepAssistStats_.Merge(buffer->SnapshotSweepAssistStats());
+        }
         msAllocBuffers_.erase(it);
     }
+}
+
+MSSweepAssistStats CentralRegionPool::SnapshotSweepAssistStats()
+{
+    std::lock_guard<std::mutex> lg(msAllocBufferLock_);
+    MSSweepAssistStats total = exitedSweepAssistStats_;
+    uint32_t currentGeneration = globalSweepGen_.load(std::memory_order_acquire);
+    for (AllocBufferMS* buffer : msAllocBuffers_) {
+        if (buffer == nullptr || buffer->GetSweepDebtGeneration() != currentGeneration) {
+            continue;
+        }
+        MSSweepAssistStats snapshot = buffer->SnapshotSweepAssistStats();
+        // A P publishes its new generation only after resetting its statistics.
+        // Recheck so a concurrent lazy reset cannot mix adjacent cycles.
+        if (buffer->GetSweepDebtGeneration() == currentGeneration) {
+            total.Merge(snapshot);
+        }
+    }
+    return total;
 }
 
 BackgroundFeedStats CentralRegionPool::BackgroundFillAllocCaches()
@@ -1708,6 +1731,7 @@ void CentralRegionPool::StopAndWaitForAllSweep()
     size_t unsweptBefore = GetTotalUnsweptCount();
     MSSweepCounts sweepCounts = GetSweepCounts();
     ForceFinishAllUnswept();
+    MSSweepAssistStats pSweepStats = SnapshotSweepAssistStats();
     size_t unsweptAfter = GetTotalUnsweptCount();
     size_t activeBytes = GetActiveMSRegionCount() * MS_REGION_SIZE;
     size_t emptySwept = GetEmptySweptRegionCount() * MS_REGION_SIZE;
@@ -1715,11 +1739,18 @@ void CentralRegionPool::StopAndWaitForAllSweep()
     size_t totalRetained = activeBytes + emptySwept + largeCache;
     VLOG(REPORT, "[MS-GC] StopAndWaitForAllSweep: forceSwept=%zu->%zu unswept regions, "
          "sources(bg=%zu lazy=%zu assist=%zu helper=%zu) retained=%zuB "
-         "activeBytes=%zuB emptySwept=%zuB largeCache=%zuB",
+         "activeBytes=%zuB emptySwept=%zuB largeCache=%zuB "
+         "pDebt(calls=%llu debtAddedScaled=%llu creditPaidRegions=%llu "
+         "assistPaidRegions=%llu maxDebtScaled=%llu)",
          unsweptBefore, unsweptAfter,
          sweepCounts.backgroundSweptRegions, sweepCounts.lazySweptRegions,
          sweepCounts.assistSweptRegions, sweepCounts.helperSweptRegions,
-         totalRetained, activeBytes, emptySwept, largeCache);
+         totalRetained, activeBytes, emptySwept, largeCache,
+         static_cast<unsigned long long>(pSweepStats.calls),
+         static_cast<unsigned long long>(pSweepStats.debtAddedScaled),
+         static_cast<unsigned long long>(pSweepStats.creditPaidRegions),
+         static_cast<unsigned long long>(pSweepStats.assistPaidRegions),
+         static_cast<unsigned long long>(pSweepStats.maxDebtScaled));
 }
 
 void CentralRegionPool::ClearAllMarkBitmaps()

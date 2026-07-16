@@ -295,6 +295,7 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
                                        "SlowAlloc publish active");
     activeRegions_[cls] = newRegion;
     AccumulatePacingDebt(MS_REGION_SIZE);
+    AccumulateSweepDebt(1, cls);
 
     // Avoid doing another synchronous central-pool acquisition here: on case1 this
     // can turn one SlowAlloc miss into two central refills, and the second refill
@@ -685,8 +686,6 @@ MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls, bool backgroundFill,
         *originOut = RegionAcquireOrigin::NONE;
     }
 
-    (void)central_->AssistSweepCredit(1, cls, this);
-
     MSRegionInfo* region = nullptr;
     if (!backgroundFill) {
         region = central_->TakePartialSweptRegion(cls);
@@ -841,6 +840,59 @@ void AllocBufferMS::AccumulatePacingDebt(size_t size)
         size_t accounted = std::min(paidObjects, debtObjects);
         gcAssistDebtScaled_ -= static_cast<uint64_t>(accounted) * ratioScale;
     }
+}
+
+// ============================================================================
+// AccumulateSweepDebt — P-local Sweep pacing
+// Called only after a successful Region/span consumption. Background cache fill
+// never reaches this function. A generation mismatch lazily discards the old
+// P's fractional debt and statistics after PrepareForSweep publishes the new
+// central ratio.
+// ============================================================================
+void AllocBufferMS::AccumulateSweepDebt(size_t allocatedRegions, uint8_t preferredCls)
+{
+    if (central_ == nullptr || allocatedRegions == 0) {
+        return;
+    }
+
+    uint32_t currentGeneration = CentralRegionPool::GetGlobalSweepGen();
+    uint32_t localGeneration = sweepDebtGen_.load(std::memory_order_relaxed);
+    if (localGeneration != currentGeneration) {
+        sweepAssistDebtScaled_ = 0;
+        sweepAssistStats_.Reset();
+        sweepDebtGen_.store(currentGeneration, std::memory_order_release);
+    }
+
+    if (central_->IsSweepDone()) {
+        sweepAssistDebtScaled_ = 0;
+        return;
+    }
+
+    uint64_t ratioScaled = central_->GetSweepAssistRatioScaled();
+    if (ratioScaled == 0) {
+        sweepAssistDebtScaled_ = 0;
+        return;
+    }
+
+    uint64_t addedScaled = SaturatingMultiplyMSSweepValue(
+        static_cast<uint64_t>(allocatedRegions), ratioScaled);
+    sweepAssistDebtScaled_ = AccumulateMSSweepDebtScaled(
+        sweepAssistDebtScaled_, allocatedRegions, ratioScaled);
+    sweepAssistStats_.RecordDebt(addedScaled, sweepAssistDebtScaled_);
+
+    size_t debtRegions = static_cast<size_t>(sweepAssistDebtScaled_ / kMSSweepAssistRatioScale);
+    if (debtRegions == 0) {
+        return;
+    }
+
+    MSSweepAssistResult result = central_->MSSweepAssist(*this, debtRegions, preferredCls);
+    sweepAssistStats_.RecordPayment(result.creditPaidRegions, result.assistPaidRegions);
+    if (result.sweepComplete) {
+        sweepAssistDebtScaled_ = 0;
+        return;
+    }
+    sweepAssistDebtScaled_ = PayMSSweepDebtRegions(
+        sweepAssistDebtScaled_, result.TotalPaidRegions());
 }
 
 } // namespace MapleRuntime

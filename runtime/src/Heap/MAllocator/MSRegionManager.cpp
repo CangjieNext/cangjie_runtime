@@ -431,13 +431,6 @@ MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& r
     RegionCount regionCount = static_cast<RegionCount>(
         (unitCount + unitsPerMSRegion_ - 1) / unitsPerMSRegion_);
 
-    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
-    CentralRegionPool* pool = space.GetCentralPool();
-    if (pool != nullptr) {
-        AllocBufferMS* owner = AllocBufferMS::GetAllocBufferMS();
-        (void)pool->AssistSweepCredit(regionCount, kNoPreferredSweepClass, owner);
-    }
-
     RegionIndex regionIdx = 0;
     AllocSource source = AllocSource::BUMP;
     if (!TakeRegions(regionCount, homeShardId, regionIdx, &source)) {
