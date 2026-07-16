@@ -204,10 +204,6 @@ public class ScenarioResult {
                         sb.append("  Actor ${r.actorName}: ${r.getExceptionMessage()}\n")
                     }
                 }
-                if (let Some(consistencyValidation) <- iter.consistencyValidation) {
-                    sb.append("  Consistency validation:\n")
-                    sb.append(consistencyValidation.report())
-                }
             }
         }
         
