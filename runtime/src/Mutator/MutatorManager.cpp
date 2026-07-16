@@ -185,17 +185,19 @@ void MutatorManager::DestroyRuntimeMutator(ThreadType threadType)
 
     MutatorManagementRLock();
     (void)mutator->LeaveSaferegion();
-    // fp mutator is a static instance, we can't delete it, we reset the mutator to avoid invalid memory
-    // access when static instance destruction.
+    // Detach the mutator while its management view is still protected. Reclaim
+    // or reset it only after releasing the lock so destruction cannot stall GC.
+    UnbindMutator(*mutator);
+    ThreadLocal::SetAllocBuffer(nullptr);
+    ThreadLocal::SetCJProcessorFlag(false);
+    MutatorManagementRUnlock();
+
+    // The fp mutator is a static instance and must be reset rather than deleted.
     if (threadType != ThreadType::FP_THREAD) {
         delete mutator;
     } else {
         mutator->ResetMutator();
     }
-    ThreadLocal::SetAllocBuffer(nullptr);
-    ThreadLocal::SetMutator(nullptr);
-    ThreadLocal::SetCJProcessorFlag(false);
-    MutatorManagementRUnlock();
 }
 
 void MutatorManager::Init()
