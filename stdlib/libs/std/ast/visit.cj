@@ -38,6 +38,8 @@ public abstract class Visitor {
 
     protected open func visit(_: ParenExpr): Unit {}
 
+    protected open func visit(_: AmbiguousForcedCastExpr): Unit {}
+
     protected open func visit(_: CallExpr): Unit {}
 
     protected open func visit(_: RefExpr): Unit {}
@@ -208,4 +210,3 @@ public abstract class Visitor {
 
     protected open func visit(_: MacroExpandParam): Unit {}
 }
-

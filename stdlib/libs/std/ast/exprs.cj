@@ -585,6 +585,116 @@ public class ParenExpr <: Expr {
     }
 }
 
+/**
+ * Represents a syntactically ambiguous `(U)e` expression. Name and type
+ * resolution later decide whether it is an interoperation forced cast or an
+ * ordinary parenthesized call.
+ */
+public class AmbiguousForcedCastExpr <: Expr {
+    public init(inputs: Tokens) {
+        try {
+            match (parseExpr(inputs) as AmbiguousForcedCastExpr) {
+                case Some(v) =>
+                    this.begin_ = v.beginPos
+                    this.end_ = v.endPos
+                    this.lParen_ = v.lParen_
+                    this.type_ = v.type_
+                    this.rParen_ = v.rParen_
+                    this.expr_ = v.expr_
+                case None => throw ASTException("Cannot construct the 'AmbiguousForcedCastExpr' node.")
+            }
+        } catch (e: ParseASTException) {
+            if (e.message == String.empty) {
+                throw ASTException("Cannot construct the 'AmbiguousForcedCastExpr' node.")
+            } else {
+                throw ASTException(e.message)
+            }
+        }
+    }
+
+    public init() {
+        super()
+    }
+
+    init(lParen: Token, ty: TypeNode, rParen: Token, expr: Expr) {
+        lParen_ = lParen
+        type_ = ty
+        rParen_ = rParen
+        expr_ = expr
+    }
+
+    private var lParen_: Token = Token(TokenKind.LPAREN)
+    private var type_: TypeNode = TypeNode()
+    private var rParen_: Token = Token(TokenKind.RPAREN)
+    private var expr_: Expr = Expr()
+
+    public mut prop lParen: Token {
+        get() {
+            lParen_
+        }
+        set(v) {
+            checkTokenType(v, LPAREN)
+            lParen_ = v
+        }
+    }
+
+    public mut prop targetType: TypeNode {
+        get() {
+            type_
+        }
+        set(v) {
+            type_ = v
+        }
+    }
+
+    public mut prop rParen: Token {
+        get() {
+            rParen_
+        }
+        set(v) {
+            checkTokenType(v, RPAREN)
+            rParen_ = v
+        }
+    }
+
+    public mut prop expr: Expr {
+        get() {
+            expr_
+        }
+        set(v) {
+            expr_ = v
+        }
+    }
+
+    public func toTokens(): Tokens {
+        Tokens().append(lParen_).append(type_).append(rParen_).append(expr_)
+    }
+
+    public func traverse(v: Visitor): Unit {
+        v.visit(this)
+        super.traverse(v)
+        if (v.needBreakTraverse()) {
+            return
+        }
+        type_.traverse(v)
+        expr_.traverse(v)
+    }
+
+    protected func dump(indent: UInt16): String {
+        var ret: String = "AmbiguousForcedCastExpr {\n"
+        currentIndent = indent
+        if (indent != 0 || beginNode) {
+            currentIndent++
+        }
+        ret += getIndent(currentIndent) + "-targetType: "
+        ret += type_.dump(currentIndent)
+        ret += getIndent(currentIndent) + "-expr: "
+        ret += expr_.dump(currentIndent)
+        ret += getIndent(indent) + "}\n"
+        ret
+    }
+}
+
 public class LitConstExpr <: Expr {
     public init(inputs: Tokens) {
         try {

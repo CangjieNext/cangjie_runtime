@@ -66,6 +66,7 @@ func generateExprAST(exprNode: Option<NodeFormat_Expr>): Expr {
         case "wildcard_expr" => createWildcardExpr(exprBase)
         case "call_expr" => createCallExpr(expr)
         case "paren_expr" => createParenExpr(expr)
+        case "ambiguous_forced_cast_expr" => createAmbiguousForcedCastExpr(expr)
         case "member_access_expr" => createMemberAccess(expr)
         case "optional_expr" => createOptionalExpr(expr)
         case "optional_chain_expr" => createOptionalChainExpr(expr)
@@ -191,6 +192,18 @@ func createParenExpr(expr: NodeFormat_Expr): Expr {
     var lParen = Token(TokenKind.LPAREN).addPosition(parenExpr.GetLeftParenPos())
     var rParen = Token(TokenKind.RPAREN).addPosition(parenExpr.GetRightParenPos())
     return ParenExpr(lParen, childExpr, rParen)
+}
+
+func createAmbiguousForcedCastExpr(expr: NodeFormat_Expr): Expr {
+    var forcedCastExpr = match (expr.GetExprAsAmbiguousForcedCastExpr()) {
+        case Some(v) => v
+        case None => throw ParseASTException()
+    }
+    var targetType = generateTypeAST(forcedCastExpr.GetType())
+    var lParen = Token(TokenKind.LPAREN).addPosition(forcedCastExpr.GetLeftParenPos())
+    var operand = generateExprAST(forcedCastExpr.GetExpr())
+    var rParen = Token(TokenKind.RPAREN).addPosition(forcedCastExpr.GetRightParenPos())
+    return AmbiguousForcedCastExpr(lParen, targetType, rParen, operand)
 }
 
 func createLitConstExpr(expr: NodeFormat_Expr, exprBase: NodeFormat_NodeBase): Expr {

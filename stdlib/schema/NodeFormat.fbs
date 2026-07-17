@@ -54,6 +54,7 @@ union AnyExpr {
   ARRAY_EXPR: ArrayExpr,
   PERFORM_EXPR: PerformExpr,
   RESUME_EXPR: ResumeExpr,
+  AMBIGUOUS_FORCED_CAST_EXPR: AmbiguousForcedCastExpr,
 }
 
 table MatchCase {
@@ -197,6 +198,14 @@ table ArrayExpr {
 
 table ParenExpr {
   base: NodeBase;
+  left_paren_pos: Position;
+  expr: Expr;
+  right_paren_pos: Position;
+}
+
+table AmbiguousForcedCastExpr {
+  base: NodeBase;
+  type: Type;
   left_paren_pos: Position;
   expr: Expr;
   right_paren_pos: Position;
