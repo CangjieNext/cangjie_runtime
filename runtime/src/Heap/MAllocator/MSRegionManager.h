@@ -186,10 +186,6 @@ public:
 
     // Unified layer-1 HEU trigger entry. MSGC now only keeps the TAKE_REGIONS path.
     void MaybeNotifyMark();
-    void RecordHeuRequestTime(uint64_t nowNs)
-    {
-        lastHeuRequestNs_.store(nowNs, std::memory_order_relaxed);
-    }
 
     // Layer-2 trigger: notify gc-helper to sweep only when the target size
     // class has both low ready supply and unswept backlog.

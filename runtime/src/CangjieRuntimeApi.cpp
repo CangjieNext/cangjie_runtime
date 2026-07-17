@@ -308,7 +308,7 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
             .msAssistCreditDecayRounds = param->gcParam.msAssistCreditDecayRounds == 0 ?
                 100 : param->gcParam.msAssistCreditDecayRounds,
             .msAssistSweepMaxRegionsPerCall = param->gcParam.msAssistSweepMaxRegionsPerCall == 0 ?
-                10 : param->gcParam.msAssistSweepMaxRegionsPerCall,
+                4 : param->gcParam.msAssistSweepMaxRegionsPerCall,
             .msEnumAssistBatchSize = param->gcParam.msEnumAssistBatchSize == 0 ?
                 10 : param->gcParam.msEnumAssistBatchSize,
             .msReleasedBusyRetryLimit = param->gcParam.msReleasedBusyRetryLimit == 0 ?
@@ -316,7 +316,7 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
             .msScavengeRounds = param->gcParam.msScavengeRounds == 0 ? 8 : param->gcParam.msScavengeRounds,
             .msBackgroundSweep = static_cast<uint8_t>(
                 param->gcParam.msBackgroundSweep == 0 ? 1 : param->gcParam.msBackgroundSweep),
-            .msBackgroundFeed = param->gcParam.msBackgroundFeed,
+            .reservedMSBackgroundFeed = 0,
             .msBackgroundScavenge = static_cast<uint8_t>(
                 param->gcParam.msBackgroundScavenge == 0 ? 1 : param->gcParam.msBackgroundScavenge),
             .msBackgroundShrink = static_cast<uint8_t>(param->gcParam.msBackgroundShrink != 0 ? 1U : 0U),

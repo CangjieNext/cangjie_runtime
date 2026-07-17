@@ -19,13 +19,11 @@
 
 namespace MapleRuntime {
 class Mutator;
+class CentralRegionPool;
+class RegionSpaceMS;
+class CollectorResources;
 
 constexpr uint8_t kNoPreferredSweepClass = UINT8_MAX;
-
-enum class DeferredHeuOrigin : uint8_t {
-    SUBMIT_SIDE = 1U << 0,
-    EXECUTE_SIDE = 1U << 1,
-};
 
 class BackgroundProcessor {
 public:
@@ -55,15 +53,17 @@ public:
     void NotifyFinalizerWork() { Notify(); }
 
     void NotifyToSweep(uint8_t cls = kNoPreferredSweepClass);
-    void NotifyToParallelSweep(DeferredHeuOrigin origin);
-    void NotifyDeferredHeuRetry();
-    bool HasDeferredHeuRetryPending() const
-    {
-        return deferredHeuRetryPending_.load(std::memory_order_acquire);
-    }
+    void NotifyToParallelSweep();
     void NotifyToScavenge();
     void NotifyToShrink();
-    bool IsSweepPressureMode() const { return sweepPressureMode_.load(std::memory_order_acquire); }
+    size_t GetTargetSweepHelperCount() const
+    {
+        return targetSweepHelperCount_.load(std::memory_order_acquire);
+    }
+    size_t GetActiveSweepHelperCount() const
+    {
+        return activeSweepHelperCount_.load(std::memory_order_acquire);
+    }
 
 private:
     void Notify();
@@ -76,15 +76,15 @@ private:
     bool ShouldStartPeriodicSweep() const;
     bool ShouldStartPeriodicScavenge() const;
     bool ShouldStartPeriodicShrink() const;
-    bool ShouldStartPeriodicFeed() const;
     bool HasPendingWakeWork() const;
     bool HasPendingSweepWork();    // check pending sweep work; updates pressure state and shouldBackgroundSweep_
-    bool HasPendingFeedWork();
     bool HasPendingShrinkWork();
+    size_t RefreshSweepHelperControl(CentralRegionPool& pool, RegionSpaceMS& space,
+                                     CollectorResources& resources, bool advanceHelpers);
+    void ResetSweepHelperControl(uint32_t sweepGeneration);
     bool BackgroundSweepLoop();
     bool ParallelSweepLoop();
-    void ClearDeferredHeuRequest(uint64_t handledSequence);
-    bool BackgroundFeedLoop();
+    bool ParallelSweepLoop(size_t helperCount);
     bool BackgroundScavengeLoop(); // scavengeThreshold-based: Step A (flush emptySwept) + Step B (scavenge)
     bool BackgroundShrinkLoop();   // segment-level shrink: release fully idle segments without changing heap topology
 
@@ -97,20 +97,16 @@ private:
     std::atomic<bool> running;
 
     U32 iterationWaitTime;
-    std::atomic<bool> shouldFeedHungryBuffers;
     std::atomic<bool> shouldBackgroundSweep_;
     std::atomic<bool> shouldParallelSweep_{false};
-    std::atomic<bool> deferredHeuRetryPending_{false};
-    std::atomic<uint8_t> deferredHeuOriginMask_{0};
-    std::atomic<uint64_t> parallelSweepRequestSeq_{0};
     std::atomic<uint64_t> parallelSweepRoundRobin_{0};
     std::atomic<bool> shouldScavengeHeap_{false};
     std::atomic<bool> shouldShrinkHeap_{false};
     std::atomic<uint8_t> preferredSweepCls_{kNoPreferredSweepClass};
-    std::atomic<bool> sweepPressureMode_{false};
-    BackgroundFeedStats pendingFeedStats_{};
+    std::atomic<size_t> targetSweepHelperCount_{0};
+    std::atomic<size_t> activeSweepHelperCount_{0};
+    std::atomic<uint32_t> observedSweepGeneration_{0};
     BackgroundSweepStats pendingSweepStats_{};
-    BackgroundSweepStats pendingParallelSweepStats_{};
     BackgroundReclaimStats pendingScavengeStats_{};
     BackgroundReclaimStats pendingShrinkStats_{};
     FinalizerWorkList finalizerWorkList;

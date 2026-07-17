@@ -16,26 +16,20 @@
 #include <limits>
 
 // ============================================================================
-// Sweep-debt policy (Step34 §14-19): backlog-aware HEU gating + tiered pressure.
+// Sweep-debt policy: P-local pacing plus one unified U/S/T pressure state.
 //
 // Pure, header-only computation so the waterline / pressure-mode logic can be
 // reasoned about (and unit-tested) without dragging in MSCentralRegionPool.
 //
-// Concepts:
-//   runway   = how much more allocation can happen before the next HEU trigger,
-//              measured on the swept-region-bytes axis (threshold - sweptBytes).
-//   waterline= hysteretic enter/exit thresholds so the mode does not flap at the
-//              boundary (BACKLOG enter ratio > exit ratio; EMERGENCY enter > exit).
-//   pressure = NORMAL / BACKLOG / EMERGENCY, scaling how hard background + assist
-//              sweep repays debt. Semantics: "how far sweep debt has fallen behind
-//              the runway we still allow allocation against" — not "hardPressure".
+// Pressure is LOW / MEDIUM / HIGH. It scales debt addition and time-bounded
+// Background/Helper slices, but never changes one direct P Assist batch.
 // ============================================================================
 namespace MapleRuntime {
 
 enum class SweepPressureMode : int {
-    NORMAL = 0,
-    BACKLOG = 1,
-    EMERGENCY = 2,
+    LOW = 0,
+    MEDIUM = 1,
+    HIGH = 2,
 };
 
 // Sweep debt is accounted in fixed-point regions.  The fractional part lets a
@@ -95,13 +89,13 @@ inline uint64_t ScaleMSSweepAssistRatioScaled(uint64_t ratioScaled, SweepPressur
 {
     uint64_t multiplier = 1;
     switch (mode) {
-        case SweepPressureMode::BACKLOG:
+        case SweepPressureMode::MEDIUM:
             multiplier = 4;
             break;
-        case SweepPressureMode::EMERGENCY:
+        case SweepPressureMode::HIGH:
             multiplier = 10;
             break;
-        case SweepPressureMode::NORMAL:
+        case SweepPressureMode::LOW:
         default:
             break;
     }
@@ -120,6 +114,15 @@ inline uint64_t PayMSSweepDebtRegions(uint64_t debtScaled, size_t paidRegions)
     uint64_t paidScaled = SaturatingMultiplyMSSweepValue(static_cast<uint64_t>(paidRegions),
                                                          kMSSweepAssistRatioScale);
     return paidScaled >= debtScaled ? 0 : debtScaled - paidScaled;
+}
+
+// Direct repayment is deliberately batched: retain a sub-batch remainder and,
+// once the threshold is reached, run exactly one batch in this allocation call.
+inline size_t ComputeMSSweepAssistDirectRegions(size_t unpaidDebtRegions,
+                                                 size_t configuredBatchRegions)
+{
+    size_t batchRegions = std::max<size_t>(configuredBatchRegions, 1);
+    return unpaidDebtRegions < batchRegions ? 0 : batchRegions;
 }
 
 inline bool ResetMSSweepDebtForGeneration(uint64_t& debtScaled, uint32_t& generation,
@@ -292,43 +295,11 @@ private:
     std::atomic<uint64_t> maxDebtScaled_ {0};
 };
 
-struct SweepDebtParams {
-    // BACKLOG enters when unswept > enter*runway, exits when unswept <= exit*runway.
-    double backlogEnterRatio = 2.0;
-    double backlogExitRatio = 1.0;
-    // EMERGENCY (runway == 0) enters above enter regions, exits below exit regions.
-    size_t emergencyEnterRegions = 64;
-    size_t emergencyExitRegions = 16;
-};
-
 struct SweepDebtDecision {
-    SweepPressureMode mode = SweepPressureMode::NORMAL;
-    bool deferHeu = false;                  // defer this GC_REASON_HEU, repay first
+    SweepPressureMode mode = SweepPressureMode::LOW;
     double assistRatioMultiplier = 1.0;     // scale sweepRegionsPerAlloc_
-    double assistCapMultiplier = 1.0;       // scale msAssistSweepMaxRegionsPerCall
     double backgroundBudgetMultiplier = 1.0; // scale per-slice background time budget
 };
-
-enum class MSHeuExecutionDecision : uint8_t {
-    RUN = 0,
-    BELOW_THRESHOLD,
-    DEFER_FOR_SWEEP,
-};
-
-// Revalidate an asynchronous HEU request against the current heap state. The
-// request may have waited behind another GC, so the state that enqueued it is
-// not authoritative when the GC thread eventually dequeues it.
-inline MSHeuExecutionDecision EvaluateMSHeuExecution(size_t sweptBytes, size_t thresholdBytes,
-                                                     const SweepDebtDecision& debt)
-{
-    if (sweptBytes < thresholdBytes) {
-        return MSHeuExecutionDecision::BELOW_THRESHOLD;
-    }
-    if (debt.deferHeu) {
-        return MSHeuExecutionDecision::DEFER_FOR_SWEEP;
-    }
-    return MSHeuExecutionDecision::RUN;
-}
 
 // runway in regions on the swept-bytes axis the HEU trigger already uses.
 inline size_t ComputeRunwayRegions(size_t thresholdBytes, size_t sweptBytes, size_t regionSize)
@@ -340,50 +311,47 @@ inline size_t ComputeRunwayRegions(size_t thresholdBytes, size_t sweptBytes, siz
     return (runwayBytes + regionSize - 1) / regionSize;  // ceil
 }
 
-// Evaluate the pressure mode with hysteresis. prev is the previously latched mode.
-inline SweepPressureMode EvaluateSweepPressure(size_t unsweptRegions, size_t runwayRegions,
-                                               bool sweepDone, SweepPressureMode prev,
-                                               const SweepDebtParams& p)
+inline bool MSSweepBytesExceedThreshold(size_t lhs, size_t rhs, size_t threshold)
 {
-    if (sweepDone || unsweptRegions == 0) {
-        return SweepPressureMode::NORMAL;
+    if (lhs > threshold || rhs > threshold) {
+        return true;
     }
-    if (runwayRegions == 0) {
-        // Runway exhausted: "above runway" loses meaning, gate purely on backlog size.
-        bool wasEmergency = (prev == SweepPressureMode::EMERGENCY);
-        size_t threshold = wasEmergency ? p.emergencyExitRegions : p.emergencyEnterRegions;
-        return unsweptRegions > threshold ? SweepPressureMode::EMERGENCY : SweepPressureMode::NORMAL;
-    }
-    bool wasBacklog = (prev != SweepPressureMode::NORMAL);
-    double ratio = wasBacklog ? p.backlogExitRatio : p.backlogEnterRatio;
-    double threshold = ratio * static_cast<double>(runwayRegions);
-    return static_cast<double>(unsweptRegions) > threshold ? SweepPressureMode::BACKLOG
-                                                           : SweepPressureMode::NORMAL;
+    return lhs > threshold - rhs;
 }
 
-// Tier multipliers: NORMAL=1x, BACKLOG=4x, EMERGENCY=10x.
-inline double SweepTierMultiplier(SweepPressureMode mode)
+// U is unswept small-region bytes, S is swept small-region plus live large-span
+// bytes, and T is the current heap threshold. The sum comparison is written
+// without addition so counters near SIZE_MAX cannot wrap.
+inline SweepPressureMode EvaluateSweepPressure(size_t unsweptBytes, size_t sweptBytes,
+                                               size_t thresholdBytes, bool forcedHigh)
+{
+    if (forcedHigh || unsweptBytes > thresholdBytes) {
+        return SweepPressureMode::HIGH;
+    }
+    if (MSSweepBytesExceedThreshold(sweptBytes, unsweptBytes, thresholdBytes)) {
+        return SweepPressureMode::MEDIUM;
+    }
+    return SweepPressureMode::LOW;
+}
+
+// Tier multipliers: LOW=1x, MEDIUM=4x, HIGH=10x.
+inline size_t SweepTierMultiplier(SweepPressureMode mode)
 {
     switch (mode) {
-        case SweepPressureMode::BACKLOG: return 4.0;
-        case SweepPressureMode::EMERGENCY: return 10.0;
-        case SweepPressureMode::NORMAL:
-        default: return 1.0;
+        case SweepPressureMode::MEDIUM: return 4;
+        case SweepPressureMode::HIGH: return 10;
+        case SweepPressureMode::LOW:
+        default: return 1;
     }
 }
 
-inline SweepDebtDecision BuildSweepDebtDecision(SweepPressureMode mode, bool sweepDone)
+inline SweepDebtDecision BuildSweepDebtDecision(SweepPressureMode mode)
 {
     SweepDebtDecision d;
     d.mode = mode;
-    double m = SweepTierMultiplier(mode);
+    double m = static_cast<double>(SweepTierMultiplier(mode));
     d.assistRatioMultiplier = m;
-    d.assistCapMultiplier = m;
     d.backgroundBudgetMultiplier = m;
-    // Only BACKLOG/EMERGENCY with outstanding debt defer the next HEU GC. At the
-    // HEU gate runway is ~0, so this resolves to EMERGENCY in practice; the BACKLOG
-    // tier mainly drives the assist/background multipliers away from the gate.
-    d.deferHeu = (mode != SweepPressureMode::NORMAL) && !sweepDone;
     return d;
 }
 

@@ -511,14 +511,14 @@ static RuntimeParam InitRuntimeParam()
                                                          EnvBoundKind::OPEN),
             .msAssistCreditDecayRounds = ReadCountParameter("cjMSAssistCreditDecayRounds", 100, 0,
                                                             EnvBoundKind::OPEN),
-            .msAssistSweepMaxRegionsPerCall = ReadCountParameter("cjMSAssistSweepMaxRegionsPerCall", 10, 0,
+            .msAssistSweepMaxRegionsPerCall = ReadCountParameter("cjMSAssistSweepMaxRegionsPerCall", 4, 0,
                                                                  EnvBoundKind::OPEN),
             .msEnumAssistBatchSize = ReadCountParameter("cjMSEnumAssistBatchSize", 10, 0, EnvBoundKind::OPEN),
             .msReleasedBusyRetryLimit = ReadCountParameter("cjMSReleasedBusyRetryLimit", 8, 0,
                                                            EnvBoundKind::OPEN),
             .msScavengeRounds = ReadCountParameter("cjMSScavengeRounds", 8, 0, EnvBoundKind::OPEN),
             .msBackgroundSweep = static_cast<uint8_t>(ReadBoolParameter("cjMSBackgroundSweep", true) ? 1U : 0U),
-            .msBackgroundFeed = static_cast<uint8_t>(ReadBoolParameter("cjMSBackgroundFeed", false) ? 1U : 0U),
+            .reservedMSBackgroundFeed = 0,
             .msBackgroundScavenge =
                 static_cast<uint8_t>(ReadBoolParameter("cjMSBackgroundScavenge", true) ? 1U : 0U),
             .msBackgroundShrink =

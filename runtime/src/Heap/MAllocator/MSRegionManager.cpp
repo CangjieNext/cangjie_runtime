@@ -304,33 +304,26 @@ void MSRegionManager::MaybeNotifyMark()
     size_t sweptBytes = space.GetSweptHeapBytes();
     size_t threshold = gcStats.GetThreshold();
 
-    // Refresh the sweep-debt pressure mode on every probe (Step34 §18.2-18.3): below
-    // threshold this latches NORMAL/BACKLOG with the real runway for assist/background
-    // to read; at/above threshold the decision also tells us whether to defer HEU.
+    // Refresh the sweep-debt pressure mode on every probe (Step34 §18.2-18.3),
+    // including below threshold, so assist/background consumers observe the
+    // current runway and pressure tier.
     SweepDebtDecision debt = pool->RefreshSweepDebtSnapshot(threshold, sweptBytes);
-    MSHeuExecutionDecision decision = EvaluateMSHeuExecution(sweptBytes, threshold, debt);
 
     // Trigger purely on time (cooldown above) + threshold.
-    if (decision == MSHeuExecutionDecision::BELOW_THRESHOLD) {
+    if (sweptBytes < threshold) {
         return;
     }
 
-    // backlog-aware HEU gating: if the previous cycle's unswept backlog is still
-    // large (and sweep is not done), defer this HEU GC and repay debt first, rather
-    // than letting StopAndWaitForAllSweep->ForceFinishAllUnswept drain it serially
-    // inside the next GC's pre-mark STW (the tail-pause source). Only GC_REASON_HEU
-    // is gated; OOM/FORCE/HEU_SYNC are unaffected. The backlog is fixed for the
-    // cycle and is being drained by background/assist at the elevated pressure tier,
-    // so deferral is bounded — once sweepDone or the backlog drops below the exit
-    // waterline, the next probe lets HEU proceed.
-    if (decision == MSHeuExecutionDecision::DEFER_FOR_SWEEP) {
+    // A pressured old Sweep epoch gets extra parallel consumers, but no longer
+    // gates the HEU request. If Mark wins the race, PreEnumRoots joins the same
+    // claim path and closes all in-flight Sweep work before clearing bitmaps.
+    if (debt.mode != SweepPressureMode::LOW) {
         BackgroundProcessor& backgroundProcessor =
             Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
-        backgroundProcessor.NotifyToParallelSweep(DeferredHeuOrigin::SUBMIT_SIDE);
+        backgroundProcessor.NotifyToParallelSweep();
         VLOG(REPORT,
-             "[MS-GC] HEU deferred by sweep backlog: swept=%zuB threshold=%zuB mode=%d",
+             "[MS-GC] HEU waking parallel Sweep: swept=%zuB threshold=%zuB mode=%d",
              sweptBytes, threshold, static_cast<int>(debt.mode));
-        return;
     }
 
     if (!lastHeuRequestNs_.compare_exchange_strong(lastHeuRequestNs, nowNs,

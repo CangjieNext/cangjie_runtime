@@ -57,7 +57,6 @@ enum class MSRegionLocation : uint8_t {
     FREE,
     TRANSIENT,
     ACTIVE_LOCAL,
-    CACHED_LOCAL,
     LOCAL_EMPTY_CACHE,
     GLOBAL_EMPTY_CACHE,
     CENTRAL_PARTIAL,

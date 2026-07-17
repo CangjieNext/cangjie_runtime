@@ -368,14 +368,6 @@ BackgroundSweepStats RegionSpaceMS::BackgroundSweep(uint8_t preferredCls)
     return {};
 }
 
-BackgroundFeedStats RegionSpaceMS::BackgroundFillAllocCaches()
-{
-    if (msCentralPool_ != nullptr) {
-        return msCentralPool_->BackgroundFillAllocCaches();
-    }
-    return {};
-}
-
 bool RegionSpaceMS::ForEachObj(const std::function<void(BaseObject*)>& visitor, bool safe) const
 {
     (void)visitor;

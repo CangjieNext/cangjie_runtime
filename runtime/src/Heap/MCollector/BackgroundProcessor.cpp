@@ -15,7 +15,6 @@
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSParallelSweepPolicy.h"
 #include "Heap/MAllocator/MSRegionSpace.h"
-#include "Heap/MAllocator/MSRegionManager.h"
 #include "Mutator/Mutator.inline.h"
 #include "Mutator/MutatorManager.h"
 #include <algorithm>
@@ -30,10 +29,8 @@ namespace MapleRuntime {
 namespace {
 constexpr U32 DEFAULT_MS_GC_HELPER_POLL_MS = 2000;
 constexpr U32 DEFAULT_MS_GC_HELPER_ACTIVE_BACKOFF_MS = 1;
-constexpr U32 DEFAULT_MS_DEFERRED_HEU_RETRY_BACKOFF_MS = 1;
 constexpr U32 DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_ROUNDS = 4;
 constexpr uint64_t DEFAULT_MS_GC_HELPER_WAKE_BURST_MAX_US = 12000;
-constexpr size_t DEFAULT_MS_FEED_TARGET_CACHED_PER_BUFFER = 5;
 
 bool IsBackgroundSweepEnabled()
 {
@@ -46,15 +43,10 @@ bool IsParallelSweepEnabled()
     return param.msBackgroundSweep != 0 && param.msParallelSweep != 0;
 }
 
-uint64_t GetParallelSweepBudgetUs()
+uint64_t GetSweepBaseBudgetUs()
 {
     uint64_t valueNs = CangjieRuntime::GetGCParam().msBackgroundSweepMaxTime;
-    uint64_t baseUs = valueNs == 0 ? 0 : std::max<uint64_t>(1, valueNs / 1000ULL);
-    if (baseUs > std::numeric_limits<uint64_t>::max() /
-        MS_PARALLEL_SWEEP_EMERGENCY_CAP_MULTIPLIER) {
-        return std::numeric_limits<uint64_t>::max();
-    }
-    return baseUs * MS_PARALLEL_SWEEP_EMERGENCY_CAP_MULTIPLIER;
+    return valueNs == 0 ? 0 : std::max<uint64_t>(1, valueNs / 1000ULL);
 }
 
 uint64_t SaturatingDeadlineUs(uint64_t startUs, uint64_t budgetUs)
@@ -65,13 +57,11 @@ uint64_t SaturatingDeadlineUs(uint64_t startUs, uint64_t budgetUs)
 }
 
 struct ParallelSweepTaskContext {
-    ParallelSweepTaskContext(CentralRegionPool& pool, size_t quantum,
-                             uint64_t deadline, uint64_t cursor)
-        : centralPool(pool), regionQuantum(quantum), deadlineUs(deadline), startClassCursor(cursor)
+    ParallelSweepTaskContext(CentralRegionPool& pool, uint64_t deadline, uint64_t cursor)
+        : centralPool(pool), deadlineUs(deadline), startClassCursor(cursor)
     {}
 
     CentralRegionPool& centralPool;
-    size_t regionQuantum;
     uint64_t deadlineUs;
     uint64_t startClassCursor;
     std::atomic<size_t> slices{0};
@@ -83,7 +73,7 @@ struct ParallelSweepTaskContext {
     {
         uint8_t preferredCls = static_cast<uint8_t>(
             (startClassCursor + taskIndex) % static_cast<uint64_t>(kNumSizeClasses));
-        BackgroundSweepStats stats = centralPool.ParallelSweep(regionQuantum, preferredCls, deadlineUs);
+        BackgroundSweepStats stats = centralPool.ParallelSweep(preferredCls, deadlineUs);
         slices.fetch_add(stats.slices, std::memory_order_relaxed);
         sweptRegions.fetch_add(stats.sweptRegions, std::memory_order_relaxed);
         emptyRegions.fetch_add(stats.emptyRegions, std::memory_order_relaxed);
@@ -99,11 +89,6 @@ struct ParallelSweepTaskContext {
             elapsedUs.load(std::memory_order_acquire)};
     }
 };
-
-bool IsBackgroundFeedEnabled()
-{
-    return CangjieRuntime::GetGCParam().msBackgroundFeed != 0;
-}
 
 bool IsBackgroundScavengeEnabled()
 {
@@ -138,12 +123,13 @@ BackgroundProcessor::BackgroundProcessor()
     started.store(false, std::memory_order_relaxed);
     running.store(false, std::memory_order_relaxed);
     iterationWaitTime = DEFAULT_MS_GC_HELPER_POLL_MS;
-    shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
     shouldBackgroundSweep_.store(false, std::memory_order_relaxed);
     shouldScavengeHeap_.store(false, std::memory_order_relaxed);
     shouldShrinkHeap_.store(false, std::memory_order_relaxed);
     preferredSweepCls_.store(kNoPreferredSweepClass, std::memory_order_relaxed);
-    sweepPressureMode_.store(false, std::memory_order_relaxed);
+    targetSweepHelperCount_.store(0, std::memory_order_relaxed);
+    activeSweepHelperCount_.store(0, std::memory_order_relaxed);
+    observedSweepGeneration_.store(CentralRegionPool::GetGlobalSweepGen(), std::memory_order_relaxed);
 }
 
 void BackgroundProcessor::Start()
@@ -213,10 +199,6 @@ void BackgroundProcessor::Run()
 
         if (shouldShrinkHeap_.load(std::memory_order_relaxed)) {
             shouldContinueImmediate = BackgroundShrinkLoop() || shouldContinueImmediate;
-        }
-
-        if (shouldFeedHungryBuffers.load(std::memory_order_acquire)) {
-            shouldContinueImmediate = BackgroundFeedLoop() || shouldContinueImmediate;
         }
 
         if (shouldContinueImmediate) {
@@ -338,7 +320,6 @@ void BackgroundProcessor::RequestWork(std::atomic<bool>& flag)
 bool BackgroundProcessor::HasPendingWakeWork() const
 {
     return finalizerWorkList.HasFinalizableJob() ||
-           shouldFeedHungryBuffers.load(std::memory_order_relaxed) ||
            shouldParallelSweep_.load(std::memory_order_relaxed) ||
            shouldBackgroundSweep_.load(std::memory_order_relaxed) ||
            shouldScavengeHeap_.load(std::memory_order_relaxed) ||
@@ -357,30 +338,6 @@ void BackgroundProcessor::MaybeSchedulePeriodicWork()
     if (!shouldShrinkHeap_.load(std::memory_order_relaxed) && ShouldStartPeriodicShrink()) {
         shouldShrinkHeap_.store(true, std::memory_order_release);
     }
-    if (!shouldFeedHungryBuffers.load(std::memory_order_relaxed) && ShouldStartPeriodicFeed()) {
-        shouldFeedHungryBuffers.store(true, std::memory_order_release);
-    }
-}
-
-bool BackgroundProcessor::ShouldStartPeriodicFeed() const
-{
-    if (!IsBackgroundFeedEnabled()) {
-        return false;
-    }
-    CentralRegionPool* pool = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator()).GetCentralPool();
-    if (pool == nullptr) {
-        return false;
-    }
-    size_t bufferCount = pool->GetAllocBufferCount();
-    if (bufferCount == 0) {
-        return false;
-    }
-    size_t cachedCount = pool->GetAllAllocBufferCachedRegionCount();
-    size_t halfFullThreshold = (bufferCount * DEFAULT_MS_FEED_TARGET_CACHED_PER_BUFFER) / 2;
-    if (halfFullThreshold == 0) {
-        halfFullThreshold = 1;
-    }
-    return cachedCount < halfFullThreshold && pool->HasHungryAllocBuffer();
 }
 
 bool BackgroundProcessor::ShouldStartPeriodicSweep() const
@@ -421,33 +378,19 @@ void BackgroundProcessor::NotifyToSweep(uint8_t cls)
     RequestWork(shouldBackgroundSweep_);
 }
 
-void BackgroundProcessor::NotifyToParallelSweep(DeferredHeuOrigin origin)
+void BackgroundProcessor::NotifyToParallelSweep()
 {
+    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    if (centralPool == nullptr) {
+        return;
+    }
+    centralPool->ForceHighSweepPressure();
     if (!IsParallelSweepEnabled()) {
         NotifyToSweep(kNoPreferredSweepClass);
         return;
     }
-    parallelSweepRequestSeq_.fetch_add(1, std::memory_order_acq_rel);
-    deferredHeuOriginMask_.fetch_or(static_cast<uint8_t>(origin), std::memory_order_acq_rel);
-    deferredHeuRetryPending_.store(true, std::memory_order_release);
     RequestWork(shouldParallelSweep_);
-}
-
-void BackgroundProcessor::NotifyDeferredHeuRetry()
-{
-    if (deferredHeuRetryPending_.load(std::memory_order_acquire)) {
-        RequestWork(shouldParallelSweep_);
-    }
-}
-
-void BackgroundProcessor::ClearDeferredHeuRequest(uint64_t handledSequence)
-{
-    deferredHeuRetryPending_.store(false, std::memory_order_release);
-    deferredHeuOriginMask_.store(0, std::memory_order_release);
-    if (parallelSweepRequestSeq_.load(std::memory_order_acquire) != handledSequence) {
-        deferredHeuRetryPending_.store(true, std::memory_order_release);
-        RequestWork(shouldParallelSweep_);
-    }
 }
 
 void BackgroundProcessor::NotifyToScavenge()
@@ -468,12 +411,78 @@ void BackgroundProcessor::NotifyToShrink()
     RequestWork(shouldShrinkHeap_);
 }
 
+void BackgroundProcessor::ResetSweepHelperControl(uint32_t sweepGeneration)
+{
+    targetSweepHelperCount_.store(0, std::memory_order_release);
+    activeSweepHelperCount_.store(0, std::memory_order_release);
+    observedSweepGeneration_.store(sweepGeneration, std::memory_order_release);
+}
+
+size_t BackgroundProcessor::RefreshSweepHelperControl(CentralRegionPool& pool, RegionSpaceMS& space,
+                                                       CollectorResources& resources,
+                                                       bool advanceHelpers)
+{
+    uint32_t sweepGeneration = CentralRegionPool::GetGlobalSweepGen();
+    if (observedSweepGeneration_.load(std::memory_order_acquire) != sweepGeneration) {
+        ResetSweepHelperControl(sweepGeneration);
+        advanceHelpers = true;
+    }
+    if (pool.IsSweepDone()) {
+        ResetSweepHelperControl(sweepGeneration);
+        return 0;
+    }
+
+    size_t sweptBytes = space.GetSweptHeapBytes();
+    size_t unsweptBytes = pool.GetTotalUnsweptBytes();
+    size_t thresholdBytes = space.GetHeapThresholdBytes();
+    SweepDebtDecision pressure = pool.RefreshSweepDebtSnapshot(thresholdBytes, sweptBytes);
+
+    size_t maxHelpers = 0;
+    if (IsParallelSweepEnabled()) {
+        const GCParam& gcParam = CangjieRuntime::GetGCParam();
+        size_t gcThreads = static_cast<size_t>(
+            std::max<int32_t>(1, resources.GetGCThreadCount(true)));
+        maxHelpers = ComputeMSMaxSweepHelpers(gcThreads, gcParam.msParallelSweepMaxHelpers);
+    }
+    size_t targetHelpers = ComputeMSSweepTargetHelpers(
+        pressure.mode, sweptBytes, unsweptBytes, thresholdBytes, maxHelpers);
+    size_t currentHelpers = activeSweepHelperCount_.load(std::memory_order_acquire);
+    if (advanceHelpers || pressure.mode == SweepPressureMode::HIGH ||
+        pool.IsSweepPressureForcedHigh()) {
+        currentHelpers = ComputeMSActiveSweepHelpers(
+            currentHelpers, targetHelpers, pressure.mode, pool.IsSweepPressureForcedHigh());
+    } else {
+        currentHelpers = std::min(currentHelpers, maxHelpers);
+    }
+
+    targetSweepHelperCount_.store(targetHelpers, std::memory_order_release);
+    activeSweepHelperCount_.store(currentHelpers, std::memory_order_release);
+    return currentHelpers;
+}
+
 bool BackgroundProcessor::BackgroundSweepLoop()
 {
     Allocator& allocator = Heap::GetHeap().GetAllocator();
-    uint8_t preferredCls = preferredSweepCls_.exchange(kNoPreferredSweepClass, std::memory_order_acq_rel);
-    BackgroundSweepStats sliceStats = allocator.BackgroundSweep(preferredCls);
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(allocator);
+    CentralRegionPool* pool = space.GetCentralPool();
+    if (pool == nullptr) {
+        shouldBackgroundSweep_.store(false, std::memory_order_release);
+        return false;
+    }
+    CollectorResources& resources = Heap::GetHeap().GetCollectorResources();
+    size_t helperCount = RefreshSweepHelperControl(*pool, space, resources, false);
+    if (helperCount != 0 && IsParallelSweepEnabled()) {
+        return ParallelSweepLoop(helperCount);
+    }
+
+    uint8_t preferredCls = preferredSweepCls_.exchange(
+        kNoPreferredSweepClass, std::memory_order_acq_rel);
+    SweepPressureMode mode = pool->GetSweepPressureMode();
+    uint64_t startUs = TimeUtil::MicroSeconds();
+    uint64_t budgetUs = static_cast<uint64_t>(ComputeMSSweepSliceBudgetUs(
+        static_cast<size_t>(GetSweepBaseBudgetUs()), mode));
+    uint64_t deadlineUs = SaturatingDeadlineUs(startUs, budgetUs);
+    BackgroundSweepStats sliceStats = pool->BackgroundSweep(preferredCls, deadlineUs);
     size_t thresholdBytes = space.GetHeapThresholdBytes();
     if (thresholdBytes != 0) {
         (void)space.FlushCentralCacheToThreshold(thresholdBytes);
@@ -481,14 +490,10 @@ bool BackgroundProcessor::BackgroundSweepLoop()
     pendingSweepStats_.Merge(sliceStats);
     bool hasMore = HasPendingSweepWork();
     if (!hasMore && pendingSweepStats_.HasWork()) {
-        CentralRegionPool* pool = space.GetCentralPool();
-        size_t remaining = pool ? pool->GetTotalUnsweptCount() : 0;
         VLOG(REPORT,
              "[MS-GC] sweep done: slices=%zu swept=%zu empty=%zu unswept=%zu elapsed=%zuus",
-             pendingSweepStats_.slices,
-             pendingSweepStats_.sweptRegions,
-             pendingSweepStats_.emptyRegions,
-             remaining,
+             pendingSweepStats_.slices, pendingSweepStats_.sweptRegions,
+             pendingSweepStats_.emptyRegions, pool->GetTotalUnsweptCount(),
              static_cast<size_t>(pendingSweepStats_.elapsedUs));
         pendingSweepStats_.Reset();
     }
@@ -498,121 +503,83 @@ bool BackgroundProcessor::BackgroundSweepLoop()
 bool BackgroundProcessor::ParallelSweepLoop()
 {
     shouldParallelSweep_.store(false, std::memory_order_release);
-    if (!deferredHeuRetryPending_.load(std::memory_order_acquire)) {
-        return false;
-    }
-
-    uint64_t handledSequence = parallelSweepRequestSeq_.load(std::memory_order_acquire);
     if (!IsParallelSweepEnabled()) {
-        ClearDeferredHeuRequest(handledSequence);
         NotifyToSweep(kNoPreferredSweepClass);
         return false;
     }
 
     CollectorResources& resources = Heap::GetHeap().GetCollectorResources();
     if (Heap::GetHeap().IsGcStarted()) {
-        // NotifyGCFinished() will wake this request after the current collector
-        // has published its new threshold and sweep generation.
+        ResetSweepHelperControl(CentralRegionPool::GetGlobalSweepGen());
         return false;
     }
-
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
     CentralRegionPool* centralPool = space.GetCentralPool();
-    MSRegionManager* regionManager = space.GetMSRegionManager();
-    if (centralPool == nullptr || regionManager == nullptr) {
-        ClearDeferredHeuRequest(handledSequence);
+    if (centralPool == nullptr) {
         return false;
     }
+    size_t helperCount = RefreshSweepHelperControl(*centralPool, space, resources, false);
+    return ParallelSweepLoop(helperCount);
+}
 
-    size_t sweptBytes = space.GetSweptHeapBytes();
-    size_t threshold = space.GetHeapThresholdBytes();
-    SweepDebtDecision debt = centralPool->RefreshSweepDebtSnapshot(threshold, sweptBytes);
-    MSHeuExecutionDecision decision = EvaluateMSHeuExecution(sweptBytes, threshold, debt);
-    uint8_t originMask = deferredHeuOriginMask_.load(std::memory_order_acquire);
-
-    if (decision == MSHeuExecutionDecision::BELOW_THRESHOLD) {
-        VLOG(REPORT,
-             "[MS-GC] deferred-HEU retry cleared: result=below swept=%zuB threshold=%zuB "
-             "unswept=%zu originMask=%u",
-             sweptBytes, threshold, centralPool->GetTotalUnsweptCount(),
-             static_cast<unsigned>(originMask));
-        ClearDeferredHeuRequest(handledSequence);
-        pendingParallelSweepStats_.Reset();
+bool BackgroundProcessor::ParallelSweepLoop(size_t helperCount)
+{
+    shouldParallelSweep_.store(false, std::memory_order_release);
+    CollectorResources& resources = Heap::GetHeap().GetCollectorResources();
+    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    if (centralPool == nullptr || Heap::GetHeap().IsGcStarted()) {
+        ResetSweepHelperControl(CentralRegionPool::GetGlobalSweepGen());
         return false;
-    }
-
-    if (decision == MSHeuExecutionDecision::RUN) {
-        AsyncGCEnqueueResult result = resources.TryRequestAsyncGC(GC_REASON_HEU);
-        VLOG(REPORT,
-             "[MS-GC] deferred-HEU retry: result=%u swept=%zuB threshold=%zuB "
-             "unswept=%zu originMask=%u",
-             static_cast<unsigned>(result), sweptBytes, threshold,
-             centralPool->GetTotalUnsweptCount(), static_cast<unsigned>(originMask));
-        if (result == AsyncGCEnqueueResult::ACCEPTED) {
-            regionManager->RecordHeuRequestTime(TimeUtil::NanoSeconds());
-            ClearDeferredHeuRequest(handledSequence);
-            pendingParallelSweepStats_.Reset();
-            return false;
-        }
-        if (result == AsyncGCEnqueueResult::GC_INACTIVE_OR_STOPPING) {
-            ClearDeferredHeuRequest(handledSequence);
-            pendingParallelSweepStats_.Reset();
-            return false;
-        }
-        WaitForActiveBackoff(DEFAULT_MS_DEFERRED_HEU_RETRY_BACKOFF_MS);
-        RequestWork(shouldParallelSweep_);
-        return true;
     }
 
     size_t unsweptRegions = centralPool->GetTotalUnsweptCount();
-    const GCParam& gcParam = CangjieRuntime::GetGCParam();
-    MSParallelSweepPlan plan = ComputeMSParallelSweepPlan(
-        unsweptRegions,
-        static_cast<size_t>(std::max<int32_t>(1, resources.GetGCThreadCount(true))),
-        gcParam.msParallelSweepMaxHelpers,
-        gcParam.msAssistSweepMaxRegionsPerCall);
+    if (unsweptRegions == 0) {
+        ResetSweepHelperControl(CentralRegionPool::GetGlobalSweepGen());
+        return false;
+    }
+    SweepPressureMode mode = centralPool->GetSweepPressureMode();
     uint64_t startUs = TimeUtil::MicroSeconds();
-    uint64_t deadlineUs = SaturatingDeadlineUs(startUs, GetParallelSweepBudgetUs());
+    uint64_t budgetUs = static_cast<uint64_t>(ComputeMSSweepSliceBudgetUs(
+        static_cast<size_t>(GetSweepBaseBudgetUs()), mode));
+    uint64_t deadlineUs = SaturatingDeadlineUs(startUs, budgetUs);
+    size_t sweptBytes = space.GetSweptHeapBytes();
+    size_t unsweptBytes = centralPool->GetTotalUnsweptBytes();
+    size_t thresholdBytes = space.GetHeapThresholdBytes();
 
     VLOG(REPORT,
-         "[MS-GC] parallel-sweep start: originMask=%u unswept=%zu swept=%zuB threshold=%zuB "
-         "mode=%d borrowedHelpers=%zu totalWorkers=%zu quantum=%zu deadlineUs=%zu",
-         static_cast<unsigned>(originMask), unsweptRegions, sweptBytes, threshold,
-         static_cast<int>(debt.mode), plan.borrowedHelpers, plan.totalWorkers,
-         plan.regionQuantum, static_cast<size_t>(deadlineUs));
+         "[MS-GC] parallel-sweep start: mode=%d forced=%d U=%zuB S=%zuB T=%zuB "
+         "targetHelpers=%zu activeHelpers=%zu budget=%zuus",
+         static_cast<int>(mode), static_cast<int>(centralPool->IsSweepPressureForcedHigh()),
+         unsweptBytes, sweptBytes, thresholdBytes,
+         targetSweepHelperCount_.load(std::memory_order_acquire), helperCount,
+         static_cast<size_t>(budgetUs));
 
     BackgroundSweepStats roundStats;
     bool leaseMiss = false;
-    if (plan.borrowedHelpers == 0) {
-        uint64_t cursor = parallelSweepRoundRobin_.fetch_add(1, std::memory_order_relaxed);
-        roundStats = centralPool->ParallelSweep(
-            plan.regionQuantum,
-            static_cast<uint8_t>(cursor % static_cast<uint64_t>(kNumSizeClasses)),
-            deadlineUs);
-    } else if (!resources.TryAcquireMSGCWorkerPoolForSweep()) {
-        leaseMiss = true;
+    uint64_t startClassCursor = parallelSweepRoundRobin_.fetch_add(
+        helperCount + 1, std::memory_order_relaxed);
+    uint8_t backgroundCls = static_cast<uint8_t>(
+        startClassCursor % static_cast<uint64_t>(kNumSizeClasses));
+
+    if (helperCount == 0 || !resources.TryAcquireMSGCWorkerPoolForSweep()) {
+        leaseMiss = helperCount != 0;
         if (!Heap::GetHeap().IsGcStarted()) {
-            uint64_t cursor = parallelSweepRoundRobin_.fetch_add(1, std::memory_order_relaxed);
-            roundStats = centralPool->ParallelSweep(
-                plan.regionQuantum,
-                static_cast<uint8_t>(cursor % static_cast<uint64_t>(kNumSizeClasses)),
-                deadlineUs);
+            roundStats = centralPool->BackgroundSweep(backgroundCls, deadlineUs);
         }
     } else {
         GCThreadPool* threadPool = resources.GetThreadPool();
         if (Heap::GetHeap().IsGcStarted() || threadPool == nullptr) {
             resources.ReleaseMSGCWorkerPool(MSGCWorkerPoolOwner::SWEEP);
+            ResetSweepHelperControl(CentralRegionPool::GetGlobalSweepGen());
             return false;
         }
 
-        uint64_t startClassCursor = parallelSweepRoundRobin_.fetch_add(
-            plan.totalWorkers, std::memory_order_relaxed);
-        ParallelSweepTaskContext context(
-            *centralPool, plan.regionQuantum, deadlineUs, startClassCursor);
+        ParallelSweepTaskContext context(*centralPool, deadlineUs, startClassCursor + 1);
         std::vector<std::unique_ptr<HeapWork>> stagedTasks;
-        stagedTasks.reserve(plan.totalWorkers);
+        stagedTasks.reserve(helperCount);
         bool allocationFailed = false;
-        for (size_t taskIndex = 0; taskIndex < plan.totalWorkers; ++taskIndex) {
+        for (size_t taskIndex = 0; taskIndex < helperCount; ++taskIndex) {
             std::unique_ptr<HeapWork> task(new (std::nothrow) LambdaWork(
                 [&context, taskIndex](size_t) { context.Run(taskIndex); }));
             if (task == nullptr) {
@@ -624,23 +591,24 @@ bool BackgroundProcessor::ParallelSweepLoop()
 
         if (allocationFailed) {
             stagedTasks.clear();
-            roundStats = centralPool->ParallelSweep(
-                plan.regionQuantum,
-                static_cast<uint8_t>(startClassCursor % static_cast<uint64_t>(kNumSizeClasses)),
-                deadlineUs);
+            roundStats = centralPool->BackgroundSweep(backgroundCls, deadlineUs);
         } else {
-            threadPool->SetMaxActiveThreadNum(static_cast<int32_t>(plan.borrowedHelpers));
+            threadPool->SetMaxActiveThreadNum(static_cast<int32_t>(helperCount));
             for (std::unique_ptr<HeapWork>& task : stagedTasks) {
                 threadPool->AddWork(task.release());
             }
             threadPool->Start();
+            roundStats = centralPool->BackgroundSweep(backgroundCls, deadlineUs);
             threadPool->WaitFinish();
-            roundStats = context.Snapshot();
+            roundStats.Merge(context.Snapshot());
         }
         resources.ReleaseMSGCWorkerPool(MSGCWorkerPoolOwner::SWEEP);
     }
 
-    pendingParallelSweepStats_.Merge(roundStats);
+    if (thresholdBytes != 0) {
+        (void)space.FlushCentralCacheToThreshold(thresholdBytes);
+    }
+    pendingSweepStats_.Merge(roundStats);
     size_t remaining = centralPool->GetTotalUnsweptCount();
     uint64_t wallUs = TimeUtil::MicroSeconds() - startUs;
     VLOG(REPORT,
@@ -650,11 +618,16 @@ bool BackgroundProcessor::ParallelSweepLoop()
          static_cast<size_t>(wallUs), static_cast<size_t>(roundStats.elapsedUs),
          static_cast<int>(leaseMiss), static_cast<int>(Heap::GetHeap().IsGcStarted()));
 
-    if (deferredHeuRetryPending_.load(std::memory_order_acquire)) {
-        RequestWork(shouldParallelSweep_);
-        return true;
+    bool hasMore = HasPendingSweepWork();
+    if (!hasMore && pendingSweepStats_.HasWork()) {
+        VLOG(REPORT,
+             "[MS-GC] sweep done: slices=%zu swept=%zu empty=%zu unswept=%zu elapsed=%zuus",
+             pendingSweepStats_.slices, pendingSweepStats_.sweptRegions,
+             pendingSweepStats_.emptyRegions, remaining,
+             static_cast<size_t>(pendingSweepStats_.elapsedUs));
+        pendingSweepStats_.Reset();
     }
-    return false;
+    return hasMore;
 }
 
 bool BackgroundProcessor::HasPendingSweepWork()
@@ -662,56 +635,19 @@ bool BackgroundProcessor::HasPendingSweepWork()
     Allocator& allocator = Heap::GetHeap().GetAllocator();
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(allocator);
     CentralRegionPool* pool = space.GetCentralPool();
-    size_t unsweptRegions = pool->GetTotalUnsweptCount();
-    if (!allocator.HasPendingSweepWork() || pool == nullptr || unsweptRegions == 0) {
-        sweepPressureMode_.store(false, std::memory_order_release);
+    if (pool == nullptr || !allocator.HasPendingSweepWork() ||
+        pool->GetTotalUnsweptCount() == 0) {
+        ResetSweepHelperControl(CentralRegionPool::GetGlobalSweepGen());
+        shouldParallelSweep_.store(false, std::memory_order_release);
         shouldBackgroundSweep_.store(false, std::memory_order_release);
         return false;
     }
 
-    // Keep background sweep running whenever there is unswept backlog, so the
-    // cycle's sweep work is drained allocation-independently (Go bgsweep semantics)
-    // instead of spilling into ForceFinishAllUnswept at the next GC. Pressure mode
-    // (10x per-slice time budget, see GetBgSweepMaxTimeUs) still engages only once
-    // the allocation runway is exhausted, so we don't burn the larger budget early.
-    size_t thresholdBytes = space.GetHeapThresholdBytes();
-    size_t sweptBytes = space.GetSweptHeapBytes();
-    size_t remainingRunwayBytes = thresholdBytes > sweptBytes ? (thresholdBytes - sweptBytes) : 0;
-    sweepPressureMode_.store(remainingRunwayBytes == 0, std::memory_order_release);
+    CollectorResources& resources = Heap::GetHeap().GetCollectorResources();
+    size_t helperCount = RefreshSweepHelperControl(*pool, space, resources, true);
     shouldBackgroundSweep_.store(true, std::memory_order_release);
-    return true;
-}
-
-bool BackgroundProcessor::BackgroundFeedLoop()
-{
-    Allocator& allocator = Heap::GetHeap().GetAllocator();
-    BackgroundFeedStats sliceStats = allocator.BackgroundFillAllocCaches();
-    pendingFeedStats_.Merge(sliceStats);
-    bool hasMore = HasPendingFeedWork();
-    if (!hasMore && pendingFeedStats_.HasWork()) {
-        VLOG(REPORT,
-             "[MS-GC] feed done: slices=%zu buffers=%zu classes=%zu regions=%zu elapsed=%zuus",
-             pendingFeedStats_.slices,
-             pendingFeedStats_.touchedBuffers,
-             pendingFeedStats_.filledClasses,
-             pendingFeedStats_.filledRegions,
-             static_cast<size_t>(pendingFeedStats_.elapsedUs));
-        pendingFeedStats_.Reset();
-    }
-    return hasMore;
-}
-
-bool BackgroundProcessor::HasPendingFeedWork()
-{
-    CentralRegionPool* pool = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator()).GetCentralPool();
-    if (pool == nullptr) {
-        shouldFeedHungryBuffers.store(false, std::memory_order_release);
-        return false;
-    }
-    if (!pool->HasHungryAllocBuffer()) {
-        shouldFeedHungryBuffers.store(false, std::memory_order_release);
-        return false;
-    }
+    shouldParallelSweep_.store(helperCount != 0 && IsParallelSweepEnabled(),
+                               std::memory_order_release);
     return true;
 }
 

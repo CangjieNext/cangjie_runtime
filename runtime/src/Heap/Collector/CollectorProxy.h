@@ -50,11 +50,6 @@ public:
     // dispatch garbage collection to the right collector
     MRT_EXPORT void RunGarbageCollection(uint64_t gcIndex, GCReason reason) override;
 
-    bool ShouldExecuteQueuedRequest(GCReason reason) override
-    {
-        return currentCollector->ShouldExecuteQueuedRequest(reason);
-    }
-
     bool ShouldIgnoreRequest(GCRequest& request) override { return currentCollector->ShouldIgnoreRequest(request); }
 
     TracingCollector& GetCurrentCollector() const { return *currentCollector; }

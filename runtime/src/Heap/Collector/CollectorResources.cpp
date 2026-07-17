@@ -261,11 +261,6 @@ void CollectorResources::NotifyGCFinished(uint64_t gcIndex)
         finishedGcIndex.store(gcIndex);
     }
     gcFinishedCondVar.notify_all();
-#ifdef MRT_USE_MARK_SWEEP
-    if (backgroundProcessor.IsRunning() && backgroundProcessor.HasDeferredHeuRetryPending()) {
-        backgroundProcessor.NotifyDeferredHeuRetry();
-    }
-#endif
     BroadcastGCCompletion();
 }
 

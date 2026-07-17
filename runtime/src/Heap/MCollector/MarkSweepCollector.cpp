@@ -355,37 +355,6 @@ void MarkSweepCollector::PostGarbageCollection(uint64_t gcIndex)
 // GC entry point
 // ============================================================================
 
-bool MarkSweepCollector::ShouldExecuteQueuedRequest(GCReason reason)
-{
-    if (reason != GC_REASON_HEU) {
-        return true;
-    }
-
-    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(theAllocator);
-    CentralRegionPool* centralPool = space.GetCentralPool();
-    if (centralPool == nullptr) {
-        return true;
-    }
-
-    size_t sweptBytes = space.GetSweptHeapBytes();
-    size_t threshold = GetGCStats().GetThreshold();
-    SweepDebtDecision debt = centralPool->RefreshSweepDebtSnapshot(threshold, sweptBytes);
-    MSHeuExecutionDecision decision = EvaluateMSHeuExecution(sweptBytes, threshold, debt);
-    if (decision == MSHeuExecutionDecision::RUN) {
-        return true;
-    }
-
-    if (decision == MSHeuExecutionDecision::DEFER_FOR_SWEEP) {
-        BackgroundProcessor& backgroundProcessor =
-            Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
-        backgroundProcessor.NotifyToParallelSweep(DeferredHeuOrigin::EXECUTE_SIDE);
-    }
-    VLOG(REPORT,
-         "[MS-GC] queued HEU skipped before execute: swept=%zuB threshold=%zuB mode=%d decision=%d",
-         sweptBytes, threshold, static_cast<int>(debt.mode), static_cast<int>(decision));
-    return false;
-}
-
 void MarkSweepCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
 {
     gcCycle_++;
@@ -2118,16 +2087,13 @@ void MarkSweepCollector::DumpGCStateSnapshot(const char* stage)
     }
 
     size_t allocBufferCount = centralPool->GetAllocBufferCount();
-    size_t bufferRegionCount = centralPool->GetAllAllocBufferRegionCount();
     size_t bufferActiveRegionCount = centralPool->GetAllAllocBufferActiveRegionCount();
-    size_t bufferCachedRegionCount = centralPool->GetAllAllocBufferCachedRegionCount();
     size_t emptyCacheCount = centralPool->GetEmptySweptRegionCount();
     size_t largeRegionCount = centralPool->GetLargeRegionCount();
 
     VLOG(REPORT, "[MS-GC] --- %s ---", stage);
     VLOG(REPORT, "[MS-GC]   alloc buffers: %zu", allocBufferCount);
-    VLOG(REPORT, "[MS-GC]   alloc-buffer regions: total=%zu active=%zu cached=%zu",
-         bufferRegionCount, bufferActiveRegionCount, bufferCachedRegionCount);
+    VLOG(REPORT, "[MS-GC]   alloc-buffer active regions: %zu", bufferActiveRegionCount);
     VLOG(REPORT, "[MS-GC]   central pool: empty=%zu large=%zu", emptyCacheCount, largeRegionCount);
 
     for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {

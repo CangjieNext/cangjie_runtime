@@ -9,23 +9,12 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 
+#include "Heap/MAllocator/MSSweepDebtPolicy.h"
+
 namespace MapleRuntime {
-
-constexpr size_t MS_PARALLEL_SWEEP_REGIONS_PER_HELPER = 64;
-constexpr size_t MS_PARALLEL_SWEEP_TARGET_WAVES = 4;
-constexpr size_t MS_PARALLEL_SWEEP_EMERGENCY_CAP_MULTIPLIER = 10;
-
-struct MSParallelSweepPlan {
-    MSParallelSweepPlan(size_t helpers = 0, size_t workers = 1, size_t quantum = 1)
-        : borrowedHelpers(helpers), totalWorkers(workers), regionQuantum(quantum)
-    {}
-
-    size_t borrowedHelpers;
-    size_t totalWorkers;
-    size_t regionQuantum;
-};
 
 inline size_t SaturatingMultiply(size_t lhs, size_t rhs)
 {
@@ -35,30 +24,94 @@ inline size_t SaturatingMultiply(size_t lhs, size_t rhs)
     return lhs * rhs;
 }
 
-inline MSParallelSweepPlan ComputeMSParallelSweepPlan(
-    size_t unsweptRegions, size_t gcThreads, size_t configuredMaxHelpers,
-    size_t assistMaxRegions)
+inline size_t ComputeMSMaxSweepHelpers(size_t gcThreads, size_t configuredMaxHelpers)
 {
     size_t logicalMaxHelpers = gcThreads > 1 ? gcThreads - 1 : 0;
     if (configuredMaxHelpers != 0) {
         logicalMaxHelpers = std::min(logicalMaxHelpers, configuredMaxHelpers);
     }
+    return logicalMaxHelpers;
+}
 
-    // Keep one coordinator-only lane through 64 regions. Every additional
-    // 64-region band borrows one physical GC helper: 65->1, 129->2, 193->3.
-    size_t requestedHelpers = unsweptRegions == 0 ? 0 :
-        (unsweptRegions - 1) / MS_PARALLEL_SWEEP_REGIONS_PER_HELPER;
-    size_t borrowedHelpers = std::min(logicalMaxHelpers, requestedHelpers);
-    size_t totalWorkers = 1 + borrowedHelpers;
+inline size_t ComputeMSSweepExcessBytes(size_t sweptBytes, size_t unsweptBytes,
+                                        size_t thresholdBytes)
+{
+    if (sweptBytes >= thresholdBytes) {
+        return SaturatingAddMSSweepValue(sweptBytes - thresholdBytes, unsweptBytes);
+    }
+    size_t remaining = thresholdBytes - sweptBytes;
+    return unsweptBytes > remaining ? unsweptBytes - remaining : 0;
+}
 
-    size_t waves = SaturatingMultiply(totalWorkers, MS_PARALLEL_SWEEP_TARGET_WAVES);
-    size_t targetPerTask = unsweptRegions == 0 ? 1 : 1 + (unsweptRegions - 1) / waves;
-    size_t emergencyCap = SaturatingMultiply(
-        assistMaxRegions, MS_PARALLEL_SWEEP_EMERGENCY_CAP_MULTIPLIER);
-    emergencyCap = std::max<size_t>(1, emergencyCap);
-    size_t regionQuantum = std::max<size_t>(1, std::min(targetPerTask, emergencyCap));
+// Return ceil(excess / threshold * maxHelpers), clamped to [1, maxHelpers].
+// maxHelpers originates in the int32_t GC thread count, so the remainder
+// product below is bounded by INT32_MAX^2 and cannot overflow size_t.
+inline size_t ComputeMSMediumSweepTargetHelpers(size_t sweptBytes, size_t unsweptBytes,
+                                                size_t thresholdBytes, size_t maxHelpers)
+{
+    maxHelpers = std::min(maxHelpers, static_cast<size_t>(std::numeric_limits<int32_t>::max()));
+    if (maxHelpers == 0) {
+        return 0;
+    }
+    size_t excessBytes = ComputeMSSweepExcessBytes(sweptBytes, unsweptBytes, thresholdBytes);
+    if (thresholdBytes == 0 || excessBytes >= thresholdBytes) {
+        return maxHelpers;
+    }
+    if (excessBytes == 0) {
+        return 1;
+    }
 
-    return MSParallelSweepPlan(borrowedHelpers, totalWorkers, regionQuantum);
+    size_t thresholdQuotient = thresholdBytes / maxHelpers;
+    size_t thresholdRemainder = thresholdBytes % maxHelpers;
+    size_t low = 1;
+    size_t high = maxHelpers;
+    while (low < high) {
+        size_t candidate = low + (high - low) / 2;
+        size_t boundary = candidate * thresholdQuotient +
+            (candidate * thresholdRemainder) / maxHelpers;
+        if (excessBytes <= boundary) {
+            high = candidate;
+        } else {
+            low = candidate + 1;
+        }
+    }
+    return low;
+}
+
+inline size_t ComputeMSSweepTargetHelpers(SweepPressureMode mode, size_t sweptBytes,
+                                          size_t unsweptBytes, size_t thresholdBytes,
+                                          size_t maxHelpers)
+{
+    switch (mode) {
+        case SweepPressureMode::HIGH:
+            return maxHelpers;
+        case SweepPressureMode::MEDIUM:
+            return ComputeMSMediumSweepTargetHelpers(
+                sweptBytes, unsweptBytes, thresholdBytes, maxHelpers);
+        case SweepPressureMode::LOW:
+        default:
+            return 0;
+    }
+}
+
+inline size_t ComputeMSActiveSweepHelpers(size_t currentHelpers, size_t targetHelpers,
+                                          SweepPressureMode mode, bool forcedHigh)
+{
+    if (forcedHigh || mode == SweepPressureMode::HIGH) {
+        return targetHelpers;
+    }
+    if (currentHelpers < targetHelpers) {
+        return currentHelpers + 1;
+    }
+    if (currentHelpers > targetHelpers) {
+        return currentHelpers - 1;
+    }
+    return currentHelpers;
+}
+
+inline size_t ComputeMSSweepSliceBudgetUs(size_t baseBudgetUs, SweepPressureMode mode)
+{
+    return SaturatingMultiply(baseBudgetUs, SweepTierMultiplier(mode));
 }
 
 inline bool IsMSSweepQuiescent(bool sweepDone, bool backgroundRunning,

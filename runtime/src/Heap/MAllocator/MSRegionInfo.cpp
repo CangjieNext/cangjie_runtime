@@ -20,7 +20,6 @@ namespace {
 bool LocationHasOwner(MSRegionLocation location)
 {
     return location == MSRegionLocation::ACTIVE_LOCAL ||
-           location == MSRegionLocation::CACHED_LOCAL ||
            location == MSRegionLocation::LOCAL_EMPTY_CACHE;
 }
 

@@ -23,16 +23,6 @@
 
 namespace MapleRuntime {
 
-struct MSAllocCacheFillStats {
-    size_t filledClasses = 0;
-    size_t filledRegions = 0;
-
-    bool HasWork() const
-    {
-        return filledClasses != 0 || filledRegions != 0;
-    }
-};
-
 class CentralRegionPool;
 class Mutator;
 struct ThreadLocalData;
@@ -95,11 +85,6 @@ public:
         return sweepAssistStats_.Snapshot();
     }
 
-
-    // Background: fill one spare cachedRegion_ slot for size classes that
-    // already have an active region. Thread-safe via atomic cachedRegion_.
-    MSAllocCacheFillStats BackgroundFillCache();
-
     // Record stack root (called from Mutator::GcPhaseEnum during root enumeration).
     // This is root staging only, not grey-work production. Objects become grey
     // later when MarkSweepCollector merges these buffered roots through
@@ -137,11 +122,7 @@ public:
     }
 
     size_t CountActiveRegions() const;
-    size_t CountCachedRegions() const;
-    size_t DrainCachedRegionsToCentral();
     size_t ReturnAllRegionsToCentral();
-    bool NeedsBackgroundFill() const;
-    size_t CountTotalRegions() const { return CountActiveRegions() + CountCachedRegions(); }
 
     // Per-P GC Work buffer (Step5): used by Mutator assist during concurrent mark.
     // Initialized by MarkSweepCollector::InitAllPerPGCWork() at GC start.
@@ -216,16 +197,7 @@ public:
     void SetCachedHomeShardId(uint16_t id) { cachedHomeShardId_ = id; }
 
 private:
-    enum class RegionAcquireOrigin : uint8_t {
-        NONE = 0,
-        SWEPT_READY,
-        EMPTY_CACHE,
-        UNSWEPT,
-        FRESH,
-    };
-
     friend class CentralRegionPool;
-    static constexpr uint8_t kCachedRegionSlots = 1;
     static constexpr size_t kLocalEmptyRegionCap = kNumSizeClasses;
     // Per-P WorkBuf log cache tuning (Step37 §5.1).
     static constexpr size_t kLogCacheRefill = 8;   // batch size to pull from global pool
@@ -242,9 +214,8 @@ private:
     MAddress SlowAlloc(uint8_t cls);
 
     // Refill: get a Region from CentralRegionPool
-    MSRegionInfo* RefillFromCentral(uint8_t cls, bool backgroundFill = false,
-                                    RegionAcquireOrigin* originOut = nullptr);
-    MSRegionInfo* GetCacheRegion(uint8_t cls, RegionAcquireOrigin* originOut = nullptr);
+    MSRegionInfo* RefillFromCentral(uint8_t cls);
+    MSRegionInfo* GetCacheRegion(uint8_t cls);
     MSRegionInfo* TakeLocalEmptyRegion();
     bool TryPushLocalEmptyRegion(MSRegionInfo* region, size_t slotLimit = kLocalEmptyRegionCap);
     void RefillLocalEmptyRegionsFromGlobal(std::vector<MSRegionInfo*>& refill);
@@ -254,14 +225,7 @@ private:
     size_t ExtractLocalEmptyRegionsInRange(std::vector<MSRegionInfo*>& out, size_t startRegionIdx,
                                            size_t endRegionIdx, size_t maxRegions);
 
-    uint8_t CountCachedRegions(uint8_t cls) const;
-    void TrimExtraCachedRegions(uint8_t cls, uint8_t targetSlots = kCachedRegionSlots);
-
-    // Try to store a backup Region into one empty cache slot.
-    bool TryCacheRegion(uint8_t cls, MSRegionInfo* region, RegionAcquireOrigin origin,
-                        uint8_t slotLimit = kCachedRegionSlots);
-
-    // Return a cached/active region back to the central pool using the same
+    // Return an active region back to the central pool using the same
     // classification as ReturnRegion.
     void ReturnRegionToCentral(MSRegionInfo* region, uint8_t cls);
 
@@ -270,9 +234,6 @@ private:
 
     // Per-size-class active Region (nullptr = no active Region for this class)
     MSRegionInfo* activeRegions_[kNumSizeClasses] = {};
-
-    // Per-size-class cached backup Regions maintained by background feed.
-    std::atomic<MSRegionInfo*> cachedRegion_[kNumSizeClasses] = {};
 
     // Per-AllocBuffer cache of classless empty regions. These shells are rebound
     // to a size class on demand after the typed central lists miss.
@@ -298,7 +259,10 @@ private:
     // write-barrier log slot. Route-B (Step37): the slot is now a *pointer* to a
     // WorkBuf (activeLog_), not an inline buffer. The AArch64 fast path loads
     // this pointer, then writes the old-ref into activeLog_->objs[len++].
-    uint8_t wbBufAbiReserved_[184] = {};
+    // The removed per-size-class typed-spare array remains reserved padding so
+    // activeLog_ keeps its compiler/runtime ABI offset.
+    uint8_t wbBufAbiReserved_[184 +
+        kNumSizeClasses * sizeof(std::atomic<MSRegionInfo*>)] = {};
 
     // Route-B write-barrier log: the barrier appends raw (undiscovered) old-refs
     // into *activeLog_ (a WorkBuf). When full it is published wholesale to the
@@ -327,10 +291,6 @@ private:
     std::atomic<uint32_t> sweepDebtGen_ {0};
     MSSweepAssistAtomicStats sweepAssistStats_;
 
-    // Auxiliary metadata for backup cachedRegion_ slots. Keep these fields
-    // after activeLog_/gcWork_ so the AArch64 write-barrier fast-path offset stays
-    // stable.
-    std::atomic<uint8_t> cachedRegionOrigin_[kNumSizeClasses] = {};
 };
 
 } // namespace MapleRuntime

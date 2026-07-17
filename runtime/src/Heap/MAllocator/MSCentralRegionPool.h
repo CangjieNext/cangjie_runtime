@@ -364,15 +364,12 @@ public:
     // Background sweep: iterate all size classes, sweep one slice of unswept Regions.
     // Thread-safe (CAS ownership). Called by gc-helper thread.
     BackgroundSweepStats BackgroundSweep(uint8_t preferredCls = kNumSizeClasses);
-    BackgroundSweepStats ParallelSweep(size_t maxRegions, uint8_t preferredCls, uint64_t deadlineUs);
+    BackgroundSweepStats BackgroundSweep(uint8_t preferredCls, uint64_t deadlineUs);
+    BackgroundSweepStats ParallelSweep(uint8_t preferredCls, uint64_t deadlineUs);
     void ResetSweepCounts();
     MSSweepCounts GetSweepCounts() const;
-    size_t ComputeAssistSweepRegions(size_t unsweptRegions, uint32_t processorNum,
-                                     bool hardPressure) const;
-    size_t AssistSweepForFreshRegions(size_t requestedRegions, uint8_t preferredCls,
-                                      AllocBufferMS* preferredOwner);
     // Repay one P's local Sweep debt. Non-assist Sweep work is claimed once from
-    // the central credit pool; any remainder is bounded and swept directly.
+    // the central credit pool; a remaining full batch is swept directly once.
     MSSweepAssistResult MSSweepAssist(AllocBufferMS& owner, size_t debtRegions,
                                       uint8_t preferredCls);
     uint64_t GetSweepAssistRatioScaled() const
@@ -381,13 +378,17 @@ public:
         return ScaleMSSweepAssistRatioScaled(base, GetSweepPressureMode());
     }
 
-    // Sweep-debt snapshot (Step34 §14-19): recompute the backlog-vs-runway pressure
-    // mode (with hysteresis) and latch it for P assist / background sweep to
-    // read. Returns the decision used by MaybeNotifyMark to gate GC_REASON_HEU.
+    // Recompute LOW/MEDIUM/HIGH from unswept bytes, swept-retained bytes and the
+    // heap threshold. A Notify-forced HIGH remains latched until Sweep completes.
     SweepDebtDecision RefreshSweepDebtSnapshot(size_t thresholdBytes, size_t sweptBytes);
+    void ForceHighSweepPressure();
     SweepPressureMode GetSweepPressureMode() const
     {
         return static_cast<SweepPressureMode>(sweepPressureMode_.load(std::memory_order_relaxed));
+    }
+    bool IsSweepPressureForcedHigh() const
+    {
+        return forceHighSweepPressure_.load(std::memory_order_acquire);
     }
 
     bool HasPendingSweepWork() const
@@ -419,13 +420,11 @@ public:
 
     // ===== Monitoring =====
     size_t GetTotalUnsweptCount() const;
+    size_t GetTotalUnsweptBytes() const;
     size_t GetLargeRegionCount() const;
     size_t CountTLActiveRegions() const;
     size_t GetAllocBufferCount() const;
-    size_t GetAllAllocBufferRegionCount() const;
     size_t GetAllAllocBufferActiveRegionCount() const;
-    size_t GetAllAllocBufferCachedRegionCount() const;
-    bool HasHungryAllocBuffer() const;
     BucketPressure GetBucketPressure(uint8_t cls) const;
     void MaybeNotifySweep(uint8_t cls) const;
     // Swept-retained region count: partialSwept + fullSwept buckets + large region spans.
@@ -485,12 +484,12 @@ public:
 
     // ===== Pre-STW bitmap clearing (MarkSetup fast path) =====
 
-    // Stop background sweep and disable lazy/assist sweep, then wait for all
-    // in-flight sweeps (bg + lazy + assist) to fully quiesce. Any remaining
-    // central unswept backlog is synchronously finished before bitmap clearing,
-    // so the next mark setup does not reclassify central unswept lists without
-    // a real sweep. Must be called before clearing markBitmaps to avoid data
-    // races with SweepRegion reading them.
+    // Cooperatively drain the old unswept backlog while all Sweep sources are
+    // still open, then close background/lazy/assist/helper admission and wait
+    // for their in-flight work to quiesce. A final serial drain closes anything
+    // left during the handoff; only then may sweepDone be published. The gates
+    // remain closed through Mark and must be reopened by ReenableLazySweep().
+    // Must finish before clearing markBitmaps to avoid racing SweepRegion reads.
     void StopAndWaitForAllSweep();
 
     // Clear markBitmaps for all active small/medium regions in MSRegionInfoArray.
@@ -786,10 +785,9 @@ private:
     std::atomic<uint64_t> sweepRegionsPerAllocScaled_ {0};
     MSSweepCreditPool sweepCredit_;
 
-    // Latched sweep-debt pressure mode (SweepPressureMode), refreshed by
-    // RefreshSweepDebtSnapshot() and read by P assist / BackgroundSweep.
-    // Stored as int for atomic; doubles as the hysteresis "prev mode".
-    std::atomic<int> sweepPressureMode_{static_cast<int>(SweepPressureMode::NORMAL)};
+    // Unified Sweep pressure snapshot and Notify-forced epoch latch.
+    std::atomic<int> sweepPressureMode_{static_cast<int>(SweepPressureMode::LOW)};
+    std::atomic<bool> forceHighSweepPressure_{false};
 
     SizeClassBucket buckets_[kNumSizeClasses];
     MSRegionManager*  msRegionManager_;
@@ -834,11 +832,6 @@ private:
 public:
     void RegisterAllocBufferMS(AllocBufferMS* buffer);
     void RemoveAllocBufferMS(AllocBufferMS* buffer);
-
-    // Background fill of hungry per-thread alloc caches.
-    // Called by gc-helper thread. Iterates all AllocBufferMS and fills
-    // one spare cachedRegion_ for size classes that are currently active.
-    BackgroundFeedStats BackgroundFillAllocCaches();
 
     // Visit all registered AllocBufferMS instances (under lock)
     template<typename Visitor>

@@ -324,8 +324,8 @@ struct GCParam {
     size_t msAssistCreditDecayRounds;
 
     /*
-     * Maximum regions swept by one MSGC assist-sweep call under normal pressure.
-     * Must be > 0.
+     * Maximum regions swept by one MSGC P-level assist-sweep batch.
+     * Default to 4. Must be > 0.
      */
     size_t msAssistSweepMaxRegionsPerCall;
 
@@ -353,9 +353,9 @@ struct GCParam {
     uint8_t msBackgroundSweep;
 
     /*
-     * MSGC background feed switch. 0 = off, 1 = on.
+     * Reserved MSGC configuration byte. Must remain in place for HeapParam ABI.
      */
-    uint8_t msBackgroundFeed;
+    uint8_t reservedMSBackgroundFeed;
 
     /*
      * MSGC background scavenge switch. 0 = off, 1 = on.
