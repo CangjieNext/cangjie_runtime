@@ -2,7 +2,7 @@
 
 To build the Cangjie Runtime, please refer to [Build Cangjie Runtime](https://gitcode.com/Cangjie/cangjie_build/blob/main/docs/linux.md).
 
-## Build Preparation
+## Build Preparationdd
 
 Before building, you need to set up the compilation environment according to the target output. For details, please refer to the [Cangjie SDK Integration and Build Guide](https://gitcode.com/Cangjie/cangjie_build).
 
