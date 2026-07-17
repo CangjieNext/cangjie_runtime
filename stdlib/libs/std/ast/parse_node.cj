@@ -15,6 +15,7 @@ let EXPR_LIST: Array<String> = [
     "wildcard_expr",
     "call_expr",
     "paren_expr",
+    "ambiguous_forced_cast_expr",
     "member_access_expr",
     "optional_expr",
     "primitive_type_expr",
