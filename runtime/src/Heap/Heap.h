@@ -30,13 +30,9 @@ public:
     static Heap& GetHeap();
     static Barrier& GetBarrier() { return **currentBarrierPtr; }
 
-    // concurrent gc uses barrier to access heap.
-    static bool UseBarrier() { return *currentBarrierPtr != stwBarrierPtr; }
-
     virtual void Init(const HeapParam& vmHeapParam) = 0;
     virtual void Fini() = 0;
     virtual bool IsSurvivedObject(const BaseObject*) const = 0;
-    bool IsGarbage(const BaseObject* obj) const { return !IsSurvivedObject(obj); }
 
     virtual bool IsGcStarted() const = 0;
     virtual void WaitForGCFinish() = 0;

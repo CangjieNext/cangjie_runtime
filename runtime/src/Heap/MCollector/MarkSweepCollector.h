@@ -30,7 +30,7 @@ struct MSRegionInfo;
 struct WorkBuf;
 
 // Per-GC-cycle timing and statistics for DFX logging (Step 5).
-// Accumulated during a single GC cycle, logged in DumpMSGCLog(), then reset.
+// Accumulated during a single GC cycle, logged in LogGCSummary(), then reset.
 struct MSGCCycleStats {
     // ── Timing (microseconds) ──
     uint64_t preEnumRootsUs = 0;      // PreEnumRoots wall time: stop sweep, clear bitmaps, reclassify unswept.
@@ -139,7 +139,6 @@ public:
     bool TryUpdateRefField(BaseObject*, RefField<>&, BaseObject*&) const override { return false; }
     bool TryForwardRefField(BaseObject*, RefField<>&, BaseObject*&) const override { return false; }
     bool TryUntagRefField(BaseObject*, RefField<>&, BaseObject*&) const override { return false; }
-    bool TryTagRefField(BaseObject*, RefField<>&, BaseObject*) const override { return false; }
     RefField<> GetAndTryTagRefField(BaseObject* obj) const override;
 
     bool IsOldPointer(RefField<>&) const override { return false; }
@@ -174,7 +173,7 @@ public:
 
 private:
     // ── MS GC phases ──
-    void DoGarbageCollection(uint64_t gcIndex);
+    void DoGarbageCollection();
     void PreEnumRoots();        // Step 2.1a: Stop sweep, clear bitmaps, reclassify
     void EnumRoots();            // Step 2.1b: Handshake + root enumeration
     void ConcurrentMark();      // Step 2.2: Concurrent marking (GC thread + assist)

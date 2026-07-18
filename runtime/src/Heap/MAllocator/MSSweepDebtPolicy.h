@@ -125,31 +125,6 @@ inline size_t ComputeMSSweepAssistDirectRegions(size_t unpaidDebtRegions,
     return unpaidDebtRegions < batchRegions ? 0 : batchRegions;
 }
 
-inline bool ResetMSSweepDebtForGeneration(uint64_t& debtScaled, uint32_t& generation,
-                                          uint32_t currentGeneration)
-{
-    if (generation == currentGeneration) {
-        return false;
-    }
-    debtScaled = 0;
-    generation = currentGeneration;
-    return true;
-}
-
-enum class MSSweepWorkSource : uint8_t {
-    BACKGROUND = 0,
-    LAZY,
-    ASSIST,
-    HELPER,
-    FORCE_FINISH,
-};
-
-inline bool ShouldPublishMSSweepCredit(MSSweepWorkSource source)
-{
-    return source == MSSweepWorkSource::BACKGROUND || source == MSSweepWorkSource::LAZY ||
-           source == MSSweepWorkSource::HELPER;
-}
-
 // Work completed outside the allocating P is published once and claimed with
 // CAS.  Assist work does not enter this pool because it repays its owner P
 // directly; this prevents one swept Region from being counted twice.
@@ -295,12 +270,6 @@ private:
     std::atomic<uint64_t> maxDebtScaled_ {0};
 };
 
-struct SweepDebtDecision {
-    SweepPressureMode mode = SweepPressureMode::LOW;
-    double assistRatioMultiplier = 1.0;     // scale sweepRegionsPerAlloc_
-    double backgroundBudgetMultiplier = 1.0; // scale per-slice background time budget
-};
-
 // runway in regions on the swept-bytes axis the HEU trigger already uses.
 inline size_t ComputeRunwayRegions(size_t thresholdBytes, size_t sweptBytes, size_t regionSize)
 {
@@ -343,16 +312,6 @@ inline size_t SweepTierMultiplier(SweepPressureMode mode)
         case SweepPressureMode::LOW:
         default: return 1;
     }
-}
-
-inline SweepDebtDecision BuildSweepDebtDecision(SweepPressureMode mode)
-{
-    SweepDebtDecision d;
-    d.mode = mode;
-    double m = static_cast<double>(SweepTierMultiplier(mode));
-    d.assistRatioMultiplier = m;
-    d.backgroundBudgetMultiplier = m;
-    return d;
 }
 
 }  // namespace MapleRuntime

@@ -53,7 +53,6 @@ public:
     enum class TryTakeResult : uint8_t {
         SUCCESS,
         EMPTY,
-        BUSY,
     };
 
     class HeapRangeHandler {
@@ -88,8 +87,6 @@ public:
     size_t GetBorrowedRegionCount(uint16_t receiverShardId) const;
     size_t GetOwnedSegmentCount(uint16_t ownerShardId) const;
     size_t GetOwnedTotalRegionCount(uint16_t ownerShardId) const;
-    RegionIndex GetShardTakeCursor(uint16_t ownerShardId) const;
-    RegionIndex GetShardReclaimCursor(uint16_t ownerShardId) const;
     // Return bytes in free regions whose physical pages have NOT been returned
     // to the OS yet (hotFree = freeRegions - scavengedRegions).
     size_t GetHotFreeBytes() const;
@@ -149,8 +146,6 @@ private:
         std::vector<size_t> ownedSegments_;
         std::vector<OwnedSegmentView> ownedViews_;
         std::deque<BorrowedSpan> borrowedSpans_;
-        size_t bitmapWordCountInUse_ = 0;
-        size_t summaryChunkCountInUse_ = 0;
         std::atomic<uint32_t> snapFreeRegions_{0};
         std::atomic<uint32_t> snapScavengedRegions_{0};
         std::atomic<uint32_t> snapHotFreeRegions_{0};

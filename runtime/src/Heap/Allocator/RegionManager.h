@@ -105,7 +105,7 @@ public:
     void Initialize(size_t regionNum, uintptr_t regionInfoStart);
 
     RegionManager()
-        : freeRegionManager(*this), tlRegionList("thread local regions"), recentFullRegionList("recent full regions"),
+        : tlRegionList("thread local regions"), recentFullRegionList("recent full regions"),
           fullTraceRegions("full trace regions"), fromRegionList("from regions"),
           ghostFromRegionList("ghost from regions"), unmovableFromRegionList("escaped from regions"),
           garbageRegionList("garbage regions"), recentPinnedRegionList("recent pinned regions"),
@@ -244,18 +244,11 @@ public:
         tlRegionList.DeleteRegion(region);
     }
 
-    void RestoreToSpaceStateWords();
-
     void CountLiveObject(const BaseObject* obj);
 
     void AssembleSmallGarbageCandidates();
     void AssembleLargeGarbageCandidates();
     void AssemblePinnedGarbageCandidates(bool collectAll);
-
-    void MergeRawPointerPinnedRegions()
-    {
-        oldPinnedRegionList.MergeRegionList(rawPointerPinnedRegionList, RegionInfo::RegionType::FULL_PINNED_REGION);
-    }
 
     void CollectFromSpaceGarbage()
     {
@@ -354,8 +347,6 @@ public:
 
     size_t GetInactiveUnitCount() const { return (regionHeapEnd - inactiveZone) / RegionInfo::UNIT_SIZE; }
 
-    size_t GetActiveUnitCount() const { return (inactiveZone - regionHeapStart) / RegionInfo::UNIT_SIZE; }
-
     inline size_t GetLargeObjectSize() const
     {
         return oldLargeRegionList.GetAllocatedSize() + recentLargeRegionList.GetAllocatedSize();
@@ -371,8 +362,6 @@ public:
     }
 
     size_t GetLargeObjectThreshold() const { return largeObjectThreshold; }
-
-    void ClearFreePinnedSlots() { freePinnedSlotLists.Clear(); }
 
     void MaybeNotifyMark();
 
@@ -498,7 +487,6 @@ public:
 private:
     static const size_t MAX_UNIT_COUNT_PER_REGION;
     static const size_t HUGE_PAGE;
-    inline void CheckRegionWhetherCreatedInFixPhase(RegionInfo* region);
     inline void TagHugePage(RegionInfo* region, size_t num) const;
     inline void UntagHugePage(RegionInfo* region, size_t num) const;
 

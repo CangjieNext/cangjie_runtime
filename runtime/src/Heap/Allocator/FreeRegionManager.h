@@ -13,17 +13,15 @@
 #include "Common/ScopedObjectAccess.h"
 
 namespace MapleRuntime {
-class RegionManager;
-
 // This class is and should be accessed only for region allocation. we do not rely on it to check region status.
 class FreeRegionManager {
     using UnitIndex = CartesianTree::Index;
     using UnitCount = CartesianTree::Count;
 
 public:
-    explicit FreeRegionManager(RegionManager& manager) : regionManager(manager) {}
+    FreeRegionManager() = default;
 
-    virtual ~FreeRegionManager()
+    ~FreeRegionManager()
     {
         dirtyUnitTree.Fini();
         releasedUnitTree.Fini();
@@ -112,7 +110,6 @@ public:
     void DumpDirtyUnitTree() const { dirtyUnitTree.DumpTree("dirty-unit tree"); }
 #endif
 
-    size_t CalculateBytesToRelease() const;
     size_t ReleaseGarbageRegions(size_t targetCachedSize);
 
 private:
@@ -122,8 +119,6 @@ private:
             RegionInfo::ClearUnits(idx, num);
         }
     }
-    RegionManager& regionManager;
-
     // physical pages of released units are probably released and they are prepared for allocation.
     std::mutex releasedUnitTreeMutex;
     CartesianTree releasedUnitTree;

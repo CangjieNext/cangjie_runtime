@@ -64,7 +64,7 @@ public:
     void Fini();
 
     // Main allocation entry (called from AllocBuffer::Allocate in MS mode)
-    MAddress Allocate(size_t size, ThreadLocalData* local = nullptr);
+    MAddress Allocate(size_t size);
 
     // Accumulate pacing debt for a given allocation size and trigger assist if needed.
     // Called by large-object paths that bypass Allocate().
@@ -89,10 +89,6 @@ public:
     // later when MarkSweepCollector merges these buffered roots through
     // TryEnqueueGreyObject / DiscoverAndPushObject.
     void PushRoot(BaseObject* root) { stackRoots_.emplace_back(root); }
-
-    // MS-GC: all objects (including RAW_POINTER_OBJECT) are managed by CentralRegionPool directly.
-    // No separate thread-local raw pointer regions exist, so this is a no-op.
-    void CommitRawPointerRegions() {}
 
     // Move buffered stack roots into a temporary root buffer.
     // This helper intentionally does not discover/mark/enqueue grey work; the

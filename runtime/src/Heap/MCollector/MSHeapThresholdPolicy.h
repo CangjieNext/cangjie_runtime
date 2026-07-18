@@ -58,12 +58,6 @@ inline MSHeapThresholdDecision EvaluateMSHeapThreshold(size_t oldThreshold, size
     return decision;
 }
 
-inline size_t ComputeMSHeapThreshold(size_t oldThreshold, size_t liveBytes, double heapGrowth,
-                                     size_t minThreshold, size_t maxThreshold)
-{
-    return EvaluateMSHeapThreshold(oldThreshold, liveBytes, heapGrowth, minThreshold, maxThreshold).threshold;
-}
-
 } // namespace MapleRuntime
 
 #endif // MRT_MS_HEAP_THRESHOLD_POLICY_H

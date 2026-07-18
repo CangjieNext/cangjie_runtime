@@ -35,24 +35,6 @@
 namespace MapleRuntime {
 
 namespace {
-// Base background budget comes from cjGCBGSweepMaxTime; unified pressure maps
-// it to LOW 1x / MEDIUM 4x / HIGH 10x.
-uint64_t GetBgSweepMaxTimeUs(SweepPressureMode mode)
-{
-    uint64_t valueNs = CangjieRuntime::GetGCParam().msBackgroundSweepMaxTime;
-    uint64_t baseValue = valueNs == 0 ? 0 : std::max<uint64_t>(1, valueNs / 1000ULL);
-    return static_cast<uint64_t>(ComputeMSSweepSliceBudgetUs(
-        static_cast<size_t>(baseValue), mode));
-}
-
-uint64_t GetBgSweepDeadlineUs(uint64_t startUs, SweepPressureMode mode)
-{
-    uint64_t budgetUs = GetBgSweepMaxTimeUs(mode);
-    return budgetUs > std::numeric_limits<uint64_t>::max() - startUs
-        ? std::numeric_limits<uint64_t>::max()
-        : startUs + budgetUs;
-}
-
 void ClearSmallRegionPayload(uintptr_t regionStart)
 {
     memset(reinterpret_cast<void*>(regionStart), 0, MS_REGION_SIZE);
@@ -570,8 +552,8 @@ bool CentralRegionPool::HasIdleSegmentCachedRegions(size_t startRegionIdx, size_
     uintptr_t rangeStart = MSRegionInfoArray::GetRegionAddress(startRegionIdx);
     uintptr_t rangeEnd = MSRegionInfoArray::GetRegionAddress(endRegionIdx);
     std::lock_guard<std::mutex> lg(const_cast<std::mutex&>(largeHotCacheLock_));
-    for (const auto& [regionCount, bucket] : largeHotCache_) {
-        (void)regionCount;
+    for (const auto& cacheEntry : largeHotCache_) {
+        const auto& bucket = cacheEntry.second;
         for (const LargeHotEntry& entry : bucket) {
             uintptr_t entryStart = entry.regionStart;
             uintptr_t entryEnd = entry.regionStart + entry.regionBytes;
@@ -732,14 +714,8 @@ void CentralRegionPool::PrepareForSweep()
 }
 
 // ============================================================================
-// BackgroundSweep — called by gc-helper thread (FinalizerProcessor)
+// BackgroundSweep — called by gc-helper thread (BackgroundProcessor)
 // ============================================================================
-
-BackgroundSweepStats CentralRegionPool::BackgroundSweep(uint8_t preferredCls)
-{
-    uint64_t startUs = TimeUtil::MicroSeconds();
-    return BackgroundSweep(preferredCls, GetBgSweepDeadlineUs(startUs, GetSweepPressureMode()));
-}
 
 BackgroundSweepStats CentralRegionPool::BackgroundSweep(uint8_t preferredCls, uint64_t deadlineUs)
 {
@@ -881,7 +857,7 @@ MSSweepAssistResult CentralRegionPool::MSSweepAssist(AllocBufferMS& owner, size_
     return result;
 }
 
-SweepDebtDecision CentralRegionPool::RefreshSweepDebtSnapshot(size_t thresholdBytes, size_t sweptBytes)
+SweepPressureMode CentralRegionPool::RefreshSweepDebtSnapshot(size_t thresholdBytes, size_t sweptBytes)
 {
     size_t unsweptBytes = GetTotalUnsweptBytes();
     bool forcedHigh = forceHighSweepPressure_.load(std::memory_order_acquire);
@@ -890,7 +866,7 @@ SweepDebtDecision CentralRegionPool::RefreshSweepDebtSnapshot(size_t thresholdBy
         : EvaluateSweepPressure(unsweptBytes, sweptBytes, thresholdBytes, forcedHigh);
     sweepPressureMode_.store(static_cast<int>(mode), std::memory_order_release);
 
-    return BuildSweepDebtDecision(mode);
+    return mode;
 }
 
 void CentralRegionPool::ForceHighSweepPressure()
@@ -1086,11 +1062,9 @@ size_t CentralRegionPool::GetLargeRegionCount() const
 }
 
 void CentralRegionPool::ForceFinishUnsweptList(SizeClassBucket& bucket, SizeClassBucket::UnsweptListKind listKind,
-                                            uint8_t cls, uint32_t sg,
-                                            size_t& sweptRegions, size_t& emptiedRegions,
-                                            size_t& retainedRegions, size_t& freedBytes)
+                                               uint32_t sg, size_t& sweptRegions, size_t& emptiedRegions,
+                                               size_t& retainedRegions, size_t& freedBytes)
 {
-    (void)cls;
     for (;;) {
         MSRegionInfo* region = bucket.ClaimUnsweptHeadForSweep(listKind, sg);
         if (region == nullptr) {
@@ -1142,9 +1116,9 @@ void CentralRegionPool::ForceFinishAllUnswept()
 
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
         SizeClassBucket& bucket = buckets_[cls];
-        ForceFinishUnsweptList(bucket, SizeClassBucket::UnsweptListKind::PARTIAL, cls, sg,
+        ForceFinishUnsweptList(bucket, SizeClassBucket::UnsweptListKind::PARTIAL, sg,
                             sweptRegions, emptiedRegions, retainedRegions, freedBytes);
-        ForceFinishUnsweptList(bucket, SizeClassBucket::UnsweptListKind::FULL, cls, sg,
+        ForceFinishUnsweptList(bucket, SizeClassBucket::UnsweptListKind::FULL, sg,
                             sweptRegions, emptiedRegions, retainedRegions, freedBytes);
     }
 
@@ -1416,7 +1390,6 @@ MSLargeSweepStats CentralRegionPool::SweepLargeRegions()
         if (TryPutLargeHotCache(regionStart, regionBytes)) {
             stats.cachedObjectCount++;
             stats.cachedRegionCount += spanCount;
-            stats.cachedBytes += regionBytes;
         } else {
             msRegionManager_->ReclaimRegionLarge(regionStart, regionBytes);
         }

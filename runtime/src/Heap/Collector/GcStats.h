@@ -31,8 +31,6 @@ public:
     void SetThreshold(size_t val) { heapThreshold.store(val, std::memory_order_release); }
     size_t GetScavengeThreshold() const { return scavengeThreshold.load(std::memory_order_acquire); }
     void SetScavengeThreshold(size_t val) { scavengeThreshold.store(val, std::memory_order_release); }
-    size_t UpdateHeapThreshold(size_t liveRegionBytes);
-
     // Snapshots persisted at GC end for pacing / HEU trigger calculations.
     size_t baselineAllocatedBytes = 0;  // active region bytes snapshot at GC end
     size_t lastTrueLiveBytes = 0;       // trueLiveBytes from last GC marking

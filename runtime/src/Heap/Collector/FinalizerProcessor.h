@@ -55,16 +55,6 @@ public:
     {
         RequestWork(shouldFeedHungryBuffers);
     }
-    void NotifyToSweep()
-    {
-        RequestWork(shouldBackgroundSweep_);
-    }
-
-    void SetBackgroundFillAllocCaches(bool enabled)
-    {
-        shouldFeedHungryBuffers.store(enabled, std::memory_order_release);
-    }
-
 private:
     void RequestWork(std::atomic<bool>& flag)
     {
@@ -77,8 +67,7 @@ private:
     {
         return finalizerWorkList.HasFinalizableJob() ||
                shouldReclaimHeapGarbage.load(std::memory_order_relaxed) ||
-               shouldFeedHungryBuffers.load(std::memory_order_relaxed) ||
-               shouldBackgroundSweep_.load(std::memory_order_relaxed);
+               shouldFeedHungryBuffers.load(std::memory_order_relaxed);
     }
 
     void NotifyStarted();
@@ -87,8 +76,6 @@ private:
     void ProcessFinalizables();
     bool ReclaimHeapGarbage();
     void FeedHungryBuffers();
-    bool BackgroundSweepLoop();
-    void BackgroundFillAllocCaches();
 
     std::mutex wakeLock;
     std::condition_variable wakeCondition; // notify finalizer processing continue
@@ -104,7 +91,6 @@ private:
     FinalizerWorkList finalizerWorkList;
     std::atomic<bool> shouldReclaimHeapGarbage;
     std::atomic<bool> shouldFeedHungryBuffers;
-    std::atomic<bool> shouldBackgroundSweep_;
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     // stats
     void LogAfterProcess();

@@ -261,7 +261,6 @@ void CollectorResources::NotifyGCFinished(uint64_t gcIndex)
         finishedGcIndex.store(gcIndex);
     }
     gcFinishedCondVar.notify_all();
-    BroadcastGCCompletion();
 }
 
 void CollectorResources::WaitForGCFinish()
@@ -326,16 +325,6 @@ int32_t CollectorResources::GetGCThreadCount(const bool isConcurrent) const
     }
     // default to 2
     return 2;
-}
-
-void CollectorResources::BroadcastGCCompletion()
-{
-    gcWorking = 0;
-#if defined(_WIN64) || defined(__APPLE__)
-    WakeWhenGCDone();
-#else
-    (void)Futex(&gcWorking, FUTEX_WAKE_PRIVATE, INT_MAX);
-#endif
 }
 
 void CollectorResources::RequestHeapDump(GCTask::TaskType gcTask)

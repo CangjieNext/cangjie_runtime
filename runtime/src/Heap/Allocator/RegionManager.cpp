@@ -213,19 +213,6 @@ void RegionList::DeleteRegionLocked(RegionInfo* del)
     }
 }
 
-#ifdef MRT_DEBUG
-void RegionList::DumpRegionList(const char* msg)
-{
-    DLOG(REGION, "dump region list %s", msg);
-    std::lock_guard<std::mutex> lock(listMutex);
-    for (RegionInfo *region = listHead; region != nullptr; region = region->GetNextRegion()) {
-        DLOG(REGION, "region %p @[0x%zx+%zu, 0x%zx) units [%zu+%zu, %zu) type %u prev %p next %p", region,
-            region->GetRegionStart(), region->GetRegionAllocatedSize(), region->GetRegionEnd(),
-            region->GetUnitIdx(), region->GetUnitCount(), region->GetUnitIdx() + region->GetUnitCount(),
-            region->GetRegionType(), region->GetPrevRegion(), region->GetNextRegion());
-    }
-}
-#endif
 inline void RegionManager::TagHugePage(RegionInfo* region, size_t num) const
 {
 #if defined (__linux__) || defined(__OHOS__) || defined(__ANDROID__)

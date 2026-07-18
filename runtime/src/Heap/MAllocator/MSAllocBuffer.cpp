@@ -164,9 +164,8 @@ size_t AllocBufferMS::CountActiveRegions() const
 // SlowAlloc(), covering both the compiler fast-path (Allocate() bypassed) and
 // the runtime slow-path uniformly.
 // ============================================================================
-MAddress AllocBufferMS::Allocate(size_t size, ThreadLocalData* local)
+MAddress AllocBufferMS::Allocate(size_t size)
 {
-    (void)local;
     uint8_t cls = SizeClassInfo::SizeToClass(size);
     if (UNLIKELY(cls >= kNumSizeClasses)) {
         return 0;  // Large object — caller handles it via the large-region path

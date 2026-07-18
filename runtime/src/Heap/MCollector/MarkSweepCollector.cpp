@@ -368,7 +368,7 @@ void MarkSweepCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
 
     PreGarbageCollection(/* isConcurrent */ true);
     DumpGCStateSnapshot("preGCMark");
-    DoGarbageCollection(gcIndex);
+    DoGarbageCollection();
     UpdateGCStats();
     PostGarbageCollection(gcIndex);
 
@@ -387,10 +387,8 @@ void MarkSweepCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
     g_gcCollectedTotalBytes += gcStats.collectedBytes;
 }
 
-void MarkSweepCollector::DoGarbageCollection(uint64_t gcIndex)
+void MarkSweepCollector::DoGarbageCollection()
 {
-    (void)gcIndex;
-
     PreEnumRoots();        // Step 2.1a
     EnumRoots();            // Step 2.1b
     ConcurrentMark();      // Step 2.2
@@ -691,9 +689,9 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
         }
     }
     MSMarkWorkerPolicy workerPolicy(maxHelpers);
-    MSMarkWorkerDecision workerDecision = workerPolicy.Update(globalFull_.GetCounts().total);
-    StartMarkWorkers(maxHelpers, workerDecision.activeHelpers);
-    peakActiveHelpers_ = workerDecision.activeHelpers;
+    size_t activeHelpers = workerPolicy.Update(globalFull_.GetCounts().total);
+    StartMarkWorkers(maxHelpers, activeHelpers);
+    peakActiveHelpers_ = activeHelpers;
 
     // GC-supply credit with configurable linear decay.
     // Shorter window forces assist to do real marking work sooner.
@@ -732,13 +730,13 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
         size_t fullBacklog = backlog.full;
         peakPublishedBacklog_ = std::max(peakPublishedBacklog_, publishedBacklog);
         size_t oldHelpers = workerPolicy.GetActiveHelpers();
-        workerDecision = workerPolicy.Update(publishedBacklog);
-        MRT_ASSERT(workerDecision.activeHelpers >= oldHelpers,
+        activeHelpers = workerPolicy.Update(publishedBacklog);
+        MRT_ASSERT(activeHelpers >= oldHelpers,
                    "MSGC mark helpers must not scale down within a cycle");
-        if (workerDecision.activeHelpers > oldHelpers) {
-            markWorkerControl_.SetTargetHelpers(workerDecision.activeHelpers);
+        if (activeHelpers > oldHelpers) {
+            markWorkerControl_.SetTargetHelpers(activeHelpers);
             ++workerScaleUpCount_;
-            peakActiveHelpers_ = std::max(peakActiveHelpers_, workerDecision.activeHelpers);
+            peakActiveHelpers_ = std::max(peakActiveHelpers_, activeHelpers);
         }
 
         // Dynamic assist ratio escalation based on globalFull_ backpressure:
@@ -777,12 +775,12 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
                 tailDraining = true;
                 tailStartUs = TimeUtil::MicroSeconds();
                 size_t oldHelpers = workerPolicy.GetActiveHelpers();
-                workerDecision = workerPolicy.EnterTail();
-                markWorkerControl_.SetTargetHelpers(workerDecision.activeHelpers);
-                if (workerDecision.activeHelpers > oldHelpers) {
+                activeHelpers = workerPolicy.EnterTail();
+                markWorkerControl_.SetTargetHelpers(activeHelpers);
+                if (activeHelpers > oldHelpers) {
                     ++workerScaleUpCount_;
                 }
-                peakActiveHelpers_ = std::max(peakActiveHelpers_, workerDecision.activeHelpers);
+                peakActiveHelpers_ = std::max(peakActiveHelpers_, activeHelpers);
                 assistWorkPerByteScaled_.store(tailAssistRatio, std::memory_order_release);
             }
             quiesceResidualBuffers = QuiesceMarkWorkers();

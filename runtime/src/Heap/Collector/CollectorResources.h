@@ -61,12 +61,7 @@ public:
     bool TryAcquireMSGCWorkerPoolForSweep();
     bool AcquireMSGCWorkerPoolForMark();
     void ReleaseMSGCWorkerPool(MSGCWorkerPoolOwner owner);
-    MSGCWorkerPoolOwner GetMSGCWorkerPoolOwner() const { return msgcWorkerPoolController_.GetOwner(); }
 #endif
-
-    bool IsHeapMarked() const { return isHeapMarked; }
-
-    void SetHeapMarked(bool value) { isHeapMarked = value; }
 
     bool IsGcStarted() const { return isGcStarted.load(std::memory_order_relaxed); }
 
@@ -94,14 +89,6 @@ public:
         finalizerProcessor.VisitGCRoots(visitor);
 #endif
     }
-    void VisitFinalizerRawPointers(const RootVisitor& visitor)
-    {
-#ifdef MRT_USE_MARK_SWEEP
-        backgroundProcessor.VisitRawPointers(visitor);
-#else
-        finalizerProcessor.VisitRawPointers(visitor);
-#endif
-    }
     void EnqueueFinalizables(const std::function<bool(BaseObject*)>& finalizable, U32 countLimit = UINT_MAX)
     {
 #ifdef MRT_USE_MARK_SWEEP
@@ -126,24 +113,6 @@ public:
         finalizerProcessor.Notify();
 #endif
     }
-    uint32_t GetFinalizerThreadTid() const
-    {
-#ifdef MRT_USE_MARK_SWEEP
-        return backgroundProcessor.GetTid();
-#else
-        return finalizerProcessor.GetTid();
-#endif
-    }
-    Mutator* GetFinalizerMutator() const
-    {
-#ifdef MRT_USE_MARK_SWEEP
-        return backgroundProcessor.GetMutator();
-#else
-        return finalizerProcessor.GetMutator();
-#endif
-    }
-
-    void BroadcastGCCompletion();
     GCStats& GetGCStats() { return gcStats; }
     void RequestHeapDump(GCTask::TaskType gcTask);
 
@@ -182,26 +151,6 @@ private:
     // a switch to disable gc for hotupdate.
     std::atomic<bool> isGCActive = { true };
 
-    // only gc thread can access it, so we don't use atomic type
-    bool isHeapMarked = false;
-    // Represent the number of returned raw pointer
-    std::atomic<int> criticalNum{ 0 };
-    int gcWorking = 0;
-#if defined(_WIN64) || defined(__APPLE__)
-    std::condition_variable gcWorkingCV;
-    std::mutex gcWorkingMtx;
-    __attribute__((always_inline)) inline void WaitUntilGCDone()
-    {
-        std::unique_lock<std::mutex> gcWorkingLck(gcWorkingMtx);
-        gcWorkingCV.wait(gcWorkingLck);
-    }
-
-    __attribute__((always_inline)) inline void WakeWhenGCDone()
-    {
-        std::unique_lock<std::mutex> gcWorkingLck(gcWorkingMtx);
-        gcWorkingCV.notify_all();
-    }
-#endif
     CollectorProxy& collectorProxy;
     FinalizerProcessor finalizerProcessor;
 #ifdef MRT_USE_MARK_SWEEP

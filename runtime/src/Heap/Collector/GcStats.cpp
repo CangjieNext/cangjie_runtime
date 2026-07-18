@@ -40,18 +40,6 @@ size_t ComputeScavengeThresholdBytes(size_t heapThresholdBytes)
 uint64_t GCStats::prevGcStartTime = TimeUtil::NanoSeconds() - LONG_MIN_HEU_GC_INTERVAL_NS;
 uint64_t GCStats::prevGcFinishTime = TimeUtil::NanoSeconds() - LONG_MIN_HEU_GC_INTERVAL_NS;
 
-size_t GCStats::UpdateHeapThreshold(size_t liveRegionBytes)
-{
-    double heapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
-    size_t gcThresholdCap = CangjieRuntime::GetGCParam().gcThreshold;
-    size_t threshold = static_cast<size_t>(static_cast<double>(liveRegionBytes) * (1.0 + heapGrowth));
-    threshold = std::min(threshold, gcThresholdCap);
-    lastSurvivingRegionBytes = liveRegionBytes;
-    heapThreshold.store(threshold, std::memory_order_release);
-    scavengeThreshold.store(ComputeScavengeThresholdBytes(threshold), std::memory_order_release);
-    return threshold;
-}
-
 void GCStats::Init()
 {
     isConcurrentMark = false;

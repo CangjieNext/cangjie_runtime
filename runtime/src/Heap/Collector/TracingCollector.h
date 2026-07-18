@@ -18,9 +18,6 @@
 #include "Heap/Collector/ForwardDataManager.h"
 #include "Mutator/MutatorManager.h"
 
-// set 1 to enable concurrent mark test.
-#define MRT_TEST_CONCURRENT_MARK (false)
-
 namespace MapleRuntime {
 // number of nanoseconds in a microsecond.
 constexpr uint64_t NS_PER_US = 1000;
@@ -237,14 +234,6 @@ public:
         }
     }
 
-    void VisitAllResurrectExportObjects(const RootVisitor& visitor)
-    {
-        std::lock_guard<std::mutex> lg(resurrectExportMtx);
-        for (auto& obj : resurrectedExportObjectes) {
-            visitor(reinterpret_cast<ObjectRef&>(*obj));
-        }
-    }
-
     bool ShouldIgnoreRequest(GCRequest& request) override { return request.ShouldBeIgnored(); }
 
     // live but not resurrected object.
@@ -291,10 +280,6 @@ public:
 
     Allocator& GetAllocator() const { return theAllocator; }
 
-    bool IsHeapMarked() const { return collectorResources.IsHeapMarked(); }
-
-    void SetHeapMarked(bool value) { collectorResources.SetHeapMarked(value); }
-
     void SetGcStarted(bool val) { collectorResources.SetGcStarted(val); }
 
     void RunGarbageCollection(uint64_t, GCReason) override = 0;
@@ -340,11 +325,6 @@ protected:
     std::unordered_set<BaseObject*> resurrectedExportObjectes;
     std::unordered_set<BaseObject*> resurrectedExportObjectesForwardPhase;
 
-    void ResetBitmap(bool heapMarked)
-    {
-        // if heap is marked and tracing result will be used during next gc, we should not reset liveInfo.
-    }
-
     int32_t GetGCThreadCount(const bool isConcurrent) const
     {
         return collectorResources.GetGCThreadCount(isConcurrent);
@@ -389,7 +369,6 @@ protected:
 
 private:
     void ConcurrentReMark(WorkStack& remarkStack, bool parallel);
-    void EnumMutatorRoot(ObjectPtr& obj, RootSet& rootSet) const;
     void EnumConcurrencyModelRoots(RootSet& rootSet) const;
     void EnumStaticRoots(RootSet& rootSet) const;
     void EnumFinalizerProcessorRoots(RootSet& rootSet) const;

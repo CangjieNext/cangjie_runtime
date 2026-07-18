@@ -9,11 +9,6 @@
 #define MRT_REGION_SPACE_H
 
 #include <cassert>
-#include <list>
-#include <map>
-#include <set>
-#include <thread>
-#include <vector>
 
 #include "AllocUtil.h"
 #include "Allocator.h"
@@ -118,10 +113,6 @@ public:
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     bool IsHeapObject(MAddress addr) const override;
 #endif
-
-    // info dump
-    void GetInstances(const TypeInfo*, bool, size_t, std::vector<MObject*>&) const {}
-    void ClassInstanceNum(std::map<CString, long>&) const {}
 
     size_t ReclaimGarbageMemory(bool releaseAll) override
     {

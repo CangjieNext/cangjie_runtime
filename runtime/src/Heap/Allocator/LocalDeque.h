@@ -46,7 +46,6 @@ public:
 #endif
         beginAddr = reinterpret_cast<MAddress>(memMap->GetBaseAddr());
         endAddr = reinterpret_cast<MAddress>(memMap->GetCurrEnd());
-        maxUsedBytes = 0;
         Clear();
     }
     void Init(MemMap& other)
@@ -56,7 +55,6 @@ public:
         memMap = &other;
         beginAddr = reinterpret_cast<MAddress>(memMap->GetBaseAddr());
         endAddr = reinterpret_cast<MAddress>(memMap->GetCurrEnd());
-        maxUsedBytes = 0;
         Clear();
     }
     void Fini() noexcept { MemMap::DestroyMemMap(memMap); }
@@ -67,10 +65,6 @@ public:
         topAddr += VAL_SIZE;
         DEQUE_ASSERT(topAddr < endAddr, "not enough memory");
         *reinterpret_cast<ValType*>(topAddr) = v;
-        size_t usedBytes = static_cast<size_t>(topAddr - beginAddr + VAL_SIZE);
-        if (usedBytes > maxUsedBytes) {
-            maxUsedBytes = usedBytes;
-        }
     }
     ValType Top()
     {
@@ -98,15 +92,12 @@ public:
         topAddr = beginAddr - VAL_SIZE;
     }
 
-    size_t GetHighWaterBytes() const { return maxUsedBytes; }
-
 private:
     MemMap* memMap = nullptr;
     MAddress beginAddr = 0;
     MAddress frontAddr = 0;
     MAddress topAddr = 0;
     MAddress endAddr = 0;
-    size_t maxUsedBytes = 0;
 };
 
 // this deque lives on the stack, hence local
@@ -214,11 +205,6 @@ public:
     }
 
     void Fini() noexcept { MemMap::DestroyMemMap(memMap); }
-
-    size_t GetUsedBytes() const
-    {
-        return static_cast<size_t>(currAddr - reinterpret_cast<MAddress>(memMap->GetBaseAddr()));
-    }
 
     void* Allocate()
     {

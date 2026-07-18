@@ -48,15 +48,13 @@ public:
     void Init(size_t memoryBlockCount)
     {
         // at most we need this many nodes
-        size_t nodeCount = (memoryBlockCount >> 1) + 1;
+        size_t nodeCapacity = (memoryBlockCount >> 1) + 1;
         // calculate how much we need for native allocation
         // we might need some extra space for some temporaries, so set aside another 7 slots
-        size_t nativeSize = (nodeCount + 7) * AllocUtilRndUp(sizeof(Node), alignof(Node));
-        nodeAllocatorMappedBytes_ = ALLOCUTIL_PAGE_RND_UP(nativeSize);
+        size_t nativeSize = (nodeCapacity + 7) * AllocUtilRndUp(sizeof(Node), alignof(Node));
         nodeAllocator.Init(ALLOCUTIL_PAGE_RND_UP(nativeSize));
         // calculate how much we need for the deque temporary
-        size_t dequeSize = nodeCount * sizeof(Node*);
-        dequeMappedBytes_ = ALLOCUTIL_PAGE_RND_UP(dequeSize);
+        size_t dequeSize = nodeCapacity * sizeof(Node*);
         sud.Init(ALLOCUTIL_PAGE_RND_UP(dequeSize));
         traversalSud.Init(sud.GetMemMap());
     }
@@ -85,24 +83,6 @@ public:
     Count GetTotalCount() const { return totalCount; }
 
     uint32_t GetNodeCount() const { return nodeCount; }
-
-    size_t GetNodeBytesInUse() const
-    {
-        return static_cast<size_t>(nodeCount) * AllocUtilRndUp(sizeof(Node), alignof(Node));
-    }
-
-    size_t GetMetadataMappedBytes() const
-    {
-        return nodeAllocatorMappedBytes_ + dequeMappedBytes_;
-    }
-
-    size_t GetMetadataBytesInUse() const
-    {
-        size_t dequeBytes = std::max(sud.GetHighWaterBytes(), traversalSud.GetHighWaterBytes());
-        return nodeAllocator.GetUsedBytes() + dequeBytes;
-    }
-
-    Count GetMaxBlockCount() const { return root ? root->GetCount() : 0; }
 
     void IncTotalCount(Count cnt) { totalCount += cnt; }
 
@@ -144,45 +124,6 @@ public:
         }
 
         return TakeUnitsImpl(num, idx, refreshRegionInfo);
-    }
-
-    // Low-address-first allocation: find the node with Count >= num that has
-    // the smallest Index (lowest address). Exploits the BST property on Index
-    // and the max-heap property on Count for pruning.
-    //
-    // Complexity: O(log N) expected for balanced Treap.
-    bool TakeUnitsLowestAddr(Count num, Index& idx, bool refreshRegionInfo = true)
-    {
-        if (root == nullptr || num == 0) {
-            return false;
-        }
-
-        // If root's count < num, no node in the tree can satisfy (heap property)
-        if (root->GetCount() < num) {
-            return false;
-        }
-
-        Node** bestPtr = nullptr;
-        FindLowestAddr(&root, num, bestPtr);
-
-        if (bestPtr == nullptr) {
-            return false;
-        }
-
-        Node* best = *bestPtr;
-        idx = best->GetIndex();
-        auto count = best->GetCount();
-
-        best->UpdateNode(idx + num, count - num, refreshRegionInfo);
-        DecTotalCount(num);
-
-        if (best->GetCount() == 0) {
-            RemoveZeroNode(*bestPtr);
-        } else {
-            LowerNonZeroNode(*bestPtr);
-        }
-
-        return true;
     }
 
     struct Node {
@@ -321,41 +262,6 @@ public:
         RemoveNode(root);
     }
 
-    // Remove root node without releasing physical pages.
-    // Caller is responsible for page release (used by MSRegionManager).
-    bool RemoveRootNode(Index& idx, Count& num)
-    {
-        if (root == nullptr) {
-            return false;
-        }
-        idx = root->GetIndex();
-        num = root->GetCount();
-        RemoveNode(root);
-        return true;
-    }
-
-    // Remove the rightmost (highest-index) node if its range end (index + count)
-    // equals targetEnd.  Used by ShrinkHeap to reclaim trailing free units
-    // contiguous with inactiveZone_.
-    bool TakeRightmostIfEndEquals(Index targetEnd, Index& outIdx, Count& outNum)
-    {
-        if (root == nullptr) {
-            return false;
-        }
-        Node** pp = &root;
-        while ((*pp)->r != nullptr) {
-            pp = &((*pp)->r);
-        }
-        Node* rightmost = *pp;
-        if (rightmost->GetIndex() + rightmost->GetCount() != targetEnd) {
-            return false;
-        }
-        outIdx = rightmost->GetIndex();
-        outNum = rightmost->GetCount();
-        RemoveNode(*pp);
-        return true;
-    }
-
     using RTAllocator = RTAllocatorT<sizeof(Node), alignof(Node)>;
 
 #ifdef DEBUG_CARTESIAN_TREE
@@ -369,8 +275,6 @@ private:
     SingleUseDeque<Node**> sud;
     SingleUseDeque<Node*> traversalSud;
     RTAllocator nodeAllocator;
-    size_t nodeAllocatorMappedBytes_ = 0;
-    size_t dequeMappedBytes_ = 0;
 
     void DeleteNode(Node* n) noexcept
     {
@@ -549,26 +453,6 @@ private:
         return true;
     }
 
-    bool AllocateLowestAddressFromNode(Node*& node, Count count, Index& index)
-    {
-        Count nodeCount = node->GetCount();
-        if (nodeCount < count) {
-            return false;
-        }
-
-        index = node->GetIndex();
-        DLOG(REGION, "c-tree %p v-alloc %u units from [%u+%u, %u)", this, count, index, nodeCount, index + nodeCount);
-
-        node->UpdateNode(index + count, nodeCount - count, false);
-        DecTotalCount(count);
-        if (node->GetCount() == 0) {
-            RemoveZeroNode(node);
-        } else {
-            LowerNonZeroNode(node);
-        }
-        return true;
-    }
-
     // move node n down in the tree to maintain the heap property
     ATTR_NO_INLINE Node* LowerNode(Node* n)
     {
@@ -667,35 +551,6 @@ private:
 
     // move node n down in the tree to maintain the heap property
     void LowerNonZeroNode(Node*& n) const { MaintainHeapPropertyForNonZeroNode(n); }
-
-    // Recursive helper: find the node** with Count >= num that has the lowest Index.
-    // BST property: left subtree has lower Index than current node.
-    // Max-heap property: if node->Count < num, all descendants also have Count < num → prune.
-    void FindLowestAddr(Node** nodePtr, Count num, Node**& bestPtr) const
-    {
-        if (nodePtr == nullptr || *nodePtr == nullptr) {
-            return;
-        }
-
-        Node* node = *nodePtr;
-
-        // Heap property prune: this node (and all descendants) have Count < num
-        if (node->GetCount() < num) {
-            return;
-        }
-
-        // This node satisfies. Try left subtree first for lower address.
-        // Left subtree may have a node with even lower Index and still Count >= num.
-        if (node->l != nullptr && node->l->GetCount() >= num) {
-            FindLowestAddr(&(node->l), num, bestPtr);
-        }
-
-        // If no candidate found in left subtree, current node is lowest satisfying node.
-        if (bestPtr == nullptr) {
-            bestPtr = nodePtr;
-        }
-        // No need to search right subtree — it has higher Index (address) than current.
-    }
 
 #ifdef DEBUG_CARTESIAN_TREE
     inline void CheckParentAndLeftChild(const Node* n) const

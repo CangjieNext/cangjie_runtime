@@ -112,18 +112,6 @@ public:
         return top_ == nullptr;
     }
 
-    size_t Count() const
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        return count_;
-    }
-
-    size_t FullCount() const
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        return fullCount_;
-    }
-
     Counts GetCounts() const
     {
         std::lock_guard<std::mutex> lock(mutex_);

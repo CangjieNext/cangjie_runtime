@@ -47,10 +47,6 @@ public:
         return false;
     }
 
-#ifdef MRT_DEBUG
-    void DumpRegionList(const char*);
-#endif
-
     void DecCounts(size_t nRegion, size_t nUnit)
     {
         if (regionCount >= nRegion && unitCount >= nUnit) {
@@ -193,20 +189,6 @@ private:
         return allocCnt;
     }
 
-#ifdef MRT_DEBUG
-    void VerifyRegion(RegionInfo* region)
-    {
-        RegionInfo* prev = region->GetPrevRegion();
-        RegionInfo* next = region->GetNextRegion();
-        if (prev != nullptr && prev->GetNextRegion() != region) {
-            LOG(RTLOG_FATAL, "illegal region node");
-        }
-
-        if (next != nullptr && next->GetPrevRegion() != region) {
-            LOG(RTLOG_FATAL, "illegal region node");
-        }
-    }
-#endif
 };
 
 class RegionCache : public RegionList {

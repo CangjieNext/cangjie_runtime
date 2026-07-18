@@ -7,11 +7,6 @@
 #ifndef MRT_REGION_INFO_H
 #define MRT_REGION_INFO_H
 
-#include <list>
-#include <map>
-#include <set>
-#include <thread>
-#include <vector>
 #ifdef _WIN64
 #include <errhandlingapi.h>
 #include <handleapi.h>
@@ -35,14 +30,6 @@ namespace MapleRuntime {
 template<typename T>
 class BitField {
 public:
-    // pos: the position where the bit locates. It starts from 0.
-    // bitLen: the length that is to be read.
-    T GetAtomicValue(size_t pos, size_t bitLen) const
-    {
-        T value = __atomic_load_n(&fieldVal, __ATOMIC_ACQUIRE);
-        T bitMask = ((1 << bitLen) - 1) << pos;
-        return value & bitMask;
-    }
     void SetAtomicValue(size_t pos, size_t bitLen, T newValue)
     {
         do {
@@ -587,8 +574,6 @@ public:
 #endif
     }
 
-    BaseObject* GetFirstObject() const { return reinterpret_cast<BaseObject*>(GetRegionStart()); }
-
     bool IsEmpty() const
     {
         MRT_ASSERT(IsSmallRegion(), "wrong region type");
@@ -833,12 +818,6 @@ public:
         return __atomic_load_n(&metadata.rawPointerObjectCount, __ATOMIC_SEQ_CST);
     }
 
-    bool CompareAndSwapRawPointerObjectCount(int32_t expectVal, int32_t newVal)
-    {
-        return __atomic_compare_exchange_n(&metadata.rawPointerObjectCount, &expectVal, newVal, false, __ATOMIC_SEQ_CST,
-                                           __ATOMIC_ACQUIRE);
-    }
-
     uintptr_t Alloc(size_t size)
     {
         size_t limit = GetRegionEnd();
@@ -851,20 +830,6 @@ public:
         }
     }
 
-    // for regions shared by multithreads
-    uintptr_t AtomicAlloc(size_t size)
-    {
-        uintptr_t addr = __atomic_fetch_add(&metadata.allocPtr, size, __ATOMIC_ACQ_REL);
-        // should not check allocPtr, because it might be shared
-        if ((addr < GetRegionEnd()) && (size <= GetRegionEnd() - addr)) {
-            return addr;
-        }
-        if (addr <= GetRegionEnd()) {
-            __atomic_store_n(&metadata.allocPtr, addr, __ATOMIC_SEQ_CST);
-        }
-        return 0;
-    }
-
     bool IsTraceRegion() const { return metadata.isTraceRegion == 1; }
 
     // copyable during concurrent copying gc.
@@ -875,12 +840,6 @@ public:
     bool IsThreadLocalRegion() const
     {
         return static_cast<RegionType>(metadata.regionType) == RegionType::THREAD_LOCAL_REGION;
-    }
-
-    bool IsPinnedRegion() const
-    {
-        return (static_cast<RegionType>(metadata.regionType) == RegionType::FULL_PINNED_REGION) ||
-            (static_cast<RegionType>(metadata.regionType) == RegionType::RECENT_PINNED_REGION);
     }
 
     RegionInfo* GetPrevRegion() const
@@ -942,8 +901,6 @@ public:
             static_cast<RegionType>(metadata.regionType) == RegionType::RAW_POINTER_PINNED_REGION;
     }
 
-    bool IsToRegion() const { return static_cast<RegionType>(metadata.regionType) == RegionType::TO_REGION; }
-
     bool IsGarbageRegion() const { return static_cast<RegionType>(metadata.regionType) == RegionType::GARBAGE_REGION; }
     bool IsFreeRegion() const { return static_cast<UnitRole>(metadata.unitRole) == UnitRole::FREE_UNITS; }
 
@@ -954,8 +911,6 @@ public:
     }
 
     uint32_t GetLiveByteCount() const { return metadata.liveByteCount; }
-
-    void ResetLiveByteCount() { metadata.liveByteCount = 0; }
 
     void AddLiveByteCount(uint32_t count)
     {
@@ -1145,10 +1100,6 @@ private:
         }
 
         void ToFreeRegion() { InitFreeRegion(GetUnitIdx(this), 1); }
-
-        void ClearUnit() { ClearUnits(GetUnitIdx(this), 1); }
-
-        void ReleaseUnit() { ReleaseUnits(GetUnitIdx(this), 1); }
 
         UnitMetadata& GetMetadata() { return metadata; }
 

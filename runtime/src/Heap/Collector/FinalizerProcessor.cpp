@@ -72,7 +72,6 @@ FinalizerProcessor::FinalizerProcessor()
     timeProcessUsed = 0;
     timeCurrentProcessBegin = 0;
     shouldReclaimHeapGarbage.store(false, std::memory_order_relaxed);
-    shouldBackgroundSweep_.store(false, std::memory_order_relaxed);
     shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
 }
 
@@ -211,17 +210,6 @@ bool FinalizerProcessor::ReclaimHeapGarbage()
 void FinalizerProcessor::FeedHungryBuffers()
 {
     Heap::GetHeap().GetAllocator().FeedHungryBuffers();
-    shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
-}
-
-bool FinalizerProcessor::BackgroundSweepLoop()
-{
-    shouldBackgroundSweep_.store(false, std::memory_order_release);
-    return false;
-}
-
-void FinalizerProcessor::BackgroundFillAllocCaches()
-{
     shouldFeedHungryBuffers.store(false, std::memory_order_relaxed);
 }
 

@@ -313,19 +313,6 @@ void RegionSpaceMS::MaybeNotifyShrink()
     }
 }
 
-bool RegionSpaceMS::HasPendingSweepWork() const
-{
-    return msCentralPool_ != nullptr && msCentralPool_->HasPendingSweepWork();
-}
-
-BackgroundSweepStats RegionSpaceMS::BackgroundSweep(uint8_t preferredCls)
-{
-    if (msCentralPool_ != nullptr) {
-        return msCentralPool_->BackgroundSweep(preferredCls);
-    }
-    return {};
-}
-
 bool RegionSpaceMS::ForEachObj(const std::function<void(BaseObject*)>& visitor, bool safe) const
 {
     (void)visitor;
@@ -395,7 +382,7 @@ MAddress RegionSpaceMS::TryAllocateRegularObjectOnce(size_t allocSize, ThreadLoc
         msBuffer = AllocBufferMS::GetOrCreateAllocBufferMS(local);
     }
     if (msBuffer != nullptr) {
-        MAddress addr = msBuffer->Allocate(allocSize, local);
+        MAddress addr = msBuffer->Allocate(allocSize);
         if (LIKELY(addr != 0)) {
             return addr;
         }
@@ -518,10 +505,7 @@ void Allocator::EnsureThreadLocalBuffer()
 
 void Allocator::CommitRawPointerRegions()
 {
-    AllocBufferMS* msBuffer = AllocBufferMS::GetAllocBufferMS();
-    if (msBuffer != nullptr) {
-        msBuffer->CommitRawPointerRegions();
-    }
+    // MSGC manages RAW_POINTER_OBJECT in the same central Region lifecycle.
 }
 
 void Allocator::PushRootToBuffer(BaseObject* root)

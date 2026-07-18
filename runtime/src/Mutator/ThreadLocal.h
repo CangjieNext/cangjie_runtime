@@ -79,10 +79,6 @@ public:
 
     static bool IsCJProcessor() { return GetThreadLocalData()->isCJProcessor; }
 
-    static void SetEncodedGCPhase(uint8_t encodedPhase) { GetThreadLocalData()->encodedGCPhase = encodedPhase; }
-
-    static uint8_t GetEncodedGCPhase() { return GetThreadLocalData()->encodedGCPhase; }
-
     static void SetForeignCJThread(void* cjthread)
     {
         GetThreadLocalData()->foreignCJThread = cjthread;
@@ -101,16 +97,6 @@ public:
     static void SetSchedule(void* schedule)
     {
         GetThreadLocalData()->schedule = reinterpret_cast<uint8_t*>(schedule);
-    }
-
-    static void* GetThreadCache()
-    {
-        return GetThreadLocalData()->threadCache;
-    }
-
-    static void* SetThreadCache(void* threadCache)
-    {
-        return GetThreadLocalData()->threadCache = threadCache;
     }
 
     // When runtime is stop, we need to lock any operation which may access runtime.

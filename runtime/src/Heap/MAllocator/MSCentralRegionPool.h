@@ -40,7 +40,6 @@ struct MSLargeSweepStats {
     size_t freedBytes = 0;
     size_t cachedObjectCount = 0;  // Dead large objects placed into hot cache (not immediately reclaimed).
     size_t cachedRegionCount = 0;  // Region spans placed into hot cache.
-    size_t cachedBytes = 0;        // Bytes placed into hot cache.
 };
 
 struct MSSweepCounts {
@@ -341,7 +340,6 @@ public:
 
     // Background sweep: iterate all size classes, sweep one slice of unswept Regions.
     // Thread-safe (CAS ownership). Called by gc-helper thread.
-    BackgroundSweepStats BackgroundSweep(uint8_t preferredCls = kNumSizeClasses);
     BackgroundSweepStats BackgroundSweep(uint8_t preferredCls, uint64_t deadlineUs);
     BackgroundSweepStats ParallelSweep(uint8_t preferredCls, uint64_t deadlineUs);
     void ResetSweepCounts();
@@ -358,7 +356,7 @@ public:
 
     // Recompute LOW/MEDIUM/HIGH from unswept bytes, swept-retained bytes and the
     // heap threshold. A Notify-forced HIGH remains latched until Sweep completes.
-    SweepDebtDecision RefreshSweepDebtSnapshot(size_t thresholdBytes, size_t sweptBytes);
+    SweepPressureMode RefreshSweepDebtSnapshot(size_t thresholdBytes, size_t sweptBytes);
     void ForceHighSweepPressure();
     SweepPressureMode GetSweepPressureMode() const
     {
@@ -678,8 +676,7 @@ private:
         return emptySweptCache_.Count();
     }
     void ForceFinishUnsweptList(SizeClassBucket& bucket, SizeClassBucket::UnsweptListKind listKind,
-                                uint8_t cls, uint32_t sg,
-                                size_t& sweptRegions, size_t& emptiedRegions,
+                                uint32_t sg, size_t& sweptRegions, size_t& emptiedRegions,
                                 size_t& retainedRegions, size_t& freedBytes);
     void ForceFinishAllUnswept();
     bool TryPublishSweepDone();

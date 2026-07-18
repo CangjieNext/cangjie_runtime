@@ -14,35 +14,6 @@
 
 namespace MapleRuntime {
 
-struct BackgroundFeedStats {
-    size_t slices = 0;
-    size_t buffersScanned = 0;
-    size_t touchedBuffers = 0;
-    size_t filledClasses = 0;
-    size_t filledRegions = 0;
-    uint64_t elapsedUs = 0;
-
-    bool HasWork() const
-    {
-        return filledRegions != 0;
-    }
-
-    void Merge(const BackgroundFeedStats& other)
-    {
-        slices += other.slices;
-        buffersScanned = std::max(buffersScanned, other.buffersScanned);
-        touchedBuffers += other.touchedBuffers;
-        filledClasses += other.filledClasses;
-        filledRegions += other.filledRegions;
-        elapsedUs += other.elapsedUs;
-    }
-
-    void Reset()
-    {
-        *this = BackgroundFeedStats{};
-    }
-};
-
 struct BackgroundSweepStats {
     size_t slices = 0;
     size_t sweptRegions = 0;
@@ -114,11 +85,6 @@ public:
     virtual void TryReclaimGarbageMemory() = 0;
 #endif
     virtual void FeedHungryBuffers() = 0;
-    virtual bool HasPendingReclaimWork() const { return false; }
-    virtual bool HasPendingSweepWork() const { return false; }
-    virtual BackgroundReclaimStats BackgroundReclaim() { return {}; }
-    virtual BackgroundSweepStats BackgroundSweep(uint8_t preferredCls) { (void)preferredCls; return {}; }
-    virtual BackgroundFeedStats BackgroundFillAllocCaches() { return {}; }
 
     // returns the total size of live large objects, excluding alignment/roundup/header, ...
     // LargeObjects() is missing.

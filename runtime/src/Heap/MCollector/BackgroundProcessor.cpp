@@ -358,7 +358,9 @@ bool BackgroundProcessor::ShouldStartPeriodicSweep() const
     if (!IsBackgroundSweepEnabled()) {
         return false;
     }
-    return Heap::GetHeap().GetAllocator().HasPendingSweepWork();
+    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
+    CentralRegionPool* pool = space.GetCentralPool();
+    return pool != nullptr && pool->HasPendingSweepWork();
 }
 
 bool BackgroundProcessor::ShouldStartPeriodicScavenge() const
@@ -448,7 +450,7 @@ size_t BackgroundProcessor::RefreshSweepHelperControl(CentralRegionPool& pool, R
     size_t sweptBytes = space.GetSweptHeapBytes();
     size_t unsweptBytes = pool.GetTotalUnsweptBytes();
     size_t thresholdBytes = space.GetHeapThresholdBytes();
-    SweepDebtDecision pressure = pool.RefreshSweepDebtSnapshot(thresholdBytes, sweptBytes);
+    SweepPressureMode pressure = pool.RefreshSweepDebtSnapshot(thresholdBytes, sweptBytes);
 
     size_t maxHelpers = 0;
     if (IsParallelSweepEnabled()) {
@@ -458,12 +460,12 @@ size_t BackgroundProcessor::RefreshSweepHelperControl(CentralRegionPool& pool, R
         maxHelpers = ComputeMSMaxSweepHelpers(gcThreads, gcParam.msParallelSweepMaxHelpers);
     }
     size_t targetHelpers = ComputeMSSweepTargetHelpers(
-        pressure.mode, sweptBytes, unsweptBytes, thresholdBytes, maxHelpers);
+        pressure, sweptBytes, unsweptBytes, thresholdBytes, maxHelpers);
     size_t currentHelpers = activeSweepHelperCount_.load(std::memory_order_acquire);
-    if (advanceHelpers || pressure.mode == SweepPressureMode::HIGH ||
+    if (advanceHelpers || pressure == SweepPressureMode::HIGH ||
         pool.IsSweepPressureForcedHigh()) {
         currentHelpers = ComputeMSActiveSweepHelpers(
-            currentHelpers, targetHelpers, pressure.mode, pool.IsSweepPressureForcedHigh());
+            currentHelpers, targetHelpers, pressure, pool.IsSweepPressureForcedHigh());
     } else {
         currentHelpers = std::min(currentHelpers, maxHelpers);
     }
@@ -641,11 +643,9 @@ bool BackgroundProcessor::FinishSweepSlice(CentralRegionPool& pool)
 
 bool BackgroundProcessor::HasPendingSweepWork()
 {
-    Allocator& allocator = Heap::GetHeap().GetAllocator();
-    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(allocator);
+    RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
     CentralRegionPool* pool = space.GetCentralPool();
-    if (pool == nullptr || !allocator.HasPendingSweepWork() ||
-        pool->GetTotalUnsweptCount() == 0) {
+    if (pool == nullptr || !pool->HasPendingSweepWork()) {
         ResetSweepHelperControl(CentralRegionPool::GetGlobalSweepGen());
         shouldParallelSweep_.store(false, std::memory_order_release);
         shouldBackgroundSweep_.store(false, std::memory_order_release);

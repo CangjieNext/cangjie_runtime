@@ -42,7 +42,6 @@ enum class MSRegionType : uint8_t {
 // Sweep state for lazy sweep protocol
 enum class MSSweepState : uint8_t {
     UNSWEPT  = 0,
-    SWEEPING = 1,
     SWEPT    = 2,
 };
 

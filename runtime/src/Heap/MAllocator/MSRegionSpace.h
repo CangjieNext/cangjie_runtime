@@ -64,8 +64,6 @@ public:
     // MS-specific accessors
     CentralRegionPool* GetCentralPool() const { return msCentralPool_; }
     MSRegionManager* GetMSRegionManager() const { return msRegionManager_; }
-    bool HasPendingSweepWork() const override;
-    BackgroundSweepStats BackgroundSweep(uint8_t preferredCls) override;
     // Scavenge-related queries (used by BackgroundScavengeLoop).
     // heapInUse    = active central-pool regions + live largeRegionList spans
     // heapRetained = active + emptySwept + largeHotCache + hotFree

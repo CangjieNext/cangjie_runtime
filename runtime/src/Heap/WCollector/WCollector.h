@@ -101,7 +101,6 @@ public:
 
     void ResolveCycleRef() override;
 
-    // BaseObject* ForwardFixRefField(RefField<>& field) const;
     BaseObject* ForwardUpdateRawRef(ObjectRef& ref);
 
     bool IsFromObject(BaseObject* obj) const override

@@ -44,8 +44,6 @@ void FreeManager::AttachOwnedSegmentLocked(FreeManagerShard& shard, size_t segme
 {
     shard.ownedSegments_.push_back(segmentIdx);
     OwnedSegmentView view = BuildOwnedSegmentView(segmentIdx, regionCount);
-    shard.bitmapWordCountInUse_ += view.bitmapWordCount_;
-    shard.summaryChunkCountInUse_ += view.summaryChunkCount_;
     shard.freeRegionCount_ += regionCount;
     shard.ownedViews_.push_back(view);
     shard.fastTakeHintValid_ = false;
@@ -58,9 +56,6 @@ void FreeManager::DetachOwnedSegmentLocked(FreeManagerShard& shard)
         return;
     }
 
-    const OwnedSegmentView& view = shard.ownedViews_.back();
-    shard.bitmapWordCountInUse_ -= std::min(shard.bitmapWordCountInUse_, view.bitmapWordCount_);
-    shard.summaryChunkCountInUse_ -= std::min(shard.summaryChunkCountInUse_, view.summaryChunkCount_);
     shard.ownedSegments_.pop_back();
     shard.ownedViews_.pop_back();
     shard.fastTakeHintValid_ = false;
@@ -567,20 +562,6 @@ size_t FreeManager::GetOwnedTotalRegionCount(uint16_t ownerShardId) const
         total += static_cast<size_t>(view.regionEnd_ - view.regionStart_);
     }
     return total;
-}
-
-FreeManager::RegionIndex FreeManager::GetShardTakeCursor(uint16_t ownerShardId) const
-{
-    const FreeManagerShard& shardState = GetShard(ownerShardId);
-    std::lock_guard<std::mutex> lg(shardState.shardMutex_);
-    return shardState.takeCursor_;
-}
-
-FreeManager::RegionIndex FreeManager::GetShardReclaimCursor(uint16_t ownerShardId) const
-{
-    const FreeManagerShard& shardState = GetShard(ownerShardId);
-    std::lock_guard<std::mutex> lg(shardState.shardMutex_);
-    return shardState.reclaimCursor_;
 }
 
 size_t FreeManager::GetHotFreeBytes() const

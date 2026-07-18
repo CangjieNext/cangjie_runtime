@@ -63,7 +63,6 @@ public:
     void* GetBaseAddr() const { return memBaseAddr; }
     void* GetCurrEnd() const { return memCurrEndAddr; }
     void* GetMappedEndAddr() const { return memMappedEndAddr; }
-    size_t GetCurrSize() const { return memCurrSize; }
     size_t GetMappedSize() const { return memMappedSize; }
 
     ~MemMap();
@@ -78,7 +77,6 @@ private:
     void* memBaseAddr;      // start of the mapped memory
     void* memCurrEndAddr;   // end of the memory **in use**
     void* memMappedEndAddr; // end of the mapped memory, always >= currEndAddr
-    size_t memCurrSize;     // size of the memory **in use**
     size_t memMappedSize;   // size of the mapped memory, always >= currSize
 
     // MemMap is created via factory method

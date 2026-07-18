@@ -76,8 +76,6 @@ public:
     // determine how we treat new object during gc.
     virtual void MarkNewObject(BaseObject*) {}
 
-    virtual void FixObject(BaseObject&) const {}
-
     virtual void RunGarbageCollection(uint64_t, GCReason) = 0;
 
     virtual GCStats& GetGCStats() { std::abort(); }
@@ -93,7 +91,6 @@ public:
     virtual bool TryUpdateRefField(BaseObject*, RefField<>&, BaseObject*&) const { std::abort(); }
     virtual bool TryForwardRefField(BaseObject*, RefField<>&, BaseObject*&) const { std::abort(); }
     virtual bool TryUntagRefField(BaseObject*, RefField<>&, BaseObject*&) const { std::abort(); }
-    virtual bool TryTagRefField(BaseObject*, RefField<>&, BaseObject*) const { std::abort(); }
     virtual RefField<> GetAndTryTagRefField(BaseObject*) const { std::abort(); }
 
     virtual bool IsOldPointer(RefField<>&) const { std::abort(); }

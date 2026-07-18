@@ -75,9 +75,9 @@ void MemMap::CommitMemory(void* addr, size_t size)
 #endif
 
 MemMap::MemMap(void* baseAddr, size_t initSize, size_t mappedSize)
-    : memBaseAddr(baseAddr), memCurrSize(initSize), memMappedSize(mappedSize)
+    : memBaseAddr(baseAddr), memMappedSize(mappedSize)
 {
-    memCurrEndAddr = reinterpret_cast<void*>(reinterpret_cast<MAddress>(memBaseAddr) + memCurrSize);
+    memCurrEndAddr = reinterpret_cast<void*>(reinterpret_cast<MAddress>(memBaseAddr) + initSize);
     memMappedEndAddr = reinterpret_cast<void*>(reinterpret_cast<MAddress>(memBaseAddr) + memMappedSize);
 }
 
