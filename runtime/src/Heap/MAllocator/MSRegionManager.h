@@ -50,11 +50,6 @@ class MSRegionManager : private FreeManager::HeapRangeHandler {
     using UnitCount = FreeManager::UnitCount;
     using RegionIndex = FreeManager::RegionIndex;
     using RegionCount = FreeManager::RegionCount;
-    enum class AllocSource : uint8_t {
-        RELEASED,
-        BUMP,
-    };
-
 public:
     MSRegionManager() = default;
     ~MSRegionManager();
@@ -79,14 +74,11 @@ public:
 
     // Initialize MSRegionManager with virtual reservation.
     // mmapBase is the start of the whole mmap area (size = GetVirtualReserveSize).
-    // heapSize is the initial usable heap size (first committed segment).
     // maxVirtualHeapSize is the total virtual heap capacity.
-    void Initialize(size_t heapSize, uintptr_t mmapBase, size_t maxVirtualHeapSize);
+    void Initialize(uintptr_t mmapBase, size_t maxVirtualHeapSize);
 
     // Take one MS Region for mutator fresh allocation.
-    // This path consults CentralRegionPool first, then falls back to FreeManager/grow.
-    MSRegionInfo* TakeRegion(uint8_t cls, const CentralRegionPool& centralPool,
-                             uint16_t homeShardId = kMSInvalidShardId);
+    MSRegionInfo* TakeRegion(uint16_t homeShardId = kMSInvalidShardId);
 
     // Take N units for large object (Tier 1, > threshold but <= 4MB).
     // unitCount = ceil(allocSize, UNIT_SIZE).
@@ -101,10 +93,6 @@ public:
     // Physical pages are released later by BackgroundScavengeLoop Step B.
     void ReclaimEmptyRegionToHotFree(MSRegionInfo* region);
     void ReclaimReleasedRegionsToHotFreeBatch(const std::vector<FreeManager::RegionSpan>& spans);
-
-    // Compatibility hook for allocator reclaim. MSGC small-region reclaim is
-    // handled by CentralRegionPool empty-cache scavenging, so this is a no-op.
-    size_t ReleaseGarbageRegions(size_t targetCachedSize);
 
     // Try to grow the committed heap by one segment.
     // The heap-top state is managed by FreeManager; this method delegates to it.
@@ -140,9 +128,6 @@ public:
     // Get the base pointer to the MSRegionInfo array (at mmap front).
     MSRegionInfo* GetArrayBase() const { return array_; }
 
-    // Units per MS Region (= MS_REGION_SIZE / UNIT_SIZE).
-    size_t GetUnitsPerMSRegion() const { return unitsPerMSRegion_; }
-
     // Shard-related queries (delegated to FreeManager).
     size_t GetOwnedSegmentCount(uint16_t ownerShardId) const { return freeManager_.GetOwnedSegmentCount(ownerShardId); }
     size_t GetOwnedTotalRegionCount(uint16_t ownerShardId) const { return freeManager_.GetOwnedTotalRegionCount(ownerShardId); }
@@ -151,20 +136,11 @@ public:
     size_t GetHotFreeRegionCount(uint16_t ownerShardId) const { return freeManager_.GetHotFreeRegionCount(ownerShardId); }
     size_t GetBorrowedRegionCount(uint16_t ownerShardId) const { return freeManager_.GetBorrowedRegionCount(ownerShardId); }
 
-    // Large object threshold (= MS_REGION_SIZE for MS mode).
-    size_t GetLargeObjectThreshold() const { return MS_REGION_SIZE; }
-
     // O(1) compute unit address from unit index.
     uintptr_t GetUnitAddress(UnitIndex idx) const
     {
         return heapStart_ + static_cast<uintptr_t>(idx) * unitSize_;
     }
-
-    // Total unit count for the committed heap.
-    size_t GetMaxUnitCount() const { return freeManager_.GetCommittedUnitCount(); }
-
-    // Total unit count for the full virtual reservation.
-    size_t GetMaxVirtualUnitCount() const { return freeManager_.GetMaxVirtualUnitCount(); }
 
     uint32_t GetShardCount() const { return freeManager_.GetShardCount(); }
 
@@ -173,16 +149,6 @@ public:
     {
         return static_cast<uint32_t>(freeManager_.GetFreeUnitCount());
     }
-
-    size_t GetReleasedTreeBytes() const
-    {
-        return freeManager_.GetReleasedBytes();
-    }
-
-    uint32_t GetReleasedTreeNodeCount() const { return freeManager_.GetNodeCount(); }
-    uint32_t GetReleasedTreeMaxBlock() const { return freeManager_.GetMaxBlockRegions(); }
-    size_t GetDirtyTreeBytes() const { return 0; } // stub: no dirty tree in current design
-    uint64_t GetHeapGrowCount() const { return freeManager_.GetHeapGrowCount(); }
 
     // Unified layer-1 HEU trigger entry. MSGC now only keeps the TAKE_REGIONS path.
     void MaybeNotifyMark();
@@ -207,7 +173,7 @@ private:
     // Take contiguous regions from FreeManager, growing the committed heap on demand.
     // High-level orchestration stays in MSRegionManager; FreeManager only exposes
     // the primitive heap-state operations used by this path.
-    bool TakeRegions(RegionCount num, uint16_t homeShardId, RegionIndex& idx, AllocSource* source = nullptr);
+    bool TakeRegions(RegionCount num, uint16_t homeShardId, RegionIndex& idx);
 
     // Clear units (zero-fill) at given index/count.
     void ClearUnits(UnitIndex idx, UnitCount num) const;

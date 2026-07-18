@@ -17,7 +17,7 @@
 
 namespace MapleRuntime {
 
-// MSIdleBarrier — Zero-overhead barrier for GC idle / sweep phases.
+// MSIdleBarrier — Zero-overhead barrier while MSGC marking is inactive.
 //
 // All reads:  direct load (no self-healing needed — MS has no fromSpace/toSpace)
 // All writes: direct store (no shading needed — no concurrent marking active)

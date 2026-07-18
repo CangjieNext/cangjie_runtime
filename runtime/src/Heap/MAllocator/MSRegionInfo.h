@@ -111,16 +111,12 @@ struct MSRegionInfo {
     MSRegionType regionType;        // +50  Region type (1B)
 
     // ========== Flag bits (atomic for large-object concurrent safety) ==========
-    // bit 0: isMarked,  bit 1: isEnqueued,  bit 2: isResurrected
-    static constexpr uint8_t FLAG_MARKED      = 0x01;
-    static constexpr uint8_t FLAG_ENQUEUED    = 0x02;
-    static constexpr uint8_t FLAG_RESURRECTED = 0x04;
+    // bit 0: isMarked
+    static constexpr uint8_t FLAG_MARKED = 0x01;
     uint8_t     flags_;              // +51  all GC flag bits (use atomic accessors for large objects)
 
     // Atomic accessors — safe for concurrent mark on large objects
     bool IsMarked() const { return (__atomic_load_n(&flags_, __ATOMIC_RELAXED) & FLAG_MARKED) != 0; }
-    bool IsEnqueued() const { return (flags_ & FLAG_ENQUEUED) != 0; }
-    bool IsResurrected() const { return (flags_ & FLAG_RESURRECTED) != 0; }
 
     // Returns true if was already marked (skip), false if newly marked (enqueue)
     bool AtomicTestAndSetMarked() {
@@ -128,7 +124,6 @@ struct MSRegionInfo {
         return (old & FLAG_MARKED) != 0;
     }
     void AtomicSetMarked() { __atomic_fetch_or(&flags_, FLAG_MARKED, __ATOMIC_RELAXED); }
-    void ClearFlags() { __atomic_store_n(&flags_, 0, __ATOMIC_RELAXED); }
     void ClearMarkedFlag() {
         uint8_t old = __atomic_load_n(&flags_, __ATOMIC_RELAXED);
         uint8_t nv = old & ~FLAG_MARKED;
@@ -199,19 +194,11 @@ struct MSRegionInfo {
         return 0;  // Region full
     }
 
-    // Slow path: wrap-around search (legacy, kept for Alloc() backward compat)
-    uintptr_t AllocFromBitmapSlow(size_t hint);
-
-    // Legacy entry points (redirect to inline versions)
-    uintptr_t Alloc();
-    uintptr_t AllocFromBitmap();
-
     // === Sweep ===
     // Returns bytes freed. Sets allocBitmap = ~markBitmap.
     size_t SweepRegion();
 
     // === Mark ===
-    void SetMarkBit(uintptr_t objAddr);
     bool GetMarkBit(uintptr_t objAddr) const;
     // Returns true if already marked (previous bit was set).
     bool TestAndSetMarkBit(uintptr_t objAddr);
@@ -261,8 +248,6 @@ struct MSRegionInfo {
         return decision;
     }
     size_t GetSlotSize() const { return SizeClassInfo::ClassToSize(sizeClass); }
-    size_t GetAllocatedBytes() const;
-    size_t GetLiveBytes() const;
 
 private:
 };
@@ -288,12 +273,6 @@ public:
     static void TransitionState(const MSRegionInfo* info, MSRegionLocation expectedLocation,
                                 MSRegionLocation newLocation, uintptr_t expectedOwnerToken = ANY_OWNER,
                                 uintptr_t newOwnerToken = 0, const char* context = nullptr);
-    static bool IsCentralLocation(MSRegionLocation location)
-    {
-        return location == MSRegionLocation::CENTRAL_PARTIAL ||
-               location == MSRegionLocation::CENTRAL_FULL;
-    }
-
     // O(1) address -> MSRegionInfo lookup (no branching)
     static inline MSRegionInfo* GetRegionInfo(uintptr_t addr)
     {
@@ -421,7 +400,6 @@ public:
     }
 
     static size_t GetMaxRegionCount() { return maxRegionCount_; }
-    static uintptr_t GetHeapStartAddress() { return heapStartAddress_; }
     static void Cleanup();
 
 private:

@@ -54,10 +54,8 @@ public:
     size_t GetUsedPageSize() const override;
     size_t AllocatedBytes() const override;
     size_t LargeObjectBytes() const override;
-    BackgroundReclaimStats BackgroundReclaim() override;
     bool ForEachObj(const std::function<void(BaseObject*)>& visitor, bool safe) const override;
     void FeedHungryBuffers() override;
-    bool HasPendingReclaimWork() const override;
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     bool IsHeapObject(MAddress addr) const override;
@@ -68,14 +66,6 @@ public:
     MSRegionManager* GetMSRegionManager() const { return msRegionManager_; }
     bool HasPendingSweepWork() const override;
     BackgroundSweepStats BackgroundSweep(uint8_t preferredCls) override;
-    void EnsureThreadLocalAllocBuffer();
-
-    // MS-specific metrics
-    size_t GetRecentAllocatedSize() const;
-    size_t GetSurvivedSize() const;
-    size_t FromSpaceSize() const;
-    size_t PinnedSpaceSize() const;
-
     // Scavenge-related queries (used by BackgroundScavengeLoop).
     // heapInUse    = active central-pool regions + live largeRegionList spans
     // heapRetained = active + emptySwept + largeHotCache + hotFree

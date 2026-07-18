@@ -311,8 +311,7 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
                 4 : param->gcParam.msAssistSweepMaxRegionsPerCall,
             .msEnumAssistBatchSize = param->gcParam.msEnumAssistBatchSize == 0 ?
                 10 : param->gcParam.msEnumAssistBatchSize,
-            .msReleasedBusyRetryLimit = param->gcParam.msReleasedBusyRetryLimit == 0 ?
-                8 : param->gcParam.msReleasedBusyRetryLimit,
+            .msReleasedBusyRetryLimit = 0,
             .msScavengeRounds = param->gcParam.msScavengeRounds == 0 ? 8 : param->gcParam.msScavengeRounds,
             .msBackgroundSweep = static_cast<uint8_t>(
                 param->gcParam.msBackgroundSweep == 0 ? 1 : param->gcParam.msBackgroundSweep),

@@ -56,15 +56,6 @@ public:
     void NotifyToParallelSweep();
     void NotifyToScavenge();
     void NotifyToShrink();
-    size_t GetTargetSweepHelperCount() const
-    {
-        return targetSweepHelperCount_.load(std::memory_order_acquire);
-    }
-    size_t GetActiveSweepHelperCount() const
-    {
-        return activeSweepHelperCount_.load(std::memory_order_acquire);
-    }
-
 private:
     void Notify();
     void NotifyStarted();
@@ -85,6 +76,7 @@ private:
     bool BackgroundSweepLoop();
     bool ParallelSweepLoop();
     bool ParallelSweepLoop(size_t helperCount);
+    bool FinishSweepSlice(CentralRegionPool& pool);
     bool BackgroundScavengeLoop(); // scavengeThreshold-based: Step A (flush emptySwept) + Step B (scavenge)
     bool BackgroundShrinkLoop();   // segment-level shrink: release fully idle segments without changing heap topology
 

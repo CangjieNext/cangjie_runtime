@@ -23,7 +23,6 @@ const char* Collector::GetGCPhaseName(GCPhase phase)
         case GC_PHASE_MS_MARK_SETUP:       return "MS_MARK_SETUP";
         case GC_PHASE_MS_CONCURRENT_MARK:  return "MS_CONCURRENT_MARK";
         case GC_PHASE_MS_MARK_TERMINATION: return "MS_MARK_TERMINATION";
-        case GC_PHASE_MS_SWEEP:            return "MS_SWEEP";
         default: break;
     }
     static const char* phaseNames[] = {

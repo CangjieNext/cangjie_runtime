@@ -135,18 +135,6 @@ public:
         return kSizeClasses[cls];
     }
 
-    // Number of slots that fit in one Region of the given class.
-    static inline size_t SlotsPerRegion(uint8_t cls)
-    {
-        return slotsPerRegion_[cls];
-    }
-
-    // Number of uint64_t words needed for the bitmap of the given class.
-    static inline size_t BitmapWordsPerRegion(uint8_t cls)
-    {
-        return (slotsPerRegion_[cls] + 63) / 64;
-    }
-
     // Reciprocal magic for dividing a region offset by ClassToSize(cls) without
     // a hardware division (Route-B / R-2): given magic = ceil(2^32 / slotSize),
     //   slotIdx = (uint64_t)offset * magic >> 32
@@ -169,7 +157,6 @@ private:
     // Lookup tables (populated in Init())
     static uint8_t smallLookup_[kSmallLookupEntries];   // size/8 -> class (size <= 1024)
     static uint8_t largeLookup_[kLargeLookupEntries];   // (size-1024)/256 -> class (size > 1024)
-    static size_t  slotsPerRegion_[kNumSizeClasses];    // class -> slots per Region
     static uint32_t slotDivMagic_[kNumSizeClasses];     // class -> ceil(2^32/slotSize)
 };
 

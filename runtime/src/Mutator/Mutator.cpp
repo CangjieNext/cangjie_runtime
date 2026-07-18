@@ -613,7 +613,7 @@ inline void Mutator::HandleGCPhase(GCPhase newPhase)
         // is per-OS-thread TLS — cannot be safely flushed per-Mutator.
         GcPhaseEnum(newPhase);
     }
-    // MS_MARK_TERMINATION, MS_CONCURRENT_MARK, MS_SWEEP:
+    // MS_MARK_TERMINATION and MS_CONCURRENT_MARK:
     // No Mutator-side action needed. Barrier switching and per-AllocBufferMS
     // write-barrier-buffer flushing are handled by the collector.
 #endif // MRT_USE_MARK_SWEEP

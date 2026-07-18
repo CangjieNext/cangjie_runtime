@@ -105,6 +105,19 @@ size_t GetBackgroundScavengeRounds()
     return CangjieRuntime::GetGCParam().msScavengeRounds;
 }
 
+void RecordReclaimSlice(BackgroundReclaimStats& stats, size_t released, uint64_t elapsedUs)
+{
+    if (released == 0) {
+        return;
+    }
+    BackgroundReclaimStats slice;
+    slice.slices = 1;
+    slice.releasedRegions = released / MS_REGION_SIZE;
+    slice.releasedBytes = released;
+    slice.elapsedUs = elapsedUs;
+    stats.Merge(slice);
+}
+
 }
 
 extern "C" MRT_EXPORT void* MRT_ProcessBackgroundWork(void* arg)
@@ -488,16 +501,7 @@ bool BackgroundProcessor::BackgroundSweepLoop()
         (void)space.FlushCentralCacheToThreshold(thresholdBytes);
     }
     pendingSweepStats_.Merge(sliceStats);
-    bool hasMore = HasPendingSweepWork();
-    if (!hasMore && pendingSweepStats_.HasWork()) {
-        VLOG(REPORT,
-             "[MS-GC] sweep done: slices=%zu swept=%zu empty=%zu unswept=%zu elapsed=%zuus",
-             pendingSweepStats_.slices, pendingSweepStats_.sweptRegions,
-             pendingSweepStats_.emptyRegions, pool->GetTotalUnsweptCount(),
-             static_cast<size_t>(pendingSweepStats_.elapsedUs));
-        pendingSweepStats_.Reset();
-    }
-    return hasMore;
+    return FinishSweepSlice(*pool);
 }
 
 bool BackgroundProcessor::ParallelSweepLoop()
@@ -618,12 +622,17 @@ bool BackgroundProcessor::ParallelSweepLoop(size_t helperCount)
          static_cast<size_t>(wallUs), static_cast<size_t>(roundStats.elapsedUs),
          static_cast<int>(leaseMiss), static_cast<int>(Heap::GetHeap().IsGcStarted()));
 
+    return FinishSweepSlice(*centralPool);
+}
+
+bool BackgroundProcessor::FinishSweepSlice(CentralRegionPool& pool)
+{
     bool hasMore = HasPendingSweepWork();
     if (!hasMore && pendingSweepStats_.HasWork()) {
         VLOG(REPORT,
              "[MS-GC] sweep done: slices=%zu swept=%zu empty=%zu unswept=%zu elapsed=%zuus",
              pendingSweepStats_.slices, pendingSweepStats_.sweptRegions,
-             pendingSweepStats_.emptyRegions, remaining,
+             pendingSweepStats_.emptyRegions, pool.GetTotalUnsweptCount(),
              static_cast<size_t>(pendingSweepStats_.elapsedUs));
         pendingSweepStats_.Reset();
     }
@@ -753,14 +762,7 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     }
     uint64_t elapsed = TimeUtil::MicroSeconds() - t0;
 
-    if (released > 0) {
-        BackgroundReclaimStats slice;
-        slice.slices = 1;
-        slice.releasedRegions = released / MS_REGION_SIZE;
-        slice.releasedBytes = released;
-        slice.elapsedUs = elapsed;
-        pendingScavengeStats_.Merge(slice);
-    }
+    RecordReclaimSlice(pendingScavengeStats_, released, elapsed);
 
     // Check whether we still have work.
     bool hasMore = space.HasPendingScavengeWork();
@@ -797,14 +799,7 @@ bool BackgroundProcessor::BackgroundShrinkLoop()
     size_t released = space.BackgroundShrinkOneSegment();
     uint64_t elapsed = TimeUtil::MicroSeconds() - t0;
 
-    if (released > 0) {
-        BackgroundReclaimStats slice;
-        slice.slices = 1;
-        slice.releasedRegions = released / MS_REGION_SIZE;
-        slice.releasedBytes = released;
-        slice.elapsedUs = elapsed;
-        pendingShrinkStats_.Merge(slice);
-    }
+    RecordReclaimSlice(pendingShrinkStats_, released, elapsed);
 
     bool hasMore = HasPendingShrinkWork();
     if (!hasMore) {

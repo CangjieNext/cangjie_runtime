@@ -58,7 +58,6 @@ public:
     // Initialized to NullRegion() so the compiler-generated fast path reads it,
     // sees allocPtr >= regionEnd (both 0), and falls through to the slow MCC_* call.
     // This is necessary because SDK standard libraries may be compiled with fast-path enabled.
-    RegionInfo* GetTlRegion() const { return tlRegion_; }
     ~AllocBufferMS();
 
     void Init(CentralRegionPool* central);
@@ -90,7 +89,6 @@ public:
     // later when MarkSweepCollector merges these buffered roots through
     // TryEnqueueGreyObject / DiscoverAndPushObject.
     void PushRoot(BaseObject* root) { stackRoots_.emplace_back(root); }
-    size_t GetBufferedRootCount() const { return stackRoots_.size(); }
 
     // MS-GC: all objects (including RAW_POINTER_OBJECT) are managed by CentralRegionPool directly.
     // No separate thread-local raw pointer regions exist, so this is a no-op.
@@ -129,12 +127,12 @@ public:
     PerPGCWork& GetGCWork() { return gcWork_; }
     MSMarkAssistStats& GetMarkAssistStats() { return markAssistStats_; }
 
-    // Route-B write-barrier log accessors.
+    // Trusted-grey write-barrier log accessors.
     WorkBuf* GetActiveLog() const { return activeLog_; }
     WorkBuf*& ActiveLogRef() { return activeLog_; }
 
     // Acquire an empty WorkBuf, per-P freelist first (no lock), batch-refilling
-    // from the global pool on miss. Returned buf is Reset() (needsDiscover=false).
+    // from the global pool on miss. Returned buffers are reset.
     WorkBuf* AcquireWorkBuf(WorkBufPool& pool)
     {
         if (logCache_ != nullptr) {
@@ -159,28 +157,6 @@ public:
         return bufs[0];
     }
 
-    // Return an empty WorkBuf to the per-P freelist, batch-flushing to the
-    // global pool when the local cache grows past a high-water mark.
-    void RecycleWorkBuf(WorkBuf* b, WorkBufPool& pool)
-    {
-        if (logCacheCount_ < kLogCacheHigh) {
-            b->next = logCache_;
-            logCache_ = b;
-            ++logCacheCount_;
-            return;
-        }
-        WorkBuf* batch[kLogCacheHigh + 1];
-        size_t k = 0;
-        batch[k++] = b;
-        while (logCacheCount_ > kLogCacheHigh / 2) {
-            WorkBuf* t = logCache_;
-            logCache_ = t->next;
-            --logCacheCount_;
-            batch[k++] = t;
-        }
-        pool.PutN(batch, k);
-    }
-
     // Return every cached WorkBuf to the global pool. Called at GC cycle end.
     void DrainLogCacheToPool(WorkBufPool& pool)
     {
@@ -194,14 +170,12 @@ public:
     }
 
     uint16_t GetCachedHomeShardId() const { return cachedHomeShardId_; }
-    void SetCachedHomeShardId(uint16_t id) { cachedHomeShardId_ = id; }
 
 private:
     friend class CentralRegionPool;
     static constexpr size_t kLocalEmptyRegionCap = kNumSizeClasses;
     // Per-P WorkBuf log cache tuning (Step37 §5.1).
     static constexpr size_t kLogCacheRefill = 8;   // batch size to pull from global pool
-    static constexpr size_t kLogCacheHigh = 16;    // high-water before batch-returning
 
     // LLVM fast-path compatibility: must be at offset 0 (same as AllocBuffer::tlRegion).
     // Set to NullRegion() so fast-path allocation always fails → slow path.
@@ -256,22 +230,22 @@ private:
     uint64_t gcAssistDebtScaled_ = 0;
 
     // Preserve the historical AArch64 MSGC fast-path ABI offset (896) for the
-    // write-barrier log slot. Route-B (Step37): the slot is now a *pointer* to a
-    // WorkBuf (activeLog_), not an inline buffer. The AArch64 fast path loads
+    // write-barrier log slot. The slot is a pointer to a WorkBuf (activeLog_),
+    // not an inline buffer. The AArch64 fast path loads
     // this pointer, then writes the old-ref into activeLog_->objs[len++].
     // The removed per-size-class typed-spare array remains reserved padding so
     // activeLog_ keeps its compiler/runtime ABI offset.
     uint8_t wbBufAbiReserved_[184 +
         kNumSizeClasses * sizeof(std::atomic<MSRegionInfo*>)] = {};
 
-    // Route-B write-barrier log: the barrier appends raw (undiscovered) old-refs
-    // into *activeLog_ (a WorkBuf). When full it is published wholesale to the
-    // GC work queues (swap-and-publish) and replaced from logCache_. Discover
-    // happens later on the consumer side. Kept at offset 896 for the fast path.
+    // The barrier appends already shaded old-refs into *activeLog_. When full,
+    // it is published wholesale to the GC work queues (swap-and-publish) and
+    // replaced from logCache_. Consumers scan these trusted-grey objects
+    // directly. Kept at offset 896 for the fast path.
     WorkBuf* activeLog_ = nullptr;      // offset 896 (fast-path ABI)
 
     // Per-P freelist of empty WorkBufs (single-owner, lock-free). Backs
-    // AcquireWorkBuf/RecycleWorkBuf so the hot swap path avoids the global
+    // AcquireWorkBuf so the hot swap path avoids the global
     // WorkBufPool mutex on most acquisitions. Drained to the pool at cycle end.
     WorkBuf* logCache_ = nullptr;
     size_t   logCacheCount_ = 0;

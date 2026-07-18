@@ -213,7 +213,6 @@ void HeapImpl::InstallBarrier(const GCPhase phase)
         case GCPhase::GC_PHASE_IDLE:
         case GCPhase::GC_PHASE_FINISH:
         case GCPhase::GC_PHASE_RECLAIM_SATB_NODE:
-        case GCPhase::GC_PHASE_MS_SWEEP:
             currentBarrier = &msIdleBarrier;
             __atomic_store_n(&Heap::inlineFastPathGCPhase, 0, __ATOMIC_RELEASE);
             break;

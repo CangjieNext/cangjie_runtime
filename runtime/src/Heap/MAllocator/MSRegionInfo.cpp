@@ -193,44 +193,6 @@ void MSRegionInfo::ResetToEmptyCache()
 }
 
 // ============================================================================
-// MSRegionInfo — Allocation
-// ============================================================================
-
-uintptr_t MSRegionInfo::Alloc()
-{
-    // Phase 2: after sweep, use bitmap allocation
-    if (sweepState == MSSweepState::SWEPT) {
-        return AllocFromBitmapFast();
-    }
-
-    // Phase 1: bump-pointer for fresh Region (BUMP state)
-#ifdef MRT_DEBUG
-    if (UNLIKELY(regionType == MSRegionType::MS_REGION_LARGE ||
-                 regionType == MSRegionType::MS_REGION_FREE ||
-                 regionType == MSRegionType::MS_REGION_EMPTY_CACHE)) {
-        LOG(RTLOG_FATAL, "[MS-GC] Alloc() on bad regionType=%d, allocPtr=0x%zx, "
-            "regionEnd=0x%zx, sizeClass=%u, allocBitmap=%p, this=%p",
-            (int)regionType, allocPtr, regionEnd, (unsigned)sizeClass,
-            (void*)allocBitmap, (void*)this);
-    }
-#endif
-
-    return AllocBump();
-}
-
-uintptr_t MSRegionInfo::AllocFromBitmap()
-{
-    return AllocFromBitmapFast();
-}
-
-uintptr_t MSRegionInfo::AllocFromBitmapSlow(size_t /* hint */)
-{
-    // With summary word (O4), AllocFromBitmapFast handles all cases.
-    // This is kept as a legacy fallback for Alloc().
-    return AllocFromBitmapFast();
-}
-
-// ============================================================================
 // MSRegionInfo — Sweep
 // ============================================================================
 
@@ -305,16 +267,6 @@ size_t MSRegionInfo::SweepRegion()
 // MSRegionInfo — Mark
 // ============================================================================
 
-void MSRegionInfo::SetMarkBit(uintptr_t objAddr)
-{
-    size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
-    size_t slotIdx = (objAddr - RegionStart()) / slotSize;
-    size_t wordIdx = slotIdx / 64;
-    size_t bitIdx = slotIdx % 64;
-    // Atomic OR for concurrent marking
-    __atomic_or_fetch(&markBitmap[wordIdx], 1ULL << bitIdx, __ATOMIC_RELAXED);
-}
-
 bool MSRegionInfo::GetMarkBit(uintptr_t objAddr) const
 {
     size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
@@ -382,18 +334,6 @@ bool MSRegionInfo::HasFreeSpace() const
     // Bump-pointer tail space (only valid for BUMP regions before first sweep)
     size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
     return allocPtr + slotSize <= regionEnd;
-}
-
-size_t MSRegionInfo::GetAllocatedBytes() const
-{
-    size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
-    return static_cast<size_t>(totalSlotCount - freeSlotCount) * slotSize;
-}
-
-size_t MSRegionInfo::GetLiveBytes() const
-{
-    size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
-    return static_cast<size_t>(totalSlotCount - freeSlotCount) * slotSize;
 }
 
 // ============================================================================

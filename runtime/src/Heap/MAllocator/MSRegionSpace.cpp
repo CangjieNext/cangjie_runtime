@@ -29,13 +29,6 @@
 
 namespace MapleRuntime {
 
-static inline bool IsMSMarkingPhase(GCPhase phase)
-{
-    return phase == GCPhase::GC_PHASE_MS_MARK_SETUP ||
-           phase == GCPhase::GC_PHASE_MS_CONCURRENT_MARK ||
-           phase == GCPhase::GC_PHASE_MS_MARK_TERMINATION;
-}
-
 // ============================================================
 // RegionSpaceMS destructor
 // ============================================================
@@ -130,16 +123,6 @@ size_t RegionSpaceMS::GetMaxCapacity() const
     return reservedEnd - reservedStart;
 }
 
-size_t RegionSpaceMS::GetRecentAllocatedSize() const
-{
-    return 0;
-}
-
-size_t RegionSpaceMS::GetSurvivedSize() const
-{
-    return 0;
-}
-
 size_t RegionSpaceMS::GetUsedPageSize() const
 {
     if (msCentralPool_ != nullptr) {
@@ -153,38 +136,13 @@ size_t RegionSpaceMS::LargeObjectBytes() const
     return 0;
 }
 
-size_t RegionSpaceMS::FromSpaceSize() const
-{
-    return 0;
-}
-
-size_t RegionSpaceMS::PinnedSpaceSize() const
-{
-    return 0;
-}
-
-BackgroundReclaimStats RegionSpaceMS::BackgroundReclaim()
-{
-    // Incremental reclaim is replaced by BackgroundScavengeLoop; this path is a no-op.
-    return {};
-}
-
-bool RegionSpaceMS::HasPendingReclaimWork() const
-{
-    // Reclaim is now driven by BackgroundScavengeLoop (heapThreshold-based).
-    return false;
-}
-
 // ---------------------------------------------------------------------------
 // Scavenge-related queries
 // ---------------------------------------------------------------------------
 
 size_t RegionSpaceMS::GetHeapInUseBytes() const
 {
-    if (msCentralPool_ == nullptr) {
-        return 0;
-    }
-    return msCentralPool_->GetActiveMSRegionCount() * MS_REGION_SIZE;
+    return GetUsedPageSize();
 }
 
 size_t RegionSpaceMS::GetSweptHeapBytes() const
@@ -448,18 +406,9 @@ MAddress RegionSpaceMS::TryAllocateRegularObjectOnce(size_t allocSize, ThreadLoc
     return 0;
 }
 
-void RegionSpaceMS::EnsureThreadLocalAllocBuffer()
-{
-    ThreadLocalData* local = ThreadLocal::GetThreadLocalData();
-    (void)AllocBufferMS::GetOrCreateAllocBufferMS(local);
-}
-
 size_t RegionSpaceMS::AllocatedBytes() const
 {
-    if (msCentralPool_ != nullptr) {
-        return msCentralPool_->GetActiveMSRegionCount() * MS_REGION_SIZE;
-    }
-    return 0;
+    return GetUsedPageSize();
 }
 
 // ============================================================
@@ -509,7 +458,7 @@ void RegionSpaceMS::Init(const HeapParam& vmHeapParam)
 
     msRegionManager_ = new (std::nothrow) MSRegionManager();
     CHECK_DETAIL(msRegionManager_ != nullptr, "failed to create MSRegionManager");
-    msRegionManager_->Initialize(heapSize, metadata, maxVirtualHeapSize);
+    msRegionManager_->Initialize(metadata, maxVirtualHeapSize);
 
     reservedStart = msRegionManager_->GetHeapStart();
     reservedEnd = msRegionManager_->GetHeapEnd();
@@ -653,7 +602,6 @@ bool RegionSpaceMS::IsHeapObject(MAddress addr) const
 
 void RegionSpaceMS::FeedHungryBuffers()
 {
-    return;
 }
 
 } // namespace MapleRuntime

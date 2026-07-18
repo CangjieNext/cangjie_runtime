@@ -39,7 +39,6 @@ enum GCPhase : uint8_t {
     GC_PHASE_MS_MARK_SETUP       = 20,  // STW: enable write barrier, scan roots
     GC_PHASE_MS_CONCURRENT_MARK  = 21,  // Concurrent marking
     GC_PHASE_MS_MARK_TERMINATION = 22,  // STW: finish marking, disable write barrier
-    GC_PHASE_MS_SWEEP            = 23,  // Concurrent sweep
 };
 
 enum CollectorType {

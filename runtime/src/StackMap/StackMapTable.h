@@ -423,7 +423,7 @@ private:
                 if (cnts == 0) {
                     break;
                 }
-                result.push_back(cnts |= (isAllRef << CompressTagBitPos));
+                result.push_back(cnts | (isAllRef << CompressTagBitPos));
             }
         }
         return result;

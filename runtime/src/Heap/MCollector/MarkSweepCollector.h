@@ -36,15 +36,13 @@ struct MSGCCycleStats {
     uint64_t preEnumRootsUs = 0;      // PreEnumRoots wall time: stop sweep, clear bitmaps, reclassify unswept.
     uint64_t markSetupUs = 0;         // EnumRoots wall time: handshake + EnumAndMarkRoots root discovery.
     uint64_t concurrentMarkUs = 0;    // ConcurrentMark wall time: RunConcurrentMarkLoop and assist snapshot.
-    uint64_t markTerminationUs = 0;   // MarkTermination wall time: STW drain, WB flush, deferred queue drain, sweep flip.
-    uint64_t postMarkUs = 0;          // PostMarkTermination wall time: weak refs, finalizers, large-object reclaim.
-    uint64_t concurrentSweepUs = 0;   // ConcurrentSweep wall time: ComputeMarkedStats and background handoff.
+    uint64_t markTerminationUs = 0;   // MarkTermination wall time: STW drain, WB flush, deferred queue drain, idle transition.
+    uint64_t postMarkUs = 0;          // PostMarkTermination wall time: post-mark cleanup, stats and Sweep/Scavenge handoff.
     uint64_t postGcHookUs = 0;        // PostGarbageCollection hook wall time after UpdateGCStats completes.
 
     // ── Counting ──
     size_t rootsCount = 0;                // markWorkStack_.size() right after EnumAndMarkRoots finishes.
     size_t markTermProcessedObjects = 0;  // Objects drained by ExecuteLikeDrainMainQueue during STW mark termination.
-    size_t markedObjects = 0;             // Mark bitmap popcount after marking completes.
     size_t gcMainProcessedObjects = 0;    // Concurrent buffers scanned by the GC main thread.
     size_t helperProcessedObjects = 0;    // Concurrent buffers scanned by all helper workers.
     size_t losFreedCount = 0;             // Large objects reclaimed in CollectLargeGarbage for this cycle.
@@ -55,10 +53,7 @@ struct MSGCCycleStats {
     uint64_t losCollectUs = 0;            // Timer around CollectLargeGarbage.
 
     // ── Mutator assist stats (Step 2.2 §4) ──
-    size_t assistCallCount = 0;
     size_t assistProcessedObjects = 0;
-    size_t assistGlobalPaid = 0;
-    size_t bgScanCreditConsumed = 0;
 
     // ── True live bytes (computed from markBitmaps after marking) ──
     size_t trueLiveBytes = 0;            // ComputeMarkedStats() result, used by UpdateGCStats and GC-end logs.
@@ -113,31 +108,26 @@ public:
     {
         return activeCollector_.load(std::memory_order_acquire);
     }
-    // Route-B write-barrier log lifecycle (Step37).
+    // Write-barrier log lifecycle.
     // Ensure the owner has an activeLog_ WorkBuf to append into; returns it
     // (nullptr only on pool exhaustion).
     WorkBuf* EnsureActiveLog(AllocBufferMS& ab);
-    // Overflow: publish the full activeLog_ wholesale (needsDiscover=true) into
-    // the owner's local GC work (list1_) or globalFull_, then install a fresh
-    // empty log. O(1) — no per-object discover/repack on the mutator.
+    // Overflow: publish the full activeLog_ wholesale into globalFull_, then
+    // install a fresh empty log. Entries have already won the mark CAS.
     void PublishAndSwapLog(AllocBufferMS& ab);
-    // Owner exit: publish the partial activeLog_ to globalFull_ (so a consumer
-    // still discovers it), and return all cached WorkBufs to the pool.
+    // Owner exit: publish the partial activeLog_ to globalFull_, and return all
+    // cached WorkBufs to the pool.
     void PublishExitedLog(AllocBufferMS& ab);
 
     // Route-A (Step37 §10): shade (mark) an overwritten old-ref at write time.
     // Returns true if THIS call won the mark-CAS (object was white → now grey),
     // meaning the caller should log it for later scanning; false if it was
     // already grey/black or not a traceable object (perfect dedup at the source).
-    bool ShadeRefForBarrier(BaseObject* ref) { return DiscoverObjectNoCount(ref); }
+    bool ShadeRefForBarrier(BaseObject* ref) { return DiscoverObject(ref); }
     // Resolves a validated small object to its mark-bitmap word and bit. LARGE
     // objects return false and retain the dedicated ShadeRefForBarrier path.
     bool ResolveSmallRefForBarrier(BaseObject* ref, MSRegionInfo*& info,
                                    size_t& wordIdx, uint64_t& bitMask) const;
-
-    // Per-P GCWork accessors for initialization during concurrent mark.
-    LFStack& GetGlobalFull() { return globalFull_; }
-    WorkBufPool& GetWorkBufPool() { return workBufPool_; }
 
     // ── CopyGC-specific overrides: safe no-ops ──
     BaseObject* ForwardObject(BaseObject*) override { return nullptr; }
@@ -158,8 +148,7 @@ public:
     // ── MS-specific MarkObject: write to MSRegionInfo::markBitmap, not CopyGC LiveInfo ──
     bool MarkObject(BaseObject* obj) const override;
 
-    void FlipTagID() { currentTagID_ ^= 1; }
-    uint16_t GetCurrentTagID() override { return currentTagID_; }
+    uint16_t GetCurrentTagID() override { return 0; }
 
     void AddRawPointerObject(BaseObject*) override
     {
@@ -190,18 +179,16 @@ private:
     void EnumRoots();            // Step 2.1b: Handshake + root enumeration
     void ConcurrentMark();      // Step 2.2: Concurrent marking (GC thread + assist)
     void MarkTermination();     // Step 2.3: STW finalization of marking
-    void PostMarkTermination(); // Step 2.4: Non-STW cleanup (WeakRef, Finalizer, large reclaim)
-    void ConcurrentSweep();     // Step 3 (stub)
+    void PostMarkTermination(); // Step 2.4: Non-STW cleanup, stats and Sweep/Scavenge handoff
 
     // ── Step 2.1 internals ──
     void EnumAndMarkRoots(WorkStack& workStack);
     void DiscoverAndPushObject(BaseObject* obj, WorkStack& workStack);
     bool TryEnqueueGreyObject(BaseObject* obj, GreyWorkQueue& queue);
     bool DiscoverObject(BaseObject* obj);
-    // Shared bitmap-only discover implementation. MSGC derives cycle object
-    // counts from a post-mark bitmap walk instead of updating a hot global counter.
-    bool DiscoverObjectNoCount(BaseObject* obj);
-    // Diagnostic: after marking completes (in ConcurrentSweep, before sweep
+    // Bitmap-only discovery. MSGC derives cycle object counts from a post-mark
+    // bitmap walk instead of updating a hot global counter.
+    // Diagnostic: after marking completes (in PostMarkTermination, before sweep
     // reclaims anything), walk all marked objects and report any ref edge that
     // points to an unmarked target. Such a target will be wrongly swept while
     // still reachable from a live object — the classic missed-mark UAF.
@@ -211,12 +198,11 @@ private:
     // ── Step 2.2 internals ──
     void RunConcurrentMarkLoop();
     void DrainMarkWorkStack();
-    void DrainGCWork(PerPGCWork& gcw, size_t maxObjects, size_t& scannedCount);
     // Claim and drain one published buffer. GC main/helpers accept any length;
     // mutator assist passes requireFull=true to preserve its credit granularity.
     size_t DrainOneBufRound(PerPGCWork& gcw, bool requireFull);
     void TraceObjectRefFieldsToGCWork(BaseObject* obj, PerPGCWork& gcw);
-    void TraceRefField(BaseObject* obj, RefField<>& field, WorkStack& workStack);
+    void TraceRefField(RefField<>& field, WorkStack& workStack);
     void TransferRootsToGCWork();
     void StartMarkWorkers(size_t maxHelpers, size_t initialHelpers);
     void RunMarkWorker(size_t workerId);
@@ -238,7 +224,6 @@ private:
 
     void DrainDeferredMainThreadQueueToMainQueue(GreyWorkQueue& mainQueue);
     void ProcessDeferredWeakRefsPreSTW();  // Non-STW WeakRef processing after concurrent mark
-    void CollectExternCandidatesToMain(GreyWorkQueue& mainQueue);
     void CollectResurrectionCandidatesToMain(GreyWorkQueue& mainQueue);
     void ExecuteLikeDrainMainQueue(GreyWorkQueue& mainQueue);
 
@@ -259,8 +244,6 @@ private:
     // ============================================================
     // ── Work stack (populated in EnumRoots, consumed in ConcurrentMark) ──
     GreyWorkQueue markWorkStack_;
-    GreyWorkQueue concurrentOverflowQueue_;
-    mutable std::mutex concurrentOverflowQueueMutex_;
 
     // ── Step5: LFStack global work queue ──
     LFStack globalFull_;
@@ -304,7 +287,6 @@ private:
     // ── DFX: Per-cycle stats ──
     MSGCCycleStats cycleStats_;
     uint64_t gcCycle_ = 0;  // Monotonic GC cycle counter
-    uint16_t currentTagID_ = 0;  // ForwardDataManager tag alternation
 
     // ── DFX: Logging methods (Step 5) ──
     void LogGCEntry(uint64_t gcIndex, GCReason reason);           // Block ①

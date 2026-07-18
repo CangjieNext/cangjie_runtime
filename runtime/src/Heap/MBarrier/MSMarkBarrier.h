@@ -9,7 +9,7 @@
 
 #ifdef MRT_USE_MARK_SWEEP
 
-#include "Heap/Barrier/Barrier.h"
+#include "Heap/MBarrier/MSIdleBarrier.h"
 
 namespace MapleRuntime {
 
@@ -26,30 +26,20 @@ void CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
                      BaseObject* srcObj, MAddress srcField, MIndex srcSize);
 } // namespace MSBarrierOps
 
-// MSMarkBarrier — unified old/new write barrier for MSGC concurrent marking.
+// MSMarkBarrier — deletion-style write barrier for MSGC concurrent marking.
 //
 // Semantics:
 //   Write(slot, new):
 //     enqueue(old = *slot) // discover overwritten edge target
 //     *slot = new          // store
-//     enqueue(new)         // discover newly linked edge target
 //
-// Both old/new refs try to discover the target object and enqueue it into the
-// per-mutator concurrent mark queue. Newly allocated objects are marked after
-// their header is initialized and scanned once during mark termination.
-class MSMarkBarrier : public Barrier {
+// Read operations are identical to MSIdleBarrier and are inherited directly.
+class MSMarkBarrier : public MSIdleBarrier {
 public:
-    explicit MSMarkBarrier(Collector& collector) : Barrier(collector) {}
+    explicit MSMarkBarrier(Collector& collector) : MSIdleBarrier(collector) {}
     ~MSMarkBarrier() override = default;
 
-    // ── Reads: direct load, zero overhead ──
-    BaseObject* ReadReference(BaseObject* obj, RefField<false>& field) const override;
-    BaseObject* ReadStaticRef(RefField<false>& field) const override;
-    BaseObject* ReadWeakRef(BaseObject* obj, RefField<false>& field) const override;
-    void ReadStruct(MAddress dst, BaseObject* obj, MAddress src, size_t size) const override;
-    void ReadStaticStruct(MAddress dst, MAddress src, size_t size, const GCTib gctib) const override;
-
-    // ── Writes: enqueue(old) + store + enqueue(new) ──
+    // ── Writes: enqueue(old) + store ──
     void WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref) const override;
     void WriteStaticRef(RefField<false>& field, BaseObject* ref) const override;
     void WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen) const override;
@@ -62,9 +52,7 @@ public:
     void CopyStructArray(BaseObject* dstObj, MAddress dstField, MIndex dstSize,
                          BaseObject* srcObj, MAddress srcField, MIndex srcSize) const override;
 
-    // ── Atomic operations: enqueue(old) + store + enqueue(new) ──
-    BaseObject* AtomicReadReference(BaseObject* obj, RefField<true>& field,
-                                    MemoryOrder order) const override;
+    // ── Atomic writes: enqueue(old) + update ──
     void AtomicWriteReference(BaseObject* obj, RefField<true>& field,
                               BaseObject* ref, MemoryOrder order) const override;
     BaseObject* AtomicSwapReference(BaseObject* obj, RefField<true>& field,

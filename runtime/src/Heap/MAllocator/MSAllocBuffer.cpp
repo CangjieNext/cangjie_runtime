@@ -25,8 +25,6 @@ namespace MapleRuntime {
 
 constexpr size_t AllocBufferMS::kLocalEmptyRegionCap;
 
-static constexpr bool kDisableMutatorAssistProbe = false;
-
 uintptr_t OwnerTokenFor(const AllocBufferMS* buffer)
 {
     return reinterpret_cast<uintptr_t>(buffer);
@@ -80,8 +78,8 @@ AllocBufferMS::AllocBufferMS()
     // LLVM fast-path reads *(buffer + 0) as RegionInfo* and calls Alloc().
     static_assert(offsetof(AllocBufferMS, tlRegion_) == 0,
                   "tlRegion_ must be at offset 0 for LLVM fast-path compatibility");
-    // Route-B (Step37): the AArch64 MSGC write-barrier fast path loads the
-    // WorkBuf pointer activeLog_ (kept at offset 896), then appends the old-ref
+    // The AArch64 MSGC write-barrier fast path loads the WorkBuf pointer
+    // activeLog_ (kept at offset 896), then appends an already shaded old-ref
     // into activeLog_->objs[len++]. These offsets are the ABI contract with
     // AArch64AsmPrinter.cpp (activeLogOffsetInAllocBuffer / WorkBufLenOffset /
     // WorkBufObjsOffset / WorkBufCapacity). Keep them in sync.

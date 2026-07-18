@@ -287,7 +287,7 @@ MSRegionInfo* CentralRegionPool::GetFreshRegion(uint8_t cls, uint16_t shardHint)
 {
     // MSRegionManager::TakeRegion allocates one MS_REGION_SIZE region
     // and returns the corresponding MSRegionInfo* directly (one-level).
-    MSRegionInfo* msInfo = msRegionManager_->TakeRegion(cls, *this, shardHint);
+    MSRegionInfo* msInfo = msRegionManager_->TakeRegion(shardHint);
     if (msInfo == nullptr) {
         return nullptr;
     }
@@ -1469,8 +1469,9 @@ MSSweepAssistStats CentralRegionPool::SnapshotSweepAssistStats()
 // ============================================================================
 // ComputeMarkedStats: walk markBitmaps once for object count and live bytes
 // ============================================================================
-// Called after marking completes, before PrepareForSweep (gen flip).
-// At this point markBitmaps are stable: marking is done, no sweep has started.
+// Called after marking and large eager reclaim complete, before
+// PostMarkTermination publishes small-Region Sweep work.  At this point
+// markBitmaps are stable and no small-Region sweep has started.
 //
 MSMarkedStats CentralRegionPool::ComputeMarkedStats() const
 {

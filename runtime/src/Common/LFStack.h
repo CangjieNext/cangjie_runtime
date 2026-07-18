@@ -7,7 +7,6 @@
 #ifndef MRT_LFSTACK_H
 #define MRT_LFSTACK_H
 
-#include <atomic>
 #include <cstddef>
 #include <mutex>
 #include <new>
@@ -33,13 +32,7 @@ struct alignas(64) WorkBuf {
     size_t len = 0;
     // Layout note: objs is kept at offset 16 (right after next+len) so the
     // AArch64 MSGC write-barrier fast path can address it with a fixed offset.
-    // needsDiscover is placed AFTER objs on purpose, to avoid shifting objs.
     BaseObject* objs[kCapacity];
-    // Route-B deferred discover flag:
-    //   true  = raw write-barrier log (entries not yet DiscoverObject'd).
-    //           Consumers must DiscoverObject each entry before scanning.
-    //   false = grey objects already discovered (mark-traversal output / roots).
-    bool needsDiscover = false;
 
     bool Full() const { return len >= kCapacity; }
     bool Empty() const { return len == 0; }
@@ -51,7 +44,6 @@ struct alignas(64) WorkBuf {
     {
         len = 0;
         next = nullptr;
-        needsDiscover = false;
     }
 };
 
@@ -138,12 +130,6 @@ public:
         return Counts { count_, fullCount_ };
     }
 
-    bool HasFull() const
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        return fullCount_ != 0;
-    }
-
 private:
     mutable std::mutex mutex_;
     WorkBuf* top_ = nullptr;
@@ -172,7 +158,6 @@ public:
             buf->Reset();
             return buf;
         }
-        totalAllocated_.fetch_add(1, std::memory_order_relaxed);
         return new (std::nothrow) WorkBuf();
     }
 
@@ -182,9 +167,9 @@ public:
         freeList_.Push(buf);
     }
 
-    // Batch acquire up to n bufs under a single lock pass (falls back to new()
-    // when the free list runs dry). Returns the number actually written to out.
-    // Used by the per-P WorkBuf cache to amortize the global freeList_ mutex.
+    // Batch acquire up to n bufs (falling back to new() when the free list runs
+    // dry). Returns the number actually written to out. The per-P cache then
+    // serves subsequent swaps without touching the global free list.
     size_t GetN(WorkBuf** out, size_t n)
     {
         size_t got = 0;
@@ -201,94 +186,26 @@ public:
             if (buf == nullptr) {
                 break;
             }
-            totalAllocated_.fetch_add(1, std::memory_order_relaxed);
             out[got++] = buf;
         }
         return got;
     }
 
-    // Batch return n bufs to the free list.
-    void PutN(WorkBuf** bufs, size_t n)
-    {
-        for (size_t i = 0; i < n; ++i) {
-            bufs[i]->Reset();
-            freeList_.Push(bufs[i]);
-        }
-    }
-
-    size_t TotalAllocated() const
-    {
-        return totalAllocated_.load(std::memory_order_relaxed);
-    }
-
 private:
     LFStack freeList_;
-    std::atomic<size_t> totalAllocated_{0};
 };
 
 // ============================================================================
-// WorkBufList: bounded singly-linked list of WorkBuf nodes (LIFO).
-// Reuses WorkBuf::next as the link. Holds at most kMaxNodes nodes.
-// Used by PerPGCWork for the two local lists (list1_ = consume-ready,
-// list2_ = mark-output spill target). Not thread-safe; per-P only.
-// ============================================================================
-struct WorkBufList {
-    static constexpr size_t kMaxNodes = 4;
-
-    WorkBuf* head_ = nullptr;
-    size_t nodeCount_ = 0;
-
-    bool ListEmpty() const { return head_ == nullptr; }
-    bool ListFull() const { return nodeCount_ >= kMaxNodes; }
-    size_t NodeCount() const { return nodeCount_; }
-
-    void PushNode(WorkBuf* buf)
-    {
-        buf->next = head_;
-        head_ = buf;
-        ++nodeCount_;
-    }
-
-    WorkBuf* PopNode()
-    {
-        if (head_ == nullptr) {
-            return nullptr;
-        }
-        WorkBuf* buf = head_;
-        head_ = buf->next;
-        buf->next = nullptr;
-        --nodeCount_;
-        return buf;
-    }
-
-    size_t TotalObjs() const
-    {
-        size_t n = 0;
-        for (WorkBuf* b = head_; b != nullptr; b = b->next) {
-            n += b->len;
-        }
-        return n;
-    }
-};
-
-// ============================================================================
-// PerPGCWork: per-Processor GC work buffers with bounded local lists.
+// PerPGCWork: per-Processor GC work buffers.
 //
 //   getCur_  : in-use get buffer (Pop side). NOT counted in any list.
 //   putCur_  : in-use put buffer (Push side). NOT counted in any list.
-//   list1_   : legacy local consume list, retained for rollback.
-//   list2_   : legacy local output list, retained for rollback.
 //
-// Current global-sharing path bypasses both lists: full write-barrier logs and
-// full putCur_ buffers go directly to globalFull_. The legacy methods remain
-// available so the experiment can be rolled back without an ABI/layout change.
+// Full write-barrier logs and full putCur_ buffers go directly to globalFull_.
 // ============================================================================
 struct PerPGCWork {
-    WorkBufList list1_;
-    WorkBufList list2_;
     WorkBuf* getCur_ = nullptr;
     WorkBuf* putCur_ = nullptr;
-    bool flushedWork_ = false;
 
     // Set at GC cycle start; null between cycles.
     LFStack* globalFull_ = nullptr;
@@ -300,30 +217,7 @@ struct PerPGCWork {
     {
         globalFull_ = full;
         workBufPool_ = pool;
-        flushedWork_ = false;
         // getCur_/putCur_ allocated lazily on first use.
-    }
-
-    // Legacy local-first path, retained for rollback.
-    void SpillToList1OrGlobal(WorkBuf* buf)
-    {
-        if (!list1_.ListFull()) {
-            list1_.PushNode(buf);
-        } else {
-            globalFull_->Push(buf);
-            flushedWork_ = true;
-        }
-    }
-
-    // Legacy local-first write-barrier path, retained for rollback.
-    void PushWBBuf(WorkBuf* buf)
-    {
-        if (!list1_.ListFull()) {
-            list1_.PushNode(buf);
-        } else {
-            globalFull_->Push(buf);
-            flushedWork_ = true;
-        }
     }
 
     // Publish complete mark-output buffers globally. Partial output remains in
@@ -336,7 +230,6 @@ struct PerPGCWork {
         putCur_->Push(obj);
         if (putCur_->Full()) {
             globalFull_->Push(putCur_);
-            flushedWork_ = true;
             putCur_ = workBufPool_->Get();
         }
     }
@@ -377,82 +270,17 @@ struct PerPGCWork {
         return getCur_ == nullptr || getCur_->Empty();
     }
 
-    // Internal: promote one source buffer to getCur_ and Pop from it.
-    BaseObject* PromoteAndPop(WorkBuf* src)
-    {
-        if (getCur_ != nullptr) {
-            workBufPool_->Put(getCur_);
-        }
-        getCur_ = src;
-        return getCur_->Pop();
-    }
-
-    // TryGetObjLocal: local-only get (no global refill). Used by assist.
-    BaseObject* TryGetObjLocal()
-    {
-        if (getCur_ != nullptr && !getCur_->Empty()) {
-            return getCur_->Pop();
-        }
-        if (!list1_.ListEmpty()) {
-            return PromoteAndPop(list1_.PopNode());
-        }
-        if (!list2_.ListEmpty()) {
-            return PromoteAndPop(list2_.PopNode());
-        }
-        if (putCur_ != nullptr && !putCur_->Empty()) {
-            WorkBuf* src = putCur_;
-            putCur_ = workBufPool_->Get();
-            return PromoteAndPop(src);
-        }
-        return nullptr;
-    }
-
-    // TryGetObj: local-first then global refill. Used by the GC thread loop.
-    BaseObject* TryGetObj()
-    {
-        BaseObject* obj = TryGetObjLocal();
-        if (obj != nullptr) {
-            return obj;
-        }
-        if (globalFull_ == nullptr) {
-            return nullptr;
-        }
-        WorkBuf* buf = globalFull_->Pop();
-        if (buf == nullptr) {
-            return nullptr;
-        }
-        return PromoteAndPop(buf);
-    }
-
-    // Dispose: flush all local work to global (convergence / MarkTermination).
+    // Dispose: flush all private work to global (convergence / MarkTermination).
     void Dispose()
     {
         if (getCur_ != nullptr && !getCur_->Empty()) {
             globalFull_->Push(getCur_);
             getCur_ = nullptr;
-            flushedWork_ = true;
         }
         if (putCur_ != nullptr && !putCur_->Empty()) {
             globalFull_->Push(putCur_);
             putCur_ = nullptr;
-            flushedWork_ = true;
         }
-        WorkBuf* b;
-        while ((b = list1_.PopNode()) != nullptr) {
-            globalFull_->Push(b);
-            flushedWork_ = true;
-        }
-        while ((b = list2_.PopNode()) != nullptr) {
-            globalFull_->Push(b);
-            flushedWork_ = true;
-        }
-    }
-
-    bool Empty() const
-    {
-        return (getCur_ == nullptr || getCur_->Empty()) &&
-               (putCur_ == nullptr || putCur_->Empty()) &&
-               list1_.ListEmpty() && list2_.ListEmpty();
     }
 
     // Reset: return all bufs to pool, clear state. Called at end of GC cycle.
@@ -466,14 +294,6 @@ struct PerPGCWork {
             workBufPool_->Put(putCur_);
             putCur_ = nullptr;
         }
-        WorkBuf* b;
-        while ((b = list1_.PopNode()) != nullptr) {
-            workBufPool_->Put(b);
-        }
-        while ((b = list2_.PopNode()) != nullptr) {
-            workBufPool_->Put(b);
-        }
-        flushedWork_ = false;
         globalFull_ = nullptr;
         workBufPool_ = nullptr;
     }

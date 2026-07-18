@@ -231,28 +231,6 @@ public:
     }
     size_t Count() const { return count_.load(std::memory_order_relaxed); }
 
-    // O(n) drain all elements into an MSRegionList (under external synchronization, e.g. STW).
-    void DrainTo(MSRegionList& dest)
-    {
-        uint64_t oldVal = taggedHead_.load(std::memory_order_acquire);
-        while (!taggedHead_.compare_exchange_weak(oldVal,
-                   Pack(MSRegionInfo::INVALID_IDX, TagOf(oldVal) + 1),
-                   std::memory_order_acquire, std::memory_order_relaxed)) {
-        }
-        int32_t idx = IdxOf(oldVal);
-        size_t drained = 0;
-        while (idx != MSRegionInfo::INVALID_IDX) {
-            MSRegionInfo* region = MSRegionInfoArray::GetRegionInfoByIdx(idx);
-            int32_t next = region->nextRegionIdx;
-            region->nextRegionIdx = MSRegionInfo::INVALID_IDX;
-            region->prevRegionIdx = MSRegionInfo::INVALID_IDX;
-            dest.Prepend(region);
-            idx = next;
-            drained++;
-        }
-        count_.fetch_sub(drained, std::memory_order_relaxed);
-    }
-
     // O(1) transfer entire chain to MSRegionList. Must be called during STW.
     // Destination MUST be empty. Prev pointers are NOT fixed — safe when
     // consumers only use TakeHead (which fixes prev lazily).
@@ -444,7 +422,8 @@ public:
     }
 
     // Compute marked object count and true live bytes in one bitmap walk.
-    // Must be called after marking completes and BEFORE PrepareForSweep.
+    // Must be called after marking/large eager reclaim complete and before
+    // PostMarkTermination publishes small-Region Sweep work.
     MSMarkedStats ComputeMarkedStats() const;
 
     // Diagnostic: visit every currently-marked object (small/medium + large)
@@ -515,12 +494,6 @@ private:
         MSRegionInfo* TakePartialSwept()
         {
             return partialSwept_.Pop();
-        }
-
-        MSRegionInfo* TakeUnswept(UnsweptListKind kind)
-        {
-            std::lock_guard<std::mutex> lg(lock_);
-            return GetUnsweptList(kind).TakeHead();
         }
 
         MSRegionInfo* ClaimUnsweptHeadForSweep(UnsweptListKind kind, uint32_t sg)

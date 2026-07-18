@@ -336,8 +336,7 @@ struct GCParam {
     size_t msEnumAssistBatchSize;
 
     /*
-     * Retry limit when probing released-busy regions in MSGC.
-     * Must be > 0.
+     * Reserved legacy MSGC field. Kept in place for GCParam ABI compatibility.
      */
     size_t msReleasedBusyRetryLimit;
 

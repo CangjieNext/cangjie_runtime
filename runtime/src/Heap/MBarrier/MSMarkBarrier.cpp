@@ -12,7 +12,6 @@
 #include "Heap/MAllocator/MSAllocBuffer.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MCollector/MarkSweepCollector.h"
-#include "Heap/MCollector/MSMarkQueuePolicy.h"
 #include "Mutator/ThreadLocal.h"
 #include "ObjectModel/Field.inline.h"
 #include "ObjectModel/MArray.h"
@@ -35,11 +34,9 @@ static inline void AppendMarkedRefInto(MarkSweepCollector* collector,
     log->objs[log->len++] = ref;
 }
 
-// Route-B (Step37): append a raw old-ref into the owner's activeLog_ WorkBuf.
-// No discover here — that happens on the consumer side. On overflow the full
-// buffer is published wholesale (O(1)) and a fresh one installed.
-// Pre-resolved (collector, allocBuf) form so bulk paths resolve the owner once
-// per call instead of once per ref (R-1). collector must be non-null.
+// Append an already shaded old-ref into the owner's activeLog_ WorkBuf.
+// On overflow the full buffer is published wholesale (O(1)) and a fresh one
+// installed. The caller must pass the active collector and current owner.
 static inline void EnqueueRefInto(MarkSweepCollector* collector,
                                   AllocBufferMS* allocBuf, BaseObject* ref)
 {
@@ -51,34 +48,12 @@ static inline void EnqueueRefInto(MarkSweepCollector* collector,
     // dedup at the source). The logged buffer therefore holds only grey objects,
     // so the consumer scans them directly (no deferred discover).
     bool newlyMarked = collector->ShadeRefForBarrier(ref);
-    if (ShouldEnqueueMSMarkedObject(newlyMarked, newlyMarked && ref->HasRefField())) {
+    if (newlyMarked && ref->HasRefField()) {
         AppendMarkedRefInto(collector, allocBuf, ref);
     }
 }
 
-static inline void EnqueueRefFast(BaseObject* ref)
-{
-    if (ref == nullptr || !Heap::IsHeapAddress(ref)) {
-        return;
-    }
-    // Only log during concurrent mark; outside it there is no SATB snapshot to
-    // preserve, so drop the ref entirely (no buffering/clearing needed).
-    MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
-    if (collector == nullptr) {
-        return;
-    }
-    AllocBufferMS* allocBuf = ThreadLocal::GetAllocBufferMS();
-    if (UNLIKELY(allocBuf == nullptr)) {
-        allocBuf = AllocBufferMS::GetOrCreateAllocBufferMS();
-    }
-    EnqueueRefInto(collector, allocBuf, ref);
-}
-
-// Bulk paths (struct/array copy) log many old-refs at once. Resolve the active
-// collector + owner AllocBufferMS ONCE here (R-1) and reuse across all refs,
-// instead of paying a TLS lookup per ref inside EnqueueRefFast.
-// Returns false (nothing to log) when not marking.
-static inline bool ResolveBulkLogOwner(MarkSweepCollector*& collector, AllocBufferMS*& allocBuf)
+static inline bool ResolveLogOwner(MarkSweepCollector*& collector, AllocBufferMS*& allocBuf)
 {
     collector = MarkSweepCollector::GetActiveCollector();
     if (collector == nullptr) {
@@ -89,6 +64,21 @@ static inline bool ResolveBulkLogOwner(MarkSweepCollector*& collector, AllocBuff
         allocBuf = AllocBufferMS::GetOrCreateAllocBufferMS();
     }
     return true;
+}
+
+static inline void EnqueueRefFast(BaseObject* ref)
+{
+    if (ref == nullptr || !Heap::IsHeapAddress(ref)) {
+        return;
+    }
+    // Only log during concurrent mark; outside it there is no SATB snapshot to
+    // preserve, so drop the ref entirely (no buffering/clearing needed).
+    MarkSweepCollector* collector = nullptr;
+    AllocBufferMS* allocBuf = nullptr;
+    if (!ResolveLogOwner(collector, allocBuf)) {
+        return;
+    }
+    EnqueueRefInto(collector, allocBuf, ref);
 }
 
 class BulkRefMarker {
@@ -111,7 +101,7 @@ public:
         uint64_t bitMask = 0;
         if (!collector_->ResolveSmallRefForBarrier(ref, info, wordIdx, bitMask)) {
             bool newlyMarked = collector_->ShadeRefForBarrier(ref);
-            if (ShouldEnqueueMSMarkedObject(newlyMarked, newlyMarked && ref->HasRefField())) {
+            if (newlyMarked && ref->HasRefField()) {
                 AppendMarkedRefInto(collector_, allocBuf_, ref);
             }
             return;
@@ -194,7 +184,7 @@ static inline void EnqueueStructRefsInRange(BaseObject* obj, MAddress start, siz
     }
     MarkSweepCollector* collector = nullptr;
     AllocBufferMS* allocBuf = nullptr;
-    if (!ResolveBulkLogOwner(collector, allocBuf)) {
+    if (!ResolveLogOwner(collector, allocBuf)) {
         return;
     }
     BulkRefMarker marker(collector, allocBuf);
@@ -222,7 +212,7 @@ static inline void EnqueueStructArrayRefsInRange(BaseObject* obj, MAddress start
     }
     MarkSweepCollector* collector = nullptr;
     AllocBufferMS* allocBuf = nullptr;
-    if (!ResolveBulkLogOwner(collector, allocBuf)) {
+    if (!ResolveLogOwner(collector, allocBuf)) {
         return;
     }
     BulkRefMarker marker(collector, allocBuf);
@@ -237,7 +227,7 @@ static inline void EnqueueStaticStructRefs(MAddress start, const GCTib gctib)
 {
     MarkSweepCollector* collector = nullptr;
     AllocBufferMS* allocBuf = nullptr;
-    if (!ResolveBulkLogOwner(collector, allocBuf)) {
+    if (!ResolveLogOwner(collector, allocBuf)) {
         return;
     }
     BulkRefMarker marker(collector, allocBuf);
@@ -250,7 +240,7 @@ static inline void EnqueueRefArrayRange(MAddress start, size_t size)
 {
     MarkSweepCollector* collector = nullptr;
     AllocBufferMS* allocBuf = nullptr;
-    if (!ResolveBulkLogOwner(collector, allocBuf)) {
+    if (!ResolveLogOwner(collector, allocBuf)) {
         return;
     }
     size_t refCount = size / sizeof(MAddress);
@@ -262,76 +252,27 @@ static inline void EnqueueRefArrayRange(MAddress start, size_t size)
 }
 
 // ============================================================================
-// Reads: zero-overhead direct load
-// ============================================================================
-
-BaseObject* MSMarkBarrier::ReadReference(BaseObject* obj, RefField<false>& field) const
-{
-    (void)obj;
-    return field.GetTargetObject();
-}
-
-BaseObject* MSMarkBarrier::ReadStaticRef(RefField<false>& field) const
-{
-    return field.GetTargetObject();
-}
-
-BaseObject* MSMarkBarrier::ReadWeakRef(BaseObject* obj, RefField<false>& field) const
-{
-    (void)obj;
-    return field.GetTargetObject();
-}
-
-void MSMarkBarrier::ReadStruct(MAddress dst, BaseObject* obj, MAddress src, size_t size) const
-{
-    (void)obj;
-    CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), size,
-                          reinterpret_cast<void*>(src), size) == EOK,
-                 "MSMarkBarrier ReadStruct memcpy_s failed");
-}
-
-void MSMarkBarrier::ReadStaticStruct(MAddress dst, MAddress src, size_t size, const GCTib gctib) const
-{
-    (void)gctib;
-    CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), size,
-                          reinterpret_cast<void*>(src), size) == EOK,
-                 "MSMarkBarrier ReadStaticStruct memcpy_s failed");
-}
-
-// ============================================================================
 // Writes: deletion-style barrier — log(old) + store
 // ============================================================================
+
+static inline void WriteRefField(RefField<false>& field, BaseObject* ref)
+{
+    BaseObject* oldRef = field.GetTargetObject();
+    if (oldRef != ref) {
+        EnqueueRefFast(oldRef);
+    }
+    field.SetTargetObject(ref);
+}
 
 void MSBarrierOps::WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref)
 {
     (void)obj;
-
-    BaseObject* oldRef = field.GetTargetObject();
-    if (oldRef == ref) {
-        field.SetTargetObject(ref);
-        return;
-    }
-
-    // log(old)
-    EnqueueRefFast(oldRef);
-
-    // store
-    field.SetTargetObject(ref);
+    WriteRefField(field, ref);
 }
 
 void MSBarrierOps::WriteStaticRef(RefField<false>& field, BaseObject* ref)
 {
-    BaseObject* oldRef = field.GetTargetObject();
-    if (oldRef == ref) {
-        field.SetTargetObject(ref);
-        return;
-    }
-
-    // log(old)
-    EnqueueRefFast(oldRef);
-
-    // store
-    field.SetTargetObject(ref);
+    WriteRefField(field, ref);
 }
 
 void MSBarrierOps::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen)
@@ -447,14 +388,6 @@ void MSMarkBarrier::CopyStructArray(BaseObject* dstObj, MAddress dstField, MInde
 // ============================================================================
 // Atomic operations: discover(old)
 // ============================================================================
-
-BaseObject* MSMarkBarrier::AtomicReadReference(BaseObject* obj, RefField<true>& field,
-                                               MemoryOrder order) const
-{
-    (void)obj;
-    RefField<false> tmpField(field.GetFieldValue(order));
-    return tmpField.GetTargetObject();
-}
 
 void MSMarkBarrier::AtomicWriteReference(BaseObject* obj, RefField<true>& field,
                                          BaseObject* ref, MemoryOrder order) const

@@ -115,10 +115,8 @@ public:
     void VisitAllRegions(const std::function<void(RegionInfo*)>& visitor)
     {
         std::lock_guard<std::mutex> lock(listMutex);
-        RegionInfo* node = listHead;
-        RegionInfo* next = node;
-        while (node != nullptr) {
-            next = node->GetNextRegion();
+        for (RegionInfo* node = listHead; node != nullptr;) {
+            RegionInfo* next = node->GetNextRegion();
             visitor(node);
             node = next;
         }

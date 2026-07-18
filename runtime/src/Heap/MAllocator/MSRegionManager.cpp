@@ -33,8 +33,6 @@
 namespace MapleRuntime {
 
 namespace {
-constexpr size_t DEFAULT_MS_SCAVENGE_WAKE_BYTES = 4 * MS_REGION_SIZE;
-
 bool IsSegmentRegionTypeInUse(MSRegionType type)
 {
     switch (type) {
@@ -52,9 +50,6 @@ bool IsSegmentRegionTypeInUse(MSRegionType type)
 }
 
 } // namespace
-
-// External: system page size (defined in RegionManager.cpp).
-extern const size_t MRT_PAGE_SIZE;
 
 MSRegionManager::~MSRegionManager()
 {
@@ -105,7 +100,7 @@ size_t MSRegionManager::GetVirtualReserveSize(size_t maxVirtualHeapSize)
 // Initialize — virtual reservation + initial committed segment
 // ============================================================================
 
-void MSRegionManager::Initialize(size_t heapSize, uintptr_t mmapBase, size_t maxVirtualHeapSize)
+void MSRegionManager::Initialize(uintptr_t mmapBase, size_t maxVirtualHeapSize)
 {
     unitSize_ = MRT_PAGE_SIZE;
     unitsPerMSRegion_ = MS_REGION_SIZE / unitSize_;
@@ -145,8 +140,7 @@ void MSRegionManager::Initialize(size_t heapSize, uintptr_t mmapBase, size_t max
         array_[i].prevRegionIdx = MSRegionInfo::INVALID_IDX;
     }
 
-    freeManager_.Initialize(static_cast<UnitCount>(maxVirtualUnitCount), unitSize_, unitsPerMSRegion_,
-                            static_cast<RegionCount>(committedRegionCount),
+    freeManager_.Initialize(unitSize_, unitsPerMSRegion_, static_cast<RegionCount>(committedRegionCount),
                             static_cast<RegionCount>(maxVirtualRegionCount),
                             heapStart_, committedEnd, maxHeapEnd, segmentSize, shardCount);
     MSBitmapArena::Init(maxVirtualRegionCount, committedRegionCount);
@@ -191,10 +185,6 @@ uint64_t GetHeuRequestCooldownNs()
     return CangjieRuntime::GetGCParam().gcInterval;
 }
 
-size_t GetReleasedBusyRetryLimit()
-{
-    return CangjieRuntime::GetGCParam().msReleasedBusyRetryLimit;
-}
 }
 
 void MSRegionManager::MaybeNotifySweep(const CentralRegionPool* centralPool, uint8_t cls)
@@ -304,26 +294,25 @@ void MSRegionManager::MaybeNotifyMark()
     size_t sweptBytes = space.GetSweptHeapBytes();
     size_t threshold = gcStats.GetThreshold();
 
-    // Refresh the sweep-debt pressure mode on every probe (Step34 §18.2-18.3),
-    // including below threshold, so assist/background consumers observe the
-    // current runway and pressure tier.
-    SweepDebtDecision debt = pool->RefreshSweepDebtSnapshot(threshold, sweptBytes);
-
     // Trigger purely on time (cooldown above) + threshold.
     if (sweptBytes < threshold) {
         return;
     }
 
+    // Sweep executors refresh the shared pressure snapshot at slice boundaries.
+    // The Region acquisition path only consumes that published mode.
+    SweepPressureMode pressureMode = pool->GetSweepPressureMode();
+
     // A pressured old Sweep epoch gets extra parallel consumers, but no longer
     // gates the HEU request. If Mark wins the race, PreEnumRoots joins the same
     // claim path and closes all in-flight Sweep work before clearing bitmaps.
-    if (debt.mode != SweepPressureMode::LOW) {
+    if (pressureMode != SweepPressureMode::LOW) {
         BackgroundProcessor& backgroundProcessor =
             Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
         backgroundProcessor.NotifyToParallelSweep();
         VLOG(REPORT,
              "[MS-GC] HEU waking parallel Sweep: swept=%zuB threshold=%zuB mode=%d",
-             sweptBytes, threshold, static_cast<int>(debt.mode));
+             sweptBytes, threshold, static_cast<int>(pressureMode));
     }
 
     if (!lastHeuRequestNs_.compare_exchange_strong(lastHeuRequestNs, nowNs,
@@ -344,7 +333,7 @@ void MSRegionManager::MaybeNotifyMark()
 // TakeRegions — allocate contiguous regions from the unified page-heap manager.
 // ============================================================================
 
-bool MSRegionManager::TakeRegions(RegionCount num, uint16_t homeShardId, RegionIndex& idx, AllocSource* source)
+bool MSRegionManager::TakeRegions(RegionCount num, uint16_t homeShardId, RegionIndex& idx)
 {
     RegionIndex rawIdx = 0;
     MaybeNotifyMark();
@@ -353,9 +342,6 @@ bool MSRegionManager::TakeRegions(RegionCount num, uint16_t homeShardId, RegionI
         FreeManager::TryTakeResult result = freeManager_.TryTakeRegions(num, homeShardId, rawIdx);
         if (result == FreeManager::TryTakeResult::SUCCESS) {
             idx = rawIdx;
-            if (source != nullptr) {
-                *source = AllocSource::RELEASED;
-            }
             MaybeNotifyScavenge();
             return true;
         }
@@ -382,13 +368,10 @@ void MSRegionManager::ClearUnits(UnitIndex idx, UnitCount num) const
 // TakeRegion — allocate one MS_REGION_SIZE region
 // ============================================================================
 
-MSRegionInfo* MSRegionManager::TakeRegion(uint8_t cls, const CentralRegionPool& centralPool,
-                                          uint16_t homeShardId)
+MSRegionInfo* MSRegionManager::TakeRegion(uint16_t homeShardId)
 {
-    (void)centralPool;
     RegionIndex regionIdx = 0;
-    AllocSource source = AllocSource::BUMP;
-    if (!TakeRegions(1, homeShardId, regionIdx, &source)) {
+    if (!TakeRegions(1, homeShardId, regionIdx)) {
         return nullptr;
     }
 
@@ -425,8 +408,7 @@ MSRegionInfo* MSRegionManager::TakeRegionForLarge(size_t unitCount, uintptr_t& r
         (unitCount + unitsPerMSRegion_ - 1) / unitsPerMSRegion_);
 
     RegionIndex regionIdx = 0;
-    AllocSource source = AllocSource::BUMP;
-    if (!TakeRegions(regionCount, homeShardId, regionIdx, &source)) {
+    if (!TakeRegions(regionCount, homeShardId, regionIdx)) {
         regionStart = 0;
         return nullptr;
     }
@@ -450,11 +432,9 @@ void MSRegionManager::ReclaimRegionLarge(uintptr_t regionStart, size_t regionByt
     RegionIndex regionIdx = AddrToRegionIdx(regionStart);
     RegionCount regionCount = static_cast<RegionCount>(
         (regionBytes + MS_REGION_SIZE - 1) / MS_REGION_SIZE);
-    uint16_t ownerShardId = freeManager_.ResolveOwnerShardId(regionIdx);
-
     DLOG(REGION, "[MS-GC] ReclaimRegionLarge->hotFree: regionStart=0x%zx, regionIdx=%u, regionCount=%u, "
                  "ownerShard=%u, bytes=%zuKB",
-         regionStart, regionIdx, regionCount, ownerShardId, regionBytes / 1024);
+         regionStart, regionIdx, regionCount, freeManager_.ResolveOwnerShardId(regionIdx), regionBytes / 1024);
 
     // Large objects return to FreeManager first; BackgroundScavengeLoop decides
     // when those hot-free pages are actually released to the OS.
@@ -464,14 +444,13 @@ void MSRegionManager::ReclaimRegionLarge(uintptr_t regionStart, size_t regionByt
 void MSRegionManager::ReclaimEmptyRegionToHotFree(MSRegionInfo* region)
 {
     size_t regionIdx = static_cast<size_t>(region - array_);
-    uint16_t ownerShardId = freeManager_.ResolveOwnerShardId(static_cast<RegionIndex>(regionIdx));
     CHECK_DETAIL(region->regionType == MSRegionType::MS_REGION_EMPTY_CACHE,
                  "[MS-GC] ReclaimEmptyRegionToHotFree: bad regionType=%u idx=%zu",
                  static_cast<unsigned>(region->regionType), regionIdx);
 
     region->Reset();
     DLOG(REGION, "[MS-GC] ReclaimEmptyRegionToHotFree: regionIdx=%zu ownerShard=%u",
-         regionIdx, ownerShardId);
+         regionIdx, freeManager_.ResolveOwnerShardId(static_cast<RegionIndex>(regionIdx)));
     freeManager_.ReclaimRegionsReleased(static_cast<RegionIndex>(regionIdx), 1);
 }
 
@@ -488,19 +467,6 @@ size_t MSRegionManager::ScavengeFreeRegions(bool releaseAll)
 size_t MSRegionManager::ScavengeFreeRegionsUpTo(size_t maxBytes)
 {
     return freeManager_.ScavengeFreeRegionsUpTo(maxBytes);
-}
-
-// ============================================================================
-// ReleaseGarbageRegions — no-op for MSGC.
-// Small regions are kept in CentralRegionPool empty cache and reclaimed from
-// there. Large regions are returned through ReclaimRegionLarge() into
-// FreeManager hot-free supply, then scavenged later by BackgroundScavengeLoop.
-// ============================================================================
-
-size_t MSRegionManager::ReleaseGarbageRegions(size_t targetCachedSize)
-{
-    (void)targetCachedSize;
-    return 0;
 }
 
 // ============================================================================

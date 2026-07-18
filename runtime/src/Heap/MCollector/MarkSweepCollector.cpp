@@ -24,7 +24,6 @@
 #include "Heap/MAllocator/MSRegionManager.h"
 #include "Heap/MAllocator/MSRegionSpace.h"
 #include "Heap/MCollector/MSHeapThresholdPolicy.h"
-#include "Heap/MCollector/MSMarkQueuePolicy.h"
 #include "Concurrency/ConcurrencyModel.h"
 #include "Heap/Collector/CollectorResources.h"
 #include "Heap/Collector/FinalizerProcessor.h"
@@ -339,10 +338,8 @@ void MarkSweepCollector::PreGarbageCollection(bool isConcurrent)
 void MarkSweepCollector::PostGarbageCollection(uint64_t gcIndex)
 {
     uint64_t t0 = TimeUtil::MicroSeconds();
-    // MSGC finishes SATB-independent cleanup in MarkTermination/PostMarkTermination.
-    // After UpdateGCStats, the remaining hook work is only the collector-finished
-    // publication and the final return to the idle barrier state.
-    TransitionToGCPhase(GCPhase::GC_PHASE_IDLE, true);
+    // MarkTermination has already restored the idle barrier before Mutators
+    // resume.  The Sweep epoch is tracked independently by CentralRegionPool.
     collectorResources.NotifyGCFinished(gcIndex);
 
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
@@ -399,7 +396,6 @@ void MarkSweepCollector::DoGarbageCollection(uint64_t gcIndex)
     ConcurrentMark();      // Step 2.2
     MarkTermination();     // Step 2.3
     PostMarkTermination(); // Step 2.4
-    ConcurrentSweep();      // Step 4: concurrent sweep via gc-helper
 }
 
 // ============================================================================
@@ -499,7 +495,7 @@ bool MarkSweepCollector::MarkObject(BaseObject* obj) const
     return true;
 }
 
-bool MarkSweepCollector::DiscoverObjectNoCount(BaseObject* obj)
+bool MarkSweepCollector::DiscoverObject(BaseObject* obj)
 {
     // Guard against stale pointers to reclaimed/zeroed slots.
     // For such slots stateWord->TypeInfo is null, and they must not be enqueued
@@ -539,15 +535,10 @@ bool MarkSweepCollector::ResolveSmallRefForBarrier(BaseObject* ref, MSRegionInfo
     return true;
 }
 
-bool MarkSweepCollector::DiscoverObject(BaseObject* obj)
-{
-    return DiscoverObjectNoCount(obj);
-}
-
 bool MarkSweepCollector::TryEnqueueGreyObject(BaseObject* obj, GreyWorkSink& sink)
 {
     bool newlyMarked = DiscoverObject(obj);
-    if (ShouldEnqueueMSMarkedObject(newlyMarked, newlyMarked && obj->HasRefField())) {
+    if (newlyMarked && obj->HasRefField()) {
         sink.PushGrey(obj);
     }
     return newlyMarked;
@@ -556,7 +547,7 @@ bool MarkSweepCollector::TryEnqueueGreyObject(BaseObject* obj, GreyWorkSink& sin
 bool MarkSweepCollector::TryEnqueueGreyObject(BaseObject* obj, GreyWorkQueue& queue)
 {
     bool newlyMarked = DiscoverObject(obj);
-    if (ShouldEnqueueMSMarkedObject(newlyMarked, newlyMarked && obj->HasRefField())) {
+    if (newlyMarked && obj->HasRefField()) {
         queue.PushNewlyGrey(obj);
     }
     return newlyMarked;
@@ -675,9 +666,9 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
     uint64_t t0 = TimeUtil::MicroSeconds();
     VLOG(REPORT, "[MS-GC] --- ConcurrentMark (gcThreadWork_ + globalFull_ LFStack) ---");
 
-    // Init GC thread's own PerPGCWork (sets globalFull_ pointer for TryGetObj refill).
+    // Init GC thread's own PerPGCWork (sets its global queue and pool).
     // Then pack all root objects into WorkBufs and push directly to globalFull_.
-    // GC thread and assist threads both compete for work from globalFull_ via TryGetObj().
+    // GC thread and assist threads both compete for work from globalFull_.
     gcThreadWork_.Init(&globalFull_, &workBufPool_);
     TransferRootsToGCWork();
 
@@ -999,56 +990,6 @@ void MarkSweepCollector::ProcessDeferredWeakRefsPreSTW()
 }
 
 // ============================================================================
-// DrainGCWork: drain objects from PerPGCWork, trace children back into it.
-// This is the Step5 replacement for RunCollectorDrainSlice.
-// ============================================================================
-void MarkSweepCollector::DrainGCWork(PerPGCWork& gcw, size_t maxObjects,
-                                     size_t& scannedCount)
-{
-    scannedCount = 0;
-    for (size_t i = 0; i < maxObjects; i++) {
-        BaseObject* obj = gcw.TryGetObj();
-        if (obj == nullptr) {
-            break;
-        }
-
-        // Route-B: entries from a raw write-barrier log (needsDiscover) have not
-        // been shaded yet — DiscoverObject here; only the mark-CAS winner scans.
-        // TryGetObj leaves getCur_ pointing at the buffer obj came from.
-        if (gcw.getCur_ != nullptr && gcw.getCur_->needsDiscover) {
-            if (!DiscoverObjectNoCount(obj)) {
-                continue;
-            }
-        } else if (UNLIKELY(WorkBuf::kRevalidateTrustedGrey)) {
-            if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-                continue;
-            }
-            if (UNLIKELY(!obj->IsValidObject())) {
-                LOG(RTLOG_FATAL, "[MS-GC] DrainGCWork: FATAL invalid stateWord obj=%p, "
-                    "stateWord=0x%zx, markBit=%d",
-                    (void*)obj,
-                    *reinterpret_cast<uintptr_t*>(obj),
-                    (int)IsMarkedObject(obj));
-            }
-        }
-
-        scannedCount++;
-
-        if (!obj->HasRefField()) {
-            continue;
-        }
-
-        if (UNLIKELY(obj->IsWeakRef())) {
-            // Defer WeakRef to GC main thread — safe from both GC thread and mutator assist.
-            PushSingleToDeferredMainThread(obj);
-            continue;
-        }
-
-        TraceObjectRefFieldsToGCWork(obj, gcw);
-    }
-}
-
-// ============================================================================
 // TraceObjectRefFieldsToGCWork: trace all ref fields of obj, push grey children
 // into PerPGCWork (Step5 replacement for TraceObjectRefFields on WorkStack).
 // ============================================================================
@@ -1058,7 +999,7 @@ void MarkSweepCollector::TraceObjectRefFieldsToGCWork(BaseObject* obj, PerPGCWor
         BaseObject* target = field.GetTargetObject();
         if (target != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(target))) {
             bool newlyMarked = DiscoverObject(target);
-            if (ShouldEnqueueMSMarkedObject(newlyMarked, newlyMarked && target->HasRefField())) {
+            if (newlyMarked && target->HasRefField()) {
                 gcw.PutObj(target);
             }
         }
@@ -1069,7 +1010,7 @@ void MarkSweepCollector::TraceObjectRefFieldsToGCWork(BaseObject* obj, PerPGCWor
 // ============================================================================
 // TransferRootsToGCWork: pack root objects into WorkBufs and push directly to
 // globalFull_, same as activeLog_ overflow does.
-// GC thread and assist threads both consume from globalFull_ via TryGetObj().
+// GC thread and assist threads both consume from globalFull_.
 // Called once at start of ConcurrentMark after root enumeration.
 // ============================================================================
 void MarkSweepCollector::TransferRootsToGCWork()
@@ -1101,8 +1042,7 @@ void MarkSweepCollector::TransferRootsToGCWork()
     VLOG(REPORT, "[MS-GC] TransferRootsToGCWork: %zu root objects → globalFull_", transferred);
 }
 
-void MarkSweepCollector::TraceRefField(
-    BaseObject* obj, RefField<>& field, WorkStack& workStack)
+void MarkSweepCollector::TraceRefField(RefField<>& field, WorkStack& workStack)
 {
     BaseObject* target = field.GetTargetObject();
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
@@ -1119,9 +1059,9 @@ void MarkSweepCollector::TraceRefField(
 // Global work queue helpers (Step5: LFStack-based, lock-free)
 // ============================================================================
 
-// Route-B (Step37): the write-barrier log is a WorkBuf pointer (activeLog_) that
-// the barrier appends raw old-refs into. Overflow no longer discovers on the
-// mutator — it publishes the full buffer wholesale and installs a fresh one.
+// The write-barrier log is a WorkBuf pointer (activeLog_) that holds old refs
+// which already won the mark CAS. Overflow publishes the buffer wholesale and
+// installs a fresh one.
 WorkBuf* MarkSweepCollector::EnsureActiveLog(AllocBufferMS& ab)
 {
     WorkBuf* log = ab.GetActiveLog();
@@ -1138,9 +1078,7 @@ void MarkSweepCollector::PublishAndSwapLog(AllocBufferMS& ab)
     if (full == nullptr || full->Empty()) {
         return;
     }
-    // Route-A: entries were already shaded (mark-CAS won) by the barrier, so the
-    // buffer holds only grey objects — the consumer scans them directly.
-    full->needsDiscover = false;
+    // Entries were already shaded by the barrier, so consumers scan directly.
     // Make every complete log visible to the GC thread and all assists instead
     // of pinning the first four buffers to the owner P.
     size_t published = full->len;
@@ -1156,9 +1094,7 @@ void MarkSweepCollector::PublishExitedLog(AllocBufferMS& ab)
     WorkBuf* log = ab.GetActiveLog();
     if (log != nullptr) {
         if (!log->Empty()) {
-            // Owner is leaving: push straight to globalFull_ (no local consumer
-            // survives). Route-A: entries are already grey, consumer scans them.
-            log->needsDiscover = false;
+            // Owner is leaving: publish directly; entries are already grey.
             size_t published = log->len;
             globalFull_.Push(log);
             wbFlushStats_.Record(MSGCWriteBarrierFlushSource::EXITED_OWNER, published, published);
@@ -1193,10 +1129,7 @@ void MarkSweepCollector::SnapshotAssistStats()
         });
     }
 
-    cycleStats_.assistCallCount = total.calls;
     cycleStats_.assistProcessedObjects = total.processed;
-    cycleStats_.assistGlobalPaid = total.globalPaid;
-    cycleStats_.bgScanCreditConsumed = total.bgStolen;
     VLOG(REPORT,
          "[MS-GC] [assist] calls=%zu bgStolen=%zu globalPaid=%zu processed=%zu "
          "creditInjected=%zu",
@@ -1233,33 +1166,20 @@ void MarkSweepCollector::DrainGlobalLFStackToMainQueue(GreyWorkQueue& mainQueue)
         if (buf == nullptr) {
             break;
         }
-        // Route-B: a raw write-barrier log (needsDiscover) holds un-shaded refs —
-        // DiscoverObject each and only enqueue the newly-grey ones. Already-grey
-        // bufs (mark output) are pushed straight through.
-        if (buf->needsDiscover) {
-            for (size_t i = 0; i < buf->len; i++) {
-                BaseObject* obj = buf->objs[i];
-                bool newlyMarked = DiscoverObjectNoCount(obj);
-                if (ShouldEnqueueMSMarkedObject(newlyMarked, newlyMarked && obj->HasRefField())) {
-                    mainQueue.PushMovedGrey(obj);
+        for (size_t i = 0; i < buf->len; i++) {
+            BaseObject* obj = buf->objs[i];
+            if (UNLIKELY(WorkBuf::kRevalidateTrustedGrey)) {
+                if (obj == nullptr) {
+                    continue;
+                }
+                if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
+                    continue;
+                }
+                if (UNLIKELY(!obj->IsValidObject())) {
+                    continue;
                 }
             }
-        } else {
-            for (size_t i = 0; i < buf->len; i++) {
-                BaseObject* obj = buf->objs[i];
-                if (UNLIKELY(WorkBuf::kRevalidateTrustedGrey)) {
-                    if (obj == nullptr) {
-                        continue;
-                    }
-                    if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-                        continue;
-                    }
-                    if (UNLIKELY(!obj->IsValidObject())) {
-                        continue;
-                    }
-                }
-                mainQueue.PushMovedGrey(obj);
-            }
+            mainQueue.PushMovedGrey(obj);
         }
         workBufPool_.Put(buf);
     }
@@ -1348,16 +1268,9 @@ size_t MarkSweepCollector::DrainOneBufRound(PerPGCWork& gcw, bool requireFull)
     }
 
     size_t nProcessed = 0;
-    // getCur_ is fixed for the whole round, so its raw-log flag is constant here.
-    const bool needsDiscover = (gcw.getCur_ != nullptr) && gcw.getCur_->needsDiscover;
     while (gcw.getCur_ != nullptr && !gcw.getCur_->Empty()) {
         BaseObject* obj = gcw.getCur_->Pop();
-        if (needsDiscover) {
-            // Route-B raw log: shade first; only the mark-CAS winner scans.
-            if (!DiscoverObjectNoCount(obj)) {
-                continue;
-            }
-        } else if (UNLIKELY(WorkBuf::kRevalidateTrustedGrey)) {
+        if (UNLIKELY(WorkBuf::kRevalidateTrustedGrey)) {
             if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
                 continue;
             }
@@ -1524,11 +1437,11 @@ void MarkSweepCollector::MarkTermination()
          resurrectionEntries,
          cycleStats_.markTermProcessedObjects);
 
-    // Transition to MS_SWEEP INSIDE STW so that when mutators resume,
-    // the phase is MS_SWEEP (idle barrier). This eliminates a gap where
-    // mutators could still buffer write-barrier entries after the last drain
-    // but before PostMarkTermination switches the phase.
-    TransitionToGCPhase(GCPhase::GC_PHASE_MS_SWEEP, false);
+    // Restore IDLE INSIDE STW so that when Mutators resume, the mark barrier
+    // has already been disabled. This eliminates a gap where Mutators could
+    // still buffer write-barrier entries after the last drain. The independent
+    // Sweep epoch remains open and is tracked by CentralRegionPool counters.
+    TransitionToGCPhase(GCPhase::GC_PHASE_IDLE, false);
 
     if (centralPool != nullptr) {
         centralPool->ReenableLazySweep();
@@ -1544,8 +1457,8 @@ void MarkSweepCollector::FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue)
     }
 
     centralPool->VisitAllocBufferMS([this, &mainQueue](AllocBufferMS& buffer) {
-        // Discover the owner's un-published partial log (activeLog_). Already
-        // published logs live in globalFull_/list1_ and are handled by
+        // Move the owner's unpublished partial log (activeLog_). Already
+        // published logs live in globalFull_ and are handled by
         // DisposeAllPerPGCWork + DrainGlobalLFStackToMainQueue.
         WorkBuf* log = buffer.GetActiveLog();
         if (log != nullptr) {
@@ -1590,18 +1503,6 @@ void MarkSweepCollector::DrainDeferredMainThreadQueueToMainQueue(GreyWorkQueue& 
             continue;
         }
         mainQueue.PushMovedGrey(obj);
-    }
-}
-
-void MarkSweepCollector::CollectExternCandidatesToMain(GreyWorkQueue& mainQueue)
-{
-    for (auto& kv : discoveredExternObjects) {
-        for (BaseObject* obj : kv.second) {
-            if (obj != nullptr && obj->IsValidObject() &&
-                IsManagedAddress(reinterpret_cast<MAddress>(obj))) {
-                (void)TryEnqueueGreyObject(obj, mainQueue);
-            }
-        }
     }
 }
 
@@ -1694,6 +1595,25 @@ void MarkSweepCollector::PostMarkTermination()
              cycleStats_.losCachedCount, cycleStats_.losCachedRegionCount,
              Pretty(cycleStats_.losCollectUs).Str());
     }
+
+    // 4. Publish the stable mark statistics and hand small-Region sweep over
+    // to the background processor. MarkTermination has already restored IDLE
+    // and installed the idle barrier before Mutators resumed, so this does not
+    // change barrier semantics; it only makes the completed mark result visible
+    // to HEU accounting and the asynchronous Sweep/Scavenge workers.
+    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
+    CentralRegionPool* centralPool = space.GetCentralPool();
+    if (centralPool != nullptr) {
+        MSMarkedStats markedStats = centralPool->ComputeMarkedStats();
+        cycleStats_.trueLiveBytes = markedStats.liveBytes;
+        prevCycleMarkedObjects_.store(markedStats.objectCount, std::memory_order_relaxed);
+        VLOG(REPORT, "[MS-GC] Mark bitmap: objects=%zu liveBytes=%zuB",
+             markedStats.objectCount, markedStats.liveBytes);
+    }
+
+    BackgroundProcessor& backgroundProcessor = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
+    backgroundProcessor.NotifyToSweep(kNoPreferredSweepClass);
+    backgroundProcessor.NotifyToScavenge();
 
     cycleStats_.postMarkUs = TimeUtil::MicroSeconds() - phaseStart;
     VLOG(REPORT, "[MS-GC] PostMark total: %sus",
@@ -1874,36 +1794,6 @@ void MarkSweepCollector::VerifyMarkCompleteness()
          staleManagedTargets, staleNonTraceableTargets, staleInvalidTargets);
 }
 
-void MarkSweepCollector::ConcurrentSweep()
-{
-    uint64_t phaseStart = TimeUtil::MicroSeconds();
-    VLOG(REPORT, "[MS-GC] --- ConcurrentSweep ---");
-
-    RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
-
-    // Compute object count and true live bytes in one stable bitmap walk.
-    CentralRegionPool* centralPool = space.GetCentralPool();
-    if (centralPool != nullptr) {
-        MSMarkedStats markedStats = centralPool->ComputeMarkedStats();
-        cycleStats_.markedObjects = markedStats.objectCount;
-        cycleStats_.trueLiveBytes = markedStats.liveBytes;
-        prevCycleMarkedObjects_.store(markedStats.objectCount, std::memory_order_relaxed);
-        VLOG(REPORT, "[MS-GC] Mark bitmap: objects=%zu liveBytes=%zuB",
-             markedStats.objectCount, markedStats.liveBytes);
-    }
-
-    BackgroundProcessor& backgroundProcessor = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
-    backgroundProcessor.NotifyToSweep(kNoPreferredSweepClass);
-    backgroundProcessor.NotifyToScavenge();
-
-    // Mark-Sweep: generation flip now happens at the tail of MarkTermination's
-    // STW, before mutators resume. ConcurrentSweep only kicks off background
-    // sweeping and reclaim after the new generation is already visible.
-    uint64_t sweepUs = TimeUtil::MicroSeconds() - phaseStart;
-    cycleStats_.concurrentSweepUs = sweepUs;
-    VLOG(REPORT, "[MS-GC] ConcurrentSweep total: %sus", Pretty(sweepUs).Str());
-}
-
 // ============================================================================
 // MarkNewObject: mark newly allocated objects during marking phases
 // ============================================================================
@@ -1946,8 +1836,8 @@ void MarkSweepCollector::EnumAndTagRawRoot(ObjectRef& root, RootSet& rootSet) co
 
 void MarkSweepCollector::TraceObjectRefFields(BaseObject* obj, WorkStack& workStack)
 {
-    auto refFunc = [this, obj, &workStack](RefField<>& field) {
-        TraceRefField(obj, field, workStack);
+    auto refFunc = [this, &workStack](RefField<>& field) {
+        TraceRefField(field, workStack);
     };
     ForEachRefFieldGCInline(obj, refFunc);
 }
@@ -2115,20 +2005,18 @@ void MarkSweepCollector::LogGCSummary(uint64_t gcTimeUs)
 {
     uint64_t accountedUs = cycleStats_.preEnumRootsUs + cycleStats_.markSetupUs +
                            cycleStats_.concurrentMarkUs + cycleStats_.markTerminationUs +
-                           cycleStats_.postMarkUs + cycleStats_.concurrentSweepUs +
-                           cycleStats_.postGcHookUs;
+                           cycleStats_.postMarkUs + cycleStats_.postGcHookUs;
     uint64_t otherUs = (gcTimeUs > accountedUs) ? (gcTimeUs - accountedUs) : 0;
 
     VLOG(REPORT,
          "[MS-GC] total gc time: %s us (PreEnum %s + EnumRoots %s + ConcMark %s + "
-         "MarkTerm %s + PostMark %s + ConcSweep %s + PostGC %s + Other %s)",
+         "MarkTerm %s + PostMark %s + PostGC %s + Other %s)",
          Pretty(gcTimeUs).Str(),
          Pretty(cycleStats_.preEnumRootsUs).Str(),
          Pretty(cycleStats_.markSetupUs).Str(),
          Pretty(cycleStats_.concurrentMarkUs).Str(),
          Pretty(cycleStats_.markTerminationUs).Str(),
          Pretty(cycleStats_.postMarkUs).Str(),
-         Pretty(cycleStats_.concurrentSweepUs).Str(),
          Pretty(cycleStats_.postGcHookUs).Str(),
          Pretty(otherUs).Str());
 }
