@@ -76,7 +76,7 @@ private:
     bool BackgroundSweepLoop();
     bool ParallelSweepLoop();
     bool ParallelSweepLoop(size_t helperCount);
-    bool FinishSweepSlice(CentralRegionPool& pool);
+    bool FinishSweepSlice();
     bool BackgroundScavengeLoop(); // scavengeThreshold-based: Step A (flush emptySwept) + Step B (scavenge)
     bool BackgroundShrinkLoop();   // segment-level shrink: release fully idle segments without changing heap topology
 
@@ -98,9 +98,6 @@ private:
     std::atomic<size_t> targetSweepHelperCount_{0};
     std::atomic<size_t> activeSweepHelperCount_{0};
     std::atomic<uint32_t> observedSweepGeneration_{0};
-    BackgroundSweepStats pendingSweepStats_{};
-    BackgroundReclaimStats pendingScavengeStats_{};
-    BackgroundReclaimStats pendingShrinkStats_{};
     FinalizerWorkList finalizerWorkList;
     uint32_t tid = 0;
     pthread_t threadHandle = 0;

@@ -34,21 +34,6 @@ class MSRegionManager;
 class AllocBufferMS;
 class BaseObject;
 
-struct MSLargeSweepStats {
-    size_t objectCount = 0;
-    size_t regionCount = 0;
-    size_t freedBytes = 0;
-    size_t cachedObjectCount = 0;  // Dead large objects placed into hot cache (not immediately reclaimed).
-    size_t cachedRegionCount = 0;  // Region spans placed into hot cache.
-};
-
-struct MSSweepCounts {
-    size_t backgroundSweptRegions = 0;
-    size_t lazySweptRegions = 0;
-    size_t assistSweptRegions = 0;
-    size_t helperSweptRegions = 0;
-};
-
 // ============================================================================
 // MSRegionList: lightweight intrusive doubly-linked list over MSRegionInfo
 // ============================================================================
@@ -340,10 +325,8 @@ public:
 
     // Background sweep: iterate all size classes, sweep one slice of unswept Regions.
     // Thread-safe (CAS ownership). Called by gc-helper thread.
-    BackgroundSweepStats BackgroundSweep(uint8_t preferredCls, uint64_t deadlineUs);
-    BackgroundSweepStats ParallelSweep(uint8_t preferredCls, uint64_t deadlineUs);
-    void ResetSweepCounts();
-    MSSweepCounts GetSweepCounts() const;
+    void BackgroundSweep(uint8_t preferredCls, uint64_t deadlineUs);
+    void ParallelSweep(uint8_t preferredCls, uint64_t deadlineUs);
     // Repay one P's local Sweep debt. Non-assist Sweep work is claimed once from
     // the central credit pool; a remaining full batch is swept directly once.
     MSSweepAssistResult MSSweepAssist(AllocBufferMS& owner, size_t debtRegions,
@@ -437,7 +420,7 @@ public:
 
     // Eager sweep: reclaim unmarked large regions, return freed bytes.
     // Called after MarkTerminate / in PostMarkTermination.
-    MSLargeSweepStats SweepLargeRegions();
+    void SweepLargeRegions();
 
     // Large object hot cache: cache a freshly-freed large region so its
     // physical pages remain resident for fast reuse on the next allocation.
@@ -709,27 +692,18 @@ private:
     void RecordBackgroundSweep(size_t sweptRegions)
     {
         if (sweptRegions != 0) {
-            backgroundSweptRegions_.fetch_add(sweptRegions, std::memory_order_relaxed);
             sweepCredit_.Add(sweptRegions);
         }
     }
     void RecordLazySweep(size_t sweptRegions)
     {
         if (sweptRegions != 0) {
-            lazySweptRegions_.fetch_add(sweptRegions, std::memory_order_relaxed);
             sweepCredit_.Add(sweptRegions);
-        }
-    }
-    void RecordAssistSweep(size_t sweptRegions)
-    {
-        if (sweptRegions != 0) {
-            assistSweptRegions_.fetch_add(sweptRegions, std::memory_order_relaxed);
         }
     }
     void RecordHelperSweep(size_t sweptRegions)
     {
         if (sweptRegions != 0) {
-            helperSweptRegions_.fetch_add(sweptRegions, std::memory_order_relaxed);
             sweepCredit_.Add(sweptRegions);
         }
     }
@@ -743,11 +717,6 @@ private:
     std::atomic<size_t> activeLazySweepCount_{0};     // In-flight lazy sweep counter
     std::atomic<size_t> activeAssistSweepCount_{0};   // In-flight mutator assist sweep counter
     std::atomic<size_t> activeHelperSweepCount_{0};   // In-flight parallel helper sweep counter
-    std::atomic<size_t> backgroundSweptRegions_{0};
-    std::atomic<size_t> lazySweptRegions_{0};
-    std::atomic<size_t> assistSweptRegions_{0};
-    std::atomic<size_t> helperSweptRegions_{0};
-
     // ===== P-local proportional Sweep pacing =====
     // PrepareForSweep publishes one fixed-point ratio for the generation.
     // AllocBufferMS owns allocation progress and debt; central non-assist work is
@@ -815,11 +784,8 @@ public:
         }
     }
 private:
-    MSSweepAssistStats SnapshotSweepAssistStats();
-
     std::mutex msAllocBufferLock_;
     std::vector<AllocBufferMS*> msAllocBuffers_;
-    MSSweepAssistStats exitedSweepAssistStats_;
 };
 
 // ===== Template implementation =====

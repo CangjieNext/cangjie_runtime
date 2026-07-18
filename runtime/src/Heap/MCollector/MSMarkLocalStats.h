@@ -53,16 +53,10 @@ private:
 };
 
 struct MSMarkAssistStats {
-    size_t calls = 0;
-    size_t bgStolen = 0;
-    size_t globalPaid = 0;
     size_t processed = 0;
 
     void Merge(const MSMarkAssistStats& other)
     {
-        calls += other.calls;
-        bgStolen += other.bgStolen;
-        globalPaid += other.globalPaid;
         processed += other.processed;
     }
 

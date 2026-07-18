@@ -39,6 +39,15 @@
 namespace MapleRuntime {
 
 namespace {
+bool IsMSGCReportEnabled()
+{
+#if defined(__OHOS__)
+    return true;
+#else
+    return ENABLE_LOG(REPORT);
+#endif
+}
+
 size_t ComputeScavengeThresholdBytes(size_t heapThresholdBytes, double scavengeGrowth)
 {
     if (heapThresholdBytes == 0) {
@@ -356,7 +365,6 @@ void MarkSweepCollector::RunGarbageCollection(uint64_t gcIndex, GCReason reason)
 {
     gcCycle_++;
     cycleStats_.Reset();
-    wbFlushStats_.Reset();
     SetGCReason(reason);
 
     GCStats& gcStats = GetGCStats();
@@ -593,17 +601,13 @@ void MarkSweepCollector::ConcurrentMark()
     // 8. Transition to concurrent marking phase
     TransitionToGCPhase(GCPhase::GC_PHASE_MS_CONCURRENT_MARK, true);
 
-    // 9. Reset cycle-global assist state. Per-P diagnostics are reset while
+    // 9. Reset cycle-global assist state. Per-P feedback is reset while
     // initializing each AllocBufferMS below.
     {
         std::lock_guard<std::mutex> lock(exitedAssistStatsMutex_);
         exitedAssistStats_ = MSMarkAssistStats{};
     }
     bgScanCredit_.store(0, std::memory_order_relaxed);
-    bgCreditInjected_ = 0;
-    peakActiveHelpers_ = 0;
-    workerScaleUpCount_ = 0;
-    peakPublishedBacklog_ = 0;
 
     // 10. Init per-P GCWork for all existing mutators before enabling assist.
     //     New mutators that join later will lazily init in MSMarkAssist.
@@ -691,7 +695,6 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
     MSMarkWorkerPolicy workerPolicy(maxHelpers);
     size_t activeHelpers = workerPolicy.Update(globalFull_.GetCounts().total);
     StartMarkWorkers(maxHelpers, activeHelpers);
-    peakActiveHelpers_ = activeHelpers;
 
     // GC-supply credit with configurable linear decay.
     // Shorter window forces assist to do real marking work sooner.
@@ -728,15 +731,12 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
         LFStack::Counts backlog = globalFull_.GetCounts();
         size_t publishedBacklog = backlog.total;
         size_t fullBacklog = backlog.full;
-        peakPublishedBacklog_ = std::max(peakPublishedBacklog_, publishedBacklog);
         size_t oldHelpers = workerPolicy.GetActiveHelpers();
         activeHelpers = workerPolicy.Update(publishedBacklog);
         MRT_ASSERT(activeHelpers >= oldHelpers,
                    "MSGC mark helpers must not scale down within a cycle");
         if (activeHelpers > oldHelpers) {
             markWorkerControl_.SetTargetHelpers(activeHelpers);
-            ++workerScaleUpCount_;
-            peakActiveHelpers_ = std::max(peakActiveHelpers_, activeHelpers);
         }
 
         // Dynamic assist ratio escalation based on globalFull_ backpressure:
@@ -761,7 +761,6 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
             size_t inj = static_cast<size_t>(static_cast<double>(backgroundScanned) * w);
             if (inj > 0) {
                 bgScanCredit_.fetch_add(static_cast<int64_t>(inj), std::memory_order_release);
-                bgCreditInjected_ += inj;
             }
         }
 
@@ -774,13 +773,8 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
             if (!tailDraining) {
                 tailDraining = true;
                 tailStartUs = TimeUtil::MicroSeconds();
-                size_t oldHelpers = workerPolicy.GetActiveHelpers();
                 activeHelpers = workerPolicy.EnterTail();
                 markWorkerControl_.SetTargetHelpers(activeHelpers);
-                if (activeHelpers > oldHelpers) {
-                    ++workerScaleUpCount_;
-                }
-                peakActiveHelpers_ = std::max(peakActiveHelpers_, activeHelpers);
                 assistWorkPerByteScaled_.store(tailAssistRatio, std::memory_order_release);
             }
             quiesceResidualBuffers = QuiesceMarkWorkers();
@@ -809,15 +803,10 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
     cycleStats_.gcMainProcessedObjects = gcMainProcessed;
     cycleStats_.helperProcessedObjects = helperProcessed;
     VLOG(REPORT,
-         "[MS-GC] [mark-workers] configured=%zu peakActive=%zu processed=%zu "
-         "scaleUp=%zu scaleDown=%zu backlogPeak=%zu workersInFlight=%zu assistInFlight=%zu "
-         "mainProcessed=%zu",
+         "[MS-GC] [mark-workers] configured=%zu processed=%zu workersInFlight=%zu "
+         "assistInFlight=%zu mainProcessed=%zu",
          maxHelpers + 1,
-         peakActiveHelpers_ + 1,
          helperProcessed,
-         workerScaleUpCount_,
-         static_cast<size_t>(0),
-         peakPublishedBacklog_,
          markWorkerControl_.GetWorkersInFlight(),
          markWorkerControl_.GetAssistsInFlight(),
          gcMainProcessed);
@@ -1079,9 +1068,7 @@ void MarkSweepCollector::PublishAndSwapLog(AllocBufferMS& ab)
     // Entries were already shaded by the barrier, so consumers scan directly.
     // Make every complete log visible to the GC thread and all assists instead
     // of pinning the first four buffers to the owner P.
-    size_t published = full->len;
     globalFull_.Push(full);
-    wbFlushStats_.Record(MSGCWriteBarrierFlushSource::OVERFLOW_FLUSH, published, published);
 
     ab.ActiveLogRef() = ab.AcquireWorkBuf(workBufPool_);
 }
@@ -1093,9 +1080,7 @@ void MarkSweepCollector::PublishExitedLog(AllocBufferMS& ab)
     if (log != nullptr) {
         if (!log->Empty()) {
             // Owner is leaving: publish directly; entries are already grey.
-            size_t published = log->len;
             globalFull_.Push(log);
-            wbFlushStats_.Record(MSGCWriteBarrierFlushSource::EXITED_OWNER, published, published);
         } else {
             workBufPool_.Put(log);
         }
@@ -1128,14 +1113,7 @@ void MarkSweepCollector::SnapshotAssistStats()
     }
 
     cycleStats_.assistProcessedObjects = total.processed;
-    VLOG(REPORT,
-         "[MS-GC] [assist] calls=%zu bgStolen=%zu globalPaid=%zu processed=%zu "
-         "creditInjected=%zu",
-         total.calls,
-         total.bgStolen,
-         total.globalPaid,
-         total.processed,
-         bgCreditInjected_);
+    VLOG(REPORT, "[MS-GC] [assist] processed=%zu", total.processed);
 }
 
 void MarkSweepCollector::PushSingleToDeferredMainThread(BaseObject* obj)
@@ -1313,7 +1291,6 @@ size_t MarkSweepCollector::MSMarkAssist(AllocBufferMS& allocBuffer, size_t debtO
     }
 
     MSMarkAssistStats& stats = allocBuffer.GetMarkAssistStats();
-    stats.calls++;
     PerPGCWork& gcw = allocBuffer.GetGCWork();
     if (!gcw.IsInitialized()) {
         gcw.Init(&globalFull_, &workBufPool_);
@@ -1321,7 +1298,6 @@ size_t MarkSweepCollector::MSMarkAssist(AllocBufferMS& allocBuffer, size_t debtO
 
     // ① Steal GC-supplied credit.
     size_t paidByBg = TryStealBgCreditPartial(debtObjects);
-    stats.bgStolen += paidByBg;
 
     // ② One full global buffer pays exactly one buffer of remaining debt.
     size_t remainDebt = (debtObjects > paidByBg) ? (debtObjects - paidByBg) : 0;
@@ -1330,7 +1306,6 @@ size_t MarkSweepCollector::MSMarkAssist(AllocBufferMS& allocBuffer, size_t debtO
         size_t nDrained = DrainOneBufRound(gcw, true);
         if (nDrained > 0) {
             paidByGlobal = WorkBuf::kCapacity;
-            stats.globalPaid += paidByGlobal;
             stats.processed += nDrained;
         }
     }
@@ -1361,7 +1336,6 @@ void MarkSweepCollector::MarkTermination()
     GreyWorkQueue mainQueue;
     size_t pendingSourceEntries = 0;
     size_t resurrectionEntries = 0;
-    MSGCWriteBarrierFlushSnapshot wbFlushSnapshot;
 
     auto collectPendingMarkWork = [this, &mainQueue]() -> size_t {
         size_t before = mainQueue.size();
@@ -1386,7 +1360,6 @@ void MarkSweepCollector::MarkTermination()
     // 3. Drain main queue with Execute-like loop (same as concurrent mark logic)
     // and re-check all external work sources until no delayed grey work remains.
     {
-        cycleStats_.markTermProcessedObjects = 0;
         size_t lateSourceEntries = 0;
         size_t drainRounds = 0;
         do {
@@ -1396,7 +1369,6 @@ void MarkSweepCollector::MarkTermination()
             lateSourceEntries += added;
             pendingSourceEntries += added;
         } while (!mainQueue.empty());
-        wbFlushSnapshot = wbFlushStats_.Snapshot();
         if (lateSourceEntries != 0 || drainRounds > 1) {
             VLOG(REPORT,
                  "[MS-GC] MarkTermination fixed-point drain: rounds=%zu lateEntries=%zu",
@@ -1420,20 +1392,10 @@ void MarkSweepCollector::MarkTermination()
 
     cycleStats_.markTerminationUs = TimeUtil::MicroSeconds() - phaseStart;
     VLOG(REPORT,
-         "[MS-GC] WriteBarrierFlush: forwarded=%zu objects (overflow=%zu, exit=%zu, final=%zu), "
-         "raw=%zu entries",
-         wbFlushSnapshot.TotalForwardedObjects(),
-         wbFlushSnapshot.forwardedObjects[static_cast<size_t>(MSGCWriteBarrierFlushSource::OVERFLOW_FLUSH)],
-         wbFlushSnapshot.forwardedObjects[static_cast<size_t>(MSGCWriteBarrierFlushSource::EXITED_OWNER)],
-         wbFlushSnapshot.forwardedObjects[static_cast<size_t>(MSGCWriteBarrierFlushSource::FINAL_STW)],
-         wbFlushSnapshot.TotalRawEntries());
-    VLOG(REPORT,
-         "[MS-GC] MarkTermination total: %sus, flushed=%zu entries, resurrection=%zu entries, "
-         "processed=%zu objects",
+         "[MS-GC] MarkTermination total: %sus, flushed=%zu entries, resurrection=%zu entries",
          Pretty(cycleStats_.markTerminationUs).Str(),
          pendingSourceEntries,
-         resurrectionEntries,
-         cycleStats_.markTermProcessedObjects);
+         resurrectionEntries);
 
     // Restore IDLE INSIDE STW so that when Mutators resume, the mark barrier
     // has already been disabled. This eliminates a gap where Mutators could
@@ -1461,7 +1423,6 @@ void MarkSweepCollector::FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue)
         WorkBuf* log = buffer.GetActiveLog();
         if (log != nullptr) {
             size_t n = log->len;
-            size_t forwarded = 0;
             // Route-A: entries are already grey (shaded at write time), so enqueue
             // them for scanning directly — a re-discover would see them already
             // marked and wrongly skip scanning their fields.
@@ -1474,9 +1435,7 @@ void MarkSweepCollector::FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue)
                     continue;
                 }
                 mainQueue.PushMovedGrey(obj);
-                forwarded++;
             }
-            wbFlushStats_.Record(MSGCWriteBarrierFlushSource::FINAL_STW, n, forwarded);
             workBufPool_.Put(log);
             buffer.ActiveLogRef() = nullptr;
         }
@@ -1517,12 +1476,9 @@ void MarkSweepCollector::CollectResurrectionCandidatesToMain(GreyWorkQueue& main
 
 void MarkSweepCollector::ExecuteLikeDrainMainQueue(GreyWorkQueue& mainQueue)
 {
-    size_t processed = 0;
-
     while (!mainQueue.empty()) {
         BaseObject* obj = mainQueue.back();
         mainQueue.pop_back();
-        processed++;
         // Guard: objects in released/reclaimed regions must not appear in
         // the mark queue. A zeroed stateWord is a fatal GC invariant violation.
         if (!obj->IsValidObject()) {
@@ -1550,7 +1506,6 @@ void MarkSweepCollector::ExecuteLikeDrainMainQueue(GreyWorkQueue& mainQueue)
         TraceObjectRefFields(obj, mainQueue.UnsafeRaw());
     }
 
-    cycleStats_.markTermProcessedObjects += processed;
 }
 
 // ============================================================================
@@ -1582,17 +1537,8 @@ void MarkSweepCollector::PostMarkTermination()
              snapshotFinalizerNum, Pretty(finalizerUs).Str());
     }
 
-    // 6. Large object garbage collection (eager sweep for in-heap large regions) — with stats
-    {
-        uint64_t t0 = TimeUtil::MicroSeconds();
-        CollectLargeGarbage();
-        cycleStats_.losCollectUs = TimeUtil::MicroSeconds() - t0;
-        VLOG(REPORT, "[MS-GC] CollectLargeGarbage: freed %zu large objects / %zu regions (%s B), cached %zu objects / %zu regions, %sus",
-             cycleStats_.losFreedCount, cycleStats_.losFreedRegionCount,
-             Pretty(cycleStats_.losFreedBytes).Str(),
-             cycleStats_.losCachedCount, cycleStats_.losCachedRegionCount,
-             Pretty(cycleStats_.losCollectUs).Str());
-    }
+    // 6. Large object garbage collection (eager sweep for in-heap large regions).
+    CollectLargeGarbage();
 
     // 4. Publish the stable mark statistics and hand small-Region sweep over
     // to the background processor. MarkTermination has already restored IDLE
@@ -1651,12 +1597,7 @@ void MarkSweepCollector::CollectLargeGarbage()
     // Tier 1: in-heap large regions — eager sweep unmarked ones
     CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool != nullptr) {
-        MSLargeSweepStats stats = centralPool->SweepLargeRegions();
-        cycleStats_.losFreedCount += stats.objectCount;
-        cycleStats_.losFreedRegionCount += stats.regionCount;
-        cycleStats_.losFreedBytes += stats.freedBytes;
-        cycleStats_.losCachedCount += stats.cachedObjectCount;
-        cycleStats_.losCachedRegionCount += stats.cachedRegionCount;
+        centralPool->SweepLargeRegions();
     }
 }
 
@@ -1895,6 +1836,9 @@ void MarkSweepCollector::LogGCEntry(uint64_t gcIndex, GCReason reason)
 // Block ⑤: Region Statistics (CentralRegionPool 4-list view)
 void MarkSweepCollector::DumpRegionStatsMS()
 {
+    if (!IsMSGCReportEnabled()) {
+        return;
+    }
     uint32_t sweepGen = CentralRegionPool::GetGlobalSweepGen();
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
 
@@ -1949,13 +1893,6 @@ void MarkSweepCollector::DumpRegionStatsMS()
     // CentralRegionPool 4-list breakdown
     CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool != nullptr) {
-        MSSweepCounts sweepCounts = centralPool->GetSweepCounts();
-        VLOG(REPORT, "[MS-GC]   sweep-counts: bg=%zu regions, lazy=%zu regions, "
-             "assist=%zu regions, helper=%zu regions",
-             sweepCounts.backgroundSweptRegions,
-             sweepCounts.lazySweptRegions,
-             sweepCounts.assistSweptRegions,
-             sweepCounts.helperSweptRegions);
         centralPool->DumpPoolStats();
         uint32_t processorNum = Runtime::CurrentRef() != nullptr
             ? Runtime::Current().GetConcurrencyModel().GetProcessorNum()
@@ -1967,6 +1904,9 @@ void MarkSweepCollector::DumpRegionStatsMS()
 
 void MarkSweepCollector::DumpGCStateSnapshot(const char* stage)
 {
+    if (!IsMSGCReportEnabled()) {
+        return;
+    }
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
     if (centralPool == nullptr) {

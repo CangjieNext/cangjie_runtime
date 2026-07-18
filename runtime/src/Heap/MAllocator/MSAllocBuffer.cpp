@@ -667,11 +667,10 @@ void AllocBufferMS::AccumulateSweepDebt(size_t allocatedRegions, uint8_t preferr
     }
 
     uint32_t currentGeneration = CentralRegionPool::GetGlobalSweepGen();
-    uint32_t localGeneration = sweepDebtGen_.load(std::memory_order_relaxed);
+    uint32_t localGeneration = sweepDebtGen_;
     if (localGeneration != currentGeneration) {
         sweepAssistDebtScaled_ = 0;
-        sweepAssistStats_.Reset();
-        sweepDebtGen_.store(currentGeneration, std::memory_order_release);
+        sweepDebtGen_ = currentGeneration;
     }
 
     if (central_->IsSweepDone()) {
@@ -685,11 +684,8 @@ void AllocBufferMS::AccumulateSweepDebt(size_t allocatedRegions, uint8_t preferr
         return;
     }
 
-    uint64_t addedScaled = SaturatingMultiplyMSSweepValue(
-        static_cast<uint64_t>(allocatedRegions), ratioScaled);
     sweepAssistDebtScaled_ = AccumulateMSSweepDebtScaled(
         sweepAssistDebtScaled_, allocatedRegions, ratioScaled);
-    sweepAssistStats_.RecordDebt(addedScaled, sweepAssistDebtScaled_);
 
     size_t debtRegions = static_cast<size_t>(sweepAssistDebtScaled_ / kMSSweepAssistRatioScale);
     if (debtRegions == 0) {
@@ -697,7 +693,6 @@ void AllocBufferMS::AccumulateSweepDebt(size_t allocatedRegions, uint8_t preferr
     }
 
     MSSweepAssistResult result = central_->MSSweepAssist(*this, debtRegions, preferredCls);
-    sweepAssistStats_.RecordPayment(result.creditPaidRegions, result.assistPaidRegions);
     if (result.sweepComplete) {
         sweepAssistDebtScaled_ = 0;
         return;

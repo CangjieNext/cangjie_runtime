@@ -524,13 +524,15 @@ FreeManager::UnitCount FreeManager::GetFreeUnitCount() const
 size_t FreeManager::GetOwnedFreeRegionCount(uint16_t ownerShardId) const
 {
     const FreeManagerShard& shardState = GetShard(ownerShardId);
-    return shardState.snapFreeRegions_.load(std::memory_order_relaxed);
+    std::lock_guard<std::mutex> lg(shardState.shardMutex_);
+    return shardState.freeRegionCount_;
 }
 
 size_t FreeManager::GetScavengedRegionCount(uint16_t ownerShardId) const
 {
     const FreeManagerShard& shardState = GetShard(ownerShardId);
-    return shardState.snapScavengedRegions_.load(std::memory_order_relaxed);
+    std::lock_guard<std::mutex> lg(shardState.shardMutex_);
+    return shardState.scavengedRegionCount_;
 }
 
 size_t FreeManager::GetHotFreeRegionCount(uint16_t ownerShardId) const
@@ -1673,8 +1675,6 @@ void FreeManager::MarkUnavailableLocked(FreeManagerShard& shard, RegionIndex idx
 
 void FreeManager::RefreshRegionSnapshotsLocked(FreeManagerShard& shard)
 {
-    shard.snapFreeRegions_.store(static_cast<uint32_t>(shard.freeRegionCount_), std::memory_order_relaxed);
-    shard.snapScavengedRegions_.store(static_cast<uint32_t>(shard.scavengedRegionCount_), std::memory_order_relaxed);
     uint32_t hotFree = static_cast<uint32_t>(
         shard.freeRegionCount_ >= shard.scavengedRegionCount_
             ? (shard.freeRegionCount_ - shard.scavengedRegionCount_) : 0);

@@ -14,56 +14,6 @@
 
 namespace MapleRuntime {
 
-struct BackgroundSweepStats {
-    size_t slices = 0;
-    size_t sweptRegions = 0;
-    size_t emptyRegions = 0;
-    uint64_t elapsedUs = 0;
-
-    bool HasWork() const
-    {
-        return sweptRegions > 0;
-    }
-
-    void Merge(const BackgroundSweepStats& other)
-    {
-        slices += other.slices;
-        sweptRegions += other.sweptRegions;
-        emptyRegions += other.emptyRegions;
-        elapsedUs += other.elapsedUs;
-    }
-
-    void Reset()
-    {
-        *this = BackgroundSweepStats{};
-    }
-};
-
-struct BackgroundReclaimStats {
-    size_t slices = 0;
-    size_t releasedRegions = 0;
-    size_t releasedBytes = 0;
-    uint64_t elapsedUs = 0;
-
-    bool HasWork() const
-    {
-        return releasedBytes > 0;
-    }
-
-    void Merge(const BackgroundReclaimStats& other)
-    {
-        slices += other.slices;
-        releasedRegions += other.releasedRegions;
-        releasedBytes += other.releasedBytes;
-        elapsedUs += other.elapsedUs;
-    }
-
-    void Reset()
-    {
-        *this = BackgroundReclaimStats{};
-    }
-};
-
 // Allocator abstract class
 class Allocator {
 public:

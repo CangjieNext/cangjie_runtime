@@ -146,8 +146,6 @@ private:
         std::vector<size_t> ownedSegments_;
         std::vector<OwnedSegmentView> ownedViews_;
         std::deque<BorrowedSpan> borrowedSpans_;
-        std::atomic<uint32_t> snapFreeRegions_{0};
-        std::atomic<uint32_t> snapScavengedRegions_{0};
         std::atomic<uint32_t> snapHotFreeRegions_{0};
         bool fastTakeHintValid_ = false;
         size_t fastTakeViewIdx_ = 0;

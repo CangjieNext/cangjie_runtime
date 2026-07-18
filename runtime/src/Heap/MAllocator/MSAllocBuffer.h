@@ -74,16 +74,6 @@ public:
     // debt with one-shot central credit followed by direct assist work.
     void AccumulateSweepDebt(size_t allocatedRegions, uint8_t preferredCls);
 
-    uint32_t GetSweepDebtGeneration() const
-    {
-        return sweepDebtGen_.load(std::memory_order_acquire);
-    }
-
-    MSSweepAssistStats SnapshotSweepAssistStats() const
-    {
-        return sweepAssistStats_.Snapshot();
-    }
-
     // Record stack root (called from Mutator::GcPhaseEnum during root enumeration).
     // This is root staging only, not grey-work production. Objects become grey
     // later when MarkSweepCollector merges these buffered roots through
@@ -253,13 +243,10 @@ private:
     // stopping mutators, so the assist hot path needs no shared atomics.
     MSMarkAssistStats markAssistStats_;
 
-    // Per-P Sweep pacing. Debt remains single-owner; generation and diagnostics
-    // are atomic because the closing-cycle REPORT is emitted just before STW and
-    // may snapshot a still-running P. Keep this block after activeLog_/gcWork_ so
-    // the AArch64 write-barrier ABI offset remains unchanged.
+    // Per-P Sweep pacing. Both fields are single-owner. Keep this block after
+    // activeLog_/gcWork_ so the AArch64 write-barrier ABI offset remains unchanged.
     uint64_t sweepAssistDebtScaled_ = 0;
-    std::atomic<uint32_t> sweepDebtGen_ {0};
-    MSSweepAssistAtomicStats sweepAssistStats_;
+    uint32_t sweepDebtGen_ = 0;
 
 };
 

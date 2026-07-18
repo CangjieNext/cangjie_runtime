@@ -20,7 +20,6 @@
 #include "Heap/MCollector/MSMarkLocalStats.h"
 #include "Heap/MCollector/MSMarkWorkerControl.h"
 #include "Heap/MCollector/MSMarkWorkerPolicy.h"
-#include "Heap/MCollector/MSGCWriteBarrierFlushStats.h"
 
 namespace MapleRuntime {
 
@@ -42,15 +41,8 @@ struct MSGCCycleStats {
 
     // ── Counting ──
     size_t rootsCount = 0;                // markWorkStack_.size() right after EnumAndMarkRoots finishes.
-    size_t markTermProcessedObjects = 0;  // Objects drained by ExecuteLikeDrainMainQueue during STW mark termination.
     size_t gcMainProcessedObjects = 0;    // Concurrent buffers scanned by the GC main thread.
     size_t helperProcessedObjects = 0;    // Concurrent buffers scanned by all helper workers.
-    size_t losFreedCount = 0;             // Large objects reclaimed in CollectLargeGarbage for this cycle.
-    size_t losFreedRegionCount = 0;       // Large-object region spans reclaimed in CollectLargeGarbage.
-    size_t losFreedBytes = 0;             // Bytes reclaimed from large-object spans in this cycle.
-    size_t losCachedCount = 0;            // Dead large objects placed into hot cache (deferred reclaim).
-    size_t losCachedRegionCount = 0;      // Region spans placed into hot cache.
-    uint64_t losCollectUs = 0;            // Timer around CollectLargeGarbage.
 
     // ── Mutator assist stats (Step 2.2 §4) ──
     size_t assistProcessedObjects = 0;
@@ -254,9 +246,6 @@ private:
     };
     std::vector<std::unique_ptr<MSMarkWorkerSlot>> markWorkerSlots_;
     MSMarkWorkerControl markWorkerControl_;
-    size_t peakActiveHelpers_ = 0;
-    size_t workerScaleUpCount_ = 0;
-    size_t peakPublishedBacklog_ = 0;
     std::atomic<int64_t> bgScanCredit_{0};
     std::atomic<uint64_t> assistWorkPerByteScaled_{0};
     std::atomic<size_t> prevCycleMarkedObjects_{0};
@@ -274,14 +263,10 @@ private:
 
     // (assist parameters are grouped above with other tuning constants)
 
-    // Mutators that exit during mark fold their local diagnostics here. Active
-    // mutators are aggregated directly under STW at mark termination.
+    // Mutators that exit during mark fold their processed-work feedback here.
+    // Active mutators are aggregated directly under STW at mark termination.
     std::mutex exitedAssistStatsMutex_;
     MSMarkAssistStats exitedAssistStats_;
-    size_t bgCreditInjected_ = 0;
-
-    // ── Per-cycle write-barrier flush stats ──
-    MSGCWriteBarrierFlushStats wbFlushStats_;
 
     // ── DFX: Per-cycle stats ──
     MSGCCycleStats cycleStats_;
