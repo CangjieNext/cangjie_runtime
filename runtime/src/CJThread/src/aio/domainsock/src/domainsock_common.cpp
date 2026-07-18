@@ -5,16 +5,20 @@
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 
-#include <unistd.h>
 #include "log.h"
 #include "sock_impl.h"
 #include "schdfd_impl.h"
 #include "securec.h"
 #include "domainsock.h"
+#if !defined(MRT_WINDOWS)
+#include <unistd.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#if !defined(MRT_WINDOWS)
 
 int DomainsockCreate(int domain, int type, int protocol, int *socketError)
 {
@@ -229,6 +233,8 @@ int DomainsockBindConnect(int connFd, struct SockAddr *local, struct SockAddr *p
     SchdfdUnlock(connFd, type);
     return 0;
 }
+
+#endif /* !defined(MRT_WINDOWS) */
 
 __attribute__((constructor)) int DomainsockInit(void)
 {

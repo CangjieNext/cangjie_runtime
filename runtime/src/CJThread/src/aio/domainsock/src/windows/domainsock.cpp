@@ -52,7 +52,7 @@ int DomainsockBind(SOCKET fd, const struct sockaddr *addr, socklen_t addrLen)
 
     if (bind(fd, addr, addrLen) == SOCKET_ERROR) {
         ret = WSAGetLastError();
-        LOG_ERROR(ret, "bind failed, fd: %llu, addrlen: %u", fd, addrLen);
+        LOG_ERROR(ret, "bind failed, fd: %d, addrlen: %u", fd, addrLen);
         return ret;
     }
 
@@ -62,10 +62,24 @@ int DomainsockBind(SOCKET fd, const struct sockaddr *addr, socklen_t addrLen)
 int DomainsockBindListen(SOCKET sockFd, const struct SockAddr *addr, int backlog)
 {
     int ret;
+    int sockType;
+    int optLen = sizeof(int);
 
     ret = DomainsockBind(sockFd, reinterpret_cast<const struct sockaddr *>(addr->sockaddr), addr->addrLen);
     if (ret != 0) {
         return ret;
+    }
+
+    ret = getsockopt(sockFd, SOL_SOCKET, SO_TYPE, reinterpret_cast<char *>(&sockType), &optLen);
+    if (ret == SOCKET_ERROR) {
+        ret = WSAGetLastError();
+        LOG_ERROR(ret, "getsockopt failed, fd: %d", sockFd);
+        return ret;
+    }
+
+    // Only stream domain sockets should listen for incoming connections.
+    if (sockType != SOCK_STREAM) {
+        return 0;
     }
 
     // SOMAXCONN_HINT(N) means to set the backlog to N, with a setting range of (200, 65535).
@@ -91,7 +105,7 @@ int DomainsockAcceptCoreInlock(SOCKET listenFd, struct sockaddr_storage *localAn
     operation = SchdfdUpdateIocpOperationInlock(listenFd, type, nullptr, 0);
     if (operation == nullptr) {
         ret = ERRNO_SOCK_ARG_INVALID;
-        LOG_ERROR(ret, "get iocp read operation failed , fd: %llu", listenFd);
+        LOG_ERROR(ret, "get iocp read operation failed , fd: %d", listenFd);
         return ret;
     }
 
@@ -115,7 +129,7 @@ int DomainsockAcceptCoreInlock(SOCKET listenFd, struct sockaddr_storage *localAn
     if (acceptRet == FALSE) {
         ret = WSAGetLastError();
         if (ret != ERROR_IO_PENDING) {
-            LOG_ERROR(ret, "AcceptEx failed, fd: %llu", listenFd);
+            LOG_ERROR(ret, "AcceptEx failed, fd: %d", listenFd);
             (void)closesocket(acceptFd);
             return ret;
         }
@@ -166,7 +180,7 @@ int DomainsockAccept(SOCKET inFd, SOCKET *outFd, struct SockAddr *addr, unsigned
     ret = setsockopt(fd, SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, reinterpret_cast<char *>(&inFd), sizeof(inFd));
     if (ret == SOCKET_ERROR) {
         ret = WSAGetLastError();
-        LOG_ERROR(ret, "setsockopt(SO_UPDATE_ACCEPT_CONTEXT) failed, fd: %llu", fd);
+        LOG_ERROR(ret, "setsockopt(SO_UPDATE_ACCEPT_CONTEXT) failed, fd: %d", fd);
         SchdfdUnlock(inFd, type);
         (void)closesocket(fd);
         return ret;
@@ -220,7 +234,7 @@ int DomainsockConnect(SOCKET fd, const struct sockaddr *addr, socklen_t addrLen,
             operation = SchdfdUpdateIocpOperationInlock(fd, type, nullptr, 0);
             if (operation == nullptr) {
                 ret = ERRNO_SOCK_ARG_INVALID;
-                LOG_ERROR(ret, "get iocp write operation failed , fd: %llu", fd);
+                LOG_ERROR(ret, "get iocp write operation failed , fd: %d", fd);
                 SchdfdUnlock(fd, type);
                 return ret;
             }
@@ -229,14 +243,20 @@ int DomainsockConnect(SOCKET fd, const struct sockaddr *addr, socklen_t addrLen,
             // ConnectEx requires fd to call bind beforehand.
             connectRet = g_mswsockHooks.ConnectEx(fd, addr, addrLen, nullptr, 0, nullptr, &operation->overlapped);
             if (connectRet == TRUE && SchdfdUseSkipIocp()) {
+                ret = setsockopt(fd, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT,
+                                 reinterpret_cast<char *>(&fd), sizeof(fd));
+                if (ret == SOCKET_ERROR) {
+                    ret = WSAGetLastError();
+                    LOG_ERROR(ret, "setsockopt(SO_UPDATE_CONNECT_CONTEXT) failed, fd: %d", fd);
+                }
                 SchdfdUnlock(fd, type);
-                return 0;
+                return ret;
             }
 
             if (connectRet == FALSE) {
                 ret = WSAGetLastError();
                 if (ret != ERROR_IO_PENDING) {
-                    LOG_ERROR(ret, "ConnectEx failed, fd: %llu", fd);
+                    LOG_ERROR(ret, "ConnectEx failed, fd: %d", fd);
                     SchdfdUnlock(fd, type);
                     return ret;
                 }
@@ -244,6 +264,15 @@ int DomainsockConnect(SOCKET fd, const struct sockaddr *addr, socklen_t addrLen,
 
             ret = SchdfdIocpWaitInlock(operation, timeout);
             if (ret != 0) {
+                SchdfdUnlock(fd, type);
+                return ret;
+            }
+
+            ret = setsockopt(fd, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT,
+                             reinterpret_cast<char *>(&fd), sizeof(fd));
+            if (ret == SOCKET_ERROR) {
+                ret = WSAGetLastError();
+                LOG_ERROR(ret, "setsockopt(SO_UPDATE_CONNECT_CONTEXT) failed, fd: %d", fd);
                 SchdfdUnlock(fd, type);
                 return ret;
             }
@@ -268,30 +297,31 @@ int DomainsockBindConnect(SOCKET connFd, struct SockAddr *local,
                           struct SockAddr *peer, unsigned long long timeout)
 {
     int ret;
+    struct SockAddr localDefaultAddr;
+    struct sockaddr_un localAddr;
+    struct SockAddr *bindAddr = local;
 
-    // Bind local address if provided.
-    if (local != nullptr && local->sockaddr != nullptr) {
-        ret = DomainsockBind(connFd, reinterpret_cast<const struct sockaddr *>(local->sockaddr), local->addrLen);
+    if (bindAddr == nullptr || bindAddr->sockaddr == nullptr) {
+        ret = memset_s(&localAddr, sizeof(struct sockaddr_un), 0, sizeof(struct sockaddr_un));
         if (ret != 0) {
-            LOG_ERROR(ret, "DomainsockBind failed");
             return ret;
         }
+        localAddr.sun_family = AF_UNIX;
+        localDefaultAddr.sockaddr = reinterpret_cast<struct sockaddr_storage *>(&localAddr);
+        localDefaultAddr.addrLen = static_cast<socklen_t>(sizeof(struct sockaddr_un));
+        bindAddr = &localDefaultAddr;
+    }
+
+    ret = DomainsockBind(connFd, reinterpret_cast<const struct sockaddr *>(bindAddr->sockaddr), bindAddr->addrLen);
+    if (ret != 0) {
+        LOG_ERROR(ret, "DomainsockBind failed");
+        return ret;
     }
 
     ret = DomainsockConnect(connFd, reinterpret_cast<const struct sockaddr *>(peer->sockaddr),
                             peer->addrLen, timeout);
     if (ret != 0) {
         LOG_ERROR(ret, "DomainsockConnect failed");
-        return ret;
-    }
-
-    // After setting this option, you can use the getSockname and getPeername interfaces
-    // on this socket to obtain local and remote addresses.
-    ret = setsockopt(connFd, SOL_SOCKET, SO_UPDATE_CONNECT_CONTEXT,
-                     reinterpret_cast<char *>(&connFd), sizeof(connFd));
-    if (ret == SOCKET_ERROR) {
-        ret = WSAGetLastError();
-        LOG_ERROR(ret, "setsockopt(SO_UPDATE_CONNECT_CONTEXT) failed, fd: %llu", connFd);
         return ret;
     }
 
