@@ -40,14 +40,11 @@ static inline void AppendMarkedRefInto(MarkSweepCollector* collector,
 static inline void EnqueueRefInto(MarkSweepCollector* collector,
                                   AllocBufferMS* allocBuf, BaseObject* ref)
 {
-    if (ref == nullptr || !Heap::IsHeapAddress(ref)) {
-        return;
-    }
     // Route-A: shade (mark) the old-ref at write time. Only the mark-CAS winner
     // logs it — already-grey / non-traceable refs are dropped here (perfect
     // dedup at the source). The logged buffer therefore holds only grey objects,
     // so the consumer scans them directly (no deferred discover).
-    bool newlyMarked = collector->ShadeRefForBarrier(ref);
+    bool newlyMarked = collector->ShadeManagedRefForBarrier(ref);
     if (newlyMarked && ref->HasRefField()) {
         AppendMarkedRefInto(collector, allocBuf, ref);
     }
@@ -99,8 +96,8 @@ public:
         MSRegionInfo* info = nullptr;
         size_t wordIdx = 0;
         uint64_t bitMask = 0;
-        if (!collector_->ResolveSmallRefForBarrier(ref, info, wordIdx, bitMask)) {
-            bool newlyMarked = collector_->ShadeRefForBarrier(ref);
+        if (!collector_->ResolveManagedSmallRefForBarrier(ref, info, wordIdx, bitMask)) {
+            bool newlyMarked = collector_->ShadeManagedRefForBarrier(ref);
             if (newlyMarked && ref->HasRefField()) {
                 AppendMarkedRefInto(collector_, allocBuf_, ref);
             }
@@ -278,7 +275,8 @@ void MSBarrierOps::WriteStaticRef(RefField<false>& field, BaseObject* ref)
 void MSBarrierOps::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen)
 {
     // log(old): preserve all existing reference fields in the destination struct
-    EnqueueStructRefsInRange(obj, dst, dstLen);
+    size_t copiedLen = (dstLen < srcLen ? dstLen : srcLen);
+    EnqueueStructRefsInRange(obj, dst, copiedLen);
 
     // memcpy (overwrites dst with src)
     CHECK_DETAIL(memcpy_s(reinterpret_cast<void*>(dst), dstLen,
@@ -319,7 +317,8 @@ void MSBarrierOps::CopyRefArray(BaseObject* dstObj, MAddress dstField, MIndex ds
     (void)srcObj;
 
     // discover(old): preserve all existing references in the destination range
-    EnqueueRefArrayRange(dstField, dstSize);
+    size_t copiedLen = (dstSize < srcSize ? dstSize : srcSize);
+    EnqueueRefArrayRange(dstField, copiedLen);
 
     // memmove
     CHECK_DETAIL(memmove_s(reinterpret_cast<void*>(dstField), dstSize,

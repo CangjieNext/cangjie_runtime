@@ -319,6 +319,103 @@ static inline bool IsTraceableObjectAddress(BaseObject* obj)
     return IsTraceableObjectAddressEx(obj, unused);
 }
 
+// A validated object-to-mark mapping. Small objects retain the resolved bitmap
+// coordinate; large objects retain the canonical base entry. This lets
+// DiscoverObject probe and update the mark state without resolving the Region
+// or recomputing the slot index a second time.
+struct ResolvedMarkTarget {
+    MSRegionInfo* info = nullptr;
+    size_t wordIdx = 0;
+    uint64_t bitMask = 0;
+    bool isLarge = false;
+
+    bool IsMarked() const
+    {
+        return isLarge ? info->IsMarked() : info->IsMarkBitSet(wordIdx, bitMask);
+    }
+
+    bool TryMark() const
+    {
+        if (isLarge) {
+            return !info->AtomicTestAndSetMarked();
+        }
+        return info->MarkBitmapWord(wordIdx, bitMask) != 0;
+    }
+};
+
+static inline bool ResolveMarkTargetImpl(BaseObject* obj, ResolvedMarkTarget& out,
+                                         bool knownManaged)
+{
+    out = ResolvedMarkTarget {};
+    if (obj == nullptr) {
+        return false;
+    }
+
+    uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
+    if (!knownManaged && !IsManagedAddress(addr)) {
+        return false;
+    }
+
+    MSRegionInfo* info = MSRegionInfoArray::GetRegionInfoValidated(addr);
+    if (info == nullptr) {
+        return false;
+    }
+
+    if (info->regionType == MSRegionType::MS_REGION_LARGE) {
+        MSRegionInfo* base = info;
+        if (base->regionEnd == 0) {
+            base = MSRegionInfoArray::GetRegionInfoByIdx(static_cast<size_t>(info->reserved));
+        }
+        if (base->regionType != MSRegionType::MS_REGION_LARGE ||
+            base->allocPtr != addr || base->regionEnd < addr ||
+            base->regionEnd - addr < sizeof(uintptr_t)) {
+            return false;
+        }
+        out.info = base;
+        out.isLarge = true;
+        return true;
+    }
+
+    if (info->regionType == MSRegionType::MS_REGION_FREE ||
+        info->regionType == MSRegionType::MS_REGION_EMPTY_CACHE ||
+        info->regionType == MSRegionType::MS_REGION_SPAN ||
+        info->sizeClass >= kNumSizeClasses || info->markBitmap == nullptr ||
+        info->totalSlotCount == 0) {
+        return false;
+    }
+
+    uintptr_t regionStart = info->RegionStart();
+    size_t slotSize = info->GetSlotSize();
+    if (slotSize == 0 || addr < regionStart || info->regionEnd < addr ||
+        info->regionEnd - addr < sizeof(uintptr_t)) {
+        return false;
+    }
+
+    size_t offset = addr - regionStart;
+    size_t slotIdx = SizeClassInfo::OffsetToSlotIndex(info->sizeClass, offset);
+    if (slotIdx >= info->totalSlotCount || slotIdx * slotSize != offset) {
+        return false;
+    }
+    if (info->regionType == MSRegionType::MS_REGION_BUMP && addr >= info->allocPtr) {
+        return false;
+    }
+
+    out.info = info;
+    out.wordIdx = slotIdx / 64;
+    out.bitMask = 1ULL << (slotIdx % 64);
+    return true;
+}
+
+static inline bool ResolveMarkTarget(BaseObject* obj, ResolvedMarkTarget& out)
+{
+    return ResolveMarkTargetImpl(obj, out, false);
+}
+
+static inline bool ResolveManagedMarkTarget(BaseObject* obj, ResolvedMarkTarget& out)
+{
+    return ResolveMarkTargetImpl(obj, out, true);
+}
+
 // Static member definition
 std::atomic<MarkSweepCollector*> MarkSweepCollector::activeCollector_{nullptr};
 
@@ -509,41 +606,53 @@ bool MarkSweepCollector::MarkObject(BaseObject* obj) const
 
 bool MarkSweepCollector::DiscoverObject(BaseObject* obj)
 {
-    // Guard against stale pointers to reclaimed/zeroed slots.
-    // For such slots stateWord->TypeInfo is null, and they must not be enqueued
-    // into mark work queues in concurrent mark.
-    // Resolve the region once here and reuse it for the mark step
-    // (MarkObjectInHeapKnown) instead of letting MarkObject re-resolve it.
-    MSRegionInfo* msInfo = nullptr;
-    if (UNLIKELY(!IsTraceableObjectAddressEx(obj, msInfo) || !obj->IsValidObject())) {
+    ResolvedMarkTarget target;
+    if (UNLIKELY(!ResolveMarkTarget(obj, target))) {
         return false;
     }
-
-    uintptr_t addr = reinterpret_cast<uintptr_t>(obj);
-    if (MSRegionInfoArray::MarkObjectInHeapKnown(msInfo, addr)) {
-        return false;  // already marked
+    if (target.IsMarked()) {
+        return false;
     }
-    return true;
+    // An unmarked, aligned slot may still be stale and zeroed after Sweep.
+    // Validate its stateWord before this call is allowed to set the mark bit.
+    if (UNLIKELY(!obj->IsValidObject())) {
+        return false;
+    }
+    return target.TryMark();
 }
 
-bool MarkSweepCollector::ResolveSmallRefForBarrier(BaseObject* ref, MSRegionInfo*& info,
-                                                   size_t& wordIdx, uint64_t& bitMask) const
+bool MarkSweepCollector::DiscoverManagedObject(BaseObject* obj)
+{
+    ResolvedMarkTarget target;
+    if (UNLIKELY(!ResolveManagedMarkTarget(obj, target))) {
+        return false;
+    }
+    if (target.IsMarked()) {
+        return false;
+    }
+    if (UNLIKELY(!obj->IsValidObject())) {
+        return false;
+    }
+    return target.TryMark();
+}
+
+bool MarkSweepCollector::ResolveManagedSmallRefForBarrier(BaseObject* ref, MSRegionInfo*& info,
+                                                          size_t& wordIdx, uint64_t& bitMask) const
 {
     info = nullptr;
-    if (UNLIKELY(!IsTraceableObjectAddressEx(ref, info) || !ref->IsValidObject()) ||
-        info->regionType == MSRegionType::MS_REGION_LARGE) {
-        info = nullptr;
+    ResolvedMarkTarget target;
+    if (UNLIKELY(!ResolveManagedMarkTarget(ref, target)) || target.isLarge) {
         return false;
     }
-
-    uintptr_t addr = reinterpret_cast<uintptr_t>(ref);
-    size_t slotIdx = SizeClassInfo::OffsetToSlotIndex(info->sizeClass, addr - info->RegionStart());
-    if (UNLIKELY(slotIdx >= info->totalSlotCount || info->markBitmap == nullptr)) {
-        info = nullptr;
+    // Already-marked entries are safe to batch without touching stateWord:
+    // MarkBitmapWord will return no winning bit, so Flush never dereferences
+    // the candidate. White entries still require stale-slot validation.
+    if (!target.IsMarked() && UNLIKELY(!ref->IsValidObject())) {
         return false;
     }
-    wordIdx = slotIdx / 64;
-    bitMask = 1ULL << (slotIdx % 64);
+    info = target.info;
+    wordIdx = target.wordIdx;
+    bitMask = target.bitMask;
     return true;
 }
 
@@ -1030,11 +1139,9 @@ void MarkSweepCollector::TraceObjectRefFieldsToGCWork(BaseObject* obj, PerPGCWor
 {
     auto refFunc = [this, &gcw](RefField<>& field) {
         BaseObject* target = field.GetTargetObject();
-        if (target != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(target))) {
-            bool newlyMarked = DiscoverObject(target);
-            if (newlyMarked && target->HasRefField()) {
-                gcw.PutObj(target);
-            }
+        bool newlyMarked = DiscoverObject(target);
+        if (newlyMarked && target->HasRefField()) {
+            gcw.PutObj(target);
         }
     };
     ForEachRefFieldGCInline(obj, refFunc);
@@ -1805,18 +1912,14 @@ void MarkSweepCollector::MarkNewObject(BaseObject* obj)
 void MarkSweepCollector::EnumRefFieldRoot(RefField<>& ref, RootSet& rootSet) const
 {
     BaseObject* target = ref.GetTargetObject();
-    if (target != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(target))) {
-        const_cast<MarkSweepCollector*>(this)->DiscoverAndPushObject(target, rootSet);
-    }
+    const_cast<MarkSweepCollector*>(this)->DiscoverAndPushObject(target, rootSet);
 }
 
 void MarkSweepCollector::EnumAndTagRawRoot(ObjectRef& root, RootSet& rootSet) const
 {
     // MS version: no tag/CAS, just push heap objects into root set
     BaseObject* obj = root.object;
-    if (obj != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(obj))) {
-        const_cast<MarkSweepCollector*>(this)->DiscoverAndPushObject(obj, rootSet);
-    }
+    const_cast<MarkSweepCollector*>(this)->DiscoverAndPushObject(obj, rootSet);
 }
 
 void MarkSweepCollector::TraceObjectRefFields(BaseObject* obj, WorkStack& workStack)

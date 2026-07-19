@@ -70,12 +70,15 @@ public:
     size_t GetHeapInUseBytes() const;
     // Swept-retained heap bytes = GetSweptMSRegionCount() * MS_REGION_SIZE.
     size_t GetSweptHeapBytes() const;
+    size_t GetSweptHeapBytesReference() const;
     // Central-pool cache bytes = emptySwept + largeHotCache.
     size_t GetCentralCacheBytes() const;
     size_t GetHeapRetainedBytes() const;
+    size_t GetHeapRetainedBytesReference() const;
     size_t GetHeapThresholdBytes() const;
     size_t GetScavengeThresholdBytes() const;
     size_t GetHotFreeBytes() const;
+    size_t GetHotFreeBytesReference() const;
     bool HasEmptySweptRegions() const;
     // On-demand flush of the empty-swept cache → FreeManager hot-free supply.
     // All flush policy for both caches is centralized here; the actual release

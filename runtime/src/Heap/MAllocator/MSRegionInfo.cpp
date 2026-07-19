@@ -277,6 +277,16 @@ bool MSRegionInfo::GetMarkBit(uintptr_t objAddr) const
     return (word & (1ULL << bitIdx)) != 0;
 }
 
+bool MSRegionInfo::IsMarkBitSet(size_t wordIdx, uint64_t bitMask) const
+{
+    size_t bitmapWords = (static_cast<size_t>(totalSlotCount) + 63) / 64;
+    if (markBitmap == nullptr || wordIdx >= bitmapWords || bitMask == 0) {
+        return false;
+    }
+    uint64_t word = __atomic_load_n(&markBitmap[wordIdx], __ATOMIC_RELAXED);
+    return (word & bitMask) != 0;
+}
+
 bool MSRegionInfo::TestAndSetMarkBit(uintptr_t objAddr)
 {
     size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);

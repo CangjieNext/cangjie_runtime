@@ -67,15 +67,28 @@ std::atomic<uint32_t> CentralRegionPool::globalSweepGen_{2};
 
 CentralRegionPool::CentralRegionPool(MSRegionManager* msRegionManager)
     : msRegionManager_(msRegionManager)
-{}
+{
+    for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
+        buckets_[cls].BindAggregateCounters(&centralSmallActiveRegions_,
+                                            &centralSmallSweptRegions_,
+                                            &centralSmallUnsweptRegions_);
+    }
+}
 
 bool CentralRegionPool::TryPublishSweepDone()
 {
     if (GetTotalUnsweptCount() != 0 ||
+        forceFinishSweepRunning_.load(std::memory_order_acquire) ||
         bgSweepRunning_.load(std::memory_order_acquire) ||
         activeLazySweepCount_.load(std::memory_order_acquire) != 0 ||
         activeAssistSweepCount_.load(std::memory_order_acquire) != 0 ||
         activeHelperSweepCount_.load(std::memory_order_acquire) != 0) {
+        return false;
+    }
+    // The aggregate is the hot rejection path. Only a candidate completion
+    // pays for the original 36-class scan; this is the final correctness fence
+    // against accounting drift or a cross-atomic transition window.
+    if (GetTotalUnsweptCountReference() != 0) {
         return false;
     }
     // Publish completion first. A concurrent ForceHighSweepPressure() either
@@ -97,33 +110,12 @@ void CentralRegionPool::MaybeNotifySweep(uint8_t cls) const
 
 std::array<uint8_t, kNumSizeClasses> CentralRegionPool::BuildBackgroundSweepClassOrder(uint8_t preferredCls) const
 {
-    std::array<uint8_t, kNumSizeClasses> order {};
+    std::array<MSSweepClassPressure, kNumSizeClasses> pressure {};
     for (uint8_t cls = 0; cls < kNumSizeClasses; ++cls) {
-        order[cls] = cls;
+        BucketPressure bucketPressure = GetBucketPressure(cls);
+        pressure[cls] = {bucketPressure.ReadyCount(), bucketPressure.UnsweptCount()};
     }
-
-    std::sort(order.begin(), order.end(), [this, preferredCls](uint8_t lhs, uint8_t rhs) {
-        bool lhsPreferred = preferredCls < kNumSizeClasses && lhs == preferredCls;
-        bool rhsPreferred = preferredCls < kNumSizeClasses && rhs == preferredCls;
-        if (lhsPreferred != rhsPreferred) {
-            return lhsPreferred;
-        }
-        BucketPressure lhsPressure = GetBucketPressure(lhs);
-        BucketPressure rhsPressure = GetBucketPressure(rhs);
-        bool lhsHasUnswept = lhsPressure.UnsweptCount() > 0;
-        bool rhsHasUnswept = rhsPressure.UnsweptCount() > 0;
-        if (lhsHasUnswept != rhsHasUnswept) {
-            return lhsHasUnswept;
-        }
-        if (lhsPressure.ReadyCount() != rhsPressure.ReadyCount()) {
-            return lhsPressure.ReadyCount() < rhsPressure.ReadyCount();
-        }
-        if (lhsPressure.UnsweptCount() != rhsPressure.UnsweptCount()) {
-            return lhsPressure.UnsweptCount() > rhsPressure.UnsweptCount();
-        }
-        return lhs < rhs;
-    });
-    return order;
+    return BuildMSSweepPressureClassOrder(pressure, preferredCls);
 }
 
 // ============================================================================
@@ -664,6 +656,7 @@ void CentralRegionPool::PrepareForSweep()
         buckets_[cls].FlipSweptToUnswept();
         totalUnswept += buckets_[cls].CountPartialUnswept() + buckets_[cls].CountFullUnswept();
     }
+    centralSmallUnsweptRegions_.store(totalUnswept, std::memory_order_release);
 
     // Reset the per-cycle central credit and publish the fixed-point proportional
     // Sweep ratio once. Allocation progress and debt live in each AllocBufferMS.
@@ -772,7 +765,7 @@ void CentralRegionPool::ParallelSweep(uint8_t preferredCls, uint64_t deadlineUs)
 
     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
     size_t sweptInSlice = 0;
-    auto classOrder = BuildBackgroundSweepClassOrder(preferredCls);
+    auto classOrder = BuildMSSweepCyclicClassOrder<kNumSizeClasses>(preferredCls);
     for (uint8_t cls : classOrder) {
         SizeClassBucket& bucket = buckets_[cls];
         if (!SweepUnsweptList(bucket, SizeClassBucket::UnsweptListKind::PARTIAL,
@@ -872,7 +865,7 @@ size_t CentralRegionPool::AssistSweep(size_t targetRegions, uint8_t preferredCls
 
     uint32_t sg = globalSweepGen_.load(std::memory_order_acquire);
     size_t sweptRegions = 0;
-    auto classOrder = BuildBackgroundSweepClassOrder(preferredCls);
+    auto classOrder = BuildMSSweepCyclicClassOrder<kNumSizeClasses>(preferredCls);
     for (uint8_t cls : classOrder) {
         SizeClassBucket& bucket = buckets_[cls];
         while (sweptRegions < targetRegions &&
@@ -1006,6 +999,11 @@ bool CentralRegionPool::SweepUnsweptList(SizeClassBucket& bucket, SizeClassBucke
 
 size_t CentralRegionPool::GetTotalUnsweptCount() const
 {
+    return centralSmallUnsweptRegions_.load(std::memory_order_acquire);
+}
+
+size_t CentralRegionPool::GetTotalUnsweptCountReference() const
+{
     size_t total = 0;
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
         total += buckets_[cls].CountPartialUnswept();
@@ -1128,6 +1126,12 @@ size_t CentralRegionPool::GetAllAllocBufferActiveRegionCount() const
 
 size_t CentralRegionPool::GetSweptMSRegionCount() const
 {
+    return centralSmallSweptRegions_.load(std::memory_order_relaxed) +
+           largeLiveSpanCount_.load(std::memory_order_relaxed);
+}
+
+size_t CentralRegionPool::GetSweptMSRegionCountReference() const
+{
     size_t total = 0;
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
         total += buckets_[cls].CountPartialSwept();
@@ -1138,6 +1142,12 @@ size_t CentralRegionPool::GetSweptMSRegionCount() const
 }
 
 size_t CentralRegionPool::GetActiveMSRegionCount() const
+{
+    return centralSmallActiveRegions_.load(std::memory_order_relaxed) +
+           largeLiveSpanCount_.load(std::memory_order_relaxed);
+}
+
+size_t CentralRegionPool::GetActiveMSRegionCountReference() const
 {
     size_t total = 0;
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
@@ -1513,6 +1523,11 @@ void CentralRegionPool::VisitMarkedObjects(const std::function<void(BaseObject*)
 
 void CentralRegionPool::StopAndWaitForAllSweep()
 {
+    // The GC main thread participates as an uncounted Sweep claimant below.
+    // Keep completion closed across both drains and the intervening quiescence
+    // waits so another executor cannot publish done after GC main claims the
+    // final Region but before it finishes SweepRegion().
+    forceFinishSweepRunning_.store(true, std::memory_order_release);
     size_t unsweptBefore = GetTotalUnsweptCount();
 
     // 1. Join the still-open Sweep epoch as another claimant. Every Sweep
@@ -1559,6 +1574,7 @@ void CentralRegionPool::StopAndWaitForAllSweep()
     // closed. With every in-flight source quiescent, this is the final serial
     // closure before mark bitmap clearing.
     ForceFinishAllUnswept();
+    forceFinishSweepRunning_.store(false, std::memory_order_release);
     (void)TryPublishSweepDone();
 
     size_t unsweptAfter = GetTotalUnsweptCount();
@@ -1629,6 +1645,7 @@ void CentralRegionPool::ReclassifyUnsweptToSwept()
     for (uint8_t cls = 0; cls < kNumSizeClasses; cls++) {
         buckets_[cls].ReclassifyUnsweptToSwept(partialMoved, fullMoved);
     }
+    centralSmallUnsweptRegions_.store(0, std::memory_order_release);
 
     VLOG(REPORT,
          "[MS-GC] ReclassifyUnsweptToSwept: partial=%zu regions, full=%zu regions, total=%zu",

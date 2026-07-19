@@ -8,6 +8,7 @@
 #ifdef MRT_USE_MARK_SWEEP
 
 #include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -15,6 +16,56 @@
 #include "Heap/MAllocator/MSSweepDebtPolicy.h"
 
 namespace MapleRuntime {
+
+struct MSSweepClassPressure {
+    size_t readyCount = 0;
+    size_t unsweptCount = 0;
+};
+
+template<size_t NumClasses>
+inline std::array<uint8_t, NumClasses> BuildMSSweepCyclicClassOrder(uint8_t preferredCls)
+{
+    static_assert(NumClasses > 0, "Sweep class order must contain at least one class");
+    static_assert(NumClasses <= static_cast<size_t>(std::numeric_limits<uint8_t>::max()),
+                  "Sweep class order must fit in uint8_t");
+
+    std::array<uint8_t, NumClasses> order {};
+    size_t startCls = preferredCls < NumClasses ? preferredCls : 0;
+    for (size_t offset = 0; offset < NumClasses; ++offset) {
+        order[offset] = static_cast<uint8_t>((startCls + offset) % NumClasses);
+    }
+    return order;
+}
+
+template<size_t NumClasses>
+inline std::array<uint8_t, NumClasses> BuildMSSweepPressureClassOrder(
+    const std::array<MSSweepClassPressure, NumClasses>& pressure, uint8_t preferredCls)
+{
+    auto order = BuildMSSweepCyclicClassOrder<NumClasses>(0);
+    std::sort(order.begin(), order.end(), [&pressure, preferredCls](uint8_t lhs, uint8_t rhs) {
+        bool lhsPreferred = preferredCls < NumClasses && lhs == preferredCls;
+        bool rhsPreferred = preferredCls < NumClasses && rhs == preferredCls;
+        if (lhsPreferred != rhsPreferred) {
+            return lhsPreferred;
+        }
+
+        const MSSweepClassPressure& lhsPressure = pressure[lhs];
+        const MSSweepClassPressure& rhsPressure = pressure[rhs];
+        bool lhsHasUnswept = lhsPressure.unsweptCount > 0;
+        bool rhsHasUnswept = rhsPressure.unsweptCount > 0;
+        if (lhsHasUnswept != rhsHasUnswept) {
+            return lhsHasUnswept;
+        }
+        if (lhsPressure.readyCount != rhsPressure.readyCount) {
+            return lhsPressure.readyCount < rhsPressure.readyCount;
+        }
+        if (lhsPressure.unsweptCount != rhsPressure.unsweptCount) {
+            return lhsPressure.unsweptCount > rhsPressure.unsweptCount;
+        }
+        return lhs < rhs;
+    });
+    return order;
+}
 
 inline size_t SaturatingMultiply(size_t lhs, size_t rhs)
 {

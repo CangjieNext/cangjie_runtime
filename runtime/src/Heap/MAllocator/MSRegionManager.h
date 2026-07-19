@@ -164,6 +164,7 @@ public:
 
     // Return bytes in hot-free regions (free but pages not yet returned to OS).
     size_t GetHotFreeBytes() const;
+    size_t GetHotFreeBytesReference() const;
     uint16_t ResolveHomeShardId(uint16_t shardHint = kMSInvalidShardId) const;
 
 private:
@@ -208,6 +209,8 @@ private:
     FreeManager freeManager_;
 
     std::atomic<uint64_t> lastHeuRequestNs_{0};
+    std::atomic<bool> markPressureProbeInProgress_ {false};
+    std::atomic<bool> scavengePressureProbeInProgress_ {false};
 };
 
 } // namespace MapleRuntime

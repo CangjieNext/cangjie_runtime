@@ -365,7 +365,8 @@ public:
     // Check whether previous-cycle sweep work is globally quiescent.
     bool IsSweepDone() const
     {
-        return IsMSSweepQuiescent(
+        return !forceFinishSweepRunning_.load(std::memory_order_acquire) &&
+            IsMSSweepQuiescent(
             sweepDone_.load(std::memory_order_acquire),
             bgSweepRunning_.load(std::memory_order_acquire),
             activeLazySweepCount_.load(std::memory_order_acquire),
@@ -379,6 +380,7 @@ public:
 
     // ===== Monitoring =====
     size_t GetTotalUnsweptCount() const;
+    size_t GetTotalUnsweptCountReference() const;
     size_t GetTotalUnsweptBytes() const;
     size_t GetLargeRegionCount() const;
     size_t CountTLActiveRegions() const;
@@ -391,6 +393,8 @@ public:
     // post-sweep live footprint rather than the transient active-region total.
     size_t GetSweptMSRegionCount() const;
     size_t GetActiveMSRegionCount() const;
+    size_t GetSweptMSRegionCountReference() const;
+    size_t GetActiveMSRegionCountReference() const;
     size_t GetEmptySweptRegionCount() const;
     size_t GetLargeHotCacheRegionCount() const;
 
@@ -472,9 +476,22 @@ private:
             FULL,
         };
 
+        void BindAggregateCounters(std::atomic<size_t>* activeRegions,
+                                   std::atomic<size_t>* sweptRegions,
+                                   std::atomic<size_t>* unsweptRegions)
+        {
+            activeRegions_ = activeRegions;
+            sweptRegions_ = sweptRegions;
+            unsweptRegions_ = unsweptRegions;
+        }
+
         MSRegionInfo* TakePartialSwept()
         {
-            return partialSwept_.Pop();
+            MSRegionInfo* region = partialSwept_.Pop();
+            if (region != nullptr) {
+                LeaveCentralList(true);
+            }
+            return region;
         }
 
         MSRegionInfo* ClaimUnsweptHeadForSweep(UnsweptListKind kind, uint32_t sg)
@@ -490,6 +507,7 @@ private:
                 uint32_t headSweepGen = head->GetSweepGen();
                 if (headSweepGen == sg) {
                     (void)list.TakeHead();
+                    LeaveCentralList(false);
                     continue;
                 }
 
@@ -534,43 +552,55 @@ private:
                     MSRegionInfoArray::ANY_OWNER,
                     0,
                     "ClaimUnsweptHeadForSweep");
+                LeaveCentralList(false);
                 return claimed;
             }
         }
 
         void PushPartialSwept(MSRegionInfo* region)
         {
+            // Publish the aggregate before the lock-free list node. A concurrent
+            // Pop may observe the node immediately and must never subtract from
+            // an aggregate that has not recorded this Region yet.
+            EnterCentralList(true);
             partialSwept_.Push(region);
         }
 
         void PushPartialUnswept(MSRegionInfo* region)
         {
             std::lock_guard<std::mutex> lg(lock_);
+            EnterCentralList(false);
             partialUnswept_.Prepend(region);
         }
 
         void PushFullSwept(MSRegionInfo* region)
         {
             std::lock_guard<std::mutex> lg(lock_);
+            EnterCentralList(true);
             fullSwept_.Prepend(region);
         }
 
         void PushFullUnswept(MSRegionInfo* region)
         {
             std::lock_guard<std::mutex> lg(lock_);
+            EnterCentralList(false);
             fullUnswept_.Prepend(region);
         }
 
         void FlipSweptToUnswept()
         {
             std::lock_guard<std::mutex> lg(lock_);
+            size_t sweptBefore = CountPartialSwept() + CountFullSwept();
             partialSwept_.StealChainTo(partialUnswept_);
             fullSwept_.Swap(fullUnswept_);
+            size_t sweptAfter = CountPartialSwept() + CountFullSwept();
+            AdjustSweptAggregate(sweptBefore, sweptAfter);
         }
 
         void ReclassifyUnsweptToSwept(size_t& partialMoved, size_t& fullMoved)
         {
             std::lock_guard<std::mutex> lg(lock_);
+            size_t sweptBefore = CountPartialSwept() + CountFullSwept();
             MSRegionInfo* region = nullptr;
             while ((region = partialUnswept_.TakeHead()) != nullptr) {
                 partialSwept_.Push(region);
@@ -580,6 +610,8 @@ private:
                 fullSwept_.Prepend(region);
                 fullMoved++;
             }
+            size_t sweptAfter = CountPartialSwept() + CountFullSwept();
+            AdjustSweptAggregate(sweptBefore, sweptAfter);
         }
 
         size_t CountPartialSwept() const
@@ -644,6 +676,63 @@ private:
             return kind == UnsweptListKind::PARTIAL ? partialUnswept_ : fullUnswept_;
         }
 
+        static void AddAggregate(std::atomic<size_t>* counter, size_t count,
+                                 std::memory_order order = std::memory_order_relaxed)
+        {
+            if (counter != nullptr && count != 0) {
+                counter->fetch_add(count, order);
+            }
+        }
+
+        static void SubAggregate(std::atomic<size_t>* counter, size_t count, const char* name,
+                                 std::memory_order order = std::memory_order_relaxed)
+        {
+            if (counter == nullptr || count == 0) {
+                return;
+            }
+            size_t old = counter->fetch_sub(count, order);
+            CHECK_DETAIL(old >= count,
+                         "[MS-GC] %s aggregate underflow: old=%zu count=%zu",
+                         name, old, count);
+        }
+
+        void EnterCentralList(bool swept)
+        {
+            AddAggregate(activeRegions_, 1);
+            if (swept) {
+                AddAggregate(sweptRegions_, 1);
+            } else {
+                // The aggregate is visible before the unswept list node is
+                // published, so completion cannot miss newly queued work.
+                AddAggregate(unsweptRegions_, 1, std::memory_order_acq_rel);
+            }
+        }
+
+        void LeaveCentralList(bool swept)
+        {
+            SubAggregate(activeRegions_, 1, "centralSmallActiveRegions");
+            if (swept) {
+                SubAggregate(sweptRegions_, 1, "centralSmallSweptRegions");
+            } else {
+                // ClaimUnsweptHeadForSweep calls this only after uniquely
+                // removing the list node, including stale current-gen heads.
+                SubAggregate(unsweptRegions_, 1, "centralSmallUnsweptRegions",
+                             std::memory_order_acq_rel);
+            }
+        }
+
+        void AdjustSweptAggregate(size_t before, size_t after)
+        {
+            if (after > before) {
+                AddAggregate(sweptRegions_, after - before);
+            } else if (before > after) {
+                SubAggregate(sweptRegions_, before - after, "centralSmallSweptRegions");
+            }
+        }
+
+        std::atomic<size_t>* activeRegions_ = nullptr;
+        std::atomic<size_t>* sweptRegions_ = nullptr;
+        std::atomic<size_t>* unsweptRegions_ = nullptr;
         mutable std::mutex lock_;              // protects fullSwept_, partialUnswept_, fullUnswept_
         LockFreeRegionStack partialSwept_;     // O1: lock-free CAS stack for P1 hot path
         MSRegionList fullSwept_;
@@ -717,6 +806,7 @@ private:
     std::atomic<size_t> activeLazySweepCount_{0};     // In-flight lazy sweep counter
     std::atomic<size_t> activeAssistSweepCount_{0};   // In-flight mutator assist sweep counter
     std::atomic<size_t> activeHelperSweepCount_{0};   // In-flight parallel helper sweep counter
+    std::atomic<bool> forceFinishSweepRunning_{false}; // GC main owns ForceFinishAllUnswept
     // ===== P-local proportional Sweep pacing =====
     // PrepareForSweep publishes one fixed-point ratio for the generation.
     // AllocBufferMS owns allocation progress and debt; central non-assist work is
@@ -728,6 +818,9 @@ private:
     std::atomic<int> sweepPressureMode_{static_cast<int>(SweepPressureMode::LOW)};
     std::atomic<bool> forceHighSweepPressure_{false};
 
+    std::atomic<size_t> centralSmallActiveRegions_ {0};
+    std::atomic<size_t> centralSmallSweptRegions_ {0};
+    std::atomic<size_t> centralSmallUnsweptRegions_ {0};
     SizeClassBucket buckets_[kNumSizeClasses];
     MSRegionManager*  msRegionManager_;
 

@@ -604,7 +604,7 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
 {
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
     CentralRegionPool* pool = space.GetCentralPool();            // for large hot cache ops
-    size_t retained = space.GetHeapRetainedBytes();
+    size_t retained = space.GetHeapRetainedBytesReference();
     size_t scavengeThreshold = space.GetScavengeThresholdBytes();
 
     if (!space.HasPendingScavengeWork()) {
@@ -612,11 +612,11 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
         return false;
     }
 
-    retained = space.GetHeapRetainedBytes();
+    retained = space.GetHeapRetainedBytesReference();
     scavengeThreshold = space.GetScavengeThresholdBytes();
     size_t targetBytes = (retained > scavengeThreshold) ? (retained - scavengeThreshold) : 0;
     size_t sliceTargetBytes = targetBytes;
-    size_t hotFreeBefore = space.GetHotFreeBytes();
+    size_t hotFreeBefore = space.GetHotFreeBytesReference();
     size_t emptySweptBefore = (pool != nullptr) ? pool->GetEmptySweptRegionCount() * MS_REGION_SIZE : 0;
     size_t largeCacheBefore = (pool != nullptr) ? pool->GetLargeHotCacheBytes() : 0;
     if (hotFreeBefore == 0 && emptySweptBefore == 0 && largeCacheBefore == 0) {
@@ -633,7 +633,7 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
     // cache alone cannot cover the remaining gap. For each source: if its cached size
     // is <= the gap, flush all of it; otherwise flush only the gap amount.
     {
-        size_t hotFreeForGap = space.GetHotFreeBytes();
+        size_t hotFreeForGap = space.GetHotFreeBytesReference();
         size_t gap = (targetBytes > hotFreeForGap) ? (targetBytes - hotFreeForGap) : 0;
 
         // Priority 1: large hot cache.
@@ -657,7 +657,7 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
         }
     }
 
-    size_t hotFreeAfterFlush = space.GetHotFreeBytes();
+    size_t hotFreeAfterFlush = space.GetHotFreeBytesReference();
     // Snapshot emptySwept AFTER Step A so that any regions flushed into hotFree are
     // already reflected in hotFreeAfterFlush and not double-counted.
     size_t emptySweptAfterFlush = (pool != nullptr) ? pool->GetEmptySweptRegionCount() * MS_REGION_SIZE : 0;

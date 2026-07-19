@@ -153,6 +153,14 @@ size_t RegionSpaceMS::GetSweptHeapBytes() const
     return msCentralPool_->GetSweptMSRegionCount() * MS_REGION_SIZE;
 }
 
+size_t RegionSpaceMS::GetSweptHeapBytesReference() const
+{
+    if (msCentralPool_ == nullptr) {
+        return 0;
+    }
+    return msCentralPool_->GetSweptMSRegionCountReference() * MS_REGION_SIZE;
+}
+
 size_t RegionSpaceMS::GetCentralCacheBytes() const
 {
     if (msCentralPool_ == nullptr) {
@@ -175,6 +183,18 @@ size_t RegionSpaceMS::GetHeapRetainedBytes() const
     return active + empty + largeCache + hotFree;
 }
 
+size_t RegionSpaceMS::GetHeapRetainedBytesReference() const
+{
+    if (msCentralPool_ == nullptr || msRegionManager_ == nullptr) {
+        return 0;
+    }
+    size_t active = msCentralPool_->GetActiveMSRegionCountReference() * MS_REGION_SIZE;
+    size_t empty = msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE;
+    size_t largeCache = msCentralPool_->GetLargeHotCacheBytes();
+    size_t hotFree = msRegionManager_->GetHotFreeBytesReference();
+    return active + empty + largeCache + hotFree;
+}
+
 size_t RegionSpaceMS::GetHeapThresholdBytes() const
 {
     return Heap::GetHeap().GetCollector().GetGCStats().GetThreshold();
@@ -191,6 +211,14 @@ size_t RegionSpaceMS::GetHotFreeBytes() const
         return 0;
     }
     return msRegionManager_->GetHotFreeBytes();
+}
+
+size_t RegionSpaceMS::GetHotFreeBytesReference() const
+{
+    if (msRegionManager_ == nullptr) {
+        return 0;
+    }
+    return msRegionManager_->GetHotFreeBytesReference();
 }
 
 bool RegionSpaceMS::HasEmptySweptRegions() const
@@ -288,7 +316,7 @@ bool RegionSpaceMS::HasPendingScavengeWork() const
     if (scavengeThreshold == 0) {
         return false;
     }
-    return GetHeapRetainedBytes() > scavengeThreshold;
+    return GetHeapRetainedBytesReference() > scavengeThreshold;
 }
 
 bool RegionSpaceMS::HasPendingShrinkWork() const

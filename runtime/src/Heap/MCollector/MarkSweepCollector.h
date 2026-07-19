@@ -116,10 +116,14 @@ public:
     // meaning the caller should log it for later scanning; false if it was
     // already grey/black or not a traceable object (perfect dedup at the source).
     bool ShadeRefForBarrier(BaseObject* ref) { return DiscoverObject(ref); }
-    // Resolves a validated small object to its mark-bitmap word and bit. LARGE
-    // objects return false and retain the dedicated ShadeRefForBarrier path.
-    bool ResolveSmallRefForBarrier(BaseObject* ref, MSRegionInfo*& info,
-                                   size_t& wordIdx, uint64_t& bitMask) const;
+    // Same operation for barrier paths that already rejected non-heap refs.
+    // This is Runtime-internal and only skips the duplicate heap-range check;
+    // Region/slot/stateWord validation remains mandatory.
+    bool ShadeManagedRefForBarrier(BaseObject* ref) { return DiscoverManagedObject(ref); }
+    // Resolves a known-managed small object to its mark-bitmap word and bit.
+    // LARGE objects return false and retain the dedicated managed shade path.
+    bool ResolveManagedSmallRefForBarrier(BaseObject* ref, MSRegionInfo*& info,
+                                          size_t& wordIdx, uint64_t& bitMask) const;
 
     // ── CopyGC-specific overrides: safe no-ops ──
     BaseObject* ForwardObject(BaseObject*) override { return nullptr; }
@@ -177,6 +181,7 @@ private:
     void DiscoverAndPushObject(BaseObject* obj, WorkStack& workStack);
     bool TryEnqueueGreyObject(BaseObject* obj, GreyWorkQueue& queue);
     bool DiscoverObject(BaseObject* obj);
+    bool DiscoverManagedObject(BaseObject* obj);
     // Bitmap-only discovery. MSGC derives cycle object counts from a post-mark
     // bitmap walk instead of updating a hot global counter.
     // Diagnostic: after marking completes (in PostMarkTermination, before sweep

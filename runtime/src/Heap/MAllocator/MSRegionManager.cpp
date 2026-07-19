@@ -207,6 +207,11 @@ size_t MSRegionManager::GetHotFreeBytes() const
     return freeManager_.GetHotFreeBytes();
 }
 
+size_t MSRegionManager::GetHotFreeBytesReference() const
+{
+    return freeManager_.GetHotFreeBytesReference();
+}
+
 uint16_t MSRegionManager::ResolveHomeShardId(uint16_t shardHint) const
 {
     MSShardRouteContext context {};
@@ -244,9 +249,23 @@ void MSRegionManager::MaybeNotifyScavenge()
     if (heapRetained <= scavengeThreshold) {
         return;
     }
+    bool expectedProbe = false;
+    if (!scavengePressureProbeInProgress_.compare_exchange_strong(
+            expectedProbe, true, std::memory_order_acquire, std::memory_order_relaxed)) {
+        return;
+    }
+    // Aggregate counters keep the Region acquisition path O(1). Confirm only
+    // a threshold crossing with the retained reference scan so a transient
+    // cross-counter transfer cannot cause a spurious wakeup.
+    heapRetained = space.GetHeapRetainedBytesReference();
+    if (heapRetained <= scavengeThreshold) {
+        scavengePressureProbeInProgress_.store(false, std::memory_order_release);
+        return;
+    }
 
     BackgroundProcessor& bp = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
     bp.NotifyToScavenge();
+    scavengePressureProbeInProgress_.store(false, std::memory_order_release);
 }
 
 void MSRegionManager::MaybeNotifyShrink()
@@ -298,6 +317,19 @@ void MSRegionManager::MaybeNotifyMark()
     if (sweptBytes < threshold) {
         return;
     }
+    bool expectedProbe = false;
+    if (!markPressureProbeInProgress_.compare_exchange_strong(
+            expectedProbe, true, std::memory_order_acquire, std::memory_order_relaxed)) {
+        return;
+    }
+    // The fast aggregate may briefly lead the underlying lists while a Region
+    // changes ownership. A HEU request is expensive, so confirm the crossing
+    // with the original per-class reference scan.
+    sweptBytes = space.GetSweptHeapBytesReference();
+    if (sweptBytes < threshold) {
+        markPressureProbeInProgress_.store(false, std::memory_order_release);
+        return;
+    }
 
     // Sweep executors refresh the shared pressure snapshot at slice boundaries.
     // The Region acquisition path only consumes that published mode.
@@ -318,10 +350,12 @@ void MSRegionManager::MaybeNotifyMark()
     if (!lastHeuRequestNs_.compare_exchange_strong(lastHeuRequestNs, nowNs,
                                                    std::memory_order_relaxed,
                                                    std::memory_order_relaxed)) {
+        markPressureProbeInProgress_.store(false, std::memory_order_release);
         return;
     }
 
     collector.RequestGC(GC_REASON_HEU, true);
+    markPressureProbeInProgress_.store(false, std::memory_order_release);
     VLOG(REPORT,
          "[MS-GC] HEU trigger (take-regions): swept-region bytes=%zuB heapThreshold=%zuB"
          " reason=GC_REASON_HEU",

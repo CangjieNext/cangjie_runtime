@@ -140,6 +140,7 @@ void FreeManager::Initialize(size_t unitSize, size_t unitsPerRegion, RegionCount
     CHECK_DETAIL(segmentRegionCount_ != 0,
                  "[MS-GC] FreeManager segmentRegionCount must not be zero, segmentSize=%zu regionSize=%zu",
                  segmentSize_, GetRegionSizeBytes());
+    totalHotFreeRegions_.store(0, std::memory_order_relaxed);
     shards_.clear();
     for (uint32_t shardIdx = 0; shardIdx < shardCount_; ++shardIdx) {
         shards_.emplace_back();
@@ -567,6 +568,11 @@ size_t FreeManager::GetOwnedTotalRegionCount(uint16_t ownerShardId) const
 }
 
 size_t FreeManager::GetHotFreeBytes() const
+{
+    return totalHotFreeRegions_.load(std::memory_order_relaxed) * GetRegionSizeBytes();
+}
+
+size_t FreeManager::GetHotFreeBytesReference() const
 {
     size_t totalHotFreeRegions = 0;
     for (uint32_t shardIdx = 0; shardIdx < shardCount_; ++shardIdx) {
@@ -1678,7 +1684,17 @@ void FreeManager::RefreshRegionSnapshotsLocked(FreeManagerShard& shard)
     uint32_t hotFree = static_cast<uint32_t>(
         shard.freeRegionCount_ >= shard.scavengedRegionCount_
             ? (shard.freeRegionCount_ - shard.scavengedRegionCount_) : 0);
-    shard.snapHotFreeRegions_.store(hotFree, std::memory_order_relaxed);
+    uint32_t oldHotFree = shard.snapHotFreeRegions_.exchange(hotFree, std::memory_order_relaxed);
+    if (hotFree > oldHotFree) {
+        totalHotFreeRegions_.fetch_add(static_cast<size_t>(hotFree - oldHotFree),
+                                       std::memory_order_relaxed);
+    } else if (oldHotFree > hotFree) {
+        size_t delta = static_cast<size_t>(oldHotFree - hotFree);
+        size_t oldTotal = totalHotFreeRegions_.fetch_sub(delta, std::memory_order_relaxed);
+        CHECK_DETAIL(oldTotal >= delta,
+                     "[MS-GC] totalHotFreeRegions underflow: old=%zu delta=%zu",
+                     oldTotal, delta);
+    }
 }
 
 // Opt4: word-level ops — O(1) prefix/suffix, O(num_free_runs) max (≤32).

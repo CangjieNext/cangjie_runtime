@@ -90,6 +90,9 @@ public:
     // Return bytes in free regions whose physical pages have NOT been returned
     // to the OS yet (hotFree = freeRegions - scavengedRegions).
     size_t GetHotFreeBytes() const;
+    // Slow/reference scan used for threshold confirmation and aggregate
+    // diagnostics. Normal Region acquisition must use GetHotFreeBytes().
+    size_t GetHotFreeBytesReference() const;
 
     // Like ScavengeFreeRegions, but caps the work at maxBytes.
     // Returns actual bytes released (madvise'd).
@@ -204,7 +207,7 @@ private:
     // Opt2: chunk-summary guided run search within a single view
     static bool FindFreeRunInViewLocked(const OwnedSegmentView& view, size_t localStart, size_t localEnd,
                                         size_t num, size_t& localIdx);
-    static void RefreshRegionSnapshotsLocked(FreeManagerShard& shard);
+    void RefreshRegionSnapshotsLocked(FreeManagerShard& shard);
     size_t ScavengeOwnedFreeRegionsLocked(FreeManagerShard& shard, size_t regionBudget);
     void AppendGroupedOwnerSpansLocked(std::vector<std::vector<RegionSpan>>& groupedSpans,
                                        RegionIndex idx,
@@ -259,6 +262,7 @@ private:
     uint32_t shardCount_ = 1;
     size_t segmentRegionCount_ = 0;
     std::deque<FreeManagerShard> shards_;
+    std::atomic<size_t> totalHotFreeRegions_ {0};
     std::vector<uint16_t> segmentOwnerShard_;
     uint16_t nextScavengeShard_ = 0;
 };

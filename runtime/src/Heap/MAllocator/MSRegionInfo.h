@@ -199,6 +199,9 @@ struct MSRegionInfo {
 
     // === Mark ===
     bool GetMarkBit(uintptr_t objAddr) const;
+    // Tests a previously resolved bitmap location without recomputing the
+    // object-to-slot mapping. Invalid bitmap coordinates are treated as white.
+    bool IsMarkBitSet(size_t wordIdx, uint64_t bitMask) const;
     // Returns true if already marked (previous bit was set).
     bool TestAndSetMarkBit(uintptr_t objAddr);
     // Atomically marks a bitmap word and returns only bits newly set by this call.
