@@ -12,6 +12,8 @@
 #include <new>
 #include <utility>
 
+#include "Common/WorkEpoch.h"
+
 namespace MapleRuntime {
 
 class BaseObject;
@@ -59,14 +61,21 @@ public:
         size_t full;
     };
 
+    explicit LFStack(WorkEpoch* workEpoch = nullptr) : workEpoch_(workEpoch) {}
+
     void Push(WorkBuf* buf)
     {
-        std::lock_guard<std::mutex> lock(mutex_);
-        buf->next = top_;
-        top_ = buf;
-        ++count_;
-        if (buf->Full()) {
-            ++fullCount_;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            buf->next = top_;
+            top_ = buf;
+            ++count_;
+            if (buf->Full()) {
+                ++fullCount_;
+            }
+        }
+        if (workEpoch_ != nullptr) {
+            workEpoch_->Notify();
         }
     }
 
@@ -123,6 +132,7 @@ private:
     WorkBuf* top_ = nullptr;
     size_t count_ = 0;
     size_t fullCount_ = 0;
+    WorkEpoch* workEpoch_ = nullptr;
 };
 
 // ============================================================================

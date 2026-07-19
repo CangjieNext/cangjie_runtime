@@ -237,7 +237,8 @@ private:
     GreyWorkQueue markWorkStack_;
 
     // ── Step5: LFStack global work queue ──
-    LFStack globalFull_;
+    WorkEpoch markWorkEpoch_;
+    LFStack globalFull_{&markWorkEpoch_};
     WorkBufPool workBufPool_;
     PerPGCWork gcThreadWork_;
     struct MSMarkWorkerSlot {
@@ -245,7 +246,7 @@ private:
         MSMarkWorkerLocalStats stats{4};
     };
     std::vector<std::unique_ptr<MSMarkWorkerSlot>> markWorkerSlots_;
-    MSMarkWorkerControl markWorkerControl_;
+    MSMarkWorkerControl markWorkerControl_{&markWorkEpoch_};
     std::atomic<int64_t> bgScanCredit_{0};
     std::atomic<uint64_t> assistWorkPerByteScaled_{0};
     std::atomic<size_t> prevCycleMarkedObjects_{0};

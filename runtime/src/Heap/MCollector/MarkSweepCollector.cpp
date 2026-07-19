@@ -7,11 +7,13 @@
 #ifdef MRT_USE_MARK_SWEEP
 
 #include "MarkSweepCollector.h"
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <string>
+#include <thread>
 #include "Base/CString.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
@@ -39,6 +41,10 @@
 namespace MapleRuntime {
 
 namespace {
+constexpr size_t kMSMarkWorkerCreditPollInterval = 8;
+constexpr size_t kMSMarkEmptySpinRounds = 8;
+constexpr uint64_t kMSMarkProgressWaitUs = 50;
+
 bool IsMSGCReportEnabled()
 {
 #if defined(__OHOS__)
@@ -708,6 +714,7 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
     // Capture base assist ratio for dynamic escalation below.
     const uint64_t baseAssistRatio = assistWorkPerByteScaled_.load(std::memory_order_acquire);
     const uint64_t tailAssistRatio = ComputeMSAssistTailRatioScaled(baseAssistRatio, maxAssistMultiplier);
+    uint64_t publishedAssistRatio = baseAssistRatio;
     bool tailDraining = false;
     uint64_t tailStartUs = 0;
     size_t quiesceResidualBuffers = 0;
@@ -722,8 +729,15 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
     const uint64_t markBudgetUs = markBudgetNs == 0 ? 0 : std::max<uint64_t>(1, markBudgetNs / 1000ULL);
     bool forceConverged = false;
     size_t gcMainProcessed = 0;
+    size_t previousPublishedBacklog = globalFull_.GetCounts().total;
+    size_t emptyPollRounds = 0;
 
     while (true) {
+        // Capture before checking the work predicates. A publication or final
+        // in-flight exit racing with the checks changes the epoch and makes the
+        // later wait return immediately instead of losing the notification.
+        uint64_t observedProgressEpoch = markWorkEpoch_.Load();
+
         // Every published buffer is one GC-main mark slice, regardless of length.
         size_t scannedCount = DrainOneBufRound(gcThreadWork_, false);
         gcMainProcessed += scannedCount;
@@ -742,18 +756,26 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
         // Dynamic assist ratio escalation based on globalFull_ backpressure:
         // Smooth transient queue changes, then increase continuously up to the configured cap.
         if (tailDraining) {
-            assistWorkPerByteScaled_.store(tailAssistRatio, std::memory_order_release);
+            if (tailAssistRatio != publishedAssistRatio) {
+                assistWorkPerByteScaled_.store(tailAssistRatio, std::memory_order_release);
+                publishedAssistRatio = tailAssistRatio;
+            }
         } else if (baseAssistRatio > 0) {
             size_t backlog = fullBacklog;
             smoothedBacklog = UpdateMSAssistBacklogEMA(smoothedBacklog, backlog, backlogEMAInitialized);
             backlogEMAInitialized = true;
             uint64_t adjustedRatio = ComputeMSAssistBacklogRatioScaled(
                 baseAssistRatio, smoothedBacklog, backlogStepBuffers, maxAssistMultiplier);
-            assistWorkPerByteScaled_.store(adjustedRatio, std::memory_order_release);
+            if (adjustedRatio != publishedAssistRatio) {
+                assistWorkPerByteScaled_.store(adjustedRatio, std::memory_order_release);
+                publishedAssistRatio = adjustedRatio;
+            }
         }
 
         // Per-round decayed GC-supply credit injection.
-        size_t workerScanned = TakePublishedWorkerCredit();
+        bool shouldPollWorkerCredit = scannedCount != 0 || publishedBacklog != previousPublishedBacklog ||
+                                      (roundIdx % kMSMarkWorkerCreditPollInterval) == 0;
+        size_t workerScanned = shouldPollWorkerCredit ? TakePublishedWorkerCredit() : 0;
         size_t backgroundScanned = scannedCount + workerScanned;
         if (roundIdx < creditDecayRounds && backgroundScanned > 0) {
             double w = static_cast<double>(creditDecayRounds - roundIdx) /
@@ -765,17 +787,23 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
         }
 
         roundIdx++;
+        previousPublishedBacklog = publishedBacklog;
 
-        bool convergenceCandidate = gcThreadWork_.ConcurrentInputEmpty() && globalFull_.Empty() &&
-                                    markWorkerControl_.GetWorkersInFlight() == 0 &&
-                                    markWorkerControl_.GetAssistsInFlight() == 0;
+        MSMarkWorkerControl::Snapshot controlSnapshot = markWorkerControl_.GetSnapshot();
+        bool gcMainInputEmpty = gcThreadWork_.ConcurrentInputEmpty();
+        bool convergenceCandidate = gcMainInputEmpty && publishedBacklog == 0 &&
+                                    controlSnapshot.workersInFlight == 0 &&
+                                    controlSnapshot.assistsInFlight == 0;
         if (convergenceCandidate) {
             if (!tailDraining) {
                 tailDraining = true;
                 tailStartUs = TimeUtil::MicroSeconds();
                 activeHelpers = workerPolicy.EnterTail();
                 markWorkerControl_.SetTargetHelpers(activeHelpers);
-                assistWorkPerByteScaled_.store(tailAssistRatio, std::memory_order_release);
+                if (tailAssistRatio != publishedAssistRatio) {
+                    assistWorkPerByteScaled_.store(tailAssistRatio, std::memory_order_release);
+                    publishedAssistRatio = tailAssistRatio;
+                }
             }
             quiesceResidualBuffers = QuiesceMarkWorkers();
             break;
@@ -788,6 +816,20 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
             forceConverged = true;
             quiesceResidualBuffers = QuiesceMarkWorkers();
             break;
+        }
+
+        size_t inFlight = controlSnapshot.workersInFlight + controlSnapshot.assistsInFlight;
+        if (gcMainInputEmpty && publishedBacklog == 0 && inFlight != 0) {
+            if (emptyPollRounds < kMSMarkEmptySpinRounds) {
+                ++emptyPollRounds;
+                std::this_thread::yield();
+            } else {
+                (void)markWorkEpoch_.WaitForChange(
+                    observedProgressEpoch, std::chrono::microseconds(kMSMarkProgressWaitUs));
+                emptyPollRounds = 0;
+            }
+        } else {
+            emptyPollRounds = 0;
         }
     }
 
@@ -834,6 +876,10 @@ void MarkSweepCollector::StartMarkWorkers(size_t maxHelpers, size_t initialHelpe
     }
 
     GCThreadPool* threadPool = GetThreadPool();
+    // Sweep uses the same physical pool and may leave a smaller active width.
+    // MARK owns the pool lease here. Restore the full potential width before
+    // submitting long-lived tasks; targetHelpers gates actual scan activity.
+    threadPool->SetMaxActiveThreadNum(static_cast<int32_t>(maxHelpers));
     for (size_t i = 0; i < maxHelpers; ++i) {
         std::unique_ptr<MSMarkWorkerSlot> slot(new (std::nothrow) MSMarkWorkerSlot());
         CHECK_DETAIL(slot != nullptr, "new MSGC mark worker slot failed");
