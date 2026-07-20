@@ -22,7 +22,7 @@ protected class ActorResult {
         protected let endTime!: DateTime
     ) {}
     
-    protected static func success(actor: Actor, startTime: DateTime, endTime: DateTime): ActorResult {
+    protected static func success<S>(actor: Actor<S>, startTime: DateTime, endTime: DateTime): ActorResult where S <: Any {
         ActorResult(
             actorId: actor.id,
             actorName: actor.name,
@@ -31,8 +31,8 @@ protected class ActorResult {
             endTime: endTime
         )
     }
-    
-    protected static func failure(actor: Actor, e: Exception, startTime: DateTime, endTime: DateTime): ActorResult {
+
+    protected static func failure<S>(actor: Actor<S>, e: Exception, startTime: DateTime, endTime: DateTime): ActorResult where S <: Any {
         ActorResult(
             actorId: actor.id,
             actorName: actor.name,
