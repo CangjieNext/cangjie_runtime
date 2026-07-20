@@ -9,10 +9,8 @@
 package std.unittest
 
 import std.unittest.common.*
-import std.unittest.concurrent.ScenarioRunner
-import std.unittest.concurrent.ScenarioIterationResult
-import std.unittest.concurrent.ConcurrentScenario
-import std.collection.ArrayList
+import std.unittest.concurrent.*
+import std.collection.*
 import std.time.DateTime
 
 class ConcurrentTestFailure <: Exception {
@@ -24,9 +22,7 @@ class ConcurrentTestFailure <: Exception {
     }
 }
 
-class ConcurrentExecutor<S> <: Executor where S <: Any {
-    private var generationStep = 0
-
+class ConcurrentExecutor<T, S> <: Executor where S <: Any {
     ConcurrentExecutor(
         private let strategy!: DataStrategyProcessor<T>,
         private let body!: (T) -> ConcurrentScenario<S>
@@ -37,65 +33,65 @@ class ConcurrentExecutor<S> <: Executor where S <: Any {
         result: TestCaseResult,
         configuration: Configuration
     ): Unit {
-        let lastInput = Box(Array<InputParameter>())
-        let lastScenario: Box<Option<ConcurrentScenario>> = Box(None)
-        let executeBody = { arg: T, input: Array<InputParameter> =>
-            let scenario = body(arg)
-            lastInput.value = input
-            lastScenario.value = Some(scenario)
-            executeScenario(suiteInfo, result, configuration, scenario, input)
-        }
+        var generationStep = 0
 
-        strategy.nextIteration(configuration)
-
-        // FIXME: Copypasta (almost) from TestCaseExecutor
-        while (generationStep < configuration.generationSteps || !strategy.isInfinite) {
+        for (arg in strategy.provide(configuration)) {
             generationStep += 1
-            let processorResult = strategy.processNextWith(configuration, executeBody)
-            let scenario = lastScenario.value.getOrThrow()
-
-            var initialFailure = match (processorResult) {
-                case Success(stepResult) =>
-                    result.addSuccessfullStep(stepResult)
-                    continue
-                case NoItems =>
-                    generationStep -= 1
-                    return
-                case StrategyError(e) =>
-                    result.add(strategyErrorAsResult(e, argDescription(scenario, lastInput.value, configuration)))
-                    return
-                case Failure(input, stepResult) =>
-                    (input, stepResult)
+            if (generationStep >= configuration.generationSteps) {
+                return
             }
 
-            let (input, failure) = match (strategy.shrink(configuration, executeBody)) {
-                case None => initialFailure
-                case Some(Failure(input, shrunk)) => (input, shrunk)
-                case Some(StrategyError(e)) =>
-                    result.add(strategyErrorAsResult(e, argDescription(scenario, lastInput.value, configuration)))
-                    return
-                case _ =>
-                    throw Exception("Unexpected shrinking result")
+            let input = strategy.lastItemInfo()
+            let start = DateTime.now()
+            let (scenario, failures) = try {
+                let scenario = body(arg)
+                let failures = executeScenario(suiteInfo, result, configuration, scenario)
+                (scenario, failures)
+            } catch (e: Exception) {
+                result.add(strategyErrorAsResult(e, argDescription(None, [], input, configuration, generationStep)))
+                return
             }
-
-            // It was decided that we should print full number of reduction steps
-            // instead of reduction step number on which we found latest shrinked failure
-            result.add(failure.withUpdatedStep(CaseStep(argDescription(scenario, lastInput.value, configuration))))
-
-            if (strategy.isInfinite) {
-                break
+            let stepKind = CaseStep(argDescription(scenario, failures, input, configuration, generationStep))
+            if (failures.isEmpty()) {
+                result.add(RunStepResult(scenario.iterations, start, stepKind, Test(scenario.iterations)));
+            } else {
+                let failures = failures |> map<ScenarioIterationResult, CheckResult> { result => 
+                    ConcurrentTestCheckResult(result)
+                } |> collectArray
+                result.add(RunStepResult(scenario.iterations - failures.size, start, stepKind, Failure(failures)));
+                return
             }
         }
     }
 
-    // FIXME: Copypasta (almost) from TestCaseExecutor
+    static func formatScenario(
+        sb: PrettyText,
+        scenario: ConcurrentScenario<S>,
+        failures: Array<ScenarioIterationResult>,
+    ) {
+        sb.appendLine("Scenario: ${scenario.name}") 
+        let mismatchTables = failures |> filterMap { result => result.consistencyValidation.flatMap({ cv => cv.getMismatchTable() }) } |> collectArray
+        // if (mismatchTables.size > 1) {
+        //     sb.appendLine("Displaying only one failure case of ${mismatchTables.size}")
+        // }
+        // if (let Some(mismatchTable) <- (mismatchTables |> first)) {
+        //     sb.appendLine(mismatchTable)
+        // }
+    }
+
     // FIXME: Currently scenario argument expected to be the first one
-    static func formatArguments(scenario: ConcurrentScenario, inputs: Array<InputParameter>): ?PrettyText {
+    static func formatArguments(
+        scenario: Option<ConcurrentScenario<S>>,
+        failures: Array<ScenarioIterationResult>,
+        inputs: Array<InputParameter>
+    ): ?PrettyText {
         if (inputs.isNoArg()) {
             return None
         }
         let sb = PrettyText()
-        sb.appendLine("Scenario: ${scenario.name}")
+        if (let Some(scenario) <- scenario) {
+            formatScenario(sb, scenario, failures)
+        }
         for (param in inputs.iterator().skip(1)) {
             sb.append(param.name)
             sb.append(" = ")
@@ -104,17 +100,27 @@ class ConcurrentExecutor<S> <: Executor where S <: Any {
         return sb
     }
 
-    private func argDescription(scenario: ConcurrentScenario, param: Array<InputParameter>, configuration: Configuration) {
-        ArgumentDescription(formatArguments(scenario, param), generationStep - 1, strategy.currentReduction, configuration.randomSeed)
+    private func argDescription(
+        scenario: Option<ConcurrentScenario<S>>,
+        failures: Array<ScenarioIterationResult>,
+        param: Array<InputParameter>,
+        configuration: Configuration,
+        generationStep: Int64,
+    ) {
+        ArgumentDescription(
+            formatArguments(scenario, failures, param),
+            generationStep - 1,
+            strategy.currentReduction, 
+            configuration.randomSeed,
+        )
     }
     
     private func executeScenario(
         suiteInfo: TestSuiteReportInfo,
         tcase: TestCaseResult,
         configuration: Configuration,
-        scenario: ConcurrentScenario,
-        input: Array<InputParameter>,
-    ): RunStepResult {
+        scenario: ConcurrentScenario<S>,
+    ): Array<ScenarioIterationResult> {
         let progress = ProgressOutput(configuration)
         let executor  = ScenarioRunner<S>(scenario)
         let iterations = scenario.iterations
@@ -123,12 +129,11 @@ class ConcurrentExecutor<S> <: Executor where S <: Any {
             "with ${scenario.threadCount} threads, ${iterations} iterations."
         }
         
-        let failures = ArrayList<CheckResult>()
-        let start = DateTime.now()
         let verbose = configuration.verbose
+        let failures = ArrayList<ScenarioIterationResult>()
         executor.executeIterationsWithCallback(iterations, verbose: verbose) { iterResult, iterIndex =>
             if (!iterResult.allSucceeded) {
-                failures.add(ConcurrentTestCheckResult(iterResult))
+                failures.add(iterResult)
             }
             true
         }
@@ -136,9 +141,8 @@ class ConcurrentExecutor<S> <: Executor where S <: Any {
             progress.verbose {
                 "Concurrent scenario '${tcase.caseId.caseName}' completed successfully."
             }
-            return RunStepResult(iterations, start, stepKind, Test(iterations))
         }
 
-        return RunStepResult(iterations - failures.size, start, stepKind, Failure(failures.toArray()))
+        return failures.toArray()
     }
 }
