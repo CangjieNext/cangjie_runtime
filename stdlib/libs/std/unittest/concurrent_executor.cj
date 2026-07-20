@@ -17,48 +17,48 @@ import std.time.DateTime
 
 class ConcurrentTestFailure <: Exception {
     public let iterationResult: ScenarioIterationResult
-    
+
     ConcurrentTestFailure(result!: ScenarioIterationResult) {
         super("Concurrent test iteration failed")
         iterationResult = result
     }
 }
 
-class ConcurrentExecutor <: Executor {
-    private let executor: ScenarioRunner
-    
+class ConcurrentExecutor<S> <: Executor where S <: Any {
+    private let executor: ScenarioRunner<S>
+
     ConcurrentExecutor(
-        private let scenario!: ConcurrentScenario
+        private let scenario!: ConcurrentScenario<S>
     ) {
-        executor = ScenarioRunner(scenario)
+        executor = ScenarioRunner<S>(scenario)
     }
-    
+
     public func execute(
         suiteInfo: TestSuiteReportInfo,
         tcase: TestCaseResult,
         configuration: Configuration
     ): Unit {
         let progress = ProgressOutput(configuration)
-        
+
         let iterations = scenario.iterations
-        
+
         progress.verbose {
             "Starting concurrent scenario '${tcase.caseId.caseName}' " +
             "with ${scenario.threadCount} threads, ${iterations} iterations."
         }
-        
+
         let verbose = configuration.verbose
         executor.executeIterationsWithCallback(iterations, verbose: verbose) { iterResult, iterIndex =>
             handleIterationResult(tcase, configuration, iterResult, iterIndex)
         }
-        
+
         if (!tcase.hasFailures()) {
             progress.verbose {
                 "Concurrent scenario '${tcase.caseId.caseName}' completed successfully."
             }
         }
     }
-    
+
     private func handleIterationResult(
         tcase: TestCaseResult,
         configuration: Configuration,
@@ -71,22 +71,22 @@ class ConcurrentExecutor <: Executor {
             0,
             configuration.get(KeyRandomSeed.randomSeed)
         ))
-        
+
         if (!iterResult.allSucceeded) {
             let stepResult = RunStepResult.simpleError(stepKind, ConcurrentTestCheckResult(iterResult))
             tcase.add(stepResult)
             return false
         }
-        
+
         let passedChecks = iterResult.successCount
         let stepResult = RunStepResult(passedChecks, DateTime.now(), stepKind, Test(1))
-        
+
         if (tcase.subResults.isEmpty()) {
             tcase.add(stepResult)
         } else {
             tcase.addSuccessfullStep(stepResult)
         }
-        
+
         return true
     }
 }

@@ -8,20 +8,28 @@
 
 package std.unittest.concurrent
 
-public class Operation {
+public class Operation<S> where S <: Any {
     Operation(
         public let name!: String,
         public let id!: Int64 = 0,
-        public let body!: () -> EquatableObj,
+        public let body!: (S) -> EquatableObj,
     ) {}
-    
-    func executeWrapped(): EquatableObj {
-        body()
+
+    func executeWrapped(state: S): EquatableObj {
+        body(state)
     }
 }
 
-public func operation<T>(name: String, body: () -> T): Operation where T <: Equatable<T> {
-    Operation(name: name) { => execResultOf(body) }
+// Legacy stateless factory: produces Operation<Unit> for capture-based scenarios.
+// The body lambda ignores the (Unit) state placeholder.
+public func operation<T>(name: String, body: () -> T): Operation<Unit> where T <: Equatable<T> {
+    Operation<Unit>(name: name) { _: Unit => execResultOf(body) }
+}
+
+// State-aware factory: produces Operation<S> for typed per-iteration-state scenarios.
+// The body lambda receives the per-iteration state instance of type S.
+public func operation<T, S>(name: String, body: (S) -> T): Operation<S> where T <: Equatable<T>, S <: Any {
+    Operation<S>(name: name) { state: S => execResultOf({ => body(state) }) }
 }
 
 
@@ -34,7 +42,7 @@ public class OperationInvocation {
         public let invocationVC!: ?Array<Int64> = None,
         public let responseVC!: ?Array<Int64> = None
     ) {}
-    
+
     public prop operationId: Int64 {
         get() { actorId * 1000 + operationIndex }
     }
