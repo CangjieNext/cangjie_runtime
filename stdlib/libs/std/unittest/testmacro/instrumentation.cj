@@ -574,17 +574,27 @@ class InstrumentedClass {
     }
 
     private func buildScenarios(tb: TokensBuilder): TokensBuilder {
-        tb.append(quote(private func scenarios(): DataStrategy<ScenarioBuilder>)).curlyBraces { tb => 
+        // FIXME: move parameters to OperationsManager probably
+        tb.append(quote(private func scenarios(
+            minActors!: Int64 = 2,
+            maxActors!: Int64 = 3,
+            minOperationPerActor!: Int64 = 2,
+            maxOperationPerActor!: Int64 = 10,
+        ): DataStrategy<ScenarioBuilder<$concurrentTestStateClassName>>)).curlyBraces { tb => 
             tb.append(quote(
-                let suiteConfiguration = classConfiguration()
                 let operationsManager = createOperationsManager()
-                operationsManager.scenarios(suiteConfiguration)
+                operationsManager.scenarios(
+                    minActors: minActors,
+                    maxActors: maxActors,
+                    minOperationPerActor: minOperationPerActor,
+                    maxOperationPerActor: maxOperationPerActor,
+                )
             ))
         }
     }
 
     private func buildConcurrentStateClass(tb: TokensBuilder): TokensBuilder {
-        tb.append(quote(private class $concurrentTestStateClassName)).curlyBraces { tb => 
+        tb.append(quote(public class $concurrentTestStateClassName)).curlyBraces { tb => 
             for (varDecl in memberVariables) {
                 tb.append(varDecl.toTokens())
             }
@@ -597,13 +607,13 @@ class InstrumentedClass {
     }
 
     private func buildCreateOperationsManager(tb: TokensBuilder): TokensBuilder {
-        tb.append(quote(private func createOperationsManager(): OperationsManager)).curlyBraces { tb => 
+        tb.append(quote(private func createOperationsManager(): OperationsManager<$concurrentTestStateClassName>)).curlyBraces { tb => 
             tb.append(quote(
-                let state = Box($concurrentTestStateClassName())
-                let opManager = OperationsManager(
-                    scenario()
-                        .consistencyModel(Linearizability)
-                        .reset { => state.value = $concurrentTestStateClassName() }
+                let opManager = OperationsManager<$concurrentTestStateClassName>(
+                    { => ScenarioBuilder<$concurrentTestStateClassName>()
+                            .consistencyModel(Linearizability)
+                            .withState { => $concurrentTestStateClassName() }
+                    }
                 )
             ))
 
@@ -638,9 +648,9 @@ class InstrumentedClass {
                         opManager.addOperation(
                             group: $groupLitTokens,
                             name: $operationLitTokens,
-                            operation: { x___: $argType =>
+                            body: { x___: $argType, state: $concurrentTestStateClassName =>
                                 let $destructuring = x___
-                                state.value.$operationTokens($(commaSeparated(namesTokens))) 
+                                state.$operationTokens($(commaSeparated(namesTokens))) 
                             },
                             dataStrategy: $strategyVariableName,
                         )
@@ -650,7 +660,7 @@ class InstrumentedClass {
                         opManager.addOperation(
                             group: $groupLitTokens,
                             name: $operationLitTokens,
-                            operation: { => state.value.$operationTokens() },
+                            body: { state: $concurrentTestStateClassName => state.$operationTokens() },
                         )
                     ))
                 }
