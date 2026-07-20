@@ -77,22 +77,70 @@ CentralRegionPool::CentralRegionPool(MSRegionManager* msRegionManager)
     }
 }
 
-bool CentralRegionPool::TryPublishSweepDone()
+bool CentralRegionPool::TryEnterSweep()
 {
-    if (GetTotalUnsweptCount() != 0 ||
-        forceFinishSweepRunning_.load(std::memory_order_acquire) ||
-        bgSweepRunning_.load(std::memory_order_acquire) ||
-        activeLazySweepCount_.load(std::memory_order_acquire) != 0 ||
-        activeAssistSweepCount_.load(std::memory_order_acquire) != 0 ||
-        activeHelperSweepCount_.load(std::memory_order_acquire) != 0) {
-        return false;
+    uint64_t oldState = sweepAdmission_.load(std::memory_order_acquire);
+    for (;;) {
+        if ((oldState & kSweepAdmissionClosed) != 0) {
+            return false;
+        }
+        CHECK((oldState & kSweepAdmissionActiveMask) != kSweepAdmissionActiveMask);
+        uint64_t newState = oldState + 1;
+        if (sweepAdmission_.compare_exchange_weak(oldState, newState,
+                                                  std::memory_order_acq_rel,
+                                                  std::memory_order_acquire)) {
+            return true;
+        }
     }
-    // The aggregate is the hot rejection path. Only a candidate completion
-    // pays for the original 36-class scan; this is the final correctness fence
-    // against accounting drift or a cross-atomic transition window.
-    if (GetTotalUnsweptCountReference() != 0) {
-        return false;
+}
+
+void CentralRegionPool::LeaveSweep()
+{
+    uint64_t oldState = sweepAdmission_.load(std::memory_order_acquire);
+    for (;;) {
+        CHECK((oldState & kSweepAdmissionActiveMask) != 0);
+        uint64_t newState = oldState - 1;
+        if (sweepAdmission_.compare_exchange_weak(oldState, newState,
+                                                  std::memory_order_acq_rel,
+                                                  std::memory_order_acquire)) {
+            return;
+        }
     }
+}
+
+void CentralRegionPool::CloseSweepAdmissionAndWait()
+{
+    // This RMW is the single linearization point for closing admission. A
+    // worker either increments the active count before this operation and is
+    // waited for, or observes the closed bit and cannot enter SweepRegion.
+    sweepAdmission_.fetch_or(kSweepAdmissionClosed, std::memory_order_acq_rel);
+    while ((sweepAdmission_.load(std::memory_order_acquire) &
+            kSweepAdmissionActiveMask) != 0) {
+        std::this_thread::yield();
+    }
+}
+
+void CentralRegionPool::OpenSweepAdmission()
+{
+    uint64_t state = sweepAdmission_.load(std::memory_order_acquire);
+    CHECK((state & kSweepAdmissionActiveMask) == 0);
+    CHECK((state & kSweepAdmissionClosed) != 0);
+    sweepAdmission_.store(0, std::memory_order_release);
+}
+
+void CentralRegionPool::PublishSweepDoneAfterQuiescence()
+{
+    uint64_t state = sweepAdmission_.load(std::memory_order_acquire);
+    CHECK((state & kSweepAdmissionClosed) != 0);
+    CHECK((state & kSweepAdmissionActiveMask) == 0);
+    CHECK(!forceFinishSweepRunning_.load(std::memory_order_acquire));
+    CHECK(!bgSweepRunning_.load(std::memory_order_acquire));
+    CHECK(activeLazySweepCount_.load(std::memory_order_acquire) == 0);
+    CHECK(activeAssistSweepCount_.load(std::memory_order_acquire) == 0);
+    CHECK(activeHelperSweepCount_.load(std::memory_order_acquire) == 0);
+    CHECK(GetTotalUnsweptCount() == 0);
+    CHECK(GetTotalUnsweptCountReference() == 0);
+
     // Publish completion first. A concurrent ForceHighSweepPressure() either
     // observes sweepDone_ and returns, or rechecks it after setting the latch
     // and clears its own stale HIGH. Clearing the latch before this store would
@@ -100,7 +148,6 @@ bool CentralRegionPool::TryPublishSweepDone()
     sweepDone_.store(true, std::memory_order_release);
     forceHighSweepPressure_.store(false, std::memory_order_release);
     sweepPressureMode_.store(static_cast<int>(SweepPressureMode::LOW), std::memory_order_release);
-    return true;
 }
 
 void CentralRegionPool::MaybeNotifySweep(uint8_t cls) const
@@ -205,7 +252,7 @@ MSRegionInfo* CentralRegionPool::TakeUnsweptRegion(uint8_t cls)
         }
     };
 
-    if (skipLazySweep_.load(std::memory_order_acquire)) {
+    if (!TryEnterSweep()) {
         return nullptr;
     }
 
@@ -214,18 +261,9 @@ MSRegionInfo* CentralRegionPool::TakeUnsweptRegion(uint8_t cls)
     msRegionManager_->MaybeNotifySweep(this, cls);
     activeLazySweepCount_.fetch_add(1, std::memory_order_relaxed);
 
-    // Double-check after increment to close the race with StopAndWaitForAllSweep.
-    // The increment (a store to activeLazySweepCount_) and this skip re-load form
-    // a StoreLoad pair against StopAndWaitForAllSweep's skip-store / count-load.
-    // acquire/release alone does NOT order StoreLoad across two different atomics,
-    // so without this seq_cst fence the increment can sink below the skip load:
-    // Stop then observes count==0, runs ClearAllMarkBitmaps concurrently with this
-    // thread's SweepRegion, and ~markBitmap frees LIVE objects (corrupting e.g. the
-    // JSON parse buffer). The matching fence lives in StopAndWaitForAllSweep.
-    std::atomic_thread_fence(std::memory_order_seq_cst);
     if (skipLazySweep_.load(std::memory_order_acquire)) {
         activeLazySweepCount_.fetch_sub(1, std::memory_order_release);
-        (void)TryPublishSweepDone();
+        LeaveSweep();
         return nullptr;
     }
 
@@ -234,7 +272,7 @@ MSRegionInfo* CentralRegionPool::TakeUnsweptRegion(uint8_t cls)
         sweptRegion = SweepUnsweptList(UnsweptListKind::FULL);
     }
     activeLazySweepCount_.fetch_sub(1, std::memory_order_release);
-    (void)TryPublishSweepDone();
+    LeaveSweep();
     return sweptRegion;
 }
 
@@ -691,16 +729,14 @@ void CentralRegionPool::PrepareForSweep()
 
 void CentralRegionPool::BackgroundSweep(uint8_t preferredCls, uint64_t deadlineUs)
 {
+    if (!TryEnterSweep()) {
+        return;
+    }
     bgSweepRunning_.store(true, std::memory_order_release);
     auto finish = [this]() {
         bgSweepRunning_.store(false, std::memory_order_release);
+        LeaveSweep();
     };
-
-    // seq_cst fence: bgSweepRunning_ store + stopSweepRequested_ load form a
-    // StoreLoad pair against StopAndWaitForAllSweep (which stores stopSweepRequested_
-    // then loads bgSweepRunning_). Without it the background SweepRegion could run
-    // concurrently with ClearAllMarkBitmaps and free live objects.
-    std::atomic_thread_fence(std::memory_order_seq_cst);
 
     if (stopSweepRequested_.load(std::memory_order_acquire)) {
         finish();
@@ -711,22 +747,18 @@ void CentralRegionPool::BackgroundSweep(uint8_t preferredCls, uint64_t deadlineU
     size_t remainingUnswept = GetTotalUnsweptCount();
     if (remainingUnswept == 0) {
         finish();
-        (void)TryPublishSweepDone();
         return;
     }
     size_t sweptInSlice = 0;
-    bool pendingWork = false;
 
     auto SweepBucket = [&](uint8_t cls) -> bool {
         SizeClassBucket& bucket = buckets_[cls];
         if (!SweepUnsweptList(bucket, SizeClassBucket::UnsweptListKind::PARTIAL,
                               sg, sweptInSlice, SIZE_MAX, deadlineUs)) {
-            pendingWork = true;
             return false;
         }
         if (!SweepUnsweptList(bucket, SizeClassBucket::UnsweptListKind::FULL,
                               sg, sweptInSlice, SIZE_MAX, deadlineUs)) {
-            pendingWork = true;
             return false;
         }
         return true;
@@ -741,19 +773,18 @@ void CentralRegionPool::BackgroundSweep(uint8_t preferredCls, uint64_t deadlineU
 
     RecordBackgroundSweep(sweptInSlice);
     finish();
-    if (!pendingWork) {
-        (void)TryPublishSweepDone();
-    }
 }
 
 void CentralRegionPool::ParallelSweep(uint8_t preferredCls, uint64_t deadlineUs)
 {
+    if (!TryEnterSweep()) {
+        return;
+    }
     activeHelperSweepCount_.fetch_add(1, std::memory_order_relaxed);
-    std::atomic_thread_fence(std::memory_order_seq_cst);
     if (skipHelperSweep_.load(std::memory_order_acquire) ||
         stopSweepRequested_.load(std::memory_order_acquire)) {
         activeHelperSweepCount_.fetch_sub(1, std::memory_order_release);
-        (void)TryPublishSweepDone();
+        LeaveSweep();
         return;
     }
 
@@ -774,14 +805,15 @@ void CentralRegionPool::ParallelSweep(uint8_t preferredCls, uint64_t deadlineUs)
 
     RecordHelperSweep(sweptInSlice);
     activeHelperSweepCount_.fetch_sub(1, std::memory_order_release);
-    (void)TryPublishSweepDone();
+    LeaveSweep();
 }
 
 MSSweepAssistResult CentralRegionPool::MSSweepAssist(AllocBufferMS& owner, size_t debtRegions,
                                                      uint8_t preferredCls)
 {
     MSSweepAssistResult result;
-    if (debtRegions == 0 || sweepDone_.load(std::memory_order_acquire)) {
+    if (debtRegions == 0 || sweepDone_.load(std::memory_order_acquire) ||
+        GetTotalUnsweptCount() == 0) {
         result.sweepComplete = sweepDone_.load(std::memory_order_acquire);
         return result;
     }
@@ -805,8 +837,8 @@ MSSweepAssistResult CentralRegionPool::MSSweepAssist(AllocBufferMS& owner, size_
         return result;
     }
 
-    // AssistSweep carries the activeAssistSweepCount_ guard + seq_cst fence + skip
-    // checks that pair with StopAndWaitForAllSweep, so STW correctness is preserved.
+    // AssistSweep carries the unified admission guard. GC closes that guard
+    // before clearing mark bitmaps, so no new SweepRegion can start afterward.
     result.assistPaidRegions = AssistSweep(toSweep, preferredCls, &owner);
     result.sweepComplete = sweepDone_.load(std::memory_order_acquire);
     return result;
@@ -816,9 +848,12 @@ SweepPressureMode CentralRegionPool::RefreshSweepDebtSnapshot(size_t thresholdBy
 {
     size_t unsweptBytes = GetTotalUnsweptBytes();
     bool forcedHigh = forceHighSweepPressure_.load(std::memory_order_acquire);
-    SweepPressureMode mode = sweepDone_.load(std::memory_order_acquire)
+    SweepPressureMode mode = sweepDone_.load(std::memory_order_acquire) || unsweptBytes == 0
         ? SweepPressureMode::LOW
         : EvaluateSweepPressure(unsweptBytes, sweptBytes, thresholdBytes, forcedHigh);
+    if (unsweptBytes == 0) {
+        forceHighSweepPressure_.store(false, std::memory_order_release);
+    }
     sweepPressureMode_.store(static_cast<int>(mode), std::memory_order_release);
 
     return mode;
@@ -826,7 +861,7 @@ SweepPressureMode CentralRegionPool::RefreshSweepDebtSnapshot(size_t thresholdBy
 
 void CentralRegionPool::ForceHighSweepPressure()
 {
-    if (sweepDone_.load(std::memory_order_acquire)) {
+    if (sweepDone_.load(std::memory_order_acquire) || GetTotalUnsweptCount() == 0) {
         return;
     }
     forceHighSweepPressure_.store(true, std::memory_order_release);
@@ -845,15 +880,14 @@ size_t CentralRegionPool::AssistSweep(size_t targetRegions, uint8_t preferredCls
         return 0;
     }
 
+    if (!TryEnterSweep()) {
+        return 0;
+    }
     activeAssistSweepCount_.fetch_add(1, std::memory_order_relaxed);
-
-    // Pair with StopAndWaitForAllSweep's seq_cst fence so the assist-skip store
-    // and activeAssistSweepCount_ load form a sequentially consistent StoreLoad.
-    std::atomic_thread_fence(std::memory_order_seq_cst);
     if (skipAssistSweep_.load(std::memory_order_acquire) ||
         stopSweepRequested_.load(std::memory_order_acquire)) {
         activeAssistSweepCount_.fetch_sub(1, std::memory_order_release);
-        (void)TryPublishSweepDone();
+        LeaveSweep();
         return 0;
     }
 
@@ -877,7 +911,7 @@ size_t CentralRegionPool::AssistSweep(size_t targetRegions, uint8_t preferredCls
         }
     }
     activeAssistSweepCount_.fetch_sub(1, std::memory_order_release);
-    (void)TryPublishSweepDone();
+    LeaveSweep();
     return sweptRegions;
 }
 
@@ -1094,11 +1128,11 @@ void CentralRegionPool::ForceFinishAllUnsweptForOOM()
     CHECK(GetTotalUnsweptCount() == 0);
     CHECK(GetTotalUnsweptCountReference() == 0);
     forceFinishSweepRunning_.store(false, std::memory_order_release);
-
-    // A mutator can transiently enter an admission guard and immediately leave
-    // after observing the closed gate. Such a guard does not execute SweepRegion,
-    // so publication may legitimately be completed by its exit path instead.
-    (void)TryPublishSweepDone();
+    // OOM force-finish is an emergency allocation path, not normal completion
+    // of this sweep epoch. Keep sweepDone_ unchanged; only the normal GC
+    // StopAndWaitForAllSweep path may publish it.
+    forceHighSweepPressure_.store(false, std::memory_order_release);
+    sweepPressureMode_.store(static_cast<int>(SweepPressureMode::LOW), std::memory_order_release);
     VLOG(REPORT,
          "[MS-GC] OOM force sweep: unswept=%zu->0 emptyCacheRegions=%zu largeCacheRegions=%zu",
          unsweptBefore, GetEmptySweptRegionCount(), GetLargeHotCacheRegionCount());
@@ -1551,47 +1585,26 @@ void CentralRegionPool::StopAndWaitForAllSweep()
     // still be inside SweepRegion on another thread.
     ForceFinishAllUnswept();
 
-    // 2. Close all Sweep admission paths before establishing quiescence. These
-    // gates stay closed through the next Mark and are reopened in MarkTermination.
+    // 2. Close all Sweep admission paths before establishing quiescence. The
+    // unified admission word makes closing and active-count accounting one
+    // atomic protocol; these flags remain as lane-specific fast exits.
     stopSweepRequested_.store(true, std::memory_order_release);
     skipLazySweep_.store(true, std::memory_order_release);
     skipAssistSweep_.store(true, std::memory_order_release);
     skipHelperSweep_.store(true, std::memory_order_release);
 
-    // Pair with the seq_cst fences on the lazy-sweep / assist-sweep paths: this
-    // makes the skip-store / active*SweepCount-load a sequentially consistent
-    // StoreLoad, so any thread that already entered SweepRegion is guaranteed
-    // visible in the waits below. Without it, ClearAllMarkBitmaps (called right
-    // after) could clear a markBitmap while a mutator-side SweepRegion is still
-    // reading it.
-    std::atomic_thread_fence(std::memory_order_seq_cst);
+    // 3. Wait for every admitted sweep source. A worker that starts after this
+    // close cannot increment the packed active count.
+    CloseSweepAdmissionAndWait();
 
-    // 3. Wait for background sweep to finish its current iteration.
-    while (bgSweepRunning_.load(std::memory_order_acquire)) {
-        std::this_thread::yield();
-    }
-
-    // 4. Wait for all in-flight lazy sweeps to complete.
-    //    After skipLazySweep_=true, stopSweepRequested_=true and the counter
-    //    is zero, no SweepRegion is running and no new one can start.
-    while (activeLazySweepCount_.load(std::memory_order_acquire) > 0) {
-        std::this_thread::yield();
-    }
-    while (activeAssistSweepCount_.load(std::memory_order_acquire) > 0) {
-        std::this_thread::yield();
-    }
-    while (activeHelperSweepCount_.load(std::memory_order_acquire) > 0) {
-        std::this_thread::yield();
-    }
-
-    // 5. Drain anything published or left unclaimed while admission was being
+    // 4. Drain anything left unclaimed while admission was being
     // closed. With every in-flight source quiescent, this is the final serial
     // closure before mark bitmap clearing.
     ForceFinishAllUnswept();
     CHECK(GetTotalUnsweptCount() == 0);
     CHECK(GetTotalUnsweptCountReference() == 0);
     forceFinishSweepRunning_.store(false, std::memory_order_release);
-    CHECK(TryPublishSweepDone());
+    PublishSweepDoneAfterQuiescence();
     CHECK(IsSweepDone());
 
     size_t unsweptAfter = GetTotalUnsweptCount();
@@ -1675,6 +1688,7 @@ void CentralRegionPool::ReenableLazySweep()
     skipAssistSweep_.store(false, std::memory_order_release);
     skipHelperSweep_.store(false, std::memory_order_release);
     stopSweepRequested_.store(false, std::memory_order_release);
+    OpenSweepAdmission();
 }
 
 } // namespace MapleRuntime

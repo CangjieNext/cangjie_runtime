@@ -352,7 +352,7 @@ public:
 
     bool HasPendingSweepWork() const
     {
-        return !stopSweepRequested_.load(std::memory_order_acquire) &&
+        return IsSweepAdmissionOpen() &&
                GetTotalUnsweptCount() > 0;
     }
 
@@ -366,12 +366,9 @@ public:
     bool IsSweepDone() const
     {
         return !forceFinishSweepRunning_.load(std::memory_order_acquire) &&
-            IsMSSweepQuiescent(
-            sweepDone_.load(std::memory_order_acquire),
-            bgSweepRunning_.load(std::memory_order_acquire),
-            activeLazySweepCount_.load(std::memory_order_acquire),
-            activeAssistSweepCount_.load(std::memory_order_acquire),
-            activeHelperSweepCount_.load(std::memory_order_acquire));
+            sweepDone_.load(std::memory_order_acquire) &&
+            (sweepAdmission_.load(std::memory_order_acquire) &
+             kSweepAdmissionActiveMask) == 0;
     }
 
     // Visit all Regions across all size classes (for GC root enumeration).
@@ -760,7 +757,15 @@ private:
                                 uint32_t sg, size_t& sweptRegions, size_t& emptiedRegions,
                                 size_t& retainedRegions, size_t& freedBytes);
     void ForceFinishAllUnswept();
-    bool TryPublishSweepDone();
+    bool TryEnterSweep();
+    void LeaveSweep();
+    void CloseSweepAdmissionAndWait();
+    void OpenSweepAdmission();
+    void PublishSweepDoneAfterQuiescence();
+    bool IsSweepAdmissionOpen() const
+    {
+        return (sweepAdmission_.load(std::memory_order_acquire) & kSweepAdmissionClosed) == 0;
+    }
     size_t AssistSweep(size_t targetRegions, uint8_t preferredCls, AllocBufferMS* preferredOwner);
     bool SweepOneUnsweptRegionForAssist(SizeClassBucket& bucket, SizeClassBucket::UnsweptListKind listKind,
                                         uint32_t sg, AllocBufferMS* preferredOwner,
@@ -805,11 +810,17 @@ private:
             sweepCredit_.Add(sweptRegions);
         }
     }
+    static constexpr uint64_t kSweepAdmissionClosed = 1ULL << 63;
+    static constexpr uint64_t kSweepAdmissionActiveMask = ~kSweepAdmissionClosed;
+
     static std::atomic<uint32_t> globalSweepGen_;
     std::atomic<bool> sweepDone_{true};
     std::atomic<bool> bgSweepRunning_{false};
-    // Sweep admission gate for the Mark handoff. Bounded slices admitted before
-    // closure finish normally; StopAndWaitForAllSweep waits for their counters.
+    // One atomic word linearizes sweep admission with the active-worker count.
+    // The high bit closes admission; the remaining bits count all admitted
+    // lazy/assist/helper/background sweep operations. This avoids a late
+    // counter increment after StopAndWaitForAllSweep has observed quiescence.
+    std::atomic<uint64_t> sweepAdmission_{0};
     std::atomic<bool> stopSweepRequested_{false};
     std::atomic<bool> skipLazySweep_{false};          // Disable lazy sweep in GetRegion P2/P3
     std::atomic<bool> skipAssistSweep_{false};        // Disable mutator assist sweep before STW

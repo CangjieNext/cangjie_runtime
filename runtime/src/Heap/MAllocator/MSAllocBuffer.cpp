@@ -684,7 +684,10 @@ void AllocBufferMS::AccumulateSweepDebt(size_t allocatedRegions, uint8_t preferr
         sweepDebtGen_ = currentGeneration;
     }
 
-    if (central_->IsSweepDone()) {
+    // An emergency OOM force-finish intentionally does not publish
+    // sweepDone_. If the admission is open but no unswept work remains, there
+    // is nevertheless no debt left for this allocation buffer to repay.
+    if (central_->IsSweepDone() || !central_->HasPendingSweepWork()) {
         sweepAssistDebtScaled_ = 0;
         return;
     }
