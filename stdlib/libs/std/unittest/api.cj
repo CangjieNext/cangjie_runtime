@@ -434,7 +434,7 @@ public class ConcurrentTestCase {
         body!: (T) -> ConcurrentScenario<S>,
         configuration!: Configuration = Configuration()
     ): ConcurrentTestCase where S <: Any {
-        let executor = ConcurrentExecutor<S>(strategy: strategy, body: body)
+        let executor = ConcurrentExecutor<T, S>(strategy: strategy, body: body)
         ConcurrentTestCase(name, configuration, executor)
     }
 }

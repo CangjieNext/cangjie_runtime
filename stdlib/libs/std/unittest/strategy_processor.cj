@@ -492,20 +492,13 @@ sealed abstract class DataStrategyProcessor<T> {
         UnitTestCase.createParameterized<T>(caseName, this, configuration: configuration, body: doRun)
     }
 
-    public func intoStressTestCase(
+    public func intoStressTestCase<S>(
         caseName!: String,
         configuration!: Configuration,
-        doRun!: (T) -> ConcurrentScenario
+        doRun!: (T) -> ConcurrentScenario<S>
     ): ConcurrentTestCase {
-        ConcurrentTestCase.createParameterized<T>(caseName, this, configuration: configuration, body: doRun)
+        ConcurrentTestCase.createParameterized<T, S>(caseName, this, configuration: configuration, body: doRun)
     }
-
-    // /**
-    //  * TODO
-    //  */ 
-    // public func intoStressTest<R>(configuration!: Configuration, operation!: (T) -> R): ConcurrentTest {
-    //     ConcurrentTest.createParameterized<T>
-    // }
 
     /** Starting point for combinding/mapping `DataStategy`es.
      *
