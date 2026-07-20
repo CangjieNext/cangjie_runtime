@@ -33,6 +33,7 @@
 #include "Heap/Collector/ForwardDataManager.h"
 #include "Heap/Heap.h"
 #include "Mutator/MutatorManager.h"
+#include "ObjectModel/RefField.inline.h"
 #include "TypeInfoManager.h"
 
 #ifndef _WIN32
@@ -772,10 +773,9 @@ void MarkSweepCollector::ConcurrentMark()
     // 12. Run concurrent marking loop using gcThreadWork_ + globalFull_.
     RunConcurrentMarkLoop();
 
-    // 11. Process WeakRefs deferred during concurrent mark, before entering STW.
-    ProcessDeferredWeakRefsPreSTW();
-
-    // 12. Stop assist by clearing ratio.
+    // 11. Stop assist by clearing ratio. WeakRefs deferred by concurrent
+    // workers remain in deferredMainThreadQueue_ and are classified only after
+    // all mutators have stopped in MarkTermination.
     assistWorkPerByteScaled_.store(0, std::memory_order_release);
 }
 
@@ -1077,58 +1077,6 @@ void MarkSweepCollector::DrainMarkWorkStack()
         }
 
         TraceObjectRefFields(obj, markWorkStack_.UnsafeRaw());
-    }
-}
-
-// ============================================================================
-// ProcessDeferredWeakRefsPreSTW: handle WeakRefs deferred by assist threads
-// during concurrent mark, on the GC thread, non-STW.
-// ============================================================================
-
-void MarkSweepCollector::ProcessDeferredWeakRefsPreSTW()
-{
-    // Drain items pushed by PushSingleToDeferredMainThread (from assist threads).
-    // Assists are now disabled (ratio = 0), so no concurrent writers.
-    GreyWorkQueue localQueue;
-    GreyWorkQueue keepForMarkTermination;
-    {
-        std::lock_guard<std::mutex> lock(deferredMainThreadMutex_);
-        localQueue.insert(deferredMainThreadQueue_);
-    }
-    if (localQueue.empty()) {
-        return;
-    }
-
-    size_t processed = 0;
-    while (!localQueue.empty()) {
-        BaseObject* obj = localQueue.back();
-        localQueue.pop_back();
-        if (obj == nullptr || !obj->HasRefField()) {
-            continue;
-        }
-        if (UNLIKELY(obj->IsWeakRef())) {
-            RefField<>* referentField = reinterpret_cast<RefField<>*>(
-                reinterpret_cast<uintptr_t>(obj) + sizeof(uintptr_t));
-            BaseObject* referent = GetAndTryTagObj(obj, *referentField);
-            if (referent != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(referent))) {
-                WeakRefBuffer::Instance().Insert(obj);
-            }
-            processed++;
-            continue;
-        }
-        // Non-WeakRef deferred items may still be under construction (for
-        // example newly-created finalizer objects). Keep them for
-        // MarkTermination so the GC main thread scans them under STW after
-        // mutator initialization stores have quiesced.
-        keepForMarkTermination.PushMovedGrey(obj);
-    }
-    if (!keepForMarkTermination.empty()) {
-        std::lock_guard<std::mutex> lock(deferredMainThreadMutex_);
-        deferredMainThreadQueue_.insert(keepForMarkTermination);
-    }
-    DrainMarkWorkStack();
-    if (processed > 0) {
-        VLOG(REPORT, "[MS-GC] ProcessDeferredWeakRefsPreSTW: %zu deferred items processed", processed);
     }
 }
 
@@ -1488,56 +1436,33 @@ void MarkSweepCollector::MarkTermination()
     SnapshotAssistStats();
 
     GreyWorkQueue mainQueue;
-    size_t pendingSourceEntries = 0;
-    size_t resurrectionEntries = 0;
+    // 1. Complete the ordinary mark closure first. Finalizer reachability must
+    // be classified against this stable bitmap, before resurrection marks are
+    // added to it.
+    size_t pendingSourceEntries = DrainMarkTerminationToFixedPoint(mainQueue);
 
-    auto collectPendingMarkWork = [this, &mainQueue]() -> size_t {
-        size_t before = mainQueue.size();
-        FlushAllWriteBarrierBuffers(mainQueue);
-        DisposeAllPerPGCWork();
-        DrainGlobalLFStackToMainQueue(mainQueue);
-        DrainDeferredMainThreadQueueToMainQueue(mainQueue);
-        return mainQueue.size() - before;
-    };
+    // 2. Snapshot the registered Finalizer population and move only objects
+    // that are unreachable in the ordinary closure into the finalizable roots.
+    PrepareFinalizersForResurrection();
 
-    // 1. Collect pending mutator/barrier/concurrent-mark work. Some paths can
-    // publish grey work very close to the STW boundary, so MarkTermination drains
-    // all sources to a fixed point instead of relying on a single snapshot.
-    pendingSourceEntries += collectPendingMarkWork();
+    // 3. Mark newly-finalizable objects and their strong children to complete
+    // the resurrection closure. Weak referents encountered here are registered
+    // but are not followed as strong edges.
+    CollectResurrectionCandidatesToMain(mainQueue);
+    size_t resurrectionEntries = mainQueue.size();
+    pendingSourceEntries += DrainMarkTerminationToFixedPoint(mainQueue);
 
-    // 2. Collect resurrection/finalizer-related candidates.
-    {
-        CollectResurrectionCandidatesToMain(mainQueue);
-        resurrectionEntries = mainQueue.size() - pendingSourceEntries;
-    }
+    // 4. The final mark bitmap is now stable. Resolve every live WeakRef before
+    // mutators resume and before any Region can be published for sweep.
+    ClearWeakRefsAfterMark();
 
-    // 3. Drain main queue with Execute-like loop (same as concurrent mark logic)
-    // and re-check all external work sources until no delayed grey work remains.
-    {
-        size_t lateSourceEntries = 0;
-        size_t drainRounds = 0;
-        do {
-            drainRounds++;
-            ExecuteLikeDrainMainQueue(mainQueue);
-            size_t added = collectPendingMarkWork();
-            lateSourceEntries += added;
-            pendingSourceEntries += added;
-        } while (!mainQueue.empty());
-        if (lateSourceEntries != 0 || drainRounds > 1) {
-            VLOG(REPORT,
-                 "[MS-GC] MarkTermination fixed-point drain: rounds=%zu lateEntries=%zu",
-                 drainRounds,
-                 lateSourceEntries);
-        }
-    }
-
-    // 4b. Diagnostic: marking is now complete and all mutators are frozen
+    // 5. Diagnostic: marking is now complete and all mutators are frozen
     // (STW). This is the authoritative window to verify mark completeness —
     // no concurrent mutation can produce false positives. No-op unless the
     // env var cjMSVerifyMark is set.
     VerifyMarkCompleteness();
 
-    // 5. Reset all per-P gcWork and return WorkBufs to pool.
+    // 6. Reset all per-P gcWork and return WorkBufs to pool.
     // NOTE: sweep generation is flipped in PreEnumRoots (before mark), NOT
     // here. Flipping after mark would let regions allocated during this
     // cycle's mark phase keep the old generation and be swept this cycle,
@@ -1618,12 +1543,50 @@ void MarkSweepCollector::DrainDeferredMainThreadQueueToMainQueue(GreyWorkQueue& 
     }
 }
 
+size_t MarkSweepCollector::DrainMarkTerminationToFixedPoint(GreyWorkQueue& mainQueue)
+{
+    size_t sourceEntries = 0;
+    size_t drainRounds = 0;
+    do {
+        drainRounds++;
+        ExecuteLikeDrainMainQueue(mainQueue);
+
+        size_t before = mainQueue.size();
+        FlushAllWriteBarrierBuffers(mainQueue);
+        DisposeAllPerPGCWork();
+        DrainGlobalLFStackToMainQueue(mainQueue);
+        DrainDeferredMainThreadQueueToMainQueue(mainQueue);
+        sourceEntries += mainQueue.size() - before;
+    } while (!mainQueue.empty());
+
+    if (sourceEntries != 0 || drainRounds > 1) {
+        VLOG(REPORT,
+             "[MS-GC] MarkTermination fixed-point drain: rounds=%zu sourceEntries=%zu",
+             drainRounds,
+             sourceEntries);
+    }
+    return sourceEntries;
+}
+
+void MarkSweepCollector::PrepareFinalizersForResurrection()
+{
+    RootVisitor snapshotVisitor = [](ObjectRef&) {};
+    snapshotFinalizerNum = collectorResources.VisitFinalizers(snapshotVisitor);
+
+    std::function<bool(BaseObject*)> finalizable = [this](BaseObject* obj) {
+        if (!IsTraceableObjectAddress(obj) || !obj->IsValidObject()) {
+            return false;
+        }
+        return !IsMarkedObject(obj);
+    };
+    collectorResources.EnqueueFinalizables(finalizable, snapshotFinalizerNum);
+}
+
 void MarkSweepCollector::CollectResurrectionCandidatesToMain(GreyWorkQueue& mainQueue)
 {
     VisitFinalizerRoots([&mainQueue, this](ObjectRef& ref) {
         BaseObject* finalizerObj = ref.object;
-        if (finalizerObj != nullptr && finalizerObj->IsValidObject() &&
-            IsManagedAddress(reinterpret_cast<MAddress>(finalizerObj))) {
+        if (IsTraceableObjectAddress(finalizerObj) && finalizerObj->IsValidObject()) {
             (void)TryEnqueueGreyObject(finalizerObj, mainQueue);
         }
     });
@@ -1648,19 +1611,44 @@ void MarkSweepCollector::ExecuteLikeDrainMainQueue(GreyWorkQueue& mainQueue)
         }
 
         if (UNLIKELY(obj->IsWeakRef())) {
-            RefField<>* referentField =
-                reinterpret_cast<RefField<>*>(reinterpret_cast<uintptr_t>(obj) + sizeof(uintptr_t));
-            BaseObject* referent = GetAndTryTagObj(obj, *referentField);
-            if (referent != nullptr && IsManagedAddress(reinterpret_cast<MAddress>(referent))) {
-                TraceObjectRefFields(referent, mainQueue.UnsafeRaw());
-                WeakRefBuffer::Instance().Insert(obj);
-            }
+            WeakRefBuffer::Instance().Insert(obj);
             continue;
         }
 
         TraceObjectRefFields(obj, mainQueue.UnsafeRaw());
     }
 
+}
+
+void MarkSweepCollector::ClearWeakRefsAfterMark()
+{
+    size_t cleared = 0;
+    size_t preserved = 0;
+    WeakRefBuffer::Instance().DrainWeakRefs([this, &cleared, &preserved](BaseObject* weakRef) {
+        if (!IsTraceableObjectAddress(weakRef) || !weakRef->IsValidObject()) {
+            return;
+        }
+
+        RefField<>* referentField = reinterpret_cast<RefField<>*>(
+            reinterpret_cast<uintptr_t>(weakRef) + TYPEINFO_PTR_SIZE);
+        BaseObject* referent = referentField->GetTargetObject();
+        if (referent == nullptr || !IsManagedAddress(reinterpret_cast<MAddress>(referent))) {
+            return;
+        }
+
+        bool referentMarked = IsTraceableObjectAddress(referent) &&
+            referent->IsValidObject() && IsMarkedObject(referent);
+        if (!referentMarked) {
+            referentField->SetTargetObject(nullptr);
+            cleared++;
+            return;
+        }
+        preserved++;
+    });
+    VLOG(REPORT,
+         "[MS-GC] ProcessWeakRefs(STW): cleared=%zu preserved=%zu",
+         cleared,
+         preserved);
 }
 
 // ============================================================================
@@ -1675,20 +1663,13 @@ void MarkSweepCollector::PostMarkTermination()
     // Phase transition and WB clear already done in MarkTermination (inside STW).
     // No need to transition again or clear WB buffers here.
 
-    // 1. Weak reference cleanup: referent not marked → set to null
-    {
-        uint64_t t0 = TimeUtil::MicroSeconds();
-        WeakRefBuffer::Instance().ClearWeakRefBuffer();
-        uint64_t weakRefUs = TimeUtil::MicroSeconds() - t0;
-        VLOG(REPORT, "[MS-GC] ProcessWeakRefs: %sus", Pretty(weakRefUs).Str());
-    }
-
-    // 2. Finalizer processing: enqueue unreachable finalizer objects
+    // 1. Finalizer reachability and resurrection were completed under STW.
+    // PostMark only wakes the worker for the already-published finalizable set.
     {
         uint64_t t0 = TimeUtil::MicroSeconds();
         ProcessFinalizers();
         uint64_t finalizerUs = TimeUtil::MicroSeconds() - t0;
-        VLOG(REPORT, "[MS-GC] EnqueueFinalizers: enqueued %u objects, %sus",
+        VLOG(REPORT, "[MS-GC] Finalizers: snapshot=%u objects, notify=%sus",
              snapshotFinalizerNum, Pretty(finalizerUs).Str());
     }
 
@@ -1736,10 +1717,6 @@ void MarkSweepCollector::PostMarkTermination()
 
 void MarkSweepCollector::ProcessFinalizers()
 {
-    std::function<bool(BaseObject*)> finalizable = [this](BaseObject* obj) {
-        return !IsMarkedObject(obj);
-    };
-    collectorResources.EnqueueFinalizables(finalizable, snapshotFinalizerNum);
     collectorResources.NotifyFinalizerWork();
 }
 

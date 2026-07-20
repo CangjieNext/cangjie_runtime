@@ -99,6 +99,14 @@ void FinalizerWorkList::ProcessFinalizableList(const std::function<bool()>& shou
             LOG(RTLOG_FATAL, "FatalException happened in finalizer");
         }
         ExceptionManager::ClearPendingException();
+#ifdef MRT_USE_MARK_SWEEP
+        // A Finalizer that started before MSGC may finish after the initial
+        // root snapshot. Shade it before removing the working-list root so a
+        // self-resurrection (or its current strong closure) cannot be swept.
+        // MarkNewObject is phase-gated and defers ref-field scanning to the
+        // MarkTermination fixed point.
+        Heap::GetHeap().GetCollector().MarkNewObject(finalizeObjAddr);
+#endif
         {
             std::lock_guard<std::mutex> l(listLock);
             itor = workingFinalizables.erase(itor);
@@ -112,12 +120,16 @@ void FinalizerWorkList::ProcessFinalizables(const std::function<bool()>& shouldK
     {
         ScopedObjectAccess soa;
         std::lock_guard<std::mutex> l(listLock);
-        workingFinalizables.swap(finalizables);
+        if (workingFinalizables.empty()) {
+            workingFinalizables.swap(finalizables);
+        }
     }
     DLOG(FINALIZE, "finalizer: working size %zu", workingFinalizables.size());
     ProcessFinalizableList(shouldKeepRunning);
-    if (finalizables.empty()) {
-        hasFinalizableJob.store(false, std::memory_order_relaxed);
+    {
+        std::lock_guard<std::mutex> l(listLock);
+        bool hasPending = !finalizables.empty() || !workingFinalizables.empty();
+        hasFinalizableJob.store(hasPending, std::memory_order_relaxed);
     }
 }
 

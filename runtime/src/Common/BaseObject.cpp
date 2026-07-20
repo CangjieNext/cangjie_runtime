@@ -8,7 +8,7 @@
 #include "Heap/Allocator/Allocator.h"
 #include "Heap/Allocator/RegionInfo.h"
 #include "Heap/Collector/Collector.h"
-#include "Heap/Collector/FinalizerProcessor.h"
+#include "Heap/Collector/CollectorResources.h"
 #include "ObjectModel/MArray.h"
 #include "ObjectModel/MArray.inline.h"
 #include "ObjectModel/MObject.h"
@@ -155,7 +155,7 @@ void BaseObject::OnFinalizerCreated()
     Heap& heap = Heap::GetHeap();
     // every newly-created object is marked during gc for mark-sweep gc.
     heap.GetCollector().MarkNewObject(this);
-    heap.GetFinalizerProcessor().RegisterFinalizer(this);
+    heap.GetCollectorResources().RegisterFinalizer(this);
 }
 
 bool BaseObject::IsInTraceRegion() const

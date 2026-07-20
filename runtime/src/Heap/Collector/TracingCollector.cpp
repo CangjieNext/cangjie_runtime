@@ -558,8 +558,15 @@ void TracingCollector::Fini() { Collector::Fini(); }
 
 void TracingCollector::EnumFinalizerProcessorRoots(RootSet& rootSet) const
 {
+#ifndef MRT_USE_MARK_SWEEP
     RootVisitor visitor = [this, &rootSet](ObjectRef& root) { EnumAndTagRawRoot(root, rootSet); };
-    collectorResources.GetFinalizerProcessor().VisitGCRoots(visitor);
+    collectorResources.VisitFinalizerGCRoots(visitor);
+#else
+    // MSGC must classify registered Finalizers against the ordinary mark
+    // closure before finalizable/working roots are added as resurrection roots.
+    // MarkTermination performs that ordered processing under STW.
+    (void)rootSet;
+#endif
 }
 
 void TracingCollector::EnumAllSurrectedExportRoots(RootSet &rootSet)

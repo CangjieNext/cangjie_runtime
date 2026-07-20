@@ -219,9 +219,11 @@ private:
     void FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue);
 
     void DrainDeferredMainThreadQueueToMainQueue(GreyWorkQueue& mainQueue);
-    void ProcessDeferredWeakRefsPreSTW();  // Non-STW WeakRef processing after concurrent mark
+    size_t DrainMarkTerminationToFixedPoint(GreyWorkQueue& mainQueue);
+    void PrepareFinalizersForResurrection();
     void CollectResurrectionCandidatesToMain(GreyWorkQueue& mainQueue);
     void ExecuteLikeDrainMainQueue(GreyWorkQueue& mainQueue);
+    void ClearWeakRefsAfterMark();
 
     // ── Step 2.4 internals ──
     void PrepareCycleRef();

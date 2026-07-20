@@ -301,13 +301,26 @@ private:
 class WeakRefBuffer {
 public:
     static WeakRefBuffer& Instance() noexcept;
+
+    template<typename Processor>
+    void DrainWeakRefs(Processor&& processor)
+    {
+        std::unordered_set<BaseObject*> refs;
+        {
+            std::lock_guard<std::mutex> lock(mtx);
+            refs.swap(refObjBuffer);
+        }
+        for (BaseObject* obj : refs) {
+            processor(obj);
+        }
+    }
+
     void ClearWeakRefBuffer()
     {
-        for (BaseObject* obj : refObjBuffer) {
+        DrainWeakRefs([](BaseObject* obj) {
             RefField<>* referentField = reinterpret_cast<RefField<>*>((uintptr_t)obj + TYPEINFO_PTR_SIZE);
             Heap::GetBarrier().ReadWeakRef(obj, *referentField);
-        }
-        refObjBuffer.clear();
+        });
     }
     // insert weakref obj into buffer
     void Insert(BaseObject* obj)

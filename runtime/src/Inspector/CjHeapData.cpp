@@ -18,6 +18,7 @@
 #include "Common/BaseObject.h"
 #include "Common/StackType.h"
 #include "Concurrency/ConcurrencyModel.h"
+#include "Heap/Collector/CollectorResources.h"
 #include "Heap/Heap.h"
 #include "ObjectModel/RefField.h"
 #include "Sync/Sync.h"
@@ -306,7 +307,7 @@ void CjHeapData::ProcessRootFinalizer()
         };
         dumpObjects.push_back(dumpObject);
     };
-    Heap::GetHeap().GetFinalizerProcessor().VisitGCRoots(visitor);
+    Heap::GetHeap().GetCollectorResources().VisitFinalizerGCRoots(visitor);
 }
 
 void CjHeapData::WriteHeapDump()

@@ -256,7 +256,13 @@ void CollectorResources::RequestGC(GCReason reason, bool async)
 void CollectorResources::NotifyGCFinished(uint64_t gcIndex)
 {
     std::unique_lock<std::mutex> lock(gcFinishedCondMutex);
-    isGcStarted.store(false, std::memory_order_relaxed);
+    isGcStarted.store(false, std::memory_order_release);
+#ifdef MRT_USE_MARK_SWEEP
+    // PostMark publishes Finalizer work while GC is still active. Re-wake the
+    // shared background processor after reopening Finalizer admission so the
+    // notification cannot be lost behind the GC-active gate.
+    backgroundProcessor.NotifyFinalizerWork();
+#endif
     if (gcIndex != GCTask::ASYNC_TASK_INDEX) { // sync gc, need set taskIndex
         finishedGcIndex.store(gcIndex);
     }

@@ -144,8 +144,12 @@ void BackgroundProcessor::Run()
         }
 
         bool shouldContinueImmediate = false;
-        if (finalizerWorkList.HasFinalizableJob()) {
-            finalizerWorkList.ProcessFinalizables([this] { return running.load(std::memory_order_acquire); });
+        if (finalizerWorkList.HasFinalizableJob() &&
+            !Heap::GetHeap().GetCollectorResources().IsGcStarted()) {
+            finalizerWorkList.ProcessFinalizables([this] {
+                return running.load(std::memory_order_acquire) &&
+                       !Heap::GetHeap().GetCollectorResources().IsGcStarted();
+            });
             shouldContinueImmediate = finalizerWorkList.HasFinalizableJob();
         }
 
@@ -296,7 +300,9 @@ void BackgroundProcessor::RequestWork(std::atomic<bool>& flag)
 
 bool BackgroundProcessor::HasPendingWakeWork() const
 {
-    return finalizerWorkList.HasFinalizableJob() ||
+    bool hasRunnableFinalizer = finalizerWorkList.HasFinalizableJob() &&
+                                !Heap::GetHeap().GetCollectorResources().IsGcStarted();
+    return hasRunnableFinalizer ||
            shouldParallelSweep_.load(std::memory_order_relaxed) ||
            shouldBackgroundSweep_.load(std::memory_order_relaxed) ||
            shouldScavengeHeap_.load(std::memory_order_relaxed) ||
