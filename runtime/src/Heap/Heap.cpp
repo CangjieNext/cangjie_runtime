@@ -38,8 +38,16 @@ MAddress Heap::heapStartAddr = 0;
 MAddress Heap::heapCurrentEnd = 0;
 MAddress Heap::heapReservedStartAddr = 0;
 MAddress Heap::heapReservedEndAddr = 0;
+#if UINTPTR_MAX == UINT64_MAX
+static_assert(sizeof(decltype(Heap::heapReservedStartAddr)) == 8,
+              "compiler ABI: Heap::heapReservedStartAddr");
+static_assert(sizeof(decltype(Heap::heapReservedEndAddr)) == 8,
+              "compiler ABI: Heap::heapReservedEndAddr");
+#endif
 #ifdef MRT_USE_MARK_SWEEP
 uint8_t Heap::inlineFastPathGCPhase = 0;
+static_assert(sizeof(decltype(Heap::inlineFastPathGCPhase)) == 1,
+              "compiler ABI: Heap::inlineFastPathGCPhase");
 #endif
 
 void Heap::OnHeapExtended(MAddress newEnd)

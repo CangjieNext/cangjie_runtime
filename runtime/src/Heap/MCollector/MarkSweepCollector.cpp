@@ -22,6 +22,7 @@
 #include "Common/GCRefFieldScan.inline.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "Heap/MAllocator/MSAllocBuffer.h"
+#include "Heap/MAllocator/MSOOMEmergencyPolicy.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSRegionManager.h"
 #include "Heap/MAllocator/MSRegionSpace.h"
@@ -1556,7 +1557,8 @@ void MarkSweepCollector::MarkTermination()
     // Sweep epoch remains open and is tracked by CentralRegionPool counters.
     TransitionToGCPhase(GCPhase::GC_PHASE_IDLE, false);
 
-    if (centralPool != nullptr) {
+    MSPostMarkSweepPlan sweepPlan = BuildMSPostMarkSweepPlan(gcReason == GC_REASON_OOM);
+    if (centralPool != nullptr && sweepPlan.reenableAtMarkTermination) {
         centralPool->ReenableLazySweep();
     }
 }
@@ -1700,16 +1702,31 @@ void MarkSweepCollector::PostMarkTermination()
     // to HEU accounting and the asynchronous Sweep/Scavenge workers.
     RegionSpaceMS& space = reinterpret_cast<RegionSpaceMS&>(theAllocator);
     CentralRegionPool* centralPool = space.GetCentralPool();
+    MSPostMarkSweepPlan sweepPlan = BuildMSPostMarkSweepPlan(gcReason == GC_REASON_OOM);
     if (centralPool != nullptr) {
         MSMarkedStats markedStats = centralPool->ComputeMarkedStats();
         cycleStats_.trueLiveBytes = markedStats.liveBytes;
         prevCycleMarkedObjects_.store(markedStats.objectCount, std::memory_order_relaxed);
         VLOG(REPORT, "[MS-GC] Mark bitmap: objects=%zu liveBytes=%zuB",
              markedStats.objectCount, markedStats.liveBytes);
+
+        if (sweepPlan.forceFinishInPostMark) {
+            centralPool->ForceFinishAllUnsweptForOOM();
+        }
+        if (sweepPlan.flushAllCaches) {
+            size_t flushedEmptyBytes = space.FlushAllEmptySweptToHotFree();
+            size_t flushedLargeBytes = space.FlushAllLargeHotCache();
+            VLOG(REPORT,
+                 "[MS-GC] OOM cache flush: empty=%zuB large=%zuB hotFree=%zuB",
+                 flushedEmptyBytes, flushedLargeBytes, space.GetHotFreeBytesReference());
+            centralPool->ReenableLazySweep();
+        }
     }
 
     BackgroundProcessor& backgroundProcessor = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
-    backgroundProcessor.NotifyToSweep(kNoPreferredSweepClass);
+    if (sweepPlan.notifyBackgroundSweep) {
+        backgroundProcessor.NotifyToSweep(kNoPreferredSweepClass);
+    }
     backgroundProcessor.NotifyToScavenge();
 
     cycleStats_.postMarkUs = TimeUtil::MicroSeconds() - phaseStart;

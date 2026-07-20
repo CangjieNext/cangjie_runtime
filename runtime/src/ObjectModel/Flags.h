@@ -55,6 +55,8 @@ enum TypeKind : I8 {
 
 
 constexpr U32 FLAG_HAS_REF_FIELD = 0x1 << 0; // fast path to skip scanning some object
+static_assert(static_cast<U8>(TYPE_KIND_RAWARRAY) == 130, "compiler ABI: raw-array type kind");
+static_assert(FLAG_HAS_REF_FIELD == 1, "compiler ABI: has-reference-field flag");
 constexpr U32 FLAG_HAS_FINALIZER = 0x1 << 1;
 constexpr U32 FLAG_FUTURE_CLASS = 0x1 << 2;
 constexpr U32 FLAG_MUTEX_CLASS = 0x1 << 3;

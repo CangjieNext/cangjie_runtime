@@ -135,13 +135,21 @@ private:
         uint32_t maxFreeRun_ = 0;  // Opt3: max contiguous free run; skip segment when < num
         std::vector<uint64_t> allocBits_;
         std::vector<uint64_t> scavengedBits_;
+        std::vector<uint64_t> scavengingBits_;
         std::vector<ChunkSummary> chunkSummaries_;
+    };
+
+    struct PendingScavengeSpan {
+        RegionIndex idx = 0;
+        RegionCount num = 0;
+        bool released = false;
     };
 
     struct FreeManagerShard {
         mutable std::mutex shardMutex_;
         size_t freeRegionCount_ = 0;
         size_t scavengedRegionCount_ = 0;
+        size_t scavengingRegionCount_ = 0;
         RegionIndex takeCursor_ = 0;
         RegionIndex reclaimCursor_ = 0;
         std::atomic<uint16_t> nextStealDonorShard_{0};
@@ -208,7 +216,14 @@ private:
     static bool FindFreeRunInViewLocked(const OwnedSegmentView& view, size_t localStart, size_t localEnd,
                                         size_t num, size_t& localIdx);
     void RefreshRegionSnapshotsLocked(FreeManagerShard& shard);
-    size_t ScavengeOwnedFreeRegionsLocked(FreeManagerShard& shard, size_t regionBudget);
+    size_t ClaimScavengeSpansLocked(FreeManagerShard& shard,
+                                    size_t regionBudget,
+                                    std::vector<PendingScavengeSpan>& spans);
+    size_t ClaimScavengeSpansInViewLocked(FreeManagerShard& shard,
+                                          OwnedSegmentView& view,
+                                          size_t committedLocal,
+                                          size_t regionBudget,
+                                          std::vector<PendingScavengeSpan>& spans);
     void AppendGroupedOwnerSpansLocked(std::vector<std::vector<RegionSpan>>& groupedSpans,
                                        RegionIndex idx,
                                        RegionCount num) const;
@@ -236,12 +251,16 @@ private:
     size_t CountFreeInViewRangeLocked(const OwnedSegmentView& view, size_t localStart, RegionCount num) const;
     void MarkAllocatedLocked(FreeManagerShard& shard, RegionIndex idx, RegionCount num, bool& reusedScavenged);
     void MarkFreeLocked(FreeManagerShard& shard, RegionIndex idx, RegionCount num);
-    void MarkScavengedLocked(FreeManagerShard& shard, RegionIndex idx, RegionCount num);
+    void MarkScavengingLocked(FreeManagerShard& shard, RegionIndex idx, RegionCount num);
+    void CompleteScavengingLocked(FreeManagerShard& shard,
+                                  RegionIndex idx,
+                                  RegionCount num,
+                                  bool released);
     void MarkUnavailableLocked(FreeManagerShard& shard, RegionIndex idx, RegionCount num);
     void UpdateChunkSummaryLocked(OwnedSegmentView& view, size_t chunkIdx);
     void UpdateChunkSummaryRangeLocked(OwnedSegmentView& view, size_t localStart, RegionCount num);
     size_t CountTrailingFreeRegionsLocked() const;
-    void ReleaseUnits(UnitIndex idx, UnitCount num) const;
+    bool ReleaseUnits(UnitIndex idx, UnitCount num) const;
     void ReuseUnits(UnitIndex idx, UnitCount num) const;
     void CheckAlignmentConfig() const;
     size_t GetRegionSizeBytes() const;

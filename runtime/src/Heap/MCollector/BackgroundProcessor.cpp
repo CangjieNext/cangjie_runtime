@@ -167,6 +167,17 @@ void BackgroundProcessor::Run()
             shouldContinueImmediate = BackgroundShrinkLoop() || shouldContinueImmediate;
         }
 
+        bool continueParallelSweep = shouldParallelSweep_.load(std::memory_order_acquire) &&
+                                     !Heap::GetHeap().IsGcStarted();
+        if (continueParallelSweep) {
+            // Parallel slices are already time-bounded. Re-enter the outer loop
+            // immediately so pressure and helper width are refreshed at the next
+            // slice boundary without the generic yield/backoff delay.
+            backgroundBurstRounds = 0;
+            backgroundBurstStartUs = 0;
+            continue;
+        }
+
         if (shouldContinueImmediate) {
             if (backgroundBurstRounds == 0) {
                 backgroundBurstStartUs = TimeUtil::MicroSeconds();

@@ -20,6 +20,7 @@
 #include <functional>
 #include <limits>
 #include <thread>
+#include <type_traits>
 
 namespace MapleRuntime {
 
@@ -74,10 +75,20 @@ AllocBufferMS::~AllocBufferMS()
 
 AllocBufferMS::AllocBufferMS()
 {
+    static_assert(std::is_standard_layout<AllocBufferMS>::value,
+                  "AllocBufferMS must remain standard-layout for compiler ABI checks");
     // Ensure tlRegion_ is at offset 0 — same as AllocBuffer::tlRegion.
     // LLVM fast-path reads *(buffer + 0) as RegionInfo* and calls Alloc().
     static_assert(offsetof(AllocBufferMS, tlRegion_) == 0,
                   "tlRegion_ must be at offset 0 for LLVM fast-path compatibility");
+#if UINTPTR_MAX == UINT64_MAX
+    static_assert(offsetof(AllocBufferMS, activeRegions_) == 8,
+                  "activeRegions_ offset changed; update AArch64 MSGC allocation fast path");
+    static_assert(sizeof(activeRegions_[0]) == 8,
+                  "activeRegions_ stride changed; update AArch64 MSGC allocation fast path");
+#endif
+    static_assert(std::extent<decltype(activeRegions_)>::value == 36,
+                  "activeRegions_ length changed; update AArch64 MSGC allocation fast path");
     // The AArch64 MSGC write-barrier fast path loads the WorkBuf pointer
     // activeLog_ (kept at offset 896), then appends an already shaded old-ref
     // into activeLog_->objs[len++]. These offsets are the ABI contract with

@@ -35,6 +35,8 @@
 namespace MapleRuntime {
 
 namespace {
+constexpr size_t kSweepDeadlineCheckInterval = 4;
+
 void ClearSmallRegionPayload(uintptr_t regionStart)
 {
     memset(reinterpret_cast<void*>(regionStart), 0, MS_REGION_SIZE);
@@ -716,23 +718,15 @@ void CentralRegionPool::BackgroundSweep(uint8_t preferredCls, uint64_t deadlineU
     bool pendingWork = false;
 
     auto SweepBucket = [&](uint8_t cls) -> bool {
-        if (stopSweepRequested_.load(std::memory_order_acquire)) {
-            if (sweptInSlice > 0) {
-                VLOG(REPORT, "[MS-GC] BackgroundSweep: stop requested at cls=%u", (unsigned)cls);
-            }
-            pendingWork = false;
-            return false;
-        }
-
         SizeClassBucket& bucket = buckets_[cls];
         if (!SweepUnsweptList(bucket, SizeClassBucket::UnsweptListKind::PARTIAL,
                               sg, sweptInSlice, SIZE_MAX, deadlineUs)) {
-            pendingWork = !stopSweepRequested_.load(std::memory_order_acquire);
+            pendingWork = true;
             return false;
         }
         if (!SweepUnsweptList(bucket, SizeClassBucket::UnsweptListKind::FULL,
                               sg, sweptInSlice, SIZE_MAX, deadlineUs)) {
-            pendingWork = !stopSweepRequested_.load(std::memory_order_acquire);
+            pendingWork = true;
             return false;
         }
         return true;
@@ -747,7 +741,7 @@ void CentralRegionPool::BackgroundSweep(uint8_t preferredCls, uint64_t deadlineU
 
     RecordBackgroundSweep(sweptInSlice);
     finish();
-    if (!pendingWork && !stopSweepRequested_.load(std::memory_order_acquire)) {
+    if (!pendingWork) {
         (void)TryPublishSweepDone();
     }
 }
@@ -894,10 +888,6 @@ bool CentralRegionPool::SweepOneUnsweptRegionForAssist(SizeClassBucket& bucket,
                                                        size_t* emptiedInSlice)
 {
     for (;;) {
-        if (stopSweepRequested_.load(std::memory_order_acquire)) {
-            return false;
-        }
-
         MSRegionInfo* region = bucket.ClaimUnsweptHeadForSweep(listKind, sg);
         if (region == nullptr) {
             return false;
@@ -942,12 +932,11 @@ bool CentralRegionPool::SweepUnsweptList(SizeClassBucket& bucket, SizeClassBucke
                                          size_t* emptiedInSlice)
 {
     for (;;) {
-        // Check stop request per-region for prompt exit
-        if (stopSweepRequested_.load(std::memory_order_acquire)) {
+        if (sweptInSlice >= maxRegions) {
             return false;
         }
-
-        if (sweptInSlice >= maxRegions || TimeUtil::MicroSeconds() >= deadlineUs) {
+        if (sweptInSlice % kSweepDeadlineCheckInterval == 0 &&
+            TimeUtil::MicroSeconds() >= deadlineUs) {
             return false;
         }
 
@@ -987,9 +976,6 @@ bool CentralRegionPool::SweepUnsweptList(SizeClassBucket& bucket, SizeClassBucke
             bucket.PushFullSwept(region);
         }
 
-        if ((sweptInSlice & 0x7U) == 0) {
-            std::this_thread::yield();
-        }
     }
 
     return true;
@@ -1090,6 +1076,32 @@ void CentralRegionPool::ForceFinishAllUnswept()
     VLOG(REPORT,
         "[MS-GC] ForceFinishAllUnswept: swept=%zu regions, emptied=%zu, retained=%zu, freed=%s B",
         sweptRegions, emptiedRegions, retainedRegions, Pretty(freedBytes).Str());
+}
+
+void CentralRegionPool::ForceFinishAllUnsweptForOOM()
+{
+    // PreEnumRoots closed these gates before Mark and the OOM path deliberately
+    // did not reopen them in MarkTermination. Therefore GC main is the only
+    // thread that can claim a Region from this cycle's unswept lists here.
+    CHECK(stopSweepRequested_.load(std::memory_order_acquire));
+    CHECK(skipLazySweep_.load(std::memory_order_acquire));
+    CHECK(skipAssistSweep_.load(std::memory_order_acquire));
+    CHECK(skipHelperSweep_.load(std::memory_order_acquire));
+
+    forceFinishSweepRunning_.store(true, std::memory_order_release);
+    size_t unsweptBefore = GetTotalUnsweptCount();
+    ForceFinishAllUnswept();
+    CHECK(GetTotalUnsweptCount() == 0);
+    CHECK(GetTotalUnsweptCountReference() == 0);
+    forceFinishSweepRunning_.store(false, std::memory_order_release);
+
+    // A mutator can transiently enter an admission guard and immediately leave
+    // after observing the closed gate. Such a guard does not execute SweepRegion,
+    // so publication may legitimately be completed by its exit path instead.
+    (void)TryPublishSweepDone();
+    VLOG(REPORT,
+         "[MS-GC] OOM force sweep: unswept=%zu->0 emptyCacheRegions=%zu largeCacheRegions=%zu",
+         unsweptBefore, GetEmptySweptRegionCount(), GetLargeHotCacheRegionCount());
 }
 
 size_t CentralRegionPool::CountTLActiveRegions() const
@@ -1212,11 +1224,12 @@ void CentralRegionPool::DumpPoolStats() const
 
 void CentralRegionPool::AddLargeLiveRegion(MSRegionInfo* region)
 {
-    size_t spanCount = (region->regionEnd - region->RegionStart()) / MS_REGION_SIZE;
+    size_t spanCount = region->LargeSpanCount();
     MSRegionInfoArray::SetState(region, MSRegionLocation::LARGE_ACTIVE, 0);
     std::lock_guard<std::mutex> lg(largeLock_);
     largeRegionList_.Prepend(region);
     largeLiveSpanCount_.fetch_add(spanCount, std::memory_order_release);
+    largeLiveObjectBytes_.fetch_add(region->LargeObjectSize(), std::memory_order_release);
 }
 
 void CentralRegionPool::RegisterLargeRegion(MSRegionInfo* region)
@@ -1234,9 +1247,10 @@ void CentralRegionPool::CollectDeadLargeRegions(std::vector<MSRegionInfo*>& dead
         }
     });
     for (MSRegionInfo* region : toRemove) {
-        size_t spanCount = (region->regionEnd - region->RegionStart()) / MS_REGION_SIZE;
+        size_t spanCount = region->LargeSpanCount();
         largeRegionList_.Remove(region);
         largeLiveSpanCount_.fetch_sub(spanCount, std::memory_order_release);
+        largeLiveObjectBytes_.fetch_sub(region->LargeObjectSize(), std::memory_order_release);
         deadRegions.push_back(region);
     }
 }
@@ -1342,9 +1356,9 @@ void CentralRegionPool::SweepLargeRegions()
 
     // Release dead large regions
     for (MSRegionInfo* msInfo : deadRegions) {
-        uintptr_t regionStart = msInfo->allocPtr;  // For LARGE, allocPtr = start
-        size_t regionBytes = msInfo->regionEnd - regionStart;
-        size_t spanCount = (regionBytes + MS_REGION_SIZE - 1) / MS_REGION_SIZE;
+        uintptr_t regionStart = msInfo->LargeObjectStart();
+        size_t regionBytes = msInfo->LargeSpanBytes();
+        size_t spanCount = msInfo->LargeSpanCount();
 
         // Reset span MSRegionInfo entries before resetting the base entry.
         // RegisterLargeObjectMS initializes span entries with regionType=LARGE
@@ -1444,7 +1458,7 @@ MSMarkedStats CentralRegionPool::ComputeMarkedStats() const
     {
         VisitLargeRegionsLocked([&stats](MSRegionInfo* region) {
             if (region->IsMarked()) {
-                stats.AddLargeObject(region->regionEnd - region->RegionStart());
+                stats.AddLargeObject(region->LargeSpanBytes());
             }
         });
     }
@@ -1511,7 +1525,7 @@ void CentralRegionPool::VisitMarkedObjects(const std::function<void(BaseObject*)
     {
         VisitLargeRegionsLocked([&func](MSRegionInfo* region) {
             if (region->IsMarked()) {
-                func(reinterpret_cast<BaseObject*>(region->RegionStart()));
+                func(reinterpret_cast<BaseObject*>(region->LargeObjectStart()));
             }
         });
     }
@@ -1574,8 +1588,11 @@ void CentralRegionPool::StopAndWaitForAllSweep()
     // closed. With every in-flight source quiescent, this is the final serial
     // closure before mark bitmap clearing.
     ForceFinishAllUnswept();
+    CHECK(GetTotalUnsweptCount() == 0);
+    CHECK(GetTotalUnsweptCountReference() == 0);
     forceFinishSweepRunning_.store(false, std::memory_order_release);
-    (void)TryPublishSweepDone();
+    CHECK(TryPublishSweepDone());
+    CHECK(IsSweepDone());
 
     size_t unsweptAfter = GetTotalUnsweptCount();
     size_t activeBytes = GetActiveMSRegionCount() * MS_REGION_SIZE;

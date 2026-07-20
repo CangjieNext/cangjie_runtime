@@ -397,6 +397,10 @@ public:
     size_t GetActiveMSRegionCountReference() const;
     size_t GetEmptySweptRegionCount() const;
     size_t GetLargeHotCacheRegionCount() const;
+    size_t GetLargeObjectBytes() const
+    {
+        return largeLiveObjectBytes_.load(std::memory_order_acquire);
+    }
 
     // Dump CentralRegionPool 4-list statistics (block ⑤ in DFX design)
     void DumpPoolStats() const;
@@ -455,6 +459,11 @@ public:
     // remain closed through Mark and must be reopened by ReenableLazySweep().
     // Must finish before clearing markBitmaps to avoid racing SweepRegion reads.
     void StopAndWaitForAllSweep();
+
+    // OOM-only PostMark closure. The caller must keep all Sweep admission gates
+    // closed from PreEnumRoots through this call. Reuses the GC-main serial
+    // force-finish path without reopening normal Sweep until cache reclaim is done.
+    void ForceFinishAllUnsweptForOOM();
 
     // Clear markBitmaps for all active small/medium regions in MSRegionInfoArray.
     // Large regions clear their mark flag here as well.
@@ -799,7 +808,9 @@ private:
     static std::atomic<uint32_t> globalSweepGen_;
     std::atomic<bool> sweepDone_{true};
     std::atomic<bool> bgSweepRunning_{false};
-    std::atomic<bool> stopSweepRequested_{false};    // Signal bg sweep to stop early
+    // Sweep admission gate for the Mark handoff. Bounded slices admitted before
+    // closure finish normally; StopAndWaitForAllSweep waits for their counters.
+    std::atomic<bool> stopSweepRequested_{false};
     std::atomic<bool> skipLazySweep_{false};          // Disable lazy sweep in GetRegion P2/P3
     std::atomic<bool> skipAssistSweep_{false};        // Disable mutator assist sweep before STW
     std::atomic<bool> skipHelperSweep_{false};        // Disable GC-helper pool sweep before STW
@@ -828,6 +839,7 @@ private:
     std::mutex largeLock_;
     MSRegionList largeRegionList_;
     std::atomic<size_t> largeLiveSpanCount_{0};
+    std::atomic<size_t> largeLiveObjectBytes_{0};
     void AddLargeLiveRegion(MSRegionInfo* region);
     void CollectDeadLargeRegions(std::vector<MSRegionInfo*>& deadRegions);
     template<typename Visitor>

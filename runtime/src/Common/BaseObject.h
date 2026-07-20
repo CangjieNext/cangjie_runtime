@@ -116,6 +116,10 @@ private:
     StateWord stateWord;
 };
 
+#if defined(__aarch64__) || defined(__x86_64__)
+static_assert(sizeof(BaseObject) == 8, "compiler ABI: managed-object payload offset");
+#endif
+
 using ObjectPtr = BaseObject*;
 using ObjectVisitor = std::function<void(ObjectPtr)>;
 

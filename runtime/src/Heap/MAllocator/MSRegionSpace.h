@@ -119,9 +119,10 @@ public:
 private:
     MAddress AllocateLargeObject(size_t size, size_t allocSize, ThreadLocalData* local);
     MAddress AllocateRegularObject(size_t size, size_t allocSize, ThreadLocalData* local);
-    MAddress TryAllocateLargeObjectOnce(size_t allocSize, ThreadLocalData* local, AllocBufferMS* msBuffer);
+    MAddress TryAllocateLargeObjectOnce(size_t objectBytes, size_t allocSize,
+                                        ThreadLocalData* local, AllocBufferMS* msBuffer);
     MAddress TryAllocateRegularObjectOnce(size_t allocSize, ThreadLocalData* local, AllocBufferMS*& msBuffer);
-    void RegisterLargeObjectMS(MAddress addr, size_t regionBytes);
+    void RegisterLargeObjectMS(MAddress addr, size_t objectBytes, size_t regionBytes);
 
     MAddress reservedStart = 0;
     MAddress reservedEnd = 0;

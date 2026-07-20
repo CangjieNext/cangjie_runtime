@@ -9,6 +9,7 @@
 #include "Heap/MAllocator/MSBitmapArena.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 
+#include <algorithm>
 #include <cstring>
 #include <new>
 #include "Base/Log.h"
@@ -90,7 +91,7 @@ void MSRegionInfo::InitForSizeClass(uint8_t cls)
     reserved = (bitmapWords == 64) ? ~0ULL : ((1ULL << bitmapWords) - 1);
 }
 
-void MSRegionInfo::InitForLargeObject(uintptr_t start, uintptr_t end)
+void MSRegionInfo::InitForLargeObject(uintptr_t start, uintptr_t end, size_t objectBytes)
 {
     allocPtr = start;
     regionEnd = end;
@@ -100,9 +101,13 @@ void MSRegionInfo::InitForLargeObject(uintptr_t start, uintptr_t end)
     allocBitmap = nullptr;
     markBitmap = nullptr;
 
-    totalSlotCount = 1;
-    freeSlotCount = 0;
-    divMagic = 0;
+    // Large Regions do not have slots. Reuse their otherwise-unused slot
+    // metadata to retain the exact logical object size without changing the
+    // compiler-visible 64-byte MSRegionInfo ABI.
+    uint64_t packedObjectBytes = static_cast<uint64_t>(objectBytes);
+    totalSlotCount = static_cast<uint16_t>(packedObjectBytes);
+    freeSlotCount = static_cast<uint16_t>(packedObjectBytes >> 16);
+    divMagic = static_cast<uint32_t>(packedObjectBytes >> 32);
 
     sizeClass = 0;  // N/A for large objects
     sweepState = MSSweepState::UNSWEPT;
@@ -111,6 +116,59 @@ void MSRegionInfo::InitForLargeObject(uintptr_t start, uintptr_t end)
     flags_ = 0;
     sweepGen = 0;
     reserved = 0;
+}
+
+void MSRegionInfo::MaterializeBumpAllocationBitmap()
+{
+    CHECK_DETAIL(regionType == MSRegionType::MS_REGION_BUMP,
+                 "MaterializeBumpAllocationBitmap requires BUMP region, type=%u",
+                 static_cast<unsigned>(regionType));
+    CHECK_DETAIL(allocBitmap != nullptr,
+                 "MaterializeBumpAllocationBitmap requires allocBitmap, sizeClass=%u",
+                 static_cast<unsigned>(sizeClass));
+
+    size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
+    uintptr_t regionStart = RegionStart();
+    CHECK_DETAIL(slotSize != 0 && allocPtr >= regionStart && allocPtr <= regionEnd,
+                 "MaterializeBumpAllocationBitmap invalid bump range: allocPtr=0x%zx "
+                 "region=[0x%zx,0x%zx) slotSize=%zu",
+                 allocPtr, regionStart, regionEnd, slotSize);
+
+    size_t allocatedBytes = allocPtr - regionStart;
+    CHECK_DETAIL(allocatedBytes % slotSize == 0,
+                 "MaterializeBumpAllocationBitmap unaligned allocPtr: allocatedBytes=%zu slotSize=%zu",
+                 allocatedBytes, slotSize);
+    size_t allocatedSlots = allocatedBytes / slotSize;
+    CHECK_DETAIL(allocatedSlots <= totalSlotCount &&
+                     allocatedSlots + freeSlotCount == totalSlotCount,
+                 "MaterializeBumpAllocationBitmap inconsistent slots: allocated=%zu free=%u total=%u",
+                 allocatedSlots,
+                 static_cast<unsigned>(freeSlotCount),
+                 static_cast<unsigned>(totalSlotCount));
+
+    size_t wordCount = (totalSlotCount + 63) / 64;
+    CHECK_DETAIL(wordCount <= 64,
+                 "MaterializeBumpAllocationBitmap wordCount overflow: wordCount=%zu",
+                 wordCount);
+
+    uint64_t summary = 0;
+    for (size_t wordIdx = 0; wordIdx < wordCount; ++wordIdx) {
+        size_t wordStartSlot = wordIdx * 64;
+        size_t validBitCount = std::min<size_t>(64, totalSlotCount - wordStartSlot);
+        uint64_t validMask = validBitCount == 64 ? ~0ULL : ((1ULL << validBitCount) - 1);
+        size_t allocatedInWord = allocatedSlots > wordStartSlot
+            ? std::min<size_t>(64, allocatedSlots - wordStartSlot)
+            : 0;
+        uint64_t allocatedMask = allocatedInWord == 64
+            ? ~0ULL
+            : ((1ULL << allocatedInWord) - 1);
+        uint64_t freeBits = validMask & ~allocatedMask;
+        allocBitmap[wordIdx] = freeBits;
+        if (freeBits != 0) {
+            summary |= (1ULL << wordIdx);
+        }
+    }
+    reserved = summary;
 }
 
 void MSRegionInfo::ReleaseBitmaps()
@@ -199,14 +257,15 @@ void MSRegionInfo::ResetToEmptyCache()
 size_t MSRegionInfo::SweepRegion()
 {
     size_t wordCount = (totalSlotCount + 63) / 64;
-    int liveCount = 0;
-    uint64_t markWords[MSBitmapArena::kMaxBitmapWords] = { 0 };
     CHECK_DETAIL(wordCount <= MSBitmapArena::kMaxBitmapWords,
                  "[MS-GC] SweepRegion wordCount overflow: wordCount=%zu", wordCount);
+    size_t trailingBits = totalSlotCount % 64;
+    size_t liveCount = 0;
     for (size_t i = 0; i < wordCount; i++) {
-        uint64_t markWord = markBitmap[i];
-        markWords[i] = markWord;
-        liveCount += __builtin_popcountll(markWord);
+        uint64_t validMask = (i + 1 == wordCount && trailingBits != 0) ?
+            ((1ULL << trailingBits) - 1) : ~0ULL;
+        uint64_t validMarkBits = markBitmap[i] & validMask;
+        liveCount += static_cast<size_t>(__builtin_popcountll(validMarkBits));
     }
 
     size_t slotSize = SizeClassInfo::ClassToSize(sizeClass);
@@ -220,36 +279,69 @@ size_t MSRegionInfo::SweepRegion()
     }
 
     uint64_t summary = 0;
+    size_t runStartSlot = totalSlotCount;
+    auto clearDeadRun = [base, slotSize](size_t startSlot, size_t endSlot) {
+        memset(reinterpret_cast<void*>(base + startSlot * slotSize),
+               0,
+               (endSlot - startSlot) * slotSize);
+    };
+
     for (size_t i = 0; i < wordCount; i++) {
         // Sweep ownership is serialized by CasSweepGen on unswept lists. The
         // region is not returned to mutators until SweepRegion() completes, so
         // allocBitmap publication does not race with allocation on this region.
-        allocBitmap[i] = ~markWords[i];
-        if (allocBitmap[i] != 0) {
+        size_t validBitCount = (i + 1 == wordCount && trailingBits != 0) ? trailingBits : 64;
+        uint64_t validMask = validBitCount == 64 ? ~0ULL : ((1ULL << validBitCount) - 1);
+        uint64_t validMarkBits = markBitmap[i] & validMask;
+        uint64_t freeBits = ~validMarkBits & validMask;
+        allocBitmap[i] = freeBits;
+        if (freeBits != 0) {
             summary |= (1ULL << i);
         }
-    }
 
-    size_t trailingBits = totalSlotCount % 64;
-    if (trailingBits != 0) {
-        allocBitmap[wordCount - 1] &= (1ULL << trailingBits) - 1;
-        if (allocBitmap[wordCount - 1] == 0) {
-            summary &= ~(1ULL << (wordCount - 1));
+        size_t wordStartSlot = i * 64;
+        if (runStartSlot != totalSlotCount && (freeBits & 1ULL) == 0) {
+            clearDeadRun(runStartSlot, wordStartSlot);
+            runStartSlot = totalSlotCount;
+        }
+
+        size_t bit = 0;
+        while (bit < validBitCount) {
+            uint64_t remainingFreeBits = freeBits >> bit;
+            if (remainingFreeBits == 0) {
+                break;
+            }
+
+            size_t firstFreeBit = bit + static_cast<size_t>(__builtin_ctzll(remainingFreeBits));
+            if (runStartSlot == totalSlotCount) {
+                runStartSlot = wordStartSlot + firstFreeBit;
+            }
+
+            uint64_t runBits = freeBits >> firstFreeBit;
+            size_t runLength = runBits == ~0ULL ? 64 :
+                static_cast<size_t>(__builtin_ctzll(~runBits));
+            size_t validRemaining = validBitCount - firstFreeBit;
+            if (runLength > validRemaining) {
+                runLength = validRemaining;
+            }
+            size_t runEndBit = firstFreeBit + runLength;
+            if (runEndBit == validBitCount) {
+                break;
+            }
+
+            clearDeadRun(runStartSlot, wordStartSlot + runEndBit);
+            runStartSlot = totalSlotCount;
+            bit = runEndBit + 1;
         }
     }
 
-    // Zero dead slots before the region is put back into swept lists. This
-    // keeps allocation fast-path free of per-slot clearing.
-    for (size_t i = 0; i < wordCount; i++) {
-        uint64_t freeBits = allocBitmap[i];
-        while (freeBits != 0) {
-            int bit = __builtin_ctzll(freeBits);
-            size_t slotIdx = i * 64 + static_cast<size_t>(bit);
-            uintptr_t slotAddr = base + slotIdx * slotSize;
-            memset(reinterpret_cast<void*>(slotAddr), 0, slotSize);
-            freeBits &= freeBits - 1;  // clear lowest set bit
-        }
+    if (runStartSlot != totalSlotCount) {
+        clearDeadRun(runStartSlot, totalSlotCount);
     }
+
+    // All dead runs are zeroed before sweepState/reserved publish the region
+    // back to the swept lists. A run left open at a word boundary therefore
+    // naturally joins a free prefix in the following bitmap word.
 
     // markBitmap is cleared by ClearAllMarkBitmaps at next MarkSetup,
     // not here — avoids redundant memset per-region during sweep.

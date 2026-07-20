@@ -12,6 +12,7 @@
 #include "Mutator.h"
 #include "schedule.h"
 #include "Base/Globals.h"
+#include <type_traits>
 
 #ifdef MRT_USE_MARK_SWEEP
 #include "Heap/MAllocator/MSRegionInfo.h"
@@ -60,6 +61,8 @@ CleanThreadLocalData::~CleanThreadLocalData()
 
 extern "C" void MCC_CheckThreadLocalDataOffset()
 {
+    static_assert(std::is_standard_layout<ThreadLocalData>::value,
+                  "ThreadLocalData must remain standard-layout for compiler ABI checks");
     static_assert(offsetof(ThreadLocalData, buffer) == 0,
                   "need to modify the offset of this value in llvm-project and cjthread at the same time");
     static_assert(offsetof(ThreadLocalData, mutator) == sizeof(void*),
@@ -90,6 +93,8 @@ extern "C" void MCC_CheckThreadLocalDataOffset()
                   "need to modify the offset of this value in llvm-project at the same time");
     static_assert(offsetof(ThreadLocalData, msAllocBuffer) == sizeof(void*) * 11,
                   "need to modify the offset of this value in llvm-project at the same time");
+    static_assert(offsetof(ThreadLocalData, msAllocBuffer) == 88,
+                  "compiler ABI: ThreadLocalData::msAllocBuffer");
     static_assert(sizeof(ThreadLocalData) == sizeof(void*) * 12,
                   "need to modify the offset of this value in llvm-project and cjthread at the same time");
 #endif

@@ -11,6 +11,7 @@
 #include "Base/TimeUtils.h"
 #include "Heap/MAllocator/MSAllocBuffer.h"
 #include "Heap/MAllocator/MSCentralRegionPool.h"
+#include "Heap/MAllocator/MSOOMEmergencyPolicy.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSRegionManager.h"
 #include "Heap/MAllocator/MSSizeClass.h"
@@ -53,7 +54,7 @@ MAddress RegionSpaceMS::Allocate(size_t size, AllocType allocType, ThreadLocalDa
 {
     (void)allocType;
     size_t allocSize = ToAllocSize(size);
-    if (UNLIKELY(allocSize >= kLargeObjectThreshold)) {
+    if (UNLIKELY(SizeClassInfo::IsLargeObjectSize(allocSize))) {
         return AllocateLargeObject(size, allocSize, local);
     }
 
@@ -63,9 +64,18 @@ MAddress RegionSpaceMS::Allocate(size_t size, AllocType allocType, ThreadLocalDa
 MAddress RegionSpaceMS::AllocateLargeObject(size_t size, size_t allocSize, ThreadLocalData* local)
 {
     AllocBufferMS* msBuffer = local != nullptr ? local->msAllocBuffer : AllocBufferMS::GetAllocBufferMS();
-    uintptr_t internalAddr = TryAllocateLargeObjectOnce(allocSize, local, msBuffer);
+    bool allowEmergency = !IsGcThread();
+    uintptr_t internalAddr = TryMSAllocationWithEmergencyRetry(
+        allowEmergency,
+        [this, size, allocSize, local, msBuffer]() {
+            return TryAllocateLargeObjectOnce(size, allocSize, local, msBuffer);
+        },
+        [size]() {
+            VLOG(REPORT, "Large allocation failed for %zu(B), trigger one synchronous OOM GC", size);
+            Heap::GetHeap().GetCollector().RequestGC(GC_REASON_OOM, false);
+        });
     if (UNLIKELY(internalAddr == 0)) {
-        if (IsGcThread()) {
+        if (!allowEmergency) {
             return 0;
         }
         VLOG(REPORT, "Large allocation cannot allocate memory of %zu(B), throw an OutOfMemory exception", size);
@@ -81,9 +91,18 @@ MAddress RegionSpaceMS::AllocateLargeObject(size_t size, size_t allocSize, Threa
 MAddress RegionSpaceMS::AllocateRegularObject(size_t size, size_t allocSize, ThreadLocalData* local)
 {
     AllocBufferMS* msBuffer = local != nullptr ? local->msAllocBuffer : AllocBufferMS::GetAllocBufferMS();
-    uintptr_t internalAddr = TryAllocateRegularObjectOnce(allocSize, local, msBuffer);
+    bool allowEmergency = !IsGcThread();
+    uintptr_t internalAddr = TryMSAllocationWithEmergencyRetry(
+        allowEmergency,
+        [this, allocSize, local, &msBuffer]() {
+            return TryAllocateRegularObjectOnce(allocSize, local, msBuffer);
+        },
+        [size]() {
+            VLOG(REPORT, "Regular allocation failed for %zu(B), trigger one synchronous OOM GC", size);
+            Heap::GetHeap().GetCollector().RequestGC(GC_REASON_OOM, false);
+        });
     if (UNLIKELY(internalAddr == 0)) {
-        if (IsGcThread()) {
+        if (!allowEmergency) {
             return 0;
         }
         VLOG(REPORT, "Regular allocation cannot allocate memory of %zu(B), throw an OutOfMemory exception", size);
@@ -133,7 +152,10 @@ size_t RegionSpaceMS::GetUsedPageSize() const
 
 size_t RegionSpaceMS::LargeObjectBytes() const
 {
-    return 0;
+    if (msCentralPool_ == nullptr) {
+        return 0;
+    }
+    return msCentralPool_->GetLargeObjectBytes();
 }
 
 // ---------------------------------------------------------------------------
@@ -348,7 +370,8 @@ bool RegionSpaceMS::ForEachObj(const std::function<void(BaseObject*)>& visitor, 
     return true;
 }
 
-MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t allocSize, ThreadLocalData* local, AllocBufferMS* msBuffer)
+MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t objectBytes, size_t allocSize, ThreadLocalData* local,
+                                                   AllocBufferMS* msBuffer)
 {
     if (msBuffer == nullptr) {
         msBuffer = AllocBufferMS::GetOrCreateAllocBufferMS(local);
@@ -366,7 +389,7 @@ MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t allocSize, ThreadLocal
         MAddress addr = static_cast<MAddress>(hotCacheStart);
         // Zero-fill the region so the mutator sees a clean object.
         ::memset(reinterpret_cast<void*>(hotCacheStart), 0, regionBytes);
-        RegisterLargeObjectMS(addr, regionBytes);
+        RegisterLargeObjectMS(addr, objectBytes, regionBytes);
         if (msBuffer != nullptr) {
             msBuffer->AccumulatePacingDebt(allocSize);
             msBuffer->AccumulateSweepDebt(regionBytes / MS_REGION_SIZE, kNumSizeClasses);
@@ -393,7 +416,7 @@ MAddress RegionSpaceMS::TryAllocateLargeObjectOnce(size_t allocSize, ThreadLocal
     // Large arrays rely on zero-filled content after only their header is initialized.
     // TakeRegionForLarge may return hot-free pages that were not scavenged by the OS.
     ::memset(reinterpret_cast<void*>(regionStart), 0, regionBytes);
-    RegisterLargeObjectMS(addr, regionBytes);
+    RegisterLargeObjectMS(addr, objectBytes, regionBytes);
     // Pacing debt: large objects bypass AllocBufferMS::Allocate, so we must
     // accumulate assist debt explicitly here to keep GC pacing correct.
     if (msBuffer != nullptr) {
@@ -547,7 +570,7 @@ void Allocator::PushRootToBuffer(BaseObject* root)
     }
 }
 
-void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t regionBytes)
+void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t objectBytes, size_t regionBytes)
 {
     uintptr_t start = static_cast<uintptr_t>(addr);
     uintptr_t end = start + regionBytes;
@@ -576,7 +599,7 @@ void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t regionBytes)
         }
     }
 
-    baseInfo->InitForLargeObject(start, end);
+    baseInfo->InitForLargeObject(start, end, objectBytes);
     baseInfo->reserved = static_cast<uint64_t>(baseIdx);
     MSRegionInfoArray::SetState(baseInfo, MSRegionLocation::LARGE_ACTIVE, 0);
 

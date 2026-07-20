@@ -8,8 +8,10 @@
 #ifndef MRT_MCLASS_H
 #define MRT_MCLASS_H
 
+#include <cstddef>
 #include <functional>
 #include <mutex>
+#include <type_traits>
 #include <unordered_map>
 
 #include "Base/AtomicSpinLock.h"
@@ -22,6 +24,7 @@
 namespace MapleRuntime {
 class ExtensionData;
 class BaseFile;
+struct TypeInfoCompilerABIContract;
 constexpr U8 BITS_FOR_REF = 1;
 constexpr U8 REF_BIT_MASK = 1;
 constexpr U64 SIGN_BIT_64 = (U64)1 << 63;
@@ -618,6 +621,7 @@ class TypeInfo {
 class ATTR_PACKED(4) TypeInfo {
 #endif
     friend class TypeInfoManager;
+    friend struct TypeInfoCompilerABIContract;
 public:
     // property/field query
     inline GCTib GetGCTib() const;
@@ -826,6 +830,26 @@ private:
         EnumCtorReflectInfo* enumCtorReflectInfo;
     };
 };
+
+struct TypeInfoCompilerABIContract {
+    static constexpr size_t TypeOffset() { return offsetof(TypeInfo, type); }
+    static constexpr size_t FlagOffset() { return offsetof(TypeInfo, flag); }
+    static constexpr size_t GCTibOffset() { return offsetof(TypeInfo, gctib); }
+    static constexpr size_t ComponentTypeInfoOffset()
+    {
+        return offsetof(TypeInfo, componentTypeInfo);
+    }
+};
+
+#if defined(__aarch64__) || defined(__x86_64__)
+static_assert(std::is_standard_layout<TypeInfo>::value,
+              "TypeInfo must remain standard-layout for compiler ABI checks");
+static_assert(TypeInfoCompilerABIContract::TypeOffset() == 8, "compiler ABI: TypeInfo::type");
+static_assert(TypeInfoCompilerABIContract::FlagOffset() == 9, "compiler ABI: TypeInfo::flag");
+static_assert(TypeInfoCompilerABIContract::GCTibOffset() == 16, "compiler ABI: TypeInfo::gctib");
+static_assert(TypeInfoCompilerABIContract::ComponentTypeInfoOffset() == 64,
+              "compiler ABI: TypeInfo::componentTypeInfo");
+#endif
 
 class GenericTypeInfo {
 public:

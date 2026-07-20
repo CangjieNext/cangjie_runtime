@@ -90,11 +90,13 @@ static constexpr size_t kSizeClasses[kNumSizeClasses] = {
     16384,  // class 35
 };
 
-// Large object threshold: objects > this go to AllocLarge path (Tier 1 or Tier 2)
-// = MS_REGION_SIZE / 2 = 16KB
-// Rationale: a 16KB object in a 32KB Region can have at most 2 slots,
-// making bitmap allocation inefficient.
+// Maximum small-object size. Objects strictly larger than this go to the
+// large-object path; exactly 16KB remains in class 35 (two slots per Region).
 static constexpr size_t kLargeObjectThreshold = 16384;
+
+static_assert(kNumSizeClasses == 36, "compiler/runtime MSGC size-class count changed");
+static_assert(kSizeClasses[kNumSizeClasses - 1] == kLargeObjectThreshold,
+              "the final MSGC size class must match the small-object boundary");
 
 // ============================================================================
 // SizeToClass lookup acceleration
@@ -112,6 +114,11 @@ class SizeClassInfo {
 public:
     // Must be called once at runtime startup (under MRT_USE_MARK_SWEEP).
     static void Init();
+
+    static constexpr bool IsLargeObjectSize(size_t size)
+    {
+        return size > kLargeObjectThreshold;
+    }
 
     // O(1) size -> class lookup.
     // Precondition: 0 < size <= kLargeObjectThreshold

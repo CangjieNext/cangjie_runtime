@@ -9,6 +9,7 @@
 #include "Heap/MAllocator/MSFreeManager.h"
 
 #include <algorithm>
+#include <cerrno>
 #include <cstring>
 #include <thread>
 
@@ -35,6 +36,7 @@ FreeManager::OwnedSegmentView FreeManager::BuildOwnedSegmentView(size_t segmentI
     view.summaryChunkCount_ = RegionCountToChunkCount(regionCount);
     view.allocBits_.assign(view.bitmapWordCount_, 0);
     view.scavengedBits_.assign(view.bitmapWordCount_, 0);
+    view.scavengingBits_.assign(view.bitmapWordCount_, 0);
     view.chunkSummaries_.assign(view.summaryChunkCount_, {});
     view.maxFreeRun_ = regionCount;  // freshly grown: entirely free
     return view;
@@ -170,6 +172,7 @@ void FreeManager::Initialize(size_t unitSize, size_t unitsPerRegion, RegionCount
         shardState.reclaimCursor_ = static_cast<RegionIndex>(committedRegionCount_);
         shardState.fastTakeHintValid_ = false;
         shardState.scavengedRegionCount_ = 0;
+        shardState.scavengingRegionCount_ = 0;
         for (OwnedSegmentView& view : shardState.ownedViews_) {
             for (size_t chunkIdx = 0; chunkIdx < view.chunkSummaries_.size(); ++chunkIdx) {
                 UpdateChunkSummaryLocked(view, chunkIdx);
@@ -433,7 +436,10 @@ void FreeManager::ShrinkHeap()
     RegionIndex shrinkStart = static_cast<RegionIndex>(committedRegionCount_ - shrinkRegions);
     size_t shrinkStartSegmentIdx = committedSegmentCount - shrinkSegments;
 
-    ReleaseUnits(RegionToUnitIdx(shrinkStart), RegionCountToUnitCount(static_cast<RegionCount>(shrinkRegions)));
+    if (!ReleaseUnits(RegionToUnitIdx(shrinkStart),
+                      RegionCountToUnitCount(static_cast<RegionCount>(shrinkRegions)))) {
+        return;
+    }
 
     // Process each segment from highest index to lowest so that when each segment is processed,
     // it is still at back() of its owning shard's ownedSegments_ (higher segments have already
@@ -500,11 +506,31 @@ size_t FreeManager::ScavengeFreeRegionsByRegionBudget(size_t regionBudget)
          ++scannedShardCount) {
         uint16_t ownerShardId = static_cast<uint16_t>((startShardId + scannedShardCount) % shardCount_);
         FreeManagerShard& shardState = GetShard(ownerShardId);
-        std::unique_lock<std::mutex> shardLock(shardState.shardMutex_, std::try_to_lock);
-        if (!shardLock.owns_lock()) {
-            continue;
+        std::vector<PendingScavengeSpan> spans;
+        {
+            std::unique_lock<std::mutex> shardLock(shardState.shardMutex_, std::try_to_lock);
+            if (!shardLock.owns_lock()) {
+                continue;
+            }
+            (void)ClaimScavengeSpansLocked(
+                shardState, regionBudget - scavengedRegions, spans);
         }
-        scavengedRegions += ScavengeOwnedFreeRegionsLocked(shardState, regionBudget - scavengedRegions);
+
+        size_t releasedRegions = 0;
+        for (PendingScavengeSpan& span : spans) {
+            span.released = ReleaseUnits(RegionToUnitIdx(span.idx), RegionCountToUnitCount(span.num));
+            if (span.released) {
+                releasedRegions += span.num;
+            }
+        }
+
+        if (!spans.empty()) {
+            std::lock_guard<std::mutex> shardLock(shardState.shardMutex_);
+            for (const PendingScavengeSpan& span : spans) {
+                CompleteScavengingLocked(shardState, span.idx, span.num, span.released);
+            }
+        }
+        scavengedRegions += releasedRegions;
     }
     nextScavengeShard_ = static_cast<uint16_t>((static_cast<uint32_t>(startShardId) + 1) % shardCount_);
 
@@ -678,10 +704,27 @@ size_t FreeManager::ReleaseCompletelyFreeSegment(size_t segmentIdx)
         return 0;
     }
 
-    RegionIndex segmentStartIdx = static_cast<RegionIndex>(segmentStart);
-    ReleaseUnits(RegionToUnitIdx(segmentStartIdx), RegionCountToUnitCount(static_cast<RegionCount>(validRegions)));
-    MarkScavengedLocked(shardState, segmentStartIdx, static_cast<RegionCount>(validRegions));
-    return hotFreeRegions * GetRegionSizeBytes();
+    std::vector<PendingScavengeSpan> spans;
+    size_t claimedRegions = ClaimScavengeSpansInViewLocked(
+        shardState, *view, validRegions, hotFreeRegions, spans);
+    CHECK_DETAIL(claimedRegions == hotFreeRegions,
+                 "[MS-GC] failed to claim all hot-free Regions in free segment: segment=%zu expected=%zu actual=%zu",
+                 segmentIdx, hotFreeRegions, claimedRegions);
+    shardLock.unlock();
+
+    size_t releasedRegions = 0;
+    for (PendingScavengeSpan& span : spans) {
+        span.released = ReleaseUnits(RegionToUnitIdx(span.idx), RegionCountToUnitCount(span.num));
+        if (span.released) {
+            releasedRegions += span.num;
+        }
+    }
+
+    shardLock.lock();
+    for (const PendingScavengeSpan& span : spans) {
+        CompleteScavengingLocked(shardState, span.idx, span.num, span.released);
+    }
+    return releasedRegions * GetRegionSizeBytes();
 }
 
 size_t FreeManager::ScavengeFreeRegionsUpTo(size_t maxBytes)
@@ -1046,6 +1089,9 @@ void FreeManager::MarkAllocatedOneLocked(FreeManagerShard& shard,
                                          size_t localIdx,
                                          bool& reusedScavenged)
 {
+    CHECK_DETAIL(!TestBit(view.scavengingBits_.data(), localIdx),
+                 "[MS-GC] cannot allocate Region while OS release is in progress: segment=%zu localIdx=%zu",
+                 view.segmentIdx_, localIdx);
     bool wasScavenged = TestBit(view.scavengedBits_.data(), localIdx);
     bool wasFree = !TestBit(view.allocBits_.data(), localIdx);
     CHECK_DETAIL(wasFree,
@@ -1208,89 +1254,105 @@ FreeManager::RegionCount FreeManager::CountContiguousFreeInViewLocked(const Owne
     return count;
 }
 
-size_t FreeManager::ScavengeOwnedFreeRegionsLocked(FreeManagerShard& shard,
-                                                   size_t regionBudget)
+size_t FreeManager::ClaimScavengeSpansLocked(FreeManagerShard& shard,
+                                             size_t regionBudget,
+                                             std::vector<PendingScavengeSpan>& spans)
 {
     if (regionBudget == 0 || shard.freeRegionCount_ <= shard.scavengedRegionCount_) {
         return 0;
     }
 
-    size_t scavengedRegions = 0;
+    size_t claimedRegions = 0;
     for (auto viewIt = shard.ownedViews_.rbegin();
-         viewIt != shard.ownedViews_.rend() && scavengedRegions < regionBudget;
+         viewIt != shard.ownedViews_.rend() && claimedRegions < regionBudget;
          ++viewIt) {
         OwnedSegmentView& view = *viewIt;
         size_t committedLocal = static_cast<size_t>(
             std::min(view.regionEnd_, static_cast<RegionIndex>(committedRegionCount_)) - view.regionStart_);
-        if (committedLocal == 0) { continue; }
-
-        size_t wordCount = (committedLocal + kChunkBits - 1) / kChunkBits;
-
-        // Opt3: scan words backward; hotFree = free AND not-already-scavenged.
-        // Track a pending run [pendingStart, pendingEnd) across word boundaries
-        // to merge adjacent runs into one ReleaseUnits call.
-        static constexpr size_t kNoPending = static_cast<size_t>(-1);
-        size_t pendingStart = kNoPending;
-        size_t pendingEnd   = 0;
-
-        auto flushPending = [&]() {
-            if (pendingStart == kNoPending) { return; }
-            RegionCount run = static_cast<RegionCount>(pendingEnd - pendingStart);
-            if (scavengedRegions + run > regionBudget) {
-                size_t allowed = regionBudget - scavengedRegions;
-                pendingStart = pendingEnd - allowed;
-                run = static_cast<RegionCount>(allowed);
-            }
-            RegionIndex gs = view.regionStart_ + static_cast<RegionIndex>(pendingStart);
-            ReleaseUnits(RegionToUnitIdx(gs), RegionCountToUnitCount(run));
-            MarkScavengedLocked(shard, gs, run);
-            scavengedRegions += run;
-            pendingStart = kNoPending;
-        };
-
-        for (size_t wi = wordCount; wi-- > 0 && scavengedRegions < regionBudget; ) {
-            size_t wordBase = wi * kChunkBits;
-            size_t wordBits = std::min(committedLocal - wordBase, kChunkBits);
-            uint64_t hot = (~view.allocBits_[wi]) & (~view.scavengedBits_[wi]);
-            if (wordBits < kChunkBits) { hot &= (1ULL << wordBits) - 1; }
-            if (hot == 0) {
-                // No hot-free in this word; flush pending (gap found).
-                flushPending();
-                continue;
-            }
-
-            // Extract runs of consecutive 1s in `hot`, highest first.
-            while (hot != 0 && scavengedRegions < regionBudget) {
-                int hi = 63 - __builtin_clzll(hot);
-                // Find start of contiguous run ending at bit hi:
-                // highest 0-bit strictly below hi in hot → lo = that position + 1
-                uint64_t gaps  = (~hot) & ((static_cast<size_t>(hi) > 0) ? ((1ULL << hi) - 1) : 0);
-                int lo = (gaps == 0) ? 0 : (63 - __builtin_clzll(gaps) + 1);
-
-                size_t runEnd   = wordBase + static_cast<size_t>(hi) + 1;
-                size_t runStart = wordBase + static_cast<size_t>(lo);
-
-                // Merge with pending if adjacent (this run ends where pending starts).
-                if (pendingStart != kNoPending && runEnd == pendingStart) {
-                    pendingStart = runStart;
-                } else {
-                    flushPending();
-                    if (scavengedRegions >= regionBudget) { break; }
-                    pendingStart = runStart;
-                    pendingEnd   = runEnd;
-                }
-
-                // Clear processed bits.
-                int runLen = hi - lo + 1;
-                uint64_t clearMask = (runLen < 64)
-                    ? (((1ULL << runLen) - 1) << lo)
-                    : ~0ULL;
-                hot &= ~clearMask;
-            }
-        }
-        flushPending();
+        claimedRegions += ClaimScavengeSpansInViewLocked(
+            shard, view, committedLocal, regionBudget - claimedRegions, spans);
     }
-    return scavengedRegions;
+    return claimedRegions;
+}
+
+size_t FreeManager::ClaimScavengeSpansInViewLocked(FreeManagerShard& shard,
+                                                   OwnedSegmentView& view,
+                                                   size_t committedLocal,
+                                                   size_t regionBudget,
+                                                   std::vector<PendingScavengeSpan>& spans)
+{
+    if (regionBudget == 0 || committedLocal == 0) {
+        return 0;
+    }
+
+    size_t wordCount = (committedLocal + kChunkBits - 1) / kChunkBits;
+    size_t claimedRegions = 0;
+    size_t firstNewSpan = spans.size();
+
+    // Scan words backward; hotFree = free AND not-already-scavenged.
+    // Keep a pending run across word boundaries to minimize OS release calls.
+    static constexpr size_t kNoPending = static_cast<size_t>(-1);
+    size_t pendingStart = kNoPending;
+    size_t pendingEnd = 0;
+
+    auto flushPending = [&]() {
+        if (pendingStart == kNoPending || claimedRegions >= regionBudget) {
+            pendingStart = kNoPending;
+            return;
+        }
+        size_t allowed = std::min(pendingEnd - pendingStart, regionBudget - claimedRegions);
+        pendingStart = pendingEnd - allowed;
+        RegionCount run = static_cast<RegionCount>(allowed);
+        RegionIndex regionStart = view.regionStart_ + static_cast<RegionIndex>(pendingStart);
+        spans.push_back({ regionStart, run, false });
+        claimedRegions += run;
+        pendingStart = kNoPending;
+    };
+
+    for (size_t wi = wordCount; wi-- > 0 && claimedRegions < regionBudget; ) {
+        size_t wordBase = wi * kChunkBits;
+        size_t wordBits = std::min(committedLocal - wordBase, kChunkBits);
+        uint64_t hot = (~view.allocBits_[wi]) & (~view.scavengedBits_[wi]);
+        if (wordBits < kChunkBits) {
+            hot &= (1ULL << wordBits) - 1;
+        }
+        if (hot == 0) {
+            flushPending();
+            continue;
+        }
+
+        while (hot != 0 && claimedRegions < regionBudget) {
+            int hi = 63 - __builtin_clzll(hot);
+            uint64_t gaps = (~hot) &
+                ((static_cast<size_t>(hi) > 0) ? ((1ULL << hi) - 1) : 0);
+            int lo = (gaps == 0) ? 0 : (63 - __builtin_clzll(gaps) + 1);
+
+            size_t runEnd = wordBase + static_cast<size_t>(hi) + 1;
+            size_t runStart = wordBase + static_cast<size_t>(lo);
+            if (pendingStart != kNoPending && runEnd == pendingStart) {
+                pendingStart = runStart;
+            } else {
+                flushPending();
+                if (claimedRegions >= regionBudget) {
+                    break;
+                }
+                pendingStart = runStart;
+                pendingEnd = runEnd;
+            }
+
+            int runLen = hi - lo + 1;
+            uint64_t clearMask = (runLen < 64)
+                ? (((1ULL << runLen) - 1) << lo)
+                : ~0ULL;
+            hot &= ~clearMask;
+        }
+    }
+    flushPending();
+
+    for (size_t i = firstNewSpan; i < spans.size(); ++i) {
+        MarkScavengingLocked(shard, spans[i].idx, spans[i].num);
+    }
+    return claimedRegions;
 }
 
 void FreeManager::AppendGroupedOwnerSpansLocked(std::vector<std::vector<RegionSpan>>& groupedSpans,
@@ -1576,6 +1638,9 @@ void FreeManager::MarkAllocatedLocked(FreeManagerShard& shard,
         shard.scavengedRegionCount_ -= scavengedCount;
         shard.freeRegionCount_ -= CountFreeInViewRangeLocked(*view, localStart, chunk);
         for (size_t localIdx = localStart; localIdx < localStart + chunk; ++localIdx) {
+            CHECK_DETAIL(!TestBit(view->scavengingBits_.data(), localIdx),
+                         "[MS-GC] cannot allocate Region while OS release is in progress: segment=%zu localIdx=%zu",
+                         view->segmentIdx_, localIdx);
             CHECK_DETAIL(!TestBit(view->allocBits_.data(), localIdx),
                          "[MS-GC] MarkAllocatedLocked: region already allocated, segment=%zu localIdx=%zu",
                          view->segmentIdx_,
@@ -1620,6 +1685,9 @@ void FreeManager::MarkFreeLocked(FreeManagerShard& shard, RegionIndex idx, Regio
 
             uint64_t oldAlloc = view->allocBits_[wi];
             uint64_t oldScav = view->scavengedBits_[wi];
+            CHECK_DETAIL((view->scavengingBits_[wi] & mask) == 0,
+                         "[MS-GC] cannot reclaim Region while OS release is in progress: segment=%zu word=%zu",
+                         view->segmentIdx_, wi);
 
             shard.freeRegionCount_ += __builtin_popcountll(oldAlloc & mask);
             shard.scavengedRegionCount_ -= __builtin_popcountll(oldScav & mask);
@@ -1634,26 +1702,77 @@ void FreeManager::MarkFreeLocked(FreeManagerShard& shard, RegionIndex idx, Regio
     RefreshRegionSnapshotsLocked(shard);
 }
 
-void FreeManager::MarkScavengedLocked(FreeManagerShard& shard, RegionIndex idx, RegionCount num)
+void FreeManager::MarkScavengingLocked(FreeManagerShard& shard, RegionIndex idx, RegionCount num)
 {
     RegionIndex cursor = idx;
     RegionCount remaining = num;
     while (remaining != 0 && cursor < committedRegionCount_) {
         OwnedSegmentView* view = FindOwnedSegmentViewByRegionLocked(shard, cursor);
-        CHECK_DETAIL(view != nullptr, "[MS-GC] scavenge target view missing: region=%u", cursor);
+        CHECK_DETAIL(view != nullptr, "[MS-GC] scavenge claim target view missing: region=%u", cursor);
         RegionCount chunk = std::min<RegionCount>(
             remaining,
             static_cast<RegionCount>(std::min<RegionIndex>(view->regionEnd_, static_cast<RegionIndex>(committedRegionCount_)) - cursor));
         size_t localStart = static_cast<size_t>(cursor - view->regionStart_);
         for (size_t localIdx = localStart; localIdx < localStart + chunk; ++localIdx) {
-            if (!TestBit(view->allocBits_.data(), localIdx) && !TestBit(view->scavengedBits_.data(), localIdx)) {
-                SetBit(view->scavengedBits_.data(), localIdx);
-                ++shard.scavengedRegionCount_;
-            }
+            CHECK_DETAIL(!TestBit(view->allocBits_.data(), localIdx) &&
+                         !TestBit(view->scavengedBits_.data(), localIdx) &&
+                         !TestBit(view->scavengingBits_.data(), localIdx),
+                         "[MS-GC] scavenge claim requires hot-free Region: segment=%zu localIdx=%zu",
+                         view->segmentIdx_, localIdx);
+            SetBit(view->allocBits_.data(), localIdx);
+            SetBit(view->scavengingBits_.data(), localIdx);
         }
+        CHECK_DETAIL(shard.freeRegionCount_ >= chunk,
+                     "[MS-GC] freeRegionCount underflow while claiming scavenge span");
+        shard.freeRegionCount_ -= chunk;
+        shard.scavengingRegionCount_ += chunk;
+        UpdateChunkSummaryRangeLocked(*view, localStart, chunk);
         cursor = static_cast<RegionIndex>(cursor + chunk);
         remaining = static_cast<RegionCount>(remaining - chunk);
     }
+    CHECK_DETAIL(remaining == 0, "[MS-GC] scavenge claim extends past committed heap");
+    RefreshRegionSnapshotsLocked(shard);
+}
+
+void FreeManager::CompleteScavengingLocked(FreeManagerShard& shard,
+                                           RegionIndex idx,
+                                           RegionCount num,
+                                           bool released)
+{
+    RegionIndex cursor = idx;
+    RegionCount remaining = num;
+    while (remaining != 0 && cursor < committedRegionCount_) {
+        OwnedSegmentView* view = FindOwnedSegmentViewByRegionLocked(shard, cursor);
+        CHECK_DETAIL(view != nullptr, "[MS-GC] scavenge completion target view missing: region=%u", cursor);
+        RegionCount chunk = std::min<RegionCount>(
+            remaining,
+            static_cast<RegionCount>(std::min<RegionIndex>(
+                view->regionEnd_, static_cast<RegionIndex>(committedRegionCount_)) - cursor));
+        size_t localStart = static_cast<size_t>(cursor - view->regionStart_);
+        for (size_t localIdx = localStart; localIdx < localStart + chunk; ++localIdx) {
+            CHECK_DETAIL(TestBit(view->allocBits_.data(), localIdx) &&
+                         TestBit(view->scavengingBits_.data(), localIdx) &&
+                         !TestBit(view->scavengedBits_.data(), localIdx),
+                         "[MS-GC] invalid scavenge completion state: segment=%zu localIdx=%zu",
+                         view->segmentIdx_, localIdx);
+            ClearBit(view->allocBits_.data(), localIdx);
+            ClearBit(view->scavengingBits_.data(), localIdx);
+            if (released) {
+                SetBit(view->scavengedBits_.data(), localIdx);
+            }
+        }
+        CHECK_DETAIL(shard.scavengingRegionCount_ >= chunk,
+                     "[MS-GC] scavengingRegionCount underflow while completing scavenge span");
+        shard.scavengingRegionCount_ -= chunk;
+        shard.freeRegionCount_ += chunk;
+        if (released) {
+            shard.scavengedRegionCount_ += chunk;
+        }
+        UpdateChunkSummaryRangeLocked(*view, localStart, chunk);
+        cursor = static_cast<RegionIndex>(cursor + chunk);
+        remaining = static_cast<RegionCount>(remaining - chunk);
+    }
+    CHECK_DETAIL(remaining == 0, "[MS-GC] scavenge completion extends past committed heap");
     RefreshRegionSnapshotsLocked(shard);
 }
 
@@ -1666,6 +1785,11 @@ void FreeManager::MarkUnavailableLocked(FreeManagerShard& shard, RegionIndex idx
         CHECK_DETAIL(view != nullptr, "[MS-GC] unavailable target view missing: region=%u", cursor);
         RegionCount chunk = std::min<RegionCount>(remaining, static_cast<RegionCount>(view->regionEnd_ - cursor));
         size_t localStart = static_cast<size_t>(cursor - view->regionStart_);
+        for (size_t localIdx = localStart; localIdx < localStart + chunk; ++localIdx) {
+            CHECK_DETAIL(!TestBit(view->scavengingBits_.data(), localIdx),
+                         "[MS-GC] cannot make Region unavailable while OS release is in progress: segment=%zu localIdx=%zu",
+                         view->segmentIdx_, localIdx);
+        }
         shard.scavengedRegionCount_ -= CountScavengedInViewRangeLocked(*view, localStart, chunk);
         shard.freeRegionCount_ -= CountFreeInViewRangeLocked(*view, localStart, chunk);
         for (size_t localIdx = localStart; localIdx < localStart + chunk; ++localIdx) {
@@ -1799,22 +1923,35 @@ size_t FreeManager::CountTrailingFreeRegionsLocked() const
     return count;
 }
 
-void FreeManager::ReleaseUnits(UnitIndex idx, UnitCount num) const
+bool FreeManager::ReleaseUnits(UnitIndex idx, UnitCount num) const
 {
     uintptr_t addr = heapStart_ + static_cast<uintptr_t>(idx) * unitSize_;
     size_t size = static_cast<size_t>(num) * unitSize_;
 #if defined(_WIN64)
-    CHECK_E(UNLIKELY(!VirtualFree(reinterpret_cast<void*>(addr), size, MEM_DECOMMIT)),
-            "VirtualFree failed in FreeManager::ReleaseUnits");
+    if (UNLIKELY(!VirtualFree(reinterpret_cast<void*>(addr), size, MEM_DECOMMIT))) {
+        LOG(RTLOG_ERROR, "[MS-GC] FreeManager::ReleaseUnits VirtualFree failed: addr=%p size=%zu",
+            reinterpret_cast<void*>(addr), size);
+        return false;
+    }
+    return true;
 #elif defined(__APPLE__)
     MemorySet(addr, size, 0, size);
     void* ret = mmap(reinterpret_cast<void*>(addr), size, PROT_READ | PROT_WRITE,
                      MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-    if (ret == MAP_FAILED) {
-        LOG(RTLOG_ERROR, "[MS-GC] FreeManager::ReleaseUnits mmap fixed failed");
+    if (ret == MAP_FAILED || ret != reinterpret_cast<void*>(addr)) {
+        LOG(RTLOG_ERROR,
+            "[MS-GC] FreeManager::ReleaseUnits mmap fixed failed: addr=%p size=%zu errno=%d",
+            reinterpret_cast<void*>(addr), size, errno);
+        return false;
     }
+    return true;
 #else
-    (void)madvise(reinterpret_cast<void*>(addr), size, MADV_DONTNEED);
+    if (madvise(reinterpret_cast<void*>(addr), size, MADV_DONTNEED) != 0) {
+        LOG(RTLOG_ERROR, "[MS-GC] FreeManager::ReleaseUnits madvise failed: addr=%p size=%zu errno=%d",
+            reinterpret_cast<void*>(addr), size, errno);
+        return false;
+    }
+    return true;
 #endif
 }
 

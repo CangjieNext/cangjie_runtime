@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <type_traits>
 
 #include "Base/Globals.h"
 #include "Heap/MAllocator/MSSizeClass.h"
@@ -100,9 +101,11 @@ struct MSRegionInfo {
     uint64_t*   markBitmap;         // +32  mark bitmap: 1=alive, 0=dead (8B)
 
     // ========== Statistics ==========
-    uint16_t    totalSlotCount;     // +40  total slots in Region (2B)
-    uint16_t    freeSlotCount;      // +42  current free slots (2B)
-    uint32_t    divMagic;           // +44  ceil(2^32 / slotSize) for division-free slot indexing (4B)
+    // LARGE has no slots and packs its exact logical object size across these
+    // otherwise-unused 64 bits (low 16 / middle 16 / high 32).
+    uint16_t    totalSlotCount;     // +40  total slots / large object bytes[15:0] (2B)
+    uint16_t    freeSlotCount;      // +42  free slots / large object bytes[31:16] (2B)
+    uint32_t    divMagic;           // +44  slot div magic / large object bytes[63:32] (4B)
 
     // ========== Classification ==========
     uint8_t      sizeClass;         // +48  Size Class index (1B)
@@ -139,11 +142,23 @@ struct MSRegionInfo {
     static constexpr int32_t INVALID_IDX = static_cast<int32_t>(0xFFFFFFFF);
 
     // === Address helpers ===
+    // RegionStart() describes one small Region. Large objects may span several
+    // Regions and must use the explicit Large* helpers below.
     uintptr_t RegionStart() const { return regionEnd - MS_REGION_SIZE; }
+    uintptr_t LargeObjectStart() const { return allocPtr; }
+    size_t LargeObjectSize() const
+    {
+        uint64_t objectBytes = (static_cast<uint64_t>(divMagic) << 32) |
+            (static_cast<uint64_t>(freeSlotCount) << 16) |
+            static_cast<uint64_t>(totalSlotCount);
+        return static_cast<size_t>(objectBytes);
+    }
+    size_t LargeSpanBytes() const { return regionEnd - allocPtr; }
+    size_t LargeSpanCount() const { return LargeSpanBytes() / MS_REGION_SIZE; }
 
     // === Lifecycle: Init / Release ===
     void InitForSizeClass(uint8_t cls);
-    void InitForLargeObject(uintptr_t start, uintptr_t end);
+    void InitForLargeObject(uintptr_t start, uintptr_t end, size_t objectBytes);
     void ReleaseBitmaps();
     void Reset();
     // Reset a completely-free region back to BUMP for fast reuse (O3).
@@ -241,6 +256,9 @@ struct MSRegionInfo {
             return decision;
         }
         if (HasFreeSpace()) {
+            if (regionType == MSRegionType::MS_REGION_BUMP) {
+                MaterializeBumpAllocationBitmap();
+            }
             regionType = MSRegionType::MS_REGION_PARTIAL;
             decision.kind = MSCentralReturnKind::PARTIAL;
             return decision;
@@ -252,10 +270,38 @@ struct MSRegionInfo {
     size_t GetSlotSize() const { return SizeClassInfo::ClassToSize(sizeClass); }
 
 private:
+    // BUMP allocation does not update allocBitmap on the hot path. Before a
+    // partially-used BUMP region is published as PARTIAL, materialize the
+    // allocated prefix and rebuild the free-word summary used by bitmap alloc.
+    void MaterializeBumpAllocationBitmap();
 };
 
+static_assert(std::is_standard_layout<MSRegionInfo>::value,
+              "MSRegionInfo must remain standard-layout for compiler ABI checks");
 static_assert(sizeof(MSRegionInfo) == 64, "MSRegionInfo must be exactly 64 bytes (one cache line)");
-static_assert(offsetof(MSRegionInfo, allocPtr) == 0, "allocPtr must be at offset 0 for compiler fast-path");
+static_assert(offsetof(MSRegionInfo, allocPtr) == 0, "compiler ABI: MSRegionInfo::allocPtr");
+#if UINTPTR_MAX == UINT64_MAX
+static_assert(offsetof(MSRegionInfo, regionEnd) == 8, "compiler ABI: MSRegionInfo::regionEnd");
+static_assert(offsetof(MSRegionInfo, allocBitmap) == 24, "compiler ABI: MSRegionInfo::allocBitmap");
+static_assert(offsetof(MSRegionInfo, markBitmap) == 32, "compiler ABI: MSRegionInfo::markBitmap");
+static_assert(offsetof(MSRegionInfo, totalSlotCount) == 40,
+              "compiler ABI: MSRegionInfo::totalSlotCount");
+static_assert(offsetof(MSRegionInfo, freeSlotCount) == 42,
+              "compiler ABI: MSRegionInfo::freeSlotCount");
+static_assert(offsetof(MSRegionInfo, divMagic) == 44, "compiler ABI: MSRegionInfo::divMagic");
+static_assert(offsetof(MSRegionInfo, regionType) == 50, "compiler ABI: MSRegionInfo::regionType");
+static_assert(offsetof(MSRegionInfo, flags_) == 51, "compiler ABI: MSRegionInfo::flags_");
+static_assert(offsetof(MSRegionInfo, reserved) == 56, "compiler ABI: MSRegionInfo::reserved");
+#endif
+static_assert(MS_REGION_SIZE == 32768, "compiler ABI: MSGC Region size");
+static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_BUMP) == 1,
+              "compiler ABI: BUMP Region type");
+static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_PARTIAL) == 2,
+              "compiler ABI: PARTIAL Region type");
+static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_FULL) == 3,
+              "compiler ABI: FULL Region type");
+static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_LARGE) == 4,
+              "compiler ABI: LARGE Region type");
 
 // ============================================================================
 // MSRegionInfoArray: mirror array management (heap-front layout)
