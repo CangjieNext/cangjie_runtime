@@ -57,6 +57,7 @@ The Cangjie ast package provides `Macro With Context` related functions for obta
 
 | Class Name | Description |
 | --------------------------------- | ---------------------------------- |
+| [AmbiguousForcedCastExpr](./ast_package_api/ast_package_classes.md#class-ambiguousforcedcastexpr) | Represents the syntactically ambiguous interoperation forced-cast expression `(U)e`. |
 | [Annotation](./ast_package_api/ast_package_classes.md#class-annotation) | Represents compiler-built annotation nodes. |
 | [Argument](./ast_package_api/ast_package_classes.md#class-argument) | Represents function call argument nodes. |
 | [ArrayLiteral](./ast_package_api/ast_package_classes.md#class-arrayliteral) | Represents `Array` literal nodes. |

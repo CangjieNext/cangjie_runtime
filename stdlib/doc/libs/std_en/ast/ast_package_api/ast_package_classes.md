@@ -1,5 +1,198 @@
 # Classes
 
+## class AmbiguousForcedCastExpr
+
+```cangjie
+public class AmbiguousForcedCastExpr <: Expr {
+    public init(inputs: Tokens)
+    public init()
+}
+```
+
+Function: Represents a syntactically ambiguous interoperation forced-cast expression.
+
+An [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) node: `(U)e`, where `U` is the candidate target type and `e` is the candidate operand. Name resolution and type checking determine the subsequent interpretation based on whether `U` is a type.
+
+Parent Type:
+
+- [Expr](#class-expr)
+
+### prop expr
+
+```cangjie
+public mut prop expr: Expr
+```
+
+Function: Gets or sets the candidate operand in the [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) node, such as `e` in `(U)e`.
+
+Type: [Expr](ast_package_classes.md#class-expr)
+
+### prop lParen
+
+```cangjie
+public mut prop lParen: Token
+```
+
+Function: Gets or sets the left parenthesis `(` in the [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) node.
+
+Type: [Token](ast_package_structs.md#struct-token)
+
+Exceptions:
+
+- [ASTException](ast_package_exceptions.md#class-astexception) - Thrown when the specified [Token](ast_package_structs.md#struct-token) is not `(`.
+
+### prop rParen
+
+```cangjie
+public mut prop rParen: Token
+```
+
+Function: Gets or sets the right parenthesis `)` in the [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) node.
+
+Type: [Token](ast_package_structs.md#struct-token)
+
+Exceptions:
+
+- [ASTException](ast_package_exceptions.md#class-astexception) - Thrown when the specified [Token](ast_package_structs.md#struct-token) is not `)`.
+
+### prop targetType
+
+```cangjie
+public mut prop targetType: TypeNode
+```
+
+Function: Gets or sets the candidate target type in the [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) node, such as `U` in `(U)e`.
+
+Type: [TypeNode](ast_package_classes.md#class-typenode)
+
+### init()
+
+```cangjie
+public init()
+```
+
+Function: Constructs a default [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) object.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.ast.*
+
+main(): Unit {
+    let forcedCastExpr = AmbiguousForcedCastExpr()
+    forcedCastExpr.targetType = RefType(quote(Foo))
+    forcedCastExpr.expr = RefExpr(quote(value))
+    println(forcedCastExpr.toTokens())
+}
+```
+
+Execution Result:
+
+```text
+(Foo) value
+```
+
+### init(Tokens)
+
+```cangjie
+public init(inputs: Tokens)
+```
+
+Function: Constructs an [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) object from a collection of tokens.
+
+Parameters:
+
+- inputs: [Tokens](ast_package_classes.md#class-tokens) - The token collection used to construct the [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) node.
+
+Exceptions:
+
+- [ASTException](ast_package_exceptions.md#class-astexception) - Thrown when the input [Tokens](ast_package_classes.md#class-tokens) cannot be used to construct an [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) node.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.ast.*
+
+main(): Unit {
+    let forcedCastExpr = AmbiguousForcedCastExpr(quote((Foo)value))
+    println(forcedCastExpr.toTokens())
+}
+```
+
+Execution Result:
+
+```text
+(Foo) value
+```
+
+### func toTokens()
+
+```cangjie
+public func toTokens(): Tokens
+```
+
+Function: Converts the current syntax tree node to [Tokens](ast_package_classes.md#class-tokens).
+
+Return Value:
+
+- [Tokens](ast_package_classes.md#class-tokens) - The converted token collection.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.ast.*
+
+main(): Unit {
+    let forcedCastExpr = AmbiguousForcedCastExpr(quote((Foo)value))
+    println(forcedCastExpr.toTokens())
+}
+```
+
+Execution Result:
+
+```text
+(Foo) value
+```
+
+### func traverse(Visitor)
+
+```cangjie
+public func traverse(v: Visitor): Unit
+```
+
+Function: Traverses the current syntax tree node and its child nodes. To terminate the traversal early, override the `visit` function and call `breakTraverse`. See [Custom Visit Function for Traversing AST Objects](../ast_samples/traverse.md).
+
+Parameters:
+
+- v: [Visitor](ast_package_classes.md#class-visitor) - A [Visitor](ast_package_classes.md#class-visitor) instance.
+
+Example:
+
+<!-- verify -->
+```cangjie
+import std.ast.*
+
+class MyVisitor <: Visitor {
+    public override func visit(_: AmbiguousForcedCastExpr) {
+        println("Visiting AmbiguousForcedCastExpr")
+    }
+}
+
+main(): Unit {
+    let forcedCastExpr = AmbiguousForcedCastExpr(quote((Foo)value))
+    forcedCastExpr.traverse(MyVisitor())
+}
+```
+
+Execution Result:
+
+```text
+Visiting AmbiguousForcedCastExpr
+```
+
 ## class Annotation
 
 ```cangjie
@@ -10876,6 +11069,18 @@ Function: Determines whether traversal should be stopped.
 Returns:
 
 - [Bool](../../core/core_package_api/core_package_intrinsics.md#bool) - Returns true if traversal should be stopped; otherwise, returns false.
+
+### func visit(AmbiguousForcedCastExpr)
+
+```cangjie
+protected open func visit(_: AmbiguousForcedCastExpr): Unit
+```
+
+Function: Defines the operation performed when visiting an [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) node and can be overridden by subclasses.
+
+Parameters:
+
+- _: [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) - The traversed node of type [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr).
 
 ### func visit(Annotation)
 
