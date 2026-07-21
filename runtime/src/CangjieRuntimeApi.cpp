@@ -58,7 +58,9 @@ static std::mutex g_mtx;
 static size_t g_sysmemSize = 1U * MapleRuntime::GB;
 static std::set<uintptr_t> futureSet;
 
+#ifdef MRT_USE_MARK_SWEEP
 static constexpr size_t DEFAULT_MS_MAX_VIRTUAL_HEAP_SIZE_KB = 16ULL * MapleRuntime::GB / MapleRuntime::KB;
+#endif
 
 static void CheckSysmemSize()
 {
@@ -179,6 +181,7 @@ static void* StartCJRuntime(void* arg)
     return nullptr;
 }
 
+#ifdef MRT_USE_MARK_SWEEP
 static size_t ComputeMSInitialHeapSizeKB(uint32_t processorNum)
 {
     return MapleRuntime::ComputeMSInitialCommittedHeapBytes(processorNum) / MapleRuntime::KB;
@@ -189,6 +192,7 @@ static size_t ResolveMSMaxVirtualHeapSizeKB(size_t minVirtualHeapSizeKB)
     return MapleRuntime::ReadSizeParameter("cjMSMaxVirtualHeapSize", DEFAULT_MS_MAX_VIRTUAL_HEAP_SIZE_KB,
                                            minVirtualHeapSizeKB, MapleRuntime::EnvBoundKind::CLOSED);
 }
+#endif
 
 RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
 {
@@ -295,6 +299,7 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
 #endif
             .scavengeGrowth = param->gcParam.scavengeGrowth < ERRORESTIMATE ?
                 resolvedHeapGrowth : param->gcParam.scavengeGrowth,
+#ifdef MRT_USE_MARK_SWEEP
             .msBackgroundSweepMaxTime = param->gcParam.msBackgroundSweepMaxTime == 0 ?
                 2 * MapleRuntime::MILLI_SECOND_TO_NANO_SECOND : param->gcParam.msBackgroundSweepMaxTime,
             .msMarkTimeBudget = param->gcParam.msMarkTimeBudget == 0 ?
@@ -323,6 +328,7 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
             .msVerifyMarkDetail = param->gcParam.msVerifyMarkDetail,
             .msParallelSweepMaxHelpers = param->gcParam.msParallelSweepMaxHelpers,
             .msParallelSweep = static_cast<uint8_t>(param->gcParam.msParallelSweep != 0 ? 1U : 0U),
+#endif
         },
         .logParam = {
             .logLevel = param->logParam.logLevel,

@@ -1833,8 +1833,9 @@ extern "C" ArrayRef MCC_NewArrayGeneric(const TypeInfo* arrayInfo, MIndex nElems
     return array;
 }
 
+#ifdef MRT_USE_MARK_SWEEP
 extern "C" MRT_EXPORT ArrayRef MCC_NewArrayGenericFast3_MSGC(const TypeInfo* arrayInfo, MIndex nElems,
-                                                             MSize totalSize)
+                                                              MSize totalSize)
 {
     (void)totalSize;
     ArrayRef array = nullptr;
@@ -1904,6 +1905,7 @@ extern "C" MRT_EXPORT ArrayRef MCC_NewArrayGenericFast3_MSGC(const TypeInfo* arr
     }
     return array;
 }
+#endif
 
 extern "C" void CJ_MCC_ArrayCopyGeneric(const ObjectPtr dstObj, MAddress dstField, size_t dstSize,
                                         const ObjectPtr srcObj, MAddress srcField, size_t srcSize)

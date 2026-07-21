@@ -498,6 +498,7 @@ static RuntimeParam InitRuntimeParam()
 #endif
             .scavengeGrowth = ReadDoubleParameter("cjScavengeGrowth", heapGrowth, 0.0, EnvBoundKind::OPEN,
                                                   std::numeric_limits<double>::max(), EnvBoundKind::CLOSED),
+#ifdef MRT_USE_MARK_SWEEP
             .msBackgroundSweepMaxTime = ReadTimeParameter("cjGCBGSweepMaxTime", 2 * MILLI_SECOND_TO_NANO_SECOND,
                                                           0, EnvBoundKind::OPEN, true),
             .msMarkTimeBudget = ReadTimeParameter("cjMSMarkTimeBudget", 20 * SECOND_TO_NANO_SECOND,
@@ -529,6 +530,7 @@ static RuntimeParam InitRuntimeParam()
                 "cjMSParallelSweepMaxHelpers", 0, 0, EnvBoundKind::CLOSED),
             .msParallelSweep =
                 static_cast<uint8_t>(ReadBoolParameter("cjMSParallelSweep", true) ? 1U : 0U),
+#endif
         },
         .logParam = {
             .logLevel = LogFile::GetLogLevel(),

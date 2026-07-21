@@ -74,8 +74,10 @@ extern "C" ArrayRef MCC_NewArray(const TypeInfo* arrayInfo, MIndex nElems);
 
 // for object array allocation
 extern "C" ArrayRef MCC_NewObjArray(const TypeInfo* arrayInfo, MIndex nElems);
+#ifdef MRT_USE_MARK_SWEEP
 extern "C" MRT_EXPORT ArrayRef CJ_MCC_NewArrayGenericFast3_MSGC(const TypeInfo* arrayInfo, MIndex nElems,
                                                                 MSize totalSize);
+#endif
 
 // for array allocation with known const element sizes.
 extern "C" ArrayRef MCC_NewArray8(const TypeInfo* classInfo, MIndex nElems);
