@@ -16,6 +16,7 @@
 #include "FileStream.h"
 #include "CjHeapData.h"
 #include "HeapSnapshotJsonSerializer.h"
+#include "Heap/Barrier/GCRefField.inline.h"
 
 namespace MapleRuntime {
 
@@ -438,7 +439,7 @@ void CjHeapDataForIDE::SerializeObjectArray(BaseObject*& obj, const u1 tag)
     u4 num = 0;
     std::stack<u4> VAL;
     RefFieldVisitor visitor = [&VAL, &num, this](RefField<>& arrayContent) {
-        VAL.push(GetId(reinterpret_cast<CjHeapDataID>(arrayContent.GetTargetObject())));
+        VAL.push(GetId(reinterpret_cast<CjHeapDataID>(LoadReferenceForGCMode(arrayContent))));
         num++;
     };
     // take array length and content.
@@ -494,7 +495,7 @@ void CjHeapDataForIDE::SerializeStructArray(BaseObject*& obj, const u1 tag)
     u4 num = 0;
     std::stack<u4> VAL;
     RefFieldVisitor visitor = [&VAL, &num, this](RefField<>& arrayContent) {
-        VAL.push(GetId(reinterpret_cast<CjHeapDataID>(arrayContent.GetTargetObject())));
+        VAL.push(GetId(reinterpret_cast<CjHeapDataID>(LoadReferenceForGCMode(arrayContent))));
         num++;
     };
     // take array length and content.
@@ -621,7 +622,7 @@ void CjHeapDataForIDE::SerializeInstance(BaseObject*& obj, const u1 tag)
     u4 num = 0;
     std::stack<u4> VAL;
     RefFieldVisitor visitor = [&VAL, &num, this](RefField<>& fieldAddr) {
-        VAL.push(GetId(reinterpret_cast<CjHeapDataID>(fieldAddr.GetTargetObject())));
+        VAL.push(GetId(reinterpret_cast<CjHeapDataID>(LoadReferenceForGCMode(fieldAddr))));
         num++;
     };
     TypeInfo* currentClass = obj->GetTypeInfo();

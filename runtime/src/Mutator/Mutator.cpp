@@ -15,6 +15,7 @@
 #include "Common/ScopedObjectAccess.h"
 #include "Concurrency/ConcurrencyModel.h"
 #include "CangjieRuntime.h"
+#include "Heap/Barrier/GCRefField.inline.h"
 #include "ObjectModel/RefField.inline.h"
 #include "MutatorManager.h"
 #include "StackManager.h"
@@ -388,7 +389,7 @@ void Mutator::RecordStackPtrs(std::set<BaseObject**>& resSet)
     // Ref trace on non-escaped heap pointers.
     RefFieldVisitor refVisitor = [&rootList, this](RefField<>& oldRefFieldAddr) {
         // Check whether the address is on the stack.
-        if (IsStackAddr(reinterpret_cast<uintptr_t>(oldRefFieldAddr.GetTargetObject()))) {
+        if (IsStackAddr(reinterpret_cast<uintptr_t>(LoadReferenceForGCMode(oldRefFieldAddr)))) {
             rootList.push(reinterpret_cast<BaseObject**>(&oldRefFieldAddr));
         }
     };
@@ -504,7 +505,7 @@ inline void Mutator::GcPhaseEnum(GCPhase newPhase)
     };
     RefFieldVisitor refVisitor =
         [&checkAndPush, this, &pushRoot](RefField<>& refFieldAddr) {
-        BaseObject* obj = refFieldAddr.GetTargetObject();
+        BaseObject* obj = LoadReferenceForGCMode(refFieldAddr);
         if (Heap::IsHeapAddress(obj)) {
             pushRoot(obj);
             DLOG(ENUM, "enum stack root RefField @%p: %p", &refFieldAddr, obj);
@@ -538,14 +539,14 @@ inline void Mutator::GCPhasePreForward(GCPhase newPhase)
     std::stack<BaseObject*> rootStack;
     Collector& collector = reinterpret_cast<Collector&>(Heap::GetHeap().GetCollector());
     RefFieldVisitor refVisitor = [&rootSet, &rootFieldSet, &rootStack, &collector, this](RefField<>& refFieldAddr) {
-        BaseObject* oldObj = refFieldAddr.GetTargetObject();
+        BaseObject* oldObj = LoadReferenceForGCMode(refFieldAddr);
         if (Heap::IsHeapAddress(oldObj) && collector.IsGhostFromObject(oldObj) &&
             !collector.IsUnmovableFromObject(oldObj)) {
             if (!rootFieldSet.insert((void*)(&refFieldAddr)).second) {
                 return;
             }
             BaseObject* toObj = collector.ForwardObject(oldObj);
-            if (oldObj != toObj) { refFieldAddr.SetTargetObject(toObj); }
+            if (oldObj != toObj) { StoreReferenceForGCMode(refFieldAddr, toObj); }
         } else if (IsStackAddr(reinterpret_cast<uintptr_t>(oldObj))) {
             CheckAndPush(oldObj, rootSet, rootStack);
         }

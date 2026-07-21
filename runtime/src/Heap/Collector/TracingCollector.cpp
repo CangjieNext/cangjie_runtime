@@ -8,6 +8,7 @@
 
 #include "Common/Runtime.h"
 #include "Concurrency/Concurrency.h"
+#include "Heap/Barrier/GCRefField.inline.h"
 #include "ObjectModel/RefField.inline.h"
 
 namespace MapleRuntime {
@@ -515,7 +516,7 @@ void TracingCollector::DoResurrection(WorkStack& workStack)
     RootVisitor func = [&workStack, this](ObjectRef& ref) {
         RefField<>& refField = reinterpret_cast<RefField<>&>(ref);
         RefField<> tmpField(refField);
-        BaseObject* finalizerObj = tmpField.GetTargetObject();
+        BaseObject* finalizerObj = LoadReferenceForGCMode(tmpField);
         if (!IsMarkedObject(finalizerObj)) {
             DLOG(TRACE, "resurrectable obj @%p:%p", &ref, finalizerObj);
             workStack.push_back(finalizerObj);
@@ -640,7 +641,7 @@ void TracingCollector::DumpRoots(LogType logType)
     VisitFinalizerRoots(rootVisitor);
 
     RefFieldVisitor refFieldVisitor = [this, logType](RefField<>& ref) {
-        auto obj = ref.GetTargetObject();
+        auto obj = LoadReferenceForGCMode(ref);
         if (obj == nullptr) {
             return;
         }
@@ -711,7 +712,7 @@ void TracingCollector::DFSTraceExportObject(BaseObject *exportObj)
             (void)obj;
             RefField<> oldField(field);
             if (IsCurrentPointer(oldField)) {
-                BaseObject* targetObj = oldField.GetTargetObject();
+                BaseObject* targetObj = LoadReferenceForGCMode(oldField);
                 if (IsMarkedObject(targetObj)) {
                     return;
                 }
@@ -726,10 +727,10 @@ void TracingCollector::DFSTraceExportObject(BaseObject *exportObj)
 
             BaseObject* latest = nullptr;
             if (IsOldPointer(oldField)) {
-                BaseObject* targetObj = oldField.GetTargetObject();
+                BaseObject* targetObj = LoadReferenceForGCMode(oldField);
                 latest = FindLatestVersion(targetObj);
             } else {
-                latest = field.GetTargetObject();
+                latest = LoadReferenceForGCMode(field);
             }
 
             // target object could be null or non-heap for some static variable.

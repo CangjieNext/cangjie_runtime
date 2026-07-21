@@ -10,6 +10,7 @@
 #ifdef MRT_USE_MARK_SWEEP
 
 #include "Heap/Barrier/Barrier.h"
+#include "Heap/MBarrier/MSRefField.inline.h"
 #include "securec.h"
 #if defined(CANGJIE_TSAN_SUPPORT)
 #include "Sanitizer/SanitizerInterface.h"
@@ -34,18 +35,18 @@ public:
     BaseObject* ReadReference(BaseObject* obj, RefField<false>& field) const override
     {
         (void)obj;
-        return field.GetTargetObject();
+        return MSLoadRawReference(field);
     }
 
     BaseObject* ReadStaticRef(RefField<false>& field) const override
     {
-        return field.GetTargetObject();
+        return MSLoadRawReference(field);
     }
 
     BaseObject* ReadWeakRef(BaseObject* obj, RefField<false>& field) const override
     {
         (void)obj;
-        return field.GetTargetObject();
+        return MSLoadRawReference(field);
     }
 
     void ReadStruct(MAddress dst, BaseObject* obj, MAddress src, size_t size) const override
@@ -69,12 +70,12 @@ public:
     void WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref) const override
     {
         (void)obj;
-        field.SetTargetObject(ref);
+        MSStoreRawReference(field, ref);
     }
 
     void WriteStaticRef(RefField<false>& field, BaseObject* ref) const override
     {
-        field.SetTargetObject(ref);
+        MSStoreRawReference(field, ref);
     }
 
     void WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen) const override
@@ -140,24 +141,21 @@ public:
                                     MemoryOrder order) const override
     {
         (void)obj;
-        RefField<false> tmpField(field.GetFieldValue(order));
-        return tmpField.GetTargetObject();
+        return MSLoadRawReference(field, order);
     }
 
     void AtomicWriteReference(BaseObject* obj, RefField<true>& field,
                               BaseObject* ref, MemoryOrder order) const override
     {
         (void)obj;
-        field.SetTargetObject(ref, order);
+        MSStoreRawReference(field, ref, order);
     }
 
     BaseObject* AtomicSwapReference(BaseObject* obj, RefField<true>& field,
                                     BaseObject* newRef, MemoryOrder order) const override
     {
         (void)obj;
-        MAddress oldValue = field.Exchange(newRef, order);
-        RefField<false> oldField(oldValue);
-        return oldField.GetTargetObject();
+        return MSExchangeRawReference(field, newRef, order);
     }
 
     bool CompareAndSwapReference(BaseObject* obj, RefField<true>& field,
@@ -165,7 +163,7 @@ public:
                                  MemoryOrder succOrder, MemoryOrder failOrder) const override
     {
         (void)obj;
-        return field.CompareExchange(oldRef, newRef, succOrder, failOrder);
+        return MSCompareExchangeRawReference(field, oldRef, newRef, succOrder, failOrder);
     }
 };
 

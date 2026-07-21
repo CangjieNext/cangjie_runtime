@@ -8,6 +8,7 @@
 
 #include "Common/ScopedObjectAccess.h"
 #include "ExceptionManager.inline.h"
+#include "Heap/Barrier/GCRefField.inline.h"
 #include "Heap/Heap.h"
 #include "Mutator/Mutator.h"
 #include "ObjectModel/MObject.h"
@@ -55,7 +56,7 @@ void FinalizerWorkList::EnqueueFinalizables(const std::function<bool(BaseObject*
     auto it = finalizers.begin();
     while (it != finalizers.end() && countLimit != 0) {
         RefField<> tmpField(reinterpret_cast<MAddress>(*it));
-        BaseObject* obj = tmpField.GetTargetObject();
+        BaseObject* obj = LoadReferenceForGCMode(tmpField);
         --countLimit;
         if (finalizable(obj)) {
             finalizables.push_back(reinterpret_cast<BaseObject*>(tmpField.GetFieldValue()));

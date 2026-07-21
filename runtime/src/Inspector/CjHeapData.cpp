@@ -18,6 +18,7 @@
 #include "Common/BaseObject.h"
 #include "Common/StackType.h"
 #include "Concurrency/ConcurrencyModel.h"
+#include "Heap/Barrier/GCRefField.inline.h"
 #include "Heap/Collector/CollectorResources.h"
 #include "Heap/Heap.h"
 #include "ObjectModel/RefField.h"
@@ -464,7 +465,7 @@ void CjHeapData::WriteObjectArray(BaseObject*& obj, const u1 tag)
     u4 num = 0;
     std::stack<u8> VAL;
     RefFieldVisitor visitor = [&VAL, &num](RefField<>& arrayContent) {
-        VAL.push(reinterpret_cast<CjHeapDataID>(arrayContent.GetTargetObject()));
+        VAL.push(reinterpret_cast<CjHeapDataID>(LoadReferenceForGCMode(arrayContent)));
         num++;
     };
     // take array length and content.
@@ -503,7 +504,7 @@ void CjHeapData::WriteObjectArray(BaseObject*& obj, const u1 tag)
     u4 num = 0;
     std::stack<u8> VAL;
     RefFieldVisitor visitor = [&VAL, &num](RefField<>& arrayContent) {
-        VAL.push(reinterpret_cast<CjHeapDataID>(arrayContent.GetTargetObject()));
+        VAL.push(reinterpret_cast<CjHeapDataID>(LoadReferenceForGCMode(arrayContent)));
         num++;
     };
     // take array length and content.
@@ -622,7 +623,7 @@ void CjHeapData::WriteInstance(BaseObject*& obj, const u1 tag)
     u4 num = 0;
     std::stack<u8> VAL;
     RefFieldVisitor visitor = [&VAL, &num](RefField<>& fieldAddr) {
-        VAL.push(reinterpret_cast<u8>(fieldAddr.GetTargetObject()));
+        VAL.push(reinterpret_cast<u8>(LoadReferenceForGCMode(fieldAddr)));
         num++;
     };
     TypeInfo* currentClass = obj->GetTypeInfo();

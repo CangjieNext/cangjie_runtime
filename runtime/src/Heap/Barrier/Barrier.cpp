@@ -6,6 +6,7 @@
 
 
 #include "Barrier.inline.h"
+#include "GCRefField.inline.h"
 #include "Heap/Collector/Collector.h"
 #include "Heap/Heap.h"
 #include "ObjectModel/Field.inline.h"
@@ -29,8 +30,8 @@ void Barrier::WriteF64(BaseObject* obj, Field<double>& field, double val) const 
 
 void Barrier::WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref) const
 {
-    DLOG(BARRIER, "write obj %p ref-field@%p: %p => %p", obj, &field, field.GetTargetObject(), ref);
-    field.SetTargetObject(ref);
+    DLOG(BARRIER, "write obj %p ref-field@%p: %p => %p", obj, &field, LoadReferenceForGCMode(field), ref);
+    StoreReferenceForGCMode(field, ref);
 }
 
 void Barrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress src, size_t srcLen) const
@@ -47,7 +48,7 @@ void Barrier::WriteStruct(BaseObject* obj, MAddress dst, size_t dstLen, MAddress
 void Barrier::WriteStaticRef(RefField<false>& field, BaseObject* ref) const
 {
     DLOG(BARRIER, "write (barrier) static ref@%p: %p", &field, ref);
-    field.SetTargetObject(ref);
+    StoreReferenceForGCMode(field, ref);
 }
 
 void Barrier::WriteStaticStruct(MAddress dst, size_t dstLen, MAddress src, size_t srcLen, const GCTib gctib) const
@@ -67,7 +68,7 @@ BaseObject* Barrier::ReadReference(BaseObject* obj, RefField<false>& field) cons
     if (theCollector.TryUpdateRefField(obj, field, toVersion)) {
         return toVersion;
     } else {
-        BaseObject* target = field.GetTargetObject();
+        BaseObject* target = LoadReferenceForGCMode(field);
         return target;
     }
 }
@@ -78,7 +79,7 @@ BaseObject* Barrier::ReadWeakRef(BaseObject* obj, RefField<false>& field) const
     if (theCollector.TryUpdateRefField(obj, field, toVersion)) {
         return toVersion;
     } else {
-        BaseObject* target = field.GetTargetObject();
+        BaseObject* target = LoadReferenceForGCMode(field);
         return target;
     }
 }
@@ -90,7 +91,7 @@ BaseObject* Barrier::ReadStaticRef(RefField<false>& field) const
         DLOG(BARRIER, "read static ref@%p: 0x%zx -> %p", &field, field.GetFieldValue(), toVersion);
         return toVersion;
     } else {
-        BaseObject* target = field.GetTargetObject();
+        BaseObject* target = LoadReferenceForGCMode(field);
         return target;
     }
 }
@@ -105,7 +106,7 @@ void Barrier::AtomicWriteReference(BaseObject* obj, RefField<true>& field, BaseO
         DLOG(BARRIER, "atomic write static ref@%p: %#zx -> %p", &field, field.GetFieldValue(), ref);
     }
 
-    field.SetTargetObject(ref, order);
+    StoreReferenceForGCMode(field, ref, order);
 }
 
 BaseObject* Barrier::AtomicSwapReference(BaseObject* obj, RefField<true>& field, BaseObject* newRef,
@@ -124,12 +125,12 @@ BaseObject* Barrier::AtomicReadReference(BaseObject* obj, RefField<true>& field,
     RefField<false> tmpField(field.GetFieldValue(order));
     if (theCollector.IsOldPointer(tmpField)) {
         BaseObject* toVersion = ReadReference(nullptr, tmpField);
-        field.SetTargetObject(toVersion);
+        StoreReferenceForGCMode(field, toVersion);
         DLOG(BARRIER, "atomic read obj %p ref@%p: %#zx -> %p", obj, &field, tmpField.GetFieldValue(), toVersion);
         return toVersion;
     }
 
-    BaseObject* target = tmpField.GetTargetObject();
+    BaseObject* target = LoadReferenceForGCMode(tmpField);
     DLOG(BARRIER, "atomic read obj %p ref@%p: %#zx -> %p", obj, &field, tmpField.GetFieldValue(), target);
     return target;
 }
@@ -182,7 +183,7 @@ void Barrier::ReadStruct(MAddress dst, BaseObject* obj, MAddress src, size_t siz
             [this, obj](RefField<false>& field) {
                 // MAddress bias = reinterpret_cast<MAddress>(&field) - reinterpret_cast<MAddress>(src);
                 // RefField<false>* dstField = reinterpret_cast<RefField<false>*>(dst + bias);
-                BaseObject* fromVersion = field.GetTargetObject();
+                BaseObject* fromVersion = LoadReferenceForGCMode(field);
                 (void)fromVersion;
                 BaseObject* toVersion = nullptr;
                 theCollector.TryUpdateRefField(obj, field, toVersion);

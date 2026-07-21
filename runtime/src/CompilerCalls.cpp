@@ -28,6 +28,7 @@
 #include "Common/ScopedObjectAccess.h"
 #include "ExceptionManager.inline.h"
 #include "Heap/Barrier/Barrier.h"
+#include "Heap/Barrier/GCRefField.inline.h"
 #include "Heap/Collector/CollectorResources.h"
 #include "Heap/Heap.h"
 #ifdef MRT_USE_MARK_SWEEP
@@ -286,7 +287,7 @@ extern "C" ArrayRef MCC_NewArray64(const TypeInfo* arrayInfo, MIndex nElems)
 extern "C" void MCC_WriteRefField(const ObjectPtr ref, const ObjectPtr obj, RefField<false>* field)
 {
     if (!Heap::IsHeapAddress(obj)) {
-        field->SetTargetObject(ref);
+        StoreReferenceForGCMode(*field, ref);
         return;
     }
 #ifdef MRT_USE_MARK_SWEEP
@@ -1600,6 +1601,8 @@ extern "C" TypeInfo* CJ_MCC_GetOrCreateTypeInfo(TypeTemplate* typeTemplate, U32 
 static inline TypeInfo* NormalizeRuntimeTypeInfo(TypeInfo* typeInfo)
 {
 #ifdef MRT_USE_MARK_SWEEP
+    // This decodes the packed TypeInfo portion of StateWord. It is unrelated
+    // to MSGC RefField storage, which preserves the full raw pointer value.
     constexpr uintptr_t kTypeInfoMask = 0x0000FFFFffffFFFFull;
     return reinterpret_cast<TypeInfo*>(reinterpret_cast<uintptr_t>(typeInfo) & kTypeInfoMask);
 #else
@@ -1655,7 +1658,7 @@ static bool IsTupleTypeOf(ObjectPtr obj, TypeInfo* typeInfo, TypeInfo* targetTyp
             if (Heap::IsHeapAddress(obj)) {
                 curObj = Heap::GetBarrier().ReadReference(obj, obj->GetRefField(offset));
             } else {
-                curObj = obj->GetRefField(offset).GetTargetObject();
+                curObj = LoadReferenceForGCMode(obj->GetRefField(offset));
             }
             TypeInfo* curti = curObj->GetTypeInfo();
             if (!curti->IsSubType(fieldTargetTI)) {

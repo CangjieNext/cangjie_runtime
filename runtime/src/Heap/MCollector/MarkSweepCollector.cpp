@@ -26,6 +26,7 @@
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MAllocator/MSRegionManager.h"
 #include "Heap/MAllocator/MSRegionSpace.h"
+#include "Heap/MBarrier/MSRefField.inline.h"
 #include "Heap/MCollector/MSHeapThresholdPolicy.h"
 #include "Concurrency/ConcurrencyModel.h"
 #include "Heap/Collector/CollectorResources.h"
@@ -1087,7 +1088,7 @@ void MarkSweepCollector::DrainMarkWorkStack()
 void MarkSweepCollector::TraceObjectRefFieldsToGCWork(BaseObject* obj, PerPGCWork& gcw)
 {
     auto refFunc = [this, &gcw](RefField<>& field) {
-        BaseObject* target = field.GetTargetObject();
+        BaseObject* target = MSLoadRawReference(field);
         bool newlyMarked = DiscoverObject(target);
         if (newlyMarked && target->HasRefField()) {
             gcw.PutObj(target);
@@ -1133,7 +1134,7 @@ void MarkSweepCollector::TransferRootsToGCWork()
 
 void MarkSweepCollector::TraceRefField(RefField<>& field, WorkStack& workStack)
 {
-    BaseObject* target = field.GetTargetObject();
+    BaseObject* target = MSLoadRawReference(field);
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     bool targetMarked = IsMarkedObject(target);
     if (!targetMarked) {
@@ -1631,7 +1632,7 @@ void MarkSweepCollector::ClearWeakRefsAfterMark()
 
         RefField<>* referentField = reinterpret_cast<RefField<>*>(
             reinterpret_cast<uintptr_t>(weakRef) + TYPEINFO_PTR_SIZE);
-        BaseObject* referent = referentField->GetTargetObject();
+        BaseObject* referent = MSLoadRawReference(*referentField);
         if (referent == nullptr || !IsManagedAddress(reinterpret_cast<MAddress>(referent))) {
             return;
         }
@@ -1639,7 +1640,7 @@ void MarkSweepCollector::ClearWeakRefsAfterMark()
         bool referentMarked = IsTraceableObjectAddress(referent) &&
             referent->IsValidObject() && IsMarkedObject(referent);
         if (!referentMarked) {
-            referentField->SetTargetObject(nullptr);
+            MSStoreRawReference(*referentField, nullptr);
             cleared++;
             return;
         }
@@ -1780,7 +1781,7 @@ void MarkSweepCollector::VerifyMarkCompleteness()
             return;
         }
         auto refFunc = [&](RefField<>& field) {
-            BaseObject* target = field.GetTargetObject();
+            BaseObject* target = MSLoadRawReference(field);
             if (target == nullptr ||
                 !IsManagedAddress(reinterpret_cast<MAddress>(target))) {
                 return;
@@ -1905,7 +1906,7 @@ void MarkSweepCollector::MarkNewObject(BaseObject* obj)
 
 void MarkSweepCollector::EnumRefFieldRoot(RefField<>& ref, RootSet& rootSet) const
 {
-    BaseObject* target = ref.GetTargetObject();
+    BaseObject* target = MSLoadRawReference(ref);
     const_cast<MarkSweepCollector*>(this)->DiscoverAndPushObject(target, rootSet);
 }
 
@@ -1928,7 +1929,7 @@ BaseObject* MarkSweepCollector::GetAndTryTagObj(BaseObject* obj, RefField<>& fie
 {
     // No tagging in Mark-Sweep
     (void)obj;
-    BaseObject* target = field.GetTargetObject();
+    BaseObject* target = MSLoadRawReference(field);
     if (target == nullptr || !IsManagedAddress(reinterpret_cast<MAddress>(target))) {
         return nullptr;
     }
@@ -1944,7 +1945,7 @@ BaseObject* MarkSweepCollector::GetAndTryTagObj(BaseObject* obj, RefField<>& fie
 RefField<> MarkSweepCollector::GetAndTryTagRefField(BaseObject* obj) const
 {
     // No tagging in Mark-Sweep — return a RefField wrapping the object directly
-    return RefField<>(obj);
+    return RefField<>(reinterpret_cast<MAddress>(obj));
 }
 
 // ============================================================================

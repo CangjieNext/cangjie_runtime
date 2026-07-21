@@ -9,6 +9,7 @@
 #include "MSMarkBarrier.h"
 #include "Heap/Barrier/Barrier.inline.h"
 #include "Heap/Heap.h"
+#include "Heap/MBarrier/MSRefField.inline.h"
 #include "Heap/MAllocator/MSAllocBuffer.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
 #include "Heap/MCollector/MarkSweepCollector.h"
@@ -187,7 +188,7 @@ static inline void EnqueueStructRefsInRange(BaseObject* obj, MAddress start, siz
     BulkRefMarker marker(collector, allocBuf);
     obj->ForEachRefInStruct(
         [&marker](RefField<false>& refField) {
-            marker.Add(refField.GetTargetObject());
+            marker.Add(MSLoadRawReference(refField));
         },
         start, start + size);
 }
@@ -215,7 +216,7 @@ static inline void EnqueueStructArrayRefsInRange(BaseObject* obj, MAddress start
     BulkRefMarker marker(collector, allocBuf);
     array->ForEachRefFieldInRange(
         [&marker](RefField<false>& refField) {
-            marker.Add(refField.GetTargetObject());
+            marker.Add(MSLoadRawReference(refField));
         },
         start, start + size);
 }
@@ -229,7 +230,7 @@ static inline void EnqueueStaticStructRefs(MAddress start, const GCTib gctib)
     }
     BulkRefMarker marker(collector, allocBuf);
     gctib.ForEachBitmapWord(start, [&marker](RefField<>& refField) {
-        marker.Add(refField.GetTargetObject());
+        marker.Add(MSLoadRawReference(refField));
     });
 }
 
@@ -244,7 +245,7 @@ static inline void EnqueueRefArrayRange(MAddress start, size_t size)
     RefField<false>* refs = reinterpret_cast<RefField<false>*>(start);
     BulkRefMarker marker(collector, allocBuf);
     for (size_t i = 0; i < refCount; ++i) {
-        marker.Add(refs[i].GetTargetObject());
+        marker.Add(MSLoadRawReference(refs[i]));
     }
 }
 
@@ -254,11 +255,11 @@ static inline void EnqueueRefArrayRange(MAddress start, size_t size)
 
 static inline void WriteRefField(RefField<false>& field, BaseObject* ref)
 {
-    BaseObject* oldRef = field.GetTargetObject();
+    BaseObject* oldRef = MSLoadRawReference(field);
     if (oldRef != ref) {
         EnqueueRefFast(oldRef);
     }
-    field.SetTargetObject(ref);
+    MSStoreRawReference(field, ref);
 }
 
 void MSBarrierOps::WriteReference(BaseObject* obj, RefField<false>& field, BaseObject* ref)
@@ -394,12 +395,11 @@ void MSMarkBarrier::AtomicWriteReference(BaseObject* obj, RefField<true>& field,
     (void)obj;
 
     // discover(old)
-    RefField<false> oldField(field.GetFieldValue(std::memory_order_relaxed));
-    BaseObject* oldRef = oldField.GetTargetObject();
+    BaseObject* oldRef = MSLoadRawReference(field, std::memory_order_relaxed);
     EnqueueRefFast(oldRef);
 
     // atomic store
-    field.SetTargetObject(ref, order);
+    MSStoreRawReference(field, ref, order);
 
 }
 
@@ -409,9 +409,7 @@ BaseObject* MSMarkBarrier::AtomicSwapReference(BaseObject* obj, RefField<true>& 
     (void)obj;
 
     // atomic exchange
-    MAddress oldValue = field.Exchange(newRef, order);
-    RefField<false> oldField(oldValue);
-    BaseObject* oldRef = oldField.GetTargetObject();
+    BaseObject* oldRef = MSExchangeRawReference(field, newRef, order);
 
     // discover(old): the swapped-out reference
     EnqueueRefFast(oldRef);
@@ -425,7 +423,7 @@ bool MSMarkBarrier::CompareAndSwapReference(BaseObject* obj, RefField<true>& fie
 {
     (void)obj;
 
-    bool success = field.CompareExchange(oldRef, newRef, succOrder, failOrder);
+    bool success = MSCompareExchangeRawReference(field, oldRef, newRef, succOrder, failOrder);
     if (success) {
         // CAS succeeded: preserve the deleted edge.
         EnqueueRefFast(oldRef);
