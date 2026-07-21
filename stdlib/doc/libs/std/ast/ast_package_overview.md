@@ -57,6 +57,7 @@ ast 包主要包含了仓颉源码的语法解析器和仓颉语法树节点，�
 
 |                 类名               |                功能                |
 | --------------------------------- | ---------------------------------- |
+| [AmbiguousForcedCastExpr](./ast_package_api/ast_package_classes.md#class-ambiguousforcedcastexpr) | 表示语法上存在歧义的外部互操作强制类型转换表达式 `(U)e`。 |
 | [Annotation](./ast_package_api/ast_package_classes.md#class-annotation) | 表示编译器内置的注解节点。 |
 | [Argument](./ast_package_api/ast_package_classes.md#class-argument) | 表示函数调用的实参节点。 |
 | [ArrayLiteral](./ast_package_api/ast_package_classes.md#class-arrayliteral) | 表示 `Array` 字面量节点。 |

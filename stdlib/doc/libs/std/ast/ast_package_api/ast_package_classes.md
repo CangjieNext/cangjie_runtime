@@ -1,5 +1,198 @@
 # 类
 
+## class AmbiguousForcedCastExpr
+
+```cangjie
+public class AmbiguousForcedCastExpr <: Expr {
+    public init(inputs: Tokens)
+    public init()
+}
+```
+
+功能：表示语法上存在歧义的外部互操作强制类型转换表达式。
+
+一个 [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) 节点：`(U)e`。其中 `U` 是候选目标类型，`e` 是候选操作数。名称解析和类型检查阶段根据 `U` 是否为类型选择后续解释。
+
+父类型：
+
+- [Expr](#class-expr)
+
+### prop expr
+
+```cangjie
+public mut prop expr: Expr
+```
+
+功能：获取或设置 [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) 节点中的候选操作数，如 `(U)e` 中的 `e`。
+
+类型：[Expr](ast_package_classes.md#class-expr)
+
+### prop lParen
+
+```cangjie
+public mut prop lParen: Token
+```
+
+功能：获取或设置 [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) 节点中的左圆括号 `(`。
+
+类型：[Token](ast_package_structs.md#struct-token)
+
+异常：
+
+- [ASTException](ast_package_exceptions.md#class-astexception) - 当设置的 [Token](ast_package_structs.md#struct-token) 不是 `(` 时，抛出异常。
+
+### prop rParen
+
+```cangjie
+public mut prop rParen: Token
+```
+
+功能：获取或设置 [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) 节点中的右圆括号 `)`。
+
+类型：[Token](ast_package_structs.md#struct-token)
+
+异常：
+
+- [ASTException](ast_package_exceptions.md#class-astexception) - 当设置的 [Token](ast_package_structs.md#struct-token) 不是 `)` 时，抛出异常。
+
+### prop targetType
+
+```cangjie
+public mut prop targetType: TypeNode
+```
+
+功能：获取或设置 [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) 节点中的候选目标类型，如 `(U)e` 中的 `U`。
+
+类型：[TypeNode](ast_package_classes.md#class-typenode)
+
+### init()
+
+```cangjie
+public init()
+```
+
+功能：构造一个默认的 [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) 对象。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.ast.*
+
+main(): Unit {
+    let forcedCastExpr = AmbiguousForcedCastExpr()
+    forcedCastExpr.targetType = RefType(quote(Foo))
+    forcedCastExpr.expr = RefExpr(quote(value))
+    println(forcedCastExpr.toTokens())
+}
+```
+
+运行结果：
+
+```text
+(Foo) value
+```
+
+### init(Tokens)
+
+```cangjie
+public init(inputs: Tokens)
+```
+
+功能：使用词法单元集合构造一个 [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) 对象。
+
+参数：
+
+- inputs: [Tokens](ast_package_classes.md#class-tokens) - 用于构造 [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) 节点的词法单元集合。
+
+异常：
+
+- [ASTException](ast_package_exceptions.md#class-astexception) - 当输入的 [Tokens](ast_package_classes.md#class-tokens) 无法构造为 [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) 节点时，抛出异常。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.ast.*
+
+main(): Unit {
+    let forcedCastExpr = AmbiguousForcedCastExpr(quote((Foo)value))
+    println(forcedCastExpr.toTokens())
+}
+```
+
+运行结果：
+
+```text
+(Foo) value
+```
+
+### func toTokens()
+
+```cangjie
+public func toTokens(): Tokens
+```
+
+功能：将当前语法树节点转换为 [Tokens](ast_package_classes.md#class-tokens) 类型。
+
+返回值：
+
+- [Tokens](ast_package_classes.md#class-tokens) - 转换后的词法单元集合。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.ast.*
+
+main(): Unit {
+    let forcedCastExpr = AmbiguousForcedCastExpr(quote((Foo)value))
+    println(forcedCastExpr.toTokens())
+}
+```
+
+运行结果：
+
+```text
+(Foo) value
+```
+
+### func traverse(Visitor)
+
+```cangjie
+public func traverse(v: Visitor): Unit
+```
+
+功能：遍历当前语法树节点及其子节点。若要提前终止子节点遍历，可重写 `visit` 函数并调用 `breakTraverse` 函数。请参见[自定义访问函数遍历 AST 对象示例](../ast_samples/traverse.md)。
+
+参数：
+
+- v: [Visitor](ast_package_classes.md#class-visitor) - [Visitor](ast_package_classes.md#class-visitor) 类型的实例。
+
+示例：
+
+<!-- verify -->
+```cangjie
+import std.ast.*
+
+class MyVisitor <: Visitor {
+    public override func visit(_: AmbiguousForcedCastExpr) {
+        println("Visiting AmbiguousForcedCastExpr")
+    }
+}
+
+main(): Unit {
+    let forcedCastExpr = AmbiguousForcedCastExpr(quote((Foo)value))
+    forcedCastExpr.traverse(MyVisitor())
+}
+```
+
+运行结果：
+
+```text
+Visiting AmbiguousForcedCastExpr
+```
+
 ## class Annotation
 
 ```cangjie
@@ -21282,6 +21475,18 @@ main(): Unit {
 Visiting ClassDecl
 Need to break
 ```
+
+### func visit(AmbiguousForcedCastExpr)
+
+```cangjie
+protected open func visit(_: AmbiguousForcedCastExpr): Unit
+```
+
+功能：定义访问 [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) 节点时执行的操作，可由子类重写。
+
+参数：
+
+- _: [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) - [AmbiguousForcedCastExpr](ast_package_classes.md#class-ambiguousforcedcastexpr) 类型的被遍历节点。
 
 ### func visit(Annotation)
 
