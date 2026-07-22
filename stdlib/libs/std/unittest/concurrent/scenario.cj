@@ -24,7 +24,8 @@ public class ConcurrentScenario<S> where S <: Any {
         protected let verifyBlock!: ?(S) -> Bool,
         protected let configuration!: Configuration,
         protected let consistencyValidator!: ?ConsistencyValidator = None,
-        protected let consistencyModel!: ConsistencyModel = SequentialConsistency
+        protected let consistencyModel!: ConsistencyModel = SequentialConsistency,
+        protected let parallelIterations!: Bool = false
     ) {}
 
     public func run(): ScenarioResult {
@@ -32,9 +33,13 @@ public class ConcurrentScenario<S> where S <: Any {
         let iterationResults = ArrayList<ScenarioIterationResult>()
         let startTime = DateTime.now()
 
+        // The callback returns false on the first failing iteration, triggering
+        // early-exit: no further iterations are dispatched and in-flight results
+        // are discarded. This prevents waiting through thousands of iterations
+        // after a consistency violation has already been found.
         let callback = { iterResult: ScenarioIterationResult, _: Int64 =>
             iterationResults.add(iterResult)
-            true
+            iterResult.allSucceeded
         }
 
         executor.executeIterationsWithCallback(iterations, callback: callback)
@@ -43,18 +48,18 @@ public class ConcurrentScenario<S> where S <: Any {
 
         ScenarioResult(
             scenarioName: name,
-            iterationsExecuted: iterations,
+            iterationsExecuted: iterationResults.size,
             iterationResults: iterationResults,
             totalDuration: endTime - startTime
         )
     }
 }
 
-// Legacy entry: returns ScenarioBuilder<Unit> for stateless, capture-based scenarios.
+// Simple entry: returns ScenarioBuilder<Unit> for stateless, capture-based scenarios.
 // Operations receive () (Unit) as the state placeholder and ignore it.
 // A default state factory { => () } is registered automatically (without setting
 // the "explicit" flag) so that the runner always has a state to pass to
-// operations; legacy users can still call .reset { => var = ... } to reassign
+// operations; simple users can still call .reset { => var = ... } to reassign
 // shared mutable state per iteration.
 //
 // To use the typed per-iteration-state API, call .withState<S>(factory) on the

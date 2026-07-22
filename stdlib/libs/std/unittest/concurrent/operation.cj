@@ -20,7 +20,7 @@ public class Operation<S> where S <: Any {
     }
 }
 
-// Legacy stateless factory: produces Operation<Unit> for capture-based scenarios.
+// Simple stateless factory: produces Operation<Unit> for capture-based scenarios.
 // The body lambda ignores the (Unit) state placeholder.
 public func operation<T>(name: String, body: () -> T): Operation<Unit> where T <: Equatable<T> {
     Operation<Unit>(name: name) { _: Unit => execResultOf(body) }

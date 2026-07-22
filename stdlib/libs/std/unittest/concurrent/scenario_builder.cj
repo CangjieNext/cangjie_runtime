@@ -17,13 +17,16 @@ public class ScenarioBuilder<S> where S <: Any {
     private var _stateFactory: ?() -> S = None
     // True iff the user explicitly called .stateFactory(...) (or used the typed
     // scenario<S>(name, factory) entry). Used by build() to decide whether to
-    // construct the auto ConsistencyValidator: legacy scenarios that only use
+    // construct the auto ConsistencyValidator: simple scenarios that only use
     // .reset { => var = ... } should preserve the original behavior of building
     // the validator iff _resetBlock is Some, while typed scenarios always build
     // it (each permutation-DFS restart gets a fresh isolated state instance).
     private var _stateFactoryExplicit: Bool = false
+    // Tri-state: None = auto (parallel iff withState was used), Some(true)/Some(false)
+    // = explicit user override. See parallelIterations(...) below.
+    private var _parallelIterations: ?Bool = None
     // _resetBlock, _actors, _afterBlock, _verifyBlock are intentionally left without
-    // `private` so that the legacy `extend ScenarioBuilder<Unit>` block below can
+    // `private` so that the simple `extend ScenarioBuilder<Unit>` block below can
     // manipulate them when S = Unit (Cangjie extensions cannot access private members).
     var _resetBlock: ?() -> Unit = None
     let _actors: ArrayList<Actor<S>> = ArrayList<Actor<S>>()
@@ -86,12 +89,13 @@ public class ScenarioBuilder<S> where S <: Any {
         newBuilder._consistencyModel = _consistencyModel
         newBuilder._stateFactory = Some(factory)
         newBuilder._stateFactoryExplicit = true
+        newBuilder._parallelIterations = _parallelIterations
         newBuilder
     }
 
-    // Internal accessor used by the legacy scenario(name) / scenario() factories
+    // Internal accessor used by the simple scenario(name) / scenario() factories
     // to pre-register the trivial { => () } state factory without setting the
-    // "explicit" flag. This preserves the original behavior: legacy scenarios
+    // "explicit" flag. This preserves the original behavior: simple scenarios
     // that don't call .reset { => ... } don't build an auto ConsistencyValidator
     // (which would otherwise re-execute operations against un-reset shared state
     // and produce spurious consistency failures).
@@ -206,12 +210,37 @@ public class ScenarioBuilder<S> where S <: Any {
         this
     }
 
+    // Explicitly enables or disables parallel iteration execution for the
+    // scenario being built.
+    //
+    // When parallel execution is enabled, iteration 0 runs first sequentially
+    // (to calibrate backoff timing), then iterations 1..N-1 are dispatched to a
+    // bounded pool of workers that complete concurrently; their results are
+    // delivered to the callback in completion order (out-of-order relative to
+    // iteration index).
+    //
+    // Default behaviour: parallel execution is enabled automatically when
+    // .withState(factory) was used (because each iteration then creates its own
+    // isolated SUT instance), and disabled otherwise (simple capture-based
+    // scenarios share mutable state across iterations). Call this method to
+    // override the default.
+    //
+    // Contract when enabled: the user guarantees that reset/after/verify and
+    // actor operation lambdas are safe to run concurrently across iterations —
+    // e.g. by using .withState(factory) so each iteration receives a fresh
+    // isolated SUT instance, or by making the captured SUT internally
+    // thread-safe.
+    public func parallelIterations(enabled: Bool): ScenarioBuilder<S> {
+        _parallelIterations = Some(enabled)
+        this
+    }
+
     public func build(): ConcurrentScenario<S> {
         if (_actors.size == 0) {
             throw IllegalArgumentException("At least one actor is required")
         }
         if (_stateFactory.isNone()) {
-            // The legacy scenario(name) / scenario() factories pre-register a
+            // The simple scenario(name) / scenario() factories pre-register a
             // default { => () } state factory, so reaching here means the user
             // constructed ScenarioBuilder<S>(name) directly without calling
             // stateFactory(...). For typed S, that's a programming error.
@@ -226,8 +255,8 @@ public class ScenarioBuilder<S> where S <: Any {
         // Build the auto ConsistencyValidator only when there is a mechanism to
         // produce a fresh isolated state per permutation-DFS restart:
         //   - Explicitly registered state factory (typed scenarios), OR
-        //   - Legacy .reset { => var = ... } block (capture-based scenarios).
-        // Legacy scenarios that use neither (e.g. .actor { => counter.fetchAdd(1) }
+        //   - Simple .reset { => var = ... } block (capture-based scenarios).
+        // Simple scenarios that use neither (e.g. .actor { => counter.fetchAdd(1) }
         // without .reset) deliberately skip validation, matching the original
         // behavior — the validator would otherwise re-execute operations against
         // un-reset shared state and produce spurious consistency failures.
@@ -266,6 +295,12 @@ public class ScenarioBuilder<S> where S <: Any {
             None
         }
 
+        // Default: parallel execution iff the user opted into the typed
+        // per-iteration-state API (.withState). Simple capture-based scenarios
+        // default to sequential to preserve the original reset->run->verify
+        // per-iteration semantics on shared mutable state.
+        let parallelMode = _parallelIterations ?? _stateFactoryExplicit
+
         ConcurrentScenario<S>(
             name: _name,
             threadCount: threadCount,
@@ -277,12 +312,13 @@ public class ScenarioBuilder<S> where S <: Any {
             verifyBlock: _verifyBlock,
             configuration: _configuration,
             consistencyValidator: finalValidator,
-            consistencyModel: _consistencyModel
+            consistencyModel: _consistencyModel,
+            parallelIterations: parallelMode
         )
     }
 }
 
-// Legacy, stateless API. Available only when S = Unit (i.e. for builders
+// Simple, stateless API. Available only when S = Unit (i.e. for builders
 // returned by scenario(name) / scenario()). The operation lambdas capture
 // shared mutable state externally and ignore the (Unit) state placeholder.
 extend ScenarioBuilder<Unit> {
@@ -336,7 +372,7 @@ extend ScenarioBuilder<Unit> {
     // Note: actorWithOp / actorWithOps are intentionally NOT redefined here.
     // When S = Unit, the generic class's actorWithOp(op: Operation<S>) and
     // actorWithOps(ops: Array<Operation<S>>) already accept Operation<Unit>
-    // (since S = Unit), and the legacy operation<T>(name, body: () -> T) factory
+    // (since S = Unit), and the simple operation<T>(name, body: () -> T) factory
     // returns Operation<Unit>, so the generic class's methods are invoked
     // directly with the correct S = Unit binding. Re-declaring them here would
     // produce an illegal shadow of the generic class's methods.

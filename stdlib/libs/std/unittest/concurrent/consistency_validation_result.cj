@@ -123,24 +123,45 @@ public class ConsistencyValidationResult {
         }
 
         for (clique in cliques) {
-            pt.nextRow()
-            for (actorId in actorIds) {
-                var opInClique: ?OperationInvocation = None
-                for (opId in clique) {
-                    if (opId / 1000 == actorId) {
-                        match (history.getInvocation(actorId, opId % 1000)) {
-                            case Some(inv) => opInClique = Some(inv)
-                            case None => ()
-                        }
-                        break
-                    }
-                }
-
-                match (opInClique) {
+            // Group operations in this clique by actor, preserving per-actor
+            // order. A single clique (set of mutually-concurrent operations) may
+            // contain more than one operation per actor — this happens e.g.
+            // under Serializability, where the partial order is empty and every
+            // operation is concurrent with every other. Render one sub-row per
+            // "level" so that every operation is shown.
+            let opsByActor = HashMap<Int64, ArrayList<OperationInvocation>>()
+            for (opId in clique) {
+                let actorId = opId / 1000
+                match (history.getInvocation(actorId, opId % 1000)) {
                     case Some(inv) =>
+                        if (!opsByActor.contains(actorId)) {
+                            opsByActor[actorId] = ArrayList<OperationInvocation>()
+                        }
+                        opsByActor[actorId].add(inv)
+                    case None => ()
+                }
+            }
+
+            var maxOps: Int64 = 0
+            for (actorId in actorIds) {
+                match (opsByActor.get(actorId)) {
+                    case Some(list) => if (list.size > maxOps) { maxOps = list.size }
+                    case None => ()
+                }
+            }
+            if (maxOps == 0) {
+                maxOps = 1
+            }
+
+            for (k in 0..maxOps) {
+                pt.nextRow()
+                for (actorId in actorIds) {
+                    let opsForActor = opsByActor.get(actorId) ?? ArrayList<OperationInvocation>()
+                    if (k < opsForActor.size) {
+                        let inv = opsForActor[k]
                         pt.addCell(formatCell(inv, prefixSet, mismatchMap))
                         nextUnshownOpIndex[actorId] = inv.operationIndex + 1
-                    case None =>
+                    } else {
                         let nextIdx = nextUnshownOpIndex.get(actorId) ?? 0
                         if (nextIdx == 0) {
                             pt.addCell("-------")
@@ -163,6 +184,7 @@ public class ConsistencyValidationResult {
                                     pt.addCell("-------")
                             }
                         }
+                    }
                 }
             }
         }

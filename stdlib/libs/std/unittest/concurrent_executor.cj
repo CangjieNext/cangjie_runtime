@@ -66,7 +66,7 @@ class ConcurrentExecutor<S> <: Executor where S <: Any {
         iterIndex: Int64
     ): Bool {
         let stepKind = CaseStep(ArgumentDescription(
-            PrettyText("iteration ${iterIndex}"),
+            None,
             iterIndex,
             0,
             configuration.get(KeyRandomSeed.randomSeed)

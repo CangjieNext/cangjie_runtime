@@ -276,10 +276,14 @@ class TestCaseExecutor<T> <: Executor {
             return None
         }
         let sb = PrettyText()
-        for (param in inputs) {
+        for (i in 0..inputs.size) {
+            let param = inputs[i]
             sb.append(param.name)
             sb.append(" = ")
-            sb.appendLine(shieldEscapeSeq(param.repr))
+            sb.append(shieldEscapeSeq(param.repr))
+            if (i < inputs.size - 1) {
+                sb.newLine()
+            }
         }
         return sb
     }
