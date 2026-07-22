@@ -94,7 +94,7 @@ extern "C" void MCC_CheckThreadLocalDataOffset()
     static_assert(offsetof(ThreadLocalData, msAllocBuffer) == sizeof(void*) * 11,
                   "need to modify the offset of this value in llvm-project at the same time");
     static_assert(offsetof(ThreadLocalData, msAllocBuffer) == 88,
-                  "compiler ABI: ThreadLocalData::msAllocBuffer");
+                  "compiler ABI: AArch64/X86 ThreadLocalData::msAllocBuffer");
     static_assert(sizeof(ThreadLocalData) == sizeof(void*) * 12,
                   "need to modify the offset of this value in llvm-project and cjthread at the same time");
 #endif

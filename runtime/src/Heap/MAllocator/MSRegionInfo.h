@@ -97,6 +97,9 @@ struct MSRegionInfo {
     int32_t     prevRegionIdx;      // +20  linked list prev index (4B)
 
     // ========== Bitmap pointers ==========
+    // Allocation is performed only by the owning AllocBufferMS/P. The Runtime
+    // and compiler fast paths intentionally update this bitmap with ordinary
+    // loads/stores; Region ownership prevents concurrent allocators.
     uint64_t*   allocBitmap;        // +24  allocation bitmap: 1=free, 0=allocated (8B)
     uint64_t*   markBitmap;         // +32  mark bitmap: 1=alive, 0=dead (8B)
 
@@ -183,7 +186,9 @@ struct MSRegionInfo {
         return 0;  // Region full
     }
 
-    // Bitmap-based allocation for swept regions (inline fast path).
+    // Bitmap-based allocation for swept regions owned exclusively by this P.
+    // Keep the ordinary load/store updates in sync with the compiler emitter;
+    // no atomic RMW or lock is required while the Region remains P-local.
     // Uses summary word (reserved) for O(1) lookup: bit[i]=1 means allocBitmap[i] has free slots.
     inline uintptr_t AllocFromBitmapFast()
     {

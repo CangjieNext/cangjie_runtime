@@ -45,6 +45,10 @@ static_assert(sizeof(decltype(Heap::heapReservedEndAddr)) == 8,
               "compiler ABI: Heap::heapReservedEndAddr");
 #endif
 #ifdef MRT_USE_MARK_SWEEP
+extern "C" {
+MRT_EXPORT MSGCFastPathState CJ_MRT_MSGCFastPathState = {};
+}
+
 uint8_t Heap::inlineFastPathGCPhase = 0;
 static_assert(sizeof(decltype(Heap::inlineFastPathGCPhase)) == 1,
               "compiler ABI: Heap::inlineFastPathGCPhase");
@@ -223,17 +227,20 @@ void HeapImpl::InstallBarrier(const GCPhase phase)
         case GCPhase::GC_PHASE_RECLAIM_SATB_NODE:
             currentBarrier = &msIdleBarrier;
             __atomic_store_n(&Heap::inlineFastPathGCPhase, 0, __ATOMIC_RELEASE);
+            PublishMSGCFastPathBarrierPhase(0);
             break;
         case GCPhase::GC_PHASE_MS_MARK_SETUP:
         case GCPhase::GC_PHASE_MS_CONCURRENT_MARK:
         case GCPhase::GC_PHASE_MS_MARK_TERMINATION:
             currentBarrier = &msMarkBarrier;
             __atomic_store_n(&Heap::inlineFastPathGCPhase, 1, __ATOMIC_RELEASE);
+            PublishMSGCFastPathBarrierPhase(1);
             break;
         default:
             // Keep unknown phases conservative until they are audited.
             currentBarrier = &stwBarrier;
             __atomic_store_n(&Heap::inlineFastPathGCPhase, 1, __ATOMIC_RELEASE);
+            PublishMSGCFastPathBarrierPhase(1);
             break;
     }
 #else

@@ -15,6 +15,7 @@
 #include "Base/ImmortalWrapper.h"
 #include "Collector/Collector.h"
 #include "Common/BaseObject.h"
+#include "Heap/MSGCFastPath.h"
 #include "RuntimeConfig.h"
 
 #include <unordered_set>
@@ -114,6 +115,9 @@ public:
         heapStartAddr = startAddr;
         heapReservedStartAddr = startAddr;
         heapReservedEndAddr = reservedEndAddr;
+#ifdef MRT_USE_MARK_SWEEP
+        PublishMSGCFastPathHeapRange(startAddr, reservedEndAddr);
+#endif
         heapCurrentEnd = 0;
     }
 

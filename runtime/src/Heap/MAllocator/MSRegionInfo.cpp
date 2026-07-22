@@ -8,6 +8,7 @@
 
 #include "Heap/MAllocator/MSBitmapArena.h"
 #include "Heap/MAllocator/MSRegionInfo.h"
+#include "Heap/MSGCFastPath.h"
 
 #include <algorithm>
 #include <cstring>
@@ -451,6 +452,7 @@ std::atomic<uintptr_t>* MSRegionInfoArray::ownerTokens_ = nullptr;
 
 void MSRegionInfoArray::Init(uintptr_t heapStart, size_t maxRegionCount, MSRegionInfo* array)
 {
+    PublishMSGCFastPathRegionInfoArray(0);
     heapStartAddress_ = heapStart;
     maxRegionCount_ = maxRegionCount;
     heapEndAddress_ = heapStart + maxRegionCount * MS_REGION_SIZE;
@@ -503,6 +505,7 @@ void MSRegionInfoArray::Init(uintptr_t heapStart, size_t maxRegionCount, MSRegio
         locations_[i].store(static_cast<uint8_t>(MSRegionLocation::FREE), std::memory_order_relaxed);
         ownerTokens_[i].store(0, std::memory_order_relaxed);
     }
+    PublishMSGCFastPathRegionInfoArray(reinterpret_cast<uintptr_t>(array_));
 }
 
 bool MSRegionInfoArray::ownedByMalloc_ = false;
@@ -596,6 +599,7 @@ void MSRegionInfoArray::TransitionState(const MSRegionInfo* info, MSRegionLocati
 
 void MSRegionInfoArray::Cleanup()
 {
+    PublishMSGCFastPathRegionInfoArray(0);
     delete[] locations_;
     delete[] ownerTokens_;
     locations_ = nullptr;

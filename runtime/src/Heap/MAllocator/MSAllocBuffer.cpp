@@ -83,25 +83,25 @@ AllocBufferMS::AllocBufferMS()
                   "tlRegion_ must be at offset 0 for LLVM fast-path compatibility");
 #if UINTPTR_MAX == UINT64_MAX
     static_assert(offsetof(AllocBufferMS, activeRegions_) == 8,
-                  "activeRegions_ offset changed; update AArch64 MSGC allocation fast path");
+                  "activeRegions_ offset changed; update AArch64/X86 MSGC allocation fast path");
     static_assert(sizeof(activeRegions_[0]) == 8,
-                  "activeRegions_ stride changed; update AArch64 MSGC allocation fast path");
+                  "activeRegions_ stride changed; update AArch64/X86 MSGC allocation fast path");
 #endif
     static_assert(std::extent<decltype(activeRegions_)>::value == 36,
-                  "activeRegions_ length changed; update AArch64 MSGC allocation fast path");
-    // The AArch64 MSGC write-barrier fast path loads the WorkBuf pointer
+                  "activeRegions_ length changed; update AArch64/X86 MSGC allocation fast path");
+    // The AArch64/X86 MSGC write-barrier fast paths load the WorkBuf pointer
     // activeLog_ (kept at offset 896), then appends an already shaded old-ref
     // into activeLog_->objs[len++]. These offsets are the ABI contract with
-    // AArch64AsmPrinter.cpp (activeLogOffsetInAllocBuffer / WorkBufLenOffset /
+    // target emitters (activeLogOffsetInAllocBuffer / WorkBufLenOffset /
     // WorkBufObjsOffset / WorkBufCapacity). Keep them in sync.
     static_assert(offsetof(AllocBufferMS, activeLog_) == 896,
-                  "activeLog_ offset changed; update AArch64 MSGC write-barrier fast path");
+                  "activeLog_ offset changed; update AArch64/X86 MSGC write-barrier fast path");
     static_assert(offsetof(WorkBuf, len) == 8,
-                  "WorkBuf::len offset changed; update AArch64 MSGC write-barrier fast path");
+                  "WorkBuf::len offset changed; update AArch64/X86 MSGC write-barrier fast path");
     static_assert(offsetof(WorkBuf, objs) == 16,
-                  "WorkBuf::objs offset changed; update AArch64 MSGC write-barrier fast path");
+                  "WorkBuf::objs offset changed; update AArch64/X86 MSGC write-barrier fast path");
     static_assert(WorkBuf::kCapacity == 1024,
-                  "WorkBuf capacity changed; update AArch64 MSGC write-barrier fast path");
+                  "WorkBuf capacity changed; update AArch64/X86 MSGC write-barrier fast path");
     tlRegion_ = RegionInfo::NullRegion();
 }
 
