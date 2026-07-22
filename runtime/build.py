@@ -266,7 +266,7 @@ def do_build(args):
             "-DDUMPADDRESS_FLAG=0",
             "-DCJ_SDK_VERSION={}".format(version),
             "-DDISABLE_VERSION_CHECK=1",
-            "-DCMAKE_ANDROID_API={}".format(android_api_level if android_api_level else "23"),
+            "-DCMAKE_ANDROID_API={}".format(android_api_level if android_api_level else "31"),
             "-DCMAKE_SHARED_LINKER_FLAGS={}".format(shared_linker_flags),
             "-DCMAKE_EXE_LINKER_FLAGS={}".format(exe_linker_flags),
             "-S", ".", "-B", "CMakebuild"
