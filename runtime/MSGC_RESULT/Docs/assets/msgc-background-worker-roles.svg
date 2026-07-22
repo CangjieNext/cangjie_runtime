@@ -1,0 +1,139 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2240" height="1400" viewBox="0 0 2240 1400" role="img" aria-labelledby="title desc">
+  <title id="title">MSGC Background、GC Worker 与 Mutator Assist 的职责和 Worker Pool 租约</title>
+  <desc id="desc">图示常驻 gc-helper 如何合并后台请求并依序处理 finalizer、parallel 或普通 sweep、scavenge 和 shrink；GC worker pool 如何以 IDLE、MARK 和 SWEEP 三种 owner 状态串行化完整任务轮次；Mutator 的 Enum、Mark 与 Sweep Assist 则由本地债务或握手驱动，且不占用 worker pool 租约。</desc>
+  <defs>
+    <style>
+      .title { font: 700 36px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .subtitle { font: 400 18px Arial, PingFang SC, sans-serif; fill: #49617f; }
+      .section { font: 700 21px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .label { font: 700 17px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .text { font: 400 16px Arial, PingFang SC, sans-serif; fill: #29415f; }
+      .small { font: 400 14px Arial, PingFang SC, sans-serif; fill: #49617f; }
+      .mono { font: 600 14px Menlo, Consolas, monospace; fill: #163861; }
+      .lane { fill: #f8fbff; stroke: #c2d6eb; stroke-width: 1.7; }
+      .gc { fill: #edf5ff; stroke: #2472d3; stroke-width: 2.2; }
+      .bg { fill: #eef8f1; stroke: #2d8a57; stroke-width: 2.2; }
+      .worker { fill: #f6effb; stroke: #8663ab; stroke-width: 2.2; }
+      .assist { fill: #fff8e8; stroke: #e6a21c; stroke-width: 2.2; }
+      .guard { fill: #fbeef0; stroke: #c95365; stroke-width: 2.2; }
+      .result { fill: #eef3fb; stroke: #557ba9; stroke-width: 2.2; }
+      .note { fill: #f7f9fc; stroke: #b9c8da; stroke-width: 1.5; }
+      .line { fill: none; stroke: #49617f; stroke-width: 2.5; marker-end: url(#arrow); }
+      .blue { fill: none; stroke: #2472d3; stroke-width: 3; marker-end: url(#arrowBlue); }
+      .green { fill: none; stroke: #2d8a57; stroke-width: 3; marker-end: url(#arrowGreen); }
+      .purple { fill: none; stroke: #8663ab; stroke-width: 3; marker-end: url(#arrowPurple); }
+      .orange { fill: none; stroke: #e6a21c; stroke-width: 3; marker-end: url(#arrowOrange); }
+      .red { fill: none; stroke: #c95365; stroke-width: 3; marker-end: url(#arrowRed); }
+      .dash { fill: none; stroke: #7698bf; stroke-width: 2.3; stroke-dasharray: 9 7; marker-end: url(#arrowBlue); }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#49617f"/></marker>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2472d3"/></marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2d8a57"/></marker>
+    <marker id="arrowPurple" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8663ab"/></marker>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#e6a21c"/></marker>
+    <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c95365"/></marker>
+  </defs>
+
+  <rect width="2240" height="1400" fill="#ffffff"/>
+  <text x="70" y="60" class="title">Background、Worker 与 Mutator Assist：三类执行者，三套进入条件</text>
+  <text x="70" y="94" class="subtitle">gc-helper 负责持续调度与串行后台进度；GC Worker 承担可并行的 Mark/Sweep 任务；Mutator Assist 为自身的握手或 P 本地 debt 还账。它们不能混为同一种“后台线程”。</text>
+
+  <text x="70" y="142" class="section">1. 常驻 gc-helper：一个处于 saferegion 的 Runtime Mutator，合并请求并按固定顺序推进后台工作</text>
+  <rect x="70" y="166" width="2100" height="332" rx="18" class="lane"/>
+  <rect x="120" y="214" width="305" height="160" rx="14" class="gc"/>
+  <text x="146" y="252" class="label">请求来源</text>
+  <text x="146" y="280" class="small">PostMark / allocation notify</text>
+  <text x="146" y="306" class="small">retained / unswept 压力</text>
+  <text x="146" y="332" class="small">最长约 2 秒一次的周期检查</text>
+  <text x="146" y="358" class="small">多个请求折叠为 pending flag</text>
+  <path d="M425 294 H485" class="blue"/>
+  <rect x="505" y="214" width="410" height="160" rx="14" class="bg"/>
+  <text x="531" y="252" class="label">BackgroundProcessor / “gc-helper”</text>
+  <text x="531" y="280" class="small">启动时 CreateRuntimeMutator(BACKGROUND)</text>
+  <text x="531" y="306" class="small">EnterSaferegion(true)，自身不做应用栈枚举</text>
+  <text x="531" y="332" class="small">短 burst + backoff，避免后台无限占 CPU</text>
+  <text x="531" y="358" class="mono">Run() 统一检查 pending work</text>
+  <path d="M915 294 H975" class="green"/>
+  <rect x="995" y="214" width="220" height="160" rx="14" class="bg"/>
+  <text x="1021" y="252" class="label">① finalizer</text>
+  <text x="1021" y="280" class="small">优先处理</text>
+  <text x="1021" y="306" class="small">可继续则下一轮</text>
+  <path d="M1215 294 H1250" class="green"/>
+  <rect x="1270" y="214" width="310" height="160" rx="14" class="bg"/>
+  <text x="1296" y="252" class="label">② Sweep</text>
+  <text x="1296" y="280" class="small">先尝试动态 parallel sweep</text>
+  <text x="1296" y="306" class="small">否则 BackgroundSweep slice</text>
+  <text x="1296" y="332" class="small">重查 unswept / deadline</text>
+  <path d="M1580 294 H1615" class="green"/>
+  <rect x="1635" y="214" width="220" height="160" rx="14" class="bg"/>
+  <text x="1661" y="252" class="label">③ Scavenge</text>
+  <text x="1661" y="280" class="small">释放物理页</text>
+  <text x="1661" y="306" class="small">仍有空页则继续</text>
+  <path d="M1855 294 H1890" class="green"/>
+  <rect x="1910" y="214" width="210" height="160" rx="14" class="bg"/>
+  <text x="1936" y="252" class="label">④ Shrink</text>
+  <text x="1936" y="280" class="small">回收堆尾 Segment</text>
+  <text x="1936" y="306" class="small">与 Scavenge 分开</text>
+  <rect x="350" y="410" width="1540" height="50" rx="12" class="note"/>
+  <text x="376" y="441" class="small">Background 的本职是调度、普通 time-bounded sweep 与物理内存整理；它不会拥有 MARK phase，也不替代 MarkTermination 的 STW 收口。</text>
+
+  <text x="70" y="550" class="section">2. GCThreadPool 租约：一个完整 AddWork → Start → WaitFinish 轮次只允许 MARK 或 SWEEP 其中之一拥有</text>
+  <rect x="70" y="574" width="2100" height="370" rx="18" class="lane"/>
+  <rect x="140" y="650" width="320" height="160" rx="18" class="result"/>
+  <text x="166" y="690" class="label">Worker Pool Owner = IDLE</text>
+  <text x="166" y="720" class="small">没有 GC worker task epoch</text>
+  <text x="166" y="746" class="small">可被 Mark 阻塞式获取</text>
+  <text x="166" y="772" class="small">也可被 Sweep try-acquire</text>
+  <path d="M460 695 H540" class="purple"/>
+  <rect x="560" y="622" width="500" height="218" rx="18" class="worker"/>
+  <text x="586" y="662" class="label">MARK lease：AcquireMark()（等待 IDLE）</text>
+  <text x="586" y="692" class="small">ConcurrentMark 配置 worker 后获得 owner=MARK</text>
+  <text x="586" y="718" class="small">各 Worker 从 globalFull / PerPGCWork 扫 WorkBuf</text>
+  <text x="586" y="744" class="small">与 GC 主线程、Mark Assist 一起形成工作闭包</text>
+  <text x="586" y="770" class="small">WaitFinish 后 Release(MARK) → IDLE</text>
+  <path d="M1060 731 H1140" class="purple"/>
+  <rect x="1160" y="622" width="500" height="218" rx="18" class="worker"/>
+  <text x="1186" y="662" class="label">SWEEP lease：TryAcquireSweep()（不等待）</text>
+  <text x="1186" y="692" class="small">仅无活动 GC 且 owner=IDLE 时成功取得</text>
+  <text x="1186" y="718" class="small">Worker 任务与 helper 本身共同 sweep 不同 Region</text>
+  <text x="1186" y="744" class="small">共享 central claim 协议；deadline 后 WaitFinish</text>
+  <text x="1186" y="770" class="small">Release(SWEEP) → IDLE</text>
+  <path d="M1660 731 H1740" class="purple"/>
+  <rect x="1760" y="650" width="320" height="160" rx="18" class="guard"/>
+  <text x="1786" y="690" class="label">STOPPING</text>
+  <text x="1786" y="720" class="small">StopGCWork 关闭 gate</text>
+  <text x="1786" y="746" class="small">Mark acquire 返回 false</text>
+  <text x="1786" y="772" class="small">Sweep 不再获得 lease</text>
+  <path d="M810 840 V885 H300 V810" class="purple"/>
+  <path d="M1410 840 V885 H300 V810" class="purple"/>
+  <rect x="545" y="872" width="1100" height="44" rx="11" class="note"/>
+  <text x="571" y="900" class="small">Controller 将 owner 保留到 WaitFinish 之后；它保护的是完整 task epoch，不只是单个任务，因此 MARK 与 SWEEP 不会共享同一轮 worker pool。</text>
+
+  <text x="70" y="996" class="section">3. Mutator Assist 不租用 Worker Pool：它是当前 P 的同步小批工作，而不是后台调度器</text>
+  <rect x="70" y="1020" width="2100" height="270" rx="18" class="lane"/>
+  <rect x="140" y="1070" width="500" height="150" rx="14" class="assist"/>
+  <text x="166" y="1108" class="label">Enum Assist</text>
+  <text x="166" y="1136" class="small">MARK_SETUP handshake 中认领候选者</text>
+  <text x="166" y="1162" class="small">只推进 saferegion candidate 的 phase transition</text>
+  <text x="166" y="1188" class="small">候选者自己扫描自己的栈</text>
+  <path d="M640 1145 H700" class="orange"/>
+  <rect x="720" y="1070" width="500" height="150" rx="14" class="assist"/>
+  <text x="746" y="1108" class="label">Mark Assist</text>
+  <text x="746" y="1136" class="small">P 的分配字节债务达到 WorkBuf 阈值</text>
+  <text x="746" y="1162" class="small">先取 bgScanCredit，再最多 drain 一个 full WorkBuf</text>
+  <text x="746" y="1188" class="small">受 markWorkerControl 的 assist gate 限制</text>
+  <path d="M1220 1145 H1280" class="orange"/>
+  <rect x="1300" y="1070" width="500" height="150" rx="14" class="assist"/>
+  <text x="1326" y="1108" class="label">Sweep Assist</text>
+  <text x="1326" y="1136" class="small">P 的 Region 债务到期；先取 sweepCredit</text>
+  <text x="1326" y="1162" class="small">余债够 batch 才 claim + SweepRegion</text>
+  <text x="1326" y="1188" class="small">受 stop/skip 与 active-assist count 限制</text>
+  <rect x="1870" y="1070" width="240" height="150" rx="14" class="result"/>
+  <text x="1896" y="1108" class="label">共同点</text>
+  <text x="1896" y="1136" class="small">不拥有全局 phase</text>
+  <text x="1896" y="1162" class="small">不占 worker lease</text>
+  <text x="1896" y="1188" class="small">最终仍由 GC 收口</text>
+
+  <rect x="70" y="1335" width="2100" height="48" rx="12" class="note"/>
+  <text x="96" y="1365" class="small">堆空闲但动态 Sweep 申请不到 Worker lease 时，gc-helper 不会等待 MARK worker，而是回退串行 BackgroundSweep；活动 GC 时 parallel loop 直接退出，保持 MARK 的 worker 排他性。</text>
+</svg>

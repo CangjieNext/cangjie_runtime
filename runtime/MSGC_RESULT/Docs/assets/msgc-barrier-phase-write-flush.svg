@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="1240" viewBox="0 0 2048 1240" role="img" aria-labelledby="title desc">
+  <title id="title">MSGC 屏障：GC 阶段、oldRef 删除写屏障与 WorkBuf 发布</title>
+  <desc id="desc">上半部分说明 IDLE 使用直写，三个 Mark 阶段使用删除写屏障。下半部分说明 LLVM 快路径或 Runtime wrapper 从 oldRef 到 P active log、全局队列，再到 MarkTermination 收口的路径。读取没有读屏障。</desc>
+  <defs>
+    <style>
+      .title { font: 700 34px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .subtitle { font: 400 18px Arial, PingFang SC, sans-serif; fill: #49617f; }
+      .section { font: 700 20px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .label { font: 700 17px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .text { font: 400 16px Arial, PingFang SC, sans-serif; fill: #29415f; }
+      .small { font: 400 14px Arial, PingFang SC, sans-serif; fill: #49617f; }
+      .mono { font: 600 14px Menlo, Consolas, monospace; fill: #163861; }
+      .phase { fill: #edf5ff; stroke: #2472d3; stroke-width: 2; }
+      .mark { fill: #fff4e9; stroke: #e87505; stroke-width: 2; }
+      .runtime { fill: #f2f7fc; stroke: #7698bf; stroke-width: 2; }
+      .work { fill: #fff8e8; stroke: #e6a21c; stroke-width: 2; }
+      .global { fill: #edf8f0; stroke: #2d8a57; stroke-width: 2; }
+      .stw { fill: #fbeef0; stroke: #c95365; stroke-width: 2; }
+      .note { fill: #f7f9fc; stroke: #b9c8da; stroke-width: 1.5; }
+      .line { fill: none; stroke: #49617f; stroke-width: 2.5; marker-end: url(#arrow); }
+      .lineBlue { fill: none; stroke: #2472d3; stroke-width: 3; marker-end: url(#arrowBlue); }
+      .lineOrange { fill: none; stroke: #e87505; stroke-width: 3; marker-end: url(#arrowOrange); }
+      .lineGreen { fill: none; stroke: #2d8a57; stroke-width: 3; marker-end: url(#arrowGreen); }
+      .lineRed { fill: none; stroke: #c95365; stroke-width: 3; marker-end: url(#arrowRed); }
+      .dash { fill: none; stroke: #7698bf; stroke-width: 2; stroke-dasharray: 8 7; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#49617f"/></marker>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2472d3"/></marker>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#e87505"/></marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2d8a57"/></marker>
+    <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c95365"/></marker>
+  </defs>
+
+  <rect width="2048" height="1240" fill="#ffffff"/>
+  <text x="70" y="62" class="title">MSGC Barrier：阶段选择、删除写屏障与日志收口</text>
+  <text x="70" y="96" class="subtitle">对象地址稳定，因此读取始终直达；只有 Mark 阶段的写操作需要保留“被覆盖的旧边”。</text>
+
+  <text x="70" y="145" class="section">1. 全局 phase 决定激活哪一种 barrier</text>
+  <rect x="70" y="170" width="495" height="142" rx="14" class="phase"/>
+  <text x="95" y="205" class="label">IDLE / FINISH / RECLAIM_SATB_NODE</text>
+  <text x="95" y="235" class="text">MSIdleBarrier · inlineFastPathGCPhase = 0</text>
+  <text x="95" y="265" class="small">读：直接 load　写：直接 store / memcpy</text>
+  <text x="95" y="291" class="small">后台 Sweep 可继续，但不再记录 Mark 日志</text>
+
+  <path d="M565 241 H650" class="lineBlue"/>
+  <rect x="670" y="170" width="800" height="142" rx="14" class="mark"/>
+  <text x="695" y="205" class="label">MS_MARK_SETUP  →  MS_CONCURRENT_MARK  →  MS_MARK_TERMINATION</text>
+  <text x="695" y="235" class="text">MSMarkBarrier · inlineFastPathGCPhase = 1</text>
+  <text x="695" y="265" class="small">删除写屏障：保护 oldRef；读取仍是直接 load（没有 read barrier）</text>
+  <text x="695" y="291" class="small">phase/gate 以 release 发布，inline path 以 acquire 读取</text>
+
+  <rect x="1495" y="170" width="475" height="142" rx="14" class="note"/>
+  <text x="1520" y="206" class="label">安装点</text>
+  <text x="1520" y="235" class="text">TransitionToGCPhase()</text>
+  <text x="1520" y="260" class="small">Heap::InstallBarrier(phase)</text>
+  <text x="1520" y="285" class="small">先换 barrier，再发布 gcPhase</text>
+  <path d="M1470 241 H1490" class="line"/>
+
+  <path d="M70 344 H1970" class="dash"/>
+  <text x="70" y="382" class="section">2. Mark 阶段：LLVM 快路径与 Runtime wrapper 走同一份 oldRef 语义</text>
+
+  <rect x="70" y="415" width="315" height="145" rx="14" class="phase"/>
+  <text x="95" y="451" class="label">LLVM 生成的写操作</text>
+  <text x="95" y="481" class="mono">llvm.cj.gcwrite_*</text>
+  <text x="95" y="509" class="small">ref / struct / array / atomic 等 intrinsic</text>
+  <text x="95" y="535" class="small">AArch64 可内联；复杂情形进入 wrapper</text>
+
+  <rect x="450" y="415" width="285" height="145" rx="14" class="runtime"/>
+  <text x="475" y="451" class="label">heap range + phase gate</text>
+  <text x="475" y="481" class="small">非堆地址：按原语义写</text>
+  <text x="475" y="509" class="small">gate = 0：跳过 GC 逻辑</text>
+  <text x="475" y="535" class="small">gate = 1：进入 Mark path</text>
+  <path d="M385 488 H445" class="lineBlue"/>
+
+  <rect x="815" y="390" width="345" height="100" rx="14" class="phase"/>
+  <text x="840" y="427" class="label">gate = 0：Idle fast path</text>
+  <text x="840" y="456" class="text">直接 store / memmove</text>
+  <text x="840" y="477" class="small">不读 oldRef，不占用 WorkBuf</text>
+  <path d="M735 455 H810" class="lineBlue"/>
+
+  <rect x="815" y="525" width="345" height="155" rx="14" class="mark"/>
+  <text x="840" y="561" class="label">gate = 1：Mark path</text>
+  <text x="840" y="589" class="text">inline slow path 或 Runtime wrapper</text>
+  <text x="840" y="618" class="small">普通 / 静态 / bulk / generic / atomic</text>
+  <text x="840" y="646" class="small">布局复杂或无法内联时统一落到 MSBarrierOps</text>
+  <path d="M735 520 C770 520 770 602 810 602" class="lineOrange"/>
+
+  <rect x="1235" y="525" width="320" height="155" rx="14" class="mark"/>
+  <text x="1260" y="561" class="label">删除屏障的关键顺序</text>
+  <text x="1260" y="590" class="text">① load oldRef / 枚举旧目标槽</text>
+  <text x="1260" y="618" class="text">② CAS 设置 mark bitmap</text>
+  <text x="1260" y="646" class="small">③ winner 且有引用字段才入队；最后才写 newRef</text>
+  <path d="M1160 602 H1230" class="lineOrange"/>
+
+  <rect x="1630" y="525" width="340" height="155" rx="14" class="work"/>
+  <text x="1655" y="561" class="label">P::AllocBufferMS::activeLog_</text>
+  <text x="1655" y="590" class="text">WorkBuf::objs[1024] 追加 oldRef</text>
+  <text x="1655" y="618" class="small">当前路径：对象已由 CAS 标灰</text>
+  <text x="1655" y="646" class="small">条目统一为 trusted-grey</text>
+  <path d="M1555 602 H1625" class="lineOrange"/>
+
+  <path d="M1800 680 V755" class="lineOrange"/>
+  <rect x="1590" y="770" width="380" height="116" rx="14" class="global"/>
+  <text x="1615" y="806" class="label">globalFull_ / mainQueue</text>
+  <text x="1615" y="835" class="text">满 WorkBuf 发布；GC Worker / Assist 消费</text>
+  <text x="1615" y="861" class="small">满块可并发共享，未满块仍留在 P 本地</text>
+
+  <path d="M70 920 H1970" class="dash"/>
+  <text x="70" y="958" class="section">3. MarkTermination（STW）：把所有剩余工作收口到 fixed point</text>
+
+  <rect x="70" y="990" width="405" height="145" rx="14" class="stw"/>
+  <text x="95" y="1027" class="label">FlushAllWriteBarrierBuffers()</text>
+  <text x="95" y="1056" class="text">枚举全部已注册 P 的未满 activeLog</text>
+  <text x="95" y="1083" class="small">直接 PushMovedGrey：不再重复 discover</text>
+  <text x="95" y="1110" class="small">同时回收 logCache 中的空 WorkBuf</text>
+
+  <rect x="590" y="990" width="380" height="145" rx="14" class="stw"/>
+  <text x="615" y="1027" class="label">DisposeAllPerPGCWork()</text>
+  <text x="615" y="1056" class="text">getCur / putCur / 兼容链的残块</text>
+  <text x="615" y="1083" class="small">统一发布到 globalFull_</text>
+  <text x="615" y="1110" class="small">保证 P 本地没有遗留的可达性工作</text>
+
+  <rect x="1085" y="990" width="390" height="145" rx="14" class="global"/>
+  <text x="1110" y="1027" class="label">DrainGlobalLFStackToMainQueue()</text>
+  <text x="1110" y="1056" class="text">trusted-grey 直接入主队列</text>
+  <text x="1110" y="1083" class="small">兼容 raw buffer 才执行 Discover</text>
+  <text x="1110" y="1110" class="small">主队列继续 Trace，直到 fixed point</text>
+
+  <rect x="1590" y="990" width="380" height="145" rx="14" class="phase"/>
+  <text x="1615" y="1027" class="label">STW 尾部切回 IDLE</text>
+  <text x="1615" y="1056" class="text">安装 MSIdleBarrier · gate = 0</text>
+  <text x="1615" y="1083" class="small">恢复 Mutator；随后发布 Sweep / Scavenge</text>
+  <text x="1615" y="1110" class="small">Sweep 可继续并发，但它不是一个 barrier phase</text>
+
+  <path d="M475 1062 H585" class="lineRed"/>
+  <path d="M970 1062 H1080" class="lineRed"/>
+  <path d="M1475 1062 H1585" class="lineGreen"/>
+</svg>

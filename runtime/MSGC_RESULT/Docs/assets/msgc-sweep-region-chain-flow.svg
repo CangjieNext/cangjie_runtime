@@ -1,0 +1,182 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2240" height="1530" viewBox="0 0 2240 1530" role="img" aria-labelledby="title desc">
+  <title id="title">MSGC Small Region Sweep generation、链表切换、并发 claim 与结果发布</title>
+  <desc id="desc">图示 PreEnumRoots 如何创建新的 sweep generation 并把 swept 链切换为 unswept 链，五类执行方如何经过共同 claim 协议取得 Region，SweepRegion 如何重建 bitmap 并将 Region 发布到 partial swept、full swept 或 empty cache。</desc>
+  <defs>
+    <style>
+      .title { font: 700 36px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .subtitle { font: 400 18px Arial, PingFang SC, sans-serif; fill: #49617f; }
+      .section { font: 700 21px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .label { font: 700 17px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .text { font: 400 16px Arial, PingFang SC, sans-serif; fill: #29415f; }
+      .small { font: 400 14px Arial, PingFang SC, sans-serif; fill: #49617f; }
+      .mono { font: 600 14px Menlo, Consolas, monospace; fill: #163861; }
+      .phase { fill: #edf5ff; stroke: #2472d3; stroke-width: 2; }
+      .stw { fill: #fbeef0; stroke: #c95365; stroke-width: 2; }
+      .chain { fill: #fff8e8; stroke: #e6a21c; stroke-width: 2; }
+      .unswept { fill: #fff3e7; stroke: #e87505; stroke-width: 2.2; }
+      .claim { fill: #f6effb; stroke: #8663ab; stroke-width: 2; }
+      .sweep { fill: #eef8f1; stroke: #2d8a57; stroke-width: 2.2; }
+      .result { fill: #eef3fb; stroke: #557ba9; stroke-width: 2; }
+      .empty { fill: #f2f7fc; stroke: #7698bf; stroke-width: 2; }
+      .note { fill: #f7f9fc; stroke: #b9c8da; stroke-width: 1.5; }
+      .line { fill: none; stroke: #49617f; stroke-width: 2.5; marker-end: url(#arrow); }
+      .lineBlue { fill: none; stroke: #2472d3; stroke-width: 3; marker-end: url(#arrowBlue); }
+      .lineOrange { fill: none; stroke: #e87505; stroke-width: 3; marker-end: url(#arrowOrange); }
+      .linePurple { fill: none; stroke: #8663ab; stroke-width: 3; marker-end: url(#arrowPurple); }
+      .lineGreen { fill: none; stroke: #2d8a57; stroke-width: 3; marker-end: url(#arrowGreen); }
+      .lineRed { fill: none; stroke: #c95365; stroke-width: 3; marker-end: url(#arrowRed); }
+      .dash { fill: none; stroke: #7698bf; stroke-width: 2.5; stroke-dasharray: 8 7; marker-end: url(#arrowBlue); }
+      .separator { fill: none; stroke: #9eb5ce; stroke-width: 2; stroke-dasharray: 9 8; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#49617f"/></marker>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2472d3"/></marker>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#e87505"/></marker>
+    <marker id="arrowPurple" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8663ab"/></marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2d8a57"/></marker>
+    <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c95365"/></marker>
+  </defs>
+
+  <rect width="2240" height="1530" fill="#ffffff"/>
+  <text x="70" y="60" class="title">Small Region Sweep：generation、链表切换、共同 claim 与结果发布</text>
+  <text x="70" y="94" class="subtitle">Small Sweep 只有一套 Region claim 协议；后台、分配线程、Assist、Helper 与 Force-Finish 竞争的是同一批 unswept 链表节点。</text>
+
+  <text x="70" y="140" class="section">1. Sweep epoch：先在 PreEnumRoots 准备新一代，再在 Mark 结束后开放执行</text>
+  <rect x="70" y="165" width="360" height="104" rx="14" class="phase"/>
+  <text x="95" y="202" class="label">上一 epoch 已完成</text>
+  <text x="95" y="231" class="small">swept 链可被分配器使用；旧 unswept 必须为 0</text>
+  <path d="M430 217 H485" class="lineRed"/>
+  <rect x="505" y="165" width="500" height="104" rx="14" class="stw"/>
+  <text x="530" y="202" class="label">PreEnumRoots · STW</text>
+  <text x="530" y="231" class="small">Stop/force-finish → clear bitmap → reclassify → PrepareForSweep()</text>
+  <text x="530" y="254" class="small">链表 flip，globalSweepGen += 2，sweepDone=false</text>
+  <path d="M1005 217 H1060" class="lineBlue"/>
+  <rect x="1080" y="165" width="410" height="104" rx="14" class="phase"/>
+  <text x="1105" y="202" class="label">Enum / ConcurrentMark</text>
+  <text x="1105" y="231" class="small">新的 unswept 输入已存在，但 sweep gate 关闭</text>
+  <path d="M1490 217 H1545" class="lineRed"/>
+  <rect x="1565" y="165" width="300" height="104" rx="14" class="stw"/>
+  <text x="1590" y="202" class="label">MarkTermination 尾部</text>
+  <text x="1590" y="231" class="small">IDLE + ReenableLazySweep()</text>
+  <path d="M1865 217 H1920" class="lineGreen"/>
+  <rect x="1940" y="165" width="225" height="104" rx="14" class="phase"/>
+  <text x="1965" y="202" class="label">PostMark</text>
+  <text x="1965" y="231" class="small">NotifyToSweep()</text>
+
+  <text x="70" y="320" class="section">2. 每个 size class 的四链：flip 是 O(1) 的链表头操作，不逐 Region 搬运</text>
+  <rect x="70" y="350" width="470" height="215" rx="15" class="chain"/>
+  <text x="95" y="386" class="label">旧视图：swept 链（Region 的 sweepGen = g−2）</text>
+  <text x="95" y="417" class="small">partialSwept：有空槽，分配 fast path</text>
+  <rect x="95" y="435" width="85" height="48" rx="7" class="result"/><text x="119" y="465" class="mono">R1</text>
+  <path d="M180 459 H220" class="line"/>
+  <rect x="230" y="435" width="85" height="48" rx="7" class="result"/><text x="254" y="465" class="mono">R2</text>
+  <path d="M315 459 H355" class="line"/>
+  <rect x="365" y="435" width="85" height="48" rx="7" class="result"/><text x="389" y="465" class="mono">…</text>
+  <text x="95" y="523" class="small">fullSwept：无空槽，仍是已经扫过的稳定结果</text>
+
+  <rect x="610" y="350" width="455" height="215" rx="15" class="stw"/>
+  <text x="635" y="386" class="label">PrepareForSweep() · 仅持 bucket lock</text>
+  <text x="635" y="417" class="text">partialSwept.StealChainTo(partialUnswept)</text>
+  <text x="635" y="447" class="text">fullSwept.Swap(fullUnswept)</text>
+  <text x="635" y="477" class="small">随后 globalSweepGen：g−2 → g；Region 本身暂仍为 g−2</text>
+  <text x="635" y="523" class="small">新分配 Region 写入 g，故本 epoch 的 Sweep 不会碰到它。</text>
+  <path d="M540 458 H605" class="lineRed"/>
+
+  <rect x="1135" y="350" width="470" height="215" rx="15" class="unswept"/>
+  <text x="1160" y="386" class="label">新视图：unswept 链（等待本 epoch Sweep）</text>
+  <text x="1160" y="417" class="small">partialUnswept：原来有空槽，仍须按本轮 mark 重建</text>
+  <rect x="1160" y="435" width="85" height="48" rx="7" class="chain"/><text x="1184" y="465" class="mono">R1</text>
+  <path d="M1245 459 H1285" class="lineOrange"/>
+  <rect x="1295" y="435" width="85" height="48" rx="7" class="chain"/><text x="1319" y="465" class="mono">R2</text>
+  <path d="M1380 459 H1420" class="lineOrange"/>
+  <rect x="1430" y="435" width="85" height="48" rx="7" class="chain"/><text x="1454" y="465" class="mono">…</text>
+  <text x="1160" y="523" class="small">fullUnswept：原来满，也必须检查本轮是否释放了槽。</text>
+  <path d="M1065 458 H1130" class="lineRed"/>
+
+  <rect x="1665" y="350" width="500" height="215" rx="15" class="note"/>
+  <text x="1690" y="386" class="label">sweepGen 的三种值</text>
+  <text x="1690" y="417" class="mono">g−2：本 epoch 待 sweep 的 Region</text>
+  <text x="1690" y="447" class="mono">g−1：已 claim，正在 SweepRegion()</text>
+  <text x="1690" y="477" class="mono">g：本 epoch 已 sweep 或新分配 Region</text>
+  <text x="1690" y="523" class="small">generation 负责 epoch 隔离；list lock + CAS 负责同一 Region 的独占。</text>
+
+  <path d="M70 605 H2165" class="separator"/>
+  <text x="70" y="645" class="section">3. 五类执行方都经同一个 claim 入口取得可 Sweep 的 Region</text>
+
+  <rect x="70" y="680" width="290" height="125" rx="13" class="phase"/>
+  <text x="95" y="716" class="label">Background Sweep</text>
+  <text x="95" y="745" class="small">gc-helper 被 PostMark 通知</text>
+  <text x="95" y="770" class="small">按 deadline / class order 扫 slice</text>
+
+  <rect x="70" y="830" width="290" height="125" rx="13" class="phase"/>
+  <text x="95" y="866" class="label">Lazy Sweep</text>
+  <text x="95" y="895" class="small">P refill 缺 swept partial</text>
+  <text x="95" y="920" class="small">partialUnswept 优先，再 full</text>
+
+  <rect x="70" y="980" width="290" height="125" rx="13" class="phase"/>
+  <text x="95" y="1016" class="label">Sweep Assist</text>
+  <text x="95" y="1045" class="small">P debt 到期，先领 central credit</text>
+  <text x="95" y="1070" class="small">剩余债务按固定 batch 直接扫</text>
+
+  <rect x="70" y="1130" width="290" height="125" rx="13" class="phase"/>
+  <text x="95" y="1166" class="label">Dynamic Parallel Sweep</text>
+  <text x="95" y="1195" class="small">压力高时 gc-pool helper slice</text>
+  <text x="95" y="1220" class="small">同样按 deadline / class order</text>
+
+  <rect x="70" y="1280" width="290" height="125" rx="13" class="stw"/>
+  <text x="95" y="1316" class="label">Force-Finish</text>
+  <text x="95" y="1345" class="small">下一轮 PreEnumRoots 前</text>
+  <text x="95" y="1370" class="small">先并发 join，再关门、等待、串行兜底</text>
+
+  <path d="M360 742 H445" class="lineBlue"/>
+  <path d="M360 892 H445" class="lineBlue"/>
+  <path d="M360 1042 H445" class="lineBlue"/>
+  <path d="M360 1192 H445" class="lineBlue"/>
+  <path d="M360 1342 H445" class="lineRed"/>
+
+  <rect x="470" y="760" width="440" height="370" rx="18" class="claim"/>
+  <text x="495" y="798" class="label">ClaimUnsweptHeadForSweep(kind, g)</text>
+  <text x="495" y="829" class="text">① 取得对应 size class bucket lock</text>
+  <text x="495" y="858" class="text">② 读 unswept head；空则本执行方无工作</text>
+  <text x="495" y="888" class="text">③ 仅接受 <tspan class="mono">sweepGen = g−2</tspan></text>
+  <text x="495" y="918" class="text">④ CAS：<tspan class="mono">g−2 → g−1</tspan>，竞争者只有一个 winner</text>
+  <text x="495" y="948" class="text">⑤ TakeHead 并移出 Central 链</text>
+  <text x="495" y="978" class="text">⑥ RegionLocation：CENTRAL_* → SWEEP_CLAIMED</text>
+  <text x="495" y="1010" class="small">CAS 失败重试；在链中看见 g−1 是不变式错误。Region 已离链，Mutator 不能取得。</text>
+  <text x="495" y="1060" class="label">共同的停止保护</text>
+  <text x="495" y="1088" class="small">入口记录 active counter；每 Region/每 slice 检查 stop/skip gate；</text>
+  <text x="495" y="1112" class="small">StopAndWait 关 gate、等 counter=0，才允许清下一轮 mark bitmap。</text>
+
+  <path d="M910 945 H985" class="linePurple"/>
+  <rect x="1010" y="760" width="530" height="370" rx="18" class="sweep"/>
+  <text x="1035" y="798" class="label">独占的 MSRegionInfo::SweepRegion()</text>
+  <text x="1035" y="829" class="text">读取 markBitmap word，popcount 得到 liveCount</text>
+  <text x="1035" y="859" class="text">live=0：清 32KB payload，freeSlotCount=total</text>
+  <text x="1035" y="889" class="text">live&gt;0：allocBitmap = ~markBitmap，处理尾 word mask</text>
+  <text x="1035" y="919" class="text">计算 summary（有空槽 bitmap word），逐个清零 dead slot</text>
+  <text x="1035" y="949" class="text">写 freeSlotCount、reserved summary、sweepState=SWEPT</text>
+  <text x="1035" y="979" class="text">最后 <tspan class="mono">SetSweepGen(g)</tspan>：完成本 epoch Sweep</text>
+  <text x="1035" y="1020" class="small">markBitmap 不在这里清零；下一轮 PreEnumRoots 的 STW ClearAllMarkBitmaps 统一清。</text>
+  <text x="1035" y="1064" class="label">分类依据是 Sweep 后 freeSlotCount</text>
+  <text x="1035" y="1092" class="small">不是原链名：fullUnswept 也可能因死对象而变成 partial 或 empty。</text>
+
+  <path d="M1540 945 H1610" class="lineGreen"/>
+  <rect x="1635" y="760" width="530" height="370" rx="18" class="result"/>
+  <text x="1660" y="798" class="label">按结果发布（TransitionState 后才入目标链）</text>
+  <rect x="1660" y="828" width="215" height="82" rx="10" class="empty"/>
+  <text x="1680" y="859" class="label">完全空：Empty cache</text>
+  <text x="1680" y="884" class="small">classless empty；Assist 可先放 P local</text>
+  <rect x="1910" y="828" width="225" height="82" rx="10" class="result"/>
+  <text x="1930" y="859" class="label">有空槽：partialSwept</text>
+  <text x="1930" y="884" class="small">可供下一次 size-class 分配</text>
+  <rect x="1785" y="948" width="225" height="82" rx="10" class="chain"/>
+  <text x="1805" y="979" class="label">无空槽：fullSwept</text>
+  <text x="1805" y="1004" class="small">保留为已 Sweep 的 full Region</text>
+  <text x="1660" y="1065" class="small">Lazy Sweep：empty/partial 可直接转 TRANSIENT，交给请求 P。</text>
+  <text x="1660" y="1092" class="small">其他执行方：通常发布回 central 链或 empty cache。</text>
+
+  <path d="M1875 868 H1905" class="lineBlue"/>
+  <path d="M1905 910 V943" class="lineOrange"/>
+
+  <rect x="70" y="1440" width="2095" height="54" rx="12" class="note"/>
+  <text x="95" y="1473" class="text">完成条件：只有 unswept 总数为 0，且 Background/Lazy/Assist/Helper 的 active counter 均为 0，TryPublishSweepDone() 才发布 sweepDone。generation 不能替代这道 quiesce fence。</text>
+</svg>

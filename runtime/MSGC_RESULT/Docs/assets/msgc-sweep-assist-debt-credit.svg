@@ -1,0 +1,145 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2240" height="1480" viewBox="0 0 2240 1480" role="img" aria-labelledby="title desc">
+  <title id="title">MSGC Sweep Assist 的 Region 债务、中央 credit 与直接清扫</title>
+  <desc id="desc">图示 PrepareForSweep 如何翻转链表、发布 sweep generation 与基础比例；每个 P 在成功消费 Region 或 span 后按 generation 累积本地固定点债务。偿债时先 CAS 领取后台、lazy 或 worker 已完成 sweep 的中央 credit，余债达到精确批量门槛才直接 claim unswept Region 并 sweep。Assist 完成的工作不再写 credit，避免重复记账。</desc>
+  <defs>
+    <style>
+      .title { font: 700 36px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .subtitle { font: 400 18px Arial, PingFang SC, sans-serif; fill: #49617f; }
+      .section { font: 700 21px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .label { font: 700 17px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .text { font: 400 16px Arial, PingFang SC, sans-serif; fill: #29415f; }
+      .small { font: 400 14px Arial, PingFang SC, sans-serif; fill: #49617f; }
+      .mono { font: 600 14px Menlo, Consolas, monospace; fill: #163861; }
+      .lane { fill: #f8fbff; stroke: #c2d6eb; stroke-width: 1.7; }
+      .gc { fill: #edf5ff; stroke: #2472d3; stroke-width: 2.2; }
+      .p { fill: #eef8f1; stroke: #2d8a57; stroke-width: 2.2; }
+      .debt { fill: #fff8e8; stroke: #e6a21c; stroke-width: 2.2; }
+      .chain { fill: #fff3e7; stroke: #e87505; stroke-width: 2.2; }
+      .credit { fill: #e9f8f5; stroke: #17877a; stroke-width: 2.2; }
+      .result { fill: #eef3fb; stroke: #557ba9; stroke-width: 2.2; }
+      .guard { fill: #fbeef0; stroke: #c95365; stroke-width: 2.2; }
+      .note { fill: #f7f9fc; stroke: #b9c8da; stroke-width: 1.5; }
+      .line { fill: none; stroke: #49617f; stroke-width: 2.5; marker-end: url(#arrow); }
+      .blue { fill: none; stroke: #2472d3; stroke-width: 3; marker-end: url(#arrowBlue); }
+      .green { fill: none; stroke: #2d8a57; stroke-width: 3; marker-end: url(#arrowGreen); }
+      .orange { fill: none; stroke: #e87505; stroke-width: 3; marker-end: url(#arrowOrange); }
+      .teal { fill: none; stroke: #17877a; stroke-width: 3; marker-end: url(#arrowTeal); }
+      .red { fill: none; stroke: #c95365; stroke-width: 3; marker-end: url(#arrowRed); }
+      .dash { fill: none; stroke: #7698bf; stroke-width: 2.3; stroke-dasharray: 9 7; marker-end: url(#arrowBlue); }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#49617f"/></marker>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2472d3"/></marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2d8a57"/></marker>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#e87505"/></marker>
+    <marker id="arrowTeal" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#17877a"/></marker>
+    <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c95365"/></marker>
+  </defs>
+
+  <rect width="2240" height="1480" fill="#ffffff"/>
+  <text x="70" y="60" class="title">Sweep Assist：按 Region 记债、先消费中央 credit、再按批直接清扫</text>
+  <text x="70" y="94" class="subtitle">Sweep 的单位是 Region，不是对象；`sweepCredit_` 只代表后台 / lazy / helper 已完成且尚未折抵给某个 P 的 Region 工作量。</text>
+
+  <text x="70" y="142" class="section">1. 新 Sweep epoch：翻转中央链、发布 generation 与基础“每分配 Region 应扫多少 Region”比例</text>
+  <rect x="70" y="166" width="2100" height="220" rx="18" class="lane"/>
+  <rect x="120" y="206" width="390" height="140" rx="14" class="gc"/>
+  <text x="146" y="244" class="label">PrepareForSweep()</text>
+  <text x="146" y="272" class="small">partial/full swept 链 O(1) flip 到 unswept</text>
+  <text x="146" y="298" class="small">sweepCredit.Reset()；sweepDone=false</text>
+  <text x="146" y="324" class="mono">globalSweepGen += 2</text>
+  <path d="M510 276 H570" class="blue"/>
+  <rect x="590" y="206" width="390" height="140" rx="14" class="chain"/>
+  <text x="616" y="244" class="label">本轮待清扫输入</text>
+  <text x="616" y="272" class="small">totalUnsweptRegions = partial + full</text>
+  <text x="616" y="298" class="small">仅 unswept 链可被 claim 用于 sweep</text>
+  <text x="616" y="324" class="small">每个 Region 仍会用 sweepGen 验证</text>
+  <path d="M980 276 H1040" class="orange"/>
+  <rect x="1060" y="206" width="455" height="140" rx="14" class="debt"/>
+  <text x="1086" y="244" class="label">基础比例（固定点 SCALE=65536）</text>
+  <text x="1086" y="272" class="mono">totalUnsweptRegions / runwayRegions</text>
+  <text x="1086" y="298" class="small">runway 来自 heap threshold 与 swept bytes</text>
+  <text x="1086" y="324" class="small">本轮比例发布到 sweepRegionsPerAllocScaled_</text>
+  <path d="M1515 276 H1575" class="blue"/>
+  <rect x="1595" y="206" width="515" height="140" rx="14" class="guard"/>
+  <text x="1621" y="244" class="label">压力只放大“记债”</text>
+  <text x="1621" y="272" class="small">LOW ×1；MEDIUM ×4；HIGH ×10</text>
+  <text x="1621" y="298" class="small">GetSweepAssistRatioScaled() 读取当前压力</text>
+  <text x="1621" y="324" class="small">直接 assist 的单批大小不因压力变大</text>
+
+  <text x="70" y="438" class="section">2. P 的债务：成功取得 Region/span 后才加；generation 改变时丢弃旧轮的分数与统计</text>
+  <rect x="70" y="462" width="1010" height="340" rx="18" class="lane"/>
+  <text x="96" y="500" class="label">P / AllocBufferMS</text>
+  <rect x="120" y="536" width="250" height="126" rx="14" class="p"/>
+  <text x="146" y="574" class="label">成功消费空间</text>
+  <text x="146" y="602" class="small">small refill: 1 Region</text>
+  <text x="146" y="628" class="small">large: span / MS_REGION_SIZE</text>
+  <path d="M370 599 H420" class="green"/>
+  <rect x="440" y="536" width="245" height="126" rx="14" class="debt"/>
+  <text x="466" y="574" class="label">sweepDebtGen_ 检查</text>
+  <text x="466" y="602" class="small">不等于 globalSweepGen：</text>
+  <text x="466" y="628" class="small">债务=0、统计 reset、更新 gen</text>
+  <path d="M685 599 H735" class="orange"/>
+  <rect x="755" y="536" width="275" height="126" rx="14" class="debt"/>
+  <text x="781" y="574" class="label">AccumulateSweepDebt</text>
+  <text x="781" y="602" class="mono">debt += allocatedRegions × ratio</text>
+  <text x="781" y="628" class="small">sweepDone / ratio=0 时清债</text>
+  <rect x="270" y="712" width="575" height="52" rx="12" class="note"/>
+  <text x="296" y="744" class="small">背景缓存填充不进入这里，因此不会把 Background 的吞吐同时算为某个 P 的新增债务。</text>
+
+  <text x="1130" y="438" class="section">3. 一次偿债：credit 是先到先得；剩余债务达到批量阈值才直接 sweep</text>
+  <rect x="1130" y="462" width="1040" height="340" rx="18" class="lane"/>
+  <rect x="1180" y="536" width="205" height="126" rx="14" class="debt"/>
+  <text x="1206" y="574" class="label">debtRegions ≥ 1</text>
+  <text x="1206" y="602" class="small">fixed-point 整数部分</text>
+  <text x="1206" y="628" class="small">进入 MSSweepAssist</text>
+  <path d="M1385 599 H1435" class="orange"/>
+  <rect x="1455" y="536" width="305" height="126" rx="14" class="credit"/>
+  <text x="1481" y="574" class="label">① sweepCredit_.Take(debt)</text>
+  <text x="1481" y="602" class="small">CAS 领取 min(debt, credit)</text>
+  <text x="1481" y="628" class="small">只能被一个 P 消费一次</text>
+  <path d="M1760 599 H1810" class="teal"/>
+  <rect x="1830" y="536" width="290" height="126" rx="14" class="debt"/>
+  <text x="1856" y="574" class="label">② 余债够一批？</text>
+  <text x="1856" y="602" class="small">不足 batch：保留余债</text>
+  <text x="1856" y="628" class="small">够：恰好 sweep 1 个配置批次</text>
+  <path d="M1975 662 V712 H1810" class="orange"/>
+  <rect x="1470" y="712" width="300" height="52" rx="12" class="note"/>
+  <text x="1496" y="744" class="small">支付量只按实际 credit + 实际 sweep 返回值扣除。</text>
+
+  <text x="70" y="854" class="section">4. 直接 Sweep：共同 claim 一条 unswept 链；结果按 Region 状态回流，不会重复成为 credit</text>
+  <rect x="70" y="878" width="2100" height="358" rx="18" class="lane"/>
+  <rect x="120" y="932" width="310" height="150" rx="14" class="guard"/>
+  <text x="146" y="970" class="label">AssistSweep guard</text>
+  <text x="146" y="998" class="small">activeAssistSweepCount++ + seq_cst fence</text>
+  <text x="146" y="1024" class="small">stopSweepRequested / skipAssistSweep</text>
+  <text x="146" y="1050" class="small">命中停止请求则立刻退出</text>
+  <path d="M430 1007 H490" class="red"/>
+  <rect x="510" y="932" width="350" height="150" rx="14" class="chain"/>
+  <text x="536" y="970" class="label">ClaimUnsweptHeadForSweep</text>
+  <text x="536" y="998" class="small">按 preferred class 轮转 partial/full</text>
+  <text x="536" y="1024" class="small">共享 CAS claim + sweepGen 校验</text>
+  <text x="536" y="1050" class="small">同一 Region 只会有一个执行者拥有</text>
+  <path d="M860 1007 H920" class="orange"/>
+  <rect x="940" y="932" width="300" height="150" rx="14" class="p"/>
+  <text x="966" y="970" class="label">SweepRegion()</text>
+  <text x="966" y="998" class="small">依据 mark/alloc bitmap 重建槽</text>
+  <text x="966" y="1024" class="small">region.SetSweepGen(g)</text>
+  <text x="966" y="1050" class="small">RecordAssistSweep(1)</text>
+  <path d="M1240 1007 H1300" class="green"/>
+  <rect x="1320" y="932" width="260" height="150" rx="14" class="result"/>
+  <text x="1346" y="970" class="label">empty</text>
+  <text x="1346" y="998" class="small">优先 TryPushLocalEmptyRegion</text>
+  <text x="1346" y="1024" class="small">失败则 central empty cache</text>
+  <path d="M1580 1007 H1640" class="blue"/>
+  <rect x="1660" y="932" width="410" height="150" rx="14" class="result"/>
+  <text x="1686" y="970" class="label">partial / full swept 链</text>
+  <text x="1686" y="998" class="small">有空槽：CENTRAL_PARTIAL</text>
+  <text x="1686" y="1024" class="small">无空槽：CENTRAL_FULL</text>
+  <text x="1686" y="1050" class="small">TryPublishSweepDone() 负责最终完成发布</text>
+  <rect x="570" y="1132" width="1110" height="60" rx="12" class="note"/>
+  <text x="596" y="1168" class="small">credit 只由 Background / Lazy / Helper 的已完成 sweep 加入；Assist 与 Force-Finish 不加入 credit，前者已直接偿还 owner P，后者用于强制收口。这样同一 Region 绝不会被两个 P 折抵两次。</text>
+
+  <rect x="70" y="1280" width="2100" height="112" rx="14" class="note"/>
+  <text x="96" y="1317" class="label">为何需要 generation + 共同 claim</text>
+  <text x="355" y="1317" class="text">generation 让上一个 Sweep epoch 的 P 局部债务不能泄漏到新一轮；claim 将 Background、Lazy、Assist、Worker 与 force-finish 收敛到同一 Region 所有权协议。停止请求与 active count 又保证 STW 可以先阻止新 Assist、再等待在途的 Sweep 退出。</text>
+  <text x="96" y="1348" class="small">压力影响的是“之后还要记多少债”，而不是让某一次 mutator assist 无界扩大；这正是批量门槛存在的原因。</text>
+</svg>

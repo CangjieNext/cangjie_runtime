@@ -1,0 +1,217 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2240" height="1560" viewBox="0 0 2240 1560" role="img" aria-labelledby="title desc">
+  <title id="title">MSGC ConcurrentMark 的 WorkBuf 闭包、P 本地日志与 STW 收口</title>
+  <desc id="desc">图示根枚举、删除写屏障和对象图遍历如何把灰对象写入 WorkBuf；P 的 activeLog 和 logCache、全局 globalFull、P assist、GC 主线程和 Mark Helper 的 PerPGCWork 如何流转；最后 MarkTermination 如何在 STW 中收口到固定点。</desc>
+  <defs>
+    <style>
+      .title { font: 700 36px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .subtitle { font: 400 18px Arial, PingFang SC, sans-serif; fill: #49617f; }
+      .section { font: 700 21px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .label { font: 700 17px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .text { font: 400 16px Arial, PingFang SC, sans-serif; fill: #29415f; }
+      .small { font: 400 14px Arial, PingFang SC, sans-serif; fill: #49617f; }
+      .mono { font: 600 14px Menlo, Consolas, monospace; fill: #163861; }
+      .phase { fill: #edf5ff; stroke: #2472d3; stroke-width: 2; }
+      .stw { fill: #fbeef0; stroke: #c95365; stroke-width: 2; }
+      .source { fill: #fff4e9; stroke: #e87505; stroke-width: 2; }
+      .work { fill: #eef8f1; stroke: #2d8a57; stroke-width: 2; }
+      .global { fill: #eef3fb; stroke: #557ba9; stroke-width: 2.5; }
+      .pool { fill: #f6effb; stroke: #8663ab; stroke-width: 2; }
+      .local { fill: #fff8e8; stroke: #e6a21c; stroke-width: 2; }
+      .consumer { fill: #f3f7fb; stroke: #7898bd; stroke-width: 2; }
+      .note { fill: #f7f9fc; stroke: #b9c8da; stroke-width: 1.5; }
+      .line { fill: none; stroke: #49617f; stroke-width: 2.5; marker-end: url(#arrow); }
+      .lineBlue { fill: none; stroke: #2472d3; stroke-width: 3; marker-end: url(#arrowBlue); }
+      .lineOrange { fill: none; stroke: #e87505; stroke-width: 3; marker-end: url(#arrowOrange); }
+      .lineGreen { fill: none; stroke: #2d8a57; stroke-width: 3; marker-end: url(#arrowGreen); }
+      .linePurple { fill: none; stroke: #8663ab; stroke-width: 2.5; marker-end: url(#arrowPurple); }
+      .lineRed { fill: none; stroke: #c95365; stroke-width: 3; marker-end: url(#arrowRed); }
+      .dash { fill: none; stroke: #8663ab; stroke-width: 2; stroke-dasharray: 8 7; marker-end: url(#arrowPurple); }
+      .separator { fill: none; stroke: #9eb5ce; stroke-width: 2; stroke-dasharray: 9 8; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#49617f"/></marker>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2472d3"/></marker>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#e87505"/></marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2d8a57"/></marker>
+    <marker id="arrowPurple" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8663ab"/></marker>
+    <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c95365"/></marker>
+  </defs>
+
+  <rect width="2240" height="1560" fill="#ffffff"/>
+  <text x="70" y="60" class="title">ConcurrentMark：WorkBuf 闭包、并发流转与 STW 收口</text>
+  <text x="70" y="94" class="subtitle">所有可扫描对象先由 mark bitmap 确认为 grey，再进入 WorkBuf；WorkBuf 传递工作，不承载对象颜色。</text>
+
+  <text x="70" y="140" class="section">阶段边界</text>
+  <rect x="70" y="165" width="340" height="95" rx="14" class="stw"/>
+  <text x="95" y="201" class="label">PreEnumRoots · 短 STW</text>
+  <text x="95" y="229" class="small">封口上一轮 Sweep，flip generation</text>
+  <path d="M410 212 H465" class="line"/>
+  <rect x="485" y="165" width="380" height="95" rx="14" class="phase"/>
+  <text x="510" y="201" class="label">EnumRoots · 并发 handshake</text>
+  <text x="510" y="229" class="small">根 mark 为 grey，暂存到 markWorkStack_</text>
+  <path d="M865 212 H920" class="lineBlue"/>
+  <rect x="940" y="165" width="510" height="95" rx="14" class="phase"/>
+  <text x="965" y="201" class="label">ConcurrentMark · mutator 与标记并发</text>
+  <text x="965" y="229" class="small">WorkBuf 生产、窃取、Trace，直到候选收敛</text>
+  <path d="M1450 212 H1505" class="lineRed"/>
+  <rect x="1525" y="165" width="640" height="95" rx="14" class="stw"/>
+  <text x="1550" y="201" class="label">MarkTermination · STW fixed point</text>
+  <text x="1550" y="229" class="small">冻结 Mutator，收齐 P 私有尾块，再切回 IDLE</text>
+
+  <text x="70" y="315" class="section">1. WorkBuf 的两个角色：可复用的容器与全局可见的工作单元</text>
+  <rect x="70" y="340" width="510" height="155" rx="15" class="work"/>
+  <text x="95" y="378" class="label">WorkBuf（64B 对齐）</text>
+  <text x="95" y="408" class="mono">next | len | objs[1024]</text>
+  <text x="95" y="437" class="text">一个 buffer 是一次 global work exchange 的单位</text>
+  <text x="95" y="465" class="small">条目统一为生产端已标记的 trusted-grey；消费者直接扫描字段。</text>
+
+  <rect x="635" y="340" width="505" height="155" rx="15" class="pool"/>
+  <text x="660" y="378" class="label">WorkBufPool：空块的全局复用池</text>
+  <text x="660" y="408" class="text">Get() / Put() 时 Reset len 和 next</text>
+  <text x="660" y="437" class="small">避免 Mark 热路径 malloc/free；P 的 logCache 批量 GetN/PutN</text>
+  <text x="660" y="465" class="small">获取 8 个，缓存高水位 16 个</text>
+
+  <rect x="1195" y="340" width="970" height="155" rx="15" class="note"/>
+  <text x="1220" y="378" class="label">关键区分</text>
+  <text x="1220" y="408" class="text">只有 P 的 <tspan class="mono">AllocBufferMS</tspan> 有 <tspan class="mono">activeLog_ / logCache_</tspan>；GC 主线程和 Mark Helper 不拥有 activeLog。</text>
+  <text x="1220" y="437" class="text">它们各自持有 <tspan class="mono">PerPGCWork { getCur_, putCur_ }</tspan>：前者取已发布工作，后者装入 Trace 发现的子对象。</text>
+  <text x="1220" y="465" class="small">图中的 “Helper” 指 GC ThreadPool 的 Mark Worker，不是处理 Sweep/Scavenge 的 gc-helper 服务。</text>
+
+  <path d="M70 530 H2165" class="separator"/>
+  <text x="70" y="570" class="section">2. ConcurrentMark：三类对象来源进入 globalFull_，多个执行者闭包式消费</text>
+
+  <rect x="70" y="600" width="310" height="160" rx="14" class="source"/>
+  <text x="95" y="637" class="label">EnumRoots 的初始灰对象</text>
+  <text x="95" y="666" class="text">root → mark winner</text>
+  <text x="95" y="694" class="small">先进入 markWorkStack_</text>
+  <text x="95" y="721" class="small">ConcurrentMark 开始时转移</text>
+
+  <rect x="430" y="600" width="300" height="160" rx="14" class="source"/>
+  <text x="455" y="637" class="label">TransferRootsToGCWork()</text>
+  <text x="455" y="666" class="text">从 Pool 取空块，打包 roots</text>
+  <text x="455" y="694" class="small">满块和最后一个 partial</text>
+  <text x="455" y="721" class="small">都直接 publish</text>
+  <path d="M380 680 H425" class="lineOrange"/>
+
+  <rect x="70" y="810" width="660" height="270" rx="16" class="local"/>
+  <text x="95" y="847" class="label">P0 / P1 … Pn：AllocBufferMS（每个 P 独占）</text>
+  <rect x="100" y="875" width="275" height="160" rx="11" class="source"/>
+  <text x="123" y="910" class="label">写屏障 → activeLog_</text>
+  <text x="123" y="938" class="text">覆盖前取 oldRef</text>
+  <text x="123" y="965" class="small">Shade/CAS winner 且 HasRef</text>
+  <text x="123" y="991" class="small">写入 objs[len++]</text>
+  <text x="123" y="1017" class="small">满块 / owner exit → publish</text>
+
+  <rect x="410" y="875" width="290" height="160" rx="11" class="pool"/>
+  <text x="433" y="910" class="label">logCache_：P 私有空块栈</text>
+  <text x="433" y="938" class="text">activeLog 满时立即换入</text>
+  <text x="433" y="965" class="small">本地 pop，不争用 Pool</text>
+  <text x="433" y="991" class="small">周期末 / 高水位批量归还</text>
+  <path d="M880 495 V550 H745 V850 H700" class="dash"/>
+  <text x="755" y="540" class="small">批量 GetN / PutN</text>
+
+  <rect x="795" y="580" width="470" height="250" rx="18" class="global"/>
+  <text x="820" y="619" class="label">globalFull_：共享 LFStack&lt;WorkBuf&gt;</text>
+  <text x="820" y="649" class="text">根 WorkBuf、满 activeLog、满 putCur_、退出/收口残块</text>
+  <text x="820" y="678" class="small">Push/Pop 受内部 mutex 保护；fullCount 供 Assist 只取满块</text>
+  <text x="820" y="707" class="small">GC 主线程 / Mark Worker 接受 partial；Mutator Assist 仅 AcquireOneFullBuffer()</text>
+  <text x="820" y="747" class="label">工作可见性与窃取中心，不是对象颜色表</text>
+  <path d="M730 680 H790" class="lineOrange"/>
+  <path d="M375 1035 V1095 H760 V760" class="lineOrange"/>
+  <text x="445" y="1088" class="small">满块 / owner exit</text>
+
+  <rect x="1320" y="580" width="260" height="250" rx="15" class="consumer"/>
+  <text x="1345" y="617" class="label">P 的 Mark Assist</text>
+  <text x="1345" y="646" class="mono">gcWork_ : PerPGCWork</text>
+  <rect x="1345" y="670" width="100" height="105" rx="8" class="global"/>
+  <text x="1362" y="704" class="label">getCur_</text>
+  <text x="1362" y="731" class="small">只取 full</text>
+  <text x="1362" y="755" class="small">scan</text>
+  <rect x="1460" y="670" width="95" height="105" rx="8" class="work"/>
+  <text x="1474" y="704" class="label">putCur_</text>
+  <text x="1474" y="731" class="small">children</text>
+  <text x="1474" y="755" class="small">满则发</text>
+  <path d="M1265 710 H1340" class="lineBlue"/>
+  <path d="M1460 790 V812 H1265" class="lineGreen"/>
+
+  <rect x="1635" y="580" width="260" height="250" rx="15" class="consumer"/>
+  <text x="1660" y="617" class="label">GC 主线程</text>
+  <text x="1660" y="646" class="mono">gcThreadWork_</text>
+  <rect x="1660" y="670" width="100" height="105" rx="8" class="global"/>
+  <text x="1677" y="704" class="label">getCur_</text>
+  <text x="1677" y="731" class="small">可取 partial</text>
+  <text x="1677" y="755" class="small">scan</text>
+  <rect x="1775" y="670" width="95" height="105" rx="8" class="work"/>
+  <text x="1789" y="704" class="label">putCur_</text>
+  <text x="1789" y="731" class="small">children</text>
+  <text x="1789" y="755" class="small">满则发</text>
+  <path d="M1775 775 V790 H1265" class="lineGreen"/>
+
+  <rect x="1950" y="580" width="215" height="250" rx="15" class="consumer"/>
+  <text x="1972" y="617" class="label">Mark Helper / Worker</text>
+  <text x="1972" y="646" class="mono">slot.work</text>
+  <rect x="1970" y="670" width="82" height="105" rx="8" class="global"/>
+  <text x="1980" y="704" class="label">get</text>
+  <text x="1980" y="731" class="small">partial</text>
+  <text x="1980" y="755" class="small">scan</text>
+  <rect x="2066" y="670" width="76" height="105" rx="8" class="work"/>
+  <text x="2075" y="704" class="label">put</text>
+  <text x="2075" y="731" class="small">child</text>
+  <text x="2075" y="755" class="small">full</text>
+  <path d="M2066 775 V805 H1265" class="lineGreen"/>
+
+  <rect x="795" y="875" width="470" height="205" rx="16" class="work"/>
+  <text x="820" y="912" class="label">每个消费者的一轮 DrainOneBufRound()</text>
+  <text x="820" y="941" class="text">从 getCur_ pop grey object → TraceObjectRefFieldsToGCWork()</text>
+  <text x="820" y="970" class="text">每个 child：Discover/mark winner 且 HasRef → 本执行者 putCur_</text>
+  <text x="820" y="999" class="small">putCur_ 写满：立即 Push globalFull_，再从 Pool 取得新空块；未满 tail 留在本地。</text>
+  <text x="820" y="1030" class="small">getCur_ 用完立即 Put 回 Pool；这使对象图遍历成为“消费 → 新工作 → 再消费”的闭包。</text>
+  <path d="M1265 975 H1320" class="lineGreen"/>
+
+  <path d="M70 1120 H2165" class="separator"/>
+  <text x="70" y="1160" class="section">3. MarkTermination（STW）：封住新来源，把所有尾块反复 drain 到 fixed point</text>
+
+  <rect x="70" y="1190" width="320" height="205" rx="15" class="stw"/>
+  <text x="95" y="1228" class="label">① Stop-the-world</text>
+  <text x="95" y="1257" class="text">进入 MS_MARK_TERMINATION</text>
+  <text x="95" y="1286" class="small">冻结 Mutator；activeCollector_=null</text>
+  <text x="95" y="1313" class="small">不再允许产生新的 barrier log</text>
+  <text x="95" y="1340" class="small">此后工作集有界</text>
+
+  <rect x="440" y="1190" width="370" height="205" rx="15" class="stw"/>
+  <text x="465" y="1228" class="label">② FlushAllWriteBarrierBuffers()</text>
+  <text x="465" y="1257" class="text">遍历所有 P 未满 activeLog_</text>
+  <text x="465" y="1286" class="small">trusted-grey 直接 PushMovedGrey</text>
+  <text x="465" y="1313" class="small">不再 Discover；同时 drain logCache_</text>
+  <text x="465" y="1340" class="small">目标：主线程 mainQueue</text>
+
+  <rect x="860" y="1190" width="370" height="205" rx="15" class="stw"/>
+  <text x="885" y="1228" class="label">③ DisposeAllPerPGCWork()</text>
+  <text x="885" y="1257" class="text">P gcWork + GC main + Worker</text>
+  <text x="885" y="1286" class="small">getCur_ / putCur_ 两个当前块</text>
+  <text x="885" y="1313" class="small">残余 WorkBuf 全部 Push globalFull_</text>
+  <text x="885" y="1340" class="small">每个 P 私有尾块都变为可见</text>
+
+  <rect x="1280" y="1190" width="410" height="205" rx="15" class="global"/>
+  <text x="1305" y="1228" class="label">④ DrainGlobal → mainQueue → Trace</text>
+  <text x="1305" y="1257" class="text">globalFull_ 的 trusted-grey 直接入主队列</text>
+  <text x="1305" y="1286" class="small">mainQueue Trace 又可能发现新的 child</text>
+  <text x="1305" y="1313" class="small">重复 Flush / Dispose / Drain，直到 queue 为空</text>
+  <text x="1305" y="1340" class="small">这才是 Mark 的固定点，而非仅队列瞬时为空</text>
+
+  <rect x="1740" y="1190" width="425" height="205" rx="15" class="phase"/>
+  <text x="1765" y="1228" class="label">⑤ Reset → IDLE → 恢复 Mutator</text>
+  <text x="1765" y="1257" class="text">ResetAllPerPGCWork()：空块回 Pool</text>
+  <text x="1765" y="1286" class="small">STW 尾部安装 MSIdleBarrier，gate=0</text>
+  <text x="1765" y="1313" class="small">之后 PostMark 发布 Sweep / Scavenge</text>
+  <text x="1765" y="1340" class="small">后台 Sweep 并非新的 barrier phase</text>
+
+  <path d="M390 1292 H435" class="lineRed"/>
+  <path d="M810 1292 H855" class="lineRed"/>
+  <path d="M1230 1292 H1275" class="lineRed"/>
+  <path d="M1690 1292 H1735" class="lineRed"/>
+
+  <rect x="70" y="1430" width="2095" height="74" rx="12" class="note"/>
+  <text x="95" y="1462" class="label">读图要点</text>
+  <text x="205" y="1462" class="text">Enum、barrier、Trace 三路只把 mark winner 作为灰工作发布；P 的 activeLog 专门记录被覆盖 oldRef，所有执行者的 get/put 则专门推进对象图。</text>
+  <text x="95" y="1490" class="small">并发阶段为了吞吐保留 private partial tail；STW 阶段为了正确性强制公开全部尾块并循环 drain。WorkBufPool 仅管理空容器，globalFull_ 管理可被并发执行者窃取的工作。</text>
+</svg>

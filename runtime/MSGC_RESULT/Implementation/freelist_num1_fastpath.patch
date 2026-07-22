@@ -1,0 +1,322 @@
+diff --git a/runtime/src/Heap/MAllocator/MSCentralRegionPool.h b/runtime/src/Heap/MAllocator/MSCentralRegionPool.h
+index 2d617ab1..6b9ff995 100644
+--- a/runtime/src/Heap/MAllocator/MSCentralRegionPool.h
++++ b/runtime/src/Heap/MAllocator/MSCentralRegionPool.h
+@@ -389,6 +389,9 @@ public:
+     // Dump CentralRegionPool 4-list statistics (block ⑤ in DFX design)
+     void DumpPoolStats() const;
+ 
++    // Dump empty-swept cache transfer stats (Push/TakeEmptySweptRegion)
++    void DumpTakeRegionStats() const;
++
+     static uint32_t GetGlobalSweepGen()
+     {
+         return globalSweepGen_.load(std::memory_order_acquire);
+@@ -676,6 +679,11 @@ private:
+     MSRegionList emptySweptCache_;
+     std::atomic<size_t> emptySweptCount_{0};
+ 
++    // Empty-swept cache transfer instrumentation
++    mutable std::atomic<uint64_t> pushEmptyCalls_{0};
++    mutable std::atomic<uint64_t> takeEmptyCalls_{0};
++    mutable std::atomic<uint64_t> takeEmptyHits_{0};
++
+     // ===== Per-thread AllocBufferMS registry =====
+     // Every thread lazily creates an AllocBufferMS and registers it here.
+ public:
+diff --git a/runtime/src/Heap/MAllocator/MSFreeManager.cpp b/runtime/src/Heap/MAllocator/MSFreeManager.cpp
+index 76582917..869adf27 100644
+--- a/runtime/src/Heap/MAllocator/MSFreeManager.cpp
++++ b/runtime/src/Heap/MAllocator/MSFreeManager.cpp
+@@ -19,6 +19,7 @@
+ 
+ #include "Base/Log.h"
+ #include "Base/MemUtils.h"
++#include "Base/TimeUtils.h"
+ 
+ namespace MapleRuntime {
+ 
+@@ -193,23 +194,43 @@ FreeManager::TryTakeResult FreeManager::TryTakeRegions(RegionCount num, RegionIn
+         return TryTakeResult::EMPTY;
+     }
+ 
++    uint64_t t0 = TimeUtil::NanoSeconds();
++    takeRegionCalls_.fetch_add(1, std::memory_order_relaxed);
++    takeRegionBatchSizeSum_.fetch_add(num, std::memory_order_relaxed);
++
+     bool reusedScavenged = false;
++    TryTakeResult result;
+     {
++        uint64_t lockStart = TimeUtil::NanoSeconds();
+         std::lock_guard<std::mutex> lg(pageHeapMutex_);
++        uint64_t lockAcquired = TimeUtil::NanoSeconds();
++        takeRegionLockHoldNs_.fetch_add(lockAcquired - lockStart, std::memory_order_relaxed);
++
+         if (!FindFreeRunLocked(num, idx)) {
+-            return TryTakeResult::EMPTY;
++            result = TryTakeResult::EMPTY;
++        } else {
++            MarkAllocatedLocked(idx, num, reusedScavenged);
++            if (idx <= searchIdx_) {
++                searchIdx_ = FindNextFreeRegionLocked(idx + num);
++            }
++            result = TryTakeResult::SUCCESS;
+         }
++        uint64_t lockEnd = TimeUtil::NanoSeconds();
++        takeRegionLockHoldNs_.fetch_add(lockEnd - lockAcquired, std::memory_order_relaxed);
++    }
+ 
+-        MarkAllocatedLocked(idx, num, reusedScavenged);
+-        if (idx <= searchIdx_) {
+-            searchIdx_ = FindNextFreeRegionLocked(idx + num);
++    if (result == TryTakeResult::SUCCESS) {
++        takeRegionSuccess_.fetch_add(1, std::memory_order_relaxed);
++        if (reusedScavenged) {
++            ReuseUnits(RegionToUnitIdx(idx), RegionCountToUnitCount(num));
+         }
++    } else {
++        takeRegionEmpty_.fetch_add(1, std::memory_order_relaxed);
+     }
+ 
+-    if (reusedScavenged) {
+-        ReuseUnits(RegionToUnitIdx(idx), RegionCountToUnitCount(num));
+-    }
+-    return TryTakeResult::SUCCESS;
++    uint64_t t1 = TimeUtil::NanoSeconds();
++    takeRegionDurationNs_.fetch_add(t1 - t0, std::memory_order_relaxed);
++    return result;
+ }
+ 
+ bool FreeManager::TryIncreaseInactiveZone(RegionCount num, RegionIndex& idx)
+@@ -225,9 +246,18 @@ void FreeManager::ReclaimRegionsReleased(RegionIndex idx, RegionCount num)
+         return;
+     }
+ 
+-    std::lock_guard<std::mutex> lg(pageHeapMutex_);
+-    MarkFreeLocked(idx, num);
+-    searchIdx_ = std::min(searchIdx_, idx);
++    uint64_t t0 = TimeUtil::NanoSeconds();
++    reclaimCalls_.fetch_add(1, std::memory_order_relaxed);
++    reclaimBatchSizeSum_.fetch_add(num, std::memory_order_relaxed);
++
++    {
++        std::lock_guard<std::mutex> lg(pageHeapMutex_);
++        MarkFreeLocked(idx, num);
++        searchIdx_ = std::min(searchIdx_, idx);
++    }
++
++    uint64_t t1 = TimeUtil::NanoSeconds();
++    reclaimDurationNs_.fetch_add(t1 - t0, std::memory_order_relaxed);
+ }
+ 
+ bool FreeManager::GrowOneSegment(HeapRangeHandler& handler)
+@@ -521,6 +551,49 @@ bool FreeManager::FindFreeRunLocked(RegionCount num, RegionIndex& idx) const
+         return false;
+     }
+ 
++    // Fast path: num == 1 — word-level scan with ctz,
++    // avoids walking ChunkSummary + PreciseFitFromLocked probe loop.
++    if (num == 1) {
++        RegionIndex cursor = std::min(searchIdx_,
++                                      static_cast<RegionIndex>(committedRegionCount_));
++        size_t wordIdx = cursor / kChunkBits;
++        unsigned skipBits = static_cast<unsigned>(cursor % kChunkBits);
++        size_t wordCount = bitmapWordCountInUse_;
++        // Safety clamp: don't scan beyond what's actually committed.
++        size_t logicalWords = RegionCountToChunkCount(committedRegionCount_);
++        if (wordCount > logicalWords) {
++            wordCount = logicalWords;
++        }
++
++        for (; wordIdx < wordCount; ++wordIdx) {
++            uint64_t freeMask = ~allocBits_[wordIdx];
++            if (freeMask == 0) {
++                skipBits = 0;
++                continue;
++            }
++            // In the first word, skip bits below the cursor position.
++            if (skipBits != 0) {
++                freeMask &= ~((1ULL << skipBits) - 1);
++                if (freeMask == 0) {
++                    skipBits = 0;
++                    continue;
++                }
++                skipBits = 0;
++            }
++            // In the last (possibly partial) word, mask bits beyond committedRegionCount_.
++            size_t regionBase = wordIdx * kChunkBits;
++            size_t remaining = committedRegionCount_ - regionBase;
++            if (remaining < kChunkBits) {
++                freeMask &= (1ULL << remaining) - 1;
++                if (freeMask == 0) continue;
++            }
++            unsigned bit = __builtin_ctzll(freeMask);
++            idx = static_cast<RegionIndex>(regionBase + static_cast<size_t>(bit));
++            return true;
++        }
++        return false;
++    }
++
+     RegionIndex cursor = std::min(searchIdx_, static_cast<RegionIndex>(committedRegionCount_));
+     RegionIndex carryStart = cursor;
+     uint32_t carryLen = 0;
+@@ -591,6 +664,31 @@ size_t FreeManager::CountFreeInRangeLocked(RegionIndex idx, RegionCount num) con
+ 
+ void FreeManager::MarkAllocatedLocked(RegionIndex idx, RegionCount num, bool& reusedScavenged)
+ {
++    // Fast path: single region — O(1) word-level bitmap ops.
++    // Avoids 4 passes (CountScavengedInRange, CountFreeInRange, SetBit loop,
++    // UpdateChunkSummaryRange) that each re-load the same cache line.
++    if (num == 1) {
++        size_t wordIdx = idx / kChunkBits;
++        unsigned bitPos = static_cast<unsigned>(idx % kChunkBits);
++        uint64_t bitMask = 1ULL << bitPos;
++
++        bool wasFree = !(allocBits_[wordIdx] & bitMask);
++        bool wasScavenged = (scavengedBits_[wordIdx] & bitMask) != 0;
++
++        reusedScavenged = wasScavenged;
++        if (wasFree) {
++            --freeRegionCount_;
++        }
++        if (wasScavenged) {
++            --scavengedRegionCount_;
++            scavengedBits_[wordIdx] &= ~bitMask;
++        }
++        allocBits_[wordIdx] |= bitMask;
++
++        UpdateChunkSummaryLocked(wordIdx);
++        return;
++    }
++
+     size_t scavengedCount = CountScavengedInRangeLocked(idx, num);
+     reusedScavenged = scavengedCount != 0;
+     scavengedRegionCount_ -= scavengedCount;
+@@ -788,6 +886,61 @@ uintptr_t FreeManager::RegionIdxToAddr(RegionIndex regionIdx) const
+     return heapStart_ + static_cast<uintptr_t>(regionIdx) * GetRegionSizeBytes();
+ }
+ 
++// ============================================================================
++// TakeRegion/Reclaim stats — atomic snap + reset, and DumpStats for report.
++// ============================================================================
++
++FreeManager::TakeRegionStats FreeManager::SnapTakeRegionStats()
++{
++    TakeRegionStats s;
++    s.totalCalls      = takeRegionCalls_.exchange(0, std::memory_order_relaxed);
++    s.successCount    = takeRegionSuccess_.exchange(0, std::memory_order_relaxed);
++    s.emptyCount      = takeRegionEmpty_.exchange(0, std::memory_order_relaxed);
++    s.batchSizeSum    = takeRegionBatchSizeSum_.exchange(0, std::memory_order_relaxed);
++    s.durationNs      = takeRegionDurationNs_.exchange(0, std::memory_order_relaxed);
++    s.lockHoldNs      = takeRegionLockHoldNs_.exchange(0, std::memory_order_relaxed);
++    s.reclaimCalls    = reclaimCalls_.exchange(0, std::memory_order_relaxed);
++    s.reclaimBatchSizeSum = reclaimBatchSizeSum_.exchange(0, std::memory_order_relaxed);
++    s.reclaimDurationNs   = reclaimDurationNs_.exchange(0, std::memory_order_relaxed);
++    return s;
++}
++
++void FreeManager::DumpStats() const
++{
++    // Snapshot & reset via non-const self (we own the mutable atomics).
++    // We cast away const to call SnapTakeRegionStats since logging is logically non-const.
++    TakeRegionStats s = const_cast<FreeManager*>(this)->SnapTakeRegionStats();
++
++    if (s.totalCalls == 0 && s.reclaimCalls == 0) {
++        return;
++    }
++
++    uint64_t takeAvgNs = (s.totalCalls > 0) ? (s.durationNs / s.totalCalls) : 0;
++    uint64_t lockAvgNs = (s.totalCalls > 0) ? (s.lockHoldNs / s.totalCalls) : 0;
++    double avgBatch    = (s.totalCalls > 0) ? (static_cast<double>(s.batchSizeSum) / s.totalCalls) : 0.0;
++    uint64_t reclaimAvgNs = (s.reclaimCalls > 0) ? (s.reclaimDurationNs / s.reclaimCalls) : 0;
++    double avgReclaimBatch = (s.reclaimCalls > 0) ? (static_cast<double>(s.reclaimBatchSizeSum) / s.reclaimCalls) : 0.0;
++
++    VLOG(REPORT,
++         "[MS-GC] FreeManager.TakeRegion: calls=%lu success=%lu empty=%lu "
++         "avgBatch=%.1f totalDur=%luus avgDur=%luus lockHold=%luus avgLock=%luus",
++         (unsigned long)s.totalCalls,
++         (unsigned long)s.successCount,
++         (unsigned long)s.emptyCount,
++         avgBatch,
++         (unsigned long)(s.durationNs / 1000),
++         (unsigned long)(takeAvgNs / 1000),
++         (unsigned long)(s.lockHoldNs / 1000),
++         (unsigned long)(lockAvgNs / 1000));
++
++    VLOG(REPORT,
++         "[MS-GC] FreeManager.Reclaim: calls=%lu totalDur=%luus avgDur=%luus avgBatch=%.1f",
++         (unsigned long)s.reclaimCalls,
++         (unsigned long)(s.reclaimDurationNs / 1000),
++         (unsigned long)(reclaimAvgNs / 1000),
++         avgReclaimBatch);
++}
++
+ } // namespace MapleRuntime
+ 
+ #endif // MRT_USE_MARK_SWEEP
+\ No newline at end of file
+diff --git a/runtime/src/Heap/MAllocator/MSFreeManager.h b/runtime/src/Heap/MAllocator/MSFreeManager.h
+index 1d21bf99..08a108be 100644
+--- a/runtime/src/Heap/MAllocator/MSFreeManager.h
++++ b/runtime/src/Heap/MAllocator/MSFreeManager.h
+@@ -9,6 +9,7 @@
+ 
+ #ifdef MRT_USE_MARK_SWEEP
+ 
++#include <atomic>
+ #include <cstddef>
+ #include <cstdint>
+ #include <mutex>
+@@ -81,6 +82,22 @@ public:
+     void ShrinkHeap();
+     size_t ScavengeFreeRegions(bool releaseAll);
+ 
++    // === TakeRegion / Reclaim stats ===
++    struct TakeRegionStats {
++        uint64_t totalCalls = 0;
++        uint64_t successCount = 0;
++        uint64_t emptyCount = 0;
++        uint64_t batchSizeSum = 0;   // sum of num param for avg batch
++        uint64_t durationNs = 0;     // total wall time in TryTakeRegions
++        uint64_t lockHoldNs = 0;     // total wall time holding pageHeapMutex_
++        uint64_t reclaimCalls = 0;
++        uint64_t reclaimBatchSizeSum = 0;
++        uint64_t reclaimDurationNs = 0;
++    };
++    // Atomically snap and reset stats (thread-safe).
++    TakeRegionStats SnapTakeRegionStats();
++    void DumpStats() const;
++
+     UnitCount GetReleasedUnitCount() const;
+     UnitCount GetFreeUnitCount() const;
+     size_t GetReleasedBytes() const;
+@@ -190,6 +207,17 @@ private:
+     size_t scavengedRegionCount_ = 0;
+     RegionIndex searchIdx_ = 0;
+     uint64_t heapGrowCount_ = 0;
++
++    // TakeRegion instrumentation counters
++    mutable std::atomic<uint64_t> takeRegionCalls_{0};
++    mutable std::atomic<uint64_t> takeRegionSuccess_{0};
++    mutable std::atomic<uint64_t> takeRegionEmpty_{0};
++    mutable std::atomic<uint64_t> takeRegionBatchSizeSum_{0};
++    mutable std::atomic<uint64_t> takeRegionDurationNs_{0};
++    mutable std::atomic<uint64_t> takeRegionLockHoldNs_{0};
++    mutable std::atomic<uint64_t> reclaimCalls_{0};
++    mutable std::atomic<uint64_t> reclaimBatchSizeSum_{0};
++    mutable std::atomic<uint64_t> reclaimDurationNs_{0};
+ };
+ 
+ } // namespace MapleRuntime
+diff --git a/runtime/src/Heap/MAllocator/MSRegionManager.h b/runtime/src/Heap/MAllocator/MSRegionManager.h
+index b42f2432..b48e893f 100644
+--- a/runtime/src/Heap/MAllocator/MSRegionManager.h
++++ b/runtime/src/Heap/MAllocator/MSRegionManager.h
+@@ -167,6 +167,7 @@ public:
+     uint32_t GetReleasedTreeMaxBlock() const { return freeManager_.GetMaxBlockRegions(); }
+     size_t GetDirtyTreeBytes() const { return 0; } // stub: no dirty tree in current design
+     uint64_t GetHeapGrowCount() const { return freeManager_.GetHeapGrowCount(); }
++    FreeManager& GetFreeManager() { return freeManager_; }
+ 
+     // Unified layer-1 HEU trigger entry. MSGC now only keeps the TAKE_REGIONS path.
+     void MaybeNotifyMark();

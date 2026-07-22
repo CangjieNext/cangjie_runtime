@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="980" viewBox="0 0 1900 980" role="img" aria-labelledby="title desc">
+  <title id="title">MSGC heap, segment, shard, region, grow and shrink</title>
+  <desc id="desc">A fixed virtual heap with a committed prefix built from segments, shard ownership, 32KB regions, grow appending a segment, and shrink removing only fully free tail segments.</desc>
+  <defs>
+    <marker id="navy" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 z" fill="#102d63"/></marker>
+    <marker id="blue" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 z" fill="#2472d3"/></marker>
+    <marker id="green" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 z" fill="#168542"/></marker>
+    <marker id="orange" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 z" fill="#e87505"/></marker>
+    <style>
+      .bg{fill:#ffffff}.outer{fill:#ffffff;stroke:#102d63;stroke-width:3}.commit{fill:#f4f8ff;stroke:#2472d3;stroke-width:3}.reserve{fill:#fafafa;stroke:#9aa5b8;stroke-width:2;stroke-dasharray:8 6}.segment0{fill:#eaf3ff;stroke:#2472d3;stroke-width:3}.segment1{fill:#edf9f0;stroke:#168542;stroke-width:3}.segment2{fill:#fff6e9;stroke:#e87505;stroke-width:3}.tail{fill:#f6fbf7;stroke:#168542;stroke-width:3}.region-used{fill:#4b91e4;stroke:#102d63;stroke-width:1}.region-free{fill:#e6e9ee;stroke:#6c7789;stroke-width:1}.region-release{fill:#9bd28f;stroke:#168542;stroke-width:1}.region-dots{fill:#ffffff;stroke:#6c7789;stroke-width:1}.box{fill:#ffffff;stroke:#102d63;stroke-width:3;rx:10}.shard0{fill:#eaf3ff;stroke:#2472d3;stroke-width:3;rx:10}.shard1{fill:#edf9f0;stroke:#168542;stroke-width:3;rx:10}.shardn{fill:#fff6e9;stroke:#e87505;stroke-width:3;rx:10}.label{fill:#102d63;font:700 27px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.small{fill:#102d63;font:600 21px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.tiny{fill:#102d63;font:500 18px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.caption{fill:#102d63;font:italic 20px Arial, PingFang SC, sans-serif;text-anchor:middle}.blue-text{fill:#2472d3;font:700 22px Arial, PingFang SC, sans-serif;text-anchor:middle}.green-text{fill:#168542;font:700 22px Arial, PingFang SC, sans-serif;text-anchor:middle}.orange-text{fill:#e87505;font:700 22px Arial, PingFang SC, sans-serif;text-anchor:middle}.navy-arrow{fill:none;stroke:#102d63;stroke-width:4;marker-end:url(#navy)}.blue-arrow{fill:none;stroke:#2472d3;stroke-width:4;marker-end:url(#blue)}.green-arrow{fill:none;stroke:#168542;stroke-width:4;marker-end:url(#green)}.orange-arrow{fill:none;stroke:#e87505;stroke-width:4;marker-end:url(#orange)}.dash{fill:none;stroke:#7890b8;stroke-width:2.5;stroke-dasharray:8 7}
+    </style>
+  </defs>
+  <rect class="bg" x="0" y="0" width="1900" height="980"/>
+  <text class="label" x="950" y="42">MSGC 虚拟堆：Segment、Shard、Region 与 Grow / Shrink</text>
+
+  <!-- fixed virtual heap -->
+  <rect class="outer" x="80" y="100" width="1740" height="330" rx="8"/>
+  <text class="label" x="950" y="128">最大虚拟堆（固定地址上限，默认 16GB）</text>
+  <rect class="commit" x="115" y="165" width="1120" height="215" rx="6"/>
+  <text class="blue-text" x="675" y="190">committed prefix：当前可由 FreeManager 管理的逻辑窗口</text>
+  <rect class="reserve" x="1235" y="165" width="550" height="215" rx="6"/>
+  <text class="small" x="1510" y="255">reserved tail</text>
+  <text class="caption" x="1510" y="285">虚拟地址已预留，尚未提交</text>
+  <line x1="1235" y1="160" x2="1235" y2="392" stroke="#2472d3" stroke-width="4"/>
+  <text class="tiny" x="1235" y="405">committedEnd</text>
+
+  <!-- segments, each with representative regions -->
+  <rect class="segment0" x="145" y="225" width="255" height="125" rx="6"/>
+  <text class="small" x="272" y="246">Segment 0 · Shard 0</text>
+  <rect class="segment1" x="425" y="225" width="255" height="125" rx="6"/>
+  <text class="small" x="552" y="246">Segment 1 · Shard 1</text>
+  <rect class="segment0" x="705" y="225" width="255" height="125" rx="6"/>
+  <text class="small" x="832" y="246">Segment 2 · Shard 0</text>
+  <rect class="tail" x="985" y="225" width="215" height="125" rx="6"/>
+  <text class="small" x="1092" y="246">Tail Segment</text>
+
+  <!-- region rows -->
+  <g>
+    <rect class="region-used" x="160" y="270" width="25" height="34"/><rect class="region-used" x="189" y="270" width="25" height="34"/><rect class="region-free" x="218" y="270" width="25" height="34"/><rect class="region-release" x="247" y="270" width="25" height="34"/><rect class="region-free" x="276" y="270" width="25" height="34"/><rect class="region-dots" x="305" y="270" width="25" height="34"/><rect class="region-dots" x="334" y="270" width="25" height="34"/><rect class="region-dots" x="363" y="270" width="25" height="34"/>
+    <rect class="region-free" x="440" y="270" width="25" height="34"/><rect class="region-used" x="469" y="270" width="25" height="34"/><rect class="region-used" x="498" y="270" width="25" height="34"/><rect class="region-free" x="527" y="270" width="25" height="34"/><rect class="region-release" x="556" y="270" width="25" height="34"/><rect class="region-dots" x="585" y="270" width="25" height="34"/><rect class="region-dots" x="614" y="270" width="25" height="34"/><rect class="region-dots" x="643" y="270" width="25" height="34"/>
+    <rect class="region-used" x="720" y="270" width="25" height="34"/><rect class="region-free" x="749" y="270" width="25" height="34"/><rect class="region-free" x="778" y="270" width="25" height="34"/><rect class="region-used" x="807" y="270" width="25" height="34"/><rect class="region-release" x="836" y="270" width="25" height="34"/><rect class="region-dots" x="865" y="270" width="25" height="34"/><rect class="region-dots" x="894" y="270" width="25" height="34"/><rect class="region-dots" x="923" y="270" width="25" height="34"/>
+    <rect class="region-free" x="1000" y="270" width="25" height="34"/><rect class="region-free" x="1029" y="270" width="25" height="34"/><rect class="region-free" x="1058" y="270" width="25" height="34"/><rect class="region-free" x="1087" y="270" width="25" height="34"/><rect class="region-free" x="1116" y="270" width="25" height="34"/><rect class="region-free" x="1145" y="270" width="25" height="34"/>
+  </g>
+  <text class="tiny" x="272" y="326">64MB = 2048 × 32KB Region</text>
+  <text class="tiny" x="552" y="326">64MB = 2048 × 32KB Region</text>
+  <text class="tiny" x="832" y="326">64MB = 2048 × 32KB Region</text>
+  <text class="green-text" x="1092" y="326">全部空闲，候选 shrink</text>
+
+  <!-- region legend -->
+  <rect class="region-used" x="140" y="395" width="25" height="24"/><text class="tiny" x="205" y="407">已使用</text>
+  <rect class="region-free" x="290" y="395" width="25" height="24"/><text class="tiny" x="350" y="407">逻辑空闲</text>
+  <rect class="region-release" x="465" y="395" width="25" height="24"/><text class="tiny" x="545" y="407">已释放物理页</text>
+  <text class="caption" x="1070" y="407">Region index、对象地址、RegionInfo 和 bitmap slot 在复用中保持对应</text>
+
+  <!-- shards and ownership views -->
+  <text class="label" x="400" y="490">FreeManager Shards：Segment owner 与位图管理</text>
+  <rect class="shard0" x="120" y="535" width="330" height="170"/>
+  <text class="label" x="285" y="567">Shard 0</text>
+  <text class="small" x="285" y="600">OwnedSegmentView：S0、S2、...</text>
+  <text class="tiny" x="285" y="632">allocBits / scavengedBits</text>
+  <text class="tiny" x="285" y="660">chunk summaries / free run</text>
+  <rect class="shard1" x="490" y="535" width="330" height="170"/>
+  <text class="label" x="655" y="567">Shard 1</text>
+  <text class="small" x="655" y="600">OwnedSegmentView：S1、...</text>
+  <text class="tiny" x="655" y="632">allocBits / scavengedBits</text>
+  <text class="tiny" x="655" y="660">chunk summaries / free run</text>
+  <rect class="shardn" x="860" y="535" width="330" height="170"/>
+  <text class="label" x="1025" y="567">Shard N</text>
+  <text class="small" x="1025" y="600">OwnedSegmentView：...</text>
+  <text class="tiny" x="1025" y="632">borrowed span 仅借用</text>
+  <text class="tiny" x="1025" y="660">不改变 Segment owner</text>
+  <path class="blue-arrow" d="M285 535 L285 350"/>
+  <path class="green-arrow" d="M655 535 L552 350"/>
+  <path class="orange-arrow" d="M1025 535 L1092 350"/>
+  <text class="caption" x="285" y="514">segmentOwnerShard_[segmentIdx]</text>
+
+  <!-- grow and shrink -->
+  <rect class="box" x="1270" y="495" width="520" height="100"/>
+  <text class="blue-text" x="1530" y="525">Grow：在 committedEnd 追加完整 Segment</text>
+  <text class="tiny" x="1530" y="557">Reset 2048 个 RegionInfo · 激活 8 个 bitmap chunk</text>
+  <text class="tiny" x="1530" y="580">设置 owner shard · 更新 committedEnd</text>
+  <path class="blue-arrow" d="M1530 495 L1530 390 L1245 390"/>
+
+  <rect class="box" x="1270" y="650" width="520" height="115"/>
+  <text class="green-text" x="1530" y="681">Shrink：只移除连续、完整空闲的堆尾 Segment</text>
+  <text class="tiny" x="1530" y="713">移除 OwnedSegmentView · committedEnd 左移</text>
+  <text class="tiny" x="1530" y="738">撤销尾部 bitmap chunk；中间空 Segment 只能 Scavenge</text>
+  <path class="green-arrow" d="M1530 650 L1530 420 L1205 420 L1205 350"/>
+
+  <rect x="1250" y="815" width="555" height="80" rx="8" fill="#f8fbff" stroke="#102d63" stroke-width="3"/>
+  <text class="small" x="1528" y="845">Grow / Shrink 改变 committed 边界，不重排最大虚拟堆</text>
+  <text class="caption" x="1528" y="875">Scavenge 只释放物理页：Segment 与虚拟地址拓扑保持不变</text>
+</svg>

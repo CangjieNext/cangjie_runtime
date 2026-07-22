@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2240" height="1370" viewBox="0 0 2240 1370" role="img" aria-labelledby="title desc">
+  <title id="title">MSGC Enum Assist 的根枚举握手与收口</title>
+  <desc id="desc">图示 GC 线程进入 MARK_SETUP 后创建候选 Mutator 上下文，Mutator 首先扫描自己的栈；已经完成自身枚举的 Mutator 可以认领处于 saferegion 的候选者并触发其自身阶段转换。Finalize 先关闭认领入口、再等待 inFlight 批次归零，最后 GC 线程枚举全局根。</desc>
+  <defs>
+    <style>
+      .title { font: 700 36px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .subtitle { font: 400 18px Arial, PingFang SC, sans-serif; fill: #49617f; }
+      .section { font: 700 21px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .label { font: 700 17px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .text { font: 400 16px Arial, PingFang SC, sans-serif; fill: #29415f; }
+      .small { font: 400 14px Arial, PingFang SC, sans-serif; fill: #49617f; }
+      .mono { font: 600 14px Menlo, Consolas, monospace; fill: #163861; }
+      .lane { fill: #f8fbff; stroke: #c2d6eb; stroke-width: 1.7; }
+      .gc { fill: #edf5ff; stroke: #2472d3; stroke-width: 2.2; }
+      .mut { fill: #eef8f1; stroke: #2d8a57; stroke-width: 2.2; }
+      .ctx { fill: #f6effb; stroke: #8663ab; stroke-width: 2.2; }
+      .safe { fill: #fff8e8; stroke: #e6a21c; stroke-width: 2.2; }
+      .guard { fill: #fbeef0; stroke: #c95365; stroke-width: 2.2; }
+      .note { fill: #f7f9fc; stroke: #b9c8da; stroke-width: 1.5; }
+      .line { fill: none; stroke: #49617f; stroke-width: 2.5; marker-end: url(#arrow); }
+      .blue { fill: none; stroke: #2472d3; stroke-width: 3; marker-end: url(#arrowBlue); }
+      .green { fill: none; stroke: #2d8a57; stroke-width: 3; marker-end: url(#arrowGreen); }
+      .purple { fill: none; stroke: #8663ab; stroke-width: 3; marker-end: url(#arrowPurple); }
+      .orange { fill: none; stroke: #e6a21c; stroke-width: 3; marker-end: url(#arrowOrange); }
+      .red { fill: none; stroke: #c95365; stroke-width: 3; marker-end: url(#arrowRed); }
+      .dash { fill: none; stroke: #7698bf; stroke-width: 2.3; stroke-dasharray: 9 7; marker-end: url(#arrowBlue); }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#49617f"/></marker>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2472d3"/></marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2d8a57"/></marker>
+    <marker id="arrowPurple" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8663ab"/></marker>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#e6a21c"/></marker>
+    <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c95365"/></marker>
+  </defs>
+
+  <rect width="2240" height="1370" fill="#ffffff"/>
+  <text x="70" y="60" class="title">Enum Assist：并发根枚举握手，不是“代替别人扫栈”</text>
+  <text x="70" y="94" class="subtitle">只在 MS_MARK_SETUP 开启。助手推进处于 saferegion 的候选 Mutator；每个 Mutator 的栈根仍由该 Mutator 自己在 GcPhaseEnum 中扫描。</text>
+
+  <text x="70" y="142" class="section">1. GC 线程建立一次 MARK_SETUP 握手，并保有全局 phase 所有权</text>
+  <rect x="70" y="166" width="2100" height="190" rx="18" class="lane"/>
+  <text x="96" y="205" class="label">GC Thread / MutatorManager</text>
+  <rect x="340" y="188" width="390" height="126" rx="14" class="gc"/>
+  <text x="366" y="226" class="label">TransitionAllMutatorsToGCPhase</text>
+  <text x="366" y="254" class="mono">InstallBarrier(MS_MARK_SETUP)</text>
+  <text x="366" y="280" class="small">广播 phase suspend + 开启 safepoint</text>
+  <path d="M730 251 H790" class="blue"/>
+  <rect x="810" y="188" width="510" height="126" rx="14" class="ctx"/>
+  <text x="836" y="226" class="label">EnumAssistContext（受 lock 保护）</text>
+  <text x="836" y="254" class="mono">active=true · phase=MARK_SETUP</text>
+  <text x="836" y="280" class="small">candidates=undoneMutators；cursor=0；remaining=N</text>
+  <path d="M1320 251 H1380" class="blue"/>
+  <rect x="1400" y="188" width="360" height="126" rx="14" class="gc"/>
+  <text x="1426" y="226" class="label">EnsurePhaseTransition</text>
+  <text x="1426" y="254" class="small">GC 自己也会尝试推进</text>
+  <text x="1426" y="280" class="small">已经在 saferegion 的候选者</text>
+  <path d="M1760 251 H1820" class="blue"/>
+  <rect x="1840" y="188" width="290" height="126" rx="14" class="safe"/>
+  <text x="1866" y="226" class="label">未完成集合</text>
+  <text x="1866" y="254" class="small">running / saferegion</text>
+  <text x="1866" y="280" class="small">每轮更新 remaining</text>
+
+  <text x="70" y="408" class="section">2. 先完成“自己”的 root scan；随后才能协助推进其他候选者</text>
+  <rect x="70" y="432" width="1000" height="400" rx="18" class="lane"/>
+  <text x="96" y="470" class="label">Mutator A（应用线程 / 潜在助手）</text>
+  <rect x="120" y="502" width="260" height="128" rx="14" class="mut"/>
+  <text x="146" y="540" class="label">收到 phase 请求</text>
+  <text x="146" y="568" class="small">到 safepoint 后独占转换</text>
+  <text x="146" y="594" class="mono">TransitionGCPhase(true)</text>
+  <path d="M380 566 H430" class="green"/>
+  <rect x="450" y="502" width="305" height="128" rx="14" class="mut"/>
+  <text x="476" y="540" class="label">GcPhaseEnum(MARK_SETUP)</text>
+  <text x="476" y="568" class="small">扫描 A 自己的栈根 / 候选根</text>
+  <text x="476" y="594" class="small">结果进入统一 root-discovery 路径</text>
+  <path d="M755 566 H805" class="green"/>
+  <rect x="825" y="502" width="205" height="128" rx="14" class="safe"/>
+  <text x="850" y="540" class="label">若仍有候选</text>
+  <text x="850" y="568" class="small">挂起 enum-assist</text>
+  <text x="850" y="594" class="small">下一 safepoint 执行</text>
+  <path d="M925 630 V688" class="orange"/>
+  <rect x="245" y="688" width="610" height="106" rx="14" class="ctx"/>
+  <text x="271" y="726" class="label">ClaimEnumAssistBatch(MARK_SETUP, batchSize)</text>
+  <text x="271" y="754" class="small">从 cursor 取一批 candidate；成功认领后 inFlight++</text>
+  <text x="271" y="778" class="small">批大小可配置；默认值为 10</text>
+
+  <rect x="1120" y="432" width="1050" height="400" rx="18" class="lane"/>
+  <text x="1146" y="470" class="label">被认领的 Candidate Mutator B（并非由 A 直接读栈）</text>
+  <rect x="1170" y="502" width="250" height="128" rx="14" class="safe"/>
+  <text x="1196" y="540" class="label">前提：B 在 saferegion</text>
+  <text x="1196" y="568" class="small">否则 A 跳过本候选项</text>
+  <text x="1196" y="594" class="small">留给后续轮次 / GC 主线程</text>
+  <path d="M1420 566 H1470" class="orange"/>
+  <rect x="1490" y="502" width="300" height="128" rx="14" class="mut"/>
+  <text x="1516" y="540" class="label">A 触发 B 的转换</text>
+  <text x="1516" y="568" class="mono">B.TransitionGCPhase(false)</text>
+  <text x="1516" y="594" class="small">只推进 phase，不读取 B 的栈</text>
+  <path d="M1790 566 H1840" class="green"/>
+  <rect x="1860" y="502" width="260" height="128" rx="14" class="mut"/>
+  <text x="1886" y="540" class="label">B 自己执行</text>
+  <text x="1886" y="568" class="mono">GcPhaseEnum</text>
+  <text x="1886" y="594" class="small">扫描 B 自己的 stack roots</text>
+  <path d="M1640 630 V688" class="purple"/>
+  <rect x="1410" y="688" width="470" height="106" rx="14" class="ctx"/>
+  <text x="1436" y="726" class="label">FinishEnumAssistBatch(MARK_SETUP)</text>
+  <text x="1436" y="754" class="small">无论本批命中多少 saferegion 候选者都必须调用</text>
+  <text x="1436" y="778" class="small">与 claim 的 inFlight++ 成对，最后一次 notify drained</text>
+  <path d="M855 740 H1390" class="purple"/>
+
+  <text x="70" y="884" class="section">3. 收口：关闭认领闸门，再等待已发出的批次退出，才能离开 MARK_SETUP</text>
+  <rect x="70" y="908" width="2100" height="260" rx="18" class="lane"/>
+  <rect x="130" y="948" width="400" height="144" rx="14" class="guard"/>
+  <text x="156" y="986" class="label">FinalizeEnumAssistContext</text>
+  <text x="156" y="1014" class="mono">active=false（先关 gate）</text>
+  <text x="156" y="1040" class="small">以后 Claim 不再发出新批次</text>
+  <text x="156" y="1066" class="small">避免新 phase 与旧助手交叠</text>
+  <path d="M530 1020 H590" class="red"/>
+  <rect x="610" y="948" width="360" height="144" rx="14" class="ctx"/>
+  <text x="636" y="986" class="label">等待 inFlight == 0</text>
+  <text x="636" y="1014" class="small">已认领的每一批均 Finish</text>
+  <text x="636" y="1040" class="small">remaining / candidates 尚未清空</text>
+  <path d="M970 1020 H1030" class="purple"/>
+  <rect x="1050" y="948" width="360" height="144" rx="14" class="gc"/>
+  <text x="1076" y="986" class="label">清理上下文</text>
+  <text x="1076" y="1014" class="small">phase=UNDEF；cursor=0</text>
+  <text x="1076" y="1040" class="small">remaining=0；candidates.clear()</text>
+  <path d="M1410 1020 H1470" class="blue"/>
+  <rect x="1490" y="948" width="580" height="144" rx="14" class="gc"/>
+  <text x="1516" y="986" class="label">随后 GC 线程 EnumAndMarkRoots(markWorkStack)</text>
+  <text x="1516" y="1014" class="small">枚举全局根并送入 Mark 工作栈；之后才进入 concurrent mark</text>
+  <text x="1516" y="1040" class="small">这保证所有 Mutator 的 MARK_SETUP 转换都已收口</text>
+
+  <rect x="70" y="1212" width="2100" height="96" rx="14" class="note"/>
+  <text x="96" y="1249" class="label">关键边界</text>
+  <text x="228" y="1249" class="text">Enum Assist 是并发 handshake 加速：A 只能帮助调用候选 B 的 phase transition，且 B 必须在 saferegion；B 的栈扫描始终在 B 的 GcPhaseEnum 中完成。GC 线程仍负责安装 phase、跟踪 undone 集合与最终收口。</text>
+  <text x="96" y="1280" class="small">因此它既不是 STW，也不是对象图字段扫描；它解决的是“谁来尽快完成各 Mutator 的自枚举握手”。</text>
+</svg>

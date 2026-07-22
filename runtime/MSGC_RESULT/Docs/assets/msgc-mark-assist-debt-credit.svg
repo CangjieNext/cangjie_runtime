@@ -1,0 +1,140 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2240" height="1450" viewBox="0 0 2240 1450" role="img" aria-labelledby="title desc">
+  <title id="title">MSGC Mark Assist 的固定点债务、后台扫描 credit 与 WorkBuf 偿还</title>
+  <desc id="desc">图示 ConcurrentMark 为本轮计算并动态调整 assist ratio；P 在取得 Region 或 large 分配时累积字节债务，到 WorkBuf 容量阈值后先消耗 GC 主线程和 Mark Worker 注入并衰减的扫描 credit，再至多消费一个 globalFull 中的完整 WorkBuf。扫描产生的子对象保留在本地 putCur，直到满或 STW 收口。</desc>
+  <defs>
+    <style>
+      .title { font: 700 36px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .subtitle { font: 400 18px Arial, PingFang SC, sans-serif; fill: #49617f; }
+      .section { font: 700 21px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .label { font: 700 17px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .text { font: 400 16px Arial, PingFang SC, sans-serif; fill: #29415f; }
+      .small { font: 400 14px Arial, PingFang SC, sans-serif; fill: #49617f; }
+      .mono { font: 600 14px Menlo, Consolas, monospace; fill: #163861; }
+      .lane { fill: #f8fbff; stroke: #c2d6eb; stroke-width: 1.7; }
+      .gc { fill: #edf5ff; stroke: #2472d3; stroke-width: 2.2; }
+      .p { fill: #eef8f1; stroke: #2d8a57; stroke-width: 2.2; }
+      .debt { fill: #fff8e8; stroke: #e6a21c; stroke-width: 2.2; }
+      .queue { fill: #f6effb; stroke: #8663ab; stroke-width: 2.2; }
+      .credit { fill: #e9f8f5; stroke: #17877a; stroke-width: 2.2; }
+      .guard { fill: #fbeef0; stroke: #c95365; stroke-width: 2.2; }
+      .note { fill: #f7f9fc; stroke: #b9c8da; stroke-width: 1.5; }
+      .line { fill: none; stroke: #49617f; stroke-width: 2.5; marker-end: url(#arrow); }
+      .blue { fill: none; stroke: #2472d3; stroke-width: 3; marker-end: url(#arrowBlue); }
+      .green { fill: none; stroke: #2d8a57; stroke-width: 3; marker-end: url(#arrowGreen); }
+      .orange { fill: none; stroke: #e6a21c; stroke-width: 3; marker-end: url(#arrowOrange); }
+      .purple { fill: none; stroke: #8663ab; stroke-width: 3; marker-end: url(#arrowPurple); }
+      .teal { fill: none; stroke: #17877a; stroke-width: 3; marker-end: url(#arrowTeal); }
+      .red { fill: none; stroke: #c95365; stroke-width: 3; marker-end: url(#arrowRed); }
+      .dash { fill: none; stroke: #7698bf; stroke-width: 2.3; stroke-dasharray: 9 7; marker-end: url(#arrowBlue); }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#49617f"/></marker>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2472d3"/></marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2d8a57"/></marker>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#e6a21c"/></marker>
+    <marker id="arrowPurple" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8663ab"/></marker>
+    <marker id="arrowTeal" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#17877a"/></marker>
+    <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c95365"/></marker>
+  </defs>
+
+  <rect width="2240" height="1450" fill="#ffffff"/>
+  <text x="70" y="60" class="title">Mark Assist：以 P 的分配债务换取有限的 Mark 工作</text>
+  <text x="70" y="94" class="subtitle">债务按固定点“对象工作量”记账；background credit 是 GC 主线程与 Mark Worker 已完成扫描的可转让额度，不是 gc-helper 的 Sweep credit。</text>
+
+  <text x="70" y="142" class="section">1. ConcurrentMark 开始时发布本轮 ratio；运行中再按 backlog 动态抬升</text>
+  <rect x="70" y="166" width="2100" height="218" rx="18" class="lane"/>
+  <rect x="120" y="204" width="435" height="140" rx="14" class="gc"/>
+  <text x="146" y="242" class="label">本轮基础 ratio（固定点 SCALE=65536）</text>
+  <text x="146" y="270" class="mono">prevMarked × SCALE × basePercent</text>
+  <text x="146" y="294" class="mono">────────────────────────────</text>
+  <text x="146" y="318" class="mono">allocatedBytes × 100</text>
+  <path d="M555 274 H615" class="blue"/>
+  <rect x="635" y="204" width="410" height="140" rx="14" class="gc"/>
+  <text x="661" y="242" class="label">EvaluateMSAssistBaseRatio</text>
+  <text x="661" y="270" class="small">与上一轮比较：上升最多 +25%</text>
+  <text x="661" y="294" class="small">assist 占比过高时按目标份额反馈下调</text>
+  <text x="661" y="318" class="small">结果发布到 assistWorkPerByteScaled_</text>
+  <path d="M1045 274 H1105" class="blue"/>
+  <rect x="1125" y="204" width="470" height="140" rx="14" class="queue"/>
+  <text x="1151" y="242" class="label">globalFull_ backlog（每一轮）</text>
+  <text x="1151" y="270" class="small">EMA 平滑 full-buffer backlog</text>
+  <text x="1151" y="294" class="small">base ratio × 连续 multiplier（有上限）</text>
+  <text x="1151" y="318" class="small">尾部 drain 使用更高的 tail ratio</text>
+  <path d="M1595 274 H1655" class="blue"/>
+  <rect x="1675" y="204" width="435" height="140" rx="14" class="credit"/>
+  <text x="1701" y="242" class="label">GC-supplied scan credit</text>
+  <text x="1701" y="270" class="small">GC 主线程本轮扫描 + Worker 扫描</text>
+  <text x="1701" y="294" class="small">前若干轮按 decay 权重注入 bgScanCredit_</text>
+  <text x="1701" y="318" class="small">只是一份可被 P 原子领取的“已完成工作”</text>
+
+  <text x="70" y="436" class="section">2. 分配侧：只在取得新 Region（或 large 分配）时累计，不在每个普通对象 store 上计账</text>
+  <rect x="70" y="460" width="920" height="355" rx="18" class="lane"/>
+  <text x="96" y="498" class="label">P / AllocBufferMS</text>
+  <rect x="120" y="534" width="255" height="130" rx="14" class="p"/>
+  <text x="146" y="572" class="label">SlowAlloc 成功 refill</text>
+  <text x="146" y="600" class="small">取得 1 个 Region；或 large 路径</text>
+  <text x="146" y="626" class="small">直接按分配字节累计</text>
+  <path d="M375 599 H425" class="green"/>
+  <rect x="445" y="534" width="260" height="130" rx="14" class="debt"/>
+  <text x="471" y="572" class="label">AccumulatePacingDebt(size)</text>
+  <text x="471" y="600" class="mono">debtScaled += size × ratio</text>
+  <text x="471" y="626" class="small">ratio==0 / collector==null 时清零旧债</text>
+  <path d="M705 599 H755" class="orange"/>
+  <rect x="775" y="534" width="165" height="130" rx="14" class="debt"/>
+  <text x="801" y="572" class="label">阈值判断</text>
+  <text x="801" y="600" class="mono">debtObjects</text>
+  <text x="801" y="626" class="small">≥ WorkBuf::kCapacity</text>
+  <path d="M857 664 V730" class="orange"/>
+  <rect x="280" y="730" width="515" height="56" rx="12" class="note"/>
+  <text x="306" y="764" class="small">不足一个 WorkBuf 的固定点余数保留在该 P；不会强制执行一次小而碎的 assist。</text>
+
+  <text x="1040" y="436" class="section">3. 一次偿债：先领 credit，再至多消费一个“完整” WorkBuf</text>
+  <rect x="1040" y="460" width="1130" height="355" rx="18" class="lane"/>
+  <rect x="1090" y="534" width="190" height="130" rx="14" class="guard"/>
+  <text x="1116" y="572" class="label">TryEnterAssist</text>
+  <text x="1116" y="600" class="small">Mark worker 控制器 gate</text>
+  <text x="1116" y="626" class="small">停止 / 收口时不再进入</text>
+  <path d="M1280 599 H1330" class="red"/>
+  <rect x="1350" y="534" width="280" height="130" rx="14" class="credit"/>
+  <text x="1376" y="572" class="label">① TryStealBgCreditPartial</text>
+  <text x="1376" y="600" class="small">CAS 从 bgScanCredit_ 取 min(debt, credit)</text>
+  <text x="1376" y="626" class="small">可只偿还一部分；记录 bgStolen</text>
+  <path d="M1630 599 H1680" class="teal"/>
+  <rect x="1700" y="534" width="400" height="130" rx="14" class="queue"/>
+  <text x="1726" y="572" class="label">② 剩余债务 ≥ WorkBuf::kCapacity？</text>
+  <text x="1726" y="600" class="small">是：AcquireOneFullBuffer() + DrainOneBufRound</text>
+  <text x="1726" y="626" class="small">一次调用最多消费一个 full global buffer</text>
+  <path d="M1900 664 V730 H1730" class="purple"/>
+  <rect x="1320" y="730" width="390" height="56" rx="12" class="queue"/>
+  <text x="1346" y="764" class="small">对象字段扫描 → 子对象先写入该 P 的 private putCur_</text>
+
+  <text x="70" y="867" class="section">4. 工作输出与账务收口：私有输出不能被错误当成“全局无工作”</text>
+  <rect x="70" y="891" width="2100" height="315" rx="18" class="lane"/>
+  <rect x="120" y="937" width="420" height="145" rx="14" class="queue"/>
+  <text x="146" y="975" class="label">PerPGCWork.putCur_（私有）</text>
+  <text x="146" y="1003" class="small">TraceObjectRefFieldsToGCWork 产生的灰对象</text>
+  <text x="146" y="1029" class="small">本次 Drain 不级联消费这只 partial buffer</text>
+  <text x="146" y="1055" class="small">避免一次 assist 变成长尾递归工作</text>
+  <path d="M540 1010 H600" class="purple"/>
+  <rect x="620" y="937" width="420" height="145" rx="14" class="queue"/>
+  <text x="646" y="975" class="label">发布时机</text>
+  <text x="646" y="1003" class="small">putCur 满 → globalFull_</text>
+  <text x="646" y="1029" class="small">或并发结束 / STW 收口时强制 flush</text>
+  <text x="646" y="1055" class="small">GC 主线程、Worker 与其他 P 才能竞争它</text>
+  <path d="M1040 1010 H1100" class="blue"/>
+  <rect x="1120" y="937" width="400" height="145" rx="14" class="debt"/>
+  <text x="1146" y="975" class="label">返回 paidByBg + paidByGlobal</text>
+  <text x="1146" y="1003" class="small">只把实际 payment 换算回 fixed-point</text>
+  <text x="1146" y="1029" class="small">从 P 的 gcAssistDebtScaled_ 中扣除</text>
+  <text x="1146" y="1055" class="small">未付余数继续留在 P</text>
+  <path d="M1520 1010 H1580" class="orange"/>
+  <rect x="1600" y="937" width="470" height="145" rx="14" class="guard"/>
+  <text x="1626" y="975" class="label">ConcurrentMark 退出 / MarkTermination</text>
+  <text x="1626" y="1003" class="small">先把 ratio 置 0，禁止新 assist 债务继续增长</text>
+  <text x="1626" y="1029" class="small">随后 STW fixed point 收口剩余 WorkBuf 与私有输出</text>
+  <text x="1626" y="1055" class="small">因此 assist 不承担最终正确性兜底</text>
+
+  <rect x="70" y="1250" width="2100" height="114" rx="14" class="note"/>
+  <text x="96" y="1287" class="label">两个容易混淆的限制</text>
+  <text x="310" y="1287" class="text">Mark Assist 不会按“分配一个对象就扫描一个对象”同步执行；它以 Region/large 分配为累计点，并以 WorkBuf 容量为批量门槛。credit 可抵一部分债务，但真正取 global 工作时一次最多 drain 一个完整 buffer。</text>
+  <text x="96" y="1318" class="small">ratio 既受上一轮存活密度与基础百分比约束，也会受本轮 globalFull backlog 的 EMA 和尾部 drain 调整；并非单一常数。</text>
+</svg>

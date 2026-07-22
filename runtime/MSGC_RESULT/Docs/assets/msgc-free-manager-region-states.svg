@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="980" viewBox="0 0 1900 980" role="img" aria-labelledby="title desc">
+  <title id="title">MSGC FreeManager segment ownership and region states</title>
+  <desc id="desc">A FreeManager shard owns a segment view. Regions held by the P/TLS or Central layers have allocBit one. Hot free regions are allocBit zero and scavengedBit zero; scavenged free regions have allocBit zero and scavengedBit one. The latter two have no upper-layer references.</desc>
+  <defs>
+    <marker id="navy" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 z" fill="#102d63"/></marker>
+    <marker id="blue" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 z" fill="#2472d3"/></marker>
+    <marker id="green" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 z" fill="#168542"/></marker>
+    <style>
+      .panel{fill:#f8fbff;stroke:#102d63;stroke-width:3;rx:12}.box{fill:#fff;stroke:#102d63;stroke-width:2.5;rx:9}.tls{fill:#eaf3ff;stroke:#2472d3;stroke-width:2.5;rx:9}.central{fill:#f5f0ff;stroke:#7048a7;stroke-width:2.5;rx:9}.used{fill:#4b91e4;stroke:#102d63;stroke-width:2}.free{fill:#e6e9ee;stroke:#6c7789;stroke-width:2}.released{fill:#9bd28f;stroke:#168542;stroke-width:2}.dots{fill:#fff;stroke:#6c7789;stroke-width:2}.view{fill:#edf9f0;stroke:#168542;stroke-width:3;rx:10}.label{fill:#102d63;font:700 29px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.h{fill:#102d63;font:700 24px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.s{fill:#102d63;font:600 19px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.xs{fill:#102d63;font:500 16px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.blue{fill:#2472d3;font:700 19px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.purple{fill:#7048a7;font:700 19px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.green{fill:#168542;font:700 19px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.note{fill:#102d63;font:italic 18px Arial, PingFang SC, sans-serif;text-anchor:middle}.arr{fill:none;stroke:#102d63;stroke-width:4;marker-end:url(#navy)}.barr{fill:none;stroke:#2472d3;stroke-width:4;marker-end:url(#blue)}.garr{fill:none;stroke:#168542;stroke-width:4;marker-end:url(#green)}.dash{fill:none;stroke:#7890b8;stroke-width:2.5;stroke-dasharray:8 7}
+    </style>
+  </defs>
+  <rect width="1900" height="980" fill="#fff"/>
+  <text class="label" x="950" y="43">FreeManager 层：Segment 内 Region 的 page-heap 状态，以及与上层缓存的互斥引用</text>
+
+  <!-- Upper-layer holders -->
+  <rect class="tls" x="60" y="100" width="350" height="125"/>
+  <text class="h" x="235" y="135">P / TLS 持有者</text>
+  <text class="blue" x="235" y="168">activeRegions_[cls]</text>
+  <text class="s" x="235" y="196">localEmptyRegionCache_</text>
+  <rect class="central" x="60" y="275" width="350" height="206"/>
+  <text class="h" x="235" y="310">Central 持有者</text>
+  <text class="purple" x="235" y="342">36 × typed bucket 四链</text>
+  <text class="s" x="235" y="373">emptySweptCache_</text>
+  <text class="s" x="235" y="402">largeRegionList_ / largeHotCache_</text>
+  <text class="xs" x="235" y="435">它们都只引用同一份 RegionInfo / span</text>
+  <rect class="box" x="60" y="545" width="350" height="133"/>
+  <text class="h" x="235" y="580">上层所有权规则</text>
+  <text class="s" x="235" y="611">任一上层持有者存在时</text>
+  <text class="blue" x="235" y="642">FreeManager allocBit = 1</text>
+
+  <!-- Segment -->
+  <rect class="panel" x="490" y="94" width="1340" height="548"/>
+  <text class="label" x="1160" y="134">committed Segment 7：64MB = 2048 × 32KB Region（下方仅画代表性 Region）</text>
+  <text class="note" x="1160" y="164">`segmentOwnerShard_[7] = Shard 1`；同一个 Region 在某时刻只有一个“能再发放它”的逻辑位置</text>
+  <rect x="550" y="215" width="1210" height="245" rx="8" fill="#fff" stroke="#102d63" stroke-width="3"/>
+  <text class="h" x="600" y="249">Region index</text>
+  <!-- region samples -->
+  <g>
+    <rect class="used" x="575" y="282" width="118" height="110" rx="5"/><text class="h" x="634" y="315">R0</text><text fill="#fff" font-family="Arial, PingFang SC, sans-serif" font-size="17" font-weight="700" text-anchor="middle" x="634" y="344">上层持有</text><text fill="#fff" font-family="Arial, PingFang SC, sans-serif" font-size="16" text-anchor="middle" x="634" y="369">alloc=1</text>
+    <rect class="used" x="707" y="282" width="118" height="110" rx="5"/><text class="h" x="766" y="315">R1</text><text fill="#fff" font-family="Arial, PingFang SC, sans-serif" font-size="17" font-weight="700" text-anchor="middle" x="766" y="344">上层持有</text><text fill="#fff" font-family="Arial, PingFang SC, sans-serif" font-size="16" text-anchor="middle" x="766" y="369">alloc=1</text>
+    <rect class="free" x="839" y="282" width="118" height="110" rx="5"/><text class="h" x="898" y="315">R2</text><text class="s" x="898" y="344">hot-free</text><text class="xs" x="898" y="369">0 / 0</text>
+    <rect class="released" x="971" y="282" width="118" height="110" rx="5"/><text class="h" x="1030" y="315">R3</text><text class="s" x="1030" y="344">scavenged</text><text class="xs" x="1030" y="369">0 / 1</text>
+    <rect class="used" x="1103" y="282" width="118" height="110" rx="5"/><text class="h" x="1162" y="315">R4</text><text fill="#fff" font-family="Arial, PingFang SC, sans-serif" font-size="17" font-weight="700" text-anchor="middle" x="1162" y="344">上层持有</text><text fill="#fff" font-family="Arial, PingFang SC, sans-serif" font-size="16" text-anchor="middle" x="1162" y="369">alloc=1</text>
+    <rect class="free" x="1235" y="282" width="118" height="110" rx="5"/><text class="h" x="1294" y="315">R5</text><text class="s" x="1294" y="344">hot-free</text><text class="xs" x="1294" y="369">0 / 0</text>
+    <rect class="released" x="1367" y="282" width="118" height="110" rx="5"/><text class="h" x="1426" y="315">R6</text><text class="s" x="1426" y="344">scavenged</text><text class="xs" x="1426" y="369">0 / 1</text>
+    <rect class="dots" x="1499" y="282" width="105" height="110" rx="5"/><text class="h" x="1551" y="330">…</text><text class="xs" x="1551" y="360">R7..R2047</text>
+    <rect class="used" x="1618" y="282" width="118" height="110" rx="5"/><text class="h" x="1677" y="315">R2047</text><text fill="#fff" font-family="Arial, PingFang SC, sans-serif" font-size="17" font-weight="700" text-anchor="middle" x="1677" y="344">上层持有</text><text fill="#fff" font-family="Arial, PingFang SC, sans-serif" font-size="16" text-anchor="middle" x="1677" y="369">alloc=1</text>
+  </g>
+  <text class="xs" x="1160" y="432">蓝色“已使用”表示可能在 P active / P empty / Central typed / Central empty / large live 或 large hot cache 中；图中是一组互斥候选，不是同时属于全部容器。</text>
+  <path class="barr" d="M410 162 L500 162 L500 260 L634 260 L634 282"/>
+  <path class="barr" d="M410 378 L465 378 L465 252 L766 252 L766 282"/>
+  <path class="barr" d="M410 378 L450 378 L450 238 L1162 238 L1162 282"/>
+
+  <!-- Legend -->
+  <rect class="used" x="550" y="500" width="34" height="28"/><text class="s" x="692" y="514">allocated / unavailable：alloc=1</text>
+  <rect class="free" x="910" y="500" width="34" height="28"/><text class="s" x="1080" y="514">hot-free：alloc=0，scavenged=0</text>
+  <rect class="released" x="1330" y="500" width="34" height="28"/><text class="s" x="1535" y="514">scavenged-free：alloc=0，scavenged=1</text>
+  <text class="note" x="1160" y="568">`alloc=1, scavenged=1` 不是稳定有效状态；FreeManager 不保存 size class、对象 slot 或 mark bitmap。</text>
+
+  <!-- shard view -->
+  <rect class="view" x="490" y="700" width="710" height="210"/>
+  <text class="label" x="845" y="737">FreeManager · Shard 1 · OwnedSegmentView(Segment 7)</text>
+  <text class="s" x="845" y="770">Segment-local 位图和 summary 是 page-heap 真值</text>
+  <text class="h" x="595" y="818">local Region</text><text class="s" x="760" y="818">R0</text><text class="s" x="835" y="818">R1</text><text class="s" x="910" y="818">R2</text><text class="s" x="985" y="818">R3</text><text class="s" x="1060" y="818">R4</text><text class="s" x="1135" y="818">…</text>
+  <text class="h" x="595" y="852">allocBits_</text><text class="blue" x="760" y="852">1</text><text class="blue" x="835" y="852">1</text><text class="green" x="910" y="852">0</text><text class="green" x="985" y="852">0</text><text class="blue" x="1060" y="852">1</text><text class="s" x="1135" y="852">…</text>
+  <text class="h" x="595" y="883">scavengedBits_</text><text class="s" x="760" y="883">0</text><text class="s" x="835" y="883">0</text><text class="s" x="910" y="883">0</text><text class="green" x="985" y="883">1</text><text class="s" x="1060" y="883">0</text><text class="s" x="1135" y="883">…</text>
+  <path class="garr" d="M845 700 L845 460"/>
+  <text class="note" x="845" y="680">owner view 对应同一 Segment</text>
+
+  <!-- allocation / scavenge actions -->
+  <rect class="box" x="1270" y="700" width="560" height="210"/>
+  <text class="h" x="1550" y="735">无上层引用的两类 free Region</text>
+  <text class="s" x="1550" y="772">hot-free：直接 take，置 allocBit=1 后交给 Central 或 P</text>
+  <text class="s" x="1550" y="810">scavenged-free：先恢复物理页，再置 allocBit=1 后交付</text>
+  <text class="xs" x="1550" y="846">二者都不在 P / Central 容器；Scavenge 只变页驻留状态，不删除 Segment view</text>
+  <text class="note" x="1430" y="897">归还顺序：先从所有上层容器摘除并 Reset，再让 allocBit 变为 0。</text>
+</svg>

@@ -1,0 +1,188 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2240" height="1580" viewBox="0 0 2240 1580" role="img" aria-labelledby="title desc">
+  <title id="title">MSGC Reclaim 与 Scavenge：触发、增量流程和停止条件</title>
+  <desc id="desc">图示分配成功、PostMark 和周期检查如何合并唤醒 gc-helper；Reclaim 如何把 Central/P 缓存物化为 FreeManager hot-free；Scavenge 如何按预算释放物理页，并依据 retained 阈值、供给和 unswept backlog 决定继续、转 Sweep 或停止。</desc>
+  <defs>
+    <style>
+      .title { font: 700 38px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .subtitle { font: 400 18px Arial, PingFang SC, sans-serif; fill: #49617f; }
+      .section { font: 700 22px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .label { font: 700 18px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .text { font: 400 16px Arial, PingFang SC, sans-serif; fill: #29415f; }
+      .small { font: 400 14px Arial, PingFang SC, sans-serif; fill: #49617f; }
+      .mono { font: 600 15px Menlo, Consolas, monospace; fill: #163861; }
+      .monoSmall { font: 600 13px Menlo, Consolas, monospace; fill: #163861; }
+      .center { text-anchor: middle; }
+      .trigger { fill: #edf5ff; stroke: #2472d3; stroke-width: 2.2; }
+      .post { fill: #fbeef0; stroke: #c95365; stroke-width: 2.2; }
+      .periodic { fill: #fff8e8; stroke: #e6a21c; stroke-width: 2.2; }
+      .gate { fill: #f6effb; stroke: #8663ab; stroke-width: 2.3; }
+      .panel { fill: #f9fbfe; stroke: #a8bbd1; stroke-width: 2; }
+      .decision { fill: #fffaf0; stroke: #e6a21c; stroke-width: 2.2; }
+      .reclaim { fill: #f1f7ff; stroke: #2472d3; stroke-width: 2.3; }
+      .cache { fill: #f7f2fb; stroke: #8663ab; stroke-width: 2; }
+      .hot { fill: #eef8f1; stroke: #2d8a57; stroke-width: 2.3; }
+      .scavenge { fill: #f0fbf4; stroke: #168542; stroke-width: 2.3; }
+      .stop { fill: #f6f8fb; stroke: #8196b0; stroke-width: 2; }
+      .sweep { fill: #fff3e7; stroke: #e87505; stroke-width: 2.2; }
+      .shrink { fill: #eaf3ff; stroke: #2472d3; stroke-width: 2.2; }
+      .line { fill: none; stroke: #49617f; stroke-width: 2.5; marker-end: url(#arrow); }
+      .blue { fill: none; stroke: #2472d3; stroke-width: 3; marker-end: url(#arrowBlue); }
+      .green { fill: none; stroke: #2d8a57; stroke-width: 3; marker-end: url(#arrowGreen); }
+      .orange { fill: none; stroke: #e87505; stroke-width: 3; marker-end: url(#arrowOrange); }
+      .purple { fill: none; stroke: #8663ab; stroke-width: 3; marker-end: url(#arrowPurple); }
+      .red { fill: none; stroke: #c95365; stroke-width: 3; marker-end: url(#arrowRed); }
+      .dash { fill: none; stroke: #7698bf; stroke-width: 2.2; stroke-dasharray: 8 7; }
+      .sep { fill: none; stroke: #9eb5ce; stroke-width: 2; stroke-dasharray: 10 8; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#49617f"/></marker>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2472d3"/></marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2d8a57"/></marker>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#e87505"/></marker>
+    <marker id="arrowPurple" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8663ab"/></marker>
+    <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c95365"/></marker>
+  </defs>
+
+  <rect width="2240" height="1580" fill="#ffffff"/>
+  <text x="70" y="58" class="title">Reclaim 与 Scavenge：谁触发、每轮做什么、何时继续或停止</text>
+  <text x="70" y="93" class="subtitle">Reclaim 是把逻辑空闲 Region 从缓存归还为 FreeManager hot-free；Scavenge 才释放物理页。两者都由后台增量执行，绝非一次通知就清空整个堆。</text>
+
+  <text x="70" y="142" class="section">1. 触发先合并为一个 gc-helper 唤醒；真正开工仍要重新检查 retained 门槛</text>
+  <rect x="70" y="165" width="2100" height="290" rx="15" class="panel"/>
+
+  <rect x="110" y="205" width="390" height="145" rx="12" class="trigger"/>
+  <text x="305" y="241" class="label center">A. 分配 slow path 成功</text>
+  <text x="130" y="272" class="text">MSRegionManager::TakeRegions() 成功后</text>
+  <text x="130" y="300" class="mono">MaybeNotifyScavenge()</text>
+  <text x="130" y="328" class="small">仅在非 GC、threshold 非 0、retained 超阈值时请求</text>
+
+  <rect x="550" y="205" width="390" height="145" rx="12" class="post"/>
+  <text x="745" y="241" class="label center">B. PostMarkTermination</text>
+  <text x="570" y="272" class="text">Mark 统计已经稳定；不在这里扫描 small Region</text>
+  <text x="570" y="300" class="mono">NotifyToScavenge()</text>
+  <text x="570" y="328" class="small">只发布后台请求，实际是否仍有工作由 helper 复验</text>
+
+  <rect x="990" y="205" width="390" height="145" rx="12" class="periodic"/>
+  <text x="1185" y="241" class="label center">C. 周期兜底（约 2 s）</text>
+  <text x="1010" y="272" class="text">gc-helper 超时醒来，执行 MaybeSchedulePeriodicWork()</text>
+  <text x="1010" y="300" class="mono">HasPendingScavengeWork()</text>
+  <text x="1010" y="328" class="small">避免漏掉未显式通知的 retained 超阈值状态</text>
+
+  <path d="M305 350 V365 H1430 V278 H1460" class="blue"/>
+  <path d="M745 350 V376 H1438 V291 H1460" class="red"/>
+  <path d="M1185 350 V387 H1446 V304 H1460" class="orange"/>
+  <rect x="1480" y="205" width="300" height="145" rx="12" class="gate"/>
+  <text x="1630" y="241" class="label center">NotifyToScavenge()</text>
+  <text x="1505" y="272" class="text">开关关闭：直接清 pending flag</text>
+  <text x="1505" y="300" class="text">开关开启：RequestWork(flag)</text>
+  <text x="1505" y="328" class="small">false→true 才 condvar Notify；多次通知合并</text>
+  <path d="M1780 278 H1835" class="purple"/>
+  <rect x="1855" y="205" width="275" height="145" rx="12" class="trigger"/>
+  <text x="1992" y="241" class="label center">gc-helper 被唤醒</text>
+  <text x="1878" y="274" class="small">处理顺序中 Scavenge 在 Sweep 之后</text>
+  <text x="1878" y="301" class="small">并与 Shrink 共用同一后台线程</text>
+  <text x="1878" y="328" class="small">不会新增独立 Scavenger 线程</text>
+
+  <rect x="155" y="382" width="1830" height="48" rx="10" fill="#f7f9fc" stroke="#b9c8da" stroke-width="1.5"/>
+  <text x="180" y="412" class="mono">pending 的唯一语义：scavengeThreshold != 0 &amp;&amp; retained &gt; scavengeThreshold</text>
+  <text x="945" y="412" class="text">其中 retained = active Region + emptySwept cache + large hot cache + FreeManager hot-free；已 scavenged free 不计入。</text>
+
+  <text x="70" y="505" class="section">2. 每个 Scavenge slice：先 Reclaim 让缓存可见，再按预算释放 hot-free 页</text>
+  <rect x="70" y="528" width="2100" height="500" rx="15" class="panel"/>
+
+  <rect x="105" y="570" width="345" height="132" rx="12" class="decision"/>
+  <text x="277" y="606" class="label center">入口复验：HasPendingScavengeWork？</text>
+  <text x="130" y="637" class="monoSmall">threshold == 0</text><text x="270" y="637" class="text">或</text><text x="300" y="637" class="monoSmall">retained ≤ threshold</text>
+  <text x="130" y="667" class="small">是：本轮不做任何 Reclaim/Release，直接清 Scavenge pending。</text>
+  <path d="M450 636 H505" class="orange"/>
+  <rect x="525" y="570" width="315" height="132" rx="12" class="stop"/>
+  <text x="682" y="606" class="label center">停止：目标已达成</text>
+  <text x="550" y="637" class="text">shouldScavengeHeap = false</text>
+  <text x="550" y="667" class="small">若累计过 slice，输出 done 统计；不意味着堆已 Shrink。</text>
+
+  <path d="M277 702 V744 H365" class="green"/>
+  <rect x="385" y="735" width="390" height="138" rx="12" class="reclaim"/>
+  <text x="580" y="770" class="label center">计算当前 slice 的回收缺口</text>
+  <text x="410" y="801" class="mono">target = retained − threshold</text>
+  <text x="410" y="829" class="mono">gap = max(target − hotFree, 0)</text>
+  <text x="410" y="855" class="small">只为 gap 物化缓存；hot-free 已足够时 Step A 不搬缓存。</text>
+
+  <rect x="830" y="570" width="460" height="303" rx="12" class="cache"/>
+  <text x="1060" y="606" class="label center">Step A · Reclaim（逻辑所有权回收）</text>
+  <text x="858" y="638" class="label">优先 1：largeHotCache_</text>
+  <text x="858" y="664" class="text">按较大 span 优先，最多 flush gap 字节</text>
+  <path d="M858 682 H1260" class="dash"/>
+  <text x="858" y="716" class="label">优先 2：global emptySweptCache_（可补 drain P local）</text>
+  <text x="858" y="742" class="text">仅 global empty 存在才进入；不够时按需补 P local，摘除并 Reset()</text>
+  <text x="858" y="770" class="monoSmall">ReclaimRegionsReleasedBatch(spans)</text>
+  <text x="858" y="797" class="small">按 Segment owner 分组，清 alloc/scavenged 位。</text>
+  <text x="858" y="821" class="small">随后发布为 FreeManager hot-free。</text>
+  <text x="858" y="850" class="small">Reclaim 完成到“可再次分配”为止；并不调用 ReleaseUnits。</text>
+  <path d="M775 804 H820" class="purple"/>
+  <path d="M1290 720 H1350" class="green"/>
+
+  <rect x="1370" y="570" width="385" height="303" rx="12" class="hot"/>
+  <text x="1562" y="606" class="label center">FreeManager hot-free 供给</text>
+  <text x="1395" y="638" class="mono">alloc=0, scavenged=0</text>
+  <text x="1395" y="669" class="text">原有 hot-free + Step A 刚归还的 Region/span</text>
+  <path d="M1395 687 H1730" class="dash"/>
+  <text x="1395" y="719" class="small">若三类供给都为 0：</text>
+  <text x="1395" y="746" class="small">• unswept &gt; 0：NotifyToSweep()，本循环保持可继续</text>
+  <text x="1395" y="773" class="small">• unswept = 0：清 pending 并停止</text>
+  <text x="1395" y="817" class="small">有 hot-free 后才进入 Step B；Scavenge 不处理 central typed/active Region。</text>
+  <path d="M1755 720 H1810" class="green"/>
+
+  <rect x="1830" y="570" width="300" height="303" rx="12" class="decision"/>
+  <text x="1980" y="606" class="label center">Step B 前的停止分支</text>
+  <text x="1855" y="642" class="text">hotFreeAfterFlush = 0</text>
+  <text x="1855" y="670" class="text">且没有可继续物化的缓存</text>
+  <path d="M1855 691 H2100" class="dash"/>
+  <text x="1855" y="723" class="small">unswept backlog 存在：改通知 Sweep；</text>
+  <text x="1855" y="750" class="small">否则结束，不把“缺少页”误判成完成。</text>
+  <text x="1855" y="803" class="small">这是供给不足停止，不是 retained 目标达成。</text>
+
+  <text x="70" y="1077" class="section">3. Step B 与尾部决策：页释放按 Region budget 分片；busy shard 不是完成信号</text>
+  <rect x="70" y="1100" width="2100" height="382" rx="15" class="panel"/>
+
+  <rect x="105" y="1140" width="380" height="140" rx="12" class="scavenge"/>
+  <text x="295" y="1176" class="label center">本轮 budget（不是整堆上限）</text>
+  <text x="130" y="1208" class="monoSmall">roundTarget = max(ceil(target / rounds), 1 Region)</text>
+  <text x="130" y="1237" class="monoSmall">quantum = min(roundTarget, hotFreeAfterFlush)</text>
+  <text x="130" y="1263" class="small">默认 rounds=8；剩余目标越小，最小仍是一 Region。</text>
+  <path d="M485 1210 H540" class="green"/>
+
+  <rect x="560" y="1140" width="530" height="140" rx="12" class="scavenge"/>
+  <text x="825" y="1176" class="label center">FreeManager::ScavengeFreeRegionsUpTo(quantum)</text>
+  <text x="585" y="1208" class="text">从 nextScavengeShard 轮转，对每个 shard 使用 try_lock</text>
+  <text x="585" y="1237" class="text">busy shard：跳过，不算完成；后续 slice 再试</text>
+  <text x="585" y="1263" class="small">在 view 内反向扫描 hot = ~allocBits &amp; ~scavengedBits，合并连续 run。</text>
+  <path d="M1090 1210 H1145" class="green"/>
+
+  <rect x="1165" y="1140" width="380" height="140" rx="12" class="hot"/>
+  <text x="1355" y="1176" class="label center">释放并发布状态</text>
+  <text x="1190" y="1208" class="mono">ReleaseUnits(run)</text>
+  <text x="1190" y="1237" class="mono">MarkScavengedLocked(run)</text>
+  <text x="1190" y="1263" class="small">顺序是先请求释放 OS 页，再置 scavenged 位。</text>
+  <path d="M1545 1210 H1600" class="green"/>
+
+  <rect x="1620" y="1140" width="510" height="140" rx="12" class="decision"/>
+  <text x="1875" y="1176" class="label center">尾部复验：HasPendingScavengeWork？</text>
+  <text x="1645" y="1208" class="text">true：retained 仍超阈值，返回下一 slice；最多连续 burst 4 次且 &lt; 12 ms</text>
+  <text x="1645" y="1237" class="text">burst 到界后主动 backoff 约 1 ms，再继续，避免长期占用 helper</text>
+  <text x="1645" y="1263" class="text">false：目标达到，通知 Shrink，清 Scavenge pending。</text>
+
+  <path d="M1875 1280 V1330 H1080 V1288" class="green"/>
+  <text x="1460" y="1322" class="small center">true → 回到 helper 的下一轮；后台会优先处理 pending Sweep，再运行下一个 Scavenge slice。</text>
+
+  <rect x="175" y="1362" width="555" height="82" rx="12" class="stop"/>
+  <text x="452" y="1393" class="label center">停止条件 1：门槛已满足</text>
+  <text x="452" y="1421" class="small center">threshold=0 或 retained≤threshold：不再 Reclaim/Release，flag=false。</text>
+  <rect x="840" y="1362" width="555" height="82" rx="12" class="sweep"/>
+  <text x="1117" y="1393" class="label center">停止/转交条件 2：无可释放供给</text>
+  <text x="1117" y="1421" class="small center">若还有 unswept，通知 Sweep 产出 empty；否则本次 Scavenge 结束。</text>
+  <rect x="1505" y="1362" width="555" height="82" rx="12" class="shrink"/>
+  <text x="1782" y="1393" class="label center">完成后的独立后续：Shrink</text>
+  <text x="1782" y="1421" class="small center">仅在目标达到后 NotifyToShrink；Shrink 再尝试完整空闲 Segment，非 Scavenge 本身。</text>
+
+  <rect x="70" y="1510" width="2100" height="38" rx="10" fill="#f7f9fc" stroke="#b9c8da" stroke-width="1.5"/>
+  <text x="105" y="1535" class="small">所以“停止”有三种含义：目标已达成、暂时没有 hot-free（可能先等待 Sweep）、或后台功能被关闭；它们都不等价于地址空间被收缩。Scavenge 不改变 Segment 拓扑，Shrink 才处理堆尾。</text>
+</svg>

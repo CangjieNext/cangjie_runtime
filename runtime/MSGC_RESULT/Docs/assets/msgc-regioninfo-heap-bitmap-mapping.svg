@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="1120" viewBox="0 0 2000 1120" role="img" aria-labelledby="title desc">
+  <title id="title">MSGC MSRegionInfo, object heap and bitmap arena mapping</title>
+  <desc id="desc">A fixed region index maps one 32KB object region to one 64B MSRegionInfo entry and one 1KB bitmap slot. The diagram shows main mapping layout, bitmap packing, initialization and segment growth.</desc>
+  <defs>
+    <marker id="navy" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 z" fill="#102d63"/></marker>
+    <marker id="blue" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 z" fill="#2472d3"/></marker>
+    <marker id="orange" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 z" fill="#e87505"/></marker>
+    <marker id="green" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 z" fill="#168542"/></marker>
+    <style>
+      .panel{fill:#f8fbff;stroke:#102d63;stroke-width:3;rx:12}.box{fill:#fff;stroke:#102d63;stroke-width:2.5;rx:9}.meta{fill:#eaf3ff;stroke:#2472d3;stroke-width:2.5;rx:9}.heap{fill:#edf9f0;stroke:#168542;stroke-width:2.5;rx:9}.side{fill:#fff6e9;stroke:#e87505;stroke-width:2.5;rx:9}.inactive{fill:#f4f5f7;stroke:#6c7789;stroke-width:2;stroke-dasharray:8 6}.entry{fill:#fff;stroke:#6c7789;stroke-width:2;rx:5}.entry-on{fill:#4b91e4;stroke:#102d63;stroke-width:2;rx:5}.region{fill:#fff;stroke:#168542;stroke-width:2;rx:5}.region-on{fill:#7bc878;stroke:#168542;stroke-width:2;rx:5}.alloc{fill:#eaf3ff;stroke:#2472d3;stroke-width:2}.mark{fill:#fff0dc;stroke:#e87505;stroke-width:2}.unused{fill:#f4f5f7;stroke:#6c7789;stroke-width:2;stroke-dasharray:7 5}.label{fill:#102d63;font:700 29px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.h{fill:#102d63;font:700 24px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.s{fill:#102d63;font:600 19px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.xs{fill:#102d63;font:500 16px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.blue{fill:#2472d3;font:700 19px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.green{fill:#168542;font:700 19px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.orange{fill:#e87505;font:700 19px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.note{fill:#102d63;font:italic 18px Arial, PingFang SC, sans-serif;text-anchor:middle}.arr{fill:none;stroke:#102d63;stroke-width:4;marker-end:url(#navy)}.barr{fill:none;stroke:#2472d3;stroke-width:4;marker-end:url(#blue)}.garr{fill:none;stroke:#168542;stroke-width:4;marker-end:url(#green)}.oarr{fill:none;stroke:#e87505;stroke-width:4;marker-end:url(#orange)}.dash{fill:none;stroke:#7890b8;stroke-width:2.5;stroke-dasharray:8 7}
+    </style>
+  </defs>
+  <rect width="2000" height="1120" fill="#fff"/>
+  <text class="label" x="1000" y="42">一个 regionIdx 连接三块固定地址空间：对象 Region、MSRegionInfo 与 bitmap slot</text>
+
+  <!-- primary cangjie heap mapping -->
+  <rect class="panel" x="55" y="82" width="1890" height="315"/>
+  <text class="label" x="1000" y="119">主 cangjie_heap MemMap：启动时按最大虚拟堆一次预留，地址与数组均不搬动</text>
+  <rect class="meta" x="95" y="155" width="680" height="195"/>
+  <text class="h" x="435" y="188">MSRegionInfo[maxRegionCount]</text>
+  <text class="blue" x="435" y="217">每 Region 一个 64B entry；主映射前部、页对齐</text>
+  <rect class="entry" x="130" y="250" width="135" height="57"/><text class="s" x="197" y="274">entry i−1</text><text class="xs" x="197" y="294">64B</text>
+  <rect class="entry-on" x="278" y="250" width="170" height="57"/><text fill="#fff" font-family="Arial, PingFang SC, sans-serif" font-size="19" font-weight="700" text-anchor="middle" x="363" y="274">entry i</text><text fill="#fff" font-family="Arial, PingFang SC, sans-serif" font-size="16" text-anchor="middle" x="363" y="294">64B / cache line</text>
+  <rect class="entry" x="461" y="250" width="135" height="57"/><text class="s" x="528" y="274">entry i+1</text><text class="xs" x="528" y="294">64B</text>
+  <text class="note" x="435" y="334">最大虚拟堆默认 16GB：524,288 entry，数组 payload 为 32MB</text>
+
+  <rect class="heap" x="805" y="155" width="1100" height="195"/>
+  <text class="h" x="1355" y="188">object heap[maxVirtualHeapSize]（默认最大 16GB）</text>
+  <text class="green" x="1355" y="217">每个 Region 固定 32KB；Segment 固定 64MB = 2048 Region</text>
+  <rect class="region" x="845" y="250" width="175" height="57"/><text class="s" x="932" y="274">Region i−1</text><text class="xs" x="932" y="294">32KB</text>
+  <rect class="region-on" x="1033" y="250" width="215" height="57"/><text class="h" x="1140" y="274">Region i</text><text class="xs" x="1140" y="294">对象 slot / 32KB</text>
+  <rect class="region" x="1261" y="250" width="175" height="57"/><text class="s" x="1348" y="274">Region i+1</text><text class="xs" x="1348" y="294">32KB</text>
+  <rect class="inactive" x="1450" y="250" width="415" height="57"/><text class="s" x="1657" y="274">committed prefix 后的 reserved tail</text><text class="xs" x="1657" y="294">地址已保留，未初始化为可分配 Region</text>
+  <text class="note" x="1355" y="334">Grow / Shrink 仅移动 committed 边界；任何 i 的对象地址仍为 heapStart + i × 32KB</text>
+  <path class="barr" d="M363 307 L363 375 L1140 375 L1140 307"/>
+  <text class="note" x="750" y="372">regionInfo(i) = arrayBase + i × 64B</text>
+
+  <!-- bitmap arena -->
+  <rect class="panel" x="55" y="430" width="1890" height="330"/>
+  <text class="label" x="1000" y="467">独立 ms_bitmap_arena：同一 index 的固定 1KB sidecar slot</text>
+  <rect class="side" x="95" y="505" width="570" height="205"/>
+  <text class="h" x="380" y="538">arena 预留与 chunk</text>
+  <text class="orange" x="380" y="568">maxRegionCount × 1KB = 最大 object heap 的 3.125%</text>
+  <text class="xs" x="380" y="596">默认 16GB 时预留 512MB；非 Windows 初始为 PROT_NONE</text>
+  <rect class="inactive" x="128" y="630" width="125" height="45"/><text class="xs" x="190" y="653">chunk k−1</text>
+  <rect class="side" x="265" y="630" width="175" height="45"/><text class="xs" x="352" y="653">chunk k（含 i）</text>
+  <rect class="inactive" x="452" y="630" width="125" height="45"/><text class="xs" x="514" y="653">chunk k+1</text>
+  <text class="note" x="380" y="699">1 chunk = 256 Region × 1KB = 256KB，对应 8MB object heap</text>
+
+  <path class="oarr" d="M1140 307 L1140 460 L880 460 L880 592"/>
+  <text class="note" x="1010" y="444">bitmapSlotBase(i) = arenaBase + i × 1024B</text>
+  <rect class="box" x="700" y="505" width="770" height="205"/>
+  <text class="h" x="1085" y="538">放大：bitmap slot i（固定 1KB，随 Region i 一一对应）</text>
+  <rect class="alloc" x="735" y="575" width="240" height="82"/><text class="blue" x="855" y="603">allocBitmap：B</text><text class="xs" x="855" y="631">1 = free，0 = allocated</text>
+  <rect class="mark" x="975" y="575" width="240" height="82"/><text class="orange" x="1095" y="603">markBitmap：B</text><text class="xs" x="1095" y="631">1 = 本轮 marked / live</text>
+  <rect class="unused" x="1215" y="575" width="220" height="82"/><text class="s" x="1325" y="603">unused tail</text><text class="xs" x="1325" y="631">1024B − 2 × B</text>
+  <text class="note" x="1085" y="684">B = ceil(floor(32KB / slotSize) / 64) × 8B；没有 scannedBitmap，扫描状态由 WorkBuf 协议表达</text>
+
+  <rect class="box" x="1510" y="505" width="395" height="205"/>
+  <text class="h" x="1707" y="538">不同 class 的实际有效大小</text>
+  <text class="s" x="1707" y="578">8B slot：B = 512B</text>
+  <text class="xs" x="1707" y="602">alloc 512B + mark 512B = 1KB</text>
+  <text class="s" x="1707" y="636">512B / 1KB / 16KB slot：B = 8B</text>
+  <text class="xs" x="1707" y="660">两张有效 bitmap 只占前 16B</text>
+  <text class="note" x="1707" y="691">重绑 class 时 markBitmap 地址可改变</text>
+
+  <!-- lifecycle and grow -->
+  <rect class="panel" x="55" y="800" width="1890" height="255"/>
+  <text class="label" x="1000" y="837">何时预留、何时初始化、何时增长</text>
+  <rect class="box" x="95" y="870" width="415" height="140"/>
+  <text class="h" x="302" y="901">1. Runtime 初始化</text>
+  <text class="xs" x="302" y="931">预留：最大 Info 数组、object heap、bitmap arena</text>
+  <text class="xs" x="302" y="957">初始化：initial committed 前缀的 Info entry 与 bitmap chunk</text>
+  <text class="xs" x="302" y="983">未 committed 的 index 已有稳定地址槽，但不触碰/不绑定</text>
+
+  <rect class="meta" x="555" y="870" width="475" height="140"/>
+  <text class="h" x="792" y="901">2. Segment Grow（64MB）</text>
+  <text class="blue" x="792" y="931">不新建或搬动任何最大数组</text>
+  <text class="s" x="792" y="959">先激活 8 个 bitmap chunk = 2MB 映射（RSS 按写入）</text>
+  <text class="xs" x="792" y="985">再 InitializeFreshRegions：Reset 2048 entry = 128KB Info</text>
+
+  <rect class="heap" x="1075" y="870" width="390" height="140"/>
+  <text class="h" x="1270" y="901">3. Region 绑定 class</text>
+  <text class="green" x="1270" y="931">InitForSizeClass()</text>
+  <text class="s" x="1270" y="959">只使用既有 slot i，计算 B、绑定 bitmap 指针</text>
+  <text class="xs" x="1270" y="985">初始化当前有效 bitmap；不新增 arena chunk</text>
+
+  <rect class="side" x="1510" y="870" width="395" height="140"/>
+  <text class="h" x="1707" y="901">4. tail Shrink / 下次 Grow</text>
+  <text class="orange" x="1707" y="931">Shrink 仅撤销完整尾部 bitmap chunk</text>
+  <text class="s" x="1707" y="959">Info / object 最大映射仍保持稳定</text>
+  <text class="xs" x="1707" y="985">后续重新 Grow 时，对同一 index 再 Reset</text>
+
+  <path class="arr" d="M510 1030 L555 1030"/>
+  <path class="arr" d="M1030 1030 L1075 1030"/>
+  <path class="arr" d="M1465 1030 L1510 1030"/>
+</svg>

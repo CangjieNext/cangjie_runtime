@@ -1,0 +1,144 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2048" height="1190" viewBox="0 0 2048 1190" role="img" aria-labelledby="title desc">
+  <title id="title">MSGC 中 P 的 active log、PerPGCWork、Assist 与全局 WorkBuf 关系</title>
+  <desc id="desc">多个 P 各自拥有 active log、log cache 和 PerPGCWork。满 WorkBuf 发布到 globalFull，标记工作者和 assist 消费。MarkTermination 将每个 P 的残块收口；Mutator assistLocalWork 是对象栈而不是 WorkBuf 链。</desc>
+  <defs>
+    <style>
+      .title { font: 700 34px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .subtitle { font: 400 18px Arial, PingFang SC, sans-serif; fill: #49617f; }
+      .section { font: 700 20px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .label { font: 700 17px Arial, PingFang SC, sans-serif; fill: #102d63; }
+      .text { font: 400 16px Arial, PingFang SC, sans-serif; fill: #29415f; }
+      .small { font: 400 14px Arial, PingFang SC, sans-serif; fill: #49617f; }
+      .mono { font: 600 14px Menlo, Consolas, monospace; fill: #163861; }
+      .pl { fill: #edf5ff; stroke: #2472d3; stroke-width: 2; }
+      .log { fill: #fff8e8; stroke: #e6a21c; stroke-width: 2; }
+      .work { fill: #eef8f1; stroke: #2d8a57; stroke-width: 2; }
+      .global { fill: #eef3fb; stroke: #557ba9; stroke-width: 2; }
+      .stw { fill: #fbeef0; stroke: #c95365; stroke-width: 2; }
+      .assist { fill: #f6effb; stroke: #8663ab; stroke-width: 2; }
+      .note { fill: #f7f9fc; stroke: #b9c8da; stroke-width: 1.5; }
+      .line { fill: none; stroke: #49617f; stroke-width: 2.5; marker-end: url(#arrow); }
+      .lineBlue { fill: none; stroke: #2472d3; stroke-width: 3; marker-end: url(#arrowBlue); }
+      .lineOrange { fill: none; stroke: #e87505; stroke-width: 3; marker-end: url(#arrowOrange); }
+      .lineGreen { fill: none; stroke: #2d8a57; stroke-width: 3; marker-end: url(#arrowGreen); }
+      .linePurple { fill: none; stroke: #8663ab; stroke-width: 3; marker-end: url(#arrowPurple); }
+      .lineRed { fill: none; stroke: #c95365; stroke-width: 3; marker-end: url(#arrowRed); }
+      .dash { fill: none; stroke: #9aaec6; stroke-width: 2; stroke-dasharray: 8 7; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#49617f"/></marker>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2472d3"/></marker>
+    <marker id="arrowOrange" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#e87505"/></marker>
+    <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#2d8a57"/></marker>
+    <marker id="arrowPurple" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#8663ab"/></marker>
+    <marker id="arrowRed" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c95365"/></marker>
+  </defs>
+
+  <rect width="2048" height="1190" fill="#ffffff"/>
+  <text x="70" y="62" class="title">P 的 active log、PerPGCWork、Assist 与 Global WorkBuf</text>
+  <text x="70" y="96" class="subtitle">activeLog 保存删除写屏障产生的 trusted-grey oldRef；PerPGCWork 保存可并行消费的 Mark 工作。</text>
+
+  <text x="70" y="145" class="section">P / TLS：每个 P 的 AllocBufferMS 都有独立日志与工作缓存</text>
+  <rect x="70" y="170" width="720" height="705" rx="18" class="pl"/>
+  <text x="96" y="207" class="label">P0 · AllocBufferMS</text>
+  <text x="96" y="234" class="small">线程进入 P 后持有；Mutator 不直接争用其他 P 的 local WorkBuf</text>
+
+  <rect x="102" y="264" width="300" height="160" rx="12" class="log"/>
+  <text x="125" y="300" class="label">activeLog_</text>
+  <text x="125" y="329" class="text">当前删除屏障写入的 WorkBuf</text>
+  <text x="125" y="357" class="small">oldRef 已 CAS 标灰</text>
+  <text x="125" y="383" class="mono">objs[1024] · trusted-grey</text>
+
+  <rect x="445" y="264" width="300" height="160" rx="12" class="log"/>
+  <text x="468" y="300" class="label">logCache_</text>
+  <text x="468" y="329" class="text">P 私有的空 WorkBuf 缓存</text>
+  <text x="468" y="357" class="small">activeLog 满时换入空块</text>
+  <text x="468" y="383" class="small">批量向 WorkBufPool 取还，降低全局竞争</text>
+
+  <rect x="102" y="465" width="643" height="250" rx="12" class="work"/>
+  <text x="125" y="501" class="label">gcWork_ : PerPGCWork（P 的 Mark Assist / Worker 本地工作）</text>
+  <rect x="128" y="525" width="180" height="104" rx="9" class="global"/>
+  <text x="148" y="558" class="label">getCur_</text>
+  <text x="148" y="584" class="small">从 globalFull_</text>
+  <text x="148" y="607" class="small">取入，供 Trace 消费</text>
+  <rect x="333" y="525" width="180" height="104" rx="9" class="global"/>
+  <text x="353" y="558" class="label">putCur_</text>
+  <text x="353" y="584" class="small">Trace 发现的新工作</text>
+  <text x="353" y="607" class="small">写满后发布出去</text>
+  <rect x="538" y="525" width="180" height="104" rx="9" class="note"/>
+  <text x="558" y="558" class="label">无本地链</text>
+  <text x="558" y="584" class="small">满 putCur_ 直发 Global</text>
+  <text x="558" y="607" class="small">partial 由 Dispose 发布</text>
+  <text x="128" y="670" class="small">PerPGCWork 只保留 getCur_/putCur_，删除旧 local-first / rollback 链。</text>
+
+  <rect x="102" y="745" width="643" height="99" rx="12" class="assist"/>
+  <text x="125" y="781" class="label">P 上运行的 Mutator</text>
+  <text x="125" y="809" class="text">辅助 Mark 时使用 gcWork_；写字段时向 activeLog_ 追加 oldRef</text>
+
+  <rect x="850" y="170" width="720" height="705" rx="18" class="pl"/>
+  <text x="876" y="207" class="label">P1 · AllocBufferMS</text>
+  <text x="876" y="234" class="small">结构相同；P2…Pn 各有一份，图中省略</text>
+
+  <rect x="882" y="264" width="300" height="160" rx="12" class="log"/>
+  <text x="905" y="300" class="label">activeLog_</text>
+  <text x="905" y="329" class="text">另一个 P 的独占写入块</text>
+  <text x="905" y="357" class="small">满块 / owner exit 时才发布</text>
+  <text x="905" y="383" class="small">未满块不频繁触碰全局栈</text>
+
+  <rect x="1225" y="264" width="300" height="160" rx="12" class="log"/>
+  <text x="1248" y="300" class="label">logCache_</text>
+  <text x="1248" y="329" class="text">独立的空块缓存</text>
+  <text x="1248" y="357" class="small">降低 WorkBufPool 压力</text>
+
+  <rect x="882" y="465" width="643" height="250" rx="12" class="work"/>
+  <text x="905" y="501" class="label">gcWork_ : PerPGCWork</text>
+  <rect x="908" y="525" width="180" height="104" rx="9" class="global"/>
+  <text x="928" y="558" class="label">getCur_</text>
+  <text x="928" y="584" class="small">AcquireOneBuffer 取 work</text>
+  <rect x="1113" y="525" width="180" height="104" rx="9" class="global"/>
+  <text x="1133" y="558" class="label">putCur_</text>
+  <text x="1133" y="584" class="small">生产新 grey work</text>
+  <rect x="1318" y="525" width="180" height="104" rx="9" class="note"/>
+  <text x="1338" y="558" class="label">无本地链</text>
+  <text x="1338" y="584" class="small">get/put 直接交接</text>
+  <text x="908" y="670" class="small">每个 P 的 get/put 是私有块；WorkBuf 只在满、收口或归还时跨 P 流动。</text>
+
+  <rect x="882" y="745" width="643" height="99" rx="12" class="assist"/>
+  <text x="905" y="781" class="label">P 上运行的 Mutator</text>
+  <text x="905" y="809" class="text">与 P0 同样可以偿还 Mark debt，消费 / 产生 gcWork_</text>
+
+  <text x="70" y="920" class="section">Global：发布、消费与终止收口</text>
+  <rect x="70" y="950" width="350" height="160" rx="14" class="global"/>
+  <text x="95" y="987" class="label">WorkBufPool</text>
+  <text x="95" y="1016" class="text">全局空 WorkBuf 池</text>
+  <text x="95" y="1044" class="small">logCache 批量 refill / drain</text>
+  <text x="95" y="1071" class="small">也回收消费完成的空块</text>
+
+  <rect x="565" y="930" width="430" height="200" rx="16" class="global"/>
+  <text x="590" y="969" class="label">globalFull_ : LFStack&lt;WorkBuf&gt;</text>
+  <text x="590" y="1000" class="text">可并发共享的满工作块</text>
+  <text x="590" y="1029" class="small">来源：activeLog 满块、putCur_ 满块、Dispose 残块</text>
+  <text x="590" y="1057" class="small">去向：GC Main / Mark Worker / P 的 Mark Assist</text>
+  <text x="590" y="1085" class="small">对象颜色由 bitmap 表示；栈只传递待扫描工作</text>
+
+  <rect x="1140" y="950" width="430" height="160" rx="14" class="assist"/>
+  <text x="1165" y="987" class="label">Mutator::assistLocalWork_</text>
+  <text x="1165" y="1016" class="text">Mutator 私有的对象栈</text>
+  <text x="1165" y="1044" class="small">不是 WorkBuf；是独立对象栈</text>
+  <text x="1165" y="1071" class="small">在 MarkTermination 被显式 drain</text>
+
+  <rect x="1715" y="950" width="260" height="160" rx="14" class="stw"/>
+  <text x="1740" y="987" class="label">MarkTermination</text>
+  <text x="1740" y="1016" class="small">Flush activeLog</text>
+  <text x="1740" y="1042" class="small">Dispose PerPGCWork</text>
+  <text x="1740" y="1068" class="small">drain Global → fixed point</text>
+
+  <text x="285" y="905" class="small">满 activeLog / putCur，或 Dispose 残块</text>
+  <path d="M430 875 V910 H740 V925" class="lineOrange"/>
+  <text x="1035" y="905" class="small">满块发布 / P 退出 / phase 收口</text>
+  <path d="M1210 875 V910 H900 V925" class="lineGreen"/>
+  <path d="M995 1030 V900 H1845 V945" class="lineRed"/>
+  <path d="M1570 1030 H1710" class="lineRed"/>
+
+  <rect x="70" y="1140" width="1905" height="32" rx="8" class="note"/>
+  <text x="90" y="1162" class="small">发布规则：满块立即进入 globalFull_；未满 activeLog 留在所属 P，直到 owner exit / phase 收口。终止阶段会把所有 P 私有残块统一转移，随后把全局与主队列 drain 到 fixed point。</text>
+</svg>

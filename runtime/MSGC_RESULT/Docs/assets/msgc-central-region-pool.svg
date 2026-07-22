@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1900" height="970" viewBox="0 0 1900 970" role="img" aria-labelledby="title desc">
+  <title id="title">MSGC CentralRegionPool</title>
+  <desc id="desc">The unique CentralRegionPool owns 36 size-class buckets. Each bucket has partial swept, full swept, partial unswept, and full unswept structures. The pool also owns global empty, live large, and large hot caches.</desc>
+  <defs>
+    <marker id="navy" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 z" fill="#102d63"/></marker>
+    <marker id="blue" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 z" fill="#2472d3"/></marker>
+    <marker id="orange" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 z" fill="#e87505"/></marker>
+    <marker id="green" markerWidth="11" markerHeight="11" refX="9" refY="5.5" orient="auto"><path d="M0,0 L11,5.5 L0,11 z" fill="#168542"/></marker>
+    <style>
+      .panel{fill:#f8fbff;stroke:#102d63;stroke-width:3;rx:12}.box{fill:#fff;stroke:#102d63;stroke-width:2.5;rx:9}.bucket{fill:#eaf3ff;stroke:#2472d3;stroke-width:2;rx:6}.swept{fill:#edf9f0;stroke:#168542;stroke-width:2.5;rx:8}.unswept{fill:#fff6e9;stroke:#e87505;stroke-width:2.5;rx:8}.large{fill:#f5f0ff;stroke:#7048a7;stroke-width:2.5;rx:8}.empty{fill:#f3f5f7;stroke:#6c7789;stroke-width:2.5;rx:8}.label{fill:#102d63;font:700 29px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.h{fill:#102d63;font:700 24px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.s{fill:#102d63;font:600 19px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.xs{fill:#102d63;font:500 16px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.blue{fill:#2472d3;font:700 19px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.green{fill:#168542;font:700 19px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.orange{fill:#e87505;font:700 19px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.purple{fill:#7048a7;font:700 19px Arial, PingFang SC, sans-serif;text-anchor:middle;dominant-baseline:middle}.note{fill:#102d63;font:italic 18px Arial, PingFang SC, sans-serif;text-anchor:middle}.arr{fill:none;stroke:#102d63;stroke-width:4;marker-end:url(#navy)}.barr{fill:none;stroke:#2472d3;stroke-width:4;marker-end:url(#blue)}.garr{fill:none;stroke:#168542;stroke-width:4;marker-end:url(#green)}.oarr{fill:none;stroke:#e87505;stroke-width:4;marker-end:url(#orange)}.dash{fill:none;stroke:#7890b8;stroke-width:2.5;stroke-dasharray:8 7}
+    </style>
+  </defs>
+  <rect width="1900" height="970" fill="#fff"/>
+  <text class="label" x="950" y="43">Central 层：唯一 CentralRegionPool 的 36 个 size-class bucket 与共享缓存</text>
+
+  <!-- external parties -->
+  <rect class="box" x="55" y="106" width="230" height="118"/>
+  <text class="h" x="170" y="142">多个 P / TLS</text>
+  <text class="s" x="170" y="174">AllocBufferMS</text>
+  <text class="xs" x="170" y="201">refill / return / registry</text>
+  <rect class="box" x="55" y="700" width="230" height="118"/>
+  <text class="h" x="170" y="735">FreeManager</text>
+  <text class="s" x="170" y="767">fresh Region / span</text>
+  <text class="xs" x="170" y="795">allocBit=0 的供给</text>
+
+  <!-- pool -->
+  <rect class="panel" x="345" y="84" width="1500" height="800"/>
+  <text class="label" x="1095" y="126">CentralRegionPool（Runtime 全局唯一）</text>
+  <text class="note" x="1095" y="154">共享 36-class 元数据；Region 节点使用 MSRegionInfo 的侵入式 index link，不另分配 list node</text>
+  <path class="barr" d="M285 165 L345 165"/>
+  <path class="barr" d="M345 205 L285 205"/>
+  <text class="note" x="315" y="276">向 P 补给</text>
+  <text class="note" x="315" y="303">/ P 归还</text>
+  <path class="garr" d="M285 757 L345 757"/>
+  <text class="note" x="312" y="710">不足时取 fresh</text>
+
+  <!-- exact bucket table -->
+  <rect class="box" x="385" y="188" width="640" height="255"/>
+  <text class="h" x="705" y="220">buckets_[36]：class 与 slot size 对照</text>
+  <text class="xs" x="705" y="248">各 bucket 复用同一张静态 size-class 表；每个 small Region 绑定期间只进入其对应 class</text>
+  <g>
+    <rect class="bucket" x="413" y="278" width="96" height="44"/><text class="xs" x="461" y="300">0 · 8B</text>
+    <rect class="bucket" x="517" y="278" width="96" height="44"/><text class="xs" x="565" y="300">1 · 16B</text>
+    <rect class="bucket" x="621" y="278" width="96" height="44"/><text class="xs" x="669" y="300">… · 128B</text>
+    <rect class="bucket" x="725" y="278" width="96" height="44"/><text class="xs" x="773" y="300">10 · 160</text>
+    <rect class="bucket" x="829" y="278" width="160" height="44"/><text class="xs" x="909" y="300">… 17 · 512B</text>
+    <rect class="bucket" x="413" y="334" width="120" height="44"/><text class="xs" x="473" y="356">18 · 640B</text>
+    <rect class="bucket" x="541" y="334" width="160" height="44"/><text class="xs" x="621" y="356">… 25 · 2KB</text>
+    <rect class="bucket" x="709" y="334" width="138" height="44"/><text class="xs" x="778" y="356">26 · 2.5KB</text>
+    <rect class="bucket" x="855" y="334" width="134" height="44"/><text class="xs" x="922" y="356">… 32 · 8KB</text>
+    <rect class="bucket" x="413" y="390" width="175" height="35"/><text class="xs" x="500" y="408">33 · 10KB</text>
+    <rect class="bucket" x="598" y="390" width="175" height="35"/><text class="xs" x="685" y="408">34 · 12KB</text>
+    <rect class="bucket" x="783" y="390" width="206" height="35"/><text class="xs" x="886" y="408">35 · 16KB</text>
+  </g>
+
+  <!-- magnification -->
+  <path class="barr" d="M1025 315 L1090 315"/>
+  <rect class="box" x="1090" y="188" width="710" height="365"/>
+  <text class="h" x="1445" y="220">放大：SizeClassBucket[cls]（例：cls 18 / slot 640B）</text>
+  <text class="note" x="1445" y="248">一个 bucket 内固定拥有四个 Region 容器，分别表达 Sweep 时序和可用槽状态</text>
+  <rect class="swept" x="1120" y="280" width="310" height="105"/>
+  <text class="green" x="1275" y="311">partialSwept_</text>
+  <text class="s" x="1275" y="339">已 Sweep，仍有可分配 slot</text>
+  <text class="xs" x="1275" y="364">LockFreeRegionStack · tagged-head CAS</text>
+  <rect class="swept" x="1460" y="280" width="310" height="105"/>
+  <text class="green" x="1615" y="311">fullSwept_</text>
+  <text class="s" x="1615" y="339">已 Sweep，当前无空 slot</text>
+  <text class="xs" x="1615" y="364">MSRegionList · bucket lock</text>
+  <rect class="unswept" x="1120" y="415" width="310" height="105"/>
+  <text class="orange" x="1275" y="446">partialUnswept_</text>
+  <text class="s" x="1275" y="474">上一代 partial，尚未 Sweep</text>
+  <text class="xs" x="1275" y="499">MSRegionList · claim/generation</text>
+  <rect class="unswept" x="1460" y="415" width="310" height="105"/>
+  <text class="orange" x="1615" y="446">fullUnswept_</text>
+  <text class="s" x="1615" y="474">上一代 full，尚未 Sweep</text>
+  <text class="xs" x="1615" y="499">MSRegionList · claim/generation</text>
+
+  <!-- global caches -->
+  <rect class="empty" x="385" y="500" width="300" height="185"/>
+  <text class="h" x="535" y="534">emptySweptCache_</text>
+  <text class="s" x="535" y="565">全局 classless empty 链</text>
+  <text class="xs" x="535" y="593">可重绑任意 small class</text>
+  <text class="xs" x="535" y="620">与 P 的 local empty 共同计数</text>
+  <text class="xs" x="535" y="647">仍是上层持有，allocBit=1</text>
+  <rect class="large" x="725" y="500" width="310" height="185"/>
+  <text class="h" x="880" y="534">largeRegionList_</text>
+  <text class="purple" x="880" y="565">live large span</text>
+  <text class="xs" x="880" y="594">仅挂 primary MSRegionInfo</text>
+  <text class="xs" x="880" y="621">follower 以 primary index 关联</text>
+  <text class="xs" x="880" y="648">不进入 36 个 small bucket</text>
+  <rect class="large" x="1075" y="590" width="370" height="150"/>
+  <text class="h" x="1260" y="623">largeHotCache_</text>
+  <text class="purple" x="1260" y="655">map&lt;span Region 数, vector&lt;Entry&gt;&gt;</text>
+  <text class="xs" x="1260" y="686">按精确连续 span 大小复用</text>
+  <text class="xs" x="1260" y="713">已 Reset 也仍由 hot cache 持有，allocBit=1</text>
+  <rect class="box" x="1485" y="590" width="315" height="150"/>
+  <text class="h" x="1642" y="623">msAllocBuffers_</text>
+  <text class="s" x="1642" y="654">AllocBufferMS* registry</text>
+  <text class="xs" x="1642" y="684">GC 枚举所有 P 的 active Region、</text>
+  <text class="xs" x="1642" y="710">local empty、roots 与 WorkBuf 的入口</text>
+  <path class="dash" d="M285 165 L1485 165 L1485 590"/>
+
+  <!-- flow footer -->
+  <rect class="box" x="385" y="780" width="1415" height="70"/>
+  <text class="h" x="1092" y="810">Region 转移：P active ↔ Central typed / empty / large 容器 ↔ FreeManager；侵入式 link 只允许它在一条上层链中</text>
+  <text class="note" x="1092" y="837">generation flip 重组 swept / unswept 容器，不会为每个 Region 创建新的列表节点。</text>
+</svg>
