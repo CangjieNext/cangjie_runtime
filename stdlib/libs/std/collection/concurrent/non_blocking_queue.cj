@@ -183,7 +183,20 @@ class Block<E> {
             }
 
             // get the element of buffer[index].
-            return ELEM(buffer[index])
+            let elem = buffer[index]
+            // Re-verify that no concurrent `pop` has consumed this slot
+            // between snapshotting `index` and reading `buffer[index]`.
+            // `pop` advances `reserved` from `index` to `index + 1` *before*
+            // zeroing `buffer[index]`, so if `reserved` is still `index`,
+            // the slot has not been zeroed and `elem` is the original
+            // (committed) head element. Otherwise, retry to observe a fresh
+            // head. Without this re-check, `peek` could return the zeroed
+            // (`zeroValue<E>()`) slot, e.g. `Some(0)` for `Int64` queues that
+            // never enqueued `0`.
+            if (reserved.load() != index) {
+                continue
+            }
+            return ELEM(elem)
         }
 
         return BlockDone
