@@ -8,9 +8,14 @@
 
 package std.unittest.concurrent
 
-public interface EquatableObj <: ToString {
+// Declared as an abstract class (rather than an interface) so that it
+// satisfies the T <: Object constraint of AtomicOptionReference, which is
+// used for the lock-free memoisation cache in PermutationNode. Cangjie does
+// not allow interfaces to inherit classes (interfaces can only inherit
+// interfaces), so an interface cannot be made <: Object directly.
+public abstract class EquatableObj <: ToString {
 
-    func eq(other: Any): Bool
+    public func eq(other: Any): Bool
 }
 
 public func execResultOf<T>(f: () -> T): EquatableObj where T <: Equatable<T> {

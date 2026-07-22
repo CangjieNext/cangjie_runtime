@@ -193,7 +193,12 @@ public class ScenarioResult {
         
         for (iter in iterationResults) {
             if (!iter.allSucceeded) {
-                sb.append("\nIteration ${iter.iteration} failures:\n")
+                if (let Some(consResult) <- iter.consistencyValidation) {
+                    if (!consResult.isConsistent) {
+                        sb.append("\nIteration ${iter.iteration} failures:\n")
+                        sb.append("  Consistency validation failed: \n${consResult.getMismatchDetails().getOrThrow()}\n")
+                    }
+                }
                 for (r in iter.actorResults) {
                     if (!r.isSuccess) {
                         sb.append("  Actor ${r.actorName}: ${r.getExceptionMessage()}\n")
