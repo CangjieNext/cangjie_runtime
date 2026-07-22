@@ -525,10 +525,11 @@ struct ArgumentDescription {
 
         messageBuilder.indent {
             messageBuilder.appendLine(argsText)
-            match (this.randomSeed) {
-                case Some(seed) => messageBuilder.appendLine("with randomSeed = ${seed}")
-                case _ => ()
-            }
+        }
+
+        match (this.randomSeed) {
+            case Some(seed) => messageBuilder.appendLine("with randomSeed = ${seed}")
+            case _ => ()
         }
 
         messageBuilder

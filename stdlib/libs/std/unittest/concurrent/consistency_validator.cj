@@ -10,7 +10,29 @@ package std.unittest.concurrent
 
 import std.collection.ArrayList
 import std.collection.HashSet
+import std.sync.AtomicInt64
+import std.sync.AtomicOptionReference
 import std.time.DateTime
+
+// Per-call state for one ConsistencyValidator.validate() invocation.
+//
+// A single validate() call drives a single-threaded pruning-tree DFS, so the
+// statistics and dead-end tracking below are not accessed concurrently and need
+// not be atomic. They are kept out of the ConsistencyValidator instance so that
+// parallel validate() calls (from parallel iteration execution) do not race on
+// shared instance fields. The only state that is shared across calls is the
+// memoisation tree (cachedTreeRoot/cachedTreeSize and the PermutationNode
+// children/cachedResult fields), which is already lock-free (ConcurrentHashMap +
+// AtomicOptionReference).
+private class DfsContext {
+    var operationChecks: Int64 = 0
+    var cacheChecks: Int64 = 0
+    var prunedBranches: Int64 = 0
+    var foundPermutation: ?ArrayList<Int64> = None
+    var deepestDeadEndDepth: Int64 = -1
+    var deepestDeadEndPrefix: ArrayList<Int64> = ArrayList<Int64>()
+    var deepestDeadEndMismatches: ArrayList<MismatchInfo> = ArrayList<MismatchInfo>()
+}
 
 protected class ConsistencyValidator {
     protected ConsistencyValidator(
@@ -19,26 +41,15 @@ protected class ConsistencyValidator {
         private let reExecuteOperation!: (Any, OperationInvocation) -> EquatableObj
     ) {}
 
-    private var operationChecks: Int64 = 0
-    private var cacheChecks: Int64 = 0
-    private var prunedBranches: Int64 = 0
-    private var foundPermutation: ?ArrayList<Int64> = None
-    private var cachedTreeRoot: ?PermutationNode = None
-    private var cachedTreeSize: Int64 = -1
-    private var currentRunId: Int64 = 0
-    private var deepestDeadEndDepth: Int64 = -1
-    private var deepestDeadEndPrefix: ArrayList<Int64> = ArrayList<Int64>()
-    private var deepestDeadEndMismatches: ArrayList<MismatchInfo> = ArrayList<MismatchInfo>()
+    // Cross-call memoisation tree. Under parallel iteration execution, multiple
+    // validate() calls explore this tree concurrently; both fields are atomic
+    // and the PermutationNode internals are lock-free, so no extra
+    // synchronisation is required here.
+    private let cachedTreeRoot: AtomicOptionReference<PermutationNode> = AtomicOptionReference<PermutationNode>()
+    private let cachedTreeSize: AtomicInt64 = AtomicInt64(-1)
 
     protected func validate(history: ConcurrentHistory, verbose!: Bool = false): ConsistencyValidationResult {
-        operationChecks = 0
-        cacheChecks = 0
-        prunedBranches = 0
-        foundPermutation = None
-        deepestDeadEndDepth = -1
-        deepestDeadEndPrefix = ArrayList<Int64>()
-        deepestDeadEndMismatches = ArrayList<MismatchInfo>()
-        currentRunId += 1
+        let ctx = DfsContext()
 
         let po = computePartialOrder(history, consistencyModel)
 
@@ -61,24 +72,32 @@ protected class ConsistencyValidator {
             )
         }
 
+        // Best-effort reuse of the cross-call memoisation tree. If the cached
+        // tree's size matches, reuse it; otherwise install a fresh root via CAS
+        // (losing the CAS just means another concurrent call installed its own
+        // root and we proceed with a local root for this call — correctness is
+        // unaffected, only memoisation sharing is best-effort).
         var treeRoot: PermutationNode
-        if (let Some(root) <- cachedTreeRoot && cachedTreeSize == po.size) {
+        let existingRoot = cachedTreeRoot.load()
+        let existingSize = cachedTreeSize.load()
+        if (let Some(root) <- existingRoot && existingSize == po.size) {
             treeRoot = root
         } else {
             treeRoot = PermutationNode(operation: None, depth: 0)
-            cachedTreeRoot = Some(treeRoot)
-            cachedTreeSize = po.size
+            if (cachedTreeRoot.compareAndSwap(existingRoot, Some(treeRoot))) {
+                cachedTreeSize.store(po.size)
+            }
         }
 
         let start = DateTime.now()
 
         let placed = HashSet<Int64>()
         let prefixOps = ArrayList<Int64>()
-        pruningTreeDFSRecursive(treeRoot, po, history, placed, prefixOps, None, 0)
+        pruningTreeDFSRecursive(ctx, treeRoot, po, history, placed, prefixOps, None, 0)
 
-        let totalChecks = operationChecks + cacheChecks
+        let totalChecks = ctx.operationChecks + ctx.cacheChecks
         if (verbose) {
-            println("Operation checks: ${operationChecks}, cache hits: ${cacheChecks}, pruned: ${prunedBranches} (pruning DFS on permutation tree).")
+            println("Operation checks: ${ctx.operationChecks}, cache hits: ${ctx.cacheChecks}, pruned: ${ctx.prunedBranches} (pruning DFS on permutation tree).")
             if (totalChecks > 0) {
                 println("Time per check ${(DateTime.now() - start) / totalChecks}.")
             }
@@ -86,19 +105,20 @@ protected class ConsistencyValidator {
 
         ConsistencyValidationResult(
             consistencyModel: consistencyModel,
-            matchingPermutation: foundPermutation,
-            operationChecks: operationChecks,
-            prunedBranches: prunedBranches,
-            cacheHits: cacheChecks,
+            matchingPermutation: ctx.foundPermutation,
+            operationChecks: ctx.operationChecks,
+            prunedBranches: ctx.prunedBranches,
+            cacheHits: ctx.cacheChecks,
             history: history,
             partialOrder: po,
-            deadEndDepth: deepestDeadEndDepth,
-            deadEndPrefix: deepestDeadEndPrefix.toArray(),
-            deadEndMismatches: deepestDeadEndMismatches.toArray()
+            deadEndDepth: ctx.deepestDeadEndDepth,
+            deadEndPrefix: ctx.deepestDeadEndPrefix.toArray(),
+            deadEndMismatches: ctx.deepestDeadEndMismatches.toArray()
         )
     }
 
     private func pruningTreeDFSRecursive(
+        ctx: DfsContext,
         node: PermutationNode,
         po: PartialOrder,
         hist: ConcurrentHistory,
@@ -111,7 +131,7 @@ protected class ConsistencyValidator {
 
         if (available.size == 0) {
             if (prefixOps.size > 0) {
-                foundPermutation = copyPermutation(prefixOps)
+                ctx.foundPermutation = copyPermutation(prefixOps)
                 return true
             }
             return false
@@ -120,10 +140,6 @@ protected class ConsistencyValidator {
         let localMismatches = ArrayList<MismatchInfo>()
         for (opId in available) {
             let child = node.ensureChild(opId)
-
-            if (child.runId != currentRunId) {
-                child.runId = currentRunId
-            }
 
             let actorId = opId / 1000
             let opIndex = opId % 1000
@@ -134,10 +150,15 @@ protected class ConsistencyValidator {
             var consumedState = false
             var seqResult: ?EquatableObj = None
 
-            if (let Some(cachedRes) <- child.cachedResult) {
+            // Lock-free compute-once over the shared cachedResult. A successful
+            // CAS counts as a fresh operation check; a lost CAS means another
+            // concurrent validate() computed the equivalent (idempotent) result
+            // first and is counted as a cache hit.
+            let cachedOpt = child.cachedResult.load()
+            if (let Some(cachedRes) <- cachedOpt) {
                 seqResult = Some(cachedRes)
                 isMatch = cachedRes.eq(inv.result)
-                cacheChecks += 1
+                ctx.cacheChecks += 1
             } else {
                 let builtState = currentState.getOrDefault {
                     let s = createFreshInstance()
@@ -148,11 +169,16 @@ protected class ConsistencyValidator {
                     s
                 }
 
-                let actualResult = reExecuteOperation(builtState, inv)
-                seqResult = Some(actualResult)
-                child.cachedResult = actualResult
-                operationChecks += 1
-                isMatch = actualResult.eq(inv.result)
+                let computedResult = reExecuteOperation(builtState, inv)
+                if (child.cachedResult.compareAndSwap(None, Some(computedResult))) {
+                    ctx.operationChecks += 1
+                } else {
+                    // Lost the race; the cached value is equivalent because
+                    // re-execution is idempotent for a given prefix.
+                    ctx.cacheChecks += 1
+                }
+                seqResult = Some(computedResult)
+                isMatch = computedResult.eq(inv.result)
                 recurseState = Some(builtState)
                 consumedState = true
             }
@@ -161,14 +187,14 @@ protected class ConsistencyValidator {
                 if (let Some(expected) <- seqResult) {
                     localMismatches.add(MismatchInfo(operation: inv, expectedResult: expected))
                 }
-                prunedBranches += 1
+                ctx.prunedBranches += 1
                 if (consumedState) { currentState = None }
                 continue
             }
 
             placed.add(opId)
             prefixOps.add(opId)
-            if (pruningTreeDFSRecursive(child, po, hist, placed, prefixOps, recurseState, depth + 1)) {
+            if (pruningTreeDFSRecursive(ctx, child, po, hist, placed, prefixOps, recurseState, depth + 1)) {
                 return true
             }
             if (consumedState) { currentState = None }
@@ -177,12 +203,12 @@ protected class ConsistencyValidator {
         }
 
         if (available.size > 0 && localMismatches.size == available.size) {
-            if (depth > deepestDeadEndDepth) {
-                deepestDeadEndDepth = depth
-                deepestDeadEndPrefix = copyPermutation(prefixOps)
-                deepestDeadEndMismatches = ArrayList<MismatchInfo>()
+            if (depth > ctx.deepestDeadEndDepth) {
+                ctx.deepestDeadEndDepth = depth
+                ctx.deepestDeadEndPrefix = copyPermutation(prefixOps)
+                ctx.deepestDeadEndMismatches = ArrayList<MismatchInfo>()
                 for (m in localMismatches) {
-                    deepestDeadEndMismatches.add(m)
+                    ctx.deepestDeadEndMismatches.add(m)
                 }
             }
         }
