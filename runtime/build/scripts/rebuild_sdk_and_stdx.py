@@ -15,6 +15,12 @@ from dataclasses import dataclass
 from typing import Iterable
 
 
+LINUX_COMPILER_LLVM_SHARED_LIBRARY_PATTERNS = (
+    "libLLVM*.so*",
+    "libLTO*.so*",
+)
+
+
 @dataclass(frozen=True)
 class RepoLayout:
     workspace_root: pathlib.Path
@@ -315,33 +321,46 @@ def build_compiler_llvm_sync_plan(
     config: BuildConfig,
     host: HostLayout,
 ) -> list[tuple[pathlib.Path, pathlib.Path]]:
-    cjnative_build = (
-        config.compiler_root
-        / "build"
-        / "build"
-        / "third_party"
-        / "cjnative-prefix"
-        / "src"
-        / "cjnative-build"
-    )
+    cjnative_build = compiler_cjnative_build_dir(config)
     llvm_sdk_root = config.sdk_root / "third_party" / "llvm"
 
     if host.os_name == "darwin":
-        shared_lib_names = ["libLLVM.dylib", "libLTO.dylib"]
+        shared_libs = [
+            cjnative_build / "lib" / "libLLVM.dylib",
+            cjnative_build / "lib" / "libLTO.dylib",
+        ]
     else:
-        shared_lib_names = ["libLLVM.so", "libLTO.so"]
+        shared_libs = discover_linux_compiler_llvm_shared_libraries(
+            cjnative_build / "lib"
+        )
 
     plan: list[tuple[pathlib.Path, pathlib.Path]] = [
         (cjnative_build / "bin", llvm_sdk_root / "bin"),
     ]
-    for lib_name in shared_lib_names:
-        plan.append(
-            (
-                cjnative_build / "lib" / lib_name,
-                llvm_sdk_root / "lib" / lib_name,
-            )
-        )
+    for shared_lib in shared_libs:
+        plan.append((shared_lib, llvm_sdk_root / "lib" / shared_lib.name))
     return plan
+
+
+def discover_linux_compiler_llvm_shared_libraries(
+    lib_dir: pathlib.Path,
+) -> list[pathlib.Path]:
+    shared_libs: list[pathlib.Path] = []
+    for pattern in LINUX_COMPILER_LLVM_SHARED_LIBRARY_PATTERNS:
+        matches = sorted(
+            (
+                path
+                for path in lib_dir.glob(pattern)
+                if path.is_file() or path.is_symlink()
+            ),
+            key=lambda path: (path.is_symlink(), path.name),
+        )
+        if not matches:
+            raise FileNotFoundError(
+                f"compiler LLVM shared libraries do not match {pattern}: {lib_dir}"
+            )
+        shared_libs.extend(matches)
+    return shared_libs
 
 
 def build_runtime_relayout_plan(
@@ -432,11 +451,14 @@ def copy_file(src: pathlib.Path, dst: pathlib.Path, dry_run: bool) -> None:
     print(f"[copy] {src} -> {dst}", flush=True)
     if dry_run:
         return
-    if not src.is_file():
+    if not src.is_file() and not src.is_symlink():
         raise FileNotFoundError(f"copy source file does not exist: {src}")
     make_path_writable(dst)
     dst.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(src, dst)
+    source_is_symlink = src.is_symlink()
+    if dst.is_symlink() or (source_is_symlink and dst.exists()):
+        dst.unlink()
+    shutil.copy2(src, dst, follow_symlinks=not source_is_symlink)
 
 
 def make_path_writable(path: pathlib.Path) -> None:
@@ -476,6 +498,18 @@ def sync_stdlib_into_sdk(config: BuildConfig, host: HostLayout, dry_run: bool) -
 
 
 def sync_compiler_llvm_into_sdk(config: BuildConfig, host: HostLayout, dry_run: bool) -> None:
+    if host.os_name == "linux" and dry_run:
+        cjnative_build = compiler_cjnative_build_dir(config)
+        llvm_sdk_root = config.sdk_root / "third_party" / "llvm"
+        copy_tree(cjnative_build / "bin", llvm_sdk_root / "bin", dry_run=True)
+        for pattern in LINUX_COMPILER_LLVM_SHARED_LIBRARY_PATTERNS:
+            print(
+                f"[copy] {cjnative_build / 'lib' / pattern} -> "
+                f"{llvm_sdk_root / 'lib'}",
+                flush=True,
+            )
+        return
+
     for src, dst in build_compiler_llvm_sync_plan(config, host):
         if src.is_dir() or src.name == "bin":
             copy_tree(src, dst, dry_run=dry_run)

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import pathlib
 import stat
 import tempfile
@@ -12,6 +14,10 @@ import rebuild_sdk_and_stdx as target
 
 def make_config() -> target.BuildConfig:
     root = pathlib.Path("/tmp/cangjie-rebuild-sdk-test")
+    return make_config_at(root)
+
+
+def make_config_at(root: pathlib.Path) -> target.BuildConfig:
     return target.BuildConfig(
         compiler_root=root / "cangjie_compiler",
         runtime_root=root / "runtime",
@@ -108,6 +114,65 @@ class CompilerLLVMSyncPlanTests(unittest.TestCase):
                 ),
             ],
         )
+
+    def test_linux_sync_plan_discovers_versioned_llvm_shared_libraries(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = make_config_at(pathlib.Path(temp_dir))
+            host = make_host(os_name="linux", arch="aarch64")
+            cjnative_build = target.compiler_cjnative_build_dir(config)
+            lib_dir = cjnative_build / "lib"
+            lib_dir.mkdir(parents=True)
+            (lib_dir / "libLLVM-15.so").write_text("llvm\n")
+            (lib_dir / "libLTO.so.15").write_text("lto\n")
+            (lib_dir / "libLTO.so").symlink_to("libLTO.so.15")
+
+            plan = target.build_compiler_llvm_sync_plan(config, host)
+
+            self.assertEqual(
+                [src.name for src, _ in plan],
+                ["bin", "libLLVM-15.so", "libLTO.so.15", "libLTO.so"],
+            )
+            self.assertEqual(
+                [dst.name for _, dst in plan],
+                ["bin", "libLLVM-15.so", "libLTO.so.15", "libLTO.so"],
+            )
+
+    def test_linux_sync_preserves_shared_library_symlinks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = make_config_at(pathlib.Path(temp_dir))
+            host = make_host(os_name="linux", arch="aarch64")
+            cjnative_build = target.compiler_cjnative_build_dir(config)
+            (cjnative_build / "bin").mkdir(parents=True)
+            lib_dir = cjnative_build / "lib"
+            lib_dir.mkdir()
+            (lib_dir / "libLLVM-15.so").write_text("llvm\n")
+            (lib_dir / "libLTO.so.15").write_text("lto\n")
+            (lib_dir / "libLTO.so").symlink_to("libLTO.so.15")
+            sdk_lib_dir = config.sdk_root / "third_party" / "llvm" / "lib"
+            sdk_lib_dir.mkdir(parents=True)
+            (sdk_lib_dir / "libLTO.so").write_text("stale regular file\n")
+
+            target.sync_compiler_llvm_into_sdk(config, host, dry_run=False)
+
+            self.assertEqual((sdk_lib_dir / "libLLVM-15.so").read_text(), "llvm\n")
+            self.assertEqual((sdk_lib_dir / "libLTO.so.15").read_text(), "lto\n")
+            self.assertTrue((sdk_lib_dir / "libLTO.so").is_symlink())
+            self.assertEqual(
+                (sdk_lib_dir / "libLTO.so").readlink(),
+                pathlib.Path("libLTO.so.15"),
+            )
+
+    def test_linux_sync_dry_run_does_not_require_built_libraries(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = make_config_at(pathlib.Path(temp_dir))
+            host = make_host(os_name="linux", arch="aarch64")
+            output = io.StringIO()
+
+            with contextlib.redirect_stdout(output):
+                target.sync_compiler_llvm_into_sdk(config, host, dry_run=True)
+
+            self.assertIn("libLLVM*.so*", output.getvalue())
+            self.assertIn("libLTO*.so*", output.getvalue())
 
     def test_build_codesign_targets_include_sdk_llvm_lib_on_darwin(self) -> None:
         config = make_config()
