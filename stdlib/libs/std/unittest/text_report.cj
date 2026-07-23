@@ -554,9 +554,9 @@ private func printFailure(pp: PrettyPrinter, tsr: TestSuiteResult, tcr: TestCase
     } else if (tcr.details.executedSteps > 1) {
         let failure = tcr.subResults.iterator().filter{ r => r.hasFailures() }.last().getOrThrow()
         match (failure.kind) {
-            case CaseStep(arg) where arg.stepIndex + 1 >= tcr.details.executedSteps =>
+            case CaseStep(arg) where arg.textDescription.isSome() && arg.stepIndex + 1 >= tcr.details.executedSteps =>
                 " (failed after ${arg.stepIndex+1} steps)"
-            case CaseStep(_) =>
+            case CaseStep(arg) where arg.textDescription.isSome() =>
                 " (failed 1/${tcr.details.executedSteps} steps)"
             case _ => ""
         }

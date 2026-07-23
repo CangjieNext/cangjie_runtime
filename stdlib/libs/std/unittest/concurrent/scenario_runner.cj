@@ -112,7 +112,6 @@ protected class ScenarioRunner<S> where S <: Any {
         } else {
             procCount / threadCount
         }
-        let initialSpawn = if (poolSize < totalParallel) { poolSize } else { totalParallel }
 
         let resultQueue = ArrayBlockingQueue<ScenarioIterationResult>(poolSize)
         let cancelled = AtomicInt64(0)
@@ -131,31 +130,11 @@ protected class ScenarioRunner<S> where S <: Any {
         var dispatched: Int64 = 0
         var completed: Int64 = 0
 
-        // Spawn the first wave of workers (up to poolSize).
-        while (nextSeedIdx < initialSpawn) {
-            let iterNum = nextSeedIdx + 1
-            let seed = seeds[nextSeedIdx]
-            let iterBackoff = BackoffGenerator(random: Random(seed), sigma: calibratedSigma)
-            spawn {
-                let r = runIteration(iterNum, iterBackoff, verbose: verbose)
-                resultQueue.add(r)
-            }
-            dispatched++
-            nextSeedIdx++
-        }
-
-        // Drain: block on the queue for a result, deliver it to the callback
-        // (unless cancelled), then spawn a replacement worker if there are
-        // more iterations to dispatch and we have not been cancelled.
-        while (completed < dispatched) {
-            let result = resultQueue.remove()
-            completed++
-            if (cancelled.load() == 0) {
-                if (!callback(result, result.iteration)) {
-                    cancelled.store(1)
-                }
-            }
-            if (cancelled.load() == 0 && nextSeedIdx < totalParallel) {
+        while (completed < totalParallel) {
+            if (cancelled.load() == 0 &&
+                nextSeedIdx < totalParallel &&
+                dispatched - completed < poolSize)
+            {
                 let iterNum = nextSeedIdx + 1
                 let seed = seeds[nextSeedIdx]
                 let iterBackoff = BackoffGenerator(random: Random(seed), sigma: calibratedSigma)
@@ -165,6 +144,19 @@ protected class ScenarioRunner<S> where S <: Any {
                 }
                 dispatched++
                 nextSeedIdx++
+                continue
+            }
+
+            if (completed >= dispatched) {
+                break                     
+            }
+
+            let result = resultQueue.remove()
+            completed++
+            if (cancelled.load() == 0) {
+                if (!callback(result, result.iteration)) {
+                    cancelled.store(1)
+                }
             }
         }
     }
