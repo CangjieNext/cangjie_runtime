@@ -183,6 +183,66 @@ class CompilerLLVMSyncPlanTests(unittest.TestCase):
         self.assertIn(config.sdk_root / "third_party" / "llvm" / "lib", targets)
 
 
+class RuntimeRelayoutTests(unittest.TestCase):
+    def test_linux_relayout_and_sdk_sync_work_without_section_object(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = make_config_at(pathlib.Path(temp_dir))
+            host = make_host(os_name="linux", arch="aarch64")
+            runtime_common_root = config.runtime_root / "output" / "common"
+            platform = host.sdk_platform_name
+            installed_lib = runtime_common_root / "lib" / platform
+            installed_runtime = runtime_common_root / "runtime" / "lib" / platform
+            installed_lib.mkdir(parents=True)
+            installed_runtime.mkdir(parents=True)
+
+            (installed_lib / "cjstart.o").write_text("cjstart\n")
+            (installed_lib / "libcangjie-runtime.a").write_text("static\n")
+            (installed_lib / "cjld.lds").write_text("linker-script\n")
+            (installed_runtime / "libcangjie-runtime.so").write_text("runtime\n")
+            (installed_runtime / "libcangjie-trace.so").write_text("trace\n")
+
+            target.repair_runtime_output_layout(config, host, dry_run=False)
+            target.sync_runtime_into_sdk(config, host, dry_run=False)
+
+            repaired_root = (
+                runtime_common_root / host.runtime_common_name(config.build_type)
+            )
+            repaired_lib = repaired_root / "lib" / platform
+            repaired_runtime = repaired_root / "runtime" / "lib" / platform
+            self.assertEqual((repaired_lib / "cjstart.o").read_text(), "cjstart\n")
+            self.assertEqual(
+                (repaired_lib / "libcangjie-runtime.a").read_text(),
+                "static\n",
+            )
+            self.assertEqual(
+                (repaired_lib / "cjld.lds").read_text(),
+                "linker-script\n",
+            )
+            self.assertFalse((repaired_lib / "section.o").exists())
+            self.assertEqual(
+                (repaired_runtime / "libcangjie-runtime.so").read_text(),
+                "runtime\n",
+            )
+            self.assertEqual(
+                (repaired_runtime / "libcangjie-trace.so").read_text(),
+                "trace\n",
+            )
+            self.assertEqual(
+                (
+                    config.sdk_root
+                    / "runtime"
+                    / "lib"
+                    / platform
+                    / "libcangjie-runtime.so"
+                ).read_text(),
+                "runtime\n",
+            )
+            self.assertEqual(
+                (config.sdk_root / "lib" / platform / "cjld.lds").read_text(),
+                "linker-script\n",
+            )
+
+
 class CopyPermissionTests(unittest.TestCase):
     def test_copy_file_overwrites_readonly_destination(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

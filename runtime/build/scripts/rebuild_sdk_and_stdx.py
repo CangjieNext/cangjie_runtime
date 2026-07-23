@@ -373,40 +373,12 @@ def build_runtime_relayout_plan(
 
     return [
         (
-            runtime_common_root / "lib" / runtime_platform_dir / "cjstart.o",
-            runtime_common_dir / "lib" / runtime_platform_dir / "cjstart.o",
+            runtime_common_root / "lib" / runtime_platform_dir,
+            runtime_common_dir / "lib" / runtime_platform_dir,
         ),
         (
-            runtime_common_root / "lib" / runtime_platform_dir / "section.o",
-            runtime_common_dir / "lib" / runtime_platform_dir / "section.o",
-        ),
-        (
-            runtime_common_root / "lib" / runtime_platform_dir / "libcangjie-runtime.a",
-            runtime_common_dir / "lib" / runtime_platform_dir / "libcangjie-runtime.a",
-        ),
-        (
-            runtime_common_root
-            / "runtime"
-            / "lib"
-            / runtime_platform_dir
-            / "libcangjie-runtime.dylib",
-            runtime_common_dir
-            / "runtime"
-            / "lib"
-            / runtime_platform_dir
-            / "libcangjie-runtime.dylib",
-        ),
-        (
-            runtime_common_root
-            / "runtime"
-            / "lib"
-            / runtime_platform_dir
-            / "libcangjie-trace.dylib",
-            runtime_common_dir
-            / "runtime"
-            / "lib"
-            / runtime_platform_dir
-            / "libcangjie-trace.dylib",
+            runtime_common_root / "runtime" / "lib" / runtime_platform_dir,
+            runtime_common_dir / "runtime" / "lib" / runtime_platform_dir,
         ),
     ]
 
@@ -484,7 +456,7 @@ def make_path_writable(path: pathlib.Path) -> None:
 
 def repair_runtime_output_layout(config: BuildConfig, host: HostLayout, dry_run: bool) -> None:
     for src, dst in build_runtime_relayout_plan(config, host):
-        copy_file(src, dst, dry_run=dry_run)
+        copy_tree(src, dst, dry_run=dry_run)
 
 
 def sync_runtime_into_sdk(config: BuildConfig, host: HostLayout, dry_run: bool) -> None:
