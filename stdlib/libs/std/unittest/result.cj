@@ -505,26 +505,20 @@ struct ArgumentDescription {
         let textDescription: ?PrettyText,
         let stepIndex: Int64,
         let reductionIndex: Int64,
-        let randomSeed: ?Int64,
-        let withStepHeader!: Bool = true
+        let randomSeed: ?Int64
     ) {}
 
     func intoErrorMessage(): ?PrettyText {
         let argsText = this.textDescription ?? return None
-        let messageBuilder = if (this.withStepHeader) {
-            let header = PrettyText("After ${this.stepIndex + 1} generation steps")
-            if (this.reductionIndex != 0) {
-                header.appendLine(" and ${this.reductionIndex} reduction steps:")
-            } else {
-                header.appendLine(":")
-            }
-            header
+        let messageBuilder = PrettyText("After ${this.stepIndex + 1} generation steps")
+        if (this.reductionIndex != 0) {
+            messageBuilder.appendLine(" and ${this.reductionIndex} reduction steps:")
         } else {
-            PrettyText()
+            messageBuilder.appendLine(":")
         }
 
         messageBuilder.indent {
-            messageBuilder.appendLine(argsText)
+            messageBuilder.append(argsText)
         }
 
         match (this.randomSeed) {
