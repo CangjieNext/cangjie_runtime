@@ -413,7 +413,7 @@ class InstrumentedClass {
 
     private prop concurrentTestStateClassName: Token {
         get() {
-            Token(TokenKind.IDENTIFIER, original.className.value + "_State")
+            Token(TokenKind.IDENTIFIER, original.className.value)
         }
     }
 
@@ -611,7 +611,6 @@ class InstrumentedClass {
             tb.append(quote(
                 let opManager = OperationsManager<$concurrentTestStateClassName>(
                     { => ScenarioBuilder<$concurrentTestStateClassName>()
-                            .consistencyModel(Linearizability)
                             .withState { => $concurrentTestStateClassName() }
                     }
                 )
@@ -729,7 +728,7 @@ class InstrumentedClass {
         MacroStorage.markTestGenerated(tb)
 
         if (isConcurrentTest) {
-            buildConcurrentStateClass(tb)
+            // buildConcurrentStateClass(tb)
         }
 
         tb.append(modifiers).append(quote(class)).append(ident)
