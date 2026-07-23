@@ -8,42 +8,42 @@
 
 package std.core
 
-// MemberAccessException thrown if an attempt is made to access or update a non-existing member
-public class MemberAccessException <: Exception {
-    public MemberAccessException(message: String) {
+// Intended to be thrown if an attempt is made to access or update a non-existing member
+public class ExternMemberAccessException <: Exception {
+    public ExternMemberAccessException(message: String) {
         super(message)
     }
 }
 
-// FunctionAccessException thrown if an attempt is made to access a non-existing function
-public class FunctionAccessException <: Exception {
-    public FunctionAccessException(message: String) {
+// Intended to be thrown if an attempt is made to access a non-existing function
+public class ExternFunctionAccessException <: Exception {
+    public ExternFunctionAccessException(message: String) {
         super(message)
     }
 }
 
-// FunctionCallException thrown if an attempt is made to call a function with the wrong arguments
-public class FunctionCallException <: Exception {
-    public FunctionCallException(message: String) {
+// Intended to be thrown if an attempt is made to call a function with the wrong arguments
+public class ExternFunctionCallException <: Exception {
+    public ExternFunctionCallException(message: String) {
         super(message)
     }
 }
 
-// IndexAccessException thrown if an attempt is made to access or update with the wrong index, including out-of-bounds errors
-public class IndexAccessException <: Exception {
-    public IndexAccessException(message: String) {
+// Intended to be thrown if an attempt is made to access or update with the wrong index, including out-of-bounds errors
+public class ExternIndexedAccessException <: Exception {
+    public ExternIndexedAccessException(message: String) {
         super(message)
     }
 }
 
-// ExternDynamicException thrown if a function in the foreign runtime throws a runtime exception
-public class ExternDynamicException <: Exception {
-    public ExternDynamicException(message: String) {
+// Intended to be thrown if a function in the foreign runtime throws a runtime exception
+public class ForeignRuntimeException <: Exception {
+    public ForeignRuntimeException(message: String) {
         super(message)
     }
 }
 
-// ExternConversionException thrown if data cannot be converted to or from an Extern type as required.
+// Intended to be thrown if data cannot be converted to or from an Extern type as required.
 public class ExternConversionException <: Exception {
     public ExternConversionException(message: String) {
         super(message)
@@ -63,17 +63,27 @@ public interface ForeignRuntime<T> where T <: ForeignRuntime<T> {
     static func toExtern<R>(v: R): Extern<T>
 }
 
-public struct Extern<T> where T <: ForeignRuntime<T> {
-    private let payload: Any
-    public Extern(payload: Any) {
-        // Note: this is a normal field assignment and not a dynamic member update. Compiler
-        // treats this as a special case and doesn't desugar it.
-        this.payload = payload
-    }
+// Reads the `payload` field of an `Extern<T>` value. Lowered by the compiler to a direct field
+// read, bypassing the dynamic `Extern` member-access desugaring.
+@Intrinsic
+func getExtern<T>(e: Extern<T>): Any where T <: ForeignRuntime<T>
 
+// Writes the `payload` field of an `Extern<T>` value. Lowered by the compiler to a direct field
+// write, bypassing the dynamic `Extern` member-update desugaring.
+@Intrinsic
+func setExtern<T>(e: Extern<T>, payload: Any): Unit where T <: ForeignRuntime<T>
+
+public struct Extern<T> where T <: ForeignRuntime<T> {
+    // `payload` is given a default so that `this` is considered fully initialised before the
+    // constructor body runs; `setExtern` then writes the real payload through the intrinsic field
+    // write (not a dynamic `Extern` member update).
+    private var payload: Any = ()
+
+    // the property `Extern<T>.getPayload(Extern<T>(v)) = v` holds for any value `v: Any`, and `T <: ForeignRuntime<T>`
+    public Extern(payload: Any) {
+        setExtern(this, payload)
+    }
     public static func getPayload(e: Extern<T>): Any {
-        // Note: this is a normal field access and not a dynamic member access. Compiler
-        // treats this as a special case and doesn't desugar it.
-        e.payload
+        getExtern(e)
     }
 }
