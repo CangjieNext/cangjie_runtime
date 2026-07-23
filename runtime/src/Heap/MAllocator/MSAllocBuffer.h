@@ -17,7 +17,6 @@
 #include "Common/TypeDef.h"
 #include "Common/MarkWorkStack.h"
 #include "Common/LFStack.h"
-#include <atomic>
 #include <mutex>
 #include <vector>
 
@@ -195,6 +194,32 @@ private:
     // Per-size-class active Region (nullptr = no active Region for this class)
     MSRegionInfo* activeRegions_[kNumSizeClasses] = {};
 
+    // Stable compiler/runtime ABI prefix. AArch64 and X86 load activeLog_ from
+    // AllocBufferMS + 896. Keep this prefix independent of std::mutex,
+    // std::vector, and every other platform/STL-dependent type.
+    static constexpr size_t kActiveLogOffset = 896;
+    static_assert(kActiveLogOffset >= sizeof(RegionInfo*) +
+        kNumSizeClasses * sizeof(MSRegionInfo*),
+        "AllocBufferMS fixed fast-path prefix exceeds activeLog_ offset");
+    uint8_t activeLogAbiReserved_[kActiveLogOffset - sizeof(RegionInfo*) -
+        kNumSizeClasses * sizeof(MSRegionInfo*)] = {};
+
+    // The barrier appends already shaded old-refs into *activeLog_. When full,
+    // it is published wholesale to the GC work queues (swap-and-publish) and
+    // replaced from logCache_. Consumers scan these trusted-grey objects
+    // directly. Kept at offset 896 for the AArch64/X86 fast-path ABI.
+    WorkBuf* activeLog_ = nullptr;
+
+    // Per-P freelist of empty WorkBufs (single-owner, lock-free). Backs
+    // AcquireWorkBuf so the hot swap path avoids the global
+    // WorkBufPool mutex on most acquisitions. Drained to the pool at cycle end.
+    WorkBuf* logCache_ = nullptr;
+    size_t logCacheCount_ = 0;
+
+    // Runtime-only fields start after the compiler-visible fast-path prefix.
+    // Their offsets may follow the target C++ ABI and are never embedded in
+    // AArch64/X86 generated code.
+
     // Per-AllocBuffer cache of classless empty regions. These shells are rebound
     // to a size class on demand after the typed central lists miss.
     mutable std::mutex localEmptyRegionLock_;
@@ -215,27 +240,6 @@ private:
     // debtScaled / AssistRatioScale = debtObjects.
     uint64_t gcAssistDebtScaled_ = 0;
 
-    // Preserve the historical AArch64 MSGC fast-path ABI offset (896) for the
-    // write-barrier log slot. The slot is a pointer to a WorkBuf (activeLog_),
-    // not an inline buffer. The AArch64 fast path loads
-    // this pointer, then writes the old-ref into activeLog_->objs[len++].
-    // The removed per-size-class typed-spare array remains reserved padding so
-    // activeLog_ keeps its compiler/runtime ABI offset.
-    uint8_t wbBufAbiReserved_[184 +
-        kNumSizeClasses * sizeof(std::atomic<MSRegionInfo*>)] = {};
-
-    // The barrier appends already shaded old-refs into *activeLog_. When full,
-    // it is published wholesale to the GC work queues (swap-and-publish) and
-    // replaced from logCache_. Consumers scan these trusted-grey objects
-    // directly. Kept at offset 896 for the fast path.
-    WorkBuf* activeLog_ = nullptr;      // offset 896 (fast-path ABI)
-
-    // Per-P freelist of empty WorkBufs (single-owner, lock-free). Backs
-    // AcquireWorkBuf so the hot swap path avoids the global
-    // WorkBufPool mutex on most acquisitions. Drained to the pool at cycle end.
-    WorkBuf* logCache_ = nullptr;
-    size_t   logCacheCount_ = 0;
-
     // Step5: Per-P GC work buffer for mutator assist
     PerPGCWork gcWork_;
 
@@ -243,8 +247,8 @@ private:
     // stopping mutators, so the assist hot path needs no shared atomics.
     MSMarkAssistStats markAssistStats_;
 
-    // Per-P Sweep pacing. Both fields are single-owner. Keep this block after
-    // activeLog_/gcWork_ so the AArch64 write-barrier ABI offset remains unchanged.
+    // Per-P Sweep pacing. Both fields are single-owner and remain outside the
+    // compiler-visible fixed ABI prefix.
     uint64_t sweepAssistDebtScaled_ = 0;
     uint32_t sweepDebtGen_ = 0;
 

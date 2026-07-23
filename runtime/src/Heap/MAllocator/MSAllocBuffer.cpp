@@ -94,7 +94,7 @@ AllocBufferMS::AllocBufferMS()
     // into activeLog_->objs[len++]. These offsets are the ABI contract with
     // target emitters (activeLogOffsetInAllocBuffer / WorkBufLenOffset /
     // WorkBufObjsOffset / WorkBufCapacity). Keep them in sync.
-    static_assert(offsetof(AllocBufferMS, activeLog_) == 896,
+    static_assert(offsetof(AllocBufferMS, activeLog_) == AllocBufferMS::kActiveLogOffset,
                   "activeLog_ offset changed; update AArch64/X86 MSGC write-barrier fast path");
     static_assert(offsetof(WorkBuf, len) == 8,
                   "WorkBuf::len offset changed; update AArch64/X86 MSGC write-barrier fast path");

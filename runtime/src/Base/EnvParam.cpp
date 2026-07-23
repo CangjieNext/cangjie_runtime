@@ -14,27 +14,14 @@
 
 namespace MapleRuntime {
 namespace {
-bool CheckLowerBound(size_t value, size_t minValue, EnvBoundKind minBound)
+template <typename T>
+bool CheckLowerBound(T value, T minValue, EnvBoundKind minBound)
 {
     return minBound == EnvBoundKind::CLOSED ? value >= minValue : value > minValue;
 }
 
-bool CheckUpperBound(size_t value, size_t maxValue, EnvBoundKind maxBound)
-{
-    return maxBound == EnvBoundKind::CLOSED ? value <= maxValue : value < maxValue;
-}
-
-bool CheckLowerBound(uint64_t value, uint64_t minValue, EnvBoundKind minBound)
-{
-    return minBound == EnvBoundKind::CLOSED ? value >= minValue : value > minValue;
-}
-
-bool CheckLowerBound(double value, double minValue, EnvBoundKind minBound)
-{
-    return minBound == EnvBoundKind::CLOSED ? value >= minValue : value > minValue;
-}
-
-bool CheckUpperBound(double value, double maxValue, EnvBoundKind maxBound)
+template <typename T>
+bool CheckUpperBound(T value, T maxValue, EnvBoundKind maxBound)
 {
     return maxBound == EnvBoundKind::CLOSED ? value <= maxValue : value < maxValue;
 }

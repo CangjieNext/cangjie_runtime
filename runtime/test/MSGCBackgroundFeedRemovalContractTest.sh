@@ -40,9 +40,9 @@ if rg -q '\bmsBackgroundFeed\b|cjMSBackgroundFeed' \
 fi
 
 rg -q 'uint8_t reservedMSBackgroundFeed;' "$ROOT_DIR/src/Cangjie.h"
-rg -q 'offsetof\(AllocBufferMS, activeLog_\) == 896' \
+rg -q 'offsetof\(AllocBufferMS, activeLog_\) == AllocBufferMS::kActiveLogOffset' \
     "$ROOT_DIR/src/Heap/MAllocator/MSAllocBuffer.cpp"
-rg -q 'kNumSizeClasses \* sizeof\(std::atomic<MSRegionInfo\*>\)' \
+rg -Uq 'activeLogAbiReserved_\[kActiveLogOffset - sizeof\(RegionInfo\*\) -[[:space:]]*kNumSizeClasses \* sizeof\(MSRegionInfo\*\)\]' \
     "$ROOT_DIR/src/Heap/MAllocator/MSAllocBuffer.h"
 
 # The obsolete common background-fill wrapper is gone; CopyGC keeps its active

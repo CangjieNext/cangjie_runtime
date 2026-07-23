@@ -49,8 +49,8 @@ if [[ -z "$active_log_line" || -z "$sweep_debt_line" || "$sweep_debt_line" -le "
     exit 1
 fi
 
-if ! rg -q 'offsetof\(AllocBufferMS, activeLog_\) == 896' "$ALLOC_SOURCE"; then
-    echo "the AArch64 activeLog_ 896-byte ABI assertion must remain" >&2
+if ! rg -q 'offsetof\(AllocBufferMS, activeLog_\) == AllocBufferMS::kActiveLogOffset' "$ALLOC_SOURCE"; then
+    echo "the AArch64/X86 activeLog_ 896-byte ABI assertion must remain" >&2
     exit 1
 fi
 

@@ -44,7 +44,8 @@ require_pattern "$ALLOC_HEADER" 'pool\.PutChain\(chain\);' \
 reject_pattern "$ALLOC_HEADER" 'while \(logCache_ != nullptr\)' \
     'AllocBufferMS log-cache drain must not retain the old per-node Put loop'
 
-require_pattern "$ALLOC_SOURCE" 'offsetof\(AllocBufferMS, activeLog_\) == 896' \
+require_pattern "$ALLOC_SOURCE" \
+    'offsetof\(AllocBufferMS, activeLog_\) == AllocBufferMS::kActiveLogOffset' \
     'activeLog_ ABI assertion must remain unchanged'
 require_pattern "$ALLOC_SOURCE" 'offsetof\(WorkBuf, len\) == 8' \
     'WorkBuf len ABI assertion must remain unchanged'
