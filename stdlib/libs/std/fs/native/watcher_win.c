@@ -101,7 +101,7 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath,
     }
 
     w->recursive = recursive;
-    snprintf(w->watchRoot, sizeof(w->watchRoot), "%s", dirPath);
+    (void)snprintf(w->watchRoot, sizeof(w->watchRoot), "%s", dirPath);
 
     wchar_t wpath[MAX_PATH];
     widen(dirPath, wpath, MAX_PATH);
