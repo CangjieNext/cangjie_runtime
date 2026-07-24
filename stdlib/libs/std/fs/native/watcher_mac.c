@@ -47,7 +47,7 @@ static void qPush(CJ_FS_Watcher* w, int32_t kind, int32_t isDir, const char* pat
     QueuedEvent* e = &w->q[w->qTail];
     e->kind  = kind;
     e->isDir = isDir;
-    snprintf(e->path, sizeof(e->path), "%s", path);
+    (void)snprintf(e->path, sizeof(e->path), "%s", path);
     w->qTail = (w->qTail + 1) % EVBUF_CAP;
     w->qCount++;
 }
@@ -68,18 +68,10 @@ static int qPop(CJ_FS_Watcher* w, CJ_FS_WatchEvent* out)
 
 /* ---- FSEvents stream callback ------------------------------------------- */
 
-static void streamCb(ConstFSEventStreamRef streamRef,
-                     void*                  clientCallBackInfo,
-                     size_t                 numEvents,
-                     void*                  eventPaths,
-                     const FSEventStreamEventFlags eventFlags[],
-                     const FSEventStreamEventId  eventIds[])
+/* Process FSEvents callbacks (internal, fewer params). */
+static void processStreamEvents(CJ_FS_Watcher *w, size_t numEvents,
+                                char **paths, const FSEventStreamEventFlags *eventFlags)
 {
-    (void)streamRef;
-    (void)eventIds;
-    CJ_FS_Watcher* w = (CJ_FS_Watcher*)clientCallBackInfo;
-    char** paths = (char**)eventPaths;
-
     for (size_t i = 0; i < numEvents; i++) {
         FSEventStreamEventFlags f    = eventFlags[i];
         const char*              abs  = paths[i];
@@ -116,6 +108,20 @@ static void streamCb(ConstFSEventStreamRef streamRef,
     }
 }
 
+/* FSEvents callback (system-required signature, delegates to processStreamEvents). */
+static void streamCb(ConstFSEventStreamRef streamRef,
+                     void*                  clientCallBackInfo,
+                     size_t                 numEvents,
+                     void*                  eventPaths,
+                     const FSEventStreamEventFlags eventFlags[],
+                     const FSEventStreamEventId  eventIds[])
+{
+    (void)streamRef;
+    (void)eventIds;
+    processStreamEvents((CJ_FS_Watcher*)clientCallBackInfo, numEvents,
+                        (char**)eventPaths, eventFlags);
+}
+
 /* ---- public API --------------------------------------------------------- */
 
 CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive, char** errOut)
@@ -132,7 +138,7 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive, char*
         return NULL;
     }
 
-    snprintf(w->watchRoot, sizeof(w->watchRoot), "%s", dirPath);
+    (void)snprintf(w->watchRoot, sizeof(w->watchRoot), "%s", dirPath);
     w->rootLen = strlen(w->watchRoot);
 
     /* Build the CFArray of paths to watch (single root) */
@@ -255,7 +261,7 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w, int64_t timeoutMs,
             }
             w->outEvbuf[out].kind  = tmp.kind;
             w->outEvbuf[out].isDir = tmp.isDir;
-            snprintf(w->outScratch[out], PATH_MAX_LEN, "%s", tmp.path);
+            (void)snprintf(w->outScratch[out], PATH_MAX_LEN, "%s", tmp.path);
             w->outEvbuf[out].path  = w->outScratch[out];
             out++;
         }
