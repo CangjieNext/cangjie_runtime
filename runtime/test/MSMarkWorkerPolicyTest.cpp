@@ -16,58 +16,46 @@ void ExpectEq(size_t actual, size_t expected, const char* message)
     }
 }
 
-void TestGradualScaleUp()
+void TestBacklogMapsDirectlyToHelperWidth()
 {
-    MSMarkWorkerPolicy policy(3);
-    ExpectEq(policy.Update(9), 1, "backlog should activate first helper");
-    ExpectEq(policy.Update(17), 2, "larger backlog should activate second helper");
-    ExpectEq(policy.Update(25), 3, "larger backlog should activate third helper");
-}
-
-void TestEmergencyScaleUp()
-{
-    MSMarkWorkerPolicy policy(3);
-    ExpectEq(policy.Update(64), 3, "emergency backlog should activate all helpers");
+    MSMarkWorkerPolicy policy(15);
+    ExpectEq(policy.Update(0), 1, "parallel mark should start one helper");
+    ExpectEq(policy.Update(8), 1, "eight buffers should need one helper");
+    ExpectEq(policy.Update(9), 2, "ninth buffer should activate second helper");
+    ExpectEq(policy.Update(64), 8, "backlog should map proportionally");
+    ExpectEq(policy.Update(120), 15, "backlog should reach helper cap");
 }
 
 void TestHelpersStayActiveUntilCycleQuiesces()
 {
-    MSMarkWorkerPolicy policy(3);
-    (void)policy.Update(64);
+    MSMarkWorkerPolicy policy(15);
+    (void)policy.Update(120);
     for (size_t i = 0; i < 64; ++i) {
-        ExpectEq(policy.Update(0), 3, "active helpers must not scale down within a mark cycle");
-    }
-}
-
-void TestTailModePinsAllHelpers()
-{
-    MSMarkWorkerPolicy policy(3);
-    ExpectEq(policy.Update(9), 1, "backlog should activate one helper before tail mode");
-
-    ExpectEq(policy.EnterTail(), 3, "tail mode should activate every helper");
-
-    for (size_t i = 0; i < 32; ++i) {
-        ExpectEq(policy.Update(0), 3, "tail mode must prevent helper scale-down");
+        ExpectEq(policy.Update(0), 15, "active helpers must not scale down within a mark cycle");
     }
 }
 
 void TestThreadCountResolution()
 {
-    ExpectEq(ResolveMSMarkTotalThreads(8, 0), 4, "8P default mark threads");
-    ExpectEq(ResolveMSMarkTotalThreads(4, 0), 2, "4P default mark threads");
-    ExpectEq(ResolveMSMarkTotalThreads(1, 0), 1, "1P default mark threads");
-    ExpectEq(ResolveMSMarkTotalThreads(8, 3), 3, "explicit mark threads");
-    ExpectEq(ResolveMSMarkTotalThreads(2, 8), 2, "explicit mark threads should not exceed processors");
+    ExpectEq(ResolveMSMarkTotalThreads(1, 128, 0), 1, "1P default mark threads");
+    ExpectEq(ResolveMSMarkTotalThreads(4, 128, 0), 2, "4P default mark threads");
+    ExpectEq(ResolveMSMarkTotalThreads(8, 128, 0), 4, "8P default mark threads");
+    ExpectEq(ResolveMSMarkTotalThreads(32, 128, 0), 4, "32P default mark threads");
+    ExpectEq(ResolveMSMarkTotalThreads(64, 128, 0), 8, "64P default mark threads");
+    ExpectEq(ResolveMSMarkTotalThreads(128, 128, 0), 16, "128P default mark threads");
+    ExpectEq(ResolveMSMarkTotalThreads(256, 256, 0), 16, "default mark thread cap");
+    ExpectEq(ResolveMSMarkTotalThreads(160, 8, 0), 4, "160P on 8 logical CPUs");
+    ExpectEq(ResolveMSMarkTotalThreads(160, 8, 12), 12, "explicit mark thread override");
+    ExpectEq(ResolveMSMarkTotalThreads(2, 128, 8), 2,
+             "explicit mark threads should not exceed processors");
 }
 
 } // namespace
 
 int main()
 {
-    TestGradualScaleUp();
-    TestEmergencyScaleUp();
+    TestBacklogMapsDirectlyToHelperWidth();
     TestHelpersStayActiveUntilCycleQuiesces();
-    TestTailModePinsAllHelpers();
     TestThreadCountResolution();
     return 0;
 }

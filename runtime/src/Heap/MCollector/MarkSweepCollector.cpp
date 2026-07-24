@@ -15,6 +15,7 @@
 #include <string>
 #include <thread>
 #include "Base/CString.h"
+#include "Base/EnvParam.h"
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "Common/BaseObject.h"
@@ -742,14 +743,19 @@ void MarkSweepCollector::ConcurrentMark()
         MSAssistBaseRatioDecision decision = EvaluateMSAssistBaseRatio(
             rawRatio, previousAssistBaseRatioScaled_, assistBaseRatioInitialized_,
             previousAssistProcessedObjects_, previousBackgroundProcessedObjects_);
-        uint64_t initialRatioScaled = decision.nextRatio;
-        previousAssistBaseRatioScaled_ = initialRatioScaled;
-        if (prevMarked != 0 && allocSize != 0) {
-            assistBaseRatioInitialized_ = true;
+        bool disableAssist = ReadBoolParameter("CJ_MS_DISABLE_ASSIST", false);
+        uint64_t initialRatioScaled = ApplyMSAssistDisableOverride(decision.nextRatio, disableAssist);
+        if (!disableAssist) {
+            previousAssistBaseRatioScaled_ = initialRatioScaled;
+            if (prevMarked != 0 && allocSize != 0) {
+                assistBaseRatioInitialized_ = true;
+            }
         }
         assistWorkPerByteScaled_.store(initialRatioScaled, std::memory_order_release);
         VLOG(REPORT,
-             "[MS-GC] Assist enabled: ratioScaled=%llu, basePercent=%llu (prevMarked=%zu, allocSize=%zu)",
+             "[MS-GC] Assist pacing: disabled=%d effectiveRatio=%llu basePercent=%llu "
+             "(prevMarked=%zu, allocSize=%zu)",
+             static_cast<int>(disableAssist),
              static_cast<unsigned long long>(initialRatioScaled),
              static_cast<unsigned long long>(baseRatioPercent),
              prevMarked,
@@ -824,10 +830,8 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
 
     // Capture base assist ratio for dynamic escalation below.
     const uint64_t baseAssistRatio = assistWorkPerByteScaled_.load(std::memory_order_acquire);
-    const uint64_t tailAssistRatio = ComputeMSAssistTailRatioScaled(baseAssistRatio, maxAssistMultiplier);
     uint64_t publishedAssistRatio = baseAssistRatio;
-    bool tailDraining = false;
-    uint64_t tailStartUs = 0;
+    uint64_t quiesceDurationUs = 0;
     size_t quiesceResidualBuffers = 0;
 
     // Mark time budget: if concurrent marking exceeds this wall-clock budget,
@@ -866,12 +870,7 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
 
         // Dynamic assist ratio escalation based on globalFull_ backpressure:
         // Smooth transient queue changes, then increase continuously up to the configured cap.
-        if (tailDraining) {
-            if (tailAssistRatio != publishedAssistRatio) {
-                assistWorkPerByteScaled_.store(tailAssistRatio, std::memory_order_release);
-                publishedAssistRatio = tailAssistRatio;
-            }
-        } else if (baseAssistRatio > 0) {
+        if (baseAssistRatio > 0) {
             size_t backlog = fullBacklog;
             smoothedBacklog = UpdateMSAssistBacklogEMA(smoothedBacklog, backlog, backlogEMAInitialized);
             backlogEMAInitialized = true;
@@ -906,17 +905,9 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
                                     controlSnapshot.workersInFlight == 0 &&
                                     controlSnapshot.assistsInFlight == 0;
         if (convergenceCandidate) {
-            if (!tailDraining) {
-                tailDraining = true;
-                tailStartUs = TimeUtil::MicroSeconds();
-                activeHelpers = workerPolicy.EnterTail();
-                markWorkerControl_.SetTargetHelpers(activeHelpers);
-                if (tailAssistRatio != publishedAssistRatio) {
-                    assistWorkPerByteScaled_.store(tailAssistRatio, std::memory_order_release);
-                    publishedAssistRatio = tailAssistRatio;
-                }
-            }
+            uint64_t quiesceStartUs = TimeUtil::MicroSeconds();
             quiesceResidualBuffers = QuiesceMarkWorkers();
+            quiesceDurationUs = TimeUtil::MicroSeconds() - quiesceStartUs;
             break;
         }
 
@@ -925,7 +916,9 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
         // MarkTermination under STW (bounded work set, no concurrent alloc).
         if (markBudgetUs != 0 && (TimeUtil::MicroSeconds() - t0) >= markBudgetUs) {
             forceConverged = true;
+            uint64_t quiesceStartUs = TimeUtil::MicroSeconds();
             quiesceResidualBuffers = QuiesceMarkWorkers();
+            quiesceDurationUs = TimeUtil::MicroSeconds() - quiesceStartUs;
             break;
         }
 
@@ -963,14 +956,9 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
          markWorkerControl_.GetWorkersInFlight(),
          markWorkerControl_.GetAssistsInFlight(),
          gcMainProcessed);
-    uint64_t tailDurationUs = tailDraining ? TimeUtil::MicroSeconds() - tailStartUs : 0;
     VLOG(REPORT,
-         "[MS-GC] [mark-tail] entered=%d duration=%sus refills=%zu assistRatioScaled=%llu "
-         "quiesceResidualBuffers=%zu",
-         static_cast<int>(tailDraining),
-         Pretty(tailDurationUs).Str(),
-         static_cast<size_t>(0),
-         static_cast<unsigned long long>(tailDraining ? tailAssistRatio : 0),
+         "[MS-GC] [mark-quiesce] duration=%sus quiesceResidualBuffers=%zu",
+         Pretty(quiesceDurationUs).Str(),
          quiesceResidualBuffers);
     if (markPoolOwned) {
         collectorResources.ReleaseMSGCWorkerPool(MSGCWorkerPoolOwner::MARK);

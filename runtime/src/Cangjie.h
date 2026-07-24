@@ -276,8 +276,9 @@ struct GCParam {
 
     /*
      * Total number of GC threads, including the GC main thread.
-     * MSGC defaults to min(4, max(1, hardware concurrency / 2)); CopyGC defaults to 2.
-     * A positive value is capped at the hardware concurrency.
+     * MSGC automatic width uses both scheduler processors and logical CPUs, scales
+     * up to 16 total threads on high-core hosts; CopyGC defaults to 2.
+     * A positive MSGC value is capped at the scheduler processor count.
      */
     int32_t gcThreads;
 
@@ -378,7 +379,7 @@ struct GCParam {
 
     /*
      * Maximum GC helper threads borrowed by MSGC parallel Sweep.
-     * 0 selects the automatic cap (gcThreads - 1).
+     * 0 selects the automatic cap (min(8, gcThreads - 1)).
      */
     size_t msParallelSweepMaxHelpers;
 

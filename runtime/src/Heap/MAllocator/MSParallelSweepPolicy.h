@@ -75,13 +75,14 @@ inline size_t SaturatingMultiply(size_t lhs, size_t rhs)
     return lhs * rhs;
 }
 
+constexpr size_t kMSDefaultMaxSweepHelpers = 8;
+
 inline size_t ComputeMSMaxSweepHelpers(size_t gcThreads, size_t configuredMaxHelpers)
 {
     size_t logicalMaxHelpers = gcThreads > 1 ? gcThreads - 1 : 0;
-    if (configuredMaxHelpers != 0) {
-        logicalMaxHelpers = std::min(logicalMaxHelpers, configuredMaxHelpers);
-    }
-    return logicalMaxHelpers;
+    size_t policyCap = configuredMaxHelpers == 0 ?
+        kMSDefaultMaxSweepHelpers : configuredMaxHelpers;
+    return std::min(logicalMaxHelpers, policyCap);
 }
 
 inline size_t ComputeMSSweepExcessBytes(size_t sweptBytes, size_t unsweptBytes,

@@ -291,7 +291,7 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
 #ifdef MRT_USE_MARK_SWEEP
             // Total MSGC mark threads, including the GC main thread.
             .gcThreads = static_cast<int32_t>(MapleRuntime::ResolveMSMarkTotalThreads(
-                resolvedProcessorNum, param->gcParam.gcThreads > 0 ?
+                resolvedProcessorNum, defaultProcs, param->gcParam.gcThreads > 0 ?
                     static_cast<size_t>(param->gcParam.gcThreads) : 0)),
 #else
             // CopyGC keeps its existing two-thread default and API override behavior.

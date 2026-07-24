@@ -17,13 +17,9 @@ if ! rg -q 'size_t QuiesceMarkWorkers\(\)' "$COLLECTOR_HEADER"; then
     exit 1
 fi
 
-if ! rg -q 'workerPolicy\.EnterTail\(\)' "$COLLECTOR_SOURCE"; then
-    echo "MSGC must pin all helpers after entering tail drain" >&2
-    exit 1
-fi
-
-if ! rg -q 'ComputeMSAssistTailRatioScaled' "$COLLECTOR_SOURCE"; then
-    echo "MSGC tail drain must raise assist to its configured maximum multiplier" >&2
+if rg -n 'EnterTail|tailDraining|tailAssistRatio|ComputeMSAssistTailRatioScaled' \
+    "$COLLECTOR_HEADER" "$COLLECTOR_SOURCE" "$CONTROL_HEADER"; then
+    echo "MSGC convergence must not change helper width or assist pacing in a tail mode" >&2
     exit 1
 fi
 
@@ -33,10 +29,10 @@ if rg -n 'CheckConvergenceAndBreak|kConvergenceRequiredRounds|kConvergenceYieldU
     exit 1
 fi
 
-if ! rg -Uq 'if \(convergenceCandidate\) \{[[:space:][:print:]]*quiesceResidualBuffers = QuiesceMarkWorkers\(\);[[:space:]]*break;' \
+if ! rg -Uq 'if \(convergenceCandidate\) \{[[:space:][:print:]]*quiesceResidualBuffers = QuiesceMarkWorkers\(\);[[:space:][:print:]]*break;' \
     "$COLLECTOR_SOURCE"; then
     echo "MSGC must quiesce immediately on the first complete empty candidate" >&2
     exit 1
 fi
 
-echo "MSGC tail drain and one-way quiesce contract holds"
+echo "MSGC direct one-way quiesce contract holds"

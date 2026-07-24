@@ -6,9 +6,9 @@
 
 namespace {
 
+using MapleRuntime::ApplyMSAssistDisableOverride;
 using MapleRuntime::ComputeMSAssistBacklogRatioScaled;
 using MapleRuntime::ComputeMSAssistBaseRatioScaled;
-using MapleRuntime::ComputeMSAssistTailRatioScaled;
 using MapleRuntime::EvaluateMSAssistBaseRatio;
 using MapleRuntime::UpdateMSAssistBacklogEMA;
 using MapleRuntime::kMSAssistBaseRatioPercentDefault;
@@ -38,6 +38,16 @@ void TestBaseRatioPercentDefaultsToHalfPacing()
     ExpectEqual(kMSAssistBaseRatioPercentDefault, 50, "default base ratio percent");
 }
 
+void TestDiagnosticDisableOverrideZerosAssistRatio()
+{
+    ExpectEqual(ApplyMSAssistDisableOverride(12345, true), 0, "disabled assist ratio");
+}
+
+void TestDiagnosticDisableOverridePreservesEnabledRatio()
+{
+    ExpectEqual(ApplyMSAssistDisableOverride(12345, false), 12345, "enabled assist ratio");
+}
+
 void TestBacklogRatioIncreasesContinuously()
 {
     constexpr uint64_t baseRatio = 1000;
@@ -56,13 +66,6 @@ void TestBacklogEMAStartsImmediatelyAndThenSmooths()
 
     smoothed = UpdateMSAssistBacklogEMA(smoothed, 0, true);
     ExpectEqual(static_cast<uint64_t>(smoothed), 28, "decayed backlog sample");
-}
-
-void TestTailRatioUsesMaximumMultiplier()
-{
-    ExpectEqual(ComputeMSAssistTailRatioScaled(1000, 4), 4000, "tail ratio maximum multiplier");
-    ExpectEqual(ComputeMSAssistTailRatioScaled(UINT64_MAX - 1, 4), UINT64_MAX, "tail ratio saturates");
-    ExpectEqual(ComputeMSAssistTailRatioScaled(0, 4), 0, "disabled assist remains disabled");
 }
 
 void TestBaseRatioFeedbackInitializesFromRawTarget()
@@ -124,9 +127,10 @@ int main()
 {
     TestBaseRatioPercentKeepsFractionalPrecision();
     TestBaseRatioPercentDefaultsToHalfPacing();
+    TestDiagnosticDisableOverrideZerosAssistRatio();
+    TestDiagnosticDisableOverridePreservesEnabledRatio();
     TestBacklogRatioIncreasesContinuously();
     TestBacklogEMAStartsImmediatelyAndThenSmooths();
-    TestTailRatioUsesMaximumMultiplier();
     TestBaseRatioFeedbackInitializesFromRawTarget();
     TestBaseRatioDecreaseFollowsRawTargetImmediately();
     TestBaseRatioIncreaseIsLimitedToTwentyFivePercent();

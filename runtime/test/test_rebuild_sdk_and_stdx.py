@@ -280,46 +280,12 @@ class RebuildSdkAndStdxScriptTest(unittest.TestCase):
             relayout_plan,
             [
                 (
-                    runtime_common_root / "lib" / runtime_platform_dir / "cjstart.o",
-                    runtime_common_dir / "lib" / runtime_platform_dir / "cjstart.o",
+                    runtime_common_root / "lib" / runtime_platform_dir,
+                    runtime_common_dir / "lib" / runtime_platform_dir,
                 ),
                 (
-                    runtime_common_root / "lib" / runtime_platform_dir / "section.o",
-                    runtime_common_dir / "lib" / runtime_platform_dir / "section.o",
-                ),
-                (
-                    runtime_common_root
-                    / "lib"
-                    / runtime_platform_dir
-                    / "libcangjie-runtime.a",
-                    runtime_common_dir
-                    / "lib"
-                    / runtime_platform_dir
-                    / "libcangjie-runtime.a",
-                ),
-                (
-                    runtime_common_root
-                    / "runtime"
-                    / "lib"
-                    / runtime_platform_dir
-                    / "libcangjie-runtime.dylib",
-                    runtime_common_dir
-                    / "runtime"
-                    / "lib"
-                    / runtime_platform_dir
-                    / "libcangjie-runtime.dylib",
-                ),
-                (
-                    runtime_common_root
-                    / "runtime"
-                    / "lib"
-                    / runtime_platform_dir
-                    / "libcangjie-trace.dylib",
-                    runtime_common_dir
-                    / "runtime"
-                    / "lib"
-                    / runtime_platform_dir
-                    / "libcangjie-trace.dylib",
+                    runtime_common_root / "runtime" / "lib" / runtime_platform_dir,
+                    runtime_common_dir / "runtime" / "lib" / runtime_platform_dir,
                 ),
             ],
         )

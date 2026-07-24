@@ -33,7 +33,9 @@ void TestHelperCaps()
     ExpectEq(ComputeMSMaxSweepHelpers(1, 0), 0, "one GC thread");
     ExpectEq(ComputeMSMaxSweepHelpers(8, 2), 2, "configured cap");
     ExpectEq(ComputeMSMaxSweepHelpers(3, 8), 2, "GC thread cap");
-    ExpectEq(ComputeMSMaxSweepHelpers(4, 0), 3, "zero configured cap uses all helpers");
+    ExpectEq(ComputeMSMaxSweepHelpers(4, 0), 3, "low-width automatic cap");
+    ExpectEq(ComputeMSMaxSweepHelpers(16, 0), 8, "automatic sweep cap");
+    ExpectEq(ComputeMSMaxSweepHelpers(16, 3), 3, "explicit sweep cap");
 }
 
 void TestMediumTargetIsProportionalToExcess()

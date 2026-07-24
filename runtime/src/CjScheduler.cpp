@@ -27,6 +27,7 @@
 #include "RuntimeConfig.h"
 #include "schedule.h"
 #include "Concurrency/ConcurrencyModel.h"
+#include "Concurrency/ProcessorScalePolicy.h"
 #include "ExceptionManager.h"
 #include "ExceptionManager.inline.h"
 #include "Mutator/Mutator.inline.h"
@@ -161,7 +162,8 @@ static size_t InitCoStackSize()
 
 /**
  * Determine the max concurrency processors of cangjie program.
- * If the environment variable `cjProcessorNum` is set, check whether it is in range (0, CPU_CORE * 2], use it if yes.
+ * If the environment variable `cjProcessorNum` is set, validate it against the GC-specific processor limit.
+ * MSGC permits up to CPU_CORE * 20 for high-core scale testing, while CopyGC keeps the CPU_CORE * 2 limit.
  * Otherwise check whether the value of CPU_CORE is 0, use it if not.
  * Otherwise use the default value 8.
  */
@@ -169,9 +171,14 @@ static uint32_t InitProcessorNum()
 {
     unsigned int cpus = std::thread::hardware_concurrency();
     uint32_t defaultProcs = cpus != 0 ? static_cast<uint32_t>(cpus) : 8;
-    const unsigned int maxMultiple = 2;
+#ifdef MRT_USE_MARK_SWEEP
+    size_t maxProcessorNum = ResolveProcessorLimit(cpus, true);
+#else
+    size_t maxProcessorNum = ResolveProcessorLimit(cpus, false);
+#endif
+    maxProcessorNum = std::min(maxProcessorNum, static_cast<size_t>(std::numeric_limits<uint32_t>::max()));
     return static_cast<uint32_t>(ReadCountParameter("cjProcessorNum", defaultProcs, 0, EnvBoundKind::OPEN,
-                                                    cpus * maxMultiple, EnvBoundKind::CLOSED));
+                                                    maxProcessorNum, EnvBoundKind::CLOSED));
 }
 
 void* StartMainTask(void* arg, unsigned int len)
@@ -430,6 +437,8 @@ void* MCC_NewCJThreadNoReturn(void* executeClosure, void* closurePtr, void* sche
 static RuntimeParam InitRuntimeParam()
 {
     CheckSysmemSize();
+    unsigned int cpus = std::thread::hardware_concurrency();
+    uint32_t logicalCpuCount = cpus != 0 ? static_cast<uint32_t>(cpus) : 8;
     uint32_t processorNum = InitProcessorNum();
 #ifdef MRT_USE_MARK_SWEEP
     size_t initHeapSize = ComputeMSInitialHeapSizeKB(processorNum);
@@ -490,7 +499,8 @@ static RuntimeParam InitRuntimeParam()
 #ifdef MRT_USE_MARK_SWEEP
             // Total MSGC mark threads, including the GC main thread.
             .gcThreads = static_cast<int32_t>(ReadCountParameter(
-                "cjGCThreads", ResolveMSMarkTotalThreads(processorNum, 0), 0, EnvBoundKind::OPEN,
+                "cjGCThreads", ResolveMSMarkTotalThreads(processorNum, logicalCpuCount, 0),
+                0, EnvBoundKind::OPEN,
                 processorNum, EnvBoundKind::CLOSED)),
 #else
             // CopyGC keeps one GC main thread and one helper thread.
