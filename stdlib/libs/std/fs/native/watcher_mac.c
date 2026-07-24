@@ -30,7 +30,7 @@ struct CJ_FS_Watcher {
     size_t                qCount;
     char                  watchRoot[PATH_MAX_LEN];
     size_t                rootLen;
-    /* Per-handle output buffers — written ONLY by Poll (worker thread).
+    /* Per-handle output buffers -- written ONLY by Poll (worker thread).
      * The dispatch callback never touches these, so path pointers remain
      * valid after Poll returns. */
     CJ_FS_WatchEvent      outEvbuf[EVBUF_CAP];
@@ -42,7 +42,7 @@ struct CJ_FS_Watcher {
 static void qPush(CJ_FS_Watcher* w, int32_t kind, int32_t isDir, const char* path)
 {
     if (w->qCount == EVBUF_CAP) {
-        return;   /* overflow: event lost – caller uses OVERFLOW flag path */
+        return;   /* overflow: event lost -- caller uses OVERFLOW flag path */
     }
     QueuedEvent* e = &w->q[w->qTail];
     e->kind  = kind;
@@ -108,7 +108,7 @@ static void processStreamEvents(CJ_FS_Watcher *w, size_t numEvents,
     }
 }
 
-/* FSEvents callback (system-required signature, delegates to processStreamEvents). */
+/* G.FUN.01: system callback -- signature mandated by FSEvents API, cannot reduce parameters. */
 static void streamCb(ConstFSEventStreamRef streamRef,
                      void*                  clientCallBackInfo,
                      size_t                 numEvents,
@@ -120,6 +120,27 @@ static void streamCb(ConstFSEventStreamRef streamRef,
     (void)eventIds;
     processStreamEvents((CJ_FS_Watcher*)clientCallBackInfo, numEvents,
                         (char**)eventPaths, eventFlags);
+}
+
+/* ---- watcher cleanup (extracted from Create error paths) ----------------- */
+
+/*
+ * Release resources held by a partially-initialised watcher.
+ * Safe to call on a zeroed-out (calloc'd) struct.
+ */
+static void cleanupWatcher(CJ_FS_Watcher* w)
+{
+    if (!w) {
+        return;
+    }
+    if (w->stream) {
+        FSEventStreamInvalidate(w->stream);
+        FSEventStreamRelease(w->stream);
+    }
+    if (w->dq) {
+        dispatch_release(w->dq);
+    }
+    free(w);
 }
 
 /* ---- public API --------------------------------------------------------- */
@@ -191,9 +212,7 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive, char*
         if (errOut) {
             *errOut = strdup("dispatch_queue_create failed");
         }
-        FSEventStreamInvalidate(w->stream);
-        FSEventStreamRelease(w->stream);
-        free(w);
+        cleanupWatcher(w);
         return NULL;
     }
 
@@ -203,10 +222,7 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive, char*
         if (errOut) {
             *errOut = strdup("FSEventStreamStart failed");
         }
-        FSEventStreamInvalidate(w->stream);
-        FSEventStreamRelease(w->stream);
-        dispatch_release(w->dq);
-        free(w);
+        cleanupWatcher(w);
         return NULL;
     }
 
@@ -220,13 +236,35 @@ void CJ_FS_WatcherDestroy(CJ_FS_Watcher* w)
     }
     if (w->stream) {
         FSEventStreamStop(w->stream);
-        FSEventStreamInvalidate(w->stream);
-        FSEventStreamRelease(w->stream);
     }
-    if (w->dq) {
-        dispatch_release(w->dq);
+    /* cleanupWatcher releases stream and dq without calling Stop */
+    w->stream = NULL;
+    dispatch_queue_t savedDq = w->dq;
+    w->dq = NULL;
+    if (savedDq) {
+        dispatch_release(savedDq);
     }
     free(w);
+}
+
+/* ---------- Poll ---------- */
+
+/*
+ * Drain one event from the ring queue into the output buffer.
+ * Returns 1 if an event was drained, 0 if the queue was empty.
+ * Caller holds the serial dispatch queue lock (via dispatch_sync).
+ */
+static int drainOneEvent(CJ_FS_Watcher* w, int64_t outIdx)
+{
+    CJ_FS_WatchEvent tmp;
+    if (!qPop(w, &tmp)) {
+        return 0;
+    }
+    w->outEvbuf[outIdx].kind  = tmp.kind;
+    w->outEvbuf[outIdx].isDir = tmp.isDir;
+    (void)snprintf(w->outScratch[outIdx], PATH_MAX_LEN, "%s", tmp.path);
+    w->outEvbuf[outIdx].path  = w->outScratch[outIdx];
+    return 1;
 }
 
 int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w, int64_t timeoutMs,
@@ -246,23 +284,17 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w, int64_t timeoutMs,
      */
     (void)timeoutMs;
 
-    /* Drain the internal ring queue on the dispatch thread so that all
+    /*
+     * Drain the internal ring queue on the dispatch thread so that all
      * previously-queued callbacks have completed before we read the ring.
      * dispatch_sync serialises qPop with qPush (which runs inside streamCb
      * on the same serial queue), eliminating the data race.  Each event's
      * path is deep-copied into w->outScratch so the dispatch callback can
-     * never overwrite it after Poll returns. */
+     * never overwrite it after Poll returns.
+     */
     __block int64_t out = 0;
     dispatch_sync(w->dq, ^{
-        while (out < cap) {
-            CJ_FS_WatchEvent tmp;
-            if (qPop(w, &tmp) {
-                == 0) { break; }
-            }
-            w->outEvbuf[out].kind  = tmp.kind;
-            w->outEvbuf[out].isDir = tmp.isDir;
-            (void)snprintf(w->outScratch[out], PATH_MAX_LEN, "%s", tmp.path);
-            w->outEvbuf[out].path  = w->outScratch[out];
+        while (out < cap && drainOneEvent(w, out)) {
             out++;
         }
     });

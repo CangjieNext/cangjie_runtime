@@ -47,19 +47,22 @@ static void addWd(CJ_FS_Watcher *w, int wd, const char *path)
     if (w->dirsLen == w->dirsCap) {
         size_t nc = w->dirsCap == 0 ? 16 : w->dirsCap * 2;
         WdEntry *nb = (WdEntry *)malloc(nc * sizeof(WdEntry));
-        if (nb && w->dirs && w->dirsLen > 0) {
-            memcpy(nb, w->dirs, w->dirsLen * sizeof(WdEntry));
-        }
         if (!nb) {
             close(wd); /* best-effort: cannot track this wd */
             return;
+        }
+        if (w->dirs && w->dirsLen > 0) {
+            size_t copyLen = w->dirsLen < nc ? w->dirsLen : nc;
+            memcpy(nb, w->dirs, copyLen * sizeof(WdEntry));
         }
         free(w->dirs);
         w->dirs   = nb;
         w->dirsCap = nc;
     }
     w->dirs[w->dirsLen].wd = wd;
-    (void)snprintf(w->dirs[w->dirsLen].path, sizeof(w->dirs[w->dirsLen].path), "%s", path);
+    if (snprintf(w->dirs[w->dirsLen].path, sizeof(w->dirs[w->dirsLen].path), "%s", path) < 0) {
+        /* ignore: path truncated but still usable */
+    }
     w->dirsLen++;
 }
 
@@ -222,6 +225,53 @@ static void pushEvent(CJ_FS_Watcher *w, int32_t kind, const char *relPath,
     (*out)++;
 }
 
+/* ---------- event processing (extracted from Poll) ---------- */
+
+/*
+ * Process a single inotify_event: decode its mask, push into w->evbuf,
+ * and handle recursive subdirectory addition on CREATE.
+ */
+static void processInotifyEvent(CJ_FS_Watcher *w, struct inotify_event *ie,
+                                size_t *filled)
+{
+    const char *base = pathOfWd(w, ie->wd);
+
+    if (ie->mask & IN_Q_OVERFLOW) {
+        pushEvent(w, CJ_FS_WK_OVERFLOW, NULL, 0, filled);
+    } else if (ie->mask & IN_IGNORED) {
+        removeWd(w, ie->wd);
+    } else if (base != NULL) {
+        int32_t isDir = (ie->mask & IN_ISDIR) ? 1 : 0;
+        char relPath[4096];
+        relOf(w, base, ie->name, relPath, sizeof(relPath));
+
+        if (ie->mask & IN_CREATE) {
+            pushEvent(w, CJ_FS_WK_CREATE, relPath, isDir, filled);
+            /* Lazily add a watch for newly-created subdirectories */
+            if (w->recursive && isDir && ie->len > 0) {
+                char child[4096];
+                (void)snprintf(child, sizeof(child), "%s/%s", base, ie->name);
+                int nwd = inotify_add_watch(w->fd, child, WATCH_MASK);
+                if (nwd >= 0) {
+                    addWd(w, nwd, child);
+                }
+            }
+        } else if (ie->mask & IN_MODIFY) {
+            pushEvent(w, CJ_FS_WK_MODIFY, relPath, isDir, filled);
+        } else if (ie->mask & IN_DELETE) {
+            pushEvent(w, CJ_FS_WK_DELETE, relPath, isDir, filled);
+        } else if (ie->mask & IN_MOVED_FROM) {
+            pushEvent(w, CJ_FS_WK_RENAME_FROM, relPath, isDir, filled);
+        } else if (ie->mask & IN_MOVED_TO) {
+            pushEvent(w, CJ_FS_WK_RENAME_TO, relPath, isDir, filled);
+        } else if (ie->mask & IN_ATTRIB) {
+            pushEvent(w, CJ_FS_WK_ATTRIB, relPath, isDir, filled);
+        } else if (ie->mask & (IN_DELETE_SELF | IN_MOVE_SELF)) {
+            pushEvent(w, CJ_FS_WK_WATCH_DISAPPEARED, relPath, isDir, filled);
+        }
+    }
+}
+
 /* ---------- Poll ---------- */
 
 int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher *w, int64_t timeoutMs,
@@ -269,43 +319,7 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher *w, int64_t timeoutMs,
         size_t i = 0;
         while (i < (size_t)n) {
             struct inotify_event *ie = (struct inotify_event *)(rdBuf + i);
-            const char *base = pathOfWd(w, ie->wd);
-
-            if (ie->mask & IN_Q_OVERFLOW) {
-                pushEvent(w, CJ_FS_WK_OVERFLOW, NULL, 0, &filled);
-            } else if (ie->mask & IN_IGNORED) {
-                removeWd(w, ie->wd);
-            } else if (base != NULL) {
-                int32_t isDir = (ie->mask & IN_ISDIR) ? 1 : 0;
-                char relPath[4096];
-                relOf(w, base, ie->name, relPath, sizeof(relPath));
-
-                if (ie->mask & IN_CREATE) {
-                    pushEvent(w, CJ_FS_WK_CREATE, relPath, isDir, &filled);
-                    /* Lazily add a watch for newly-created subdirectories */
-                    if (w->recursive && isDir && ie->len > 0) {
-                        char child[4096];
-                        (void)snprintf(child, sizeof(child), "%s/%s", base, ie->name);
-                        int nwd = inotify_add_watch(w->fd, child, WATCH_MASK);
-                        if (nwd >= 0) {
-                            addWd(w, nwd, child);
-                        }
-                    }
-                } else if (ie->mask & IN_MODIFY) {
-                    pushEvent(w, CJ_FS_WK_MODIFY, relPath, isDir, &filled);
-                } else if (ie->mask & IN_DELETE) {
-                    pushEvent(w, CJ_FS_WK_DELETE, relPath, isDir, &filled);
-                } else if (ie->mask & IN_MOVED_FROM) {
-                    pushEvent(w, CJ_FS_WK_RENAME_FROM, relPath, isDir, &filled);
-                } else if (ie->mask & IN_MOVED_TO) {
-                    pushEvent(w, CJ_FS_WK_RENAME_TO, relPath, isDir, &filled);
-                } else if (ie->mask & IN_ATTRIB) {
-                    pushEvent(w, CJ_FS_WK_ATTRIB, relPath, isDir, &filled);
-                } else if (ie->mask & (IN_DELETE_SELF | IN_MOVE_SELF)) {
-                    pushEvent(w, CJ_FS_WK_WATCH_DISAPPEARED, relPath, isDir, &filled);
-                }
-            }
-            /* Advance to the next event in the read buffer */
+            processInotifyEvent(w, ie, &filled);
             i += sizeof(struct inotify_event) + ie->len;
         }
     }

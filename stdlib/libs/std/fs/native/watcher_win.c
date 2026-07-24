@@ -161,6 +161,55 @@ void CJ_FS_WatcherDestroy(CJ_FS_Watcher* w)
     free(w);
 }
 
+/* ---------- event decoding (extracted from Poll) ---------- */
+
+/*
+ * Walk the FILE_NOTIFY_INFORMATION linked list in buf (bytes bytes long)
+ * and decode each entry into w->evbuf. Returns number of events filled.
+ */
+static void decodeNotifyChain(CJ_FS_Watcher* w, BYTE* buf, DWORD bytes,
+                              size_t* filled)
+{
+    BYTE* p   = buf;
+    BYTE* end = buf + bytes;
+    for (;;) {
+        if (p + sizeof(FILE_NOTIFY_INFORMATION) > end) {
+            break;
+        }
+        FILE_NOTIFY_INFORMATION* fni = (FILE_NOTIFY_INFORMATION*)p;
+        /* NOTE: FILE_NOTIFY_CHANGE_ATTRIBUTES is in the filter but maps to
+         * MODIFY (not a separate ATTRIB kind) -- deliberate v1 behavior. */
+        switch (fni->Action) {
+            case FILE_ACTION_ADDED:
+                pushEv(w, CJ_FS_WK_CREATE, fni->FileName, fni->FileNameLength, filled);
+                break;
+            case FILE_ACTION_REMOVED:
+                pushEv(w, CJ_FS_WK_DELETE, fni->FileName, fni->FileNameLength, filled);
+                break;
+            case FILE_ACTION_MODIFIED:
+                pushEv(w, CJ_FS_WK_MODIFY, fni->FileName, fni->FileNameLength, filled);
+                break;
+            case FILE_ACTION_RENAMED_OLD_NAME:
+                pushEv(w, CJ_FS_WK_RENAME_FROM, fni->FileName, fni->FileNameLength, filled);
+                break;
+            case FILE_ACTION_RENAMED_NEW_NAME:
+                pushEv(w, CJ_FS_WK_RENAME_TO, fni->FileName, fni->FileNameLength, filled);
+                break;
+            default:
+                break;
+        }
+        if (fni->NextEntryOffset == 0) {
+            break;
+        }
+        p += fni->NextEntryOffset;
+        if (p >= end) {
+            break;
+        }
+    }
+}
+
+/* ---------- Poll ---------- */
+
 int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w, int64_t timeoutMs,
     CJ_FS_WatchEvent* outBuf, int64_t cap, char** errOut)
 {
@@ -204,42 +253,7 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w, int64_t timeoutMs,
 
     /* Decode the FILE_NOTIFY_INFORMATION chain. */
     size_t filled = 0;
-    BYTE* p = w->buf;
-    BYTE* end = w->buf + bytes;
-    for (;;) {
-        if (p + sizeof(FILE_NOTIFY_INFORMATION) {
-            > end) { break; }
-        }
-        FILE_NOTIFY_INFORMATION* fni = (FILE_NOTIFY_INFORMATION*)p;
-        /* NOTE: FILE_NOTIFY_CHANGE_ATTRIBUTES is in the filter but maps to
-         * MODIFY (not a separate ATTRIB kind) — deliberate v1 behavior. */
-        switch (fni->Action) {
-            case FILE_ACTION_ADDED:
-                pushEv(w, CJ_FS_WK_CREATE, fni->FileName, fni->FileNameLength, &filled);
-                break;
-            case FILE_ACTION_REMOVED:
-                pushEv(w, CJ_FS_WK_DELETE, fni->FileName, fni->FileNameLength, &filled);
-                break;
-            case FILE_ACTION_MODIFIED:
-                pushEv(w, CJ_FS_WK_MODIFY, fni->FileName, fni->FileNameLength, &filled);
-                break;
-            case FILE_ACTION_RENAMED_OLD_NAME:
-                pushEv(w, CJ_FS_WK_RENAME_FROM, fni->FileName, fni->FileNameLength, &filled);
-                break;
-            case FILE_ACTION_RENAMED_NEW_NAME:
-                pushEv(w, CJ_FS_WK_RENAME_TO, fni->FileName, fni->FileNameLength, &filled);
-                break;
-            default:
-                break;
-        }
-        if (fni->NextEntryOffset == 0) {
-            break;
-        }
-        p += fni->NextEntryOffset;
-        if (p >= end) {
-            break;
-        }
-    }
+    decodeNotifyChain(w, w->buf, bytes, &filled);
 
     /* Re-arm for next cycle.
      * armRead only rewrites w->buf and w->ov; outBuf[].path points into
