@@ -62,7 +62,9 @@ static void addWd(CJ_FS_Watcher *w, int wd, const char *path)
 static const char *pathOfWd(CJ_FS_Watcher *w, int wd)
 {
     for (size_t i = 0; i < w->dirsLen; i++) {
-        if (w->dirs[i].wd == wd) return w->dirs[i].path;
+        if (w->dirs[i].wd == wd) {
+            return w->dirs[i].path;
+        }
     }
     return NULL;
 }
@@ -89,18 +91,25 @@ static const uint32_t WATCH_MASK =
 static int addTree(CJ_FS_Watcher *w, const char *dir)
 {
     int wd = inotify_add_watch(w->fd, dir, WATCH_MASK);
-    if (wd < 0) return -1;
+    if (wd < 0) {
+        return -1;
+    }
     addWd(w, wd, dir);
 
-    if (!w->recursive) return 0;
+    if (!w->recursive) {
+        return 0;
+    }
 
     DIR *d = opendir(dir);
-    if (!d) return 0; /* not a dir or no permission -- skip silently */
+    if (!d) {
+        return 0; /* not a dir or no permission -- skip silently */
+    }
 
     struct dirent *e;
     while ((e = readdir(d)) != NULL) {
-        if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0)
+        if (strcmp(e->d_name, ".") == 0 || strcmp(e->d_name, "..") == 0) {
             continue;
+        }
         char child[4096];
         snprintf(child, sizeof(child), "%s/%s", dir, e->d_name);
         struct stat st;
@@ -118,13 +127,17 @@ CJ_FS_Watcher *CJ_FS_WatcherCreate(const char *dirPath, int32_t recursive, char 
 {
     CJ_FS_Watcher *w = (CJ_FS_Watcher *)calloc(1, sizeof(CJ_FS_Watcher));
     if (!w) {
-        if (errOut) *errOut = strdup("out of memory");
+        if (errOut) {
+            *errOut = strdup("out of memory");
+        }
         return NULL;
     }
 
     w->fd = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
     if (w->fd < 0) {
-        if (errOut) *errOut = strdup("inotify_init1 failed");
+        if (errOut) {
+            *errOut = strdup("inotify_init1 failed");
+        }
         free(w);
         return NULL;
     }
@@ -134,8 +147,9 @@ CJ_FS_Watcher *CJ_FS_WatcherCreate(const char *dirPath, int32_t recursive, char 
     w->rootLen = strlen(w->watchRoot);
 
     if (addTree(w, dirPath) != 0) {
-        if (errOut)
+        if (errOut) {
             *errOut = strdup("inotify_add_watch failed (check max_user_watches / path)");
+        }
         close(w->fd);
         free(w->dirs);
         free(w);
@@ -147,8 +161,12 @@ CJ_FS_Watcher *CJ_FS_WatcherCreate(const char *dirPath, int32_t recursive, char 
 
 void CJ_FS_WatcherDestroy(CJ_FS_Watcher *w)
 {
-    if (!w) return;
-    if (w->fd >= 0) close(w->fd);
+    if (!w) {
+        return;
+    }
+    if (w->fd >= 0) {
+        close(w->fd);
+    }
     free(w->dirs);
     free(w);
 }
@@ -167,7 +185,9 @@ static const char *relOf(CJ_FS_Watcher *w, const char *base,
     const char *rel = abs;
     if (strncmp(abs, w->watchRoot, w->rootLen) == 0) {
         rel = abs + w->rootLen;
-        if (*rel == '/') rel++;
+        if (*rel == '/') {
+            rel++;
+        }
     }
     snprintf(out, outcap, "%s", rel);
     return out;
@@ -179,7 +199,9 @@ static const char *relOf(CJ_FS_Watcher *w, const char *base,
 static void pushEvent(CJ_FS_Watcher *w, int32_t kind, const char *base,
                       const char *name, int32_t isDir, size_t *out)
 {
-    if (*out >= EVBUF_CAP) return; /* buffer full -- drop event */
+    if (*out >= EVBUF_CAP) {
+        return; /* buffer full -- drop event */
+    }
 
     CJ_FS_WatchEvent *ev = &w->evbuf[*out];
     ev->kind  = kind;
@@ -202,7 +224,9 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher *w, int64_t timeoutMs,
     CJ_FS_WatchEvent *outBuf, int64_t cap, char **errOut)
 {
     if (!w) {
-        if (errOut) *errOut = strdup("null watcher");
+        if (errOut) {
+            *errOut = strdup("null watcher");
+        }
         return -1;
     }
 
@@ -213,11 +237,17 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher *w, int64_t timeoutMs,
 
     int pr = poll(&pfd, 1, (int)timeoutMs);
     if (pr < 0) {
-        if (errno == EINTR) return 0; /* interrupted -- not fatal */
-        if (errOut) *errOut = strdup("poll error");
+        if (errno == EINTR) {
+            return 0; /* interrupted -- not fatal */
+        }
+        if (errOut) {
+            *errOut = strdup("poll error");
+        }
         return -1;
     }
-    if (pr == 0) return 0; /* timeout, no events */
+    if (pr == 0) {
+        return 0; /* timeout, no events */
+    }
 
     /*
      * Read all available events from the non-blocking inotify fd.
@@ -228,7 +258,9 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher *w, int64_t timeoutMs,
 
     while (1) {
         ssize_t n = read(w->fd, rdBuf, sizeof(rdBuf));
-        if (n <= 0) break; /* EAGAIN or error */
+        if (n <= 0) {
+            break; /* EAGAIN or error */
+        }
 
         size_t i = 0;
         while (i < (size_t)n) {
@@ -249,7 +281,9 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher *w, int64_t timeoutMs,
                         char child[4096];
                         snprintf(child, sizeof(child), "%s/%s", base, ie->name);
                         int nwd = inotify_add_watch(w->fd, child, WATCH_MASK);
-                        if (nwd >= 0) addWd(w, nwd, child);
+                        if (nwd >= 0) {
+                            addWd(w, nwd, child);
+                        }
                     }
                 } else if (ie->mask & IN_MODIFY) {
                     pushEvent(w, CJ_FS_WK_MODIFY, base, ie->name, isDir, &filled);

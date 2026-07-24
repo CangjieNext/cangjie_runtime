@@ -76,7 +76,9 @@ static BOOL armRead(CJ_FS_Watcher* w)
 static void pushEv(CJ_FS_Watcher* w, int32_t kind,
                    const wchar_t* wname, DWORD nameLenBytes, size_t* filled)
 {
-    if (*filled >= EVBUF_CAP) return;
+    if (*filled >= EVBUF_CAP) {
+        return;
+    }
     CJ_FS_WatchEvent* ev = &w->evbuf[*filled];
     ev->kind  = kind;
     ev->isDir = 0;  /* Win does not report isDir in notifications (spec §14) */
@@ -94,7 +96,9 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath,
     int32_t recursive, char** errOut)
 {
     CJ_FS_Watcher* w = (CJ_FS_Watcher*)calloc(1, sizeof(CJ_FS_Watcher));
-    if (!w) return NULL;
+    if (!w) {
+        return NULL;
+    }
 
     w->recursive = recursive;
     snprintf(w->watchRoot, sizeof(w->watchRoot), "%s", dirPath);
@@ -110,21 +114,27 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath,
                           FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OVERLAPPED,
                           NULL);
     if (w->hDir == INVALID_HANDLE_VALUE) {
-        if (errOut) *errOut = strdup("CreateFileW failed");
+        if (errOut) {
+            *errOut = strdup("CreateFileW failed");
+        }
         free(w);
         return NULL;
     }
 
     w->hEvt = CreateEventW(NULL, TRUE, FALSE, NULL);
     if (!w->hEvt) {
-        if (errOut) *errOut = strdup("CreateEvent failed");
+        if (errOut) {
+            *errOut = strdup("CreateEvent failed");
+        }
         CloseHandle(w->hDir);
         free(w);
         return NULL;
     }
 
     if (!armRead(w)) {
-        if (errOut) *errOut = strdup("ReadDirectoryChangesW failed");
+        if (errOut) {
+            *errOut = strdup("ReadDirectoryChangesW failed");
+        }
         CloseHandle(w->hDir);
         CloseHandle(w->hEvt);
         free(w);
@@ -136,10 +146,18 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath,
 
 void CJ_FS_WatcherDestroy(CJ_FS_Watcher* w)
 {
-    if (!w) return;
-    if (w->pending) CancelIo(w->hDir);
-    if (w->hDir != INVALID_HANDLE_VALUE) CloseHandle(w->hDir);
-    if (w->hEvt) CloseHandle(w->hEvt);
+    if (!w) {
+        return;
+    }
+    if (w->pending) {
+        CancelIo(w->hDir);
+    }
+    if (w->hDir != INVALID_HANDLE_VALUE) {
+        CloseHandle(w->hDir);
+    }
+    if (w->hEvt) {
+        CloseHandle(w->hEvt);
+    }
     free(w);
 }
 
@@ -147,18 +165,26 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w, int64_t timeoutMs,
     CJ_FS_WatchEvent* outBuf, int64_t cap, char** errOut)
 {
     if (!w) {
-        if (errOut) *errOut = strdup("null watcher");
+        if (errOut) {
+            *errOut = strdup("null watcher");
+        }
         return -1;
     }
     if (timeoutMs < 0) {
-        if (errOut) *errOut = strdup("CJ_FS_WatcherPoll: timeout must be >= 0");
+        if (errOut) {
+            *errOut = strdup("CJ_FS_WatcherPoll: timeout must be >= 0");
+        }
         return -1;
     }
 
     DWORD wait = WaitForSingleObject(w->hEvt, (DWORD)timeoutMs);
-    if (wait == WAIT_TIMEOUT) return 0;
+    if (wait == WAIT_TIMEOUT) {
+        return 0;
+    }
     if (wait != WAIT_OBJECT_0) {
-        if (errOut) *errOut = strdup("WaitForSingleObject failed");
+        if (errOut) {
+            *errOut = strdup("WaitForSingleObject failed");
+        }
         return -1;
     }
 
@@ -169,7 +195,9 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w, int64_t timeoutMs,
             armRead(w);
             return 0;  /* buffer overflow; events lost, try again */
         }
-        if (errOut) *errOut = strdup("GetOverlappedResult failed");
+        if (errOut) {
+            *errOut = strdup("GetOverlappedResult failed");
+        }
         return -1;
     }
     w->pending = FALSE;
@@ -179,7 +207,9 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w, int64_t timeoutMs,
     BYTE* p = w->buf;
     BYTE* end = w->buf + bytes;
     for (;;) {
-        if (p + sizeof(FILE_NOTIFY_INFORMATION) > end) { break; }
+        if (p + sizeof(FILE_NOTIFY_INFORMATION) {
+            > end) { break; }
+        }
         FILE_NOTIFY_INFORMATION* fni = (FILE_NOTIFY_INFORMATION*)p;
         /* NOTE: FILE_NOTIFY_CHANGE_ATTRIBUTES is in the filter but maps to
          * MODIFY (not a separate ATTRIB kind) — deliberate v1 behavior. */
@@ -202,9 +232,13 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w, int64_t timeoutMs,
             default:
                 break;
         }
-        if (fni->NextEntryOffset == 0) { break; }
+        if (fni->NextEntryOffset == 0) {
+            break;
+        }
         p += fni->NextEntryOffset;
-        if (p >= end) { break; }
+        if (p >= end) {
+            break;
+        }
     }
 
     /* Re-arm for next cycle.

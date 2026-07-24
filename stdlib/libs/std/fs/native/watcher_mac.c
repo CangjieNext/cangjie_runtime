@@ -41,7 +41,9 @@ struct CJ_FS_Watcher {
 
 static void qPush(CJ_FS_Watcher* w, int32_t kind, int32_t isDir, const char* path)
 {
-    if (w->qCount == EVBUF_CAP) return;   /* overflow: event lost – caller uses OVERFLOW flag path */
+    if (w->qCount == EVBUF_CAP) {
+        return;   /* overflow: event lost – caller uses OVERFLOW flag path */
+    }
     QueuedEvent* e = &w->q[w->qTail];
     e->kind  = kind;
     e->isDir = isDir;
@@ -52,7 +54,9 @@ static void qPush(CJ_FS_Watcher* w, int32_t kind, int32_t isDir, const char* pat
 
 static int qPop(CJ_FS_Watcher* w, CJ_FS_WatchEvent* out)
 {
-    if (w->qCount == 0) return 0;
+    if (w->qCount == 0) {
+        return 0;
+    }
     QueuedEvent* e = &w->q[w->qHead];
     out->kind  = e->kind;
     out->isDir = e->isDir;
@@ -84,7 +88,9 @@ static void streamCb(ConstFSEventStreamRef streamRef,
         /* Strip watchRoot prefix to produce relative path */
         if (strncmp(abs, w->watchRoot, w->rootLen) == 0) {
             rel = abs + w->rootLen;
-            if (*rel == '/') rel++;
+            if (*rel == '/') {
+                rel++;
+            }
         }
 
         int32_t isDir = (f & kFSEventStreamEventFlagItemIsDir) ? 1 : 0;
@@ -120,7 +126,9 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive, char*
 
     CJ_FS_Watcher* w = (CJ_FS_Watcher*)calloc(1, sizeof(CJ_FS_Watcher));
     if (!w) {
-        if (errOut) *errOut = strdup("out of memory");
+        if (errOut) {
+            *errOut = strdup("out of memory");
+        }
         return NULL;
     }
 
@@ -130,13 +138,17 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive, char*
     /* Build the CFArray of paths to watch (single root) */
     CFStringRef pathStr = CFStringCreateWithCString(NULL, dirPath, kCFStringEncodingUTF8);
     if (!pathStr) {
-        if (errOut) *errOut = strdup("CFStringCreateWithCString failed");
+        if (errOut) {
+            *errOut = strdup("CFStringCreateWithCString failed");
+        }
         free(w);
         return NULL;
     }
     CFArrayRef pathsToWatch = CFArrayCreate(NULL, (const void**)&pathStr, 1, NULL);
     if (!pathsToWatch) {
-        if (errOut) *errOut = strdup("CFArrayCreate failed");
+        if (errOut) {
+            *errOut = strdup("CFArrayCreate failed");
+        }
         CFRelease(pathStr);
         free(w);
         return NULL;
@@ -160,7 +172,9 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive, char*
     CFRelease(pathStr);
 
     if (!w->stream) {
-        if (errOut) *errOut = strdup("FSEventStreamCreate failed");
+        if (errOut) {
+            *errOut = strdup("FSEventStreamCreate failed");
+        }
         free(w);
         return NULL;
     }
@@ -168,7 +182,9 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive, char*
     /* Attach stream to a serial dispatch queue */
     w->dq = dispatch_queue_create("cj.fs.watcher", DISPATCH_QUEUE_SERIAL);
     if (!w->dq) {
-        if (errOut) *errOut = strdup("dispatch_queue_create failed");
+        if (errOut) {
+            *errOut = strdup("dispatch_queue_create failed");
+        }
         FSEventStreamInvalidate(w->stream);
         FSEventStreamRelease(w->stream);
         free(w);
@@ -178,7 +194,9 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive, char*
     FSEventStreamSetDispatchQueue(w->stream, w->dq);
 
     if (!FSEventStreamStart(w->stream)) {
-        if (errOut) *errOut = strdup("FSEventStreamStart failed");
+        if (errOut) {
+            *errOut = strdup("FSEventStreamStart failed");
+        }
         FSEventStreamInvalidate(w->stream);
         FSEventStreamRelease(w->stream);
         dispatch_release(w->dq);
@@ -191,7 +209,9 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive, char*
 
 void CJ_FS_WatcherDestroy(CJ_FS_Watcher* w)
 {
-    if (!w) return;
+    if (!w) {
+        return;
+    }
     if (w->stream) {
         FSEventStreamStop(w->stream);
         FSEventStreamInvalidate(w->stream);
@@ -207,7 +227,9 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w, int64_t timeoutMs,
     CJ_FS_WatchEvent* outBuf, int64_t cap, char** errOut)
 {
     if (!w) {
-        if (errOut) *errOut = strdup("null watcher");
+        if (errOut) {
+            *errOut = strdup("null watcher");
+        }
         return -1;
     }
 
@@ -228,7 +250,9 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w, int64_t timeoutMs,
     dispatch_sync(w->dq, ^{
         while (out < cap) {
             CJ_FS_WatchEvent tmp;
-            if (qPop(w, &tmp) == 0) { break; }
+            if (qPop(w, &tmp) {
+                == 0) { break; }
+            }
             w->outEvbuf[out].kind  = tmp.kind;
             w->outEvbuf[out].isDir = tmp.isDir;
             snprintf(w->outScratch[out], PATH_MAX_LEN, "%s", tmp.path);
