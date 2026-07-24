@@ -47,7 +47,10 @@ static void qPush(CJ_FS_Watcher* w, int32_t kind, int32_t isDir, const char* pat
     QueuedEvent* e = &w->q[w->qTail];
     e->kind  = kind;
     e->isDir = isDir;
-    (void)snprintf(e->path, sizeof(e->path), "%s", path);
+    int err = snprintf_s(e->path, sizeof(e->path), sizeof(e->path) - 1, "%s", path);
+    if (err < 0) {
+        e->path[0] = '\0';
+    }
     w->qTail = (w->qTail + 1) % EVBUF_CAP;
     w->qCount++;
 }
@@ -68,43 +71,67 @@ static int qPop(CJ_FS_Watcher* w, CJ_FS_WatchEvent* out)
 
 /* ---- FSEvents stream callback ------------------------------------------- */
 
-/* Process FSEvents callbacks (internal, fewer params). */
+/*
+ * Strip watchRoot prefix from abs to produce a relative path.
+ * Returns abs unchanged if the prefix does not match.
+ */
+static const char *makeRelativePath(CJ_FS_Watcher *w, const char *abs)
+{
+    if (strncmp(abs, w->watchRoot, w->rootLen) == 0) {
+        const char *rel = abs + w->rootLen;
+        if (*rel == '/') {
+            rel++;
+        }
+        return rel;
+    }
+    return abs;
+}
+
+/*
+ * Classify a single FSEvent flag and push the corresponding event(s).
+ */
+static void classifyAndPushEvent(CJ_FS_Watcher *w, FSEventStreamEventFlags f,
+                                  int32_t isDir, const char *rel)
+{
+    if (f & kFSEventStreamEventFlagRootChanged) {
+        qPush(w, CJ_FS_WK_WATCH_DISAPPEARED, 0, "");
+        return;
+    }
+    if (f & kFSEventStreamEventFlagMustScanSubDirs) {
+        qPush(w, CJ_FS_WK_OVERFLOW, 0, "");
+        return;
+    }
+    if (f & kFSEventStreamEventFlagItemCreated) {
+        qPush(w, CJ_FS_WK_CREATE, isDir, rel);
+        return;
+    }
+    if (f & kFSEventStreamEventFlagItemRemoved) {
+        qPush(w, CJ_FS_WK_DELETE, isDir, rel);
+        return;
+    }
+    if (f & kFSEventStreamEventFlagItemModified) {
+        qPush(w, CJ_FS_WK_MODIFY, isDir, rel);
+        return;
+    }
+    if (f & kFSEventStreamEventFlagItemRenamed) {
+        /* rename from/to pairing is approximate in v1 (spec §14):
+         * a single rename event emits both RENAME_FROM and RENAME_TO. */
+        qPush(w, CJ_FS_WK_RENAME_FROM, isDir, rel);
+        qPush(w, CJ_FS_WK_RENAME_TO,   isDir, rel);
+        return;
+    }
+    qPush(w, CJ_FS_WK_ATTRIB, isDir, rel);
+}
+
 static void processStreamEvents(CJ_FS_Watcher *w, size_t numEvents,
                                 char **paths, const FSEventStreamEventFlags *eventFlags)
 {
     for (size_t i = 0; i < numEvents; i++) {
         FSEventStreamEventFlags f    = eventFlags[i];
-        const char*              abs  = paths[i];
-        const char*              rel  = abs;
-
-        /* Strip watchRoot prefix to produce relative path */
-        if (strncmp(abs, w->watchRoot, w->rootLen) == 0) {
-            rel = abs + w->rootLen;
-            if (*rel == '/') {
-                rel++;
-            }
-        }
-
+        const char*              rel = makeRelativePath(w, paths[i]);
         int32_t isDir = (f & kFSEventStreamEventFlagItemIsDir) ? 1 : 0;
 
-        if (f & kFSEventStreamEventFlagRootChanged) {
-            qPush(w, CJ_FS_WK_WATCH_DISAPPEARED, 0, "");
-        } else if (f & kFSEventStreamEventFlagMustScanSubDirs) {
-            qPush(w, CJ_FS_WK_OVERFLOW, 0, "");
-        } else if (f & kFSEventStreamEventFlagItemCreated) {
-            qPush(w, CJ_FS_WK_CREATE, isDir, rel);
-        } else if (f & kFSEventStreamEventFlagItemRemoved) {
-            qPush(w, CJ_FS_WK_DELETE, isDir, rel);
-        } else if (f & kFSEventStreamEventFlagItemModified) {
-            qPush(w, CJ_FS_WK_MODIFY, isDir, rel);
-        } else if (f & kFSEventStreamEventFlagItemRenamed) {
-            /* rename from/to pairing is approximate in v1 (spec §14):
-             * a single rename event emits both RENAME_FROM and RENAME_TO. */
-            qPush(w, CJ_FS_WK_RENAME_FROM, isDir, rel);
-            qPush(w, CJ_FS_WK_RENAME_TO,   isDir, rel);
-        } else {
-            qPush(w, CJ_FS_WK_ATTRIB, isDir, rel);
-        }
+        classifyAndPushEvent(w, f, isDir, rel);
     }
 }
 
@@ -159,7 +186,15 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive, char*
         return NULL;
     }
 
-    (void)snprintf(w->watchRoot, sizeof(w->watchRoot), "%s", dirPath);
+    int err = snprintf_s(w->watchRoot, sizeof(w->watchRoot),
+                         sizeof(w->watchRoot) - 1, "%s", dirPath);
+    if (err < 0) {
+        if (errOut) {
+            *errOut = strdup("watchRoot path too long");
+        }
+        free(w);
+        return NULL;
+    }
     w->rootLen = strlen(w->watchRoot);
 
     /* Build the CFArray of paths to watch (single root) */
@@ -262,7 +297,11 @@ static int drainOneEvent(CJ_FS_Watcher* w, int64_t outIdx)
     }
     w->outEvbuf[outIdx].kind  = tmp.kind;
     w->outEvbuf[outIdx].isDir = tmp.isDir;
-    (void)snprintf(w->outScratch[outIdx], PATH_MAX_LEN, "%s", tmp.path);
+    int err = snprintf_s(w->outScratch[outIdx], PATH_MAX_LEN,
+                          PATH_MAX_LEN - 1, "%s", tmp.path);
+    if (err < 0) {
+        w->outScratch[outIdx][0] = '\0';
+    }
     w->outEvbuf[outIdx].path  = w->outScratch[outIdx];
     return 1;
 }

@@ -48,19 +48,25 @@ static void addWd(CJ_FS_Watcher *w, int wd, const char *path)
         size_t nc = w->dirsCap == 0 ? 16 : w->dirsCap * 2;
         WdEntry *nb = (WdEntry *)malloc(nc * sizeof(WdEntry));
         if (!nb) {
-            close(wd); /* best-effort: cannot track this wd */
+            (void)close(wd);
             return;
         }
         if (w->dirs && w->dirsLen > 0) {
             size_t copyLen = w->dirsLen < nc ? w->dirsLen : nc;
-            memcpy(nb, w->dirs, copyLen * sizeof(WdEntry));
+            if (memcpy_s(nb, nc * sizeof(WdEntry), w->dirs, copyLen * sizeof(WdEntry)) != EOK) {
+                (void)close(wd);
+                free(nb);
+                return;
+            }
         }
         free(w->dirs);
         w->dirs   = nb;
         w->dirsCap = nc;
     }
     w->dirs[w->dirsLen].wd = wd;
-    if (snprintf(w->dirs[w->dirsLen].path, sizeof(w->dirs[w->dirsLen].path), "%s", path) < 0) {
+    int err = snprintf_s(w->dirs[w->dirsLen].path, sizeof(w->dirs[w->dirsLen].path),
+                         sizeof(w->dirs[w->dirsLen].path) - 1, "%s", path);
+    if (err < 0) {
         /* ignore: path truncated but still usable */
     }
     w->dirsLen++;
@@ -118,7 +124,10 @@ static int addTree(CJ_FS_Watcher *w, const char *dir)
             continue;
         }
         char child[4096];
-        (void)snprintf(child, sizeof(child), "%s/%s", dir, e->d_name);
+        int err = snprintf_s(child, sizeof(child), sizeof(child) - 1, "%s/%s", dir, e->d_name);
+        if (err < 0) {
+            continue;
+        }
         struct stat st;
         if (stat(child, &st) == 0 && S_ISDIR(st.st_mode)) {
             addTree(w, child); /* recurse */
@@ -150,14 +159,23 @@ CJ_FS_Watcher *CJ_FS_WatcherCreate(const char *dirPath, int32_t recursive, char 
     }
 
     w->recursive = recursive;
-    (void)snprintf(w->watchRoot, sizeof(w->watchRoot), "%s", dirPath);
+    int err = snprintf_s(w->watchRoot, sizeof(w->watchRoot),
+                         sizeof(w->watchRoot) - 1, "%s", dirPath);
+    if (err < 0) {
+        if (errOut) {
+            *errOut = strdup("watchRoot path too long");
+        }
+        (void)close(w->fd);
+        free(w);
+        return NULL;
+    }
     w->rootLen = strlen(w->watchRoot);
 
     if (addTree(w, dirPath) != 0) {
         if (errOut) {
             *errOut = strdup("inotify_add_watch failed (check max_user_watches / path)");
         }
-        close(w->fd);
+        (void)close(w->fd);
         free(w->dirs);
         free(w);
         return NULL;
@@ -172,7 +190,7 @@ void CJ_FS_WatcherDestroy(CJ_FS_Watcher *w)
         return;
     }
     if (w->fd >= 0) {
-        close(w->fd);
+        (void)close(w->fd);
     }
     free(w->dirs);
     free(w);
@@ -188,7 +206,11 @@ static const char *relOf(CJ_FS_Watcher *w, const char *base,
                          const char *name, char *out, size_t outcap)
 {
     char abs[4096];
-    (void)snprintf(abs, sizeof(abs), "%s/%s", base, name);
+    int err = snprintf_s(abs, sizeof(abs), sizeof(abs) - 1, "%s/%s", base, name);
+    if (err < 0) {
+        out[0] = '\0';
+        return out;
+    }
     const char *rel = abs;
     if (strncmp(abs, w->watchRoot, w->rootLen) == 0) {
         rel = abs + w->rootLen;
@@ -196,7 +218,10 @@ static const char *relOf(CJ_FS_Watcher *w, const char *base,
             rel++;
         }
     }
-    (void)snprintf(out, outcap, "%s", rel);
+    err = snprintf_s(out, outcap, outcap - 1, "%s", rel);
+    if (err < 0) {
+        out[0] = '\0';
+    }
     return out;
 }
 
@@ -215,7 +240,11 @@ static void pushEvent(CJ_FS_Watcher *w, int32_t kind, const char *relPath,
     ev->isDir = isDir;
 
     if (relPath != NULL) {
-        (void)snprintf(w->scratch[*out], sizeof(w->scratch[*out]), "%s", relPath);
+        int err = snprintf_s(w->scratch[*out], sizeof(w->scratch[*out]),
+                              sizeof(w->scratch[*out]) - 1, "%s", relPath);
+        if (err < 0) {
+            w->scratch[*out][0] = '\0';
+        }
         ev->path = w->scratch[*out];
     } else {
         /* watchDisappeared / overflow: empty path */
@@ -225,7 +254,41 @@ static void pushEvent(CJ_FS_Watcher *w, int32_t kind, const char *relPath,
     (*out)++;
 }
 
+/* ---------- event kind lookup table ---------- */
+
+typedef struct {
+    uint32_t mask;
+    int32_t  kind;
+} MaskToKind;
+
+static const MaskToKind g_maskKindTable[] = {
+    { IN_CREATE,              CJ_FS_WK_CREATE            },
+    { IN_MODIFY,              CJ_FS_WK_MODIFY            },
+    { IN_DELETE,              CJ_FS_WK_DELETE            },
+    { IN_MOVED_FROM,          CJ_FS_WK_RENAME_FROM       },
+    { IN_MOVED_TO,            CJ_FS_WK_RENAME_TO         },
+    { IN_ATTRIB,              CJ_FS_WK_ATTRIB            },
+    { IN_DELETE_SELF | IN_MOVE_SELF, CJ_FS_WK_WATCH_DISAPPEARED },
+};
+#define MASK_KIND_COUNT (sizeof(g_maskKindTable) / sizeof(g_maskKindTable[0]))
+
 /* ---------- event processing (extracted from Poll) ---------- */
+
+/*
+ * Resolve the event kind for a non-special inotify mask.
+ * Returns 1 if a matching kind was pushed, 0 if no match.
+ */
+static int resolveEventKind(CJ_FS_Watcher *w, struct inotify_event *ie,
+                            const char *relPath, int32_t isDir, size_t *filled)
+{
+    for (size_t i = 0; i < MASK_KIND_COUNT; i++) {
+        if (ie->mask & g_maskKindTable[i].mask) {
+            pushEvent(w, g_maskKindTable[i].kind, relPath, isDir, filled);
+            return 1;
+        }
+    }
+    return 0;
+}
 
 /*
  * Process a single inotify_event: decode its mask, push into w->evbuf,
@@ -236,38 +299,40 @@ static void processInotifyEvent(CJ_FS_Watcher *w, struct inotify_event *ie,
 {
     const char *base = pathOfWd(w, ie->wd);
 
+    /* Handle overflow -- no wd needed */
     if (ie->mask & IN_Q_OVERFLOW) {
         pushEvent(w, CJ_FS_WK_OVERFLOW, NULL, 0, filled);
-    } else if (ie->mask & IN_IGNORED) {
-        removeWd(w, ie->wd);
-    } else if (base != NULL) {
-        int32_t isDir = (ie->mask & IN_ISDIR) ? 1 : 0;
-        char relPath[4096];
-        relOf(w, base, ie->name, relPath, sizeof(relPath));
+        return;
+    }
 
-        if (ie->mask & IN_CREATE) {
-            pushEvent(w, CJ_FS_WK_CREATE, relPath, isDir, filled);
-            /* Lazily add a watch for newly-created subdirectories */
-            if (w->recursive && isDir && ie->len > 0) {
-                char child[4096];
-                (void)snprintf(child, sizeof(child), "%s/%s", base, ie->name);
+    /* Handle ignored watch -- just remove tracking entry */
+    if (ie->mask & IN_IGNORED) {
+        removeWd(w, ie->wd);
+        return;
+    }
+
+    /* If no known base path, nothing to do */
+    if (base == NULL) {
+        return;
+    }
+
+    int32_t isDir = (ie->mask & IN_ISDIR) ? 1 : 0;
+    char relPath[4096];
+    relOf(w, base, ie->name, relPath, sizeof(relPath));
+
+    /* Push the event via lookup table */
+    if (resolveEventKind(w, ie, relPath, isDir, filled)) {
+        /* Lazily add a watch for newly-created subdirectories */
+        if ((ie->mask & IN_CREATE) && w->recursive && isDir && ie->len > 0) {
+            char child[4096];
+            int err = snprintf_s(child, sizeof(child), sizeof(child) - 1,
+                                 "%s/%s", base, ie->name);
+            if (err >= 0) {
                 int nwd = inotify_add_watch(w->fd, child, WATCH_MASK);
                 if (nwd >= 0) {
                     addWd(w, nwd, child);
                 }
             }
-        } else if (ie->mask & IN_MODIFY) {
-            pushEvent(w, CJ_FS_WK_MODIFY, relPath, isDir, filled);
-        } else if (ie->mask & IN_DELETE) {
-            pushEvent(w, CJ_FS_WK_DELETE, relPath, isDir, filled);
-        } else if (ie->mask & IN_MOVED_FROM) {
-            pushEvent(w, CJ_FS_WK_RENAME_FROM, relPath, isDir, filled);
-        } else if (ie->mask & IN_MOVED_TO) {
-            pushEvent(w, CJ_FS_WK_RENAME_TO, relPath, isDir, filled);
-        } else if (ie->mask & IN_ATTRIB) {
-            pushEvent(w, CJ_FS_WK_ATTRIB, relPath, isDir, filled);
-        } else if (ie->mask & (IN_DELETE_SELF | IN_MOVE_SELF)) {
-            pushEvent(w, CJ_FS_WK_WATCH_DISAPPEARED, relPath, isDir, filled);
         }
     }
 }

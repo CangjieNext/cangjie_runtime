@@ -12,6 +12,12 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#ifndef _MSC_BUILD
+#include "securec.h"
+#else
+#define EOK 0
+#endif
+
 typedef struct CJ_FS_Watcher CJ_FS_Watcher; /* opaque */
 
 typedef struct {

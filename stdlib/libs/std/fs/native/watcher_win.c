@@ -101,7 +101,15 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath,
     }
 
     w->recursive = recursive;
-    (void)snprintf(w->watchRoot, sizeof(w->watchRoot), "%s", dirPath);
+    int err = snprintf_s(w->watchRoot, sizeof(w->watchRoot),
+                          sizeof(w->watchRoot) - 1, "%s", dirPath);
+    if (err < 0) {
+        if (errOut) {
+            *errOut = strdup("watchRoot path too long");
+        }
+        free(w);
+        return NULL;
+    }
 
     wchar_t wpath[MAX_PATH];
     widen(dirPath, wpath, MAX_PATH);
