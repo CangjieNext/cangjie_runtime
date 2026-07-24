@@ -32,12 +32,14 @@ struct CJ_FS_Watcher {
 
 /* Convert null-terminated UTF-8 narrow string to wide (wchar_t).
  * NOTE: only safe for null-terminated C strings (e.g. dirPath in Create). */
-static void widen(const char* u8, wchar_t* out, int outcap) {
+static void widen(const char* u8, wchar_t* out, int outcap)
+{
     MultiByteToWideChar(CP_UTF8, 0, u8, -1, out, outcap);
 }
 
 /* Convert a counted (NOT null-terminated) wide string to UTF-8. */
-static void narrowCounted(const wchar_t* w, DWORD nameLenBytes, char* out, int outcap) {
+static void narrowCounted(const wchar_t* w, DWORD nameLenBytes, char* out, int outcap)
+{
     int cchWide = (int)(nameLenBytes / sizeof(wchar_t));
     int n = WideCharToMultiByte(CP_UTF8, 0, w, cchWide, out, outcap, NULL, NULL);
     if (n < 0) { n = 0; }
@@ -45,7 +47,8 @@ static void narrowCounted(const wchar_t* w, DWORD nameLenBytes, char* out, int o
 }
 
 /* Issue (or re-arm) an overlapped ReadDirectoryChangesW call. */
-static BOOL armRead(CJ_FS_Watcher* w) {
+static BOOL armRead(CJ_FS_Watcher* w)
+{
     DWORD filter = FILE_NOTIFY_CHANGE_FILE_NAME
                  | FILE_NOTIFY_CHANGE_DIR_NAME
                  | FILE_NOTIFY_CHANGE_ATTRIBUTES
@@ -65,7 +68,8 @@ static BOOL armRead(CJ_FS_Watcher* w) {
 
 /* Append a decoded event to the internal evbuf. */
 static void pushEv(CJ_FS_Watcher* w, int32_t kind,
-                   const wchar_t* wname, DWORD nameLenBytes, size_t* filled) {
+                   const wchar_t* wname, DWORD nameLenBytes, size_t* filled)
+{
     if (*filled >= EVBUF_CAP) return;
     CJ_FS_WatchEvent* ev = &w->evbuf[*filled];
     ev->kind  = kind;
@@ -81,7 +85,8 @@ static void pushEv(CJ_FS_Watcher* w, int32_t kind,
 }
 
 CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive,
-                                    char** errOut) {
+                                    char** errOut)
+{
     CJ_FS_Watcher* w = (CJ_FS_Watcher*)calloc(1, sizeof(CJ_FS_Watcher));
     if (!w) return NULL;
 
@@ -123,7 +128,8 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive,
     return w;
 }
 
-void CJ_FS_WatcherDestroy(CJ_FS_Watcher* w) {
+void CJ_FS_WatcherDestroy(CJ_FS_Watcher* w)
+{
     if (!w) return;
     if (w->pending) CancelIo(w->hDir);
     if (w->hDir != INVALID_HANDLE_VALUE) CloseHandle(w->hDir);
@@ -133,7 +139,8 @@ void CJ_FS_WatcherDestroy(CJ_FS_Watcher* w) {
 
 int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w, int64_t timeoutMs,
                            CJ_FS_WatchEvent* outBuf, int64_t cap,
-                           char** errOut) {
+                           char** errOut)
+{
     if (!w) {
         if (errOut) *errOut = strdup("null watcher");
         return -1;

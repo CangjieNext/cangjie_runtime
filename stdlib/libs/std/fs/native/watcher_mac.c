@@ -39,7 +39,8 @@ struct CJ_FS_Watcher {
 
 /* ---- internal ring queue ------------------------------------------------ */
 
-static void qPush(CJ_FS_Watcher* w, int32_t kind, int32_t isDir, const char* path) {
+static void qPush(CJ_FS_Watcher* w, int32_t kind, int32_t isDir, const char* path)
+{
     if (w->qCount == EVBUF_CAP) return;   /* overflow: event lost – caller uses OVERFLOW flag path */
     QueuedEvent* e = &w->q[w->qTail];
     e->kind  = kind;
@@ -49,7 +50,8 @@ static void qPush(CJ_FS_Watcher* w, int32_t kind, int32_t isDir, const char* pat
     w->qCount++;
 }
 
-static int qPop(CJ_FS_Watcher* w, CJ_FS_WatchEvent* out) {
+static int qPop(CJ_FS_Watcher* w, CJ_FS_WatchEvent* out)
+{
     if (w->qCount == 0) return 0;
     QueuedEvent* e = &w->q[w->qHead];
     out->kind  = e->kind;
@@ -67,7 +69,8 @@ static void streamCb(ConstFSEventStreamRef streamRef,
                      size_t                 numEvents,
                      void*                  eventPaths,
                      const FSEventStreamEventFlags eventFlags[],
-                     const FSEventStreamEventId  eventIds[]) {
+                     const FSEventStreamEventId  eventIds[])
+{
     (void)streamRef;
     (void)eventIds;
     CJ_FS_Watcher* w = (CJ_FS_Watcher*)clientCallBackInfo;
@@ -109,7 +112,8 @@ static void streamCb(ConstFSEventStreamRef streamRef,
 
 /* ---- public API --------------------------------------------------------- */
 
-CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive, char** errOut) {
+CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive, char** errOut)
+{
     /* FSEvents is inherently recursive; non-recursive is approximated by
      * Cangjie-side path filtering (accept()), not handled here. */
     (void)recursive;
@@ -185,7 +189,8 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive, char*
     return w;
 }
 
-void CJ_FS_WatcherDestroy(CJ_FS_Watcher* w) {
+void CJ_FS_WatcherDestroy(CJ_FS_Watcher* w)
+{
     if (!w) return;
     if (w->stream) {
         FSEventStreamStop(w->stream);
@@ -199,7 +204,8 @@ void CJ_FS_WatcherDestroy(CJ_FS_Watcher* w) {
 }
 
 int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w, int64_t timeoutMs,
-                           CJ_FS_WatchEvent* outBuf, int64_t cap, char** errOut) {
+                           CJ_FS_WatchEvent* outBuf, int64_t cap, char** errOut)
+{
     if (!w) {
         if (errOut) *errOut = strdup("null watcher");
         return -1;
