@@ -91,7 +91,7 @@ static void pushEv(CJ_FS_Watcher* w, int32_t kind,
 }
 
 CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath,
-                                    int32_t recursive, char** errOut)
+    int32_t recursive, char** errOut)
 {
     CJ_FS_Watcher* w = (CJ_FS_Watcher*)calloc(1, sizeof(CJ_FS_Watcher));
     if (!w) return NULL;
@@ -143,9 +143,8 @@ void CJ_FS_WatcherDestroy(CJ_FS_Watcher* w)
     free(w);
 }
 
-int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w,
-                           int64_t timeoutMs, CJ_FS_WatchEvent* outBuf,
-                           int64_t cap, char** errOut)
+int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w, int64_t timeoutMs,
+    CJ_FS_WatchEvent* outBuf, int64_t cap, char** errOut)
 {
     if (!w) {
         if (errOut) *errOut = strdup("null watcher");
@@ -185,23 +184,23 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w,
         /* NOTE: FILE_NOTIFY_CHANGE_ATTRIBUTES is in the filter but maps to
          * MODIFY (not a separate ATTRIB kind) — deliberate v1 behavior. */
         switch (fni->Action) {
-        case FILE_ACTION_ADDED:
-            pushEv(w, CJ_FS_WK_CREATE, fni->FileName, fni->FileNameLength, &filled);
-            break;
-        case FILE_ACTION_REMOVED:
-            pushEv(w, CJ_FS_WK_DELETE, fni->FileName, fni->FileNameLength, &filled);
-            break;
-        case FILE_ACTION_MODIFIED:
-            pushEv(w, CJ_FS_WK_MODIFY, fni->FileName, fni->FileNameLength, &filled);
-            break;
-        case FILE_ACTION_RENAMED_OLD_NAME:
-            pushEv(w, CJ_FS_WK_RENAME_FROM, fni->FileName, fni->FileNameLength, &filled);
-            break;
-        case FILE_ACTION_RENAMED_NEW_NAME:
-            pushEv(w, CJ_FS_WK_RENAME_TO, fni->FileName, fni->FileNameLength, &filled);
-            break;
-        default:
-            break;
+            case FILE_ACTION_ADDED:
+                pushEv(w, CJ_FS_WK_CREATE, fni->FileName, fni->FileNameLength, &filled);
+                break;
+            case FILE_ACTION_REMOVED:
+                pushEv(w, CJ_FS_WK_DELETE, fni->FileName, fni->FileNameLength, &filled);
+                break;
+            case FILE_ACTION_MODIFIED:
+                pushEv(w, CJ_FS_WK_MODIFY, fni->FileName, fni->FileNameLength, &filled);
+                break;
+            case FILE_ACTION_RENAMED_OLD_NAME:
+                pushEv(w, CJ_FS_WK_RENAME_FROM, fni->FileName, fni->FileNameLength, &filled);
+                break;
+            case FILE_ACTION_RENAMED_NEW_NAME:
+                pushEv(w, CJ_FS_WK_RENAME_TO, fni->FileName, fni->FileNameLength, &filled);
+                break;
+            default:
+                break;
         }
         if (fni->NextEntryOffset == 0) { break; }
         p += fni->NextEntryOffset;
