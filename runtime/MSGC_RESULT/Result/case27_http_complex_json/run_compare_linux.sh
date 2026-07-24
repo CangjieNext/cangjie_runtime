@@ -24,6 +24,7 @@
 #     CASE27_PAYLOAD       1K|10K|100K|1M        默认 100K
 #     CASE27_CONCURRENCY   worker 并发数           默认 1000
 #     CASE27_DURATION_MS   压测时长 (ms)           默认 60000
+#     CASE27_NOFILE_LIMIT  进程 fd soft limit       默认 65535
 #     HEAP_SIZE            cjHeapSize             默认 16gb
 #     PROCS                可选；显式设置时透传 cjProcessorNum
 #     MSGC_HEAP_GROWTH     仅传给 MSGC 的 cjHeapGrowth，默认 1
@@ -91,6 +92,7 @@ COPYGC_STDX="${COPYGC_STDX_ROOT}/dynamic/stdx"
 PAYLOAD="${CASE27_PAYLOAD:-100K}"
 CONC="${CASE27_CONCURRENCY:-1000}"
 DUR="${CASE27_DURATION_MS:-60000}"
+CASE27_NOFILE_LIMIT="${CASE27_NOFILE_LIMIT:-65535}"
 HEAP_SIZE="${HEAP_SIZE:-16gb}"
 PROCS="${PROCS:-}"
 MSGC_HEAP_GROWTH="${MSGC_HEAP_GROWTH:-1}"
@@ -105,6 +107,77 @@ GO_ENABLE="${GO_ENABLE:-1}"
 GO_GODEBUG="${GO_GODEBUG:-gctrace=1}"
 GO_GOGC="${GO_GOGC:-}"
 TAG="${TAG:-output_msgc_vs_copygc_go}"
+
+configure_nofile_limit() {
+    local requested="$1"
+    local concurrency="$2"
+    local required
+    local current
+    local hard
+    local target
+    local effective
+
+    if [[ ! "$requested" =~ ^[1-9][0-9]*$ ]]; then
+        echo "[ERROR] CASE27_NOFILE_LIMIT must be a positive integer: $requested" >&2
+        return 1
+    fi
+    if [[ ! "$concurrency" =~ ^[1-9][0-9]*$ ]]; then
+        echo "[ERROR] CASE27_CONCURRENCY must be a positive integer: $concurrency" >&2
+        return 1
+    fi
+
+    # sync 模式下每个并发请求至少占用 client/server 两端各一个 socket，
+    # 再为监听 socket、日志、runtime 和采样器预留 1024 个 fd。
+    required=$((concurrency * 2 + 1024))
+    current="$(ulimit -Sn)"
+    hard="$(ulimit -Hn)"
+    target="$requested"
+
+    if [[ "$hard" != "unlimited" ]]; then
+        if [[ ! "$hard" =~ ^[0-9]+$ ]]; then
+            echo "[ERROR] unsupported hard nofile limit: $hard" >&2
+            return 1
+        fi
+        if ((target > hard)); then
+            echo "[WARN] requested nofile=$target exceeds hard limit=$hard; using hard limit" >&2
+            target="$hard"
+        fi
+    fi
+
+    if [[ "$current" != "unlimited" ]]; then
+        if [[ ! "$current" =~ ^[0-9]+$ ]]; then
+            echo "[ERROR] unsupported soft nofile limit: $current" >&2
+            return 1
+        fi
+        if ((current < target)); then
+            if ! ulimit -Sn "$target"; then
+                echo "[ERROR] failed to raise nofile soft limit from $current to $target" >&2
+                return 1
+            fi
+        fi
+    fi
+
+    effective="$(ulimit -Sn)"
+    if [[ "$effective" != "unlimited" ]]; then
+        if [[ ! "$effective" =~ ^[0-9]+$ ]]; then
+            echo "[ERROR] unsupported effective nofile limit: $effective" >&2
+            return 1
+        fi
+        if ((effective < required)); then
+            echo "[ERROR] effective nofile=$effective is below required=$required for concurrency=$concurrency" >&2
+            echo "[ERROR] raise the hard limit or lower CASE27_CONCURRENCY" >&2
+            return 1
+        fi
+    fi
+
+    CASE27_NOFILE_REQUIRED="$required"
+    CASE27_NOFILE_EFFECTIVE="$effective"
+    echo "[INFO] nofile: requested=$requested required=$required effective=$effective hard=$hard"
+}
+
+if ! configure_nofile_limit "$CASE27_NOFILE_LIMIT" "$CONC"; then
+    exit 1
+fi
 
 if [[ ! -f "$CASE_DIR/payloads/${PAYLOAD}.json" ]]; then
     echo "[ERROR] payloads/${PAYLOAD}.json not found" >&2
@@ -133,7 +206,7 @@ fi
 mkdir -p "$MPLCONFIG_DIR"
 echo "[INFO] compare dir: $COMPARE_DIR"
 echo "[INFO] platform_dir: $PLATFORM_DIR (arch=$CJ_ARCH)"
-echo "[INFO] config: payload=$PAYLOAD concurrency=$CONC duration=${DUR}ms heap=$HEAP_SIZE proc=${PROCS:-auto} mode=$CLIENT_MODE msgcMinGCThreshold=$MSGC_MIN_GC_THRESHOLD"
+echo "[INFO] config: payload=$PAYLOAD concurrency=$CONC duration=${DUR}ms heap=$HEAP_SIZE proc=${PROCS:-auto} mode=$CLIENT_MODE nofile=$CASE27_NOFILE_EFFECTIVE msgcMinGCThreshold=$MSGC_MIN_GC_THRESHOLD"
 
 # Linux 下计算 dylib md5（md5sum 输出 "hash  file"）
 dylib_md5() {
@@ -185,6 +258,9 @@ run_side() {
         echo "payload=$PAYLOAD"
         echo "concurrency=$CONC"
         echo "duration_ms=$DUR"
+        echo "nofile_requested=$CASE27_NOFILE_LIMIT"
+        echo "nofile_required=$CASE27_NOFILE_REQUIRED"
+        echo "nofile_effective=$CASE27_NOFILE_EFFECTIVE"
         echo "client_timeout_ms=${CASE27_CLIENT_TIMEOUT_MS:-5000}"
         echo "client_mode=$CLIENT_MODE"
         echo "send_interval_ms=$SEND_INTERVAL_MS"
@@ -427,6 +503,9 @@ run_go_side() {
         echo "payload=$PAYLOAD"
         echo "concurrency=$CONC"
         echo "duration_ms=$DUR"
+        echo "nofile_requested=$CASE27_NOFILE_LIMIT"
+        echo "nofile_required=$CASE27_NOFILE_REQUIRED"
+        echo "nofile_effective=$CASE27_NOFILE_EFFECTIVE"
         echo "client_timeout_ms=${CASE27_CLIENT_TIMEOUT_MS:-5000}"
         echo "client_mode=$CLIENT_MODE"
         echo "send_interval_ms=$SEND_INTERVAL_MS"
