@@ -32,12 +32,16 @@ enum {
     CJ_FS_WK_OVERFLOW          = 8,
 };
 
-/* dirPath must be a directory. recursive=1 for recursive watching. Returns NULL on failure, writes message to *errOut. */
+/* dirPath must be a directory.
+ * recursive=1 for recursive watching.
+ * Returns NULL on failure, writes message to *errOut. */
 CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive, char** errOut);
 
-/* Blocks for up to timeoutMs, fills outBuf with ready events (<=cap). Returns: >=0 event count; -1 fatal error; -2 OS失效. */
+/* Blocks for up to timeoutMs, fills outBuf with ready events (<=cap).
+ * Returns: >=0 event count; -1 fatal error; -2 OS unavailable. */
 int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w, int64_t timeoutMs,
-                           CJ_FS_WatchEvent* outBuf, int64_t cap, char** errOut);
+                           CJ_FS_WatchEvent* outBuf, int64_t cap,
+                           char** errOut);
 
 void CJ_FS_WatcherDestroy(CJ_FS_Watcher* w);
 

@@ -198,8 +198,9 @@ static void pushEvent(CJ_FS_Watcher *w, int32_t kind, const char *base,
 
 /* ---------- Poll ---------- */
 
-int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher *w, int64_t timeoutMs,
-                           CJ_FS_WatchEvent *outBuf, int64_t cap, char **errOut)
+int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher *w,
+                           int64_t timeoutMs, CJ_FS_WatchEvent *outBuf,
+                           int64_t cap, char **errOut)
 {
     if (!w) {
         if (errOut) *errOut = strdup("null watcher");

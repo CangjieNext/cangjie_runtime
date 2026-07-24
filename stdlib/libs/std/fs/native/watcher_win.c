@@ -42,8 +42,14 @@ static void narrowCounted(const wchar_t* w, DWORD nameLenBytes, char* out, int o
 {
     int cchWide = (int)(nameLenBytes / sizeof(wchar_t));
     int n = WideCharToMultiByte(CP_UTF8, 0, w, cchWide, out, outcap, NULL, NULL);
-    if (n < 0) { n = 0; }
-    if (n < outcap) { out[n] = '\0'; } else if (outcap > 0) { out[outcap - 1] = '\0'; }
+    if (n < 0) {
+        n = 0;
+    }
+    if (n < outcap) {
+        out[n] = '\0';
+    } else if (outcap > 0) {
+        out[outcap - 1] = '\0';
+    }
 }
 
 /* Issue (or re-arm) an overlapped ReadDirectoryChangesW call. */
@@ -84,8 +90,8 @@ static void pushEv(CJ_FS_Watcher* w, int32_t kind,
     (*filled)++;
 }
 
-CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive,
-                                    char** errOut)
+CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath,
+                                    int32_t recursive, char** errOut)
 {
     CJ_FS_Watcher* w = (CJ_FS_Watcher*)calloc(1, sizeof(CJ_FS_Watcher));
     if (!w) return NULL;
@@ -137,9 +143,9 @@ void CJ_FS_WatcherDestroy(CJ_FS_Watcher* w)
     free(w);
 }
 
-int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w, int64_t timeoutMs,
-                           CJ_FS_WatchEvent* outBuf, int64_t cap,
-                           char** errOut)
+int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w,
+                           int64_t timeoutMs, CJ_FS_WatchEvent* outBuf,
+                           int64_t cap, char** errOut)
 {
     if (!w) {
         if (errOut) *errOut = strdup("null watcher");
