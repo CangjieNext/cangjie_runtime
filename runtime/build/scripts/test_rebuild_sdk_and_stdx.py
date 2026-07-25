@@ -8,6 +8,7 @@ import pathlib
 import stat
 import tempfile
 import unittest
+from unittest import mock
 
 import rebuild_sdk_and_stdx as target
 
@@ -241,6 +242,44 @@ class RuntimeRelayoutTests(unittest.TestCase):
                 (config.sdk_root / "lib" / platform / "cjld.lds").read_text(),
                 "linker-script\n",
             )
+
+
+class OpenSSLLibraryDiscoveryTests(unittest.TestCase):
+    def test_linux_aarch64_discovers_debian_multiarch_lib_dir(self) -> None:
+        expected = pathlib.Path("/usr/lib/aarch64-linux-gnu")
+
+        with mock.patch.object(
+            pathlib.Path,
+            "is_dir",
+            autospec=True,
+            side_effect=lambda path: path == expected,
+        ):
+            actual = target.resolve_default_openssl_lib(
+                system_name="linux",
+                machine_name="aarch64",
+                multiarch_name="aarch64-linux-gnu",
+                env={},
+            )
+
+        self.assertEqual(actual, expected)
+
+    def test_linux_x86_64_discovers_debian_multiarch_lib_dir(self) -> None:
+        expected = pathlib.Path("/usr/lib/x86_64-linux-gnu")
+
+        with mock.patch.object(
+            pathlib.Path,
+            "is_dir",
+            autospec=True,
+            side_effect=lambda path: path == expected,
+        ):
+            actual = target.resolve_default_openssl_lib(
+                system_name="linux",
+                machine_name="x86_64",
+                multiarch_name="x86_64-linux-gnu",
+                env={},
+            )
+
+        self.assertEqual(actual, expected)
 
 
 class CopyPermissionTests(unittest.TestCase):

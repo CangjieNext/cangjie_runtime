@@ -11,8 +11,9 @@ import stat
 import shutil
 import subprocess
 import sys
+import sysconfig
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Mapping
 
 
 LINUX_COMPILER_LLVM_SHARED_LIBRARY_PATTERNS = (
@@ -535,21 +536,64 @@ def verify_outputs(config: BuildConfig, host: HostLayout) -> None:
         subprocess.run(cmd, check=True, env=clean_env)
 
 
-def resolve_default_openssl_lib() -> pathlib.Path:
-    candidates = []
+def resolve_default_openssl_lib(
+    *,
+    system_name: str | None = None,
+    machine_name: str | None = None,
+    multiarch_name: str | None = None,
+    env: Mapping[str, str] | None = None,
+) -> pathlib.Path:
+    system_name = (system_name or platform.system()).lower()
+    machine_name = (machine_name or platform.machine()).lower()
+    env = os.environ if env is None else env
+    candidates: list[pathlib.Path] = []
 
-    env_value = os.environ.get("OPENSSL_PATH")
+    env_value = env.get("OPENSSL_PATH")
     if env_value:
         candidates.append(pathlib.Path(env_value))
 
-    candidates.extend(
-        [
-            pathlib.Path("/opt/homebrew/opt/openssl@3/lib"),
-            pathlib.Path("/opt/homebrew/Cellar/openssl@3/3.6.1/lib"),
-            pathlib.Path("/usr/local/opt/openssl@3/lib"),
-            pathlib.Path("/usr/local/opt/openssl/lib"),
+    if system_name == "linux":
+        detected_multiarch = multiarch_name or sysconfig.get_config_var("MULTIARCH")
+        fallback_multiarch = {
+            "aarch64": "aarch64-linux-gnu",
+            "arm64": "aarch64-linux-gnu",
+            "x86_64": "x86_64-linux-gnu",
+            "amd64": "x86_64-linux-gnu",
+            "arm": "arm-linux-gnueabihf",
+            "arm32": "arm-linux-gnueabihf",
+        }.get(machine_name)
+        multiarch_names = [
+            name
+            for name in (detected_multiarch, fallback_multiarch)
+            if name
         ]
-    )
+        for name in dict.fromkeys(multiarch_names):
+            candidates.extend(
+                [
+                    pathlib.Path("/usr/local/lib") / name,
+                    pathlib.Path("/usr/lib") / name,
+                    pathlib.Path("/lib") / name,
+                ]
+            )
+        candidates.extend(
+            [
+                pathlib.Path("/usr/local/lib64"),
+                pathlib.Path("/usr/lib64"),
+                pathlib.Path("/lib64"),
+                pathlib.Path("/usr/local/lib"),
+                pathlib.Path("/usr/lib"),
+                pathlib.Path("/lib"),
+            ]
+        )
+    else:
+        candidates.extend(
+            [
+                pathlib.Path("/opt/homebrew/opt/openssl@3/lib"),
+                pathlib.Path("/opt/homebrew/Cellar/openssl@3/3.6.1/lib"),
+                pathlib.Path("/usr/local/opt/openssl@3/lib"),
+                pathlib.Path("/usr/local/opt/openssl/lib"),
+            ]
+        )
 
     for candidate in candidates:
         if candidate.is_dir():
