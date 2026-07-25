@@ -171,6 +171,22 @@ void TestTargetAndPhaseChangesNotifyProgressEpoch()
     control.Stop();
 }
 
+void TestWorkerContinuationStaysInsideOneClaimUntilQuiesce()
+{
+    MSMarkWorkerControl control;
+    control.Start(1);
+    ExpectTrue(control.TryEnterWorker(0), "worker should enter one active burst");
+    ExpectTrue(control.CanContinueWorker(0),
+               "running eligible worker should continue the current burst");
+
+    control.BeginQuiesce();
+    ExpectTrue(!control.CanContinueWorker(0),
+               "quiesce should stop continuation at the next WorkBuf boundary");
+    control.ExitWorker();
+    control.WaitForNoInFlight();
+    control.Stop();
+}
+
 } // namespace
 
 int main()
@@ -182,5 +198,6 @@ int main()
     TestWaitForNoInFlightWaitsForBothKindsOfClaim();
     TestLastClaimExitNotifiesProgressEpoch();
     TestTargetAndPhaseChangesNotifyProgressEpoch();
+    TestWorkerContinuationStaysInsideOneClaimUntilQuiesce();
     return 0;
 }

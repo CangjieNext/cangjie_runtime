@@ -376,6 +376,16 @@ bool MSRegionInfo::IsMarkBitSet(size_t wordIdx, uint64_t bitMask) const
     if (markBitmap == nullptr || wordIdx >= bitmapWords || bitMask == 0) {
         return false;
     }
+    return IsMarkBitSetResolved(wordIdx, bitMask);
+}
+
+bool MSRegionInfo::IsMarkBitSetResolved(size_t wordIdx, uint64_t bitMask) const
+{
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+    size_t bitmapWords = (static_cast<size_t>(totalSlotCount) + 63) / 64;
+    MRT_ASSERT(markBitmap != nullptr && wordIdx < bitmapWords && bitMask != 0,
+               "invalid resolved mark-bitmap coordinate");
+#endif
     uint64_t word = __atomic_load_n(&markBitmap[wordIdx], __ATOMIC_RELAXED);
     return (word & bitMask) != 0;
 }
@@ -417,6 +427,16 @@ uint64_t MSRegionInfo::MarkBitmapWord(size_t wordIdx, uint64_t mask)
     if (markBitmap == nullptr || wordIdx >= bitmapWords || mask == 0) {
         return 0;
     }
+    return MarkBitmapWordResolved(wordIdx, mask);
+}
+
+uint64_t MSRegionInfo::MarkBitmapWordResolved(size_t wordIdx, uint64_t mask)
+{
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+    size_t bitmapWords = (static_cast<size_t>(totalSlotCount) + 63) / 64;
+    MRT_ASSERT(markBitmap != nullptr && wordIdx < bitmapWords && mask != 0,
+               "invalid resolved mark-bitmap coordinate");
+#endif
     uint64_t old = __atomic_fetch_or(&markBitmap[wordIdx], mask, __ATOMIC_RELAXED);
     return mask & ~old;
 }

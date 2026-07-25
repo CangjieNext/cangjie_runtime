@@ -45,7 +45,6 @@
 namespace MapleRuntime {
 
 namespace {
-constexpr size_t kMSMarkWorkerCreditPollInterval = 8;
 constexpr size_t kMSMarkEmptySpinRounds = 8;
 constexpr uint64_t kMSMarkProgressWaitUs = 50;
 
@@ -335,7 +334,7 @@ struct ResolvedMarkTarget {
 
     bool IsMarked() const
     {
-        return isLarge ? info->IsMarked() : info->IsMarkBitSet(wordIdx, bitMask);
+        return isLarge ? info->IsMarked() : info->IsMarkBitSetResolved(wordIdx, bitMask);
     }
 
     bool TryMark() const
@@ -343,7 +342,7 @@ struct ResolvedMarkTarget {
         if (isLarge) {
             return !info->AtomicTestAndSetMarked();
         }
-        return info->MarkBitmapWord(wordIdx, bitMask) != 0;
+        return info->MarkBitmapWordResolved(wordIdx, bitMask) != 0;
     }
 };
 
@@ -360,10 +359,8 @@ static inline bool ResolveMarkTargetImpl(BaseObject* obj, ResolvedMarkTarget& ou
         return false;
     }
 
-    MSRegionInfo* info = MSRegionInfoArray::GetRegionInfoValidated(addr);
-    if (info == nullptr) {
-        return false;
-    }
+    size_t regionOffset = 0;
+    MSRegionInfo* info = MSRegionInfoArray::GetRegionInfoDirect(addr, regionOffset);
 
     if (info->regionType == MSRegionType::MS_REGION_LARGE) {
         MSRegionInfo* base = info;
@@ -377,6 +374,13 @@ static inline bool ResolveMarkTargetImpl(BaseObject* obj, ResolvedMarkTarget& ou
         }
         out.info = base;
         out.isLarge = true;
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+        CHECK_DETAIL(MSRegionInfoArray::GetRegionInfoValidated(addr) == info,
+                     "[MS-GC] direct LARGE Region lookup disagrees with validated lookup: "
+                     "addr=%p direct=%p",
+                     reinterpret_cast<void*>(addr),
+                     static_cast<void*>(info));
+#endif
         return true;
     }
 
@@ -388,16 +392,13 @@ static inline bool ResolveMarkTargetImpl(BaseObject* obj, ResolvedMarkTarget& ou
         return false;
     }
 
-    uintptr_t regionStart = info->RegionStart();
     size_t slotSize = info->GetSlotSize();
-    if (slotSize == 0 || addr < regionStart || info->regionEnd < addr ||
-        info->regionEnd - addr < sizeof(uintptr_t)) {
+    if (slotSize == 0) {
         return false;
     }
 
-    size_t offset = addr - regionStart;
-    size_t slotIdx = SizeClassInfo::OffsetToSlotIndex(info->sizeClass, offset);
-    if (slotIdx >= info->totalSlotCount || slotIdx * slotSize != offset) {
+    size_t slotIdx = SizeClassInfo::OffsetToSlotIndex(info->sizeClass, regionOffset);
+    if (slotIdx >= info->totalSlotCount || slotIdx * slotSize != regionOffset) {
         return false;
     }
     if (info->regionType == MSRegionType::MS_REGION_BUMP && addr >= info->allocPtr) {
@@ -407,6 +408,14 @@ static inline bool ResolveMarkTargetImpl(BaseObject* obj, ResolvedMarkTarget& ou
     out.info = info;
     out.wordIdx = slotIdx / 64;
     out.bitMask = 1ULL << (slotIdx % 64);
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+    CHECK_DETAIL(MSRegionInfoArray::GetRegionInfoValidated(addr) == info,
+                 "[MS-GC] direct small Region lookup disagrees with validated lookup: "
+                 "addr=%p direct=%p regionOffset=%zu",
+                 reinterpret_cast<void*>(addr),
+                 static_cast<void*>(info),
+                 regionOffset);
+#endif
     return true;
 }
 
@@ -608,8 +617,11 @@ bool MarkSweepCollector::MarkObject(BaseObject* obj) const
     return true;
 }
 
-bool MarkSweepCollector::DiscoverObject(BaseObject* obj)
+bool MarkSweepCollector::DiscoverObject(BaseObject* obj, TypeInfo** markedTypeInfo)
 {
+    if (markedTypeInfo != nullptr) {
+        *markedTypeInfo = nullptr;
+    }
     ResolvedMarkTarget target;
     if (UNLIKELY(!ResolveMarkTarget(obj, target))) {
         return false;
@@ -618,15 +630,26 @@ bool MarkSweepCollector::DiscoverObject(BaseObject* obj)
         return false;
     }
     // An unmarked, aligned slot may still be stale and zeroed after Sweep.
-    // Validate its stateWord before this call is allowed to set the mark bit.
-    if (UNLIKELY(!obj->IsValidObject())) {
+    // Acquire and retain its TypeInfo before this call is allowed to set the
+    // mark bit, so the winner does not reload stateWord for HasRef filtering.
+    TypeInfo* typeInfo = obj->GetTypeInfo();
+    if (UNLIKELY(typeInfo == nullptr)) {
         return false;
     }
-    return target.TryMark();
+    if (!target.TryMark()) {
+        return false;
+    }
+    if (markedTypeInfo != nullptr) {
+        *markedTypeInfo = typeInfo;
+    }
+    return true;
 }
 
-bool MarkSweepCollector::DiscoverManagedObject(BaseObject* obj)
+bool MarkSweepCollector::DiscoverManagedObject(BaseObject* obj, TypeInfo** markedTypeInfo)
 {
+    if (markedTypeInfo != nullptr) {
+        *markedTypeInfo = nullptr;
+    }
     ResolvedMarkTarget target;
     if (UNLIKELY(!ResolveManagedMarkTarget(obj, target))) {
         return false;
@@ -634,16 +657,25 @@ bool MarkSweepCollector::DiscoverManagedObject(BaseObject* obj)
     if (target.IsMarked()) {
         return false;
     }
-    if (UNLIKELY(!obj->IsValidObject())) {
+    TypeInfo* typeInfo = obj->GetTypeInfo();
+    if (UNLIKELY(typeInfo == nullptr)) {
         return false;
     }
-    return target.TryMark();
+    if (!target.TryMark()) {
+        return false;
+    }
+    if (markedTypeInfo != nullptr) {
+        *markedTypeInfo = typeInfo;
+    }
+    return true;
 }
 
 bool MarkSweepCollector::ResolveManagedSmallRefForBarrier(BaseObject* ref, MSRegionInfo*& info,
-                                                          size_t& wordIdx, uint64_t& bitMask) const
+                                                          size_t& wordIdx, uint64_t& bitMask,
+                                                          TypeInfo*& whiteTypeInfo) const
 {
     info = nullptr;
+    whiteTypeInfo = nullptr;
     ResolvedMarkTarget target;
     if (UNLIKELY(!ResolveManagedMarkTarget(ref, target)) || target.isLarge) {
         return false;
@@ -651,8 +683,11 @@ bool MarkSweepCollector::ResolveManagedSmallRefForBarrier(BaseObject* ref, MSReg
     // Already-marked entries are safe to batch without touching stateWord:
     // MarkBitmapWord will return no winning bit, so Flush never dereferences
     // the candidate. White entries still require stale-slot validation.
-    if (!target.IsMarked() && UNLIKELY(!ref->IsValidObject())) {
-        return false;
+    if (!target.IsMarked()) {
+        whiteTypeInfo = ref->GetTypeInfo();
+        if (UNLIKELY(whiteTypeInfo == nullptr)) {
+            return false;
+        }
     }
     info = target.info;
     wordIdx = target.wordIdx;
@@ -662,8 +697,9 @@ bool MarkSweepCollector::ResolveManagedSmallRefForBarrier(BaseObject* ref, MSReg
 
 bool MarkSweepCollector::TryEnqueueGreyObject(BaseObject* obj, GreyWorkSink& sink)
 {
-    bool newlyMarked = DiscoverObject(obj);
-    if (newlyMarked && obj->HasRefField()) {
+    TypeInfo* typeInfo = nullptr;
+    bool newlyMarked = DiscoverObject(obj, &typeInfo);
+    if (newlyMarked && typeInfo->HasRefField()) {
         sink.PushGrey(obj);
     }
     return newlyMarked;
@@ -671,8 +707,9 @@ bool MarkSweepCollector::TryEnqueueGreyObject(BaseObject* obj, GreyWorkSink& sin
 
 bool MarkSweepCollector::TryEnqueueGreyObject(BaseObject* obj, GreyWorkQueue& queue)
 {
-    bool newlyMarked = DiscoverObject(obj);
-    if (newlyMarked && obj->HasRefField()) {
+    TypeInfo* typeInfo = nullptr;
+    bool newlyMarked = DiscoverObject(obj, &typeInfo);
+    if (newlyMarked && typeInfo->HasRefField()) {
         queue.PushNewlyGrey(obj);
     }
     return newlyMarked;
@@ -844,7 +881,6 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
     const uint64_t markBudgetUs = markBudgetNs == 0 ? 0 : std::max<uint64_t>(1, markBudgetNs / 1000ULL);
     bool forceConverged = false;
     size_t gcMainProcessed = 0;
-    size_t previousPublishedBacklog = globalFull_.GetCounts().total;
     size_t emptyPollRounds = 0;
 
     while (true) {
@@ -854,10 +890,17 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
         uint64_t observedProgressEpoch = markWorkEpoch_.Load();
 
         // Every published buffer is one GC-main mark slice, regardless of length.
-        size_t scannedCount = DrainOneBufRound(gcThreadWork_, false);
+        LFStack::Counts backlog { 0, 0 };
+        size_t scannedCount = DrainOneBufRound(gcThreadWork_, false, &backlog);
         gcMainProcessed += scannedCount;
+        // The Pop snapshot precedes scanning. A non-empty scan can publish new
+        // output, so refresh from the lock-free scheduling snapshot before
+        // scaling helpers or evaluating convergence. A failed Pop already
+        // returned an exact empty-time snapshot under the queue mutex.
+        if (scannedCount != 0) {
+            backlog = globalFull_.GetApproxCounts();
+        }
 
-        LFStack::Counts backlog = globalFull_.GetCounts();
         size_t publishedBacklog = backlog.total;
         size_t fullBacklog = backlog.full;
         size_t oldHelpers = workerPolicy.GetActiveHelpers();
@@ -882,11 +925,10 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
             }
         }
 
-        // Per-round decayed GC-supply credit injection.
-        bool shouldPollWorkerCredit = scannedCount != 0 || publishedBacklog != previousPublishedBacklog ||
-                                      (roundIdx % kMSMarkWorkerCreditPollInterval) == 0;
-        size_t workerScanned = shouldPollWorkerCredit ? TakePublishedWorkerCredit() : 0;
-        size_t backgroundScanned = scannedCount + workerScanned;
+        // Helper work is intentionally excluded from assist credit. Helpers keep
+        // only exit-time diagnostics; GC-main work remains the sole background
+        // credit source.
+        size_t backgroundScanned = scannedCount;
         if (roundIdx < creditDecayRounds && backgroundScanned > 0) {
             double w = static_cast<double>(creditDecayRounds - roundIdx) /
                        static_cast<double>(creditDecayRounds);
@@ -897,7 +939,6 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
         }
 
         roundIdx++;
-        previousPublishedBacklog = publishedBacklog;
 
         MSMarkWorkerControl::Snapshot controlSnapshot = markWorkerControl_.GetSnapshot();
         bool gcMainInputEmpty = gcThreadWork_.ConcurrentInputEmpty();
@@ -905,6 +946,12 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
                                     controlSnapshot.workersInFlight == 0 &&
                                     controlSnapshot.assistsInFlight == 0;
         if (convergenceCandidate) {
+            // Approximate counts avoid a second queue lock on ordinary rounds.
+            // Zero is confirmed under the queue mutex before one-way quiesce.
+            if (globalFull_.GetCounts().total != 0) {
+                emptyPollRounds = 0;
+                continue;
+            }
             uint64_t quiesceStartUs = TimeUtil::MicroSeconds();
             quiesceResidualBuffers = QuiesceMarkWorkers();
             quiesceDurationUs = TimeUtil::MicroSeconds() - quiesceStartUs;
@@ -996,37 +1043,36 @@ void MarkSweepCollector::RunMarkWorker(size_t workerId)
         if (!markWorkerControl_.TryEnterWorker(workerId)) {
             continue;
         }
-        size_t scanned = DrainOneBufRound(slot.work, false);
-        if (scanned != 0) {
-            slot.stats.RecordScanned(scanned);
+
+        uint64_t observedProgressEpoch = markWorkEpoch_.Load();
+        while (markWorkerControl_.CanContinueWorker(workerId)) {
+            observedProgressEpoch = markWorkEpoch_.Load();
+            bool acquired = slot.work.PromotePutToGet(WorkBuf::kCapacity / 8) ||
+                            slot.work.AcquireOneBuffer() ||
+                            slot.work.PromotePutToGet(1);
+            if (!acquired) {
+                break;
+            }
+
+            size_t scanned = DrainCurrentBuf(slot.work);
+            if (scanned != 0) {
+                slot.stats.RecordScanned(scanned);
+            }
         }
-        if (scanned == 0) {
-            slot.stats.PublishPendingCredit();
-        }
+
         markWorkerControl_.ExitWorker();
-        if (scanned == 0) {
-            markWorkerControl_.BackoffWorker();
+        if (markWorkerControl_.CanContinueWorker(workerId)) {
+            (void)markWorkEpoch_.WaitForChange(
+                observedProgressEpoch, std::chrono::microseconds(kMSMarkProgressWaitUs));
         }
     }
     slot.work.Dispose();
-}
-
-size_t MarkSweepCollector::TakePublishedWorkerCredit()
-{
-    size_t total = 0;
-    for (const auto& slot : markWorkerSlots_) {
-        total += slot->stats.TakePublishedCredit();
-    }
-    return total;
 }
 
 size_t MarkSweepCollector::QuiesceMarkWorkers()
 {
     markWorkerControl_.BeginQuiesce();
     markWorkerControl_.WaitForNoInFlight();
-    for (const auto& slot : markWorkerSlots_) {
-        slot->stats.PublishPendingCredit();
-    }
     // Do not publish private partial putCur_ tails here. Under sustained write-
     // barrier traffic, repeatedly closing those tails concurrently can prevent
     // convergence while every new allocation is conservatively marked live.
@@ -1073,16 +1119,18 @@ void MarkSweepCollector::DrainMarkWorkStack()
 // TraceObjectRefFieldsToGCWork: trace all ref fields of obj, push grey children
 // into PerPGCWork (Step5 replacement for TraceObjectRefFields on WorkStack).
 // ============================================================================
-void MarkSweepCollector::TraceObjectRefFieldsToGCWork(BaseObject* obj, PerPGCWork& gcw)
+void MarkSweepCollector::TraceObjectRefFieldsToGCWork(BaseObject* obj, TypeInfo* typeInfo,
+                                                      PerPGCWork& gcw)
 {
     auto refFunc = [this, &gcw](RefField<>& field) {
         BaseObject* target = MSLoadRawReference(field);
-        bool newlyMarked = DiscoverObject(target);
-        if (newlyMarked && target->HasRefField()) {
+        TypeInfo* targetTypeInfo = nullptr;
+        bool newlyMarked = DiscoverObject(target, &targetTypeInfo);
+        if (newlyMarked && targetTypeInfo->HasRefField()) {
             gcw.PutObj(target);
         }
     };
-    ForEachRefFieldGCInline(obj, refFunc);
+    ForEachRefFieldGCKnownType(obj, typeInfo, refFunc);
 }
 
 // ============================================================================
@@ -1222,6 +1270,20 @@ void MarkSweepCollector::PushSingleToDeferredMainThread(BaseObject* obj)
     deferredMainThreadQueue_.PushMovedGrey(obj);
 }
 
+void MarkSweepCollector::PushTrustedGreyToDeferredMainThread(BaseObject* obj)
+{
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+    if (UNLIKELY(obj == nullptr || !IsTraceableObjectAddress(obj) ||
+                 !obj->IsValidObject() || !IsMarkedObject(obj) ||
+                 !obj->HasRefField())) {
+        LOG(RTLOG_FATAL, "[MS-GC] invalid trusted-grey deferred object: %p",
+            static_cast<void*>(obj));
+    }
+#endif
+    std::lock_guard<std::mutex> lock(deferredMainThreadMutex_);
+    deferredMainThreadQueue_.PushMovedGrey(obj);
+}
+
 // ============================================================================
 // Step5: LFStack helpers
 // ============================================================================
@@ -1235,17 +1297,17 @@ void MarkSweepCollector::DrainGlobalLFStackToMainQueue(GreyWorkQueue& mainQueue)
         }
         for (size_t i = 0; i < buf->len; i++) {
             BaseObject* obj = buf->objs[i];
-            if (UNLIKELY(WorkBuf::kRevalidateTrustedGrey)) {
-                if (obj == nullptr) {
-                    continue;
-                }
-                if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-                    continue;
-                }
-                if (UNLIKELY(!obj->IsValidObject())) {
-                    continue;
-                }
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+            if (obj == nullptr) {
+                continue;
             }
+            if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
+                continue;
+            }
+            if (UNLIKELY(!obj->IsValidObject())) {
+                continue;
+            }
+#endif
             mainQueue.PushMovedGrey(obj);
         }
         workBufPool_.Put(buf);
@@ -1327,49 +1389,72 @@ void MarkSweepCollector::ResetAllPerPGCWork()
 // main/helpers accept partial buffers; mutator assist remains full-only.
 // Children go to private putCur_ until full or a convergence handshake.
 // ============================================================================
-size_t MarkSweepCollector::DrainOneBufRound(PerPGCWork& gcw, bool requireFull)
+size_t MarkSweepCollector::DrainOneBufRound(PerPGCWork& gcw, bool requireFull,
+                                           LFStack::Counts* countsAfterPop)
 {
-    bool acquired = requireFull ? gcw.AcquireOneFullBuffer() : gcw.AcquireOneBuffer();
+    bool acquired = false;
+    if (requireFull) {
+        acquired = gcw.AcquireOneFullBuffer();
+        if (countsAfterPop != nullptr) {
+            *countsAfterPop = globalFull_.GetCounts();
+        }
+    } else if (countsAfterPop != nullptr) {
+        acquired = gcw.AcquireOneBuffer(*countsAfterPop);
+    } else {
+        acquired = gcw.AcquireOneBuffer();
+    }
     if (!acquired) {
         return 0;
     }
+    return DrainCurrentBuf(gcw);
+}
 
+size_t MarkSweepCollector::DrainCurrentBuf(PerPGCWork& gcw)
+{
+    WorkBuf* input = gcw.getCur_;
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
     size_t nProcessed = 0;
-    while (gcw.getCur_ != nullptr && !gcw.getCur_->Empty()) {
-        BaseObject* obj = gcw.getCur_->Pop();
-        if (UNLIKELY(WorkBuf::kRevalidateTrustedGrey)) {
-            if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
-                continue;
-            }
-            if (UNLIKELY(!obj->IsValidObject())) {
-                LOG(RTLOG_FATAL, "[MS-GC] DrainOneBufRound: FATAL invalid stateWord obj=%p, "
-                    "stateWord=0x%zx, markBit=%d",
-                    (void*)obj,
-                    *reinterpret_cast<uintptr_t*>(obj),
-                    (int)IsMarkedObject(obj));
-            }
+#else
+    size_t nProcessed = input == nullptr ? 0 : input->len;
+#endif
+    while (input != nullptr && !input->Empty()) {
+        BaseObject* obj = input->Pop();
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+        if (UNLIKELY(!IsTraceableObjectAddress(obj))) {
+            LOG(RTLOG_FATAL, "[MS-GC] DrainCurrentBuf: FATAL non-traceable "
+                "trusted-grey obj=%p", static_cast<void*>(obj));
+        }
+#endif
+        TypeInfo* typeInfo = obj->GetTypeInfo();
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+        if (UNLIKELY(typeInfo == nullptr || !IsMarkedObject(obj) ||
+                     !typeInfo->HasRefField())) {
+            LOG(RTLOG_FATAL, "[MS-GC] DrainCurrentBuf: FATAL invalid trusted-grey obj=%p, "
+                "stateWord=0x%zx, markBit=%d, hasRef=%d",
+                (void*)obj,
+                *reinterpret_cast<uintptr_t*>(obj),
+                (int)IsMarkedObject(obj),
+                typeInfo == nullptr ? 0 : (int)typeInfo->HasRefField());
         }
         nProcessed++;
-        if (!obj->HasRefField()) {
+#endif
+        if (UNLIKELY(typeInfo->IsWeakRefType())) {
+            PushTrustedGreyToDeferredMainThread(obj);
             continue;
         }
-        if (UNLIKELY(obj->IsWeakRef())) {
-            PushSingleToDeferredMainThread(obj);
-            continue;
-        }
-        TraceObjectRefFieldsToGCWork(obj, gcw);
+        TraceObjectRefFieldsToGCWork(obj, typeInfo, gcw);
     }
     // Never cascade into partial putCur_ in the same slice.
-    if (gcw.getCur_ != nullptr) {
-        gcw.workBufPool_->Put(gcw.getCur_);
-        gcw.getCur_ = nullptr;
+    if (input != nullptr) {
+        gcw.RecycleCurrentInput();
     }
     return nProcessed;
 }
 
 // ============================================================================
-// MSMarkAssist: preserve allocation-debt pacing, but consume at most one full
-// global buffer per call. Partial mark output remains in putCur_ until full/STW.
+// MSMarkAssist: consume at most one full global input per call. After claiming
+// that input, merge newly discovered objects into one Global Partial builder and
+// publish the builder before returning.
 // ============================================================================
 size_t MarkSweepCollector::MSMarkAssist(AllocBufferMS& allocBuffer, size_t debtObjects)
 {
@@ -1393,8 +1478,11 @@ size_t MarkSweepCollector::MSMarkAssist(AllocBufferMS& allocBuffer, size_t debtO
     // ② One full global buffer pays exactly one buffer of remaining debt.
     size_t remainDebt = (debtObjects > paidByBg) ? (debtObjects - paidByBg) : 0;
     size_t paidByGlobal = 0;
-    if (remainDebt >= WorkBuf::kCapacity) {
-        size_t nDrained = DrainOneBufRound(gcw, true);
+    if (remainDebt >= WorkBuf::kCapacity && gcw.AcquireOneFullBuffer()) {
+        WorkBuf* output = gcw.AcquirePartialOutputBuffer();
+        CHECK_DETAIL(output != nullptr, "MSGC Mark Assist failed to acquire an output WorkBuf");
+        size_t nDrained = DrainCurrentBuf(gcw);
+        gcw.PublishPartialOutput();
         if (nDrained > 0) {
             paidByGlobal = WorkBuf::kCapacity;
             stats.processed += nDrained;

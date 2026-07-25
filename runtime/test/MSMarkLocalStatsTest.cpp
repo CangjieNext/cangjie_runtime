@@ -16,26 +16,13 @@ void ExpectEq(size_t actual, size_t expected, const char* message)
     }
 }
 
-void TestWorkerCreditPublishesInBatches()
+void TestWorkerProcessedCountRemainsLocalUntilExit()
 {
-    MSMarkWorkerLocalStats stats(4);
+    MSMarkWorkerLocalStats stats;
     stats.RecordScanned(1024);
-    stats.RecordScanned(1024);
-    stats.RecordScanned(1024);
-    ExpectEq(stats.TakePublishedCredit(), 0, "three buffers should remain worker-local");
-
-    stats.RecordScanned(1024);
-    ExpectEq(stats.TakePublishedCredit(), 4096, "four buffers should publish one credit batch");
-    ExpectEq(stats.TotalProcessed(), 4096, "processed count should remain locally accumulated");
-}
-
-void TestWorkerCreditFlushesTail()
-{
-    MSMarkWorkerLocalStats stats(4);
     stats.RecordScanned(123);
-    stats.PublishPendingCredit();
-    ExpectEq(stats.TakePublishedCredit(), 123, "idle/quiesce flush should publish the tail");
-    ExpectEq(stats.TakePublishedCredit(), 0, "published credit should be consumed once");
+    ExpectEq(stats.TotalProcessed(), 1147,
+             "processed count should remain locally accumulated until worker exit");
 }
 
 void TestAssistStatsMergeAndReset()
@@ -56,8 +43,7 @@ void TestAssistStatsMergeAndReset()
 
 int main()
 {
-    TestWorkerCreditPublishesInBatches();
-    TestWorkerCreditFlushesTail();
+    TestWorkerProcessedCountRemainsLocalUntilExit();
     TestAssistStatsMergeAndReset();
     return 0;
 }

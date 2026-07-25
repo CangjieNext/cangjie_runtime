@@ -97,8 +97,8 @@ for function_name in DumpGCStateSnapshot DumpRegionStatsMS; do
 done
 
 if ! rg -q 'trueLiveBytes|gcMainProcessedObjects|helperProcessedObjects|assistProcessedObjects' "$MARK_HEADER" ||
-   ! rg -q 'publishedCredit_' "$MARK_LOCAL_STATS"; then
-    echo "threshold and mark-assist pacing inputs must remain" >&2
+   rg -q 'publishedCredit_|pendingCredit_|pendingBuffers_' "$MARK_LOCAL_STATS"; then
+    echo "cycle totals must remain while Helper background-credit state is removed" >&2
     exit 1
 fi
 

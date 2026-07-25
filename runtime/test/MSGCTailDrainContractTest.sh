@@ -35,4 +35,22 @@ if ! rg -Uq 'if \(convergenceCandidate\) \{[[:space:][:print:]]*quiesceResidualB
     exit 1
 fi
 
+if ! rg -Uq 'RunMarkWorker\(size_t workerId\)[[:space:][:print:]]*TryEnterWorker\(workerId\)[[:space:][:print:]]*while \(markWorkerControl_\.CanContinueWorker\(workerId\)\)[[:space:][:print:]]*ExitWorker\(\)' \
+    "$COLLECTOR_SOURCE"; then
+    echo "MSGC Helper must use one in-flight claim for one multi-buffer burst" >&2
+    exit 1
+fi
+
+if ! rg -Uq 'PromotePutToGet\(WorkBuf::kCapacity / 8\)[[:space:][:print:]]*AcquireOneBuffer\(\)[[:space:][:print:]]*PromotePutToGet\(1\)' \
+    "$COLLECTOR_SOURCE"; then
+    echo "MSGC Helper work order must be local-large, one-lock Global Full/Partial, local-small" >&2
+    exit 1
+fi
+
+if ! rg -Uq 'if \(remainDebt >= WorkBuf::kCapacity && gcw\.AcquireOneFullBuffer\(\)\)[[:space:][:print:]]*AcquirePartialOutputBuffer\(\)[[:space:][:print:]]*PublishPartialOutput\(\)' \
+    "$COLLECTOR_SOURCE"; then
+    echo "MSGC Assist must claim Full input before borrowing and publishing Partial output" >&2
+    exit 1
+fi
+
 echo "MSGC direct one-way quiesce contract holds"

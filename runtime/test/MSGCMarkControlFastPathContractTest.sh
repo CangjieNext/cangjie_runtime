@@ -28,8 +28,26 @@ if ! rg -q 'MSMarkWorkerControl::Snapshot controlSnapshot = markWorkerControl_\.
     exit 1
 fi
 
-if ! rg -q 'kMSMarkWorkerCreditPollInterval' "$COLLECTOR_SOURCE"; then
-    echo "GC main must not scan every worker slot on every empty poll" >&2
+if rg -q 'kMSMarkWorkerCreditPollInterval|TakePublishedWorkerCredit|publishedCredit_' \
+    "$COLLECTOR_SOURCE" "$ROOT_DIR/src/Heap/MCollector/MarkSweepCollector.h" \
+    "$ROOT_DIR/src/Heap/MCollector/MSMarkLocalStats.h"; then
+    echo "MSGC Helper must not retain the old background-credit publication path" >&2
+    exit 1
+fi
+
+if ! rg -q 'size_t backgroundScanned = scannedCount;' "$COLLECTOR_SOURCE"; then
+    echo "GC main background credit must only use GC-main scanned work" >&2
+    exit 1
+fi
+
+if ! rg -q 'markWorkerControl_\.CanContinueWorker\(workerId\)' "$COLLECTOR_SOURCE"; then
+    echo "MSGC Helper must continue multiple buffers inside one active claim" >&2
+    exit 1
+fi
+
+if ! rg -Uq 'PromotePutToGet\(WorkBuf::kCapacity / 8\)[[:space:][:print:]]*AcquireOneBuffer\(\)[[:space:][:print:]]*PromotePutToGet\(1\)' \
+    "$COLLECTOR_SOURCE"; then
+    echo "MSGC Helper must consume Full/Partial through one Full-first Global claim" >&2
     exit 1
 fi
 

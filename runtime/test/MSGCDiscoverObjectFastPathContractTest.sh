@@ -59,8 +59,12 @@ require_order() {
     done
 }
 
-discover="$(extract_function "$COLLECTOR_CPP" 'bool MarkSweepCollector::DiscoverObject(BaseObject* obj)')"
-trace="$(extract_function "$COLLECTOR_CPP" 'void MarkSweepCollector::TraceObjectRefFieldsToGCWork(BaseObject* obj, PerPGCWork& gcw)')"
+discover="$(extract_function "$COLLECTOR_CPP" \
+    'bool MarkSweepCollector::DiscoverObject(BaseObject* obj, TypeInfo** markedTypeInfo)')"
+resolve="$(extract_function "$COLLECTOR_CPP" \
+    'static inline bool ResolveMarkTargetImpl(BaseObject* obj, ResolvedMarkTarget& out,')"
+trace="$(extract_function "$COLLECTOR_CPP" \
+    'void MarkSweepCollector::TraceObjectRefFieldsToGCWork(BaseObject* obj, TypeInfo* typeInfo,')"
 enum_ref="$(extract_function "$COLLECTOR_CPP" 'void MarkSweepCollector::EnumRefFieldRoot(RefField<>& ref, RootSet& rootSet) const')"
 enum_raw="$(extract_function "$COLLECTOR_CPP" 'void MarkSweepCollector::EnumAndTagRawRoot(ObjectRef& root, RootSet& rootSet) const')"
 enqueue_fast="$(extract_function "$BARRIER_CPP" 'static inline void EnqueueRefFast(BaseObject* ref)')"
@@ -68,12 +72,20 @@ enqueue_inner="$(extract_function "$BARRIER_CPP" 'static inline void EnqueueRefI
 
 require_present "$discover" 'ResolveMarkTarget\(' \
     'DiscoverObject must resolve the mark target exactly once'
-require_order "$discover" 'ResolveMarkTarget\(' '\.IsMarked\(' 'IsValidObject\(' '\.TryMark\('
+require_order "$discover" 'ResolveMarkTarget\(' '\.IsMarked\(' 'GetTypeInfo\(' '\.TryMark\('
+require_absent "$discover" 'IsValidObject\(' \
+    'DiscoverObject must reuse the TypeInfo acquired for white-slot validation'
 require_absent "$discover" 'allocBitmap' \
     'DiscoverObject fast path must not read the concurrently mutated allocBitmap'
+require_present "$resolve" 'GetRegionInfoDirect\(' \
+    'ResolveMarkTargetImpl must derive RegionInfo and Region offset in one direct lookup'
+require_absent "$resolve" 'MSRegionInfo\* info = MSRegionInfoArray::GetRegionInfoValidated\(' \
+    'ResolveMarkTargetImpl Release lookup must not start from adjacent-entry validation'
 
 require_absent "$trace" 'IsManagedAddress|IsHeapAddress' \
     'object graph tracing must leave heap validation to DiscoverObject'
+require_present "$trace" 'ForEachRefFieldGCKnownType' \
+    'object graph tracing contract must inspect the current known-TypeInfo scanner'
 require_absent "$enum_ref" 'IsManagedAddress|IsHeapAddress' \
     'reference-root enumeration must leave heap validation to DiscoverObject'
 require_absent "$enum_raw" 'IsManagedAddress|IsHeapAddress' \

@@ -7,29 +7,34 @@
 #ifndef MRT_GC_REF_FIELD_SCAN_INLINE_H
 #define MRT_GC_REF_FIELD_SCAN_INLINE_H
 
+#include <utility>
+
 #include "ObjectModel/MArray.inline.h"
 
 namespace MapleRuntime {
 
 template<class Visitor>
-inline void ForEachRefFieldInNonArrayObjectGC(BaseObject* obj, Visitor& visitor)
+inline void ForEachRefFieldInNonArrayObjectGCKnownType(BaseObject* obj, TypeInfo* typeInfo,
+                                                       Visitor& visitor)
 {
     MAddress objAddr = reinterpret_cast<MAddress>(obj) + TYPEINFO_PTR_SIZE;
-    obj->GetGCTib().ForEachBitmapWordFast(objAddr, visitor);
+    typeInfo->GetGCTib().ForEachBitmapWordFast(objAddr, visitor);
 }
 
 template<class Visitor>
-inline void ForEachElementInArrayGC(BaseObject* obj, Visitor& visitor)
+inline void ForEachElementInArrayGCKnownType(BaseObject* obj, TypeInfo* typeInfo,
+                                             Visitor& visitor)
 {
     MArray* mArray = reinterpret_cast<MArray*>(obj);
     MIndex arrayLength = mArray->GetLength();
-    TypeInfo* componentTypeInfo = mArray->GetComponentTypeInfo();
+    TypeInfo* componentTypeInfo = typeInfo->GetComponentTypeInfo();
     if (componentTypeInfo->IsStructType()) {
         GCTib gcTib = componentTypeInfo->GetGCTib();
         MAddress contentAddr = reinterpret_cast<Uptr>(mArray) + MArray::GetContentOffset();
+        MSize elementSize = componentTypeInfo->GetComponentSize();
         for (MIndex i = 0; i < arrayLength; ++i) {
             gcTib.ForEachBitmapWordFast(contentAddr, visitor);
-            contentAddr += mArray->GetElementSize();
+            contentAddr += elementSize;
         }
     } else if (componentTypeInfo->IsObjectType() || componentTypeInfo->IsArrayType() ||
                componentTypeInfo->IsInterface()) {
@@ -43,19 +48,25 @@ inline void ForEachElementInArrayGC(BaseObject* obj, Visitor& visitor)
 }
 
 template<class Visitor>
+inline void ForEachRefFieldGCKnownType(BaseObject* obj, TypeInfo* typeInfo,
+                                       Visitor&& visitor)
+{
+    auto& scanVisitor = visitor;
+    if (UNLIKELY(typeInfo->IsRawArray())) {
+        ForEachElementInArrayGCKnownType(obj, typeInfo, scanVisitor);
+        return;
+    }
+    ForEachRefFieldInNonArrayObjectGCKnownType(obj, typeInfo, scanVisitor);
+}
+
+template<class Visitor>
 inline void ForEachRefFieldGCInline(BaseObject* obj, Visitor&& visitor)
 {
     TypeInfo* typeInfo = obj->GetTypeInfo();
     if (!typeInfo->HasRefField()) {
         return;
     }
-
-    auto& scanVisitor = visitor;
-    if (UNLIKELY(typeInfo->IsRawArray())) {
-        ForEachElementInArrayGC(obj, scanVisitor);
-        return;
-    }
-    ForEachRefFieldInNonArrayObjectGC(obj, scanVisitor);
+    ForEachRefFieldGCKnownType(obj, typeInfo, std::forward<Visitor>(visitor));
 }
 
 } // namespace MapleRuntime

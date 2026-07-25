@@ -45,8 +45,9 @@ static inline void EnqueueRefInto(MarkSweepCollector* collector,
     // logs it — already-grey / non-traceable refs are dropped here (perfect
     // dedup at the source). The logged buffer therefore holds only grey objects,
     // so the consumer scans them directly (no deferred discover).
-    bool newlyMarked = collector->ShadeManagedRefForBarrier(ref);
-    if (newlyMarked && ref->HasRefField()) {
+    TypeInfo* typeInfo = nullptr;
+    bool newlyMarked = collector->ShadeManagedRefForBarrier(ref, &typeInfo);
+    if (newlyMarked && typeInfo->HasRefField()) {
         AppendMarkedRefInto(collector, allocBuf, ref);
     }
 }
@@ -97,9 +98,11 @@ public:
         MSRegionInfo* info = nullptr;
         size_t wordIdx = 0;
         uint64_t bitMask = 0;
-        if (!collector_->ResolveManagedSmallRefForBarrier(ref, info, wordIdx, bitMask)) {
-            bool newlyMarked = collector_->ShadeManagedRefForBarrier(ref);
-            if (newlyMarked && ref->HasRefField()) {
+        TypeInfo* typeInfo = nullptr;
+        if (!collector_->ResolveManagedSmallRefForBarrier(
+                ref, info, wordIdx, bitMask, typeInfo)) {
+            bool newlyMarked = collector_->ShadeManagedRefForBarrier(ref, &typeInfo);
+            if (newlyMarked && typeInfo->HasRefField()) {
                 AppendMarkedRefInto(collector_, allocBuf_, ref);
             }
             return;
@@ -109,6 +112,7 @@ public:
         unsigned bitIdx = static_cast<unsigned>(__builtin_ctzll(bitMask));
         if ((entry->mask & bitMask) == 0) {
             entry->refs[bitIdx] = ref;
+            entry->typeInfos[bitIdx] = typeInfo;
             entry->mask |= bitMask;
         }
     }
@@ -128,6 +132,7 @@ private:
         size_t wordIdx = 0;
         uint64_t mask = 0;
         BaseObject* refs[64] = {};
+        TypeInfo* typeInfos[64] = {};
     };
 
     Entry* FindOrAllocate(MSRegionInfo* info, size_t wordIdx)
@@ -161,7 +166,12 @@ private:
         while (newBits != 0) {
             unsigned bitIdx = static_cast<unsigned>(__builtin_ctzll(newBits));
             BaseObject* ref = entry.refs[bitIdx];
-            if (ref->HasRefField()) {
+            TypeInfo* typeInfo = entry.typeInfos[bitIdx];
+#if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
+            MRT_ASSERT(typeInfo != nullptr,
+                       "bulk mark winner must retain its validated TypeInfo");
+#endif
+            if (typeInfo->HasRefField()) {
                 AppendMarkedRefInto(collector_, allocBuf_, ref);
             }
             newBits &= newBits - 1;

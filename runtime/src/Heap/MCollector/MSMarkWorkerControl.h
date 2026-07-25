@@ -85,6 +85,11 @@ public:
         return true;
     }
 
+    bool CanContinueWorker(size_t workerId) const
+    {
+        return IsEligible(workerId);
+    }
+
     void ExitWorker()
     {
         workersInFlight_.fetch_sub(1, std::memory_order_acq_rel);

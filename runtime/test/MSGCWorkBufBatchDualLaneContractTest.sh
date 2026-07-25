@@ -35,10 +35,20 @@ require_pattern "$LFSTACK_HEADER" 'size_t PopN\(WorkBuf\*\* out, size_t n\)' \
     'LFStack must provide one-lock batch removal'
 require_pattern "$LFSTACK_HEADER" 'void PushChain\(WorkBuf\* head\)' \
     'LFStack must provide one-lock chain publication'
+require_pattern "$LFSTACK_HEADER" 'PopResult PopWithCounts\(\)' \
+    'LFStack must return one-lock post-pop counts to GC Main'
+require_pattern "$LFSTACK_HEADER" 'Counts GetApproxCounts\(\) const' \
+    'LFStack must expose a lock-free post-scan scheduling snapshot'
 require_pattern "$LFSTACK_HEADER" 'size_t got = freeList_\.PopN\(out, n\);' \
     'WorkBufPool::GetN must use the batch free-list operation'
 require_pattern "$LFSTACK_HEADER" 'freeList_\.PushChain\(head\);' \
     'WorkBufPool::PutChain must publish the returned chain in one batch'
+require_pattern "$LFSTACK_HEADER" 'void RecycleCurrentInput\(\)' \
+    'PerPGCWork must retain drained input in its local empty-buffer cache'
+require_pattern "$LFSTACK_HEADER" 'workBufPool_->GetN\(bufs, kLocalEmptyCacheCapacity\)' \
+    'PerPGCWork must refill its local empty-buffer cache in one pool operation'
+require_pattern "$LFSTACK_HEADER" 'workBufPool_->PutChain\(chain\);' \
+    'PerPGCWork must flush its local empty-buffer cache in one pool operation'
 require_pattern "$ALLOC_HEADER" 'pool\.PutChain\(chain\);' \
     'AllocBufferMS must return its detached log cache as one chain'
 reject_pattern "$ALLOC_HEADER" 'while \(logCache_ != nullptr\)' \

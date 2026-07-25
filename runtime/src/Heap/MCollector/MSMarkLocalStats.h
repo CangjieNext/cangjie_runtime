@@ -5,51 +5,21 @@
 #ifndef MRT_MS_MARK_LOCAL_STATS_H
 #define MRT_MS_MARK_LOCAL_STATS_H
 
-#include <atomic>
 #include <cstddef>
 
 namespace MapleRuntime {
 
 class MSMarkWorkerLocalStats {
 public:
-    explicit MSMarkWorkerLocalStats(size_t buffersPerPublish)
-        : buffersPerPublish_(buffersPerPublish)
-    {
-    }
-
     void RecordScanned(size_t scanned)
     {
         totalProcessed_ += scanned;
-        pendingCredit_ += scanned;
-        pendingBuffers_++;
-        if (pendingBuffers_ >= buffersPerPublish_) {
-            PublishPendingCredit();
-        }
-    }
-
-    void PublishPendingCredit()
-    {
-        if (pendingCredit_ == 0) {
-            return;
-        }
-        publishedCredit_.fetch_add(pendingCredit_, std::memory_order_release);
-        pendingCredit_ = 0;
-        pendingBuffers_ = 0;
-    }
-
-    size_t TakePublishedCredit()
-    {
-        return publishedCredit_.exchange(0, std::memory_order_acq_rel);
     }
 
     size_t TotalProcessed() const { return totalProcessed_; }
 
 private:
-    const size_t buffersPerPublish_;
     size_t totalProcessed_ = 0;
-    size_t pendingCredit_ = 0;
-    size_t pendingBuffers_ = 0;
-    std::atomic<size_t> publishedCredit_{0};
 };
 
 struct MSMarkAssistStats {

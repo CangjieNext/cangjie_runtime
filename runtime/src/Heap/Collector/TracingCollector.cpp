@@ -572,19 +572,29 @@ void TracingCollector::EnumFinalizerProcessorRoots(RootSet& rootSet) const
 
 void TracingCollector::EnumAllSurrectedExportRoots(RootSet &rootSet)
 {
+#ifdef MRT_USE_MARK_SWEEP
+    auto appendRoot = [this, &rootSet](BaseObject* obj) {
+        ObjectRef root { obj };
+        EnumAndTagRawRoot(root, rootSet);
+    };
+#else
+    auto appendRoot = [&rootSet](BaseObject* obj) {
+        rootSet.push_back(obj);
+    };
+#endif
     {
         std::lock_guard<std::mutex> lg(resurrectExportMtx);
         for (auto* obj : resurrectedExportObjectes) {
-            rootSet.push_back(obj);
+            appendRoot(obj);
         }
     }
     std::lock_guard<std::mutex> lg(cycleWorkStackMtx);
     auto it = cycleRefWorkStack.begin();
     while (it != cycleRefWorkStack.end()) {
         BaseObject* exportObj = it->first;
-        rootSet.push_back(exportObj);
+        appendRoot(exportObj);
         for (auto &externObj : it->second) {
-            rootSet.push_back(externObj);
+            appendRoot(externObj);
         }
         it++;
     }

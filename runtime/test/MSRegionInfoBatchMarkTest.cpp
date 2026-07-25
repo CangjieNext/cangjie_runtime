@@ -11,9 +11,6 @@
 #define DCHECK(...)
 #define LOG(...)
 #define DLOG(...)
-#define RTLOG_FATAL 0
-#define RTLOG_INFO 1
-#define RTLOG_ERROR 2
 #define CHECK_DETAIL(x, ...)                                                                     \
     do {                                                                                         \
         if (!(x)) {                                                                              \
@@ -45,9 +42,14 @@ uint64_t* MSBitmapArena::GetSlotBase(size_t)
 
 #include "src/Heap/MAllocator/MSRegionInfo.cpp"
 
+namespace MapleRuntime {
+extern "C" MSGCFastPathState CJ_MRT_MSGCFastPathState = {};
+}
+
 namespace {
 
 using MapleRuntime::MSRegionInfo;
+using MapleRuntime::MSRegionInfoArray;
 
 void ExpectEq(uint64_t actual, uint64_t expected, const char* message)
 {
@@ -106,6 +108,52 @@ void TestMarkedProbeUsesResolvedWordAndBit()
     ExpectEq(region.IsMarkBitSet(0, 1ULL << 5), 0, "null bitmap rejected");
 }
 
+void TestResolvedBitmapAccessUsesValidatedCoordinates()
+{
+    uint64_t bitmap[] = { 1ULL << 2, 0 };
+    MSRegionInfo region {};
+    region.markBitmap = bitmap;
+    region.totalSlotCount = 128;
+
+    ExpectEq(region.IsMarkBitSetResolved(0, 1ULL << 2), 1,
+             "resolved marked probe hit");
+    ExpectEq(region.IsMarkBitSetResolved(0, 1ULL << 7), 0,
+             "resolved marked probe miss");
+    ExpectEq(region.MarkBitmapWordResolved(0, (1ULL << 2) | (1ULL << 7)),
+             1ULL << 7,
+             "resolved mark returns only the winning bit");
+    ExpectEq(bitmap[0], (1ULL << 2) | (1ULL << 7),
+             "resolved mark updates the validated bitmap word");
+}
+
+void TestDirectRegionLookupReturnsInfoAndOffsetFromOneHeapCoordinate()
+{
+    constexpr uintptr_t heapStart = 0x10000000;
+    MSRegionInfo regions[3] {};
+    MSRegionInfoArray::Init(heapStart, 3, regions);
+
+    size_t regionOffset = 0;
+    uintptr_t address = heapStart + MapleRuntime::MS_REGION_SIZE + 137;
+    MSRegionInfo* info = MSRegionInfoArray::GetRegionInfoDirect(address, regionOffset);
+
+    if (info != &regions[1]) {
+        std::fprintf(stderr, "direct lookup returned the wrong RegionInfo\n");
+        std::abort();
+    }
+    ExpectEq(regionOffset, 137, "direct lookup region offset");
+
+    address = heapStart + 2 * MapleRuntime::MS_REGION_SIZE - 1;
+    info = MSRegionInfoArray::GetRegionInfoDirect(address, regionOffset);
+    if (info != &regions[1]) {
+        std::fprintf(stderr, "last byte of a Region must not map to its successor\n");
+        std::abort();
+    }
+    ExpectEq(regionOffset, MapleRuntime::MS_REGION_SIZE - 1,
+             "direct lookup last-byte offset");
+
+    MSRegionInfoArray::Cleanup();
+}
+
 } // namespace
 
 int main()
@@ -113,5 +161,7 @@ int main()
     TestBatchMarkReturnsOnlyNewBits();
     TestBatchMarkKeepsWordsIndependent();
     TestMarkedProbeUsesResolvedWordAndBit();
+    TestResolvedBitmapAccessUsesValidatedCoordinates();
+    TestDirectRegionLookupReturnsInfoAndOffsetFromOneHeapCoordinate();
     return 0;
 }

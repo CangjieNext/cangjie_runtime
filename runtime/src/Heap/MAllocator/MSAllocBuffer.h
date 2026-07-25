@@ -145,13 +145,12 @@ public:
     // Return every cached WorkBuf to the global pool. Called at GC cycle end.
     void DrainLogCacheToPool(WorkBufPool& pool)
     {
-        while (logCache_ != nullptr) {
-            WorkBuf* t = logCache_;
-            logCache_ = t->next;
-            t->next = nullptr;
-            pool.Put(t);
-        }
+        WorkBuf* chain = logCache_;
+        logCache_ = nullptr;
         logCacheCount_ = 0;
+        if (chain != nullptr) {
+            pool.PutChain(chain);
+        }
     }
 
     uint16_t GetCachedHomeShardId() const { return cachedHomeShardId_; }

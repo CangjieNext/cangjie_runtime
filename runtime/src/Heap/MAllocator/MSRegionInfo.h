@@ -222,10 +222,16 @@ struct MSRegionInfo {
     // Tests a previously resolved bitmap location without recomputing the
     // object-to-slot mapping. Invalid bitmap coordinates are treated as white.
     bool IsMarkBitSet(size_t wordIdx, uint64_t bitMask) const;
+    // Trusted-coordinate variant for a ResolvedMarkTarget that has already
+    // validated markBitmap, wordIdx and bitMask.
+    bool IsMarkBitSetResolved(size_t wordIdx, uint64_t bitMask) const;
     // Returns true if already marked (previous bit was set).
     bool TestAndSetMarkBit(uintptr_t objAddr);
     // Atomically marks a bitmap word and returns only bits newly set by this call.
     uint64_t MarkBitmapWord(size_t wordIdx, uint64_t mask);
+    // Trusted-coordinate variant for a ResolvedMarkTarget or validated bulk
+    // marker. Returns only bits newly set by this call.
+    uint64_t MarkBitmapWordResolved(size_t wordIdx, uint64_t mask);
     // Clear markBitmap for next GC cycle. Called by FlushAll during MarkSetup STW
     // to clear mark-at-alloc dirty bits on TL regions before returning to pool.
     void ClearMarkBitmap()
@@ -333,11 +339,22 @@ public:
         return &array_[regionIdx];
     }
 
-    // Address -> MSRegionInfo lookup with alignment correction.
-    // TakeRegion returns UNIT_SIZE-aligned addresses, which may not be
-    // MS_REGION_SIZE-aligned. Objects near boundaries can map to the wrong
-    // MSRegionInfo entry. This validates and tries adjacent entries.
-    // Returns nullptr if no valid entry found.
+    // Mark hot-path coordinate lookup. MSRegionManager and FreeManager allocate
+    // in MS_REGION_SIZE indexes relative to heapStartAddress_, so one subtraction
+    // yields both the exact metadata entry and the in-Region object offset.
+    // Precondition: addr belongs to the MSGC heap reservation.
+    static inline MSRegionInfo* GetRegionInfoDirect(uintptr_t addr, size_t& regionOffset)
+    {
+        size_t heapOffset = static_cast<size_t>(addr - heapStartAddress_);
+        regionOffset = heapOffset & (MS_REGION_SIZE - 1);
+        size_t regionIdx = heapOffset >> 15;
+        return &array_[regionIdx];
+    }
+
+    // Defensive address -> MSRegionInfo lookup retained for non-Mark callers.
+    // The adjacent-entry fallback is historical; current Region allocation is
+    // strictly indexed by MS_REGION_SIZE relative to heapStartAddress_.
+    // Returns nullptr if no live entry accepts the address.
     static inline MSRegionInfo* GetRegionInfoValidated(uintptr_t addr)
     {
         size_t regionIdx = (addr - heapStartAddress_) / MS_REGION_SIZE;

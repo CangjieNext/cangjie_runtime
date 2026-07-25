@@ -115,15 +115,22 @@ public:
     // Returns true if THIS call won the mark-CAS (object was white → now grey),
     // meaning the caller should log it for later scanning; false if it was
     // already grey/black or not a traceable object (perfect dedup at the source).
-    bool ShadeRefForBarrier(BaseObject* ref) { return DiscoverObject(ref); }
+    bool ShadeRefForBarrier(BaseObject* ref, TypeInfo** markedTypeInfo = nullptr)
+    {
+        return DiscoverObject(ref, markedTypeInfo);
+    }
     // Same operation for barrier paths that already rejected non-heap refs.
     // This is Runtime-internal and only skips the duplicate heap-range check;
     // Region/slot/stateWord validation remains mandatory.
-    bool ShadeManagedRefForBarrier(BaseObject* ref) { return DiscoverManagedObject(ref); }
+    bool ShadeManagedRefForBarrier(BaseObject* ref, TypeInfo** markedTypeInfo = nullptr)
+    {
+        return DiscoverManagedObject(ref, markedTypeInfo);
+    }
     // Resolves a known-managed small object to its mark-bitmap word and bit.
     // LARGE objects return false and retain the dedicated managed shade path.
     bool ResolveManagedSmallRefForBarrier(BaseObject* ref, MSRegionInfo*& info,
-                                          size_t& wordIdx, uint64_t& bitMask) const;
+                                          size_t& wordIdx, uint64_t& bitMask,
+                                          TypeInfo*& whiteTypeInfo) const;
 
     // ── CopyGC-specific overrides: safe no-ops ──
     BaseObject* ForwardObject(BaseObject*) override { return nullptr; }
@@ -180,8 +187,8 @@ private:
     void EnumAndMarkRoots(WorkStack& workStack);
     void DiscoverAndPushObject(BaseObject* obj, WorkStack& workStack);
     bool TryEnqueueGreyObject(BaseObject* obj, GreyWorkQueue& queue);
-    bool DiscoverObject(BaseObject* obj);
-    bool DiscoverManagedObject(BaseObject* obj);
+    bool DiscoverObject(BaseObject* obj, TypeInfo** markedTypeInfo = nullptr);
+    bool DiscoverManagedObject(BaseObject* obj, TypeInfo** markedTypeInfo = nullptr);
     // Bitmap-only discovery. MSGC derives cycle object counts from a post-mark
     // bitmap walk instead of updating a hot global counter.
     // Diagnostic: after marking completes (in PostMarkTermination, before sweep
@@ -196,19 +203,22 @@ private:
     void DrainMarkWorkStack();
     // Claim and drain one published buffer. GC main/helpers accept any length;
     // mutator assist passes requireFull=true to preserve its credit granularity.
-    size_t DrainOneBufRound(PerPGCWork& gcw, bool requireFull);
-    void TraceObjectRefFieldsToGCWork(BaseObject* obj, PerPGCWork& gcw);
+    size_t DrainOneBufRound(PerPGCWork& gcw, bool requireFull,
+                            LFStack::Counts* countsAfterPop = nullptr);
+    size_t DrainCurrentBuf(PerPGCWork& gcw);
+    void TraceObjectRefFieldsToGCWork(BaseObject* obj, TypeInfo* typeInfo,
+                                      PerPGCWork& gcw);
     void TraceRefField(RefField<>& field, WorkStack& workStack);
     void TransferRootsToGCWork();
     void StartMarkWorkers(size_t maxHelpers, size_t initialHelpers);
     void RunMarkWorker(size_t workerId);
     size_t QuiesceMarkWorkers();
-    size_t TakePublishedWorkerCredit();
     void SnapshotAssistStats();
     void MergeExitedAssistStats(AllocBufferMS& allocBuffer);
 
     // ── Step5: LFStack global queue helpers ──
     void PushSingleToDeferredMainThread(BaseObject* obj);
+    void PushTrustedGreyToDeferredMainThread(BaseObject* obj);
     void DrainGlobalLFStackToMainQueue(GreyWorkQueue& mainQueue);
     size_t TryStealBgCreditPartial(size_t debtObjects);
     void InitAllPerPGCWork();
@@ -250,7 +260,7 @@ private:
     PerPGCWork gcThreadWork_;
     struct MSMarkWorkerSlot {
         PerPGCWork work;
-        MSMarkWorkerLocalStats stats{4};
+        MSMarkWorkerLocalStats stats;
     };
     std::vector<std::unique_ptr<MSMarkWorkerSlot>> markWorkerSlots_;
     MSMarkWorkerControl markWorkerControl_{&markWorkEpoch_};
