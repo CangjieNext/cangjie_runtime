@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================
-# case27 通用对比脚本：MSGC vs CopyGC (+ Go)
+# case27 通用对比脚本：MSGC vs CopyGC (+ Go + Java)
 #
 # SDK 路径可通过环境变量覆盖。其余参数见 README 中的 case27 约定。
 #
@@ -35,7 +35,12 @@
 #     GO_ENABLE            是否加入 Go mirror side 默认 1
 #     GO_GODEBUG           Go benchmark 的 GODEBUG 默认 gctrace=1
 #     GO_GOGC              可选，透传给 Go side
-#     TAG                  结果目录名标识          默认 output_msgc_vs_copygc_go
+#     JAVA_ENABLE          是否加入 Java mirror side 默认 1
+#     JAVA_BIN             Java 命令，默认 java
+#     JAVAC_BIN            javac 命令，默认 javac
+#     JAVA_OPTS            可选 Java 运行参数
+#     JAVA_GC_OPTS         可选 Java GC 日志参数；为空时按 JDK 版本自动配置
+#     TAG                  结果目录名标识          默认 output_msgc_vs_copygc_go_java
 #
 #   用法示例：
 #     MSGC_SDK_ROOT=/path/to/msgc/sdk \
@@ -85,11 +90,33 @@ MAX_INFLIGHT="${CASE27_MAX_INFLIGHT:-32}"
 GO_ENABLE="${GO_ENABLE:-1}"
 GO_GODEBUG="${GO_GODEBUG:-gctrace=1}"
 GO_GOGC="${GO_GOGC:-}"
-TAG="${TAG:-output_msgc_vs_copygc_go}"
+JAVA_ENABLE="${JAVA_ENABLE:-1}"
+JAVA_BIN="${JAVA_BIN:-java}"
+JAVAC_BIN="${JAVAC_BIN:-javac}"
+JAVA_OPTS="${JAVA_OPTS:-}"
+JAVA_GC_OPTS="${JAVA_GC_OPTS:-}"
+TAG="${TAG:-output_msgc_vs_copygc_go_java}"
 
 if [[ ! -f "$CASE_DIR/payloads/${PAYLOAD}.json" ]]; then
     echo "[ERROR] payloads/${PAYLOAD}.json not found" >&2
     exit 1
+fi
+if [[ "$JAVA_ENABLE" != "0" ]]; then
+    if ! command -v "$JAVA_BIN" >/dev/null 2>&1; then
+        echo "[ERROR] Java enabled but JAVA_BIN is unavailable: $JAVA_BIN" >&2
+        exit 1
+    fi
+    if ! command -v "$JAVAC_BIN" >/dev/null 2>&1; then
+        echo "[ERROR] Java enabled but JAVAC_BIN is unavailable: $JAVAC_BIN" >&2
+        exit 1
+    fi
+    JAVA_BIN="$(command -v "$JAVA_BIN")"
+    JAVAC_BIN="$(command -v "$JAVAC_BIN")"
+    if [[ ! -f "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmark.java" ]] ||
+       [[ ! -f "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmarkTest.java" ]]; then
+        echo "[ERROR] Java benchmark sources are incomplete under $CASE_DIR/java_benchmark" >&2
+        exit 1
+    fi
 fi
 
 TS="$(date +%Y%m%d_%H%M%S)"
@@ -97,10 +124,14 @@ COMPARE_DIR="$CASE_DIR/result/${TS}_${TAG}_c${CONC}_p${PAYLOAD}_compare"
 COPYGC_DIR="$COMPARE_DIR/copygc"
 MSGC_DIR="$COMPARE_DIR/msgc"
 GO_DIR="$COMPARE_DIR/go"
+JAVA_DIR="$COMPARE_DIR/java"
 MPLCONFIG_DIR="$SHARED_MPLCONFIG_DIR"
 mkdir -p "$COPYGC_DIR" "$MSGC_DIR"
 if [[ "$GO_ENABLE" != "0" ]]; then
     mkdir -p "$GO_DIR"
+fi
+if [[ "$JAVA_ENABLE" != "0" ]]; then
+    mkdir -p "$JAVA_DIR"
 fi
 mkdir -p "$MPLCONFIG_DIR"
 echo "[INFO] compare dir: $COMPARE_DIR"
@@ -475,6 +506,190 @@ run_go_side() {
     return $rc
 }
 
+run_java_side() {
+    local label="$1"
+    local out_dir="$2"
+    local port="$3"
+    local orig_port=$port
+    local max_tries=10
+    local tries=0
+    while [ $tries -lt $max_tries ]; do
+        if ! lsof -nP -iTCP:"$port" 2>/dev/null | grep -q .; then
+            break
+        fi
+        echo "[$label] port $port is in use, trying $((port + 1))"
+        port=$((port + 1))
+        tries=$((tries + 1))
+    done
+    if [ "$port" != "$orig_port" ]; then
+        echo "[$label] using port $port (original $orig_port was occupied)"
+    fi
+    if [ $tries -ge $max_tries ]; then
+        echo "[$label] ERROR: could not find free port after $max_tries tries" >&2
+        return 1
+    fi
+
+    echo "[INFO] ===== $label (Java mirror benchmark) ====="
+    {
+        echo "case=case27_http_complex_json"
+        echo "label=$label"
+        echo "payload=$PAYLOAD"
+        echo "concurrency=$CONC"
+        echo "duration_ms=$DUR"
+        echo "client_timeout_ms=${CASE27_CLIENT_TIMEOUT_MS:-5000}"
+        echo "client_mode=$CLIENT_MODE"
+        echo "send_interval_ms=$SEND_INTERVAL_MS"
+        echo "max_inflight=$MAX_INFLIGHT"
+        echo "server_port=$port"
+        echo "original_port=$orig_port"
+        echo "heap_size=N/A"
+        echo "procs=N/A"
+        echo "java_bin=$JAVA_BIN"
+        echo "javac_bin=$JAVAC_BIN"
+        echo "java_opts=$JAVA_OPTS"
+        echo "java_gc_opts=$JAVA_GC_OPTS"
+        echo "java_version=$("$JAVA_BIN" -version 2>&1 | sed -n '1p')"
+        echo "timestamp=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    } > "$out_dir/run_metadata.env"
+    cp "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmark.java" \
+        "$out_dir/Case27HttpComplexJsonBenchmark.java.snapshot"
+    cp "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmarkTest.java" \
+        "$out_dir/Case27HttpComplexJsonBenchmarkTest.java.snapshot"
+    cp "$CASE_DIR/payloads/${PAYLOAD}.json" "$out_dir/payload.snapshot.json"
+
+    local -a child_env=(
+        "HOME=$HOME"
+        "TERM=${TERM:-xterm}"
+        "PATH=/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin"
+        "CASE_DIR=$CASE_DIR"
+        "OUT_DIR=$out_dir"
+        "LABEL=$label"
+        "JAVA_BIN=$JAVA_BIN"
+        "JAVAC_BIN=$JAVAC_BIN"
+        "JAVA_OPTS=$JAVA_OPTS"
+        "JAVA_GC_OPTS=$JAVA_GC_OPTS"
+        "CASE27_PAYLOAD=$PAYLOAD"
+        "CASE27_CONCURRENCY=$CONC"
+        "CASE27_DURATION_MS=$DUR"
+        "CASE27_SERVER_PORT=$port"
+        "CASE27_CLIENT_TIMEOUT_MS=${CASE27_CLIENT_TIMEOUT_MS:-5000}"
+        "CASE27_PAYLOAD_DIR=$CASE_DIR/payloads"
+        "CASE27_CLIENT_MODE=$CLIENT_MODE"
+        "CASE27_SEND_INTERVAL_MS=$SEND_INTERVAL_MS"
+        "CASE27_MAX_INFLIGHT=$MAX_INFLIGHT"
+    )
+
+    env -i "${child_env[@]}" bash -c '
+            set -o pipefail
+            mkdir -p "$OUT_DIR/classes"
+            echo 125 > "$OUT_DIR/compile.exitcode"
+            echo 125 > "$OUT_DIR/test.exitcode"
+            echo 125 > "$OUT_DIR/run.exitcode"
+
+            version_line="$("$JAVA_BIN" -version 2>&1 | sed -n "1p")"
+            version_token="$(printf "%s\n" "$version_line" | sed -E "s/.*version \"([^\"]+)\".*/\1/")"
+            if [[ "$version_token" == 1.* ]]; then
+                java_major="$(printf "%s\n" "$version_token" | cut -d. -f2)"
+            else
+                java_major="${version_token%%.*}"
+            fi
+            if [[ ! "$java_major" =~ ^[0-9]+$ ]]; then
+                echo "[$LABEL] could not detect Java major version from: $version_line" >&2
+                echo 1 > "$OUT_DIR/compile.exitcode"
+                exit 1
+            fi
+
+            module_opts=()
+            if ((java_major >= 9)); then
+                module_opts=(--add-modules jdk.httpserver)
+            fi
+            java_opts=()
+            if [[ -n "$JAVA_OPTS" ]]; then
+                read -r -a java_opts <<< "$JAVA_OPTS"
+            fi
+            gc_opts=()
+            if [[ -n "$JAVA_GC_OPTS" ]]; then
+                read -r -a gc_opts <<< "$JAVA_GC_OPTS"
+            elif ((java_major >= 9)); then
+                gc_opts=("-Xlog:gc*:file=$OUT_DIR/gc.log:time,uptime,level,tags")
+            else
+                gc_opts=(
+                    "-Xloggc:$OUT_DIR/gc.log"
+                    -XX:+PrintGCDetails
+                    -XX:+PrintGCDateStamps
+                    -XX:+PrintGCTimeStamps
+                )
+            fi
+            {
+                echo "java_major=$java_major"
+                printf "module_opts="; printf "%q " "${module_opts[@]}"; echo
+                printf "java_opts="; printf "%q " "${java_opts[@]}"; echo
+                printf "java_gc_opts="; printf "%q " "${gc_opts[@]}"; echo
+            } > "$OUT_DIR/java_command.env"
+
+            "$JAVAC_BIN" "${module_opts[@]}" \
+                -d "$OUT_DIR/classes" \
+                "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmark.java" \
+                "$CASE_DIR/java_benchmark/Case27HttpComplexJsonBenchmarkTest.java" \
+                > "$OUT_DIR/compile.stdout.txt" 2> "$OUT_DIR/compile.stderr.txt"
+            compile_rc=$?
+            echo "$compile_rc" > "$OUT_DIR/compile.exitcode"
+            if ((compile_rc != 0)); then
+                echo "[$LABEL] javac failed (rc=$compile_rc)" >&2
+                exit "$compile_rc"
+            fi
+
+            "$JAVA_BIN" "${module_opts[@]}" "${java_opts[@]}" \
+                -cp "$OUT_DIR/classes" Case27HttpComplexJsonBenchmarkTest \
+                > "$OUT_DIR/test.stdout.txt" 2> "$OUT_DIR/test.stderr.txt"
+            test_rc=$?
+            echo "$test_rc" > "$OUT_DIR/test.exitcode"
+            if ((test_rc != 0)); then
+                echo "[$LABEL] Java benchmark test failed (rc=$test_rc)" >&2
+                exit "$test_rc"
+            fi
+
+            : > "$OUT_DIR/gc.log"
+            "$JAVA_BIN" "${module_opts[@]}" "${java_opts[@]}" "${gc_opts[@]}" \
+                -cp "$OUT_DIR/classes" Case27HttpComplexJsonBenchmark \
+                > "$OUT_DIR/stdout.txt" 2> "$OUT_DIR/stderr.txt" &
+            BENCH_PID=$!
+
+            perl -MTime::HiRes=sleep,time -e "
+                my \$pid = \$ARGV[0];
+                while (kill 0, \$pid) {
+                    my \$line = \`ps -o rss=,%cpu= -p \$pid 2>/dev/null\`;
+                    chomp \$line; \$line =~ s/^\\s+//;
+                    if (length \$line) {
+                        my (\$rss, \$cpu) = split /\\s+/, \$line, 2;
+                        my \$t = time();
+                        my @lt = localtime(int(\$t));
+                        my \$frac = sprintf(\"%.3f\", \$t - int(\$t));
+                        \$frac =~ s/^0//;
+                        printf \"%04d-%02d-%02dT%02d:%02d:%02d%s,%s,%s\\n\",
+                            \$lt[5]+1900,\$lt[4]+1,\$lt[3],\$lt[2],\$lt[1],\$lt[0],\$frac,\$rss,\$cpu;
+                    }
+                    sleep(0.2);
+                }
+            " "$BENCH_PID" > "$OUT_DIR/rss.csv" 2>/dev/null &
+            SAMPLER_PID=$!
+            wait "$BENCH_PID"
+            run_rc=$?
+            kill "$SAMPLER_PID" 2>/dev/null || true
+            wait "$SAMPLER_PID" 2>/dev/null || true
+            if ((run_rc == 0)) && ! grep -q "^\[RESULT\] total=" "$OUT_DIR/stdout.txt"; then
+                echo "[$LABEL] Java benchmark exited without a result line" >&2
+                run_rc=1
+            fi
+            echo "$run_rc" > "$OUT_DIR/run.exitcode"
+            echo "[$LABEL] bench exit=$run_rc"
+            exit "$run_rc"
+        '
+    local rc=$?
+    echo "[INFO] ===== $label done (rc=$rc) ====="
+    return $rc
+}
+
 # 先跑 CopyGC 基线，再跑 MSGC
 run_side "CopyGC" "$COPYGC_DIR" "$COPYGC_SDK" "$COPYGC_STDX" 18226 "" "" "$COPYGC_GC_INTERVAL" "" ""
 COPYGC_RC=$?
@@ -490,6 +705,12 @@ if [[ "$GO_ENABLE" != "0" ]]; then
     GO_RC=$?
     echo "[INFO] Go rc=$GO_RC"
 fi
+JAVA_RC=0
+if [[ "$JAVA_ENABLE" != "0" ]]; then
+    run_java_side "Java" "$JAVA_DIR" 18238
+    JAVA_RC=$?
+    echo "[INFO] Java rc=$JAVA_RC"
+fi
 
 compare_args=(
     --run "CopyGC=$COPYGC_DIR"
@@ -498,9 +719,15 @@ compare_args=(
 if [[ "$GO_ENABLE" != "0" ]]; then
     compare_args+=(--run "Go=$GO_DIR")
 fi
+if [[ "$JAVA_ENABLE" != "0" ]]; then
+    compare_args+=(--run "Java=$JAVA_DIR")
+fi
 MPLCONFIGDIR="$MPLCONFIG_DIR" "$PYTHON_BIN" "$SCRIPT_DIR/compare_results.py" \
     "${compare_args[@]}" \
     --output "$COMPARE_DIR/compare_report.md" \
     || echo "[WARN] compare_results.py failed (non-fatal)"
 
 echo "[DONE] compare_dir=$COMPARE_DIR"
+if [[ "$JAVA_RC" -ne 0 ]]; then
+    exit "$JAVA_RC"
+fi

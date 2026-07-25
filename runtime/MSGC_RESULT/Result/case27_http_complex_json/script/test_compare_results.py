@@ -101,6 +101,36 @@ class CompareResultsBenchParsingTests(unittest.TestCase):
         self.assertEqual(run.wall_ms, 60153)
 
 
+class CompareResultsJavaGcParsingTests(unittest.TestCase):
+    def test_parse_java8_gc_pauses(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            gc_log = Path(tmp) / "gc.log"
+            gc_log.write_text(
+                "Java HotSpot(TM) 64-Bit Server VM\n"
+                "2026-07-23T23:17:22.991-0800: 1.254: "
+                "[GC (Allocation Failure) 65536K->1792K(251392K), 0.0085615 secs]\n"
+                "2026-07-23T23:17:24.816-0800: 3.080: "
+                "[Full GC (Ergonomics) 1528307K->156179K(1608704K), 0.0507978 secs]\n"
+            )
+
+            self.assertEqual(compare_results.detect_gc_mode(gc_log), "java")
+            self.assertEqual(compare_results.parse_gc_times(gc_log), [8.5615, 50.7978])
+
+    def test_parse_java9_unified_gc_pauses(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            gc_log = Path(tmp) / "gc.log"
+            gc_log.write_text(
+                "[2026-07-25T10:00:00.000+0000][0.100s][info][gc,start] GC(0) Pause Young\n"
+                "[2026-07-25T10:00:00.012+0000][0.112s][info][gc] "
+                "GC(0) Pause Young (Normal) 64M->8M(256M) 12.250ms\n"
+                "[2026-07-25T10:00:01.500+0000][1.600s][info][gc] "
+                "GC(1) Pause Full (System.gc()) 128M->16M(256M) 0.125s\n"
+            )
+
+            self.assertEqual(compare_results.detect_gc_mode(gc_log), "java")
+            self.assertEqual(compare_results.parse_gc_times(gc_log), [12.25, 125.0])
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -129,3 +159,33 @@ class CompareResultsCliShapeTests(unittest.TestCase):
             finally:
                 sys.argv = old_argv
             self.assertTrue(out.exists())
+
+    def test_main_accepts_four_run_form_with_java(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp)
+            for name in ("copygc", "msgc", "go", "java"):
+                run_dir = base / name
+                run_dir.mkdir()
+                (run_dir / "stdout.txt").write_text(
+                    "[RESULT] payload=10K concurrency=8 duration=1000ms client_mode=sync\n"
+                    "[RESULT] total=10 ok=10 fail=0 throughput=10req/s\n"
+                )
+                (run_dir / "rss.csv").write_text(
+                    "elapsed_ms,rss_mb,cpu_pct\n0,1,1\n"
+                )
+            out = base / "report.md"
+            argv = [
+                "compare_results.py",
+                "--run", f"CopyGC={base / 'copygc'}",
+                "--run", f"MSGC={base / 'msgc'}",
+                "--run", f"Go={base / 'go'}",
+                "--run", f"Java={base / 'java'}",
+                "--output", str(out),
+            ]
+            old_argv = sys.argv
+            try:
+                sys.argv = argv
+                compare_results.main()
+            finally:
+                sys.argv = old_argv
+            self.assertIn("Java", out.read_text())

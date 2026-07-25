@@ -17,6 +17,7 @@ compare_results.py — 对比两次或多次运行结果。
         --run CopyGC=/path/to/copygc \
         --run MSGC=/path/to/msgc \
         --run Go=/path/to/go \
+        --run Java=/path/to/java \
         --output compare_report.md
 """
 
@@ -44,6 +45,14 @@ COPYGC_TOTAL_RE = re.compile(r"total gc time:\s*([\d,]+)\s*us")
 
 # === Regex: Go ===
 GO_GC_RE = re.compile(r"^gc\s+(?P<cycle>\d+)\s+@.*?:\s+(?P<clock>[0-9.+]+)\s+ms clock")
+
+# === Regex: Java ===
+JAVA8_GC_RE = re.compile(
+    r",\s*(?P<seconds>[0-9]+(?:\.[0-9]+)?)\s+secs\]\s*(?:\[Times:|$)"
+)
+JAVA_UNIFIED_GC_RE = re.compile(
+    r"\bPause\b.*?\s(?P<duration>[0-9]+(?:\.[0-9]+)?)(?P<unit>ms|s)\s*$"
+)
 
 # === Regex: 通用 ===
 BENCH_TOTAL_RE = re.compile(r"^\[BENCH\]\s+Total wall time:\s+(\d+) ms$", re.MULTILINE)
@@ -99,6 +108,12 @@ def detect_gc_mode(gc_log_path: Path) -> str:
         return "copygc"
     if GO_GC_RE.search(text):
         return "go"
+    if (
+        "Java HotSpot" in text
+        or JAVA8_GC_RE.search(text)
+        or JAVA_UNIFIED_GC_RE.search(text)
+    ):
+        return "java"
     return "unknown"
 
 
@@ -151,6 +166,23 @@ def parse_gc_times(gc_log_path: Path) -> list[float]:
             except ValueError:
                 continue
             times_ms.append(cycle_ms)
+        return times_ms
+
+    elif gc_mode == "java":
+        times_ms: list[float] = []
+        for line in gc_log_path.read_text(errors="replace").splitlines():
+            java8_match = JAVA8_GC_RE.search(line)
+            if java8_match:
+                times_ms.append(round(float(java8_match.group("seconds")) * 1000.0, 7))
+                continue
+
+            unified_match = JAVA_UNIFIED_GC_RE.search(line)
+            if not unified_match:
+                continue
+            duration = float(unified_match.group("duration"))
+            if unified_match.group("unit") == "s":
+                duration *= 1000.0
+            times_ms.append(duration)
         return times_ms
 
     return [t / 1000.0 for t in times_us]
