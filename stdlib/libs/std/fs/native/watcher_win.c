@@ -32,13 +32,13 @@ struct CJ_FS_Watcher {
 
 /* Convert null-terminated UTF-8 narrow string to wide (wchar_t).
  * NOTE: only safe for null-terminated C strings (e.g. dirPath in Create). */
-static void widen(const char* u8, wchar_t* out, int outcap)
+static void WidenString(const char* u8, wchar_t* out, int outcap)
 {
     MultiByteToWideChar(CP_UTF8, 0, u8, -1, out, outcap);
 }
 
 /* Convert a counted (NOT null-terminated) wide string to UTF-8. */
-static void narrowCounted(const wchar_t* w, DWORD nameLenBytes, char* out, int outcap)
+static void NarrowString(const wchar_t* w, DWORD nameLenBytes, char* out, int outcap)
 {
     int cchWide = (int)(nameLenBytes / sizeof(wchar_t));
     int n = WideCharToMultiByte(CP_UTF8, 0, w, cchWide, out, outcap, NULL, NULL);
@@ -53,7 +53,7 @@ static void narrowCounted(const wchar_t* w, DWORD nameLenBytes, char* out, int o
 }
 
 /* Issue (or re-arm) an overlapped ReadDirectoryChangesW call. */
-static BOOL armRead(CJ_FS_Watcher* w)
+static BOOL ArmRead(CJ_FS_Watcher* w)
 {
     DWORD filter = FILE_NOTIFY_CHANGE_FILE_NAME
                  | FILE_NOTIFY_CHANGE_DIR_NAME
@@ -61,7 +61,7 @@ static BOOL armRead(CJ_FS_Watcher* w)
                  | FILE_NOTIFY_CHANGE_SIZE
                  | FILE_NOTIFY_CHANGE_LAST_WRITE
                  | FILE_NOTIFY_CHANGE_CREATION;
-    memset(&w->ov, 0, sizeof(w->ov));
+    (void)memset_s(&w->ov, sizeof(w->ov), 0, sizeof(w->ov));
     w->ov.hEvent = w->hEvt;
     ResetEvent(w->hEvt);
     DWORD returned = 0;
@@ -73,7 +73,7 @@ static BOOL armRead(CJ_FS_Watcher* w)
 }
 
 /* Append a decoded event to the internal evbuf. */
-static void pushEv(CJ_FS_Watcher* w, int32_t kind,
+static void PushEvent(CJ_FS_Watcher* w, int32_t kind,
                    const wchar_t* wname, DWORD nameLenBytes, size_t* filled)
 {
     if (*filled >= EVBUF_CAP) {
@@ -84,7 +84,7 @@ static void pushEv(CJ_FS_Watcher* w, int32_t kind,
     ev->isDir = 0;  /* Win does not report isDir in notifications (spec §14) */
     if (wname) {
         /* ReadDirectoryChangesW FileName is already relative to watched dir */
-        narrowCounted(wname, nameLenBytes, w->scratch[*filled], MAX_PATH);
+        NarrowString(wname, nameLenBytes, w->scratch[*filled], MAX_PATH);
     } else {
         w->scratch[*filled][0] = '\0';
     }
@@ -112,7 +112,7 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath,
     }
 
     wchar_t wpath[MAX_PATH];
-    widen(dirPath, wpath, MAX_PATH);
+    WidenString(dirPath, wpath, MAX_PATH);
 
     w->hDir = CreateFileW(wpath,
                           FILE_LIST_DIRECTORY,
@@ -139,7 +139,7 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath,
         return NULL;
     }
 
-    if (!armRead(w)) {
+    if (!ArmRead(w)) {
         if (errOut) {
             *errOut = strdup("ReadDirectoryChangesW failed");
         }
@@ -175,33 +175,28 @@ void CJ_FS_WatcherDestroy(CJ_FS_Watcher* w)
  * Walk the FILE_NOTIFY_INFORMATION linked list in buf (bytes bytes long)
  * and decode each entry into w->evbuf. Returns number of events filled.
  */
-static void decodeNotifyChain(CJ_FS_Watcher* w, BYTE* buf, DWORD bytes,
+static void DecodeNotifyChain(CJ_FS_Watcher* w, BYTE* buf, DWORD bytes,
                               size_t* filled)
 {
     BYTE* p   = buf;
     BYTE* end = buf + bytes;
-    for (;;) {
-        if (p + sizeof(FILE_NOTIFY_INFORMATION) > end) {
-            break;
-        }
+    while (p + sizeof(FILE_NOTIFY_INFORMATION) <= end) {
         FILE_NOTIFY_INFORMATION* fni = (FILE_NOTIFY_INFORMATION*)p;
-        /* NOTE: FILE_NOTIFY_CHANGE_ATTRIBUTES is in the filter but maps to
-         * MODIFY (not a separate ATTRIB kind) -- deliberate v1 behavior. */
         switch (fni->Action) {
             case FILE_ACTION_ADDED:
-                pushEv(w, CJ_FS_WK_CREATE, fni->FileName, fni->FileNameLength, filled);
+                PushEvent(w, CJ_FS_WK_CREATE, fni->FileName, fni->FileNameLength, filled);
                 break;
             case FILE_ACTION_REMOVED:
-                pushEv(w, CJ_FS_WK_DELETE, fni->FileName, fni->FileNameLength, filled);
+                PushEvent(w, CJ_FS_WK_DELETE, fni->FileName, fni->FileNameLength, filled);
                 break;
             case FILE_ACTION_MODIFIED:
-                pushEv(w, CJ_FS_WK_MODIFY, fni->FileName, fni->FileNameLength, filled);
+                PushEvent(w, CJ_FS_WK_MODIFY, fni->FileName, fni->FileNameLength, filled);
                 break;
             case FILE_ACTION_RENAMED_OLD_NAME:
-                pushEv(w, CJ_FS_WK_RENAME_FROM, fni->FileName, fni->FileNameLength, filled);
+                PushEvent(w, CJ_FS_WK_RENAME_FROM, fni->FileName, fni->FileNameLength, filled);
                 break;
             case FILE_ACTION_RENAMED_NEW_NAME:
-                pushEv(w, CJ_FS_WK_RENAME_TO, fni->FileName, fni->FileNameLength, filled);
+                PushEvent(w, CJ_FS_WK_RENAME_TO, fni->FileName, fni->FileNameLength, filled);
                 break;
             default:
                 break;
@@ -249,7 +244,7 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w, int64_t timeoutMs,
     if (!GetOverlappedResult(w->hDir, &w->ov, &bytes, FALSE)) {
         DWORD err = GetLastError();
         if (err == ERROR_NOTIFY_ENUM_DIR) {
-            armRead(w);
+            ArmRead(w);
             return 0;  /* buffer overflow; events lost, try again */
         }
         if (errOut) {
@@ -261,13 +256,13 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w, int64_t timeoutMs,
 
     /* Decode the FILE_NOTIFY_INFORMATION chain. */
     size_t filled = 0;
-    decodeNotifyChain(w, w->buf, bytes, &filled);
+    DecodeNotifyChain(w, w->buf, bytes, &filled);
 
     /* Re-arm for next cycle.
-     * armRead only rewrites w->buf and w->ov; outBuf[].path points into
+     * ArmRead only rewrites w->buf and w->ov; outBuf[].path points into
      * w->scratch which is untouched until next Poll decode, so pointers
      * remain valid until the next Poll call. */
-    armRead(w);
+    ArmRead(w);
 
     /* Copy decoded events to caller buffer (up to cap). */
     int64_t out = 0;

@@ -39,7 +39,7 @@ struct CJ_FS_Watcher {
 
 /* ---- internal ring queue ------------------------------------------------ */
 
-static void qPush(CJ_FS_Watcher* w, int32_t kind, int32_t isDir, const char* path)
+static void PushQueue(CJ_FS_Watcher* w, int32_t kind, int32_t isDir, const char* path)
 {
     if (w->qCount == EVBUF_CAP) {
         return;   /* overflow: event lost -- caller uses OVERFLOW flag path */
@@ -55,7 +55,7 @@ static void qPush(CJ_FS_Watcher* w, int32_t kind, int32_t isDir, const char* pat
     w->qCount++;
 }
 
-static int qPop(CJ_FS_Watcher* w, CJ_FS_WatchEvent* out)
+static int PopQueue(CJ_FS_Watcher* w, CJ_FS_WatchEvent* out)
 {
     if (w->qCount == 0) {
         return 0;
@@ -75,7 +75,7 @@ static int qPop(CJ_FS_Watcher* w, CJ_FS_WatchEvent* out)
  * Strip watchRoot prefix from abs to produce a relative path.
  * Returns abs unchanged if the prefix does not match.
  */
-static const char *makeRelativePath(CJ_FS_Watcher *w, const char *abs)
+static const char *MakeRelativePath(CJ_FS_Watcher *w, const char *abs)
 {
     if (strncmp(abs, w->watchRoot, w->rootLen) == 0) {
         const char *rel = abs + w->rootLen;
@@ -90,53 +90,53 @@ static const char *makeRelativePath(CJ_FS_Watcher *w, const char *abs)
 /*
  * Classify a single FSEvent flag and push the corresponding event(s).
  */
-static void classifyAndPushEvent(CJ_FS_Watcher *w, FSEventStreamEventFlags f,
-                                  int32_t isDir, const char *rel)
+static void ClassifyAndPushEvent(CJ_FS_Watcher *w, FSEventStreamEventFlags f,
+    int32_t isDir, const char *rel)
 {
     if (f & kFSEventStreamEventFlagRootChanged) {
-        qPush(w, CJ_FS_WK_WATCH_DISAPPEARED, 0, "");
+        PushQueue(w, CJ_FS_WK_WATCH_DISAPPEARED, 0, "");
         return;
     }
     if (f & kFSEventStreamEventFlagMustScanSubDirs) {
-        qPush(w, CJ_FS_WK_OVERFLOW, 0, "");
+        PushQueue(w, CJ_FS_WK_OVERFLOW, 0, "");
         return;
     }
     if (f & kFSEventStreamEventFlagItemCreated) {
-        qPush(w, CJ_FS_WK_CREATE, isDir, rel);
+        PushQueue(w, CJ_FS_WK_CREATE, isDir, rel);
         return;
     }
     if (f & kFSEventStreamEventFlagItemRemoved) {
-        qPush(w, CJ_FS_WK_DELETE, isDir, rel);
+        PushQueue(w, CJ_FS_WK_DELETE, isDir, rel);
         return;
     }
     if (f & kFSEventStreamEventFlagItemModified) {
-        qPush(w, CJ_FS_WK_MODIFY, isDir, rel);
+        PushQueue(w, CJ_FS_WK_MODIFY, isDir, rel);
         return;
     }
     if (f & kFSEventStreamEventFlagItemRenamed) {
         /* rename from/to pairing is approximate in v1 (spec §14):
          * a single rename event emits both RENAME_FROM and RENAME_TO. */
-        qPush(w, CJ_FS_WK_RENAME_FROM, isDir, rel);
-        qPush(w, CJ_FS_WK_RENAME_TO,   isDir, rel);
+        PushQueue(w, CJ_FS_WK_RENAME_FROM, isDir, rel);
+        PushQueue(w, CJ_FS_WK_RENAME_TO,   isDir, rel);
         return;
     }
-    qPush(w, CJ_FS_WK_ATTRIB, isDir, rel);
+    PushQueue(w, CJ_FS_WK_ATTRIB, isDir, rel);
 }
 
-static void processStreamEvents(CJ_FS_Watcher *w, size_t numEvents,
+static void ProcessStreamEvents(CJ_FS_Watcher *w, size_t numEvents,
                                 char **paths, const FSEventStreamEventFlags *eventFlags)
 {
     for (size_t i = 0; i < numEvents; i++) {
         FSEventStreamEventFlags f    = eventFlags[i];
-        const char*              rel = makeRelativePath(w, paths[i]);
+        const char*              rel = MakeRelativePath(w, paths[i]);
         int32_t isDir = (f & kFSEventStreamEventFlagItemIsDir) ? 1 : 0;
 
-        classifyAndPushEvent(w, f, isDir, rel);
+        ClassifyAndPushEvent(w, f, isDir, rel);
     }
 }
 
 /* G.FUN.01: system callback -- signature mandated by FSEvents API, cannot reduce parameters. */
-static void streamCb(ConstFSEventStreamRef streamRef,
+static void StreamCallback(ConstFSEventStreamRef streamRef,
                      void*                  clientCallBackInfo,
                      size_t                 numEvents,
                      void*                  eventPaths,
@@ -145,7 +145,7 @@ static void streamCb(ConstFSEventStreamRef streamRef,
 {
     (void)streamRef;
     (void)eventIds;
-    processStreamEvents((CJ_FS_Watcher*)clientCallBackInfo, numEvents,
+    ProcessStreamEvents((CJ_FS_Watcher*)clientCallBackInfo, numEvents,
                         (char**)eventPaths, eventFlags);
 }
 
@@ -155,7 +155,7 @@ static void streamCb(ConstFSEventStreamRef streamRef,
  * Release resources held by a partially-initialised watcher.
  * Safe to call on a zeroed-out (calloc'd) struct.
  */
-static void cleanupWatcher(CJ_FS_Watcher* w)
+static void CleanupWatcher(CJ_FS_Watcher* w)
 {
     if (!w) {
         return;
@@ -223,7 +223,7 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive, char*
 
     w->stream = FSEventStreamCreate(
         NULL,
-        streamCb,
+        StreamCallback,
         &ctx,
         pathsToWatch,
         kFSEventStreamSinceEventId,   /* start from now */
@@ -247,7 +247,7 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive, char*
         if (errOut) {
             *errOut = strdup("dispatch_queue_create failed");
         }
-        cleanupWatcher(w);
+        CleanupWatcher(w);
         return NULL;
     }
 
@@ -257,7 +257,7 @@ CJ_FS_Watcher* CJ_FS_WatcherCreate(const char* dirPath, int32_t recursive, char*
         if (errOut) {
             *errOut = strdup("FSEventStreamStart failed");
         }
-        cleanupWatcher(w);
+        CleanupWatcher(w);
         return NULL;
     }
 
@@ -272,7 +272,7 @@ void CJ_FS_WatcherDestroy(CJ_FS_Watcher* w)
     if (w->stream) {
         FSEventStreamStop(w->stream);
     }
-    /* cleanupWatcher releases stream and dq without calling Stop */
+    /* CleanupWatcher releases stream and dq without calling Stop */
     w->stream = NULL;
     dispatch_queue_t savedDq = w->dq;
     w->dq = NULL;
@@ -289,16 +289,16 @@ void CJ_FS_WatcherDestroy(CJ_FS_Watcher* w)
  * Returns 1 if an event was drained, 0 if the queue was empty.
  * Caller holds the serial dispatch queue lock (via dispatch_sync).
  */
-static int drainOneEvent(CJ_FS_Watcher* w, int64_t outIdx)
+static int DrainOneEvent(CJ_FS_Watcher* w, int64_t outIdx)
 {
     CJ_FS_WatchEvent tmp;
-    if (!qPop(w, &tmp)) {
+    if (!PopQueue(w, &tmp)) {
         return 0;
     }
     w->outEvbuf[outIdx].kind  = tmp.kind;
     w->outEvbuf[outIdx].isDir = tmp.isDir;
     int err = snprintf_s(w->outScratch[outIdx], PATH_MAX_LEN,
-                          PATH_MAX_LEN - 1, "%s", tmp.path);
+        PATH_MAX_LEN - 1, "%s", tmp.path);
     if (err < 0) {
         w->outScratch[outIdx][0] = '\0';
     }
@@ -326,14 +326,14 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher* w, int64_t timeoutMs,
     /*
      * Drain the internal ring queue on the dispatch thread so that all
      * previously-queued callbacks have completed before we read the ring.
-     * dispatch_sync serialises qPop with qPush (which runs inside streamCb
+     * dispatch_sync serialises PopQueue with PushQueue (which runs inside StreamCallback
      * on the same serial queue), eliminating the data race.  Each event's
      * path is deep-copied into w->outScratch so the dispatch callback can
      * never overwrite it after Poll returns.
      */
     __block int64_t out = 0;
     dispatch_sync(w->dq, ^{
-        while (out < cap && drainOneEvent(w, out)) {
+        while (out < cap && DrainOneEvent(w, out)) {
             out++;
         }
     });

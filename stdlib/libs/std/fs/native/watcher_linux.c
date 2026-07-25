@@ -42,7 +42,7 @@ struct CJ_FS_Watcher {
 
 /* ---------- wd table management ---------- */
 
-static void addWd(CJ_FS_Watcher *w, int wd, const char *path)
+static void AddWatchDescriptor(CJ_FS_Watcher *w, int wd, const char *path)
 {
     if (w->dirsLen == w->dirsCap) {
         size_t nc = w->dirsCap == 0 ? 16 : w->dirsCap * 2;
@@ -72,7 +72,7 @@ static void addWd(CJ_FS_Watcher *w, int wd, const char *path)
     w->dirsLen++;
 }
 
-static const char *pathOfWd(CJ_FS_Watcher *w, int wd)
+static const char *GetWatchPath(CJ_FS_Watcher *w, int wd)
 {
     for (size_t i = 0; i < w->dirsLen; i++) {
         if (w->dirs[i].wd == wd) {
@@ -82,7 +82,7 @@ static const char *pathOfWd(CJ_FS_Watcher *w, int wd)
     return NULL;
 }
 
-static void removeWd(CJ_FS_Watcher *w, int wd)
+static void RemoveWatchDescriptor(CJ_FS_Watcher *w, int wd)
 {
     for (size_t i = 0; i < w->dirsLen; i++) {
         if (w->dirs[i].wd == wd) {
@@ -101,13 +101,13 @@ static const uint32_t WATCH_MASK =
 
 /* ---------- recursive tree walk ---------- */
 
-static int addTree(CJ_FS_Watcher *w, const char *dir)
+static int AddWatchTree(CJ_FS_Watcher *w, const char *dir)
 {
     int wd = inotify_add_watch(w->fd, dir, WATCH_MASK);
     if (wd < 0) {
         return -1;
     }
-    addWd(w, wd, dir);
+    AddWatchDescriptor(w, wd, dir);
 
     if (!w->recursive) {
         return 0;
@@ -130,7 +130,7 @@ static int addTree(CJ_FS_Watcher *w, const char *dir)
         }
         struct stat st;
         if (stat(child, &st) == 0 && S_ISDIR(st.st_mode)) {
-            addTree(w, child); /* recurse */
+            AddWatchTree(w, child); /* recurse */
         }
     }
     closedir(d);
@@ -171,7 +171,7 @@ CJ_FS_Watcher *CJ_FS_WatcherCreate(const char *dirPath, int32_t recursive, char 
     }
     w->rootLen = strlen(w->watchRoot);
 
-    if (addTree(w, dirPath) != 0) {
+    if (AddWatchTree(w, dirPath) != 0) {
         if (errOut) {
             *errOut = strdup("inotify_add_watch failed (check max_user_watches / path)");
         }
@@ -202,7 +202,7 @@ void CJ_FS_WatcherDestroy(CJ_FS_Watcher *w)
  * Convert an absolute path (base/name) to a path relative to watchRoot.
  * Writes result into `out` (capacity `outcap`), returns `out`.
  */
-static const char *relOf(CJ_FS_Watcher *w, const char *base,
+static const char *MakeRelativePath(CJ_FS_Watcher *w, const char *base,
                          const char *name, char *out, size_t outcap)
 {
     char abs[4096];
@@ -228,7 +228,7 @@ static const char *relOf(CJ_FS_Watcher *w, const char *base,
 /*
  * Append one event to the internal buffer.
  */
-static void pushEvent(CJ_FS_Watcher *w, int32_t kind, const char *relPath,
+static void PushWatchEvent(CJ_FS_Watcher *w, int32_t kind, const char *relPath,
                       int32_t isDir, size_t *out)
 {
     if (*out >= EVBUF_CAP) {
@@ -278,12 +278,12 @@ static const MaskToKind g_maskKindTable[] = {
  * Resolve the event kind for a non-special inotify mask.
  * Returns 1 if a matching kind was pushed, 0 if no match.
  */
-static int resolveEventKind(CJ_FS_Watcher *w, struct inotify_event *ie,
+static int ResolveEventKind(CJ_FS_Watcher *w, struct inotify_event *ie,
                             const char *relPath, int32_t isDir, size_t *filled)
 {
     for (size_t i = 0; i < MASK_KIND_COUNT; i++) {
         if (ie->mask & g_maskKindTable[i].mask) {
-            pushEvent(w, g_maskKindTable[i].kind, relPath, isDir, filled);
+            PushWatchEvent(w, g_maskKindTable[i].kind, relPath, isDir, filled);
             return 1;
         }
     }
@@ -294,20 +294,20 @@ static int resolveEventKind(CJ_FS_Watcher *w, struct inotify_event *ie,
  * Process a single inotify_event: decode its mask, push into w->evbuf,
  * and handle recursive subdirectory addition on CREATE.
  */
-static void processInotifyEvent(CJ_FS_Watcher *w, struct inotify_event *ie,
+static void ProcessInotifyEvent(CJ_FS_Watcher *w, struct inotify_event *ie,
                                 size_t *filled)
 {
-    const char *base = pathOfWd(w, ie->wd);
+    const char *base = GetWatchPath(w, ie->wd);
 
     /* Handle overflow -- no wd needed */
     if (ie->mask & IN_Q_OVERFLOW) {
-        pushEvent(w, CJ_FS_WK_OVERFLOW, NULL, 0, filled);
+        PushWatchEvent(w, CJ_FS_WK_OVERFLOW, NULL, 0, filled);
         return;
     }
 
     /* Handle ignored watch -- just remove tracking entry */
     if (ie->mask & IN_IGNORED) {
-        removeWd(w, ie->wd);
+        RemoveWatchDescriptor(w, ie->wd);
         return;
     }
 
@@ -318,10 +318,10 @@ static void processInotifyEvent(CJ_FS_Watcher *w, struct inotify_event *ie,
 
     int32_t isDir = (ie->mask & IN_ISDIR) ? 1 : 0;
     char relPath[4096];
-    relOf(w, base, ie->name, relPath, sizeof(relPath));
+    MakeRelativePath(w, base, ie->name, relPath, sizeof(relPath));
 
     /* Push the event via lookup table */
-    if (resolveEventKind(w, ie, relPath, isDir, filled)) {
+    if (ResolveEventKind(w, ie, relPath, isDir, filled)) {
         /* Lazily add a watch for newly-created subdirectories */
         if ((ie->mask & IN_CREATE) && w->recursive && isDir && ie->len > 0) {
             char child[4096];
@@ -330,7 +330,7 @@ static void processInotifyEvent(CJ_FS_Watcher *w, struct inotify_event *ie,
             if (err >= 0) {
                 int nwd = inotify_add_watch(w->fd, child, WATCH_MASK);
                 if (nwd >= 0) {
-                    addWd(w, nwd, child);
+                    AddWatchDescriptor(w, nwd, child);
                 }
             }
         }
@@ -375,7 +375,7 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher *w, int64_t timeoutMs,
     char rdBuf[16384];
     size_t filled = 0;
 
-    while (1) {
+    while (filled < EVBUF_CAP) {
         ssize_t n = read(w->fd, rdBuf, sizeof(rdBuf));
         if (n <= 0) {
             break; /* EAGAIN or error */
@@ -384,7 +384,7 @@ int64_t CJ_FS_WatcherPoll(CJ_FS_Watcher *w, int64_t timeoutMs,
         size_t i = 0;
         while (i < (size_t)n) {
             struct inotify_event *ie = (struct inotify_event *)(rdBuf + i);
-            processInotifyEvent(w, ie, &filled);
+            ProcessInotifyEvent(w, ie, &filled);
             i += sizeof(struct inotify_event) + ie->len;
         }
     }
