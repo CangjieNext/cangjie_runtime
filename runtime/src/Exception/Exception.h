@@ -78,6 +78,7 @@ public:
         fatalException = false;
         ehFrameInfos.clear();
         liteFrameInfos.clear();
+        exclusiveSavedCjSp = 0;
         if (message != nullptr) {
             free(message);
             message = nullptr;
@@ -93,6 +94,11 @@ public:
 
     uintptr_t GetTopManagedPC() const { return topManagedPC; }
 
+    // CJ SP saved by CJ_MCC_ExclusiveScope before switching to the OS stack.
+    // Used by RestoreContext when rebasing OS→CJ for exclusiveScope finally.
+    void SetExclusiveSavedCjSp(uintptr_t sp) { exclusiveSavedCjSp = sp; }
+
+    uintptr_t GetExclusiveSavedCjSp() const { return exclusiveSavedCjSp; }
 #ifdef INTERPRETER_ENABLED
     void SetCurrentCatchFunctionPC(const uintptr_t ptr) { currentCatchFunctionPC = ptr; }
 
@@ -176,6 +182,7 @@ public:
         landingPad = 0;
         ClearEHFrameInfos();
         topManagedPC = 0;
+        exclusiveSavedCjSp = 0;
     }
 
     void RestoreContext(CalleeSavedRegisterContext& context);
@@ -209,6 +216,9 @@ private:
     char* message;
     size_t messageLength;
     uintptr_t topManagedPC;
+    // Non-zero when a throw crossed the exclusive OS bridge; SP from the CJ stub
+    // frame slot written by ExclusiveScope.S before the stack switch.
+    uintptr_t exclusiveSavedCjSp = 0;
 #ifdef INTERPRETER_ENABLED
     // PC of function which caught exception
     uintptr_t currentCatchFunctionPC = 0;

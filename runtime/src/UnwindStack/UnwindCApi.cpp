@@ -39,6 +39,20 @@ extern "C" void MRT_SaveTopManagedContextToN2CStub(FrameAddress* fa)
     uwContext.GoIntoManagedCode();
 }
 
+} // namespace MapleRuntime
+
+extern uintptr_t unwindPCForExclusiveStub;
+
+namespace MapleRuntime {
+
+extern "C" void MRT_SaveExclusiveBridgeSlot(FrameAddress* bridgeFa, FrameAddress* exclusiveStubFa)
+{
+    N2CSlotData* slot = N2CFrame::GetSlotData(bridgeFa);
+    slot->pc = reinterpret_cast<const uint32_t*>(&unwindPCForExclusiveStub);
+    slot->fa = exclusiveStubFa;
+    slot->status = UnwindContextStatus::RISKY;
+}
+
 extern "C" void MRT_SaveC2NContext(const uint32_t* pc, void* fa, ThreadLocalData* tlData)
 {
     UnwindContext& uwContext = tlData->mutator->GetUnwindContext();

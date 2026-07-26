@@ -183,6 +183,8 @@ public:
 
     bool IsExclusiveStubFrame() const;
 
+    bool IsExclusiveBridgeFrame() const;
+
 #if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
     bool IsC2NExceptionStubFrame() const;
 #endif

@@ -9,51 +9,37 @@
 #define cfi_restore(reg)                .cfi_restore reg
 #define cfi_def_cfa_register(reg)       .cfi_def_cfa_register reg
 
-// CJThread structure offsets
 #define CJTHREAD_THREAD_OFFSET      0x10
-#define CJTHREAD_CONTEXT_OFFSET     0x18
-
-// CJThreadContext structure offsets for aarch64
-#define CONTEXT_X18                 0x00
-#define CONTEXT_X19                 0x08
-#define CONTEXT_X20                 0x10
-#define CONTEXT_X21                 0x18
-#define CONTEXT_X22                 0x20
-#define CONTEXT_X23                 0x28
-#define CONTEXT_X24                 0x30
-#define CONTEXT_X25                 0x38
-#define CONTEXT_X26                 0x40
-#define CONTEXT_X27                 0x48
-#define CONTEXT_X28                 0x50
-#define CONTEXT_X29_FP              0x58
-#define CONTEXT_X30_LR              0x60
-#define CONTEXT_PC                  0x68
 #define CONTEXT_SP                  0x70
-#define CONTEXT_D8                  0x78
-#define CONTEXT_D9                  0x80
-#define CONTEXT_D10                 0x88
-#define CONTEXT_D11                 0x90
-#define CONTEXT_D12                 0x98
-#define CONTEXT_D13                 0xa0
-#define CONTEXT_D14                 0xa8
-#define CONTEXT_D15                 0xb0
 #define CONTEXT_FPCR                0xb8
 
-// Thread structure offset to context
-#define THREAD_PROCESSOR_OFFSET     0x38
-#define ExclusiveScopeFrameSize     (16 * 16)
+// ------------------------------------------------------------------------------
+// Single-CJThread ExclusiveScope (redesign) — AArch64
+//
+// CJ exclusive stub (heap / current) + exclusive bridge (OS / current) with
+// N2CSlotData jumping GC/EH from bridge → CJ stub. exclusiveScopeCnt pins the
+// OS thread; nested cnt>1 invokes under the outer bridge only. Outermost
+// skip-switch (foreign / SP off CJ heap) still builds a bridge on the current
+// stack. No saferegion: one mutator stops at safepoint polls.
+//
+// OS SP validation: reject null and SP < 0x1000 (unsigned) before switching —
+// parity with x86's null / js / page-size checks.
+// saved_sp is for normal return only; EH cross-stack uses managed FA+16.
+// ------------------------------------------------------------------------------
 
-// ==============================================================================
-// CJ_MCC_ExclusiveScope: Switch from cjthread to OS thread for exclusive execution
-// ==============================================================================
-//
-//   void* CJ_MCC_ExclusiveScope(void* executeClosure, void* closurePtr)
-//                                    x0              x1
-//
-// 1. Create exclusive cjthread
-// 2. Switch to OS thread
-// 3. Execute closure
-// 4. Switch back to cjthread
+// CJ exclusive stub (heap stack, or current stack when switch is skipped):
+//   [x29+0x00] x29,x30
+//   [x29+0x20] x19..x28   (RecordStubCalleeSaved)
+//   [x29+0x70] d8..d15
+//   [x29+0xc0] executeClosure, closurePtr, saved_sp, thread/ctx
+#define ExclusiveScopeFrameSize     (16 * 15)
+
+// OS bridge:
+//   [x29+0x00] x29,x30
+//   [x29+0x10] N2CSlotData (GetSlotData = fa+1 FrameAddress)
+//   [x29+0x30] x19..x28   (RecordExclusiveBridgeCalleeSaved)
+//   [x29+0x80] executeClosure, closurePtr, exclusive stub fa
+#define ExclusiveBridgeFrameSize    256
 
     .text
     .align 2
@@ -71,7 +57,7 @@ CJ_MCC_ExclusiveScope:
     mov     x29, sp
     cfi_def_cfa_register(x29)
 
-    // Save callee-saved registers (GC scans from x29+0x20)
+    // Callee-saved order must match RecordStubCalleeSaved (GC register roots).
     stp     x19, x20, [x29, #0x20]
     cfi_rel_offset(x19, 0x20)
     cfi_rel_offset(x20, 0x28)
@@ -95,153 +81,91 @@ CJ_MCC_ExclusiveScope:
 
     mov     x19, x0                     // executeClosure
     mov     x20, x1                     // closurePtr
+    str     x19, [x29, #0xc0]
+    str     x20, [x29, #0xc8]
+    str     xzr, [x29, #0xd0]           // saved_sp: 0 => no switch
 
-    // get oldCJThread, thread, oldProcessor
-    bl      CJ_CJThreadGetHandle
-    cbz     x0, .L_exc_no_cjthread
-    str     x0, [x29, #0xe8]            // oldCJThread
+    // ExclusiveScopeState at [x29,#0xd8]: { cnt*, destSp }
+    add     x0, x29, #0xd8
+    bl      CJ_MCC_ExclusiveScopeEnter
 
-    ldr     x1, [x0, #CJTHREAD_THREAD_OFFSET]
-    cbz     x1, .L_exc_no_thread
-    str     x1, [x29, #0xf0]            // thread
+    // destSp == 0: no CJ→OS switch and no bridge — invoke on the current stack.
+    ldr     x0, [x29, #0xe0]
+    cbz     x0, .L_exc_noswitch
 
-    // Save oldProcessor before it's modified by ExclusiveExecutor
-    // thread->processor is at offset THREAD_PROCESSOR_OFFSET (0x38)
-    ldr     x2, [x1, #THREAD_PROCESSOR_OFFSET]
-    str     x2, [x29, #0xf8]            // oldProcessor
-
-    // Create new exclusive cjthread
-    mov     x0, x19
-    mov     x1, x20
-    mov     x2, xzr                     // futureTi = 0
-    bl      MCC_NewExclusiveCJThread
-    cbz     x0, .L_exc_create_failed
-    str     x0, [x29, #0xe0]            // newCJThread
-
-    // Save C2N context (unwindPCForExclusiveStub must be before MRT_SaveC2NContext)
+    // IP stored into the bridge N2CSlotData so stack walk lands on this stub.
     .global unwindPCForExclusiveStub
 unwindPCForExclusiveStub:
-    adr     x0, unwindPCForExclusiveStub
-    mov     x1, x29
-    mov     x2, x28
-    bl      MRT_SaveC2NContext
 
-    mov     x0, #0
-    bl      MRT_EnterSaferegion
-    str     x0, [x29, #0xc0]            // enterSafe
-    mov     x0, sp
-    str     x0, [x29, #0xc8]            // saved sp
-
-    // Save cjthread context
-    ldr     x22, [x29, #0xe8]           // oldCJThread
-    ldr     x23, [x29, #0xf0]           // thread
-    add     x26, x22, #CJTHREAD_CONTEXT_OFFSET
-
-    str     x18, [x26, #CONTEXT_X18]
-    str     x19, [x26, #CONTEXT_X19]
-    str     x20, [x26, #CONTEXT_X20]
-    str     x21, [x26, #CONTEXT_X21]
-    str     x22, [x26, #CONTEXT_X22]
-    str     x23, [x26, #CONTEXT_X23]
-    str     x24, [x26, #CONTEXT_X24]
-    str     x25, [x26, #CONTEXT_X25]
-    str     x26, [x26, #CONTEXT_X26]
-    str     x27, [x26, #CONTEXT_X27]
-    str     x28, [x26, #CONTEXT_X28]
-    str     x29, [x26, #CONTEXT_X29_FP]
-    str     x30, [x26, #CONTEXT_X30_LR]
-    adr     x0, .L_exc_return_point
-    str     x0, [x26, #CONTEXT_PC]
-    mov     x0, sp
-    str     x0, [x26, #CONTEXT_SP]
-
-    str     d8,  [x26, #CONTEXT_D8]
-    str     d9,  [x26, #CONTEXT_D9]
-    str     d10, [x26, #CONTEXT_D10]
-    str     d11, [x26, #CONTEXT_D11]
-    str     d12, [x26, #CONTEXT_D12]
-    str     d13, [x26, #CONTEXT_D13]
-    str     d14, [x26, #CONTEXT_D14]
-    str     d15, [x26, #CONTEXT_D15]
-    mrs     x0, fpcr
-    str     w0, [x26, #CONTEXT_FPCR]
-
-    // Nested exclusive scope is already on OS thread stack.
-    // Switching sp again to thread->context.sp may clobber current frames.
-    ldr     x0, [x29, #0xe8]            // oldCJThread
-    bl      IsExclusiveCJThread
-    cbnz    x0, .L_exc_skip_stack_switch
-
-    // Switch to OS thread
-    mov     x0, x23                         // arg0 = thread pointer
-    bl      ExclusiveGetThreadContext        // returns void* = &thread->context
-    cbz     x0, .L_exc_skip_stack_switch    // null thread -> skip
-    mov     x27, x0                       // x27 = &thread->context
-    ldr     x0, [x27, #CONTEXT_SP]          // load OS thread's saved sp
-    cbz     x0, .L_exc_skip_stack_switch    // sp=0 means context never saved (foreign thread)
+    mov     x1, sp
+    str     x1, [x29, #0xd0]
     mov     sp, x0
-    ldr     w0, [x27, #CONTEXT_FPCR]
-    msr     fpcr, x0
-
     sub     sp, sp, #128
     mov     x0, sp
     bic     x0, x0, #0xF
     mov     sp, x0
 
-    // Execute closure
-    ldr     x0, [x29, #0xf0]            // thread
-    ldr     x1, [x29, #0xe0]            // newCJThread
-    bl      ExclusiveExecutor
-    b       .L_exc_after_executor
+.L_exc_build_bridge:
+    // Bridge frame; x22 keeps CJ exclusive stub FA across the managed call.
+    mov     x22, x29
 
-.L_exc_skip_stack_switch:
-    // Already on OS thread stack, execute directly without switching sp.
-    ldr     x0, [x29, #0xf0]            // thread
-    ldr     x1, [x29, #0xe0]            // newCJThread
-    bl      ExclusiveExecutor
+    stp     x29, x30, [sp, #-ExclusiveBridgeFrameSize]!
+    mov     x29, sp
 
-.L_exc_after_executor:
+    // Callee-saved at +0x30 for RecordExclusiveBridgeCalleeSaved
+    stp     x19, x20, [x29, #0x30]
+    stp     x21, x22, [x29, #0x40]
+    stp     x23, x24, [x29, #0x50]
+    stp     x25, x26, [x29, #0x60]
+    stp     x27, x28, [x29, #0x70]
 
-    // Restore to original stack frame (still on current function's stack)
-    ldr     x0, [x29, #0xc8]            // saved sp
+    // Args live on the CJ stub frame (may be a different stack than sp now).
+    str     x22, [x29, #0x80]           // exclusive stub fa
+    ldr     x19, [x22, #0xc0]           // executeClosure from CJ frame
+    ldr     x20, [x22, #0xc8]           // closurePtr
+    str     x19, [x29, #0x88]
+    str     x20, [x29, #0x90]
+
+    // slot = { pc: unwindPCForExclusiveStub, fa: CJ stub, status: RISKY }
+    mov     x0, x29                     // bridge fa
+    mov     x1, x22                     // exclusive stub fa
+    bl      MRT_SaveExclusiveBridgeSlot
+
+    // Managed call: Future.executeClosure ABI — x8/x0=sret, x1=closure
+    add     x8, x29, #0xa8              // sret scratch
+    mov     x0, x8
+    ldr     x1, [x29, #0x90]            // closurePtr
+    ldr     x19, [x29, #0x88]           // executeClosure
+    ldr     x9, [x19, #8]
+    blr     x9
+
+    // Post-call PC: exclusive bridge identity for IsExclusiveBridgeFrame.
+    .global unwindPCForExclusiveStubFull
+unwindPCForExclusiveStubFull:
+
+    mov     x19, x0                     // preserve return
+
+    // Restore bridge callee-saved (except x19 = return)
+    ldr     x20, [x29, #0x38]
+    ldp     x21, x22, [x29, #0x40]
+    ldp     x23, x24, [x29, #0x50]
+    ldp     x25, x26, [x29, #0x60]
+    ldp     x27, x28, [x29, #0x70]
+
+    mov     sp, x29
+    ldp     x29, x30, [sp], #ExclusiveBridgeFrameSize
+
+    // x29 is again the CJ exclusive stub. Restore heap SP only if we switched.
+    ldr     x0, [x29, #0xd0]
+    cbz     x0, .L_exc_after_stack_restore
     mov     sp, x0
 
-    // Call ExclusiveRestore to complete the restoration
-    // Important: Call on current stack, not oldCJThread's saved stack
-    // ExclusiveRestore(oldCJThread, thread, newCJThread, oldProcessor)
-    //                     x0          x1       x2           x3
-    ldr     x0, [x29, #0xe8]            // oldCJThread
-    ldr     x1, [x29, #0xf0]            // thread
-    ldr     x2, [x29, #0xe0]            // newCJThread
-    ldr     x3, [x29, #0xf8]            // oldProcessor
-    bl      ExclusiveRestore
-
-    // After ExclusiveRestore, continue cleanup
-
-.L_exc_return_point:
-    ldr     x0, [x29, #0xc8]
-    mov     sp, x0
-
-    ldr     x0, [x29, #0xc0]            // enterSafe
-    cbz     x0, .L_exc_skip_leave
-    bl      MRT_LeaveSaferegion
-    bl      MRT_GetThreadLocalData
-    mov     x19, x0
-    b       .L_exc_do_delete
-
-.L_exc_skip_leave:
-    mov     x19, x28
-
-.L_exc_do_delete:
-    mov     x0, x19
-    bl      MRT_DeleteC2NContext
-    mov     x0, xzr
-    b       .L_exc_cleanup
-
-.L_exc_create_failed:
-.L_exc_no_cjthread:
-.L_exc_no_thread:
-    mov     x0, xzr
+.L_exc_after_stack_restore:
+    mov     x20, x19                    // return value
+    add     x0, x29, #0xd8
+    bl      CJ_MCC_ExclusiveScopeLeave
+    mov     x0, x20
+    // Fall through into epilogue (hot path).
 
 .L_exc_cleanup:
     ldp     d8, d9, [x29, #0x70]
@@ -275,87 +199,17 @@ unwindPCForExclusiveStub:
 #endif
     ret
 
+// No stack switch (destSp == 0): invoke without a bridge frame.
+.L_exc_noswitch:
+    add     x8, x29, #0xb0              // sret scratch
+    mov     x0, x8
+    ldr     x1, [x29, #0xc8]            // closurePtr
+    ldr     x19, [x29, #0xc0]           // executeClosure
+    ldr     x9, [x19, #8]
+    blr     x9
+    mov     x19, x0
+    // saved_sp is still 0; join shared CntSub + epilogue.
+    b       .L_exc_after_stack_restore
+
     .cfi_endproc
     .size CJ_MCC_ExclusiveScope, .-CJ_MCC_ExclusiveScope
-
-
-// ==============================================================================
-// ExecuteExclusiveCangjieStub: Execute Cangjie closure with new ThreadLocalData
-// ==============================================================================
-//
-//   void* ExecuteExclusiveCangjieStub(void* closureObj, void* arg1, void* executeClosure,
-//                                void* threadData, void* sret)
-//                                 x0            x1        x2
-//                                 x3            x4
-//
-// Update x28 with threadData before executing closure, sret in x8
-
-    .text
-    .align 2
-    .global ExecuteExclusiveCangjieStub
-    .type ExecuteExclusiveCangjieStub, @function
-ExecuteExclusiveCangjieStub:
-    .cfi_startproc
-#if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
-    paciasp
-#endif
-    stp     x29, x30, [sp, #-96]!
-    cfi_adjust_cfa_offset(96)
-    cfi_rel_offset(x29, 0)
-    cfi_rel_offset(x30, 8)
-    mov     x29, sp
-    cfi_def_cfa_register(x29)
-
-    stp     x19, x20, [sp, #0x10]
-    cfi_rel_offset(x19, 0x10)
-    cfi_rel_offset(x20, 0x18)
-    stp     x27, x28, [sp, #0x20]
-    cfi_rel_offset(x27, 0x20)
-    cfi_rel_offset(x28, 0x28)
-
-    // Save object references to stack for GC scanning
-    str     x0, [sp, #0x30]     // closureObj
-    str     x2, [sp, #0x38]     // executeClosure
-    str     x4, [sp, #0x40]     // sret
-
-    mov     x28, x3
-    mov     x0, x29
-    bl      MRT_SaveTopManagedContextToN2CStub
-
-    // Reload references (may be updated by GC)
-    ldr     x19, [sp, #0x30]
-    ldr     x20, [sp, #0x38]
-    ldr     x21, [sp, #0x40]
-
-    mov     x8, x21
-    mov     x0, x21
-    mov     x1, x19
-    ldr     x9, [x20, #8]
-    blr     x9
-
-    .global unwindPCForExclusiveStubFull
-unwindPCForExclusiveStubFull:
-    mov     x19, x0
-    mov     x0, x29
-    bl      MRT_RestoreTopManagedContextFromN2CStub
-    mov     x0, x19
-
-    ldp     x19, x20, [sp, #0x10]
-    cfi_restore(x19)
-    cfi_restore(x20)
-    ldp     x27, x28, [sp, #0x20]
-    cfi_restore(x27)
-    cfi_restore(x28)
-
-    ldp     x29, x30, [sp], #96
-    cfi_adjust_cfa_offset(-96)
-    cfi_restore(x29)
-    cfi_restore(x30)
-
-#if defined(ENABLE_BACKWARD_PTRAUTH_CFI)
-    autiasp
-#endif
-    ret
-
-    .cfi_endproc
-    .size ExecuteExclusiveCangjieStub, .-ExecuteExclusiveCangjieStub

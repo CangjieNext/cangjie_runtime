@@ -11,6 +11,7 @@
 #include "Base/LogFile.h"
 #include "Base/Macros.h"
 #include "Base/Panic.h"
+#include "Common/StackType.h"
 #include "StackManager.h"
 #include "ExceptionCApi.h"
 #include "Interpreter/InterpreterEHFrameInfo.h"
@@ -20,6 +21,32 @@
 #include "schedule.h"
 
 namespace MapleRuntime {
+namespace {
+// Offsets of saved_cj_rsp / saved_sp in the CJ exclusive stub frame (ExclusiveScope.S).
+// Relative to the stub FrameAddress (x86: rbp; aarch64/arm: fp).
+#if defined(__x86_64__)
+#if defined(_WIN64)
+constexpr ptrdiff_t EXCLUSIVE_STUB_SAVED_CJ_SP_OFFSET = -80;
+#else
+constexpr ptrdiff_t EXCLUSIVE_STUB_SAVED_CJ_SP_OFFSET = -64;
+#endif
+#elif defined(__aarch64__)
+constexpr ptrdiff_t EXCLUSIVE_STUB_SAVED_CJ_SP_OFFSET = 0xd0;
+#elif defined(__arm__)
+constexpr ptrdiff_t EXCLUSIVE_STUB_SAVED_CJ_SP_OFFSET = 0x74;
+#else
+constexpr ptrdiff_t EXCLUSIVE_STUB_SAVED_CJ_SP_OFFSET = 0;
+#endif
+
+uintptr_t ReadExclusiveStubSavedCjSp(FrameAddress* stubFa)
+{
+    if (UNLIKELY(stubFa == nullptr)) {
+        LOG(RTLOG_FATAL, "ReadExclusiveStubSavedCjSp: null stub FA");
+    }
+    return *reinterpret_cast<uintptr_t*>(reinterpret_cast<uintptr_t>(stubFa) + EXCLUSIVE_STUB_SAVED_CJ_SP_OFFSET);
+}
+} // namespace
+
 // Use the prologue info in stackmap to restore the registers layer by layer.
 // Return the capture point address.
 extern "C" uintptr_t MRT_RestoreContext(CalleeSavedRegisterContext& context)
@@ -58,13 +85,46 @@ void ExceptionWrapper::RestoreContext(CalleeSavedRegisterContext& context)
     auto oldRsp = context.sp;
 #endif
 #endif
+    Mutator* mutator = Mutator::GetMutator();
     for (const auto& framePtr : ehFrameInfos) {
         DLOG(EXCEPTION, "RestoreContext: fa=%p, ip=%p, funcName=%s, isCatchException=%s",
             framePtr->GetFA(), framePtr->GetIP(), framePtr->GetFunctionName().GetStr(),
             framePtr->IsCatchException() ? "true" : "false");
+
+        // Cross exclusive OS↔CJ stack jump: exclusive stub/bridge are not in
+        // ehFrameInfos, so AutoEnv's machine caller is the OS bridge. Rebase onto
+        // the CJ managed frame using the stub's saved CJ SP (written before the
+        // stack switch in ExclusiveScope.S).
+        if (mutator != nullptr) {
+            Uptr faAddr = reinterpret_cast<Uptr>(framePtr->GetFA());
+#if defined(__x86_64__)
+            Uptr curSp = context.rsp;
+#elif defined(__aarch64__) || defined(__arm__)
+            Uptr curSp = context.sp;
+#else
+            Uptr curSp = 0;
+#endif
+            if (curSp != 0 && mutator->IsStackAddr(faAddr) != mutator->IsStackAddr(curSp)) {
+                Uptr savedCjSp = GetExclusiveSavedCjSp();
+                if (savedCjSp == 0 || mutator->IsStackAddr(faAddr) != mutator->IsStackAddr(savedCjSp)) {
+                    LOG(RTLOG_FATAL, "RestoreContext: invalid exclusive stub saved CJ SP %p for fa %p",
+                        reinterpret_cast<void*>(savedCjSp), reinterpret_cast<void*>(faAddr));
+                }
+#if defined(__x86_64__)
+                context.rbp = faAddr;
+                context.rsp = savedCjSp;
+#elif defined(__aarch64__)
+                context.x29 = faAddr;
+                context.sp = savedCjSp;
+#elif defined(__arm__)
+                context.r11 = faAddr;
+                context.sp = savedCjSp;
+#endif
+            }
+        }
+
         if (framePtr->IsCatchException()) {
 #ifdef INTERPRETER_ENABLED
-            Mutator* mutator = Mutator::GetMutator();
             if (mutator != nullptr) {
                 mutator->GetExceptionWrapper().SetCurrentCatchFunctionPC(
                     reinterpret_cast<uintptr_t>(framePtr->GetIP()));
@@ -160,6 +220,21 @@ bool ExceptionHandling::ProcessEHFrame(const FrameInfo& frame, std::vector<std::
         return false;
     }
 #endif
+    // Exclusive stub/bridge are typed EXSLUSIVE and sit between the OS-stack throw
+    // site and the CJ-heap exclusiveScope frame. Do not overwrite lastRuntimeFrame
+    // with them: ChangeEHStackInfoLR must keep patching the ThrowException frame so
+    // its `ret` enters RestoreContextForEH immediately (otherwise the throw site can
+    // fall through into a stack-grow retry and throw again while pending).
+    if (frame.mFrame.IsExclusiveBridgeFrame()) {
+        N2CSlotData* slot = N2CFrame::GetSlotData(frame.mFrame.GetFA());
+        if (slot != nullptr && slot->fa != nullptr) {
+            eWrapper->SetExclusiveSavedCjSp(ReadExclusiveStubSavedCjSp(slot->fa));
+        }
+        return false;
+    }
+    if (frame.mFrame.IsExclusiveStubFrame()) {
+        return false;
+    }
     lastRuntimeFrame = frame;
     return false;
 }

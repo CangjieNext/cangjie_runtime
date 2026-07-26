@@ -51,6 +51,19 @@ public:
         }
     }
 
+    // OS exclusive bridge: N2CSlotData at fp+0x10 (24 bytes); callee-saved at fp+0x30.
+    static void RecordExclusiveBridgeCalleeSaved(RegSlotsMap& regSlotsMap, Uptr fp)
+    {
+        constexpr Uptr slotLength = 8;
+        constexpr Uptr calleeSavedAreaOffset = 0x30;
+        Uptr slotAddr = fp + calleeSavedAreaOffset;
+        static constexpr RegisterId calleeSavedRegiser[] = { X19, X20, X21, X22, X23, X24, X25, X26, X27, X28 };
+        for (auto reg : calleeSavedRegiser) {
+            regSlotsMap.Insert(reg, reinterpret_cast<SlotAddress>(slotAddr));
+            slotAddr += slotLength;
+        }
+    }
+
     static void RecordStubAllRegister(RegSlotsMap& regSlotsMap, Uptr fp)
     {
         constexpr Uptr slotLength = 8;
