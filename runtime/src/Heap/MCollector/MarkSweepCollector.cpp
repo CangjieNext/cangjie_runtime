@@ -2334,11 +2334,14 @@ void MarkSweepCollector::UpdateGCStats()
         inUseBytes > cycleStats_.markStartInUseBytes
         ? inUseBytes - cycleStats_.markStartInUseBytes
         : 0;
+    bool exceptionalBypass = gcStats.reason == GC_REASON_OOM;
     MSStableLiveDecision stableDecision = EvaluateMSStableLive(
+        heapThresholdState_,
         oldLastStableLiveBytes,
         cycleStats_.markStartInUseBytes,
         cycleStats_.markEndInUseBytes,
-        liveBytes);
+        liveBytes,
+        exceptionalBypass);
     cycleStats_.floatingLiveInflated = stableDecision.floatingLiveInflated;
     cycleStats_.thresholdBaseBytes = stableDecision.thresholdBase;
     gcStats.lastStableLiveBytes = stableDecision.nextStableLive;
@@ -2346,9 +2349,10 @@ void MarkSweepCollector::UpdateGCStats()
     gcStats.lastRegionBytes = inUseBytes;
     gcStats.baselineAllocatedBytes = inUseBytes;
 
-    // The raw MSGC target is stableBase * (1 + heapGrowth). Decreases follow
-    // the raw target immediately; increases are rate-limited while preserving
-    // 25% headroom above the trusted baseline.
+    // The raw MSGC target is medianStableLive * (1 + heapGrowth). Established
+    // normal history uses an inclusive 10% deadband and symmetric 12.5%
+    // transition limits. Bootstrap and OOM cycles establish their clamped
+    // target directly.
     size_t baseBytes = stableDecision.thresholdBase;
 
     double heapGrowth = CangjieRuntime::GetHeapParam().heapGrowth;
@@ -2358,8 +2362,12 @@ void MarkSweepCollector::UpdateGCStats()
     // Floor to avoid GC thrash when base is tiny; cap at the allocator's actual
     // maximum heap rather than the initial committed heap.
     size_t minThreshold = std::min(gcThresholdCap, static_cast<size_t>(20) * 1024 * 1024);
+    bool bypassTransition =
+        exceptionalBypass || !stableDecision.hadAcceptedHistory;
     MSHeapThresholdDecision thresholdDecision =
-        EvaluateMSHeapThreshold(oldThreshold, baseBytes, heapGrowth, minThreshold, gcThresholdCap);
+        EvaluateMSHeapThreshold(
+            oldThreshold, baseBytes, heapGrowth, minThreshold, gcThresholdCap,
+            bypassTransition);
     size_t newThreshold = thresholdDecision.threshold;
     MSRegionManager* msRegionManager = space.GetMSRegionManager();
     size_t reusedScavengedRegionCount = msRegionManager != nullptr
@@ -2394,9 +2402,12 @@ void MarkSweepCollector::UpdateGCStats()
          "oldScavengeThreshold=%zuB newScavengeThreshold=%zuB "
          "prevLive=%zuB prevStableLive=%zuB trueLive=%zuB base=%zuB "
          "markStartInUse=%zuB markEndInUse=%zuB inUseBurst=%zuB "
-         "floatingLiveInflated=%d "
+         "floatingLiveInflated=%d acceptedSample=%d historySize=%zu "
+         "medianStableLive=%zuB exceptionalBypass=%d "
          "growth=%.2f "
-         "rawTarget=%zuB riseLimit=%zuB liveSafetyFloor=%zuB riseLimited=%d "
+         "rawTarget=%zuB deadbandLower=%zuB deadbandUpper=%zuB deadbandHeld=%d "
+         "riseLimit=%zuB fallLimit=%zuB riseLimited=%d fallLimited=%d "
+         "transitionLimited=%d transitionBypassed=%d "
          "previousInUse=%zuB inUse=%zuB maxHeap=%zuB "
          "scavengeRecentPeakInUse=%zuB scavengeRecentBurst=%zuB "
          "scavengeColdReuseRegions=%zu scavengeColdReuse=%zuB "
@@ -2408,8 +2419,17 @@ void MarkSweepCollector::UpdateGCStats()
          cycleStats_.markStartInUseBytes, cycleStats_.markEndInUseBytes,
          cycleStats_.inUseBurstBytes,
          static_cast<int>(cycleStats_.floatingLiveInflated),
-         1.0 + heapGrowth, thresholdDecision.rawTarget, thresholdDecision.riseLimit,
-         thresholdDecision.liveSafetyFloor, static_cast<int>(thresholdDecision.riseLimited),
+         static_cast<int>(stableDecision.acceptedSample),
+         stableDecision.historySize, stableDecision.medianStableLive,
+         static_cast<int>(stableDecision.exceptionalBypass),
+         1.0 + heapGrowth, thresholdDecision.rawTarget,
+         thresholdDecision.deadbandLower, thresholdDecision.deadbandUpper,
+         static_cast<int>(thresholdDecision.deadbandHeld),
+         thresholdDecision.riseLimit, thresholdDecision.fallLimit,
+         static_cast<int>(thresholdDecision.riseLimited),
+         static_cast<int>(thresholdDecision.fallLimited),
+         static_cast<int>(thresholdDecision.transitionLimited),
+         static_cast<int>(thresholdDecision.transitionBypassed),
          previousInUseBytes, inUseBytes, maxHeapBytes,
          scavengeDecision.recentPeakInUseBytes, scavengeDecision.recentBurstBytes,
          coldReuseRegions, scavengeDecision.coldReuseBytes,

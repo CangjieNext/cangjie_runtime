@@ -21,7 +21,7 @@
 
 ## Task 1: Add Failing Stable-Live History Tests
 
-- [ ] **Step 1: Replace single-sample assumptions with history tests**
+- [x] **Step 1: Replace single-sample assumptions with history tests**
 
 Add tests using `MSHeapThresholdState` and the stateful `EvaluateMSStableLive` overload. Cover:
 
@@ -36,7 +36,7 @@ Add tests using `MSHeapThresholdState` and the stateful `EvaluateMSStableLive` o
 Require the decision to expose `historySize`, `medianStableLive`,
 `acceptedSample`, `hadAcceptedHistory`, and `exceptionalBypass`.
 
-- [ ] **Step 2: Cover floating and exceptional exclusion**
+- [x] **Step 2: Cover floating and exceptional exclusion**
 
 Use the historical case27 shape:
 
@@ -51,7 +51,7 @@ the existing median. With an empty ring, assert fallback to
 `max(lastStableLive, markStart)`. For `exceptionalBypass=true`, assert current
 bitmap live is used and the ring is neither read as the baseline nor updated.
 
-- [ ] **Step 3: Run RED verification**
+- [x] **Step 3: Run RED verification**
 
 ```bash
 mkdir -p .tmp/threshold-stability
@@ -65,7 +65,7 @@ fields do not exist yet.
 
 ## Task 2: Implement Stable-Live History
 
-- [ ] **Step 1: Add the fixed-size state and overflow-safe median**
+- [x] **Step 1: Add the fixed-size state and overflow-safe median**
 
 Add:
 
@@ -86,14 +86,14 @@ compute an even median as:
 lower + (upper - lower) / 2
 ```
 
-- [ ] **Step 2: Make stable-live evaluation stateful**
+- [x] **Step 2: Make stable-live evaluation stateful**
 
 For a normal accepted cycle, append `markBitmapLiveBytes` and use the current
 history median. For floating cycles, preserve the state and use the existing
 median; if empty, use `max(lastStableLiveBytes, markStartInUseBytes)`. For an
 exceptional cycle, use `markBitmapLiveBytes` directly and preserve state.
 
-- [ ] **Step 3: Run GREEN history verification**
+- [x] **Step 3: Run GREEN history verification**
 
 ```bash
 clang++ -std=c++14 -Wall -Wextra -Werror -I. -Isrc \
@@ -107,13 +107,13 @@ unchanged Scavenge policy tests.
 
 ## Task 3: Add Failing Threshold Transition Tests
 
-- [ ] **Step 1: Specify inclusive deadband behavior**
+- [x] **Step 1: Specify inclusive deadband behavior**
 
 Use an old threshold of `400` and raw targets at `360`, `440`, `359`, and
 `441`. Both boundary targets keep `400`; values immediately outside the
 boundaries begin moving.
 
-- [ ] **Step 2: Specify symmetric rate limits and hard bounds**
+- [x] **Step 2: Specify symmetric rate limits and hard bounds**
 
 Assert:
 
@@ -127,20 +127,21 @@ Assert:
 Remove the obsolete expectation that a current-live 1.25 safety floor can
 override the rise limit.
 
-- [ ] **Step 3: Run RED transition verification**
+- [x] **Step 3: Run RED transition verification**
 
 Compile and execute the focused test. Expected: at least the deadband and
 decrease-limit assertions fail against the old asymmetric implementation.
 
 ## Task 4: Implement Symmetric Threshold Smoothing
 
-- [ ] **Step 1: Extend the threshold decision**
+- [x] **Step 1: Extend the threshold decision**
 
 Expose `deadbandLower`, `deadbandUpper`, `riseLimit`, `fallLimit`,
 `deadbandHeld`, `riseLimited`, `fallLimited`, `transitionLimited`, and
-`exceptionalBypass`. Remove the obsolete `liveSafetyFloor` behavior.
+`transitionBypassed`. Keep `exceptionalBypass` on the stable-live decision and
+remove the obsolete `liveSafetyFloor` behavior.
 
-- [ ] **Step 2: Apply normal-cycle transition controls**
+- [x] **Step 2: Apply normal-cycle transition controls**
 
 Compute the clamped raw target first. For normal established history:
 
@@ -154,13 +155,13 @@ Hold the old value inside the deadband. Outside it, clamp rises and falls to
 their respective limits. If the old threshold is zero or outside current hard
 bounds, establish the clamped raw target directly.
 
-- [ ] **Step 3: Preserve bootstrap and OOM behavior**
+- [x] **Step 3: Preserve bootstrap and OOM behavior**
 
 Add a boolean bypass parameter to `EvaluateMSHeapThreshold`. A first accepted
 sample and an OOM cycle pass `true`, use the current clamped raw target, and do
 not apply deadband or transition limits.
 
-- [ ] **Step 4: Run GREEN transition verification**
+- [x] **Step 4: Run GREEN transition verification**
 
 ```bash
 clang++ -std=c++14 -Wall -Wextra -Werror -I. -Isrc \
@@ -174,7 +175,7 @@ tests exit `0`.
 
 ## Task 5: Integrate Collector State, OOM Bypass, and Diagnostics
 
-- [ ] **Step 1: Add a source-contract test**
+- [x] **Step 1: Add a source-contract test**
 
 Create `test/MSGCThresholdStabilityContractTest.sh` requiring:
 
@@ -188,7 +189,7 @@ REPORT contains history, median, deadband, rise/fall limit, transition, bypass
 
 Run it before integration and confirm RED.
 
-- [ ] **Step 2: Wire the collector-owned state**
+- [x] **Step 2: Wire the collector-owned state**
 
 Add `MSHeapThresholdState heapThresholdState_` beside the existing Scavenge
 state. In `UpdateGCStats()`, compute:
@@ -201,7 +202,7 @@ Pass it into stable-live evaluation. A normal first accepted sample bypasses
 transition smoothing based on `hadAcceptedHistory`; subsequent normal cycles
 use the median/deadband/rate limit. OOM cycles do not mutate normal history.
 
-- [ ] **Step 3: Extend the existing REPORT record**
+- [x] **Step 3: Extend the existing REPORT record**
 
 Keep meaningful existing fields and add:
 
@@ -215,7 +216,7 @@ exceptionalBypass
 Update comments that currently describe immediate decreases and the 1.25
 current-live safety floor.
 
-- [ ] **Step 4: Run integration verification**
+- [x] **Step 4: Run integration verification**
 
 ```bash
 bash test/MSGCThresholdStabilityContractTest.sh
@@ -226,13 +227,13 @@ Expected: both commands exit `0`.
 
 ## Task 6: Update Runtime Knowledge and Verify
 
-- [ ] **Step 1: Update the GC collector reference**
+- [x] **Step 1: Update the GC collector reference**
 
 Document the eight accepted-sample median, floating/OOM exclusion, bootstrap,
 inclusive 10% deadband, symmetric 12.5% transition limit, and diagnostic
 fields. Keep trigger, Mark, Assist, Sweep, and Scavenge descriptions unchanged.
 
-- [ ] **Step 2: Check for stale build processes**
+- [x] **Step 2: Check for stale build processes**
 
 Before starting the build, inspect `llc`, `ninja`, `make`, `cjc`, benchmark,
 and `rss_monitor.py` processes. Treat old `U`/`UE` processes as historical
@@ -249,6 +250,11 @@ Expected artifact:
 ```text
 output/temp/lib/aarch64_Release/libcangjie-runtime.dylib
 ```
+
+Execution result: blocked by the existing AppleClang 17 assembler rejection
+of non-private labels inside `.cfi_startproc/.cfi_endproc` in four unchanged
+AArch64 macOS stub files. The generated MarkSweep compile command separately
+compiled `MarkSweepCollector.cpp.o` successfully.
 
 - [ ] **Step 4: Run focused runtime verification before benchmark**
 
@@ -273,7 +279,7 @@ case compilation after runtime replacement. Compare adjacent threshold
 changes, GC P95/P99 cross-run CV, throughput, RSS peak, and exact STW P99
 against the recorded baseline criteria in the design.
 
-- [ ] **Step 6: Review the final diff**
+- [x] **Step 6: Review the final diff**
 
 ```bash
 git diff --check

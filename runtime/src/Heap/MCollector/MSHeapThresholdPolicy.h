@@ -12,24 +12,42 @@
 
 namespace MapleRuntime {
 
-constexpr long double kMSHeapThresholdMaxRisePerCycle = 1.125L;
-constexpr long double kMSHeapThresholdLiveSafetyFactor = 1.25L;
+constexpr size_t kMSHeapThresholdHistoryLength = 8;
+constexpr size_t kMSHeapThresholdDeadbandDivisor = 10;
+constexpr size_t kMSHeapThresholdTransitionDivisor = 8;
 constexpr size_t kMSScavengeHistoryLength = 64;
 constexpr size_t kMSScavengeLowCyclesBeforeDecrease = 32;
 constexpr size_t kMSScavengeDecreaseDivisor = 64;
 
 struct MSHeapThresholdDecision {
     size_t rawTarget = 0;
+    size_t deadbandLower = 0;
+    size_t deadbandUpper = 0;
     size_t riseLimit = 0;
-    size_t liveSafetyFloor = 0;
+    size_t fallLimit = 0;
     size_t threshold = 0;
+    bool deadbandHeld = false;
     bool riseLimited = false;
+    bool fallLimited = false;
+    bool transitionLimited = false;
+    bool transitionBypassed = false;
 };
 
 struct MSStableLiveDecision {
     size_t thresholdBase = 0;
     size_t nextStableLive = 0;
+    size_t medianStableLive = 0;
+    size_t historySize = 0;
     bool floatingLiveInflated = false;
+    bool acceptedSample = false;
+    bool hadAcceptedHistory = false;
+    bool exceptionalBypass = false;
+};
+
+struct MSHeapThresholdState {
+    std::array<size_t, kMSHeapThresholdHistoryLength> liveHistory {};
+    size_t historySize = 0;
+    size_t nextHistoryIndex = 0;
 };
 
 struct MSScavengeThresholdState {
@@ -74,6 +92,11 @@ inline size_t ScaleMSHeapThreshold(size_t value, long double multiplier)
     return static_cast<size_t>(scaled);
 }
 
+inline size_t CeilDivideMSHeapThreshold(size_t value, size_t divisor)
+{
+    return value / divisor + static_cast<size_t>(value % divisor != 0);
+}
+
 inline bool IsMSFloatingLiveInflated(size_t markStartInUseBytes,
                                      size_t markEndInUseBytes,
                                      size_t markBitmapLiveBytes)
@@ -86,46 +109,113 @@ inline bool IsMSFloatingLiveInflated(size_t markStartInUseBytes,
     return grewFourTimes && liveTracksGrowth;
 }
 
-inline MSStableLiveDecision EvaluateMSStableLive(size_t lastStableLiveBytes,
+inline size_t ComputeMSHeapThresholdMedian(const MSHeapThresholdState& state)
+{
+    if (state.historySize == 0) {
+        return 0;
+    }
+
+    std::array<size_t, kMSHeapThresholdHistoryLength> sorted = state.liveHistory;
+    std::sort(sorted.begin(), sorted.begin() + state.historySize);
+    size_t upperIndex = state.historySize / 2;
+    if (state.historySize % 2 != 0) {
+        return sorted[upperIndex];
+    }
+    size_t lower = sorted[upperIndex - 1];
+    size_t upper = sorted[upperIndex];
+    return lower + (upper - lower) / 2;
+}
+
+inline MSStableLiveDecision EvaluateMSStableLive(MSHeapThresholdState& state,
+                                                 size_t lastStableLiveBytes,
                                                  size_t markStartInUseBytes,
                                                  size_t markEndInUseBytes,
-                                                 size_t markBitmapLiveBytes)
+                                                 size_t markBitmapLiveBytes,
+                                                 bool exceptionalBypass)
 {
     MSStableLiveDecision decision;
-    decision.floatingLiveInflated = IsMSFloatingLiveInflated(
-        markStartInUseBytes, markEndInUseBytes, markBitmapLiveBytes);
-    if (decision.floatingLiveInflated) {
-        decision.thresholdBase = std::max(lastStableLiveBytes, markStartInUseBytes);
+    decision.hadAcceptedHistory = state.historySize != 0;
+    decision.historySize = state.historySize;
+    decision.exceptionalBypass = exceptionalBypass;
+    if (exceptionalBypass) {
+        decision.thresholdBase = markBitmapLiveBytes;
         decision.nextStableLive = lastStableLiveBytes;
         return decision;
     }
 
-    decision.thresholdBase = markBitmapLiveBytes;
-    decision.nextStableLive = markBitmapLiveBytes;
+    decision.floatingLiveInflated = IsMSFloatingLiveInflated(
+        markStartInUseBytes, markEndInUseBytes, markBitmapLiveBytes);
+    if (decision.floatingLiveInflated) {
+        if (state.historySize != 0) {
+            decision.medianStableLive = ComputeMSHeapThresholdMedian(state);
+            decision.thresholdBase = decision.medianStableLive;
+        } else {
+            decision.thresholdBase = std::max(lastStableLiveBytes, markStartInUseBytes);
+        }
+        decision.nextStableLive = lastStableLiveBytes;
+        return decision;
+    }
+
+    state.liveHistory[state.nextHistoryIndex] = markBitmapLiveBytes;
+    state.nextHistoryIndex = (state.nextHistoryIndex + 1) % kMSHeapThresholdHistoryLength;
+    state.historySize = std::min(state.historySize + 1, kMSHeapThresholdHistoryLength);
+    decision.acceptedSample = true;
+    decision.historySize = state.historySize;
+    decision.medianStableLive = ComputeMSHeapThresholdMedian(state);
+    decision.thresholdBase = decision.medianStableLive;
+    decision.nextStableLive = decision.medianStableLive;
     return decision;
 }
 
 inline MSHeapThresholdDecision EvaluateMSHeapThreshold(size_t oldThreshold, size_t liveBytes,
                                                        double heapGrowth, size_t minThreshold,
-                                                       size_t maxThreshold)
+                                                       size_t maxThreshold,
+                                                       bool bypassTransition = false)
 {
     MSHeapThresholdDecision decision;
     minThreshold = std::min(minThreshold, maxThreshold);
     decision.rawTarget = ScaleMSHeapThreshold(liveBytes, 1.0L + static_cast<long double>(heapGrowth));
     decision.rawTarget = std::max(minThreshold, std::min(decision.rawTarget, maxThreshold));
 
-    decision.riseLimit =
-        std::min(ScaleMSHeapThreshold(oldThreshold, kMSHeapThresholdMaxRisePerCycle), maxThreshold);
-    decision.liveSafetyFloor =
-        std::min(ScaleMSHeapThreshold(liveBytes, kMSHeapThresholdLiveSafetyFactor), maxThreshold);
-    if (decision.rawTarget <= oldThreshold) {
+    bool oldThresholdOutsideBounds =
+        oldThreshold < minThreshold || oldThreshold > maxThreshold;
+    if (bypassTransition || oldThreshold == 0 || oldThresholdOutsideBounds) {
         decision.threshold = decision.rawTarget;
+        decision.transitionBypassed = true;
         return decision;
     }
 
-    size_t allowedThreshold = std::max(decision.riseLimit, decision.liveSafetyFloor);
-    decision.threshold = std::min(decision.rawTarget, allowedThreshold);
-    decision.riseLimited = decision.threshold < decision.rawTarget;
+    size_t deadbandDecrease =
+        CeilDivideMSHeapThreshold(oldThreshold, kMSHeapThresholdDeadbandDivisor);
+    size_t deadbandIncrease = oldThreshold / kMSHeapThresholdDeadbandDivisor;
+    decision.deadbandLower = std::max(
+        oldThreshold - deadbandDecrease, minThreshold);
+    decision.deadbandUpper = std::min(
+        SaturatingAddMSBytes(oldThreshold, deadbandIncrease), maxThreshold);
+
+    size_t transitionDecrease =
+        CeilDivideMSHeapThreshold(oldThreshold, kMSHeapThresholdTransitionDivisor);
+    size_t transitionIncrease = oldThreshold / kMSHeapThresholdTransitionDivisor;
+    decision.fallLimit = std::max(
+        oldThreshold - transitionDecrease, minThreshold);
+    decision.riseLimit = std::min(
+        SaturatingAddMSBytes(oldThreshold, transitionIncrease), maxThreshold);
+
+    if (decision.rawTarget >= decision.deadbandLower &&
+        decision.rawTarget <= decision.deadbandUpper) {
+        decision.threshold = oldThreshold;
+        decision.deadbandHeld = true;
+        return decision;
+    }
+
+    if (decision.rawTarget > oldThreshold) {
+        decision.threshold = std::min(decision.rawTarget, decision.riseLimit);
+        decision.riseLimited = decision.threshold < decision.rawTarget;
+    } else {
+        decision.threshold = std::max(decision.rawTarget, decision.fallLimit);
+        decision.fallLimited = decision.threshold > decision.rawTarget;
+    }
+    decision.transitionLimited = decision.riseLimited || decision.fallLimited;
     return decision;
 }
 
