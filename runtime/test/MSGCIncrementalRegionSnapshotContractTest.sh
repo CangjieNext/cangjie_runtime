@@ -52,16 +52,16 @@ require_file_pattern "$SPACE_CPP" 'GetHeapRetainedBytesReference' \
     'RegionSpace must expose the retained reference snapshot'
 require_file_pattern "$MANAGER_CPP" 'GetSweptHeapBytesReference\(\)' \
     'Mark notification must confirm a fast threshold crossing'
-require_file_pattern "$MANAGER_CPP" 'GetHeapRetainedBytesReference\(\)' \
-    'Scavenge notification must confirm a fast threshold crossing'
+require_file_pattern "$MANAGER_CPP" 'HasPendingScavengeWork\(\)' \
+    'Scavenge notification must confirm a fast threshold crossing against the effective target'
 require_file_pattern "$ROOT_DIR/src/Heap/MAllocator/MSRegionManager.h" 'markPressureProbeInProgress_' \
     'Mark reference confirmation must be coalesced'
 require_file_pattern "$ROOT_DIR/src/Heap/MAllocator/MSRegionManager.h" 'scavengePressureProbeInProgress_' \
     'Scavenge reference confirmation must be coalesced'
 require_file_pattern "$MANAGER_CPP" 'expectedProbe, true' \
     'threshold confirmation must have one probe owner'
-require_file_pattern "$BACKGROUND_CPP" 'GetHeapRetainedBytesReference\(\)' \
-    'Background Scavenge must make release decisions from a reference snapshot'
+require_file_pattern "$BACKGROUND_CPP" 'GetScavengeReleaseTargetBytes\(\)' \
+    'Background Scavenge must use the complete in-use snapshot and effective target'
 
 require_file_pattern "$CENTRAL_CPP" 'GetSweptMSRegionCountReference' \
     'Central swept reference getter must be implemented'

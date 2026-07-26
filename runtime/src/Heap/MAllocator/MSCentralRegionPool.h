@@ -327,6 +327,11 @@ public:
     // Thread-safe (CAS ownership). Called by gc-helper thread.
     void BackgroundSweep(uint8_t preferredCls, uint64_t deadlineUs);
     void ParallelSweep(uint8_t preferredCls, uint64_t deadlineUs);
+    // OOM PostMark-only sweep pass. All ordinary Sweep admission gates must remain
+    // closed, and the caller must join every helper before reopening them. Each
+    // worker visits every size class once and exits after observing an empty list;
+    // residual unswept work is allowed and sweepDone_ is intentionally unchanged.
+    void ParallelSweepOnceForOOM(uint8_t preferredCls);
     // Repay one P's local Sweep debt. Non-assist Sweep work is claimed once from
     // the central credit pool; a remaining full batch is swept directly once.
     MSSweepAssistResult MSSweepAssist(AllocBufferMS& owner, size_t debtRegions,
@@ -371,7 +376,8 @@ public:
              kSweepAdmissionActiveMask) == 0;
     }
 
-    // Visit all Regions across all size classes (for GC root enumeration).
+    // Visit every small Region currently owned by the central size-class lists.
+    // The lock-free partial-swept list requires external quiescence or STW.
     template<typename Visitor>
     void VisitAllRegions(Visitor&& visitor);
 
@@ -457,13 +463,13 @@ public:
     // Must finish before clearing markBitmaps to avoid racing SweepRegion reads.
     void StopAndWaitForAllSweep();
 
-    // OOM-only PostMark closure. The caller must keep all Sweep admission gates
-    // closed from PreEnumRoots through this call. Reuses the GC-main serial
-    // force-finish path without reopening normal Sweep until cache reclaim is done.
+    // OOM-only diagnostic serial closure. The regular OOM path uses
+    // ParallelSweepOnceForOOM and does not require the unswept backlog to reach
+    // zero. Keep this entry for explicit diagnostics and invariant checks.
     void ForceFinishAllUnsweptForOOM();
 
-    // Clear markBitmaps for all active small/medium regions in MSRegionInfoArray.
-    // Large regions clear their mark flag here as well.
+    // Clear mark state for central small Regions, thread-local active Regions,
+    // and tracked large-object bases without scanning committed metadata.
     // Must be called after StopAndWaitForAllSweep().
     void ClearAllMarkBitmaps();
 
@@ -549,15 +555,6 @@ private:
                         static_cast<unsigned>(head->sizeClass),
                         static_cast<unsigned>(kind));
                 }
-                MSRegionInfoArray::TransitionState(
-                    claimed,
-                    kind == UnsweptListKind::PARTIAL
-                        ? MSRegionLocation::CENTRAL_PARTIAL
-                        : MSRegionLocation::CENTRAL_FULL,
-                    MSRegionLocation::SWEEP_CLAIMED,
-                    MSRegionInfoArray::ANY_OWNER,
-                    0,
-                    "ClaimUnsweptHeadForSweep");
                 LeaveCentralList(false);
                 return claimed;
             }

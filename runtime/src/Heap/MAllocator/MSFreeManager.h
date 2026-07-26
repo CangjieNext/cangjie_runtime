@@ -38,6 +38,29 @@ public:
         RegionCount num = 0;
     };
 
+    struct RegionUsageSnapshot {
+        size_t committedRegions = 0;
+        size_t freeRegions = 0;
+    };
+
+    struct ScavengeSliceStats {
+        size_t requestedBytes = 0;
+        size_t claimedRegions = 0;
+        size_t releasedRegions = 0;
+        size_t visitedShards = 0;
+        size_t lockMissShards = 0;
+        size_t visitedViews = 0;
+        size_t skippedColdViews = 0;
+        size_t visitedHotWords = 0;
+        size_t cursorWraps = 0;
+        size_t candidateRuns = 0;
+        size_t releaseCalls = 0;
+        size_t releaseFailures = 0;
+        uint64_t scanClaimUs = 0;
+        uint64_t releaseUs = 0;
+        uint64_t completeUs = 0;
+    };
+
     struct BorrowedSpan {
         uint16_t ownerShardId = 0;
         RegionIndex idx = 0;
@@ -81,8 +104,13 @@ public:
 
     uint32_t GetShardCount() const { return shardCount_; }
     UnitCount GetFreeUnitCount() const;
+    RegionUsageSnapshot GetRegionUsageSnapshot() const;
     size_t GetOwnedFreeRegionCount(uint16_t ownerShardId) const;
     size_t GetScavengedRegionCount(uint16_t ownerShardId) const;
+    size_t GetReusedScavengedRegionCount() const
+    {
+        return reusedScavengedRegionCount_.load(std::memory_order_relaxed);
+    }
     size_t GetHotFreeRegionCount(uint16_t ownerShardId) const;
     size_t GetBorrowedRegionCount(uint16_t receiverShardId) const;
     size_t GetOwnedSegmentCount(uint16_t ownerShardId) const;
@@ -96,7 +124,7 @@ public:
 
     // Like ScavengeFreeRegions, but caps the work at maxBytes.
     // Returns actual bytes released (madvise'd).
-    size_t ScavengeFreeRegionsUpTo(size_t maxBytes);
+    size_t ScavengeFreeRegionsUpTo(size_t maxBytes, ScavengeSliceStats* stats = nullptr);
 
     uintptr_t GetCommittedEnd() const { return committedEnd_; }
     uintptr_t GetMaxHeapEnd() const { return maxHeapEnd_; }
@@ -133,6 +161,7 @@ private:
         size_t bitmapWordCount_ = 0;
         size_t summaryChunkCount_ = 0;
         uint32_t maxFreeRun_ = 0;  // Opt3: max contiguous free run; skip segment when < num
+        uint64_t hotWordMask_ = 0;
         std::vector<uint64_t> allocBits_;
         std::vector<uint64_t> scavengedBits_;
         std::vector<uint64_t> scavengingBits_;
@@ -161,6 +190,8 @@ private:
         bool fastTakeHintValid_ = false;
         size_t fastTakeViewIdx_ = 0;
         size_t fastTakeWordOffset_ = 0;
+        size_t scavengeViewCursor_ = 0;
+        size_t scavengeWordCursor_ = 0;
     };
 
     static constexpr size_t kChunkBits = 64;
@@ -185,6 +216,17 @@ private:
         return (regionCount + kChunkBits - 1) / kChunkBits;
     }
 
+    static uint64_t ValidRegionMaskForWord(size_t wordIdx, size_t committedLocal);
+    static uint64_t HotFreeMaskForWord(const OwnedSegmentView& view,
+                                       size_t wordIdx,
+                                       size_t committedLocal);
+    static void RefreshHotWordLocked(OwnedSegmentView& view,
+                                     size_t wordIdx,
+                                     size_t committedLocal);
+    static void RefreshHotWordsInRangeLocked(OwnedSegmentView& view,
+                                             size_t localStart,
+                                             RegionCount num,
+                                             size_t committedLocal);
     OwnedSegmentView BuildOwnedSegmentView(size_t segmentIdx, RegionCount regionCount) const;
     void AttachOwnedSegmentLocked(FreeManagerShard& shard, size_t segmentIdx, RegionCount regionCount);
     void DetachOwnedSegmentLocked(FreeManagerShard& shard);
@@ -218,7 +260,13 @@ private:
     void RefreshRegionSnapshotsLocked(FreeManagerShard& shard);
     size_t ClaimScavengeSpansLocked(FreeManagerShard& shard,
                                     size_t regionBudget,
-                                    std::vector<PendingScavengeSpan>& spans);
+                                    std::vector<PendingScavengeSpan>& spans,
+                                    ScavengeSliceStats* stats);
+    size_t ClaimScavengeWordMaskLocked(FreeManagerShard& shard,
+                                       OwnedSegmentView& view,
+                                       size_t wordIdx,
+                                       uint64_t claimMask,
+                                       std::vector<PendingScavengeSpan>& spans);
     size_t ClaimScavengeSpansInViewLocked(FreeManagerShard& shard,
                                           OwnedSegmentView& view,
                                           size_t committedLocal,
@@ -229,7 +277,7 @@ private:
                                        RegionCount num) const;
     void ReclaimRegionsReleasedImpl(const RegionSpan* spans, size_t count);
     void ApplyGroupedOwnerReclaim(std::vector<std::vector<RegionSpan>>& groupedSpans);
-    size_t ScavengeFreeRegionsByRegionBudget(size_t regionBudget);
+    size_t ScavengeFreeRegionsByRegionBudget(size_t regionBudget, ScavengeSliceStats* stats);
     bool TryTakeLocalRegionsLocked(FreeManagerShard& shard, RegionCount num, RegionIndex& idx, bool& reusedScavenged);
     bool TryTakeOneRegionFastLocked(FreeManagerShard& shard, RegionIndex& idx, bool& reusedScavenged);
     bool TryTakeOneRegionFromOwnedViewsLocked(FreeManagerShard& shard,
@@ -282,6 +330,7 @@ private:
     size_t segmentRegionCount_ = 0;
     std::deque<FreeManagerShard> shards_;
     std::atomic<size_t> totalHotFreeRegions_ {0};
+    std::atomic<size_t> reusedScavengedRegionCount_ {0};
     std::vector<uint16_t> segmentOwnerShard_;
     uint16_t nextScavengeShard_ = 0;
 };

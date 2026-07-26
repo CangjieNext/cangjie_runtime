@@ -55,7 +55,6 @@ public:
     void NotifyToSweep(uint8_t cls = kNoPreferredSweepClass);
     void NotifyToParallelSweep();
     void NotifyToScavenge();
-    void NotifyToShrink();
 private:
     void Notify();
     void NotifyStarted();

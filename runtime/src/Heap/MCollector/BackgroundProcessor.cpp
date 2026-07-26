@@ -387,15 +387,6 @@ void BackgroundProcessor::NotifyToScavenge()
     RequestWork(shouldScavengeHeap_);
 }
 
-void BackgroundProcessor::NotifyToShrink()
-{
-    if (!IsBackgroundShrinkEnabled()) {
-        shouldShrinkHeap_.store(false, std::memory_order_release);
-        return;
-    }
-    RequestWork(shouldShrinkHeap_);
-}
-
 void BackgroundProcessor::ResetSweepHelperControl(uint32_t sweepGeneration)
 {
     targetSweepHelperCount_.store(0, std::memory_order_release);
@@ -521,12 +512,13 @@ bool BackgroundProcessor::ParallelSweepLoop(size_t helperCount)
     size_t sweptBytes = space.GetSweptHeapBytes();
     size_t unsweptBytes = centralPool->GetTotalUnsweptBytes();
     size_t thresholdBytes = space.GetHeapThresholdBytes();
+    size_t runwayBytes = ComputeMSSweepRunwayBytes(thresholdBytes, sweptBytes);
 
     VLOG(REPORT,
-         "[MS-GC] parallel-sweep start: mode=%d forced=%d U=%zuB S=%zuB T=%zuB "
+         "[MS-GC] parallel-sweep start: mode=%d forced=%d U=%zuB S=%zuB T=%zuB R=%zuB "
          "targetHelpers=%zu activeHelpers=%zu budget=%zuus",
          static_cast<int>(mode), static_cast<int>(centralPool->IsSweepPressureForcedHigh()),
-         unsweptBytes, sweptBytes, thresholdBytes,
+         unsweptBytes, sweptBytes, thresholdBytes, runwayBytes,
          targetSweepHelperCount_.load(std::memory_order_acquire), helperCount,
          static_cast<size_t>(budgetUs));
 
@@ -621,17 +613,12 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
 {
     RegionSpaceMS& space = static_cast<RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
     CentralRegionPool* pool = space.GetCentralPool();            // for large hot cache ops
-    size_t retained = space.GetHeapRetainedBytesReference();
-    size_t scavengeThreshold = space.GetScavengeThresholdBytes();
-
-    if (!space.HasPendingScavengeWork()) {
+    size_t targetBytes = space.GetScavengeReleaseTargetBytes();
+    if (targetBytes == 0) {
         shouldScavengeHeap_.store(false, std::memory_order_release);
         return false;
     }
 
-    retained = space.GetHeapRetainedBytesReference();
-    scavengeThreshold = space.GetScavengeThresholdBytes();
-    size_t targetBytes = (retained > scavengeThreshold) ? (retained - scavengeThreshold) : 0;
     size_t sliceTargetBytes = targetBytes;
     size_t hotFreeBefore = space.GetHotFreeBytesReference();
     size_t emptySweptBefore = (pool != nullptr) ? pool->GetEmptySweptRegionCount() * MS_REGION_SIZE : 0;
@@ -702,13 +689,24 @@ bool BackgroundProcessor::BackgroundScavengeLoop()
             return false;
         }
         size_t quantum = std::min(roundTarget, availableToRelease);
-        (void)space.BackgroundScavenge(quantum);
+        FreeManager::ScavengeSliceStats stats;
+        size_t releasedBytes = space.BackgroundScavenge(quantum, &stats);
+        VLOG(REPORT,
+             "[MS-GC] ScavengeSlice: requestedBytes=%zu releasedBytes=%zu claimedRegions=%zu "
+             "releasedRegions=%zu visitedShards=%zu lockMissShards=%zu visitedViews=%zu "
+             "skippedColdViews=%zu visitedHotWords=%zu cursorWraps=%zu candidateRuns=%zu "
+             "releaseCalls=%zu releaseFailures=%zu scanClaimUs=%llu releaseUs=%llu completeUs=%llu",
+             stats.requestedBytes, releasedBytes, stats.claimedRegions, stats.releasedRegions,
+             stats.visitedShards, stats.lockMissShards, stats.visitedViews, stats.skippedColdViews,
+             stats.visitedHotWords, stats.cursorWraps, stats.candidateRuns, stats.releaseCalls,
+             stats.releaseFailures, static_cast<unsigned long long>(stats.scanClaimUs),
+             static_cast<unsigned long long>(stats.releaseUs),
+             static_cast<unsigned long long>(stats.completeUs));
     }
 
     // Check whether we still have work.
     bool hasMore = space.HasPendingScavengeWork();
     if (!hasMore) {
-        NotifyToShrink();
         shouldScavengeHeap_.store(false, std::memory_order_release);
     }
     return hasMore;

@@ -35,6 +35,11 @@ if ! rg -Uq 'if \(convergenceCandidate\) \{[[:space:][:print:]]*quiesceResidualB
     exit 1
 fi
 
+if ! rg -q '\[mark-stw-entry\] branch=%s gcReason=%s' "$COLLECTOR_SOURCE"; then
+    echo "MSGC MarkTermination must log the exact branch used to enter STW" >&2
+    exit 1
+fi
+
 if ! rg -Uq 'RunMarkWorker\(size_t workerId\)[[:space:][:print:]]*TryEnterWorker\(workerId\)[[:space:][:print:]]*while \(markWorkerControl_\.CanContinueWorker\(workerId\)\)[[:space:][:print:]]*ExitWorker\(\)' \
     "$COLLECTOR_SOURCE"; then
     echo "MSGC Helper must use one in-flight claim for one multi-buffer burst" >&2

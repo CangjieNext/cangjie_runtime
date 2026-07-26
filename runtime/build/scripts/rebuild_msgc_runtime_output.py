@@ -12,6 +12,7 @@ import shlex
 import shutil
 import stat
 import subprocess
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 
@@ -456,9 +457,9 @@ def verify_installed_runtime_contents(config: BuildConfig, host: HostLayout) -> 
             print(f"[verify] {item.label}: {codesign_status}", flush=True)
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Rebuild MSGC runtime and install it into cangjie_compiler/output",
+        description="Rebuild MSGC runtime and install it into cangjie_compiler/output/msgc",
     )
     parser.add_argument(
         "--runtime-root",
@@ -470,7 +471,7 @@ def parse_args() -> argparse.Namespace:
         "--sdk-root",
         type=pathlib.Path,
         default=None,
-        help="target SDK root; defaults to <compiler_root>/output",
+        help="target SDK root; defaults to <compiler_root>/output/msgc",
     )
     parser.add_argument(
         "--build-type",
@@ -498,15 +499,15 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="print planned commands without executing them",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
-def main() -> int:
-    args = parse_args()
+def main(argv: Sequence[str] | None = None) -> int:
+    args = parse_args(argv)
     script_path = pathlib.Path(__file__)
     repo = resolve_repo_layout(script_path)
     runtime_root = args.runtime_root.resolve() if args.runtime_root else repo.runtime_root
-    sdk_root = args.sdk_root.resolve() if args.sdk_root else (repo.compiler_root / "output")
+    sdk_root = args.sdk_root.resolve() if args.sdk_root else (repo.compiler_root / "output" / "msgc")
     host = detect_host_layout()
     config = BuildConfig(
         runtime_root=runtime_root,

@@ -51,6 +51,8 @@ class MSRegionManager : private FreeManager::HeapRangeHandler {
     using RegionIndex = FreeManager::RegionIndex;
     using RegionCount = FreeManager::RegionCount;
 public:
+    using ScavengeSliceStats = FreeManager::ScavengeSliceStats;
+
     MSRegionManager() = default;
     ~MSRegionManager();
 
@@ -102,7 +104,7 @@ public:
 
     // Scavenge up to maxBytes of hot-free regions (pages returned to OS).
     // Used by BackgroundScavengeLoop for per-quantum budget control.
-    size_t ScavengeFreeRegionsUpTo(size_t maxBytes);
+    size_t ScavengeFreeRegionsUpTo(size_t maxBytes, ScavengeSliceStats* stats = nullptr);
 
     // Shrink the committed heap after background reclaim/scavenge has exposed trailing hot-free space.
     // The actual trailing-tail reclaim and committed-end update are managed by FreeManager.
@@ -133,6 +135,7 @@ public:
     size_t GetOwnedTotalRegionCount(uint16_t ownerShardId) const { return freeManager_.GetOwnedTotalRegionCount(ownerShardId); }
     size_t GetOwnedFreeRegionCount(uint16_t ownerShardId) const { return freeManager_.GetOwnedFreeRegionCount(ownerShardId); }
     size_t GetScavengedRegionCount(uint16_t ownerShardId) const { return freeManager_.GetScavengedRegionCount(ownerShardId); }
+    size_t GetReusedScavengedRegionCount() const { return freeManager_.GetReusedScavengedRegionCount(); }
     size_t GetHotFreeRegionCount(uint16_t ownerShardId) const { return freeManager_.GetHotFreeRegionCount(ownerShardId); }
     size_t GetBorrowedRegionCount(uint16_t ownerShardId) const { return freeManager_.GetBorrowedRegionCount(ownerShardId); }
 
@@ -149,6 +152,10 @@ public:
     {
         return static_cast<uint32_t>(freeManager_.GetFreeUnitCount());
     }
+    FreeManager::RegionUsageSnapshot GetRegionUsageSnapshot() const
+    {
+        return freeManager_.GetRegionUsageSnapshot();
+    }
 
     // Unified layer-1 HEU trigger entry. MSGC now only keeps the TAKE_REGIONS path.
     void MaybeNotifyMark();
@@ -160,7 +167,6 @@ public:
     // Layer-4 trigger: notify gc-helper to scavenge heap when retained exceeds
     // threshold and enough releasable supply is available.
     void MaybeNotifyScavenge();
-    void MaybeNotifyShrink();
 
     // Return bytes in hot-free regions (free but pages not yet returned to OS).
     size_t GetHotFreeBytes() const;

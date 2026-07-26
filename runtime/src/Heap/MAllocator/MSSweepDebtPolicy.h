@@ -193,24 +193,47 @@ inline size_t ComputeRunwayRegions(size_t thresholdBytes, size_t sweptBytes, siz
     return (runwayBytes + regionSize - 1) / regionSize;  // ceil
 }
 
-inline bool MSSweepBytesExceedThreshold(size_t lhs, size_t rhs, size_t threshold)
+inline size_t ComputeMSSweepRunwayBytes(size_t thresholdBytes, size_t sweptBytes)
 {
-    if (lhs > threshold || rhs > threshold) {
-        return true;
-    }
-    return lhs > threshold - rhs;
+    return thresholdBytes > sweptBytes ? thresholdBytes - sweptBytes : 0;
+}
+
+inline size_t CeilDivideMSSweepValue(size_t value, size_t divisor)
+{
+    return value / divisor + static_cast<size_t>(value % divisor != 0);
 }
 
 // U is unswept small-region bytes, S is swept small-region plus live large-span
-// bytes, and T is the current heap threshold. The sum comparison is written
-// without addition so counters near SIZE_MAX cannot wrap.
+// bytes, T is the current heap threshold, and R=max(T-S, 0) is the remaining
+// allocation runway. Natural pressure enters MEDIUM at U>=ceil(R/2) and HIGH
+// at U>=R. Downgrade hysteresis keeps HIGH through ceil(R/2) and MEDIUM through
+// ceil(R/4), so a partially drained slice cannot immediately collapse pressure.
 inline SweepPressureMode EvaluateSweepPressure(size_t unsweptBytes, size_t sweptBytes,
-                                               size_t thresholdBytes, bool forcedHigh)
+                                               size_t thresholdBytes, bool forcedHigh,
+                                               SweepPressureMode previousMode)
 {
-    if (forcedHigh || unsweptBytes > thresholdBytes) {
+    if (unsweptBytes == 0) {
+        return SweepPressureMode::LOW;
+    }
+    if (forcedHigh) {
         return SweepPressureMode::HIGH;
     }
-    if (MSSweepBytesExceedThreshold(sweptBytes, unsweptBytes, thresholdBytes)) {
+
+    size_t runwayBytes = ComputeMSSweepRunwayBytes(thresholdBytes, sweptBytes);
+    if (runwayBytes == 0 || unsweptBytes >= runwayBytes) {
+        return SweepPressureMode::HIGH;
+    }
+
+    size_t highHoldBytes = CeilDivideMSSweepValue(runwayBytes, 2);
+    if (previousMode == SweepPressureMode::HIGH && unsweptBytes >= highHoldBytes) {
+        return SweepPressureMode::HIGH;
+    }
+    if (unsweptBytes >= highHoldBytes) {
+        return SweepPressureMode::MEDIUM;
+    }
+
+    size_t mediumHoldBytes = CeilDivideMSSweepValue(runwayBytes, 4);
+    if (previousMode != SweepPressureMode::LOW && unsweptBytes >= mediumHoldBytes) {
         return SweepPressureMode::MEDIUM;
     }
     return SweepPressureMode::LOW;

@@ -7,8 +7,6 @@
 
 #include "GcStats.h"
 
-#include <limits>
-
 #include "Base/Log.h"
 #include "Base/LogFile.h"
 #include "CangjieRuntime.h"
@@ -18,24 +16,6 @@ namespace MapleRuntime {
 size_t g_gcCount = 0;
 uint64_t g_gcTotalTimeUs = 0;
 size_t g_gcCollectedTotalBytes = 0;
-
-namespace {
-size_t ComputeScavengeThresholdBytes(size_t heapThresholdBytes)
-{
-    if (heapThresholdBytes == 0) {
-        return 0;
-    }
-    double scavengeGrowth = CangjieRuntime::GetGCParam().scavengeGrowth;
-    if (scavengeGrowth <= 0.0) {
-        return heapThresholdBytes;
-    }
-    long double scaled = static_cast<long double>(heapThresholdBytes) * static_cast<long double>(scavengeGrowth);
-    if (scaled >= static_cast<long double>(std::numeric_limits<size_t>::max())) {
-        return std::numeric_limits<size_t>::max();
-    }
-    return static_cast<size_t>(scaled);
-}
-} // namespace
 
 uint64_t GCStats::prevGcStartTime = TimeUtil::NanoSeconds() - LONG_MIN_HEU_GC_INTERVAL_NS;
 uint64_t GCStats::prevGcFinishTime = TimeUtil::NanoSeconds() - LONG_MIN_HEU_GC_INTERVAL_NS;
@@ -62,6 +42,7 @@ void GCStats::Init()
     liveBytesAfterGC = 0;
     baselineAllocatedBytes = 0;
     lastTrueLiveBytes = 0;
+    lastStableLiveBytes = 0;
     lastRegionBytes = 0;
 
     garbageRatio = 0.0;
@@ -72,7 +53,9 @@ void GCStats::Init()
     // 0.2:set 20% heap size as intial value
     initThreshold = std::min(static_cast<size_t>(Heap::GetHeap().GetMaxCapacity() * 0.2), initThreshold);
     heapThreshold.store(initThreshold, std::memory_order_relaxed);
-    scavengeThreshold.store(ComputeScavengeThresholdBytes(initThreshold), std::memory_order_relaxed);
+    // MSGC derives this from observed Region usage after its first GC. Keep
+    // background Scavenge disabled until that first complete sample exists.
+    scavengeThreshold.store(0, std::memory_order_relaxed);
 }
 
 void GCStats::Dump() const

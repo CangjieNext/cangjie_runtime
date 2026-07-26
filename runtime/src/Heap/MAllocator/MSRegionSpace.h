@@ -12,6 +12,7 @@
 
 #include "Heap/Allocator/AllocUtil.h"
 #include "Heap/Allocator/Allocator.h"
+#include "Heap/MAllocator/MSFreeManager.h"
 
 namespace MapleRuntime {
 
@@ -65,7 +66,8 @@ public:
     CentralRegionPool* GetCentralPool() const { return msCentralPool_; }
     MSRegionManager* GetMSRegionManager() const { return msRegionManager_; }
     // Scavenge-related queries (used by BackgroundScavengeLoop).
-    // heapInUse    = active central-pool regions + live largeRegionList spans
+    // heapInUse = committed - FreeManager free - emptySwept - largeHotCache.
+    // This includes TLS-owned small Regions and is intentionally a slow-path snapshot.
     // heapRetained = active + emptySwept + largeHotCache + hotFree
     size_t GetHeapInUseBytes() const;
     // Swept-retained heap bytes = GetSweptMSRegionCount() * MS_REGION_SIZE.
@@ -94,19 +96,21 @@ public:
     // remaining cache footprint is <= thresholdBytes. Large cache is drained first.
     size_t FlushCentralCacheToThreshold(size_t thresholdBytes);
     // Step B: release up to quantumBytes of hot-free regions to OS. Returns bytes released.
-    size_t BackgroundScavenge(size_t quantumBytes);
+    size_t BackgroundScavenge(
+        size_t quantumBytes,
+        FreeManager::ScavengeSliceStats* stats = nullptr);
     // Release one fully-idle segment worth of pages while keeping the current
     // committed/owned-segment topology intact. Returns newly released bytes.
     size_t BackgroundShrinkOneSegment();
-    // True when heapRetained > scavengeThreshold (scavenge work remains).
+    // Releasable bytes above max(scavengeThreshold, current in-use bytes).
+    size_t GetScavengeReleaseTargetBytes() const;
+    // True when releasable retained memory remains above the effective target.
     bool HasPendingScavengeWork() const;
     // True when at least one segment has no in-use regions and still holds
     // unreleased physical pages or central-pool cached regions.
     bool HasPendingShrinkWork() const;
     // Trigger scavenge when heapRetained exceeds scavengeThreshold.
     void MaybeNotifyScavenge();
-    // Trigger shrink when an idle segment can release physical pages.
-    void MaybeNotifyShrink();
 
     inline size_t GetTargetSize() const
     {

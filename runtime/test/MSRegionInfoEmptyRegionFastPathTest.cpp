@@ -13,9 +13,6 @@
 #define DCHECK(...)
 #define LOG(...)
 #define DLOG(...)
-#define RTLOG_FATAL 0
-#define RTLOG_INFO 1
-#define RTLOG_ERROR 2
 #define CHECK_DETAIL(x, ...)                                                                     \
     do {                                                                                         \
         if (!(x)) {                                                                              \
@@ -48,6 +45,10 @@ uint64_t* MSBitmapArena::GetSlotBase(size_t)
 } // namespace MapleRuntime
 
 #include "src/Heap/MAllocator/MSRegionInfo.cpp"
+
+namespace MapleRuntime {
+extern "C" MSGCFastPathState CJ_MRT_MSGCFastPathState = {};
+}
 
 namespace {
 

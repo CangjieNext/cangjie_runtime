@@ -210,7 +210,7 @@ size_t RegionSpaceMS::GetHeapRetainedBytesReference() const
     if (msCentralPool_ == nullptr || msRegionManager_ == nullptr) {
         return 0;
     }
-    size_t active = msCentralPool_->GetActiveMSRegionCountReference() * MS_REGION_SIZE;
+    size_t active = GetHeapInUseBytes();
     size_t empty = msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE;
     size_t largeCache = msCentralPool_->GetLargeHotCacheBytes();
     size_t hotFree = msRegionManager_->GetHotFreeBytesReference();
@@ -316,12 +316,14 @@ size_t RegionSpaceMS::FlushCentralCacheToThreshold(size_t thresholdBytes)
     return flushedBytes;
 }
 
-size_t RegionSpaceMS::BackgroundScavenge(size_t quantumBytes)
+size_t RegionSpaceMS::BackgroundScavenge(
+    size_t quantumBytes,
+    FreeManager::ScavengeSliceStats* stats)
 {
     if (msRegionManager_ == nullptr) {
         return 0;
     }
-    return msRegionManager_->ScavengeFreeRegionsUpTo(quantumBytes);
+    return msRegionManager_->ScavengeFreeRegionsUpTo(quantumBytes, stats);
 }
 
 size_t RegionSpaceMS::BackgroundShrinkOneSegment()
@@ -334,11 +336,30 @@ size_t RegionSpaceMS::BackgroundShrinkOneSegment()
 
 bool RegionSpaceMS::HasPendingScavengeWork() const
 {
+    return GetScavengeReleaseTargetBytes() != 0;
+}
+
+size_t RegionSpaceMS::GetScavengeReleaseTargetBytes() const
+{
+    if (msCentralPool_ == nullptr || msRegionManager_ == nullptr) {
+        return 0;
+    }
     size_t scavengeThreshold = GetScavengeThresholdBytes();
     if (scavengeThreshold == 0) {
-        return false;
+        return 0;
     }
-    return GetHeapRetainedBytesReference() > scavengeThreshold;
+
+    size_t inUseBytes = GetHeapInUseBytes();
+    size_t reclaimableBytes =
+        msCentralPool_->GetEmptySweptRegionCount() * MS_REGION_SIZE +
+        msCentralPool_->GetLargeHotCacheBytes() +
+        msRegionManager_->GetHotFreeBytesReference();
+    size_t effectiveTarget = std::max(scavengeThreshold, inUseBytes);
+    size_t retainedBytes = inUseBytes + reclaimableBytes;
+    size_t releaseGap = retainedBytes > effectiveTarget
+        ? retainedBytes - effectiveTarget
+        : 0;
+    return std::min(releaseGap, reclaimableBytes);
 }
 
 bool RegionSpaceMS::HasPendingShrinkWork() const
@@ -353,13 +374,6 @@ void RegionSpaceMS::MaybeNotifyScavenge()
 {
     if (msRegionManager_ != nullptr) {
         msRegionManager_->MaybeNotifyScavenge();
-    }
-}
-
-void RegionSpaceMS::MaybeNotifyShrink()
-{
-    if (msRegionManager_ != nullptr) {
-        msRegionManager_->MaybeNotifyShrink();
     }
 }
 
@@ -458,10 +472,9 @@ bool Allocator::IsMarkedObject(const BaseObject* obj)
     if (MSRegionInfoArray::IsHeapAddress(addr)) {
         MSRegionInfo* msInfo = MSRegionInfoArray::GetRegionInfoValidated(addr);
         if (msInfo != nullptr) {
-            if (msInfo->regionType == MSRegionType::MS_REGION_LARGE) {
-                MSRegionInfo* base = MSRegionInfoArray::GetRegionInfoByIdx(
-                    static_cast<size_t>(msInfo->reserved));
-                return base->IsMarked();
+            if (IsLargeRegionEntryType(msInfo->regionType)) {
+                MSRegionInfo* base = MSRegionInfoArray::ResolveLargeBaseInfo(msInfo);
+                return base != nullptr && base->IsMarked();
             }
             if (msInfo->markBitmap != nullptr && msInfo->totalSlotCount > 0) {
                 return msInfo->GetMarkBit(addr);
@@ -601,18 +614,24 @@ void RegionSpaceMS::RegisterLargeObjectMS(MAddress addr, size_t objectBytes, siz
 
     baseInfo->InitForLargeObject(start, end, objectBytes);
     baseInfo->reserved = static_cast<uint64_t>(baseIdx);
-    MSRegionInfoArray::SetState(baseInfo, MSRegionLocation::LARGE_ACTIVE, 0);
 
     for (size_t i = 1; i < spanCount; i++) {
         MSRegionInfo* spanInfo = MSRegionInfoArray::GetRegionInfoByIdx(baseIdx + i);
-        spanInfo->regionType = MSRegionType::MS_REGION_LARGE;
+        spanInfo->allocPtr = 0;
+        spanInfo->regionEnd = 0;
+        spanInfo->nextRegionIdx = MSRegionInfo::INVALID_IDX;
+        spanInfo->prevRegionIdx = MSRegionInfo::INVALID_IDX;
         spanInfo->markBitmap = nullptr;
         spanInfo->allocBitmap = nullptr;
         spanInfo->totalSlotCount = 0;
         spanInfo->freeSlotCount = 0;
+        spanInfo->divMagic = 0;
+        spanInfo->sizeClass = MSRegionInfo::INVALID_SIZE_CLASS;
+        spanInfo->sweepState = MSSweepState::UNSWEPT;
+        spanInfo->regionType = MSRegionType::MS_REGION_SPAN;
         spanInfo->flags_ = 0;
+        spanInfo->sweepGen = 0;
         spanInfo->reserved = static_cast<uint64_t>(baseIdx);
-        MSRegionInfoArray::SetState(spanInfo, MSRegionLocation::LARGE_ACTIVE, 0);
     }
 
     baseInfo->AtomicSetMarked();

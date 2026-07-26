@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 CASE_DIR="$ROOT_DIR/MSGC_RESULT/Result/case28_exception_ffi_boundary"
-SDK_ROOT="${SDK_ROOT:-/Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260619/cangjie}"
+SDK_ROOT="${SDK_ROOT:-/Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler/output/msgc}"
 WORK_DIR="${WORK_DIR:-$CASE_DIR/result_signal_noise_regression}"
 
 rm -rf "$WORK_DIR"

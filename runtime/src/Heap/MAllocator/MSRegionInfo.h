@@ -23,22 +23,29 @@ namespace MapleRuntime {
 // ============================================================================
 // MSRegionType: Region lifecycle states for Mark-Sweep GC
 // ============================================================================
-// Simplified from CopyGC's 15+ RegionType to 5 states.
+// Simplified from CopyGC's 15+ RegionType to a compact allocation/lifecycle ABI.
 //
 // State transitions:
-//   FREE --alloc--> BUMP --full--> FULL --sweep--> PARTIAL --alloc--> FULL
-//                                                  PARTIAL --allFree--> FREE
+//   FREE --alloc--> BUMP --full--> FULL --sweep--> PARTIAL
+//   PARTIAL --TLS acquire--> BITMAP --full/return--> FULL/PARTIAL
 //   FREE --allocLarge--> LARGE --gcSweepDead--> FREE
 //
 enum class MSRegionType : uint8_t {
     MS_REGION_FREE    = 0,  // Unallocated, in free pool
     MS_REGION_BUMP    = 1,  // First-fill using bump-pointer (allocPtr < regionEnd)
-    MS_REGION_PARTIAL = 2,  // Swept, has free slots (freeSlotCount > 0)
-    MS_REGION_FULL    = 3,  // No free slots (freeSlotCount == 0)
-    MS_REGION_LARGE   = 4,  // Large object Region (single object per Region)
-    MS_REGION_SPAN    = 5,  // Secondary MSRegionInfo for unaligned region span; reserved=primaryIdx
-    MS_REGION_EMPTY_CACHE = 6, // Empty small-region shell cached in CentralRegionPool
+    MS_REGION_BITMAP  = 2,  // TLS-owned small Region allocating from allocBitmap
+    MS_REGION_PARTIAL = 3,  // Central swept Region with free slots
+    MS_REGION_FULL    = 4,  // Central Region with no free slots
+    MS_REGION_LARGE   = 5,  // Base Region of one large object
+    MS_REGION_SPAN    = 6,  // Secondary Region of a large object; reserved=baseIdx
+    MS_REGION_EMPTY_CACHE = 7, // Empty small-region shell cached in CentralRegionPool
 };
+
+inline bool IsLargeRegionEntryType(MSRegionType type)
+{
+    return type == MSRegionType::MS_REGION_LARGE ||
+           type == MSRegionType::MS_REGION_SPAN;
+}
 
 // Sweep state for lazy sweep protocol
 enum class MSSweepState : uint8_t {
@@ -50,19 +57,6 @@ enum class MSCentralReturnKind : uint8_t {
     EMPTY_CACHE = 0,
     PARTIAL = 1,
     FULL = 2,
-};
-
-enum class MSRegionLocation : uint8_t {
-    UNKNOWN = 0,
-    FREE,
-    TRANSIENT,
-    ACTIVE_LOCAL,
-    LOCAL_EMPTY_CACHE,
-    GLOBAL_EMPTY_CACHE,
-    CENTRAL_PARTIAL,
-    CENTRAL_FULL,
-    SWEEP_CLAIMED,
-    LARGE_ACTIVE,
 };
 
 struct MSCentralReturnDecision {
@@ -307,31 +301,26 @@ static_assert(offsetof(MSRegionInfo, reserved) == 56, "compiler ABI: MSRegionInf
 static_assert(MS_REGION_SIZE == 32768, "compiler ABI: MSGC Region size");
 static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_BUMP) == 1,
               "compiler ABI: BUMP Region type");
-static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_PARTIAL) == 2,
+static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_BITMAP) == 2,
+              "compiler ABI: BITMAP Region type");
+static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_PARTIAL) == 3,
               "compiler ABI: PARTIAL Region type");
-static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_FULL) == 3,
+static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_FULL) == 4,
               "compiler ABI: FULL Region type");
-static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_LARGE) == 4,
+static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_LARGE) == 5,
               "compiler ABI: LARGE Region type");
+static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_SPAN) == 6,
+              "compiler ABI: SPAN Region type");
 
 // ============================================================================
 // MSRegionInfoArray: mirror array management (heap-front layout)
 // ============================================================================
 class MSRegionInfoArray {
 public:
-    static constexpr uintptr_t ANY_OWNER = static_cast<uintptr_t>(-1);
-
     // Initialize with external array pointer (from mmap front) — no malloc.
     // If array is nullptr, falls back to malloc (for backward compatibility).
     static void Init(uintptr_t heapStart, size_t maxRegionCount, MSRegionInfo* array = nullptr);
 
-    static bool TryGetTrackedIdx(const MSRegionInfo* info, size_t& idx);
-    static MSRegionLocation GetLocation(const MSRegionInfo* info);
-    static uintptr_t GetOwnerToken(const MSRegionInfo* info);
-    static void SetState(const MSRegionInfo* info, MSRegionLocation location, uintptr_t ownerToken = 0);
-    static void TransitionState(const MSRegionInfo* info, MSRegionLocation expectedLocation,
-                                MSRegionLocation newLocation, uintptr_t expectedOwnerToken = ANY_OWNER,
-                                uintptr_t newOwnerToken = 0, const char* context = nullptr);
     // O(1) address -> MSRegionInfo lookup (no branching)
     static inline MSRegionInfo* GetRegionInfo(uintptr_t addr)
     {
@@ -351,6 +340,32 @@ public:
         return &array_[regionIdx];
     }
 
+    // Resolve a LARGE base entry from either the base itself or one of its
+    // secondary SPAN entries. Returns nullptr for stale or malformed metadata.
+    static inline MSRegionInfo* ResolveLargeBaseInfo(MSRegionInfo* info)
+    {
+        if (info == nullptr) {
+            return nullptr;
+        }
+        if (info->regionType == MSRegionType::MS_REGION_LARGE) {
+            return (info->allocPtr != 0 && info->regionEnd != 0) ? info : nullptr;
+        }
+        if (info->regionType != MSRegionType::MS_REGION_SPAN) {
+            return nullptr;
+        }
+
+        size_t baseIdx = static_cast<size_t>(info->reserved);
+        if (baseIdx >= maxRegionCount_) {
+            return nullptr;
+        }
+        MSRegionInfo* base = &array_[baseIdx];
+        if (base->regionType != MSRegionType::MS_REGION_LARGE ||
+            base->allocPtr == 0 || base->regionEnd == 0) {
+            return nullptr;
+        }
+        return base;
+    }
+
     // Defensive address -> MSRegionInfo lookup retained for non-Mark callers.
     // The adjacent-entry fallback is historical; current Region allocation is
     // strictly indexed by MS_REGION_SIZE relative to heapStartAddress_.
@@ -360,41 +375,38 @@ public:
         size_t regionIdx = (addr - heapStartAddress_) / MS_REGION_SIZE;
         MSRegionInfo* info = &array_[regionIdx];
 
-        if (info->regionEnd != 0) {
-            if (info->regionType == MSRegionType::MS_REGION_LARGE) {
-                // LARGE base entry: only object base pointer is valid.
-                if (addr == info->allocPtr) {
-                    return info;
-                }
-                // addr not in this large object — cross-contamination from
-                // adjacent unaligned small region. Fall through to slow path.
-            } else {
-                // Small/medium: range is [RegionStart(), regionEnd)
-                if (addr >= info->RegionStart() && addr < info->regionEnd) {
-                    return info;
-                }
+        if (info->regionType == MSRegionType::MS_REGION_LARGE) {
+            // LARGE base entry: only object base pointer is valid.
+            if (info->regionEnd != 0 && addr == info->allocPtr) {
+                return info;
             }
-        } else if (info->regionType == MSRegionType::MS_REGION_LARGE) {
-            // LARGE span entry (regionEnd==0, reserved=baseIdx).
+            // addr not in this large object — cross-contamination from
+            // adjacent unaligned small region. Fall through to slow path.
+        } else if (info->regionType == MSRegionType::MS_REGION_SPAN) {
+            // SPAN entry (reserved=baseIdx).
             // Validate base entry liveness/range to avoid treating stale
             // span metadata (after large object reclaimed/reset) as valid.
-            MSRegionInfo* base = GetRegionInfoByIdx(static_cast<size_t>(info->reserved));
-            if (base->regionType != MSRegionType::MS_REGION_LARGE ||
-                base->allocPtr == 0 || base->regionEnd == 0) {
+            MSRegionInfo* base = ResolveLargeBaseInfo(info);
+            if (base == nullptr) {
                 return nullptr;
             }
             if (addr == base->allocPtr) {
                 return info;
             }
             return nullptr;
+        } else if (info->regionEnd != 0) {
+            // Small/medium: range is [RegionStart(), regionEnd)
+            if (addr >= info->RegionStart() && addr < info->regionEnd) {
+                return info;
+            }
         }
 
         // Slow path: alignment mismatch for small/medium regions.
-        // Only search non-LARGE adjacent entries.
+        // Only search ordinary small/medium adjacent entries.
         if (regionIdx > 0) {
             MSRegionInfo* prev = &array_[regionIdx - 1];
             if (prev->regionEnd != 0 &&
-                prev->regionType != MSRegionType::MS_REGION_LARGE &&
+                !IsLargeRegionEntryType(prev->regionType) &&
                 addr >= prev->RegionStart() && addr < prev->regionEnd) {
                 return prev;
             }
@@ -402,7 +414,7 @@ public:
         if (regionIdx + 1 < maxRegionCount_) {
             MSRegionInfo* next = &array_[regionIdx + 1];
             if (next->regionEnd != 0 &&
-                next->regionType != MSRegionType::MS_REGION_LARGE &&
+                !IsLargeRegionEntryType(next->regionType) &&
                 addr >= next->RegionStart() && addr < next->regionEnd) {
                 return next;
             }
@@ -454,11 +466,10 @@ public:
     // Precondition: msInfo != nullptr && msInfo == GetRegionInfoValidated(addr).
     static inline bool MarkObjectInHeapKnown(MSRegionInfo* msInfo, uintptr_t addr)
     {
-        if (msInfo->regionType == MSRegionType::MS_REGION_LARGE) {
-            MSRegionInfo* base = GetRegionInfoByIdx(
-                static_cast<size_t>(msInfo->reserved));
+        if (IsLargeRegionEntryType(msInfo->regionType)) {
+            MSRegionInfo* base = ResolveLargeBaseInfo(msInfo);
             // Guard: base entry already Reset (stale large region)
-            if (base->allocPtr == 0 && base->regionEnd == 0) {
+            if (base == nullptr) {
                 return true;
             }
             return base->AtomicTestAndSetMarked();
@@ -478,8 +489,6 @@ private:
     static uintptr_t heapEndAddress_;      // Past-the-end address
     static size_t maxRegionCount_;
     static bool ownedByMalloc_;            // true if array_ was malloc'd (needs free)
-    static std::atomic<uint8_t>* locations_;
-    static std::atomic<uintptr_t>* ownerTokens_;
 };
 
 } // namespace MapleRuntime

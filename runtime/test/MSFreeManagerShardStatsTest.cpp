@@ -111,6 +111,31 @@ void ExpectEq(size_t actual, size_t expected, const char* message)
     }
 }
 
+uint64_t ValidRegionMask(size_t wordIdx, size_t validRegions)
+{
+    size_t wordStart = wordIdx * FreeManager::kChunkBits;
+    if (wordStart >= validRegions) {
+        return 0;
+    }
+    size_t validBits = std::min(FreeManager::kChunkBits, validRegions - wordStart);
+    return validBits == FreeManager::kChunkBits ? ~0ULL : ((1ULL << validBits) - 1);
+}
+
+void ExpectHotWordSummaryMatches(const FreeManager::OwnedSegmentView& view,
+                                 size_t committedLocal,
+                                 const char* message)
+{
+    uint64_t expected = 0;
+    for (size_t wordIdx = 0; wordIdx < view.bitmapWordCount_; ++wordIdx) {
+        uint64_t hotFree = (~view.allocBits_[wordIdx]) & (~view.scavengedBits_[wordIdx]) &
+                           ValidRegionMask(wordIdx, committedLocal);
+        if (hotFree != 0) {
+            expected |= 1ULL << wordIdx;
+        }
+    }
+    ExpectEq(view.hotWordMask_, expected, message);
+}
+
 void ExpectHotFreeSnapshotsMatch(const FreeManager& manager, const char* message)
 {
     ExpectEq(manager.GetHotFreeBytes(), manager.GetHotFreeBytesReference(), message);
@@ -128,6 +153,234 @@ void ExpectTake(FreeManager& manager, uint32_t num, uint16_t homeShardId, uint32
         std::fprintf(stderr, "%s: expected=%u actual=%u\n", message, expectedIdx, idx);
         std::abort();
     }
+}
+
+void TestHotWordSummaryInitializationAndTransitions()
+{
+    constexpr size_t kPageSize = 16 * 1024;
+    constexpr size_t kRegionSize = 256 * 1024;
+    constexpr uint32_t kUnitsPerRegion = kRegionSize / kPageSize;
+    constexpr uint32_t kRegionCount = 70;
+    constexpr size_t kHeapBytes = static_cast<size_t>(kRegionCount) * kRegionSize;
+
+    void* heap = AllocateHeap(kHeapBytes);
+    FreeManager manager;
+    manager.Initialize(
+        kPageSize,
+        kUnitsPerRegion,
+        kRegionCount,
+        kRegionCount,
+        reinterpret_cast<uintptr_t>(heap),
+        reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+        reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+        kHeapBytes,
+        1);
+
+    FreeManager::FreeManagerShard& shard = manager.GetShard(0);
+    std::lock_guard<std::mutex> lock(shard.shardMutex_);
+    FreeManager::OwnedSegmentView& view = shard.ownedViews_.front();
+    ExpectHotWordSummaryMatches(view, kRegionCount, "fresh view hot-word summary");
+    ExpectEq(view.hotWordMask_, 0x3, "70 valid Regions require exactly two hot words");
+
+    bool reusedScavenged = false;
+    manager.MarkAllocatedLocked(shard, 0, 64, reusedScavenged);
+    ExpectHotWordSummaryMatches(view, kRegionCount, "summary after first word allocation");
+    ExpectEq(view.hotWordMask_, 0x2, "allocating first word leaves only tail word hot");
+
+    manager.MarkFreeLocked(shard, 0, 64);
+    ExpectHotWordSummaryMatches(view, kRegionCount, "summary after reclaim");
+    ExpectEq(view.hotWordMask_, 0x3, "reclaim restores first hot word");
+
+    manager.MarkUnavailableLocked(shard, 64, 6);
+    ExpectHotWordSummaryMatches(view, kRegionCount, "summary after tail becomes unavailable");
+    ExpectEq(view.hotWordMask_, 0x1, "unavailable tail must not appear hot");
+
+    manager.MarkScavengingLocked(shard, 0, 64);
+    ExpectHotWordSummaryMatches(view, kRegionCount, "summary while release is in flight");
+    ExpectEq(view.hotWordMask_, 0, "claimed Regions must disappear from hot summary");
+
+    manager.CompleteScavengingLocked(shard, 0, 64, false);
+    ExpectHotWordSummaryMatches(view, kRegionCount, "summary after release rollback");
+    ExpectEq(view.hotWordMask_, 0x1, "failed release restores hot summary");
+
+    manager.MarkScavengingLocked(shard, 0, 64);
+    manager.CompleteScavengingLocked(shard, 0, 64, true);
+    ExpectHotWordSummaryMatches(view, kRegionCount, "summary after successful release");
+    ExpectEq(view.hotWordMask_, 0, "successfully released Regions remain cold");
+
+    FreeHeap(heap, kHeapBytes);
+}
+
+void TestScavengeSkipsColdViewsAndUsesSavedCursor()
+{
+    constexpr size_t kPageSize = 16 * 1024;
+    constexpr size_t kRegionSize = 256 * 1024;
+    constexpr uint32_t kUnitsPerRegion = kRegionSize / kPageSize;
+    constexpr size_t kSegmentSize = 16ULL * 1024 * 1024;
+    constexpr uint32_t kRegionsPerSegment = kSegmentSize / kRegionSize;
+    constexpr uint32_t kRegionCount = kRegionsPerSegment * 3;
+    constexpr size_t kHeapBytes = static_cast<size_t>(kRegionCount) * kRegionSize;
+
+    void* heap = AllocateHeap(kHeapBytes);
+    FreeManager manager;
+    manager.Initialize(
+        kPageSize,
+        kUnitsPerRegion,
+        kRegionCount,
+        kRegionCount,
+        reinterpret_cast<uintptr_t>(heap),
+        reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+        reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+        kSegmentSize,
+        1);
+
+    FreeManager::FreeManagerShard& shard = manager.GetShard(0);
+    {
+        std::lock_guard<std::mutex> lock(shard.shardMutex_);
+        manager.MarkScavengingLocked(shard, kRegionsPerSegment, kRegionsPerSegment * 2);
+        manager.CompleteScavengingLocked(shard, kRegionsPerSegment, kRegionsPerSegment * 2, true);
+    }
+
+    FreeManager::ScavengeSliceStats stats;
+    ExpectEq(manager.ScavengeFreeRegionsUpTo(kRegionSize, &stats), kRegionSize,
+             "sparse slice should release one Region from the only hot view");
+    ExpectEq(stats.visitedViews, 3, "sparse slice should inspect each view at most once");
+    ExpectEq(stats.skippedColdViews, 2, "cold view summaries should skip two views");
+    ExpectEq(stats.visitedHotWords, 1, "sparse slice should inspect one indexed hot word");
+    ExpectEq(stats.claimedRegions, 1, "sparse slice should claim one Region");
+    ExpectEq(stats.releasedRegions, 1, "sparse slice should release one Region");
+    if (shard.scavengeViewCursor_ >= shard.ownedViews_.size()) {
+        std::fprintf(stderr, "saved Scavenge view cursor escaped owned view bounds\n");
+        std::abort();
+    }
+    if (shard.scavengeWordCursor_ >= shard.ownedViews_[shard.scavengeViewCursor_].bitmapWordCount_) {
+        std::fprintf(stderr, "saved Scavenge word cursor escaped bitmap word bounds\n");
+        std::abort();
+    }
+
+    FreeHeap(heap, kHeapBytes);
+}
+
+void TestScavengeCoalescesOnlyAdjacentRegions()
+{
+    constexpr size_t kPageSize = 16 * 1024;
+    constexpr size_t kRegionSize = 256 * 1024;
+    constexpr uint32_t kUnitsPerRegion = kRegionSize / kPageSize;
+    constexpr uint32_t kRegionCount = 130;
+    constexpr size_t kHeapBytes = static_cast<size_t>(kRegionCount) * kRegionSize;
+
+    void* heap = AllocateHeap(kHeapBytes);
+    FreeManager manager;
+    manager.Initialize(
+        kPageSize,
+        kUnitsPerRegion,
+        kRegionCount,
+        kRegionCount,
+        reinterpret_cast<uintptr_t>(heap),
+        reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+        reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+        kHeapBytes,
+        1);
+
+    ExpectTake(manager, kRegionCount, 0, 0, "test setup should allocate the complete view");
+    manager.ReclaimRegionsReleased(63, 2);
+    FreeManager::ScavengeSliceStats adjacentStats;
+    ExpectEq(manager.ScavengeFreeRegionsUpTo(2 * kRegionSize, &adjacentStats), 2 * kRegionSize,
+             "adjacent cross-word Regions should be released");
+    ExpectEq(adjacentStats.releaseCalls, 1, "cross-word adjacency should use one OS release call");
+    ExpectEq(adjacentStats.candidateRuns, 1, "cross-word adjacency should form one candidate run");
+
+    manager.ReclaimRegionsReleased(62, 1);
+    manager.ReclaimRegionsReleased(64, 1);
+    FreeManager::ScavengeSliceStats fragmentedStats;
+    ExpectEq(manager.ScavengeFreeRegionsUpTo(2 * kRegionSize, &fragmentedStats), 2 * kRegionSize,
+             "fragmented hot Regions should both be released");
+    ExpectEq(fragmentedStats.releaseCalls, 2, "non-adjacent Regions require two OS release calls");
+    ExpectEq(fragmentedStats.candidateRuns, 2, "allocated gap must preserve two candidate runs");
+
+    FreeHeap(heap, kHeapBytes);
+}
+
+void TestHotWordSummaryFixedSeedStateMachine()
+{
+    constexpr size_t kPageSize = 16 * 1024;
+    constexpr size_t kRegionSize = 256 * 1024;
+    constexpr uint32_t kUnitsPerRegion = kRegionSize / kPageSize;
+    constexpr uint32_t kRegionCount = 130;
+    constexpr size_t kHeapBytes = static_cast<size_t>(kRegionCount) * kRegionSize;
+
+    void* heap = AllocateHeap(kHeapBytes);
+    FreeManager manager;
+    manager.Initialize(
+        kPageSize,
+        kUnitsPerRegion,
+        kRegionCount,
+        kRegionCount,
+        reinterpret_cast<uintptr_t>(heap),
+        reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+        reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+        kHeapBytes,
+        1);
+
+    uint64_t seed = 0x9e3779b97f4a7c15ULL;
+    auto next = [&seed]() {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        return seed;
+    };
+
+    FreeManager::FreeManagerShard& shard = manager.GetShard(0);
+    {
+        std::lock_guard<std::mutex> lock(shard.shardMutex_);
+        FreeManager::OwnedSegmentView& view = shard.ownedViews_.front();
+        for (size_t step = 0; step < 500; ++step) {
+            size_t localIdx = static_cast<size_t>(next() % kRegionCount);
+            FreeManager::RegionIndex regionIdx = static_cast<FreeManager::RegionIndex>(localIdx);
+            bool allocated = FreeManager::TestBit(view.allocBits_.data(), localIdx);
+            bool scavenged = FreeManager::TestBit(view.scavengedBits_.data(), localIdx);
+            bool scavenging = FreeManager::TestBit(view.scavengingBits_.data(), localIdx);
+            if (scavenging) {
+                std::fprintf(stderr, "state-machine step began with an in-flight Region\n");
+                std::abort();
+            }
+
+            if (!allocated && !scavenged) {
+                if ((next() & 1ULL) == 0) {
+                    bool reusedScavenged = false;
+                    manager.MarkAllocatedLocked(shard, regionIdx, 1, reusedScavenged);
+                } else {
+                    manager.MarkScavengingLocked(shard, regionIdx, 1);
+                    manager.CompleteScavengingLocked(shard, regionIdx, 1, (next() & 1ULL) != 0);
+                }
+            } else if (!allocated && scavenged) {
+                bool reusedScavenged = false;
+                manager.MarkAllocatedLocked(shard, regionIdx, 1, reusedScavenged);
+            } else {
+                manager.MarkFreeLocked(shard, regionIdx, 1);
+            }
+
+            size_t expectedFree = 0;
+            size_t expectedScavenged = 0;
+            size_t expectedScavenging = 0;
+            for (size_t probe = 0; probe < kRegionCount; ++probe) {
+                expectedFree += FreeManager::TestBit(view.allocBits_.data(), probe) ? 0 : 1;
+                expectedScavenged += FreeManager::TestBit(view.scavengedBits_.data(), probe) ? 1 : 0;
+                expectedScavenging += FreeManager::TestBit(view.scavengingBits_.data(), probe) ? 1 : 0;
+            }
+            ExpectEq(shard.freeRegionCount_, expectedFree, "fixed-seed free count");
+            ExpectEq(shard.scavengedRegionCount_, expectedScavenged, "fixed-seed scavenged count");
+            ExpectEq(shard.scavengingRegionCount_, expectedScavenging, "fixed-seed scavenging count");
+            ExpectHotWordSummaryMatches(view, kRegionCount, "fixed-seed hot-word summary");
+        }
+    }
+
+    if (shard.scavengeViewCursor_ >= shard.ownedViews_.size() ||
+        shard.scavengeWordCursor_ >= shard.ownedViews_[shard.scavengeViewCursor_].bitmapWordCount_) {
+        std::fprintf(stderr, "fixed-seed state machine left an invalid Scavenge cursor\n");
+        std::abort();
+    }
+    FreeHeap(heap, kHeapBytes);
 }
 
 void TestPerShardCountsTrackOwnerAndBorrowedBatchConsumption()
@@ -225,6 +478,53 @@ void TestScavengeRotatesAcrossOwnerShards()
     FreeHeap(heap, kHeapBytes);
 }
 
+void TestColdReuseCounterTracksClearedScavengedBitsOnce()
+{
+    constexpr size_t kPageSize = 16 * 1024;
+    constexpr size_t kRegionSize = 256 * 1024;
+    constexpr uint32_t kUnitsPerRegion = kRegionSize / kPageSize;
+    constexpr uint32_t kRegionCount = 3;
+    constexpr size_t kHeapBytes = static_cast<size_t>(kRegionCount) * kRegionSize;
+
+    void* heap = AllocateHeap(kHeapBytes);
+    FreeManager manager;
+    manager.Initialize(
+        kPageSize,
+        kUnitsPerRegion,
+        kRegionCount,
+        kRegionCount,
+        reinterpret_cast<uintptr_t>(heap),
+        reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+        reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+        kHeapBytes,
+        1);
+
+    ExpectEq(manager.GetReusedScavengedRegionCount(), 0,
+             "fresh FreeManager must have no cold Region reuse");
+    ExpectEq(manager.ScavengeFreeRegionsUpTo(kHeapBytes), kHeapBytes,
+             "all test Regions should become scavenged");
+    ExpectEq(manager.GetScavengedRegionCount(0), kRegionCount,
+             "all test Regions should carry scavenged bits");
+
+    ExpectTake(manager, 2, 0, 0,
+               "contiguous allocation should reuse the first two scavenged Regions");
+    ExpectEq(manager.GetReusedScavengedRegionCount(), 2,
+             "contiguous cold reuse must add its exact scavenged count");
+
+    ExpectTake(manager, 1, 0, 2,
+               "single allocation should reuse the remaining scavenged Region");
+    ExpectEq(manager.GetReusedScavengedRegionCount(), 3,
+             "single cold reuse must add one after clearing its scavenged bit");
+
+    manager.ReclaimRegionsReleased(0, kRegionCount);
+    ExpectTake(manager, 1, 0, 0,
+               "hot Region reuse should remain allocatable after reclaim");
+    ExpectEq(manager.GetReusedScavengedRegionCount(), 3,
+             "hot Region reuse must not increment the cold reuse counter again");
+
+    FreeHeap(heap, kHeapBytes);
+}
+
 void TestScavengeSkipsBusyShardWithTryLock()
 {
     constexpr size_t kPageSize = 16 * 1024;
@@ -250,15 +550,18 @@ void TestScavengeSkipsBusyShardWithTryLock()
         2);
 
     size_t releasedBytes = 0;
+    FreeManager::ScavengeSliceStats stats;
     std::unique_lock<std::mutex> holdShard0(manager.shards_[0].shardMutex_);
     std::thread worker([&]() {
-        releasedBytes = manager.ScavengeFreeRegionsUpTo(kRegionSize);
+        releasedBytes = manager.ScavengeFreeRegionsUpTo(kRegionSize, &stats);
     });
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     holdShard0.unlock();
     worker.join();
 
     ExpectEq(releasedBytes, kRegionSize, "try-lock scavenge should still release one region");
+    ExpectEq(stats.visitedShards, 2, "try-lock slice should visit the busy and fallback shards");
+    ExpectEq(stats.lockMissShards, 1, "try-lock slice should count one busy shard");
     ExpectEq(manager.GetScavengedRegionCount(0), 0, "busy shard0 should be skipped");
     ExpectEq(manager.GetScavengedRegionCount(1), 1, "shard1 should receive the scavenge budget after shard0 skip");
     ExpectHotFreeSnapshotsMatch(manager, "aggregate after busy-shard scavenge");
@@ -314,10 +617,15 @@ void TestScavengeFailureRollsBackToHotFree()
                        kSegmentSize, 1);
 
     size_t hotFreeBefore = manager.GetHotFreeBytes();
+    FreeManager::ScavengeSliceStats stats;
     gForceReleaseFailure = true;
-    ExpectEq(manager.ScavengeFreeRegionsUpTo(kRegionSize), 0,
+    ExpectEq(manager.ScavengeFreeRegionsUpTo(kRegionSize, &stats), 0,
              "failed OS release must not be reported as scavenged");
     gForceReleaseFailure = false;
+    ExpectEq(stats.claimedRegions, 1, "failed release should still count its claimed Region");
+    ExpectEq(stats.releasedRegions, 0, "failed release must not count a released Region");
+    ExpectEq(stats.releaseCalls, 1, "failed release should attempt one OS call");
+    ExpectEq(stats.releaseFailures, 1, "failed release should count one OS failure");
     ExpectEq(manager.GetScavengedRegionCount(0), 0,
              "failed OS release must not publish scavenged metadata");
     ExpectEq(manager.GetHotFreeBytes(), hotFreeBefore,
@@ -389,6 +697,9 @@ void TestShrinkKeepsTopologyWhenReleaseFails()
                        reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
                        kSegmentSize, 1);
 
+    manager.shards_[0].scavengeViewCursor_ = 1;
+    manager.shards_[0].scavengeWordCursor_ =
+        manager.shards_[0].ownedViews_[1].bitmapWordCount_ - 1;
     gForceReleaseFailure = true;
     manager.ShrinkHeap();
     gForceReleaseFailure = false;
@@ -396,12 +707,21 @@ void TestShrinkKeepsTopologyWhenReleaseFails()
              "failed tail release must not shrink committed topology");
     ExpectEq(manager.GetOwnedSegmentCount(0), 2,
              "failed tail release must not detach segment metadata");
+    ExpectEq(manager.shards_[0].scavengeViewCursor_, 1,
+             "failed shrink must preserve the saved Scavenge view cursor");
 
     manager.ShrinkHeap();
     ExpectEq(manager.GetCommittedRegionCount(), kRegionsPerSegment,
              "successful tail release should shrink one segment");
     ExpectEq(manager.GetOwnedSegmentCount(0), 1,
              "successful tail release should detach one segment view");
+    ExpectEq(manager.shards_[0].scavengeViewCursor_, 0,
+             "successful shrink must clamp the saved Scavenge view cursor");
+    if (manager.shards_[0].scavengeWordCursor_ >=
+        manager.shards_[0].ownedViews_[0].bitmapWordCount_) {
+        std::fprintf(stderr, "successful shrink left Scavenge word cursor out of bounds\n");
+        std::abort();
+    }
 
     FreeHeap(heap, kHeapBytes);
 }
@@ -458,8 +778,13 @@ void TestClaimedRegionCannotBeAllocatedDuringRelease()
 
 int main()
 {
+    TestHotWordSummaryInitializationAndTransitions();
+    TestScavengeSkipsColdViewsAndUsesSavedCursor();
+    TestScavengeCoalescesOnlyAdjacentRegions();
+    TestHotWordSummaryFixedSeedStateMachine();
     TestPerShardCountsTrackOwnerAndBorrowedBatchConsumption();
     TestScavengeRotatesAcrossOwnerShards();
+    TestColdReuseCounterTracksClearedScavengedBitsOnce();
     TestScavengeSkipsBusyShardWithTryLock();
     TestScavengeReleasesOutsideShardLock();
     TestScavengeFailureRollsBackToHotFree();

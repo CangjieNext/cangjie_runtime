@@ -35,7 +35,7 @@ import numpy as np
 # ─────────────────────────────────────────────────────────────────────────────
 # SDK 路径
 # ─────────────────────────────────────────────────────────────────────────────
-DEFAULT_MSGC_SDK   = Path('/Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260509/cangjie')
+DEFAULT_MSGC_SDK   = Path('/Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler/output/msgc')
 DEFAULT_COPYGC_SDK = Path('/Users/lipeisheng/code/cangjie/cangjie-pkg/dev/20260507/cangjie')
 
 MSGC_SDK   = DEFAULT_MSGC_SDK

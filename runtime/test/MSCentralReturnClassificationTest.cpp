@@ -12,9 +12,6 @@
 #define DCHECK(...)
 #define LOG(...)
 #define DLOG(...)
-#define RTLOG_FATAL 0
-#define RTLOG_INFO 1
-#define RTLOG_ERROR 2
 #define CHECK_DETAIL(x, ...)                                                                     \
     do {                                                                                         \
         if (!(x)) {                                                                              \
@@ -48,6 +45,10 @@ uint64_t* MSBitmapArena::GetSlotBase(size_t)
 
 #include "src/Heap/MAllocator/MSRegionInfo.cpp"
 
+namespace MapleRuntime {
+extern "C" MSGCFastPathState CJ_MRT_MSGCFastPathState = {};
+}
+
 namespace {
 
 using MapleRuntime::MSCentralReturnDecision;
@@ -56,6 +57,15 @@ using MapleRuntime::MSRegionInfo;
 using MapleRuntime::MSRegionType;
 using MapleRuntime::MSSweepState;
 using MapleRuntime::MS_REGION_SIZE;
+
+static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_FREE) == 0, "FREE ABI");
+static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_BUMP) == 1, "BUMP ABI");
+static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_BITMAP) == 2, "BITMAP ABI");
+static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_PARTIAL) == 3, "PARTIAL ABI");
+static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_FULL) == 4, "FULL ABI");
+static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_LARGE) == 5, "LARGE ABI");
+static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_SPAN) == 6, "SPAN ABI");
+static_assert(static_cast<uint8_t>(MSRegionType::MS_REGION_EMPTY_CACHE) == 7, "EMPTY_CACHE ABI");
 
 constexpr uint8_t kTestSizeClass = 1;
 constexpr uint8_t kBumpReturnSizeClass = 6; // 80-byte slots, 409 slots in 7 words.
@@ -210,6 +220,26 @@ void TestPrepareForCentralReturnNormalizesReusableBumpRegion()
     ExpectTrue(decision.callerClassMismatch, "mismatched caller cls should be reported");
 }
 
+void TestPrepareForCentralReturnNormalizesBitmapRegion()
+{
+    RegionFixture fixture;
+    fixture.region.regionType = MSRegionType::MS_REGION_BITMAP;
+    fixture.region.freeSlotCount = 1;
+    fixture.allocWords[0] = 0x2;
+    fixture.region.reserved = 0x1;
+
+    MSCentralReturnDecision decision = fixture.region.PrepareForCentralReturn(kTestSizeClass);
+
+    ExpectEqKind(decision.kind, MSCentralReturnKind::PARTIAL,
+                 "reusable TLS bitmap region should route to central partial");
+    ExpectEqType(fixture.region.regionType, MSRegionType::MS_REGION_PARTIAL,
+                 "TLS bitmap region should become central PARTIAL");
+    ExpectEqU64(fixture.allocWords[0], 0x2,
+                "TLS bitmap return must preserve the allocation bitmap");
+    ExpectEqU64(fixture.region.reserved, 0x1,
+                "TLS bitmap return must preserve the free-word summary");
+}
+
 void TestPrepareForCentralReturnNormalizesFullRegion()
 {
     RegionFixture fixture;
@@ -243,6 +273,7 @@ int main()
 {
     TestPrepareForCentralReturnMaterializesPartiallyUsedBumpBitmap();
     TestPrepareForCentralReturnNormalizesReusableBumpRegion();
+    TestPrepareForCentralReturnNormalizesBitmapRegion();
     TestPrepareForCentralReturnNormalizesFullRegion();
     TestPrepareForCentralReturnNormalizesEmptyRegion();
     return 0;

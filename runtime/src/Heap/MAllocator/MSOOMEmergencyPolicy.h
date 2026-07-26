@@ -9,6 +9,7 @@
 
 #ifdef MRT_USE_MARK_SWEEP
 
+#include <cstddef>
 #include <cstdint>
 #include <utility>
 
@@ -16,7 +17,7 @@ namespace MapleRuntime {
 
 struct MSPostMarkSweepPlan {
     bool reenableAtMarkTermination;
-    bool forceFinishInPostMark;
+    bool parallelSweepOnceInPostMark;
     bool flushAllCaches;
     bool notifyBackgroundSweep;
 };
@@ -26,6 +27,12 @@ constexpr MSPostMarkSweepPlan BuildMSPostMarkSweepPlan(bool isOOM)
     return isOOM
         ? MSPostMarkSweepPlan{false, true, true, false}
         : MSPostMarkSweepPlan{true, false, false, true};
+}
+
+constexpr size_t ResolveMSInitialMarkHelpers(bool isOOM, size_t dynamicHelpers,
+                                             size_t maxHelpers)
+{
+    return isOOM ? maxHelpers : dynamicHelpers;
 }
 
 template<typename TryAllocate, typename EmergencyRecovery>

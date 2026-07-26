@@ -629,12 +629,12 @@ python3 skills/cangjie-runtime-skill/scripts/build_copy_verify.py \
 
 | SDK 路径 | 类型 | 说明 |
 |---------|------|------|
-| `/Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260509/cangjie` | **自构建 MSGC SDK（最新）** | 从源码编译，包含**读屏障消除**
+| `/Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler/output/msgc` | **当前 MSGC SDK（默认）** | compiler、runtime、stdlib 统一安装在 `output/msgc`
 | `/Users/lipeisheng/code/cangjie/cangjie-pkg/dev/20260507/cangjie` | **Dev 原生 CopyGC SDK** | 当前 dev 分支官方发布的 CopyGC SDK，用于性能基线对比，**不要替换**其 `libcangjie-runtime.dylib` |
 
-- **当前主力验证 SDK**：`self/dev260509/cangjie`（最新自构建 MSGC）
-- **MSGC runtime 替换目录**：`/Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260509/cangjie/runtime/lib/darwin_aarch64_cjnative/`
-- **稳定包备份**：各 SDK 目录下的 `libcangjie-runtime.dylib.origin` 用于回退
+- **当前主力验证 SDK**：`/Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler/output/msgc`
+- **MSGC runtime 替换目录**：`/Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler/output/msgc/runtime/lib/darwin_aarch64_cjnative/`
+- **Runtime 备份**：替换前创建并核对 `libcangjie-runtime.dylib.backup-*`，回退时使用明确的备份文件
 
 ### 1. 编译 Runtime
 
@@ -654,26 +654,26 @@ output/temp/lib/aarch64_Release/libcangjie-runtime.dylib
 
 SDK 路径：
 ```
-/Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260509/cangjie/runtime/lib/darwin_aarch64_cjnative/
+/Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler/output/msgc/runtime/lib/darwin_aarch64_cjnative/
 ```
 
 该目录下的文件说明：
 - `libcangjie-runtime.dylib` — 当前 MSGC SDK 正在使用的运行时（后续编译产物覆盖此文件）
-- `libcangjie-runtime.dylib.origin` — 当前稳定包备份，用于回退或与新编译的 MSGC runtime 对比
+- `libcangjie-runtime.dylib.backup-*` — 替换前创建的备份，用于回退或与新编译的 MSGC runtime 对比
 
 替换命令：
 ```bash
 cp /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/output/temp/lib/aarch64_Release/libcangjie-runtime.dylib \
-   /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260509/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
+   /Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler/output/msgc/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
 # macOS arm64: cp 后必须重签名，否则 SIGKILL
-codesign -f -s - /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260509/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
+codesign -f -s - /Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler/output/msgc/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
 ```
 
 回退到原始版本：
 ```bash
-cp /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260509/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib.origin \
-   /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260509/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
-codesign -f -s - /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260509/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
+cp /path/to/verified/libcangjie-runtime.dylib.backup-YYYYMMDD-HHMMSS \
+   /Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler/output/msgc/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
+codesign -f -s - /Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler/output/msgc/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
 ```
 
 ### 3. 编译并运行测试用例
@@ -682,7 +682,7 @@ codesign -f -s - /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260509/cangj
 
 ```bash
 # 初始化仓颉编译环境
-source /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260509/cangjie/envsetup.sh
+source /Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler/output/msgc/envsetup.sh
 
 # 编译测试用例
 cd /Users/lipeisheng/code/cangjie/cangjie/cangjie_runtime/runtime/gc
@@ -730,16 +730,16 @@ python3 build.py build
 
 # 替换 + 重签名
 cp output/temp/lib/aarch64_Release/libcangjie-runtime.dylib \
-   /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260509/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
-codesign -f -s - /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260509/cangjie/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
+   /Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler/output/msgc/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
+codesign -f -s - /Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler/output/msgc/runtime/lib/darwin_aarch64_cjnative/libcangjie-runtime.dylib
 
 # 编译测试 + 运行
-source /Users/lipeisheng/code/cangjie/cangjie-pkg/self/dev260509/cangjie/envsetup.sh
+source /Users/lipeisheng/code/cangjie/cangjie/cangjie_compiler/output/msgc/envsetup.sh
 cd gc && cjc gc_hello.cj -o main_hello && ./main_hello
 ```
 
 #### 注意事项
-- MSGC 验证统一替换 `self/dev260509/cangjie` 下的 `libcangjie-runtime.dylib`，`libcangjie-runtime.dylib.origin` 作为稳定回退包保留
+- MSGC 验证默认使用 `cangjie_compiler/output/msgc` 下的 compiler、runtime 和 stdlib；替换 runtime 前必须创建并核对独立备份
 - CopyGC 性能基线统一使用 `dev/20260507/cangjie`，禁止覆盖其 `libcangjie-runtime.dylib`
 - MS runtime 使用 `gc_hello.cj` 做基础冒烟测试（而非 CopyGC 专用的 `gc.cj`）
 - `gc.cj` 中可能包含 CopyGC 特定的内存布局假设，不适合直接用于 MS 验证

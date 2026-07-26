@@ -32,9 +32,10 @@ public:
     size_t GetScavengeThreshold() const { return scavengeThreshold.load(std::memory_order_acquire); }
     void SetScavengeThreshold(size_t val) { scavengeThreshold.store(val, std::memory_order_release); }
     // Snapshots persisted at GC end for pacing / HEU trigger calculations.
-    size_t baselineAllocatedBytes = 0;  // active region bytes snapshot at GC end
+    size_t baselineAllocatedBytes = 0;  // in-use Region bytes snapshot at GC end
     size_t lastTrueLiveBytes = 0;       // trueLiveBytes from last GC marking
-    size_t lastRegionBytes = 0;         // occupied region bytes snapshot at GC end
+    size_t lastStableLiveBytes = 0;     // last non-inflated trueLiveBytes sample
+    size_t lastRegionBytes = 0;         // in-use Region bytes snapshot at GC end
     size_t lastSurvivingRegionBytes = 0;        // predicted surviving region bytes from last GC end
 
     void Dump() const;

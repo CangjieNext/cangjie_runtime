@@ -17,7 +17,9 @@
 #include "Heap/Collector/TracingCollector.h"
 #include "Common/LFStack.h"
 #include "Heap/MCollector/MSAssistPacing.h"
+#include "Heap/MCollector/MSHeapThresholdPolicy.h"
 #include "Heap/MCollector/MSMarkLocalStats.h"
+#include "Heap/MCollector/MSMarkTerminationPolicy.h"
 #include "Heap/MCollector/MSMarkWorkerControl.h"
 #include "Heap/MCollector/MSMarkWorkerPolicy.h"
 
@@ -42,13 +44,26 @@ struct MSGCCycleStats {
     // ── Counting ──
     size_t rootsCount = 0;                // markWorkStack_.size() right after EnumAndMarkRoots finishes.
     size_t gcMainProcessedObjects = 0;    // Concurrent buffers scanned by the GC main thread.
+    size_t gcMainProcessedBuffers = 0;    // WorkBufs completed by the GC main thread.
     size_t helperProcessedObjects = 0;    // Concurrent buffers scanned by all helper workers.
+    size_t markCheckpointCount = 0;
+    size_t markDebtBuffers = 0;
+    size_t markPressureLevel = 0;
+    size_t markNoProgressWindows = 0;
+    MSMarkTerminationReason markTerminationReason = MSMarkTerminationReason::NATURAL;
 
     // ── Mutator assist stats (Step 2.2 §4) ──
     size_t assistProcessedObjects = 0;
 
     // ── True live bytes (computed from markBitmaps after marking) ──
     size_t trueLiveBytes = 0;            // ComputeMarkedStats() result, used by UpdateGCStats and GC-end logs.
+
+    // ── Floating-live threshold baseline ──
+    size_t markStartInUseBytes = 0;
+    size_t markEndInUseBytes = 0;
+    size_t inUseBurstBytes = 0;
+    size_t thresholdBaseBytes = 0;
+    bool floatingLiveInflated = false;
 
     // ── Region accounting snapshot ──
     size_t activeRegionCount = 0;        // activeRegionBytes / MS_REGION_SIZE, emitted in DumpRegionStatsMS.
@@ -204,7 +219,8 @@ private:
     // Claim and drain one published buffer. GC main/helpers accept any length;
     // mutator assist passes requireFull=true to preserve its credit granularity.
     size_t DrainOneBufRound(PerPGCWork& gcw, bool requireFull,
-                            LFStack::Counts* countsAfterPop = nullptr);
+                            LFStack::Counts* countsAfterPop = nullptr,
+                            bool* processedBuffer = nullptr);
     size_t DrainCurrentBuf(PerPGCWork& gcw);
     void TraceObjectRefFieldsToGCWork(BaseObject* obj, TypeInfo* typeInfo,
                                       PerPGCWork& gcw);
@@ -239,6 +255,7 @@ private:
     void PrepareCycleRef();
     void PostResolveCycleTask();
     void CollectLargeGarbage();
+    void RunOOMEmergencyParallelSweep(CentralRegionPool& centralPool);
 
     // ============================================================
     // Assist tuning parameters
@@ -288,6 +305,8 @@ private:
 
     // ── DFX: Per-cycle stats ──
     MSGCCycleStats cycleStats_;
+    MSScavengeThresholdState scavengeThresholdState_;
+    size_t previousReusedScavengedRegionCount_ = 0;
     uint64_t gcCycle_ = 0;  // Monotonic GC cycle counter
 
     // ── DFX: Logging methods (Step 5) ──

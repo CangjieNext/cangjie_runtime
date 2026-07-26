@@ -37,6 +37,7 @@ bool IsSegmentRegionTypeInUse(MSRegionType type)
 {
     switch (type) {
         case MSRegionType::MS_REGION_BUMP:
+        case MSRegionType::MS_REGION_BITMAP:
         case MSRegionType::MS_REGION_PARTIAL:
         case MSRegionType::MS_REGION_FULL:
         case MSRegionType::MS_REGION_LARGE:
@@ -257,8 +258,7 @@ void MSRegionManager::MaybeNotifyScavenge()
     // Aggregate counters keep the Region acquisition path O(1). Confirm only
     // a threshold crossing with the retained reference scan so a transient
     // cross-counter transfer cannot cause a spurious wakeup.
-    heapRetained = space.GetHeapRetainedBytesReference();
-    if (heapRetained <= scavengeThreshold) {
+    if (!space.HasPendingScavengeWork()) {
         scavengePressureProbeInProgress_.store(false, std::memory_order_release);
         return;
     }
@@ -266,25 +266,6 @@ void MSRegionManager::MaybeNotifyScavenge()
     BackgroundProcessor& bp = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
     bp.NotifyToScavenge();
     scavengePressureProbeInProgress_.store(false, std::memory_order_release);
-}
-
-void MSRegionManager::MaybeNotifyShrink()
-{
-    if (Heap::GetHeap().IsGcStarted()) {
-        return;
-    }
-
-    const RegionSpaceMS& space = static_cast<const RegionSpaceMS&>(Heap::GetHeap().GetAllocator());
-    if (space.GetCentralPool() == nullptr) {
-        return;
-    }
-
-    // Keep the mutator grow path non-blocking. The full shrink-work probe scans
-    // committed segments and CentralRegionPool caches, and can contend with the
-    // background shrink thread on central-pool locks during large-object bursts.
-    // Request the helper thread once and let it perform the heavyweight check.
-    BackgroundProcessor& bp = Heap::GetHeap().GetCollectorResources().GetBackgroundProcessor();
-    bp.NotifyToShrink();
 }
 
 void MSRegionManager::MaybeNotifyMark()
@@ -383,7 +364,6 @@ bool MSRegionManager::TakeRegions(RegionCount num, uint16_t homeShardId, RegionI
         if (!freeManager_.GrowForRegions(num, homeShardId, *this)) {
             return false;
         }
-        MaybeNotifyShrink();
     }
 }
 
@@ -498,9 +478,9 @@ size_t MSRegionManager::ScavengeFreeRegions(bool releaseAll)
     return freeManager_.ScavengeFreeRegions(releaseAll);
 }
 
-size_t MSRegionManager::ScavengeFreeRegionsUpTo(size_t maxBytes)
+size_t MSRegionManager::ScavengeFreeRegionsUpTo(size_t maxBytes, ScavengeSliceStats* stats)
 {
-    return freeManager_.ScavengeFreeRegionsUpTo(maxBytes);
+    return freeManager_.ScavengeFreeRegionsUpTo(maxBytes, stats);
 }
 
 // ============================================================================
