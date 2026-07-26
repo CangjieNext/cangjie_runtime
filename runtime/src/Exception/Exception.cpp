@@ -26,14 +26,14 @@ namespace {
 // Relative to the stub FrameAddress (x86: rbp; aarch64/arm: fp).
 #if defined(__x86_64__)
 #if defined(_WIN64)
-constexpr ptrdiff_t EXCLUSIVE_STUB_SAVED_CJ_SP_OFFSET = -80;
-#else
 constexpr ptrdiff_t EXCLUSIVE_STUB_SAVED_CJ_SP_OFFSET = -64;
+#else
+constexpr ptrdiff_t EXCLUSIVE_STUB_SAVED_CJ_SP_OFFSET = -48;
 #endif
 #elif defined(__aarch64__)
-constexpr ptrdiff_t EXCLUSIVE_STUB_SAVED_CJ_SP_OFFSET = 0xd0;
+constexpr ptrdiff_t EXCLUSIVE_STUB_SAVED_CJ_SP_OFFSET = 0xb0;
 #elif defined(__arm__)
-constexpr ptrdiff_t EXCLUSIVE_STUB_SAVED_CJ_SP_OFFSET = 0x74;
+constexpr ptrdiff_t EXCLUSIVE_STUB_SAVED_CJ_SP_OFFSET = 0x6c;
 #else
 constexpr ptrdiff_t EXCLUSIVE_STUB_SAVED_CJ_SP_OFFSET = 0;
 #endif
@@ -220,11 +220,12 @@ bool ExceptionHandling::ProcessEHFrame(const FrameInfo& frame, std::vector<std::
         return false;
     }
 #endif
-    // Exclusive stub/bridge are typed EXSLUSIVE and sit between the OS-stack throw
-    // site and the CJ-heap exclusiveScope frame. Do not overwrite lastRuntimeFrame
-    // with them: ChangeEHStackInfoLR must keep patching the ThrowException frame so
-    // its `ret` enters RestoreContextForEH immediately (otherwise the throw site can
-    // fall through into a stack-grow retry and throw again while pending).
+    // Exclusive stub/bridge (EXCLUSIVE_STUB / EXCLUSIVE_BRIDGE) sit between the
+    // OS-stack throw site and the CJ-heap exclusiveScope frame. Do not overwrite
+    // lastRuntimeFrame with them: ChangeEHStackInfoLR must keep patching the
+    // ThrowException frame so its `ret` enters RestoreContextForEH immediately
+    // (otherwise the throw site can fall through into a stack-grow retry and throw
+    // again while pending).
     if (frame.mFrame.IsExclusiveBridgeFrame()) {
         N2CSlotData* slot = N2CFrame::GetSlotData(frame.mFrame.GetFA());
         if (slot != nullptr && slot->fa != nullptr) {

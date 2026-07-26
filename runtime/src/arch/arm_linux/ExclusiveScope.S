@@ -9,18 +9,18 @@
 #define cfi_restore(reg)                .cfi_restore reg
 #define cfi_def_cfa_register(reg)       .cfi_def_cfa_register reg
 
-#define CJTHREAD_THREAD_OFFSET      0x08
-#define CONTEXT_R13SP               0x20
-#define CONTEXT_FPSCR               0x6c
-
 // ------------------------------------------------------------------------------
-// Single-CJThread ExclusiveScope (redesign) — ARM32
+// CJ_MCC_ExclusiveScope — ARM32
 //
-// CJ exclusive stub + exclusive bridge with N2CSlotData cross-stack jump.
-// exclusiveScopeCnt nests; skip-switch still builds a bridge; no saferegion.
-// OS SP rejects null and SP < 0x1000 before switch (parity with x86).
-// Callee-saved layouts must match RecordStubCalleeSaved /
-// RecordExclusiveBridgeCalleeSaved (and arm RecordExclusiveStubCalleeSaved).
+// Glue owns pin + protectAddr via CJ_MCC_ExclusiveScopeEnter/Leave; stub only
+// when destSp != 0. Switches SP to destSp, builds OS bridge, invokes AutoEnv.
+//
+// ABI: void CJ_MCC_ExclusiveScope(void* sret, void* fn, uintptr_t destSp)
+//      ARM32: r0=sret, r1=fn, r2=destSp
+//
+// GC: sret must not live in callee-saved regs across AutoEnv
+// (a safepoint may snapshot it as a GC root). Keep sret/fn in r0/r1 through
+// bridge setup; hold stub FA in r3. Do not clobber r0/r1 before the invoke.
 // ------------------------------------------------------------------------------
 
 // CJ exclusive stub:
@@ -28,14 +28,14 @@
 //   0x04  lr
 //   0x10  r4..r10 (RecordStubCalleeSaved at fp+16)
 //   0x2c  d8..d15
-//   0x6c  executeClosure, closurePtr, saved_sp
-#define ExclusiveScopeFrameSize     160
+//   0x6c  saved_sp   (Exception.cpp EXCLUSIVE_STUB_SAVED_CJ_SP_OFFSET)
+#define ExclusiveScopeFrameSize     0x70
 
 // OS bridge:
 //   0x00  r11, lr
-//   0x08  N2CSlotData (GetSlotData = fa+1 FrameAddress)
-//   0x14  r4..r10 (RecordExclusiveBridgeCalleeSaved)
-#define ExclusiveBridgeFrameSize    96
+//   0x08  N2CSlotData
+// Callee-saved live on the CJ stub (RecordStubCalleeSaved); bridge records none.
+#define ExclusiveBridgeFrameSize    32
 
     .text
     .align 2
@@ -69,95 +69,49 @@ CJ_MCC_ExclusiveScope:
     vstr    d14, [r11, #0x5c]
     vstr    d15, [r11, #0x64]
 
-    str     r0, [r11, #0x6c]            // executeClosure
-    str     r1, [r11, #0x70]            // closurePtr
-    mov     r0, #0
-    str     r0, [r11, #0x74]            // saved_cj_sp: 0 => no switch
-
-    // ExclusiveScopeState at [r11,#0x7c]: { cnt*, destSp }
-    add     r0, r11, #0x7c
-    bl      CJ_MCC_ExclusiveScopeEnter
-
-    // destSp == 0: no CJ→OS switch and no bridge — invoke on the current stack.
-    ldr     r0, [r11, #0x80]
-    cmp     r0, #0
-    beq     .L_exc_noswitch
+    // r0=sret, r1=fn stay in arg regs; r3 = stub FA for bridge setup.
+    mov     r3, r11
 
     // IP stored into the bridge N2CSlotData so stack walk lands on this stub.
     .global unwindPCForExclusiveStub
 unwindPCForExclusiveStub:
 
-    str     sp, [r11, #0x74]            // saved_cj_sp
-    mov     sp, r0
+    // Save CJ SP; switch to validated OS destSp (precondition: != 0).
+    str     sp, [r11, #0x6c]
+    mov     sp, r2
     sub     sp, sp, #64
     bic     sp, sp, #7
 
-.L_exc_build_bridge:
-    // Bridge on switched OS stack or current stack; r5 = CJ exclusive stub FA.
-    mov     r5, r11                     // exclusive stub fa
+    // Bridge on OS stack; lr still holds return to glue.
     push    {r11, lr}
     mov     r11, sp
     sub     sp, sp, #(ExclusiveBridgeFrameSize - 8)
 
-    // Callee-saved at fp+0x14 (RecordExclusiveBridgeCalleeSaved / arm exclusive)
-    str     r4, [r11, #0x14]
-    str     r5, [r11, #0x18]
-    str     r6, [r11, #0x1c]
-    str     r7, [r11, #0x20]
-    str     r8, [r11, #0x24]
-    str     r9, [r11, #0x28]
-    str     r10, [r11, #0x2c]
+    // Fill N2CSlotData at fa+0x08 (do not clobber r0/r1).
+    adr     r12, unwindPCForExclusiveStub
+    str     r12, [r11, #0x08]           // slot->pc
+    str     r3, [r11, #0x0c]            // slot->fa
+    mov     r12, #2                     // RISKY
+    str     r12, [r11, #0x10]           // slot->status
 
-    str     r5, [r11, #0x30]            // exclusive stub fa
-    ldr     r0, [r5, #0x6c]
-    ldr     r1, [r5, #0x70]
-    str     r0, [r11, #0x34]
-    str     r1, [r11, #0x38]
-
-    // slot = { pc: unwindPCForExclusiveStub, fa: CJ stub, status: RISKY }
-    mov     r0, r11                     // bridge fa
-    mov     r1, r5                      // exclusive stub fa
-    bl      MRT_SaveExclusiveBridgeSlot
-
-    // Managed call: r0=sret, r2=closure (match prior Exclusive stub ABI)
-    add     r0, r11, #0x40              // sret scratch on bridge
-    mov     r1, #0
-    ldr     r2, [r11, #0x38]            // closurePtr
-    ldr     r4, [r11, #0x34]            // executeClosure
-    ldr     r12, [r4, #8]
-    mov     r3, #0
+    // AutoEnv Invoke: *(fn+8)(sret, fn, OuterTypeInfo=*(fn+0))
+    // ARM32 object: ti@0, pad@4, payload@8 → method0 at +8.
+    // r0/r1 still hold sret/fn from entry.
+    ldr     r2, [r1]                    // OuterTypeInfo
+    ldr     r12, [r1, #8]               // GENERIC_VIRTUAL_FUNC
     blx     r12
 
     // Post-call PC: exclusive bridge identity for IsExclusiveBridgeFrame.
     .global unwindPCForExclusiveStubFull
 unwindPCForExclusiveStubFull:
 
-    mov     r4, r0                      // preserve return
-
-    ldr     r5, [r11, #0x18]
-    ldr     r6, [r11, #0x1c]
-    ldr     r7, [r11, #0x20]
-    ldr     r8, [r11, #0x24]
-    ldr     r9, [r11, #0x28]
-    ldr     r10, [r11, #0x2c]
-
     mov     sp, r11
     pop     {r11, lr}
 
-    // r11 is again the CJ exclusive stub. Restore heap SP only if we switched.
-    ldr     r0, [r11, #0x74]
-    cmp     r0, #0
-    beq     .L_exc_after_stack_restore
+    // Restore heap SP. Leave restores protectAddr in glue finally.
+    ldr     r0, [r11, #0x6c]
     mov     sp, r0
 
-.L_exc_after_stack_restore:
-    mov     r5, r4
-    add     r0, r11, #0x7c
-    bl      CJ_MCC_ExclusiveScopeLeave
-    mov     r0, r5
-    // Fall through into epilogue (hot path).
-
-.L_exc_cleanup:
     vldr    d8, [r11, #0x2c]
     vldr    d9, [r11, #0x34]
     vldr    d10, [r11, #0x3c]
@@ -181,19 +135,6 @@ unwindPCForExclusiveStubFull:
     cfi_restore(r11)
     cfi_restore(lr)
     bx      lr
-
-// No stack switch (destSp == 0): invoke without a bridge frame.
-.L_exc_noswitch:
-    add     r0, r11, #0x78              // sret scratch
-    mov     r1, #0
-    ldr     r2, [r11, #0x70]            // closurePtr
-    ldr     r4, [r11, #0x6c]            // executeClosure
-    ldr     r12, [r4, #8]
-    mov     r3, #0
-    blx     r12
-    mov     r4, r0
-    // saved_cj_sp is still 0; join shared CntSub + epilogue.
-    b       .L_exc_after_stack_restore
 
     .cfi_endproc
     .size CJ_MCC_ExclusiveScope, .-CJ_MCC_ExclusiveScope

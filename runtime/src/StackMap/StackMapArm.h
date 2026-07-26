@@ -64,24 +64,6 @@ public:
         }
     }
 
-    static void RecordExclusiveStubCalleeSaved(RegSlotsMap& regSlotsMap, Uptr fp)
-    {
-        constexpr Uptr slotLength = 4;
-        // arm32 exclusive OS bridge: N2CSlotData at fp+8 (12 bytes); callee-saved at fp+20.
-        constexpr Uptr calleeSavedAreaOffset = 4 * 5;
-        Uptr slotAddr = fp + calleeSavedAreaOffset;
-        static constexpr RegisterId calleeSavedRegiser[] = { R4, R5, R6, R7, R8, R9, R10};
-        for (auto reg : calleeSavedRegiser) {
-            regSlotsMap.Insert(reg, reinterpret_cast<SlotAddress>(slotAddr));
-            slotAddr += slotLength;
-        }
-    }
-
-    static void RecordExclusiveBridgeCalleeSaved(RegSlotsMap& regSlotsMap, Uptr fp)
-    {
-        RecordExclusiveStubCalleeSaved(regSlotsMap, fp);
-    }
-
     static void RecordStubAllRegister(RegSlotsMap& regSlotsMap, Uptr fp)
     {
         constexpr Uptr slotLength = 4;

@@ -277,17 +277,7 @@ void TracingCollector::RecordC2NStubCalleeSaved(RegSlotsMap& regSlotsMap, Uptr f
 {
     RegRoot::RecordC2NStubCalleeSaved(regSlotsMap, fp);
 }
-
-void TracingCollector::RecordExclusiveStubCalleeSaved(RegSlotsMap& regSlotsMap, Uptr fp)
-{
-    RegRoot::RecordExclusiveStubCalleeSaved(regSlotsMap, fp);
-}
 #endif
-
-void TracingCollector::RecordExclusiveBridgeCalleeSaved(RegSlotsMap& regSlotsMap, Uptr fp)
-{
-    RegRoot::RecordExclusiveBridgeCalleeSaved(regSlotsMap, fp);
-}
 
 void TracingCollector::RecordStubAllRegister(RegSlotsMap& regSlotsMap, Uptr fp)
 {

@@ -20,8 +20,6 @@ extern "C" MRT_EXPORT void MRT_UpdateUwContext(const uint32_t* pc, void* fa, Unw
                                                ThreadLocalData* tlData);
 extern "C" MRT_EXPORT bool MRT_C2N_Enter(const uint32_t* pc, void* fa, ThreadLocalData* tlData);
 extern "C" MRT_EXPORT ThreadLocalData* MRT_C2N_Leave(bool safeState, unsigned long long stackTop);
-/* Fill N2CSlotData on the OS exclusive bridge to jump to the CJ exclusive stub. */
-extern "C" MRT_EXPORT void MRT_SaveExclusiveBridgeSlot(FrameAddress* bridgeFa, FrameAddress* exclusiveStubFa);
 #ifdef __OHOS__
 extern "C" MRT_EXPORT unsigned long long MRT_UpdateStackTop(unsigned long long stackTop);
 #endif

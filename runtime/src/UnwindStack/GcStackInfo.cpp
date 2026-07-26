@@ -30,19 +30,11 @@ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) con
                 TracingCollector::RecordStubAllRegister(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
                 break;
             case FrameType::C2R_STUB:
+            case FrameType::EXCLUSIVE_STUB:
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
                 break;
             case FrameType::C2N_STUB:
                 TracingCollector::RecordC2NStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
-                break;
-            case FrameType::EXSLUSIVE:
-                if (frame.mFrame.IsExclusiveBridgeFrame()) {
-                    TracingCollector::RecordExclusiveBridgeCalleeSaved(regSlotsMap,
-                                                                       reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
-                } else {
-                    TracingCollector::RecordStubCalleeSaved(regSlotsMap,
-                                                            reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
-                }
                 break;
             default: {
                 break;
@@ -63,19 +55,11 @@ void GCStackInfo::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, con
                 break;
             }
             case FrameType::C2R_STUB:
+            case FrameType::EXCLUSIVE_STUB:
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
                 break;
             case FrameType::C2N_STUB:
                 TracingCollector::RecordC2NStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
-                break;
-            case FrameType::EXSLUSIVE:
-                if (frame.mFrame.IsExclusiveBridgeFrame()) {
-                    TracingCollector::RecordExclusiveBridgeCalleeSaved(regSlotsMap,
-                                                                       reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
-                } else {
-                    TracingCollector::RecordStubCalleeSaved(regSlotsMap,
-                                                            reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
-                }
                 break;
             case FrameType::STACKGROW:
                 LOG(RTLOG_FATAL, "STACKGROW frame is not supported in VisitHeapReferencesOnStack");
@@ -108,19 +92,11 @@ void RecordStackInfo::VisitStackRoots(const RootVisitor &func, Mutator &mutator)
                 TracingCollector::RecordStubAllRegister(regSlotsMap, reinterpret_cast<Uptr>(frame->mFrame.GetFA()));
                 break;
             case FrameType::C2R_STUB:
+            case FrameType::EXCLUSIVE_STUB:
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame->mFrame.GetFA()));
                 break;
             case FrameType::C2N_STUB:
                 TracingCollector::RecordC2NStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame->mFrame.GetFA()));
-                break;
-            case FrameType::EXSLUSIVE:
-                if (frame->mFrame.IsExclusiveBridgeFrame()) {
-                    TracingCollector::RecordExclusiveBridgeCalleeSaved(regSlotsMap,
-                                                                       reinterpret_cast<Uptr>(frame->mFrame.GetFA()));
-                } else {
-                    TracingCollector::RecordStubCalleeSaved(regSlotsMap,
-                                                            reinterpret_cast<Uptr>(frame->mFrame.GetFA()));
-                }
                 break;
             default: {
                 break;
@@ -144,19 +120,11 @@ void GCStackInfo::VisitStackRoots(const RootVisitor& func, Mutator& mutator) con
                 break;
             case FrameType::C2R_STUB:
             case FrameType::C2N_STUB:
+            case FrameType::EXCLUSIVE_STUB:
 #ifdef INTERPRETER_ENABLED
             case FrameType::INTERPRETER_C2I:
 #endif
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
-                break;
-            case FrameType::EXSLUSIVE:
-                if (frame.mFrame.IsExclusiveBridgeFrame()) {
-                    TracingCollector::RecordExclusiveBridgeCalleeSaved(regSlotsMap,
-                                                                       reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
-                } else {
-                    TracingCollector::RecordStubCalleeSaved(regSlotsMap,
-                                                            reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
-                }
                 break;
             default: {
                 break;
@@ -205,19 +173,11 @@ void GCStackInfo::VisitHeapReferencesOnStack(const RootVisitor& rootVisitor, con
             }
             case FrameType::C2R_STUB:
             case FrameType::C2N_STUB:
+            case FrameType::EXCLUSIVE_STUB:
 #ifdef INTERPRETER_ENABLED
             case FrameType::INTERPRETER_C2I:
 #endif
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
-                break;
-            case FrameType::EXSLUSIVE:
-                if (frame.mFrame.IsExclusiveBridgeFrame()) {
-                    TracingCollector::RecordExclusiveBridgeCalleeSaved(regSlotsMap,
-                                                                       reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
-                } else {
-                    TracingCollector::RecordStubCalleeSaved(regSlotsMap,
-                                                            reinterpret_cast<Uptr>(frame.mFrame.GetFA()));
-                }
                 break;
             case FrameType::SAFEPOINT:
             case FrameType::STACKGROW:
@@ -270,16 +230,8 @@ void RecordStackInfo::VisitStackRoots(const RootVisitor &func, Mutator &mutator)
                 break;
             case FrameType::C2R_STUB:
             case FrameType::C2N_STUB:
+            case FrameType::EXCLUSIVE_STUB:
                 TracingCollector::RecordStubCalleeSaved(regSlotsMap, reinterpret_cast<Uptr>(frame->mFrame.GetFA()));
-                break;
-            case FrameType::EXSLUSIVE:
-                if (frame->mFrame.IsExclusiveBridgeFrame()) {
-                    TracingCollector::RecordExclusiveBridgeCalleeSaved(regSlotsMap,
-                                                                       reinterpret_cast<Uptr>(frame->mFrame.GetFA()));
-                } else {
-                    TracingCollector::RecordStubCalleeSaved(regSlotsMap,
-                                                            reinterpret_cast<Uptr>(frame->mFrame.GetFA()));
-                }
                 break;
             default: {
                 break;
