@@ -10,54 +10,26 @@ package std.core
 
 /**
  * The execution of the input function @param fn occupies the underlying OS thread exclusively.
- * When executing @param fn, a switch from the cangjie thread stack to the OS thread stack will occur,
+ * When executing @param fn, a switch from the cangjie thread stack to the OS thread stack may occur,
  * and the underlying OS thread cannot be preempted by other cangjie threads.
- * After @param fn returns, it will switch back to the cangjie thread stack,
- * and the preemption will be permitted.
- * 
+ * After @param fn returns (or an exception propagates out of @param fn),
+ * the runtime restores the previous stack and allows preemption again.
+ * Exceptions thrown inside @param fn propagate to the caller of exclusiveScope.
+ *
  * @param fn The function to be executed exclusively.
  * @return The return value of @param fn.
- * @throws ExclusiveScopeException if an exception occurs during execution.
  */
 @When[env != "ohos"]
 public func exclusiveScope<T>(fn: () -> T): T {
-    let cl = ExclusiveScope<T>()
-    cl.run(fn)
-    match (cl.result) {
-        case Val(v) => v
-        case Ex(e) => throw ExclusiveScopeException(e)
-        case Err(e) => throw e
-    }
-}
-
-private enum Result<T> {
-    | Val(T)
-    | Ex(Exception)
-    | Err(Error)
+    exclusiveScopeImpl(fn)
 }
 
 @Intrinsic
 func exclusiveScopeImpl<T>(fn: () -> T): T
 
-private class ExclusiveScope<T> {
-    var result: Result<T> = unsafe { zeroValue<Result<T>>() }
-    func run(fn: () -> T): Unit {
-        exclusiveScopeImpl {
-            try {
-                result = Val(fn())
-            } catch (e: Exception) {
-                result = Ex(e)
-            } catch (e: Error) {
-                result = Err(e)
-            }
-        }
-    }
-}
-
 /**
- * Custom exception class to wrap exceptions thrown in an exclusive scope.
- * This exception preserves the original exception's stack trace and information.
- * It is thrown when an exception occurs within an exclusive scope execution.
+ * Custom exception class historically used to wrap exceptions thrown in an exclusive scope.
+ * Kept for ABI/compat; the exclusiveScope hot path no longer wraps exceptions in this type.
  */
 @When[env != "ohos"]
 public class ExclusiveScopeException <: Exception {
