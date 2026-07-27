@@ -10,15 +10,24 @@
 import std.collection.*
 
 main() {
-    let arr = [-1, 2, 3, 4, 5, 6, 7, 8, 9]
-    arr |> filter {a: Int64 => a > 0} |> // filter -1
-        step<Int64>(2) |> // [2, 4, 6, 8]
-        skip<Int64>(2) |> // [6, 8]
-        forEach<Int64>(println)
+    let arr = [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    println("原始数组: ${arr}")
 
-    let str = arr |> filter {a: Int64 => a % 2 == 1} |> collectString<Int64>(delimiter: ">")
-    println(str)
-    println(arr |> contains(6_i64))
+    // 过滤出大于5的元素
+    println("大于5的元素:")
+    arr |> filter {num: Int64 => num > 5} |> forEach<Int64>(println)
+
+    // 过滤出偶数
+    println("偶数元素:")
+    arr |> filter {num: Int64 => num % 2 == 0} |> forEach<Int64>(println)
+
+    // 过滤出奇数并用">"连接成字符串
+    let oddNumbersString = arr |> filter {num: Int64 => num % 2 == 1} |> collectString<Int64>(delimiter: ">")
+    println("奇数元素连接: ${oddNumbersString}")
+
+    // 检查数组是否包含元素6
+    println("包含6: ${arr |> contains(6_i64)}")
+
     return 0
 }
 ```
@@ -26,8 +35,17 @@ main() {
 运行结果：
 
 ```text
+原始数组: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+大于5的元素:
+6
+7
+8
+9
+偶数元素:
+2
+4
 6
 8
-3>5>7>9
-true
+奇数元素连接: 1>3>5>7>9
+包含6: true
 ```
