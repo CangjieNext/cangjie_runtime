@@ -35,6 +35,12 @@ CString MangleNameHelper::RemoveGenericTypeName(const MapleRuntime::CString& raw
 
 void MangleNameHelper::Demangle()
 {
+    if (IsNeedFilt()) {
+        methodName = mangleName;
+        demangleName = mangleName;
+        return;
+    }
+
     std::function<MapleRuntime::CString(const MapleRuntime::CString&)> genericTypefilter;
     if (stackTraceFormat == StackTraceFormatFlag::ALL) {
         genericTypefilter = [](const MapleRuntime::CString& str) { return str; };
