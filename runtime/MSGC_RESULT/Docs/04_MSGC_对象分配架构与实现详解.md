@@ -61,7 +61,7 @@
 3. 小对象热路径是“每线程、每 Size Class 一个 Active Region”。Fresh Region 用 bump pointer；Sweep 后的 Partial Region 用 bitmap summary + CTZ 找空槽。
 4. 对象级 bitmap 只有两张：`allocBitmap` 和 `markBitmap`。早期文档中的 `scannedBitmap` 已删除。
 5. 底层 FreeManager 已不是 CartesianTree，也没有 dirty/released 两棵树；当前是每 shard 的 Segment 位图、chunk summary、跨 shard steal。
-6. Segment 当前固定为 64MB，不是早期方案中的 256MB；初始化时为每个 runtime Processor/shard 准备一个 64MB Segment。
+6. Segment 当前固定为 64MB，不是早期方案中的 256MB；shard 数由 Processor 数经自动/显式策略归一化，初始 Segment 数独立配置且默认只有 1 个。
 7. 普通小对象当前没有统一 mark-at-alloc。GC 期间新分配或归还的 Region 通过 sweep generation 跳过本轮 Sweep；大对象注册时直接设置 marked flag；finalizer 对象额外调用 `MarkNewObject()`。
 8. 小对象和大对象的同步分配都只尝试一次。底层会复用、steal、grow，但最终失败后不会进入 CopyGC 的“请求 GC、等待、重试”循环，而是直接 OOM。
 9. 大对象死亡后先进入 exact-size large hot cache；上一轮未复用的缓存会在下一次 large sweep 或 Scavenge 过程中下沉到 FreeManager。
@@ -179,9 +179,9 @@ regionInfo  = &MSRegionInfoArray[regionIdx]
 
 - `cjMSMaxVirtualHeapSize` 默认 16GB。
 - 最大虚拟堆不会小于初始化所需空间。
-- shard 数来自 Runtime Processor 数量，至少为 1。
-- 每个 shard 初始拥有一个 64MB Segment。
-- 初始逻辑容量为 `shardCount × 64MB`。
+- shard 数由 Runtime Processor 数和 `cjMSShardCount` 共同解析；自动模式按 `ceil(cuberoot(32×P))` 取目标，再向下归一化为 P 的最大整除数。
+- 初始 Segment 数由 `cjMSInitialSegmentCount` 独立控制，默认 1；显式值不截断，必要时会抬升有效最大虚拟堆。
+- 初始逻辑容量为 `initialSegmentCount × 64MB`，不再随 P 或 shard 数线性放大。
 
 这里的 `committedEnd` 主要表示“FreeManager 当前允许分配到哪里”的逻辑窗口。主 heap mapping 初始化时已经整体建立，物理页仍由操作系统按访问惰性供给；当前 grow 不会重新 mmap 一块独立堆。
 
@@ -922,7 +922,7 @@ chunk 摘要让连续 span 搜索无需逐位扫描整个 Segment：若 chunk �
 
 ### 9.2 Shard 路由
 
-运行时 shard 数量等于 Processor 数量。每个 `AllocBufferMS` 会缓存 home shard：
+运行时 shard 数量不再固定等于 Processor 数量；P 经 scale policy 映射到较少的 shard，每个 `AllocBufferMS` 会缓存 home shard：
 
 - 当前线程绑定 Processor 时，使用 Processor ID；
 - 没有绑定 Processor 时，按线程 ID 对 shard 数取模。
@@ -937,11 +937,11 @@ chunk 摘要让连续 span 搜索无需逐位扫描整个 Segment：若 chunk �
 2. 在本 shard 的 Segment 位图中查找；
 3. 单 Region 本地失败时，从其他 shard 批量窃取，最多取 4 个：第一个立即返回，其余放入接收方 borrowed 队列；
 4. 多 Region 请求本地失败时，从能提供足够连续区间的 donor shard 窃取整个 span；
-5. 所有 shard 都失败后，请求 `MSRegionManager` 增长足够数量的 Segment，并归属给 home shard，再重新搜索。
+5. 所有 shard 都失败后进入 `TryTakeOrGrowRegions()`：在 `growMutex_` 内按 availability generation 重查供给；仍失败才增长足够数量的 Segment，并在发布剩余供给前直接为请求方预留目标 span。
 
 单 Region 的批量窃取用一次 donor 加锁换取后续多次无跨 shard 访问。多 Region 请求则不能拆散，因为大对象要求虚拟地址连续。
 
-当前 `TryIncreaseInactiveZone()` 返回失败，不存在旧实现中“先扩展 inactive bump 区”的第二套路径；实际增长统一经 `GrowForRegions()` 增加 Segment。
+当前 `TryIncreaseInactiveZone()` 返回失败，不存在旧实现中“先扩展 inactive bump 区”的第二套路径；正常分配增长统一经 `TryTakeOrGrowRegions()` 增加并直接取得 Segment 中的 Region。
 
 ### 9.4 回收与 owner 归属
 
@@ -971,13 +971,13 @@ FreeManager 的并发设计遵循以下原则：
 
 ### 10.1 初始布局与按 Segment 增长
 
-初始化时，每个 shard 获得一个 64MB Segment，因此初始逻辑提交窗口约为：
+初始化时，Shard 拓扑与初始提交量独立解析；默认只提交一个 64MB Segment：
 
 ```text
-initialCommitted = shardCount × 64MB
+initialCommitted = initialSegmentCount × 64MB
 ```
 
-主堆在初始化时已经保留最大虚拟地址范围，`committedEnd` 表示当前允许 FreeManager 管理的逻辑窗口，并不等价于所有页面都已经产生物理驻留。普通增长每次把完整 64MB Segment 挂到请求方 home shard；大对象需要的 Region 数超过单 Segment 剩余空间时，`GrowForRegions()` 会在 grow 锁下按 `ceil(regionCount / 2048)` 增加相邻 Segment，保证后续能形成连续 span。
+主堆在初始化时已经保留最大虚拟地址范围，`committedEnd` 表示当前允许 FreeManager 管理的逻辑窗口，并不等价于所有页面都已经产生物理驻留。普通增长每次把完整 64MB Segment 挂到请求方 home shard；大对象需要的 Region 数超过单 Segment 剩余空间时，`TryTakeOrGrowRegions()` 会在 grow 锁下按 `ceil(regionCount / 2048)` 增加相邻 Segment，并在 owner shard 锁内先标记请求 span 为 allocated，再允许其他 shard 取得剩余供给。
 
 新增 Segment 时还必须同步完成：
 
@@ -1204,8 +1204,8 @@ TryAllocate...Once()
 
 1. 调用 `MaybeNotifyMark()` 检查是否需要异步请求 HEU GC；
 2. 从 FreeManager 当前 Segment 中搜索；
-3. 搜索失败则调用 `GrowForRegions()` 扩堆；
-4. 增长成功后循环重试页堆搜索；
+3. 搜索失败则调用 `TryTakeOrGrowRegions()`，在 grow 锁内重查 donor/回收供给；
+4. 重查仍失败才扩堆，并直接返回已预留的 Region/span；
 5. 增长失败才向上返回 false。
 
 所以真正的分配失败通常意味着：现有页堆没有满足请求的空闲区间，并且最大虚拟堆限制或地址映射使增长无法继续。连续大对象还可能受到“总空闲足够但最大连续区间不足”的影响。
@@ -1238,7 +1238,9 @@ TryAllocate...Once()
 
 | 参数 | 默认值 | 作用 |
 | --- | ---: | --- |
-| `cjMSMaxVirtualHeapSize` | 16GB | MS 主堆最大虚拟保留范围；下限不小于初始 `P × 64MB` |
+| `cjMSShardCount` | 0（auto） | shard 数；auto scale 后向下归一化为 P 的整除数 |
+| `cjMSInitialSegmentCount` | 0（auto，即 1） | 初始 64MB Segment 数；显式值可抬升有效 max virtual |
+| `cjMSMaxVirtualHeapSize` | 16GB | MS 主堆最大虚拟保留基线；有效值不小于 `initialSegmentCount × 64MB` |
 | `cjGCBGSweepMaxTime` | 2ms | 单个后台清扫时间片上限 |
 | `cjMSAssistSweepMaxRegionsPerCall` | 4 | 一次分配辅助调用最多清扫的 Region 数 |
 | `cjMSAssistBaseRatioPercent` | 50 | 标记辅助的基础工作/分配比例 |
@@ -1321,11 +1323,11 @@ MRT_REPORT=/tmp/msgc-runtime.log cjHeapSize=256mb ./program
 | 新大对象保护 | 文档表述不一致或依赖阶段 | base Region 发布时始终 `AtomicSetMarked()` | large 进入全局链表前必须显式保护 |
 | 中央池清扫 | 主要强调 lazy sweep | background + lazy + proportional assist + force-finish | 性能和尾停顿需同时观察四类执行者 |
 | 页堆结构 | dirty/released Cartesian Tree | per-shard Segment page bitmap + chunk summary | `ReleasedTree` 只剩兼容命名/旧注释 |
-| Segment 大小 | 方案中出现 256MB Segment | 当前固定 64MB，即 2048 Region | 初始堆为 `P × 64MB` |
+| Segment 大小 | 方案中出现 256MB Segment | 当前固定 64MB，即 2048 Region | 初始堆为 `initialSegmentCount × 64MB`，默认 64MB |
 | 大对象 Tier | 设想大于约 4MB 进入独立 LOS/Tier-2 | 没有独立 LOS，全部使用主堆连续 Region | 大对象受主堆最大虚拟范围和连续区间限制 |
 | 大对象回收 | 直接回 released tree 或 OS | 先进入 exact-size large hot cache，再下沉 hot-free/scavenge | 回收后 RSS 不一定立即下降 |
 | OOM 重试 | 旧 Implementation 只把 large 改成直接 OOM | small/large 顶层都只试一次，普通线程失败即抛 OOM | 不存在 CopyGC 式同步 GC 多次重试 |
-| 堆增长 | inactive bump 区 + 256MB 分段等多路线 | 统一 `GrowForRegions()`，按完整 64MB Segment 增长 | `TryIncreaseInactiveZone()` 当前不提供备用路径 |
+| 堆增长 | inactive bump 区 + 256MB 分段等多路线 | 统一 `TryTakeOrGrowRegions()`，锁内重查后按完整 64MB Segment 增长并直接预留请求 span | `TryIncreaseInactiveZone()` 当前不提供备用路径 |
 | shrink | 释放空闲大段的宽泛描述 | 只移除连续、完整空闲的尾部 Segment | 中间空洞只能 scavenge，不能降低 `committedEnd` |
 
 ### 15.1 当前源码中的历史注释
@@ -1370,13 +1372,13 @@ MRT_REPORT=/tmp/msgc-runtime.log cjHeapSize=256mb ./program
 | `src/Heap/MAllocator/MSSizeClass.h/.cpp` | 36 档表、`SizeToClass()` 两级查表、slot 数和 `divMagic` 初始化 |
 | `src/Heap/MAllocator/MSRegionInfo.h/.cpp` | 64B 元数据布局、Region 类型、BUMP/PARTIAL 分配、`SweepRegion()`、`PrepareForCentralReturn()` |
 | `src/Heap/MAllocator/MSBitmapArena.h/.cpp` | alloc/mark sidecar 虚拟布局、256-Region chunk 的激活与收缩 |
-| `src/Heap/MAllocator/MSShardRouting.h` | 64MB Segment 常量、Processor 数到 shard/初始堆的映射 |
+| `src/Heap/MAllocator/MSShardRouting.h` | 64MB Segment 常量、Processor 到 shard 的 scale policy、独立初始 Segment 策略 |
 | `src/Heap/MAllocator/MSRegionSpace.h/.cpp` | `Init()`、`Allocate()`、16KB 分流、`TryAllocateLargeObjectOnce()`、`RegisterLargeObjectMS()`、统计与缓存下沉 |
 | `src/Heap/MAllocator/MSAllocBuffer.h/.cpp` | `activeRegions[]`、local empty cache、`FastAlloc()`、`SlowAlloc()`、`RefillFromCentral()`、`ReturnRegionToCentral()`、Mark/Sweep pacing；当前无 `cachedRegion_`/`BackgroundFillCache()` |
 | `src/Heap/MAllocator/MSCentralRegionPool.h/.cpp` | 四类 Region 链表、empty/large cache、惰性/后台/辅助/强制清扫、代切换和停机协议 |
 | `src/Heap/MAllocator/MSSweepDebtPolicy.h` | 清扫积压压力模式、HEU 是否因 sweep debt 延期的判定 |
-| `src/Heap/MAllocator/MSRegionManager.h/.cpp` | 最大虚拟区、Region/bitmap 元数据管理、`TakeRegions()`、`GrowForRegions()`、HEU/scavenge/shrink 通知 |
-| `src/Heap/MAllocator/MSFreeManager.h/.cpp` | per-shard Segment 页位图、chunk 摘要、跨 shard steal、scavenge、tail shrink |
+| `src/Heap/MAllocator/MSRegionManager.h/.cpp` | 最大虚拟区、Region/bitmap 元数据管理、`TakeRegions()`、`TryTakeOrGrowRegions()`、HEU/scavenge/shrink 通知 |
+| `src/Heap/MAllocator/MSFreeManager.h/.cpp` | per-shard Segment 页位图、chunk 摘要、non-empty donor bitmap、跨 shard steal、Grow 重查/直接预留、scavenge、tail shrink |
 | `src/Heap/MAllocator/MSMarkedStats.h` | 基于 mark bitmap 的真实存活量统计 |
 
 ### 16.3 Collector 与后台任务

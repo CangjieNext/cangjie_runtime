@@ -60,6 +60,13 @@ public:
     // This is the size passed to MemMap::MapMemory as reqSize.
     static size_t GetVirtualReserveSize(size_t maxVirtualHeapSize);
 
+    // Checked form used by runtime initialization. Validates heap alignment,
+    // RegionIndex capacity, metadata multiplication/alignment and final sum.
+    static bool TryComputeVirtualReserveLayout(size_t heapSize,
+                                               size_t& heapAligned,
+                                               size_t& metadataSize,
+                                               size_t& totalSize);
+
     // Calculate total mmap size needed: metadata (MSRegionInfo[]) + heap.
     // (Legacy helper — used for the initial committed segment sizing.)
     static size_t GetHeapMemorySize(size_t heapSize);

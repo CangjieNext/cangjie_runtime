@@ -87,7 +87,6 @@ void TestBatchReclaimRoutesMixedOwnersBackTogether()
 
     FreeManager manager;
     manager.Initialize(
-        kInitialRegions * kUnitsPerRegion,
         kPageSize,
         kUnitsPerRegion,
         kInitialRegions,
@@ -133,7 +132,6 @@ void TestBatchReclaimSplitsSpanAcrossOwnerShards()
 
     FreeManager manager;
     manager.Initialize(
-        kInitialRegions * kUnitsPerRegion,
         kPageSize,
         kUnitsPerRegion,
         kInitialRegions,

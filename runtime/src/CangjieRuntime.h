@@ -14,6 +14,9 @@
 #include "Base/Globals.h"
 #include "Base/Log.h"
 #include "schedule.h"
+#ifdef MRT_USE_MARK_SWEEP
+#include "Heap/MAllocator/MSShardRouting.h"
+#endif
 
 #include <unordered_map>
 namespace MapleRuntime {
@@ -41,6 +44,10 @@ public:
     static LogParam GetLogParam() { return Runtime::Current().GetRuntimeParam().logParam; }
     static size_t GetMSMaxVirtualHeapSizeKB() { return msMaxVirtualHeapSizeKB; }
     static void SetMSMaxVirtualHeapSizeKB(size_t valueKB) { msMaxVirtualHeapSizeKB = valueKB; }
+#ifdef MRT_USE_MARK_SWEEP
+    static void ConfigureMSAllocatorScale(uint32_t processorCount, size_t maxVirtualHeapSizeKB);
+    static MSAllocatorScaleConfig GetMSAllocatorScaleConfig() { return msAllocatorScaleConfig; }
+#endif
     RuntimeParam GetRuntimeParam() const override { return param; }
     void SetCommandLinesArgs(int argc, const char* argv[])
     {
@@ -77,6 +84,9 @@ private:
     ConcurrencyModelMap subModelMap;
     std::mutex mtx;
     static size_t msMaxVirtualHeapSizeKB;
+#ifdef MRT_USE_MARK_SWEEP
+    static MSAllocatorScaleConfig msAllocatorScaleConfig;
+#endif
 };
 } // namespace MapleRuntime
 #endif // MRT_CJ_RUNTIME_H

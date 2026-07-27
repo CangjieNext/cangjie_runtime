@@ -144,6 +144,54 @@ const FreeManager::FreeManagerShard& FreeManager::GetShard(uint16_t ownerShardId
     return shards_[ownerShardId];
 }
 
+bool FreeManager::FindNonEmptyShardInRange(uint16_t receiverShardId,
+                                           uint32_t begin,
+                                           uint32_t end,
+                                           uint16_t& donorShardId) const
+{
+    if (begin >= end || end > shardCount_ || nonEmptyShardWords_ == nullptr) {
+        return false;
+    }
+
+    size_t firstWord = begin / kChunkBits;
+    size_t lastWord = (end - 1) / kChunkBits;
+    for (size_t wordIdx = firstWord; wordIdx <= lastWord; ++wordIdx) {
+        uint64_t candidates = nonEmptyShardWords_[wordIdx].load(std::memory_order_acquire);
+        if (wordIdx == firstWord) {
+            candidates &= (~0ULL << (begin % kChunkBits));
+        }
+        if (wordIdx == lastWord && end % kChunkBits != 0) {
+            candidates &= (1ULL << (end % kChunkBits)) - 1;
+        }
+        size_t receiverWord = static_cast<size_t>(receiverShardId) / kChunkBits;
+        if (wordIdx == receiverWord) {
+            candidates &= ~(1ULL << (receiverShardId % kChunkBits));
+        }
+        if (candidates == 0) {
+            continue;
+        }
+        uint32_t candidate = static_cast<uint32_t>(
+            wordIdx * kChunkBits + static_cast<size_t>(__builtin_ctzll(candidates)));
+        if (candidate < end && candidate < shardCount_) {
+            donorShardId = static_cast<uint16_t>(candidate);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool FreeManager::FindNextNonEmptyDonorShard(uint16_t receiverShardId,
+                                             uint32_t searchStart,
+                                             uint16_t& donorShardId) const
+{
+    if (shardCount_ <= 1 || receiverShardId >= shardCount_) {
+        return false;
+    }
+    uint32_t normalizedStart = searchStart % shardCount_;
+    return FindNonEmptyShardInRange(receiverShardId, normalizedStart, shardCount_, donorShardId) ||
+        FindNonEmptyShardInRange(receiverShardId, 0, normalizedStart, donorShardId);
+}
+
 FreeManager::OwnedSegmentView* FreeManager::FindOwnedSegmentViewBySegmentIdxLocked(FreeManagerShard& shard, size_t segmentIdx)
 {
     for (OwnedSegmentView& view : shard.ownedViews_) {
@@ -211,9 +259,16 @@ void FreeManager::Initialize(size_t unitSize, size_t unitsPerRegion, RegionCount
                  segmentSize_, GetRegionSizeBytes());
     totalHotFreeRegions_.store(0, std::memory_order_relaxed);
     reusedScavengedRegionCount_.store(0, std::memory_order_relaxed);
+    availabilityGeneration_.store(0, std::memory_order_relaxed);
     shards_.clear();
     for (uint32_t shardIdx = 0; shardIdx < shardCount_; ++shardIdx) {
         shards_.emplace_back();
+        shards_.back().shardId_ = static_cast<uint16_t>(shardIdx);
+    }
+    nonEmptyShardWordCount_ = (static_cast<size_t>(shardCount_) + kChunkBits - 1) / kChunkBits;
+    nonEmptyShardWords_.reset(new std::atomic<uint64_t>[nonEmptyShardWordCount_]);
+    for (size_t wordIdx = 0; wordIdx < nonEmptyShardWordCount_; ++wordIdx) {
+        nonEmptyShardWords_[wordIdx].store(0, std::memory_order_relaxed);
     }
     size_t segmentCount = (maxVirtualRegionCount_ + segmentRegionCount_ - 1) / segmentRegionCount_;
     segmentOwnerShard_.assign(segmentCount, 0);
@@ -418,10 +473,125 @@ bool FreeManager::GrowOneSegmentLocked(uint16_t ownerShardId, HeapRangeHandler& 
     return true;
 }
 
+bool FreeManager::GrowAndTakeRegionsLocked(RegionCount numRegions,
+                                           uint16_t ownerShardId,
+                                           RegionIndex& idx,
+                                           HeapRangeHandler& handler)
+{
+    if (numRegions == 0 || committedEnd_ >= maxHeapEnd_) {
+        return false;
+    }
+
+    size_t regionSize = GetRegionSizeBytes();
+    size_t remainingRegions = (maxHeapEnd_ - committedEnd_) / regionSize;
+    if (static_cast<size_t>(numRegions) > remainingRegions) {
+        return false;
+    }
+
+    size_t growSegmentCount =
+        (static_cast<size_t>(numRegions) + segmentRegionCount_ - 1) / segmentRegionCount_;
+    size_t remainingBytes = maxHeapEnd_ - committedEnd_;
+    size_t growBytes = std::min(growSegmentCount * segmentSize_, remainingBytes);
+    RegionCount growRegions = static_cast<RegionCount>(growBytes / regionSize);
+    if (growRegions < numRegions) {
+        return false;
+    }
+
+    RegionIndex oldRegionCount = static_cast<RegionIndex>(committedRegionCount_);
+    CHECK_DETAIL(static_cast<size_t>(oldRegionCount) % segmentRegionCount_ == 0,
+                 "[MS-GC] committed heap must be Segment-aligned before Grow-and-take: committedRegions=%u "
+                 "segmentRegions=%zu",
+                 oldRegionCount, segmentRegionCount_);
+    size_t oldCommittedRegionCount = committedRegionCount_;
+    size_t newCommittedRegionCount = oldCommittedRegionCount + static_cast<size_t>(growRegions);
+    uintptr_t newCommittedEnd = committedEnd_ + growBytes;
+    ownerShardId = static_cast<uint16_t>(static_cast<uint32_t>(ownerShardId) % shardCount_);
+
+    handler.InitializeFreshRegions(oldRegionCount, growRegions);
+
+    FreeManagerShard& shardState = GetShard(ownerShardId);
+    while (true) {
+        std::unique_lock<std::mutex> pageLock(pageHeapMutex_);
+        std::unique_lock<std::mutex> shardLock(shardState.shardMutex_, std::try_to_lock);
+        if (!shardLock.owns_lock()) {
+            pageLock.unlock();
+            std::this_thread::yield();
+            continue;
+        }
+
+        committedRegionCount_ = newCommittedRegionCount;
+        committedEnd_ = newCommittedEnd;
+        size_t growStartSegmentIdx = oldCommittedRegionCount / segmentRegionCount_;
+        size_t growEndSegmentIdx =
+            (newCommittedRegionCount + segmentRegionCount_ - 1) / segmentRegionCount_;
+        for (size_t segmentIdx = growStartSegmentIdx; segmentIdx < growEndSegmentIdx; ++segmentIdx) {
+            CHECK_DETAIL(segmentIdx < segmentOwnerShard_.size(),
+                         "[MS-GC] grown Segment exceeds owner table: segment=%zu ownerTableSize=%zu",
+                         segmentIdx, segmentOwnerShard_.size());
+            segmentOwnerShard_[segmentIdx] = ownerShardId;
+            size_t segmentStartRegion = segmentIdx * segmentRegionCount_;
+            RegionCount ownedRegionCount = static_cast<RegionCount>(
+                std::min(newCommittedRegionCount - segmentStartRegion, segmentRegionCount_));
+            AttachOwnedSegmentLocked(shardState, segmentIdx, ownedRegionCount);
+            OwnedSegmentView* view = FindOwnedSegmentViewBySegmentIdxLocked(shardState, segmentIdx);
+            CHECK_DETAIL(view != nullptr, "[MS-GC] grown Segment view missing: segment=%zu", segmentIdx);
+            for (size_t chunkIdx = 0; chunkIdx < view->chunkSummaries_.size(); ++chunkIdx) {
+                UpdateChunkSummaryLocked(*view, chunkIdx);
+            }
+        }
+
+        bool reusedScavenged = false;
+        MarkAllocatedLocked(shardState, oldRegionCount, numRegions, reusedScavenged);
+        CHECK_DETAIL(!reusedScavenged, "[MS-GC] freshly grown Regions must not be scavenged");
+        idx = oldRegionCount;
+        if (shardState.takeCursor_ >= oldRegionCount) {
+            shardState.takeCursor_ =
+                FindNextOwnedFreeRegionLocked(shardState, static_cast<RegionIndex>(oldRegionCount + numRegions));
+        }
+        shardState.reclaimCursor_ = std::min(
+            shardState.reclaimCursor_, static_cast<RegionIndex>(committedRegionCount_));
+        shardState.fastTakeHintValid_ = false;
+        break;
+    }
+
+    handler.OnCommittedHeapExtended(committedEnd_);
+    return true;
+}
+
 bool FreeManager::GrowOneSegment(uint16_t ownerShardId, HeapRangeHandler& handler)
 {
     std::lock_guard<std::mutex> growLock(growMutex_);
     return GrowOneSegmentLocked(ownerShardId, handler);
+}
+
+bool FreeManager::TryTakeOrGrowRegions(RegionCount num,
+                                       uint16_t homeShardId,
+                                       RegionIndex& idx,
+                                       HeapRangeHandler& handler)
+{
+    if (num == 0) {
+        return false;
+    }
+
+    std::lock_guard<std::mutex> growLock(growMutex_);
+    for (;;) {
+        uint64_t generationBeforeTake = availabilityGeneration_.load(std::memory_order_acquire);
+        if (TryTakeRegions(num, homeShardId, idx) == TryTakeResult::SUCCESS) {
+            return true;
+        }
+        uint64_t generationAfterTake = availabilityGeneration_.load(std::memory_order_acquire);
+        if (generationAfterTake == generationBeforeTake) {
+            // Linearization point for the Grow decision: no supply was
+            // published during this complete scan. A reclaim published after
+            // this acquire is ordered after the decision and may coexist with
+            // the newly grown supply; reclaim must not take growMutex_ because
+            // its shard->grow lock order would invert Grow's grow->shard order.
+            break;
+        }
+        // Reclaim published supply while the complete shard scan was in
+        // progress. Repeat until one scan observes a stable generation.
+    }
+    return GrowAndTakeRegionsLocked(num, homeShardId, idx, handler);
 }
 
 // GrowForRegions — grow enough segments to hold numRegions contiguous regions,
@@ -1721,17 +1891,24 @@ bool FreeManager::TryStealSingleRegionBatchLocked(uint16_t receiverShardId,
     }
 
     FreeManagerShard& receiverShard = GetShard(receiverShardId);
+    uint32_t searchStart =
+        static_cast<uint32_t>(receiverShard.nextStealDonorShard_.fetch_add(1, std::memory_order_relaxed)) %
+        shardCount_;
+    uint32_t remainingShardCount = shardCount_;
 
-    for (uint32_t attempt = 0; attempt < kMaxSingleRegionStealAttempts; ++attempt) {
-        // Change 3: lock-free donor selection via atomic fetch_add (eliminates two receiverLock sections)
-        uint16_t raw = receiverShard.nextStealDonorShard_.fetch_add(1, std::memory_order_relaxed);
-        uint16_t donorShardId = static_cast<uint16_t>(raw % shardCount_);
-        if (donorShardId == receiverShardId) {
-            donorShardId = static_cast<uint16_t>((static_cast<uint32_t>(donorShardId) + 1) % shardCount_);
+    while (remainingShardCount != 0) {
+        uint16_t donorShardId = 0;
+        if (!FindNextNonEmptyDonorShard(receiverShardId, searchStart, donorShardId)) {
+            break;
         }
-        if (donorShardId == receiverShardId) {
-            return false;
+        uint32_t donorDistance = donorShardId >= searchStart
+            ? static_cast<uint32_t>(donorShardId) - searchStart
+            : shardCount_ - searchStart + static_cast<uint32_t>(donorShardId);
+        if (donorDistance >= remainingShardCount) {
+            break;
         }
+        remainingShardCount -= donorDistance + 1;
+        searchStart = (static_cast<uint32_t>(donorShardId) + 1) % shardCount_;
 
         RegionIndex donorIdx = 0;
         RegionCount batchCount = 0;
@@ -1740,7 +1917,8 @@ bool FreeManager::TryStealSingleRegionBatchLocked(uint16_t receiverShardId,
             FreeManagerShard& donorShard = GetShard(donorShardId);
             std::lock_guard<std::mutex> donorLock(donorShard.shardMutex_);
 
-            // Change 4: use fastTakeHint to guide first-region search; use efficient bitmap scan
+            // Use fastTakeHint to guide first-region search after the availability
+            // bitmap has selected a shard that currently advertises free Regions.
             bool fromTakeSide = false;
             bool fromReclaimSide = false;
             RegionIndex candidate = static_cast<RegionIndex>(committedRegionCount_);
@@ -1771,7 +1949,7 @@ bool FreeManager::TryStealSingleRegionBatchLocked(uint16_t receiverShardId,
                 continue;
             }
 
-            // Change 5: bitmap-based contiguous count via ctzll (O(1) for kSingleRegionStealBatch=4)
+            // Bitmap-based contiguous count via ctzll (O(1) for the steal batch).
             OwnedSegmentView* view = FindOwnedSegmentViewByRegionLocked(donorShard, donorIdx);
             if (view == nullptr) {
                 continue;
@@ -1822,17 +2000,27 @@ bool FreeManager::TryStealContiguousRegionRunLocked(uint16_t receiverShardId,
     }
 
     FreeManagerShard& receiverShard = GetShard(receiverShardId);
-    uint16_t rawStart = receiverShard.nextStealDonorShard_.fetch_add(1, std::memory_order_relaxed);
-    uint32_t start = static_cast<uint32_t>(rawStart % shardCount_);
+    uint32_t searchStart =
+        static_cast<uint32_t>(receiverShard.nextStealDonorShard_.fetch_add(1, std::memory_order_relaxed)) %
+        shardCount_;
+    uint32_t remainingShardCount = shardCount_;
     uint16_t bestDonorShardId = receiverShardId;
     size_t bestFreeRun = 0;
     size_t bestFreeRegions = 0;
 
-    for (uint32_t offset = 0; offset < shardCount_; ++offset) {
-        uint16_t donorShardId = static_cast<uint16_t>((start + offset) % shardCount_);
-        if (donorShardId == receiverShardId) {
-            continue;
+    while (remainingShardCount != 0) {
+        uint16_t donorShardId = 0;
+        if (!FindNextNonEmptyDonorShard(receiverShardId, searchStart, donorShardId)) {
+            break;
         }
+        uint32_t donorDistance = donorShardId >= searchStart
+            ? static_cast<uint32_t>(donorShardId) - searchStart
+            : shardCount_ - searchStart + static_cast<uint32_t>(donorShardId);
+        if (donorDistance >= remainingShardCount) {
+            break;
+        }
+        remainingShardCount -= donorDistance + 1;
+        searchStart = (static_cast<uint32_t>(donorShardId) + 1) % shardCount_;
 
         {
             const FreeManagerShard& donorShard = GetShard(donorShardId);
@@ -2137,6 +2325,25 @@ void FreeManager::MarkUnavailableLocked(FreeManagerShard& shard, RegionIndex idx
 
 void FreeManager::RefreshRegionSnapshotsLocked(FreeManagerShard& shard)
 {
+    if (shard.freeRegionCount_ > shard.publishedFreeRegionCount_) {
+        availabilityGeneration_.fetch_add(1, std::memory_order_release);
+    }
+    shard.publishedFreeRegionCount_ = shard.freeRegionCount_;
+
+    if (nonEmptyShardWords_ != nullptr) {
+        size_t wordIdx = static_cast<size_t>(shard.shardId_) / kChunkBits;
+        uint64_t shardMask = 1ULL << (shard.shardId_ % kChunkBits);
+        bool nonEmpty = shard.freeRegionCount_ != 0;
+        if (nonEmpty != shard.advertisedNonEmpty_) {
+            if (nonEmpty) {
+                nonEmptyShardWords_[wordIdx].fetch_or(shardMask, std::memory_order_release);
+            } else {
+                nonEmptyShardWords_[wordIdx].fetch_and(~shardMask, std::memory_order_release);
+            }
+            shard.advertisedNonEmpty_ = nonEmpty;
+        }
+    }
+
     uint32_t hotFree = static_cast<uint32_t>(
         shard.freeRegionCount_ >= shard.scavengedRegionCount_
             ? (shard.freeRegionCount_ - shard.scavengedRegionCount_) : 0);

@@ -98,7 +98,9 @@ size_t ReadCountParameter(const char* name, size_t defaultValue, size_t minValue
     }
 
     size_t parsed = CString::ParsePosNumFromEnv(value);
-    if (parsed != 0 && CheckLowerBound(parsed, minValue, minBound) && CheckUpperBound(parsed, maxValue, maxBound)) {
+    bool parsedZero = value == "0";
+    if ((parsed != 0 || parsedZero) && CheckLowerBound(parsed, minValue, minBound) &&
+        CheckUpperBound(parsed, maxValue, maxBound)) {
         return parsed;
     }
 

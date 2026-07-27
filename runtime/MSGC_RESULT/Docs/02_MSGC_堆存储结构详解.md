@@ -165,7 +165,7 @@ segmentRegionCount   = 64MB / 32KB = 2048
 
 它有三项静态意义：
 
-1. 初始 committed heap 为 `NormalizeMSShardCount(P) × 64MB`，也就是默认每个 shard/P 至少一个 Segment。
+1. 初始 committed heap 为 `I × 64MB`；`I` 来自 `cjMSInitialSegmentCount`，auto 模式为 1，与 Processor 数 `P` 和 shard 数 `S` 独立。
 2. `segmentOwnerShard_[segmentIdx]` 为每个最大虚拟 Segment 保存一个 owner shard id；初始 Segment 按 `segmentIdx % shardCount` round-robin 归属。
 3. 每个已提交 Segment 在 owner shard 中对应一个 `OwnedSegmentView`；FreeManager 的两张位图和 free-run summary 都以这个 view 为边界。
 
@@ -206,16 +206,16 @@ Region 的生命周期比 Segment 短：同一个地址可以先属于某个 sma
 | bitmap arena 虚拟预留 | `524,288 × 1KB` | 512MB |
 | FreeManager owner 表 payload | `256 × uint16_t` | 512B |
 
-若当前 Processor/shard 数为 `P`，初始 committed 状态为：
+若初始 Segment 数为 `I`，初始 committed 状态为：
 
 ```text
-initialCommittedBytes   = P × 64MB
-initialCommittedRegions = P × 2048
-initialSegmentViews     = P
-initialBitmapChunks     = P × 8
+initialCommittedBytes   = I × 64MB
+initialCommittedRegions = I × 2048
+initialSegmentViews     = I
+initialBitmapChunks     = I × 8
 ```
 
-这些公式中的 `P` 取归一化后的 shard 数，0 会退化为 1；如果配置的最大虚拟堆不足以容纳 `P × 64MB`，初始化会直接报错，而不是创建部分 shard Segment。32MB RegionInfo 和 512MB bitmap 是虚拟/元数据容量口径，不能与初始 committed object bytes 或实际 RSS 直接相加后当成物理常驻量。
+`I=0` 会解析为 1；显式 `I` 不会因默认 16GB 上限被截断。若 `I×64MB` 大于配置的 max virtual，Runtime 会把有效 max virtual 抬升到该初始提交量，因此 `cjProcessorNum=P、cjMSShardCount=P、cjMSInitialSegmentCount=P` 能恢复旧的 P-shard/P-Segment 拓扑。32MB RegionInfo 和 512MB bitmap 是默认 16GB 下的虚拟/元数据容量口径，不能与初始 committed object bytes 或实际 RSS 直接相加后当成物理常驻量。
 
 ## 4. 第一层：TLS 与 `AllocBufferMS`
 
@@ -651,7 +651,7 @@ MSRegionManager
   └─ FreeManager freeManager_
        ├─ heap range / count / locks
        ├─ segmentOwnerShard_[maxSegmentCount]
-       └─ shards_[P]: FreeManagerShard
+       └─ shards_[S]: FreeManagerShard
             ├─ ownedSegments_
             ├─ ownedViews_: OwnedSegmentView
             │    ├─ allocBits_
@@ -705,9 +705,9 @@ ownerShard = segmentOwnerShard_[segmentIdx]
 
 owner 表表达 Segment 的归属，不表示 Region 当前一定 free，也不表示当前使用它的 P 必然就是 owner shard。跨 shard steal 只转移一批已分配 Region 的临时消费权，不修改该表。
 
-### 6.3 `shards_[P]` 与 `FreeManagerShard`
+### 6.3 `shards_[S]` 与 `FreeManagerShard`
 
-`shards_` 使用 `std::deque<FreeManagerShard>`，初始化时构造归一化后的 `P` 个 shard。使用 deque 可以容纳带 mutex 的稳定 shard 对象，不要求它们像 vector 扩容那样移动。
+`shards_` 使用 `std::deque<FreeManagerShard>`，初始化时构造归一化后的 `S` 个 shard。`S` 由 Processor 数 `P` 和 `cjMSShardCount` 共同解析，并保证整除 `P`。使用 deque 可以容纳带 mutex 的稳定 shard 对象，不要求它们像 vector 扩容那样移动。
 
 每个 `FreeManagerShard` 的字段分为：
 
@@ -851,7 +851,7 @@ steal 发生时 donor 已在原 owner view 的 `allocBits_` 中把整批 Region 
 | 时机 | `FreeManager` 元数据变化 |
 | --- | --- |
 | `new MSRegionManager` | 内嵌 `FreeManager` 对象构造，shard/owner/view 容器尚为空 |
-| `FreeManager::Initialize()` | 保存最大/committed 地址参数；创建 P 个 shard；按最大虚拟 Segment 数建立 owner 表 |
+| `FreeManager::Initialize()` | 保存最大/committed 地址参数；创建 S 个 shard；按最大虚拟 Segment 数建立 owner 表 |
 | 初始 committed heap | 为每个初始 Segment round-robin 写 owner，并在相应 shard 附加一个 fresh `OwnedSegmentView` |
 | Region take/reclaim | 只修改既有 view 的 bit、summary、cursor、count 和 snapshot |
 | 跨 shard steal | donor bit 置 allocated；必要时 receiver deque 增加一个 `BorrowedSpan` |
@@ -970,7 +970,7 @@ Region 被 Pop/Remove 后必须先把 link 恢复为 `INVALID_IDX`，才能切�
 | --- | --- | --- | --- | --- |
 | 参数初始化 | 确定初始 heap、默认/配置最大虚拟 heap | 尚无 MSGC buffer | 尚无中央对象 | 尚未初始化 |
 | `RegionSpaceMS::Init()` 主映射 | 一次预留 `[MSRegionInfo[max] | object heap[max]]` | 无变化 | 尚未创建 | `MSRegionManager` 随后创建 |
-| manager 初始化 | 确定 heapStart/maxHeapEnd，初始化初始 committed RegionInfo；预留并激活 bitmap 前缀 | 无变化 | 尚未创建 | 创建 P 个 shard、最大 owner 表、P 个初始 Segment view |
+| manager 初始化 | 确定 heapStart/maxHeapEnd，初始化初始 committed RegionInfo；预留并激活 bitmap 前缀 | 无变化 | 尚未创建 | 创建 S 个 shard、最大 owner 表、I 个初始 Segment view |
 | size-class/RegionInfoArray 初始化 | 发布稳定 index/address 关系，创建 ownership side tables | 无变化 | size-class 表已就绪 | view/bit 已可供分配 |
 | `new CentralRegionPool` | 无新 object-heap 空间 | 以后可注册 buffer | 36 个空 bucket 和辅助容器建立 | 保存的 manager 被中央引用 |
 | Runtime 正常运行 | committed 前缀内 Region 被反复复用 | buffer 按线程惰性创建 | 链/cache 按实际 Region 数填充 | bit/summary 持续反映 page-heap 状态 |
@@ -994,7 +994,7 @@ Region 被 Pop/Remove 后必须先把 link 恢复为 `INVALID_IDX`，才能切�
 | 阶段 | `MSRegionInfo/bitmap` | 中央/TLS | FreeManager |
 | --- | --- | --- | --- |
 | 最大虚拟范围预留 | entry 与 bitmap slot 地址已经可计算，但尾部未主动构建有效内容 | 无 Region 引用 | owner 表已有对应槽，未 committed Segment 没有 view |
-| 初始 commit | 初始 `P × 2048` entries 初始化；对应 bitmap chunks 激活 | 尚为空 | 每个初始 Segment 创建 fresh view，所有 alloc bits 为 0 |
+| 初始 commit | 初始 `I × 2048` entries 初始化；对应 bitmap chunks 激活 | 尚为空 | 每个初始 Segment 创建 fresh view，所有 alloc bits 为 0 |
 | Segment Grow | 新增 2048 entries Reset，确保 8 个 bitmap chunks 可访问 | 还未自动进入中央 | 请求 shard 获得 owner，附加 fresh view |
 | Region 被取走 | Region 按需要绑定 small/large 元数据 | 进入 TLS/中央/large cache 体系 | alloc bit 置 1，summary 更新 |
 | Region 归还 page heap | entry Reset，已从所有上层容器摘除 | 不再引用 | alloc bit 清 0，成为 hot-free |
@@ -1083,14 +1083,15 @@ bitmap arena 的**已激活**前缀也随 committed Region 数增长。一个完
 
 这是可访问的 sidecar 虚拟范围；有效 small bitmap 字节还取决于 Region 是否已经绑定 size class 以及该 class 的 slot 数。
 
-### 9.4 按 P 和线程缓存数增长的元数据
+### 9.4 按 shard、初始 Segment 和线程缓存数增长的元数据
 
-设 Runtime shard/Processor 数为 `P`，已创建 `AllocBufferMS` 的 TLS 数为 `T`：
+设 Runtime Processor 数为 `P`、shard 数为 `S`、初始 Segment 数为 `I`，已创建 `AllocBufferMS` 的 TLS 数为 `T`：
 
 ```text
-initial committed object heap = P × 64MB
-initial Segment view payload  = P × 704B
-FreeManagerShard object count = P
+initial committed object heap = I × 64MB
+initial Segment view payload  = I × 704B
+FreeManagerShard object count = S
+processors per shard          = P / S
 
 active Region pointer payload = T × 36 × 8B    // 64-bit
 central registry payload      = T × 8B         // 不含 vector capacity
@@ -1129,13 +1130,13 @@ registry pointer payload              T × 8B
 | size-class 静态表 | 910B payload | Runtime 启动一次初始化 |
 | 中央四链容器 core | 2304B | `CentralRegionPool` 构造时内嵌建立 |
 
-如果初始只有 `P` 个 Segment committed，则启动时与 `P` 相关的是：
+如果初始有 `I` 个 Segment committed，则启动时与 `I` 相关的是：
 
 ```text
-object committed prefix        = P × 64MB
-主动初始化的 RegionInfo 前缀  = P × 2048 × 64B = P × 128KiB
-激活的 bitmap arena 前缀       = P × 2MB
-FreeManager view-array payload = P × 704B
+object committed prefix        = I × 64MB
+主动初始化的 RegionInfo 前缀  = I × 2048 × 64B = I × 128KiB
+激活的 bitmap arena 前缀       = I × 2MB
+FreeManager view-array payload = I × 704B
 ```
 
 owner 表仍按 256 个最大 Segment 建立，ownership side table 仍按 524,288 个最大 Region 建立。`AllocBufferMS` 数量初始可以为 0，随后由实际线程惰性增加。

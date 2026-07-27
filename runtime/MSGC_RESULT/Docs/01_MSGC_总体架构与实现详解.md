@@ -370,7 +370,7 @@ flowchart TD
         refill -->|"需要 fresh Region"| takeOne["Central → MSRegionManager<br/>申请一个 Region"]
         takeOne --> freeOne{"FreeManager<br/>本 shard free / 回收复用<br/>或跨 shard steal 成功？"}
         freeOne -->|"是"| install
-        freeOne -->|"否"| growOne["GrowForRegions<br/>按需 Grow 新 Segment"]
+        freeOne -->|"否"| growOne["TryTakeOrGrowRegions<br/>锁内重查后按需 Grow 并直接预留"]
         growOne -->|"成功"| install
         growOne -->|"失败"| oom
 
@@ -384,7 +384,7 @@ flowchart TD
         hotLarge -->|"未命中"| takeLarge["MSRegionManager::TakeRegionForLarge<br/>申请连续 Region"]
         takeLarge --> freeLarge{"FreeManager 中有连续 free run<br/>或可跨 shard 取得？"}
         freeLarge -->|"是"| largeInit
-        freeLarge -->|"否"| growLarge["GrowForRegions<br/>按需 Grow 一个或多个 Segment"]
+        freeLarge -->|"否"| growLarge["TryTakeOrGrowRegions<br/>锁内重查后 Grow 连续 Segment 并直接预留"]
         growLarge -->|"成功"| largeInit
         growLarge -->|"失败"| oom
 
@@ -412,7 +412,7 @@ flowchart TD
     class internal,returned,oom terminal;
 ```
 
-图中 `RefillFromCentral()` 的四个供给来源是实际的优先顺序：先复用已经 Sweep 的 partial Region，再检查 P 本地/全局 empty cache，然后才触碰仍未 Sweep 的 Region，最后申请 fresh Region。`GrowForRegions()` 也不是每次分配都执行：只有 FreeManager 与可 steal 的 shard 都不能交付所需 unit 时，才按需把新的 Segment 纳入堆。无论 small 还是 large，成功取得新的 Region/span 后都在这里累计 Mark/Sweep debt；它把分配压力与 Global 的 Mark/Sweep 工作联动，而不会在普通对象分配失败时再隐式发起一轮 GC 重试。
+图中 `RefillFromCentral()` 的四个供给来源是实际的优先顺序：先复用已经 Sweep 的 partial Region，再检查 P 本地/全局 empty cache，然后才触碰仍未 Sweep 的 Region，最后申请 fresh Region。`TryTakeOrGrowRegions()` 也不是每次分配都执行：只有 FreeManager 与 non-empty donor bitmap 中可 steal 的 shard 都不能交付所需 unit 时，才在 grow 锁内重查 availability generation，仍失败才把新的 Segment 纳入堆并直接预留请求 span。无论 small 还是 large，成功取得新的 Region/span 后都在这里累计 Mark/Sweep debt；它把分配压力与 Global 的 Mark/Sweep 工作联动，而不会在普通对象分配失败时再隐式发起一轮 GC 重试。
 
 ### 5.1 Size class 与 small/large 分流
 
@@ -436,7 +436,7 @@ large 分配先从按跨度匹配的 hot cache 或 FreeManager 连续 free run �
 
 ### 5.6 FreeManager 的 Region/span 分配
 
-FreeManager 管理堆中 Region/span 的占用、连续性、shard 归属和物理页状态，而不管理某个 size class 的 slot。Central 无法补给 small Region，或 large 直接申请连续 span 时，`MSRegionManager` 会优先在请求 P 的 home shard 查找 free run；本地不足再 steal 其他 shard，仍失败才 `GrowForRegions()` 接入新 Segment。此前被 Scavenge 释放过的范围会在复用时恢复物理页。由此 Central 负责“按 class 与 Sweep 状态复用”，FreeManager 负责“从堆中交付可用的 Region/span”。
+FreeManager 管理堆中 Region/span 的占用、连续性、shard 归属和物理页状态，而不管理某个 size class 的 slot。Central 无法补给 small Region，或 large 直接申请连续 span 时，`MSRegionManager` 会优先在请求 P 的 home shard 查找 free run；本地不足再通过多 word non-empty bitmap 定位 donor，仍失败才进入 `TryTakeOrGrowRegions()`。Grow 后目标 span 在 owner shard 锁内先标为 allocated，其他 shard 只能取得剩余供给。此前被 Scavenge 释放过的范围会在复用时恢复物理页。由此 Central 负责“按 class 与 Sweep 状态复用”，FreeManager 负责“从堆中交付可用的 Region/span”。
 
 ### 5.7 分配与 GC 周期
 
@@ -1110,9 +1110,11 @@ CopyGC binary 改成 MSGC。验证时应固定目标平台、编译选项、测�
 | `MRT_USE_MARK_SWEEP` / `MARKSWEEP_FLAG` | 未定义时默认 CopyGC（`MARKSWEEP_FLAG=0`） | 构建期选择 MSGC 代码路径；`MARKSWEEP_FLAG=1` 时开启，不能在进程启动后切换。 |
 | `cjEnableGC` | `true` | 是否启用 GC 总开关。 |
 | `CJ_GC_DISABLE` | `false` | 抑制 GC 请求，主要用于纯分配或诊断场景；不改变已编译的 GC 类型。 |
-| `cjProcessorNum` | `hardware_concurrency()`；取不到时为 `8` | P/调度器并发度；有效范围为 `(0, CPU×2]`。MSGC 初始提交堆按每个 P 一个 64MB Segment 计算。 |
-| `cjMSMaxVirtualHeapSize` | `16GB` | MSGC 最大虚拟堆；实际下限不能小于初始提交堆。 |
-| `cjHeapSize` | MSGC 分支不读取；初始提交堆为 `P×64MB` | CopyGC 才用它设置初始堆（普通平台最小 4MB，OHOS/Android 最小 64MB）；在 MSGC 中不要把它当成初始提交量开关。 |
+| `cjProcessorNum` | `hardware_concurrency()`；取不到时为 `8` | P/调度器并发度；有效范围为 `(0, CPU×2]`。MSGC 用它计算 shard scale，但初始提交量不再随 P 线性增长。 |
+| `cjMSShardCount` | `0`（auto） | MSGC shard 数；auto 先取 `ceil(cuberoot(32×P))`，再向下归一化为 P 的最大整除数；显式值也按 P 和可表达范围 clamp/归一化。 |
+| `cjMSInitialSegmentCount` | `0`（auto，即 1） | MSGC 初始提交的 64MB Segment 数；与 shard 数独立。显式值优先，为容纳它可抬升有效 max virtual。 |
+| `cjMSMaxVirtualHeapSize` | `16GB` | MSGC 最大虚拟堆基线；有效值为 `max(该配置, initialSegmentCount×64MB)`，并受完整 `[metadata|heap]` reserve 以及 `RegionIndex`/`UnitIndex` 可表达范围约束。 |
+| `cjHeapSize` | MSGC 分支不读取；初始提交堆默认为 `1×64MB` | CopyGC 才用它设置初始堆（普通平台最小 4MB，OHOS/Android 最小 64MB）；MSGC 初始提交量改由 `cjMSInitialSegmentCount` 控制。 |
 | `cjRegionSize` | 普通平台 `64KB`；OHOS/Android `1MB` | 通用/CopyGC Region 参数，受系统页大小和 `2MB` 上限约束；MSGC 的 small Region 仍由 `MS_REGION_SIZE=32KB` 固定，不由此变量改变。 |
 | `cjHeapGrowth` | MSGC `1.0`；CopyGC `0.25` | 堆阈值增长倍率。 |
 | `cjScavengeGrowth` | 等于 `cjHeapGrowth` | Scavenge 阈值增长倍率；未显式设置时随堆增长倍率继承。 |

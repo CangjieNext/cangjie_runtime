@@ -78,7 +78,6 @@ void TestContiguousRunStealsFromDonorOwnedSegment()
 
     FreeManager manager;
     manager.Initialize(
-        kInitialRegions * kUnitsPerRegion,
         kPageSize,
         kUnitsPerRegion,
         kInitialRegions,
@@ -118,7 +117,6 @@ void TestLargeRunLargerThanChunkFitsInSingleFreeSegment()
 
     FreeManager manager;
     manager.Initialize(
-        kInitialRegions * kUnitsPerRegion,
         kPageSize,
         kUnitsPerRegion,
         kInitialRegions,
@@ -153,7 +151,6 @@ void TestLargeStealPrefersDonorWithLargestFreeRun()
 
     FreeManager manager;
     manager.Initialize(
-        kInitialRegions * kUnitsPerRegion,
         kPageSize,
         kUnitsPerRegion,
         kInitialRegions,

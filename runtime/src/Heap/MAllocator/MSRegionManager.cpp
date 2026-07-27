@@ -33,6 +33,19 @@
 namespace MapleRuntime {
 
 namespace {
+bool TryRoundUpSize(size_t value, size_t alignment, size_t& rounded)
+{
+    if (alignment == 0 || (alignment & (alignment - 1)) != 0) {
+        return false;
+    }
+    size_t mask = alignment - 1;
+    if (value > std::numeric_limits<size_t>::max() - mask) {
+        return false;
+    }
+    rounded = (value + mask) & ~mask;
+    return true;
+}
+
 bool IsSegmentRegionTypeInUse(MSRegionType type)
 {
     switch (type) {
@@ -65,36 +78,82 @@ MSRegionManager::~MSRegionManager()
 
 size_t MSRegionManager::GetRegionCount(size_t heapSize)
 {
-    heapSize = RoundUp<size_t>(heapSize, MS_REGION_SIZE);
-    return heapSize / MS_REGION_SIZE;
+    size_t heapAligned = 0;
+    CHECK_DETAIL(TryRoundUpSize(heapSize, MS_REGION_SIZE, heapAligned),
+                 "[MS-GC] heap size cannot be Region-aligned safely: %zu", heapSize);
+    return heapAligned / MS_REGION_SIZE;
 }
 
 size_t MSRegionManager::GetMetadataSize(size_t heapSize)
 {
-    size_t regionCount = GetRegionCount(heapSize);
+    size_t heapAligned = 0;
+    size_t metadataSize = 0;
+    size_t totalSize = 0;
+    CHECK_DETAIL(TryComputeVirtualReserveLayout(heapSize, heapAligned, metadataSize, totalSize),
+                 "[MS-GC] virtual reserve layout overflows: heapSize=%zu", heapSize);
+    (void)heapAligned;
+    (void)totalSize;
+    return metadataSize;
+}
+
+bool MSRegionManager::TryComputeVirtualReserveLayout(size_t heapSize,
+                                                     size_t& heapAligned,
+                                                     size_t& metadataSize,
+                                                     size_t& totalSize)
+{
+    if (!TryRoundUpSize(heapSize, MS_REGION_SIZE, heapAligned)) {
+        return false;
+    }
+    size_t regionCount = heapAligned / MS_REGION_SIZE;
+    if (MRT_PAGE_SIZE == 0 || MS_REGION_SIZE % MRT_PAGE_SIZE != 0) {
+        return false;
+    }
+    size_t unitsPerRegion = MS_REGION_SIZE / MRT_PAGE_SIZE;
+    if (regionCount > std::numeric_limits<RegionCount>::max() ||
+        unitsPerRegion == 0 ||
+        regionCount > std::numeric_limits<UnitCount>::max() / unitsPerRegion ||
+        regionCount > std::numeric_limits<size_t>::max() / sizeof(MSRegionInfo)) {
+        return false;
+    }
     size_t rawSize = regionCount * sizeof(MSRegionInfo);
-    return RoundUp<size_t>(rawSize, MRT_PAGE_SIZE);
+    if (!TryRoundUpSize(rawSize, MRT_PAGE_SIZE, metadataSize) ||
+        heapAligned > std::numeric_limits<size_t>::max() - metadataSize) {
+        return false;
+    }
+    totalSize = metadataSize + heapAligned;
+    return true;
 }
 
 size_t MSRegionManager::GetHeapMemorySize(size_t heapSize)
 {
-    size_t metadataSize = GetMetadataSize(heapSize);
-    size_t heapAligned = RoundUp<size_t>(heapSize, MS_REGION_SIZE);
-    return metadataSize + heapAligned;
+    size_t heapAligned = 0;
+    size_t metadataSize = 0;
+    size_t totalSize = 0;
+    CHECK_DETAIL(TryComputeVirtualReserveLayout(heapSize, heapAligned, metadataSize, totalSize),
+                 "[MS-GC] heap memory layout overflows: heapSize=%zu", heapSize);
+    return totalSize;
 }
 
 size_t MSRegionManager::ComputeMaxVirtualHeapSize(size_t heapSize, size_t requestedVirtualHeapSize)
 {
-    size_t minVirtualHeapSize = RoundUp<size_t>(heapSize, MS_REGION_SIZE);
-    size_t configuredVirtualHeapSize = RoundUp<size_t>(requestedVirtualHeapSize, MS_REGION_SIZE);
+    size_t minVirtualHeapSize = 0;
+    size_t configuredVirtualHeapSize = 0;
+    CHECK_DETAIL(TryRoundUpSize(heapSize, MS_REGION_SIZE, minVirtualHeapSize) &&
+                     TryRoundUpSize(requestedVirtualHeapSize, MS_REGION_SIZE, configuredVirtualHeapSize),
+                 "[MS-GC] max virtual heap alignment overflows: initial=%zu configured=%zu",
+                 heapSize, requestedVirtualHeapSize);
     return std::max(minVirtualHeapSize, configuredVirtualHeapSize);
 }
 
 size_t MSRegionManager::GetVirtualReserveSize(size_t maxVirtualHeapSize)
 {
-    size_t metadataSize = GetMetadataSize(maxVirtualHeapSize);
-    size_t heapAligned = RoundUp<size_t>(maxVirtualHeapSize, MS_REGION_SIZE);
-    return metadataSize + heapAligned;
+    size_t heapAligned = 0;
+    size_t metadataSize = 0;
+    size_t totalSize = 0;
+    CHECK_DETAIL(TryComputeVirtualReserveLayout(
+                     maxVirtualHeapSize, heapAligned, metadataSize, totalSize),
+                 "[MS-GC] virtual reserve layout overflows: maxVirtual=%zu", maxVirtualHeapSize);
+    return totalSize;
 }
 
 // ============================================================================
@@ -105,22 +164,33 @@ void MSRegionManager::Initialize(uintptr_t mmapBase, size_t maxVirtualHeapSize)
 {
     unitSize_ = MRT_PAGE_SIZE;
     unitsPerMSRegion_ = MS_REGION_SIZE / unitSize_;
-    uint32_t shardCount = Runtime::CurrentRef() != nullptr
-        ? Runtime::Current().GetConcurrencyModel().GetProcessorNum()
-        : 1;
+    MSAllocatorScaleConfig scaleConfig = CangjieRuntime::GetMSAllocatorScaleConfig();
+    uint32_t shardCount = scaleConfig.shardCount;
 
     // --- Max virtual capacity (full mmap reservation) ---
-    size_t maxMetadataSize = GetMetadataSize(maxVirtualHeapSize);
-    size_t maxHeapAligned = RoundUp<size_t>(maxVirtualHeapSize, MS_REGION_SIZE);
+    size_t maxHeapAligned = 0;
+    size_t maxMetadataSize = 0;
+    size_t totalReserveSize = 0;
+    CHECK_DETAIL(TryComputeVirtualReserveLayout(
+                     maxVirtualHeapSize, maxHeapAligned, maxMetadataSize, totalReserveSize),
+                 "[MS-GC] virtual reserve layout overflows during manager initialization: maxVirtual=%zu",
+                 maxVirtualHeapSize);
+    (void)totalReserveSize;
     size_t maxVirtualRegionCount = maxHeapAligned / MS_REGION_SIZE;
     size_t maxVirtualUnitCount = maxHeapAligned / unitSize_;
 
-    // --- Initial committed heap: one 64MB segment per shard/P ---
+    // --- Initial committed heap: independently configured 64MB segments ---
     size_t segmentSize = RoundUp<size_t>(kMSShardSegmentBytes, MS_REGION_SIZE);
-    size_t committedHeapSize = RoundUp<size_t>(ComputeMSInitialCommittedHeapBytes(shardCount), MS_REGION_SIZE);
+    size_t initialCommittedHeapBytes = 0;
+    CHECK_DETAIL(TryComputeMSInitialCommittedHeapBytes(
+                     scaleConfig.initialSegmentCount, initialCommittedHeapBytes),
+                 "[MS-GC] initial Segment count exceeds addressable heap: %zu",
+                 scaleConfig.initialSegmentCount);
+    size_t committedHeapSize = RoundUp<size_t>(initialCommittedHeapBytes, MS_REGION_SIZE);
     CHECK_DETAIL(committedHeapSize <= maxHeapAligned,
-                 "[MS-GC] initial committed heap exceeds max virtual heap: committed=%zu maxVirtual=%zu shardCount=%u",
-                 committedHeapSize, maxHeapAligned, shardCount);
+                 "[MS-GC] initial committed heap exceeds max virtual heap: committed=%zu maxVirtual=%zu "
+                 "initialSegmentCount=%zu",
+                 committedHeapSize, maxHeapAligned, scaleConfig.initialSegmentCount);
     size_t committedRegionCount = committedHeapSize / MS_REGION_SIZE;
     size_t committedUnitCount = committedHeapSize / unitSize_;
 
@@ -148,11 +218,13 @@ void MSRegionManager::Initialize(uintptr_t mmapBase, size_t maxVirtualHeapSize)
 
     VLOG(REPORT, "[MS-GC] MSRegionManager initialized (virtual reserve): mmapBase=0x%zx, "
         "maxMetadata=%zuKB, heapStart=0x%zx, committedEnd=0x%zx, maxHeapEnd=0x%zx, "
-        "committedRegions=%zu, maxVirtualRegions=%zu, shardCount=%u, segmentSize=%zuMB, "
+        "committedRegions=%zu, maxVirtualRegions=%zu, shardCount=%u, processorsPerShard=%u, "
+        "initialSegmentCount=%zu, segmentSize=%zuMB, "
         "committedUnits=%zu, maxVirtualUnits=%zu, unitsPerMSRegion=%zu",
         mmapBase, maxMetadataSize / 1024,
         heapStart_, committedEnd, maxHeapEnd,
-        committedRegionCount, maxVirtualRegionCount, shardCount,
+        committedRegionCount, maxVirtualRegionCount, shardCount, scaleConfig.processorsPerShard,
+        scaleConfig.initialSegmentCount,
         segmentSize / (1024 * 1024),
         committedUnitCount, maxVirtualUnitCount, unitsPerMSRegion_);
 }
@@ -216,9 +288,7 @@ size_t MSRegionManager::GetHotFreeBytesReference() const
 uint16_t MSRegionManager::ResolveHomeShardId(uint16_t shardHint) const
 {
     MSShardRouteContext context {};
-    if (Runtime::CurrentRef() != nullptr) {
-        context.shardCount = Runtime::Current().GetConcurrencyModel().GetProcessorNum();
-    }
+    context.shardCount = freeManager_.GetShardCount();
     context.hasBoundProcessor = ThreadLocal::IsCJProcessor();
     context.tid = static_cast<uint64_t>(GetTid());
     if (context.hasBoundProcessor) {
@@ -353,18 +423,15 @@ bool MSRegionManager::TakeRegions(RegionCount num, uint16_t homeShardId, RegionI
     RegionIndex rawIdx = 0;
     MaybeNotifyMark();
 
-    while (true) {
-        FreeManager::TryTakeResult result = freeManager_.TryTakeRegions(num, homeShardId, rawIdx);
-        if (result == FreeManager::TryTakeResult::SUCCESS) {
-            idx = rawIdx;
-            MaybeNotifyScavenge();
-            return true;
-        }
-
-        if (!freeManager_.GrowForRegions(num, homeShardId, *this)) {
-            return false;
-        }
+    FreeManager::TryTakeResult result = freeManager_.TryTakeRegions(num, homeShardId, rawIdx);
+    if (result != FreeManager::TryTakeResult::SUCCESS &&
+        !freeManager_.TryTakeOrGrowRegions(num, homeShardId, rawIdx, *this)) {
+        return false;
     }
+
+    idx = rawIdx;
+    MaybeNotifyScavenge();
+    return true;
 }
 
 // ============================================================================

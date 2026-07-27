@@ -105,7 +105,6 @@ void TestSingleRegionFastPathSeedsLocalHint()
 
     FreeManager manager;
     manager.Initialize(
-        kInitialRegions * kUnitsPerRegion,
         kPageSize,
         kUnitsPerRegion,
         kInitialRegions,
@@ -141,7 +140,6 @@ void TestFastHintDoesNotPreemptReclaimSideOrdering()
 
     FreeManager manager;
     manager.Initialize(
-        kInitialRegions * kUnitsPerRegion,
         kPageSize,
         kUnitsPerRegion,
         kInitialRegions,
@@ -181,7 +179,6 @@ void TestMarkAllocatedOneLockedUpdatesSingleSegmentLocally()
 
     FreeManager manager;
     manager.Initialize(
-        kInitialRegions * kUnitsPerRegion,
         kPageSize,
         kUnitsPerRegion,
         kInitialRegions,

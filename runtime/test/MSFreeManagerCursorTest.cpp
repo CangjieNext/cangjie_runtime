@@ -81,7 +81,6 @@ void TestRecentlyFreedRegionStaysOnReclaimSide()
 
     FreeManager manager;
     manager.Initialize(
-        kInitialRegions * kUnitsPerRegion,
         kPageSize,
         kUnitsPerRegion,
         kInitialRegions,

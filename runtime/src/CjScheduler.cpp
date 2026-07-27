@@ -119,15 +119,24 @@ static size_t InitRegionSize(size_t defaultParam)
 }
 
 #ifdef MRT_USE_MARK_SWEEP
-static size_t ComputeMSInitialHeapSizeKB(uint32_t processorNum)
+static size_t ComputeMSInitialHeapSizeKB(size_t initialSegmentCount)
 {
-    return ComputeMSInitialCommittedHeapBytes(processorNum) / KB;
+    size_t initialHeapSizeBytes = 0;
+    CHECK_DETAIL(TryComputeMSInitialCommittedHeapBytes(initialSegmentCount, initialHeapSizeBytes),
+                 "[MS-GC] initial Segment count exceeds addressable heap: %zu", initialSegmentCount);
+    return initialHeapSizeBytes / KB;
 }
 
 static size_t InitMSMaxVirtualHeapSize(size_t minVirtualHeapSizeKB)
 {
-    static constexpr size_t defaultValueKB = 16ULL * GB / KB;
-    return ReadSizeParameter("cjMSMaxVirtualHeapSize", defaultValueKB, minVirtualHeapSizeKB, EnvBoundKind::CLOSED);
+    static constexpr size_t requestedDefaultValueKB = 16ULL * GB / KB;
+    static constexpr size_t defaultValueKB =
+        requestedDefaultValueKB > kMSMaxVirtualHeapSizeKB
+            ? kMSMaxVirtualHeapSizeKB
+            : requestedDefaultValueKB;
+    return ReadSizeParameter("cjMSMaxVirtualHeapSize", defaultValueKB,
+                             minVirtualHeapSizeKB, EnvBoundKind::CLOSED,
+                             kMSMaxVirtualHeapSizeKB, EnvBoundKind::CLOSED);
 }
 #endif
 
@@ -432,7 +441,7 @@ void* MCC_NewCJThreadNoReturn(void* executeClosure, void* closurePtr, void* sche
 /**
  * Determine the default stack size and initial heap size.
  * CopyGC derives heap size from system memory and cjHeapSize.
- * MSGC uses one 64MB segment per processor as the initial committed heap size.
+ * MSGC resolves Shard count and initial committed Segment count independently.
  */
 static RuntimeParam InitRuntimeParam()
 {
@@ -441,17 +450,17 @@ static RuntimeParam InitRuntimeParam()
     uint32_t logicalCpuCount = cpus != 0 ? static_cast<uint32_t>(cpus) : 8;
     uint32_t processorNum = InitProcessorNum();
 #ifdef MRT_USE_MARK_SWEEP
-    size_t initHeapSize = ComputeMSInitialHeapSizeKB(processorNum);
+    size_t maxVirtualHeapSizeKB = InitMSMaxVirtualHeapSize(kMSShardSegmentBytes / KB);
+    CangjieRuntime::SetMSMaxVirtualHeapSizeKB(maxVirtualHeapSizeKB);
+    CangjieRuntime::ConfigureMSAllocatorScale(processorNum, maxVirtualHeapSizeKB);
+    MSAllocatorScaleConfig scaleConfig = CangjieRuntime::GetMSAllocatorScaleConfig();
+    size_t initHeapSize = ComputeMSInitialHeapSizeKB(scaleConfig.initialSegmentCount);
     double heapGrowth = ReadDoubleParameter("cjHeapGrowth", 1.0, 0.0, EnvBoundKind::OPEN,
                                             std::numeric_limits<double>::max(), EnvBoundKind::CLOSED);
 #else
     size_t initHeapSize = InitHeapSize(g_sysmemSize > 1 * GB ? 256 * KB : 64 * KB);
     double heapGrowth = ReadDoubleParameter("cjHeapGrowth", 0.25, 0.0, EnvBoundKind::OPEN,
                                             std::numeric_limits<double>::max(), EnvBoundKind::CLOSED);
-#endif
-#ifdef MRT_USE_MARK_SWEEP
-    CangjieRuntime::SetMSMaxVirtualHeapSizeKB(
-        InitMSMaxVirtualHeapSize(initHeapSize));
 #endif
     uint64_t gcInterval = ReadTimeParameter("cjGCInterval", 0, 0, EnvBoundKind::OPEN, true);
     RuntimeParam param = {

@@ -488,11 +488,25 @@ void RegionSpaceMS::Init(const HeapParam& vmHeapParam)
 {
     MemMap::Option opt = MemMap::DEFAULT_OPTIONS;
     opt.tag = "cangjie_heap";
+    CHECK_DETAIL(vmHeapParam.heapSize <= std::numeric_limits<size_t>::max() / 1024,
+                 "[MS-GC] initial heap KB exceeds addressable byte size: %zu", vmHeapParam.heapSize);
     size_t heapSize = vmHeapParam.heapSize * 1024;
-    size_t configuredMaxVirtualHeapSize = CangjieRuntime::GetMSMaxVirtualHeapSizeKB() * KB;
+    size_t configuredMaxVirtualHeapSizeKB = CangjieRuntime::GetMSMaxVirtualHeapSizeKB();
+    CHECK_DETAIL(configuredMaxVirtualHeapSizeKB <= kMSMaxVirtualHeapSizeKB,
+                 "[MS-GC] max virtual heap KB exceeds addressable byte size: %zu",
+                 configuredMaxVirtualHeapSizeKB);
+    size_t configuredMaxVirtualHeapSize = configuredMaxVirtualHeapSizeKB * KB;
 
-    size_t maxVirtualHeapSize = MSRegionManager::ComputeMaxVirtualHeapSize(heapSize, configuredMaxVirtualHeapSize);
-    size_t totalSize = MSRegionManager::GetVirtualReserveSize(maxVirtualHeapSize);
+    size_t requestedMaxVirtualHeapSize =
+        std::max(heapSize, configuredMaxVirtualHeapSize);
+    size_t maxVirtualHeapSize = 0;
+    size_t metadataSize = 0;
+    size_t totalSize = 0;
+    CHECK_DETAIL(MSRegionManager::TryComputeVirtualReserveLayout(
+                     requestedMaxVirtualHeapSize, maxVirtualHeapSize, metadataSize, totalSize),
+                 "[MS-GC] virtual reserve layout is not addressable: initial=%zu configured=%zu",
+                 heapSize, configuredMaxVirtualHeapSize);
+    (void)metadataSize;
     opt.protAll = true;
 #if defined(CANGJIE_ASAN_SUPPORT)
     opt.flags &= ~MAP_PRIVATE;

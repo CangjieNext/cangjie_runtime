@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <deque>
+#include <functional>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -74,7 +75,7 @@ public:
         cv_.wait(lock, [this]() { return proceed_; });
     }
 
-    void OnCommittedHeapChanged(uintptr_t) override {}
+    void OnCommittedHeapExtended(uintptr_t) override {}
 
     void WaitUntilEntered()
     {
@@ -96,6 +97,33 @@ private:
     bool proceed_ = false;
 };
 
+class CountingGrowHandler final : public FreeManager::HeapRangeHandler {
+public:
+    void InitializeFreshRegions(FreeManager::RegionIndex, FreeManager::RegionCount) override
+    {
+        initializeCalls_.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    void OnCommittedHeapExtended(uintptr_t) override
+    {
+        extendedCalls_.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    size_t InitializeCalls() const
+    {
+        return initializeCalls_.load(std::memory_order_relaxed);
+    }
+
+    size_t ExtendedCalls() const
+    {
+        return extendedCalls_.load(std::memory_order_relaxed);
+    }
+
+private:
+    std::atomic<size_t> initializeCalls_ {0};
+    std::atomic<size_t> extendedCalls_ {0};
+};
+
 void TestGrowWaitsOnPageLockBeforeTakingShardLock()
 {
     constexpr size_t kPageSize = 16 * 1024;
@@ -115,7 +143,6 @@ void TestGrowWaitsOnPageLockBeforeTakingShardLock()
 
     FreeManager manager;
     manager.Initialize(
-        kMaxRegions * kUnitsPerRegion,
         kPageSize,
         kUnitsPerRegion,
         kInitialRegions,
@@ -167,7 +194,6 @@ void TestGrowDoesNotHoldPageLockWhileWaitingForShardLock()
 
     FreeManager manager;
     manager.Initialize(
-        kMaxRegions * kUnitsPerRegion,
         kPageSize,
         kUnitsPerRegion,
         kInitialRegions,
@@ -200,11 +226,139 @@ void TestGrowDoesNotHoldPageLockWhileWaitingForShardLock()
     std::free(heap);
 }
 
+void TestConcurrentMissesRecheckBeforeGrowing()
+{
+    constexpr size_t kPageSize = 16 * 1024;
+    constexpr size_t kRegionSize = 256 * 1024;
+    constexpr uint32_t kUnitsPerRegion = kRegionSize / kPageSize;
+    constexpr size_t kSegmentSize = 64ULL * 1024 * 1024;
+    constexpr uint32_t kRegionsPerSegment = kSegmentSize / kRegionSize;
+    constexpr uint32_t kInitialRegions = kRegionsPerSegment;
+    constexpr uint32_t kMaxRegions = kRegionsPerSegment * 3;
+    constexpr size_t kHeapBytes = static_cast<size_t>(kMaxRegions) * kRegionSize;
+
+    void* heap = std::malloc(kHeapBytes);
+    if (heap == nullptr) {
+        std::fprintf(stderr, "malloc failed\n");
+        std::abort();
+    }
+
+    FreeManager manager;
+    manager.Initialize(
+        kPageSize,
+        kUnitsPerRegion,
+        kInitialRegions,
+        kMaxRegions,
+        reinterpret_cast<uintptr_t>(heap),
+        reinterpret_cast<uintptr_t>(heap) + static_cast<size_t>(kInitialRegions) * kRegionSize,
+        reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+        kSegmentSize,
+        4);
+
+    for (uint32_t i = 0; i < kInitialRegions; ++i) {
+        FreeManager::RegionIndex idx = 0;
+        ExpectTrue(manager.TryTakeRegions(1, 0, idx) == FreeManager::TryTakeResult::SUCCESS,
+                   "initial segment should be drainable");
+    }
+
+    CountingGrowHandler handler;
+    std::atomic<uint32_t> ready {0};
+    std::atomic<bool> start {false};
+    std::atomic<bool> firstResult {false};
+    std::atomic<bool> secondResult {false};
+    FreeManager::RegionIndex firstIdx = 0;
+    FreeManager::RegionIndex secondIdx = 0;
+
+    auto takeAfterMiss = [&](uint16_t shardId, FreeManager::RegionIndex& idx, std::atomic<bool>& result) {
+        ready.fetch_add(1, std::memory_order_release);
+        while (!start.load(std::memory_order_acquire)) {
+            std::this_thread::yield();
+        }
+        result.store(manager.TryTakeOrGrowRegions(1, shardId, idx, handler), std::memory_order_release);
+    };
+
+    std::thread first(takeAfterMiss, 1, std::ref(firstIdx), std::ref(firstResult));
+    std::thread second(takeAfterMiss, 2, std::ref(secondIdx), std::ref(secondResult));
+    while (ready.load(std::memory_order_acquire) != 2) {
+        std::this_thread::yield();
+    }
+    start.store(true, std::memory_order_release);
+    first.join();
+    second.join();
+
+    ExpectTrue(firstResult.load(std::memory_order_acquire), "first concurrent miss should acquire a Region");
+    ExpectTrue(secondResult.load(std::memory_order_acquire), "second concurrent miss should acquire a Region");
+    ExpectTrue(firstIdx != secondIdx, "concurrent Grow acquisition must return unique Regions");
+    ExpectTrue(manager.GetCommittedRegionCount() == kRegionsPerSegment * 2,
+               "second miss should reuse the first Grow instead of growing another Segment");
+    ExpectTrue(handler.InitializeCalls() == 1, "only one Segment should be initialized");
+    ExpectTrue(handler.ExtendedCalls() == 1, "only one committed-end extension should be published");
+
+    std::free(heap);
+}
+
+void TestReclaimedSupplyIsObservedBeforeGrowing()
+{
+    constexpr size_t kPageSize = 16 * 1024;
+    constexpr size_t kRegionSize = 256 * 1024;
+    constexpr uint32_t kUnitsPerRegion = kRegionSize / kPageSize;
+    constexpr size_t kSegmentSize = 64ULL * 1024 * 1024;
+    constexpr uint32_t kRegionsPerSegment = kSegmentSize / kRegionSize;
+    constexpr uint32_t kInitialRegions = kRegionsPerSegment;
+    constexpr uint32_t kMaxRegions = kRegionsPerSegment * 2;
+    constexpr size_t kHeapBytes = static_cast<size_t>(kMaxRegions) * kRegionSize;
+
+    void* heap = std::malloc(kHeapBytes);
+    if (heap == nullptr) {
+        std::fprintf(stderr, "malloc failed\n");
+        std::abort();
+    }
+
+    FreeManager manager;
+    manager.Initialize(
+        kPageSize,
+        kUnitsPerRegion,
+        kInitialRegions,
+        kMaxRegions,
+        reinterpret_cast<uintptr_t>(heap),
+        reinterpret_cast<uintptr_t>(heap) + static_cast<size_t>(kInitialRegions) * kRegionSize,
+        reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+        kSegmentSize,
+        4);
+
+    FreeManager::RegionIndex reclaimedIdx = 0;
+    for (uint32_t i = 0; i < kInitialRegions; ++i) {
+        FreeManager::RegionIndex idx = 0;
+        ExpectTrue(manager.TryTakeRegions(1, 0, idx) == FreeManager::TryTakeResult::SUCCESS,
+                   "initial segment should be drainable before reclaim");
+        reclaimedIdx = idx;
+    }
+
+    uint64_t generationBeforeReclaim = manager.GetAvailabilityGeneration();
+    manager.ReclaimRegionsReleased(reclaimedIdx, 1);
+    ExpectTrue(manager.GetAvailabilityGeneration() > generationBeforeReclaim,
+               "reclaim must publish a new availability generation");
+
+    CountingGrowHandler handler;
+    FreeManager::RegionIndex resultIdx = 0;
+    ExpectTrue(manager.TryTakeOrGrowRegions(1, 3, resultIdx, handler),
+               "request should observe reclaimed supply");
+    ExpectTrue(resultIdx == reclaimedIdx, "request should consume the reclaimed Region");
+    ExpectTrue(manager.GetCommittedRegionCount() == kInitialRegions,
+               "observed reclaimed supply must avoid growing another Segment");
+    ExpectTrue(handler.InitializeCalls() == 0, "reclaim reuse must not initialize a Segment");
+    ExpectTrue(handler.ExtendedCalls() == 0, "reclaim reuse must not publish a committed-end extension");
+
+    std::free(heap);
+}
+
 } // namespace
 
 int main()
 {
     TestGrowWaitsOnPageLockBeforeTakingShardLock();
     TestGrowDoesNotHoldPageLockWhileWaitingForShardLock();
+    TestConcurrentMissesRecheckBeforeGrowing();
+    TestReclaimedSupplyIsObservedBeforeGrowing();
     return 0;
 }

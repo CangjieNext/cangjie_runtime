@@ -72,7 +72,7 @@ class RecordingHeapRangeHandler final : public FreeManager::HeapRangeHandler {
 public:
     void InitializeFreshRegions(FreeManager::RegionIndex, FreeManager::RegionCount) override {}
 
-    void OnCommittedHeapChanged(uintptr_t newCommittedEnd) override
+    void OnCommittedHeapExtended(uintptr_t newCommittedEnd) override
     {
         observedEnds_.push_back(newCommittedEnd);
     }
@@ -86,7 +86,7 @@ private:
     std::vector<uintptr_t> observedEnds_;
 };
 
-void TestGrowAndShrinkBothPublishCommittedHeapEnd()
+void TestGrowPublishesCommittedHeapEnd()
 {
     constexpr size_t kPageSize = 16 * 1024;
     constexpr size_t kRegionSize = 256 * 1024;
@@ -105,7 +105,6 @@ void TestGrowAndShrinkBothPublishCommittedHeapEnd()
 
     FreeManager manager;
     manager.Initialize(
-        kMaxRegions * kUnitsPerRegion,
         kPageSize,
         kUnitsPerRegion,
         kInitialRegions,
@@ -119,18 +118,17 @@ void TestGrowAndShrinkBothPublishCommittedHeapEnd()
     RecordingHeapRangeHandler handler;
     bool grew = manager.GrowOneSegment(0, handler);
     ExpectTrue(grew, "GrowOneSegment should succeed");
-    manager.ShrinkHeap(handler);
+    manager.ShrinkHeap();
 
     const std::vector<uintptr_t>& observedEnds = handler.ObservedEnds();
-    ExpectEqSize(observedEnds.size(), 2, "grow and shrink should each publish one committed heap end");
+    ExpectEqSize(observedEnds.size(), 1, "grow should publish one committed heap end");
 
     uintptr_t heapStart = reinterpret_cast<uintptr_t>(heap);
     uintptr_t grownEnd = heapStart + kHeapBytes;
     uintptr_t shrunkEnd = heapStart + static_cast<size_t>(kInitialRegions) * kRegionSize;
 
     ExpectEqSize(observedEnds[0], grownEnd, "grow should publish enlarged committed end");
-    ExpectEqSize(observedEnds[1], shrunkEnd, "shrink should publish reduced committed end");
-    ExpectEqSize(manager.GetCommittedEnd(), shrunkEnd, "manager committed end should match published shrink end");
+    ExpectEqSize(manager.GetCommittedEnd(), shrunkEnd, "manager committed end should match shrink end");
 
     std::free(heap);
 }
@@ -139,6 +137,6 @@ void TestGrowAndShrinkBothPublishCommittedHeapEnd()
 
 int main()
 {
-    TestGrowAndShrinkBothPublishCommittedHeapEnd();
+    TestGrowPublishesCommittedHeapEnd();
     return 0;
 }

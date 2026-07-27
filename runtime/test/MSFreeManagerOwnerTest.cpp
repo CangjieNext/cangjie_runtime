@@ -102,7 +102,6 @@ void TestInitialSegmentsDefaultToOwnerZero()
 
     FreeManager manager;
     manager.Initialize(
-        kInitialRegions * kUnitsPerRegion,
         kPageSize,
         kUnitsPerRegion,
         kInitialRegions,
@@ -155,7 +154,7 @@ void TestInitialSegmentsDefaultToOwnerZero()
 class NoopHeapRangeHandler final : public FreeManager::HeapRangeHandler {
 public:
     void InitializeFreshRegions(FreeManager::RegionIndex, FreeManager::RegionCount) override {}
-    void OnCommittedHeapChanged(uintptr_t) override {}
+    void OnCommittedHeapExtended(uintptr_t) override {}
 };
 
 void TestGrowAssignsRequesterOwner()
@@ -179,7 +178,6 @@ void TestGrowAssignsRequesterOwner()
 
     FreeManager manager;
     manager.Initialize(
-        kMaxRegions * kUnitsPerRegion,
         kPageSize,
         kUnitsPerRegion,
         kInitialRegions,
@@ -236,7 +234,6 @@ void TestShrinkKeepsOneOwnedSegmentPerShard()
 
     FreeManager manager;
     manager.Initialize(
-        kMaxRegions * kUnitsPerRegion,
         kPageSize,
         kUnitsPerRegion,
         kInitialRegions,
@@ -256,7 +253,7 @@ void TestShrinkKeepsOneOwnedSegmentPerShard()
     ExpectEqSize(manager.GetOwnedSegmentCount(0), 2, "shard0 starts shrink with two owned segments");
     ExpectEqSize(manager.GetOwnedSegmentCount(1), 2, "shard1 starts shrink with two owned segments");
 
-    manager.ShrinkHeap(handler);
+    manager.ShrinkHeap();
 
     ExpectEqSize(manager.GetCommittedRegionCount(),
                  kRegionsPerSegment * 2,

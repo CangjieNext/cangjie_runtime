@@ -13,6 +13,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <memory>
 #include <mutex>
 #include <vector>
 
@@ -95,6 +96,10 @@ public:
                     size_t segmentSize, uint32_t shardCount);
 
     TryTakeResult TryTakeRegions(RegionCount num, uint16_t homeShardId, RegionIndex& idx);
+    bool TryTakeOrGrowRegions(RegionCount num,
+                              uint16_t homeShardId,
+                              RegionIndex& idx,
+                              HeapRangeHandler& handler);
     void ReclaimRegionsReleased(RegionIndex idx, RegionCount num);
     void ReclaimRegionsReleasedBatch(const std::vector<RegionSpan>& spans);
     bool GrowOneSegment(uint16_t ownerShardId, HeapRangeHandler& handler);
@@ -131,6 +136,10 @@ public:
     uintptr_t GetInactiveZone() const { return committedEnd_; }
     size_t GetCurrentCapacityBytes() const { return committedEnd_ - heapStart_; }
     size_t GetCommittedRegionCount() const { return committedRegionCount_; }
+    uint64_t GetAvailabilityGeneration() const
+    {
+        return availabilityGeneration_.load(std::memory_order_acquire);
+    }
     size_t GetMaxVirtualRegionCount() const { return maxVirtualRegionCount_; }
     uint16_t ResolveOwnerShardId(RegionIndex idx) const;
     size_t GetSegmentRegionCount() const { return segmentRegionCount_; }
@@ -146,7 +155,6 @@ public:
 
 private:
     static constexpr RegionCount kSingleRegionStealBatch = 4;
-    static constexpr uint32_t kMaxSingleRegionStealAttempts = 2;
 
     struct ChunkSummary {
         uint16_t start = 0;
@@ -176,6 +184,7 @@ private:
 
     struct FreeManagerShard {
         mutable std::mutex shardMutex_;
+        uint16_t shardId_ = 0;
         size_t freeRegionCount_ = 0;
         size_t scavengedRegionCount_ = 0;
         size_t scavengingRegionCount_ = 0;
@@ -187,6 +196,8 @@ private:
         std::vector<OwnedSegmentView> ownedViews_;
         std::deque<BorrowedSpan> borrowedSpans_;
         std::atomic<uint32_t> snapHotFreeRegions_{0};
+        size_t publishedFreeRegionCount_ = 0;
+        bool advertisedNonEmpty_ = false;
         bool fastTakeHintValid_ = false;
         size_t fastTakeViewIdx_ = 0;
         size_t fastTakeWordOffset_ = 0;
@@ -290,11 +301,22 @@ private:
                                 size_t localIdx,
                                 bool& reusedScavenged);
     bool GrowOneSegmentLocked(uint16_t ownerShardId, HeapRangeHandler& handler);
+    bool GrowAndTakeRegionsLocked(RegionCount numRegions,
+                                  uint16_t ownerShardId,
+                                  RegionIndex& idx,
+                                  HeapRangeHandler& handler);
     bool TryStealContiguousRegionRunLocked(uint16_t receiverShardId,
                                            RegionCount num,
                                            RegionIndex& idx,
                                            RegionSpan& reusedSpan);
     bool TryStealSingleRegionBatchLocked(uint16_t receiverShardId, RegionIndex& idx, RegionSpan& reusedSpan);
+    bool FindNextNonEmptyDonorShard(uint16_t receiverShardId,
+                                    uint32_t searchStart,
+                                    uint16_t& donorShardId) const;
+    bool FindNonEmptyShardInRange(uint16_t receiverShardId,
+                                  uint32_t begin,
+                                  uint32_t end,
+                                  uint16_t& donorShardId) const;
     size_t CountScavengedInViewRangeLocked(const OwnedSegmentView& view, size_t localStart, RegionCount num) const;
     size_t CountFreeInViewRangeLocked(const OwnedSegmentView& view, size_t localStart, RegionCount num) const;
     void MarkAllocatedLocked(FreeManagerShard& shard, RegionIndex idx, RegionCount num, bool& reusedScavenged);
@@ -329,8 +351,11 @@ private:
     uint32_t shardCount_ = 1;
     size_t segmentRegionCount_ = 0;
     std::deque<FreeManagerShard> shards_;
+    std::unique_ptr<std::atomic<uint64_t>[]> nonEmptyShardWords_;
+    size_t nonEmptyShardWordCount_ = 0;
     std::atomic<size_t> totalHotFreeRegions_ {0};
     std::atomic<size_t> reusedScavengedRegionCount_ {0};
+    std::atomic<uint64_t> availabilityGeneration_ {0};
     std::vector<uint16_t> segmentOwnerShard_;
     uint16_t nextScavengeShard_ = 0;
 };

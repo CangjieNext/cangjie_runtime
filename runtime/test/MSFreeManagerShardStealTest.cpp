@@ -78,7 +78,6 @@ void TestSingleRegionStealBuildsBorrowedCache()
 
     FreeManager manager;
     manager.Initialize(
-        kInitialRegions * kUnitsPerRegion,
         kPageSize,
         kUnitsPerRegion,
         kInitialRegions,
@@ -102,10 +101,44 @@ void TestSingleRegionStealBuildsBorrowedCache()
     std::free(heap);
 }
 
+void TestSingleInitialSegmentIsDiscoverableFromAnyShard()
+{
+    constexpr size_t kPageSize = 16 * 1024;
+    constexpr size_t kRegionSize = 256 * 1024;
+    constexpr uint32_t kUnitsPerRegion = kRegionSize / kPageSize;
+    constexpr size_t kSegmentSize = 64ULL * 1024 * 1024;
+    constexpr uint32_t kRegionsPerSegment = kSegmentSize / kRegionSize;
+    constexpr size_t kHeapBytes = static_cast<size_t>(kRegionsPerSegment) * kRegionSize;
+
+    void* heap = std::malloc(kHeapBytes);
+    if (heap == nullptr) {
+        std::fprintf(stderr, "malloc failed\n");
+        std::abort();
+    }
+
+    FreeManager manager;
+    manager.Initialize(
+        kPageSize,
+        kUnitsPerRegion,
+        kRegionsPerSegment,
+        kRegionsPerSegment,
+        reinterpret_cast<uintptr_t>(heap),
+        reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+        reinterpret_cast<uintptr_t>(heap) + kHeapBytes,
+        kSegmentSize,
+        65);
+
+    ExpectTake(manager, 1, 0,
+               "a shard without an owned segment should find the non-empty donor across bitmap words");
+
+    std::free(heap);
+}
+
 } // namespace
 
 int main()
 {
     TestSingleRegionStealBuildsBorrowedCache();
+    TestSingleInitialSegmentIsDiscoverableFromAnyShard();
     return 0;
 }

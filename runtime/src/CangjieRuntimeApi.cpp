@@ -182,15 +182,25 @@ static void* StartCJRuntime(void* arg)
 }
 
 #ifdef MRT_USE_MARK_SWEEP
-static size_t ComputeMSInitialHeapSizeKB(uint32_t processorNum)
+static size_t ComputeMSInitialHeapSizeKB(size_t initialSegmentCount)
 {
-    return MapleRuntime::ComputeMSInitialCommittedHeapBytes(processorNum) / MapleRuntime::KB;
+    size_t initialHeapSizeBytes = 0;
+    CHECK_DETAIL(MapleRuntime::TryComputeMSInitialCommittedHeapBytes(
+                     initialSegmentCount, initialHeapSizeBytes),
+                 "[MS-GC] initial Segment count exceeds addressable heap: %zu", initialSegmentCount);
+    return initialHeapSizeBytes / MapleRuntime::KB;
 }
 
 static size_t ResolveMSMaxVirtualHeapSizeKB(size_t minVirtualHeapSizeKB)
 {
-    return MapleRuntime::ReadSizeParameter("cjMSMaxVirtualHeapSize", DEFAULT_MS_MAX_VIRTUAL_HEAP_SIZE_KB,
-                                           minVirtualHeapSizeKB, MapleRuntime::EnvBoundKind::CLOSED);
+    constexpr size_t defaultValueKB =
+        DEFAULT_MS_MAX_VIRTUAL_HEAP_SIZE_KB > MapleRuntime::kMSMaxVirtualHeapSizeKB
+            ? MapleRuntime::kMSMaxVirtualHeapSizeKB
+            : DEFAULT_MS_MAX_VIRTUAL_HEAP_SIZE_KB;
+    return MapleRuntime::ReadSizeParameter("cjMSMaxVirtualHeapSize", defaultValueKB,
+                                           minVirtualHeapSizeKB, MapleRuntime::EnvBoundKind::CLOSED,
+                                           MapleRuntime::kMSMaxVirtualHeapSizeKB,
+                                           MapleRuntime::EnvBoundKind::CLOSED);
 }
 #endif
 
@@ -223,7 +233,13 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
     uint32_t defaultProcs = cpus != 0 ? static_cast<uint32_t>(cpus) : 8;
     uint32_t resolvedProcessorNum = param->coParam.processorNum == 0 ? defaultProcs : param->coParam.processorNum;
 #ifdef MRT_USE_MARK_SWEEP
-    size_t initHeapSize = ComputeMSInitialHeapSizeKB(resolvedProcessorNum);
+    size_t maxVirtualHeapSizeKB = ResolveMSMaxVirtualHeapSizeKB(
+        MapleRuntime::kMSShardSegmentBytes / MapleRuntime::KB);
+    MapleRuntime::CangjieRuntime::SetMSMaxVirtualHeapSizeKB(maxVirtualHeapSizeKB);
+    MapleRuntime::CangjieRuntime::ConfigureMSAllocatorScale(resolvedProcessorNum, maxVirtualHeapSizeKB);
+    MapleRuntime::MSAllocatorScaleConfig scaleConfig =
+        MapleRuntime::CangjieRuntime::GetMSAllocatorScaleConfig();
+    size_t initHeapSize = ComputeMSInitialHeapSizeKB(scaleConfig.initialSegmentCount);
 #else
     size_t initHeapSize = param->heapParam.heapSize == 0 ? 64 * 1024 : param->heapParam.heapSize;
 #endif
@@ -248,10 +264,6 @@ RTErrorCode InitCJRuntime(const struct RuntimeParam* param)
         // 512MB
         initHeapSize = 512 * MapleRuntime::MB / MapleRuntime::KB;
     }
-#endif
-#ifdef MRT_USE_MARK_SWEEP
-    MapleRuntime::CangjieRuntime::SetMSMaxVirtualHeapSizeKB(
-        ResolveMSMaxVirtualHeapSizeKB(initHeapSize));
 #endif
     RuntimeParam config = {
         .heapParam = {

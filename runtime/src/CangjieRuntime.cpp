@@ -8,6 +8,7 @@
 #include "CangjieRuntime.h"
 
 #include "Base/Log.h"
+#include "Base/EnvParam.h"
 #include "ExceptionManager.h"
 #include "Heap/Heap.h"
 #include "HeapManager.h"
@@ -38,6 +39,30 @@
 namespace MapleRuntime {
 StackGrowConfig CangjieRuntime::stackGrowConfig = StackGrowConfig::UNDEF;
 size_t CangjieRuntime::msMaxVirtualHeapSizeKB = 0;
+#ifdef MRT_USE_MARK_SWEEP
+MSAllocatorScaleConfig CangjieRuntime::msAllocatorScaleConfig {};
+
+void CangjieRuntime::ConfigureMSAllocatorScale(uint32_t processorCount, size_t maxVirtualHeapSizeKB)
+{
+    size_t configuredShardCount = ReadCountParameter(
+        "cjMSShardCount", 0, 0, EnvBoundKind::CLOSED);
+    size_t configuredInitialSegmentCount = ReadCountParameter(
+        "cjMSInitialSegmentCount", 0, 0, EnvBoundKind::CLOSED,
+        kMSMaxInitialSegmentCount);
+    uint32_t shardCount = ResolveMSShardCount(processorCount, configuredShardCount);
+    size_t initialSegmentCount = ResolveMSInitialSegmentCount(configuredInitialSegmentCount);
+    CHECK_DETAIL(TryResolveMSRequiredVirtualHeapSizeKB(
+                     initialSegmentCount, maxVirtualHeapSizeKB, msMaxVirtualHeapSizeKB),
+                 "[MS-GC] allocator scale exceeds addressable size: initialSegments=%zu maxVirtualKB=%zu",
+                 initialSegmentCount, maxVirtualHeapSizeKB);
+
+    msAllocatorScaleConfig = {
+        .shardCount = shardCount,
+        .processorsPerShard = ComputeMSProcessorsPerShard(processorCount, shardCount),
+        .initialSegmentCount = initialSegmentCount,
+    };
+}
+#endif
 extern "C" MRT_EXPORT void MRT_LibraryOnLoad(uint64_t address, bool enableGC)
 {
     ScopedEntryTrace trace("CJRT_LOAD_LIBRARY");
