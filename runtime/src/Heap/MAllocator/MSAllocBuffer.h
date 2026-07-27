@@ -17,7 +17,6 @@
 #include "Common/TypeDef.h"
 #include "Common/MarkWorkStack.h"
 #include "Common/LFStack.h"
-#include <mutex>
 #include <vector>
 
 namespace MapleRuntime {
@@ -116,51 +115,9 @@ public:
     WorkBuf* GetActiveLog() const { return activeLog_; }
     WorkBuf*& ActiveLogRef() { return activeLog_; }
 
-    // Acquire an empty WorkBuf, per-P freelist first (no lock), batch-refilling
-    // from the global pool on miss. Returned buffers are reset.
-    WorkBuf* AcquireWorkBuf(WorkBufPool& pool)
-    {
-        if (logCache_ != nullptr) {
-            WorkBuf* b = logCache_;
-            logCache_ = b->next;
-            b->next = nullptr;
-            --logCacheCount_;
-            b->Reset();
-            return b;
-        }
-        WorkBuf* bufs[kLogCacheRefill];
-        size_t got = pool.GetN(bufs, kLogCacheRefill);
-        if (got == 0) {
-            return nullptr;
-        }
-        for (size_t i = 1; i < got; ++i) {
-            bufs[i]->next = logCache_;
-            logCache_ = bufs[i];
-            ++logCacheCount_;
-        }
-        bufs[0]->Reset();
-        return bufs[0];
-    }
-
-    // Return every cached WorkBuf to the global pool. Called at GC cycle end.
-    void DrainLogCacheToPool(WorkBufPool& pool)
-    {
-        WorkBuf* chain = logCache_;
-        logCache_ = nullptr;
-        logCacheCount_ = 0;
-        if (chain != nullptr) {
-            pool.PutChain(chain);
-        }
-    }
-
     uint16_t GetCachedHomeShardId() const { return cachedHomeShardId_; }
 
 private:
-    friend class CentralRegionPool;
-    static constexpr size_t kLocalEmptyRegionCap = kNumSizeClasses;
-    // Per-P WorkBuf log cache tuning (Step37 §5.1).
-    static constexpr size_t kLogCacheRefill = 8;   // batch size to pull from global pool
-
     // LLVM fast-path compatibility: must be at offset 0 (same as AllocBuffer::tlRegion).
     // Set to NullRegion() so fast-path allocation always fails → slow path.
     RegionInfo* tlRegion_;
@@ -173,15 +130,6 @@ private:
 
     // Refill: get a Region from CentralRegionPool
     MSRegionInfo* RefillFromCentral(uint8_t cls);
-    MSRegionInfo* GetCacheRegion(uint8_t cls);
-    MSRegionInfo* TakeLocalEmptyRegion();
-    bool TryPushLocalEmptyRegion(MSRegionInfo* region, size_t slotLimit = kLocalEmptyRegionCap);
-    void RefillLocalEmptyRegionsFromGlobal(std::vector<MSRegionInfo*>& refill);
-    size_t DrainLocalEmptyRegions(std::vector<MSRegionInfo*>& out, size_t maxRegions);
-    size_t DrainAllLocalEmptyRegions(std::vector<MSRegionInfo*>& out);
-    bool HasLocalEmptyRegionInRange(size_t startRegionIdx, size_t endRegionIdx) const;
-    size_t ExtractLocalEmptyRegionsInRange(std::vector<MSRegionInfo*>& out, size_t startRegionIdx,
-                                           size_t endRegionIdx, size_t maxRegions);
 
     // Return an active region back to the central pool using the same
     // classification as ReturnRegion.
@@ -205,24 +153,14 @@ private:
 
     // The barrier appends already shaded old-refs into *activeLog_. When full,
     // it is published wholesale to the GC work queues (swap-and-publish) and
-    // replaced from logCache_. Consumers scan these trusted-grey objects
-    // directly. Kept at offset 896 for the AArch64/X86 fast-path ABI.
+    // replaced directly from the collector-global WorkBufPool. Consumers scan
+    // these trusted-grey objects directly. Kept at offset 896 for the
+    // AArch64/X86 fast-path ABI.
     WorkBuf* activeLog_ = nullptr;
-
-    // Per-P freelist of empty WorkBufs (single-owner, lock-free). Backs
-    // AcquireWorkBuf so the hot swap path avoids the global
-    // WorkBufPool mutex on most acquisitions. Drained to the pool at cycle end.
-    WorkBuf* logCache_ = nullptr;
-    size_t logCacheCount_ = 0;
 
     // Runtime-only fields start after the compiler-visible fast-path prefix.
     // Their offsets may follow the target C++ ABI and are never embedded in
     // AArch64/X86 generated code.
-
-    // Per-AllocBuffer cache of classless empty regions. These shells are rebound
-    // to a size class on demand after the typed central lists miss.
-    mutable std::mutex localEmptyRegionLock_;
-    MSRegionList localEmptyRegionCache_;
 
     // Back-pointer to global CentralRegionPool
     CentralRegionPool* central_ = nullptr;

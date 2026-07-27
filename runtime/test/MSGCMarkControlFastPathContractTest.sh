@@ -45,7 +45,7 @@ if ! rg -q 'markWorkerControl_\.CanContinueWorker\(workerId\)' "$COLLECTOR_SOURC
     exit 1
 fi
 
-if ! rg -Uq 'PromotePutToGet\(WorkBuf::kCapacity / 8\)[[:space:][:print:]]*AcquireOneBuffer\(\)[[:space:][:print:]]*PromotePutToGet\(1\)' \
+if ! rg -Uq 'PromotePutToGet\([[:space:][:print:]]*workBufPool_\.Capacity\(\) / 8\)[[:space:][:print:]]*AcquireOneBuffer\(\)[[:space:][:print:]]*PromotePutToGet\(1\)' \
     "$COLLECTOR_SOURCE"; then
     echo "MSGC Helper must consume Full/Partial through one Full-first Global claim" >&2
     exit 1

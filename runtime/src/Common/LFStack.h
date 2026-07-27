@@ -21,23 +21,36 @@ namespace MapleRuntime {
 class BaseObject;
 
 // ============================================================================
-// WorkBuf: fixed-size object pointer buffer, unit of global work exchange.
-// Go equivalent: runtime.workbuf (256 pointers per buf).
+// WorkBuf: runtime-sized object pointer buffer, unit of global work exchange.
+// The header layout is compiler ABI. The trailing object array starts at
+// offset 16 and is allocated in one of four supported storage sizes.
 // ============================================================================
-struct alignas(64) WorkBuf {
-    static constexpr size_t kCapacity = 1024;
+struct WorkBuf {
+    static constexpr uint32_t kDefaultCapacity = 1024;
 
     WorkBuf* next = nullptr;
-    size_t len = 0;
-    // Layout note: objs is kept at offset 16 (right after next+len) so the
-    // AArch64 MSGC write-barrier fast path can address it with a fixed offset.
-    BaseObject* objs[kCapacity];
+    uint32_t len = 0;
+    uint32_t capacity = 0;
 
-    bool Full() const { return len >= kCapacity; }
+    explicit WorkBuf(uint32_t bufferCapacity = kDefaultCapacity) : capacity(bufferCapacity) {}
+
+    bool Full() const { return len >= capacity; }
     bool Empty() const { return len == 0; }
 
-    void Push(BaseObject* obj) { objs[len++] = obj; }
-    BaseObject* Pop() { return objs[--len]; }
+    BaseObject** Objects()
+    {
+        return reinterpret_cast<BaseObject**>(
+            reinterpret_cast<uint8_t*>(this) + sizeof(WorkBuf));
+    }
+
+    BaseObject* const* Objects() const
+    {
+        return reinterpret_cast<BaseObject* const*>(
+            reinterpret_cast<const uint8_t*>(this) + sizeof(WorkBuf));
+    }
+
+    void Push(BaseObject* obj) { Objects()[len++] = obj; }
+    BaseObject* Pop() { return Objects()[--len]; }
 
     void Reset()
     {
@@ -45,6 +58,25 @@ struct alignas(64) WorkBuf {
         next = nullptr;
     }
 };
+
+static_assert(sizeof(WorkBuf) == 16, "WorkBuf header size is compiler ABI");
+static_assert(offsetof(WorkBuf, len) == 8, "WorkBuf::len offset is compiler ABI");
+static_assert(offsetof(WorkBuf, capacity) == 12, "WorkBuf::capacity offset is compiler ABI");
+
+template<size_t Capacity>
+struct alignas(64) WorkBufStorage {
+    WorkBufStorage() : header(static_cast<uint32_t>(Capacity)) {}
+
+    WorkBuf header;
+    BaseObject* objs[Capacity];
+};
+
+static_assert(offsetof(WorkBufStorage<128>, header) == 0,
+              "WorkBuf storage header must be first");
+static_assert(offsetof(WorkBufStorage<128>, objs) == 16,
+              "WorkBuf object array offset is compiler ABI");
+static_assert(offsetof(WorkBufStorage<1024>, objs) == 16,
+              "WorkBuf object array offset is compiler ABI");
 
 // ============================================================================
 // LFStack: shared WorkBuf stack used by global GC work exchange and the pool.
@@ -56,6 +88,7 @@ public:
     struct Counts {
         size_t total;
         size_t full;
+        size_t objects;
     };
 
     struct PopResult {
@@ -73,6 +106,7 @@ public:
             buf->next = top;
             top = buf;
             ++count_;
+            objectCount_ += buf->len;
             if (buf->Full()) {
                 ++fullCount_;
             }
@@ -93,7 +127,7 @@ public:
     {
         std::lock_guard<std::mutex> lock(mutex_);
         WorkBuf* buf = PopLocked();
-        return PopResult { buf, Counts { count_, fullCount_ } };
+        return PopResult { buf, Counts { count_, fullCount_, objectCount_ } };
     }
 
     WorkBuf* PopPartial()
@@ -106,6 +140,7 @@ public:
         partialTop_ = oldTop->next;
         oldTop->next = nullptr;
         --count_;
+        objectCount_ -= oldTop->len;
         PublishApproxCountsLocked();
         return oldTop;
     }
@@ -121,81 +156,9 @@ public:
         full->next = nullptr;
         --count_;
         --fullCount_;
+        objectCount_ -= full->len;
         PublishApproxCountsLocked();
         return full;
-    }
-
-    size_t PopN(WorkBuf** out, size_t n)
-    {
-        std::lock_guard<std::mutex> lock(mutex_);
-        size_t got = 0;
-        while (got < n && fullTop_ != nullptr) {
-            WorkBuf* buf = fullTop_;
-            fullTop_ = buf->next;
-            buf->next = nullptr;
-            out[got++] = buf;
-            --count_;
-            --fullCount_;
-        }
-        while (got < n && partialTop_ != nullptr) {
-            WorkBuf* buf = partialTop_;
-            partialTop_ = buf->next;
-            buf->next = nullptr;
-            out[got++] = buf;
-            --count_;
-        }
-        if (got != 0) {
-            PublishApproxCountsLocked();
-        }
-        return got;
-    }
-
-    void PushChain(WorkBuf* head)
-    {
-        if (head == nullptr) {
-            return;
-        }
-
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            WorkBuf* fullHead = nullptr;
-            WorkBuf* fullTail = nullptr;
-            WorkBuf* partialHead = nullptr;
-            WorkBuf* partialTail = nullptr;
-            size_t added = 0;
-            size_t addedFull = 0;
-            while (head != nullptr) {
-                WorkBuf* next = head->next;
-                head->next = nullptr;
-                WorkBuf*& laneHead = head->Full() ? fullHead : partialHead;
-                WorkBuf*& laneTail = head->Full() ? fullTail : partialTail;
-                if (laneHead == nullptr) {
-                    laneHead = head;
-                } else {
-                    laneTail->next = head;
-                }
-                laneTail = head;
-                ++added;
-                if (head->Full()) {
-                    ++addedFull;
-                }
-                head = next;
-            }
-            if (fullHead != nullptr) {
-                fullTail->next = fullTop_;
-                fullTop_ = fullHead;
-            }
-            if (partialHead != nullptr) {
-                partialTail->next = partialTop_;
-                partialTop_ = partialHead;
-            }
-            count_ += added;
-            fullCount_ += addedFull;
-            PublishApproxCountsLocked();
-        }
-        if (workEpoch_ != nullptr) {
-            workEpoch_->Notify();
-        }
     }
 
     bool Empty() const
@@ -207,7 +170,7 @@ public:
     Counts GetCounts() const
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        return Counts { count_, fullCount_ };
+        return Counts { count_, fullCount_, objectCount_ };
     }
 
     Counts GetApproxCounts() const
@@ -218,7 +181,8 @@ public:
         uint64_t packed = approxCounts_.load(std::memory_order_acquire);
         return Counts {
             static_cast<size_t>(packed & 0xffffffffULL),
-            static_cast<size_t>(packed >> 32)
+            static_cast<size_t>(packed >> 32),
+            approxObjectCount_.load(std::memory_order_acquire)
         };
     }
 
@@ -231,6 +195,7 @@ private:
         uint64_t packed = (static_cast<uint64_t>(fullCount_) << 32) |
                           (static_cast<uint64_t>(count_) & 0xffffffffULL);
         approxCounts_.store(packed, std::memory_order_release);
+        approxObjectCount_.store(objectCount_, std::memory_order_release);
     }
 
     WorkBuf* PopLocked()
@@ -248,6 +213,7 @@ private:
         }
         oldTop->next = nullptr;
         --count_;
+        objectCount_ -= oldTop->len;
         PublishApproxCountsLocked();
         return oldTop;
     }
@@ -257,7 +223,9 @@ private:
     WorkBuf* partialTop_ = nullptr;
     size_t count_ = 0;
     size_t fullCount_ = 0;
+    size_t objectCount_ = 0;
     std::atomic<uint64_t> approxCounts_ {0};
+    std::atomic<size_t> approxObjectCount_ {0};
     WorkEpoch* workEpoch_ = nullptr;
 };
 
@@ -267,13 +235,35 @@ private:
 // ============================================================================
 class WorkBufPool {
 public:
+    explicit WorkBufPool(size_t capacity = 1024) : capacity_(capacity) {}
+
     ~WorkBufPool()
     {
         WorkBuf* buf;
         while ((buf = freeList_.Pop()) != nullptr) {
-            delete buf;
+            Destroy(buf);
         }
     }
+
+    bool Configure(size_t capacity)
+    {
+        if (capacity != 128 && capacity != 256 &&
+            capacity != 512 && capacity != 1024) {
+            return false;
+        }
+        if (capacity_ == capacity) {
+            return true;
+        }
+        // Runtime configuration is published before the first GC can allocate
+        // a WorkBuf, so changing capacity with cached nodes is not supported.
+        if (!freeList_.Empty()) {
+            return false;
+        }
+        capacity_ = capacity;
+        return true;
+    }
+
+    size_t Capacity() const { return capacity_; }
 
     WorkBuf* Get()
     {
@@ -282,43 +272,70 @@ public:
             buf->Reset();
             return buf;
         }
-        return new (std::nothrow) WorkBuf();
+        return Allocate();
     }
 
     void Put(WorkBuf* buf)
     {
+        if (buf == nullptr) {
+            return;
+        }
         buf->Reset();
         freeList_.Push(buf);
     }
 
-    // Batch acquire up to n bufs (falling back to new() when the free list runs
-    // dry). Returns the number actually written to out. The per-P cache then
-    // serves subsequent swaps without touching the global free list.
-    size_t GetN(WorkBuf** out, size_t n)
-    {
-        size_t got = freeList_.PopN(out, n);
-        for (size_t i = 0; i < got; ++i) {
-            out[i]->Reset();
-        }
-        while (got < n) {
-            WorkBuf* buf = new (std::nothrow) WorkBuf();
-            if (buf == nullptr) {
-                break;
-            }
-            out[got++] = buf;
-        }
-        return got;
-    }
-
-    void PutChain(WorkBuf* head)
-    {
-        for (WorkBuf* buf = head; buf != nullptr; buf = buf->next) {
-            buf->len = 0;
-        }
-        freeList_.PushChain(head);
-    }
-
 private:
+    template<size_t Capacity>
+    static WorkBuf* AllocateStorage()
+    {
+        WorkBufStorage<Capacity>* storage =
+            new (std::nothrow) WorkBufStorage<Capacity>();
+        return storage == nullptr ? nullptr : &storage->header;
+    }
+
+    WorkBuf* Allocate()
+    {
+        switch (capacity_) {
+            case 128:
+                return AllocateStorage<128>();
+            case 256:
+                return AllocateStorage<256>();
+            case 512:
+                return AllocateStorage<512>();
+            case 1024:
+                return AllocateStorage<1024>();
+            default:
+                return nullptr;
+        }
+    }
+
+    template<size_t Capacity>
+    static void DestroyStorage(WorkBuf* buf)
+    {
+        delete reinterpret_cast<WorkBufStorage<Capacity>*>(buf);
+    }
+
+    void Destroy(WorkBuf* buf)
+    {
+        switch (capacity_) {
+            case 128:
+                DestroyStorage<128>(buf);
+                return;
+            case 256:
+                DestroyStorage<256>(buf);
+                return;
+            case 512:
+                DestroyStorage<512>(buf);
+                return;
+            case 1024:
+                DestroyStorage<1024>(buf);
+                return;
+            default:
+                return;
+        }
+    }
+
+    size_t capacity_;
     LFStack freeList_;
 };
 
@@ -338,10 +355,6 @@ struct PerPGCWork {
     // Set at GC cycle start; null between cycles.
     LFStack* globalWork_ = nullptr;
     WorkBufPool* workBufPool_ = nullptr;
-    // Local empty-buffer cache state remains public with the other data members
-    // so PerPGCWork stays standard-layout inside compiler-visible AllocBufferMS.
-    WorkBuf* emptyCache_ = nullptr;
-    size_t emptyCacheCount_ = 0;
 
     bool IsInitialized() const { return globalWork_ != nullptr; }
 
@@ -357,12 +370,12 @@ struct PerPGCWork {
     void PutObj(BaseObject* obj)
     {
         if (putCur_ == nullptr) {
-            putCur_ = AcquireEmptyBuffer();
+            putCur_ = workBufPool_->Get();
         }
         putCur_->Push(obj);
         if (putCur_->Full()) {
             globalWork_->Push(putCur_);
-            putCur_ = AcquireEmptyBuffer();
+            putCur_ = workBufPool_->Get();
         }
     }
 
@@ -381,7 +394,7 @@ struct PerPGCWork {
 
     bool AcquireOnePartialBuffer()
     {
-        RecycleEmptyInput();
+        RecycleCurrentInput();
         if (getCur_ != nullptr) {
             return true;
         }
@@ -407,7 +420,9 @@ struct PerPGCWork {
     {
         if (getCur_ != nullptr) {
             if (!getCur_->Empty()) {
-                countsAfterPop = globalWork_->GetCounts();
+                // This snapshot only feeds pressure/convergence prechecks.
+                // Avoid taking the global queue lock while reusing local work.
+                countsAfterPop = globalWork_->GetApproxCounts();
                 return true;
             }
             RecycleCurrentInput();
@@ -423,7 +438,7 @@ struct PerPGCWork {
         if (putCur_ == nullptr || putCur_->len < minLen) {
             return false;
         }
-        RecycleEmptyInput();
+        RecycleCurrentInput();
         if (getCur_ != nullptr) {
             return false;
         }
@@ -439,7 +454,7 @@ struct PerPGCWork {
         }
         putCur_ = globalWork_->PopPartial();
         if (putCur_ == nullptr) {
-            putCur_ = AcquireEmptyBuffer();
+            putCur_ = workBufPool_->Get();
         }
         return putCur_;
     }
@@ -450,7 +465,7 @@ struct PerPGCWork {
             return;
         }
         if (putCur_->Empty()) {
-            RecycleEmptyBuffer(putCur_);
+            workBufPool_->Put(putCur_);
         } else {
             globalWork_->Push(putCur_);
         }
@@ -469,7 +484,7 @@ struct PerPGCWork {
     {
         if (getCur_ != nullptr) {
             if (getCur_->Empty()) {
-                RecycleEmptyBuffer(getCur_);
+                workBufPool_->Put(getCur_);
             } else {
                 globalWork_->Push(getCur_);
             }
@@ -477,7 +492,7 @@ struct PerPGCWork {
         }
         if (putCur_ != nullptr) {
             if (putCur_->Empty()) {
-                RecycleEmptyBuffer(putCur_);
+                workBufPool_->Put(putCur_);
             } else {
                 globalWork_->Push(putCur_);
             }
@@ -492,87 +507,23 @@ struct PerPGCWork {
         }
         WorkBuf* input = getCur_;
         getCur_ = nullptr;
-        RecycleEmptyBuffer(input);
+        workBufPool_->Put(input);
     }
 
     // Reset: return all bufs to pool, clear state. Called at end of GC cycle.
     void Reset()
     {
         if (getCur_ != nullptr) {
-            RecycleEmptyBuffer(getCur_);
+            workBufPool_->Put(getCur_);
             getCur_ = nullptr;
         }
         if (putCur_ != nullptr) {
-            RecycleEmptyBuffer(putCur_);
+            workBufPool_->Put(putCur_);
             putCur_ = nullptr;
         }
-        FlushEmptyCache();
         globalWork_ = nullptr;
         workBufPool_ = nullptr;
     }
-
-private:
-    static constexpr size_t kLocalEmptyCacheCapacity = 2;
-
-    WorkBuf* AcquireEmptyBuffer()
-    {
-        if (emptyCache_ != nullptr) {
-            WorkBuf* buf = emptyCache_;
-            emptyCache_ = buf->next;
-            buf->next = nullptr;
-            --emptyCacheCount_;
-            buf->Reset();
-            return buf;
-        }
-
-        WorkBuf* bufs[kLocalEmptyCacheCapacity];
-        size_t got = workBufPool_->GetN(bufs, kLocalEmptyCacheCapacity);
-        if (got == 0) {
-            return nullptr;
-        }
-        for (size_t i = 1; i < got; ++i) {
-            bufs[i]->next = emptyCache_;
-            emptyCache_ = bufs[i];
-            ++emptyCacheCount_;
-        }
-        bufs[0]->Reset();
-        return bufs[0];
-    }
-
-    void RecycleEmptyBuffer(WorkBuf* buf)
-    {
-        if (buf == nullptr) {
-            return;
-        }
-        buf->Reset();
-        if (emptyCacheCount_ < kLocalEmptyCacheCapacity) {
-            buf->next = emptyCache_;
-            emptyCache_ = buf;
-            ++emptyCacheCount_;
-            return;
-        }
-
-        WorkBuf* chain = emptyCache_;
-        emptyCache_ = buf;
-        emptyCacheCount_ = 1;
-        workBufPool_->PutChain(chain);
-    }
-
-    void FlushEmptyCache()
-    {
-        WorkBuf* chain = emptyCache_;
-        emptyCache_ = nullptr;
-        emptyCacheCount_ = 0;
-        if (chain != nullptr) {
-            workBufPool_->PutChain(chain);
-        }
-    }
-
-    void RecycleEmptyInput()
-    {
-        RecycleCurrentInput();
-    }
-
 };
 
 

@@ -42,7 +42,7 @@ void TestFullCountTracksAllRemovalPaths()
     WorkBuf partial;
     WorkBuf full;
     partial.len = 1;
-    full.len = WorkBuf::kCapacity;
+    full.len = full.capacity;
 
     stack.Push(&partial);
     stack.Push(&full);
@@ -53,7 +53,7 @@ void TestFullCountTracksAllRemovalPaths()
     ExpectTrue(stack.PopFull() == &full, "PopFull should return full buffer");
     ExpectEq(stack.GetCounts().full, 0, "no full buffers after PopFull");
 
-    full.len = WorkBuf::kCapacity;
+    full.len = full.capacity;
     stack.Push(&full);
     ExpectEq(stack.GetCounts().full, 1, "full count should recover after repush");
     ExpectTrue(stack.Pop() == &full, "Pop should return top full buffer");
@@ -66,7 +66,7 @@ void TestGCConsumerPrioritizesFullLane()
     LFStack stack;
     WorkBuf full;
     WorkBuf partial;
-    full.len = WorkBuf::kCapacity;
+    full.len = full.capacity;
     partial.len = 1;
 
     stack.Push(&full);
@@ -85,8 +85,8 @@ void TestPopWithCountsReturnsPostPopSnapshot()
     WorkBuf full1;
     WorkBuf full2;
     WorkBuf partial;
-    full1.len = WorkBuf::kCapacity;
-    full2.len = WorkBuf::kCapacity;
+    full1.len = full1.capacity;
+    full2.len = full2.capacity;
     partial.len = 7;
 
     stack.Push(&partial);
@@ -97,6 +97,8 @@ void TestPopWithCountsReturnsPostPopSnapshot()
     ExpectTrue(result.buf == &full2, "PopWithCounts should preserve Full-first LIFO order");
     ExpectEq(result.counts.total, 2, "PopWithCounts should return the post-pop total");
     ExpectEq(result.counts.full, 1, "PopWithCounts should return the post-pop Full count");
+    ExpectEq(result.counts.objects, full1.capacity + partial.len,
+             "PopWithCounts should return post-pop queued objects");
 
     result = stack.PopWithCounts();
     ExpectTrue(result.buf == &full1, "PopWithCounts should drain the remaining Full buffer");
@@ -119,7 +121,7 @@ void TestApproxCountsTrackPublishedAndConsumedWork()
     LFStack stack(&epoch);
     WorkBuf full;
     WorkBuf partial;
-    full.len = WorkBuf::kCapacity;
+    full.len = full.capacity;
     partial.len = 3;
 
     stack.Push(&partial);
@@ -127,6 +129,8 @@ void TestApproxCountsTrackPublishedAndConsumedWork()
     LFStack::Counts counts = stack.GetApproxCounts();
     ExpectEq(counts.total, 2, "approximate snapshot should observe both published buffers");
     ExpectEq(counts.full, 1, "approximate snapshot should observe the Full lane");
+    ExpectEq(counts.objects, full.len + partial.len,
+             "approximate snapshot should observe queued objects");
 
     LFStack::PopResult result = stack.PopWithCounts();
     counts = stack.GetApproxCounts();
@@ -141,7 +145,7 @@ void TestFullAndPartialLanesCanBeClaimedIndependently()
     LFStack stack;
     WorkBuf full;
     WorkBuf partial;
-    full.len = WorkBuf::kCapacity;
+    full.len = full.capacity;
     partial.len = 17;
 
     stack.Push(&partial);
@@ -173,7 +177,7 @@ void TestGCClaimAcceptsPartialBuffer()
     work.Reset();
 }
 
-void TestPerPGCWorkReusesDrainedInputWithoutGlobalPoolRoundTrip()
+void TestPerPGCWorkRecyclesDrainedInputThroughGlobalPool()
 {
     LFStack global;
     WorkBufPool pool;
@@ -192,7 +196,7 @@ void TestPerPGCWorkReusesDrainedInputWithoutGlobalPoolRoundTrip()
 
     work.PutObj(reinterpret_cast<BaseObject*>(2));
     ExpectTrue(work.putCur_ == input,
-               "the next local output should reuse the drained input without touching the global pool");
+               "the global pool should make the recycled input available to the next output");
     work.Reset();
 }
 
@@ -239,12 +243,13 @@ void TestLocalPutBufferPromotionHonorsThreshold()
     PerPGCWork work;
     work.Init(&global, &pool);
 
-    for (size_t i = 0; i < WorkBuf::kCapacity / 8; ++i) {
+    size_t promoteThreshold = pool.Capacity() / 8;
+    for (size_t i = 0; i < promoteThreshold; ++i) {
         work.PutObj(reinterpret_cast<BaseObject*>(i + 1));
     }
     WorkBuf* local = work.putCur_;
 
-    ExpectTrue(work.PromotePutToGet(WorkBuf::kCapacity / 8),
+    ExpectTrue(work.PromotePutToGet(promoteThreshold),
                "128-object local output should promote to the next input");
     ExpectTrue(work.getCur_ == local,
                "promotion should transfer the exact local WorkBuf");
@@ -264,7 +269,7 @@ void TestLocalPutBufferPromotionCanDeferSmallTail()
     work.Init(&global, &pool);
     work.PutObj(reinterpret_cast<BaseObject*>(1));
 
-    ExpectTrue(!work.PromotePutToGet(WorkBuf::kCapacity / 8),
+    ExpectTrue(!work.PromotePutToGet(pool.Capacity() / 8),
                "small local output should defer while Global work is preferred");
     ExpectTrue(work.PromotePutToGet(1),
                "small local output should promote after Global lanes are empty");
@@ -301,60 +306,6 @@ void TestAssistReusesAndPublishesOnePartialOutputBuffer()
     work.Reset();
 }
 
-void TestBatchPushAndPopPreserveLanesAndCounts()
-{
-    LFStack stack;
-    WorkBuf full1;
-    WorkBuf full2;
-    WorkBuf partial;
-    full1.len = WorkBuf::kCapacity;
-    full2.len = WorkBuf::kCapacity;
-    partial.len = 1;
-    full1.next = &partial;
-    partial.next = &full2;
-    stack.PushChain(&full1);
-
-    ExpectEq(stack.GetCounts().total, 3, "batch push should count every published buffer");
-    ExpectEq(stack.GetCounts().full, 2, "batch push should classify every full buffer");
-
-    WorkBuf* popped[3] = { nullptr, nullptr, nullptr };
-    size_t got = stack.PopN(popped, 3);
-
-    ExpectEq(got, 3, "batch pop should return every available buffer");
-    ExpectTrue(popped[0] == &full1 && popped[1] == &full2,
-               "batch pop should drain the full lane before partial tails");
-    ExpectTrue(popped[2] == &partial, "batch pop should include partial work after full work");
-    ExpectEq(stack.GetCounts().total, 0, "batch pop should update total count exactly");
-    ExpectEq(stack.GetCounts().full, 0, "batch pop should update full count exactly");
-}
-
-void TestWorkBufPoolBatchReturnAndAcquire()
-{
-    WorkBufPool pool;
-    WorkBuf* first = new WorkBuf();
-    WorkBuf* second = new WorkBuf();
-    WorkBuf* third = new WorkBuf();
-    first->len = 1;
-    second->len = WorkBuf::kCapacity;
-    third->len = 2;
-    first->next = second;
-    second->next = third;
-
-    pool.PutChain(first);
-
-    WorkBuf* acquired[3] = { nullptr, nullptr, nullptr };
-    size_t got = pool.GetN(acquired, 3);
-    ExpectEq(got, 3, "batch pool acquire should return the whole returned chain");
-    ExpectTrue(acquired[0] != acquired[1] && acquired[0] != acquired[2] && acquired[1] != acquired[2],
-               "batch pool acquire should return every buffer exactly once");
-    for (size_t i = 0; i < got; ++i) {
-        ExpectTrue(acquired[i] != nullptr, "batch pool acquire must not return null entries");
-        ExpectTrue(acquired[i]->Empty(), "batch-returned buffers must be reset before reuse");
-        ExpectTrue(acquired[i]->next == nullptr, "acquired buffers must be detached from the free chain");
-        pool.Put(acquired[i]);
-    }
-}
-
 void TestGlobalPublicationAdvancesWorkEpoch()
 {
     WorkEpoch epoch;
@@ -366,6 +317,20 @@ void TestGlobalPublicationAdvancesWorkEpoch()
 
     ExpectTrue(epoch.Load() > before, "publishing a WorkBuf should advance the work epoch");
     ExpectTrue(global.Pop() == &published, "published WorkBuf should remain consumable");
+}
+
+void TestPoolAllocatesConfiguredStorageCapacity()
+{
+    WorkBufPool pool;
+    ExpectTrue(pool.Configure(128), "configured pool should accept capacity 128");
+    WorkBuf* buf = pool.Get();
+    ExpectTrue(buf != nullptr, "configured pool should allocate a WorkBuf");
+    ExpectEq(buf->capacity, 128, "configured pool capacity");
+    for (size_t i = 0; i < buf->capacity; ++i) {
+        buf->Push(reinterpret_cast<BaseObject*>(i + 1));
+    }
+    ExpectTrue(buf->Full(), "configured WorkBuf should become full at its runtime capacity");
+    pool.Put(buf);
 }
 
 void TestGlobalPublicationWakesEpochWaiter()
@@ -387,23 +352,6 @@ void TestGlobalPublicationWakesEpochWaiter()
     ExpectTrue(changed.load(std::memory_order_acquire),
                "publishing a WorkBuf should wake a GC-main epoch waiter");
     ExpectTrue(global.Pop() == &published, "wakeup must not consume the published WorkBuf");
-}
-
-void TestBatchPublicationAdvancesEpochOnce()
-{
-    WorkEpoch epoch;
-    LFStack global(&epoch);
-    WorkBuf first;
-    WorkBuf second;
-    first.next = &second;
-    uint64_t before = epoch.Load();
-
-    global.PushChain(&first);
-
-    ExpectEq(static_cast<size_t>(epoch.Load() - before), 1,
-             "one batch publication should produce one progress notification");
-    WorkBuf* popped[2] = { nullptr, nullptr };
-    ExpectEq(global.PopN(popped, 2), 2, "batch-published buffers should remain consumable");
 }
 
 void TestDisposeTailAdvancesWorkEpoch()
@@ -435,17 +383,15 @@ int main()
     TestApproxCountsTrackPublishedAndConsumedWork();
     TestFullAndPartialLanesCanBeClaimedIndependently();
     TestGCClaimAcceptsPartialBuffer();
-    TestPerPGCWorkReusesDrainedInputWithoutGlobalPoolRoundTrip();
+    TestPerPGCWorkRecyclesDrainedInputThroughGlobalPool();
     TestAssistClaimLeavesPartialBuffer();
     TestPrivatePartialWaitsForTermination();
     TestLocalPutBufferPromotionHonorsThreshold();
     TestLocalPutBufferPromotionCanDeferSmallTail();
     TestAssistReusesAndPublishesOnePartialOutputBuffer();
-    TestBatchPushAndPopPreserveLanesAndCounts();
-    TestWorkBufPoolBatchReturnAndAcquire();
+    TestPoolAllocatesConfiguredStorageCapacity();
     TestGlobalPublicationAdvancesWorkEpoch();
     TestGlobalPublicationWakesEpochWaiter();
-    TestBatchPublicationAdvancesEpochOnce();
     TestDisposeTailAdvancesWorkEpoch();
     return 0;
 }

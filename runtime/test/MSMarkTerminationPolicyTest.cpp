@@ -39,24 +39,27 @@ void ExpectFalse(bool actual, const char* message)
     }
 }
 
-void TestBacklogRaisesOneLevelPerTenBuffers()
+void TestBacklogRaisesOneLevelPerObjectQuantum()
 {
-    ExpectEqual(MSMarkPressurePolicy::kCheckpointBuffers, 10, "checkpoint interval");
+    constexpr size_t quantum = 1ULL << 20;
+    ExpectEqual(MSMarkPressurePolicy::kCheckpointObjects, quantum,
+                "checkpoint object interval");
     ExpectEqual(MSMarkPressurePolicy::BacklogLevel(0), 0, "zero backlog");
     ExpectEqual(MSMarkPressurePolicy::BacklogLevel(1), 1, "first backlog level");
-    ExpectEqual(MSMarkPressurePolicy::BacklogLevel(10), 1, "ten buffers");
-    ExpectEqual(MSMarkPressurePolicy::BacklogLevel(11), 2, "second backlog level");
-    ExpectEqual(MSMarkPressurePolicy::BacklogLevel(100), 10, "tenth backlog level");
+    ExpectEqual(MSMarkPressurePolicy::BacklogLevel(quantum), 1, "one object quantum");
+    ExpectEqual(MSMarkPressurePolicy::BacklogLevel(quantum + 1), 2, "second backlog level");
+    ExpectEqual(MSMarkPressurePolicy::BacklogLevel(10 * quantum), 10, "tenth backlog level");
 }
 
 void TestOneLevelControlsBothHelperAndAssistTargets()
 {
-    MSMarkPressurePolicy policy(15, 4, false, 201);
+    constexpr size_t quantum = 1ULL << 20;
+    MSMarkPressurePolicy policy(15, 4, false, 2 * quantum + 1);
     ExpectEqual(policy.GetPressureLevel(), 3, "initial backlog pressure");
     ExpectEqual(policy.GetTargetHelpers(), 3, "helper target");
     ExpectEqual(policy.GetAssistMultiplier(), 3, "assist target");
 
-    MSMarkPressurePolicy capped(15, 4, false, 1000);
+    MSMarkPressurePolicy capped(15, 4, false, 10 * quantum);
     ExpectEqual(capped.GetPressureLevel(), 10, "higher pressure");
     ExpectEqual(capped.GetTargetHelpers(), 10, "helper keeps scaling");
     ExpectEqual(capped.GetAssistMultiplier(), 4, "assist multiplier cap");
@@ -64,19 +67,20 @@ void TestOneLevelControlsBothHelperAndAssistTargets()
 
 void TestNonDecreasingDebtRaisesOneLevelAndForcesAfterThreeWindows()
 {
-    MSMarkPressurePolicy policy(15, 4, false, 500);
+    constexpr size_t quantum = 1ULL << 20;
+    MSMarkPressurePolicy policy(15, 4, false, 5 * quantum);
 
-    auto first = policy.Checkpoint(500);
+    auto first = policy.Checkpoint(5 * quantum);
     ExpectEqual(first.pressureLevel, 6, "first stalled window raises pressure");
     ExpectEqual(first.noProgressWindows, 1, "first stalled window");
     ExpectFalse(first.forceForNoProgress, "first stalled window must not force");
 
-    auto second = policy.Checkpoint(510);
+    auto second = policy.Checkpoint(5 * quantum + 1);
     ExpectEqual(second.pressureLevel, 7, "growing debt raises pressure");
     ExpectEqual(second.noProgressWindows, 2, "second stalled window");
     ExpectFalse(second.forceForNoProgress, "second stalled window must not force");
 
-    auto third = policy.Checkpoint(510);
+    auto third = policy.Checkpoint(5 * quantum + 1);
     ExpectEqual(third.pressureLevel, 8, "third stalled window raises pressure");
     ExpectEqual(third.noProgressWindows, 3, "third stalled window");
     ExpectTrue(third.forceForNoProgress, "third stalled window forces STW");
@@ -84,9 +88,10 @@ void TestNonDecreasingDebtRaisesOneLevelAndForcesAfterThreeWindows()
 
 void TestDecreasingDebtResetsNoProgressWindows()
 {
-    MSMarkPressurePolicy policy(15, 4, false, 500);
-    (void)policy.Checkpoint(500);
-    auto decision = policy.Checkpoint(400);
+    constexpr size_t quantum = 1ULL << 20;
+    MSMarkPressurePolicy policy(15, 4, false, 5 * quantum);
+    (void)policy.Checkpoint(5 * quantum);
+    auto decision = policy.Checkpoint(4 * quantum);
 
     ExpectEqual(decision.noProgressWindows, 0, "progress resets stalled windows");
     ExpectFalse(decision.forceForNoProgress, "progress must not force STW");
@@ -134,7 +139,7 @@ void TestTerminationReasonNamesExposeEverySTWBranch()
 
 int main()
 {
-    TestBacklogRaisesOneLevelPerTenBuffers();
+    TestBacklogRaisesOneLevelPerObjectQuantum();
     TestOneLevelControlsBothHelperAndAssistTargets();
     TestNonDecreasingDebtRaisesOneLevelAndForcesAfterThreeWindows();
     TestDecreasingDebtResetsNoProgressWindows();

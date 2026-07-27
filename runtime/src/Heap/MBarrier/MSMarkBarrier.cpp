@@ -32,7 +32,7 @@ static inline void AppendMarkedRefInto(MarkSweepCollector* collector,
         collector->PublishAndSwapLog(*allocBuf);
         log = allocBuf->GetActiveLog();
     }
-    log->objs[log->len++] = ref;
+    log->Objects()[log->len++] = ref;
 }
 
 // Append an already shaded old-ref into the owner's activeLog_ WorkBuf.

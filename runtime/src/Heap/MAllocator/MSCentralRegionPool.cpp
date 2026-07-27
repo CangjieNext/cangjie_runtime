@@ -417,19 +417,6 @@ size_t CentralRegionPool::ReclaimEmptyRegion(size_t maxRegions)
     }
     reclaimed.reserve(reserveCount);
     DrainEmptySweptGlobal(maxRegions, reclaimed);
-    if (reclaimed.size() < maxRegions) {
-        std::lock_guard<std::mutex> lg(msAllocBufferLock_);
-        for (AllocBufferMS* buffer : msAllocBuffers_) {
-            if (buffer == nullptr) {
-                continue;
-            }
-            size_t remaining = maxRegions - reclaimed.size();
-            if (remaining == 0) {
-                break;
-            }
-            (void)buffer->DrainLocalEmptyRegions(reclaimed, remaining);
-        }
-    }
 
     if (reclaimed.size() > maxRegions) {
         for (size_t i = maxRegions; i < reclaimed.size(); ++i) {
@@ -478,15 +465,6 @@ bool CentralRegionPool::HasIdleSegmentCachedRegions(size_t startRegionIdx, size_
         }
     }
 
-    {
-        std::lock_guard<std::mutex> lg(const_cast<std::mutex&>(msAllocBufferLock_));
-        for (AllocBufferMS* buffer : msAllocBuffers_) {
-            if (buffer != nullptr && buffer->HasLocalEmptyRegionInRange(startRegionIdx, endRegionIdx)) {
-                return true;
-            }
-        }
-    }
-
     uintptr_t rangeStart = MSRegionInfoArray::GetRegionAddress(startRegionIdx);
     uintptr_t rangeEnd = MSRegionInfoArray::GetRegionAddress(endRegionIdx);
     std::lock_guard<std::mutex> lg(const_cast<std::mutex&>(largeHotCacheLock_));
@@ -531,17 +509,6 @@ size_t CentralRegionPool::ReclaimIdleSegmentCaches(size_t startRegionIdx, size_t
     }
     if (!reclaimedEmptyRegions.empty()) {
         DecrementEmptySweptCount(reclaimedEmptyRegions.size());
-    }
-
-    {
-        std::lock_guard<std::mutex> lg(msAllocBufferLock_);
-        for (AllocBufferMS* buffer : msAllocBuffers_) {
-            if (buffer == nullptr) {
-                continue;
-            }
-            (void)buffer->ExtractLocalEmptyRegionsInRange(reclaimedEmptyRegions, startRegionIdx, endRegionIdx,
-                                                          std::numeric_limits<size_t>::max());
-        }
     }
 
     size_t promotedBytes = 0;
@@ -754,8 +721,7 @@ void CentralRegionPool::ParallelSweepOnceForOOM(uint8_t preferredCls)
     }
 }
 
-MSSweepAssistResult CentralRegionPool::MSSweepAssist(AllocBufferMS& owner, size_t debtRegions,
-                                                     uint8_t preferredCls)
+MSSweepAssistResult CentralRegionPool::MSSweepAssist(size_t debtRegions, uint8_t preferredCls)
 {
     MSSweepAssistResult result;
     if (debtRegions == 0 || sweepDone_.load(std::memory_order_acquire) ||
@@ -785,7 +751,7 @@ MSSweepAssistResult CentralRegionPool::MSSweepAssist(AllocBufferMS& owner, size_
 
     // AssistSweep carries the unified admission guard. GC closes that guard
     // before clearing mark bitmaps, so no new SweepRegion can start afterward.
-    result.assistPaidRegions = AssistSweep(toSweep, preferredCls, &owner);
+    result.assistPaidRegions = AssistSweep(toSweep, preferredCls);
     result.sweepComplete = sweepDone_.load(std::memory_order_acquire);
     return result;
 }
@@ -821,7 +787,7 @@ void CentralRegionPool::ForceHighSweepPressure()
     }
 }
 
-size_t CentralRegionPool::AssistSweep(size_t targetRegions, uint8_t preferredCls, AllocBufferMS* preferredOwner)
+size_t CentralRegionPool::AssistSweep(size_t targetRegions, uint8_t preferredCls)
 {
     if (targetRegions == 0) {
         return 0;
@@ -845,12 +811,12 @@ size_t CentralRegionPool::AssistSweep(size_t targetRegions, uint8_t preferredCls
         SizeClassBucket& bucket = buckets_[cls];
         while (sweptRegions < targetRegions &&
                SweepOneUnsweptRegionForAssist(bucket, SizeClassBucket::UnsweptListKind::PARTIAL,
-                                             sg, preferredOwner)) {
+                                             sg)) {
             ++sweptRegions;
         }
         while (sweptRegions < targetRegions &&
                SweepOneUnsweptRegionForAssist(bucket, SizeClassBucket::UnsweptListKind::FULL,
-                                             sg, preferredOwner)) {
+                                             sg)) {
             ++sweptRegions;
         }
         if (sweptRegions >= targetRegions) {
@@ -865,7 +831,6 @@ size_t CentralRegionPool::AssistSweep(size_t targetRegions, uint8_t preferredCls
 bool CentralRegionPool::SweepOneUnsweptRegionForAssist(SizeClassBucket& bucket,
                                                        SizeClassBucket::UnsweptListKind listKind,
                                                        uint32_t sg,
-                                                       AllocBufferMS* preferredOwner,
                                                        size_t* emptiedInSlice)
 {
     for (;;) {
@@ -877,10 +842,7 @@ bool CentralRegionPool::SweepOneUnsweptRegionForAssist(SizeClassBucket& bucket,
         region->SweepRegion();
         region->SetSweepGen(sg);
         if (region->IsCompletelyFree()) {
-            bool pushedLocal = preferredOwner != nullptr && preferredOwner->TryPushLocalEmptyRegion(region);
-            if (!pushedLocal) {
-                PushEmptySweptRegion(region);
-            }
+            PushEmptySweptRegion(region);
             if (emptiedInSlice != nullptr) {
                 (*emptiedInSlice)++;
             }

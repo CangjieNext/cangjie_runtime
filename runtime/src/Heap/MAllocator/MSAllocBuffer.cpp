@@ -10,21 +10,20 @@
 #include "Heap/MAllocator/MSCentralRegionPool.h"
 #include "MSRegionSpace.h"
 #include "Heap.h"
+#include "CangjieRuntime.h"
 #include "Mutator/Mutator.h"
 #include "Base/Log.h"
 #include "Collector/CollectorResources.h"
 #include "Heap/MCollector/MarkSweepCollector.h"
 #include "Common/BaseObject.h"
 #include "ObjectModel/MClass.inline.h"
+#include <algorithm>
 #include <cstdint>
 #include <functional>
-#include <limits>
 #include <thread>
 #include <type_traits>
 
 namespace MapleRuntime {
-
-constexpr size_t AllocBufferMS::kLocalEmptyRegionCap;
 
 uintptr_t AllocateFromRefilledRegion(MSRegionInfo* region)
 {
@@ -97,10 +96,10 @@ AllocBufferMS::AllocBufferMS()
                   "activeLog_ offset changed; update AArch64/X86 MSGC write-barrier fast path");
     static_assert(offsetof(WorkBuf, len) == 8,
                   "WorkBuf::len offset changed; update AArch64/X86 MSGC write-barrier fast path");
-    static_assert(offsetof(WorkBuf, objs) == 16,
-                  "WorkBuf::objs offset changed; update AArch64/X86 MSGC write-barrier fast path");
-    static_assert(WorkBuf::kCapacity == 1024,
-                  "WorkBuf capacity changed; update AArch64/X86 MSGC write-barrier fast path");
+    static_assert(offsetof(WorkBuf, capacity) == 12,
+                  "WorkBuf::capacity offset changed; update AArch64/X86 MSGC write-barrier fast path");
+    static_assert(sizeof(WorkBuf) == 16,
+                  "WorkBuf object array offset changed; update AArch64/X86 MSGC write-barrier fast path");
     tlRegion_ = RegionInfo::NullRegion();
 }
 
@@ -124,19 +123,16 @@ void AllocBufferMS::Fini()
     MarkSweepCollector* collector = MarkSweepCollector::GetActiveCollector();
     if (collector != nullptr) {
         // Owner exiting mid-mark: publish its partial log so a consumer discovers
-        // it, and hand every cached WorkBuf back to the global pool.
+        // it, then return its active GC work buffers to the global pool.
         collector->PublishExitedLog(*this);
         if (gcWork_.IsInitialized()) {
             gcWork_.Dispose();
             gcWork_.Reset();
         }
     } else {
-        // Not marking: nothing to preserve. Between cycles activeLog_/logCache_
-        // are already drained back to the pool by the cycle-end reset, so we
-        // only clear the pointers here.
+        // Not marking: the active log was already returned to the collector-global
+        // pool by the cycle-end reset.
         activeLog_ = nullptr;
-        logCache_ = nullptr;
-        logCacheCount_ = 0;
         if (gcWork_.IsInitialized()) {
             gcWork_.Reset();
         }
@@ -144,11 +140,6 @@ void AllocBufferMS::Fini()
 
     if (central_ != nullptr) {
         (void)ReturnAllRegionsToCentral();
-        std::vector<MSRegionInfo*> drained;
-        (void)DrainAllLocalEmptyRegions(drained);
-        for (MSRegionInfo* region : drained) {
-            central_->ReturnEmptyRegion(region);
-        }
     }
     if (central_ != nullptr) {
         central_->RemoveAllocBufferMS(this);
@@ -219,7 +210,7 @@ MAddress AllocBufferMS::SlowAlloc(uint8_t cls)
         ReturnRegion(cls);
     }
 
-    // O2: Refill directly from central / local empty-region caches.
+    // O2: Refill directly from the central empty-region cache.
     MSRegionInfo* newRegion = RefillFromCentral(cls);
     if (UNLIKELY(newRegion == nullptr)) {
         return 0;  // OOM or GC needed — caller handles
@@ -274,194 +265,6 @@ void AllocBufferMS::ReturnRegion(uint8_t cls)
 
     activeRegions_[cls] = nullptr;
     ReturnRegionToCentral(region, cls);
-}
-
-MSRegionInfo* AllocBufferMS::TakeLocalEmptyRegion()
-{
-    MSRegionInfo* region = nullptr;
-    {
-        std::lock_guard<std::mutex> lg(localEmptyRegionLock_);
-        region = localEmptyRegionCache_.TakeHead();
-    }
-    if (region == nullptr) {
-        return nullptr;
-    }
-    central_->DecrementEmptySweptCount();
-    return region;
-}
-
-bool AllocBufferMS::TryPushLocalEmptyRegion(MSRegionInfo* region, size_t slotLimit)
-{
-    if (region == nullptr || central_ == nullptr || slotLimit == 0) {
-        return false;
-    }
-
-    region->ResetToEmptyCache();
-    bool inserted = false;
-    {
-        std::lock_guard<std::mutex> lg(localEmptyRegionLock_);
-        if (localEmptyRegionCache_.Count() < slotLimit) {
-            localEmptyRegionCache_.Prepend(region);
-            inserted = true;
-        }
-    }
-    if (inserted) {
-        central_->IncrementEmptySweptCount();
-    }
-    return inserted;
-}
-
-void AllocBufferMS::RefillLocalEmptyRegionsFromGlobal(std::vector<MSRegionInfo*>& refill)
-{
-    refill.clear();
-    if (central_ == nullptr) {
-        return;
-    }
-
-    size_t globalCount = central_->GetEmptySweptGlobalCount();
-    size_t refillThreshold = std::max<size_t>(1, central_->GetAllocBufferCount()) * kLocalEmptyRegionCap;
-    if (globalCount <= refillThreshold) {
-        return;
-    }
-
-    size_t refillCount = std::min(kLocalEmptyRegionCap, globalCount - refillThreshold);
-    if (refillCount == 0) {
-        return;
-    }
-
-    central_->DrainEmptySweptGlobal(refillCount, refill);
-    if (refill.size() <= 1) {
-        return;
-    }
-
-    size_t cachedCount = 0;
-    {
-        std::lock_guard<std::mutex> lg(localEmptyRegionLock_);
-        while (refill.size() > 1) {
-            MSRegionInfo* region = refill.back();
-            localEmptyRegionCache_.Prepend(region);
-            refill.pop_back();
-            ++cachedCount;
-        }
-    }
-    if (cachedCount > 0) {
-        central_->IncrementEmptySweptCount(cachedCount);
-    }
-}
-
-size_t AllocBufferMS::DrainLocalEmptyRegions(std::vector<MSRegionInfo*>& out, size_t maxRegions)
-{
-    if (maxRegions == 0) {
-        return 0;
-    }
-
-    size_t drained = 0;
-    {
-        std::lock_guard<std::mutex> lg(localEmptyRegionLock_);
-        for (;;) {
-            if (drained >= maxRegions) {
-                break;
-            }
-            MSRegionInfo* region = localEmptyRegionCache_.TakeHead();
-            if (region == nullptr) {
-                break;
-            }
-            out.push_back(region);
-            ++drained;
-        }
-    }
-    if (drained > 0) {
-        central_->DecrementEmptySweptCount(drained);
-    }
-    return drained;
-}
-
-size_t AllocBufferMS::DrainAllLocalEmptyRegions(std::vector<MSRegionInfo*>& out)
-{
-    return DrainLocalEmptyRegions(out, std::numeric_limits<size_t>::max());
-}
-
-bool AllocBufferMS::HasLocalEmptyRegionInRange(size_t startRegionIdx, size_t endRegionIdx) const
-{
-    if (startRegionIdx >= endRegionIdx) {
-        return false;
-    }
-
-    std::lock_guard<std::mutex> lg(localEmptyRegionLock_);
-    bool found = false;
-    localEmptyRegionCache_.ForEach([&](MSRegionInfo* region) {
-        if (found || region == nullptr) {
-            return;
-        }
-        size_t regionIdx = MSRegionInfoArray::GetRegionIdx(region);
-        if (regionIdx >= startRegionIdx && regionIdx < endRegionIdx) {
-            found = true;
-        }
-    });
-    return found;
-}
-
-size_t AllocBufferMS::ExtractLocalEmptyRegionsInRange(std::vector<MSRegionInfo*>& out,
-                                                      size_t startRegionIdx,
-                                                      size_t endRegionIdx,
-                                                      size_t maxRegions)
-{
-    if (maxRegions == 0 || startRegionIdx >= endRegionIdx) {
-        return 0;
-    }
-
-    size_t extracted = 0;
-    std::vector<MSRegionInfo*> kept;
-    {
-        std::lock_guard<std::mutex> lg(localEmptyRegionLock_);
-        for (;;) {
-            MSRegionInfo* region = localEmptyRegionCache_.TakeHead();
-            if (region == nullptr) {
-                break;
-            }
-            size_t regionIdx = MSRegionInfoArray::GetRegionIdx(region);
-            if (extracted < maxRegions && regionIdx >= startRegionIdx && regionIdx < endRegionIdx) {
-                out.push_back(region);
-                ++extracted;
-                continue;
-            }
-            kept.push_back(region);
-        }
-        for (auto it = kept.rbegin(); it != kept.rend(); ++it) {
-            localEmptyRegionCache_.Prepend(*it);
-        }
-    }
-
-    if (extracted > 0 && central_ != nullptr) {
-        central_->DecrementEmptySweptCount(extracted);
-    }
-    return extracted;
-}
-
-MSRegionInfo* AllocBufferMS::GetCacheRegion(uint8_t cls)
-{
-    MSRegionInfo* region = TakeLocalEmptyRegion();
-    if (region == nullptr) {
-        std::vector<MSRegionInfo*> refill;
-        RefillLocalEmptyRegionsFromGlobal(refill);
-        if (!refill.empty()) {
-            region = refill.back();
-            refill.pop_back();
-        } else if (central_ != nullptr) {
-            region = central_->TakeGlobalEmptyRegion();
-        }
-        if (region == nullptr) {
-            return nullptr;
-        }
-    }
-
-    CHECK_DETAIL(region->regionType == MSRegionType::MS_REGION_EMPTY_CACHE,
-                 "GetCacheRegion got bad regionType=%u",
-                 static_cast<unsigned>(region->regionType));
-
-    region->InitForSizeClass(cls);
-    region->SetSweepGen(CentralRegionPool::GetGlobalSweepGen());
-    return region;
 }
 
 void AllocBufferMS::ReturnRegionToCentral(MSRegionInfo* region, uint8_t cls)
@@ -535,8 +338,13 @@ MSRegionInfo* AllocBufferMS::RefillFromCentral(uint8_t cls)
     if (region != nullptr) {
         return region;
     }
-    region = GetCacheRegion(cls);
+    region = central_->TakeGlobalEmptyRegion();
     if (region != nullptr) {
+        CHECK_DETAIL(region->regionType == MSRegionType::MS_REGION_EMPTY_CACHE,
+                     "RefillFromCentral got bad global empty regionType=%u",
+                     static_cast<unsigned>(region->regionType));
+        region->InitForSizeClass(cls);
+        region->SetSweepGen(CentralRegionPool::GetGlobalSweepGen());
         return region;
     }
     region = central_->TakeUnsweptRegion(cls);
@@ -605,7 +413,8 @@ void AllocBufferMS::AccumulatePacingDebt(size_t size)
     }
     const uint64_t ratioScale = MarkSweepCollector::GetAssistRatioScale();
     size_t debtObjects = static_cast<size_t>(gcAssistDebtScaled_ / ratioScale);
-    if (UNLIKELY(debtObjects >= WorkBuf::kCapacity)) {
+    size_t workBufCapacity = CangjieRuntime::GetMSWorkBufScaleConfig().capacity;
+    if (UNLIKELY(debtObjects >= workBufCapacity)) {
         size_t paidObjects = collector->MSMarkAssist(*this, debtObjects);
         size_t accounted = std::min(paidObjects, debtObjects);
         gcAssistDebtScaled_ -= static_cast<uint64_t>(accounted) * ratioScale;
@@ -654,7 +463,7 @@ void AllocBufferMS::AccumulateSweepDebt(size_t allocatedRegions, uint8_t preferr
         return;
     }
 
-    MSSweepAssistResult result = central_->MSSweepAssist(*this, debtRegions, preferredCls);
+    MSSweepAssistResult result = central_->MSSweepAssist(debtRegions, preferredCls);
     if (result.sweepComplete) {
         sweepAssistDebtScaled_ = 0;
         return;

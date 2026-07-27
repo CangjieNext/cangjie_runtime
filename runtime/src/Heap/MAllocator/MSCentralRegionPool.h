@@ -334,8 +334,7 @@ public:
     void ParallelSweepOnceForOOM(uint8_t preferredCls);
     // Repay one P's local Sweep debt. Non-assist Sweep work is claimed once from
     // the central credit pool; a remaining full batch is swept directly once.
-    MSSweepAssistResult MSSweepAssist(AllocBufferMS& owner, size_t debtRegions,
-                                      uint8_t preferredCls);
+    MSSweepAssistResult MSSweepAssist(size_t debtRegions, uint8_t preferredCls);
     uint64_t GetSweepAssistRatioScaled() const
     {
         uint64_t base = sweepRegionsPerAllocScaled_.load(std::memory_order_acquire);
@@ -746,10 +745,6 @@ private:
     void PushEmptySweptRegion(MSRegionInfo* region);
     MSRegionInfo* TakeGlobalEmptyRegion();
     size_t DrainEmptySweptGlobal(size_t maxRegions, std::vector<MSRegionInfo*>& drained);
-    size_t GetEmptySweptGlobalCount() const
-    {
-        return emptySweptCache_.Count();
-    }
     void ForceFinishUnsweptList(SizeClassBucket& bucket, SizeClassBucket::UnsweptListKind listKind,
                                 uint32_t sg, size_t& sweptRegions, size_t& emptiedRegions,
                                 size_t& retainedRegions, size_t& freedBytes);
@@ -763,10 +758,9 @@ private:
     {
         return (sweepAdmission_.load(std::memory_order_acquire) & kSweepAdmissionClosed) == 0;
     }
-    size_t AssistSweep(size_t targetRegions, uint8_t preferredCls, AllocBufferMS* preferredOwner);
+    size_t AssistSweep(size_t targetRegions, uint8_t preferredCls);
     bool SweepOneUnsweptRegionForAssist(SizeClassBucket& bucket, SizeClassBucket::UnsweptListKind listKind,
-                                        uint32_t sg, AllocBufferMS* preferredOwner,
-                                        size_t* emptiedInSlice = nullptr);
+                                        uint32_t sg, size_t* emptiedInSlice = nullptr);
     bool SweepUnsweptList(SizeClassBucket& bucket, SizeClassBucket::UnsweptListKind listKind, uint32_t sg,
                          size_t& sweptInSlice, size_t maxRegions, uint64_t deadlineUs,
                          size_t* emptiedInSlice = nullptr);
@@ -872,9 +866,8 @@ private:
     std::atomic<size_t> largeHotCacheRegionCount_{0};
     std::atomic<size_t> largeHotCacheBytes_{0};
 
-    // Global cache of classless empty regions. AllocBufferMS owns any local empty
-    // cache and may batch-refill from this global queue. emptySweptCount_ tracks
-    // the total number of empty-cache regions across both global and local caches.
+    // Global cache of classless empty regions. All mutators refill directly from
+    // this queue; no per-P spare EmptyRegion cache is retained.
     std::mutex emptySweptLock_;
     MSRegionList emptySweptCache_;
     std::atomic<size_t> emptySweptCount_{0};

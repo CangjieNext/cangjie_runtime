@@ -427,6 +427,18 @@ std::atomic<MarkSweepCollector*> MarkSweepCollector::activeCollector_{nullptr};
 void MarkSweepCollector::Init()
 {
     LOG(RTLOG_REPORT, "[MS-GC] MarkSweepCollector::Init()");
+    MSWorkBufScaleConfig workBufConfig = CangjieRuntime::GetMSWorkBufScaleConfig();
+    CHECK_DETAIL(workBufPool_.Configure(workBufConfig.capacity),
+                 "MSGC WorkBufPool cannot configure capacity=%zu after allocation",
+                 workBufConfig.capacity);
+    LOG(RTLOG_REPORT,
+        "[MS-GC] WorkBuf scale: P=%u capacity=%zu checkpointObjects=%zu "
+        "backlogObjectsPerLevel=%zu helperPromoteObjects=%zu",
+        workBufConfig.processors,
+        workBufConfig.capacity,
+        workBufConfig.checkpointObjects,
+        workBufConfig.backlogObjectsPerLevel,
+        workBufConfig.helperPromoteObjects);
     TracingCollector::Init();
     g_gcRequests[GC_REASON_HEU].SetMinInterval(CangjieRuntime::GetGCParam().gcInterval);
 }
@@ -843,18 +855,26 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
         }
     }
     bool isOOM = gcReason == GC_REASON_OOM;
-    size_t initialDebt = globalFull_.GetCounts().total;
+    LFStack::Counts initialCounts = globalFull_.GetApproxCounts();
+    size_t initialDebt = initialCounts.objects;
     const size_t maxAssistMultiplier = CangjieRuntime::GetGCParam().msAssistMaxMultiplier;
     MSMarkPressurePolicy pressurePolicy(maxHelpers, maxAssistMultiplier, isOOM, initialDebt);
-    cycleStats_.markDebtBuffers = initialDebt;
+    cycleStats_.markDebtBuffers = initialCounts.total;
+    cycleStats_.markDebtObjects = initialDebt;
     cycleStats_.markPressureLevel = pressurePolicy.GetPressureLevel();
     size_t activeHelpers = pressurePolicy.GetTargetHelpers();
     StartMarkWorkers(maxHelpers, activeHelpers);
 
-    // GC-supply credit with configurable linear decay.
-    // Shorter window forces assist to do real marking work sooner.
+    // Preserve the legacy configuration in object units. The old value counted
+    // 1024-object WorkBuf rounds; using scanned objects keeps the decay window
+    // stable when the runtime-selected WorkBuf capacity changes.
     const size_t creditDecayRounds = CangjieRuntime::GetGCParam().msAssistCreditDecayRounds;
-    size_t roundIdx = 0;
+    const size_t creditDecayObjects =
+        creditDecayRounds > std::numeric_limits<size_t>::max() /
+                                kMSAssistCreditDecayReferenceCapacity
+            ? std::numeric_limits<size_t>::max()
+            : creditDecayRounds * kMSAssistCreditDecayReferenceCapacity;
+    size_t creditDecayProcessedObjects = 0;
 
     // Helper width and assist pacing share one monotonic pressure level.
     const uint64_t baseAssistRatio = assistWorkPerByteScaled_.load(std::memory_order_acquire);
@@ -864,10 +884,11 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
         assistWorkPerByteScaled_.store(publishedAssistRatio, std::memory_order_release);
     }
     VLOG(REPORT,
-         "[MS-GC] [mark-pressure-start] reason=%s debt=%zu level=%zu "
+         "[MS-GC] [mark-pressure-start] reason=%s debtObjects=%zu debtBuffers=%zu level=%zu "
          "helpers=%zu assistMultiplier=%zu forceAll=%d",
          g_gcRequests[gcReason].name,
          initialDebt,
+         initialCounts.total,
          pressurePolicy.GetPressureLevel(),
          activeHelpers,
          pressurePolicy.GetAssistMultiplier(),
@@ -887,7 +908,7 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
     bool forceConverged = false;
     size_t gcMainProcessed = 0;
     size_t completedMarkBuffers = 0;
-    size_t lastCheckpointBuffers = 0;
+    size_t processedSinceCheckpoint = 0;
     size_t emptyPollRounds = 0;
 
     while (true) {
@@ -897,11 +918,12 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
         uint64_t observedProgressEpoch = markWorkEpoch_.Load();
 
         // Every published buffer is one GC-main mark slice, regardless of length.
-        LFStack::Counts backlog { 0, 0 };
+        LFStack::Counts backlog { 0, 0, 0 };
         bool processedBuffer = false;
         size_t scannedCount = DrainOneBufRound(
             gcThreadWork_, false, &backlog, &processedBuffer);
         gcMainProcessed += scannedCount;
+        processedSinceCheckpoint += scannedCount;
         if (processedBuffer) {
             ++completedMarkBuffers;
         }
@@ -913,26 +935,30 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
             backlog = globalFull_.GetApproxCounts();
         }
 
-        size_t publishedBacklog = backlog.total;
+        size_t publishedBacklogBuffers = backlog.total;
+        size_t publishedBacklogObjects = backlog.objects;
 
         // Helper work is intentionally excluded from assist credit. Helpers keep
         // only exit-time diagnostics; GC-main work remains the sole background
         // credit source.
         size_t backgroundScanned = scannedCount;
-        if (roundIdx < creditDecayRounds && backgroundScanned > 0) {
-            double w = static_cast<double>(creditDecayRounds - roundIdx) /
-                       static_cast<double>(creditDecayRounds);
+        if (creditDecayProcessedObjects < creditDecayObjects && backgroundScanned > 0) {
+            double w = static_cast<double>(
+                           creditDecayObjects - creditDecayProcessedObjects) /
+                       static_cast<double>(creditDecayObjects);
             size_t inj = static_cast<size_t>(static_cast<double>(backgroundScanned) * w);
             if (inj > 0) {
                 bgScanCredit_.fetch_add(static_cast<int64_t>(inj), std::memory_order_release);
             }
+            creditDecayProcessedObjects =
+                backgroundScanned > creditDecayObjects - creditDecayProcessedObjects
+                    ? creditDecayObjects
+                    : creditDecayProcessedObjects + backgroundScanned;
         }
-
-        roundIdx++;
 
         MSMarkWorkerControl::Snapshot controlSnapshot = markWorkerControl_.GetSnapshot();
         bool gcMainInputEmpty = gcThreadWork_.ConcurrentInputEmpty();
-        bool convergenceCandidate = gcMainInputEmpty && publishedBacklog == 0 &&
+        bool convergenceCandidate = gcMainInputEmpty && publishedBacklogBuffers == 0 &&
                                     controlSnapshot.workersInFlight == 0 &&
                                     controlSnapshot.assistsInFlight == 0;
         if (convergenceCandidate) {
@@ -951,13 +977,12 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
 
         bool shouldForce = false;
         MSMarkTerminationReason terminationReason = MSMarkTerminationReason::NATURAL;
-        if (processedBuffer &&
-            completedMarkBuffers - lastCheckpointBuffers >=
-                MSMarkPressurePolicy::kCheckpointBuffers) {
-            lastCheckpointBuffers = completedMarkBuffers;
-            MSMarkCheckpointDecision decision = pressurePolicy.Checkpoint(publishedBacklog);
+        if (processedSinceCheckpoint >= MSMarkPressurePolicy::kCheckpointObjects) {
+            processedSinceCheckpoint = 0;
+            MSMarkCheckpointDecision decision = pressurePolicy.Checkpoint(publishedBacklogObjects);
             ++cycleStats_.markCheckpointCount;
-            cycleStats_.markDebtBuffers = decision.currentDebt;
+            cycleStats_.markDebtBuffers = publishedBacklogBuffers;
+            cycleStats_.markDebtObjects = decision.currentDebt;
             cycleStats_.markPressureLevel = decision.pressureLevel;
             cycleStats_.markNoProgressWindows = decision.noProgressWindows;
 
@@ -975,11 +1000,13 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
             int64_t debtDelta = static_cast<int64_t>(decision.previousDebt) -
                                 static_cast<int64_t>(decision.currentDebt);
             VLOG(REPORT,
-                 "[MS-GC] [mark-pressure] completedBuffers=%zu debt=%zu previousDebt=%zu "
+                 "[MS-GC] [mark-pressure] completedBuffers=%zu debtObjects=%zu "
+                 "debtBuffers=%zu previousDebtObjects=%zu "
                  "debtDelta=%lld noProgress=%zu level=%zu helpers=%zu "
                  "assistMultiplier=%zu",
                  completedMarkBuffers,
                  decision.currentDebt,
+                 publishedBacklogBuffers,
                  decision.previousDebt,
                  static_cast<long long>(debtDelta),
                  decision.noProgressWindows,
@@ -1004,13 +1031,16 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
         if (shouldForce) {
             forceConverged = true;
             cycleStats_.markTerminationReason = terminationReason;
-            cycleStats_.markDebtBuffers = publishedBacklog;
+            cycleStats_.markDebtBuffers = publishedBacklogBuffers;
+            cycleStats_.markDebtObjects = publishedBacklogObjects;
             cycleStats_.markPressureLevel = pressurePolicy.GetPressureLevel();
             VLOG(REPORT,
-                 "[MS-GC] [mark-termination-request] reason=%s debt=%zu "
+                 "[MS-GC] [mark-termination-request] reason=%s debtObjects=%zu "
+                 "debtBuffers=%zu "
                  "level=%zu noProgress=%zu",
                  GetMSMarkTerminationReasonName(terminationReason),
-                 publishedBacklog,
+                 publishedBacklogObjects,
+                 publishedBacklogBuffers,
                  pressurePolicy.GetPressureLevel(),
                  cycleStats_.markNoProgressWindows);
             uint64_t quiesceStartUs = TimeUtil::MicroSeconds();
@@ -1020,7 +1050,7 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
         }
 
         size_t inFlight = controlSnapshot.workersInFlight + controlSnapshot.assistsInFlight;
-        if (gcMainInputEmpty && publishedBacklog == 0 && inFlight != 0) {
+        if (gcMainInputEmpty && publishedBacklogBuffers == 0 && inFlight != 0) {
             if (emptyPollRounds < kMSMarkEmptySpinRounds) {
                 ++emptyPollRounds;
                 std::this_thread::yield();
@@ -1038,11 +1068,13 @@ void MarkSweepCollector::RunConcurrentMarkLoop()
     cycleStats_.gcMainProcessedBuffers = completedMarkBuffers;
     VLOG(REPORT,
          "[MS-GC] ConcurrentMark time: %sus (forceConverged=%d reason=%s "
-         "completedBuffers=%zu debt=%zu level=%zu noProgress=%zu)",
+         "completedBuffers=%zu debtObjects=%zu debtBuffers=%zu "
+         "level=%zu noProgress=%zu)",
          Pretty(cycleStats_.concurrentMarkUs).Str(),
          static_cast<int>(forceConverged),
          GetMSMarkTerminationReasonName(cycleStats_.markTerminationReason),
          completedMarkBuffers,
+         cycleStats_.markDebtObjects,
          cycleStats_.markDebtBuffers,
          cycleStats_.markPressureLevel,
          cycleStats_.markNoProgressWindows);
@@ -1105,7 +1137,8 @@ void MarkSweepCollector::RunMarkWorker(size_t workerId)
         uint64_t observedProgressEpoch = markWorkEpoch_.Load();
         while (markWorkerControl_.CanContinueWorker(workerId)) {
             observedProgressEpoch = markWorkEpoch_.Load();
-            bool acquired = slot.work.PromotePutToGet(WorkBuf::kCapacity / 8) ||
+            bool acquired = slot.work.PromotePutToGet(
+                                std::max<size_t>(1, workBufPool_.Capacity() / 8)) ||
                             slot.work.AcquireOneBuffer() ||
                             slot.work.PromotePutToGet(1);
             if (!acquired) {
@@ -1135,7 +1168,7 @@ size_t MarkSweepCollector::QuiesceMarkWorkers()
     // barrier traffic, repeatedly closing those tails concurrently can prevent
     // convergence while every new allocation is conservatively marked live.
     // MarkTermination disposes and drains the bounded tails under STW.
-    size_t residualBuffers = globalFull_.GetCounts().total;
+    size_t residualBuffers = globalFull_.GetApproxCounts().total;
     markWorkerControl_.Stop();
     if (!markWorkerSlots_.empty()) {
         GetThreadPool()->WaitFinish();
@@ -1250,7 +1283,7 @@ WorkBuf* MarkSweepCollector::EnsureActiveLog(AllocBufferMS& ab)
 {
     WorkBuf* log = ab.GetActiveLog();
     if (log == nullptr) {
-        log = ab.AcquireWorkBuf(workBufPool_);
+        log = workBufPool_.Get();
         ab.ActiveLogRef() = log;
     }
     return log;
@@ -1263,11 +1296,10 @@ void MarkSweepCollector::PublishAndSwapLog(AllocBufferMS& ab)
         return;
     }
     // Entries were already shaded by the barrier, so consumers scan directly.
-    // Make every complete log visible to the GC thread and all assists instead
-    // of pinning the first four buffers to the owner P.
+    // Make every complete log visible to the GC thread and all assists.
     globalFull_.Push(full);
 
-    ab.ActiveLogRef() = ab.AcquireWorkBuf(workBufPool_);
+    ab.ActiveLogRef() = workBufPool_.Get();
 }
 
 void MarkSweepCollector::PublishExitedLog(AllocBufferMS& ab)
@@ -1283,7 +1315,6 @@ void MarkSweepCollector::PublishExitedLog(AllocBufferMS& ab)
         }
         ab.ActiveLogRef() = nullptr;
     }
-    ab.DrainLogCacheToPool(workBufPool_);
 }
 
 void MarkSweepCollector::MergeExitedAssistStats(AllocBufferMS& allocBuffer)
@@ -1354,7 +1385,7 @@ void MarkSweepCollector::DrainGlobalLFStackToMainQueue(GreyWorkQueue& mainQueue)
             break;
         }
         for (size_t i = 0; i < buf->len; i++) {
-            BaseObject* obj = buf->objs[i];
+            BaseObject* obj = buf->Objects()[i];
 #if defined(MRT_DEBUG) && (MRT_DEBUG == 1)
             if (obj == nullptr) {
                 continue;
@@ -1458,7 +1489,7 @@ size_t MarkSweepCollector::DrainOneBufRound(PerPGCWork& gcw, bool requireFull,
     if (requireFull) {
         acquired = gcw.AcquireOneFullBuffer();
         if (countsAfterPop != nullptr) {
-            *countsAfterPop = globalFull_.GetCounts();
+            *countsAfterPop = globalFull_.GetApproxCounts();
         }
     } else if (countsAfterPop != nullptr) {
         acquired = gcw.AcquireOneBuffer(*countsAfterPop);
@@ -1543,13 +1574,14 @@ size_t MarkSweepCollector::MSMarkAssist(AllocBufferMS& allocBuffer, size_t debtO
     // ② One full global buffer pays exactly one buffer of remaining debt.
     size_t remainDebt = (debtObjects > paidByBg) ? (debtObjects - paidByBg) : 0;
     size_t paidByGlobal = 0;
-    if (remainDebt >= WorkBuf::kCapacity && gcw.AcquireOneFullBuffer()) {
+    size_t workBufCapacity = workBufPool_.Capacity();
+    if (remainDebt >= workBufCapacity && gcw.AcquireOneFullBuffer()) {
         WorkBuf* output = gcw.AcquirePartialOutputBuffer();
         CHECK_DETAIL(output != nullptr, "MSGC Mark Assist failed to acquire an output WorkBuf");
         size_t nDrained = DrainCurrentBuf(gcw);
         gcw.PublishPartialOutput();
         if (nDrained > 0) {
-            paidByGlobal = WorkBuf::kCapacity;
+            paidByGlobal = workBufCapacity;
             stats.processed += nDrained;
         }
     }
@@ -1567,10 +1599,12 @@ void MarkSweepCollector::MarkTermination()
     uint64_t phaseStart = TimeUtil::MicroSeconds();
     VLOG(REPORT, "[MS-GC] --- MarkTermination (STW) ---");
     VLOG(REPORT,
-         "[MS-GC] [mark-stw-entry] branch=%s gcReason=%s debt=%zu level=%zu "
+         "[MS-GC] [mark-stw-entry] branch=%s gcReason=%s debtObjects=%zu "
+         "debtBuffers=%zu level=%zu "
          "noProgress=%zu",
          GetMSMarkTerminationReasonName(cycleStats_.markTerminationReason),
          g_gcRequests[gcReason].name,
+         cycleStats_.markDebtObjects,
          cycleStats_.markDebtBuffers,
          cycleStats_.markPressureLevel,
          cycleStats_.markNoProgressWindows);
@@ -1657,7 +1691,7 @@ void MarkSweepCollector::FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue)
             // them for scanning directly — a re-discover would see them already
             // marked and wrongly skip scanning their fields.
             for (size_t i = 0; i < n; ++i) {
-                BaseObject* obj = log->objs[i];
+                BaseObject* obj = log->Objects()[i];
                 if (obj == nullptr) {
                     continue;
                 }
@@ -1669,8 +1703,6 @@ void MarkSweepCollector::FlushAllWriteBarrierBuffers(GreyWorkQueue& mainQueue)
             workBufPool_.Put(log);
             buffer.ActiveLogRef() = nullptr;
         }
-        // Cycle end: return this owner's cached empty WorkBufs to the pool.
-        buffer.DrainLogCacheToPool(workBufPool_);
     });
 }
 

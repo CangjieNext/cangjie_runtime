@@ -46,13 +46,13 @@ if ! rg -Uq 'RunMarkWorker\(size_t workerId\)[[:space:][:print:]]*TryEnterWorker
     exit 1
 fi
 
-if ! rg -Uq 'PromotePutToGet\(WorkBuf::kCapacity / 8\)[[:space:][:print:]]*AcquireOneBuffer\(\)[[:space:][:print:]]*PromotePutToGet\(1\)' \
+if ! rg -Uq 'PromotePutToGet\([[:space:][:print:]]*workBufPool_\.Capacity\(\) / 8\)[[:space:][:print:]]*AcquireOneBuffer\(\)[[:space:][:print:]]*PromotePutToGet\(1\)' \
     "$COLLECTOR_SOURCE"; then
     echo "MSGC Helper work order must be local-large, one-lock Global Full/Partial, local-small" >&2
     exit 1
 fi
 
-if ! rg -Uq 'if \(remainDebt >= WorkBuf::kCapacity && gcw\.AcquireOneFullBuffer\(\)\)[[:space:][:print:]]*AcquirePartialOutputBuffer\(\)[[:space:][:print:]]*PublishPartialOutput\(\)' \
+if ! rg -Uq 'if \(remainDebt >= workBufCapacity && gcw\.AcquireOneFullBuffer\(\)\)[[:space:][:print:]]*AcquirePartialOutputBuffer\(\)[[:space:][:print:]]*PublishPartialOutput\(\)' \
     "$COLLECTOR_SOURCE"; then
     echo "MSGC Assist must claim Full input before borrowing and publishing Partial output" >&2
     exit 1

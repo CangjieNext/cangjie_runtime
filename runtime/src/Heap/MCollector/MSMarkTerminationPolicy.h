@@ -60,8 +60,8 @@ struct MSMarkCheckpointDecision {
 
 class MSMarkPressurePolicy {
 public:
-    static constexpr size_t kCheckpointBuffers = 10;
-    static constexpr size_t kBacklogBuffersPerLevel = 10;
+    static constexpr size_t kCheckpointObjects = 1ULL << 20;
+    static constexpr size_t kBacklogObjectsPerLevel = 1ULL << 20;
     static constexpr size_t kNoProgressWindowsBeforeSTW = 3;
 
     MSMarkPressurePolicy(size_t maxHelpers, size_t maxAssistMultiplier,
@@ -77,7 +77,7 @@ public:
 
     static constexpr size_t BacklogLevel(size_t debt)
     {
-        return debt == 0 ? 0 : 1 + (debt - 1) / kBacklogBuffersPerLevel;
+        return debt == 0 ? 0 : 1 + (debt - 1) / kBacklogObjectsPerLevel;
     }
 
     MSMarkCheckpointDecision Checkpoint(size_t currentDebt)

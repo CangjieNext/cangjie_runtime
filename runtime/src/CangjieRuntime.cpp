@@ -41,6 +41,7 @@ StackGrowConfig CangjieRuntime::stackGrowConfig = StackGrowConfig::UNDEF;
 size_t CangjieRuntime::msMaxVirtualHeapSizeKB = 0;
 #ifdef MRT_USE_MARK_SWEEP
 MSAllocatorScaleConfig CangjieRuntime::msAllocatorScaleConfig {};
+MSWorkBufScaleConfig CangjieRuntime::msWorkBufScaleConfig {};
 
 void CangjieRuntime::ConfigureMSAllocatorScale(uint32_t processorCount, size_t maxVirtualHeapSizeKB)
 {
@@ -49,6 +50,12 @@ void CangjieRuntime::ConfigureMSAllocatorScale(uint32_t processorCount, size_t m
     size_t configuredInitialSegmentCount = ReadCountParameter(
         "cjMSInitialSegmentCount", 0, 0, EnvBoundKind::CLOSED,
         kMSMaxInitialSegmentCount);
+    size_t configuredWorkBufCapacity = ReadCountParameter(
+        "cjMSWorkBufCapacity", 0, 0, EnvBoundKind::CLOSED,
+        kMSWorkBufMaxCapacity, EnvBoundKind::CLOSED);
+    CHECK_DETAIL(configuredWorkBufCapacity == 0 ||
+                     IsValidMSWorkBufCapacity(configuredWorkBufCapacity),
+                 "cjMSWorkBufCapacity must be one of 128, 256, 512, 1024");
     uint32_t shardCount = ResolveMSShardCount(processorCount, configuredShardCount);
     size_t initialSegmentCount = ResolveMSInitialSegmentCount(configuredInitialSegmentCount);
     CHECK_DETAIL(TryResolveMSRequiredVirtualHeapSizeKB(
@@ -61,6 +68,8 @@ void CangjieRuntime::ConfigureMSAllocatorScale(uint32_t processorCount, size_t m
         .processorsPerShard = ComputeMSProcessorsPerShard(processorCount, shardCount),
         .initialSegmentCount = initialSegmentCount,
     };
+    msWorkBufScaleConfig =
+        ResolveMSWorkBufScaleConfig(processorCount, configuredWorkBufCapacity);
 }
 #endif
 extern "C" MRT_EXPORT void MRT_LibraryOnLoad(uint64_t address, bool enableGC)

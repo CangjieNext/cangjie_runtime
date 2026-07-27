@@ -28,10 +28,10 @@ require_pattern "$ALLOC_SOURCE" \
 active_regions_line="$(rg -n 'MSRegionInfo\* activeRegions_' "$ALLOC_HEADER" | cut -d: -f1)"
 padding_line="$(rg -n 'activeLogAbiReserved_' "$ALLOC_HEADER" | cut -d: -f1)"
 active_log_line="$(rg -n 'WorkBuf\* activeLog_' "$ALLOC_HEADER" | cut -d: -f1)"
-mutex_line="$(rg -n 'std::mutex localEmptyRegionLock_' "$ALLOC_HEADER" | cut -d: -f1)"
+central_line="$(rg -n 'CentralRegionPool\* central_' "$ALLOC_HEADER" | cut -d: -f1)"
 vector_line="$(rg -n 'std::vector<BaseObject\*> stackRoots_' "$ALLOC_HEADER" | cut -d: -f1)"
 
-for line in "$active_regions_line" "$padding_line" "$active_log_line" "$mutex_line" "$vector_line"; do
+for line in "$active_regions_line" "$padding_line" "$active_log_line" "$central_line" "$vector_line"; do
     if [[ -z "$line" ]]; then
         echo 'AllocBufferMS fast-path ABI fields are incomplete' >&2
         exit 1
@@ -40,7 +40,7 @@ done
 
 if [[ "$active_regions_line" -ge "$padding_line" ||
       "$padding_line" -ge "$active_log_line" ||
-      "$active_log_line" -ge "$mutex_line" ||
+      "$active_log_line" -ge "$central_line" ||
       "$active_log_line" -ge "$vector_line" ]]; then
     echo 'activeLog_ must be in a fixed prefix before all STL/platform-dependent members' >&2
     exit 1

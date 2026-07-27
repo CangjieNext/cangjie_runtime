@@ -48,6 +48,7 @@ struct MSGCCycleStats {
     size_t helperProcessedObjects = 0;    // Concurrent buffers scanned by all helper workers.
     size_t markCheckpointCount = 0;
     size_t markDebtBuffers = 0;
+    size_t markDebtObjects = 0;
     size_t markPressureLevel = 0;
     size_t markNoProgressWindows = 0;
     MSMarkTerminationReason markTerminationReason = MSMarkTerminationReason::NATURAL;
@@ -122,8 +123,8 @@ public:
     // Overflow: publish the full activeLog_ wholesale into globalFull_, then
     // install a fresh empty log. Entries have already won the mark CAS.
     void PublishAndSwapLog(AllocBufferMS& ab);
-    // Owner exit: publish the partial activeLog_ to globalFull_, and return all
-    // cached WorkBufs to the pool.
+    // Owner exit: publish the partial activeLog_ to globalFull_, or return the
+    // empty active log directly to the pool.
     void PublishExitedLog(AllocBufferMS& ab);
 
     // Route-A (Step37 §10): shade (mark) an overwritten old-ref at write time.

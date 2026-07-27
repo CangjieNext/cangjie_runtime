@@ -31,37 +31,27 @@ require_pattern "$LFSTACK_HEADER" 'WorkBuf\* fullTop_ = nullptr;' \
     'LFStack must retain a dedicated full-ready head'
 require_pattern "$LFSTACK_HEADER" 'WorkBuf\* partialTop_ = nullptr;' \
     'LFStack must retain a dedicated partial-ready head'
-require_pattern "$LFSTACK_HEADER" 'size_t PopN\(WorkBuf\*\* out, size_t n\)' \
-    'LFStack must provide one-lock batch removal'
-require_pattern "$LFSTACK_HEADER" 'void PushChain\(WorkBuf\* head\)' \
-    'LFStack must provide one-lock chain publication'
 require_pattern "$LFSTACK_HEADER" 'PopResult PopWithCounts\(\)' \
     'LFStack must return one-lock post-pop counts to GC Main'
 require_pattern "$LFSTACK_HEADER" 'Counts GetApproxCounts\(\) const' \
     'LFStack must expose a lock-free post-scan scheduling snapshot'
-require_pattern "$LFSTACK_HEADER" 'size_t got = freeList_\.PopN\(out, n\);' \
-    'WorkBufPool::GetN must use the batch free-list operation'
-require_pattern "$LFSTACK_HEADER" 'freeList_\.PushChain\(head\);' \
-    'WorkBufPool::PutChain must publish the returned chain in one batch'
 require_pattern "$LFSTACK_HEADER" 'void RecycleCurrentInput\(\)' \
-    'PerPGCWork must retain drained input in its local empty-buffer cache'
-require_pattern "$LFSTACK_HEADER" 'workBufPool_->GetN\(bufs, kLocalEmptyCacheCapacity\)' \
-    'PerPGCWork must refill its local empty-buffer cache in one pool operation'
-require_pattern "$LFSTACK_HEADER" 'workBufPool_->PutChain\(chain\);' \
-    'PerPGCWork must flush its local empty-buffer cache in one pool operation'
-require_pattern "$ALLOC_HEADER" 'pool\.PutChain\(chain\);' \
-    'AllocBufferMS must return its detached log cache as one chain'
-reject_pattern "$ALLOC_HEADER" 'while \(logCache_ != nullptr\)' \
-    'AllocBufferMS log-cache drain must not retain the old per-node Put loop'
+    'PerPGCWork must recycle a drained input before acquiring more work'
+require_pattern "$LFSTACK_HEADER" 'workBufPool_->Put\(input\);' \
+    'PerPGCWork must return drained input directly to the global pool'
+reject_pattern "$LFSTACK_HEADER" 'PopN\(|PushChain\(|GetN\(|PutChain\(' \
+    'cache-only WorkBuf batch APIs must be removed'
+reject_pattern "$ALLOC_HEADER" 'logCache_|DrainLogCacheToPool' \
+    'AllocBufferMS must not retain a write-barrier WorkBuf cache'
 
 require_pattern "$ALLOC_SOURCE" \
     'offsetof\(AllocBufferMS, activeLog_\) == AllocBufferMS::kActiveLogOffset' \
     'activeLog_ ABI assertion must remain unchanged'
 require_pattern "$ALLOC_SOURCE" 'offsetof\(WorkBuf, len\) == 8' \
     'WorkBuf len ABI assertion must remain unchanged'
-require_pattern "$ALLOC_SOURCE" 'offsetof\(WorkBuf, objs\) == 16' \
-    'WorkBuf objs ABI assertion must remain unchanged'
-require_pattern "$ALLOC_SOURCE" 'WorkBuf::kCapacity == 1024' \
+require_pattern "$ALLOC_SOURCE" 'offsetof\(WorkBuf, capacity\) == 12' \
     'WorkBuf capacity ABI assertion must remain unchanged'
+require_pattern "$ALLOC_SOURCE" 'sizeof\(WorkBuf\) == 16' \
+    'WorkBuf trailing object array ABI assertion must remain unchanged'
 
-echo 'MSGC WorkBuf batch and dual-lane contract holds'
+echo 'MSGC WorkBuf direct-pool and dual-lane contract holds'

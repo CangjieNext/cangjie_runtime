@@ -73,7 +73,7 @@ if ! rg -q 'sweepRegionsPerAllocScaled_' "$CENTRAL_HEADER" ||
 fi
 
 assist_body="$(extract_function "$CENTRAL_SOURCE" \
-    'MSSweepAssistResult CentralRegionPool::MSSweepAssist(AllocBufferMS& owner, size_t debtRegions,')"
+    'MSSweepAssistResult CentralRegionPool::MSSweepAssist(size_t debtRegions, uint8_t preferredCls)')"
 if [[ -z "$assist_body" ]] ||
    ! printf '%s\n' "$assist_body" | rg -q 'ComputeMSSweepAssistDirectRegions' ||
    printf '%s\n' "$assist_body" | rg -q 'ScaleMSSweepAssistRatioScaled'; then
