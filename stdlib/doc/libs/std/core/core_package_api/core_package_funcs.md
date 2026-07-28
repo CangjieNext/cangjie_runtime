@@ -264,7 +264,7 @@ width: 10, height: 20
 public func exclusiveScope<T>(fn: () -> T): T
 ```
 
-功能：在独占作用域中执行一个闭包，确保闭包在隔离的上下文中运行，并适当地处理任何结果或异常。当执行 fn 时，会发生从仓颉线程栈到操作系统线程栈的切换，并且底层操作系统线程不能被其他仓颉线程抢占。在 fn 返回后，它将切换回仓颉线程栈，并允许进行抢占。
+功能：在独占作用域中执行一个闭包，确保闭包在隔离的上下文中运行。当执行 fn 时，可能会发生从仓颉线程栈到操作系统线程栈的切换，并且底层操作系统线程不能被其他仓颉线程抢占。在 fn 返回或异常从 fn 向外传播后，运行时会恢复先前的栈并重新允许抢占。fn 内部抛出的异常会直接传播给 exclusiveScope 的调用方。
 
 > **注意：**
 >
@@ -280,7 +280,7 @@ public func exclusiveScope<T>(fn: () -> T): T
 
 异常：
 
-- [ExclusiveScopeException](core_package_exceptions.md#class-exclusivescopeexception) - 如果在执行过程中发生异常。
+- 由 fn 抛出的异常会直接向外传播。
 
 示例：
 
