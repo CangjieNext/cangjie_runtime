@@ -11,8 +11,10 @@
 #include "Base/LogFile.h"
 #include "Base/Macros.h"
 #include "Base/Panic.h"
+#include "Common/StackType.h"
 #include "StackManager.h"
 #include "ExceptionCApi.h"
+#include "ExclusiveScopeEHFrameInfo.h"
 #include "Interpreter/InterpreterEHFrameInfo.h"
 #include "Interpreter/InterpreterSpecific.h"
 #include "Mutator/MutatorManager.h"
@@ -58,13 +60,14 @@ void ExceptionWrapper::RestoreContext(CalleeSavedRegisterContext& context)
     auto oldRsp = context.sp;
 #endif
 #endif
+    Mutator* mutator = Mutator::GetMutator();
     for (const auto& framePtr : ehFrameInfos) {
         DLOG(EXCEPTION, "RestoreContext: fa=%p, ip=%p, funcName=%s, isCatchException=%s",
             framePtr->GetFA(), framePtr->GetIP(), framePtr->GetFunctionName().GetStr(),
             framePtr->IsCatchException() ? "true" : "false");
+
         if (framePtr->IsCatchException()) {
 #ifdef INTERPRETER_ENABLED
-            Mutator* mutator = Mutator::GetMutator();
             if (mutator != nullptr) {
                 mutator->GetExceptionWrapper().SetCurrentCatchFunctionPC(
                     reinterpret_cast<uintptr_t>(framePtr->GetIP()));
@@ -160,6 +163,15 @@ bool ExceptionHandling::ProcessEHFrame(const FrameInfo& frame, std::vector<std::
         return false;
     }
 #endif
+    // Exclusive bridge: skip (no spills). Stub: ExclusiveScopeEHFrameInfo restores
+    // bridge+stub together. Neither updates lastRuntimeFrame.
+    if (frame.mFrame.IsExclusiveBridgeFrame()) {
+        return false;
+    }
+    if (frame.mFrame.IsExclusiveStubFrame()) {
+        ehFrameInfos.push_back(std::make_unique<ExclusiveScopeEHFrameInfo>(frame));
+        return false;
+    }
     lastRuntimeFrame = frame;
     return false;
 }

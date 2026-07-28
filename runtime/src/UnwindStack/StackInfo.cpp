@@ -117,8 +117,11 @@ void StackInfo::AnalyseAndSetFrameType(UnwindContext& uwContext)
     } else if (mFrame.IsStackGrowStubFrame()) {
         isReliableN2CStub = false;
         frameInfo.SetFrameType(FrameType::STACKGROW);
+    } else if (mFrame.IsExclusiveBridgeFrame()) {
+        frameInfo.SetFrameType(FrameType::EXCLUSIVE_BRIDGE);
+        isReliableN2CStub = false;
     } else if (mFrame.IsExclusiveStubFrame()) {
-        frameInfo.SetFrameType(FrameType::EXSLUSIVE);
+        frameInfo.SetFrameType(FrameType::EXCLUSIVE_STUB);
         isReliableN2CStub = false;
     } else if (mFrame.IsRuntimeFrame()) {
         frameInfo.SetFrameType(FrameType::RUNTIME);
@@ -168,8 +171,13 @@ void StackInfo::AnalyseAndSetFrameType(UnwindContext& uwContext)
 
 // The current judgment of anchor context is made by comparing the previous stack
 // frame type and the current stack frame type.
+// Exclusive bridge is typed EXCLUSIVE_BRIDGE and must NOT count toward n2cCount (EH must
+// continue past it into CJ-heap frames).
 bool StackInfo::IsN2CContext(const UnwindContext& uwContext) const
 {
+    if (uwContext.frameInfo.GetFrameType() == FrameType::EXCLUSIVE_BRIDGE) {
+        return false;
+    }
     if ((lastFrameType == FrameType::MANAGED && uwContext.frameInfo.GetFrameType() == FrameType::RUNTIME) ||
         uwContext.frameInfo.GetFrameType() == FrameType::N2C_STUB) {
         return true;
