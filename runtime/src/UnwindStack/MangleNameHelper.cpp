@@ -12,6 +12,14 @@
 #include "Utils/Demangler.h"
 
 namespace MapleRuntime {
+namespace {
+bool IsRuntimeEntryName(const CString& name)
+{
+    return name.Find("user.main") == 0 || name.Find("cj_entry$") == 0 || name.Find("_user.main") == 0 ||
+        name.Find("_cj_entry$") == 0 || name.Find("rt$") == 0 || name.Find("_rt$") == 0;
+}
+} // namespace
+
 CString MangleNameHelper::RemoveGenericTypeName(const MapleRuntime::CString& rawName)
 {
     MapleRuntime::CString name;
@@ -35,6 +43,12 @@ CString MangleNameHelper::RemoveGenericTypeName(const MapleRuntime::CString& raw
 
 void MangleNameHelper::Demangle()
 {
+    if (IsRuntimeEntryName(mangleName)) {
+        methodName = mangleName;
+        demangleName = mangleName;
+        return;
+    }
+
     std::function<MapleRuntime::CString(const MapleRuntime::CString&)> genericTypefilter;
     if (stackTraceFormat == StackTraceFormatFlag::ALL) {
         genericTypefilter = [](const MapleRuntime::CString& str) { return str; };

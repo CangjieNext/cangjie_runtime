@@ -37,10 +37,10 @@ void FrameInfo::PrintFrameInfo(uint32_t frameIdx) const
     if (fType == FrameType::MANAGED) {
         StackMetadataHelper stackMetadataHelper(*this);
         MangleNameHelper* mangleNameHelper = stackMetadataHelper.GetMangleNameHelper();
-        mangleNameHelper->Demangle();
         if (mangleNameHelper->IsNeedFilt()) {
             methodName = mangleNameHelper->GetMangleName();
         } else {
+            mangleNameHelper->Demangle();
             methodName = mangleNameHelper->GetDemangleName();
         }
         fileName = stackMetadataHelper.GetFilePathAndName();
