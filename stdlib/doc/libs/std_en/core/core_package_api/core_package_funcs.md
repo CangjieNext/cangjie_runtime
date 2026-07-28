@@ -263,7 +263,7 @@ width: 10, height: 20
 public func exclusiveScope<T>(fn: () -> T): T
 ```
 
-Function: Executes a closure in an exclusive scope, ensuring that the closure runs in an isolated context and handling any results or exceptions appropriately. When executing fn, a switch from the cangjie thread stack to the OS thread stack will occur, and the underlying OS thread cannot be preempted by other cangjie threads. After fn returns, it will switch back to the cangjie thread stack, and the preemption will be permitted.
+Function: Executes a closure in an exclusive scope, ensuring that the closure runs in an isolated context. When executing fn, a switch from the cangjie thread stack to the OS thread stack may occur, and the underlying OS thread cannot be preempted by other cangjie threads. After fn returns or an exception propagates out of fn, the runtime restores the previous stack and allows preemption again. Exceptions thrown inside fn propagate to the caller of exclusiveScope.
 
 > **Note:**
 >
@@ -279,7 +279,7 @@ Return values:
 
 Throws:
 
-- [ExclusiveScopeException](core_package_exceptions.md#class-exclusivescopeexception) - if an exception occurs during execution.
+- Exceptions thrown by fn propagate directly to the caller.
 
 Example:
 
