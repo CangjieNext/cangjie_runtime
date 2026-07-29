@@ -288,7 +288,6 @@
 #define ProcessorSchedule                       CJ_ProcessorSchedule
 #define ProcessorInit                           CJ_ProcessorInit
 #define ProcessorFree                           CJ_ProcessorFree
-#define ProcessorNonDefaultScheduleWake         CJ_ProcessorNonDefaultScheduleWake
 #define ProcessorWake                           CJ_ProcessorWake
 #define ProcessorAlloc                          CJ_ProcessorAlloc
 #define ProcessorThreadExit                     CJ_ProcessorThreadExit
@@ -433,6 +432,7 @@
 
 /* thread */
 #define ThreadSleep                              CJ_ThreadSleep
+#define ThreadWakeIfSleeping                     CJ_ThreadWakeIfSleeping
 #define ThreadCoreBind                           CJ_ThreadCoreBind
 #define ThreadPreemptFlagInit                    CJ_ThreadPreemptFlagInit
 #define ThreadEntry                              CJ_ThreadEntry
